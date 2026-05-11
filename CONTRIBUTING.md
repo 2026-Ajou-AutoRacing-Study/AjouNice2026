@@ -28,7 +28,7 @@
 - `docs:`: 문서 작성/수정
 - `fix:`: 버그 수정
 - `chore:`: 진짜 자잘한 것들, 그다지 안 중요한 커밋들(직역: 잡일)
-- 헷갈리면 대부분 `feat:` 사용해도 ok
+- 헷갈리면 대부분 `feat:`이나 `chore:` 사용하면 ok
 
 ### 예시:
 - `feat: add HRNet model support from mmsegmentation`

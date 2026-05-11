@@ -9,4 +9,4 @@
 - `check_topics.sh`: 토픽 테스트용 스크립트
 - 
 ## Notes
-- 현재(260511) 있는 `setup_ws.sh`, `build_all.sh`, `run_full_stack.sh,`, `check_topics.sh`은 예시 파일들임.
+- 현재(260511) 있는 `setup_ws.sh`, `build_all.sh`, `run_full_stack.sh,`, `check_topics.sh`은 **예시 파일들임.**

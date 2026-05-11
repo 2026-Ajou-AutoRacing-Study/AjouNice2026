@@ -24,3 +24,4 @@ Sensors
 - `configs/` : 차량, 센서, tf 구성에 사용할 파라미터들
 - `scripts/`: setup/build/run/check에 사용할 스크립트들  
 - `maps/`: map 파일들
+- `base_ws/`: ros workspace 폴더
