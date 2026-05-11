@@ -3,6 +3,10 @@
 # python 가상환경 폴더
 .venv/
 
+# third_party repos
+third_party/*
+!third_party/
+!third_party/README.md
 
 
 ### 아래는 Github initial python .gitignore configs임. 수정 x ###

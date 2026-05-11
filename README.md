@@ -16,8 +16,11 @@ Sensors
 → Control  
 → Diagnostics
 
-## Build / Run
-추가 예정
+## Quick Start
+```bash
+git clone https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026.git
+
+```
 
 ## Repository Structure
 - `docs/`: 협업을 위한 문서들
@@ -25,3 +28,4 @@ Sensors
 - `scripts/`: setup/build/run/check에 사용할 스크립트들  
 - `maps/`: map 파일들
 - `base_ws/`: ros workspace 폴더
+- `third_party/`: 개발에 참고할 외부 코드들 -> 추후 우리 workspace에 통합할 대상

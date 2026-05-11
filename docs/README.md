@@ -1,4 +1,4 @@
-# Documentations
+# docs
 - 협업을 위한 문서들
 
 ## docs list

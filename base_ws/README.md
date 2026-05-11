@@ -17,7 +17,7 @@
 - `planning/`
 - `control/`
 - `diagnostics/`
-- `third_party/`
+- `morai_ros_bridge/` -> 이거 나중에 어디에 위치시킬지나 어디서 launch할지 등등 고민하기
 
 ## Package layout(예시)
 ```text
