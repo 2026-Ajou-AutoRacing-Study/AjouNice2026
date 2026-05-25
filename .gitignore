@@ -8,6 +8,32 @@ third_party/*
 !third_party/
 !third_party/README.md
 
+docs/external_docs/
+docs/local_notes.md
+
+### 아래는 ros catkin 관련.
+
+# ROS catkin workspace artifacts
+base_ws/build/
+base_ws/devel/
+base_ws/install/
+base_ws/logs/
+base_ws/.catkin_tools/
+
+# catkin_make / catkin config generated markers
+base_ws/.catkin_workspace
+
+# ROS runtime logs
+.ros/
+*.bag
+*.bag.active
+
+# RViz local configs, optional
+*.rviz
+
+# Local machine-specific files
+.env.local
+docs/local_notes.md
 
 ### 아래는 Github initial python .gitignore configs임. 수정 x ###
 

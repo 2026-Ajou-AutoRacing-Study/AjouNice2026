@@ -1,0 +1,4 @@
+<launch>
+  <include file="$(find ros_tutorial)/launch/static_tf.launch"/>
+  <include file="$(find ros_tutorial)/launch/dummy_sensors.launch"/>
+</launch>

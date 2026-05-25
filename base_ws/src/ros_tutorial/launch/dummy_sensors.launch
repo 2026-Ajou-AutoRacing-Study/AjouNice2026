@@ -1,0 +1,40 @@
+<launch>
+  <!-- dummy_imu_pub.py 노드를 실행한다. -->
+  <!-- pkg: 실행 파일이 들어있는 ROS 패키지 -->
+  <!-- type: scripts/ 아래의 실행 파일 이름 -->
+  <!-- name: ROS graph에서 보일 node 이름 -->
+  <!-- output="screen": 로그를 터미널에 출력 -->
+  <node pkg="ros_tutorial"
+        type="dummy_imu_pub.py"
+        name="dummy_imu_pub"
+        output="screen">
+
+    <!-- Python 코드의 rospy.get_param("~topic", ...)으로 읽힌다. -->
+    <param name="topic" value="/tutorial/imu"/>
+
+    <!-- IMU 메시지의 header.frame_id로 들어간다. -->
+    <param name="frame_id" value="imu"/>
+
+    <!-- IMU publish 주기. -->
+    <param name="rate" value="50.0"/>
+  </node>
+
+  <!-- dummy_lidar_pub.py 노드를 실행한다. -->
+  <node pkg="ros_tutorial"
+        type="dummy_lidar_pub.py"
+        name="dummy_lidar_pub"
+        output="screen">
+
+    <!-- PointCloud2를 publish할 토픽 이름. -->
+    <param name="topic" value="/tutorial/lidar/points"/>
+
+    <!-- PointCloud2 메시지의 header.frame_id로 들어간다. -->
+    <param name="frame_id" value="front_lidar"/>
+
+    <!-- LiDAR publish 주기. -->
+    <param name="rate" value="10.0"/>
+
+    <!-- 한 프레임에 들어갈 dummy point 개수. -->
+    <param name="num_points" value="360"/>
+  </node>
+</launch>

@@ -61,3 +61,14 @@ perception/
 │       └── utils.py
 └── test/
 ```
+
+
+## 초기 패키지들
+- msgs
+    - 우리 custom msg 정의
+- bringup
+    - launch 파일 모음. 여러 노드를 한 번에 켜는 진입점
+- sensor_interface
+    - MORAI 센서 토픽을 우리 표준 토픽 이름으로 변환/relay
+- morai_ros_bridge
+    - MORAI와 연결되는 launch/config 정리

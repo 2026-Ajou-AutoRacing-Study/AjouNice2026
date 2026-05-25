@@ -1,0 +1,30 @@
+# 예시임.
+frames:
+  map: "map"
+  odom: "odom"
+  base_link: "base_link"
+
+lidars:
+  front:
+    frame_id: "lidar_front"
+    topic: "/sensing/lidar/front/points"
+    model: "HDL32"
+  back:
+    frame_id: "lidar_back"
+    topic: "/sensing/lidar/back/points"
+    model: "HDL32"
+
+imu:
+  frame_id: "imu_link"
+  topic: "/sensing/imu/data"
+  target_rate_hz: 500
+
+gnss:
+  frame_id: "gnss_link"
+  topic: "/sensing/gnss/fix"
+
+cameras:
+  front:
+    frame_id: "camera_front"
+    topic: "/sensing/camera/front/image_raw"
+    fov_deg: 55

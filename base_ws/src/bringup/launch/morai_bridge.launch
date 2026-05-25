@@ -1,0 +1,5 @@
+<launch>
+  <!-- rosbridge_server: MORAI가 ROS topic/msg를 WebSocket으로 주고받기 위한 서버 -->
+  <!-- roslaunch bringup morai_bridge.launch -->
+  <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch"/>
+</launch>

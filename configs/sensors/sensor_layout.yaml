@@ -1,30 +1,58 @@
-# 예시임.
-frames:
-  map: "map"
-  odom: "odom"
-  base_link: "base_link"
-
 lidars:
   front:
-    frame_id: "lidar_front"
-    topic: "/sensing/lidar/front/points"
+    topic: "/lidar3D"
+    type: "sensor_msgs/PointCloud2"
+    frame_id: "Lidar3D-1"
     model: "HDL32"
-  back:
-    frame_id: "lidar_back"
-    topic: "/sensing/lidar/back/points"
-    model: "HDL32"
-
-imu:
-  frame_id: "imu_link"
-  topic: "/sensing/imu/data"
-  target_rate_hz: 500
-
-gnss:
-  frame_id: "gnss_link"
-  topic: "/sensing/gnss/fix"
-
+    target_rate: 10
+    actual_rate: 5.631
+    x: 1.2
+    y: 0
+    z: 1.23
+    roll: 0
+    pitch: 0
+    yaw: 0
+    note: ""
+  
 cameras:
   front:
-    frame_id: "camera_front"
-    topic: "/sensing/camera/front/image_raw"
-    fov_deg: 55
+    topic: "/image_jpeg/compressed"
+    type: "sensor_msgs/CompressedImage"
+    frame_id: "Camera-2" 
+    target_rate: 30
+    actual_rate: 22.457
+    x: 2.2
+    y: 0
+    z: 1.0
+    roll: 0
+    pitch: 0
+    yaw: 0
+    note: ""
+
+imu:
+  topic: "/imu"
+  type: "sensor_msgs/Imu"
+  frame_id: "IMU-3"
+  target_rate: 50
+  actual_rate: 33.878
+  x: 1.2
+  y: 0
+  z: 0.5
+  roll: 0
+  pitch: 0
+  yaw: 0
+  note: ""
+
+gnss:
+  topic: "/gps"
+  type: "morai_msgs/GPSMessage"
+  frame_id: "GNSS-4"
+  target_rate: 5
+  actual_rate: 4.262
+  x: 1.1
+  y: 0
+  z: 1.23
+  roll: 0
+  pitch: 0
+  yaw: 0
+  note: ""
