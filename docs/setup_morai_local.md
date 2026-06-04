@@ -103,7 +103,7 @@ roslaunch rosbridge_server rosbridge_websocket.launch # 터미널 2
 ## WINDOWS 11 MORAI에서 ROS에 연결
 - Edit > Network Settings > Simulator Network
     - Protocol: ROS
-    - Bridge IP: (아까 hostname -I로 확인한 WSL2 IP)
+    - Bridge IP: (아까 hostname -I로 확인한 WSL2 IP) -> 이거 나중에 다시 키니까 그냥 원래 127.0.0.1(자기 자신) IP로 connect해야 잘 됐음 -> 왜지...
     - Bridge Port: 9090
 - 입력 후 Connect 클릭
 - 연결됐으면, 왼쪽 위에 Status가 `Connected`로 바뀜.

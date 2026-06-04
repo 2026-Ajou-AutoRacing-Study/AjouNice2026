@@ -1,0 +1,56 @@
+common:
+  lid_topic: "/lidar3D"
+  imu_topic: "/imu"
+  time_sync_en: false
+  time_offset_lidar_to_imu: 0.0
+
+preprocess:
+  # 1: Livox, 2: Velodyne, 3: Ouster, 4: MARSIM
+  lidar_type: 2
+
+  # MORAI LiDAR model is being treated as HDL32-like.
+  scan_line: 32
+
+  # MORAI sensor period is 0.1s, so target rate is 10Hz.
+  scan_rate: 10
+
+  # This must match the unit of the PointCloud2 "time" field.
+  # FAST-LIO default Velodyne config uses 2 = microsecond.
+  # Keep this for the first test, but verify /lidar3D/fields first.
+  timestamp_unit: 2
+
+  # Ignore points closer than this distance.
+  blind: 2
+
+mapping:
+  acc_cov: 0.1
+  gyr_cov: 0.1
+  b_acc_cov: 0.0001
+  b_gyr_cov: 0.0001
+
+  fov_degree: 180
+  det_range: 100.0
+
+  # We are giving initial LiDAR-IMU extrinsic manually.
+  extrinsic_est_en: false
+
+  # LiDAR pose in IMU frame.
+  # LiDAR: [1.2, 0.0, 1.23]
+  # IMU:   [1.2, 0.0, 0.50]
+  # LiDAR - IMU = [0.0, 0.0, 0.73]
+  extrinsic_T: [0.0, 0.0, 0.73]
+
+  # Both sensor rotations are currently [0, 0, 0].
+  extrinsic_R: [1, 0, 0,
+                0, 1, 0,
+                0, 0, 1]
+
+publish:
+  path_en: true
+  scan_publish_en: true
+  dense_publish_en: true
+  scan_bodyframe_pub_en: true
+
+pcd_save:
+  pcd_save_en: false
+  interval: -1
