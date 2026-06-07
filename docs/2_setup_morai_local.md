@@ -209,7 +209,7 @@ obstacle_list: []
 ### /ctrl_cmd 테스트
 - 이건 자율주행 모드로 바꿔야 되니까, MORAI에서 Q 눌러서 `AV-ExternalCtrl`로 모드 전환해야 함.
 - 제어 모드는 Manual Keyboard, Manual GameWheel, AV-MORAI Built-In, AV-ExternalCtrl가 있음.
-- Q 한번 누르면 됨.
+- Q 세 번 누르면 됨.
 
 - 아래 코드를 입력해 속도 10으로 등속도 운동을 하도록 제어 명령을 보내보면, 
 - 실제로 속도 10으로 차량이 움직임을 볼 수 있음.
@@ -284,7 +284,7 @@ GNSS    target 5 Hz  → actual 4.26 Hz  약 85%
 - rviz에서 제대로 보려면,
     - map을 LiDAR-1(우리 frame에 맞게)로 바꾸고,
     - Add - tf 키고,
-    - Add - topic 들어가서 pointcloud2를 켜줘야 함 (그냥 category 상에서 선택해 키면 안 나옴).
+    - Add - By topic 들어가서 pointcloud2를 켜줘야 함 (그냥 category 상에서 선택해 키면 안 나옴).
 
 ## ROS에 launch로 morai bridge 등록하기
 ```xml

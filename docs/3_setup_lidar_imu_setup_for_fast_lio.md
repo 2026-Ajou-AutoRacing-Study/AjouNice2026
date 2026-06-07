@@ -1,4 +1,4 @@
-# morai - ros bridge 만들기
+# morai - lidar, imu setup
 
 ## 계획
 
@@ -210,8 +210,7 @@ x: -0.012244097888469696
 y: 4.353281110525131e-05
 z: -0.0009999488247558475
 ```
-- 좋지 않다... GT가 각각 저렇게 나온다.
-- 결론: morai가 현재 차량의 각속도, 가속도 정보를 애초에 제대로 (갱신해서) 주지 못하고 있음.
+- 뭐지? 차량이 거의 멈춰있는 걸로 나옴
 
 ### position, velocity, heading을 찍어볼까?
 ```bash
@@ -225,18 +224,48 @@ y: -220.17864990234375
 z: 28.821514129638672
 ```
 - 차를 움직여도 position이 안 바뀜
-- -> ROS Network쪽 문제다!!
-- MORAI Ego Network를 다시 connect해 보자.
-
-
-
-### config 만들기
-- fast lio 안에 `config/velodyne.yaml`가 있긴 한데 서브모듈로 관리할 거니까 우리 쪽에 config 따로 만들기
+- 뭐지... 통신 문젠가?
 ```bash
-mkdir -p ~/AjouNice2026/configs/localization
-gedit ~/AjouNice2026/configs/localization/fast_lio_morai_velodyne.yaml
+rostopic echo /Ego_topic/velocity
+x: 0.0011129230260849
+y: 6.663904059678316e-06
+z: 1.5197627362795174e-05
+
+rostopic echo /Ego_topic/heading
+58.86518859863281
+```
+- 차를 움직여도 속도가 여전히 0에 가까운 수준에, heading도 바뀌지 않음.
+- 결론: 내가 morai에서 주행하는 차를 지금 ros에서 보고 있지가 않음. 뭐지...
+
+- wsl --shutdown 및 morai 재부팅 후 재시도
+  - 여전히 해결 안 됨 -> 단순 통신 문제는 아닌가?
+
+```bash
+rostopic echo /gps
+header: 
+  seq: 83
+  stamp: 
+    secs: 1780818514
+    nsecs: 960000000
+  frame_id: "GPS-4"
+latitude: 37.24729860724102
+longitude: 126.76991422515982
+altitude: 29.975679397583008
+eastOffset: 302595.0
+northOffset: 4124145.0
+status: 1
 ```
 
+- 심지어 GPS도 안 바뀜...
 
-### launch wrapper 만들기
-- config 우리쪽 꺼 쓰기로 했으니까 그거에 맞춰서 launch도 새로 만들어줘야 함
+### 다시 재부팅 -> 해결됨!
+- 다시 wsl --shutdown 후에, ros에서 먼저 roscore, roslaunch 후에 
+- morai에서 센서 연결 안 하고 테스트하니,
+- 잘 됨! position이랑 velocity 잘 바뀜.
+- ctrl_cmd test도 잘 됨.
+- 아마 morai에서 disconnect 후 connect하는 걸 안 하고 바로 하니까 잘 되는듯?
+  - disconnect 후 connect 다시 하는 거 하지 말자
+- 결론: ros 통신 문제였던 것 같다.
+
+- imu, gps도 잘 작동함.
+  - imu /imu/linear_acceleration z 값 9.8로 중력가속도 근처 나옴 -> good
