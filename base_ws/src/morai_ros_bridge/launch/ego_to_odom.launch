@@ -1,0 +1,22 @@
+<launch>
+  <!--
+    MORAI /Ego_topic을 ROS 표준 nav_msgs/Odometry로 변환한다.
+
+    Input:
+      /Ego_topic : morai_msgs/EgoVehicleStatus
+
+    Output:
+      /localization/odom : nav_msgs/Odometry
+  -->
+
+  <node pkg="morai_ros_bridge"
+        type="morai_ego_to_odom.py"
+        name="morai_ego_to_odom"
+        output="screen">
+
+    <param name="ego_topic" value="/Ego_topic"/>
+    <param name="odom_topic" value="/localization/odom"/>
+    <param name="frame_id" value="map"/>
+    <param name="child_frame_id" value="base_link"/>
+  </node>
+</launch>
