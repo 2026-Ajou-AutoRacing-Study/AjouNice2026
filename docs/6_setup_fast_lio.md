@@ -47,12 +47,12 @@ extrinsic_R
 /cloud_registered
   sensor_msgs/PointCloud2
   # 추정 pose 기준으로 정합된 현재 point cloud
-  # -> /mapping/local_map로 연결
+  # -> /localization/cloud_registered로 연결
 
 /Laser_map
   sensor_msgs/PointCloud2
   # FAST-LIO map/local map 계열 point cloud
-  # -> /localization/cloud_registered로 연결
+  # -> /mapping/local_map로 연결
 ```
 
 ## fast lio marsim mode rosbag으로 실행
