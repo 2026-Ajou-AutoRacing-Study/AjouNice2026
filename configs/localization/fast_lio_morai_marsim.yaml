@@ -1,0 +1,56 @@
+common:
+  lid_topic: "/lidar3D"
+  imu_topic: "/imu"
+  time_sync_en: false
+  time_offset_lidar_to_imu: 0.0
+
+preprocess:
+  # 1: Livox, 2: Velodyne, 3: Ouster, 4: MARSIM
+  # MORAI ROS /lidar3D has only x,y,z,intensity fields.
+  # Therefore, use MARSIM/simple PointXYZI path for the first integration.
+  lidar_type: 4
+
+  # Kept for documentation / compatibility.
+  # MARSIM path does not use Velodyne ring/time fields.
+  scan_line: 32
+
+  # MORAI LiDAR target period is 0.1s, but actual local rate is ~7Hz.
+  scan_rate: 10
+
+  # timestamp_unit is only meaningful for Velodyne/Ouster time fields.
+  # Since MORAI ROS /lidar3D has no time field, do not rely on this.
+  # You can omit it or leave it harmlessly if FAST-LIO config parser expects it.
+  timestamp_unit: 2
+
+  blind: 2
+
+mapping:
+  acc_cov: 0.1
+  gyr_cov: 0.1
+  b_acc_cov: 0.0001
+  b_gyr_cov: 0.0001
+
+  fov_degree: 180
+  det_range: 100.0
+
+  extrinsic_est_en: false
+
+  # LiDAR pose in IMU frame.
+  # LiDAR: [1.2, 0.0, 1.23]
+  # IMU:   [1.2, 0.0, 0.50]
+  # LiDAR - IMU = [0.0, 0.0, 0.73]
+  extrinsic_T: [0.0, 0.0, 0.73]
+
+  extrinsic_R: [1, 0, 0,
+                0, 1, 0,
+                0, 0, 1]
+
+publish:
+  path_en: true
+  scan_publish_en: true
+  dense_publish_en: true
+  scan_bodyframe_pub_en: true
+
+pcd_save:
+  pcd_save_en: false
+  interval: -1
