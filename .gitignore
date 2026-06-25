@@ -8,6 +8,9 @@ third_party/*
 !third_party/
 !third_party/README.md
 
+# map files
+maps/
+
 docs/external_docs/
 docs/local_notes.md
 
