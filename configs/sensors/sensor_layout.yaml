@@ -7,7 +7,7 @@ lidars:
     transport: "udp_velodyne"
     udp_destination_port: 2368
     udp_host_port: 2369
-    target_rate: 10
+    target_rate: 20
     actual_rate:
     x: 2.05
     y: 0
@@ -24,7 +24,7 @@ lidars:
     transport: "udp_velodyne"
     udp_destination_port: 2370
     udp_host_port: 2371
-    target_rate: 10
+    target_rate: 20
     actual_rate:
     x: 0.35
     y: 0

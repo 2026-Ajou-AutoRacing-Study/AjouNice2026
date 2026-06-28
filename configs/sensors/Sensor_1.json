@@ -141,7 +141,7 @@
       "lc": {
         "sensorName": "HDL32_Lidar1",
         "sensorType": 2,
-        "sensorPeriod": 0.10000000149011612,
+        "sensorPeriod": 0.05000000074505806,
         "commType": 1,
         "udpConfig": {
           "hostIP": "127.0.0.1",
@@ -221,7 +221,7 @@
       "lc": {
         "sensorName": "HDL32_Lidar2",
         "sensorType": 2,
-        "sensorPeriod": 0.10000000149011612,
+        "sensorPeriod": 0.05000000074505806,
         "commType": 1,
         "udpConfig": {
           "hostIP": "127.0.0.1",

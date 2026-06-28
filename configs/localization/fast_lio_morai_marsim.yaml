@@ -14,8 +14,8 @@ preprocess:
   # MARSIM path does not use Velodyne ring/time fields.
   scan_line: 32
 
-  # MORAI LiDAR target period is 0.1s, but actual local rate is ~7Hz.
-  scan_rate: 10
+  # MORAI LiDAR target period is 0.05s, but actual local rate must be verified.
+  scan_rate: 20
 
   # timestamp_unit is only meaningful for Velodyne/Ouster time fields.
   # Since this simple pointcloud path has no time field, do not rely on this.

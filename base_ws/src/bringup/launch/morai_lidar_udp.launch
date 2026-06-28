@@ -33,7 +33,7 @@
       <param name="read_fast" value="false"/>
       <param name="read_once" value="false"/>
       <param name="repeat_delay" value="0.0"/>
-      <param name="rpm" value="600.0"/>
+      <param name="rpm" value="1200.0"/>
       <param name="gps_time" value="false"/>
       <param name="pcap_time" value="false"/>
       <param name="cut_angle" value="-0.01"/>
@@ -76,7 +76,7 @@
       <param name="read_fast" value="false"/>
       <param name="read_once" value="false"/>
       <param name="repeat_delay" value="0.0"/>
-      <param name="rpm" value="600.0"/>
+      <param name="rpm" value="1200.0"/>
       <param name="gps_time" value="false"/>
       <param name="pcap_time" value="false"/>
       <param name="cut_angle" value="-0.01"/>

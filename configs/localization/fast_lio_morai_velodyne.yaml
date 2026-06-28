@@ -11,8 +11,8 @@ preprocess:
   # MORAI LiDAR model is being treated as HDL32-like.
   scan_line: 32
 
-  # MORAI sensor period is 0.1s, so target rate is 10Hz.
-  scan_rate: 10
+  # MORAI sensor period is 0.05s, so target rate is 20Hz.
+  scan_rate: 20
 
   # This must match the unit of the PointCloud2 "time" field.
   # FAST-LIO default Velodyne config uses 2 = microsecond.
