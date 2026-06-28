@@ -1,0 +1,103 @@
+{
+  "export_mode": "ros_base_link_rear_axle_baked_vertices",
+  "mesh_object_count": 5,
+  "mesh_objects": [
+    "SM_Ioniq_5_Body",
+    "SM_Wheel_BL",
+    "SM_Wheel_BR",
+    "SM_Wheel_FL",
+    "SM_Wheel_FR"
+  ],
+  "raw_scene_bbox_m": {
+    "center": [
+      -0.001481,
+      -0.254724,
+      0.814897
+    ],
+    "max": [
+      1.083786,
+      2.073943,
+      1.628767
+    ],
+    "min": [
+      -1.086748,
+      -2.583392,
+      0.001027
+    ],
+    "size": [
+      2.170534,
+      4.657335,
+      1.62774
+    ]
+  },
+  "raw_wheel_centers_m": {
+    "SM_Wheel_BL": [
+      0.770616,
+      1.309082,
+      0.376652
+    ],
+    "SM_Wheel_BR": [
+      -0.773947,
+      1.309082,
+      0.376652
+    ],
+    "SM_Wheel_FL": [
+      0.770616,
+      -1.713319,
+      0.376652
+    ],
+    "SM_Wheel_FR": [
+      -0.773947,
+      -1.713319,
+      0.376652
+    ],
+    "diameter_y_m": 0.751384,
+    "diameter_z_m": 0.751249,
+    "front_axle_y": -1.713319,
+    "rear_axle_y": 1.309082,
+    "width_x_m": 0.250504
+  },
+  "ros_bbox_m": {
+    "center": [
+      1.5275,
+      0.0,
+      0.8
+    ],
+    "max": [
+      3.845,
+      1.067,
+      1.6
+    ],
+    "min": [
+      -0.79,
+      -1.067,
+      0.0
+    ],
+    "size": [
+      4.635,
+      2.134,
+      1.6
+    ]
+  },
+  "ros_frame_convention": {
+    "base_link": "rear axle center on ground",
+    "x": "forward",
+    "y": "left",
+    "z": "up"
+  },
+  "source_blend": "/home/jihun/AjouNice2026/base_ws/src/vehicle/source_assets/Project_Cars_Hyundai_Ioniq_5.blend",
+  "target_dimensions_m": {
+    "body_width_m": 1.89,
+    "front_overhang_m": 0.845,
+    "front_track_m": 1.641,
+    "height_m": 1.6,
+    "length_m": 4.635,
+    "rear_overhang_m": 0.79,
+    "rear_track_m": 1.651,
+    "tire_outer_diameter_m": 0.741,
+    "tire_width_m": 0.235,
+    "wheelbase_m": 3.0,
+    "width_m": 2.134
+  },
+  "wheel_lateral_policy": "use_official_track_with_mirror_width_visual_bbox"
+}

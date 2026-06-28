@@ -1,0 +1,19 @@
+<launch>
+  <arg name="start_rviz" default="true"/>
+  <arg name="rviz_config"
+       default="$(find ioniq5)/rviz/ioniq5.rviz"/>
+
+  <param name="robot_description"
+         command="$(find xacro)/xacro '$(find ioniq5)/urdf/ioniq5.urdf.xacro'"/>
+
+  <node pkg="robot_state_publisher"
+        type="robot_state_publisher"
+        name="ioniq5_robot_state_publisher"
+        output="screen"/>
+
+  <node pkg="rviz"
+        type="rviz"
+        name="rviz_ioniq5"
+        args="-d $(arg rviz_config)"
+        if="$(arg start_rviz)"/>
+</launch>
