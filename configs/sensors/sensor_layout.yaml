@@ -13,9 +13,9 @@ lidars:
     y: 0
     z: 1.373
     roll: 0
-    pitch: 5
+    pitch: 0
     yaw: 0
-    note: "front windshield-area mount, 0.36 m vertical clearance from IONIQ5 body surface; 5 deg downward pitch reduces sky waste while preserving mid-range coverage"
+    note: "front windshield-area mount, 0.36 m vertical clearance from IONIQ5 body surface; level 0 deg pitch"
   lidar2:
     topic: "/sensor/lidar2"
     type: "sensor_msgs/PointCloud2"

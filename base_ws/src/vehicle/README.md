@@ -13,9 +13,9 @@ The RViz mesh is `meshes/ioniq5/ioniq5_base_link.dae`.
 - `+Z`: up
 
 The Collada mesh is baked into this ROS frame, so the URDF uses zero visual
-rotation. At runtime the MORAI ego frame behaves like a rear axle wheel-center
-frame, so the URDF lowers the visual/collision geometry by the tire radius plus
-a small LiDAR self-return correction.
+rotation and zero visual translation. MORAI sensor extrinsics in
+`configs/sensors/Sensor_1.json` are interpreted in the same rear-axle ground
+frame.
 
 ## Dimensions
 
@@ -37,11 +37,11 @@ y: [-0.945, 0.945]
 z: [0.000, 1.600]
 ```
 
-With the current URDF visual offset (`visual_z_offset=-0.410` m), RViz displays
+With the current URDF visual offset (`visual_z_offset=0.000` m), RViz displays
 the mesh body bbox at approximately:
 
 ```text
-z: [-0.410, 1.190]
+z: [0.000, 1.600]
 ```
 
 The measurement record is in `meshes/ioniq5/ioniq5_mesh_measurements.json`.
