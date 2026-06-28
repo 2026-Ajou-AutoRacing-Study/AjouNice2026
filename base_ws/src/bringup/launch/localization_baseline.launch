@@ -1,4 +1,7 @@
 <launch>
   <!-- MORAI Ego status를 baseline localization odometry로 변환 -->
   <include file="$(find morai_ros_bridge)/launch/ego_to_odom.launch"/>
+
+  <!-- Publish base_link -> sensor static TFs used by MORAI sensor topics. -->
+  <include file="$(find ioniq5)/launch/sensor_static_tf.launch"/>
 </launch>

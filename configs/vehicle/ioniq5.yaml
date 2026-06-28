@@ -5,7 +5,7 @@ vehicle:
   wheelbase_m: 3.000
   length_m: 4.635
   width_m: 1.892
-  height_m: 2.434
+  height_m: 1.605
 
   front_overhang_m: 0.845
   rear_overhang_m: 0.790

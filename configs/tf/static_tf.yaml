@@ -1,15 +1,17 @@
+# rpy is stored as roll, pitch, yaw in radians.
+# The ROS launch publisher uses yaw, pitch, roll order; keep that conversion explicit there.
 static_transforms:
   - parent: "base_link"
-    child: "lidar_front"
-    xyz: [0.0, 0.0, 0.0]
-    rpy: [0.0, 0.0, 0.0]
+    child: "lidar1"
+    xyz: [2.05, 0.0, 1.373]
+    rpy: [0.0, 0.0872665, 0.0]
 
   - parent: "base_link"
-    child: "lidar_back"
-    xyz: [0.0, 0.0, 0.0]
-    rpy: [0.0, 0.0, 3.14159]
+    child: "lidar2"
+    xyz: [0.35, 0.0, 1.576]
+    rpy: [0.0, 0.0872665, 3.14159]
 
   - parent: "base_link"
-    child: "imu_link"
-    xyz: [0.0, 0.0, 0.0]
+    child: "IMU-3"
+    xyz: [1.2, 0.0, 0.5]
     rpy: [0.0, 0.0, 0.0]

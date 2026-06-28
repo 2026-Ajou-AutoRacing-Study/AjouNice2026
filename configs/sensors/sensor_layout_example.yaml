@@ -5,26 +5,26 @@ frames:
   base_link: "base_link"
 
 lidars:
-  front:
-    frame_id: "lidar_front"
-    topic: "/sensing/lidar/front/points"
+  lidar1:
+    frame_id: "lidar1"
+    topic: "/sensor/lidar1"
     model: "HDL32"
-  back:
-    frame_id: "lidar_back"
-    topic: "/sensing/lidar/back/points"
+  lidar2:
+    frame_id: "lidar2"
+    topic: "/sensor/lidar2"
     model: "HDL32"
 
 imu:
   frame_id: "imu_link"
-  topic: "/sensing/imu/data"
+  topic: "/sensor/imu"
   target_rate_hz: 500
 
 gnss:
   frame_id: "gnss_link"
-  topic: "/sensing/gnss/fix"
+  topic: "/sensor/gps"
 
 cameras:
   front:
     frame_id: "camera_front"
-    topic: "/sensing/camera/front/image_raw"
+    topic: "/sensor/camera"
     fov_deg: 55

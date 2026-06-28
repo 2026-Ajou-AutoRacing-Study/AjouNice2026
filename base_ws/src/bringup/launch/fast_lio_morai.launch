@@ -2,9 +2,9 @@
   <!-- Use rosbag/MORAI simulation time -->
   <param name="/use_sim_time" value="true"/>
 
-  <!-- MORAI-specific FAST-LIO config -->
+  <!-- MORAI UDP LiDAR through velodyne_driver. -->
   <rosparam command="load"
-            file="$(env HOME)/AjouNice2026/configs/localization/fast_lio_morai_marsim.yaml"/>
+            file="$(env HOME)/AjouNice2026/configs/localization/fast_lio_morai_velodyne.yaml"/>
 
   <!-- Runtime params commonly used by FAST-LIO launch files -->
   <param name="feature_extract_enable" type="bool" value="0"/>

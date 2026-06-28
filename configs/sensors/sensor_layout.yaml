@@ -1,22 +1,42 @@
 lidars:
-  front:
-    topic: "/lidar3D"
+  lidar1:
+    topic: "/sensor/lidar1"
     type: "sensor_msgs/PointCloud2"
-    frame_id: "Lidar3D-1"
+    frame_id: "lidar1"
     model: "HDL32"
+    transport: "udp_velodyne"
+    udp_destination_port: 2368
+    udp_host_port: 2369
     target_rate: 10
-    actual_rate: 5.631
-    x: 1.2
+    actual_rate:
+    x: 2.05
     y: 0
-    z: 1.23
+    z: 1.373
     roll: 0
-    pitch: 0
+    pitch: 5
     yaw: 0
-    note: ""
+    note: "front windshield-area mount, 0.36 m vertical clearance from IONIQ5 body surface; 5 deg downward pitch reduces sky waste while preserving mid-range coverage"
+  lidar2:
+    topic: "/sensor/lidar2"
+    type: "sensor_msgs/PointCloud2"
+    frame_id: "lidar2"
+    model: "HDL32"
+    transport: "udp_velodyne"
+    udp_destination_port: 2370
+    udp_host_port: 2371
+    target_rate: 10
+    actual_rate:
+    x: 0.35
+    y: 0
+    z: 1.576
+    roll: 0
+    pitch: 5
+    yaw: 180
+    note: "rear roof mount, 0.36 m vertical clearance from IONIQ5 body surface; rear-facing 5 deg downward pitch balances blind spot and mid-range density"
   
 cameras:
   front:
-    topic: "/image_jpeg/compressed"
+    topic: "/sensor/camera"
     type: "sensor_msgs/CompressedImage"
     frame_id: "Camera-2" 
     target_rate: 30
@@ -30,7 +50,7 @@ cameras:
     note: ""
 
 imu:
-  topic: "/imu"
+  topic: "/sensor/imu"
   type: "sensor_msgs/Imu"
   frame_id: "IMU-3"
   target_rate: 50
@@ -44,7 +64,7 @@ imu:
   note: ""
 
 gnss:
-  topic: "/gps"
+  topic: "/sensor/gps"
   type: "morai_msgs/GPSMessage"
   frame_id: "GNSS-4"
   target_rate: 5

@@ -1,0 +1,26 @@
+<launch>
+  <!--
+    Publish base_link -> sensor static TFs from the same Sensor_1.json that MORAI loads.
+    Keep the numeric sensor extrinsics in configs/sensors/Sensor_1.json, not in launch.
+  -->
+
+  <arg name="sensor_config"
+       default="$(find ioniq5)/../../../configs/sensors/Sensor_1.json"/>
+  <arg name="parent_frame" default="base_link"/>
+  <arg name="publish_lidar" default="true"/>
+  <arg name="publish_imu" default="false"/>
+  <arg name="publish_camera" default="false"/>
+  <arg name="publish_gps" default="false"/>
+
+  <node pkg="ioniq5"
+        type="morai_sensor_static_tf.py"
+        name="morai_sensor_static_tf"
+        output="screen">
+    <param name="sensor_config" value="$(arg sensor_config)"/>
+    <param name="parent_frame" value="$(arg parent_frame)"/>
+    <param name="publish_lidar" value="$(arg publish_lidar)"/>
+    <param name="publish_imu" value="$(arg publish_imu)"/>
+    <param name="publish_camera" value="$(arg publish_camera)"/>
+    <param name="publish_gps" value="$(arg publish_gps)"/>
+  </node>
+</launch>
