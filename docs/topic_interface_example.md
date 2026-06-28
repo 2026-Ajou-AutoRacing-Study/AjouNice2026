@@ -5,11 +5,11 @@
 
 | Topic | Type | Source | Notes |
 |---|---|---|---|
-| `/sensing/lidar/front/points` | `sensor_msgs/PointCloud2` | HDL32 front | UDP driver |
-| `/sensing/lidar/back/points` | `sensor_msgs/PointCloud2` | HDL32 rear | UDP driver |
-| `/sensing/imu/data` | `sensor_msgs/Imu` | IMU | 500 Hz target |
-| `/sensing/gnss/fix` | `sensor_msgs/NavSatFix` | GPS | 1 unit |
-| `/sensing/camera/front/image_raw` | `sensor_msgs/Image` | Camera | FOV 55 deg |
+| `/sensor/lidar1` | `sensor_msgs/PointCloud2` | HDL32 lidar1 | UDP driver |
+| `/sensor/lidar2` | `sensor_msgs/PointCloud2` | HDL32 lidar2 | UDP driver |
+| `/sensor/imu` | `sensor_msgs/Imu` | IMU | 500 Hz target |
+| `/sensor/gps` | `sensor_msgs/NavSatFix` | GPS | 1 unit |
+| `/sensor/camera` | `sensor_msgs/Image` | Camera | FOV 55 deg |
 
 ## Localization Output
 

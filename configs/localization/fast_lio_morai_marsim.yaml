@@ -1,12 +1,12 @@
 common:
-  lid_topic: "/lidar3D"
-  imu_topic: "/imu"
+  lid_topic: "/sensor/lidar1"
+  imu_topic: "/sensor/imu"
   time_sync_en: false
   time_offset_lidar_to_imu: 0.0
 
 preprocess:
   # 1: Livox, 2: Velodyne, 3: Ouster, 4: MARSIM
-  # MORAI ROS /lidar3D has only x,y,z,intensity fields.
+  # MORAI rosbridge LiDAR has only x,y,z,intensity fields.
   # Therefore, use MARSIM/simple PointXYZI path for the first integration.
   lidar_type: 4
 
@@ -18,7 +18,7 @@ preprocess:
   scan_rate: 10
 
   # timestamp_unit is only meaningful for Velodyne/Ouster time fields.
-  # Since MORAI ROS /lidar3D has no time field, do not rely on this.
+  # Since this simple pointcloud path has no time field, do not rely on this.
   # You can omit it or leave it harmlessly if FAST-LIO config parser expects it.
   timestamp_unit: 2
 
@@ -36,11 +36,12 @@ mapping:
   extrinsic_est_en: false
 
   # LiDAR pose in IMU frame.
-  # LiDAR: [1.2, 0.0, 1.23]
+  # LiDAR: [3.55, 0.0, 1.40]
   # IMU:   [1.2, 0.0, 0.50]
-  # LiDAR - IMU = [0.0, 0.0, 0.73]
-  extrinsic_T: [0.0, 0.0, 0.73]
+  # LiDAR - IMU = [2.35, 0.0, 0.90]
+  extrinsic_T: [2.35, 0.0, 0.90]
 
+  # Keep rotation identity until the 10 deg LiDAR pitch is validated in FAST-LIO.
   extrinsic_R: [1, 0, 0,
                 0, 1, 0,
                 0, 0, 1]

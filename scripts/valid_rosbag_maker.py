@@ -4,8 +4,8 @@ in_path = "/home/ubuntu2004/AjouNice2026/rosbags/morai_local_valid_ego_sensors.b
 out_path = "/home/ubuntu2004/AjouNice2026/rosbags/morai_local_valid_ego_sensors_fixed_time.bag"
 
 fix_header_topics = {
-    "/lidar3D",
-    "/imu",
+    "/sensor/lidar1",
+    "/sensor/imu",
 }
 
 with rosbag.Bag(out_path, "w") as outbag:

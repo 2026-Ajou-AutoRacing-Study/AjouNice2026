@@ -1,7 +1,7 @@
 import rosbag
 
 bag_path = "/home/ubuntu2004/AjouNice2026/rosbags/morai_local_valid_ego_sensors_fixed_time.bag"
-topics = ["/lidar3D", "/imu"]
+topics = ["/sensor/lidar1", "/sensor/imu"]
 
 last = {}
 count = {t: 0 for t in topics}

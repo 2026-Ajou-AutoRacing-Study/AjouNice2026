@@ -1,6 +1,6 @@
 common:
-  lid_topic: "/lidar3D"
-  imu_topic: "/imu"
+  lid_topic: "/sensor/lidar1"
+  imu_topic: "/sensor/imu"
   time_sync_en: false
   time_offset_lidar_to_imu: 0.0
 
@@ -16,7 +16,7 @@ preprocess:
 
   # This must match the unit of the PointCloud2 "time" field.
   # FAST-LIO default Velodyne config uses 2 = microsecond.
-  # Keep this for the first test, but verify /lidar3D/fields first.
+  # Keep this for the first test, but verify /sensor/lidar1/fields first.
   timestamp_unit: 2
 
   # Ignore points closer than this distance.
@@ -35,12 +35,12 @@ mapping:
   extrinsic_est_en: false
 
   # LiDAR pose in IMU frame.
-  # LiDAR: [1.2, 0.0, 1.23]
+  # LiDAR: [3.55, 0.0, 1.40]
   # IMU:   [1.2, 0.0, 0.50]
-  # LiDAR - IMU = [0.0, 0.0, 0.73]
-  extrinsic_T: [0.0, 0.0, 0.73]
+  # LiDAR - IMU = [2.35, 0.0, 0.90]
+  extrinsic_T: [2.35, 0.0, 0.90]
 
-  # Both sensor rotations are currently [0, 0, 0].
+  # Keep rotation identity until the 10 deg LiDAR pitch is validated in FAST-LIO.
   extrinsic_R: [1, 0, 0,
                 0, 1, 0,
                 0, 0, 1]

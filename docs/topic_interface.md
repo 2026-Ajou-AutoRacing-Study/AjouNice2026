@@ -29,13 +29,12 @@
     - MORAI 시뮬레이터 시간
 
 ### sensors
-- 자세한 건 config/sensor_layout.yaml 참고
-- `/imu`: `sensor_msgs/Imu` 
-    - 근데 공식 문서에서는 topic 명이 `/Imu`로 되어 있긴 했음.
-    - 토픽 명 센서 edit에서 변경할 순 있는데, 기본값이 `/imu`로 실제로는 되어 있었음.
-- `/gps`: `morai_msgs/GPSMessage`
-- `/image_jpeg/compressed`: `sensor_msgs/CompressedImage`
-- `/lidar3D`: `sensor_msgs/PointCloud2`
+- 자세한 건 configs/sensors/sensor_layout.yaml 참고
+- `/sensor/imu`: `sensor_msgs/Imu`
+- `/sensor/gps`: `morai_msgs/GPSMessage`
+- `/sensor/camera`: `sensor_msgs/CompressedImage`
+- `/sensor/lidar1`: `sensor_msgs/PointCloud2`
+- `/sensor/lidar2`: `sensor_msgs/PointCloud2`
 
 
 ## ROS -> SIM
