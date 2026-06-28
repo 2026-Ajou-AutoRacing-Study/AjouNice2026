@@ -31,7 +31,7 @@ topics:      /Ego_topic               109 msgs    : morai_msgs/EgoVehicleStatus
              /Object_topic            114 msgs    : morai_msgs/ObjectStatusList
              /gps                      43 msgs    : morai_msgs/GPSMessage      
              /image_jpeg/compressed   104 msgs    : sensor_msgs/CompressedImage
-             /imu                     107 msgs    : sensor_msgs/Imu            
+             /sensor/imu              107 msgs    : sensor_msgs/Imu
              /lidar3D                  72 msgs    : sensor_msgs/PointCloud2    
              /tf                      114 msgs    : tf2_msgs/TFMessage
 ```

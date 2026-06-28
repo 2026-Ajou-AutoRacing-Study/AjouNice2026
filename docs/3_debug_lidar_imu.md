@@ -71,7 +71,7 @@ source ~/AjouNice2026/base_ws/devel/setup.bash # sd
 ```bash
 rostopic list | grep -E "lidar3D|imu|clock"
 /lidar3D
-/imu
+/sensor/imu
 /clock
 ```
 ### fast-lio가 기대하는 필드들을 morai에서 주고 있는지 확인
@@ -154,7 +154,7 @@ ubuntu2004@Yeonwoo-Lee:~$ rostopic echo -n 1 /lidar3D/fields
 
 ### imu도 fast lio가 원하는 형식대로 필드가 있는지 확인
 ```bash
-rostopic echo -n 1 /imu
+rostopic echo -n 1 /sensor/imu
 
 # angular_velocity랑 linear_acceleration를 봐야 함
 
@@ -163,7 +163,7 @@ header:
   stamp: 
     secs: 1780570440
     nsecs: 602000000
-  frame_id: "sensor/imu"
+  frame_id: "imu"
 orientation: 
   x: 0.0
   y: 0.0
@@ -183,8 +183,8 @@ linear_acceleration_covariance: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 ---
 
 # 하나씩 찍었을 때
-# rostopic echo /imu/angular_velocity
-# rostopic echo /imu/linear_acceleration
+# rostopic echo /sensor/imu/angular_velocity
+# rostopic echo /sensor/imu/linear_acceleration
 x: 0.0
 y: 0.0
 z: 0.0
@@ -268,4 +268,4 @@ status: 1
 - 결론: ros 통신 문제였던 것 같다.
 
 - imu, gps도 잘 작동함.
-  - imu /imu/linear_acceleration z 값 9.8로 중력가속도 근처 나옴 -> good
+  - imu /sensor/imu/linear_acceleration z 값 9.8로 중력가속도 근처 나옴 -> good

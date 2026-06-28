@@ -183,7 +183,7 @@ Planned inputs:
 
 ```text
 /concatenated_pointcloud     # sensor_msgs/PointCloud2, dual HDL32 cloud in base_link or LiDAR frame with TF
-/imu                         # IMU, 6-axis, target 500 Hz if available
+/sensor/imu                  # IMU, 6-axis, target 500 Hz if available
 /gnss                        # GNSS absolute positioning, if available
 /wheel_odom                  # Vehicle wheel odometry, if available and allowed by simulator/competition setup
 ```
@@ -766,4 +766,3 @@ When helping with implementation, the AI assistant should:
 - Include fallback behavior and diagnostics.
 - Separate algorithmic concept from exact package dependency.
 - Prioritize robust, debuggable code over overly complex research implementations.
-

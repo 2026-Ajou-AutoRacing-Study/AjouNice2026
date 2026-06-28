@@ -128,7 +128,7 @@ $ rostopic list
 # /Object_topic
 # /ctrl_cmd
 # /lidar3D
-# /Imu
+# /sensor/imu
 # /sensor/gps
 # /image_jpeg/compressed
 ```
@@ -237,9 +237,9 @@ Camera
   Type: sensor_msgs/CompressedImage
   FrameID: Camera-1
 IMU
-  Topic: /Imu
+  Topic: /sensor/imu
   Type: sensor_msgs/Imu
-  FrameID: IMU-1
+  FrameID: imu
 GPS
   Topic: /sensor/gps
   Type: morai_msgs/GPSMessage

@@ -27,7 +27,7 @@ extrinsic_R
   sensor_msgs/PointCloud2
 
 입력 2:
-  IMU -> /imu ?
+  IMU -> /sensor/imu
   sensor_msgs/Imu
 ```
 
@@ -96,7 +96,7 @@ $ rostopic echo -n 1 /Odometry
 - `scripts/lidar_loop_back_test.py`
 ```bash
 /lidar3D: count=72, backward=19
-/imu:     count=107, backward=0
+/sensor/imu: count=107, backward=0
 ```
 - 스크립트를 짜서 확인해보니까, 하나의 rosbag 안에서도 LiDAR에서 loop back이 발생함
 - /lidar3D의 `header.stamp` 기준
@@ -125,7 +125,7 @@ $ rostopic echo -n 1 /Odometry
 
 ```bash
 /lidar3D: count=72, backward=0
-/imu: count=107, backward=0
+/sensor/imu: count=107, backward=0
 ```
 - 오! 순서 재정렬됐음.
 
