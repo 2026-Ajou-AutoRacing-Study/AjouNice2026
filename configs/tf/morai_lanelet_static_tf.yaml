@@ -1,0 +1,31 @@
+# Static alignment between the Autoware/Lanelet map frame and MORAI k-city MGeo.
+#
+# parent -> child follows tf2_ros/static_transform_publisher semantics:
+#   point_in_parent = R_parent_child * point_in_child + translation_parent_child
+#
+# map:
+#   Lanelet2 LocalCartesianUTM frame from maps/map_projector_info_v1.yaml
+# morai_map:
+#   MORAI k-city MGeo local frame extracted from k-city.scene
+#
+# The final transform intentionally uses the authoritative UTM origin delta.
+# Feature ICP candidates only improved the mean nearest-line error by a few
+# millimeters while moving the transform by centimeters in inconsistent
+# directions across map layers.
+map_to_morai_map:
+  parent: "map"
+  child: "morai_map"
+  xyz: [-3.498869780, -963.551661814, 28.991]
+  rpy: [0.0, 0.0, 0.0]
+
+  source:
+    morai_scene: "k-city"
+    morai_mgeo_global_coordinate_system: "+proj=utm +zone=52 +ellps=WGS84 +units=m +no_defs"
+    morai_local_origin_in_global: [302459.942, 4122635.537, 28.991]
+
+    lanelet_map: "maps/lanelet2_map_v1.osm"
+    lanelet_projector: "maps/map_projector_info_v1.yaml"
+    lanelet_projector_type: "LocalCartesianUTM"
+    lanelet_map_origin_lat_lon_alt: [37.2380038082, 126.7730819386, 0.0]
+    lanelet_map_origin_utm52: [302463.440869780, 4123599.088661814, 0.0]
+

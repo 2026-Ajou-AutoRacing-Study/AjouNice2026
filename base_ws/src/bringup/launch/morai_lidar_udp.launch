@@ -6,8 +6,13 @@
 
   <arg name="calibration" default="$(find velodyne_pointcloud)/params/32db.yaml"/>
   <arg name="publish_static_tf" default="true"/>
+  <arg name="publish_morai_map_tf" default="true"/>
   <arg name="enable_lidar_concat" default="true"/>
   <arg name="lidar_concat_config" default="$(find sensor_interface)/config/lidar_concat.yaml"/>
+
+  <group if="$(arg publish_morai_map_tf)">
+    <include file="$(find bringup)/launch/morai_map_static_tf.launch"/>
+  </group>
 
   <group if="$(arg publish_static_tf)">
     <include file="$(find ioniq5)/launch/sensor_static_tf.launch">

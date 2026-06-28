@@ -11,11 +11,21 @@
     the wheel radius so RViz shows the vehicle around the axle-centered
     base_link correctly.
 
+    MORAI's ego self-return in /sensor/lidar_concat does not expose the full
+    mesh silhouette uniformly. The visible front/roof bands measured against
+    the baked mesh first suggested about -0.10 m in x:
+      z 0.45..0.65 m: cloud front 3.634 m, mesh front 3.727 m
+      z 1.05..1.25 m: cloud front 1.841 m, mesh front 1.948 m
+    A live RViz visual check still showed the model behind the cloud, so the
+    displayed model was moved 0.05 m forward from that baseline.
+    Apply that visual x correction here instead of changing the sensor TFs.
+
     Baked visual mesh bbox before URDF origin offset:
       x [-0.790, 3.845]
       y [-1.067, 1.067]
       z [0.000, 1.600]
-    Runtime visual bbox after offset:
+    Runtime visual bbox after offsets:
+      x [-0.8400, 3.7950]
       z [-0.3705, 1.2295]
   -->
   <xacro:property name="vehicle_length" value="4.635"/>
@@ -26,11 +36,12 @@
   <xacro:property name="wheel_radius" value="${tire_outer_diameter / 2.0}"/>
   <xacro:property name="vehicle_center_x" value="1.5275"/>
   <xacro:property name="vehicle_center_z" value="0.800"/>
+  <xacro:property name="visual_x_offset" value="-0.0500"/>
   <xacro:property name="visual_z_offset" value="${-wheel_radius}"/>
 
   <link name="base_link">
     <visual name="ioniq5_visual">
-      <origin xyz="0 0 ${visual_z_offset}" rpy="0 0 0"/>
+      <origin xyz="${visual_x_offset} 0 ${visual_z_offset}" rpy="0 0 0"/>
       <geometry>
         <mesh
           filename="package://ioniq5/meshes/ioniq5/ioniq5_base_link.dae"
@@ -39,7 +50,7 @@
     </visual>
 
     <collision name="ioniq5_body_box">
-      <origin xyz="${vehicle_center_x} 0 ${vehicle_center_z + visual_z_offset}" rpy="0 0 0"/>
+      <origin xyz="${vehicle_center_x + visual_x_offset} 0 ${vehicle_center_z + visual_z_offset}" rpy="0 0 0"/>
       <geometry>
         <box size="${vehicle_length} ${vehicle_body_width} ${vehicle_height}"/>
       </geometry>
