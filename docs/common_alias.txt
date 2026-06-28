@@ -1,0 +1,7 @@
+alias cb="catkin build"
+alias rt="rostopic list"
+alias so="source /opt/ros/noetic/setup.bash"
+alias sd="source ~/AjouNice2026/base_ws/devel/setup.bash"
+alias sb="source ~/.bashrc"
+alias rc="roscore"
+alias rl="roslaunch rosbridge_server rosbridge_websocket.launch"
