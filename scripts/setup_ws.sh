@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$REPO_ROOT"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-mkdir -p catkin_ws/src
-cd catkin_ws
+source /opt/ros/noetic/setup.bash
 
-catkin init || true
-catkin config --extend /opt/ros/noetic
-catkin config --cmake-args -DCMAKE_BUILD_TYPE=Release
+mkdir -p "$REPO_ROOT/base_ws/src"
+cd "$REPO_ROOT/base_ws"
+
+catkin_make -DCMAKE_BUILD_TYPE=Release
 
 echo "Workspace initialized."

@@ -1,0 +1,40 @@
+<launch>
+  <!-- Sensing stack: LiDAR with sensor TFs, vehicle model, MORAI map alignment, and GPS map pose. -->
+  <arg name="enable_lidar" default="true"/>
+  <arg name="enable_lidar_concat" default="true"/>
+  <arg name="enable_vehicle_model" default="true"/>
+  <arg name="start_rviz" default="true"/>
+  <arg name="enable_map_static_tf" default="true"/>
+  <arg name="enable_morai_gps_to_map" default="true"/>
+
+  <arg name="calibration" default="$(find velodyne_pointcloud)/params/32db.yaml"/>
+  <arg name="lidar_concat_config" default="$(find sensor_interface)/config/lidar_concat.yaml"/>
+  <arg name="morai_gps_to_map_config" default="$(find sensor_interface)/config/morai_gps_to_map.yaml"/>
+
+  <group if="$(arg enable_lidar)">
+    <include file="$(find sensor_interface)/launch/lidar.launch">
+      <arg name="calibration" value="$(arg calibration)"/>
+      <arg name="enable_lidar_concat" value="$(arg enable_lidar_concat)"/>
+      <arg name="lidar_concat_config" value="$(arg lidar_concat_config)"/>
+    </include>
+  </group>
+
+  <group if="$(arg enable_vehicle_model)">
+    <include file="$(find ioniq5)/launch/display_ioniq5.launch">
+      <arg name="start_rviz" value="$(arg start_rviz)"/>
+    </include>
+  </group>
+
+  <group if="$(arg enable_map_static_tf)">
+    <include file="$(find sensor_interface)/launch/map_static_tf.launch"/>
+  </group>
+
+  <group if="$(arg enable_morai_gps_to_map)">
+    <node pkg="sensor_interface"
+          type="morai_gps_to_map"
+          name="morai_gps_to_map"
+          output="screen">
+      <rosparam command="load" file="$(arg morai_gps_to_map_config)"/>
+    </node>
+  </group>
+</launch>

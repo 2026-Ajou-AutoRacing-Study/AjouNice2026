@@ -1,5 +1,5 @@
-alias ck="catkin build"
-alias cm="catkin make"
+alias ck="catkin_make"
+alias cm="catkin_make"
 alias cb="code ~/.bashrc"
 
 alias rt="rostopic list"
@@ -15,5 +15,5 @@ alias gpsinfo="rostopic info /sensor/gps"
 
 #-----------------------------------------------------
 alias rl="roslaunch rosbridge_server rosbridge_websocket.launch"
-alias lid="roslaunch bringup morai_lidar_udp.launch"
+alias sensing="roslaunch bringup sensing.launch"
 alias  ioniq5="roslaunch ioniq5 display_ioniq5.launch"

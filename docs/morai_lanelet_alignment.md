@@ -99,11 +99,10 @@ alignment.
 
 ## Runtime Use
 
-The bringup launch publishes the static transform through:
+The sensor interface launch publishes the static transform through:
 
 ```bash
-roslaunch bringup morai_map_static_tf.launch
+roslaunch sensor_interface map_static_tf.launch
 ```
 
-`morai_lidar_udp.launch` includes it by default through `publish_morai_map_tf`.
-
+`bringup/sensing.launch` includes it by default through `enable_map_static_tf`.

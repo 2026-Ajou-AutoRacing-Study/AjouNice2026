@@ -122,8 +122,8 @@ cd ~/AjouNice2026/base_ws/src
 catkin_create_pkg msgs \
   std_msgs geometry_msgs nav_msgs sensor_msgs message_generation message_runtime
 
-# launch 파일 모음 -> roslaunch bringup sensing.launch 또는 full_stack.launch 식으로 사용하자
-# sensing, localization, perception, full_stack.launch -> 일단 센싱부터 만들기
+# launch 파일 모음 -> roslaunch bringup sensing.launch 식으로 사용하자
+# sensing, localization, perception launch를 역할별로 나누기 -> 일단 센싱부터 만들기
 catkin_create_pkg bringup \
   rospy std_msgs
 

@@ -10,6 +10,7 @@ add_compile_options(-std=c++14)
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   message_filters
+  morai_msgs
   pcl_conversions
   pcl_ros
   roscpp
@@ -17,6 +18,8 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_msgs
   tf
+  tf2
+  tf2_geometry_msgs
   tf2_ros
 )
 
@@ -115,7 +118,7 @@ pkg_check_modules(YAML_CPP REQUIRED yaml-cpp)
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES sensor_interface
-  CATKIN_DEPENDS geometry_msgs message_filters pcl_conversions pcl_ros roscpp rospy sensor_msgs std_msgs tf tf2_ros
+  CATKIN_DEPENDS geometry_msgs message_filters morai_msgs pcl_conversions pcl_ros roscpp rospy sensor_msgs std_msgs tf tf2 tf2_geometry_msgs tf2_ros
 #  DEPENDS system_lib
 )
 
@@ -146,6 +149,7 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(lidar_concat_filter src/lidar_concat_filter.cpp)
+add_executable(morai_gps_to_map src/morai_gps_to_map.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -155,13 +159,17 @@ add_executable(lidar_concat_filter src/lidar_concat_filter.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(morai_gps_to_map ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(lidar_concat_filter
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES}
   ${YAML_CPP_LIBRARIES}
+)
+
+target_link_libraries(morai_gps_to_map
+  ${catkin_LIBRARIES}
 )
 
 #############
@@ -173,14 +181,14 @@ target_link_libraries(lidar_concat_filter
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-# catkin_install_python(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+catkin_install_python(PROGRAMS
+  scripts/tf_repeated_stamp_filter.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
-install(TARGETS lidar_concat_filter
+install(TARGETS lidar_concat_filter morai_gps_to_map
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -202,6 +210,10 @@ install(TARGETS lidar_concat_filter
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 install(DIRECTORY config/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
+)
+
+install(DIRECTORY launch/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
 
 #############

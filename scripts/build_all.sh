@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$REPO_ROOT/catkin_ws"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-catkin build
+source /opt/ros/noetic/setup.bash
+cd "$REPO_ROOT/base_ws"
+
+catkin_make

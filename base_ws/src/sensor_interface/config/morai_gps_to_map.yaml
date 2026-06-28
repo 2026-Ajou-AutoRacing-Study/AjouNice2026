@@ -1,0 +1,19 @@
+input_topic: "/sensor/gps"
+output_pose_topic: "/sensor/gps/map_pose"
+output_morai_pose_topic: "/sensor/gps/morai_pose"
+
+map_frame_id: "map"
+morai_frame_id: "morai_map"
+
+utm_zone: 52
+northern_hemisphere: true
+
+# MORAI GPSMessage eastOffset/northOffset are the MGeo UTM origin offsets.
+use_message_offsets: true
+fallback_east_offset: 302459.942
+fallback_north_offset: 4122635.537
+morai_origin_altitude: 28.991
+
+require_status_ok: true
+publish_morai_pose: true
+tf_timeout_sec: 0.1
