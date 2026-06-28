@@ -163,7 +163,7 @@ header:
   stamp: 
     secs: 1780570440
     nsecs: 602000000
-  frame_id: "IMU-3"
+  frame_id: "sensor/imu"
 orientation: 
   x: 0.0
   y: 0.0
@@ -241,13 +241,13 @@ rostopic echo /Ego_topic/heading
   - 여전히 해결 안 됨 -> 단순 통신 문제는 아닌가?
 
 ```bash
-rostopic echo /gps
+rostopic echo /sensor/gps
 header: 
   seq: 83
   stamp: 
     secs: 1780818514
     nsecs: 960000000
-  frame_id: "GPS-4"
+  frame_id: "gps"
 latitude: 37.24729860724102
 longitude: 126.76991422515982
 altitude: 29.975679397583008

@@ -7,6 +7,10 @@ alias so="source /opt/ros/noetic/setup.bash"
 alias sd="source ~/AjouNice2026/base_ws/devel/setup.bash"
 alias sb="source ~/.bashrc"
 alias rc="roscore"
+alias gps="rostopic echo /sensor/gps"
+alias gps1="rostopic echo -n 1 /sensor/gps"
+alias gpshz="rostopic hz /sensor/gps"
+alias gpsinfo="rostopic info /sensor/gps"
 
 
 #-----------------------------------------------------

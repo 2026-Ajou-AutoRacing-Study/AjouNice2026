@@ -10,7 +10,8 @@
   <group if="$(arg publish_static_tf)">
     <include file="$(find ioniq5)/launch/sensor_static_tf.launch">
       <arg name="publish_lidar" value="true"/>
-      <arg name="publish_imu" value="false"/>
+      <arg name="publish_imu" value="true"/>
+      <arg name="publish_gps" value="true"/>
     </include>
   </group>
 

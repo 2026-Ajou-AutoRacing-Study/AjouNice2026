@@ -12,6 +12,11 @@ static_transforms:
     rpy: [0.0, 0.0872665, 3.14159]
 
   - parent: "base_link"
-    child: "IMU-3"
-    xyz: [1.2, 0.0, 0.5]
+    child: "sensor/imu"
+    xyz: [1.528, 0.0, 1.23]
+    rpy: [0.0, 0.0, 0.0]
+
+  - parent: "base_link"
+    child: "gps"
+    xyz: [0.0, 0.0, 1.23]
     rpy: [0.0, 0.0, 0.0]

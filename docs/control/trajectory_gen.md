@@ -268,7 +268,7 @@ ISEV `waypoint_pub/path/*.csv`를 import한다. 기본 입력 format은 `INDEX,U
 
 ### 3. `recorded_gps`
 
-MORAI `/gps` 또는 실제 GPS를 기록해 만든다.
+MORAI `/sensor/gps` 또는 실제 GPS를 기록해 만든다.
 
 동작:
 
@@ -555,7 +555,7 @@ publish:
 |---|---|---|---|
 | `/localization/odom` | `nav_msgs/Odometry` | local horizon mode에서 필요 | 현재 pose/velocity |
 | `/trajectory_gen/command` | local command msg | optional | pause/resume/switch/reload |
-| `/gps` | `morai_msgs/GPSMessage` | record mode에서만 | GPS path recording |
+| `/sensor/gps` | `morai_msgs/GPSMessage` | record mode에서만 | GPS path recording |
 | `/Ego_topic` | `morai_msgs/EgoVehicleStatus` | optional | MORAI GT 기반 recording/debug |
 | `/localization/old_odom` | `nav_msgs/Odometry` | optional | ISEV-style UTM alignment import 실험용 |
 | `/localization/fused_odom` | `nav_msgs/Odometry` | optional | ISEV-style UTM alignment import 실험용 |

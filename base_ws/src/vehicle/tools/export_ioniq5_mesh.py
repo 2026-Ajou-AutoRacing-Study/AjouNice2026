@@ -245,9 +245,10 @@ def main():
     ros_min, ros_max = vertex_bbox(objects)
     report = {
         "source_blend": bpy.data.filepath,
-        "export_mode": "ros_base_link_rear_axle_baked_vertices",
+        "export_mode": "ros_rear_axle_ground_projection_baked_vertices",
         "ros_frame_convention": {
-            "base_link": "rear axle center on ground",
+            "mesh_origin": "rear axle ground projection",
+            "urdf_base_link": "rear axle center after applying -wheel_radius visual offset",
             "x": "forward",
             "y": "left",
             "z": "up",

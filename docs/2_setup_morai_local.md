@@ -129,7 +129,7 @@ $ rostopic list
 # /ctrl_cmd
 # /lidar3D
 # /Imu
-# /gps
+# /sensor/gps
 # /image_jpeg/compressed
 ```
 
@@ -241,9 +241,9 @@ IMU
   Type: sensor_msgs/Imu
   FrameID: IMU-1
 GPS
-  Topic: /gps
+  Topic: /sensor/gps
   Type: morai_msgs/GPSMessage
-  FrameID: GPS-1
+  FrameID: gps
 ```
 - Edit > Sensor > Sensor Edit Mode
 - 센서 추가:
@@ -261,7 +261,7 @@ GPS
 - camera 2d image 센싱된 사진w
 
 ## 센서들 ROS에서 연결 확인
-- tl을 찍어 봐도 `/lidar3D`, `/imu`, `/image_jpeg/compressed`, `/gps`가 나옴.
+- tl을 찍어 봐도 `/sensor/lidar1`, `/sensor/lidar2`, `/sensor/imu`, `/sensor/camera`, `/sensor/gps`가 나옴.
 - 자세한 내용은 `config/sensor_layout.yaml` 참고
 - acture rate는 10초 정도 측정한 average rate 값을 적음.
 
@@ -270,7 +270,7 @@ GPS
 LiDAR   target 10 Hz → actual 5.63 Hz  약 56%
 Camera  target 30 Hz → actual 22.46 Hz 약 75%
 IMU     target 50 Hz → actual 33.88 Hz 약 68%
-GNSS    target 5 Hz  → actual 4.26 Hz  약 85%
+GNSS    target 20 Hz → actual TBD (`rostopic hz /sensor/gps`로 재측정)
 ```
 - 보면 대부분 센서가 target rate의 2/3 수준에 미치고, LiDAR는 거의 절반밖에 안나오는 걸 볼 수 있음.
 - 데이터가 크거나 주기가 높은 센서일수록 target보다 더 많이 떨어졌음.

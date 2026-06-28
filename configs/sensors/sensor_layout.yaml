@@ -52,27 +52,27 @@ cameras:
 imu:
   topic: "/sensor/imu"
   type: "sensor_msgs/Imu"
-  frame_id: "IMU-3"
+  frame_id: "sensor/imu"
   target_rate: 50
   actual_rate: 33.878
-  x: 1.2
-  y: 0
-  z: 0.5
-  roll: 0
-  pitch: 0
-  yaw: 0
-  note: ""
-
-gnss:
-  topic: "/sensor/gps"
-  type: "morai_msgs/GPSMessage"
-  frame_id: "GNSS-4"
-  target_rate: 5
-  actual_rate: 4.262
-  x: 1.1
+  x: 1.528
   y: 0
   z: 1.23
   roll: 0
   pitch: 0
   yaw: 0
-  note: ""
+  note: "roof-center exterior body mount; visible and near vehicle geometric center"
+
+gnss:
+  topic: "/sensor/gps"
+  type: "morai_msgs/GPSMessage"
+  frame_id: "gps"
+  target_rate: 20
+  actual_rate:
+  x: 0
+  y: 0
+  z: 1.23
+  roll: 0
+  pitch: 0
+  yaw: 0
+  note: "mounted vertically above base_link; target 20 Hz leaves margin for actual >= 10 Hz"

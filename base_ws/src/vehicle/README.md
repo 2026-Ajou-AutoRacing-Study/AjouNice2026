@@ -7,15 +7,16 @@ The RViz mesh is `meshes/ioniq5/ioniq5_base_link.dae`.
 
 ## Frame Convention
 
-- `base_link`: rear axle center on the ground
+- `base_link`: rear axle center
 - `+X`: forward
 - `+Y`: left
 - `+Z`: up
 
-The Collada mesh is baked into this ROS frame, so the URDF uses zero visual
-rotation and zero visual translation. MORAI sensor extrinsics in
-`configs/sensors/Sensor_1.json` are interpreted in the same rear-axle ground
-frame.
+The Collada mesh vertices are baked with a rear-axle ground-projection origin.
+The URDF shifts the visual and collision geometry down by the wheel radius
+(`0.3705` m), so the runtime `base_link` sits at the rear axle center. MORAI
+sensor extrinsics in `configs/sensors/Sensor_1.json` are interpreted in this
+same rear axle center frame.
 
 ## Dimensions
 
@@ -29,7 +30,7 @@ the MORAI vehicle check:
 - Front overhang: 0.845 m
 - Rear overhang: 0.790 m
 
-The final visual bbox is:
+The baked visual bbox before the URDF origin offset is:
 
 ```text
 x: [-0.790, 3.845]
@@ -37,11 +38,11 @@ y: [-0.945, 0.945]
 z: [0.000, 1.600]
 ```
 
-With the current URDF visual offset (`visual_z_offset=0.000` m), RViz displays
-the mesh body bbox at approximately:
+With the current URDF visual offset (`visual_z_offset=-0.3705` m), RViz
+displays the mesh body bbox at approximately:
 
 ```text
-z: [0.000, 1.600]
+z: [-0.3705, 1.2295]
 ```
 
 The measurement record is in `meshes/ioniq5/ioniq5_mesh_measurements.json`.

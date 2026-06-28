@@ -36,10 +36,10 @@ mapping:
   extrinsic_est_en: false
 
   # LiDAR pose in IMU frame.
-  # LiDAR: [3.55, 0.0, 1.40]
-  # IMU:   [1.2, 0.0, 0.50]
-  # LiDAR - IMU = [2.35, 0.0, 0.90]
-  extrinsic_T: [2.35, 0.0, 0.90]
+  # LiDAR: [2.05, 0.0, 1.373]
+  # IMU:   [1.528, 0.0, 1.230]
+  # LiDAR - IMU = [0.522, 0.0, 0.143]
+  extrinsic_T: [0.522, 0.0, 0.143]
 
   # Keep rotation identity until the 10 deg LiDAR pitch is validated in FAST-LIO.
   extrinsic_R: [1, 0, 0,

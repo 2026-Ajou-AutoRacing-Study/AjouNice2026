@@ -5,7 +5,10 @@ vehicle:
   wheelbase_m: 3.000
   length_m: 4.635
   width_m: 1.892
-  height_m: 1.605
+  height_m: 1.600
+  tire_outer_diameter_m: 0.741
+  wheel_radius_m: 0.3705
+  base_link_height_above_ground_m: 0.3705
 
   front_overhang_m: 0.845
   rear_overhang_m: 0.790

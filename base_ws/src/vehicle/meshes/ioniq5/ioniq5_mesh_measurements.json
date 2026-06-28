@@ -1,5 +1,5 @@
 {
-  "export_mode": "ros_base_link_rear_axle_baked_vertices",
+  "export_mode": "ros_rear_axle_ground_projection_baked_vertices",
   "mesh_object_count": 5,
   "mesh_objects": [
     "SM_Ioniq_5_Body",
@@ -80,7 +80,8 @@
     ]
   },
   "ros_frame_convention": {
-    "base_link": "rear axle center on ground",
+    "mesh_origin": "rear axle ground projection",
+    "urdf_base_link": "rear axle center after applying -wheel_radius visual offset",
     "x": "forward",
     "y": "left",
     "z": "up"
@@ -98,6 +99,29 @@
     "tire_width_m": 0.235,
     "wheelbase_m": 3.0,
     "width_m": 2.134
+  },
+  "urdf_visual_z_offset_m": -0.3705,
+  "urdf_display_bbox_m": {
+    "center": [
+      1.5275,
+      0.0,
+      0.4295
+    ],
+    "max": [
+      3.845,
+      1.067,
+      1.2295
+    ],
+    "min": [
+      -0.79,
+      -1.067,
+      -0.3705
+    ],
+    "size": [
+      4.635,
+      2.134,
+      1.6
+    ]
   },
   "wheel_lateral_policy": "use_official_track_with_mirror_width_visual_bbox"
 }

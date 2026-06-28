@@ -1,26 +1,32 @@
 <?xml version="1.0"?>
 <robot name="ioniq5" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <!--
-    Mesh coordinates are baked for ROS:
+    Mesh coordinates are baked for ROS with a rear-axle ground-projection origin:
       x forward, y left, z up.
-      the baked mesh origin is the rear axle ground projection.
+      the baked mesh origin is directly below the rear axle center.
 
-    MORAI sensor extrinsics in configs/sensors/Sensor_1.json use the same
-    rear-axle ground base frame, so the visual/collision mesh must not be
-    shifted by wheel radius here.
+    Runtime base_link is the rear axle center, not the ground projection.
+    MORAI sensor extrinsics in configs/sensors/Sensor_1.json use that same
+    rear axle center frame. The visual/collision mesh is shifted downward by
+    the wheel radius so RViz shows the vehicle around the axle-centered
+    base_link correctly.
 
-    Visual mesh bbox:
+    Baked visual mesh bbox before URDF origin offset:
       x [-0.790, 3.845]
       y [-1.067, 1.067]
       z [0.000, 1.600]
+    Runtime visual bbox after offset:
+      z [-0.3705, 1.2295]
   -->
   <xacro:property name="vehicle_length" value="4.635"/>
   <xacro:property name="vehicle_body_width" value="1.890"/>
   <xacro:property name="vehicle_mirror_width" value="2.134"/>
   <xacro:property name="vehicle_height" value="1.600"/>
+  <xacro:property name="tire_outer_diameter" value="0.741"/>
+  <xacro:property name="wheel_radius" value="${tire_outer_diameter / 2.0}"/>
   <xacro:property name="vehicle_center_x" value="1.5275"/>
   <xacro:property name="vehicle_center_z" value="0.800"/>
-  <xacro:property name="visual_z_offset" value="0.0"/>
+  <xacro:property name="visual_z_offset" value="${-wheel_radius}"/>
 
   <link name="base_link">
     <visual name="ioniq5_visual">
