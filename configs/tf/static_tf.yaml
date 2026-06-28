@@ -12,7 +12,7 @@ static_transforms:
     rpy: [0.0, 0.0872665, 3.14159]
 
   - parent: "base_link"
-    child: "sensor/imu"
+    child: "imu"
     xyz: [1.528, 0.0, 1.23]
     rpy: [0.0, 0.0, 0.0]
 

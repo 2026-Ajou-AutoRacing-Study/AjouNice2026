@@ -52,7 +52,7 @@ cameras:
 imu:
   topic: "/sensor/imu"
   type: "sensor_msgs/Imu"
-  frame_id: "sensor/imu"
+  frame_id: "imu"
   target_rate: 50
   actual_rate: 33.878
   x: 1.528

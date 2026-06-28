@@ -378,7 +378,7 @@
         "yaw": "0.000"
       },
       "ic": {
-        "sensorName": "DefaultSensor",
+        "sensorName": "imu",
         "sensorType": 5,
         "sensorPeriod": 0.019999999552965164,
         "commType": 3,
@@ -400,7 +400,7 @@
           "RosBridgePort": 9090,
           "Topic": "/sensor/imu",
           "RosMessageOnOff": true,
-          "frameID": "sensor/imu",
+          "frameID": "imu",
           "childFrameID": ""
         },
         "serialConfig": {
@@ -431,7 +431,7 @@
           "handlerType": 0,
           "Topic": "/sensor/imu",
           "ROS2MessageOnOff": true,
-          "frameID": "sensor/imu",
+          "frameID": "imu",
           "childFrameID": ""
         },
         "rdAcc_x": {

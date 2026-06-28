@@ -15,7 +15,7 @@ lidars:
     model: "HDL32"
 
 imu:
-  frame_id: "imu_link"
+  frame_id: "imu"
   topic: "/sensor/imu"
   target_rate_hz: 500
 
