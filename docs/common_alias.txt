@@ -1,7 +1,15 @@
-alias cb="catkin build"
+alias ck="catkin build"
+alias cm="catkin make"
+alias cb="code ~/.bashrc"
+
 alias rt="rostopic list"
 alias so="source /opt/ros/noetic/setup.bash"
 alias sd="source ~/AjouNice2026/base_ws/devel/setup.bash"
 alias sb="source ~/.bashrc"
 alias rc="roscore"
+
+
+#-----------------------------------------------------
 alias rl="roslaunch rosbridge_server rosbridge_websocket.launch"
+alias lid="roslaunch bringup morai_lidar_udp.launch"
+alias  ioniq5="roslaunch ioniq5 display_ioniq5.launch"
