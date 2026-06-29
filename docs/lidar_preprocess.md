@@ -9,12 +9,10 @@ undistortion. The preprocessor described here produces a high quality
 multi-LiDAR point cloud for perception, visualization, and later BEV-style
 pipelines.
 
-The current naive concat path transforms each LiDAR cloud to `base_link` and
-appends the points. That is enough for a loose overlay, but it does not correct
-motion distortion inside a rotating LiDAR scan. At about 50 kph, a vehicle moves
-roughly 0.97 m during a 70 ms scan, so points acquired at different azimuths can
-appear shifted when all points are visualized as if they were captured at one
-instant.
+The active pipeline corrects each LiDAR scan before combining the two clouds.
+At about 50 kph, a vehicle moves roughly 0.97 m during a 70 ms scan, so points
+acquired at different azimuths can appear shifted when all points are visualized
+as if they were captured at one instant.
 
 ## Target Pipeline
 
@@ -27,9 +25,6 @@ instant.
   -> time-synchronized field-preserving concat
   -> /sensor/lidar_concat/deskewed
 ```
-
-The existing `/sensor/lidar_concat` topic remains useful as a comparison
-baseline. The new preprocessor publishes a separate corrected topic.
 
 ## Relation To Autoware
 
@@ -311,13 +306,12 @@ fields:
 
    ```bash
    rostopic echo -n 1 /sensor/lidar_concat/deskewed/fields
-   rostopic hz /sensor/lidar_concat /sensor/lidar_concat/deskewed
+   rostopic hz /sensor/lidar_concat/deskewed
    ```
 
-5. In RViz at about 50 kph, overlay:
+5. In RViz at about 50 kph, inspect:
 
    ```text
-   /sensor/lidar_concat
    /sensor/lidar_concat/deskewed
    robot_description / URDF
    ```

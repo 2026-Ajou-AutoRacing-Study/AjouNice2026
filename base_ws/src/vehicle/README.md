@@ -19,12 +19,12 @@ sensor extrinsics in `configs/sensors/Sensor_1.json` are interpreted in this
 same rear axle center frame.
 
 The RViz visual also applies a MORAI self-return x correction of
-`-0.0500` m. The first measured baseline from `/sensor/lidar_concat` used the
-visible front/roof self-return bands: the `z=0.45..0.65` m band differed by
-about `-0.093` m and the `z=1.05..1.25` m band by about `-0.107` m. A live RViz
-visual check still showed the model behind the cloud, so the displayed model
-was moved 0.05 m forward from that baseline. The sensor TFs were not changed
-because they are loaded from the same `Sensor_1.json` that MORAI uses.
+`-0.0500` m. The first measured baseline used visible front/roof LiDAR
+self-return bands: the `z=0.45..0.65` m band differed by about `-0.093` m and
+the `z=1.05..1.25` m band by about `-0.107` m. A live RViz visual check still
+showed the model behind the cloud, so the displayed model was moved 0.05 m
+forward from that baseline. The sensor TFs were not changed because they are
+loaded from the same `Sensor_1.json` that MORAI uses.
 
 ## Dimensions
 

@@ -35,7 +35,7 @@ topics:      /Ego_topic               109 msgs    : morai_msgs/EgoVehicleStatus
 ```
 
 현재 record 스크립트는 `/tf`, `/tf_static`, `/morai/tf_raw`를 기록하지 않는다.
-TF는 bag 재생 시점에 `maptf_morai_bag.launch` 또는 `maptf.launch`로 다시 만든다.
+TF는 bag 재생 시점에 `maptf_morai.launch` 또는 `maptf.launch`로 다시 만든다.
 
 - 근데 /clock은 왜 없지
   - real-time mode 켜져 있는데 흠...
@@ -56,16 +56,16 @@ TF buffer, RViz, localization 노드가 이전 loop의 미래 timestamp/state를
 loop 경계에서 자동 초기화되지 않으므로 반복 재생 대신 한 번씩 재시작해서 확인하는
 쪽이 안전하다.
 
-현재 localization 전 단계에서는 `/Ego_topic`을 임시 GT localization으로 사용한다.
+현재 localization 전 단계에서는 `/Ego_topic`을 임시 GT TF source로 사용한다.
 bag 안에는 `/tf`를 넣지 않고, 별도 터미널에서 아래 launch를 같이 띄운다.
 
 ```bash
-roslaunch bringup maptf_morai_bag.launch
+roslaunch bringup maptf_morai.launch
 ```
 
-이 launch는 rosbag의 `/Ego_topic`으로 `/localization/odom`과
-`morai_map -> base_link` TF를 만들고, `map -> morai_map` static TF까지 같이
-publish한다. GPS-only bag은 `maptf.launch`를 사용한다.
+이 launch는 rosbag의 `/Ego_topic`으로 `morai_map -> base_link` TF를 만들고,
+`map -> morai_map` static TF까지 같이 publish한다. `/localization/odom`은 만들지
+않는다. GPS-only bag은 `maptf.launch`를 사용한다.
 
 ![alt text](attachments/image-9.png)
 - rviz에서도 잘 재생됨

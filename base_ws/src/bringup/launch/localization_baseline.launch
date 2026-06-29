@@ -1,7 +1,7 @@
 <launch>
   <!--
     Bag replay baseline before the real localization stack is ready.
-    Prefer bringup/maptf_morai_bag.launch in new run commands.
+    Use the same /Ego_topic path as live MORAI replay.
   -->
-  <include file="$(find bringup)/launch/maptf_morai_bag.launch"/>
+  <include file="$(find bringup)/launch/maptf_morai.launch"/>
 </launch>

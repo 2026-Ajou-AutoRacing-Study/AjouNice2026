@@ -124,6 +124,6 @@
       1.6
     ]
   },
-  "visual_x_offset_source": "/sensor/lidar_concat visible ego self-return bands first suggested about -0.1000 m; live RViz visual check still showed the model behind the cloud, so the displayed model was moved 0.05 m forward to -0.0500 m, leaving sensor TFs unchanged",
+  "visual_x_offset_source": "LiDAR visible ego self-return bands first suggested about -0.1000 m; live RViz visual check still showed the model behind the cloud, so the displayed model was moved 0.05 m forward to -0.0500 m, leaving sensor TFs unchanged",
   "wheel_lateral_policy": "use_official_track_with_mirror_width_visual_bbox"
 }

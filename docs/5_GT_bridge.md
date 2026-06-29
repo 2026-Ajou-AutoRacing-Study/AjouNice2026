@@ -14,8 +14,6 @@
   morai_msgs/EgoVehicleStatus
 
 출력:
-  /localization/odom
-  nav_msgs/Odometry
   /tf
   morai_map -> base_link
 ```
@@ -33,19 +31,18 @@ gedit ~/AjouNice2026/configs/localization/fast_lio_morai_velodyne.yaml
 - config 우리쪽 꺼 쓰기로 했으니까 그거에 맞춰서 launch도 새로 만들어줘야 함
 - 나중에 일단 ego부터 bridge 만들기
 
-### morai_ego -> 우리 ros odem bridge 만들기
-- `~/AjouNice2026/base_ws/src/morai_ros_bridge/morai_ego_to_odom.py`
+### morai_ego -> base_link TF broadcaster 만들기
+- `~/AjouNice2026/base_ws/src/tf_pub/src/ego_tf_broadcaster.cpp`
 - notes:
   - morai에서 heading 값이 deg로 들어왔었음(ex. 58.123) -> 이거 ros에선 rad 쓰니까 변환해줘야함.
 
-- `~/AjouNice2026/base_ws/src/morai_ros_bridge/launch/ego_to_odom.launch`
+- `~/AjouNice2026/base_ws/src/tf_pub/launch/ego_tf.launch`
 - RViz에서 차량을 맵에 올려 보려면 bringup의 map TF launch를 사용한다.
-  - `/Ego_topic`을 임시 localization 소스로 삼아 `/localization/odom`을 만들고
-  - 동시에 `morai_map -> base_link` TF를 publish한다.
-  - `sensor_interface/map_static_tf.launch`의 `map -> morai_map`까지 같이 켜서 최종 TF는 `map -> morai_map -> base_link`가 된다.
-  - rosbag replay: `roslaunch bringup maptf_morai_bag.launch`
-  - live MORAI simulator: `roslaunch bringup maptf_morai.launch`
-  - localization 완료 후: `roslaunch bringup map_tf.launch`
+  - `/Ego_topic`을 그대로 받아서 `morai_map -> base_link` TF만 publish한다.
+  - `/localization/odom`은 publish하지 않는다.
+  - `tf_pub/map_static_tf.launch`의 `map -> morai_map`까지 같이 켜서 최종 TF는 `map -> morai_map -> base_link`가 된다.
+  - MORAI /Ego_topic: `roslaunch bringup maptf_morai.launch`
+  - GPS /sensor/gps: `roslaunch bringup maptf.launch`
 
 
 
@@ -61,64 +58,12 @@ rosbag play morai_local_valid_ego_sensors.bag --clock --loop # loop: 반복
 ```
 ```bash
 # 터미널2
-roslaunch bringup maptf_morai_bag.launch
+roslaunch bringup maptf_morai.launch
 ```
 
 ```bash
 # 터미널3
-$ rostopic list | grep localization
-/localization/odom
-
-$ rostopic hz /localization/odom
-subscribed to [/localization/odom]
-WARNING: may be using simulated time
-average rate: 12.524
-        min: 0.010s max: 0.135s std dev: 0.04129s window: 13
-average rate: 12.522
-        min: 0.000s max: 0.135s std dev: 0.04563s window: 25
-average rate: 12.178
-        min: 0.000s max: 0.135s std dev: 0.04770s window: 37
-average rate: 12.935
-        min: 0.041s max: 0.114s std dev: 0.03659s window: 3
-average rate: 10.964
-        min: 0.020s max: 0.134s std dev: 0.03442s window: 14
-average rate: 9.884
-        min: 0.020s max: 0.174s std dev: 0.03426s window: 23
-average rate: 10.687
-        min: 0.010s max: 0.175s std dev: 0.04408s window: 34
-
-$ rostopic echo -n 1 /localization/odom
-header: 
-  seq: 83
-  stamp: 
-    secs: 1780824019
-    nsecs: 820000000
-  frame_id: "morai_map"
-child_frame_id: "base_link"
-pose: 
-  pose: 
-    position: 
-      x: -13.645261764526367
-      y: -223.20413208007812
-      z: 28.821598052978516
-    orientation: 
-      x: 0.0
-      y: 0.0
-      z: 0.5179688743105172
-      w: 0.8553994653058276
-  covariance: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-twist: 
-  twist: 
-    linear: 
-      x: 0.021008485928177834
-      y: 6.491318345069885e-07
-      z: 1.8019623894360848e-05
-    angular: 
-      x: -0.008628355339169502
-      y: -0.00030235349549911916
-      z: 0.0003966026706621051
-  covariance: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
----
+rosrun tf tf_echo morai_map base_link
 ```
 - 잘 됐음
 - 이제 rviz 테스트
@@ -127,10 +72,10 @@ twist:
 # 터미널3
 rviz
 # Fixed Frame: 3D LiDAR-1
-# TF, /localization/odom, lidar3D
+# TF, lidar3D
 ```
 ![alt text](attachments/image-10.png)
-- odem의 화살표가 제대로 차량 앞쪽으로 잘 나와줬음.
+- TF 기준으로 차량 방향이 제대로 나와줬음.
 
 ### bringup에 통합
 - `~/AjouNice2026/base_ws/src/bringup/launch/localization_baseline.launch`

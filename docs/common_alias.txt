@@ -24,8 +24,7 @@ alias rosbagraw="bash ~/AjouNice2026/scripts/rosbag_maker.sh"
 #-----------------------------------------------------
 alias rb='rb_bg'
 alias sensing="roslaunch bringup sensing.launch"
-alias maptf_morai_bag="roslaunch bringup maptf_morai_bag.launch"
 alias maptf_morai="roslaunch bringup maptf_morai.launch"
-alias maptf="roslaunch bringup map_tf.launch"
+alias maptf="roslaunch bringup maptf.launch"
 alias lanelet="roslaunch lanelet_map_visualizer kcity_lanelet_map.launch"   
 alias rb_kill='rosnode kill /rosbridge_websocket /rosapi >/dev/null 2>&1 || true; pkill -9 -f "[r]oslaunch .*bringup morai_bridge.launch"; pkill -9 -f "[r]oslaunch rosbridge_server rosbridge_websocket.launch"; pkill -9 -f "[/]rosbridge_server/rosbridge_websocket"; pkill -9 -f "[/]rosapi/rosapi_node"; ss -ltnp | grep 9090 || echo "9090 free"'

@@ -61,6 +61,7 @@
   <exec_depend>morai_ros_bridge</exec_depend>
   <exec_depend>rosbridge_server</exec_depend>
   <exec_depend>sensor_interface</exec_depend>
+  <exec_depend>tf_pub</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(sensor_interface)
 
-## PCL 1.10 on ROS Noetic requires C++14 or newer.
+## Use C++14 across local preprocessing nodes.
 add_compile_options(-std=c++14)
 
 ## Find catkin macros and libraries
@@ -9,11 +9,8 @@ add_compile_options(-std=c++14)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
-  message_filters
   morai_msgs
   nav_msgs
-  pcl_conversions
-  pcl_ros
   roscpp
   rospy
   sensor_msgs
@@ -26,9 +23,6 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-find_package(PCL REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(YAML_CPP REQUIRED yaml-cpp)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -119,7 +113,7 @@ pkg_check_modules(YAML_CPP REQUIRED yaml-cpp)
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES sensor_interface
-  CATKIN_DEPENDS geometry_msgs message_filters morai_msgs nav_msgs pcl_conversions pcl_ros roscpp rospy sensor_msgs std_msgs tf tf2 tf2_geometry_msgs tf2_ros
+  CATKIN_DEPENDS geometry_msgs morai_msgs nav_msgs roscpp rospy sensor_msgs std_msgs tf tf2 tf2_geometry_msgs tf2_ros
 #  DEPENDS system_lib
 )
 
@@ -132,8 +126,6 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
-  ${YAML_CPP_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -149,7 +141,6 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(lidar_concat_filter src/lidar_concat_filter.cpp)
 add_executable(lidar_distortion_corrector src/lidar_distortion_corrector.cpp)
 add_executable(lidar_advanced_concat_filter src/lidar_advanced_concat_filter.cpp)
 add_executable(morai_gps_to_map src/morai_gps_to_map.cpp)
@@ -165,13 +156,6 @@ add_executable(morai_gps_to_map src/morai_gps_to_map.cpp)
 add_dependencies(morai_gps_to_map ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(lidar_distortion_corrector ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(lidar_advanced_concat_filter ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Specify libraries to link a library or executable target against
-target_link_libraries(lidar_concat_filter
-  ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES}
-  ${YAML_CPP_LIBRARIES}
-)
 
 target_link_libraries(lidar_distortion_corrector
   ${catkin_LIBRARIES}
@@ -202,7 +186,7 @@ catkin_install_python(PROGRAMS
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
-install(TARGETS lidar_concat_filter lidar_distortion_corrector lidar_advanced_concat_filter morai_gps_to_map
+install(TARGETS lidar_distortion_corrector lidar_advanced_concat_filter morai_gps_to_map
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

@@ -1,0 +1,30 @@
+<launch>
+  <!-- Broadcast MORAI /sensor/gps directly as a dynamic TF. No odometry topic is published. -->
+  <arg name="gps_topic" default="/sensor/gps"/>
+  <arg name="parent_frame" default="morai_map"/>
+  <arg name="child_frame" default="base_link"/>
+
+  <arg name="utm_zone" default="52"/>
+  <arg name="use_message_offsets" default="true"/>
+  <arg name="fallback_east_offset" default="302595.0"/>
+  <arg name="fallback_north_offset" default="4124145.0"/>
+  <arg name="morai_origin_altitude" default="0.0"/>
+  <arg name="gps_sensor_z_offset" default="1.23"/>
+  <arg name="min_heading_distance" default="0.05"/>
+
+  <node pkg="tf_pub"
+        type="gps_tf_broadcaster"
+        name="gps_tf_broadcaster"
+        output="screen">
+    <param name="gps_topic" value="$(arg gps_topic)"/>
+    <param name="parent_frame" value="$(arg parent_frame)"/>
+    <param name="child_frame" value="$(arg child_frame)"/>
+    <param name="utm_zone" value="$(arg utm_zone)"/>
+    <param name="use_message_offsets" value="$(arg use_message_offsets)"/>
+    <param name="fallback_east_offset" value="$(arg fallback_east_offset)"/>
+    <param name="fallback_north_offset" value="$(arg fallback_north_offset)"/>
+    <param name="morai_origin_altitude" value="$(arg morai_origin_altitude)"/>
+    <param name="gps_sensor_z_offset" value="$(arg gps_sensor_z_offset)"/>
+    <param name="min_heading_distance" value="$(arg min_heading_distance)"/>
+  </node>
+</launch>

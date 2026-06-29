@@ -142,32 +142,25 @@ alignment should follow the current runtime GPS offsets above.
 The sensor interface launch publishes the static transform through:
 
 ```bash
-roslaunch sensor_interface map_static_tf.launch
+roslaunch tf_pub map_static_tf.launch
 ```
 
 Run exactly one dynamic map TF source:
 
 ```bash
-# Rosbag replay before localization is ready.
-roslaunch bringup maptf_morai_bag.launch
-
-# Live MORAI simulator before localization is ready.
+# MORAI /Ego_topic based TF.
 roslaunch bringup maptf_morai.launch
 
-# After localization is ready and publishing /localization/odom.
-roslaunch bringup map_tf.launch
+# GPS /sensor/gps based TF.
+roslaunch bringup maptf.launch
 ```
 
-The two MORAI Ego launches publish `morai_map -> base_link`, so the runtime
+Both map TF launches publish `morai_map -> base_link`, so the runtime
 tree becomes:
 
 ```text
 map -> morai_map -> base_link
 ```
-
-`map_tf.launch` is different: it trusts `/localization/odom` frame ids by
-default, with fallback `map -> base_link` if the message frame ids are empty.
-That is the post-localization path, not a MORAI Ego fallback path.
 
 MORAI also publishes a raw `/map -> /base_link` TF. That raw `map` is MORAI's
 local MGeo frame, not the Lanelet/VMB `map` frame. Keep that raw TF isolated

@@ -2,19 +2,17 @@
   <!-- Sensing stack: LiDAR, sensor static TFs, and vehicle model. -->
   <arg name="enable_lidar" default="true"/>
   <arg name="enable_lidar_udp" default="true"/>
-  <arg name="enable_lidar_concat" default="false"/>
   <arg name="enable_lidar_preprocess" default="true"/>
   <arg name="enable_camera_udp" default="true"/>
   <arg name="enable_sensor_static_tf" default="true"/>
   <arg name="enable_vehicle_model" default="true"/>
   <arg name="start_rviz" default="true"/>
 
-  <!-- Evaluation-only GT bridge: /Ego_topic -> /localization/odom. -->
+  <!-- Evaluation-only GT TF: /Ego_topic -> morai_map -> base_link. -->
   <!-- Set false for race/real-stack runs where /Ego_topic should not be used. -->
-  <arg name="enable_ego_to_odom" default="false"/>
+  <arg name="enable_ego_tf" default="false"/>
 
   <arg name="calibration" default="$(find velodyne_pointcloud)/params/32db.yaml"/>
-  <arg name="lidar_concat_config" default="$(find sensor_interface)/config/lidar_concat.yaml"/>
   <arg name="lidar_preprocess_config" default="$(find sensor_interface)/config/lidar_preprocess.yaml"/>
   <arg name="camera_udp_config" default="$(find sensor_interface)/config/camera_udp.yaml"/>
   <arg name="camera_udp_name" default="front"/>
@@ -29,8 +27,6 @@
     <include file="$(find sensor_interface)/launch/lidar.launch">
       <arg name="calibration" value="$(arg calibration)"/>
       <arg name="enable_lidar_udp" value="$(arg enable_lidar_udp)"/>
-      <arg name="enable_lidar_concat" value="$(arg enable_lidar_concat)"/>
-      <arg name="lidar_concat_config" value="$(arg lidar_concat_config)"/>
     </include>
   </group>
 
@@ -42,7 +38,7 @@
   </group>
 
   <group if="$(arg enable_sensor_static_tf)">
-    <include file="$(find sensor_interface)/launch/sensor_tf.launch">
+    <include file="$(find tf_pub)/launch/sensor_tf.launch">
       <arg name="sensor_config" value="$(arg sensor_config)"/>
       <arg name="parent_frame" value="$(arg sensor_parent_frame)"/>
       <arg name="publish_lidar" value="$(arg publish_lidar_tf)"/>
@@ -58,8 +54,8 @@
     </include>
   </group>
 
-  <group if="$(arg enable_ego_to_odom)">
-    <include file="$(find morai_ros_bridge)/launch/ego_to_odom.launch"/>
+  <group if="$(arg enable_ego_tf)">
+    <include file="$(find tf_pub)/launch/ego_tf.launch"/>
   </group>
 
   <group if="$(arg enable_vehicle_model)">

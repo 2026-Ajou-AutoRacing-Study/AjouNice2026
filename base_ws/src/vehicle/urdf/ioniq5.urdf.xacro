@@ -11,9 +11,9 @@
     the wheel radius so RViz shows the vehicle around the axle-centered
     base_link correctly.
 
-    MORAI's ego self-return in /sensor/lidar_concat does not expose the full
-    mesh silhouette uniformly. The visible front/roof bands measured against
-    the baked mesh first suggested about -0.10 m in x:
+    MORAI's ego self-return in the LiDAR cloud does not expose the full mesh
+    silhouette uniformly. The visible front/roof bands measured against the
+    baked mesh first suggested about -0.10 m in x:
       z 0.45..0.65 m: cloud front 3.634 m, mesh front 3.727 m
       z 1.05..1.25 m: cloud front 1.841 m, mesh front 1.948 m
     A live RViz visual check still showed the model behind the cloud, so the

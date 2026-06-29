@@ -1,0 +1,17 @@
+<launch>
+  <!-- Broadcast MORAI /Ego_topic directly as a dynamic TF. No odometry topic is published. -->
+  <arg name="ego_topic" default="/Ego_topic"/>
+  <arg name="parent_frame" default="morai_map"/>
+  <arg name="child_frame" default="base_link"/>
+  <arg name="heading_in_degrees" default="true"/>
+
+  <node pkg="tf_pub"
+        type="ego_tf_broadcaster"
+        name="ego_tf_broadcaster"
+        output="screen">
+    <param name="ego_topic" value="$(arg ego_topic)"/>
+    <param name="parent_frame" value="$(arg parent_frame)"/>
+    <param name="child_frame" value="$(arg child_frame)"/>
+    <param name="heading_in_degrees" value="$(arg heading_in_degrees)"/>
+  </node>
+</launch>
