@@ -5,9 +5,8 @@
   -->
 
   <arg name="calibration" default="$(find velodyne_pointcloud)/params/32db.yaml"/>
-  <arg name="enable_lidar_udp" default="true"/>
 
-  <group if="$(arg enable_lidar_udp)" ns="lidar1">
+  <group ns="lidar1">
     <node pkg="nodelet"
           type="nodelet"
           name="lidar1_nodelet_manager"
@@ -50,7 +49,7 @@
     </node>
   </group>
 
-  <group if="$(arg enable_lidar_udp)" ns="lidar2">
+  <group ns="lidar2">
     <node pkg="nodelet"
           type="nodelet"
           name="lidar2_nodelet_manager"

@@ -19,7 +19,7 @@
   <arg name="morai_map_frame" default="morai_map"/>
   <arg name="base_frame" default="base_link"/>
 
-  <include file="$(find tf_pub)/launch/map_static_tf.launch">
+  <include file="$(find tf_pub)/launch/map_tf.launch">
     <arg name="parent_frame" value="$(arg map_frame)"/>
     <arg name="child_frame" value="$(arg morai_map_frame)"/>
   </include>

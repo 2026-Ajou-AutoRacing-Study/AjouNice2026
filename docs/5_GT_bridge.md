@@ -40,7 +40,7 @@ gedit ~/AjouNice2026/configs/localization/fast_lio_morai_velodyne.yaml
 - RViz에서 차량을 맵에 올려 보려면 bringup의 map TF launch를 사용한다.
   - `/Ego_topic`을 그대로 받아서 `morai_map -> base_link` TF만 publish한다.
   - `/localization/odom`은 publish하지 않는다.
-  - `tf_pub/map_static_tf.launch`의 `map -> morai_map`까지 같이 켜서 최종 TF는 `map -> morai_map -> base_link`가 된다.
+  - `tf_pub/map_tf.launch`의 `map -> morai_map`까지 같이 켜서 최종 TF는 `map -> morai_map -> base_link`가 된다.
   - MORAI /Ego_topic: `roslaunch bringup maptf_morai.launch`
   - GPS /sensor/gps: `roslaunch bringup maptf.launch`
 

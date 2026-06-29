@@ -142,7 +142,7 @@ alignment should follow the current runtime GPS offsets above.
 The sensor interface launch publishes the static transform through:
 
 ```bash
-roslaunch tf_pub map_static_tf.launch
+roslaunch tf_pub map_tf.launch
 ```
 
 Run exactly one dynamic map TF source:
