@@ -10,6 +10,7 @@ REC_PID=""
 TOPICS=(
   /sensor/lidar1
   /sensor/lidar2
+  /sensor/camera
   /sensor/imu
   /sensor/gps
   /Ego_topic

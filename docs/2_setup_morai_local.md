@@ -263,12 +263,13 @@ GPS
 ## 센서들 ROS에서 연결 확인
 - tl을 찍어 봐도 `/sensor/lidar1`, `/sensor/lidar2`, `/sensor/imu`, `/sensor/camera`, `/sensor/gps`가 나옴.
 - 자세한 내용은 `config/sensor_layout.yaml` 참고
+- 현재 checkout은 카메라를 rosbridge가 아니라 MORAI UDP JPEG 패킷으로 받고, `sensor_interface`에서 `/sensor/camera` `sensor_msgs/CompressedImage`로 다시 publish한다.
 - acture rate는 10초 정도 측정한 average rate 값을 적음.
 
 ```bash
 # 측정 결과(Windows 11 + wsl2)
 LiDAR   target 10 Hz → actual 5.63 Hz  약 56%
-Camera  target 30 Hz → actual 22.46 Hz 약 75%
+Camera  target 30 Hz → actual TBD (`rostopic hz /sensor/camera`로 재측정)
 IMU     target 50 Hz → actual 33.88 Hz 약 68%
 GNSS    target 20 Hz → actual TBD (`rostopic hz /sensor/gps`로 재측정)
 ```

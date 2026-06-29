@@ -4,7 +4,7 @@
   <arg name="parent_frame" default="base_link"/>
   <arg name="publish_lidar" default="true"/>
   <arg name="publish_imu" default="true"/>
-  <arg name="publish_camera" default="false"/>
+  <arg name="publish_camera" default="true"/>
   <arg name="publish_gps" default="true"/>
 
   <include file="$(find ioniq5)/launch/sensor_static_tf.launch">

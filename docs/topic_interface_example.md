@@ -9,7 +9,7 @@
 | `/sensor/lidar2` | `sensor_msgs/PointCloud2` | HDL32 lidar2 | UDP driver |
 | `/sensor/imu` | `sensor_msgs/Imu` | IMU | 500 Hz target |
 | `/sensor/gps` | `sensor_msgs/NavSatFix` | GPS | 1 unit |
-| `/sensor/camera` | `sensor_msgs/Image` | Camera | FOV 55 deg |
+| `/sensor/camera` | `sensor_msgs/CompressedImage` | Camera | UDP JPEG receiver |
 
 ## Localization Output
 
@@ -83,7 +83,7 @@ docs/morai_topic_survey_lab.md
 | Sensor | Protocol | Destination Port | Packet received? | Check command |
 |---|---|---:|---|---|
 | LiDAR | UDP | 2368 | TBD | sudo tcpdump -ni any udp port 2368 |
-| Camera | UDP | 2370 | TBD | sudo tcpdump -ni any udp port 2370 |
+| Camera | UDP | 1232 | TBD | sudo tcpdump -ni any udp port 1232 |
 | GPS | UDP | 2372 | TBD | sudo tcpdump -ni any udp port 2372 |
 | IMU | UDP | 2374 | TBD | sudo tcpdump -ni any udp port 2374 |
 
@@ -95,7 +95,7 @@ docs/morai_topic_survey_lab.md
 | Control cmd | /ctrl_cmd | morai_msgs/CtrlCmd | - | - | rosbridge | publish target |
 | Object GT | TBD | TBD | - | TBD | rosbridge |  |
 | LiDAR | TBD | TBD | TBD | TBD | UDP→ROS? |  |
-| Camera | TBD | TBD | TBD | TBD | UDP→ROS? |  |
+| Camera | /sensor/camera | sensor_msgs/CompressedImage | Camera-2 | TBD | UDP->ROS | MORAI JPEG UDP receiver |
 | GPS | TBD | TBD | TBD | TBD | UDP or rosbridge |  |
 | IMU | TBD | TBD | TBD | TBD | UDP or rosbridge |  |
 

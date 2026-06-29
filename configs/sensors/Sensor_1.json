@@ -18,12 +18,12 @@
         "sensorName": "DefaultSensor",
         "sensorType": 1,
         "sensorPeriod": 0.03333333507180214,
-        "commType": 3,
+        "commType": 1,
         "udpConfig": {
           "hostIP": "127.0.0.1",
-          "hostPort": 9090,
+          "hostPort": 1233,
           "destinationIP": "127.0.0.1",
-          "destinationPort": 9090,
+          "destinationPort": 1232,
           "receiveTimeout": 50,
           "isBufferThreadActivated": false,
           "receiveBufferSize": 0,
@@ -36,7 +36,7 @@
           "RosBridgeIP": "127.0.0.1",
           "RosBridgePort": 9090,
           "Topic": "/sensor/camera",
-          "RosMessageOnOff": true,
+          "RosMessageOnOff": false,
           "frameID": "Camera-2",
           "childFrameID": ""
         },
@@ -67,7 +67,7 @@
         "ros2NativeConfig": {
           "handlerType": 0,
           "Topic": "/sensor/camera",
-          "ROS2MessageOnOff": true,
+          "ROS2MessageOnOff": false,
           "frameID": "Camera-2",
           "childFrameID": ""
         },
@@ -108,7 +108,7 @@
           "RosBridgeIP": "127.0.0.1",
           "RosBridgePort": 9090,
           "Topic": "/sensor/camera/bbox",
-          "RosMessageOnOff": true,
+          "RosMessageOnOff": false,
           "frameID": "",
           "childFrameID": ""
         },

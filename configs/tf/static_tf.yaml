@@ -17,6 +17,11 @@ static_transforms:
     rpy: [0.0, 0.0, 0.0]
 
   - parent: "base_link"
+    child: "Camera-2"
+    xyz: [2.2, 0.0, 1.0]
+    rpy: [0.0, 0.0, 0.0]
+
+  - parent: "base_link"
     child: "gps"
     xyz: [0.0, 0.0, 1.23]
     rpy: [0.0, 0.0, 0.0]

@@ -25,6 +25,9 @@ gnss:
 
 cameras:
   front:
-    frame_id: "camera_front"
     topic: "/sensor/camera"
+    type: "sensor_msgs/CompressedImage"
+    frame_id: "camera_front"
+    transport: "udp_morai_jpeg"
+    udp_destination_port: 1232
     fov_deg: 55

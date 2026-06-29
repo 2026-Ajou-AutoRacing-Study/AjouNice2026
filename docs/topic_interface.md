@@ -33,6 +33,7 @@
 - `/sensor/imu`: `sensor_msgs/Imu`
 - `/sensor/gps`: `morai_msgs/GPSMessage`
 - `/sensor/camera`: `sensor_msgs/CompressedImage`
+  - MORAI Camera UDP packets are received by `sensor_interface/morai_camera_udp_receiver.py` and republished to ROS.
 - `/sensor/lidar1`: `sensor_msgs/PointCloud2`
 - `/sensor/lidar2`: `sensor_msgs/PointCloud2`
 

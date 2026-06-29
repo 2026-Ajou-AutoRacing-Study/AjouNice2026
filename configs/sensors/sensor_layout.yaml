@@ -38,16 +38,20 @@ cameras:
   front:
     topic: "/sensor/camera"
     type: "sensor_msgs/CompressedImage"
-    frame_id: "Camera-2" 
+    frame_id: "Camera-2"
+    transport: "udp_morai_jpeg"
+    udp_destination_port: 1232
+    udp_host_port: 1233
+    ros_bridge: false
     target_rate: 30
-    actual_rate: 22.457
+    actual_rate:
     x: 2.2
     y: 0
     z: 1.0
     roll: 0
     pitch: 0
     yaw: 0
-    note: ""
+    note: "MORAI camera uses UDP JPEG packets; sensor_interface republishes /sensor/camera as CompressedImage"
 
 imu:
   topic: "/sensor/imu"

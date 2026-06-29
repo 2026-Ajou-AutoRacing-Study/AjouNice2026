@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   message_filters
   morai_msgs
+  nav_msgs
   pcl_conversions
   pcl_ros
   roscpp
@@ -118,7 +119,7 @@ pkg_check_modules(YAML_CPP REQUIRED yaml-cpp)
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES sensor_interface
-  CATKIN_DEPENDS geometry_msgs message_filters morai_msgs pcl_conversions pcl_ros roscpp rospy sensor_msgs std_msgs tf tf2 tf2_geometry_msgs tf2_ros
+  CATKIN_DEPENDS geometry_msgs message_filters morai_msgs nav_msgs pcl_conversions pcl_ros roscpp rospy sensor_msgs std_msgs tf tf2 tf2_geometry_msgs tf2_ros
 #  DEPENDS system_lib
 )
 
@@ -129,7 +130,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+  include
   ${catkin_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
   ${YAML_CPP_INCLUDE_DIRS}
@@ -149,6 +150,8 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(lidar_concat_filter src/lidar_concat_filter.cpp)
+add_executable(lidar_distortion_corrector src/lidar_distortion_corrector.cpp)
+add_executable(lidar_advanced_concat_filter src/lidar_advanced_concat_filter.cpp)
 add_executable(morai_gps_to_map src/morai_gps_to_map.cpp)
 
 ## Rename C++ executable without prefix
@@ -160,12 +163,22 @@ add_executable(morai_gps_to_map src/morai_gps_to_map.cpp)
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 add_dependencies(morai_gps_to_map ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(lidar_distortion_corrector ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(lidar_advanced_concat_filter ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(lidar_concat_filter
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES}
   ${YAML_CPP_LIBRARIES}
+)
+
+target_link_libraries(lidar_distortion_corrector
+  ${catkin_LIBRARIES}
+)
+
+target_link_libraries(lidar_advanced_concat_filter
+  ${catkin_LIBRARIES}
 )
 
 target_link_libraries(morai_gps_to_map
@@ -182,13 +195,14 @@ target_link_libraries(morai_gps_to_map
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
+  scripts/morai_camera_udp_receiver.py
   scripts/tf_repeated_stamp_filter.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
-install(TARGETS lidar_concat_filter morai_gps_to_map
+install(TARGETS lidar_concat_filter lidar_distortion_corrector lidar_advanced_concat_filter morai_gps_to_map
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

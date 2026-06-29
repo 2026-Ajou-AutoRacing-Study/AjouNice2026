@@ -1,0 +1,34 @@
+# Perception-side Autoware-style LiDAR preprocessing for ROS1.
+# This is separate from FAST-LIO and publishes /sensor/lidar_concat/deskewed.
+
+motion_mode: "morai"          # morai | odom
+base_frame_id: "base_link"
+output_frame_id: "base_link"
+
+imu_topic: "/sensor/imu"
+ego_topic: "/Ego_topic"
+odom_topic: "/localization/odom"
+
+# Keep explicit until a moving /Ego_topic velocity-frame check is completed.
+# Use "world" if velocity.x/y are MORAI map-frame components.
+morai_velocity_frame: "base_link"   # base_link | world
+odom_twist_frame: "base_link"       # base_link | world
+
+correction_mode: "2d"
+motion_timeout_sec: 0.2
+imu_timeout_sec: 0.2
+wait_for_transform_sec: 0.2
+buffer_duration_sec: 2.0
+subscriber_queue_size: 10
+
+field_x: "x"
+field_y: "y"
+field_z: "z"
+field_time: "time"
+
+input_topics:
+  - "/sensor/lidar1/deskewed"
+  - "/sensor/lidar2/deskewed"
+output_topic: "/sensor/lidar_concat/deskewed"
+max_sync_interval_sec: 0.01
+enable_motion_compensation: true
