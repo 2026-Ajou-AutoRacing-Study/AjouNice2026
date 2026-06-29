@@ -28,3 +28,22 @@ alias maptf_morai="roslaunch bringup maptf_morai.launch"
 alias maptf="roslaunch bringup maptf.launch"
 alias lanelet="roslaunch lanelet_map_visualizer kcity_lanelet_map.launch"   
 alias rb_kill='rosnode kill /rosbridge_websocket /rosapi >/dev/null 2>&1 || true; pkill -9 -f "[r]oslaunch .*bringup morai_bridge.launch"; pkill -9 -f "[r]oslaunch rosbridge_server rosbridge_websocket.launch"; pkill -9 -f "[/]rosbridge_server/rosbridge_websocket"; pkill -9 -f "[/]rosapi/rosapi_node"; ss -ltnp | grep 9090 || echo "9090 free"'
+
+rb_bg() {
+  if ss -ltnp | grep -q ':9090 '; then
+    echo "9090 already listening; not restarting rosbridge. Use rb_restart to force."
+    ss -ltnp | grep 9090
+    return 0
+  fi
+  nohup roslaunch bringup morai_bridge.launch >/tmp/morai_bridge.log 2>&1 &
+  echo "morai_bridge pid=$! log=/tmp/morai_bridge.log"
+}
+
+rb_restart() {
+  rosnode kill /rosbridge_websocket /rosapi >/dev/null 2>&1 || true
+  pkill -9 -f "[r]oslaunch .*bringup morai_bridge.launch"
+  pkill -9 -f "[r]oslaunch rosbridge_server rosbridge_websocket.launch"
+  pkill -9 -f "[/]rosbridge_server/rosbridge_websocket"
+  pkill -9 -f "[/]rosapi/rosapi_node"
+  rb_bg
+}
