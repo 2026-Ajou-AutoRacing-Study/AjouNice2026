@@ -9,10 +9,6 @@
   <arg name="enable_vehicle_model" default="true"/>
   <arg name="start_rviz" default="true"/>
 
-  <!-- Evaluation-only GT bridge: /Ego_topic -> /localization/odom. -->
-  <!-- Set false for race/real-stack runs where /Ego_topic should not be used. -->
-  <arg name="enable_ego_to_odom" default="false"/>
-
   <arg name="calibration" default="$(find velodyne_pointcloud)/params/32db.yaml"/>
   <arg name="lidar_concat_config" default="$(find sensor_interface)/config/lidar_concat.yaml"/>
   <arg name="lidar_preprocess_config" default="$(find sensor_interface)/config/lidar_preprocess.yaml"/>
@@ -56,10 +52,6 @@
     <include file="$(find sensor_interface)/launch/lidar_preprocess.launch">
       <arg name="config" value="$(arg lidar_preprocess_config)"/>
     </include>
-  </group>
-
-  <group if="$(arg enable_ego_to_odom)">
-    <include file="$(find morai_ros_bridge)/launch/ego_to_odom.launch"/>
   </group>
 
   <group if="$(arg enable_vehicle_model)">
