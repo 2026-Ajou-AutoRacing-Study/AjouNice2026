@@ -9,14 +9,26 @@
       /localization/odom : nav_msgs/Odometry
   -->
 
+  <arg name="ego_topic" default="/Ego_topic"/>
+  <arg name="odom_topic" default="/localization/odom"/>
+  <arg name="frame_id" default="morai_map"/>
+  <arg name="child_frame_id" default="base_link"/>
+  <arg name="publish_tf" default="false"/>
+  <arg name="enable_gps_fallback" default="false"/>
+  <arg name="gps_topic" default="/sensor/gps"/>
+  <arg name="node_name" default="morai_ego_to_odom"/>
+
   <node pkg="morai_ros_bridge"
         type="morai_ego_to_odom.py"
-        name="morai_ego_to_odom"
+        name="$(arg node_name)"
         output="screen">
 
-    <param name="ego_topic" value="/Ego_topic"/>
-    <param name="odom_topic" value="/localization/odom"/>
-    <param name="frame_id" value="map"/>
-    <param name="child_frame_id" value="base_link"/>
+    <param name="ego_topic" value="$(arg ego_topic)"/>
+    <param name="odom_topic" value="$(arg odom_topic)"/>
+    <param name="frame_id" value="$(arg frame_id)"/>
+    <param name="child_frame_id" value="$(arg child_frame_id)"/>
+    <param name="publish_tf" value="$(arg publish_tf)"/>
+    <param name="enable_gps_fallback" value="$(arg enable_gps_fallback)"/>
+    <param name="gps_topic" value="$(arg gps_topic)"/>
   </node>
 </launch>

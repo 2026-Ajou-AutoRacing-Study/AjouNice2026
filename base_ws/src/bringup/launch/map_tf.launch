@@ -1,0 +1,33 @@
+<launch>
+  <!--
+    Localization-complete map TF.
+
+    Use this only when /localization/odom is produced by the localization stack.
+    The odometry message frame ids are trusted by default; if they are empty,
+    this falls back to map -> base_link.
+    For MORAI /Ego_topic before localization is ready, use maptf_morai.launch
+    or maptf_morai_bag.launch.
+  -->
+  <arg name="odom_topic" default="/localization/odom"/>
+  <arg name="map_frame" default="map"/>
+  <arg name="morai_map_frame" default="morai_map"/>
+  <arg name="base_frame" default="base_link"/>
+  <arg name="publish_odom_tf" default="true"/>
+  <arg name="use_msg_frame_ids" default="true"/>
+
+  <include file="$(find sensor_interface)/launch/map_static_tf.launch">
+    <arg name="parent_frame" value="$(arg map_frame)"/>
+    <arg name="child_frame" value="$(arg morai_map_frame)"/>
+  </include>
+
+  <node pkg="morai_ros_bridge"
+        type="odom_to_tf.py"
+        name="localization_odom_to_tf"
+        output="screen"
+        if="$(arg publish_odom_tf)">
+    <param name="odom_topic" value="$(arg odom_topic)"/>
+    <param name="frame_id" value="$(arg map_frame)"/>
+    <param name="child_frame_id" value="$(arg base_frame)"/>
+    <param name="use_msg_frame_ids" value="$(arg use_msg_frame_ids)"/>
+  </node>
+</launch>

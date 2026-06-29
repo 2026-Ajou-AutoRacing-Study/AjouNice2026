@@ -1,3 +1,4 @@
+
 alias ck="catkin_make"
 alias cm="catkin_make"
 alias cb="code ~/.bashrc"
@@ -11,9 +12,13 @@ alias gps="rostopic echo /sensor/gps"
 alias gps1="rostopic echo -n 1 /sensor/gps"
 alias gpshz="rostopic hz /sensor/gps"
 alias gpsinfo="rostopic info /sensor/gps"
+alias rosbagraw="bash ~/AjouNice2026/scripts/rosbag_maker.sh"
 
 
 #-----------------------------------------------------
-alias rl="roslaunch rosbridge_server rosbridge_websocket.launch"
+alias rb="roslaunch bringup morai_bridge.launch"
 alias sensing="roslaunch bringup sensing.launch"
-alias  ioniq5="roslaunch ioniq5 display_ioniq5.launch"
+alias maptf_morai_bag="roslaunch bringup maptf_morai_bag.launch"
+alias maptf_morai="roslaunch bringup maptf_morai.launch"
+alias maptf="roslaunch bringup map_tf.launch"
+alias lanelet="roslaunch lanelet_map_visualizer kcity_lanelet_map.launch"

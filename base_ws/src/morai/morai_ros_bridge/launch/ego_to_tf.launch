@@ -1,0 +1,22 @@
+<launch>
+  <!--
+    Use MORAI /Ego_topic as a morai_map -> base_link TF source.
+
+    Publishes:
+      /localization/odom
+      /tf: morai_map -> base_link
+  -->
+
+  <arg name="ego_topic" default="/Ego_topic"/>
+  <arg name="odom_topic" default="/localization/odom"/>
+  <arg name="frame_id" default="morai_map"/>
+  <arg name="child_frame_id" default="base_link"/>
+
+  <include file="$(find morai_ros_bridge)/launch/ego_to_odom.launch">
+    <arg name="ego_topic" value="$(arg ego_topic)"/>
+    <arg name="odom_topic" value="$(arg odom_topic)"/>
+    <arg name="frame_id" value="$(arg frame_id)"/>
+    <arg name="child_frame_id" value="$(arg child_frame_id)"/>
+    <arg name="publish_tf" value="true"/>
+  </include>
+</launch>

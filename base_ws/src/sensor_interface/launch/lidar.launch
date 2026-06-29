@@ -5,12 +5,11 @@
   -->
 
   <arg name="calibration" default="$(find velodyne_pointcloud)/params/32db.yaml"/>
+  <arg name="enable_lidar_udp" default="true"/>
   <arg name="enable_lidar_concat" default="true"/>
   <arg name="lidar_concat_config" default="$(find sensor_interface)/config/lidar_concat.yaml"/>
 
-  <include file="$(find sensor_interface)/launch/sensor_tf.launch"/>
-
-  <group ns="lidar1">
+  <group if="$(arg enable_lidar_udp)" ns="lidar1">
     <node pkg="nodelet"
           type="nodelet"
           name="lidar1_nodelet_manager"
@@ -53,7 +52,7 @@
     </node>
   </group>
 
-  <group ns="lidar2">
+  <group if="$(arg enable_lidar_udp)" ns="lidar2">
     <node pkg="nodelet"
           type="nodelet"
           name="lidar2_nodelet_manager"

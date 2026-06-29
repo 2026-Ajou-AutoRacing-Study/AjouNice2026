@@ -1,0 +1,29 @@
+RECORDED_SUITE_START
+START 0626 bag=rosbags/raw/raw_sensor_0629_0626.bag expect_ego_topic=True
+RESULT 0626 ok=True ret=0 marker_ok=True concat_ok=True odom_ok=True tf_ok=True ego_topic_ok=True gps_ok=True imu_ok=True object_ok=True video_ok=True map_alignment_ok=True
+DETAIL 0626 counts clock=599 tf_msg=282 tf_static_msg=1 ego=293 gps=118 imu=272 objects=293 odom=293 lidar1=102 lidar2=102 concat=101 tf_lookup=180
+DELTA 0626 odom_delta=21.317 tf_delta=21.317 bbox_hits=180/180 marker_bbox=(-549.1719485208159, 550.7476205806597, -1164.6874245945364, 1166.8794802064076, 23.183, 37.382)
+FRAMES 0626 marker_frames=['map'] lidar1_last=(1782682001.6413546, 'lidar1', 25365, 1, 558030) lidar2_last=(1782682001.641726, 'lidar2', 25093, 1, 552046) concat_last=(1782682001.5861974, 'base_link', 50474, 1, 1615168) odom_last=(1782682001.661, 44.60708999633789, 1214.50244140625, -0.36457931995391846, 'morai_map', 'base_link') tf_last=(1782682001.661, 41.10822021633789, 250.95077959225, 28.62642068004608, 'map', 'base_link')
+VIDEO 0626 path=artifacts/rviz_bag_checks/raw_sensor_0629_0626_rviz.mp4 bytes=3621453
+START 0638 bag=rosbags/raw/raw_sensor_0629_0638.bag expect_ego_topic=False
+PROGRESS 0638 wall=20.0s ego=0 gps=389 odom=389 lidar1=329 lidar2=329 concat=328 tf=484 markers=6
+PROGRESS 0638 wall=40.0s ego=0 gps=789 odom=789 lidar1=668 lidar2=668 concat=667 tf=982 markers=6
+PROGRESS 0638 wall=60.0s ego=0 gps=1189 odom=1189 lidar1=1006 lidar2=1006 concat=1005 tf=1480 markers=6
+PROGRESS 0638 wall=80.0s ego=0 gps=1590 odom=1590 lidar1=1342 lidar2=1342 concat=1342 tf=1978 markers=6
+PROGRESS 0638 wall=100.0s ego=0 gps=1989 odom=1989 lidar1=1683 lidar2=1683 concat=1683 tf=2476 markers=6
+RESULT 0638 ok=True ret=0 marker_ok=True concat_ok=True odom_ok=True tf_ok=True ego_topic_ok=True gps_ok=True imu_ok=True object_ok=True video_ok=True map_alignment_ok=True
+DETAIL 0638 counts clock=10716 tf_msg=2156 tf_static_msg=0 ego=0 gps=2156 imu=4951 objects=0 odom=2156 lidar1=1824 lidar2=1824 concat=1824 tf_lookup=2714
+DELTA 0638 odom_delta=230.146 tf_delta=230.146 bbox_hits=2714/2714 marker_bbox=(-549.1719485208159, 550.7476205806597, -1164.6874245945364, 1166.8794802064076, 23.183, 37.382)
+FRAMES 0638 marker_frames=['map'] lidar1_last=(1782682827.7486408, 'lidar1', 29539, 1, 649858) lidar2_last=(1782682827.749004, 'lidar2', 28954, 1, 636988) concat_last=(1782682827.691904, 'base_link', 58567, 1, 1874144) odom_last=(1782682827.769, 179.80266724695684, 1376.8350547738373, -0.23544404983520506, 'morai_map', 'base_link') tf_last=(1782682827.769, 176.30379746695684, 413.28339295983733, 28.755555950164794, 'map', 'base_link')
+VIDEO 0638 path=artifacts/rviz_bag_checks/raw_sensor_0629_0638_rviz.mp4 bytes=47486422
+START 0646 bag=rosbags/raw/raw_sensor_0629_0646.bag expect_ego_topic=True
+PROGRESS 0646 wall=20.0s ego=970 gps=389 odom=970 lidar1=328 lidar2=328 concat=328 tf=485 markers=6
+PROGRESS 0646 wall=40.0s ego=1964 gps=789 odom=1964 lidar1=666 lidar2=666 concat=666 tf=983 markers=6
+PROGRESS 0646 wall=60.0s ego=2957 gps=1189 odom=2957 lidar1=1006 lidar2=1006 concat=1006 tf=1481 markers=6
+PROGRESS 0646 wall=80.0s ego=3955 gps=1589 odom=3955 lidar1=1344 lidar2=1344 concat=1344 tf=1979 markers=6
+RESULT 0646 ok=True ret=0 marker_ok=True concat_ok=True odom_ok=True tf_ok=True ego_topic_ok=True gps_ok=True imu_ok=True object_ok=True video_ok=True map_alignment_ok=True
+DETAIL 0646 counts clock=7909 tf_msg=3842 tf_static_msg=0 ego=3956 gps=1589 imu=3634 objects=3955 odom=3956 lidar1=1344 lidar2=1344 concat=1344 tf_lookup=2016
+DELTA 0646 odom_delta=197.175 tf_delta=197.049 bbox_hits=2016/2016 marker_bbox=(-549.1719485208159, 550.7476205806597, -1164.6874245945364, 1166.8794802064076, 23.183, 37.382)
+FRAMES 0646 marker_frames=['map'] lidar1_last=(1782683269.5197594, 'lidar1', 29341, 1, 645502) lidar2_last=(1782683269.5199995, 'lidar2', 28969, 1, 637318) concat_last=(1782683269.4668193, 'base_link', 58310, 1, 1865920) odom_last=(1782683269.556, 115.60635375976562, 1608.2786865234375, -0.040543824434280396, 'morai_map', 'base_link') tf_last=(1782683269.556, 112.10748397976562, 644.7270247094375, 28.95045617556572, 'map', 'base_link')
+VIDEO 0646 path=artifacts/rviz_bag_checks/raw_sensor_0629_0646_rviz.mp4 bytes=36055665
+RECORDED_SUITE_DONE

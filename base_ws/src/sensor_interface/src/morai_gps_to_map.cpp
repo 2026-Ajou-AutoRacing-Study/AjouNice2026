@@ -128,9 +128,9 @@ public:
     private_node_handle_.param("utm_zone", utm_zone_, 52);
     private_node_handle_.param("northern_hemisphere", northern_hemisphere_, true);
     private_node_handle_.param("use_message_offsets", use_message_offsets_, true);
-    private_node_handle_.param("fallback_east_offset", fallback_east_offset_, 302459.942);
-    private_node_handle_.param("fallback_north_offset", fallback_north_offset_, 4122635.537);
-    private_node_handle_.param("morai_origin_altitude", morai_origin_altitude_, 28.991);
+    private_node_handle_.param("fallback_east_offset", fallback_east_offset_, 302595.0);
+    private_node_handle_.param("fallback_north_offset", fallback_north_offset_, 4124145.0);
+    private_node_handle_.param("morai_origin_altitude", morai_origin_altitude_, 0.0);
 
     private_node_handle_.param("require_status_ok", require_status_ok_, true);
     private_node_handle_.param("publish_morai_pose", publish_morai_pose_, true);
@@ -226,9 +226,9 @@ private:
   int utm_zone_ = 52;
   bool northern_hemisphere_ = true;
   bool use_message_offsets_ = true;
-  double fallback_east_offset_ = 302459.942;
-  double fallback_north_offset_ = 4122635.537;
-  double morai_origin_altitude_ = 28.991;
+  double fallback_east_offset_ = 302595.0;
+  double fallback_north_offset_ = 4124145.0;
+  double morai_origin_altitude_ = 0.0;
   bool require_status_ok_ = true;
   bool publish_morai_pose_ = true;
   double tf_timeout_sec_ = 0.1;

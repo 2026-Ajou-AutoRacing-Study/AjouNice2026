@@ -4,28 +4,40 @@
 #   point_in_parent = R_parent_child * point_in_child + translation_parent_child
 #
 # map:
-#   Lanelet2 LocalCartesianUTM frame from maps/map_projector_info_v1.yaml
+#   Lanelet2 LocalCartesianUTM frame from kcity_map/map_projector_info_v1.yaml
 # morai_map:
-#   MORAI k-city MGeo local frame extracted from k-city.scene
+#   MORAI k-city MGeo local frame from the current live simulator account.
 #
-# The final transform intentionally uses the authoritative UTM origin delta.
-# Feature ICP candidates only improved the mean nearest-line error by a few
-# millimeters while moving the transform by centimeters in inconsistent
-# directions across map layers.
+# The final transform uses the live competition runtime GPS east/north offsets
+# as the MORAI local-frame origin, then applies the small live-bag rigid-fit
+# refinement recorded below. The previous extracted scene origin is kept below
+# only as historical reference.
 map_to_morai_map:
   parent: "map"
   child: "morai_map"
-  xyz: [-3.498869780, -963.551661814, 28.991]
-  rpy: [0.0, 0.0, 0.0]
+  xyz: [131.534421814, 545.922194568, 0.0]
+  rpy: [0.0, 0.0, 0.000326632868]
 
   source:
-    morai_scene: "k-city"
+    morai_scene: "k-city competition runtime"
     morai_mgeo_global_coordinate_system: "+proj=utm +zone=52 +ellps=WGS84 +units=m +no_defs"
-    morai_local_origin_in_global: [302459.942, 4122635.537, 28.991]
+    morai_runtime_gps_east_north_offset: [302595.0, 4124145.0]
+    morai_runtime_origin_delta_xyz: [131.559130220, 545.911338186, 0.0]
+    morai_previous_scene_origin_in_global: [302459.942, 4122635.537, 28.991]
+    morai_runtime_z_is_altitude_like: true
 
-    lanelet_map: "maps/lanelet2_map_v1.osm"
-    lanelet_projector: "maps/map_projector_info_v1.yaml"
+    lanelet_map: "kcity_map/lanelet2_map_v1.osm"
+    lanelet_projector: "kcity_map/map_projector_info_v1.yaml"
     lanelet_projector_type: "LocalCartesianUTM"
     lanelet_map_origin_lat_lon_alt: [37.2380038082, 126.7730819386, 0.0]
     lanelet_map_origin_utm52: [302463.440869780, 4123599.088661814, 0.0]
 
+    alignment_refinement:
+      source_bag: "rosbags/raw/raw_sensor_0629_1718.bag"
+      matched_samples: 1188
+      method: "2D Procrustes fit of interpolated /Ego_topic.position to /sensor/gps projected into Lanelet map"
+      yaw_rad: 0.000326632868
+      yaw_deg: 0.018714685
+      translation_delta_from_runtime_origin_m: [-0.024708406, 0.010856382, 0.0]
+      before_rms_error_m: 0.103772
+      after_rms_error_m: 0.100785

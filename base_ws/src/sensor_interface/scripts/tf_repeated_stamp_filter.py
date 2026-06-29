@@ -10,6 +10,7 @@ class TfRepeatedStampFilter:
         self.input_topic = rospy.get_param("~input_topic", "/morai/tf_raw")
         self.output_topic = rospy.get_param("~output_topic", "/tf")
         self.strip_leading_slash = rospy.get_param("~strip_leading_slash", True)
+        self.frame_id_remap = rospy.get_param("~frame_id_remap", {})
         self.last_stamp_by_child = {}
         self.dropped_count = 0
 
@@ -19,9 +20,10 @@ class TfRepeatedStampFilter:
         )
 
         rospy.loginfo(
-            "tf_repeated_stamp_filter: %s -> %s",
+            "tf_repeated_stamp_filter: %s -> %s frame_id_remap=%s",
             self.input_topic,
             self.output_topic,
+            self.frame_id_remap,
         )
 
     def callback(self, message):
@@ -32,6 +34,9 @@ class TfRepeatedStampFilter:
             if self.strip_leading_slash:
                 transform.header.frame_id = transform.header.frame_id.lstrip("/")
                 transform.child_frame_id = transform.child_frame_id.lstrip("/")
+
+            transform.header.frame_id = self.remap_frame_id(transform.header.frame_id)
+            transform.child_frame_id = self.remap_frame_id(transform.child_frame_id)
 
             child_frame = transform.child_frame_id
             stamp = transform.header.stamp
@@ -50,6 +55,9 @@ class TfRepeatedStampFilter:
 
         if filtered_transforms:
             self.publisher.publish(TFMessage(filtered_transforms))
+
+    def remap_frame_id(self, frame_id):
+        return self.frame_id_remap.get(frame_id, frame_id)
 
 
 def main():

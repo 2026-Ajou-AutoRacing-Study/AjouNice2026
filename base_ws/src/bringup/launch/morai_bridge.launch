@@ -1,16 +1,19 @@
 <launch>
-  <!-- rosbridge_server: MORAI가 ROS topic/msg를 WebSocket으로 주고받기 위한 서버 -->
+  <!-- rosbridge_server: MORAI WebSocket transport. Keep map/base_link TF ownership outside this launch. -->
   <!-- roslaunch bringup morai_bridge.launch -->
-  <arg name="enable_tf_filter" default="true"/>
+  <arg name="remap_morai_tf" default="true"/>
+  <arg name="enable_tf_filter" default="false"/>
   <arg name="morai_raw_tf_topic" default="/morai/tf_raw"/>
   <arg name="tf_output_topic" default="/tf"/>
+  <arg name="morai_raw_map_frame" default="map"/>
+  <arg name="morai_map_frame" default="morai_map"/>
 
-  <group if="$(arg enable_tf_filter)">
+  <group if="$(arg remap_morai_tf)">
     <remap from="/tf" to="$(arg morai_raw_tf_topic)"/>
     <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch"/>
   </group>
 
-  <group unless="$(arg enable_tf_filter)">
+  <group unless="$(arg remap_morai_tf)">
     <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch"/>
   </group>
 
@@ -22,5 +25,6 @@
     <param name="input_topic" value="$(arg morai_raw_tf_topic)"/>
     <param name="output_topic" value="$(arg tf_output_topic)"/>
     <param name="strip_leading_slash" value="true"/>
+    <param name="frame_id_remap/$(arg morai_raw_map_frame)" value="$(arg morai_map_frame)"/>
   </node>
 </launch>

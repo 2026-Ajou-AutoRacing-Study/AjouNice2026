@@ -3,9 +3,9 @@
     Publish the fixed MORAI MGeo frame on top of the Lanelet map frame.
 
     map:
-      Lanelet2 LocalCartesianUTM frame from maps/map_projector_info_v1.yaml.
+      Lanelet2 LocalCartesianUTM frame from kcity_map/map_projector_info_v1.yaml.
     morai_map:
-      MORAI k-city MGeo local frame.
+      Current live MORAI k-city local frame.
 
     Numeric source of truth:
       configs/tf/morai_lanelet_static_tf.yaml
@@ -14,11 +14,11 @@
   <arg name="parent_frame" default="map"/>
   <arg name="child_frame" default="morai_map"/>
 
-  <arg name="x" default="-3.498869780"/>
-  <arg name="y" default="-963.551661814"/>
-  <arg name="z" default="28.991"/>
+  <arg name="x" default="131.534421814"/>
+  <arg name="y" default="545.922194568"/>
+  <arg name="z" default="0.0"/>
 
-  <arg name="yaw" default="0.0"/>
+  <arg name="yaw" default="0.000326632868"/>
   <arg name="pitch" default="0.0"/>
   <arg name="roll" default="0.0"/>
 
@@ -28,4 +28,3 @@
         args="$(arg x) $(arg y) $(arg z) $(arg yaw) $(arg pitch) $(arg roll) $(arg parent_frame) $(arg child_frame)"
         output="screen"/>
 </launch>
-

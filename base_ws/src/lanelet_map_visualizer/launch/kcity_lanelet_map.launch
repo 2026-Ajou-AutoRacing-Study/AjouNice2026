@@ -1,0 +1,24 @@
+<launch>
+  <arg name="map_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet2_map_v1.osm"/>
+  <arg name="projector_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/map_projector_info_v1.yaml"/>
+  <arg name="frame_id" default="map"/>
+  <arg name="output_topic" default="/map/vector_map_marker"/>
+  <arg name="legacy_output_topic" default="/lanelet2_map_viz"/>
+  <arg name="publish_rate" default="0.0"/>
+  <arg name="flatten_z" default="false"/>
+  <arg name="publish_lanelet_fill" default="false"/>
+
+  <node pkg="lanelet_map_visualizer"
+        type="lanelet2_osm_marker_publisher.py"
+        name="lanelet2_osm_marker_publisher"
+        output="screen">
+    <param name="map_file" value="$(arg map_file)"/>
+    <param name="projector_file" value="$(arg projector_file)"/>
+    <param name="frame_id" value="$(arg frame_id)"/>
+    <param name="output_topic" value="$(arg output_topic)"/>
+    <param name="legacy_output_topic" value="$(arg legacy_output_topic)"/>
+    <param name="publish_rate" value="$(arg publish_rate)"/>
+    <param name="flatten_z" value="$(arg flatten_z)"/>
+    <param name="publish_lanelet_fill" value="$(arg publish_lanelet_fill)"/>
+  </node>
+</launch>

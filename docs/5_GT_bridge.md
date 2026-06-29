@@ -16,6 +16,8 @@
 출력:
   /localization/odom
   nav_msgs/Odometry
+  /tf
+  morai_map -> base_link
 ```
 
 
@@ -37,6 +39,13 @@ gedit ~/AjouNice2026/configs/localization/fast_lio_morai_velodyne.yaml
   - morai에서 heading 값이 deg로 들어왔었음(ex. 58.123) -> 이거 ros에선 rad 쓰니까 변환해줘야함.
 
 - `~/AjouNice2026/base_ws/src/morai_ros_bridge/launch/ego_to_odom.launch`
+- RViz에서 차량을 맵에 올려 보려면 bringup의 map TF launch를 사용한다.
+  - `/Ego_topic`을 임시 localization 소스로 삼아 `/localization/odom`을 만들고
+  - 동시에 `morai_map -> base_link` TF를 publish한다.
+  - `sensor_interface/map_static_tf.launch`의 `map -> morai_map`까지 같이 켜서 최종 TF는 `map -> morai_map -> base_link`가 된다.
+  - rosbag replay: `roslaunch bringup maptf_morai_bag.launch`
+  - live MORAI simulator: `roslaunch bringup maptf_morai.launch`
+  - localization 완료 후: `roslaunch bringup map_tf.launch`
 
 
 
@@ -52,7 +61,7 @@ rosbag play morai_local_valid_ego_sensors.bag --clock --loop # loop: 반복
 ```
 ```bash
 # 터미널2
-roslaunch morai_ros_bridge ego_to_odom.launch
+roslaunch bringup maptf_morai_bag.launch
 ```
 
 ```bash
@@ -84,7 +93,7 @@ header:
   stamp: 
     secs: 1780824019
     nsecs: 820000000
-  frame_id: "map"
+  frame_id: "morai_map"
 child_frame_id: "base_link"
 pose: 
   pose: 

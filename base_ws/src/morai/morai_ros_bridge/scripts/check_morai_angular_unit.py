@@ -50,8 +50,9 @@ class AngularUnitChecker:
         heading_rate_deg_s = dh_deg / dt
         heading_rate_rad_s = math.radians(heading_rate_deg_s)
 
-        # MORAI가 주는 angular_velocity.z.
-        wz = msg.angular_velocity.z
+        # Older local bags exposed angular_velocity; competition EgoVehicleStatus does not.
+        angular_velocity = getattr(msg, "angular_velocity", None)
+        wz = angular_velocity.z if angular_velocity is not None else None
 
         self.samples.append((heading_rate_deg_s, heading_rate_rad_s, wz))
 
@@ -60,7 +61,18 @@ class AngularUnitChecker:
 
             avg_deg_s = sum(abs(x[0]) for x in recent) / len(recent)
             avg_rad_s = sum(abs(x[1]) for x in recent) / len(recent)
-            avg_wz = sum(abs(x[2]) for x in recent) / len(recent)
+            wz_samples = [abs(x[2]) for x in recent if x[2] is not None]
+
+            if not wz_samples:
+                rospy.loginfo(
+                    "avg heading_rate: %.3f deg/s = %.3f rad/s | no angular_velocity field",
+                    avg_deg_s,
+                    avg_rad_s
+                )
+                self.prev_msg = msg
+                return
+
+            avg_wz = sum(wz_samples) / len(wz_samples)
 
             rospy.loginfo(
                 "avg heading_rate: %.3f deg/s = %.3f rad/s | avg angular_velocity.z: %.3f",

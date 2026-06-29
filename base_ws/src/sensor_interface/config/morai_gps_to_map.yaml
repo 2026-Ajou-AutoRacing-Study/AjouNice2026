@@ -10,9 +10,9 @@ northern_hemisphere: true
 
 # MORAI GPSMessage eastOffset/northOffset are the MGeo UTM origin offsets.
 use_message_offsets: true
-fallback_east_offset: 302459.942
-fallback_north_offset: 4122635.537
-morai_origin_altitude: 28.991
+fallback_east_offset: 302595.0
+fallback_north_offset: 4124145.0
+morai_origin_altitude: 0.0
 
 require_status_ok: true
 publish_morai_pose: true
