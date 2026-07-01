@@ -1,0 +1,50 @@
+common:
+  lid_topic: "/sensor/lidar2"
+  imu_topic: "/sensor/imu"
+  time_sync_en: false
+  time_offset_lidar_to_imu: 0.0
+
+preprocess:
+  # 1: Livox, 2: Velodyne, 3: Ouster, 4: MARSIM
+  lidar_type: 2
+
+  # MORAI HDL32-like LiDAR
+  scan_line: 32
+  scan_rate: 20
+
+  # Verify /sensor/lidar2/fields time unit later
+  timestamp_unit: 2
+
+  blind: 2
+
+mapping:
+  acc_cov: 0.1
+  gyr_cov: 0.1
+  b_acc_cov: 0.0001
+  b_gyr_cov: 0.0001
+
+  fov_degree: 180
+  det_range: 100.0
+
+  extrinsic_est_en: false
+
+  # LiDAR2 pose in IMU frame.
+  # LiDAR2: [0.350, 0.000, 1.576], rpy=[0, 5, 180] deg
+  # IMU:    [1.528, 0.000, 1.230], rpy=[0, 0, 0] deg
+  # LiDAR2 - IMU = [-1.178, 0.000, 0.346]
+  extrinsic_T: [-1.178, 0.0, 0.346]
+
+  # R = Rz(180deg) * Ry(5deg) * Rx(0deg)
+  extrinsic_R: [-0.996194698, 0.0, -0.087155743,
+                 0.0,        -1.0,  0.0,
+                -0.087155743, 0.0,  0.996194698]
+
+publish:
+  path_en: true
+  scan_publish_en: true
+  dense_publish_en: true
+  scan_bodyframe_pub_en: true
+
+pcd_save:
+  pcd_save_en: false
+  interval: -1
