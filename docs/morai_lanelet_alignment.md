@@ -53,14 +53,14 @@ lanelet map origin UTM52:
 ```text
 map -> morai_map
 translation:
-  x: 131.534421814
-  y: 545.922194568
+  x: 131.656525062
+  y: 545.893929229
   z: 0.0
 rotation:
   roll:  0.0
   pitch: 0.0
-  yaw:   0.000326632868 rad
-         0.018714685 deg
+  yaw:   0.000146070411 rad
+         0.008369218 deg
 ```
 
 The unrefined translation from runtime GPS origin to Lanelet map origin is:
@@ -74,15 +74,14 @@ morai_origin_utm - lanelet_origin_utm
 
 ## Runtime Validation
 
-The current yaw refinement was calculated from
-`rosbags/raw/raw_sensor_0629_1718.bag`, which uses the same runtime GPS offsets
-as the static TF:
+The previous GPS/Ego yaw refinement was calculated from
+`rosbags/raw/raw_sensor_0629_1718.bag`, which uses the same runtime GPS offsets:
 
 ```text
 matched samples:
   1188 /sensor/gps messages matched to interpolated /Ego_topic.position
 
-fit:
+  fit:
   map_xy = R(yaw) * morai_xy + translation
   yaw: 0.000326632868 rad
        0.018714685 deg
@@ -99,6 +98,55 @@ The fitted translation differs from the raw GPS-origin delta by
 `[-0.024708406, 0.010856382, 0.0]` m. That centimeter-scale shift keeps the
 small yaw correction centered on the live trajectory instead of rotating around
 the raw origin.
+
+The current applied transform uses the MGeo geometry fit. A later raw-LiDAR
+intensity refinement from `rosbags/raw/raw_sensor_0701_0100.bag` was tested and
+rejected after RViz inspection because the high-intensity ground set was not
+lane-only.
+
+```text
+source:
+  /home/jihun/catkin_ws/src/MORAI-DriveExample_ROS/morai_standard/scripts/autonomous_driving/mgeo/lib/mgeo_data/R_KR_PG_K-City
+
+fit layers:
+  MGeo link_set          -> Lanelet relation centerlines
+  MGeo lane_boundary_set -> Lanelet relation boundaries
+
+balanced robust fit:
+  yaw: 0.000146070411 rad
+       0.008369218 deg
+  translation: [131.656525062, 545.893929229, 0.0]
+
+current config residuals:
+  link -> centerline rms:         0.9679 m
+  lane boundary -> boundary rms:  0.8775 m
+  lane nonstop -> boundary rms:   0.8757 m
+
+refined config residuals:
+  link -> centerline rms:         0.9661 m
+  lane boundary -> boundary rms:  0.8668 m
+  lane nonstop -> boundary rms:   0.8650 m
+
+rejected bag LiDAR intensity correction:
+  topics: /sensor/lidar1, /sensor/lidar2, /Ego_topic
+  ROI: base_link ground z=[-0.46,-0.17]m, range=[1.7,34]m
+  intensity threshold: >=112
+  target: Lanelet non-virtual relation boundaries
+  thresholded voxel points: 471
+  selected lane-component points: 205
+  correction from MGeo fit:
+    dx: +0.2300 m
+    dy: -0.2400 m
+    dyaw: -0.0120 deg
+
+selected lane-component residuals:
+  before rms/p50/p75: 0.3783 / 0.2232 / 0.2975 m
+  after  rms/p50/p75: 0.3024 / 0.0689 / 0.1546 m
+
+rejected candidate:
+  The high-intensity ground points were not lane-only and likely included
+  arrows, stop lines, road markings, or scan-band artifacts.
+```
 
 ## Previous Scene Feature Check
 

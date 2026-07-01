@@ -14,11 +14,11 @@
   <arg name="parent_frame" default="map"/>
   <arg name="child_frame" default="morai_map"/>
 
-  <arg name="x" default="131.534421814"/>
-  <arg name="y" default="545.922194568"/>
+  <arg name="x" default="131.656525062"/>
+  <arg name="y" default="545.893929229"/>
   <arg name="z" default="0.0"/>
 
-  <arg name="yaw" default="0.000326632868"/>
+  <arg name="yaw" default="0.000146070411"/>
   <arg name="pitch" default="0.0"/>
   <arg name="roll" default="0.0"/>
 

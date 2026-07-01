@@ -9,6 +9,7 @@
 #include <limits>
 #include <string>
 
+#include <Eigen/Dense>
 #include <geometry_msgs/TransformStamped.h>
 #include <ros/time.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -26,19 +27,51 @@ struct Point3
   double z;
 };
 
+struct Vector3
+{
+  double x;
+  double y;
+  double z;
+};
+
 struct MotionSample
 {
+  MotionSample()
+    : x(0.0)
+    , y(0.0)
+    , z(0.0)
+    , yaw(0.0)
+    , vx(0.0)
+    , vy(0.0)
+    , vz(0.0)
+    , wx(0.0)
+    , wy(0.0)
+    , wz(0.0)
+  {
+  }
+
   ros::Time stamp;
   double x;
   double y;
+  double z;
   double yaw;
   double vx;
   double vy;
+  double vz;
+  double wx;
+  double wy;
+  double wz;
 };
 
 struct ImuSample
 {
+  ImuSample() : wx(0.0), wy(0.0), wz(0.0)
+  {
+  }
+
   ros::Time stamp;
+  double wx;
+  double wy;
   double wz;
 };
 
@@ -163,6 +196,66 @@ inline Point3 transformPoint(const geometry_msgs::TransformStamped &transform, c
   return Point3{ transformed.x(), transformed.y(), transformed.z() };
 }
 
+inline Eigen::Matrix3d skew(const Vector3 &vector)
+{
+  Eigen::Matrix3d matrix;
+  matrix << 0.0, -vector.z, vector.y, vector.z, 0.0, -vector.x, -vector.y, vector.x, 0.0;
+  return matrix;
+}
+
+inline Eigen::Matrix4d expTransform3D(const Vector3 &linear_velocity,
+                                      const Vector3 &angular_velocity,
+                                      const double dt)
+{
+  const Vector3 translation{ linear_velocity.x * dt, linear_velocity.y * dt,
+                             linear_velocity.z * dt };
+  const Vector3 rotation{ angular_velocity.x * dt, angular_velocity.y * dt,
+                          angular_velocity.z * dt };
+  const double theta = std::sqrt(rotation.x * rotation.x + rotation.y * rotation.y +
+                                 rotation.z * rotation.z);
+
+  const Eigen::Matrix3d omega = skew(rotation);
+  const Eigen::Matrix3d omega2 = omega * omega;
+  Eigen::Matrix3d rotation_matrix = Eigen::Matrix3d::Identity();
+  Eigen::Matrix3d left_jacobian = Eigen::Matrix3d::Identity();
+
+  if (theta < 1.0e-8)
+  {
+    rotation_matrix += omega + 0.5 * omega2;
+    left_jacobian += 0.5 * omega + (1.0 / 6.0) * omega2;
+  }
+  else
+  {
+    const double theta2 = theta * theta;
+    const double theta3 = theta2 * theta;
+    rotation_matrix += (std::sin(theta) / theta) * omega +
+                       ((1.0 - std::cos(theta)) / theta2) * omega2;
+    left_jacobian += ((1.0 - std::cos(theta)) / theta2) * omega +
+                     ((theta - std::sin(theta)) / theta3) * omega2;
+  }
+
+  const Eigen::Vector3d rho(translation.x, translation.y, translation.z);
+  const Eigen::Vector3d translated = left_jacobian * rho;
+
+  Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();
+  transform.block<3, 3>(0, 0) = rotation_matrix;
+  transform.block<3, 1>(0, 3) = translated;
+  return transform;
+}
+
+inline Point3 transformPoint(const Eigen::Matrix4d &transform, const Point3 &point)
+{
+  const Eigen::Vector4d input(point.x, point.y, point.z, 1.0);
+  const Eigen::Vector4d output = transform * input;
+  return Point3{ output.x(), output.y(), output.z() };
+}
+
+inline Point3 compensatePoint3D(const Point3 &point, const Vector3 &linear_velocity,
+                                const Vector3 &angular_velocity, const double dt)
+{
+  return transformPoint(expTransform3D(linear_velocity, angular_velocity, dt), point);
+}
+
 inline void integrateTwist2D(const double vx, const double vy, const double wz, const double dt,
                              double *dx, double *dy, double *dyaw)
 {
@@ -272,15 +365,20 @@ public:
     sample->stamp = stamp;
     sample->x = prev.x + (next.x - prev.x) * ratio;
     sample->y = prev.y + (next.y - prev.y) * ratio;
+    sample->z = prev.z + (next.z - prev.z) * ratio;
     sample->yaw = interpolateAngle(prev.yaw, next.yaw, ratio);
     sample->vx = prev.vx + (next.vx - prev.vx) * ratio;
     sample->vy = prev.vy + (next.vy - prev.vy) * ratio;
+    sample->vz = prev.vz + (next.vz - prev.vz) * ratio;
+    sample->wx = prev.wx + (next.wx - prev.wx) * ratio;
+    sample->wy = prev.wy + (next.wy - prev.wy) * ratio;
+    sample->wz = prev.wz + (next.wz - prev.wz) * ratio;
     return true;
   }
 
-  bool getImuWz(const ros::Time &stamp, const double timeout_sec, double *wz) const
+  bool getImu(const ros::Time &stamp, const double timeout_sec, ImuSample *sample) const
   {
-    if (wz == nullptr || imu_samples_.empty())
+    if (sample == nullptr || imu_samples_.empty())
     {
       return false;
     }
@@ -293,7 +391,8 @@ public:
     {
       if (std::abs((lower->stamp - stamp).toSec()) <= timeout_sec)
       {
-        *wz = lower->wz;
+        *sample = *lower;
+        sample->stamp = stamp;
         return true;
       }
       return false;
@@ -304,7 +403,8 @@ public:
       const ImuSample &last = imu_samples_.back();
       if (std::abs((stamp - last.stamp).toSec()) <= timeout_sec)
       {
-        *wz = last.wz;
+        *sample = last;
+        sample->stamp = stamp;
         return true;
       }
       return false;
@@ -319,7 +419,21 @@ public:
     }
 
     const double ratio = (stamp - prev.stamp).toSec() / span;
-    *wz = prev.wz + (next.wz - prev.wz) * ratio;
+    sample->stamp = stamp;
+    sample->wx = prev.wx + (next.wx - prev.wx) * ratio;
+    sample->wy = prev.wy + (next.wy - prev.wy) * ratio;
+    sample->wz = prev.wz + (next.wz - prev.wz) * ratio;
+    return true;
+  }
+
+  bool getImuWz(const ros::Time &stamp, const double timeout_sec, double *wz) const
+  {
+    ImuSample sample;
+    if (wz == nullptr || !getImu(stamp, timeout_sec, &sample))
+    {
+      return false;
+    }
+    *wz = sample.wz;
     return true;
   }
 

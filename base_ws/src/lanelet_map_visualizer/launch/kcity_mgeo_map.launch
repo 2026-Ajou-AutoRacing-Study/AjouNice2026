@@ -1,0 +1,62 @@
+<launch>
+  <arg name="global_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/global_info.json"/>
+  <arg name="node_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/node_set.json"/>
+  <arg name="link_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/link_set.json"/>
+  <arg name="frame_id" default="morai_map"/>
+  <arg name="output_topic" default="/morai_mgeo/markers"/>
+  <arg name="publish_rate" default="0.0"/>
+
+  <arg name="alpha" default="0.85"/>
+  <arg name="z_offset" default="0.08"/>
+  <arg name="line_width" default="0.16"/>
+  <arg name="width_line_width" default="0.06"/>
+  <arg name="node_scale" default="0.45"/>
+  <arg name="stop_node_scale" default="0.95"/>
+  <arg name="signal_node_scale" default="0.85"/>
+  <arg name="signal_arrow_length" default="4.0"/>
+  <arg name="origin_scale" default="1.2"/>
+  <arg name="origin_axis_length" default="8.0"/>
+  <arg name="metadata_text_size" default="1.8"/>
+  <arg name="metadata_text_z" default="5.0"/>
+
+  <arg name="show_width_edges" default="true"/>
+  <arg name="show_nodes" default="true"/>
+  <arg name="show_stop_nodes" default="true"/>
+  <arg name="show_signal_nodes" default="true"/>
+  <arg name="show_lane_changes" default="true"/>
+  <arg name="show_signal_dirs" default="true"/>
+  <arg name="show_origin" default="true"/>
+  <arg name="show_metadata_text" default="true"/>
+
+  <node pkg="lanelet_map_visualizer"
+        type="mgeo_json_marker_publisher.py"
+        name="mgeo_json_marker_publisher"
+        output="screen">
+    <param name="global_file" value="$(arg global_file)"/>
+    <param name="node_file" value="$(arg node_file)"/>
+    <param name="link_file" value="$(arg link_file)"/>
+    <param name="frame_id" value="$(arg frame_id)"/>
+    <param name="output_topic" value="$(arg output_topic)"/>
+    <param name="publish_rate" value="$(arg publish_rate)"/>
+    <param name="alpha" value="$(arg alpha)"/>
+    <param name="z_offset" value="$(arg z_offset)"/>
+    <param name="line_width" value="$(arg line_width)"/>
+    <param name="width_line_width" value="$(arg width_line_width)"/>
+    <param name="node_scale" value="$(arg node_scale)"/>
+    <param name="stop_node_scale" value="$(arg stop_node_scale)"/>
+    <param name="signal_node_scale" value="$(arg signal_node_scale)"/>
+    <param name="signal_arrow_length" value="$(arg signal_arrow_length)"/>
+    <param name="origin_scale" value="$(arg origin_scale)"/>
+    <param name="origin_axis_length" value="$(arg origin_axis_length)"/>
+    <param name="metadata_text_size" value="$(arg metadata_text_size)"/>
+    <param name="metadata_text_z" value="$(arg metadata_text_z)"/>
+    <param name="show_width_edges" value="$(arg show_width_edges)"/>
+    <param name="show_nodes" value="$(arg show_nodes)"/>
+    <param name="show_stop_nodes" value="$(arg show_stop_nodes)"/>
+    <param name="show_signal_nodes" value="$(arg show_signal_nodes)"/>
+    <param name="show_lane_changes" value="$(arg show_lane_changes)"/>
+    <param name="show_signal_dirs" value="$(arg show_signal_dirs)"/>
+    <param name="show_origin" value="$(arg show_origin)"/>
+    <param name="show_metadata_text" value="$(arg show_metadata_text)"/>
+  </node>
+</launch>

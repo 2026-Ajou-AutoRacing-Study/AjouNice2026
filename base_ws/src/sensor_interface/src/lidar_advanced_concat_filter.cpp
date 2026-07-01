@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <cmath>
 #include <cstring>
@@ -54,6 +55,7 @@ private:
   std::string odom_topic_;
   std::string morai_velocity_frame_;
   std::string odom_twist_frame_;
+  std::string correction_mode_;
   std::string field_x_;
   std::string field_y_;
   std::string field_z_;
@@ -76,9 +78,9 @@ private:
   void odomCallback(const nav_msgs::Odometry::ConstPtr &msg);
 
   geometry_msgs::TransformStamped lookupCloudTransform(const std_msgs::Header &header) const;
-  bool getReferenceMotion(const ros::Time &stamp, double *vx, double *vy, double *wz);
+  bool getReferenceMotion(const ros::Time &stamp, sensor_interface::MotionSample *motion);
   bool appendCompensatedCloud(const PointCloudMsgT &input, const ros::Time &reference_stamp,
-                              const double vx, const double vy, const double wz, PointCloudMsgT *output);
+                              const sensor_interface::MotionSample &reference_motion, PointCloudMsgT *output);
   void velocityToBase(const std::string &frame_mode, const double yaw, const double input_x,
                       const double input_y, double *vx, double *vy) const;
 };
@@ -110,6 +112,7 @@ LidarAdvancedConcatFilter::LidarAdvancedConcatFilter()
   private_node_handle_.param("odom_topic", odom_topic_, std::string("/localization/odom"));
   private_node_handle_.param("morai_velocity_frame", morai_velocity_frame_, std::string("base_link"));
   private_node_handle_.param("odom_twist_frame", odom_twist_frame_, std::string("base_link"));
+  private_node_handle_.param("correction_mode", correction_mode_, std::string("2d"));
   private_node_handle_.param("field_x", field_x_, std::string("x"));
   private_node_handle_.param("field_y", field_y_, std::string("y"));
   private_node_handle_.param("field_z", field_z_, std::string("z"));
@@ -129,6 +132,13 @@ LidarAdvancedConcatFilter::LidarAdvancedConcatFilter()
   }
 
   motion_buffer_.setDuration(buffer_duration_sec_);
+  std::transform(correction_mode_.begin(), correction_mode_.end(), correction_mode_.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  if (correction_mode_ != "2d" && correction_mode_ != "3d")
+  {
+    ROS_WARN_STREAM("Unsupported correction_mode=" << correction_mode_ << "; falling back to 2d");
+    correction_mode_ = "2d";
+  }
 
   imu_subscriber_ = node_handle_.subscribe(imu_topic_, static_cast<uint32_t>(subscriber_queue_size_),
                                            &LidarAdvancedConcatFilter::imuCallback, this);
@@ -159,6 +169,7 @@ LidarAdvancedConcatFilter::LidarAdvancedConcatFilter()
   ROS_INFO_STREAM("lidar_advanced_concat_filter publishing " << output_topic_ << " from "
                                                              << input_topics_[0] << ", " << input_topics_[1]
                                                              << " motion_mode=" << motion_mode_
+                                                             << " correction_mode=" << correction_mode_
                                                              << " max_sync_interval=" << max_sync_interval_sec_
                                                              << " motion_compensation="
                                                              << (enable_motion_compensation_ ? "true" : "false"));
@@ -200,9 +211,14 @@ void LidarAdvancedConcatFilter::egoCallback(const morai_msgs::EgoVehicleStatus::
   sample.stamp = stamp;
   sample.x = msg->position.x;
   sample.y = msg->position.y;
+  sample.z = msg->position.z;
   sample.yaw = yaw;
   sample.vx = vx;
   sample.vy = vy;
+  sample.vz = msg->velocity.z;
+  sample.wx = msg->angular_velocity.x;
+  sample.wy = msg->angular_velocity.y;
+  sample.wz = msg->angular_velocity.z;
   motion_buffer_.addMotion(sample);
 }
 
@@ -219,16 +235,21 @@ void LidarAdvancedConcatFilter::odomCallback(const nav_msgs::Odometry::ConstPtr 
   sample.stamp = stamp;
   sample.x = msg->pose.pose.position.x;
   sample.y = msg->pose.pose.position.y;
+  sample.z = msg->pose.pose.position.z;
   sample.yaw = yaw;
   sample.vx = vx;
   sample.vy = vy;
+  sample.vz = msg->twist.twist.linear.z;
+  sample.wx = msg->twist.twist.angular.x;
+  sample.wy = msg->twist.twist.angular.y;
+  sample.wz = msg->twist.twist.angular.z;
   motion_buffer_.addMotion(sample);
 }
 
 void LidarAdvancedConcatFilter::imuCallback(const sensor_msgs::Imu::ConstPtr &msg)
 {
   const ros::Time stamp = msg->header.stamp.isZero() ? ros::Time::now() : msg->header.stamp;
-  double wz = msg->angular_velocity.z;
+  geometry_msgs::Vector3 angular_velocity = msg->angular_velocity;
 
   if (!msg->header.frame_id.empty() && msg->header.frame_id != base_frame_id_)
   {
@@ -242,7 +263,7 @@ void LidarAdvancedConcatFilter::imuCallback(const sensor_msgs::Imu::ConstPtr &ms
       input.header = msg->header;
       input.vector = msg->angular_velocity;
       tf2::doTransform(input, output, transform);
-      wz = output.vector.z;
+      angular_velocity = output.vector;
     }
     catch (const tf2::TransformException &ex)
     {
@@ -254,7 +275,9 @@ void LidarAdvancedConcatFilter::imuCallback(const sensor_msgs::Imu::ConstPtr &ms
 
   sensor_interface::ImuSample sample;
   sample.stamp = stamp;
-  sample.wz = wz;
+  sample.wx = angular_velocity.x;
+  sample.wy = angular_velocity.y;
+  sample.wz = angular_velocity.z;
   motion_buffer_.addImu(sample);
 }
 
@@ -275,31 +298,31 @@ geometry_msgs::TransformStamped LidarAdvancedConcatFilter::lookupCloudTransform(
                                     ros::Duration(wait_for_transform_sec_));
 }
 
-bool LidarAdvancedConcatFilter::getReferenceMotion(const ros::Time &stamp, double *vx, double *vy, double *wz)
+bool LidarAdvancedConcatFilter::getReferenceMotion(const ros::Time &stamp,
+                                                   sensor_interface::MotionSample *motion)
 {
-  sensor_interface::MotionSample motion;
-  if (!motion_buffer_.getMotion(stamp, motion_timeout_sec_, &motion))
+  if (motion == nullptr || !motion_buffer_.getMotion(stamp, motion_timeout_sec_, motion))
   {
     ROS_WARN_THROTTLE(1.0, "No ego motion sample near concat reference stamp %.6f", stamp.toSec());
     return false;
   }
 
-  double imu_wz = 0.0;
-  if (!motion_buffer_.getImuWz(stamp, imu_timeout_sec_, &imu_wz))
+  sensor_interface::ImuSample imu;
+  if (!motion_buffer_.getImu(stamp, imu_timeout_sec_, &imu))
   {
     ROS_WARN_THROTTLE(1.0, "No IMU angular velocity sample near concat reference stamp %.6f", stamp.toSec());
     return false;
   }
 
-  *vx = motion.vx;
-  *vy = motion.vy;
-  *wz = imu_wz;
+  motion->wx = imu.wx;
+  motion->wy = imu.wy;
+  motion->wz = imu.wz;
   return true;
 }
 
 bool LidarAdvancedConcatFilter::appendCompensatedCloud(const PointCloudMsgT &input,
                                                        const ros::Time &reference_stamp,
-                                                       const double vx, const double vy, const double wz,
+                                                       const sensor_interface::MotionSample &reference_motion,
                                                        PointCloudMsgT *output)
 {
   if (output == nullptr)
@@ -362,12 +385,27 @@ bool LidarAdvancedConcatFilter::appendCompensatedCloud(const PointCloudMsgT &inp
     return true;
   }
 
+  Eigen::Matrix4d transform3d = Eigen::Matrix4d::Identity();
   double dx = 0.0;
   double dy = 0.0;
   double dyaw = 0.0;
-  sensor_interface::integrateTwist2D(vx, vy, wz, dt, &dx, &dy, &dyaw);
-  const double cos_yaw = std::cos(dyaw);
-  const double sin_yaw = std::sin(dyaw);
+  double cos_yaw = 1.0;
+  double sin_yaw = 0.0;
+  if (correction_mode_ == "3d")
+  {
+    const sensor_interface::Vector3 linear_velocity{ reference_motion.vx, reference_motion.vy,
+                                                     reference_motion.vz };
+    const sensor_interface::Vector3 angular_velocity{ reference_motion.wx, reference_motion.wy,
+                                                      reference_motion.wz };
+    transform3d = sensor_interface::expTransform3D(linear_velocity, angular_velocity, dt);
+  }
+  else
+  {
+    sensor_interface::integrateTwist2D(reference_motion.vx, reference_motion.vy,
+                                       reference_motion.wz, dt, &dx, &dy, &dyaw);
+    cos_yaw = std::cos(dyaw);
+    sin_yaw = std::sin(dyaw);
+  }
 
   for (size_t i = 0; i < point_count; ++i)
   {
@@ -387,11 +425,17 @@ bool LidarAdvancedConcatFilter::appendCompensatedCloud(const PointCloudMsgT &inp
     }
 
     const tf2::Vector3 transformed = cloud_tf * tf2::Vector3(x, y, z);
-    const sensor_interface::Point3 point{
-      cos_yaw * transformed.x() - sin_yaw * transformed.y() + dx,
-      sin_yaw * transformed.x() + cos_yaw * transformed.y() + dy,
-      transformed.z()
-    };
+    sensor_interface::Point3 point{ transformed.x(), transformed.y(), transformed.z() };
+    if (correction_mode_ == "3d")
+    {
+      point = sensor_interface::transformPoint(transform3d, point);
+    }
+    else
+    {
+      point = sensor_interface::Point3{ cos_yaw * point.x - sin_yaw * point.y + dx,
+                                        sin_yaw * point.x + cos_yaw * point.y + dy,
+                                        point.z };
+    }
 
     sensor_interface::writeFloat32Field(output, *x_field, point_offset, point.x);
     sensor_interface::writeFloat32Field(output, *y_field, point_offset, point.y);
@@ -450,10 +494,8 @@ void LidarAdvancedConcatFilter::publishPair(const PointCloudMsgT::ConstPtr &msg1
 
   const ros::Time reference_stamp = msg1->header.stamp <= msg2->header.stamp ? msg1->header.stamp : msg2->header.stamp;
 
-  double vx = 0.0;
-  double vy = 0.0;
-  double wz = 0.0;
-  if (enable_motion_compensation_ && !getReferenceMotion(reference_stamp, &vx, &vy, &wz))
+  sensor_interface::MotionSample reference_motion;
+  if (enable_motion_compensation_ && !getReferenceMotion(reference_stamp, &reference_motion))
   {
     return;
   }
@@ -471,11 +513,11 @@ void LidarAdvancedConcatFilter::publishPair(const PointCloudMsgT::ConstPtr &msg1
   output.is_dense = msg1->is_dense && msg2->is_dense;
   output.data.reserve(static_cast<size_t>(output.row_step));
 
-  if (!appendCompensatedCloud(*msg1, reference_stamp, vx, vy, wz, &output))
+  if (!appendCompensatedCloud(*msg1, reference_stamp, reference_motion, &output))
   {
     return;
   }
-  if (!appendCompensatedCloud(*msg2, reference_stamp, vx, vy, wz, &output))
+  if (!appendCompensatedCloud(*msg2, reference_stamp, reference_motion, &output))
   {
     return;
   }
@@ -486,7 +528,13 @@ void LidarAdvancedConcatFilter::publishPair(const PointCloudMsgT::ConstPtr &msg1
 
   ROS_DEBUG_STREAM_THROTTLE(1.0, "advanced concat published " << output.width << " points dt12="
                                                               << (msg2->header.stamp - msg1->header.stamp).toSec()
-                                                              << " vx=" << vx << " vy=" << vy << " wz=" << wz);
+                                                              << " mode=" << correction_mode_
+                                                              << " vx=" << reference_motion.vx
+                                                              << " vy=" << reference_motion.vy
+                                                              << " vz=" << reference_motion.vz
+                                                              << " wx=" << reference_motion.wx
+                                                              << " wy=" << reference_motion.wy
+                                                              << " wz=" << reference_motion.wz);
 }
 
 int main(int argc, char **argv)

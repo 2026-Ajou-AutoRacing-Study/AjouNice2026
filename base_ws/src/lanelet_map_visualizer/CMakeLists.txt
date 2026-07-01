@@ -12,6 +12,7 @@ catkin_package()
 
 catkin_install_python(PROGRAMS
   scripts/lanelet2_osm_marker_publisher.py
+  scripts/mgeo_json_marker_publisher.py
   scripts/validate_lanelet_projector.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

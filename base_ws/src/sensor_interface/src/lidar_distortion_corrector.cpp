@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <limits>
 #include <string>
@@ -63,7 +64,7 @@ private:
   void odomCallback(const nav_msgs::Odometry::ConstPtr &msg);
 
   geometry_msgs::TransformStamped lookupCloudTransform(const std_msgs::Header &header) const;
-  bool getReferenceMotion(const ros::Time &stamp, double *vx, double *vy, double *wz);
+  bool getReferenceMotion(const ros::Time &stamp, sensor_interface::MotionSample *motion);
   void velocityToBase(const std::string &frame_mode, const double yaw, const double input_x,
                       const double input_y, double *vx, double *vy) const;
 };
@@ -101,11 +102,14 @@ LidarDistortionCorrector::LidarDistortionCorrector()
   private_node_handle_.param("buffer_duration_sec", buffer_duration_sec_, 2.0);
   private_node_handle_.param("subscriber_queue_size", subscriber_queue_size_, 10);
 
+  std::transform(correction_mode_.begin(), correction_mode_.end(), correction_mode_.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
   motion_buffer_.setDuration(buffer_duration_sec_);
 
-  if (correction_mode_ != "2d")
+  if (correction_mode_ != "2d" && correction_mode_ != "3d")
   {
-    ROS_WARN_STREAM("Only correction_mode=2d is implemented. Requested mode: " << correction_mode_);
+    ROS_WARN_STREAM("Unsupported correction_mode=" << correction_mode_ << "; falling back to 2d");
+    correction_mode_ = "2d";
   }
 
   imu_subscriber_ = node_handle_.subscribe(imu_topic_, static_cast<uint32_t>(subscriber_queue_size_),
@@ -134,6 +138,7 @@ LidarDistortionCorrector::LidarDistortionCorrector()
   ROS_INFO_STREAM("lidar_distortion_corrector " << cloud_topic_ << " -> " << output_topic_
                                                 << " frame=" << output_frame_id_
                                                 << " motion_mode=" << motion_mode_
+                                                << " correction_mode=" << correction_mode_
                                                 << " imu=" << imu_topic_);
 }
 
@@ -173,9 +178,14 @@ void LidarDistortionCorrector::egoCallback(const morai_msgs::EgoVehicleStatus::C
   sample.stamp = stamp;
   sample.x = msg->position.x;
   sample.y = msg->position.y;
+  sample.z = msg->position.z;
   sample.yaw = yaw;
   sample.vx = vx;
   sample.vy = vy;
+  sample.vz = msg->velocity.z;
+  sample.wx = msg->angular_velocity.x;
+  sample.wy = msg->angular_velocity.y;
+  sample.wz = msg->angular_velocity.z;
   motion_buffer_.addMotion(sample);
 }
 
@@ -192,16 +202,21 @@ void LidarDistortionCorrector::odomCallback(const nav_msgs::Odometry::ConstPtr &
   sample.stamp = stamp;
   sample.x = msg->pose.pose.position.x;
   sample.y = msg->pose.pose.position.y;
+  sample.z = msg->pose.pose.position.z;
   sample.yaw = yaw;
   sample.vx = vx;
   sample.vy = vy;
+  sample.vz = msg->twist.twist.linear.z;
+  sample.wx = msg->twist.twist.angular.x;
+  sample.wy = msg->twist.twist.angular.y;
+  sample.wz = msg->twist.twist.angular.z;
   motion_buffer_.addMotion(sample);
 }
 
 void LidarDistortionCorrector::imuCallback(const sensor_msgs::Imu::ConstPtr &msg)
 {
   const ros::Time stamp = msg->header.stamp.isZero() ? ros::Time::now() : msg->header.stamp;
-  double wz = msg->angular_velocity.z;
+  geometry_msgs::Vector3 angular_velocity = msg->angular_velocity;
 
   if (!msg->header.frame_id.empty() && msg->header.frame_id != base_frame_id_)
   {
@@ -215,7 +230,7 @@ void LidarDistortionCorrector::imuCallback(const sensor_msgs::Imu::ConstPtr &msg
       input.header = msg->header;
       input.vector = msg->angular_velocity;
       tf2::doTransform(input, output, transform);
-      wz = output.vector.z;
+      angular_velocity = output.vector;
     }
     catch (const tf2::TransformException &ex)
     {
@@ -227,7 +242,9 @@ void LidarDistortionCorrector::imuCallback(const sensor_msgs::Imu::ConstPtr &msg
 
   sensor_interface::ImuSample sample;
   sample.stamp = stamp;
-  sample.wz = wz;
+  sample.wx = angular_velocity.x;
+  sample.wy = angular_velocity.y;
+  sample.wz = angular_velocity.z;
   motion_buffer_.addImu(sample);
 }
 
@@ -248,25 +265,25 @@ geometry_msgs::TransformStamped LidarDistortionCorrector::lookupCloudTransform(c
                                     ros::Duration(wait_for_transform_sec_));
 }
 
-bool LidarDistortionCorrector::getReferenceMotion(const ros::Time &stamp, double *vx, double *vy, double *wz)
+bool LidarDistortionCorrector::getReferenceMotion(const ros::Time &stamp,
+                                                  sensor_interface::MotionSample *motion)
 {
-  sensor_interface::MotionSample motion;
-  if (!motion_buffer_.getMotion(stamp, motion_timeout_sec_, &motion))
+  if (motion == nullptr || !motion_buffer_.getMotion(stamp, motion_timeout_sec_, motion))
   {
     ROS_WARN_THROTTLE(1.0, "No ego motion sample near cloud stamp %.6f", stamp.toSec());
     return false;
   }
 
-  double imu_wz = 0.0;
-  if (!motion_buffer_.getImuWz(stamp, imu_timeout_sec_, &imu_wz))
+  sensor_interface::ImuSample imu;
+  if (!motion_buffer_.getImu(stamp, imu_timeout_sec_, &imu))
   {
     ROS_WARN_THROTTLE(1.0, "No IMU angular velocity sample near cloud stamp %.6f", stamp.toSec());
     return false;
   }
 
-  *vx = motion.vx;
-  *vy = motion.vy;
-  *wz = imu_wz;
+  motion->wx = imu.wx;
+  motion->wy = imu.wy;
+  motion->wz = imu.wz;
   return true;
 }
 
@@ -278,10 +295,8 @@ void LidarDistortionCorrector::cloudCallback(const sensor_msgs::PointCloud2::Con
     return;
   }
 
-  double vx = 0.0;
-  double vy = 0.0;
-  double wz = 0.0;
-  if (!getReferenceMotion(msg->header.stamp, &vx, &vy, &wz))
+  sensor_interface::MotionSample reference_motion;
+  if (!getReferenceMotion(msg->header.stamp, &reference_motion))
   {
     return;
   }
@@ -369,7 +384,19 @@ void LidarDistortionCorrector::cloudCallback(const sensor_msgs::PointCloud2::Con
 
     const tf2::Vector3 transformed = cloud_tf * tf2::Vector3(x, y, z);
     sensor_interface::Point3 point{ transformed.x(), transformed.y(), transformed.z() };
-    point = sensor_interface::compensatePoint2D(point, vx, vy, wz, dt);
+    if (correction_mode_ == "3d")
+    {
+      const sensor_interface::Vector3 linear_velocity{ reference_motion.vx, reference_motion.vy,
+                                                       reference_motion.vz };
+      const sensor_interface::Vector3 angular_velocity{ reference_motion.wx, reference_motion.wy,
+                                                        reference_motion.wz };
+      point = sensor_interface::compensatePoint3D(point, linear_velocity, angular_velocity, dt);
+    }
+    else
+    {
+      point = sensor_interface::compensatePoint2D(point, reference_motion.vx, reference_motion.vy,
+                                                  reference_motion.wz, dt);
+    }
 
     sensor_interface::writeFloat32Field(&output, *x_field, point_offset, point.x);
     sensor_interface::writeFloat32Field(&output, *y_field, point_offset, point.y);
@@ -380,7 +407,13 @@ void LidarDistortionCorrector::cloudCallback(const sensor_msgs::PointCloud2::Con
   cloud_publisher_.publish(output);
   ROS_DEBUG_STREAM_THROTTLE(1.0, "deskewed " << corrected_points << " points from " << cloud_topic_
                                              << " time_span=[" << min_dt << ", " << max_dt
-                                             << "] vx=" << vx << " vy=" << vy << " wz=" << wz);
+                                             << "] mode=" << correction_mode_
+                                             << " vx=" << reference_motion.vx
+                                             << " vy=" << reference_motion.vy
+                                             << " vz=" << reference_motion.vz
+                                             << " wx=" << reference_motion.wx
+                                             << " wy=" << reference_motion.wy
+                                             << " wz=" << reference_motion.wz);
 }
 
 int main(int argc, char **argv)
