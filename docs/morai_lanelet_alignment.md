@@ -6,7 +6,7 @@ not a runtime GPS conversion.
 
 ## Frame Decision
 
-- `map`: Lanelet2 LocalCartesianUTM frame from `kcity_map/map_projector_info_v1.yaml`
+- `map`: Lanelet2 LocalCartesianUTM frame from `kcity_map/lanelet_map/map_projector_info_v1.yaml`
 - `morai_map`: MORAI k-city local frame from the current live simulator account
 - Runtime static TF: `map -> morai_map`
 

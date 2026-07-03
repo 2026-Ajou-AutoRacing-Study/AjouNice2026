@@ -573,10 +573,14 @@ def main():
 
     paths = {
         "global_file": rospy.get_param(
-            "~global_file", os.path.join(repo_root, "kcity_map", "global_info.json")
+            "~global_file", os.path.join(repo_root, "kcity_map", "mgeo_map", "global_info.json")
         ),
-        "node_file": rospy.get_param("~node_file", os.path.join(repo_root, "kcity_map", "node_set.json")),
-        "link_file": rospy.get_param("~link_file", os.path.join(repo_root, "kcity_map", "link_set.json")),
+        "node_file": rospy.get_param(
+            "~node_file", os.path.join(repo_root, "kcity_map", "mgeo_map", "node_set.json")
+        ),
+        "link_file": rospy.get_param(
+            "~link_file", os.path.join(repo_root, "kcity_map", "mgeo_map", "link_set.json")
+        ),
     }
     params = {
         "frame_id": rospy.get_param("~frame_id", "morai_map"),

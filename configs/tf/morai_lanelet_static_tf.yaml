@@ -4,7 +4,7 @@
 #   point_in_parent = R_parent_child * point_in_child + translation_parent_child
 #
 # map:
-#   Lanelet2 LocalCartesianUTM frame from kcity_map/map_projector_info_v1.yaml
+#   Lanelet2 LocalCartesianUTM frame from kcity_map/lanelet_map/map_projector_info_v1.yaml
 # morai_map:
 #   MORAI k-city MGeo local frame from the current live simulator account.
 #
@@ -26,8 +26,8 @@ map_to_morai_map:
     morai_previous_scene_origin_in_global: [302459.942, 4122635.537, 28.991]
     morai_runtime_z_is_altitude_like: true
 
-    lanelet_map: "kcity_map/lanelet2_map_v1.osm"
-    lanelet_projector: "kcity_map/map_projector_info_v1.yaml"
+    lanelet_map: "kcity_map/lanelet_map/lanelet2_map_v1.osm"
+    lanelet_projector: "kcity_map/lanelet_map/map_projector_info_v1.yaml"
     lanelet_projector_type: "LocalCartesianUTM"
     lanelet_map_origin_lat_lon_alt: [37.2380038082, 126.7730819386, 0.0]
     lanelet_map_origin_utm52: [302463.440869780, 4123599.088661814, 0.0]

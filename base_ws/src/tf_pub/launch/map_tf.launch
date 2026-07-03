@@ -3,7 +3,7 @@
     Publish the fixed MORAI MGeo frame on top of the Lanelet map frame.
 
     map:
-      Lanelet2 LocalCartesianUTM frame from kcity_map/map_projector_info_v1.yaml.
+      Lanelet2 LocalCartesianUTM frame from kcity_map/lanelet_map/map_projector_info_v1.yaml.
     morai_map:
       Current live MORAI k-city local frame.
 
