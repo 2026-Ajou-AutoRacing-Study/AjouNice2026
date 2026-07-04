@@ -173,6 +173,20 @@ def append_width_edges(marker, points, width_start, width_end, z_offset):
     return count
 
 
+def has_point_triplet(value):
+    return (
+        isinstance(value, (list, tuple))
+        and len(value) >= 3
+        and all(isinstance(v, (int, float)) for v in value[:3])
+    )
+
+
+def normalize_path_points(path):
+    if not isinstance(path, list):
+        return []
+    return [point for point in path if has_point_triplet(point)]
+
+
 def counter_summary(counter, max_items=8):
     if not counter:
         return "none"
@@ -212,11 +226,12 @@ def make_mgeo_markers(global_info, nodes, links, params, paths):
         "links": len(links),
         "link_points": 0,
         "link_segments": 0,
-        "width_edge_segments": 0,
+        "inferred_width_edge_segments": 0,
         "stop_nodes": 0,
         "traffic_light_nodes": 0,
-        "lane_change_left": 0,
-        "lane_change_right": 0,
+        "lane_change_refs_left": 0,
+        "lane_change_refs_right": 0,
+        "lane_change_path_segments": 0,
         "signal_links": 0,
         "dangling_from_nodes": 0,
         "dangling_to_nodes": 0,
@@ -249,7 +264,7 @@ def make_mgeo_markers(global_info, nodes, links, params, paths):
     )
     width_edges = marker_base(
         frame_id,
-        "mgeo_width_edges",
+        "mgeo_inferred_width_edges",
         1,
         Marker.LINE_LIST,
         width_line_width,
@@ -334,7 +349,7 @@ def make_mgeo_markers(global_info, nodes, links, params, paths):
         marker_points = [point_from_list(point, z_offset) for point in points]
         stats["link_segments"] += append_line_segments(centerlines, marker_points)
         if params["show_width_edges"] and points:
-            stats["width_edge_segments"] += append_width_edges(
+            stats["inferred_width_edge_segments"] += append_width_edges(
                 width_edges,
                 points,
                 link.get("width_start", 0.0),
@@ -342,29 +357,24 @@ def make_mgeo_markers(global_info, nodes, links, params, paths):
                 z_offset + 0.04,
             )
 
-        midpoint = link_midpoint(link)
-        if midpoint is None:
-            continue
-        source = point_from_list(midpoint, z_offset + 0.08)
+        lane_change_path = normalize_path_points(link.get("lane_ch_link_path"))
         if params["show_lane_changes"]:
             left_id = link.get("left_lane_change_dst_link_idx")
             if left_id:
-                target_link = link_by_id.get(left_id)
-                target_midpoint = link_midpoint(target_link) if target_link else None
-                if target_midpoint is not None:
-                    lane_change_left.points.extend([source, point_from_list(target_midpoint, z_offset + 0.08)])
-                    stats["lane_change_left"] += 1
-                else:
+                stats["lane_change_refs_left"] += 1
+                if left_id not in link_by_id:
                     stats["dangling_lane_change_targets"] += 1
             right_id = link.get("right_lane_change_dst_link_idx")
             if right_id:
-                target_link = link_by_id.get(right_id)
-                target_midpoint = link_midpoint(target_link) if target_link else None
-                if target_midpoint is not None:
-                    lane_change_right.points.extend([source, point_from_list(target_midpoint, z_offset + 0.08)])
-                    stats["lane_change_right"] += 1
-                else:
+                stats["lane_change_refs_right"] += 1
+                if right_id not in link_by_id:
                     stats["dangling_lane_change_targets"] += 1
+            if lane_change_path:
+                marker_points = [point_from_list(point, z_offset + 0.08) for point in lane_change_path]
+                if left_id:
+                    stats["lane_change_path_segments"] += append_line_segments(lane_change_left, marker_points)
+                elif right_id:
+                    stats["lane_change_path_segments"] += append_line_segments(lane_change_right, marker_points)
 
         signal = link.get("related_signal")
         if params["show_signal_dirs"] and signal:
@@ -492,6 +502,7 @@ def make_mgeo_markers(global_info, nodes, links, params, paths):
             "node_types: %s\\n"
             "link_types: %s\\n"
             "signals: %s\\n"
+            "lane_change_refs L/R: %d/%d\\n"
             "hash_mismatch: %s"
             % (
                 global_info.get("saved_utc_time", ""),
@@ -504,6 +515,8 @@ def make_mgeo_markers(global_info, nodes, links, params, paths):
                 counter_summary(node_types, 4),
                 counter_summary(link_types, 6),
                 counter_summary(related_signals, 6),
+                stats["lane_change_refs_left"],
+                stats["lane_change_refs_right"],
                 "; ".join(stats["hash_mismatches"]) if stats["hash_mismatches"] else "none",
             )
         )
@@ -538,14 +551,15 @@ def log_stats(stats):
         stats["markers"],
     )
     rospy.loginfo(
-        "MGeo semantic stats: stop_nodes=%d traffic_light_nodes=%d lane_change_left=%d "
-        "lane_change_right=%d signal_links=%d width_edge_segments=%d",
+        "MGeo semantic stats: stop_nodes=%d traffic_light_nodes=%d lane_change_refs_left=%d "
+        "lane_change_refs_right=%d lane_change_path_segments=%d signal_links=%d inferred_width_edge_segments=%d",
         stats["stop_nodes"],
         stats["traffic_light_nodes"],
-        stats["lane_change_left"],
-        stats["lane_change_right"],
+        stats["lane_change_refs_left"],
+        stats["lane_change_refs_right"],
+        stats["lane_change_path_segments"],
         stats["signal_links"],
-        stats["width_edge_segments"],
+        stats["inferred_width_edge_segments"],
     )
     rospy.loginfo("MGeo node_types: %s", counter_summary(stats["node_types"]))
     rospy.loginfo("MGeo link_types: %s", counter_summary(stats["link_types"]))
@@ -584,7 +598,7 @@ def main():
     }
     params = {
         "frame_id": rospy.get_param("~frame_id", "morai_map"),
-        "output_topic": rospy.get_param("~output_topic", "/morai_mgeo/markers"),
+        "output_topic": rospy.get_param("~output_topic", "/map/morai_map"),
         "publish_rate": float(rospy.get_param("~publish_rate", 0.0)),
         "alpha": float(rospy.get_param("~alpha", 0.85)),
         "z_offset": float(rospy.get_param("~z_offset", 0.08)),
@@ -598,7 +612,7 @@ def main():
         "origin_axis_length": float(rospy.get_param("~origin_axis_length", 8.0)),
         "metadata_text_size": float(rospy.get_param("~metadata_text_size", 1.8)),
         "metadata_text_z": float(rospy.get_param("~metadata_text_z", 5.0)),
-        "show_width_edges": as_bool(rospy.get_param("~show_width_edges", True)),
+        "show_width_edges": as_bool(rospy.get_param("~show_width_edges", False)),
         "show_nodes": as_bool(rospy.get_param("~show_nodes", True)),
         "show_stop_nodes": as_bool(rospy.get_param("~show_stop_nodes", True)),
         "show_signal_nodes": as_bool(rospy.get_param("~show_signal_nodes", True)),

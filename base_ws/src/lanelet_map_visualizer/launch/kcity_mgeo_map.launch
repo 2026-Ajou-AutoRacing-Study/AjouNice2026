@@ -3,7 +3,7 @@
   <arg name="node_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/mgeo_map/node_set.json"/>
   <arg name="link_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/mgeo_map/link_set.json"/>
   <arg name="frame_id" default="morai_map"/>
-  <arg name="output_topic" default="/morai_mgeo/markers"/>
+  <arg name="output_topic" default="/map/morai_map"/>
   <arg name="publish_rate" default="0.0"/>
 
   <arg name="alpha" default="0.85"/>
@@ -19,10 +19,12 @@
   <arg name="metadata_text_size" default="1.8"/>
   <arg name="metadata_text_z" default="5.0"/>
 
-  <arg name="show_width_edges" default="true"/>
+  <!-- Inferred from width_start/width_end, not native MGeo boundary geometry. Keep off by default. -->
+  <arg name="show_width_edges" default="false"/>
   <arg name="show_nodes" default="true"/>
   <arg name="show_stop_nodes" default="true"/>
   <arg name="show_signal_nodes" default="true"/>
+  <!-- Draw only explicit lane_ch_link_path geometry when present. Empty dst-link refs are logged, not drawn. -->
   <arg name="show_lane_changes" default="true"/>
   <arg name="show_signal_dirs" default="true"/>
   <arg name="show_origin" default="true"/>

@@ -226,8 +226,9 @@ or enable it with the sensing stack:
 roslaunch bringup sensing.launch enable_lanelet_map_visualization:=true
 ```
 
-The marker node publishes both `/map/vector_map_marker` and the Autoware.AI-style
-legacy topic `/lanelet2_map_viz`, using the same `LocalCartesianUTM` projector
-metadata that defines the `map` frame. Lanelet fill polygons are disabled by
+The marker node publishes `/map/lanelet_map` by default, using the same
+`LocalCartesianUTM` projector metadata that defines the `map` frame. The legacy
+`/lanelet2_map_viz` alias can still be enabled with `legacy_output_topic`.
+Lanelet fill polygons are disabled by
 default because the line layers are cleaner for alignment inspection; pass
 `publish_lanelet_fill:=true` only when filled areas are explicitly needed.

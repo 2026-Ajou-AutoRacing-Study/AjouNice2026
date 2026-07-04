@@ -159,7 +159,7 @@ def validate_projector(map_file, projector_file, static_tf_file, max_samples):
 def main():
     repo_root = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "..", ".."))
     parser = argparse.ArgumentParser()
-    parser.add_argument("--map-file", default=os.path.join(repo_root, "kcity_map", "lanelet_map", "lanelet2_map_v5.osm"))
+    parser.add_argument("--map-file", default=os.path.join(repo_root, "kcity_map", "lanelet_map", "lanelet2_map_v6.osm"))
     parser.add_argument(
         "--projector-file",
         default=os.path.join(repo_root, "kcity_map", "lanelet_map", "map_projector_info_v1.yaml"),

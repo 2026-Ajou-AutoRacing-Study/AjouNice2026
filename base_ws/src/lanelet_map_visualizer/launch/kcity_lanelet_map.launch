@@ -1,9 +1,9 @@
 <launch>
-  <arg name="map_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v5.osm"/>
+  <arg name="map_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v6.osm"/>
   <arg name="projector_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="frame_id" default="map"/>
-  <arg name="output_topic" default="/map/vector_map_marker"/>
-  <arg name="legacy_output_topic" default="/lanelet2_map_viz"/>
+  <arg name="output_topic" default="/map/lanelet_map"/>
+  <arg name="legacy_output_topic" default=""/>
   <arg name="publish_rate" default="0.0"/>
   <arg name="flatten_z" default="false"/>
   <arg name="publish_lanelet_fill" default="false"/>
