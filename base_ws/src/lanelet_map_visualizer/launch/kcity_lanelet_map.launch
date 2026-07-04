@@ -1,5 +1,5 @@
 <launch>
-  <arg name="map_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v6.osm"/>
+  <arg name="map_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v1.osm"/>
   <arg name="projector_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="frame_id" default="map"/>
   <arg name="output_topic" default="/map/lanelet_map"/>

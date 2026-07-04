@@ -14,7 +14,7 @@ odom_topic: "/localization/odom"
 morai_velocity_frame: "base_link"   # base_link | world
 odom_twist_frame: "base_link"       # base_link | world
 
-correction_mode: "3d"
+correction_mode: "2d"
 motion_timeout_sec: 0.2
 imu_timeout_sec: 0.2
 wait_for_transform_sec: 0.2
