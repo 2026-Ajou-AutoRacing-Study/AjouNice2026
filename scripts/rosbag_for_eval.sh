@@ -15,7 +15,6 @@ TOPICS=(
   /sensor/gps
   /sensor/lidar1
   /sensor/lidar2
-  /localization/odom
   /path
 )
 
