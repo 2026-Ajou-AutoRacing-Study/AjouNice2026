@@ -1,0 +1,20 @@
+<launch>
+  <arg name="path_topic" default="/recorded_trajectory_path" />
+  <arg name="target_speed_topic" default="/recorded_trajectory/target_speed" />
+  <arg name="ego_topic" default="/Ego_topic" />
+  <arg name="ctrl_topic" default="/ctrl_cmd" />
+  <arg name="output_csv" default="$(env HOME)/catkin_ws/src/ajou_control/validation_tracking.csv" />
+
+  <node pkg="ajou_control"
+        type="tracking_validator.py"
+        name="tracking_validator"
+        output="screen">
+    <param name="path_topic" value="$(arg path_topic)" />
+    <param name="target_speed_topic" value="$(arg target_speed_topic)" />
+    <param name="ego_topic" value="$(arg ego_topic)" />
+    <param name="ctrl_topic" value="$(arg ctrl_topic)" />
+    <param name="output_csv" value="$(arg output_csv)" />
+    <param name="rate" value="10.0" />
+    <param name="max_steer_rad" value="0.6" />
+  </node>
+</launch>
