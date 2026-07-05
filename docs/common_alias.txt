@@ -20,6 +20,8 @@ alias tf="rosrun rqt_tf_tree rqt_tf_tree"
 
 alias rosbagraw="bash ~/AjouNice2026/scripts/rosbag_maker.sh"
 
+# 260705 rosbag for eval 녹화 요청 스크립트
+alias rosbag_lio_eval="bash ~/AjouNice2026/scripts/rosbag_for_eval.sh"
 
 #-----------------------------------------------------
 alias rb='rb_bg'
