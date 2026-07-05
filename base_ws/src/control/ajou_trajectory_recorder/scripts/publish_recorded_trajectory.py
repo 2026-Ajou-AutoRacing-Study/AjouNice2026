@@ -46,11 +46,11 @@ class RecordedTrajectoryPublisher:
         self.samples = self.load_csv()
         self.path_pub = rospy.Publisher(self.path_topic, Path, queue_size=1, latch=True)
         self.speed_pub = rospy.Publisher(self.target_speed_topic, Float32, queue_size=1)
-        rospy.loginfo("Loaded %d trajectory points from %s", len(self.samples), self.input_csv)
+        rospy.loginfo("%s 파일에서 궤적 점 %d개를 읽었습니다.", self.input_csv, len(self.samples))
 
     def load_csv(self):
         if not os.path.exists(self.input_csv):
-            rospy.logwarn("CSV file does not exist: %s", self.input_csv)
+            rospy.logwarn("CSV 파일이 없습니다: %s", self.input_csv)
             return []
 
         samples = []
@@ -69,7 +69,7 @@ class RecordedTrajectoryPublisher:
                         }
                     )
                 except Exception as exc:
-                    rospy.logwarn("Skipping invalid CSV row %d: %s", index, exc)
+                    rospy.logwarn("잘못된 CSV %d번째 줄을 건너뜁니다: %s", index, exc)
         return samples
 
     def build_path(self):
@@ -84,8 +84,8 @@ class RecordedTrajectoryPublisher:
             pose.pose.position.y = sample["y"]
             pose.pose.position.z = sample["z"]
 
-            # Recorded yaw is kept in the CSV as MORAI heading units. The current
-            # MORAI message documents heading in degrees, so convert degrees to rad.
+            # CSV의 yaw는 MORAI heading 단위로 저장됩니다.
+            # 현재 MORAI heading은 degree이므로 radian으로 변환합니다.
             quat = tf.transformations.quaternion_from_euler(0.0, 0.0, sample["yaw"] * 3.141592653589793 / 180.0)
             pose.pose.orientation.x = quat[0]
             pose.pose.orientation.y = quat[1]
@@ -107,7 +107,7 @@ class RecordedTrajectoryPublisher:
             path = self.build_path()
             self.path_pub.publish(path)
             self.speed_pub.publish(Float32(data=self.average_target_speed()))
-            rospy.loginfo_throttle(5.0, "Publishing %d poses on %s", len(path.poses), self.path_topic)
+            rospy.loginfo_throttle(5.0, "%s 토픽으로 pose %d개를 발행합니다.", self.path_topic, len(path.poses))
             rate.sleep()
 
 
@@ -118,4 +118,4 @@ if __name__ == "__main__":
     except rospy.ROSInterruptException:
         pass
     except Exception as exc:
-        rospy.logerr("publish_recorded_trajectory failed: %s", exc)
+        rospy.logerr("publish_recorded_trajectory 실행 실패: %s", exc)

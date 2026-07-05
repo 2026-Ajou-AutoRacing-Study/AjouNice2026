@@ -45,7 +45,7 @@ def generate_straight(num_points, ds):
 def generate_circle(num_points, radius):
     points = []
     if radius <= 0.0:
-        rospy.logwarn("~radius must be positive. Using 20.0 m.")
+        rospy.logwarn("~radius는 양수여야 합니다. 20.0 m를 사용합니다.")
         radius = 20.0
 
     for i in range(num_points):
@@ -60,7 +60,7 @@ def generate_circle(num_points, radius):
 def generate_s_curve(num_points, ds, amplitude, wavelength):
     points = []
     if wavelength <= 0.0:
-        rospy.logwarn("~wavelength must be positive. Using 40.0 m.")
+        rospy.logwarn("~wavelength는 양수여야 합니다. 40.0 m를 사용합니다.")
         wavelength = 40.0
 
     for i in range(num_points):
@@ -103,7 +103,7 @@ def build_marker(points):
 
 def generate_points(mode, num_points, ds, amplitude, wavelength, radius):
     if num_points < 2:
-        rospy.logwarn("~num_points should be at least 2. Using 2.")
+        rospy.logwarn("~num_points는 최소 2 이상이어야 합니다. 2를 사용합니다.")
         num_points = 2
 
     if mode == "straight":
@@ -113,7 +113,7 @@ def generate_points(mode, num_points, ds, amplitude, wavelength, radius):
     if mode == "s_curve":
         return generate_s_curve(num_points, ds, amplitude, wavelength)
 
-    rospy.logwarn("Unsupported ~mode '%s'. Falling back to 's_curve'.", mode)
+    rospy.logwarn("지원하지 않는 ~mode '%s'입니다. 's_curve'로 대체합니다.", mode)
     return generate_s_curve(num_points, ds, amplitude, wavelength)
 
 
@@ -137,7 +137,7 @@ def main():
     speed_msg = Float32(data=float(target_speed_mps))
 
     rate = rospy.Rate(10)
-    rospy.loginfo("Publishing virtual trajectory: mode=%s, points=%d, target_speed=%.2f m/s",
+    rospy.loginfo("가상 궤적 발행 중: mode=%s, points=%d, target_speed=%.2f m/s",
                   mode, len(points), speed_msg.data)
 
     while not rospy.is_shutdown():
@@ -157,4 +157,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

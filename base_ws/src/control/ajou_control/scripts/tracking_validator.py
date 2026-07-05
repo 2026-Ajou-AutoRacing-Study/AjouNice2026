@@ -119,13 +119,13 @@ class TrackingValidator:
             ]
         )
         rospy.on_shutdown(self.close)
-        rospy.loginfo("Tracking validator writing %s", self.output_csv)
+        rospy.loginfo("Tracking validator가 %s 파일에 기록합니다.", self.output_csv)
 
     def close(self):
         if not self.csv_file.closed:
             self.csv_file.flush()
             self.csv_file.close()
-            rospy.loginfo("Closed validation CSV: %s", self.output_csv)
+            rospy.loginfo("검증 CSV 파일을 닫았습니다: %s", self.output_csv)
 
     def path_callback(self, msg):
         self.path = msg
@@ -263,14 +263,14 @@ class TrackingValidator:
             if result is None:
                 rospy.loginfo_throttle(
                     1.0,
-                    "Tracking validator waiting: path_ready=%s ego_ready=%s",
+                    "Tracking validator 대기 중: path_ready=%s ego_ready=%s",
                     self.path is not None,
                     self.ego is not None,
                 )
             else:
                 rospy.loginfo_throttle(
                     1.0,
-                    "Validation n=%d progress=%.1f%% lateral=%.2f rms=%.2f max=%.2f heading_rms=%.3f speed_rms=%.2f steer_sat=%.1f%%",
+                    "검증 n=%d progress=%.1f%% lateral=%.2f rms=%.2f max=%.2f heading_rms=%.3f speed_rms=%.2f steer_sat=%.1f%%",
                     result["nearest"],
                     result["progress"] * 100.0,
                     result["lateral"],

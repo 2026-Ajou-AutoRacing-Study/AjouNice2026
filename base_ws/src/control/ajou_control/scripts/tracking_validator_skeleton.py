@@ -27,11 +27,11 @@ class TrackingValidatorSkeleton:
     def run(self):
         rate = rospy.Rate(10)
         while not rospy.is_shutdown():
-            # TODO: Compute lateral RMS error over the validation window.
-            # TODO: Compute heading RMS error over the validation window.
-            # TODO: Compute speed error against /target_speed or trajectory metadata.
-            # TODO: Check steering saturation using CtrlCmd.front_steer limits.
-            # TODO: Add CSV logging for offline controller validation.
+            # TODO: 검증 구간의 횡방향 RMS 오차를 계산합니다.
+            # TODO: 검증 구간의 heading RMS 오차를 계산합니다.
+            # TODO: /target_speed 또는 궤적 metadata 기준 속도 오차를 계산합니다.
+            # TODO: CtrlCmd.front_steer 제한값 기준 조향 포화 여부를 확인합니다.
+            # TODO: 오프라인 제어기 검증용 CSV 로그를 추가합니다.
             lateral_rms_error = 0.0
             heading_rms_error = 0.0
             speed_error = 0.0
@@ -58,4 +58,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

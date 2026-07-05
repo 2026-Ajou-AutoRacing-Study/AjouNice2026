@@ -75,7 +75,7 @@ class PurePursuitPIController:
         self.debug_pub = rospy.Publisher(self.debug_topic, MarkerArray, queue_size=1)
 
         rospy.loginfo(
-            "PurePursuitPIController path=%s speed=%s use_speed_topic=%s ego=%s ctrl=%s debug=%s",
+            "PurePursuitPIController 설정: path=%s speed=%s use_speed_topic=%s ego=%s ctrl=%s debug=%s",
             self.path_topic,
             self.target_speed_topic,
             self.use_target_speed_topic,
@@ -235,7 +235,7 @@ class PurePursuitPIController:
 
     def build_command(self):
         if self.ego is None or len(self.path_points) < 2:
-            return self.build_safe_stop(), "waiting"
+            return self.build_safe_stop(), "대기 중"
 
         now = rospy.Time.now()
         if self.last_time is None:
@@ -251,7 +251,7 @@ class PurePursuitPIController:
 
         if nearest >= len(self.path_points) - 2 and goal_distance < self.stop_distance:
             self.speed_integral = 0.0
-            return self.build_safe_stop(), "finished"
+            return self.build_safe_stop(), "완료"
 
         lookahead = clamp(
             self.min_lookahead + self.lookahead_gain * speed,
@@ -294,7 +294,7 @@ class PurePursuitPIController:
             cmd.accel = clamp(self.accel_feedforward, 0.0, 1.0)
             cmd.brake = 0.0
 
-        return cmd, "tracking n=%d target=%d cte=%.2f ego=(%.1f,%.1f) tgt=(%.1f,%.1f) alpha=%.2f ld=%.2f speed=%.2f(raw %.2f)/%.2f accel=%.2f brake=%.2f steer=%.3f" % (
+        return cmd, "추종 중 n=%d target=%d cte=%.2f ego=(%.1f,%.1f) tgt=(%.1f,%.1f) alpha=%.2f ld=%.2f speed=%.2f(raw %.2f)/%.2f accel=%.2f brake=%.2f steer=%.3f" % (
             nearest,
             target,
             cte,
@@ -317,7 +317,7 @@ class PurePursuitPIController:
         while not rospy.is_shutdown():
             cmd, state = self.build_command()
             self.ctrl_pub.publish(cmd)
-            rospy.loginfo_throttle(1.0, "Pure pursuit PI: %s", state)
+            rospy.loginfo_throttle(1.0, "Pure pursuit PI 상태: %s", state)
             rate.sleep()
 
 
