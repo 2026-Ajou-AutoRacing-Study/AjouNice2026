@@ -9,6 +9,8 @@ REC_PID=""
 
 TOPICS=(
   /clock
+  /tf
+  /tf_static
   /Ego_topic
   /Object_topic
   /sensor/imu
