@@ -1,4 +1,5 @@
 common:
+  # lid_topic: "/sensor/lidar1"
   lid_topic: "/sensor/lidar1"
   imu_topic: "/sensor/imu"
   time_sync_en: false
