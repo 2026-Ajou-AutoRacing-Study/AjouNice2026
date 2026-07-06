@@ -345,7 +345,7 @@ def main():
     rospy.init_node("lanelet2_osm_marker_publisher")
     package_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     repo_root = os.path.abspath(os.path.join(package_dir, "..", "..", ".."))
-    default_map = os.path.join(repo_root, "kcity_map", "lanelet_map", "lanelet2_map_v6.osm")
+    default_map = os.path.join(repo_root, "kcity_map", "lanelet_map", "lanelet2_map_v23.osm")
     default_projector = os.path.join(repo_root, "kcity_map", "lanelet_map", "map_projector_info_v1.yaml")
 
     map_file = rospy.get_param("~map_file", default_map)
