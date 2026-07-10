@@ -1,372 +1,321 @@
 # ajou_control
 
-`ajou_control` is a ROS1 Noetic controller package for MORAI trajectory tracking. It can generate a virtual reference path for wiring checks and can follow a CSV-recorded MORAI ego trajectory using Pure Pursuit steering and longitudinal PI speed control.
+MORAI SIM에서 MGeo 기반 경로를 생성하고, Pure Pursuit + PI 제어기로 ego 차량을 추종시키며, 주행 결과를 CSV/RViz/rqt_multiplot으로 검증하기 위한 ROS1 Noetic 패키지입니다.
 
-This package follows MORAI-ROS `morai_msgs` conventions for simulator I/O and does not depend on ROS2 or Autoware Universe message types.
+이 패키지는 `AjouNice2026/base_ws/src/control` 아래에서 사용합니다.
 
-## Topics
+## 핵심 기능
 
-| Topic | Type | Direction | Description |
-| --- | --- | --- | --- |
-| `/reference_path` | `nav_msgs/Path` | Published | Virtual reference path in the `map` frame |
-| `/target_speed` | `std_msgs/Float32` | Published | Target speed in m/s |
-| `/reference_path_marker` | `visualization_msgs/Marker` | Published | RViz line strip marker for the reference path |
-| `/recorded_trajectory_path` | `nav_msgs/Path` | Subscribed | Recorded path published by `ajou_trajectory_recorder` |
-| `/recorded_trajectory/target_speed` | `std_msgs/Float32` | Subscribed | Optional target speed from recorded CSV |
-| `/ctrl_cmd` | `morai_msgs/CtrlCmd` | Published | Final MORAI vehicle command topic |
-| `/Ego_topic` | `morai_msgs/EgoVehicleStatus` | Subscribed | MORAI ego vehicle state topic |
+- MGeo `link_set.json` 기반 주행 경로 생성
+- Pure Pursuit 횡방향 제어
+- PI 기반 종방향 속도 제어
+- MORAI `/ctrl_cmd` publish
+- 주행 결과 CSV 저장
+- 이전 주행 궤적과 현재 주행 궤적 RViz 비교
+- 제어기 튜닝 파라미터를 YAML 파일로 관리
+- rqt_multiplot용 error/metric topic publish
 
-## Build
+## 전체 구조
+
+```text
+ajou_control
+├── configs/controller_tuning/
+│   └── baseline.yaml
+├── launch/
+│   ├── mgeo_path_stack.launch
+│   ├── view_validation_runs.launch
+│   └── tracking_validation.launch
+├── scripts/
+│   ├── run_mgeo_controller_tuning.sh
+│   ├── mgeo_trajectory_generator.py
+│   ├── pure_pursuit_pi_controller.py
+│   ├── tracking_validator.py
+│   └── validation_run_viewer.py
+├── validation_runs/
+│   └── .gitkeep
+├── rviz/
+│   └── mgeo_alignment.rviz
+└── docs/
+    ├── controller_tuning_workflow.md
+    └── control_pipeline_status.md
+```
+
+## 빌드
+
+```bash
+cd ~/AjouNice2026/base_ws
+catkin_make
+source devel/setup.bash
+```
+
+개별 개발 환경이 `~/catkin_ws`라면 해당 workspace에서 동일하게 빌드하면 됩니다.
 
 ```bash
 cd ~/catkin_ws
 catkin_make
-source ~/.bashrc
+source devel/setup.bash
 ```
 
-If your `.bashrc` does not already source the workspace, run:
-
-```bash
-source ~/catkin_ws/devel/setup.bash
-```
-
-## Run Trajectory Validation
-
-```bash
-roslaunch ajou_control trajectory_validation.launch
-```
-
-Example with a circular path:
-
-```bash
-roslaunch ajou_control trajectory_validation.launch mode:=circle radius:=20.0 target_speed_mps:=5.0
-```
-
-## Visualize in RViz
-
-```bash
-roslaunch ajou_control trajectory_validation.launch enable_rviz:=true
-```
-
-In RViz:
-
-1. Set `Fixed Frame` to `map`.
-2. Add `Path` and select `/reference_path`.
-3. Add `Marker` and select `/reference_path_marker`.
-
-## Test MORAI Command Topic
-
-```bash
-rosrun ajou_control simple_morai_cmd.py
-rostopic echo /ctrl_cmd
-```
-
-The default command is intentionally safe:
-
-- `longlCmdType = 1`
-- `accel = 0.0`
-- `brake = 1.0`
-- `front_steer = 0.0`
-
-## Follow Recorded MORAI Trajectory
-
-The normal workflow is:
-
-1. Record a manual drive with `ajou_trajectory_recorder`.
-2. Publish the recorded CSV as a `nav_msgs/Path`.
-3. Run this controller against that path.
-
-If the CSV already exists, one launch file can start the path publisher, visualizer, controller, and optional validator:
-
-```bash
-roslaunch ajou_control recorded_path_stack.launch target_speed_mps:=3.0
-```
-
-With tracking validation enabled:
-
-```bash
-roslaunch ajou_control recorded_path_stack.launch target_speed_mps:=3.0 enable_validator:=true
-```
-
-Use a custom CSV:
-
-```bash
-roslaunch ajou_control recorded_path_stack.launch input_csv:=/absolute/path/to/recorded_trajectory.csv target_speed_mps:=3.0
-```
-
-For separate terminals, publish the CSV trajectory first:
-
-
-```bash
-roslaunch ajou_trajectory_recorder publish_trajectory.launch
-```
-
-Then run the Pure Pursuit + PI controller:
-
-```bash
-roslaunch ajou_control recorded_path_control.launch
-```
-
-Start slowly while tuning:
-
-```bash
-roslaunch ajou_control recorded_path_control.launch target_speed_mps:=5.0
-```
-
-If the vehicle turns away from the path, flip the steering sign:
-
-```bash
-roslaunch ajou_control recorded_path_control.launch target_speed_mps:=5.0 steering_sign:=-1.0
-```
-
-If the controller reports a large raw speed while the vehicle is visually slow, MORAI may be publishing velocity in km/h. Convert it to m/s:
-
-```bash
-roslaunch ajou_control recorded_path_control.launch target_speed_mps:=5.0 velocity_scale:=0.27778
-```
-
-The controller subscribes to:
-
-| Topic | Type | Description |
-| --- | --- | --- |
-| `/recorded_trajectory_path` | `nav_msgs/Path` | Recorded path from CSV |
-| `/recorded_trajectory/target_speed` | `std_msgs/Float32` | Target speed in m/s |
-| `/Ego_topic` | `morai_msgs/EgoVehicleStatus` | MORAI ego vehicle status |
-
-It publishes `/ctrl_cmd` as `morai_msgs/CtrlCmd` with throttle/brake PI speed control and Pure Pursuit front steering. The launch file uses a fixed low target speed by default. Set `use_target_speed_topic:=true` only after low-speed tracking is stable.
-
-### Key Runtime Parameters
-
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| `target_speed_mps` | `3.0` | Fixed low-speed target used while tuning |
-| `use_target_speed_topic` | `false` | Use `/recorded_trajectory/target_speed` instead of fixed target |
-| `steering_sign` | `1.0` | Flip to `-1.0` if MORAI steering sign is opposite |
-| `velocity_scale` | `1.0` | Set to `0.27778` if MORAI velocity is km/h |
-| `min_lookahead` | `7.0` | Minimum Pure Pursuit lookahead distance |
-| `max_lookahead` | `16.0` | Maximum Pure Pursuit lookahead distance |
-| `max_steer_rad` | `0.35` | Steering command clamp |
-
-## Validate Tracking Accuracy
-
-Run the validator while the controller is driving:
-
-```bash
-roslaunch ajou_control tracking_validation.launch
-```
-
-It compares `/Ego_topic` against `/recorded_trajectory_path`, writes a sample CSV, publishes RViz markers, and exposes time-series topics for `rqt_multi_plot`.
-
-RViz:
-
-- Add `Path`: `/recorded_trajectory_path`
-- Add `MarkerArray`: `/validation/markers`
-- The marker array overlays the target path, current ego-driven path, nearest target point, ego-to-target error line, and optional previous runs.
-
-To overlay earlier validation runs while tuning one parameter at a time:
-
-```bash
-roslaunch ajou_control tracking_validation.launch \
-  history_csvs:=/absolute/path/run_kp_025.csv,/absolute/path/run_kp_030.csv
-```
-
-Or load a batch:
-
-```bash
-roslaunch ajou_control tracking_validation.launch \
-  history_glob:="$(env HOME)/catkin_ws/src/ajou_control/validation_runs/*.csv"
-```
-
-Recommended `rqt_multi_plot` topics:
-
-| Group | Topic | Meaning |
-| --- | --- | --- |
-| Lateral | `/validation/lateral/lat_err` | Signed lateral error, m |
-| Lateral | `/validation/lateral/heading_err` | Heading error, rad |
-| Lateral | `/validation/lateral/steering_angle` | Commanded front steering angle, rad |
-| Lateral | `/validation/lateral/lat_vel` | Ego lateral velocity in body frame, m/s |
-| Lateral | `/validation/lateral/lat_acc` | Ego lateral acceleration in body frame, m/s^2 |
-| Longitudinal | `/validation/longitudinal/long_vel` | Ego longitudinal velocity in body frame, m/s |
-| Longitudinal | `/validation/longitudinal/target_vel` | Target velocity, m/s |
-| Longitudinal | `/validation/longitudinal/long_vel_err` | Longitudinal velocity error, m/s |
-| Longitudinal | `/validation/longitudinal/long_acc` | Ego longitudinal acceleration, m/s^2 |
-| Run metric | `/validation/metrics/mean_ade` | Mean nearest-point displacement error over the run, m |
-| Run metric | `/validation/metrics/fde` | Current distance to final target point, m |
-| Run metric | `/validation/metrics/lateral_rms` | Lateral RMS error, m |
-| Run metric | `/validation/metrics/heading_rms` | Heading RMS error, rad |
-| Run metric | `/validation/metrics/speed_rms` | Longitudinal velocity RMS error, m/s |
-| Run metric | `/validation/metrics/progress` | Path completion ratio |
-| Run metric | `/validation/metrics/steer_saturation_rate` | Fraction of samples near steering saturation |
-
-Console summary metrics:
-
-| Metric | Meaning |
-| --- | --- |
-| `lateral` | Current signed lateral error in meters |
-| `lateral_rms` | RMS lateral error over the validation run |
-| `lateral_max` | Maximum absolute lateral error |
-| `heading_rms` | RMS heading error in radians |
-| `speed_rms` | RMS speed error in m/s |
-| `progress` | Path completion ratio |
-| `steer_sat` | Fraction of samples near steering saturation |
-| `mean_ade` | Mean nearest-point displacement error over the validation run |
-| `fde` | Current distance from ego to the final target path point |
-
-The validator also writes a per-sample CSV:
+## 제어 파이프라인
 
 ```text
-~/catkin_ws/src/ajou_control/validation_tracking.csv
+MGeo link_set.json
+  -> mgeo_trajectory_generator.py
+  -> /recorded_trajectory_path
+  -> pure_pursuit_pi_controller.py
+  -> /ctrl_cmd
+  -> MORAI 주행
+  -> tracking_validator.py
+  -> validation_runs/<profile_name>.csv
+  -> RViz / rqt_multiplot 비교
 ```
 
-The CSV includes the lateral validation columns (`lateral_error`, `heading_error_rad`, `steering_angle`, `lat_vel`, `lat_acc`), longitudinal validation columns (`long_vel`, `target_speed`, `long_vel_error`, `long_acc`), and run metrics (`ade`, `mean_ade`, `fde`, RMS values, steering saturation rate).
+## 제어기 튜닝 방식
 
-## Current Scope
-
-Implemented:
-
-- Virtual trajectory generator for path/topic validation.
-- Recorded path tracking with Pure Pursuit steering.
-- Longitudinal PI speed control publishing MORAI `CtrlCmd`.
-- RViz debug markers for ego, nearest point, target point, lookahead, and cross-track error.
-- Tracking validator with RViz target/current/previous-run overlays, separated lateral and longitudinal validation topics, ADE/FDE, RMS values, progress, and steering saturation metrics.
-
-The skeleton scripts are kept only as reference placeholders; use `pure_pursuit_pi_controller.py` and `tracking_validator.py` for active testing.
-
-## Generate Trajectory from MORAI MGeo Centerlines
-
-The current MGeo centerline source is:
+튜닝은 다음 원칙으로 관리합니다.
 
 ```text
-/mnt/c/Users/lenovo/Downloads/link_set.json
+튜닝 이름 = 제어기 파라미터 YAML 이름 = 주행 결과 CSV 이름
 ```
 
-Before using MGeo as a trajectory source, verify that MORAI world coordinates and RViz `map` coordinates are aligned 1:1:
+예를 들어 `baseline` 튜닝은 다음 두 파일이 한 세트입니다.
+
+```text
+configs/controller_tuning/baseline.yaml
+validation_runs/baseline.csv
+```
+
+`baseline.yaml`은 제어기 파라미터를 저장하고, `baseline.csv`는 해당 파라미터로 주행한 결과를 저장합니다.
+
+## 기본 튜닝 파일
+
+기본 파라미터 파일:
+
+```text
+configs/controller_tuning/baseline.yaml
+```
+
+주요 값:
+
+```yaml
+route_length_m: 120.0
+target_speed_mps: 2.0
+velocity_scale: 0.27778
+
+steering_sign: -1.0
+min_lookahead: 7.0
+max_lookahead: 16.0
+lookahead_gain: 1.0
+max_steer_rad: 0.35
+max_steer_rate: 0.8
+```
+
+중요한 보정:
+
+- `steering_sign: -1.0`: MORAI 조향 방향 반대 보정
+- `velocity_scale: 0.27778`: MORAI 속도 단위가 km/h로 들어오는 경우 m/s로 변환
+- `max_steer_rate`: 조향각 변화율 제한
+
+## 튜닝 실행
+
+baseline 실행:
+
+```bash
+source ~/AjouNice2026/base_ws/devel/setup.bash
+~/AjouNice2026/base_ws/src/control/ajou_control/scripts/run_mgeo_controller_tuning.sh baseline
+```
+
+실행 결과:
+
+```text
+validation_runs/baseline.csv
+```
+
+같은 이름으로 다시 실행하면 같은 CSV가 최신 결과로 덮어써집니다.
+
+## 새 튜닝 케이스 만들기
+
+예시: `max_steer_rate_08` 케이스 생성
+
+```bash
+cd ~/AjouNice2026/base_ws/src/control/ajou_control
+
+cp configs/controller_tuning/baseline.yaml \
+   configs/controller_tuning/max_steer_rate_08.yaml
+```
+
+YAML 수정:
+
+```bash
+code configs/controller_tuning/max_steer_rate_08.yaml
+```
+
+실행:
+
+```bash
+source ~/AjouNice2026/base_ws/devel/setup.bash
+~/AjouNice2026/base_ws/src/control/ajou_control/scripts/run_mgeo_controller_tuning.sh max_steer_rate_08
+```
+
+결과:
+
+```text
+validation_runs/max_steer_rate_08.csv
+```
+
+## 저장된 주행 궤적 보기
+
+특정 주행 결과 하나만 RViz에서 보기:
+
+```bash
+roslaunch ajou_control view_validation_runs.launch \
+  input_csv:=$HOME/AjouNice2026/base_ws/src/control/ajou_control/validation_runs/baseline.csv \
+  history_glob:= \
+  enable_link_overlay:=true \
+  enable_rviz:=true
+```
+
+baseline과 튜닝 결과 비교:
+
+```bash
+roslaunch ajou_control view_validation_runs.launch \
+  input_csv:=$HOME/AjouNice2026/base_ws/src/control/ajou_control/validation_runs/max_steer_rate_08.csv \
+  history_csvs:=$HOME/AjouNice2026/base_ws/src/control/ajou_control/validation_runs/baseline.csv \
+  history_glob:= \
+  enable_link_overlay:=true \
+  enable_rviz:=true
+```
+
+RViz에서 확인할 display:
+
+```text
+MGeo Full Centerlines
+MGeo Full Lane Edges
+Validation Current and Previous Runs
+```
+
+표시 의미:
+
+- 선택한 `input_csv`: 굵은 노란색 궤적
+- `history_csvs`: 비교할 이전 주행 궤적
+- MGeo link overlay: 기준 지도 link
+
+## rqt_multiplot 확인 토픽
+
+validator는 다음 토픽을 publish합니다.
+
+```bash
+rosrun rqt_multiplot rqt_multiplot
+```
+
+추천 토픽:
+
+```text
+/validation/lateral/lat_err
+/validation/lateral/heading_err
+/validation/lateral/steering_angle
+/validation/lateral/lat_vel
+/validation/lateral/lat_acc
+
+/validation/longitudinal/long_vel
+/validation/longitudinal/target_vel
+/validation/longitudinal/long_vel_err
+/validation/longitudinal/long_acc
+
+/validation/metrics/mean_ade
+/validation/metrics/fde
+/validation/metrics/lateral_rms
+/validation/metrics/heading_rms
+/validation/metrics/speed_rms
+/validation/metrics/progress
+/validation/metrics/steer_saturation_rate
+```
+
+## CSV 저장 항목
+
+`validation_runs/<profile_name>.csv`에는 다음 항목이 저장됩니다.
+
+```text
+time
+nearest_index
+progress
+ego_x, ego_y
+path_x, path_y
+lateral_error
+heading_error_rad
+steering_angle
+lat_vel, lat_acc
+long_vel, target_speed, long_vel_error, long_acc
+ade, mean_ade, fde
+lateral_rms, heading_rms, speed_rms
+steering_saturated
+steer_saturation_rate
+```
+
+튜닝 판단 기준:
+
+- `lateral_error`: 경로 좌우 오차
+- `heading_error_rad`: 경로 방향과 차량 heading 차이
+- `mean_ade`: 전체 평균 위치 오차
+- `fde`: 현재 위치와 path 끝점 거리
+- `steer_saturation_rate`: 조향 제한에 걸린 비율
+
+## MGeo / RViz 좌표 보정
+
+현재 기본 보정값은 launch에 반영되어 있습니다.
+
+Control path 변환:
+
+```text
+offset_x = 134.24
+offset_y = 1507.36
+offset_z = -26.12
+```
+
+RViz preview / alignment 변환:
+
+```text
+preview_offset_x = 0.0
+preview_offset_y = 560.0
+preview_offset_z = -28.5
+preview_ego_offset_x = -134.24
+preview_ego_offset_y = -947.36
+preview_ego_offset_z = -2.38
+```
+
+alignment만 확인:
 
 ```bash
 roslaunch ajou_control mgeo_alignment_check.launch enable_rviz:=true
 ```
 
-The launch file currently applies the MORAI-local to MGeo-local visual alignment offsets by default:
-
-```text
-offset_x = 0.0
-offset_y = 560.0
-offset_z = -28.5
-offset_yaw_deg = 0.0
-ego_offset_x = -134.24
-ego_offset_y = -947.36
-ego_offset_z = -2.38
-```
-
-These defaults match the observed MORAI ego marker against the current `link_set.json`. Override them only when the map asset or MORAI map origin changes.
-
-In RViz, set `Fixed Frame` to `map`, then add:
-
-- `MarkerArray`: `/mgeo_alignment/markers`
-
-The checker overlays local MGeo centerlines, estimated lane-edge lines from each link width, the current MORAI ego pose, the nearest centerline point, ego heading, centerline heading, and the ego-to-centerline error line. It also publishes:
-
-| Topic | Type | Meaning |
-| --- | --- | --- |
-| `/mgeo_alignment/nearest_distance` | `std_msgs/Float32` | Distance from ego to nearest transformed MGeo centerline point |
-| `/mgeo_alignment/heading_error` | `std_msgs/Float32` | Ego heading minus nearest centerline heading, rad |
-
-If the MGeo overlay is consistently shifted or rotated against MORAI, tune the transform offsets without editing the map:
-
-```bash
-roslaunch ajou_control mgeo_alignment_check.launch \
-  offset_x:=0.0 offset_y:=560.0 offset_yaw_deg:=0.0 enable_rviz:=true
-```
-
-The launch file shows all MGeo link centerlines by default so the RViz view can be compared directly with the MORAI road layout. If RViz becomes slow, switch to ego-nearby rendering:
-
-```bash
-roslaunch ajou_control mgeo_alignment_check.launch \
-  show_all_links:=false local_radius:=80.0 enable_rviz:=true
-```
-
-With only `link_set.json`, lane edges are estimated from `width_start` and `width_end`; they are useful for visual map matching but are not a replacement for the original `lane_boundary_set.json`. To hide the estimated edge lines:
-
-```bash
-roslaunch ajou_control mgeo_alignment_check.launch \
-  show_estimated_lane_edges:=false enable_rviz:=true
-```
-
-Use a few fixed MORAI poses on lane centers and check that:
-
-- ego marker is on the same road location in RViz and MORAI
-- blue MGeo centerlines overlap MORAI lane centers
-- white ego heading and green centerline heading point in the expected direction
-- nearest distance is small when the vehicle is placed on a lane center
-
-Only start MGeo trajectory generation after this alignment check is stable.
-
-`mgeo_trajectory_generator.py` reads MGeo `link_set.json`, selects a stable route from the current MORAI ego pose by default, resamples link centerline `points`, and publishes two paths:
-
-| Topic | Frame use | Meaning |
-| --- | --- | --- |
-| `/recorded_trajectory_path` | MORAI control frame | Path consumed by the controller and validator |
-| `/mgeo_trajectory/preview_path` | RViz/MGeo preview frame | Same route transformed for RViz inspection |
-
-```bash
-roslaunch ajou_control mgeo_path_stack.launch
-```
-
-The default route generation waits briefly for `/Ego_topic`, chooses the nearest heading-compatible MGeo link, trims the path to start near the current ego position, then follows successor links with the smallest heading discontinuity for about `route_length_m`.
-
-For control, the stack keeps `/Ego_topic.position` unmodified and instead converts MGeo points into MORAI coordinates for `/recorded_trajectory_path`:
-
-```text
-trajectory_x = mgeo_x + 134.24
-trajectory_y = mgeo_y + 1507.36
-trajectory_z = mgeo_z - 26.12
-```
-
-This is derived from the RViz alignment relation:
-
-```text
-MGeo-to-MORAI offset = map_offset - ego_offset
-```
-
-For RViz inspection, the stack separately publishes `/mgeo_trajectory/preview_path` using the same preview offsets as `mgeo_alignment_check.launch`, so the generated route remains visible near the aligned map instead of being shifted far into MORAI raw coordinates.
-
-Default outputs:
-
-| Topic | Type | Description |
-| --- | --- | --- |
-| `/recorded_trajectory_path` | `nav_msgs/Path` | MGeo centerline trajectory |
-| `/mgeo_trajectory/preview_path` | `nav_msgs/Path` | RViz-friendly preview of the same generated route |
-| `/recorded_trajectory/target_speed` | `std_msgs/Float32` | Target speed for the controller |
-| `/mgeo_trajectory/markers` | `visualization_msgs/MarkerArray` | Trajectory markers |
-| `/mgeo_trajectory/line` | `visualization_msgs/Marker` | Trajectory line strip |
-| `/mgeo_trajectory/ego_comparison_markers` | `visualization_msgs/MarkerArray` | Ego pose, heading, nearest path point, and cross-track error |
-
-Route selection options:
-
-```bash
-roslaunch ajou_control mgeo_path_stack.launch route_length_m:=180.0
-roslaunch ajou_control mgeo_path_stack.launch start_link_id:=A2256W000532 max_links:=20
-roslaunch ajou_control mgeo_path_stack.launch start_link_id:=A2256W000532 goal_link_id:=A2256W000600
-roslaunch ajou_control mgeo_path_stack.launch route_link_ids:=A2256W000532,A2256W000533,A2256W000534
-```
-
-To visualize in RViz:
+MGeo 경로 생성만 확인:
 
 ```bash
 roslaunch ajou_control mgeo_path_stack.launch enable_rviz:=true
 ```
 
-In RViz, set `Fixed Frame` to `map`, then add:
+## 주요 토픽
 
-- `Path`: `/recorded_trajectory_path`
-- `MarkerArray`: `/mgeo_trajectory/markers`
-- `Marker`: `/mgeo_trajectory/line`
-- `MarkerArray`: `/mgeo_trajectory/ego_comparison_markers`
+| 토픽 | 타입 | 의미 |
+| --- | --- | --- |
+| `/recorded_trajectory_path` | `nav_msgs/Path` | 제어기가 추종하는 기준 경로 |
+| `/mgeo_trajectory/preview_path` | `nav_msgs/Path` | RViz 확인용 preview 경로 |
+| `/recorded_trajectory/target_speed` | `std_msgs/Float32` | 목표 속도 |
+| `/ctrl_cmd` | `morai_msgs/CtrlCmd` | MORAI 차량 제어 명령 |
+| `/Ego_topic` | `morai_msgs/EgoVehicleStatus` | MORAI ego 차량 상태 |
+| `/validation/markers` | `visualization_msgs/MarkerArray` | 현재/이전 주행 궤적 비교 marker |
 
-To let the existing Pure Pursuit + PI controller follow the MGeo trajectory:
+## 추가 문서
 
-```bash
-roslaunch ajou_control mgeo_path_stack.launch enable_controller:=true enable_validator:=true target_speed_mps:=3.0
+자세한 튜닝 절차:
+
+```text
+docs/controller_tuning_workflow.md
 ```
 
-The stack uses the MGeo-to-MORAI transform derived from `mgeo_alignment_check.launch`, so controller tracking and validation metrics are computed against raw MORAI ego coordinates.
+현재 파이프라인 구성 상태:
+
+```text
+docs/control_pipeline_status.md
+```

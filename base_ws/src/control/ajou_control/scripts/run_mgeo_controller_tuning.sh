@@ -7,17 +7,17 @@ Usage:
   run_mgeo_controller_tuning.sh <profile_name> [profile_yaml]
 
 Examples:
-  ~/catkin_ws/src/ajou_control/scripts/run_mgeo_controller_tuning.sh baseline
-  ~/catkin_ws/src/ajou_control/scripts/run_mgeo_controller_tuning.sh max_steer_rate_08
+  ./scripts/run_mgeo_controller_tuning.sh baseline
+  ./scripts/run_mgeo_controller_tuning.sh max_steer_rate_08
 
 Each profile is loaded from:
-  ~/catkin_ws/src/ajou_control/configs/controller_tuning/<profile_name>.yaml
+  <ajou_control>/configs/controller_tuning/<profile_name>.yaml
 
 The validation result is saved to:
-  ~/catkin_ws/src/ajou_control/validation_runs/<profile_name>.csv
+  <ajou_control>/validation_runs/<profile_name>.csv
 
 Set COMPARE_WITH to overlay selected previous runs while driving:
-  COMPARE_WITH=$HOME/catkin_ws/src/ajou_control/validation_runs/baseline.csv \
+  COMPARE_WITH=<ajou_control>/validation_runs/baseline.csv \
     run_mgeo_controller_tuning.sh max_steer_rate_08
 EOF
 }
@@ -71,8 +71,21 @@ case "$RUN_NAME" in
     ;;
 esac
 
-CATKIN_WS="${CATKIN_WS:-$HOME/catkin_ws}"
-CONTROL_PKG="$CATKIN_WS/src/ajou_control"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONTROL_PKG="$(cd "$SCRIPT_DIR/.." && pwd)"
+find_catkin_ws() {
+  local dir="$CONTROL_PKG"
+  while [ "$dir" != "/" ]; do
+    if [ -d "$dir/src" ]; then
+      printf '%s' "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+CATKIN_WS="${CATKIN_WS:-$(find_catkin_ws)}"
 CONFIG_DIR="$CONTROL_PKG/configs/controller_tuning"
 RUN_DIR="$CONTROL_PKG/validation_runs"
 CONFIG_FILE="${2:-$CONFIG_DIR/$RUN_NAME.yaml}"
