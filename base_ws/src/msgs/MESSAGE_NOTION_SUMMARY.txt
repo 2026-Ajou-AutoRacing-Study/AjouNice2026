@@ -1,0 +1,169 @@
+Autoware ROS1 메시지 패키지 분리 정리 - Notion 붙여넣기용
+
+목적
+Autoware ROS2 planning 관련 custom 메시지를 ROS1 catkin 패키지로 포팅했다.
+이번 버전은 이전 임시 구조처럼 한 패키지에 몰아넣지 않고, 원본 Autoware 패키지명에 맞춰 쪼갠 구조이다.
+그래서 ROS 타입 이름이 원본과 거의 동일하게 유지된다.
+
+현재 메시지 패키지 위치
+/home/vic/AJOUNICE2026/repo/base_ws/src/msgs
+
+핵심 변경
+이전 임시 구조: planning_ros1ver/PathWithLaneId, planning_ros1ver/Tier4Path, planning_ros1ver/RtcCommand
+변경: autoware_internal_planning_msgs/PathWithLaneId, tier4_planning_msgs/Path, tier4_rtc_msgs/Command
+
+패키지별 메시지 목록
+
+autoware_adapi_v1_msgs
+  - autoware_adapi_v1_msgs/OperationModeState
+
+autoware_common_msgs
+  - autoware_common_msgs/ResponseStatus
+
+autoware_control_msgs
+  - autoware_control_msgs/Lateral
+  - autoware_control_msgs/Longitudinal
+  - autoware_control_msgs/Control
+
+autoware_internal_debug_msgs
+  - autoware_internal_debug_msgs/Float32MultiArrayStamped
+  - autoware_internal_debug_msgs/Float32Stamped
+  - autoware_internal_debug_msgs/Float64MultiArrayStamped
+  - autoware_internal_debug_msgs/Float64Stamped
+  - autoware_internal_debug_msgs/Int32Stamped
+  - autoware_internal_debug_msgs/StringStamped
+
+autoware_internal_msgs
+  - autoware_internal_msgs/MissionRemainingDistanceTime
+
+autoware_internal_planning_msgs
+  - autoware_internal_planning_msgs/Scenario
+  - autoware_internal_planning_msgs/PathPointWithLaneId
+  - autoware_internal_planning_msgs/PathWithLaneId
+  - autoware_internal_planning_msgs/VelocityLimitConstraints
+  - autoware_internal_planning_msgs/VelocityLimit
+  - autoware_internal_planning_msgs/RouteState
+  - autoware_internal_planning_msgs/CandidateTrajectory
+  - autoware_internal_planning_msgs/GeneratorInfo
+  - autoware_internal_planning_msgs/CandidateTrajectories
+  - autoware_internal_planning_msgs/ScoredCandidateTrajectory
+  - autoware_internal_planning_msgs/ScoredCandidateTrajectories
+  - autoware_internal_planning_msgs/ControlPoint
+  - autoware_internal_planning_msgs/SafetyFactor
+  - autoware_internal_planning_msgs/SafetyFactorArray
+  - autoware_internal_planning_msgs/PlanningFactor
+  - autoware_internal_planning_msgs/PlanningFactorArray
+  - autoware_internal_planning_msgs/VelocityLimitClearCommand
+
+autoware_map_msgs
+  - autoware_map_msgs/LaneletMapBin
+
+autoware_perception_msgs
+  - autoware_perception_msgs/ObjectClassification
+  - autoware_perception_msgs/Shape
+  - autoware_perception_msgs/PredictedPath
+  - autoware_perception_msgs/PredictedObjectKinematics
+  - autoware_perception_msgs/PredictedObject
+  - autoware_perception_msgs/PredictedObjects
+  - autoware_perception_msgs/TrafficLightElement
+  - autoware_perception_msgs/PredictedTrafficLightState
+  - autoware_perception_msgs/TrafficLightGroup
+  - autoware_perception_msgs/TrafficLightGroupArray
+  - autoware_perception_msgs/TrackedObjectKinematics
+  - autoware_perception_msgs/TrackedObject
+  - autoware_perception_msgs/TrackedObjects
+
+autoware_planning_msgs
+  - autoware_planning_msgs/LaneletPrimitive
+  - autoware_planning_msgs/LaneletSegment
+  - autoware_planning_msgs/LaneletRoute
+  - autoware_planning_msgs/PathPoint
+  - autoware_planning_msgs/Path
+  - autoware_planning_msgs/PoseWithUuidStamped
+  - autoware_planning_msgs/TrajectoryPoint
+  - autoware_planning_msgs/Trajectory
+  - autoware_planning_msgs/RouteState
+
+autoware_vehicle_msgs
+  - autoware_vehicle_msgs/ActuationCommand
+  - autoware_vehicle_msgs/ActuationCommandStamped
+  - autoware_vehicle_msgs/ControlModeReport
+  - autoware_vehicle_msgs/Engage
+  - autoware_vehicle_msgs/GearCommand
+  - autoware_vehicle_msgs/GearReport
+  - autoware_vehicle_msgs/HazardLightsCommand
+  - autoware_vehicle_msgs/HazardLightsReport
+  - autoware_vehicle_msgs/SteeringReport
+  - autoware_vehicle_msgs/TurnIndicatorsCommand
+  - autoware_vehicle_msgs/TurnIndicatorsReport
+  - autoware_vehicle_msgs/VelocityReport
+
+tier4_planning_msgs
+  - tier4_planning_msgs/RerouteAvailability
+  - tier4_planning_msgs/LateralOffset
+  - tier4_planning_msgs/AvoidanceDebugMsg
+  - tier4_planning_msgs/AvoidanceDebugMsgArray
+  - tier4_planning_msgs/PathPoint
+  - tier4_planning_msgs/Path
+  - tier4_planning_msgs/TrajectoryPoint
+  - tier4_planning_msgs/Trajectory
+  - tier4_planning_msgs/StopFactor
+  - tier4_planning_msgs/StopReason
+  - tier4_planning_msgs/StopReasonArray
+  - tier4_planning_msgs/RouteState
+  - tier4_planning_msgs/ControlPoint
+  - tier4_planning_msgs/SafetyFactor
+  - tier4_planning_msgs/SafetyFactorArray
+  - tier4_planning_msgs/PlanningFactor
+  - tier4_planning_msgs/PlanningFactorArray
+  - tier4_planning_msgs/VelocityLimitClearCommand
+
+tier4_rtc_msgs
+  - tier4_rtc_msgs/Command
+  - tier4_rtc_msgs/Module
+  - tier4_rtc_msgs/State
+  - tier4_rtc_msgs/CooperateCommand
+  - tier4_rtc_msgs/CooperateResponse
+  - tier4_rtc_msgs/CooperateStatus
+  - tier4_rtc_msgs/CooperateStatusArray
+
+tier4_v2x_msgs
+  - tier4_v2x_msgs/KeyValue
+  - tier4_v2x_msgs/InfrastructureCommand
+  - tier4_v2x_msgs/InfrastructureCommandArray
+  - tier4_v2x_msgs/VirtualTrafficLightState
+  - tier4_v2x_msgs/VirtualTrafficLightStateArray
+
+unique_identifier_msgs
+  - unique_identifier_msgs/UUID
+
+BPP 주요 인터페이스
+토픽	타입	설명
+/planning/mission_planning/route	autoware_planning_msgs/LaneletRoute	Mission planner route
+/map/vector_map	autoware_map_msgs/LaneletMapBin	Lanelet2 vector map binary/raw payload
+/planning/scenario_planning/scenario	autoware_internal_planning_msgs/Scenario	LaneDriving/Parking scenario state
+/perception/object_recognition/objects	autoware_perception_msgs/PredictedObjects	Perception objects
+/planning/scenario_planning/max_velocity	autoware_internal_planning_msgs/VelocityLimit	Velocity cap
+/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id	autoware_internal_planning_msgs/PathWithLaneId	BPP final path
+/planning/turn_indicators_cmd	autoware_vehicle_msgs/TurnIndicatorsCommand	Turn signal command
+/planning/hazard_lights_cmd	autoware_vehicle_msgs/HazardLightsCommand	Hazard light command
+/planning/scenario_planning/modified_goal	autoware_planning_msgs/PoseWithUuidStamped	Goal planner side output
+/planning/scenario_planning/is_reroute_available	tier4_planning_msgs/RerouteAvailability	Reroute availability output
+
+다른 PC에서 사용 방법
+1. base_ws/src/msgs 아래의 메시지 패키지들을 catkin workspace src 아래에 복사한다.
+2. catkin_make를 실행한다.
+3. source devel/setup.bash를 실행한다.
+4. rosmsg show autoware_internal_planning_msgs/PathWithLaneId 로 확인한다.
+
+예시 명령어
+cp -r base_ws/src/msgs/* ~/mvp_ws/src/
+cd ~/mvp_ws
+catkin_make
+source devel/setup.bash
+rosmsg show autoware_internal_planning_msgs/PathWithLaneId
+rosmsg show autoware_planning_msgs/Trajectory
+
+주의
+behavior_path_planner는 메시지 패키지가 아니라 BPP Python 코드와 launch를 담는 패키지이다.
+메시지는 base_ws/src/msgs 아래의 원본명 패키지들을 사용한다.

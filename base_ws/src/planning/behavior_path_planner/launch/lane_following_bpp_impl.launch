@@ -1,0 +1,31 @@
+<launch>
+  <arg name="frame_id" default="map" />
+  <arg name="planning_hz" default="10.0" />
+  <arg name="map_file" default="" />
+  <arg name="projector_file" default="" />
+
+  <node pkg="behavior_path_planner" type="lane_following_bpp.py" name="lane_following_bpp" output="screen">
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="planning_hz" value="$(arg planning_hz)" />
+    <param name="path_interval" value="2.0" />
+    <param name="fallback_path_length" value="60.0" />
+    <param name="default_velocity_mps" value="5.0" />
+    <param name="stop_at_goal" value="true" />
+    <param name="use_ego_as_path_start" value="true" />
+    <param name="use_map_centerline" value="true" />
+    <param name="map_file" value="$(arg map_file)" />
+    <param name="projector_file" value="$(arg projector_file)" />
+
+    <remap from="~input/route" to="/planning/mission_planning/route" />
+    <remap from="~input/vector_map" to="/map/vector_map" />
+    <remap from="~input/odometry" to="/localization/kinematic_state" />
+    <remap from="~input/scenario" to="/planning/scenario_planning/scenario" />
+
+    <remap from="~output/path" to="/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id" />
+    <remap from="~output/turn_indicators_cmd" to="/planning/turn_indicators_cmd" />
+    <remap from="~output/hazard_lights_cmd" to="/planning/hazard_lights_cmd" />
+    <remap from="~output/modified_goal" to="/planning/scenario_planning/modified_goal" />
+    <remap from="~output/is_reroute_available" to="/planning/scenario_planning/is_reroute_available" />
+    <remap from="~debug/path" to="/planning/debug/bpp/lane_following_path" />
+  </node>
+</launch>

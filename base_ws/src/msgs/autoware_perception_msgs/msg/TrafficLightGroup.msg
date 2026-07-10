@@ -1,0 +1,3 @@
+int64 traffic_light_group_id
+TrafficLightElement[] elements
+PredictedTrafficLightState[] predictions

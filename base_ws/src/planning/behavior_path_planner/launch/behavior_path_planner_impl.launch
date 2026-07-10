@@ -1,0 +1,77 @@
+<launch>
+  <arg name="frame_id" default="map" />
+  <arg name="planning_hz" default="10.0" />
+  <arg name="map_file" default="" />
+  <arg name="projector_file" default="" />
+
+  <node pkg="behavior_path_planner" type="behavior_path_planner.py" name="behavior_path_planner" output="screen">
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="planning_hz" value="$(arg planning_hz)" />
+    <param name="path_interval" value="2.0" />
+    <param name="fallback_path_length" value="60.0" />
+    <param name="default_velocity_mps" value="5.0" />
+    <param name="stop_at_goal" value="true" />
+    <param name="use_ego_as_path_start" value="true" />
+    <param name="use_map_centerline" value="true" />
+    <param name="map_file" value="$(arg map_file)" />
+    <param name="projector_file" value="$(arg projector_file)" />
+
+    <param name="enable_lane_change" value="true" />
+    <param name="enable_static_obstacle_avoidance" value="true" />
+    <param name="enable_dynamic_obstacle_avoidance" value="true" />
+    <param name="enable_start_planner" value="true" />
+    <param name="enable_goal_planner" value="true" />
+    <param name="enable_side_shift" value="true" />
+
+    <param name="lane_change/direction" value="none" />
+    <param name="lane_change/target_lateral_offset" value="0.0" />
+    <param name="lane_change/lane_width" value="3.5" />
+    <param name="lane_change/prepare_distance" value="15.0" />
+    <param name="lane_change/lane_change_distance" value="30.0" />
+    <param name="lane_change/enable_safety_check" value="true" />
+
+    <param name="static_obstacle_avoidance/static_speed_threshold" value="0.5" />
+    <param name="static_obstacle_avoidance/object_check_lateral_range" value="2.0" />
+    <param name="static_obstacle_avoidance/base_shift_length" value="0.8" />
+    <param name="static_obstacle_avoidance/max_shift_length" value="1.5" />
+
+    <param name="dynamic_obstacle_avoidance/min_dynamic_speed" value="0.5" />
+    <param name="dynamic_obstacle_avoidance/slow_velocity_mps" value="1.0" />
+    <param name="dynamic_obstacle_avoidance/enable_lateral_nudge" value="true" />
+
+    <param name="start_planner/pull_out_lateral_offset" value="0.0" />
+    <param name="start_planner/hold_until_autonomous" value="false" />
+
+    <param name="goal_planner/goal_lateral_offset" value="0.0" />
+    <param name="goal_planner/allow_goal_modification" value="true" />
+
+    <param name="side_shift/default_lateral_offset" value="0.0" />
+
+    <remap from="~input/route" to="/planning/mission_planning/route" />
+    <remap from="~input/vector_map" to="/map/vector_map" />
+    <remap from="~input/odometry" to="/localization/kinematic_state" />
+    <remap from="~input/scenario" to="/planning/scenario_planning/scenario" />
+    <remap from="~input/objects" to="/perception/object_recognition/objects" />
+    <remap from="~input/operation_mode" to="/system/operation_mode/state" />
+    <remap from="~input/lane_change_lateral_offset" to="/planning/bpp/lane_change/lateral_offset" />
+    <remap from="~input/side_shift_lateral_offset" to="/planning/scenario_planning/lane_driving/side_shift/lateral_offset" />
+
+    <remap from="~output/path" to="/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id" />
+    <remap from="~output/turn_indicators_cmd" to="/planning/turn_indicators_cmd" />
+    <remap from="~output/hazard_lights_cmd" to="/planning/hazard_lights_cmd" />
+    <remap from="~output/modified_goal" to="/planning/scenario_planning/modified_goal" />
+    <remap from="~output/is_reroute_available" to="/planning/scenario_planning/is_reroute_available" />
+
+    <remap from="~debug/path" to="/planning/debug/bpp/path" />
+    <remap from="~debug/module_status" to="/planning/debug/bpp/module_status" />
+    <remap from="~debug/lane_following_path" to="/planning/debug/bpp/lane_following_path" />
+    <remap from="~debug/lane_change_path" to="/planning/debug/bpp/lane_change_path" />
+    <remap from="~debug/static_obstacle_avoidance_path" to="/planning/debug/bpp/static_obstacle_avoidance_path" />
+    <remap from="~debug/dynamic_obstacle_avoidance_path" to="/planning/debug/bpp/dynamic_obstacle_avoidance_path" />
+    <remap from="~debug/start_planner_path" to="/planning/debug/bpp/start_planner_path" />
+    <remap from="~debug/goal_planner_path" to="/planning/debug/bpp/goal_planner_path" />
+    <remap from="~debug/side_shift_path" to="/planning/debug/bpp/side_shift_path" />
+    <remap from="~debug/static_obstacle_avoidance" to="/planning/debug/bpp/static_obstacle_avoidance" />
+    <remap from="~debug/dynamic_obstacle_avoidance" to="/planning/debug/bpp/dynamic_obstacle_avoidance" />
+  </node>
+</launch>

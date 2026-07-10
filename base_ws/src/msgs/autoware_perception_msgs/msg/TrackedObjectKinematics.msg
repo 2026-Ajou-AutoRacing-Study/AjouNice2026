@@ -1,0 +1,9 @@
+uint8 UNAVAILABLE=0
+uint8 SIGN_UNKNOWN=1
+uint8 AVAILABLE=2
+
+geometry_msgs/PoseWithCovariance pose_with_covariance
+geometry_msgs/TwistWithCovariance twist_with_covariance
+geometry_msgs/AccelWithCovariance acceleration_with_covariance
+uint8 orientation_availability
+bool is_stationary

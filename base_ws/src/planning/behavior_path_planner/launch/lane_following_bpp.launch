@@ -1,0 +1,13 @@
+<launch>
+  <arg name="frame_id" default="map" />
+  <arg name="planning_hz" default="10.0" />
+  <arg name="map_file" default="" />
+  <arg name="projector_file" default="" />
+
+  <include file="$(find behavior_path_planner)/launch/lane_following_bpp_impl.launch">
+    <arg name="frame_id" value="$(arg frame_id)" />
+    <arg name="planning_hz" value="$(arg planning_hz)" />
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="projector_file" value="$(arg projector_file)" />
+  </include>
+</launch>

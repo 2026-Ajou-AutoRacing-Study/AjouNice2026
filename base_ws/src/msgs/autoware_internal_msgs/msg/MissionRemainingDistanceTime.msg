@@ -1,0 +1,2 @@
+float64 remaining_distance
+float64 remaining_time

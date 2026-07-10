@@ -1,0 +1,2 @@
+time stamp
+CooperateStatus[] statuses
