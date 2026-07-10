@@ -58,17 +58,17 @@ class EgoTrajectoryRecorder:
 
         rospy.on_shutdown(self.close)
         self.sub = rospy.Subscriber(self.ego_topic, EgoVehicleStatus, self.ego_callback, queue_size=1)
-        rospy.loginfo("%s 토픽을 %s 파일로 기록합니다.", self.ego_topic, self.output_csv)
+        rospy.loginfo("Recording %s to %s", self.ego_topic, self.output_csv)
 
     def ego_callback(self, msg):
         with self.lock:
             self.latest_msg = msg
 
     def extract_sample(self, msg):
-        # 이 workspace의 MORAI Noetic EgoVehicleStatus 주요 필드:
+        # MORAI Noetic EgoVehicleStatus in this workspace has:
         #   geometry_msgs/Vector3 position
         #   geometry_msgs/Vector3 velocity
-        #   float64 heading, 단위는 degree
+        #   float64 heading, in degrees
         position = getattr(msg, "position", None)
         if position is None:
             raise AttributeError("EgoVehicleStatus.position is missing")
@@ -86,8 +86,8 @@ class EgoTrajectoryRecorder:
         elif hasattr(msg, "yaw"):
             yaw = float(msg.yaw)
         else:
-            # 일부 MORAI 메시지 변형은 방향 정보를 다른 필드에 둘 수 있습니다.
-            # 위치/속도 기록은 유지하고, 사용 가능한 필드는 한 번만 로그로 보여줍니다.
+            # Some MORAI message variants may store orientation elsewhere.
+            # Keep recording position/speed and expose available fields once.
             yaw = 0.0
 
         return rospy.Time.now().to_sec(), position.x, position.y, position.z, yaw, velocity
@@ -103,15 +103,15 @@ class EgoTrajectoryRecorder:
         with self.lock:
             msg = self.latest_msg
         if msg is None:
-            rospy.logwarn_throttle(2.0, "%s 토픽의 ego 상태를 기다리는 중입니다.", self.ego_topic)
+            rospy.logwarn_throttle(2.0, "Waiting for ego status on %s", self.ego_topic)
             return
 
         try:
             stamp, x, y, z, yaw, velocity = self.extract_sample(msg)
         except Exception as exc:
-            rospy.logwarn_throttle(2.0, "궤적 샘플 추출 실패: %s", exc)
+            rospy.logwarn_throttle(2.0, "Failed to extract trajectory sample: %s", exc)
             if not self.reported_fields:
-                rospy.logwarn("사용 가능한 EgoVehicleStatus 필드: %s", list(getattr(msg, "__slots__", [])))
+                rospy.logwarn("Available EgoVehicleStatus fields: %s", list(getattr(msg, "__slots__", [])))
                 self.reported_fields = True
             return
 
@@ -129,13 +129,13 @@ class EgoTrajectoryRecorder:
         if self.csv_file is not None and not self.csv_file.closed:
             self.csv_file.flush()
             self.csv_file.close()
-            rospy.loginfo("%s 파일을 닫았습니다. 기록된 점 개수: %d", self.output_csv, self.point_count)
+            rospy.loginfo("Closed %s with %d recorded points.", self.output_csv, self.point_count)
 
     def run(self):
         rate = rospy.Rate(self.record_rate)
         while not rospy.is_shutdown():
             self.record_once()
-            rospy.loginfo_throttle(2.0, "기록된 궤적 점 개수: %d", self.point_count)
+            rospy.loginfo_throttle(2.0, "Recorded trajectory points: %d", self.point_count)
             rate.sleep()
 
 
@@ -146,4 +146,4 @@ if __name__ == "__main__":
     except rospy.ROSInterruptException:
         pass
     except Exception as exc:
-        rospy.logerr("record_ego_trajectory 실행 실패: %s", exc)
+        rospy.logerr("record_ego_trajectory failed: %s", exc)

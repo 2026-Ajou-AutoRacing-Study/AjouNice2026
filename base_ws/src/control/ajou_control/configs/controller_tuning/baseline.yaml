@@ -1,0 +1,15 @@
+# Baseline controller tuning profile for MORAI MGeo tracking.
+# Keep one profile per tuning case. The CSV result is saved with the same name.
+
+route_length_m: 120.0
+target_speed_mps: 2.0
+velocity_scale: 0.27778
+
+steering_sign: -1.0
+min_lookahead: 7.0
+max_lookahead: 16.0
+lookahead_gain: 1.0
+max_steer_rad: 0.35
+max_steer_rate: 0.8
+
+enable_rviz: true

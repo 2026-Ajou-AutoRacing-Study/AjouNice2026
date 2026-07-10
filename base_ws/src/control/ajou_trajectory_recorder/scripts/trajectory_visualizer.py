@@ -22,7 +22,7 @@ class TrajectoryVisualizer:
         self.pub = rospy.Publisher(self.marker_topic, MarkerArray, queue_size=1, latch=True)
         self.line_pub = rospy.Publisher(self.line_topic, Marker, queue_size=1, latch=True)
         self.sub = rospy.Subscriber(self.path_topic, Path, self.path_callback, queue_size=1)
-        rospy.loginfo("%s 토픽을 %s 및 %s 마커로 시각화합니다.", self.path_topic, self.marker_topic, self.line_topic)
+        rospy.loginfo("Visualizing %s as %s and %s", self.path_topic, self.marker_topic, self.line_topic)
 
     def make_line_marker(self, path):
         marker = Marker()
@@ -121,7 +121,7 @@ class TrajectoryVisualizer:
 
         self.pub.publish(markers)
         self.line_pub.publish(line_marker)
-        rospy.loginfo_throttle(5.0, "경로 pose %d개에 대한 궤적 마커를 발행했습니다.", len(path.poses))
+        rospy.loginfo_throttle(5.0, "Published trajectory markers for %d path poses.", len(path.poses))
 
     def run(self):
         rospy.spin()
@@ -134,4 +134,4 @@ if __name__ == "__main__":
     except rospy.ROSInterruptException:
         pass
     except Exception as exc:
-        rospy.logerr("trajectory_visualizer 실행 실패: %s", exc)
+        rospy.logerr("trajectory_visualizer failed: %s", exc)

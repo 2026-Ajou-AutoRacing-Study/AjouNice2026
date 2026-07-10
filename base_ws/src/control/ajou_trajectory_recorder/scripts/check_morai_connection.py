@@ -23,7 +23,7 @@ class MoraiConnectionChecker:
         self.reported_fields = False
 
         self.sub = rospy.Subscriber(self.ego_topic, EgoVehicleStatus, self.ego_callback, queue_size=1)
-        rospy.loginfo("%s 토픽을 morai_msgs/EgoVehicleStatus 타입으로 구독합니다.", self.ego_topic)
+        rospy.loginfo("Subscribing to %s as morai_msgs/EgoVehicleStatus", self.ego_topic)
 
     def ego_callback(self, msg):
         with self.lock:
@@ -35,7 +35,7 @@ class MoraiConnectionChecker:
         velocity_vec = getattr(msg, "velocity", None)
         speed = vector_speed(velocity_vec)
 
-        # 현재 MORAI EgoVehicleStatus의 heading 단위는 degree입니다.
+        # Current MORAI EgoVehicleStatus uses heading in degrees.
         yaw = getattr(msg, "heading", None)
         if yaw is None:
             yaw = getattr(msg, "yaw", None)
@@ -50,7 +50,7 @@ class MoraiConnectionChecker:
             topics.update(name for name, _nodes in subscribers)
             return "/ctrl_cmd" in topics
         except Exception as exc:
-            rospy.logwarn_throttle(5.0, "ROS master 토픽 조회 실패: %s", exc)
+            rospy.logwarn_throttle(5.0, "Could not query ROS master topics: %s", exc)
             return False
 
     def run(self):
@@ -62,16 +62,16 @@ class MoraiConnectionChecker:
                 msg_time = self.last_msg_time
 
             if msg is None or msg_time is None:
-                rospy.logwarn("아직 %s 토픽에서 ego 상태를 받지 못했습니다.", self.ego_topic)
+                rospy.logwarn("No ego status received on %s yet.", self.ego_topic)
             elif (now - msg_time).to_sec() > 2.0:
-                rospy.logwarn("%.1f초 동안 ego 상태를 받지 못했습니다.", (now - msg_time).to_sec())
+                rospy.logwarn("No ego status received for %.1f seconds.", (now - msg_time).to_sec())
             else:
                 try:
                     position, yaw, speed = self.extract_status(msg)
                     if position is None:
-                        raise AttributeError("position 필드가 없습니다")
+                        raise AttributeError("position field is missing")
                     rospy.loginfo(
-                        "Ego 위치=(%.3f, %.3f, %.3f), heading/yaw=%s, 속도=%.3f m/s",
+                        "Ego position=(%.3f, %.3f, %.3f), heading/yaw=%s, velocity=%.3f m/s",
                         position.x,
                         position.y,
                         position.z,
@@ -79,15 +79,15 @@ class MoraiConnectionChecker:
                         0.0 if speed is None else speed,
                     )
                 except Exception as exc:
-                    rospy.logwarn("EgoVehicleStatus 필드 추출 실패: %s", exc)
+                    rospy.logwarn("Failed to extract EgoVehicleStatus fields: %s", exc)
                     if not self.reported_fields:
-                        rospy.logwarn("사용 가능한 메시지 필드: %s", list(getattr(msg, "__slots__", [])))
+                        rospy.logwarn("Available message fields: %s", list(getattr(msg, "__slots__", [])))
                         self.reported_fields = True
 
             rospy.loginfo_throttle(
                 5.0,
-                "/ctrl_cmd 토픽 존재 여부: %s",
-                "예" if self.ctrl_cmd_topic_exists() else "아니오",
+                "/ctrl_cmd subscriber topic exists: %s",
+                "yes" if self.ctrl_cmd_topic_exists() else "no",
             )
             rate.sleep()
 
@@ -99,4 +99,4 @@ if __name__ == "__main__":
     except rospy.ROSInterruptException:
         pass
     except Exception as exc:
-        rospy.logerr("check_morai_connection 실행 실패: %s", exc)
+        rospy.logerr("check_morai_connection failed: %s", exc)

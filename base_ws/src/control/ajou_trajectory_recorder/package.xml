@@ -2,7 +2,7 @@
 <package format="2">
   <name>ajou_trajectory_recorder</name>
   <version>0.0.1</version>
-  <description>MORAI ego 궤적 기록, 발행, 시각화, 연결 확인을 위한 ROS1 Noetic 도구 패키지입니다.</description>
+  <description>MORAI ego trajectory recording, publishing, visualization, and connection checking tools for ROS1 Noetic.</description>
 
   <maintainer email="user@example.com">ajou_trajectory_recorder maintainer</maintainer>
   <license>MIT</license>
