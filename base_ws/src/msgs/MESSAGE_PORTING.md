@@ -55,6 +55,14 @@ use original Autoware-style package names such as `autoware_planning_msgs`,
 | debug avoidance array | `tier4_planning_msgs/AvoidanceDebugMsgArray` | `tier4_planning_msgs/AvoidanceDebugMsgArray` | Debug-only BPP output |
 | debug avoidance item | `tier4_planning_msgs/AvoidanceDebugMsg` | `tier4_planning_msgs/AvoidanceDebugMsg` | Debug-only BPP output |
 
+## Mission Planner Services
+
+| Mission planner service role | Autoware ROS 2 type | ROS 1 type in this package | Notes |
+| --- | --- | --- | --- |
+| clear route | `autoware_internal_planning_msgs/ClearRoute` | `autoware_internal_planning_msgs/ClearRoute` | Response uses `autoware_common_msgs/ResponseStatus` |
+| set lanelet route | `autoware_internal_planning_msgs/SetLaneletRoute` | `autoware_internal_planning_msgs/SetLaneletRoute` | Carries goal pose, route segments, UUID, modification flag |
+| set waypoint route | `autoware_internal_planning_msgs/SetWaypointRoute` | `autoware_internal_planning_msgs/SetWaypointRoute` | Carries goal pose, pose waypoints, UUID, modification flag |
+
 ## Existing ROS 1 Messages Used Directly
 
 | BPP topic role | ROS 2 type in Autoware docs | ROS 1 type to use |

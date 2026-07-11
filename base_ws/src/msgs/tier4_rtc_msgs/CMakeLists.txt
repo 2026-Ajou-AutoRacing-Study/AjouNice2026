@@ -17,6 +17,12 @@ add_message_files(
   CooperateStatusArray.msg
 )
 
+add_service_files(
+  FILES
+  AutoMode.srv
+  CooperateCommands.srv
+)
+
 generate_messages(
   DEPENDENCIES
   unique_identifier_msgs

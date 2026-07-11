@@ -32,6 +32,14 @@ It publishes:
 | `/planning/hazard_lights_cmd` | `autoware_vehicle_msgs/HazardLightsCommand` | Hazard command. |
 | `/planning/scenario_planning/modified_goal` | `autoware_planning_msgs/PoseWithUuidStamped` | Goal planner side output. |
 | `/planning/scenario_planning/is_reroute_available` | `tier4_planning_msgs/RerouteAvailability` | Goal modification availability. |
+| `/planning/cooperate_status/lane_change_left` | `tier4_rtc_msgs/CooperateStatusArray` | Left Lane Change RTC state. |
+| `/planning/cooperate_status/lane_change_right` | `tier4_rtc_msgs/CooperateStatusArray` | Right Lane Change RTC state. |
+| `/planning/path_candidate/lane_change_*` | `autoware_planning_msgs/Path` | Unapproved Lane Change proposal. |
+| `/planning/path_reference/lane_change_*` | `autoware_planning_msgs/Path` | Root path retained while waiting. |
+| `/planning/path_candidate/static_obstacle_avoidance` | `autoware_planning_msgs/Path` | Static avoidance or return-shift proposal. |
+| `/planning/path_reference/static_obstacle_avoidance` | `autoware_planning_msgs/Path` | Static avoidance root path. |
+| `/planning/cooperate_status/static_obstacle_avoidance_left` | `tier4_rtc_msgs/CooperateStatusArray` | Left avoidance RTC state. |
+| `/planning/cooperate_status/static_obstacle_avoidance_right` | `tier4_rtc_msgs/CooperateStatusArray` | Right avoidance/return RTC state. |
 | `/planning/debug/bpp/*` | `nav_msgs/Path`, debug messages | Stage-level debug paths and module statuses. |
 
 ## Map Centerline
@@ -49,3 +57,17 @@ If no map is passed, lane following falls back to a straight interpolated path f
 ## Current Port Boundary
 
 This is an Autoware-shaped ROS1 implementation, not a direct source-code clone of Autoware Universe. It keeps the same major BPP module order and topic surface, while using ROS1-compatible custom messages and lightweight Python implementations for module behavior.
+
+Normal lane change is route-driven: the planner selects the lane containing
+the ego as the root lane, reads the route section's preferred primitive as the
+target lane, and builds the transition from both Lanelet2 centerlines. See
+`docs/bpp/LANE_CHANGE_BPP.md` for the validated scope and remaining gaps.
+
+Lane Change execution is gated by the shared ROS1 RTC implementation. See
+`docs/bpp/RTC_INTERFACE_ROS1.md` for Auto/Manual behavior and service commands.
+
+Static Obstacle Avoidance now has stateful object filtering, Lanelet2 bound
+expansion, margin and jerk constrained shift lines, safety hysteresis, stop
+fallback, directional RTC, and Planning Simulator differential baselines. See
+`docs/bpp/STATIC_OBSTACLE_AVOIDANCE_BPP.md` for the tested scope and remaining
+differences from the Autoware C++ implementation.

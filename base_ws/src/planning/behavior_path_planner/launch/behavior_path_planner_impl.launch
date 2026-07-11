@@ -3,11 +3,21 @@
   <arg name="planning_hz" default="10.0" />
   <arg name="map_file" default="" />
   <arg name="projector_file" default="" />
+  <arg name="map_projector_type" default="MGRS" />
+  <arg name="lane_change_enable_rtc_left" default="false" />
+  <arg name="lane_change_enable_rtc_right" default="false" />
+  <arg name="static_avoidance_enable_rtc_left" default="false" />
+  <arg name="static_avoidance_enable_rtc_right" default="false" />
 
   <node pkg="behavior_path_planner" type="behavior_path_planner.py" name="behavior_path_planner" output="screen">
     <param name="frame_id" value="$(arg frame_id)" />
     <param name="planning_hz" value="$(arg planning_hz)" />
     <param name="path_interval" value="2.0" />
+    <param name="backward_path_length" value="5.0" />
+    <param name="vehicle_rear_overhang" value="1.1" />
+    <param name="backward_path_margin" value="1.0" />
+    <param name="forward_path_length" value="300.0" />
+    <param name="goal_bound_extension" value="5.0" />
     <param name="fallback_path_length" value="60.0" />
     <param name="default_velocity_mps" value="5.0" />
     <param name="stop_at_goal" value="true" />
@@ -15,6 +25,7 @@
     <param name="use_map_centerline" value="true" />
     <param name="map_file" value="$(arg map_file)" />
     <param name="projector_file" value="$(arg projector_file)" />
+    <param name="map_projector_type" value="$(arg map_projector_type)" />
 
     <param name="enable_lane_change" value="true" />
     <param name="enable_static_obstacle_avoidance" value="true" />
@@ -26,14 +37,56 @@
     <param name="lane_change/direction" value="none" />
     <param name="lane_change/target_lateral_offset" value="0.0" />
     <param name="lane_change/lane_width" value="3.5" />
-    <param name="lane_change/prepare_distance" value="15.0" />
-    <param name="lane_change/lane_change_distance" value="30.0" />
+    <param name="lane_change/prepare_distance" value="3.0" />
+    <param name="lane_change/lane_change_distance" value="28.0" />
+    <param name="lane_change/target_forward_length" value="300.0" />
+    <param name="lane_change/transition_interval" value="1.0" />
+    <param name="lane_change/target_interval" value="4.0" />
     <param name="lane_change/enable_safety_check" value="true" />
+    <param name="lane_change/rtc/enable_left" value="$(arg lane_change_enable_rtc_left)" />
+    <param name="lane_change/rtc/enable_right" value="$(arg lane_change_enable_rtc_right)" />
 
-    <param name="static_obstacle_avoidance/static_speed_threshold" value="0.5" />
-    <param name="static_obstacle_avoidance/object_check_lateral_range" value="2.0" />
-    <param name="static_obstacle_avoidance/base_shift_length" value="0.8" />
-    <param name="static_obstacle_avoidance/max_shift_length" value="1.5" />
+    <param name="static_obstacle_avoidance/use_lane_type" value="opposite_direction_lane" />
+    <param name="static_obstacle_avoidance/target_filtering/detection_area/static" value="false" />
+    <param name="static_obstacle_avoidance/target_filtering/detection_area/min_forward_distance" value="50.0" />
+    <param name="static_obstacle_avoidance/target_filtering/detection_area/max_forward_distance" value="150.0" />
+    <param name="static_obstacle_avoidance/target_filtering/detection_area/backward_distance" value="10.0" />
+    <param name="static_obstacle_avoidance/target_filtering/max_compensation_time" value="2.0" />
+    <param name="static_obstacle_avoidance/target_filtering/parked_vehicle/th_offset_from_centerline" value="1.0" />
+    <param name="static_obstacle_avoidance/target_filtering/parked_vehicle/th_shiftable_ratio" value="0.8" />
+    <param name="static_obstacle_avoidance/target_filtering/parked_vehicle/min_road_shoulder_width" value="0.5" />
+    <param name="static_obstacle_avoidance/target_filtering/avoidance_for_ambiguous_vehicle/policy" value="manual" />
+    <param name="static_obstacle_avoidance/target_filtering/avoidance_for_ambiguous_vehicle/condition/th_stopped_time" value="3.0" />
+    <param name="static_obstacle_avoidance/safety_check/enable" value="true" />
+    <param name="static_obstacle_avoidance/safety_check/hysteresis_factor_safe_count" value="3" />
+    <param name="static_obstacle_avoidance/avoidance/lateral/soft_drivable_bound_margin" value="0.3" />
+    <param name="static_obstacle_avoidance/avoidance/lateral/hard_drivable_bound_margin" value="0.3" />
+    <param name="static_obstacle_avoidance/avoidance/lateral/max_right_shift_length" value="5.0" />
+    <param name="static_obstacle_avoidance/avoidance/lateral/max_left_shift_length" value="5.0" />
+    <param name="static_obstacle_avoidance/avoidance/lateral/th_avoid_execution" value="0.09" />
+    <param name="static_obstacle_avoidance/avoidance/lateral/ratio_for_return_shift_approval" value="0.5" />
+    <param name="static_obstacle_avoidance/avoidance/longitudinal/min_prepare_time" value="1.0" />
+    <param name="static_obstacle_avoidance/avoidance/longitudinal/max_prepare_time" value="2.0" />
+    <param name="static_obstacle_avoidance/avoidance/longitudinal/min_prepare_distance" value="1.0" />
+    <param name="static_obstacle_avoidance/avoidance/longitudinal/min_slow_down_speed" value="1.38" />
+    <param name="static_obstacle_avoidance/stop/max_distance" value="20.0" />
+    <param name="static_obstacle_avoidance/stop/stop_buffer" value="1.0" />
+    <param name="static_obstacle_avoidance/policy/make_approval_request" value="per_shift_line" />
+    <param name="static_obstacle_avoidance/policy/lateral_margin" value="best_effort" />
+    <param name="static_obstacle_avoidance/policy/candidate_path_turn_signal" value="none" />
+    <param name="static_obstacle_avoidance/turn_signal/on_swerving" value="true" />
+    <param name="static_obstacle_avoidance/turn_signal/shift_length_threshold" value="0.3" />
+    <param name="static_obstacle_avoidance/turn_signal/remaining_distance_to_bound_threshold" value="1.3" />
+    <param name="static_obstacle_avoidance/target_object/car/th_moving_speed" value="1.0" />
+    <param name="static_obstacle_avoidance/target_object/car/th_moving_time" value="2.0" />
+    <param name="static_obstacle_avoidance/target_object/car/lateral_margin/soft_margin" value="0.5" />
+    <param name="static_obstacle_avoidance/target_object/car/lateral_margin/hard_margin" value="0.2" />
+    <param name="static_obstacle_avoidance/target_object/car/lateral_margin/hard_margin_for_parked_vehicle" value="0.2" />
+    <rosparam param="static_obstacle_avoidance/constraints/lateral/min_jerk_values/avoid">[0.2, 0.2, 0.2]</rosparam>
+    <rosparam param="static_obstacle_avoidance/constraints/lateral/min_jerk_values/return">[0.2, 0.2, 0.2]</rosparam>
+    <rosparam param="static_obstacle_avoidance/constraints/lateral/max_jerk_values">[3.0, 3.0, 3.0]</rosparam>
+    <param name="static_obstacle_avoidance/rtc/enable_left" value="$(arg static_avoidance_enable_rtc_left)" />
+    <param name="static_obstacle_avoidance/rtc/enable_right" value="$(arg static_avoidance_enable_rtc_right)" />
 
     <param name="dynamic_obstacle_avoidance/min_dynamic_speed" value="0.5" />
     <param name="dynamic_obstacle_avoidance/slow_velocity_mps" value="1.0" />
@@ -57,6 +110,12 @@
     <remap from="~input/side_shift_lateral_offset" to="/planning/scenario_planning/lane_driving/side_shift/lateral_offset" />
 
     <remap from="~output/path" to="/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id" />
+    <remap from="~output/lane_change_candidate_path_left" to="/planning/path_candidate/lane_change_left" />
+    <remap from="~output/lane_change_reference_path_left" to="/planning/path_reference/lane_change_left" />
+    <remap from="~output/lane_change_candidate_path_right" to="/planning/path_candidate/lane_change_right" />
+    <remap from="~output/lane_change_reference_path_right" to="/planning/path_reference/lane_change_right" />
+    <remap from="~output/static_obstacle_avoidance_candidate_path" to="/planning/path_candidate/static_obstacle_avoidance" />
+    <remap from="~output/static_obstacle_avoidance_reference_path" to="/planning/path_reference/static_obstacle_avoidance" />
     <remap from="~output/turn_indicators_cmd" to="/planning/turn_indicators_cmd" />
     <remap from="~output/hazard_lights_cmd" to="/planning/hazard_lights_cmd" />
     <remap from="~output/modified_goal" to="/planning/scenario_planning/modified_goal" />

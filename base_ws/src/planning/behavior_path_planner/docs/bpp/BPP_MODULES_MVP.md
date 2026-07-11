@@ -10,8 +10,8 @@ module can be launched, tested, and later replaced with the full Autoware logic.
 | Order | Node | Main role in this MVP |
 | --- | --- | --- |
 | 1 | `lane_following_bpp.py` | Creates the first `PathWithLaneId` from map centerlines when available, otherwise route fallback. |
-| 2 | `lane_change_bpp.py` | Applies an S-curve lateral lane-change offset when requested. |
-| 3 | `static_obstacle_avoidance_bpp.py` | Nudges the path around the nearest stopped object in the path corridor. |
+| 2 | `lane_change_bpp.py` | Detects the current/preferred lane from the route and map, then connects both centerlines with an S-curve. External lateral offset remains as a fallback. |
+| 3 | `static_obstacle_avoidance_bpp.py` | Tracks and filters stopped objects, expands Lanelet2 bounds, generates constrained avoidance/return shifts, and gates them with directional RTC. |
 | 4 | `dynamic_obstacle_avoidance_bpp.py` | Slows the path near the nearest moving object and optionally nudges laterally. |
 | 5 | `start_planner_bpp.py` | Creates a pull-out style merge from a configured start lateral offset. |
 | 6 | `goal_planner_bpp.py` | Creates a pull-over style final goal offset and publishes modified goal state. |
@@ -54,7 +54,11 @@ debug paths are published under `/planning/debug/bpp/...`.
 
 ## Current Limits
 
-Lane following can now read Lanelet2 OSM centerlines through `~map_file`. The
-remaining modules do not yet implement full drivable area, RTC approval, or
-full Autoware safety checks. They are intentionally small ROS 1 surfaces for
-topic compatibility and incremental verification.
+Lane following and normal lane change can read Lanelet2 OSM geometry through
+`~map_file`. Lane change has obstacle-free and blocked-object K-City
+differential baselines. Static Obstacle Avoidance has manual/automatic RTC
+baselines against Planning Simulator and shares the same engine between its
+standalone and integrated nodes. The common RTC layer is connected to Lane
+Change and Static Obstacle Avoidance. Dynamic avoidance, start planner, goal
+planner, and side shift remain lightweight ROS1 surfaces for incremental
+verification.

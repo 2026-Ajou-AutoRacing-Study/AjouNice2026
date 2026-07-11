@@ -13,6 +13,9 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   tier4_planning_msgs
+  tier4_rtc_msgs
+  unique_identifier_msgs
+  visualization_msgs
 )
 
 catkin_package(
@@ -28,20 +31,36 @@ catkin_package(
   rospy
   std_msgs
   tier4_planning_msgs
+  tier4_rtc_msgs
+  unique_identifier_msgs
+  visualization_msgs
 )
 
 catkin_install_python(
   PROGRAMS
   scripts/behavior_path_planner.py
+  scripts/bpp_path_comparison_visualizer.py
   scripts/bpp_minimal_input_publisher.py
+  scripts/bpp_lane_change_tools.py
   scripts/bpp_map_tools.py
   scripts/bpp_path_tools.py
+  scripts/bpp_static_avoidance_tools.py
   scripts/dynamic_obstacle_avoidance_bpp.py
   scripts/goal_planner_bpp.py
   scripts/lane_change_bpp.py
   scripts/lane_following_bpp.py
+  scripts/rtc_interface_ros1.py
   scripts/side_shift_bpp.py
   scripts/start_planner_bpp.py
   scripts/static_obstacle_avoidance_bpp.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+
+install(
+  DIRECTORY launch rviz docs
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_nosetests(test/test_static_avoidance_engine.py)
+endif()

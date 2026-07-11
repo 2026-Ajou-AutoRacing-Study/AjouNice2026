@@ -12,7 +12,7 @@ Autoware ROS2 planning 관련 custom 메시지를 ROS1 catkin 패키지로 포�
 이전 임시 구조: planning_ros1ver/PathWithLaneId, planning_ros1ver/Tier4Path, planning_ros1ver/RtcCommand
 변경: autoware_internal_planning_msgs/PathWithLaneId, tier4_planning_msgs/Path, tier4_rtc_msgs/Command
 
-패키지별 메시지 목록
+패키지별 메시지/서비스 목록
 
 autoware_adapi_v1_msgs
   - autoware_adapi_v1_msgs/OperationModeState
@@ -54,6 +54,9 @@ autoware_internal_planning_msgs
   - autoware_internal_planning_msgs/PlanningFactor
   - autoware_internal_planning_msgs/PlanningFactorArray
   - autoware_internal_planning_msgs/VelocityLimitClearCommand
+  - autoware_internal_planning_msgs/ClearRoute srv
+  - autoware_internal_planning_msgs/SetLaneletRoute srv
+  - autoware_internal_planning_msgs/SetWaypointRoute srv
 
 autoware_map_msgs
   - autoware_map_msgs/LaneletMapBin
@@ -126,6 +129,8 @@ tier4_rtc_msgs
   - tier4_rtc_msgs/CooperateResponse
   - tier4_rtc_msgs/CooperateStatus
   - tier4_rtc_msgs/CooperateStatusArray
+  - tier4_rtc_msgs/AutoMode (service)
+  - tier4_rtc_msgs/CooperateCommands (service)
 
 tier4_v2x_msgs
   - tier4_v2x_msgs/KeyValue

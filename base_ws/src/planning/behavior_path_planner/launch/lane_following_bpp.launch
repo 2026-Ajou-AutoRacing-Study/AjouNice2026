@@ -1,13 +1,29 @@
 <launch>
   <arg name="frame_id" default="map" />
   <arg name="planning_hz" default="10.0" />
+  <arg name="path_interval" default="2.0" />
+  <arg name="backward_path_length" default="5.0" />
+  <arg name="vehicle_rear_overhang" default="1.1" />
+  <arg name="backward_path_margin" default="1.0" />
+  <arg name="goal_bound_extension" default="5.0" />
+  <arg name="default_velocity_mps" default="5.0" />
+  <arg name="require_lane_driving_scenario" default="true" />
   <arg name="map_file" default="" />
   <arg name="projector_file" default="" />
+  <arg name="map_projector_type" default="MGRS" />
 
   <include file="$(find behavior_path_planner)/launch/lane_following_bpp_impl.launch">
     <arg name="frame_id" value="$(arg frame_id)" />
     <arg name="planning_hz" value="$(arg planning_hz)" />
+    <arg name="path_interval" value="$(arg path_interval)" />
+    <arg name="backward_path_length" value="$(arg backward_path_length)" />
+    <arg name="vehicle_rear_overhang" value="$(arg vehicle_rear_overhang)" />
+    <arg name="backward_path_margin" value="$(arg backward_path_margin)" />
+    <arg name="goal_bound_extension" value="$(arg goal_bound_extension)" />
+    <arg name="default_velocity_mps" value="$(arg default_velocity_mps)" />
+    <arg name="require_lane_driving_scenario" value="$(arg require_lane_driving_scenario)" />
     <arg name="map_file" value="$(arg map_file)" />
     <arg name="projector_file" value="$(arg projector_file)" />
+    <arg name="map_projector_type" value="$(arg map_projector_type)" />
   </include>
 </launch>

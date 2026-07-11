@@ -1,0 +1,26 @@
+<launch>
+  <arg name="reference_json" />
+  <arg name="candidate_json" />
+  <arg name="report_json" default="" />
+  <arg name="frame_id" default="map" />
+  <arg name="output_topic" default="/planning/debug/bpp/lane_following_validation_overlay" />
+  <arg name="launch_rviz" default="true" />
+
+  <node pkg="behavior_path_planner"
+        type="bpp_path_comparison_visualizer.py"
+        name="bpp_path_comparison_visualizer"
+        output="screen">
+    <param name="reference_json" value="$(arg reference_json)" />
+    <param name="candidate_json" value="$(arg candidate_json)" />
+    <param name="report_json" value="$(arg report_json)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+  </node>
+
+  <node if="$(arg launch_rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="bpp_lane_following_comparison_rviz"
+        args="-d $(find behavior_path_planner)/rviz/bpp_lane_following_comparison.rviz"
+        output="screen" />
+</launch>

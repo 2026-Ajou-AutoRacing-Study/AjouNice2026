@@ -3,11 +3,21 @@
   <arg name="planning_hz" default="10.0" />
   <arg name="map_file" default="" />
   <arg name="projector_file" default="" />
+  <arg name="map_projector_type" default="MGRS" />
+  <arg name="lane_change_enable_rtc_left" default="false" />
+  <arg name="lane_change_enable_rtc_right" default="false" />
+  <arg name="static_avoidance_enable_rtc_left" default="false" />
+  <arg name="static_avoidance_enable_rtc_right" default="false" />
 
   <include file="$(find behavior_path_planner)/launch/behavior_path_planner_impl.launch">
     <arg name="frame_id" value="$(arg frame_id)" />
     <arg name="planning_hz" value="$(arg planning_hz)" />
     <arg name="map_file" value="$(arg map_file)" />
     <arg name="projector_file" value="$(arg projector_file)" />
+    <arg name="map_projector_type" value="$(arg map_projector_type)" />
+    <arg name="lane_change_enable_rtc_left" value="$(arg lane_change_enable_rtc_left)" />
+    <arg name="lane_change_enable_rtc_right" value="$(arg lane_change_enable_rtc_right)" />
+    <arg name="static_avoidance_enable_rtc_left" value="$(arg static_avoidance_enable_rtc_left)" />
+    <arg name="static_avoidance_enable_rtc_right" value="$(arg static_avoidance_enable_rtc_right)" />
   </include>
 </launch>

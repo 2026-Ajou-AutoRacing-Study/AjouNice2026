@@ -3,6 +3,7 @@ project(autoware_internal_planning_msgs)
 
 find_package(catkin REQUIRED COMPONENTS
   message_generation
+  autoware_common_msgs
   autoware_perception_msgs
   autoware_planning_msgs
   geometry_msgs
@@ -31,8 +32,16 @@ add_message_files(
   VelocityLimitClearCommand.msg
 )
 
+add_service_files(
+  FILES
+  ClearRoute.srv
+  SetLaneletRoute.srv
+  SetWaypointRoute.srv
+)
+
 generate_messages(
   DEPENDENCIES
+  autoware_common_msgs
   autoware_perception_msgs
   autoware_planning_msgs
   geometry_msgs
@@ -43,6 +52,7 @@ generate_messages(
 catkin_package(
   CATKIN_DEPENDS
   message_runtime
+  autoware_common_msgs
   autoware_perception_msgs
   autoware_planning_msgs
   geometry_msgs

@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover - yaml exists in the target ROS image.
 WGS84_A = 6378137.0
 WGS84_F = 1.0 / 298.257223563
 UTM_K0 = 0.9996
+MGRS_GRID_SIZE = 100000.0
 
 
 def distance_2d(a, b):
@@ -61,29 +62,62 @@ def wgs84_to_utm(lat_deg, lon_deg, zone):
     return easting, northing
 
 
-def read_projector(path):
-    if not path:
+def read_projector(projector_type, path, first_node):
+    configured_type = str(projector_type or "none")
+    origin = None
+    if path:
+        if yaml is None:
+            raise RuntimeError("PyYAML is required to read projector files")
+        with open(path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        configured_type = str(cfg.get("projector_type", configured_type))
+        map_origin = cfg.get("map_origin")
+        if map_origin:
+            origin = (
+                float(map_origin["latitude"]),
+                float(map_origin["longitude"]),
+                float(map_origin.get("altitude", 0.0)),
+            )
+
+    normalized = configured_type.lower().replace("_", "")
+    if normalized in ("none", "raw", "geographic"):
         return None
-    if yaml is None:
-        raise RuntimeError("PyYAML is required to read projector files")
 
-    with open(path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-    if cfg.get("projector_type") != "LocalCartesianUTM":
-        raise ValueError("Only LocalCartesianUTM projector is supported")
-
-    origin = cfg["map_origin"]
-    lat = float(origin["latitude"])
-    lon = float(origin["longitude"])
-    alt = float(origin.get("altitude", 0.0))
-    zone = int(math.floor((lon + 180.0) / 6.0) + 1)
-    origin_e, origin_n = wgs84_to_utm(lat, lon, zone)
-    return {
-        "origin_alt": alt,
-        "zone": zone,
-        "origin_easting": origin_e,
-        "origin_northing": origin_n,
-    }
+    reference = origin or first_node
+    zone = int(math.floor((reference[1] + 180.0) / 6.0) + 1)
+    if normalized == "mgrs":
+        first_e, first_n = wgs84_to_utm(first_node[0], first_node[1], zone)
+        return {
+            "type": "MGRS",
+            "zone": zone,
+            "origin_alt": 0.0,
+            "origin_easting": math.floor(first_e / MGRS_GRID_SIZE) * MGRS_GRID_SIZE,
+            "origin_northing": math.floor(first_n / MGRS_GRID_SIZE) * MGRS_GRID_SIZE,
+        }
+    if normalized == "utm":
+        return {
+            "type": "UTM",
+            "zone": zone,
+            "origin_alt": 0.0,
+            "origin_easting": 0.0,
+            "origin_northing": 0.0,
+        }
+    if normalized in ("localcartesianutm", "localutm"):
+        if origin is None:
+            raise ValueError("LocalCartesianUTM requires map_origin in projector_file")
+        origin_e, origin_n = wgs84_to_utm(origin[0], origin[1], zone)
+        return {
+            "type": "LocalCartesianUTM",
+            "zone": zone,
+            "origin_alt": origin[2],
+            "origin_easting": origin_e,
+            "origin_northing": origin_n,
+        }
+    raise ValueError(
+        "unsupported projector_type '{}': use MGRS, UTM, or LocalCartesianUTM".format(
+            configured_type
+        )
+    )
 
 
 def project_node(lat, lon, ele, projector):
@@ -193,6 +227,20 @@ def project_point_to_polyline(points, target):
     return best_s, best_distance if best_distance is not None else 0.0
 
 
+def closest_lane_id(centerline_map, lane_ids, point):
+    scored = []
+    for lane_id in lane_ids:
+        centerline = centerline_map.get_centerline(lane_id)
+        if not centerline:
+            continue
+        projection = project_point_to_polyline(centerline, point)
+        if projection is not None:
+            scored.append((float(projection[1]), int(lane_id)))
+    if not scored:
+        return None
+    return min(scored)[1]
+
+
 def midpoint_polyline(left, right):
     count = min(len(left), len(right))
     if count < 2:
@@ -208,31 +256,75 @@ def midpoint_polyline(left, right):
 
 
 class CenterlineMap:
-    def __init__(self, source, centerlines):
+    def __init__(
+        self,
+        source,
+        centerlines,
+        boundaries=None,
+        boundary_ids=None,
+        lane_attributes=None,
+    ):
         self.source = source
         self.centerlines = centerlines
+        self.boundaries = boundaries or {}
+        self.boundary_ids = boundary_ids or {}
+        self.lane_attributes = lane_attributes or {}
 
     @classmethod
-    def load(cls, map_file, projector_file="", flatten_z=False):
+    def load(cls, map_file, projector_file="", flatten_z=False, projector_type="none"):
         if not map_file:
             return None
         ext = os.path.splitext(map_file)[1].lower()
         if ext in (".osm", ".xml"):
-            return cls.from_osm_file(map_file, projector_file, flatten_z)
+            return cls.from_osm_file(
+                map_file, projector_file, flatten_z, projector_type
+            )
         if ext == ".json":
             return cls.from_mgeo_link_file(map_file, flatten_z)
         raise ValueError("Unsupported centerline map file extension: %s" % ext)
 
     @classmethod
-    def from_osm_file(cls, map_file, projector_file="", flatten_z=False):
-        projector = read_projector(projector_file) if projector_file else None
+    def from_osm_file(
+        cls, map_file, projector_file="", flatten_z=False, projector_type="none"
+    ):
         tree = ET.parse(map_file)
-        return cls.from_osm_root(tree.getroot(), projector, map_file, flatten_z)
+        root = tree.getroot()
+        first_node = None
+        for elem in root:
+            if elem.tag != "node":
+                continue
+            tags = {t.attrib.get("k"): t.attrib.get("v") for t in elem if t.tag == "tag"}
+            first_node = (
+                float(elem.attrib["lat"]),
+                float(elem.attrib["lon"]),
+                float(tags.get("ele", 0.0)),
+            )
+            break
+        if first_node is None:
+            raise ValueError("Lanelet2 OSM does not contain a node")
+        projector = read_projector(projector_type, projector_file, first_node)
+        return cls.from_osm_root(root, projector, map_file, flatten_z)
 
     @classmethod
-    def from_osm_bytes(cls, data, source="LaneletMapBin", flatten_z=False):
+    def from_osm_bytes(
+        cls, data, source="LaneletMapBin", flatten_z=False, projector_type="none"
+    ):
         root = ET.fromstring(bytes(data).decode("utf-8"))
-        return cls.from_osm_root(root, None, source, flatten_z)
+        first_node = None
+        for elem in root:
+            if elem.tag != "node":
+                continue
+            tags = {t.attrib.get("k"): t.attrib.get("v") for t in elem if t.tag == "tag"}
+            first_node = (
+                float(elem.attrib["lat"]),
+                float(elem.attrib["lon"]),
+                float(tags.get("ele", 0.0)),
+            )
+            break
+        if first_node is None:
+            raise ValueError("Lanelet2 OSM does not contain a node")
+        projector = read_projector(projector_type, "", first_node)
+        return cls.from_osm_root(root, projector, source, flatten_z)
 
     @classmethod
     def from_osm_root(cls, root, projector, source, flatten_z=False):
@@ -276,20 +368,29 @@ class CenterlineMap:
                 )
 
         centerlines = {}
+        boundaries = {}
+        boundary_ids = {}
+        lane_attributes = {}
         for relation in relations:
             if relation["tags"].get("type") != "lanelet":
                 continue
 
             center_id = relation_way_by_role(relation, "centerline")
+            left_id = relation_way_by_role(relation, "left")
+            right_id = relation_way_by_role(relation, "right")
             points = way_points(center_id, ways, nodes) if center_id else []
+            left = way_points(left_id, ways, nodes)
+            right = way_points(right_id, ways, nodes)
             if len(points) < 2:
-                left = way_points(relation_way_by_role(relation, "left"), ways, nodes)
-                right = way_points(relation_way_by_role(relation, "right"), ways, nodes)
                 points = midpoint_polyline(left, right)
             if len(points) >= 2:
                 centerlines[str(relation["id"])] = points
+                lane_attributes[str(relation["id"])] = dict(relation["tags"])
+            if len(left) >= 2 and len(right) >= 2:
+                boundaries[str(relation["id"])] = (left, right)
+                boundary_ids[str(relation["id"])] = (left_id, right_id)
 
-        return cls(source, centerlines)
+        return cls(source, centerlines, boundaries, boundary_ids, lane_attributes)
 
     @classmethod
     def from_mgeo_link_file(cls, link_file, flatten_z=False):
@@ -311,11 +412,115 @@ class CenterlineMap:
     def get_centerline(self, lane_id):
         return self.centerlines.get(str(lane_id))
 
+    def get_boundaries(self, lane_id):
+        return self.boundaries.get(str(lane_id))
+
+    def get_boundary_ids(self, lane_id):
+        return self.boundary_ids.get(str(lane_id))
+
+    def get_lane_attributes(self, lane_id):
+        return self.lane_attributes.get(str(lane_id), {})
+
     def has_lane(self, lane_id):
         return str(lane_id) in self.centerlines
 
     def lane_count(self):
         return len(self.centerlines)
+
+    def _same_direction(self, first_lane_id, second_lane_id):
+        first = self.get_centerline(first_lane_id)
+        second = self.get_centerline(second_lane_id)
+        if not first or not second:
+            return True
+        first_vector = (first[-1][0] - first[0][0], first[-1][1] - first[0][1])
+        second_vector = (second[-1][0] - second[0][0], second[-1][1] - second[0][1])
+        return first_vector[0] * second_vector[0] + first_vector[1] * second_vector[1] >= 0.0
+
+    def adjacent_lane(self, lane_id, side, use_lane_type="opposite_direction_lane"):
+        """Return the lane and its outer side across a shared Lanelet boundary."""
+        if use_lane_type == "current_lane":
+            return None
+
+        ids = self.get_boundary_ids(lane_id)
+        if ids is None:
+            return None
+        side_index = 0 if side == "left" else 1
+        shared_id = ids[side_index]
+        if shared_id is None:
+            return None
+
+        for candidate_id, candidate_ids in self.boundary_ids.items():
+            if str(candidate_id) == str(lane_id) or shared_id not in candidate_ids:
+                continue
+            if (
+                use_lane_type == "same_direction_lane"
+                and not self._same_direction(lane_id, candidate_id)
+            ):
+                continue
+            shared_candidate_side = "left" if candidate_ids[0] == shared_id else "right"
+            outer_side = "right" if shared_candidate_side == "left" else "left"
+            return int(candidate_id), outer_side
+        return None
+
+    def expanded_outer_boundary(
+        self, lane_id, side, use_lane_type="opposite_direction_lane", max_depth=8
+    ):
+        """Get the outermost boundary reachable through shared lane boundaries."""
+        current_lane_id = int(lane_id)
+        current_side = side
+        visited = {current_lane_id}
+        boundary = None
+
+        for _ in range(max(int(max_depth), 1)):
+            boundaries = self.get_boundaries(current_lane_id)
+            if boundaries is None:
+                break
+            boundary = boundaries[0 if current_side == "left" else 1]
+            adjacent = self.adjacent_lane(
+                current_lane_id, current_side, use_lane_type
+            )
+            if adjacent is None or adjacent[0] in visited:
+                break
+            current_lane_id, current_side = adjacent
+            visited.add(current_lane_id)
+        return boundary
+
+    def expanded_bound_distances(
+        self, lane_id, point, use_lane_type="opposite_direction_lane"
+    ):
+        """Return path-center distances to expanded left and right drivable bounds."""
+        distances = []
+        for side in ("left", "right"):
+            boundary = self.expanded_outer_boundary(lane_id, side, use_lane_type)
+            projection = project_point_to_polyline(boundary, point) if boundary else None
+            distances.append(float(projection[1]) if projection is not None else None)
+        return tuple(distances)
+
+    def lane_ids_near_point(self, route_lane_ids, point, tolerance=0.3):
+        scored = []
+        for lane_id in route_lane_ids:
+            centerline = self.get_centerline(lane_id)
+            if not centerline:
+                continue
+            projection = project_point_to_polyline(centerline, point)
+            if projection is not None:
+                scored.append((float(projection[1]), int(lane_id)))
+        if not scored:
+            return list(route_lane_ids)
+
+        scored.sort()
+        best_distance = scored[0][0]
+        cutoff = (
+            float(tolerance)
+            if best_distance <= float(tolerance)
+            else best_distance + 0.05
+        )
+        selected = {
+            lane_id
+            for distance, lane_id in scored
+            if distance <= cutoff
+        }
+        return [int(lane_id) for lane_id in route_lane_ids if int(lane_id) in selected]
 
 
 def stitch_route_centerlines(centerline_map, lane_ids, start_point=None):
@@ -344,22 +549,82 @@ def stitch_route_centerlines(centerline_map, lane_ids, start_point=None):
     return stitched, used_lane_ids
 
 
-def trim_polyline(points, start_point=None, goal_point=None):
+def stitch_route_bounds(centerline_map, lane_ids, start_point=None):
+    stitched_left = []
+    stitched_right = []
+    previous_center = None
+    for lane_id in lane_ids:
+        center = centerline_map.get_centerline(lane_id)
+        boundaries = centerline_map.get_boundaries(lane_id)
+        if not center or not boundaries:
+            continue
+
+        center = list(center)
+        left = list(boundaries[0])
+        right = list(boundaries[1])
+        reverse = False
+        if previous_center is None:
+            reverse = start_point is not None and distance_2d(
+                start_point, center[-1]
+            ) < distance_2d(start_point, center[0])
+        else:
+            reverse = distance_2d(previous_center, center[-1]) < distance_2d(
+                previous_center, center[0]
+            )
+
+        if reverse:
+            center.reverse()
+            left, right = list(reversed(right)), list(reversed(left))
+
+        for output, points in ((stitched_left, left), (stitched_right, right)):
+            if output and distance_2d(output[-1], points[-1]) < distance_2d(
+                output[-1], points[0]
+            ):
+                points.reverse()
+            if output and distance_2d(output[-1], points[0]) < 1.0e-3:
+                output.extend(points[1:])
+            else:
+                output.extend(points)
+        previous_center = center[-1]
+
+    return stitched_left, stitched_right
+
+
+def trim_polyline(
+    points,
+    start_point=None,
+    goal_point=None,
+    start_offset=0.0,
+    end_offset=0.0,
+    include_previous_start=False,
+    max_forward_length=None,
+):
     if len(points) < 2:
         return points
 
     distances = cumulative_lengths(points)
     start_s = 0.0
     end_s = distances[-1]
+    reference_start_s = None
 
     if start_point is not None:
         projected = project_point_to_polyline(points, start_point)
         if projected is not None:
-            start_s = max(0.0, min(projected[0], end_s))
+            reference_start_s = projected[0]
+            start_s = max(0.0, min(reference_start_s + float(start_offset), end_s))
+            if include_previous_start:
+                previous = [distance for distance in distances if distance <= start_s]
+                if previous:
+                    start_s = previous[-1]
     if goal_point is not None:
         projected = project_point_to_polyline(points, goal_point)
         if projected is not None and projected[0] > start_s + 1.0:
-            end_s = max(start_s, min(projected[0], end_s))
+            end_s = max(start_s, min(projected[0] + float(end_offset), end_s))
+    if max_forward_length is not None and reference_start_s is not None:
+        end_s = min(
+            end_s,
+            reference_start_s + max(float(max_forward_length), 0.0),
+        )
 
     trimmed = [interpolate_polyline(points, start_s)]
     for point, distance in zip(points, distances):
