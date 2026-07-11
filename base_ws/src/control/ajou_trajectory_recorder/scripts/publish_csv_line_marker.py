@@ -43,12 +43,12 @@ class CsvLineMarkerPublisher:
         self.local_points = self.make_local_points(self.points)
         self.pub = rospy.Publisher(self.line_topic, Marker, queue_size=1, latch=True)
         self.local_pub = rospy.Publisher(self.local_line_topic, Marker, queue_size=1, latch=True)
-        rospy.loginfo("%s 파일에서 라인 점 %d개를 읽었습니다.", self.input_csv, len(self.points))
+        rospy.loginfo("Loaded %d line points from %s", len(self.points), self.input_csv)
 
     def load_points(self):
         points = []
         if not os.path.exists(self.input_csv):
-            rospy.logwarn("CSV 파일이 없습니다: %s", self.input_csv)
+            rospy.logwarn("CSV file does not exist: %s", self.input_csv)
             return points
 
         with open(self.input_csv, "r", newline="") as csv_file:
@@ -63,7 +63,7 @@ class CsvLineMarkerPublisher:
                         )
                     )
                 except Exception as exc:
-                    rospy.logwarn("잘못된 CSV %d번째 줄을 건너뜁니다: %s", index, exc)
+                    rospy.logwarn("Skipping invalid CSV row %d: %s", index, exc)
         return points
 
     def make_local_points(self, points):
@@ -120,7 +120,7 @@ class CsvLineMarkerPublisher:
             self.local_pub.publish(local_marker)
             rospy.loginfo_throttle(
                 5.0,
-                "라인 마커 발행 중: global=%d on %s local=%d on %s scale=%.3f",
+                "Publishing line markers: global=%d on %s local=%d on %s scale=%.3f",
                 len(marker.points),
                 self.line_topic,
                 len(local_marker.points),
@@ -137,4 +137,4 @@ if __name__ == "__main__":
     except rospy.ROSInterruptException:
         pass
     except Exception as exc:
-        rospy.logerr("publish_csv_line_marker 실행 실패: %s", exc)
+        rospy.logerr("publish_csv_line_marker failed: %s", exc)

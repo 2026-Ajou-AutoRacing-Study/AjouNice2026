@@ -270,20 +270,29 @@ bool LidarDistortionCorrector::getReferenceMotion(const ros::Time &stamp,
 {
   if (motion == nullptr || !motion_buffer_.getMotion(stamp, motion_timeout_sec_, motion))
   {
-    ROS_WARN_THROTTLE(1.0, "No ego motion sample near cloud stamp %.6f", stamp.toSec());
-    return false;
+    ROS_WARN_THROTTLE(10.0,
+                      "No ego motion sample near cloud stamp %.6f; using zero-motion fallback",
+                      stamp.toSec());
+    if (motion != nullptr)
+    {
+      *motion = sensor_interface::MotionSample();
+      motion->stamp = stamp;
+    }
+    return motion != nullptr;
   }
 
   sensor_interface::ImuSample imu;
-  if (!motion_buffer_.getImu(stamp, imu_timeout_sec_, &imu))
+  if (motion_buffer_.getImu(stamp, imu_timeout_sec_, &imu))
   {
-    ROS_WARN_THROTTLE(1.0, "No IMU angular velocity sample near cloud stamp %.6f", stamp.toSec());
-    return false;
+    motion->wx = imu.wx;
+    motion->wy = imu.wy;
+    motion->wz = imu.wz;
+    return true;
   }
 
-  motion->wx = imu.wx;
-  motion->wy = imu.wy;
-  motion->wz = imu.wz;
+  ROS_WARN_THROTTLE(10.0,
+                    "No IMU angular velocity sample near cloud stamp %.6f; using angular velocity from %s",
+                    stamp.toSec(), motion_mode_.c_str());
   return true;
 }
 

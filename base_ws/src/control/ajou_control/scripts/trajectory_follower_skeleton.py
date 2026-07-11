@@ -38,16 +38,16 @@ class TrajectoryFollowerSkeleton:
     def run(self):
         rate = rospy.Rate(20)
         while not rospy.is_shutdown():
-            # TODO: 현재 ego 위치에서 가장 가까운 경로 점을 찾습니다.
-            # TODO: ego pose와 기준 경로 사이의 횡방향 오차를 계산합니다.
-            # TODO: ego yaw와 경로 yaw 사이의 heading 오차를 계산합니다.
-            # TODO: Pure Pursuit 조향 제어기를 구현합니다.
-            # TODO: 종방향 PI 속도 제어기를 구현합니다.
-            # TODO: 제어기 출력을 MORAI CtrlCmd 필드로 변환합니다.
+            # TODO: Find nearest path point to current ego position.
+            # TODO: Calculate lateral error from ego pose to reference path.
+            # TODO: Calculate heading error between ego yaw and path yaw.
+            # TODO: Implement Pure Pursuit steering controller.
+            # TODO: Implement longitudinal PI speed controller.
+            # TODO: Convert controller outputs to MORAI CtrlCmd fields.
             self.ctrl_pub.publish(self.build_safe_command())
             rospy.loginfo_throttle(
                 1.0,
-                "Trajectory follower skeleton: 안전 제동 명령 발행 중. path_ready=%s ego_ready=%s target_speed=%.2f",
+                "Trajectory follower skeleton publishing safe brake command. path_ready=%s ego_ready=%s target_speed=%.2f",
                 self.reference_path is not None,
                 self.ego_status is not None,
                 self.target_speed_mps,
@@ -62,3 +62,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

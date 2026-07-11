@@ -1,0 +1,165 @@
+<launch>
+  <arg name="link_set_path" default="/mnt/c/Users/lenovo/Downloads/link_set.json" />
+  <arg name="path_topic" default="/recorded_trajectory_path" />
+  <arg name="preview_path_topic" default="/mgeo_trajectory/preview_path" />
+  <arg name="target_speed_topic" default="/recorded_trajectory/target_speed" />
+  <arg name="ego_topic" default="/Ego_topic" />
+  <arg name="ctrl_topic" default="/ctrl_cmd" />
+  <arg name="frame_id" default="map" />
+
+  <arg name="route_link_ids" default="" />
+  <arg name="start_link_id" default="" />
+  <arg name="goal_link_id" default="" />
+  <arg name="auto_start_from_ego" default="true" />
+  <arg name="route_length_m" default="180.0" />
+  <arg name="max_links" default="40" />
+  <arg name="point_spacing" default="1.0" />
+
+  <arg name="offset_x" default="134.24" />
+  <arg name="offset_y" default="1507.36" />
+  <arg name="offset_z" default="-26.12" />
+  <arg name="offset_yaw_deg" default="0.0" />
+  <arg name="ego_offset_x" default="0.0" />
+  <arg name="ego_offset_y" default="0.0" />
+  <arg name="ego_offset_z" default="0.0" />
+  <arg name="preview_offset_x" default="0.0" />
+  <arg name="preview_offset_y" default="560.0" />
+  <arg name="preview_offset_z" default="-28.5" />
+  <arg name="preview_offset_yaw_deg" default="0.0" />
+  <arg name="preview_ego_offset_x" default="-134.24" />
+  <arg name="preview_ego_offset_y" default="-947.36" />
+  <arg name="preview_ego_offset_z" default="-2.38" />
+
+  <arg name="target_speed_mps" default="3.0" />
+  <arg name="use_link_speed" default="false" />
+  <arg name="use_target_speed_topic" default="false" />
+  <arg name="steering_sign" default="-1.0" />
+  <arg name="velocity_scale" default="1.0" />
+
+  <arg name="enable_controller" default="false" />
+  <arg name="enable_validator" default="false" />
+  <arg name="enable_alignment_overlay" default="true" />
+  <arg name="validation_csv" default="$(env HOME)/catkin_ws/src/ajou_control/validation_tracking.csv" />
+  <arg name="history_csvs" default="" />
+  <arg name="history_glob" default="" />
+  <arg name="enable_rviz" default="false" />
+  <arg name="rviz_config" default="$(find ajou_control)/rviz/mgeo_alignment.rviz" />
+
+  <arg name="min_lookahead" default="7.0" />
+  <arg name="max_lookahead" default="16.0" />
+  <arg name="lookahead_gain" default="1.0" />
+  <arg name="max_steer_rad" default="0.35" />
+  <arg name="max_steer_rate" default="0.25" />
+
+  <group if="$(arg enable_alignment_overlay)">
+    <include file="$(find ajou_control)/launch/mgeo_alignment_check.launch">
+      <arg name="link_set_path" value="$(arg link_set_path)" />
+      <arg name="ego_topic" value="$(arg ego_topic)" />
+      <arg name="offset_x" value="$(arg preview_offset_x)" />
+      <arg name="offset_y" value="$(arg preview_offset_y)" />
+      <arg name="offset_z" value="$(arg preview_offset_z)" />
+      <arg name="offset_yaw_deg" value="$(arg preview_offset_yaw_deg)" />
+      <arg name="ego_offset_x" value="$(arg preview_ego_offset_x)" />
+      <arg name="ego_offset_y" value="$(arg preview_ego_offset_y)" />
+      <arg name="ego_offset_z" value="$(arg preview_ego_offset_z)" />
+      <arg name="enable_rviz" value="false" />
+    </include>
+  </group>
+
+  <node pkg="ajou_control"
+        type="mgeo_trajectory_generator.py"
+        name="mgeo_trajectory_generator"
+        output="screen">
+    <param name="link_set_path" value="$(arg link_set_path)" />
+    <param name="path_topic" value="$(arg path_topic)" />
+    <param name="preview_path_topic" value="$(arg preview_path_topic)" />
+    <param name="target_speed_topic" value="$(arg target_speed_topic)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="route_link_ids" value="$(arg route_link_ids)" />
+    <param name="start_link_id" value="$(arg start_link_id)" />
+    <param name="goal_link_id" value="$(arg goal_link_id)" />
+    <param name="ego_topic" value="$(arg ego_topic)" />
+    <param name="auto_start_from_ego" value="$(arg auto_start_from_ego)" />
+    <param name="route_length_m" value="$(arg route_length_m)" />
+    <param name="max_links" value="$(arg max_links)" />
+    <param name="point_spacing" value="$(arg point_spacing)" />
+    <param name="offset_x" value="$(arg offset_x)" />
+    <param name="offset_y" value="$(arg offset_y)" />
+    <param name="offset_z" value="$(arg offset_z)" />
+    <param name="offset_yaw_deg" value="$(arg offset_yaw_deg)" />
+    <param name="ego_offset_x" value="$(arg ego_offset_x)" />
+    <param name="ego_offset_y" value="$(arg ego_offset_y)" />
+    <param name="ego_offset_z" value="$(arg ego_offset_z)" />
+    <param name="preview_offset_x" value="$(arg preview_offset_x)" />
+    <param name="preview_offset_y" value="$(arg preview_offset_y)" />
+    <param name="preview_offset_z" value="$(arg preview_offset_z)" />
+    <param name="preview_offset_yaw_deg" value="$(arg preview_offset_yaw_deg)" />
+    <param name="default_target_speed" value="$(arg target_speed_mps)" />
+    <param name="use_link_speed" value="$(arg use_link_speed)" />
+    <param name="max_target_speed" value="8.0" />
+  </node>
+
+  <node pkg="ajou_trajectory_recorder"
+        type="trajectory_visualizer.py"
+        name="mgeo_trajectory_visualizer"
+        output="screen">
+    <param name="path_topic" value="$(arg preview_path_topic)" />
+    <param name="marker_topic" value="/mgeo_trajectory/markers" />
+    <param name="line_topic" value="/mgeo_trajectory/line" />
+    <param name="sphere_stride" value="20" />
+  </node>
+
+  <node pkg="ajou_control"
+        type="ego_trajectory_comparison_visualizer.py"
+        name="ego_trajectory_comparison_visualizer"
+        output="screen">
+    <param name="path_topic" value="$(arg preview_path_topic)" />
+    <param name="ego_topic" value="$(arg ego_topic)" />
+    <param name="marker_topic" value="/mgeo_trajectory/ego_comparison_markers" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="ego_offset_x" value="$(arg preview_ego_offset_x)" />
+    <param name="ego_offset_y" value="$(arg preview_ego_offset_y)" />
+    <param name="ego_offset_z" value="$(arg preview_ego_offset_z)" />
+  </node>
+
+  <group if="$(arg enable_controller)">
+    <include file="$(find ajou_control)/launch/recorded_path_control.launch">
+      <arg name="path_topic" value="$(arg path_topic)" />
+      <arg name="target_speed_topic" value="$(arg target_speed_topic)" />
+      <arg name="ego_topic" value="$(arg ego_topic)" />
+      <arg name="ctrl_topic" value="$(arg ctrl_topic)" />
+      <arg name="target_speed_mps" value="$(arg target_speed_mps)" />
+      <arg name="use_target_speed_topic" value="$(arg use_target_speed_topic)" />
+      <arg name="steering_sign" value="$(arg steering_sign)" />
+      <arg name="velocity_scale" value="$(arg velocity_scale)" />
+      <arg name="min_lookahead" value="$(arg min_lookahead)" />
+      <arg name="max_lookahead" value="$(arg max_lookahead)" />
+      <arg name="lookahead_gain" value="$(arg lookahead_gain)" />
+      <arg name="max_steer_rad" value="$(arg max_steer_rad)" />
+      <arg name="max_steer_rate" value="$(arg max_steer_rate)" />
+      <arg name="ego_offset_x" value="$(arg ego_offset_x)" />
+      <arg name="ego_offset_y" value="$(arg ego_offset_y)" />
+      <arg name="ego_offset_z" value="$(arg ego_offset_z)" />
+    </include>
+  </group>
+
+  <group if="$(arg enable_validator)">
+    <include file="$(find ajou_control)/launch/tracking_validation.launch">
+      <arg name="path_topic" value="$(arg path_topic)" />
+      <arg name="target_speed_topic" value="$(arg target_speed_topic)" />
+      <arg name="ego_topic" value="$(arg ego_topic)" />
+      <arg name="ctrl_topic" value="$(arg ctrl_topic)" />
+      <arg name="output_csv" value="$(arg validation_csv)" />
+      <arg name="history_csvs" value="$(arg history_csvs)" />
+      <arg name="history_glob" value="$(arg history_glob)" />
+      <arg name="velocity_scale" value="$(arg velocity_scale)" />
+      <arg name="ego_offset_x" value="$(arg ego_offset_x)" />
+      <arg name="ego_offset_y" value="$(arg ego_offset_y)" />
+      <arg name="ego_offset_z" value="$(arg ego_offset_z)" />
+    </include>
+  </group>
+
+  <group if="$(arg enable_rviz)">
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(arg rviz_config)" output="screen" />
+  </group>
+</launch>

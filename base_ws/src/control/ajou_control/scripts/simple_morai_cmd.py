@@ -23,7 +23,7 @@ def main():
         cmd_pub.publish(cmd)
         rospy.loginfo_throttle(
             1.0,
-            "CtrlCmd 확인: longlCmdType=%d accel=%.3f brake=%.3f front_steer=%.3f",
+            "CtrlCmd sanity check: longlCmdType=%d accel=%.3f brake=%.3f front_steer=%.3f",
             cmd.longlCmdType,
             cmd.accel,
             cmd.brake,
@@ -34,3 +34,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

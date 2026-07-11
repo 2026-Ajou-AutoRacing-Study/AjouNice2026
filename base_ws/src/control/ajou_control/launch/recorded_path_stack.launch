@@ -6,7 +6,7 @@
   <arg name="ctrl_topic" default="/ctrl_cmd" />
   <arg name="target_speed_mps" default="3.0" />
   <arg name="use_target_speed_topic" default="false" />
-  <arg name="steering_sign" default="1.0" />
+  <arg name="steering_sign" default="-1.0" />
   <arg name="velocity_scale" default="1.0" />
   <arg name="enable_validator" default="false" />
   <arg name="validation_csv" default="$(env HOME)/catkin_ws/src/ajou_control/validation_tracking.csv" />

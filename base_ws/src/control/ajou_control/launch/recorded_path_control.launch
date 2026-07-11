@@ -6,8 +6,11 @@
   <arg name="debug_topic" default="/pure_pursuit/debug_markers" />
   <arg name="target_speed_mps" default="3.0" />
   <arg name="use_target_speed_topic" default="false" />
-  <arg name="steering_sign" default="1.0" />
+  <arg name="steering_sign" default="-1.0" />
   <arg name="velocity_scale" default="1.0" />
+  <arg name="ego_offset_x" default="0.0" />
+  <arg name="ego_offset_y" default="0.0" />
+  <arg name="ego_offset_z" default="0.0" />
   <arg name="min_lookahead" default="7.0" />
   <arg name="max_lookahead" default="16.0" />
   <arg name="lookahead_gain" default="1.0" />
@@ -26,6 +29,9 @@
     <param name="debug_topic" value="$(arg debug_topic)" />
     <param name="default_target_speed" value="$(arg target_speed_mps)" />
     <param name="velocity_scale" value="$(arg velocity_scale)" />
+    <param name="ego_offset_x" value="$(arg ego_offset_x)" />
+    <param name="ego_offset_y" value="$(arg ego_offset_y)" />
+    <param name="ego_offset_z" value="$(arg ego_offset_z)" />
 
     <param name="control_rate" value="30.0" />
     <param name="wheel_base" value="2.8" />

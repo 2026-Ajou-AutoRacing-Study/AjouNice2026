@@ -47,6 +47,9 @@ class PurePursuitPIController:
         self.default_target_speed = float(rospy.get_param("~default_target_speed", 5.0))
         self.max_target_speed = float(rospy.get_param("~max_target_speed", 12.0))
         self.velocity_scale = float(rospy.get_param("~velocity_scale", 1.0))
+        self.ego_offset_x = float(rospy.get_param("~ego_offset_x", 0.0))
+        self.ego_offset_y = float(rospy.get_param("~ego_offset_y", 0.0))
+        self.ego_offset_z = float(rospy.get_param("~ego_offset_z", 0.0))
         self.kp = float(rospy.get_param("~kp", 0.25))
         self.ki = float(rospy.get_param("~ki", 0.04))
         self.integral_limit = float(rospy.get_param("~integral_limit", 8.0))
@@ -75,7 +78,7 @@ class PurePursuitPIController:
         self.debug_pub = rospy.Publisher(self.debug_topic, MarkerArray, queue_size=1)
 
         rospy.loginfo(
-            "PurePursuitPIController 설정: path=%s speed=%s use_speed_topic=%s ego=%s ctrl=%s debug=%s",
+            "PurePursuitPIController path=%s speed=%s use_speed_topic=%s ego=%s ctrl=%s debug=%s",
             self.path_topic,
             self.target_speed_topic,
             self.use_target_speed_topic,
@@ -103,7 +106,7 @@ class PurePursuitPIController:
         yaw = math.radians(float(self.ego.heading))
         raw_speed = norm2d(self.ego.velocity.x, self.ego.velocity.y)
         speed = raw_speed * self.velocity_scale
-        return position.x, position.y, yaw, speed, raw_speed
+        return position.x + self.ego_offset_x, position.y + self.ego_offset_y, yaw, speed, raw_speed
 
     def nearest_index(self, x, y):
         if not self.path_points:
@@ -235,7 +238,7 @@ class PurePursuitPIController:
 
     def build_command(self):
         if self.ego is None or len(self.path_points) < 2:
-            return self.build_safe_stop(), "대기 중"
+            return self.build_safe_stop(), "waiting"
 
         now = rospy.Time.now()
         if self.last_time is None:
@@ -251,7 +254,7 @@ class PurePursuitPIController:
 
         if nearest >= len(self.path_points) - 2 and goal_distance < self.stop_distance:
             self.speed_integral = 0.0
-            return self.build_safe_stop(), "완료"
+            return self.build_safe_stop(), "finished"
 
         lookahead = clamp(
             self.min_lookahead + self.lookahead_gain * speed,
@@ -294,7 +297,7 @@ class PurePursuitPIController:
             cmd.accel = clamp(self.accel_feedforward, 0.0, 1.0)
             cmd.brake = 0.0
 
-        return cmd, "추종 중 n=%d target=%d cte=%.2f ego=(%.1f,%.1f) tgt=(%.1f,%.1f) alpha=%.2f ld=%.2f speed=%.2f(raw %.2f)/%.2f accel=%.2f brake=%.2f steer=%.3f" % (
+        return cmd, "tracking n=%d target=%d cte=%.2f ego=(%.1f,%.1f) tgt=(%.1f,%.1f) alpha=%.2f ld=%.2f speed=%.2f(raw %.2f)/%.2f accel=%.2f brake=%.2f steer=%.3f" % (
             nearest,
             target,
             cte,
@@ -317,7 +320,7 @@ class PurePursuitPIController:
         while not rospy.is_shutdown():
             cmd, state = self.build_command()
             self.ctrl_pub.publish(cmd)
-            rospy.loginfo_throttle(1.0, "Pure pursuit PI 상태: %s", state)
+            rospy.loginfo_throttle(1.0, "Pure pursuit PI: %s", state)
             rate.sleep()
 
 

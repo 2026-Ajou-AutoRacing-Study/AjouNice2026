@@ -2,7 +2,7 @@
 <package format="2">
   <name>ajou_control</name>
   <version>0.0.1</version>
-  <description>MORAI 기록 궤적 추종과 제어 검증을 위한 ROS1 제어 패키지입니다.</description>
+  <description>Initial ROS1 controller validation package for virtual trajectory generation and MORAI-compatible command interfaces.</description>
 
   <maintainer email="user@example.com">ajou_control maintainer</maintainer>
   <license>MIT</license>
@@ -22,3 +22,4 @@
   <export>
   </export>
 </package>
+

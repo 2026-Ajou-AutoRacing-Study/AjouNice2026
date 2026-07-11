@@ -29,6 +29,11 @@ catkin_package(
 catkin_install_python(PROGRAMS
   scripts/virtual_trajectory_generator.py
   scripts/simple_morai_cmd.py
+  scripts/mgeo_trajectory_generator.py
+  scripts/mgeo_alignment_checker.py
+  scripts/morai_map_alignment_checker.py
+  scripts/ego_trajectory_comparison_visualizer.py
+  scripts/validation_run_viewer.py
   scripts/pure_pursuit_pi_controller.py
   scripts/tracking_validator.py
   scripts/trajectory_follower_skeleton.py
@@ -36,7 +41,7 @@ catkin_install_python(PROGRAMS
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-install(DIRECTORY launch
+install(DIRECTORY launch rviz
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
