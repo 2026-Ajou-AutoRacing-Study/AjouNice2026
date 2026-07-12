@@ -6,7 +6,7 @@ import sys
 from copy import deepcopy
 
 import rospy
-from geometry_msgs.msg import Pose, PoseStamped, Quaternion
+from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from nav_msgs.msg import Odometry, Path
 
 from autoware_internal_planning_msgs.msg import (
@@ -21,7 +21,14 @@ from autoware_vehicle_msgs.msg import HazardLightsCommand, TurnIndicatorsCommand
 from tier4_planning_msgs.msg import RerouteAvailability
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bpp_map_tools import CenterlineMap, resample_polyline, stitch_route_centerlines, trim_polyline
+from bpp_map_tools import (
+    CenterlineMap,
+    closest_lane_id,
+    resample_polyline,
+    stitch_route_bounds,
+    stitch_route_centerlines,
+    trim_polyline,
+)
 
 
 def yaw_from_quaternion(q):
@@ -62,6 +69,21 @@ class LaneFollowingBPP:
         self.frame_id = rospy.get_param("~frame_id", "map")
         self.planning_hz = float(rospy.get_param("~planning_hz", 10.0))
         self.path_interval = max(float(rospy.get_param("~path_interval", 2.0)), 0.1)
+        self.backward_path_length = max(
+            float(rospy.get_param("~backward_path_length", 5.0)), 0.0
+        )
+        self.vehicle_rear_overhang = max(
+            float(rospy.get_param("~vehicle_rear_overhang", 1.1)), 0.0
+        )
+        self.backward_path_margin = max(
+            float(rospy.get_param("~backward_path_margin", 1.0)), 0.0
+        )
+        self.forward_path_length = max(
+            float(rospy.get_param("~forward_path_length", 300.0)), 1.0
+        )
+        self.goal_bound_extension = max(
+            float(rospy.get_param("~goal_bound_extension", 5.0)), 0.0
+        )
         self.fallback_path_length = max(float(rospy.get_param("~fallback_path_length", 60.0)), 1.0)
         self.default_velocity_mps = max(float(rospy.get_param("~default_velocity_mps", 5.0)), 0.0)
         self.stop_at_goal = bool(rospy.get_param("~stop_at_goal", True))
@@ -72,6 +94,7 @@ class LaneFollowingBPP:
         self.use_map_centerline = bool(rospy.get_param("~use_map_centerline", True))
         self.map_file = rospy.get_param("~map_file", rospy.get_param("~centerline_map_file", ""))
         self.projector_file = rospy.get_param("~projector_file", "")
+        self.projector_type = rospy.get_param("~map_projector_type", "MGRS")
         self.flatten_map_z = bool(rospy.get_param("~flatten_map_z", False))
 
         route_topic = rospy.get_param("~route_topic", "~input/route")
@@ -114,7 +137,10 @@ class LaneFollowingBPP:
             return
         try:
             self.centerline_map = CenterlineMap.load(
-                self.map_file, self.projector_file, self.flatten_map_z
+                self.map_file,
+                self.projector_file,
+                self.flatten_map_z,
+                self.projector_type,
             )
             rospy.loginfo(
                 "lane_following_bpp: loaded %d centerlines from %s",
@@ -150,7 +176,9 @@ class LaneFollowingBPP:
             return
 
         try:
-            self.centerline_map = CenterlineMap.from_osm_bytes(raw, "LaneletMapBin", self.flatten_map_z)
+            self.centerline_map = CenterlineMap.from_osm_bytes(
+                raw, "LaneletMapBin", self.flatten_map_z, self.projector_type
+            )
             rospy.loginfo(
                 "lane_following_bpp: loaded %d centerlines from LaneletMapBin OSM payload",
                 self.centerline_map.lane_count(),
@@ -199,21 +227,72 @@ class LaneFollowingBPP:
         msg.header.stamp = stamp
         msg.header.frame_id = self.frame_id
         msg.points = points
+        msg.left_bound, msg.right_bound = self.build_drivable_bounds(
+            points, lane_ids, goal_pose
+        )
         return msg
 
+    def build_drivable_bounds(self, path_points, lane_ids, goal_pose):
+        if self.centerline_map is None or not path_points or not lane_ids:
+            return [], []
+        start = path_points[0].point.pose.position
+        start_point = (start.x, start.y, start.z)
+        goal_point = pose_to_point3(goal_pose) if is_pose_position_set(goal_pose) else None
+        left, right = stitch_route_bounds(
+            self.centerline_map, lane_ids, start_point=start_point
+        )
+
+        output = []
+        for boundary in (left, right):
+            if len(boundary) < 2:
+                output.append([])
+                continue
+            boundary = trim_polyline(
+                boundary,
+                start_point=start_point,
+                goal_point=goal_point,
+                end_offset=self.goal_bound_extension,
+                max_forward_length=(
+                    self.forward_path_length
+                    + self.backward_path_length
+                    + self.vehicle_rear_overhang
+                    + self.backward_path_margin
+                ),
+            )
+            boundary = resample_polyline(boundary, self.path_interval)
+            output.append([Point(x=x, y=y, z=z) for x, y, z in boundary])
+        return output[0], output[1]
+
     def extract_lane_ids(self, route):
-        lane_ids = []
-        seen = set()
-        for segment in route.segments:
-            primitives = [segment.preferred_primitive] + list(segment.primitives)
-            for primitive in primitives:
-                if primitive.id == 0:
-                    continue
-                if primitive.id in seen:
-                    continue
-                seen.add(primitive.id)
-                lane_ids.append(primitive.id)
-        return lane_ids
+        selected = []
+        for index, segment in enumerate(route.segments):
+            primitive_ids = [
+                int(primitive.id)
+                for primitive in segment.primitives
+                if int(primitive.id) != 0
+            ]
+            preferred_id = int(segment.preferred_primitive.id)
+            if preferred_id and preferred_id not in primitive_ids:
+                primitive_ids.append(preferred_id)
+            if not primitive_ids:
+                continue
+
+            lane_id = preferred_id or primitive_ids[0]
+            if (
+                index == 0
+                and self.centerline_map is not None
+                and self.odometry is not None
+            ):
+                nearest = closest_lane_id(
+                    self.centerline_map,
+                    primitive_ids,
+                    pose_to_point3(self.odometry.pose.pose),
+                )
+                if nearest is not None:
+                    lane_id = nearest
+            if lane_id not in selected:
+                selected.append(lane_id)
+        return selected
 
     def select_start_pose(self, route):
         if self.use_ego_as_path_start and self.odometry is not None:
@@ -243,14 +322,37 @@ class LaneFollowingBPP:
             )
             return None
 
-        centerline = trim_polyline(centerline, start_point=start_point, goal_point=goal_point)
+        centerline = resample_polyline(centerline, self.path_interval)
+        effective_backward_length = (
+            self.backward_path_length
+            + self.vehicle_rear_overhang
+            + self.backward_path_margin
+        )
+        centerline = trim_polyline(
+            centerline,
+            start_point=start_point,
+            goal_point=goal_point,
+            start_offset=-effective_backward_length,
+            include_previous_start=len(lane_ids) > 1,
+            max_forward_length=self.forward_path_length,
+        )
         centerline = resample_polyline(centerline, self.path_interval)
         if len(centerline) < 2:
             return None
 
-        return self.centerline_points_to_path_points(centerline, used_lane_ids or lane_ids)
+        reaches_goal = goal_point is not None and math.hypot(
+            centerline[-1][0] - goal_point[0], centerline[-1][1] - goal_point[1]
+        ) <= max(self.path_interval, 0.1)
+        if reaches_goal and math.hypot(
+            centerline[-1][0] - goal_point[0], centerline[-1][1] - goal_point[1]
+        ) > 1.0e-3:
+            centerline.append(goal_point)
 
-    def centerline_points_to_path_points(self, centerline, lane_ids):
+        return self.centerline_points_to_path_points(
+            centerline, used_lane_ids or lane_ids, reaches_goal
+        )
+
+    def centerline_points_to_path_points(self, centerline, lane_ids, reaches_goal=True):
         velocity = self.current_target_velocity()
         path_points = []
         for idx, point in enumerate(centerline):
@@ -272,13 +374,16 @@ class LaneFollowingBPP:
             path_point.longitudinal_velocity_mps = velocity
             path_point.lateral_velocity_mps = 0.0
             path_point.heading_rate_rps = 0.0
-            path_point.is_final = idx == len(centerline) - 1
-            if self.stop_at_goal and path_point.is_final:
+            is_last = idx == len(centerline) - 1
+            path_point.is_final = False
+            if self.stop_at_goal and reaches_goal and is_last:
                 path_point.longitudinal_velocity_mps = 0.0
 
             point_with_lane_id = PathPointWithLaneId()
             point_with_lane_id.point = path_point
-            point_with_lane_id.lane_ids = list(lane_ids)
+            point_with_lane_id.lane_ids = self.centerline_map.lane_ids_near_point(
+                lane_ids, point
+            )
             path_points.append(point_with_lane_id)
 
         return path_points
@@ -321,8 +426,9 @@ class LaneFollowingBPP:
             path_point.longitudinal_velocity_mps = velocity
             path_point.lateral_velocity_mps = 0.0
             path_point.heading_rate_rps = 0.0
-            path_point.is_final = idx == len(poses) - 1
-            if self.stop_at_goal and path_point.is_final:
+            is_last = idx == len(poses) - 1
+            path_point.is_final = False
+            if self.stop_at_goal and is_last:
                 path_point.longitudinal_velocity_mps = 0.0
 
             point_with_lane_id = PathPointWithLaneId()

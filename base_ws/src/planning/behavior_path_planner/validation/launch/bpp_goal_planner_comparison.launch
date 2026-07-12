@@ -1,0 +1,28 @@
+<launch>
+  <arg name="map_file" default="/home/vic/AJOUNICE2026/local_autoware_planning_sim/data/maps/kcity_map/lanelet2_map.osm" />
+  <arg name="reference_json" />
+  <arg name="candidate_json" />
+  <arg name="report_json" default="" />
+  <arg name="launch_rviz" default="true" />
+
+  <node pkg="behavior_path_planner" type="bpp_path_comparison_visualizer.py"
+        name="bpp_goal_planner_comparison_visualizer" output="screen">
+    <param name="reference_json" value="$(arg reference_json)" />
+    <param name="candidate_json" value="$(arg candidate_json)" />
+    <param name="report_json" value="$(arg report_json)" />
+    <param name="path_key" value="final_path" />
+    <param name="context_path_key" value="reference_path" />
+    <param name="show_ego" value="true" />
+    <param name="show_route_goal" value="true" />
+    <param name="scenario_label" value="GOAL HANDLING | NON-PARKING FIXED GOAL" />
+    <param name="map_file" value="$(arg map_file)" />
+    <param name="map_projector_type" value="MGRS" />
+    <param name="frame_id" value="map" />
+    <param name="output_topic" value="/planning/debug/bpp/goal_planner_validation_overlay" />
+  </node>
+
+  <node if="$(arg launch_rviz)" pkg="rviz" type="rviz"
+        name="bpp_goal_planner_comparison_rviz"
+        args="-d $(find behavior_path_planner)/validation/rviz/bpp_goal_planner_comparison.rviz"
+        output="screen" />
+</launch>

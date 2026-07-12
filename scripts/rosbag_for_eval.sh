@@ -10,12 +10,12 @@ REC_PID=""
 TOPICS=(
   /clock
   /Ego_topic
-  /Object_topic
   /sensor/imu
-  /sensor/gps
   /sensor/lidar1
-  /sensor/lidar2
+  /localization/odom
   /path
+  /cloud_registered
+  /tf
 )
 
 mkdir -p "$OUT_DIR"

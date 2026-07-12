@@ -1,0 +1,22 @@
+<launch>
+  <arg name="planning_hz" default="20.0" />
+
+  <node pkg="behavior_path_planner" type="start_planner_bpp.py"
+        name="start_planner_bpp" output="screen">
+    <param name="frame_id" value="map" />
+    <param name="planning_hz" value="$(arg planning_hz)" />
+    <rosparam command="load" file="$(find behavior_path_planner)/config/start_planner.param.yaml" param="start_planner" />
+    <param name="start_planner/rtc/status_topic" value="/validation/start_planner/rtc_status" />
+    <param name="start_planner/rtc/command_service" value="/validation/start_planner/cooperate_commands" />
+    <param name="start_planner/rtc/auto_mode_service" value="/validation/start_planner/enable_auto_mode" />
+    <remap from="~input/path" to="/validation/start_planner/input_path" />
+    <remap from="~input/objects" to="/validation/start_planner/objects" />
+    <remap from="~input/odometry" to="/validation/start_planner/odometry" />
+    <remap from="~output/path" to="/validation/start_planner/output_path" />
+    <remap from="~output/reference_path" to="/validation/start_planner/reference_path" />
+    <remap from="~output/candidate_path" to="/validation/start_planner/candidate_path" />
+    <remap from="~output/turn_indicators_cmd" to="/validation/start_planner/turn_indicators_cmd" />
+    <remap from="~debug/status" to="/validation/start_planner/status" />
+    <remap from="~debug/safety" to="/validation/start_planner/safety_debug" />
+  </node>
+</launch>

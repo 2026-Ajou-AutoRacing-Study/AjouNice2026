@@ -9,6 +9,7 @@ from nav_msgs.msg import Path
 from std_msgs.msg import String
 
 from autoware_internal_planning_msgs.msg import PathWithLaneId
+from autoware_planning_msgs.msg import Path as AutowarePath
 from tier4_planning_msgs.msg import AvoidanceDebugMsg, AvoidanceDebugMsgArray
 
 
@@ -225,6 +226,15 @@ def to_debug_path(path_with_lane_id):
     return msg
 
 
+def to_autoware_path(path_with_lane_id):
+    msg = AutowarePath()
+    msg.header = path_with_lane_id.header
+    msg.points = [deepcopy(item.point) for item in path_with_lane_id.points]
+    msg.left_bound = deepcopy(path_with_lane_id.left_bound)
+    msg.right_bound = deepcopy(path_with_lane_id.right_bound)
+    return msg
+
+
 def make_avoidance_debug_array(header, candidates):
     msg = AvoidanceDebugMsgArray()
     msg.header = header
@@ -268,12 +278,19 @@ class PathModuleBase:
         return path, "pass-through"
 
     def on_timer(self, _event):
+        if rospy.is_shutdown():
+            return
         if self.input_path is None:
             rospy.logwarn_throttle(5.0, "%s: waiting for input PathWithLaneId", self.module_name)
             return
 
         stamp = rospy.Time.now()
-        processed = self.process_path(deepcopy(self.input_path), stamp)
+        try:
+            processed = self.process_path(deepcopy(self.input_path), stamp)
+        except rospy.ROSException:
+            if rospy.is_shutdown():
+                return
+            raise
         if isinstance(processed, tuple):
             output_path, status = processed
         else:
@@ -287,9 +304,14 @@ class PathModuleBase:
         if not output_path.header.frame_id:
             output_path.header.frame_id = self.frame_id
 
-        self.path_pub.publish(output_path)
-        self.debug_path_pub.publish(to_debug_path(output_path))
+        try:
+            self.path_pub.publish(output_path)
+            self.debug_path_pub.publish(to_debug_path(output_path))
 
-        status_msg = String()
-        status_msg.data = status
-        self.status_pub.publish(status_msg)
+            status_msg = String()
+            status_msg.data = status
+            self.status_pub.publish(status_msg)
+        except rospy.ROSException:
+            if rospy.is_shutdown():
+                return
+            raise

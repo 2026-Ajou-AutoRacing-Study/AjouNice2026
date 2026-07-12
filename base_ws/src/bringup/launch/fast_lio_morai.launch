@@ -1,6 +1,7 @@
 <launch>
-  <!-- Use rosbag/MORAI simulation time -->
-  <param name="/use_sim_time" value="true"/>
+  <!-- Real-time MORAI uses wall time; enable this explicitly for rosbag/simulation time. -->
+  <arg name="use_sim_time" default="false"/>
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
 
   <arg name="config"
        default="$(env HOME)/AjouNice2026/configs/localization/fast_lio_morai_velodyne.yaml"/>

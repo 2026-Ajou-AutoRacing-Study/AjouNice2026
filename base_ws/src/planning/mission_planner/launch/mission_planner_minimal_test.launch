@@ -1,0 +1,37 @@
+<launch>
+  <arg name="frame_id" default="map" />
+  <arg name="publish_rate" default="10.0" />
+  <arg name="route_lane_ids" default="[1001]" />
+  <arg name="start_x" default="0.0" />
+  <arg name="start_y" default="0.0" />
+  <arg name="start_yaw" default="0.0" />
+  <arg name="goal_x" default="60.0" />
+  <arg name="goal_y" default="0.0" />
+  <arg name="goal_yaw" default="0.0" />
+  <arg name="map_file" default="" />
+  <arg name="projector_file" default="" />
+
+  <include file="$(find mission_planner)/launch/mission_planner.launch">
+    <arg name="frame_id" value="$(arg frame_id)" />
+    <arg name="route_lane_ids" value="$(arg route_lane_ids)" />
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="projector_file" value="$(arg projector_file)" />
+    <arg name="default_start_x" value="$(arg start_x)" />
+    <arg name="default_start_y" value="$(arg start_y)" />
+    <arg name="default_start_yaw" value="$(arg start_yaw)" />
+    <arg name="default_goal_x" value="$(arg goal_x)" />
+    <arg name="default_goal_y" value="$(arg goal_y)" />
+    <arg name="default_goal_yaw" value="$(arg goal_yaw)" />
+  </include>
+
+  <node pkg="mission_planner" type="mission_planner_minimal_input_publisher.py" name="mission_planner_minimal_input_publisher" output="screen">
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="publish_rate" value="$(arg publish_rate)" />
+    <param name="start_x" value="$(arg start_x)" />
+    <param name="start_y" value="$(arg start_y)" />
+    <param name="start_yaw" value="$(arg start_yaw)" />
+    <param name="goal_x" value="$(arg goal_x)" />
+    <param name="goal_y" value="$(arg goal_y)" />
+    <param name="goal_yaw" value="$(arg goal_yaw)" />
+  </node>
+</launch>
