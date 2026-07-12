@@ -1,0 +1,18 @@
+<launch>
+  <arg name="planning_hz" default="20.0" />
+
+  <node pkg="behavior_path_planner" type="dynamic_obstacle_avoidance_bpp.py"
+        name="dynamic_obstacle_avoidance_bpp" output="screen">
+    <param name="frame_id" value="map" />
+    <param name="planning_hz" value="$(arg planning_hz)" />
+    <rosparam command="load" file="$(find behavior_path_planner)/config/dynamic_obstacle_avoidance.param.yaml" param="dynamic_obstacle_avoidance" />
+    <remap from="~input/path" to="/validation/dynamic/input_path" />
+    <remap from="~input/objects" to="/validation/dynamic/objects" />
+    <remap from="~input/odometry" to="/validation/dynamic/odometry" />
+    <remap from="~output/path" to="/validation/dynamic/output_path" />
+    <remap from="~output/reference_path" to="/validation/dynamic/reference_path" />
+    <remap from="~output/candidate_path" to="/validation/dynamic/candidate_path" />
+    <remap from="~debug/path" to="/validation/dynamic/debug_path" />
+    <remap from="~debug/avoidance" to="/validation/dynamic/avoidance_debug" />
+  </node>
+</launch>

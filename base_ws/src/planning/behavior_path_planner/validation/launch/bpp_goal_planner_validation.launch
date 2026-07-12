@@ -1,0 +1,17 @@
+<launch>
+  <arg name="planning_hz" default="20.0" />
+
+  <node pkg="behavior_path_planner" type="goal_planner_bpp.py"
+        name="goal_planner_bpp" output="screen">
+    <param name="frame_id" value="map" />
+    <param name="planning_hz" value="$(arg planning_hz)" />
+    <rosparam command="load" file="$(find behavior_path_planner)/config/goal_planner_non_parking.param.yaml" param="goal_planner" />
+    <remap from="~input/path" to="/validation/goal_planner/input_path" />
+    <remap from="~input/route" to="/validation/goal_planner/route" />
+    <remap from="~output/path" to="/validation/goal_planner/output_path" />
+    <remap from="~output/reference_path" to="/validation/goal_planner/reference_path" />
+    <remap from="~output/modified_goal" to="/validation/goal_planner/modified_goal" />
+    <remap from="~output/is_reroute_available" to="/validation/goal_planner/is_reroute_available" />
+    <remap from="~debug/status" to="/validation/goal_planner/status" />
+  </node>
+</launch>

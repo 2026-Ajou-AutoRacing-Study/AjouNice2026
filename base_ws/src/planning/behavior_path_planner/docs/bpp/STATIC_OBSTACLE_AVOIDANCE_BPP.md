@@ -105,7 +105,7 @@ bound is below `1.3 m`.
 
 ## RViz Comparison
 
-Use `bpp_static_avoidance_comparison.launch` with the captured reference,
+Use `validation/launch/bpp_static_avoidance_comparison.launch` with the captured reference,
 ROS1 result, and report. The automatic view shows:
 
 - cyan: ROS2 executable path;

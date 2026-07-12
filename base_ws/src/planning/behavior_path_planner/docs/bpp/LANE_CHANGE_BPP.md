@@ -58,7 +58,7 @@ Turn indicator:                ENABLE_LEFT
 Verdict:                       PASS
 ```
 
-The RViz overlay is launched with `bpp_lane_change_comparison.launch`. ROS2 is
+The RViz overlay is launched with `validation/launch/bpp_lane_change_comparison.launch`. ROS2 is
 cyan, ROS1 is magenta dashed, ROS2/ROS1 root paths are white/amber, and K-City
 lanelet boundaries are gray. The full source lanelet area and centerline are
 translucent blue, the full target lanelet area and centerline are translucent
@@ -90,7 +90,7 @@ Verdict:                       PASS
 ```
 
 The RViz overlay is launched with
-`bpp_lane_change_blocked_comparison.launch`: cyan and magenta show the ROS2
+`validation/launch/bpp_lane_change_blocked_comparison.launch`: cyan and magenta show the ROS2
 and ROS1 final paths, orange shows the rejected ROS2 proposal, and the red box
 shows the blocking object and its predicted path.
 

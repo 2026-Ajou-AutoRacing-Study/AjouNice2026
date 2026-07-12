@@ -38,8 +38,13 @@ base_ws/.catkin_workspace
 # RViz local configs, optional
 *.rviz
 !base_ws/src/planning/mission_planner/rviz/mission_route_comparison.rviz
-!base_ws/src/planning/behavior_path_planner/rviz/bpp_lane_following_comparison.rviz
-!base_ws/src/planning/behavior_path_planner/rviz/bpp_lane_change_comparison.rviz
+!base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_lane_following_comparison.rviz
+!base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_lane_change_comparison.rviz
+!base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_dynamic_avoidance_comparison.rviz
+!base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_static_avoidance_comparison.rviz
+!base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_start_planner_comparison.rviz
+!base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_goal_planner_comparison.rviz
+!base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_side_shift_comparison.rviz
 
 # Local machine-specific files
 .env.local

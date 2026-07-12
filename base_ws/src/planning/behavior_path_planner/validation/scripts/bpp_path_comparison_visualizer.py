@@ -29,6 +29,7 @@ TARGET_LANE_COLOR = (0.35, 1.0, 0.25, 1.0)
 GOAL_COLOR = (1.0, 0.82, 0.12, 1.0)
 PROPOSED_COLOR = (1.0, 0.58, 0.05, 0.95)
 OBSTACLE_COLOR = (1.0, 0.08, 0.06, 0.9)
+EGO_COLOR = (1.0, 1.0, 1.0, 0.95)
 
 
 def read_json(path):
@@ -69,6 +70,10 @@ class BppPathComparisonVisualizer:
         self.context_path_key = rospy.get_param("~context_path_key", "")
         self.proposed_path_key = rospy.get_param("~proposed_path_key", "")
         self.show_objects = rospy.get_param("~show_objects", False)
+        self.object_label = rospy.get_param("~object_label", "BLOCKING OBJECT")
+        self.show_ego = rospy.get_param("~show_ego", True)
+        self.show_route_goal = rospy.get_param("~show_route_goal", False)
+        self.scenario_label = rospy.get_param("~scenario_label", "")
         self.show_lane_change_lanelets = rospy.get_param(
             "~show_lane_change_lanelets", False
         )
@@ -159,6 +164,19 @@ class BppPathComparisonVisualizer:
                 )
                 marker.color = color(*(PASS_COLOR if passed else FAIL_COLOR))
                 return marker
+            dynamic_cut = diagnostics.get("left_cut")
+            if dynamic_cut:
+                marker.text = (
+                    "{} | ROS2 cyan | ROS1 magenta dashed | "
+                    "bound RMSE {:.3f} m | peak {:.3f}/{:.3f} m"
+                ).format(
+                    "PASS" if passed else "FAIL",
+                    float(dynamic_cut.get("profile_rmse_m", 0.0)),
+                    float(dynamic_cut.get("reference_peak_m", 0.0)),
+                    float(dynamic_cut.get("candidate_peak_m", 0.0)),
+                )
+                marker.color = color(*(PASS_COLOR if passed else FAIL_COLOR))
+                return marker
             geometry = diagnostics.get(
                 "centerline_geometry",
                 diagnostics.get(
@@ -235,7 +253,9 @@ class BppPathComparisonVisualizer:
                 self.make_text(
                     "blocking_object_labels",
                     index,
-                    "BLOCKING OBJECT {} | {:.2f} m/s".format(index + 1, speed),
+                    "{} {} | {:.2f} m/s".format(
+                        self.object_label, index + 1, speed
+                    ),
                     (
                         float(position.get("x", 0.0)),
                         float(position.get("y", 0.0)),
@@ -260,6 +280,90 @@ class BppPathComparisonVisualizer:
                         color(1.0, 0.25, 0.12, 0.85),
                     )
                 )
+        return markers
+
+    def make_scene_context_markers(self):
+        markers = []
+        scenario = self.reference.get("scenario", {})
+        odometry = scenario.get("odometry", {})
+        ego_pose = odometry.get("pose")
+        if self.show_ego and ego_pose:
+            body = self.marker("validation_ego", 0, Marker.ARROW)
+            body.pose.position = point(ego_pose["position"], 0.35)
+            orientation = ego_pose.get("orientation", {})
+            body.pose.orientation.x = float(orientation.get("x", 0.0))
+            body.pose.orientation.y = float(orientation.get("y", 0.0))
+            body.pose.orientation.z = float(orientation.get("z", 0.0))
+            body.pose.orientation.w = float(orientation.get("w", 1.0))
+            body.scale.x = 4.6
+            body.scale.y = 1.6
+            body.scale.z = 1.0
+            body.color = color(*EGO_COLOR)
+            markers.append(body)
+
+            label = self.scenario_label or "EGO"
+            request = self.reference.get("lateral_offset_request_m")
+            if request is not None:
+                label += " | lateral request {:+.2f} m".format(float(request))
+            markers.append(
+                self.make_text(
+                    "validation_ego_label",
+                    0,
+                    label,
+                    (
+                        float(ego_pose["position"]["x"]),
+                        float(ego_pose["position"]["y"]),
+                        float(ego_pose["position"]["z"]),
+                    ),
+                    color(*EGO_COLOR),
+                )
+            )
+
+        route = scenario.get("route", {})
+        goal_pose = route.get("goal_pose")
+        if self.show_route_goal and goal_pose:
+            goal = point(goal_pose["position"], 0.7)
+            markers.append(
+                self.make_endpoint("validation_route_goal", 0, goal, color(*GOAL_COLOR), 0.0)
+            )
+            markers.append(
+                self.make_text(
+                    "validation_route_goal_label",
+                    0,
+                    "FIXED ROUTE GOAL",
+                    (goal.x, goal.y, goal.z),
+                    color(*GOAL_COLOR),
+                )
+            )
+
+        for marker_id, (document, label, marker_color) in enumerate(
+            (
+                (self.reference, "ROS2 MODIFIED GOAL", color(*REFERENCE_COLOR)),
+                (self.candidate, "ROS1 MODIFIED GOAL", color(*CANDIDATE_COLOR)),
+            )
+        ):
+            modified = document.get("modified_goal")
+            if not modified:
+                continue
+            modified_point = point(modified["pose"]["position"], 1.0 + marker_id * 0.25)
+            markers.append(
+                self.make_endpoint(
+                    "validation_modified_goals",
+                    marker_id,
+                    modified_point,
+                    marker_color,
+                    0.0,
+                )
+            )
+            markers.append(
+                self.make_text(
+                    "validation_modified_goal_labels",
+                    marker_id,
+                    label,
+                    (modified_point.x, modified_point.y, modified_point.z),
+                    marker_color,
+                )
+            )
         return markers
 
     def make_map_boundaries(self):
@@ -458,6 +562,7 @@ class BppPathComparisonVisualizer:
             ),
             self.make_candidate_dashes(),
         ]
+        markers.extend(self.make_scene_context_markers())
 
         if self.proposed_path_key:
             markers.append(

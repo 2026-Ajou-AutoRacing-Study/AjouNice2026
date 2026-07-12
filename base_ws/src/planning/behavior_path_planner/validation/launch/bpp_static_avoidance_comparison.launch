@@ -31,6 +31,6 @@
         pkg="rviz"
         type="rviz"
         name="bpp_static_avoidance_comparison_rviz"
-        args="-d $(find behavior_path_planner)/rviz/bpp_static_avoidance_comparison.rviz"
+        args="-d $(find behavior_path_planner)/validation/rviz/bpp_static_avoidance_comparison.rviz"
         output="screen" />
 </launch>

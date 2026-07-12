@@ -21,6 +21,6 @@
         pkg="rviz"
         type="rviz"
         name="bpp_lane_following_comparison_rviz"
-        args="-d $(find behavior_path_planner)/rviz/bpp_lane_following_comparison.rviz"
+        args="-d $(find behavior_path_planner)/validation/rviz/bpp_lane_following_comparison.rviz"
         output="screen" />
 </launch>
