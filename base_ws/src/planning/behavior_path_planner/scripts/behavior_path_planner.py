@@ -32,6 +32,8 @@ from tier4_rtc_msgs.msg import Module, State
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bpp_lane_change_tools import build_route_lane_change_path, route_lane_change_target
+from bpp_dynamic_avoidance_tools import DynamicAvoidanceScene
+from bpp_goal_planner_tools import GoalPlannerScene
 from bpp_map_tools import (
     CenterlineMap,
     closest_lane_id,
@@ -41,21 +43,16 @@ from bpp_map_tools import (
     trim_polyline,
 )
 from bpp_path_tools import (
-    apply_goal_shift,
-    apply_pull_out_shift,
     apply_s_curve_shift,
-    apply_window_shift,
     make_avoidance_debug_array,
     object_pose,
-    object_speed,
     object_width,
-    path_length,
     project_pose_to_path,
-    set_velocity_window,
     to_debug_path,
     to_autoware_path,
-    uuid_to_string,
 )
+from bpp_side_shift_tools import SideShiftScene
+from bpp_start_planner_tools import StartPlannerScene
 from bpp_static_avoidance_tools import StaticAvoidanceScene
 from rtc_interface_ros1 import RTCInterfaceROS1, RTCSceneController
 
@@ -109,6 +106,10 @@ class BehaviorPathPlanner:
         self.side_shift_request_time = None
         self.centerline_map = None
         self.static_avoidance_scene = None
+        self.dynamic_avoidance_scene = None
+        self.start_planner_scene = None
+        self.goal_planner_scene = None
+        self.side_shift_scene = None
 
         self.frame_id = rospy.get_param("~frame_id", "map")
         self.planning_hz = float(rospy.get_param("~planning_hz", 10.0))
@@ -149,8 +150,8 @@ class BehaviorPathPlanner:
             rospy.get_param("~enable_dynamic_obstacle_avoidance", True)
         )
         self.enable_start_planner = param_bool(rospy.get_param("~enable_start_planner", True))
-        self.enable_goal_planner = param_bool(rospy.get_param("~enable_goal_planner", True))
-        self.enable_side_shift = param_bool(rospy.get_param("~enable_side_shift", True))
+        self.enable_goal_planner = param_bool(rospy.get_param("~enable_goal_planner", False))
+        self.enable_side_shift = param_bool(rospy.get_param("~enable_side_shift", False))
 
         self.load_module_params()
         self.create_rtc_interfaces()
@@ -161,6 +162,17 @@ class BehaviorPathPlanner:
         self.static_avoidance_scene = StaticAvoidanceScene(
             "~static_obstacle_avoidance", self.centerline_map
         )
+        self.dynamic_avoidance_scene = DynamicAvoidanceScene(
+            "~dynamic_obstacle_avoidance"
+        )
+        self.start_planner_scene = StartPlannerScene("~start_planner")
+        self.goal_planner_scene = GoalPlannerScene("~goal_planner")
+        self.side_shift_scene = SideShiftScene("~side_shift")
+        if self.side_shift_request is not None:
+            self.side_shift_scene.update_request(
+                self.side_shift_request.lateral_offset,
+                self.side_shift_request.stamp,
+            )
 
         period = rospy.Duration(1.0 / max(self.planning_hz, 0.1))
         self.timer = rospy.Timer(period, self.on_timer)
@@ -205,77 +217,6 @@ class BehaviorPathPlanner:
         )
         self.lane_change_enable_rtc_right = param_bool(
             rospy.get_param("~lane_change/rtc/enable_right", False)
-        )
-
-        self.dynamic_min_speed = float(
-            rospy.get_param("~dynamic_obstacle_avoidance/min_dynamic_speed", 0.5)
-        )
-        self.dynamic_max_speed = float(
-            rospy.get_param("~dynamic_obstacle_avoidance/max_dynamic_speed", 100.0)
-        )
-        self.dynamic_max_forward_distance = float(
-            rospy.get_param("~dynamic_obstacle_avoidance/max_forward_distance", 80.0)
-        )
-        self.dynamic_object_check_lateral_range = float(
-            rospy.get_param("~dynamic_obstacle_avoidance/object_check_lateral_range", 2.0)
-        )
-        self.dynamic_slow_down_before_distance = float(
-            rospy.get_param("~dynamic_obstacle_avoidance/slow_down_before_distance", 8.0)
-        )
-        self.dynamic_slow_down_after_distance = float(
-            rospy.get_param("~dynamic_obstacle_avoidance/slow_down_after_distance", 8.0)
-        )
-        self.dynamic_slow_velocity_mps = float(
-            rospy.get_param("~dynamic_obstacle_avoidance/slow_velocity_mps", 1.0)
-        )
-        self.dynamic_enable_lateral_nudge = param_bool(
-            rospy.get_param("~dynamic_obstacle_avoidance/enable_lateral_nudge", True)
-        )
-        self.dynamic_nudge_shift_length = float(
-            rospy.get_param("~dynamic_obstacle_avoidance/nudge_shift_length", 0.3)
-        )
-        self.dynamic_prepare_distance = float(
-            rospy.get_param("~dynamic_obstacle_avoidance/prepare_distance", 10.0)
-        )
-        self.dynamic_return_distance = float(
-            rospy.get_param("~dynamic_obstacle_avoidance/return_distance", 10.0)
-        )
-        self.dynamic_default_avoid_direction = rospy.get_param(
-            "~dynamic_obstacle_avoidance/default_avoid_direction", "right"
-        ).lower()
-
-        self.start_pull_out_lateral_offset = float(
-            rospy.get_param("~start_planner/pull_out_lateral_offset", 0.0)
-        )
-        self.start_pull_out_distance = float(rospy.get_param("~start_planner/pull_out_distance", 20.0))
-        self.start_hold_until_autonomous = param_bool(
-            rospy.get_param("~start_planner/hold_until_autonomous", False)
-        )
-        self.start_require_operation_mode = param_bool(
-            rospy.get_param("~start_planner/require_operation_mode", False)
-        )
-        self.start_min_offset_to_signal = float(
-            rospy.get_param("~start_planner/min_offset_to_signal", 0.1)
-        )
-
-        self.goal_lateral_offset = float(rospy.get_param("~goal_planner/goal_lateral_offset", 0.0))
-        self.goal_pull_over_distance = float(rospy.get_param("~goal_planner/pull_over_distance", 20.0))
-        self.goal_allow_modification = param_bool(
-            rospy.get_param("~goal_planner/allow_goal_modification", True)
-        )
-
-        self.side_shift_default_lateral_offset = float(
-            rospy.get_param("~side_shift/default_lateral_offset", 0.0)
-        )
-        self.side_shift_min_distance_to_start = float(
-            rospy.get_param("~side_shift/min_distance_to_start_shifting", 5.0)
-        )
-        self.side_shift_min_shifting_distance = float(
-            rospy.get_param("~side_shift/min_shifting_distance", 5.0)
-        )
-        self.side_shift_min_request_offset = float(rospy.get_param("~side_shift/min_request_offset", 0.05))
-        self.side_shift_request_time_limit = float(
-            rospy.get_param("~side_shift/shift_request_time_limit", 0.0)
         )
 
     def create_rtc_interfaces(self):
@@ -398,6 +339,24 @@ class BehaviorPathPlanner:
         self.dynamic_avoidance_debug_pub = rospy.Publisher(
             "~debug/dynamic_obstacle_avoidance", AvoidanceDebugMsgArray, queue_size=1
         )
+        self.start_planner_reference_pub = rospy.Publisher(
+            "~output/start_planner_reference_path", AutowarePath, queue_size=1
+        )
+        self.start_planner_candidate_pub = rospy.Publisher(
+            "~output/start_planner_candidate_path", AutowarePath, queue_size=1
+        )
+        self.start_planner_debug_pub = rospy.Publisher(
+            "~debug/start_planner_safety", AvoidanceDebugMsgArray, queue_size=1
+        )
+        self.goal_planner_reference_pub = rospy.Publisher(
+            "~output/goal_planner_reference_path", AutowarePath, queue_size=1
+        )
+        self.side_shift_reference_pub = rospy.Publisher(
+            "~output/side_shift_reference_path", AutowarePath, queue_size=1
+        )
+        self.side_shift_candidate_pub = rospy.Publisher(
+            "~output/side_shift_candidate_path", AutowarePath, queue_size=1
+        )
 
         self.debug_path_pub = rospy.Publisher("~debug/path", Path, queue_size=1)
         self.debug_stage_pubs = {
@@ -488,6 +447,8 @@ class BehaviorPathPlanner:
     def side_shift_offset_callback(self, msg):
         self.side_shift_request = msg
         self.side_shift_request_time = rospy.Time.now()
+        if self.side_shift_scene is not None:
+            self.side_shift_scene.update_request(msg.lateral_offset, msg.stamp)
 
     def on_timer(self, _event):
         if rospy.is_shutdown():
@@ -528,7 +489,7 @@ class BehaviorPathPlanner:
         self.publish_debug_stage("static_obstacle_avoidance", path)
 
         if self.enable_dynamic_obstacle_avoidance:
-            path, status = self.apply_dynamic_obstacle_avoidance(path)
+            path, status = self.apply_dynamic_obstacle_avoidance(path, stamp)
             statuses.append(status)
         else:
             self.publish_dynamic_debug(path, [])
@@ -536,10 +497,11 @@ class BehaviorPathPlanner:
         self.publish_debug_stage("dynamic_obstacle_avoidance", path)
 
         if self.enable_start_planner:
-            path, status, command = self.apply_start_planner(path)
+            path, status, command = self.apply_start_planner(path, stamp)
             statuses.append(status)
             turn_command = self.prefer_command(turn_command, command)
         else:
+            self.start_planner_scene.rtc_controller.complete(stamp)
             statuses.append("start_planner: disabled")
         self.publish_debug_stage("start_planner", path)
 
@@ -976,169 +938,64 @@ class BehaviorPathPlanner:
             )
         return result.output_path, result.status, command
 
-    def collect_dynamic_candidates(self, path):
-        if self.objects is None:
-            return []
-
-        candidates = []
-        for obj in self.objects.objects:
-            speed = object_speed(obj)
-            projection = project_pose_to_path(path, object_pose(obj))
-            if projection is None:
-                continue
-
-            candidate = {
-                "object_id": uuid_to_string(obj.object_id),
-                "longitudinal_distance": projection.longitudinal_distance,
-                "lateral_distance": projection.signed_lateral_distance,
-                "path_distance": projection.distance,
-                "shift_length": 0.0,
-                "allow_avoidance": False,
-            }
-
-            if speed < self.dynamic_min_speed:
-                candidate["failed_reason"] = "static_or_slow_object"
-            elif speed > self.dynamic_max_speed:
-                candidate["failed_reason"] = "too_fast"
-            elif projection.longitudinal_distance < 0.0:
-                candidate["failed_reason"] = "behind_ego"
-            elif projection.longitudinal_distance > self.dynamic_max_forward_distance:
-                candidate["failed_reason"] = "too_far"
-            elif abs(projection.signed_lateral_distance) > self.dynamic_object_check_lateral_range:
-                candidate["failed_reason"] = "outside_path_corridor"
-            else:
-                candidate["allow_avoidance"] = True
-                if self.dynamic_enable_lateral_nudge:
-                    candidate["shift_length"] = (
-                        self.dynamic_shift_sign(projection.signed_lateral_distance)
-                        * self.dynamic_nudge_shift_length
-                    )
-                candidate["failed_reason"] = ""
-            candidates.append(candidate)
-
-        return candidates
-
-    def dynamic_shift_sign(self, lateral_distance):
-        if abs(lateral_distance) < 1.0e-3:
-            return -1.0 if self.dynamic_default_avoid_direction == "right" else 1.0
-        return -1.0 if lateral_distance > 0.0 else 1.0
-
-    def apply_dynamic_obstacle_avoidance(self, path):
-        candidates = self.collect_dynamic_candidates(path)
-        self.publish_dynamic_debug(path, candidates)
-
-        valid_candidates = [candidate for candidate in candidates if candidate["allow_avoidance"]]
-        if not valid_candidates:
-            return path, "dynamic_obstacle_avoidance: pass-through, no dynamic target"
-
-        target = min(valid_candidates, key=lambda item: item["longitudinal_distance"])
-        start_s = max(0.0, target["longitudinal_distance"] - self.dynamic_slow_down_before_distance)
-        end_s = target["longitudinal_distance"] + self.dynamic_slow_down_after_distance
-        output = set_velocity_window(path, start_s, end_s, self.dynamic_slow_velocity_mps, mode="min")
-
-        if self.dynamic_enable_lateral_nudge and abs(target["shift_length"]) > 1.0e-6:
-            output = apply_window_shift(
-                output,
-                target["shift_length"],
-                target["longitudinal_distance"],
-                self.dynamic_prepare_distance,
-                self.dynamic_return_distance,
-            )
-
-        return output, "dynamic_obstacle_avoidance: target {} slowed to {:.2f} m/s".format(
-            target["object_id"], self.dynamic_slow_velocity_mps
+    def apply_dynamic_obstacle_avoidance(self, path, stamp):
+        result = self.dynamic_avoidance_scene.process(
+            path, self.objects, self.odometry, stamp
         )
+        self.publish_dynamic_debug(
+            path, [candidate.debug_dict() for candidate in result.candidates]
+        )
+        return result.output_path, result.status
 
-    def apply_start_planner(self, path):
-        output = path
-        status_parts = []
-        turn_command = TurnIndicatorsCommand.NO_COMMAND
-
-        if abs(self.start_pull_out_lateral_offset) > self.start_min_offset_to_signal:
-            output = apply_pull_out_shift(
-                output, self.start_pull_out_lateral_offset, self.start_pull_out_distance
+    def apply_start_planner(self, path, stamp):
+        result = self.start_planner_scene.process(
+            path, self.objects, self.odometry, stamp
+        )
+        self.start_planner_reference_pub.publish(to_autoware_path(result.reference_path))
+        self.start_planner_candidate_pub.publish(to_autoware_path(result.candidate_path))
+        self.start_planner_debug_pub.publish(
+            make_avoidance_debug_array(
+                path.header, [candidate.debug_dict() for candidate in result.candidates]
             )
-            status_parts.append(
-                "pull-out merge from offset {:.2f} m".format(self.start_pull_out_lateral_offset)
-            )
-            if self.start_pull_out_lateral_offset > 0.0:
-                turn_command = TurnIndicatorsCommand.ENABLE_RIGHT
-            else:
-                turn_command = TurnIndicatorsCommand.ENABLE_LEFT
-        else:
-            status_parts.append("no pull-out offset")
-
-        if self.start_hold_until_autonomous and not self.is_autonomous_enabled():
-            output = set_velocity_window(output, 0.0, path_length(output), 0.0, mode="set")
-            status_parts.append("holding velocity at 0 until autonomous")
-
-        return output, "start_planner: " + ", ".join(status_parts), turn_command
-
-    def is_autonomous_enabled(self):
-        if self.operation_mode is None:
-            return not self.start_require_operation_mode
+        )
         return (
-            self.operation_mode.mode == OperationModeState.AUTONOMOUS
-            and self.operation_mode.is_autoware_control_enabled
-            and not self.operation_mode.is_in_transition
+            result.output_path,
+            result.status,
+            self.start_planner_scene.turn_command(result),
         )
 
     def apply_goal_planner(self, path, stamp):
-        output = apply_goal_shift(path, self.goal_lateral_offset, self.goal_pull_over_distance)
-
-        if self.stop_at_goal and output.points:
-            output.points[-1].point.longitudinal_velocity_mps = 0.0
-            output.points[-1].point.is_final = True
-
-        self.publish_goal_side_outputs(output, stamp)
-
-        if abs(self.goal_lateral_offset) > 1.0e-6:
-            return output, "goal_planner: pull-over offset {:.2f} m over {:.2f} m".format(
-                self.goal_lateral_offset, min(self.goal_pull_over_distance, path_length(output))
-            )
-        return output, "goal_planner: fixed goal pass-through"
-
-    def requested_side_shift_offset(self):
-        if self.side_shift_request is not None:
-            if self.side_shift_request_time_limit <= 0.0:
-                return self.side_shift_request.lateral_offset
-            age = (rospy.Time.now() - self.side_shift_request_time).to_sec()
-            if age <= self.side_shift_request_time_limit:
-                return self.side_shift_request.lateral_offset
-        return self.side_shift_default_lateral_offset
+        result = self.goal_planner_scene.process(path, self.route)
+        inactive_reference = AutowarePath()
+        inactive_reference.header.stamp = stamp
+        inactive_reference.header.frame_id = path.header.frame_id or self.frame_id
+        self.goal_planner_reference_pub.publish(inactive_reference)
+        self.publish_goal_side_outputs(result.output_path, stamp, result.modified_goal_pose)
+        return result.output_path, result.status
 
     def apply_side_shift(self, path):
-        offset = self.requested_side_shift_offset()
-        if abs(offset) < self.side_shift_min_request_offset:
-            return path, "side_shift: pass-through, no offset request", TurnIndicatorsCommand.NO_COMMAND
-
-        output = apply_s_curve_shift(
-            path,
-            offset,
-            self.side_shift_min_distance_to_start,
-            self.side_shift_min_distance_to_start + self.side_shift_min_shifting_distance,
-        )
+        result = self.side_shift_scene.process(path, self.odometry)
+        self.side_shift_reference_pub.publish(to_autoware_path(result.reference_path))
+        self.side_shift_candidate_pub.publish(to_autoware_path(result.candidate_path))
         return (
-            output,
-            "side_shift: applied lateral offset {:.2f} m".format(offset),
-            self.turn_command_for_offset(offset),
+            result.output_path,
+            result.status,
+            self.side_shift_scene.turn_command(result),
         )
 
-    def publish_goal_side_outputs(self, path, stamp):
-        modified_goal = PoseWithUuidStamped()
-        modified_goal.header.stamp = stamp
-        modified_goal.header.frame_id = path.header.frame_id or self.frame_id
-        if path.points:
-            modified_goal.pose = path.points[-1].point.pose
-        elif self.route is not None:
-            modified_goal.pose = self.route.goal_pose
-        if self.route is not None:
-            modified_goal.uuid = self.route.uuid
-        self.modified_goal_pub.publish(modified_goal)
+    def publish_goal_side_outputs(self, path, stamp, modified_goal_pose=None):
+        if modified_goal_pose is not None:
+            modified_goal = PoseWithUuidStamped()
+            modified_goal.header.stamp = stamp
+            modified_goal.header.frame_id = path.header.frame_id or self.frame_id
+            modified_goal.pose = modified_goal_pose
+            if self.route is not None:
+                modified_goal.uuid = self.route.uuid
+            self.modified_goal_pub.publish(modified_goal)
 
         reroute = RerouteAvailability()
         reroute.stamp = stamp
-        reroute.availability = self.goal_allow_modification
+        reroute.availability = self.goal_planner_scene.engine.parameters.allow_goal_modification
         self.reroute_pub.publish(reroute)
 
     def publish_static_debug(self, path, candidates):

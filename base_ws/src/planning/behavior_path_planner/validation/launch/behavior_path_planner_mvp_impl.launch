@@ -93,9 +93,13 @@
   <node pkg="behavior_path_planner" type="dynamic_obstacle_avoidance_bpp.py" name="dynamic_obstacle_avoidance_bpp" output="screen">
     <param name="frame_id" value="$(arg frame_id)" />
     <param name="planning_hz" value="$(arg planning_hz)" />
+    <rosparam command="load" file="$(find behavior_path_planner)/config/dynamic_obstacle_avoidance.param.yaml" param="dynamic_obstacle_avoidance" />
     <remap from="~input/path" to="/planning/bpp/static_obstacle_avoidance/path" />
     <remap from="~input/objects" to="/perception/object_recognition/objects" />
+    <remap from="~input/odometry" to="/localization/kinematic_state" />
     <remap from="~output/path" to="/planning/bpp/dynamic_obstacle_avoidance/path" />
+    <remap from="~output/reference_path" to="/planning/path_reference/dynamic_obstacle_avoidance" />
+    <remap from="~output/candidate_path" to="/planning/path_candidate/dynamic_obstacle_avoidance" />
     <remap from="~debug/path" to="/planning/debug/bpp/dynamic_obstacle_avoidance_path" />
     <remap from="~debug/avoidance" to="/planning/debug/bpp/dynamic_obstacle_avoidance" />
   </node>
@@ -103,35 +107,41 @@
   <node pkg="behavior_path_planner" type="start_planner_bpp.py" name="start_planner_bpp" output="screen">
     <param name="frame_id" value="$(arg frame_id)" />
     <param name="planning_hz" value="$(arg planning_hz)" />
-    <param name="pull_out_lateral_offset" value="0.0" />
-    <param name="hold_until_autonomous" value="false" />
+    <rosparam command="load" file="$(find behavior_path_planner)/config/start_planner.param.yaml" param="start_planner" />
     <remap from="~input/path" to="/planning/bpp/dynamic_obstacle_avoidance/path" />
-    <remap from="~input/operation_mode" to="/system/operation_mode/state" />
+    <remap from="~input/objects" to="/perception/object_recognition/objects" />
+    <remap from="~input/odometry" to="/localization/kinematic_state" />
     <remap from="~output/path" to="/planning/bpp/start_planner/path" />
+    <remap from="~output/reference_path" to="/planning/path_reference/start_planner" />
+    <remap from="~output/candidate_path" to="/planning/path_candidate/start_planner" />
     <remap from="~output/turn_indicators_cmd" to="/planning/bpp/start_planner/turn_indicators_cmd" />
     <remap from="~debug/path" to="/planning/debug/bpp/start_planner_path" />
+    <remap from="~debug/safety" to="/planning/debug/bpp/start_planner_safety" />
   </node>
 
   <node pkg="behavior_path_planner" type="goal_planner_bpp.py" name="goal_planner_bpp" output="screen">
     <param name="frame_id" value="$(arg frame_id)" />
     <param name="planning_hz" value="$(arg planning_hz)" />
-    <param name="goal_lateral_offset" value="0.0" />
-    <param name="stop_at_goal" value="true" />
+    <rosparam command="load" file="$(find behavior_path_planner)/config/goal_planner_non_parking.param.yaml" param="goal_planner" />
     <remap from="~input/path" to="/planning/bpp/start_planner/path" />
     <remap from="~input/route" to="/planning/mission_planning/route" />
     <remap from="~output/path" to="/planning/bpp/goal_planner/path" />
+    <remap from="~output/reference_path" to="/planning/path_reference/goal_planner" />
     <remap from="~output/modified_goal" to="/planning/scenario_planning/modified_goal" />
-    <remap from="~output/is_reroute_available" to="/planning/scenario_planning/is_reroute_available" />
+    <remap from="~output/is_reroute_available" to="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/output/is_reroute_available" />
     <remap from="~debug/path" to="/planning/debug/bpp/goal_planner_path" />
   </node>
 
   <node pkg="behavior_path_planner" type="side_shift_bpp.py" name="side_shift_bpp" output="screen">
     <param name="frame_id" value="$(arg frame_id)" />
     <param name="planning_hz" value="$(arg planning_hz)" />
-    <param name="default_lateral_offset" value="0.0" />
+    <rosparam command="load" file="$(find behavior_path_planner)/config/side_shift.param.yaml" param="side_shift" />
     <remap from="~input/path" to="/planning/bpp/goal_planner/path" />
-    <remap from="~input/lateral_offset" to="/planning/scenario_planning/lane_driving/side_shift/lateral_offset" />
+    <remap from="~input/lateral_offset" to="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/input/lateral_offset" />
+    <remap from="~input/odometry" to="/localization/kinematic_state" />
     <remap from="~output/path" to="/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id" />
+    <remap from="~output/reference_path" to="/planning/path_reference/side_shift" />
+    <remap from="~output/candidate_path" to="/planning/path_candidate/side_shift" />
     <remap from="~output/turn_indicators_cmd" to="/planning/turn_indicators_cmd" />
     <remap from="~debug/path" to="/planning/debug/bpp/side_shift_path" />
   </node>

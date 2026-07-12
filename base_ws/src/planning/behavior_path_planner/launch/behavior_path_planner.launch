@@ -8,6 +8,8 @@
   <arg name="lane_change_enable_rtc_right" default="false" />
   <arg name="static_avoidance_enable_rtc_left" default="false" />
   <arg name="static_avoidance_enable_rtc_right" default="false" />
+  <arg name="enable_goal_planner" default="false" />
+  <arg name="enable_side_shift" default="false" />
 
   <include file="$(find behavior_path_planner)/launch/behavior_path_planner_impl.launch">
     <arg name="frame_id" value="$(arg frame_id)" />
@@ -19,5 +21,7 @@
     <arg name="lane_change_enable_rtc_right" value="$(arg lane_change_enable_rtc_right)" />
     <arg name="static_avoidance_enable_rtc_left" value="$(arg static_avoidance_enable_rtc_left)" />
     <arg name="static_avoidance_enable_rtc_right" value="$(arg static_avoidance_enable_rtc_right)" />
+    <arg name="enable_goal_planner" value="$(arg enable_goal_planner)" />
+    <arg name="enable_side_shift" value="$(arg enable_side_shift)" />
   </include>
 </launch>
