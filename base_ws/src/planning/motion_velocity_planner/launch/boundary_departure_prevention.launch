@@ -1,0 +1,7 @@
+<launch>
+  <node pkg="motion_velocity_planner" type="boundary_departure_prevention.py" name="boundary_departure_prevention" output="screen">
+    <param name="boundary_distance" value="1.0" />
+    <param name="min_velocity_mps" value="1.0" />
+    <param name="curvature_warning" value="0.15" />
+  </node>
+</launch>

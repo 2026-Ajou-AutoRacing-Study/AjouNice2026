@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>velocity_planner</name>
+  <name>motion_velocity_planner</name>
   <version>0.0.1</version>
   <description>ROS 1 velocity planner package port using Autoware-compatible message packages.</description>
 

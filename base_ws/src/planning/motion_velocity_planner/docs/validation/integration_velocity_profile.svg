@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" role="img" aria-labelledby="title desc">
+  <title id="title">Integrated velocity profile for static and dynamic obstacles</title>
+  <desc id="desc">Both current integrated test cases start slowing at 16 meters and stop at 27 meters, showing that the dynamic stop branch has not yet been wired into the integrated node.</desc>
+  <defs><style>.title{font:700 25px sans-serif;fill:#0f172a}.axis{font:14px sans-serif;fill:#475569}.label{font:600 15px sans-serif;fill:#0f172a}.grid{stroke:#cbd5e1;stroke-width:1}.static{fill:none;stroke:#2563eb;stroke-width:5}.dynamic{fill:none;stroke:#f97316;stroke-width:4;stroke-dasharray:10 8}.marker{stroke:#dc2626;stroke-width:2;stroke-dasharray:7 5}</style></defs>
+  <rect width="1200" height="660" fill="#f8fafc"/>
+  <text x="58" y="52" class="title">End-to-End Velocity Profile — 30 m Obstacle</text><text x="58" y="78" class="axis">Current integration test result: static and dynamic object outputs overlap</text>
+  <rect x="105" y="120" width="995" height="395" fill="#ffffff" stroke="#94a3b8"/>
+  <g class="grid"><path d="M105 515H1100M105 436H1100M105 357H1100M105 278H1100M105 199H1100M105 120H1100"/><path d="M105 120V515M271 120V515M437 120V515M603 120V515M768 120V515M934 120V515M1100 120V515"/></g>
+  <g class="axis"><text x="70" y="520">0</text><text x="70" y="441">1</text><text x="70" y="362">2</text><text x="70" y="283">3</text><text x="70" y="204">4</text><text x="70" y="125">5</text><text x="99" y="545">0</text><text x="259" y="545">5</text><text x="425" y="545">10</text><text x="590" y="545">15</text><text x="756" y="545">20</text><text x="922" y="545">25</text><text x="1086" y="545">30</text><text x="540" y="590">Path distance s [m]</text><text transform="translate(26 365) rotate(-90)">Velocity [m/s]</text></g>
+  <path class="marker" d="M1000 120V515"/><text x="930" y="110" class="label" fill="#dc2626">Obstacle: 30 m</text>
+  <path class="static" d="M105 120 L603 120 L636 153 L768 284 L901 436 L1000 515 L1100 515"/>
+  <path class="dynamic" d="M105 120 L603 120 L636 153 L768 284 L901 436 L1000 515 L1100 515"/>
+  <rect x="135" y="615" width="24" height="5" fill="#2563eb"/><text x="168" y="621" class="axis">Static obstacle (0 m/s)</text><line x1="390" y1="618" x2="415" y2="618" class="dynamic"/><text x="425" y="621" class="axis">Dynamic obstacle (2 m/s)</text><text x="715" y="621" class="axis">Observed stop point: 27 m</text>
+</svg>

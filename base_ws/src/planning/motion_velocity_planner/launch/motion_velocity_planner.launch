@@ -1,0 +1,6 @@
+<launch>
+  <node pkg="motion_velocity_planner" type="motion_velocity_planner.py" name="motion_velocity_planner" output="screen">
+    <param name="frame_id" value="map" />
+    <param name="planning_hz" value="10.0" />
+  </node>
+</launch>

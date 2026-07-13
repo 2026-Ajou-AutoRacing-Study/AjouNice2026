@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(velocity_planner)
+project(motion_velocity_planner)
 
 find_package(catkin REQUIRED COMPONENTS
   autoware_adapi_v1_msgs
@@ -33,5 +33,13 @@ catkin_package(
 catkin_install_python(
   PROGRAMS
   scripts/velocity_planner.py
+  scripts/motion_velocity_planner.py
+  scripts/obstacle_velocity_limiter.py
+  scripts/out_of_lane.py
+  scripts/obstacle_cruise.py
+  scripts/obstacle_stop.py
+  scripts/obstacle_slow_down.py
+  scripts/dynamic_obstacle_stop.py
+  scripts/boundary_departure_prevention.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
