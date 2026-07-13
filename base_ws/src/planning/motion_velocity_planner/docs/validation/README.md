@@ -1,14 +1,8 @@
 # Motion Velocity Planner Validation Materials
 
-## 1. Integration architecture
+## End-to-end velocity profile
 
-![Integration architecture](motion_velocity_planner_architecture.svg)
-
-## 2. End-to-end velocity profile
-
-![Integrated velocity profile](integration_velocity_profile.svg)
-
-The profile is based on the executed 30 m obstacle integration test:
+The following values are based on the executed 30 m obstacle integration test:
 
 - Input path: 1 m spacing, 8 m/s initial velocity
 - Planner base velocity: 5 m/s
@@ -18,7 +12,7 @@ The profile is based on the executed 30 m obstacle integration test:
 
 The overlapping profiles are intentional evidence of the current integration gap: the integrated node still reads `ObjectClassification.confidence`, whereas the ROS message provides `probability`. As a result, its static/dynamic classification branches are inactive and the generic slow-down policy determines the stop point.
 
-## 3. RViz capture guide
+## RViz capture guide
 
 Use this layout to produce the companion RViz screenshot.
 
