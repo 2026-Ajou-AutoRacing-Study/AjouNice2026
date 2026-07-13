@@ -13,7 +13,7 @@ static_transforms:
 
   - parent: "base_link"
     child: "imu"
-    xyz: [1.528, 0.0, 1.23]
+    xyz: [1.528, 0.0, 0.2]
     rpy: [0.0, 0.0, 0.0]
 
   - parent: "base_link"
