@@ -93,7 +93,7 @@ $ rostopic echo -n 1 /Odometry
 ```
 
 ### rosbag 안에 LiDAR아 loop back하는 이슈
-- `scripts/lidar_loop_back_test.py`
+- `scripts/experiments/rosbag_legacy/lidar_loop_back_test.py`
 ```bash
 /lidar3D: count=72, backward=19
 /sensor/imu: count=107, backward=0
@@ -118,10 +118,10 @@ $ rostopic echo -n 1 /Odometry
   - 나중에 생각
 
 ### valid rosbag 생성
-- `scripts/valid_rosbag_maker.py`
+- `scripts/experiments/rosbag_legacy/valid_rosbag_maker.py`
 - `~/AjouNice2026/rosbags/morai_local_valid_ego_sensors_fixed_time.bag`
 
-- `scripts/valid_rosbag_check.py`
+- `scripts/experiments/rosbag_legacy/valid_rosbag_check.py`
 
 ```bash
 /lidar3D: count=72, backward=0

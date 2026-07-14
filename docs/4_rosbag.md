@@ -5,7 +5,14 @@
 
 ### rosbag 제작
 ```bash
-bash ~/AjouNice2026/scripts/rosbag_maker.sh
+bash ~/AjouNice2026/scripts/rosbag/record/rosbag_raw.sh
+```
+
+6개 카메라를 함께 녹화할 때는 아래를 사용한다. 출력은 기본적으로
+`rosbags/raw_camera/`에 저장된다.
+
+```bash
+bash ~/AjouNice2026/scripts/rosbag/record/rosbag_cam_raw.sh
 ```
 - 도심로 10초 녹화함
   - 정지 상태에서 직진 가속도 주행, 왼쪽 및 오른쪽 살짝식 조향

@@ -2,20 +2,24 @@
 set -euo pipefail
 
 ROOT="${AJOUNICE_ROOT:-$HOME/AjouNice2026}"
-OUT_DIR="${ROSBAG_RAW_DIR:-$ROOT/rosbags/raw}"
+OUT_DIR="${ROSBAG_CAM_RAW_DIR:-$ROOT/rosbags/raw_camera}"
 STAMP="$(date '+%m%d_%H%M')"
-BAG="$OUT_DIR/raw_sensor_$STAMP.bag"
+BAG="$OUT_DIR/raw_camera_$STAMP.bag"
 REC_PID=""
 
 TOPICS=(
   /sensor/lidar1
   /sensor/lidar2
-  /sensor/camera
   /sensor/imu
   /sensor/gps
   /Ego_topic
   /Object_topic
-  /localization/odom
+  /sensor/camera/front
+  /sensor/camera/front_left
+  /sensor/camera/front_right
+  /sensor/camera/back_left
+  /sensor/camera/back_right
+  /sensor/camera/back
 )
 
 mkdir -p "$OUT_DIR"

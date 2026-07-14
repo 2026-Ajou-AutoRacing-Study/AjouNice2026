@@ -1,31 +1,34 @@
 # scripts
-- setup/build/run/check에 사용할 스크립트들
 
-## scripts list
-- `setup_ws.sh`: ros용 workspace 전체 설정 스크립트
-- `build_all.sh`: ros용 workspace 전체 빌드 스크립트
-- `run_full_stack.sh`: 현재 sensing bringup 실행용 wrapper
-  - (실제 대회에선 필요한 launch 조합에 맞춰 이 스크립트를 갱신하면 될 듯)
-- `check_topics.sh`: 토픽 테스트용 스크립트
-- `morai_status.sh`: MORAI/ROS1 런타임 상태 점검용 스크립트
-  - `11311`, `9090`, LiDAR UDP 포트, 주요 ROS 노드, `/connected_clients`, 핵심 토픽 publisher/subscriber를 한 번에 확인
-- `morai_reset.sh`: MORAI 연동 중 꼬인 ROS1 프로세스 정리용 스크립트
-  - `bash scripts/morai_reset.sh stack`: roscore, rosbridge, sensing/map/rviz 관련 ROS 프로세스 정리
-  - `bash scripts/morai_reset.sh bridge`: rosbridge/rosapi만 정리
+저장소 최상위의 `scripts/`는 실행 목적별로 정리한다. 모든 명령은 저장소
+루트에서 실행하거나, 각 파일의 경로를 명시해서 실행한다.
 
-## MORAI live bringup order
-- 전체 ROS 스택이 꼬였거나 roscore/노드가 남아 있으면 먼저 `morai_reset`
-- PC 쪽 rosbridge 서버를 `rb`로 실행
-  - MORAI `ROS Connect`는 client이므로, `bringup/morai_bridge.launch` 또는 `rb`를 먼저 실행해야 함
-  - bridge만 재시작하려면 `rb_restart`
-- MORAI에서 `ROS Connect`를 다시 연결
-- TF가 필요하면 `maptf_morai`
-- 센서/RViz가 필요하면 `sensing`
-- 상태 확인은 `morai_status`
+## 디렉터리
 
-## Time mode
-- live MORAI 실행: `/use_sim_time=false`
-- rosbag replay: `/use_sim_time=true` 후 `rosbag play --clock`
+| 경로 | 역할 | 대표 도구 |
+| --- | --- | --- |
+| `workspace/` | ROS workspace 초기화와 빌드 | `setup_ws.sh`, `build_all.sh` |
+| `runtime/` | MORAI/ROS 실행, 상태 점검, 정리 | `launch_sensing.sh`, `morai_status.sh`, `morai_reset.sh` |
+| `rosbag/record/` | live ROS 토픽 녹화 | `rosbag_raw.sh`, `rosbag_cam_raw.sh`, `rosbag_for_eval.sh` |
+| `rosbag/repair/` | bag timestamp와 LiDAR point time 보정 | `fix_bag_header_stamp.py`, `convert_lidar_for_fastlio.py` |
+| `rosbag/inspect/` | rosbag/PointCloud 입력 상태 확인 | `check_cloud_points.py` |
+| `evaluation/fast_lio/` | FAST-LIO와 MORAI Ego GT 비교 | `eval_fast_lio_*.py` |
+| `map/kcity/` | K-City Lanelet과 MGeo 정합/생성 | `kcity_map_align.py` |
+| `experiments/rosbag_legacy/` | 초기 rosbag 검증 실험 보존용 | 고정 경로 기반 legacy 스크립트 |
 
-## Notes
-- 현재(260511) 있는 `setup_ws.sh`, `build_all.sh`, `run_full_stack.sh,`, `check_topics.sh`은 **예시 파일들임.**
+## 기본 실행 흐름
+
+1. workspace 준비: `bash scripts/workspace/setup_ws.sh` 또는 `bash scripts/workspace/build_all.sh`
+2. MORAI live 상태 확인/정리: `bash scripts/runtime/morai_status.sh`, `bash scripts/runtime/morai_reset.sh stack`
+3. rosbag 녹화
+   - raw 센서: `bash scripts/rosbag/record/rosbag_raw.sh`
+   - raw 센서 + 6개 카메라: `bash scripts/rosbag/record/rosbag_cam_raw.sh`
+4. FAST-LIO offline 입력 보정: [runbook](../docs/runbooks/fast_lio_rosbag_repair.md)을 따른다.
+
+`launch_sensing.sh`는 이전 `run_full_stack.sh`의 이름을 바로잡은 것이다. 현재는
+`bringup sensing.launch`만 실행하며, bridge나 map TF까지 함께 기동하지 않는다.
+
+## 시간 모드
+
+- live MORAI: `/use_sim_time=false`
+- rosbag replay: `/use_sim_time=true`, `rosbag play --clock`
