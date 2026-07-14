@@ -6,7 +6,7 @@
   <arg name="legacy_output_topic" default=""/>
   <arg name="publish_rate" default="0.0"/>
   <arg name="flatten_z" default="false"/>
-  <arg name="publish_lanelet_fill" default="false"/>
+  <arg name="style_file" default="$(find lanelet_map_visualizer)/config/lanelet_marker_style.yaml"/>
 
   <node pkg="lanelet_map_visualizer"
         type="lanelet2_osm_marker_publisher.py"
@@ -19,6 +19,6 @@
     <param name="legacy_output_topic" value="$(arg legacy_output_topic)"/>
     <param name="publish_rate" value="$(arg publish_rate)"/>
     <param name="flatten_z" value="$(arg flatten_z)"/>
-    <param name="publish_lanelet_fill" value="$(arg publish_lanelet_fill)"/>
+    <param name="style_file" value="$(arg style_file)"/>
   </node>
 </launch>

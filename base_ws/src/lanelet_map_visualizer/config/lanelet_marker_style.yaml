@@ -1,0 +1,56 @@
+# RViz style for lanelet2_osm_marker_publisher.py.
+# Edit this file, then restart kcity_lanelet_map.launch to apply the change.
+
+# Multiplies every layer alpha below. Set to 0.6 to fade the entire Lanelet map.
+alpha:
+  global: 0.7
+  road_fill: 0.16
+  crosswalk_fill: 0.30
+  left_boundary: 0.95
+  right_boundary: 0.95
+  centerline: 0.85
+  road_border: 0.85
+  lane_marking: 0.90
+  stop_line: 1.0
+  traffic_light: 0.95
+
+# LINE_LIST thickness (m); traffic_light is the SPHERE_LIST diameter (m).
+width:
+  left_boundary: 0.18
+  right_boundary: 0.18
+  centerline: 0.12
+  road_border: 0.18
+  lane_marking: 0.10
+  stop_line: 0.32
+  traffic_light: 0.70
+
+# Meters above/below source geometry; avoids fill/line z-fighting in RViz.
+z_offset:
+  fill: -0.02
+  boundary: 0.03
+  centerline: 0.06
+  feature: 0.09
+
+# RGB values in the [0.0, 1.0] range.
+color:
+  road_fill: [0.20, 0.70, 0.70]
+  crosswalk_fill: [0.20, 0.70, 0.20]
+  left_boundary: [0.30, 0.80, 1.00]
+  right_boundary: [1.00, 0.55, 0.25]
+  centerline: [1.00, 0.90, 0.20]
+  road_border: [0.65, 0.55, 0.75]
+  lane_marking: [0.88, 0.88, 0.88]
+  stop_line: [1.00, 0.25, 0.05]
+  traffic_light: [0.85, 0.25, 0.95]
+
+# A false layer is omitted from the MarkerArray. Fill layers are off by default.
+show:
+  left_boundaries: true
+  right_boundaries: true
+  centerlines: true
+  road_borders: true
+  lane_markings: true
+  stop_lines: true
+  traffic_lights: true
+  road_fill: false
+  crosswalk_fill: false

@@ -88,12 +88,16 @@ def wgs84_to_utm(lat_deg, lon_deg, zone):
     return easting, northing
 
 
+def clamp(value, lower=0.0, upper=1.0):
+    return max(lower, min(upper, value))
+
+
 def color(r, g, b, a):
     c = ColorRGBA()
-    c.r = r
-    c.g = g
-    c.b = b
-    c.a = a
+    c.r = clamp(r)
+    c.g = clamp(g)
+    c.b = clamp(b)
+    c.a = clamp(a)
     return c
 
 
@@ -111,6 +115,139 @@ def as_bool(value):
     if isinstance(value, str):
         return value.strip().lower() in ("1", "true", "yes", "on")
     return bool(value)
+
+
+def visualization_defaults():
+    """Fallback values for a missing key in the RViz style YAML."""
+    return {
+        "alpha": 1.0,
+        "road_fill_alpha": 0.16,
+        "crosswalk_fill_alpha": 0.30,
+        "left_boundary_alpha": 0.95,
+        "right_boundary_alpha": 0.95,
+        "centerline_alpha": 0.85,
+        "road_border_alpha": 0.85,
+        "lane_marking_alpha": 0.90,
+        "stop_line_alpha": 1.0,
+        "traffic_light_alpha": 0.95,
+        "left_boundary_width": 0.18,
+        "right_boundary_width": 0.18,
+        "centerline_width": 0.12,
+        "road_border_width": 0.18,
+        "lane_marking_width": 0.10,
+        "stop_line_width": 0.32,
+        "traffic_light_scale": 0.70,
+        # Small offsets keep overlapping map primitives legible in RViz.
+        "fill_z_offset": -0.02,
+        "boundary_z_offset": 0.03,
+        "centerline_z_offset": 0.06,
+        "feature_z_offset": 0.09,
+        "show_left_boundaries": True,
+        "show_right_boundaries": True,
+        "show_centerlines": True,
+        "show_road_borders": True,
+        "show_lane_markings": True,
+        "show_stop_lines": True,
+        "show_traffic_lights": True,
+        "show_road_fill": False,
+        "show_crosswalk_fill": False,
+        "colors": {
+            "road_fill": (0.20, 0.70, 0.70),
+            "crosswalk_fill": (0.20, 0.70, 0.20),
+            "left_boundary": (0.30, 0.80, 1.00),
+            "right_boundary": (1.00, 0.55, 0.25),
+            "centerline": (1.00, 0.90, 0.20),
+            "road_border": (0.65, 0.55, 0.75),
+            "lane_marking": (0.88, 0.88, 0.88),
+            "stop_line": (1.00, 0.25, 0.05),
+            "traffic_light": (0.85, 0.25, 0.95),
+        },
+    }
+
+
+def load_visualization_params(style_file):
+    """Read the user-editable RViz style YAML and validate its small schema."""
+    params = visualization_defaults()
+    with open(style_file, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f) or {}
+    if not isinstance(config, dict):
+        raise ValueError("Visualization style YAML must contain a mapping: %s" % style_file)
+
+    sections = {
+        "alpha": {
+            "global": "alpha",
+            "road_fill": "road_fill_alpha",
+            "crosswalk_fill": "crosswalk_fill_alpha",
+            "left_boundary": "left_boundary_alpha",
+            "right_boundary": "right_boundary_alpha",
+            "centerline": "centerline_alpha",
+            "road_border": "road_border_alpha",
+            "lane_marking": "lane_marking_alpha",
+            "stop_line": "stop_line_alpha",
+            "traffic_light": "traffic_light_alpha",
+        },
+        "width": {
+            "left_boundary": "left_boundary_width",
+            "right_boundary": "right_boundary_width",
+            "centerline": "centerline_width",
+            "road_border": "road_border_width",
+            "lane_marking": "lane_marking_width",
+            "stop_line": "stop_line_width",
+            "traffic_light": "traffic_light_scale",
+        },
+        "z_offset": {
+            "fill": "fill_z_offset",
+            "boundary": "boundary_z_offset",
+            "centerline": "centerline_z_offset",
+            "feature": "feature_z_offset",
+        },
+        "show": {
+            "left_boundaries": "show_left_boundaries",
+            "right_boundaries": "show_right_boundaries",
+            "centerlines": "show_centerlines",
+            "road_borders": "show_road_borders",
+            "lane_markings": "show_lane_markings",
+            "stop_lines": "show_stop_lines",
+            "traffic_lights": "show_traffic_lights",
+            "road_fill": "show_road_fill",
+            "crosswalk_fill": "show_crosswalk_fill",
+        },
+    }
+
+    unknown_sections = set(config) - set(sections) - {"color"}
+    if unknown_sections:
+        raise ValueError("Unknown visualization style section(s): %s" % ", ".join(sorted(unknown_sections)))
+
+    for section, keys in sections.items():
+        values = config.get(section, {})
+        if not isinstance(values, dict):
+            raise ValueError("Visualization style section '%s' must be a mapping" % section)
+        unknown_keys = set(values) - set(keys)
+        if unknown_keys:
+            raise ValueError(
+                "Unknown visualization style key(s) in %s: %s" % (section, ", ".join(sorted(unknown_keys)))
+            )
+        for yaml_key, param_key in keys.items():
+            if yaml_key in values:
+                default = params[param_key]
+                params[param_key] = as_bool(values[yaml_key]) if isinstance(default, bool) else float(values[yaml_key])
+
+    colors = config.get("color", {})
+    if not isinstance(colors, dict):
+        raise ValueError("Visualization style section 'color' must be a mapping")
+    unknown_colors = set(colors) - set(params["colors"])
+    if unknown_colors:
+        raise ValueError("Unknown visualization color(s): %s" % ", ".join(sorted(unknown_colors)))
+    for name, rgb in colors.items():
+        if not isinstance(rgb, (list, tuple)) or len(rgb) != 3:
+            raise ValueError("Visualization color '%s' must be an RGB list with three values" % name)
+        params["colors"][name] = tuple(clamp(float(channel)) for channel in rgb)
+
+    return params
+
+
+def styled_color(color_key, alpha_key, params):
+    return color(*params["colors"][color_key], params[alpha_key] * params["alpha"])
 
 
 def parse_osm(path, projector, flatten_z=False):
@@ -177,21 +314,29 @@ def marker_base(frame_id, namespace, marker_id, marker_type, scale, marker_color
     return marker
 
 
-def append_line_segments(marker, points):
+def offset_point(point, z_offset):
+    if z_offset == 0.0:
+        return point
+    return point_from_xyz(point.x, point.y, point.z + z_offset)
+
+
+def append_line_segments(marker, points, z_offset=0.0):
     if len(points) < 2:
         return
     for i in range(len(points) - 1):
-        marker.points.append(points[i])
-        marker.points.append(points[i + 1])
+        marker.points.append(offset_point(points[i], z_offset))
+        marker.points.append(offset_point(points[i + 1], z_offset))
 
 
-def make_way_line_marker(frame_id, namespace, marker_id, ways, nodes, predicate, marker_color, width):
+def make_way_line_marker(
+    frame_id, namespace, marker_id, ways, nodes, predicate, marker_color, width, z_offset=0.0
+):
     marker = marker_base(frame_id, namespace, marker_id, Marker.LINE_LIST, width, marker_color)
     count = 0
     for way in ways.values():
         if predicate(way["tags"]):
             pts = way_points(way, nodes)
-            append_line_segments(marker, pts)
+            append_line_segments(marker, pts, z_offset)
             count += 1
     return marker, count
 
@@ -203,27 +348,61 @@ def relation_way_by_role(relation, role):
     return None
 
 
-def append_lanelet_triangles(marker, left_pts, right_pts):
+def append_lanelet_triangles(marker, left_pts, right_pts, z_offset=0.0):
     polygon = list(left_pts) + list(reversed(right_pts))
     if len(polygon) < 3:
         return
     anchor = polygon[0]
     for i in range(1, len(polygon) - 1):
-        marker.points.extend([anchor, polygon[i], polygon[i + 1]])
+        marker.points.extend(
+            [
+                offset_point(anchor, z_offset),
+                offset_point(polygon[i], z_offset),
+                offset_point(polygon[i + 1], z_offset),
+            ]
+        )
 
 
-def make_lanelet_markers(frame_id, nodes, ways, relations, viz_centerline=True, publish_fill=False):
+def make_lanelet_markers(frame_id, nodes, ways, relations, params, publish_fill=False):
     road_fill = marker_base(
-        frame_id, "road_lanelets", 0, Marker.TRIANGLE_LIST, 1.0, color(0.2, 0.7, 0.7, 0.30)
+        frame_id,
+        "lanelet/road_fill",
+        0,
+        Marker.TRIANGLE_LIST,
+        1.0,
+        styled_color("road_fill", "road_fill_alpha", params),
     )
     crosswalk_fill = marker_base(
-        frame_id, "crosswalk_lanelets", 1, Marker.TRIANGLE_LIST, 1.0, color(0.2, 0.7, 0.2, 0.30)
+        frame_id,
+        "lanelet/crosswalk_fill",
+        1,
+        Marker.TRIANGLE_LIST,
+        1.0,
+        styled_color("crosswalk_fill", "crosswalk_fill_alpha", params),
     )
-    boundaries = marker_base(
-        frame_id, "lanelet_boundaries", 2, Marker.LINE_LIST, 0.20, color(1.0, 1.0, 1.0, 0.95)
+    left_boundaries = marker_base(
+        frame_id,
+        "lanelet/left_boundaries",
+        2,
+        Marker.LINE_LIST,
+        params["left_boundary_width"],
+        styled_color("left_boundary", "left_boundary_alpha", params),
+    )
+    right_boundaries = marker_base(
+        frame_id,
+        "lanelet/right_boundaries",
+        3,
+        Marker.LINE_LIST,
+        params["right_boundary_width"],
+        styled_color("right_boundary", "right_boundary_alpha", params),
     )
     centerlines = marker_base(
-        frame_id, "lanelet_centerlines", 3, Marker.LINE_LIST, 0.10, color(1.0, 0.9, 0.2, 0.75)
+        frame_id,
+        "lanelet/centerlines",
+        4,
+        Marker.LINE_LIST,
+        params["centerline_width"],
+        styled_color("centerline", "centerline_alpha", params),
     )
 
     road_count = 0
@@ -239,28 +418,42 @@ def make_lanelet_markers(frame_id, nodes, ways, relations, viz_centerline=True, 
 
         left_pts = way_points(ways[left_id], nodes)
         right_pts = way_points(ways[right_id], nodes)
-        append_line_segments(boundaries, left_pts)
-        append_line_segments(boundaries, right_pts)
-        if viz_centerline and center_id in ways:
-            append_line_segments(centerlines, way_points(ways[center_id], nodes))
+        append_line_segments(left_boundaries, left_pts, params["boundary_z_offset"])
+        append_line_segments(right_boundaries, right_pts, params["boundary_z_offset"])
+        if params["show_centerlines"] and center_id in ways:
+            append_line_segments(centerlines, way_points(ways[center_id], nodes), params["centerline_z_offset"])
 
         subtype = relation["tags"].get("subtype")
         if subtype == "crosswalk":
-            append_lanelet_triangles(crosswalk_fill, left_pts, right_pts)
+            append_lanelet_triangles(crosswalk_fill, left_pts, right_pts, params["fill_z_offset"])
             crosswalk_count += 1
         else:
-            append_lanelet_triangles(road_fill, left_pts, right_pts)
+            append_lanelet_triangles(road_fill, left_pts, right_pts, params["fill_z_offset"])
             road_count += 1
 
-    markers = [boundaries, centerlines]
+    markers = []
+    if params["show_left_boundaries"]:
+        markers.append(left_boundaries)
+    if params["show_right_boundaries"]:
+        markers.append(right_boundaries)
+    if params["show_centerlines"]:
+        markers.append(centerlines)
     if publish_fill:
-        markers = [road_fill, crosswalk_fill] + markers
+        if params["show_road_fill"]:
+            markers.insert(0, road_fill)
+        if params["show_crosswalk_fill"]:
+            markers.insert(1 if params["show_road_fill"] else 0, crosswalk_fill)
     return markers, road_count, crosswalk_count
 
 
-def make_traffic_light_marker(frame_id, ways, nodes):
+def make_traffic_light_marker(frame_id, ways, nodes, params):
     marker = marker_base(
-        frame_id, "traffic_lights", 20, Marker.SPHERE_LIST, 0.7, color(0.7, 0.7, 0.7, 0.85)
+        frame_id,
+        "features/traffic_lights",
+        20,
+        Marker.SPHERE_LIST,
+        params["traffic_light_scale"],
+        styled_color("traffic_light", "traffic_light_alpha", params),
     )
     count = 0
     for way in ways.values():
@@ -272,54 +465,79 @@ def make_traffic_light_marker(frame_id, ways, nodes):
         x = sum(p.x for p in pts) / len(pts)
         y = sum(p.y for p in pts) / len(pts)
         z = sum(p.z for p in pts) / len(pts)
-        marker.points.append(point_from_xyz(x, y, z))
+        marker.points.append(point_from_xyz(x, y, z + params["feature_z_offset"]))
         count += 1
     return marker, count
 
 
-def build_marker_array(map_file, projector_file, frame_id="map", flatten_z=False, publish_lanelet_fill=False):
+def build_marker_array(
+    map_file,
+    projector_file,
+    frame_id="map",
+    flatten_z=False,
+    publish_lanelet_fill=False,
+    visual_params=None,
+):
+    params = visualization_defaults()
+    if visual_params:
+        params.update(visual_params)
     projector = read_projector(projector_file)
     nodes, ways, relations = parse_osm(map_file, projector, flatten_z=flatten_z)
     markers = []
 
     lanelet_markers, road_lanelets, crosswalk_lanelets = make_lanelet_markers(
-        frame_id, nodes, ways, relations, publish_fill=publish_lanelet_fill
+        frame_id,
+        nodes,
+        ways,
+        relations,
+        params,
+        publish_fill=(publish_lanelet_fill or params["show_road_fill"] or params["show_crosswalk_fill"]),
     )
     markers.extend(lanelet_markers)
 
     road_borders, road_border_count = make_way_line_marker(
         frame_id,
-        "road_borders",
+        "features/road_borders",
         10,
         ways,
         nodes,
         lambda tags: tags.get("type") == "road_border",
-        color(0.65, 0.55, 0.75, 0.95),
-        0.18,
+        styled_color("road_border", "road_border_alpha", params),
+        params["road_border_width"],
+        params["feature_z_offset"],
     )
     lane_markings, lane_marking_count = make_way_line_marker(
         frame_id,
-        "lane_markings",
+        "features/lane_markings",
         11,
         ways,
         nodes,
-        lambda tags: tags.get("type") == "line_thin",
-        color(0.88, 0.88, 0.88, 0.90),
-        0.10,
+        lambda tags: tags.get("type") == "line_thin" and tags.get("subtype") != "stop_line",
+        styled_color("lane_marking", "lane_marking_alpha", params),
+        params["lane_marking_width"],
+        params["feature_z_offset"],
     )
     stop_lines, stop_line_count = make_way_line_marker(
         frame_id,
-        "stop_lines",
+        "features/stop_lines",
         12,
         ways,
         nodes,
         lambda tags: tags.get("subtype") == "stop_line",
-        color(1.0, 0.45, 0.0, 0.95),
-        0.35,
+        styled_color("stop_line", "stop_line_alpha", params),
+        params["stop_line_width"],
+        params["feature_z_offset"],
     )
-    traffic_lights, traffic_light_count = make_traffic_light_marker(frame_id, ways, nodes)
+    traffic_lights, traffic_light_count = make_traffic_light_marker(frame_id, ways, nodes, params)
 
-    markers.extend([road_borders, lane_markings, stop_lines, traffic_lights])
+    if params["show_road_borders"]:
+        markers.append(road_borders)
+    if params["show_lane_markings"]:
+        markers.append(lane_markings)
+    if params["show_stop_lines"]:
+        markers.append(stop_lines)
+    if params["show_traffic_lights"]:
+        markers.append(traffic_lights)
 
     marker_array = MarkerArray()
     marker_array.markers = [m for m in markers if m.points]
@@ -347,6 +565,7 @@ def main():
     repo_root = os.path.abspath(os.path.join(package_dir, "..", "..", ".."))
     default_map = os.path.join(repo_root, "kcity_map", "lanelet_map", "lanelet2_map_v23.osm")
     default_projector = os.path.join(repo_root, "kcity_map", "lanelet_map", "map_projector_info_v1.yaml")
+    default_style = os.path.join(package_dir, "config", "lanelet_marker_style.yaml")
 
     map_file = rospy.get_param("~map_file", default_map)
     projector_file = rospy.get_param("~projector_file", default_projector)
@@ -355,11 +574,20 @@ def main():
     legacy_output_topic = rospy.get_param("~legacy_output_topic", "")
     publish_rate = float(rospy.get_param("~publish_rate", 0.0))
     flatten_z = as_bool(rospy.get_param("~flatten_z", False))
-    publish_lanelet_fill = as_bool(rospy.get_param("~publish_lanelet_fill", False))
+    style_file = rospy.get_param("~style_file", default_style)
+    visual_params = load_visualization_params(style_file)
 
     rospy.loginfo("Loading lanelet OSM: %s", map_file)
     rospy.loginfo("Loading projector: %s", projector_file)
-    marker_array, stats = build_marker_array(map_file, projector_file, frame_id, flatten_z, publish_lanelet_fill)
+    rospy.loginfo("Loading visualization style: %s", style_file)
+    marker_array, stats = build_marker_array(
+        map_file,
+        projector_file,
+        frame_id,
+        flatten_z,
+        False,
+        visual_params,
+    )
     rospy.loginfo(
         "Lanelet marker map ready: nodes=%d ways=%d relations=%d road_lanelets=%d "
         "crosswalk_lanelets=%d markers=%d UTM zone=%d origin=(%.6f, %.6f)",
