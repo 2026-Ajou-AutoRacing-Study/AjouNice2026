@@ -14,12 +14,12 @@ TOPICS=(
   /sensor/gps
   /Ego_topic
   /Object_topic
-  /sensor/camera/front
-  /sensor/camera/front_left
-  /sensor/camera/front_right
-  /sensor/camera/back_left
-  /sensor/camera/back_right
-  /sensor/camera/back
+  /sensor/camera/front/compressed
+  /sensor/camera/front_left/compressed
+  /sensor/camera/front_right/compressed
+  /sensor/camera/back_left/compressed
+  /sensor/camera/back_right/compressed
+  /sensor/camera/back/compressed
 )
 
 mkdir -p "$OUT_DIR"
