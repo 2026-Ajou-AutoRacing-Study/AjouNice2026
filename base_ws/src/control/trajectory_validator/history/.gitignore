@@ -1,0 +1,4 @@
+# Runtime validation artifacts: CSV/YAML samples, metrics, and run metadata.
+*
+!.gitignore
+!.gitkeep
