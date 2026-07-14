@@ -13,8 +13,8 @@
 | 방향 | Topic/파일 | Type | 용도 |
 |---|---|---|---|
 | 입력 | `/planning/trajectory/reference` | `autoware_planning_msgs/Trajectory` | target pose/speed/accel와 route identity |
-| 입력 | `/Ego_topic` 또는 `/localization/odom` | YAML toggle | 실제 pose, heading, velocity, timestamp |
-| 입력 | `/tf` | TF | `map -> base_link` pose transform |
+| 입력 | `/planning/trajectory/generator_status` | latched `std_msgs/String` | generator가 실제 생성한 route/profile report metadata |
+| 입력 | `/control/purepursuit_pi/ego_state` | `nav_msgs/Odometry` | follower가 정규화한 실제 map pose, body velocity, timestamp |
 | 입력 | `/ctrl_cmd` | `morai_msgs/CtrlCmd` | MORAI command steering/longitudinal input |
 | 입력 | `/control/purepursuit_pi/run_config` | latched `std_msgs/String` | 재시작된 PP controller가 실제로 읽은 config/run label/checksum snapshot |
 | 출력 | `/validation/lateral/*` | `std_msgs/Float32` | 횡 시계열 |
@@ -25,21 +25,23 @@
 
 평가 노드는 controller와 독립된 observer다. evaluator가 내려가도 controller를 멈추게 하지 않으며, controller의 safety stop 판단도 대신하지 않는다.
 
-### 현재 PP validation source — MORAI GT
+### 현재 PP validation source — follower normalized ego state
 
-controller와 동일한 `ego_state.source: morai_gt|localization` YAML을 읽는다. **현재 PP pipeline은 `source: morai_gt`로 고정**한다.
+validator는 MORAI/localization toggle을 자체 YAML에 복제하지 않는다. **현재 PP pipeline은 follower의 `ego_state.source: morai_gt`**로 `/Ego_topic`과 `map -> base_link` TF를 해석하고, 그 결과를 `/control/purepursuit_pi/ego_state`로 publish한다.
 
-- `/Ego_topic` timestamp에서 `map -> base_link` TF를 lookup해 pose/heading을 얻고, message velocity를 body-frame long/lat velocity로 정리한다.
-- 첫 PP run의 target-vs-driven path, lat/heading/speed error, ADE/FDE는 모두 MORAI GT 기준이다.
-- validator는 controller와 ego source가 다르면 기록을 시작하지 않고 `source_mismatch` event를 남긴다.
+- validator는 위 Odometry의 `map` pose, orientation, body-frame long/lat velocity와 timestamp만 사용한다.
+- 첫 PP run의 target-vs-driven path, lat/heading/speed error, ADE/FDE는 follower가 정규화한 MORAI GT 기준이다.
+- localization 전환 시에도 validator YAML을 바꾸지 않는다. follower의 source만 바꾸고 새 run snapshot의 `ego_state_mode`로 구분한다.
 
 ### 후속 localization source — 계약만 보존
 
-`localization` mode는 후속 전환을 위해 계약만 보존한다. 이 mode에서는 **`/localization/odom` (`nav_msgs/Odometry`)**의 freshness를 확인하고, raw FAST-LIO의 `camera_init -> body` pose를 reference `map` 좌표에 직접 쓰지 않는다. localization stack이 제공한 같은 timestamp의 `map -> base_link` TF를 pose 기준으로 사용하며, odometry twist가 zero/stale이면 transformed map pose 차분으로 속도를 계산한다. velocity 산출 경로와 odometry frame은 run artifact에 기록한다.
+`localization` mode는 follower가 **`/localization/odom` (`nav_msgs/Odometry`)**과 같은 timestamp의 `map -> base_link` TF를 검증한 뒤 normalized ego topic으로 내보내는 후속 mode다. validator는 raw FAST-LIO frame을 직접 해석하지 않는다. source와 차량 상태 계약은 controller run snapshot에 기록한다.
 
 ## 3. RViz 평가 화면
 
 기존 Lanelet map, `maptf_morai`, sensing/vehicle RViz 위에 다음 display만 추가한다. 모든 marker는 `map` frame이다.
+
+`trajectory_validator.rviz`는 시작부터 K-City route 범위가 보이도록 top-down overview를 사용한다. 이전 설정처럼 원점 주변의 기본 camera를 쓰지 않는다. `/map/lanelet_map` publisher가 이미 실행 중이면 map layer도 같은 화면에 표시하며, map publisher는 validator가 소유하지 않는다.
 
 | layer | 색/형태 | 의미 |
 |---|---|---|
@@ -190,7 +192,7 @@ base_ws/src/control/trajectory_validator/
 
 `trajectory_validator/history/.gitignore`는 `.gitignore`와 `.gitkeep`을 제외한 모든 runtime artifact를 ignore한다. 따라서 history의 CSV/YAML run 결과는 로컬 비교용으로만 보관하고 GitHub에는 올리지 않는다.
 
-사용자가 tuning 때 수정하는 파일은 `purepursuit_pi/config/pp_pi.yaml` 한 개다. validator는 이 파일을 직접 다시 읽지 않는다. `pp_pi.launch`가 재시작될 때 latched `/control/purepursuit_pi/run_config`으로 받은 실제 controller config snapshot을 `parameters.yaml`으로 복사한다. 따라서 generator/validator를 유지한 채 controller만 재시작해도 history에는 실제 적용된 값이 남는다. `RECORDING` 중 config snapshot이 바뀌면 validator는 해당 run을 `aborted`로 확정하고 새 config를 다음 `ARMED` run부터만 받는다.
+validator가 직접 수정하는 파일은 `trajectory_validator/config/trajectory_validator.yaml`이며 gate/history/timeout만 담는다. validator는 generator YAML과 PP YAML을 읽지 않는다. `pp_pi.launch`가 재시작될 때 latched `/control/purepursuit_pi/run_config`으로 받은 실제 controller config snapshot을 `parameters.yaml`으로 복사하고, generator status에서 route/profile identity를 받는다. 따라서 generator/validator를 유지한 채 controller만 재시작해도 history에는 실제 적용된 값이 남는다. `RECORDING` 중 config snapshot이 바뀌면 validator는 해당 run을 `aborted`로 확정하고 새 config를 다음 `ARMED` run부터만 받는다.
 
 ### 7.1 CSV 기록 원칙 — 확정
 
@@ -204,7 +206,7 @@ base_ws/src/control/trajectory_validator/
 
 ### 7.2 `samples.csv` — 실제 주행·추종 시계열
 
-한 행은 한 ego timestamp의 실제 차량 상태와 그 시점에 reference에 projection한 결과다. `ego_*`는 현재 선택된 ego source의 `map -> base_link` 기준 값이며, 초기 PP run에서는 MORAI GT `/Ego_topic`에서 얻는다. `ref_*`는 reference polyline의 segment projection 및 interpolation 결과다.
+한 행은 normalized ego Odometry timestamp의 실제 차량 상태와 그 시점에 reference에 projection한 결과다. `ego_*`는 follower가 publish한 `map -> base_link` 기준 값이며, 초기 PP run에서는 MORAI GT `/Ego_topic`을 follower가 정규화한 결과다. `ref_*`는 reference polyline의 segment projection 및 interpolation 결과다.
 
 ```csv
 sample_index,stamp_sec,dt_sec,ego_x_m,ego_y_m,ego_z_m,ego_yaw_rad,ref_s_m,ref_x_m,ref_y_m,ref_z_m,ref_yaw_rad,ref_lanelet_id,ref_curvature_1pm,ref_speed_mps,ref_acceleration_mps2,remaining_distance_m,lat_err_m,heading_err_rad,ref_distance_m,long_vel_mps,lat_vel_mps,long_acc_mps2,lat_acc_mps2,ctrl_stamp_sec,ctrl_age_sec,longl_cmd_type,front_steer_rad,steering_rate_cmd_radps,accel_cmd,brake_cmd,velocity_cmd_mps,acceleration_cmd_mps2,lookahead_distance_m,control_tick_elapsed_ms,control_deadline_miss,ego_valid,reference_valid,ctrl_valid,projection_valid
@@ -256,7 +258,7 @@ event_index,stamp_sec,event_type,severity,progress_s_m,ego_x_m,ego_y_m,detail
 | 열 | 정의 |
 |---|---|
 | `event_index`, `stamp_sec` | run 안의 event 순번과 발생 ROS timestamp |
-| `event_type` | `armed`, `start`, `finish`, `aborted`, `source_mismatch`, `ego_stale`, `reference_stale`, `ctrl_stale`, `projection_jump`, `progress_regression`, `safe_stop`, `control_deadline_miss` 중 하나 |
+| `event_type` | `armed`, `start`, `finish`, `aborted`, `ego_stale`, `reference_stale`, `ctrl_stale`, `projection_jump`, `progress_regression`, `safe_stop`, `control_deadline_miss` 중 하나 |
 | `severity` | `info`, `warning`, `error` 중 하나 |
 | `progress_s_m`, `ego_x_m`, `ego_y_m` | 발생 당시의 reference progress와 ego map 위치. 알 수 없으면 빈 칸 |
 | `detail` | route ID, stale age, abort reason 등 사람이 읽을 수 있는 짧은 보조 설명. CSV quoting 규칙을 따른다. |
@@ -277,7 +279,7 @@ map_version: v44
 frame_id: map
 controller: purepursuit_pi
 control_rate_hz: 20
-ego_state_topic: /Ego_topic  # simulator phase example
+ego_state_topic: /control/purepursuit_pi/ego_state
 ego_state_mode: morai_gt
 vehicle_model: 2023_Hyundai_ioniq5
 wheelbase_m: 3.000
@@ -318,25 +320,17 @@ roslaunch trajectory_validator trajectory_validator.launch
 - vehicle이 start gate를 통과하며 움직일 때 validator가 자동 기록을 시작한다.
 - 별도의 공터 시험이 정말 필요하면 map route를 옮긴 결과를 competition route와 섞지 않고 `synthetic_*` route ID로 별도 관리한다. 이번 구축에서는 만들지 않는다.
 
-## 9. tuning scope별 고정 rqt layout
+## 9. 고정 rqt 탭 layout
 
-패키지는 rqt 설정 파일을 고정 제공한다.
+`traj_val`의 RQT panel은 종방향·횡방향·통합 tab을 동시에 제공한다. 사용자는 PP/PI YAML에 mode를 쓰지 않고 필요한 tab만 클릭한다. tab 선택은 주행·run name·history 저장에 영향을 주지 않으며, 같은 실행 중에도 바꿀 수 있다.
 
-```text
-trajectory_validator/config/rqt/trajectory_validator_longitudinal.perspective
-trajectory_validator/config/rqt/trajectory_validator_lateral.perspective
-trajectory_validator/config/rqt/trajectory_validator_coupled.perspective
-```
-
-`pp_pi.yaml`의 `tuning.scope`와 `validator.tuning_scope`는 같아야 한다. validator는 시작할 때 이에 맞는 perspective 하나만 열며, 종↔횡↔결합 scope를 바꿀 때만 validator를 재시작한다. 같은 scope 안에서 gain만 바꿀 때는 validator를 유지한다. 사용자는 rqt에서 매 run마다 topic을 다시 고르지 않는다.
-
-| scope | rqt에 표시할 시계열 | 고정할 파라미터 |
+| tab | rqt에 표시할 시계열 | tuning 때 주로 보는 parameter |
 |---|---|---|
 | `longitudinal` | `target_vel`, `long_vel`, `long_vel_err`, `long_acc`, `accel_cmd`, `brake_cmd` | PP lookahead, steering limit/rate |
 | `lateral` | `lat_err`, `heading_err`, `steering_angle_cmd`, `steering_rate_cmd`, `lat_vel`, `lat_acc`, `lookahead_distance` | PI `Kp/Ki`, accel/brake gain |
 | `coupled` | `lat_err`, `steering_angle_cmd`, `target_vel`, `long_vel`, `long_acc`, `accel_cmd`, `brake_cmd`의 요약 | 새 gain 변경 없음. 종/횡 tuning 통과값 |
 
-세 perspective 모두 history checkbox panel을 함께 연다. CSV에는 scope와 무관하게 확정한 전체 raw column을 기록한다. 화면을 줄이는 것은 원인 분리를 위한 것이지, 저장 데이터를 줄이는 것이 아니다.
+세 tab 모두 history checkbox panel을 함께 쓴다. CSV에는 tab과 무관하게 확정한 전체 raw column을 기록한다. 화면을 줄이는 것은 원인 분리를 위한 것이지, 저장 데이터를 줄이는 것이 아니다. RQT plot x축은 ROS epoch timestamp를 자동 추종하므로 빈 `0~10 s` 화면을 만들지 않는다.
 
 ## 10. 구현 단계
 

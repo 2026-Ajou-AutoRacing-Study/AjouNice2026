@@ -1,0 +1,26 @@
+# Edit this file only for PP/PI follower input and control behavior.
+ego_state:
+  source: morai_gt                    # morai_gt | localization
+  morai_gt_topic: /Ego_topic
+  localization_odom_topic: /localization/odom
+  freshness_timeout_sec: 0.30
+
+controller:
+  control_rate_hz: 20.0
+  trajectory_timeout_sec: 2.0
+  ego_timeout_sec: 0.30
+  safe_stop_brake: 0.20
+  lateral:
+    fixed_lookahead_m: 5.0
+    steering_limit_rad: 0.35
+    steering_rate_limit_radps: 0.70
+  longitudinal:
+    kp: 1.00
+    ki: 0.30
+    integral_limit: 4.0
+    speed_deadband_mps: 0.05
+    accel_gain: 0.12
+    brake_gain: 0.16
+    accel_limit: 0.55
+    brake_limit: 0.65
+    use_acceleration_feedforward: false

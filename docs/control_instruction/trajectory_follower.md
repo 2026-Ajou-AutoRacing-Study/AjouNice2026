@@ -22,6 +22,7 @@ mpc_pi          = MPC lateral + PI longitudinal           # package name reserve
 | 입력 | `/tf` | TF | `map -> base_link` lookup. controller가 TF publisher가 되지 않음 |
 | 출력 | `/ctrl_cmd` | `morai_msgs/CtrlCmd` | MORAI 제어 명령 |
 | 출력 | `/control/purepursuit_pi/run_config` | latched `std_msgs/String` | controller가 시작 시 실제로 읽은 resolved config, run label, checksum의 UTF-8 YAML snapshot |
+| 출력 | `/control/purepursuit_pi/ego_state` | `nav_msgs/Odometry` | 선택된 MORAI/localization source를 map-frame pose·body velocity로 정규화한 validator 입력 |
 | 출력 | `/control/<controller>/debug/*` | std/visualization msg | target point, local horizon, error, solve time 등 |
 
 초기 제어단은 MORAI에 직접 들어가야 하므로 controller가 `/ctrl_cmd`를 publish한다. 대회 규정집은 `Network Settings > Ego-0 > Cmd Control`의 Ego Ctrl Cmd와 `/Ctrl_cmd`의 `longi type 1(accel, brake)` 사용을 명시한다. ROS message field 이름은 `longlCmdType`이므로 대회용 controller는 `longlCmdType: 1`로 고정한다. `CtrlCmd.front_steer`는 front wheel steer angle rad이고, PI의 종 출력은 normalized pedal `accel`/`brake`로 변환한다. type 2 velocity, type 3 acceleration mode는 대회용 controller에서 사용하지 않는다.
@@ -35,29 +36,21 @@ PI signed output u_long
 
 ### 2.1 ego-state source toggle
 
-`purepursuit_pi`와 `trajectory_validator`는 `purepursuit_pi/config/pp_pi.yaml` 한 파일의 같은 `ego_state` section을 읽는다. 별도의 활성/비활성 설정이나 run별 tuning YAML은 만들지 않는다. route를 바꾸거나 follower가 TF를 새로 publish하는 방식으로 source를 바꾸지 않는다.
+`purepursuit_pi/config/pp_pi.yaml`만 MORAI/localization source를 선택한다. validator는 이 YAML 또는 raw `/Ego_topic`을 읽지 않고 `/control/purepursuit_pi/ego_state` 하나를 구독한다. route를 바꾸거나 follower가 TF를 새로 publish하는 방식으로 source를 바꾸지 않는다.
 
 **현재 PP 구현과 tuning에서는 이 값이 반드시 `morai_gt`다.** 아래 localization 항목은 후속 전환 계약이며, FAST-LIO가 준비되기 전에는 launch argument로 바꾸지 않는다.
 
 ```yaml
 ego_state:
   source: morai_gt             # morai_gt | localization
-  map_frame: map
-  base_frame: base_link
   morai_gt_topic: /Ego_topic
   localization_odom_topic: /localization/odom
-  localization_message_type: nav_msgs/Odometry
-  localization_pose_from_tf: true
-  localization_expected_parent: camera_init
-  localization_expected_child: body
-  localization_required_tf: [map->camera_init, body->base_link]
-  localization_velocity_source: odom_twist_or_pose_delta
 ```
 
 - `morai_gt`: `/Ego_topic` callback의 timestamp에서 `lookupTransform(map, base_link)`를 사용해 pose/heading을 얻는다. velocity는 `EgoVehicleStatus.velocity`와 heading을 body frame으로 정리해 사용한다. legacy controller의 `velocity_scale`은 이전 MORAI 단위 보정값일 뿐이므로, raw value와 변환값을 validator에 함께 기록해 m/s 여부를 첫 run에서 검증한다.
 - `localization`: FAST-LIO launch가 `/Odometry`를 remap한 **`/localization/odom` (`nav_msgs/Odometry`)**을 freshness source로 사용한다. 확인된 raw FAST-LIO frame은 `camera_init`(parent), `body`(child)이며 시작 시점 기준 local odometry다. 따라서 message pose를 map trajectory에 바로 대입하지 않고, 같은 timestamp의 `map -> base_link` TF로 pose/heading을 얻는다.
 - FAST-LIO `twist`가 유효하면 body-frame longitudinal/lateral velocity로 변환해 쓰고, 초기화 중 zero/stale이면 map pose 차분을 ego heading으로 투영해 계산한다. 어떤 경로를 썼는지는 run metadata와 sample에 남긴다.
-- `map -> camera_init`, `body -> base_link`는 localization stack의 책임이다. follower/validator는 TF publisher가 아니다. 기존 `fast_lio_odom_map_bridge.py`의 GT 초기정렬 `/localization/odom_map`은 MORAI 비교용이며, 대회용 source로 대체하지 않는다.
+- `map -> camera_init`, `body -> base_link`는 localization stack의 책임이다. follower/validator는 TF publisher가 아니다. follower는 성공적으로 얻은 pose/velocity를 `/control/purepursuit_pi/ego_state`로 publish한다. 기존 `fast_lio_odom_map_bridge.py`의 GT 초기정렬 `/localization/odom_map`은 MORAI 비교용이며, 대회용 source로 대체하지 않는다.
 - TF가 없거나 source message가 stale이면 controller는 safe stop으로 간다. controller 자신은 TF를 publish하지 않는다.
 
 ### 2.2 단일 제어기 활성 규칙
@@ -84,8 +77,7 @@ purepursuit_pi/
     ego_state_provider.cpp
     command_guard.cpp
   config/
-    vehicle.yaml
-    pp_pi.yaml              # 사용자가 tuning 때 수정하는 유일한 YAML
+    pp_pi.yaml              # follower input/control만 담는 user YAML
   launch/
     pp_pi.launch            # controller만 실행
 ```
@@ -99,7 +91,7 @@ purepursuit_pi/
 
 ## 4. 차량 모델과 PP 기본 파라미터 기준
 
-새 `purepursuit_pi/config/vehicle.yaml`은 workspace의 `configs/vehicle/ioniq5.yaml`, `ioniq5_mesh_measurements.json`, URDF의 rear-axle `base_link` 정의를 기준으로 만든다. 이는 **2023 Hyundai IONIQ 5**의 제원이며, controller 내부 단위는 m, rad, s, m/s로 통일한다.
+`ioniq5/config/vehicle.yaml`은 workspace의 `configs/vehicle/ioniq5.yaml`, `ioniq5_mesh_measurements.json`, URDF의 rear-axle `base_link` 정의를 기준으로 둔 차량 제원의 단일 원본이다. 이는 **2023 Hyundai IONIQ 5**의 제원이며, generator와 controller가 함께 읽고 controller 내부 단위는 m, rad, s, m/s로 통일한다.
 
 | 항목 | 값 | 사용 원칙 |
 |---|---:|---|

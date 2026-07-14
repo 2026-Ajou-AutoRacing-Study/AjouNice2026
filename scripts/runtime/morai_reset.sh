@@ -42,7 +42,7 @@ kill_bridge() {
 
 kill_stack() {
   if rosnode list >/dev/null 2>&1; then
-    rosnode kill $(rosnode list | rg '^/(ego_tf_broadcaster|tf_map_to_morai_map|rosbridge_websocket|rosapi|lidar|lidar1|lidar2|morai_sensor_static_tf|morai_camera_udp_receiver|ioniq5_robot_state_publisher|rviz_ioniq5|lanelet2_osm_marker_publisher|mgeo_json_marker_publisher)$') >/dev/null 2>&1 || true
+    rosnode kill $(rosnode list | grep -E '^/(ego_tf_broadcaster|tf_map_to_morai_map|rosbridge_websocket|rosapi|lidar|lidar1|lidar2|morai_sensor_static_tf|morai_camera_udp_receiver|ioniq5_robot_state_publisher|rviz_ioniq5|lanelet2_osm_marker_publisher|mgeo_json_marker_publisher)$') >/dev/null 2>&1 || true
   fi
 
   kill_by_pattern TERM \
@@ -93,5 +93,5 @@ case "$MODE" in
 esac
 
 echo "remaining listeners:"
-ss -ltnp | rg ':(11311|9090)' || true
-ss -lunp | rg ':(2368|2370)' || true
+ss -ltnp | grep -E ':(11311|9090)' || true
+ss -lunp | grep -E ':(2368|2370)' || true

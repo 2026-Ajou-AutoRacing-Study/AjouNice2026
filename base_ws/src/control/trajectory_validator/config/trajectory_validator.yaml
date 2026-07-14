@@ -1,0 +1,14 @@
+# Edit this file only when changing validation, history, or visualization policy.
+validator:
+  ctrl_timeout_sec: 0.30
+  safe_stop_grace_sec: 0.50
+  projection_jump_m: 15.0
+  history_controller: pp_pi
+  history_max_points_per_marker: 20000
+  validation_gate:
+    start_distance_m: 3.0
+    finish_distance_m: 3.0
+    start_heading_tolerance_deg: 45.0
+    finish_heading_tolerance_deg: 45.0
+    start_speed_mps: 0.5
+    finish_speed_mps: 1.0

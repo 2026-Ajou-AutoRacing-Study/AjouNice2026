@@ -3,7 +3,7 @@
 
 # Multiplies every layer alpha below. Set to 0.6 to fade the entire Lanelet map.
 alpha:
-  global: 0.7
+  global: 0.5
   road_fill: 0.16
   crosswalk_fill: 0.30
   left_boundary: 0.95
@@ -31,13 +31,18 @@ z_offset:
   centerline: 0.06
   feature: 0.09
 
+# Only OSM ways tagged subtype=dashed are rendered as dashed lines.
+dash:
+  line_length: 3.0
+  gap_length: 2.0
+
 # RGB values in the [0.0, 1.0] range.
 color:
   road_fill: [0.20, 0.70, 0.70]
   crosswalk_fill: [0.20, 0.70, 0.20]
-  left_boundary: [0.30, 0.80, 1.00]
-  right_boundary: [1.00, 0.55, 0.25]
-  centerline: [1.00, 0.90, 0.20]
+  left_boundary: [1.00, 1.00, 1.00]
+  right_boundary: [1.00, 1.00, 1.00]
+  centerline: [1.00, 0.85, 0.00]
   road_border: [0.65, 0.55, 0.75]
   lane_marking: [0.88, 0.88, 0.88]
   stop_line: [1.00, 0.25, 0.05]

@@ -2,7 +2,7 @@
 
 ## 0. 이 문서의 범위
 
-이 폴더는 이후 제어단을 한 번에 구현하기 위한 설계 기준이다. 현재는 **문서만 작성**하며, 코스 CSV, Lanelet 맵, 기존 launch, 제어 코드는 수정하지 않는다.
+이 폴더는 구현된 제어단의 설계·운영 기준이다. 코스 CSV와 Lanelet 맵은 제어단이 수정하지 않으며, package별 YAML과 ROS 계약을 이 문서 기준으로 유지한다.
 
 목표는 제어기 하나를 빨리 만드는 데 있지 않다. 같은 기준 궤적에 대해 `주행 → 기록 → 비교 → 파라미터 하나 변경 → 재주행`을 빠르게 반복할 수 있는 환경을 먼저 만드는 것이다. **현재 구축 범위는 `purepursuit_pi` 하나로 이 폐루프를 완성하는 것**이며, MPC 비교는 이 기준선이 완성된 뒤의 별도 단계다.
 
@@ -48,17 +48,27 @@ base_ws/src/control/
 - 공통 계약은 기존 `Trajectory`, YAML, topic으로 맞춘다. 초기 PP 단계에서 `control_common` 같은 별도 공통 package는 만들지 않는다.
 - `mpc_pi`는 PP pipeline 완료 뒤 같은 상위 디렉터리에 별도 package로 추가한다. 현재는 생성하지 않는다.
 
-### 1.2 튜닝 설정 파일과 user-facing launch — 확정
+### 1.2 package별 YAML과 user-facing launch — 확정
 
-튜닝 때 사용자가 반복해서 수정하는 YAML은 **한 개**뿐이다. 별도의 상태 개념 없이, 아래의 고정 파일을 generator와 controller가 각자 시작할 때 읽는다.
+YAML은 package의 책임 범위를 넘지 않는다. 어느 launch도 다른 control package의 YAML을 읽지 않는다.
 
 ```text
+trajectory_generator/config/trajectory_generator.yaml
+  └─ route CSV, catalog/map version, sampling, speed profile
+
 purepursuit_pi/config/pp_pi.yaml
+  └─ MORAI/localization input, PP/PI gain, command/safety limit
+
+trajectory_validator/config/trajectory_validator.yaml
+  └─ validation gate, history, timeout, visualization policy
+
+ioniq5/config/vehicle.yaml
+  └─ IONIQ 5 물리 제원의 유일한 원본
 ```
 
-- 사용자는 이 파일에서 한 번에 하나의 tuning parameter만 바꾼 뒤, **그 section을 사용하는 node만** 재시작한다. run마다 YAML 복사본을 만들거나 launch argument로 `Kp`, `Ki`, lookahead를 덮어쓰지 않는다.
-- `pp_pi.launch`는 시작 시 자신이 읽은 resolved config, `run_label`, checksum을 latched `/control/purepursuit_pi/run_config` (`std_msgs/String`, UTF-8 YAML text)로 publish한다. validator는 이 controller snapshot을 `trajectory_validator/history/pp_pi/<run_id>/parameters.yaml`으로 보관한다. 따라서 validator가 계속 실행 중이어도 실제 controller가 읽은 값만 기록한다.
-- `vehicle.yaml`은 IONIQ 5 물리값, generator/validator의 default YAML은 알고리즘·UI 기본값이다. 이 파일들은 일상 gain tuning 대상이 아니다.
+- 경로·속도 profile은 generator YAML에서만 바꾼다. PP/PI parameter는 `pp_pi.yaml`에서만 바꾼다. 기록/표시 policy는 validator YAML에서만 바꾼다.
+- `pp_pi.launch`는 시작 시 자신이 읽은 resolved config, `run_label`, checksum을 latched `/control/purepursuit_pi/run_config` (`std_msgs/String`, UTF-8 YAML text)로 publish한다. validator는 이 snapshot을 `trajectory_validator/history/pp_pi/<run_id>/parameters.yaml`으로 보관한다.
+- `ioniq5/config/vehicle.yaml`은 generator와 follower가 함께 읽는 차량 제원의 단일 원본이다. validator는 controller run snapshot에서 해당 정보를 기록한다.
 
 `pp_pi_tuning.launch`는 만들지 않는다. 세 노드를 한꺼번에 재시작하면 controller gain 하나를 바꿀 때 generator와 validator까지 불필요하게 다시 올라오기 때문이다. 사용자가 직접 실행하는 launch는 다음 세 개다.
 
@@ -68,40 +78,18 @@ purepursuit_pi/config/pp_pi.yaml
 | `trajectory_validator.launch` | `trajectory_validator` | live validator + RViz/rqt/history panel | 시작 후 유지. live 기록과 과거 run 비교를 모두 담당 |
 | `pp_pi.launch` | `purepursuit_pi` | PP+PI controller만 | **gain 하나를 바꿀 때마다 이것만 재시작** |
 
-`trajectory_generator.launch`는 `pp_pi.yaml`의 `generator` section을, `pp_pi.launch`는 controller/ego/tuning section을 읽는다. validator는 살아 있는 YAML 파일을 다시 읽지 않고 controller의 latched `run_config` snapshot을 받는다. launch argument는 `start_rqt`, `start_control_rviz`처럼 UI를 켜고 끄는 용도만 허용하며, 제어·경로·속도 값은 YAML에서만 정한다.
+각 launch는 자기 package YAML만 읽는다. validator는 YAML로 route/controller/ego source를 복제하지 않고, generator의 trajectory/status와 follower의 run snapshot·normalized ego state를 구독한다. launch argument는 `start_rqt`, `start_control_rviz`처럼 UI를 켜고 끄는 용도만 허용한다.
 
-`pp_pi.yaml`의 책임 구획은 아래와 같다.
-
-```yaml
-tuning:
-  scope: longitudinal          # longitudinal | lateral | coupled
-
-ego_state:
-  source: morai_gt             # 현재 고정, localization은 후속 검증 때만
-
-generator:
-  route_selection_csv: <preferred_course selection CSV>
-  speed_profile: <constant 또는 regulation_curvature 설정>
-
-controller:
-  control_rate_hz: 20
-  lateral: <lookahead, steer limit/rate>
-  longitudinal: <Kp, Ki, accel/brake gain, saturation>
-
-validator:
-  tuning_scope: longitudinal   # tuning.scope와 같아야 함
-```
-
-`route_selection_csv`는 경로를 바꿀 때만, `ego_state.source`는 localization 전환 검증 때만 변경한다. PP/PI gain tuning 중에는 둘 다 고정한다. `tuning.scope`는 validator가 어떤 rqt layout을 열지 정하며, controller 한 축을 끄는 toggle이 아니다.
+`tuning.scope` 같은 controller와 무관한 YAML toggle은 없다. `traj_val` RQT에는 종방향·횡방향·통합 탭이 항상 있고, 사용자는 보고 싶은 탭만 클릭한다. 탭 선택은 주행, controller config, history에 영향을 주지 않는다.
 
 YAML 변경 뒤의 재시작 범위는 아래로 고정한다. controller를 현재 `RECORDING` 중에 내리면 run이 `aborted`가 되므로, finish 또는 abort 처리가 끝난 `ARMED` 상태에서만 바꾼다.
 
 | 변경한 값 | 재시작할 launch | 유지할 launch |
 |---|---|---|
-| `controller.lateral`, `controller.longitudinal`, `control_rate_hz`, `vehicle.yaml` | `pp_pi.launch` | generator, validator |
-| `generator.route_selection_csv`, speed profile/smoothing | `trajectory_generator.launch` 후 `pp_pi.launch` | validator |
-| `tuning.scope` 또는 validator rqt/gate 설정 | `trajectory_validator.launch` 후 `pp_pi.launch` | generator |
-| `ego_state.source` | `trajectory_validator.launch` 후 `pp_pi.launch` | generator |
+| `pp_pi.yaml`의 controller 또는 `ego_state` | `pp_pi.launch` | generator, validator |
+| `trajectory_generator.yaml`의 route/profile | `trajectory_generator.launch` | controller, validator |
+| `trajectory_validator.yaml`의 gate/history | `trajectory_validator.launch` | generator, controller |
+| `ioniq5/vehicle.yaml` | generator와 controller | validator |
 
 ## 2. 기존 스택 재사용 원칙
 
@@ -121,8 +109,8 @@ YAML 변경 뒤의 재시작 범위는 아래로 고정한다. controller를 현
 ```
 
 - RViz Fixed Frame은 `map`으로 고정한다.
-- `trajectory_generator`, 제어기, `trajectory_validator`는 `map -> morai_map -> base_link` TF를 소비만 한다. static/dynamic TF를 새로 publish하지 않는다.
-- 초기 MORAI 단계에서는 `maptf_morai.launch`가 `/Ego_topic`에서 만든 `map -> morai_map -> base_link`를 사용한다. 제어기/validator는 이 TF를 거쳐 `map` 기준 차량 pose를 얻는다.
+- `trajectory_generator`는 `map` frame reference를 publish하고, follower는 `map -> morai_map -> base_link` TF를 소비한다. validator는 follower가 publish한 normalized ego state만 소비한다. control package가 TF를 새로 publish하지 않는다.
+- 초기 MORAI 단계에서는 `maptf_morai.launch`가 `/Ego_topic`에서 만든 `map -> morai_map -> base_link`를 사용한다. follower가 이 TF로 `map` 기준 차량 pose를 얻어 `/control/purepursuit_pi/ego_state`로 publish한다.
 - `sensing.launch`의 센서/차량 모델 시각화와 Lanelet map marker는 그대로 사용한다. 새 RViz config에는 기준 궤적·실주행 궤적·평가 marker display만 추가한다.
 - `maptf_morai.launch` 자체는 `/localization/odom`을 만들지 않고 TF와 `/Ego_topic`을 사용한다. 초기 MORAI GT 주행은 이 경로를 그대로 쓴다.
 - localization source의 입력 topic은 **`/localization/odom` (`nav_msgs/Odometry`)**으로 확정한다. 현재 FAST-LIO launch는 `/Odometry`를 이 이름으로 remap한다. 다만 raw FAST-LIO odometry는 시작점 기준 `camera_init -> body`이므로, `map` 기준 reference와 직접 좌표를 섞지 않는다. localization stack이 `map -> camera_init` 및 `body -> base_link`를 제공해 최종 `map -> base_link`가 성립한 뒤에만 follower/validator가 사용한다.
@@ -145,7 +133,7 @@ competition_route CSV ───────► trajectory_generator ────
                                                          │
                                                        MORAI vehicle
                                                          │
-                 reference + ego state + /ctrl_cmd ───────────► trajectory_validator
+                 reference + generator status + normalized ego state + /ctrl_cmd ─► trajectory_validator
                                                                   ├─ RViz overlays
                                                                   ├─ rqt_multiplot topics
                                                                   └─ immutable run artifacts
@@ -188,39 +176,26 @@ otherwise         : accel = 0, brake = 0
 
 ### 3.3 ego-state source YAML toggle
 
-초기에는 아직 localization이 완성되지 않았으므로 MORAI GT를 쓴다. 이후 controller와 validator가 같은 YAML을 읽어 source만 바꾼다. TF를 새로 만들지 않는다.
+초기에는 아직 localization이 완성되지 않았으므로 MORAI GT를 쓴다. 이후 **follower의 `pp_pi.yaml`만** source를 바꾼다. validator YAML은 바꾸지 않으며, follower가 정규화 ego state를 계속 publish한다. TF를 새로 만들지 않는다.
 
 ```yaml
 ego_state:
   source: morai_gt             # morai_gt | localization
-  map_frame: map
-  base_frame: base_link
-
-  morai_gt:
-    ego_topic: /Ego_topic
-    pose_from_tf: true          # lookupTransform(map, base_link, ego stamp)
-
-  localization:
-    odom_topic: /localization/odom
-    message_type: nav_msgs/Odometry
-    pose_from_tf: true              # lookupTransform(map, base_link, odom stamp)
-    expected_odom_parent: camera_init
-    expected_odom_child: body
-    required_tf: [map->camera_init, body->base_link]
-    velocity_source: odom_twist_or_pose_delta
+  morai_gt_topic: /Ego_topic
+  localization_odom_topic: /localization/odom
 ```
 
 - `morai_gt`: `/Ego_topic`을 freshness/velocity source로 받고, pose/heading은 message 좌표를 임의로 더하지 않고 해당 stamp의 `map -> base_link` TF로 얻는다.
 - `localization`: `/localization/odom`의 freshness를 확인하고, 같은 stamp의 `map -> base_link` TF로 pose/heading을 얻는다. FAST-LIO의 raw pose frame(`camera_init`, `body`)를 reference의 `map` 좌표로 직접 비교하지 않는다. `twist`가 유효하지 않으면 map pose의 timestamp 차분으로 longitudinal/lateral velocity를 계산하고 그 사실을 run metadata에 남긴다.
 - 현재 `fast_lio_odom_map_bridge.py`의 `/localization/odom_map` 출력은 `/Ego_topic`으로 초기 map 정렬을 하는 **MORAI 검증용 보조 경로**다. 대회 localization mode의 의존성으로 쓰지 않는다.
-- source toggle은 `trajectory_generator`가 아니라 `purepursuit_pi`, `trajectory_validator`에 공통 적용한다.
+- source toggle은 `trajectory_generator`나 `trajectory_validator`가 아니라 `purepursuit_pi`에만 적용한다. validator 입력은 항상 `/control/purepursuit_pi/ego_state`다.
 
 #### 현재 PP pipeline의 GT-first 운영 규칙
 
 localization toggle은 미리 만들어 두되, **첫 PP 제어·튜닝·validator 비교 run은 전부 `ego_state.source: morai_gt`로 고정**한다. 즉 `/Ego_topic`의 timestamp와 `maptf_morai.launch`의 `map -> morai_map -> base_link` TF를 차량 상태의 기준으로 쓴다.
 
 - 초기 run에서 `/localization/odom`, FAST-LIO, GT-to-odom adapter를 ego-state source로 선택하지 않는다.
-- `purepursuit_pi`와 `trajectory_validator`는 같은 `morai_gt` source를 써야 하며, run metadata에 `ego_state_mode: morai_gt`, `ego_state_topic: /Ego_topic`을 기록한다.
+- follower는 `morai_gt` source를 쓰며, run metadata에는 `ego_state_mode: morai_gt`, `ego_state_topic: /control/purepursuit_pi/ego_state`를 기록한다.
 - `/localization/odom`으로의 전환은 FAST-LIO의 map alignment/TF/freshness가 검증된 뒤, 별도 run부터 YAML 한 값으로 명시적으로 수행한다. GT run과 localization run을 동일 tuning 비교군으로 섞지 않는다.
 
 ### 3.4 실행 단위(run)
@@ -276,7 +251,7 @@ RViz 클릭 기반 Bézier mode는 정적 장애물 회피 scope가 확정될 �
 
 - `preferred_course`만 쓰며, order 1의 `200889` 시작부터 order 42의 `200889` 끝까지 한 번만 주행한다. candidate corridor와 loop는 1차 범위에서 제외한다.
 - 첫 PP profile은 `constant_kph: 20`이고, 정상 run 3회 뒤 `regulation_curvature`로 전환한다. 상세 speed 규칙은 generator 문서를 따른다.
-- 첫 PP 제어와 평가는 `/Ego_topic` MORAI GT 기준이며, controller/validator는 같은 source를 쓴다.
+- 첫 PP 제어와 평가는 follower가 `/Ego_topic` MORAI GT를 정규화한 `/control/purepursuit_pi/ego_state` 기준이다.
 
 ### 후속 확인
 

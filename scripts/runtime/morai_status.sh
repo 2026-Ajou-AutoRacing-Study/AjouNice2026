@@ -13,14 +13,14 @@ section() {
 }
 
 section "listeners"
-ss -ltnp | rg ':(11311|9090)' || true
-ss -lunp | rg ':(2368|2370)' || true
+ss -ltnp | grep -E ':(11311|9090)' || true
+ss -lunp | grep -E ':(2368|2370)' || true
 
 section "ros params"
 rosparam get /use_sim_time 2>/dev/null || true
 
 section "ros nodes"
-rosnode list 2>/dev/null | rg 'rosbridge|rosapi|ego_tf|tf_map|lidar|morai_sensor_static_tf|morai_camera|robot_state|rviz|lanelet' || true
+rosnode list 2>/dev/null | grep -E 'rosbridge|rosapi|ego_tf|tf_map|lidar|morai_sensor_static_tf|morai_camera|robot_state|rviz|lanelet' || true
 
 section "bridge clients"
 rostopic echo -n 1 /connected_clients 2>/dev/null || true
@@ -41,4 +41,4 @@ for topic in \
 done
 
 section "processes"
-ps -ef | rg 'roscore|rosmaster|rosout|roslaunch|rosbridge_websocket|rosapi_node|rviz|nodelet|lidar_distortion|lidar_advanced|ego_tf|static_transform|morai_sensor_static_tf|Simulator.x86_64' || true
+ps -ef | grep -E 'roscore|rosmaster|rosout|roslaunch|rosbridge_websocket|rosapi_node|rviz|nodelet|lidar_distortion|lidar_advanced|ego_tf|static_transform|morai_sensor_static_tf|Simulator.x86_64' || true

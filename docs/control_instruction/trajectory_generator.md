@@ -59,15 +59,16 @@ order,lanelet_id
 속도까지 지정하는 권장 확장 형식:
 
 ```csv
-order,lanelet_id,reverse,segment_name,target_speed_kph,note
-1,200311,false,roundabout_entry,,튜닝 시작
-2,200968,false,roundabout_entry,25,
-3,201095,false,roundabout_entry,,
+order,lanelet_id,catalog_order,reverse,segment_name,target_speed_kph,note
+1,200311,1,false,roundabout_entry,,튜닝 시작
+2,200968,2,false,roundabout_entry,25,
+3,201095,3,false,roundabout_entry,,
 ```
 
 규칙:
 
 - `order`, `lanelet_id`는 필수다. 파일 행 순서가 아니라 `order` 오름차순이 실제 연결 순서다.
+- `catalog_order`는 같은 `lanelet_id`가 full catalog에 여러 번 있을 때 필수인 선택 열이다. v44의 `200889`처럼 시작(order `1`)과 종료(order `42`)가 같은 ID이면, 어느 occurrence를 쓸지 이 값으로 명시한다. 비어 있는데 동일 ID의 preferred row가 여러 개면 generator는 추측하지 않고 load 실패한다.
 - `lanelet_id`는 catalog의 `lanelet_id` 또는 `source_lanelet_id`와 정확히 일치해야 한다.
 - `reverse` 기본값은 `false`다. generator가 "가까운 endpoint"라는 이유로 조용히 방향을 뒤집지 않는다.
 - `target_speed_kph`가 비어 있으면 catalog의 `speed_limit_kph`를 **상한**으로 전달하고, 요청값은 profile YAML의 `constant_kph` 또는 `default_cruise_kph`를 쓴다.
@@ -279,17 +280,22 @@ trajectory_generator/
     centerline_stitcher.py
     trajectory_profile.py
   config/
+    trajectory_generator.yaml
     routes/
-      competition_route_catalogs.yaml
-      selections/
-    vehicle_limits.yaml
-    generator_defaults.yaml
+      v44/                         # map version별 사람이 만든 Lanelet selection CSV
+        200889_200337.csv
   launch/
     trajectory_generator.launch
   docs/
 ```
 
-실행마다 바뀌는 route selection, speed mode, smoothing 제한은 이 package에 별도 run YAML을 만들지 않고 `purepursuit_pi/config/pp_pi.yaml`의 `generator` section에서 읽는다. 위 `generator_defaults.yaml`은 알고리즘 기본값만 담으며, PP/PI gain tuning 때 사용자가 반복 수정하지 않는다.
+경로 선택과 속도 profile은 `trajectory_generator/config/trajectory_generator.yaml`에서만 정한다. `route_selection_csv: ""`은 finite full preferred course를 뜻하며, 부분 경로는 아래처럼 repository-root 기준 CSV 경로를 넣는다.
+
+```yaml
+route_selection_csv: base_ws/src/control/trajectory_generator/config/routes/v44/200889_200337.csv
+```
+
+`wheelbase_m` 같은 차량 물리값은 이 package에 복사하지 않는다. generator와 follower는 `ioniq5/config/vehicle.yaml`의 단일 원본을 함께 읽는다.
 
 이 구조는 기존 `ajou_control/mgeo_trajectory_generator.py`의 path/marker 사용 경험은 참고하되, MGeo `link_set.json`과 coordinate offset을 공식 기준으로 승계하지 않는다. 공식 기준 geometry는 competition-route catalog의 `map` 좌표다.
 

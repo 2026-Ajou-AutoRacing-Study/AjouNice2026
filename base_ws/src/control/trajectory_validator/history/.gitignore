@@ -1,4 +1,7 @@
-# Runtime validation artifacts: CSV/YAML samples, metrics, and run metadata.
+# Keep the directory in Git, but never publish local driving artifacts.
 *
 !.gitignore
 !.gitkeep
+!pp_pi/
+pp_pi/*
+!pp_pi/.gitkeep

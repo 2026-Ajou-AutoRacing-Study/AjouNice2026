@@ -142,6 +142,8 @@ def visualization_defaults():
         "boundary_z_offset": 0.03,
         "centerline_z_offset": 0.06,
         "feature_z_offset": 0.09,
+        "dashed_line_length": 3.0,
+        "dashed_gap_length": 2.0,
         "show_left_boundaries": True,
         "show_right_boundaries": True,
         "show_centerlines": True,
@@ -201,6 +203,10 @@ def load_visualization_params(style_file):
             "centerline": "centerline_z_offset",
             "feature": "feature_z_offset",
         },
+        "dash": {
+            "line_length": "dashed_line_length",
+            "gap_length": "dashed_gap_length",
+        },
         "show": {
             "left_boundaries": "show_left_boundaries",
             "right_boundaries": "show_right_boundaries",
@@ -242,6 +248,9 @@ def load_visualization_params(style_file):
         if not isinstance(rgb, (list, tuple)) or len(rgb) != 3:
             raise ValueError("Visualization color '%s' must be an RGB list with three values" % name)
         params["colors"][name] = tuple(clamp(float(channel)) for channel in rgb)
+
+    if params["dashed_line_length"] <= 0.0 or params["dashed_gap_length"] <= 0.0:
+        raise ValueError("Visualization dash line_length and gap_length must both be greater than zero")
 
     return params
 
@@ -328,15 +337,78 @@ def append_line_segments(marker, points, z_offset=0.0):
         marker.points.append(offset_point(points[i + 1], z_offset))
 
 
+def append_dashed_line_segments(marker, points, line_length, gap_length, z_offset=0.0):
+    """Append alternating visible and hidden pieces while preserving polyline distance."""
+    if len(points) < 2:
+        return
+
+    cycle_length = line_length + gap_length
+    traversed = 0.0
+    for start, end in zip(points, points[1:]):
+        dx = end.x - start.x
+        dy = end.y - start.y
+        dz = end.z - start.z
+        segment_length = math.sqrt(dx * dx + dy * dy + dz * dz)
+        if segment_length <= 1e-9:
+            continue
+
+        segment_position = 0.0
+        while segment_position < segment_length - 1e-9:
+            cycle_position = traversed % cycle_length
+            is_visible = cycle_position < line_length
+            until_transition = (line_length - cycle_position) if is_visible else (cycle_length - cycle_position)
+            step = min(segment_length - segment_position, until_transition)
+
+            if is_visible and step > 1e-9:
+                start_ratio = segment_position / segment_length
+                end_ratio = (segment_position + step) / segment_length
+                marker.points.append(
+                    offset_point(
+                        point_from_xyz(
+                            start.x + dx * start_ratio,
+                            start.y + dy * start_ratio,
+                            start.z + dz * start_ratio,
+                        ),
+                        z_offset,
+                    )
+                )
+                marker.points.append(
+                    offset_point(
+                        point_from_xyz(
+                            start.x + dx * end_ratio,
+                            start.y + dy * end_ratio,
+                            start.z + dz * end_ratio,
+                        ),
+                        z_offset,
+                    )
+                )
+
+            segment_position += step
+            traversed += step
+
+
+def append_line_by_style(marker, points, tags, params, z_offset=0.0):
+    if tags.get("subtype") == "dashed":
+        append_dashed_line_segments(
+            marker,
+            points,
+            params["dashed_line_length"],
+            params["dashed_gap_length"],
+            z_offset,
+        )
+    else:
+        append_line_segments(marker, points, z_offset)
+
+
 def make_way_line_marker(
-    frame_id, namespace, marker_id, ways, nodes, predicate, marker_color, width, z_offset=0.0
+    frame_id, namespace, marker_id, ways, nodes, predicate, marker_color, width, params, z_offset=0.0
 ):
     marker = marker_base(frame_id, namespace, marker_id, Marker.LINE_LIST, width, marker_color)
     count = 0
     for way in ways.values():
         if predicate(way["tags"]):
             pts = way_points(way, nodes)
-            append_line_segments(marker, pts, z_offset)
+            append_line_by_style(marker, pts, way["tags"], params, z_offset)
             count += 1
     return marker, count
 
@@ -418,10 +490,20 @@ def make_lanelet_markers(frame_id, nodes, ways, relations, params, publish_fill=
 
         left_pts = way_points(ways[left_id], nodes)
         right_pts = way_points(ways[right_id], nodes)
-        append_line_segments(left_boundaries, left_pts, params["boundary_z_offset"])
-        append_line_segments(right_boundaries, right_pts, params["boundary_z_offset"])
+        append_line_by_style(
+            left_boundaries, left_pts, ways[left_id]["tags"], params, params["boundary_z_offset"]
+        )
+        append_line_by_style(
+            right_boundaries, right_pts, ways[right_id]["tags"], params, params["boundary_z_offset"]
+        )
         if params["show_centerlines"] and center_id in ways:
-            append_line_segments(centerlines, way_points(ways[center_id], nodes), params["centerline_z_offset"])
+            append_line_by_style(
+                centerlines,
+                way_points(ways[center_id], nodes),
+                ways[center_id]["tags"],
+                params,
+                params["centerline_z_offset"],
+            )
 
         subtype = relation["tags"].get("subtype")
         if subtype == "crosswalk":
@@ -504,6 +586,7 @@ def build_marker_array(
         lambda tags: tags.get("type") == "road_border",
         styled_color("road_border", "road_border_alpha", params),
         params["road_border_width"],
+        params,
         params["feature_z_offset"],
     )
     lane_markings, lane_marking_count = make_way_line_marker(
@@ -515,6 +598,7 @@ def build_marker_array(
         lambda tags: tags.get("type") == "line_thin" and tags.get("subtype") != "stop_line",
         styled_color("lane_marking", "lane_marking_alpha", params),
         params["lane_marking_width"],
+        params,
         params["feature_z_offset"],
     )
     stop_lines, stop_line_count = make_way_line_marker(
@@ -526,6 +610,7 @@ def build_marker_array(
         lambda tags: tags.get("subtype") == "stop_line",
         styled_color("stop_line", "stop_line_alpha", params),
         params["stop_line_width"],
+        params,
         params["feature_z_offset"],
     )
     traffic_lights, traffic_light_count = make_traffic_light_marker(frame_id, ways, nodes, params)
