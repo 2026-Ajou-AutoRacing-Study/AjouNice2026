@@ -2,66 +2,65 @@
 bag: rosbags/eval/fast_lio_state_full_0715_2132.bag
 state topic: /localization/kinematic_state
 matched samples: 2014
-duration: 103.800 sec
-time sync | mean: 0.0125 sec, max: 0.0410 sec
+duration: 103.780 sec
+comparison time: state timestamp (Ego GT interpolated)
+Ego interpolation | exact: 0, interpolated: 2014, rejected outside: 0, rejected gap: 0
+Ego duplicate timestamps discarded: 2904
+nearest Ego source distance | mean: 0.0058 sec, max: 0.0190 sec
 state reference: base_link (no mounting correction applied)
 ------------------------- Pose -------------------------
-ego path length:       316.693 m
+ego path length:       316.815 m
 FAST-LIO path length:  318.548 m
-path length ratio:     1.00586
-path length error:     +1.856 m
+path length ratio:     1.00547
+path length error:     +1.733 m
 initial alignment yaw: -0.022 deg
-XY mean error:         4.393 m
-XY RMSE:               4.938 m
-XY max error:          8.011 m
-XY final error:        7.945 m
-drift:                 2.509 %
-Yaw mean abs:          0.083 deg
-Yaw max abs:           0.880 deg
+XY mean error:         4.402 m
+XY RMSE:               4.944 m
+XY max error:          8.008 m
+XY final error:        8.008 m
+drift:                 2.528 %
+Yaw mean abs:          0.084 deg
+Yaw max abs:           0.958 deg
 --------------------- Linear twist ---------------------
-linear.x | bias=-0.010, MAE=0.135, RMSE=0.306, max_abs=3.264 m/s
-linear.y | bias=+0.004, MAE=0.033, RMSE=0.066, max_abs=0.632 m/s
-linear.z | bias=-0.001, MAE=0.012, RMSE=0.024, max_abs=0.217 m/s
-speed    | bias=+0.005, MAE=0.137, RMSE=0.306, max_abs=3.262 m/s
+linear.x | bias=-0.011, MAE=0.133, RMSE=0.305, max_abs=3.262 m/s
+linear.y | bias=+0.004, MAE=0.033, RMSE=0.066, max_abs=0.628 m/s
+linear.z | bias=-0.001, MAE=0.012, RMSE=0.024, max_abs=0.204 m/s
+speed    | bias=+0.004, MAE=0.134, RMSE=0.305, max_abs=3.260 m/s
 -------------------- Angular twist ---------------------
-angular.x | bias=-0.0002, MAE=0.0028, RMSE=0.0090, max_abs=0.1764 rad/s
-angular.y | bias=-0.0005, MAE=0.0033, RMSE=0.0077, max_abs=0.0865 rad/s
-angular.z | bias=-0.0048, MAE=0.0119, RMSE=0.0369, max_abs=0.3935 rad/s
+GT yaw rate source: derivative of unwrapped Ego heading (local regression window=7)
+angular.z | bias=+0.0000, MAE=0.0016, RMSE=0.0076, max_abs=0.1959 rad/s
+angular.x/y: not evaluated (MORAI Ego heading provides yaw only)
 -------------------- Stationary state ------------------
 stationary segments: 3
-  [1] 0.000s ~ 3.600s, net=0.028m, accumulated=0.139m, speed_mean=0.033m/s, speed_max=0.822m/s, |wz|_mean=0.0000rad/s
-  [2] 27.260s ~ 32.500s, net=0.312m, accumulated=0.507m, speed_mean=0.074m/s, speed_max=0.142m/s, |wz|_mean=0.0001rad/s
-  [3] 52.480s ~ 92.580s, net=0.304m, accumulated=2.715m, speed_mean=0.038m/s, speed_max=0.145m/s, |wz|_mean=0.0000rad/s
+  [1] 0.000s ~ 3.520s, net=0.009m, accumulated=0.119m, speed_mean=0.031m/s, speed_max=0.822m/s, |wz|_mean=0.0000rad/s
+  [2] 27.240s ~ 32.480s, net=0.312m, accumulated=0.507m, speed_mean=0.074m/s, speed_max=0.142m/s, |wz|_mean=0.0001rad/s
+  [3] 52.440s ~ 92.560s, net=0.304m, accumulated=2.715m, speed_mean=0.038m/s, speed_max=0.145m/s, |wz|_mean=0.0000rad/s
 --------------------- Error segments -------------------
-position error segments above threshold: 3
-  [1] 14.120s ~ 14.120s, max=1.042m at 14.120s
-  [2] 14.200s ~ 14.260s, max=1.015m at 14.260s
-  [3] 14.360s ~ 103.800s, max=8.011m at 103.780s
-speed error segments above threshold: 21
+position error segments above threshold: 1
+  [1] 14.080s ~ 103.780s, max=8.008m at 103.780s
+speed error segments above threshold: 22
   [1] 0.000s ~ 0.000s, max=0.822m/s at 0.000s
-  [2] 4.100s ~ 4.260s, max=0.964m/s at 4.180s
-  [3] 4.480s ~ 4.660s, max=0.657m/s at 4.640s
-  [4] 9.120s ~ 9.300s, max=0.763m/s at 9.200s
-  [5] 13.760s ~ 14.480s, max=1.560m/s at 14.000s
-  [6] 18.480s ~ 18.820s, max=1.154m/s at 18.540s
-  [7] 23.060s ~ 23.280s, max=0.875m/s at 23.120s
-  [8] 36.640s ~ 36.640s, max=0.553m/s at 36.640s
-  [9] 36.960s ~ 37.380s, max=3.262m/s at 37.120s
-  [10] 38.580s ~ 38.700s, max=0.640m/s at 38.620s
-  [11] 39.720s ~ 39.720s, max=0.547m/s at 39.720s
-  [12] 41.740s ~ 42.020s, max=0.991m/s at 41.820s
-  [13] 45.740s ~ 45.920s, max=0.613m/s at 45.840s
-  [14] 46.318s ~ 46.800s, max=1.055m/s at 46.440s
-  [15] 97.300s ~ 97.740s, max=3.092m/s at 97.480s
-  [16] 99.260s ~ 99.340s, max=0.602m/s at 99.340s
-  [17] 99.520s ~ 99.520s, max=0.524m/s at 99.520s
-  [18] 99.620s ~ 99.620s, max=0.509m/s at 99.620s
-  [19] 99.720s ~ 100.360s, max=0.971m/s at 99.900s
-  [20] 101.520s ~ 101.660s, max=0.647m/s at 101.620s
-  [21] 101.940s ~ 102.660s, max=1.402m/s at 102.280s
-yaw-rate error segments above threshold: 4
-  [1] 9.760s ~ 9.940s, max=0.126rad/s at 9.820s
-  [2] 14.260s ~ 15.060s, max=0.393rad/s at 14.400s
-  [3] 15.960s ~ 16.900s, max=0.175rad/s at 16.340s
-  [4] 100.180s ~ 101.560s, max=0.114rad/s at 101.100s
+  [2] 4.080s ~ 4.240s, max=0.964m/s at 4.140s
+  [3] 4.470s ~ 4.640s, max=0.657m/s at 4.600s
+  [4] 9.110s ~ 9.280s, max=0.762m/s at 9.180s
+  [5] 13.750s ~ 14.440s, max=1.591m/s at 13.980s
+  [6] 18.460s ~ 18.660s, max=1.081m/s at 18.520s
+  [7] 18.780s ~ 18.780s, max=0.561m/s at 18.780s
+  [8] 23.030s ~ 23.260s, max=0.853m/s at 23.100s
+  [9] 36.620s ~ 36.620s, max=0.517m/s at 36.620s
+  [10] 36.950s ~ 37.340s, max=3.260m/s at 37.080s
+  [11] 38.560s ~ 38.660s, max=0.611m/s at 38.600s
+  [12] 39.680s ~ 39.680s, max=0.548m/s at 39.680s
+  [13] 41.720s ~ 41.980s, max=0.992m/s at 41.780s
+  [14] 45.700s ~ 45.900s, max=0.611m/s at 45.800s
+  [15] 46.320s ~ 46.760s, max=1.027m/s at 46.420s
+  [16] 97.290s ~ 97.720s, max=3.107m/s at 97.460s
+  [17] 99.240s ~ 99.300s, max=0.603m/s at 99.300s
+  [18] 99.500s ~ 99.500s, max=0.521m/s at 99.500s
+  [19] 99.600s ~ 99.600s, max=0.507m/s at 99.600s
+  [20] 99.700s ~ 100.320s, max=0.971m/s at 99.860s
+  [21] 101.500s ~ 101.600s, max=0.619m/s at 101.600s
+  [22] 101.930s ~ 102.620s, max=1.374m/s at 102.260s
+yaw-rate error segments above threshold: 1
+  [1] 14.180s ~ 14.280s, max=0.196rad/s at 14.240s
 =========================================================

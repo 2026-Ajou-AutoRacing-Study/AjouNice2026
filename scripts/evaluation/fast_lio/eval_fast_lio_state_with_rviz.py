@@ -8,6 +8,7 @@ IMU mounting pose in a MORAI Sensor JSON before comparison.
 """
 
 import argparse
+import bisect
 import contextlib
 import csv
 import io
@@ -116,6 +117,139 @@ def read_bag_states(bag_path, ego_topic, state_topic):
     ego_samples.sort(key=lambda sample: sample.stamp)
     state_samples.sort(key=lambda sample: sample.stamp)
     return ego_samples, state_samples
+
+
+def estimate_heading_yaw_rates(ego_samples, window_size):
+    """Estimate MORAI GT yaw rate from unwrapped heading with local regression."""
+    if window_size < 3 or window_size % 2 == 0:
+        raise ValueError("--ego-yaw-rate-window must be an odd integer >= 3")
+
+    stamps = np.array([sample.stamp for sample in ego_samples], dtype=float)
+    headings = np.unwrap(np.array([sample.yaw for sample in ego_samples], dtype=float))
+    yaw_rates = np.zeros(len(ego_samples), dtype=float)
+    half_window = window_size // 2
+
+    for index in range(len(ego_samples)):
+        start = max(0, index - half_window)
+        end = min(len(ego_samples), index + half_window + 1)
+        local_time = stamps[start:end]
+        local_heading = headings[start:end]
+        centered_time = local_time - local_time.mean()
+        denominator = float(np.dot(centered_time, centered_time))
+        if denominator > 1e-12:
+            yaw_rates[index] = float(
+                np.dot(centered_time, local_heading - local_heading.mean())
+                / denominator
+            )
+
+    return stamps, headings, yaw_rates
+
+
+def unique_samples_by_stamp(samples):
+    """Drop repeated messages with identical header timestamps."""
+    unique = []
+    duplicate_count = 0
+    for sample in samples:
+        if unique and abs(sample.stamp - unique[-1].stamp) <= 1e-12:
+            duplicate_count += 1
+            continue
+        unique.append(sample)
+    return unique, duplicate_count
+
+
+def interpolate_ego_to_state_times(
+    ego_samples, state_samples, max_dt, yaw_rate_window
+):
+    """Interpolate Ego GT at each estimator timestamp.
+
+    A state is accepted only when it lies on an Ego sample or is bracketed by
+    two Ego samples that are both within max_dt.  The third tuple item is the
+    distance to the nearest source Ego sample, not a residual synchronization
+    error; the interpolated Ego sample itself has exactly the state timestamp.
+    """
+    unique_ego_samples, duplicate_count = unique_samples_by_stamp(ego_samples)
+    stamps, unwrapped_heading, yaw_rates = estimate_heading_yaw_rates(
+        unique_ego_samples, yaw_rate_window
+    )
+    stamp_list = stamps.tolist()
+    matched = []
+    exact_count = 0
+    interpolated_count = 0
+    rejected_outside = 0
+    rejected_gap = 0
+
+    for state in state_samples:
+        right = bisect.bisect_left(stamp_list, state.stamp)
+
+        if right < len(unique_ego_samples) and abs(stamps[right] - state.stamp) <= 1e-9:
+            source = unique_ego_samples[right]
+            ego = StateSample(
+                stamp=state.stamp,
+                bag_time=source.bag_time,
+                x=source.x,
+                y=source.y,
+                z=source.z,
+                yaw=source.yaw,
+                linear=source.linear.copy(),
+                angular=np.array([np.nan, np.nan, yaw_rates[right]], dtype=float),
+                child_frame="base_link",
+            )
+            matched.append((ego, state, 0.0))
+            exact_count += 1
+            continue
+
+        if right == 0 or right >= len(unique_ego_samples):
+            rejected_outside += 1
+            continue
+
+        left = right - 1
+        left_dt = state.stamp - stamps[left]
+        right_dt = stamps[right] - state.stamp
+        interval = stamps[right] - stamps[left]
+        if interval <= 1e-12 or max(left_dt, right_dt) > max_dt:
+            rejected_gap += 1
+            continue
+
+        ratio = left_dt / interval
+        left_sample = unique_ego_samples[left]
+        right_sample = unique_ego_samples[right]
+        xyz = (1.0 - ratio) * np.array(
+            [left_sample.x, left_sample.y, left_sample.z], dtype=float
+        ) + ratio * np.array(
+            [right_sample.x, right_sample.y, right_sample.z], dtype=float
+        )
+        linear = (1.0 - ratio) * left_sample.linear + ratio * right_sample.linear
+        yaw = core.wrap_angle(
+            (1.0 - ratio) * unwrapped_heading[left]
+            + ratio * unwrapped_heading[right]
+        )
+        yaw_rate = (1.0 - ratio) * yaw_rates[left] + ratio * yaw_rates[right]
+        bag_time = (
+            (1.0 - ratio) * left_sample.bag_time + ratio * right_sample.bag_time
+        )
+        ego = StateSample(
+            stamp=state.stamp,
+            bag_time=float(bag_time),
+            x=float(xyz[0]),
+            y=float(xyz[1]),
+            z=float(xyz[2]),
+            yaw=float(yaw),
+            linear=linear,
+            angular=np.array([np.nan, np.nan, yaw_rate], dtype=float),
+            child_frame="base_link",
+        )
+        matched.append((ego, state, min(left_dt, right_dt)))
+        interpolated_count += 1
+
+    statistics = {
+        "exact": exact_count,
+        "interpolated": interpolated_count,
+        "rejected_outside": rejected_outside,
+        "rejected_gap": rejected_gap,
+        "yaw_rate_window": yaw_rate_window,
+        "duplicate_stamps": duplicate_count,
+    }
+    return matched, statistics
 
 
 def rotation_from_yaw(yaw):
@@ -241,6 +375,7 @@ def print_report(
     yaw_rate_segments,
     stationary_segments,
     mount,
+    interpolation_statistics,
 ):
     ego_distance = float(np.linalg.norm(np.diff(ego_xyz[:, :2], axis=0), axis=1).sum())
     state_distance = float(
@@ -249,19 +384,34 @@ def print_report(
     path_ratio = state_distance / ego_distance if ego_distance > 1e-9 else float("nan")
     final_error = float(position_errors[-1])
     drift = final_error / ego_distance * 100.0 if ego_distance > 1e-9 else float("nan")
-    sync_dt = np.array([match[2] for match in matched], dtype=float)
+    source_dt = np.array([match[2] for match in matched], dtype=float)
 
     ego_speed = np.linalg.norm(ego_linear[:, :2], axis=1)
     state_speed = np.linalg.norm(state_linear[:, :2], axis=1)
     linear_error = state_linear - ego_linear
-    angular_error = state_angular - ego_angular
+    yaw_rate_error = state_angular[:, 2] - ego_angular[:, 2]
 
     print("======= FAST-LIO Pose + Twist vs MORAI Ego Evaluation =======")
     print(f"bag: {bag_path}")
     print(f"state topic: {state_topic}")
     print(f"matched samples: {len(matched)}")
     print(f"duration: {relative_times[-1]:.3f} sec")
-    print(f"time sync | mean: {sync_dt.mean():.4f} sec, max: {sync_dt.max():.4f} sec")
+    print("comparison time: state timestamp (Ego GT interpolated)")
+    print(
+        "Ego interpolation | "
+        f"exact: {interpolation_statistics['exact']}, "
+        f"interpolated: {interpolation_statistics['interpolated']}, "
+        f"rejected outside: {interpolation_statistics['rejected_outside']}, "
+        f"rejected gap: {interpolation_statistics['rejected_gap']}"
+    )
+    print(
+        "Ego duplicate timestamps discarded: "
+        f"{interpolation_statistics['duplicate_stamps']}"
+    )
+    print(
+        f"nearest Ego source distance | mean: {source_dt.mean():.4f} sec, "
+        f"max: {source_dt.max():.4f} sec"
+    )
     if mount is None:
         print("state reference: base_link (no mounting correction applied)")
     else:
@@ -299,12 +449,16 @@ def print_report(
     )
 
     print("-------------------- Angular twist ---------------------")
-    for index, axis in enumerate(("x", "y", "z")):
-        stats = component_statistics(angular_error[:, index])
-        print(
-            f"angular.{axis} | bias={stats['bias']:+.4f}, MAE={stats['mae']:.4f}, "
-            f"RMSE={stats['rmse']:.4f}, max_abs={stats['max_abs']:.4f} rad/s"
-        )
+    print(
+        "GT yaw rate source: derivative of unwrapped Ego heading "
+        f"(local regression window={interpolation_statistics['yaw_rate_window']})"
+    )
+    stats = component_statistics(yaw_rate_error)
+    print(
+        f"angular.z | bias={stats['bias']:+.4f}, MAE={stats['mae']:.4f}, "
+        f"RMSE={stats['rmse']:.4f}, max_abs={stats['max_abs']:.4f} rad/s"
+    )
+    print("angular.x/y: not evaluated (MORAI Ego heading provides yaw only)")
 
     print("-------------------- Stationary state ------------------")
     print(f"stationary segments: {len(stationary_segments)}")
@@ -380,7 +534,8 @@ def write_csv(
     state_speed = np.linalg.norm(state_linear[:, :2], axis=1)
 
     header = [
-        "t_rel", "ego_stamp", "ego_bag_time", "state_stamp", "state_bag_time", "sync_dt",
+        "t_rel", "ego_stamp", "ego_bag_time", "state_stamp", "state_bag_time",
+        "ego_nearest_source_dt",
         "ego_x", "ego_y", "ego_z", "state_aligned_x", "state_aligned_y", "state_aligned_z",
         "err_x", "err_y", "err_z", "err_xy", "ego_yaw_deg", "state_yaw_deg", "yaw_err_deg",
         "ego_vx", "ego_vy", "ego_vz", "state_vx", "state_vy", "state_vz",
@@ -391,11 +546,11 @@ def write_csv(
     with open(csv_path, "w", newline="") as output:
         writer = csv.writer(output)
         writer.writerow(header)
-        for index, (ego_sample, state_sample, sync_dt) in enumerate(matched):
+        for index, (ego_sample, state_sample, nearest_source_dt) in enumerate(matched):
             writer.writerow(
                 [
                     relative_times[index], ego_sample.stamp, ego_sample.bag_time,
-                    state_sample.stamp, state_sample.bag_time, sync_dt,
+                    state_sample.stamp, state_sample.bag_time, nearest_source_dt,
                     *ego_xyz[index], *aligned_xyz[index], *position_error_xyz[index],
                     position_errors[index], math.degrees(ego_sample.yaw),
                     math.degrees(aligned_yaw[index]), math.degrees(yaw_errors[index]),
@@ -560,6 +715,15 @@ def main():
     parser.add_argument("--sensor-config", default=default_sensor_config)
     parser.add_argument("--imu-name", default="imu")
     parser.add_argument("--max-dt", type=float, default=0.05)
+    parser.add_argument(
+        "--ego-yaw-rate-window",
+        type=int,
+        default=7,
+        help=(
+            "Odd number of raw Ego heading samples used by the local linear "
+            "regression that estimates GT yaw rate (default: 7)"
+        ),
+    )
     parser.add_argument("--position-error-threshold", type=float, default=1.0)
     parser.add_argument("--speed-error-threshold", type=float, default=0.5)
     parser.add_argument("--yaw-rate-error-threshold", type=float, default=0.1)
@@ -582,7 +746,12 @@ def main():
     state_samples, mount = normalize_state_reference(
         raw_state_samples, os.path.abspath(args.sensor_config), args.imu_name
     )
-    matched = core.match_samples(ego_samples, state_samples, args.max_dt)
+    matched, interpolation_statistics = interpolate_ego_to_state_times(
+        ego_samples,
+        state_samples,
+        args.max_dt,
+        args.ego_yaw_rate_window,
+    )
     if len(matched) < 10:
         raise RuntimeError(
             f"Too few unique matched samples: {len(matched)}. "
@@ -649,6 +818,7 @@ def main():
             yaw_rate_segments,
             stationary_segments,
             mount,
+            interpolation_statistics,
         )
     report = report_buffer.getvalue()
     print(report, end="")
