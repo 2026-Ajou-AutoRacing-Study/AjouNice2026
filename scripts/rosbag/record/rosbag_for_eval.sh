@@ -12,6 +12,12 @@ TOPICS=(
   /Ego_topic
   /sensor/imu
   /sensor/lidar1
+  /sensor/camera/front
+  /sensor/camera/front_left
+  /sensor/camera/front_right
+  /sensor/camera/back
+  /sensor/camera/back_left
+  /sensor/camera/back_right
   /localization/odom
   /path
   /cloud_registered
