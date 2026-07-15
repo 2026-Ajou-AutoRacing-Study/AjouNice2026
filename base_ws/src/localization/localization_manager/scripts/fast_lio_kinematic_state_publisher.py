@@ -25,7 +25,7 @@ def transform_rotation(transform):
     )[0:3, 0:3]
 
 
-class KinematicStatePublisher:
+class FastLioKinematicStatePublisher:
     def __init__(self):
         self.map_frame = normalized_frame(param("frames/map", "map"))
         self.camera_init_frame = normalized_frame(
@@ -51,7 +51,7 @@ class KinematicStatePublisher:
         )
 
         rospy.loginfo(
-            "kinematic_state_publisher: %s -> %s; covariance is unavailable",
+            "fast_lio_kinematic_state_publisher: %s -> %s; covariance is unavailable",
             self.odom_topic,
             self.output_topic,
         )
@@ -153,11 +153,10 @@ class KinematicStatePublisher:
 
 
 def main():
-    rospy.init_node("kinematic_state_publisher")
-    KinematicStatePublisher()
+    rospy.init_node("fast_lio_kinematic_state_publisher")
+    FastLioKinematicStatePublisher()
     rospy.spin()
 
 
 if __name__ == "__main__":
     main()
-

@@ -15,7 +15,8 @@ catkin_package()
 
 catkin_install_python(PROGRAMS
   scripts/morai_map_camera_init_broadcaster.py
-  scripts/kinematic_state_publisher.py
+  scripts/fast_lio_kinematic_state_publisher.py
+  scripts/morai_gt_kinematic_state_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

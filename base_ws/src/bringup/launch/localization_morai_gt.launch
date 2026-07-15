@@ -1,0 +1,40 @@
+<launch>
+  <!--
+    MORAI ground-truth localization stack.
+
+    TF output:
+      map -> morai_map -> base_link
+
+    Planning output:
+      /localization/kinematic_state (map -> base_link pose, base_link twist)
+
+    Do not run localization_fast_lio.launch, maptf.launch, or
+    maptf_morai_deg_correction.launch at the same time. MORAI bridge and
+    sensing are intentionally launched separately.
+  -->
+  <arg name="use_sim_time" default="false"/>
+  <arg name="localization_manager_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+
+  <arg name="ego_topic" default="/Ego_topic"/>
+  <arg name="map_frame" default="map"/>
+  <arg name="morai_map_frame" default="morai_map"/>
+  <arg name="base_frame" default="base_link"/>
+  <arg name="heading_in_degrees" default="true"/>
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+
+  <include file="$(find tf_pub)/launch/map_tf.launch">
+    <arg name="parent_frame" value="$(arg map_frame)"/>
+    <arg name="child_frame" value="$(arg morai_map_frame)"/>
+  </include>
+
+  <include file="$(find localization_manager)/launch/morai_gt.launch">
+    <arg name="config" value="$(arg localization_manager_config)"/>
+    <arg name="ego_topic" value="$(arg ego_topic)"/>
+    <arg name="map_frame" value="$(arg map_frame)"/>
+    <arg name="morai_map_frame" value="$(arg morai_map_frame)"/>
+    <arg name="base_frame" value="$(arg base_frame)"/>
+    <arg name="heading_in_degrees" value="$(arg heading_in_degrees)"/>
+  </include>
+</launch>

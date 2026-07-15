@@ -25,6 +25,17 @@ header.frame_id = map
 child_frame_id = base_link
 ```
 
+## Localization provider별 공통 인터페이스
+
+- FAST-LIO mode: `roslaunch bringup localization_fast_lio.launch`
+  - TF: `map -> morai_map -> camera_init -> body -> base_link`
+- MORAI GT mode: `roslaunch bringup localization_morai_gt.launch`
+  - TF: `map -> morai_map -> base_link`
+- 두 mode 모두 Planning에 동일한 출력을 제공함.
+  - TF lookup: `map -> base_link`
+  - topic: `/localization/kinematic_state`
+- 두 localization launch는 동시에 실행하지 않음.
+
 ```bash
 즉,
 tf: map -> base_link

@@ -61,15 +61,22 @@ class MoraiMapCameraInitBroadcaster:
         )
         self.ego_topic = param("topics/ego", "/Ego_topic")
         self.odom_topic = param("topics/fast_lio_odom", "/localization/odom")
+        initialization_ns = "providers/fast_lio/initialization"
         self.max_time_difference = float(
-            param("initialization/max_time_difference_sec", 0.05)
+            param(initialization_ns + "/max_time_difference_sec", 0.05)
         )
-        self.heading_in_degrees = bool(
-            param("initialization/heading_in_degrees", True)
-        )
+        heading_unit = str(
+            param(initialization_ns + "/heading_unit", "degrees")
+        ).strip().lower()
+        if heading_unit not in ("degrees", "radians"):
+            raise rospy.ROSInitException(
+                "Unsupported FAST-LIO initialization heading unit '{}'; "
+                "expected 'degrees' or 'radians'".format(heading_unit)
+            )
+        self.heading_in_degrees = heading_unit == "degrees"
         self.tf_timeout = float(param("runtime/tf_lookup_timeout_sec", 0.05))
 
-        source = param("initialization/source", "ego")
+        source = param(initialization_ns + "/source", "ego")
         if source != "ego":
             raise rospy.ROSInitException(
                 "Unsupported initialization source '{}'; only 'ego' is implemented".format(

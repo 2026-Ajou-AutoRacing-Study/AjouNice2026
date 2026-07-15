@@ -5,7 +5,7 @@
     TF output:
       map -> morai_map -> camera_init -> body -> base_link
 
-    Do not run maptf_morai.launch at the same time. Its
+    Do not run localization_morai_gt.launch at the same time. Its
     morai_map -> base_link edge would give base_link a second parent.
     MORAI bridge and sensing are intentionally launched separately.
   -->
@@ -28,7 +28,7 @@
     <arg name="config" value="$(arg fast_lio_config)"/>
   </include>
 
-  <include file="$(find localization_manager)/launch/fast_lio_tf.launch">
+  <include file="$(find localization_manager)/launch/fast_lio.launch">
     <arg name="config" value="$(arg localization_manager_config)"/>
   </include>
 </launch>
