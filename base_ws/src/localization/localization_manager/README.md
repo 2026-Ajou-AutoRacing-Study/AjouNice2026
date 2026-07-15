@@ -7,7 +7,7 @@ and publishes the vehicle-frame state expected by Planning.
 
 - Input `/localization/odom`: `camera_init -> body`, produced by FAST-LIO.
 - Input `/Ego_topic`: used only for the first global alignment.
-- Output TF: `map -> camera_init`.
+- Output TF: `morai_map -> camera_init`.
 - Output `/localization/kinematic_state`: `map -> base_link` pose and
   `base_link`-frame twist.
 
@@ -23,6 +23,11 @@ Use `bringup/localization_fast_lio.launch` for the FAST-LIO tree. Do not run
 
 The global alignment source and topic/frame names are configured in
 `configs/localization/localization_manager.yaml`.
+
+The complete pose chain is
+`map -> morai_map -> camera_init -> body -> base_link`. The existing
+`tf_pub/map_tf.launch` owns the fixed `map -> morai_map` alignment, while this
+package owns the FAST-LIO initialization edge `morai_map -> camera_init`.
 
 ## Current limitations
 

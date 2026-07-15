@@ -17,7 +17,7 @@ tf: camera_init -> body
 
 - `map → base_link` 로 변환된 pose가 필요
     - 이는 tf 행렬곱으로 분해됨
-    - `map -> camera_init -> body -> base_link`
+    - `map -> morai_map -> camera_init -> body -> base_link`
 
 ```bash
 planning을 위해 내보내줘야 하는 토픽 frame 형태:
@@ -29,13 +29,14 @@ child_frame_id = base_link
 즉,
 tf: map -> base_link
 =
-map -> camera_init
+map -> morai_map
+* morai_map -> camera_init
 * camera_init -> body
 * body -> base_link
 
 Fast-LIO 시작 시점의 pose를 저장
-같은 시점의 map에서의 초기 pose를 측정
-그 차이를 map -> camera_init 초기 정렬값으로 고정
+같은 시점의 morai_map에서의 초기 pose를 측정
+그 차이를 morai_map -> camera_init 초기 정렬값으로 고정
 ```
 
 ## camera_init -> body
@@ -57,12 +58,12 @@ body / imu:
     - eval에선 단순 position 비교만 하니 필요 x
 - 현재 MORAI Sensor_1/2 config의 IMU 위치는 `[1.528, 0.0, 0.200]`이고 rotation은 없다. 따라서 역변환인 `[-1.528, 0.0, -0.200]`가 `body -> base_link` TF가 됨.
 
-## map -> camera_init
+## morai_map -> camera_init
 
 - fast lio는 시작 지점을 camera_init 원점으로 잡음.
-    - 그래서 시작 시점의 차량 map 기준 pose를 알면, 그 pose를 기준으로 camera_init을 map에 붙이는 tf를 계산 가
+    - 그래서 시작 시점의 차량 morai_map 기준 pose를 알면, 그 pose를 기준으로 camera_init을 morai_map에 붙이는 TF를 계산 가능
 - 이를 계산하기 위해선 초기
-    1. map에서의 초기 postion과 yaw
+    1. morai_map에서의 초기 position과 yaw
     2. camera_init 에서의 초기 position과 yaw
 - 가 필요함.
     1. 1번은 아래의 방법들로 **직접 취득해야 함**.
@@ -77,8 +78,8 @@ output topic:
 
 선택지2)
 output topic: 
-/tf # map -> camera_init
-왜냐하면 map -> camera_init tf만 있어도 planning에서 실시간으로 map → base_link 복원 가능
+/tf # morai_map -> camera_init
+왜냐하면 기존 map -> morai_map TF와 morai_map -> camera_init TF가 있으면 planning에서 실시간으로 map → base_link 복원 가능
 ```
 
     
@@ -86,7 +87,8 @@ output topic:
 ## 정리
 
 - planning을 위해 우리가 구해야 하는 것:
-    - map에서의 차량의 초기 position과 yaw
+    - morai_map에서의 차량 초기 position과 yaw
+    - 고정된 `map -> morai_map` 정렬을 통해 최종 map pose를 복원
 
 # 1. 초기 position
 
@@ -120,7 +122,7 @@ output topic:
 
 # 3) 이후 global correction
 
-- 초기 `map -> camera_init` 의 오차 + fast lio drift 등의 이유로, 초기 이후에도 보정이 필요할 수 있음
+- 초기 `morai_map -> camera_init` 의 오차 + fast lio drift 등의 이유로, 초기 이후에도 보정이 필요할 수 있음
 - 우리가 궁극적으로 목표하는 https://app.notion.com/p/395b49145fb98026b2c9ed070079412b?pvs=25#395b49145fb980ce82eafeb43588610b 가 gnss로 이러한 global correction을 하는 걸로 보임.
     - 해당 gnss + wheel fusion을 먼저 적용해 보는 게 좋을 듯.
     - 또는 NDT Scan matching으로도 가능

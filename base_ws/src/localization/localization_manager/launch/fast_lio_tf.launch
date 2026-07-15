@@ -1,10 +1,10 @@
 <launch>
   <!--
     Complete the FAST-LIO branch of the localization TF tree:
-      map -> camera_init -> body -> base_link
+      map -> morai_map -> camera_init -> body -> base_link
 
     FAST-LIO owns camera_init -> body. This launch owns body -> base_link and
-    starts the node that initializes map -> camera_init from Ego GT.
+    starts the node that initializes morai_map -> camera_init from Ego GT.
   -->
   <arg name="config"
        default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
@@ -19,8 +19,8 @@
         output="screen"/>
 
   <node pkg="localization_manager"
-        type="map_camera_init_broadcaster.py"
-        name="map_camera_init_broadcaster"
+        type="morai_map_camera_init_broadcaster.py"
+        name="morai_map_camera_init_broadcaster"
         output="screen"/>
 
   <node pkg="localization_manager"

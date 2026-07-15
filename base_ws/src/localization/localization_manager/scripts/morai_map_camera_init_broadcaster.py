@@ -47,9 +47,8 @@ def pose_matrix(position, orientation):
     return matrix
 
 
-class MapCameraInitBroadcaster:
+class MoraiMapCameraInitBroadcaster:
     def __init__(self):
-        self.map_frame = normalized_frame(param("frames/map", "map"))
         self.morai_map_frame = normalized_frame(
             param("frames/morai_map", "morai_map")
         )
@@ -79,7 +78,7 @@ class MapCameraInitBroadcaster:
             )
 
         self.lock = threading.Lock()
-        self.map_camera_init = None
+        self.morai_camera_init = None
         self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(30.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
@@ -100,14 +99,14 @@ class MapCameraInitBroadcaster:
         )
 
         rospy.loginfo(
-            "map_camera_init_broadcaster waiting for synchronized %s and %s",
+            "morai_map_camera_init_broadcaster waiting for synchronized %s and %s",
             self.ego_topic,
             self.odom_topic,
         )
 
     def initialize_from_ego(self, ego, odom):
         with self.lock:
-            if self.map_camera_init is not None:
+            if self.morai_camera_init is not None:
                 return
 
         if ego.header.stamp.is_zero() or odom.header.stamp.is_zero():
@@ -142,12 +141,6 @@ class MapCameraInitBroadcaster:
             return
 
         try:
-            map_morai_msg = self.tf_buffer.lookup_transform(
-                self.map_frame,
-                self.morai_map_frame,
-                rospy.Time(0),
-                rospy.Duration(self.tf_timeout),
-            )
             body_base_msg = self.tf_buffer.lookup_transform(
                 self.body_frame,
                 self.base_link_frame,
@@ -167,10 +160,6 @@ class MapCameraInitBroadcaster:
         morai_base = tft.quaternion_matrix(ego_quaternion)
         morai_base[0:3, 3] = ego_values[0:3]
 
-        map_morai = transform_matrix(
-            map_morai_msg.transform.translation,
-            map_morai_msg.transform.rotation,
-        )
         camera_body = pose_matrix(
             odom.pose.pose.position, odom.pose.pose.orientation
         )
@@ -183,26 +172,25 @@ class MapCameraInitBroadcaster:
             np.dot(morai_base, np.linalg.inv(body_base)),
             np.linalg.inv(camera_body),
         )
-        map_camera = np.dot(map_morai, morai_camera)
 
-        if not np.all(np.isfinite(map_camera)):
-            rospy.logerr("Computed map -> camera_init contains non-finite values")
+        if not np.all(np.isfinite(morai_camera)):
+            rospy.logerr("Computed morai_map -> camera_init contains non-finite values")
             return
 
         with self.lock:
-            if self.map_camera_init is not None:
+            if self.morai_camera_init is not None:
                 return
-            self.map_camera_init = map_camera
+            self.morai_camera_init = morai_camera
 
-        roll, pitch, aligned_yaw = tft.euler_from_matrix(map_camera)
+        roll, pitch, aligned_yaw = tft.euler_from_matrix(morai_camera)
         rospy.loginfo(
             "Initialized %s -> %s: xyz=[%.6f, %.6f, %.6f], "
             "rpy_deg=[%.3f, %.3f, %.3f], time_difference=%.6f sec",
-            self.map_frame,
+            self.morai_map_frame,
             self.camera_init_frame,
-            map_camera[0, 3],
-            map_camera[1, 3],
-            map_camera[2, 3],
+            morai_camera[0, 3],
+            morai_camera[1, 3],
+            morai_camera[2, 3],
             math.degrees(roll),
             math.degrees(pitch),
             math.degrees(aligned_yaw),
@@ -213,14 +201,14 @@ class MapCameraInitBroadcaster:
         if odom.header.stamp.is_zero():
             return
         with self.lock:
-            if self.map_camera_init is None:
+            if self.morai_camera_init is None:
                 return
-            matrix = self.map_camera_init.copy()
+            matrix = self.morai_camera_init.copy()
 
         quaternion = tft.quaternion_from_matrix(matrix)
         transform = TransformStamped()
         transform.header.stamp = odom.header.stamp
-        transform.header.frame_id = self.map_frame
+        transform.header.frame_id = self.morai_map_frame
         transform.child_frame_id = self.camera_init_frame
         transform.transform.translation.x = matrix[0, 3]
         transform.transform.translation.y = matrix[1, 3]
@@ -233,11 +221,10 @@ class MapCameraInitBroadcaster:
 
 
 def main():
-    rospy.init_node("map_camera_init_broadcaster")
-    MapCameraInitBroadcaster()
+    rospy.init_node("morai_map_camera_init_broadcaster")
+    MoraiMapCameraInitBroadcaster()
     rospy.spin()
 
 
 if __name__ == "__main__":
     main()
-

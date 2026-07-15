@@ -14,7 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package()
 
 catkin_install_python(PROGRAMS
-  scripts/map_camera_init_broadcaster.py
+  scripts/morai_map_camera_init_broadcaster.py
   scripts/kinematic_state_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
@@ -22,4 +22,3 @@ catkin_install_python(PROGRAMS
 install(DIRECTORY launch/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
-

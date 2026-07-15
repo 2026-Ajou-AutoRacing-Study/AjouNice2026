@@ -3,8 +3,7 @@
     FAST-LIO localization stack for MORAI.
 
     TF output:
-      map -> morai_map                    (static reference branch)
-      map -> camera_init -> body -> base_link
+      map -> morai_map -> camera_init -> body -> base_link
 
     Do not run maptf_morai.launch at the same time. Its
     morai_map -> base_link edge would give base_link a second parent.
@@ -33,4 +32,3 @@
     <arg name="config" value="$(arg localization_manager_config)"/>
   </include>
 </launch>
-
