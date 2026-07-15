@@ -58,6 +58,7 @@
   <exec_depend>fast_lio</exec_depend>
   <exec_depend>ioniq5</exec_depend>
   <exec_depend>lanelet_map_visualizer</exec_depend>
+  <exec_depend>localization_manager</exec_depend>
   <exec_depend>morai_ros_bridge</exec_depend>
   <exec_depend>rosbridge_server</exec_depend>
   <exec_depend>sensor_interface</exec_depend>
