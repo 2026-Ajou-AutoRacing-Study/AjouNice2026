@@ -24,6 +24,9 @@ class ObstacleVelocityLimiter:
         self.min_ttc = max(float(rospy.get_param("~min_ttc", 1.0)), 1.0e-3)
         self.distance_buffer = float(rospy.get_param("~distance_buffer", 0.0))
         self.min_adjusted_velocity = float(rospy.get_param("~min_adjusted_velocity_mps", 2.5))
+        self.min_relative_speed = max(float(rospy.get_param("~min_relative_speed_mps", 0.1)), 1.0e-3)
+        self.follow_time_gap = max(float(rospy.get_param("~follow_time_gap", 1.5)), 1.0e-3)
+        self.min_follow_distance = max(float(rospy.get_param("~min_follow_distance", 5.0)), 0.0)
         self.max_deceleration = max(
             abs(float(rospy.get_param("~max_deceleration", 2.0))), 1.0e-3
         )
@@ -50,9 +53,10 @@ class ObstacleVelocityLimiter:
         self.pub_path = rospy.Publisher(output_path_topic, PathWithLaneId, queue_size=1)
 
         rospy.loginfo(
-            "ObstacleVelocityLimiter initialized (min_ttc=%.2f, distance_buffer=%.2f)",
+            "ObstacleVelocityLimiter initialized (min_ttc=%.2f, distance_buffer=%.2f, follow_time_gap=%.2f)",
             self.min_ttc,
             self.distance_buffer,
+            self.follow_time_gap,
         )
 
     def cb_path(self, msg: PathWithLaneId):
@@ -77,10 +81,11 @@ class ObstacleVelocityLimiter:
 
     def obstacle_info(self, point_s):
         if not self.objects or len(self.objects.objects) == 0 or self.path is None:
-            return float('inf'), float('inf')
+            return float('inf'), float('inf'), 0.0
 
         min_distance = float('inf')
         min_ttc = float('inf')
+        min_obj_speed = 0.0
         for obj in self.objects.objects:
             proj = project_pose_to_path(self.path, object_pose(obj))
             if proj is None or abs(proj.signed_lateral_distance) > self.max_lateral_distance:
@@ -88,16 +93,27 @@ class ObstacleVelocityLimiter:
 
             distance = proj.longitudinal_distance - self.distance_buffer - point_s
             if distance <= 0.0:
-                return 0.0, 0.0
+                continue
 
             ego_speed = max(self.ego_speed, 0.1)
             obj_speed = object_speed(obj)
-            relative_speed = max(ego_speed - obj_speed, 0.1)
+            relative_speed = ego_speed - obj_speed
+            if relative_speed <= self.min_relative_speed:
+                continue
             ttc = distance / relative_speed
-            min_distance = min(min_distance, distance)
-            min_ttc = min(min_ttc, ttc)
+            if ttc < min_ttc:
+                min_distance = distance
+                min_ttc = ttc
+                min_obj_speed = obj_speed
 
-        return min_distance, min_ttc
+        return min_distance, min_ttc, min_obj_speed
+
+    def follow_velocity(self, distance, object_velocity):
+        gap_error = distance - self.min_follow_distance
+        target_velocity = object_velocity + gap_error / self.follow_time_gap
+        if distance > self.min_follow_distance:
+            target_velocity = max(self.min_adjusted_velocity, target_velocity)
+        return max(0.0, target_velocity)
 
     def apply_limits_and_publish(self):
         if not self.path:
@@ -107,12 +123,12 @@ class ObstacleVelocityLimiter:
         distances = path_cumulative_lengths(self.path)
         for item, point_s in zip(out.points, distances):
             original_velocity = float(getattr(item.point, "longitudinal_velocity_mps", 0.0))
-            distance, ttc = self.obstacle_info(point_s)
+            distance, ttc, object_velocity = self.obstacle_info(point_s)
 
             if distance <= 0.0 or ttc <= 0.0:
                 target_velocity = 0.0
             elif ttc <= self.min_ttc:
-                safe_velocity = max(self.min_adjusted_velocity, distance / self.min_ttc)
+                safe_velocity = self.follow_velocity(distance, object_velocity)
                 if original_velocity > 0.0:
                     target_velocity = min(original_velocity, safe_velocity)
                 else:

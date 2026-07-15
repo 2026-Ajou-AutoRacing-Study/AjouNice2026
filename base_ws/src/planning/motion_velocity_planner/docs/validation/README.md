@@ -60,15 +60,30 @@ rosrun motion_velocity_planner run_motion_velocity_planner_cases.py \
 
 ## End-to-end velocity profile
 
-The following values are based on the executed 30 m obstacle integration test:
+The default validation cases use a 30 m obstacle and the speed-based stop-distance
+defaults:
 
 - Input path: 1 m spacing, 8 m/s initial velocity
-- Planner base velocity: 5 m/s
-- Static obstacle: 30 m, 0 m/s
-- Dynamic obstacle: 30 m, 2 m/s
-- Observed output: both cases stop at 27 m
+- Planner base/ego velocity: 5 m/s
+- Static base clearance: 3 m
+- Dynamic base clearance: 5 m
+- Reaction time: 0.8 s
+- Comfortable deceleration: 3.0 m/s²
 
-The overlapping profiles are intentional evidence of the current integration gap: the integrated node still reads `ObjectClassification.confidence`, whereas the ROS message provides `probability`. As a result, its static/dynamic classification branches are inactive and the generic slow-down policy determines the stop point.
+Expected first zero-velocity points with 1 m path spacing:
+
+| Case | Computed clearance | Expected first stop point |
+|---|---:|---:|
+| Static obstacle, 0 m/s | about 11.2 m | 19 m |
+| Slow dynamic obstacle, 0.5 m/s | about 17.7 m | 13 m |
+| Dynamic leading obstacle, 2.0 m/s | TTC about 10.0 s | no full stop |
+
+The integrated node reads `ObjectClassification.probability` with a
+`confidence` fallback, so the static and dynamic branches are active with the
+current ROS messages. Dynamic objects faster than
+`slow_dynamic_stop_speed_threshold_mps` only create a dynamic stop line when
+ego/object TTC is below `dynamic_stop_ttc_threshold`; otherwise they are handled
+by follow/TTC velocity limiting.
 
 ## RViz capture guide
 
@@ -88,6 +103,6 @@ For the validation screenshot, place a 30 m object on the reference path and cap
 | Item | Result |
 |---|---|
 | Individual module checks | Completed |
-| End-to-end static-obstacle output | Stops at 27 m |
-| End-to-end dynamic-obstacle output | Also stops at 27 m |
-| Remaining integration issue | Dynamic classification must use `probability` in `motion_velocity_planner.py` |
+| End-to-end static-obstacle output | Stops around 19 m for a 30 m object at 5 m/s ego speed |
+| End-to-end slow-dynamic output | Stops around 13 m for a 30 m object at 5 m/s ego speed |
+| End-to-end faster dynamic output | No full stop for a 30 m object moving at 2 m/s when TTC is not critical |

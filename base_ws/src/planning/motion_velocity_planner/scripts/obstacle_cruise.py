@@ -5,9 +5,9 @@ from copy import deepcopy
 import math
 
 from autoware_internal_planning_msgs.msg import PathWithLaneId, VelocityLimit
-from autoware_perception_msgs.msg import PredictedObjects
+from autoware_perception_msgs.msg import ObjectClassification, PredictedObjects
 
-from mvp_utils import object_pose, path_cumulative_lengths, project_pose_to_path
+from mvp_utils import object_pose, object_speed, param_bool, path_cumulative_lengths, project_pose_to_path
 
 
 class ObstacleCruise:
@@ -24,6 +24,24 @@ class ObstacleCruise:
         self.safe_distance = float(rospy.get_param('~safe_distance', 10.0))
         self.slow_velocity = float(rospy.get_param('~slow_velocity_mps', 1.0))
         self.max_lateral_distance = float(rospy.get_param('~max_lateral_distance', 1.5))
+        self.slow_dynamic_stop_speed_threshold = max(
+            float(rospy.get_param('~slow_dynamic_stop_speed_threshold_mps', 1.0)),
+            0.0,
+        )
+        self.stop_unknown_objects = param_bool(rospy.get_param('~stop_unknown_objects', False))
+        self.min_classification_confidence = float(rospy.get_param('~min_confidence', 0.5))
+        self.stop_object_labels = [
+            label.strip().lower()
+            for label in rospy.get_param(
+                '~stop_object_labels',
+                ['car', 'truck', 'bus', 'bicycle', 'motorcycle', 'pedestrian'],
+            )
+            if isinstance(label, str)
+        ]
+        self.stop_object_label_ids = set()
+        for label in self.stop_object_labels:
+            if hasattr(ObjectClassification, label.upper()):
+                self.stop_object_label_ids.add(getattr(ObjectClassification, label.upper()))
 
         self.path = None
         self.objects = None
@@ -55,12 +73,42 @@ class ObstacleCruise:
         self.velocity_limit = msg
         self.publish_cruise()
 
+    def is_stop_object(self, obj):
+        if not obj.classification:
+            return False
+
+        classification = obj.classification[0]
+        label = getattr(classification, 'label', None)
+        probability = float(
+            getattr(classification, 'probability', getattr(classification, 'confidence', 0.0))
+        )
+        if probability < self.min_classification_confidence:
+            return False
+
+        if isinstance(label, str):
+            label = label.lower()
+            if label in self.stop_object_labels:
+                return True
+            return self.stop_unknown_objects and label == 'unknown'
+
+        if isinstance(label, int):
+            if label in self.stop_object_label_ids:
+                return True
+            return self.stop_unknown_objects and label == ObjectClassification.UNKNOWN
+
+        return False
+
+    def is_hard_stop_distance_object(self, obj):
+        return self.is_stop_object(obj) and object_speed(obj) <= self.slow_dynamic_stop_speed_threshold
+
     def closest_obstacle_distance(self, point_s):
         if not self.objects or len(self.objects.objects) == 0 or self.path is None:
             return float('inf')
 
         dmin = float('inf')
         for obj in self.objects.objects:
+            if not self.is_hard_stop_distance_object(obj):
+                continue
             proj = project_pose_to_path(self.path, object_pose(obj))
             if proj is None or abs(proj.signed_lateral_distance) > self.max_lateral_distance:
                 continue

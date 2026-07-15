@@ -7,13 +7,19 @@ cases:
     object_x: 30.0
     object_y: 0.0
     object_speed: 0.0
-    expected_stop_x: 27.0
+    expected_stop_x: 19.0
+
+  - name: slow_dynamic_object_30m_0p5mps
+    object_x: 30.0
+    object_y: 0.0
+    object_speed: 0.5
+    expected_stop_x: 13.0
 
   - name: dynamic_object_30m_2mps
     object_x: 30.0
     object_y: 0.0
     object_speed: 2.0
-    expected_stop_x: 25.0
+    expected_stop_x: null
 
   - name: lateral_object_30m
     object_x: 30.0

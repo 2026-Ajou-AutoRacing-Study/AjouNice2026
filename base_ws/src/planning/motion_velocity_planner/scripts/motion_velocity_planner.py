@@ -40,6 +40,28 @@ class MotionVelocityPlanner:
         self.warning_distance = float(rospy.get_param("~warning_distance", 6.0))
         self.min_stop_velocity = float(rospy.get_param("~min_stop_velocity_mps", 0.5))
         self.max_deceleration = float(rospy.get_param("~max_deceleration", 2.0))
+        self.reaction_time = max(float(rospy.get_param("~reaction_time", 0.8)), 0.0)
+        self.comfortable_deceleration = max(
+            abs(float(rospy.get_param("~comfortable_deceleration", 3.0))),
+            0.1,
+        )
+        self.object_size_margin = max(float(rospy.get_param("~object_size_margin", 0.0)), 0.0)
+        self.dynamic_object_time_margin = max(
+            float(rospy.get_param("~dynamic_object_time_margin", 1.0)),
+            0.0,
+        )
+        self.slow_dynamic_stop_speed_threshold = max(
+            float(rospy.get_param("~slow_dynamic_stop_speed_threshold_mps", 1.0)),
+            0.0,
+        )
+        self.dynamic_stop_ttc_threshold = max(
+            float(rospy.get_param("~dynamic_stop_ttc_threshold", 4.0)),
+            0.0,
+        )
+        self.dynamic_stop_min_relative_speed = max(
+            float(rospy.get_param("~dynamic_stop_min_relative_speed_mps", 1.0)),
+            0.0,
+        )
 
         self.slowdown_distance = float(rospy.get_param("~slowdown_distance", 15.0))
         self.stop_slow_distance = float(rospy.get_param("~stop_distance", 3.0))
@@ -93,9 +115,14 @@ class MotionVelocityPlanner:
             rospy.logwarn("autoware_planning_msgs/Trajectory not available; trajectory output disabled")
 
         rospy.loginfo(
-            "MotionVelocityPlanner initialized (default_velocity=%.2f, use_velocity_limit=%s)",
+            "MotionVelocityPlanner initialized "
+            "(default_velocity=%.2f, use_velocity_limit=%s, reaction_time=%.2f, "
+            "comfortable_deceleration=%.2f, dynamic_stop_ttc_threshold=%.2f)",
             self.default_velocity_mps,
             self.use_velocity_limit,
+            self.reaction_time,
+            self.comfortable_deceleration,
+            self.dynamic_stop_ttc_threshold,
         )
 
     def cb_odometry(self, msg):
@@ -124,13 +151,47 @@ class MotionVelocityPlanner:
                 return min(self.default_velocity_mps, float(max_velocity))
         return self.default_velocity_mps
 
+    def ego_speed_for_stop_distance(self):
+        odometry_speed = 0.0
+        if self.odometry is not None:
+            odometry_speed = math.hypot(
+                self.odometry.twist.twist.linear.x,
+                self.odometry.twist.twist.linear.y,
+            )
+        return max(odometry_speed, self.current_target_velocity(), 0.0)
+
+    def speed_based_stop_distance(self, base_distance, obj=None, dynamic=False):
+        ego_speed = self.ego_speed_for_stop_distance()
+        reaction_distance = ego_speed * self.reaction_time
+        braking_distance = (ego_speed * ego_speed) / (2.0 * self.comfortable_deceleration)
+        dynamic_margin = 0.0
+        if dynamic and obj is not None:
+            dynamic_margin = max(ego_speed - object_speed(obj), 0.0) * self.dynamic_object_time_margin
+        return max(
+            0.0,
+            base_distance + reaction_distance + braking_distance + self.object_size_margin + dynamic_margin,
+        )
+
+    def relative_speed_to_object(self, obj):
+        return max(self.ego_speed_for_stop_distance() - object_speed(obj), 0.0)
+
+    def ttc_to_object(self, obj, proj, point_s=0.0):
+        distance = proj.longitudinal_distance - self.distance_buffer - point_s
+        if distance <= 0.0:
+            return 0.0
+
+        relative_speed = self.relative_speed_to_object(obj)
+        if relative_speed <= 1.0e-6:
+            return float('inf')
+        return distance / relative_speed
+
     def is_stop_object(self, obj):
         if not obj.classification:
             return False
 
         classification = obj.classification[0]
         label_value = getattr(classification, 'label', None)
-        confidence = float(getattr(classification, 'confidence', 0.0))
+        confidence = float(getattr(classification, 'probability', getattr(classification, 'confidence', 0.0)))
         if confidence < self.min_classification_confidence:
             return False
 
@@ -151,12 +212,30 @@ class MotionVelocityPlanner:
         if not obj.classification:
             return False
 
-        confidence = float(getattr(obj.classification[0], 'confidence', 0.0))
+        confidence = float(
+            getattr(obj.classification[0], 'probability', getattr(obj.classification[0], 'confidence', 0.0))
+        )
         if confidence < self.min_classification_confidence:
             return False
 
         speed = object_speed(obj)
         return speed > self.dynamic_speed_threshold
+
+    def is_hard_stop_distance_object(self, obj):
+        return self.is_stop_object(obj) and object_speed(obj) <= self.slow_dynamic_stop_speed_threshold
+
+    def should_dynamic_stop_object(self, obj, proj):
+        if not self.is_stop_object(obj):
+            return False
+
+        speed = object_speed(obj)
+        if speed <= self.slow_dynamic_stop_speed_threshold:
+            return True
+
+        if self.relative_speed_to_object(obj) < self.dynamic_stop_min_relative_speed:
+            return False
+
+        return self.ttc_to_object(obj, proj) <= self.dynamic_stop_ttc_threshold
 
     def stop_object_projection(self, obj):
         if not self.path or not self.is_stop_object(obj):
@@ -184,12 +263,15 @@ class MotionVelocityPlanner:
             return None
         return proj
 
-    def closest_obstacle_distance(self, point_s):
+    def closest_obstacle_distance(self, point_s, hard_stop_only=False):
         if not self.objects or len(self.objects.objects) == 0 or self.path is None:
             return float('inf')
 
         dmin = float('inf')
         for obj in self.objects.objects:
+            if hard_stop_only and not self.is_hard_stop_distance_object(obj):
+                continue
+
             proj = project_pose_to_path(self.path, object_pose(obj))
             if proj is None or abs(proj.signed_lateral_distance) > self.max_lateral_distance:
                 continue
@@ -212,7 +294,7 @@ class MotionVelocityPlanner:
 
             distance = proj.longitudinal_distance - self.distance_buffer - point_s
             if distance <= 0.0:
-                return 0.0, 0.0
+                continue
 
             ego_speed = 0.0
             if self.odometry is not None:
@@ -249,9 +331,13 @@ class MotionVelocityPlanner:
 
         stop_lines = []
         for obj in self.objects.objects:
+            if not self.is_hard_stop_distance_object(obj):
+                continue
+
             proj = self.stop_object_projection(obj)
             if proj is not None:
-                stop_lines.append(max(0.0, proj.longitudinal_distance - self.stop_distance))
+                stop_distance = self.speed_based_stop_distance(self.stop_distance, obj)
+                stop_lines.append(max(0.0, proj.longitudinal_distance - stop_distance))
 
         if not stop_lines:
             return
@@ -276,8 +362,15 @@ class MotionVelocityPlanner:
         stop_lines = []
         for obj in self.objects.objects:
             proj = self.dynamic_object_projection(obj)
-            if proj is not None:
-                stop_lines.append(max(0.0, proj.longitudinal_distance - self.dynamic_stop_distance))
+            if proj is None or not self.should_dynamic_stop_object(obj, proj):
+                continue
+
+            stop_distance = self.speed_based_stop_distance(
+                self.dynamic_stop_distance,
+                obj,
+                dynamic=True,
+            )
+            stop_lines.append(max(0.0, proj.longitudinal_distance - stop_distance))
 
         if not stop_lines:
             return
@@ -296,18 +389,20 @@ class MotionVelocityPlanner:
             )
 
     def apply_slowdown(self, out, distances):
+        stop_slow_distance = self.speed_based_stop_distance(self.stop_slow_distance)
+        slowdown_distance = max(self.slowdown_distance, stop_slow_distance + 1.0)
         for point, station in zip(out.points, distances):
-            d = self.closest_obstacle_distance(station)
+            d = self.closest_obstacle_distance(station, hard_stop_only=True)
             if d <= 0.0:
                 target_velocity = 0.0
-            elif d <= self.slowdown_distance:
-                if d <= self.stop_slow_distance:
+            elif d <= slowdown_distance:
+                if d <= stop_slow_distance:
                     target_velocity = 0.0
                 else:
                     factor = max(
                         0.0,
-                        (d - self.stop_slow_distance)
-                        / max(self.slowdown_distance - self.stop_slow_distance, 1e-6),
+                        (d - stop_slow_distance)
+                        / max(slowdown_distance - stop_slow_distance, 1e-6),
                     )
                     target_velocity = max(self.min_slow_velocity, self.cruise_speed * factor)
             else:
@@ -323,7 +418,7 @@ class MotionVelocityPlanner:
             if current_velocity > 0.0:
                 base_vel = min(base_vel, current_velocity)
 
-            d = self.closest_obstacle_distance(station)
+            d = self.closest_obstacle_distance(station, hard_stop_only=True)
             if d <= 0.0:
                 target_velocity = 0.0
             elif d <= self.safe_distance:
