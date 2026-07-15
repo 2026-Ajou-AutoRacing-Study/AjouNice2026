@@ -12,7 +12,8 @@ and publishes the vehicle-frame state expected by Planning.
   `base_link`-frame twist.
 
 `fast_lio_tf.launch` also publishes the temporary hard-coded
-`body -> base_link` static transform for the Sensor_2 IMU installation.
+`body -> base_link` static transform for the Sensor_1/2 IMU installation
+(`[-1.528, 0.0, -0.200]`, identity rotation).
 
 ## TF ownership
 

@@ -55,7 +55,7 @@ body / imu:
 - 이라서, 저 둘 사이에 static tf를 만들어줘야 할 수 있음.
     - morai의 base_link가 어디 기준인지 확인할 것.
     - eval에선 단순 position 비교만 하니 필요 x
-- 만약 morai sensor config에서 IMU 위치가 `[1.528, 0.0, 1.230]` 고 rotation이 없다면, 여기에 -를 붙인 `[-1.528, 0.0, -1.230]` 가 `body -> base_link` tf가 됨.
+- 현재 MORAI Sensor_1/2 config의 IMU 위치는 `[1.528, 0.0, 0.200]`이고 rotation은 없다. 따라서 역변환인 `[-1.528, 0.0, -0.200]`가 `body -> base_link` TF가 됨.
 
 ## map -> camera_init
 
