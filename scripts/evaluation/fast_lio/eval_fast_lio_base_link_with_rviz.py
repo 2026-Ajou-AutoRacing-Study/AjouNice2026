@@ -163,7 +163,15 @@ def print_and_save_corrected_report(
 
 def main():
     default_sensor_config = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "configs", "sensors", "Sensor_2.json")
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "..",
+            "configs",
+            "sensors",
+            "Sensor_2.json",
+        )
     )
     parser = argparse.ArgumentParser(
         description=(
