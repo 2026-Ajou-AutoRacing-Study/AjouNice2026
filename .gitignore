@@ -17,6 +17,7 @@ kcity_map/
 
 docs/external_docs/
 docs/local_notes.md
+artifacts/mvp_validation/
 
 ### 아래는 ros catkin 관련.
 

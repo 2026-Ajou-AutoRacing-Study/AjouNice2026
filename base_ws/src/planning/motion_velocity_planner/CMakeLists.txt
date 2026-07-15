@@ -41,5 +41,6 @@ catkin_install_python(
   scripts/obstacle_slow_down.py
   scripts/dynamic_obstacle_stop.py
   scripts/boundary_departure_prevention.py
+  scripts/validation/run_motion_velocity_planner_cases.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

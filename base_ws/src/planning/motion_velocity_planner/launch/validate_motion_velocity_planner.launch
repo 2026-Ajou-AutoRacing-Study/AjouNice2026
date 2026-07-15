@@ -1,0 +1,23 @@
+<launch>
+  <arg name="case_file" default="$(find motion_velocity_planner)/config/validation/mvp_cases.yaml" />
+  <arg name="output_dir" default="$(env HOME)/AjouNice2026/artifacts/mvp_validation" />
+
+  <node pkg="motion_velocity_planner" type="motion_velocity_planner.py" name="motion_velocity_planner" output="screen">
+    <param name="frame_id" value="map" />
+    <param name="planning_hz" value="10.0" />
+    <param name="input_path_topic" value="/behavior_path_planner/output/path" />
+    <param name="objects_topic" value="/perception/objects" />
+    <param name="odometry_topic" value="/odometry" />
+    <param name="max_velocity_topic" value="/planning/scenario_planning/max_velocity" />
+    <param name="output_path_topic" value="/motion_velocity_planner/output/path" />
+    <param name="output_trajectory_topic" value="/motion_velocity_planner/output/trajectory" />
+  </node>
+
+  <node
+    pkg="motion_velocity_planner"
+    type="run_motion_velocity_planner_cases.py"
+    name="mvp_validation_runner"
+    output="screen"
+    required="true"
+    args="--case-file $(arg case_file) --output-dir $(arg output_dir)" />
+</launch>
