@@ -7,3 +7,6 @@
 [submodule "third_party2/livox_sdk"]
 	path = third_party2/livox_sdk
 	url = https://github.com/Livox-SDK/Livox-SDK.git
+[submodule "base_ws/src/localization/fast_lio_multi_sensor_fusion"]
+	path = base_ws/src/localization/fast_lio_multi_sensor_fusion
+	url = https://github.com/2026-Ajou-AutoRacing-Study/FAST-LIO-Multi-Sensor-Fusion.git
