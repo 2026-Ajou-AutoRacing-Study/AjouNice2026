@@ -1,0 +1,50 @@
+<launch>
+  <arg name="link_set_path" default="/mnt/c/Users/lenovo/Downloads/link_set.json" />
+  <arg name="input_csv" default="$(env HOME)/catkin_ws/src/ajou_control/validation_runs/run_001.csv" />
+  <arg name="history_csvs" default="" />
+  <arg name="history_glob" default="$(env HOME)/catkin_ws/src/ajou_control/validation_runs/run_*.csv" />
+  <arg name="frame_id" default="map" />
+  <arg name="marker_topic" default="/validation/markers" />
+  <arg name="path_topic" default="/validation/selected_run_path" />
+  <arg name="display_offset_x" default="0.0" />
+  <arg name="display_offset_y" default="0.0" />
+  <arg name="display_offset_z" default="0.0" />
+  <arg name="enable_link_overlay" default="true" />
+  <arg name="link_offset_x" default="0.0" />
+  <arg name="link_offset_y" default="560.0" />
+  <arg name="link_offset_z" default="-28.5" />
+  <arg name="link_offset_yaw_deg" default="0.0" />
+  <arg name="enable_rviz" default="true" />
+  <arg name="rviz_config" default="$(find ajou_control)/rviz/mgeo_alignment.rviz" />
+
+  <group if="$(arg enable_link_overlay)">
+    <include file="$(find ajou_control)/launch/mgeo_alignment_check.launch">
+      <arg name="link_set_path" value="$(arg link_set_path)" />
+      <arg name="frame_id" value="$(arg frame_id)" />
+      <arg name="offset_x" value="$(arg link_offset_x)" />
+      <arg name="offset_y" value="$(arg link_offset_y)" />
+      <arg name="offset_z" value="$(arg link_offset_z)" />
+      <arg name="offset_yaw_deg" value="$(arg link_offset_yaw_deg)" />
+      <arg name="enable_rviz" value="false" />
+    </include>
+  </group>
+
+  <node pkg="ajou_control"
+        type="validation_run_viewer.py"
+        name="validation_run_viewer"
+        output="screen">
+    <param name="input_csv" value="$(arg input_csv)" />
+    <param name="history_csvs" value="$(arg history_csvs)" />
+    <param name="history_glob" value="$(arg history_glob)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="marker_topic" value="$(arg marker_topic)" />
+    <param name="path_topic" value="$(arg path_topic)" />
+    <param name="display_offset_x" value="$(arg display_offset_x)" />
+    <param name="display_offset_y" value="$(arg display_offset_y)" />
+    <param name="display_offset_z" value="$(arg display_offset_z)" />
+  </node>
+
+  <group if="$(arg enable_rviz)">
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(arg rviz_config)" output="screen" />
+  </group>
+</launch>

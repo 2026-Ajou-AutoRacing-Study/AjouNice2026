@@ -1,0 +1,87 @@
+<launch>
+  <arg name="link_set_path" default="/mnt/c/Users/lenovo/Downloads/link_set.json" />
+  <arg name="preview_path_topic" default="/mgeo_trajectory/preview_path" />
+  <arg name="target_speed_topic" default="/recorded_trajectory/target_speed" />
+  <arg name="ego_topic" default="/Ego_topic" />
+  <arg name="frame_id" default="map" />
+
+  <arg name="route_link_ids" default="" />
+  <arg name="start_link_id" default="" />
+  <arg name="goal_link_id" default="" />
+  <arg name="auto_start_from_ego" default="true" />
+  <arg name="route_length_m" default="180.0" />
+  <arg name="max_links" default="40" />
+  <arg name="point_spacing" default="1.0" />
+
+  <arg name="preview_offset_x" default="0.0" />
+  <arg name="preview_offset_y" default="560.0" />
+  <arg name="preview_offset_z" default="-28.5" />
+  <arg name="preview_offset_yaw_deg" default="0.0" />
+  <arg name="preview_ego_offset_x" default="-134.24" />
+  <arg name="preview_ego_offset_y" default="-947.36" />
+  <arg name="preview_ego_offset_z" default="-2.38" />
+
+  <arg name="target_speed_mps" default="3.0" />
+  <arg name="enable_rviz" default="true" />
+  <arg name="rviz_config" default="$(find ajou_control)/rviz/mgeo_alignment.rviz" />
+
+  <node pkg="ajou_control"
+        type="mgeo_trajectory_generator.py"
+        name="mgeo_trajectory_preview_generator"
+        output="screen">
+    <param name="link_set_path" value="$(arg link_set_path)" />
+    <param name="path_topic" value="/mgeo_trajectory/control_unused" />
+    <param name="preview_path_topic" value="$(arg preview_path_topic)" />
+    <param name="target_speed_topic" value="$(arg target_speed_topic)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="route_link_ids" value="$(arg route_link_ids)" />
+    <param name="start_link_id" value="$(arg start_link_id)" />
+    <param name="goal_link_id" value="$(arg goal_link_id)" />
+    <param name="ego_topic" value="$(arg ego_topic)" />
+    <param name="auto_start_from_ego" value="$(arg auto_start_from_ego)" />
+    <param name="route_length_m" value="$(arg route_length_m)" />
+    <param name="max_links" value="$(arg max_links)" />
+    <param name="point_spacing" value="$(arg point_spacing)" />
+    <param name="offset_x" value="$(arg preview_offset_x)" />
+    <param name="offset_y" value="$(arg preview_offset_y)" />
+    <param name="offset_z" value="$(arg preview_offset_z)" />
+    <param name="offset_yaw_deg" value="$(arg preview_offset_yaw_deg)" />
+    <param name="ego_offset_x" value="$(arg preview_ego_offset_x)" />
+    <param name="ego_offset_y" value="$(arg preview_ego_offset_y)" />
+    <param name="ego_offset_z" value="$(arg preview_ego_offset_z)" />
+    <param name="preview_offset_x" value="$(arg preview_offset_x)" />
+    <param name="preview_offset_y" value="$(arg preview_offset_y)" />
+    <param name="preview_offset_z" value="$(arg preview_offset_z)" />
+    <param name="preview_offset_yaw_deg" value="$(arg preview_offset_yaw_deg)" />
+    <param name="default_target_speed" value="$(arg target_speed_mps)" />
+    <param name="use_link_speed" value="false" />
+    <param name="max_target_speed" value="8.0" />
+  </node>
+
+  <node pkg="ajou_trajectory_recorder"
+        type="trajectory_visualizer.py"
+        name="mgeo_preview_trajectory_visualizer"
+        output="screen">
+    <param name="path_topic" value="$(arg preview_path_topic)" />
+    <param name="marker_topic" value="/mgeo_trajectory/markers" />
+    <param name="line_topic" value="/mgeo_trajectory/line" />
+    <param name="sphere_stride" value="20" />
+  </node>
+
+  <node pkg="ajou_control"
+        type="ego_trajectory_comparison_visualizer.py"
+        name="mgeo_preview_ego_comparison_visualizer"
+        output="screen">
+    <param name="path_topic" value="$(arg preview_path_topic)" />
+    <param name="ego_topic" value="$(arg ego_topic)" />
+    <param name="marker_topic" value="/mgeo_trajectory/ego_comparison_markers" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="ego_offset_x" value="$(arg preview_ego_offset_x)" />
+    <param name="ego_offset_y" value="$(arg preview_ego_offset_y)" />
+    <param name="ego_offset_z" value="$(arg preview_ego_offset_z)" />
+  </node>
+
+  <group if="$(arg enable_rviz)">
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(arg rviz_config)" output="screen" />
+  </group>
+</launch>

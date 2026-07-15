@@ -1,0 +1,33 @@
+<launch>
+  <arg name="input_csv" default="$(find ajou_trajectory_recorder)/data/recorded_trajectory.csv" />
+  <arg name="path_topic" default="/recorded_trajectory_path" />
+  <arg name="target_speed_topic" default="/recorded_trajectory/target_speed" />
+  <arg name="frame_id" default="map" />
+  <arg name="publish_rate" default="10.0" />
+  <arg name="default_target_speed" default="5.0" />
+  <arg name="marker_topic" default="/recorded_trajectory_marker" />
+  <arg name="line_topic" default="/recorded_trajectory_line" />
+
+  <rosparam command="load" file="$(find ajou_trajectory_recorder)/config/recorder_params.yaml" />
+
+  <node pkg="ajou_trajectory_recorder"
+        type="publish_recorded_trajectory.py"
+        name="publish_recorded_trajectory"
+        output="screen">
+    <param name="input_csv" value="$(arg input_csv)" />
+    <param name="path_topic" value="$(arg path_topic)" />
+    <param name="target_speed_topic" value="$(arg target_speed_topic)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="publish_rate" value="$(arg publish_rate)" />
+    <param name="default_target_speed" value="$(arg default_target_speed)" />
+  </node>
+
+  <node pkg="ajou_trajectory_recorder"
+        type="trajectory_visualizer.py"
+        name="trajectory_visualizer"
+        output="screen">
+    <param name="path_topic" value="$(arg path_topic)" />
+    <param name="marker_topic" value="$(arg marker_topic)" />
+    <param name="line_topic" value="$(arg line_topic)" />
+  </node>
+</launch>

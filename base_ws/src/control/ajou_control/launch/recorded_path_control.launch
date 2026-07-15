@@ -1,0 +1,56 @@
+<launch>
+  <arg name="path_topic" default="/recorded_trajectory_path" />
+  <arg name="target_speed_topic" default="/recorded_trajectory/target_speed" />
+  <arg name="ego_topic" default="/Ego_topic" />
+  <arg name="ctrl_topic" default="/ctrl_cmd" />
+  <arg name="debug_topic" default="/pure_pursuit/debug_markers" />
+  <arg name="target_speed_mps" default="3.0" />
+  <arg name="use_target_speed_topic" default="false" />
+  <arg name="steering_sign" default="-1.0" />
+  <arg name="velocity_scale" default="1.0" />
+  <arg name="ego_offset_x" default="0.0" />
+  <arg name="ego_offset_y" default="0.0" />
+  <arg name="ego_offset_z" default="0.0" />
+  <arg name="min_lookahead" default="7.0" />
+  <arg name="max_lookahead" default="16.0" />
+  <arg name="lookahead_gain" default="1.0" />
+  <arg name="max_steer_rad" default="0.35" />
+  <arg name="max_steer_rate" default="0.25" />
+
+  <node pkg="ajou_control"
+        type="pure_pursuit_pi_controller.py"
+        name="pure_pursuit_pi_controller"
+        output="screen">
+    <param name="path_topic" value="$(arg path_topic)" />
+    <param name="target_speed_topic" value="$(arg target_speed_topic)" />
+    <param name="use_target_speed_topic" value="$(arg use_target_speed_topic)" />
+    <param name="ego_topic" value="$(arg ego_topic)" />
+    <param name="ctrl_topic" value="$(arg ctrl_topic)" />
+    <param name="debug_topic" value="$(arg debug_topic)" />
+    <param name="default_target_speed" value="$(arg target_speed_mps)" />
+    <param name="velocity_scale" value="$(arg velocity_scale)" />
+    <param name="ego_offset_x" value="$(arg ego_offset_x)" />
+    <param name="ego_offset_y" value="$(arg ego_offset_y)" />
+    <param name="ego_offset_z" value="$(arg ego_offset_z)" />
+
+    <param name="control_rate" value="30.0" />
+    <param name="wheel_base" value="2.8" />
+    <param name="min_lookahead" value="$(arg min_lookahead)" />
+    <param name="max_lookahead" value="$(arg max_lookahead)" />
+    <param name="lookahead_gain" value="$(arg lookahead_gain)" />
+    <param name="max_steer_rad" value="$(arg max_steer_rad)" />
+    <param name="max_steer_rate" value="$(arg max_steer_rate)" />
+    <param name="steering_sign" value="$(arg steering_sign)" />
+
+    <param name="max_target_speed" value="8.0" />
+    <param name="kp" value="0.4" />
+    <param name="ki" value="0.08" />
+    <param name="integral_limit" value="8.0" />
+    <param name="accel_feedforward" value="0.08" />
+    <param name="min_drive_accel" value="0.18" />
+    <param name="speed_deadband" value="0.15" />
+    <param name="brake_gain" value="0.25" />
+    <param name="stop_distance" value="2.5" />
+    <param name="reacquire_distance" value="12.0" />
+  </node>
+</launch>

@@ -1,0 +1,20 @@
+<launch>
+  <arg name="ego_topic" default="/Ego_topic" />
+  <arg name="output_csv" default="$(find ajou_trajectory_recorder)/data/recorded_trajectory.csv" />
+  <arg name="record_rate" default="10.0" />
+  <arg name="min_distance" default="0.2" />
+  <arg name="min_speed_to_record" default="0.1" />
+
+  <rosparam command="load" file="$(find ajou_trajectory_recorder)/config/recorder_params.yaml" />
+
+  <node pkg="ajou_trajectory_recorder"
+        type="record_ego_trajectory.py"
+        name="record_ego_trajectory"
+        output="screen">
+    <param name="ego_topic" value="$(arg ego_topic)" />
+    <param name="output_csv" value="$(arg output_csv)" />
+    <param name="record_rate" value="$(arg record_rate)" />
+    <param name="min_distance" value="$(arg min_distance)" />
+    <param name="min_speed_to_record" value="$(arg min_speed_to_record)" />
+  </node>
+</launch>

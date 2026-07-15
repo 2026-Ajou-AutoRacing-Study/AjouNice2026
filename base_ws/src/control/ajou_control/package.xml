@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>ajou_control</name>
+  <version>0.0.1</version>
+  <description>Initial ROS1 controller validation package for virtual trajectory generation and MORAI-compatible command interfaces.</description>
+
+  <maintainer email="user@example.com">ajou_control maintainer</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>rospy</depend>
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf</depend>
+  <depend>morai_msgs</depend>
+
+  <export>
+  </export>
+</package>
+

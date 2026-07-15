@@ -1,0 +1,41 @@
+<launch>
+  <arg name="input_csv" default="$(find ajou_trajectory_recorder)/data/recorded_trajectory.csv" />
+  <arg name="path_topic" default="/recorded_trajectory_path" />
+  <arg name="target_speed_topic" default="/recorded_trajectory/target_speed" />
+  <arg name="ego_topic" default="/Ego_topic" />
+  <arg name="ctrl_topic" default="/ctrl_cmd" />
+  <arg name="target_speed_mps" default="3.0" />
+  <arg name="use_target_speed_topic" default="false" />
+  <arg name="steering_sign" default="-1.0" />
+  <arg name="velocity_scale" default="1.0" />
+  <arg name="enable_validator" default="false" />
+  <arg name="validation_csv" default="$(env HOME)/catkin_ws/src/ajou_control/validation_tracking.csv" />
+
+  <include file="$(find ajou_trajectory_recorder)/launch/publish_trajectory.launch">
+    <arg name="input_csv" value="$(arg input_csv)" />
+    <arg name="path_topic" value="$(arg path_topic)" />
+    <arg name="target_speed_topic" value="$(arg target_speed_topic)" />
+    <arg name="default_target_speed" value="$(arg target_speed_mps)" />
+  </include>
+
+  <include file="$(find ajou_control)/launch/recorded_path_control.launch">
+    <arg name="path_topic" value="$(arg path_topic)" />
+    <arg name="target_speed_topic" value="$(arg target_speed_topic)" />
+    <arg name="ego_topic" value="$(arg ego_topic)" />
+    <arg name="ctrl_topic" value="$(arg ctrl_topic)" />
+    <arg name="target_speed_mps" value="$(arg target_speed_mps)" />
+    <arg name="use_target_speed_topic" value="$(arg use_target_speed_topic)" />
+    <arg name="steering_sign" value="$(arg steering_sign)" />
+    <arg name="velocity_scale" value="$(arg velocity_scale)" />
+  </include>
+
+  <group if="$(arg enable_validator)">
+    <include file="$(find ajou_control)/launch/tracking_validation.launch">
+      <arg name="path_topic" value="$(arg path_topic)" />
+      <arg name="target_speed_topic" value="$(arg target_speed_topic)" />
+      <arg name="ego_topic" value="$(arg ego_topic)" />
+      <arg name="ctrl_topic" value="$(arg ctrl_topic)" />
+      <arg name="output_csv" value="$(arg validation_csv)" />
+    </include>
+  </group>
+</launch>

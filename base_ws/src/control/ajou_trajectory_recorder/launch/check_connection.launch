@@ -1,0 +1,6 @@
+<launch>
+  <node pkg="ajou_trajectory_recorder"
+        type="check_morai_connection.py"
+        name="check_morai_connection"
+        output="screen" />
+</launch>

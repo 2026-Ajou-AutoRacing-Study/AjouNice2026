@@ -4,11 +4,13 @@ generator:
   route_id: competition_v44_preferred_once
   map_version: v44
   catalog_csv: kcity_map/competition_route/v44/drive_course_v44_lanelets.csv
-  route_selection_csv: base_ws/src/control/trajectory_generator/config/routes/v44/200889_200337.csv
+  route_selection_csv: ""
+  # Example short route:
+  # route_selection_csv: base_ws/src/control/trajectory_generator/config/routes/v44/200889_200337.csv
   stitch_gap_m: 0.25
   resample_ds_m: 0.50
   publish_rate_hz: 1.0
-  speed_profile:sssssssssssssssssssssssssssssssssssssssssssssss
+  speed_profile:
     mode: constant
     constant_kph: 20.0
     default_cruise_kph: 40.0
