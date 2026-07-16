@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>behavior_velocity_planner</name>
+  <version>0.0.1</version>
+  <description>Plugin-based ROS 1 Behavior Velocity Planner port.</description>
+
+  <maintainer email="ajounice@example.com">AjouNice2026</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>autoware_internal_planning_msgs</depend>
+  <depend>autoware_map_msgs</depend>
+  <depend>autoware_perception_msgs</depend>
+  <depend>autoware_planning_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tier4_planning_msgs</depend>
+  <depend>tier4_v2x_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <test_depend>python3-nose</test_depend>
+</package>

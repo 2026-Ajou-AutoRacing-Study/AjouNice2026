@@ -1,0 +1,19 @@
+<launch>
+  <arg name="map_file" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/data/maps/kcity_no_stopping_area_validation_map/lanelet2_map.osm" />
+
+  <node pkg="behavior_velocity_planner" type="behavior_velocity_planner.py" name="bvp_no_stopping_area_validation" output="screen">
+    <param name="map_file" value="$(arg map_file)" />
+    <param name="map_projector_type" value="MGRS" />
+    <rosparam param="launch_modules">[no_stopping_area]</rosparam>
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/no_stopping_area.param.yaml" param="no_stopping_area" />
+
+    <remap from="~input/path_with_lane_id" to="/validation/bvp_no_stopping_area/input_path" />
+    <remap from="~input/vehicle_odometry" to="/validation/bvp_no_stopping_area/odometry" />
+    <remap from="~input/dynamic_objects" to="/validation/bvp_no_stopping_area/dynamic_objects" />
+    <remap from="~output/path" to="/validation/bvp_no_stopping_area/ros1_path" />
+    <remap from="~output/stop_reasons" to="/validation/bvp_no_stopping_area/stop_reasons" />
+    <remap from="~output/planning_factors" to="/validation/bvp_no_stopping_area/planning_factors" />
+    <remap from="~debug/markers" to="/validation/bvp_no_stopping_area/module_markers" />
+    <remap from="~debug/status" to="/validation/bvp_no_stopping_area/status" />
+  </node>
+</launch>

@@ -1,0 +1,45 @@
+<launch>
+  <arg name="frame_id" default="map" />
+  <arg name="lane_id" default="1001" />
+  <arg name="start_x" default="0.0" />
+  <arg name="start_y" default="0.0" />
+  <arg name="start_yaw" default="0.0" />
+  <arg name="goal_x" default="60.0" />
+  <arg name="goal_y" default="0.0" />
+  <arg name="goal_yaw" default="0.0" />
+  <arg name="timeout" default="15.0" />
+
+  <include file="$(find bringup)/launch/mission_bpp_pipeline.launch">
+    <arg name="frame_id" value="$(arg frame_id)" />
+    <arg name="route_lane_ids" value="[$(arg lane_id)]" />
+    <arg name="enable_goal_planner" value="false" />
+    <arg name="enable_side_shift" value="false" />
+  </include>
+
+  <node pkg="mission_planner"
+        type="mission_planner_minimal_input_publisher.py"
+        name="mission_bpp_minimal_input_publisher"
+        output="screen">
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="publish_rate" value="10.0" />
+    <param name="request_delay" value="0.8" />
+    <param name="start_x" value="$(arg start_x)" />
+    <param name="start_y" value="$(arg start_y)" />
+    <param name="start_yaw" value="$(arg start_yaw)" />
+    <param name="goal_x" value="$(arg goal_x)" />
+    <param name="goal_y" value="$(arg goal_y)" />
+    <param name="goal_yaw" value="$(arg goal_yaw)" />
+  </node>
+
+  <node pkg="bringup"
+        type="mission_bpp_pipeline_validator.py"
+        name="mission_bpp_pipeline_validator"
+        required="true"
+        output="screen">
+    <param name="expected_lane_id" value="$(arg lane_id)" />
+    <param name="expected_goal_x" value="$(arg goal_x)" />
+    <param name="expected_goal_y" value="$(arg goal_y)" />
+    <param name="goal_tolerance" value="0.1" />
+    <param name="timeout" value="$(arg timeout)" />
+  </node>
+</launch>

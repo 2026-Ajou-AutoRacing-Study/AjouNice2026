@@ -1,0 +1,15 @@
+<launch>
+  <arg name="reference_json" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/bags/bvp_detection_area/kcity_pointcloud_stop.reference.json" />
+  <arg name="candidate_json" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/results/bvp_detection_area/kcity_pointcloud_stop.ros1.json" />
+  <arg name="report_json" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/results/bvp_detection_area/kcity_pointcloud_stop.report.json" />
+  <arg name="map_file" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/data/maps/kcity_detection_area_validation_map/lanelet2_map.osm" />
+  <arg name="launch_rviz" default="true" />
+  <include file="$(find behavior_velocity_planner)/validation/launch/bvp_advanced_comparison.launch">
+    <arg name="module" value="detection_area" />
+    <arg name="reference_json" value="$(arg reference_json)" />
+    <arg name="candidate_json" value="$(arg candidate_json)" />
+    <arg name="report_json" value="$(arg report_json)" />
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="launch_rviz" value="$(arg launch_rviz)" />
+  </include>
+</launch>

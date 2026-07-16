@@ -1,0 +1,15 @@
+<launch>
+  <arg name="reference_json" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/bags/bvp_occlusion_spot/kcity_unknown_grid_slowdown.reference.json" />
+  <arg name="candidate_json" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/results/bvp_occlusion_spot/kcity_unknown_grid_slowdown.ros1.json" />
+  <arg name="report_json" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/results/bvp_occlusion_spot/kcity_unknown_grid_slowdown.report.json" />
+  <arg name="map_file" default="$(env HOME)/AJOUNICE2026/lanelet2_map_v44.osm" />
+  <arg name="launch_rviz" default="true" />
+  <include file="$(find behavior_velocity_planner)/validation/launch/bvp_advanced_comparison.launch">
+    <arg name="module" value="occlusion_spot" />
+    <arg name="reference_json" value="$(arg reference_json)" />
+    <arg name="candidate_json" value="$(arg candidate_json)" />
+    <arg name="report_json" value="$(arg report_json)" />
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="launch_rviz" value="$(arg launch_rviz)" />
+  </include>
+</launch>

@@ -14,6 +14,7 @@ from tier4_rtc_msgs.msg import Module, State
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bpp_lane_change_tools import build_route_lane_change_path, route_lane_change_target
+from bpp_route_tools import forward_lane_sequence
 from bpp_map_tools import CenterlineMap
 from bpp_path_tools import (
     PathModuleBase,
@@ -244,6 +245,12 @@ class LaneChangeBPP(PathModuleBase):
             )
         if route_target is not None:
             target_offset = route_target.lateral_offset
+            target_lane_ids = forward_lane_sequence(
+                self.route,
+                self.centerline_map,
+                route_target.section_index,
+                route_target.target_lane_id,
+            )
             candidate = build_route_lane_change_path(
                 path,
                 self.centerline_map,
@@ -255,6 +262,7 @@ class LaneChangeBPP(PathModuleBase):
                 self.transition_interval,
                 self.target_interval,
                 self.prepare_velocity_ratio,
+                target_lane_ids,
             )
             safe = self.is_lane_change_safe(path, target_offset)
             return self.apply_rtc_gate(

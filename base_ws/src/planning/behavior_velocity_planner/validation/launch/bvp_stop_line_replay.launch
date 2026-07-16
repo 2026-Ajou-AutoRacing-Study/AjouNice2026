@@ -1,0 +1,29 @@
+<launch>
+  <arg name="map_file" default="/home/vic/AJOUNICE2026/local_autoware_planning_sim/data/maps/kcity_stop_line_validation_map/lanelet2_map.osm" />
+  <arg name="projector_file" default="" />
+  <arg name="map_projector_type" default="MGRS" />
+  <arg name="flatten_map_z" default="false" />
+
+  <node pkg="behavior_velocity_planner" type="behavior_velocity_planner.py" name="bvp_stop_line_validation" output="screen">
+    <param name="map_file" value="$(arg map_file)" />
+    <param name="projector_file" value="$(arg projector_file)" />
+    <param name="map_projector_type" value="$(arg map_projector_type)" />
+    <param name="flatten_map_z" value="$(arg flatten_map_z)" />
+    <rosparam param="launch_modules">[stop_line]</rosparam>
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/stop_line.param.yaml" param="stop_line" />
+
+    <remap from="~input/path_with_lane_id" to="/validation/bvp_stop_line/input_path" />
+    <remap from="~input/vector_map" to="/validation/bvp_stop_line/vector_map" />
+    <remap from="~input/vehicle_odometry" to="/validation/bvp_stop_line/odometry" />
+    <remap from="~input/dynamic_objects" to="/validation/bvp_stop_line/dynamic_objects" />
+    <remap from="~input/no_ground_pointcloud" to="/validation/bvp_stop_line/no_ground_pointcloud" />
+    <remap from="~input/compare_map_filtered_pointcloud" to="/validation/bvp_stop_line/map_filtered_pointcloud" />
+    <remap from="~input/traffic_signals" to="/validation/bvp_stop_line/traffic_signals" />
+
+    <remap from="~output/path" to="/validation/bvp_stop_line/ros1_path" />
+    <remap from="~output/stop_reasons" to="/validation/bvp_stop_line/stop_reasons" />
+    <remap from="~output/planning_factors" to="/validation/bvp_stop_line/planning_factors" />
+    <remap from="~debug/markers" to="/validation/bvp_stop_line/module_markers" />
+    <remap from="~debug/status" to="/validation/bvp_stop_line/status" />
+  </node>
+</launch>

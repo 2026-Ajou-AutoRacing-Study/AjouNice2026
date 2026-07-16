@@ -12,6 +12,19 @@ there is no parking mission or external lateral-offset input. Their source and
 tests remain available for future use. They can be re-enabled explicitly with
 `enable_goal_planner:=true` or `enable_side_shift:=true`.
 
+Mission Planner and BPP can be started as one production pipeline with:
+
+```bash
+roslaunch bringup mission_bpp_pipeline.launch \
+  map_file:=/path/to/lanelet2_map.osm \
+  map_projector_type:=MGRS \
+  route_lane_ids:="[]"
+```
+
+`/planning/mission_planning/route` is the boundary between the two nodes. The
+K-City differential pipeline test is described in
+`bringup/validation/README.md`.
+
 ## Integrated Node
 
 `scripts/behavior_path_planner.py` is the main ROS1 port target for Behavior Path Planner.

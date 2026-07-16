@@ -8,8 +8,16 @@ project(bringup)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  autoware_adapi_v1_msgs
+  autoware_internal_planning_msgs
+  autoware_perception_msgs
+  autoware_planning_msgs
+  geometry_msgs
+  nav_msgs
   rospy
   std_msgs
+  tier4_planning_msgs
+  visualization_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -102,10 +110,17 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES bringup
-#  CATKIN_DEPENDS rospy std_msgs
-#  DEPENDS system_lib
+  CATKIN_DEPENDS
+  autoware_adapi_v1_msgs
+  autoware_internal_planning_msgs
+  autoware_perception_msgs
+  autoware_planning_msgs
+  geometry_msgs
+  nav_msgs
+  rospy
+  std_msgs
+  tier4_planning_msgs
+  visualization_msgs
 )
 
 ###########
@@ -158,10 +173,14 @@ include_directories(
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-# catkin_install_python(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+catkin_install_python(
+  PROGRAMS
+  validation/scripts/mission_bpp_pipeline_validator.py
+  validation/scripts/mission_bpp_bvp_pipeline_validator.py
+  validation/scripts/mission_bpp_bvp_live_visualizer.py
+  validation/scripts/planning_pipeline_reference_input.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
@@ -185,8 +204,20 @@ include_directories(
 # )
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
-install(DIRECTORY launch/
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+install(DIRECTORY launch rviz
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+install(
+  DIRECTORY validation/launch validation/rviz
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/validation
+)
+
+install(
+  FILES
+  validation/README.md
+  validation/MISSION_BPP_BVP_INTEGRATION.md
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/validation
 )
 
 #############

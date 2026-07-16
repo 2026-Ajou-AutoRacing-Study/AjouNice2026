@@ -1,0 +1,11 @@
+slow_start_margin: 1.0
+slow_end_margin: 1.0
+print_debug_info: false
+speed_calculation:
+  min_height: 0.05
+  max_height: 0.30
+  min_speed: 1.39
+  max_speed: 2.78
+base_link_to_front: 3.79
+base_link_to_rear: 1.10
+vehicle_width: 1.9

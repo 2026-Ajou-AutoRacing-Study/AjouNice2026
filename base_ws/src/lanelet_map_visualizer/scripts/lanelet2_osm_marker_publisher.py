@@ -24,6 +24,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 WGS84_A = 6378137.0
 WGS84_F = 1.0 / 298.257223563
 UTM_K0 = 0.9996
+MGRS_GRID_SIZE = 100000.0
 
 
 def read_projector(path):
@@ -45,6 +46,34 @@ def read_projector(path):
         "origin_easting": origin_e,
         "origin_northing": origin_n,
     }
+
+
+def read_mgrs_projector(map_file):
+    root = ET.parse(map_file).getroot()
+    first_node = next((element for element in root if element.tag == "node"), None)
+    if first_node is None:
+        raise ValueError("Lanelet2 map contains no nodes")
+    lat = float(first_node.attrib["lat"])
+    lon = float(first_node.attrib["lon"])
+    zone = int(math.floor((lon + 180.0) / 6.0) + 1)
+    easting, northing = wgs84_to_utm(lat, lon, zone)
+    return {
+        "origin_lat": 0.0,
+        "origin_lon": 0.0,
+        "origin_alt": 0.0,
+        "zone": zone,
+        "origin_easting": math.floor(easting / MGRS_GRID_SIZE) * MGRS_GRID_SIZE,
+        "origin_northing": math.floor(northing / MGRS_GRID_SIZE) * MGRS_GRID_SIZE,
+    }
+
+
+def projector_configuration(map_file, projector_file, projector_type):
+    normalized = str(projector_type or "LocalCartesianUTM").lower().replace("_", "")
+    if normalized == "mgrs":
+        return read_mgrs_projector(map_file)
+    if normalized in ("localcartesianutm", "localutm"):
+        return read_projector(projector_file)
+    raise ValueError("Unsupported projector type: %s" % projector_type)
 
 
 def wgs84_to_utm(lat_deg, lon_deg, zone):
@@ -277,8 +306,15 @@ def make_traffic_light_marker(frame_id, ways, nodes):
     return marker, count
 
 
-def build_marker_array(map_file, projector_file, frame_id="map", flatten_z=False, publish_lanelet_fill=False):
-    projector = read_projector(projector_file)
+def build_marker_array(
+    map_file,
+    projector_file,
+    frame_id="map",
+    flatten_z=False,
+    publish_lanelet_fill=False,
+    projector_type="LocalCartesianUTM",
+):
+    projector = projector_configuration(map_file, projector_file, projector_type)
     nodes, ways, relations = parse_osm(map_file, projector, flatten_z=flatten_z)
     markers = []
 
@@ -350,6 +386,7 @@ def main():
 
     map_file = rospy.get_param("~map_file", default_map)
     projector_file = rospy.get_param("~projector_file", default_projector)
+    projector_type = rospy.get_param("~projector_type", "LocalCartesianUTM")
     frame_id = rospy.get_param("~frame_id", "map")
     output_topic = rospy.get_param("~output_topic", "/map/lanelet_map")
     legacy_output_topic = rospy.get_param("~legacy_output_topic", "")
@@ -358,8 +395,15 @@ def main():
     publish_lanelet_fill = as_bool(rospy.get_param("~publish_lanelet_fill", False))
 
     rospy.loginfo("Loading lanelet OSM: %s", map_file)
-    rospy.loginfo("Loading projector: %s", projector_file)
-    marker_array, stats = build_marker_array(map_file, projector_file, frame_id, flatten_z, publish_lanelet_fill)
+    rospy.loginfo("Loading projector: type=%s file=%s", projector_type, projector_file)
+    marker_array, stats = build_marker_array(
+        map_file,
+        projector_file,
+        frame_id,
+        flatten_z,
+        publish_lanelet_fill,
+        projector_type,
+    )
     rospy.loginfo(
         "Lanelet marker map ready: nodes=%d ways=%d relations=%d road_lanelets=%d "
         "crosswalk_lanelets=%d markers=%d UTM zone=%d origin=(%.6f, %.6f)",

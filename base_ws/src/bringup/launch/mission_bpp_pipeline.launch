@@ -1,0 +1,36 @@
+<launch>
+  <arg name="frame_id" default="map" />
+  <arg name="planning_hz" default="10.0" />
+  <arg name="default_velocity_mps" default="5.0" />
+  <arg name="require_lane_driving_scenario" default="false" />
+  <arg name="forward_path_length" default="300.0" />
+  <arg name="mission_publish_rate" default="5.0" />
+  <arg name="map_file" default="" />
+  <arg name="projector_file" default="" />
+  <arg name="map_projector_type" default="MGRS" />
+  <arg name="route_lane_ids" default="[]" />
+  <arg name="enable_goal_planner" default="false" />
+  <arg name="enable_side_shift" default="false" />
+
+  <include file="$(find mission_planner)/launch/mission_planner.launch">
+    <arg name="frame_id" value="$(arg frame_id)" />
+    <arg name="publish_rate" value="$(arg mission_publish_rate)" />
+    <arg name="route_lane_ids" value="$(arg route_lane_ids)" />
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="projector_file" value="$(arg projector_file)" />
+    <arg name="map_projector_type" value="$(arg map_projector_type)" />
+  </include>
+
+  <include file="$(find behavior_path_planner)/launch/behavior_path_planner.launch">
+    <arg name="frame_id" value="$(arg frame_id)" />
+    <arg name="planning_hz" value="$(arg planning_hz)" />
+    <arg name="default_velocity_mps" value="$(arg default_velocity_mps)" />
+    <arg name="require_lane_driving_scenario" value="$(arg require_lane_driving_scenario)" />
+    <arg name="forward_path_length" value="$(arg forward_path_length)" />
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="projector_file" value="$(arg projector_file)" />
+    <arg name="map_projector_type" value="$(arg map_projector_type)" />
+    <arg name="enable_goal_planner" value="$(arg enable_goal_planner)" />
+    <arg name="enable_side_shift" value="$(arg enable_side_shift)" />
+  </include>
+</launch>

@@ -51,6 +51,7 @@ from bpp_path_tools import (
     to_debug_path,
     to_autoware_path,
 )
+from bpp_route_tools import forward_lane_sequence, reference_lane_sequence
 from bpp_side_shift_tools import SideShiftScene
 from bpp_start_planner_tools import StartPlannerScene
 from bpp_static_avoidance_tools import StaticAvoidanceScene
@@ -589,6 +590,13 @@ class BehaviorPathPlanner:
         return output[0], output[1]
 
     def extract_lane_ids(self, route):
+        if self.centerline_map is not None and self.odometry is not None:
+            lane_ids = reference_lane_sequence(
+                route, self.centerline_map, self.odometry.pose.pose
+            )
+            if lane_ids:
+                return lane_ids
+
         selected = []
         for index, segment in enumerate(route.segments):
             primitive_ids = [
@@ -838,6 +846,12 @@ class BehaviorPathPlanner:
             )
         if route_target is not None:
             target_offset = route_target.lateral_offset
+            target_lane_ids = forward_lane_sequence(
+                self.route,
+                self.centerline_map,
+                route_target.section_index,
+                route_target.target_lane_id,
+            )
             candidate = build_route_lane_change_path(
                 path,
                 self.centerline_map,
@@ -849,6 +863,7 @@ class BehaviorPathPlanner:
                 self.lane_change_transition_interval,
                 self.lane_change_target_interval,
                 self.lane_change_prepare_velocity_ratio,
+                target_lane_ids,
             )
             safe = self.is_lane_change_safe(path, target_offset)
             return self.apply_lane_change_rtc_gate(

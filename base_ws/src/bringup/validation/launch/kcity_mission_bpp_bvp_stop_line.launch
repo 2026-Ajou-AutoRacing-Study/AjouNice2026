@@ -1,0 +1,12 @@
+<launch>
+  <arg name="launch_rviz" default="true" />
+  <arg name="shutdown_on_result" default="false" />
+
+  <include file="$(find bringup)/validation/launch/kcity_mission_bpp_bvp_validation.launch">
+    <arg name="reference_json" value="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/bags/bvp_stop_line_v44/kcity_103624.reference.json" />
+    <arg name="report_json" value="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/results/integration/kcity_stop_line.report.json" />
+    <arg name="expected_module" value="stop_line" />
+    <arg name="launch_rviz" value="$(arg launch_rviz)" />
+    <arg name="shutdown_on_result" value="$(arg shutdown_on_result)" />
+  </include>
+</launch>

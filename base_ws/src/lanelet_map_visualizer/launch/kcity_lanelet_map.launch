@@ -1,6 +1,7 @@
 <launch>
   <arg name="map_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v31.osm"/>
   <arg name="projector_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+  <arg name="projector_type" default="LocalCartesianUTM"/>
   <arg name="frame_id" default="map"/>
   <arg name="output_topic" default="/map/lanelet_map"/>
   <arg name="legacy_output_topic" default=""/>
@@ -14,6 +15,7 @@
         output="screen">
     <param name="map_file" value="$(arg map_file)"/>
     <param name="projector_file" value="$(arg projector_file)"/>
+    <param name="projector_type" value="$(arg projector_type)"/>
     <param name="frame_id" value="$(arg frame_id)"/>
     <param name="output_topic" value="$(arg output_topic)"/>
     <param name="legacy_output_topic" value="$(arg legacy_output_topic)"/>

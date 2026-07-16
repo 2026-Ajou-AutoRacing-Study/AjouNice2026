@@ -9,14 +9,15 @@ from autoware_planning_msgs.msg import PathPoint
 from geometry_msgs.msg import Pose
 
 from bpp_map_tools import (
-    closest_lane_id,
     cumulative_lengths,
     interpolate_polyline,
     project_point_to_polyline,
     resample_polyline,
+    stitch_route_centerlines,
     trim_polyline,
 )
 from bpp_path_tools import clamp, project_pose_to_path, quaternion_from_yaw, smoothstep
+from bpp_route_tools import current_route_lane, following_lane, route_sections
 
 
 @dataclass
@@ -24,39 +25,73 @@ class RouteLaneChangeTarget:
     source_lane_id: int
     target_lane_id: int
     lateral_offset: float
+    section_index: int
 
     @property
     def direction(self):
         return "left" if self.lateral_offset > 0.0 else "right"
 
 
+def _next_lateral_lane(centerline_map, section_lane_ids, source_lane_id, preferred_lane_id):
+    if source_lane_id == preferred_lane_id:
+        return None
+
+    allowed = list(dict.fromkeys(int(lane_id) for lane_id in section_lane_ids))
+    if source_lane_id not in allowed or preferred_lane_id not in allowed:
+        return None
+
+    queue = [(source_lane_id, [])]
+    visited = {source_lane_id}
+    while queue:
+        current_lane_id, steps = queue.pop(0)
+        for candidate_lane_id in allowed:
+            if candidate_lane_id in visited or not centerline_map.is_lateral_neighbor(
+                current_lane_id, candidate_lane_id
+            ):
+                continue
+            next_steps = steps + [candidate_lane_id]
+            if candidate_lane_id == preferred_lane_id:
+                return next_steps[0]
+            visited.add(candidate_lane_id)
+            queue.append((candidate_lane_id, next_steps))
+    return None
+
+
 def route_lane_change_target(route, centerline_map, ego_pose):
     if route is None or centerline_map is None or ego_pose is None:
         return None
 
-    ego = (
-        float(ego_pose.position.x),
-        float(ego_pose.position.y),
-        float(ego_pose.position.z),
-    )
-    for segment in route.segments:
-        primitive_ids = [
-            int(primitive.id)
-            for primitive in segment.primitives
-            if int(primitive.id) != 0 and centerline_map.has_lane(primitive.id)
-        ]
-        target_lane_id = int(segment.preferred_primitive.id)
-        if target_lane_id and target_lane_id not in primitive_ids:
-            primitive_ids.append(target_lane_id)
-        if len(primitive_ids) < 2 or not centerline_map.has_lane(target_lane_id):
-            continue
+    sections = route_sections(route, centerline_map)
+    section_index, source_lane_id = current_route_lane(route, centerline_map, ego_pose)
+    if section_index is None or source_lane_id is None:
+        return None
 
-        source_lane_id = closest_lane_id(centerline_map, primitive_ids, ego)
-        if source_lane_id is None or source_lane_id == target_lane_id:
+    for candidate_index in range(section_index, len(sections)):
+        section = sections[candidate_index]
+        if candidate_index != section_index:
+            source_lane_id = following_lane(centerline_map, source_lane_id, section)
+            if source_lane_id is None:
+                return None
+
+        preferred_lane_id = section.preferred_lane_id
+        if not preferred_lane_id or source_lane_id == preferred_lane_id:
+            continue
+        target_lane_id = _next_lateral_lane(
+            centerline_map,
+            section.lane_ids,
+            source_lane_id,
+            preferred_lane_id,
+        )
+        if target_lane_id is None:
             continue
 
         source = centerline_map.get_centerline(source_lane_id)
         target = centerline_map.get_centerline(target_lane_id)
+        ego = (
+            float(ego_pose.position.x),
+            float(ego_pose.position.y),
+            float(ego_pose.position.z),
+        )
         source_projection = project_point_to_polyline(source, ego)
         if source_projection is None:
             continue
@@ -81,6 +116,7 @@ def route_lane_change_target(route, centerline_map, ego_pose):
             source_lane_id=source_lane_id,
             target_lane_id=target_lane_id,
             lateral_offset=lateral_offset,
+            section_index=candidate_index,
         )
     return None
 
@@ -126,6 +162,7 @@ def build_route_lane_change_path(
     transition_interval=1.0,
     target_interval=4.0,
     prepare_velocity_ratio=2.0 / 3.0,
+    target_lane_ids=None,
 ):
     if not path.points or target is None:
         return deepcopy(path)
@@ -145,7 +182,34 @@ def build_route_lane_change_path(
         source_distances[-1],
     )
 
-    target_centerline = centerline_map.get_centerline(target.target_lane_id)
+    target_lane_ids = list(target_lane_ids or [target.target_lane_id])
+    if target.target_lane_id not in target_lane_ids:
+        target_lane_ids.insert(0, target.target_lane_id)
+    target_centerline, used_target_lane_ids = stitch_route_centerlines(
+        centerline_map, target_lane_ids
+    )
+    if len(target_centerline) < 2:
+        return deepcopy(path)
+
+    source_lane_start_s = None
+    for index, item in enumerate(path.points):
+        if target.source_lane_id in item.lane_ids:
+            source_lane_start_s = source_distances[index]
+            break
+    if source_lane_start_s is not None:
+        start_s = max(
+            start_s,
+            min(
+                source_lane_start_s + max(float(prepare_distance), 0.0),
+                source_distances[-1],
+            ),
+        )
+        finish_s = clamp(
+            start_s + max(float(lane_change_distance), 0.1),
+            start_s,
+            source_distances[-1],
+        )
+
     generated = []
     generated_lane_ids = []
     generated_velocities = []
@@ -182,7 +246,11 @@ def build_route_lane_change_path(
     target_velocity = _velocity_at(path, source_distances, finish_s)
     for point in target_tail[1:]:
         generated.append(point)
-        generated_lane_ids.append([target.target_lane_id])
+        generated_lane_ids.append(
+            centerline_map.lane_ids_near_point(
+                used_target_lane_ids or target_lane_ids, point
+            )
+        )
         generated_velocities.append(target_velocity)
 
     output = deepcopy(path)

@@ -44,6 +44,7 @@ catkin_install_python(
   scripts/bpp_goal_planner_tools.py
   scripts/bpp_map_tools.py
   scripts/bpp_path_tools.py
+  scripts/bpp_route_tools.py
   scripts/bpp_side_shift_tools.py
   scripts/bpp_start_planner_tools.py
   scripts/bpp_static_avoidance_tools.py
@@ -78,6 +79,7 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_nosetests(test/test_dynamic_avoidance_engine.py)
   catkin_add_nosetests(test/test_goal_planner_engine.py)
+  catkin_add_nosetests(test/test_route_lane_change.py)
   catkin_add_nosetests(test/test_side_shift_engine.py)
   catkin_add_nosetests(test/test_start_planner_engine.py)
   catkin_add_nosetests(test/test_static_avoidance_engine.py)

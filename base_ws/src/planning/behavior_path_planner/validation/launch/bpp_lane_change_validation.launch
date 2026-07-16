@@ -3,6 +3,8 @@
   <arg name="projector_file" default="" />
   <arg name="lane_change_enable_rtc_left" default="false" />
   <arg name="lane_change_enable_rtc_right" default="false" />
+  <arg name="default_velocity_mps" default="4.1666665" />
+  <arg name="lane_change_distance" default="28.0" />
 
   <node pkg="behavior_path_planner" type="lane_following_bpp.py" name="lane_following_bpp" output="screen">
     <param name="frame_id" value="map" />
@@ -12,7 +14,7 @@
     <param name="vehicle_rear_overhang" value="1.1" />
     <param name="backward_path_margin" value="1.0" />
     <param name="forward_path_length" value="300.0" />
-    <param name="default_velocity_mps" value="4.1666665" />
+    <param name="default_velocity_mps" value="$(arg default_velocity_mps)" />
     <param name="stop_at_goal" value="true" />
     <param name="use_ego_as_path_start" value="true" />
     <param name="require_lane_driving_scenario" value="true" />
@@ -35,7 +37,7 @@
     <param name="projector_file" value="$(arg projector_file)" />
     <param name="map_projector_type" value="MGRS" />
     <param name="prepare_distance" value="3.0" />
-    <param name="lane_change_distance" value="28.0" />
+    <param name="lane_change_distance" value="$(arg lane_change_distance)" />
     <param name="target_forward_length" value="300.0" />
     <param name="transition_interval" value="1.0" />
     <param name="target_interval" value="4.0" />

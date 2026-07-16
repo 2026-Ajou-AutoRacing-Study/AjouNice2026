@@ -1,0 +1,24 @@
+stop_margin: 0.0
+tl_state_timeout: 1.0
+stop_time_hysteresis: 0.1
+yellow_lamp_period: 2.75
+yellow_light_stop_velocity: 1.0
+enable_pass_judge: true
+enable_arrow_aware_yellow_passing: false
+enable_rtc: false
+restart_suppression:
+  min_behind_distance_to_stop: 0.5
+  max_behind_distance_to_stop: 1.0
+v2i:
+  use_remaining_time: false
+  last_time_allowed_to_pass: 2.0
+  velocity_threshold: 0.5
+  required_time_to_departure: 3.0
+base_link_to_front: 3.79
+max_detection_distance: 200.0
+passed_deadline: -2.0
+restart_length: 1.0
+max_stop_acceleration: -2.8
+max_stop_jerk: -5.0
+delay_response_time: 0.5
+is_simulation: false

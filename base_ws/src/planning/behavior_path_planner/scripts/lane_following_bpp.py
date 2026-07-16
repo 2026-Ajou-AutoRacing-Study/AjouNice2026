@@ -29,6 +29,7 @@ from bpp_map_tools import (
     stitch_route_centerlines,
     trim_polyline,
 )
+from bpp_route_tools import reference_lane_sequence
 
 
 def yaw_from_quaternion(q):
@@ -264,6 +265,13 @@ class LaneFollowingBPP:
         return output[0], output[1]
 
     def extract_lane_ids(self, route):
+        if self.centerline_map is not None and self.odometry is not None:
+            lane_ids = reference_lane_sequence(
+                route, self.centerline_map, self.odometry.pose.pose
+            )
+            if lane_ids:
+                return lane_ids
+
         selected = []
         for index, segment in enumerate(route.segments):
             primitive_ids = [

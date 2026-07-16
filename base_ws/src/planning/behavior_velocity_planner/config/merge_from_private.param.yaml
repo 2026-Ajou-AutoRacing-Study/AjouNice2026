@@ -1,0 +1,8 @@
+stopline_margin: 3.0
+stop_duration_sec: 1.0
+stop_distance_threshold: 1.0
+stopped_velocity_threshold: 0.01
+base_link_to_front: 3.79
+base_link_to_rear: 1.10
+vehicle_width: 1.896
+path_interpolation_ds: 0.1

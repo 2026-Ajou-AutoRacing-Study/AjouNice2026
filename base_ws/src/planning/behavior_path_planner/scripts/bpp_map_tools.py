@@ -263,12 +263,14 @@ class CenterlineMap:
         boundaries=None,
         boundary_ids=None,
         lane_attributes=None,
+        boundary_node_ids=None,
     ):
         self.source = source
         self.centerlines = centerlines
         self.boundaries = boundaries or {}
         self.boundary_ids = boundary_ids or {}
         self.lane_attributes = lane_attributes or {}
+        self.boundary_node_ids = boundary_node_ids or {}
 
     @classmethod
     def load(cls, map_file, projector_file="", flatten_z=False, projector_type="none"):
@@ -370,6 +372,7 @@ class CenterlineMap:
         centerlines = {}
         boundaries = {}
         boundary_ids = {}
+        boundary_node_ids = {}
         lane_attributes = {}
         for relation in relations:
             if relation["tags"].get("type") != "lanelet":
@@ -389,8 +392,19 @@ class CenterlineMap:
             if len(left) >= 2 and len(right) >= 2:
                 boundaries[str(relation["id"])] = (left, right)
                 boundary_ids[str(relation["id"])] = (left_id, right_id)
+                boundary_node_ids[str(relation["id"])] = (
+                    (ways[left_id]["refs"][0], ways[left_id]["refs"][-1]),
+                    (ways[right_id]["refs"][0], ways[right_id]["refs"][-1]),
+                )
 
-        return cls(source, centerlines, boundaries, boundary_ids, lane_attributes)
+        return cls(
+            source,
+            centerlines,
+            boundaries,
+            boundary_ids,
+            lane_attributes,
+            boundary_node_ids,
+        )
 
     @classmethod
     def from_mgeo_link_file(cls, link_file, flatten_z=False):
@@ -418,6 +432,9 @@ class CenterlineMap:
     def get_boundary_ids(self, lane_id):
         return self.boundary_ids.get(str(lane_id))
 
+    def get_boundary_node_ids(self, lane_id):
+        return self.boundary_node_ids.get(str(lane_id))
+
     def get_lane_attributes(self, lane_id):
         return self.lane_attributes.get(str(lane_id), {})
 
@@ -426,6 +443,34 @@ class CenterlineMap:
 
     def lane_count(self):
         return len(self.centerlines)
+
+    def same_direction(self, first_lane_id, second_lane_id):
+        return self._same_direction(first_lane_id, second_lane_id)
+
+    def is_following(self, first_lane_id, second_lane_id, geometric_tolerance=1.0):
+        """Return whether second_lane_id is a longitudinal successor."""
+        first_nodes = self.get_boundary_node_ids(first_lane_id)
+        second_nodes = self.get_boundary_node_ids(second_lane_id)
+        if first_nodes is not None and second_nodes is not None:
+            return (
+                first_nodes[0][1] == second_nodes[0][0]
+                and first_nodes[1][1] == second_nodes[1][0]
+            )
+
+        first = self.get_centerline(first_lane_id)
+        second = self.get_centerline(second_lane_id)
+        if not first or not second or not self._same_direction(first_lane_id, second_lane_id):
+            return False
+        return distance_2d(first[-1], second[0]) <= max(float(geometric_tolerance), 0.0)
+
+    def is_lateral_neighbor(self, first_lane_id, second_lane_id):
+        first_ids = self.get_boundary_ids(first_lane_id)
+        second_ids = self.get_boundary_ids(second_lane_id)
+        if first_ids is None or second_ids is None:
+            return False
+        return bool(set(first_ids) & set(second_ids)) and self._same_direction(
+            first_lane_id, second_lane_id
+        )
 
     def _same_direction(self, first_lane_id, second_lane_id):
         first = self.get_centerline(first_lane_id)

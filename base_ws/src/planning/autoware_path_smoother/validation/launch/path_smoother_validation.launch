@@ -1,0 +1,52 @@
+<launch>
+  <arg name="reference_json" />
+  <arg name="candidate_json" />
+  <arg name="report_json" />
+  <arg name="map_file" default="$(env HOME)/AJOUNICE2026/lanelet2_map_v44.osm" />
+  <arg name="rviz_config" default="$(find autoware_path_smoother)/validation/rviz/path_smoother_stop_line_comparison.rviz" />
+  <arg name="launch_map" default="true" />
+  <arg name="launch_visualizer" default="true" />
+  <arg name="launch_rviz" default="true" />
+  <arg name="shutdown_on_result" default="false" />
+  <arg name="display_offset" default="1.0" />
+
+  <include file="$(find autoware_path_smoother)/launch/elastic_band_smoother.launch">
+    <arg name="enable_debug_info" value="true" />
+  </include>
+
+  <include if="$(arg launch_map)" file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="projector_file" value="" />
+    <arg name="projector_type" value="MGRS" />
+    <arg name="frame_id" value="map" />
+    <arg name="output_topic" value="/map/lanelet_map" />
+    <arg name="publish_lanelet_fill" value="false" />
+  </include>
+
+  <node pkg="autoware_path_smoother"
+        type="path_smoother_reference_validator.py"
+        name="path_smoother_reference_validator"
+        output="screen"
+        required="$(arg shutdown_on_result)">
+    <param name="reference_json" value="$(arg reference_json)" />
+    <param name="candidate_json" value="$(arg candidate_json)" />
+    <param name="report_json" value="$(arg report_json)" />
+    <param name="shutdown_on_result" value="$(arg shutdown_on_result)" />
+  </node>
+
+  <node if="$(arg launch_visualizer)"
+        pkg="autoware_path_smoother"
+        type="path_smoother_comparison_visualizer.py"
+        name="path_smoother_comparison_visualizer"
+        output="screen">
+    <param name="reference_json" value="$(arg reference_json)" />
+    <param name="display_offset" value="$(arg display_offset)" />
+  </node>
+
+  <node if="$(arg launch_rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="path_smoother_validation_rviz"
+        args="-d $(arg rviz_config)"
+        output="screen" />
+</launch>

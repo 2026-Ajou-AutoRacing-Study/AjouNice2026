@@ -1,5 +1,13 @@
 # Mission Planner ROS1 Port
 
+## Interactive K-City Input
+
+The Mission Planner and BPP can be operated directly from RViz with the
+`bringup/kcity_mission_bpp_rviz.launch` launch file. `2D Pose Estimate` supplies
+the ego pose through `/initialpose`, and `2D Nav Goal` calls the Mission Planner
+waypoint-route service through `/move_base_simple/goal`. See
+`bringup/KCITY_INTERACTIVE_PLANNING.md` for the command and displayed topics.
+
 This package keeps the Autoware mission planner route surface available in ROS 1.
 
 ## Scope

@@ -1,0 +1,46 @@
+<launch>
+  <arg name="map_file" default="" />
+  <arg name="projector_file" default="" />
+  <arg name="map_projector_type" default="MGRS" />
+  <arg name="flatten_map_z" default="false" />
+
+  <node pkg="behavior_velocity_planner" type="behavior_velocity_planner.py" name="behavior_velocity_planner" output="screen">
+    <param name="map_file" value="$(arg map_file)" />
+    <param name="projector_file" value="$(arg projector_file)" />
+    <param name="map_projector_type" value="$(arg map_projector_type)" />
+    <param name="flatten_map_z" value="$(arg flatten_map_z)" />
+    <rosparam param="launch_modules">[stop_line, detection_area, traffic_light, virtual_traffic_light, crosswalk, walkway, blind_spot, intersection, merge_from_private, no_stopping_area, no_drivable_lane, occlusion_spot, run_out, speed_bump]</rosparam>
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/stop_line.param.yaml" param="stop_line" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/speed_bump.param.yaml" param="speed_bump" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/traffic_light.param.yaml" param="traffic_light" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/crosswalk.param.yaml" param="crosswalk" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/walkway.param.yaml" param="walkway" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/blind_spot.param.yaml" param="blind_spot" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/intersection.param.yaml" param="intersection" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/no_stopping_area.param.yaml" param="no_stopping_area" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/no_drivable_lane.param.yaml" param="no_drivable_lane" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/detection_area.param.yaml" param="detection_area" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/merge_from_private.param.yaml" param="merge_from_private" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/virtual_traffic_light.param.yaml" param="virtual_traffic_light" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/occlusion_spot.param.yaml" param="occlusion_spot" />
+    <rosparam command="load" file="$(find behavior_velocity_planner)/config/run_out.param.yaml" param="run_out" />
+
+    <remap from="~input/path_with_lane_id" to="/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id" />
+    <remap from="~input/vector_map" to="/map/vector_map" />
+    <remap from="~input/vehicle_odometry" to="/localization/kinematic_state" />
+    <remap from="~input/acceleration" to="/localization/acceleration" />
+    <remap from="~input/dynamic_objects" to="/perception/object_recognition/objects" />
+    <remap from="~input/no_ground_pointcloud" to="/perception/obstacle_segmentation/pointcloud" />
+    <remap from="~input/compare_map_filtered_pointcloud" to="/perception/obstacle_segmentation/single_frame/pointcloud" />
+    <remap from="~input/traffic_signals" to="/perception/traffic_light_recognition/traffic_signals" />
+    <remap from="~input/occupancy_grid" to="/perception/occupancy_grid_map/map" />
+    <remap from="~input/virtual_traffic_light_states" to="/planning/virtual_traffic_light_states" />
+
+    <remap from="~output/path" to="/planning/scenario_planning/lane_driving/behavior_planning/path" />
+    <remap from="~output/stop_reasons" to="/planning/scenario_planning/status/stop_reasons" />
+    <remap from="~output/planning_factors" to="/planning/planning_factors/behavior_velocity_planner" />
+    <remap from="~output/infrastructure_commands" to="/planning/infrastructure_commands" />
+    <remap from="~debug/markers" to="/planning/debug/behavior_velocity_planner/markers" />
+    <remap from="~debug/status" to="/planning/debug/behavior_velocity_planner/status" />
+  </node>
+</launch>

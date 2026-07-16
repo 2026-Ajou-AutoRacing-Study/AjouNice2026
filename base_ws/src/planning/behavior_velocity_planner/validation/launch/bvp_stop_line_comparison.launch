@@ -1,0 +1,50 @@
+<launch>
+  <arg name="reference_json" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/bags/bvp_stop_line/kcity_103498.reference.json" />
+  <arg name="candidate_json" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/results/bvp_stop_line/kcity_103498.ros1.json" />
+  <arg name="report_json" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/results/bvp_stop_line/kcity_103498.report.json" />
+  <arg name="map_file" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/data/maps/kcity_stop_line_validation_map/lanelet2_map.osm" />
+  <arg name="projector_file" default="" />
+  <arg name="map_projector_type" default="MGRS" />
+  <arg name="frame_id" default="map" />
+  <arg name="map_topic" default="/validation/bvp_stop_line/lanelet_map" />
+  <arg name="context_topic" default="/validation/bvp_stop_line/context" />
+  <arg name="ros2_speed_topic" default="/validation/bvp_stop_line/ros2_speed_path" />
+  <arg name="ros1_speed_topic" default="/validation/bvp_stop_line/ros1_speed_path" />
+  <arg name="display_offset" default="1.2" />
+  <arg name="launch_rviz" default="true" />
+
+  <group ns="validation/bvp_stop_line">
+    <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+      <arg name="map_file" value="$(arg map_file)" />
+      <arg name="projector_file" value="$(arg projector_file)" />
+      <arg name="projector_type" value="$(arg map_projector_type)" />
+      <arg name="frame_id" value="$(arg frame_id)" />
+      <arg name="output_topic" value="$(arg map_topic)" />
+      <arg name="publish_lanelet_fill" value="false" />
+    </include>
+  </group>
+
+  <node pkg="behavior_velocity_planner"
+        type="bvp_stop_line_comparison_visualizer.py"
+        name="bvp_stop_line_comparison_visualizer"
+        output="screen">
+    <param name="reference_json" value="$(arg reference_json)" />
+    <param name="candidate_json" value="$(arg candidate_json)" />
+    <param name="report_json" value="$(arg report_json)" />
+    <param name="map_file" value="$(arg map_file)" />
+    <param name="projector_file" value="$(arg projector_file)" />
+    <param name="map_projector_type" value="$(arg map_projector_type)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="context_topic" value="$(arg context_topic)" />
+    <param name="ros2_speed_topic" value="$(arg ros2_speed_topic)" />
+    <param name="ros1_speed_topic" value="$(arg ros1_speed_topic)" />
+    <param name="display_offset" value="$(arg display_offset)" />
+  </node>
+
+  <node if="$(arg launch_rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="bvp_stop_line_comparison_rviz"
+        args="-d $(find behavior_velocity_planner)/validation/rviz/bvp_stop_line_comparison.rviz"
+        output="screen" />
+</launch>

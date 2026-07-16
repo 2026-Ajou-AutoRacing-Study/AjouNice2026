@@ -38,6 +38,7 @@ catkin_install_python(
   PROGRAMS
   scripts/mission_planner.py
   scripts/mission_planner_minimal_input_publisher.py
+  scripts/mission_planner_rviz_input.py
   scripts/mission_route_comparison_visualizer.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

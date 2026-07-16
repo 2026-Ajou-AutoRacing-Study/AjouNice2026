@@ -51,17 +51,49 @@
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>rospy</build_depend>
   <build_depend>std_msgs</build_depend>
+  <build_depend>autoware_adapi_v1_msgs</build_depend>
+  <build_depend>autoware_internal_planning_msgs</build_depend>
+  <build_depend>autoware_perception_msgs</build_depend>
+  <build_depend>autoware_planning_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>tier4_planning_msgs</build_depend>
+  <build_depend>visualization_msgs</build_depend>
   <build_export_depend>rospy</build_export_depend>
   <build_export_depend>std_msgs</build_export_depend>
+  <build_export_depend>autoware_adapi_v1_msgs</build_export_depend>
+  <build_export_depend>autoware_internal_planning_msgs</build_export_depend>
+  <build_export_depend>autoware_perception_msgs</build_export_depend>
+  <build_export_depend>autoware_planning_msgs</build_export_depend>
+  <build_export_depend>geometry_msgs</build_export_depend>
+  <build_export_depend>nav_msgs</build_export_depend>
+  <build_export_depend>tier4_planning_msgs</build_export_depend>
+  <build_export_depend>visualization_msgs</build_export_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>autoware_adapi_v1_msgs</exec_depend>
+  <exec_depend>autoware_internal_planning_msgs</exec_depend>
+  <exec_depend>autoware_perception_msgs</exec_depend>
+  <exec_depend>autoware_planning_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>tier4_planning_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
   <exec_depend>fast_lio</exec_depend>
   <exec_depend>ioniq5</exec_depend>
   <exec_depend>lanelet_map_visualizer</exec_depend>
+  <exec_depend>behavior_path_planner</exec_depend>
+  <exec_depend>behavior_velocity_planner</exec_depend>
+  <exec_depend>autoware_path_smoother</exec_depend>
+  <exec_depend>mission_planner</exec_depend>
+  <exec_depend>rviz</exec_depend>
   <exec_depend>morai_ros_bridge</exec_depend>
   <exec_depend>rosbridge_server</exec_depend>
   <exec_depend>sensor_interface</exec_depend>
   <exec_depend>tf_pub</exec_depend>
+  <test_depend>autoware_internal_planning_msgs</test_depend>
+  <test_depend>autoware_planning_msgs</test_depend>
+  <test_depend>nav_msgs</test_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->
