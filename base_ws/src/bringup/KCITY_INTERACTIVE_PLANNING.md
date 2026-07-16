@@ -6,8 +6,7 @@ Behavior Path Planner, and Behavior Velocity Planner together.
 ```bash
 cd /home/vic/AJOUNICE2026/repo/base_ws
 source /opt/ros/noetic/setup.bash
-source devel/setup.bash
-source /home/vic/AJOUNICE2026/local_ros_deps/source_lanelet2.sh
+source devel_optimizer/setup.bash
 
 roslaunch bringup kcity_mission_bpp_bvp_rviz.launch
 ```
@@ -38,3 +37,32 @@ Topics:
 | BPP RViz path | `/planning/debug/bpp/path` |
 | BVP output | `/planning/scenario_planning/lane_driving/behavior_planning/path` |
 | BVP stop-line markers | `/planning/debug/behavior_velocity_planner/markers` |
+
+## Full trajectory preview
+
+To run the full lane-driving planning chain and display its final trajectory:
+
+```bash
+roslaunch bringup kcity_interactive_trajectory_rviz.launch
+```
+
+Set the start with `2D Pose Estimate`, then set the destination with
+`2D Nav Goal`. The final trajectory is colored by velocity: green is cruise,
+yellow/orange is reduced speed, and red is stop.
+
+This RViz-only launch advances a virtual ego along the planner output. BPP can
+therefore replan consecutive lane changes and the visualizer accumulates the
+traversed poses into one start-to-goal preview. The planner's final Trajectory
+topic remains the unmodified rolling output; only the two debug visualization
+topics contain the accumulated preview.
+
+If a goal requires several lane changes but is too close to complete them using
+the configured prepare and lane-change distances, the preview stops at the last
+safe reachable point. Move the goal farther forward on that lane; the tool does
+not draw a direct line across lanes to hide an infeasible maneuver.
+
+| Purpose | Topic |
+| --- | --- |
+| Final trajectory | `/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/trajectory` |
+| RViz trajectory path | `/planning/debug/final_trajectory/path` |
+| Velocity-colored markers | `/planning/debug/final_trajectory/markers` |

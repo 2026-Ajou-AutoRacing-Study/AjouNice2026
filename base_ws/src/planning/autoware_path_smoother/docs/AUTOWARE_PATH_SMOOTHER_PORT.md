@@ -84,11 +84,16 @@ Measured results against the ROS 2 reference:
 
 RViz colors:
 
-- gray: BVP input path
-- cyan thick line: ROS 2 Planning Simulator reference
-- magenta thin line: ROS 1 port output
-- cyan/magenta side lines: the same outputs shifted laterally for inspection
+- large gray points: BVP input path
+- medium cyan points: ROS 2 Planning Simulator smoother reference
+- small magenta points: ROS 1 smoother output
 - cyan/magenta spheres: each output's first zero-velocity point
+
+All three paths are drawn at their actual map coordinates without a lateral
+display offset. When the results match, the points appear concentrically as a
+gray outer point, cyan middle point, and magenta center point. A geometric
+difference is visible as separated cyan and magenta points. The different input
+and output point spacing also makes the smoother's resampling behavior visible.
 
 The report checks bidirectional geometry RMSE and maximum error, start/end
 positions, path length, velocity profile, first stop position, and exact bound

@@ -198,10 +198,14 @@ def resample_polyline(points, interval):
     return samples
 
 
-def project_point_to_polyline(points, target):
+def project_point_to_polyline(points, target, min_s=None, max_s=None):
     if not points:
         return None
     if len(points) == 1:
+        if (min_s is not None and min_s > 0.0) or (
+            max_s is not None and max_s < 0.0
+        ):
+            return None
         return 0.0, distance_2d(points[0], target)
 
     cumulative = cumulative_lengths(points)
@@ -215,16 +219,30 @@ def project_point_to_polyline(points, target):
         length_sq = vx * vx + vy * vy
         if length_sq < 1.0e-9:
             continue
+        segment_length = math.sqrt(length_sq)
+        segment_start = cumulative[idx]
+        segment_end = cumulative[idx + 1]
+        allowed_start = segment_start if min_s is None else max(segment_start, min_s)
+        allowed_end = segment_end if max_s is None else min(segment_end, max_s)
+        if allowed_start > allowed_end:
+            continue
+        minimum_ratio = (allowed_start - segment_start) / segment_length
+        maximum_ratio = (allowed_end - segment_start) / segment_length
         wx = target[0] - a[0]
         wy = target[1] - a[1]
-        ratio = max(0.0, min(1.0, (wx * vx + wy * vy) / length_sq))
+        ratio = max(
+            minimum_ratio,
+            min(maximum_ratio, (wx * vx + wy * vy) / length_sq),
+        )
         px = a[0] + vx * ratio
         py = a[1] + vy * ratio
         distance = math.hypot(target[0] - px, target[1] - py)
         if best_distance is None or distance < best_distance:
             best_distance = distance
-            best_s = cumulative[idx] + math.sqrt(length_sq) * ratio
-    return best_s, best_distance if best_distance is not None else 0.0
+            best_s = segment_start + segment_length * ratio
+    if best_distance is None:
+        return None
+    return best_s, best_distance
 
 
 def closest_lane_id(centerline_map, lane_ids, point):
@@ -662,7 +680,9 @@ def trim_polyline(
                 if previous:
                     start_s = previous[-1]
     if goal_point is not None:
-        projected = project_point_to_polyline(points, goal_point)
+        projected = project_point_to_polyline(
+            points, goal_point, min_s=start_s + 1.0
+        )
         if projected is not None and projected[0] > start_s + 1.0:
             end_s = max(start_s, min(projected[0] + float(end_offset), end_s))
     if max_forward_length is not None and reference_start_s is not None:

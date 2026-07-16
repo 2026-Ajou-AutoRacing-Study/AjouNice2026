@@ -1,23 +1,43 @@
 <launch>
   <arg name="case_file" default="$(find motion_velocity_planner)/config/validation/mvp_cases.yaml" />
-  <arg name="output_dir" default="$(env HOME)/AjouNice2026/artifacts/mvp_validation" />
+  <arg name="output_dir" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/results/motion_velocity_planner" />
+  <arg name="launch_rviz" default="true" />
+  <arg name="shutdown_on_result" default="false" />
+  <arg name="input_trajectory_topic" default="/validation/motion_velocity_planner/input/trajectory" />
+  <arg name="objects_topic" default="/validation/motion_velocity_planner/input/dynamic_objects" />
+  <arg name="odometry_topic" default="/validation/motion_velocity_planner/input/vehicle_odometry" />
+  <arg name="output_trajectory_topic" default="/validation/motion_velocity_planner/output/trajectory" />
 
-  <node pkg="motion_velocity_planner" type="motion_velocity_planner.py" name="motion_velocity_planner" output="screen">
-    <param name="frame_id" value="map" />
-    <param name="planning_hz" value="10.0" />
-    <param name="input_path_topic" value="/behavior_path_planner/output/path" />
-    <param name="objects_topic" value="/perception/objects" />
-    <param name="odometry_topic" value="/odometry" />
-    <param name="max_velocity_topic" value="/planning/scenario_planning/max_velocity" />
-    <param name="output_path_topic" value="/motion_velocity_planner/output/path" />
-    <param name="output_trajectory_topic" value="/motion_velocity_planner/output/trajectory" />
-  </node>
+  <include file="$(find motion_velocity_planner)/launch/motion_velocity_planner.launch">
+    <arg name="input_trajectory_topic" value="$(arg input_trajectory_topic)" />
+    <arg name="objects_topic" value="$(arg objects_topic)" />
+    <arg name="odometry_topic" value="$(arg odometry_topic)" />
+    <arg name="max_velocity_topic" value="" />
+    <arg name="output_trajectory_topic" value="$(arg output_trajectory_topic)" />
+  </include>
 
   <node
     pkg="motion_velocity_planner"
     type="run_motion_velocity_planner_cases.py"
     name="mvp_validation_runner"
     output="screen"
-    required="true"
-    args="--case-file $(arg case_file) --output-dir $(arg output_dir)" />
+    required="$(arg shutdown_on_result)"
+    args="--case-file $(arg case_file) --output-dir $(arg output_dir) --input-trajectory-topic $(arg input_trajectory_topic) --objects-topic $(arg objects_topic) --odometry-topic $(arg odometry_topic) --output-trajectory-topic $(arg output_trajectory_topic)" />
+
+  <node pkg="motion_velocity_planner"
+        type="motion_velocity_planner_visualizer.py"
+        name="motion_velocity_planner_visualizer"
+        output="screen">
+    <param name="input_trajectory_topic" value="$(arg input_trajectory_topic)" />
+    <param name="output_trajectory_topic" value="$(arg output_trajectory_topic)" />
+    <param name="objects_topic" value="$(arg objects_topic)" />
+    <param name="odometry_topic" value="$(arg odometry_topic)" />
+  </node>
+
+  <node if="$(arg launch_rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="motion_velocity_planner_validation_rviz"
+        args="-d $(find motion_velocity_planner)/validation/rviz/motion_velocity_planner_validation.rviz"
+        output="screen" />
 </launch>

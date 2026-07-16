@@ -10,6 +10,7 @@ from geometry_msgs.msg import Pose
 
 from bpp_map_tools import (
     cumulative_lengths,
+    distance_2d,
     interpolate_polyline,
     project_point_to_polyline,
     resample_polyline,
@@ -163,6 +164,8 @@ def build_route_lane_change_path(
     target_interval=4.0,
     prepare_velocity_ratio=2.0 / 3.0,
     target_lane_ids=None,
+    goal_point=None,
+    stop_at_goal=True,
 ):
     if not path.points or target is None:
         return deepcopy(path)
@@ -240,9 +243,15 @@ def build_route_lane_change_path(
     target_tail = trim_polyline(
         target_centerline,
         start_point=target_start,
+        goal_point=goal_point,
         max_forward_length=max(float(target_forward_length), 0.0),
     )
     target_tail = resample_polyline(target_tail, target_interval)
+    reaches_goal = goal_point is not None and distance_2d(
+        target_tail[-1], goal_point
+    ) <= max(float(target_interval), 0.1)
+    if reaches_goal and distance_2d(target_tail[-1], goal_point) > 1.0e-3:
+        target_tail.append(goal_point)
     target_velocity = _velocity_at(path, source_distances, finish_s)
     for point in target_tail[1:]:
         generated.append(point)
@@ -252,6 +261,9 @@ def build_route_lane_change_path(
             )
         )
         generated_velocities.append(target_velocity)
+
+    if reaches_goal and stop_at_goal and generated_velocities:
+        generated_velocities[-1] = 0.0
 
     output = deepcopy(path)
     output.points = []

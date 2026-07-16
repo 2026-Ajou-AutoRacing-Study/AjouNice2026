@@ -10,13 +10,9 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
 from nav_msgs.msg import Odometry
-from autoware_internal_planning_msgs.msg import PathWithLaneId, VelocityLimit
+from autoware_internal_planning_msgs.msg import VelocityLimit
 from autoware_perception_msgs.msg import PredictedObjects, ObjectClassification
-try:
-    from autoware_planning_msgs.msg import Trajectory, TrajectoryPoint
-    HAS_TRAJECTORY = True
-except Exception:
-    HAS_TRAJECTORY = False
+from autoware_planning_msgs.msg import Trajectory
 
 from mvp_utils import (
     object_pose,
@@ -24,7 +20,9 @@ from mvp_utils import (
     feasible_stop_velocity,
     param_bool,
     path_cumulative_lengths,
+    point_velocity,
     project_pose_to_path,
+    set_point_velocity,
 )
 
 
@@ -91,28 +89,40 @@ class MotionVelocityPlanner:
                 self.stop_object_label_ids.add(getattr(ObjectClassification, label.upper()))
 
         self.odometry = None
-        self.path = None
+        self.trajectory = None
         self.velocity_limit = None
         self.objects = None
 
-        input_path_topic = rospy.get_param('~input_path_topic', '~input/path')
-        objects_topic = rospy.get_param('~objects_topic', '~input/objects')
-        odometry_topic = rospy.get_param('~odometry_topic', '~input/odometry')
+        input_trajectory_topic = rospy.get_param(
+            '~input_trajectory_topic',
+            '/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory',
+        )
+        objects_topic = rospy.get_param(
+            '~objects_topic', '/perception/object_recognition/objects'
+        )
+        odometry_topic = rospy.get_param(
+            '~odometry_topic', '/localization/kinematic_state'
+        )
         max_velocity_topic = rospy.get_param('~max_velocity_topic', '/planning/scenario_planning/max_velocity')
-        output_path_topic = rospy.get_param('~output_path_topic', '~output/path')
-        output_trajectory_topic = rospy.get_param('~output_trajectory_topic', '~output/trajectory')
+        output_trajectory_topic = rospy.get_param(
+            '~output_trajectory_topic',
+            '/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/trajectory',
+        )
 
         self.sub_odometry = rospy.Subscriber(odometry_topic, Odometry, self.cb_odometry)
-        self.sub_path = rospy.Subscriber(input_path_topic, PathWithLaneId, self.cb_path)
+        self.sub_trajectory = rospy.Subscriber(
+            input_trajectory_topic, Trajectory, self.cb_trajectory
+        )
         self.sub_objects = rospy.Subscriber(objects_topic, PredictedObjects, self.cb_objects)
         if max_velocity_topic:
             self.sub_velocity_limit = rospy.Subscriber(max_velocity_topic, VelocityLimit, self.cb_velocity_limit)
 
-        self.pub_path = rospy.Publisher(output_path_topic, PathWithLaneId, queue_size=1)
-        if HAS_TRAJECTORY:
-            self.pub_trajectory = rospy.Publisher(output_trajectory_topic, Trajectory, queue_size=1)
-        else:
-            rospy.logwarn("autoware_planning_msgs/Trajectory not available; trajectory output disabled")
+        self.pub_trajectory = rospy.Publisher(
+            output_trajectory_topic, Trajectory, queue_size=1
+        )
+        self.planning_timer = rospy.Timer(
+            rospy.Duration(1.0 / max(self.planning_hz, 0.1)), self.on_planning_timer
+        )
 
         rospy.loginfo(
             "MotionVelocityPlanner initialized "
@@ -127,21 +137,28 @@ class MotionVelocityPlanner:
 
     def cb_odometry(self, msg):
         self.odometry = msg
-        rospy.loginfo("motion_velocity_planner: received odometry")
-        self.apply_velocity_profile()
+        rospy.loginfo_throttle(5.0, "motion_velocity_planner: received odometry")
 
-    def cb_path(self, msg):
-        self.path = msg
-        rospy.loginfo("motion_velocity_planner: received path with %d points", len(msg.points))
-        self.apply_velocity_profile()
+    def cb_trajectory(self, msg):
+        self.trajectory = msg
+        rospy.loginfo_throttle(
+            5.0,
+            "motion_velocity_planner: received trajectory with %d points",
+            len(msg.points),
+        )
 
     def cb_objects(self, msg):
         self.objects = msg
-        rospy.loginfo("motion_velocity_planner: received objects with %d entries", len(msg.objects))
-        self.apply_velocity_profile()
+        rospy.loginfo_throttle(
+            5.0,
+            "motion_velocity_planner: received objects with %d entries",
+            len(msg.objects),
+        )
 
     def cb_velocity_limit(self, msg):
         self.velocity_limit = msg
+
+    def on_planning_timer(self, _event):
         self.apply_velocity_profile()
 
     def current_target_velocity(self):
@@ -238,10 +255,10 @@ class MotionVelocityPlanner:
         return self.ttc_to_object(obj, proj) <= self.dynamic_stop_ttc_threshold
 
     def stop_object_projection(self, obj):
-        if not self.path or not self.is_stop_object(obj):
+        if not self.trajectory or not self.is_stop_object(obj):
             return None
 
-        proj = project_pose_to_path(self.path, object_pose(obj))
+        proj = project_pose_to_path(self.trajectory, object_pose(obj))
         if proj is None:
             return None
         if proj.longitudinal_distance < 0.0:
@@ -251,10 +268,10 @@ class MotionVelocityPlanner:
         return proj
 
     def dynamic_object_projection(self, obj):
-        if not self.path or not self.is_dynamic_object(obj):
+        if not self.trajectory or not self.is_dynamic_object(obj):
             return None
 
-        proj = project_pose_to_path(self.path, object_pose(obj))
+        proj = project_pose_to_path(self.trajectory, object_pose(obj))
         if proj is None:
             return None
         if proj.longitudinal_distance < 0.0:
@@ -264,7 +281,7 @@ class MotionVelocityPlanner:
         return proj
 
     def closest_obstacle_distance(self, point_s, hard_stop_only=False):
-        if not self.objects or len(self.objects.objects) == 0 or self.path is None:
+        if not self.objects or len(self.objects.objects) == 0 or self.trajectory is None:
             return float('inf')
 
         dmin = float('inf')
@@ -272,7 +289,7 @@ class MotionVelocityPlanner:
             if hard_stop_only and not self.is_hard_stop_distance_object(obj):
                 continue
 
-            proj = project_pose_to_path(self.path, object_pose(obj))
+            proj = project_pose_to_path(self.trajectory, object_pose(obj))
             if proj is None or abs(proj.signed_lateral_distance) > self.max_lateral_distance:
                 continue
             delta = proj.longitudinal_distance - point_s
@@ -282,13 +299,13 @@ class MotionVelocityPlanner:
         return dmin
 
     def obstacle_info(self, point_s):
-        if not self.objects or len(self.objects.objects) == 0 or self.path is None:
+        if not self.objects or len(self.objects.objects) == 0 or self.trajectory is None:
             return float('inf'), float('inf')
 
         min_distance = float('inf')
         min_ttc = float('inf')
         for obj in self.objects.objects:
-            proj = project_pose_to_path(self.path, object_pose(obj))
+            proj = project_pose_to_path(self.trajectory, object_pose(obj))
             if proj is None or abs(proj.signed_lateral_distance) > self.max_lateral_distance:
                 continue
 
@@ -313,17 +330,10 @@ class MotionVelocityPlanner:
 
     def apply_base_velocity(self, out):
         target_velocity = self.current_target_velocity()
-        has_nonzero_velocity = any(
-            float(getattr(point.point, "longitudinal_velocity_mps", 0.0)) > 0.0
-            for point in out.points
-        )
-
         for point in out.points:
-            current_velocity = float(getattr(point.point, "longitudinal_velocity_mps", 0.0))
-            if has_nonzero_velocity and current_velocity > 0.0:
-                point.point.longitudinal_velocity_mps = min(current_velocity, target_velocity)
-            else:
-                point.point.longitudinal_velocity_mps = target_velocity
+            current_velocity = point_velocity(point)
+            if current_velocity > 0.0:
+                set_point_velocity(point, min(current_velocity, target_velocity))
 
     def apply_stop(self, out, distances):
         if self.objects is None:
@@ -351,9 +361,7 @@ class MotionVelocityPlanner:
                 target_velocity = feasible_stop_velocity(remaining, self.max_deceleration)
                 if station >= stop_line - self.warning_distance:
                     target_velocity = min(target_velocity, self.min_stop_velocity)
-            point.point.longitudinal_velocity_mps = min(
-                point.point.longitudinal_velocity_mps, target_velocity
-            )
+            set_point_velocity(point, min(point_velocity(point), target_velocity))
 
     def apply_dynamic_stop(self, out, distances):
         if self.objects is None:
@@ -384,9 +392,7 @@ class MotionVelocityPlanner:
                 target_velocity = feasible_stop_velocity(remaining, self.max_deceleration)
                 if station >= stop_line - self.warning_distance:
                     target_velocity = min(target_velocity, self.min_stop_velocity)
-            point.point.longitudinal_velocity_mps = min(
-                point.point.longitudinal_velocity_mps, target_velocity
-            )
+            set_point_velocity(point, min(point_velocity(point), target_velocity))
 
     def apply_slowdown(self, out, distances):
         stop_slow_distance = self.speed_based_stop_distance(self.stop_slow_distance)
@@ -406,15 +412,13 @@ class MotionVelocityPlanner:
                     )
                     target_velocity = max(self.min_slow_velocity, self.cruise_speed * factor)
             else:
-                target_velocity = point.point.longitudinal_velocity_mps
-            point.point.longitudinal_velocity_mps = min(
-                point.point.longitudinal_velocity_mps, target_velocity
-            )
+                target_velocity = point_velocity(point)
+            set_point_velocity(point, min(point_velocity(point), target_velocity))
 
     def apply_cruise(self, out, distances):
         for point, station in zip(out.points, distances):
             base_vel = self.cruise_speed
-            current_velocity = float(getattr(point.point, "longitudinal_velocity_mps", 0.0))
+            current_velocity = point_velocity(point)
             if current_velocity > 0.0:
                 base_vel = min(base_vel, current_velocity)
 
@@ -427,13 +431,11 @@ class MotionVelocityPlanner:
             else:
                 target_velocity = base_vel
 
-            point.point.longitudinal_velocity_mps = min(
-                point.point.longitudinal_velocity_mps, target_velocity
-            )
+            set_point_velocity(point, min(point_velocity(point), target_velocity))
 
     def apply_ttc_limit(self, out, distances):
         for point, station in zip(out.points, distances):
-            current_velocity = float(getattr(point.point, "longitudinal_velocity_mps", 0.0))
+            current_velocity = point_velocity(point)
             distance, ttc = self.obstacle_info(station)
             if distance <= 0.0 or ttc <= 0.0:
                 target_velocity = 0.0
@@ -442,14 +444,18 @@ class MotionVelocityPlanner:
                 target_velocity = min(current_velocity if current_velocity > 0.0 else safe_velocity, safe_velocity)
             else:
                 target_velocity = current_velocity if current_velocity > 0.0 else self.min_adjusted_velocity
-            point.point.longitudinal_velocity_mps = min(current_velocity, target_velocity)
+            set_point_velocity(point, min(current_velocity, target_velocity))
 
     def apply_velocity_profile(self):
-        if self.path is None:
-            rospy.loginfo("motion_velocity_planner: no path yet, skipping profile")
+        if rospy.is_shutdown():
+            return
+        if self.trajectory is None:
+            rospy.loginfo_throttle(
+                5.0, "motion_velocity_planner: no trajectory yet, skipping profile"
+            )
             return
 
-        out = deepcopy(self.path)
+        out = deepcopy(self.trajectory)
         self.apply_base_velocity(out)
         distances = path_cumulative_lengths(out)
         self.apply_stop(out, distances)
@@ -457,39 +463,20 @@ class MotionVelocityPlanner:
         self.apply_slowdown(out, distances)
         self.apply_cruise(out, distances)
         self.apply_ttc_limit(out, distances)
-        rospy.loginfo("motion_velocity_planner: publishing path output with %d points", len(out.points))
-        self.pub_path.publish(out)
-        # also publish as Trajectory for downstream modules that expect trajectories
-        if HAS_TRAJECTORY:
+        rospy.loginfo_throttle(
+            5.0,
+            "motion_velocity_planner: publishing trajectory with %d points",
+            len(out.points),
+        )
+        if not rospy.is_shutdown():
             try:
-                traj = self.path_to_trajectory(out)
-                self.pub_trajectory.publish(traj)
-            except Exception as e:
-                rospy.logerr("Failed to publish trajectory: %s", e)
-
-    def path_to_trajectory(self, path_msg):
-        """Convert PathWithLaneId to autoware_planning_msgs/Trajectory preserving velocities."""
-        traj = Trajectory()
-        traj.header = deepcopy(path_msg.header)
-        traj.points = []
-        for p in path_msg.points:
-            tp = TrajectoryPoint()
-            # preserve pose and velocity fields if present
-            try:
-                tp.pose = deepcopy(p.point.pose)
-            except Exception:
-                pass
-            try:
-                tp.longitudinal_velocity_mps = float(getattr(p.point, 'longitudinal_velocity_mps', 0.0))
-            except Exception:
-                pass
-            traj.points.append(tp)
-        return traj
+                self.pub_trajectory.publish(out)
+            except rospy.ROSException:
+                if not rospy.is_shutdown():
+                    raise
 
     def run(self):
-        rate = rospy.Rate(self.planning_hz)
-        while not rospy.is_shutdown():
-            rate.sleep()
+        rospy.spin()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,39 @@
+<launch>
+  <arg name="frame_id" default="map" />
+  <arg name="planning_hz" default="10.0" />
+  <arg name="default_velocity_mps" default="5.0" />
+  <arg name="require_lane_driving_scenario" default="false" />
+  <arg name="forward_path_length" default="300.0" />
+  <arg name="mission_publish_rate" default="5.0" />
+  <arg name="map_file" default="" />
+  <arg name="projector_file" default="" />
+  <arg name="map_projector_type" default="MGRS" />
+  <arg name="route_lane_ids" default="[]" />
+  <arg name="enable_goal_planner" default="false" />
+  <arg name="enable_side_shift" default="false" />
+  <arg name="enable_path_smoother_debug" default="false" />
+  <arg name="enable_path_optimizer_debug" default="false" />
+  <arg name="mvp_velocity_mps" default="5.0" />
+
+  <include file="$(find bringup)/launch/mission_bpp_bvp_path_smoother_path_optimizer_pipeline.launch">
+    <arg name="frame_id" value="$(arg frame_id)" />
+    <arg name="planning_hz" value="$(arg planning_hz)" />
+    <arg name="default_velocity_mps" value="$(arg default_velocity_mps)" />
+    <arg name="require_lane_driving_scenario" value="$(arg require_lane_driving_scenario)" />
+    <arg name="forward_path_length" value="$(arg forward_path_length)" />
+    <arg name="mission_publish_rate" value="$(arg mission_publish_rate)" />
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="projector_file" value="$(arg projector_file)" />
+    <arg name="map_projector_type" value="$(arg map_projector_type)" />
+    <arg name="route_lane_ids" value="$(arg route_lane_ids)" />
+    <arg name="enable_goal_planner" value="$(arg enable_goal_planner)" />
+    <arg name="enable_side_shift" value="$(arg enable_side_shift)" />
+    <arg name="enable_path_smoother_debug" value="$(arg enable_path_smoother_debug)" />
+    <arg name="enable_path_optimizer_debug" value="$(arg enable_path_optimizer_debug)" />
+  </include>
+
+  <include file="$(find motion_velocity_planner)/launch/motion_velocity_planner.launch">
+    <arg name="default_velocity_mps" value="$(arg mvp_velocity_mps)" />
+    <arg name="cruise_speed_mps" value="$(arg mvp_velocity_mps)" />
+  </include>
+</launch>

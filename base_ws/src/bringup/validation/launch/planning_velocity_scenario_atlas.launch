@@ -1,0 +1,48 @@
+<launch>
+  <arg name="launch_rviz" default="true" />
+  <arg name="map_file" default="$(env HOME)/AJOUNICE2026/lanelet2_map_v44.osm" />
+  <arg name="projector_type" default="MGRS" />
+  <arg name="speed_bump_reference" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/bags/bvp_speed_bump/kcity_901200739.reference.json" />
+  <arg name="crosswalk_reference" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/bags/bvp_crosswalk_v44/kcity_201266_pedestrian.reference.json" />
+  <arg name="traffic_light_reference" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/bags/bvp_traffic_light/kcity_201318_red.reference.json" />
+  <arg name="intersection_reference" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/bags/bvp_intersection/kcity_collision.reference.json" />
+  <arg name="mvp_profiles_csv" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/results/motion_velocity_planner/mvp_validation_profiles.csv" />
+  <arg name="output_dir" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/results/velocity_scenario_atlas" />
+
+  <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="projector_file" value="" />
+    <arg name="projector_type" value="$(arg projector_type)" />
+    <arg name="frame_id" value="map" />
+    <arg name="output_topic" value="/validation/planning_velocity_scenario_atlas/lanelet_map" />
+    <arg name="publish_lanelet_fill" value="false" />
+  </include>
+
+  <node pkg="bringup"
+        type="planning_velocity_scenario_atlas.py"
+        name="planning_velocity_scenario_atlas"
+        output="screen">
+    <param name="frame_id" value="map" />
+    <param name="trajectory_topic" value="/validation/planning_velocity_scenario_atlas/trajectory" />
+    <param name="map_file" value="$(arg map_file)" />
+    <param name="projector_type" value="$(arg projector_type)" />
+    <rosparam param="route_lane_ids">[201403, 200184, 200060]</rosparam>
+    <param name="route_start_station_m" value="700.0" />
+    <param name="speed_bump_reference" value="$(arg speed_bump_reference)" />
+    <param name="crosswalk_reference" value="$(arg crosswalk_reference)" />
+    <param name="traffic_light_reference" value="$(arg traffic_light_reference)" />
+    <param name="intersection_reference" value="$(arg intersection_reference)" />
+    <param name="mvp_profiles_csv" value="$(arg mvp_profiles_csv)" />
+    <param name="output_dir" value="$(arg output_dir)" />
+    <param name="scenario_gap_m" value="25.0" />
+    <param name="post_stop_length_m" value="18.0" />
+    <param name="velocity_change_epsilon_mps" value="0.1" />
+  </node>
+
+  <node if="$(arg launch_rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="planning_velocity_scenario_atlas_rviz"
+        args="-d $(find bringup)/validation/rviz/planning_velocity_scenario_atlas.rviz"
+        output="screen" />
+</launch>

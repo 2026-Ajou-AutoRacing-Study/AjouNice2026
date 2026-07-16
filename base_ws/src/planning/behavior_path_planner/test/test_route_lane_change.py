@@ -240,6 +240,38 @@ class RouteLaneChangeTest(unittest.TestCase):
             2.1,
         )
 
+    def test_candidate_stops_at_route_goal(self):
+        path = PathWithLaneId()
+        for x in range(41):
+            point = PathPoint()
+            point.pose.position.x = float(x)
+            point.longitudinal_velocity_mps = 5.0
+            item = PathPointWithLaneId()
+            item.point = point
+            item.lane_ids = [200262 if x < 10 else 200316]
+            path.points.append(item)
+
+        target = RouteLaneChangeTarget(200316, 200315, 4.0, 1)
+        candidate = build_route_lane_change_path(
+            path,
+            self.map,
+            Pose(0.0, 0.0),
+            target,
+            prepare_distance=3.0,
+            lane_change_distance=28.0,
+            target_forward_length=100.0,
+            transition_interval=1.0,
+            target_interval=2.0,
+            target_lane_ids=[200315, 200272],
+            goal_point=(60.0, 4.0, 0.0),
+            stop_at_goal=True,
+        )
+
+        final = candidate.points[-1].point
+        self.assertAlmostEqual(final.pose.position.x, 60.0)
+        self.assertAlmostEqual(final.pose.position.y, 4.0)
+        self.assertAlmostEqual(final.longitudinal_velocity_mps, 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

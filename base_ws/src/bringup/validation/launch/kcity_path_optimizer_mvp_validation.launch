@@ -1,0 +1,68 @@
+<launch>
+  <arg name="map_file" default="$(env HOME)/AJOUNICE2026/lanelet2_map_v44.osm" />
+  <arg name="reference_json" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/bags/bvp_stop_line_v44/kcity_103624.reference.json" />
+  <arg name="report_json" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/results/motion_velocity_planner/kcity_path_optimizer_mvp.report.json" />
+  <arg name="points_csv" default="$(env HOME)/AJOUNICE2026/local_autoware_planning_sim/results/motion_velocity_planner/kcity_path_optimizer_mvp.points.csv" />
+  <arg name="map_projector_type" default="MGRS" />
+  <arg name="max_velocity" default="16.666666" />
+  <arg name="mvp_velocity" default="5.0" />
+  <arg name="forward_path_length" default="5000.0" />
+  <arg name="timeout" default="40.0" />
+  <arg name="launch_rviz" default="true" />
+  <arg name="shutdown_on_result" default="false" />
+
+  <include file="$(find bringup)/launch/mission_bpp_bvp_path_smoother_path_optimizer_mvp_pipeline.launch">
+    <arg name="frame_id" value="map" />
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="map_projector_type" value="$(arg map_projector_type)" />
+    <arg name="route_lane_ids" value="[]" />
+    <arg name="default_velocity_mps" value="$(arg max_velocity)" />
+    <arg name="require_lane_driving_scenario" value="true" />
+    <arg name="forward_path_length" value="$(arg forward_path_length)" />
+    <arg name="enable_goal_planner" value="false" />
+    <arg name="enable_side_shift" value="false" />
+    <arg name="mvp_velocity_mps" value="$(arg mvp_velocity)" />
+  </include>
+
+  <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="projector_file" value="" />
+    <arg name="projector_type" value="$(arg map_projector_type)" />
+    <arg name="frame_id" value="map" />
+    <arg name="output_topic" value="/validation/path_optimizer_mvp/lanelet_map" />
+    <arg name="publish_lanelet_fill" value="false" />
+  </include>
+
+  <node pkg="bringup"
+        type="planning_pipeline_reference_input.py"
+        name="planning_pipeline_reference_input"
+        output="screen">
+    <param name="reference_json" value="$(arg reference_json)" />
+    <param name="max_velocity" value="$(arg max_velocity)" />
+    <param name="request_delay" value="1.0" />
+  </node>
+
+  <node pkg="motion_velocity_planner"
+        type="path_optimizer_mvp_pipeline_validator.py"
+        name="path_optimizer_mvp_pipeline_validator"
+        required="$(arg shutdown_on_result)"
+        output="screen">
+    <param name="report_json" value="$(arg report_json)" />
+    <param name="points_csv" value="$(arg points_csv)" />
+    <param name="timeout" value="$(arg timeout)" />
+    <param name="shutdown_on_result" value="$(arg shutdown_on_result)" />
+    <param name="require_same_first_stop" value="true" />
+  </node>
+
+  <node pkg="motion_velocity_planner"
+        type="motion_velocity_planner_visualizer.py"
+        name="motion_velocity_planner_visualizer"
+        output="screen" />
+
+  <node if="$(arg launch_rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="path_optimizer_mvp_validation_rviz"
+        args="-d $(find bringup)/validation/rviz/path_optimizer_mvp_integration.rviz"
+        output="screen" />
+</launch>

@@ -79,6 +79,7 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_nosetests(test/test_dynamic_avoidance_engine.py)
   catkin_add_nosetests(test/test_goal_planner_engine.py)
+  catkin_add_nosetests(test/test_map_tools.py)
   catkin_add_nosetests(test/test_route_lane_change.py)
   catkin_add_nosetests(test/test_side_shift_engine.py)
   catkin_add_nosetests(test/test_start_planner_engine.py)

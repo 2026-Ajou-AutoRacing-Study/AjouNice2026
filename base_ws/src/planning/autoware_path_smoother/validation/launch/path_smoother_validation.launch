@@ -8,7 +8,6 @@
   <arg name="launch_visualizer" default="true" />
   <arg name="launch_rviz" default="true" />
   <arg name="shutdown_on_result" default="false" />
-  <arg name="display_offset" default="1.0" />
 
   <include file="$(find autoware_path_smoother)/launch/elastic_band_smoother.launch">
     <arg name="enable_debug_info" value="true" />
@@ -40,7 +39,6 @@
         name="path_smoother_comparison_visualizer"
         output="screen">
     <param name="reference_json" value="$(arg reference_json)" />
-    <param name="display_offset" value="$(arg display_offset)" />
   </node>
 
   <node if="$(arg launch_rviz)"

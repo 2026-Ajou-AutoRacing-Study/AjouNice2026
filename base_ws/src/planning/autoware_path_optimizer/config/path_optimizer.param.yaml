@@ -1,0 +1,47 @@
+option:
+  enable_skip_optimization: false
+  enable_reset_prev_optimization: false
+  enable_outside_drivable_area_stop: true
+
+common:
+  output_delta_arc_length: 0.5
+  output_backward_traj_length: 5.0
+  vehicle_stop_margin_outside_drivable_area: 1.0
+
+vehicle:
+  width: 1.896
+  wheel_base: 2.79
+  max_steer_angle: 0.61
+
+replan:
+  max_path_shape_around_ego_lat_dist: 2.0
+  max_path_shape_forward_lon_dist: 100.0
+  max_path_shape_forward_lat_dist: 0.1
+  max_ego_moving_dist: 5.0
+  max_goal_moving_dist: 15.0
+  max_delta_time_sec: 1.0
+
+mpt:
+  option:
+    enable_warm_start: true
+    enable_optimization_validation: true
+  common:
+    num_points: 100
+    delta_arc_length: 1.0
+  clearance:
+    soft_clearance_from_road: 0.1
+  avoidance:
+    min_drivable_width: 0.2
+  fixed_points: 3
+  weight:
+    lat_error_weight: 1.0
+    yaw_error_weight: 2.0
+    steer_input_weight: 8.0
+    steer_rate_weight: 30.0
+    terminal_lat_error_weight: 100.0
+    goal_lat_error_weight: 1000.0
+  qp:
+    max_iteration: 2000
+    tolerance: 1.0e-8
+  validation:
+    max_lat_error: 5.0

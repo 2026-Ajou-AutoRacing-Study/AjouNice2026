@@ -2,9 +2,9 @@
 """
 Simple test publisher for motion_velocity_planner integration tests.
 Publishes:
- - /behavior_path_planner/output/path (PathWithLaneId)
- - /odometry (nav_msgs/Odometry)
- - /perception/objects (autoware_perception_msgs/PredictedObjects)
+ - Path Optimizer trajectory (autoware_planning_msgs/Trajectory)
+ - vehicle odometry (nav_msgs/Odometry)
+ - predicted objects (autoware_perception_msgs/PredictedObjects)
 
 Behavior:
  - publishes a straight path with constant initial velocity
@@ -13,13 +13,10 @@ Behavior:
 
 import math
 import rospy
-from copy import deepcopy
 
-from geometry_msgs.msg import Point
 from nav_msgs.msg import Odometry
 
-from autoware_internal_planning_msgs.msg import PathWithLaneId, PathPointWithLaneId
-from autoware_planning_msgs.msg import PathPoint
+from autoware_planning_msgs.msg import Trajectory, TrajectoryPoint
 from autoware_perception_msgs.msg import (
     PredictedObject,
     PredictedObjects,
@@ -37,22 +34,17 @@ def quaternion_from_yaw(yaw):
     return q
 
 
-def make_path(num_points=121, spacing=1.0, default_speed=8.0):
-    path = PathWithLaneId()
-    path.header.frame_id = "map"
+def make_trajectory(num_points=121, spacing=1.0, default_speed=8.0):
+    trajectory = Trajectory()
+    trajectory.header.frame_id = "map"
     for i in range(num_points):
-        p = PathPoint()
-        p.pose.position.x = float(i) * spacing
-        p.pose.position.y = 0.0
-        p.pose.orientation = quaternion_from_yaw(0.0)
-        p.longitudinal_velocity_mps = float(default_speed)
-        item = PathPointWithLaneId()
-        item.point = deepcopy(p)
-        item.lane_ids = [10]
-        path.points.append(item)
-    path.left_bound = [Point(x=0.0, y=2.5), Point(x=(num_points - 1) * spacing, y=2.5)]
-    path.right_bound = [Point(x=0.0, y=-2.5), Point(x=(num_points - 1) * spacing, y=-2.5)]
-    return path
+        point = TrajectoryPoint()
+        point.pose.position.x = float(i) * spacing
+        point.pose.position.y = 0.0
+        point.pose.orientation = quaternion_from_yaw(0.0)
+        point.longitudinal_velocity_mps = float(default_speed)
+        trajectory.points.append(point)
+    return trajectory
 
 
 def make_odometry(speed=5.0):
@@ -96,16 +88,25 @@ def make_objects_message(*objs):
 def main():
     rospy.init_node("mvp_test_publisher")
 
-    path_pub = rospy.Publisher("/behavior_path_planner/output/path", PathWithLaneId, queue_size=1, latch=True)
-    odom_pub = rospy.Publisher("/odometry", Odometry, queue_size=1, latch=True)
-    objects_pub = rospy.Publisher("/perception/objects", PredictedObjects, queue_size=1)
+    trajectory_pub = rospy.Publisher(
+        "/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory",
+        Trajectory,
+        queue_size=1,
+        latch=True,
+    )
+    odom_pub = rospy.Publisher(
+        "/localization/kinematic_state", Odometry, queue_size=1, latch=True
+    )
+    objects_pub = rospy.Publisher(
+        "/perception/object_recognition/objects", PredictedObjects, queue_size=1
+    )
 
     rate_hz = rospy.get_param("~hz", 10.0)
     object_spawn_time = rospy.get_param("~object_spawn_time", 2.0)
     object_x = rospy.get_param("~object_x", 30.0)
     object_speed = rospy.get_param("~object_speed", 0.0)
 
-    path = make_path()
+    trajectory = make_trajectory()
     odom = make_odometry()
     static_object = make_object(x=object_x, speed=object_speed)
 
@@ -122,9 +123,9 @@ def main():
     while not rospy.is_shutdown():
         now = rospy.Time.now()
         # publish static latched messages
-        path.header.stamp = now
+        trajectory.header.stamp = now
         odom.header.stamp = now
-        path_pub.publish(path)
+        trajectory_pub.publish(trajectory)
         odom_pub.publish(odom)
 
         # spawn object after delay

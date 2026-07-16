@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   tier4_planning_msgs
+  visualization_msgs
 )
 
 catkin_package(
@@ -28,6 +29,7 @@ catkin_package(
   rospy
   std_msgs
   tier4_planning_msgs
+  visualization_msgs
 )
 
 catkin_install_python(
@@ -42,5 +44,16 @@ catkin_install_python(
   scripts/dynamic_obstacle_stop.py
   scripts/boundary_departure_prevention.py
   scripts/validation/run_motion_velocity_planner_cases.py
+  scripts/validation/motion_velocity_planner_visualizer.py
+  scripts/validation/path_optimizer_mvp_pipeline_validator.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+
+install(
+  DIRECTORY config launch docs validation
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_nosetests(test/test_trajectory_interface.py)
+endif()

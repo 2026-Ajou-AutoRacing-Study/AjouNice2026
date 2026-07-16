@@ -1,6 +1,21 @@
 <launch>
+  <arg name="input_trajectory_topic" default="/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory" />
+  <arg name="objects_topic" default="/perception/object_recognition/objects" />
+  <arg name="odometry_topic" default="/localization/kinematic_state" />
+  <arg name="max_velocity_topic" default="/planning/scenario_planning/max_velocity" />
+  <arg name="output_trajectory_topic" default="/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/trajectory" />
+  <arg name="param_path" default="$(find motion_velocity_planner)/config/motion_velocity_planner.param.yaml" />
+  <arg name="default_velocity_mps" default="5.0" />
+  <arg name="cruise_speed_mps" default="$(arg default_velocity_mps)" />
+
   <node pkg="motion_velocity_planner" type="motion_velocity_planner.py" name="motion_velocity_planner" output="screen">
-    <param name="frame_id" value="map" />
-    <param name="planning_hz" value="10.0" />
+    <rosparam command="load" file="$(arg param_path)" />
+    <param name="default_velocity_mps" value="$(arg default_velocity_mps)" />
+    <param name="cruise_speed_mps" value="$(arg cruise_speed_mps)" />
+    <param name="input_trajectory_topic" value="$(arg input_trajectory_topic)" />
+    <param name="objects_topic" value="$(arg objects_topic)" />
+    <param name="odometry_topic" value="$(arg odometry_topic)" />
+    <param name="max_velocity_topic" value="$(arg max_velocity_topic)" />
+    <param name="output_trajectory_topic" value="$(arg output_trajectory_topic)" />
   </node>
 </launch>

@@ -864,6 +864,8 @@ class BehaviorPathPlanner:
                 self.lane_change_target_interval,
                 self.lane_change_prepare_velocity_ratio,
                 target_lane_ids,
+                pose_to_point3(self.route.goal_pose),
+                self.stop_at_goal,
             )
             safe = self.is_lane_change_safe(path, target_offset)
             return self.apply_lane_change_rtc_gate(

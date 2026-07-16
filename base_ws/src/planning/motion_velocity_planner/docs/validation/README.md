@@ -1,108 +1,130 @@
-# Motion Velocity Planner Validation Materials
+# Motion Velocity Planner Validation
 
-## Automated case runner
+## Topic contract
 
-Build the package and run the validation launch:
+The integrated ROS 1 node now uses the same planning surface as Autoware's
+Motion Velocity Planner.
+
+| Direction | Topic | ROS 1 message |
+|---|---|---|
+| Input | `/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory` | `autoware_planning_msgs/Trajectory` |
+| Input | `/perception/object_recognition/objects` | `autoware_perception_msgs/PredictedObjects` |
+| Input | `/localization/kinematic_state` | `nav_msgs/Odometry` |
+| Input | `/planning/scenario_planning/max_velocity` | `autoware_internal_planning_msgs/VelocityLimit` |
+| Output | `/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/trajectory` | `autoware_planning_msgs/Trajectory` |
+
+No `PathWithLaneId` adapter is used between Path Optimizer and MVP. The output
+keeps every input point and pose, never raises an upstream velocity, and keeps
+zero-velocity points inserted by BVP and Path Optimizer.
+
+## Build
 
 ```bash
+cd ~/AJOUNICE2026/repo/base_ws
 source /opt/ros/noetic/setup.bash
-cd ~/AjouNice2026/base_ws
-catkin build motion_velocity_planner
-source devel/setup.bash
+source devel_optimizer/setup.bash
+catkin build motion_velocity_planner bringup --no-status
+source devel_optimizer/setup.bash
+```
+
+## Standalone cases
+
+```bash
 roslaunch motion_velocity_planner validate_motion_velocity_planner.launch
 ```
 
-If message generation fails with `Unable to find either executable 'empy'` or `module 'em' has no attribute 'RAW_OPT'`, install the ROS Noetic-compatible Empy version:
+The launch publishes native `Trajectory`, odometry, and object inputs for five
+cases. It keeps RViz open after the case runner writes:
 
-```bash
-python3 -m pip install --user --force-reinstall 'empy==3.3.4'
-```
+- `~/AJOUNICE2026/local_autoware_planning_sim/results/motion_velocity_planner/mvp_validation_results.json`
+- `~/AJOUNICE2026/local_autoware_planning_sim/results/motion_velocity_planner/mvp_validation_results.csv`
 
-The launch starts `motion_velocity_planner`, publishes synthetic path/odometry/object cases, subscribes to `/motion_velocity_planner/output/path`, and writes:
-
-- `~/AjouNice2026/artifacts/mvp_validation/mvp_validation_results.json`
-- `~/AjouNice2026/artifacts/mvp_validation/mvp_validation_results.csv`
-
-Default cases live in:
-
-```text
-motion_velocity_planner/config/validation/mvp_cases.yaml
-```
-
-Each case can set `object_x`, `object_y`, `object_speed`, `path_speed`, `ego_speed`, and `expected_stop_x`. Use `expected_stop_x: null` when the object should not affect the output path.
-
-## Docker and planning simulator notes
-
-This runner only depends on ROS topics, so the same case file can be used in either the local ROS workspace or a Docker-based Autoware planning simulator session.
-
-Current local Docker status:
-
-```text
-Docker CLI is installed, but the current user is not in the docker group.
-```
-
-Fix once from the host shell, then log out and back in:
-
-```bash
-sudo usermod -aG docker "$USER"
-```
-
-In a planning simulator session, keep the simulator publishing the real route/path/perception topics and run the runner against the MVP output topic you want to compare. For synthetic MVP-only checks, use `validate_motion_velocity_planner.launch`; for simulator comparison, run only the runner and set the topic arguments:
-
-```bash
-rosrun motion_velocity_planner run_motion_velocity_planner_cases.py \
-  --case-file /path/to/mvp_cases.yaml \
-  --input-path-topic /behavior_path_planner/output/path \
-  --objects-topic /perception/objects \
-  --odometry-topic /odometry \
-  --output-path-topic /motion_velocity_planner/output/path
-```
-
-## End-to-end velocity profile
-
-The default validation cases use a 30 m obstacle and the speed-based stop-distance
-defaults:
-
-- Input path: 1 m spacing, 8 m/s initial velocity
-- Planner base/ego velocity: 5 m/s
-- Static base clearance: 3 m
-- Dynamic base clearance: 5 m
-- Reaction time: 0.8 s
-- Comfortable deceleration: 3.0 m/s²
-
-Expected first zero-velocity points with 1 m path spacing:
-
-| Case | Computed clearance | Expected first stop point |
-|---|---:|---:|
-| Static obstacle, 0 m/s | about 11.2 m | 19 m |
-| Slow dynamic obstacle, 0.5 m/s | about 17.7 m | 13 m |
-| Dynamic leading obstacle, 2.0 m/s | TTC about 10.0 s | no full stop |
-
-The integrated node reads `ObjectClassification.probability` with a
-`confidence` fallback, so the static and dynamic branches are active with the
-current ROS messages. Dynamic objects faster than
-`slow_dynamic_stop_speed_threshold_mps` only create a dynamic stop line when
-ego/object TTC is below `dynamic_stop_ttc_threshold`; otherwise they are handled
-by follow/TTC velocity limiting.
-
-## RViz capture guide
-
-Use this layout to produce the companion RViz screenshot.
-
-| Display | Topic | Suggested style |
+| Case | Expected behavior | Observed result |
 |---|---|---|
-| Input path | `/behavior_path_planner/output/path` | Thin blue line |
-| Final path | `/motion_velocity_planner/output/path` | Thick green-to-red line by point velocity |
-| Obstacles | `/perception/objects` | Orange bounding boxes |
-| Ego pose | `/odometry` | Blue vehicle arrow |
+| Baseline, no object | Keep 5.0 m/s, no stop | PASS |
+| Static object 2.0 m lateral | Ignore object | PASS |
+| Leading object at 2.0 m/s | TTC cruise limit, no full stop | PASS, minimum 2.5 m/s |
+| Slow object at 0.5 m/s | Insert stop at x=13 m | PASS |
+| Static object | Insert stop at x=19 m | PASS |
 
-For the validation screenshot, place a 30 m object on the reference path and capture the final path from approximately 16 m onward: the color should transition from green to yellow and red near the observed stop point.
+For an automated run that closes all nodes when the report is ready:
 
-## Slide-ready summary
+```bash
+roslaunch motion_velocity_planner validate_motion_velocity_planner.launch \
+  launch_rviz:=false shutdown_on_result:=true
+```
 
-| Item | Result |
+## K-City integration
+
+This launch runs the complete ROS 1 chain on `lanelet2_map_v44.osm`:
+
+```text
+Mission Planner -> BPP -> BVP -> Path Smoother -> Path Optimizer -> MVP
+```
+
+```bash
+roslaunch bringup kcity_path_optimizer_mvp_validation.launch
+```
+
+It automatically publishes the K-City stop-line reference input, opens RViz,
+and writes a summary plus a point-by-point trajectory table:
+
+```text
+~/AJOUNICE2026/local_autoware_planning_sim/results/motion_velocity_planner/
+kcity_path_optimizer_mvp.report.json
+kcity_path_optimizer_mvp.points.csv
+```
+
+Each CSV row represents one trajectory point. It contains input/output pose,
+quaternion, yaw, cumulative station, time from start, longitudinal and lateral
+velocity, acceleration, heading rate, wheel angles, stop flags, and the
+input/output differences. `TrajectoryPoint` does not contain a force field;
+acceleration is the closest motion-state quantity available in this message.
+
+Verified result:
+
+| Check | Result |
+|---|---:|
+| Path Optimizer input points | 415 |
+| MVP output points | 415 |
+| Maximum XY difference | 0.0 m |
+| Path Optimizer first stop | index 345, station 172.415 m |
+| MVP first stop | index 345, station 172.415 m |
+| Upstream zero points restored to motion | 0 |
+| Output velocity greater than input | 0 |
+| Overall | PASS |
+
+The integrated test uses a 16.67 m/s upstream limit and a 5.0 m/s MVP limit,
+so the output maximum changes from 16.67 m/s to 5.0 m/s by design.
+
+For CI-style execution without RViz:
+
+```bash
+roslaunch bringup kcity_path_optimizer_mvp_validation.launch \
+  launch_rviz:=false shutdown_on_result:=true
+```
+
+## RViz legend
+
+| Marker | Meaning |
 |---|---|
-| Individual module checks | Completed |
-| End-to-end static-obstacle output | Stops around 19 m for a 30 m object at 5 m/s ego speed |
-| End-to-end slow-dynamic output | Stops around 13 m for a 30 m object at 5 m/s ego speed |
-| End-to-end faster dynamic output | No full stop for a 30 m object moving at 2 m/s when TTC is not critical |
+| Large gray points | Path Optimizer input trajectory |
+| Small green points | High-speed MVP output points |
+| Small yellow points | Mid-speed MVP output points |
+| Small red points | Low-speed or stopped MVP output points |
+| Large red sphere | First zero-velocity point |
+| Blue arrow | Ego pose |
+| Orange box | Perceived object |
+
+The gray and colored points should overlap geometrically. Only their velocity
+color is expected to change.
+
+## Current scope
+
+This validates the native trajectory interface and the current aggregate ROS 1
+MVP logic. It is not yet full source-level parity with every Autoware MVP plugin.
+The integrated node currently covers base velocity limiting, obstacle stop,
+slowdown, cruise following, dynamic stop, and TTC limiting. Pointcloud,
+occupancy-grid, out-of-lane, boundary-departure, and plugin-manager parity still
+need separate ROS 2 reference scenarios before this package can be called a
+complete Autoware port.

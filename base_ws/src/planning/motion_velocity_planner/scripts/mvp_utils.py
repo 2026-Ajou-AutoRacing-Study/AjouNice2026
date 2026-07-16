@@ -34,8 +34,24 @@ def distance_2d(a, b):
     return math.hypot(a.x - b.x, a.y - b.y)
 
 
-def point_position(path_point_with_lane_id):
-    return path_point_with_lane_id.point.pose.position
+def point_data(path_point):
+    return path_point.point if hasattr(path_point, "point") else path_point
+
+
+def point_pose(path_point):
+    return point_data(path_point).pose
+
+
+def point_position(path_point):
+    return point_pose(path_point).position
+
+
+def point_velocity(path_point):
+    return float(getattr(point_data(path_point), "longitudinal_velocity_mps", 0.0))
+
+
+def set_point_velocity(path_point, velocity_mps):
+    point_data(path_point).longitudinal_velocity_mps = float(velocity_mps)
 
 
 def path_cumulative_lengths(path):
@@ -69,7 +85,7 @@ def project_pose_to_path(path, pose):
 
     position = pose.position
     if len(path.points) == 1:
-        path_pose = path.points[0].point.pose
+        path_pose = point_pose(path.points[0])
         yaw = yaw_from_quaternion(path_pose.orientation)
         dx = position.x - path_pose.position.x
         dy = position.y - path_pose.position.y
@@ -80,8 +96,8 @@ def project_pose_to_path(path, pose):
     best = None
 
     for idx in range(len(path.points) - 1):
-        a = path.points[idx].point.pose.position
-        b = path.points[idx + 1].point.pose.position
+        a = point_position(path.points[idx])
+        b = point_position(path.points[idx + 1])
         vx = b.x - a.x
         vy = b.y - a.y
         segment_length = math.hypot(vx, vy)
@@ -112,11 +128,9 @@ def set_velocity_window(path, start_distance, end_distance, velocity_mps, mode="
         if distance < start_distance or distance > end_distance:
             continue
         if mode == "set":
-            point.point.longitudinal_velocity_mps = velocity_mps
+            set_point_velocity(point, velocity_mps)
         else:
-            point.point.longitudinal_velocity_mps = min(
-                point.point.longitudinal_velocity_mps, velocity_mps
-            )
+            set_point_velocity(point, min(point_velocity(point), velocity_mps))
     return output
 
 

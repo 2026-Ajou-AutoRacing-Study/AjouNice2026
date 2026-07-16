@@ -7,19 +7,17 @@ import math
 import os
 import sys
 import time
-from copy import deepcopy
 
 import rospy
 import yaml
 import rosgraph
 import rospkg
 
-from geometry_msgs.msg import Point, Quaternion
+from geometry_msgs.msg import Quaternion
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Header
 
-from autoware_internal_planning_msgs.msg import PathWithLaneId, PathPointWithLaneId
-from autoware_planning_msgs.msg import PathPoint
+from autoware_planning_msgs.msg import Trajectory, TrajectoryPoint
 from autoware_perception_msgs.msg import (
     ObjectClassification,
     PredictedObject,
@@ -28,10 +26,15 @@ from autoware_perception_msgs.msg import (
 )
 
 
-DEFAULT_INPUT_PATH_TOPIC = "/behavior_path_planner/output/path"
-DEFAULT_OBJECTS_TOPIC = "/perception/objects"
-DEFAULT_ODOMETRY_TOPIC = "/odometry"
-DEFAULT_OUTPUT_PATH_TOPIC = "/motion_velocity_planner/output/path"
+DEFAULT_INPUT_TRAJECTORY_TOPIC = (
+    "/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory"
+)
+DEFAULT_OBJECTS_TOPIC = "/perception/object_recognition/objects"
+DEFAULT_ODOMETRY_TOPIC = "/localization/kinematic_state"
+DEFAULT_OUTPUT_TRAJECTORY_TOPIC = (
+    "/planning/scenario_planning/lane_driving/motion_planning/"
+    "motion_velocity_planner/trajectory"
+)
 
 
 def quaternion_from_yaw(yaw):
@@ -41,25 +44,17 @@ def quaternion_from_yaw(yaw):
     return q
 
 
-def make_path(num_points, spacing, default_speed):
-    path = PathWithLaneId()
-    path.header = Header(frame_id="map")
+def make_trajectory(num_points, spacing, default_speed):
+    trajectory = Trajectory()
+    trajectory.header = Header(frame_id="map")
     for i in range(num_points):
-        p = PathPoint()
-        p.pose.position.x = float(i) * spacing
-        p.pose.position.y = 0.0
-        p.pose.orientation = quaternion_from_yaw(0.0)
-        p.longitudinal_velocity_mps = float(default_speed)
-
-        item = PathPointWithLaneId()
-        item.point = deepcopy(p)
-        item.lane_ids = [10]
-        path.points.append(item)
-
-    length = (num_points - 1) * spacing
-    path.left_bound = [Point(x=0.0, y=2.5), Point(x=length, y=2.5)]
-    path.right_bound = [Point(x=0.0, y=-2.5), Point(x=length, y=-2.5)]
-    return path
+        point = TrajectoryPoint()
+        point.pose.position.x = float(i) * spacing
+        point.pose.position.y = 0.0
+        point.pose.orientation = quaternion_from_yaw(0.0)
+        point.longitudinal_velocity_mps = float(default_speed)
+        trajectory.points.append(point)
+    return trajectory
 
 
 def make_odometry(speed):
@@ -98,7 +93,20 @@ def make_object(case, object_id):
 
 
 def station_for_point(path_point):
-    return float(path_point.point.pose.position.x)
+    return float(path_point.pose.position.x)
+
+
+def cumulative_stations(points):
+    stations = [0.0]
+    for first, second in zip(points[:-1], points[1:]):
+        stations.append(
+            stations[-1]
+            + math.hypot(
+                second.pose.position.x - first.pose.position.x,
+                second.pose.position.y - first.pose.position.y,
+            )
+        )
+    return stations
 
 
 def summarize_path(path_msg, zero_epsilon, stop_velocity_epsilon):
@@ -111,7 +119,7 @@ def summarize_path(path_msg, zero_epsilon, stop_velocity_epsilon):
             "zero_count": 0,
         }
 
-    velocities = [float(p.point.longitudinal_velocity_mps) for p in path_msg.points]
+    velocities = [float(point.longitudinal_velocity_mps) for point in path_msg.points]
     stop_x = None
     for point, velocity in zip(path_msg.points, velocities):
         if abs(velocity) <= zero_epsilon:
@@ -139,20 +147,26 @@ class MvpCaseRunner:
         self.args = args
         self.cases = cases
         self.latest_output = None
+        self.expected_stamps = set()
 
         rospy.init_node("mvp_validation_runner", anonymous=True)
 
-        self.path_pub = rospy.Publisher(args.input_path_topic, PathWithLaneId, queue_size=1, latch=True)
+        self.trajectory_pub = rospy.Publisher(
+            args.input_trajectory_topic, Trajectory, queue_size=1, latch=True
+        )
         self.odom_pub = rospy.Publisher(args.odometry_topic, Odometry, queue_size=1, latch=True)
         self.objects_pub = rospy.Publisher(args.objects_topic, PredictedObjects, queue_size=1, latch=True)
-        self.output_sub = rospy.Subscriber(args.output_path_topic, PathWithLaneId, self.output_cb)
+        self.output_sub = rospy.Subscriber(
+            args.output_trajectory_topic, Trajectory, self.output_cb
+        )
 
     def output_cb(self, msg):
-        self.latest_output = msg
+        if msg.header.stamp.to_nsec() in self.expected_stamps:
+            self.latest_output = msg
 
     def publish_case_inputs(self, case, object_id):
         now = rospy.Time.now()
-        path = make_path(
+        trajectory = make_trajectory(
             num_points=int(case.get("path_points", self.args.path_points)),
             spacing=float(case.get("path_spacing", self.args.path_spacing)),
             default_speed=float(case.get("path_speed", self.args.path_speed)),
@@ -161,7 +175,8 @@ class MvpCaseRunner:
         objects = PredictedObjects()
         objects.header.frame_id = "map"
 
-        path.header.stamp = now
+        trajectory.header.stamp = now
+        self.expected_stamps.add(now.to_nsec())
         odom.header.stamp = now
         objects.header.stamp = now
         if bool(case.get("object_enabled", True)):
@@ -169,10 +184,11 @@ class MvpCaseRunner:
 
         self.objects_pub.publish(objects)
         self.odom_pub.publish(odom)
-        self.path_pub.publish(path)
+        self.trajectory_pub.publish(trajectory)
 
     def run_case(self, case, object_id):
         self.latest_output = None
+        self.expected_stamps = set()
         start = time.time()
         rate = rospy.Rate(self.args.publish_hz)
         while not rospy.is_shutdown() and time.time() - start < self.args.case_timeout:
@@ -203,6 +219,19 @@ class MvpCaseRunner:
             "object_speed": case.get("object_speed"),
         }
         result.update(summary)
+        if self.latest_output is not None:
+            stations = cumulative_stations(self.latest_output.points)
+            result["_profile_points"] = [
+                {
+                    "point_index": index,
+                    "station_m": stations[index],
+                    "position_x_m": point.pose.position.x,
+                    "position_y_m": point.pose.position.y,
+                    "position_z_m": point.pose.position.z,
+                    "longitudinal_velocity_mps": point.longitudinal_velocity_mps,
+                }
+                for index, point in enumerate(self.latest_output.points)
+            ]
         return result
 
     def run(self):
@@ -246,9 +275,18 @@ def write_results(results, output_dir):
     ensure_output_dir(output_dir)
     json_path = os.path.join(output_dir, "mvp_validation_results.json")
     csv_path = os.path.join(output_dir, "mvp_validation_results.csv")
+    profiles_path = os.path.join(output_dir, "mvp_validation_profiles.csv")
 
     with open(json_path, "w", encoding="utf-8") as stream:
-        json.dump(results, stream, indent=2, sort_keys=True)
+        json.dump(
+            [
+                {key: value for key, value in result.items() if not key.startswith("_")}
+                for result in results
+            ],
+            stream,
+            indent=2,
+            sort_keys=True,
+        )
         stream.write("\n")
 
     fields = [
@@ -271,7 +309,25 @@ def write_results(results, output_dir):
         for result in results:
             writer.writerow({field: result.get(field) for field in fields})
 
-    return json_path, csv_path
+    profile_fields = [
+        "case",
+        "point_index",
+        "station_m",
+        "position_x_m",
+        "position_y_m",
+        "position_z_m",
+        "longitudinal_velocity_mps",
+    ]
+    with open(profiles_path, "w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=profile_fields)
+        writer.writeheader()
+        for result in results:
+            for point in result.get("_profile_points", []):
+                row = {"case": result["case"]}
+                row.update(point)
+                writer.writerow(row)
+
+    return json_path, csv_path, profiles_path
 
 
 def parse_args():
@@ -281,15 +337,26 @@ def parse_args():
         "--output-dir",
         default=os.path.join(
             os.path.expanduser("~"),
-            "AjouNice2026",
-            "artifacts",
-            "mvp_validation",
+            "AJOUNICE2026",
+            "local_autoware_planning_sim",
+            "results",
+            "motion_velocity_planner",
         ),
     )
-    parser.add_argument("--input-path-topic", default=DEFAULT_INPUT_PATH_TOPIC)
+    parser.add_argument(
+        "--input-trajectory-topic",
+        "--input-path-topic",
+        dest="input_trajectory_topic",
+        default=DEFAULT_INPUT_TRAJECTORY_TOPIC,
+    )
     parser.add_argument("--objects-topic", default=DEFAULT_OBJECTS_TOPIC)
     parser.add_argument("--odometry-topic", default=DEFAULT_ODOMETRY_TOPIC)
-    parser.add_argument("--output-path-topic", default=DEFAULT_OUTPUT_PATH_TOPIC)
+    parser.add_argument(
+        "--output-trajectory-topic",
+        "--output-path-topic",
+        dest="output_trajectory_topic",
+        default=DEFAULT_OUTPUT_TRAJECTORY_TOPIC,
+    )
     parser.add_argument("--path-points", type=int, default=121)
     parser.add_argument("--path-spacing", type=float, default=1.0)
     parser.add_argument("--path-speed", type=float, default=8.0)
@@ -312,12 +379,22 @@ def main():
 
     runner = MvpCaseRunner(args, cases)
     results = runner.run()
-    json_path, csv_path = write_results(results, args.output_dir)
+    json_path, csv_path, profiles_path = write_results(results, args.output_dir)
 
     failed = [result for result in results if not result["passed"]]
-    print(json.dumps(results, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            [
+                {key: value for key, value in result.items() if not key.startswith("_")}
+                for result in results
+            ],
+            indent=2,
+            sort_keys=True,
+        )
+    )
     print("wrote:", json_path)
     print("wrote:", csv_path)
+    print("wrote:", profiles_path)
     return 1 if failed else 0
 
 

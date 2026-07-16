@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import json
-import math
 
 import rospy
 from autoware_planning_msgs.msg import Path
@@ -32,27 +31,10 @@ def json_point(value, z_offset=0.0):
     return point
 
 
-def shifted(points, offset):
-    output = []
-    for index, current in enumerate(points):
-        previous = points[max(index - 1, 0)]
-        following = points[min(index + 1, len(points) - 1)]
-        dx = following.x - previous.x
-        dy = following.y - previous.y
-        length = math.hypot(dx, dy)
-        point = Point(x=current.x, y=current.y, z=current.z)
-        if length > 1.0e-9:
-            point.x += offset * (-dy / length)
-            point.y += offset * (dx / length)
-        output.append(point)
-    return output
-
-
 class ComparisonVisualizer:
     def __init__(self):
         self.reference = read_json(rospy.get_param("~reference_json"))
         self.frame_id = self.reference["output_path"].get("frame_id", "map")
-        self.display_offset = float(rospy.get_param("~display_offset", 1.0))
         self.report = None
         self.candidate = None
         self.publisher = rospy.Publisher(
@@ -80,10 +62,12 @@ class ComparisonVisualizer:
         marker.lifetime = rospy.Duration(0)
         return marker
 
-    def line(self, namespace, marker_id, points, width, value):
-        marker = self.marker(namespace, marker_id, Marker.LINE_STRIP)
+    def point_list(self, namespace, marker_id, points, diameter, value):
+        marker = self.marker(namespace, marker_id, Marker.SPHERE_LIST)
         marker.points = points
-        marker.scale.x = width
+        marker.scale.x = diameter
+        marker.scale.y = diameter
+        marker.scale.z = diameter
         marker.color = value
         return marker
 
@@ -156,27 +140,25 @@ class ComparisonVisualizer:
         if self.candidate is None:
             return
         markers = MarkerArray()
-        input_points = self.document_points(self.reference["input_path"], 0.18)
-        reference_points = self.document_points(self.reference["output_path"], 0.42)
-        candidate_points = self.message_points(self.candidate, 0.46)
+        input_points = self.document_points(self.reference["input_path"], 0.12)
+        reference_points = self.document_points(self.reference["output_path"], 0.20)
+        candidate_points = self.message_points(self.candidate, 0.28)
         cyan = color(0.0, 0.85, 1.0, 0.98)
         magenta = color(1.0, 0.0, 0.82, 0.98)
         markers.markers.append(
-            self.line("bvp_input", 0, input_points, 0.18, color(0.72, 0.75, 0.8, 0.7))
+            self.point_list(
+                "bvp_input_points",
+                0,
+                input_points,
+                0.42,
+                color(0.72, 0.75, 0.8, 0.82),
+            )
         )
         markers.markers.append(
-            self.line("ros2_actual", 0, reference_points, 0.70, cyan)
+            self.point_list("ros2_smoother_points", 0, reference_points, 0.28, cyan)
         )
         markers.markers.append(
-            self.line("ros1_actual", 0, candidate_points, 0.30, magenta)
-        )
-        reference_shifted = shifted(reference_points, self.display_offset)
-        candidate_shifted = shifted(candidate_points, -self.display_offset)
-        markers.markers.append(
-            self.line("ros2_separated", 0, reference_shifted, 0.42, cyan)
-        )
-        markers.markers.append(
-            self.line("ros1_separated", 0, candidate_shifted, 0.42, magenta)
+            self.point_list("ros1_smoother_points", 0, candidate_points, 0.14, magenta)
         )
         reference_stop = self.first_stop_document(self.reference["output_path"])
         candidate_stop = self.first_stop_message(self.candidate)
@@ -202,20 +184,18 @@ class ComparisonVisualizer:
         ego_marker.color = color(1.0, 1.0, 1.0, 0.95)
         markers.markers.append(ego_marker)
         label_point = Point(
-            x=reference_shifted[min(12, len(reference_shifted) - 1)].x,
-            y=reference_shifted[min(12, len(reference_shifted) - 1)].y,
-            z=reference_shifted[min(12, len(reference_shifted) - 1)].z,
+            x=reference_points[min(12, len(reference_points) - 1)].x,
+            y=reference_points[min(12, len(reference_points) - 1)].y,
+            z=reference_points[min(12, len(reference_points) - 1)].z,
         )
         if self.report is None:
-            label = "ROS2 CYAN (+{:.1f} m) | ROS1 MAGENTA (-{:.1f} m)".format(
-                self.display_offset, self.display_offset
-            )
+            label = "BVP GRAY | ROS2 SMOOTHER CYAN | ROS1 SMOOTHER MAGENTA"
             status_color = color(1.0, 1.0, 1.0, 1.0)
         else:
             diagnostics = self.report["diagnostics"]
             label = (
-                "{} | ROS2 CYAN / ROS1 MAGENTA | RMSE {:.3f} m | max {:.3f} m | "
-                "stop {:.3f} m"
+                "{} | BVP GRAY / ROS2 CYAN / ROS1 MAGENTA | RMSE {:.3f} m | "
+                "max {:.3f} m | stop {:.3f} m"
             ).format(
                 "PASS" if self.report["passed"] else "FAIL",
                 diagnostics["geometry_rmse_m"],

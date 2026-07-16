@@ -27,6 +27,9 @@ base_ws/devel/
 base_ws/install/
 base_ws/logs/
 base_ws/.catkin_tools/
+base_ws/build_*/
+base_ws/devel_*/
+base_ws/install_*/
 
 # catkin_make / catkin config generated markers
 base_ws/.catkin_workspace
@@ -48,6 +51,9 @@ base_ws/.catkin_workspace
 !base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_goal_planner_comparison.rviz
 !base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_side_shift_comparison.rviz
 !base_ws/src/planning/behavior_velocity_planner/validation/rviz/*.rviz
+!base_ws/src/planning/autoware_path_optimizer/validation/rviz/*.rviz
+!base_ws/src/planning/motion_velocity_planner/validation/rviz/*.rviz
+!base_ws/src/bringup/validation/rviz/*.rviz
 
 # Local machine-specific files
 .env.local

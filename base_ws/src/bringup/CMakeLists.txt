@@ -179,6 +179,8 @@ catkin_install_python(
   validation/scripts/mission_bpp_bvp_pipeline_validator.py
   validation/scripts/mission_bpp_bvp_live_visualizer.py
   validation/scripts/planning_pipeline_reference_input.py
+  validation/scripts/planning_trajectory_visualizer.py
+  validation/scripts/planning_velocity_scenario_atlas.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -217,6 +219,7 @@ install(
   FILES
   validation/README.md
   validation/MISSION_BPP_BVP_INTEGRATION.md
+  validation/VELOCITY_SCENARIO_ATLAS.md
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/validation
 )
 
