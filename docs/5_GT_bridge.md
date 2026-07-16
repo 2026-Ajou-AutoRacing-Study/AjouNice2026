@@ -16,6 +16,8 @@
 출력:
   /tf
   morai_map -> base_link
+  /localization/kinematic_state
+  nav_msgs/Odometry (map -> base_link pose, base_link twist)
 ```
 
 
@@ -39,9 +41,10 @@ gedit ~/AjouNice2026/configs/localization/fast_lio_morai_velodyne.yaml
 - `~/AjouNice2026/base_ws/src/tf_pub/launch/ego_tf.launch`
 - RViz에서 차량을 맵에 올려 보려면 bringup의 map TF launch를 사용한다.
   - `/Ego_topic`을 그대로 받아서 `morai_map -> base_link` TF만 publish한다.
-  - `/localization/odom`은 publish하지 않는다.
+  - `/localization/odom`은 publish하지 않고, 상위
+    `localization_morai_gt.launch`가 `/localization/kinematic_state`를 publish한다.
   - `tf_pub/map_tf.launch`의 `map -> morai_map`까지 같이 켜서 최종 TF는 `map -> morai_map -> base_link`가 된다.
-  - MORAI /Ego_topic: `roslaunch bringup maptf_morai.launch`
+  - MORAI /Ego_topic: `roslaunch bringup localization_morai_gt.launch`
   - GPS /sensor/gps: `roslaunch bringup maptf.launch`
 
 
@@ -58,7 +61,7 @@ rosbag play morai_local_valid_ego_sensors.bag --clock --loop # loop: 반복
 ```
 ```bash
 # 터미널2
-roslaunch bringup maptf_morai.launch
+roslaunch bringup localization_morai_gt.launch
 ```
 
 ```bash

@@ -1,0 +1,6 @@
+<launch>
+  <node pkg="motion_velocity_planner" type="out_of_lane.py" name="out_of_lane_detector" output="screen">
+    <param name="lateral_threshold" value="0.8" />
+    <param name="check_rate" value="10.0" />
+  </node>
+</launch>

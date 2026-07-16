@@ -5,7 +5,14 @@
 
 ### rosbag 제작
 ```bash
-bash ~/AjouNice2026/scripts/rosbag_maker.sh
+bash ~/AjouNice2026/scripts/rosbag/record/rosbag_raw.sh
+```
+
+6개 카메라를 함께 녹화할 때는 아래를 사용한다. 출력은 기본적으로
+`rosbags/raw_camera/`에 저장된다.
+
+```bash
+bash ~/AjouNice2026/scripts/rosbag/record/rosbag_cam_raw.sh
 ```
 - 도심로 10초 녹화함
   - 정지 상태에서 직진 가속도 주행, 왼쪽 및 오른쪽 살짝식 조향
@@ -35,7 +42,8 @@ topics:      /Ego_topic               109 msgs    : morai_msgs/EgoVehicleStatus
 ```
 
 현재 record 스크립트는 `/tf`, `/tf_static`, `/morai/tf_raw`를 기록하지 않는다.
-TF는 bag 재생 시점에 `maptf_morai.launch` 또는 `maptf.launch`로 다시 만든다.
+TF는 bag 재생 시점에 `localization_morai_gt.launch` 또는
+`maptf.launch`로 다시 만든다.
 
 - 근데 /clock은 왜 없지
   - real-time mode 켜져 있는데 흠...
@@ -60,12 +68,12 @@ loop 경계에서 자동 초기화되지 않으므로 반복 재생 대신 한 �
 bag 안에는 `/tf`를 넣지 않고, 별도 터미널에서 아래 launch를 같이 띄운다.
 
 ```bash
-roslaunch bringup maptf_morai.launch
+roslaunch bringup localization_morai_gt.launch use_sim_time:=true
 ```
 
 이 launch는 rosbag의 `/Ego_topic`으로 `morai_map -> base_link` TF를 만들고,
-`map -> morai_map` static TF까지 같이 publish한다. `/localization/odom`은 만들지
-않는다. GPS-only bag은 `maptf.launch`를 사용한다.
+`map -> morai_map` static TF와 `/localization/kinematic_state`까지 publish한다.
+`/localization/odom`은 만들지 않는다. GPS-only bag은 `maptf.launch`를 사용한다.
 
 ![alt text](attachments/image-9.png)
 - rviz에서도 잘 재생됨

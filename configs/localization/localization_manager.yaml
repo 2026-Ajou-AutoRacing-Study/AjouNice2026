@@ -1,0 +1,23 @@
+frames:
+  map: map
+  morai_map: morai_map
+  camera_init: camera_init
+  body: body
+  base_link: base_link
+
+topics:
+  ego: /Ego_topic
+  fast_lio_odom: /localization/odom
+  kinematic_state: /localization/kinematic_state
+
+providers:
+  fast_lio:
+    initialization:
+      # Ego is used only once to align camera_init with the global map.
+      source: ego
+      max_time_difference_sec: 0.05
+      heading_unit: degrees
+
+runtime:
+  tf_lookup_timeout_sec: 0.05
+  morai_gt_retry_period_sec: 0.01

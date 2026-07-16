@@ -1,0 +1,14 @@
+# Single physical-vehicle source of truth shared by trajectory generation and control.
+vehicle:
+  name: 2023_Hyundai_ioniq5
+  wheelbase_m: 3.000
+  length_m: 4.635
+  width_m: 1.892
+  body_width_m: 1.890
+  mirror_width_m: 2.134
+  height_m: 1.600
+  wheel_radius_m: 0.3705
+  front_overhang_m: 0.845
+  rear_overhang_m: 0.790
+  min_turning_radius_m: 5.87
+  max_wheel_angle_deg: 40.0

@@ -1,32 +1,21 @@
 <launch>
   <!--
-    Live MORAI simulator Ego map TF before the real localization stack is ready.
-
-    Input:
-      /Ego_topic.position and /Ego_topic.heading received live from MORAI.
-      EgoVehicleStatus has no latitude/longitude; GPS-based conversion belongs
-      in maptf.launch.
-
-    Output TF:
-      map -> morai_map        static Lanelet-to-MORAI map alignment
-      morai_map -> base_link  dynamic live ego pose
-
-    Run only one of maptf.launch or maptf_morai.launch at a time.
-    They publish the same ego/map TF edge.
+    Deprecated compatibility alias.
+    Use: roslaunch bringup localization_morai_gt.launch
   -->
+  <arg name="use_sim_time" default="false"/>
   <arg name="ego_topic" default="/Ego_topic"/>
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
   <arg name="base_frame" default="base_link"/>
+  <arg name="heading_in_degrees" default="true"/>
 
-  <include file="$(find tf_pub)/launch/map_tf.launch">
-    <arg name="parent_frame" value="$(arg map_frame)"/>
-    <arg name="child_frame" value="$(arg morai_map_frame)"/>
-  </include>
-
-  <include file="$(find tf_pub)/launch/ego_tf.launch">
+  <include file="$(find bringup)/launch/localization_morai_gt.launch">
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="ego_topic" value="$(arg ego_topic)"/>
-    <arg name="parent_frame" value="$(arg morai_map_frame)"/>
-    <arg name="child_frame" value="$(arg base_frame)"/>
+    <arg name="map_frame" value="$(arg map_frame)"/>
+    <arg name="morai_map_frame" value="$(arg morai_map_frame)"/>
+    <arg name="base_frame" value="$(arg base_frame)"/>
+    <arg name="heading_in_degrees" value="$(arg heading_in_degrees)"/>
   </include>
 </launch>

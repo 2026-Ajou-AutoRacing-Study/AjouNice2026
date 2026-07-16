@@ -1,0 +1,30 @@
+<launch>
+  <!--
+    Complete the FAST-LIO branch of the localization TF tree:
+      map -> morai_map -> camera_init -> body -> base_link
+
+    FAST-LIO owns camera_init -> body. This launch owns body -> base_link and
+    starts the node that initializes morai_map -> camera_init from Ego GT.
+  -->
+  <arg name="config"
+       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+
+  <rosparam command="load" file="$(arg config)" ns="localization_manager"/>
+
+  <!-- Temporary Sensor_1/2 IMU/body pose inverse. Replace with sensor config parsing later. -->
+  <node pkg="tf2_ros"
+        type="static_transform_publisher"
+        name="tf_body_to_base_link"
+        args="-1.528 0.0 -0.200 0.0 0.0 0.0 body base_link"
+        output="screen"/>
+
+  <node pkg="localization_manager"
+        type="morai_map_camera_init_broadcaster.py"
+        name="morai_map_camera_init_broadcaster"
+        output="screen"/>
+
+  <node pkg="localization_manager"
+        type="fast_lio_kinematic_state_publisher.py"
+        name="fast_lio_kinematic_state_publisher"
+        output="screen"/>
+</launch>

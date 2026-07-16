@@ -197,7 +197,7 @@ Run exactly one dynamic map TF source:
 
 ```bash
 # MORAI /Ego_topic based TF.
-roslaunch bringup maptf_morai.launch
+roslaunch bringup localization_morai_gt.launch
 
 # GPS /sensor/gps based TF.
 roslaunch bringup maptf.launch

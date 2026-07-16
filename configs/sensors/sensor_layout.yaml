@@ -61,11 +61,11 @@ imu:
   actual_rate: 33.878
   x: 1.528
   y: 0
-  z: 1.23
+  z: 0.2
   roll: 0
   pitch: 0
   yaw: 0
-  note: "roof-center exterior body mount; visible and near vehicle geometric center"
+  note: "fixed interior body mount below the sliding center console; low and near the vehicle center"
 
 gnss:
   topic: "/sensor/gps"

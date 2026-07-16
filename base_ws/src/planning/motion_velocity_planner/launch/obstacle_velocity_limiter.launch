@@ -1,0 +1,15 @@
+<launch>
+  <node pkg="motion_velocity_planner" type="obstacle_velocity_limiter.py" name="obstacle_velocity_limiter" output="screen">
+    <param name="min_ttc" value="1.0" />
+    <param name="distance_buffer" value="0.0" />
+    <param name="min_adjusted_velocity_mps" value="2.5" />
+    <param name="max_deceleration" value="2.0" />
+    <param name="max_lateral_distance" value="1.5" />
+
+    <param name="input_path_topic" value="/behavior_path_planner/output/path" />
+    <param name="objects_topic" value="/perception/objects" />
+    <param name="odometry_topic" value="/odometry" />
+    <param name="max_velocity_topic" value="/planning/scenario_planning/max_velocity" />
+    <param name="output_path_topic" value="/motion_velocity_planner/obstacle_velocity_limiter/output/path" />
+  </node>
+</launch>

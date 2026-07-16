@@ -1,0 +1,34 @@
+<launch>
+  <!--
+    Complete the MORAI ground-truth branch of the localization TF tree:
+      map -> morai_map -> base_link
+
+    ego_tf_broadcaster owns morai_map -> base_link. The Python node snapshots
+    map -> base_link and publishes the Planning Odometry contract.
+  -->
+  <arg name="config"
+       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+  <arg name="ego_topic" default="/Ego_topic"/>
+  <arg name="map_frame" default="map"/>
+  <arg name="morai_map_frame" default="morai_map"/>
+  <arg name="base_frame" default="base_link"/>
+  <arg name="heading_in_degrees" default="true"/>
+
+  <rosparam command="load" file="$(arg config)" ns="localization_manager"/>
+  <param name="/localization_manager/topics/ego" value="$(arg ego_topic)"/>
+  <param name="/localization_manager/frames/map" value="$(arg map_frame)"/>
+  <param name="/localization_manager/frames/morai_map" value="$(arg morai_map_frame)"/>
+  <param name="/localization_manager/frames/base_link" value="$(arg base_frame)"/>
+
+  <include file="$(find tf_pub)/launch/ego_tf.launch">
+    <arg name="ego_topic" value="$(arg ego_topic)"/>
+    <arg name="parent_frame" value="$(arg morai_map_frame)"/>
+    <arg name="child_frame" value="$(arg base_frame)"/>
+    <arg name="heading_in_degrees" value="$(arg heading_in_degrees)"/>
+  </include>
+
+  <node pkg="localization_manager"
+        type="morai_gt_kinematic_state_publisher.py"
+        name="morai_gt_kinematic_state_publisher"
+        output="screen"/>
+</launch>

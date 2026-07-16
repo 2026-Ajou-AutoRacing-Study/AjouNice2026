@@ -14,8 +14,9 @@
       map -> morai_map        static Lanelet-to-MORAI map alignment
       morai_map -> base_link  dynamic GPS-derived ego pose
 
-    Run only one of maptf.launch or maptf_morai.launch at a time.
-    They publish the same ego/map TF edge.
+    Do not run this with localization_morai_gt.launch or
+    localization_fast_lio.launch. They publish competing map/base_link TF
+    branches.
   -->
   <arg name="gps_topic" default="/sensor/gps"/>
   <arg name="map_frame" default="map"/>

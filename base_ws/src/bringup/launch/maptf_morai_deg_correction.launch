@@ -3,8 +3,8 @@
     Live MORAI simulator Ego map TF with a yaw-only heading correction.
 
     This launch keeps map -> morai_map unchanged and publishes the same
-    morai_map -> base_link edge as maptf_morai.launch, so do not run both
-    launches at the same time.
+    morai_map -> base_link edge as localization_morai_gt.launch, so do not run
+    both launches at the same time.
   -->
   <arg name="ego_topic" default="/Ego_topic"/>
   <arg name="map_frame" default="map"/>

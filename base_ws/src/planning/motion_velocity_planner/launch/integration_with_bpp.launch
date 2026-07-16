@@ -1,0 +1,15 @@
+<launch>
+  <!-- Launch Behavior Path Planner -->
+  <node pkg="behavior_path_planner" type="behavior_path_planner.py" name="behavior_path_planner" output="screen" />
+
+  <!-- Launch our integrated Motion Velocity Planner and connect to BPP output -->
+  <node pkg="motion_velocity_planner" type="motion_velocity_planner.py" name="motion_velocity_planner" output="screen">
+    <!-- Subscribe to BPP output path -->
+    <param name="input_path_topic" value="/behavior_path_planner/output/path" />
+    <param name="objects_topic" value="/perception/objects" />
+    <param name="odometry_topic" value="/odometry" />
+    <param name="max_velocity_topic" value="/planning/scenario_planning/max_velocity" />
+    <!-- Publish adjusted path here -->
+    <param name="output_path_topic" value="/motion_velocity_planner/output/path" />
+  </node>
+</launch>
