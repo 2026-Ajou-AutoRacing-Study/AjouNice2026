@@ -7,9 +7,34 @@
 
 #include <autoware_planning_msgs/Trajectory.h>
 #include <morai_msgs/CtrlCmd.h>
-#include <morai_msgs/EgoVehicleStatus.h>
+#include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
 #include <std_msgs/Float64.h>
+
+namespace
+{
+
+std::string normalizedFrame(const std::string& frame)
+{
+  const std::size_t first = frame.find_first_not_of('/');
+  return first == std::string::npos ? std::string() : frame.substr(first);
+}
+
+bool finiteState(const nav_msgs::Odometry& state)
+{
+  const auto& position = state.pose.pose.position;
+  const auto& orientation = state.pose.pose.orientation;
+  const auto& linear = state.twist.twist.linear;
+  const double quaternion_norm = orientation.x * orientation.x + orientation.y * orientation.y +
+                                 orientation.z * orientation.z + orientation.w * orientation.w;
+  return !normalizedFrame(state.header.frame_id).empty() && std::isfinite(position.x) &&
+         std::isfinite(position.y) && std::isfinite(position.z) && std::isfinite(orientation.x) &&
+         std::isfinite(orientation.y) && std::isfinite(orientation.z) && std::isfinite(orientation.w) &&
+         std::isfinite(quaternion_norm) && quaternion_norm > 1e-12 && std::isfinite(linear.x) &&
+         std::isfinite(linear.y) && std::isfinite(linear.z);
+}
+
+}  // namespace
 
 class LongitudinalPi
 {
@@ -17,7 +42,7 @@ public:
   LongitudinalPi() : private_nh_("~")
   {
     private_nh_.param<std::string>("topics/trajectory", trajectory_topic_, "/control/trajectory");
-    private_nh_.param<std::string>("topics/ego", ego_topic_, "/Ego_topic");
+    private_nh_.param<std::string>("topics/kinematic_state", state_topic_, "/localization/kinematic_state");
     private_nh_.param<std::string>("topics/steering_cmd", steering_topic_, "/control/command/steering");
     private_nh_.param<std::string>("topics/ctrl_cmd", ctrl_cmd_topic_, "/ctrl_cmd");
     private_nh_.param("control_rate_hz", control_rate_hz_, 30.0);
@@ -26,7 +51,7 @@ public:
     private_nh_.param("vehicle/max_steer_rad", max_steer_rad_, 0.698);
     private_nh_.param("morai/longlCmdType", longl_cmd_type_, 1);
     private_nh_.param("safety/trajectory_timeout_s", trajectory_timeout_s_, 0.5);
-    private_nh_.param("safety/ego_timeout_s", ego_timeout_s_, 0.5);
+    private_nh_.param("safety/state_timeout_s", state_timeout_s_, 0.5);
     private_nh_.param("safety/steering_timeout_s", steering_timeout_s_, 0.5);
     private_nh_.param("safety/min_points", min_points_, 2);
     private_nh_.param("safety/stop_brake_cmd", stop_brake_cmd_, 1.0);
@@ -39,10 +64,10 @@ public:
     command_publisher_ = nh_.advertise<morai_msgs::CtrlCmd>(ctrl_cmd_topic_, 10);
     trajectory_subscriber_ =
         nh_.subscribe(trajectory_topic_, 2, &LongitudinalPi::trajectoryCallback, this);
-    ego_subscriber_ = nh_.subscribe(ego_topic_, 10, &LongitudinalPi::egoCallback, this);
+    state_subscriber_ = nh_.subscribe(state_topic_, 10, &LongitudinalPi::stateCallback, this);
     steering_subscriber_ = nh_.subscribe(steering_topic_, 10, &LongitudinalPi::steeringCallback, this);
     timer_ = nh_.createTimer(ros::Duration(1.0 / control_rate_hz_), &LongitudinalPi::timerCallback, this);
-    ROS_INFO_STREAM("longi_pi: trajectory=" << trajectory_topic_ << " ego=" << ego_topic_ << " steering="
+    ROS_INFO_STREAM("longi_pi: trajectory=" << trajectory_topic_ << " state=" << state_topic_ << " steering="
                                              << steering_topic_ << " -> " << ctrl_cmd_topic_ << " at "
                                              << control_rate_hz_ << " Hz");
   }
@@ -60,7 +85,7 @@ private:
                        std::isfinite(max_steer_rad_) && max_steer_rad_ > 0.0 &&
                        std::isfinite(stop_brake_cmd_) && stop_brake_cmd_ >= 0.0 && stop_brake_cmd_ <= 1.0 &&
                        std::isfinite(trajectory_timeout_s_) && trajectory_timeout_s_ > 0.0 &&
-                       std::isfinite(ego_timeout_s_) && ego_timeout_s_ > 0.0 &&
+                       std::isfinite(state_timeout_s_) && state_timeout_s_ > 0.0 &&
                        std::isfinite(steering_timeout_s_) && steering_timeout_s_ > 0.0 &&
                        min_points_ >= 2 && std::isfinite(kp_) && kp_ >= 0.0 && std::isfinite(ki_) && ki_ >= 0.0 &&
                        std::isfinite(integral_limit_) && integral_limit_ > 0.0 &&
@@ -74,7 +99,8 @@ private:
 
   void trajectoryCallback(const autoware_planning_msgs::Trajectory::ConstPtr& message)
   {
-    bool valid = message->points.size() >= static_cast<std::size_t>(min_points_);
+    bool valid = !normalizedFrame(message->header.frame_id).empty() &&
+                 message->points.size() >= static_cast<std::size_t>(min_points_);
     for (const auto& point : message->points)
     {
       valid = valid && std::isfinite(point.pose.position.x) && std::isfinite(point.pose.position.y) &&
@@ -91,20 +117,17 @@ private:
     trajectory_received_ = ros::Time::now();
   }
 
-  void egoCallback(const morai_msgs::EgoVehicleStatus::ConstPtr& message)
+  void stateCallback(const nav_msgs::Odometry::ConstPtr& message)
   {
-    const bool valid = std::isfinite(message->position.x) && std::isfinite(message->position.y) &&
-                       std::isfinite(message->heading) && std::isfinite(message->velocity.x) &&
-                       std::isfinite(message->velocity.y) && std::isfinite(message->velocity.z);
-    if (!valid)
+    if (!finiteState(*message))
     {
-      ego_valid_ = false;
-      ROS_WARN_THROTTLE(1.0, "longi_pi rejected non-finite EgoVehicleStatus");
+      state_valid_ = false;
+      ROS_WARN_THROTTLE(1.0, "longi_pi rejected invalid kinematic state");
       return;
     }
-    ego_ = *message;
-    ego_valid_ = true;
-    ego_received_ = ros::Time::now();
+    state_ = *message;
+    state_valid_ = true;
+    state_received_ = ros::Time::now();
   }
 
   void steeringCallback(const std_msgs::Float64::ConstPtr& message)
@@ -126,8 +149,8 @@ private:
     double best = std::numeric_limits<double>::infinity();
     for (std::size_t index = 0; index < trajectory_.points.size(); ++index)
     {
-      const double dx = trajectory_.points[index].pose.position.x - ego_.position.x;
-      const double dy = trajectory_.points[index].pose.position.y - ego_.position.y;
+      const double dx = trajectory_.points[index].pose.position.x - state_.pose.pose.position.x;
+      const double dy = trajectory_.points[index].pose.position.y - state_.pose.pose.position.y;
       const double squared_distance = dx * dx + dy * dy;
       if (squared_distance < best)
       {
@@ -154,12 +177,19 @@ private:
   void timerCallback(const ros::TimerEvent& event)
   {
     const ros::Time now = ros::Time::now();
-    const bool fresh = trajectory_valid_ && ego_valid_ && steering_valid_ &&
+    const bool fresh = trajectory_valid_ && state_valid_ && steering_valid_ &&
                        (now - trajectory_received_).toSec() <= trajectory_timeout_s_ &&
-                       (now - ego_received_).toSec() <= ego_timeout_s_ &&
+                       (now - state_received_).toSec() <= state_timeout_s_ &&
                        (now - steering_received_).toSec() <= steering_timeout_s_;
     if (!fresh)
     {
+      publishStop();
+      return;
+    }
+    if (normalizedFrame(trajectory_.header.frame_id) != normalizedFrame(state_.header.frame_id))
+    {
+      ROS_ERROR_THROTTLE(1.0, "longi_pi frame mismatch: trajectory=%s state=%s",
+                         trajectory_.header.frame_id.c_str(), state_.header.frame_id.c_str());
       publishStop();
       return;
     }
@@ -171,8 +201,8 @@ private:
       return;
     }
     const double target_velocity = trajectory_.points[nearest].longitudinal_velocity_mps;
-    const double current_velocity = std::sqrt(ego_.velocity.x * ego_.velocity.x + ego_.velocity.y * ego_.velocity.y +
-                                              ego_.velocity.z * ego_.velocity.z);
+    const auto& linear = state_.twist.twist.linear;
+    const double current_velocity = std::sqrt(linear.x * linear.x + linear.y * linear.y + linear.z * linear.z);
     const double error = target_velocity - current_velocity;
     double dt = (event.current_real - event.last_real).toSec();
     if (!std::isfinite(dt) || dt <= 0.0 || dt > 1.0)
@@ -217,12 +247,12 @@ private:
   ros::NodeHandle nh_;
   ros::NodeHandle private_nh_;
   ros::Subscriber trajectory_subscriber_;
-  ros::Subscriber ego_subscriber_;
+  ros::Subscriber state_subscriber_;
   ros::Subscriber steering_subscriber_;
   ros::Publisher command_publisher_;
   ros::Timer timer_;
   std::string trajectory_topic_;
-  std::string ego_topic_;
+  std::string state_topic_;
   std::string steering_topic_;
   std::string ctrl_cmd_topic_;
   double control_rate_hz_{ 30.0 };
@@ -231,7 +261,7 @@ private:
   double max_steer_rad_{ 0.698 };
   int longl_cmd_type_{ 1 };
   double trajectory_timeout_s_{ 0.5 };
-  double ego_timeout_s_{ 0.5 };
+  double state_timeout_s_{ 0.5 };
   double steering_timeout_s_{ 0.5 };
   int min_points_{ 2 };
   double stop_brake_cmd_{ 1.0 };
@@ -242,13 +272,13 @@ private:
   double integral_{ 0.0 };
   double steering_{ 0.0 };
   bool trajectory_valid_{ false };
-  bool ego_valid_{ false };
+  bool state_valid_{ false };
   bool steering_valid_{ false };
   ros::Time trajectory_received_;
-  ros::Time ego_received_;
+  ros::Time state_received_;
   ros::Time steering_received_;
   autoware_planning_msgs::Trajectory trajectory_;
-  morai_msgs::EgoVehicleStatus ego_;
+  nav_msgs::Odometry state_;
 };
 
 int main(int argc, char** argv)

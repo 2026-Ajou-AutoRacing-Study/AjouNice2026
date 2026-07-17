@@ -6,12 +6,13 @@ add_compile_options(-std=c++14 -Wall -Wextra -Wpedantic)
 find_package(catkin REQUIRED COMPONENTS
   autoware_planning_msgs
   morai_msgs
+  nav_msgs
   roscpp
   std_msgs
 )
 
 catkin_package(
-  CATKIN_DEPENDS autoware_planning_msgs morai_msgs roscpp std_msgs
+  CATKIN_DEPENDS autoware_planning_msgs morai_msgs nav_msgs roscpp std_msgs
 )
 
 include_directories(${catkin_INCLUDE_DIRS})

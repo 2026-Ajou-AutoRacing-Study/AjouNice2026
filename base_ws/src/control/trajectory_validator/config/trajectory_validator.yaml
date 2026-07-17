@@ -1,5 +1,6 @@
 topics:
   trajectory: /control/trajectory
+  kinematic_state: /localization/kinematic_state
   ego: /Ego_topic
   ctrl_cmd: /ctrl_cmd
   collision: /CollisionData

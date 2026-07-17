@@ -14,14 +14,14 @@ import yaml
 from autoware_planning_msgs.msg import Trajectory, TrajectoryPoint
 from geometry_msgs.msg import PoseStamped
 from morai_msgs.msg import CollisionData, CtrlCmd, EgoVehicleStatus
-from nav_msgs.msg import Path as RosPath
+from nav_msgs.msg import Odometry, Path as RosPath
 from visualization_msgs.msg import MarkerArray
 
 from trajectory_validator.csv_io import RunCsvWriter
 from trajectory_validator.metrics import (
     TrajectoryMatcher,
     metric_summary,
-    quaternion_from_yaw,
+    yaw_from_quaternion,
 )
 from trajectory_validator.msg import TrajectoryDebug
 from trajectory_validator.visualization import (
@@ -32,6 +32,10 @@ from trajectory_validator.visualization import (
 
 
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def normalized_frame(frame):
+    return frame.lstrip("/")
 
 
 def repository_root():
@@ -118,6 +122,35 @@ def finite_trajectory(message):
     return True
 
 
+def finite_kinematic_state(message):
+    pose = message.pose.pose
+    linear = message.twist.twist.linear
+    values = (
+        pose.position.x,
+        pose.position.y,
+        pose.position.z,
+        pose.orientation.x,
+        pose.orientation.y,
+        pose.orientation.z,
+        pose.orientation.w,
+        linear.x,
+        linear.y,
+        linear.z,
+    )
+    quaternion_norm = (
+        pose.orientation.x ** 2
+        + pose.orientation.y ** 2
+        + pose.orientation.z ** 2
+        + pose.orientation.w ** 2
+    )
+    return (
+        bool(normalized_frame(message.header.frame_id))
+        and all(math.isfinite(value) for value in values)
+        and math.isfinite(quaternion_norm)
+        and quaternion_norm > 1e-12
+    )
+
+
 class TrajectoryRecorder:
     def __init__(self):
         self.lock = threading.RLock()
@@ -150,6 +183,9 @@ class TrajectoryRecorder:
             raise ValueError("map_version must match [A-Za-z0-9_-]+")
 
         self.trajectory_topic = rospy.get_param("~topics/trajectory", "/control/trajectory")
+        self.kinematic_state_topic = rospy.get_param(
+            "~topics/kinematic_state", "/localization/kinematic_state"
+        )
         self.ego_topic = rospy.get_param("~topics/ego", "/Ego_topic")
         self.ctrl_cmd_topic = rospy.get_param("~topics/ctrl_cmd", "/ctrl_cmd")
         self.collision_topic = rospy.get_param("~topics/collision", "/CollisionData")
@@ -192,10 +228,11 @@ class TrajectoryRecorder:
         self.gt_trajectory = None
         self.matcher = None
         self.ego_trajectory = Trajectory()
+        self.kinematic_message = None
         self.ego_message = None
         self.ctrl_message = None
-        self.trajectory_stamp = None
         self.trajectory_received = None
+        self.kinematic_received = None
         self.ego_received = None
         self.ctrl_received = None
         self.collision_detected = False
@@ -218,6 +255,12 @@ class TrajectoryRecorder:
         )
         self.trajectory_subscriber = rospy.Subscriber(
             self.trajectory_topic, Trajectory, self.trajectory_callback, queue_size=1
+        )
+        self.kinematic_subscriber = rospy.Subscriber(
+            self.kinematic_state_topic,
+            Odometry,
+            self.kinematic_callback,
+            queue_size=20,
         )
         self.ego_subscriber = rospy.Subscriber(
             self.ego_topic, EgoVehicleStatus, self.ego_callback, queue_size=20
@@ -257,7 +300,6 @@ class TrajectoryRecorder:
             if self.finalized:
                 return
             self.trajectory_received = rospy.Time.now()
-            self.trajectory_stamp = message.header.stamp
             if self.gt_trajectory is not None:
                 if len(message.points) != len(self.gt_trajectory.points):
                     rospy.logerr_throttle(
@@ -277,6 +319,26 @@ class TrajectoryRecorder:
                 len(self.gt_trajectory.points),
                 self.gt_trajectory.header.frame_id,
             )
+
+    def kinematic_callback(self, message):
+        if not finite_kinematic_state(message):
+            rospy.logwarn_throttle(
+                1.0, "trajectory_validator rejected invalid kinematic state"
+            )
+            return
+        with self.lock:
+            if self.gt_trajectory is not None and normalized_frame(
+                message.header.frame_id
+            ) != normalized_frame(self.gt_trajectory.header.frame_id):
+                rospy.logerr_throttle(
+                    1.0,
+                    "trajectory_validator frame mismatch: trajectory=%s state=%s",
+                    self.gt_trajectory.header.frame_id,
+                    message.header.frame_id,
+                )
+                return
+            self.kinematic_message = copy.deepcopy(message)
+            self.kinematic_received = rospy.Time.now()
 
     def ego_callback(self, message):
         values = (
@@ -314,8 +376,11 @@ class TrajectoryRecorder:
             self.ctrl_received = rospy.Time.now()
 
     def collision_callback(self, message):
+        objects = tuple(message.collision_object) + tuple(message.collision_objecta)
         with self.lock:
-            if message.collision_object or message.collision_objecta:
+            # MORAI can publish one obj_type=-1 placeholder while reporting
+            # "no collision".  Only non-negative object types are real events.
+            if any(obj.type >= 0 for obj in objects):
                 self.collision_detected = True
 
     def _sample_valid(self, now):
@@ -323,9 +388,11 @@ class TrajectoryRecorder:
             value is None
             for value in (
                 self.gt_trajectory,
+                self.kinematic_message,
                 self.ego_message,
                 self.ctrl_message,
                 self.trajectory_received,
+                self.kinematic_received,
                 self.ego_received,
                 self.ctrl_received,
             )
@@ -335,33 +402,33 @@ class TrajectoryRecorder:
             (now - stamp).to_sec() <= self.input_timeout_s
             for stamp in (
                 self.trajectory_received,
+                self.kinematic_received,
                 self.ego_received,
                 self.ctrl_received,
             )
         )
-        trajectory_stamp = self.trajectory_stamp
+        if normalized_frame(self.gt_trajectory.header.frame_id) != normalized_frame(
+            self.kinematic_message.header.frame_id
+        ):
+            return False
         ego_stamp = self.ego_message.header.stamp
-        synchronized = (
-            trajectory_stamp.is_zero()
-            or ego_stamp.is_zero()
-            or abs((trajectory_stamp - ego_stamp).to_sec()) <= self.sync_tolerance_s
+        state_stamp = self.kinematic_message.header.stamp
+        ego_synchronized = (
+            ego_stamp.is_zero()
+            or state_stamp.is_zero()
+            or abs((ego_stamp - state_stamp).to_sec()) <= self.sync_tolerance_s
         )
-        return fresh and synchronized
+        return fresh and ego_synchronized
 
-    def _append_ego_point(self, ego, elapsed):
-        yaw = math.radians(ego.heading)
-        qx, qy, qz, qw = quaternion_from_yaw(yaw)
+    def _append_ego_point(self, ego, kinematic, elapsed):
+        pose = kinematic.pose.pose
+        linear = kinematic.twist.twist.linear
+        yaw = yaw_from_quaternion(pose.orientation)
         point = TrajectoryPoint()
         point.time_from_start = rospy.Duration(elapsed)
-        point.pose.position.x = ego.position.x
-        point.pose.position.y = ego.position.y
-        point.pose.position.z = ego.position.z
-        point.pose.orientation.x = qx
-        point.pose.orientation.y = qy
-        point.pose.orientation.z = qz
-        point.pose.orientation.w = qw
+        point.pose = copy.deepcopy(pose)
         point.longitudinal_velocity_mps = math.sqrt(
-            ego.velocity.x ** 2 + ego.velocity.y ** 2 + ego.velocity.z ** 2
+            linear.x ** 2 + linear.y ** 2 + linear.z ** 2
         )
         point.acceleration_mps2 = math.sqrt(
             ego.acceleration.x ** 2
@@ -376,7 +443,11 @@ class TrajectoryRecorder:
         with self.lock:
             if self.finalized:
                 return
-            if self.gt_trajectory is None or self.ego_message is None:
+            if (
+                self.gt_trajectory is None
+                or self.kinematic_message is None
+                or self.ego_message is None
+            ):
                 return
             now = rospy.Time.now()
             elapsed = max(0.0, (now - self.started_ros).to_sec())
@@ -387,15 +458,22 @@ class TrajectoryRecorder:
             )
             self.last_sample_ros = now
             ego = self.ego_message
+            kinematic = self.kinematic_message
             command = self.ctrl_message if self.ctrl_message is not None else CtrlCmd()
-            ego_yaw, ego_point = self._append_ego_point(ego, elapsed)
+            ego_yaw, ego_point = self._append_ego_point(ego, kinematic, elapsed)
             ego_velocity = float(ego_point.longitudinal_velocity_mps)
             match = self.matcher.match(
-                ego.position.x, ego.position.y, ego_yaw, ego_velocity
+                ego_point.pose.position.x,
+                ego_point.pose.position.y,
+                ego_yaw,
+                ego_velocity,
             )
             final = self.gt_trajectory.points[-1].pose.position
             reached_goal = (
-                math.hypot(ego.position.x - final.x, ego.position.y - final.y)
+                math.hypot(
+                    ego_point.pose.position.x - final.x,
+                    ego_point.pose.position.y - final.y,
+                )
                 <= self.goal_tolerance_m
             )
             sample_valid = self._sample_valid(now)
@@ -407,14 +485,14 @@ class TrajectoryRecorder:
                 "dt_s": dt,
                 **match,
                 "ego_unique_id": ego.unique_id,
-                "ego_x_m": ego.position.x,
-                "ego_y_m": ego.position.y,
-                "ego_z_m": ego.position.z,
+                "ego_x_m": ego_point.pose.position.x,
+                "ego_y_m": ego_point.pose.position.y,
+                "ego_z_m": ego_point.pose.position.z,
                 "ego_yaw_rad": ego_yaw,
                 "ego_heading_raw": ego.heading,
-                "ego_velocity_x_mps": ego.velocity.x,
-                "ego_velocity_y_mps": ego.velocity.y,
-                "ego_velocity_z_mps": ego.velocity.z,
+                "ego_velocity_x_mps": kinematic.twist.twist.linear.x,
+                "ego_velocity_y_mps": kinematic.twist.twist.linear.y,
+                "ego_velocity_z_mps": kinematic.twist.twist.linear.z,
                 "ego_velocity_mps": ego_velocity,
                 "ego_acceleration_x_mps2": ego.acceleration.x,
                 "ego_acceleration_y_mps2": ego.acceleration.y,

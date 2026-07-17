@@ -187,7 +187,7 @@ class MoraiEgoUdpReceiver {
  public:
   MoraiEgoUdpReceiver() : private_nh_("~") {
     private_nh_.param<std::string>("network_config", network_config_, std::string());
-    private_nh_.param<std::string>("frame_id", frame_id_, "map");
+    private_nh_.param<std::string>("frame_id", frame_id_, "morai_map");
     if (network_config_.empty()) throw std::runtime_error("~network_config is required");
 
     const auto root = morai_udp::readJson(network_config_);
@@ -328,6 +328,9 @@ class MoraiEgoUdpReceiver {
     message.header.frame_id = frame_id_;
     bool have_offset = false;
     for (const auto& collision : packet.data) {
+      // MORAI fills unused collision slots with obj_type=-1.  They are
+      // placeholders, not collision objects.
+      if (collision.obj_type < 0) continue;
       if (collision.obj_id == 0 && collision.obj_type == 0) continue;
       if (!have_offset) {
         message.global_offset_x = collision.global_offset_x;

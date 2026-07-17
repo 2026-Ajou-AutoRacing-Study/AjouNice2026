@@ -6,7 +6,7 @@
 #include <string>
 
 #include <autoware_planning_msgs/Trajectory.h>
-#include <morai_msgs/EgoVehicleStatus.h>
+#include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
 #include <std_msgs/Float64.h>
 
@@ -25,6 +25,32 @@ double distance2d(const geometry_msgs::Point& first, const geometry_msgs::Point&
   return std::hypot(second.x - first.x, second.y - first.y);
 }
 
+std::string normalizedFrame(const std::string& frame)
+{
+  const std::size_t first = frame.find_first_not_of('/');
+  return first == std::string::npos ? std::string() : frame.substr(first);
+}
+
+bool finiteState(const nav_msgs::Odometry& state)
+{
+  const auto& pose = state.pose.pose;
+  const auto& linear = state.twist.twist.linear;
+  const double quaternion_norm = pose.orientation.x * pose.orientation.x +
+                                 pose.orientation.y * pose.orientation.y +
+                                 pose.orientation.z * pose.orientation.z +
+                                 pose.orientation.w * pose.orientation.w;
+  return !normalizedFrame(state.header.frame_id).empty() && finitePose(pose) &&
+         std::isfinite(quaternion_norm) && quaternion_norm > 1e-12 &&
+         std::isfinite(linear.x) && std::isfinite(linear.y) && std::isfinite(linear.z);
+}
+
+double yawFromQuaternion(const geometry_msgs::Quaternion& quaternion)
+{
+  const double sin_yaw = 2.0 * (quaternion.w * quaternion.z + quaternion.x * quaternion.y);
+  const double cos_yaw = 1.0 - 2.0 * (quaternion.y * quaternion.y + quaternion.z * quaternion.z);
+  return std::atan2(sin_yaw, cos_yaw);
+}
+
 }  // namespace
 
 class PurePursuit
@@ -33,13 +59,13 @@ public:
   PurePursuit() : private_nh_("~")
   {
     private_nh_.param<std::string>("topics/trajectory", trajectory_topic_, "/control/trajectory");
-    private_nh_.param<std::string>("topics/ego", ego_topic_, "/Ego_topic");
+    private_nh_.param<std::string>("topics/kinematic_state", state_topic_, "/localization/kinematic_state");
     private_nh_.param<std::string>("topics/steering_cmd", steering_topic_, "/control/command/steering");
     private_nh_.param("control_rate_hz", control_rate_hz_, 30.0);
     private_nh_.param("vehicle/wheelbase_m", wheelbase_m_, 3.0);
     private_nh_.param("vehicle/max_steer_rad", max_steer_rad_, 0.698);
     private_nh_.param("safety/trajectory_timeout_s", trajectory_timeout_s_, 0.5);
-    private_nh_.param("safety/ego_timeout_s", ego_timeout_s_, 0.5);
+    private_nh_.param("safety/state_timeout_s", state_timeout_s_, 0.5);
     private_nh_.param("safety/min_points", min_points_, 2);
     private_nh_.param("min_lookahead_m", min_lookahead_m_, 4.0);
     private_nh_.param("lookahead_time_s", lookahead_time_s_, 1.5);
@@ -50,9 +76,9 @@ public:
     steering_publisher_ = nh_.advertise<std_msgs::Float64>(steering_topic_, 10);
     trajectory_subscriber_ =
         nh_.subscribe(trajectory_topic_, 2, &PurePursuit::trajectoryCallback, this);
-    ego_subscriber_ = nh_.subscribe(ego_topic_, 10, &PurePursuit::egoCallback, this);
+    state_subscriber_ = nh_.subscribe(state_topic_, 10, &PurePursuit::stateCallback, this);
     timer_ = nh_.createTimer(ros::Duration(1.0 / control_rate_hz_), &PurePursuit::timerCallback, this);
-    ROS_INFO_STREAM("purepursuit: trajectory=" << trajectory_topic_ << " ego=" << ego_topic_ << " -> "
+    ROS_INFO_STREAM("purepursuit: trajectory=" << trajectory_topic_ << " state=" << state_topic_ << " -> "
                                                << steering_topic_ << " at " << control_rate_hz_ << " Hz");
   }
 
@@ -66,7 +92,7 @@ private:
                        std::isfinite(lookahead_time_s_) && lookahead_time_s_ >= 0.0 &&
                        std::isfinite(steering_gain_) && steering_gain_ > 0.0 &&
                        std::isfinite(trajectory_timeout_s_) && trajectory_timeout_s_ > 0.0 &&
-                       std::isfinite(ego_timeout_s_) && ego_timeout_s_ > 0.0 && min_points_ >= 2;
+                       std::isfinite(state_timeout_s_) && state_timeout_s_ > 0.0 && min_points_ >= 2;
     if (!valid)
     {
       throw std::runtime_error("invalid Pure Pursuit parameter");
@@ -75,7 +101,8 @@ private:
 
   void trajectoryCallback(const autoware_planning_msgs::Trajectory::ConstPtr& message)
   {
-    bool valid = message->points.size() >= static_cast<std::size_t>(min_points_);
+    bool valid = !normalizedFrame(message->header.frame_id).empty() &&
+                 message->points.size() >= static_cast<std::size_t>(min_points_);
     for (const auto& point : message->points)
     {
       valid = valid && finitePose(point.pose) && std::isfinite(point.longitudinal_velocity_mps) &&
@@ -92,20 +119,17 @@ private:
     trajectory_received_ = ros::Time::now();
   }
 
-  void egoCallback(const morai_msgs::EgoVehicleStatus::ConstPtr& message)
+  void stateCallback(const nav_msgs::Odometry::ConstPtr& message)
   {
-    const bool valid = std::isfinite(message->position.x) && std::isfinite(message->position.y) &&
-                       std::isfinite(message->heading) && std::isfinite(message->velocity.x) &&
-                       std::isfinite(message->velocity.y) && std::isfinite(message->velocity.z);
-    if (!valid)
+    if (!finiteState(*message))
     {
-      ego_valid_ = false;
-      ROS_WARN_THROTTLE(1.0, "purepursuit rejected non-finite EgoVehicleStatus");
+      state_valid_ = false;
+      ROS_WARN_THROTTLE(1.0, "purepursuit rejected invalid kinematic state");
       return;
     }
-    ego_ = *message;
-    ego_valid_ = true;
-    ego_received_ = ros::Time::now();
+    state_ = *message;
+    state_valid_ = true;
+    state_received_ = ros::Time::now();
   }
 
   std::size_t nearestIndex() const
@@ -115,8 +139,8 @@ private:
     for (std::size_t index = 0; index < trajectory_.points.size(); ++index)
     {
       const auto& position = trajectory_.points[index].pose.position;
-      const double dx = position.x - ego_.position.x;
-      const double dy = position.y - ego_.position.y;
+      const double dx = position.x - state_.pose.pose.position.x;
+      const double dy = position.y - state_.pose.pose.position.y;
       const double squared_distance = dx * dx + dy * dy;
       if (squared_distance < best_squared_distance)
       {
@@ -152,24 +176,31 @@ private:
   void timerCallback(const ros::TimerEvent&)
   {
     const ros::Time now = ros::Time::now();
-    const bool fresh = trajectory_valid_ && ego_valid_ &&
+    const bool fresh = trajectory_valid_ && state_valid_ &&
                        (now - trajectory_received_).toSec() <= trajectory_timeout_s_ &&
-                       (now - ego_received_).toSec() <= ego_timeout_s_;
+                       (now - state_received_).toSec() <= state_timeout_s_;
     if (!fresh)
     {
       publishZero();
       return;
     }
-    const double speed = std::sqrt(ego_.velocity.x * ego_.velocity.x + ego_.velocity.y * ego_.velocity.y +
-                                   ego_.velocity.z * ego_.velocity.z);
+    if (normalizedFrame(trajectory_.header.frame_id) != normalizedFrame(state_.header.frame_id))
+    {
+      ROS_ERROR_THROTTLE(1.0, "purepursuit frame mismatch: trajectory=%s state=%s",
+                         trajectory_.header.frame_id.c_str(), state_.header.frame_id.c_str());
+      publishZero();
+      return;
+    }
+    const auto& linear = state_.twist.twist.linear;
+    const double speed = std::sqrt(linear.x * linear.x + linear.y * linear.y + linear.z * linear.z);
     const double lookahead =
         std::max(min_lookahead_m_, std::min(max_lookahead_m_, min_lookahead_m_ + speed * lookahead_time_s_));
     const std::size_t nearest = nearestIndex();
     const std::size_t target = targetIndex(nearest, lookahead);
     const auto& target_position = trajectory_.points[target].pose.position;
-    const double yaw = ego_.heading * M_PI / 180.0;
-    const double dx = target_position.x - ego_.position.x;
-    const double dy = target_position.y - ego_.position.y;
+    const double yaw = yawFromQuaternion(state_.pose.pose.orientation);
+    const double dx = target_position.x - state_.pose.pose.position.x;
+    const double dy = target_position.y - state_.pose.pose.position.y;
     const double target_x = std::cos(yaw) * dx + std::sin(yaw) * dy;
     const double target_y = -std::sin(yaw) * dx + std::cos(yaw) * dy;
     if (!std::isfinite(target_x) || !std::isfinite(target_y) || target_x <= 0.0)
@@ -187,28 +218,28 @@ private:
   ros::NodeHandle nh_;
   ros::NodeHandle private_nh_;
   ros::Subscriber trajectory_subscriber_;
-  ros::Subscriber ego_subscriber_;
+  ros::Subscriber state_subscriber_;
   ros::Publisher steering_publisher_;
   ros::Timer timer_;
   std::string trajectory_topic_;
-  std::string ego_topic_;
+  std::string state_topic_;
   std::string steering_topic_;
   double control_rate_hz_{ 30.0 };
   double wheelbase_m_{ 3.0 };
   double max_steer_rad_{ 0.698 };
   double trajectory_timeout_s_{ 0.5 };
-  double ego_timeout_s_{ 0.5 };
+  double state_timeout_s_{ 0.5 };
   int min_points_{ 2 };
   double min_lookahead_m_{ 4.0 };
   double lookahead_time_s_{ 1.5 };
   double max_lookahead_m_{ 20.0 };
   double steering_gain_{ 1.0 };
   bool trajectory_valid_{ false };
-  bool ego_valid_{ false };
+  bool state_valid_{ false };
   ros::Time trajectory_received_;
-  ros::Time ego_received_;
+  ros::Time state_received_;
   autoware_planning_msgs::Trajectory trajectory_;
-  morai_msgs::EgoVehicleStatus ego_;
+  nav_msgs::Odometry state_;
 };
 
 int main(int argc, char** argv)

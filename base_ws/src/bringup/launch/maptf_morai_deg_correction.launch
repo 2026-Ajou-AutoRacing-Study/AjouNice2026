@@ -1,26 +1,22 @@
 <launch>
-  <!--
-    Live MORAI simulator Ego map TF with a yaw-only heading correction.
-
-    This launch keeps map -> morai_map unchanged and publishes the same
-    morai_map -> base_link edge as localization_morai_gt.launch, so do not run
-    both launches at the same time.
-  -->
+  <!-- Compatibility entrypoint for MORAI GT localization with yaw correction. -->
+  <arg name="use_sim_time" default="false"/>
+  <arg name="localization_manager_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
   <arg name="ego_topic" default="/Ego_topic"/>
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
   <arg name="base_frame" default="base_link"/>
   <arg name="heading_yaw_offset_deg" default="-1.37"/>
 
-  <include file="$(find tf_pub)/launch/map_tf.launch">
-    <arg name="parent_frame" value="$(arg map_frame)"/>
-    <arg name="child_frame" value="$(arg morai_map_frame)"/>
-  </include>
-
-  <include file="$(find tf_pub)/launch/ego_tf_deg_correction.launch">
+  <include file="$(find bringup)/launch/localization_morai_gt.launch">
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="localization_manager_config" value="$(arg localization_manager_config)"/>
     <arg name="ego_topic" value="$(arg ego_topic)"/>
-    <arg name="parent_frame" value="$(arg morai_map_frame)"/>
-    <arg name="child_frame" value="$(arg base_frame)"/>
+    <arg name="map_frame" value="$(arg map_frame)"/>
+    <arg name="morai_map_frame" value="$(arg morai_map_frame)"/>
+    <arg name="base_frame" value="$(arg base_frame)"/>
+    <arg name="use_heading_correction" value="true"/>
     <arg name="heading_yaw_offset_deg" value="$(arg heading_yaw_offset_deg)"/>
   </include>
 </launch>

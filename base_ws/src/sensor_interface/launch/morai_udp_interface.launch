@@ -31,7 +31,8 @@
         type="morai_ego_udp_receiver" name="morai_ego_udp_receiver"
         output="screen" required="true">
     <param name="network_config" value="$(arg network_config)"/>
-    <param name="frame_id" value="map"/>
+    <!-- MORAI Ego packet position/yaw are local-map coordinates, not Lanelet map. -->
+    <param name="frame_id" value="morai_map"/>
   </node>
 
   <node if="$(arg enable_control)" pkg="sensor_interface"
