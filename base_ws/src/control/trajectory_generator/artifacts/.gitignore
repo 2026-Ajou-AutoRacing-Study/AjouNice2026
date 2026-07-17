@@ -1,4 +1,0 @@
-# Generated profiles are reproducible runtime artifacts, not source files.
-*
-!.gitignore
-!.gitkeep

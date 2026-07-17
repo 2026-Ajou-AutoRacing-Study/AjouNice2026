@@ -1,5 +1,0 @@
-order,lanelet_id,catalog_order,reverse,segment_name,target_speed_kph,note
-1,200889,1,false,200889_to_200337,,Start at the first 200889 lower endpoint
-2,200392,2,false,200889_to_200337,,
-3,200178,3,false,200889_to_200337,,
-4,200337,4,false,200889_to_200337,,Stop at the end of 200337

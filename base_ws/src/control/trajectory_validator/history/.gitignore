@@ -1,7 +1,0 @@
-# Keep the directory in Git, but never publish local driving artifacts.
-*
-!.gitignore
-!.gitkeep
-!pp_pi/
-pp_pi/*
-!pp_pi/.gitkeep
