@@ -23,6 +23,14 @@ import eval_fast_lio_base_link_with_rviz as base_eval
 import eval_fast_lio_with_rviz as core
 
 
+# /Ego_topic.position is expressed in MORAI's local map coordinates.  The
+# evaluator aligns every state trajectory to those raw Ego coordinates, so the
+# generated RViz paths and markers must carry this frame.  Merely changing the
+# frame_id to "map" would relabel the coordinates without applying the recorded
+# map -> morai_map transform and would offset them from /cloud_registered.
+EVALUATION_FRAME = "morai_map"
+
+
 @dataclass
 class StateSample:
     stamp: float
@@ -80,14 +88,11 @@ def read_bag_states(bag_path, ego_topic, state_topic):
                         ],
                         dtype=float,
                     ),
-                    angular=np.array(
-                        [
-                            message.angular_velocity.x,
-                            message.angular_velocity.y,
-                            message.angular_velocity.z,
-                        ],
-                        dtype=float,
-                    ),
+                    # GT yaw rate is estimated consistently from the heading
+                    # time series below. beta_drive EgoVehicleStatus no longer
+                    # contains angular_velocity, so do not depend on that
+                    # legacy-only field while loading samples.
+                    angular=np.zeros(3, dtype=float),
                     child_frame="base_link",
                 )
                 if finite_sample(sample):
@@ -332,6 +337,15 @@ def component_statistics(error):
     }
 
 
+def project_position_error_to_ego_frame(position_error_xyz, ego_yaw):
+    """Project map-frame state-minus-GT error into Ego forward/left axes."""
+    cosine = np.cos(ego_yaw)
+    sine = np.sin(ego_yaw)
+    longitudinal = cosine * position_error_xyz[:, 0] + sine * position_error_xyz[:, 1]
+    lateral = -sine * position_error_xyz[:, 0] + cosine * position_error_xyz[:, 1]
+    return longitudinal, lateral
+
+
 def mask_segments(mask, relative_times, minimum_duration):
     segments = []
     start = None
@@ -364,6 +378,8 @@ def print_report(
     ego_xyz,
     aligned_xyz,
     position_errors,
+    longitudinal_errors,
+    lateral_errors,
     yaw_errors,
     alignment_yaw,
     ego_linear,
@@ -434,6 +450,40 @@ def print_report(
     print(f"drift:                 {drift:.3f} %")
     print(f"Yaw mean abs:          {np.degrees(np.abs(yaw_errors)).mean():.3f} deg")
     print(f"Yaw max abs:           {np.degrees(np.abs(yaw_errors)).max():.3f} deg")
+
+    print("--------------- Ego-frame position error --------------")
+    print("convention: error=state-GT, longitudinal +=ahead, lateral +=left")
+    for name, errors in (
+        ("longitudinal", longitudinal_errors),
+        ("lateral", lateral_errors),
+    ):
+        stats = component_statistics(errors)
+        print(
+            f"{name:12s} | bias={stats['bias']:+.3f}, MAE={stats['mae']:.3f}, "
+            f"RMSE={stats['rmse']:.3f}, max_abs={stats['max_abs']:.3f} m"
+        )
+    squared_error_sum = float(
+        np.sum(longitudinal_errors**2 + lateral_errors**2)
+    )
+    if squared_error_sum > 1e-12:
+        longitudinal_contribution = (
+            float(np.sum(longitudinal_errors**2)) / squared_error_sum * 100.0
+        )
+        lateral_contribution = (
+            float(np.sum(lateral_errors**2)) / squared_error_sum * 100.0
+        )
+        print(
+            "squared error contribution | "
+            f"longitudinal={longitudinal_contribution:.1f}%, "
+            f"lateral={lateral_contribution:.1f}%"
+        )
+    else:
+        print("squared error contribution | unavailable (zero position error)")
+    print(
+        "final error | "
+        f"longitudinal={longitudinal_errors[-1]:+.3f} m, "
+        f"lateral={lateral_errors[-1]:+.3f} m, XY={final_error:.3f} m"
+    )
 
     print("--------------------- Linear twist ---------------------")
     for index, axis in enumerate(("x", "y", "z")):
@@ -519,6 +569,8 @@ def write_csv(
     aligned_xyz,
     aligned_yaw,
     position_errors,
+    longitudinal_errors,
+    lateral_errors,
     yaw_errors,
     ego_linear,
     state_linear,
@@ -537,7 +589,8 @@ def write_csv(
         "t_rel", "ego_stamp", "ego_bag_time", "state_stamp", "state_bag_time",
         "ego_nearest_source_dt",
         "ego_x", "ego_y", "ego_z", "state_aligned_x", "state_aligned_y", "state_aligned_z",
-        "err_x", "err_y", "err_z", "err_xy", "ego_yaw_deg", "state_yaw_deg", "yaw_err_deg",
+        "err_x", "err_y", "err_z", "err_xy", "err_longitudinal", "err_lateral",
+        "ego_yaw_deg", "state_yaw_deg", "yaw_err_deg",
         "ego_vx", "ego_vy", "ego_vz", "state_vx", "state_vy", "state_vz",
         "velocity_err_x", "velocity_err_y", "velocity_err_z", "ego_speed", "state_speed", "speed_err",
         "ego_wx", "ego_wy", "ego_wz", "state_wx", "state_wy", "state_wz",
@@ -552,7 +605,8 @@ def write_csv(
                     relative_times[index], ego_sample.stamp, ego_sample.bag_time,
                     state_sample.stamp, state_sample.bag_time, nearest_source_dt,
                     *ego_xyz[index], *aligned_xyz[index], *position_error_xyz[index],
-                    position_errors[index], math.degrees(ego_sample.yaw),
+                    position_errors[index], longitudinal_errors[index], lateral_errors[index],
+                    math.degrees(ego_sample.yaw),
                     math.degrees(aligned_yaw[index]), math.degrees(yaw_errors[index]),
                     *ego_linear[index], *state_linear[index], *linear_error[index],
                     ego_speed[index], state_speed[index], state_speed[index] - ego_speed[index],
@@ -677,7 +731,10 @@ def publish_rviz(
         core.quaternion_from_yaw(alignment_yaw, transform.transform.rotation)
         static_broadcaster.sendTransform(transform)
 
-    rospy.loginfo("Published FAST-LIO state evaluation paths and markers")
+    rospy.loginfo(
+        "Published FAST-LIO state evaluation paths and markers in frame '%s'",
+        frame_id,
+    )
     rospy.loginfo(
         "RViz topics: /fast_lio_state_eval/ego_path, "
         "/fast_lio_state_eval/lio_aligned_path, "
@@ -730,7 +787,6 @@ def main():
     parser.add_argument("--stationary-speed-threshold", type=float, default=0.1)
     parser.add_argument("--stationary-min-duration", type=float, default=1.0)
     parser.add_argument("--publish-rviz", action="store_true")
-    parser.add_argument("--frame-id", default="map")
     parser.add_argument("--marker-stride", type=int, default=1)
     args = parser.parse_args()
 
@@ -763,6 +819,10 @@ def main():
     )
     position_error_xyz = aligned_xyz - ego_xyz
     position_errors = np.linalg.norm(position_error_xyz[:, :2], axis=1)
+    ego_yaw = np.array([match[0].yaw for match in matched], dtype=float)
+    longitudinal_errors, lateral_errors = project_position_error_to_ego_frame(
+        position_error_xyz, ego_yaw
+    )
     yaw_errors = np.array(
         [
             core.wrap_angle(aligned_yaw[index] - matched[index][0].yaw)
@@ -807,6 +867,8 @@ def main():
             ego_xyz,
             aligned_xyz,
             position_errors,
+            longitudinal_errors,
+            lateral_errors,
             yaw_errors,
             alignment_yaw,
             ego_linear,
@@ -834,6 +896,8 @@ def main():
         aligned_xyz,
         aligned_yaw,
         position_errors,
+        longitudinal_errors,
+        lateral_errors,
         yaw_errors,
         ego_linear,
         state_linear,
@@ -846,7 +910,7 @@ def main():
 
     if args.publish_rviz:
         publish_rviz(
-            args.frame_id,
+            EVALUATION_FRAME,
             matched,
             ego_xyz,
             aligned_xyz,
