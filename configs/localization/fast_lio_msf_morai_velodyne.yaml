@@ -1,0 +1,73 @@
+common:
+  lid_topic: /sensor/lidar1
+  imu_topic: /sensor/imu
+  gnss_topic: /localization/gnss/fix
+  wheel_topic: /unused/wheel
+  use_gnss: true
+  use_wheel: false
+  time_sync_en: false
+  time_offset_lidar_to_imu: 0.0
+
+preprocess:
+  lidar_type: 2
+  scan_line: 32
+  scan_rate: 20
+  timestamp_unit: 2
+  blind: 2
+
+wheel:
+  extrinsic_est_wheel: false
+  scale_est_wheel: false
+  extrinsic_T: [0.0, 0.0, 0.0]
+  extrinsic_R: [1, 0, 0,
+                0, 1, 0,
+                0, 0, 1]
+  wheel_scale: [1.0]
+
+mapping:
+  acc_cov: 0.1
+  gyr_cov: 0.1
+  b_acc_cov: 0.0001
+  b_gyr_cov: 0.0001
+  fov_degree: 180
+  det_range: 100.0
+  extrinsic_est_en: false
+  extrinsic_T: [0.522, 0.0, 1.173]
+  extrinsic_R: [1, 0, 0,
+                0, 1, 0,
+                0, 0, 1]
+
+  # Despite the upstream key name, its residual uses IMU -> GNSS.
+  # Sensor_2: GPS [0,0,1.230] - IMU [1.528,0,0.200].
+  extrinT_Gnss2IMU: [-1.528, 0.0, 1.030]
+  extrinsic_leverarm_en: false
+
+gnss:
+  # Keep the existing camera_init frame fixed; do not rotate the EKF/map after 5 m.
+  use_external_alignment: true
+  # MORAI map/Ego coordinates follow UTM grid axes, not true-north local ENU.
+  use_utm_projection: true
+  # A single GNSS antenna observes position, not heading. Keep FAST-LIO attitude.
+  position_only_update: true
+  initial_pose_topic: /localization/initialpose
+  reference_frame: morai_map
+  require_valid_status: true
+  max_position_variance_m2: 200.0
+  # Match the adapter's default horizontal variance (0.5 m sigma). Without a
+  # floor, FAST-LIO becomes overconfident and gives GNSS almost zero gain.
+  position_covariance_floor_m2: 0.25
+
+output:
+  odom_topic: /localization/odom
+  camera_init_frame: camera_init
+  body_frame: body
+
+publish:
+  path_en: true
+  scan_publish_en: true
+  dense_publish_en: true
+  scan_bodyframe_pub_en: true
+
+pcd_save:
+  pcd_save_en: false
+  interval: -1

@@ -21,7 +21,9 @@
   <node pkg="localization_manager"
         type="morai_map_camera_init_broadcaster.py"
         name="morai_map_camera_init_broadcaster"
-        output="screen"/>
+        output="screen">
+    <param name="provider" value="fast_lio"/>
+  </node>
 
   <node pkg="localization_manager"
         type="fast_lio_kinematic_state_publisher.py"

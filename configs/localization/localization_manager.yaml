@@ -7,6 +7,9 @@ frames:
 
 topics:
   ego: /Ego_topic
+  gps: /sensor/gps
+  gnss_fix: /localization/gnss/fix
+  initial_pose: /localization/initialpose
   fast_lio_odom: /localization/odom
   kinematic_state: /localization/kinematic_state
 
@@ -17,6 +20,23 @@ providers:
       source: ego
       max_time_difference_sec: 0.05
       heading_unit: degrees
+  fast_lio_gnss:
+    initialization:
+      # First development stage: competition start pose is represented by Ego GT.
+      source: ego
+      max_time_difference_sec: 0.05
+      heading_unit: degrees
+      manual:
+        frame_id: morai_map
+        position: [0.0, 0.0, 0.0]
+        rpy_degrees: [0.0, 0.0, 0.0]
+    gnss:
+      # Temporary measurement model until the official noise range is known.
+      horizontal_stddev_m: 0.5
+      vertical_stddev_m: 1.0
+      reject_duplicate_stamps: true
+      require_valid_status: true
+      max_position_variance_m2: 200.0
 
 runtime:
   tf_lookup_timeout_sec: 0.05

@@ -1,1 +1,32 @@
-temp
+<launch>
+  <!--
+    FAST-LIO + GNSS localization stack for MORAI.
+
+    TF output:
+      map -> morai_map -> camera_init -> body -> base_link
+
+    Do not run localization_fast_lio.launch or localization_morai_gt.launch
+    simultaneously: each provider owns the same localization TF branch/topics.
+  -->
+  <arg name="use_sim_time" default="false"/>
+  <arg name="fast_lio_msf_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/fast_lio_msf_morai_velodyne.yaml"/>
+  <arg name="localization_manager_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+  <arg name="map_frame" default="map"/>
+  <arg name="morai_map_frame" default="morai_map"/>
+
+  <include file="$(find tf_pub)/launch/map_tf.launch">
+    <arg name="parent_frame" value="$(arg map_frame)"/>
+    <arg name="child_frame" value="$(arg morai_map_frame)"/>
+  </include>
+
+  <include file="$(find bringup)/launch/fast_lio_msf_morai.launch">
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="config" value="$(arg fast_lio_msf_config)"/>
+  </include>
+
+  <include file="$(find localization_manager)/launch/fast_lio_gnss.launch">
+    <arg name="config" value="$(arg localization_manager_config)"/>
+  </include>
+</launch>

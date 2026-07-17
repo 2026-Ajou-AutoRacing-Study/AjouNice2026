@@ -82,14 +82,15 @@
 
 ## 5. Branch
 ### 기본 사용법:
-- `Type/브랜치 이름`
+- `type/브랜치 이름`
+- 원래 Type but type로 수정
 
 ### Type 종류:
-- `Feature/`: 새로운 기능 추가
-- `Refactor/`: 코드 리팩토링
-- `Docs/`: 문서 작성/수정
-- `Fix/`: 버그 수정
-- `Task/`: 작업/태스크
+- `feature/`: 새로운 기능 추가
+- `refactor/`: 코드 리팩토링
+- `docs/`: 문서 작성/수정
+- `fix/`: 버그 수정
+- `task/`: 작업/태스크
 
 ### 예시
 - `Refactor/added_ck_format`

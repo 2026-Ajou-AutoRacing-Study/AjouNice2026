@@ -1,0 +1,22 @@
+<launch>
+  <!-- Algorithm-only wrapper. MORAI bridge/sensing and global TF are separate. -->
+  <arg name="use_sim_time" default="false"/>
+  <arg name="config"
+       default="$(env HOME)/AjouNice2026/configs/localization/fast_lio_msf_morai_velodyne.yaml"/>
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+  <rosparam command="load" file="$(arg config)"/>
+
+  <param name="feature_extract_enable" type="bool" value="false"/>
+  <param name="point_filter_num" type="int" value="4"/>
+  <param name="max_iteration" type="int" value="3"/>
+  <param name="filter_size_surf" type="double" value="0.5"/>
+  <param name="filter_size_map" type="double" value="0.5"/>
+  <param name="cube_side_length" type="double" value="1000"/>
+  <param name="runtime_pos_log_enable" type="bool" value="false"/>
+
+  <node pkg="fast_lio_msf"
+        type="fastlio_msf_mapping"
+        name="laserMapping"
+        output="screen"/>
+</launch>

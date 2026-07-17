@@ -68,9 +68,29 @@ topic.
 `bringup/maptf_morai.launch` remains only as a deprecated compatibility alias
 for `bringup/localization_morai_gt.launch`.
 
+## FAST-LIO + GNSS provider (experimental)
+
+Run:
+
+```bash
+roslaunch bringup localization_fast_lio_gnss.launch
+```
+
+This provider keeps the same TF and Planning contracts as FAST-LIO. It adds:
+
+- `morai_gps_to_navsatfix.py`: `/sensor/gps` to `/localization/gnss/fix`
+- `/localization/initialpose`: latched starting base pose in `morai_map`
+- `fast_lio_msf`: LiDAR/IMU estimation with GNSS position updates
+
+The MSF's upstream 5 m displacement heading reset is disabled. Instead, the
+initial Ego/manual pose determines the one-time MORAI ENU-to-`camera_init`
+rotation, so GNSS correction does not rotate the existing TF tree mid-run.
+Wheel input is disabled. The current GNSS covariance is a configurable test
+model, not a calibrated competition value.
+
 ## TF ownership and exclusivity
 
-Do not run the FAST-LIO and MORAI GT localization launch files together. Do
+Do not run any two provider launch files together. Do
 not combine either one with `maptf.launch` or
 `maptf_morai_deg_correction.launch`; those launch files publish competing map
 or `base_link` TF edges.
@@ -81,9 +101,11 @@ are configured in `configs/localization/localization_manager.yaml`.
 
 ## Current limitations
 
-- Only FAST-LIO `initialization.source: ego` is implemented.
-- The initial FAST-LIO alignment is frozen; GNSS global correction is not yet
-  implemented.
+- FAST-LIO and FAST-LIO+GNSS initialization support `ego` and `manual` sources;
+  only the `ego` path has been exercised with the current MORAI bag.
+- FAST-LIO without GNSS still has a frozen initial global alignment.
+- FAST-LIO+GNSS is experimental and must be validated against multiple noise,
+  stop/go, turn, and GNSS-outage scenarios.
 - Pose and twist covariance in `/localization/kinematic_state` are unavailable.
 - `body -> base_link` is hard-coded and must later be read from the selected
   sensor configuration.
