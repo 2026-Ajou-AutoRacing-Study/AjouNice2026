@@ -7,6 +7,9 @@
 third_party/*
 !third_party/
 !third_party/README.md
+!third_party/examples/
+!third_party/examples/**
+
 base_ws/src/dump/
 
 # third_party2/livox-SDK 빌드 에러 생겨서 그냥 저기서 빌드했음. 크게 신경쓸 건 아닐 듯.

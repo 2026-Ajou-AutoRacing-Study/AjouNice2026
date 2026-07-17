@@ -10,3 +10,15 @@
 [submodule "base_ws/src/localization/fast_lio_multi_sensor_fusion"]
 	path = base_ws/src/localization/fast_lio_multi_sensor_fusion
 	url = https://github.com/2026-Ajou-AutoRacing-Study/FAST-LIO-Multi-Sensor-Fusion.git
+[submodule "third_party/examples/beginner_tutorials_answer"]
+	path = third_party/examples/beginner_tutorials_answer
+	url = https://github.com/MORAI-EDU/beginner_tutorials_answer.git
+	branch = main
+[submodule "third_party/examples/MORAI-NetworkModule"]
+	path = third_party/examples/MORAI-NetworkModule
+	url = https://github.com/MORAI-Autonomous/MORAI-NetworkModule.git
+	branch = 24.R2.0
+[submodule "base_ws/src/morai/morai_msgs"]
+	path = base_ws/src/morai/morai_msgs
+	url = https://github.com/MORAI-Autonomous/MORAI-ROS_morai_msgs.git
+	branch = beta_drive
