@@ -25,7 +25,7 @@ alias rosbag_cam_raw="bash ~/AjouNice2026/scripts/rosbag/record/rosbag_cam_raw.s
 alias rosbag_lio_eval="bash ~/AjouNice2026/scripts/rosbag/record/rosbag_for_eval.sh"
 
 #-----------------------------------------------------
-alias rb='rb_bg'
+alias udp="roslaunch sensor_interface morai_udp_interface.launch"
 alias sensing="roslaunch bringup sensing.launch"
 alias localization_morai_gt="roslaunch bringup localization_morai_gt.launch"
 alias localization_fast_lio="roslaunch bringup localization_fast_lio.launch"
@@ -34,19 +34,3 @@ alias maptf="roslaunch bringup maptf.launch"
 alias lanelet="roslaunch lanelet_map_visualizer kcity_lanelet_map.launch"   
 alias morai_status="bash ~/AjouNice2026/scripts/runtime/morai_status.sh"
 alias morai_reset="bash ~/AjouNice2026/scripts/runtime/morai_reset.sh stack"
-alias rb_kill="bash ~/AjouNice2026/scripts/runtime/morai_reset.sh bridge"
-
-rb_bg() {
-  if ss -ltnp | grep -q ':9090 '; then
-    echo "9090 already listening; not restarting rosbridge. Use rb_restart to force."
-    ss -ltnp | grep 9090
-    return 0
-  fi
-  nohup roslaunch bringup morai_bridge.launch >/tmp/morai_bridge.log 2>&1 &
-  echo "morai_bridge pid=$! log=/tmp/morai_bridge.log"
-}
-
-rb_restart() {
-  rb_kill
-  rb_bg
-}

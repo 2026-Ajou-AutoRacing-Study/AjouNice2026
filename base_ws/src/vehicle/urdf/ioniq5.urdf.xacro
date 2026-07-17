@@ -6,7 +6,7 @@
       the baked mesh origin is directly below the rear axle center.
 
     Runtime base_link is the rear axle center, not the ground projection.
-    MORAI sensor extrinsics in configs/sensors/Sensor_1.json use that same
+    MORAI sensor extrinsics in configs/sensors/Sensor_3.json use that same
     rear axle center frame. The visual/collision mesh is shifted downward by
     the wheel radius so RViz shows the vehicle around the axle-centered
     base_link correctly.

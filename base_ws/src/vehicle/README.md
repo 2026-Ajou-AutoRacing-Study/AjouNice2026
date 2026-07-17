@@ -15,7 +15,7 @@ The RViz mesh is `meshes/ioniq5/ioniq5_base_link.dae`.
 The Collada mesh vertices are baked with a rear-axle ground-projection origin.
 The URDF shifts the visual and collision geometry down by the wheel radius
 (`0.3705` m), so the runtime `base_link` sits at the rear axle center. MORAI
-sensor extrinsics in `configs/sensors/Sensor_1.json` are interpreted in this
+sensor extrinsics in `configs/sensors/Sensor_3.json` are interpreted in this
 same rear axle center frame.
 
 The RViz visual also applies a MORAI self-return x correction of
@@ -24,7 +24,7 @@ self-return bands: the `z=0.45..0.65` m band differed by about `-0.093` m and
 the `z=1.05..1.25` m band by about `-0.107` m. A live RViz visual check still
 showed the model behind the cloud, so the displayed model was moved 0.05 m
 forward from that baseline. The sensor TFs were not changed because they are
-loaded from the same `Sensor_1.json` that MORAI uses.
+loaded from the same `Sensor_3.json` that MORAI uses.
 
 ## Dimensions
 

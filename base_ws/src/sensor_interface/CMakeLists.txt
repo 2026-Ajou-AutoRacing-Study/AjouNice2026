@@ -12,7 +12,6 @@ find_package(catkin REQUIRED COMPONENTS
   morai_msgs
   nav_msgs
   roscpp
-  rospy
   sensor_msgs
   std_msgs
   tf
@@ -114,7 +113,7 @@ find_package(Eigen3 REQUIRED)
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES sensor_interface
-  CATKIN_DEPENDS geometry_msgs morai_msgs nav_msgs roscpp rospy sensor_msgs std_msgs tf tf2 tf2_geometry_msgs tf2_ros
+  CATKIN_DEPENDS geometry_msgs morai_msgs nav_msgs roscpp sensor_msgs std_msgs tf tf2 tf2_geometry_msgs tf2_ros
 #  DEPENDS system_lib
 )
 
@@ -146,6 +145,9 @@ include_directories(
 add_executable(lidar_distortion_corrector src/lidar_distortion_corrector.cpp)
 add_executable(lidar_advanced_concat_filter src/lidar_advanced_concat_filter.cpp)
 add_executable(morai_gps_to_map src/morai_gps_to_map.cpp)
+add_executable(morai_sensor_udp_receiver src/morai_sensor_udp_receiver.cpp)
+add_executable(morai_ego_udp_receiver src/morai_ego_udp_receiver.cpp)
+add_executable(morai_ctrl_cmd_udp_sender src/morai_ctrl_cmd_udp_sender.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -158,6 +160,9 @@ add_executable(morai_gps_to_map src/morai_gps_to_map.cpp)
 add_dependencies(morai_gps_to_map ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(lidar_distortion_corrector ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(lidar_advanced_concat_filter ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(morai_sensor_udp_receiver ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(morai_ego_udp_receiver ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(morai_ctrl_cmd_udp_sender ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(lidar_distortion_corrector
   ${catkin_LIBRARIES}
@@ -171,6 +176,10 @@ target_link_libraries(morai_gps_to_map
   ${catkin_LIBRARIES}
 )
 
+target_link_libraries(morai_sensor_udp_receiver ${catkin_LIBRARIES})
+target_link_libraries(morai_ego_udp_receiver ${catkin_LIBRARIES})
+target_link_libraries(morai_ctrl_cmd_udp_sender ${catkin_LIBRARIES})
+
 #############
 ## Install ##
 #############
@@ -180,15 +189,15 @@ target_link_libraries(morai_gps_to_map
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-catkin_install_python(PROGRAMS
-  scripts/morai_camera_udp_receiver.py
-  scripts/tf_repeated_stamp_filter.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
-
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
-install(TARGETS lidar_distortion_corrector lidar_advanced_concat_filter morai_gps_to_map
+install(TARGETS
+  lidar_distortion_corrector
+  lidar_advanced_concat_filter
+  morai_gps_to_map
+  morai_sensor_udp_receiver
+  morai_ego_udp_receiver
+  morai_ctrl_cmd_udp_sender
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

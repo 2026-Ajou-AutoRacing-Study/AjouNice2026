@@ -69,35 +69,36 @@ docs/morai_topic_survey_lab.md
 - MORAI running on:
 - ROS running on:
 
-## ROS Bridge
+## UDP Config
 
 | Item | Value |
 |---|---|
-| Bridge IP | TBD |
-| Bridge Port | 9090 |
-| Check command | ss -antp \| grep 9090 |
-| Connected? | yes/no |
+| Sensor config | `configs/sensors/Sensor_3.json` |
+| Ego network config | `config/network/ego_network_1.json` |
+| Check command | `morai_status` |
 
 ## Sensor UDP Ports
 
 | Sensor | Protocol | Destination Port | Packet received? | Check command |
 |---|---|---:|---|---|
 | LiDAR | UDP | 2368 | TBD | sudo tcpdump -ni any udp port 2368 |
-| Camera | UDP | 1232 | TBD | sudo tcpdump -ni any udp port 1232 |
-| GPS | UDP | 2372 | TBD | sudo tcpdump -ni any udp port 2372 |
-| IMU | UDP | 2374 | TBD | sudo tcpdump -ni any udp port 2374 |
+| Camera 1-4 | UDP | 9291/9293/9295/9297 | TBD | sudo tcpdump -ni any udp portrange 9291-9297 |
+| GPS | UDP | 9301 | TBD | sudo tcpdump -ni any udp port 9301 |
+| IMU | UDP | 9303 | TBD | sudo tcpdump -ni any udp port 9303 |
 
 ## ROS Topics
 
 | Purpose | Topic | Type | frame_id | Hz | Transport | Note |
 |---|---|---|---|---:|---|---|
-| Ego status | TBD | TBD | - | TBD | rosbridge |  |
-| Control cmd | /ctrl_cmd | morai_msgs/CtrlCmd | - | - | rosbridge | publish target |
-| Object GT | TBD | TBD | - | TBD | rosbridge |  |
-| LiDAR | TBD | TBD | TBD | TBD | UDP→ROS? |  |
-| Camera | /sensor/camera | sensor_msgs/CompressedImage | Camera-2 | TBD | UDP->ROS | MORAI JPEG UDP receiver |
-| GPS | TBD | TBD | TBD | TBD | UDP or rosbridge |  |
-| IMU | TBD | TBD | TBD | TBD | UDP or rosbridge |  |
+| Ego status | /Ego_topic | morai_msgs/EgoVehicleStatus | map | TBD | UDP->ROS | port 9311 |
+| Control cmd | /ctrl_cmd | morai_msgs/CtrlCmd | - | - | ROS->UDP | port 9315, type 1 |
+| Object GT | /Object_topic | morai_msgs/ObjectStatusList | map | TBD | UDP->ROS | port 9317 |
+| Collision | /CollisionData | morai_msgs/CollisionData | map | TBD | UDP->ROS | port 9313 |
+| Competition Vehicle Status | /Competition_topic | morai_msgs/EgoVehicleStatus | map | TBD | UDP->ROS | port 9319 |
+| LiDAR | /sensor/lidar1 | sensor_msgs/PointCloud2 | lidar1 | TBD | UDP->ROS | VLP-16 |
+| Camera | /sensor/camera/*/compressed | sensor_msgs/CompressedImage | camera_* | TBD | UDP->ROS | four JPEG streams |
+| GPS | /sensor/gps | morai_msgs/GPSMessage | gps | TBD | UDP->ROS | port 9301 |
+| IMU | /sensor/imu | sensor_msgs/Imu | imu | TBD | UDP->ROS | port 9303 |
 
 ## Message Structures Checked
 

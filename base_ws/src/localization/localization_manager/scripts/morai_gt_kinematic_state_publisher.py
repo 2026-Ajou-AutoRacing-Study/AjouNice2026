@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import math
 import threading
 
 import numpy as np
@@ -50,6 +51,9 @@ class MoraiGtKinematicStatePublisher:
 
         self.pending_lock = threading.Lock()
         self.pending_ego = None
+        self.pending_angular_velocity = None
+        self.previous_heading_deg = None
+        self.previous_heading_stamp = None
         self.last_published_stamp = rospy.Time(0)
         self.subscriber = rospy.Subscriber(
             self.ego_topic,
@@ -78,7 +82,7 @@ class MoraiGtKinematicStatePublisher:
             )
             return
 
-        values = np.array(
+        state_values = np.array(
             [
                 ego.position.x,
                 ego.position.y,
@@ -87,28 +91,60 @@ class MoraiGtKinematicStatePublisher:
                 ego.velocity.x,
                 ego.velocity.y,
                 ego.velocity.z,
-                ego.angular_velocity.x,
-                ego.angular_velocity.y,
-                ego.angular_velocity.z,
             ],
             dtype=float,
         )
-        if not np.all(np.isfinite(values)):
+        if not np.all(np.isfinite(state_values)):
             rospy.logwarn_throttle(
                 2.0, "Skipping MORAI Ego ground truth with non-finite state"
             )
             return
 
         with self.pending_lock:
+            angular_velocity = self.resolve_angular_velocity(ego, stamp)
+            if not np.all(np.isfinite(angular_velocity)):
+                rospy.logwarn_throttle(
+                    2.0,
+                    "Skipping MORAI Ego ground truth with non-finite angular velocity",
+                )
+                return
             self.pending_ego = ego
+            self.pending_angular_velocity = angular_velocity
+
+    def resolve_angular_velocity(self, ego, stamp):
+        angular_velocity = getattr(ego, "angular_velocity", None)
+        if angular_velocity is not None:
+            return (
+                angular_velocity.x,
+                angular_velocity.y,
+                angular_velocity.z,
+            )
+
+        yaw_rate = 0.0
+        if self.previous_heading_stamp is not None:
+            dt = (stamp - self.previous_heading_stamp).to_sec()
+            if dt > 1e-6:
+                heading_delta = ego.heading - self.previous_heading_deg
+                heading_delta = (heading_delta + 180.0) % 360.0 - 180.0
+                yaw_rate = math.radians(heading_delta / dt)
+
+        if (
+            self.previous_heading_stamp is None
+            or stamp > self.previous_heading_stamp
+        ):
+            self.previous_heading_deg = ego.heading
+            self.previous_heading_stamp = stamp
+
+        return (0.0, 0.0, yaw_rate)
 
     def retry_pending(self, _event):
         with self.pending_lock:
             ego = self.pending_ego
+            angular_velocity = self.pending_angular_velocity
         if ego is not None:
-            self.try_publish(ego)
+            self.try_publish(ego, angular_velocity)
 
-    def try_publish(self, ego):
+    def try_publish(self, ego, angular_velocity):
         stamp = ego.header.stamp
         if stamp == self.last_published_stamp:
             self.clear_pending_if_same(ego)
@@ -142,7 +178,9 @@ class MoraiGtKinematicStatePublisher:
         output.pose.pose.position.z = map_base.transform.translation.z
         output.pose.pose.orientation = map_base.transform.rotation
         output.twist.twist.linear = ego.velocity
-        output.twist.twist.angular = ego.angular_velocity
+        output.twist.twist.angular.x = angular_velocity[0]
+        output.twist.twist.angular.y = angular_velocity[1]
+        output.twist.twist.angular.z = angular_velocity[2]
         output.pose.covariance = [0.0] * 36
         output.twist.covariance = [0.0] * 36
         self.publisher.publish(output)
@@ -154,6 +192,7 @@ class MoraiGtKinematicStatePublisher:
         with self.pending_lock:
             if self.pending_ego is ego:
                 self.pending_ego = None
+                self.pending_angular_velocity = None
 
 
 def main():

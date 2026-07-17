@@ -7,7 +7,7 @@
 
 ## 목적
 - MORAI를 WSL2에서 실행하기엔, GPU 자원 사용에 있어서 문제가 생길 가능성이 있음.
-- WINDOWS 11에 설치 후 ROSBridge로 연결하자.
+- WINDOWS 11에 설치 후 대회 허용 UDP로 연결한다.
 - 이렇게 할 수 있는 근거:
     1. [carla의 경우 이렇게 구성한 사례](https://github.com/carla-simulator/carla/issues/5806#issuecomment-1659755944)가 있었음.
     2. [morai test 예제 문서](https://github.com/MORAI-Autonomous/MORAI-SensorExample/blob/main/README.md)에도 그렇게 wsl로 구성해서 테스트했다고 함.
@@ -19,9 +19,8 @@
     - MORAI Launcher 로그인
     - 시뮬레이터로 GUI 조작해보기
 - WSL2 Ubuntu 20.04
-    - ROS Bridge 연결
-        - 그냥 다 ROS로 받도록 처음엔 해버리는 것도 방법(UDP는 터질 것 같음)
-    - MORAI에서 토픽, 타입 등 조사
+    - `Sensor_3.json`, `ego_network_1.json`을 MORAI에 로드
+    - `roslaunch bringup sensing.launch`로 UDP 패킷을 ROS 메시지로 변환
 
 ## Windows MORAI 설치
 - [다운로드 링크 접속](https://help-morai-sim.scrollhelp.site/ko/morai-sim-drive/24.R1.0/-25?utm_source=chatgpt.com)
@@ -61,29 +60,18 @@ bs # (build, source)
 
 rospack find morai_msgs # 확인
 ```
-### rosbridge_server 설치
+### UDP 인터페이스 빌드 및 실행
 ```bash
-rospack find rosbridge_server # 확인
-
-# 아무것도 안 나오면 없는 거니 설치
-sudo apt update
-sudo apt install -y ros-noetic-rosbridge-server
-
-rospack find rosbridge_server # 확인
-
-# 테스트
-roscore # 터미널 1, bs 후
-roslaunch rosbridge_server rosbridge_websocket.launch # 터미널 2, bs 후
-
-# 아래와 같은 로그가 포함되어 있으면 성공:
-# Rosbridge WebSocket server started at ws://0.0.0.0:9090
-
-# 포트 확인
-# Linux에서 열린 TCP 소켓 중 9090 포트와 관련된 것만 보여달라는 명령어임.
-ss -antp | grep 9090 # 터미널 3
-# LISTEN 상태인 소켓이 나오면 성공
-
+cd ~/AjouNice2026/base_ws
+source /opt/ros/noetic/setup.bash
+catkin_make
+source devel/setup.bash
+roslaunch bringup sensing.launch
 ```
+
+- 센서 설정: `configs/sensors/Sensor_3.json`
+- Ego Network 설정: `config/network/ego_network_1.json`
+- rosbridge/WebSocket 9090은 실행하지 않는다.
 
 ## WSL2 IP 확인
 ```bash
@@ -94,19 +82,11 @@ hostname -I
 # wsl2는 재부팅 시마다 저 값 변경될 수 있음.
 ```
 
-## WSL2에서 ROS Bridge 실행
-```bash
-roscore # 터미널 1
-roslaunch rosbridge_server rosbridge_websocket.launch # 터미널 2
-```
-
-## WINDOWS 11 MORAI에서 ROS에 연결
-- Edit > Network Settings > Simulator Network
-    - Protocol: ROS
-    - Bridge IP: (아까 hostname -I로 확인한 WSL2 IP) -> 이거 나중에 다시 키니까 그냥 원래 127.0.0.1(자기 자신) IP로 connect해야 잘 됐음 -> 왜지...
-    - Bridge Port: 9090
-- 입력 후 Connect 클릭
-- 연결됐으면, 왼쪽 위에 Status가 `Connected`로 바뀜.
+## MORAI에서 UDP 설정 로드
+- Sensor 설정에서 `configs/sensors/Sensor_3.json`을 로드한다.
+- Network Settings > Ego-0에서 `config/network/ego_network_1.json`을 로드한다.
+- MORAI와 ROS가 같은 PC이면 현재 파일의 `127.0.0.1`을 그대로 사용한다.
+- 다른 PC/WSL2이면 두 JSON의 host/destination IP를 실제 양쪽 IP로 바꾼다.
 
 ## 센서 붙이기 전에, 기본 ROS topic 잘 연결되는지 테스트
 ```bash
@@ -263,7 +243,7 @@ GPS
 ## 센서들 ROS에서 연결 확인
 - tl을 찍어 봐도 `/sensor/lidar1`, `/sensor/lidar2`, `/sensor/imu`, `/sensor/camera`, `/sensor/gps`가 나옴.
 - 자세한 내용은 `config/sensor_layout.yaml` 참고
-- 현재 checkout은 카메라를 rosbridge가 아니라 MORAI UDP JPEG 패킷으로 받고, `sensor_interface`에서 `/sensor/camera` `sensor_msgs/CompressedImage`로 다시 publish한다.
+- 카메라 4대는 MORAI UDP JPEG 패킷으로 받고, `/sensor/camera/*/compressed` `sensor_msgs/CompressedImage`로 publish한다.
 - acture rate는 10초 정도 측정한 average rate 값을 적음.
 
 ```bash
@@ -287,11 +267,10 @@ GNSS    target 20 Hz → actual TBD (`rostopic hz /sensor/gps`로 재측정)
     - Add - tf 키고,
     - Add - By topic 들어가서 pointcloud2를 켜줘야 함 (그냥 category 상에서 선택해 키면 안 나옴).
 
-## ROS에 launch로 morai bridge 등록하기
-```xml
-<launch>
-  <!-- rosbridge_server: MORAI가 ROS topic/msg를 WebSocket으로 주고받기 위한 서버 -->
-  <!-- roslaunch bringup morai_bridge.launch -->
-  <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch"/>
-</launch>
+## 실행 확인
+```bash
+morai_status
+rostopic hz /Ego_topic
+rostopic hz /sensor/imu
+rostopic hz /sensor/camera/front/compressed
 ```

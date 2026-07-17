@@ -183,9 +183,11 @@ void LidarDistortionCorrector::egoCallback(const morai_msgs::EgoVehicleStatus::C
   sample.vx = vx;
   sample.vy = vy;
   sample.vz = msg->velocity.z;
-  sample.wx = msg->angular_velocity.x;
-  sample.wy = msg->angular_velocity.y;
-  sample.wz = msg->angular_velocity.z;
+    // EgoVehicleStatus UDP includes angular velocity, but the canonical ROS
+    // message does not. IMU samples remain the angular-rate source.
+    sample.wx = 0.0;
+    sample.wy = 0.0;
+    sample.wz = 0.0;
   motion_buffer_.addMotion(sample);
 }
 

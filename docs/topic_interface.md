@@ -1,60 +1,53 @@
-# topic interface
-- docs/external_docs에 topic 종류와, msgs 타입들 종류 다 적혀져 있음.
-- 여기는 주로 사용하게 될 주요 topic들만 정리
-- 나중에 표로 다시 정리하든가 하기
+# MORAI UDP topic interface
 
-## SIM -> ROS
-- `/sim/process/state/msg/MoraiSimProcStatus`: `morai_msgs/MoraiSimProcStatus`
-    - MORAI 시뮬레이터 실행 상태
-- `/Ego_topic`: `morai_msgs/EgoVehicleStatus`
-    - Ego 차량 현재 상태
-- `/Object_topic`: `morai_msgs/ObjectStatusList`
-    - 주변 객체 GT 정보
+MORAI와 이 저장소 사이의 외부 통신은 UDP만 사용한다. `sensor_interface`의 C++ 노드가 UDP 패킷을 기존 ROS 메시지로 변환하므로, 제어기와 인지/위치추정 모듈은 ROS 토픽을 그대로 사용한다.
 
-- `/GetTrafficLightStatus`: `morai_msgs/GetTrafficLightStatus`
-    - 신호등 상태
-- `/VehicleCollisionData`: `morai_msgs/VehicleCollisionData`
-    - NPC 차량 간 충돌 정보
-- `/CollisionData`: `morai_msgs/CollisionData`
-    - Ego 차량과 객체 간 충돌 정보
-- `/ReplayInfo_topic`: `morai_msgs/ReplayInfo`
-    - Rosbag/Replay 관련 정보
-- `/SyncModeInfo`: `morai_msgs/SyncModeInfo`
-  - Synchronous mode 상태
-- `/IntscnTL_topic`: `morai_msgs/IntscnTL`
-  - 교차로 신호등 상태 배열
-- `/tf`: `tf2_msgs/TFMessage`
-    - MORAI가 publish하는 좌표계 정보
-- `/clock`: `rosgraph_msgs/Clock`
-    - MORAI 시뮬레이터 시간
+## 설정 파일
 
-### sensors
-- 자세한 건 configs/sensors/sensor_layout.yaml 참고
-- `/sensor/imu`: `sensor_msgs/Imu`
-- `/sensor/gps`: `morai_msgs/GPSMessage`
-- `/sensor/camera`: `sensor_msgs/CompressedImage`
-  - MORAI Camera UDP packets are received by `sensor_interface/morai_camera_udp_receiver.py` and republished to ROS.
-- `/sensor/lidar1`: `sensor_msgs/PointCloud2`
-- `/sensor/lidar2`: `sensor_msgs/PointCloud2`
+- 센서: `configs/sensors/Sensor_3.json`
+- Ego Network: `config/network/ego_network_1.json`
+- 통합 실행: `roslaunch bringup sensing.launch`
 
+별도 `morai_udp.yaml`은 없다. C++ 노드가 두 MORAI JSON을 직접 읽는다.
 
-## ROS -> SIM
-- `/ctrl_cmd`: `morai_msgs/CtrlCmd`
-  - Ego 차량 제어 명령
-  - ROS 쪽에서 MORAI 차량을 움직이라고 보내는 제어 명령 토픽임.
-  - MORAI 내부에서 키보드로 wasd 입력하는 그거랑 다름!! 얘는 자율주행 제어 토픽.
+## MORAI -> ROS
 
-- `/ego_setting`: `morai_msgs/MultiEgoSetting`
-  - Multi Ego 설정
-- `/InsnControl`: `morai_msgs/IntersectionControl`
-  - 교차로 상태 제어
-- `/ScenarioLoad`: `morai_msgs/ScenarioLoad`
-  - 시나리오 로드
-- `/SaveSensorData`: `morai_msgs/SaveSensorData`
-  - 센서 데이터 저장 요청
-- `/SensorPosControl`: `morai_msgs/SensorPosControl`
-  - 센서 위치/자세 제어
-- `/SetTrafficLight`: `morai_msgs/SetTrafficLight`
-  - 신호등 상태 제어
-- `/lamps`: `morai_msgs/Lamps`
-  - 방향지시등/비상등 제어
+| UDP destination | ROS topic | ROS type |
+|---:|---|---|
+| 9311 | `/Ego_topic` | `morai_msgs/EgoVehicleStatus` |
+| 9313 | `/CollisionData` | `morai_msgs/CollisionData` |
+| 9317 | `/Object_topic` | `morai_msgs/ObjectStatusList` |
+| 9319 | `/Competition_topic` | `morai_msgs/EgoVehicleStatus` |
+| 9301 | `/sensor/gps` | `morai_msgs/GPSMessage` |
+| 9303 | `/sensor/imu` | `sensor_msgs/Imu` |
+| 9291 | `/sensor/camera/front/compressed` | `sensor_msgs/CompressedImage` |
+| 9293 | `/sensor/camera/front_left/compressed` | `sensor_msgs/CompressedImage` |
+| 9295 | `/sensor/camera/front_right/compressed` | `sensor_msgs/CompressedImage` |
+| 9297 | `/sensor/camera/back/compressed` | `sensor_msgs/CompressedImage` |
+| 2368 | `/sensor/lidar1` | `sensor_msgs/PointCloud2` |
+
+카메라 토픽이 `/compressed`로 끝나므로 `rqt_image_view`에서 transport 이름을 정상 인식한다.
+
+## ROS -> MORAI
+
+| ROS topic | ROS type | UDP target | Note |
+|---|---|---:|---|
+| `/ctrl_cmd` | `morai_msgs/CtrlCmd` | 9315 | `longlCmdType=1`, accel/brake 방식 |
+
+제어기는 이전처럼 `/ctrl_cmd`를 publish한다. `morai_ctrl_cmd_udp_sender`가 ROS 메시지를 MORAI `#MoraiCtrlCmd$` 55-byte UDP 패킷으로 변환한다.
+
+## TF ownership
+
+- `base_link -> sensor`: `Sensor_3.json`을 읽는 `morai_sensor_static_tf.py`
+- 동적 `map -> base_link`: 선택한 localization 모듈
+- MORAI `/tf`: 사용하지 않음
+
+## 실행
+
+```bash
+source /opt/ros/noetic/setup.bash
+source ~/AjouNice2026/base_ws/devel/setup.bash
+roslaunch bringup sensing.launch
+```
+
+MORAI GUI에서는 Sensor 설정에 `Sensor_3.json`, Ego-0 Network 설정에 `ego_network_1.json`을 각각 로드해야 한다. 파일을 수정한 것만으로 이미 실행 중인 MORAI에 자동 반영되지는 않는다.

@@ -1,36 +1,13 @@
 <launch>
-  <!--
-    Perception-side LiDAR preprocessing:
-      raw lidar1/lidar2 -> per-LiDAR deskew -> field-preserving corrected concat.
-  -->
-
+  <!-- Single VLP-16 deskew path for Sensor_3.json. -->
   <arg name="config" default="$(find sensor_interface)/config/lidar_preprocess.yaml"/>
   <arg name="enable_lidar_preprocess" default="true"/>
 
-  <group if="$(arg enable_lidar_preprocess)">
-    <node pkg="sensor_interface"
-          type="lidar_distortion_corrector"
-          name="lidar1_distortion_corrector"
-          output="screen">
-      <rosparam command="load" file="$(arg config)"/>
-      <param name="cloud_topic" value="/sensor/lidar1"/>
-      <param name="output_topic" value="/sensor/lidar1/deskewed"/>
-    </node>
-
-    <node pkg="sensor_interface"
-          type="lidar_distortion_corrector"
-          name="lidar2_distortion_corrector"
-          output="screen">
-      <rosparam command="load" file="$(arg config)"/>
-      <param name="cloud_topic" value="/sensor/lidar2"/>
-      <param name="output_topic" value="/sensor/lidar2/deskewed"/>
-    </node>
-
-    <node pkg="sensor_interface"
-          type="lidar_advanced_concat_filter"
-          name="lidar_advanced_concat_filter"
-          output="screen">
-      <rosparam command="load" file="$(arg config)"/>
-    </node>
-  </group>
+  <node if="$(arg enable_lidar_preprocess)" pkg="sensor_interface"
+        type="lidar_distortion_corrector" name="lidar1_distortion_corrector"
+        output="screen">
+    <rosparam command="load" file="$(arg config)"/>
+    <param name="cloud_topic" value="/sensor/lidar1"/>
+    <param name="output_topic" value="/sensor/lidar1/deskewed"/>
+  </node>
 </launch>

@@ -97,7 +97,6 @@
   <exec_depend>rviz</exec_depend>
   <exec_depend>localization_manager</exec_depend>
   <exec_depend>morai_ros_bridge</exec_depend>
-  <exec_depend>rosbridge_server</exec_depend>
   <exec_depend>sensor_interface</exec_depend>
   <exec_depend>tf_pub</exec_depend>
   <test_depend>autoware_internal_planning_msgs</test_depend>

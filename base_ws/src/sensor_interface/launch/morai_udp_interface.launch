@@ -1,0 +1,44 @@
+<launch>
+  <!-- External MORAI UDP <-> internal ROS topic gateway. -->
+  <arg name="sensor_config"
+       default="$(find ioniq5)/../../../configs/sensors/Sensor_3.json"/>
+  <arg name="network_config"
+       default="$(find ioniq5)/../../../configs/network/ego_network_1.json"/>
+  <arg name="enable_sensors" default="true"/>
+  <arg name="enable_lidar" default="true"/>
+  <arg name="enable_ego_network" default="true"/>
+  <arg name="enable_control" default="true"/>
+  <arg name="lidar_port" default="2368"/>
+  <arg name="lidar_frame" default="lidar1"/>
+  <arg name="lidar_calibration"
+       default="$(find velodyne_pointcloud)/params/VLP16db.yaml"/>
+
+  <node if="$(arg enable_sensors)" pkg="sensor_interface"
+        type="morai_sensor_udp_receiver" name="morai_sensor_udp_receiver"
+        output="screen" required="true">
+    <param name="sensor_config" value="$(arg sensor_config)"/>
+  </node>
+
+  <group if="$(arg enable_lidar)">
+    <include file="$(find sensor_interface)/launch/lidar.launch">
+      <arg name="port" value="$(arg lidar_port)"/>
+      <arg name="frame_id" value="$(arg lidar_frame)"/>
+      <arg name="calibration" value="$(arg lidar_calibration)"/>
+    </include>
+  </group>
+
+  <node if="$(arg enable_ego_network)" pkg="sensor_interface"
+        type="morai_ego_udp_receiver" name="morai_ego_udp_receiver"
+        output="screen" required="true">
+    <param name="network_config" value="$(arg network_config)"/>
+    <param name="frame_id" value="map"/>
+  </node>
+
+  <node if="$(arg enable_control)" pkg="sensor_interface"
+        type="morai_ctrl_cmd_udp_sender" name="morai_ctrl_cmd_udp_sender"
+        output="screen" required="true">
+    <param name="network_config" value="$(arg network_config)"/>
+    <param name="ctrl_mode" value="2"/>
+    <param name="gear" value="4"/>
+  </node>
+</launch>
