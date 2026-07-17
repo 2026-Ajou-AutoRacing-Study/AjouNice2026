@@ -1,0 +1,59 @@
+======= FAST-LIO Pose + Twist vs MORAI Ego Evaluation =======
+bag: rosbags/eval/fast_lio_gnss_full_0717_2004.bag
+state topic: /localization/kinematic_state
+matched samples: 2014
+duration: 103.780 sec
+comparison time: state timestamp (Ego GT interpolated)
+Ego interpolation | exact: 0, interpolated: 2014, rejected outside: 0, rejected gap: 0
+Ego duplicate timestamps discarded: 2904
+nearest Ego source distance | mean: 0.0058 sec, max: 0.0190 sec
+state reference: base_link (no mounting correction applied)
+------------------------- Pose -------------------------
+ego path length:       316.815 m
+FAST-LIO path length:  322.213 m
+path length ratio:     1.01704
+path length error:     +5.397 m
+initial alignment yaw: -0.022 deg
+XY mean error:         0.194 m
+XY RMSE:               0.253 m
+XY max error:          0.722 m
+XY final error:        0.323 m
+drift:                 0.102 %
+Yaw mean abs:          1.083 deg
+Yaw max abs:           1.914 deg
+--------------- Ego-frame position error --------------
+convention: error=state-GT, longitudinal +=ahead, lateral +=left
+longitudinal | bias=-0.182, MAE=0.182, RMSE=0.244, max_abs=0.701 m
+lateral      | bias=-0.013, MAE=0.055, RMSE=0.068, max_abs=0.296 m
+squared error contribution | longitudinal=92.8%, lateral=7.2%
+final error | longitudinal=-0.323 m, lateral=-0.022 m, XY=0.323 m
+--------------------- Linear twist ---------------------
+linear.x | bias=-0.587, MAE=0.704, RMSE=0.755, max_abs=1.074 m/s
+linear.y | bias=+0.307, MAE=0.431, RMSE=0.738, max_abs=2.071 m/s
+linear.z | bias=+0.255, MAE=0.407, RMSE=0.496, max_abs=0.876 m/s
+speed    | bias=+0.355, MAE=0.747, RMSE=0.812, max_abs=1.651 m/s
+-------------------- Angular twist ---------------------
+GT yaw rate source: derivative of unwrapped Ego heading (local regression window=7)
+angular.z | bias=-0.0003, MAE=0.0018, RMSE=0.0076, max_abs=0.1959 rad/s
+angular.x/y: not evaluated (MORAI Ego heading provides yaw only)
+-------------------- Stationary state ------------------
+stationary segments: 3
+  [1] 0.000s ~ 3.520s, net=0.024m, accumulated=0.090m, speed_mean=0.042m/s, speed_max=0.822m/s, |wz|_mean=0.0000rad/s
+  [2] 27.240s ~ 32.480s, net=0.348m, accumulated=1.262m, speed_mean=1.580m/s, speed_max=1.750m/s, |wz|_mean=0.0009rad/s
+  [3] 52.440s ~ 92.560s, net=0.311m, accumulated=4.400m, speed_mean=0.885m/s, speed_max=1.033m/s, |wz|_mean=0.0001rad/s
+--------------------- Error segments -------------------
+position error segments above threshold: 0
+speed error segments above threshold: 10
+  [1] 0.000s ~ 0.000s, max=0.822m/s at 0.000s
+  [2] 12.540s ~ 14.380s, max=0.648m/s at 13.680s
+  [3] 16.980s ~ 16.980s, max=0.500m/s at 16.980s
+  [4] 17.080s ~ 17.080s, max=0.500m/s at 17.080s
+  [5] 17.180s ~ 19.380s, max=0.805m/s at 18.000s
+  [6] 19.480s ~ 19.480s, max=0.504m/s at 19.480s
+  [7] 22.400s ~ 32.800s, max=1.651m/s at 27.340s
+  [8] 33.400s ~ 49.980s, max=0.904m/s at 48.500s
+  [9] 51.720s ~ 92.640s, max=1.030m/s at 56.360s
+  [10] 92.980s ~ 103.780s, max=0.808m/s at 93.280s
+yaw-rate error segments above threshold: 1
+  [1] 14.180s ~ 14.280s, max=0.196rad/s at 14.240s
+=========================================================
