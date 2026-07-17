@@ -1,0 +1,16 @@
+topics:
+  trajectory: /control/trajectory
+  ego: /Ego_topic
+  ctrl_cmd: /ctrl_cmd
+  collision: /CollisionData
+
+storage:
+  history_dir: base_ws/src/control/trajectory_validator/history
+  schema_version: 1
+  overwrite: false
+
+recording:
+  sample_rate_hz: 30.0
+  input_timeout_s: 0.5
+  sync_tolerance_s: 0.05
+  goal_tolerance_m: 3.0

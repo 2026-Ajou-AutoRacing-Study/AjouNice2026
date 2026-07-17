@@ -1,0 +1,26 @@
+<launch>
+  <arg name="common_config"
+       default="$(find trajectory_follower)/config/trajectory_follower.yaml"/>
+  <arg name="pp_config"
+       default="$(find trajectory_follower)/config/purepursuit.yaml"/>
+  <arg name="pi_config"
+       default="$(find trajectory_follower)/config/longi_pi.yaml"/>
+
+  <node pkg="trajectory_follower"
+        type="purepursuit"
+        name="purepursuit"
+        output="screen"
+        required="true">
+    <rosparam command="load" file="$(arg common_config)"/>
+    <rosparam command="load" file="$(arg pp_config)"/>
+  </node>
+
+  <node pkg="trajectory_follower"
+        type="longi_pi"
+        name="longi_pi"
+        output="screen"
+        required="true">
+    <rosparam command="load" file="$(arg common_config)"/>
+    <rosparam command="load" file="$(arg pi_config)"/>
+  </node>
+</launch>

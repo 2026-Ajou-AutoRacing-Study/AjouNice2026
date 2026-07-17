@@ -1,0 +1,16 @@
+map:
+  lanelet_map_file: kcity_map/lanelet_map/lanelet2_map_v44.osm
+  projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+  route_lanelets_file: kcity_map/competition_route/v44/drive_course_v44_lanelets.csv
+
+reference:
+  global_path_file: configs/global_path/2026_molit_comp_global_path.txt
+
+anchors:
+  start_lanelet_id: 200889
+  end_lanelet_id: 200258
+
+trajectory:
+  frame_id: map
+  resample_interval_m: 0.1
+  default_velocity_mps: 3.0

@@ -1,0 +1,48 @@
+std_msgs/Header header
+
+string traj_sample
+string run_id
+uint32 sample_index
+float64 elapsed_time_s
+
+autoware_planning_msgs/Trajectory gt_trajectory
+autoware_planning_msgs/Trajectory ego_trajectory
+
+int32 ego_unique_id
+float64 ego_x_m
+float64 ego_y_m
+float64 ego_z_m
+float64 ego_yaw_rad
+float64 ego_heading_raw
+float64 ego_velocity_x_mps
+float64 ego_velocity_y_mps
+float64 ego_velocity_z_mps
+float64 ego_velocity_mps
+float64 ego_acceleration_x_mps2
+float64 ego_acceleration_y_mps2
+float64 ego_acceleration_z_mps2
+float64 ego_acceleration_mps2
+float64 ego_accel
+float64 ego_brake
+float64 ego_wheel_angle_raw
+float64 actual_steering_rad
+float64 ego_lateral_offset_m
+
+int32 cmd_longl_type
+float64 cmd_accel
+float64 cmd_brake
+float64 cmd_steering_rad
+float64 cmd_velocity_mps
+float64 cmd_acceleration_mps2
+
+uint32 matched_gt_index
+float64 matched_gt_station_m
+float64 target_velocity_mps
+float64 lateral_error_m
+float64 longitudinal_error_m
+float64 heading_error_rad
+float64 velocity_error_mps
+
+bool collision_detected
+bool reached_goal
+bool sample_valid
