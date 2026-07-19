@@ -64,6 +64,9 @@ class TrajectoryMatcher:
         return {
             "matched_gt_index": matched_index,
             "matched_gt_station_m": station,
+            "matched_gt_x_m": projected_x,
+            "matched_gt_y_m": projected_y,
+            "matched_gt_yaw_rad": gt_yaw,
             "target_velocity_mps": target_velocity,
             "lateral_error_m": -math.sin(gt_yaw) * error_x + math.cos(gt_yaw) * error_y,
             "longitudinal_error_m": math.cos(gt_yaw) * error_x + math.sin(gt_yaw) * error_y,
@@ -73,7 +76,7 @@ class TrajectoryMatcher:
 
 
 def metric_summary(samples):
-    valid = [sample for sample in samples if sample.get("sample_valid")]
+    valid = [sample for sample in samples if sample.get("control_pair_valid")]
 
     def values(name):
         return [abs(float(sample[name])) for sample in valid]

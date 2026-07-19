@@ -1,20 +1,4 @@
+<!-- Backward-compatible entry point. New usage should prefer record.launch. -->
 <launch>
-  <arg name="input_trajectory_csv"/>
-  <arg name="run_params"/>
-  <arg name="map_version"/>
-  <arg name="follower_config_file"
-       default="base_ws/src/control/trajectory_follower/config/trajectory_follower.yaml"/>
-
-  <node pkg="trajectory_validator"
-        type="trajectory_validator_node.py"
-        name="trajectory_validator"
-        output="screen"
-        required="true">
-    <rosparam command="load"
-              file="$(find trajectory_validator)/config/trajectory_validator.yaml"/>
-    <param name="input_trajectory_csv" value="$(arg input_trajectory_csv)"/>
-    <param name="run_params" value="$(arg run_params)"/>
-    <param name="map_version" value="$(arg map_version)"/>
-    <param name="follower_config_file" value="$(arg follower_config_file)"/>
-  </node>
+  <include file="$(find trajectory_validator)/launch/record.launch"/>
 </launch>

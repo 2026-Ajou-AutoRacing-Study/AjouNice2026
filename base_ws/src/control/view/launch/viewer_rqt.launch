@@ -1,0 +1,20 @@
+<launch>
+  <arg name="start_tracking_plot" default="true"/>
+  <arg name="start_control_plot" default="true"/>
+
+  <group if="$(arg start_tracking_plot)">
+    <node pkg="rqt_plot"
+          type="rqt_plot"
+          name="viewer_rqt_tracking"
+          args="--clear-config /trajectory_validator/debug/lateral_error_m /trajectory_validator/debug/heading_error_rad /trajectory_validator/debug/velocity_error_mps"
+          output="screen"/>
+  </group>
+
+  <group if="$(arg start_control_plot)">
+    <node pkg="rqt_plot"
+          type="rqt_plot"
+          name="viewer_rqt_control"
+          args="--clear-config /trajectory_validator/debug/actual_steering_rad /trajectory_validator/debug/cmd_steering_rad /trajectory_validator/debug/ego_velocity_mps /trajectory_validator/debug/target_velocity_mps"
+          output="screen"/>
+  </group>
+</launch>

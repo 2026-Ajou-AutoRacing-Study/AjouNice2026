@@ -1,0 +1,11 @@
+<launch>
+  <node pkg="trajectory_validator"
+        type="trajectory_validator_node.py"
+        name="trajectory_validator_recorder"
+        output="screen"
+        required="true">
+    <rosparam command="load"
+              file="$(find trajectory_validator)/config/trajectory_validator.yaml"/>
+  </node>
+
+</launch>

@@ -1,4 +1,4 @@
-min_lookahead_m: 4.0
-lookahead_time_s: 1.5
-max_lookahead_m: 20.0
+min_lookahead_m: 5.0
+lookahead_time_s: 1.0
+max_lookahead_m: 10.0
 steering_gain: 1.0

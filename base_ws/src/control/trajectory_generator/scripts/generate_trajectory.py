@@ -259,17 +259,33 @@ def orient_centerline(points, row, previous_end, global_path):
     return forward if score(forward) <= score(reverse) else reverse
 
 
-def row_speed_mps(row, lanelet_speed_kph, default_velocity_mps):
+def row_speed_limit_kph(row, lanelet_speed_kph, default_speed_limit_kph):
     raw = row.get("speed_limit_kph", "").strip()
     speed_kph = float(raw) if raw else lanelet_speed_kph
     if speed_kph is None:
-        return default_velocity_mps
+        speed_kph = default_speed_limit_kph
     if not math.isfinite(speed_kph) or speed_kph <= 0.0:
         raise ValueError("invalid speed limit for lanelet {}".format(row["lanelet_id"]))
-    return speed_kph / 3.6
+    return speed_kph
 
 
-def stitch_chain(chain, centerlines, speed_limits, global_path, default_velocity_mps):
+def target_speed_mps(
+    row, lanelet_speed_kph, desired_velocity_kph, default_speed_limit_kph
+):
+    speed_limit_kph = row_speed_limit_kph(
+        row, lanelet_speed_kph, default_speed_limit_kph
+    )
+    return min(desired_velocity_kph, speed_limit_kph) / 3.6
+
+
+def stitch_chain(
+    chain,
+    centerlines,
+    speed_limits,
+    global_path,
+    desired_velocity_kph,
+    default_speed_limit_kph,
+):
     vertices = []
     previous_end = None
     for row in chain:
@@ -277,7 +293,12 @@ def stitch_chain(chain, centerlines, speed_limits, global_path, default_velocity
         if lanelet_id not in centerlines:
             raise ValueError("lanelet {} has no usable centerline".format(lanelet_id))
         points = orient_centerline(centerlines[lanelet_id], row, previous_end, global_path)
-        speed = row_speed_mps(row, speed_limits.get(lanelet_id), default_velocity_mps)
+        speed = target_speed_mps(
+            row,
+            speed_limits.get(lanelet_id),
+            desired_velocity_kph,
+            default_speed_limit_kph,
+        )
         if previous_end is not None:
             gap = math.sqrt(squared_distance_xy(previous_end, points[0]))
             if gap > 5.0:
@@ -359,7 +380,9 @@ def write_csv(output_path, points, overwrite):
     )
     try:
         with os.fdopen(descriptor, "w", newline="") as stream:
-            writer = csv.DictWriter(stream, fieldnames=CSV_FIELDS)
+            writer = csv.DictWriter(
+                stream, fieldnames=CSV_FIELDS, lineterminator="\n"
+            )
             writer.writeheader()
             for point in points:
                 writer.writerow(
@@ -415,13 +438,18 @@ def main():
     start_id = int(require(anchors, "start_lanelet_id", "anchors"))
     end_id = int(require(anchors, "end_lanelet_id", "anchors"))
     interval = float(require(trajectory_config, "resample_interval_m", "trajectory"))
-    default_velocity = float(
-        require(trajectory_config, "default_velocity_mps", "trajectory")
+    desired_velocity_kph = float(
+        require(trajectory_config, "desired_velocity_kph", "trajectory")
+    )
+    default_speed_limit_kph = float(
+        require(trajectory_config, "default_speed_limit_kph", "trajectory")
     )
     if not math.isclose(interval, 0.1, rel_tol=0.0, abs_tol=1e-9):
         raise ValueError("resample_interval_m must be 0.1 for the MVP contract")
-    if not math.isfinite(default_velocity) or default_velocity <= 0.0:
-        raise ValueError("default_velocity_mps must be finite and positive")
+    if not math.isfinite(desired_velocity_kph) or desired_velocity_kph <= 0.0:
+        raise ValueError("desired_velocity_kph must be finite and positive")
+    if not math.isfinite(default_speed_limit_kph) or default_speed_limit_kph <= 0.0:
+        raise ValueError("default_speed_limit_kph must be finite and positive")
 
     route_rows = load_route(route_path)
     chain = find_unique_chain(route_rows, start_id, end_id)
@@ -429,7 +457,12 @@ def main():
     centerlines, speed_limits = load_lanelet_centerlines(osm_path, projector)
     reference_points = load_global_path(global_path)
     vertices = stitch_chain(
-        chain, centerlines, speed_limits, reference_points, default_velocity
+        chain,
+        centerlines,
+        speed_limits,
+        reference_points,
+        desired_velocity_kph,
+        default_speed_limit_kph,
     )
     points, length_m = resample(vertices, interval)
 
@@ -443,6 +476,15 @@ def main():
     print(
         "lanelets={} route_orders={}..{} length_m={:.3f} points={} interval_m={:.3f}".format(
             len(chain), chain[0]["order"], chain[-1]["order"], length_m, len(points), interval
+        )
+    )
+    print(
+        "desired_velocity_kph={:.3f} default_speed_limit_kph={:.3f} "
+        "final_velocity_range_kph={:.3f}..{:.3f}".format(
+            desired_velocity_kph,
+            default_speed_limit_kph,
+            min(point["velocity_mps"] for point in points) * 3.6,
+            max(point["velocity_mps"] for point in points) * 3.6,
         )
     )
 

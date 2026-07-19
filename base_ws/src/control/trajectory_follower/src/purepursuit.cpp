@@ -62,6 +62,7 @@ public:
     private_nh_.param<std::string>("topics/kinematic_state", state_topic_, "/localization/kinematic_state");
     private_nh_.param<std::string>("topics/steering_cmd", steering_topic_, "/control/command/steering");
     private_nh_.param("control_rate_hz", control_rate_hz_, 30.0);
+    private_nh_.param("kinematic_velocity_scale_to_mps", kinematic_velocity_scale_to_mps_, 1.0);
     private_nh_.param("vehicle/wheelbase_m", wheelbase_m_, 3.0);
     private_nh_.param("vehicle/max_steer_rad", max_steer_rad_, 0.698);
     private_nh_.param("safety/trajectory_timeout_s", trajectory_timeout_s_, 0.5);
@@ -85,7 +86,9 @@ public:
 private:
   void validateParameters() const
   {
-    const bool valid = std::isfinite(control_rate_hz_) && control_rate_hz_ > 0.0 && std::isfinite(wheelbase_m_) &&
+    const bool valid = std::isfinite(control_rate_hz_) && control_rate_hz_ > 0.0 &&
+                       std::isfinite(kinematic_velocity_scale_to_mps_) &&
+                       kinematic_velocity_scale_to_mps_ > 0.0 && std::isfinite(wheelbase_m_) &&
                        wheelbase_m_ > 0.0 && std::isfinite(max_steer_rad_) && max_steer_rad_ > 0.0 &&
                        std::isfinite(min_lookahead_m_) && min_lookahead_m_ > 0.0 &&
                        std::isfinite(max_lookahead_m_) && max_lookahead_m_ >= min_lookahead_m_ &&
@@ -192,7 +195,9 @@ private:
       return;
     }
     const auto& linear = state_.twist.twist.linear;
-    const double speed = std::sqrt(linear.x * linear.x + linear.y * linear.y + linear.z * linear.z);
+    const double speed =
+        std::sqrt(linear.x * linear.x + linear.y * linear.y + linear.z * linear.z) *
+        kinematic_velocity_scale_to_mps_;
     const double lookahead =
         std::max(min_lookahead_m_, std::min(max_lookahead_m_, min_lookahead_m_ + speed * lookahead_time_s_));
     const std::size_t nearest = nearestIndex();
@@ -225,6 +230,7 @@ private:
   std::string state_topic_;
   std::string steering_topic_;
   double control_rate_hz_{ 30.0 };
+  double kinematic_velocity_scale_to_mps_{ 1.0 };
   double wheelbase_m_{ 3.0 };
   double max_steer_rad_{ 0.698 };
   double trajectory_timeout_s_{ 0.5 };

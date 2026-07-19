@@ -1,0 +1,36 @@
+<launch>
+  <arg name="mode" default="compare"/>
+  <arg name="config_file"
+       default="$(find trajectory_validator)/config/history_run.yaml"/>
+  <arg name="compare_config_file"
+       default="$(find trajectory_validator)/config/compare_run.yaml"/>
+
+  <node if="$(eval arg('mode') == 'replay')"
+        pkg="trajectory_validator"
+        type="publish_history.py"
+        name="trajectory_history_replay"
+        output="screen"
+        required="true">
+    <rosparam command="load" file="$(arg config_file)"/>
+  </node>
+
+  <node if="$(eval arg('mode') == 'final')"
+        pkg="trajectory_validator"
+        type="publish_final_path.py"
+        name="trajectory_history_final"
+        output="screen"
+        required="true">
+    <rosparam command="load" file="$(arg config_file)"/>
+    <param name="topic_prefix" value="/trajectory_validator"/>
+  </node>
+
+  <node if="$(eval arg('mode') == 'compare')"
+        pkg="trajectory_validator"
+        type="publish_final_path.py"
+        name="trajectory_history_compare"
+        output="screen"
+        required="true">
+    <rosparam command="load" file="$(arg compare_config_file)"/>
+    <param name="topic_prefix" value="/trajectory_compare"/>
+  </node>
+</launch>
