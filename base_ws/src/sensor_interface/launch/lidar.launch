@@ -1,8 +1,8 @@
 <launch>
-  <!-- MORAI VLP-16 UDP. Competition default: 600 RPM = 10 Hz. -->
+  <!-- MORAI VLP-16 UDP. Competition default: 900 RPM = 15 Hz. -->
   <arg name="port" default="2368"/>
   <arg name="frame_id" default="lidar1"/>
-  <arg name="rpm" default="600.0"/>
+  <arg name="rpm" default="900.0"/>
   <arg name="timestamp_first_packet" default="true"/>
   <arg name="calibration" default="$(find velodyne_pointcloud)/params/VLP16db.yaml"/>
 
