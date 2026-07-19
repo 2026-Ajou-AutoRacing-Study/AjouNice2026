@@ -6,7 +6,7 @@
   <arg name="start_rviz" default="true"/>
 
   <arg name="sensor_config"
-       default="$(find ioniq5)/../../../configs/sensors/Sensor_3.json"/>
+       default="$(find ioniq5)/../../../configs/sensors/Sensor_4.json"/>
   <arg name="sensor_parent_frame" default="base_link"/>
   <arg name="publish_lidar_tf" default="true"/>
   <arg name="publish_imu_tf" default="true"/>

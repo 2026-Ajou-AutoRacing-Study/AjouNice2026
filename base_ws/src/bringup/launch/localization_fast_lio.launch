@@ -11,7 +11,7 @@
   -->
   <arg name="use_sim_time" default="false"/>
   <arg name="fast_lio_config"
-       default="$(env HOME)/AjouNice2026/configs/localization/fast_lio_morai_velodyne.yaml"/>
+       default="$(env HOME)/AjouNice2026/configs/localization/fast_lio_morai_sensor4_vlp16.yaml"/>
   <arg name="localization_manager_config"
        default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
 

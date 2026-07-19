@@ -1,6 +1,6 @@
 <launch>
   <!-- Publish base_link -> MORAI sensor static TFs from the MORAI sensor config. -->
-  <arg name="sensor_config" default="$(find ioniq5)/../../../configs/sensors/Sensor_3.json"/>
+  <arg name="sensor_config" default="$(find ioniq5)/../../../configs/sensors/Sensor_4.json"/>
   <arg name="parent_frame" default="base_link"/>
   <arg name="publish_lidar" default="true"/>
   <arg name="publish_imu" default="true"/>

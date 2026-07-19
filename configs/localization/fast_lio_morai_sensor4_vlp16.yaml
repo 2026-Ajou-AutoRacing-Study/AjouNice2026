@@ -1,0 +1,44 @@
+common:
+  lid_topic: /sensor/lidar1
+  imu_topic: /sensor/imu
+  time_sync_en: false
+  time_offset_lidar_to_imu: 0.0
+
+preprocess:
+  # The competition pipeline groups the VLP-16 stream at 600 RPM = 10 Hz.
+  lidar_type: 2
+  scan_line: 16
+  scan_rate: 10
+
+  # velodyne_pointcloud publishes the per-point `time` field in seconds.
+  timestamp_unit: 0
+  blind: 2
+
+mapping:
+  acc_cov: 0.1
+  gyr_cov: 0.1
+  b_acc_cov: 0.0001
+  b_gyr_cov: 0.0001
+
+  fov_degree: 180
+  det_range: 100.0
+  extrinsic_est_en: false
+
+  # Sensor_4 poses in base_link:
+  #   LiDAR [0.855, 0.000, 1.388]
+  #   IMU   [1.528, 0.000, 0.200]
+  # LiDAR pose in the IMU frame = LiDAR - IMU.
+  extrinsic_T: [-0.673, 0.0, 1.188]
+  extrinsic_R: [1, 0, 0,
+                0, 1, 0,
+                0, 0, 1]
+
+publish:
+  path_en: true
+  scan_publish_en: true
+  dense_publish_en: true
+  scan_bodyframe_pub_en: true
+
+pcd_save:
+  pcd_save_en: false
+  interval: -1

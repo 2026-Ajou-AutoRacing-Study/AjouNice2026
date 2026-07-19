@@ -1,7 +1,9 @@
 <launch>
-  <!-- MORAI VLP-16 UDP (Sensor_3.json destination port 2368). -->
+  <!-- MORAI VLP-16 UDP. Competition default: 600 RPM = 10 Hz. -->
   <arg name="port" default="2368"/>
   <arg name="frame_id" default="lidar1"/>
+  <arg name="rpm" default="600.0"/>
+  <arg name="timestamp_first_packet" default="true"/>
   <arg name="calibration" default="$(find velodyne_pointcloud)/params/VLP16db.yaml"/>
 
   <group ns="lidar">
@@ -18,11 +20,11 @@
       <param name="read_fast" value="false"/>
       <param name="read_once" value="false"/>
       <param name="repeat_delay" value="0.0"/>
-      <param name="rpm" value="600.0"/>
+      <param name="rpm" value="$(arg rpm)"/>
       <param name="gps_time" value="false"/>
       <param name="pcap_time" value="false"/>
       <param name="cut_angle" value="-0.01"/>
-      <param name="timestamp_first_packet" value="false"/>
+      <param name="timestamp_first_packet" value="$(arg timestamp_first_packet)"/>
       <remap from="velodyne_packets" to="/sensor/lidar1/packets"/>
     </node>
 
