@@ -21,6 +21,7 @@
 ## 2. Commit
 ### 기본 사용법:
 - `type: 간단한 설명`
+- (260720 변경) `type(part): 간단한 설명`
 
 ### type 종류:
 - `feat:`: 새로운 기능 추가
@@ -31,10 +32,20 @@
 - `chore:`: 진짜 자잘한 것들, 그다지 안 중요한 커밋들(직역: 잡일)
 - 헷갈리면 대부분 `feat:`이나 `chore:` 사용하면 ok
 
+## part 종류: 
+- `perception`
+- `localization` 또는 `loc` 중 고민 중
+- `planning`
+- `control`
+- `sensing`
+- `map`
+- 등등... 애매하거나 여기엔 없지만 본인이 생각하는 part가 있으면 그걸 사용해도 됨.
+
 ### 예시:
-- `feat: add HRNet model support from mmsegmentation`
-- `fix: resolve inference resize issue`
-- `refactor: group wandb metrics with train/val prefixes`
+- `feat(perception): add MORAI four-camera BEVFusion bridge`
+- `docs(localization): ~~~`
+- `chore(planning): ~~~`
+- `build(control): ~~~`
 
 ### issue-commit 태깅:
 - 해결한 issue가 있을 경우, commit에 `#(이슈 넘버)`로 태깅해도 좋음.
