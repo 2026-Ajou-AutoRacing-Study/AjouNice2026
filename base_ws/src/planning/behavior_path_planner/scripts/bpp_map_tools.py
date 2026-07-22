@@ -595,13 +595,21 @@ def stitch_route_centerlines(centerline_map, lane_ids, start_point=None):
             continue
         points = list(points)
 
-        if not stitched:
-            if start_point is not None and distance_2d(start_point, points[-1]) < distance_2d(
-                start_point, points[0]
+        # Lanelet left/right bounds are directed along the legal travel direction.
+        # Keep that direction even when the ego starts near the downstream end of a
+        # long lanelet. Reversing from endpoint proximity makes the path travel
+        # backwards and then bridge directly to the successor lanelet.
+        is_directed_lanelet = centerline_map.get_boundary_node_ids(lane_id) is not None
+        if not is_directed_lanelet:
+            if not stitched:
+                if start_point is not None and distance_2d(
+                    start_point, points[-1]
+                ) < distance_2d(start_point, points[0]):
+                    points.reverse()
+            elif distance_2d(stitched[-1], points[-1]) < distance_2d(
+                stitched[-1], points[0]
             ):
                 points.reverse()
-        elif distance_2d(stitched[-1], points[-1]) < distance_2d(stitched[-1], points[0]):
-            points.reverse()
 
         if stitched and distance_2d(stitched[-1], points[0]) < 1.0e-3:
             stitched.extend(points[1:])
@@ -626,14 +634,16 @@ def stitch_route_bounds(centerline_map, lane_ids, start_point=None):
         left = list(boundaries[0])
         right = list(boundaries[1])
         reverse = False
-        if previous_center is None:
-            reverse = start_point is not None and distance_2d(
-                start_point, center[-1]
-            ) < distance_2d(start_point, center[0])
-        else:
-            reverse = distance_2d(previous_center, center[-1]) < distance_2d(
-                previous_center, center[0]
-            )
+        is_directed_lanelet = centerline_map.get_boundary_node_ids(lane_id) is not None
+        if not is_directed_lanelet:
+            if previous_center is None:
+                reverse = start_point is not None and distance_2d(
+                    start_point, center[-1]
+                ) < distance_2d(start_point, center[0])
+            else:
+                reverse = distance_2d(previous_center, center[-1]) < distance_2d(
+                    previous_center, center[0]
+                )
 
         if reverse:
             center.reverse()

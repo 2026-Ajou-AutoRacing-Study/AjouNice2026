@@ -72,14 +72,28 @@ def path_length(path):
 
 
 class PathProjection:
-    def __init__(self, index, longitudinal_distance, signed_lateral_distance, distance):
+    def __init__(
+        self,
+        index,
+        longitudinal_distance,
+        signed_lateral_distance,
+        distance,
+        segment_ratio=0.0,
+        segment_yaw=0.0,
+    ):
         self.index = index
         self.longitudinal_distance = longitudinal_distance
         self.signed_lateral_distance = signed_lateral_distance
         self.distance = distance
+        self.segment_ratio = segment_ratio
+        self.segment_yaw = segment_yaw
 
 
-def project_pose_to_path(path, pose):
+def normalize_angle(angle):
+    return math.atan2(math.sin(angle), math.cos(angle))
+
+
+def project_pose_to_path(path, pose, yaw_threshold=None):
     if not path.points:
         return None
 
@@ -90,10 +104,11 @@ def project_pose_to_path(path, pose):
         dx = position.x - path_pose.position.x
         dy = position.y - path_pose.position.y
         signed_lateral = -math.sin(yaw) * dx + math.cos(yaw) * dy
-        return PathProjection(0, 0.0, signed_lateral, math.hypot(dx, dy))
+        return PathProjection(0, 0.0, signed_lateral, math.hypot(dx, dy), 0.0, yaw)
 
     cumulative = path_cumulative_lengths(path)
     best = None
+    pose_yaw = yaw_from_quaternion(pose.orientation)
 
     for idx in range(len(path.points) - 1):
         a = point_position(path.points[idx])
@@ -102,6 +117,11 @@ def project_pose_to_path(path, pose):
         vy = b.y - a.y
         segment_length = math.hypot(vx, vy)
         if segment_length < 1.0e-6:
+            continue
+        segment_yaw = math.atan2(vy, vx)
+        if yaw_threshold is not None and abs(
+            normalize_angle(segment_yaw - pose_yaw)
+        ) > max(float(yaw_threshold), 0.0):
             continue
 
         wx = position.x - a.x
@@ -116,9 +136,126 @@ def project_pose_to_path(path, pose):
         longitudinal = cumulative[idx] + segment_length * ratio
 
         if best is None or distance < best.distance:
-            best = PathProjection(idx, longitudinal, signed_lateral, distance)
+            best = PathProjection(
+                idx,
+                longitudinal,
+                signed_lateral,
+                distance,
+                ratio,
+                segment_yaw,
+            )
 
     return best
+
+
+def _interpolate_trajectory_point(first, second, ratio, segment_yaw):
+    ratio = clamp(float(ratio), 0.0, 1.0)
+    output = deepcopy(first)
+    first_data = point_data(first)
+    second_data = point_data(second)
+    output_data = point_data(output)
+
+    first_position = first_data.pose.position
+    second_position = second_data.pose.position
+    output_data.pose.position.x = first_position.x + ratio * (
+        second_position.x - first_position.x
+    )
+    output_data.pose.position.y = first_position.y + ratio * (
+        second_position.y - first_position.y
+    )
+    output_data.pose.position.z = first_position.z + ratio * (
+        second_position.z - first_position.z
+    )
+    output_data.pose.orientation = quaternion_from_yaw(segment_yaw)
+
+    for field in (
+        "longitudinal_velocity_mps",
+        "lateral_velocity_mps",
+        "acceleration_mps2",
+        "heading_rate_rps",
+        "front_wheel_angle_rad",
+        "rear_wheel_angle_rad",
+    ):
+        if not hasattr(output_data, field) or not hasattr(second_data, field):
+            continue
+        first_value = float(getattr(first_data, field))
+        second_value = float(getattr(second_data, field))
+        setattr(output_data, field, first_value + ratio * (second_value - first_value))
+    return output
+
+
+def trajectory_point_at_distance(path, distances, station):
+    if not path.points or not distances:
+        return None
+    if station <= 0.0:
+        return deepcopy(path.points[0])
+    if station >= distances[-1]:
+        return deepcopy(path.points[-1])
+
+    for index in range(len(path.points) - 1):
+        start_s = distances[index]
+        end_s = distances[index + 1]
+        if station > end_s:
+            continue
+        segment_length = end_s - start_s
+        if segment_length < 1.0e-6:
+            return deepcopy(path.points[index])
+        first_position = point_position(path.points[index])
+        second_position = point_position(path.points[index + 1])
+        segment_yaw = math.atan2(
+            second_position.y - first_position.y,
+            second_position.x - first_position.x,
+        )
+        return _interpolate_trajectory_point(
+            path.points[index],
+            path.points[index + 1],
+            (station - start_s) / segment_length,
+            segment_yaw,
+        )
+    return deepcopy(path.points[-1])
+
+
+def crop_trajectory_around_ego(
+    path,
+    ego_pose,
+    forward_length=200.0,
+    backward_length=0.0,
+    yaw_threshold=1.0472,
+):
+    """Extract an arc-length window around ego using Autoware-style yaw matching."""
+    if not path.points or ego_pose is None:
+        return deepcopy(path)
+
+    projection = project_pose_to_path(path, ego_pose, yaw_threshold=yaw_threshold)
+    if projection is None:
+        projection = project_pose_to_path(path, ego_pose)
+    if projection is None:
+        return deepcopy(path)
+
+    distances = path_cumulative_lengths(path)
+    if not distances:
+        return deepcopy(path)
+    start_s = max(0.0, projection.longitudinal_distance - max(backward_length, 0.0))
+    end_s = min(
+        distances[-1],
+        projection.longitudinal_distance + max(forward_length, 0.0),
+    )
+
+    output = deepcopy(path)
+    output.points = []
+    start_point = trajectory_point_at_distance(path, distances, start_s)
+    if start_point is not None:
+        output.points.append(start_point)
+    for point, station in zip(path.points, distances):
+        if station > start_s + 1.0e-6 and station < end_s - 1.0e-6:
+            output.points.append(deepcopy(point))
+    end_point = trajectory_point_at_distance(path, distances, end_s)
+    if end_point is not None:
+        if not output.points or distance_2d(
+            point_position(output.points[-1]), point_position(end_point)
+        ) > 1.0e-6:
+            output.points.append(end_point)
+    return output
 
 
 def set_velocity_window(path, start_distance, end_distance, velocity_mps, mode="min"):
