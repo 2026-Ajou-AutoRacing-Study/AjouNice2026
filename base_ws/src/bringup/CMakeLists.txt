@@ -179,6 +179,7 @@ catkin_install_python(
   validation/scripts/mission_bpp_bvp_pipeline_validator.py
   validation/scripts/mission_bpp_bvp_live_visualizer.py
   validation/scripts/kcity_competition_route_publisher.py
+  validation/scripts/kcity_competition_live_route_publisher.py
   validation/scripts/kcity_dynamic_ego_validator.py
   validation/scripts/planning_pipeline_reference_input.py
   validation/scripts/planning_trajectory_visualizer.py
