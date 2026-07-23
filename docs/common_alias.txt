@@ -29,7 +29,8 @@ alias udp="roslaunch sensor_interface morai_udp_interface.launch"
 alias sensing="roslaunch bringup sensing.launch"
 
 # control----------------------------------------------
-alias traj_gen="roslaunch trajectory_generator trajectory_publisher.launch"
+alias traj_gen='rosrun trajectory_generator generate_trajectory.py --config "$(rospack find trajectory_generator)/config/trajectory_generator.yaml" --overwrite --select'
+alias traj_pub="roslaunch trajectory_generator trajectory_publisher.launch"
 alias traj_fol="roslaunch trajectory_follower pp_pi.launch"
 alias traj_val="roslaunch trajectory_validator record.launch"
 alias traj_val_replay="roslaunch trajectory_validator history.launch mode:=replay"

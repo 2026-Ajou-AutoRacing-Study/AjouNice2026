@@ -19,6 +19,7 @@ from visualization_msgs.msg import MarkerArray
 from trajectory_validator.csv_io import RunCsvWriter
 from trajectory_validator.metrics import (
     TrajectoryMatcher,
+    compact_evaluation_summary,
     metric_summary,
     yaw_from_quaternion,
 )
@@ -31,6 +32,9 @@ from trajectory_validator.visualization import (
 
 
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
+TRAJECTORY_SAMPLE_NAME = re.compile(
+    r"^[0-9]+_[0-9]+_(?:[0-9]+|[0-9]+p[0-9]+)kph$"
+)
 
 
 def normalized_frame(frame):
@@ -201,8 +205,12 @@ class TrajectoryRecorder:
             (self.generator_params, self.purepursuit_params, self.longi_pi_params)
         )
         self.traj_sample = self.input_trajectory_path.stem
-        if not SAFE_NAME.fullmatch(self.traj_sample):
-            raise ValueError("trajectory sample basename contains unsupported characters")
+        if not TRAJECTORY_SAMPLE_NAME.fullmatch(self.traj_sample):
+            raise ValueError(
+                "trajectory sample basename must be "
+                "<start_id>_<end_id>_<velocity>kph "
+                "(use 'p' for a decimal point)"
+            )
 
         self.trajectory_topic = rospy.get_param("~topics/trajectory", "/control/trajectory")
         self.kinematic_state_topic = rospy.get_param(
@@ -264,6 +272,7 @@ class TrajectoryRecorder:
         self.control_csv_path = self.run_directory / "control_cycles.csv"
         self.response_csv_path = self.run_directory / "vehicle_responses.csv"
         self.json_path = self.run_directory / "metadata.json"
+        self.summary_path = self.run_directory / "summary.json"
         self.writer = RunCsvWriter(
             self.gt_csv_path, self.control_csv_path, self.response_csv_path
         )
@@ -836,6 +845,10 @@ class TrajectoryRecorder:
         with self.lock:
             self.writer.close()
             atomic_json(self.json_path, self._metadata("complete"))
+            summary = compact_evaluation_summary(
+                self.samples, self.gt_trajectory
+            )
+            atomic_json(self.summary_path, summary)
             rospy.loginfo(
                 "trajectory_validator saved %d GT + %d control cycles + %d responses: %s",
                 self.writer.gt_count,

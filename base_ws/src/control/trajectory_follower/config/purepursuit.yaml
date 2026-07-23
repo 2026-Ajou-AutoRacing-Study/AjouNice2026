@@ -1,4 +1,5 @@
-min_lookahead_m: 5.0
-lookahead_time_s: 1.0
-max_lookahead_m: 10.0
+lookahead_distance_m: 10.0
 steering_gain: 1.0
+# Smooth steering while retaining a hard per-second change limit.
+steering_filter_time_constant_s: 0.15
+max_steering_rate_rad_s: 0.8

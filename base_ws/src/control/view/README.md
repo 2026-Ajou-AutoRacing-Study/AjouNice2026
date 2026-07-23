@@ -86,7 +86,7 @@ RViz에 다음 항목이 보이면 Viewer의 기본 연결은 정상이다.
 ```text
 회색/흰색 차선 지도
         +
-주황색 차량 화살표
+파란색 차량 메시
 ```
 
 차량 화살표는 `/localization/kinematic_state`의 현재 위치다. 차량이 보이지 않으면 경로나
@@ -110,10 +110,10 @@ roslaunch trajectory_generator trajectory_publisher.launch
 Alias를 사용하면 다음과 같다.
 
 ```bash
-traj_gen
+traj_pub
 ```
 
-RViz에 흰색 Generator Path가 나타난다. 이것은 차량이 실제로 지나간 경로가 아니라
+RViz에 초록색 Generator Path가 나타난다. 이것은 차량이 실제로 지나간 경로가 아니라
 **앞으로 추종해야 할 기준 경로**다.
 
 ### 5단계: 현재 주행을 관찰합니다
@@ -135,15 +135,15 @@ roslaunch trajectory_follower pp_pi.launch
 
 | RViz 표시 | 기본 색상 | 의미 |
 | --- | --- | --- |
-| Generator Path | 흰색 | Trajectory Generator가 현재 발행하는 기준 경로 |
-| Current Vehicle Marker | 주황색 | Localization이 알려주는 현재 차량 위치 |
+| Generator Path | 초록색 | Trajectory Generator가 현재 발행하는 기준 경로 |
+| Current Vehicle Marker | 파란색 | Localization이 알려주는 현재 차량 위치 |
 | Validator GT Path | 초록색 | 해당 기록에서 차량이 추종해야 했던 경로 |
-| Driven Path | 하늘색 | 현재 또는 Replay 차량이 실제로 이동한 경로 |
+| Driven Path | 파란색 | 현재 또는 Replay 차량이 실제로 이동한 경로 |
 | Validator Ego Pose | 노란색 | 현재 또는 Replay 순간의 차량 자세 |
-| Compare GT Path | 보라색 | 비교 대상으로 선택한 과거 기준 경로 |
-| Compare Driven Path | 주황색 | 비교 대상으로 선택한 과거 실주행 경로 |
+| Compare GT Path | 빨간색 | 비교 대상으로 선택한 과거 기준 경로 |
+| Compare Driven Path | 빨간색 | 비교 대상으로 선택한 과거 실주행 경로 |
 
-흰색·초록색 경로는 “가야 할 경로”, 하늘색·주황색 경로는 “실제로 간 경로”라고 이해하면
+초록색은 “가야 할 경로”, 파란색은 “현재 차량 거동”, 빨간색은 “비교값”으로 이해하면
 된다.
 
 ## 상황별로 어떤 명령을 사용하나요?
@@ -168,7 +168,7 @@ Localization이 실행 중이어야 차량이 보인다. Validator와 Follower�
 viewer
 ```
 
-이후 `traj_gen`, `traj_val`, `traj_fol` 순서로 실행한다. RViz에서는 공간 경로를 보고,
+이후 `traj_pub`, `traj_val`, `traj_fol` 순서로 실행한다. RViz에서는 공간 경로를 보고,
 rqt_plot에서는 현재 수치를 본다.
 
 ### 방금 저장한 주행 경로 전체를 보고 싶습니다
@@ -176,7 +176,7 @@ rqt_plot에서는 현재 수치를 본다.
 먼저 `trajectory_validator/config/history_run.yaml`에서 기록을 선택한다.
 
 ```yaml
-traj_sample: "200889_200258"
+traj_sample: "200889_200258_20kph"
 run_id: "0719_172905_pp_pi"
 ```
 
@@ -247,7 +247,7 @@ Viewer는 데이터를 직접 만들지 않기 때문에 다음 상황에서는 
 | --- | --- |
 | 지도 | Lanelet map publisher 또는 `viewer start_map:=true` |
 | 현재 차량 | `localization_morai_gt`와 `/localization/kinematic_state` |
-| Generator Path | `traj_gen` |
+| Generator Path | `traj_pub` |
 | 현재 실제 주행 궤적 | `traj_val`이 실제 기록 중이어야 함 |
 | rqt_plot 곡선 | Validator debug topic이 발행 중이어야 함 |
 | Replay/Final 경로 | `history_run.yaml` 선택 후 해당 명령 실행 |
@@ -263,7 +263,7 @@ MORAI가 실행 중인가?
         ↓
 /localization/kinematic_state가 들어오는가?
         ↓
-주황색 차량 Marker가 발행되는가?
+파란색 차량 Marker가 발행되는가?
         ↓
 /control/trajectory가 들어오는가?
         ↓
@@ -403,11 +403,11 @@ roslaunch viewer viewer.launch map_file:=/absolute/path/map.osm
 /localization/kinematic_state
    └─> current_vehicle_marker.py
          └─> /viewer/current_vehicle_marker
-               └─> RViz 주황색 차량 화살표
+               └─> RViz IONIQ 5 차량 메시
 ```
 
-Validator 실행 여부와 관계없이 localization 값만으로 차량을 표시한다. 기본 Marker 크기는
-길이 4.5 m, 폭 1.8 m, 높이 1.5 m다.
+Validator 실행 여부와 관계없이 localization 값만으로 차량을 표시한다. 기본은
+`ioniq5` 패키지의 실차 크기 메시를 사용하며, `base_link` rear-axle 원점 보정을 적용한다.
 
 차량이 보이지 않으면 다음 순서로 확인한다.
 
@@ -426,16 +426,15 @@ rosrun tf tf_echo map base_link
 | Generator Markers | `/control/debug/generator/markers` | 시작·종료점과 경로 보조 정보 |
 
 이 화면으로 YAML anchor를 바꿔 생성한 경로가 차선 위에 정상적으로 놓였는지 확인한다.
-`traj_gen`은 기존 CSV를 publish할 뿐이므로 YAML만 수정한 뒤에는 trajectory 생성 명령을 먼저
-실행해야 한다.
+`traj_gen`으로 YAML에서 trajectory CSV를 생성·선택한 뒤 `traj_pub`으로 발행한다.
 
 ### 4.4 현재 Record·Replay·Final 경로
 
 ```mermaid
 flowchart LR
     HV["Record / Replay / Final"] --> GT["GT Path: 초록"]
-    HV --> EGO["Driven Path: 하늘색"]
-    HV --> POSE["Ego Pose: 노랑"]
+    HV --> EGO["Driven Path: 파랑"]
+    HV --> POSE["Ego Pose: 파랑"]
     HV --> ERR["Tracking Error Marker"]
 ```
 
@@ -462,9 +461,9 @@ flowchart LR
 
 | RViz Display | Topic | 색상·의미 |
 | --- | --- | --- |
-| Compare GT Path | `/trajectory_compare/gt_path` | 보라색 과거 기준 경로 |
-| Compare Driven Path | `/trajectory_compare/ego_path` | 주황색 과거 실주행 경로 |
-| Compare Final Pose | `/trajectory_compare/ego_pose` | 보라색 과거 최종 pose |
+| Compare GT Path | `/trajectory_compare/gt_path` | 빨간색 과거 기준 경로 |
+| Compare Driven Path | `/trajectory_compare/ego_path` | 빨간색 과거 실주행 경로 |
+| Compare Final Pose | `/trajectory_compare/ego_pose` | 빨간색 과거 최종 pose |
 
 Compare는 `/trajectory_validator/*`와 다른 namespace를 사용하므로 현재 주행 경로를 덮지 않고
 동시에 겹쳐 볼 수 있다. 비교 기록은
@@ -546,6 +545,8 @@ Validator Record 또는 Replay가 debug topic을 발행하기 전에는 빈 그�
 ## 6. PlotJuggler 기능
 
 PlotJuggler는 “이미 끝난 주행 전체에서 기준값과 실제값이 어떻게 달랐는가”를 분석한다.
+곡선 색은 RViz와 같이 기준·명령·GT는 초록색, 차량의 실제 거동은 파란색,
+오차·비교값은 빨간색 계열로 표시한다.
 실시간 ROS topic이 아니라 schema-v3 History의 `control_cycles.csv`와
 `vehicle_responses.csv`를 읽는다.
 

@@ -83,7 +83,7 @@ Lanelet2 OSM과 drive-course CSV는 같은 map version이어야 한다.
 파일명과 위치:
 
 ```text
-traj_sample/<start_lanelet_id>_<end_lanelet_id>.csv
+traj_sample/<start_lanelet_id>_<end_lanelet_id>_<desired_velocity>kph.csv
 ```
 
 필수 column:

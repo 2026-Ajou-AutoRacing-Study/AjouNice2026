@@ -61,12 +61,13 @@ history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/gt.csv
 history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/control_cycles.csv
 history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/vehicle_responses.csv
 history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/metadata.json
+history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/summary.json
 ```
 
 저장 결과를 확인한다.
 
 ```bash
-find base_ws/src/control/trajectory_validator/history/200889_200258 \
+find base_ws/src/control/trajectory_validator/history/200889_200258_20kph \
   -maxdepth 2 -type f | sort
 ```
 
@@ -90,7 +91,7 @@ roslaunch trajectory_validator history.launch mode:=compare
 
 Compare는 `/trajectory_compare/gt_path`, `/trajectory_compare/ego_path`,
 `/trajectory_compare/ego_pose`를 사용하므로 record/replay 표시를 덮지 않는다. Viewer RViz에는
-보라색 Compare GT와 주황색 Compare 실제 주행 Path가 기본 등록되어 있다.
+빨간색 Compare GT와 Compare 실제 주행 Path가 기본 등록되어 있다.
 
 ### 3. RViz와 rqt_plot 확인
 
@@ -116,7 +117,9 @@ rqt_plot \
   30 Hz로 기록한다.
 - `gt.csv`에는 GT point, `control_cycles.csv`에는 상태→명령 연결,
   `vehicle_responses.csv`에는 명령→차량 반응을 저장한다. `metadata.json`에는 설정·hash·통계와
-  종료 원인을 저장한다.
+  종료 원인을 저장한다. `summary.json`에는 `±0.3 m` 횡오차 유지율, 횡오차 P95,
+  곡률 구간별 횡·종방향·조향 오차, 속도 오버슈트, 종방향 속도·가속도와 조향 변화율을
+  저장한다.
 - 저장 run 하나를 `TrajectoryDebug`, Path, Pose, Marker topic으로 복원한다.
 - trajectory나 제어 명령을 수정하거나 생성하지 않는다.
 

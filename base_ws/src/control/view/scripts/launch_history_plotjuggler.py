@@ -9,30 +9,35 @@ import rospy
 import yaml
 
 
+TARGET_COLOR = "#00aa00"
+ACTUAL_COLOR = "#0066ff"
+ERROR_COLOR = "#ff0000"
+
+
 PLOTS = (
     ("Velocity: target / actual / error", (
-        ("target_velocity_mps", "#00aa00"),
-        ("ego_velocity_mps", "#0088ff"),
-        ("velocity_error_mps", "#ff0000"),
+        ("target_velocity_mps", TARGET_COLOR),
+        ("ego_velocity_mps", ACTUAL_COLOR),
+        ("velocity_error_mps", ERROR_COLOR),
     )),
     ("Steering: command / actual / error", (
-        ("cmd_steering_rad", "#aa00ff"),
-        ("actual_steering_rad", "#ff8800"),
-        ("steering_error_rad", "#ff0000"),
+        ("cmd_steering_rad", TARGET_COLOR),
+        ("actual_steering_rad", ACTUAL_COLOR),
+        ("steering_error_rad", ERROR_COLOR),
     )),
     ("Tracking errors", (
-        ("lateral_error_m", "#ff0000"),
-        ("longitudinal_error_m", "#00aa00"),
-        ("heading_error_rad", "#0044ff"),
+        ("lateral_error_m", ERROR_COLOR),
+        ("longitudinal_error_m", "#cc0000"),
+        ("heading_error_rad", "#ff5555"),
     )),
     ("Matched GT / Ego yaw", (
-        ("matched_gt_yaw_rad", "#aa00ff"),
-        ("ego_yaw_rad", "#ff8800"),
+        ("matched_gt_yaw_rad", TARGET_COLOR),
+        ("ego_yaw_rad", ACTUAL_COLOR),
     )),
     ("Command to vehicle response", (
-        ("response_velocity_change_mps", "#0088ff"),
-        ("response_steering_change_rad", "#ff8800"),
-        ("response_lateral_error_change_m", "#ff0000"),
+        ("response_velocity_change_mps", ACTUAL_COLOR),
+        ("response_steering_change_rad", "#0044cc"),
+        ("response_lateral_error_change_m", ERROR_COLOR),
     )),
 )
 

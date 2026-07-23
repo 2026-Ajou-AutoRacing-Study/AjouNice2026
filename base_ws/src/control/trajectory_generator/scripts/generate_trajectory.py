@@ -407,10 +407,51 @@ def write_csv(output_path, points, overwrite):
         raise
 
 
+def select_publisher_csv(root, output_path):
+    publisher_config = (
+        root
+        / "base_ws/src/control/trajectory_generator/config/trajectory_publisher.yaml"
+    )
+    relative_csv = output_path.relative_to(
+        root / "base_ws/src/control/trajectory_generator"
+    ).as_posix()
+    lines = publisher_config.read_text().splitlines()
+    matches = [
+        index
+        for index, line in enumerate(lines)
+        if line.lstrip().startswith("trajectory_csv:")
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            "publisher config must contain exactly one trajectory_csv entry"
+        )
+    lines[matches[0]] = "trajectory_csv: {}".format(relative_csv)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=publisher_config.name + ".",
+        suffix=".tmp",
+        dir=str(publisher_config.parent),
+    )
+    try:
+        with os.fdopen(descriptor, "w") as stream:
+            stream.write("\n".join(lines) + "\n")
+        os.replace(temporary_name, publisher_config)
+    except Exception:
+        try:
+            os.unlink(temporary_name)
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate a controller trajectory from Lanelet2")
     parser.add_argument("--config", required=True, help="repository-relative generator YAML")
     parser.add_argument("--overwrite", action="store_true", help="replace an existing output CSV")
+    parser.add_argument(
+        "--select",
+        action="store_true",
+        help="select the generated CSV in trajectory_publisher.yaml",
+    )
     arguments = parser.parse_args()
 
     root = repository_root()
@@ -466,13 +507,20 @@ def main():
     )
     points, length_m = resample(vertices, interval)
 
+    velocity_token = (
+        "{:.6f}".format(desired_velocity_kph).rstrip("0").rstrip(".").replace(".", "p")
+    )
     output_path = (
         root
         / "base_ws/src/control/trajectory_generator/traj_sample"
-        / "{}_{}.csv".format(start_id, end_id)
+        / "{}_{}_{}kph.csv".format(start_id, end_id, velocity_token)
     )
     write_csv(output_path, points, arguments.overwrite)
+    if arguments.select:
+        select_publisher_csv(root, output_path)
     print("trajectory generated: {}".format(output_path))
+    if arguments.select:
+        print("trajectory selected for publishing: {}".format(output_path.name))
     print(
         "lanelets={} route_orders={}..{} length_m={:.3f} points={} interval_m={:.3f}".format(
             len(chain), chain[0]["order"], chain[-1]["order"], length_m, len(points), interval

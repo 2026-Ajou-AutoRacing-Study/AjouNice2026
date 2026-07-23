@@ -101,7 +101,7 @@ Viewer를 기능별로 따로 실행할 수도 있다.
 
 | 실행 순서 | 단축어 | alias 없는 실제 명령어 | 설명 |
 | --- | --- | --- | --- |
-| 10 | `traj_gen` | `roslaunch trajectory_generator trajectory_publisher.launch` | 이미 생성된 기본 trajectory CSV를 `/control/trajectory`로 발행한다. |
+| 10 | `traj_pub` | `roslaunch trajectory_generator trajectory_publisher.launch` | 선택된 trajectory CSV를 `/control/trajectory`로 발행한다. |
 | 11 | `traj_val` | `roslaunch trajectory_validator record.launch` | 기록 대기 상태로 실행한다. Follower 입력 전에는 실제 기록을 시작하지 않는다. |
 | 12 | `traj_fol` | `roslaunch trajectory_follower pp_pi.launch` | Pure Pursuit와 PI 제어기를 시작한다. 최초 유효 제어 입력부터 Validator 기록이 시작된다. |
 
@@ -131,7 +131,12 @@ rostopic echo -n 1 /ctrl_cmd
 
 ## 4. 새 Trajectory 생성 후 주행
 
-`traj_gen`은 trajectory를 새로 계산하는 명령이 아니라 **기존 CSV를 publish하는 명령**이다.
+`traj_gen`은 공용 YAML에서 trajectory를 생성하고 생성된 CSV를 publisher 설정에 선택한다.
+실제 publish는 `traj_pub`이 담당한다.
+발행할 CSV는 `trajectory_generator/config/trajectory_publisher.yaml`의
+`trajectory_csv`에서 선택한다.
+CSV 이름은 `<start>_<end>_<desired_velocity>kph.csv` 형식이며, 소수점 속도는
+`20p5kph`처럼 표기한다.
 새 경로 또는 새 목표 속도를 만들려면 먼저 다음 YAML을 수정한다.
 
 [trajectory_generator.yaml](../base_ws/src/control/trajectory_generator/config/trajectory_generator.yaml)
@@ -153,14 +158,18 @@ trajectory:
 ```bash
 rosrun trajectory_generator generate_trajectory.py \
   --config base_ws/src/control/trajectory_generator/config/trajectory_generator.yaml \
-  --overwrite
+  --overwrite \
+  --select
 ```
 
 생성 후 publish한다.
 
 ```bash
-# 단축어
+# YAML → CSV 생성 및 publisher 파일 선택
 traj_gen
+
+# 선택된 CSV publish
+traj_pub
 
 # alias 없는 실제 명령어
 roslaunch trajectory_generator trajectory_publisher.launch
@@ -212,7 +221,7 @@ find base_ws/src/control/trajectory_validator/history \
 [history_run.yaml](../base_ws/src/control/trajectory_validator/config/history_run.yaml)을 수정한다.
 
 ```yaml
-traj_sample: "200889_200258"
+traj_sample: "200889_200258_20kph"
 run_id: "0719_172905_pp_pi"
 ```
 
@@ -234,7 +243,7 @@ roslaunch viewer viewer_plotjuggler.launch \
 [compare_run.yaml](../base_ws/src/control/trajectory_validator/config/compare_run.yaml)을 수정한다.
 
 ```yaml
-traj_sample: "200889_200258"
+traj_sample: "200889_200258_20kph"
 run_id: "0719_172905_pp_pi"
 ```
 
@@ -256,7 +265,7 @@ Replay/Final용 `history_run.yaml`과 Compare용 `compare_run.yaml`은 서로 �
 | 5 | 터미널 2 | `udp` | `roslaunch sensor_interface morai_udp_interface.launch` | `/Ego_topic`, 센서 topic |
 | 6 | 터미널 3 | `localization_morai_gt` | `roslaunch bringup localization_morai_gt.launch` | kinematic state와 TF |
 | 7 | 터미널 4 | `viewer` | `roslaunch viewer viewer.launch` | 지도와 차량 위치 |
-| 8 | 터미널 5 | `traj_gen` | `roslaunch trajectory_generator trajectory_publisher.launch` | 기준 trajectory |
+| 8 | 터미널 5 | `traj_pub` | `roslaunch trajectory_generator trajectory_publisher.launch` | 기준 trajectory |
 | 9 | 터미널 6 | `traj_val` | `roslaunch trajectory_validator record.launch` | Validator armed 상태 |
 | 10 | 터미널 7 | `traj_fol` | `roslaunch trajectory_follower pp_pi.launch` | 조향·가감속 제어와 기록 시작 |
 
