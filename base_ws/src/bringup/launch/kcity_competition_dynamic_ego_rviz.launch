@@ -1,0 +1,49 @@
+<launch>
+  <arg name="map_file" default="$(env HOME)/AJOUNICE2026/lanelet2_map_v44.osm" />
+  <arg name="launch_rviz" default="true" />
+  <arg name="step_distance" default="3.0" />
+  <arg name="nominal_speed" default="5.0" />
+  <arg name="output_horizon" default="200.0" />
+  <arg name="bpp_forward_path_length" default="300.0" />
+  <arg name="keep_alive" default="true" />
+  <arg name="report_path" default="/tmp/kcity_dynamic_ego_validation.report.json" />
+  <arg name="debug_processing_time" default="false" />
+
+  <!-- BPP keeps the full route internally; the final controller trajectory is ego-local. -->
+  <include file="$(find bringup)/launch/kcity_interactive_trajectory_rviz.launch">
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="forward_path_length" value="$(arg bpp_forward_path_length)" />
+    <arg name="mvp_extract_ahead_dist" value="$(arg output_horizon)" />
+    <arg name="mvp_extract_behind_dist" value="0.0" />
+    <arg name="publish_static_odometry" value="false" />
+    <arg name="launch_rviz" value="$(arg launch_rviz)" />
+  </include>
+
+  <param name="/behavior_path_planner/publish_full_route_reference" value="true" />
+  <param name="/behavior_path_planner/full_route_reference_length" value="5000.0" />
+  <param name="/behavior_path_planner/debug_processing_time" value="$(arg debug_processing_time)" />
+  <param name="/behavior_velocity_planner/debug_processing_time" value="$(arg debug_processing_time)" />
+  <param name="/elastic_band_smoother/enable_debug_info" value="$(arg debug_processing_time)" />
+  <param name="/path_optimizer/debug/enable_debug_info" value="$(arg debug_processing_time)" />
+
+  <node pkg="bringup"
+        type="kcity_competition_route_publisher.py"
+        name="kcity_competition_dynamic_route_publisher"
+        output="screen">
+    <param name="route_preset" value="full" />
+    <param name="validate_trajectory" value="false" />
+    <param name="keep_alive" value="true" />
+  </node>
+
+  <node pkg="bringup"
+        type="kcity_dynamic_ego_validator.py"
+        name="kcity_dynamic_ego_validator"
+        output="screen"
+        required="true">
+    <param name="step_distance" value="$(arg step_distance)" />
+    <param name="nominal_speed" value="$(arg nominal_speed)" />
+    <param name="output_horizon" value="$(arg output_horizon)" />
+    <param name="keep_alive" value="$(arg keep_alive)" />
+    <param name="report_path" value="$(arg report_path)" />
+  </node>
+</launch>

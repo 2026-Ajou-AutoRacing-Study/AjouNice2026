@@ -9,10 +9,13 @@
 
   <buildtool_depend>catkin</buildtool_depend>
   <depend>autoware_planning_msgs</depend>
+  <depend>geometry_msgs</depend>
   <depend>morai_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>roscpp</depend>
   <depend>std_msgs</depend>
+
+  <test_depend>gtest</test_depend>
 
   <export/>
 </package>

@@ -15,6 +15,7 @@ from autoware_perception_msgs.msg import PredictedObjects, ObjectClassification
 from autoware_planning_msgs.msg import Trajectory
 
 from mvp_utils import (
+    crop_trajectory_around_ego,
     object_pose,
     object_speed,
     feasible_stop_velocity,
@@ -32,6 +33,15 @@ class MotionVelocityPlanner:
         self.planning_hz = float(rospy.get_param("~planning_hz", 10.0))
         self.default_velocity_mps = max(float(rospy.get_param("~default_velocity_mps", 5.0)), 0.0)
         self.use_velocity_limit = param_bool(rospy.get_param("~use_velocity_limit", True))
+        self.extract_ahead_dist = max(
+            float(rospy.get_param("~extract_ahead_dist", 200.0)), 1.0
+        )
+        self.extract_behind_dist = max(
+            float(rospy.get_param("~extract_behind_dist", 0.0)), 0.0
+        )
+        self.delta_yaw_threshold = max(
+            float(rospy.get_param("~delta_yaw_threshold", 1.0472)), 0.0
+        )
 
         self.stop_distance = float(rospy.get_param("~stop_distance", 3.0))
         self.dynamic_stop_distance = float(rospy.get_param("~dynamic_stop_distance", 5.0))
@@ -109,13 +119,22 @@ class MotionVelocityPlanner:
             '/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/trajectory',
         )
 
-        self.sub_odometry = rospy.Subscriber(odometry_topic, Odometry, self.cb_odometry)
-        self.sub_trajectory = rospy.Subscriber(
-            input_trajectory_topic, Trajectory, self.cb_trajectory
+        self.sub_odometry = rospy.Subscriber(
+            odometry_topic, Odometry, self.cb_odometry, queue_size=1
         )
-        self.sub_objects = rospy.Subscriber(objects_topic, PredictedObjects, self.cb_objects)
+        self.sub_trajectory = rospy.Subscriber(
+            input_trajectory_topic, Trajectory, self.cb_trajectory, queue_size=1
+        )
+        self.sub_objects = rospy.Subscriber(
+            objects_topic, PredictedObjects, self.cb_objects, queue_size=1
+        )
         if max_velocity_topic:
-            self.sub_velocity_limit = rospy.Subscriber(max_velocity_topic, VelocityLimit, self.cb_velocity_limit)
+            self.sub_velocity_limit = rospy.Subscriber(
+                max_velocity_topic,
+                VelocityLimit,
+                self.cb_velocity_limit,
+                queue_size=1,
+            )
 
         self.pub_trajectory = rospy.Publisher(
             output_trajectory_topic, Trajectory, queue_size=1
@@ -463,6 +482,14 @@ class MotionVelocityPlanner:
         self.apply_slowdown(out, distances)
         self.apply_cruise(out, distances)
         self.apply_ttc_limit(out, distances)
+        if self.odometry is not None:
+            out = crop_trajectory_around_ego(
+                out,
+                self.odometry.pose.pose,
+                forward_length=self.extract_ahead_dist,
+                backward_length=self.extract_behind_dist,
+                yaw_threshold=self.delta_yaw_threshold,
+            )
         rospy.loginfo_throttle(
             5.0,
             "motion_velocity_planner: publishing trajectory with %d points",
