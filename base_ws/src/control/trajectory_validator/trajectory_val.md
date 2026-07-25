@@ -7,8 +7,18 @@ trajectory와 제어 명령은 생성하거나 수정하지 않는다.
 
 | 모드 | 진입점 | 역할 |
 | --- | --- | --- |
-| Live record | `trajectory_validator.launch` | 현재 주행을 CSV/JSON으로 저장 |
-| History replay | `publish_history.py` | 지정한 run 하나를 30 Hz로 재생 |
+| Live record | `record.launch` | 현재 주행을 CSV/JSON으로 저장하고 시각화 토픽 발행 |
+| History replay | `history.launch mode:=replay` | 선택한 run을 시간순으로 복원 |
+| Final path | `history.launch mode:=final` | 선택한 run의 전체 경로를 즉시 정적으로 표시 |
+| Compare | `history.launch mode:=compare` | 선택한 run을 compare 전용 토픽에 정적으로 표시 |
+
+RViz와 rqt는 `viewer` 패키지에서만 실행한다. `trajectory_validator.launch`와 `publish_history.py`는 기존
+호출부와의 호환성을 위해 남겨 둔다.
+
+기록 설정은 별도 YAML로 복제하지 않는다. `record.launch`가 실행 중인
+`/trajectory_publisher`, `/purepursuit`, `/longi_pi` 파라미터를 캡처한다. 과거 run 선택만
+`history_run.yaml`로 관리한다. 비교 기준은 `compare_run.yaml`로 따로 관리하며 compare와
+PlotJuggler가 공유한다.
 
 ## Live record
 
@@ -25,9 +35,14 @@ trajectory와 제어 명령은 생성하거나 수정하지 않는다.
 첫 유효 trajectory 전체를 GT로 한 번 저장하고 Ego 상태를 기본 30 Hz로 sampling한다. 위치,
 자세, 속도는 `map -> base_link` 공통 kinematic state에서 읽고 가속도·휠각 등 MORAI 전용 값만
 `/Ego_topic`에서 읽는다. trajectory와 state frame이 다르면 sample을 유효 처리하지 않는다.
-`sample_valid`는 모든 입력이 fresh하고 같은 MORAI packet에서 파생된 Ego/state stamp 차이가
-`sync_tolerance_s` 이내일 때만 true다. 정적 기준 trajectory의 stamp는 센서 동기 조건으로
-사용하지 않는다. 통계는 valid sample만 사용한다.
+노드 실행 직후에는 armed 상태이며 trajectory, kinematic state, Ego 상태, CtrlCmd가 모두
+fresh하고 timestamp 동기 조건을 만족한 최초 시점부터 sample을 기록하고 경과시간을 0으로 잡는다.
+Follower가 아직 실행되지 않아 `/purepursuit`, `/longi_pi`, `/ctrl_cmd`가 없어도 노드는 종료하지
+않는다. 최초 유효 입력 직전에 runtime parameter를 캡처하므로 Validator를 Follower보다 먼저
+실행할 수 있다.
+`control_pair_valid`는 입력이 fresh하고 상태-명령 수신 차이가 허용 범위 안일 때 true다.
+`response_pair_valid`는 명령 이후 설정한 반응 지연에 대응하는 차량 상태를 찾았을 때 true다.
+두 유효성은 독립적으로 저장하며 통계는 유효한 control cycle만 사용한다.
 
 collision, goal 도달 또는 ROS shutdown으로 run을 종료한다. 종료 시 CSV를 닫은 뒤 JSON을
 `status=complete`로 원자적으로 갱신한다.
@@ -36,22 +51,24 @@ MORAI의 충돌 없음 placeholder(`ObjectStatus.type=-1`)는 collision으로 �
 ## 저장 구조
 
 ```text
-history/<traj_sample>/<MMDD_HHMMSS_run_params>.csv
-history/<traj_sample>/<MMDD_HHMMSS_run_params>.json
+history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/gt.csv
+history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/control_cycles.csv
+history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/vehicle_responses.csv
+history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/metadata.json
 ```
 
 - `traj_sample`: 입력 trajectory CSV의 확장자를 제외한 basename
 - 동일한 run ID가 있으면 `_01`, `_02` 순으로 새 이름 사용
 - 이름은 `[A-Za-z0-9_-]`만 허용
 
-CSV row type:
+schema v3 파일:
 
-- `GT_POINT`: 전체 기준 trajectory의 point
-- `SAMPLE`: Ego 상태, CtrlCmd, matched GT, 오차, collision/goal/valid 상태
+- `gt.csv`: 전체 기준 trajectory의 point
+- `control_cycles.csv`: Ego 상태, CtrlCmd, matched GT, 오차, 상태→명령 지연
+- `vehicle_responses.csv`: 명령 이후 속도·조향·경로 오차 변화와 반응 지연
+- `metadata.json`: 실행 설정, 결과 통계, row 수와 각 CSV의 SHA-256
 
-JSON에는 frame, 입력 trajectory/map/controller config hash, 녹화 설정, 종료 원인, row 수,
-CSV hash와 metric 요약을 저장한다. GT 전용/SAMPLE 전용으로 사용하지 않는 CSV cell은 빈
-문자열로 둔다.
+구형 기록은 schema v3 런타임 계약에 포함하지 않는다.
 
 ## 오차 정의
 
@@ -85,7 +102,10 @@ Live와 replay는 같은 출력 계약을 사용한다.
 `TrajectoryDebug`에는 전체 GT, 현재까지 누적된 Ego trajectory, 현재 Ego/CtrlCmd, matched GT와
 오차가 들어간다. CSV의 `GT_POINT`와 `SAMPLE`로 같은 메시지를 복원할 수 있다.
 
-History replay는 요청한 CSV/JSON pair만 읽으며 identity와 CSV SHA-256을 검증한다. 여러
+History replay는 요청한 run 디렉터리의 세 파일만 읽으며 identity와 각 CSV SHA-256을 검증한다. 여러
 run overlay, 최신 run 자동 선택, 반복 재생은 지원하지 않는다.
+
+Final path 모드는 같은 무결성 검사를 수행한 뒤 모든 SAMPLE을 하나의 Ego Path로 만들어 latch
+발행한다. 시간축과 rqt debug가 필요하면 Replay를, 공간적인 최종 경로만 보면 Final path를 쓴다.
 
 실행과 확인 방법은 [README.md](README.md)를 참고한다.

@@ -1,5 +1,8 @@
 # trajectory_follower
 
+속도 단위의 전체 계약과 MORAI GT 입력 주의사항은
+[`docs/control_velocity_units.md`](../../../../docs/control_velocity_units.md)를 참고한다.
+
 ## 실행 준비
 
 ```bash
@@ -23,6 +26,11 @@ rostopic hz /localization/kinematic_state
 - `/localization/kinematic_state`: 선택한 localization provider가 `map` 기준
   `base_link` pose와 twist를 제공한다. MORAI GT에서는 `localization_morai_gt` 또는
   `maptf_morai_deg_correction.launch`를 실행한다.
+
+현재 MORAI GT kinematic 입력의 속도 숫자는 km/h이므로 follower 경계에서
+`kinematic_velocity_scale_to_mps: 1/3.6`을 적용한다. Trajectory 목표 속도와 제어기 내부
+계산은 계속 m/s를 사용한다. 다른 localization provider가 이미 m/s를 제공하면 공통 설정의
+scale을 `1.0`으로 바꿔야 한다.
 
 ## 사용법
 

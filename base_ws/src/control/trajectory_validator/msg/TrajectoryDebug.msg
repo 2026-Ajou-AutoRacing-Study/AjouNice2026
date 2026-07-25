@@ -37,12 +37,16 @@ float64 cmd_acceleration_mps2
 
 uint32 matched_gt_index
 float64 matched_gt_station_m
+float64 matched_gt_x_m
+float64 matched_gt_y_m
+float64 matched_gt_yaw_rad
 float64 target_velocity_mps
 float64 lateral_error_m
 float64 longitudinal_error_m
 float64 heading_error_rad
 float64 velocity_error_mps
+float64 steering_error_rad
 
 bool collision_detected
 bool reached_goal
-bool sample_valid
+bool control_pair_valid

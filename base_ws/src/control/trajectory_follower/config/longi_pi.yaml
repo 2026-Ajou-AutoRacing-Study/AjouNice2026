@@ -1,4 +1,4 @@
-kp: 0.6
-ki: 0.05
+kp: 0.4 
+ki: 0.1
 integral_limit: 3.0
 command_deadband: 0.05

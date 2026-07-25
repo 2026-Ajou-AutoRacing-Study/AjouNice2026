@@ -29,9 +29,20 @@ alias udp="roslaunch sensor_interface morai_udp_interface.launch"
 alias sensing="roslaunch bringup sensing.launch"
 
 # control----------------------------------------------
-alias traj_gen="roslaunch trajectory_generator trajectory_publisher.launch"
+alias traj_gen='rosrun trajectory_generator generate_trajectory.py --config "$(rospack find trajectory_generator)/config/trajectory_generator.yaml" --overwrite --select'
+alias traj_pub="roslaunch trajectory_generator trajectory_publisher.launch"
 alias traj_fol="roslaunch trajectory_follower pp_pi.launch"
-alias traj_val="roslaunch trajectory_validator trajectory_validator.launch input_trajectory_csv:=base_ws/src/control/trajectory_generator/traj_sample/200889_200258.csv run_params:=pp_pi_ld4p0 map_version:=v44"
+alias traj_val="roslaunch trajectory_validator record.launch"
+alias traj_val_replay="roslaunch trajectory_validator history.launch mode:=replay"
+alias traj_val_final="roslaunch trajectory_validator history.launch mode:=final"
+alias traj_val_compare="roslaunch trajectory_validator history.launch mode:=compare"
+alias traj_val_plot='roslaunch viewer viewer_plotjuggler.launch config_file:=$(rospack find trajectory_validator)/config/history_run.yaml'
+
+# control viewer---------------------------------------
+alias viewer="roslaunch viewer viewer.launch"
+alias viewer_rviz="roslaunch viewer viewer_rviz.launch"
+alias viewer_rqt="roslaunch viewer viewer_rqt.launch"
+alias viewer_plot="roslaunch viewer viewer_plotjuggler.launch"
 
 alias localization_morai_gt="roslaunch bringup localization_morai_gt.launch"
 alias localization_fast_lio="roslaunch bringup localization_fast_lio.launch"

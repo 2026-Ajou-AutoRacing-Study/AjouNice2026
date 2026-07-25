@@ -285,7 +285,7 @@ private:
     marker.scale.z = 1.0;
     marker.color.r = red;
     marker.color.g = green;
-    marker.color.b = 0.1F;
+    marker.color.b = 0.0F;
     marker.color.a = 1.0F;
     return marker;
   }
@@ -302,9 +302,9 @@ private:
     line.action = visualization_msgs::Marker::ADD;
     line.pose.orientation.w = 1.0;
     line.scale.x = 0.15;
-    line.color.r = 0.1F;
-    line.color.g = 0.6F;
-    line.color.b = 1.0F;
+    line.color.r = 0.0F;
+    line.color.g = 1.0F;
+    line.color.b = 0.0F;
     line.color.a = 0.9F;
     line.points.reserve(trajectory_.points.size());
     for (const auto& point : trajectory_.points)
@@ -312,8 +312,8 @@ private:
       line.points.push_back(point.pose.position);
     }
     array.markers.push_back(line);
-    array.markers.push_back(makeSphere(1, trajectory_.points.front().pose.position, 0.1F, 1.0F, stamp));
-    array.markers.push_back(makeSphere(2, trajectory_.points.back().pose.position, 1.0F, 0.1F, stamp));
+    array.markers.push_back(makeSphere(1, trajectory_.points.front().pose.position, 0.0F, 0.65F, stamp));
+    array.markers.push_back(makeSphere(2, trajectory_.points.back().pose.position, 0.0F, 1.0F, stamp));
     return array;
   }
 

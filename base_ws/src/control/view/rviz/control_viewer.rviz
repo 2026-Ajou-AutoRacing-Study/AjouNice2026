@@ -1,0 +1,114 @@
+Panels:
+  - Class: rviz/Displays
+    Name: Displays
+  - Class: rviz/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 5
+      Plane: XY
+      Reference Frame: <Fixed Frame>
+    - Class: rviz/TF
+      Name: TF
+      Enabled: false
+      Frame Timeout: 15
+      Show Arrows: false
+      Show Axes: true
+      Show Names: false
+    - Class: rviz/MarkerArray
+      Name: K-City Lanelet Map
+      Enabled: true
+      Marker Topic: /map/lanelet_map
+    - Class: rviz/Path
+      Name: Generator Path
+      Enabled: true
+      Topic: /control/debug/generator/path
+      Color: 0; 255; 0
+      Line Style: Lines
+      Line Width: 0.1
+    - Class: rviz/MarkerArray
+      Name: Generator Markers
+      Enabled: true
+      Marker Topic: /control/debug/generator/markers
+    - Class: rviz/Odometry
+      Name: Current Vehicle (MapTF MORAI)
+      Enabled: false
+      Topic: /localization/kinematic_state
+      Shape: Arrow
+      Color: 0; 0; 255
+      Keep: 1
+      Position Tolerance: 0.1
+      Angle Tolerance: 0.1
+      Covariance:
+        Orientation: false
+        Position: false
+    - Class: rviz/Marker
+      Name: Current Vehicle Marker
+      Enabled: true
+      Marker Topic: /viewer/current_vehicle_marker
+    - Class: rviz/Path
+      Name: Validator GT Path
+      Enabled: true
+      Topic: /trajectory_validator/gt_path
+      Color: 0; 255; 0
+      Line Style: Lines
+      Line Width: 0.15
+    - Class: rviz/Path
+      Name: Driven Path
+      Enabled: true
+      Topic: /trajectory_validator/ego_path
+      Color: 0; 0; 255
+      Line Style: Lines
+      Line Width: 0.2
+    - Class: rviz/Pose
+      Name: Validator Ego Pose
+      Enabled: true
+      Topic: /trajectory_validator/ego_pose
+      Shape: Arrow
+      Color: 0; 0; 255
+    - Class: rviz/Path
+      Name: Compare GT Path
+      Enabled: true
+      Topic: /trajectory_compare/gt_path
+      Color: 255; 0; 0
+      Line Style: Lines
+      Line Width: 0.15
+    - Class: rviz/Path
+      Name: Compare Driven Path
+      Enabled: true
+      Topic: /trajectory_compare/ego_path
+      Color: 255; 0; 0
+      Line Style: Lines
+      Line Width: 0.2
+    - Class: rviz/Pose
+      Name: Compare Final Pose
+      Enabled: true
+      Topic: /trajectory_compare/ego_pose
+      Shape: Arrow
+      Color: 255; 0; 0
+    - Class: rviz/MarkerArray
+      Name: Tracking Error
+      Enabled: true
+      Marker Topic: /trajectory_validator/markers
+  Enabled: true
+  Global Options:
+    Background Color: 32; 32; 32
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
+  Views:
+    Current:
+      Class: rviz/TopDownOrtho
+      Name: Top Down
+      Scale: 80
+Window Geometry:
+  Height: 900
+  Width: 1440

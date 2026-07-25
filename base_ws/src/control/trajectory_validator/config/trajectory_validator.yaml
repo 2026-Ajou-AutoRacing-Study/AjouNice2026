@@ -7,11 +7,18 @@ topics:
 
 storage:
   history_dir: base_ws/src/control/trajectory_validator/history
-  schema_version: 1
+  schema_version: 3
   overwrite: false
+
+input:
+  # MORAI GT localization forwards velocity in km/h; normalize it before recording.
+  kinematic_velocity_scale_to_mps: 0.2777777777777778
 
 recording:
   sample_rate_hz: 30.0
   input_timeout_s: 0.5
   sync_tolerance_s: 0.05
+  command_pair_tolerance_s: 0.10
+  response_delay_s: 0.10
+  response_tolerance_s: 0.05
   goal_tolerance_m: 3.0

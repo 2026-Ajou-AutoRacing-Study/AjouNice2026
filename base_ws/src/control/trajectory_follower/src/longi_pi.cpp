@@ -46,6 +46,7 @@ public:
     private_nh_.param<std::string>("topics/steering_cmd", steering_topic_, "/control/command/steering");
     private_nh_.param<std::string>("topics/ctrl_cmd", ctrl_cmd_topic_, "/ctrl_cmd");
     private_nh_.param("control_rate_hz", control_rate_hz_, 30.0);
+    private_nh_.param("kinematic_velocity_scale_to_mps", kinematic_velocity_scale_to_mps_, 1.0);
     private_nh_.param("control_limits/max_accel_cmd", max_accel_cmd_, 1.0);
     private_nh_.param("control_limits/max_brake_cmd", max_brake_cmd_, 1.0);
     private_nh_.param("vehicle/max_steer_rad", max_steer_rad_, 0.698);
@@ -80,6 +81,8 @@ private:
       throw std::runtime_error("morai/longlCmdType must be 1");
     }
     const bool valid = std::isfinite(control_rate_hz_) && control_rate_hz_ > 0.0 &&
+                       std::isfinite(kinematic_velocity_scale_to_mps_) &&
+                       kinematic_velocity_scale_to_mps_ > 0.0 &&
                        std::isfinite(max_accel_cmd_) && max_accel_cmd_ > 0.0 && max_accel_cmd_ <= 1.0 &&
                        std::isfinite(max_brake_cmd_) && max_brake_cmd_ > 0.0 && max_brake_cmd_ <= 1.0 &&
                        std::isfinite(max_steer_rad_) && max_steer_rad_ > 0.0 &&
@@ -202,7 +205,9 @@ private:
     }
     const double target_velocity = trajectory_.points[nearest].longitudinal_velocity_mps;
     const auto& linear = state_.twist.twist.linear;
-    const double current_velocity = std::sqrt(linear.x * linear.x + linear.y * linear.y + linear.z * linear.z);
+    const double current_velocity =
+        std::sqrt(linear.x * linear.x + linear.y * linear.y + linear.z * linear.z) *
+        kinematic_velocity_scale_to_mps_;
     const double error = target_velocity - current_velocity;
     double dt = (event.current_real - event.last_real).toSec();
     if (!std::isfinite(dt) || dt <= 0.0 || dt > 1.0)
@@ -256,6 +261,7 @@ private:
   std::string steering_topic_;
   std::string ctrl_cmd_topic_;
   double control_rate_hz_{ 30.0 };
+  double kinematic_velocity_scale_to_mps_{ 1.0 };
   double max_accel_cmd_{ 1.0 };
   double max_brake_cmd_{ 1.0 };
   double max_steer_rad_{ 0.698 };

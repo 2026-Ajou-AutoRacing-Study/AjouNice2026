@@ -39,8 +39,7 @@ def make_markers(debug_message, stamp):
     gt_marker.action = Marker.ADD
     gt_marker.pose.orientation.w = 1.0
     gt_marker.scale.x = gt_marker.scale.y = gt_marker.scale.z = 0.8
-    gt_marker.color.r = 1.0
-    gt_marker.color.g = 0.2
+    gt_marker.color.g = 1.0
     gt_marker.color.a = 1.0
 
     error_line = Marker()
@@ -52,7 +51,6 @@ def make_markers(debug_message, stamp):
     error_line.pose.orientation.w = 1.0
     error_line.scale.x = 0.12
     error_line.color.r = 1.0
-    error_line.color.g = 0.8
     error_line.color.a = 1.0
 
     if debug_message.gt_trajectory.points and debug_message.ego_trajectory.points:

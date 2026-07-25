@@ -37,6 +37,7 @@ catkin_package(
 catkin_install_python(PROGRAMS
   scripts/trajectory_validator_node.py
   scripts/publish_history.py
+  scripts/publish_final_path.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

@@ -1,0 +1,19 @@
+# Autoware Universe 0.52.0 control/autoware_pure_pursuit/config/pure_pursuit.param.yaml
+# baseline values. Vehicle geometry is loaded separately from configs/vehicle/ioniq5.yaml.
+adaptive:
+  ld_velocity_ratio: 2.4
+  ld_lateral_error_ratio: 3.6
+  ld_curvature_ratio: 120.0
+  long_ld_lateral_error_threshold: 0.5
+  min_lookahead_distance: 4.35
+  max_lookahead_distance: 15.0
+  reverse_min_lookahead_distance: 7.0
+  resampling_ds: 0.1
+  curvature_calculation_distance: 4.0
+
+# These remain documented here for comparison with upstream but are not required by the core.
+converged_steer_rad: 0.1
+prediction_ds: 0.3
+prediction_distance_length: 21.0
+enable_path_smoothing: false
+path_filter_moving_ave_num: 25

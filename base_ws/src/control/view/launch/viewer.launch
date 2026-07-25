@@ -1,0 +1,35 @@
+<launch>
+  <arg name="start_rviz" default="true"/>
+  <arg name="start_rqt" default="true"/>
+  <!-- Optional until ros-noetic-plotjuggler-ros is installed on the host. -->
+  <arg name="start_plotjuggler" default="false"/>
+  <arg name="plotjuggler_config"
+       default="$(find trajectory_validator)/config/compare_run.yaml"/>
+  <arg name="start_map" default="true"/>
+  <arg name="software_rendering" default="1"/>
+  <arg name="map_file"
+       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v44.osm"/>
+  <arg name="start_tracking_plot" default="true"/>
+  <arg name="start_control_plot" default="true"/>
+
+  <group if="$(arg start_rviz)">
+    <include file="$(find viewer)/launch/viewer_rviz.launch">
+      <arg name="start_map" value="$(arg start_map)"/>
+      <arg name="map_file" value="$(arg map_file)"/>
+      <arg name="software_rendering" value="$(arg software_rendering)"/>
+    </include>
+  </group>
+
+  <group if="$(arg start_rqt)">
+    <include file="$(find viewer)/launch/viewer_rqt.launch">
+      <arg name="start_tracking_plot" value="$(arg start_tracking_plot)"/>
+      <arg name="start_control_plot" value="$(arg start_control_plot)"/>
+    </include>
+  </group>
+
+  <group if="$(arg start_plotjuggler)">
+    <include file="$(find viewer)/launch/viewer_plotjuggler.launch">
+      <arg name="config_file" value="$(arg plotjuggler_config)"/>
+    </include>
+  </group>
+</launch>
