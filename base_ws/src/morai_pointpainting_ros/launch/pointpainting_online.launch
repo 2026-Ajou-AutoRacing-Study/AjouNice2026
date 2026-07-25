@@ -1,0 +1,61 @@
+<launch>
+  <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
+  <arg name="cfg_file"
+       default="$(env HOME)/OpenPCDet/tools/cfgs/custom_models/pointpillar_morai_pointpainting.yaml"/>
+  <arg name="checkpoint"
+       default="$(env HOME)/OpenPCDet/output/custom_models/pointpillar_morai_pointpainting/pointpainting_20epoch/ckpt/checkpoint_epoch_20.pth"/>
+
+  <arg name="lidar_topic" default="/sensor/lidar1"/>
+  <arg name="detections_topic" default="/pointpainting/detections"/>
+  <arg name="markers_topic" default="/pointpainting/detection_markers"/>
+  <arg name="painted_points_topic" default="/pointpainting/painted_points"/>
+
+  <arg name="score_threshold" default="0.20"/>
+  <arg name="max_detection_range" default="20.0"/>
+  <arg name="publish_painted_points" default="false"/>
+  <arg name="use_amp" default="true"/>
+  <arg name="segmentation_short_side" default="384"/>
+  <arg name="warmup_segmentation" default="true"/>
+
+  <arg name="warmup_full_pipeline" default="true"/>
+  <arg name="warmup_iterations" default="2"/>
+  <arg name="warmup_point_count" default="12000"/>
+  <node pkg="morai_pointpainting_ros"
+        type="pointpainting_online_node.py"
+        name="pointpainting_online"
+        output="screen"
+        respawn="false">
+
+    <rosparam command="load"
+              file="$(find morai_pointpainting_ros)/config/morai_4cam.yaml"/>
+
+    <param name="openpcdet_root" value="$(arg openpcdet_root)"/>
+    <param name="cfg_file" value="$(arg cfg_file)"/>
+    <param name="checkpoint" value="$(arg checkpoint)"/>
+
+    <param name="lidar_topic" value="$(arg lidar_topic)"/>
+    <param name="detections_topic" value="$(arg detections_topic)"/>
+    <param name="markers_topic" value="$(arg markers_topic)"/>
+    <param name="painted_points_topic" value="$(arg painted_points_topic)"/>
+
+    <param name="score_threshold" value="$(arg score_threshold)"/>
+    <param name="max_detection_range" value="$(arg max_detection_range)"/>
+    <param name="publish_painted_points" value="$(arg publish_painted_points)"/>
+    <param name="use_amp" value="$(arg use_amp)"/>
+    <param name="segmentation_short_side" value="$(arg segmentation_short_side)"/>
+    <param name="warmup_segmentation" value="$(arg warmup_segmentation)"/>
+
+    <param name="warmup_full_pipeline" value="$(arg warmup_full_pipeline)"/>
+    <param name="warmup_iterations" value="$(arg warmup_iterations)"/>
+    <param name="warmup_point_count" value="$(arg warmup_point_count)"/>
+    <!-- Causal real-time matching: newest camera image at or before LiDAR stamp. -->
+    <param name="max_camera_age_ms" value="100.0"/>
+    <param name="max_camera_span_ms" value="80.0"/>
+    <param name="camera_buffer_size" value="30"/>
+
+    <!-- queue_size=1 behavior: process the newest LiDAR scan and drop stale scans. -->
+    <param name="normalize_intensity" value="true"/>
+    <param name="remove_ego_points" value="true"/>
+    <rosparam param="ego_box">[-1.5, 3.5, -1.25, 1.25, -1.0, 2.2]</rosparam>
+  </node>
+</launch>
