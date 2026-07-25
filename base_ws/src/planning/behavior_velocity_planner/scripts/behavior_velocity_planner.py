@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
 import importlib
-import math
 import threading
-import time
 from copy import deepcopy
 
 import rospy
@@ -59,12 +57,6 @@ class BehaviorVelocityPlanner:
         self.projector_file = rospy.get_param("~projector_file", "")
         self.projector_type = rospy.get_param("~map_projector_type", "MGRS")
         self.flatten_map_z = bool(rospy.get_param("~flatten_map_z", False))
-        self.max_processing_length = max(
-            float(rospy.get_param("~max_processing_length", 350.0)), 0.0
-        )
-        self.debug_processing_time = bool(
-            rospy.get_param("~debug_processing_time", False)
-        )
 
         self.path_pub = rospy.Publisher("~output/path", Path, queue_size=1)
         self.stop_reasons_pub = rospy.Publisher(
@@ -288,23 +280,16 @@ class BehaviorVelocityPlanner:
         if not path_with_lane_id.points:
             return
 
-        processing_started = time.perf_counter()
-        module_times = []
         with self.lock:
             self.data.current_time = rospy.Time.now().to_sec()
-            processing_path, retained_points = self.processing_path(path_with_lane_id)
-            output_path = to_path(processing_path)
+            output_path = to_path(path_with_lane_id)
             results = []
             for manager in self.managers:
                 try:
-                    module_started = time.perf_counter()
                     results.append(
                         manager.modify_path_velocity(
-                            processing_path, output_path, self.data
+                            path_with_lane_id, output_path, self.data
                         )
-                    )
-                    module_times.append(
-                        (manager.module_name, time.perf_counter() - module_started)
                     )
                 except Exception as error:
                     rospy.logerr_throttle(
@@ -314,49 +299,7 @@ class BehaviorVelocityPlanner:
                         error,
                     )
 
-            if retained_points:
-                output_path.points.extend(
-                    deepcopy(point.point) for point in retained_points
-                )
-
         self.publish_results(output_path, results)
-        if self.debug_processing_time:
-            rospy.loginfo(
-                "behavior_velocity_planner: cycle %.1f ms input=%d processed=%d "
-                "modules=[%s]",
-                (time.perf_counter() - processing_started) * 1000.0,
-                len(path_with_lane_id.points),
-                len(processing_path.points),
-                ", ".join(
-                    "{}:{:.1f}".format(name, elapsed * 1000.0)
-                    for name, elapsed in module_times
-                ),
-            )
-
-    def processing_path(self, path_with_lane_id):
-        if self.max_processing_length <= 0.0 or len(path_with_lane_id.points) < 3:
-            return path_with_lane_id, []
-
-        points = path_with_lane_id.points
-        accumulated = 0.0
-        end_index = len(points)
-        for index, (first, second) in enumerate(zip(points[:-1], points[1:]), start=1):
-            first_position = first.point.pose.position
-            second_position = second.point.pose.position
-            accumulated += math.hypot(
-                second_position.x - first_position.x,
-                second_position.y - first_position.y,
-            )
-            if accumulated >= self.max_processing_length:
-                end_index = index + 1
-                break
-
-        if end_index >= len(points):
-            return path_with_lane_id, []
-
-        processing_path = deepcopy(path_with_lane_id)
-        processing_path.points = deepcopy(points[:end_index])
-        return processing_path, points[end_index:]
 
     def publish_results(self, output_path, results):
         stop_reasons = StopReasonArray()

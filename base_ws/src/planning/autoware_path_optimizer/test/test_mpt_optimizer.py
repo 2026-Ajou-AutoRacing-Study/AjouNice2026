@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import math
-import importlib.util
 import os
 import sys
 import unittest
@@ -12,16 +11,6 @@ sys.path.insert(0, PACKAGE_SRC)
 
 from autoware_path_optimizer.mpt_optimizer import MPTParameters, ModelPredictiveTrajectory
 from autoware_path_optimizer.trajectory_utils import TrajectorySample, curvature
-
-
-def load_path_optimizer_node_module():
-    script_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "scripts", "path_optimizer.py"
-    )
-    spec = importlib.util.spec_from_file_location("path_optimizer_node", script_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def path(count=80, lateral_noise=0.0):
@@ -88,22 +77,6 @@ class ModelPredictiveTrajectoryTest(unittest.TestCase):
         result = ModelPredictiveTrajectory().optimize(source, 0.0, 0.0, left, right)
         self.assertFalse(result.success)
         self.assertIn("narrower than vehicle", result.status)
-
-    def test_fallback_uses_current_input_instead_of_stale_previous_output(self):
-        module = load_path_optimizer_node_module()
-        node = module.PathOptimizerNode.__new__(module.PathOptimizerNode)
-        node.output_interval = 0.5
-        node.previous_output = [
-            TrajectorySample(x=float(index - 30), y=0.0)
-            for index in range(80)
-        ]
-        node.stop_before_outside = lambda points, _left, _right: points
-        source = path(count=80)
-
-        output = node.fallback(source, [], [])
-
-        self.assertAlmostEqual(output[0].x, source[0].x)
-        self.assertAlmostEqual(output[-1].x, source[-1].x)
 
 
 if __name__ == "__main__":

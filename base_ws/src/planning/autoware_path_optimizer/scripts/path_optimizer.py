@@ -239,9 +239,11 @@ class PathOptimizerNode:
         return set_zero_velocity_after(points, stop_index)
 
     def fallback(self, source, left_bound, right_bound):
-        # A stale previous output eventually places ego behind the reusable
-        # trajectory window. Keep fallback rolling with the current input path.
-        geometry = resample(source, self.output_interval, preserve_stop=True)
+        if self.previous_output:
+            geometry = [replace(point) for point in self.previous_output]
+            geometry = apply_input_velocity(geometry, source)
+        else:
+            geometry = resample(source, self.output_interval, preserve_stop=True)
         geometry = self.stop_before_outside(geometry, left_bound, right_bound)
         return set_zero_velocity_after_first_stop(geometry)
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import copy
+import math
 import threading
 import uuid
 
@@ -16,6 +17,11 @@ from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
+
+try:
+    from autoware_planning_msgs.msg import Trajectory
+except ImportError:  # pragma: no cover - optional outside the full planning stack.
+    Trajectory = None
 
 
 def color(red, green, blue, alpha=1.0):
@@ -34,8 +40,17 @@ class MissionPlannerRvizInput:
         self.publish_rate = max(float(rospy.get_param("~publish_rate", 10.0)), 0.1)
         self.max_velocity = max(float(rospy.get_param("~max_velocity", 4.1666665)), 0.0)
         self.allow_modification = bool(rospy.get_param("~allow_modification", False))
-        self.publish_static_odometry = bool(
-            rospy.get_param("~publish_static_odometry", True)
+        self.simulate_motion = bool(rospy.get_param("~simulate_motion", False))
+        self.simulation_speed = max(
+            float(rospy.get_param("~simulation_speed_mps", 10.0)), 0.1
+        )
+        self.goal_tolerance = max(
+            float(rospy.get_param("~simulation_goal_tolerance_m", 1.0)), 0.1
+        )
+        self.trajectory_topic = rospy.get_param(
+            "~trajectory_topic",
+            "/planning/scenario_planning/lane_driving/motion_planning/"
+            "motion_velocity_planner/trajectory",
         )
         self.clear_route_on_initial_pose = bool(
             rospy.get_param("~clear_route_on_initial_pose", True)
@@ -51,6 +66,10 @@ class MissionPlannerRvizInput:
         self.start_pose = None
         self.current_pose = None
         self.goal_pose = None
+        self.latest_trajectory = None
+        self.last_timer_stamp = None
+        self.is_moving = False
+        self.reported_velocity = 0.0
 
         self.odometry_pub = rospy.Publisher(
             "/localization/kinematic_state", Odometry, queue_size=1
@@ -79,12 +98,19 @@ class MissionPlannerRvizInput:
 
         rospy.Subscriber("/initialpose", PoseWithCovarianceStamped, self.on_initial_pose)
         rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.on_goal)
+        if self.simulate_motion and Trajectory is not None:
+            rospy.Subscriber(
+                self.trajectory_topic,
+                Trajectory,
+                self.on_trajectory,
+                queue_size=1,
+            )
         rospy.Timer(rospy.Duration(1.0 / self.publish_rate), self.on_timer)
 
         rospy.loginfo(
-            "mission_planner_rviz_input: use 2D Pose Estimate for the %s ego "
-            "pose and 2D Nav Goal for the route goal",
-            "fixed" if self.publish_static_odometry else "externally driven",
+            "mission_planner_rviz_input: use 2D Pose Estimate for start and 2D Nav Goal "
+            "for goal (virtual_motion=%s)",
+            self.simulate_motion,
         )
 
     def normalized_pose(self, pose):
@@ -118,6 +144,10 @@ class MissionPlannerRvizInput:
             self.start_pose = self.normalized_pose(message.pose.pose)
             self.current_pose = copy.deepcopy(self.start_pose)
             self.goal_pose = None
+            self.latest_trajectory = None
+            self.last_timer_stamp = None
+            self.is_moving = False
+            self.reported_velocity = 0.0
             self.publish_odometry(rospy.Time.now())
             self.publish_markers()
         if self.clear_route_on_initial_pose:
@@ -138,6 +168,10 @@ class MissionPlannerRvizInput:
                 return
             self.goal_pose = self.normalized_pose(message.pose)
             self.current_pose = copy.deepcopy(self.start_pose)
+            self.latest_trajectory = None
+            self.last_timer_stamp = None
+            self.is_moving = False
+            self.reported_velocity = 0.0
             self.publish_odometry(rospy.Time.now())
             self.publish_markers()
 
@@ -163,14 +197,99 @@ class MissionPlannerRvizInput:
         except (rospy.ROSException, rospy.ServiceException) as error:
             rospy.logerr("Could not call Mission Planner route service: %s", error)
 
+    def on_trajectory(self, message):
+        if not message.points:
+            return
+        with self.lock:
+            self.latest_trajectory = copy.deepcopy(message)
+
+    @staticmethod
+    def pose_distance(first, second):
+        return math.hypot(
+            float(first.position.x) - float(second.position.x),
+            float(first.position.y) - float(second.position.y),
+        )
+
+    @staticmethod
+    def interpolate_pose(first, second, ratio):
+        ratio = max(0.0, min(float(ratio), 1.0))
+        output = copy.deepcopy(first)
+        output.position.x = first.position.x + ratio * (
+            second.position.x - first.position.x
+        )
+        output.position.y = first.position.y + ratio * (
+            second.position.y - first.position.y
+        )
+        output.position.z = first.position.z + ratio * (
+            second.position.z - first.position.z
+        )
+        output.orientation = copy.deepcopy(second.orientation)
+        return output
+
+    def advance_virtual_ego(self, elapsed):
+        if (
+            not self.simulate_motion
+            or self.current_pose is None
+            or self.goal_pose is None
+            or self.latest_trajectory is None
+            or len(self.latest_trajectory.points) < 2
+        ):
+            self.is_moving = False
+            return
+        if self.pose_distance(self.current_pose, self.goal_pose) <= self.goal_tolerance:
+            self.current_pose = copy.deepcopy(self.goal_pose)
+            self.is_moving = False
+            self.reported_velocity = 0.0
+            return
+
+        poses = [point.pose for point in self.latest_trajectory.points]
+        nearest_index = min(
+            range(len(poses)),
+            key=lambda index: self.pose_distance(self.current_pose, poses[index]),
+        )
+        remaining = max(self.simulation_speed * max(float(elapsed), 0.0), 0.0)
+        cursor = copy.deepcopy(self.current_pose)
+        index = nearest_index
+        while remaining > 1.0e-6 and index + 1 < len(poses):
+            target = poses[index + 1]
+            segment = self.pose_distance(cursor, target)
+            if segment < 1.0e-6:
+                cursor = copy.deepcopy(target)
+                index += 1
+                continue
+            if remaining < segment:
+                cursor = self.interpolate_pose(cursor, target, remaining / segment)
+                remaining = 0.0
+                break
+            cursor = copy.deepcopy(target)
+            remaining -= segment
+            index += 1
+
+        moved = self.pose_distance(self.current_pose, cursor)
+        if moved > 1.0e-4:
+            self.current_pose = cursor
+            self.is_moving = True
+            self.reported_velocity = max(
+                float(
+                    self.latest_trajectory.points[
+                        min(index, len(self.latest_trajectory.points) - 1)
+                    ].longitudinal_velocity_mps
+                ),
+                0.0,
+            )
+        else:
+            self.is_moving = False
+
     def publish_odometry(self, stamp):
-        if not self.publish_static_odometry or self.current_pose is None:
+        if self.current_pose is None:
             return
         message = Odometry()
         message.header.stamp = stamp
         message.header.frame_id = self.frame_id
         message.child_frame_id = "base_link"
         message.pose.pose = copy.deepcopy(self.current_pose)
+        if self.is_moving:
+            message.twist.twist.linear.x = self.reported_velocity
         self.odometry_pub.publish(message)
 
     def publish_operation_mode(self, stamp):
@@ -228,8 +347,13 @@ class MissionPlannerRvizInput:
     def on_timer(self, _event):
         stamp = rospy.Time.now()
         with self.lock:
+            if self.last_timer_stamp is None:
+                elapsed = 0.0
+            else:
+                elapsed = max((stamp - self.last_timer_stamp).to_sec(), 0.0)
+            self.last_timer_stamp = stamp
+            self.advance_virtual_ego(elapsed)
             self.publish_odometry(stamp)
-            self.publish_markers()
             self.publish_operation_mode(stamp)
             self.publish_scenario()
             self.publish_velocity_limit(stamp)

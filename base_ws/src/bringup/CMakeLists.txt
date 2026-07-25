@@ -178,9 +178,6 @@ catkin_install_python(
   validation/scripts/mission_bpp_pipeline_validator.py
   validation/scripts/mission_bpp_bvp_pipeline_validator.py
   validation/scripts/mission_bpp_bvp_live_visualizer.py
-  validation/scripts/kcity_competition_route_publisher.py
-  validation/scripts/kcity_competition_live_route_publisher.py
-  validation/scripts/kcity_dynamic_ego_validator.py
   validation/scripts/planning_pipeline_reference_input.py
   validation/scripts/planning_trajectory_visualizer.py
   validation/scripts/planning_velocity_scenario_atlas.py
@@ -237,7 +234,4 @@ install(
 # endif()
 
 ## Add folders to be run by python nosetests
-if(CATKIN_ENABLE_TESTING)
-  catkin_add_nosetests(test/test_planning_trajectory_visualizer.py)
-  catkin_add_nosetests(test/test_kcity_dynamic_ego_validator.py)
-endif()
+# catkin_add_nosetests(test)

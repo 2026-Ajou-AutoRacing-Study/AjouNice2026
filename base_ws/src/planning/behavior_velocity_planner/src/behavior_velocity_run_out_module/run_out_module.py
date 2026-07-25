@@ -116,6 +116,7 @@ class RunOutModuleManager(SceneModuleManagerInterface):
         if len(output_path.points) < 2:
             result.status = "run_out: input path is too short"
             return result
+        self._interpolate_path(output_path)
         path_xyz = path_positions(output_path)
         current_station = ego_station(output_path, planner_data.odometry)
         speed = max(ego_speed(planner_data.odometry), 0.0)
@@ -240,9 +241,6 @@ class RunOutModuleManager(SceneModuleManagerInterface):
         planner_data,
     ):
         candidates = []
-        # Autoware keeps collision geometry preprocessing internal. The continuous
-        # projection below evaluates the full polyline without resampling the public
-        # output path, which would only slow every downstream planner.
         for detected in getattr(planner_data.dynamic_objects, "objects", []):
             label = object_label(detected)
             if label not in self.parameters.target_labels:
@@ -310,6 +308,22 @@ class RunOutModuleManager(SceneModuleManagerInterface):
                 + math.sqrt(initial_velocity * initial_velocity + 2.0 * acceleration * distance)
             ) / acceleration
         return time_to_target + (distance - distance_to_target) / target_velocity
+
+    def _interpolate_path(self, path):
+        lengths = self._path_lengths(path)
+        if not lengths:
+            return
+        step = max(self.parameters.path_interpolation_ds, 0.05)
+        station = 0.0
+        while station <= lengths[-1] + 1.0e-6:
+            insert_path_point(path, station)
+            station += step
+
+    @staticmethod
+    def _path_lengths(path):
+        from behavior_velocity_planner_common.geometry import cumulative_lengths
+
+        return cumulative_lengths(path_positions(path))
 
     @staticmethod
     def _linear_prediction(detected):

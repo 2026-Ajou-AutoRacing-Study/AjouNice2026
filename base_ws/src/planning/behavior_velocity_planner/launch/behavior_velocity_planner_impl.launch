@@ -3,14 +3,12 @@
   <arg name="projector_file" default="" />
   <arg name="map_projector_type" default="MGRS" />
   <arg name="flatten_map_z" default="false" />
-  <arg name="max_processing_length" default="350.0" />
 
   <node pkg="behavior_velocity_planner" type="behavior_velocity_planner.py" name="behavior_velocity_planner" output="screen">
     <param name="map_file" value="$(arg map_file)" />
     <param name="projector_file" value="$(arg projector_file)" />
     <param name="map_projector_type" value="$(arg map_projector_type)" />
     <param name="flatten_map_z" value="$(arg flatten_map_z)" />
-    <param name="max_processing_length" value="$(arg max_processing_length)" />
     <rosparam param="launch_modules">[stop_line, detection_area, traffic_light, virtual_traffic_light, crosswalk, walkway, blind_spot, intersection, merge_from_private, no_stopping_area, no_drivable_lane, occlusion_spot, run_out, speed_bump]</rosparam>
     <rosparam command="load" file="$(find behavior_velocity_planner)/config/stop_line.param.yaml" param="stop_line" />
     <rosparam command="load" file="$(find behavior_velocity_planner)/config/speed_bump.param.yaml" param="speed_bump" />

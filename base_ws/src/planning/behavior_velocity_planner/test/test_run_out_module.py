@@ -106,56 +106,6 @@ class RunOutTest(unittest.TestCase):
         )
         self.assertFalse(result.modified)
 
-    def test_clear_scene_does_not_resample_public_path(self):
-        manager = RunOutModuleManager(RunOutParameters(path_interpolation_ds=0.1))
-        odometry = Odometry()
-        odometry.pose.pose.orientation.w = 1.0
-        message = path()
-        output = to_path(message)
-        original_size = len(output.points)
-
-        result = manager.modify_path_velocity(
-            message,
-            output,
-            PlannerData(
-                odometry=odometry,
-                dynamic_objects=PredictedObjects(),
-                current_time=10.0,
-            ),
-        )
-
-        self.assertFalse(result.modified)
-        self.assertEqual(len(output.points), original_size)
-
-    def test_collision_only_inserts_decision_points(self):
-        parameters = RunOutParameters(
-            time_margin=0.6,
-            slowdown_on_time_buffer=0.0,
-            stop_on_time_buffer=0.0,
-            base_link_to_front=0.0,
-            path_interpolation_ds=0.1,
-        )
-        manager = RunOutModuleManager(parameters)
-        odometry = Odometry()
-        odometry.pose.pose.orientation.w = 1.0
-        odometry.twist.twist.linear.x = 10.0
-        message = path()
-        output = to_path(message)
-        original_size = len(output.points)
-
-        result = manager.modify_path_velocity(
-            message,
-            output,
-            PlannerData(
-                odometry=odometry,
-                dynamic_objects=crossing_object(),
-                current_time=10.0,
-            ),
-        )
-
-        self.assertTrue(result.modified)
-        self.assertLessEqual(len(output.points), original_size + 2)
-
 
 if __name__ == "__main__":
     unittest.main()

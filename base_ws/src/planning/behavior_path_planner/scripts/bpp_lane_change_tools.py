@@ -58,22 +58,12 @@ def _next_lateral_lane(centerline_map, section_lane_ids, source_lane_id, preferr
     return None
 
 
-def route_lane_change_target(
-    route,
-    centerline_map,
-    ego_pose,
-    current_section_index=None,
-    current_lane_id=None,
-):
+def route_lane_change_target(route, centerline_map, ego_pose):
     if route is None or centerline_map is None or ego_pose is None:
         return None
 
     sections = route_sections(route, centerline_map)
-    section_index, source_lane_id = current_section_index, current_lane_id
-    if section_index is None or source_lane_id is None:
-        section_index, source_lane_id = current_route_lane(
-            route, centerline_map, ego_pose
-        )
+    section_index, source_lane_id = current_route_lane(route, centerline_map, ego_pose)
     if section_index is None or source_lane_id is None:
         return None
 

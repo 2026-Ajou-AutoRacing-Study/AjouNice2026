@@ -2,9 +2,6 @@ frame_id: map
 planning_hz: 10.0
 default_velocity_mps: 5.0
 use_velocity_limit: true
-extract_ahead_dist: 200.0
-extract_behind_dist: 0.0
-delta_yaw_threshold: 1.0472
 
 stop_distance: 3.0
 dynamic_stop_distance: 5.0

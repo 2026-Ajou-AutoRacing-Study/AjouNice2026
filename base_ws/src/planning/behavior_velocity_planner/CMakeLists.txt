@@ -57,7 +57,6 @@ install(
 )
 
 if(CATKIN_ENABLE_TESTING)
-  catkin_add_nosetests(test/test_behavior_velocity_planner.py)
   catkin_add_nosetests(test/test_crosswalk_module.py)
   catkin_add_nosetests(test/test_detection_area_module.py)
   catkin_add_nosetests(test/test_blind_spot_module.py)

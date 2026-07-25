@@ -22,9 +22,3 @@
 	path = base_ws/src/morai/morai_msgs
 	url = https://github.com/MORAI-Autonomous/MORAI-ROS_morai_msgs.git
 	branch = beta_drive
-[submodule "third_party/mmdetection3d"]
-	path = third_party/mmdetection3d
-	url = https://github.com/2026-Ajou-AutoRacing-Study/mmdetection3d.git
-[submodule "third_party/bevfusion"]
-	path = third_party/bevfusion
-	url = https://github.com/2026-Ajou-AutoRacing-Study/bevfusion.git

@@ -14,8 +14,6 @@
   <arg name="enable_path_smoother_debug" default="false" />
   <arg name="enable_path_optimizer_debug" default="false" />
   <arg name="mvp_velocity_mps" default="5.0" />
-  <arg name="mvp_extract_ahead_dist" default="200.0" />
-  <arg name="mvp_extract_behind_dist" default="0.0" />
 
   <include file="$(find bringup)/launch/mission_bpp_bvp_path_smoother_path_optimizer_pipeline.launch">
     <arg name="frame_id" value="$(arg frame_id)" />
@@ -37,7 +35,5 @@
   <include file="$(find motion_velocity_planner)/launch/motion_velocity_planner.launch">
     <arg name="default_velocity_mps" value="$(arg mvp_velocity_mps)" />
     <arg name="cruise_speed_mps" value="$(arg mvp_velocity_mps)" />
-    <arg name="extract_ahead_dist" value="$(arg mvp_extract_ahead_dist)" />
-    <arg name="extract_behind_dist" value="$(arg mvp_extract_behind_dist)" />
   </include>
 </launch>

@@ -10,8 +10,8 @@
   <arg name="enable_control" default="true"/>
   <arg name="lidar_port" default="2368"/>
   <arg name="lidar_frame" default="lidar1"/>
-  <!-- LiDAR output: 900 RPM = 15 Hz. -->
-  <arg name="lidar_rpm" default="900.0"/>
+  <!-- Competition recommendation: LiDAR output at or below 10 Hz. -->
+  <arg name="lidar_rpm" default="600.0"/>
   <arg name="lidar_timestamp_first_packet" default="true"/>
   <arg name="lidar_calibration"
        default="$(find velodyne_pointcloud)/params/VLP16db.yaml"/>

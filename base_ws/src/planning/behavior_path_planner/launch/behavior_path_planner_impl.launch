@@ -22,8 +22,6 @@
     <param name="vehicle_rear_overhang" value="1.1" />
     <param name="backward_path_margin" value="1.0" />
     <param name="forward_path_length" value="$(arg forward_path_length)" />
-    <param name="ego_nearest_dist_threshold" value="3.0" />
-    <param name="ego_nearest_yaw_threshold" value="1.046" />
     <param name="goal_bound_extension" value="5.0" />
     <param name="fallback_path_length" value="60.0" />
     <param name="default_velocity_mps" value="$(arg default_velocity_mps)" />

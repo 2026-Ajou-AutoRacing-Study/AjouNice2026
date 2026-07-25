@@ -4,9 +4,6 @@
   <arg name="default_z" default="28.5" />
   <arg name="max_velocity" default="4.1666665" />
   <arg name="forward_path_length" default="5000.0" />
-  <arg name="mvp_extract_ahead_dist" default="200.0" />
-  <arg name="mvp_extract_behind_dist" default="0.0" />
-  <arg name="publish_static_odometry" default="true" />
   <arg name="launch_rviz" default="true" />
 
   <include file="$(find bringup)/launch/mission_bpp_bvp_path_smoother_path_optimizer_mvp_pipeline.launch">
@@ -23,8 +20,6 @@
     <arg name="enable_side_shift" value="false" />
     <arg name="enable_path_smoother_debug" value="false" />
     <arg name="enable_path_optimizer_debug" value="false" />
-    <arg name="mvp_extract_ahead_dist" value="$(arg mvp_extract_ahead_dist)" />
-    <arg name="mvp_extract_behind_dist" value="$(arg mvp_extract_behind_dist)" />
   </include>
 
   <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
@@ -44,7 +39,9 @@
     <param name="default_z" value="$(arg default_z)" />
     <param name="max_velocity" value="$(arg max_velocity)" />
     <param name="allow_modification" value="false" />
-    <param name="publish_static_odometry" value="$(arg publish_static_odometry)" />
+    <param name="simulate_motion" value="true" />
+    <param name="simulation_speed_mps" value="10.0" />
+    <param name="simulation_goal_tolerance_m" value="0.8" />
   </node>
 
   <node pkg="bringup"
@@ -55,6 +52,8 @@
     <param name="path_topic" value="/planning/debug/final_trajectory/path" />
     <param name="marker_topic" value="/planning/debug/final_trajectory/markers" />
     <param name="nominal_velocity_mps" value="$(arg max_velocity)" />
+    <param name="accumulate_odometry" value="true" />
+    <param name="history_interval_m" value="0.5" />
   </node>
 
   <node if="$(arg launch_rviz)"
