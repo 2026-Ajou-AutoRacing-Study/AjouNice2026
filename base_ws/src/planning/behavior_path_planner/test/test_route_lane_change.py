@@ -16,7 +16,11 @@ from bpp_lane_change_tools import (
     route_lane_change_target,
 )
 from bpp_map_tools import CenterlineMap, stitch_route_centerlines
-from bpp_route_tools import current_route_lane, forward_lane_sequence, reference_lane_sequence
+from bpp_route_tools import (
+    RouteLaneletTracker,
+    forward_lane_sequence,
+    reference_lane_sequence,
+)
 
 
 class Primitive:
@@ -79,12 +83,12 @@ class Pose:
             self.orientation = Orientation(yaw)
 
 
-class LoopingRoute:
+class SpatiallyCloseFutureRoute:
     def __init__(self):
-        self.start_pose = Pose(5.0, 1.0, yaw=0.0)
         self.segments = [
             Segment(300001, [300001]),
             Segment(300002, [300002]),
+            Segment(300003, [300003]),
         ]
 
 
@@ -121,9 +125,16 @@ class RouteLaneChangeTest(unittest.TestCase):
             "200316": ((4, 11), (6, 12)),
             "200272": ((8, 13), (10, 14)),
         }
+        boundaries = {
+            "200315": (
+                [(10.0, 6.0, 0.0), (40.0, 6.0, 0.0)],
+                [(10.0, 2.0, 0.0), (40.0, 2.0, 0.0)],
+            ),
+        }
         self.map = CenterlineMap(
             "synthetic",
             centerlines,
+            boundaries=boundaries,
             boundary_ids=boundary_ids,
             boundary_node_ids=boundary_node_ids,
         )
@@ -158,6 +169,18 @@ class RouteLaneChangeTest(unittest.TestCase):
         self.assertEqual(target.source_lane_id, 200316)
         self.assertEqual(target.target_lane_id, 200315)
 
+    def test_lane_change_target_uses_tracked_root_not_global_nearest(self):
+        target = route_lane_change_target(
+            self.route,
+            self.map,
+            Pose(20.0, 4.0, yaw=0.0),
+            current_section_index=0,
+            current_lane_id=200262,
+        )
+        self.assertIsNotNone(target)
+        self.assertEqual(target.source_lane_id, 200316)
+        self.assertEqual(target.target_lane_id, 200315)
+
     def test_no_lane_change_when_preferred_lane_is_longitudinal_successor(self):
         route = PreferredLaneRoute()
         self.assertEqual(
@@ -177,13 +200,56 @@ class RouteLaneChangeTest(unittest.TestCase):
         self.assertEqual(target.target_lane_id, 200187)
         self.assertEqual(target.direction, "left")
 
-    def test_route_start_does_not_jump_to_a_later_parallel_section(self):
-        section_index, lane_id = current_route_lane(
-            LoopingRoute(), self.map, Pose(5.0, 0.9, yaw=0.0)
+    def test_tracker_does_not_jump_to_spatially_close_unconnected_lane(self):
+        tracker = RouteLaneletTracker(3.0, 1.046)
+        self.assertTrue(
+            tracker.set_lane(SpatiallyCloseFutureRoute(), self.map, 300001)
+        )
+        section_index, lane_id = tracker.update(
+            SpatiallyCloseFutureRoute(),
+            self.map,
+            Pose(5.0, 0.2, yaw=0.0),
+            backward_length=5.0,
+            forward_length=300.0,
+            autonomous_control=True,
         )
         self.assertEqual((section_index, lane_id), (0, 300001))
 
-    def test_current_lane_rejects_a_closer_opposite_direction_lane(self):
+    def test_tracker_advances_only_to_topological_successor(self):
+        tracker = RouteLaneletTracker(3.0, 1.046)
+        self.assertTrue(tracker.set_lane(self.route, self.map, 200262))
+        section_index, lane_id = tracker.update(
+            self.route,
+            self.map,
+            Pose(20.0, 0.0, yaw=0.0),
+            backward_length=5.0,
+            forward_length=300.0,
+            autonomous_control=True,
+        )
+        self.assertEqual((section_index, lane_id), (1, 200316))
+
+    def test_tracker_sequence_keeps_backward_and_forward_lanelets(self):
+        tracker = RouteLaneletTracker(3.0, 1.046)
+        self.assertTrue(tracker.set_lane(self.route, self.map, 200316))
+        self.assertEqual(
+            tracker.sequence(self.route, self.map, 5.0, 300.0),
+            [200262, 200316],
+        )
+
+    def test_lane_change_completion_requires_ego_on_target_centerline(self):
+        tracker = RouteLaneletTracker(3.0, 1.046)
+        self.assertFalse(
+            tracker.lane_change_completed(
+                self.map, 200315, Pose(20.0, 0.0, yaw=0.0)
+            )
+        )
+        self.assertTrue(
+            tracker.lane_change_completed(
+                self.map, 200315, Pose(20.0, 4.0, yaw=0.0)
+            )
+        )
+
+    def test_tracker_rejects_closer_opposite_direction_lane(self):
         route = type(
             "DirectionRoute",
             (),
@@ -194,8 +260,15 @@ class RouteLaneChangeTest(unittest.TestCase):
                 ]
             },
         )()
-        section_index, lane_id = current_route_lane(
-            route, self.map, Pose(5.0, 0.0, yaw=0.0)
+        tracker = RouteLaneletTracker(3.0, 1.046)
+        self.assertTrue(tracker.set_lane(route, self.map, 300003))
+        section_index, lane_id = tracker.update(
+            route,
+            self.map,
+            Pose(5.0, 0.0, yaw=0.0),
+            backward_length=5.0,
+            forward_length=300.0,
+            autonomous_control=True,
         )
         self.assertEqual((section_index, lane_id), (0, 300003))
 

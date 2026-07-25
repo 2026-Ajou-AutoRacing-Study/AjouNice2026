@@ -1,0 +1,23 @@
+<launch>
+  <arg name="map_file" default="$(env HOME)/AJOUNICE2026/lanelet2_map_v44.osm" />
+  <arg name="route_preset" default="full" />
+  <arg name="forward_path_length" default="5000.0" />
+  <arg name="launch_rviz" default="true" />
+
+  <!-- Keep ego fixed and calculate the final trajectory for the complete route. -->
+  <include file="$(find bringup)/launch/kcity_interactive_trajectory_rviz.launch">
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="forward_path_length" value="$(arg forward_path_length)" />
+    <arg name="mvp_extract_ahead_dist" value="$(arg forward_path_length)" />
+    <arg name="launch_rviz" value="$(arg launch_rviz)" />
+  </include>
+
+  <node pkg="bringup"
+        type="kcity_competition_route_publisher.py"
+        name="kcity_competition_full_route_publisher"
+        output="screen">
+    <param name="route_preset" value="$(arg route_preset)" />
+    <param name="require_goal_in_trajectory" value="true" />
+    <param name="trajectory_timeout" value="180.0" />
+  </node>
+</launch>
