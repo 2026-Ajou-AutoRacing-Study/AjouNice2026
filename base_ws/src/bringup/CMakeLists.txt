@@ -10,6 +10,7 @@ project(bringup)
 find_package(catkin REQUIRED COMPONENTS
   autoware_adapi_v1_msgs
   autoware_internal_planning_msgs
+  autoware_map_msgs
   autoware_perception_msgs
   autoware_planning_msgs
   geometry_msgs
@@ -113,6 +114,7 @@ catkin_package(
   CATKIN_DEPENDS
   autoware_adapi_v1_msgs
   autoware_internal_planning_msgs
+  autoware_map_msgs
   autoware_perception_msgs
   autoware_planning_msgs
   geometry_msgs

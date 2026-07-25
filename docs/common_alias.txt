@@ -53,3 +53,7 @@ alias morai_status="bash ~/AjouNice2026/scripts/runtime/morai_status.sh"
 alias morai_reset="bash ~/AjouNice2026/scripts/runtime/morai_reset.sh stack"
 alias morai_scenario_check="rosrun sensor_interface morai_scenario_load.py"
 alias morai_scenario_load="rosrun sensor_interface morai_scenario_load.py --send"
+
+# planning-----------------------------------------------
+alias planner='roslaunch bringup kcity_morai_competition_planner_rviz.launch'
+alias kroute='roslaunch bringup kcity_competition_route.launch'

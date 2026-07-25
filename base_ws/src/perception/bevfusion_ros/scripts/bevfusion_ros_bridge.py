@@ -227,10 +227,12 @@ class BevFusionRosBridge:
 
     def _publish_markers(self, response, stamp):
         markers = []
+        frame_id = response.get("frame_id", "lidar1")
         delete_all = Marker()
+        delete_all.header.frame_id = frame_id
+        delete_all.header.stamp = stamp
         delete_all.action = Marker.DELETEALL
         markers.append(delete_all)
-        frame_id = response.get("frame_id", "lidar1")
         detections = response.get("detections", [])
         for index, detection in enumerate(detections):
             box = Marker()
@@ -262,7 +264,7 @@ class BevFusionRosBridge:
             label.pose.orientation.w = 1.0
             label.scale.z = 0.45
             label.color.r = label.color.g = label.color.b = label.color.a = 1.0
-            label.text = "{} {:.2f}".format(
+            label.text = "{} {:.6f}".format(
                 detection.get("class_name", "unknown"), detection.get("score", 0.0)
             )
             label.lifetime = box.lifetime

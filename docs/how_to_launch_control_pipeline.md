@@ -296,9 +296,9 @@ MORAI UDP interface, localization, 20 km/h `trajectory_publisher`를 먼저 실�
 
 ```bash
 source /opt/ros/noetic/setup.bash
-source ~/AjouNice2026/base_ws/devel/setup.bash
+source base_ws/devel/setup.bash
 
-python3 ~/AjouNice2026/scripts/experiments/run_fixed_ld_sweep.py \
+python3 scripts/experiments/run_fixed_ld_sweep.py \
   --ld-start 2 \
   --ld-end 12 \
   --ld-step 0.5 \
