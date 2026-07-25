@@ -5,6 +5,7 @@
        default="$(find trajectory_follower)/config/purepursuit.yaml"/>
   <arg name="pi_config"
        default="$(find trajectory_follower)/config/longi_pi.yaml"/>
+  <arg name="lookahead_distance_m" default="10.0"/>
 
   <node pkg="trajectory_follower"
         type="purepursuit"
@@ -13,6 +14,7 @@
         required="true">
     <rosparam command="load" file="$(arg common_config)"/>
     <rosparam command="load" file="$(arg pp_config)"/>
+    <param name="lookahead_distance_m" value="$(arg lookahead_distance_m)"/>
   </node>
 
   <node pkg="trajectory_follower"

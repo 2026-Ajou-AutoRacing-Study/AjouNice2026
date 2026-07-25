@@ -22,3 +22,7 @@ recording:
   response_delay_s: 0.10
   response_tolerance_s: 0.05
   goal_tolerance_m: 3.0
+  # End a run when excessive lateral error persists, rather than reacting to
+  # a single localization/control sample.
+  max_lateral_deviation_m: 15.0
+  off_route_duration_s: 3.0

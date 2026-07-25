@@ -224,6 +224,9 @@ class TrajectoryRecorder:
             rospy.get_param("~input/kinematic_velocity_scale_to_mps", 1.0)
         )
         self.overwrite = bool(rospy.get_param("~storage/overwrite", False))
+        self.run_label = str(rospy.get_param("~storage/run_label", "")).strip()
+        if self.run_label and not SAFE_NAME.fullmatch(self.run_label):
+            raise ValueError("run_label may contain only letters, digits, '_' and '-'")
         self.history_root = resolve_repo_directory(
             self.root,
             rospy.get_param(
@@ -242,6 +245,12 @@ class TrajectoryRecorder:
             rospy.get_param("~recording/response_tolerance_s", 0.05)
         )
         self.goal_tolerance_m = float(rospy.get_param("~recording/goal_tolerance_m", 3.0))
+        self.max_lateral_deviation_m = float(
+            rospy.get_param("~recording/max_lateral_deviation_m", 15.0)
+        )
+        self.off_route_duration_s = float(
+            rospy.get_param("~recording/off_route_duration_s", 3.0)
+        )
         for label, value in (
             ("sample_rate_hz", self.sample_rate_hz),
             ("input_timeout_s", self.input_timeout_s),
@@ -250,6 +259,8 @@ class TrajectoryRecorder:
             ("response_delay_s", self.response_delay_s),
             ("response_tolerance_s", self.response_tolerance_s),
             ("goal_tolerance_m", self.goal_tolerance_m),
+            ("max_lateral_deviation_m", self.max_lateral_deviation_m),
+            ("off_route_duration_s", self.off_route_duration_s),
             (
                 "kinematic_velocity_scale_to_mps",
                 self.kinematic_velocity_scale_to_mps,
@@ -263,6 +274,8 @@ class TrajectoryRecorder:
         # Keep every run grouped below its trajectory sample directory.  The
         # controller suffix makes runs distinguishable while browsing history.
         base_run_id = "{}_pp_pi".format(self.started_wall.strftime("%m%d_%H%M%S"))
+        if self.run_label:
+            base_run_id = "{}_{}".format(base_run_id, self.run_label)
         self.sample_directory = self.history_root / self.traj_sample
         self.sample_directory.mkdir(parents=True, exist_ok=True)
         self.run_id = self._unique_run_id(base_run_id)
@@ -290,6 +303,7 @@ class TrajectoryRecorder:
         self.control_pair = None
         self.last_recorded_command_ros_ns = None
         self.collision_detected = False
+        self.off_route_started_ros = None
         self.samples = []
         self.responses = []
         self.pending_responses = []
@@ -581,6 +595,23 @@ class TrajectoryRecorder:
                 ego_yaw,
                 ego_velocity,
             )
+            lateral_deviation = abs(match["lateral_error_m"])
+            if lateral_deviation > self.max_lateral_deviation_m:
+                if self.off_route_started_ros is None:
+                    self.off_route_started_ros = now
+                rospy.logwarn_throttle(
+                    0.5,
+                    "trajectory deviation %.2f m exceeds %.2f m limit",
+                    lateral_deviation,
+                    self.max_lateral_deviation_m,
+                )
+            else:
+                self.off_route_started_ros = None
+            off_route = (
+                self.off_route_started_ros is not None
+                and (now - self.off_route_started_ros).to_sec()
+                >= self.off_route_duration_s
+            )
             final = self.gt_trajectory.points[-1].pose.position
             reached_goal = (
                 math.hypot(
@@ -650,6 +681,16 @@ class TrajectoryRecorder:
                 should_stop = True
             elif reached_goal:
                 self.end_reason = "goal_reached"
+                should_stop = True
+            elif off_route:
+                self.end_reason = "off_route"
+                rospy.logerr(
+                    "trajectory recording stopped: lateral deviation %.2f m "
+                    "exceeded %.2f m for %.2f s",
+                    lateral_deviation,
+                    self.max_lateral_deviation_m,
+                    self.off_route_duration_s,
+                )
                 should_stop = True
         if should_stop:
             rospy.signal_shutdown(self.end_reason)
@@ -766,6 +807,7 @@ class TrajectoryRecorder:
             "schema_version": self.schema_version,
             "traj_sample": self.traj_sample,
             "run_id": self.run_id,
+            "run_label": self.run_label or None,
             "status": status,
             "started_at": self.started_wall.isoformat(),
             "armed_at_ros_ns": self.node_started_ros.to_nsec(),
@@ -810,6 +852,8 @@ class TrajectoryRecorder:
                 "command_pair_tolerance_s": self.command_pair_tolerance_s,
                 "response_delay_s": self.response_delay_s,
                 "response_tolerance_s": self.response_tolerance_s,
+                "max_lateral_deviation_m": self.max_lateral_deviation_m,
+                "off_route_duration_s": self.off_route_duration_s,
                 "duration_s": duration,
                 "end_reason": self.end_reason if status != "recording" else None,
             },

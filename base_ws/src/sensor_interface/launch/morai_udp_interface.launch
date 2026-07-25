@@ -4,10 +4,13 @@
        default="$(find ioniq5)/../../../configs/sensors/Sensor_4.json"/>
   <arg name="network_config"
        default="$(find ioniq5)/../../../configs/network/ego_network_1.json"/>
+  <arg name="vehicle_config"
+       default="$(find ioniq5)/../../../configs/vehicle/ioniq5.yaml"/>
   <arg name="enable_sensors" default="true"/>
   <arg name="enable_lidar" default="true"/>
   <arg name="enable_ego_network" default="true"/>
   <arg name="enable_control" default="true"/>
+  <arg name="enable_scenario_load" default="true"/>
   <arg name="lidar_port" default="2368"/>
   <arg name="lidar_frame" default="lidar1"/>
   <!-- Competition recommendation: LiDAR output at or below 10 Hz. -->
@@ -43,8 +46,17 @@
   <node if="$(arg enable_control)" pkg="sensor_interface"
         type="morai_ctrl_cmd_udp_sender" name="morai_ctrl_cmd_udp_sender"
         output="screen" required="true">
+    <rosparam command="load" file="$(arg vehicle_config)"/>
     <param name="network_config" value="$(arg network_config)"/>
     <param name="ctrl_mode" value="2"/>
     <param name="gear" value="4"/>
+  </node>
+
+  <node if="$(arg enable_scenario_load)" pkg="sensor_interface"
+        type="morai_scenario_load_udp_sender"
+        name="morai_scenario_load_udp_sender"
+        output="screen" required="true">
+    <param name="network_config" value="$(arg network_config)"/>
+    <param name="service_name" value="/morai/scenario_load_udp"/>
   </node>
 </launch>

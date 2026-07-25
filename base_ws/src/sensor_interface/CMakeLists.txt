@@ -148,6 +148,7 @@ add_executable(morai_gps_to_map src/morai_gps_to_map.cpp)
 add_executable(morai_sensor_udp_receiver src/morai_sensor_udp_receiver.cpp)
 add_executable(morai_ego_udp_receiver src/morai_ego_udp_receiver.cpp)
 add_executable(morai_ctrl_cmd_udp_sender src/morai_ctrl_cmd_udp_sender.cpp)
+add_executable(morai_scenario_load_udp_sender src/morai_scenario_load_udp_sender.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -163,6 +164,7 @@ add_dependencies(lidar_advanced_concat_filter ${${PROJECT_NAME}_EXPORTED_TARGETS
 add_dependencies(morai_sensor_udp_receiver ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(morai_ego_udp_receiver ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(morai_ctrl_cmd_udp_sender ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(morai_scenario_load_udp_sender ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(lidar_distortion_corrector
   ${catkin_LIBRARIES}
@@ -179,6 +181,7 @@ target_link_libraries(morai_gps_to_map
 target_link_libraries(morai_sensor_udp_receiver ${catkin_LIBRARIES})
 target_link_libraries(morai_ego_udp_receiver ${catkin_LIBRARIES})
 target_link_libraries(morai_ctrl_cmd_udp_sender ${catkin_LIBRARIES})
+target_link_libraries(morai_scenario_load_udp_sender ${catkin_LIBRARIES})
 
 #############
 ## Install ##
@@ -198,6 +201,7 @@ install(TARGETS
   morai_sensor_udp_receiver
   morai_ego_udp_receiver
   morai_ctrl_cmd_udp_sender
+  morai_scenario_load_udp_sender
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

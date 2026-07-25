@@ -289,4 +289,40 @@ rostopic hz /ctrl_cmd
 rosnode list | grep -E 'morai|trajectory|viewer|current_vehicle'
 ```
 
+## 9. 고정 LD 자동 반복 실험
+
+MORAI UDP interface, localization, 20 km/h `trajectory_publisher`를 먼저 실행한
+상태에서 고정 Lookahead Distance를 2 m부터 12 m까지 반복 평가한다.
+
+```bash
+source /opt/ros/noetic/setup.bash
+source ~/AjouNice2026/base_ws/devel/setup.bash
+
+python3 ~/AjouNice2026/scripts/experiments/run_fixed_ld_sweep.py \
+  --ld-start 2 \
+  --ld-end 12 \
+  --ld-step 0.5 \
+  --repeat 1 \
+  --scenario loadstart.json
+```
+
+각 run은 `loadstart` 시나리오 초기화, 시작 위치와 필수 토픽 확인, Validator와
+고정-LD follower 실행, 목표 도착/충돌 기록, follower 정지 순서로 진행된다.
+기본 주행 제한 시간은 300초이며 `--run-timeout`으로 변경할 수 있다.
+횡오차가 기본 15.0 m를 3.0초 동안 연속으로 초과해도 `off_route`로 기록을
+종료하고 follower를 정지한다. 기준은 다음 인자로 조정할 수 있다.
+
+```bash
+--max-lateral-deviation 15.0 --off-route-duration 3.0
+```
+
+결과 디렉터리의 run ID에는 `ld02_run01`과 같은 라벨이 추가되고 실제
+`lookahead_distance_m` 값도 `metadata.json`의 controller parameter snapshot에
+저장된다. 이 실험은 `pp_pi.launch`의 고정 LD controller를 사용하며
+`pp_pi_autoware.launch`의 adaptive LD controller는 사용하지 않는다.
+
+`--ld-step`은 0.1 m부터 1.0 m 사이에서 설정할 수 있다. 소수 LD의 run
+라벨에서는 소수점을 `p`로 표시한다. 예를 들어 LD 2.5 m의 첫 실행은
+`ld02p5_run01`이다.
+
 네 핵심 topic 중 하나라도 나오지 않으면 그 topic을 생성하는 앞 단계부터 확인한다.
