@@ -1,3 +1,4 @@
+trajectory_csv: traj_sample/200889_200292_40kph.csv
 trajectory_topic: /control/trajectory
 publish_rate_hz: 50.0
 frame_id: map

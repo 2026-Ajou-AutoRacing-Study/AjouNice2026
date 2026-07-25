@@ -9,7 +9,7 @@
 [오프라인 생성: 경로/속도를 바꿀 때 한 번]
 지도 + drive-course + 시작/종료 lanelet + 목표 속도
   -> generate_trajectory.py
-  -> traj_sample/<start>_<end>.csv
+  -> traj_sample/<start>_<end>_<desired_velocity>kph.csv
 
 [온라인 발행: 주행할 때마다 실행]
 traj_sample/*.csv
@@ -18,8 +18,8 @@ traj_sample/*.csv
   -> trajectory_follower
 ```
 
-즉, `traj_gen`은 이름과 달리 새 CSV를 생성하지 않는다. 이미 생성된 CSV를 읽어
-`/control/trajectory`로 발행하는 단축 명령이다.
+`traj_gen`은 공용 generator YAML로 CSV를 생성하고 그 파일을 publisher 설정에 자동 선택한다.
+`traj_pub`은 선택된 CSV를 `/control/trajectory`로 발행한다.
 
 ## 가장 빠른 사용 순서
 
@@ -53,14 +53,13 @@ source base_ws/devel/setup.bash
 roslaunch trajectory_generator trajectory_publisher.launch
 ```
 
-공용 alias를 적용한 환경에서는 같은 명령이 `traj_gen`이다. 기본 파일은
-`traj_sample/200889_200258.csv`이며, 노드 시작 시 한 번 읽힌다.
+공용 alias를 적용한 환경에서는 같은 명령이 `traj_pub`이다. 읽을 파일은
+`config/trajectory_publisher.yaml`의 `trajectory_csv`로 선택하며, 노드 시작 시 한 번 읽힌다.
 
-다른 CSV를 발행하려면 package 내부 상대경로를 넘긴다.
+다른 CSV를 발행하려면 package 내부 상대경로로 설정값을 바꾼다.
 
-```bash
-roslaunch trajectory_generator trajectory_publisher.launch \
-  trajectory_csv:=traj_sample/200889_200348.csv
+```yaml
+trajectory_csv: traj_sample/200889_200348_60kph.csv
 ```
 
 발행 중 CSV를 수정해도 실행 중인 trajectory는 바뀌지 않는다. 생성 또는 수정 후에는
@@ -93,13 +92,14 @@ trajectory:
 
 ```bash
 rosrun trajectory_generator generate_trajectory.py \
-  --config base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml
+  --config base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml \
+  --select
 ```
 
 결과는 설정한 ID에 따라 자동으로 저장된다.
 
 ```text
-base_ws/src/control/trajectory_generator/traj_sample/<start_lanelet_id>_<end_lanelet_id>.csv
+base_ws/src/control/trajectory_generator/traj_sample/<start_lanelet_id>_<end_lanelet_id>_<desired_velocity>kph.csv
 ```
 
 ### K-City v44 competition samples
@@ -139,10 +139,12 @@ roslaunch trajectory_generator trajectory_publisher.launch \
 ```bash
 rosrun trajectory_generator generate_trajectory.py \
   --config base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml \
-  --overwrite
+  --overwrite \
+  --select
 ```
 
-새로 생성한 CSV를 발행할 때는 2단계의 `trajectory_csv` 인자로 해당 파일을 선택한다. 새 CSV는
+`--select`를 사용하면 새 CSV가 `config/trajectory_publisher.yaml`의 `trajectory_csv`에
+자동 선택된다. 새 CSV는
 기본적으로 Git에서 제외되며, 팀 공용 sample을 갱신할 때만 별도로 합의해 반영한다.
 
 ## 설정값 이해하기

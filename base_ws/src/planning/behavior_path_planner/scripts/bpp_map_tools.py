@@ -327,7 +327,12 @@ class CenterlineMap:
 
     @classmethod
     def from_osm_bytes(
-        cls, data, source="LaneletMapBin", flatten_z=False, projector_type="none"
+        cls,
+        data,
+        source="LaneletMapBin",
+        flatten_z=False,
+        projector_type="none",
+        projector_file="",
     ):
         root = ET.fromstring(bytes(data).decode("utf-8"))
         first_node = None
@@ -343,7 +348,7 @@ class CenterlineMap:
             break
         if first_node is None:
             raise ValueError("Lanelet2 OSM does not contain a node")
-        projector = read_projector(projector_type, "", first_node)
+        projector = read_projector(projector_type, projector_file, first_node)
         return cls.from_osm_root(root, projector, source, flatten_z)
 
     @classmethod

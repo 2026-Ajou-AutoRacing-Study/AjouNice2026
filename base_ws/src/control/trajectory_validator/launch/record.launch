@@ -1,4 +1,8 @@
 <launch>
+  <arg name="run_label" default=""/>
+  <arg name="max_lateral_deviation_m" default="15.0"/>
+  <arg name="off_route_duration_s" default="3.0"/>
+
   <node pkg="trajectory_validator"
         type="trajectory_validator_node.py"
         name="trajectory_validator_recorder"
@@ -13,6 +17,11 @@
         output="screen">
     <rosparam command="load"
               file="$(find trajectory_validator)/config/trajectory_validator.yaml"/>
+    <param name="storage/run_label" value="$(arg run_label)"/>
+    <param name="recording/max_lateral_deviation_m"
+           value="$(arg max_lateral_deviation_m)"/>
+    <param name="recording/off_route_duration_s"
+           value="$(arg off_route_duration_s)"/>
   </node>
 
 </launch>
