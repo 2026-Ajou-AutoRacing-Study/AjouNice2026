@@ -4,8 +4,10 @@ import json
 import math
 import os
 import re
+import shutil
 import tempfile
 import threading
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 
@@ -14,15 +16,17 @@ from autoware_planning_msgs.msg import Trajectory, TrajectoryPoint
 from geometry_msgs.msg import PoseStamped
 from morai_msgs.msg import CollisionData, CtrlCmd, EgoVehicleStatus
 from nav_msgs.msg import Odometry, Path as RosPath
+from trajectory_follower.msg import PurePursuitDebug
 from visualization_msgs.msg import MarkerArray
 
-from trajectory_validator.csv_io import RunCsvWriter
+from trajectory_validator.csv_io import TrackingCsvWriter
 from trajectory_validator.metrics import (
     TrajectoryMatcher,
     metric_summary,
     yaw_from_quaternion,
 )
 from trajectory_validator.msg import TrajectoryDebug
+from trajectory_validator.summary_svg import render_run_summary_svg
 from trajectory_validator.visualization import (
     make_ego_pose,
     make_markers,
@@ -52,6 +56,24 @@ def resolve_repo_directory(root, value):
         raise ValueError("history_dir must stay inside repository") from error
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def resolve_repo_file(root, value, label):
+    if not isinstance(value, str) or not value:
+        raise ValueError("{} must be a non-empty repository-relative path".format(label))
+    path = (root / value).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError as error:
+        raise ValueError("{} must stay inside repository".format(label)) from error
+    if not path.is_file():
+        raise FileNotFoundError("{} does not exist: {}".format(label, path))
+    return path
+
+
+def map_version_from_path(path):
+    match = re.search(r"(?:^|_)v([0-9]+)\.osm$", Path(path).name, re.IGNORECASE)
+    return "v{}".format(match.group(1)) if match else None
 
 
 def discover_trajectory_file(root):
@@ -132,6 +154,31 @@ def atomic_json(path, document):
         raise
 
 
+def ensure_reference_trajectory(source_path, sample_directory):
+    source_hash = sha256_file(source_path)
+    reference_path = sample_directory / "reference_{}.csv".format(source_hash[:12])
+    if not reference_path.is_file():
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=reference_path.name + ".", suffix=".tmp", dir=str(sample_directory)
+        )
+        try:
+            with os.fdopen(descriptor, "wb") as destination, source_path.open(
+                "rb"
+            ) as source:
+                shutil.copyfileobj(source, destination)
+            os.chmod(temporary_name, 0o644)
+            os.replace(temporary_name, reference_path)
+        except Exception:
+            try:
+                os.unlink(temporary_name)
+            except FileNotFoundError:
+                pass
+            raise
+    if sha256_file(reference_path) != source_hash:
+        raise ValueError("history reference trajectory hash mismatch")
+    return reference_path, source_hash
+
+
 def finite_trajectory(message):
     if len(message.points) < 2:
         return False
@@ -154,6 +201,7 @@ def finite_trajectory(message):
 def finite_kinematic_state(message):
     pose = message.pose.pose
     linear = message.twist.twist.linear
+    angular = message.twist.twist.angular
     values = (
         pose.position.x,
         pose.position.y,
@@ -165,6 +213,7 @@ def finite_kinematic_state(message):
         linear.x,
         linear.y,
         linear.z,
+        angular.z,
     )
     quaternion_norm = (
         pose.orientation.x ** 2
@@ -195,9 +244,20 @@ class TrajectoryRecorder:
             self.root
         )
         self.generator_params = parameter_snapshot("/trajectory_publisher")
-        self.purepursuit_params = parameter_snapshot("/purepursuit")
-        self.longi_pi_params = parameter_snapshot("/longi_pi")
-        self.map_version = detect_map_version(
+        self.controller_type = rospy.get_param(
+            "~controller/type", "autoware_pure_pursuit"
+        )
+        self.purepursuit_parameter_namespace = rospy.get_param(
+            "~controller/purepursuit_parameter_namespace", "/purepursuit_autoware"
+        )
+        self.longitudinal_parameter_namespace = rospy.get_param(
+            "~controller/longitudinal_parameter_namespace", "/longi_pi_autoware"
+        )
+        self.purepursuit_params = parameter_snapshot(
+            self.purepursuit_parameter_namespace
+        )
+        self.longi_pi_params = parameter_snapshot(self.longitudinal_parameter_namespace)
+        detected_map_version = detect_map_version(
             (self.generator_params, self.purepursuit_params, self.longi_pi_params)
         )
         self.traj_sample = self.input_trajectory_path.stem
@@ -211,7 +271,11 @@ class TrajectoryRecorder:
         self.ego_topic = rospy.get_param("~topics/ego", "/Ego_topic")
         self.ctrl_cmd_topic = rospy.get_param("~topics/ctrl_cmd", "/ctrl_cmd")
         self.collision_topic = rospy.get_param("~topics/collision", "/CollisionData")
-        self.schema_version = int(rospy.get_param("~storage/schema_version", 3))
+        self.pp_debug_topic = rospy.get_param(
+            "~topics/purepursuit_debug",
+            "/purepursuit_autoware/debug/controller_state",
+        )
+        self.schema_version = int(rospy.get_param("~storage/schema_version", 5))
         self.kinematic_velocity_scale_to_mps = float(
             rospy.get_param("~input/kinematic_velocity_scale_to_mps", 1.0)
         )
@@ -223,25 +287,66 @@ class TrajectoryRecorder:
                 "base_ws/src/control/trajectory_validator/history",
             ),
         )
-        self.sample_rate_hz = float(rospy.get_param("~recording/sample_rate_hz", 30.0))
+        self.summary_enabled = bool(rospy.get_param("~summary_svg/enabled", True))
+        self.summary_filename = rospy.get_param(
+            "~summary_svg/filename", "summary.svg"
+        )
+        if (
+            not isinstance(self.summary_filename, str)
+            or Path(self.summary_filename).name != self.summary_filename
+            or not self.summary_filename.lower().endswith(".svg")
+        ):
+            raise ValueError("summary_svg/filename must be an SVG basename")
+        self.summary_margin_m = float(
+            rospy.get_param("~summary_svg/map_margin_m", 20.0)
+        )
+        if not math.isfinite(self.summary_margin_m) or self.summary_margin_m < 0.0:
+            raise ValueError("summary_svg/map_margin_m must be finite and non-negative")
+        self.summary_map_path = resolve_repo_file(
+            self.root,
+            rospy.get_param(
+                "~summary_svg/map_file",
+                "kcity_map/lanelet_map/lanelet2_map_v44.osm",
+            ),
+            "summary_svg/map_file",
+        )
+        self.summary_projector_path = resolve_repo_file(
+            self.root,
+            rospy.get_param(
+                "~summary_svg/projector_file",
+                "kcity_map/lanelet_map/map_projector_info_v1.yaml",
+            ),
+            "summary_svg/projector_file",
+        )
+        self.map_version = map_version_from_path(self.summary_map_path) or detected_map_version
+        self.summary_artifact = {
+            "status": "pending" if self.summary_enabled else "disabled",
+            "file": self.summary_filename,
+        }
+        self.sample_rate_hz = float(rospy.get_param("~recording/sample_rate_hz", 50.0))
         self.input_timeout_s = float(rospy.get_param("~recording/input_timeout_s", 0.5))
         self.sync_tolerance_s = float(rospy.get_param("~recording/sync_tolerance_s", 0.05))
         self.command_pair_tolerance_s = float(
             rospy.get_param("~recording/command_pair_tolerance_s", 0.10)
         )
-        self.response_delay_s = float(rospy.get_param("~recording/response_delay_s", 0.10))
-        self.response_tolerance_s = float(
-            rospy.get_param("~recording/response_tolerance_s", 0.05)
+        self.stop_on_collision = bool(
+            rospy.get_param("~recording/stop_on_collision", False)
         )
         self.goal_tolerance_m = float(rospy.get_param("~recording/goal_tolerance_m", 3.0))
+        self.goal_progress_margin_m = float(
+            rospy.get_param("~recording/goal_progress_margin_m", 5.0)
+        )
+        self.controller_debug_timeout_s = float(
+            rospy.get_param("~recording/controller_debug_timeout_s", 0.20)
+        )
         for label, value in (
             ("sample_rate_hz", self.sample_rate_hz),
             ("input_timeout_s", self.input_timeout_s),
             ("sync_tolerance_s", self.sync_tolerance_s),
             ("command_pair_tolerance_s", self.command_pair_tolerance_s),
-            ("response_delay_s", self.response_delay_s),
-            ("response_tolerance_s", self.response_tolerance_s),
             ("goal_tolerance_m", self.goal_tolerance_m),
+            ("goal_progress_margin_m", self.goal_progress_margin_m),
+            ("controller_debug_timeout_s", self.controller_debug_timeout_s),
             (
                 "kinematic_velocity_scale_to_mps",
                 self.kinematic_velocity_scale_to_mps,
@@ -249,27 +354,29 @@ class TrajectoryRecorder:
         ):
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError("{} must be finite and positive".format(label))
-        if self.schema_version != 3:
-            raise ValueError("new recordings require schema_version 3")
+        if self.schema_version != 5:
+            raise ValueError("new recordings require schema_version 5")
 
         # Keep every run grouped below its trajectory sample directory.  The
         # controller suffix makes runs distinguishable while browsing history.
-        base_run_id = "{}_pp_pi".format(self.started_wall.strftime("%m%d_%H%M%S"))
+        base_run_id = "{}_pp_autoware".format(self.started_wall.strftime("%m%d_%H%M%S"))
         self.sample_directory = self.history_root / self.traj_sample
         self.sample_directory.mkdir(parents=True, exist_ok=True)
+        self.reference_trajectory_path, self.trajectory_sha256 = (
+            ensure_reference_trajectory(
+                self.input_trajectory_path, self.sample_directory
+            )
+        )
         self.run_id = self._unique_run_id(base_run_id)
         self.run_directory = self.sample_directory / self.run_id
         self.run_directory.mkdir(exist_ok=self.overwrite)
-        self.gt_csv_path = self.run_directory / "gt.csv"
-        self.control_csv_path = self.run_directory / "control_cycles.csv"
-        self.response_csv_path = self.run_directory / "vehicle_responses.csv"
+        self.tracking_csv_path = self.run_directory / "tracking_samples.csv"
         self.json_path = self.run_directory / "metadata.json"
-        self.writer = RunCsvWriter(
-            self.gt_csv_path, self.control_csv_path, self.response_csv_path
-        )
+        self.writer = TrackingCsvWriter(self.tracking_csv_path)
 
         self.gt_trajectory = None
         self.matcher = None
+        self.final_station_m = None
         self.ego_trajectory = Trajectory()
         self.kinematic_message = None
         self.ego_message = None
@@ -282,8 +389,7 @@ class TrajectoryRecorder:
         self.last_recorded_command_ros_ns = None
         self.collision_detected = False
         self.samples = []
-        self.responses = []
-        self.pending_responses = []
+        self.pp_debug_messages = deque(maxlen=100)
 
         self.debug_publisher = rospy.Publisher(
             "/trajectory_validator/debug", TrajectoryDebug, queue_size=1
@@ -318,6 +424,12 @@ class TrajectoryRecorder:
         self.collision_subscriber = rospy.Subscriber(
             self.collision_topic, CollisionData, self.collision_callback, queue_size=5
         )
+        self.pp_debug_subscriber = rospy.Subscriber(
+            self.pp_debug_topic,
+            PurePursuitDebug,
+            self.pp_debug_callback,
+            queue_size=20,
+        )
         self.timer = rospy.Timer(
             rospy.Duration(1.0 / self.sample_rate_hz), self.sample_timer
         )
@@ -332,13 +444,14 @@ class TrajectoryRecorder:
         )
 
     def _capture_follower_parameters(self):
-        purepursuit = parameter_snapshot("/purepursuit")
-        longi_pi = parameter_snapshot("/longi_pi")
+        purepursuit = parameter_snapshot(self.purepursuit_parameter_namespace)
+        longi_pi = parameter_snapshot(self.longitudinal_parameter_namespace)
         if not purepursuit or not longi_pi:
             rospy.loginfo_throttle(
                 2.0,
-                "trajectory_validator armed; waiting for /purepursuit and /longi_pi "
-                "runtime parameters",
+                "trajectory_validator armed; waiting for %s and %s runtime parameters",
+                self.purepursuit_parameter_namespace,
+                self.longitudinal_parameter_namespace,
             )
             return False
         self.generator_params = parameter_snapshot("/trajectory_publisher")
@@ -347,6 +460,7 @@ class TrajectoryRecorder:
         self.map_version = detect_map_version(
             (self.generator_params, self.purepursuit_params, self.longi_pi_params)
         )
+        self.map_version = map_version_from_path(self.summary_map_path) or self.map_version
         return True
 
     def _unique_run_id(self, base):
@@ -380,7 +494,7 @@ class TrajectoryRecorder:
                 self.gt_trajectory.header.frame_id = "map"
             self.ego_trajectory.header.frame_id = self.gt_trajectory.header.frame_id
             self.matcher = TrajectoryMatcher(self.gt_trajectory)
-            self.writer.write_gt(self.gt_trajectory)
+            self.final_station_m = self.matcher.stations[-1]
             stamp = rospy.Time.now()
             self.gt_path_publisher.publish(make_path(self.gt_trajectory, stamp))
             rospy.loginfo(
@@ -469,6 +583,46 @@ class TrajectoryRecorder:
             if any(obj.type >= 0 for obj in objects):
                 self.collision_detected = True
 
+    def pp_debug_callback(self, message):
+        values = (
+            message.lookahead_distance_m,
+            message.path_curvature_1pm,
+            message.target_curvature_1pm,
+            message.lateral_error_m,
+            message.steering_command_rad,
+        )
+        if not all(math.isfinite(value) for value in values):
+            rospy.logwarn_throttle(
+                1.0, "trajectory_validator rejected non-finite Pure Pursuit debug"
+            )
+            return
+        with self.lock:
+            self.pp_debug_messages.append((rospy.Time.now(), copy.deepcopy(message)))
+
+    def _purepursuit_debug_snapshot(self, command_received):
+        if not self.pp_debug_messages:
+            return {
+                "pp_controller_valid": False,
+                "pp_debug_fresh": False,
+                "pp_lookahead_distance_m": "",
+                "pp_path_curvature_1pm": "",
+                "pp_target_curvature_1pm": "",
+                "pp_lateral_error_m": "",
+            }
+        received, message = min(
+            self.pp_debug_messages,
+            key=lambda item: abs((item[0] - command_received).to_sec()),
+        )
+        age = abs((received - command_received).to_sec())
+        return {
+            "pp_controller_valid": bool(message.controller_valid),
+            "pp_debug_fresh": age <= self.controller_debug_timeout_s,
+            "pp_lookahead_distance_m": message.lookahead_distance_m,
+            "pp_path_curvature_1pm": message.path_curvature_1pm,
+            "pp_target_curvature_1pm": message.target_curvature_1pm,
+            "pp_lateral_error_m": message.lateral_error_m,
+        }
+
     def _inputs_valid(self, now):
         if any(
             value is None
@@ -513,9 +667,9 @@ class TrajectoryRecorder:
         point = TrajectoryPoint()
         point.time_from_start = rospy.Duration(elapsed)
         point.pose = copy.deepcopy(pose)
-        point.longitudinal_velocity_mps = math.sqrt(
-            linear.x ** 2 + linear.y ** 2 + linear.z ** 2
-        )
+        # This is the same signed base-link longitudinal velocity used by the
+        # Pure Pursuit LD scheduler, so the recorded v can reproduce its input.
+        point.longitudinal_velocity_mps = linear.x
         point.acceleration_mps2 = math.sqrt(
             ego.acceleration.x ** 2
             + ego.acceleration.y ** 2
@@ -523,6 +677,21 @@ class TrajectoryRecorder:
         )
         self.ego_trajectory.points.append(point)
         return yaw, point
+
+    def _reached_goal(self, ego_point, match):
+        """Require final-point proximity and progress through the trajectory."""
+        final = self.gt_trajectory.points[-1].pose.position
+        final_distance_m = math.hypot(
+            ego_point.pose.position.x - final.x,
+            ego_point.pose.position.y - final.y,
+        )
+        final_progress_start_m = max(
+            0.0, self.final_station_m - self.goal_progress_margin_m
+        )
+        return (
+            final_distance_m <= self.goal_tolerance_m
+            and match["matched_gt_station_m"] >= final_progress_start_m
+        )
 
     def sample_timer(self, _event):
         should_stop = False
@@ -572,14 +741,7 @@ class TrajectoryRecorder:
                 ego_yaw,
                 ego_velocity,
             )
-            final = self.gt_trajectory.points[-1].pose.position
-            reached_goal = (
-                math.hypot(
-                    ego_point.pose.position.x - final.x,
-                    ego_point.pose.position.y - final.y,
-                )
-                <= self.goal_tolerance_m
-            )
+            reached_goal = self._reached_goal(ego_point, match)
             sample_index = len(self.samples)
             state_received = pair["state_received"]
             command_received = pair["command_received"]
@@ -588,7 +750,9 @@ class TrajectoryRecorder:
                 inputs_valid
                 and 0.0 <= state_to_command_delay <= self.command_pair_tolerance_s
             )
+            purepursuit_debug = self._purepursuit_debug_snapshot(command_received)
             sample = {
+                "sample_index": sample_index,
                 "control_index": sample_index,
                 "ros_time_ns": now.to_nsec(),
                 "elapsed_time_s": elapsed,
@@ -607,6 +771,7 @@ class TrajectoryRecorder:
                 "ego_velocity_y_mps": kinematic.twist.twist.linear.y,
                 "ego_velocity_z_mps": kinematic.twist.twist.linear.z,
                 "ego_velocity_mps": ego_velocity,
+                "ego_yaw_rate_rps": kinematic.twist.twist.angular.z,
                 "ego_acceleration_x_mps2": ego.acceleration.x,
                 "ego_acceleration_y_mps2": ego.acceleration.y,
                 "ego_acceleration_z_mps2": ego.acceleration.z,
@@ -626,17 +791,16 @@ class TrajectoryRecorder:
                 "collision_detected": self.collision_detected,
                 "reached_goal": reached_goal,
                 "control_pair_valid": control_pair_valid,
+                **purepursuit_debug,
             }
             self.samples.append(sample)
-            self.writer.write_control(sample)
-            self.pending_responses.append(dict(sample))
-            self._write_ready_responses(state_received, sample)
+            self.writer.write(sample)
             debug = self._debug_message(sample, now)
             self.debug_publisher.publish(debug)
             self.ego_path_publisher.publish(make_path(self.ego_trajectory, now))
             self.ego_pose_publisher.publish(make_ego_pose(debug, now))
             self.marker_publisher.publish(make_markers(debug, now))
-            if self.collision_detected:
+            if self.collision_detected and self.stop_on_collision:
                 self.end_reason = "collision"
                 should_stop = True
             elif reached_goal:
@@ -702,55 +866,7 @@ class TrajectoryRecorder:
         debug.control_pair_valid = sample["control_pair_valid"]
         return debug
 
-    def _write_ready_responses(self, state_received, response_state):
-        remaining = []
-        for control in self.pending_responses:
-            command_ns = control["command_received_ros_ns"]
-            command_time = rospy.Time(command_ns // 1000000000, command_ns % 1000000000)
-            actual_delay = (state_received - command_time).to_sec()
-            if actual_delay < self.response_delay_s:
-                remaining.append(control)
-                continue
-            row = {
-                "response_index": len(self.responses),
-                "control_index": control["control_index"],
-                "command_received_ros_ns": control["command_received_ros_ns"],
-                "response_received_ros_ns": state_received.to_nsec(),
-                "response_elapsed_time_s": max(
-                    0.0, (state_received - self.recording_started_ros).to_sec()
-                ),
-                "requested_response_delay_s": self.response_delay_s,
-                "actual_response_delay_s": actual_delay,
-                "cmd_accel": control["cmd_accel"],
-                "cmd_brake": control["cmd_brake"],
-                "cmd_steering_rad": control["cmd_steering_rad"],
-                "cmd_velocity_mps": control["cmd_velocity_mps"],
-                "initial_ego_velocity_mps": control["ego_velocity_mps"],
-                "response_ego_velocity_mps": response_state["ego_velocity_mps"],
-                "velocity_change_mps": response_state["ego_velocity_mps"] - control["ego_velocity_mps"],
-                "initial_actual_steering_rad": control["actual_steering_rad"],
-                "response_actual_steering_rad": response_state["actual_steering_rad"],
-                "steering_change_rad": response_state["actual_steering_rad"] - control["actual_steering_rad"],
-                "initial_lateral_error_m": control["lateral_error_m"],
-                "response_lateral_error_m": response_state["lateral_error_m"],
-                "lateral_error_change_m": response_state["lateral_error_m"] - control["lateral_error_m"],
-                "initial_heading_error_rad": control["heading_error_rad"],
-                "response_heading_error_rad": response_state["heading_error_rad"],
-                "heading_error_change_rad": response_state["heading_error_rad"] - control["heading_error_rad"],
-                "response_pair_valid": control["control_pair_valid"]
-                and response_state["control_pair_valid"]
-                and actual_delay <= self.response_delay_s + self.response_tolerance_s,
-            }
-            self.responses.append(row)
-            self.writer.write_response(row)
-        self.pending_responses = remaining
-
     def _metadata(self, status):
-        map_path = (
-            self.root / "kcity_map/lanelet_map/lanelet2_map_{}.osm".format(self.map_version)
-            if self.map_version
-            else None
-        )
         input_relative = str(self.input_trajectory_path.relative_to(self.root))
         duration = self.samples[-1]["elapsed_time_s"] if self.samples else 0.0
         document = {
@@ -772,52 +888,53 @@ class TrajectoryRecorder:
             "input_trajectory": {
                 "file": input_relative,
                 "publisher_value": self.trajectory_csv_value,
-                "sha256": sha256_file(self.input_trajectory_path),
+                "sha256": self.trajectory_sha256,
                 "point_count": len(self.gt_trajectory.points)
                 if self.gt_trajectory is not None
                 else None,
             },
+            "reference_trajectory": {
+                "file": str(self.reference_trajectory_path.relative_to(self.root)),
+                "sha256": self.trajectory_sha256,
+            },
             "map": {
                 "version": self.map_version,
-                "file": str(map_path.relative_to(self.root))
-                if map_path and map_path.is_file()
-                else None,
-                "sha256": sha256_file(map_path)
-                if map_path and map_path.is_file()
-                else None,
+                "file": str(self.summary_map_path.relative_to(self.root)),
+                "sha256": sha256_file(self.summary_map_path),
+                "projector_file": str(self.summary_projector_path.relative_to(self.root)),
+                "projector_sha256": sha256_file(self.summary_projector_path),
             },
             "controller": {
-                "type": "pp_pi",
+                "type": self.controller_type,
+                "purepursuit_parameter_namespace": self.purepursuit_parameter_namespace,
+                "longitudinal_parameter_namespace": self.longitudinal_parameter_namespace,
                 "purepursuit_parameters": self.purepursuit_params,
                 "longi_pi_parameters": self.longi_pi_params,
+            },
+            "purepursuit_debug": {
+                "topic": self.pp_debug_topic,
+                "timeout_s": self.controller_debug_timeout_s,
             },
             "trajectory_publisher_parameters": self.generator_params,
             "recording": {
                 "kinematic_velocity_scale_to_mps": self.kinematic_velocity_scale_to_mps,
                 "sample_rate_hz": self.sample_rate_hz,
-                "control_cycle_count": len(self.samples),
-                "vehicle_response_count": len(self.responses),
-                "pending_response_count": len(self.pending_responses),
+                "sample_count": len(self.samples),
                 "command_pair_tolerance_s": self.command_pair_tolerance_s,
-                "response_delay_s": self.response_delay_s,
-                "response_tolerance_s": self.response_tolerance_s,
+                "stop_on_collision": self.stop_on_collision,
+                "goal_tolerance_m": self.goal_tolerance_m,
+                "goal_progress_margin_m": self.goal_progress_margin_m,
+                "final_station_m": self.final_station_m,
                 "duration_s": duration,
                 "end_reason": self.end_reason if status != "recording" else None,
             },
             "result": metric_summary(self.samples),
+            "artifacts": {"summary_svg": self.summary_artifact},
             "integrity": {
-                "gt_csv_sha256": sha256_file(self.gt_csv_path)
-                if status != "recording" and self.gt_csv_path.is_file()
+                "tracking_samples_csv_sha256": sha256_file(self.tracking_csv_path)
+                if status != "recording" and self.tracking_csv_path.is_file()
                 else None,
-                "control_cycles_csv_sha256": sha256_file(self.control_csv_path)
-                if status != "recording" and self.control_csv_path.is_file()
-                else None,
-                "vehicle_responses_csv_sha256": sha256_file(self.response_csv_path)
-                if status != "recording" and self.response_csv_path.is_file()
-                else None,
-                "gt_row_count": self.writer.gt_count,
-                "control_cycle_row_count": self.writer.control_count,
-                "vehicle_response_row_count": self.writer.response_count,
+                "tracking_sample_row_count": self.writer.count,
             },
         }
         return document
@@ -835,12 +952,31 @@ class TrajectoryRecorder:
 
         with self.lock:
             self.writer.close()
+            if self.summary_enabled:
+                try:
+                    self.summary_artifact = render_run_summary_svg(
+                        self.run_directory,
+                        self.summary_map_path,
+                        self.summary_projector_path,
+                        filename=self.summary_filename,
+                        margin_m=self.summary_margin_m,
+                        gt_points=[
+                            (point.pose.position.x, point.pose.position.y)
+                            for point in self.gt_trajectory.points
+                        ],
+                    )
+                except Exception as error:
+                    self.summary_artifact = {
+                        "status": "failed",
+                        "file": self.summary_filename,
+                        "error": str(error),
+                    }
+                    rospy.logerr("trajectory_validator summary image failed: %s", error)
             atomic_json(self.json_path, self._metadata("complete"))
             rospy.loginfo(
-                "trajectory_validator saved %d GT + %d control cycles + %d responses: %s",
-                self.writer.gt_count,
-                self.writer.control_count,
-                self.writer.response_count,
+                "trajectory_validator saved %d compact tracking samples + summary=%s: %s",
+                self.writer.count,
+                self.summary_artifact["status"],
                 self.run_directory,
             )
 

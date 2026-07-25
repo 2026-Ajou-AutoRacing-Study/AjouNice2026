@@ -8,8 +8,6 @@ namespace trajectory_follower
 {
 namespace
 {
-constexpr double kNearestDistanceThreshold = 3.0;
-constexpr double kNearestYawThreshold = M_PI_4;
 constexpr double kEpsilon = 1e-6;
 constexpr double kLaneDirectionDistanceThreshold = 0.05;
 
@@ -103,33 +101,41 @@ double threePointCurvature(const Pose2D & first, const Pose2D & middle, const Po
 
 }  // namespace
 
-AdaptivePurePursuitCore::AdaptivePurePursuitCore(const AdaptiveLookaheadParams & params) : params_(params) {}
+AdaptivePurePursuitCore::AdaptivePurePursuitCore(const PurePursuitParams & params) : params_(params) {}
 
-void AdaptivePurePursuitCore::setParams(const AdaptiveLookaheadParams & params)
+void AdaptivePurePursuitCore::setParams(const PurePursuitParams & params)
 {
   params_ = params;
 }
 
 bool AdaptivePurePursuitCore::parametersValid(std::string * reason) const
 {
-  const bool valid = std::isfinite(params_.wheel_base) && params_.wheel_base > 0.0 &&
-                     std::isfinite(params_.max_steering_angle) && params_.max_steering_angle > 0.0 &&
-                     std::isfinite(params_.ld_velocity_ratio) && params_.ld_velocity_ratio >= 0.0 &&
-                     std::isfinite(params_.ld_lateral_error_ratio) && params_.ld_lateral_error_ratio >= 0.0 &&
-                     std::isfinite(params_.ld_curvature_ratio) && params_.ld_curvature_ratio >= 0.0 &&
-                     std::isfinite(params_.long_ld_lateral_error_threshold) &&
-                     params_.long_ld_lateral_error_threshold >= 0.0 &&
-                     std::isfinite(params_.min_lookahead_distance) && params_.min_lookahead_distance > 0.0 &&
-                     std::isfinite(params_.reverse_min_lookahead_distance) &&
-                     params_.reverse_min_lookahead_distance > 0.0 &&
-                     std::isfinite(params_.max_lookahead_distance) &&
-                     params_.max_lookahead_distance >= params_.min_lookahead_distance &&
-                     params_.max_lookahead_distance >= params_.reverse_min_lookahead_distance &&
-                     std::isfinite(params_.resampling_ds) && params_.resampling_ds > 0.0 &&
-                     std::isfinite(params_.curvature_calculation_distance) &&
-                     params_.curvature_calculation_distance > 0.0;
+  const bool common_valid =
+    std::isfinite(params_.wheel_base) && params_.wheel_base > 0.0 &&
+    std::isfinite(params_.max_steering_angle) && params_.max_steering_angle > 0.0 &&
+    std::isfinite(params_.resampling_ds) && params_.resampling_ds > 0.0 &&
+    std::isfinite(params_.curvature_calculation_distance) &&
+    params_.curvature_calculation_distance > 0.0;
+  const bool fixed_valid =
+    params_.lookahead_mode == LookaheadMode::kAdaptive ||
+    (std::isfinite(params_.fixed_lookahead_distance) &&
+     params_.fixed_lookahead_distance > 0.0);
+  const bool adaptive_valid =
+    params_.lookahead_mode == LookaheadMode::kFixed ||
+    (std::isfinite(params_.ld_velocity_ratio) && params_.ld_velocity_ratio >= 0.0 &&
+     std::isfinite(params_.ld_lateral_error_ratio) && params_.ld_lateral_error_ratio >= 0.0 &&
+     std::isfinite(params_.ld_curvature_ratio) && params_.ld_curvature_ratio >= 0.0 &&
+     std::isfinite(params_.long_ld_lateral_error_threshold) &&
+     params_.long_ld_lateral_error_threshold >= 0.0 &&
+     std::isfinite(params_.min_lookahead_distance) && params_.min_lookahead_distance > 0.0 &&
+     std::isfinite(params_.reverse_min_lookahead_distance) &&
+     params_.reverse_min_lookahead_distance > 0.0 &&
+     std::isfinite(params_.max_lookahead_distance) &&
+     params_.max_lookahead_distance >= params_.min_lookahead_distance &&
+     params_.max_lookahead_distance >= params_.reverse_min_lookahead_distance);
+  const bool valid = common_valid && fixed_valid && adaptive_valid;
   if (!valid && reason) {
-    *reason = "invalid adaptive pure pursuit parameter";
+    *reason = "invalid pure pursuit parameter";
   }
   return valid;
 }
@@ -184,22 +190,14 @@ bool AdaptivePurePursuitCore::findNearestIndex(
   const std::vector<PathPoint> & path, const Pose2D & pose, std::size_t * index) const
 {
   double minimum_distance_squared = std::numeric_limits<double>::infinity();
-  bool found = false;
   for (std::size_t i = 0; i < path.size(); ++i) {
     const double distance_squared = squaredDistance2d(pose, path[i].pose);
-    if (distance_squared > kNearestDistanceThreshold * kNearestDistanceThreshold) {
-      continue;
-    }
-    if (std::abs(normalizeAngle(pose.yaw - path[i].pose.yaw)) > kNearestYawThreshold) {
-      continue;
-    }
     if (distance_squared < minimum_distance_squared) {
       minimum_distance_squared = distance_squared;
       *index = i;
-      found = true;
     }
   }
-  return found;
+  return std::isfinite(minimum_distance_squared);
 }
 
 double AdaptivePurePursuitCore::calculateLateralError(
@@ -241,15 +239,27 @@ double AdaptivePurePursuitCore::calculateLateralError(
 double AdaptivePurePursuitCore::calculatePathCurvature(
   const std::vector<PathPoint> & path, const std::size_t nearest_index) const
 {
-  const std::size_t index_distance = std::max(
+  const std::size_t requested_distance = std::max(
     static_cast<std::size_t>(params_.curvature_calculation_distance / params_.resampling_ds),
     static_cast<std::size_t>(1));
-  if (nearest_index < index_distance || nearest_index + index_distance >= path.size()) {
+  if (path.size() < 3U || nearest_index >= path.size()) {
     return 0.0;
   }
+  // Keep a symmetric three-point window where possible and shift the entire
+  // window at path boundaries. This avoids reporting a false zero curvature
+  // for the first/last curvature-calculation-distance metres.
+  const std::size_t index_distance = std::min(requested_distance, (path.size() - 1U) / 2U);
+  if (index_distance == 0U) {
+    return 0.0;
+  }
+  const std::size_t maximum_start = path.size() - 1U - 2U * index_distance;
+  const std::size_t desired_start =
+    nearest_index > index_distance ? nearest_index - index_distance : 0U;
+  const std::size_t first_index = std::min(desired_start, maximum_start);
+  const std::size_t middle_index = first_index + index_distance;
+  const std::size_t last_index = middle_index + index_distance;
   return threePointCurvature(
-    path[nearest_index - index_distance].pose, path[nearest_index].pose,
-    path[nearest_index + index_distance].pose);
+    path[first_index].pose, path[middle_index].pose, path[last_index].pose);
 }
 
 double AdaptivePurePursuitCore::calculateLookaheadDistance(
@@ -312,13 +322,14 @@ bool AdaptivePurePursuitCore::findLookaheadTarget(
   }
   const double lateral_error = (segment_x * (pose.y - first.pose.y) -
     segment_y * (pose.x - first.pose.x)) / segment_length;
-  if (std::abs(lateral_error) > lookahead_distance) {
-    return false;
-  }
   const double unit_x = segment_x / segment_length;
   const double unit_y = segment_y / segment_length;
   const double foot_x = pose.x + lateral_error * unit_y;
   const double foot_y = pose.y - lateral_error * unit_x;
+  // When the vehicle is farther from the path than the lookahead radius, the
+  // lookahead circle and path segment do not intersect. Keep the controller
+  // available for recovery by targeting the perpendicular projection instead
+  // of rejecting the command.
   const double forward_distance = std::sqrt(std::max(
     0.0, lookahead_distance * lookahead_distance - lateral_error * lateral_error));
   // Waypoints are ordered in travel order.  As in Autoware's lerpNextTarget(), always
@@ -374,17 +385,21 @@ PurePursuitOutput AdaptivePurePursuitCore::run(
   }
   std::size_t nearest_index = 0;
   if (!findNearestIndex(resampled, state.pose, &nearest_index)) {
-    return failure("no nearest trajectory point within distance/yaw threshold");
+    return failure("nearest trajectory point not found");
   }
 
   PurePursuitOutput output;
   output.lateral_error = calculateLateralError(resampled, state.pose);
   output.path_curvature = calculatePathCurvature(resampled, nearest_index);
-  const bool reverse = resampled[nearest_index].target_velocity_mps < 0.0;
-  const double min_lookahead = reverse ? params_.reverse_min_lookahead_distance :
-                                        params_.min_lookahead_distance;
-  output.lookahead_distance = calculateLookaheadDistance(
-    output.lateral_error, output.path_curvature, state.velocity_mps, min_lookahead, &output);
+  if (params_.lookahead_mode == LookaheadMode::kFixed) {
+    output.lookahead_distance = params_.fixed_lookahead_distance;
+  } else {
+    const bool reverse = resampled[nearest_index].target_velocity_mps < 0.0;
+    const double min_lookahead = reverse ? params_.reverse_min_lookahead_distance :
+                                          params_.min_lookahead_distance;
+    output.lookahead_distance = calculateLookaheadDistance(
+      output.lateral_error, output.path_curvature, state.velocity_mps, min_lookahead, &output);
+  }
   if (!findLookaheadTarget(
         resampled, nearest_index, state.pose, output.lookahead_distance, &output.target_point)) {
     return failure("lookahead target not found");

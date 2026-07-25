@@ -52,7 +52,8 @@ def make_markers(debug_message, stamp):
     error_line.pose.orientation.w = 1.0
     error_line.scale.x = 0.12
     error_line.color.r = 1.0
-    error_line.color.g = 0.8
+    error_line.color.g = 0.0
+    error_line.color.b = 0.0
     error_line.color.a = 1.0
 
     if debug_message.gt_trajectory.points and debug_message.ego_trajectory.points:

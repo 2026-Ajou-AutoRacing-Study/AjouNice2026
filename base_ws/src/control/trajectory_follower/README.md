@@ -46,6 +46,24 @@ roslaunch trajectory_follower pp_pi.launch
 traj_fol
 ```
 
+Autoware Pure Pursuit 구현은 같은 controller에서 LD 결정 방식만 바꾼다. 모드와
+고정 LD는 항상 `config/purepursuit_autoware.yaml`의 `lookahead` 값으로 결정한다.
+launch 인자로 덮어쓰지 않는다.
+
+```bash
+# config/purepursuit_autoware.yaml 편집 예시
+lookahead:
+  mode: fixed                 # 또는 adaptive
+  fixed_distance_m: 4.0       # mode: fixed일 때 사용
+
+# YAML을 저장한 뒤 실행
+roslaunch trajectory_follower pp_pi_autoware.launch
+```
+
+두 모드는 `path_processing/resampling_ds_m`과
+`path_processing/curvature_calculation_distance_m`을 공유한다. 따라서 같은 trajectory와
+차량 상태에서는 `path_curvature`가 같고 LD 선택 이후의 target/steering 계산도 동일하다.
+
 튜닝 파일을 바꾸어 실행할 수도 있다.
 
 ```bash

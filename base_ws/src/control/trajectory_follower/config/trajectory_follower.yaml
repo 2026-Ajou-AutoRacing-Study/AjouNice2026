@@ -4,7 +4,7 @@ topics:
   steering_cmd: /control/command/steering
   ctrl_cmd: /ctrl_cmd
 
-control_rate_hz: 30.0
+control_rate_hz: 50.0
 
 # MORAI GT localization currently forwards /Ego_topic velocity in km/h.
 # Convert that boundary input to the m/s unit used by trajectory messages and control.

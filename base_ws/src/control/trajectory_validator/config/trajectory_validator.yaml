@@ -4,21 +4,48 @@ topics:
   ego: /Ego_topic
   ctrl_cmd: /ctrl_cmd
   collision: /CollisionData
+  purepursuit_debug: /purepursuit_autoware/debug/controller_state
+
+controller:
+  type: autoware_pure_pursuit
+  purepursuit_parameter_namespace: /purepursuit_autoware
+  longitudinal_parameter_namespace: /longi_pi_autoware
 
 storage:
   history_dir: base_ws/src/control/trajectory_validator/history
-  schema_version: 3
+  schema_version: 5
   overwrite: false
+
+# traj_val shows the latest completed runs of the current trajectory sample as
+# ego-path-only RViz overlays. his1 is the newest, followed by his2 and his3.
+history_overlay:
+  count: 3
+  topic_root: /trajectory_validator/ego_path
+
+# One self-contained SVG is written after each run closes.  The explicit map
+# and projector paths make the image and metadata reproducible even when a ROS
+# map-version parameter is absent.
+summary_svg:
+  enabled: true
+  filename: summary.svg
+  map_file: kcity_map/lanelet_map/lanelet2_map_v44.osm
+  projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+  map_margin_m: 20.0
 
 input:
   # MORAI GT localization forwards velocity in km/h; normalize it before recording.
   kinematic_velocity_scale_to_mps: 0.2777777777777778
 
 recording:
-  sample_rate_hz: 30.0
+  sample_rate_hz: 50.0
   input_timeout_s: 0.5
   sync_tolerance_s: 0.05
   command_pair_tolerance_s: 0.10
-  response_delay_s: 0.10
-  response_tolerance_s: 0.05
+  # Keep recording after MORAI reports a collision.  The collision flag is still
+  # stored in tracking_samples.csv and metadata.json.
+  stop_on_collision: false
   goal_tolerance_m: 3.0
+  # Require progress near the final station too. This prevents a closed route
+  # (for example 200889 -> 200892 -> 200889) ending at its start point.
+  goal_progress_margin_m: 5.0
+  controller_debug_timeout_s: 0.20

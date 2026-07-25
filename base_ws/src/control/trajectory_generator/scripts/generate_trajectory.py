@@ -44,6 +44,17 @@ def resolve_repo_path(root, value, label):
     return path
 
 
+def resolve_repo_output_path(root, value, label):
+    path = (root / str(value)).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError as error:
+        raise ValueError("{} must stay inside repository: {}".format(label, value)) from error
+    if path.suffix.lower() != ".csv":
+        raise ValueError("{} must use a .csv filename: {}".format(label, value))
+    return path
+
+
 def require(mapping, key, label):
     if not isinstance(mapping, dict) or key not in mapping:
         raise ValueError("missing config value {}.{}".format(label, key))
@@ -94,7 +105,7 @@ def load_route(path):
     return rows
 
 
-def find_unique_chain(rows, start_id, end_id):
+def find_unique_chain(rows, start_id, end_id, start_order=None, end_order=None):
     by_lanelet = {}
     for row in rows:
         by_lanelet.setdefault(row["lanelet_id"], []).append(row)
@@ -107,7 +118,9 @@ def find_unique_chain(rows, start_id, end_id):
         if row["order"] in visited_orders:
             return
         next_chain = chain + [row]
-        if row["lanelet_id"] == end_id:
+        if row["lanelet_id"] == end_id and (
+            end_order is None or row["order"] == end_order
+        ):
             chains.append(next_chain)
             return
         successor = row["successor_lanelet_id"]
@@ -122,6 +135,8 @@ def find_unique_chain(rows, start_id, end_id):
             visit(candidate, next_chain, visited_orders | {row["order"]})
 
     for start in by_lanelet.get(start_id, []):
+        if start_order is not None and start["order"] != start_order:
+            continue
         visit(start, [], set())
 
     unique = {}
@@ -411,6 +426,35 @@ def main():
     parser = argparse.ArgumentParser(description="Generate a controller trajectory from Lanelet2")
     parser.add_argument("--config", required=True, help="repository-relative generator YAML")
     parser.add_argument("--overwrite", action="store_true", help="replace an existing output CSV")
+    parser.add_argument(
+        "--start-lanelet-id",
+        type=int,
+        help="override anchors.start_lanelet_id from the config",
+    )
+    parser.add_argument(
+        "--end-lanelet-id",
+        type=int,
+        help="override anchors.end_lanelet_id from the config",
+    )
+    parser.add_argument(
+        "--start-route-order",
+        type=int,
+        help="select the start lanelet occurrence when its ID appears more than once",
+    )
+    parser.add_argument(
+        "--end-route-order",
+        type=int,
+        help="select the end lanelet occurrence when its ID appears more than once",
+    )
+    parser.add_argument(
+        "--desired-velocity-kph",
+        type=float,
+        help="override trajectory.desired_velocity_kph from the config",
+    )
+    parser.add_argument(
+        "--output-csv",
+        help="repository-relative CSV output path (default: traj_sample/<start>_<end>.csv)",
+    )
     arguments = parser.parse_args()
 
     root = repository_root()
@@ -435,11 +479,21 @@ def main():
         require(reference_config, "global_path_file", "reference"),
         "global_path_file",
     )
-    start_id = int(require(anchors, "start_lanelet_id", "anchors"))
-    end_id = int(require(anchors, "end_lanelet_id", "anchors"))
+    start_id = (
+        arguments.start_lanelet_id
+        if arguments.start_lanelet_id is not None
+        else int(require(anchors, "start_lanelet_id", "anchors"))
+    )
+    end_id = (
+        arguments.end_lanelet_id
+        if arguments.end_lanelet_id is not None
+        else int(require(anchors, "end_lanelet_id", "anchors"))
+    )
     interval = float(require(trajectory_config, "resample_interval_m", "trajectory"))
-    desired_velocity_kph = float(
-        require(trajectory_config, "desired_velocity_kph", "trajectory")
+    desired_velocity_kph = (
+        arguments.desired_velocity_kph
+        if arguments.desired_velocity_kph is not None
+        else float(require(trajectory_config, "desired_velocity_kph", "trajectory"))
     )
     default_speed_limit_kph = float(
         require(trajectory_config, "default_speed_limit_kph", "trajectory")
@@ -452,7 +506,13 @@ def main():
         raise ValueError("default_speed_limit_kph must be finite and positive")
 
     route_rows = load_route(route_path)
-    chain = find_unique_chain(route_rows, start_id, end_id)
+    chain = find_unique_chain(
+        route_rows,
+        start_id,
+        end_id,
+        arguments.start_route_order,
+        arguments.end_route_order,
+    )
     projector = parse_projector(projector_path)
     centerlines, speed_limits = load_lanelet_centerlines(osm_path, projector)
     reference_points = load_global_path(global_path)
@@ -467,7 +527,9 @@ def main():
     points, length_m = resample(vertices, interval)
 
     output_path = (
-        root
+        resolve_repo_output_path(root, arguments.output_csv, "output_csv")
+        if arguments.output_csv
+        else root
         / "base_ws/src/control/trajectory_generator/traj_sample"
         / "{}_{}.csv".format(start_id, end_id)
     )

@@ -162,3 +162,51 @@ Roundabout lanelet은 Autoware Intersection 범위가 아니므로 `turn_directi
 - RViz 전용 launch/config는 코드 수정 금지 원칙 때문에 새로 추가하지 않았다. 기존 lanelet map visualizer로 v45를 열어 `turn_direction`, stop line, traffic light, area way를 함께 표시하는 최종 육안 점검을 권장한다.
 
 결론적으로, v45는 대회 경로 교차로 7개에 대해 Autoware Intersection semantic을 활성화할 수 있고, 이 중 좌·우회전 35개는 Blind Spot 대상이다. `right_of_way` 기반 우선권 판단은 원천 자료가 확보될 때까지 의도적으로 비활성 상태다.
+
+## Autoware Planning Simulator 통합 재검증 (2026-07-24)
+
+Docker `ghcr.io/autowarefoundation/autoware:universe-cuda-humble`에서 실제 `planning_simulator.launch.xml`을 사용했다. v45는 map loader, Mission Planner route, BVP, trajectory publisher까지는 정상 동작했지만 **현재의 기본 Blind Spot runtime 설정으로는 autonomous 주행 가능 조건을 만족하지 못했다.** 따라서 아래 결과는 성공으로 과장하지 않는다.
+
+| 비교 맵 / 조건 | map load | 대회 route·trajectory | trajectory rate | autonomous 가능 | 판정 |
+|---|---|---|---:|---|---|
+| v44 baseline | 통과 | 통과 | 10.02 Hz, OK | 별도 control-gate 문제로 완주은 미실행 | semantic 없는 기준선 |
+| v45 전체 (57 movements) | 통과 | 통과; `blind_spot` 기동 로그 | 2.21 Hz, Warn | 불가 | 실패 |
+| v45 route 7개만 semantic | 통과 | 통과 | 1.98 Hz, Warn | 불가 | 실패 |
+| v45 route 직진 4개만 semantic | 통과 | 통과 | 9.95–10.00 Hz, OK | control stack 준비 가능 | 통과 |
+| v45 전체 + Blind Spot attention 30 m (검증 전용) | 통과 | 통과 | 1.92 Hz, Warn | 불가 | 실패 |
+
+### 실제 확인된 내용
+
+- v45는 C++ Lanelet2 map loader에서 정상 publish됐다.
+- Mission Planner의 live route에는 route 순서대로 `200392, 200337, 200348, 200291, 200950, 200261, 200445`가 포함됐고 `/planning/trajectory`도 publish됐다.
+- 좌·우회전 semantic이 포함되면 BVP `blind_spot` scene module이 실제 기동했다.
+- 직진 Intersection semantic만 남긴 비교 맵은 10 Hz를 유지했다. 따라서 57개 전체 area 수나 C++ routing graph가 병목이라는 가설은 배제됐다.
+- 좌·우회전 3개만으로도 2 Hz 부근으로 저하됐고, `blind_spot.backward_attention_length`를 100 m에서 30 m로 낮춘 검증 전용 설정도 개선하지 못했다.
+- 낮은 trajectory rate 때문에 `/api/operation_mode/change_to_autonomous`는 `The target mode is not available`을 반환했고, 진단에는 `control_command_gate: timeout_builtin` 및 trajectory `WarnRate`가 나타났다. 이로 인해 odometry 진행/goal 도달과 red/green 신호 감속 시험은 **유효하게 수행할 수 없었다**.
+
+### 배포 판단
+
+v45를 현재 기본 Blind Spot 활성화 구성으로 바로 대회 autonomous 주행에 투입하면 안 된다. 다음 중 하나를 먼저 수행해야 한다.
+
+1. 현재 Autoware 버전의 Blind Spot scene module profiling 및 runtime/RTC 설정을 수정하여 좌·우회전 lanelet에서 5 Hz 이상 trajectory를 보장한다.
+2. 해당 모듈을 안전 검토 하에 비활성화한 configuration으로는 Intersection/route 회귀만 별도로 수행한다. 이는 Blind Spot 안전 검증을 대체하지 않는다.
+3. 수정 후 동일한 대회 route에 대해 autonomous odometry·goal 도달, 신호 red/green factor·정지·재출발, 교차 객체/VRU 시나리오까지 다시 실행한다.
+
+## Hz 저하 원인 재분석 (2026-07-24, 위 Blind Spot 결론 정정)
+
+위 표의 `blind_spot 기동`은 관찰 사실이지만, 병목 원인이라는 결론은 **정정한다**. 동일 Docker/Planning Simulator에서 route를 다시 주입하고 BVP의 자체 processing-time topic을 측정했다.
+
+| 조건 | `/planning/trajectory` | BVP 전체 | Intersection | Blind Spot | 결과 |
+|---|---:|---:|---:|---:|---|
+| v45, 대회 route의 교차로 활성 구간 | 2.16–2.22 Hz | 428.8–449.6 ms | 402.0–421.1 ms | 1.29–1.54 ms | Intersection이 지연의 대부분 |
+| `attention_area_length=50 m` 검증 전용 | 2.08–2.11 Hz | - | 442.8–534.1 ms | - | 개선 없음 |
+| `path_interpolation_ds=1.0 m` 검증 전용 | 2.18–2.19 Hz | - | 394.6–437.6 ms | - | 개선 없음 |
+| 직진 4개만 semantic | 9.95–10.00 Hz | 정상 범위 | - | - | 정상 |
+| 직진 4개 semantic + `200392: turn_direction=left` 한 개만 추가 | 1.77–1.91 Hz | - | 활성화됨 | - | 좌회전 태그 하나로 재현 |
+
+- 마지막 최소 재현 맵의 `200392`에는 `intersection_area` 태그를 넣지 않았다. 따라서 새 `intersection_area` polygon/노드/way가 원인이 아니다.
+- 런타임 파라미터 `intersection.occlusion.enable=false`, `intersection.common.use_intersection_area=false`를 확인했다. Occlusion 및 v45 area polygon 해석도 원인이 아니다.
+- 활성 상태의 debug state에는 Intersection module이 교차로를 처리 중임이 나타났고, 상세 처리시간 트리는 빌드 설정상 `SceneModuleManagerInterface::modifyPathVelocity` 한 단계만 노출돼 내부 함수명까지는 분해되지 않았다.
+- 즉 올바른 좌·우회전 `turn_direction`이 Intersection scene module을 활성화하고, 이 Autoware 빌드/기존 K-City topology 조합에서 해당 모듈의 충돌 차선·경로 처리 비용이 약 0.4–0.5초가 되는 것이 직접 원인이다. GIS에서 추가한 area나 Blind Spot은 직접 병목이 아니다.
+
+따라서 v45 semantic 자체를 삭제하거나 잘못된 방향으로 바꾸는 것은 해결책이 아니다. Intersection module의 세부 CPU profiler(심볼 포함 빌드 또는 ptrace 허용 환경)로 충돌 차선/경로 탐색의 내부 연산을 확인하고, 안전 요구사항을 만족하는 module parameter 또는 Autoware 구현 수정안을 별도로 검증해야 한다.

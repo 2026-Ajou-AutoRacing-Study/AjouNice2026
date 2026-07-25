@@ -119,7 +119,7 @@ public:
     private_nh_.param<std::string>("debug_marker_topic", debug_marker_topic_,
                                    "/control/debug/generator/markers");
     private_nh_.param<std::string>("frame_id", frame_id_, "map");
-    private_nh_.param("publish_rate_hz", publish_rate_hz_, 30.0);
+    private_nh_.param("publish_rate_hz", publish_rate_hz_, 50.0);
     if (!private_nh_.getParam("trajectory_csv", trajectory_csv_))
     {
       throw std::runtime_error("~trajectory_csv is required");
@@ -343,7 +343,7 @@ private:
   std::string frame_id_;
   std::string trajectory_csv_;
   std::string csv_path_;
-  double publish_rate_hz_{ 30.0 };
+  double publish_rate_hz_{ 50.0 };
   autoware_planning_msgs::Trajectory trajectory_;
   nav_msgs::Path debug_path_;
 };

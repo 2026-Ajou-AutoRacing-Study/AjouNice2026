@@ -45,7 +45,7 @@ public:
     private_nh_.param<std::string>("topics/kinematic_state", state_topic_, "/localization/kinematic_state");
     private_nh_.param<std::string>("topics/steering_cmd", steering_topic_, "/control/command/steering");
     private_nh_.param<std::string>("topics/ctrl_cmd", ctrl_cmd_topic_, "/ctrl_cmd");
-    private_nh_.param("control_rate_hz", control_rate_hz_, 30.0);
+    private_nh_.param("control_rate_hz", control_rate_hz_, 50.0);
     private_nh_.param("kinematic_velocity_scale_to_mps", kinematic_velocity_scale_to_mps_, 1.0);
     private_nh_.param("control_limits/max_accel_cmd", max_accel_cmd_, 1.0);
     private_nh_.param("control_limits/max_brake_cmd", max_brake_cmd_, 1.0);
@@ -260,7 +260,7 @@ private:
   std::string state_topic_;
   std::string steering_topic_;
   std::string ctrl_cmd_topic_;
-  double control_rate_hz_{ 30.0 };
+  double control_rate_hz_{ 50.0 };
   double kinematic_velocity_scale_to_mps_{ 1.0 };
   double max_accel_cmd_{ 1.0 };
   double max_brake_cmd_{ 1.0 };

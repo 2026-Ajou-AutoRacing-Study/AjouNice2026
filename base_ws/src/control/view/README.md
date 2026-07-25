@@ -128,6 +128,11 @@ roslaunch trajectory_validator record.launch
 roslaunch trajectory_follower pp_pi.launch
 ```
 
+`traj_val`은 현재 trajectory sample의 완료된 최신 3개 기록도 ego path만 함께 발행한다.
+현재 주행은 `/trajectory_validator/ego_path`이고, 과거 기록은 최신순으로
+`/trajectory_validator/ego_path/his1`부터 `his3`까지다. Viewer RViz는 이 세 path를
+각각 다른 색으로 기본 표시한다.
+
 주행이 시작되면 RViz에는 실제 차량 궤적이 누적되고, rqt_plot에는 속도·조향·오차 그래프가
 그려진다.
 

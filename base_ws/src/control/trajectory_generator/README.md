@@ -102,6 +102,37 @@ rosrun trajectory_generator generate_trajectory.py \
 base_ws/src/control/trajectory_generator/traj_sample/<start_lanelet_id>_<end_lanelet_id>.csv
 ```
 
+### K-City v44 competition samples
+
+`config/samples/`에는 competition route publisher의 시작 preset과 대응하는 생성 설정을 둔다.
+모두 안전한 초기 비교용 `20 km/h` 상한이며, map의 더 낮은 제한속도는 그대로 적용된다.
+
+| preset | 생성 설정 | 출력 CSV | course position |
+| --- | --- | --- | --- |
+| full | `config/samples/competition_full.yaml` | `traj_sample/200889_200892.csv` | 공식 start → finish loop |
+| early_middle | `config/samples/competition_early_middle.yaml` | `traj_sample/200311_200892.csv` | 약 35% → finish |
+| middle | `config/samples/competition_middle.yaml` | `traj_sample/201086_200892.csv` | 약 50% → finish |
+| late | `config/samples/competition_late.yaml` | `traj_sample/200360_200892.csv` | 약 75% → finish |
+
+코너 추종·가변 lookahead 튜닝에는 아래처럼 코너 전후 margin을 포함한 sample을 사용한다.
+
+| sample | 생성 설정 | 출력 CSV | 포함 구간 |
+| --- | --- | --- | --- |
+| start left-right | `config/samples/corner_start_left_right.yaml` | `traj_sample/200889_200287.csv` | 출발 좌회전 → 우회전, 22 m exit |
+| left S curve | `config/samples/corner_left_s_curve.yaml` | `traj_sample/200287_200292.csv` | 22 m entry → 연속 좌커브 → 50 m exit |
+| outer turn sequence | `config/samples/corner_outer_turn_sequence.yaml` | `traj_sample/200950_200311.csv` | right/right/left/left, 긴 우커브 포함 |
+| roundabout | `config/samples/corner_roundabout.yaml` | `traj_sample/200968_200101.csv` | 우커브 진입 → 회전교차로 → 167 m exit |
+| return tight rights | `config/samples/corner_return_tight_rights.yaml` | `traj_sample/201399_200892.csv` | 우회전 연속·타이트 우커브 → finish |
+
+예를 들어 full sample은 다음처럼 생성·발행한다.
+
+```bash
+rosrun trajectory_generator generate_trajectory.py \
+  --config base_ws/src/control/trajectory_generator/config/samples/competition_full.yaml
+roslaunch trajectory_generator trajectory_publisher.launch \
+  trajectory_csv:=traj_sample/200889_200892.csv
+```
+
 같은 이름의 파일이 이미 있으면 실수로 기존 결과를 잃지 않도록 생성이 실패한다. 의도적으로
 교체할 때만 `--overwrite`를 추가한다.
 
@@ -149,7 +180,7 @@ rostopic hz /control/trajectory
 rostopic echo -n 1 /control/trajectory/header
 ```
 
-기본 발행 주기는 30 Hz이고 `frame_id`는 `map`이다. RViz에서는 다음 debug topic을 추가한다.
+기본 발행 주기는 50 Hz이고 `frame_id`는 `map`이다. RViz에서는 다음 debug topic을 추가한다.
 
 - `/control/debug/generator/path` (`nav_msgs/Path`): 전체 기준 경로
 - `/control/debug/generator/markers` (`visualization_msgs/MarkerArray`): 경로와 시작/종료점

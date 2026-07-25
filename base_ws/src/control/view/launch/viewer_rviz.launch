@@ -1,5 +1,6 @@
 <launch>
-  <arg name="rviz_config" default="$(find viewer)/rviz/control_viewer.rviz"/>
+  <arg name="rviz_config"
+       default="$(find trajectory_validator)/config/traj_val_autoware.rviz"/>
   <arg name="software_rendering" default="1"/>
   <arg name="start_map" default="true"/>
   <arg name="map_file"

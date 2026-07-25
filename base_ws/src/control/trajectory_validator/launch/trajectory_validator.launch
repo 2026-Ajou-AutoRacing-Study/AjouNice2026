@@ -1,4 +1,15 @@
-<!-- Backward-compatible entry point. New usage should prefer record.launch. -->
 <launch>
+  <arg name="start_rviz" default="true"/>
+  <arg name="rviz_config"
+       default="$(find trajectory_validator)/config/traj_val_autoware.rviz"/>
+
   <include file="$(find trajectory_validator)/launch/record.launch"/>
+
+  <!-- traj_val starts the Autoware-following validation view. record.launch stays headless. -->
+  <node if="$(arg start_rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="traj_val_autoware_rviz"
+        args="-d $(arg rviz_config)"
+        output="screen"/>
 </launch>

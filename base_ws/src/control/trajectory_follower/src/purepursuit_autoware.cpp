@@ -13,6 +13,7 @@
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float64.h>
 #include <std_msgs/String.h>
+#include <trajectory_follower/PurePursuitDebug.h>
 
 namespace
 {
@@ -51,7 +52,7 @@ public:
                                    "/control/autoware/failure_reason");
     private_nh_.param<std::string>("topics/target_point", target_point_topic_,
                                    "/control/autoware/target_point");
-    private_nh_.param("control_rate_hz", control_rate_hz_, 30.0);
+    private_nh_.param("control_rate_hz", control_rate_hz_, 50.0);
     private_nh_.param("kinematic_velocity_scale_to_mps", velocity_scale_, 1.0);
     private_nh_.param("safety/trajectory_timeout_s", trajectory_timeout_s_, 0.5);
     private_nh_.param("safety/state_timeout_s", state_timeout_s_, 0.5);
@@ -63,6 +64,21 @@ public:
       private_nh_.param("vehicle/max_wheel_angle_deg", max_wheel_angle_deg, 40.0);
       params_.max_steering_angle = max_wheel_angle_deg * M_PI / 180.0;
     }
+    std::string lookahead_mode;
+    private_nh_.param<std::string>("lookahead/mode", lookahead_mode, "adaptive");
+    if (lookahead_mode == "adaptive") {
+      params_.lookahead_mode = trajectory_follower::LookaheadMode::kAdaptive;
+    } else if (lookahead_mode == "fixed") {
+      params_.lookahead_mode = trajectory_follower::LookaheadMode::kFixed;
+    } else {
+      throw std::runtime_error("lookahead/mode must be 'fixed' or 'adaptive'");
+    }
+    private_nh_.param(
+      "lookahead/fixed_distance_m", params_.fixed_lookahead_distance, 4.0);
+    private_nh_.param("path_processing/resampling_ds_m", params_.resampling_ds, 0.1);
+    private_nh_.param(
+      "path_processing/curvature_calculation_distance_m",
+      params_.curvature_calculation_distance, 4.0);
     private_nh_.param("adaptive/ld_velocity_ratio", params_.ld_velocity_ratio, 2.4);
     private_nh_.param("adaptive/ld_lateral_error_ratio", params_.ld_lateral_error_ratio, 3.6);
     private_nh_.param("adaptive/ld_curvature_ratio", params_.ld_curvature_ratio, 120.0);
@@ -72,9 +88,6 @@ public:
     private_nh_.param("adaptive/max_lookahead_distance", params_.max_lookahead_distance, 15.0);
     private_nh_.param("adaptive/reverse_min_lookahead_distance",
                       params_.reverse_min_lookahead_distance, 7.0);
-    private_nh_.param("adaptive/resampling_ds", params_.resampling_ds, 0.1);
-    private_nh_.param("adaptive/curvature_calculation_distance",
-                      params_.curvature_calculation_distance, 4.0);
 
     core_.reset(new trajectory_follower::AdaptivePurePursuitCore(params_));
     validateParameters();
@@ -83,11 +96,15 @@ public:
     valid_publisher_ = nh_.advertise<std_msgs::Bool>(valid_topic_, 10);
     failure_publisher_ = nh_.advertise<std_msgs::String>(failure_topic_, 10);
     target_point_publisher_ = nh_.advertise<geometry_msgs::PoseStamped>(target_point_topic_, 10);
-    lookahead_publisher_ = nh_.advertise<std_msgs::Float64>("~/debug/lookahead_distance", 10);
-    lateral_error_publisher_ = nh_.advertise<std_msgs::Float64>("~/debug/lateral_error", 10);
-    path_curvature_publisher_ = nh_.advertise<std_msgs::Float64>("~/debug/path_curvature", 10);
-    target_curvature_publisher_ = nh_.advertise<std_msgs::Float64>("~/debug/target_curvature", 10);
-    raw_steering_publisher_ = nh_.advertise<std_msgs::Float64>("~/debug/limited_steering_angle", 10);
+    // `~` is only valid with a private NodeHandle. Using the global handle here makes
+    // roscpp throw InvalidNameException during node construction.
+    lookahead_publisher_ = private_nh_.advertise<std_msgs::Float64>("debug/lookahead_distance", 10);
+    lateral_error_publisher_ = private_nh_.advertise<std_msgs::Float64>("debug/lateral_error", 10);
+    path_curvature_publisher_ = private_nh_.advertise<std_msgs::Float64>("debug/path_curvature", 10);
+    target_curvature_publisher_ = private_nh_.advertise<std_msgs::Float64>("debug/target_curvature", 10);
+    raw_steering_publisher_ = private_nh_.advertise<std_msgs::Float64>("debug/limited_steering_angle", 10);
+    controller_debug_publisher_ =
+      private_nh_.advertise<trajectory_follower::PurePursuitDebug>("debug/controller_state", 10);
 
     trajectory_subscriber_ = nh_.subscribe(trajectory_topic_, 2,
       &AutowarePurePursuitNode::trajectoryCallback, this);
@@ -144,7 +161,9 @@ private:
     state_received_ = ros::Time::now();
   }
 
-  void publishResult(const trajectory_follower::PurePursuitOutput & output, const std::string & frame_id)
+  void publishResult(
+    const trajectory_follower::PurePursuitOutput & output, const std::string & frame_id,
+    const ros::Time & stamp)
   {
     std_msgs::Float64 steering;
     steering.data = output.steering_tire_angle_rad;
@@ -168,9 +187,22 @@ private:
     value.data = output.steering_tire_angle_rad;
     raw_steering_publisher_.publish(value);
 
+    trajectory_follower::PurePursuitDebug debug;
+    debug.header.seq = debug_sequence_++;
+    debug.header.stamp = stamp;
+    debug.header.frame_id = frame_id;
+    debug.controller_valid = output.valid;
+    debug.failure_reason = output.failure_reason;
+    debug.lookahead_distance_m = output.lookahead_distance;
+    debug.path_curvature_1pm = output.path_curvature;
+    debug.target_curvature_1pm = output.target_curvature;
+    debug.lateral_error_m = output.lateral_error;
+    debug.steering_command_rad = output.steering_tire_angle_rad;
+    controller_debug_publisher_.publish(debug);
+
     if (output.valid) {
       geometry_msgs::PoseStamped target;
-      target.header.stamp = ros::Time::now();
+      target.header.stamp = stamp;
       target.header.frame_id = frame_id;
       target.pose.position.x = output.target_point.x;
       target.pose.position.y = output.target_point.y;
@@ -187,13 +219,13 @@ private:
         (now - state_received_).toSec() > state_timeout_s_) {
       trajectory_follower::PurePursuitOutput output;
       output.failure_reason = "stale or unavailable trajectory/state";
-      publishResult(output, trajectory_.header.frame_id);
+      publishResult(output, trajectory_.header.frame_id, now);
       return;
     }
     if (normalizedFrame(trajectory_.header.frame_id) != normalizedFrame(state_.header.frame_id)) {
       trajectory_follower::PurePursuitOutput output;
       output.failure_reason = "trajectory and state frame mismatch";
-      publishResult(output, trajectory_.header.frame_id);
+      publishResult(output, trajectory_.header.frame_id, now);
       return;
     }
 
@@ -214,7 +246,7 @@ private:
     // Universe uses the signed base-link longitudinal velocity for control LD.
     vehicle.velocity_mps = state_.twist.twist.linear.x * velocity_scale_;
     const auto output = core_->run(path, vehicle);
-    publishResult(output, trajectory_.header.frame_id);
+    publishResult(output, trajectory_.header.frame_id, now);
   }
 
   ros::NodeHandle nh_;
@@ -230,6 +262,7 @@ private:
   ros::Publisher path_curvature_publisher_;
   ros::Publisher target_curvature_publisher_;
   ros::Publisher raw_steering_publisher_;
+  ros::Publisher controller_debug_publisher_;
   ros::Timer timer_;
   std::string trajectory_topic_;
   std::string state_topic_;
@@ -237,13 +270,14 @@ private:
   std::string valid_topic_;
   std::string failure_topic_;
   std::string target_point_topic_;
-  double control_rate_hz_{30.0};
+  double control_rate_hz_{50.0};
   double velocity_scale_{1.0};
   double trajectory_timeout_s_{0.5};
   double state_timeout_s_{0.5};
   int min_points_{3};
-  trajectory_follower::AdaptiveLookaheadParams params_;
+  trajectory_follower::PurePursuitParams params_;
   std::unique_ptr<trajectory_follower::AdaptivePurePursuitCore> core_;
+  uint32_t debug_sequence_{0U};
   bool trajectory_valid_{false};
   bool state_valid_{false};
   ros::Time trajectory_received_;

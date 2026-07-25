@@ -1,5 +1,5 @@
 trajectory_topic: /control/trajectory
-publish_rate_hz: 30.0
+publish_rate_hz: 50.0
 frame_id: map
 debug_path_topic: /control/debug/generator/path
 debug_marker_topic: /control/debug/generator/markers

@@ -32,43 +32,41 @@ PlotJuggler가 공유한다.
 | `/ctrl_cmd` | `morai_msgs/CtrlCmd` |
 | `/CollisionData` | `morai_msgs/CollisionData` (선택) |
 
-첫 유효 trajectory 전체를 GT로 한 번 저장하고 Ego 상태를 기본 30 Hz로 sampling한다. 위치,
+첫 유효 trajectory 전체를 GT로 한 번 저장하고 Ego 상태를 기본 50 Hz로 sampling한다. 위치,
 자세, 속도는 `map -> base_link` 공통 kinematic state에서 읽고 가속도·휠각 등 MORAI 전용 값만
 `/Ego_topic`에서 읽는다. trajectory와 state frame이 다르면 sample을 유효 처리하지 않는다.
 노드 실행 직후에는 armed 상태이며 trajectory, kinematic state, Ego 상태, CtrlCmd가 모두
 fresh하고 timestamp 동기 조건을 만족한 최초 시점부터 sample을 기록하고 경과시간을 0으로 잡는다.
-Follower가 아직 실행되지 않아 `/purepursuit`, `/longi_pi`, `/ctrl_cmd`가 없어도 노드는 종료하지
+Follower가 아직 실행되지 않아 `/purepursuit_autoware`, `/longi_pi_autoware`, `/ctrl_cmd`가 없어도 노드는 종료하지
 않는다. 최초 유효 입력 직전에 runtime parameter를 캡처하므로 Validator를 Follower보다 먼저
 실행할 수 있다.
 `control_pair_valid`는 입력이 fresh하고 상태-명령 수신 차이가 허용 범위 안일 때 true다.
-`response_pair_valid`는 명령 이후 설정한 반응 지연에 대응하는 차량 상태를 찾았을 때 true다.
-두 유효성은 독립적으로 저장하며 통계는 유효한 control cycle만 사용한다.
+통계는 `control_pair_valid=true`인 sample만 사용한다.
 
-collision, goal 도달 또는 ROS shutdown으로 run을 종료한다. 종료 시 CSV를 닫은 뒤 JSON을
+기본 설정에서는 collision을 기록만 하고 run을 계속 진행한다. `stop_on_collision=true`를
+설정한 경우에만 collision, goal 도달 또는 ROS shutdown으로 run을 종료한다. 종료 시 CSV를 닫은 뒤 JSON을
 `status=complete`로 원자적으로 갱신한다.
 MORAI의 충돌 없음 placeholder(`ObjectStatus.type=-1`)는 collision으로 계산하지 않는다.
 
 ## 저장 구조
 
 ```text
-history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/gt.csv
-history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/control_cycles.csv
-history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/vehicle_responses.csv
-history/<traj_sample>/<MMDD_HHMMSS_pp_pi>/metadata.json
+history/<traj_sample>/<MMDD_HHMMSS_pp_autoware>/tracking_samples.csv
+history/<traj_sample>/<MMDD_HHMMSS_pp_autoware>/metadata.json
 ```
 
 - `traj_sample`: 입력 trajectory CSV의 확장자를 제외한 basename
 - 동일한 run ID가 있으면 `_01`, `_02` 순으로 새 이름 사용
 - 이름은 `[A-Za-z0-9_-]`만 허용
 
-schema v3 파일:
+schema v5 파일:
 
-- `gt.csv`: 전체 기준 trajectory의 point
-- `control_cycles.csv`: Ego 상태, CtrlCmd, matched GT, 오차, 상태→명령 지연
-- `vehicle_responses.csv`: 명령 이후 속도·조향·경로 오차 변화와 반응 지연
-- `metadata.json`: 실행 설정, 결과 통계, row 수와 각 CSV의 SHA-256
+- `tracking_samples.csv`: station, Ego pose/속도/yaw rate, 목표 속도, LD, 경로·목표 곡률,
+  횡/헤딩 오차, 명령·실제 조향각, 유효성 및 collision의 21개 열
+- `metadata.json`: 원본 및 trajectory별 단일 reference 경로/hash, follower runtime parameter, 실행 설정,
+  결과 통계, row 수와 compact CSV의 SHA-256
 
-구형 기록은 schema v3 런타임 계약에 포함하지 않는다.
+기존 schema v3/v4 기록도 replay/final path로 읽을 수 있다.
 
 ## 오차 정의
 
