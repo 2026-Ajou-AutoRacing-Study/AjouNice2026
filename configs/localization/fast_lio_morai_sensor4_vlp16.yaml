@@ -5,10 +5,10 @@ common:
   time_offset_lidar_to_imu: 0.0
 
 preprocess:
-  # The competition pipeline groups the VLP-16 stream at 600 RPM = 10 Hz.
+  # Sensor_4 VLP-16 nominal rotation rate: 900 RPM = 15 Hz.
   lidar_type: 2
   scan_line: 16
-  scan_rate: 10
+  scan_rate: 15
 
   # velodyne_pointcloud publishes the per-point `time` field in seconds.
   timestamp_unit: 0

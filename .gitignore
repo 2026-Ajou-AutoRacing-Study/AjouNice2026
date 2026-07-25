@@ -3,6 +3,9 @@
 # python 가상환경 폴더
 .venv/
 
+# Local VS Code settings
+.vscode/settings.json
+
 # third_party repos
 third_party/*
 !third_party/
