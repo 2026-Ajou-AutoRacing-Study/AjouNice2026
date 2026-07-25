@@ -35,32 +35,7 @@ MORAI와 이 저장소 사이의 외부 통신은 UDP만 사용한다. `sensor_i
 |---|---|---:|---|
 | `/ctrl_cmd` | `morai_msgs/CtrlCmd` | 9315 | `longlCmdType=1`, accel/brake 방식 |
 
-제어기는 이전처럼 `/ctrl_cmd`에 타이어 조향각 `[rad]`을 publish한다.
-`morai_ctrl_cmd_udp_sender`는 차량의 최대 조향각을 이용해
-`steering_rad / max_steer_rad`로 `[-1, 1]` 정규화한 뒤 MORAI
-`#MoraiCtrlCmd$` 55-byte UDP 패킷으로 변환한다.
-
-Scenario Load는 `/morai/scenario_load_udp`
-(`morai_msgs/MoraiScenarioLoadSrv`) 서비스를 호출한다.
-`morai_scenario_load_udp_sender`가 요청을 `#ScenarioLoad$` 69-byte UDP
-패킷으로 변환하며, `ego_network_1.json`의 `PUBSUB_TYPE=783` 주소를 사용한다.
-`file_name`에는 MORAI에 저장된 시나리오 이름을 전달한다. `.json` 확장자는
-있어도 자동으로 제거된다.
-
-```bash
-rosservice call /morai/scenario_load_udp "request:
-  file_name: 'loadstart.json'
-  load_network_connection_data: true
-  delete_all: false
-  load_ego_vehicle_data: true
-  load_surrounding_vehicle_data: true
-  load_pedestrian_data: true
-  load_obstacle_data: true
-  set_pause: false"
-```
-
-서비스의 `result=true`는 UDP 패킷 전송 성공을 뜻한다. UDP에는 응답 패킷이
-없으므로 실제 로드 성공 여부는 `/Ego_topic` 재수신과 초기 위치로 확인한다.
+제어기는 이전처럼 `/ctrl_cmd`를 publish한다. `morai_ctrl_cmd_udp_sender`가 ROS 메시지를 MORAI `#MoraiCtrlCmd$` 55-byte UDP 패킷으로 변환한다.
 
 ## TF ownership
 

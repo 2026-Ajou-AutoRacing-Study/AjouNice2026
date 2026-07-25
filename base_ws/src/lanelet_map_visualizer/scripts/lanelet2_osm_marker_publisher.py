@@ -16,7 +16,6 @@ import xml.etree.ElementTree as ET
 
 import rospy
 import yaml
-from autoware_map_msgs.msg import LaneletMapBin
 from geometry_msgs.msg import Point
 from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
@@ -679,7 +678,7 @@ def main():
     rospy.init_node("lanelet2_osm_marker_publisher")
     package_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     repo_root = os.path.abspath(os.path.join(package_dir, "..", "..", ".."))
-    default_map = os.path.join(repo_root, "kcity_map", "lanelet_map", "lanelet2_map_v44.osm")
+    default_map = os.path.join(repo_root, "kcity_map", "lanelet_map", "lanelet2_map_v23.osm")
     default_projector = os.path.join(repo_root, "kcity_map", "lanelet_map", "map_projector_info_v1.yaml")
     default_style = os.path.join(package_dir, "config", "lanelet_marker_style.yaml")
 
@@ -689,12 +688,6 @@ def main():
     frame_id = rospy.get_param("~frame_id", "map")
     output_topic = rospy.get_param("~output_topic", "/map/lanelet_map")
     legacy_output_topic = rospy.get_param("~legacy_output_topic", "")
-    vector_map_topic = rospy.get_param("~vector_map_topic", "/map/vector_map")
-    publish_vector_map = as_bool(rospy.get_param("~publish_vector_map", True))
-    vector_map_name = rospy.get_param("~vector_map_name", os.path.basename(map_file))
-    vector_map_version = rospy.get_param(
-        "~vector_map_version", os.path.splitext(os.path.basename(map_file))[0]
-    )
     publish_rate = float(rospy.get_param("~publish_rate", 0.0))
     flatten_z = as_bool(rospy.get_param("~flatten_z", False))
     publish_lanelet_fill = as_bool(rospy.get_param("~publish_lanelet_fill", False))
@@ -727,34 +720,13 @@ def main():
         stats["origin_northing"],
     )
 
-    marker_publishers = [rospy.Publisher(output_topic, MarkerArray, queue_size=1, latch=True)]
+    publishers = [rospy.Publisher(output_topic, MarkerArray, queue_size=1, latch=True)]
     if legacy_output_topic and legacy_output_topic != output_topic:
-        marker_publishers.append(rospy.Publisher(legacy_output_topic, MarkerArray, queue_size=1, latch=True))
-
-    vector_map = None
-    vector_map_publisher = None
-    if publish_vector_map:
-        with open(map_file, "rb") as stream:
-            osm_bytes = stream.read()
-        vector_map = LaneletMapBin()
-        vector_map.header.frame_id = frame_id
-        vector_map.version_map_format = "lanelet2_osm"
-        vector_map.version_map = str(vector_map_version)
-        vector_map.name_map = str(vector_map_name)
-        vector_map.data = osm_bytes
-        vector_map_publisher = rospy.Publisher(
-            vector_map_topic, LaneletMapBin, queue_size=1, latch=True
-        )
-        rospy.set_param("/map/projector_file", projector_file)
-        rospy.set_param("/map/projector_type", projector_type)
-        rospy.set_param("/map/map_file", map_file)
+        publishers.append(rospy.Publisher(legacy_output_topic, MarkerArray, queue_size=1, latch=True))
 
     def publish_once():
-        for pub in marker_publishers:
+        for pub in publishers:
             pub.publish(marker_array)
-        if vector_map_publisher is not None and vector_map is not None:
-            vector_map.header.stamp = rospy.Time.now()
-            vector_map_publisher.publish(vector_map)
 
     rospy.sleep(0.5)
     publish_once()
@@ -763,14 +735,6 @@ def main():
         output_topic,
         "" if not legacy_output_topic or legacy_output_topic == output_topic else " and " + legacy_output_topic,
     )
-    if vector_map_publisher is not None:
-        rospy.loginfo(
-            "Published planning LaneletMapBin to %s: name=%s version=%s bytes=%d",
-            vector_map_topic,
-            vector_map.name_map,
-            vector_map.version_map,
-            len(vector_map.data),
-        )
 
     if publish_rate > 0.0:
         rate = rospy.Rate(publish_rate)

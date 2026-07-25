@@ -1,12 +1,10 @@
 <launch>
-  <arg name="map_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v44.osm"/>
+  <arg name="map_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v31.osm"/>
   <arg name="projector_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="projector_type" default="LocalCartesianUTM"/>
   <arg name="frame_id" default="map"/>
   <arg name="output_topic" default="/map/lanelet_map"/>
   <arg name="legacy_output_topic" default=""/>
-  <arg name="vector_map_topic" default="/map/vector_map"/>
-  <arg name="publish_vector_map" default="true"/>
   <arg name="publish_rate" default="0.0"/>
   <arg name="flatten_z" default="false"/>
   <arg name="publish_lanelet_fill" default="false"/>
@@ -22,8 +20,6 @@
     <param name="frame_id" value="$(arg frame_id)"/>
     <param name="output_topic" value="$(arg output_topic)"/>
     <param name="legacy_output_topic" value="$(arg legacy_output_topic)"/>
-    <param name="vector_map_topic" value="$(arg vector_map_topic)"/>
-    <param name="publish_vector_map" value="$(arg publish_vector_map)"/>
     <param name="publish_rate" value="$(arg publish_rate)"/>
     <param name="flatten_z" value="$(arg flatten_z)"/>
     <param name="publish_lanelet_fill" value="$(arg publish_lanelet_fill)"/>

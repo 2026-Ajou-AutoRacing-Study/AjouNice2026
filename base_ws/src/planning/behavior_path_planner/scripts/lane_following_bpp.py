@@ -169,8 +169,7 @@ class LaneFollowingBPP:
             return
 
         raw = bytes(msg.data)
-        stripped = raw.lstrip()
-        if not (stripped.startswith(b"<osm") or stripped.startswith(b"<?xml")):
+        if not raw.lstrip().startswith(b"<osm"):
             rospy.logwarn_throttle(
                 10.0,
                 "lane_following_bpp: LaneletMapBin binary payload is stored but direct binary parsing is not available; use ~map_file for centerline generation",
@@ -179,11 +178,7 @@ class LaneFollowingBPP:
 
         try:
             self.centerline_map = CenterlineMap.from_osm_bytes(
-                raw,
-                "LaneletMapBin",
-                self.flatten_map_z,
-                self.projector_type,
-                self.projector_file,
+                raw, "LaneletMapBin", self.flatten_map_z, self.projector_type
             )
             rospy.loginfo(
                 "lane_following_bpp: loaded %d centerlines from LaneletMapBin OSM payload",

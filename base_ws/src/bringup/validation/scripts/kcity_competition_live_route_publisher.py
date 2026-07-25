@@ -11,7 +11,6 @@ from autoware_internal_planning_msgs.srv import (
     SetLaneletRoute,
     SetLaneletRouteRequest,
 )
-from autoware_map_msgs.msg import LaneletMapBin
 from autoware_planning_msgs.msg import LaneletPrimitive, LaneletSegment
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
@@ -108,7 +107,12 @@ def color(r, g, b, a=1.0):
 class KcityCompetitionLiveRoutePublisher:
     def __init__(self):
         self.frame_id = rospy.get_param("~frame_id", "map")
-        self.map_file = rospy.get_param("~map_file", "")
+        self.map_file = rospy.get_param(
+            "~map_file",
+            os.path.expanduser(
+                "~/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v44.osm"
+            ),
+        )
         self.projector_file = rospy.get_param(
             "~projector_file",
             os.path.expanduser(
@@ -119,8 +123,6 @@ class KcityCompetitionLiveRoutePublisher:
         self.lane_ids = parse_lane_ids(
             rospy.get_param("~route_lane_ids", COMPETITION_LANE_IDS)
         )
-        self.vector_map_topic = rospy.get_param("~vector_map_topic", "/map/vector_map")
-        self.map_wait_timeout = float(rospy.get_param("~map_wait_timeout", 10.0))
         self.odometry_topic = rospy.get_param(
             "~odometry_topic", "/localization/kinematic_state"
         )
@@ -141,42 +143,15 @@ class KcityCompetitionLiveRoutePublisher:
             latch=True,
         )
 
-        self.centerline_map = self.load_centerline_map()
+        self.centerline_map = CenterlineMap.load(
+            self.map_file,
+            self.projector_file,
+            False,
+            self.projector_type,
+        )
         missing = [lane_id for lane_id in self.lane_ids if not self.centerline_map.has_lane(lane_id)]
         if missing:
             raise RuntimeError("route lane ids are missing in map: {}".format(missing))
-
-    def load_centerline_map(self):
-        if self.map_file:
-            return CenterlineMap.load(
-                self.map_file,
-                self.projector_file,
-                False,
-                self.projector_type,
-            )
-
-        rospy.loginfo("waiting for planning map on %s", self.vector_map_topic)
-        message = rospy.wait_for_message(
-            self.vector_map_topic, LaneletMapBin, timeout=self.map_wait_timeout
-        )
-        if not message.data:
-            raise RuntimeError("received empty planning map on {}".format(self.vector_map_topic))
-
-        projector_file = self.projector_file or rospy.get_param("/map/projector_file", "")
-        projector_type = self.projector_type or rospy.get_param("/map/projector_type", "MGRS")
-        centerline_map = CenterlineMap.from_osm_bytes(
-            message.data,
-            message.name_map or "LaneletMapBin",
-            False,
-            projector_type,
-            projector_file,
-        )
-        rospy.loginfo(
-            "loaded route centerline map from %s: lanes=%d",
-            self.vector_map_topic,
-            centerline_map.lane_count(),
-        )
-        return centerline_map
 
     def lane_goal_pose(self):
         centerline = self.centerline_map.get_centerline(self.lane_ids[-1])

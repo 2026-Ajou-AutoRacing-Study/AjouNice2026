@@ -17,8 +17,6 @@
 
 namespace {
 
-constexpr double kKilometersPerHourToMetersPerSecond = 1.0 / 3.6;
-
 #pragma pack(push, 1)
 struct EgoVehiclePacket {
   char header[11];
@@ -152,11 +150,9 @@ morai_msgs::ObjectStatus objectMessage(const ObjectPacketData& object) {
   message.size.x = object.size_x;
   message.size.y = object.size_y;
   message.size.z = object.size_z;
-  // MORAI's UDP protocol encodes velocity components in km/h, while
-  // morai_msgs/ObjectStatus follows the ROS SI-unit convention (m/s).
-  message.velocity.x = object.vel_x * kKilometersPerHourToMetersPerSecond;
-  message.velocity.y = object.vel_y * kKilometersPerHourToMetersPerSecond;
-  message.velocity.z = object.vel_z * kKilometersPerHourToMetersPerSecond;
+  message.velocity.x = object.vel_x;
+  message.velocity.y = object.vel_y;
+  message.velocity.z = object.vel_z;
   message.acceleration.x = object.accel_x;
   message.acceleration.y = object.accel_y;
   message.acceleration.z = object.accel_z;
@@ -172,11 +168,9 @@ morai_msgs::EgoVehicleStatus egoMessage(const Packet& packet, const std::string&
   message.position.x = packet.pos_x;
   message.position.y = packet.pos_y;
   message.position.z = packet.pos_z;
-  // MORAI's UDP protocol encodes velocity components in km/h, while
-  // morai_msgs/EgoVehicleStatus documents these fields in m/s.
-  message.velocity.x = packet.vel_x * kKilometersPerHourToMetersPerSecond;
-  message.velocity.y = packet.vel_y * kKilometersPerHourToMetersPerSecond;
-  message.velocity.z = packet.vel_z * kKilometersPerHourToMetersPerSecond;
+  message.velocity.x = packet.vel_x;
+  message.velocity.y = packet.vel_y;
+  message.velocity.z = packet.vel_z;
   message.acceleration.x = packet.accel_x;
   message.acceleration.y = packet.accel_y;
   message.acceleration.z = packet.accel_z;

@@ -29,10 +29,6 @@ import eval_fast_lio_with_rviz as core
 # frame_id to "map" would relabel the coordinates without applying the recorded
 # map -> morai_map transform and would offset them from /cloud_registered.
 EVALUATION_FRAME = "morai_map"
-EGO_VELOCITY_SCALES_TO_MPS = {
-    "mps": 1.0,
-    "kmph": 1.0 / 3.6,
-}
 
 
 @dataclass
@@ -67,10 +63,9 @@ def finite_sample(sample):
     return bool(np.all(np.isfinite(values)))
 
 
-def read_bag_states(bag_path, ego_topic, state_topic, ego_velocity_unit="mps"):
+def read_bag_states(bag_path, ego_topic, state_topic):
     ego_samples = []
     state_samples = []
-    ego_velocity_scale = EGO_VELOCITY_SCALES_TO_MPS[ego_velocity_unit]
 
     with rosbag.Bag(bag_path, "r") as bag:
         for topic, message, bag_time in bag.read_messages(
@@ -85,8 +80,7 @@ def read_bag_states(bag_path, ego_topic, state_topic, ego_velocity_unit="mps"):
                     y=float(message.position.y),
                     z=float(message.position.z),
                     yaw=math.radians(float(message.heading)),
-                    linear=ego_velocity_scale
-                    * np.array(
+                    linear=np.array(
                         [
                             message.velocity.x,
                             message.velocity.y,
@@ -398,7 +392,6 @@ def print_report(
     stationary_segments,
     mount,
     interpolation_statistics,
-    ego_velocity_unit,
 ):
     ego_distance = float(np.linalg.norm(np.diff(ego_xyz[:, :2], axis=0), axis=1).sum())
     state_distance = float(
@@ -417,10 +410,6 @@ def print_report(
     print("======= FAST-LIO Pose + Twist vs MORAI Ego Evaluation =======")
     print(f"bag: {bag_path}")
     print(f"state topic: {state_topic}")
-    if ego_velocity_unit == "kmph":
-        print("Ego velocity input: km/h (converted to m/s with scale 1/3.6)")
-    else:
-        print("Ego velocity input: m/s")
     print(f"matched samples: {len(matched)}")
     print(f"duration: {relative_times[-1]:.3f} sec")
     print("comparison time: state timestamp (Ego GT interpolated)")
@@ -588,7 +577,6 @@ def write_csv(
     ego_angular,
     state_angular,
     stationary_mask,
-    ego_velocity_unit,
 ):
     os.makedirs(os.path.dirname(csv_path), exist_ok=True)
     position_error_xyz = aligned_xyz - ego_xyz
@@ -599,8 +587,7 @@ def write_csv(
 
     header = [
         "t_rel", "ego_stamp", "ego_bag_time", "state_stamp", "state_bag_time",
-        "ego_nearest_source_dt", "ego_velocity_source_unit",
-        "ego_velocity_scale_to_mps",
+        "ego_nearest_source_dt",
         "ego_x", "ego_y", "ego_z", "state_aligned_x", "state_aligned_y", "state_aligned_z",
         "err_x", "err_y", "err_z", "err_xy", "err_longitudinal", "err_lateral",
         "ego_yaw_deg", "state_yaw_deg", "yaw_err_deg",
@@ -617,8 +604,6 @@ def write_csv(
                 [
                     relative_times[index], ego_sample.stamp, ego_sample.bag_time,
                     state_sample.stamp, state_sample.bag_time, nearest_source_dt,
-                    ego_velocity_unit,
-                    EGO_VELOCITY_SCALES_TO_MPS[ego_velocity_unit],
                     *ego_xyz[index], *aligned_xyz[index], *position_error_xyz[index],
                     position_errors[index], longitudinal_errors[index], lateral_errors[index],
                     math.degrees(ego_sample.yaw),
@@ -780,17 +765,6 @@ def main():
     )
     parser.add_argument("--ego-topic", default="/Ego_topic")
     parser.add_argument(
-        "--ego-velocity-unit",
-        choices=tuple(EGO_VELOCITY_SCALES_TO_MPS),
-        default="mps",
-        help=(
-            "Unit stored in /Ego_topic.velocity. Use 'kmph' for legacy bags "
-            "recorded from the AjouNice MORAI UDP receiver before SI-unit "
-            "conversion was added; new receiver output and native ROS "
-            "EgoVehicleStatus use 'mps' (default)."
-        ),
-    )
-    parser.add_argument(
         "--state-topic",
         default="/localization/odom",
         help="Raw FAST-LIO odom or base_link /localization/kinematic_state",
@@ -817,10 +791,7 @@ def main():
     args = parser.parse_args()
 
     ego_samples, raw_state_samples = read_bag_states(
-        args.bag,
-        args.ego_topic,
-        args.state_topic,
-        args.ego_velocity_unit,
+        args.bag, args.ego_topic, args.state_topic
     )
     if not ego_samples:
         raise RuntimeError(f"No valid messages found on {args.ego_topic}")
@@ -910,7 +881,6 @@ def main():
             stationary_segments,
             mount,
             interpolation_statistics,
-            args.ego_velocity_unit,
         )
     report = report_buffer.getvalue()
     print(report, end="")
@@ -934,7 +904,6 @@ def main():
         ego_angular,
         state_angular,
         stationary_mask,
-        args.ego_velocity_unit,
     )
     print(f"CSV saved: {csv_path}")
     print(f"Text report saved: {text_path}")

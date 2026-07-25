@@ -3,9 +3,6 @@
 # python 가상환경 폴더
 .venv/
 
-# Local VS Code settings
-.vscode/settings.json
-
 # third_party repos
 third_party/*
 !third_party/
@@ -48,13 +45,11 @@ base_ws/.catkin_workspace
 # RViz local configs, optional
 *.rviz
 !base_ws/src/control/trajectory_validator/config/trajectory_validator.rviz
-!base_ws/src/control/view/rviz/control_viewer.rviz
+!base_ws/src/tools/viewer/rviz/control_viewer.rviz
 
 # Trajectory generator: keep the shared default, ignore local experiments.
 base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml
 base_ws/src/control/trajectory_generator/traj_sample/*.csv
-!base_ws/src/control/trajectory_generator/traj_sample/200889_200258_20kph.csv
-!base_ws/src/control/trajectory_generator/traj_sample/200889_200292_20kph.csv
 !base_ws/src/bringup/rviz/kcity_mission_bpp.rviz
 !base_ws/src/bringup/rviz/kcity_interactive_trajectory.rviz
 !base_ws/src/bringup/rviz/kcity_competition_static_path.rviz

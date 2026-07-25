@@ -1,11 +1,19 @@
 <launch>
+  <arg name="map_file"
+       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/lanelet2_map_v44.osm" />
+  <arg name="projector_file"
+       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
+  <arg name="map_projector_type" default="LocalCartesianUTM" />
   <arg name="frame_id" default="map" />
+  <arg name="route_preset" default="full" />
   <arg name="planning_hz" default="10.0" />
   <arg name="default_velocity_mps" default="4.1666665" />
   <arg name="forward_path_length" default="300.0" />
   <arg name="mvp_extract_ahead_dist" default="200.0" />
   <arg name="mvp_extract_behind_dist" default="0.0" />
   <arg name="launch_rviz" default="true" />
+  <arg name="start_route_publisher" default="true" />
+  <arg name="start_map_visualizer" default="true" />
   <arg name="software_rendering" default="1" />
 
   <include file="$(find bringup)/launch/mission_bpp_bvp_path_smoother_path_optimizer_mvp_pipeline.launch">
@@ -13,8 +21,9 @@
     <arg name="planning_hz" value="$(arg planning_hz)" />
     <arg name="default_velocity_mps" value="$(arg default_velocity_mps)" />
     <arg name="forward_path_length" value="$(arg forward_path_length)" />
-    <arg name="projector_file" value="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/map_projector_info_v1.yaml" />
-    <arg name="map_projector_type" value="LocalCartesianUTM" />
+    <arg name="map_file" value="$(arg map_file)" />
+    <arg name="projector_file" value="$(arg projector_file)" />
+    <arg name="map_projector_type" value="$(arg map_projector_type)" />
     <arg name="route_lane_ids" value="[]" />
     <arg name="require_lane_driving_scenario" value="true" />
     <arg name="enable_goal_planner" value="false" />
@@ -23,6 +32,17 @@
     <arg name="mvp_extract_ahead_dist" value="$(arg mvp_extract_ahead_dist)" />
     <arg name="mvp_extract_behind_dist" value="$(arg mvp_extract_behind_dist)" />
   </include>
+
+  <group if="$(arg start_map_visualizer)">
+    <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+      <arg name="map_file" value="$(arg map_file)" />
+      <arg name="projector_file" value="$(arg projector_file)" />
+      <arg name="projector_type" value="$(arg map_projector_type)" />
+      <arg name="frame_id" value="$(arg frame_id)" />
+      <arg name="output_topic" value="/map/lanelet_map" />
+      <arg name="publish_lanelet_fill" value="false" />
+    </include>
+  </group>
 
   <node pkg="mission_planner"
         type="mission_planner_rviz_input.py"
@@ -33,6 +53,18 @@
     <param name="allow_modification" value="false" />
     <param name="publish_static_odometry" value="false" />
   </node>
+
+  <group if="$(arg start_route_publisher)">
+    <node pkg="bringup"
+          type="kcity_competition_live_route_publisher.py"
+          name="kcity_competition_live_route_publisher"
+          output="screen">
+      <param name="map_file" value="$(arg map_file)" />
+      <param name="projector_file" value="$(arg projector_file)" />
+      <param name="map_projector_type" value="$(arg map_projector_type)" />
+      <param name="keep_alive" value="true" />
+    </node>
+  </group>
 
   <node pkg="bringup"
         type="planning_trajectory_visualizer.py"

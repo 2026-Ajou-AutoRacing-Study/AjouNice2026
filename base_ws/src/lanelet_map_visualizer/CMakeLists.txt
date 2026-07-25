@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.0.2)
 project(lanelet_map_visualizer)
 
 find_package(catkin REQUIRED COMPONENTS
-  autoware_map_msgs
   geometry_msgs
   rospy
   std_msgs

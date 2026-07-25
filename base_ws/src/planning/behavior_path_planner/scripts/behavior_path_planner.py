@@ -465,8 +465,7 @@ class BehaviorPathPlanner:
             return
 
         raw = bytes(msg.data)
-        stripped = raw.lstrip()
-        if not (stripped.startswith(b"<osm") or stripped.startswith(b"<?xml")):
+        if not raw.lstrip().startswith(b"<osm"):
             rospy.logwarn_throttle(
                 10.0,
                 "behavior_path_planner: LaneletMapBin binary parsing is not available; pass ~map_file for centerline generation",
@@ -475,11 +474,7 @@ class BehaviorPathPlanner:
 
         try:
             self.centerline_map = CenterlineMap.from_osm_bytes(
-                raw,
-                "LaneletMapBin",
-                self.flatten_map_z,
-                self.projector_type,
-                self.projector_file,
+                raw, "LaneletMapBin", self.flatten_map_z, self.projector_type
             )
             self.route_lanelet_tracker.clear()
             if self.static_avoidance_scene is not None:

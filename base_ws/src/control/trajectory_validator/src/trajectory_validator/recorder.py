@@ -22,7 +22,6 @@ from visualization_msgs.msg import MarkerArray
 from trajectory_validator.csv_io import TrackingCsvWriter
 from trajectory_validator.metrics import (
     TrajectoryMatcher,
-    compact_evaluation_summary,
     metric_summary,
     yaw_from_quaternion,
 )
@@ -36,9 +35,6 @@ from trajectory_validator.visualization import (
 
 
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
-TRAJECTORY_SAMPLE_NAME = re.compile(
-    r"^[0-9]+_[0-9]+_(?:[0-9]+|[0-9]+p[0-9]+)kph$"
-)
 
 
 def normalized_frame(frame):
@@ -265,12 +261,8 @@ class TrajectoryRecorder:
             (self.generator_params, self.purepursuit_params, self.longi_pi_params)
         )
         self.traj_sample = self.input_trajectory_path.stem
-        if not TRAJECTORY_SAMPLE_NAME.fullmatch(self.traj_sample):
-            raise ValueError(
-                "trajectory sample basename must be "
-                "<start_id>_<end_id>_<velocity>kph "
-                "(use 'p' for a decimal point)"
-            )
+        if not SAFE_NAME.fullmatch(self.traj_sample):
+            raise ValueError("trajectory sample basename contains unsupported characters")
 
         self.trajectory_topic = rospy.get_param("~topics/trajectory", "/control/trajectory")
         self.kinematic_state_topic = rospy.get_param(
@@ -288,9 +280,6 @@ class TrajectoryRecorder:
             rospy.get_param("~input/kinematic_velocity_scale_to_mps", 1.0)
         )
         self.overwrite = bool(rospy.get_param("~storage/overwrite", False))
-        self.run_label = str(rospy.get_param("~storage/run_label", "")).strip()
-        if self.run_label and not SAFE_NAME.fullmatch(self.run_label):
-            raise ValueError("run_label may contain only letters, digits, '_' and '-'")
         self.history_root = resolve_repo_directory(
             self.root,
             rospy.get_param(
@@ -344,12 +333,6 @@ class TrajectoryRecorder:
             rospy.get_param("~recording/stop_on_collision", False)
         )
         self.goal_tolerance_m = float(rospy.get_param("~recording/goal_tolerance_m", 3.0))
-        self.max_lateral_deviation_m = float(
-            rospy.get_param("~recording/max_lateral_deviation_m", 15.0)
-        )
-        self.off_route_duration_s = float(
-            rospy.get_param("~recording/off_route_duration_s", 3.0)
-        )
         self.goal_progress_margin_m = float(
             rospy.get_param("~recording/goal_progress_margin_m", 5.0)
         )
@@ -405,7 +388,6 @@ class TrajectoryRecorder:
         self.control_pair = None
         self.last_recorded_command_ros_ns = None
         self.collision_detected = False
-        self.off_route_started_ros = None
         self.samples = []
         self.pp_debug_messages = deque(maxlen=100)
 
@@ -824,16 +806,6 @@ class TrajectoryRecorder:
             elif reached_goal:
                 self.end_reason = "goal_reached"
                 should_stop = True
-            elif off_route:
-                self.end_reason = "off_route"
-                rospy.logerr(
-                    "trajectory recording stopped: lateral deviation %.2f m "
-                    "exceeded %.2f m for %.2f s",
-                    lateral_deviation,
-                    self.max_lateral_deviation_m,
-                    self.off_route_duration_s,
-                )
-                should_stop = True
         if should_stop:
             rospy.signal_shutdown(self.end_reason)
 
@@ -901,7 +873,6 @@ class TrajectoryRecorder:
             "schema_version": self.schema_version,
             "traj_sample": self.traj_sample,
             "run_id": self.run_id,
-            "run_label": self.run_label or None,
             "status": status,
             "started_at": self.started_wall.isoformat(),
             "armed_at_ros_ns": self.node_started_ros.to_nsec(),
@@ -950,8 +921,10 @@ class TrajectoryRecorder:
                 "sample_rate_hz": self.sample_rate_hz,
                 "sample_count": len(self.samples),
                 "command_pair_tolerance_s": self.command_pair_tolerance_s,
-                "response_delay_s": self.response_delay_s,
-                "response_tolerance_s": self.response_tolerance_s,
+                "stop_on_collision": self.stop_on_collision,
+                "goal_tolerance_m": self.goal_tolerance_m,
+                "goal_progress_margin_m": self.goal_progress_margin_m,
+                "final_station_m": self.final_station_m,
                 "duration_s": duration,
                 "end_reason": self.end_reason if status != "recording" else None,
             },
@@ -1000,10 +973,6 @@ class TrajectoryRecorder:
                     }
                     rospy.logerr("trajectory_validator summary image failed: %s", error)
             atomic_json(self.json_path, self._metadata("complete"))
-            summary = compact_evaluation_summary(
-                self.samples, self.gt_trajectory
-            )
-            atomic_json(self.summary_path, summary)
             rospy.loginfo(
                 "trajectory_validator saved %d compact tracking samples + summary=%s: %s",
                 self.writer.count,
