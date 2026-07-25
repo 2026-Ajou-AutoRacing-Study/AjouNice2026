@@ -51,3 +51,7 @@ alias maptf="roslaunch bringup maptf.launch"
 alias lanelet="roslaunch lanelet_map_visualizer kcity_lanelet_map.launch"   
 alias morai_status="bash ~/AjouNice2026/scripts/runtime/morai_status.sh"
 alias morai_reset="bash ~/AjouNice2026/scripts/runtime/morai_reset.sh stack"
+
+# planning-----------------------------------------------
+alias planner='roslaunch bringup kcity_morai_competition_planner_rviz.launch'
+alias kroute='roslaunch bringup kcity_competition_route.launch'
