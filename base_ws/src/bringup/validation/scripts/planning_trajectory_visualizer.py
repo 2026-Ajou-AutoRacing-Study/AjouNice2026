@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 
 import copy
-import math
-import threading
 
 import rospy
 from autoware_planning_msgs.msg import Trajectory
-from geometry_msgs.msg import Point, PoseStamped, PoseWithCovarianceStamped
-from nav_msgs.msg import Odometry, Path
+from geometry_msgs.msg import Point, PoseStamped
+from nav_msgs.msg import Path
 from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -40,15 +38,6 @@ class PlanningTrajectoryVisualizer:
         self.nominal_velocity = max(
             float(rospy.get_param("~nominal_velocity_mps", 4.1666665)), 0.1
         )
-        self.accumulate_odometry = bool(
-            rospy.get_param("~accumulate_odometry", False)
-        )
-        self.history_interval = max(
-            float(rospy.get_param("~history_interval_m", 0.5)), 0.05
-        )
-        self.lock = threading.RLock()
-        self.history = []
-        self.latest_profile = []
         self.path_publisher = rospy.Publisher(
             self.path_topic, Path, queue_size=1, latch=True
         )
@@ -58,25 +47,6 @@ class PlanningTrajectoryVisualizer:
         rospy.Subscriber(
             self.input_topic, Trajectory, self.on_trajectory, queue_size=1
         )
-        if self.accumulate_odometry:
-            rospy.Subscriber(
-                "/localization/kinematic_state",
-                Odometry,
-                self.on_odometry,
-                queue_size=10,
-            )
-            rospy.Subscriber(
-                "/initialpose",
-                PoseWithCovarianceStamped,
-                self.on_reset,
-                queue_size=1,
-            )
-            rospy.Subscriber(
-                "/move_base_simple/goal",
-                PoseStamped,
-                self.on_reset,
-                queue_size=1,
-            )
         rospy.loginfo(
             "planning_trajectory_visualizer: input=%s path=%s markers=%s",
             self.input_topic,
@@ -85,52 +55,11 @@ class PlanningTrajectoryVisualizer:
         )
 
     @staticmethod
-    def distance(first, second):
-        return math.hypot(
-            float(first.position.x) - float(second.position.x),
-            float(first.position.y) - float(second.position.y),
-        )
-
-    def on_reset(self, _message):
-        with self.lock:
-            self.history = []
-            self.latest_profile = []
-
-    def on_odometry(self, message):
-        with self.lock:
-            pose = copy.deepcopy(message.pose.pose)
-            velocity = float(message.twist.twist.linear.x)
-            if self.latest_profile:
-                nearest = min(
-                    self.latest_profile,
-                    key=lambda item: self.distance(pose, item[0]),
-                )
-                velocity = nearest[1]
-            if (
-                self.history
-                and self.distance(self.history[-1][0], pose) < self.history_interval
-            ):
-                return
-            self.history.append((pose, velocity))
-
-    def display_points(self, message):
-        points = [
+    def display_points(message):
+        return [
             (copy.deepcopy(point.pose), float(point.longitudinal_velocity_mps))
             for point in message.points
         ]
-        if not self.accumulate_odometry:
-            return points
-        with self.lock:
-            history = copy.deepcopy(self.history)
-        if not history:
-            return points
-        if points:
-            nearest = min(
-                range(len(points)),
-                key=lambda index: self.distance(history[-1][0], points[index][0]),
-            )
-            points = points[nearest:]
-        return history + points
 
     def velocity_color(self, velocity):
         speed = max(float(velocity), 0.0)
@@ -157,12 +86,11 @@ class PlanningTrajectoryVisualizer:
     def on_trajectory(self, message):
         if not message.points:
             return
+        self.publish_trajectory(message)
 
-        with self.lock:
-            self.latest_profile = [
-                (copy.deepcopy(point.pose), float(point.longitudinal_velocity_mps))
-                for point in message.points
-            ]
+    def publish_trajectory(self, message):
+        if rospy.is_shutdown():
+            return
         display_points = self.display_points(message)
         if not display_points:
             return
@@ -196,14 +124,16 @@ class PlanningTrajectoryVisualizer:
         start.scale.x = start.scale.y = start.scale.z = 3.0
         start.color = color(0.1, 1.0, 0.25, 1.0)
 
-        goal = self.marker("final_trajectory_ends", 1, Marker.SPHERE, message.header)
-        goal.pose.position = copy.deepcopy(display_points[-1][0].position)
-        goal.pose.position.z += 1.5
-        goal.scale.x = goal.scale.y = goal.scale.z = 3.0
-        goal.color = color(1.0, 0.12, 0.12, 1.0)
+        horizon = self.marker(
+            "final_trajectory_horizon", 0, Marker.SPHERE, message.header
+        )
+        horizon.pose.position = copy.deepcopy(display_points[-1][0].position)
+        horizon.pose.position.z += 1.5
+        horizon.scale.x = horizon.scale.y = horizon.scale.z = 3.0
+        horizon.color = color(1.0, 0.12, 0.12, 1.0)
 
         self.marker_publisher.publish(
-            MarkerArray(markers=[line, points, start, goal])
+            MarkerArray(markers=[line, points, start, horizon])
         )
         velocities = [velocity for _pose, velocity in display_points]
         rospy.loginfo_throttle(

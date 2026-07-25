@@ -12,7 +12,12 @@ SCRIPT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts")
 sys.path.insert(0, SCRIPT_DIR)
 
 from motion_velocity_planner import MotionVelocityPlanner
-from mvp_utils import path_cumulative_lengths, project_pose_to_path, set_velocity_window
+from mvp_utils import (
+    crop_trajectory_around_ego,
+    path_cumulative_lengths,
+    project_pose_to_path,
+    set_velocity_window,
+)
 
 
 def trajectory(velocities):
@@ -47,6 +52,40 @@ class TrajectoryInterfaceTest(unittest.TestCase):
             [point.longitudinal_velocity_mps for point in output.points],
             [5.0, 2.0, 2.0, 2.0, 5.0],
         )
+
+    def test_crop_starts_at_ego_projection_and_limits_forward_length(self):
+        message = trajectory([5.0] * 301)
+        pose = Pose()
+        pose.position.x = 80.25
+        pose.orientation.w = 1.0
+        output = crop_trajectory_around_ego(
+            message, pose, forward_length=120.0, backward_length=0.0
+        )
+        self.assertAlmostEqual(output.points[0].pose.position.x, 80.25)
+        self.assertAlmostEqual(output.points[-1].pose.position.x, 200.25)
+        self.assertAlmostEqual(path_cumulative_lengths(output)[-1], 120.0)
+
+    def test_yaw_constrained_projection_ignores_reverse_parallel_segment(self):
+        message = Trajectory()
+        for x, y, yaw in (
+            (0.0, 0.0, 0.0),
+            (10.0, 0.0, 0.0),
+            (10.0, 0.2, 3.141592653589793),
+            (0.0, 0.2, 3.141592653589793),
+        ):
+            point = TrajectoryPoint()
+            point.pose.position.x = x
+            point.pose.position.y = y
+            point.pose.orientation.z = __import__("math").sin(yaw * 0.5)
+            point.pose.orientation.w = __import__("math").cos(yaw * 0.5)
+            message.points.append(point)
+        pose = Pose()
+        pose.position.x = 5.0
+        pose.position.y = 0.19
+        pose.orientation.w = 1.0
+        projection = project_pose_to_path(message, pose, yaw_threshold=1.0)
+        self.assertEqual(projection.index, 0)
+        self.assertAlmostEqual(projection.longitudinal_distance, 5.0)
 
     def test_base_velocity_preserves_upstream_stop(self):
         planner = MotionVelocityPlanner.__new__(MotionVelocityPlanner)
