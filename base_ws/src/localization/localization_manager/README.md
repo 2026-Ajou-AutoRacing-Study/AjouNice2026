@@ -11,7 +11,9 @@ launch file.
 - Pose: `map`-frame pose of `base_link`
 - Twist: velocity of the `base_link` origin expressed in `base_link`
 
-Pose and twist covariance are currently unavailable and remain zero.
+Provider-specific covariance handling is described below. FAST-LIO providers
+currently leave it unavailable; the GNSS+IMU provider preserves the EKF
+covariance.
 
 ## FAST-LIO provider
 
@@ -92,6 +94,54 @@ rotation, so GNSS correction does not rotate the existing TF tree mid-run.
 Wheel input is disabled. The current GNSS covariance is a configurable test
 model, not a calibrated competition value.
 
+## GNSS + IMU provider (experimental baseline)
+
+Run the noise-disabled Sensor_4 baseline:
+
+```bash
+roslaunch bringup localization_gnss_imu.launch
+```
+
+The provider deliberately keeps MORAI conversion outside
+`robot_localization`:
+
+```text
+/sensor/imu (MORAI sensor_msgs/Imu with unknown covariance)
+  -> imu_covariance_adapter.py
+  -> /localization/imu (sensor_msgs/Imu with configured covariance)
+
+/sensor/gps (morai_msgs/GPSMessage, WGS84)
+  -> morai_gps_to_local_odometry.py
+  -> /localization/gnss/odom (nav_msgs/Odometry, map-frame position)
+```
+
+Two EKFs then own a non-conflicting REP-105 TF tree:
+
+```text
+local EKF:  odom -> base_link
+global EKF: map -> odom
+```
+
+The global EKF output `/localization/odom` is copied, including pose and twist
+covariance, to `/localization/kinematic_state`. The copying node emits no TF.
+This lets Planning keep the same input contract while the localization backend
+changes.
+
+The initial noise-disabled experiment uses:
+
+- `configs/sensors/Sensor_4.json`
+- `configs/localization/gnss_imu_noise_sensor4_ideal.yaml`
+
+The follow-up noise experiment is intentionally a separate pairing:
+
+- `configs/sensors/Sensor_4_noise_v1.json`
+- `configs/localization/gnss_imu_noise_sensor4_noise_v1.yaml`
+
+The second covariance profile is an initial measurement model and must be
+re-estimated from repeated noisy runs rather than treated as final calibration.
+No gyro-bias/zeroing algorithm is enabled because the current MORAI setup has
+zero-mean noise and no configured fixed bias.
+
 ## TF ownership and exclusivity
 
 Do not run any two provider launch files together. Do
@@ -113,3 +163,6 @@ are configured in `configs/localization/localization_manager.yaml`.
 - Pose and twist covariance in `/localization/kinematic_state` are unavailable.
 - `body -> base_link` is hard-coded and must later be read from the selected
   sensor configuration.
+- GNSS+IMU-only accuracy and outage behavior are not expected to match
+  LiDAR+IMU+GNSS in geometrically rich environments; it is a lightweight
+  baseline and fallback candidate.
