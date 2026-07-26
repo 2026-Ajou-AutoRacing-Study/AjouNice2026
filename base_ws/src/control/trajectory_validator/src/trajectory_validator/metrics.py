@@ -20,6 +20,79 @@ def yaw_from_quaternion(quaternion):
     return math.atan2(sin_yaw, cos_yaw)
 
 
+def plausible_ego_travel_step_m(
+    previous_x,
+    previous_y,
+    current_x,
+    current_y,
+    dt_s,
+    previous_velocity_mps,
+    current_velocity_mps,
+    trajectory_length_m,
+):
+    """Return an XY travel step, or None when it looks like a position jump."""
+    values = (
+        previous_x,
+        previous_y,
+        current_x,
+        current_y,
+        dt_s,
+        previous_velocity_mps,
+        current_velocity_mps,
+        trajectory_length_m,
+    )
+    if (
+        not all(math.isfinite(value) for value in values)
+        or dt_s <= 0.0
+        or trajectory_length_m <= 0.0
+    ):
+        return None
+    displacement_m = math.hypot(
+        current_x - previous_x,
+        current_y - previous_y,
+    )
+    expected_distance_m = (
+        0.5
+        * (abs(previous_velocity_mps) + abs(current_velocity_mps))
+        * dt_s
+    )
+    # Keep this trajectory-independent. The margin absorbs low-speed pose noise,
+    # while the velocity-scaled term accommodates sparse samples at high speed.
+    maximum_plausible_distance_m = max(
+        5.0,
+        0.05 * trajectory_length_m,
+        3.0 * expected_distance_m + 1.0,
+    )
+    return (
+        displacement_m
+        if displacement_m <= maximum_plausible_distance_m
+        else None
+    )
+
+
+def goal_conditions_met(
+    final_distance_m,
+    goal_tolerance_m,
+    matched_station_m,
+    final_station_m,
+    goal_progress_margin_m,
+    ego_travel_distance_m,
+    min_travel_ratio_for_goal,
+):
+    """Combine endpoint, trajectory-progress, and physical-travel goal guards."""
+    final_progress_start_m = max(
+        0.0, final_station_m - goal_progress_margin_m
+    )
+    minimum_travel_distance_m = (
+        final_station_m * min_travel_ratio_for_goal
+    )
+    return (
+        final_distance_m <= goal_tolerance_m
+        and matched_station_m >= final_progress_start_m
+        and ego_travel_distance_m >= minimum_travel_distance_m
+    )
+
+
 class TrajectoryMatcher:
     def __init__(self, trajectory):
         if len(trajectory.points) < 2:

@@ -155,9 +155,12 @@ rosrun trajectory_generator generate_trajectory.py \
 | `reference.global_path_file` | 중심선 진행 방향 판별용 기준 경로 | 최소 2개 점이 필요하다. |
 | `anchors.start_lanelet_id` | 생성 구간의 시작 lanelet | end까지 유일한 successor chain이 있어야 한다. |
 | `anchors.end_lanelet_id` | 생성 구간의 종료 lanelet | 출력 파일명에도 사용된다. |
+| `anchors.start_route_order` | 동일 lanelet ID가 반복될 때 시작 occurrence | 생략하면 모든 start 후보를 검사한다. |
+| `anchors.end_route_order` | 동일 lanelet ID가 반복될 때 종료 occurrence | 한 바퀴 loop처럼 start/end ID가 같을 때 필요하다. |
 | `trajectory.resample_interval_m` | trajectory 점 간격 | 현재 계약상 `0.1` m 고정이다. |
 | `trajectory.desired_velocity_kph` | 차량에 요구할 순항 속도 | 양수이며 단위는 km/h다. |
 | `trajectory.default_speed_limit_kph` | 지도에 제한속도가 없을 때의 안전 상한 | 목표 속도가 아니라 fallback 제한속도다. |
+| `trajectory.speed_profile` | lanelet별 속도와 가감속 envelope | 생략하면 기존 고정속도 생성 동작을 유지한다. |
 
 최종 CSV 속도는 다음과 같이 저장된다.
 
@@ -169,6 +172,35 @@ velocity_mps = min(desired_velocity_kph, 적용 제한속도 kph) / 3.6
 default_speed_limit_kph`다. 출발/종료 감속 ramp는 아직 생성하지 않으며 마지막 점도 자동으로
 `0 m/s`가 되지 않는다. 속도 단위 전체 계약과 MORAI GT 입력은
 [Control 속도 단위 규약](../../../../docs/control_velocity_units.md)을 참고한다.
+
+### Lanelet별 가변속도 profile
+
+`trajectory.speed_profile`을 지정하면 lanelet별 속도 상한을 만든 뒤, 0.1 m 경로를 전방·후방으로
+통과하며 최대 가속도와 감속도를 만족하는 연속 속도열을 생성한다.
+
+```yaml
+anchors:
+  start_lanelet_id: 200889
+  end_lanelet_id: 200889
+  start_route_order: 1
+  end_route_order: 42
+
+trajectory:
+  output_csv: base_ws/src/control/trajectory_generator/traj_sample/variable/200889_200889_v.csv
+  speed_profile:
+    default_velocity_kph: 60.0
+    respect_speed_limits: false
+    max_acceleration_mps2: 2.0
+    max_deceleration_mps2: 2.5
+    lanelet_velocity_kph:
+      200392: 30.0
+      200101: 140.0
+```
+
+`respect_speed_limits: true`이면 lanelet 속도는 기존 지도/drive-course 제한으로 다시 잘린다.
+`false`는 실험용 profile이 지도 제한보다 우선한다는 명시적 override이므로 폐쇄된 검증 환경에서만
+사용한다. 완성된 full-lap 예시는
+[`config/trajectory_generator_200889_full_variable.yaml`](config/trajectory_generator_200889_full_variable.yaml)이다.
 
 ## 정상 동작 확인
 

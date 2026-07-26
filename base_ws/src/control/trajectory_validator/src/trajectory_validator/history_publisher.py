@@ -251,7 +251,6 @@ def debug_from_row(row, gt_trajectory, ego_trajectory, traj_sample, run_id, stam
         "cmd_accel",
         "cmd_brake",
         "cmd_steering_rad",
-        "cmd_velocity_mps",
         "cmd_acceleration_mps2",
         "matched_gt_station_m",
         "matched_gt_x_m",
@@ -266,6 +265,11 @@ def debug_from_row(row, gt_trajectory, ego_trajectory, traj_sample, run_id, stam
     )
     for field in float_fields:
         setattr(debug, field, as_float(row, field))
+    # Legacy schema v3/v4 mislabeled the raw MORAI CtrlCmd.velocity value as
+    # cmd_velocity_mps. The stored number was not converted and is therefore kph.
+    debug.cmd_velocity_kph = as_float(
+        row, "cmd_velocity_kph", as_float(row, "cmd_velocity_mps")
+    )
     if not row.get("matched_gt_x_m"):
         debug.matched_gt_x_m = matched_point.pose.position.x
         debug.matched_gt_y_m = matched_point.pose.position.y

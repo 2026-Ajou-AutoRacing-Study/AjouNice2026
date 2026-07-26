@@ -67,6 +67,8 @@ target_link_libraries(trajectory_validator_rviz_panel
 if(CATKIN_ENABLE_TESTING)
   catkin_add_nosetests(test/test_csv_io.py)
   catkin_add_nosetests(test/test_history_v5.py)
+  catkin_add_nosetests(test/test_velocity_units.py)
+  catkin_add_nosetests(test/test_goal_guard.py)
 endif()
 
 catkin_install_python(PROGRAMS
@@ -74,7 +76,6 @@ catkin_install_python(PROGRAMS
   scripts/publish_history.py
   scripts/publish_final_path.py
   scripts/publish_recent_ego_paths.py
-  scripts/render_history_summary.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

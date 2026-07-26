@@ -7,7 +7,7 @@
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
   <arg name="base_frame" default="base_link"/>
-  <arg name="heading_yaw_offset_deg" default="-1.37"/>
+  <arg name="heading_yaw_offset_deg" default="-1.347"/>
 
   <include file="$(find bringup)/launch/localization_morai_gt.launch">
     <arg name="use_sim_time" value="$(arg use_sim_time)"/>

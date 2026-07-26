@@ -25,10 +25,12 @@ rostopic hz /Ego_topic
 rostopic hz /ctrl_cmd
 ```
 
-MORAI GT localization의 속도 입력은 `config/trajectory_validator.yaml`의
-`input/kinematic_velocity_scale_to_mps`를 적용해 km/h에서 m/s로 정규화한 후 기록한다.
-따라서 `*_mps` CSV 열과 속도 오차는 실제 m/s 값이다. 이미 m/s를 출력하는 localization을
-사용할 때는 이 scale을 `1.0`으로 변경한다.
+MORAI GT를 포함한 `/localization/kinematic_state` 속도 입력은 m/s다.
+`config/trajectory_validator.yaml`의 `input/kinematic_velocity_scale_to_mps` 기본값
+`1.0`을 적용해 기록하므로 `*_mps` CSV 열과 속도 오차도 실제 m/s 값이다. 단위 계약이
+다른 localization provider를 연결할 때만 실제 출력 단위를 측정한 뒤 이 scale을 변경한다.
+RViz HUD의 `SPEED ... kph`만 사람이 보기 좋도록 `/Ego_topic.velocity`의 m/s 크기에
+`3.6`을 곱해 표시한다.
 
 ## 사용법
 
@@ -57,7 +59,7 @@ traj_val
 현재 주행은 기존 `/trajectory_validator/ego_path` 그대로다. history가 3개보다 적으면
 존재하는 기록만 표시한다.
 
-RViz와 rqt는 `viewer` 패키지가 전담한다. 별도 터미널에서 `roslaunch viewer viewer.launch`를
+RViz는 `viewer` 패키지가 전담한다. 별도 터미널에서 `roslaunch viewer viewer.launch`를
 실행한다. `trajectory_publisher.launch`가 실행되어 기준 경로를 제공하면
 Validator는 Follower보다 먼저 실행해도 된다. `/purepursuit_autoware`, `/longi_pi_autoware`, `/ctrl_cmd`가 아직
 없으면 종료하지 않고 armed 상태로 기다린다. Follower가 시작되어 최초 유효한 제어 입력이
@@ -66,22 +68,17 @@ Validator는 Follower보다 먼저 실행해도 된다. `/purepursuit_autoware`,
 fresh하고 동기화된 최초 시점을 기록의 `t=0`으로 사용한다. 기록 시작 후 발생하는 일시적인
 입력 누락이나 상태-명령 연결 실패는 `control_pair_valid=false`로 저장한다.
 충돌 또는 목표 도착 시 자동 종료하며, 수동 종료는 `Ctrl-C`로 한다. 목표 도착은 마지막
-점과의 거리(`goal_tolerance_m`)뿐 아니라 마지막 station 전 `goal_progress_margin_m` 구간에
-진입했는지도 함께 확인한다. 따라서 시작·종료 좌표가 같은 폐루프 경로도 출발 직후 종료되지
-않고, 한 바퀴를 진행한 뒤에만 goal로 종료된다.
+점과의 거리(`goal_tolerance_m`), 마지막 station 전 `goal_progress_margin_m` 구간 진입,
+실제 ego XY 누적 주행거리 조건을 모두 확인한다. 누적 주행거리는 입력 trajectory XY 길이의
+`min_travel_ratio_for_goal` 이상이어야 하며, 속도와 시간 간격으로 설명할 수 없는 위치 점프는
+누적하지 않는다. 따라서 자기교차·중첩 구간에서 station이 종점으로 잘못 매칭되더라도
+출발 직후 goal로 종료되지 않는다.
 결과는 자동 생성된 run ID로 저장된다.
 
 ```text
 history/<traj_sample>/<MMDD_HHMMSS_pp_autoware>/tracking_samples.csv
 history/<traj_sample>/<MMDD_HHMMSS_pp_autoware>/metadata.json
-history/<traj_sample>/<MMDD_HHMMSS_pp_autoware>/summary.svg
 ```
-
-`summary.svg`는 competition route와 같은 thin-line SVG 포맷으로 Lanelet map(회색), target/GT path(초록),
-실제 ego path(파랑), GT 시작/종료점을 한 장에 표시한다. map은 `summary_svg.map_file`과
-`summary_svg.projector_file`로 고정하며, 사용한 파일과 hash는 `metadata.json`의 `map`에,
-SVG hash와 점 수는 `artifacts.summary_svg`에 저장한다. ego sample이 하나도 없는 run도 GT와
-map을 남기고 ego path는 생략한다.
 
 저장 결과를 확인한다.
 
@@ -90,19 +87,10 @@ find base_ws/src/control/trajectory_validator/history/200889_200258 \
   -maxdepth 2 -type f | sort
 ```
 
-기존 CSV history에도 이미지를 추가하려면 다음을 실행한다. 다른 버전의 지도에서 만든
-run은 그 지도 파일을 `--map-file`로 지정한다.
-
-```bash
-rosrun trajectory_validator render_history_summary.py \
-  --traj-sample 200889_200258 \
-  --run-id 0725_151247_pp_autoware
-```
-
 ### 2. 저장 run 호출
 
-Replay와 Final path는 `config/history_run.yaml`에서 열어볼 기록을 선택한다. Compare와
-PlotJuggler는 별도의 비교 기준인 `config/compare_run.yaml`을 사용한다.
+Replay와 Final path는 `config/history_run.yaml`에서 열어볼 기록을 선택한다. Compare는
+별도의 비교 기준인 `config/compare_run.yaml`을 사용한다.
 
 ```bash
 roslaunch trajectory_validator history.launch mode:=replay
@@ -125,7 +113,7 @@ Compare는 `/trajectory_compare/gt_path`, `/trajectory_compare/ego_path`,
 `/trajectory_compare/ego_pose`를 사용하므로 record/replay 표시를 덮지 않는다. Viewer RViz에는
 보라색 Compare GT와 주황색 Compare 실제 주행 Path가 기본 등록되어 있다.
 
-### 3. RViz와 rqt_plot 확인
+### 3. RViz 확인
 
 RViz 표시 topic:
 
@@ -133,15 +121,6 @@ RViz 표시 topic:
 - `/trajectory_validator/ego_path`
 - `/trajectory_validator/ego_pose`
 - `/trajectory_validator/markers`
-
-주요 오차를 plot한다.
-
-```bash
-rqt_plot \
-  /trajectory_validator/debug/lateral_error_m \
-  /trajectory_validator/debug/heading_error_rad \
-  /trajectory_validator/debug/velocity_error_mps
-```
 
 ## 기능과 역할
 

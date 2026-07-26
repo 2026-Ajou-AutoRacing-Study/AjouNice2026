@@ -18,6 +18,8 @@ namespace trajectory_validator
 {
 namespace
 {
+constexpr double kMpsToKph = 3.6;
+
 QLabel * makeValueLabel(const QString & color)
 {
   auto * label = new QLabel("--", nullptr);
@@ -126,8 +128,9 @@ void PurePursuitHudPanel::steeringCallback(const std_msgs::Float64::ConstPtr & m
 void PurePursuitHudPanel::speedCallback(
   const morai_msgs::EgoVehicleStatus::ConstPtr & message)
 {
-  const double speed_kph = std::hypot(
+  const double speed_mps = std::hypot(
     std::hypot(message->velocity.x, message->velocity.y), message->velocity.z);
+  const double speed_kph = speed_mps * kMpsToKph;
   if (std::isfinite(speed_kph)) {
     Q_EMIT speedTextChanged(QString("SPEED  %1 kph").arg(speed_kph, 0, 'f', 1));
   }

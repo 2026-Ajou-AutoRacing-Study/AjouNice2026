@@ -22,19 +22,9 @@ history_overlay:
   count: 3
   topic_root: /trajectory_validator/ego_path
 
-# One self-contained SVG is written after each run closes.  The explicit map
-# and projector paths make the image and metadata reproducible even when a ROS
-# map-version parameter is absent.
-summary_svg:
-  enabled: true
-  filename: summary.svg
-  map_file: kcity_map/lanelet_map/lanelet2_map_v44.osm
-  projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
-  map_margin_m: 20.0
-
 input:
-  # MORAI GT localization forwards velocity in km/h; normalize it before recording.
-  kinematic_velocity_scale_to_mps: 0.2777777777777778
+  # /localization/kinematic_state already provides velocity in m/s.
+  kinematic_velocity_scale_to_mps: 1.0
 
 recording:
   sample_rate_hz: 50.0
@@ -48,4 +38,7 @@ recording:
   # Require progress near the final station too. This prevents a closed route
   # (for example 200889 -> 200892 -> 200889) ending at its start point.
   goal_progress_margin_m: 5.0
+  # Keep the endpoint checks above, but do not accept a goal until the ego has
+  # physically traveled this fraction of the input trajectory's XY length.
+  min_travel_ratio_for_goal: 0.70
   controller_debug_timeout_s: 0.20

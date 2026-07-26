@@ -6,9 +6,8 @@ topics:
 
 control_rate_hz: 50.0
 
-# MORAI GT localization currently forwards /Ego_topic velocity in km/h.
-# Convert that boundary input to the m/s unit used by trajectory messages and control.
-kinematic_velocity_scale_to_mps: 0.2777777777777778
+# /localization/kinematic_state already provides base_link velocity in m/s.
+kinematic_velocity_scale_to_mps: 1.0
 
 vehicle:
   wheelbase_m: 3.0

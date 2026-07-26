@@ -12,13 +12,12 @@ trajectory와 제어 명령은 생성하거나 수정하지 않는다.
 | Final path | `history.launch mode:=final` | 선택한 run의 전체 경로를 즉시 정적으로 표시 |
 | Compare | `history.launch mode:=compare` | 선택한 run을 compare 전용 토픽에 정적으로 표시 |
 
-RViz와 rqt는 `viewer` 패키지에서만 실행한다. `trajectory_validator.launch`와 `publish_history.py`는 기존
+RViz는 `viewer` 패키지에서 실행한다. `trajectory_validator.launch`와 `publish_history.py`는 기존
 호출부와의 호환성을 위해 남겨 둔다.
 
 기록 설정은 별도 YAML로 복제하지 않는다. `record.launch`가 실행 중인
 `/trajectory_publisher`, `/purepursuit`, `/longi_pi` 파라미터를 캡처한다. 과거 run 선택만
-`history_run.yaml`로 관리한다. 비교 기준은 `compare_run.yaml`로 따로 관리하며 compare와
-PlotJuggler가 공유한다.
+`history_run.yaml`로 관리한다. 비교 기준은 `compare_run.yaml`로 따로 관리한다.
 
 ## Live record
 
@@ -35,6 +34,9 @@ PlotJuggler가 공유한다.
 첫 유효 trajectory 전체를 GT로 한 번 저장하고 Ego 상태를 기본 50 Hz로 sampling한다. 위치,
 자세, 속도는 `map -> base_link` 공통 kinematic state에서 읽고 가속도·휠각 등 MORAI 전용 값만
 `/Ego_topic`에서 읽는다. trajectory와 state frame이 다르면 sample을 유효 처리하지 않는다.
+kinematic state와 trajectory, `tracking_samples.csv`의 `*_mps` 열 및 속도 오차는 모두 m/s다.
+RViz HUD에서만 이 값을 `3.6`배 해 km/h로 표시한다. MORAI `CtrlCmd.velocity`는 별도 계약인
+km/h이며 type-2 명령에서만 사용하므로 debug 필드도 `cmd_velocity_kph`로 명시한다.
 노드 실행 직후에는 armed 상태이며 trajectory, kinematic state, Ego 상태, CtrlCmd가 모두
 fresh하고 timestamp 동기 조건을 만족한 최초 시점부터 sample을 기록하고 경과시간을 0으로 잡는다.
 Follower가 아직 실행되지 않아 `/purepursuit_autoware`, `/longi_pi_autoware`, `/ctrl_cmd`가 없어도 노드는 종료하지
@@ -104,6 +106,6 @@ History replay는 요청한 run 디렉터리의 세 파일만 읽으며 identity
 run overlay, 최신 run 자동 선택, 반복 재생은 지원하지 않는다.
 
 Final path 모드는 같은 무결성 검사를 수행한 뒤 모든 SAMPLE을 하나의 Ego Path로 만들어 latch
-발행한다. 시간축과 rqt debug가 필요하면 Replay를, 공간적인 최종 경로만 보면 Final path를 쓴다.
+발행한다. 시간순 재생은 Replay를, 공간적인 최종 경로만 보면 Final path를 쓴다.
 
 실행과 확인 방법은 [README.md](README.md)를 참고한다.

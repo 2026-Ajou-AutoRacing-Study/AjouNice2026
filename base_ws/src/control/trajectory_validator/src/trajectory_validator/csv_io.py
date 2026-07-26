@@ -29,6 +29,7 @@ TRACKING_FIELDS = [
 
 # Schema v3/v4 contracts remain reader-only so existing history can still be
 # replayed after new recordings switch to the compact v5 contract.
+# cmd_velocity_mps is a legacy naming bug: the stored raw MORAI value is kph.
 GT_FIELDS = [
     "gt_index", "gt_time_from_start_s", "gt_x_m", "gt_y_m", "gt_z_m",
     "gt_qx", "gt_qy", "gt_qz", "gt_qw", "gt_yaw_rad",

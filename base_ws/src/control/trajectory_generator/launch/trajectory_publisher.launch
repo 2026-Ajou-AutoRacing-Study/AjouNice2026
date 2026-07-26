@@ -1,5 +1,5 @@
 <launch>
-  <arg name="trajectory_csv" default="traj_sample/50kph/200337_200950_50.csv"/>
+  <arg name="trajectory_csv" default="traj_sample/variable/200889_200889_v.csv"/>
 
   <node pkg="trajectory_generator"
         type="trajectory_publisher_node"

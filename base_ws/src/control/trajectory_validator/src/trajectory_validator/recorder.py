@@ -22,11 +22,12 @@ from visualization_msgs.msg import MarkerArray
 from trajectory_validator.csv_io import TrackingCsvWriter
 from trajectory_validator.metrics import (
     TrajectoryMatcher,
+    goal_conditions_met,
     metric_summary,
+    plausible_ego_travel_step_m,
     yaw_from_quaternion,
 )
 from trajectory_validator.msg import TrajectoryDebug
-from trajectory_validator.summary_svg import render_run_summary_svg
 from trajectory_validator.visualization import (
     make_ego_pose,
     make_markers,
@@ -56,24 +57,6 @@ def resolve_repo_directory(root, value):
         raise ValueError("history_dir must stay inside repository") from error
     path.mkdir(parents=True, exist_ok=True)
     return path
-
-
-def resolve_repo_file(root, value, label):
-    if not isinstance(value, str) or not value:
-        raise ValueError("{} must be a non-empty repository-relative path".format(label))
-    path = (root / value).resolve()
-    try:
-        path.relative_to(root)
-    except ValueError as error:
-        raise ValueError("{} must stay inside repository".format(label)) from error
-    if not path.is_file():
-        raise FileNotFoundError("{} does not exist: {}".format(label, path))
-    return path
-
-
-def map_version_from_path(path):
-    match = re.search(r"(?:^|_)v([0-9]+)\.osm$", Path(path).name, re.IGNORECASE)
-    return "v{}".format(match.group(1)) if match else None
 
 
 def discover_trajectory_file(root):
@@ -287,42 +270,7 @@ class TrajectoryRecorder:
                 "base_ws/src/control/trajectory_validator/history",
             ),
         )
-        self.summary_enabled = bool(rospy.get_param("~summary_svg/enabled", True))
-        self.summary_filename = rospy.get_param(
-            "~summary_svg/filename", "summary.svg"
-        )
-        if (
-            not isinstance(self.summary_filename, str)
-            or Path(self.summary_filename).name != self.summary_filename
-            or not self.summary_filename.lower().endswith(".svg")
-        ):
-            raise ValueError("summary_svg/filename must be an SVG basename")
-        self.summary_margin_m = float(
-            rospy.get_param("~summary_svg/map_margin_m", 20.0)
-        )
-        if not math.isfinite(self.summary_margin_m) or self.summary_margin_m < 0.0:
-            raise ValueError("summary_svg/map_margin_m must be finite and non-negative")
-        self.summary_map_path = resolve_repo_file(
-            self.root,
-            rospy.get_param(
-                "~summary_svg/map_file",
-                "kcity_map/lanelet_map/lanelet2_map_v44.osm",
-            ),
-            "summary_svg/map_file",
-        )
-        self.summary_projector_path = resolve_repo_file(
-            self.root,
-            rospy.get_param(
-                "~summary_svg/projector_file",
-                "kcity_map/lanelet_map/map_projector_info_v1.yaml",
-            ),
-            "summary_svg/projector_file",
-        )
-        self.map_version = map_version_from_path(self.summary_map_path) or detected_map_version
-        self.summary_artifact = {
-            "status": "pending" if self.summary_enabled else "disabled",
-            "file": self.summary_filename,
-        }
+        self.map_version = detected_map_version
         self.sample_rate_hz = float(rospy.get_param("~recording/sample_rate_hz", 50.0))
         self.input_timeout_s = float(rospy.get_param("~recording/input_timeout_s", 0.5))
         self.sync_tolerance_s = float(rospy.get_param("~recording/sync_tolerance_s", 0.05))
@@ -335,6 +283,9 @@ class TrajectoryRecorder:
         self.goal_tolerance_m = float(rospy.get_param("~recording/goal_tolerance_m", 3.0))
         self.goal_progress_margin_m = float(
             rospy.get_param("~recording/goal_progress_margin_m", 5.0)
+        )
+        self.min_travel_ratio_for_goal = float(
+            rospy.get_param("~recording/min_travel_ratio_for_goal", 0.70)
         )
         self.controller_debug_timeout_s = float(
             rospy.get_param("~recording/controller_debug_timeout_s", 0.20)
@@ -354,6 +305,13 @@ class TrajectoryRecorder:
         ):
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError("{} must be finite and positive".format(label))
+        if (
+            not math.isfinite(self.min_travel_ratio_for_goal)
+            or not 0.0 < self.min_travel_ratio_for_goal <= 1.0
+        ):
+            raise ValueError(
+                "min_travel_ratio_for_goal must be finite and in (0, 1]"
+            )
         if self.schema_version != 5:
             raise ValueError("new recordings require schema_version 5")
 
@@ -387,6 +345,11 @@ class TrajectoryRecorder:
         self.ctrl_received = None
         self.control_pair = None
         self.last_recorded_command_ros_ns = None
+        self.ego_travel_distance_m = 0.0
+        self.rejected_ego_travel_step_count = 0
+        self.previous_ego_travel_point = None
+        self.previous_ego_travel_elapsed_s = None
+        self.previous_ego_travel_velocity_mps = None
         self.collision_detected = False
         self.samples = []
         self.pp_debug_messages = deque(maxlen=100)
@@ -460,7 +423,6 @@ class TrajectoryRecorder:
         self.map_version = detect_map_version(
             (self.generator_params, self.purepursuit_params, self.longi_pi_params)
         )
-        self.map_version = map_version_from_path(self.summary_map_path) or self.map_version
         return True
 
     def _unique_run_id(self, base):
@@ -675,22 +637,51 @@ class TrajectoryRecorder:
             + ego.acceleration.y ** 2
             + ego.acceleration.z ** 2
         )
+        if self.previous_ego_travel_point is not None:
+            step_m = plausible_ego_travel_step_m(
+                self.previous_ego_travel_point[0],
+                self.previous_ego_travel_point[1],
+                point.pose.position.x,
+                point.pose.position.y,
+                elapsed - self.previous_ego_travel_elapsed_s,
+                self.previous_ego_travel_velocity_mps,
+                point.longitudinal_velocity_mps,
+                self.final_station_m,
+            )
+            if step_m is None:
+                self.rejected_ego_travel_step_count += 1
+                rospy.logwarn_throttle(
+                    1.0,
+                    "trajectory_validator ignored an implausible ego travel step",
+                )
+            else:
+                self.ego_travel_distance_m += step_m
+        self.previous_ego_travel_point = (
+            point.pose.position.x,
+            point.pose.position.y,
+        )
+        self.previous_ego_travel_elapsed_s = elapsed
+        self.previous_ego_travel_velocity_mps = (
+            point.longitudinal_velocity_mps
+        )
         self.ego_trajectory.points.append(point)
         return yaw, point
 
     def _reached_goal(self, ego_point, match):
-        """Require final-point proximity and progress through the trajectory."""
+        """Require endpoint proximity, matched progress, and physical travel."""
         final = self.gt_trajectory.points[-1].pose.position
         final_distance_m = math.hypot(
             ego_point.pose.position.x - final.x,
             ego_point.pose.position.y - final.y,
         )
-        final_progress_start_m = max(
-            0.0, self.final_station_m - self.goal_progress_margin_m
-        )
-        return (
-            final_distance_m <= self.goal_tolerance_m
-            and match["matched_gt_station_m"] >= final_progress_start_m
+        return goal_conditions_met(
+            final_distance_m=final_distance_m,
+            goal_tolerance_m=self.goal_tolerance_m,
+            matched_station_m=match["matched_gt_station_m"],
+            final_station_m=self.final_station_m,
+            goal_progress_margin_m=self.goal_progress_margin_m,
+            ego_travel_distance_m=self.ego_travel_distance_m,
+            min_travel_ratio_for_goal=self.min_travel_ratio_for_goal,
         )
 
     def sample_timer(self, _event):
@@ -785,7 +776,9 @@ class TrajectoryRecorder:
                 "cmd_accel": command.accel,
                 "cmd_brake": command.brake,
                 "cmd_steering_rad": command.steering,
-                "cmd_velocity_mps": command.velocity,
+                # MORAI CtrlCmd.velocity is km/h and is active only for
+                # longlCmdType=2. The current type-1 controller leaves it zero.
+                "cmd_velocity_kph": command.velocity,
                 "cmd_acceleration_mps2": command.acceleration,
                 "steering_error_rad": math.radians(ego.wheel_angle) - command.steering,
                 "collision_detected": self.collision_detected,
@@ -846,7 +839,7 @@ class TrajectoryRecorder:
             "cmd_accel",
             "cmd_brake",
             "cmd_steering_rad",
-            "cmd_velocity_mps",
+            "cmd_velocity_kph",
             "cmd_acceleration_mps2",
             "matched_gt_index",
             "matched_gt_station_m",
@@ -899,10 +892,6 @@ class TrajectoryRecorder:
             },
             "map": {
                 "version": self.map_version,
-                "file": str(self.summary_map_path.relative_to(self.root)),
-                "sha256": sha256_file(self.summary_map_path),
-                "projector_file": str(self.summary_projector_path.relative_to(self.root)),
-                "projector_sha256": sha256_file(self.summary_projector_path),
             },
             "controller": {
                 "type": self.controller_type,
@@ -924,12 +913,21 @@ class TrajectoryRecorder:
                 "stop_on_collision": self.stop_on_collision,
                 "goal_tolerance_m": self.goal_tolerance_m,
                 "goal_progress_margin_m": self.goal_progress_margin_m,
+                "min_travel_ratio_for_goal": self.min_travel_ratio_for_goal,
+                "minimum_goal_travel_distance_m": (
+                    self.final_station_m * self.min_travel_ratio_for_goal
+                    if self.final_station_m is not None
+                    else None
+                ),
+                "ego_travel_distance_m": self.ego_travel_distance_m,
+                "rejected_ego_travel_step_count": (
+                    self.rejected_ego_travel_step_count
+                ),
                 "final_station_m": self.final_station_m,
                 "duration_s": duration,
                 "end_reason": self.end_reason if status != "recording" else None,
             },
             "result": metric_summary(self.samples),
-            "artifacts": {"summary_svg": self.summary_artifact},
             "integrity": {
                 "tracking_samples_csv_sha256": sha256_file(self.tracking_csv_path)
                 if status != "recording" and self.tracking_csv_path.is_file()
@@ -952,31 +950,10 @@ class TrajectoryRecorder:
 
         with self.lock:
             self.writer.close()
-            if self.summary_enabled:
-                try:
-                    self.summary_artifact = render_run_summary_svg(
-                        self.run_directory,
-                        self.summary_map_path,
-                        self.summary_projector_path,
-                        filename=self.summary_filename,
-                        margin_m=self.summary_margin_m,
-                        gt_points=[
-                            (point.pose.position.x, point.pose.position.y)
-                            for point in self.gt_trajectory.points
-                        ],
-                    )
-                except Exception as error:
-                    self.summary_artifact = {
-                        "status": "failed",
-                        "file": self.summary_filename,
-                        "error": str(error),
-                    }
-                    rospy.logerr("trajectory_validator summary image failed: %s", error)
             atomic_json(self.json_path, self._metadata("complete"))
             rospy.loginfo(
-                "trajectory_validator saved %d compact tracking samples + summary=%s: %s",
+                "trajectory_validator saved %d compact tracking samples: %s",
                 self.writer.count,
-                self.summary_artifact["status"],
                 self.run_directory,
             )
 
