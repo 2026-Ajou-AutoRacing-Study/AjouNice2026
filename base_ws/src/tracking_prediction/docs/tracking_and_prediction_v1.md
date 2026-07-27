@@ -19,7 +19,7 @@ tracking_prediction/
 ├── scripts/
 │   ├── tracking_node.py       # /Object_topic -> /tracking/objects (dummy ID)
 │   ├── prediction_node.py     # /tracking/objects -> /prediction/objects (CTRA)
-│   └── eval_ctra_prediction.py  # rosbag 오프라인 CTRA 정확도 평가
+│   └── eval_ctra_prediction_v2.py  # rosbag 오프라인 CTRA 정확도 평가
 └── launch/
     ├── tracking.launch
     ├── prediction.launch
@@ -64,7 +64,7 @@ MOT 표준 평가지표(MOTA/MOTP 등)는 이번 v1에서는 만들지 않았다
     공식으로 전환
 
 ## 알려진 한계 / TODO
-1. **map-based 필요 여부 미확정**: `eval_ctra_prediction.py`로 회전 구간
+1. **map-based 필요 여부 미확정**: `eval_ctra_prediction_v2.py`로 회전 구간
    (yaw_rate 임계값 초과)과 직진 구간의 오차를 분리해서 측정하도록 만들어뒀음.
    교차로/로터리 rosbag(`sensor_cam_raw_roundabout_1/2`)으로 실측 후 결정 예정.
 2. **감쇠 가속도(decaying acceleration) 미적용**: Autoware 공식
