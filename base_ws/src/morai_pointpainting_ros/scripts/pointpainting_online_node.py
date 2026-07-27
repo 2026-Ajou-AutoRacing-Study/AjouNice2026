@@ -398,6 +398,12 @@ class PointPaintingOnlineNode:
         self.warmup_point_count = int(
             rospy.get_param("~warmup_point_count", 12000)
         )
+        self.real_input_warmup = bool(
+            rospy.get_param("~real_input_warmup", True)
+        )
+        self.real_input_warmup_iterations = int(
+            rospy.get_param("~real_input_warmup_iterations", 2)
+        )
         if self.segmentation_short_side < 224:
             raise ValueError(
                 "segmentation_short_side must be >= 224"
@@ -406,6 +412,10 @@ class PointPaintingOnlineNode:
             raise ValueError("warmup_iterations must be >= 1")
         if self.warmup_point_count < 1000:
             raise ValueError("warmup_point_count must be >= 1000")
+        if self.real_input_warmup_iterations < 1:
+            raise ValueError(
+                "real_input_warmup_iterations must be >= 1"
+            )
 
         self.normalize_intensity = bool(
             rospy.get_param("~normalize_intensity", True)
@@ -461,6 +471,8 @@ class PointPaintingOnlineNode:
         self.dropped_lidar_frames = 0
         self.skipped_lidar_frames = 0
         self.processed_frames = 0
+        self.real_input_warmup_complete = not self.real_input_warmup
+        self.online_ready_logged = False
 
         self._load_segmentation_model()
         self._load_detection_model()
@@ -528,14 +540,14 @@ class PointPaintingOnlineNode:
         )
         self.worker.start()
 
-        rospy.loginfo("PointPainting online node ready")
         rospy.loginfo("LiDAR       <- %s", self.lidar_topic)
         rospy.loginfo("Detections  -> %s", self.detections_topic)
         rospy.loginfo("Markers     -> %s", self.markers_topic)
         rospy.loginfo(
             "score>=%.2f range<=%.1fm camera_age<=%.1fms "
             "AMP=%s seg_short_side=%d native_semantic_map=True "
-            "full_warmup=%s warmup_iterations=%d",
+            "full_warmup=%s warmup_iterations=%d "
+            "real_input_warmup=%s real_input_warmup_iterations=%d",
             self.score_threshold,
             self.max_detection_range,
             self.max_camera_age_ms,
@@ -543,7 +555,16 @@ class PointPaintingOnlineNode:
             self.segmentation_short_side,
             self.warmup_full_pipeline,
             self.warmup_iterations,
+            self.real_input_warmup,
+            self.real_input_warmup_iterations,
         )
+        if self.real_input_warmup:
+            rospy.loginfo(
+                "Waiting for the first synchronized real sensor set "
+                "before publishing detections."
+            )
+        else:
+            self._log_online_ready()
 
     def _load_segmentation_model(self) -> None:
         from torchvision import transforms
@@ -855,6 +876,64 @@ class PointPaintingOnlineNode:
             "Full pipeline warm-up complete: last=%.1f ms",
             timings[-1],
         )
+
+    def _log_online_ready(self) -> None:
+        if self.online_ready_logged:
+            return
+        self.online_ready_logged = True
+        rospy.loginfo("PointPainting online node ready")
+
+    def _warmup_real_sensor_input(
+        self,
+        images_rgb: Dict[str, np.ndarray],
+        lidar: np.ndarray,
+    ) -> None:
+        """Warm input-dependent CUDA paths without publishing test results."""
+        rospy.loginfo(
+            "Real-input warm-up started: iterations=%d lidar_points=%d",
+            self.real_input_warmup_iterations,
+            len(lidar),
+        )
+
+        with torch.inference_mode():
+            for iteration in range(self.real_input_warmup_iterations):
+                torch.cuda.synchronize()
+                warmup_start = time.perf_counter()
+
+                score_maps = self._segment_4cam(images_rgb)
+                painted = self._paint_lidar(lidar, score_maps)
+                self._detect(
+                    painted,
+                    "real_warmup_{}".format(iteration),
+                )
+
+                torch.cuda.synchronize()
+                elapsed_ms = (
+                    time.perf_counter() - warmup_start
+                ) * 1000.0
+                rospy.loginfo(
+                    "Real-input warm-up %d/%d: %.1f ms",
+                    iteration + 1,
+                    self.real_input_warmup_iterations,
+                    elapsed_ms,
+                )
+
+        # Sensor callbacks continue while warm-up runs. Discard the stale LiDAR
+        # scan accumulated during initialization, then start runtime statistics
+        # from the next scan so cold-start work is not reported as live drops.
+        with self.lidar_lock:
+            self.latest_lidar = None
+            self.dropped_lidar_frames = 0
+
+        self.skipped_lidar_frames = 0
+        self.processed_frames = 0
+        self.real_input_warmup_complete = True
+
+        rospy.loginfo(
+            "Real-input warm-up complete; "
+            "dropped/skipped/processed counters reset."
+        )
+        self._log_online_ready()
 
     def _camera_callback(self, msg: Image, camera_name: str) -> None:
         timestamp = stamp_to_sec(msg.header.stamp)
@@ -1362,6 +1441,10 @@ class PointPaintingOnlineNode:
             return
 
         images_rgb = self._decode_images(camera_messages)
+
+        if not self.real_input_warmup_complete:
+            self._warmup_real_sensor_input(images_rgb, lidar)
+            return
 
         torch.cuda.synchronize()
         segmentation_start = time.perf_counter()

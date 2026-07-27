@@ -6,7 +6,7 @@ set -uo pipefail
 CONDA_ENV="${CONDA_ENV:-openpcdet}"
 OPENPCDET_ROOT="${OPENPCDET_ROOT:-$HOME/OpenPCDet}"
 POINTPAINTING_CKPT="${POINTPAINTING_CKPT:-$OPENPCDET_ROOT/output/custom_models/pointpillar_morai_pointpainting/pointpainting_20epoch/ckpt/checkpoint_epoch_20.pth}"
-OUTPUT_PARENT="${OUTPUT_PARENT:-$PWD}"
+OUTPUT_PARENT="${OUTPUT_PARENT:-$HOME/pointpainting_artifacts/environments}"
 
 usage() {
   cat <<'EOF'
@@ -18,6 +18,7 @@ Options:
   --openpcdet-root PATH    OpenPCDet checkout (default: ~/OpenPCDet)
   --checkpoint PATH        PointPainting checkpoint path
   --output-parent PATH     Directory that receives the export folder/archive
+                           (default: ~/pointpainting_artifacts/environments)
   -h, --help               Show this help
 
 The script does not copy the checkpoint. It records only its size and SHA256.
@@ -57,6 +58,8 @@ done
 OPENPCDET_ROOT="${OPENPCDET_ROOT/#\~/$HOME}"
 POINTPAINTING_CKPT="${POINTPAINTING_CKPT/#\~/$HOME}"
 OUTPUT_PARENT="${OUTPUT_PARENT/#\~/$HOME}"
+
+mkdir -p "$OUTPUT_PARENT"
 
 if [[ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]]; then
   # shellcheck disable=SC1091

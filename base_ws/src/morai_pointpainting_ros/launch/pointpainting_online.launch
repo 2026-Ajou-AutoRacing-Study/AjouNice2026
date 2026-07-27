@@ -1,5 +1,11 @@
 <launch>
   <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
+  <!--
+    An explicit interpreter lets the same catkin wrapper run with either the
+    teammate's Python 3.8 Conda environment or the RTX 50 Python 3.11
+    environment. An empty value preserves normal roslaunch/shebang behavior.
+  -->
+  <arg name="python_executable" default=""/>
   <arg name="cfg_file"
        default="$(env HOME)/OpenPCDet/tools/cfgs/custom_models/pointpillar_morai_pointpainting.yaml"/>
   <arg name="checkpoint"
@@ -20,9 +26,12 @@
   <arg name="warmup_full_pipeline" default="true"/>
   <arg name="warmup_iterations" default="2"/>
   <arg name="warmup_point_count" default="12000"/>
+  <arg name="real_input_warmup" default="true"/>
+  <arg name="real_input_warmup_iterations" default="2"/>
   <node pkg="morai_pointpainting_ros"
         type="pointpainting_online_node.py"
         name="pointpainting_online"
+        launch-prefix="$(arg python_executable)"
         output="screen"
         respawn="false">
 
@@ -48,6 +57,9 @@
     <param name="warmup_full_pipeline" value="$(arg warmup_full_pipeline)"/>
     <param name="warmup_iterations" value="$(arg warmup_iterations)"/>
     <param name="warmup_point_count" value="$(arg warmup_point_count)"/>
+    <param name="real_input_warmup" value="$(arg real_input_warmup)"/>
+    <param name="real_input_warmup_iterations"
+           value="$(arg real_input_warmup_iterations)"/>
     <!-- Causal real-time matching: newest camera image at or before LiDAR stamp. -->
     <param name="max_camera_age_ms" value="100.0"/>
     <param name="max_camera_span_ms" value="80.0"/>
