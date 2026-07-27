@@ -28,10 +28,20 @@ struct VehicleState
   double current_steering_tire_angle_rad{0.0};
 };
 
-struct AdaptiveLookaheadParams
+enum class LookaheadMode
+{
+  kAdaptive,
+  kFixed,
+};
+
+struct PurePursuitParams
 {
   double wheel_base{3.0};
   double max_steering_angle{0.698};
+  LookaheadMode lookahead_mode{LookaheadMode::kAdaptive};
+  double fixed_lookahead_distance{4.0};
+  double resampling_ds{0.1};
+  double curvature_calculation_distance{4.0};
   double ld_velocity_ratio{2.4};
   double ld_lateral_error_ratio{3.6};
   double ld_curvature_ratio{120.0};
@@ -39,8 +49,6 @@ struct AdaptiveLookaheadParams
   double min_lookahead_distance{4.35};
   double max_lookahead_distance{15.0};
   double reverse_min_lookahead_distance{7.0};
-  double resampling_ds{0.1};
-  double curvature_calculation_distance{4.0};
 };
 
 struct PurePursuitOutput
@@ -64,14 +72,14 @@ struct PurePursuitOutput
 class AdaptivePurePursuitCore
 {
 public:
-  explicit AdaptivePurePursuitCore(const AdaptiveLookaheadParams & params);
+  explicit AdaptivePurePursuitCore(const PurePursuitParams & params);
 
-  void setParams(const AdaptiveLookaheadParams & params);
+  void setParams(const PurePursuitParams & params);
   bool parametersValid(std::string * reason = nullptr) const;
   PurePursuitOutput run(const std::vector<PathPoint> & path, const VehicleState & state);
 
 private:
-  AdaptiveLookaheadParams params_;
+  PurePursuitParams params_;
   bool has_previous_command_{false};
   double previous_steering_command_{0.0};
 

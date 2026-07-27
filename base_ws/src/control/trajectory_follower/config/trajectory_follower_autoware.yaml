@@ -7,10 +7,10 @@ topics:
   target_point: /control/autoware/target_point
   ctrl_cmd: /ctrl_cmd
 
-control_rate_hz: 30.0
+control_rate_hz: 50.0
 
-# MORAI GT localization forwards signed base_link longitudinal velocity in km/h.
-kinematic_velocity_scale_to_mps: 0.2777777777777778
+# /localization/kinematic_state already provides signed base_link velocity in m/s.
+kinematic_velocity_scale_to_mps: 1.0
 
 control_limits:
   max_accel_cmd: 1.0

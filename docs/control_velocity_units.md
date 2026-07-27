@@ -8,9 +8,8 @@
 제어 파이프라인의 **내부 표준 단위는 m/s**다. 사람이 설정하는 주행 속도와 지도 제한속도만
 km/h를 사용하고, trajectory를 생성할 때 m/s로 변환한다.
 
-현재 MORAI GT localization은 예외적으로 `/localization/kinematic_state`의 속도 숫자를
-km/h 그대로 전달한다. 따라서 Follower와 Validator가 이 입력을 사용하는 경계에서 각각
-`1 / 3.6`을 곱해 m/s로 정규화한다.
+현재 MORAI GT localization의 `/localization/kinematic_state`도 속도를 m/s로 전달한다.
+따라서 Follower와 Validator는 기본 scale `1.0`으로 입력 값을 그대로 사용한다.
 
 ```text
 trajectory_generator YAML (km/h)
@@ -22,23 +21,24 @@ trajectory_generator YAML (km/h)
         ▼               ▼
 Follower             Validator
         ▲               ▲
-        │ × 1/3.6       │ × 1/3.6
-/localization/kinematic_state (MORAI GT 사용 시 숫자는 km/h)
+        │ × 1.0         │ × 1.0
+/localization/kinematic_state (m/s)
 ```
 
 ## 2. 문제가 발생했던 이유
 
-MORAI 차량이 실제로 약 17 km/h로 주행할 때 kinematic state의 속도 숫자도 약 `17`이었다.
-이 값을 m/s라고 가정하면 다음과 같이 해석된다.
+MORAI 차량이 실제로 약 17 m/s로 주행할 때 kinematic state의 속도 숫자도 약 `17`이었다.
+이미 m/s인 값에 `1 / 3.6`을 다시 곱히면 다음과 같이 잘못 해석된다.
 
 ```text
-잘못된 해석: 17 m/s = 61.2 km/h
-정상 변환:   17 km/h / 3.6 = 약 4.72 m/s
+잘못된 변환: 17 m/s / 3.6 = 약 4.72 m/s
+정상 입력:   17 m/s = 61.2 km/h
 ```
 
-목표 속도는 trajectory에서 이미 m/s인데 실제 속도만 km/h 숫자를 그대로 사용하면서,
-속도 오차가 실제보다 약 3.6배 크게 계산됐다. 그 결과 PI 종방향 제어의 가감속 판단과
-Validator의 속도 오차·응답 분석이 잘못됐다.
+목표 속도와 실제 속도 모두 m/s인데 실제 속도에만 km/h 변환을 중복 적용하면서, 제어기가
+실제 속도를 약 3.6배 작게 판단했다. 20 km/h 목표인 `5.56 m/s`를 맞추려면 잘못된 계산상
+실제 속도가 약 `20 m/s`, 즉 72 km/h까지 올라가야 하므로 PI 제어가 계속 가속했다.
+Validator의 속도 오차·응답 분석도 같은 비율로 잘못 기록됐다.
 
 이 문제는 좌표계나 Follower 튜닝 문제가 아니라 **입력 경계의 단위 불일치**였다. 단위가
 틀린 상태에서 PI gain을 조정하면 잘못된 입력에 맞춰 튜닝하게 되므로 단위부터 확인해야 한다.
@@ -52,10 +52,11 @@ Validator의 속도 오차·응답 분석이 잘못됐다.
 | `default_speed_limit_kph` | km/h | 지도에 제한속도가 없을 때의 안전 상한 |
 | trajectory CSV `velocity_mps` | m/s | Generator가 km/h에서 변환해 저장 |
 | `/control/trajectory.*.longitudinal_velocity_mps` | m/s | Follower와 Validator의 목표 속도 |
-| MORAI GT `/localization/kinematic_state.twist.twist.linear.*` | km/h 숫자 | 현재 provider의 예외적인 계약 |
-| Follower 내부 `current_velocity`, `target_velocity` | m/s | kinematic 입력 변환 후 계산 |
-| Validator의 `*_mps` CSV 열과 metric | m/s | kinematic 입력 변환 후 기록 |
-| `/ctrl_cmd.velocity` | 현재 type-1 제어에서는 사용하지 않음 | accel/brake/steering을 사용 |
+| MORAI GT `/localization/kinematic_state.twist.twist.linear.*` | m/s | 현재 provider의 계약 |
+| Follower 내부 `current_velocity`, `target_velocity` | m/s | kinematic 입력에 scale 적용 후 계산 |
+| Validator의 `*_mps` CSV 열과 metric | m/s | kinematic 입력에 scale 적용 후 기록 |
+| RViz HUD `SPEED ... kph` | km/h | `/Ego_topic.velocity`의 m/s 크기에 3.6을 곱해 표시 |
+| `/ctrl_cmd.velocity` | km/h | MORAI type-2에서만 사용; 현재 type-1 제어에서는 0 |
 
 Trajectory Generator의 실제 목표 속도는 다음과 같다.
 
@@ -72,7 +73,7 @@ Follower 설정:
 
 ```yaml
 # base_ws/src/control/trajectory_follower/config/trajectory_follower.yaml
-kinematic_velocity_scale_to_mps: 0.2777777777777778
+kinematic_velocity_scale_to_mps: 1.0
 ```
 
 Validator 설정:
@@ -80,16 +81,16 @@ Validator 설정:
 ```yaml
 # base_ws/src/control/trajectory_validator/config/trajectory_validator.yaml
 input:
-  kinematic_velocity_scale_to_mps: 0.2777777777777778
+  kinematic_velocity_scale_to_mps: 1.0
 ```
 
-두 값은 같은 입력을 각 프로세스 내부에서 독립적으로 변환한다. Follower가 변환한 메시지를
-Validator에 재전송하는 구조가 아니므로 중복 변환이 아니다.
+두 값은 같은 m/s 입력을 각 프로세스 내부에서 독립적으로 읽는다. Follower가 처리한 메시지를
+Validator에 재전송하는 구조가 아니므로 두 설정 모두 `1.0`이어야 한다.
 
 ## 5. Localization provider를 바꿀 때
 
-Fast-LIO 등 새 provider가 `/localization/kinematic_state`를 정상적인 m/s로 발행한다면 두
-scale을 모두 `1.0`으로 바꿔야 한다.
+Fast-LIO 등 다른 provider도 `/localization/kinematic_state`를 m/s로 발행한다면 두
+scale을 모두 `1.0`으로 유지한다.
 
 ```yaml
 kinematic_velocity_scale_to_mps: 1.0
@@ -102,9 +103,9 @@ input:
   kinematic_velocity_scale_to_mps: 1.0
 ```
 
-m/s 입력에 `1/3.6`을 또 적용하면 실제 속도가 3.6배 작게 계산된다. 반대로 km/h 입력에
-`1.0`을 사용하면 3.6배 크게 계산된다. Provider를 변경할 때는 Follower와 Validator 설정을
-반드시 함께 변경한다.
+m/s 입력에 `1/3.6`을 적용하면 실제 속도가 3.6배 작게 계산된다. 예외적으로 km/h 숫자를
+발행하는 provider라면 두 scale을 `1/3.6`로 바꿔야 한다. Provider를 변경할 때는 실제
+출력을 검증하고 Follower와 Validator 설정을 반드시 함께 변경한다.
 
 ## 6. 실행 전 점검 방법
 
@@ -128,9 +129,9 @@ rostopic echo -n 1 /Ego_topic
 rostopic echo -n 1 /localization/kinematic_state/twist/twist/linear
 ```
 
-MORAI 계기판이 약 18 km/h일 때 kinematic 값이 약 `18`이면 해당 provider는 km/h 숫자를
-전달하는 것이므로 scale은 `1/3.6`이어야 한다. 값이 약 `5.0`이면 이미 m/s이므로 scale은
-`1.0`이어야 한다.
+MORAI 계기판이 약 18 km/h일 때 kinematic 값이 약 `5.0`이면 m/s 입력이므로 scale은
+`1.0`이어야 한다. 값이 약 `18`이면 km/h 숫자를 전달하는 예외적인 provider이므로
+scale은 `1/3.6`이어야 한다.
 
 ### 실행 중 정규화 결과 확인
 
@@ -149,8 +150,8 @@ Validator를 기록 중이라면 rqt에서 다음 값을 비교한다.
 
 | 증상 | 가장 먼저 확인할 항목 |
 | --- | --- |
-| 실제 17 km/h인데 분석 값이 약 17 m/s | scale이 `1.0`으로 설정됐는지 확인 |
-| 실제 17 km/h인데 분석 값이 약 1.31 m/s | m/s 입력에 `1/3.6`을 중복 적용했는지 확인 |
+| 실제 61.2 km/h인데 분석 값이 약 4.72 m/s | m/s 입력에 `1/3.6`을 중복 적용했는지 확인 |
+| 실제 17 km/h인데 분석 값이 약 17 m/s | km/h 입력에 scale `1.0`을 적용했는지 확인 |
 | 목표 속도가 제한속도와 항상 같음 | `desired_velocity_kph`와 `speed_limit_kph` 역할 확인 |
 | 속도 오차만 비정상적으로 큼 | 목표와 실제 속도가 같은 단위인지 먼저 확인 |
 | Follower와 Validator 속도가 서로 다름 | 두 패키지의 scale 값이 동일한지 확인 |

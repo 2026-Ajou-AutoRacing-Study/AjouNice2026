@@ -8,12 +8,12 @@ reference:
 
 anchors:
   start_lanelet_id: 200889
-  end_lanelet_id: 200292
+  end_lanelet_id: 200258
 
 trajectory:
   frame_id: map
   resample_interval_m: 0.1
   # Requested cruise speed. The generator never exceeds the lanelet speed limit.
-  desired_velocity_kph: 40
+  desired_velocity_kph: 20
   # Safety ceiling used only when neither drive-course nor OSM provides a limit.
   default_speed_limit_kph: 60.0

@@ -3,7 +3,7 @@
   <arg name="enable_sensor_tf" default="true"/>
   <arg name="enable_ego_tf" default="false"/>
   <arg name="enable_vehicle_model" default="true"/>
-  <arg name="start_rviz" default="true"/>
+  <arg name="start_rviz" default="false"/>
 
   <arg name="sensor_config"
        default="$(find ioniq5)/../../../configs/sensors/Sensor_4.json"/>

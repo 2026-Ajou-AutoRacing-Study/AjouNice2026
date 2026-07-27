@@ -45,7 +45,7 @@ public:
     private_nh_.param<std::string>("topics/controller_valid", valid_topic_,
                                    "/control/autoware/controller_valid");
     private_nh_.param<std::string>("topics/ctrl_cmd", ctrl_cmd_topic_, "/ctrl_cmd");
-    private_nh_.param("control_rate_hz", control_rate_hz_, 30.0);
+    private_nh_.param("control_rate_hz", control_rate_hz_, 50.0);
     private_nh_.param("kinematic_velocity_scale_to_mps", velocity_scale_, 1.0);
     if (!private_nh_.getParam("vehicle/max_steer_rad", max_steer_rad_)) {
       double max_wheel_angle_deg = 40.0;
@@ -278,7 +278,7 @@ private:
   std::string steering_topic_;
   std::string valid_topic_;
   std::string ctrl_cmd_topic_;
-  double control_rate_hz_{30.0};
+  double control_rate_hz_{50.0};
   double velocity_scale_{1.0};
   double max_steer_rad_{0.698};
   double max_accel_cmd_{1.0};

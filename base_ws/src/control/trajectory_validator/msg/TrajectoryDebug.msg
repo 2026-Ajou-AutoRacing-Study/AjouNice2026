@@ -32,7 +32,7 @@ int32 cmd_longl_type
 float64 cmd_accel
 float64 cmd_brake
 float64 cmd_steering_rad
-float64 cmd_velocity_mps
+float64 cmd_velocity_kph
 float64 cmd_acceleration_mps2
 
 uint32 matched_gt_index

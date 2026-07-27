@@ -23,6 +23,12 @@
   <arg name="heading_in_degrees" default="true"/>
   <arg name="use_heading_correction" default="false"/>
   <arg name="heading_yaw_offset_deg" default="-1.37"/>
+  <arg name="start_lanelet_map" default="true"/>
+  <arg name="map_file"
+       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v45.osm"/>
+  <arg name="projector_file"
+       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+  <arg name="map_projector_type" default="LocalCartesianUTM"/>
 
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
 
@@ -41,4 +47,15 @@
     <arg name="use_heading_correction" value="$(arg use_heading_correction)"/>
     <arg name="heading_yaw_offset_deg" value="$(arg heading_yaw_offset_deg)"/>
   </include>
+
+  <group if="$(arg start_lanelet_map)">
+    <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+      <arg name="map_file" value="$(arg map_file)"/>
+      <arg name="projector_file" value="$(arg projector_file)"/>
+      <arg name="projector_type" value="$(arg map_projector_type)"/>
+      <arg name="frame_id" value="$(arg map_frame)"/>
+      <arg name="output_topic" value="/map/lanelet_map"/>
+      <arg name="publish_lanelet_fill" value="false"/>
+    </include>
+  </group>
 </launch>

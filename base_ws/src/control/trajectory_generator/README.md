@@ -9,7 +9,7 @@
 [오프라인 생성: 경로/속도를 바꿀 때 한 번]
 지도 + drive-course + 시작/종료 lanelet + 목표 속도
   -> generate_trajectory.py
-  -> traj_sample/<start>_<end>_<desired_velocity>kph.csv
+  -> traj_sample/<start>_<end>.csv
 
 [온라인 발행: 주행할 때마다 실행]
 traj_sample/*.csv
@@ -18,8 +18,8 @@ traj_sample/*.csv
   -> trajectory_follower
 ```
 
-`traj_gen`은 공용 generator YAML로 CSV를 생성하고 그 파일을 publisher 설정에 자동 선택한다.
-`traj_pub`은 선택된 CSV를 `/control/trajectory`로 발행한다.
+즉, `traj_gen`은 이름과 달리 새 CSV를 생성하지 않는다. 이미 생성된 CSV를 읽어
+`/control/trajectory`로 발행하는 단축 명령이다.
 
 ## 가장 빠른 사용 순서
 
@@ -53,13 +53,14 @@ source base_ws/devel/setup.bash
 roslaunch trajectory_generator trajectory_publisher.launch
 ```
 
-공용 alias를 적용한 환경에서는 같은 명령이 `traj_pub`이다. 읽을 파일은
-`config/trajectory_publisher.yaml`의 `trajectory_csv`로 선택하며, 노드 시작 시 한 번 읽힌다.
+공용 alias를 적용한 환경에서는 같은 명령이 `traj_gen`이다. 기본 파일은
+`traj_sample/200889_200258.csv`이며, 노드 시작 시 한 번 읽힌다.
 
-다른 CSV를 발행하려면 package 내부 상대경로로 설정값을 바꾼다.
+다른 CSV를 발행하려면 package 내부 상대경로를 넘긴다.
 
-```yaml
-trajectory_csv: traj_sample/200889_200348_60kph.csv
+```bash
+roslaunch trajectory_generator trajectory_publisher.launch \
+  trajectory_csv:=traj_sample/200889_200348.csv
 ```
 
 발행 중 CSV를 수정해도 실행 중인 trajectory는 바뀌지 않는다. 생성 또는 수정 후에는
@@ -92,29 +93,56 @@ trajectory:
 
 ```bash
 rosrun trajectory_generator generate_trajectory.py \
-  --config base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml \
-  --select
+  --config base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml
 ```
 
 결과는 설정한 ID에 따라 자동으로 저장된다.
 
 ```text
-base_ws/src/control/trajectory_generator/traj_sample/<start_lanelet_id>_<end_lanelet_id>_<desired_velocity>kph.csv
+base_ws/src/control/trajectory_generator/traj_sample/<start_lanelet_id>_<end_lanelet_id>.csv
 ```
 
-속도에 소수점이 있으면 파일명에서는 `.` 대신 `p`를 사용한다(예: `20.5` → `20p5kph`).
+### K-City v44 competition samples
+
+`config/samples/`에는 competition route publisher의 시작 preset과 대응하는 생성 설정을 둔다.
+모두 안전한 초기 비교용 `20 km/h` 상한이며, map의 더 낮은 제한속도는 그대로 적용된다.
+
+| preset | 생성 설정 | 출력 CSV | course position |
+| --- | --- | --- | --- |
+| full | `config/samples/competition_full.yaml` | `traj_sample/200889_200892.csv` | 공식 start → finish loop |
+| early_middle | `config/samples/competition_early_middle.yaml` | `traj_sample/200311_200892.csv` | 약 35% → finish |
+| middle | `config/samples/competition_middle.yaml` | `traj_sample/201086_200892.csv` | 약 50% → finish |
+| late | `config/samples/competition_late.yaml` | `traj_sample/200360_200892.csv` | 약 75% → finish |
+
+코너 추종·가변 lookahead 튜닝에는 아래처럼 코너 전후 margin을 포함한 sample을 사용한다.
+
+| sample | 생성 설정 | 출력 CSV | 포함 구간 |
+| --- | --- | --- | --- |
+| start left-right | `config/samples/corner_start_left_right.yaml` | `traj_sample/200889_200287.csv` | 출발 좌회전 → 우회전, 22 m exit |
+| left S curve | `config/samples/corner_left_s_curve.yaml` | `traj_sample/200287_200292.csv` | 22 m entry → 연속 좌커브 → 50 m exit |
+| outer turn sequence | `config/samples/corner_outer_turn_sequence.yaml` | `traj_sample/200950_200311.csv` | right/right/left/left, 긴 우커브 포함 |
+| roundabout | `config/samples/corner_roundabout.yaml` | `traj_sample/200968_200101.csv` | 우커브 진입 → 회전교차로 → 167 m exit |
+| return tight rights | `config/samples/corner_return_tight_rights.yaml` | `traj_sample/201399_200892.csv` | 우회전 연속·타이트 우커브 → finish |
+
+예를 들어 full sample은 다음처럼 생성·발행한다.
+
+```bash
+rosrun trajectory_generator generate_trajectory.py \
+  --config base_ws/src/control/trajectory_generator/config/samples/competition_full.yaml
+roslaunch trajectory_generator trajectory_publisher.launch \
+  trajectory_csv:=traj_sample/200889_200892.csv
+```
+
 같은 이름의 파일이 이미 있으면 실수로 기존 결과를 잃지 않도록 생성이 실패한다. 의도적으로
 교체할 때만 `--overwrite`를 추가한다.
 
 ```bash
 rosrun trajectory_generator generate_trajectory.py \
   --config base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml \
-  --overwrite \
-  --select
+  --overwrite
 ```
 
-`--select`를 사용하면 새 CSV가 `config/trajectory_publisher.yaml`의 `trajectory_csv`에
-자동 선택된다. 새 CSV는
+새로 생성한 CSV를 발행할 때는 2단계의 `trajectory_csv` 인자로 해당 파일을 선택한다. 새 CSV는
 기본적으로 Git에서 제외되며, 팀 공용 sample을 갱신할 때만 별도로 합의해 반영한다.
 
 ## 설정값 이해하기
@@ -127,9 +155,12 @@ rosrun trajectory_generator generate_trajectory.py \
 | `reference.global_path_file` | 중심선 진행 방향 판별용 기준 경로 | 최소 2개 점이 필요하다. |
 | `anchors.start_lanelet_id` | 생성 구간의 시작 lanelet | end까지 유일한 successor chain이 있어야 한다. |
 | `anchors.end_lanelet_id` | 생성 구간의 종료 lanelet | 출력 파일명에도 사용된다. |
+| `anchors.start_route_order` | 동일 lanelet ID가 반복될 때 시작 occurrence | 생략하면 모든 start 후보를 검사한다. |
+| `anchors.end_route_order` | 동일 lanelet ID가 반복될 때 종료 occurrence | 한 바퀴 loop처럼 start/end ID가 같을 때 필요하다. |
 | `trajectory.resample_interval_m` | trajectory 점 간격 | 현재 계약상 `0.1` m 고정이다. |
 | `trajectory.desired_velocity_kph` | 차량에 요구할 순항 속도 | 양수이며 단위는 km/h다. |
 | `trajectory.default_speed_limit_kph` | 지도에 제한속도가 없을 때의 안전 상한 | 목표 속도가 아니라 fallback 제한속도다. |
+| `trajectory.speed_profile` | lanelet별 속도와 가감속 envelope | 생략하면 기존 고정속도 생성 동작을 유지한다. |
 
 최종 CSV 속도는 다음과 같이 저장된다.
 
@@ -142,6 +173,35 @@ default_speed_limit_kph`다. 출발/종료 감속 ramp는 아직 생성하지 �
 `0 m/s`가 되지 않는다. 속도 단위 전체 계약과 MORAI GT 입력은
 [Control 속도 단위 규약](../../../../docs/control_velocity_units.md)을 참고한다.
 
+### Lanelet별 가변속도 profile
+
+`trajectory.speed_profile`을 지정하면 lanelet별 속도 상한을 만든 뒤, 0.1 m 경로를 전방·후방으로
+통과하며 최대 가속도와 감속도를 만족하는 연속 속도열을 생성한다.
+
+```yaml
+anchors:
+  start_lanelet_id: 200889
+  end_lanelet_id: 200889
+  start_route_order: 1
+  end_route_order: 42
+
+trajectory:
+  output_csv: base_ws/src/control/trajectory_generator/traj_sample/variable/200889_200889_v.csv
+  speed_profile:
+    default_velocity_kph: 60.0
+    respect_speed_limits: false
+    max_acceleration_mps2: 2.0
+    max_deceleration_mps2: 2.5
+    lanelet_velocity_kph:
+      200392: 30.0
+      200101: 140.0
+```
+
+`respect_speed_limits: true`이면 lanelet 속도는 기존 지도/drive-course 제한으로 다시 잘린다.
+`false`는 실험용 profile이 지도 제한보다 우선한다는 명시적 override이므로 폐쇄된 검증 환경에서만
+사용한다. 완성된 full-lap 예시는
+[`config/trajectory_generator_200889_full_variable.yaml`](config/trajectory_generator_200889_full_variable.yaml)이다.
+
 ## 정상 동작 확인
 
 생성 성공 시 터미널에는 출력 파일, lanelet 수, 경로 길이, 점 개수, 실제 속도 범위가 표시된다.
@@ -152,7 +212,7 @@ rostopic hz /control/trajectory
 rostopic echo -n 1 /control/trajectory/header
 ```
 
-기본 발행 주기는 30 Hz이고 `frame_id`는 `map`이다. RViz에서는 다음 debug topic을 추가한다.
+기본 발행 주기는 50 Hz이고 `frame_id`는 `map`이다. RViz에서는 다음 debug topic을 추가한다.
 
 - `/control/debug/generator/path` (`nav_msgs/Path`): 전체 기준 경로
 - `/control/debug/generator/markers` (`visualization_msgs/MarkerArray`): 경로와 시작/종료점

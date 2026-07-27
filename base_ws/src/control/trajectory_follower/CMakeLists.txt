@@ -6,16 +6,28 @@ add_compile_options(-std=c++14 -Wall -Wextra -Wpedantic)
 find_package(catkin REQUIRED COMPONENTS
   autoware_planning_msgs
   geometry_msgs
+  message_generation
   morai_msgs
   nav_msgs
   roscpp
   std_msgs
 )
 
+add_message_files(FILES PurePursuitDebug.msg)
+
+generate_messages(DEPENDENCIES std_msgs)
+
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES adaptive_pure_pursuit_core
-  CATKIN_DEPENDS autoware_planning_msgs geometry_msgs morai_msgs nav_msgs roscpp std_msgs
+  CATKIN_DEPENDS
+    autoware_planning_msgs
+    geometry_msgs
+    message_runtime
+    morai_msgs
+    nav_msgs
+    roscpp
+    std_msgs
 )
 
 include_directories(include ${catkin_INCLUDE_DIRS})
@@ -25,10 +37,10 @@ add_executable(longi_pi src/longi_pi.cpp)
 add_library(adaptive_pure_pursuit_core src/adaptive_pure_pursuit_core.cpp)
 add_executable(purepursuit_autoware src/purepursuit_autoware.cpp)
 add_executable(longi_pi_autoware src/longi_pi_autoware.cpp)
-add_dependencies(purepursuit ${catkin_EXPORTED_TARGETS})
-add_dependencies(longi_pi ${catkin_EXPORTED_TARGETS})
-add_dependencies(purepursuit_autoware ${catkin_EXPORTED_TARGETS})
-add_dependencies(longi_pi_autoware ${catkin_EXPORTED_TARGETS})
+add_dependencies(purepursuit ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(longi_pi ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(purepursuit_autoware ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(longi_pi_autoware ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(purepursuit ${catkin_LIBRARIES})
 target_link_libraries(longi_pi ${catkin_LIBRARIES})
 target_link_libraries(purepursuit_autoware adaptive_pure_pursuit_core ${catkin_LIBRARIES})
@@ -51,6 +63,6 @@ install(DIRECTORY include/
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
 )
 
-install(DIRECTORY config launch
+install(DIRECTORY config launch msg
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
