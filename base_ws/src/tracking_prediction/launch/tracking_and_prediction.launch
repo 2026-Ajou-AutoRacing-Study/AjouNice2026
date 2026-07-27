@@ -1,0 +1,5 @@
+<launch>
+  <!-- bringup/launch 등 상위 wrapper에서 이 파일 하나만 include 하면 됨 -->
+  <include file="$(find tracking_prediction)/launch/tracking.launch" />
+  <include file="$(find tracking_prediction)/launch/prediction.launch" />
+</launch>

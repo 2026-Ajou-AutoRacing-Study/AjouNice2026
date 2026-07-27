@@ -1,0 +1,10 @@
+<launch>
+  <arg name="input_topic" default="/tracking/objects" />
+  <arg name="output_topic" default="/prediction/objects" />
+
+  <node pkg="tracking_prediction" type="prediction_node.py" name="prediction_node" output="screen">
+    <param name="input_topic" value="$(arg input_topic)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+    <rosparam param="horizons">[0.5, 1.0, 1.5, 2.0, 3.0]</rosparam>
+  </node>
+</launch>

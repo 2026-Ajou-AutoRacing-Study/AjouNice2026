@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>tracking_prediction</name>
+  <version>0.1.0</version>
+  <description>
+    GT(Object_topic) 기반 dummy tracking + CTRA 물리모델 prediction 파이프라인.
+    실제 OD/MOT가 준비되면 tracking_node의 내부 로직만 교체할 예정.
+  </description>
+  <maintainer email="team@ajounice2026.example">AjouNice2026</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>message_generation</build_depend>
+  <exec_depend>message_runtime</exec_depend>
+
+  <depend>roscpp</depend>
+  <depend>rospy</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>morai_msgs</depend>
+</package>
