@@ -4,6 +4,7 @@ import json
 import math
 import os
 import sys
+import time
 from copy import deepcopy
 
 import rospy
@@ -51,7 +52,7 @@ from bpp_path_tools import (
     to_debug_path,
     to_autoware_path,
 )
-from bpp_route_tools import forward_lane_sequence, reference_lane_sequence
+from bpp_route_tools import RouteLaneletTracker, forward_lane_sequence
 from bpp_side_shift_tools import SideShiftScene
 from bpp_start_planner_tools import StartPlannerScene
 from bpp_static_avoidance_tools import StaticAvoidanceScene
@@ -95,6 +96,9 @@ def pose_to_point3(pose):
 class BehaviorPathPlanner:
     def __init__(self):
         self.route = None
+        self.route_signature = None
+        self.route_lanelet_tracker = None
+        self.active_route_lane_change_target = None
         self.odometry = None
         self.scenario = None
         self.vector_map = None
@@ -127,6 +131,22 @@ class BehaviorPathPlanner:
         self.forward_path_length = max(
             float(rospy.get_param("~forward_path_length", 300.0)), 1.0
         )
+        self.publish_full_route_reference = param_bool(
+            rospy.get_param("~publish_full_route_reference", False)
+        )
+        self.full_route_reference_length = max(
+            float(rospy.get_param("~full_route_reference_length", 5000.0)), 1.0
+        )
+        self.full_route_reference_signature = None
+        self.debug_processing_time = param_bool(
+            rospy.get_param("~debug_processing_time", False)
+        )
+        self.ego_nearest_dist_threshold = max(
+            float(rospy.get_param("~ego_nearest_dist_threshold", 3.0)), 0.0
+        )
+        self.ego_nearest_yaw_threshold = max(
+            float(rospy.get_param("~ego_nearest_yaw_threshold", 1.046)), 0.0
+        )
         self.goal_bound_extension = max(
             float(rospy.get_param("~goal_bound_extension", 5.0)), 0.0
         )
@@ -142,6 +162,10 @@ class BehaviorPathPlanner:
         self.projector_file = rospy.get_param("~projector_file", "")
         self.projector_type = rospy.get_param("~map_projector_type", "MGRS")
         self.flatten_map_z = param_bool(rospy.get_param("~flatten_map_z", False))
+        self.route_lanelet_tracker = RouteLaneletTracker(
+            self.ego_nearest_dist_threshold,
+            self.ego_nearest_yaw_threshold,
+        )
 
         self.enable_lane_change = param_bool(rospy.get_param("~enable_lane_change", True))
         self.enable_static_obstacle_avoidance = param_bool(
@@ -308,6 +332,9 @@ class BehaviorPathPlanner:
             "~output/is_reroute_available", RerouteAvailability, queue_size=1
         )
         self.status_pub = rospy.Publisher("~debug/module_status", String, queue_size=1)
+        self.full_route_reference_pub = rospy.Publisher(
+            "~debug/full_route_path", PathWithLaneId, queue_size=1, latch=True
+        )
         self.lane_change_candidate_pubs = {
             "left": rospy.Publisher(
                 "~output/lane_change_candidate_path_left", AutowarePath, queue_size=1
@@ -384,6 +411,7 @@ class BehaviorPathPlanner:
                 self.flatten_map_z,
                 self.projector_type,
             )
+            self.route_lanelet_tracker.clear()
             rospy.loginfo(
                 "behavior_path_planner: loaded %d centerlines from %s",
                 self.centerline_map.lane_count(),
@@ -394,7 +422,34 @@ class BehaviorPathPlanner:
             rospy.logwarn("behavior_path_planner: failed to load centerline map: %s", exc)
 
     def route_callback(self, msg):
+        signature = self.route_identity(msg)
+        if signature != self.route_signature:
+            self.route_lanelet_tracker.clear()
+            self.active_route_lane_change_target = None
+            self.route_signature = signature
+            self.full_route_reference_signature = None
         self.route = msg
+
+    @staticmethod
+    def route_identity(route):
+        route_uuid = tuple(
+            int(value)
+            for value in getattr(getattr(route, "uuid", None), "uuid", [])
+        )
+        if route_uuid and any(route_uuid):
+            return ("uuid", route_uuid)
+        return (
+            "segments",
+            tuple(
+                (
+                    int(segment.preferred_primitive.id),
+                    tuple(int(primitive.id) for primitive in segment.primitives),
+                )
+                for segment in route.segments
+            ),
+            round(float(route.goal_pose.position.x), 3),
+            round(float(route.goal_pose.position.y), 3),
+        )
 
     def odometry_callback(self, msg):
         self.odometry = msg
@@ -410,7 +465,8 @@ class BehaviorPathPlanner:
             return
 
         raw = bytes(msg.data)
-        if not raw.lstrip().startswith(b"<osm"):
+        stripped = raw.lstrip()
+        if not (stripped.startswith(b"<osm") or stripped.startswith(b"<?xml")):
             rospy.logwarn_throttle(
                 10.0,
                 "behavior_path_planner: LaneletMapBin binary parsing is not available; pass ~map_file for centerline generation",
@@ -419,8 +475,13 @@ class BehaviorPathPlanner:
 
         try:
             self.centerline_map = CenterlineMap.from_osm_bytes(
-                raw, "LaneletMapBin", self.flatten_map_z, self.projector_type
+                raw,
+                "LaneletMapBin",
+                self.flatten_map_z,
+                self.projector_type,
+                self.projector_file,
             )
+            self.route_lanelet_tracker.clear()
             if self.static_avoidance_scene is not None:
                 self.static_avoidance_scene.set_centerline_map(self.centerline_map)
             rospy.loginfo(
@@ -460,10 +521,27 @@ class BehaviorPathPlanner:
         if not self.is_lane_driving_enabled():
             rospy.logwarn_throttle(5.0, "behavior_path_planner: scenario is not LaneDriving")
             return
+        processing_started = time.perf_counter()
+
+        # ROS 2 Autoware planners accept runtime parameter updates. Poll the ROS 1
+        # parameter so validation and bringup can change the planning horizon too.
+        requested_forward_length = max(
+            float(rospy.get_param("~forward_path_length", self.forward_path_length)),
+            1.0,
+        )
+        if abs(requested_forward_length - self.forward_path_length) > 1.0e-6:
+            rospy.loginfo(
+                "behavior_path_planner: forward path length updated %.1f -> %.1f m",
+                self.forward_path_length,
+                requested_forward_length,
+            )
+            self.forward_path_length = requested_forward_length
 
         stamp = rospy.Time.now()
         statuses = []
         turn_command = TurnIndicatorsCommand.NO_COMMAND
+
+        self.publish_full_route_reference_once(stamp)
 
         path, status = self.build_lane_following_path(stamp)
         statuses.append(status)
@@ -530,6 +608,65 @@ class BehaviorPathPlanner:
         self.publish_turn_command(stamp, turn_command)
         self.publish_hazard_command(stamp, HazardLightsCommand.NO_COMMAND)
         self.publish_status(statuses)
+        if self.debug_processing_time:
+            rospy.loginfo(
+                "behavior_path_planner: cycle %.1f ms, output=%d points",
+                (time.perf_counter() - processing_started) * 1000.0,
+                len(path.points),
+            )
+
+    def publish_full_route_reference_once(self, stamp):
+        if (
+            not self.publish_full_route_reference
+            or self.full_route_reference_signature == self.route_signature
+            or self.centerline_map is None
+            or self.odometry is None
+        ):
+            return
+
+        local_forward_length = self.forward_path_length
+        self.forward_path_length = self.full_route_reference_length
+        reference, _ = self.build_lane_following_path(stamp)
+
+        route_target = route_lane_change_target(
+            self.route,
+            self.centerline_map,
+            self.odometry.pose.pose,
+            current_section_index=self.route_lanelet_tracker.section_index,
+            current_lane_id=self.route_lanelet_tracker.lane_id,
+        )
+        if route_target is not None:
+            target_lane_ids = forward_lane_sequence(
+                self.route,
+                self.centerline_map,
+                route_target.section_index,
+                route_target.target_lane_id,
+            )
+            reference = build_route_lane_change_path(
+                reference,
+                self.centerline_map,
+                self.odometry.pose.pose,
+                route_target,
+                self.lane_change_prepare_distance,
+                self.lane_change_distance,
+                self.full_route_reference_length,
+                self.lane_change_transition_interval,
+                self.lane_change_target_interval,
+                self.lane_change_prepare_velocity_ratio,
+                target_lane_ids,
+                pose_to_point3(self.route.goal_pose),
+                self.stop_at_goal,
+            )
+
+        self.forward_path_length = local_forward_length
+        reference.header.stamp = stamp
+        reference.header.frame_id = reference.header.frame_id or self.frame_id
+        self.full_route_reference_pub.publish(reference)
+        self.full_route_reference_signature = self.route_signature
+        rospy.loginfo(
+            "behavior_path_planner: published one-shot full route reference (%d points)",
+            len(reference.points),
+        )
 
     def is_lane_driving_enabled(self):
         if not self.require_lane_driving_scenario:
@@ -544,7 +681,9 @@ class BehaviorPathPlanner:
         goal_pose = self.route.goal_pose
 
         points = self.build_centerline_path_points(start_pose, goal_pose, lane_ids)
-        status = "lane_following: map centerline"
+        status = "lane_following: map centerline, root_lanelet={}".format(
+            self.route_lanelet_tracker.lane_id
+        )
         if points is None:
             points = self.interpolate_path_points(start_pose, goal_pose, lane_ids)
             status = "lane_following: fallback interpolation"
@@ -591,8 +730,39 @@ class BehaviorPathPlanner:
 
     def extract_lane_ids(self, route):
         if self.centerline_map is not None and self.odometry is not None:
-            lane_ids = reference_lane_sequence(
-                route, self.centerline_map, self.odometry.pose.pose
+            ego_pose = self.odometry.pose.pose
+            if (
+                self.active_route_lane_change_target is not None
+                and self.route_lanelet_tracker.lane_change_completed(
+                    self.centerline_map,
+                    self.active_route_lane_change_target,
+                    ego_pose,
+                )
+            ):
+                self.route_lanelet_tracker.set_lane(
+                    route,
+                    self.centerline_map,
+                    self.active_route_lane_change_target,
+                )
+                self.lane_change_rtc_controller.complete(rospy.Time.now())
+                self.active_route_lane_change_target = None
+
+            self.route_lanelet_tracker.update(
+                route,
+                self.centerline_map,
+                ego_pose,
+                self.backward_path_length,
+                self.forward_path_length,
+                autonomous_control=self.is_autonomous_control_enabled(),
+                module_running=self.is_any_route_module_running(),
+            )
+            lane_ids = self.route_lanelet_tracker.sequence(
+                route,
+                self.centerline_map,
+                self.backward_path_length
+                + self.vehicle_rear_overhang
+                + self.backward_path_margin,
+                self.forward_path_length,
             )
             if lane_ids:
                 return lane_ids
@@ -626,6 +796,26 @@ class BehaviorPathPlanner:
             if lane_id not in selected:
                 selected.append(lane_id)
         return selected
+
+    def is_autonomous_control_enabled(self):
+        return bool(
+            self.operation_mode is not None
+            and self.operation_mode.mode == OperationModeState.AUTONOMOUS
+            and self.operation_mode.is_autoware_control_enabled
+        )
+
+    def is_any_route_module_running(self):
+        controllers = [self.lane_change_rtc_controller]
+        if self.static_avoidance_scene is not None:
+            controllers.extend(
+                [
+                    self.static_avoidance_scene.rtc_controller,
+                    self.static_avoidance_scene.return_rtc_controller,
+                ]
+            )
+        if self.start_planner_scene is not None:
+            controllers.append(self.start_planner_scene.rtc_controller)
+        return any(controller.ever_activated for controller in controllers)
 
     def select_start_pose(self, route):
         if self.use_ego_as_path_start and self.odometry is not None:
@@ -797,6 +987,7 @@ class BehaviorPathPlanner:
         signature,
         stamp,
         description,
+        target_lane_id=None,
     ):
         direction = "left" if target_offset > 0.0 else "right"
         activated, state, _, auto_mode = self.lane_change_rtc_controller.evaluate(
@@ -823,6 +1014,8 @@ class BehaviorPathPlanner:
         safety_name = "safe" if safe else "unsafe"
         if not safe:
             description = "lane_change: blocked by object in target lane; " + description
+        if activated and target_lane_id is not None:
+            self.active_route_lane_change_target = int(target_lane_id)
         status = "{}; rtc={} {} {}, activated={}".format(
             description,
             mode_name,
@@ -843,6 +1036,8 @@ class BehaviorPathPlanner:
                 self.route,
                 self.centerline_map,
                 self.odometry.pose.pose,
+                current_section_index=self.route_lanelet_tracker.section_index,
+                current_lane_id=self.route_lanelet_tracker.lane_id,
             )
         if route_target is not None:
             target_offset = route_target.lateral_offset
@@ -885,11 +1080,13 @@ class BehaviorPathPlanner:
                     route_target.target_lane_id,
                     route_target.direction,
                 ),
+                target_lane_id=route_target.target_lane_id,
             )
 
         target_offset = self.requested_lane_change_offset()
         if abs(target_offset) < self.lane_change_min_request_offset:
             self.lane_change_rtc_controller.complete(stamp)
+            self.active_route_lane_change_target = None
             return path, "lane_change: pass-through, no request", TurnIndicatorsCommand.NO_COMMAND
 
         candidate = apply_s_curve_shift(

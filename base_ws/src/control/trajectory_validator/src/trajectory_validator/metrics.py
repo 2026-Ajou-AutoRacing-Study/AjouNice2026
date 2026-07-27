@@ -20,6 +20,79 @@ def yaw_from_quaternion(quaternion):
     return math.atan2(sin_yaw, cos_yaw)
 
 
+def plausible_ego_travel_step_m(
+    previous_x,
+    previous_y,
+    current_x,
+    current_y,
+    dt_s,
+    previous_velocity_mps,
+    current_velocity_mps,
+    trajectory_length_m,
+):
+    """Return an XY travel step, or None when it looks like a position jump."""
+    values = (
+        previous_x,
+        previous_y,
+        current_x,
+        current_y,
+        dt_s,
+        previous_velocity_mps,
+        current_velocity_mps,
+        trajectory_length_m,
+    )
+    if (
+        not all(math.isfinite(value) for value in values)
+        or dt_s <= 0.0
+        or trajectory_length_m <= 0.0
+    ):
+        return None
+    displacement_m = math.hypot(
+        current_x - previous_x,
+        current_y - previous_y,
+    )
+    expected_distance_m = (
+        0.5
+        * (abs(previous_velocity_mps) + abs(current_velocity_mps))
+        * dt_s
+    )
+    # Keep this trajectory-independent. The margin absorbs low-speed pose noise,
+    # while the velocity-scaled term accommodates sparse samples at high speed.
+    maximum_plausible_distance_m = max(
+        5.0,
+        0.05 * trajectory_length_m,
+        3.0 * expected_distance_m + 1.0,
+    )
+    return (
+        displacement_m
+        if displacement_m <= maximum_plausible_distance_m
+        else None
+    )
+
+
+def goal_conditions_met(
+    final_distance_m,
+    goal_tolerance_m,
+    matched_station_m,
+    final_station_m,
+    goal_progress_margin_m,
+    ego_travel_distance_m,
+    min_travel_ratio_for_goal,
+):
+    """Combine endpoint, trajectory-progress, and physical-travel goal guards."""
+    final_progress_start_m = max(
+        0.0, final_station_m - goal_progress_margin_m
+    )
+    minimum_travel_distance_m = (
+        final_station_m * min_travel_ratio_for_goal
+    )
+    return (
+        final_distance_m <= goal_tolerance_m
+        and matched_station_m >= final_progress_start_m
+        and ego_travel_distance_m >= minimum_travel_distance_m
+    )
+
+
 class TrajectoryMatcher:
     def __init__(self, trajectory):
         if len(trajectory.points) < 2:
@@ -100,246 +173,4 @@ def metric_summary(samples):
         "max_abs_heading_error_rad": max(heading) if heading else None,
         "mean_abs_velocity_error_mps": mean(velocity),
         "max_abs_velocity_error_mps": max(velocity) if velocity else None,
-    }
-
-
-def percentile(data, percentage):
-    values = sorted(float(value) for value in data)
-    if not values:
-        return None
-    position = (len(values) - 1) * float(percentage) / 100.0
-    lower = int(math.floor(position))
-    upper = int(math.ceil(position))
-    if lower == upper:
-        return values[lower]
-    ratio = position - lower
-    return values[lower] * (1.0 - ratio) + values[upper] * ratio
-
-
-def value_summary(samples, name):
-    values = [float(sample[name]) for sample in samples]
-    absolute = [abs(value) for value in values]
-    if not values:
-        return {
-            "mean": None,
-            "mean_abs": None,
-            "rms": None,
-            "p95_abs": None,
-            "max_abs": None,
-        }
-    return {
-        "mean": sum(values) / len(values),
-        "mean_abs": sum(absolute) / len(absolute),
-        "rms": math.sqrt(sum(value * value for value in values) / len(values)),
-        "p95_abs": percentile(absolute, 95.0),
-        "max_abs": max(absolute),
-    }
-
-
-def _distance(first, second):
-    return math.hypot(second.x - first.x, second.y - first.y)
-
-
-def trajectory_curvatures(trajectory, sample_distance_m=1.0):
-    points = [point.pose.position for point in trajectory.points]
-    if len(points) < 3:
-        return [0.0] * len(points)
-    previous = [0] * len(points)
-    following = [len(points) - 1] * len(points)
-    left = 0
-    for index in range(len(points)):
-        while left + 1 < index and _distance(points[left + 1], points[index]) >= sample_distance_m:
-            left += 1
-        previous[index] = left
-    right = 0
-    for index in range(len(points)):
-        right = min(len(points) - 1, max(right, index + 1))
-        while right < len(points) - 1 and _distance(points[index], points[right]) < sample_distance_m:
-            right += 1
-        following[index] = right
-
-    output = []
-    for index, middle in enumerate(points):
-        first = points[previous[index]]
-        last = points[following[index]]
-        first_length = _distance(first, middle)
-        second_length = _distance(middle, last)
-        chord = _distance(first, last)
-        if first_length <= 1e-6 or second_length <= 1e-6 or chord <= 1e-6:
-            output.append(0.0)
-            continue
-        cross = (
-            (middle.x - first.x) * (last.y - first.y)
-            - (middle.y - first.y) * (last.x - first.x)
-        )
-        output.append(abs(2.0 * cross / (first_length * second_length * chord)))
-    return output
-
-
-CURVATURE_BINS = (
-    ("straight", 0.0, 0.01),
-    ("gentle", 0.01, 0.02),
-    ("medium", 0.02, 0.04),
-    ("sharp", 0.04, 0.08),
-    ("very_sharp", 0.08, None),
-)
-
-
-def evaluation_summary(
-    samples,
-    trajectory,
-    lateral_tolerance_m=0.3,
-    speed_overshoot_tolerance_mps=0.1,
-):
-    valid = [sample for sample in samples if sample.get("control_pair_valid")]
-    valid_count = len(valid)
-    lateral_absolute = [abs(float(sample["lateral_error_m"])) for sample in valid]
-    within_count = sum(value <= lateral_tolerance_m for value in lateral_absolute)
-
-    speed_overshoots = [
-        max(0.0, float(sample["ego_velocity_mps"]) - float(sample["target_velocity_mps"]))
-        for sample in valid
-    ]
-    overshoot_percentages = [
-        100.0
-        * max(0.0, float(sample["ego_velocity_mps"]) - float(sample["target_velocity_mps"]))
-        / float(sample["target_velocity_mps"])
-        for sample in valid
-        if float(sample["target_velocity_mps"]) > 0.1
-    ]
-
-    curvatures = trajectory_curvatures(trajectory)
-    curvature_sections = {}
-    for label, minimum, maximum in CURVATURE_BINS:
-        section = []
-        for sample in valid:
-            index = min(max(0, int(sample["matched_gt_index"])), len(curvatures) - 1)
-            curvature = curvatures[index] if curvatures else 0.0
-            if curvature >= minimum and (maximum is None or curvature < maximum):
-                section.append(sample)
-        curvature_sections[label] = {
-            "curvature_min_1pm": minimum,
-            "curvature_max_1pm": maximum,
-            "sample_count": len(section),
-            "sample_ratio_percent": 100.0 * len(section) / valid_count if valid_count else None,
-            "lateral_error_m": value_summary(section, "lateral_error_m"),
-            "longitudinal_error_m": value_summary(section, "longitudinal_error_m"),
-            "velocity_error_mps": value_summary(section, "velocity_error_mps"),
-            "steering_error_rad": value_summary(section, "steering_error_rad"),
-        }
-
-    command_accel = [float(sample["cmd_accel"]) for sample in valid]
-    command_brake = [float(sample["cmd_brake"]) for sample in valid]
-    steering_rates = []
-    for previous, current in zip(valid, valid[1:]):
-        dt = float(current["dt_s"])
-        if 0.0 < dt <= 1.0:
-            steering_rates.append(
-                (float(current["cmd_steering_rad"]) - float(previous["cmd_steering_rad"]))
-                / dt
-            )
-    return {
-        "schema_version": 1,
-        "definitions": {
-            "lateral_retention": "percentage of valid samples with abs(lateral_error_m) <= tolerance",
-            "p95": "linearly interpolated 95th percentile of absolute error",
-            "speed_overshoot": "max(ego_velocity_mps - target_velocity_mps, 0)",
-            "speed_overshoot_occurrence": (
-                "percentage above target velocity by more than 0.0 m/s"
-            ),
-            "speed_overshoot_including_errors": (
-                "percentage above target velocity by more than "
-                "{} m/s".format(speed_overshoot_tolerance_mps)
-            ),
-            "curvature": "absolute three-point curvature using approximately 1 m path spacing",
-        },
-        "sample_quality": {
-            "total_sample_count": len(samples),
-            "valid_sample_count": valid_count,
-            "valid_sample_ratio_percent": 100.0 * valid_count / len(samples) if samples else None,
-        },
-        "lateral": {
-            "error_m": value_summary(valid, "lateral_error_m"),
-            "retention_tolerance_m": lateral_tolerance_m,
-            "retention_sample_count": within_count,
-            "retention_percent": 100.0 * within_count / valid_count if valid_count else None,
-            "heading_error_rad": value_summary(valid, "heading_error_rad"),
-        },
-        "longitudinal": {
-            "position_error_m": value_summary(valid, "longitudinal_error_m"),
-            "velocity_error_mps": value_summary(valid, "velocity_error_mps"),
-            "ego_acceleration_mps2": value_summary(valid, "ego_acceleration_mps2"),
-            "speed_overshoot": {
-                "max_mps": max(speed_overshoots) if speed_overshoots else None,
-                "max_kph": max(speed_overshoots) * 3.6 if speed_overshoots else None,
-                "max_percent": max(overshoot_percentages) if overshoot_percentages else None,
-                "p95_mps": percentile(speed_overshoots, 95.0),
-                "p95_percent": percentile(overshoot_percentages, 95.0),
-                "overshoot_sample_ratio_percent": (
-                    100.0
-                    * sum(value > 0.0 for value in speed_overshoots)
-                    / len(speed_overshoots)
-                    if speed_overshoots
-                    else None
-                ),
-                "including_errors_sample_ratio_percent": (
-                    100.0
-                    * sum(
-                        value > speed_overshoot_tolerance_mps
-                        for value in speed_overshoots
-                    )
-                    / len(speed_overshoots)
-                    if speed_overshoots
-                    else None
-                ),
-            },
-            "actuator_command": {
-                "accel_mean": sum(command_accel) / len(command_accel) if command_accel else None,
-                "accel_p95": percentile(command_accel, 95.0),
-                "accel_max": max(command_accel) if command_accel else None,
-                "brake_mean": sum(command_brake) / len(command_brake) if command_brake else None,
-                "brake_p95": percentile(command_brake, 95.0),
-                "brake_max": max(command_brake) if command_brake else None,
-            },
-        },
-        "steering": {
-            "command_rad": value_summary(valid, "cmd_steering_rad"),
-            "actual_rad": value_summary(valid, "actual_steering_rad"),
-            "error_rad": value_summary(valid, "steering_error_rad"),
-            "command_rate_rad_s": {
-                "p95_abs": percentile([abs(value) for value in steering_rates], 95.0),
-                "max_abs": max([abs(value) for value in steering_rates], default=None),
-            },
-        },
-        "curvature_sections": curvature_sections,
-    }
-
-
-def compact_evaluation_summary(samples, trajectory, lateral_tolerance_m=0.3):
-    """Return only the headline metrics written to summary.json."""
-    detailed = evaluation_summary(samples, trajectory, lateral_tolerance_m)
-
-    def formatted_percent(value):
-        return f"{float(value):.3f}%" if value is not None else None
-
-    overshoot = detailed["longitudinal"]["speed_overshoot"]
-    return {
-        "valid_data_percent": formatted_percent(
-            detailed["sample_quality"]["valid_sample_ratio_percent"]
-        ),
-        "lateral_retention_percent": formatted_percent(
-            detailed["lateral"]["retention_percent"]
-        ),
-        "speed_overshoot_occurrence_percent": formatted_percent(
-            overshoot["overshoot_sample_ratio_percent"]
-        ),
-        "speed_overshoot_including_errors_percent": formatted_percent(
-            overshoot["including_errors_sample_ratio_percent"]
-        ),
-        "max_speed_overshoot_percent": formatted_percent(overshoot["max_percent"]),
-        "p95_speed_overshoot_percent": formatted_percent(overshoot["p95_percent"]),
-        "collision_detected": any(
-            sample.get("collision_detected") for sample in samples
-        ),
-        "reached_goal": any(sample.get("reached_goal") for sample in samples),
     }

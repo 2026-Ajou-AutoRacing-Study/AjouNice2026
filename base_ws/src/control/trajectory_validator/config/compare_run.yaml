@@ -1,3 +1,3 @@
-# Baseline run shared by the RViz compare overlay and PlotJuggler.
-traj_sample: "200889_200292_40kph"
-run_id: "0723_210249_pp_pi"
+# Baseline run used by the RViz compare overlay.
+traj_sample: "200889_200258"
+run_id: "0719_180607_pp_pi"

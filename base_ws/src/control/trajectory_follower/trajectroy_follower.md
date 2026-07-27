@@ -30,17 +30,15 @@ trajectory와 state의 `header.frame_id`가 다르면 조향 0과 완전 제동�
 
 ## Pure Pursuit
 
-trajectory에서 Ego와 가장 가까운 point를 찾고, 고정된
-`lookahead_distance_m`만큼 경로를 따라간 target을 고른다.
+trajectory에서 Ego와 가장 가까운 point를 찾고 경로 누적 거리로 lookahead target을 고른다.
 
 ```text
-LD = lookahead_distance_m
-curvature = 2 * target_y / LD^2
+lookahead = clamp(min_lookahead + speed * lookahead_time,
+                  min_lookahead, max_lookahead)
+curvature = 2 * target_y / lookahead^2
 steering = clamp(gain * atan(wheelbase * curvature),
                  -max_steer, max_steer)
 ```
-
-속도 및 경로 곡률에 따른 Adaptive LD 보정은 사용하지 않는다.
 
 target이 차량 뒤에 있거나 입력이 유효하지 않으면 steering `0.0`을 publish한다.
 

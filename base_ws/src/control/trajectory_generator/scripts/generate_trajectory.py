@@ -44,10 +44,28 @@ def resolve_repo_path(root, value, label):
     return path
 
 
+def resolve_repo_output_path(root, value, label):
+    path = (root / str(value)).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError as error:
+        raise ValueError("{} must stay inside repository: {}".format(label, value)) from error
+    if path.suffix.lower() != ".csv":
+        raise ValueError("{} must use a .csv filename: {}".format(label, value))
+    return path
+
+
 def require(mapping, key, label):
     if not isinstance(mapping, dict) or key not in mapping:
         raise ValueError("missing config value {}.{}".format(label, key))
     return mapping[key]
+
+
+def positive_finite(value, label):
+    number = float(value)
+    if not math.isfinite(number) or number <= 0.0:
+        raise ValueError("{} must be finite and positive".format(label))
+    return number
 
 
 def load_config(path):
@@ -56,6 +74,72 @@ def load_config(path):
     if not isinstance(config, dict):
         raise ValueError("generator config must be a YAML mapping")
     return config
+
+
+def load_speed_profile(trajectory_config):
+    raw = trajectory_config.get("speed_profile")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("trajectory.speed_profile must be a mapping")
+
+    default_velocity_kph = positive_finite(
+        require(raw, "default_velocity_kph", "trajectory.speed_profile"),
+        "trajectory.speed_profile.default_velocity_kph",
+    )
+    raw_overrides = raw.get("lanelet_velocity_kph", {})
+    if not isinstance(raw_overrides, dict):
+        raise ValueError(
+            "trajectory.speed_profile.lanelet_velocity_kph must be a mapping"
+        )
+    lanelet_velocity_kph = {}
+    for raw_lanelet_id, raw_velocity in raw_overrides.items():
+        try:
+            lanelet_id = int(raw_lanelet_id)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "speed-profile lanelet ID must be an integer: {}".format(
+                    raw_lanelet_id
+                )
+            ) from error
+        if lanelet_id in lanelet_velocity_kph:
+            raise ValueError(
+                "duplicate speed-profile lanelet ID: {}".format(lanelet_id)
+            )
+        lanelet_velocity_kph[lanelet_id] = positive_finite(
+            raw_velocity,
+            "trajectory.speed_profile.lanelet_velocity_kph.{}".format(
+                lanelet_id
+            ),
+        )
+
+    respect_speed_limits = raw.get("respect_speed_limits", True)
+    if not isinstance(respect_speed_limits, bool):
+        raise ValueError(
+            "trajectory.speed_profile.respect_speed_limits must be true or false"
+        )
+
+    return {
+        "default_velocity_kph": default_velocity_kph,
+        "lanelet_velocity_kph": lanelet_velocity_kph,
+        "respect_speed_limits": respect_speed_limits,
+        "max_acceleration_mps2": positive_finite(
+            require(
+                raw,
+                "max_acceleration_mps2",
+                "trajectory.speed_profile",
+            ),
+            "trajectory.speed_profile.max_acceleration_mps2",
+        ),
+        "max_deceleration_mps2": positive_finite(
+            require(
+                raw,
+                "max_deceleration_mps2",
+                "trajectory.speed_profile",
+            ),
+            "trajectory.speed_profile.max_deceleration_mps2",
+        ),
+    }
 
 
 def load_route(path):
@@ -94,7 +178,7 @@ def load_route(path):
     return rows
 
 
-def find_unique_chain(rows, start_id, end_id):
+def find_unique_chain(rows, start_id, end_id, start_order=None, end_order=None):
     by_lanelet = {}
     for row in rows:
         by_lanelet.setdefault(row["lanelet_id"], []).append(row)
@@ -107,7 +191,9 @@ def find_unique_chain(rows, start_id, end_id):
         if row["order"] in visited_orders:
             return
         next_chain = chain + [row]
-        if row["lanelet_id"] == end_id:
+        if row["lanelet_id"] == end_id and (
+            end_order is None or row["order"] == end_order
+        ):
             chains.append(next_chain)
             return
         successor = row["successor_lanelet_id"]
@@ -122,6 +208,8 @@ def find_unique_chain(rows, start_id, end_id):
             visit(candidate, next_chain, visited_orders | {row["order"]})
 
     for start in by_lanelet.get(start_id, []):
+        if start_order is not None and start["order"] != start_order:
+            continue
         visit(start, [], set())
 
     unique = {}
@@ -270,12 +358,25 @@ def row_speed_limit_kph(row, lanelet_speed_kph, default_speed_limit_kph):
 
 
 def target_speed_mps(
-    row, lanelet_speed_kph, desired_velocity_kph, default_speed_limit_kph
+    row,
+    lanelet_speed_kph,
+    desired_velocity_kph,
+    default_speed_limit_kph,
+    speed_profile=None,
 ):
+    requested_velocity_kph = desired_velocity_kph
+    if speed_profile is not None:
+        requested_velocity_kph = speed_profile["lanelet_velocity_kph"].get(
+            row["lanelet_id"],
+            speed_profile["default_velocity_kph"],
+        )
+        if not speed_profile["respect_speed_limits"]:
+            return requested_velocity_kph / 3.6
+
     speed_limit_kph = row_speed_limit_kph(
         row, lanelet_speed_kph, default_speed_limit_kph
     )
-    return min(desired_velocity_kph, speed_limit_kph) / 3.6
+    return min(requested_velocity_kph, speed_limit_kph) / 3.6
 
 
 def stitch_chain(
@@ -285,6 +386,7 @@ def stitch_chain(
     global_path,
     desired_velocity_kph,
     default_speed_limit_kph,
+    speed_profile=None,
 ):
     vertices = []
     previous_end = None
@@ -298,6 +400,7 @@ def stitch_chain(
             speed_limits.get(lanelet_id),
             desired_velocity_kph,
             default_speed_limit_kph,
+            speed_profile,
         )
         if previous_end is not None:
             gap = math.sqrt(squared_distance_xy(previous_end, points[0]))
@@ -369,6 +472,70 @@ def resample(vertices, interval):
     return output, total_length
 
 
+def apply_speed_envelope(
+    points,
+    max_acceleration_mps2,
+    max_deceleration_mps2,
+):
+    if len(points) < 2:
+        raise ValueError("speed envelope requires at least two trajectory points")
+    max_acceleration_mps2 = positive_finite(
+        max_acceleration_mps2, "max_acceleration_mps2"
+    )
+    max_deceleration_mps2 = positive_finite(
+        max_deceleration_mps2, "max_deceleration_mps2"
+    )
+    # velocity_mps is serialized to six decimal places. Keep a small margin so
+    # the profile reconstructed from the CSV still respects the requested
+    # limits after that quantization.
+    quantization_margin_mps2 = 1.0e-3
+    envelope_acceleration_mps2 = max(
+        max_acceleration_mps2 - quantization_margin_mps2, 1.0e-9
+    )
+    envelope_deceleration_mps2 = max(
+        max_deceleration_mps2 - quantization_margin_mps2, 1.0e-9
+    )
+
+    segment_lengths = []
+    for first, second in zip(points, points[1:]):
+        distance = math.dist(
+            (first["x"], first["y"], first["z"]),
+            (second["x"], second["y"], second["z"]),
+        )
+        if distance <= 1e-9:
+            raise ValueError("trajectory contains duplicate consecutive points")
+        segment_lengths.append(distance)
+
+    velocities = [point["velocity_mps"] for point in points]
+    for index in range(1, len(velocities)):
+        reachable = math.sqrt(
+            velocities[index - 1] ** 2
+            + 2.0
+            * envelope_acceleration_mps2
+            * segment_lengths[index - 1]
+        )
+        velocities[index] = min(velocities[index], reachable)
+
+    for index in range(len(velocities) - 2, -1, -1):
+        reachable = math.sqrt(
+            velocities[index + 1] ** 2
+            + 2.0
+            * envelope_deceleration_mps2
+            * segment_lengths[index]
+        )
+        velocities[index] = min(velocities[index], reachable)
+
+    velocities = [round(velocity, 6) for velocity in velocities]
+    for index, point in enumerate(points):
+        point["velocity_mps"] = velocities[index]
+        if index + 1 < len(points):
+            point["acceleration_mps2"] = (
+                velocities[index + 1] ** 2 - velocities[index] ** 2
+            ) / (2.0 * segment_lengths[index])
+        else:
+            point["acceleration_mps2"] = 0.0
+
+
 def write_csv(output_path, points, overwrite):
     if output_path.exists() and not overwrite:
         raise FileExistsError(
@@ -407,50 +574,38 @@ def write_csv(output_path, points, overwrite):
         raise
 
 
-def select_publisher_csv(root, output_path):
-    publisher_config = (
-        root
-        / "base_ws/src/control/trajectory_generator/config/trajectory_publisher.yaml"
-    )
-    relative_csv = output_path.relative_to(
-        root / "base_ws/src/control/trajectory_generator"
-    ).as_posix()
-    lines = publisher_config.read_text().splitlines()
-    matches = [
-        index
-        for index, line in enumerate(lines)
-        if line.lstrip().startswith("trajectory_csv:")
-    ]
-    if len(matches) != 1:
-        raise ValueError(
-            "publisher config must contain exactly one trajectory_csv entry"
-        )
-    lines[matches[0]] = "trajectory_csv: {}".format(relative_csv)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=publisher_config.name + ".",
-        suffix=".tmp",
-        dir=str(publisher_config.parent),
-    )
-    try:
-        with os.fdopen(descriptor, "w") as stream:
-            stream.write("\n".join(lines) + "\n")
-        os.replace(temporary_name, publisher_config)
-    except Exception:
-        try:
-            os.unlink(temporary_name)
-        except FileNotFoundError:
-            pass
-        raise
-
-
 def main():
     parser = argparse.ArgumentParser(description="Generate a controller trajectory from Lanelet2")
     parser.add_argument("--config", required=True, help="repository-relative generator YAML")
     parser.add_argument("--overwrite", action="store_true", help="replace an existing output CSV")
     parser.add_argument(
-        "--select",
-        action="store_true",
-        help="select the generated CSV in trajectory_publisher.yaml",
+        "--start-lanelet-id",
+        type=int,
+        help="override anchors.start_lanelet_id from the config",
+    )
+    parser.add_argument(
+        "--end-lanelet-id",
+        type=int,
+        help="override anchors.end_lanelet_id from the config",
+    )
+    parser.add_argument(
+        "--start-route-order",
+        type=int,
+        help="select the start lanelet occurrence when its ID appears more than once",
+    )
+    parser.add_argument(
+        "--end-route-order",
+        type=int,
+        help="select the end lanelet occurrence when its ID appears more than once",
+    )
+    parser.add_argument(
+        "--desired-velocity-kph",
+        type=float,
+        help="override trajectory.desired_velocity_kph from the config",
+    )
+    parser.add_argument(
+        "--output-csv",
+        help="repository-relative CSV output path (default: traj_sample/<start>_<end>.csv)",
     )
     arguments = parser.parse_args()
 
@@ -476,15 +631,26 @@ def main():
         require(reference_config, "global_path_file", "reference"),
         "global_path_file",
     )
-    start_id = int(require(anchors, "start_lanelet_id", "anchors"))
-    end_id = int(require(anchors, "end_lanelet_id", "anchors"))
+    start_id = (
+        arguments.start_lanelet_id
+        if arguments.start_lanelet_id is not None
+        else int(require(anchors, "start_lanelet_id", "anchors"))
+    )
+    end_id = (
+        arguments.end_lanelet_id
+        if arguments.end_lanelet_id is not None
+        else int(require(anchors, "end_lanelet_id", "anchors"))
+    )
     interval = float(require(trajectory_config, "resample_interval_m", "trajectory"))
-    desired_velocity_kph = float(
-        require(trajectory_config, "desired_velocity_kph", "trajectory")
+    desired_velocity_kph = (
+        arguments.desired_velocity_kph
+        if arguments.desired_velocity_kph is not None
+        else float(require(trajectory_config, "desired_velocity_kph", "trajectory"))
     )
     default_speed_limit_kph = float(
         require(trajectory_config, "default_speed_limit_kph", "trajectory")
     )
+    speed_profile = load_speed_profile(trajectory_config)
     if not math.isclose(interval, 0.1, rel_tol=0.0, abs_tol=1e-9):
         raise ValueError("resample_interval_m must be 0.1 for the MVP contract")
     if not math.isfinite(desired_velocity_kph) or desired_velocity_kph <= 0.0:
@@ -493,7 +659,30 @@ def main():
         raise ValueError("default_speed_limit_kph must be finite and positive")
 
     route_rows = load_route(route_path)
-    chain = find_unique_chain(route_rows, start_id, end_id)
+    chain = find_unique_chain(
+        route_rows,
+        start_id,
+        end_id,
+        arguments.start_route_order
+        if arguments.start_route_order is not None
+        else anchors.get("start_route_order"),
+        arguments.end_route_order
+        if arguments.end_route_order is not None
+        else anchors.get("end_route_order"),
+    )
+    if speed_profile is not None:
+        chain_lanelet_ids = {row["lanelet_id"] for row in chain}
+        unused_overrides = sorted(
+            set(speed_profile["lanelet_velocity_kph"]).difference(
+                chain_lanelet_ids
+            )
+        )
+        if unused_overrides:
+            raise ValueError(
+                "speed-profile lanelets are not in the selected chain: {}".format(
+                    unused_overrides
+                )
+            )
     projector = parse_projector(projector_path)
     centerlines, speed_limits = load_lanelet_centerlines(osm_path, projector)
     reference_points = load_global_path(global_path)
@@ -504,23 +693,33 @@ def main():
         reference_points,
         desired_velocity_kph,
         default_speed_limit_kph,
+        speed_profile,
     )
     points, length_m = resample(vertices, interval)
+    if speed_profile is not None:
+        apply_speed_envelope(
+            points,
+            speed_profile["max_acceleration_mps2"],
+            speed_profile["max_deceleration_mps2"],
+        )
 
-    velocity_token = (
-        "{:.6f}".format(desired_velocity_kph).rstrip("0").rstrip(".").replace(".", "p")
-    )
-    output_path = (
-        root
-        / "base_ws/src/control/trajectory_generator/traj_sample"
-        / "{}_{}_{}kph.csv".format(start_id, end_id, velocity_token)
-    )
+    configured_output = trajectory_config.get("output_csv")
+    if arguments.output_csv:
+        output_path = resolve_repo_output_path(
+            root, arguments.output_csv, "output_csv"
+        )
+    elif configured_output:
+        output_path = resolve_repo_output_path(
+            root, configured_output, "trajectory.output_csv"
+        )
+    else:
+        output_path = (
+            root
+            / "base_ws/src/control/trajectory_generator/traj_sample"
+            / "{}_{}.csv".format(start_id, end_id)
+        )
     write_csv(output_path, points, arguments.overwrite)
-    if arguments.select:
-        select_publisher_csv(root, output_path)
     print("trajectory generated: {}".format(output_path))
-    if arguments.select:
-        print("trajectory selected for publishing: {}".format(output_path.name))
     print(
         "lanelets={} route_orders={}..{} length_m={:.3f} points={} interval_m={:.3f}".format(
             len(chain), chain[0]["order"], chain[-1]["order"], length_m, len(points), interval
@@ -535,6 +734,17 @@ def main():
             max(point["velocity_mps"] for point in points) * 3.6,
         )
     )
+    if speed_profile is not None:
+        print(
+            "speed_profile default_kph={:.3f} overrides={} "
+            "respect_speed_limits={} accel_mps2=+{:.3f}/-{:.3f}".format(
+                speed_profile["default_velocity_kph"],
+                len(speed_profile["lanelet_velocity_kph"]),
+                speed_profile["respect_speed_limits"],
+                speed_profile["max_acceleration_mps2"],
+                speed_profile["max_deceleration_mps2"],
+            )
+        )
 
 
 if __name__ == "__main__":

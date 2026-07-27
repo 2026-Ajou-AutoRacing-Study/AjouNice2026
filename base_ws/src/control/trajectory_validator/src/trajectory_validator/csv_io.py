@@ -1,8 +1,35 @@
 import csv
 
-from trajectory_validator.metrics import yaw_from_quaternion
 
+# Schema v5: the permanent compact runtime contract. Configuration and other
+# run-constant context belong in metadata.json, not in every sample row.
+TRACKING_FIELDS = [
+    "sample_index",
+    "elapsed_time_s",
+    "matched_gt_station_m",
+    "ego_x_m",
+    "ego_y_m",
+    "ego_yaw_rad",
+    "ego_velocity_mps",
+    "ego_yaw_rate_rps",
+    "target_velocity_mps",
+    "pp_lookahead_distance_m",
+    "pp_path_curvature_1pm",
+    "pp_target_curvature_1pm",
+    "lateral_error_m",
+    "pp_lateral_error_m",
+    "heading_error_rad",
+    "cmd_steering_rad",
+    "actual_steering_rad",
+    "control_pair_valid",
+    "pp_controller_valid",
+    "pp_debug_fresh",
+    "collision_detected",
+]
 
+# Schema v3/v4 contracts remain reader-only so existing history can still be
+# replayed after new recordings switch to the compact v5 contract.
+# cmd_velocity_mps is a legacy naming bug: the stored raw MORAI value is kph.
 GT_FIELDS = [
     "gt_index", "gt_time_from_start_s", "gt_x_m", "gt_y_m", "gt_z_m",
     "gt_qx", "gt_qy", "gt_qz", "gt_qw", "gt_yaw_rad",
@@ -27,7 +54,15 @@ CONTROL_FIELDS = [
     "lateral_error_m", "longitudinal_error_m", "heading_error_rad",
     "velocity_error_mps", "steering_error_rad", "collision_detected",
     "reached_goal", "control_pair_valid",
+    "pp_controller_valid", "pp_status_fresh", "pp_status_age_s",
+    "pp_failure_reason", "pp_lookahead_distance_m", "pp_path_curvature_1pm",
+    "pp_target_curvature_1pm", "pp_lateral_error_m", "pp_steering_command_rad",
+    "pp_debug_fresh", "pp_debug_age_s",
 ]
+
+# v4 adds the Autoware Pure Pursuit telemetry columns above.  Keep v3 histories
+# replayable: only the v3 contract is required when reading a pre-existing CSV.
+CONTROL_REQUIRED_FIELDS = CONTROL_FIELDS[:46]
 
 RESPONSE_FIELDS = [
     "response_index", "control_index", "command_received_ros_ns",
@@ -43,61 +78,22 @@ RESPONSE_FIELDS = [
 ]
 
 
-class RunCsvWriter:
-    def __init__(self, gt_path, control_path, response_path):
-        self.gt_stream = gt_path.open("w", newline="")
-        self.control_stream = control_path.open("w", newline="")
-        self.response_stream = response_path.open("w", newline="")
-        self.gt_writer = csv.DictWriter(self.gt_stream, fieldnames=GT_FIELDS)
-        self.control_writer = csv.DictWriter(self.control_stream, fieldnames=CONTROL_FIELDS)
-        self.response_writer = csv.DictWriter(self.response_stream, fieldnames=RESPONSE_FIELDS)
-        for writer in (self.gt_writer, self.control_writer, self.response_writer):
-            writer.writeheader()
-        self.gt_count = 0
-        self.control_count = 0
-        self.response_count = 0
+class TrackingCsvWriter:
+    def __init__(self, path):
+        self.stream = path.open("w", newline="")
+        self.writer = csv.DictWriter(self.stream, fieldnames=TRACKING_FIELDS)
+        self.writer.writeheader()
+        self.count = 0
 
-    def write_gt(self, trajectory):
-        if self.gt_count:
-            raise RuntimeError("GT rows were already written")
-        for index, point in enumerate(trajectory.points):
-            orientation = point.pose.orientation
-            self.gt_writer.writerow({
-                "gt_index": index,
-                "gt_time_from_start_s": point.time_from_start.to_sec(),
-                "gt_x_m": point.pose.position.x,
-                "gt_y_m": point.pose.position.y,
-                "gt_z_m": point.pose.position.z,
-                "gt_qx": orientation.x,
-                "gt_qy": orientation.y,
-                "gt_qz": orientation.z,
-                "gt_qw": orientation.w,
-                "gt_yaw_rad": yaw_from_quaternion(orientation),
-                "gt_longitudinal_velocity_mps": point.longitudinal_velocity_mps,
-                "gt_lateral_velocity_mps": point.lateral_velocity_mps,
-                "gt_acceleration_mps2": point.acceleration_mps2,
-                "gt_heading_rate_rps": point.heading_rate_rps,
-                "gt_front_wheel_angle_rad": point.front_wheel_angle_rad,
-                "gt_rear_wheel_angle_rad": point.rear_wheel_angle_rad,
-            })
-            self.gt_count += 1
-        self.gt_stream.flush()
-
-    def write_control(self, row):
-        self.control_writer.writerow({field: row[field] for field in CONTROL_FIELDS})
-        self.control_count += 1
-        self.control_stream.flush()
-
-    def write_response(self, row):
-        self.response_writer.writerow({field: row[field] for field in RESPONSE_FIELDS})
-        self.response_count += 1
-        self.response_stream.flush()
+    def write(self, row):
+        self.writer.writerow({field: row[field] for field in TRACKING_FIELDS})
+        self.count += 1
+        self.stream.flush()
 
     def close(self):
-        for stream in (self.gt_stream, self.control_stream, self.response_stream):
-            if not stream.closed:
-                stream.flush()
-                stream.close()
+        if not self.stream.closed:
+            self.stream.flush()
+            self.stream.close()
 
 
 def _load(path, fields, label):
@@ -109,14 +105,27 @@ def _load(path, fields, label):
         return list(reader)
 
 
-def load_run_csv(gt_path, control_path, response_path):
+def load_legacy_run_csv(gt_path, control_path, response_path):
     gt_rows = _load(gt_path, GT_FIELDS, "GT")
-    control_rows = _load(control_path, CONTROL_FIELDS, "control cycles")
+    control_rows = _load(control_path, CONTROL_REQUIRED_FIELDS, "control cycles")
     response_rows = _load(response_path, RESPONSE_FIELDS, "vehicle responses")
     gt_rows.sort(key=lambda row: int(row["gt_index"]))
     control_rows.sort(key=lambda row: int(row["control_index"]))
     response_rows.sort(key=lambda row: int(row["response_index"]))
     return gt_rows, control_rows, response_rows
+
+
+def load_tracking_csv(path):
+    rows = _load(path, TRACKING_FIELDS, "tracking samples")
+    rows.sort(key=lambda row: int(row["sample_index"]))
+    for expected_index, row in enumerate(rows):
+        if int(row["sample_index"]) != expected_index:
+            raise ValueError("tracking sample indices are not contiguous from zero")
+    return rows
+
+
+# Backward-compatible import name used by older publisher modules.
+load_run_csv = load_legacy_run_csv
 
 
 def as_float(row, field, default=0.0):

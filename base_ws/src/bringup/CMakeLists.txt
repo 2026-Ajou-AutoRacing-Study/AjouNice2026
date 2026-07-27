@@ -10,6 +10,7 @@ project(bringup)
 find_package(catkin REQUIRED COMPONENTS
   autoware_adapi_v1_msgs
   autoware_internal_planning_msgs
+  autoware_map_msgs
   autoware_perception_msgs
   autoware_planning_msgs
   geometry_msgs
@@ -113,6 +114,7 @@ catkin_package(
   CATKIN_DEPENDS
   autoware_adapi_v1_msgs
   autoware_internal_planning_msgs
+  autoware_map_msgs
   autoware_perception_msgs
   autoware_planning_msgs
   geometry_msgs
@@ -178,6 +180,9 @@ catkin_install_python(
   validation/scripts/mission_bpp_pipeline_validator.py
   validation/scripts/mission_bpp_bvp_pipeline_validator.py
   validation/scripts/mission_bpp_bvp_live_visualizer.py
+  validation/scripts/kcity_competition_route_publisher.py
+  validation/scripts/kcity_competition_live_route_publisher.py
+  validation/scripts/kcity_dynamic_ego_validator.py
   validation/scripts/planning_pipeline_reference_input.py
   validation/scripts/planning_trajectory_visualizer.py
   validation/scripts/planning_velocity_scenario_atlas.py
@@ -234,4 +239,7 @@ install(
 # endif()
 
 ## Add folders to be run by python nosetests
-# catkin_add_nosetests(test)
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_nosetests(test/test_planning_trajectory_visualizer.py)
+  catkin_add_nosetests(test/test_kcity_dynamic_ego_validator.py)
+endif()

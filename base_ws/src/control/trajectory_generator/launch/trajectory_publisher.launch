@@ -1,4 +1,6 @@
 <launch>
+  <arg name="trajectory_csv" default="traj_sample/variable/200889_200889_v.csv"/>
+
   <node pkg="trajectory_generator"
         type="trajectory_publisher_node"
         name="trajectory_publisher"
@@ -6,5 +8,6 @@
         required="true">
     <rosparam command="load"
               file="$(find trajectory_generator)/config/trajectory_publisher.yaml"/>
+    <param name="trajectory_csv" value="$(arg trajectory_csv)"/>
   </node>
 </launch>

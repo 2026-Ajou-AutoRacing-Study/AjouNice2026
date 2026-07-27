@@ -5,29 +5,64 @@ add_compile_options(-std=c++14 -Wall -Wextra -Wpedantic)
 
 find_package(catkin REQUIRED COMPONENTS
   autoware_planning_msgs
+  geometry_msgs
+  message_generation
   morai_msgs
   nav_msgs
   roscpp
   std_msgs
 )
 
+add_message_files(FILES PurePursuitDebug.msg)
+
+generate_messages(DEPENDENCIES std_msgs)
+
 catkin_package(
-  CATKIN_DEPENDS autoware_planning_msgs morai_msgs nav_msgs roscpp std_msgs
+  INCLUDE_DIRS include
+  LIBRARIES adaptive_pure_pursuit_core
+  CATKIN_DEPENDS
+    autoware_planning_msgs
+    geometry_msgs
+    message_runtime
+    morai_msgs
+    nav_msgs
+    roscpp
+    std_msgs
 )
 
-include_directories(${catkin_INCLUDE_DIRS})
+include_directories(include ${catkin_INCLUDE_DIRS})
 
 add_executable(purepursuit src/purepursuit.cpp)
 add_executable(longi_pi src/longi_pi.cpp)
-add_dependencies(purepursuit ${catkin_EXPORTED_TARGETS})
-add_dependencies(longi_pi ${catkin_EXPORTED_TARGETS})
+add_library(adaptive_pure_pursuit_core src/adaptive_pure_pursuit_core.cpp)
+add_executable(purepursuit_autoware src/purepursuit_autoware.cpp)
+add_executable(longi_pi_autoware src/longi_pi_autoware.cpp)
+add_dependencies(purepursuit ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(longi_pi ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(purepursuit_autoware ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(longi_pi_autoware ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(purepursuit ${catkin_LIBRARIES})
 target_link_libraries(longi_pi ${catkin_LIBRARIES})
+target_link_libraries(purepursuit_autoware adaptive_pure_pursuit_core ${catkin_LIBRARIES})
+target_link_libraries(longi_pi_autoware ${catkin_LIBRARIES})
 
-install(TARGETS purepursuit longi_pi
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_adaptive_pure_pursuit_core test/test_adaptive_pure_pursuit_core.cpp)
+  if(TARGET test_adaptive_pure_pursuit_core)
+    target_link_libraries(test_adaptive_pure_pursuit_core adaptive_pure_pursuit_core)
+  endif()
+endif()
+
+install(TARGETS purepursuit longi_pi purepursuit_autoware longi_pi_autoware adaptive_pure_pursuit_core
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 )
 
-install(DIRECTORY config launch
+install(DIRECTORY include/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+)
+
+install(DIRECTORY config launch msg
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

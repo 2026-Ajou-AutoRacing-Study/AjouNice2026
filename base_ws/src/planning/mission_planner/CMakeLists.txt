@@ -52,3 +52,7 @@ install(
   DIRECTORY launch rviz docs
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_nosetests(test/test_mission_planner_rviz_input.py)
+endif()

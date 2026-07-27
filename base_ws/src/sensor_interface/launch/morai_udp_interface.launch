@@ -4,14 +4,16 @@
        default="$(find ioniq5)/../../../configs/sensors/Sensor_4.json"/>
   <arg name="network_config"
        default="$(find ioniq5)/../../../configs/network/ego_network_1.json"/>
+  <arg name="vehicle_config"
+       default="$(find ioniq5)/../../../configs/vehicle/ioniq5.yaml"/>
   <arg name="enable_sensors" default="true"/>
   <arg name="enable_lidar" default="true"/>
   <arg name="enable_ego_network" default="true"/>
   <arg name="enable_control" default="true"/>
   <arg name="lidar_port" default="2368"/>
   <arg name="lidar_frame" default="lidar1"/>
-  <!-- Competition recommendation: LiDAR output at or below 10 Hz. -->
-  <arg name="lidar_rpm" default="600.0"/>
+  <!-- LiDAR output: 900 RPM = 15 Hz. -->
+  <arg name="lidar_rpm" default="900.0"/>
   <arg name="lidar_timestamp_first_packet" default="true"/>
   <arg name="lidar_calibration"
        default="$(find velodyne_pointcloud)/params/VLP16db.yaml"/>
@@ -46,5 +48,7 @@
     <param name="network_config" value="$(arg network_config)"/>
     <param name="ctrl_mode" value="2"/>
     <param name="gear" value="4"/>
+    <!-- /ctrl_cmd steering is a physical wheel angle [rad]; MORAI UDP steer is normalized. -->
+    <rosparam command="load" file="$(arg vehicle_config)"/>
   </node>
 </launch>

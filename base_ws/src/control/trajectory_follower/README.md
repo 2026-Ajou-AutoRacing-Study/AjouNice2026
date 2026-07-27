@@ -27,10 +27,10 @@ rostopic hz /localization/kinematic_state
   `base_link` pose와 twist를 제공한다. MORAI GT에서는 `localization_morai_gt` 또는
   `maptf_morai_deg_correction.launch`를 실행한다.
 
-현재 MORAI GT kinematic 입력의 속도 숫자는 km/h이므로 follower 경계에서
-`kinematic_velocity_scale_to_mps: 1/3.6`을 적용한다. Trajectory 목표 속도와 제어기 내부
-계산은 계속 m/s를 사용한다. 다른 localization provider가 이미 m/s를 제공하면 공통 설정의
-scale을 `1.0`으로 바꿔야 한다.
+현재 MORAI GT를 포함한 `/localization/kinematic_state` 입력은 m/s이므로 공통 설정에서
+`kinematic_velocity_scale_to_mps: 1.0`을 적용한다. Trajectory 목표 속도와 제어기 내부
+계산도 m/s를 사용한다. 단위 계약이 다른 localization provider를 연결할 때만 실제 출력
+단위를 측정한 뒤 이 scale을 변경한다.
 
 ## 사용법
 
@@ -45,6 +45,24 @@ roslaunch trajectory_follower pp_pi.launch
 ```bash
 traj_fol
 ```
+
+Autoware Pure Pursuit 구현은 같은 controller에서 LD 결정 방식만 바꾼다. 모드와
+고정 LD는 항상 `config/purepursuit_autoware.yaml`의 `lookahead` 값으로 결정한다.
+launch 인자로 덮어쓰지 않는다.
+
+```bash
+# config/purepursuit_autoware.yaml 편집 예시
+lookahead:
+  mode: fixed                 # 또는 adaptive
+  fixed_distance_m: 4.0       # mode: fixed일 때 사용
+
+# YAML을 저장한 뒤 실행
+roslaunch trajectory_follower pp_pi_autoware.launch
+```
+
+두 모드는 `path_processing/resampling_ds_m`과
+`path_processing/curvature_calculation_distance_m`을 공유한다. 따라서 같은 trajectory와
+차량 상태에서는 `path_curvature`가 같고 LD 선택 이후의 target/steering 계산도 동일하다.
 
 튜닝 파일을 바꾸어 실행할 수도 있다.
 

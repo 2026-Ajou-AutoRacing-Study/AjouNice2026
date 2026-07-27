@@ -2,6 +2,8 @@
 #include <sys/socket.h>
 
 #include <algorithm>
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
@@ -13,6 +15,8 @@
 #include "sensor_interface/morai_udp_common.hpp"
 
 namespace {
+
+constexpr double kDegToRad = 0.017453292519943295769;
 
 #pragma pack(push, 1)
 struct EgoCtrlCmdPacket {
@@ -41,7 +45,12 @@ class MoraiCtrlCmdUdpSender {
     private_nh_.param<std::string>("network_config", network_config_, std::string());
     private_nh_.param("ctrl_mode", ctrl_mode_, 2);
     private_nh_.param("gear", gear_, 4);
+    private_nh_.param("vehicle/max_wheel_angle_deg", max_wheel_angle_deg_, 40.0);
     if (network_config_.empty()) throw std::runtime_error("~network_config is required");
+    if (!std::isfinite(max_wheel_angle_deg_) || max_wheel_angle_deg_ <= 0.0) {
+      throw std::runtime_error("~vehicle/max_wheel_angle_deg must be finite and positive");
+    }
+    max_wheel_angle_rad_ = max_wheel_angle_deg_ * kDegToRad;
 
     const auto root = morai_udp::readJson(network_config_);
     const auto& ego = root.get_child("egoNetworkData").front().second;
@@ -57,8 +66,8 @@ class MoraiCtrlCmdUdpSender {
       const auto remote = morai_udp::udpEndpoint(config, "hostIP", "hostPort");
       socket_ = morai_udp::bindReceiver(local);
       remote_address_ = morai_udp::remoteAddress(remote);
-      ROS_INFO("Ctrl Cmd ROS /ctrl_cmd -> UDP %s:%d (local %s:%d, longi type 1)",
-               remote.ip.c_str(), remote.port, local.ip.c_str(), local.port);
+      ROS_INFO("Ctrl Cmd ROS /ctrl_cmd -> UDP %s:%d (local %s:%d, longi type 1, steer normalized by %.3f deg)",
+               remote.ip.c_str(), remote.port, local.ip.c_str(), local.port, max_wheel_angle_deg_);
       found = true;
       break;
     }
@@ -86,7 +95,16 @@ class MoraiCtrlCmdUdpSender {
     packet.acceleration = static_cast<float>(message->acceleration);
     packet.accel = static_cast<float>(std::max(0.0, std::min(1.0, message->accel)));
     packet.brake = static_cast<float>(std::max(0.0, std::min(1.0, message->brake)));
-    packet.steer = static_cast<float>(message->steering);
+    // /ctrl_cmd carries a physical front-wheel angle in radians.  Competition
+    // MORAI UDP interprets steer as a normalized command in [-1, 1], where one
+    // corresponds to the vehicle's configured maximum wheel angle.
+    const double normalized_steer = message->steering / max_wheel_angle_rad_;
+    if (std::abs(normalized_steer) > 1.0) {
+      ROS_WARN_THROTTLE(1.0,
+                        "/ctrl_cmd steering %.4f rad exceeds configured +/-%.4f rad; clamping MORAI steer",
+                        message->steering, max_wheel_angle_rad_);
+    }
+    packet.steer = static_cast<float>(std::max(-1.0, std::min(1.0, normalized_steer)));
     packet.tail[0] = '\r';
     packet.tail[1] = '\n';
 
@@ -105,6 +123,8 @@ class MoraiCtrlCmdUdpSender {
   int socket_ = -1;
   int ctrl_mode_ = 2;
   int gear_ = 4;
+  double max_wheel_angle_deg_ = 40.0;
+  double max_wheel_angle_rad_ = 40.0 * kDegToRad;
   sockaddr_in remote_address_{};
 };
 

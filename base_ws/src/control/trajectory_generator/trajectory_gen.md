@@ -71,19 +71,26 @@ Lanelet2 OSM과 drive-course CSV는 같은 map version이어야 한다.
 5. route endpoint, 이전 중심선, global path를 이용해 중심선 방향을 정한다.
 6. 중심선을 연결하고 3차원 누적 거리 기준 0.1 m로 resampling한다.
 7. yaw, 목표 속도, lanelet ID, route order를 기록한다.
+8. `speed_profile`이 있으면 lanelet별 상한에 전방 가속·후방 감속 envelope를 적용한다.
 
 제한속도는 drive-course `speed_limit_kph`, OSM speed limit,
 `default_speed_limit_kph` 순으로 결정한다. 이 값은 목표 속도가 아니라 상한이다. 각 점의 최종
 목표 속도는 `min(desired_velocity_kph, speed_limit_kph) / 3.6`으로 계산해 m/s로 기록한다.
 출발/종료 ramp는 만들지 않고 마지막 point의 목표 속도도 강제로 0으로 바꾸지 않는다.
-`acceleration_mps2`는 MVP에서 `0.0`이다.
+기본 고정속도 모드에서 `acceleration_mps2`는 `0.0`이다.
+
+선택적 `trajectory.speed_profile` 모드에서는 `default_velocity_kph`와
+`lanelet_velocity_kph`로 점별 속도 상한을 만든다. `respect_speed_limits=true`이면 기존 제한속도를
+그대로 준수하고, `false`이면 명시된 실험 profile을 우선한다. 이후
+`max_acceleration_mps2` 전방 패스와 `max_deceleration_mps2` 후방 패스를 적용하고,
+`acceleration_mps2=(v_next^2-v^2)/(2*ds)`로 각 점의 가속도를 기록한다.
 
 ## CSV 계약
 
 파일명과 위치:
 
 ```text
-traj_sample/<start_lanelet_id>_<end_lanelet_id>_<desired_velocity>kph.csv
+traj_sample/<start_lanelet_id>_<end_lanelet_id>.csv
 ```
 
 필수 column:

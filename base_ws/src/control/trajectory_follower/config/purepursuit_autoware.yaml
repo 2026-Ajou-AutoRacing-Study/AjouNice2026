@@ -1,0 +1,30 @@
+# Autoware Universe 0.52.0 control/autoware_pure_pursuit/config/pure_pursuit.param.yaml
+# baseline values. Vehicle geometry is loaded separately from configs/vehicle/ioniq5.yaml.
+lookahead:
+  # fixed: always use fixed_distance_m. adaptive: calculate LD from the
+  # vehicle speed, path curvature, and lateral error.
+  mode: adaptive
+  fixed_distance_m: 16.0
+path_processing:
+  # Shared by fixed and adaptive modes.
+  resampling_ds_m: 0.1
+  curvature_calculation_distance_m: 5.0
+
+adaptive:
+  # Reverse-fitted candidate from the fixed-LD history. Lateral error is
+  # intentionally disabled; validate in MORAI before production use.
+  ld_velocity_ratio: 0.35
+  ld_lateral_error_ratio: 0.0
+  ld_curvature_ratio: 0.0
+  long_ld_lateral_error_threshold: 0.5
+  min_lookahead_distance: 2.6
+  max_lookahead_distance: 15.0
+
+  reverse_min_lookahead_distance: 7.0
+
+# These remain documented here for comparison with upstream but are not required by the core.
+converged_steer_rad: 0.1
+prediction_ds: 0.3
+prediction_distance_length: 21.0
+enable_path_smoothing: false
+path_filter_moving_ave_num: 25

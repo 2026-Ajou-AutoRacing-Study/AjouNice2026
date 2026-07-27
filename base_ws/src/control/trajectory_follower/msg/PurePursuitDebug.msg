@@ -1,0 +1,9 @@
+std_msgs/Header header
+
+bool controller_valid
+string failure_reason
+float64 lookahead_distance_m
+float64 path_curvature_1pm
+float64 target_curvature_1pm
+float64 lateral_error_m
+float64 steering_command_rad

@@ -55,6 +55,7 @@
   <build_depend>std_msgs</build_depend>
   <build_depend>autoware_adapi_v1_msgs</build_depend>
   <build_depend>autoware_internal_planning_msgs</build_depend>
+  <build_depend>autoware_map_msgs</build_depend>
   <build_depend>autoware_perception_msgs</build_depend>
   <build_depend>autoware_planning_msgs</build_depend>
   <build_depend>geometry_msgs</build_depend>
@@ -67,6 +68,7 @@
   <build_export_depend>std_msgs</build_export_depend>
   <build_export_depend>autoware_adapi_v1_msgs</build_export_depend>
   <build_export_depend>autoware_internal_planning_msgs</build_export_depend>
+  <build_export_depend>autoware_map_msgs</build_export_depend>
   <build_export_depend>autoware_perception_msgs</build_export_depend>
   <build_export_depend>autoware_planning_msgs</build_export_depend>
   <build_export_depend>geometry_msgs</build_export_depend>
@@ -79,6 +81,7 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>autoware_adapi_v1_msgs</exec_depend>
   <exec_depend>autoware_internal_planning_msgs</exec_depend>
+  <exec_depend>autoware_map_msgs</exec_depend>
   <exec_depend>autoware_perception_msgs</exec_depend>
   <exec_depend>autoware_planning_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
@@ -99,6 +102,7 @@
   <exec_depend>morai_ros_bridge</exec_depend>
   <exec_depend>sensor_interface</exec_depend>
   <exec_depend>tf_pub</exec_depend>
+  <exec_depend>bevfusion_ros</exec_depend>
   <test_depend>autoware_internal_planning_msgs</test_depend>
   <test_depend>autoware_planning_msgs</test_depend>
   <test_depend>nav_msgs</test_depend>

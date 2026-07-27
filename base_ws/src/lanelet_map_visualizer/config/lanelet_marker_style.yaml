@@ -3,7 +3,7 @@
 
 # Multiplies every layer alpha below. Set to 0.6 to fade the entire Lanelet map.
 alpha:
-  global: 0.5
+  global: 0.4
   road_fill: 0.16
   crosswalk_fill: 0.30
   left_boundary: 0.95
@@ -16,12 +16,12 @@ alpha:
 
 # LINE_LIST thickness (m); traffic_light is the SPHERE_LIST diameter (m).
 width:
-  left_boundary: 0.18
-  right_boundary: 0.18
-  centerline: 0.12
-  road_border: 0.18
+  left_boundary: 0.1
+  right_boundary: 0.1
+  centerline: 0.14
+  road_border: 0.1
   lane_marking: 0.10
-  stop_line: 0.32
+  stop_line: 0.3
   traffic_light: 0.70
 
 # Meters above/below source geometry; avoids fill/line z-fighting in RViz.

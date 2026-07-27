@@ -1,0 +1,31 @@
+<launch>
+  <arg name="common_config"
+       default="$(find trajectory_follower)/config/trajectory_follower_autoware.yaml"/>
+  <arg name="pp_config"
+       default="$(find trajectory_follower)/config/purepursuit_autoware.yaml"/>
+  <arg name="pi_config"
+       default="$(find trajectory_follower)/config/longi_pi_autoware.yaml"/>
+  <arg name="vehicle_config"
+       default="$(find ioniq5)/../../../configs/vehicle/ioniq5.yaml"/>
+
+  <!-- This launch owns /control/command/steering and /ctrl_cmd. Do not run pp_pi.launch too. -->
+  <node pkg="trajectory_follower"
+        type="purepursuit_autoware"
+        name="purepursuit_autoware"
+        output="screen"
+        required="true">
+    <rosparam command="load" file="$(arg common_config)"/>
+    <rosparam command="load" file="$(arg pp_config)"/>
+    <rosparam command="load" file="$(arg vehicle_config)"/>
+  </node>
+
+  <node pkg="trajectory_follower"
+        type="longi_pi_autoware"
+        name="longi_pi_autoware"
+        output="screen"
+        required="true">
+    <rosparam command="load" file="$(arg common_config)"/>
+    <rosparam command="load" file="$(arg pi_config)"/>
+    <rosparam command="load" file="$(arg vehicle_config)"/>
+  </node>
+</launch>

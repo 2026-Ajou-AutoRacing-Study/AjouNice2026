@@ -1,0 +1,7 @@
+<library path="lib/libtrajectory_validator_rviz_panel">
+  <class name="trajectory_validator/PurePursuitHud"
+         type="trajectory_validator::PurePursuitHudPanel"
+         base_class_type="rviz::Panel">
+    <description>Two-row HUD for driving values and current/run-maximum tracking errors.</description>
+  </class>
+</library>
