@@ -241,10 +241,12 @@ CSV는 기존 publisher와 같은 스키마를 사용한다. JSON에는 설계 �
 
 ### 고정 곡률 고속 차선변경
 
-`generate_constant_curvature_lc.py`는 기본적으로 v45의 인접 차선 `200187 → 200188`을
-대상으로 한다. `200187` 중심선을 25 m 주행한 뒤 `[+κ, -κ]` 두 원호로 좌측 차선변경을
-수행한다. 사용자는 곡률 `k`만 지정하며, 두 중심선 간격에 맞는 세그먼트 길이 `L`은 항상
-자동 계산한다.
+`generate_constant_curvature_lc.py`는 기본적으로 v45의 `200137 → 200188`을 대상으로
+한다. `200137` 중심선을 끝까지 주행해 속도를 확보한 뒤, `200137`의 종료점
+(`200187`의 시작점)에서 `[+κ, -κ]` 두 원호로 좌측 차선변경을 수행한다. 사용자는 곡률
+`k`만 지정하며, 차선변경 시작점에서 `200188` 시작부까지의 차선 간격에 맞는 세그먼트
+길이 `L`은 항상 자동 계산한다. 원호가 `200188`에 접합된 뒤에는 `200188` 중심선의
+끝까지 경로를 이어서 생성한다.
 
 ```bash
 rosrun trajectory_generator generate_constant_curvature_lc.py \
@@ -257,7 +259,7 @@ rosrun trajectory_generator generate_constant_curvature_lc.py \
 구분할 수 있도록 `_lc`를 붙인다.
 
 ```text
-traj_sample/100kph/200187_200188_k0p0014_lc.csv
+traj_sample/100kph/200137_200188_k0p0014_lc.csv
 ```
 
 특정 속도와 곡률을 지정하면 `L`은 목표 차선 폭을 유지하도록 자동으로 달라진다.
@@ -267,7 +269,6 @@ rosrun trajectory_generator generate_constant_curvature_lc.py \
   --config base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml \
   --speeds-kph 100 120 140 \
   --kappa-mag 0.001 \
-  --approach-length-m 25 \
   --overwrite
 ```
 

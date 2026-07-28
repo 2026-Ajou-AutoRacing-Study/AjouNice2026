@@ -11,9 +11,8 @@ import generate_constant_curvature_return as curvature
 import generate_trajectory as base
 
 
-DEFAULT_START_LANELET_ID = 200187
+DEFAULT_START_LANELET_ID = 200137
 DEFAULT_END_LANELET_ID = 200188
-DEFAULT_APPROACH_LENGTH_M = 25.0
 DEFAULT_SPEEDS_KPH = tuple(range(60, 171, 10))
 SAMPLE_INTERVAL_M = 0.1
 
@@ -81,6 +80,39 @@ def sample_polyline_prefix(
     return output
 
 
+def sample_polyline_suffix(
+    points,
+    stations,
+    start_station_m,
+    interval_m,
+    velocity_mps,
+    lanelet_id,
+    route_order,
+):
+    remaining_length_m = stations[-1] - start_station_m
+    sample_stations = curvature.sample_stations(
+        remaining_length_m, interval_m
+    )
+    output = []
+    for offset_m in sample_stations:
+        station = start_station_m + offset_m
+        point = interpolate(points, stations, station)
+        output.append(
+            {
+                "index": len(output),
+                "x": point[0],
+                "y": point[1],
+                "z": point[2],
+                "yaw": tangent_yaw(points, stations, station),
+                "velocity_mps": velocity_mps,
+                "acceleration_mps2": 0.0,
+                "lanelet_id": lanelet_id,
+                "route_order": route_order,
+            }
+        )
+    return output
+
+
 def lane_change_width(kappa_mag, segment_length_m):
     if kappa_mag < curvature.CURVATURE_EPSILON:
         return 0.0
@@ -118,17 +150,15 @@ def kappa_filename_token(kappa_mag):
 def build_lane_change_geometry(
     source_points,
     target_points,
-    approach_length_m,
     kappa_mag,
 ):
     source_stations = cumulative_lengths(source_points)
     target_stations = cumulative_lengths(target_points)
-    start = interpolate(source_points, source_stations, approach_length_m)
-    start_yaw = tangent_yaw(source_points, source_stations, approach_length_m)
-    start_progress = approach_length_m / source_stations[-1]
-    target_at_start = interpolate(
-        target_points, target_stations, start_progress * target_stations[-1]
+    start = source_points[-1]
+    start_yaw = tangent_yaw(
+        source_points, source_stations, source_stations[-1]
     )
+    target_at_start = target_points[0]
     signed_width = relative_lateral_offset(
         start, start_yaw, target_at_start
     )
@@ -141,18 +171,17 @@ def build_lane_change_geometry(
         target_width, kappa_mag
     )
 
-    lc_arc_length = 2.0 * segment_length_m
-    if approach_length_m + lc_arc_length > source_stations[-1]:
+    angle = kappa_mag * segment_length_m
+    longitudinal_displacement_m = 2.0 * math.sin(angle) / kappa_mag
+    if longitudinal_displacement_m > target_stations[-1]:
         raise ValueError(
-            "approach plus lane-change length exceeds source lanelet: "
-            "{:.3f} + {:.3f} > {:.3f} m".format(
-                approach_length_m, lc_arc_length, source_stations[-1]
+            "lane-change longitudinal displacement exceeds target lanelet: "
+            "{:.3f} > {:.3f} m".format(
+                longitudinal_displacement_m, target_stations[-1]
             )
         )
-    source_progress = (approach_length_m + lc_arc_length) / source_stations[-1]
-    target_station = source_progress * target_stations[-1]
+    target_station = longitudinal_displacement_m
     target = interpolate(target_points, target_stations, target_station)
-    angle = kappa_mag * segment_length_m
     if angle >= math.pi / 2.0:
         raise ValueError("kappa_mag * segment_length_m must be below 90 deg")
 
@@ -181,7 +210,7 @@ def build_lane_change_geometry(
 def generate_points(
     geometry,
     source_points,
-    approach_length_m,
+    target_points,
     sample_interval_m,
     velocity_mps,
     start_lanelet_id,
@@ -191,7 +220,7 @@ def generate_points(
     approach = sample_polyline_prefix(
         source_points,
         geometry["source_stations"],
-        approach_length_m,
+        geometry["source_stations"][-1],
         sample_interval_m,
         velocity_mps,
         start_lanelet_id,
@@ -208,10 +237,20 @@ def generate_points(
         end_lanelet_id,
         route_order,
     )
-    points = approach + lane_change.points[1:]
+    target_stations = cumulative_lengths(target_points)
+    target_suffix = sample_polyline_suffix(
+        target_points,
+        target_stations,
+        geometry["target_station"],
+        sample_interval_m,
+        velocity_mps,
+        end_lanelet_id,
+        route_order,
+    )
+    points = approach + lane_change.points[1:] + target_suffix[1:]
     for index, point in enumerate(points):
         point["index"] = index
-    return points, lane_change.segment_ranges
+    return points, lane_change.segment_ranges, lane_change.points[-1]
 
 
 def parse_args():
@@ -228,11 +267,6 @@ def parse_args():
     )
     parser.add_argument(
         "--end-lanelet-id", type=int, default=DEFAULT_END_LANELET_ID
-    )
-    parser.add_argument(
-        "--approach-length-m",
-        type=float,
-        default=DEFAULT_APPROACH_LENGTH_M,
     )
     parser.add_argument(
         "--kappa-mag",
@@ -268,9 +302,6 @@ def main():
         base.require(map_config, "projector_file", "map"),
         "projector_file",
     )
-    approach_length_m = curvature.nonnegative_finite(
-        arguments.approach_length_m, "approach_length_m"
-    )
     speeds_kph = [
         base.positive_finite(speed, "speeds_kph") for speed in arguments.speeds_kph
     ]
@@ -294,9 +325,9 @@ def main():
     geometry = build_lane_change_geometry(
         centerlines[arguments.start_lanelet_id],
         centerlines[arguments.end_lanelet_id],
-        approach_length_m,
         arguments.kappa_mag,
     )
+    approach_length_m = geometry["source_stations"][-1]
     segment_length_m = geometry["segments"][0].length_m
     designed_width = lane_change_width(
         geometry["kappa_mag"], segment_length_m
@@ -317,10 +348,10 @@ def main():
         )
 
     for speed_kph in speeds_kph:
-        points, segment_ranges = generate_points(
+        points, segment_ranges, lane_change_end = generate_points(
             geometry,
             centerlines[arguments.start_lanelet_id],
-            approach_length_m,
+            centerlines[arguments.end_lanelet_id],
             SAMPLE_INTERVAL_M,
             speed_kph / 3.6,
             arguments.start_lanelet_id,
@@ -341,7 +372,17 @@ def main():
 
         end = points[-1]
         endpoint_gap = math.dist(
-            (end["x"], end["y"], end["z"]), geometry["target"]
+            (
+                lane_change_end["x"],
+                lane_change_end["y"],
+                lane_change_end["z"],
+            ),
+            geometry["target"],
+        )
+        target_continuation_length_m = (
+            cumulative_lengths(
+                centerlines[arguments.end_lanelet_id]
+            )[-1] - geometry["target_station"]
         )
         manifest = {
             "generator_name": "constant_curvature_lane_change",
@@ -357,12 +398,16 @@ def main():
             "end_lanelet_id": arguments.end_lanelet_id,
             "lanelet_map_file": str(osm_path.relative_to(root)),
             "approach_length_m": approach_length_m,
+            "lane_change_start_reference": "start_lanelet_end",
             "design_kappa_mag": geometry["kappa_mag"],
             "parameter_mode": "fixed_kappa_solved_length",
             "segment_length_m": segment_length_m,
             "lane_change_length_m": 2.0 * segment_length_m,
+            "target_lane_continuation_length_m":
+            target_continuation_length_m,
             "total_length_m": approach_length_m
-            + 2.0 * segment_length_m,
+            + 2.0 * segment_length_m
+            + target_continuation_length_m,
             "sample_interval_m": SAMPLE_INTERVAL_M,
             "speed_kph": speed_kph,
             "radius_m": 1.0 / geometry["kappa_mag"],
@@ -379,6 +424,12 @@ def main():
                 "y": geometry["start"][1],
                 "z": geometry["start"][2],
                 "yaw": geometry["start_yaw"],
+            },
+            "lane_change_end_pose": {
+                "x": lane_change_end["x"],
+                "y": lane_change_end["y"],
+                "z": lane_change_end["z"],
+                "yaw": lane_change_end["yaw"],
             },
             "end_pose": {
                 "x": end["x"],
