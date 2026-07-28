@@ -35,6 +35,9 @@ from tracking_prediction.msg import (
 
 # omega가 이 값보다 작으면 수치안정성을 위해 직진(등가속도) 공식으로 강제 전환
 OMEGA_EPS = 1e-3
+# 감쇠 가속도 모델의 lambda (클수록 감쇠 빠름). 2026-07-27 오프라인 비교실험
+# 절충안으로 0.4 채택 (mean 개선 vs median 유지 트레이드오프). ROS 파라미터로 덮어쓰기 가능.
+DECAY_LAMBDA = 0.4
 
 # 최근접 매칭 시 "같은 객체"로 볼 최대 거리(m). 이보다 멀면 새 객체로 간주하고
 # yaw_rate를 추정할 과거 정보가 없다고 보고 0으로 둔다.
@@ -46,36 +49,58 @@ def _project_to_scalar(vec2_like, heading):
     return vec2_like.x * math.cos(heading) + vec2_like.y * math.sin(heading)
 
 
-def ctra_predict(x, y, theta, v, omega, a, dt):
-    """CTRA 모델로 dt초 뒤의 (x, y, theta)를 예측한다."""
+def ctra_predict(x, y, theta, v, omega, a, dt, lam=DECAY_LAMBDA):
+    """
+    CTRA 모델로 dt초 뒤의 (x, y, theta)를 예측한다.
+    가속도는 상수가 아니라 a(t) = a * exp(-lam*t)로 감쇠한다고 가정
+    (Autoware map_based_prediction 방식). lam=0에 가까울수록 기존
+    등가속도 CTRA와 동일해짐 (수식 검증 완료).
+
+    오프라인 비교 실험 결과(2026-07-27), lam이 클수록 평균오차는
+    개선되나 중앙값은 소폭 악화되는 트레이드오프가 있어, 절충값으로
+    lam=0.4를 기본값으로 채택함 (~lambda 0.3~0.5 권장 구간).
+    """
     if abs(omega) < OMEGA_EPS:
-        # 직진(등가속도) 분기: 거리 = v*t + 1/2*a*t^2, 진행방향(theta)으로 투영
-        dist = v * dt + 0.5 * a * dt * dt
+        if lam < 1e-6:
+            dist = v * dt + 0.5 * a * dt * dt
+        else:
+            dist = v * dt + (a / lam) * (dt - (1.0 / lam) * (1 - math.exp(-lam * dt)))
         x_next = x + dist * math.cos(theta)
         y_next = y + dist * math.sin(theta)
-        theta_next = theta  # omega == 0
+        theta_next = theta
         return x_next, y_next, theta_next
 
-    # 회전 분기
     theta_next = theta + omega * dt
     sin_t, cos_t = math.sin(theta), math.cos(theta)
     sin_tn, cos_tn = math.sin(theta_next), math.cos(theta_next)
 
-    x_next = x + (
-        (a * dt * sin_tn) / omega
-        - (v * sin_t) / omega
-        + (v * sin_tn) / omega
-        - (a * cos_t) / (omega ** 2)
-        + (a * cos_tn) / (omega ** 2)
-    )
-    y_next = y - (
-        (a * dt * cos_tn) / omega
-        - (v * cos_t) / omega
-        + (v * cos_tn) / omega
-        + (a * sin_t) / (omega ** 2)
-        - (a * sin_tn) / (omega ** 2)
-    )
-    return x_next, y_next, theta_next
+    # 등속(v0) 부분: 기존 CTRA와 동일한 형태
+    x_const = v * (sin_tn - sin_t) / omega
+    y_const = v * (cos_t - cos_tn) / omega
+
+    if lam < 1e-6:
+        x_decay = (
+            (a * dt * sin_tn) / omega - (a * cos_t) / (omega ** 2) + (a * cos_tn) / (omega ** 2)
+        )
+        y_decay = (
+            -(a * dt * cos_tn) / omega - (a * sin_t) / (omega ** 2) + (a * sin_tn) / (omega ** 2)
+        )
+        return x + x_const + x_decay, y + y_const + y_decay, theta_next
+
+    denom = lam * lam + omega * omega
+    ic = (
+        math.exp(-lam * dt) * (-lam * cos_tn + omega * sin_tn)
+        - (-lam * cos_t + omega * sin_t)
+    ) / denom
+    is_ = (
+        math.exp(-lam * dt) * (-lam * sin_tn - omega * cos_tn)
+        - (-lam * sin_t - omega * cos_t)
+    ) / denom
+
+    x_decay = (a / lam) * ((sin_tn - sin_t) / omega - ic)
+    y_decay = (a / lam) * ((cos_t - cos_tn) / omega - is_)
+
+    return x + x_const + x_decay, y + y_const + y_decay, theta_next
 
 
 class CtraPredictionNode(object):
@@ -86,6 +111,7 @@ class CtraPredictionNode(object):
         self._horizons = rospy.get_param(
             "~horizons", [0.5, 1.0, 1.5, 2.0, 3.0]
         )
+        self._decay_lambda = rospy.get_param("~decay_lambda", DECAY_LAMBDA)
 
         self._pub = rospy.Publisher(output_topic, PredictedObjectArray, queue_size=10)
         self._sub = rospy.Subscriber(
@@ -97,10 +123,11 @@ class CtraPredictionNode(object):
         self._prev_stamp = None
 
         rospy.loginfo(
-            "[prediction_node] CTRA 예측 시작: %s -> %s (horizons=%s)",
+            "[prediction_node] CTRA(감쇠가속도) 예측 시작: %s -> %s (horizons=%s, decay_lambda=%s)",
             input_topic,
             output_topic,
             self._horizons,
+            self._decay_lambda,
         )
 
     def _estimate_yaw_rate(self, obj, dt, prev_list):
@@ -149,7 +176,8 @@ class CtraPredictionNode(object):
             traj_points = []
             for horizon in self._horizons:
                 px, py, ptheta = ctra_predict(
-                    obj.position.x, obj.position.y, obj.heading, v, omega, a, horizon
+                    obj.position.x, obj.position.y, obj.heading, v, omega, a, horizon,
+                    lam=self._decay_lambda,
                 )
                 point = PredictedTrajectoryPoint()
                 point.time_offset = horizon
