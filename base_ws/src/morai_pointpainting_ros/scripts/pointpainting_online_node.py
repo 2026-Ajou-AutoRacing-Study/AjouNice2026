@@ -473,6 +473,7 @@ class PointPaintingOnlineNode:
         self.processed_frames = 0
         self.real_input_warmup_complete = not self.real_input_warmup
         self.online_ready_logged = False
+        self.logged_segmentation_shapes = set()
 
         self._load_segmentation_model()
         self._load_detection_model()
@@ -591,7 +592,22 @@ class PointPaintingOnlineNode:
 
         if LRASPP_MobileNet_V3_Large_Weights is not None:
             weights = LRASPP_MobileNet_V3_Large_Weights.DEFAULT
-            self.segmentation_preprocess = weights.transforms()
+
+            # Apply the launch parameter to the actual segmentation input size.
+            self.segmentation_preprocess = transforms.Compose(
+                [
+                    transforms.Resize(
+                        self.segmentation_short_side,
+                        antialias=True,
+                    ),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406],
+                        std=[0.229, 0.224, 0.225],
+                    ),
+                ]
+            )
+
             self.segmentation_model = lraspp_mobilenet_v3_large(
                 weights=weights
             ).to(self.device).eval().to(
@@ -1068,6 +1084,20 @@ class PointPaintingOnlineNode:
         ).contiguous(
             memory_format=torch.channels_last
         )
+
+        group_name = "+".join(names)
+
+        # Log each real runtime batch shape once after warm-up completes.
+        if (
+            self.real_input_warmup_complete
+            and group_name not in self.logged_segmentation_shapes
+        ):
+            rospy.loginfo(
+                "Segmentation input %-24s shape=%s",
+                group_name,
+                tuple(batch.shape),
+            )
+            self.logged_segmentation_shapes.add(group_name)
 
         with torch.inference_mode():
             with torch.cuda.amp.autocast(enabled=self.use_amp):
