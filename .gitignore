@@ -50,6 +50,9 @@ base_ws/.catkin_workspace
 # Trajectory generator: keep the shared default, ignore local experiments.
 base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml
 base_ws/src/control/trajectory_generator/traj_sample/*.csv
+base_ws/src/control/trajectory_generator/traj_sample/*.json
+base_ws/src/control/trajectory_generator/traj_sample/**/*.csv
+base_ws/src/control/trajectory_generator/traj_sample/**/*.json
 !base_ws/src/bringup/rviz/kcity_mission_bpp.rviz
 !base_ws/src/bringup/rviz/kcity_interactive_trajectory.rviz
 !base_ws/src/bringup/rviz/kcity_competition_static_path.rviz

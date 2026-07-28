@@ -204,6 +204,76 @@ trajectory:
 
 ## 정상 동작 확인
 
+### 고정 곡률 차선 복귀 경로
+
+Pure Pursuit의 곡률별 추종 성능평가에는
+`generate_constant_curvature_return.py`를 사용한다. 이 생성기는 시작 lanelet의 끝 pose에서
+동일한 곡률 크기로 `+κ, -κ, -κ, +κ` 네 원호를 이어, 원래 횡위치와 heading으로 복귀하는
+합성 경로를 만든다.
+
+```bash
+rosrun trajectory_generator generate_constant_curvature_return.py \
+  --config base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml \
+  --start-lanelet-id 200101 \
+  --end-lanelet-id 201401 \
+  --kappa-mag 0.03 \
+  --segment-length-m 7.5 \
+  --desired-velocity-kph 60
+```
+
+기본 출력은 다음 두 파일이다.
+
+```text
+traj_sample/<speed>kph/<start>_<end>_k<curvature>_l<segment_length>.csv
+traj_sample/<speed>kph/<start>_<end>_k<curvature>_l<segment_length>.json
+```
+
+예제 명령의 기본 출력명은 `traj_sample/60kph/200101_201401_k0p03_l7p5.csv`다.
+파일명은 trajectory validator의 안전한 basename 규칙에 맞춰 소수점 `.`을 `p`로 표기한다.
+`k` 값의 단위는 `1/m`, `l` 값의 단위는 `m`이며 `l`은 네 개 복귀 원호 각각의 길이다.
+
+CSV는 기존 publisher와 같은 스키마를 사용한다. JSON에는 설계 곡률, 세그먼트별 waypoint
+범위, 이론 변위와 시작·종료 pose가 기록된다. `start`에서 `end`까지의 route 연결성은
+검사하지만, V1은 생성된 원호 끝점을 종료 lanelet 중심선에 강제로 접합하지 않는다.
+
+`kappa_mag × segment_length_m`이 90도 이상이면 전방 진행형 benchmark 조건에 맞지 않아
+생성을 거부하며, 60도 이상이면 경고한다.
+
+### 고정 곡률 고속 차선변경
+
+`generate_constant_curvature_lc.py`는 기본적으로 v45의 인접 차선 `200187 → 200188`을
+대상으로 한다. `200187` 중심선을 25 m 주행한 뒤 `[+κ, -κ]` 두 원호로 좌측 차선변경을
+수행한다. 사용자는 곡률 `k`만 지정하며, 두 중심선 간격에 맞는 세그먼트 길이 `L`은 항상
+자동 계산한다.
+
+```bash
+rosrun trajectory_generator generate_constant_curvature_lc.py \
+  --config base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml \
+  --kappa-mag 0.0014 \
+  --overwrite
+```
+
+기본적으로 60–170 km/h 샘플을 10 km/h 간격으로 생성한다. 출력 basename 끝에는 maneuver를
+구분할 수 있도록 `_lc`를 붙인다.
+
+```text
+traj_sample/100kph/200187_200188_k0p0014_lc.csv
+```
+
+특정 속도와 곡률을 지정하면 `L`은 목표 차선 폭을 유지하도록 자동으로 달라진다.
+
+```bash
+rosrun trajectory_generator generate_constant_curvature_lc.py \
+  --config base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml \
+  --speeds-kph 100 120 140 \
+  --kappa-mag 0.001 \
+  --approach-length-m 25 \
+  --overwrite
+```
+
+`--segment-length-m` 옵션은 제공하지 않는다. 목표 차선 폭을 유지하기 위해 `L`은 입력
+곡률에 따라 자동으로 결정된다.
+
 생성 성공 시 터미널에는 출력 파일, lanelet 수, 경로 길이, 점 개수, 실제 속도 범위가 표시된다.
 publisher 실행 후에는 다음을 확인한다.
 

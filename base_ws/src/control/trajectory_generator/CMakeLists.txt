@@ -33,6 +33,8 @@ add_dependencies(trajectory_publisher_node ${catkin_EXPORTED_TARGETS})
 target_link_libraries(trajectory_publisher_node ${catkin_LIBRARIES})
 
 catkin_install_python(PROGRAMS
+  scripts/generate_constant_curvature_lc.py
+  scripts/generate_constant_curvature_return.py
   scripts/generate_trajectory.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
