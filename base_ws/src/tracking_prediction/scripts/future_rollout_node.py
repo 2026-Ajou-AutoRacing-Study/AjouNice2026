@@ -60,6 +60,8 @@ class FutureRolloutNode(object):
         output_topic = rospy.get_param("~output_topic", "/app/perc/predicted_path")
         self._dt = rospy.get_param("~dt", DT)
         self._num_steps = rospy.get_param("~num_steps", NUM_STEPS)
+        self._publish_rate_limit = rospy.get_param("~publish_rate_limit", 10.0)  # RViz 렉 방지, 기본 10Hz
+        self._last_publish_time = 0.0
 
         self._pub = rospy.Publisher(output_topic, MarkerArray, queue_size=10)
         rospy.Subscriber(input_topic, MarkerArray, self._callback, queue_size=10)
@@ -98,6 +100,11 @@ class FutureRolloutNode(object):
         return points
 
     def _callback(self, msg):
+        now = rospy.Time.now().to_sec()
+        if now - self._last_publish_time < 1.0 / self._publish_rate_limit:
+            return  # RViz 렉 방지를 위해 시각화 발행 속도만 제한 (내부 계산 자체는 그대로)
+        self._last_publish_time = now
+
         out = MarkerArray()
 
         clear = Marker()
@@ -130,21 +137,8 @@ class FutureRolloutNode(object):
             line.lifetime = rospy.Duration(0.3)
             line.points = [Point(px, py, marker.pose.position.z - 3.0) for (px, py, _) in trajectory]
             out.markers.append(line)
-
-            for i, (px, py, _) in enumerate(trajectory):
-                sphere = Marker()
-                sphere.header = marker.header
-                sphere.ns = "predicted_path_point"
-                sphere.id = track_id * 1000 + i
-                sphere.type = Marker.SPHERE
-                sphere.action = Marker.ADD
-                sphere.pose.position = Point(px, py, marker.pose.position.z - 3.0)
-                sphere.pose.orientation.w = 1.0
-                scale = 0.2 + 0.1 * (i / max(1, self._num_steps - 1))
-                sphere.scale.x = sphere.scale.y = sphere.scale.z = scale
-                sphere.color = ColorRGBA(0.2, 0.6, 1.0, 0.5)
-                sphere.lifetime = rospy.Duration(0.3)
-                out.markers.append(sphere)
+            # 구슬(SPHERE) 마커는 트랙당 30개씩 발행되어 RViz 렉의 주원인이었음 -> 제거.
+            # 선(LINE_STRIP) 하나로도 궤적 방향/형태 확인에 충분함.
 
         self._pub.publish(out)
 

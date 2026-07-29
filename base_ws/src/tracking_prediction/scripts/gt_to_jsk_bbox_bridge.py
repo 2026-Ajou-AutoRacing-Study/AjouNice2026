@@ -44,6 +44,11 @@ class GtToJskBridge(object):
         output_topic = rospy.get_param("~output_topic", "/hmi/perc/jsk_pillar_objects")
         self._frame_id = rospy.get_param("~frame_id", "")  # 비어있으면 입력 메시지의 frame_id 그대로 사용
 
+        # OD가 실제로는 GT(약 48.7Hz)보다 훨씬 느릴 것이므로, 낮은 hz를 라이브로
+        # 재현해서 테스트할 수 있게 발행 속도 제한 옵션 추가 (기본값 0=제한 없음=GT 그대로)
+        self._simulated_od_hz = rospy.get_param("~simulated_od_hz", 0.0)
+        self._last_publish_time = 0.0
+
         self._pub = rospy.Publisher(output_topic, BoundingBoxArray, queue_size=10)
         rospy.Subscriber(input_topic, ObjectStatusList, self._callback, queue_size=10)
 
@@ -70,6 +75,12 @@ class GtToJskBridge(object):
         return box
 
     def _callback(self, msg):
+        if self._simulated_od_hz > 0:
+            now = rospy.Time.now().to_sec()
+            if now - self._last_publish_time < 1.0 / self._simulated_od_hz:
+                return  # 실제 OD가 이 정도 hz로만 검출을 준다고 가정하고 나머지는 무시
+            self._last_publish_time = now
+
         out = BoundingBoxArray()
         out.header = msg.header
         if self._frame_id:
