@@ -12,9 +12,9 @@ import generate_trajectory as base
 
 
 DEFAULT_START_LANELET_ID = 200137
-DEFAULT_END_LANELET_ID = 200188
 DEFAULT_SPEEDS_KPH = tuple(range(60, 171, 10))
 SAMPLE_INTERVAL_M = 0.1
+DEFAULT_LANE_WIDTH_M = 3.5
 
 
 def cumulative_lengths(points):
@@ -253,11 +253,116 @@ def generate_points(
     return points, lane_change.segment_ranges, lane_change.points[-1]
 
 
+def build_repeated_lane_change_segments(
+    kappa_mag,
+    lane_width_m,
+    direction,
+    lane_change_count,
+    initial_straight_length_m,
+    between_lane_change_length_m,
+    final_straight_length_m,
+):
+    kappa_mag = base.positive_finite(kappa_mag, "kappa_mag")
+    lane_width_m = base.positive_finite(lane_width_m, "lane_width_m")
+    if direction not in ("left", "right"):
+        raise ValueError("direction must be left or right")
+    if lane_change_count < 1:
+        raise ValueError("lane_change_count must be at least one")
+    initial = curvature.nonnegative_finite(
+        initial_straight_length_m, "initial_straight_length_m"
+    )
+    between = curvature.nonnegative_finite(
+        between_lane_change_length_m, "between_lane_change_length_m"
+    )
+    final = curvature.nonnegative_finite(
+        final_straight_length_m, "final_straight_length_m"
+    )
+    direction_sign = 1 if direction == "left" else -1
+    arc_length_m = solve_length_for_width(lane_width_m, kappa_mag)
+    specs = []
+    if initial > 0.0:
+        specs.append(
+            ("initial_straight", curvature.CurvatureSegment(0.0, initial))
+        )
+    for index in range(lane_change_count):
+        number = index + 1
+        specs.extend(
+            (
+                (
+                    "lane_change_{}_entry_arc".format(number),
+                    curvature.CurvatureSegment(
+                        direction_sign * kappa_mag, arc_length_m
+                    ),
+                ),
+                (
+                    "lane_change_{}_exit_arc".format(number),
+                    curvature.CurvatureSegment(
+                        -direction_sign * kappa_mag, arc_length_m
+                    ),
+                ),
+            )
+        )
+        if index < lane_change_count - 1 and between > 0.0:
+            specs.append(
+                (
+                    "between_lane_change_{}_straight".format(number),
+                    curvature.CurvatureSegment(0.0, between),
+                )
+            )
+    if final > 0.0:
+        specs.append(
+            ("final_straight", curvature.CurvatureSegment(0.0, final))
+        )
+    return {
+        "segments": [segment for _, segment in specs],
+        "segment_roles": [role for role, _ in specs],
+        "direction": direction,
+        "direction_sign": direction_sign,
+        "kappa_mag": kappa_mag,
+        "lane_width_m": lane_width_m,
+        "lane_change_count": lane_change_count,
+        "arc_length_m": arc_length_m,
+        "initial_straight_length_m": initial,
+        "between_lane_change_length_m": between,
+        "final_straight_length_m": final,
+    }
+
+
+def resolve_final_straight_length(
+    total_length_m,
+    kappa_mag,
+    lane_width_m,
+    lane_change_count,
+    initial_straight_length_m,
+    between_lane_change_length_m,
+):
+    total = base.positive_finite(total_length_m, "total_length_m")
+    initial = curvature.nonnegative_finite(
+        initial_straight_length_m, "initial_straight_length_m"
+    )
+    between = curvature.nonnegative_finite(
+        between_lane_change_length_m, "between_lane_change_length_m"
+    )
+    if lane_change_count < 1:
+        raise ValueError("lane_change_count must be at least one")
+    arc_length = solve_length_for_width(lane_width_m, kappa_mag)
+    minimum_length = (
+        initial
+        + 2.0 * lane_change_count * arc_length
+        + max(lane_change_count - 1, 0) * between
+    )
+    remaining = total - minimum_length
+    if remaining < -1.0e-9:
+        raise ValueError(
+            "total_length_m {:.3f} m is too short; fixed lane-change "
+            "sections require at least {:.3f} m".format(total, minimum_length)
+        )
+    return max(remaining, 0.0), minimum_length
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
-        description=(
-            "Generate a constant-curvature high-speed lane-change trajectory"
-        )
+        description="Generate repeated synthetic lane changes from a lanelet start pose"
     )
     parser.add_argument(
         "--config", required=True, help="repository-relative generator YAML"
@@ -265,8 +370,18 @@ def parse_args():
     parser.add_argument(
         "--start-lanelet-id", type=int, default=DEFAULT_START_LANELET_ID
     )
+    parser.add_argument("--lane-width-m", type=float, default=DEFAULT_LANE_WIDTH_M)
+    parser.add_argument("--direction", choices=("left", "right"), default="left")
+    parser.add_argument("--lane-change-count", type=int, default=1)
+    parser.add_argument("--initial-straight-length-m", type=float, default=0.0)
     parser.add_argument(
-        "--end-lanelet-id", type=int, default=DEFAULT_END_LANELET_ID
+        "--between-lane-change-length-m", type=float, default=0.0
+    )
+    parser.add_argument("--final-straight-length-m", type=float, default=0.0)
+    parser.add_argument(
+        "--total-length-m",
+        type=float,
+        help="exact synthetic path length; remaining distance becomes final straight",
     )
     parser.add_argument(
         "--kappa-mag",
@@ -292,6 +407,7 @@ def main():
         base.resolve_repo_path(root, arguments.config, "config")
     )
     map_config = base.require(config, "map", "config")
+    reference_config = base.require(config, "reference", "config")
     osm_path = base.resolve_repo_path(
         root,
         base.require(map_config, "lanelet_map_file", "map"),
@@ -302,6 +418,16 @@ def main():
         base.require(map_config, "projector_file", "map"),
         "projector_file",
     )
+    route_path = base.resolve_repo_path(
+        root,
+        base.require(map_config, "route_lanelets_file", "map"),
+        "route_lanelets_file",
+    )
+    global_path_path = base.resolve_repo_path(
+        root,
+        base.require(reference_config, "global_path_file", "reference"),
+        "global_path_file",
+    )
     speeds_kph = [
         base.positive_finite(speed, "speeds_kph") for speed in arguments.speeds_kph
     ]
@@ -311,24 +437,56 @@ def main():
         osm_path, projector
     )
     del unused_speed_limits
-    missing = [
-        lanelet_id
-        for lanelet_id in (
-            arguments.start_lanelet_id,
-            arguments.end_lanelet_id,
+    if arguments.start_lanelet_id not in centerlines:
+        raise ValueError(
+            "missing lanelet centerline: {}".format(arguments.start_lanelet_id)
         )
-        if lanelet_id not in centerlines
+    route_rows = base.load_route(route_path)
+    matching_rows = [
+        row
+        for row in route_rows
+        if row["lanelet_id"] == arguments.start_lanelet_id
     ]
-    if missing:
-        raise ValueError("missing lanelet centerlines: {}".format(missing))
-
-    geometry = build_lane_change_geometry(
-        centerlines[arguments.start_lanelet_id],
-        centerlines[arguments.end_lanelet_id],
-        arguments.kappa_mag,
+    if len(matching_rows) != 1:
+        raise ValueError(
+            "start lanelet {} must appear exactly once in preferred route; "
+            "found {}".format(arguments.start_lanelet_id, len(matching_rows))
+        )
+    start_row = matching_rows[0]
+    global_path = base.load_global_path(global_path_path)
+    start_pose = curvature.start_lanelet_start_pose(
+        [start_row], centerlines, global_path
     )
-    approach_length_m = geometry["source_stations"][-1]
-    segment_length_m = geometry["segments"][0].length_m
+    if (
+        arguments.total_length_m is not None
+        and arguments.final_straight_length_m != 0.0
+    ):
+        raise ValueError(
+            "--total-length-m and --final-straight-length-m cannot be used together"
+        )
+    minimum_length_m = None
+    final_straight_length_m = arguments.final_straight_length_m
+    if arguments.total_length_m is not None:
+        final_straight_length_m, minimum_length_m = (
+            resolve_final_straight_length(
+                arguments.total_length_m,
+                arguments.kappa_mag,
+                arguments.lane_width_m,
+                arguments.lane_change_count,
+                arguments.initial_straight_length_m,
+                arguments.between_lane_change_length_m,
+            )
+        )
+    geometry = build_repeated_lane_change_segments(
+        arguments.kappa_mag,
+        arguments.lane_width_m,
+        arguments.direction,
+        arguments.lane_change_count,
+        arguments.initial_straight_length_m,
+        arguments.between_lane_change_length_m,
+        final_straight_length_m,
+    )
+    segment_length_m = geometry["arc_length_m"]
     designed_width = lane_change_width(
         geometry["kappa_mag"], segment_length_m
     )
@@ -348,20 +506,43 @@ def main():
         )
 
     for speed_kph in speeds_kph:
-        points, segment_ranges, lane_change_end = generate_points(
-            geometry,
-            centerlines[arguments.start_lanelet_id],
-            centerlines[arguments.end_lanelet_id],
+        generated = curvature.generate_from_curvature_segments(
+            start_pose[0],
+            start_pose[1],
+            start_pose[2],
+            start_pose[3],
+            geometry["segments"],
             SAMPLE_INTERVAL_M,
             speed_kph / 3.6,
             arguments.start_lanelet_id,
-            arguments.end_lanelet_id,
-            0,
+            start_row["order"],
         )
-        name = "{}_{}_k{}_lc".format(
+        for point in generated.points:
+            point["segment_role"] = geometry["segment_roles"][
+                point["segment_id"]
+            ]
+        points = generated.points
+        length_suffix = (
+            "t{}".format(curvature.filename_token(arguments.total_length_m))
+            if arguments.total_length_m is not None
+            else "f{}".format(
+                curvature.filename_token(
+                    geometry["final_straight_length_m"]
+                )
+            )
+        )
+        name = "{}_k{}_w{}_n{}_i{}_m{}_{}_lc".format(
             arguments.start_lanelet_id,
-            arguments.end_lanelet_id,
             kappa_filename_token(geometry["kappa_mag"]),
+            curvature.filename_token(geometry["lane_width_m"]),
+            geometry["lane_change_count"],
+            curvature.filename_token(
+                geometry["initial_straight_length_m"]
+            ),
+            curvature.filename_token(
+                geometry["between_lane_change_length_m"]
+            ),
+            length_suffix,
         )
         directory = output_root / "{}kph".format(
             curvature.filename_number(speed_kph)
@@ -371,43 +552,49 @@ def main():
         base.write_csv(csv_path, points, arguments.overwrite)
 
         end = points[-1]
-        endpoint_gap = math.dist(
-            (
-                lane_change_end["x"],
-                lane_change_end["y"],
-                lane_change_end["z"],
-            ),
-            geometry["target"],
+        total_length_m = (
+            geometry["initial_straight_length_m"]
+            + geometry["final_straight_length_m"]
+            + geometry["lane_change_count"] * 2.0 * segment_length_m
+            + max(geometry["lane_change_count"] - 1, 0)
+            * geometry["between_lane_change_length_m"]
         )
-        target_continuation_length_m = (
-            cumulative_lengths(
-                centerlines[arguments.end_lanelet_id]
-            )[-1] - geometry["target_station"]
+        if arguments.total_length_m is not None and not math.isclose(
+            total_length_m,
+            arguments.total_length_m,
+            rel_tol=0.0,
+            abs_tol=1.0e-8,
+        ):
+            raise ValueError(
+                "generated design length does not match total_length_m"
+            )
+        curvature.validate_generated_path(
+            generated, total_length_m, SAMPLE_INTERVAL_M
         )
         manifest = {
             "generator_name": "constant_curvature_lane_change",
-            "generator_version": "1.0.0",
+            "generator_version": "2.0.0",
             "maneuver_type": "lane_change",
             "direction": geometry["direction"],
             "direction_sign": geometry["direction_sign"],
-            "sign_sequence": [
-                geometry["direction_sign"],
-                -geometry["direction_sign"],
-            ],
+            "lane_change_count": geometry["lane_change_count"],
             "start_lanelet_id": arguments.start_lanelet_id,
-            "end_lanelet_id": arguments.end_lanelet_id,
             "lanelet_map_file": str(osm_path.relative_to(root)),
-            "approach_length_m": approach_length_m,
-            "lane_change_start_reference": "start_lanelet_end",
+            "route_lanelets_file": str(route_path.relative_to(root)),
+            "lane_change_start_reference": "start_lanelet_start",
             "design_kappa_mag": geometry["kappa_mag"],
             "parameter_mode": "fixed_kappa_solved_length",
             "segment_length_m": segment_length_m,
-            "lane_change_length_m": 2.0 * segment_length_m,
-            "target_lane_continuation_length_m":
-            target_continuation_length_m,
-            "total_length_m": approach_length_m
-            + 2.0 * segment_length_m
-            + target_continuation_length_m,
+            "lane_change_length_m_each": 2.0 * segment_length_m,
+            "initial_straight_length_m":
+            geometry["initial_straight_length_m"],
+            "between_lane_change_length_m":
+            geometry["between_lane_change_length_m"],
+            "final_straight_length_m":
+            geometry["final_straight_length_m"],
+            "total_length_m": total_length_m,
+            "requested_total_length_m": arguments.total_length_m,
+            "minimum_maneuver_length_m": minimum_length_m,
             "sample_interval_m": SAMPLE_INTERVAL_M,
             "speed_kph": speed_kph,
             "radius_m": 1.0 / geometry["kappa_mag"],
@@ -416,20 +603,17 @@ def main():
             "delta_theta_deg": math.degrees(
                 geometry["kappa_mag"] * segment_length_m
             ),
-            "target_lane_width_m": geometry["target_width_m"],
-            "design_lateral_displacement_m": designed_width,
-            "target_endpoint_gap_m": endpoint_gap,
+            "target_lane_width_m": geometry["lane_width_m"],
+            "design_lateral_displacement_m_each": designed_width,
+            "design_lateral_displacement_m_total":
+            geometry["direction_sign"]
+            * geometry["lane_change_count"]
+            * designed_width,
             "start_pose": {
-                "x": geometry["start"][0],
-                "y": geometry["start"][1],
-                "z": geometry["start"][2],
-                "yaw": geometry["start_yaw"],
-            },
-            "lane_change_end_pose": {
-                "x": lane_change_end["x"],
-                "y": lane_change_end["y"],
-                "z": lane_change_end["z"],
-                "yaw": lane_change_end["yaw"],
+                "x": start_pose[0],
+                "y": start_pose[1],
+                "z": start_pose[2],
+                "yaw": start_pose[3],
             },
             "end_pose": {
                 "x": end["x"],
@@ -437,20 +621,21 @@ def main():
                 "z": end["z"],
                 "yaw": end["yaw"],
             },
-            "segment_ranges_without_approach": [
-                list(value) for value in segment_ranges
+            "segment_roles": geometry["segment_roles"],
+            "segment_ranges": [
+                list(value) for value in generated.segment_ranges
             ],
         }
         curvature.write_json(json_path, manifest, arguments.overwrite)
         print(
             "{}: speed={:.0f}kph kappa={:.9f} 1/m "
-            "L={:.3f}m width={:.3f}m endpoint_gap={:.3f}m points={}".format(
+            "L={:.3f}m width={:.3f}m count={} points={}".format(
                 csv_path,
                 speed_kph,
                 geometry["kappa_mag"],
                 segment_length_m,
                 designed_width,
-                endpoint_gap,
+                geometry["lane_change_count"],
                 len(points),
             )
         )

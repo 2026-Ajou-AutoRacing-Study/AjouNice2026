@@ -207,9 +207,10 @@ trajectory:
 ### 고정 곡률 차선 복귀 경로
 
 Pure Pursuit의 곡률별 추종 성능평가에는
-`generate_constant_curvature_return.py`를 사용한다. 이 생성기는 시작 lanelet의 끝 pose에서
-동일한 곡률 크기로 `+κ, -κ, -κ, +κ` 네 원호를 이어, 원래 횡위치와 heading으로 복귀하는
-합성 경로를 만든다.
+`generate_constant_curvature_return.py`를 사용한다. 이 생성기는 시작 lanelet의 시작 pose에서
+선택적인 시작 직선 뒤에 동일한 곡률 크기로 `+κ, -κ` 원호를 잇고, heading 오차가
+처음 0이 되는 지점에 선택적인 중간 직선을 삽입한 다음 `-κ, +κ` 원호로 원래 횡위치와
+heading에 복귀하는 합성 경로를 만든다.
 
 ```bash
 rosrun trajectory_generator generate_constant_curvature_return.py \
@@ -218,19 +219,24 @@ rosrun trajectory_generator generate_constant_curvature_return.py \
   --end-lanelet-id 201401 \
   --kappa-mag 0.03 \
   --segment-length-m 7.5 \
+  --start-straight-length-m 10.0 \
+  --middle-straight-length-m 5.0 \
   --desired-velocity-kph 60
 ```
 
 기본 출력은 다음 두 파일이다.
 
 ```text
-traj_sample/<speed>kph/<start>_<end>_k<curvature>_l<segment_length>.csv
-traj_sample/<speed>kph/<start>_<end>_k<curvature>_l<segment_length>.json
+traj_sample/<speed>kph/<start>_<end>_k<curvature>_l<arc_length>_s<start_straight>_m<middle_straight>.csv
+traj_sample/<speed>kph/<start>_<end>_k<curvature>_l<arc_length>_s<start_straight>_m<middle_straight>.json
 ```
 
-예제 명령의 기본 출력명은 `traj_sample/60kph/200101_201401_k0p03_l7p5.csv`다.
+예제 명령의 기본 출력명은
+`traj_sample/60kph/200101_201401_k0p03_l7p5_s10_m5.csv`다.
 파일명은 trajectory validator의 안전한 basename 규칙에 맞춰 소수점 `.`을 `p`로 표기한다.
 `k` 값의 단위는 `1/m`, `l` 값의 단위는 `m`이며 `l`은 네 개 복귀 원호 각각의 길이다.
+`--start-straight-length-m`과 `--middle-straight-length-m`은 각각 첫 원호 전과 첫 heading
+오차 0 지점에 삽입할 직선 길이이며, 기본값 0은 해당 직선을 생략한다.
 
 CSV는 기존 publisher와 같은 스키마를 사용한다. JSON에는 설계 곡률, 세그먼트별 waypoint
 범위, 이론 변위와 시작·종료 pose가 기록된다. `start`에서 `end`까지의 route 연결성은
@@ -241,25 +247,37 @@ CSV는 기존 publisher와 같은 스키마를 사용한다. JSON에는 설계 �
 
 ### 고정 곡률 고속 차선변경
 
-`generate_constant_curvature_lc.py`는 기본적으로 v45의 `200137 → 200188`을 대상으로
-한다. `200137` 중심선을 끝까지 주행해 속도를 확보한 뒤, `200137`의 종료점
-(`200187`의 시작점)에서 `[+κ, -κ]` 두 원호로 좌측 차선변경을 수행한다. 사용자는 곡률
-`k`만 지정하며, 차선변경 시작점에서 `200188` 시작부까지의 차선 간격에 맞는 세그먼트
-길이 `L`은 항상 자동 계산한다. 원호가 `200188`에 접합된 뒤에는 `200188` 중심선의
-끝까지 경로를 이어서 생성한다.
+`generate_constant_curvature_lc.py`는 지정한 시작 lanelet의 시작 pose와 진행 방향을
+`generate_constant_curvature_return.py`와 같은 방법으로 시작 lanelet의 첫 점과 첫 유효
+centerline tangent에서 구한 뒤, 지도 중심선에 접합하지
+않는 합성 고속 차선변경 경로를 만든다. 시작·차선변경 사이·종료 직선 길이와 차선변경
+횟수를 지정할 수 있다. 각 차선변경은 `[+κ, -κ]`(우측은 반대 부호) 두 원호로 구성하며,
+입력 차선 폭에 맞는 원호 길이 `L`을 자동 계산한다.
 
 ```bash
 rosrun trajectory_generator generate_constant_curvature_lc.py \
   --config base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml \
-  --kappa-mag 0.0014 \
+  --start-lanelet-id 200128 \
+  --kappa-mag 0.01 \
+  --lane-width-m 3.5 \
+  --direction left \
+  --lane-change-count 2 \
+  --initial-straight-length-m 30 \
+  --between-lane-change-length-m 20 \
+  --total-length-m 200 \
   --overwrite
 ```
+
+`--total-length-m`을 지정하면 lanelet 경계와 관계없이 합성 경로를 정확히 해당 길이까지
+생성한다. 시작 직선, 차선변경 원호, 변경 사이 직선을 먼저 배치하고 남는 거리는 종료
+직선으로 자동 생성한다. 고정 구간에 필요한 최소 길이보다 총길이가 짧으면 생성을 거부한다.
+`--total-length-m`과 `--final-straight-length-m`은 동시에 사용할 수 없다.
 
 기본적으로 60–170 km/h 샘플을 10 km/h 간격으로 생성한다. 출력 basename 끝에는 maneuver를
 구분할 수 있도록 `_lc`를 붙인다.
 
 ```text
-traj_sample/100kph/200137_200188_k0p0014_lc.csv
+traj_sample/100kph/200128_k0p01_w3p5_n2_i30_m20_t200_lc.csv
 ```
 
 특정 속도와 곡률을 지정하면 `L`은 목표 차선 폭을 유지하도록 자동으로 달라진다.
@@ -267,8 +285,12 @@ traj_sample/100kph/200137_200188_k0p0014_lc.csv
 ```bash
 rosrun trajectory_generator generate_constant_curvature_lc.py \
   --config base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml \
+  --start-lanelet-id 200128 \
   --speeds-kph 100 120 140 \
   --kappa-mag 0.001 \
+  --lane-width-m 3.5 \
+  --lane-change-count 1 \
+  --initial-straight-length-m 30 \
   --overwrite
 ```
 

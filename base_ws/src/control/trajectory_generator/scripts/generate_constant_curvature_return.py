@@ -14,7 +14,7 @@ import generate_trajectory as base
 
 
 GENERATOR_NAME = "constant_curvature_sign_reversal"
-GENERATOR_VERSION = "1.0.0"
+GENERATOR_VERSION = "2.0.0"
 MANEUVER_TYPE = "avoidance"
 SIGN_SEQUENCE = (1, -1, -1, 1)
 CURVATURE_EPSILON = 1.0e-9
@@ -293,9 +293,17 @@ def generate_lane_return(
     lanelet_id=-1,
     route_order=0,
     normalize_output_yaw=False,
+    start_straight_length_m=0.0,
+    middle_straight_length_m=0.0,
 ):
-    """Generate the V1 +k, -k, -k, +k lane-return maneuver."""
+    """Generate straight + (+k,-k) + straight + (-k,+k) lane return."""
     kappa_mag = nonnegative_finite(kappa_mag, "kappa_mag")
+    start_straight_length_m = nonnegative_finite(
+        start_straight_length_m, "start_straight_length_m"
+    )
+    middle_straight_length_m = nonnegative_finite(
+        middle_straight_length_m, "middle_straight_length_m"
+    )
     segment_length_m = base.positive_finite(
         segment_length_m, "segment_length_m"
     )
@@ -318,10 +326,29 @@ def generate_lane_return(
         warnings.warn(message)
         warning_messages.append(message)
 
-    segments = [
-        CurvatureSegment(sign * kappa_mag, segment_length_m)
-        for sign in SIGN_SEQUENCE
-    ]
+    segment_specs = []
+    if start_straight_length_m > 0.0:
+        segment_specs.append(
+            ("start_straight", CurvatureSegment(0.0, start_straight_length_m))
+        )
+    segment_specs.extend(
+        (
+            ("outbound_positive_arc", CurvatureSegment(kappa_mag, segment_length_m)),
+            ("outbound_negative_arc", CurvatureSegment(-kappa_mag, segment_length_m)),
+        )
+    )
+    if middle_straight_length_m > 0.0:
+        segment_specs.append(
+            ("middle_straight", CurvatureSegment(0.0, middle_straight_length_m))
+        )
+    segment_specs.extend(
+        (
+            ("return_negative_arc", CurvatureSegment(-kappa_mag, segment_length_m)),
+            ("return_positive_arc", CurvatureSegment(kappa_mag, segment_length_m)),
+        )
+    )
+    segment_roles = [role for role, _ in segment_specs]
+    segments = [segment for _, segment in segment_specs]
     result = generate_from_curvature_segments(
         start_x_m,
         start_y_m,
@@ -334,8 +361,34 @@ def generate_lane_return(
         route_order,
         normalize_output_yaw,
     )
+    role_signs = {
+        "start_straight": 0,
+        "outbound_positive_arc": 1,
+        "outbound_negative_arc": -1,
+        "middle_straight": 0,
+        "return_negative_arc": -1,
+        "return_positive_arc": 1,
+    }
     for point in result.points:
-        point["segment_sign"] = SIGN_SEQUENCE[point["segment_id"]]
+        segment_role = segment_roles[point["segment_id"]]
+        point["segment_role"] = segment_role
+        point["segment_sign"] = role_signs[segment_role]
+
+    middle_straight_index = (
+        segment_roles.index("middle_straight")
+        if "middle_straight" in segment_roles
+        else None
+    )
+    if middle_straight_index is not None:
+        middle_start_index = result.segment_ranges[middle_straight_index][0]
+        middle_start_yaw_error = normalize_yaw(
+            result.points[middle_start_index]["yaw"] - start_yaw_rad
+        )
+        if abs(middle_start_yaw_error) > YAW_TOLERANCE_RAD:
+            raise ValueError(
+                "middle straight does not start at zero heading error: "
+                "{:.3e} rad".format(middle_start_yaw_error)
+            )
 
     end = result.points[-1]
     local_end = local_pose(
@@ -362,7 +415,11 @@ def generate_lane_return(
             )
         )
 
-    total_length = len(segments) * segment_length_m
+    total_length = (
+        4.0 * segment_length_m
+        + start_straight_length_m
+        + middle_straight_length_m
+    )
     measured_chord_length = validate_generated_path(
         result, total_length, sample_interval_m
     )
@@ -372,7 +429,11 @@ def generate_lane_return(
         peak_offset = 0.0
     else:
         radius_m = 1.0 / kappa_mag
-        x_displacement = 4.0 * math.sin(delta_theta) / kappa_mag
+        x_displacement = (
+            start_straight_length_m
+            + middle_straight_length_m
+            + 4.0 * math.sin(delta_theta) / kappa_mag
+        )
         peak_offset = 2.0 * (1.0 - math.cos(delta_theta)) / kappa_mag
 
     result.metadata = {
@@ -382,8 +443,11 @@ def generate_lane_return(
         "sign_sequence": list(SIGN_SEQUENCE),
         "design_kappa_mag": kappa_mag,
         "segment_length_m": segment_length_m,
+        "start_straight_length_m": start_straight_length_m,
+        "middle_straight_length_m": middle_straight_length_m,
         "sample_interval_m": sample_interval_m,
         "segment_count": len(segments),
+        "segment_roles": segment_roles,
         "segment_ranges": [list(value) for value in result.segment_ranges],
         "total_length_m": total_length,
         "measured_chord_length_m": measured_chord_length,
@@ -434,44 +498,39 @@ def write_json(path, data, overwrite):
         raise
 
 
-def start_lanelet_end_pose(chain, centerlines, global_path):
+def start_lanelet_start_pose(chain, centerlines, global_path):
     first_row = chain[0]
     lanelet_id = first_row["lanelet_id"]
     if lanelet_id not in centerlines:
-        raise ValueError("lanelet {} has no usable centerline".format(lanelet_id))
+        raise ValueError("start lanelet {} has no usable centerline".format(lanelet_id))
     points = base.orient_centerline(
         centerlines[lanelet_id], first_row, None, global_path
     )
     if len(points) < 2:
         raise ValueError("start lanelet centerline has fewer than two points")
-    endpoint = points[-1]
-    previous = next(
+    start = points[0]
+    following = next(
         (
             point
-            for point in reversed(points[:-1])
-            if math.hypot(
-                endpoint[0] - point[0], endpoint[1] - point[1]
-            )
-            > 1.0e-9
+            for point in points[1:]
+            if math.hypot(point[0] - start[0], point[1] - start[1]) > 1.0e-9
         ),
         None,
     )
-    if previous is None:
+    if following is None:
         raise ValueError("start lanelet centerline has no usable heading")
     return (
-        endpoint[0],
-        endpoint[1],
-        endpoint[2],
-        math.atan2(
-            endpoint[1] - previous[1], endpoint[0] - previous[0]
-        ),
+        start[0],
+        start[1],
+        start[2],
+        math.atan2(following[1] - start[1], following[0] - start[0]),
     )
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description=(
-            "Generate a +k,-k,-k,+k constant-curvature lane-return trajectory"
+            "Generate a straight,+k,-k,straight,-k,+k lane-return trajectory"
         )
     )
     parser.add_argument(
@@ -483,6 +542,18 @@ def parse_arguments():
     parser.add_argument("--end-route-order", type=int)
     parser.add_argument("--kappa-mag", required=True, type=float, help="1/m")
     parser.add_argument("--segment-length-m", required=True, type=float)
+    parser.add_argument(
+        "--start-straight-length-m",
+        type=float,
+        default=0.0,
+        help="straight approach length before the first curvature arc (m)",
+    )
+    parser.add_argument(
+        "--middle-straight-length-m",
+        type=float,
+        default=0.0,
+        help="straight length at the first zero-heading-error point (m)",
+    )
     parser.add_argument("--sample-interval-m", type=float, default=0.1)
     parser.add_argument("--desired-velocity-kph", type=float)
     parser.add_argument("--normalize-output-yaw", action="store_true")
@@ -563,7 +634,7 @@ def main():
     )
     del unused_speed_limits
     global_path = base.load_global_path(global_path_path)
-    start_pose = start_lanelet_end_pose(chain, centerlines, global_path)
+    start_pose = start_lanelet_start_pose(chain, centerlines, global_path)
 
     result = generate_lane_return(
         start_x_m=start_pose[0],
@@ -577,11 +648,13 @@ def main():
         lanelet_id=start_id,
         route_order=chain[0]["order"],
         normalize_output_yaw=arguments.normalize_output_yaw,
+        start_straight_length_m=arguments.start_straight_length_m,
+        middle_straight_length_m=arguments.middle_straight_length_m,
     )
     result.metadata.update(
         {
             "start_lanelet_id": start_id,
-            "start_anchor": "start_lanelet_end",
+            "start_anchor": "start_lanelet_start",
             "end_lanelet_id": end_id,
             "start_route_order": chain[0]["order"],
             "end_route_order": chain[-1]["order"],
@@ -601,11 +674,13 @@ def main():
         speed_directory = "{}kph".format(
             filename_number(desired_velocity_kph)
         )
-        output_name = "{}_{}_k{}_l{}.csv".format(
+        output_name = "{}_{}_k{}_l{}_s{}_m{}.csv".format(
             start_id,
             end_id,
             filename_token(arguments.kappa_mag),
             filename_token(arguments.segment_length_m),
+            filename_token(arguments.start_straight_length_m),
+            filename_token(arguments.middle_straight_length_m),
         )
         output_csv = (
             root
@@ -649,11 +724,14 @@ def main():
     print("manifest generated: {}".format(output_manifest))
     print(
         "start_lanelet={} end_lanelet={} kappa_1pm={:.6f} "
-        "segment_length_m={:.3f} total_length_m={:.3f} points={}".format(
+        "segment_length_m={:.3f} start_straight_m={:.3f} "
+        "middle_straight_m={:.3f} total_length_m={:.3f} points={}".format(
             start_id,
             end_id,
             arguments.kappa_mag,
             arguments.segment_length_m,
+            arguments.start_straight_length_m,
+            arguments.middle_straight_length_m,
             result.metadata["total_length_m"],
             len(result.points),
         )

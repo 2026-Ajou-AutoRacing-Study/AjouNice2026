@@ -4,6 +4,7 @@ import math
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -13,6 +14,22 @@ import generate_constant_curvature_return as generator
 
 
 class ConstantCurvatureReturnTest(unittest.TestCase):
+    def test_start_pose_uses_first_lanelet_point_and_forward_tangent(self):
+        points = [
+            (1.0, 2.0, 3.0),
+            (1.0, 2.0, 3.0),
+            (4.0, 6.0, 3.1),
+            (8.0, 6.0, 3.2),
+        ]
+        with mock.patch.object(
+            generator.base, "orient_centerline", return_value=points
+        ):
+            pose = generator.start_lanelet_start_pose(
+                [{"lanelet_id": 10}], {10: points}, []
+            )
+        self.assertEqual(pose[:3], points[0])
+        self.assertAlmostEqual(pose[3], math.atan2(4.0, 3.0))
+
     def test_filename_number_is_compact_and_stable(self):
         self.assertEqual(generator.filename_number(0.03), "0.03")
         self.assertEqual(generator.filename_number(7.5), "7.5")
@@ -57,6 +74,49 @@ class ConstantCurvatureReturnTest(unittest.TestCase):
             result.segment_ranges, result.segment_ranges[1:]
         ):
             self.assertEqual(previous[1] + 1, following[0])
+
+    def test_straights_are_inserted_before_and_between_arc_pairs(self):
+        kappa = 0.03
+        arc_length = 7.5
+        start_straight = 4.0
+        middle_straight = 6.0
+        result = generator.generate_lane_return(
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            kappa,
+            arc_length,
+            start_straight_length_m=start_straight,
+            middle_straight_length_m=middle_straight,
+        )
+
+        self.assertEqual(
+            result.metadata["segment_roles"],
+            [
+                "start_straight",
+                "outbound_positive_arc",
+                "outbound_negative_arc",
+                "middle_straight",
+                "return_negative_arc",
+                "return_positive_arc",
+            ],
+        )
+        middle_start = result.segment_ranges[3][0]
+        middle_end = result.segment_ranges[3][1]
+        self.assertAlmostEqual(result.points[middle_start]["yaw"], 0.0, places=12)
+        self.assertAlmostEqual(result.points[middle_end]["yaw"], 0.0, places=12)
+        expected_x = (
+            start_straight
+            + middle_straight
+            + 4.0 * math.sin(kappa * arc_length) / kappa
+        )
+        self.assertAlmostEqual(result.points[-1]["x"], expected_x, places=9)
+        self.assertAlmostEqual(result.points[-1]["y"], 0.0, places=9)
+        self.assertAlmostEqual(
+            result.metadata["total_length_m"],
+            start_straight + middle_straight + 4.0 * arc_length,
+        )
 
     def test_zero_curvature_is_straight_baseline(self):
         result = generator.generate_lane_return(
