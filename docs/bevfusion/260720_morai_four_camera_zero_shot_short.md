@@ -1,6 +1,6 @@
 # MORAI 4-camera BEVFusion zero-shot 빠른 실행
 
-이 문서는 `Sensor_5.json`의 전방·전방 좌·전방 우·후방 카메라와
+이 문서는 `Sensor.json`의 전방·전방 좌·전방 우·후방 카메라와
 `lidar1`을 Docker BEVFusion에 전달하고, 결과를 RViz에서 실시간 확인하는
 최소 실행 절차다. 처음에는 반드시 projection을 확인한 뒤 zero-shot 추론으로
 넘어간다.
@@ -70,7 +70,7 @@ BEVFUSION_CHECKPOINT=/home/luv/bevfusion_artifacts/checkpoints/bevfusion_lidar_c
 
 ## 1차: calibration projection 확인
 
-MORAI에서 `Sensor_5.json` 설정과 UDP 통신을 활성화한 후 다음 터미널을 각각
+MORAI에서 `Sensor.json` 설정과 UDP 통신을 활성화한 후 다음 터미널을 각각
 실행한다.
 
 ### 터미널 1: ROS master
@@ -89,7 +89,7 @@ roscore
 cd ~/AjouNice2026/base_ws
 source devel/setup.bash
 roslaunch sensor_interface morai_udp_interface.launch \
-  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor_5.json \
+  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor.json \
   network_config:=/home/luv/AjouNice2026/configs/network/ego_network_1.json
 ```
 
@@ -100,7 +100,7 @@ roslaunch sensor_interface morai_udp_interface.launch \
 cd ~/AjouNice2026/base_ws
 source devel/setup.bash
 roslaunch bringup sensing.launch \
-  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor_5.json \
+  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor.json \
   start_rviz:=false \
   enable_vehicle_model:=false
 ```

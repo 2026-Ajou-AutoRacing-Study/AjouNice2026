@@ -1,7 +1,7 @@
 <launch>
   <!-- Run four-camera MORAI zero-shot BEVFusion and optional RViz. -->
   <arg name="sensor_config"
-       default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor_5.json"/>
+       default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor.json"/>
   <arg name="config"
        default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_sensor4.yaml"/>
   <arg name="start_rviz" default="true"/>

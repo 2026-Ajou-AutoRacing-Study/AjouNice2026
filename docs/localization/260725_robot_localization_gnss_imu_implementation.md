@@ -13,7 +13,7 @@ localization baseline을 추가했다.
 - MORAI 전용 메시지 변환과 공분산 부여를 fusion backend에서 분리한다.
 - `robot_localization`을 나중에 다른 fusion backend로 교체하더라도 센서
   전처리와 Planning 출력 계약은 재사용할 수 있게 한다.
-- 처음에는 노이즈가 꺼진 `Sensor_5.json`으로 기준 성능을 측정하고,
+- 처음에는 노이즈가 꺼진 `Sensor.json`으로 기준 성능을 측정하고,
   그 다음 `Sensor_4_noise_v1.json`으로 노이즈 실험을 수행한다.
 
 이번 구현은 IMU fixed bias 영점 조정을 포함하지 않는다. 현재 MORAI 설정은
@@ -48,7 +48,7 @@ MORAI / rosbag
           - message offset이 유효하면 사용
           - 현재 bag처럼 offset=0이면 K-City fallback offset 사용
           - morai_map 좌표 → map 좌표로 변환
-          - Sensor_5.json의 GPS 높이 보정
+          - Sensor.json의 GPS 높이 보정
           - GNSS 위치 covariance 부여
                │
                └─ /localization/gnss/odom (nav_msgs/Odometry)
@@ -294,7 +294,7 @@ source devel/setup.bash
 
 roslaunch bringup localization_gnss_imu.launch \
   use_sim_time:=true \
-  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor_5.json \
+  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor.json \
   measurement_noise_config:=/home/luv/AjouNice2026/configs/localization/gnss_imu_noise_sensor5_ideal.yaml
 ```
 
@@ -353,7 +353,7 @@ cd ~/AjouNice2026/base_ws
 source devel/setup.bash
 
 roslaunch sensor_interface morai_udp_interface.launch \
-  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor_5.json \
+  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor.json \
   network_config:=/home/luv/AjouNice2026/configs/network/ego_network_1.json
 ```
 
@@ -366,7 +366,7 @@ source devel/setup.bash
 
 roslaunch bringup localization_gnss_imu.launch \
   use_sim_time:=false \
-  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor_5.json \
+  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor.json \
   measurement_noise_config:=/home/luv/AjouNice2026/configs/localization/gnss_imu_noise_sensor5_ideal.yaml
 ```
 
@@ -419,7 +419,7 @@ source base_ws/devel/setup.bash
 python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
   rosbags/eval/localization/gnss_imu_kcity_eval_v1_run01.bag \
   --state-topic /localization/kinematic_state \
-  --sensor-config configs/sensors/Sensor_5.json \
+  --sensor-config configs/sensors/Sensor.json \
   --ego-velocity-unit kmph \
   --alignment-reference-sec 2.0 \
   --out rosbags/eval/localization/gnss_imu_kcity_eval_v1_run01.csv \
@@ -472,7 +472,7 @@ source base_ws/devel/setup.bash
 python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
   rosbags/eval/localization/gnss_imu_kcity_eval_v1_run01.bag \
   --state-topic /localization/kinematic_state \
-  --sensor-config configs/sensors/Sensor_5.json \
+  --sensor-config configs/sensors/Sensor.json \
   --ego-velocity-unit kmph \
   --alignment-reference-sec 2.0 \
   --out rosbags/eval/localization/gnss_imu_kcity_eval_v1_run01.csv \

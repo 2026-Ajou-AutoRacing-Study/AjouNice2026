@@ -143,7 +143,7 @@ a separate, deferred change.
 
 The initial noise-disabled experiment uses:
 
-- `configs/sensors/Sensor_5.json`
+- `configs/sensors/Sensor.json`
 - `configs/localization/gnss_imu_noise_sensor5_ideal.yaml`
 
 The follow-up noise experiment is intentionally a separate pairing:

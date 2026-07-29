@@ -1,7 +1,10 @@
+# Runtime sensor config: configs/sensors/Sensor.json
+# 260729 기준 최신 원본: configs/sensors/Sensor_5.json
+# Sensor.json은 위 버전 원본을 명시적으로 복사한 일반 파일이다.
 # Measurement uncertainty for the noise-disabled MORAI Sensor_5 profile.
 # Values are standard deviations. Adapter nodes square them before publishing.
 profile_name: sensor5_ideal
-source_sensor_config: Sensor_5.json
+source_sensor_config: Sensor.json
 
 imu:
   orientation_stddev_rad: 0.001745329252

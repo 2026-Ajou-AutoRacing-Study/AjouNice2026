@@ -2,7 +2,7 @@
   <!-- Standalone GNSS+IMU localization provider for live MORAI or rosbag replay. -->
   <arg name="use_sim_time" default="false"/>
   <arg name="sensor_config"
-       default="$(env HOME)/AjouNice2026/configs/sensors/Sensor_5.json"/>
+       default="$(env HOME)/AjouNice2026/configs/sensors/Sensor.json"/>
   <arg name="measurement_noise_config"
        default="$(env HOME)/AjouNice2026/configs/localization/gnss_imu_noise_sensor5_ideal.yaml"/>
   <arg name="localization_manager_config"

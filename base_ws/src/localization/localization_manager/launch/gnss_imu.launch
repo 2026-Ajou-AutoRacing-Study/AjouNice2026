@@ -10,7 +10,7 @@
       this package's kinematic-state publisher emits no TF.
   -->
   <arg name="sensor_config"
-       default="$(env HOME)/AjouNice2026/configs/sensors/Sensor_5.json"/>
+       default="$(env HOME)/AjouNice2026/configs/sensors/Sensor.json"/>
   <arg name="config"
        default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
   <arg name="measurement_noise_config"

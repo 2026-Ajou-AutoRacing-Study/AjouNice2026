@@ -2,7 +2,7 @@
 
 Host-side ROS1 bridge for the Dockerized four-camera BEVFusion runtime.
 
-- Sensor topics are parsed from `configs/sensors/Sensor_5.json`.
+- Sensor topics are parsed from `configs/sensors/Sensor.json`.
 - LiDAR timestamps select the nearest image from every camera buffer.
 - Only the latest complete frame is retained while inference is busy.
 - The Docker connection is restricted to `127.0.0.1` TCP.

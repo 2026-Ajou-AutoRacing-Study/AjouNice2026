@@ -831,7 +831,7 @@ def main():
         os.path.join(os.path.dirname(__file__), "..", "..", "..")
     )
     default_sensor_config = os.path.join(
-        repository_root, "configs", "sensors", "Sensor_5.json"
+        repository_root, "configs", "sensors", "Sensor.json"
     )
 
     parser = argparse.ArgumentParser(

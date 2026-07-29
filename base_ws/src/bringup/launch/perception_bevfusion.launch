@@ -1,7 +1,7 @@
 <launch>
   <!-- Top-level host launch for MORAI four-camera BEVFusion visualization. -->
   <arg name="sensor_config"
-       default="$(find bringup)/../../../configs/sensors/Sensor_5.json"/>
+       default="$(find bringup)/../../../configs/sensors/Sensor.json"/>
   <arg name="config"
        default="$(find bringup)/../../../configs/perception/bevfusion_sensor4.yaml"/>
   <arg name="projection_only" default="false"/>

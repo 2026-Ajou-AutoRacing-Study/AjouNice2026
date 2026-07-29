@@ -1,4 +1,5 @@
-# Runtime policy only; all sensor geometry and topics come from Sensor_5.json.
+# Runtime policy only; all sensor geometry and topics come from Sensor.json.
+# 260729 기준 Sensor.json의 최신 원본은 configs/sensors/Sensor_5.json이다.
 operation: inference
 
 server_host: 127.0.0.1
@@ -20,4 +21,3 @@ intrinsic_source: horizontal_fov
 score_threshold: 0.20
 max_detections: 100
 marker_lifetime_sec: 0.50
-
