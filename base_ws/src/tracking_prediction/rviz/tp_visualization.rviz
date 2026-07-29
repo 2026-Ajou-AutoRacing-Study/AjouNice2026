@@ -6,7 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
-        - /MarkerArray1
+        - /MarkerArray21
       Splitter Ratio: 0.5
     Tree Height: 617
   - Class: rviz/Selection
@@ -81,7 +81,13 @@ Visualization Manager:
       Marker Topic: /map/lanelet_map
       Name: lanelat_map
       Namespaces:
-        {}
+        features/lane_markings: true
+        features/road_borders: true
+        features/stop_lines: true
+        features/traffic_lights: true
+        lanelet/centerlines: true
+        lanelet/left_boundaries: true
+        lanelet/right_boundaries: true
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -91,6 +97,14 @@ Visualization Manager:
       Namespaces:
         predicted_path: true
         predicted_path_point: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /app/perc/vis_all_track
+      Name: MarkerArray2
+      Namespaces:
+        {}
       Queue Size: 100
       Value: true
   Enabled: true
@@ -157,5 +171,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1200
-  X: 1258
-  Y: 665
+  X: 1148
+  Y: 391
