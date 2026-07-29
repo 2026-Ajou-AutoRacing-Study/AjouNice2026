@@ -13,7 +13,7 @@ localization baseline을 추가했다.
 - MORAI 전용 메시지 변환과 공분산 부여를 fusion backend에서 분리한다.
 - `robot_localization`을 나중에 다른 fusion backend로 교체하더라도 센서
   전처리와 Planning 출력 계약은 재사용할 수 있게 한다.
-- 처음에는 노이즈가 꺼진 `Sensor_4.json`으로 기준 성능을 측정하고,
+- 처음에는 노이즈가 꺼진 `Sensor_5.json`으로 기준 성능을 측정하고,
   그 다음 `Sensor_4_noise_v1.json`으로 노이즈 실험을 수행한다.
 
 이번 구현은 IMU fixed bias 영점 조정을 포함하지 않는다. 현재 MORAI 설정은
@@ -48,7 +48,7 @@ MORAI / rosbag
           - message offset이 유효하면 사용
           - 현재 bag처럼 offset=0이면 K-City fallback offset 사용
           - morai_map 좌표 → map 좌표로 변환
-          - Sensor_4.json의 GPS 높이 보정
+          - Sensor_5.json의 GPS 높이 보정
           - GNSS 위치 covariance 부여
                │
                └─ /localization/gnss/odom (nav_msgs/Odometry)
@@ -184,7 +184,7 @@ MORAI의 `/sensor/imu` 메시지는 현재 covariance 첫 원소를 `-1`로
 ### 노이즈 OFF 기준값
 
 파일:
-`configs/localization/gnss_imu_noise_sensor4_ideal.yaml`
+`configs/localization/gnss_imu_noise_sensor5_ideal.yaml`
 
 | 측정 | 표준편차 | 메시지에 들어가는 분산 |
 |---|---:|---:|
@@ -226,7 +226,7 @@ GT residual의 분산으로 다시 추정해야 하며, 현재 값을 최종 cal
 - `base_ws/src/localization/localization_manager/scripts/gnss_imu_initial_pose_publisher.py`
 - `base_ws/src/localization/localization_manager/scripts/gnss_imu_kinematic_state_publisher.py`
 - `base_ws/src/localization/localization_manager/rviz/gnss_imu_evaluation.rviz`
-- `configs/localization/gnss_imu_noise_sensor4_ideal.yaml`
+- `configs/localization/gnss_imu_noise_sensor5_ideal.yaml`
 - `configs/localization/gnss_imu_noise_sensor4_noise_v1.yaml`
 - `configs/localization/robot_localization_gnss_imu_local.yaml`
 - `configs/localization/robot_localization_gnss_imu_global.yaml`
@@ -294,8 +294,8 @@ source devel/setup.bash
 
 roslaunch bringup localization_gnss_imu.launch \
   use_sim_time:=true \
-  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor_4.json \
-  measurement_noise_config:=/home/luv/AjouNice2026/configs/localization/gnss_imu_noise_sensor4_ideal.yaml
+  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor_5.json \
+  measurement_noise_config:=/home/luv/AjouNice2026/configs/localization/gnss_imu_noise_sensor5_ideal.yaml
 ```
 
 아직 bag을 재생하지 않았으면 `/use_sim_time set to true and no clock
@@ -348,12 +348,12 @@ roscore
 ### 터미널 2: MORAI UDP 수신
 
 ```bash
-# Sensor_4 GNSS와 IMU를 ROS 토픽으로 수신
+# Sensor_5 GNSS와 IMU를 ROS 토픽으로 수신
 cd ~/AjouNice2026/base_ws
 source devel/setup.bash
 
 roslaunch sensor_interface morai_udp_interface.launch \
-  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor_4.json \
+  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor_5.json \
   network_config:=/home/luv/AjouNice2026/configs/network/ego_network_1.json
 ```
 
@@ -366,8 +366,8 @@ source devel/setup.bash
 
 roslaunch bringup localization_gnss_imu.launch \
   use_sim_time:=false \
-  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor_4.json \
-  measurement_noise_config:=/home/luv/AjouNice2026/configs/localization/gnss_imu_noise_sensor4_ideal.yaml
+  sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor_5.json \
+  measurement_noise_config:=/home/luv/AjouNice2026/configs/localization/gnss_imu_noise_sensor5_ideal.yaml
 ```
 
 이미 `sensing.launch`가 sensor static TF를 발행 중이면 중복을 막기 위해
@@ -419,7 +419,7 @@ source base_ws/devel/setup.bash
 python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
   rosbags/eval/localization/gnss_imu_kcity_eval_v1_run01.bag \
   --state-topic /localization/kinematic_state \
-  --sensor-config configs/sensors/Sensor_4.json \
+  --sensor-config configs/sensors/Sensor_5.json \
   --ego-velocity-unit kmph \
   --alignment-reference-sec 2.0 \
   --out rosbags/eval/localization/gnss_imu_kcity_eval_v1_run01.csv \
@@ -472,7 +472,7 @@ source base_ws/devel/setup.bash
 python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
   rosbags/eval/localization/gnss_imu_kcity_eval_v1_run01.bag \
   --state-topic /localization/kinematic_state \
-  --sensor-config configs/sensors/Sensor_4.json \
+  --sensor-config configs/sensors/Sensor_5.json \
   --ego-velocity-unit kmph \
   --alignment-reference-sec 2.0 \
   --out rosbags/eval/localization/gnss_imu_kcity_eval_v1_run01.csv \

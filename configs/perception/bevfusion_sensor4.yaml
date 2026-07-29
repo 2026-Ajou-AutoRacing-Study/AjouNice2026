@@ -1,4 +1,4 @@
-# Runtime policy only; all sensor geometry and topics come from Sensor_4.json.
+# Runtime policy only; all sensor geometry and topics come from Sensor_5.json.
 operation: inference
 
 server_host: 127.0.0.1

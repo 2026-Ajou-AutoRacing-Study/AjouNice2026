@@ -73,7 +73,7 @@ docs/morai_topic_survey_lab.md
 
 | Item | Value |
 |---|---|
-| Sensor config | `configs/sensors/Sensor_4.json` |
+| Sensor config | `configs/sensors/Sensor_5.json` |
 | Ego network config | `config/network/ego_network_1.json` |
 | Check command | `morai_status` |
 

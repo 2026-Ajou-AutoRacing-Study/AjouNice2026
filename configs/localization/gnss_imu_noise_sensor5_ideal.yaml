@@ -1,0 +1,13 @@
+# Measurement uncertainty for the noise-disabled MORAI Sensor_5 profile.
+# Values are standard deviations. Adapter nodes square them before publishing.
+profile_name: sensor5_ideal
+source_sensor_config: Sensor_5.json
+
+imu:
+  orientation_stddev_rad: 0.001745329252
+  angular_velocity_stddev_radps: 0.001
+  linear_acceleration_stddev_mps2: 0.01
+
+gnss:
+  horizontal_stddev_m: 0.05
+  vertical_stddev_m: 1.0

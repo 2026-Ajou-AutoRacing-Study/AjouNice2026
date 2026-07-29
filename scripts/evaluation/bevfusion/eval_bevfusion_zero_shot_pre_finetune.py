@@ -374,7 +374,7 @@ def parse_args():
     parser.add_argument("result_bag", help="bag containing GT and BEVFusion output markers")
     parser.add_argument("--out-prefix", required=True, help="output path without extension")
     parser.add_argument(
-        "--sensor-config", default=os.path.join(root, "configs/sensors/Sensor_4.json")
+        "--sensor-config", default=os.path.join(root, "configs/sensors/Sensor_5.json")
     )
     parser.add_argument("--max-sync-gap", type=float, default=0.10)
     parser.add_argument("--iou-thresholds", type=float, nargs="+", default=[0.25, 0.50])

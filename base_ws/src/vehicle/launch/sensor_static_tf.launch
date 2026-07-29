@@ -1,11 +1,11 @@
 <launch>
   <!--
-    Publish base_link -> sensor static TFs from the same Sensor_4.json that MORAI loads.
-    Keep the numeric sensor extrinsics in configs/sensors/Sensor_4.json, not in launch.
+    Publish base_link -> sensor static TFs from the same Sensor_5.json that MORAI loads.
+    Keep the numeric sensor extrinsics in configs/sensors/Sensor_5.json, not in launch.
   -->
 
   <arg name="sensor_config"
-       default="$(find ioniq5)/../../../configs/sensors/Sensor_4.json"/>
+       default="$(find ioniq5)/../../../configs/sensors/Sensor_5.json"/>
   <arg name="parent_frame" default="base_link"/>
   <arg name="publish_lidar" default="true"/>
   <arg name="publish_imu" default="true"/>

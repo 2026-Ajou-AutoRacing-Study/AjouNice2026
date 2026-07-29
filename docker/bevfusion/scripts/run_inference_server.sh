@@ -7,7 +7,7 @@ export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 
 args=(
   python /opt/ajounice/app/inference_server.py
-  --sensor-config "${SENSOR_CONFIG:-/config/Sensor_4.json}"
+  --sensor-config "${SENSOR_CONFIG:-/config/Sensor_5.json}"
   --config "${MODEL_CONFIG:-/opt/mmdetection3d/projects/BEVFusion/configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py}"
   --checkpoint "${CHECKPOINT:-/opt/checkpoints/bevfusion_lidar_cam_nuscenes.pth}"
   --bind "${BEVFUSION_BIND:-0.0.0.0}"
