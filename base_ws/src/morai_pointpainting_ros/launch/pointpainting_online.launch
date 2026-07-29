@@ -20,7 +20,7 @@
   <arg name="max_detection_range" default="20.0"/>
   <arg name="publish_painted_points" default="false"/>
   <arg name="use_amp" default="true"/>
-  <arg name="segmentation_short_side" default="384"/>
+  <arg name="segmentation_short_side" default="320"/>
   <arg name="warmup_segmentation" default="true"/>
 
   <arg name="warmup_full_pipeline" default="true"/>
