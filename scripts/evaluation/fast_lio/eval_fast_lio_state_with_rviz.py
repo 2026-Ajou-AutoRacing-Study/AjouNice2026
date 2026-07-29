@@ -878,6 +878,26 @@ def main():
         ),
     )
     parser.add_argument(
+        "--evaluation-start-sec",
+        type=float,
+        default=0.0,
+        help=(
+            "Skip samples before this elapsed time in seconds, measured from "
+            "the first matched state. Use only for a documented startup "
+            "transient; the first retained pose becomes elapsed time zero."
+        ),
+    )
+    parser.add_argument(
+        "--evaluation-end-sec",
+        type=float,
+        default=None,
+        help=(
+            "Evaluate only through this elapsed time in seconds, measured "
+            "from the first matched state. This is useful for reporting a "
+            "known-valid interval before a documented sensor outage."
+        ),
+    )
+    parser.add_argument(
         "--ego-yaw-rate-window",
         type=int,
         default=7,
@@ -916,6 +936,24 @@ def main():
         args.max_dt,
         args.ego_yaw_rate_window,
     )
+    if args.evaluation_start_sec < 0.0:
+        raise ValueError("--evaluation-start-sec must be non-negative")
+    if args.evaluation_end_sec is not None:
+        if args.evaluation_end_sec <= args.evaluation_start_sec:
+            raise ValueError(
+                "--evaluation-end-sec must exceed --evaluation-start-sec"
+            )
+    if args.evaluation_start_sec > 0.0 or args.evaluation_end_sec is not None:
+        first_matched_stamp = matched[0][0].stamp if matched else 0.0
+        matched = [
+            match
+            for match in matched
+            if match[0].stamp - first_matched_stamp >= args.evaluation_start_sec
+            and (
+                args.evaluation_end_sec is None
+                or match[0].stamp - first_matched_stamp <= args.evaluation_end_sec
+            )
+        ]
     if len(matched) < 10:
         raise RuntimeError(
             f"Too few unique matched samples: {len(matched)}. "
@@ -981,6 +1019,20 @@ def main():
     csv_path, text_path = output_paths(args.bag, args.out)
     report_buffer = io.StringIO()
     with contextlib.redirect_stdout(report_buffer):
+        if args.evaluation_start_sec > 0.0 or args.evaluation_end_sec is not None:
+            requested_end = (
+                f"{args.evaluation_end_sec:.3f}"
+                if args.evaluation_end_sec is not None
+                else "end"
+            )
+            print(
+                "requested interval:     "
+                f"{args.evaluation_start_sec:.3f} ~ {requested_end} sec"
+            )
+            print(
+                "evaluated duration:      "
+                f"{relative_times[-1]:.3f} sec after interval trimming"
+            )
         print_report(
             args.bag,
             args.state_topic,

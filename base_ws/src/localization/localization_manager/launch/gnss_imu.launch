@@ -11,6 +11,8 @@
   -->
   <arg name="sensor_config"
        default="$(env HOME)/AjouNice2026/configs/sensors/Sensor_4.json"/>
+  <arg name="config"
+       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
   <arg name="measurement_noise_config"
        default="$(env HOME)/AjouNice2026/configs/localization/gnss_imu_noise_sensor4_ideal.yaml"/>
   <arg name="local_ekf_config"
@@ -25,12 +27,17 @@
   <arg name="local_odom_topic" default="/localization/odometry/local"/>
   <arg name="global_odom_topic" default="/localization/odom"/>
   <arg name="kinematic_state_topic" default="/localization/kinematic_state"/>
+  <arg name="initial_pose_topic" default="/localization/initialpose"/>
 
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
   <arg name="base_frame" default="base_link"/>
   <arg name="noise_namespace"
        default="/localization_manager/providers/gnss_imu/noise"/>
+
+  <rosparam command="load"
+            file="$(arg config)"
+            ns="localization_manager"/>
 
   <rosparam command="load"
             file="$(arg measurement_noise_config)"
@@ -69,6 +76,11 @@
     <param name="tf_timeout_sec" value="0.1"/>
   </node>
 
+  <node pkg="localization_manager"
+        type="gnss_imu_initial_pose_publisher.py"
+        name="gnss_imu_initial_pose_publisher"
+        output="screen"/>
+
   <node pkg="robot_localization"
         type="ekf_localization_node"
         name="gnss_imu_local_ekf"
@@ -76,6 +88,9 @@
         output="screen">
     <rosparam command="load" file="$(arg local_ekf_config)"/>
     <remap from="odometry/filtered" to="$(arg local_odom_topic)"/>
+    <!-- Keep the local odom origin relative; only the global EKF gets map pose. -->
+    <remap from="set_pose"
+           to="/localization/gnss_imu/local_set_pose_unused"/>
   </node>
 
   <node pkg="robot_localization"
@@ -85,6 +100,7 @@
         output="screen">
     <rosparam command="load" file="$(arg global_ekf_config)"/>
     <remap from="odometry/filtered" to="$(arg global_odom_topic)"/>
+    <remap from="set_pose" to="$(arg initial_pose_topic)"/>
   </node>
 
   <node pkg="localization_manager"

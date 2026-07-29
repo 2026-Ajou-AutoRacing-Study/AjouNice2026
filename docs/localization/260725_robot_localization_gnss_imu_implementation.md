@@ -23,6 +23,14 @@ zero-mean noise만 제공하고 fixed bias를 설정하지 않았기 때문이�
 
 ```text
 MORAI / rosbag
+├─ first /Ego_topic pose (development start-pose proxy)
+│    │
+│    └─ gnss_imu_initial_pose_publisher.py
+│         - source: ego | manual
+│         - morai_map의 시작 pose를 map pose로 변환
+│         - global EKF에만 set_pose
+│         └─ /localization/initialpose
+│
 ├─ /sensor/imu  (sensor_msgs/Imu)
 │    │
 │    └─ imu_covariance_adapter.py
@@ -91,7 +99,52 @@ global EKF는 local EKF의 최신 TF를 즉시 사용한다. global EKF의
 `silent_tf_failure`는 이 의도된 latest-TF fallback warning만 숨기며 실제
 measurement/estimator 오류를 숨기는 용도가 아니다.
 
-## 4. 왜 `/localization/gnss/fix`를 사용하지 않는가
+## 4. 초기 pose 정책
+
+FAST-LIO+GNSS와 동일하게 개발 환경의 첫 `/Ego_topic`을 대회에서 제공될
+시작 pose의 대용으로 사용한다.
+
+```text
+개발:
+첫 /Ego_topic pose
+→ morai_map에서 map으로 변환
+→ /localization/initialpose
+→ global EKF set_pose
+
+대회:
+제공된 시작 pose
+→ providers/gnss_imu/initialization/manual
+→ 같은 /localization/initialpose 경로 재사용
+```
+
+설정은 `configs/localization/localization_manager.yaml`에 있다.
+
+```yaml
+providers:
+  gnss_imu:
+    initialization:
+      source: ego  # ego | manual
+      heading_unit: degrees
+      manual:
+        frame_id: morai_map
+        position: [0.0, 0.0, 0.0]
+        rpy_degrees: [0.0, 0.0, 0.0]
+```
+
+초기 pose는 global EKF에만 적용한다. local EKF는 출발 지점을 상대좌표
+`odom`의 원점으로 유지해야 하므로 전역 map pose로 reset하지 않는다.
+
+이 변경 전에는 IMU orientation이 global EKF를 먼저 초기화한 직후 첫
+GNSS 절대위치가 들어오면서, 정지 상태에서도 순간적인 속도 추정이
+발생했다. 초기 pose를 먼저 설정하면 첫 GNSS residual이 작아져 이
+startup spike가 크게 감소한다.
+
+이 초기화는 출력 gate가 아니다. global EKF와
+`/localization/kinematic_state`는 초기화 직후부터 계속 발행한다.
+Planning/Control에 전달하기 전 안정 여부를 판정하는 readiness gate는
+요청에 따라 이번 변경에서 보류했다.
+
+## 5. 왜 `/localization/gnss/fix`를 사용하지 않는가
 
 이번 provider는 아래의 기존 FAST-LIO+GNSS 경로를 수정하지 않는다.
 
@@ -118,7 +171,7 @@ GNSS+IMU provider에서는 MORAI의 K-City offset과 이미 존재하는
 backend를 바꾸더라도 `/localization/imu`와 `/localization/gnss/odom`은
 재사용할 수 있다.
 
-## 5. covariance 설계
+## 6. covariance 설계
 
 MORAI의 `/sensor/imu` 메시지는 현재 covariance 첫 원소를 `-1`로
 발행한다. 이것은 “covariance를 알 수 없음”이라는 ROS 표현이지, 실제
@@ -162,7 +215,7 @@ noise-on covariance YAML은 첫 실험을 위한 초안이다. 여러 번 녹화
 GT residual의 분산으로 다시 추정해야 하며, 현재 값을 최종 calibration으로
 간주하면 안 된다.
 
-## 6. 변경 파일
+## 7. 변경 파일
 
 ### 추가
 
@@ -170,6 +223,7 @@ GT residual의 분산으로 다시 추정해야 하며, 현재 값을 최종 cal
 - `base_ws/src/localization/localization_manager/launch/gnss_imu.launch`
 - `base_ws/src/localization/localization_manager/scripts/imu_covariance_adapter.py`
 - `base_ws/src/localization/localization_manager/scripts/morai_gps_to_local_odometry.py`
+- `base_ws/src/localization/localization_manager/scripts/gnss_imu_initial_pose_publisher.py`
 - `base_ws/src/localization/localization_manager/scripts/gnss_imu_kinematic_state_publisher.py`
 - `base_ws/src/localization/localization_manager/rviz/gnss_imu_evaluation.rviz`
 - `configs/localization/gnss_imu_noise_sensor4_ideal.yaml`
@@ -197,7 +251,7 @@ GT residual의 분산으로 다시 추정해야 하며, 현재 값을 최종 cal
 
 FAST-LIO, FAST-LIO MSF submodule과 MORAI UDP receiver는 수정하지 않았다.
 
-## 7. 빌드
+## 8. 빌드
 
 ```bash
 # GNSS+IMU localization 패키지와 bringup을 빌드
@@ -207,7 +261,7 @@ catkin build localization_manager bringup
 source devel/setup.bash
 ```
 
-## 8. 기존 raw bag으로 재녹화
+## 9. 기존 raw bag으로 재녹화
 
 대상 raw bag:
 
@@ -280,7 +334,7 @@ rosbag play rosbags/raw_sensor_w_cam/kcity_eval_v1_run01.bag \
 Space를 눌러 재생한다. 재생이 끝나면 터미널 3에서 `Ctrl-C`를 눌러
 녹화를 종료한다.
 
-## 9. MORAI 실시간 녹화
+## 10. MORAI 실시간 녹화
 
 ### 터미널 1: ROS master
 
@@ -341,7 +395,7 @@ source base_ws/devel/setup.bash
 bash scripts/rosbag/record/rosbag_for_gnss_imu_eval.sh
 ```
 
-## 10. 수치 평가
+## 11. 수치 평가
 
 평가기는 이름에 `fast_lio`가 남아 있지만
 `nav_msgs/Odometry` 형식의 `/localization/kinematic_state`를 평가하므로
@@ -379,7 +433,7 @@ startup transient가 없으면 기본값인
 `--alignment-reference-sec 0.0`을 사용한다. 수치를 좋게 만들기 위해
 임의로 alignment 시간을 바꾸면 안 된다.
 
-## 11. RViz 시각화
+## 12. RViz 시각화
 
 아래 절차는 GT path, GNSS+IMU path, threshold 초과 marker, TF, K-City
 Lanelet map을 한 화면에 표시한다.
@@ -458,7 +512,7 @@ rviz -d "$(rospack find localization_manager)/rviz/gnss_imu_evaluation.rviz"
 기본 Fixed Frame은 `morai_map`이다. Lanelet map은 기록된
 `map → morai_map` static TF를 통해 같은 화면에 표시된다.
 
-## 12. 노이즈 ON 후속 실험
+## 13. 노이즈 ON 후속 실험
 
 MORAI에서 `Sensor_4_noise_v1.json`을 실제로 load하고, UDP와
 localization 양쪽에 같은 센서 파일을 전달해야 한다.
@@ -477,7 +531,7 @@ roslaunch bringup localization_gnss_imu.launch \
 노이즈 OFF와 ON은 같은 경로, 속도, 정지 시간으로 각각 여러 번 녹화해야
 평균과 분산을 비교할 수 있다.
 
-## 13. 현재 한계
+## 14. 현재 한계
 
 - 이 provider는 GNSS position, IMU yaw/yaw-rate/acceleration만 사용한다.
 - GNSS outage 동안에는 IMU 적분 오차가 빠르게 증가한다.

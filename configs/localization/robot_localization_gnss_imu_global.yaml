@@ -1,5 +1,5 @@
 # Globally corrected branch. This node alone owns map -> odom.
-frequency: 30
+frequency: 50
 sensor_timeout: 0.2
 two_d_mode: true
 transform_time_offset: 0.0

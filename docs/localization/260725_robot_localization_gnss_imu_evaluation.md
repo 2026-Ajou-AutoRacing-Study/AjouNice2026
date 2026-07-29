@@ -126,3 +126,38 @@ position의 상태 전이를 통해 간접 추정하므로 성능이 낮다. 특
 `docs/localization/260725_robot_localization_gnss_imu_implementation.md`에
 정리했다.
 
+## 260728 초기 pose 정책 추가 검증
+
+FAST-LIO+GNSS와 동일하게 첫 `/Ego_topic`을 개발용 시작 pose로 사용하고,
+대회 제공 pose로 교체할 수 있는 `ego | manual` 초기화 경로를 GNSS+IMU
+global EKF에도 연결했다. 출력 readiness gate는 적용하지 않았다.
+
+동일 raw bag과 동일 covariance 설정으로 변경 전후 startup을 비교했다.
+
+| bag | 지표 | 변경 전 | 변경 후 |
+|---|---|---:|---:|
+| K-City | initial pose 이후 첫 matched state speed | 4.886 m/s | 0.000002 m/s |
+| K-City | 첫 2초 최대 speed error | 4.886 m/s | 0.00024 m/s |
+| Obstacle2 | initial pose 이후 첫 matched state speed | 27.915 m/s | 0.000001 m/s |
+| Obstacle2 | 첫 2초 최대 speed error | 27.831 m/s | 0.258 m/s |
+| Obstacle2 | 첫 2초 최대 XY error | 0.530 m | 0.187 m |
+
+K-City의 raw IMU orientation이 약 1.48초 동안 Ego heading과 `1.136°`
+다른 현상은 별개의 센서 입력 문제이므로 남아 있다. 초기 pose는 첫 GNSS
+절대위치 보정에 따른 global EKF 속도 spike를 해결하지만, 이후 들어오는
+잘못된 IMU orientation 자체를 수정하지는 않는다.
+
+K-City에서는 첫 Ego가 첫 센서보다 약 32 ms 늦어 initial pose 발행 전에
+`/localization/kinematic_state` 2개가 이미 발행됐으며, 이 구간 최대
+속도는 `0.996 m/s`였다. initial pose 이후 첫 state 속도는
+`0.000002 m/s`였다. 이번 변경은 요청대로 출력 gate를 포함하지 않으므로
+initial pose 이전 메시지를 차단하지 않는다. 대회의 manual 시작 pose가
+센서 fusion 전에 제공되면 이 선행 출력 구간도 피할 수 있고, 그렇지 않으면
+별도 readiness gate가 필요하다.
+
+검증 출력은 저장소를 변경하지 않도록 `/tmp`에만 생성했다.
+
+- `/tmp/gnss_imu_initial_pose_kcity.bag`
+- `/tmp/gnss_imu_initial_pose_kcity_ref2.txt`
+- `/tmp/gnss_imu_initial_pose_obstacle2.bag`
+- `/tmp/gnss_imu_initial_pose_obstacle2_ref2.txt`
