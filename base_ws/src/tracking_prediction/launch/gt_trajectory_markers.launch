@@ -1,0 +1,9 @@
+<launch>
+  <arg name="input_topic" default="/Object_topic" />
+  <arg name="output_topic" default="/gt/markers" />
+
+  <node pkg="tracking_prediction" type="gt_trajectory_markers_node.py" name="gt_trajectory_markers_node" output="screen">
+    <param name="input_topic" value="$(arg input_topic)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+  </node>
+</launch>
