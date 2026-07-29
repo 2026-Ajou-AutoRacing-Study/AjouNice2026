@@ -1,0 +1,16 @@
+<launch>
+  <!--
+    이 브릿지 실행 전, rosbag 재생시 반드시 클록옵션 옵션을 붙여야 함
+    (ekf_multi_class_object_tracking.launch가 use_sim_time:=true를 요구하기 때문):
+    rosbag play 클록옵션 <bag파일>
+  -->
+  <arg name="input_topic" default="/Object_topic" />
+  <arg name="output_topic" default="/hmi/perc/jsk_pillar_objects" />
+  <arg name="frame_id" default="" />
+
+  <node pkg="tracking_prediction" type="gt_to_jsk_bbox_bridge.py" name="gt_to_jsk_bbox_bridge" output="screen">
+    <param name="input_topic" value="$(arg input_topic)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+  </node>
+</launch>

@@ -42,7 +42,8 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/tracking_node.py
   scripts/prediction_node.py
-  scripts/eval_ctra_prediction.py
   scripts/pointpainting_tracking_node.py
+  scripts/visualization_node.py
+  scripts/gt_trajectory_markers_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
