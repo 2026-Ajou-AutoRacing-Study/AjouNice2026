@@ -73,7 +73,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /gt/markers￩
+      Marker Topic: /gt/markers
       Name: gt_trajectory
       Namespaces:
         {}
