@@ -184,7 +184,7 @@ MORAI의 `/sensor/imu` 메시지는 현재 covariance 첫 원소를 `-1`로
 ### 노이즈 OFF 기준값
 
 파일:
-`configs/localization/gnss_imu_noise_sensor5_ideal.yaml`
+`configs/localization/gnss_imu_noise_sensor6_ideal.yaml`
 
 | 측정 | 표준편차 | 메시지에 들어가는 분산 |
 |---|---:|---:|
@@ -226,7 +226,7 @@ GT residual의 분산으로 다시 추정해야 하며, 현재 값을 최종 cal
 - `base_ws/src/localization/localization_manager/scripts/gnss_imu_initial_pose_publisher.py`
 - `base_ws/src/localization/localization_manager/scripts/gnss_imu_kinematic_state_publisher.py`
 - `base_ws/src/localization/localization_manager/rviz/gnss_imu_evaluation.rviz`
-- `configs/localization/gnss_imu_noise_sensor5_ideal.yaml`
+- `configs/localization/gnss_imu_noise_sensor6_ideal.yaml`
 - `configs/localization/gnss_imu_noise_sensor4_noise_v1.yaml`
 - `configs/localization/robot_localization_gnss_imu_local.yaml`
 - `configs/localization/robot_localization_gnss_imu_global.yaml`
@@ -295,7 +295,7 @@ source devel/setup.bash
 roslaunch bringup localization_gnss_imu.launch \
   use_sim_time:=true \
   sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor.json \
-  measurement_noise_config:=/home/luv/AjouNice2026/configs/localization/gnss_imu_noise_sensor5_ideal.yaml
+  measurement_noise_config:=/home/luv/AjouNice2026/configs/localization/gnss_imu_noise_sensor6_ideal.yaml
 ```
 
 아직 bag을 재생하지 않았으면 `/use_sim_time set to true and no clock
@@ -348,7 +348,7 @@ roscore
 ### 터미널 2: MORAI UDP 수신
 
 ```bash
-# Sensor_5 GNSS와 IMU를 ROS 토픽으로 수신
+# Sensor_6 GNSS와 IMU를 ROS 토픽으로 수신
 cd ~/AjouNice2026/base_ws
 source devel/setup.bash
 
@@ -367,7 +367,7 @@ source devel/setup.bash
 roslaunch bringup localization_gnss_imu.launch \
   use_sim_time:=false \
   sensor_config:=/home/luv/AjouNice2026/configs/sensors/Sensor.json \
-  measurement_noise_config:=/home/luv/AjouNice2026/configs/localization/gnss_imu_noise_sensor5_ideal.yaml
+  measurement_noise_config:=/home/luv/AjouNice2026/configs/localization/gnss_imu_noise_sensor6_ideal.yaml
 ```
 
 이미 `sensing.launch`가 sensor static TF를 발행 중이면 중복을 막기 위해
