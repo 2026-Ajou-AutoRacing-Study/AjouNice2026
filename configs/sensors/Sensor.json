@@ -17,7 +17,7 @@
       "cc": {
         "sensorName": "Camera_front",
         "sensorType": 1,
-        "sensorPeriod": 0.05000000074505806,
+        "sensorPeriod": 0.03333333333333333,
         "commType": 1,
         "udpConfig": {
           "hostIP": "127.0.0.1",
@@ -132,7 +132,7 @@
       "cc": {
         "sensorName": "Camera_front_left",
         "sensorType": 1,
-        "sensorPeriod": 0.05000000074505806,
+        "sensorPeriod": 0.03333333333333333,
         "commType": 1,
         "udpConfig": {
           "hostIP": "127.0.0.1",
@@ -247,7 +247,7 @@
       "cc": {
         "sensorName": "Camera_front_right",
         "sensorType": 1,
-        "sensorPeriod": 0.05000000074505806,
+        "sensorPeriod": 0.03333333333333333,
         "commType": 1,
         "udpConfig": {
           "hostIP": "127.0.0.1",
@@ -362,7 +362,7 @@
       "cc": {
         "sensorName": "Camera_back",
         "sensorType": 1,
-        "sensorPeriod": 0.05000000074505806,
+        "sensorPeriod": 0.03333333333333333,
         "commType": 1,
         "udpConfig": {
           "hostIP": "127.0.0.1",

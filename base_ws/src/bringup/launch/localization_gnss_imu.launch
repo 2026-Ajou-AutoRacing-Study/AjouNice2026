@@ -4,7 +4,7 @@
   <arg name="sensor_config"
        default="$(env HOME)/AjouNice2026/configs/sensors/Sensor.json"/>
   <arg name="measurement_noise_config"
-       default="$(env HOME)/AjouNice2026/configs/localization/gnss_imu_noise_sensor5_ideal.yaml"/>
+       default="$(env HOME)/AjouNice2026/configs/localization/gnss_imu_noise_sensor6_ideal.yaml"/>
   <arg name="localization_manager_config"
        default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
   <arg name="local_ekf_config"
