@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>trajectory_batch_runner</name>
+  <version>0.1.0</version>
+  <description>Plan and orchestrate repeatable MORAI trajectory-following batch validation.</description>
+
+  <maintainer email="ajounice@example.com">AjouNice2026</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <!--
+    현재는 실행 코드가 없는 문서 골격 단계다.
+    runner 구현 시 실제 import와 launch 사용 범위가 확정되면 실행 의존성을 추가한다.
+  -->
+
+  <export/>
+</package>

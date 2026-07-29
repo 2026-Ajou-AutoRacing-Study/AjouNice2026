@@ -1,0 +1,20 @@
+<launch>
+  <!--
+    목적:
+      Lane Change 또는 Obstacle Avoidance batch 설정 파일을 기준으로
+      trajectory 연속 검증을 시작하기 위한 단일 ROS launch 진입점을 제공한다.
+
+    역할:
+      사용자가 선택한 config 경로를 batch runner에 전달하고,
+      향후 runner가 필요한 기존 launch들을 정해진 순서로 관리하도록 연결한다.
+
+    대략적인 로직:
+      1. lane_change.yaml 또는 obstacle_avoidance.yaml을 선택한다.
+      2. runner가 config의 trajectory 폴더와 시나리오 폴더를 확인한다.
+      3. udp와 maptf_morai_cor 상태를 확인한다.
+      4. 각 CSV마다 시나리오, traj_gen, traj_val, traj_fol_a 순서로 실행한다.
+
+    현재 상태:
+      실행 코드는 아직 작성하지 않았으므로 arg와 node를 등록하지 않는다.
+  -->
+</launch>
