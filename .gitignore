@@ -56,6 +56,7 @@ base_ws/src/control/trajectory_generator/traj_sample/**/*.json
 !base_ws/src/bringup/rviz/kcity_mission_bpp.rviz
 !base_ws/src/bringup/rviz/kcity_interactive_trajectory.rviz
 !base_ws/src/bringup/rviz/kcity_competition_static_path.rviz
+!base_ws/src/localization/localization_manager/rviz/gnss_imu_evaluation.rviz
 !base_ws/src/planning/mission_planner/rviz/mission_route_comparison.rviz
 !base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_lane_following_comparison.rviz
 !base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_lane_change_comparison.rviz

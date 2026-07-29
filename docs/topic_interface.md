@@ -4,7 +4,7 @@ MORAI와 이 저장소 사이의 외부 통신은 UDP만 사용한다. `sensor_i
 
 ## 설정 파일
 
-- 센서: `configs/sensors/Sensor_4.json`
+- 센서: `configs/sensors/Sensor.json`
 - Ego Network: `configs/network/ego_network_1.json`
 - UDP 수신: `roslaunch sensor_interface morai_udp_interface.launch`
 - 센서 TF/RViz/차량 모델: `roslaunch bringup sensing.launch`
@@ -39,7 +39,7 @@ MORAI와 이 저장소 사이의 외부 통신은 UDP만 사용한다. `sensor_i
 
 ## TF ownership
 
-- `base_link -> sensor`: `Sensor_4.json`을 읽는 `morai_sensor_static_tf.py`
+- `base_link -> sensor`: `Sensor.json`을 읽는 `morai_sensor_static_tf.py`
 - 동적 `map -> base_link`: 선택한 localization 모듈
 - MORAI `/tf`: 사용하지 않음
 
@@ -56,4 +56,4 @@ source ~/AjouNice2026/base_ws/devel/setup.bash
 roslaunch bringup sensing.launch start_rviz:=false enable_vehicle_model:=false
 ```
 
-MORAI GUI에서는 Sensor 설정에 `Sensor_4.json`, Ego-0 Network 설정에 `ego_network_1.json`을 각각 로드해야 한다. 파일을 수정한 것만으로 이미 실행 중인 MORAI에 자동 반영되지는 않는다.
+MORAI GUI에서는 Sensor 설정에 `Sensor.json`, Ego-0 Network 설정에 `ego_network_1.json`을 각각 로드해야 한다. 파일을 수정한 것만으로 이미 실행 중인 MORAI에 자동 반영되지는 않는다.

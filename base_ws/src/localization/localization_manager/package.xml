@@ -13,6 +13,7 @@
   <depend>message_filters</depend>
   <depend>morai_msgs</depend>
   <depend>nav_msgs</depend>
+  <depend>robot_localization</depend>
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
   <depend>tf</depend>
