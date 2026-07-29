@@ -33,4 +33,4 @@
 	url = https://github.com/2026-Ajou-AutoRacing-Study/kcity_map.git
 [submodule "base_ws/src/ekf-multi-object-tracking"]
 	path = base_ws/src/ekf-multi-object-tracking
-	url = https://github.com/jaeyoungjo99/ekf-multi-object-tracking.git
+	url = https://github.com/2026-Ajou-AutoRacing-Study/ekf-multi-object-tracking.git
