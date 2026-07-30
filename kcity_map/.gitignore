@@ -1,0 +1,48 @@
+# Python cache and local environments
+__pycache__/
+*.py[cod]
+.venv/
+.venv-*/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Temporary work and local reports
+.cache/
+tmp/
+temp/
+work/
+reports/
+*.log
+*.tmp
+
+# Map/GIS editor backups
+*.osm.bak
+*.osm~
+*.autosave
+*.qgs~
+*.qgz~
+
+# Experimental route outputs
+competition_route/**/attempt*/
+competition_route/**/tmp/
+
+# Large map assets are shared through Google Drive.
+# Keep their local paths unchanged so ROS launch files and tools work after
+# running scripts/map/download_kcity_map_assets.sh.
+/drive_assets.sha256
+/lanelet_map/*.osm
+/lanelet_map/*.pcd
+/competition_route/v*/
+/example_map/
+/gis_map/
+/mgeo_map/
