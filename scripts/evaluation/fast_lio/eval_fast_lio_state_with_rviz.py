@@ -352,6 +352,69 @@ def project_position_error_to_ego_frame(position_error_xyz, ego_yaw):
     return longitudinal, lateral
 
 
+def align_from_reference_pose(matched, reference_time_sec):
+    """Rigidly align state and Ego at a selected elapsed timestamp.
+
+    The default reference time of zero preserves the historical evaluator
+    behavior. A positive time is useful when a recorded estimator or simulated
+    IMU publishes a transient orientation during startup; the transient is
+    still evaluated, but it no longer rotates the entire trajectory.
+    """
+    first_stamp = matched[0][0].stamp
+    reference_index = len(matched) - 1
+    for index, (ego_sample, _, _) in enumerate(matched):
+        if ego_sample.stamp - first_stamp >= reference_time_sec:
+            reference_index = index
+            break
+
+    ego_reference, state_reference, _ = matched[reference_index]
+    alignment_yaw = core.wrap_angle(
+        ego_reference.yaw - state_reference.yaw
+    )
+    cosine = math.cos(alignment_yaw)
+    sine = math.sin(alignment_yaw)
+    rotation = np.array([[cosine, -sine], [sine, cosine]], dtype=float)
+
+    ego_xyz = np.array(
+        [[match[0].x, match[0].y, match[0].z] for match in matched],
+        dtype=float,
+    )
+    state_xyz = np.array(
+        [[match[1].x, match[1].y, match[1].z] for match in matched],
+        dtype=float,
+    )
+    state_xy_relative = (
+        state_xyz[:, :2] - state_xyz[reference_index, :2]
+    )
+    aligned_xy = (
+        state_xy_relative @ rotation.T
+        + ego_xyz[reference_index, :2]
+    )
+    aligned_z = (
+        state_xyz[:, 2]
+        - state_xyz[reference_index, 2]
+        + ego_xyz[reference_index, 2]
+    )
+    aligned_xyz = np.column_stack((aligned_xy, aligned_z))
+    aligned_yaw = np.array(
+        [
+            core.wrap_angle(match[1].yaw + alignment_yaw)
+            for match in matched
+        ],
+        dtype=float,
+    )
+    reference_elapsed_sec = (
+        matched[reference_index][0].stamp - first_stamp
+    )
+    return (
+        ego_xyz,
+        aligned_xyz,
+        aligned_yaw,
+        alignment_yaw,
+        reference_elapsed_sec,
+    )
+
+
 def mask_segments(mask, relative_times, minimum_duration):
     segments = []
     start = None
@@ -399,6 +462,7 @@ def print_report(
     mount,
     interpolation_statistics,
     ego_velocity_unit,
+    alignment_reference_sec,
 ):
     ego_distance = float(np.linalg.norm(np.diff(ego_xyz[:, :2], axis=0), axis=1).sum())
     state_distance = float(
@@ -454,6 +518,10 @@ def print_report(
     print(f"path length ratio:     {path_ratio:.5f}")
     print(f"path length error:     {state_distance - ego_distance:+.3f} m")
     print(f"initial alignment yaw: {math.degrees(alignment_yaw):.3f} deg")
+    print(
+        f"alignment reference:    {alignment_reference_sec:.3f} sec "
+        "from first matched state"
+    )
     print(f"XY mean error:         {position_errors.mean():.3f} m")
     print(f"XY RMSE:               {math.sqrt(float(np.mean(position_errors**2))):.3f} m")
     print(f"XY max error:          {position_errors.max():.3f} m")
@@ -763,7 +831,7 @@ def main():
         os.path.join(os.path.dirname(__file__), "..", "..", "..")
     )
     default_sensor_config = os.path.join(
-        repository_root, "configs", "sensors", "Sensor_2.json"
+        repository_root, "configs", "sensors", "Sensor.json"
     )
 
     parser = argparse.ArgumentParser(
@@ -798,6 +866,37 @@ def main():
     parser.add_argument("--sensor-config", default=default_sensor_config)
     parser.add_argument("--imu-name", default="imu")
     parser.add_argument("--max-dt", type=float, default=0.05)
+    parser.add_argument(
+        "--alignment-reference-sec",
+        type=float,
+        default=0.0,
+        help=(
+            "Elapsed time of the pose pair used for one-time trajectory "
+            "alignment. Keep 0 for the historical first-sample behavior; "
+            "use a positive value only when a documented startup transient "
+            "must not define the whole-run alignment."
+        ),
+    )
+    parser.add_argument(
+        "--evaluation-start-sec",
+        type=float,
+        default=0.0,
+        help=(
+            "Skip samples before this elapsed time in seconds, measured from "
+            "the first matched state. Use only for a documented startup "
+            "transient; the first retained pose becomes elapsed time zero."
+        ),
+    )
+    parser.add_argument(
+        "--evaluation-end-sec",
+        type=float,
+        default=None,
+        help=(
+            "Evaluate only through this elapsed time in seconds, measured "
+            "from the first matched state. This is useful for reporting a "
+            "known-valid interval before a documented sensor outage."
+        ),
+    )
     parser.add_argument(
         "--ego-yaw-rate-window",
         type=int,
@@ -837,14 +936,46 @@ def main():
         args.max_dt,
         args.ego_yaw_rate_window,
     )
+    if args.evaluation_start_sec < 0.0:
+        raise ValueError("--evaluation-start-sec must be non-negative")
+    if args.evaluation_end_sec is not None:
+        if args.evaluation_end_sec <= args.evaluation_start_sec:
+            raise ValueError(
+                "--evaluation-end-sec must exceed --evaluation-start-sec"
+            )
+    if args.evaluation_start_sec > 0.0 or args.evaluation_end_sec is not None:
+        first_matched_stamp = matched[0][0].stamp if matched else 0.0
+        matched = [
+            match
+            for match in matched
+            if match[0].stamp - first_matched_stamp >= args.evaluation_start_sec
+            and (
+                args.evaluation_end_sec is None
+                or match[0].stamp - first_matched_stamp <= args.evaluation_end_sec
+            )
+        ]
     if len(matched) < 10:
         raise RuntimeError(
             f"Too few unique matched samples: {len(matched)}. "
             "Increase --max-dt or check timestamps."
         )
+    if args.alignment_reference_sec < 0.0:
+        raise ValueError("--alignment-reference-sec must be non-negative")
+    available_duration = matched[-1][0].stamp - matched[0][0].stamp
+    if args.alignment_reference_sec > available_duration:
+        raise ValueError(
+            "--alignment-reference-sec exceeds the matched trajectory "
+            f"duration ({available_duration:.3f} sec)"
+        )
 
-    ego_xyz, aligned_xyz, aligned_yaw, alignment_yaw = core.align_from_initial_pose(
-        matched
+    (
+        ego_xyz,
+        aligned_xyz,
+        aligned_yaw,
+        alignment_yaw,
+        alignment_reference_sec,
+    ) = align_from_reference_pose(
+        matched, args.alignment_reference_sec
     )
     position_error_xyz = aligned_xyz - ego_xyz
     position_errors = np.linalg.norm(position_error_xyz[:, :2], axis=1)
@@ -888,6 +1019,20 @@ def main():
     csv_path, text_path = output_paths(args.bag, args.out)
     report_buffer = io.StringIO()
     with contextlib.redirect_stdout(report_buffer):
+        if args.evaluation_start_sec > 0.0 or args.evaluation_end_sec is not None:
+            requested_end = (
+                f"{args.evaluation_end_sec:.3f}"
+                if args.evaluation_end_sec is not None
+                else "end"
+            )
+            print(
+                "requested interval:     "
+                f"{args.evaluation_start_sec:.3f} ~ {requested_end} sec"
+            )
+            print(
+                "evaluated duration:      "
+                f"{relative_times[-1]:.3f} sec after interval trimming"
+            )
         print_report(
             args.bag,
             args.state_topic,
@@ -911,6 +1056,7 @@ def main():
             mount,
             interpolation_statistics,
             args.ego_velocity_unit,
+            alignment_reference_sec,
         )
     report = report_buffer.getvalue()
     print(report, end="")

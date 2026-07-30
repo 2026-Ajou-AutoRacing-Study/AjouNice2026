@@ -1,4 +1,5 @@
-# Runtime policy only; all sensor geometry and topics come from Sensor_4.json.
+# Runtime policy only; all sensor geometry and topics come from Sensor.json.
+# 260729 기준 Sensor.json의 최신 원본은 configs/sensors/Sensor_6.json이다.
 operation: inference
 
 server_host: 127.0.0.1
@@ -11,7 +12,7 @@ camera_order:
   - camera_front_left
   - camera_front_right
   - camera_back
-camera_buffer_size: 20
+camera_buffer_size: 30
 sync_tolerance_sec: 0.10
 latest_frame_only: true
 drop_incomplete_frame: true
@@ -20,4 +21,3 @@ intrinsic_source: horizontal_fov
 score_threshold: 0.20
 max_detections: 100
 marker_lifetime_sec: 0.50
-
