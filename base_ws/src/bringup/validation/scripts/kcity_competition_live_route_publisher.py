@@ -11,7 +11,6 @@ from autoware_internal_planning_msgs.srv import (
     SetLaneletRoute,
     SetLaneletRouteRequest,
 )
-from autoware_map_msgs.msg import LaneletMapBin
 from autoware_planning_msgs.msg import LaneletPrimitive, LaneletSegment
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
@@ -19,8 +18,8 @@ from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 
 
-SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-BPP_SCRIPT_DIR = os.path.realpath(
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BPP_SCRIPT_DIR = os.path.abspath(
     os.path.join(
         SCRIPT_DIR,
         "..",
@@ -34,10 +33,10 @@ BPP_SCRIPT_DIR = os.path.realpath(
 if BPP_SCRIPT_DIR not in sys.path:
     sys.path.insert(0, BPP_SCRIPT_DIR)
 
-from bpp_map_tools import CenterlineMap  # noqa: E402
+from bpp_map_tools import CenterlineMap, project_point_to_polyline  # noqa: E402
 
 
-COMPETITION_LANE_IDS = [
+COMPETITION_PREFERRED_LANE_IDS = [
     200889,
     200392,
     200178,
@@ -81,6 +80,30 @@ COMPETITION_LANE_IDS = [
     200892,
 ]
 
+COMPETITION_CANDIDATE_LANE_IDS = [
+    200099,
+    200152,
+    200142,
+    200136,
+    200137,
+    200138,
+    200186,
+    200187,
+    200188,
+    200141,
+    200130,
+    200127,
+    200148,
+    200185,
+    200147,
+    201400,
+    200149,
+    200150,
+    201402,
+]
+
+COMPETITION_LANE_IDS = COMPETITION_PREFERRED_LANE_IDS + COMPETITION_CANDIDATE_LANE_IDS
+
 
 def quaternion_from_yaw(yaw):
     pose = Pose()
@@ -89,16 +112,29 @@ def quaternion_from_yaw(yaw):
     return pose.orientation
 
 
-def parse_lane_ids(value):
+def lane_ids_param_is_set(value):
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip() not in ("", "[]")
+    if isinstance(value, (list, tuple)):
+        return len(value) > 0
+    return True
+
+
+def parse_lane_ids(value, default_lane_ids=None):
+    default_lane_ids = list(default_lane_ids or [])
     if isinstance(value, str):
         value = value.strip()
         if not value:
-            return list(COMPETITION_LANE_IDS)
+            return list(default_lane_ids)
         value = value.strip("[]")
         return [int(token.strip()) for token in value.split(",") if token.strip()]
     if isinstance(value, (list, tuple)):
         return [int(item) for item in value]
-    return list(COMPETITION_LANE_IDS)
+    if value is None:
+        return list(default_lane_ids)
+    return [int(value)]
 
 
 def color(r, g, b, a=1.0):
@@ -108,7 +144,12 @@ def color(r, g, b, a=1.0):
 class KcityCompetitionLiveRoutePublisher:
     def __init__(self):
         self.frame_id = rospy.get_param("~frame_id", "map")
-        self.map_file = rospy.get_param("~map_file", "")
+        self.map_file = rospy.get_param(
+            "~map_file",
+            os.path.expanduser(
+                "~/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v44.osm"
+            ),
+        )
         self.projector_file = rospy.get_param(
             "~projector_file",
             os.path.expanduser(
@@ -116,11 +157,26 @@ class KcityCompetitionLiveRoutePublisher:
             ),
         )
         self.projector_type = rospy.get_param("~map_projector_type", "LocalCartesianUTM")
-        self.lane_ids = parse_lane_ids(
-            rospy.get_param("~route_lane_ids", COMPETITION_LANE_IDS)
-        )
-        self.vector_map_topic = rospy.get_param("~vector_map_topic", "/map/vector_map")
-        self.map_wait_timeout = float(rospy.get_param("~map_wait_timeout", 10.0))
+        route_lane_ids = rospy.get_param("~route_lane_ids", [])
+        if lane_ids_param_is_set(route_lane_ids):
+            self.preferred_lane_ids = parse_lane_ids(route_lane_ids, [])
+            self.candidate_lane_ids = parse_lane_ids(
+                rospy.get_param("~candidate_lane_ids", []), []
+            )
+        else:
+            self.preferred_lane_ids = parse_lane_ids(
+                rospy.get_param("~preferred_lane_ids", COMPETITION_PREFERRED_LANE_IDS),
+                COMPETITION_PREFERRED_LANE_IDS,
+            )
+            self.candidate_lane_ids = parse_lane_ids(
+                rospy.get_param("~candidate_lane_ids", COMPETITION_CANDIDATE_LANE_IDS),
+                COMPETITION_CANDIDATE_LANE_IDS,
+            )
+        self.lane_ids = self.preferred_lane_ids + [
+            lane_id
+            for lane_id in self.candidate_lane_ids
+            if lane_id not in self.preferred_lane_ids
+        ]
         self.odometry_topic = rospy.get_param(
             "~odometry_topic", "/localization/kinematic_state"
         )
@@ -141,45 +197,20 @@ class KcityCompetitionLiveRoutePublisher:
             latch=True,
         )
 
-        self.centerline_map = self.load_centerline_map()
+        self.centerline_map = CenterlineMap.load(
+            self.map_file,
+            self.projector_file,
+            False,
+            self.projector_type,
+        )
         missing = [lane_id for lane_id in self.lane_ids if not self.centerline_map.has_lane(lane_id)]
         if missing:
             raise RuntimeError("route lane ids are missing in map: {}".format(missing))
-
-    def load_centerline_map(self):
-        if self.map_file:
-            return CenterlineMap.load(
-                self.map_file,
-                self.projector_file,
-                False,
-                self.projector_type,
-            )
-
-        rospy.loginfo("waiting for planning map on %s", self.vector_map_topic)
-        message = rospy.wait_for_message(
-            self.vector_map_topic, LaneletMapBin, timeout=self.map_wait_timeout
-        )
-        if not message.data:
-            raise RuntimeError("received empty planning map on {}".format(self.vector_map_topic))
-
-        projector_file = self.projector_file or rospy.get_param("/map/projector_file", "")
-        projector_type = self.projector_type or rospy.get_param("/map/projector_type", "MGRS")
-        centerline_map = CenterlineMap.from_osm_bytes(
-            message.data,
-            message.name_map or "LaneletMapBin",
-            False,
-            projector_type,
-            projector_file,
-        )
-        rospy.loginfo(
-            "loaded route centerline map from %s: lanes=%d",
-            self.vector_map_topic,
-            centerline_map.lane_count(),
-        )
-        return centerline_map
+        if not self.preferred_lane_ids:
+            raise RuntimeError("preferred route lane ids are empty")
 
     def lane_goal_pose(self):
-        centerline = self.centerline_map.get_centerline(self.lane_ids[-1])
+        centerline = self.centerline_map.get_centerline(self.preferred_lane_ids[-1])
         if not centerline or len(centerline) < 2:
             raise RuntimeError("last route lane has no usable centerline")
         previous = centerline[-2]
@@ -192,13 +223,44 @@ class KcityCompetitionLiveRoutePublisher:
         pose.orientation = quaternion_from_yaw(yaw)
         return pose
 
+    def closest_preferred_lane_id(self, lane_id):
+        centerline = self.centerline_map.get_centerline(lane_id)
+        if not centerline:
+            return None
+        lane_midpoint = centerline[len(centerline) // 2]
+        best = None
+        for preferred_lane_id in self.preferred_lane_ids:
+            preferred_centerline = self.centerline_map.get_centerline(preferred_lane_id)
+            projection = project_point_to_polyline(preferred_centerline, lane_midpoint)
+            if projection is None:
+                continue
+            distance = float(projection[1])
+            if best is None or distance < best[0]:
+                best = (distance, preferred_lane_id)
+        return best[1] if best is not None else None
+
+    def candidate_assignments(self):
+        assignments = {lane_id: [] for lane_id in self.preferred_lane_ids}
+        for lane_id in self.candidate_lane_ids:
+            if lane_id in assignments:
+                continue
+            preferred_lane_id = self.closest_preferred_lane_id(lane_id)
+            if preferred_lane_id is not None and lane_id not in assignments[preferred_lane_id]:
+                assignments[preferred_lane_id].append(lane_id)
+        return assignments
+
     def make_segments(self):
         segments = []
-        for lane_id in self.lane_ids:
+        assignments = self.candidate_assignments()
+        for lane_id in self.preferred_lane_ids:
             primitive = LaneletPrimitive(id=int(lane_id), primitive_type="lane")
             segment = LaneletSegment()
             segment.preferred_primitive = primitive
             segment.primitives = [primitive]
+            for candidate_lane_id in assignments.get(lane_id, []):
+                segment.primitives.append(
+                    LaneletPrimitive(id=int(candidate_lane_id), primitive_type="lane")
+                )
             segments.append(segment)
         return segments
 
@@ -277,8 +339,9 @@ class KcityCompetitionLiveRoutePublisher:
                 response = service(request)
                 if response.status.success:
                     rospy.loginfo(
-                        "K-City live competition route set: %d lanelets, ego=(%.2f, %.2f), goal=(%.2f, %.2f)",
-                        len(self.lane_ids),
+                        "K-City live competition route set: %d preferred, %d candidates, ego=(%.2f, %.2f), goal=(%.2f, %.2f)",
+                        len(self.preferred_lane_ids),
+                        len(self.candidate_lane_ids),
                         odometry.pose.pose.position.x,
                         odometry.pose.pose.position.y,
                         goal_pose.position.x,

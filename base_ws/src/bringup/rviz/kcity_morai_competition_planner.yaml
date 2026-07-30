@@ -5,8 +5,10 @@ Panels:
       Expanded:
         - /Global Options1
         - /K-City v441
+        - /Clickable Lanelets1
         - /Live Ego1
         - /Mission Route1
+        - /Click Route Editor1
         - /Final Trajectory1
       Splitter Ratio: 0.5
     Tree Height: 690
@@ -29,6 +31,12 @@ Visualization Manager:
       Name: K-City v44
       Queue Size: 10
       Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /planning/mission_planning/click_route_editor/lanelet_markers
+      Name: Clickable Lanelets
+      Queue Size: 10
+      Value: true
     - Class: rviz/Marker
       Enabled: true
       Marker Topic: /viewer/current_vehicle_marker
@@ -36,15 +44,21 @@ Visualization Manager:
       Queue Size: 10
       Value: true
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /planning/mission_planning/mission_planner/debug/route_marker
       Name: Mission Route
       Queue Size: 10
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /planning/mission_planning/competition_route/checkpoints
       Name: Competition Route Points
+      Queue Size: 10
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /planning/mission_planning/click_route_editor/route_markers
+      Name: Click Route Editor
       Queue Size: 10
       Value: true
     - Alpha: 0.65
@@ -88,6 +102,14 @@ Visualization Manager:
       Topic: /initialpose
     - Class: rviz/SetGoal
       Topic: /move_base_simple/goal
+    - Class: rviz/PublishPoint
+      Name: Add Lanelet
+      Single click: true
+      Topic: /clicked_point
+    - Class: rviz/PublishPoint
+      Name: Delete Lanelet
+      Single click: true
+      Topic: /clicked_point_delete
     - Class: rviz/FocusCamera
     - Class: rviz/Measure
   Views:

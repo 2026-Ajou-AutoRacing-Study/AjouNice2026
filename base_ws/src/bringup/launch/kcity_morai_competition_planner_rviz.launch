@@ -1,8 +1,8 @@
 <launch>
   <arg name="map_file"
-       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/lanelet2_map_v44.osm" />
+       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v44.osm" />
   <arg name="projector_file"
-       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
+       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/map_projector_info_v1.yaml" />
   <arg name="map_projector_type" default="LocalCartesianUTM" />
   <arg name="frame_id" default="map" />
   <arg name="route_preset" default="full" />
@@ -19,11 +19,21 @@
   <arg name="start_route_publisher" default="true" />
   <arg name="start_map_visualizer" default="true" />
   <arg name="software_rendering" default="1" />
+  <arg name="clicked_point_topic" default="/clicked_point" />
+  <arg name="delete_clicked_point_topic" default="/clicked_point_delete" />
+  <arg name="preferred_lane_ids" default="[]" />
+  <arg name="candidate_lane_ids" default="[]" />
+  <arg name="selection_distance_threshold" default="6.0" />
+  <arg name="allow_duplicate_lanelets" default="false" />
+  <arg name="delete_all_matching_lanelets" default="false" />
+  <arg name="sync_from_route_topic" default="false" />
+  <arg name="route_output_file" default="/tmp/kcity_route_editor_lane_ids.yaml" />
+  <arg name="publish_colored_lanelets" default="true" />
+  <arg name="publish_lanelet_labels" default="false" />
 
   <include file="$(find mission_planner)/launch/mission_planner.launch">
     <arg name="frame_id" value="$(arg frame_id)" />
     <arg name="publish_rate" value="$(arg mission_publish_rate)" />
-    <arg name="map_file" value="$(arg map_file)" />
     <arg name="projector_file" value="$(arg projector_file)" />
     <arg name="map_projector_type" value="$(arg map_projector_type)" />
     <arg name="route_lane_ids" value="$(arg route_lane_ids)" />
@@ -37,6 +47,7 @@
     <arg name="map_file" value="$(arg map_file)" />
     <arg name="projector_file" value="$(arg projector_file)" />
     <arg name="map_projector_type" value="$(arg map_projector_type)" />
+    <arg name="route_lane_ids" value="[]" />
     <arg name="require_lane_driving_scenario" value="true" />
     <arg name="enable_goal_planner" value="false" />
     <arg name="enable_side_shift" value="false" />
@@ -87,13 +98,27 @@
 
   <group if="$(arg start_route_publisher)">
     <node pkg="bringup"
-          type="kcity_competition_live_route_publisher.py"
-          name="kcity_competition_live_route_publisher"
+          type="kcity_click_route_editor.py"
+          name="kcity_click_route_editor"
           output="screen">
+      <param name="frame_id" value="$(arg frame_id)" />
       <param name="map_file" value="$(arg map_file)" />
+      <param name="vector_map_topic" value="/map/vector_map" />
       <param name="projector_file" value="$(arg projector_file)" />
       <param name="map_projector_type" value="$(arg map_projector_type)" />
-      <param name="keep_alive" value="true" />
+      <param name="clicked_point_topic" value="$(arg clicked_point_topic)" />
+      <param name="delete_clicked_point_topic" value="$(arg delete_clicked_point_topic)" />
+      <param name="route_lane_ids" value="$(arg route_lane_ids)" />
+      <param name="preferred_lane_ids" value="$(arg preferred_lane_ids)" />
+      <param name="candidate_lane_ids" value="$(arg candidate_lane_ids)" />
+      <param name="selection_distance_threshold" value="$(arg selection_distance_threshold)" />
+      <param name="allow_duplicate_lanelets" value="$(arg allow_duplicate_lanelets)" />
+      <param name="delete_all_matching_lanelets" value="$(arg delete_all_matching_lanelets)" />
+      <param name="sync_from_route_topic" value="$(arg sync_from_route_topic)" />
+      <param name="route_output_file" value="$(arg route_output_file)" />
+      <param name="publish_colored_lanelets" value="$(arg publish_colored_lanelets)" />
+      <param name="publish_lanelet_labels" value="$(arg publish_lanelet_labels)" />
+      <param name="set_route_on_start" value="true" />
     </node>
   </group>
 
