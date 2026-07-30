@@ -1,10 +1,19 @@
 <launch>
   <arg name="input_topic" default="/tracking/objects" />
   <arg name="output_topic" default="/prediction/objects" />
+  <!-- 2026-07-30 결정: CTRV 기본 (docs/ctrv_vs_ctra_decision_summary.md).
+       재조율 필요시 "ctra"로 덮어쓰면 감쇠가속도 CTRA로 되돌릴 수 있음. -->
+  <arg name="model" default="ctrv" />
+  <!-- 2026-07-30 결정: 판단(안전마진용) 공식 horizon = 0.3s
+       (3.0m 이내 오차를 90% 확률로 보장하는 최대 horizon, docs/tp_final_report.md 2-2절).
+       0.5~3.0s는 참고/typical-case용으로 계속 같이 발행함. -->
+  <arg name="safety_horizon" default="0.3" />
 
   <node pkg="tracking_prediction" type="prediction_node.py" name="prediction_node" output="screen">
     <param name="input_topic" value="$(arg input_topic)" />
     <param name="output_topic" value="$(arg output_topic)" />
-    <rosparam param="horizons">[0.5, 1.0, 1.5, 2.0, 3.0]</rosparam>
+    <param name="model" value="$(arg model)" />
+    <param name="safety_horizon" value="$(arg safety_horizon)" />
+    <rosparam param="horizons">[0.3, 0.5, 1.0, 1.5, 2.0, 3.0]</rosparam>
   </node>
 </launch>

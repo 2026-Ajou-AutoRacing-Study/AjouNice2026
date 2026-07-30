@@ -2,17 +2,38 @@
 """
 prediction_node.py
 
-CTRA(Constant Turn Rate and Acceleration) 물리 모델로 각 추적 객체의
-미래 위치를 여러 시점(horizon)에 대해 예측한다.
+기본 모델: CTRV (Constant Turn Rate and Velocity).
+    2026-07-30 결정: OD 10Hz + 실측 PointPainting 검출오차(mean 0.145m) 결합
+    조건에서 CTRV vs CTRA(감쇠가속도 λ=0.4, 스무딩, 가속도 clip까지 적용한
+    최선 버전) 5종 A/B 비교(eval_model_ablation.py) 결과, CTRA는 median
+    (typical case)만 13~20% 개선되고 mean/p90/p95(최악의 경우, 안전마진과
+    직결)는 테스트한 모든 horizon(0.5~3.0s)에서 예외 없이 CTRV보다 나빴다
+    (원인: CTRA의 1/omega, 1/omega^2 항에 가속도가 추가로 곱해져서, 로터리
+    급커브 전환구간처럼 이미 불안정한 소(小)omega 구간에서 오차가 더
+    증폭됨). 예측 결과는 planning의 안전마진 산정에 쓰이므로 "평균적으로
+    더 정확함"보다 "최악의 경우에도 덜 위험함"이 우선이라 CTRV로 확정함.
+    상세: docs/ctrv_vs_ctra_decision_summary.md
 
-CTRA 상태: s = [x, y, theta, v, omega, a]
+    ~model 파라미터로 "ctrv"(기본) / "ctra" 전환 가능 (재조율 필요시 대비,
+    CTRA 코드는 삭제하지 않고 그대로 둠).
+
+안전마진용 공식 horizon: 0.3s (2026-07-30 결정)
+    "3.0m 이내 오차를 90% 확률로 보장"하는 기준으로 봤을 때 허용되는 최대
+    horizon이 0.3s (median 기준으로만 보면 2~3s까지 가능하지만, CTRV 채택과
+    동일한 논리로 최악의 경우 기준을 우선함). ~horizons 기본값에 0.3을
+    포함시켰고, ~safety_horizon 파라미터(기본 0.3)로 판단 쪽에 어떤 지점을
+    안전마진 기준으로 써야 하는지 안내함. 상세: docs/tp_final_report.md 2-2절
+
+CTRV 상태: s = [x, y, theta, v, omega]  (CTRA 선택 시에만 a 사용)
     - v, a: TrackedObject.velocity / .acceleration 벡터를 heading 방향으로
       투영해서 스칼라로 계산 (MORAI GT가 벡터로 주기 때문)
     - omega(yaw rate): GT에 직접 없음 -> 직전 프레임과 "가장 가까운 위치"의
       객체를 단순 최근접 매칭해서 heading 변화량으로 유한차분 추정.
       (주의: 이 매칭은 tracking_node의 dummy track_id와 무관한, 이 노드
        내부에서만 쓰는 보조 추정치. track_id가 dummy라 프레임 간 지속되지
-       않기 때문에 여기서 별도로 처리함)
+       않기 때문에 여기서 별도로 처리함. MATCH_DIST_THRESHOLD=3.0m이므로,
+       로터리에서 차량 간 실제 간격이 이보다 좁아지는 시나리오라면 오매칭
+       위험이 있어 별도 확인 필요)
 
 수식 근거: Autoware.Auto motion_model 문서(CATR)
     https://autowarefoundation.gitlab.io/autoware.auto/AutowareAuto/motion-model-design.html
@@ -47,6 +68,18 @@ MATCH_DIST_THRESHOLD = 3.0
 def _project_to_scalar(vec2_like, heading):
     """velocity/acceleration 벡터(x,y)를 heading 방향으로 투영한 스칼라값."""
     return vec2_like.x * math.cos(heading) + vec2_like.y * math.sin(heading)
+
+
+def ctrv_predict(x, y, theta, v, omega, dt):
+    """CTRV 모델(가속도 없음, 등속+등회전속도)로 dt초 뒤의 (x, y, theta)를 예측.
+    2026-07-30 결정으로 기본 모델이 됨 (docs/ctrv_vs_ctra_decision_summary.md)."""
+    if abs(omega) < OMEGA_EPS:
+        return x + v * dt * math.cos(theta), y + v * dt * math.sin(theta), theta
+
+    theta_next = theta + omega * dt
+    x_next = x + (v / omega) * (math.sin(theta_next) - math.sin(theta))
+    y_next = y + (v / omega) * (math.cos(theta) - math.cos(theta_next))
+    return x_next, y_next, theta_next
 
 
 def ctra_predict(x, y, theta, v, omega, a, dt, lam=DECAY_LAMBDA):
@@ -107,11 +140,22 @@ class CtraPredictionNode(object):
     def __init__(self):
         input_topic = rospy.get_param("~input_topic", "/tracking/objects")
         output_topic = rospy.get_param("~output_topic", "/prediction/objects")
-        # 기본 예측 horizon: 0.5, 1.0, 1.5, 2.0, 3.0초 뒤
+        # 기본 예측 horizon: 0.3(안전마진 공식값), 0.5, 1.0, 1.5, 2.0, 3.0초 뒤
         self._horizons = rospy.get_param(
-            "~horizons", [0.5, 1.0, 1.5, 2.0, 3.0]
+            "~horizons", [0.3, 0.5, 1.0, 1.5, 2.0, 3.0]
         )
+        # 2026-07-30 결정: 판단이 안전마진 산정에 써야 할 공식 horizon.
+        # 3.0m 이내 오차를 90% 확률로 보장하는 최대값 (docs/tp_final_report.md 2-2절).
+        # 코드 동작에는 영향 없음(정보/로그용) - trajectory 배열에서 time_offset==이 값인
+        # 지점을 판단이 안전마진 기준으로 우선 사용하도록 안내하는 목적.
+        self._safety_horizon = rospy.get_param("~safety_horizon", 0.3)
         self._decay_lambda = rospy.get_param("~decay_lambda", DECAY_LAMBDA)
+        # 2026-07-30: 기본 모델 CTRV로 확정 (docs/ctrv_vs_ctra_decision_summary.md).
+        # "ctra"로 덮어쓰면 이전 감쇠가속도 CTRA로 되돌릴 수 있음(재조율 대비, 코드 보존).
+        self._model = rospy.get_param("~model", "ctrv").lower()
+        if self._model not in ("ctrv", "ctra"):
+            rospy.logwarn("[prediction_node] 알 수 없는 ~model=%s, ctrv로 강제", self._model)
+            self._model = "ctrv"
 
         self._pub = rospy.Publisher(output_topic, PredictedObjectArray, queue_size=10)
         self._sub = rospy.Subscriber(
@@ -123,10 +167,13 @@ class CtraPredictionNode(object):
         self._prev_stamp = None
 
         rospy.loginfo(
-            "[prediction_node] CTRA(감쇠가속도) 예측 시작: %s -> %s (horizons=%s, decay_lambda=%s)",
+            "[prediction_node] 예측 시작: %s -> %s "
+            "(model=%s, horizons=%s, safety_horizon=%s, decay_lambda=%s)",
             input_topic,
             output_topic,
+            self._model,
             self._horizons,
+            self._safety_horizon,
             self._decay_lambda,
         )
 
@@ -175,10 +222,15 @@ class CtraPredictionNode(object):
 
             traj_points = []
             for horizon in self._horizons:
-                px, py, ptheta = ctra_predict(
-                    obj.position.x, obj.position.y, obj.heading, v, omega, a, horizon,
-                    lam=self._decay_lambda,
-                )
+                if self._model == "ctra":
+                    px, py, ptheta = ctra_predict(
+                        obj.position.x, obj.position.y, obj.heading, v, omega, a, horizon,
+                        lam=self._decay_lambda,
+                    )
+                else:
+                    px, py, ptheta = ctrv_predict(
+                        obj.position.x, obj.position.y, obj.heading, v, omega, horizon,
+                    )
                 point = PredictedTrajectoryPoint()
                 point.time_offset = horizon
                 point.position = Point(x=px, y=py, z=obj.position.z)
