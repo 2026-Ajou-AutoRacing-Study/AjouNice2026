@@ -113,7 +113,7 @@ exec roslaunch morai_pointpainting_ros \
     cfg_file:="$POINTPAINTING_CFG" \
     checkpoint:="$POINTPAINTING_CKPT" \
     publish_painted_points:=false \
-    segmentation_short_side:=384 \
+    segmentation_short_side:=320 \
     warmup_segmentation:=true \
     warmup_full_pipeline:=true \
     warmup_iterations:=2 \
