@@ -1,0 +1,20 @@
+# ROS 준비 상태와 iteration 완료를 판단하는 공통 기준이다.
+
+monitoring:
+  scenario_position_tolerance_m: 2.0
+
+  topics:
+    ego: "/Ego_topic"
+    collision: "/CollisionData"
+    kinematic_state: "/localization/kinematic_state"
+    trajectory: "/control/trajectory"
+    control_command: "/ctrl_cmd"
+
+  validator_completion:
+    metadata_status: "complete"
+    accepted_end_reason: "goal_reached"
+
+  timeout_sec:
+    stack_ready: 30
+    scenario_ready: 10
+    iteration_complete: 300

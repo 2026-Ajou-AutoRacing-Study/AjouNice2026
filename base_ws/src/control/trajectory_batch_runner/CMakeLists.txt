@@ -3,17 +3,20 @@ project(trajectory_batch_runner)
 
 find_package(catkin REQUIRED)
 
+catkin_python_setup()
+
 catkin_package()
 
 install(FILES README.md
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
-install(DIRECTORY config launch
+install(DIRECTORY config launch manifests
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
-# 실행 로직을 구현하기 전까지 Python 문서 골격은 실행 파일로 설치하지 않는다.
-install(FILES scripts/run_trajectory_batch.py
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/scripts
+catkin_install_python(PROGRAMS
+  scripts/batch_runner.py
+  scripts/scenario_json_generator.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

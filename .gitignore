@@ -47,11 +47,10 @@ base_ws/.catkin_workspace
 
 
 
-# Trajectory generator: keep the shared default, ignore local experiments.
+# Trajectory generator: sample CSV는 batch 재현을 위해 Git으로 관리한다.
+# 로컬 generator config와 CSV 옆의 생성 metadata JSON만 ignore한다.
 base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml
-base_ws/src/control/trajectory_generator/traj_sample/*.csv
 base_ws/src/control/trajectory_generator/traj_sample/*.json
-base_ws/src/control/trajectory_generator/traj_sample/**/*.csv
 base_ws/src/control/trajectory_generator/traj_sample/**/*.json
 !base_ws/src/bringup/rviz/kcity_mission_bpp.rviz
 !base_ws/src/bringup/rviz/kcity_interactive_trajectory.rviz

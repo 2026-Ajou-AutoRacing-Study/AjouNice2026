@@ -1,0 +1,30 @@
+# start_pos.json을 바탕으로 scenario를 생성하는 규칙이다.
+
+paths:
+  directories:
+    # 생성한 <시작 lanelet_id>_<초기 속도>.json을 저장한다.
+    scenario_directory: "configs/scenario"
+  files:
+    # 이 JSON을 그대로 복사한 뒤 Ego 시작 pose와 속도만 변경한다.
+    scenario_template_json: "configs/scenario/start_pos.json"
+
+scenario_generation:
+  start_pose_source: "trajectory_first_row"
+  filename_pattern: "{lanelet_id}_{speed_kph:g}.json"
+  trajectory_columns:
+    x: "x"
+    y: "y"
+    z: "z"
+    yaw: "yaw"
+    lanelet_id: "lanelet_id"
+    velocity_mps: "velocity_mps"
+
+  initial_speed_tolerance_kph: 0.1
+  # Lanelet trajectory z에서 MORAI Ego 중심 z로 맞추는 start_pos 기준 보정값이다.
+  vehicle_z_offset_m: 0.33903913816601516
+  overwrite_existing: false
+
+  speed_fields:
+    - "egoVehicle.currentVelocity"
+    - "egoVehicle.customValue"
+    - "egoVehicle.initPosition.vehicleSaveData.velocity"

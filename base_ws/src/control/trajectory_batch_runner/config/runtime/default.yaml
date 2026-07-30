@@ -1,0 +1,83 @@
+# 실행할 ROS 구성과 MORAI 연결 설정이다. 지도 선택은 map/ config가 담당한다.
+
+paths:
+  files:
+    # MORAI F4 Network, F3 Sensor와 차량 설정이다.
+    ego_network_json: "configs/network/ego_network_1.json"
+    sensor_json: "configs/sensors/Sensor_5.json"
+    vehicle_config: "configs/vehicle/ioniq5.yaml"
+    localization_manager_config: "configs/localization/localization_manager.yaml"
+
+    # iteration마다 실행할 trajectory follower 설정이다.
+    follower_common_config: "base_ws/src/control/trajectory_follower/config/trajectory_follower_autoware.yaml"
+    follower_lateral_config: "base_ws/src/control/trajectory_follower/config/purepursuit_autoware.yaml"
+    follower_longitudinal_config: "base_ws/src/control/trajectory_follower/config/longi_pi_autoware.yaml"
+
+morai:
+  scenario_load_udp:
+    host: "127.0.0.1"
+    port: 9099
+    filename_value: "stem"
+    max_filename_bytes: 30
+    request:
+      delete_all: false
+      load_network_connection_data: false
+      load_ego_vehicle_data: true
+      load_surrounding_vehicle_data: true
+      load_pedestrian_data: true
+      load_obstacle_data: true
+      set_pause: true
+    # iteration node가 모두 준비되면 같은 scenario를 pause=false로 다시 로드한다.
+    start_by_second_load_without_pause: true
+
+# batch 시작부터 끝까지 한 번만 유지한다.
+persistent_stack:
+  roscore:
+    # 상위 roslaunch가 ROS Master를 준비하므로 runner가 별도 프로세스로 시작하지 않는다.
+    managed_by: "trajectory_batch_runner.launch"
+    command: "roscore"
+
+  udp:
+    package: "sensor_interface"
+    launch_file: "morai_udp_interface.launch"
+    arguments:
+      sensor_config: "paths.files.sensor_json"
+      network_config: "paths.files.ego_network_json"
+      vehicle_config: "paths.files.vehicle_config"
+      enable_sensors: true
+      enable_lidar: true
+      enable_ego_network: true
+      enable_control: true
+
+  maptf_morai_cor:
+    package: "bringup"
+    launch_file: "maptf_morai_deg_correction.launch"
+    arguments:
+      localization_manager_config: "paths.files.localization_manager_config"
+      map_file: "paths.files.lanelet_map"
+      projector_file: "paths.files.map_projector"
+      ego_topic: "/Ego_topic"
+      map_frame: "map"
+      morai_map_frame: "morai_map"
+      base_frame: "base_link"
+      heading_yaw_offset_deg: -1.347
+
+# manifest의 각 행마다 시작하고 기록 완료 후 종료한다.
+iteration_stack:
+  trajectory_generator:
+    package: "trajectory_generator"
+    launch_file: "trajectory_publisher.launch"
+    trajectory_argument: "trajectory_csv"
+
+  trajectory_validator:
+    package: "trajectory_validator"
+    launch_file: "record.launch"
+
+  trajectory_follower:
+    package: "trajectory_follower"
+    launch_file: "pp_pi_autoware.launch"
+    arguments:
+      common_config: "paths.files.follower_common_config"
+      pp_config: "paths.files.follower_lateral_config"
+      pi_config: "paths.files.follower_longitudinal_config"
+      vehicle_config: "paths.files.vehicle_config"

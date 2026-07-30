@@ -9,10 +9,16 @@
 
   <buildtool_depend>catkin</buildtool_depend>
 
-  <!--
-    현재는 실행 코드가 없는 문서 골격 단계다.
-    runner 구현 시 실제 import와 launch 사용 범위가 확정되면 실행 의존성을 추가한다.
-  -->
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>morai_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>autoware_planning_msgs</exec_depend>
+  <exec_depend>sensor_interface</exec_depend>
+  <exec_depend>bringup</exec_depend>
+  <exec_depend>trajectory_generator</exec_depend>
+  <exec_depend>trajectory_validator</exec_depend>
+  <exec_depend>trajectory_follower</exec_depend>
 
   <export/>
 </package>

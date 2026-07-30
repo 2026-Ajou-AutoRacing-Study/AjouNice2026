@@ -1,20 +1,28 @@
 <launch>
   <!--
     목적:
-      Lane Change 또는 Obstacle Avoidance batch 설정 파일을 기준으로
-      trajectory 연속 검증을 시작하기 위한 단일 ROS launch 진입점을 제공한다.
+      config 파일명과 batch manifest CSV 파일명만 지정해 실제 batch runner를 실행한다.
 
-    역할:
-      사용자가 선택한 config 경로를 batch runner에 전달하고,
-      향후 runner가 필요한 기존 launch들을 정해진 순서로 관리하도록 연결한다.
+    사용 예:
+      roslaunch trajectory_batch_runner trajectory_batch_runner.launch \
+        config_file:=lane_change.yaml \
+        manifest_file:=highway_lc_manifest.csv
 
-    대략적인 로직:
-      1. lane_change.yaml 또는 obstacle_avoidance.yaml을 선택한다.
-      2. runner가 config의 trajectory 폴더와 시나리오 폴더를 확인한다.
-      3. udp와 maptf_morai_cor 상태를 확인한다.
-      4. 각 CSV마다 시나리오, traj_gen, traj_val, traj_fol_a 순서로 실행한다.
-
-    현재 상태:
-      실행 코드는 아직 작성하지 않았으므로 arg와 node를 등록하지 않는다.
+    동작:
+      runner가 scenario 생성/검증, MORAI ScenarioLoad UDP, udp/localization launch,
+      traj_gen, traj_val, traj_fol_a와 validator 완료 확인을 순서대로 담당한다.
   -->
+
+  <!-- config/ 폴더 안의 파일명이다. -->
+  <arg name="config_file" default="lane_change.yaml"/>
+
+  <!-- manifests/ 폴더 안의 실행할 CSV 파일명이다. -->
+  <arg name="manifest_file" default="highway_lc_manifest.csv"/>
+
+  <node pkg="trajectory_batch_runner"
+        type="batch_runner.py"
+        name="trajectory_batch_runner"
+        output="screen"
+        required="true"
+        args="--config $(find trajectory_batch_runner)/config/$(arg config_file) --manifest $(find trajectory_batch_runner)/manifests/$(arg manifest_file)"/>
 </launch>
