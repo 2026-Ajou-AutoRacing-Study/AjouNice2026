@@ -4,16 +4,21 @@
   <!-- 2026-07-30 결정: CTRV 기본 (docs/ctrv_vs_ctra_decision_summary.md).
        재조율 필요시 "ctra"로 덮어쓰면 감쇠가속도 CTRA로 되돌릴 수 있음. -->
   <arg name="model" default="ctrv" />
-  <!-- 2026-07-30 결정: 판단(안전마진용) 공식 horizon = 0.3s
-       (3.0m 이내 오차를 90% 확률로 보장하는 최대 horizon, docs/tp_final_report.md 2-2절).
-       0.5~3.0s는 참고/typical-case용으로 계속 같이 발행함. -->
-  <arg name="safety_horizon" default="0.3" />
+  <!-- 2026-07-30 결정: 판단(안전마진용) 공식 horizon은 미션마다 다름 (docs/tp_final_report.md).
+       - 로터리(roundabout): 0.3s (3.0m 이내 오차를 90% 확률로 보장하는 최대값)
+       - 하이웨이(highway): 1.7s (같은 3.0m@90% 기준, 급커브 전환구간이 없어 더 길게 허용됨)
+       로터리의 짧은 값은 급커브 진입/이탈 구간에서 반복적으로 발생하는 heavy-tail 오차
+       때문이며, OMEGA_EPS 조정으로는 해결되지 않음을 확인함(eval_omega_eps_sensitivity.py).
+       mission 인자로 자동 선택되며, 필요시 safety_horizon을 직접 덮어써도 됨. -->
+  <arg name="mission" default="roundabout" />  <!-- "roundabout" 또는 "highway" -->
+  <arg name="safety_horizon" default="$(eval 1.7 if mission == 'highway' else 0.3)" />
 
   <node pkg="tracking_prediction" type="prediction_node.py" name="prediction_node" output="screen">
     <param name="input_topic" value="$(arg input_topic)" />
     <param name="output_topic" value="$(arg output_topic)" />
     <param name="model" value="$(arg model)" />
+    <param name="mission" value="$(arg mission)" />
     <param name="safety_horizon" value="$(arg safety_horizon)" />
-    <rosparam param="horizons">[0.3, 0.5, 1.0, 1.5, 2.0, 3.0]</rosparam>
+    <rosparam param="horizons">[0.3, 0.5, 1.0, 1.5, 1.7, 2.0, 3.0]</rosparam>
   </node>
 </launch>
