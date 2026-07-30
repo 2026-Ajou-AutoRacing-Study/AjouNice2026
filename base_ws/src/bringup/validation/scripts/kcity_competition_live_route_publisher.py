@@ -6,11 +6,13 @@ import sys
 import uuid
 
 import rospy
+import yaml
 from autoware_internal_planning_msgs.srv import (
     ClearRoute,
     SetLaneletRoute,
     SetLaneletRouteRequest,
 )
+from autoware_map_msgs.msg import LaneletMapBin
 from autoware_planning_msgs.msg import LaneletPrimitive, LaneletSegment
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
@@ -18,8 +20,8 @@ from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-BPP_SCRIPT_DIR = os.path.abspath(
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+BPP_SCRIPT_DIR = os.path.realpath(
     os.path.join(
         SCRIPT_DIR,
         "..",
@@ -102,8 +104,6 @@ COMPETITION_CANDIDATE_LANE_IDS = [
     201402,
 ]
 
-COMPETITION_LANE_IDS = COMPETITION_PREFERRED_LANE_IDS + COMPETITION_CANDIDATE_LANE_IDS
-
 
 def quaternion_from_yaw(yaw):
     pose = Pose()
@@ -127,14 +127,44 @@ def parse_lane_ids(value, default_lane_ids=None):
     if isinstance(value, str):
         value = value.strip()
         if not value:
-            return list(default_lane_ids)
+            return default_lane_ids
         value = value.strip("[]")
         return [int(token.strip()) for token in value.split(",") if token.strip()]
     if isinstance(value, (list, tuple)):
         return [int(item) for item in value]
     if value is None:
-        return list(default_lane_ids)
+        return default_lane_ids
     return [int(value)]
+
+
+def unique_lane_ids(lane_ids):
+    result = []
+    for lane_id in lane_ids:
+        lane_id = int(lane_id)
+        if lane_id not in result:
+            result.append(lane_id)
+    return result
+
+
+def load_route_definition(path):
+    if not path:
+        return {}
+    with open(os.path.expanduser(path), "r", encoding="utf-8") as stream:
+        data = yaml.safe_load(stream) or {}
+    if not isinstance(data, dict):
+        raise ValueError("route definition root must be a mapping")
+    return data
+
+
+def parse_candidate_assignments(value):
+    if not isinstance(value, dict):
+        return {}
+    result = {}
+    for preferred_lane_id, candidate_lane_ids in value.items():
+        result[int(preferred_lane_id)] = unique_lane_ids(
+            parse_lane_ids(candidate_lane_ids, [])
+        )
+    return result
 
 
 def color(r, g, b, a=1.0):
@@ -144,12 +174,7 @@ def color(r, g, b, a=1.0):
 class KcityCompetitionLiveRoutePublisher:
     def __init__(self):
         self.frame_id = rospy.get_param("~frame_id", "map")
-        self.map_file = rospy.get_param(
-            "~map_file",
-            os.path.expanduser(
-                "~/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v44.osm"
-            ),
-        )
+        self.map_file = rospy.get_param("~map_file", "")
         self.projector_file = rospy.get_param(
             "~projector_file",
             os.path.expanduser(
@@ -157,26 +182,80 @@ class KcityCompetitionLiveRoutePublisher:
             ),
         )
         self.projector_type = rospy.get_param("~map_projector_type", "LocalCartesianUTM")
+        self.route_definition_file = os.path.expanduser(
+            rospy.get_param(
+                "~route_definition_file",
+                "/tmp/kcity_route_editor_lane_ids.yaml",
+            )
+        )
+        route_definition = {}
+        try:
+            route_definition = load_route_definition(self.route_definition_file)
+            rospy.loginfo(
+                "loaded edited route definition from %s",
+                self.route_definition_file,
+            )
+        except (OSError, ValueError, yaml.YAMLError) as error:
+            rospy.logwarn(
+                "edited route definition unavailable at %s; using built-in route: %s",
+                self.route_definition_file,
+                error,
+            )
+
         route_lane_ids = rospy.get_param("~route_lane_ids", [])
         if lane_ids_param_is_set(route_lane_ids):
-            self.preferred_lane_ids = parse_lane_ids(route_lane_ids, [])
-            self.candidate_lane_ids = parse_lane_ids(
-                rospy.get_param("~candidate_lane_ids", []), []
+            self.preferred_lane_ids = unique_lane_ids(
+                parse_lane_ids(route_lane_ids, [])
             )
+            self.candidate_lane_ids = unique_lane_ids(
+                parse_lane_ids(rospy.get_param("~candidate_lane_ids", []), [])
+            )
+            self.edited_candidate_assignments = {}
         else:
-            self.preferred_lane_ids = parse_lane_ids(
-                rospy.get_param("~preferred_lane_ids", COMPETITION_PREFERRED_LANE_IDS),
+            definition_preferred = parse_lane_ids(
+                route_definition.get(
+                    "preferred_lane_ids",
+                    COMPETITION_PREFERRED_LANE_IDS,
+                ),
                 COMPETITION_PREFERRED_LANE_IDS,
             )
-            self.candidate_lane_ids = parse_lane_ids(
-                rospy.get_param("~candidate_lane_ids", COMPETITION_CANDIDATE_LANE_IDS),
+            definition_candidates = parse_lane_ids(
+                route_definition.get(
+                    "candidate_lane_ids",
+                    COMPETITION_CANDIDATE_LANE_IDS,
+                ),
                 COMPETITION_CANDIDATE_LANE_IDS,
             )
-        self.lane_ids = self.preferred_lane_ids + [
+            preferred_param = rospy.get_param("~preferred_lane_ids", [])
+            candidate_param = rospy.get_param("~candidate_lane_ids", [])
+            self.preferred_lane_ids = unique_lane_ids(
+                parse_lane_ids(
+                    preferred_param,
+                    definition_preferred,
+                )
+                if lane_ids_param_is_set(preferred_param)
+                else definition_preferred
+            )
+            self.candidate_lane_ids = unique_lane_ids(
+                parse_lane_ids(
+                    candidate_param,
+                    definition_candidates,
+                )
+                if lane_ids_param_is_set(candidate_param)
+                else definition_candidates
+            )
+            self.edited_candidate_assignments = parse_candidate_assignments(
+                route_definition.get("candidate_assignments", {})
+            )
+
+        self.candidate_lane_ids = [
             lane_id
             for lane_id in self.candidate_lane_ids
             if lane_id not in self.preferred_lane_ids
         ]
+        self.lane_ids = self.preferred_lane_ids + self.candidate_lane_ids
+        self.vector_map_topic = rospy.get_param("~vector_map_topic", "/map/vector_map")
+        self.map_wait_timeout = float(rospy.get_param("~map_wait_timeout", 10.0))
         self.odometry_topic = rospy.get_param(
             "~odometry_topic", "/localization/kinematic_state"
         )
@@ -197,17 +276,44 @@ class KcityCompetitionLiveRoutePublisher:
             latch=True,
         )
 
-        self.centerline_map = CenterlineMap.load(
-            self.map_file,
-            self.projector_file,
-            False,
-            self.projector_type,
-        )
+        self.centerline_map = self.load_centerline_map()
         missing = [lane_id for lane_id in self.lane_ids if not self.centerline_map.has_lane(lane_id)]
         if missing:
             raise RuntimeError("route lane ids are missing in map: {}".format(missing))
         if not self.preferred_lane_ids:
             raise RuntimeError("preferred route lane ids are empty")
+
+    def load_centerline_map(self):
+        if self.map_file:
+            return CenterlineMap.load(
+                self.map_file,
+                self.projector_file,
+                False,
+                self.projector_type,
+            )
+
+        rospy.loginfo("waiting for planning map on %s", self.vector_map_topic)
+        message = rospy.wait_for_message(
+            self.vector_map_topic, LaneletMapBin, timeout=self.map_wait_timeout
+        )
+        if not message.data:
+            raise RuntimeError("received empty planning map on {}".format(self.vector_map_topic))
+
+        projector_file = self.projector_file or rospy.get_param("/map/projector_file", "")
+        projector_type = self.projector_type or rospy.get_param("/map/projector_type", "MGRS")
+        centerline_map = CenterlineMap.from_osm_bytes(
+            message.data,
+            message.name_map or "LaneletMapBin",
+            False,
+            projector_type,
+            projector_file,
+        )
+        rospy.loginfo(
+            "loaded route centerline map from %s: lanes=%d",
+            self.vector_map_topic,
+            centerline_map.lane_count(),
+        )
+        return centerline_map
 
     def lane_goal_pose(self):
         centerline = self.centerline_map.get_centerline(self.preferred_lane_ids[-1])
@@ -241,12 +347,26 @@ class KcityCompetitionLiveRoutePublisher:
 
     def candidate_assignments(self):
         assignments = {lane_id: [] for lane_id in self.preferred_lane_ids}
-        for lane_id in self.candidate_lane_ids:
-            if lane_id in assignments:
+        assigned_candidates = set()
+
+        for preferred_lane_id, candidate_lane_ids in self.edited_candidate_assignments.items():
+            if preferred_lane_id not in assignments:
                 continue
-            preferred_lane_id = self.closest_preferred_lane_id(lane_id)
-            if preferred_lane_id is not None and lane_id not in assignments[preferred_lane_id]:
-                assignments[preferred_lane_id].append(lane_id)
+            for candidate_lane_id in candidate_lane_ids:
+                if (
+                    candidate_lane_id in self.candidate_lane_ids
+                    and candidate_lane_id not in assigned_candidates
+                ):
+                    assignments[preferred_lane_id].append(candidate_lane_id)
+                    assigned_candidates.add(candidate_lane_id)
+
+        for candidate_lane_id in self.candidate_lane_ids:
+            if candidate_lane_id in assigned_candidates:
+                continue
+            preferred_lane_id = self.closest_preferred_lane_id(candidate_lane_id)
+            if preferred_lane_id is not None:
+                assignments[preferred_lane_id].append(candidate_lane_id)
+                assigned_candidates.add(candidate_lane_id)
         return assignments
 
     def make_segments(self):

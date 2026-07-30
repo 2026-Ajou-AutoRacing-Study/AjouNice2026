@@ -1,16 +1,23 @@
 <launch>
   <arg name="map_file"
-       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v44.osm" />
+       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/lanelet2_map_v44.osm" />
   <arg name="projector_file"
-       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/map_projector_info_v1.yaml" />
+       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
   <arg name="map_projector_type" default="LocalCartesianUTM" />
   <arg name="frame_id" default="map" />
   <arg name="route_preset" default="full" />
   <arg name="planning_hz" default="10.0" />
-  <arg name="default_velocity_mps" default="4.1666665" />
+  <arg name="default_velocity_mps" default="10" />
+  <arg name="control_trajectory_topic" default="/control/trajectory" />
+  <arg name="raw_trajectory_topic"
+       default="/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/raw_trajectory" />
   <arg name="forward_path_length" default="300.0" />
   <arg name="mission_publish_rate" default="5.0" />
   <arg name="route_lane_ids" default="[]" />
+  <arg name="preferred_lane_ids" default="[]" />
+  <arg name="candidate_lane_ids" default="[]" />
+  <arg name="route_definition_file"
+       default="$(find bringup)/config/kcity_competition_route.yaml" />
   <arg name="enable_path_smoother_debug" default="false" />
   <arg name="enable_path_optimizer_debug" default="false" />
   <arg name="mvp_extract_ahead_dist" default="200.0" />
@@ -19,21 +26,11 @@
   <arg name="start_route_publisher" default="true" />
   <arg name="start_map_visualizer" default="true" />
   <arg name="software_rendering" default="1" />
-  <arg name="clicked_point_topic" default="/clicked_point" />
-  <arg name="delete_clicked_point_topic" default="/clicked_point_delete" />
-  <arg name="preferred_lane_ids" default="[]" />
-  <arg name="candidate_lane_ids" default="[]" />
-  <arg name="selection_distance_threshold" default="6.0" />
-  <arg name="allow_duplicate_lanelets" default="false" />
-  <arg name="delete_all_matching_lanelets" default="false" />
-  <arg name="sync_from_route_topic" default="false" />
-  <arg name="route_output_file" default="/tmp/kcity_route_editor_lane_ids.yaml" />
-  <arg name="publish_colored_lanelets" default="true" />
-  <arg name="publish_lanelet_labels" default="false" />
 
   <include file="$(find mission_planner)/launch/mission_planner.launch">
     <arg name="frame_id" value="$(arg frame_id)" />
     <arg name="publish_rate" value="$(arg mission_publish_rate)" />
+    <arg name="map_file" value="$(arg map_file)" />
     <arg name="projector_file" value="$(arg projector_file)" />
     <arg name="map_projector_type" value="$(arg map_projector_type)" />
     <arg name="route_lane_ids" value="$(arg route_lane_ids)" />
@@ -47,7 +44,6 @@
     <arg name="map_file" value="$(arg map_file)" />
     <arg name="projector_file" value="$(arg projector_file)" />
     <arg name="map_projector_type" value="$(arg map_projector_type)" />
-    <arg name="route_lane_ids" value="[]" />
     <arg name="require_lane_driving_scenario" value="true" />
     <arg name="enable_goal_planner" value="false" />
     <arg name="enable_side_shift" value="false" />
@@ -73,6 +69,14 @@
     <arg name="cruise_speed_mps" value="$(arg default_velocity_mps)" />
     <arg name="extract_ahead_dist" value="$(arg mvp_extract_ahead_dist)" />
     <arg name="extract_behind_dist" value="$(arg mvp_extract_behind_dist)" />
+    <arg name="output_trajectory_topic" value="$(arg raw_trajectory_topic)" />
+  </include>
+
+  <include file="$(find autoware_velocity_smoother)/launch/velocity_smoother.launch">
+    <arg name="input_trajectory_topic" value="$(arg raw_trajectory_topic)" />
+    <arg name="output_trajectory_topic" value="$(arg control_trajectory_topic)" />
+    <arg name="planning_hz" value="$(arg planning_hz)" />
+    <arg name="max_velocity_mps" value="$(arg default_velocity_mps)" />
   </include>
 
   <group if="$(arg start_map_visualizer)">
@@ -98,27 +102,18 @@
 
   <group if="$(arg start_route_publisher)">
     <node pkg="bringup"
-          type="kcity_click_route_editor.py"
-          name="kcity_click_route_editor"
+          type="kcity_competition_live_route_publisher.py"
+          name="kcity_competition_live_route_publisher"
           output="screen">
       <param name="frame_id" value="$(arg frame_id)" />
       <param name="map_file" value="$(arg map_file)" />
-      <param name="vector_map_topic" value="/map/vector_map" />
       <param name="projector_file" value="$(arg projector_file)" />
       <param name="map_projector_type" value="$(arg map_projector_type)" />
-      <param name="clicked_point_topic" value="$(arg clicked_point_topic)" />
-      <param name="delete_clicked_point_topic" value="$(arg delete_clicked_point_topic)" />
       <param name="route_lane_ids" value="$(arg route_lane_ids)" />
       <param name="preferred_lane_ids" value="$(arg preferred_lane_ids)" />
       <param name="candidate_lane_ids" value="$(arg candidate_lane_ids)" />
-      <param name="selection_distance_threshold" value="$(arg selection_distance_threshold)" />
-      <param name="allow_duplicate_lanelets" value="$(arg allow_duplicate_lanelets)" />
-      <param name="delete_all_matching_lanelets" value="$(arg delete_all_matching_lanelets)" />
-      <param name="sync_from_route_topic" value="$(arg sync_from_route_topic)" />
-      <param name="route_output_file" value="$(arg route_output_file)" />
-      <param name="publish_colored_lanelets" value="$(arg publish_colored_lanelets)" />
-      <param name="publish_lanelet_labels" value="$(arg publish_lanelet_labels)" />
-      <param name="set_route_on_start" value="true" />
+      <param name="route_definition_file" value="$(arg route_definition_file)" />
+      <param name="keep_alive" value="true" />
     </node>
   </group>
 
@@ -127,7 +122,7 @@
         name="planning_trajectory_visualizer"
         output="screen">
     <param name="input_topic"
-           value="/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/trajectory" />
+           value="$(arg control_trajectory_topic)" />
     <param name="path_topic" value="/planning/debug/final_trajectory/path" />
     <param name="marker_topic" value="/planning/debug/final_trajectory/markers" />
     <param name="nominal_velocity_mps" value="$(arg default_velocity_mps)" />

@@ -78,6 +78,7 @@
   <exec_depend>rospy</exec_depend>
   <exec_depend>roslib</exec_depend>
   <exec_depend>rospkg</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>autoware_adapi_v1_msgs</exec_depend>
   <exec_depend>autoware_internal_planning_msgs</exec_depend>
@@ -97,6 +98,8 @@
   <exec_depend>autoware_path_optimizer</exec_depend>
   <exec_depend>mission_planner</exec_depend>
   <exec_depend>motion_velocity_planner</exec_depend>
+  <exec_depend>autoware_velocity_smoother</exec_depend>
+  <exec_depend>trajectory_validator</exec_depend>
   <exec_depend>rviz</exec_depend>
   <exec_depend>localization_manager</exec_depend>
   <exec_depend>robot_localization</exec_depend>

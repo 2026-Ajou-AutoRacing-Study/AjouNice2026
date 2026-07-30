@@ -182,7 +182,6 @@ catkin_install_python(
   validation/scripts/mission_bpp_bvp_live_visualizer.py
   validation/scripts/kcity_competition_route_publisher.py
   validation/scripts/kcity_competition_live_route_publisher.py
-  validation/scripts/kcity_click_route_editor.py
   validation/scripts/kcity_dynamic_ego_validator.py
   validation/scripts/planning_pipeline_reference_input.py
   validation/scripts/planning_trajectory_visualizer.py
@@ -212,7 +211,7 @@ catkin_install_python(
 # )
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
-install(DIRECTORY launch rviz
+install(DIRECTORY config launch rviz
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
@@ -243,4 +242,5 @@ install(
 if(CATKIN_ENABLE_TESTING)
   catkin_add_nosetests(test/test_planning_trajectory_visualizer.py)
   catkin_add_nosetests(test/test_kcity_dynamic_ego_validator.py)
+  catkin_add_nosetests(test/test_kcity_competition_live_route_publisher.py)
 endif()

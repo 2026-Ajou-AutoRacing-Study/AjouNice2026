@@ -1,0 +1,21 @@
+# /localization/kinematic_state already uses SI units (m/s).
+planning_hz: 10.0
+kinematic_velocity_scale_to_mps: 1.0
+replan_velocity_deviation_mps: 5.53
+
+# Prevent the controller's stopped-state hold from trapping a valid departure.
+engage_velocity_mps: 0.25
+engage_distance_m: 5.0
+stop_distance_to_prohibit_engage_m: 0.5
+
+max_velocity_mps: 11.1
+min_velocity_for_time_calculation_mps: 1.0
+stop_velocity_threshold_mps: 0.01
+
+forward:
+  max_acceleration_mps2: 1.0
+  max_jerk_mps3: 1.0
+
+backward:
+  max_deceleration_mps2: 2.5
+  max_jerk_mps3: 1.5
