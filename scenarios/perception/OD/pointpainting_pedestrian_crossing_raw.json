@@ -1,0 +1,347 @@
+{
+  "version": 1.0,
+  "egoVehicle": {
+    "DataID": 20200012,
+    "UNIQUEID": -1,
+    "m_eobstacleObjType": 0,
+    "initPosition": {
+      "initPositionMode": "Absolute",
+      "pos": {
+        "x": -51.659999847412109,
+        "y": -284.70498657226563,
+        "z": 28.826999664306641,
+        "_x": "-51.660",
+        "_y": "-284.705",
+        "_z": "28.827"
+      },
+      "rot": {
+        "roll": "-359.482",
+        "pitch": "0.198",
+        "yaw": "61.589"
+      },
+      "initLink": "",
+      "initLinkRatio": 0,
+      "gear": 1,
+      "vehicleSaveData": {
+        "velocity": 6.8564761022571474E-05,
+        "inputData": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "vehicle": {
+          "time": 515.76080322265625,
+          "lastVelocity": {
+            "x": -4.59382732742597E-07,
+            "y": -2.1487052435986698E-05,
+            "z": -7.7719136015730328E-07
+          },
+          "lastImpactTime": 0.0
+        },
+        "wheels": [
+          {
+            "L": 1.1210629287676434E-16,
+            "Tr": 9.6555759845275341E-33,
+            "contactDepth": 0.13843399286270142,
+            "lastTireForce": {
+              "x": -22.561328887939453,
+              "y": 4.9568014144897461
+            }
+          },
+          {
+            "L": 3.951423522017888E-16,
+            "Tr": 9.6555759845275341E-33,
+            "contactDepth": 0.13849502801895142,
+            "lastTireForce": {
+              "x": -45.726985931396484,
+              "y": 5.0530662536621094
+            }
+          },
+          {
+            "L": 2.2701224140244097E-16,
+            "Tr": 5.7764791569605407E-33,
+            "contactDepth": 0.12787812948226929,
+            "lastTireForce": {
+              "x": -26.295352935791016,
+              "y": -3.3153471946716309
+            }
+          },
+          {
+            "L": 1.6532854932630424E-16,
+            "Tr": 5.7764791569605407E-33,
+            "contactDepth": 0.13025295734405518,
+            "lastTireForce": {
+              "x": -50.062992095947266,
+              "y": -3.5661511421203613
+            }
+          }
+        ],
+        "engine": {
+          "L": 0.0,
+          "Treaction": 0.0,
+          "rpmLimiterActive": false,
+          "rpmLimiterTime": 0.0,
+          "tcsActivationTime": 0.0
+        },
+        "gearbox": {
+          "L": 0.0,
+          "manualGear": 0,
+          "manualRatio": 0.0,
+          "engaged": false,
+          "lastEngagedTime": 0.0,
+          "lastAutoShiftTime": 0.0,
+          "vehicleMoving": false,
+          "gearMode": 0,
+          "automaticGear": 0,
+          "automaticRatio": 0.0,
+          "transition": false,
+          "transitionStartedTime": 0.0,
+          "fromGear": 0,
+          "toGear": 0,
+          "fromRatio": 0.0,
+          "toRatio": 0.0,
+          "transitionRatio": 0.0
+        },
+        "lastVelocity": {
+          "x": -4.59382732742597E-07,
+          "y": -2.1487052435986698E-05,
+          "z": -7.7719136015730328E-07
+        }
+      }
+    },
+    "currentVelocity": 6.8564761022571474E-05,
+    "desiredVelocityType": 1,
+    "linkValue": 85.0,
+    "customValue": 50.0,
+    "v2vUDPSessionInfo": {
+      "isInit": false,
+      "v2vConfig": {
+        "hostIP": "0.0.0.0",
+        "Port": 5641,
+        "receiveTimeout": 0,
+        "BuffSize": 8196,
+        "surroundVehiclePubTime": 100
+      }
+    },
+    "beforeControlMode": 0,
+    "currentControlMode": 1
+  },
+  "vehicleList": [],
+  "pedestrianList": [
+    {
+      "DataID": 50100001,
+      "UNIQUEID": 2,
+      "m_eobstacleObjType": 2,
+      "pos": {
+        "x": -41.363998413085938,
+        "y": -277.66299438476563,
+        "z": 28.580999374389648,
+        "_x": "-41.364",
+        "_y": "-277.663",
+        "_z": "28.581"
+      },
+      "rot": {
+        "roll": "-359.956",
+        "pitch": "0.762",
+        "yaw": "156.146"
+      },
+      "activeDistance": 15.0,
+      "speed": 4.0,
+      "active": true,
+      "loop": false,
+      "initPos": {
+        "x": 41.321998596191406,
+        "y": 28.580999374389648,
+        "z": 277.6099853515625,
+        "_x": "41.322",
+        "_y": "28.581",
+        "_z": "277.610"
+      },
+      "initRot": {
+        "roll": "0.762",
+        "pitch": "115.201",
+        "yaw": "359.956"
+      },
+      "movingDistance": 5.0,
+      "movingDistanceAmount": 0.0,
+      "standardPos": {
+        "x": 41.363998413085938,
+        "y": 28.580999374389648,
+        "z": 277.66299438476563,
+        "_x": "41.364",
+        "_y": "28.581",
+        "_z": "277.663"
+      },
+      "anim": {
+        "m_FileID": -276342,
+        "m_PathID": 0
+      },
+      "stateNameHash": 2081823275,
+      "stateNormalizedTime": 1.8475338220596313,
+      "pedestrianBehavior": 1,
+      "pedestrianType": 1,
+      "listObjIDForBehavior": [],
+      "animSpeed": 0.0,
+      "isWaypointMode": true,
+      "waypointEventList": [
+        {
+          "index": -1,
+          "waypointEventData": []
+        },
+        {
+          "index": -1,
+          "waypointEventData": []
+        }
+      ]
+    }
+  ],
+  "objectList": [],
+  "spawnPointList": [],
+  "tlList": [
+    {
+      "index": 0,
+      "state": 2,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 1,
+      "state": 0,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 2,
+      "state": 2,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 3,
+      "state": 0,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 4,
+      "state": 1,
+      "deltaTime": 24.738224029541016
+    },
+    {
+      "index": 5,
+      "state": 2,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 6,
+      "state": 0,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 7,
+      "state": 0,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 8,
+      "state": 2,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 9,
+      "state": 2,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 10,
+      "state": 0,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 11,
+      "state": 2,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 12,
+      "state": 2,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 13,
+      "state": 0,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 14,
+      "state": 0,
+      "deltaTime": 9.5600013732910156
+    },
+    {
+      "index": 15,
+      "state": 0,
+      "deltaTime": 9.5600013732910156
+    }
+  ],
+  "mapInfo": {
+    "mapName": "R_KR_PR_K-city_2025",
+    "eastOffset": 302595.0,
+    "northOffset": 4124145.0,
+    "globalCoordinateSystem": "UTM52N",
+    "scenarioCoordinateSystem": "ENU"
+  },
+  "v2IInfo": {
+    "isAlive": false,
+    "acceptIp": "127.0.0.1",
+    "acceptPort": 5000,
+    "v2vIP": "127.0.0.1"
+  },
+  "pedspawnPointList": [],
+  "aiPedstrianList": [],
+  "shadedAreaList": [],
+  "frictionChangeMaterialList": [],
+  "waypointDataList": [
+    {
+      "pathName": "PedPath - 2",
+      "waypointData": [
+        {
+          "pos": {
+            "x": 41.321998596191406,
+            "y": 28.580999374389648,
+            "z": 277.6099853515625,
+            "_x": "41.322",
+            "_y": "28.581",
+            "_z": "277.610"
+          },
+          "rot": {
+            "roll": "0.000",
+            "pitch": "0.000",
+            "yaw": "0.000"
+          }
+        },
+        {
+          "pos": {
+            "x": 54.1619987487793,
+            "y": 28.398000717163086,
+            "z": 270.77398681640625,
+            "_x": "54.162",
+            "_y": "28.398",
+            "_z": "270.774"
+          },
+          "rot": {
+            "roll": "0.000",
+            "pitch": "0.000",
+            "yaw": "0.000"
+          }
+        }
+      ]
+    }
+  ]
+}
