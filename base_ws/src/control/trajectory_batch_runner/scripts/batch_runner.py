@@ -18,7 +18,7 @@ from trajectory_batch_runner.morai_udp_client import MoraiScenarioLoadClient
 from trajectory_batch_runner.ros_stack_manager import RosStackManager
 from trajectory_batch_runner.scenario_builder import (
     ScenarioResult,
-    ensure_scenario,
+    load_scenario,
 )
 from trajectory_batch_runner.trajectory_input import (
     TrajectoryStart,
@@ -57,7 +57,7 @@ def prepare_iterations(config: BatchConfig) -> List[PreparedIteration]:
     prepared = []
     for row in rows:
         start = read_trajectory_start(config, row)
-        scenario = ensure_scenario(config, row, start)
+        scenario = load_scenario(config, row, start)
         prepared.append(
             PreparedIteration(
                 row=row,

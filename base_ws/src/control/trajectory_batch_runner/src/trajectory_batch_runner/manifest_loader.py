@@ -29,17 +29,20 @@ class ManifestRow:
     experiment_type: str
     sub_type: str
     trajectory_file: str
+    scenario_file: str
     speed_kph: float
     trajectory_path: Path
+    scenario_path: Path
     line_number: int
 
     @property
     def label(self) -> str:
-        return "iteration {} ({}/{}, {})".format(
+        return "iteration {} ({}/{}, trajectory={}, scenario={})".format(
             self.iteration,
             self.experiment_type,
             self.sub_type,
             self.trajectory_file,
+            self.scenario_file,
         )
 
 
@@ -126,6 +129,17 @@ def load_manifest(config: BatchConfig) -> List[ManifestRow]:
                 ".csv",
                 "{}행 trajectory_file".format(line_number),
             )
+            scenario_file = _require_suffix(
+                raw["scenario_file"],
+                ".json",
+                "{}행 scenario_file".format(line_number),
+            )
+            if Path(scenario_file).name != scenario_file:
+                raise ManifestError(
+                    "{}행 scenario_file은 폴더를 포함하지 않는 파일명이어야 합니다".format(
+                        line_number
+                    )
+                )
             speed_kph = _parse_positive_float(
                 raw["speed_kph"], "{}행 speed_kph".format(line_number)
             )
@@ -136,6 +150,12 @@ def load_manifest(config: BatchConfig) -> List[ManifestRow]:
                     "{}행 trajectory_file".format(line_number),
                     must_exist=True,
                 )
+                scenario_path = config.resolve_child(
+                    "paths.directories.scenario_directory",
+                    scenario_file,
+                    "{}행 scenario_file".format(line_number),
+                    must_exist=False,
+                )
             except ConfigError as error:
                 raise ManifestError(str(error)) from error
             rows.append(
@@ -144,8 +164,10 @@ def load_manifest(config: BatchConfig) -> List[ManifestRow]:
                     experiment_type=experiment_type,
                     sub_type=sub_type,
                     trajectory_file=trajectory_file,
+                    scenario_file=scenario_file,
                     speed_kph=speed_kph,
                     trajectory_path=trajectory_path,
+                    scenario_path=scenario_path,
                     line_number=line_number,
                 )
             )

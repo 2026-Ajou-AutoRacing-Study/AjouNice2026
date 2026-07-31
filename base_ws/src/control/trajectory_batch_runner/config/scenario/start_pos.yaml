@@ -10,7 +10,6 @@ paths:
 
 scenario_generation:
   start_pose_source: "trajectory_first_row"
-  filename_pattern: "{lanelet_id}_{speed_kph:g}.json"
   trajectory_columns:
     x: "x"
     y: "y"

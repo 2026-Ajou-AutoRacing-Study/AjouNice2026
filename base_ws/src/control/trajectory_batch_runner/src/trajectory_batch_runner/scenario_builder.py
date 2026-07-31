@@ -1,13 +1,12 @@
-# 목적: trajectory 시작 pose와 manifest 속도로 MORAI scenario JSON을 생성한다.
+# 목적: manifest가 지정한 MORAI scenario JSON을 trajectory 시작 상태에 맞게 생성한다.
 # 역할: template의 상대 차량·장애물 구성은 보존하고 Ego 시작 상태만 바꾼다.
-# 주요 흐름: static TF 읽기 -> pose 역변환 -> Ego 속도 적용 -> 기존 파일 검증 또는 원자적 저장.
+# 주요 흐름: manifest 출력 경로 검증 -> pose 역변환 -> Ego 속도 적용 -> 기존 파일 검증 또는 원자적 저장.
 
 """manifest 기반 MORAI scenario JSON 생성기."""
 
 import json
 import math
 import os
-import re
 import tempfile
 from copy import deepcopy
 from dataclasses import dataclass
@@ -23,9 +22,6 @@ from trajectory_batch_runner.trajectory_input import TrajectoryStart
 
 class ScenarioBuildError(ValueError):
     """scenario template 또는 생성 결과가 올바르지 않을 때 발생한다."""
-
-
-SAFE_LANELET_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 @dataclass(frozen=True)
@@ -217,31 +213,14 @@ def _atomic_write_json(path: Path, document: Dict[str, Any]) -> None:
 
 
 def _scenario_output_path(
-    config: BatchConfig, row: ManifestRow, start: TrajectoryStart
+    config: BatchConfig, row: ManifestRow
 ) -> Path:
-    """시작 lanelet과 초기 속도로 scenario 출력 경로를 만든다."""
+    """manifest의 scenario_file을 생성 및 MORAI 로드 경로로 해석한다."""
 
-    lanelet_id = start.lanelet_id.strip()
-    if not SAFE_LANELET_ID.fullmatch(lanelet_id):
-        raise ScenarioBuildError(
-            "lanelet_id는 scenario 파일명에 사용할 영문, 숫자, 밑줄, "
-            "하이픈만 포함해야 합니다: {!r}".format(start.lanelet_id)
-        )
-    pattern = config.get("scenario_generation.filename_pattern")
-    if not isinstance(pattern, str) or not pattern:
-        raise ScenarioBuildError("scenario_generation.filename_pattern이 비어 있습니다")
-    try:
-        filename = pattern.format(
-            lanelet_id=lanelet_id,
-            speed_kph=row.speed_kph,
-        )
-    except (IndexError, KeyError, ValueError) as error:
-        raise ScenarioBuildError(
-            "scenario_generation.filename_pattern 형식이 올바르지 않습니다"
-        ) from error
+    filename = row.scenario_file
     if Path(filename).name != filename or Path(filename).suffix.lower() != ".json":
         raise ScenarioBuildError(
-            "생성 scenario 이름은 폴더를 포함하지 않는 .json 파일명이어야 합니다: "
+            "manifest scenario_file은 폴더를 포함하지 않는 .json 파일명이어야 합니다: "
             "{}".format(filename)
         )
 
@@ -252,23 +231,61 @@ def _scenario_output_path(
         stem_bytes = Path(filename).stem.encode("ascii")
     except UnicodeEncodeError as error:
         raise ScenarioBuildError(
-            "생성 scenario 파일명은 ASCII여야 합니다: {}".format(filename)
+            "manifest scenario_file은 ASCII여야 합니다: {}".format(filename)
         ) from error
     if len(stem_bytes) > max_filename_bytes:
         raise ScenarioBuildError(
-            "생성 scenario stem이 MORAI {} byte 제한을 넘습니다: {}".format(
+            "manifest scenario_file stem이 MORAI {} byte 제한을 넘습니다: {}".format(
                 max_filename_bytes, Path(filename).stem
             )
         )
     try:
-        return config.resolve_child(
+        scenario_path = config.resolve_child(
             "paths.directories.scenario_directory",
             filename,
-            "생성 scenario 파일",
+            "manifest scenario_file",
             must_exist=False,
         )
     except ValueError as error:
         raise ScenarioBuildError(str(error)) from error
+    if scenario_path != row.scenario_path:
+        raise ScenarioBuildError(
+            "manifest scenario_file 해석 결과가 사전 검증 경로와 다릅니다: {}".format(
+                filename
+            )
+        )
+    return scenario_path
+
+
+def _expected_pose(
+    config: BatchConfig, start: TrajectoryStart
+) -> Tuple[float, float, float, float]:
+    """trajectory 시작 상태를 MORAI scenario 좌표로 변환한다."""
+
+    translation, tf_yaw = _load_planar_transform(config)
+    z_offset = float(config.get("scenario_generation.vehicle_z_offset_m"))
+    if not math.isfinite(z_offset):
+        raise ScenarioBuildError("vehicle_z_offset_m은 유한해야 합니다")
+    return _inverse_map_pose(start, translation, tf_yaw, z_offset)
+
+
+def load_scenario(
+    config: BatchConfig, row: ManifestRow, start: TrajectoryStart
+) -> ScenarioResult:
+    """manifest가 지정한 기존 scenario를 검증하고 로드 결과로 반환한다."""
+
+    scenario_path = _scenario_output_path(config, row)
+    if not scenario_path.is_file():
+        raise ScenarioBuildError(
+            "manifest scenario_file이 없습니다: {}. "
+            "scenario_json_generator.py로 먼저 생성하거나 파일을 준비하세요".format(
+                scenario_path
+            )
+        )
+    pose = _expected_pose(config, start)
+    scenario = _load_json(scenario_path)
+    _verify_scenario(scenario, config, row, pose)
+    return ScenarioResult(scenario_path, *pose, reused_existing=True)
 
 
 def ensure_scenario(
@@ -280,12 +297,8 @@ def ensure_scenario(
         "paths.files.scenario_template_json", expect_directory=False
     )
     template = _load_json(template_path)
-    translation, tf_yaw = _load_planar_transform(config)
-    z_offset = float(config.get("scenario_generation.vehicle_z_offset_m"))
-    if not math.isfinite(z_offset):
-        raise ScenarioBuildError("vehicle_z_offset_m은 유한해야 합니다")
-    pose = _inverse_map_pose(start, translation, tf_yaw, z_offset)
-    scenario_path = _scenario_output_path(config, row, start)
+    pose = _expected_pose(config, start)
+    scenario_path = _scenario_output_path(config, row)
 
     scenario = deepcopy(template)
     _set_pose(scenario, *pose)

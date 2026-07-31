@@ -114,7 +114,7 @@ class ValidationMonitor:
             ) from error
 
     def wait_scenario_pose(self, scenario: ScenarioResult) -> None:
-        """ScenarioLoad 뒤 Ego XY 위치가 생성한 scenario 시작점인지 확인한다."""
+        """ScenarioLoad 뒤 Ego XY 위치가 manifest scenario 시작점인지 확인한다."""
 
         rospy = self._rospy()
         try:

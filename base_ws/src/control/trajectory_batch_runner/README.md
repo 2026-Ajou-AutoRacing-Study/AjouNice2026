@@ -9,7 +9,7 @@
 
 1. config와 manifest 전체 사전 검증
 2. trajectory 시작 pose·속도 확인
-3. 필요한 MORAI scenario JSON 생성 또는 기존 파일 검증
+3. manifest에 지정된 MORAI scenario JSON 검증
 4. `udp`, `maptf_morai_cor` 실행
 5. iteration별 ScenarioLoad UDP 송신
 6. `traj_gen`, `traj_val`, `traj_fol_a` 실행
@@ -24,7 +24,7 @@ MORAI에서 다음 항목은 batch 시작 전에 한 번 준비한다.
 2. F4에서 `configs/network/ego_network_1.json`을 로드하고 Connect한다.
 3. F3에서 `configs/sensors/Sensor_5.json`을 로드하고 Connect한다.
 4. Ego를 External Control 상태로 준비한다.
-5. 생성된 scenario JSON이 MORAI가 이름으로 불러올 수 있는 scenario 저장 위치에 있어야 한다.
+5. manifest에 지정한 scenario JSON이 저장소와 MORAI의 scenario 저장 위치에 있어야 한다.
 
 runner의 ScenarioLoad UDP는 JSON 전체 경로가 아니라 확장자를 제외한 파일명만 전송한다.
 따라서 저장소의 `configs/scenario`와 실제 MORAI scenario 저장 위치가 다르면 생성 파일을
@@ -115,10 +115,10 @@ manifests/
 └── obstacle_avoidance_manifest.csv
 ```
 
-두 파일은 같은 5개 열을 사용한다.
+두 파일은 같은 6개 열을 사용한다.
 
 ```csv
-iteration,experiment_type,sub_type,trajectory_file,speed_kph
+iteration,experiment_type,sub_type,trajectory_file,scenario_file,speed_kph
 ```
 
 | 열 | 의미 | 예 |
@@ -127,21 +127,22 @@ iteration,experiment_type,sub_type,trajectory_file,speed_kph
 | `experiment_type` | `highway_lc` 또는 `obstacle_avoidance` | `highway_lc` |
 | `sub_type` | 시험 세부 종류 | `single_lc` |
 | `trajectory_file` | config의 trajectory 폴더 기준 상대경로 | `single_lc/sample_001.csv` |
+| `scenario_file` | 생성·검증 후 해당 iteration에서 MORAI에 로드할 JSON 파일명 | `highway_start_100.json` |
 | `speed_kph` | Ego 초기 속도와 trajectory 첫 목표 속도 | `100` |
 
 Highway LC 예:
 
 ```csv
-iteration,experiment_type,sub_type,trajectory_file,speed_kph
-1,highway_lc,single_lc,single_lc/sample_001.csv,100
-2,highway_lc,double_lc,double_lc/sample_002.csv,120
+iteration,experiment_type,sub_type,trajectory_file,scenario_file,speed_kph
+1,highway_lc,single_lc,single_lc/sample_001.csv,highway_start_100.json,100
+2,highway_lc,double_lc,double_lc/sample_002.csv,highway_start_120.json,120
 ```
 
 Obstacle Avoidance 예:
 
 ```csv
-iteration,experiment_type,sub_type,trajectory_file,speed_kph
-1,obstacle_avoidance,static_obstacle,avoid_001.csv,40
+iteration,experiment_type,sub_type,trajectory_file,scenario_file,speed_kph
+1,obstacle_avoidance,static_obstacle,avoid_001.csv,obstacle_start_40.json,40
 ```
 
 `enabled`, 시작/종료 lanelet, sweep min/max/interval은 사용하지 않는다. 실행하지 않을 행은
@@ -180,23 +181,31 @@ base_ws/src/control/trajectory_generator/traj_sample/obstacle_avoidance/
 
 세부 폴더를 만들면 `trajectory_file`에 그 폴더까지 상대경로로 적는다.
 
-## 7. Scenario 생성
+## 7. Scenario 생성과 로드
 
-runner는 실제 차량을 움직이기 전에 manifest 전체에 대해 다음 작업을 수행한다.
+`scenario_json_generator.py`는 manifest 전체에 대해 다음 작업을 수행한다.
 
 1. trajectory 첫 행의 `x`, `y`, `z`, `yaw`, `lanelet_id`, `velocity_mps`를 읽는다.
 2. `velocity_mps * 3.6`과 manifest의 `speed_kph`가 허용 오차 안에서 같은지 확인한다.
 3. static TF로 Lanelet map pose를 MORAI pose로 변환한다.
 4. 기존 `configs/scenario/start_pos.json`을 복사한다.
 5. Ego pose, gear, 현재 속도와 저장 차량 속도를 갱신한다.
-6. `<trajectory 첫 lanelet_id>_<speed_kph>.json`으로 저장한다.
+6. manifest의 `scenario_file` 이름으로 `configs/scenario/`에 저장한다.
 
-예를 들어 시작 lanelet이 `200889`이고 초기 속도가 `30 km/h`이면
-`configs/scenario/200889_30.json`이 생성된다. 파일명 형식은 config의
-`scenario_generation.filename_pattern`에 명시되어 있다.
+예를 들어 manifest의 `scenario_file`이 `highway_start_100.json`이면
+`configs/scenario/highway_start_100.json`을 생성하거나 기존 파일을 검증하고,
+batch runner는 실제 iteration에서 이 파일명을 MORAI ScenarioLoad로 전송한다.
+
+`scenario_file`은 폴더를 포함하지 않는 `.json` 파일명이어야 하며, 확장자를 제외한
+stem은 MORAI ScenarioLoad의 ASCII 30-byte 제한을 만족해야 한다.
 
 기존 scenario 파일이 있으면 pose, map과 속도가 같은지 확인한다. 내용이 다르고
-`overwrite_existing: false`이면 자동으로 덮어쓰지 않고 batch를 중지한다.
+`overwrite_existing: false`이면 생성기는 자동으로 덮어쓰지 않고 중지한다.
+
+batch runner 자체는 scenario JSON을 생성하거나 덮어쓰지 않는다. manifest의
+`scenario_file`이 실제로 존재하는지와 pose, map, 속도가 trajectory 및 manifest와
+일치하는지 사전 검증한 뒤 그 파일을 로드한다. 파일이 없다면 아래 생성기를 먼저
+실행해야 한다.
 
 `start_pos.json`의 다음 목록과 그 밖의 설정은 수정하지 않는다.
 
@@ -207,7 +216,9 @@ objectList
 spawnPointList
 ```
 
-두 config 모두 `scenario_template_json`으로 기존 `start_pos.json`을 사용한다.
+두 config 모두 `scenario_template_json`으로 기존 `start_pos.json`을 사용한다. 이 값은
+생성기 입력에만 사용되며, batch runner의 실제 로드 대상은 각 manifest 행의
+`scenario_file`이다.
 
 scenario만 미리 생성하고 싶으면 다음 명령을 사용한다.
 
@@ -294,9 +305,9 @@ src/trajectory_batch_runner/
 | 모듈 | 책임 |
 | --- | --- |
 | `config_loader.py` | 역할별 YAML 병합, 검증과 저장소 상대경로 해석 |
-| `manifest_loader.py` | manifest 5개 열 검증과 iteration 정렬 |
+| `manifest_loader.py` | manifest 6개 열 검증과 iteration 정렬 |
 | `trajectory_input.py` | trajectory 첫 행과 시작 속도 확인 |
-| `scenario_builder.py` | MORAI scenario 생성·기존 파일 검증 |
+| `scenario_builder.py` | manifest 지정 MORAI scenario 생성·기존 파일 검증·로드 준비 |
 | `morai_udp_client.py` | 69-byte ScenarioLoad UDP payload와 송신 |
 | `ros_stack_manager.py` | runner가 시작한 roslaunch의 생명주기 관리 |
 | `validation_monitor.py` | topic 준비와 validator metadata 완료 확인 |
