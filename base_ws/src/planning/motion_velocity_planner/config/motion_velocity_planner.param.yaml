@@ -29,6 +29,6 @@ distance_buffer: 0.0
 min_adjusted_velocity_mps: 2.5
 max_lateral_distance: 1.5
 dynamic_speed_threshold_mps: 0.1
-stop_unknown_objects: false
+stop_unknown_objects: true
 min_confidence: 0.5
 stop_object_labels: [car, truck, bus, bicycle, motorcycle, pedestrian]

@@ -126,7 +126,8 @@ def project_pose_to_path(path, pose, yaw_threshold=None):
 
         wx = position.x - a.x
         wy = position.y - a.y
-        ratio = clamp((wx * vx + wy * vy) / (segment_length * segment_length), 0.0, 1.0)
+        raw_ratio = (wx * vx + wy * vy) / (segment_length * segment_length)
+        ratio = clamp(raw_ratio, 0.0, 1.0)
         closest_x = a.x + vx * ratio
         closest_y = a.y + vy * ratio
         dx = position.x - closest_x
@@ -134,6 +135,13 @@ def project_pose_to_path(path, pose, yaw_threshold=None):
         distance = math.hypot(dx, dy)
         signed_lateral = (vx * dy - vy * dx) / segment_length
         longitudinal = cumulative[idx] + segment_length * ratio
+        # Preserve the along-track offset outside the path endpoints.  Clamping
+        # it to zero made an object far behind the first point look as if it
+        # were located at s=0 with only a small lateral error.
+        if idx == 0 and raw_ratio < 0.0:
+            longitudinal = segment_length * raw_ratio
+        elif idx == len(path.points) - 2 and raw_ratio > 1.0:
+            longitudinal = cumulative[idx] + segment_length * raw_ratio
 
         if best is None or distance < best.distance:
             best = PathProjection(

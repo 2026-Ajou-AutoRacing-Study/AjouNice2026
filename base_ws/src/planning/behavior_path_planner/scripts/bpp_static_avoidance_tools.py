@@ -9,7 +9,12 @@ import rospy
 from autoware_perception_msgs.msg import ObjectClassification
 from tier4_rtc_msgs.msg import Module, State
 
-from bpp_map_tools import project_point_to_polyline
+from geometry_msgs.msg import Point
+
+from bpp_map_tools import (
+    project_point_to_polyline,
+    project_point_to_polyline_with_point,
+)
 from bpp_path_tools import (
     clamp,
     object_pose,
@@ -137,6 +142,7 @@ class ObjectPolicy:
 @dataclass
 class StaticAvoidanceParameters:
     use_lane_type: str = "opposite_direction_lane"
+    use_intersection_areas: bool = True
     use_static_detection_area: bool = False
     min_forward_distance: float = 50.0
     max_forward_distance: float = 150.0
@@ -200,6 +206,13 @@ class StaticAvoidanceParameters:
         params = cls()
         params.use_lane_type = str(
             _get_param(prefix, "use_lane_type", params.use_lane_type)
+        )
+        params.use_intersection_areas = _as_bool(
+            _get_param(
+                prefix,
+                "use_intersection_areas",
+                params.use_intersection_areas,
+            )
         )
         params.use_static_detection_area = _as_bool(
             _get_param(
@@ -817,6 +830,7 @@ class StaticAvoidanceEngine:
                 lane_id,
                 (position.x, position.y, position.z),
                 self.params.use_lane_type,
+                self.params.use_intersection_areas,
             )
             if map_distances[0] is not None:
                 expanded_left = max(expanded_left, map_distances[0])
@@ -1059,6 +1073,7 @@ class StaticAvoidanceEngine:
 
     def _shift_path(self, path, lines):
         output = deepcopy(path)
+        self._expand_drivable_bounds(output)
         distances = path_cumulative_lengths(output)
         offsets = []
         for point, station in zip(output.points, distances):
@@ -1078,6 +1093,69 @@ class StaticAvoidanceEngine:
                     math.atan2(after.y - before.y, after.x - before.x)
                 )
         return output, offsets
+
+    @staticmethod
+    def _boundary_point(boundary, position):
+        if len(boundary) < 2:
+            return None
+        polyline = [(point.x, point.y, point.z) for point in boundary]
+        projection = project_point_to_polyline_with_point(
+            polyline,
+            (position.x, position.y, position.z),
+        )
+        return projection[2] if projection is not None else None
+
+    def _expand_drivable_bounds(self, path):
+        """Propagate map drivable-area expansion to Path left/right bounds."""
+        if self.centerline_map is None or not path.points:
+            return
+
+        source_bounds = (list(path.left_bound), list(path.right_bound))
+        expanded = ([], [])
+        for index, path_point in enumerate(path.points):
+            position = path_point.point.pose.position
+            point = (position.x, position.y, position.z)
+            yaw = _path_tangent_yaw(path, index)
+            left_normal = (-math.sin(yaw), math.cos(yaw))
+            lane_id = self._lane_id_at(path, index)
+            map_points = (None, None)
+            if lane_id is not None:
+                map_points = self.centerline_map.expanded_bound_points(
+                    lane_id,
+                    point,
+                    self.params.use_lane_type,
+                    self.params.use_intersection_areas,
+                )
+
+            for side_index in (0, 1):
+                candidates = [
+                    self._boundary_point(source_bounds[side_index], position),
+                    map_points[side_index],
+                ]
+                candidates = [candidate for candidate in candidates if candidate is not None]
+                if not candidates:
+                    continue
+
+                def lateral(candidate):
+                    return (
+                        (candidate[0] - position.x) * left_normal[0]
+                        + (candidate[1] - position.y) * left_normal[1]
+                    )
+
+                if side_index == 0:
+                    same_side = [candidate for candidate in candidates if lateral(candidate) >= 0.0]
+                    selected = max(same_side or candidates, key=lateral)
+                else:
+                    same_side = [candidate for candidate in candidates if lateral(candidate) <= 0.0]
+                    selected = min(same_side or candidates, key=lateral)
+                expanded[side_index].append(
+                    Point(x=selected[0], y=selected[1], z=selected[2])
+                )
+
+        if len(expanded[0]) >= 2:
+            path.left_bound = expanded[0]
+        if len(expanded[1]) >= 2:
+            path.right_bound = expanded[1]
 
     def _raw_safety(self, candidate_path, targets, all_objects, conflict):
         if conflict:

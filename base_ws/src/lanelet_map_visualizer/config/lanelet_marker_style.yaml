@@ -58,4 +58,4 @@ show:
   stop_lines: true
   traffic_lights: true
   road_fill: false
-  crosswalk_fill: false
+  crosswalk_fill: true

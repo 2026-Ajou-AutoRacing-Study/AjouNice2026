@@ -65,6 +65,7 @@
     <param name="projector_file" value="$(arg projector_file)" />
     <param name="map_projector_type" value="MGRS" />
     <param name="avoidance/use_lane_type" value="opposite_direction_lane" />
+    <param name="avoidance/use_intersection_areas" value="true" />
     <param name="avoidance/target_filtering/detection_area/static" value="false" />
     <param name="avoidance/target_filtering/detection_area/min_forward_distance" value="50.0" />
     <param name="avoidance/target_filtering/detection_area/max_forward_distance" value="150.0" />

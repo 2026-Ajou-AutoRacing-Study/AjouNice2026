@@ -3,8 +3,11 @@ planning_hz: 10.0
 kinematic_velocity_scale_to_mps: 1.0
 replan_velocity_deviation_mps: 5.53
 
+initial_state:
+  max_previous_pose_distance_m: 5.0
+
 # Prevent the controller's stopped-state hold from trapping a valid departure.
-engage_velocity_mps: 0.25
+engage_velocity_mps: 0.8
 engage_distance_m: 5.0
 stop_distance_to_prohibit_engage_m: 0.5
 
@@ -13,9 +16,18 @@ min_velocity_for_time_calculation_mps: 1.0
 stop_velocity_threshold_mps: 0.01
 
 forward:
-  max_acceleration_mps2: 1.0
+  max_acceleration_mps2: 2.0
   max_jerk_mps3: 1.0
 
 backward:
-  max_deceleration_mps2: 2.5
-  max_jerk_mps3: 1.5
+  max_deceleration_mps2: 1.0
+  max_jerk_mps3: 1.0
+
+curve:
+  enable_lateral_acceleration_limit: true
+  max_lateral_accel_mps2: 2.0
+  min_curve_velocity_mps: 10
+  decel_distance_before_curve_m: 40.0
+  decel_distance_after_curve_m: 4.0
+  curvature_window: 3
+  min_curve_radius_m: 1.0

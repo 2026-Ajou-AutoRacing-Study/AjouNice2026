@@ -4,8 +4,10 @@ import os
 import sys
 import unittest
 
+from autoware_perception_msgs.msg import ObjectClassification, PredictedObject
 from autoware_planning_msgs.msg import Trajectory, TrajectoryPoint
 from geometry_msgs.msg import Pose
+from nav_msgs.msg import Odometry
 
 
 SCRIPT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts")
@@ -32,6 +34,18 @@ def trajectory(velocities):
     return message
 
 
+def predicted_object(x, y=0.0, label=ObjectClassification.UNKNOWN):
+    obj = PredictedObject()
+    obj.kinematics.initial_pose_with_covariance.pose.position.x = float(x)
+    obj.kinematics.initial_pose_with_covariance.pose.position.y = float(y)
+    obj.kinematics.initial_pose_with_covariance.pose.orientation.w = 1.0
+    classification = ObjectClassification()
+    classification.label = label
+    classification.probability = 1.0
+    obj.classification.append(classification)
+    return obj
+
+
 class TrajectoryInterfaceTest(unittest.TestCase):
     def test_lengths_use_native_trajectory_points(self):
         self.assertEqual(path_cumulative_lengths(trajectory([5.0] * 4)), [0.0, 1.0, 2.0, 3.0])
@@ -45,6 +59,17 @@ class TrajectoryInterfaceTest(unittest.TestCase):
         projection = project_pose_to_path(message, pose)
         self.assertAlmostEqual(projection.longitudinal_distance, 2.5)
         self.assertAlmostEqual(projection.signed_lateral_distance, 0.4)
+
+    def test_projection_preserves_negative_station_behind_path_start(self):
+        message = trajectory([5.0] * 5)
+        pose = Pose()
+        pose.orientation.w = 1.0
+        pose.position.x = -100.0
+        pose.position.y = 0.4
+        projection = project_pose_to_path(message, pose)
+        self.assertAlmostEqual(projection.longitudinal_distance, -100.0)
+        self.assertAlmostEqual(projection.signed_lateral_distance, 0.4)
+        self.assertAlmostEqual(projection.distance, 100.0007999968)
 
     def test_velocity_window_supports_native_trajectory(self):
         output = set_velocity_window(trajectory([5.0] * 5), 1.0, 3.0, 2.0)
@@ -98,6 +123,24 @@ class TrajectoryInterfaceTest(unittest.TestCase):
             [point.longitudinal_velocity_mps for point in message.points],
             [5.0, 5.0, 0.0, 0.0],
         )
+
+    def test_stop_projection_rejects_object_behind_ego(self):
+        planner = MotionVelocityPlanner.__new__(MotionVelocityPlanner)
+        planner.trajectory = trajectory([5.0] * 31)
+        planner.odometry = Odometry()
+        planner.odometry.pose.pose.position.x = 10.0
+        planner.odometry.pose.pose.orientation.w = 1.0
+        planner.delta_yaw_threshold = 1.0472
+        planner.max_lateral_distance = 1.5
+        planner.min_classification_confidence = 0.5
+        planner.stop_unknown_objects = True
+        planner.stop_object_labels = []
+        planner.stop_object_label_ids = set()
+
+        self.assertIsNone(planner.stop_object_projection(predicted_object(5.0, 0.2)))
+        projection = planner.stop_object_projection(predicted_object(20.0, 0.2))
+        self.assertIsNotNone(projection)
+        self.assertAlmostEqual(projection.longitudinal_distance, 20.0)
 
 
 if __name__ == "__main__":

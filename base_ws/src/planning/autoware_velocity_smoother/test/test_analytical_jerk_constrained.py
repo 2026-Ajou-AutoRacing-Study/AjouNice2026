@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import math
 import os
 import sys
 import unittest
@@ -11,13 +12,42 @@ sys.path.insert(0, PACKAGE_SRC)
 from autoware_velocity_smoother.analytical_jerk_constrained import (  # noqa: E402
     SmootherParameters,
     apply_engage_velocity_floor,
+    apply_lateral_acceleration_limits,
     minimum_deceleration_distance,
+    nearest_index_2d,
+    select_initial_state,
     smooth_velocity_profile,
 )
 
 
 def straight_positions(count, interval=0.5):
     return [(index * interval, 0.0, 0.0) for index in range(count)]
+
+
+def arc_positions(radius, count):
+    return [
+        (
+            radius * math.cos(index * math.pi / (2.0 * (count - 1))),
+            radius * math.sin(index * math.pi / (2.0 * (count - 1))),
+            0.0,
+        )
+        for index in range(count)
+    ]
+
+
+def straight_then_arc_positions(radius, arc_count):
+    straight = [(float(x), 0.0, 0.0) for x in range(-40, 0, 5)]
+    arc = [
+        (
+            radius * math.cos(-math.pi / 2.0 + index * math.pi / (2.0 * (arc_count - 1))),
+            radius + radius * math.sin(
+                -math.pi / 2.0 + index * math.pi / (2.0 * (arc_count - 1))
+            ),
+            0.0,
+        )
+        for index in range(arc_count)
+    ]
+    return straight + arc
 
 
 class AnalyticalJerkConstrainedSmootherTest(unittest.TestCase):
@@ -37,6 +67,36 @@ class AnalyticalJerkConstrainedSmootherTest(unittest.TestCase):
         fast = minimum_deceleration_distance(4.1666665, 0.0, 2.5, 1.5)
         self.assertGreater(slow, 0.0)
         self.assertGreater(fast, slow)
+
+    def test_nearest_index_2d_returns_closest_position(self):
+        index, distance = nearest_index_2d(
+            [(0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (5.0, 0.0, 0.0)],
+            (1.6, 0.2, 0.0),
+        )
+        self.assertEqual(index, 1)
+        self.assertLess(distance, 0.5)
+
+    def test_initial_state_uses_previous_plan_when_tracking_is_consistent(self):
+        state = select_initial_state(
+            current_velocity_mps=4.2,
+            previous_velocity_mps=4.0,
+            previous_acceleration_mps2=-0.3,
+            replan_velocity_deviation_mps=1.0,
+        )
+        self.assertEqual(state.source, "previous_plan")
+        self.assertEqual(state.velocity_mps, 4.0)
+        self.assertEqual(state.acceleration_mps2, -0.3)
+
+    def test_initial_state_uses_current_velocity_on_large_deviation(self):
+        state = select_initial_state(
+            current_velocity_mps=6.0,
+            previous_velocity_mps=4.0,
+            previous_acceleration_mps2=-0.3,
+            replan_velocity_deviation_mps=1.0,
+        )
+        self.assertEqual(state.source, "current_replan")
+        self.assertEqual(state.velocity_mps, 6.0)
+        self.assertEqual(state.acceleration_mps2, -0.3)
 
     def test_hard_stop_is_spread_over_multiple_trajectory_points(self):
         stop_index = 30
@@ -131,6 +191,99 @@ class AnalyticalJerkConstrainedSmootherTest(unittest.TestCase):
         self.assertEqual(output[0], 0.25)
         self.assertEqual(output[10], 0.25)
         self.assertEqual(output[11], 0.0)
+
+    def test_lateral_acceleration_limit_keeps_straight_caps(self):
+        positions = straight_positions(10)
+        caps = [10.0] * len(positions)
+        output, count = apply_lateral_acceleration_limits(
+            positions,
+            caps,
+            1.5,
+            1.0,
+            8.0,
+            4.0,
+            1,
+            1.0,
+            0.01,
+        )
+        self.assertEqual(count, 0)
+        self.assertEqual(output, tuple(caps))
+
+    def test_lateral_acceleration_limit_caps_curve_speed(self):
+        positions = arc_positions(10.0, 11)
+        caps = [10.0] * len(positions)
+        output, count = apply_lateral_acceleration_limits(
+            positions,
+            caps,
+            1.0,
+            1.0,
+            2.0,
+            2.0,
+            1,
+            1.0,
+            0.01,
+        )
+        self.assertGreater(count, 0)
+        self.assertLess(min(output), 3.5)
+        self.assertGreaterEqual(min(value for value in output if value > 0.01), 1.0)
+
+    def test_lateral_acceleration_limit_preserves_stop_caps(self):
+        positions = arc_positions(10.0, 11)
+        caps = [8.0] * len(positions)
+        caps[5] = 0.0
+        output, count = apply_lateral_acceleration_limits(
+            positions,
+            caps,
+            1.0,
+            1.0,
+            2.0,
+            2.0,
+            1,
+            1.0,
+            0.01,
+        )
+        self.assertGreater(count, 0)
+        self.assertEqual(output[5], 0.0)
+
+    def test_lateral_acceleration_limit_skips_infeasible_close_curve(self):
+        positions = arc_positions(10.0, 11)
+        caps = [10.0] * len(positions)
+        output, count = apply_lateral_acceleration_limits(
+            positions,
+            caps,
+            1.0,
+            1.0,
+            0.5,
+            0.5,
+            1,
+            1.0,
+            0.01,
+            2.5,
+            1.5,
+            10.0,
+        )
+        self.assertEqual(count, 0)
+        self.assertEqual(output, tuple(caps))
+
+    def test_lateral_acceleration_limit_applies_when_deceleration_is_feasible(self):
+        positions = straight_then_arc_positions(10.0, 11)
+        caps = [10.0] * len(positions)
+        output, count = apply_lateral_acceleration_limits(
+            positions,
+            caps,
+            1.0,
+            1.0,
+            30.0,
+            4.0,
+            1,
+            1.0,
+            0.01,
+            2.5,
+            1.5,
+            10.0,
+        )
+        self.assertGreater(count, 0)
+        self.assertLess(min(output), 3.5)
 
 
 if __name__ == "__main__":

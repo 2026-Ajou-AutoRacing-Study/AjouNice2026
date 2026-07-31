@@ -1,8 +1,11 @@
 #include "trajectory_validator/planning_status_panel.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <limits>
 #include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -27,6 +30,9 @@ namespace
 constexpr double kRateWindowSec = 2.0;
 constexpr double kSignalTimeoutSec = 1.0;
 constexpr double kDecisionTimeoutSec = 1.5;
+constexpr std::size_t kMaxDecisionTextLength = 52;
+constexpr std::size_t kMaxPlanningFactorDetailLength = 30;
+constexpr std::size_t kMaxStopReasonCount = 3;
 
 QLabel * makeCaption(const QString & text)
 {
@@ -61,6 +67,196 @@ QGroupBox * makeStatusGroup(
 bool contains(const std::string & value, const std::string & token)
 {
   return value.find(token) != std::string::npos;
+}
+
+bool isSpace(const char value)
+{
+  return std::isspace(static_cast<unsigned char>(value)) != 0;
+}
+
+std::string trimCopy(const std::string & value)
+{
+  const auto begin = std::find_if_not(value.begin(), value.end(), isSpace);
+  if (begin == value.end()) {
+    return "";
+  }
+  const auto end = std::find_if_not(value.rbegin(), value.rend(), isSpace).base();
+  return std::string(begin, end);
+}
+
+std::string collapseWhitespace(const std::string & value)
+{
+  std::string output;
+  output.reserve(value.size());
+  bool previous_was_space = false;
+  for (const char character : value) {
+    if (isSpace(character)) {
+      if (!previous_was_space) {
+        output.push_back(' ');
+      }
+      previous_was_space = true;
+      continue;
+    }
+    output.push_back(character);
+    previous_was_space = false;
+  }
+  return trimCopy(output);
+}
+
+std::string firstClause(const std::string & value)
+{
+  std::size_t end = std::string::npos;
+  const std::vector<std::string> separators = {";", ",", "\n", " | "};
+  for (const auto & separator : separators) {
+    const std::size_t position = value.find(separator);
+    if (position != std::string::npos) {
+      end = std::min(end, position);
+    }
+  }
+  return trimCopy(end == std::string::npos ? value : value.substr(0, end));
+}
+
+std::string abbreviate(const std::string & value, const std::size_t max_length)
+{
+  const std::string compact = collapseWhitespace(value);
+  if (compact.size() <= max_length) {
+    return compact;
+  }
+  if (max_length <= 3) {
+    return compact.substr(0, max_length);
+  }
+  return compact.substr(0, max_length - 3) + "...";
+}
+
+std::string compactDecisionText(
+  const std::string & value, const std::size_t max_length = kMaxDecisionTextLength)
+{
+  return abbreviate(firstClause(value), max_length);
+}
+
+std::string compactModuleName(std::string module)
+{
+  const std::size_t slash = module.find_last_of("/.");
+  if (slash != std::string::npos && slash + 1 < module.size()) {
+    module = module.substr(slash + 1);
+  }
+  if (contains(module, "behavior_velocity_planner")) {
+    return "BVP";
+  }
+  if (contains(module, "behavior_path_planner")) {
+    return "BPP";
+  }
+  if (contains(module, "static_obstacle_avoidance")) {
+    return "Static avoid";
+  }
+  if (contains(module, "dynamic_obstacle_avoidance")) {
+    return "Dynamic avoid";
+  }
+  if (contains(module, "lane_change")) {
+    return "Lane change";
+  }
+  if (module == "stop_line") {
+    return "Stop line";
+  }
+  if (module == "detection_area") {
+    return "Detection area";
+  }
+  if (module == "traffic_light") {
+    return "Traffic light";
+  }
+  if (module == "virtual_traffic_light") {
+    return "Virtual light";
+  }
+  if (module == "crosswalk") {
+    return "Crosswalk";
+  }
+  if (module == "walkway") {
+    return "Walkway";
+  }
+  if (module == "blind_spot") {
+    return "Blind spot";
+  }
+  if (module == "merge_from_private") {
+    return "Private merge";
+  }
+  if (module == "no_stopping_area") {
+    return "No stopping area";
+  }
+  if (module == "no_drivable_lane") {
+    return "No drivable lane";
+  }
+  if (module == "occlusion_spot") {
+    return "Occlusion";
+  }
+  if (module == "run_out") {
+    return "Run out";
+  }
+  if (module == "speed_bump") {
+    return "Speed bump";
+  }
+  std::replace(module.begin(), module.end(), '_', ' ');
+  return abbreviate(module, 24);
+}
+
+std::string lowercaseCopy(std::string value)
+{
+  std::transform(
+    value.begin(), value.end(), value.begin(),
+    [](const unsigned char character) {return std::tolower(character);});
+  return value;
+}
+
+std::vector<std::string> split(const std::string & value, const char delimiter)
+{
+  std::vector<std::string> parts;
+  std::stringstream stream(value);
+  std::string part;
+  while (std::getline(stream, part, delimiter)) {
+    parts.push_back(trimCopy(part));
+  }
+  return parts;
+}
+
+bool isInactiveMotionDetail(const std::string & detail)
+{
+  const std::string lower = lowercaseCopy(collapseWhitespace(detail));
+  if (lower.empty() || lower == "no active modules" || contains(lower, "no stop line on path") ||
+      contains(lower, "no regulatory area on path") ||
+      contains(lower, "no regulatory element on path") ||
+      contains(lower, "no walkway on path") ||
+      contains(lower, "no turn_direction lanelet on path") ||
+      contains(lower, "no private-to-public transition on path") ||
+      contains(lower, "no tagged lanelet on path") ||
+      contains(lower, "no speed bump on path")) {
+    return true;
+  }
+
+  const auto entries = split(lower, ',');
+  return !entries.empty() && std::all_of(
+    entries.begin(), entries.end(), [](const std::string & entry) {
+      return contains(entry, "clear") || contains(entry, "missing_sim_pass");
+    });
+}
+
+std::string summarizeMotionStatus(const std::string & status)
+{
+  for (const auto & clause : split(status, ';')) {
+    const std::size_t separator = clause.find(':');
+    if (separator == std::string::npos) {
+      if (!isInactiveMotionDetail(clause)) {
+        return compactDecisionText(clause);
+      }
+      continue;
+    }
+
+    const std::string module = trimCopy(clause.substr(0, separator));
+    const std::string detail = trimCopy(clause.substr(separator + 1));
+    if (isInactiveMotionDetail(detail)) {
+      continue;
+    }
+    return compactDecisionText(compactModuleName(module) + ": " + detail);
+  }
+  return "BVP: no active constraint";
 }
 
 std::string extractStatus(const std::string & value, const std::string & prefix)
@@ -179,14 +375,16 @@ std::pair<std::string, std::string> planningFactorText(
       behavior = "";
       break;
   }
-  std::string detail = factor.module;
-  if (!factor.detail.empty()) {
+  std::string detail = compactModuleName(factor.module);
+  const std::string compact_detail =
+    compactDecisionText(factor.detail, kMaxPlanningFactorDetailLength);
+  if (!compact_detail.empty()) {
     if (!detail.empty()) {
       detail += ": ";
     }
-    detail += factor.detail;
+    detail += compact_detail;
   }
-  return std::make_pair(behavior, detail);
+  return std::make_pair(behavior, compactDecisionText(detail));
 }
 
 int planningFactorPriority(const std::uint16_t behavior)
@@ -259,8 +457,13 @@ PlanningStatusPanel::PlanningStatusPanel(QWidget * parent) : rviz::Panel(parent)
   rate_row->addWidget(
     makeStatusGroup("Output", "TRAJECTORY", &trajectory_rate_label_));
   layout->addLayout(rate_row);
-  layout->addWidget(
+  auto * speed_row = new QHBoxLayout();
+  speed_row->setSpacing(8);
+  speed_row->addWidget(
     makeStatusGroup("Vehicle", "CURRENT SPEED", &vehicle_speed_label_));
+  speed_row->addWidget(
+    makeStatusGroup("Target", "TRAJECTORY SPEED", &trajectory_speed_label_));
+  layout->addLayout(speed_row);
   layout->addWidget(
     makeStatusGroup("State", "CURRENT BEHAVIOR", &behavior_label_));
   layout->addWidget(
@@ -321,13 +524,19 @@ void PlanningStatusPanel::kinematicCallback(
   const double speed_mps = std::sqrt(
     velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z);
   vehicle_speed_kph_ = speed_mps * 3.6;
+  vehicle_position_x_ = message->pose.pose.position.x;
+  vehicle_position_y_ = message->pose.pose.position.y;
+  kinematic_state_received_ = true;
+  updateTrajectorySpeed();
 }
 
 void PlanningStatusPanel::trajectoryCallback(
-  const autoware_planning_msgs::Trajectory::ConstPtr &)
+  const autoware_planning_msgs::Trajectory::ConstPtr & message)
 {
   std::lock_guard<std::mutex> lock(mutex_);
   trajectory_rate_.record(ros::WallTime::now());
+  latest_trajectory_ = *message;
+  updateTrajectorySpeed();
 }
 
 void PlanningStatusPanel::moduleStatusCallback(const std_msgs::String::ConstPtr & message)
@@ -340,7 +549,7 @@ void PlanningStatusPanel::moduleStatusCallback(const std_msgs::String::ConstPtr 
 void PlanningStatusPanel::motionStatusCallback(const std_msgs::String::ConstPtr & message)
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  motion_status_ = message->data;
+  motion_status_ = summarizeMotionStatus(message->data);
   motion_status_time_ = ros::WallTime::now();
 }
 
@@ -357,11 +566,19 @@ void PlanningStatusPanel::stopReasonsCallback(
   const tier4_planning_msgs::StopReasonArray::ConstPtr & message)
 {
   std::vector<std::string> reasons;
-  reasons.reserve(message->stop_reasons.size());
+  reasons.reserve(std::min(message->stop_reasons.size(), kMaxStopReasonCount + 1));
+  std::size_t omitted_count = 0;
   for (const auto & stop_reason : message->stop_reasons) {
     if (!stop_reason.reason.empty()) {
-      reasons.push_back(stop_reason.reason);
+      if (reasons.size() < kMaxStopReasonCount) {
+        reasons.push_back(compactDecisionText(stop_reason.reason, 24));
+      } else {
+        ++omitted_count;
+      }
     }
+  }
+  if (omitted_count > 0) {
+    reasons.push_back("+" + std::to_string(omitted_count) + " more");
   }
   std::lock_guard<std::mutex> lock(mutex_);
   stop_decision_ = join(reasons, ", ");
@@ -454,6 +671,35 @@ void PlanningStatusPanel::updateDecisionFromPlanningFactors(
   }
 }
 
+void PlanningStatusPanel::updateTrajectorySpeed()
+{
+  trajectory_speed_received_ = false;
+  if (!kinematic_state_received_ || latest_trajectory_.points.empty()) {
+    return;
+  }
+
+  double nearest_distance_squared = std::numeric_limits<double>::infinity();
+  double nearest_velocity_mps = 0.0;
+  for (const auto & point : latest_trajectory_.points) {
+    const double dx = point.pose.position.x - vehicle_position_x_;
+    const double dy = point.pose.position.y - vehicle_position_y_;
+    const double distance_squared = dx * dx + dy * dy;
+    if (!std::isfinite(distance_squared) ||
+        !std::isfinite(point.longitudinal_velocity_mps) ||
+        distance_squared >= nearest_distance_squared) {
+      continue;
+    }
+    nearest_distance_squared = distance_squared;
+    nearest_velocity_mps = point.longitudinal_velocity_mps;
+  }
+
+  if (!std::isfinite(nearest_distance_squared)) {
+    return;
+  }
+  trajectory_speed_kph_ = std::abs(nearest_velocity_mps) * 3.6;
+  trajectory_speed_received_ = true;
+}
+
 void PlanningStatusPanel::setStatusLabel(
   QLabel * label, const QString & text, const QString & level)
 {
@@ -511,6 +757,16 @@ void PlanningStatusPanel::refreshPanel()
   } else {
     setStatusLabel(vehicle_speed_label_, "NO SIGNAL", "error");
   }
+  if (kinematic_rate_.isFresh(now, kSignalTimeoutSec) &&
+      trajectory_rate_.isFresh(now, kSignalTimeoutSec) &&
+      trajectory_speed_received_) {
+    setStatusLabel(
+      trajectory_speed_label_,
+      QString("%1 km/h").arg(trajectory_speed_kph_, 0, 'f', 1),
+      "good");
+  } else {
+    setStatusLabel(trajectory_speed_label_, "NO SIGNAL", "error");
+  }
 
   std::string behavior = bpp_behavior_;
   std::string decision = bpp_decision_;
@@ -539,6 +795,8 @@ void PlanningStatusPanel::refreshPanel()
              factor_behavior_.empty()) {
     decision = motion_status_;
   }
+
+  decision = compactDecisionText(decision);
 
   setStatusLabel(
     behavior_label_, QString::fromStdString(behavior), behavior_level);

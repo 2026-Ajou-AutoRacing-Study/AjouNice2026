@@ -36,6 +36,15 @@ class VelocityProfile:
 
 
 @dataclass(frozen=True)
+class InitialState:
+    """Initial velocity-planning state and why it was selected."""
+
+    velocity_mps: float
+    acceleration_mps2: float
+    source: str
+
+
+@dataclass(frozen=True)
 class _DecelerationCurve:
     """A zero-initial/final-acceleration jerk-constrained deceleration."""
 
@@ -132,6 +141,195 @@ def cumulative_lengths(positions):
         dz = float(second[2]) - float(first[2])
         lengths.append(lengths[-1] + math.sqrt(dx * dx + dy * dy + dz * dz))
     return lengths
+
+
+def nearest_index_2d(positions, target_position):
+    """Return ``(index, distance)`` for the closest 2D point."""
+    if not positions:
+        return -1, float("inf")
+
+    target_x = float(target_position[0])
+    target_y = float(target_position[1])
+    best_index = -1
+    best_distance_squared = float("inf")
+    for index, position in enumerate(positions):
+        dx = float(position[0]) - target_x
+        dy = float(position[1]) - target_y
+        distance_squared = dx * dx + dy * dy
+        if distance_squared < best_distance_squared:
+            best_index = index
+            best_distance_squared = distance_squared
+    return best_index, math.sqrt(best_distance_squared)
+
+
+def select_initial_state(
+    current_velocity_mps,
+    previous_velocity_mps=None,
+    previous_acceleration_mps2=None,
+    replan_velocity_deviation_mps=5.53,
+    default_velocity_mps=0.0,
+):
+    """Select the Autoware-style initial state for velocity planning."""
+    current_velocity = None
+    if current_velocity_mps is not None:
+        current_velocity = float(current_velocity_mps)
+        if not math.isfinite(current_velocity):
+            current_velocity = None
+
+    previous_velocity = None
+    if previous_velocity_mps is not None:
+        previous_velocity = float(previous_velocity_mps)
+        if not math.isfinite(previous_velocity):
+            previous_velocity = None
+
+    previous_acceleration = 0.0
+    if previous_acceleration_mps2 is not None:
+        previous_acceleration = float(previous_acceleration_mps2)
+        if not math.isfinite(previous_acceleration):
+            previous_acceleration = 0.0
+
+    if previous_velocity is None:
+        velocity = current_velocity
+        source = "current"
+        if velocity is None:
+            velocity = float(default_velocity_mps)
+            source = "default"
+        return InitialState(max(velocity, 0.0), 0.0, source)
+
+    if (
+        current_velocity is not None
+        and abs(current_velocity - previous_velocity)
+        > max(float(replan_velocity_deviation_mps), 0.0)
+    ):
+        return InitialState(
+            max(current_velocity, 0.0),
+            previous_acceleration,
+            "current_replan",
+        )
+
+    return InitialState(
+        max(previous_velocity, 0.0),
+        previous_acceleration,
+        "previous_plan",
+    )
+
+
+def _curvature_from_triplet(first, middle, last):
+    ax = float(middle[0]) - float(first[0])
+    ay = float(middle[1]) - float(first[1])
+    bx = float(last[0]) - float(first[0])
+    by = float(last[1]) - float(first[1])
+    side_ab = math.hypot(ax, ay)
+    side_bc = math.hypot(
+        float(last[0]) - float(middle[0]),
+        float(last[1]) - float(middle[1]),
+    )
+    side_ac = math.hypot(bx, by)
+    denominator = side_ab * side_bc * side_ac
+    if denominator <= EPSILON:
+        return 0.0
+    twice_area = abs(ax * by - ay * bx)
+    return 2.0 * twice_area / denominator
+
+
+def apply_lateral_acceleration_limits(
+    positions,
+    velocity_caps,
+    max_lateral_accel_mps2,
+    min_curve_velocity_mps,
+    decel_distance_before_curve_m,
+    decel_distance_after_curve_m,
+    curvature_window=1,
+    min_curve_radius_m=1.0,
+    stop_velocity_threshold_mps=0.01,
+    max_deceleration_mps2=None,
+    max_deceleration_jerk_mps3=None,
+    initial_velocity_mps=None,
+):
+    """Reduce speed caps on curves using ``v <= sqrt(a_lat / curvature)``."""
+    caps = []
+    for value in velocity_caps:
+        value = float(value)
+        caps.append(max(value, 0.0) if math.isfinite(value) else 0.0)
+    if len(caps) != len(positions):
+        raise ValueError("positions and velocity_caps must have the same length")
+    if len(caps) < 3:
+        return tuple(caps), 0
+
+    max_lateral_accel = max(float(max_lateral_accel_mps2), 0.0)
+    if max_lateral_accel <= EPSILON:
+        return tuple(caps), 0
+
+    window = max(int(curvature_window), 1)
+    if len(caps) <= 2 * window:
+        return tuple(caps), 0
+
+    min_curve_velocity = max(float(min_curve_velocity_mps), 0.0)
+    decel_distance_before = max(float(decel_distance_before_curve_m), 0.0)
+    decel_distance_after = max(float(decel_distance_after_curve_m), 0.0)
+    stop_threshold = max(float(stop_velocity_threshold_mps), 0.0)
+    max_curvature = 1.0 / max(float(min_curve_radius_m), EPSILON)
+    has_deceleration_feasibility = (
+        max_deceleration_mps2 is not None and max_deceleration_jerk_mps3 is not None
+    )
+    initial_velocity = None
+    if initial_velocity_mps is not None:
+        initial_velocity = float(initial_velocity_mps)
+        if not math.isfinite(initial_velocity):
+            initial_velocity = None
+
+    arc_lengths = cumulative_lengths(positions)
+    capped = list(caps)
+    for index in range(window, len(positions) - window):
+        curvature = _curvature_from_triplet(
+            positions[index - window],
+            positions[index],
+            positions[index + window],
+        )
+        if curvature <= EPSILON:
+            continue
+        curvature = min(curvature, max_curvature)
+        curve_velocity = max(
+            math.sqrt(max_lateral_accel / curvature),
+            min_curve_velocity,
+        )
+        start_station = arc_lengths[index] - decel_distance_before
+        end_station = arc_lengths[index] + decel_distance_after
+        if has_deceleration_feasibility:
+            upstream_index = next(
+                (
+                    cap_index
+                    for cap_index, station in enumerate(arc_lengths)
+                    if station >= start_station - EPSILON
+                ),
+                0,
+            )
+            reference_velocity = caps[upstream_index]
+            if upstream_index == 0 and initial_velocity is not None:
+                reference_velocity = min(max(initial_velocity, 0.0), reference_velocity)
+            available_distance = max(
+                arc_lengths[index] - arc_lengths[upstream_index],
+                0.0,
+            )
+            required_distance = minimum_deceleration_distance(
+                reference_velocity,
+                curve_velocity,
+                max_deceleration_mps2,
+                max_deceleration_jerk_mps3,
+            )
+            if required_distance > available_distance + EPSILON:
+                continue
+        for cap_index, station in enumerate(arc_lengths):
+            if station < start_station - EPSILON or station > end_station + EPSILON:
+                continue
+            if caps[cap_index] <= stop_threshold:
+                continue
+            capped[cap_index] = min(capped[cap_index], curve_velocity)
+
+    clamp_count = sum(
+        1 for before, after in zip(caps, capped) if after + EPSILON < before
+    )
+    return tuple(capped), clamp_count
 
 
 def _integrate_constant_jerk(velocity, acceleration, jerk, duration):

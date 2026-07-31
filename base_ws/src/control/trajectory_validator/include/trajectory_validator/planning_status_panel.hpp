@@ -58,6 +58,7 @@ private:
   void updateDecisionFromModuleStatus(const std::string & status);
   void updateDecisionFromPlanningFactors(
     const autoware_internal_planning_msgs::PlanningFactorArray & message);
+  void updateTrajectorySpeed();
   void setStatusLabel(QLabel * label, const QString & text, const QString & level);
 
   ros::NodeHandle node_handle_;
@@ -74,6 +75,7 @@ private:
   QLabel * kinematic_rate_label_;
   QLabel * trajectory_rate_label_;
   QLabel * vehicle_speed_label_;
+  QLabel * trajectory_speed_label_;
   QLabel * behavior_label_;
   QLabel * decision_label_;
   QLabel * route_label_;
@@ -82,6 +84,12 @@ private:
   RateTracker kinematic_rate_;
   RateTracker trajectory_rate_;
   double vehicle_speed_kph_ = 0.0;
+  double vehicle_position_x_ = 0.0;
+  double vehicle_position_y_ = 0.0;
+  double trajectory_speed_kph_ = 0.0;
+  autoware_planning_msgs::Trajectory latest_trajectory_;
+  bool kinematic_state_received_ = false;
+  bool trajectory_speed_received_ = false;
   std::string bpp_behavior_ = "WAITING";
   std::string bpp_decision_ = "Waiting for planner status";
   std::string factor_behavior_;

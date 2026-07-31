@@ -260,6 +260,21 @@ class MotionVelocityPlanner:
     def is_hard_stop_distance_object(self, obj):
         return self.is_stop_object(obj) and object_speed(obj) <= self.slow_dynamic_stop_speed_threshold
 
+    def is_projection_ahead_of_ego(self, proj):
+        if self.odometry is None:
+            return True
+
+        ego_proj = project_pose_to_path(
+            self.trajectory,
+            self.odometry.pose.pose,
+            yaw_threshold=self.delta_yaw_threshold,
+        )
+        if ego_proj is None:
+            ego_proj = project_pose_to_path(self.trajectory, self.odometry.pose.pose)
+        if ego_proj is None:
+            return True
+        return proj.longitudinal_distance >= ego_proj.longitudinal_distance
+
     def should_dynamic_stop_object(self, obj, proj):
         if not self.is_stop_object(obj):
             return False
@@ -282,7 +297,9 @@ class MotionVelocityPlanner:
             return None
         if proj.longitudinal_distance < 0.0:
             return None
-        if abs(proj.signed_lateral_distance) > self.max_lateral_distance:
+        if proj.distance > self.max_lateral_distance:
+            return None
+        if not self.is_projection_ahead_of_ego(proj):
             return None
         return proj
 
@@ -295,7 +312,9 @@ class MotionVelocityPlanner:
             return None
         if proj.longitudinal_distance < 0.0:
             return None
-        if abs(proj.signed_lateral_distance) > self.max_lateral_distance:
+        if proj.distance > self.max_lateral_distance:
+            return None
+        if not self.is_projection_ahead_of_ego(proj):
             return None
         return proj
 
@@ -309,7 +328,7 @@ class MotionVelocityPlanner:
                 continue
 
             proj = project_pose_to_path(self.trajectory, object_pose(obj))
-            if proj is None or abs(proj.signed_lateral_distance) > self.max_lateral_distance:
+            if proj is None or proj.distance > self.max_lateral_distance:
                 continue
             delta = proj.longitudinal_distance - point_s
             if delta < 0.0:
@@ -325,7 +344,7 @@ class MotionVelocityPlanner:
         min_ttc = float('inf')
         for obj in self.objects.objects:
             proj = project_pose_to_path(self.trajectory, object_pose(obj))
-            if proj is None or abs(proj.signed_lateral_distance) > self.max_lateral_distance:
+            if proj is None or proj.distance > self.max_lateral_distance:
                 continue
 
             distance = proj.longitudinal_distance - self.distance_buffer - point_s

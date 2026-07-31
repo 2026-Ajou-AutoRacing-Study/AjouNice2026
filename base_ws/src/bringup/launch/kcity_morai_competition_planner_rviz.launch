@@ -1,13 +1,13 @@
 <launch>
   <arg name="map_file"
-       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/lanelet2_map_v44.osm" />
+       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/lanelet2_map_v58.osm" />
   <arg name="projector_file"
        default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
   <arg name="map_projector_type" default="LocalCartesianUTM" />
   <arg name="frame_id" default="map" />
   <arg name="route_preset" default="full" />
   <arg name="planning_hz" default="10.0" />
-  <arg name="default_velocity_mps" default="10" />
+  <arg name="default_velocity_mps" default="8.0" />
   <arg name="control_trajectory_topic" default="/control/trajectory" />
   <arg name="raw_trajectory_topic"
        default="/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/raw_trajectory" />
@@ -128,12 +128,43 @@
     <param name="nominal_velocity_mps" value="$(arg default_velocity_mps)" />
   </node>
 
-  <node pkg="viewer"
+  <node pkg="bringup"
         type="current_vehicle_marker.py"
         name="current_vehicle_marker"
         output="screen">
     <param name="input_topic" value="/localization/kinematic_state" />
     <param name="output_topic" value="/viewer/current_vehicle_marker" />
+    <param name="vehicle_length" value="4.635" />
+    <param name="vehicle_width" value="1.892" />
+    <param name="wheelbase" value="3.0" />
+    <param name="rear_overhang" value="0.79" />
+    <param name="icon_scale" value="2.0" />
+  </node>
+
+  <node pkg="bringup"
+        type="morai_perception_visualizer.py"
+        name="morai_perception_visualizer"
+        output="screen">
+    <param name="input_topic" value="/Object_topic" />
+    <param name="output_topic" value="/perception/morai/objects/markers" />
+    <param name="position_is_bottom" value="true" />
+    <param name="show_labels" value="true" />
+  </node>
+
+  <node pkg="bringup"
+        type="morai_objects_to_predicted_objects.py"
+        name="morai_objects_to_predicted_objects"
+        output="screen">
+    <param name="input_topic" value="/Object_topic" />
+    <param name="output_topic"
+           value="/perception/object_recognition/objects" />
+    <param name="target_frame" value="map" />
+    <param name="fallback_source_frame" value="morai_map" />
+    <param name="position_is_bottom" value="true" />
+    <!-- sensor_interface publishes ObjectStatus velocity in SI units (m/s). -->
+    <param name="velocity_scale_to_mps" value="1.0" />
+    <param name="acceleration_scale_to_mps2" value="1.0" />
+    <param name="classification_probability" value="1.0" />
   </node>
 
   <node if="$(arg launch_rviz)"
@@ -143,5 +174,6 @@
         args="-d $(find bringup)/rviz/kcity_morai_competition_planner.yaml"
         output="screen">
     <env name="LIBGL_ALWAYS_SOFTWARE" value="$(arg software_rendering)" />
+    <env name="DISABLE_ROS1_EOL_WARNINGS" value="1" />
   </node>
 </launch>
