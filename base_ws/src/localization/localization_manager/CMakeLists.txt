@@ -22,6 +22,7 @@ catkin_install_python(PROGRAMS
   scripts/morai_gps_to_navsatfix.py
   scripts/imu_covariance_adapter.py
   scripts/morai_gps_to_local_odometry.py
+  scripts/morai_gt_motion_adapter.py
   scripts/gnss_imu_initial_pose_publisher.py
   scripts/gnss_imu_kinematic_state_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

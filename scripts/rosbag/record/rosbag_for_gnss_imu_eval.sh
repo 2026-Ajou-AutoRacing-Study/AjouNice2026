@@ -12,9 +12,12 @@ REC_PID=""
 TOPICS=(
   /clock
   /Ego_topic
+  /Competition_topic
   /sensor/gps
   /sensor/imu
   /localization/imu
+  /localization/gt/orientation
+  /localization/gt/twist
   /localization/gnss/odom
   /localization/odometry/local
   /localization/odom

@@ -156,6 +156,50 @@ re-estimated from repeated noisy runs rather than treated as final calibration.
 No gyro-bias/zeroing algorithm is enabled because the current MORAI setup has
 zero-mean noise and no configured fixed bias.
 
+## GNSS + IMU + GT CTRA-like provider (experimental)
+
+Run existing bags, which contain `/Ego_topic` but not `/Competition_topic`:
+
+```bash
+roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=ego
+```
+
+Switch the same implementation to the competition status topic explicitly:
+
+```bash
+roslaunch bringup localization_gnss_imu_gt_ctra.launch \
+  gt_source:=competition
+```
+
+The provider adds `morai_gt_motion_adapter.py` without replacing the existing
+GNSS or IMU adapters:
+
+```text
+/Ego_topic or /Competition_topic
+  -> /localization/gt/orientation  (absolute yaw)
+  -> /localization/gt/twist        (base-link longitudinal vx)
+
+/sensor/imu
+  -> /localization/imu             (only yaw rate and ax are fused)
+
+/sensor/gps
+  -> /localization/gnss/odom       (global x/y)
+```
+
+Both local and global EKFs fuse GT yaw, GT longitudinal velocity, IMU yaw rate,
+and IMU longitudinal acceleration. The global EKF additionally fuses GNSS x/y.
+IMU orientation, lateral acceleration, and lateral velocity are not fused.
+`frequency: 50` and `predict_to_current_time: true` use the EKF process model
+to publish a regular high-rate state between direct GT/GNSS updates.
+
+The first `/Ego_topic` pose remains a separate development-only initialization
+input. Selecting `gt_source:=competition` changes only the continuous yaw and
+velocity source. Replace the initial Ego pose with the provided manual start
+pose before competition use.
+
+The full design, terminal procedures, and validation scope are documented in
+`docs/localization/260801_robot_localization_gnss_imu_gt_ctra_fusion.md`.
+
 ## TF ownership and exclusivity
 
 Do not run any two provider launch files together. Do
@@ -175,6 +219,10 @@ are configured in `configs/localization/localization_manager.yaml`.
 - FAST-LIO without GNSS still has a frozen initial global alignment.
 - FAST-LIO+GNSS is experimental and must be validated against multiple noise,
   stop/go, turn, and GNSS-outage scenarios.
+- GNSS+IMU+GT currently rejects duplicate GT timestamps but has not yet been
+  validated against a native `/Competition_topic` recording.
+- Zero-valued GNSS outage gating is a separate follow-up and is not implemented
+  by the GT CTRA provider.
 - Pose and twist covariance in `/localization/kinematic_state` are unavailable.
 - `body -> base_link` is hard-coded and must later be read from the selected
   sensor configuration.
