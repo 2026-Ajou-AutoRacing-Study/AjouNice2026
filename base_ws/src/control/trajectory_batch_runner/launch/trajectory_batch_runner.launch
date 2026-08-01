@@ -9,8 +9,8 @@
         manifest_file:=highway_lc_manifest.csv
 
     동작:
-      runner가 scenario 생성/검증, MORAI ScenarioLoad UDP, udp/localization launch,
-      traj_gen, traj_val, traj_fol_a와 validator 완료 확인을 순서대로 담당한다.
+      runner가 scenario 검증, MORAI ScenarioLoad UDP, udp/localization launch,
+      trajectory publisher, validator, follower와 완료 확인을 순서대로 담당한다.
   -->
 
   <!-- config/ 폴더 안의 파일명이다. -->

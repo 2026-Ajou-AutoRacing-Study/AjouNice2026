@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # 목적: manifest의 iteration을 MORAI에서 순서대로 실행하고 validator 기록을 완성한다.
 # 역할: 재사용 모듈을 조합해 scenario 준비, UDP load, ROS stack, 완료 대기를 조율한다.
-# 주요 흐름: 전체 사전 검증 -> persistent stack -> iteration별 준비 load/실행/start load/기록 확인.
+# 주요 흐름: 전체 사전 검증 -> persistent stack -> iteration node 준비 -> scenario load -> 기록 확인.
 
 """MORAI trajectory batch runner ROS node."""
 
@@ -84,11 +84,14 @@ def run_iteration(
     rospy.loginfo("batch %s 시작", row.label)
     stack.stop_iteration_stack()
 
-    udp.send(item.scenario.path, pause=True)
-    monitor.wait_scenario_pose(item.scenario)
-
-    stack.start_generator(item.trajectory_package_path)
+    stack.start_publisher(item.trajectory_package_path)
     monitor.wait_trajectory()
+
+    # Reset Ego before the validator exists so the teleport/reconnect samples
+    # never enter tracking metrics. The generated scenario starts at 0 km/h.
+    udp.send(item.scenario.path, pause=False)
+    monitor.wait_scenario_pose(item.scenario)
+    rospy.loginfo("batch %s 초기 위치 적용 완료", row.label)
 
     previous_runs = monitor.snapshot_runs(row.trajectory_path.stem)
     stack.start_validator()
@@ -98,16 +101,6 @@ def run_iteration(
 
     stack.start_follower()
     monitor.wait_control_command()
-
-    if not bool(
-        config.get(
-            "morai.scenario_load_udp.start_by_second_load_without_pause"
-        )
-    ):
-        raise RuntimeError(
-            "자동 batch는 start_by_second_load_without_pause=true가 필요합니다"
-        )
-    udp.send(item.scenario.path, pause=False)
 
     metadata_path = monitor.wait_completion(run_directory)
     rospy.loginfo(

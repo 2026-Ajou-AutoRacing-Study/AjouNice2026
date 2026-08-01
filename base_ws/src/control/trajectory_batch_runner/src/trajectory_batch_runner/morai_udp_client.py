@@ -46,7 +46,7 @@ REQUEST_KEYS = {
 
 
 def build_scenario_load_payload(
-    scenario_stem: str,
+    scenario_filename: str,
     request: Dict[str, Any],
     *,
     pause_override: Optional[bool] = None,
@@ -54,16 +54,16 @@ def build_scenario_load_payload(
 ) -> bytes:
     """MORAI NetworkModule 예제와 동일한 ScenarioLoad payload를 만든다."""
 
-    if not isinstance(scenario_stem, str) or not scenario_stem:
-        raise MoraiUdpError("scenario filename stem이 비어 있습니다")
+    if not isinstance(scenario_filename, str) or not scenario_filename:
+        raise MoraiUdpError("scenario filename이 비어 있습니다")
     try:
-        encoded = scenario_stem.encode("ascii")
+        encoded = scenario_filename.encode("ascii")
     except UnicodeEncodeError as error:
         raise MoraiUdpError("MORAI scenario filename은 ASCII여야 합니다") from error
     if len(encoded) > max_filename_bytes or len(encoded) > 30:
         raise MoraiUdpError(
             "scenario filename이 {} byte 제한을 넘습니다: {}".format(
-                min(max_filename_bytes, 30), scenario_stem
+                min(max_filename_bytes, 30), scenario_filename
             )
         )
     if not isinstance(request, dict):
@@ -78,7 +78,9 @@ def build_scenario_load_payload(
     packet.header = b"#ScenarioLoad$"
     packet.data_length = 37
     packet.aux_data = (ctypes.c_int32 * 3)(0, 0, 0)
-    packet.filename = encoded
+    # 현재 MORAI ScenarioLoad subscriber는 30-byte filename field의 남는
+    # 바이트가 NUL이 아니라 ASCII space인 패킷을 사용한다.
+    packet.filename = encoded.ljust(30, b" ")
     for config_key, packet_field in REQUEST_KEYS.items():
         value = request[config_key]
         if not isinstance(value, bool):
@@ -101,6 +103,7 @@ class MoraiScenarioLoadClient:
             self.host = str(block["host"])
             self.port = int(block["port"])
             self.max_filename_bytes = int(block["max_filename_bytes"])
+            self.filename_value = str(block["filename_value"])
             self.request = block["request"]
         except (KeyError, TypeError, ValueError) as error:
             raise MoraiUdpError("scenario_load_udp 설정이 올바르지 않습니다") from error
@@ -108,13 +111,18 @@ class MoraiScenarioLoadClient:
             raise MoraiUdpError("ScenarioLoad UDP host/port가 올바르지 않습니다")
         if not 1 <= self.max_filename_bytes <= 30:
             raise MoraiUdpError("max_filename_bytes는 1~30이어야 합니다")
+        if self.filename_value not in ("name", "stem"):
+            raise MoraiUdpError("filename_value는 name 또는 stem이어야 합니다")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def send(self, scenario_path: Path, *, pause: Optional[bool] = None) -> int:
-        """scenario 파일 stem으로 ScenarioLoad 요청을 한 번 송신한다."""
+        """scenario JSON 전체 파일명으로 ScenarioLoad 요청을 한 번 송신한다."""
 
+        scenario_filename = (
+            scenario_path.stem if self.filename_value == "stem" else scenario_path.name
+        )
         payload = build_scenario_load_payload(
-            scenario_path.stem,
+            scenario_filename,
             self.request,
             pause_override=pause,
             max_filename_bytes=self.max_filename_bytes,

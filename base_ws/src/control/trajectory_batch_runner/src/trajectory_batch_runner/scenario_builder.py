@@ -1,6 +1,6 @@
 # 목적: manifest가 지정한 MORAI scenario JSON을 trajectory 시작 상태에 맞게 생성한다.
-# 역할: template의 상대 차량·장애물 구성은 보존하고 Ego 시작 상태만 바꾼다.
-# 주요 흐름: manifest 출력 경로 검증 -> pose 역변환 -> Ego 속도 적용 -> 기존 파일 검증 또는 원자적 저장.
+# 역할: template의 상대 차량·장애물 구성은 보존하고 Ego 시작 상태와 F4 네트워크 sidecar를 만든다.
+# 주요 흐름: manifest 출력 경로 검증 -> pose 역변환 -> 정지/ExternalCtrl 적용 -> scenario와 _MN.json 저장.
 
 """manifest 기반 MORAI scenario JSON 생성기."""
 
@@ -29,6 +29,7 @@ class ScenarioResult:
     """생성하거나 재사용한 scenario와 예상 MORAI 시작 pose다."""
 
     path: Path
+    network_path: Path
     morai_x: float
     morai_y: float
     morai_z: float
@@ -87,8 +88,8 @@ def _inverse_map_pose(
     return morai_x, morai_y, morai_z, morai_yaw_deg
 
 
-def _apply_initial_speed(
-    scenario: Dict[str, Any], speed_kph: float, morai_yaw_deg: float
+def _apply_initial_state(
+    scenario: Dict[str, Any], speed_kph: float, morai_yaw_deg: float, gear: int
 ) -> None:
     try:
         ego = scenario["egoVehicle"]
@@ -111,9 +112,13 @@ def _apply_initial_speed(
     }
     ego["currentVelocity"] = speed_kph
     ego["customValue"] = speed_kph
-    initial_position["gear"] = 4
+    # ScenarioLoad must preserve AV-ExternalCtrl instead of restoring the
+    # template's AV-MORAI Built-In control mode.
+    ego["beforeControlMode"] = 2
+    ego["currentControlMode"] = 2
+    initial_position["gear"] = gear
     save_data["velocity"] = speed_kph
-    input_data[6] = 4
+    input_data[6] = gear
     try:
         save_data["vehicle"]["lastVelocity"].update(velocity)
         save_data["lastVelocity"].update(velocity)
@@ -165,6 +170,8 @@ def _verify_scenario(
             ego["customValue"],
             ego["initPosition"]["vehicleSaveData"]["velocity"],
         )
+        current_control_mode = int(ego["currentControlMode"])
+        gear = int(ego["initPosition"]["gear"])
     except (KeyError, TypeError) as error:
         raise ScenarioBuildError("생성 scenario의 필수 필드가 부족합니다") from error
     if actual_map != expected_map:
@@ -185,13 +192,19 @@ def _verify_scenario(
         raise ScenarioBuildError(
             "기존 scenario의 Ego yaw가 trajectory 시작 yaw와 다릅니다"
         )
+    initial_speed_kph = float(config.get("scenario_generation.initial_speed_kph"))
     for actual in speeds:
         if not math.isclose(
-            float(actual), row.speed_kph, rel_tol=0.0, abs_tol=1.0e-6
+            float(actual), initial_speed_kph, rel_tol=0.0, abs_tol=1.0e-6
         ):
             raise ScenarioBuildError(
-                "기존 scenario의 Ego 속도가 manifest speed_kph와 다릅니다"
+                "기존 scenario의 Ego 초기 속도가 scenario_generation.initial_speed_kph와 다릅니다"
             )
+    if current_control_mode != 2:
+        raise ScenarioBuildError("기존 scenario의 Ego가 AV-ExternalCtrl 모드가 아닙니다")
+    expected_gear = int(config.get("scenario_generation.initial_gear"))
+    if gear != expected_gear:
+        raise ScenarioBuildError("기존 scenario의 Ego 초기 gear가 설정과 다릅니다")
 
 
 def _atomic_write_json(path: Path, document: Dict[str, Any]) -> None:
@@ -227,16 +240,20 @@ def _scenario_output_path(
     max_filename_bytes = int(
         config.get("morai.scenario_load_udp.max_filename_bytes")
     )
+    filename_value = str(config.get("morai.scenario_load_udp.filename_value"))
+    wire_filename = Path(filename).stem if filename_value == "stem" else filename
     try:
-        stem_bytes = Path(filename).stem.encode("ascii")
+        filename_bytes = wire_filename.encode("ascii")
     except UnicodeEncodeError as error:
         raise ScenarioBuildError(
-            "manifest scenario_file은 ASCII여야 합니다: {}".format(filename)
+            "MORAI에 전송할 scenario 이름은 ASCII여야 합니다: {}".format(
+                wire_filename
+            )
         ) from error
-    if len(stem_bytes) > max_filename_bytes:
+    if len(filename_bytes) > max_filename_bytes:
         raise ScenarioBuildError(
-            "manifest scenario_file stem이 MORAI {} byte 제한을 넘습니다: {}".format(
-                max_filename_bytes, Path(filename).stem
+            "manifest scenario_file이 MORAI {} byte 제한을 넘습니다: {}".format(
+                max_filename_bytes, wire_filename
             )
         )
     try:
@@ -257,6 +274,35 @@ def _scenario_output_path(
     return scenario_path
 
 
+def _scenario_network_output_path(config: BatchConfig, row: ManifestRow) -> Path:
+    """MORAI가 scenario와 함께 읽는 EgoNetwork/<stem>_MN.json 경로다."""
+
+    filename = "{}_MN.json".format(row.scenario_path.stem)
+    try:
+        return config.resolve_child(
+            "paths.directories.scenario_network_directory",
+            filename,
+            "scenario EgoNetwork sidecar",
+            must_exist=False,
+        )
+    except ValueError as error:
+        raise ScenarioBuildError(str(error)) from error
+
+
+def _network_template(config: BatchConfig) -> Dict[str, Any]:
+    path = config.resolve_config_path(
+        "paths.files.scenario_network_template_json", expect_directory=False
+    )
+    return _load_json(path)
+
+
+def _verify_network_sidecar(actual: Dict[str, Any], expected: Dict[str, Any]) -> None:
+    if actual != expected:
+        raise ScenarioBuildError(
+            "scenario EgoNetwork sidecar가 scenario_network_template_json과 다릅니다"
+        )
+
+
 def _expected_pose(
     config: BatchConfig, start: TrajectoryStart
 ) -> Tuple[float, float, float, float]:
@@ -275,6 +321,7 @@ def load_scenario(
     """manifest가 지정한 기존 scenario를 검증하고 로드 결과로 반환한다."""
 
     scenario_path = _scenario_output_path(config, row)
+    network_path = _scenario_network_output_path(config, row)
     if not scenario_path.is_file():
         raise ScenarioBuildError(
             "manifest scenario_file이 없습니다: {}. "
@@ -285,7 +332,12 @@ def load_scenario(
     pose = _expected_pose(config, start)
     scenario = _load_json(scenario_path)
     _verify_scenario(scenario, config, row, pose)
-    return ScenarioResult(scenario_path, *pose, reused_existing=True)
+    if not network_path.is_file():
+        raise ScenarioBuildError(
+            "scenario EgoNetwork sidecar가 없습니다: {}".format(network_path)
+        )
+    _verify_network_sidecar(_load_json(network_path), _network_template(config))
+    return ScenarioResult(scenario_path, network_path, *pose, reused_existing=True)
 
 
 def ensure_scenario(
@@ -299,12 +351,17 @@ def ensure_scenario(
     template = _load_json(template_path)
     pose = _expected_pose(config, start)
     scenario_path = _scenario_output_path(config, row)
+    network_path = _scenario_network_output_path(config, row)
+    network = _network_template(config)
 
     scenario = deepcopy(template)
     _set_pose(scenario, *pose)
-    _apply_initial_speed(scenario, row.speed_kph, pose[3])
+    initial_speed_kph = float(config.get("scenario_generation.initial_speed_kph"))
+    initial_gear = int(config.get("scenario_generation.initial_gear"))
+    _apply_initial_state(scenario, initial_speed_kph, pose[3], initial_gear)
     _verify_scenario(scenario, config, row, pose)
 
+    reused_scenario = False
     if scenario_path.exists():
         existing = _load_json(scenario_path)
         try:
@@ -316,7 +373,28 @@ def ensure_scenario(
                     "{}".format(scenario_path)
                 )
         else:
-            return ScenarioResult(scenario_path, *pose, reused_existing=True)
+            reused_scenario = True
 
-    _atomic_write_json(scenario_path, scenario)
-    return ScenarioResult(scenario_path, *pose, reused_existing=False)
+    reused_network = False
+    if network_path.exists():
+        try:
+            _verify_network_sidecar(_load_json(network_path), network)
+        except ScenarioBuildError:
+            if not bool(config.get("scenario_generation.overwrite_existing")):
+                raise ScenarioBuildError(
+                    "기존 EgoNetwork sidecar가 template과 다르며 overwrite_existing=false입니다: "
+                    "{}".format(network_path)
+                )
+        else:
+            reused_network = True
+
+    if not reused_scenario:
+        _atomic_write_json(scenario_path, scenario)
+    if not reused_network:
+        _atomic_write_json(network_path, network)
+    return ScenarioResult(
+        scenario_path,
+        network_path,
+        *pose,
+        reused_existing=reused_scenario and reused_network
+    )

@@ -114,13 +114,13 @@ class RosStackManager:
             self.stop_persistent_stack()
             raise
 
-    def start_generator(self, trajectory_csv: str) -> None:
-        block = self.config.get("iteration_stack.trajectory_generator")
+    def start_publisher(self, trajectory_csv: str) -> None:
+        block = self.config.get("iteration_stack.trajectory_publisher")
         argument_name = block.get("trajectory_argument")
         if not isinstance(argument_name, str) or not argument_name:
             raise RosStackError("trajectory_argument 설정이 필요합니다")
         self._start(
-            "trajectory_generator",
+            "trajectory_publisher",
             block,
             self.iteration,
             {argument_name: trajectory_csv},
@@ -172,7 +172,7 @@ class RosStackManager:
             cls._stop_one(managed)
 
     def stop_iteration_stack(self) -> None:
-        """follower, validator, generator 순서로 현재 iteration을 종료한다."""
+        """follower, validator, publisher 순서로 현재 iteration을 종료한다."""
 
         self._stop_all(self.iteration)
 

@@ -4,9 +4,13 @@ paths:
   directories:
     # 생성한 <시작 lanelet_id>_<초기 속도>.json을 저장한다.
     scenario_directory: "configs/scenario"
+    # MORAI Scenario/EgoNetwork에 함께 복사할 <scenario_stem>_MN.json을 저장한다.
+    scenario_network_directory: "configs/scenario/EgoNetwork"
   files:
     # 이 JSON을 그대로 복사한 뒤 Ego 시작 pose와 속도만 변경한다.
     scenario_template_json: "configs/scenario/start_pos.json"
+    # F4에서 검증한 Ego/control UDP 포트를 scenario별 sidecar로 복제한다.
+    scenario_network_template_json: "configs/network/ego_network_1.json"
 
 scenario_generation:
   start_pose_source: "trajectory_first_row"
@@ -19,6 +23,10 @@ scenario_generation:
     velocity_mps: "velocity_mps"
 
   initial_speed_tolerance_kph: 0.1
+  # trajectory 목표속도와 분리한다. ScenarioLoad 직후에는 정지 상태에서 controller가 가속한다.
+  initial_speed_kph: 0.0
+  # MORAI 저장 형식의 주행 gear. 기존 follower/UDP 설정과 동일하게 4를 사용한다.
+  initial_gear: 4
   # Lanelet trajectory z에서 MORAI Ego 중심 z로 맞추는 start_pos 기준 보정값이다.
   vehicle_z_offset_m: 0.33903913816601516
   overwrite_existing: false

@@ -24,11 +24,12 @@ MORAI에서 다음 항목은 batch 시작 전에 한 번 준비한다.
 2. F4에서 `configs/network/ego_network_1.json`을 로드하고 Connect한다.
 3. F3에서 `configs/sensors/Sensor_5.json`을 로드하고 Connect한다.
 4. Ego를 External Control 상태로 준비한다.
-5. manifest에 지정한 scenario JSON이 저장소와 MORAI의 scenario 저장 위치에 있어야 한다.
+5. manifest에 지정한 scenario JSON과 `EgoNetwork/<stem>_MN.json`을 MORAI의
+   Scenario 저장 위치에 함께 둔다.
 
 runner의 ScenarioLoad UDP는 JSON 전체 경로가 아니라 확장자를 제외한 파일명만 전송한다.
-따라서 저장소의 `configs/scenario`와 실제 MORAI scenario 저장 위치가 다르면 생성 파일을
-MORAI 쪽에 먼저 반영해야 한다.
+따라서 저장소의 `configs/scenario`와 실제 MORAI scenario 저장 위치가 다르면 본문 JSON과
+`EgoNetwork` sidecar를 모두 MORAI 쪽에 먼저 반영해야 한다.
 
 ## 3. 실행
 
@@ -189,23 +190,28 @@ base_ws/src/control/trajectory_generator/traj_sample/obstacle_avoidance/
 2. `velocity_mps * 3.6`과 manifest의 `speed_kph`가 허용 오차 안에서 같은지 확인한다.
 3. static TF로 Lanelet map pose를 MORAI pose로 변환한다.
 4. 기존 `configs/scenario/start_pos.json`을 복사한다.
-5. Ego pose, gear, 현재 속도와 저장 차량 속도를 갱신한다.
+5. Ego pose를 갱신하고 초기 속도를 `scenario_generation.initial_speed_kph`(기본 0 km/h),
+   제어 모드를 AV-ExternalCtrl(`currentControlMode=2`)로 설정한다. trajectory와 manifest의
+   `speed_kph`는 controller의 주행 목표속도로 유지되며 초기 저장 속도와 구분된다.
 6. manifest의 `scenario_file` 이름으로 `configs/scenario/`에 저장한다.
+7. `configs/network/ego_network_1.json`을
+   `configs/scenario/EgoNetwork/<scenario_stem>_MN.json`으로 함께 생성한다.
 
 예를 들어 manifest의 `scenario_file`이 `highway_start_100.json`이면
-`configs/scenario/highway_start_100.json`을 생성하거나 기존 파일을 검증하고,
+`configs/scenario/highway_start_100.json`과
+`configs/scenario/EgoNetwork/highway_start_100_MN.json`을 생성하거나 기존 파일을 검증하고,
 batch runner는 실제 iteration에서 이 파일명을 MORAI ScenarioLoad로 전송한다.
 
 `scenario_file`은 폴더를 포함하지 않는 `.json` 파일명이어야 하며, 확장자를 제외한
 stem은 MORAI ScenarioLoad의 ASCII 30-byte 제한을 만족해야 한다.
 
-기존 scenario 파일이 있으면 pose, map과 속도가 같은지 확인한다. 내용이 다르고
+기존 scenario 파일이 있으면 pose, map, 정지 초기속도, ExternalCtrl, gear를 확인하고,
+EgoNetwork sidecar가 network template과 같은지도 확인한다. 내용이 다르고
 `overwrite_existing: false`이면 생성기는 자동으로 덮어쓰지 않고 중지한다.
 
 batch runner 자체는 scenario JSON을 생성하거나 덮어쓰지 않는다. manifest의
-`scenario_file`이 실제로 존재하는지와 pose, map, 속도가 trajectory 및 manifest와
-일치하는지 사전 검증한 뒤 그 파일을 로드한다. 파일이 없다면 아래 생성기를 먼저
-실행해야 한다.
+`scenario_file`과 대응하는 `_MN.json`이 실제로 존재하는지, pose·map·초기 상태·네트워크가
+설정과 일치하는지 사전 검증한 뒤 로드한다. 파일이 없다면 아래 생성기를 먼저 실행해야 한다.
 
 `start_pos.json`의 다음 목록과 그 밖의 설정은 수정하지 않는다.
 
@@ -245,23 +251,24 @@ rosrun trajectory_batch_runner scenario_json_generator.py \
 ```text
 manifest 행 확인
   -> trajectory 시작 pose와 speed_kph 재검증
-  -> ScenarioLoad UDP: pause=true
-  -> /Ego_topic에서 시작 XY 적용 확인
   -> traj_gen 실행
   -> /control/trajectory 확인
+  -> ScenarioLoad UDP: network=true, ego=true, pause=false
+  -> _MN.json으로 F4 네트워크 복구 및 /Ego_topic 시작 XY 확인
   -> traj_val 실행
   -> 새 validator history run 폴더 확인
   -> traj_fol_a 실행
   -> /ctrl_cmd 확인
-  -> 같은 ScenarioLoad UDP: pause=false
   -> validator metadata 완료 대기
   -> follower, validator, generator 역순 종료
   -> 다음 iteration
 ```
 
-두 번째 ScenarioLoad는 초기 속도가 있는 차량이 follower 준비 전에 움직이지 않게 하면서
-자동으로 주행을 시작하기 위한 동작이다. 첫 load로 pose를 확인하고 모든 iteration node가
-준비된 뒤 같은 scenario를 pause 없이 다시 로드한다.
+ScenarioLoad는 validator를 시작하기 전에 실행한다. 따라서 Ego teleport와 F4 재연결 구간은
+tracking 기록에 포함되지 않는다. Ego 재생성 시 F4 세션도 초기화되므로
+`load_network_connection_data=true`로 대응하는 `_MN.json`을 함께 읽어 연결을 복구한다.
+Ego는 0 km/h로 대기하고, validator가 armed된 뒤 시작한 controller가 trajectory
+목표속도까지 가속한다.
 
 ## 10. 완료 판정
 
@@ -307,7 +314,7 @@ src/trajectory_batch_runner/
 | `config_loader.py` | 역할별 YAML 병합, 검증과 저장소 상대경로 해석 |
 | `manifest_loader.py` | manifest 6개 열 검증과 iteration 정렬 |
 | `trajectory_input.py` | trajectory 첫 행과 시작 속도 확인 |
-| `scenario_builder.py` | manifest 지정 MORAI scenario 생성·기존 파일 검증·로드 준비 |
+| `scenario_builder.py` | 정지/ExternalCtrl scenario와 EgoNetwork `_MN.json` 생성·검증 |
 | `morai_udp_client.py` | 69-byte ScenarioLoad UDP payload와 송신 |
 | `ros_stack_manager.py` | runner가 시작한 roslaunch의 생명주기 관리 |
 | `validation_monitor.py` | topic 준비와 validator metadata 완료 확인 |
