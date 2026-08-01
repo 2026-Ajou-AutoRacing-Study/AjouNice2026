@@ -45,5 +45,8 @@ catkin_install_python(PROGRAMS
   scripts/pointpainting_tracking_node.py
   scripts/visualization_node.py
   scripts/gt_trajectory_markers_node.py
+  scripts/gt_to_jsk_bbox_bridge.py
+  scripts/ekf_tracking_node.py
+  scripts/extrapolation_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

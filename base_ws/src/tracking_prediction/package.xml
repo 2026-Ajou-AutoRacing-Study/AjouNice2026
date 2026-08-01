@@ -3,8 +3,11 @@
   <name>tracking_prediction</name>
   <version>0.1.0</version>
   <description>
-    GT(Object_topic) 기반 dummy tracking + CTRA 물리모델 prediction 파이프라인.
-    실제 OD/MOT가 준비되면 tracking_node의 내부 로직만 교체할 예정.
+    GT(Object_topic) 기반 tracking(EKF) + extrapolation(고rate 외삽) + CTRV 물리모델
+    prediction 파이프라인 (horizon=1.5s 단일 고정, CTRA는 재조율 대비 코드만 보존).
+    실제 OD(PointPainting/BEVFusion)가 준비되면 tracking 단계 입력만 실제 검출 결과로
+    교체할 예정 (출력 인터페이스는 그대로 유지). 자세한 구조는 docs/tp_pipeline_architecture.md,
+    최종 파라미터 결정은 docs/tp_final_report.md 참고.
   </description>
   <maintainer email="team@ajounice2026.example">AjouNice2026</maintainer>
   <license>TODO</license>
@@ -19,4 +22,7 @@
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>morai_msgs</depend>
+  <!-- gt_to_jsk_bbox_bridge.py / ekf_tracking_node.py에서 사용 (2026-07-30 추가) -->
+  <depend>jsk_recognition_msgs</depend>
+  <depend>visualization_msgs</depend>
 </package>

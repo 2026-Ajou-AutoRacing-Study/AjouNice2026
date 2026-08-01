@@ -43,6 +43,13 @@ class VisualizationNode(object):
         tracking_markers_topic = rospy.get_param("~tracking_markers_topic", "/tracking/markers")
         prediction_markers_topic = rospy.get_param("~prediction_markers_topic", "/prediction/markers")
         self._frame_id = rospy.get_param("~frame_id", "")  # 비어있으면 입력 메시지의 frame_id 그대로 사용
+        # 2026-08-01 추가/최종: 실사용 horizon으로 1.5s를 채택함(미션 무관 단일 고정,
+        # docs/entry_zone_ctrv_ctra_summary.md, docs/highway_ctrv_ctra_summary.md). 0으로
+        # 두면 prediction_node가 발행하는 horizons 배열 전체를 선+구슬로 다 그리고,
+        # 값을 주면(예: 1.5) 그 시점 하나만 큰 구슬로 강조해서 그림 - "우리가 쓰기로 한 값"만
+        # 깔끔하게 눈으로 확인하기 위함.
+        self._only_horizon = rospy.get_param("~only_horizon", 0.0)
+        self._only_horizon_tol = rospy.get_param("~only_horizon_tolerance", 0.05)
 
         self._tracking_pub = rospy.Publisher(tracking_markers_topic, MarkerArray, queue_size=10)
         self._prediction_pub = rospy.Publisher(prediction_markers_topic, MarkerArray, queue_size=10)
@@ -116,6 +123,94 @@ class VisualizationNode(object):
         clear.ns = "prediction"
         clear.action = Marker.DELETEALL
         markers.markers.append(clear)
+
+        if self._only_horizon > 0.0:
+            # 마커 개수를 줄이기 위해 차량별로 따로 발행하지 않고, 전체 차량의 곡선을
+            # LINE_LIST 하나, 중간 웨이포인트 점들을 SPHERE_LIST 하나에 몰아서 발행함
+            # (2026-08-01: 마커가 콜백당 수십 개씩 나가서 RViz가 버벅인다는 피드백으로 변경.
+            # nav_msgs/Path는 여러 차량 궤적을 하나로 강제 연결해버려서(원래 단일 경로용)
+            # 대신 이 방식 채택 - 차량별 분리는 유지하면서 마커 수는 크게 줄임).
+            # 끝점(only_horizon)만 차량별로 큰 구슬+라벨을 개별 마커로 남겨둠(수가 적어 부담 없음).
+            line_list = Marker()
+            line_list.header = msg.header
+            line_list.header.frame_id = frame_id
+            line_list.ns = "prediction_curve"
+            line_list.id = 0
+            line_list.type = Marker.LINE_LIST
+            line_list.action = Marker.ADD
+            line_list.pose.orientation.w = 1.0
+            line_list.scale.x = 0.25
+            line_list.lifetime = rospy.Duration(0.5)
+
+            dot_list = Marker()
+            dot_list.header = line_list.header
+            dot_list.ns = "prediction_point"
+            dot_list.id = 0
+            dot_list.type = Marker.SPHERE_LIST
+            dot_list.action = Marker.ADD
+            dot_list.pose.orientation.w = 1.0
+            dot_list.scale.x = dot_list.scale.y = dot_list.scale.z = 0.35
+            dot_list.lifetime = rospy.Duration(0.5)
+
+            for obj in msg.objects:
+                color = CLASS_COLOR.get(obj.class_label, DEFAULT_COLOR)
+                pts = sorted(
+                    (p for p in obj.trajectory if p.time_offset <= self._only_horizon + self._only_horizon_tol),
+                    key=lambda p: p.time_offset,
+                )
+                if not pts:
+                    continue
+                end_point = pts[-1]
+
+                # LINE_LIST는 점 2개당 선분 1개 - 연속 구간마다 (i, i+1) 쌍을 추가
+                for i in range(len(pts) - 1):
+                    p0, p1 = pts[i].position, pts[i + 1].position
+                    line_list.points.append(Point(p0.x, p0.y, p0.z))
+                    line_list.points.append(Point(p1.x, p1.y, p1.z))
+                    line_list.colors.append(ColorRGBA(color.r, color.g, color.b, 0.9))
+                    line_list.colors.append(ColorRGBA(color.r, color.g, color.b, 0.9))
+
+                # 끝점 제외한 중간 웨이포인트만 작은 구슬(경로 위 실제 샘플 표시용)
+                for p in pts[:-1]:
+                    dot_list.points.append(Point(p.position.x, p.position.y, p.position.z))
+                    dot_list.colors.append(ColorRGBA(color.r, color.g, color.b, 0.5))
+
+                # 끝점(only_horizon)은 차량별로 크게 강조 + 라벨 (개수 적어 개별 마커로 둬도 무방)
+                end_sphere = Marker()
+                end_sphere.header = line_list.header
+                end_sphere.ns = "prediction_end"
+                end_sphere.id = obj.track_id
+                end_sphere.type = Marker.SPHERE
+                end_sphere.action = Marker.ADD
+                end_sphere.pose.position = end_point.position
+                end_sphere.pose.orientation.w = 1.0
+                end_sphere.scale.x = end_sphere.scale.y = end_sphere.scale.z = 1.0
+                end_sphere.color = ColorRGBA(color.r, color.g, color.b, 0.95)
+                end_sphere.lifetime = rospy.Duration(0.5)
+                markers.markers.append(end_sphere)
+
+                label = Marker()
+                label.header = line_list.header
+                label.ns = "prediction_label"
+                label.id = obj.track_id
+                label.type = Marker.TEXT_VIEW_FACING
+                label.action = Marker.ADD
+                label.pose.position = Point(
+                    end_point.position.x, end_point.position.y, end_point.position.z + 1.0
+                )
+                label.scale.z = 0.6
+                label.color = ColorRGBA(1.0, 1.0, 1.0, 1.0)
+                label.text = f"+{end_point.time_offset:.1f}s"
+                label.lifetime = rospy.Duration(0.5)
+                markers.markers.append(label)
+
+            if line_list.points:
+                markers.markers.append(line_list)
+            if dot_list.points:
+                markers.markers.append(dot_list)
+
+            self._prediction_pub.publish(markers)
+            return
 
         for obj in msg.objects:
             color = CLASS_COLOR.get(obj.class_label, DEFAULT_COLOR)

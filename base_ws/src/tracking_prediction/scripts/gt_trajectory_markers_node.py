@@ -38,6 +38,12 @@ class GtTrajectoryMarkersNode(object):
     def __init__(self):
         input_topic = rospy.get_param("~input_topic", "/Object_topic")
         output_topic = rospy.get_param("~output_topic", "/gt/markers")
+        # 2026-08-01: GT 원본 rate(~50Hz) 그대로 매번 전체 차량 궤적(최대 19개 LINE_STRIP,
+        # 각 최대 150점)을 다시 그려서 발행하니 RViz가 버벅인다는 피드백으로 추가.
+        # 트레일은 눈으로 보기에 10Hz 정도면 충분히 부드러워서 발행만 제한함
+        # (히스토리 갱신 자체는 매 메시지마다 그대로 해서 트레일 정확도는 안 떨어짐).
+        self._publish_hz = rospy.get_param("~publish_hz", 10.0)
+        self._last_publish_time = 0.0
 
         self._pub = rospy.Publisher(output_topic, MarkerArray, queue_size=10)
         rospy.Subscriber(input_topic, ObjectStatusList, self._callback, queue_size=10)
@@ -45,7 +51,10 @@ class GtTrajectoryMarkersNode(object):
         # unique_id별 (t, x, y, z) 히스토리
         self._history = defaultdict(lambda: deque(maxlen=500))
 
-        rospy.loginfo("[gt_trajectory_markers_node] %s -> %s", input_topic, output_topic)
+        rospy.loginfo(
+            "[gt_trajectory_markers_node] %s -> %s (publish_hz=%s)",
+            input_topic, output_topic, self._publish_hz,
+        )
 
     def _update_history(self, uid, t, x, y, z):
         hist = self._history[uid]
@@ -65,6 +74,19 @@ class GtTrajectoryMarkersNode(object):
     def _callback(self, msg):
         stamp = msg.header.stamp.to_sec() if msg.header.stamp else rospy.Time.now().to_sec()
 
+        # 히스토리는 매 메시지마다 갱신(트레일 정확도 유지) - 마커 생성/발행만 throttle
+        seen_uids = set()
+        for obj in msg.npc_list:
+            seen_uids.add(obj.unique_id)
+            self._update_history(
+                obj.unique_id, stamp, obj.position.x, obj.position.y, obj.position.z
+            )
+
+        now = rospy.Time.now().to_sec()
+        if self._publish_hz > 0 and (now - self._last_publish_time) < (1.0 / self._publish_hz):
+            return
+        self._last_publish_time = now
+
         markers = MarkerArray()
 
         clear = Marker()
@@ -72,13 +94,6 @@ class GtTrajectoryMarkersNode(object):
         clear.ns = "gt_trajectory"
         clear.action = Marker.DELETEALL
         markers.markers.append(clear)
-
-        seen_uids = set()
-        for obj in msg.npc_list:
-            seen_uids.add(obj.unique_id)
-            self._update_history(
-                obj.unique_id, stamp, obj.position.x, obj.position.y, obj.position.z
-            )
 
         for uid in seen_uids:
             hist = self._history[uid]

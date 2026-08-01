@@ -17,21 +17,23 @@ prediction_node.py
     ~model 파라미터로 "ctrv"(기본) / "ctra" 전환 가능 (재조율 필요시 대비,
     CTRA 코드는 삭제하지 않고 그대로 둠).
 
-안전마진용 공식 horizon: 미션마다 다름 (2026-07-30 결정, docs/tp_final_report.md)
-    "3.0m 이내 오차를 90% 확률로 보장"하는 기준으로 봤을 때:
-      - 로터리(roundabout): 0.3s
-      - 하이웨이(highway): 1.7s
-    로터리가 훨씬 짧은 이유는 급커브 진입/이탈 전환구간에서 반복적으로
-    나타나는 heavy-tail 오차 때문 (analyze_jitter_outliers.py로 좌표까지
-    특정: x≈-120, y≈343~345 근방). 이 오차가 CTRV의 소(小)omega 수치불안정
-    때문인지 OMEGA_EPS를 1e-4~0.15rad/s로 스윕하며 검증했으나 p95/p99가
-    전혀 개선되지 않아 기각함(eval_omega_eps_sensitivity.py) - 즉 파라미터로
-    고칠 수 있는 문제가 아니라 실제 존재하는 물리적 tail-risk로 보고 horizon을
-    짧게 잡는 쪽으로 대응함. 하이웨이는 이런 반복 전환구간이 없어 더 길게 허용.
+horizon 정책 (2026-08-01 최종 결정, docs/entry_zone_ctrv_ctra_summary.md,
+docs/highway_ctrv_ctra_summary.md):
+    처음엔 미션(로터리/하이웨이)마다 다른 "안전마진용" horizon(3.0m 이내 90%
+    확률 보장 기준: 로터리 0.3s, 하이웨이 1.7s)을 쓰려 했으나, 이건 지나치게
+    보수적이라 실사용이 어렵다는 판단팀 피드백으로 재검토함. 로터리 진입구간
+    한정으로 "3.0m 이내 몇 %" 커버리지를 기준으로 다시 보니 2.0s가 거의
+    손실 없었지만(생존편향 제거 후 접근 87.7%→87.4%), 같은 방식으로 하이웨이
+    전체를 재평가하니 **2.0s는 하이웨이에서 손실이 있음**(3.0m 커버리지
+    94.3%→84.7%, -9.6%p, 1.6s부터 하락 시작). 반면 **1.5s는 로터리·하이웨이
+    둘 다에서 커버리지 손실이 없는(둘 다 baseline 그대로 유지) 값**이라,
+    미션 무관 단일 고정 horizon으로 **1.5s를 최종 채택**함.
+    미션별 동적 전환(mission_switching 노드)은 하지 않기로 결정 - horizon을
+    미션 무관하게 하나로 고정하는 쪽을 택함.
 
-    ~mission 파라미터("roundabout"/"highway")로 두 값 중 자동 선택되며,
-    launch에서 $(eval ...)로 계산됨. ~safety_horizon으로 직접 덮어쓰기도 가능.
-    ~horizons 기본값에 0.3과 1.7 둘 다 포함시켜 항상 같이 발행함.
+    ~horizons 기본값은 이제 [1.5] 하나뿐이라, 매 프레임 trajectory 배열에는
+    점이 정확히 1개만 들어있음 - 판단/제어는 trajectory[0]을 쓰면 됨
+    (여러 horizon 중 어느 걸 골라야 하는지 고민할 필요 없음).
 
 CTRV 상태: s = [x, y, theta, v, omega]  (CTRA 선택 시에만 a 사용)
     - v, a: TrackedObject.velocity / .acceleration 벡터를 heading 방향으로
@@ -149,17 +151,10 @@ class CtraPredictionNode(object):
     def __init__(self):
         input_topic = rospy.get_param("~input_topic", "/tracking/objects")
         output_topic = rospy.get_param("~output_topic", "/prediction/objects")
-        # 기본 예측 horizon: 0.3/1.7(미션별 안전마진 공식값) 포함 전체 세트
-        self._horizons = rospy.get_param(
-            "~horizons", [0.3, 0.5, 1.0, 1.5, 1.7, 2.0, 3.0]
-        )
-        # 2026-07-30 결정: 미션(로터리/하이웨이)에 따라 안전마진 공식 horizon이 다름.
-        # 로터리=0.3s, 하이웨이=1.7s (둘 다 3.0m 이내 오차를 90% 확률로 보장하는 최대값,
-        # docs/tp_final_report.md). launch에서 ~mission으로 자동 선택되어 넘어옴.
-        # 코드 동작에는 영향 없음(정보/로그용) - trajectory 배열에서 time_offset==이 값인
-        # 지점을 판단이 안전마진 기준으로 우선 사용하도록 안내하는 목적.
-        self._mission = rospy.get_param("~mission", "roundabout")
-        self._safety_horizon = rospy.get_param("~safety_horizon", 0.3)
+        # 2026-08-01 최종 결정: horizon을 미션 무관하게 1.5s 하나로 고정 (docstring 참고,
+        # 하이웨이 재평가로 2.0 -> 1.5 수정).
+        # 리스트 형태는 유지(여러 개 다시 필요해지면 override 가능하게) - 기본값만 단일값.
+        self._horizons = rospy.get_param("~horizons", [1.5])
         self._decay_lambda = rospy.get_param("~decay_lambda", DECAY_LAMBDA)
         # 2026-07-30: 기본 모델 CTRV로 확정 (docs/ctrv_vs_ctra_decision_summary.md).
         # "ctra"로 덮어쓰면 이전 감쇠가속도 CTRA로 되돌릴 수 있음(재조율 대비, 코드 보존).
@@ -178,14 +173,11 @@ class CtraPredictionNode(object):
         self._prev_stamp = None
 
         rospy.loginfo(
-            "[prediction_node] 예측 시작: %s -> %s "
-            "(model=%s, mission=%s, horizons=%s, safety_horizon=%s, decay_lambda=%s)",
+            "[prediction_node] 예측 시작: %s -> %s (model=%s, horizons=%s, decay_lambda=%s)",
             input_topic,
             output_topic,
             self._model,
-            self._mission,
             self._horizons,
-            self._safety_horizon,
             self._decay_lambda,
         )
 
