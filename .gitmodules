@@ -28,9 +28,6 @@
 [submodule "third_party/bevfusion"]
 	path = third_party/bevfusion
 	url = https://github.com/2026-Ajou-AutoRacing-Study/bevfusion.git
-[submodule "kcity_map"]
-	path = kcity_map
-	url = https://github.com/2026-Ajou-AutoRacing-Study/kcity_map.git
 [submodule "base_ws/src/ekf-multi-object-tracking"]
 	path = base_ws/src/ekf-multi-object-tracking
 	url = https://github.com/2026-Ajou-AutoRacing-Study/ekf-multi-object-tracking.git

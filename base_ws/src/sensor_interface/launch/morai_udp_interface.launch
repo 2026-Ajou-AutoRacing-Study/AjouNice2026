@@ -1,7 +1,7 @@
 <launch>
   <!-- External MORAI UDP <-> internal ROS topic gateway. -->
   <arg name="sensor_config"
-       default="$(find ioniq5)/../../../configs/sensors/Sensor_4.json"/>
+       default="$(find ioniq5)/../../../configs/sensors/Sensor.json"/>
   <arg name="network_config"
        default="$(find ioniq5)/../../../configs/network/ego_network_1.json"/>
   <arg name="vehicle_config"

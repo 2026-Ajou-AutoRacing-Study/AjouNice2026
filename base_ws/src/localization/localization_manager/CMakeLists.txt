@@ -6,6 +6,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_filters
   morai_msgs
   nav_msgs
+  robot_localization
   rospy
   sensor_msgs
   tf
@@ -19,9 +20,17 @@ catkin_install_python(PROGRAMS
   scripts/fast_lio_kinematic_state_publisher.py
   scripts/morai_gt_kinematic_state_publisher.py
   scripts/morai_gps_to_navsatfix.py
+  scripts/imu_covariance_adapter.py
+  scripts/morai_gps_to_local_odometry.py
+  scripts/gnss_imu_initial_pose_publisher.py
+  scripts/gnss_imu_kinematic_state_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 install(DIRECTORY launch/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+)
+
+install(DIRECTORY rviz/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/rviz
 )
