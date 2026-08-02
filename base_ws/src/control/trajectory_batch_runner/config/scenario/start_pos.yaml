@@ -2,7 +2,7 @@
 
 paths:
   directories:
-    # 생성한 <시작 lanelet_id>_<초기 속도>.json을 저장한다.
+    # 같은 위치/시작 pose는 목표속도와 무관하게 하나의 정지 scenario를 공유한다.
     scenario_directory: "configs/scenario"
     # MORAI Scenario/EgoNetwork에 함께 복사할 <scenario_stem>_MN.json을 저장한다.
     scenario_network_directory: "configs/scenario/EgoNetwork"

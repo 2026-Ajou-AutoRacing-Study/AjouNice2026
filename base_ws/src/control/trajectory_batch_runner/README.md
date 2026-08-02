@@ -128,14 +128,14 @@ iteration,experiment_type,sub_type,trajectory_file,scenario_file,speed_kph
 | `experiment_type` | `highway_lc` 또는 `obstacle_avoidance` | `highway_lc` |
 | `sub_type` | 시험 세부 종류 | `single_lc` |
 | `trajectory_file` | config의 trajectory 폴더 기준 상대경로 | `single_lc/sample_001.csv` |
-| `scenario_file` | 생성·검증 후 해당 iteration에서 MORAI에 로드할 JSON 파일명 | `highway_start_100.json` |
+| `scenario_file` | 생성·검증 후 해당 iteration에서 MORAI에 로드할 JSON 파일명 | `lc_start_200128.json` |
 | `speed_kph` | Ego 초기 속도와 trajectory 첫 목표 속도 | `100` |
 
 Highway LC 예:
 
 ```csv
 iteration,experiment_type,sub_type,trajectory_file,scenario_file,speed_kph
-1,highway_lc,single_lc,single_lc/sample_001.csv,highway_start_100.json,100
+1,highway_lc,single_lc,single_lc/sample_001.csv,lc_start_200128.json,100
 2,highway_lc,double_lc,double_lc/sample_002.csv,highway_start_120.json,120
 ```
 
@@ -197,9 +197,10 @@ base_ws/src/control/trajectory_generator/traj_sample/obstacle_avoidance/
 7. `configs/network/ego_network_1.json`을
    `configs/scenario/EgoNetwork/<scenario_stem>_MN.json`으로 함께 생성한다.
 
-예를 들어 manifest의 `scenario_file`이 `highway_start_100.json`이면
-`configs/scenario/highway_start_100.json`과
-`configs/scenario/EgoNetwork/highway_start_100_MN.json`을 생성하거나 기존 파일을 검증하고,
+예를 들어 manifest의 `scenario_file`이 `lc_start_200128.json`이면
+`configs/scenario/lc_start_200128.json`과
+`configs/scenario/EgoNetwork/lc_start_200128_MN.json`을 생성하거나 기존 파일을 검증한다.
+같은 map과 시작 pose를 사용하는 trajectory들은 목표속도가 달라도 이 scenario를 공유하고,
 batch runner는 실제 iteration에서 이 파일명을 MORAI ScenarioLoad로 전송한다.
 
 `scenario_file`은 폴더를 포함하지 않는 `.json` 파일명이어야 하며, 확장자를 제외한

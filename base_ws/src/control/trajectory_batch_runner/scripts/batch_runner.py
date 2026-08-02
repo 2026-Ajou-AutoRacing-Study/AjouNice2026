@@ -25,7 +25,10 @@ from trajectory_batch_runner.trajectory_input import (
     read_trajectory_start,
     trajectory_package_relative_path,
 )
-from trajectory_batch_runner.validation_monitor import ValidationMonitor
+from trajectory_batch_runner.validation_monitor import (
+    IterationTimeoutError,
+    ValidationMonitor,
+)
 
 
 @dataclass(frozen=True)
@@ -125,6 +128,7 @@ def run(arguments) -> int:
 
     stack = RosStackManager(config)
     monitor = ValidationMonitor(config)
+    timed_out = []
     rospy.on_shutdown(stack.close)
     try:
         with MoraiScenarioLoadClient(config) as udp:
@@ -135,11 +139,26 @@ def run(arguments) -> int:
                     raise rospy.ROSInterruptException("ROS shutdown")
                 try:
                     run_iteration(config, item, stack, monitor, udp)
+                except IterationTimeoutError as error:
+                    timed_out.append(item.row)
+                    rospy.logerr(
+                        "batch %s 실패(validator_timeout): %s; 다음 iteration을 계속합니다",
+                        item.row.label,
+                        error,
+                    )
                 finally:
                     stack.stop_iteration_stack()
     finally:
         stack.close()
-    rospy.loginfo("모든 batch iteration이 완료됐습니다")
+    if timed_out:
+        rospy.logerr(
+            "batch 완료: 성공 %d개, validator_timeout 실패 %d개 (iterations=%s)",
+            len(prepared) - len(timed_out),
+            len(timed_out),
+            ",".join(str(row.iteration) for row in timed_out),
+        )
+        return 1
+    rospy.loginfo("모든 batch iteration이 완료됐습니다: 성공 %d개", len(prepared))
     return 0
 
 

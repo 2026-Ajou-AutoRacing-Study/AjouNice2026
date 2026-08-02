@@ -16,7 +16,7 @@ paths:
 morai:
   scenario_load_udp:
     host: "127.0.0.1"
-    port: 9099
+    port: 9095
     # MORAI는 SaveFile/Scenario의 확장자를 제외한 저장 이름으로 찾는다.
     filename_value: "stem"
     max_filename_bytes: 30
@@ -44,8 +44,8 @@ persistent_stack:
       sensor_config: "paths.files.sensor_json"
       network_config: "paths.files.ego_network_json"
       vehicle_config: "paths.files.vehicle_config"
-      enable_sensors: true
-      enable_lidar: true
+      enable_sensors: false
+      enable_lidar: false
       enable_ego_network: true
       enable_control: true
 
@@ -60,7 +60,7 @@ persistent_stack:
       map_frame: "map"
       morai_map_frame: "morai_map"
       base_frame: "base_link"
-      heading_yaw_offset_deg: -1.347
+      heading_yaw_offset_deg: 0.0
 
 # manifest의 각 행마다 시작하고 기록 완료 후 종료한다.
 iteration_stack:

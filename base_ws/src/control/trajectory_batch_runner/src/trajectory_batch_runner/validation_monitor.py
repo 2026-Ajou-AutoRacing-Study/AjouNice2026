@@ -18,6 +18,10 @@ class ValidationMonitorError(RuntimeError):
     """topic 또는 validator 기록이 제한 시간 안에 준비되지 않을 때 발생한다."""
 
 
+class IterationTimeoutError(ValidationMonitorError):
+    """개별 iteration 기록이 제한 시간 안에 완료되지 않을 때 발생한다."""
+
+
 class ValidationMonitor:
     """ROS message와 validator history를 이용해 iteration 상태를 판정한다."""
 
@@ -217,7 +221,7 @@ class ValidationMonitor:
                         )
                     return metadata_path
             time.sleep(0.2)
-        raise ValidationMonitorError(
+        raise IterationTimeoutError(
             "validator 기록이 제한 시간 안에 완료되지 않았습니다: {}".format(
                 run_directory
             )
