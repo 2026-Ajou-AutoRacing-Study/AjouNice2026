@@ -1,0 +1,29 @@
+<launch>
+  <!--
+    2026-08-02 추가: tracking_and_prediction_ekf.launch(실차 EKF 파이프라인)에
+    predicted_objects_autoware_bridge를 얹어서, 판단팀(behavior_path_planner /
+    behavior_velocity_planner / motion_velocity_planner)이 실제로 구독하는
+    /perception/object_recognition/objects (autoware_perception_msgs/PredictedObjects)
+    로 변환해 발행하는 버전.
+
+    기존 tracking_and_prediction_ekf.launch는 절대 건드리지 않았음(그 파일은 여전히
+    prediction.launch 기본값인 ~horizons=[1.5] 단일점을 그대로 씀 - docs/tp_final_report.md
+    6절의 "trajectory[0]만 쓰면 됨" 가이드와 일치해야 하기 때문).
+
+    이 launch만 horizons를 여러 점으로 바꾼다 - 판단팀의 predicted_paths.path가
+    "시간에 따라 이어진 경로"를 요구해서(bpp_dynamic_avoidance_tools.py의 cut-in
+    감지 로직 참고), 점 하나로는 부족함. 마지막 점은 여전히 1.5s로 맞춰서, 기존
+    "실사용 horizon=1.5s" 최종 결정(docs/tp_final_report.md 5번 항목)과 어긋나지
+    않게 했음 - 안전마진 판단 자체는 여전히 이 마지막(1.5s) 점을 기준으로 하면 됨.
+  -->
+  <arg name="horizons" default="[0.3, 0.6, 0.9, 1.2, 1.5]" />
+
+  <include file="$(find tracking_prediction)/launch/gt_to_jsk_bridge.launch" />
+  <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch" />
+  <include file="$(find tracking_prediction)/launch/ekf_tracking.launch" />
+  <include file="$(find tracking_prediction)/launch/prediction.launch">
+    <arg name="horizons" value="$(arg horizons)" />
+  </include>
+  <include file="$(find tracking_prediction)/launch/extrapolation.launch" />
+  <include file="$(find tracking_prediction)/launch/predicted_objects_autoware_bridge.launch" />
+</launch>

@@ -33,7 +33,16 @@
         v                                             v
   /tracking/objects_highrate                   /prediction/objects
   (TrackedObjectArray)                         (PredictedObjectArray)
-  -> 판단/제어 소비용                            -> 판단/제어 소비용(안전마진/경로예측)
+  -> 판단/제어 소비용                                  |
+                                                        v
+                                    ===== Autoware 브릿지(선택적) =====
+                                    predicted_objects_autoware_bridge.py
+                                    (+ /tracking/objects 최신상태 매칭)
+                                                        |
+                                                        v
+                                    /perception/object_recognition/objects
+                                    (autoware_perception_msgs/PredictedObjects)
+                                    -> 판단팀(behavior_path_planner 등) 실제 구독처
 ```
 
 핵심 설계 원칙: **extrapolation과 prediction은 둘 다 `/tracking/objects`를 직접 구독하고, 서로의 출력을 참조하지 않는다.** extrapolation이 만든 고rate 값을 prediction이 다시 예측에 쓰면 "외삽 오차 + 예측 오차"가 누적되기 때문 (`docs/tp_final_report.md` 4-1절에서 사전 검증됨).
@@ -98,15 +107,28 @@ PredictedTrajectoryPoint: time_offset(초), position(x,y,z), heading(rad)
 
 ---
 
+## 4. Autoware 브릿지 — 판단팀 인터페이스 변환 (2026-08-02 추가)
+
+목적: 판단팀 코드(`behavior_path_planner`/`behavior_velocity_planner`/`motion_velocity_planner`, 총 59개 파일)를 직접 읽어서 확인한 결과, 이들은 전부 `/perception/object_recognition/objects`를 `autoware_perception_msgs/PredictedObjects`로 구독하고 있어 우리 `/prediction/objects`(`PredictedObjectArray`)와 토픽명·메시지 타입이 둘 다 다름. 이 브릿지가 그 변환을 담당.
+
+**`predicted_objects_autoware_bridge.py`**
+`/prediction/objects`(미래 궤적)와 `/tracking/objects`(현재 상태 - pose/twist/accel/shape/classification)를 track_id로 매칭해서 `autoware_perception_msgs/PredictedObjects`로 합쳐 재발행. track_id→UUID는 결정적 변환(같은 track_id는 항상 같은 UUID). twist/accel은 판단팀 코드(`bpp_dynamic_avoidance_tools.py`)가 pose의 orientation과 결합해서 쓰는 방식에 맞춰 heading 기준 전진/횡 성분(body frame)으로 투영해서 채움. covariance는 전부 0(불확실성 추정치 없음).
+
+**주의(경로 다중점 필요) — `tracking_and_prediction_ekf_for_planning.launch` 사용:**
+판단팀의 cut-in 감지 로직(`bpp_dynamic_avoidance_tools.py`의 `_predicted_path_cuts_in`)이 `kinematics.predicted_paths[].path`를 시간에 따라 이어진 경로로 순회하기 때문에, 우리가 최종 채택한 단일 horizon(1.5s) 점 하나만으로는 부족함. 이 브릿지를 실사용하려면 `prediction.launch`의 `~horizons`를 여러 값의 등간격 리스트로(예: `[0.3, 0.6, 0.9, 1.2, 1.5]`) 띄워야 하며, 이를 위해 `tracking_and_prediction_ekf.launch`는 그대로 두고 별도로 `tracking_and_prediction_ekf_for_planning.launch`를 만들어 이 오버라이드 + 브릿지 포함을 함께 처리함. **이건 "실사용 horizon=1.5s" 최종 결정(`docs/tp_final_report.md` 5번 항목)을 바꾸는 게 아님** — 1.5s를 경로의 마지막 점으로 그대로 포함시키는 것뿐이고, 안전마진 판단은 여전히 그 마지막 점을 기준으로 하면 됨.
+
+---
+
 ## Launch 구성 요약
 
 | Launch 파일 | 구성 |
 |---|---|
-| `tracking_and_prediction_ekf.launch` | gt_to_jsk_bridge → EKF(서드파티) → ekf_tracking → prediction → extrapolation (**현재 메인**) |
+| `tracking_and_prediction_ekf.launch` | gt_to_jsk_bridge → EKF(서드파티) → ekf_tracking → prediction(horizons=[1.5]) → extrapolation (**현재 메인**, `trajectory[0]`만 쓰는 판단/제어 코드 전제) |
+| `tracking_and_prediction_ekf_for_planning.launch` | 위와 동일 + prediction의 horizons를 다중점으로 오버라이드 + `predicted_objects_autoware_bridge` 포함 (판단팀이 실제 구독하는 `/perception/object_recognition/objects`까지 발행) |
 | `tracking_and_prediction.launch` | tracking_node(dummy) → prediction → extrapolation (EKF 없이 빠른 테스트용) |
 | `tracking.launch` / `tracking_from_pointpainting.launch` | tracking 단계만 단독 실행 |
 | `ekf_tracking.launch` | ekf_tracking_node만 단독 (EKF 자체는 `ekf_multi_object_tracking` 패키지의 launch로 별도) |
-| `prediction.launch` / `extrapolation.launch` | 각 단계 단독 실행 |
+| `prediction.launch` / `extrapolation.launch` / `predicted_objects_autoware_bridge.launch` | 각 단계 단독 실행 |
 | `gt_to_jsk_bridge.launch` | GT→jsk bridge 단독 |
 
 ---

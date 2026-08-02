@@ -25,4 +25,9 @@
   <!-- gt_to_jsk_bbox_bridge.py / ekf_tracking_node.py에서 사용 (2026-07-30 추가) -->
   <depend>jsk_recognition_msgs</depend>
   <depend>visualization_msgs</depend>
+  <!-- predicted_objects_autoware_bridge.py에서 사용 (2026-08-02 추가, 판단팀
+       (behavior_path_planner/behavior_velocity_planner/motion_velocity_planner)이
+       구독하는 표준 Autoware 인터페이스로 변환하기 위함 -->
+  <depend>autoware_perception_msgs</depend>
+  <depend>unique_identifier_msgs</depend>
 </package>

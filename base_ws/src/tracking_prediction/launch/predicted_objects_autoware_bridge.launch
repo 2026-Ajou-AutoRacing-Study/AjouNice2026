@@ -1,0 +1,14 @@
+<launch>
+  <arg name="tracking_topic" default="/tracking/objects" />
+  <arg name="prediction_topic" default="/prediction/objects" />
+  <!-- 판단팀(behavior_path_planner/behavior_velocity_planner/motion_velocity_planner)이
+       실제로 구독하는 표준 Autoware 토픽명 (behavior_path_planner_impl.launch:109 remap 확인) -->
+  <arg name="output_topic" default="/perception/object_recognition/objects" />
+
+  <node pkg="tracking_prediction" type="predicted_objects_autoware_bridge.py"
+        name="predicted_objects_autoware_bridge" output="screen">
+    <param name="tracking_topic" value="$(arg tracking_topic)" />
+    <param name="prediction_topic" value="$(arg prediction_topic)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+  </node>
+</launch>

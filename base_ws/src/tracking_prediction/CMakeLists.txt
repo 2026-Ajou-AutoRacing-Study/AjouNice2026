@@ -48,5 +48,6 @@ catkin_install_python(PROGRAMS
   scripts/gt_to_jsk_bbox_bridge.py
   scripts/ekf_tracking_node.py
   scripts/extrapolation_node.py
+  scripts/predicted_objects_autoware_bridge.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
