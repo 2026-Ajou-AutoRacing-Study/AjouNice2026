@@ -60,6 +60,14 @@ def _project_to_scalar(vx, vy, heading):
     return vx * math.cos(heading) + vy * math.sin(heading)
 
 
+def _signed_longitudinal_speed(record):
+    """Return speed magnitude with the heading-direction sign convention."""
+    speed = math.hypot(record["vx"], record["vy"])
+    if _project_to_scalar(record["vx"], record["vy"], record["heading"]) < 0:
+        return -speed
+    return speed
+
+
 def _norm_angle(a):
     return (a + math.pi) % (2 * math.pi) - math.pi
 
@@ -313,10 +321,11 @@ def evaluate_samples(samples, horizons):
             continue
         dtheta = _norm_angle(rec["heading"] - prev["heading"])
         omega = dtheta / dt
-        v_prev = math.hypot(prev["vx"], prev["vy"])
-        v_cur = math.hypot(rec["vx"], rec["vy"])
-        if _project_to_scalar(rec["vx"], rec["vy"], rec["heading"]) < 0:
-            v_cur = -v_cur
+        # Keep the previous and current speeds in the same signed convention.
+        # Applying a sign only to v_cur creates a false direction reversal and
+        # can produce physically impossible acceleration estimates.
+        v_prev = _signed_longitudinal_speed(prev)
+        v_cur = _signed_longitudinal_speed(rec)
         a = (v_cur - v_prev) / dt
 
         for h in horizons:
@@ -350,10 +359,8 @@ def evaluate_samples_ade(samples, horizons, step=0.1, max_dt=0.05):
             continue
         dtheta = _norm_angle(rec["heading"] - prev["heading"])
         omega = dtheta / dt
-        v_prev = math.hypot(prev["vx"], prev["vy"])
-        v_cur = math.hypot(rec["vx"], rec["vy"])
-        if _project_to_scalar(rec["vx"], rec["vy"], rec["heading"]) < 0:
-            v_cur = -v_cur
+        v_prev = _signed_longitudinal_speed(prev)
+        v_cur = _signed_longitudinal_speed(rec)
         a = (v_cur - v_prev) / dt
 
         for h in horizons:
@@ -402,10 +409,8 @@ def export_raw_csv(output_path, horizons, approach_samples, depart_samples):
                     continue
                 dtheta = _norm_angle(rec["heading"] - prev["heading"])
                 omega = dtheta / dt
-                v_prev = math.hypot(prev["vx"], prev["vy"])
-                v_cur = math.hypot(rec["vx"], rec["vy"])
-                if _project_to_scalar(rec["vx"], rec["vy"], rec["heading"]) < 0:
-                    v_cur = -v_cur
+                v_prev = _signed_longitudinal_speed(prev)
+                v_cur = _signed_longitudinal_speed(rec)
                 a = (v_cur - v_prev) / dt
 
                 for h in horizons:
