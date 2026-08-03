@@ -1,6 +1,6 @@
 <launch>
   <arg name="map_file"
-       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/lanelet2_map_v58.osm" />
+       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/lanelet2_map_v60.osm" />
   <arg name="projector_file"
        default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
   <arg name="map_projector_type" default="LocalCartesianUTM" />
@@ -23,7 +23,8 @@
   <arg name="mvp_extract_ahead_dist" default="200.0" />
   <arg name="mvp_extract_behind_dist" default="0.0" />
   <arg name="launch_rviz" default="true" />
-  <arg name="start_route_publisher" default="true" />
+  <!-- Start kcity_competition_route.launch separately by default. -->
+  <arg name="start_route_publisher" default="false" />
   <arg name="start_map_visualizer" default="true" />
   <arg name="software_rendering" default="1" />
 
