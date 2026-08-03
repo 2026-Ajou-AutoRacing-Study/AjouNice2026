@@ -12,11 +12,17 @@
 
     이 launch만 horizons를 여러 점으로 바꾼다 - 판단팀의 predicted_paths.path가
     "시간에 따라 이어진 경로"를 요구해서(bpp_dynamic_avoidance_tools.py의 cut-in
-    감지 로직 참고), 점 하나로는 부족함. 마지막 점은 여전히 1.5s로 맞춰서, 기존
-    "실사용 horizon=1.5s" 최종 결정(docs/tp_final_report.md 5번 항목)과 어긋나지
-    않게 했음 - 안전마진 판단 자체는 여전히 이 마지막(1.5s) 점을 기준으로 하면 됨.
+    감지 로직 참고), 점 하나로는 부족함.
+
+    2026-08-03 실험용 확장:
+    오차가 커지는 장기 구간도 RViz와 판단 입력에서 직접 확인할 수 있도록
+    현재 위치(t=0.0)를 시작으로 0.3초 간격으로 3.0초까지 발행한다.
+    t=0.0을 포함해야 Autoware PredictedPath 소비자가 path[index]의 시간을
+    index * time_step으로 올바르게 해석할 수 있다. 기존 "실사용 horizon=1.5s"
+    결정은 유지하며, 1.8~3.0초 점은 장기 예측 검토용이므로 안전성이
+    보장된다는 의미가 아니다.
   -->
-  <arg name="horizons" default="[0.3, 0.6, 0.9, 1.2, 1.5]" />
+  <arg name="horizons" default="[0.0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0]" />
 
   <include file="$(find tracking_prediction)/launch/gt_to_jsk_bridge.launch" />
   <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch" />
