@@ -221,8 +221,10 @@ are configured in `configs/localization/localization_manager.yaml`.
   stop/go, turn, and GNSS-outage scenarios.
 - GNSS+IMU+GT currently rejects duplicate GT timestamps but has not yet been
   validated against a native `/Competition_topic` recording.
-- Zero-valued GNSS outage gating is a separate follow-up and is not implemented
-  by the GT CTRA provider.
+- GNSS+IMU providers reject MORAI's zero-latitude/longitude outage sentinel
+  before publishing `/localization/gnss/odom`. During the outage the EKF keeps
+  predicting from its remaining motion inputs; GNSS recovery jump handling
+  still requires scenario-level validation.
 - Pose and twist covariance in `/localization/kinematic_state` are unavailable.
 - `body -> base_link` is hard-coded and must later be read from the selected
   sensor configuration.

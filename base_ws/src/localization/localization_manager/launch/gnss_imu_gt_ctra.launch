@@ -98,6 +98,8 @@
     <param name="fallback_north_offset" value="4124145.0"/>
     <param name="morai_origin_altitude" value="0.0"/>
     <param name="require_status_ok" value="true"/>
+    <param name="reject_zero_position" value="true"/>
+    <param name="zero_position_epsilon_deg" value="1.0e-9"/>
     <param name="reject_duplicate_stamps" value="true"/>
     <param name="tf_timeout_sec" value="0.1"/>
   </node>
