@@ -93,7 +93,7 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
-      Topic: /fast_lio_state_eval/ego_path
+      Topic: /localization_state_eval/ego_path
       Unreliable: false
       Value: true
     - Alpha: 1
@@ -117,12 +117,12 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
-      Topic: /fast_lio_state_eval/lio_aligned_path
+      Topic: /localization_state_eval/state_aligned_path
       Unreliable: false
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /fast_lio_state_eval/error_markers
+      Marker Topic: /localization_state_eval/error_markers
       Name: Threshold violations
       Namespaces:
         {}

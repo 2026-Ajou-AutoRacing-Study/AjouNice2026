@@ -433,7 +433,7 @@ rosrun topic_tools relay /Ego_topic /Competition_topic
 cd ~/AjouNice2026
 source base_ws/devel/setup.bash
 
-python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
+python3 scripts/evaluation/localization/eval_localization_state_with_rviz.py \
   rosbags/eval/localization/gnss_imu_gt_ctra_run01.bag \
   --state-topic /localization/kinematic_state \
   --sensor-config configs/sensors/Sensor.json \
@@ -671,11 +671,17 @@ roslaunch bringup localization_gnss_imu_gt_ctra.launch \
 종·횡방향 오차 축이 동일해진다.
 
 ```bash
-python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
+python3 scripts/evaluation/localization/eval_localization_state_with_rviz.py \
   INPUT.bag \
   --state-topic /localization/kinematic_state \
-  --ego-heading-yaw-offset-deg -1.347
+  --ego-heading-yaw-offset-deg -1.347 \
+  --alignment-yaw-mode none
 ```
+
+`--alignment-yaw-mode none`은 평가기가 시작 pose에서 yaw 차이를 사후
+회전하여 없애지 않고 위치 원점만 맞춘다. 따라서 시나리오 기준의 절대
+heading 보정 전후를 비교할 때 사용한다. 시작 방향이 임의적인 로컬
+좌표계의 궤적을 비교할 때만 기존 기본값 `estimate`를 사용한다.
 
 `-1.347 deg`는 현재 제공 시나리오에 대한 보정값이다. 대회 시뮬레이터가
 수정되거나 공식 좌표계 계약이 달라지면 보정을 끄고 다시 검증한다.

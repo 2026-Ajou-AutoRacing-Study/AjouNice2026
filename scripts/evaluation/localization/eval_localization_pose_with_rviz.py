@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate FAST-LIO against MORAI Ego GT and optionally publish RViz overlays.
+"""Evaluate a localization pose against MORAI Ego GT with optional RViz overlays.
 
 The alignment uses only the first synchronized Ego/odometry pair.  It does not
 use a best-fit rotation over the complete GT trajectory, so later drift remains
@@ -213,12 +213,12 @@ def print_report(bag_path, matched, relative_times, errors, yaw_errors, alignmen
     drift_percent = final_error / ego_distance * 100.0 if ego_distance > 1e-9 else float("nan")
     sync_dt = np.array([m[2] for m in matched], dtype=float)
 
-    print("========== FAST-LIO vs MORAI Ego Evaluation ==========")
+    print("======== Localization Pose vs MORAI Ego Evaluation ========")
     print(f"bag: {bag_path}")
     print(f"matched samples: {len(matched)}")
     print(f"duration: {relative_times[-1]:.3f} sec")
     print(f"ego path length:      {ego_distance:.3f} m")
-    print(f"FAST-LIO path length: {odom_distance:.3f} m")
+    print(f"state path length:    {odom_distance:.3f} m")
     print(f"path length ratio:    {path_length_ratio:.5f}")
     print(f"path length error:    {path_length_error:+.3f} m")
     print(f"initial alignment yaw: {math.degrees(alignment_yaw):.3f} deg")
@@ -309,13 +309,15 @@ def publish_rviz(
     from nav_msgs.msg import Path
     from visualization_msgs.msg import Marker, MarkerArray
 
-    rospy.init_node("fast_lio_eval_visualizer", anonymous=True)
-    ego_publisher = rospy.Publisher("/fast_lio_eval/ego_path", Path, queue_size=1, latch=True)
-    lio_publisher = rospy.Publisher(
-        "/fast_lio_eval/lio_aligned_path", Path, queue_size=1, latch=True
+    rospy.init_node("localization_pose_eval_visualizer", anonymous=True)
+    ego_publisher = rospy.Publisher(
+        "/localization_pose_eval/ego_path", Path, queue_size=1, latch=True
+    )
+    state_publisher = rospy.Publisher(
+        "/localization_pose_eval/state_aligned_path", Path, queue_size=1, latch=True
     )
     marker_publisher = rospy.Publisher(
-        "/fast_lio_eval/error_markers", MarkerArray, queue_size=1, latch=True
+        "/localization_pose_eval/error_markers", MarkerArray, queue_size=1, latch=True
     )
     static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
 
@@ -323,8 +325,8 @@ def publish_rviz(
     ego_path = Path()
     ego_path.header.frame_id = frame_id
     ego_path.header.stamp = stamp
-    lio_path = Path()
-    lio_path.header = ego_path.header
+    state_path = Path()
+    state_path.header = ego_path.header
 
     for index, (ego_sample, _, _) in enumerate(matched):
         ego_pose = PoseStamped()
@@ -335,13 +337,13 @@ def publish_rviz(
         quaternion_from_yaw(ego_sample.yaw, ego_pose.pose.orientation)
         ego_path.poses.append(ego_pose)
 
-        lio_pose = PoseStamped()
-        lio_pose.header = lio_path.header
-        lio_pose.pose.position.x = float(aligned_xyz[index, 0])
-        lio_pose.pose.position.y = float(aligned_xyz[index, 1])
-        lio_pose.pose.position.z = float(aligned_xyz[index, 2])
-        quaternion_from_yaw(aligned_yaw[index], lio_pose.pose.orientation)
-        lio_path.poses.append(lio_pose)
+        state_pose = PoseStamped()
+        state_pose.header = state_path.header
+        state_pose.pose.position.x = float(aligned_xyz[index, 0])
+        state_pose.pose.position.y = float(aligned_xyz[index, 1])
+        state_pose.pose.position.z = float(aligned_xyz[index, 2])
+        quaternion_from_yaw(aligned_yaw[index], state_pose.pose.orientation)
+        state_path.poses.append(state_pose)
 
     points_marker = Marker()
     points_marker.header = ego_path.header
@@ -378,16 +380,16 @@ def publish_rviz(
             y=float(ego_xyz[index, 1]),
             z=float(ego_xyz[index, 2]),
         )
-        lio_point = Point(
+        state_point = Point(
             x=float(aligned_xyz[index, 0]),
             y=float(aligned_xyz[index, 1]),
             z=float(aligned_xyz[index, 2]),
         )
-        points_marker.points.append(lio_point)
-        lines_marker.points.extend([ego_point, lio_point])
+        points_marker.points.append(state_point)
+        lines_marker.points.extend([ego_point, state_point])
 
     ego_publisher.publish(ego_path)
-    lio_publisher.publish(lio_path)
+    state_publisher.publish(state_path)
     marker_publisher.publish(MarkerArray(markers=[points_marker, lines_marker]))
 
     ego0, odom0, _ = matched[0]
@@ -403,15 +405,25 @@ def publish_rviz(
     quaternion_from_yaw(alignment_yaw, transform.transform.rotation)
     static_tf_broadcaster.sendTransform(transform)
 
-    rospy.loginfo("Published latched FAST-LIO evaluation paths and markers in frame '%s'", frame_id)
-    rospy.loginfo("RViz topics: /fast_lio_eval/ego_path, /fast_lio_eval/lio_aligned_path, /fast_lio_eval/error_markers")
+    rospy.loginfo(
+        "Published localization evaluation paths and markers in frame '%s'",
+        frame_id,
+    )
+    rospy.loginfo(
+        "RViz topics: /localization_pose_eval/ego_path, "
+        "/localization_pose_eval/state_aligned_path, "
+        "/localization_pose_eval/error_markers"
+    )
     rospy.loginfo("Published evaluation TF: %s -> camera_init", frame_id)
     rospy.spin()
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Evaluate FAST-LIO using the first synchronized Ego pose and publish optional RViz overlays."
+        description=(
+            "Evaluate localization using the first synchronized Ego pose and "
+            "publish optional RViz overlays."
+        )
     )
     parser.add_argument("bag", help="Bag containing /Ego_topic and /localization/odom")
     parser.add_argument("--out", default="", help="Output CSV path")

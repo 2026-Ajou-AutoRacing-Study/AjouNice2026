@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Record a self-contained FAST-LIO pose/twist evaluation bag while replaying
-# a raw MORAI bag. Start the localization stack and this recorder first, then
-# unpause rosbag play in another terminal.
+# Record a self-contained localization pose/twist evaluation bag while
+# replaying a raw MORAI bag. Start the localization stack and this recorder
+# first, then unpause rosbag play in another terminal.
 
 ROOT="${AJOUNICE_ROOT:-$HOME/AjouNice2026}"
 OUT_DIR="${ROSBAG_EVAL_DIR:-$ROOT/rosbags/eval}"
 STAMP="$(date '+%m%d_%H%M')"
-BAG="${FAST_LIO_STATE_EVAL_BAG:-$OUT_DIR/fast_lio_state_full_$STAMP.bag}"
+BAG="${LOCALIZATION_STATE_EVAL_BAG:-$OUT_DIR/localization_state_full_$STAMP.bag}"
 REC_PID=""
 
 TOPICS=(
@@ -19,7 +19,6 @@ TOPICS=(
   /sensor/lidar1
   /localization/odom
   /localization/kinematic_state
-  /cloud_registered
   /tf
   /tf_static
 )
@@ -48,7 +47,7 @@ finish() {
 trap finish EXIT
 trap 'exit 130' INT TERM
 
-echo "FAST-LIO state evaluation recording"
+echo "Localization state evaluation recording"
 echo "output: $BAG"
 echo "topics:"
 printf '  %s\n' "${TOPICS[@]}"

@@ -163,7 +163,7 @@ def evaluate(
 
     duration = float(times[-1] - times[0])
 
-    print("========== FAST-LIO vs MORAI Ego Evaluation ==========")
+    print("======== Localization vs MORAI Ego Evaluation ========")
     print(f"bag: {bag_path}")
     print(f"ego_topic:  {ego_topic} ({len(ego)} msgs)")
     print(f"odom_topic: {odom_topic} ({len(odom)} msgs)")
@@ -228,7 +228,9 @@ def evaluate(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Evaluate FAST-LIO /localization/odom against MORAI /Ego_topic."
+        description=(
+            "Evaluate a localization odometry topic against MORAI /Ego_topic."
+        )
     )
     parser.add_argument("bag", help="Input rosbag containing /Ego_topic and /localization/odom")
     parser.add_argument("--out", default="", help="Output CSV path")
