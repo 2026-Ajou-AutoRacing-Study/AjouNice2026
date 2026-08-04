@@ -25,6 +25,8 @@
        default="$(env HOME)/AjouNice2026/configs/localization/robot_localization_gnss_imu_gt_ctra_global.yaml"/>
 
   <arg name="gt_source" default="ego"/>
+  <arg name="use_heading_correction" default="true"/>
+  <arg name="heading_yaw_offset_deg" default="-1.347"/>
   <arg name="ego_topic" default="/Ego_topic"/>
   <arg name="competition_topic" default="/Competition_topic"/>
   <arg name="gt_orientation_topic" default="/localization/gt/orientation"/>
@@ -64,6 +66,10 @@
     <param name="source_frame" value="$(arg morai_map_frame)"/>
     <param name="base_frame" value="$(arg base_frame)"/>
     <param name="heading_unit" value="degrees"/>
+    <param name="use_heading_correction"
+           value="$(arg use_heading_correction)"/>
+    <param name="heading_yaw_offset_deg"
+           value="$(arg heading_yaw_offset_deg)"/>
     <param name="noise_namespace" value="$(arg noise_namespace)"/>
     <param name="reject_duplicate_stamps" value="true"/>
     <param name="tf_timeout_sec" value="0.05"/>
@@ -108,7 +114,12 @@
   <node pkg="localization_manager"
         type="gnss_imu_initial_pose_publisher.py"
         name="gnss_imu_initial_pose_publisher"
-        output="screen"/>
+        output="screen">
+    <param name="use_heading_correction"
+           value="$(arg use_heading_correction)"/>
+    <param name="heading_yaw_offset_deg"
+           value="$(arg heading_yaw_offset_deg)"/>
+  </node>
 
   <node pkg="robot_localization"
         type="ekf_localization_node"

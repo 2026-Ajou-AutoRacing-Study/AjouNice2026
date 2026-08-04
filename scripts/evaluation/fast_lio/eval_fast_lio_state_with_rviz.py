@@ -67,10 +67,19 @@ def finite_sample(sample):
     return bool(np.all(np.isfinite(values)))
 
 
-def read_bag_states(bag_path, ego_topic, state_topic, ego_velocity_unit="mps"):
+def read_bag_states(
+    bag_path,
+    ego_topic,
+    state_topic,
+    ego_velocity_unit="mps",
+    ego_heading_yaw_offset_deg=0.0,
+):
     ego_samples = []
     state_samples = []
     ego_velocity_scale = EGO_VELOCITY_SCALES_TO_MPS[ego_velocity_unit]
+    ego_heading_yaw_offset_rad = math.radians(
+        ego_heading_yaw_offset_deg
+    )
 
     with rosbag.Bag(bag_path, "r") as bag:
         for topic, message, bag_time in bag.read_messages(
@@ -84,7 +93,10 @@ def read_bag_states(bag_path, ego_topic, state_topic, ego_velocity_unit="mps"):
                     x=float(message.position.x),
                     y=float(message.position.y),
                     z=float(message.position.z),
-                    yaw=math.radians(float(message.heading)),
+                    yaw=core.wrap_angle(
+                        math.radians(float(message.heading))
+                        + ego_heading_yaw_offset_rad
+                    ),
                     linear=ego_velocity_scale
                     * np.array(
                         [
@@ -462,6 +474,7 @@ def print_report(
     mount,
     interpolation_statistics,
     ego_velocity_unit,
+    ego_heading_yaw_offset_deg,
     alignment_reference_sec,
 ):
     ego_distance = float(np.linalg.norm(np.diff(ego_xyz[:, :2], axis=0), axis=1).sum())
@@ -485,6 +498,10 @@ def print_report(
         print("Ego velocity input: km/h (converted to m/s with scale 1/3.6)")
     else:
         print("Ego velocity input: m/s")
+    print(
+        "Ego heading yaw offset: "
+        f"{ego_heading_yaw_offset_deg:+.3f} deg"
+    )
     print(f"matched samples: {len(matched)}")
     print(f"duration: {relative_times[-1]:.3f} sec")
     print("comparison time: state timestamp (Ego GT interpolated)")
@@ -859,6 +876,17 @@ def main():
         ),
     )
     parser.add_argument(
+        "--ego-heading-yaw-offset-deg",
+        type=float,
+        default=0.0,
+        help=(
+            "Constant yaw offset in degrees applied to /Ego_topic heading "
+            "before alignment and evaluation (default: 0). Use the same "
+            "value as the localization launch when heading correction is "
+            "enabled."
+        ),
+    )
+    parser.add_argument(
         "--state-topic",
         default="/localization/odom",
         help="Raw FAST-LIO odom or base_link /localization/kinematic_state",
@@ -915,11 +943,14 @@ def main():
     parser.add_argument("--marker-stride", type=int, default=1)
     args = parser.parse_args()
 
+    if not math.isfinite(args.ego_heading_yaw_offset_deg):
+        raise ValueError("--ego-heading-yaw-offset-deg must be finite")
     ego_samples, raw_state_samples = read_bag_states(
         args.bag,
         args.ego_topic,
         args.state_topic,
         args.ego_velocity_unit,
+        args.ego_heading_yaw_offset_deg,
     )
     if not ego_samples:
         raise RuntimeError(f"No valid messages found on {args.ego_topic}")
@@ -1056,6 +1087,7 @@ def main():
             mount,
             interpolation_statistics,
             args.ego_velocity_unit,
+            args.ego_heading_yaw_offset_deg,
             alignment_reference_sec,
         )
     report = report_buffer.getvalue()

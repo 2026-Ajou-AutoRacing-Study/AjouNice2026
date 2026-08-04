@@ -71,7 +71,7 @@ topic.
 for `bringup/localization_morai_gt.launch`.
 
 `bringup/maptf_morai_deg_correction.launch` runs the same complete provider and
-common Odometry output while applying the calibrated `-1.37 deg` yaw offset to
+common Odometry output while applying the scenario-calibrated `-1.347 deg` yaw offset to
 `morai_map -> base_link`. The raw `/Ego_topic` remains in `morai_map`.
 
 ## FAST-LIO + GNSS provider (experimental)

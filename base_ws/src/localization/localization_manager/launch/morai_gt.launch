@@ -14,7 +14,7 @@
   <arg name="base_frame" default="base_link"/>
   <arg name="heading_in_degrees" default="true"/>
   <arg name="use_heading_correction" default="false"/>
-  <arg name="heading_yaw_offset_deg" default="-1.37"/>
+  <arg name="heading_yaw_offset_deg" default="-1.347"/>
 
   <rosparam command="load" file="$(arg config)" ns="localization_manager"/>
   <param name="/localization_manager/topics/ego" value="$(arg ego_topic)"/>

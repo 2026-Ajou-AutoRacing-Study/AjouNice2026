@@ -629,8 +629,53 @@ EKF 연결이 정상임을 확인하는 통합 검증으로 해석한다.
 - GT `velocity.x`가 차량 종방향 m/s라는 계약을 대회 환경에서 다시
   확인해야 한다.
 - `vy ≈ 0` 가정이므로 큰 sideslip은 모델링하지 않는다.
-- GNSS가 `(0, 0, 0)`으로 들어오는 음영 구간 차단은 이번 구현 범위에
-  포함하지 않는다.
+- GNSS가 `(0, 0, 0)`으로 들어오는 음영 구간은 GNSS adapter에서
+  차단하며, 이 구간에는 GT motion과 IMU로 상태를 예측한다.
 - 실제 noise 설정 후 covariance를 다시 추정해야 한다.
 - 공식 시작 pose 인터페이스가 확정되면 첫 Ego 초기화를 manual 시작
   pose로 교체한다.
+
+## 20. MORAI 시나리오 heading 보정
+
+대회 제공 시나리오의 시작 pose는 yaw `62.515 deg`이다. 같은 위치
+`(-131.485992, -427.960999)`에서 정지한 MORAI `/Ego_topic` heading은
+`63.862 deg`로 관측되어, 시나리오 기준 차이는 `+1.347 deg`였다.
+
+GT CTRA provider는 시나리오 좌표계와 맞추기 위해 기본적으로 다음 보정을
+초기 pose와 연속 GT heading 모두에 적용한다.
+
+```text
+corrected_heading = raw_heading - 1.347 deg
+```
+
+설정은 `configs/localization/localization_manager.yaml`의
+`providers/gnss_imu_gt` 아래에 기록되어 있으며, launch 인자로 즉시
+끄거나 값을 바꿀 수 있다.
+
+```bash
+# 시나리오 보정 활성화: 현재 기본값
+roslaunch bringup localization_gnss_imu_gt_ctra.launch \
+  use_heading_correction:=true \
+  heading_yaw_offset_deg:=-1.347
+
+# MORAI heading 문제가 수정된 환경
+roslaunch bringup localization_gnss_imu_gt_ctra.launch \
+  use_heading_correction:=false
+```
+
+이 보정은 개발 중 첫 Ego pose를 사용하는 경우에만 초기 pose에도
+적용된다. 공식 시작 pose를 `manual`로 직접 입력할 때는 이미 시나리오
+좌표계 값이므로 추가 보정하지 않는다.
+
+평가 시에도 정답 `/Ego_topic` heading에 같은 보정을 적용해야 yaw,
+종·횡방향 오차 축이 동일해진다.
+
+```bash
+python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
+  INPUT.bag \
+  --state-topic /localization/kinematic_state \
+  --ego-heading-yaw-offset-deg -1.347
+```
+
+`-1.347 deg`는 현재 제공 시나리오에 대한 보정값이다. 대회 시뮬레이터가
+수정되거나 공식 좌표계 계약이 달라지면 보정을 끄고 다시 검증한다.

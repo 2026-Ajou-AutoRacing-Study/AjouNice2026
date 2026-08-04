@@ -57,6 +57,10 @@ providers:
     source: ego  # ego | competition
     heading_unit: degrees
     reject_duplicate_stamps: true
+    # MORAI sample scenario yaw=62.515 deg while the stationary Ego heading at
+    # the exact start pose is 63.862 deg. Disable this if the simulator is fixed.
+    use_heading_correction: true
+    heading_yaw_offset_deg: -1.347
 
 runtime:
   tf_lookup_timeout_sec: 0.05

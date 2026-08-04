@@ -2,6 +2,8 @@
   <!-- GT-assisted GNSS+IMU CTRA-like provider for live MORAI or bag replay. -->
   <arg name="use_sim_time" default="false"/>
   <arg name="gt_source" default="ego"/>
+  <arg name="use_heading_correction" default="true"/>
+  <arg name="heading_yaw_offset_deg" default="-1.347"/>
   <arg name="sensor_config"
        default="$(env HOME)/AjouNice2026/configs/sensors/Sensor.json"/>
   <arg name="measurement_noise_config"
@@ -42,6 +44,10 @@
 
   <include file="$(find localization_manager)/launch/gnss_imu_gt_ctra.launch">
     <arg name="gt_source" value="$(arg gt_source)"/>
+    <arg name="use_heading_correction"
+         value="$(arg use_heading_correction)"/>
+    <arg name="heading_yaw_offset_deg"
+         value="$(arg heading_yaw_offset_deg)"/>
     <arg name="sensor_config" value="$(arg sensor_config)"/>
     <arg name="config" value="$(arg localization_manager_config)"/>
     <arg name="measurement_noise_config"

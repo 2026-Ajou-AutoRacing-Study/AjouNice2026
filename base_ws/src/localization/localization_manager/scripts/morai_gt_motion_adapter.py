@@ -78,6 +78,34 @@ class MoraiGtMotionAdapter:
         self.reject_duplicate_stamps = bool(
             rospy.get_param("~reject_duplicate_stamps", True)
         )
+        correction_ns = "/localization_manager/providers/gnss_imu_gt"
+        default_correction_enabled = bool(
+            rospy.get_param(
+                correction_ns + "/use_heading_correction", True
+            )
+        )
+        default_correction_deg = float(
+            rospy.get_param(
+                correction_ns + "/heading_yaw_offset_deg", -1.347
+            )
+        )
+        self.use_heading_correction = bool(
+            rospy.get_param(
+                "~use_heading_correction", default_correction_enabled
+            )
+        )
+        self.heading_yaw_offset_deg = float(
+            rospy.get_param(
+                "~heading_yaw_offset_deg", default_correction_deg
+            )
+        )
+        if not math.isfinite(self.heading_yaw_offset_deg):
+            raise rospy.ROSInitException(
+                "~heading_yaw_offset_deg must be finite"
+            )
+        self.heading_yaw_offset_rad = math.radians(
+            self.heading_yaw_offset_deg
+        )
 
         noise_ns = rospy.get_param("~noise_namespace", DEFAULT_NOISE_NS)
         heading_stddev = positive_finite_param(
@@ -114,11 +142,14 @@ class MoraiGtMotionAdapter:
         )
 
         rospy.loginfo(
-            "morai_gt_motion_adapter source=%s: %s -> [%s, %s]",
+            "morai_gt_motion_adapter source=%s: %s -> [%s, %s], "
+            "heading correction=%s (%+.3f deg)",
             self.source,
             self.input_topic,
             self.orientation_topic,
             self.twist_topic,
+            self.use_heading_correction,
+            self.heading_yaw_offset_deg,
         )
 
     def map_from_source_quaternion(self):
@@ -168,6 +199,8 @@ class MoraiGtMotionAdapter:
             return
 
         yaw = math.radians(heading) if self.heading_in_degrees else heading
+        if self.use_heading_correction:
+            yaw += self.heading_yaw_offset_rad
         map_from_source = self.map_from_source_quaternion()
         if map_from_source is None:
             return
