@@ -156,6 +156,27 @@ re-estimated from repeated noisy runs rather than treated as final calibration.
 No gyro-bias/zeroing algorithm is enabled because the current MORAI setup has
 zero-mean noise and no configured fixed bias.
 
+## GNSS localization bag + Lanelet RViz
+
+The GNSS localization outputs are planar (`base_link.z = 0`), but the K-City
+Lanelet OSM stores elevations around 28 m. The IONIQ5 mesh ground plane is also
+0.3705 m below its rear-axle-centered `base_link`. Use the visualization-only
+launch below instead of displaying the unmodified 3D Lanelet map:
+
+```bash
+roslaunch localization_manager gnss_imu_lanelet_rviz.launch
+```
+
+It performs three visualization-only operations:
+
+1. flattens the Lanelet elevation;
+2. publishes it in `lanelet_ground`, located 0.3705 m below `map`;
+3. starts the IONIQ5 RobotModel and RViz.
+
+The localization pose, TF, sensor configuration, OSM source, and vehicle URDF
+are not modified. Override `lanelet_z_offset` only if the vehicle mesh or
+base-link convention changes.
+
 ## GNSS + IMU + GT CTRA-like provider (experimental)
 
 Run existing bags, which contain `/Ego_topic` but not `/Competition_topic`:

@@ -1,0 +1,33 @@
+<launch>
+  <!--
+    Visualize planar GNSS+IMU localization together with the K-City Lanelet map.
+
+    The localization bags keep base_link at z=0, while the Lanelet OSM contains
+    absolute elevations around 28 m. Flatten the map and place it at the IONIQ5
+    mesh ground plane. The runtime base_link remains at the rear axle center,
+    so the map is shifted down by the wheel radius (0.3705 m) for visualization.
+  -->
+
+  <arg name="fixed_frame" default="map"/>
+  <arg name="lanelet_frame" default="lanelet_ground"/>
+  <arg name="lanelet_z_offset" default="-0.3705"/>
+  <arg name="start_rviz" default="true"/>
+  <arg name="rviz_config" default="$(find ioniq5)/rviz/ioniq5.rviz"/>
+
+  <node pkg="tf2_ros"
+        type="static_transform_publisher"
+        name="tf_map_to_lanelet_ground"
+        args="0 0 $(arg lanelet_z_offset) 0 0 0 $(arg fixed_frame) $(arg lanelet_frame)"
+        output="screen"/>
+
+  <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+    <arg name="frame_id" value="$(arg lanelet_frame)"/>
+    <arg name="flatten_z" value="true"/>
+    <arg name="publish_vector_map" value="false"/>
+  </include>
+
+  <include file="$(find ioniq5)/launch/display_ioniq5.launch">
+    <arg name="start_rviz" value="$(arg start_rviz)"/>
+    <arg name="rviz_config" value="$(arg rviz_config)"/>
+  </include>
+</launch>
