@@ -3,8 +3,13 @@
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
-from autoware_perception_msgs.msg import ObjectClassification, PredictedObject
+from autoware_perception_msgs.msg import (
+    ObjectClassification,
+    PredictedObject,
+    PredictedObjects,
+)
 from autoware_planning_msgs.msg import Trajectory, TrajectoryPoint
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
@@ -44,6 +49,39 @@ def predicted_object(x, y=0.0, label=ObjectClassification.UNKNOWN):
     classification.probability = 1.0
     obj.classification.append(classification)
     return obj
+
+
+def moving_object(x, y, velocity_x, velocity_y):
+    obj = predicted_object(x, y, ObjectClassification.CAR)
+    obj.kinematics.initial_twist_with_covariance.twist.linear.x = float(velocity_x)
+    obj.kinematics.initial_twist_with_covariance.twist.linear.y = float(velocity_y)
+    obj.shape.dimensions.x = 4.5
+    obj.shape.dimensions.y = 1.9
+    return obj
+
+
+def collision_planner():
+    planner = MotionVelocityPlanner.__new__(MotionVelocityPlanner)
+    planner.odometry = Odometry()
+    planner.odometry.pose.pose.orientation.w = 1.0
+    planner.use_velocity_limit = False
+    planner.velocity_limit = None
+    planner.default_velocity_mps = 5.0
+    planner.delta_yaw_threshold = 1.0472
+    planner.min_classification_confidence = 0.5
+    planner.stop_unknown_objects = True
+    planner.stop_object_labels = []
+    planner.stop_object_label_ids = {ObjectClassification.CAR}
+    planner.dynamic_speed_threshold = 0.1
+    planner.dynamic_prediction_horizon = 8.0
+    planner.dynamic_collision_path_resolution = 0.5
+    planner.dynamic_collision_margin = 0.3
+    planner.dynamic_collision_debug = False
+    planner.max_lateral_distance = 1.5
+    planner.vehicle_length = 4.635
+    planner.vehicle_width = 1.892
+    planner.vehicle_rear_overhang = 0.79
+    return planner
 
 
 class TrajectoryInterfaceTest(unittest.TestCase):
@@ -141,6 +179,64 @@ class TrajectoryInterfaceTest(unittest.TestCase):
         projection = planner.stop_object_projection(predicted_object(20.0, 0.2))
         self.assertIsNotNone(projection)
         self.assertAlmostEqual(projection.longitudinal_distance, 20.0)
+
+    def test_dynamic_prediction_detects_crossing_vehicle(self):
+        planner = collision_planner()
+        message = trajectory([5.0] * 51)
+        collision = planner.dynamic_collision_station(
+            moving_object(5.0, -6.0, 0.0, 6.0),
+            message,
+            path_cumulative_lengths(message),
+        )
+        self.assertIsNotNone(collision)
+        self.assertLess(collision[0], 10.0)
+
+    def test_dynamic_prediction_detects_oncoming_vehicle(self):
+        planner = collision_planner()
+        message = trajectory([5.0] * 51)
+        collision = planner.dynamic_collision_station(
+            moving_object(30.0, 0.0, -5.0, 0.0),
+            message,
+            path_cumulative_lengths(message),
+        )
+        self.assertIsNotNone(collision)
+        self.assertLess(collision[0], 25.0)
+
+    def test_dynamic_prediction_ignores_parallel_adjacent_vehicle(self):
+        planner = collision_planner()
+        message = trajectory([5.0] * 51)
+        collision = planner.dynamic_collision_station(
+            moving_object(5.0, 6.0, 5.0, 0.0),
+            message,
+            path_cumulative_lengths(message),
+        )
+        self.assertIsNone(collision)
+
+    def test_dynamic_stop_uses_the_run_up_to_collision_for_braking(self):
+        planner = collision_planner()
+        planner.dynamic_stop_distance = 5.0
+        planner.object_size_margin = 0.0
+        planner.reaction_time = 0.8
+        planner.max_deceleration = 1.0
+        planner.warning_distance = 6.0
+        planner.min_stop_velocity = 0.5
+        planner.objects = PredictedObjects()
+        # The swept path crosses the ego path around x=45 m.  A 5 m safety
+        # buffer plus 0.8 s reaction distance places the stop near x=33 m,
+        # leaving the preceding 33 m as the braking run-up.
+        planner.objects.objects.append(moving_object(50.0, -10.0, 0.0, 6.0))
+        message = trajectory([8.0] * 101)
+        with patch("motion_velocity_planner.rospy.loginfo_throttle"), patch(
+            "motion_velocity_planner.rospy.logwarn_throttle"
+        ):
+            planner.apply_dynamic_stop(message, path_cumulative_lengths(message))
+        first_stop = next(
+            index
+            for index, point in enumerate(message.points)
+            if point.longitudinal_velocity_mps == 0.0
+        )
+        self.assertGreater(first_stop, 25)
+        self.assertLess(first_stop, 40)
 
 
 if __name__ == "__main__":

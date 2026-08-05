@@ -294,3 +294,59 @@ def object_speed(predicted_object):
     twist = predicted_object.kinematics.initial_twist_with_covariance.twist
     linear = twist.linear
     return math.sqrt(linear.x * linear.x + linear.y * linear.y + linear.z * linear.z)
+
+
+def object_velocity_xy(predicted_object):
+    """Return an object's measured velocity in the trajectory frame."""
+    linear = predicted_object.kinematics.initial_twist_with_covariance.twist.linear
+    return float(linear.x), float(linear.y)
+
+
+def oriented_box_corners(x, y, yaw, length, width, center_offset=0.0):
+    """Return the four corners of a 2-D oriented bounding box.
+
+    ``x, y`` is the pose origin.  ``center_offset`` is useful for ego poses
+    whose origin is at the rear axle rather than at the middle of the vehicle.
+    """
+    length = max(float(length), 0.01)
+    width = max(float(width), 0.01)
+    cos_yaw = math.cos(yaw)
+    sin_yaw = math.sin(yaw)
+    center_x = float(x) + center_offset * cos_yaw
+    center_y = float(y) + center_offset * sin_yaw
+    half_length = length * 0.5
+    half_width = width * 0.5
+    corners = []
+    for longitudinal, lateral in (
+        (half_length, half_width),
+        (half_length, -half_width),
+        (-half_length, -half_width),
+        (-half_length, half_width),
+    ):
+        corners.append((
+            center_x + longitudinal * cos_yaw - lateral * sin_yaw,
+            center_y + longitudinal * sin_yaw + lateral * cos_yaw,
+        ))
+    return corners
+
+
+def _projection_interval(corners, axis):
+    values = [corner[0] * axis[0] + corner[1] * axis[1] for corner in corners]
+    return min(values), max(values)
+
+
+def oriented_boxes_intersect(first_corners, second_corners):
+    """Separating-axis intersection test for two convex oriented rectangles."""
+    for corners in (first_corners, second_corners):
+        for first, second in zip(corners, corners[1:] + corners[:1]):
+            edge_x = second[0] - first[0]
+            edge_y = second[1] - first[1]
+            length = math.hypot(edge_x, edge_y)
+            if length < 1.0e-9:
+                continue
+            axis = (-edge_y / length, edge_x / length)
+            first_min, first_max = _projection_interval(first_corners, axis)
+            second_min, second_max = _projection_interval(second_corners, axis)
+            if first_max < second_min or second_max < first_min:
+                return False
+    return True

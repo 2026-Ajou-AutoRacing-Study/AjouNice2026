@@ -10,14 +10,25 @@ stop_distance: 3.0
 dynamic_stop_distance: 5.0
 warning_distance: 6.0
 min_stop_velocity_mps: 0.5
-max_deceleration: 2.0
+max_deceleration: 1.0
 reaction_time: 0.8
-comfortable_deceleration: 3.0
+comfortable_deceleration: 1.0
 object_size_margin: 0.0
 dynamic_object_time_margin: 1.0
 slow_dynamic_stop_speed_threshold_mps: 1.0
 dynamic_stop_ttc_threshold: 4.0
 dynamic_stop_min_relative_speed_mps: 1.0
+# Autoware-style immediate-path collision prediction for moving objects.
+# The object path is swept for the horizon; ego footprints are sampled by arc length.
+dynamic_prediction_horizon_sec: 8.0
+dynamic_collision_path_resolution_m: 0.5
+dynamic_collision_margin_m: 0.3
+# Leave this enabled while validating MORAI dynamic-object scenarios. It logs
+# the transformed object state and the selected immediate-path collision point.
+dynamic_collision_debug: true
+vehicle_length_m: 4.635
+vehicle_width_m: 1.892
+vehicle_rear_overhang_m: 0.79
 
 slowdown_distance: 15.0
 min_slow_velocity_mps: 1.0

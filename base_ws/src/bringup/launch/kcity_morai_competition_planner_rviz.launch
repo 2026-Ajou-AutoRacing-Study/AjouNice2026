@@ -166,6 +166,9 @@
     <param name="velocity_scale_to_mps" value="1.0" />
     <param name="acceleration_scale_to_mps2" value="1.0" />
     <param name="classification_probability" value="1.0" />
+    <!-- Autoware planning modules consume predicted_paths, not just twist. -->
+    <param name="prediction_horizon_sec" value="20.0" />
+    <param name="prediction_time_step_sec" value="0.5" />
   </node>
 
   <node if="$(arg launch_rviz)"

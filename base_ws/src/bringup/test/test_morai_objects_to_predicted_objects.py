@@ -80,12 +80,16 @@ class MoraiObjectBridgeTest(unittest.TestCase):
             math.sqrt(0.5),
             places=6,
         )
-        self.assertAlmostEqual(
-            converted.kinematics.initial_twist_with_covariance.twist.linear.x,
-            10.0,
-            places=6,
-        )
+        velocity = converted.kinematics.initial_twist_with_covariance.twist.linear
+        self.assertAlmostEqual(velocity.x, 0.0, places=6)
+        self.assertAlmostEqual(velocity.y, 10.0, places=6)
         self.assertEqual(len(converted.object_id.uuid), 16)
+        self.assertEqual(len(converted.kinematics.predicted_paths), 1)
+        prediction = converted.kinematics.predicted_paths[0]
+        self.assertEqual(len(prediction.path), 41)
+        self.assertAlmostEqual(prediction.time_step.to_sec(), 0.5)
+        self.assertAlmostEqual(prediction.path[-1].position.x, 1.0, places=6)
+        self.assertAlmostEqual(prediction.path[-1].position.y, 202.0, places=6)
 
     def test_tf_rotates_pose_heading_and_velocity(self):
         message = ObjectStatusList()

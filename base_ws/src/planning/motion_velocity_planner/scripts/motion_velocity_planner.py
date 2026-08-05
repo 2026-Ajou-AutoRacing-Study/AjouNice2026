@@ -18,12 +18,17 @@ from mvp_utils import (
     crop_trajectory_around_ego,
     object_pose,
     object_speed,
+    object_velocity_xy,
+    oriented_box_corners,
+    oriented_boxes_intersect,
     feasible_stop_velocity,
     param_bool,
     path_cumulative_lengths,
     point_velocity,
     project_pose_to_path,
     set_point_velocity,
+    trajectory_point_at_distance,
+    yaw_from_quaternion,
 )
 
 
@@ -69,6 +74,26 @@ class MotionVelocityPlanner:
         self.dynamic_stop_min_relative_speed = max(
             float(rospy.get_param("~dynamic_stop_min_relative_speed_mps", 1.0)),
             0.0,
+        )
+        # Immediate-path collision check, modelled after Autoware's dynamic
+        # obstacle stop module.  MORAI provides a current pose and velocity,
+        # so use a constant-velocity, constant-heading prediction here.
+        self.dynamic_prediction_horizon = max(
+            float(rospy.get_param("~dynamic_prediction_horizon_sec", 8.0)), 0.1
+        )
+        self.dynamic_collision_path_resolution = max(
+            float(rospy.get_param("~dynamic_collision_path_resolution_m", 0.5)), 0.05
+        )
+        self.dynamic_collision_margin = max(
+            float(rospy.get_param("~dynamic_collision_margin_m", 0.3)), 0.0
+        )
+        self.dynamic_collision_debug = param_bool(
+            rospy.get_param("~dynamic_collision_debug", False)
+        )
+        self.vehicle_length = max(float(rospy.get_param("~vehicle_length_m", 4.635)), 0.1)
+        self.vehicle_width = max(float(rospy.get_param("~vehicle_width_m", 1.892)), 0.1)
+        self.vehicle_rear_overhang = max(
+            float(rospy.get_param("~vehicle_rear_overhang_m", 0.79)), 0.0
         )
 
         self.slowdown_distance = float(rospy.get_param("~slowdown_distance", 15.0))
@@ -146,12 +171,14 @@ class MotionVelocityPlanner:
         rospy.loginfo(
             "MotionVelocityPlanner initialized "
             "(default_velocity=%.2f, use_velocity_limit=%s, reaction_time=%.2f, "
-            "comfortable_deceleration=%.2f, dynamic_stop_ttc_threshold=%.2f)",
+            "comfortable_deceleration=%.2f, dynamic_stop_ttc_threshold=%.2f, "
+            "dynamic_prediction_horizon=%.2f)",
             self.default_velocity_mps,
             self.use_velocity_limit,
             self.reaction_time,
             self.comfortable_deceleration,
             self.dynamic_stop_ttc_threshold,
+            self.dynamic_prediction_horizon,
         )
 
     def cb_odometry(self, msg):
@@ -318,6 +345,113 @@ class MotionVelocityPlanner:
             return None
         return proj
 
+    def ego_station_on_path(self, path, distances):
+        if self.odometry is None or not distances:
+            return 0.0
+        projection = project_pose_to_path(
+            path,
+            self.odometry.pose.pose,
+            yaw_threshold=self.delta_yaw_threshold,
+        )
+        if projection is None:
+            projection = project_pose_to_path(path, self.odometry.pose.pose)
+        if projection is None:
+            return 0.0
+        return min(max(projection.longitudinal_distance, 0.0), distances[-1])
+
+    def dynamic_collision_station(self, obj, path, distances):
+        """Return Autoware-style earliest collision with an object's immediate path.
+
+        The immediate path is the swept rectangle of a moving object during a
+        fixed horizon.  Unlike the previous time-synchronised check, this does
+        not assume the vehicle will exactly achieve the upstream target speed.
+        It therefore remains safe when the velocity smoother or controller
+        delays the ego arrival time.
+        """
+        if (
+            not path.points
+            or not distances
+            or not self.is_stop_object(obj)
+            or not self.is_dynamic_object(obj)
+        ):
+            return None
+
+        ego_station = self.ego_station_on_path(path, distances)
+
+        pose = object_pose(obj)
+        velocity_x, velocity_y = object_velocity_xy(obj)
+        object_speed_xy = math.hypot(velocity_x, velocity_y)
+        object_yaw = (
+            math.atan2(velocity_y, velocity_x)
+            if object_speed_xy > self.dynamic_speed_threshold
+            else yaw_from_quaternion(pose.orientation)
+        )
+        object_length = max(float(getattr(obj.shape.dimensions, "x", 0.0)), 0.1)
+        object_width = max(float(getattr(obj.shape.dimensions, "y", 0.0)), 0.1)
+
+        # The trajectory pose is at base_link/rear axle.  Move the ego box
+        # centre forward so its footprint spans the actual vehicle body.
+        ego_center_offset = (self.vehicle_length * 0.5) - self.vehicle_rear_overhang
+        box_margin = self.dynamic_collision_margin * 2.0
+        ego_length = self.vehicle_length + box_margin
+        ego_width = self.vehicle_width + box_margin
+        object_length += box_margin
+        object_width += box_margin
+
+        # Autoware Dynamic Obstacle Stop constructs one rectangle for the area
+        # traversed by the object during the prediction horizon, then finds the
+        # first ego trajectory footprint intersecting that rectangle.
+        swept_length = object_length + object_speed_xy * self.dynamic_prediction_horizon
+        swept_center_offset = object_speed_xy * self.dynamic_prediction_horizon * 0.5
+        immediate_path_corners = oriented_box_corners(
+            pose.position.x,
+            pose.position.y,
+            object_yaw,
+            swept_length,
+            object_width,
+            swept_center_offset,
+        )
+
+        station = ego_station
+        while station <= distances[-1] + 1.0e-6:
+            ego_point = trajectory_point_at_distance(path, distances, station)
+            if ego_point is None:
+                return None
+            ego_pose = ego_point.point.pose if hasattr(ego_point, "point") else ego_point.pose
+            ego_corners = oriented_box_corners(
+                ego_pose.position.x,
+                ego_pose.position.y,
+                yaw_from_quaternion(ego_pose.orientation),
+                ego_length,
+                ego_width,
+                ego_center_offset,
+            )
+            # Ignore the portion behind an object moving away from ego.  This
+            # is the same direction gate used by Autoware's module.
+            object_to_ego_yaw = math.atan2(
+                ego_pose.position.y - pose.position.y,
+                ego_pose.position.x - pose.position.x,
+            )
+            heading_difference = abs(
+                math.atan2(
+                    math.sin(object_to_ego_yaw - object_yaw),
+                    math.cos(object_to_ego_yaw - object_yaw),
+                )
+            )
+            if (
+                heading_difference <= 3.0 * math.pi / 4.0
+                and oriented_boxes_intersect(ego_corners, immediate_path_corners)
+            ):
+                ego_speed = max(self.ego_speed_for_stop_distance(), 0.1)
+                return station, max((station - ego_station) / ego_speed, 0.0)
+
+            if station >= distances[-1] - 1.0e-6:
+                break
+            station = min(
+                distances[-1], station + self.dynamic_collision_path_resolution
+            )
+        return None
+
     def closest_obstacle_distance(self, point_s, hard_stop_only=False):
         if not self.objects or len(self.objects.objects) == 0 or self.trajectory is None:
             return float('inf')
@@ -378,6 +512,7 @@ class MotionVelocityPlanner:
             return
 
         stop_lines = []
+        debug_stop_lines = []
         for obj in self.objects.objects:
             if not self.is_hard_stop_distance_object(obj):
                 continue
@@ -385,12 +520,22 @@ class MotionVelocityPlanner:
             proj = self.stop_object_projection(obj)
             if proj is not None:
                 stop_distance = self.speed_based_stop_distance(self.stop_distance, obj)
-                stop_lines.append(max(0.0, proj.longitudinal_distance - stop_distance))
+                stop_line = max(0.0, proj.longitudinal_distance - stop_distance)
+                stop_lines.append(stop_line)
+                if self.dynamic_collision_debug:
+                    debug_stop_lines.append("hard=s%.1f" % stop_line)
 
         if not stop_lines:
             return
 
         stop_line = min(stop_lines)
+        if self.dynamic_collision_debug:
+            rospy.logwarn_throttle(
+                1.0,
+                "motion_velocity_planner hard-stop candidates: %s; selected=s%.1f",
+                ", ".join(debug_stop_lines),
+                stop_line,
+            )
         for point, station in zip(out.points, distances):
             if station >= stop_line:
                 target_velocity = 0.0
@@ -405,18 +550,70 @@ class MotionVelocityPlanner:
         if self.objects is None:
             return
 
+        ego_station = self.ego_station_on_path(out, distances)
         stop_lines = []
+        debug_objects = []
         for obj in self.objects.objects:
-            proj = self.dynamic_object_projection(obj)
-            if proj is None or not self.should_dynamic_stop_object(obj, proj):
+            if self.dynamic_collision_debug and self.is_stop_object(obj) and self.is_dynamic_object(obj):
+                pose = object_pose(obj).position
+                velocity_x, velocity_y = object_velocity_xy(obj)
+            else:
+                pose = None
+            collision = self.dynamic_collision_station(obj, out, distances)
+            if collision is not None:
+                collision_station, collision_time = collision
+                # The stop point belongs immediately before the collision
+                # point, not one full braking distance before it.  The
+                # velocity profile then uses every metre from the current ego
+                # position to that stop point for braking.  Subtracting the
+                # braking distance here shortened the available braking run-up
+                # and was the reason a detected collision could still result
+                # in a late stop.
+                ego_speed = self.ego_speed_for_stop_distance()
+                stop_buffer = (
+                    self.dynamic_stop_distance
+                    + self.object_size_margin
+                    + ego_speed * self.reaction_time
+                )
+                stop_line = max(ego_station, collision_station - stop_buffer)
+                stop_lines.append(stop_line)
+                available_distance = max(stop_line - ego_station, 0.0)
+                required_braking_distance = (
+                    (ego_speed * ego_speed) / (2.0 * max(self.max_deceleration, 0.1))
+                )
+                if available_distance < required_braking_distance:
+                    rospy.logwarn_throttle(
+                        1.0,
+                        "motion_velocity_planner: dynamic stop is late "
+                        "(available=%.1fm required=%.1fm); commanding maximum profile",
+                        available_distance,
+                        required_braking_distance,
+                    )
+                rospy.loginfo_throttle(
+                    1.0,
+                    "motion_velocity_planner: predicted dynamic collision in %.2fs at s=%.2f",
+                    collision_time,
+                    collision_station,
+                )
+                if pose is not None:
+                    debug_objects.append(
+                        "p=(%.1f,%.1f) v=(%.1f,%.1f) collision=s%.1f"
+                        % (pose.x, pose.y, velocity_x, velocity_y, collision_station)
+                    )
                 continue
 
-            stop_distance = self.speed_based_stop_distance(
-                self.dynamic_stop_distance,
-                obj,
-                dynamic=True,
+            if pose is not None:
+                debug_objects.append(
+                    "p=(%.1f,%.1f) v=(%.1f,%.1f) collision=none"
+                    % (pose.x, pose.y, velocity_x, velocity_y)
+                )
+
+        if self.dynamic_collision_debug and debug_objects:
+            rospy.logwarn_throttle(
+                1.0,
+                "motion_velocity_planner dynamic candidates: %s",
+                " | ".join(debug_objects),
             )
-            stop_lines.append(max(0.0, proj.longitudinal_distance - stop_distance))
 
         if not stop_lines:
             return

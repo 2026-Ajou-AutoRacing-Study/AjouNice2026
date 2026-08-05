@@ -12,6 +12,7 @@ from autoware_perception_msgs.msg import (
     ObjectClassification,
     PredictedObject,
     PredictedObjects,
+    PredictedPath,
     Shape,
 )
 from geometry_msgs.msg import PoseStamped, Quaternion, Vector3
@@ -78,6 +79,42 @@ def stable_object_uuid(category, unique_id):
     return list(value.bytes)
 
 
+def append_constant_velocity_prediction(
+    output, horizon_sec, time_step_sec
+):
+    """Add the prediction trajectory expected by Autoware planning modules."""
+    horizon_sec = max(0.0, float(horizon_sec))
+    time_step_sec = max(0.05, float(time_step_sec))
+    if horizon_sec <= 0.0:
+        return
+
+    pose = output.kinematics.initial_pose_with_covariance.pose
+    velocity = output.kinematics.initial_twist_with_covariance.twist.linear
+    speed = math.hypot(float(velocity.x), float(velocity.y))
+
+    prediction = PredictedPath()
+    prediction.confidence = 1.0
+    prediction.time_step = rospy.Duration(time_step_sec)
+    count = int(math.ceil(horizon_sec / time_step_sec))
+    for step in range(count + 1):
+        elapsed = min(step * time_step_sec, horizon_sec)
+        item = copy.deepcopy(pose)
+        item.position.x += float(velocity.x) * elapsed
+        item.position.y += float(velocity.y) * elapsed
+        item.position.z += float(velocity.z) * elapsed
+        # A trajectory pose represents its direction of travel.  This is
+        # especially important for a MORAI object whose body orientation and
+        # local velocity were transformed into the map frame above.
+        if speed > 1.0e-3:
+            yaw = math.atan2(float(velocity.y), float(velocity.x))
+            item.orientation.x = 0.0
+            item.orientation.y = 0.0
+            item.orientation.z = math.sin(yaw * 0.5)
+            item.orientation.w = math.cos(yaw * 0.5)
+        prediction.path.append(item)
+    output.kinematics.predicted_paths = [prediction]
+
+
 def make_predicted_object(
     detected_object,
     category,
@@ -87,6 +124,8 @@ def make_predicted_object(
     velocity_scale_to_mps=1.0,
     acceleration_scale_to_mps2=1.0,
     classification_probability=1.0,
+    prediction_horizon_sec=20.0,
+    prediction_time_step_sec=0.5,
 ):
     """Convert one MORAI object, optionally applying source-to-target TF."""
     size_x = bounded_dimension(detected_object.size.x)
@@ -128,30 +167,30 @@ def make_predicted_object(
     output.classification = [classification]
 
     output.kinematics.initial_pose_with_covariance.pose = target_pose.pose
-    if rotation is None:
-        identity_rotation = Quaternion(w=1.0)
-        velocity = rotate_vector(
-            detected_object.velocity,
-            identity_rotation,
-            velocity_scale_to_mps,
-        )
-        acceleration = rotate_vector(
-            detected_object.acceleration,
-            identity_rotation,
-            acceleration_scale_to_mps2,
-        )
-    else:
-        velocity = rotate_vector(
-            detected_object.velocity, rotation, velocity_scale_to_mps
-        )
-        acceleration = rotate_vector(
-            detected_object.acceleration,
-            rotation,
-            acceleration_scale_to_mps2,
-        )
+    # MORAI ObjectStatus velocity/acceleration are expressed in each object's
+    # forward/lateral frame.  Convert them through the object's heading before
+    # applying the source-frame -> map TF.  Applying only the TF rotation made
+    # a vehicle heading south with ``velocity.x > 0`` look as if it were moving
+    # east in the map frame, which prevented dynamic collision prediction.
+    velocity = rotate_vector(
+        detected_object.velocity,
+        source_pose.pose.orientation,
+        velocity_scale_to_mps,
+    )
+    acceleration = rotate_vector(
+        detected_object.acceleration,
+        source_pose.pose.orientation,
+        acceleration_scale_to_mps2,
+    )
+    if rotation is not None:
+        velocity = rotate_vector(velocity, rotation)
+        acceleration = rotate_vector(acceleration, rotation)
     output.kinematics.initial_twist_with_covariance.twist.linear = velocity
     output.kinematics.initial_acceleration_with_covariance.accel.linear = (
         acceleration
+    )
+    append_constant_velocity_prediction(
+        output, prediction_horizon_sec, prediction_time_step_sec
     )
 
     output.shape.type = Shape.BOUNDING_BOX
@@ -170,6 +209,8 @@ def make_predicted_objects(
     velocity_scale_to_mps=1.0,
     acceleration_scale_to_mps2=1.0,
     classification_probability=1.0,
+    prediction_horizon_sec=20.0,
+    prediction_time_step_sec=0.5,
 ):
     """Convert a complete MORAI object list into planner input."""
     source_header = copy.deepcopy(message.header)
@@ -197,6 +238,8 @@ def make_predicted_objects(
                     velocity_scale_to_mps,
                     acceleration_scale_to_mps2,
                     classification_probability,
+                    prediction_horizon_sec,
+                    prediction_time_step_sec,
                 )
             )
     return output
@@ -219,6 +262,12 @@ class MoraiObjectsToPredictedObjects:
         )
         self.classification_probability = float(
             rospy.get_param("~classification_probability", 1.0)
+        )
+        self.prediction_horizon_sec = float(
+            rospy.get_param("~prediction_horizon_sec", 20.0)
+        )
+        self.prediction_time_step_sec = float(
+            rospy.get_param("~prediction_time_step_sec", 0.5)
         )
         self.tf_timeout_sec = float(rospy.get_param("~tf_timeout_sec", 0.2))
         input_topic = rospy.get_param("~input_topic", "/Object_topic")
@@ -279,6 +328,8 @@ class MoraiObjectsToPredictedObjects:
                 self.velocity_scale_to_mps,
                 self.acceleration_scale_to_mps2,
                 self.classification_probability,
+                self.prediction_horizon_sec,
+                self.prediction_time_step_sec,
             )
         )
 
