@@ -685,3 +685,258 @@ heading 보정 전후를 비교할 때 사용한다. 시작 방향이 임의적�
 
 `-1.347 deg`는 현재 제공 시나리오에 대한 보정값이다. 대회 시뮬레이터가
 수정되거나 공식 좌표계 계약이 달라지면 보정을 끄고 다시 검증한다.
+
+## 21. 최종 rosbag RViz 시각화
+
+최종 결과 bag은 localization, TF, IMU, GNSS만 담은 경량 bag이다.
+LiDAR와 카메라는 같은 시작·종료 timestamp를 가진 원본 bag에서 함께
+재생한다.
+
+```text
+원본 센서:
+  rosbags/raw_sensor/competition_route_full_highspeed.bag
+
+최종 localization:
+  rosbags/eval/localization/gnss_imu_gt_ctra_heading_corrected_full_v1/
+    gnss_imu_gt_ctra_heading_corrected_full_v1.bag
+```
+
+### 터미널 1: ROS master
+
+```bash
+# ROS master 실행
+cd ~/AjouNice2026/base_ws
+source devel/setup.bash
+
+roscore
+```
+
+### 터미널 2: 지도·차량·센서 TF·RViz
+
+통합 RViz에서는 MGeo link 중심선만 기본 발행한다. 폭 기반 추정 경계,
+노드, 신호, 원점 축 및 메타데이터는 기본적으로 발행하지 않는다.
+
+```bash
+# Lanelet·MGeo 중심선·차량·센서 TF와 통합 RViz 실행
+cd ~/AjouNice2026/base_ws
+source devel/setup.bash
+
+rosparam set /use_sim_time true
+
+roslaunch localization_manager \
+  gnss_imu_lanelet_rviz.launch \
+  lanelet_map_file:=/home/luv/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v60.osm
+```
+
+`lanelet2_map_v60.osm`은 OSM 내부 위·경도와 기존
+`map_projector_info_v1.yaml`을 사용하므로 별도의 JSON 메타데이터가
+필요하지 않다. 현재 파일이 Git에서 추적되지 않는 로컬 전달본일 수
+있으므로, 팀 저장소에 포함되기 전까지는 위와 같이 경로를 명시한다.
+
+이 launch는 기본적으로 `/localization/kinematic_state`를 구독하는
+`localization_state_rviz_marker.py`도 실행한다. RViz의
+`Vehicle Speed and Twist` 표시에는 다음 정보가 나타난다.
+
+- 차량 위 흰색 글자: 현재 수평 속력(m/s, km/h), `vx`, `vy`, yaw rate,
+  state 도착률, 메시지 age
+- 청록색 화살표: `base_link` 기준 수평 속도 방향과 크기
+
+이 표시는 측위 결과를 변경하지 않는 디버그 시각화다. 필요하면 launch에
+`show_state_overlay:=false`를 추가하여 끌 수 있다.
+
+선택적으로 `show_mgeo_width_edges:=true`를 주면 나타나는 파란 양쪽
+선의 namespace는
+`mgeo_inferred_width_edges`이다. 이는 MGeo가 제공한 실제 좌·우 경계
+좌표가 아니라 `link_set.json`의 중심선을 `width_start`/`width_end`의
+절반만큼 좌우로 이동하여 추정한 선이다. 따라서 LiDAR intensity에서
+관찰되는 차선 도료보다 좁거나 넓을 수 있으며 정밀 정합의 기준선으로
+사용하면 안 된다.
+
+이 launch는 시각화에만 다음 보정을 적용한다.
+
+```text
+Lanelet 원본 고도 -> 평탄화
+Lanelet 기준면    -> map z=-0.3705 m
+MGeo 원본 고도    -> 평탄화
+MGeo 기준면       -> morai_map z=-0.3705 m
+```
+
+Localization 결과, 원본 지도, 차량 URDF 및 판단용 vector map은 수정하지
+않는다.
+
+### 터미널 3: 전체 GT·추정 Path 발행
+
+Lanelet 중심선은 기준면보다 `0.06 m` 높게 표시되므로 Path 표시 높이는
+`-0.3705 + 0.06 = -0.3105 m`로 맞춘다. 이 값은 RViz에 발행하는
+Path/Marker에만 적용되며 평가 CSV와 지표는 변경하지 않는다.
+
+```bash
+# Lanelet 중심선과 같은 높이에 GT·Localization 전체 Path 발행
+cd ~/AjouNice2026
+source base_ws/devel/setup.bash
+
+python3 scripts/evaluation/localization/eval_localization_state_with_rviz.py \
+  rosbags/eval/localization/gnss_imu_gt_ctra_heading_corrected_full_v1/gnss_imu_gt_ctra_heading_corrected_full_v1.bag \
+  --state-topic /localization/kinematic_state \
+  --sensor-config configs/sensors/Sensor.json \
+  --ego-velocity-unit mps \
+  --ego-heading-yaw-offset-deg -1.347 \
+  --rviz-ground-z -0.3105 \
+  --out /tmp/gnss_imu_gt_ctra_rviz.csv \
+  --publish-rviz
+```
+
+이 프로세스는 latched Path와 Marker를 유지하므로 시각화가 끝날 때까지
+종료하지 않는다.
+
+### 터미널 4: 센서 원본과 localization 결과 병합 재생
+
+```bash
+# 동일 시간축의 카메라·LiDAR 원본과 Localization 결과 동시 재생
+cd ~/AjouNice2026/base_ws
+source devel/setup.bash
+
+rosbag play --clock --pause \
+  /home/luv/AjouNice2026/rosbags/raw_sensor/competition_route_full_highspeed.bag \
+  /home/luv/AjouNice2026/rosbags/eval/localization/gnss_imu_gt_ctra_heading_corrected_full_v1/gnss_imu_gt_ctra_heading_corrected_full_v1.bag \
+  --topics \
+  /sensor/lidar1 \
+  /sensor/camera/front/compressed \
+  /sensor/camera/front_left/compressed \
+  /sensor/camera/front_right/compressed \
+  /sensor/camera/back/compressed \
+  /localization/kinematic_state \
+  /tf \
+  /tf_static
+```
+
+`rosbag play` 터미널에서 스페이스바를 눌러 재생한다. 일시정지 상태에서는
+`map -> morai_map` 등의 recorded TF가 아직 발행되지 않아 RViz가 일시적인
+TF 경고를 표시할 수 있다.
+
+### RViz Display
+
+```text
+Fixed Frame: map
+
+Vehicle
+  IONIQ5 RobotModel
+
+LiDAR1
+  /sensor/lidar1
+
+Front Camera
+  /sensor/camera/front + compressed transport
+
+Front Left Camera
+  /sensor/camera/front_left + compressed transport
+
+Front Right Camera
+  /sensor/camera/front_right + compressed transport
+
+Rear Camera
+  /sensor/camera/back + compressed transport
+
+Localization Odometry
+  /localization/kinematic_state
+
+MORAI GT path
+  /localization_state_eval/ego_path
+
+GNSS IMU estimated path
+  /localization_state_eval/state_aligned_path
+
+Threshold violations
+  /localization_state_eval/error_markers
+
+Lanelet Map
+  /map/lanelet_map
+
+MGeo Overlay
+  /map/morai_map
+```
+
+GT와 추정 Path는 전체 경로를 한 번에 표시하며 각각 독립적으로 끄고 켤
+수 있다. `Localization Odometry`는 rosbag 재생에 따라 진행 경로가
+순차적으로 쌓인다.
+
+`Threshold violations`는 임계값 초과 지점만 표시한다. 초과 지점이 없는
+종류는 `Marker.DELETE`로 발행하여 빈 `SPHERE_LIST` RViz 오류가 발생하지
+않는다.
+
+MGeo width edge는 `link centerline +/- width/2`로 계산한 추정 경계이며
+원본 경계 geometry가 아니다. LiDAR 노면 반사와 비교할 때 이 한계를
+전제로 사용한다.
+
+## 지도와 LiDAR 노면 도료의 미세 정합 검토
+
+### 관찰
+
+Lanelet v60 중심선과 MGeo 중심선은 미세 보정 전 `map -> morai_map`
+변환에서 육안상 매우 잘 정합되었다. 반면 LiDAR intensity에서 밝게
+관찰되는 노면 도료는 Lanelet 도로 경계보다 약간 오른쪽에 있는 것처럼
+보였다. 제한된 전방 구간만 보면 이 현상은 평행이동인지 작은 회전인지
+구분하기 어려웠다.
+
+검토한 `map -> morai_map` 값은 다음과 같다.
+
+| 구분 | x (m) | y (m) | yaw |
+|---|---:|---:|---:|
+| 미세 보정 전 원본 | 131.559130220 | 545.911338186 | 0 rad |
+| 기존 미세 보정 | 131.656525062 | 545.893929229 | +0.000146070411 rad |
+| 진단용 반대 보정 | 131.461737922 | 545.928761369 | -0.000146070411 rad |
+
+반대 보정은 기존 보정의 부호만 단순히 바꾼 근삿값이 아니라, 원본
+변환을 기준으로 기존 SE(2) 미세 변환의 역변환을 합성한 진단값이다.
+기존 보정과 반대 보정을 비교해 어느 방향으로 표시가 움직이는지
+확인하는 용도로만 사용하며 최종 보정값으로 채택하지 않는다.
+
+### MORAI heading 오차와의 관계
+
+지도 중심선끼리의 정적 정합에는 `/Ego_topic` heading이 사용되지
+않으므로, MGeo와 Lanelet 자체의 차이는 기존 `+1.347 deg` heading
+편차로 설명할 수 없다.
+
+다만 LiDAR 점군을 `map`에서 볼 때는 `base_link` 자세가 TF 체인에
+포함되므로, 보정되지 않은 차량 yaw는 노면 도료가 지도에 대해 회전한
+것처럼 보이게 할 수 있다. `1.347 deg`의 회전은 차량 전방 거리별로
+대략 다음 횡방향 편차를 만든다.
+
+| 전방 거리 | 예상 횡방향 편차 |
+|---:|---:|
+| 5 m | 약 0.12 m |
+| 10 m | 약 0.24 m |
+| 20 m | 약 0.47 m |
+| 30 m | 약 0.71 m |
+
+따라서 과거 보정 전 TF로 LiDAR를 관찰했다면 heading 편차가 원인일
+가능성이 있다. 그러나 현재 사용하는
+`gnss_imu_gt_ctra_heading_corrected_full_v1.bag`은 GT heading에
+`-1.347 deg`를 적용해 생성했으며, 해당 결과의 yaw MAE는 약
+`0.035 deg`이다. 현재 bag에서도 편차가 남는다면 heading 하나만으로
+설명하기 어렵고 다음 항목을 함께 확인해야 한다.
+
+- 보정된 localization TF와 별도 Ego TF broadcaster의 중복 발행 여부
+- `base_link -> lidar1` translation/yaw extrinsic
+- LiDAR timestamp와 동적 TF timestamp 정합
+- Lanelet v60과 MGeo 데이터 사이의 실제 국부 형상 차이
+- 기존 미세 보정이 Lanelet v23 기준으로 산출됐다는 지도 버전 차이
+
+### 현재 결정
+
+지도 자체가 잘 맞는 상태에서 LiDAR 한 종류의 관찰만으로
+`map -> morai_map`을 이동시키면, 특정 위치의 도료는 맞더라도 두 지도
+전체 정합을 훼손할 수 있다. 따라서 이번 검토에서는 기존 미세 보정과
+반대 보정 모두 최종값으로 새로 확정하지 않는다. 향후에는 미세 보정 전
+TF를 기준으로 다음 A/B 검증을 수행한다.
+
+1. 차량과 rosbag 없이 Lanelet 중심선과 MGeo 중심선만 비교한다.
+2. 동일한 원본 센서 bag에 heading 보정 전·후 TF를 각각 적용한다.
+3. 직선 구간에서 가까운 점과 먼 점의 편차가 일정한지 확인한다.
+4. 일정하면 translation/extrinsic을, 거리에 비례하면 yaw를 우선
+   의심한다.
+5. 서로 다른 차량 진행 방향에서도 같은 결과가 재현되는지 확인한다.
+
+수동 `map -> morai_map` TF를 시험할 때는 결과 bag에 저장된
+`/tf_static`을 재생하면 안 된다. recorded TF와 수동 TF가 동시에 같은
+child frame을 발행하여 RViz 결과가 불안정해질 수 있기 때문이다.

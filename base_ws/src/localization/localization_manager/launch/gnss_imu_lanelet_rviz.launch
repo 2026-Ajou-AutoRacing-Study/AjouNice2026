@@ -11,8 +11,21 @@
   <arg name="fixed_frame" default="map"/>
   <arg name="lanelet_frame" default="lanelet_ground"/>
   <arg name="lanelet_z_offset" default="-0.3705"/>
+  <arg name="lanelet_map_file"
+       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v44.osm"/>
+  <arg name="lanelet_projector_file"
+       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+  <arg name="sensor_config"
+       default="$(find ioniq5)/../../../configs/sensors/Sensor.json"/>
+  <arg name="start_mgeo" default="true"/>
+  <!-- Keep the integrated RViz MGeo layer centerline-only by default. -->
+  <arg name="show_mgeo_width_edges" default="false"/>
+  <arg name="show_mgeo_details" default="false"/>
+  <arg name="show_state_overlay" default="true"/>
+  <arg name="kinematic_state_topic" default="/localization/kinematic_state"/>
   <arg name="start_rviz" default="true"/>
-  <arg name="rviz_config" default="$(find ioniq5)/rviz/ioniq5.rviz"/>
+  <arg name="rviz_config"
+       default="$(find localization_manager)/rviz/gnss_imu_evaluation.rviz"/>
 
   <node pkg="tf2_ros"
         type="static_transform_publisher"
@@ -20,11 +33,47 @@
         args="0 0 $(arg lanelet_z_offset) 0 0 0 $(arg fixed_frame) $(arg lanelet_frame)"
         output="screen"/>
 
+  <!-- The compact result bag carries IMU/GPS TFs, but not LiDAR/camera TFs. -->
+  <include file="$(find tf_pub)/launch/sensor_tf.launch">
+    <arg name="sensor_config" value="$(arg sensor_config)"/>
+    <arg name="publish_lidar" value="true"/>
+    <arg name="publish_imu" value="false"/>
+    <arg name="publish_camera" value="true"/>
+    <arg name="publish_gps" value="false"/>
+  </include>
+
   <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+    <arg name="map_file" value="$(arg lanelet_map_file)"/>
+    <arg name="projector_file" value="$(arg lanelet_projector_file)"/>
     <arg name="frame_id" value="$(arg lanelet_frame)"/>
     <arg name="flatten_z" value="true"/>
     <arg name="publish_vector_map" value="false"/>
   </include>
+
+  <!-- Numeric speed/twist text and a horizontal velocity vector for RViz. -->
+  <node if="$(arg show_state_overlay)"
+        pkg="localization_manager"
+        type="localization_state_rviz_marker.py"
+        name="localization_state_rviz_marker"
+        output="screen">
+    <param name="state_topic" value="$(arg kinematic_state_topic)"/>
+    <param name="output_topic" value="/localization/debug/state_markers"/>
+  </node>
+
+  <group if="$(arg start_mgeo)">
+    <include file="$(find lanelet_map_visualizer)/launch/kcity_mgeo_map.launch">
+      <arg name="flatten_z" value="true"/>
+      <arg name="z_offset" value="$(arg lanelet_z_offset)"/>
+      <arg name="show_width_edges" value="$(arg show_mgeo_width_edges)"/>
+      <arg name="show_nodes" value="$(arg show_mgeo_details)"/>
+      <arg name="show_stop_nodes" value="$(arg show_mgeo_details)"/>
+      <arg name="show_signal_nodes" value="$(arg show_mgeo_details)"/>
+      <arg name="show_lane_changes" value="$(arg show_mgeo_details)"/>
+      <arg name="show_signal_dirs" value="$(arg show_mgeo_details)"/>
+      <arg name="show_origin" value="$(arg show_mgeo_details)"/>
+      <arg name="show_metadata_text" value="$(arg show_mgeo_details)"/>
+    </include>
+  </group>
 
   <include file="$(find ioniq5)/launch/display_ioniq5.launch">
     <arg name="start_rviz" value="$(arg start_rviz)"/>

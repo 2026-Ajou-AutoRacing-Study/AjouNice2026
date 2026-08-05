@@ -164,18 +164,79 @@ Lanelet OSM stores elevations around 28 m. The IONIQ5 mesh ground plane is also
 launch below instead of displaying the unmodified 3D Lanelet map:
 
 ```bash
-roslaunch localization_manager gnss_imu_lanelet_rviz.launch
+roslaunch localization_manager gnss_imu_lanelet_rviz.launch \
+  lanelet_map_file:=$HOME/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v60.osm
 ```
+
+The map path is explicit because `lanelet2_map_v60.osm` may be delivered
+separately from the tracked repository. It uses the existing
+`map_projector_info_v1.yaml`; no additional JSON metadata is required.
 
 It performs three visualization-only operations:
 
 1. flattens the Lanelet elevation;
 2. publishes it in `lanelet_ground`, located 0.3705 m below `map`;
-3. starts the IONIQ5 RobotModel and RViz.
+3. flattens and publishes the optional MGeo overlay at the same ground height;
+4. restores the LiDAR/camera static TFs omitted from the compact result bag;
+5. starts the IONIQ5 RobotModel and the localization evaluation RViz config.
 
 The localization pose, TF, sensor configuration, OSM source, and vehicle URDF
 are not modified. Override `lanelet_z_offset` only if the vehicle mesh or
 base-link convention changes.
+
+The compact localization-result bag does not contain LiDAR or camera messages.
+Replay it together with the timestamp-matched raw bag and select only the
+required topics:
+
+```bash
+rosbag play --clock --pause \
+  rosbags/raw_sensor/competition_route_full_highspeed.bag \
+  rosbags/eval/localization/gnss_imu_gt_ctra_heading_corrected_full_v1/gnss_imu_gt_ctra_heading_corrected_full_v1.bag \
+  --topics \
+  /sensor/lidar1 \
+  /sensor/camera/front/compressed \
+  /sensor/camera/front_left/compressed \
+  /sensor/camera/front_right/compressed \
+  /sensor/camera/back/compressed \
+  /localization/kinematic_state \
+  /tf \
+  /tf_static
+```
+
+The RViz Odometry display uses `/localization/kinematic_state`. Full GT and
+aligned localization paths are independent displays on:
+
+- `/localization_state_eval/ego_path`
+- `/localization_state_eval/state_aligned_path`
+
+Publish those latched paths from the evaluator when a full-run comparison is
+needed. Pass `--rviz-ground-z -0.3105` when using the flattened Lanelet launch;
+this matches the Lanelet centerline height and changes only the published RViz
+geometry, not the evaluated values. The paths are not required for the moving
+vehicle, LiDAR, or camera replay.
+
+The integrated RViz launch publishes only the MGeo link centerline by default.
+Width-derived edges, nodes, signals, origin axes, and metadata are disabled
+because they are not needed for the localization comparison. In particular,
+the width edges are inferred from each link's width rather than native
+boundary geometry.
+
+```bash
+roslaunch localization_manager gnss_imu_lanelet_rviz.launch
+```
+
+The launch starts the localization state overlay by default. It subscribes to
+`/localization/kinematic_state` and publishes
+`/localization/debug/state_markers`:
+
+- white text above `base_link`: horizontal speed, `vx`, `vy`, yaw rate,
+  state arrival rate, and message age;
+- cyan arrow: horizontal velocity direction and scaled magnitude.
+
+Disable only this debug visualization with `show_state_overlay:=false`.
+The optional blue `mgeo_inferred_width_edges` lines are not surveyed/native
+road boundaries. They are inferred by offsetting each MGeo link centerline by
+half of `width_start`/`width_end`, so they can differ from LiDAR-visible paint.
 
 ## GNSS + IMU + GT CTRA-like provider (experimental)
 

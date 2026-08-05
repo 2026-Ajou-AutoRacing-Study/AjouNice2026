@@ -735,6 +735,7 @@ def publish_rviz(
     yaw_rate_threshold,
     marker_stride,
     publish_alignment_tf,
+    rviz_ground_z,
 ):
     import rospy
     import tf2_ros
@@ -765,7 +766,11 @@ def publish_rviz(
         ego_pose.header = ego_path.header
         ego_pose.pose.position.x = float(ego_xyz[index, 0])
         ego_pose.pose.position.y = float(ego_xyz[index, 1])
-        ego_pose.pose.position.z = float(ego_xyz[index, 2])
+        ego_pose.pose.position.z = (
+            float(rviz_ground_z)
+            if rviz_ground_z is not None
+            else float(ego_xyz[index, 2])
+        )
         core.quaternion_from_yaw(ego_sample.yaw, ego_pose.pose.orientation)
         ego_path.poses.append(ego_pose)
 
@@ -773,7 +778,11 @@ def publish_rviz(
         state_pose.header = state_path.header
         state_pose.pose.position.x = float(aligned_xyz[index, 0])
         state_pose.pose.position.y = float(aligned_xyz[index, 1])
-        state_pose.pose.position.z = float(aligned_xyz[index, 2])
+        state_pose.pose.position.z = (
+            float(rviz_ground_z)
+            if rviz_ground_z is not None
+            else float(aligned_xyz[index, 2])
+        )
         core.quaternion_from_yaw(aligned_yaw[index], state_pose.pose.orientation)
         state_path.poses.append(state_pose)
 
@@ -800,7 +809,11 @@ def publish_rviz(
         point = Point(
             x=float(aligned_xyz[index, 0]),
             y=float(aligned_xyz[index, 1]),
-            z=float(aligned_xyz[index, 2]),
+            z=(
+                float(rviz_ground_z)
+                if rviz_ground_z is not None
+                else float(aligned_xyz[index, 2])
+            ),
         )
         if position_errors[index] >= position_threshold:
             position_marker.points.append(point)
@@ -811,9 +824,11 @@ def publish_rviz(
 
     ego_publisher.publish(ego_path)
     state_publisher.publish(state_path)
-    marker_publisher.publish(
-        MarkerArray(markers=[position_marker, speed_marker, yaw_rate_marker])
-    )
+    threshold_markers = [position_marker, speed_marker, yaw_rate_marker]
+    for marker in threshold_markers:
+        if not marker.points:
+            marker.action = Marker.DELETE
+    marker_publisher.publish(MarkerArray(markers=threshold_markers))
 
     static_broadcaster = None
     if publish_alignment_tf:
@@ -957,6 +972,16 @@ def main():
     parser.add_argument("--stationary-speed-threshold", type=float, default=0.1)
     parser.add_argument("--stationary-min-duration", type=float, default=1.0)
     parser.add_argument("--publish-rviz", action="store_true")
+    parser.add_argument(
+        "--rviz-ground-z",
+        type=float,
+        default=None,
+        help=(
+            "Visualization-only constant z for both GT/state paths and error "
+            "markers. Evaluation values are unchanged. Use -0.3105 with the "
+            "planar Lanelet playback launch."
+        ),
+    )
     parser.add_argument("--marker-stride", type=int, default=1)
     args = parser.parse_args()
 
@@ -1153,6 +1178,7 @@ def main():
             args.yaw_rate_error_threshold,
             args.marker_stride,
             original_child_frame == "body",
+            args.rviz_ground_z,
         )
 
 
