@@ -19,6 +19,7 @@ TOPICS=(
   /sensor/lidar1
   /localization/odom
   /localization/kinematic_state
+  /localization/acceleration
   /tf
   /tf_static
 )

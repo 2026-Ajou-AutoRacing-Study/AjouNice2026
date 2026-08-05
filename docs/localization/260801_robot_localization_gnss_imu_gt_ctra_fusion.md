@@ -129,7 +129,14 @@ sensor_timeout: 0.2
 local EKF  -> /localization/odometry/local
 global EKF -> /localization/odom
            -> /localization/kinematic_state
+           -> /localization/acceleration
 ```
+
+`/localization/acceleration`은 Global EKF가 추정한 가속도를
+`geometry_msgs/AccelWithCovarianceStamped`로 발행한다.
+`nav_msgs/Odometry`인 `/localization/kinematic_state`에는 가속도 필드가
+없으므로 별도 토픽을 사용한다. 두 rosbag 평가 녹화 스크립트는 이 토픽도
+기본 기록한다.
 
 ## 5. GT 입력 전환 정책
 
@@ -266,14 +273,37 @@ noise-off MORAI 첫 검증값:
 | 측정 | 표준편차 |
 |---|---:|
 | GT heading | 0.001745 rad (0.1 deg) |
-| GT longitudinal velocity | 0.05 m/s |
+| GT longitudinal velocity | 0.01 m/s |
 | IMU yaw rate | 0.001 rad/s |
-| IMU acceleration | 0.01 m/s² |
+| IMU acceleration | 0.05 m/s² |
 | GNSS horizontal position | 0.05 m |
 
 0 covariance는 완전한 확신 또는 미정의로 잘못 해석될 수 있어 작지만
 0이 아닌 값을 사용한다. 실제 대회 noise profile이 정해지면 반복 주행
 residual을 이용해 다시 추정해야 한다.
+
+GT longitudinal velocity는 동일한 전체 주행 raw bag에서
+`0.05 m/s`와 `0.01 m/s`를 A/B 비교했다. `0.01 m/s`에서 `linear.x`
+MAE가 약 31.6%, speed MAE가 약 21.6%, 종방향 위치 MAE가 약 6.5%
+감소했고 전체 XY와 횡방향 오차는 사실상 유지되어 기본값으로 채택했다.
+
+GT velocity를 `0.01 m/s`로 고정한 IMU `ax` ON/OFF 비교에서는 ON의
+`linear.x` MAE가 약 30.0%, speed MAE가 약 24.0% 작았다. 가감속,
+정속 및 GNSS 음영 구간에서도 같은 방향이 확인되어 IMU `ax` 융합을
+유지한다. 다만 rare velocity step은 ON에서 더 커질 수 있으므로
+`ax` 표준편차 `0.01 / 0.05 / 0.10 m/s²`의 후속 비교 여지는 남긴다.
+세부 결과는
+`rosbags/eval/localization/gnss_imu_gt_ctra_ax_ab_v1/README.md`에 있다.
+
+ax를 유지한 상태에서 표준편차 `0.01 / 0.05 / 0.10 m/s²`를 추가
+비교했다. `0.05 m/s²`는 전체 `vx`와 speed MAE가 가장 작았고,
+`0.01 m/s²`보다 속도 RMSE와 rare velocity step을 줄이면서
+`0.10 m/s²`보다 acceleration 측정 추종성을 더 유지했다. 따라서
+균형값인 `0.05 m/s²`를 기본값으로 채택했다. 세부 sweep 결과는
+`rosbags/eval/localization/gnss_imu_gt_ctra_ax_sigma_sweep_v1/README.md`에
+있으며, 최종 v3 결과는
+`rosbags/eval/localization/gnss_imu_gt_ctra_heading_corrected_vx_ax_tuned_full_v3/README.md`에
+있다.
 
 ## 10. 관련 파일
 
@@ -351,6 +381,7 @@ roslaunch bringup localization_gnss_imu_gt_ctra.launch \
 rostopic hz --wall-time -w 200 /localization/gt/orientation
 rostopic hz --wall-time -w 200 /localization/gt/twist
 rostopic hz --wall-time -w 200 /localization/kinematic_state
+rostopic hz --wall-time -w 200 /localization/acceleration
 ```
 
 ## 12. rosbag 기록

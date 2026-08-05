@@ -9,7 +9,7 @@ imu:
   # IMU orientation is normalized but not fused by the GT CTRA EKF.
   orientation_stddev_rad: 0.001745329252
   angular_velocity_stddev_radps: 0.001
-  linear_acceleration_stddev_mps2: 0.01
+  linear_acceleration_stddev_mps2: 0.05
 
 gnss:
   horizontal_stddev_m: 0.05
@@ -17,4 +17,4 @@ gnss:
 
 gt:
   heading_stddev_rad: 0.001745329252
-  longitudinal_velocity_stddev_mps: 0.05
+  longitudinal_velocity_stddev_mps: 0.01

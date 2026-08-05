@@ -38,6 +38,7 @@
   <arg name="local_odom_topic" default="/localization/odometry/local"/>
   <arg name="global_odom_topic" default="/localization/odom"/>
   <arg name="kinematic_state_topic" default="/localization/kinematic_state"/>
+  <arg name="acceleration_topic" default="/localization/acceleration"/>
   <arg name="initial_pose_topic" default="/localization/initialpose"/>
 
   <arg name="map_frame" default="map"/>
@@ -141,6 +142,7 @@
     <rosparam command="load" file="$(arg global_ekf_base_config)"/>
     <rosparam command="load" file="$(arg global_ekf_gt_config)"/>
     <remap from="odometry/filtered" to="$(arg global_odom_topic)"/>
+    <remap from="accel/filtered" to="$(arg acceleration_topic)"/>
     <remap from="set_pose" to="$(arg initial_pose_topic)"/>
   </node>
 
