@@ -218,10 +218,10 @@ class CtraPredictionNode(object):
             prev_list = self._prev_by_class.get(obj.class_label, [])
             omega = self._estimate_yaw_rate(obj, dt, prev_list)
 
+            # 현재 대회 시나리오의 추적 객체는 전진만 한다. velocity와
+            # heading의 내적으로 부호를 추정하면 곡선에서 값이 0을 지나며
+            # 실제로 후진하지 않은 객체의 진행 방향이 뒤집힐 수 있다.
             v = math.hypot(obj.velocity.x, obj.velocity.y)
-            # 부호(전진/후진)를 heading 투영으로 결정
-            if _project_to_scalar(obj.velocity, obj.heading) < 0:
-                v = -v
             a = _project_to_scalar(obj.acceleration, obj.heading)
 
             traj_points = []

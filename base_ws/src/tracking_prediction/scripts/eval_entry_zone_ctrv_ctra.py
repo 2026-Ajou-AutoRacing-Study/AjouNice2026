@@ -49,23 +49,22 @@ TELEPORT_THRESHOLD_M = 15.0
 OMEGA_EPS = 1e-4
 DECAY_LAMBDA_DEFAULT = 0.4
 
-HORIZONS_DEFAULT = [0.3, 0.5, 1.0, 1.5, 1.7, 2.0, 3.0]
+HORIZONS_DEFAULT = [0.0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0]
 
 
 def _heading_to_rad(heading):
     return math.radians(heading) if MORAI_HEADING_IN_DEGREES else heading
 
 
-def _project_to_scalar(vx, vy, heading):
-    return vx * math.cos(heading) + vy * math.sin(heading)
+def _longitudinal_speed_magnitude(record):
+    """Return forward speed magnitude.
 
-
-def _signed_longitudinal_speed(record):
-    """Return speed magnitude with the heading-direction sign convention."""
-    speed = math.hypot(record["vx"], record["vy"])
-    if _project_to_scalar(record["vx"], record["vy"], record["heading"]) < 0:
-        return -speed
-    return speed
+    MORAI NPCs in the evaluated scenarios do not reverse, and ObjectStatus
+    velocity components cannot be treated reliably as a map-frame vector for
+    deciding the sign. A heading dot product can therefore invent a direction
+    reversal while the vehicle is driving normally around a curve.
+    """
+    return math.hypot(record["vx"], record["vy"])
 
 
 def _norm_angle(a):
@@ -197,9 +196,7 @@ def _yaw_rate_series(records):
             continue
         dtheta = _norm_angle(cur["heading"] - prev["heading"])
         yaw_rate = dtheta / dt
-        v = math.hypot(cur["vx"], cur["vy"])
-        if _project_to_scalar(cur["vx"], cur["vy"], cur["heading"]) < 0:
-            v = -v
+        v = _longitudinal_speed_magnitude(cur)
         out.append({**cur, "yaw_rate": yaw_rate, "v": v})
     return out
 
@@ -321,11 +318,10 @@ def evaluate_samples(samples, horizons):
             continue
         dtheta = _norm_angle(rec["heading"] - prev["heading"])
         omega = dtheta / dt
-        # Keep the previous and current speeds in the same signed convention.
-        # Applying a sign only to v_cur creates a false direction reversal and
-        # can produce physically impossible acceleration estimates.
-        v_prev = _signed_longitudinal_speed(prev)
-        v_cur = _signed_longitudinal_speed(rec)
+        # MORAI NPCs are forward-only in this evaluation. Inferring a sign by
+        # projecting velocity onto heading can flip near zero on curved roads.
+        v_prev = _longitudinal_speed_magnitude(prev)
+        v_cur = _longitudinal_speed_magnitude(rec)
         a = (v_cur - v_prev) / dt
 
         for h in horizons:
@@ -359,8 +355,8 @@ def evaluate_samples_ade(samples, horizons, step=0.1, max_dt=0.05):
             continue
         dtheta = _norm_angle(rec["heading"] - prev["heading"])
         omega = dtheta / dt
-        v_prev = _signed_longitudinal_speed(prev)
-        v_cur = _signed_longitudinal_speed(rec)
+        v_prev = _longitudinal_speed_magnitude(prev)
+        v_cur = _longitudinal_speed_magnitude(rec)
         a = (v_cur - v_prev) / dt
 
         for h in horizons:
@@ -409,8 +405,8 @@ def export_raw_csv(output_path, horizons, approach_samples, depart_samples):
                     continue
                 dtheta = _norm_angle(rec["heading"] - prev["heading"])
                 omega = dtheta / dt
-                v_prev = _signed_longitudinal_speed(prev)
-                v_cur = _signed_longitudinal_speed(rec)
+                v_prev = _longitudinal_speed_magnitude(prev)
+                v_cur = _longitudinal_speed_magnitude(rec)
                 a = (v_cur - v_prev) / dt
 
                 for h in horizons:

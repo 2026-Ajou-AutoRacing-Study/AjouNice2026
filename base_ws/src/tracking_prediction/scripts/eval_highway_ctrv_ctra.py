@@ -35,23 +35,16 @@ TELEPORT_THRESHOLD_M = 15.0
 OMEGA_EPS = 1e-4
 DECAY_LAMBDA_DEFAULT = 0.4
 
-HORIZONS_DEFAULT = [0.3, 0.5, 0.7, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
+HORIZONS_DEFAULT = [0.0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0]
 
 
 def _heading_to_rad(heading):
     return math.radians(heading) if MORAI_HEADING_IN_DEGREES else heading
 
 
-def _project_to_scalar(vx, vy, heading):
-    return vx * math.cos(heading) + vy * math.sin(heading)
-
-
-def _signed_longitudinal_speed(record):
-    """Return speed magnitude with the heading-direction sign convention."""
-    speed = math.hypot(record["vx"], record["vy"])
-    if _project_to_scalar(record["vx"], record["vy"], record["heading"]) < 0:
-        return -speed
-    return speed
+def _longitudinal_speed_magnitude(record):
+    """Return forward speed magnitude for the forward-only MORAI NPC data."""
+    return math.hypot(record["vx"], record["vy"])
 
 
 def _norm_angle(a):
@@ -209,10 +202,10 @@ def export_raw_csv(output_path, horizons, samples):
                 continue
             dtheta = _norm_angle(rec["heading"] - prev["heading"])
             omega = dtheta / dt
-            # Keep both samples in one signed-speed convention so finite
-            # differencing cannot invent a direction reversal.
-            v_prev = _signed_longitudinal_speed(prev)
-            v_cur = _signed_longitudinal_speed(rec)
+            # Do not infer a sign from MORAI velocity components and heading:
+            # the projection can flip on curves although the NPC is forward.
+            v_prev = _longitudinal_speed_magnitude(prev)
+            v_cur = _longitudinal_speed_magnitude(rec)
             a = (v_cur - v_prev) / dt
 
             for h in horizons:
@@ -270,8 +263,8 @@ def evaluate_samples(samples, horizons):
             continue
         dtheta = _norm_angle(rec["heading"] - prev["heading"])
         omega = dtheta / dt
-        v_prev = _signed_longitudinal_speed(prev)
-        v_cur = _signed_longitudinal_speed(rec)
+        v_prev = _longitudinal_speed_magnitude(prev)
+        v_cur = _longitudinal_speed_magnitude(rec)
         a = (v_cur - v_prev) / dt
 
         for h in horizons:
@@ -300,8 +293,8 @@ def evaluate_samples_ade(samples, horizons, step=0.1, max_dt=0.05):
             continue
         dtheta = _norm_angle(rec["heading"] - prev["heading"])
         omega = dtheta / dt
-        v_prev = _signed_longitudinal_speed(prev)
-        v_cur = _signed_longitudinal_speed(rec)
+        v_prev = _longitudinal_speed_magnitude(prev)
+        v_cur = _longitudinal_speed_magnitude(rec)
         a = (v_cur - v_prev) / dt
 
         for h in horizons:

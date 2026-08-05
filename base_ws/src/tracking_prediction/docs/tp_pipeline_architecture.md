@@ -117,7 +117,7 @@ PredictedTrajectoryPoint: time_offset(초), position(x,y,z), heading(rad)
 **주의(경로 다중점 필요) — `tracking_and_prediction_ekf_for_planning.launch` 사용:**
 판단팀의 cut-in 감지 로직(`bpp_dynamic_avoidance_tools.py`의 `_predicted_path_cuts_in`)이 `kinematics.predicted_paths[].path`를 시간에 따라 이어진 경로로 순회하기 때문에, 우리가 최종 채택한 단일 horizon(1.5s) 점 하나만으로는 부족함. 이 브릿지를 실사용하려면 `prediction.launch`의 `~horizons`를 여러 값의 등간격 리스트로 띄워야 하며, 이를 위해 `tracking_and_prediction_ekf.launch`는 그대로 두고 별도로 `tracking_and_prediction_ekf_for_planning.launch`를 만들어 이 오버라이드 + 브릿지 포함을 함께 처리함.
 
-2026-08-03부터 판단 연결용 기본값은 장기 오차와 RViz 형상을 함께 확인하기 위해 `[0.0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0]`으로 확장함. `t=0.0` 현재 위치를 첫 점으로 포함해서 Autoware `PredictedPath` 소비자가 `path[index]`를 `index * time_step` 시각으로 올바르게 해석하게 함. **이는 "실사용 horizon=1.5s" 안전성 결정을 3.0s로 변경했다는 뜻이 아니다.** 1.8~3.0초 점은 검토용이며, 판단에서 안전성이 검증된 범위를 사용할 때는 기존 1.5초 기준을 유지해야 함.
+2026-08-03부터 판단 연결용 기본값은 장기 오차와 RViz 형상을 함께 확인하기 위해 `0.0~3.0초`를 `0.1초` 간격(총 31점)으로 확장함. `t=0.0` 현재 위치를 첫 점으로 포함해서 Autoware `PredictedPath` 소비자가 `path[index]`를 `index * time_step` 시각으로 올바르게 해석하게 함. 오프라인 성능평가는 대표 시점의 추세를 간결하게 비교하기 위해 `0.0~3.0초`를 `0.3초` 간격으로 평가함. **이는 "실사용 horizon=1.5s" 안전성 결정을 3.0s로 변경했다는 뜻이 아니다.** 1.8~3.0초 점은 검토용이며, 판단에서 안전성이 검증된 범위를 사용할 때는 기존 1.5초 기준을 유지해야 함.
 
 ---
 
