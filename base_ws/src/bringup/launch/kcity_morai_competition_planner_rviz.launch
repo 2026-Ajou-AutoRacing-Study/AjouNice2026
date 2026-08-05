@@ -7,7 +7,10 @@
   <arg name="frame_id" default="map" />
   <arg name="route_preset" default="full" />
   <arg name="planning_hz" default="10.0" />
-  <arg name="default_velocity_mps" default="8.0" />
+  <!-- Public speed input is km/h; Planner internals and ROS trajectories use m/s. -->
+  <arg name="default_velocity_kph" default="28.8" />
+  <arg name="default_velocity_mps"
+       default="$(eval float(arg('default_velocity_kph')) / 3.6)" />
   <arg name="control_trajectory_topic" default="/control/trajectory" />
   <arg name="raw_trajectory_topic"
        default="/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/raw_trajectory" />
