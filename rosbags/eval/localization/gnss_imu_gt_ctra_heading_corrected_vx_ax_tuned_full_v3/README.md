@@ -79,10 +79,10 @@ source devel/setup.bash
 roscore
 ```
 
-### 터미널 2 — Lanelet v60·MGeo 중심선·차량·RViz
+### 터미널 2 — Lanelet v60·MGeo 중심선·차량·Global Minimap·RViz
 
 ```bash
-# Lanelet v60과 MGeo 중심선, 차량 모델 및 RViz 실행
+# Lanelet v60, MGeo 중심선, 차량 모델, 2D minimap 및 RViz 실행
 cd ~/AjouNice2026/base_ws
 source devel/setup.bash
 
@@ -90,11 +90,33 @@ rosparam set /use_sim_time true
 
 roslaunch localization_manager \
   gnss_imu_lanelet_rviz.launch \
-  lanelet_map_file:=/home/luv/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v60.osm
+  lanelet_map_file:=/home/luv/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v60.osm \
+  show_minimap:=true
 ```
 
 이 launch는 `map -> morai_map`을 발행하지 않는다. 터미널 4에서 재생하는
 localization 결과 bag의 `/tf_static`을 사용한다.
+
+`localization_minimap_publisher.py`는 RViz와 동일한
+`/map/lanelet_map` 및 `/localization/kinematic_state`를 이용하여 다음
+이미지를 `10 Hz`로 생성한다.
+
+```text
+/localization/minimap/image
+  - North-up 전체 Lanelet 지도
+  - 현재 localization 위치와 heading
+  - 현재까지의 localization 주행 경로
+  - 현재 수평 속력
+```
+
+RViz 설정에는 `Global Minimap`이라는 `Image` display가 기본 활성화되어
+있다. RViz/Qt의 이전 창 배치 상태에 따라 처음에는 다른 위치에 열릴 수
+있으며, 이 경우 `Global Minimap` dock의 제목을 잡아 왼쪽 아래로 이동한
+뒤 `File -> Save Config`로 현재 RViz 설정에 덮어쓴다.
+
+minimap은 기존 bag에 저장된 영상이 아니라 재생 중 실시간으로 다시
+그려진다. 따라서 터미널 3과 4의 bag 및 topic 목록에는
+`/localization/minimap/image`를 추가할 필요가 없다.
 
 ### 터미널 3 — GT·측위 경로와 오차 Marker
 
@@ -146,3 +168,9 @@ rosbag play --clock --pause \
 ```
 
 `Space`로 재생을 시작한다.
+
+터미널 4의 `/localization/kinematic_state`가 재생되기 시작하면
+`Global Minimap`에 차량 삼각형, 누적 경로와 속도가 나타난다. 재생 전
+일시정지 상태에서는 simulated clock이 진행되지 않아 Image panel이
+비어 있거나 지도 배경과 `waiting for localization`만 표시되는 것이
+정상이다.

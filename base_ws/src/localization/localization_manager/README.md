@@ -165,20 +165,23 @@ launch below instead of displaying the unmodified 3D Lanelet map:
 
 ```bash
 roslaunch localization_manager gnss_imu_lanelet_rviz.launch \
-  lanelet_map_file:=$HOME/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v60.osm
+  lanelet_map_file:=$HOME/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v60.osm \
+  show_minimap:=true
 ```
 
 The map path is explicit because `lanelet2_map_v60.osm` may be delivered
 separately from the tracked repository. It uses the existing
 `map_projector_info_v1.yaml`; no additional JSON metadata is required.
 
-It performs three visualization-only operations:
+It performs these visualization-only operations:
 
 1. flattens the Lanelet elevation;
 2. publishes it in `lanelet_ground`, located 0.3705 m below `map`;
 3. flattens and publishes the optional MGeo overlay at the same ground height;
 4. restores the LiDAR/camera static TFs omitted from the compact result bag;
-5. starts the IONIQ5 RobotModel and the localization evaluation RViz config.
+5. publishes a north-up global minimap from the Lanelet markers and localization
+   state;
+6. starts the IONIQ5 RobotModel and the localization evaluation RViz config.
 
 The localization pose, TF, sensor configuration, OSM source, and vehicle URDF
 are not modified. Override `lanelet_z_offset` only if the vehicle mesh or
@@ -191,7 +194,7 @@ required topics:
 ```bash
 rosbag play --clock --pause \
   rosbags/raw_sensor/competition_route_full_highspeed.bag \
-  rosbags/eval/localization/gnss_imu_gt_ctra_heading_corrected_full_v1/gnss_imu_gt_ctra_heading_corrected_full_v1.bag \
+  rosbags/eval/localization/gnss_imu_gt_ctra_heading_corrected_vx_ax_tuned_full_v3/gnss_imu_gt_ctra_heading_corrected_vx_ax_tuned_full_v3.bag \
   --topics \
   /sensor/lidar1 \
   /sensor/camera/front/compressed \
@@ -199,6 +202,7 @@ rosbag play --clock --pause \
   /sensor/camera/front_right/compressed \
   /sensor/camera/back/compressed \
   /localization/kinematic_state \
+  /localization/acceleration \
   /tf \
   /tf_static
 ```
@@ -237,6 +241,14 @@ Disable only this debug visualization with `show_state_overlay:=false`.
 The optional blue `mgeo_inferred_width_edges` lines are not surveyed/native
 road boundaries. They are inferred by offsetting each MGeo link centerline by
 half of `width_start`/`width_end`, so they can differ from LiDAR-visible paint.
+
+The same launch also starts `localization_minimap_publisher.py` by default.
+It publishes `/localization/minimap/image` as a `480x480` `bgr8`
+`sensor_msgs/Image` at 10 Hz. The `Global Minimap` RViz Image display shows the
+north-up Lanelet overview, current localization pose and heading, accumulated
+state path, and horizontal speed. The image is regenerated from the existing
+map and state during replay, so it does not need to be recorded in the bag.
+Disable it with `show_minimap:=false`.
 
 ## GNSS + IMU + GT CTRA-like provider (experimental)
 

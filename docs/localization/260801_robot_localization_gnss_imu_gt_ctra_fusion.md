@@ -728,8 +728,9 @@ LiDAR와 카메라는 같은 시작·종료 timestamp를 가진 원본 bag에서
   rosbags/raw_sensor/competition_route_full_highspeed.bag
 
 최종 localization:
-  rosbags/eval/localization/gnss_imu_gt_ctra_heading_corrected_full_v1/
-    gnss_imu_gt_ctra_heading_corrected_full_v1.bag
+  rosbags/eval/localization/
+    gnss_imu_gt_ctra_heading_corrected_vx_ax_tuned_full_v3/
+      gnss_imu_gt_ctra_heading_corrected_vx_ax_tuned_full_v3.bag
 ```
 
 ### 터미널 1: ROS master
@@ -742,13 +743,13 @@ source devel/setup.bash
 roscore
 ```
 
-### 터미널 2: 지도·차량·센서 TF·RViz
+### 터미널 2: 지도·차량·센서 TF·Global Minimap·RViz
 
 통합 RViz에서는 MGeo link 중심선만 기본 발행한다. 폭 기반 추정 경계,
 노드, 신호, 원점 축 및 메타데이터는 기본적으로 발행하지 않는다.
 
 ```bash
-# Lanelet·MGeo 중심선·차량·센서 TF와 통합 RViz 실행
+# Lanelet·MGeo 중심선·차량·센서 TF·2D minimap과 통합 RViz 실행
 cd ~/AjouNice2026/base_ws
 source devel/setup.bash
 
@@ -756,7 +757,8 @@ rosparam set /use_sim_time true
 
 roslaunch localization_manager \
   gnss_imu_lanelet_rviz.launch \
-  lanelet_map_file:=/home/luv/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v60.osm
+  lanelet_map_file:=/home/luv/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v60.osm \
+  show_minimap:=true
 ```
 
 `lanelet2_map_v60.osm`은 OSM 내부 위·경도와 기존
@@ -774,6 +776,17 @@ roslaunch localization_manager \
 
 이 표시는 측위 결과를 변경하지 않는 디버그 시각화다. 필요하면 launch에
 `show_state_overlay:=false`를 추가하여 끌 수 있다.
+
+동일 launch는 기본적으로 `localization_minimap_publisher.py`도 실행한다.
+이 노드는 `/map/lanelet_map`과 `/localization/kinematic_state`로
+North-up 전역 지도를 그려 `/localization/minimap/image`에 `bgr8`
+이미지를 `10 Hz`로 발행한다. RViz의 `Global Minimap` Image display에는
+전체 Lanelet, 현재 차량 위치·heading·속도 및 재생 시작 이후 누적
+localization 경로가 나타난다.
+
+minimap은 rosbag에 저장된 영상이 아니라 기존 state를 이용해 재생 중
+생성되므로 rosbag topic 목록을 변경하지 않는다. 필요하면 launch에
+`show_minimap:=false`를 추가하여 끌 수 있다.
 
 선택적으로 `show_mgeo_width_edges:=true`를 주면 나타나는 파란 양쪽
 선의 namespace는
@@ -807,13 +820,17 @@ cd ~/AjouNice2026
 source base_ws/devel/setup.bash
 
 python3 scripts/evaluation/localization/eval_localization_state_with_rviz.py \
-  rosbags/eval/localization/gnss_imu_gt_ctra_heading_corrected_full_v1/gnss_imu_gt_ctra_heading_corrected_full_v1.bag \
+  rosbags/eval/localization/gnss_imu_gt_ctra_heading_corrected_vx_ax_tuned_full_v3/gnss_imu_gt_ctra_heading_corrected_vx_ax_tuned_full_v3.bag \
   --state-topic /localization/kinematic_state \
   --sensor-config configs/sensors/Sensor.json \
   --ego-velocity-unit mps \
   --ego-heading-yaw-offset-deg -1.347 \
+  --alignment-reference-sec 0.0 \
+  --alignment-yaw-mode none \
   --rviz-ground-z -0.3105 \
-  --out /tmp/gnss_imu_gt_ctra_rviz.csv \
+  --position-error-threshold 1.0 \
+  --speed-error-threshold 0.5 \
+  --yaw-rate-error-threshold 0.1 \
   --publish-rviz
 ```
 
@@ -829,7 +846,7 @@ source devel/setup.bash
 
 rosbag play --clock --pause \
   /home/luv/AjouNice2026/rosbags/raw_sensor/competition_route_full_highspeed.bag \
-  /home/luv/AjouNice2026/rosbags/eval/localization/gnss_imu_gt_ctra_heading_corrected_full_v1/gnss_imu_gt_ctra_heading_corrected_full_v1.bag \
+  /home/luv/AjouNice2026/rosbags/eval/localization/gnss_imu_gt_ctra_heading_corrected_vx_ax_tuned_full_v3/gnss_imu_gt_ctra_heading_corrected_vx_ax_tuned_full_v3.bag \
   --topics \
   /sensor/lidar1 \
   /sensor/camera/front/compressed \
@@ -837,6 +854,7 @@ rosbag play --clock --pause \
   /sensor/camera/front_right/compressed \
   /sensor/camera/back/compressed \
   /localization/kinematic_state \
+  /localization/acceleration \
   /tf \
   /tf_static
 ```
@@ -849,6 +867,9 @@ TF 경고를 표시할 수 있다.
 
 ```text
 Fixed Frame: map
+
+Global Minimap
+  /localization/minimap/image + raw transport
 
 Vehicle
   IONIQ5 RobotModel

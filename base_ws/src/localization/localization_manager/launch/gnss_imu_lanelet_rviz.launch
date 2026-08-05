@@ -22,7 +22,12 @@
   <arg name="show_mgeo_width_edges" default="false"/>
   <arg name="show_mgeo_details" default="false"/>
   <arg name="show_state_overlay" default="true"/>
+  <arg name="show_minimap" default="true"/>
   <arg name="kinematic_state_topic" default="/localization/kinematic_state"/>
+  <arg name="minimap_topic" default="/localization/minimap/image"/>
+  <arg name="minimap_width" default="480"/>
+  <arg name="minimap_height" default="480"/>
+  <arg name="minimap_publish_rate" default="10.0"/>
   <arg name="start_rviz" default="true"/>
   <arg name="rviz_config"
        default="$(find localization_manager)/rviz/gnss_imu_evaluation.rviz"/>
@@ -58,6 +63,20 @@
         output="screen">
     <param name="state_topic" value="$(arg kinematic_state_topic)"/>
     <param name="output_topic" value="/localization/debug/state_markers"/>
+  </node>
+
+  <!-- North-up Lanelet overview with localization path, pose and speed. -->
+  <node if="$(arg show_minimap)"
+        pkg="localization_manager"
+        type="localization_minimap_publisher.py"
+        name="localization_minimap_publisher"
+        output="screen">
+    <param name="map_topic" value="/map/lanelet_map"/>
+    <param name="state_topic" value="$(arg kinematic_state_topic)"/>
+    <param name="output_topic" value="$(arg minimap_topic)"/>
+    <param name="width" value="$(arg minimap_width)"/>
+    <param name="height" value="$(arg minimap_height)"/>
+    <param name="publish_rate" value="$(arg minimap_publish_rate)"/>
   </node>
 
   <group if="$(arg start_mgeo)">
