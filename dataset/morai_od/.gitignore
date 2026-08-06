@@ -1,0 +1,34 @@
+# Python/runtime artifacts
+__pycache__/
+*.py[cod]
+*.log
+tmp/
+temp/
+
+# Large sensor and training artifacts must live under AJOUNICE_DATA_ROOT.
+raw/
+captures/
+rosbags/
+processed/
+checkpoints/
+
+# Prevent accidental addition if binary data is placed elsewhere below here.
+*.bag
+*.bag.active
+*.pcd
+*.bin
+*.pth
+*.pt
+*.onnx
+*.engine
+*.tar
+*.tar.gz
+*.zip
+
+# Sensor images are external data. Small documentation images should go in
+# the repository's existing docs directories instead.
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.tiff
