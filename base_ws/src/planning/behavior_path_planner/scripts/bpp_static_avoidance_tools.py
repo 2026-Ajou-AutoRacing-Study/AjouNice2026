@@ -198,6 +198,7 @@ class StaticAvoidanceParameters:
     base_link_to_rear: float = 1.1
     enable_rtc_left: bool = False
     enable_rtc_right: bool = False
+    debug_log_unknown_objects: bool = False
     target_labels: set = field(default_factory=set)
     object_policies: dict = field(default_factory=dict)
 
@@ -206,6 +207,13 @@ class StaticAvoidanceParameters:
         params = cls()
         params.use_lane_type = str(
             _get_param(prefix, "use_lane_type", params.use_lane_type)
+        )
+        params.debug_log_unknown_objects = _as_bool(
+            _get_param(
+                prefix,
+                "debug/log_unknown_objects",
+                params.debug_log_unknown_objects,
+            )
         )
         params.use_intersection_areas = _as_bool(
             _get_param(
@@ -513,7 +521,7 @@ class StaticAvoidanceParameters:
             (ObjectClassification.TRUCK, "truck", 1.0, 2.0, 0.5, 0.2, 0.2, 0.0, 0.1),
             (ObjectClassification.BUS, "bus", 1.0, 2.0, 0.5, 0.2, 0.2, 0.0, 0.1),
             (ObjectClassification.TRAILER, "trailer", 1.0, 2.0, 0.5, 0.2, 0.2, 0.0, 0.1),
-            (ObjectClassification.UNKNOWN, "unknown", 0.28, 1.0, 0.5, -0.2, -0.2, 0.0, 0.1),
+            (ObjectClassification.UNKNOWN, "unknown", 0.28, 1.0, 0.5, 0.2, 0.7, 0.0, 0.1),
             (ObjectClassification.BICYCLE, "bicycle", 0.28, 1.0, 0.7, 0.5, 0.2, 0.6, 0.5),
             (ObjectClassification.MOTORCYCLE, "motorcycle", 1.0, 1.0, 0.5, 0.3, 0.2, 0.6, 0.5),
             (ObjectClassification.PEDESTRIAN, "pedestrian", 0.28, 1.0, 0.7, 0.5, 0.2, 0.6, 0.5),
@@ -681,6 +689,7 @@ class StaticAvoidanceEngine:
         self._unsafe_latched = False
         self._safe_count = 0
         self._last_signature = None
+        self._unknown_log_times = {}
 
     def set_centerline_map(self, centerline_map):
         self.centerline_map = centerline_map
@@ -713,6 +722,60 @@ class StaticAvoidanceEngine:
     def _policy(self, label):
         return self.params.object_policies.get(
             int(label), self.params.object_policies[ObjectClassification.UNKNOWN]
+        )
+
+    def _log_unknown_candidate(self, candidate, detection_distance, now):
+        """Emit one concise, per-object diagnostic each second for UNKNOWN objects."""
+        if (
+            not self.params.debug_log_unknown_objects
+            or candidate.label != ObjectClassification.UNKNOWN
+        ):
+            return
+
+        last_log_time = self._unknown_log_times.get(candidate.object_id)
+        if last_log_time is not None and now - last_log_time < 1.0:
+            return
+        self._unknown_log_times[candidate.object_id] = now
+        self._unknown_log_times = {
+            object_id: logged_at
+            for object_id, logged_at in self._unknown_log_times.items()
+            if now - logged_at < 30.0
+        }
+
+        pose = object_pose(candidate.message)
+        policy = self._policy(candidate.label)
+        direction = (
+            "left"
+            if candidate.shift_length > 0.0
+            else "right" if candidate.shift_length < 0.0 else "none"
+        )
+        rospy.loginfo(
+            "static_obstacle_avoidance [UNKNOWN] id=%s map=(%.2f, %.2f) "
+            "relative=(s=%.2fm, l=%.2fm) detection=%.1fm "
+            "bounds=current[L=%.2f,R=%.2f] expanded[L=%.2f,R=%.2f]m "
+            "lane_policy=%s margin[hard=%.2f,soft=%.2f] "
+            "decision[required=%s, allowed=%s, shift=%s %.2fm, "
+            "available=%.2fm, stopped=%.1fs, reason=%s]",
+            candidate.object_id,
+            pose.position.x,
+            pose.position.y,
+            candidate.relative_longitudinal,
+            candidate.lateral,
+            detection_distance,
+            candidate.current_left_bound,
+            candidate.current_right_bound,
+            candidate.expanded_left_bound,
+            candidate.expanded_right_bound,
+            self.params.use_lane_type,
+            policy.parked_hard_margin if candidate.is_parked else policy.hard_margin,
+            policy.soft_margin,
+            candidate.avoid_required,
+            candidate.allow_avoidance,
+            direction,
+            candidate.shift_length,
+            candidate.available_shift,
+            candidate.stopped_time,
+            candidate.failed_reason or "ok",
         )
 
     def _update_tracks(self, objects, stamp):
@@ -1271,6 +1334,7 @@ class StaticAvoidanceEngine:
                 continue
             if candidate.avoid_required:
                 self._desired_shift(candidate, ego_speed, path_end)
+            self._log_unknown_candidate(candidate, detection, now)
             candidates.append(candidate)
 
         targets = [candidate for candidate in candidates if candidate.allow_avoidance]

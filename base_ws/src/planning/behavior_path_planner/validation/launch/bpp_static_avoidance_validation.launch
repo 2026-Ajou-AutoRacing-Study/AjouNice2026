@@ -57,8 +57,8 @@
     <param name="avoidance/target_object/car/th_moving_speed" value="1.0" />
     <param name="avoidance/target_object/car/th_moving_time" value="2.0" />
     <param name="avoidance/target_object/car/lateral_margin/soft_margin" value="0.5" />
-    <param name="avoidance/target_object/car/lateral_margin/hard_margin" value="0.2" />
-    <param name="avoidance/target_object/car/lateral_margin/hard_margin_for_parked_vehicle" value="0.2" />
+    <param name="avoidance/target_object/car/lateral_margin/hard_margin" value="3.0" />
+    <param name="avoidance/target_object/car/lateral_margin/hard_margin_for_parked_vehicle" value="3.0" />
     <rosparam param="avoidance/constraints/lateral/min_jerk_values/avoid">[0.2, 0.2, 0.2]</rosparam>
     <rosparam param="avoidance/constraints/lateral/min_jerk_values/return">[0.2, 0.2, 0.2]</rosparam>
     <rosparam param="avoidance/constraints/lateral/max_jerk_values">[3.0, 3.0, 3.0]</rosparam>

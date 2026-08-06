@@ -64,7 +64,7 @@ drivable_area_generation:
     start_duration_to_avoid: 1.0
     end_duration_to_avoid: 0.0
 
-vehicle_width: 1.896
-base_link_to_front: 3.79
-base_link_to_rear: 1.1
+vehicle_width: 1.892
+base_link_to_front: 3.845
+base_link_to_rear: 0.790
 default_bound_width: 2.5

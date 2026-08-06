@@ -17,7 +17,7 @@ motion:
   safe_margin: 2.0
   path_interpolation_ds: 0.1
 vehicle:
-  base_link_to_front: 3.79
+  base_link_to_front: 3.845
 detection_area:
   min_occlusion_spot_size: 1.0
   slice_length: 10.0

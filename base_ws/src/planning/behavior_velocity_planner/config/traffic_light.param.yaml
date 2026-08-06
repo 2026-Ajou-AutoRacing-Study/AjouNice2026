@@ -14,7 +14,7 @@ v2i:
   last_time_allowed_to_pass: 2.0
   velocity_threshold: 0.5
   required_time_to_departure: 3.0
-base_link_to_front: 3.79
+base_link_to_front: 3.845
 max_detection_distance: 200.0
 passed_deadline: -2.0
 restart_length: 1.0
