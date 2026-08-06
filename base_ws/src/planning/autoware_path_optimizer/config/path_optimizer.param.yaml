@@ -9,8 +9,8 @@ common:
   vehicle_stop_margin_outside_drivable_area: 1.0
 
 vehicle:
-  width: 1.896
-  wheel_base: 2.79
+  width: 1.892
+  wheel_base: 3.000
   max_steer_angle: 0.61
 
 replan:

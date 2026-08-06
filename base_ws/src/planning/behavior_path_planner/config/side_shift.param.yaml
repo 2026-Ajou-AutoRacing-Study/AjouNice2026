@@ -7,4 +7,4 @@ shift_request_time_limit: 1.0
 drivable_area_check_mode: 1
 min_drivable_area_margin: 0.3
 publish_debug_marker: false
-vehicle_width: 1.896
+vehicle_width: 1.892

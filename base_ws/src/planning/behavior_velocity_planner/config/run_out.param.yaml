@@ -14,7 +14,7 @@ objects:
   target_labels: [PEDESTRIAN, BICYCLE, MOTORCYCLE]
 stopped_velocity_threshold: 0.25
 min_slowdown_velocity: 1.0
-ego_width: 1.9
-base_link_to_front: 3.79
+ego_width: 1.892
+base_link_to_front: 3.845
 expected_ego_acceleration: 0.7
 path_interpolation_ds: 0.1

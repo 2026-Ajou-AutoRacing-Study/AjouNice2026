@@ -39,5 +39,5 @@ rtc:
   status_topic: /planning/cooperate_status/start_planner
   command_service: /planning/cooperate_commands/start_planner
   auto_mode_service: /planning/enable_auto_mode/start_planner
-vehicle_width: 1.896
-vehicle_length: 4.89
+vehicle_width: 1.892
+vehicle_length: 4.635
