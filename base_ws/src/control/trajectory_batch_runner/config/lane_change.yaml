@@ -1,0 +1,13 @@
+# Highway Lane Change batch에 사용할 설정 조합이다.
+config_version: 4
+
+includes:
+  runtime: "runtime/default.yaml"
+  map: "map/kcity.yaml"
+  batch: "batch/lane_change.yaml"
+  scenario: "scenario/start_pos.yaml"
+  monitoring: "monitoring/default.yaml"
+
+# 모든 파일 경로는 저장소 루트 기준으로 작성한다.
+path_resolution:
+  repository_root_from_config: "../../../../.."
