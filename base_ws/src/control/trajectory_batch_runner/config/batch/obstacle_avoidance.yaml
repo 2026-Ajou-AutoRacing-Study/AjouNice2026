@@ -1,0 +1,27 @@
+# Obstacle Avoidance batch의 입력과 결과 위치다.
+
+batch:
+  name: "obstacle_avoidance"
+  experiment_type: "obstacle_avoidance"
+  manifest_csv: "base_ws/src/control/trajectory_batch_runner/manifests/obstacle_avoidance_manifest.csv"
+
+paths:
+  directories:
+    # manifest의 trajectory_file은 이 폴더를 기준으로 찾는다.
+    trajectory_directory: "base_ws/src/control/trajectory_generator/traj_sample/obstacle_avoidance"
+    # manifest의 scenario_file은 이 폴더 안의 JSON 파일명을 가리킨다.
+    # scenario_directory는 scenario/start_pos.yaml에서 정의한다.
+    # trajectory_validator가 기록하는 기존 결과 폴더다.
+    validator_history_root: "base_ws/src/control/trajectory_validator/history"
+
+manifest:
+  order_column: "iteration"
+  required_columns:
+    - "iteration"
+    - "experiment_type"
+    - "sub_type"
+    - "trajectory_file"
+    - "scenario_file"
+    - "speed_kph"
+  unique_columns:
+    - "iteration"
