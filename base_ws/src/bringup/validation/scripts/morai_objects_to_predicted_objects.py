@@ -70,6 +70,18 @@ def rotate_vector(vector, quaternion, scale=1.0):
     return output
 
 
+def rotate_vector_by_yaw(vector, yaw, scale=1.0):
+    """Rotate an object-frame vector into its MORAI source frame."""
+    vx = float(vector.x) * float(scale)
+    vy = float(vector.y) * float(scale)
+
+    output = Vector3()
+    output.x = math.cos(yaw) * vx - math.sin(yaw) * vy
+    output.y = math.sin(yaw) * vx + math.cos(yaw) * vy
+    output.z = float(vector.z) * float(scale)
+    return output
+
+
 def stable_object_uuid(category, unique_id):
     """Generate a stable 128-bit ID without assuming MORAI IDs fit UUID fields."""
     value = uuid.uuid5(
@@ -87,6 +99,7 @@ def make_predicted_object(
     velocity_scale_to_mps=1.0,
     acceleration_scale_to_mps2=1.0,
     classification_probability=1.0,
+    kinematics_in_object_frame=True,
 ):
     """Convert one MORAI object, optionally applying source-to-target TF."""
     size_x = bounded_dimension(detected_object.size.x)
@@ -128,27 +141,38 @@ def make_predicted_object(
     output.classification = [classification]
 
     output.kinematics.initial_pose_with_covariance.pose = target_pose.pose
-    if rotation is None:
-        identity_rotation = Quaternion(w=1.0)
-        velocity = rotate_vector(
-            detected_object.velocity,
-            identity_rotation,
-            velocity_scale_to_mps,
+    # MORAI ObjectPacket velocity/acceleration are expressed in each object's
+    # heading frame.  Convert them to the MORAI map frame first, then apply
+    # the static MORAI-map -> map transform.  Skipping the first rotation made
+    # a pedestrian walking across the lane appear to move sideways in map,
+    # so the dynamic-obstacle swept-path check did not intersect ego's path.
+    if kinematics_in_object_frame:
+        source_velocity = rotate_vector_by_yaw(
+            detected_object.velocity, yaw, velocity_scale_to_mps
         )
-        acceleration = rotate_vector(
-            detected_object.acceleration,
-            identity_rotation,
-            acceleration_scale_to_mps2,
+        source_acceleration = rotate_vector_by_yaw(
+            detected_object.acceleration, yaw, acceleration_scale_to_mps2
         )
     else:
-        velocity = rotate_vector(
-            detected_object.velocity, rotation, velocity_scale_to_mps
+        source_velocity = Vector3(
+            x=float(detected_object.velocity.x) * velocity_scale_to_mps,
+            y=float(detected_object.velocity.y) * velocity_scale_to_mps,
+            z=float(detected_object.velocity.z) * velocity_scale_to_mps,
         )
-        acceleration = rotate_vector(
-            detected_object.acceleration,
-            rotation,
-            acceleration_scale_to_mps2,
+        source_acceleration = Vector3(
+            x=float(detected_object.acceleration.x) * acceleration_scale_to_mps2,
+            y=float(detected_object.acceleration.y) * acceleration_scale_to_mps2,
+            z=float(detected_object.acceleration.z) * acceleration_scale_to_mps2,
         )
+
+    velocity = rotate_vector(
+        source_velocity,
+        rotation if rotation is not None else Quaternion(w=1.0),
+    )
+    acceleration = rotate_vector(
+        source_acceleration,
+        rotation if rotation is not None else Quaternion(w=1.0),
+    )
     output.kinematics.initial_twist_with_covariance.twist.linear = velocity
     output.kinematics.initial_acceleration_with_covariance.accel.linear = (
         acceleration
@@ -170,6 +194,7 @@ def make_predicted_objects(
     velocity_scale_to_mps=1.0,
     acceleration_scale_to_mps2=1.0,
     classification_probability=1.0,
+    kinematics_in_object_frame=True,
 ):
     """Convert a complete MORAI object list into planner input."""
     source_header = copy.deepcopy(message.header)
@@ -197,6 +222,7 @@ def make_predicted_objects(
                     velocity_scale_to_mps,
                     acceleration_scale_to_mps2,
                     classification_probability,
+                    kinematics_in_object_frame,
                 )
             )
     return output
@@ -219,6 +245,9 @@ class MoraiObjectsToPredictedObjects:
         )
         self.classification_probability = float(
             rospy.get_param("~classification_probability", 1.0)
+        )
+        self.kinematics_in_object_frame = bool(
+            rospy.get_param("~kinematics_in_object_frame", True)
         )
         self.tf_timeout_sec = float(rospy.get_param("~tf_timeout_sec", 0.2))
         input_topic = rospy.get_param("~input_topic", "/Object_topic")
@@ -279,6 +308,7 @@ class MoraiObjectsToPredictedObjects:
                 self.velocity_scale_to_mps,
                 self.acceleration_scale_to_mps2,
                 self.classification_probability,
+                self.kinematics_in_object_frame,
             )
         )
 

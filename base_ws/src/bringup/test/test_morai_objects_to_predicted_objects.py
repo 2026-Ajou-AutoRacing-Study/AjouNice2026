@@ -46,7 +46,7 @@ def identity_transform():
 
 
 class MoraiObjectBridgeTest(unittest.TestCase):
-    def test_npc_fields_and_si_velocity(self):
+    def test_npc_fields_and_object_frame_velocity(self):
         message = ObjectStatusList()
         message.header.frame_id = "morai_map"
         message.header.stamp = rospy.Time(12.0)
@@ -82,10 +82,34 @@ class MoraiObjectBridgeTest(unittest.TestCase):
         )
         self.assertAlmostEqual(
             converted.kinematics.initial_twist_with_covariance.twist.linear.x,
+            0.0,
+            places=6,
+        )
+        self.assertAlmostEqual(
+            converted.kinematics.initial_twist_with_covariance.twist.linear.y,
             10.0,
             places=6,
         )
         self.assertEqual(len(converted.object_id.uuid), 16)
+
+    def test_global_kinematics_can_be_selected_explicitly(self):
+        message = ObjectStatusList()
+        message.header.frame_id = "morai_map"
+        message.npc_list = [
+            detected_object(42, heading=90.0, velocity_x=10.0)
+        ]
+
+        converted = BRIDGE.make_predicted_objects(
+            message,
+            identity_transform(),
+            kinematics_in_object_frame=False,
+        ).objects[0]
+        velocity = (
+            converted.kinematics.initial_twist_with_covariance.twist.linear
+        )
+
+        self.assertAlmostEqual(velocity.x, 10.0, places=6)
+        self.assertAlmostEqual(velocity.y, 0.0, places=6)
 
     def test_tf_rotates_pose_heading_and_velocity(self):
         message = ObjectStatusList()

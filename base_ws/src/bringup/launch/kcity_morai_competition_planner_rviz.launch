@@ -182,6 +182,8 @@
     <!-- sensor_interface publishes ObjectStatus velocity in SI units (m/s). -->
     <param name="velocity_scale_to_mps" value="1.0" />
     <param name="acceleration_scale_to_mps2" value="1.0" />
+    <!-- MORAI ObjectPacket kinematics use the object's heading frame. -->
+    <param name="kinematics_in_object_frame" value="true" />
     <param name="classification_probability" value="1.0" />
   </node>
 
