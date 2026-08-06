@@ -21,7 +21,7 @@
       },
       "initLink": "A2256W000420",
       "initLinkRatio": 0.29518072289156627,
-      "gear": 1,
+      "gear": 4,
       "vehicleSaveData": {
         "velocity": 0.0,
         "inputData": [
@@ -31,7 +31,7 @@
           0,
           0,
           0,
-          1,
+          4,
           0,
           0,
           0,

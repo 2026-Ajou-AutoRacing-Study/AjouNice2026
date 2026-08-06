@@ -1,7 +1,20 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "purpose": "MORAI ROS ScenarioLoad and SaveSensorData proof of concept",
   "map_name": "R_KR_PR_K-city_2025",
+  "network_policy": {
+    "transport": "rosbridge",
+    "load_network_connection_data": true,
+    "required_topics": [
+      "/ScenarioLoad",
+      "/SaveSensorData",
+      "/Ego_topic",
+      "/Object_topic",
+      "/ego_setting"
+    ],
+    "template_sha256": "6576f72e6b3a8399bc9e491900b6b6517d8fc0457a01ca5061e76a750d269d1a",
+    "note": "Each scenario must have EgoNetwork/<stem>_MN.json copied from a ROS bridge profile saved by the target MORAI version."
+  },
   "environment": {
     "weather": "sunny",
     "time_hour": 13,
@@ -20,6 +33,7 @@
       "file_name": "od_poc_01",
       "scenario": "dataset/morai_od/scenarios/ros_capture_poc/od_poc_01.json",
       "metadata": "dataset/morai_od/metadata/ros_capture_poc/od_poc_01.metadata.json",
+      "network_sidecar": "EgoNetwork/od_poc_01_MN.json",
       "anchor_index": 500,
       "expected_ego": {
         "x": -76.18682759348809,
@@ -40,6 +54,7 @@
       "file_name": "od_poc_02",
       "scenario": "dataset/morai_od/scenarios/ros_capture_poc/od_poc_02.json",
       "metadata": "dataset/morai_od/metadata/ros_capture_poc/od_poc_02.metadata.json",
+      "network_sidecar": "EgoNetwork/od_poc_02_MN.json",
       "anchor_index": 2516,
       "expected_ego": {
         "x": 67.07312095126154,
@@ -60,6 +75,7 @@
       "file_name": "od_poc_03",
       "scenario": "dataset/morai_od/scenarios/ros_capture_poc/od_poc_03.json",
       "metadata": "dataset/morai_od/metadata/ros_capture_poc/od_poc_03.metadata.json",
+      "network_sidecar": "EgoNetwork/od_poc_03_MN.json",
       "anchor_index": 3500,
       "expected_ego": {
         "x": 69.71951261864368,

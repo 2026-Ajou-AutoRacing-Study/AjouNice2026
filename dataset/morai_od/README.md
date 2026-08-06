@@ -100,12 +100,30 @@ MORAI Internal Scenario JSON, `/ScenarioLoad`, `/SaveSensorData` 기반으로
 ## ROS 자동 로드·캡처 PoC
 
 정교한 랜덤 시나리오를 대량 생성하기 전에 3개 장면으로
-`/ScenarioLoad → /SaveSensorData → 제한형 Ego 이동`을 검증한다.
+`ROS /ScenarioLoad → EgoNetwork sidecar 기반 rosbridge 복구
+→ /SaveSensorData → 제한형 Ego 이동`을 검증한다.
 
 - 실행 문서: `docs/ros_scenario_autocapture_poc.md`
 - PoC manifest: `manifests/ros_capture_poc.json`
 - 생성기: `scripts/generate_ros_capture_poc_set.py`
 - 자동화 노드: `scripts/ros_scenario_autocapture_poc.py`
+- 이동 모드는 각 장면에서 AV-ExternalCtrl과 `D` 기어를 명시한다.
 
 첫 실행은 반드시 `p01`, stationary, 1장으로 저장 경로까지 검증한 뒤
 저속 이동과 3개 장면 batch로 확장한다.
+
+시나리오별 `EgoNetwork/<scenario_stem>_MN.json`은 대상 MORAI 버전에서
+직접 저장한 ROS bridge network profile을 복제한다. 제어 batch runner의
+대회용 UDP `configs/network/ego_network_1.json`과 혼용하지 않는다.
+
+개인용 MORAI의 custom `file_dir` 캡처에서 3D LiDAR가 누락되므로,
+`SaveFile/SensorData` 기본 경로에 전체 센서를 저장한 뒤 검증된 파일 묶음을
+외부 `--capture-dir`로 재배치한다.
+
+ROS Synchronous Mode는 개인용 런처에서 `frame=0`,
+`can_send_tick=false` 교착과 `/SyncModeCmd` 무응답이 재현되어 현재 수집
+경로에서 제외한다. 이 시험에는 Scenario Runner를 사용하지 않았다.
+기본 대량 수집은 검증된 일반 `/ScenarioLoad` → 제한형 `route-follow`
+→ 정차 → `/SaveSensorData` 방식을 사용한다. 상세 재현 결과는
+`docs/ros_scenario_autocapture_poc.md`의 “Synchronous Mode PoC 결과와
+제외 결정”에 기록한다.

@@ -241,8 +241,15 @@ def set_vehicle_pose(
     init_position["rot"] = make_rotation_dict(sample["yaw"])
     init_position["initLink"] = sample["link_idx"]
     init_position["initLinkRatio"] = sample["point_ratio"]
-    init_position["gear"] = 1 if ego else 4
+    # Dataset capture scenarios must be immediately driveable. MORAI gear
+    # values are 1=P, 2=R, 3=N, 4=D.
+    init_position["gear"] = 4
     zero_vehicle_save_data(init_position)
+    save_data = init_position.get("vehicleSaveData")
+    if isinstance(save_data, dict):
+        input_data = save_data.get("inputData")
+        if isinstance(input_data, list) and len(input_data) > 6:
+            input_data[6] = 4
 
     actor["currentVelocity"] = 0.0
     if "viewCurrentVelocity" in actor:
@@ -435,6 +442,17 @@ def validate_scenario(
     }
     if counts != expected_counts:
         problems.append(f"actor counts differ: {counts} != {expected_counts}")
+
+    ego_init = scenario["egoVehicle"]["initPosition"]
+    if ego_init.get("gear") != 4:
+        problems.append("Ego initial gear must be D (4)")
+    ego_input = ego_init.get("vehicleSaveData", {}).get("inputData")
+    if (
+        isinstance(ego_input, list)
+        and len(ego_input) > 6
+        and ego_input[6] != 4
+    ):
+        problems.append("Ego vehicleSaveData.inputData gear must be D (4)")
 
     unique_ids = []
     for group in ("vehicleList", "pedestrianList", "objectList"):

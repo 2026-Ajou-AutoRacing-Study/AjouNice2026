@@ -8,7 +8,9 @@
 ```text
 짧은 Internal Scenario JSON 3개 생성
 → MORAI 현재 맵의 Scenario 폴더에 설치
+→ 시나리오별 ROS EgoNetwork sidecar 설치
 → ROS /ScenarioLoad
+→ rosbridge 일시 단절 및 sidecar 기반 자동 복구
 → Ego 위치와 /Object_topic 객체 수 검증
 → ROS /SaveSensorData
 → 실제 파일 생성 확인
@@ -24,13 +26,78 @@
 | 파일 | 역할 |
 |---|---|
 | `scripts/generate_morai_od_prototype.py` | 공식 waypoint와 MGeo로 시나리오 한 개 생성 |
-| `scripts/generate_ros_capture_poc_set.py` | `od_poc_01`~`03`과 manifest 생성·설치 |
-| `scripts/ros_scenario_autocapture_poc.py` | ROS 로드, 검증, 이동, 캡처, 파일 검증 |
+| `scripts/generate_ros_capture_poc_set.py` | `od_poc_01`~`03`, manifest, ROS network sidecar 생성·설치 |
+| `scripts/ros_scenario_autocapture_poc.py` | ROS 로드, network 재연결, 장면 검증, 이동, 캡처, 파일 검증 |
 | `manifests/ros_capture_poc.json` | 3개 장면과 기대 객체 수, 캡처 정책 |
 
 시나리오 stem은 MORAI legacy transport의 30-byte 제한을 피하도록
-`od_poc_01`처럼 짧게 유지한다. `/SaveSensorData.file_dir`도 같은 이유로
-59 byte 이하만 허용한다.
+`od_poc_01`처럼 짧게 유지한다.
+
+## Scenario와 ROS network sidecar
+
+MORAI에서 시나리오를 로드하면 Ego가 재생성되면서 기존 F4 rosbridge
+세션이 초기화될 수 있다. 따라서 시나리오 본문만 설치하면 안 되고, 같은
+stem의 EgoNetwork sidecar가 반드시 함께 있어야 한다.
+
+```text
+R_KR_PR_K-city_2025/
+├── od_poc_01.json
+└── EgoNetwork/
+    └── od_poc_01_MN.json
+```
+
+`od_poc_01_MN.json`은 ROS로 파일 자체를 보내는 것이 아니다.
+`/ScenarioLoad`에 `od_poc_01`과
+`load_network_connection_data=true`를 보내면 MORAI가 로컬 폴더에서
+두 파일을 함께 읽는다.
+
+ScenarioLoad의 `delete_all`은 `false`로 보낸다. MORAI 문서상 이 상태에서
+`load_ego_vehicle_data`, `load_surrounding_vehicle_data`,
+`load_pedestrian_data`, `load_obstacle_data` 옵션을 선택적으로 적용한다.
+`delete_all=true`로 보내면 실제 개인용 MORAI에서는 Ego 위치만 적용되고
+주변 actor가 모두 제거되는 결과가 확인됐다.
+
+제어 batch runner의 `configs/network/ego_network_1.json`은 대회용 UDP
+profile이므로 이 ROS 캡처 PoC의 template으로 사용하지 않는다. 개인용
+MORAI에서 ROS network를 연결한 상태로 저장한
+초기 PoC에서는 `EgoNetwork/ros_path_probe_MN.json`을 사용했지만, 이
+파일에는 Ego별 네트워크(`UNIQUEID=0`)만 있고 `/ego_setting`을 담당하는
+시스템 네트워크(`UNIQUEID=-100`)가 빠져 있었다. 순간이동 모드에서는
+개인용 MORAI가 저장한 전체 ROS profile
+`SaveFile/Network/26.R1.H3/ros.json`을 사용한다.
+
+단, `ScenarioLoad(load_network_connection_data=true)`가 자동 복구하는 것은
+Ego Network뿐이다. 전체 profile의 `UNIQUEID=-100` 항목을 scenario
+sidecar에 넣어도 Simulator Network의 `Connect` 버튼까지 자동으로
+켜지지는 않는다. `/ego_setting`을 쓰기 전에는 MORAI UI에서 한 번 다음을
+수행해야 한다.
+
+```text
+Network Settings
+→ Simulator Network
+→ ROS
+→ Load
+→ SaveFile/Network/26.R1.H3/ros.json 선택
+→ Connect
+→ Status: Connected 확인
+```
+
+이것은 매 시나리오마다 반복할 작업이 아니라 MORAI를 시작한 뒤 batch 실행
+전에 한 번 수행하는 bootstrap이다. 연결이 꺼진 상태에서는 MORAI가 ROS
+명령을 받을 transport 자체가 없으므로 ROS 명령만으로 자기 연결을 켤 수
+없다. 생성기는 다음 항목이 profile에 포함됐는지 검사한다.
+
+```text
+/ScenarioLoad
+/SaveSensorData
+/Ego_topic
+/Object_topic
+/ego_setting
+```
+
+각 sidecar는 이 template을 byte 단위로 그대로 복제한다. manifest에는
+template SHA256을 기록하고, 자동 캡처 노드는 실행 전에 설치된 모든
+sidecar의 SHA256과 필수 ROS topic을 다시 검사한다.
 
 ## 현재 PoC 장면
 
@@ -70,41 +137,251 @@ PoC와 초기 대량 수집의 권장 기본값은 **한 시나리오당 6장**�
 1. `/Ego_topic`에서 현재 위치와 heading을 읽는다.
 2. 가장 가까운 공식 waypoint와 3 m 전방 target을 찾는다.
 3. 작은 pure-pursuit 조향과 `CtrlCmd.longlCmdType=2` 속도 명령을 20 Hz로 낸다.
-4. 약 0.6 m 이동할 때마다 `/SaveSensorData`를 한 번 보낸다.
-5. 4 m 이동, 2.5 m 경로 이탈, 40° heading 오차, 충돌 또는 timeout이면
+4. 약 0.6 m 이동할 때마다 brake 명령으로 Ego를 정지시킨다.
+5. 정지 상태에서 `/SaveSensorData`를 한 번 보내고 파일 저장이 완료된 뒤
+   다시 출발한다.
+6. 4 m 이동, 2.5 m 경로 이탈, 40° heading 오차, 충돌 또는 timeout이면
    즉시 brake 명령을 보낸 뒤 실패로 종료한다.
+
+MORAI의 센서 파일 저장에는 약 1~2초가 걸릴 수 있다. 이 동안 마지막 속도
+명령을 유지하면 한 번의 캡처 중에도 차량이 계속 움직여 0.6 m 간격을
+건너뛸 수 있으므로, 현재 PoC는 각 프레임을 정차 상태에서 캡처한다.
+
+## Ego 순간이동 방식
+
+개인용 MORAI가 제공하는 `/ego_setting`
+(`morai_msgs/MultiEgoSetting`)을 사용하는 `teleport` 모드도 지원한다.
+현재 `/Ego_topic`의 `unique_id`를 그대로 사용하고, 공식 waypoint 위에서
+다음 위치와 yaw를 계산해 Ego의 전역 자세를 변경한다.
+
+```text
+시나리오 로드 및 검증
+→ Ego/Network는 보존하고 NPC·보행자·장애물만 로드
+→ /ego_setting으로 Ego를 장면 anchor에 배치
+→ 위치·yaw 및 객체 수 검증 후 f00 캡처
+→ 공식 경로를 따라 0.6 m 앞의 자세 계산
+→ /ego_setting 발행
+→ /Ego_topic 위치·yaw 및 객체 수 재검증
+→ 안정화 후 f01 캡처
+```
+
+`teleport` 모드의 ScenarioLoad 플래그는 다음과 다르다.
+
+```text
+delete_all=false
+load_network_connection_data=false
+load_ego_vehicle_data=false
+load_surrounding_vehicle_data=true
+load_pedestrian_data=true
+load_obstacle_data=true
+```
+
+Ego와 Network를 다시 로드하면 Ego sidecar가 적용되는 동안 Simulator
+Network가 뒤늦게 끊기는 현상이 확인됐다. 따라서 현재 연결된 Ego와 두
+Network를 보존하고 주변 actor만 교체한다. 이후 Ego는 `/ego_setting`으로
+각 시나리오의 anchor에 순간이동시킨다. 이 구조라면 Simulator Network의
+수동 `Connect`는 batch 시작 전 한 번만 필요하다.
+
+하지만 개인용 MORAI 실측 결과,
+`load_ego_vehicle_data=false`에서는 주변 actor 플래그가 `true`여도
+NPC·보행자·장애물이 모두 0개로 남았다. 즉 현재 버전에서는 이 선택적 로드
+방식을 batch에 사용할 수 없다. 순간이동 기능 자체는 다음과 같이 분리해
+검증한다.
+
+이후 `roscore`와 `rosbridge`를 새로 시작한 상태에서는 actor-only load로
+객체 수가 정상 적용되는 것까지 확인됐다. 하지만 그 직후
+`/ego_setting`을 보내면 Ego 재구성과 함께 `/ScenarioLoad`,
+`/SaveSensorData`, `/ego_setting`의 rosbridge subscriber가 모두
+사라졌다. 반대로 사용자가 시나리오를 로드하고 두 Network를 다시 연결한
+뒤 `--skip-scenario-load`를 사용하면 여러 번의 순간이동과 캡처가
+성공했다. 따라서 현재 개인용 런처에서 다음 결합은 안정적인 batch
+인터페이스로 간주하지 않는다.
+
+```text
+actor-only /ScenarioLoad
+→ 즉시 /ego_setting
+→ ROS 연결 유지 기대
+```
+
+다중 시나리오 무인 실행은 일반 `/ScenarioLoad`와 `/ego_setting`을
+연결하는 대신 Simulator Network의 Synchronous Mode
+(`/SyncModeScenarioLoad`, `/SyncModeAddObject`,
+`/SyncModeRemoveObject`) 지원 여부를 별도 PoC로 확인한 뒤 확장한다.
+
+### Synchronous Mode PoC 결과와 제외 결정
+
+2026-08-07 개인용 MORAI 런처에서 ROS Synchronous Mode를 별도로
+시험했으나, 현재 데이터 수집 경로에는 사용하지 않기로 했다. 이 시험은
+Scenario Runner를 실행한 것이 아니라 MORAI Simulator Network가 제공하는
+ROS service와 topic만 사용했다.
+
+확인한 인터페이스는 `/SyncModeCmd`, `/SyncModeWaitForTick`,
+`/SyncModeCtrlCmd`, `/SyncModeSetGear`, `/SyncModeScenarioLoad`,
+`/SyncModeInfo`이다. 센서별 Capture Mode를 끄고 Ego Network와 Simulator
+Network를 다시 연결한 상태에서도 다음 두 종류의 비결정적 실패가
+재현됐다.
+
+1. `/SyncModeCmd`는 `result=True`를 반환하고 새로운 `master_id`를
+   발급하지만, `/SyncModeInfo`가 계속 `status=True`, `frame=0`,
+   `can_send_tick=False`에 머문다.
+2. `roscore`, `rosbridge`, MORAI를 모두 재시작한 뒤에는
+   `/SyncModeInfo`가 `status=False`, `frame=0`인 상태에서
+   `/SyncModeCmd` service 호출 자체가 반환되지 않는 경우가 있다.
+
+첫 번째 상태에서 gear와 정지 control을 frame 0에 넣어도 준비 상태가
+바뀌지 않았다. `/SyncModeWaitForTick`은 `tick_status=False`,
+`pause_status=False`, `frame=0`을 반환해 Scenario Editor 또는 일반 Pause
+때문에 거절된 것도 아니었다. 또한 `/SyncModeInfo` publisher와 subscriber가
+모두 연결되어 상태 메시지가 반복 수신됐으므로 단순 ROS topic 단절로
+설명할 수 없다.
+
+MORAI UI의 `Sensor Record`, 센서 `Synchronization Mode`, ROS External
+Synchronous Mode는 서로 다른 기능이다. 현재 런처에서는 이들의 정확한
+초기화 순서와 GT 포함 저장 동작을 재현 가능하게 확정하지 못했다.
+따라서 대량 수집에서 frame 0 교착 또는 무응답 위험이 있는 Sync Mode를
+사용하지 않는다.
+
+현재 채택한 fallback은 이미 실측으로 통과한 다음 경로다.
+
+```text
+일반 /ScenarioLoad
+→ network sidecar로 Ego Network 복구
+→ AV-ExternalCtrl + D 기어
+→ /ctrl_cmd 기반 제한형 route-follow
+→ 정차
+→ /SaveSensorData
+→ Camera 4대와 LiDAR의 raw·semantic·instance·depth·3D GT 검증
+```
+
+`teleport`와 Sync Mode 코드는 후속 조사 재료로 남기되, 기본 실행과 대량
+수집에는 `--motion-mode route-follow`을 사용한다. MORAI 업데이트나 공식
+호출 예제가 확보되기 전까지 Sync Mode 실패를 우회하기 위한 추측성 재시도는
+하지 않는다.
+
+1. p01을 Ego·객체·Ego Network 포함 정상 로드한다.
+2. 로드로 끊긴 Simulator Network를 UI에서 다시 `Connect`한다.
+3. `--skip-scenario-load`로 현재 p01을 검증하고 순간이동만 수행한다.
+
+`--skip-scenario-load`는 현재 장면 하나만 대상으로 사용할 수 있으며,
+시나리오 파일명과 객체 수를 사용자가 먼저 맞춰야 한다.
+
+수평 XY 오차 0.25 m, Z 오차 0.75 m, yaw 오차 5° 이내이고
+NPC·보행자·장애물 수가 유지된 경우에만 캡처한다. XY와 Z를 분리한 이유는
+`/ego_setting` 직후 MORAI가 차량 collider를 도로 표면에 안착시키면서
+waypoint Z와 실제 차량 기준점 Z 사이에 수십 cm 차이가 생길 수 있기
+때문이다. 도로상의 관측 위치를 결정하는 XY는 엄격하게 유지한다.
+검증에 실패하면 추측으로 계속 진행하지 않고 즉시 중단한다.
+
+캡처 검증은 센서 폴더가 생성됐는지만 보지 않는다. 각 프레임마다 다음
+학습 산출물의 존재와 0보다 큰 파일 크기를 확인한 뒤에만 파일을 결과
+폴더로 이동한다.
+
+| 센서 | 필수 산출물 |
+|---|---|
+| CAMERA_1~4 | `Intensity.png`, `Semantic.png`, `Instance.png`, `Depth.png` |
+| LIDAR_5 | `Intensity.bin`, `Semantic.bin`, `Instance.bin` |
+| 객체가 있는 장면의 LIDAR_5 | `Instance.txt`, `Instance_8Points.txt` 추가 |
+
+카메라 `BBox2D.txt`와 `BBox3D.txt`는 해당 카메라에서 유효한 객체가 없을
+때 MORAI가 빈 파일조차 만들지 않으므로 필수 조건으로 두지 않는다. 생성된
+경우에는 다른 산출물과 함께 보존된다. 실제 관측·필수·누락 산출물 목록은
+`ros_capture_poc_report.json`의 `observed_artifacts`,
+`required_artifacts`, `missing_artifacts`에 프레임별로 기록된다.
+
+MORAI Simulator Network를 연결한 뒤 ROS subscriber를 먼저 확인한다.
+
+```bash
+# Simulator Network가 /ego_setting을 구독하는지 확인
+cd ~/AjouNice2026
+
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+source ~/morai_personal_ws/devel/setup.bash
+
+rostopic info /ego_setting
+```
+
+`Subscribers`에 `/rosbridge_websocket`이 있어야 한다.
+
+```bash
+# p01에서 현재 자세 1장과 0.6 m 순간이동 후 1장만 안전하게 시험
+cd ~/AjouNice2026
+
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+source ~/morai_personal_ws/devel/setup.bash
+
+python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
+  --capture-dir /home/luv/morai_cap/poc_p01_teleport \
+  --morai-scenario-dir \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025" \
+  --scenario p01 \
+  --motion-mode teleport \
+  --captures-per-scene 2 \
+  --maximum-motion-m 1.0
+```
+
+성공 로그에는 `EgoSetting published`, `Ego teleport verified`, `f00`,
+`f01`, `auto-capture complete`가 모두 있어야 한다. 이 시험이 성공한
+뒤에만 기본 6장 또는 여러 시나리오 batch로 확장한다.
 
 이 방식은 “도로 전체를 안정적으로 주행하는 새 제어기”가 아니다. 데이터
 관측점을 3 m 정도 바꾸기 위한 제한형 micro-motion이다. MORAI built-in
 controller는 목적지와 내부 route 설정 의존성이 있어 대량 JSON마다 관리가
 늘어나므로 첫 PoC에는 사용하지 않는다.
 
+MORAI 버전에 따라 `morai_msgs/CtrlCmd`의 조향 필드가 다르므로 자동으로
+호환 처리한다.
+
+| 환경 | 조향 필드 |
+|---|---|
+| 대회용 메시지 | `steering` |
+| 개인용 최신 메시지 | `front_steer`, `rear_steer` |
+
+대회용 `steering`에는 rad 단위 조향각을 그대로 넣는다. 개인용
+`front_steer`는 조향각 자체가 아니라 `[-1, 1]` 정규화 명령이므로,
+계산한 조향각을 기본 최대 조향각 `36.25°`로 나누어 넣고
+`rear_steer=0`으로 둔다. 최대 조향각은
+`--personal-max-steering-angle-deg`로 변경할 수 있다. 실행 로그의
+`CtrlCmd schema detected: steering field=...`로 실제 선택된 schema를
+확인할 수 있다.
+
 시나리오 로드 후 저장된 keyboard 제어 모드로 돌아갈 수 있으므로
-`/Service_MoraiEventCmd`를 호출해 매 장면 AV-ExternalCtrl로 전환한다.
+`/Service_MoraiEventCmd`를 호출해 매 장면 AV-ExternalCtrl과
+주행 기어 `D(4)`를 함께 선택한다. 생성 시나리오의 Ego 초기 기어도
+`D(4)`로 저장해, 이전 상태의 `P` 기어 때문에 속도 명령이 무시되는 것을
+이중으로 방지한다.
 해당 service가 없는 MORAI 버전에서는 UI에서 AV-ExternalCtrl을 선택하고
 `--skip-control-mode-service`를 사용하되, 다중 장면 자동화 전에 매번 제어
 모드가 유지되는지 확인해야 한다.
 
 ## 1. 시나리오 생성 및 MORAI 폴더 설치
 
-개인용 MORAI에서 현재 사용하는 K-City 2025 시나리오 폴더를 지정한다.
+개인용 MORAI에서 현재 사용하는 K-City 2025 시나리오 폴더와, MORAI
+UI에서 직접 저장해 검증한 ROS network sidecar를 지정한다.
 
 ```bash
-# PoC 시나리오 3개 생성 및 개인용 MORAI에 설치
+# PoC 시나리오 3개와 ROS network sidecar를 개인용 MORAI에 설치
 cd ~/AjouNice2026
 
 python3 dataset/morai_od/scripts/generate_ros_capture_poc_set.py \
   --install-dir \
-  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025"
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025" \
+  --network-template \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Network/26.R1.H3/ros.json"
 ```
 
 설치 확인:
 
 ```bash
-# MORAI에 설치된 짧은 시나리오 파일 확인
-find \
-  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025" \
-  -maxdepth 1 -type f -name 'od_poc_*.json' -print
+# MORAI에 설치된 시나리오 본문과 ROS network sidecar 확인
+cd ~/AjouNice2026
+
+find "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025" \
+  -maxdepth 1 -type f -name 'od_poc_*.json' -print | sort
+
+find "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/EgoNetwork" \
+  -maxdepth 1 -type f -name 'od_poc_*_MN.json' -print | sort
 ```
 
 ## 2. MORAI UI 준비
@@ -132,6 +409,7 @@ Capture Mode가 켜진 Camera/LiDAR는 평상시 Sensor List에서 비활성 또
 
 ```bash
 # ROS master 실행
+cd ~/AjouNice2026
 source /opt/ros/noetic/setup.bash
 roscore
 ```
@@ -142,9 +420,10 @@ roscore
 
 ```bash
 # MORAI ROS topic과 제어 모드 service 연결 확인
-cd ~/AjouNice2026/base_ws
+cd ~/AjouNice2026
 source /opt/ros/noetic/setup.bash
-source devel/setup.bash
+source base_ws/devel/setup.bash
+source ~/morai_personal_ws/devel/setup.bash
 
 rosparam set /use_sim_time false
 
@@ -161,6 +440,18 @@ rosservice list | grep -F /Service_MoraiEventCmd
 
 ## 5. 저장 경로와 dry-run
 
+`--capture-dir`에는 사람이 읽기 쉬운 실험 이름을 지정한다. 기본적으로
+실행 시각이 `YYMMDD_HHMMSS_` 형식으로 자동 추가된다.
+
+```text
+입력: /home/luv/morai_cap/poc_multi_route_follow_v1
+실제: /home/luv/morai_cap/260806_233523_poc_multi_route_follow_v1
+```
+
+이미 `260806_233523_` 형식의 prefix가 있으면 중복해서 붙이지 않는다.
+기존처럼 정확히 입력한 경로를 사용해야 할 때만
+`--no-timestamp-prefix`를 추가한다.
+
 저장 경로는 MORAI가 실행되는 같은 PC의 절대 경로이며 legacy 제한 때문에
 짧게 둔다.
 
@@ -172,8 +463,50 @@ cd ~/AjouNice2026
 
 python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
   --capture-dir /home/luv/morai_cap/poc \
+  --morai-scenario-dir \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025" \
   --dry-run
 ```
+
+이 검사는 ROS를 발행하지 않고 다음을 확인한다.
+
+- 생성 원본과 MORAI에 설치된 scenario JSON이 같은지
+- 각 scenario에 대응하는 `_MN.json`이 있는지
+- 모든 `_MN.json`이 같은 ROS template SHA256인지
+- 필수 ROS topic이 sidecar에 포함됐는지
+
+센서 캡처의 기본 완전성 기준은 다음 5개 출력 디렉터리가 모두 새 파일을
+생성하는 것이다.
+
+```text
+CAMERA_1
+CAMERA_2
+CAMERA_3
+CAMERA_4
+LIDAR_5
+```
+
+MORAI는 센서별 파일을 비동기로 저장하므로 첫 파일이 나타난 즉시 성공으로
+처리하지 않는다. 필수 센서가 모두 나타나고 새 파일 목록이 기본 1초 동안
+변하지 않아야 해당 capture를 완료로 판정한다.
+
+개인용 MORAI에서는 `/SaveSensorData`의
+`is_custom_file_name=true`와 custom `file_dir`을 사용했을 때 Camera는
+저장되지만 3D LiDAR가 누락되는 동작이 실측됐다. 따라서 자동화 노드는
+다음 방식으로 저장한다.
+
+```text
+is_custom_file_name=false
+→ MORAI 기본 SaveFile/SensorData에 Camera 4대 + LiDAR 저장
+→ 새 파일 묶음과 필수 센서 디렉터리 검증
+→ 파일 목록이 1초 동안 안정될 때까지 대기
+→ --capture-dir로 이동하면서 공통 capture_id로 이름 변경
+```
+
+예를 들면 MORAI가 생성한
+`LIDAR_5/26-..._Intensity.bin`은 최종적으로
+`LIDAR_5/r..._p01_f00_Intensity.bin`이 된다. 검증이 실패한 파일은
+원인 분석을 위해 MORAI 기본 SensorData에 남기고 이동하지 않는다.
 
 ## 6. Phase A: 자동 로드 + 정지 1장
 
@@ -189,6 +522,8 @@ source ~/morai_personal_ws/devel/setup.bash
 
 python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
   --capture-dir /home/luv/morai_cap/poc \
+  --morai-scenario-dir \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025" \
   --scenario p01 \
   --motion-mode stationary \
   --captures-per-scene 1
@@ -197,10 +532,18 @@ python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
 성공 기준:
 
 ```text
+ScenarioLoad published: od_poc_01 (delete_all=false, load_network_connection_data=true)
+MORAI ROS connections ready (scenario od_poc_01 network recovery)
 Scenario verified: od_poc_01
-Capture ...: files=N, verified=True
+Capture ...: files=N, sensors=CAMERA_1,CAMERA_2,CAMERA_3,CAMERA_4,LIDAR_5, relocated=N, verified=True
 auto-capture complete
 ```
+
+ScenarioLoad 직후 rosbridge의 MORAI client가 일시적으로 모두 끊겼다가
+다시 연결되는 것은 정상이다. 자동화 노드는 wall clock 기준 최대 20초 동안
+`/ScenarioLoad`, `/SaveSensorData`와 필요한 `/ctrl_cmd` 연결을 기다린다.
+연결만 돌아온 것으로 성공 처리하지 않고, 로드 이후에 새로 수신한
+`/Ego_topic` 위치와 `/Object_topic` 객체 수도 함께 검증한다.
 
 실제 산출물:
 
@@ -226,6 +569,8 @@ source ~/morai_personal_ws/devel/setup.bash
 
 python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
   --capture-dir /home/luv/morai_cap/poc \
+  --morai-scenario-dir \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025" \
   --scenario p01 \
   --motion-mode route-follow
 ```
@@ -250,6 +595,8 @@ source ~/morai_personal_ws/devel/setup.bash
 
 python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
   --capture-dir /home/luv/morai_cap/poc \
+  --morai-scenario-dir \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025" \
   --motion-mode route-follow
 ```
 
@@ -261,14 +608,20 @@ GT 파일을 만들므로 실제 파일 수는 18보다 훨씬 많다.
 | 증상 | 의미와 조치 |
 |---|---|
 | ScenarioLoad subscriber 없음 | MORAI ROS Subscriber 설정 확인 |
+| `_MN.json` 없음 또는 SHA256 불일치 | 생성·설치 명령을 다시 실행하고 ROS template 경로 확인 |
+| ScenarioLoad 직후 ROS 연결 복구 timeout | sidecar가 ROS bridge profile인지, MORAI port 9090 연결 상태인지 확인 |
+| Ego는 이동했지만 객체 수가 모두 0 | `delete_all=false`인지 확인; 개별 actor load 옵션은 모두 true여야 함 |
 | Ego 위치가 기대값과 다름 | 현재 맵 폴더, file stem, ScenarioLoad ego 옵션 확인 |
 | 객체 수 불일치 | 시나리오 로드 실패 또는 actor active 상태 확인 |
-| 새 파일 0개 | Capture Mode, GT 설정, 경로 권한, `file_dir` 지원 확인 |
+| 새 파일 0개 | Capture Mode, GT 설정, MORAI 기본 SensorData 경로 권한 확인 |
+| Camera는 저장됐지만 `LIDAR_5` 누락 | MORAI Sensor List에서 3D LiDAR Capture Mode 확인; custom 경로가 아니라 기본 저장 방식인지 확인 |
 | Event service 없음 | service를 켜거나 UI 수동 전환 + skip 옵션 |
 | 경로/heading safety abort | 이동을 중단한 정상 보호 동작; anchor·heading 검토 |
 | collision abort | 해당 장면 폐기 또는 객체 clearance 수정 |
+| Sync Mode가 `frame=0`, `can_send_tick=false`에 고정 | 현재 개인용 런처에서 재현된 미해결 교착; Sync Mode를 사용하지 말고 검증된 `route-follow` 경로 사용 |
+| `/SyncModeCmd` 호출이 반환되지 않음 | Simulator Network service가 불안정한 상태; 대량 수집에서는 Sync Mode를 제외하고 일반 `/ScenarioLoad`·`/SaveSensorData` 사용 |
 
-`--allow-unverified-capture`는 MORAI가 `file_dir`를 무시하는지 진단할 때만
+`--allow-unverified-capture`는 MORAI 버전별 저장 동작을 진단할 때만
 사용한다. 대량 수집에서는 파일 생성이 검증되지 않은 캡처를 성공으로
 간주하면 안 된다.
 
