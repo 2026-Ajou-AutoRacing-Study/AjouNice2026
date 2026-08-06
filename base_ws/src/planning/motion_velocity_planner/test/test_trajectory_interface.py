@@ -77,6 +77,8 @@ def collision_planner():
     planner.dynamic_collision_path_resolution = 0.5
     planner.dynamic_collision_margin = 0.3
     planner.dynamic_collision_debug = False
+    planner.autoware_stop_max_deceleration = 1.0
+    planner.autoware_stop_max_deceleration_jerk = 1.0
     planner.max_lateral_distance = 1.5
     planner.vehicle_length = 4.635
     planner.vehicle_width = 1.892
@@ -254,6 +256,15 @@ class TrajectoryInterfaceTest(unittest.TestCase):
         )
         self.assertGreater(first_stop, 25)
         self.assertLess(first_stop, 40)
+
+    def test_autoware_braking_distance_increases_with_speed(self):
+        planner = collision_planner()
+
+        slow = planner.autoware_braking_distance(2.0)
+        city_speed = planner.autoware_braking_distance(20.0 / 3.6)
+
+        self.assertGreater(slow, 0.0)
+        self.assertGreater(city_speed, slow)
 
 
 if __name__ == "__main__":

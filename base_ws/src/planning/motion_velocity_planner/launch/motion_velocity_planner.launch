@@ -9,6 +9,8 @@
   <arg name="cruise_speed_mps" default="$(arg default_velocity_mps)" />
   <arg name="extract_ahead_dist" default="200.0" />
   <arg name="extract_behind_dist" default="0.0" />
+  <arg name="autoware_stop_max_deceleration_mps2" default="1.0" />
+  <arg name="autoware_stop_max_deceleration_jerk_mps3" default="1.0" />
 
   <node pkg="motion_velocity_planner" type="motion_velocity_planner.py" name="motion_velocity_planner" output="screen">
     <rosparam command="load" file="$(arg param_path)" />
@@ -16,6 +18,10 @@
     <param name="cruise_speed_mps" value="$(arg cruise_speed_mps)" />
     <param name="extract_ahead_dist" value="$(arg extract_ahead_dist)" />
     <param name="extract_behind_dist" value="$(arg extract_behind_dist)" />
+    <param name="autoware_stop/max_deceleration_mps2"
+           value="$(arg autoware_stop_max_deceleration_mps2)" />
+    <param name="autoware_stop/max_deceleration_jerk_mps3"
+           value="$(arg autoware_stop_max_deceleration_jerk_mps3)" />
     <param name="input_trajectory_topic" value="$(arg input_trajectory_topic)" />
     <param name="objects_topic" value="$(arg objects_topic)" />
     <param name="odometry_topic" value="$(arg odometry_topic)" />

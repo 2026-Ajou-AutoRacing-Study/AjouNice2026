@@ -13,6 +13,9 @@ from nav_msgs.msg import Odometry
 from autoware_internal_planning_msgs.msg import VelocityLimit
 from autoware_perception_msgs.msg import PredictedObjects, ObjectClassification
 from autoware_planning_msgs.msg import Trajectory
+from autoware_velocity_smoother.analytical_jerk_constrained import (
+    minimum_deceleration_distance,
+)
 
 from mvp_utils import (
     crop_trajectory_around_ego,
@@ -21,7 +24,6 @@ from mvp_utils import (
     object_velocity_xy,
     oriented_box_corners,
     oriented_boxes_intersect,
-    feasible_stop_velocity,
     param_bool,
     path_cumulative_lengths,
     point_velocity,
@@ -57,6 +59,25 @@ class MotionVelocityPlanner:
         self.comfortable_deceleration = max(
             abs(float(rospy.get_param("~comfortable_deceleration", 3.0))),
             0.1,
+        )
+        # Keep this model identical to the downstream Autoware velocity
+        # smoother.  A stop is represented as a zero-speed cap; the smoother
+        # generates the jerk-limited braking profile leading to it.
+        self.autoware_stop_max_deceleration = max(
+            float(
+                rospy.get_param(
+                    "~autoware_stop/max_deceleration_mps2", 1.0
+                )
+            ),
+            0.01,
+        )
+        self.autoware_stop_max_deceleration_jerk = max(
+            float(
+                rospy.get_param(
+                    "~autoware_stop/max_deceleration_jerk_mps3", 1.0
+                )
+            ),
+            0.01,
         )
         self.object_size_margin = max(float(rospy.get_param("~object_size_margin", 0.0)), 0.0)
         self.dynamic_object_time_margin = max(
@@ -171,12 +192,14 @@ class MotionVelocityPlanner:
         rospy.loginfo(
             "MotionVelocityPlanner initialized "
             "(default_velocity=%.2f, use_velocity_limit=%s, reaction_time=%.2f, "
-            "comfortable_deceleration=%.2f, dynamic_stop_ttc_threshold=%.2f, "
-            "dynamic_prediction_horizon=%.2f)",
+            "comfortable_deceleration=%.2f, autoware_stop=(a=%.2f,j=%.2f), "
+            "dynamic_stop_ttc_threshold=%.2f, dynamic_prediction_horizon=%.2f)",
             self.default_velocity_mps,
             self.use_velocity_limit,
             self.reaction_time,
             self.comfortable_deceleration,
+            self.autoware_stop_max_deceleration,
+            self.autoware_stop_max_deceleration_jerk,
             self.dynamic_stop_ttc_threshold,
             self.dynamic_prediction_horizon,
         )
@@ -233,6 +256,15 @@ class MotionVelocityPlanner:
         return max(
             0.0,
             base_distance + reaction_distance + braking_distance + self.object_size_margin + dynamic_margin,
+        )
+
+    def autoware_braking_distance(self, initial_velocity):
+        """Return the downstream velocity smoother's S-curve braking distance."""
+        return minimum_deceleration_distance(
+            max(float(initial_velocity), 0.0),
+            0.0,
+            self.autoware_stop_max_deceleration,
+            self.autoware_stop_max_deceleration_jerk,
         )
 
     def relative_speed_to_object(self, obj):
@@ -526,13 +558,9 @@ class MotionVelocityPlanner:
             )
         for point, station in zip(out.points, distances):
             if station >= stop_line:
-                target_velocity = 0.0
-            else:
-                remaining = stop_line - station
-                target_velocity = feasible_stop_velocity(remaining, self.max_deceleration)
-                if station >= stop_line - self.warning_distance:
-                    target_velocity = min(target_velocity, self.min_stop_velocity)
-            set_point_velocity(point, min(point_velocity(point), target_velocity))
+                # This is a velocity cap.  The downstream Autoware velocity
+                # smoother applies the matched jerk-limited braking envelope.
+                set_point_velocity(point, 0.0)
 
     def apply_dynamic_stop(self, out, distances):
         if self.objects is None:
@@ -566,14 +594,12 @@ class MotionVelocityPlanner:
                 stop_line = max(ego_station, collision_station - stop_buffer)
                 stop_lines.append(stop_line)
                 available_distance = max(stop_line - ego_station, 0.0)
-                required_braking_distance = (
-                    (ego_speed * ego_speed) / (2.0 * max(self.max_deceleration, 0.1))
-                )
+                required_braking_distance = self.autoware_braking_distance(ego_speed)
                 if available_distance < required_braking_distance:
                     rospy.logwarn_throttle(
                         1.0,
-                        "motion_velocity_planner: dynamic stop is late "
-                        "(available=%.1fm required=%.1fm); commanding maximum profile",
+                        "motion_velocity_planner: dynamic stop is inside the "
+                        "Autoware S-curve braking distance (available=%.1fm required=%.1fm)",
                         available_distance,
                         required_braking_distance,
                     )
@@ -609,13 +635,7 @@ class MotionVelocityPlanner:
         stop_line = min(stop_lines)
         for point, station in zip(out.points, distances):
             if station >= stop_line:
-                target_velocity = 0.0
-            else:
-                remaining = stop_line - station
-                target_velocity = feasible_stop_velocity(remaining, self.max_deceleration)
-                if station >= stop_line - self.warning_distance:
-                    target_velocity = min(target_velocity, self.min_stop_velocity)
-            set_point_velocity(point, min(point_velocity(point), target_velocity))
+                set_point_velocity(point, 0.0)
 
     def apply_slowdown(self, out, distances):
         stop_slow_distance = self.speed_based_stop_distance(self.stop_slow_distance)

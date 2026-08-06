@@ -12,6 +12,9 @@
   <arg name="default_velocity_kph" default="20" />
   <arg name="default_velocity_mps"
        default="$(eval float(arg('default_velocity_kph')) / 3.6)" />
+  <!-- Shared Autoware jerk-limited braking constraints for MVP and final smoothing. -->
+  <arg name="autoware_stop_max_deceleration_mps2" default="1.0" />
+  <arg name="autoware_stop_max_jerk_mps3" default="1.0" />
   <arg name="control_trajectory_topic" default="/control/trajectory" />
   <arg name="raw_trajectory_topic"
        default="/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/raw_trajectory" />
@@ -76,6 +79,10 @@
     <arg name="cruise_speed_mps" value="$(arg default_velocity_mps)" />
     <arg name="extract_ahead_dist" value="$(arg mvp_extract_ahead_dist)" />
     <arg name="extract_behind_dist" value="$(arg mvp_extract_behind_dist)" />
+    <arg name="autoware_stop_max_deceleration_mps2"
+         value="$(arg autoware_stop_max_deceleration_mps2)" />
+    <arg name="autoware_stop_max_deceleration_jerk_mps3"
+         value="$(arg autoware_stop_max_jerk_mps3)" />
     <arg name="output_trajectory_topic" value="$(arg raw_trajectory_topic)" />
   </include>
 
@@ -84,6 +91,10 @@
     <arg name="output_trajectory_topic" value="$(arg control_trajectory_topic)" />
     <arg name="planning_hz" value="$(arg planning_hz)" />
     <arg name="max_velocity_mps" value="$(arg default_velocity_mps)" />
+    <arg name="backward_max_deceleration_mps2"
+         value="$(arg autoware_stop_max_deceleration_mps2)" />
+    <arg name="backward_max_jerk_mps3"
+         value="$(arg autoware_stop_max_jerk_mps3)" />
   </include>
 
   <group if="$(arg start_map_visualizer)">

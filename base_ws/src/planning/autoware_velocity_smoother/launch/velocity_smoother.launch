@@ -6,6 +6,8 @@
   <arg name="odometry_topic" default="/localization/kinematic_state" />
   <arg name="planning_hz" default="10.0" />
   <arg name="max_velocity_mps" default="11.1" />
+  <arg name="backward_max_deceleration_mps2" default="1.0" />
+  <arg name="backward_max_jerk_mps3" default="1.0" />
   <arg name="param_path"
        default="$(find autoware_velocity_smoother)/config/velocity_smoother.param.yaml" />
 
@@ -19,5 +21,9 @@
     <param name="odometry_topic" value="$(arg odometry_topic)" />
     <param name="planning_hz" value="$(arg planning_hz)" />
     <param name="max_velocity_mps" value="$(arg max_velocity_mps)" />
+    <param name="backward/max_deceleration_mps2"
+           value="$(arg backward_max_deceleration_mps2)" />
+    <param name="backward/max_jerk_mps3"
+           value="$(arg backward_max_jerk_mps3)" />
   </node>
 </launch>

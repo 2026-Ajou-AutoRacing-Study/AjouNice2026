@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   autoware_perception_msgs
   autoware_planning_msgs
   autoware_vehicle_msgs
+  autoware_velocity_smoother
   geometry_msgs
   nav_msgs
   rospy
@@ -24,6 +25,7 @@ catkin_package(
   autoware_perception_msgs
   autoware_planning_msgs
   autoware_vehicle_msgs
+  autoware_velocity_smoother
   geometry_msgs
   nav_msgs
   rospy

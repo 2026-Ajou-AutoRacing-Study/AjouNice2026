@@ -19,6 +19,12 @@ min_stop_velocity_mps: 0.5
 max_deceleration: 4.0
 reaction_time: 1.0
 comfortable_deceleration: 4.0
+# These must match velocity_smoother/backward.  The dynamic-stop node emits a
+# zero-speed cap and the shared Autoware jerk-limited model shapes the braking
+# profile before that cap.
+autoware_stop:
+  max_deceleration_mps2: 1.0
+  max_deceleration_jerk_mps3: 1.0
 object_size_margin: 0.3
 dynamic_object_time_margin: 1.0
 slow_dynamic_stop_speed_threshold_mps: 1.0
