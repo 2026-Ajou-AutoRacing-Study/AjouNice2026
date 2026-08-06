@@ -188,6 +188,7 @@ catkin_install_python(
   validation/scripts/mission_bpp_bvp_live_visualizer.py
   scripts/current_vehicle_marker.py
   validation/scripts/morai_objects_to_predicted_objects.py
+  validation/scripts/morai_traffic_light_bridge.py
   validation/scripts/morai_perception_visualizer.py
   validation/scripts/kcity_competition_route_publisher.py
   validation/scripts/kcity_competition_live_route_publisher.py
@@ -251,6 +252,7 @@ install(
 if(CATKIN_ENABLE_TESTING)
   catkin_add_nosetests(test/test_current_vehicle_marker.py)
   catkin_add_nosetests(test/test_morai_objects_to_predicted_objects.py)
+  catkin_add_nosetests(test/test_morai_traffic_light_bridge.py)
   catkin_add_nosetests(test/test_morai_perception_visualizer.py)
   catkin_add_nosetests(test/test_planning_trajectory_visualizer.py)
   catkin_add_nosetests(test/test_kcity_dynamic_ego_validator.py)

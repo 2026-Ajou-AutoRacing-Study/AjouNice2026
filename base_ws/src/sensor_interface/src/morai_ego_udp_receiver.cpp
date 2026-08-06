@@ -9,6 +9,7 @@
 
 #include <morai_msgs/CollisionData.h>
 #include <morai_msgs/EgoVehicleStatus.h>
+#include <morai_msgs/GetTrafficLightStatus.h>
 #include <morai_msgs/ObjectStatus.h>
 #include <morai_msgs/ObjectStatusList.h>
 #include <ros/ros.h>
@@ -114,6 +115,18 @@ struct CollisionPacket {
   CollisionPacketData data[5];
   char tail[2];
 };
+
+// MORAI GetTrafficLightStatus protocol.  The simulator uses this packet on
+// the configured traffic-light UDP channel (48 bytes including CRLF).
+struct TrafficLightPacket {
+  char header[14];
+  int32_t data_length;
+  int32_t aux_data[3];
+  char traffic_light_index[12];
+  int16_t traffic_light_type;
+  int16_t traffic_light_status;
+  char tail[2];
+};
 #pragma pack(pop)
 
 static_assert(sizeof(EgoVehiclePacket) == 229, "unexpected Ego packet layout");
@@ -121,6 +134,8 @@ static_assert(sizeof(CompetitionVehiclePacket) == 181,
               "unexpected Competition Vehicle Status packet layout");
 static_assert(sizeof(ObjectPacket) == 2160, "unexpected Object packet layout");
 static_assert(sizeof(CollisionPacket) == 181, "unexpected Collision packet layout");
+static_assert(sizeof(TrafficLightPacket) == 48,
+              "unexpected Traffic Light packet layout");
 
 struct NetworkChannel {
   int fd = -1;
@@ -198,10 +213,15 @@ class MoraiEgoUdpReceiver {
 
     const auto root = morai_udp::readJson(network_config_);
     const auto& ego = root.get_child("egoNetworkData").front().second;
+    bool have_ego = false;
+    bool have_objects = false;
+    bool have_collision = false;
+    bool have_competition = false;
+    bool have_traffic_light = false;
     for (const auto& item : ego.get_child("listEgoNetworkInfo")) {
       const auto& entry = item.second;
       const int type = entry.get<int>("PUBSUB_TYPE");
-      if (type != 770 && type != 772 && type != 261 && type != 295) continue;
+      if (type != 770 && type != 772 && type != 261 && type != 295 && type != 267) continue;
       const auto& config = entry.get_child("config");
       if (config.get<int>("commType", 0) != 1) continue;
       const auto endpoint = morai_udp::udpEndpoint(config, "destinationIP", "destinationPort");
@@ -212,17 +232,35 @@ class MoraiEgoUdpReceiver {
       channels_.push_back(channel);
 
       const std::string topic = config.get<std::string>("rosConfig.Topic");
-      if (type == 770) ego_publisher_ = nh_.advertise<morai_msgs::EgoVehicleStatus>(topic, 20);
+      if (type == 770) {
+        ego_publisher_ = nh_.advertise<morai_msgs::EgoVehicleStatus>(topic, 20);
+        have_ego = true;
+      }
       if (type == 295) {
         competition_publisher_ = nh_.advertise<morai_msgs::EgoVehicleStatus>(topic, 20);
+        have_competition = true;
       }
-      if (type == 772) object_publisher_ = nh_.advertise<morai_msgs::ObjectStatusList>(topic, 10);
-      if (type == 261) collision_publisher_ = nh_.advertise<morai_msgs::CollisionData>(topic, 10);
+      if (type == 772) {
+        object_publisher_ = nh_.advertise<morai_msgs::ObjectStatusList>(topic, 10);
+        have_objects = true;
+      }
+      if (type == 261) {
+        collision_publisher_ = nh_.advertise<morai_msgs::CollisionData>(topic, 10);
+        have_collision = true;
+      }
+      if (type == 267) {
+        traffic_light_publisher_ = nh_.advertise<morai_msgs::GetTrafficLightStatus>(topic, 20);
+        have_traffic_light = true;
+      }
       ROS_INFO("Ego network type %d UDP %s:%d -> %s", type, endpoint.ip.c_str(),
                endpoint.port, topic.c_str());
     }
-    if (channels_.size() != 4) {
+    if (!have_ego || !have_objects || !have_collision || !have_competition) {
       throw std::runtime_error("expected UDP entries 770, 772, 261 and 295 in " + network_config_);
+    }
+    if (!have_traffic_light) {
+      ROS_WARN("MORAI traffic-light UDP channel (type 267) is disabled; "
+               "traffic lights cannot reach the behavior velocity planner");
     }
   }
 
@@ -255,6 +293,7 @@ class MoraiEgoUdpReceiver {
       if (channel.type == 295) parseCompetition(buffer.data(), length);
       if (channel.type == 772) parseObjects(buffer.data(), length);
       if (channel.type == 261) parseCollision(buffer.data(), length);
+      if (channel.type == 267) parseTrafficLight(buffer.data(), length);
     }
   }
 
@@ -355,6 +394,26 @@ class MoraiEgoUdpReceiver {
     collision_publisher_.publish(message);
   }
 
+  void parseTrafficLight(const uint8_t* bytes, ssize_t length) {
+    if (length != static_cast<ssize_t>(sizeof(TrafficLightPacket))) {
+      ROS_WARN_THROTTLE(1.0, "Traffic-light packet size %zd, expected %zu", length,
+                        sizeof(TrafficLightPacket));
+      return;
+    }
+    TrafficLightPacket packet{};
+    std::memcpy(&packet, bytes, sizeof(packet));
+    if (packet.tail[0] != '\r' || packet.tail[1] != '\n') return;
+
+    morai_msgs::GetTrafficLightStatus message;
+    message.header.stamp = ros::Time::now();
+    message.trafficLightIndex = fixedString(packet.traffic_light_index,
+                                            sizeof(packet.traffic_light_index));
+    message.trafficLightType = packet.traffic_light_type;
+    message.trafficLightStatus = packet.traffic_light_status;
+    if (message.trafficLightIndex.empty()) return;
+    traffic_light_publisher_.publish(message);
+  }
+
   ros::NodeHandle nh_;
   ros::NodeHandle private_nh_;
   std::string network_config_;
@@ -364,6 +423,7 @@ class MoraiEgoUdpReceiver {
   ros::Publisher competition_publisher_;
   ros::Publisher object_publisher_;
   ros::Publisher collision_publisher_;
+  ros::Publisher traffic_light_publisher_;
 };
 
 int main(int argc, char** argv) {

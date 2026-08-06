@@ -22,6 +22,8 @@
   <arg name="candidate_lane_ids" default="[]" />
   <arg name="route_definition_file"
        default="$(find bringup)/config/kcity_competition_route.yaml" />
+  <arg name="traffic_light_map_file"
+       default="$(find bringup)/config/morai_traffic_light_map_v60.yaml" />
   <arg name="enable_path_smoother_debug" default="false" />
   <arg name="enable_path_optimizer_debug" default="false" />
   <arg name="mvp_extract_ahead_dist" default="200.0" />
@@ -29,6 +31,7 @@
   <arg name="launch_rviz" default="true" />
   <arg name="start_route_publisher" default="true" />
   <arg name="start_map_visualizer" default="true" />
+  <arg name="enable_morai_traffic_light_bridge" default="true" />
   <arg name="software_rendering" default="1" />
 
   <include file="$(find mission_planner)/launch/mission_planner.launch">
@@ -169,6 +172,18 @@
     <param name="velocity_scale_to_mps" value="1.0" />
     <param name="acceleration_scale_to_mps2" value="1.0" />
     <param name="classification_probability" value="1.0" />
+  </node>
+
+  <!-- Converts MORAI's live traffic-light UDP state into BVP input. -->
+  <node if="$(arg enable_morai_traffic_light_bridge)"
+        pkg="bringup"
+        type="morai_traffic_light_bridge.py"
+        name="morai_traffic_light_bridge"
+        output="screen">
+    <param name="input_topic" value="/GetTrafficLightStatus" />
+    <param name="output_topic"
+           value="/perception/traffic_light_recognition/traffic_signals" />
+    <param name="mapping_file" value="$(arg traffic_light_map_file)" />
   </node>
 
   <node if="$(arg launch_rviz)"
