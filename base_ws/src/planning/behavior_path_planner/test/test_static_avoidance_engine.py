@@ -137,6 +137,24 @@ class StaticAvoidanceEngineTest(unittest.TestCase):
         self.assertFalse(result.targets)
         self.assertEqual(result.candidates[0].failed_reason, "moving_object")
 
+    def test_ignores_stationary_object_behind_ego(self):
+        # The ego pose is x=5 m. A stopped object at x=0 m is on the
+        # already-traversed part of the route and must not create a stop path.
+        self.plan([make_object(x=0.0)], 0.0)
+        result = self.plan([make_object(x=0.0)], 2.1)
+
+        self.assertFalse(result.candidates[0].avoid_required)
+        self.assertEqual(
+            result.candidates[0].failed_reason, "out_of_target_area_behind"
+        )
+        self.assertFalse(result.targets)
+        self.assertTrue(
+            all(
+                point.point.longitudinal_velocity_mps > 0.0
+                for point in result.output_path.points
+            )
+        )
+
     def test_merges_overlapping_objects_on_same_side(self):
         self.plan([make_object(), make_object(x=53.0, object_id=2)], 0.0)
         result = self.plan(

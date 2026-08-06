@@ -66,7 +66,9 @@
     <param name="static_obstacle_avoidance/target_filtering/detection_area/static" value="true" />
     <param name="static_obstacle_avoidance/target_filtering/detection_area/min_forward_distance" value="50.0" />
     <param name="static_obstacle_avoidance/target_filtering/detection_area/max_forward_distance" value="150.0" />
-    <param name="static_obstacle_avoidance/target_filtering/detection_area/backward_distance" value="10.0" />
+    <!-- Rear objects cannot be resolved by a forward avoidance path. Keep only
+         a 1 m pose/projection tolerance so they never create an immediate stop. -->
+    <param name="static_obstacle_avoidance/target_filtering/detection_area/backward_distance" value="1.0" />
     <param name="static_obstacle_avoidance/target_filtering/max_compensation_time" value="2.0" />
     <param name="static_obstacle_avoidance/target_filtering/parked_vehicle/th_offset_from_centerline" value="1.0" />
     <param name="static_obstacle_avoidance/target_filtering/parked_vehicle/th_shiftable_ratio" value="0.8" />

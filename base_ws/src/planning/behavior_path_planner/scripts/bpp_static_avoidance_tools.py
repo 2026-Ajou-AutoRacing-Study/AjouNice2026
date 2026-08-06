@@ -146,7 +146,10 @@ class StaticAvoidanceParameters:
     use_static_detection_area: bool = False
     min_forward_distance: float = 50.0
     max_forward_distance: float = 150.0
-    backward_distance: float = 10.0
+    # Static avoidance only plans the ego vehicle forward.  Keep a small
+    # tolerance for projection/pose noise, but do not turn a rear object into
+    # a forward stop target.
+    backward_distance: float = 1.0
     max_compensation_time: float = 2.0
     parked_offset_threshold: float = 1.0
     parked_shiftable_ratio: float = 0.8
