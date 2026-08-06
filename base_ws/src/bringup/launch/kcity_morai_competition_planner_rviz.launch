@@ -8,7 +8,8 @@
   <arg name="route_preset" default="full" />
   <arg name="planning_hz" default="10.0" />
   <!-- Public speed input is km/h; Planner internals and ROS trajectories use m/s. -->
-  <arg name="default_velocity_kph" default="10" />
+  <!-- City-speed baseline; obstacle and signal modules may reduce it. -->
+  <arg name="default_velocity_kph" default="15" />
   <arg name="default_velocity_mps"
        default="$(eval float(arg('default_velocity_kph')) / 3.6)" />
   <arg name="control_trajectory_topic" default="/control/trajectory" />
