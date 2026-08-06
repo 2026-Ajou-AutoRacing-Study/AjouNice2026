@@ -7,9 +7,9 @@ common:
   max_accel: -2.8
   max_jerk: -5.0
 
-base_link_to_front: 3.79
-base_link_to_rear: 1.10
-vehicle_width: 1.90
+base_link_to_front: 3.845
+base_link_to_rear: 0.790
+vehicle_width: 1.892
 footprint_search_step: 0.10
 
 collision_detection:

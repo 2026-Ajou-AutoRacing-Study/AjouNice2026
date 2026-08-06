@@ -245,6 +245,125 @@ def project_point_to_polyline(points, target, min_s=None, max_s=None):
     return best_s, best_distance
 
 
+def project_point_to_polyline_with_point(points, target):
+    """Project target to a polyline and return station, distance, and XYZ point."""
+    if not points:
+        return None
+    if len(points) == 1:
+        return 0.0, distance_2d(points[0], target), points[0]
+
+    cumulative = cumulative_lengths(points)
+    best = None
+    for idx, (a, b) in enumerate(zip(points[:-1], points[1:])):
+        vx = b[0] - a[0]
+        vy = b[1] - a[1]
+        length_sq = vx * vx + vy * vy
+        if length_sq < 1.0e-9:
+            continue
+        segment_length = math.sqrt(length_sq)
+        ratio = max(
+            0.0,
+            min(
+                1.0,
+                ((target[0] - a[0]) * vx + (target[1] - a[1]) * vy)
+                / length_sq,
+            ),
+        )
+        point = (
+            a[0] + ratio * vx,
+            a[1] + ratio * vy,
+            a[2] + ratio * (b[2] - a[2]),
+        )
+        distance = distance_2d(point, target)
+        value = (
+            distance,
+            cumulative[idx] + ratio * segment_length,
+            point,
+        )
+        if best is None or value[:2] < best[:2]:
+            best = value
+    if best is None:
+        return None
+    return best[1], best[0], best[2]
+
+
+def _polyline_tangent_at_point(points, target):
+    """Return the unit tangent of the polyline segment nearest to target."""
+    if len(points) < 2:
+        return None
+    best_distance = None
+    best_tangent = None
+    for a, b in zip(points[:-1], points[1:]):
+        vx = b[0] - a[0]
+        vy = b[1] - a[1]
+        length_sq = vx * vx + vy * vy
+        if length_sq < 1.0e-9:
+            continue
+        ratio = max(
+            0.0,
+            min(
+                1.0,
+                ((target[0] - a[0]) * vx + (target[1] - a[1]) * vy)
+                / length_sq,
+            ),
+        )
+        px = a[0] + ratio * vx
+        py = a[1] + ratio * vy
+        distance = math.hypot(target[0] - px, target[1] - py)
+        if best_distance is None or distance < best_distance:
+            length = math.sqrt(length_sq)
+            best_distance = distance
+            best_tangent = (vx / length, vy / length)
+    return best_tangent
+
+
+def _point_in_polygon(point, polygon):
+    """Return whether a 2D point is inside or on the boundary of a polygon."""
+    if len(polygon) < 3:
+        return False
+    x, y = point[0], point[1]
+    inside = False
+    for a, b in zip(polygon, polygon[1:] + polygon[:1]):
+        vx = b[0] - a[0]
+        vy = b[1] - a[1]
+        length_sq = vx * vx + vy * vy
+        if length_sq > 1.0e-12:
+            ratio = ((x - a[0]) * vx + (y - a[1]) * vy) / length_sq
+            if -1.0e-9 <= ratio <= 1.0 + 1.0e-9:
+                px = a[0] + ratio * vx
+                py = a[1] + ratio * vy
+                if math.hypot(x - px, y - py) <= 1.0e-7:
+                    return True
+        if (a[1] > y) == (b[1] > y):
+            continue
+        crossing_x = a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1])
+        if x < crossing_x:
+            inside = not inside
+    return inside
+
+
+def _ray_polygon_exit_distance(point, direction, polygon):
+    """Return the first positive distance from an interior point to polygon edge."""
+    if not _point_in_polygon(point, polygon):
+        return None
+    intersections = []
+    dx, dy = direction
+    for a, b in zip(polygon, polygon[1:] + polygon[:1]):
+        ex = b[0] - a[0]
+        ey = b[1] - a[1]
+        denominator = dx * ey - dy * ex
+        if abs(denominator) < 1.0e-12:
+            continue
+        ax = a[0] - point[0]
+        ay = a[1] - point[1]
+        ray_distance = (ax * ey - ay * ex) / denominator
+        edge_ratio = (ax * dy - ay * dx) / denominator
+        if ray_distance >= -1.0e-8 and -1.0e-8 <= edge_ratio <= 1.0 + 1.0e-8:
+            intersections.append(max(ray_distance, 0.0))
+    positive = [distance for distance in intersections if distance > 1.0e-7]
+    return min(positive) if positive else None
+
+
 def closest_lane_id(centerline_map, lane_ids, point):
     scored = []
     for lane_id in lane_ids:
@@ -282,6 +401,8 @@ class CenterlineMap:
         boundary_ids=None,
         lane_attributes=None,
         boundary_node_ids=None,
+        intersection_areas=None,
+        lane_intersection_area_ids=None,
     ):
         self.source = source
         self.centerlines = centerlines
@@ -289,6 +410,8 @@ class CenterlineMap:
         self.boundary_ids = boundary_ids or {}
         self.lane_attributes = lane_attributes or {}
         self.boundary_node_ids = boundary_node_ids or {}
+        self.intersection_areas = intersection_areas or {}
+        self.lane_intersection_area_ids = lane_intersection_area_ids or {}
 
     @classmethod
     def load(cls, map_file, projector_file="", flatten_z=False, projector_type="none"):
@@ -397,6 +520,7 @@ class CenterlineMap:
         boundary_ids = {}
         boundary_node_ids = {}
         lane_attributes = {}
+        lane_intersection_area_ids = {}
         for relation in relations:
             if relation["tags"].get("type") != "lanelet":
                 continue
@@ -412,6 +536,11 @@ class CenterlineMap:
             if len(points) >= 2:
                 centerlines[str(relation["id"])] = points
                 lane_attributes[str(relation["id"])] = dict(relation["tags"])
+                intersection_area_id = relation["tags"].get("intersection_area")
+                if intersection_area_id:
+                    lane_intersection_area_ids[str(relation["id"])] = str(
+                        intersection_area_id
+                    )
             if len(left) >= 2 and len(right) >= 2:
                 boundaries[str(relation["id"])] = (left, right)
                 boundary_ids[str(relation["id"])] = (left_id, right_id)
@@ -420,6 +549,14 @@ class CenterlineMap:
                     (ways[right_id]["refs"][0], ways[right_id]["refs"][-1]),
                 )
 
+        intersection_areas = {}
+        for way_id, way in ways.items():
+            if way["tags"].get("type") != "intersection_area":
+                continue
+            polygon = way_points(way_id, ways, nodes)
+            if len(polygon) >= 3:
+                intersection_areas[str(way_id)] = polygon
+
         return cls(
             source,
             centerlines,
@@ -427,6 +564,8 @@ class CenterlineMap:
             boundary_ids,
             lane_attributes,
             boundary_node_ids,
+            intersection_areas,
+            lane_intersection_area_ids,
         )
 
     @classmethod
@@ -460,6 +599,16 @@ class CenterlineMap:
 
     def get_lane_attributes(self, lane_id):
         return self.lane_attributes.get(str(lane_id), {})
+
+    def get_intersection_area_id(self, lane_id):
+        return self.lane_intersection_area_ids.get(str(lane_id))
+
+    def get_intersection_area(self, lane_id):
+        area_id = self.get_intersection_area_id(lane_id)
+        return self.intersection_areas.get(str(area_id)) if area_id is not None else None
+
+    def intersection_area_count(self):
+        return len(self.intersection_areas)
 
     def has_lane(self, lane_id):
         return str(lane_id) in self.centerlines
@@ -554,7 +703,11 @@ class CenterlineMap:
         return boundary
 
     def expanded_bound_distances(
-        self, lane_id, point, use_lane_type="opposite_direction_lane"
+        self,
+        lane_id,
+        point,
+        use_lane_type="opposite_direction_lane",
+        use_intersection_areas=False,
     ):
         """Return path-center distances to expanded left and right drivable bounds."""
         distances = []
@@ -562,7 +715,70 @@ class CenterlineMap:
             boundary = self.expanded_outer_boundary(lane_id, side, use_lane_type)
             projection = project_point_to_polyline(boundary, point) if boundary else None
             distances.append(float(projection[1]) if projection is not None else None)
+
+        if use_intersection_areas:
+            polygon = self.get_intersection_area(lane_id)
+            centerline = self.get_centerline(lane_id)
+            tangent = (
+                _polyline_tangent_at_point(centerline, point) if centerline else None
+            )
+            if polygon and tangent:
+                directions = ((-tangent[1], tangent[0]), (tangent[1], -tangent[0]))
+                for index, direction in enumerate(directions):
+                    area_distance = _ray_polygon_exit_distance(
+                        point, direction, polygon
+                    )
+                    if area_distance is not None:
+                        distances[index] = max(
+                            distances[index] or 0.0, float(area_distance)
+                        )
         return tuple(distances)
+
+    def expanded_bound_points(
+        self,
+        lane_id,
+        point,
+        use_lane_type="opposite_direction_lane",
+        use_intersection_areas=False,
+    ):
+        """Return expanded left/right boundary points at a lane center station."""
+        output = []
+        for side in ("left", "right"):
+            boundary = self.expanded_outer_boundary(lane_id, side, use_lane_type)
+            projection = (
+                project_point_to_polyline_with_point(boundary, point)
+                if boundary
+                else None
+            )
+            output.append(projection[2] if projection is not None else None)
+
+        if not use_intersection_areas:
+            return tuple(output)
+
+        polygon = self.get_intersection_area(lane_id)
+        centerline = self.get_centerline(lane_id)
+        tangent = _polyline_tangent_at_point(centerline, point) if centerline else None
+        if not polygon or not tangent:
+            return tuple(output)
+
+        directions = ((-tangent[1], tangent[0]), (tangent[1], -tangent[0]))
+        for index, direction in enumerate(directions):
+            area_distance = _ray_polygon_exit_distance(point, direction, polygon)
+            if area_distance is None:
+                continue
+            area_point = (
+                point[0] + direction[0] * area_distance,
+                point[1] + direction[1] * area_distance,
+                point[2],
+            )
+            current_distance = (
+                distance_2d(output[index], point)
+                if output[index] is not None
+                else 0.0
+            )
+            if area_distance > current_distance:
+                output[index] = area_point
+        return tuple(output)
 
     def lane_ids_near_point(self, route_lane_ids, point, tolerance=0.3):
         scored = []

@@ -4,4 +4,9 @@
          base_class_type="rviz::Panel">
     <description>Two-row HUD for driving values and current/run-maximum tracking errors.</description>
   </class>
+  <class name="trajectory_validator/PlanningStatus"
+         type="trajectory_validator::PlanningStatusPanel"
+         base_class_type="rviz::Panel">
+    <description>Live planning input rates, behavior decision, and mission route state.</description>
+  </class>
 </library>

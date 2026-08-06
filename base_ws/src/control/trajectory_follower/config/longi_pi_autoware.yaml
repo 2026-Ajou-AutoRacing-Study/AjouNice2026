@@ -7,7 +7,7 @@ command_deadband: 0.05
 # Keep the existing PI actuator interface, but begin decelerating for a lower speed already
 # present in the trajectory. This is deliberately bounded: it does not replace the speed planner.
 speed_preview:
-  enabled: true
+  enabled: false
   time_s: 1.5
   min_distance_m: 5.0
   max_distance_m: 30.0

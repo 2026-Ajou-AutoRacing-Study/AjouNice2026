@@ -11,6 +11,7 @@
   <build_depend>message_generation</build_depend>
   <build_depend>qtbase5-dev</build_depend>
 
+  <depend>autoware_internal_planning_msgs</depend>
   <depend>autoware_planning_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>morai_msgs</depend>
@@ -20,6 +21,7 @@
   <depend>rospy</depend>
   <depend>rviz</depend>
   <depend>std_msgs</depend>
+  <depend>tier4_planning_msgs</depend>
   <depend>trajectory_follower</depend>
   <depend>visualization_msgs</depend>
 

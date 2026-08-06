@@ -1,4 +1,4 @@
 stop_margin: 1.5
 print_debug_info: false
-base_link_to_front: 3.79
+base_link_to_front: 3.845
 stopped_velocity_threshold: 0.01

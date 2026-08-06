@@ -1,0 +1,1 @@
+"""Analytical velocity-smoothing utilities."""

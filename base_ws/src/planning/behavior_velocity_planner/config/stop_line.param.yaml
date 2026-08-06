@@ -1,11 +1,11 @@
 stop_margin: 0.0
 required_stop_duration_sec: 1.0
-vehicle_stopped_duration_threshold: 0.0
-hold_stop_margin_distance: 2.0
+vehicle_stopped_duration_threshold: 0.1
+hold_stop_margin_distance: 4.0
 use_initialization_stop_state: true
-base_link_to_front: 3.79
+base_link_to_front: 3.845
 max_detection_distance: 200.0
 passed_margin: 1.0
 state_expiration_sec: 5.0
 include_traffic_light_ref_lines: false
-vehicle_width: 1.9
+vehicle_width: 1.892

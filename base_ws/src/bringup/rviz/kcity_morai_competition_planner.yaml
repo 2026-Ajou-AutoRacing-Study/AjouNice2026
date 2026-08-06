@@ -5,11 +5,13 @@ Panels:
       Expanded:
         - /Global Options1
         - /K-City v441
-        - /Live Ego1
+        - /Current Vehicle1
         - /Mission Route1
         - /Final Trajectory1
       Splitter Ratio: 0.5
     Tree Height: 690
+  - Class: trajectory_validator/PlanningStatus
+    Name: Planning Status
 Visualization Manager:
   Class: ""
   Displays:
@@ -29,10 +31,22 @@ Visualization Manager:
       Name: K-City v44
       Queue Size: 10
       Value: true
-    - Class: rviz/Marker
+    - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /viewer/current_vehicle_marker
-      Name: Live Ego
+      Name: Current Vehicle
+      Queue Size: 10
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /perception/morai/objects/markers
+      Name: Perception Bounding Boxes
+      Queue Size: 10
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /planning/debug/behavior_velocity_planner/markers
+      Name: Crosswalk Decisions
       Queue Size: 10
       Value: true
     - Class: rviz/MarkerArray
@@ -95,15 +109,15 @@ Visualization Manager:
       Angle: 0
       Class: rviz/TopDownOrtho
       Name: K-City MORAI Planner
-      Scale: 1.2
-      Target Frame: <Fixed Frame>
-      X: 90
-      Y: 450
+      Scale: 0.35
+      Target Frame: base_link
+      X: 0
+      Y: 0
     Saved: ~
 Window Geometry:
   Height: 900
   Hide Left Dock: false
-  Hide Right Dock: true
+  Hide Right Dock: false
   Width: 1500
   X: 20
   Y: 30

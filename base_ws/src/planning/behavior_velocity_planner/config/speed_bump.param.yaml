@@ -6,6 +6,6 @@ speed_calculation:
   max_height: 0.30
   min_speed: 1.39
   max_speed: 2.78
-base_link_to_front: 3.79
-base_link_to_rear: 1.10
-vehicle_width: 1.9
+base_link_to_front: 3.845
+base_link_to_rear: 0.790
+vehicle_width: 1.892

@@ -9,7 +9,12 @@ import rospy
 from autoware_perception_msgs.msg import ObjectClassification
 from tier4_rtc_msgs.msg import Module, State
 
-from bpp_map_tools import project_point_to_polyline
+from geometry_msgs.msg import Point
+
+from bpp_map_tools import (
+    project_point_to_polyline,
+    project_point_to_polyline_with_point,
+)
 from bpp_path_tools import (
     clamp,
     object_pose,
@@ -137,6 +142,7 @@ class ObjectPolicy:
 @dataclass
 class StaticAvoidanceParameters:
     use_lane_type: str = "opposite_direction_lane"
+    use_intersection_areas: bool = True
     use_static_detection_area: bool = False
     min_forward_distance: float = 50.0
     max_forward_distance: float = 150.0
@@ -192,6 +198,7 @@ class StaticAvoidanceParameters:
     base_link_to_rear: float = 1.1
     enable_rtc_left: bool = False
     enable_rtc_right: bool = False
+    debug_log_unknown_objects: bool = False
     target_labels: set = field(default_factory=set)
     object_policies: dict = field(default_factory=dict)
 
@@ -200,6 +207,20 @@ class StaticAvoidanceParameters:
         params = cls()
         params.use_lane_type = str(
             _get_param(prefix, "use_lane_type", params.use_lane_type)
+        )
+        params.debug_log_unknown_objects = _as_bool(
+            _get_param(
+                prefix,
+                "debug/log_unknown_objects",
+                params.debug_log_unknown_objects,
+            )
+        )
+        params.use_intersection_areas = _as_bool(
+            _get_param(
+                prefix,
+                "use_intersection_areas",
+                params.use_intersection_areas,
+            )
         )
         params.use_static_detection_area = _as_bool(
             _get_param(
@@ -500,7 +521,7 @@ class StaticAvoidanceParameters:
             (ObjectClassification.TRUCK, "truck", 1.0, 2.0, 0.5, 0.2, 0.2, 0.0, 0.1),
             (ObjectClassification.BUS, "bus", 1.0, 2.0, 0.5, 0.2, 0.2, 0.0, 0.1),
             (ObjectClassification.TRAILER, "trailer", 1.0, 2.0, 0.5, 0.2, 0.2, 0.0, 0.1),
-            (ObjectClassification.UNKNOWN, "unknown", 0.28, 1.0, 0.5, -0.2, -0.2, 0.0, 0.1),
+            (ObjectClassification.UNKNOWN, "unknown", 0.28, 1.0, 0.5, 0.2, 0.7, 0.0, 0.1),
             (ObjectClassification.BICYCLE, "bicycle", 0.28, 1.0, 0.7, 0.5, 0.2, 0.6, 0.5),
             (ObjectClassification.MOTORCYCLE, "motorcycle", 1.0, 1.0, 0.5, 0.3, 0.2, 0.6, 0.5),
             (ObjectClassification.PEDESTRIAN, "pedestrian", 0.28, 1.0, 0.7, 0.5, 0.2, 0.6, 0.5),
@@ -668,6 +689,7 @@ class StaticAvoidanceEngine:
         self._unsafe_latched = False
         self._safe_count = 0
         self._last_signature = None
+        self._unknown_log_times = {}
 
     def set_centerline_map(self, centerline_map):
         self.centerline_map = centerline_map
@@ -700,6 +722,60 @@ class StaticAvoidanceEngine:
     def _policy(self, label):
         return self.params.object_policies.get(
             int(label), self.params.object_policies[ObjectClassification.UNKNOWN]
+        )
+
+    def _log_unknown_candidate(self, candidate, detection_distance, now):
+        """Emit one concise, per-object diagnostic each second for UNKNOWN objects."""
+        if (
+            not self.params.debug_log_unknown_objects
+            or candidate.label != ObjectClassification.UNKNOWN
+        ):
+            return
+
+        last_log_time = self._unknown_log_times.get(candidate.object_id)
+        if last_log_time is not None and now - last_log_time < 1.0:
+            return
+        self._unknown_log_times[candidate.object_id] = now
+        self._unknown_log_times = {
+            object_id: logged_at
+            for object_id, logged_at in self._unknown_log_times.items()
+            if now - logged_at < 30.0
+        }
+
+        pose = object_pose(candidate.message)
+        policy = self._policy(candidate.label)
+        direction = (
+            "left"
+            if candidate.shift_length > 0.0
+            else "right" if candidate.shift_length < 0.0 else "none"
+        )
+        rospy.loginfo(
+            "static_obstacle_avoidance [UNKNOWN] id=%s map=(%.2f, %.2f) "
+            "relative=(s=%.2fm, l=%.2fm) detection=%.1fm "
+            "bounds=current[L=%.2f,R=%.2f] expanded[L=%.2f,R=%.2f]m "
+            "lane_policy=%s margin[hard=%.2f,soft=%.2f] "
+            "decision[required=%s, allowed=%s, shift=%s %.2fm, "
+            "available=%.2fm, stopped=%.1fs, reason=%s]",
+            candidate.object_id,
+            pose.position.x,
+            pose.position.y,
+            candidate.relative_longitudinal,
+            candidate.lateral,
+            detection_distance,
+            candidate.current_left_bound,
+            candidate.current_right_bound,
+            candidate.expanded_left_bound,
+            candidate.expanded_right_bound,
+            self.params.use_lane_type,
+            policy.parked_hard_margin if candidate.is_parked else policy.hard_margin,
+            policy.soft_margin,
+            candidate.avoid_required,
+            candidate.allow_avoidance,
+            direction,
+            candidate.shift_length,
+            candidate.available_shift,
+            candidate.stopped_time,
+            candidate.failed_reason or "ok",
         )
 
     def _update_tracks(self, objects, stamp):
@@ -817,6 +893,7 @@ class StaticAvoidanceEngine:
                 lane_id,
                 (position.x, position.y, position.z),
                 self.params.use_lane_type,
+                self.params.use_intersection_areas,
             )
             if map_distances[0] is not None:
                 expanded_left = max(expanded_left, map_distances[0])
@@ -1059,6 +1136,7 @@ class StaticAvoidanceEngine:
 
     def _shift_path(self, path, lines):
         output = deepcopy(path)
+        self._expand_drivable_bounds(output)
         distances = path_cumulative_lengths(output)
         offsets = []
         for point, station in zip(output.points, distances):
@@ -1078,6 +1156,69 @@ class StaticAvoidanceEngine:
                     math.atan2(after.y - before.y, after.x - before.x)
                 )
         return output, offsets
+
+    @staticmethod
+    def _boundary_point(boundary, position):
+        if len(boundary) < 2:
+            return None
+        polyline = [(point.x, point.y, point.z) for point in boundary]
+        projection = project_point_to_polyline_with_point(
+            polyline,
+            (position.x, position.y, position.z),
+        )
+        return projection[2] if projection is not None else None
+
+    def _expand_drivable_bounds(self, path):
+        """Propagate map drivable-area expansion to Path left/right bounds."""
+        if self.centerline_map is None or not path.points:
+            return
+
+        source_bounds = (list(path.left_bound), list(path.right_bound))
+        expanded = ([], [])
+        for index, path_point in enumerate(path.points):
+            position = path_point.point.pose.position
+            point = (position.x, position.y, position.z)
+            yaw = _path_tangent_yaw(path, index)
+            left_normal = (-math.sin(yaw), math.cos(yaw))
+            lane_id = self._lane_id_at(path, index)
+            map_points = (None, None)
+            if lane_id is not None:
+                map_points = self.centerline_map.expanded_bound_points(
+                    lane_id,
+                    point,
+                    self.params.use_lane_type,
+                    self.params.use_intersection_areas,
+                )
+
+            for side_index in (0, 1):
+                candidates = [
+                    self._boundary_point(source_bounds[side_index], position),
+                    map_points[side_index],
+                ]
+                candidates = [candidate for candidate in candidates if candidate is not None]
+                if not candidates:
+                    continue
+
+                def lateral(candidate):
+                    return (
+                        (candidate[0] - position.x) * left_normal[0]
+                        + (candidate[1] - position.y) * left_normal[1]
+                    )
+
+                if side_index == 0:
+                    same_side = [candidate for candidate in candidates if lateral(candidate) >= 0.0]
+                    selected = max(same_side or candidates, key=lateral)
+                else:
+                    same_side = [candidate for candidate in candidates if lateral(candidate) <= 0.0]
+                    selected = min(same_side or candidates, key=lateral)
+                expanded[side_index].append(
+                    Point(x=selected[0], y=selected[1], z=selected[2])
+                )
+
+        if len(expanded[0]) >= 2:
+            path.left_bound = expanded[0]
+        if len(expanded[1]) >= 2:
+            path.right_bound = expanded[1]
 
     def _raw_safety(self, candidate_path, targets, all_objects, conflict):
         if conflict:
@@ -1193,6 +1334,7 @@ class StaticAvoidanceEngine:
                 continue
             if candidate.avoid_required:
                 self._desired_shift(candidate, ego_speed, path_end)
+            self._log_unknown_candidate(candidate, detection, now)
             candidates.append(candidate)
 
         targets = [candidate for candidate in candidates if candidate.allow_avoidance]

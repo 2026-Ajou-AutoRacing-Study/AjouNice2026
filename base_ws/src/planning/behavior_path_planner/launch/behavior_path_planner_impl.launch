@@ -19,7 +19,8 @@
     <param name="planning_hz" value="$(arg planning_hz)" />
     <param name="path_interval" value="2.0" />
     <param name="backward_path_length" value="5.0" />
-    <param name="vehicle_rear_overhang" value="1.1" />
+    <!-- IONIQ 5 geometry; base_link is the rear-axle centre. -->
+    <param name="vehicle_rear_overhang" value="0.790" />
     <param name="backward_path_margin" value="1.0" />
     <param name="forward_path_length" value="$(arg forward_path_length)" />
     <param name="ego_nearest_dist_threshold" value="3.0" />
@@ -54,8 +55,15 @@
     <param name="lane_change/rtc/enable_left" value="$(arg lane_change_enable_rtc_left)" />
     <param name="lane_change/rtc/enable_right" value="$(arg lane_change_enable_rtc_right)" />
 
-    <param name="static_obstacle_avoidance/use_lane_type" value="opposite_direction_lane" />
-    <param name="static_obstacle_avoidance/target_filtering/detection_area/static" value="false" />
+    <!-- Allow avoidance into adjacent lanes only when they have the same travel direction. -->
+    <param name="static_obstacle_avoidance/use_lane_type" value="same_direction_lane" />
+    <!-- One diagnostic per second for each UNKNOWN object evaluated by static avoidance. -->
+    <param name="static_obstacle_avoidance/debug/log_unknown_objects" value="true" />
+    <param name="static_obstacle_avoidance/use_intersection_areas" value="true" />
+    <param name="static_obstacle_avoidance/vehicle/width" value="1.892" />
+    <param name="static_obstacle_avoidance/vehicle/base_link_to_front" value="3.845" />
+    <param name="static_obstacle_avoidance/vehicle/base_link_to_rear" value="0.790" />
+    <param name="static_obstacle_avoidance/target_filtering/detection_area/static" value="true" />
     <param name="static_obstacle_avoidance/target_filtering/detection_area/min_forward_distance" value="50.0" />
     <param name="static_obstacle_avoidance/target_filtering/detection_area/max_forward_distance" value="150.0" />
     <param name="static_obstacle_avoidance/target_filtering/detection_area/backward_distance" value="10.0" />
@@ -88,8 +96,8 @@
     <param name="static_obstacle_avoidance/target_object/car/th_moving_speed" value="1.0" />
     <param name="static_obstacle_avoidance/target_object/car/th_moving_time" value="2.0" />
     <param name="static_obstacle_avoidance/target_object/car/lateral_margin/soft_margin" value="0.5" />
-    <param name="static_obstacle_avoidance/target_object/car/lateral_margin/hard_margin" value="0.2" />
-    <param name="static_obstacle_avoidance/target_object/car/lateral_margin/hard_margin_for_parked_vehicle" value="0.2" />
+    <param name="static_obstacle_avoidance/target_object/car/lateral_margin/hard_margin" value="3.0" />
+    <param name="static_obstacle_avoidance/target_object/car/lateral_margin/hard_margin_for_parked_vehicle" value="3.0" />
     <rosparam param="static_obstacle_avoidance/constraints/lateral/min_jerk_values/avoid">[0.2, 0.2, 0.2]</rosparam>
     <rosparam param="static_obstacle_avoidance/constraints/lateral/min_jerk_values/return">[0.2, 0.2, 0.2]</rosparam>
     <rosparam param="static_obstacle_avoidance/constraints/lateral/max_jerk_values">[3.0, 3.0, 3.0]</rosparam>
