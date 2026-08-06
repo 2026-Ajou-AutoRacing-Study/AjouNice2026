@@ -4,6 +4,7 @@ __pycache__/
 *.log
 tmp/
 temp/
+local_reference/
 
 # Large sensor and training artifacts must live under AJOUNICE_DATA_ROOT.
 raw/

@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "purpose": "MORAI ROS ScenarioLoad and SaveSensorData proof of concept",
+  "map_name": "R_KR_PR_K-city_2025",
+  "environment": {
+    "weather": "sunny",
+    "time_hour": 13,
+    "note": "Set once in the MORAI UI before running this PoC."
+  },
+  "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+  "capture_policy": {
+    "captures_per_scene": 6,
+    "capture_spacing_m": 0.6,
+    "ego_target_speed_kph": 3.6,
+    "maximum_motion_m": 4.0
+  },
+  "scenes": [
+    {
+      "id": "p01",
+      "file_name": "od_poc_01",
+      "scenario": "dataset/morai_od/scenarios/ros_capture_poc/od_poc_01.json",
+      "metadata": "dataset/morai_od/metadata/ros_capture_poc/od_poc_01.metadata.json",
+      "anchor_index": 500,
+      "expected_ego": {
+        "x": -76.18682759348809,
+        "y": -223.34518327661468,
+        "z": 28.735550078333453,
+        "yaw": 62.908557225536924,
+        "link_idx": "A2256W000213",
+        "point_idx": 16
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 3,
+        "obstacle": 2
+      }
+    },
+    {
+      "id": "p02",
+      "file_name": "od_poc_02",
+      "scenario": "dataset/morai_od/scenarios/ros_capture_poc/od_poc_02.json",
+      "metadata": "dataset/morai_od/metadata/ros_capture_poc/od_poc_02.metadata.json",
+      "anchor_index": 2516,
+      "expected_ego": {
+        "x": 67.07312095126154,
+        "y": 64.69883346904518,
+        "z": 28.670298968153524,
+        "yaw": -89.63127724475983,
+        "link_idx": "A2256W000420",
+        "point_idx": 49
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 4,
+        "obstacle": 2
+      }
+    },
+    {
+      "id": "p03",
+      "file_name": "od_poc_03",
+      "scenario": "dataset/morai_od/scenarios/ros_capture_poc/od_poc_03.json",
+      "metadata": "dataset/morai_od/metadata/ros_capture_poc/od_poc_03.metadata.json",
+      "anchor_index": 3500,
+      "expected_ego": {
+        "x": 69.71951261864368,
+        "y": -422.52774121879435,
+        "z": 28.448734846774247,
+        "yaw": -98.06612478343351,
+        "link_idx": "A2256W000446",
+        "point_idx": 34
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 5,
+        "obstacle": 3
+      }
+    }
+  ]
+}

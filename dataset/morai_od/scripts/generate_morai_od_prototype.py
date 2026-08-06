@@ -13,6 +13,7 @@ import copy
 import json
 import math
 import random
+import re
 from pathlib import Path
 
 
@@ -60,6 +61,20 @@ def parse_args():
         help=(
             "MORAI OD workspace containing scenarios/ and metadata/ "
             "(default: dataset/morai_od)."
+        ),
+    )
+    parser.add_argument(
+        "--scenario-group",
+        default="prototypes",
+        help="Subdirectory below scenarios/ and metadata/.",
+    )
+    parser.add_argument(
+        "--output-stem",
+        default=None,
+        help=(
+            "Optional short output filename without .json. MORAI's legacy "
+            "transport allows at most 30 bytes, so 29 ASCII characters are "
+            "enforced when this option is used."
         ),
     )
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
@@ -465,6 +480,17 @@ def generate(args):
     for count_name in ("npc_count", "pedestrian_count", "obstacle_count"):
         if getattr(args, count_name) < 0:
             raise ValueError(f"--{count_name.replace('_', '-')} must be >= 0")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", args.scenario_group):
+        raise ValueError(
+            "--scenario-group must contain only ASCII letters, numbers, "
+            "underscores, and hyphens"
+        )
+    if args.output_stem is not None:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,29}", args.output_stem):
+            raise ValueError(
+                "--output-stem must be 1..29 ASCII letters, numbers, "
+                "underscores, or hyphens"
+            )
 
     template = load_json(args.template)
     waypoints = load_waypoints(args.waypoints)
@@ -615,11 +641,11 @@ def generate(args):
         expected_counts=expected_counts,
     )
 
-    scenario_dir = args.output_root / "scenarios/prototypes"
-    metadata_dir = args.output_root / "metadata/prototypes"
+    scenario_dir = args.output_root / "scenarios" / args.scenario_group
+    metadata_dir = args.output_root / "metadata" / args.scenario_group
     scenario_dir.mkdir(parents=True, exist_ok=True)
     metadata_dir.mkdir(parents=True, exist_ok=True)
-    stem = (
+    stem = args.output_stem or (
         f"morai_od_prototype_a{args.anchor_index:04d}_"
         f"{args.weather}_t{args.time_hour:02d}_seed{args.seed}"
     )
@@ -632,6 +658,8 @@ def generate(args):
 
     metadata = {
         "prototype_version": 0,
+        "scenario_stem": stem,
+        "scenario_group": args.scenario_group,
         "scenario_file": scenario_path.name,
         "template": repository_relative_path(args.template),
         "waypoints": repository_relative_path(args.waypoints),
@@ -697,6 +725,7 @@ def generate(args):
         "(not embedded in Internal Scenario JSON)"
     )
     print("static validation: OK")
+    return scenario_path, metadata_path
 
 
 def main():

@@ -47,11 +47,13 @@ dataset/morai_od/
 ├── scripts/       # 생성·검증·변환 코드
 ├── configs/       # 생성 규칙과 실행 설정
 ├── templates/     # MORAI 템플릿 설명·승인 템플릿
+├── docs/          # 지도·자산·시나리오 생성 및 자동화 설계
 ├── schemas/       # manifest 등 파일 형식
 ├── scenarios/     # Git으로 관리하는 MORAI 시나리오 JSON
 ├── manifests/     # 샘플 목록과 split
 ├── reports/       # 생성·검증 보고서
-└── metadata/      # seed, 환경 조건, 입력 버전
+├── metadata/      # seed, 환경 조건, 입력 버전
+└── local_reference/ # 벤더 원본 예제 복사본; Git 제외
 ```
 
 ## 현재 프로토타입 생성
@@ -77,3 +79,33 @@ dataset/morai_od/metadata/prototypes/*.metadata.json
 주의: 현재 보행자는 도로 가장자리 근사 규칙으로 배치한다. 대량 생성 전에는
 GIS/Lanelet 횡단보도 제약, MORAI asset catalog와 시뮬레이터 실제 로드 검증을
 추가해야 한다.
+
+## Scenario Runner 검토 결과와 참조 리소스
+
+개인용 MORAI Scenario Runner v1.7.0에서 확보한 K-City 2025 MGeo와 XOSC
+예제의 활용 방법은 다음 문서에 정리했다.
+
+- `docs/scenario_runner_adoption_review.md`
+- `docs/scenario_runner_resource_integration.md`
+- `configs/scenario_runner_asset_catalog.yaml`
+
+원본 리소스는 MORAI 설치본에서 다시 얻을 수 있고 버전·라이선스에 종속되므로
+Git에는 올리지 않는다.
+
+Scenario Runner의 외부 Python API는 현재 환경에서 재현 가능한 공식
+의존성을 확보하지 못해 런타임 자동화 경로에서 제외했다. 대량 실행은
+MORAI Internal Scenario JSON, `/ScenarioLoad`, `/SaveSensorData` 기반으로
+구현하고 Runner에서 확보한 지도와 예제는 생성기 참조 자료로만 사용한다.
+
+## ROS 자동 로드·캡처 PoC
+
+정교한 랜덤 시나리오를 대량 생성하기 전에 3개 장면으로
+`/ScenarioLoad → /SaveSensorData → 제한형 Ego 이동`을 검증한다.
+
+- 실행 문서: `docs/ros_scenario_autocapture_poc.md`
+- PoC manifest: `manifests/ros_capture_poc.json`
+- 생성기: `scripts/generate_ros_capture_poc_set.py`
+- 자동화 노드: `scripts/ros_scenario_autocapture_poc.py`
+
+첫 실행은 반드시 `p01`, stationary, 1장으로 저장 경로까지 검증한 뒤
+저속 이동과 3개 장면 batch로 확장한다.
