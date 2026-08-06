@@ -202,6 +202,23 @@ class TrajectoryInterfaceTest(unittest.TestCase):
         self.assertIsNotNone(collision)
         self.assertLess(collision[0], 25.0)
 
+    def test_dynamic_prediction_does_not_discard_ahead_swept_overlap(self):
+        planner = collision_planner()
+        message = trajectory([5.0] * 51)
+        # The object is moving away in the same lane.  Its current swept area
+        # already overlaps the ego trajectory, so the planner must keep the
+        # earliest overlap rather than wait until ego reaches the object.
+        object_in_path = moving_object(8.0, 0.0, 3.0, 0.0)
+
+        collision = planner.dynamic_collision_station(
+            object_in_path,
+            message,
+            path_cumulative_lengths(message),
+        )
+
+        self.assertIsNotNone(collision)
+        self.assertLess(collision[0], 6.0)
+
     def test_dynamic_prediction_ignores_parallel_adjacent_vehicle(self):
         planner = collision_planner()
         message = trajectory([5.0] * 51)

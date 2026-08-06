@@ -426,22 +426,10 @@ class MotionVelocityPlanner:
                 ego_width,
                 ego_center_offset,
             )
-            # Ignore the portion behind an object moving away from ego.  This
-            # is the same direction gate used by Autoware's module.
-            object_to_ego_yaw = math.atan2(
-                ego_pose.position.y - pose.position.y,
-                ego_pose.position.x - pose.position.x,
-            )
-            heading_difference = abs(
-                math.atan2(
-                    math.sin(object_to_ego_yaw - object_yaw),
-                    math.cos(object_to_ego_yaw - object_yaw),
-                )
-            )
-            if (
-                heading_difference <= 3.0 * math.pi / 4.0
-                and oriented_boxes_intersect(ego_corners, immediate_path_corners)
-            ):
+            # Do not discard an overlap based on the object's current heading.
+            # A MORAI pedestrian can report a stale heading while crossing the
+            # ego lane; the swept-region intersection is the safety condition.
+            if oriented_boxes_intersect(ego_corners, immediate_path_corners):
                 ego_speed = max(self.ego_speed_for_stop_distance(), 0.1)
                 return station, max((station - ego_station) / ego_speed, 0.0)
 

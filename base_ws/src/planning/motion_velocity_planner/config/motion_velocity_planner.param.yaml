@@ -10,7 +10,7 @@ stop_distance: 3.0
 # MORAI NPCs can enter the ego corridor at the route speed.  Keep an emergency
 # stop buffer in addition to the predicted collision footprint so the final
 # trajectory reaches zero before the object rather than at its edge.
-dynamic_stop_distance: 8.0
+dynamic_stop_distance: 10.0
 warning_distance: 6.0
 min_stop_velocity_mps: 0.5
 # At 8 m/s, 1.0 m/s^2 needs 32 m to stop and was repeatedly reported as a
@@ -26,9 +26,9 @@ dynamic_stop_ttc_threshold: 4.0
 dynamic_stop_min_relative_speed_mps: 1.0
 # Autoware-style immediate-path collision prediction for moving objects.
 # The object path is swept for the horizon; ego footprints are sampled by arc length.
-dynamic_prediction_horizon_sec: 10.0
+dynamic_prediction_horizon_sec: 12.0
 dynamic_collision_path_resolution_m: 0.5
-dynamic_collision_margin_m: 0.5
+dynamic_collision_margin_m: 0.8
 # Leave this enabled while validating MORAI dynamic-object scenarios. It logs
 # the transformed object state and the selected immediate-path collision point.
 dynamic_collision_debug: true
