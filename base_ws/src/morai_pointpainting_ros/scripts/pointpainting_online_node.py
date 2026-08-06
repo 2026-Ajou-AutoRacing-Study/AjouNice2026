@@ -740,6 +740,8 @@ class PointPaintingOnlineNode:
         sys.path.insert(0, str(self.tools_dir))
         os.chdir(str(self.tools_dir))
 
+        import yaml
+
         from pcdet.config import cfg, cfg_from_yaml_file
         from pcdet.datasets import DatasetTemplate
         from pcdet.models import build_network
@@ -761,7 +763,73 @@ class PointPaintingOnlineNode:
             def __getitem__(self, index):
                 raise IndexError(index)
 
-        cfg_from_yaml_file(str(self.cfg_file), cfg)
+        # OpenPCDet의 _BASE_CONFIG_는 현재 작업 디렉터리를
+        # 기준으로 해석된다. 저장소 config와 OpenPCDet config를
+        # 모두 지원하도록 실제 base config가 존재하는 기준 폴더를 찾는다.
+        config_load_dir = self.tools_dir
+
+        with self.cfg_file.open("r", encoding="utf-8") as config_file:
+            raw_config = yaml.safe_load(config_file) or {}
+
+        base_config_value = (
+            raw_config
+            .get("DATA_CONFIG", {})
+            .get("_BASE_CONFIG_")
+        )
+
+        if base_config_value:
+            base_config_path = Path(
+                str(base_config_value)
+            ).expanduser()
+
+            if base_config_path.is_absolute():
+                if not base_config_path.exists():
+                    raise FileNotFoundError(
+                        "Base config not found: {}".format(
+                            base_config_path
+                        )
+                    )
+            else:
+                candidate_directories = (
+                    self.cfg_file.parent,
+                    self.tools_dir,
+                    self.openpcdet_root,
+                )
+
+                resolved_directory = next(
+                    (
+                        directory
+                        for directory in candidate_directories
+                        if (directory / base_config_path).exists()
+                    ),
+                    None,
+                )
+
+                if resolved_directory is None:
+                    searched = [
+                        str(directory / base_config_path)
+                        for directory in candidate_directories
+                    ]
+                    raise FileNotFoundError(
+                        "Base config not found. searched={}".format(
+                            searched
+                        )
+                    )
+
+                config_load_dir = resolved_directory
+
+        rospy.loginfo(
+            "OpenPCDet config load cwd: %s",
+            config_load_dir,
+        )
+
+        try:
+            os.chdir(str(config_load_dir))
+            cfg_from_yaml_file(str(self.cfg_file), cfg)
+        finally:
+            # 이후 OpenPCDet 동작은 기존처럼 tools 기준으로 유지한다.
+            os.chdir(str(self.tools_dir))
+
         self.pcdet_cfg = cfg
         self.pcdet_load_data_to_gpu = None
 
