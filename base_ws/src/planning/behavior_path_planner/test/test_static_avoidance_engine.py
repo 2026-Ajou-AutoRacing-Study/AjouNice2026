@@ -146,31 +146,6 @@ class StaticAvoidanceEngineTest(unittest.TestCase):
         self.assertEqual(len(result.shift_lines), 1)
         self.assertEqual(result.shift_lines[0].direction, "left")
 
-    def test_intersection_area_is_propagated_to_output_drivable_bounds(self):
-        centerline_map = make_map()
-        centerline_map.intersection_areas = {
-            "500": [
-                (20.0, -5.0, 0.0),
-                (80.0, -5.0, 0.0),
-                (80.0, 5.0, 0.0),
-                (20.0, 5.0, 0.0),
-                (20.0, -5.0, 0.0),
-            ]
-        }
-        centerline_map.lane_intersection_area_ids = {"10": "500"}
-        parameters = make_parameters()
-        parameters.use_lane_type = "current_lane"
-        engine = StaticAvoidanceEngine(parameters, centerline_map)
-
-        output, _ = engine._shift_path(self.path, [])
-
-        self.assertAlmostEqual(output.left_bound[10].y, 2.5)
-        self.assertAlmostEqual(output.right_bound[10].y, -2.5)
-        self.assertAlmostEqual(output.left_bound[50].y, 5.0)
-        self.assertAlmostEqual(output.right_bound[50].y, -5.0)
-        self.assertAlmostEqual(self.path.left_bound[0].y, 2.5)
-        self.assertEqual(len(self.path.left_bound), 2)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.0.2)
 project(trajectory_validator)
 
 find_package(catkin REQUIRED COMPONENTS
-  autoware_internal_planning_msgs
   autoware_planning_msgs
   geometry_msgs
   message_generation
@@ -13,7 +12,6 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   rviz
   std_msgs
-  tier4_planning_msgs
   trajectory_follower
   visualization_msgs
 )
@@ -34,7 +32,6 @@ generate_messages(DEPENDENCIES
 catkin_package(
   LIBRARIES trajectory_validator_rviz_panel
   CATKIN_DEPENDS
-    autoware_internal_planning_msgs
     autoware_planning_msgs
     geometry_msgs
     message_runtime
@@ -45,7 +42,6 @@ catkin_package(
     rospy
     rviz
     std_msgs
-    tier4_planning_msgs
     trajectory_follower
     visualization_msgs
 )
@@ -56,9 +52,7 @@ include_directories(
 )
 
 add_library(trajectory_validator_rviz_panel
-  src/planning_status_panel.cpp
   src/purepursuit_hud_panel.cpp
-  include/trajectory_validator/planning_status_panel.hpp
   include/trajectory_validator/purepursuit_hud_panel.hpp
 )
 add_dependencies(trajectory_validator_rviz_panel

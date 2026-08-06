@@ -1,7 +1,7 @@
 # AjouNice BEVFusion runtime
 
 This directory builds and runs the four-camera MORAI BEVFusion inference
-process. Sensor geometry comes only from `configs/sensors/Sensor.json`.
+process. Sensor geometry comes only from `configs/sensors/Sensor_4.json`.
 Algorithm policy comes from `configs/perception/bevfusion_sensor4.yaml`.
 
 The ROS host connects to a port published only on `127.0.0.1`. The simulator

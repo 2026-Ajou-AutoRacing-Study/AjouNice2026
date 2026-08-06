@@ -1,30 +1,22 @@
 <launch>
   <arg name="map_file"
-       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/lanelet2_map_v60.osm" />
+       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/lanelet2_map_v44.osm" />
   <arg name="projector_file"
        default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
   <arg name="map_projector_type" default="LocalCartesianUTM" />
   <arg name="frame_id" default="map" />
   <arg name="route_preset" default="full" />
   <arg name="planning_hz" default="10.0" />
-  <arg name="default_velocity_mps" default="8.0" />
-  <arg name="control_trajectory_topic" default="/control/trajectory" />
-  <arg name="raw_trajectory_topic"
-       default="/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/raw_trajectory" />
+  <arg name="default_velocity_mps" default="4.1666665" />
   <arg name="forward_path_length" default="300.0" />
   <arg name="mission_publish_rate" default="5.0" />
   <arg name="route_lane_ids" default="[]" />
-  <arg name="preferred_lane_ids" default="[]" />
-  <arg name="candidate_lane_ids" default="[]" />
-  <arg name="route_definition_file"
-       default="$(find bringup)/config/kcity_competition_route.yaml" />
   <arg name="enable_path_smoother_debug" default="false" />
   <arg name="enable_path_optimizer_debug" default="false" />
   <arg name="mvp_extract_ahead_dist" default="200.0" />
   <arg name="mvp_extract_behind_dist" default="0.0" />
   <arg name="launch_rviz" default="true" />
-  <!-- Start kcity_competition_route.launch separately by default. -->
-  <arg name="start_route_publisher" default="false" />
+  <arg name="start_route_publisher" default="true" />
   <arg name="start_map_visualizer" default="true" />
   <arg name="software_rendering" default="1" />
 
@@ -70,14 +62,6 @@
     <arg name="cruise_speed_mps" value="$(arg default_velocity_mps)" />
     <arg name="extract_ahead_dist" value="$(arg mvp_extract_ahead_dist)" />
     <arg name="extract_behind_dist" value="$(arg mvp_extract_behind_dist)" />
-    <arg name="output_trajectory_topic" value="$(arg raw_trajectory_topic)" />
-  </include>
-
-  <include file="$(find autoware_velocity_smoother)/launch/velocity_smoother.launch">
-    <arg name="input_trajectory_topic" value="$(arg raw_trajectory_topic)" />
-    <arg name="output_trajectory_topic" value="$(arg control_trajectory_topic)" />
-    <arg name="planning_hz" value="$(arg planning_hz)" />
-    <arg name="max_velocity_mps" value="$(arg default_velocity_mps)" />
   </include>
 
   <group if="$(arg start_map_visualizer)">
@@ -106,14 +90,9 @@
           type="kcity_competition_live_route_publisher.py"
           name="kcity_competition_live_route_publisher"
           output="screen">
-      <param name="frame_id" value="$(arg frame_id)" />
       <param name="map_file" value="$(arg map_file)" />
       <param name="projector_file" value="$(arg projector_file)" />
       <param name="map_projector_type" value="$(arg map_projector_type)" />
-      <param name="route_lane_ids" value="$(arg route_lane_ids)" />
-      <param name="preferred_lane_ids" value="$(arg preferred_lane_ids)" />
-      <param name="candidate_lane_ids" value="$(arg candidate_lane_ids)" />
-      <param name="route_definition_file" value="$(arg route_definition_file)" />
       <param name="keep_alive" value="true" />
     </node>
   </group>
@@ -123,52 +102,18 @@
         name="planning_trajectory_visualizer"
         output="screen">
     <param name="input_topic"
-           value="$(arg control_trajectory_topic)" />
+           value="/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/trajectory" />
     <param name="path_topic" value="/planning/debug/final_trajectory/path" />
     <param name="marker_topic" value="/planning/debug/final_trajectory/markers" />
     <param name="nominal_velocity_mps" value="$(arg default_velocity_mps)" />
   </node>
 
-  <node pkg="bringup"
+  <node pkg="viewer"
         type="current_vehicle_marker.py"
         name="current_vehicle_marker"
         output="screen">
     <param name="input_topic" value="/localization/kinematic_state" />
     <param name="output_topic" value="/viewer/current_vehicle_marker" />
-    <param name="vehicle_length" value="4.635" />
-    <param name="vehicle_width" value="1.892" />
-    <param name="wheelbase" value="3.0" />
-    <param name="rear_overhang" value="0.79" />
-    <param name="icon_scale" value="2.0" />
-  </node>
-
-  <node pkg="bringup"
-        type="morai_perception_visualizer.py"
-        name="morai_perception_visualizer"
-        output="screen">
-    <param name="input_topic" value="/Object_topic" />
-    <param name="output_topic" value="/perception/morai/objects/markers" />
-    <param name="position_is_bottom" value="true" />
-    <param name="show_labels" value="true" />
-  </node>
-
-  <node pkg="bringup"
-        type="morai_objects_to_predicted_objects.py"
-        name="morai_objects_to_predicted_objects"
-        output="screen">
-    <param name="input_topic" value="/Object_topic" />
-    <param name="output_topic"
-           value="/perception/object_recognition/objects" />
-    <param name="target_frame" value="map" />
-    <param name="fallback_source_frame" value="morai_map" />
-    <param name="position_is_bottom" value="true" />
-    <!-- sensor_interface publishes ObjectStatus velocity in SI units (m/s). -->
-    <param name="velocity_scale_to_mps" value="1.0" />
-    <param name="acceleration_scale_to_mps2" value="1.0" />
-    <param name="classification_probability" value="1.0" />
-    <!-- Autoware planning modules consume predicted_paths, not just twist. -->
-    <param name="prediction_horizon_sec" value="20.0" />
-    <param name="prediction_time_step_sec" value="0.5" />
   </node>
 
   <node if="$(arg launch_rviz)"
@@ -178,6 +123,5 @@
         args="-d $(find bringup)/rviz/kcity_morai_competition_planner.yaml"
         output="screen">
     <env name="LIBGL_ALWAYS_SOFTWARE" value="$(arg software_rendering)" />
-    <env name="DISABLE_ROS1_EOL_WARNINGS" value="1" />
   </node>
 </launch>

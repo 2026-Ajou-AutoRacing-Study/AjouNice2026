@@ -6,7 +6,6 @@ import sys
 import uuid
 
 import rospy
-import yaml
 from autoware_internal_planning_msgs.srv import (
     ClearRoute,
     SetLaneletRoute,
@@ -35,10 +34,10 @@ BPP_SCRIPT_DIR = os.path.realpath(
 if BPP_SCRIPT_DIR not in sys.path:
     sys.path.insert(0, BPP_SCRIPT_DIR)
 
-from bpp_map_tools import CenterlineMap, project_point_to_polyline  # noqa: E402
+from bpp_map_tools import CenterlineMap  # noqa: E402
 
 
-COMPETITION_PREFERRED_LANE_IDS = [
+COMPETITION_LANE_IDS = [
     200889,
     200392,
     200178,
@@ -82,28 +81,6 @@ COMPETITION_PREFERRED_LANE_IDS = [
     200892,
 ]
 
-COMPETITION_CANDIDATE_LANE_IDS = [
-    200099,
-    200152,
-    200142,
-    200136,
-    200137,
-    200138,
-    200186,
-    200187,
-    200188,
-    200141,
-    200130,
-    200127,
-    200148,
-    200185,
-    200147,
-    201400,
-    200149,
-    200150,
-    201402,
-]
-
 
 def quaternion_from_yaw(yaw):
     pose = Pose()
@@ -112,59 +89,16 @@ def quaternion_from_yaw(yaw):
     return pose.orientation
 
 
-def lane_ids_param_is_set(value):
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return value.strip() not in ("", "[]")
-    if isinstance(value, (list, tuple)):
-        return len(value) > 0
-    return True
-
-
-def parse_lane_ids(value, default_lane_ids=None):
-    default_lane_ids = list(default_lane_ids or [])
+def parse_lane_ids(value):
     if isinstance(value, str):
         value = value.strip()
         if not value:
-            return default_lane_ids
+            return list(COMPETITION_LANE_IDS)
         value = value.strip("[]")
         return [int(token.strip()) for token in value.split(",") if token.strip()]
     if isinstance(value, (list, tuple)):
         return [int(item) for item in value]
-    if value is None:
-        return default_lane_ids
-    return [int(value)]
-
-
-def unique_lane_ids(lane_ids):
-    result = []
-    for lane_id in lane_ids:
-        lane_id = int(lane_id)
-        if lane_id not in result:
-            result.append(lane_id)
-    return result
-
-
-def load_route_definition(path):
-    if not path:
-        return {}
-    with open(os.path.expanduser(path), "r", encoding="utf-8") as stream:
-        data = yaml.safe_load(stream) or {}
-    if not isinstance(data, dict):
-        raise ValueError("route definition root must be a mapping")
-    return data
-
-
-def parse_candidate_assignments(value):
-    if not isinstance(value, dict):
-        return {}
-    result = {}
-    for preferred_lane_id, candidate_lane_ids in value.items():
-        result[int(preferred_lane_id)] = unique_lane_ids(
-            parse_lane_ids(candidate_lane_ids, [])
-        )
-    return result
+    return list(COMPETITION_LANE_IDS)
 
 
 def color(r, g, b, a=1.0):
@@ -182,78 +116,9 @@ class KcityCompetitionLiveRoutePublisher:
             ),
         )
         self.projector_type = rospy.get_param("~map_projector_type", "LocalCartesianUTM")
-        self.route_definition_file = os.path.expanduser(
-            rospy.get_param(
-                "~route_definition_file",
-                "/tmp/kcity_route_editor_lane_ids.yaml",
-            )
+        self.lane_ids = parse_lane_ids(
+            rospy.get_param("~route_lane_ids", COMPETITION_LANE_IDS)
         )
-        route_definition = {}
-        try:
-            route_definition = load_route_definition(self.route_definition_file)
-            rospy.loginfo(
-                "loaded edited route definition from %s",
-                self.route_definition_file,
-            )
-        except (OSError, ValueError, yaml.YAMLError) as error:
-            rospy.logwarn(
-                "edited route definition unavailable at %s; using built-in route: %s",
-                self.route_definition_file,
-                error,
-            )
-
-        route_lane_ids = rospy.get_param("~route_lane_ids", [])
-        if lane_ids_param_is_set(route_lane_ids):
-            self.preferred_lane_ids = unique_lane_ids(
-                parse_lane_ids(route_lane_ids, [])
-            )
-            self.candidate_lane_ids = unique_lane_ids(
-                parse_lane_ids(rospy.get_param("~candidate_lane_ids", []), [])
-            )
-            self.edited_candidate_assignments = {}
-        else:
-            definition_preferred = parse_lane_ids(
-                route_definition.get(
-                    "preferred_lane_ids",
-                    COMPETITION_PREFERRED_LANE_IDS,
-                ),
-                COMPETITION_PREFERRED_LANE_IDS,
-            )
-            definition_candidates = parse_lane_ids(
-                route_definition.get(
-                    "candidate_lane_ids",
-                    COMPETITION_CANDIDATE_LANE_IDS,
-                ),
-                COMPETITION_CANDIDATE_LANE_IDS,
-            )
-            preferred_param = rospy.get_param("~preferred_lane_ids", [])
-            candidate_param = rospy.get_param("~candidate_lane_ids", [])
-            self.preferred_lane_ids = unique_lane_ids(
-                parse_lane_ids(
-                    preferred_param,
-                    definition_preferred,
-                )
-                if lane_ids_param_is_set(preferred_param)
-                else definition_preferred
-            )
-            self.candidate_lane_ids = unique_lane_ids(
-                parse_lane_ids(
-                    candidate_param,
-                    definition_candidates,
-                )
-                if lane_ids_param_is_set(candidate_param)
-                else definition_candidates
-            )
-            self.edited_candidate_assignments = parse_candidate_assignments(
-                route_definition.get("candidate_assignments", {})
-            )
-
-        self.candidate_lane_ids = [
-            lane_id
-            for lane_id in self.candidate_lane_ids
-            if lane_id not in self.preferred_lane_ids
-        ]
-        self.lane_ids = self.preferred_lane_ids + self.candidate_lane_ids
         self.vector_map_topic = rospy.get_param("~vector_map_topic", "/map/vector_map")
         self.map_wait_timeout = float(rospy.get_param("~map_wait_timeout", 10.0))
         self.odometry_topic = rospy.get_param(
@@ -280,8 +145,6 @@ class KcityCompetitionLiveRoutePublisher:
         missing = [lane_id for lane_id in self.lane_ids if not self.centerline_map.has_lane(lane_id)]
         if missing:
             raise RuntimeError("route lane ids are missing in map: {}".format(missing))
-        if not self.preferred_lane_ids:
-            raise RuntimeError("preferred route lane ids are empty")
 
     def load_centerline_map(self):
         if self.map_file:
@@ -316,7 +179,7 @@ class KcityCompetitionLiveRoutePublisher:
         return centerline_map
 
     def lane_goal_pose(self):
-        centerline = self.centerline_map.get_centerline(self.preferred_lane_ids[-1])
+        centerline = self.centerline_map.get_centerline(self.lane_ids[-1])
         if not centerline or len(centerline) < 2:
             raise RuntimeError("last route lane has no usable centerline")
         previous = centerline[-2]
@@ -329,58 +192,13 @@ class KcityCompetitionLiveRoutePublisher:
         pose.orientation = quaternion_from_yaw(yaw)
         return pose
 
-    def closest_preferred_lane_id(self, lane_id):
-        centerline = self.centerline_map.get_centerline(lane_id)
-        if not centerline:
-            return None
-        lane_midpoint = centerline[len(centerline) // 2]
-        best = None
-        for preferred_lane_id in self.preferred_lane_ids:
-            preferred_centerline = self.centerline_map.get_centerline(preferred_lane_id)
-            projection = project_point_to_polyline(preferred_centerline, lane_midpoint)
-            if projection is None:
-                continue
-            distance = float(projection[1])
-            if best is None or distance < best[0]:
-                best = (distance, preferred_lane_id)
-        return best[1] if best is not None else None
-
-    def candidate_assignments(self):
-        assignments = {lane_id: [] for lane_id in self.preferred_lane_ids}
-        assigned_candidates = set()
-
-        for preferred_lane_id, candidate_lane_ids in self.edited_candidate_assignments.items():
-            if preferred_lane_id not in assignments:
-                continue
-            for candidate_lane_id in candidate_lane_ids:
-                if (
-                    candidate_lane_id in self.candidate_lane_ids
-                    and candidate_lane_id not in assigned_candidates
-                ):
-                    assignments[preferred_lane_id].append(candidate_lane_id)
-                    assigned_candidates.add(candidate_lane_id)
-
-        for candidate_lane_id in self.candidate_lane_ids:
-            if candidate_lane_id in assigned_candidates:
-                continue
-            preferred_lane_id = self.closest_preferred_lane_id(candidate_lane_id)
-            if preferred_lane_id is not None:
-                assignments[preferred_lane_id].append(candidate_lane_id)
-                assigned_candidates.add(candidate_lane_id)
-        return assignments
-
     def make_segments(self):
         segments = []
-        assignments = self.candidate_assignments()
-        for lane_id in self.preferred_lane_ids:
+        for lane_id in self.lane_ids:
             primitive = LaneletPrimitive(id=int(lane_id), primitive_type="lane")
             segment = LaneletSegment()
             segment.preferred_primitive = primitive
             segment.primitives = [primitive]
-            for candidate_lane_id in assignments.get(lane_id, []):
-                segment.primitives.append(
-                    LaneletPrimitive(id=int(candidate_lane_id), primitive_type="lane")
-                )
             segments.append(segment)
         return segments
 
@@ -459,9 +277,8 @@ class KcityCompetitionLiveRoutePublisher:
                 response = service(request)
                 if response.status.success:
                     rospy.loginfo(
-                        "K-City live competition route set: %d preferred, %d candidates, ego=(%.2f, %.2f), goal=(%.2f, %.2f)",
-                        len(self.preferred_lane_ids),
-                        len(self.candidate_lane_ids),
+                        "K-City live competition route set: %d lanelets, ego=(%.2f, %.2f), goal=(%.2f, %.2f)",
+                        len(self.lane_ids),
                         odometry.pose.pose.position.x,
                         odometry.pose.pose.position.y,
                         goal_pose.position.x,

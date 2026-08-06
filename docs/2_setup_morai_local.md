@@ -19,7 +19,7 @@
     - MORAI Launcher 로그인
     - 시뮬레이터로 GUI 조작해보기
 - WSL2 Ubuntu 20.04
-    - `Sensor.json`, `ego_network_1.json`을 MORAI에 로드
+    - `Sensor_4.json`, `ego_network_1.json`을 MORAI에 로드
     - `morai_udp_interface.launch`로 UDP 패킷을 ROS 메시지로 변환
     - `sensing.launch`로 센서 static TF와 선택적인 RViz/차량 모델을 실행
 
@@ -75,7 +75,7 @@ source ~/AjouNice2026/base_ws/devel/setup.bash
 roslaunch bringup sensing.launch start_rviz:=false enable_vehicle_model:=false
 ```
 
-- 센서 설정: `configs/sensors/Sensor.json`
+- 센서 설정: `configs/sensors/Sensor_4.json`
 - Ego Network 설정: `configs/network/ego_network_1.json`
 - rosbridge/WebSocket 9090은 실행하지 않는다.
 
@@ -89,7 +89,7 @@ hostname -I
 ```
 
 ## MORAI에서 UDP 설정 로드
-- Sensor 설정에서 `configs/sensors/Sensor.json`을 로드한다.
+- Sensor 설정에서 `configs/sensors/Sensor_4.json`을 로드한다.
 - Network Settings > Ego-0에서 `configs/network/ego_network_1.json`을 로드한다.
 - MORAI와 ROS가 같은 PC이면 현재 파일의 `127.0.0.1`을 그대로 사용한다.
 - 다른 PC/WSL2이면 두 JSON의 host/destination IP를 실제 양쪽 IP로 바꾼다.

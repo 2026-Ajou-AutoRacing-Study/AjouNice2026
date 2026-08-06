@@ -170,7 +170,7 @@ def main():
             "..",
             "configs",
             "sensors",
-            "Sensor.json",
+            "Sensor_2.json",
         )
     )
     parser = argparse.ArgumentParser(

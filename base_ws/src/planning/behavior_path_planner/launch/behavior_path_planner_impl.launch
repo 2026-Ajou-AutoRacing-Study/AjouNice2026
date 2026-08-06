@@ -55,8 +55,7 @@
     <param name="lane_change/rtc/enable_right" value="$(arg lane_change_enable_rtc_right)" />
 
     <param name="static_obstacle_avoidance/use_lane_type" value="opposite_direction_lane" />
-    <param name="static_obstacle_avoidance/use_intersection_areas" value="true" />
-    <param name="static_obstacle_avoidance/target_filtering/detection_area/static" value="true" />
+    <param name="static_obstacle_avoidance/target_filtering/detection_area/static" value="false" />
     <param name="static_obstacle_avoidance/target_filtering/detection_area/min_forward_distance" value="50.0" />
     <param name="static_obstacle_avoidance/target_filtering/detection_area/max_forward_distance" value="150.0" />
     <param name="static_obstacle_avoidance/target_filtering/detection_area/backward_distance" value="10.0" />

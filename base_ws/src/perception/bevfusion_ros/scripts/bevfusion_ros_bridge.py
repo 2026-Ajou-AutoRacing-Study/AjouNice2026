@@ -36,7 +36,7 @@ class BevFusionRosBridge:
         self.intrinsic_source = rospy.get_param("~intrinsic_source", "horizontal_fov")
         self.camera_order = rospy.get_param("~camera_order", DEFAULT_CAMERA_ORDER)
         self.sync_tolerance = float(rospy.get_param("~sync_tolerance_sec", 0.10))
-        self.camera_buffer_size = int(rospy.get_param("~camera_buffer_size", 30))
+        self.camera_buffer_size = int(rospy.get_param("~camera_buffer_size", 20))
         self.score_threshold = float(rospy.get_param("~score_threshold", 0.2))
         self.max_detections = int(rospy.get_param("~max_detections", 100))
         self.marker_lifetime = float(rospy.get_param("~marker_lifetime_sec", 0.5))

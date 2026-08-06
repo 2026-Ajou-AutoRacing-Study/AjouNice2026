@@ -1,13 +1,7 @@
 # configs/sensors
 
-- 특별한 언급이 없으면, `Sensor_n.json`에서 숫자 n이 클수록 최신의 버전별 config임.
-- `Sensor.json`은 ROS launch와 일반 실행 스크립트가 참조하는 최신 실행용 config임.
-- 심볼릭 링크를 사용하지 않고, 최신 `Sensor_n.json`의 내용을 `Sensor.json`에 명시적으로 복사함.
-- 새 버전을 만들 때는 `Sensor_n.json`을 먼저 확정한 뒤 `Sensor.json`을 같은 내용으로 갱신함.
-- YAML에서 `source_sensor_config`는 `Sensor.json`으로 쓰고, 파일 상단 주석에 갱신 날짜와 대응하는 `Sensor_n.json`을 기록함.
-- 260729 기준 `Sensor.json`은 `Sensor_6.json`과 동일함.
-- 현재 `Sensor_6.json`에는 카메라 고정 3대 + 후방 자유 1대, VLP-16 LiDAR 1대, GPS 1대, IMU 1대가 배치되어 있음.
-- `Sensor_6.json`은 `Sensor_5.json`과 동일한 센서 구성·extrinsic을 유지하고 카메라 4대의 주기만 20 Hz에서 30 Hz로 변경함.
-- 현재 센서 주기는 Camera 30 Hz, VLP-16 15 Hz, GPS 30 Hz, IMU 50 Hz임.
-- ROS UDP 파이프라인은 VLP-16을 `900 RPM = 15 Hz`로 사용하며, FAST-LIO의 `scan_rate`도 15 Hz를 사용함.
-- ROS UDP launch, localization, perception과 sensor static TF 기본값은 `Sensor.json`을 사용함.
+- 특별한 언급이 없으면, `Sensor_n.json`에서 숫자 n이 클 수록 최신의 config임.
+- 현재 `Sensor_4.json`에는 카메라 고정 3대 + 후방 자유 1대, VLP-16 LiDAR 1대, GPS 1대, IMU 1대가 배치되어 있음.
+- `Sensor_4.json`에 저장된 센서 주기는 Camera 20 Hz, VLP-16 15 Hz, GPS 20 Hz, IMU 50 Hz임.
+- 대회 LiDAR 10 Hz 이하 권고에 따라 ROS UDP 파이프라인은 VLP-16을 `600 RPM = 10 Hz`로 묶으며, FAST-LIO의 `scan_rate`도 10 Hz를 사용함.
+- ROS UDP launch 기본값과 센서 static TF 기본값은 `Sensor_4.json`을 사용함.
