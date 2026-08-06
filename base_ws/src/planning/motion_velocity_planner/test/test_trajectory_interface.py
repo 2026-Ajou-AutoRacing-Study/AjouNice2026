@@ -81,6 +81,8 @@ def collision_planner():
     planner.dynamic_stop_remove_duration = 2.0
     planner.dynamic_stop_hysteresis = 1.0
     planner.dynamic_stop_passed_margin = 2.0
+    planner.dynamic_stop_reached_margin = 3.0
+    planner.dynamic_stop_release_speed = 0.3
     planner.dynamic_stop_states = {}
     planner.dynamic_aeb_active = False
     planner.test_dynamic_stop_time = 100.0
@@ -275,12 +277,26 @@ class TrajectoryInterfaceTest(unittest.TestCase):
             "motion_velocity_planner.rospy.logwarn_throttle"
         ):
             planner.apply_dynamic_stop(detected, path_cumulative_lengths(detected))
+            first_stop = next(
+                i
+                for i, point in enumerate(detected.points)
+                if point.longitudinal_velocity_mps == 0.0
+            )
 
+            # A missing object must not release the decision while the ego is
+            # still well before the committed stop point.
             planner.test_dynamic_stop_time += 1.0
             planner.objects = PredictedObjects()
             retained = trajectory([8.0] * 101)
             planner.apply_dynamic_stop(retained, path_cumulative_lengths(retained))
 
+            planner.test_dynamic_stop_time += 2.1
+            approaching = trajectory([8.0] * 101)
+            planner.apply_dynamic_stop(approaching, path_cumulative_lengths(approaching))
+
+            # After the stop point is actually reached at a standstill, the
+            # same continuously missing object is allowed to clear.
+            planner.odometry.pose.pose.position.x = float(first_stop)
             planner.test_dynamic_stop_time += 2.1
             released = trajectory([8.0] * 101)
             planner.apply_dynamic_stop(released, path_cumulative_lengths(released))
@@ -290,6 +306,9 @@ class TrajectoryInterfaceTest(unittest.TestCase):
         )
         self.assertTrue(
             any(point.longitudinal_velocity_mps == 0.0 for point in retained.points)
+        )
+        self.assertTrue(
+            any(point.longitudinal_velocity_mps == 0.0 for point in approaching.points)
         )
         self.assertFalse(
             any(point.longitudinal_velocity_mps == 0.0 for point in released.points)

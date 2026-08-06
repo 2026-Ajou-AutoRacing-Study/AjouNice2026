@@ -42,6 +42,11 @@ dynamic_stop_add_duration_sec: 0.0
 dynamic_stop_remove_duration_sec: 2.0
 dynamic_stop_hysteresis_m: 1.0
 dynamic_stop_passed_margin_m: 2.0
+# A latched stop is released only after the vehicle has reached the selected
+# stop point and is nearly stationary. This prevents a short prediction loss
+# from cancelling braking while the ego vehicle is still approaching it.
+dynamic_stop_reached_margin_m: 3.0
+dynamic_stop_release_speed_mps: 0.3
 # True only when a detected dynamic collision is already inside the normal
 # jerk-limited stopping distance. The Autoware longitudinal MORAI controller
 # consumes this request as an immediate full-brake safety override.

@@ -124,6 +124,12 @@ class MotionVelocityPlanner:
         self.dynamic_stop_passed_margin = max(
             float(rospy.get_param("~dynamic_stop_passed_margin_m", 2.0)), 0.0
         )
+        self.dynamic_stop_reached_margin = max(
+            float(rospy.get_param("~dynamic_stop_reached_margin_m", 3.0)), 0.0
+        )
+        self.dynamic_stop_release_speed = max(
+            float(rospy.get_param("~dynamic_stop_release_speed_mps", 0.3)), 0.0
+        )
         self.dynamic_collision_debug = param_bool(
             rospy.get_param("~dynamic_collision_debug", False)
         )
@@ -618,6 +624,13 @@ class MotionVelocityPlanner:
             + self.ego_speed_for_stop_distance() * self.reaction_time
         )
 
+    def current_ego_speed(self):
+        """Return measured speed only; target speed must not release a stop."""
+        if self.odometry is None:
+            return float("inf")
+        linear = self.odometry.twist.twist.linear
+        return math.hypot(linear.x, linear.y)
+
     def station_for_dynamic_stop_pose(self, state, path, distances, ego_station):
         """Project a latched map-frame stop pose onto the current trajectory."""
         stop_pose = state.get("stop_pose")
@@ -697,6 +710,7 @@ class MotionVelocityPlanner:
                     "active": False,
                     "first_detection_sec": now,
                     "last_detection_sec": now,
+                    "stop_reached": False,
                 }
                 self.dynamic_stop_states[key] = state
             else:
@@ -737,16 +751,43 @@ class MotionVelocityPlanner:
         stop_lines = []
         for key, state in list(self.dynamic_stop_states.items()):
             last_detection = state.get("last_detection_sec", now)
-            if now - last_detection > self.dynamic_stop_remove_duration:
-                del self.dynamic_stop_states[key]
-                continue
             if not state.get("active", False):
+                if now - last_detection > self.dynamic_stop_remove_duration:
+                    del self.dynamic_stop_states[key]
                 continue
 
             stop_station = self.station_for_dynamic_stop_pose(
                 state, out, distances, ego_station
             )
             if stop_station is None:
+                # Replanning can briefly move the old stop pose outside the
+                # new trajectory, or the controller may have already crossed
+                # the pose without reaching zero.  Do not silently discard a
+                # still-active safety decision in either case: force an
+                # immediate stop at the ego position until it is confirmed
+                # stopped and the object has been absent for the buffer.
+                if not state.get("stop_reached", False):
+                    stop_lines.append(ego_station)
+                    continue
+                if now - last_detection > self.dynamic_stop_remove_duration:
+                    del self.dynamic_stop_states[key]
+                continue
+
+            distance_to_stop = max(stop_station - ego_station, 0.0)
+            if (
+                distance_to_stop <= self.dynamic_stop_reached_margin
+                and self.current_ego_speed() <= self.dynamic_stop_release_speed
+            ):
+                state["stop_reached"] = True
+
+            # A temporary prediction dropout is not enough to make the ego
+            # resume before its committed stop point.  Once the vehicle has
+            # physically reached that point and stopped, the normal removal
+            # duration is allowed to release the decision.
+            if (
+                state.get("stop_reached", False)
+                and now - last_detection > self.dynamic_stop_remove_duration
+            ):
                 del self.dynamic_stop_states[key]
                 continue
             stop_lines.append(stop_station)
