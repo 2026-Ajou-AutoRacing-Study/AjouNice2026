@@ -35,6 +35,17 @@ dynamic_stop_min_relative_speed_mps: 1.0
 dynamic_prediction_horizon_sec: 12.0
 dynamic_collision_path_resolution_m: 0.5
 dynamic_collision_margin_m: 0.8
+# Keep the closest dynamic stop point while an object is crossing.  This
+# matches Autoware Dynamic Obstacle Stop's decision-duration buffers: react
+# immediately, but require 2 s of continuous non-detection before releasing.
+dynamic_stop_add_duration_sec: 0.0
+dynamic_stop_remove_duration_sec: 2.0
+dynamic_stop_hysteresis_m: 1.0
+dynamic_stop_passed_margin_m: 2.0
+# True only when a detected dynamic collision is already inside the normal
+# jerk-limited stopping distance. The Autoware longitudinal MORAI controller
+# consumes this request as an immediate full-brake safety override.
+aeb_stop_topic: /planning/motion_velocity_planner/aeb_stop
 # Leave this enabled while validating MORAI dynamic-object scenarios. It logs
 # the transformed object state and the selected immediate-path collision point.
 dynamic_collision_debug: true

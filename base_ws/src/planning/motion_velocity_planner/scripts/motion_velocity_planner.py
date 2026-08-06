@@ -10,6 +10,7 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
 from nav_msgs.msg import Odometry
+from std_msgs.msg import Bool
 from autoware_internal_planning_msgs.msg import VelocityLimit
 from autoware_perception_msgs.msg import PredictedObjects, ObjectClassification
 from autoware_planning_msgs.msg import Trajectory
@@ -108,6 +109,21 @@ class MotionVelocityPlanner:
         self.dynamic_collision_margin = max(
             float(rospy.get_param("~dynamic_collision_margin_m", 0.3)), 0.0
         )
+        # Match Autoware Dynamic Obstacle Stop's stateful decision.  A
+        # short perception dropout must not remove a stop point and cause the
+        # vehicle to accelerate into a still-crossing object.
+        self.dynamic_stop_add_duration = max(
+            float(rospy.get_param("~dynamic_stop_add_duration_sec", 0.0)), 0.0
+        )
+        self.dynamic_stop_remove_duration = max(
+            float(rospy.get_param("~dynamic_stop_remove_duration_sec", 2.0)), 0.0
+        )
+        self.dynamic_stop_hysteresis = max(
+            float(rospy.get_param("~dynamic_stop_hysteresis_m", 1.0)), 0.0
+        )
+        self.dynamic_stop_passed_margin = max(
+            float(rospy.get_param("~dynamic_stop_passed_margin_m", 2.0)), 0.0
+        )
         self.dynamic_collision_debug = param_bool(
             rospy.get_param("~dynamic_collision_debug", False)
         )
@@ -148,6 +164,9 @@ class MotionVelocityPlanner:
         self.trajectory = None
         self.velocity_limit = None
         self.objects = None
+        # {stable object ID: {active, first_detection_sec,
+        #                     last_detection_sec, stop_pose}}
+        self.dynamic_stop_states = {}
 
         input_trajectory_topic = rospy.get_param(
             '~input_trajectory_topic',
@@ -163,6 +182,9 @@ class MotionVelocityPlanner:
         output_trajectory_topic = rospy.get_param(
             '~output_trajectory_topic',
             '/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/trajectory',
+        )
+        self.aeb_stop_topic = rospy.get_param(
+            '~aeb_stop_topic', '/planning/motion_velocity_planner/aeb_stop'
         )
 
         self.sub_odometry = rospy.Subscriber(
@@ -185,6 +207,12 @@ class MotionVelocityPlanner:
         self.pub_trajectory = rospy.Publisher(
             output_trajectory_topic, Trajectory, queue_size=1
         )
+        self.pub_aeb_stop = (
+            rospy.Publisher(self.aeb_stop_topic, Bool, queue_size=1)
+            if self.aeb_stop_topic
+            else None
+        )
+        self.dynamic_aeb_active = False
         self.planning_timer = rospy.Timer(
             rospy.Duration(1.0 / max(self.planning_hz, 0.1)), self.on_planning_timer
         )
@@ -391,7 +419,9 @@ class MotionVelocityPlanner:
             return 0.0
         return min(max(projection.longitudinal_distance, 0.0), distances[-1])
 
-    def dynamic_collision_station(self, obj, path, distances):
+    def dynamic_collision_station(
+        self, obj, path, distances, hysteresis_margin=0.0
+    ):
         """Return Autoware-style earliest collision with an object's immediate path.
 
         The immediate path is the swept rectangle of a moving object during a
@@ -428,7 +458,10 @@ class MotionVelocityPlanner:
         ego_length = self.vehicle_length + box_margin
         ego_width = self.vehicle_width + box_margin
         object_length += box_margin
-        object_width += box_margin
+        # Autoware expands the lateral acceptance range while an object is
+        # already responsible for a stop.  It prevents a one-frame lateral
+        # measurement change from releasing the stop decision.
+        object_width += box_margin + (2.0 * max(hysteresis_margin, 0.0))
 
         # Autoware Dynamic Obstacle Stop constructs one rectangle for the area
         # traversed by the object during the prediction horizon, then finds the
@@ -562,65 +595,161 @@ class MotionVelocityPlanner:
                 # smoother applies the matched jerk-limited braking envelope.
                 set_point_velocity(point, 0.0)
 
+    def dynamic_stop_now(self):
+        """Use simulation time so a paused MORAI run does not clear a stop."""
+        return rospy.Time.now().to_sec()
+
+    def dynamic_object_key(self, obj):
+        """Return the stable PredictedObject ID used for dynamic-stop state."""
+        object_id = getattr(getattr(obj, "object_id", None), "uuid", [])
+        if object_id and any(object_id):
+            return "uuid:" + bytes(object_id).hex()
+
+        # The MORAI bridge always supplies UUIDs.  This fallback only keeps
+        # hand-written test messages and malformed perception input usable.
+        pose = object_pose(obj).position
+        label = obj.classification[0].label if obj.classification else "unknown"
+        return "anonymous:%s:%.1f:%.1f" % (label, pose.x, pose.y)
+
+    def dynamic_stop_buffer(self):
+        return (
+            self.dynamic_stop_distance
+            + self.object_size_margin
+            + self.ego_speed_for_stop_distance() * self.reaction_time
+        )
+
+    def station_for_dynamic_stop_pose(self, state, path, distances, ego_station):
+        """Project a latched map-frame stop pose onto the current trajectory."""
+        stop_pose = state.get("stop_pose")
+        if stop_pose is None:
+            return None
+        projection = project_pose_to_path(
+            path, stop_pose, yaw_threshold=self.delta_yaw_threshold
+        )
+        if projection is None:
+            projection = project_pose_to_path(path, stop_pose)
+        if projection is None or projection.distance > self.dynamic_stop_hysteresis + 2.0:
+            return None
+        if projection.longitudinal_distance < ego_station - self.dynamic_stop_passed_margin:
+            return None
+        return max(ego_station, projection.longitudinal_distance)
+
     def apply_dynamic_stop(self, out, distances):
-        if self.objects is None:
+        """Apply Autoware-style stateful dynamic-obstacle stop points.
+
+        Collision decisions are keyed by the tracked object UUID.  A decision
+        survives short non-detections, and its previously selected map-frame
+        stop pose is never moved later by a noisy new prediction.  This is the
+        equivalent of Autoware Dynamic Obstacle Stop's hysteresis and duration
+        buffers.
+        """
+        # This is deliberately recomputed and published on every planning
+        # cycle.  The controller receives ``false`` as soon as the collision
+        # is no longer an emergency; it never relies on an old latched ROS
+        # message to release the brake.
+        self.dynamic_aeb_active = False
+        if not out.points or not distances:
             return
 
+        now = self.dynamic_stop_now()
         ego_station = self.ego_station_on_path(out, distances)
-        stop_lines = []
+        objects = self.objects.objects if self.objects is not None else []
         debug_objects = []
-        for obj in self.objects.objects:
-            if self.dynamic_collision_debug and self.is_stop_object(obj) and self.is_dynamic_object(obj):
-                pose = object_pose(obj).position
-                velocity_x, velocity_y = object_velocity_xy(obj)
-            else:
-                pose = None
-            collision = self.dynamic_collision_station(obj, out, distances)
-            if collision is not None:
-                collision_station, collision_time = collision
-                # The stop point belongs immediately before the collision
-                # point, not one full braking distance before it.  The
-                # velocity profile then uses every metre from the current ego
-                # position to that stop point for braking.  Subtracting the
-                # braking distance here shortened the available braking run-up
-                # and was the reason a detected collision could still result
-                # in a late stop.
-                ego_speed = self.ego_speed_for_stop_distance()
-                stop_buffer = (
-                    self.dynamic_stop_distance
-                    + self.object_size_margin
-                    + ego_speed * self.reaction_time
-                )
-                stop_line = max(ego_station, collision_station - stop_buffer)
-                stop_lines.append(stop_line)
-                available_distance = max(stop_line - ego_station, 0.0)
-                required_braking_distance = self.autoware_braking_distance(ego_speed)
-                if available_distance < required_braking_distance:
-                    rospy.logwarn_throttle(
-                        1.0,
-                        "motion_velocity_planner: dynamic stop is inside the "
-                        "Autoware S-curve braking distance (available=%.1fm required=%.1fm)",
-                        available_distance,
-                        required_braking_distance,
-                    )
-                rospy.loginfo_throttle(
-                    1.0,
-                    "motion_velocity_planner: predicted dynamic collision in %.2fs at s=%.2f",
-                    collision_time,
-                    collision_station,
-                )
-                if pose is not None:
+
+        for obj in objects:
+            if not (self.is_stop_object(obj) and self.is_dynamic_object(obj)):
+                continue
+
+            key = self.dynamic_object_key(obj)
+            state = self.dynamic_stop_states.get(key)
+            collision = self.dynamic_collision_station(
+                obj,
+                out,
+                distances,
+                self.dynamic_stop_hysteresis
+                if state is not None and state.get("active", False)
+                else 0.0,
+            )
+
+            pose = object_pose(obj).position
+            velocity_x, velocity_y = object_velocity_xy(obj)
+            if collision is None:
+                if self.dynamic_collision_debug:
+                    suffix = "latched" if state and state.get("active", False) else "none"
                     debug_objects.append(
-                        "p=(%.1f,%.1f) v=(%.1f,%.1f) collision=s%.1f"
-                        % (pose.x, pose.y, velocity_x, velocity_y, collision_station)
+                        "p=(%.1f,%.1f) v=(%.1f,%.1f) collision=%s"
+                        % (pose.x, pose.y, velocity_x, velocity_y, suffix)
                     )
                 continue
 
-            if pose is not None:
-                debug_objects.append(
-                    "p=(%.1f,%.1f) v=(%.1f,%.1f) collision=none"
-                    % (pose.x, pose.y, velocity_x, velocity_y)
+            collision_station, collision_time = collision
+            proposed_stop_station = max(
+                ego_station, collision_station - self.dynamic_stop_buffer()
+            )
+            proposed_stop_point = trajectory_point_at_distance(
+                out, distances, proposed_stop_station
+            )
+            if proposed_stop_point is None:
+                continue
+
+            if state is None:
+                state = {
+                    "active": False,
+                    "first_detection_sec": now,
+                    "last_detection_sec": now,
+                }
+                self.dynamic_stop_states[key] = state
+            else:
+                state["last_detection_sec"] = now
+
+            if now - state["first_detection_sec"] >= self.dynamic_stop_add_duration:
+                state["active"] = True
+
+            if state["active"]:
+                previous_stop_station = self.station_for_dynamic_stop_pose(
+                    state, out, distances, ego_station
                 )
+                # Never push an already-issued stop point farther away.  A
+                # later collision estimate must not make the ego restart.
+                if (
+                    previous_stop_station is None
+                    or proposed_stop_station < previous_stop_station
+                ):
+                    point_data = (
+                        proposed_stop_point.point
+                        if hasattr(proposed_stop_point, "point")
+                        else proposed_stop_point
+                    )
+                    state["stop_pose"] = deepcopy(point_data.pose)
+
+            rospy.loginfo_throttle(
+                1.0,
+                "motion_velocity_planner: predicted dynamic collision in %.2fs at s=%.2f",
+                collision_time,
+                collision_station,
+            )
+            if self.dynamic_collision_debug:
+                debug_objects.append(
+                    "p=(%.1f,%.1f) v=(%.1f,%.1f) collision=s%.1f"
+                    % (pose.x, pose.y, velocity_x, velocity_y, collision_station)
+                )
+
+        stop_lines = []
+        for key, state in list(self.dynamic_stop_states.items()):
+            last_detection = state.get("last_detection_sec", now)
+            if now - last_detection > self.dynamic_stop_remove_duration:
+                del self.dynamic_stop_states[key]
+                continue
+            if not state.get("active", False):
+                continue
+
+            stop_station = self.station_for_dynamic_stop_pose(
+                state, out, distances, ego_station
+            )
+            if stop_station is None:
+                del self.dynamic_stop_states[key]
+                continue
+            stop_lines.append(stop_station)
 
         if self.dynamic_collision_debug and debug_objects:
             rospy.logwarn_throttle(
@@ -633,6 +762,26 @@ class MotionVelocityPlanner:
             return
 
         stop_line = min(stop_lines)
+        available_distance = max(stop_line - ego_station, 0.0)
+        required_braking_distance = self.autoware_braking_distance(
+            self.ego_speed_for_stop_distance()
+        )
+        if available_distance < required_braking_distance:
+            # A newly appeared object is already inside the normal S-curve
+            # distance.  In addition to the zero-speed trajectory cap, send
+            # a short-lived emergency-brake request to the longitudinal
+            # controller.  This avoids waiting for the normal PI/smoother
+            # response before brake torque is commanded.
+            self.dynamic_aeb_active = True
+            rospy.logwarn_throttle(
+                1.0,
+                "motion_velocity_planner: AEB dynamic stop inside the "
+                "Autoware S-curve braking distance (available=%.1fm required=%.1fm)",
+                available_distance,
+                required_braking_distance,
+            )
+            stop_line = ego_station
+
         for point, station in zip(out.points, distances):
             if station >= stop_line:
                 set_point_velocity(point, 0.0)
@@ -703,6 +852,12 @@ class MotionVelocityPlanner:
         distances = path_cumulative_lengths(out)
         self.apply_stop(out, distances)
         self.apply_dynamic_stop(out, distances)
+        if self.pub_aeb_stop is not None:
+            try:
+                self.pub_aeb_stop.publish(Bool(data=self.dynamic_aeb_active))
+            except rospy.ROSException:
+                if not rospy.is_shutdown():
+                    raise
         self.apply_slowdown(out, distances)
         self.apply_cruise(out, distances)
         self.apply_ttc_limit(out, distances)

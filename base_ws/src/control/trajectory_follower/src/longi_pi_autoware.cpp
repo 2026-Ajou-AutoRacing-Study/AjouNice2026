@@ -44,6 +44,8 @@ public:
     private_nh_.param<std::string>("topics/steering_cmd", steering_topic_, "/control/command/steering");
     private_nh_.param<std::string>("topics/controller_valid", valid_topic_,
                                    "/control/autoware/controller_valid");
+    private_nh_.param<std::string>("topics/aeb_stop", aeb_stop_topic_,
+                                   "/planning/motion_velocity_planner/aeb_stop");
     private_nh_.param<std::string>("topics/ctrl_cmd", ctrl_cmd_topic_, "/ctrl_cmd");
     private_nh_.param("control_rate_hz", control_rate_hz_, 50.0);
     private_nh_.param("kinematic_velocity_scale_to_mps", velocity_scale_, 1.0);
@@ -58,6 +60,7 @@ public:
     private_nh_.param("safety/state_timeout_s", state_timeout_s_, 0.5);
     private_nh_.param("safety/steering_timeout_s", steering_timeout_s_, 0.5);
     private_nh_.param("safety/lateral_valid_timeout_s", lateral_valid_timeout_s_, 0.2);
+    private_nh_.param("safety/aeb_timeout_s", aeb_timeout_s_, 0.25);
     private_nh_.param("safety/min_points", min_points_, 3);
     private_nh_.param("safety/stop_brake_cmd", stop_brake_cmd_, 1.0);
     private_nh_.param("kp", kp_, 0.6);
@@ -78,6 +81,7 @@ public:
     state_subscriber_ = nh_.subscribe(state_topic_, 10, &AutowareLongitudinalPi::stateCallback, this);
     steering_subscriber_ = nh_.subscribe(steering_topic_, 10, &AutowareLongitudinalPi::steeringCallback, this);
     validity_subscriber_ = nh_.subscribe(valid_topic_, 10, &AutowareLongitudinalPi::validityCallback, this);
+    aeb_stop_subscriber_ = nh_.subscribe(aeb_stop_topic_, 10, &AutowareLongitudinalPi::aebStopCallback, this);
     timer_ = nh_.createTimer(ros::Duration(1.0 / control_rate_hz_),
       &AutowareLongitudinalPi::timerCallback, this);
   }
@@ -93,6 +97,7 @@ private:
       stop_brake_cmd_ <= 1.0 && std::isfinite(trajectory_timeout_s_) && trajectory_timeout_s_ > 0.0 &&
       std::isfinite(state_timeout_s_) && state_timeout_s_ > 0.0 && std::isfinite(steering_timeout_s_) &&
       steering_timeout_s_ > 0.0 && std::isfinite(lateral_valid_timeout_s_) && lateral_valid_timeout_s_ > 0.0 &&
+      std::isfinite(aeb_timeout_s_) && aeb_timeout_s_ > 0.0 &&
       min_points_ >= 3 && std::isfinite(kp_) && kp_ >= 0.0 && std::isfinite(ki_) && ki_ >= 0.0 &&
       std::isfinite(integral_limit_) && integral_limit_ > 0.0 && std::isfinite(command_deadband_) &&
       command_deadband_ >= 0.0 && std::isfinite(speed_preview_time_s_) && speed_preview_time_s_ >= 0.0 &&
@@ -143,6 +148,18 @@ private:
   {
     lateral_valid_ = message->data;
     lateral_valid_received_ = ros::Time::now();
+  }
+
+  void aebStopCallback(const std_msgs::Bool::ConstPtr & message)
+  {
+    aeb_stop_active_ = message->data;
+    aeb_stop_received_ = ros::Time::now();
+  }
+
+  bool aebStopActive(const ros::Time & now) const
+  {
+    return aeb_stop_active_ && !aeb_stop_received_.isZero() &&
+      (now - aeb_stop_received_).toSec() <= aeb_timeout_s_;
   }
 
   std::size_t nearestIndex() const
@@ -204,14 +221,14 @@ private:
     command_publisher_.publish(command);
   }
 
-  void publishStop()
+  void publishStop(const double steering = 0.0)
   {
     integral_ = 0.0;
     morai_msgs::CtrlCmd command;
     command.longlCmdType = 1;
     command.accel = 0.0;
     command.brake = stop_brake_cmd_;
-    command.steering = 0.0;
+    command.steering = steering;
     command.velocity = 0.0;
     command.acceleration = 0.0;
     command_publisher_.publish(command);
@@ -220,6 +237,11 @@ private:
   void timerCallback(const ros::TimerEvent & event)
   {
     const ros::Time now = ros::Time::now();
+    if (aebStopActive(now)) {
+      ROS_WARN_THROTTLE(1.0, "longi_pi_autoware: emergency dynamic-obstacle brake active");
+      publishStop(steering_valid_ ? steering_ : 0.0);
+      return;
+    }
     const bool fresh = trajectory_valid_ && state_valid_ && steering_valid_ && lateral_valid_ &&
       (now - trajectory_received_).toSec() <= trajectory_timeout_s_ &&
       (now - state_received_).toSec() <= state_timeout_s_ &&
@@ -271,12 +293,14 @@ private:
   ros::Subscriber state_subscriber_;
   ros::Subscriber steering_subscriber_;
   ros::Subscriber validity_subscriber_;
+  ros::Subscriber aeb_stop_subscriber_;
   ros::Publisher command_publisher_;
   ros::Timer timer_;
   std::string trajectory_topic_;
   std::string state_topic_;
   std::string steering_topic_;
   std::string valid_topic_;
+  std::string aeb_stop_topic_;
   std::string ctrl_cmd_topic_;
   double control_rate_hz_{50.0};
   double velocity_scale_{1.0};
@@ -287,6 +311,7 @@ private:
   double state_timeout_s_{0.5};
   double steering_timeout_s_{0.5};
   double lateral_valid_timeout_s_{0.2};
+  double aeb_timeout_s_{0.25};
   double stop_brake_cmd_{1.0};
   int min_points_{3};
   double kp_{0.6};
@@ -305,10 +330,12 @@ private:
   bool state_valid_{false};
   bool steering_valid_{false};
   bool lateral_valid_{false};
+  bool aeb_stop_active_{false};
   ros::Time trajectory_received_;
   ros::Time state_received_;
   ros::Time steering_received_;
   ros::Time lateral_valid_received_;
+  ros::Time aeb_stop_received_;
   autoware_planning_msgs::Trajectory trajectory_;
   nav_msgs::Odometry state_;
 };

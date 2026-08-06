@@ -3,6 +3,7 @@ topics:
   kinematic_state: /localization/kinematic_state
   steering_cmd: /control/command/steering
   controller_valid: /control/autoware/controller_valid
+  aeb_stop: /planning/motion_velocity_planner/aeb_stop
   failure_reason: /control/autoware/failure_reason
   target_point: /control/autoware/target_point
   ctrl_cmd: /ctrl_cmd
@@ -23,3 +24,6 @@ safety:
   lateral_valid_timeout_s: 0.2
   min_points: 3
   stop_brake_cmd: 1.0
+  # AEB requests are published by MVP at 10 Hz. Ignore a stale request rather
+  # than holding an emergency brake after its publisher has stopped.
+  aeb_timeout_s: 0.25

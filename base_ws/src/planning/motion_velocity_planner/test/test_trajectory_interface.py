@@ -51,8 +51,9 @@ def predicted_object(x, y=0.0, label=ObjectClassification.UNKNOWN):
     return obj
 
 
-def moving_object(x, y, velocity_x, velocity_y):
+def moving_object(x, y, velocity_x, velocity_y, object_id=1):
     obj = predicted_object(x, y, ObjectClassification.CAR)
+    obj.object_id.uuid = [int(object_id)] + [0] * 15
     obj.kinematics.initial_twist_with_covariance.twist.linear.x = float(velocity_x)
     obj.kinematics.initial_twist_with_covariance.twist.linear.y = float(velocity_y)
     obj.shape.dimensions.x = 4.5
@@ -76,6 +77,14 @@ def collision_planner():
     planner.dynamic_prediction_horizon = 8.0
     planner.dynamic_collision_path_resolution = 0.5
     planner.dynamic_collision_margin = 0.3
+    planner.dynamic_stop_add_duration = 0.0
+    planner.dynamic_stop_remove_duration = 2.0
+    planner.dynamic_stop_hysteresis = 1.0
+    planner.dynamic_stop_passed_margin = 2.0
+    planner.dynamic_stop_states = {}
+    planner.dynamic_aeb_active = False
+    planner.test_dynamic_stop_time = 100.0
+    planner.dynamic_stop_now = lambda: planner.test_dynamic_stop_time
     planner.dynamic_collision_debug = False
     planner.autoware_stop_max_deceleration = 1.0
     planner.autoware_stop_max_deceleration_jerk = 1.0
@@ -83,6 +92,9 @@ def collision_planner():
     planner.vehicle_length = 4.635
     planner.vehicle_width = 1.892
     planner.vehicle_rear_overhang = 0.79
+    planner.dynamic_stop_distance = 5.0
+    planner.object_size_margin = 0.0
+    planner.reaction_time = 0.8
     return planner
 
 
@@ -233,9 +245,6 @@ class TrajectoryInterfaceTest(unittest.TestCase):
 
     def test_dynamic_stop_uses_the_run_up_to_collision_for_braking(self):
         planner = collision_planner()
-        planner.dynamic_stop_distance = 5.0
-        planner.object_size_margin = 0.0
-        planner.reaction_time = 0.8
         planner.max_deceleration = 1.0
         planner.warning_distance = 6.0
         planner.min_stop_velocity = 0.5
@@ -256,6 +265,76 @@ class TrajectoryInterfaceTest(unittest.TestCase):
         )
         self.assertGreater(first_stop, 25)
         self.assertLess(first_stop, 40)
+
+    def test_dynamic_stop_is_held_across_short_non_detection(self):
+        planner = collision_planner()
+        planner.objects = PredictedObjects()
+        planner.objects.objects.append(moving_object(50.0, -10.0, 0.0, 6.0))
+        detected = trajectory([8.0] * 101)
+        with patch("motion_velocity_planner.rospy.loginfo_throttle"), patch(
+            "motion_velocity_planner.rospy.logwarn_throttle"
+        ):
+            planner.apply_dynamic_stop(detected, path_cumulative_lengths(detected))
+
+            planner.test_dynamic_stop_time += 1.0
+            planner.objects = PredictedObjects()
+            retained = trajectory([8.0] * 101)
+            planner.apply_dynamic_stop(retained, path_cumulative_lengths(retained))
+
+            planner.test_dynamic_stop_time += 2.1
+            released = trajectory([8.0] * 101)
+            planner.apply_dynamic_stop(released, path_cumulative_lengths(released))
+
+        self.assertTrue(
+            any(point.longitudinal_velocity_mps == 0.0 for point in detected.points)
+        )
+        self.assertTrue(
+            any(point.longitudinal_velocity_mps == 0.0 for point in retained.points)
+        )
+        self.assertFalse(
+            any(point.longitudinal_velocity_mps == 0.0 for point in released.points)
+        )
+
+    def test_dynamic_stop_never_moves_later_after_a_new_prediction(self):
+        planner = collision_planner()
+        planner.objects = PredictedObjects()
+        planner.objects.objects.append(moving_object(50.0, -10.0, 0.0, 6.0))
+        first = trajectory([8.0] * 121)
+        with patch("motion_velocity_planner.rospy.loginfo_throttle"), patch(
+            "motion_velocity_planner.rospy.logwarn_throttle"
+        ):
+            planner.apply_dynamic_stop(first, path_cumulative_lengths(first))
+
+            # Same fallback key, but its new predicted collision is farther
+            # away.  The previously issued stop must remain the earlier one.
+            planner.test_dynamic_stop_time += 0.1
+            planner.objects = PredictedObjects()
+            planner.objects.objects.append(moving_object(65.0, -10.0, 0.0, 6.0))
+            second = trajectory([8.0] * 121)
+            planner.apply_dynamic_stop(second, path_cumulative_lengths(second))
+
+        first_stop = next(
+            i for i, point in enumerate(first.points)
+            if point.longitudinal_velocity_mps == 0.0
+        )
+        second_stop = next(
+            i for i, point in enumerate(second.points)
+            if point.longitudinal_velocity_mps == 0.0
+        )
+        self.assertLessEqual(second_stop, first_stop)
+
+    def test_dynamic_stop_issues_aeb_zero_cap_when_collision_is_too_close(self):
+        planner = collision_planner()
+        planner.objects = PredictedObjects()
+        planner.objects.objects.append(moving_object(12.0, -6.0, 0.0, 6.0))
+        message = trajectory([8.0] * 61)
+        with patch("motion_velocity_planner.rospy.loginfo_throttle"), patch(
+            "motion_velocity_planner.rospy.logwarn_throttle"
+        ):
+            planner.apply_dynamic_stop(message, path_cumulative_lengths(message))
+
+        self.assertEqual(message.points[0].longitudinal_velocity_mps, 0.0)
+        self.assertTrue(planner.dynamic_aeb_active)
 
     def test_autoware_braking_distance_increases_with_speed(self):
         planner = collision_planner()
