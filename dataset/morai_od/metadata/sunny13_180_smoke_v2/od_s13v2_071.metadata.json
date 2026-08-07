@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_071",
+  "scenario_stem": "od_s13v2_071",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080718071,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2809,
+    "arc_m": 1456.2253429403947,
+    "curvature_deg": 0.02325417327730861,
+    "crosswalk_distance_m": 50.58009174319909,
+    "parking_distance_m": 140.3808446410783,
+    "stopline_distance_m": 47.66258424872296,
+    "branch_distance_m": 47.66258424872296
+  },
+  "ego": {
+    "x": 67.65118432529229,
+    "y": -80.87285332490525,
+    "z": 28.692179533802918,
+    "yaw": -89.75040285843903,
+    "link_idx": "A2256W000408",
+    "point_idx": 175
+  },
+  "counts": {
+    "npc": 8,
+    "pedestrian": 1,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800002,
+      "name": "2021_Kia_Carnival",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 71.29050475313369,
+        "y": -86.87458126395559,
+        "z": 28.766672944971205,
+        "yaw": -89.81441513893598
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100014,
+      "name": "2020_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 63.87818237393136,
+        "y": -75.28263257683243,
+        "z": 28.641010645203156,
+        "yaw": -89.81484169779682
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30700003,
+      "name": "2019_Hyundai_Kona(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.73838900118447,
+        "y": -73.87560843825264,
+        "z": 28.76035961924519,
+        "yaw": -89.66898633411957
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30800001,
+      "name": "2019_kia_sedona",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 63.94644182234481,
+        "y": -89.28243759217173,
+        "z": 28.68880758983444,
+        "yaw": -89.89220868288544
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100012,
+      "name": "2019_hyundai_genesis_g90",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 83.36521709614435,
+        "y": -89.92110747984279,
+        "z": 28.68890580508672,
+        "yaw": 90.27513048394428
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30100007,
+      "name": "2016_Hyundai_Ioniq",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 67.59499313674637,
+        "y": -68.87300174674614,
+        "z": 28.687198701268283,
+        "yaw": -89.3016612056311
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30100013,
+      "name": "2016_Hyundai_Genesis_DH",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 83.3015342538566,
+        "y": -74.42124488885486,
+        "z": 28.701212937779328,
+        "yaw": 90.20855544736673
+      }
+    },
+    {
+      "unique_id": 1008,
+      "group": "vehicleList",
+      "data_id": 30200001,
+      "name": "2016_Hyundai_Santafe",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.28685301818581,
+        "y": -80.87717677802034,
+        "z": 28.78954897882559,
+        "yaw": -89.81454400943936
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 63.527753904438256,
+        "y": -59.60696395336889,
+        "z": 28.396840753228222,
+        "yaw": -174.50231127793373
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200108,
+      "name": "KR_Sign_SL_90",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 71.58491914523464,
+        "y": -65.65286424752577,
+        "z": 28.41669873533325,
+        "yaw": -74.72317717881991
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100004,
+      "name": "YellowBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.11012698751412,
+        "y": -85.9138419275098,
+        "z": 28.450508258248078,
+        "yaw": -75.52834783926804
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

@@ -8,7 +8,16 @@ from collections import Counter
 from pathlib import Path
 
 
-DATASET_ID = "morai_sunny13_180_smoke_v1"
+DATASET_PROFILES = {
+    "morai_sunny13_180_smoke_v1": {
+        "manifest_stem": "sunny13_180_smoke",
+        "scenario_group": "sunny13_180_smoke",
+    },
+    "morai_sunny13_180_smoke_v2": {
+        "manifest_stem": "sunny13_180_smoke_v2",
+        "scenario_group": "sunny13_180_smoke_v2",
+    },
+}
 
 
 def parse_args():
@@ -48,18 +57,30 @@ def group_files(report_dir, relative_files):
     return {key: sorted(value) for key, value in sorted(grouped.items())}
 
 
-def copy_metadata(project_root, destination):
+def copy_metadata(project_root, destination, profile):
     metadata_root = destination / "handoff_metadata"
+    manifest_stem = profile["manifest_stem"]
     files = (
         "dataset/morai_od/configs/od_sunny13_180_smoke.yaml",
         "dataset/morai_od/configs/morai_asset_catalog_260807.json",
-        "dataset/morai_od/manifests/sunny13_180_smoke_sunny_t13.json",
-        "dataset/morai_od/manifests/sunny13_180_smoke_runs.jsonl",
-        "dataset/morai_od/manifests/sunny13_180_smoke_train.txt",
-        "dataset/morai_od/manifests/sunny13_180_smoke_val.txt",
-        "dataset/morai_od/manifests/sunny13_180_smoke_test.txt",
-        "dataset/morai_od/reports/sunny13_180_smoke_asset_coverage.json",
-        "dataset/morai_od/reports/sunny13_180_smoke_generation_summary.json",
+        "dataset/morai_od/configs/morai_asset_catalog_personal_260807.json",
+        (
+            "dataset/morai_od/configs/"
+            "morai_asset_launcher_compatibility_260807.json"
+        ),
+        "dataset/morai_od/manifests/{}_sunny_t13.json".format(
+            manifest_stem
+        ),
+        "dataset/morai_od/manifests/{}_runs.jsonl".format(manifest_stem),
+        "dataset/morai_od/manifests/{}_train.txt".format(manifest_stem),
+        "dataset/morai_od/manifests/{}_val.txt".format(manifest_stem),
+        "dataset/morai_od/manifests/{}_test.txt".format(manifest_stem),
+        "dataset/morai_od/reports/{}_asset_coverage.json".format(
+            manifest_stem
+        ),
+        "dataset/morai_od/reports/{}_generation_summary.json".format(
+            manifest_stem
+        ),
         "configs/sensors/Sensor_6.json",
     )
     for relative in files:
@@ -68,8 +89,8 @@ def copy_metadata(project_root, destination):
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
     for relative in (
-        "dataset/morai_od/scenarios/sunny13_180_smoke",
-        "dataset/morai_od/metadata/sunny13_180_smoke",
+        "dataset/morai_od/scenarios/{}".format(profile["scenario_group"]),
+        "dataset/morai_od/metadata/{}".format(profile["scenario_group"]),
     ):
         source = project_root / relative
         target = metadata_root / relative
@@ -86,16 +107,17 @@ def main():
     report_path = args.report.expanduser().resolve()
     report_dir = report_path.parent
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    if report.get("dataset_id") != DATASET_ID:
+    dataset_id = report.get("dataset_id")
+    if dataset_id not in DATASET_PROFILES:
         raise ValueError(
-            "unexpected dataset_id: {}".format(report.get("dataset_id"))
+            "unexpected dataset_id: {}".format(dataset_id)
         )
+    profile = DATASET_PROFILES[dataset_id]
     expected_manifest = json.loads(
         (
             project_root
-            / (
-                "dataset/morai_od/manifests/"
-                "sunny13_180_smoke_sunny_t13.json"
+            / "dataset/morai_od/manifests/{}_sunny_t13.json".format(
+                profile["manifest_stem"]
             )
         ).read_text(encoding="utf-8")
     )
@@ -171,10 +193,12 @@ def main():
     sample_split_counts = Counter(item["split"] for item in samples)
     write_jsonl(report_dir / "samples.jsonl", samples)
     write_jsonl(report_dir / "failed_scenarios.jsonl", failures)
-    metadata_root = copy_metadata(project_root, report_dir)
+    metadata_root = copy_metadata(
+        project_root, report_dir, profile
+    )
     handoff = {
         "schema_version": 1,
-        "dataset_id": DATASET_ID,
+        "dataset_id": dataset_id,
         "environment": {"weather": "sunny", "time_hour": 13},
         "requested_scenarios": len(expected_by_id),
         "attempted_scenarios": len(report["scenes"]),

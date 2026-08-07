@@ -7,11 +7,11 @@ from pathlib import Path
 import generate_od180_pilot_set as generator
 
 
-generator.DATASET_ID = "morai_sunny13_180_smoke_v1"
-generator.SCENARIO_GROUP = "sunny13_180_smoke"
-generator.MANIFEST_STEM = "sunny13_180_smoke"
-generator.SCENE_ID_PREFIX = "s13_"
-generator.SCENARIO_FILE_PREFIX = "od_s13_"
+generator.DATASET_ID = "morai_sunny13_180_smoke_v2"
+generator.SCENARIO_GROUP = "sunny13_180_smoke_v2"
+generator.MANIFEST_STEM = "sunny13_180_smoke_v2"
+generator.SCENE_ID_PREFIX = "s13v2_"
+generator.SCENARIO_FILE_PREFIX = "od_s13v2_"
 generator.BASE_SCENARIO_COUNT = 180
 generator.SPLIT_COUNTS = {"train": 126, "val": 27, "test": 27}
 generator.MINIMUM_ANCHOR_ARC_DISTANCE_M = 8.0

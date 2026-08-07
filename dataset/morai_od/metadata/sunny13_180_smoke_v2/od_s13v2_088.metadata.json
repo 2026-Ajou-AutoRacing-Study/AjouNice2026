@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_088",
+  "scenario_stem": "od_s13v2_088",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080718088,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 916,
+    "arc_m": 519.8162776861517,
+    "curvature_deg": 0.21575350489598577,
+    "crosswalk_distance_m": 54.686002033175946,
+    "parking_distance_m": 33.30523207242739,
+    "stopline_distance_m": 30.797643759450732,
+    "branch_distance_m": 30.797643759450732
+  },
+  "ego": {
+    "x": -60.6514128707382,
+    "y": 48.50959358857683,
+    "z": 28.70660397166748,
+    "yaw": 90.15378762471403,
+    "link_idx": "A2256W000315",
+    "point_idx": 74
+  },
+  "counts": {
+    "npc": 1,
+    "pedestrian": 0,
+    "obstacle": 4
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200005,
+      "name": "2019_Hyundai_Nexo",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -64.43045583620079,
+        "y": 32.85635657502157,
+        "z": 28.766715941391297,
+        "yaw": -89.72089567434989
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100026,
+      "name": "Lane_Separation_Bar",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -73.10013643093562,
+        "y": 36.99414729747036,
+        "z": 28.37788380421329,
+        "yaw": 81.68917523119131
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200162,
+      "name": "concrete-barrier",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -80.38778521997013,
+        "y": 49.5487120302433,
+        "z": 28.406152186150255,
+        "yaw": 80.009078461576
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40200104,
+      "name": "KR_Sign_SL_50",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -53.745608173771316,
+        "y": 41.42493266381049,
+        "z": 28.383230114730587,
+        "yaw": 100.93377378188177
+      }
+    },
+    {
+      "unique_id": 3004,
+      "group": "objectList",
+      "data_id": 40100003,
+      "name": "RedBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -55.17905676077516,
+        "y": 46.15784273670566,
+        "z": 28.379081661766527,
+        "yaw": 108.35658299717102
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

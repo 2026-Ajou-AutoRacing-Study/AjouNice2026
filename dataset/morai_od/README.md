@@ -162,6 +162,14 @@ Sunny 13시 고정 180-scenario 파인튜닝 smoke dataset은
 `docs/sunny13_180_smoke_capture.md`를 따른다. split은 scenario 단위
 126/27/27이며, 개별 실패는 기록하고 다음 장면으로 진행한다.
 
+대회용 asset coverage와 개인용 자동 캡처 호환성은
+`docs/morai_launcher_asset_compatibility_260807.md`를 따른다. 자동
+시나리오는 대회용·개인용 공통 DataID만 사용하고 actor template는 개인용
+런처가 저장한 버전을 사용한다. 대회용에만 있는 asset은 별도 수동 수집
+queue로 분리한다. 단, 이름이 `Tree`로 시작하는 asset은 정적 지도 배경으로
+취급하여 공통 여부와 관계없이 자동 배치와 수동 수집 queue에서 모두
+제외한다.
+
 연속 로드 안정성만 빠르게 확인할 때는 생성기에 `--stress-count 20`을
 주어 `manifests/ros_capture_stress.json`과 `stress001~stress020`을 만든다.
 이 묶음은 동일한 검증 anchor에서 seed만 바꾸고, stationary 모드로 장면당

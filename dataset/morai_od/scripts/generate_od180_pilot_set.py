@@ -191,6 +191,29 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--runtime-asset-scenario-dir",
+        type=Path,
+        default=Path.home()
+        / (
+            "MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/"
+            "Scenario/R_KR_PR_K-city_2025"
+        ),
+        help=(
+            "Scenario directory containing the runtime launcher's curated "
+            "asset templates. Common competition assets are instantiated "
+            "from these personal-launcher templates."
+        ),
+    )
+    parser.add_argument(
+        "--asset-compatibility",
+        type=Path,
+        default=project_root
+        / (
+            "dataset/morai_od/configs/"
+            "morai_asset_launcher_compatibility_260807.json"
+        ),
+    )
+    parser.add_argument(
         "--install-dir",
         type=Path,
         default=None,
@@ -995,6 +1018,8 @@ def main():
     catalog_path = workspace / "configs/morai_asset_catalog_260807.json"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     catalog = load_json(catalog_path)
+    compatibility_path = args.asset_compatibility.expanduser().resolve()
+    compatibility = load_json(compatibility_path)
 
     if config["capture"]["unique_geometry_layouts"] != BASE_SCENARIO_COUNT:
         raise ValueError(
@@ -1034,33 +1059,62 @@ def main():
                 )
             )
 
-    vehicle_source = source_actor_map(load_json(vehicle_path), "vehicleList")
-    pedestrian_source = source_actor_map(
-        load_json(pedestrian_path), "pedestrianList"
+    runtime_asset_dir = (
+        args.runtime_asset_scenario_dir.expanduser().resolve()
     )
-    obstacle_source = source_actor_map(load_json(obstacle_path), "objectList")
+    runtime_sources = compatibility["personal"]["generated_from"]
+    runtime_paths = {
+        key: runtime_asset_dir / runtime_sources[key]["file_name"]
+        for key in ("vehicle", "pedestrian", "obstacle")
+    }
+    for key, path in runtime_paths.items():
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        if sha256(path) != runtime_sources[key]["sha256"]:
+            raise ValueError(
+                "runtime asset scenario changed since compatibility "
+                "extraction: {}".format(path)
+            )
+
+    vehicle_source = source_actor_map(
+        load_json(runtime_paths["vehicle"]), "vehicleList"
+    )
+    pedestrian_source = source_actor_map(
+        load_json(runtime_paths["pedestrian"]), "pedestrianList"
+    )
+    obstacle_source = source_actor_map(
+        load_json(runtime_paths["obstacle"]), "objectList"
+    )
+    automatic_ids = {
+        key: set(values)
+        for key, values in compatibility["automatic_eligible"].items()
+    }
 
     vehicle_rows = [
         row
         for row in catalog["vehicles"]
         if row["generation_policy"] == "enabled"
+        and row["data_id"] in automatic_ids["vehicle"]
     ]
     pedestrian_rows = [
         row
         for row in catalog["pedestrians_and_related"]
         if row["source_list"] == "pedestrianList"
         and row["generation_policy"] == "enabled"
+        and row["data_id"] in automatic_ids["pedestrian"]
     ]
     ncap_rows = [
         row
         for row in catalog["pedestrians_and_related"]
         if row["source_list"] == "pedestrianList"
         and row["generation_policy"] == "limited_weight"
+        and row["data_id"] in automatic_ids["pedestrian"]
     ]
     obstacle_rows = [
         row
         for row in catalog["obstacles_and_related"]
         if row["generation_policy"].startswith("enabled")
+        and row["data_id"] in automatic_ids["obstacle"]
     ]
     for rows, source, name in (
         (vehicle_rows, vehicle_source, "vehicle"),
@@ -1208,6 +1262,7 @@ def main():
                     project_root / "configs/sensors/Sensor_6.json"
                 ),
                 "asset_catalog": sha256(catalog_path),
+                "asset_compatibility": sha256(compatibility_path),
                 "generation_config": sha256(config_path),
             },
         }

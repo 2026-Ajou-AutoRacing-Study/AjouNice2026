@@ -1,0 +1,2816 @@
+{
+  "schema_version": 2,
+  "policy": {
+    "target_domain": "competition_launcher",
+    "capture_runtime": "personal_launcher",
+    "automatic_asset_rule": "Competition catalog AND personal catalog; instantiate using the personal launcher template.",
+    "competition_only_rule": "Exclude from personal automatic capture and list for separate competition-launcher manual capture.",
+    "personal_only_rule": "Exclude because the target competition launcher does not provide the asset.",
+    "dataset_scope_exclusion_rule": "Exclude Tree-prefixed assets regardless of launcher availability because trees are static map context and are outside the target OD actor catalog.",
+    "dataset_scope_excluded_name_prefixes": [
+      "tree"
+    ],
+    "geometry_fields_from_catalog_scenarios": false
+  },
+  "competition": {
+    "catalog": "/home/luv/AjouNice2026/dataset/morai_od/configs/morai_asset_catalog_260807.json",
+    "generated_from": {
+      "vehicle": {
+        "file_name": "vehicle_list.json",
+        "sha256": "d2b9dd1a75166d3991f92c665714594970db3a8dfd8c89adff33306185546fdf"
+      },
+      "pedestrian": {
+        "file_name": "pedestrian_list.json",
+        "sha256": "6fc568f48491af5e7ce7e7a47301baac07838934bba4eee7c41ddb612e7897be"
+      },
+      "obstacle": {
+        "file_name": "obstacle_list_without_vehicle_and_ped_like_objects.json",
+        "sha256": "2a11e27bbbcdf36c4a04c977a43bb6b605d717da51293483856468f0a591d683"
+      }
+    },
+    "counts": {
+      "vehicles": 43,
+      "pedestrian_container_assets": 33,
+      "obstacles": 33,
+      "total_unique_entries": 109
+    }
+  },
+  "personal": {
+    "catalog": "/home/luv/AjouNice2026/dataset/morai_od/configs/morai_asset_catalog_personal_260807.json",
+    "generated_from": {
+      "vehicle": {
+        "file_name": "vehicle_list_per.json",
+        "sha256": "cfcab2913974751075c094df43bade1872492dd5bdd53dac891902e22cca9aa0"
+      },
+      "pedestrian": {
+        "file_name": "pedestrian_list_per.json",
+        "sha256": "43e9479ca605d4446f700dc4f8ec5a336fc2fc24de56c79a187f7c07a8f24026"
+      },
+      "obstacle": {
+        "file_name": "obstacle_list_per_without_vehicle_and_ped_like_objects.json",
+        "sha256": "a4b8a8b535f28ac3de60622586d9cc4d16312f43a97a036bd3cb0ab048b95587"
+      }
+    },
+    "counts": {
+      "vehicles": 49,
+      "pedestrian_container_assets": 32,
+      "obstacles": 36,
+      "total_unique_entries": 117
+    }
+  },
+  "automatic_eligible": {
+    "vehicle": [
+      30100001,
+      30100003,
+      30100004,
+      30100005,
+      30100007,
+      30100008,
+      30100009,
+      30100010,
+      30100011,
+      30100012,
+      30100013,
+      30100014,
+      30100015,
+      30200001,
+      30200002,
+      30200003,
+      30200005,
+      30200006,
+      30200007,
+      30200010,
+      30200011,
+      30200012,
+      30200013,
+      30200014,
+      30300001,
+      30300002,
+      30300003,
+      30400001,
+      30400002,
+      30400003,
+      30400004,
+      30400005,
+      30400007,
+      30500001,
+      30500002,
+      30700003,
+      30700004,
+      30700005,
+      30700006,
+      30800001,
+      30800002,
+      30800003,
+      30800004
+    ],
+    "pedestrian": [
+      50100001,
+      50100002,
+      50100003,
+      50100004,
+      50100005,
+      50100006,
+      50100007,
+      50100008,
+      50100009,
+      50100010,
+      50100011,
+      50100012,
+      50100013,
+      50100014,
+      50100015,
+      50100016,
+      50100017,
+      50100018,
+      50100019,
+      50100058,
+      50100074,
+      50100077,
+      50100084,
+      50200001,
+      50200002,
+      50200004,
+      50200005,
+      50300001,
+      50300002,
+      50300003,
+      50300018
+    ],
+    "obstacle": [
+      40100001,
+      40100002,
+      40100003,
+      40100004,
+      40100005,
+      40100026,
+      40100027,
+      40100028,
+      40100029,
+      40100031,
+      40100032,
+      40100033,
+      40100047,
+      40100052,
+      40100058,
+      40100059,
+      40100060,
+      40100063,
+      40100067,
+      40200102,
+      40200103,
+      40200104,
+      40200105,
+      40200106,
+      40200107,
+      40200108,
+      40200109,
+      40200110,
+      40200162,
+      40200163,
+      40200164
+    ]
+  },
+  "competition_only_manual": {
+    "vehicle": [],
+    "pedestrian": [
+      {
+        "data_id": 50100055,
+        "name": "police_f_1",
+        "empirical_personal_capture": {
+          "appearances": 26,
+          "completed_scenes": 0,
+          "failed_scenes": 26
+        },
+        "note": "Absence from the user-curated personal list is not proof that the runtime cannot render it; manually audit if empirical completed_scenes is nonzero."
+      },
+      {
+        "data_id": 50200003,
+        "name": "Boy2",
+        "empirical_personal_capture": {
+          "appearances": 27,
+          "completed_scenes": 0,
+          "failed_scenes": 27
+        },
+        "note": "Absence from the user-curated personal list is not proof that the runtime cannot render it; manually audit if empirical completed_scenes is nonzero."
+      }
+    ],
+    "obstacle": [
+      {
+        "data_id": 40100062,
+        "name": "Scooter_01",
+        "empirical_personal_capture": {
+          "appearances": 8,
+          "completed_scenes": 0,
+          "failed_scenes": 8
+        },
+        "note": "Absence from the user-curated personal list is not proof that the runtime cannot render it; manually audit if empirical completed_scenes is nonzero."
+      }
+    ]
+  },
+  "personal_only_excluded": {
+    "vehicle": [
+      {
+        "data_id": 30100017,
+        "name": "2019_hyundai_genesis_g90_4WS"
+      },
+      {
+        "data_id": 30200016,
+        "name": "DR_KGTorres_EVX_2024"
+      },
+      {
+        "data_id": 30400014,
+        "name": "SE_CT797F_2009"
+      },
+      {
+        "data_id": 30600001,
+        "name": "WeGo_ERP42"
+      },
+      {
+        "data_id": 30600014,
+        "name": "AR_DJMini3pro_2022"
+      },
+      {
+        "data_id": 30700043,
+        "name": "DR_OMLift_2022_Bus"
+      }
+    ],
+    "pedestrian": [
+      {
+        "data_id": 50300011,
+        "name": "Dog10"
+      }
+    ],
+    "obstacle": [
+      {
+        "data_id": 40100064,
+        "name": "Sportbike_01"
+      },
+      {
+        "data_id": 40200085,
+        "name": "Color_Cone"
+      },
+      {
+        "data_id": 40200086,
+        "name": "Rubber_Cone"
+      },
+      {
+        "data_id": 40200160,
+        "name": "Rockslide"
+      },
+      {
+        "data_id": 40200161,
+        "name": "Barbed_Wirefence"
+      }
+    ]
+  },
+  "policy_excluded": {
+    "vehicle": [],
+    "pedestrian": [],
+    "obstacle": [
+      {
+        "data_id": 40200009,
+        "name": "Tree08",
+        "present_in_competition": true,
+        "present_in_personal": false,
+        "reason": "Tree asset excluded from the OD actor dataset by project policy."
+      }
+    ]
+  },
+  "common_template_differences": {
+    "vehicle": [
+      {
+        "data_id": 30100001,
+        "competition_name": "2017_Hyundai_Grandeur",
+        "personal_name": "2017_Hyundai_Grandeur",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000760",
+            "personal": "A2256W000347"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 52,
+            "personal": 50
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000760",
+            "personal": "A2256W000347"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000347"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 50
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30100003,
+        "competition_name": "2016_Hyundai_Sonata",
+        "personal_name": "2016_Hyundai_Sonata",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000213",
+            "personal": "A2256W000176"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 19,
+            "personal": 85
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000213",
+            "personal": "A2256W000176"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000176"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 85
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30100004,
+        "competition_name": "2015_Kia_K5",
+        "personal_name": "2015_Kia_K5",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000216",
+            "personal": "A2256W000346"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 19,
+            "personal": 66
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000216",
+            "personal": "A2256W000346"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000346"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 66
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30100005,
+        "competition_name": "2014_Kia_K7",
+        "personal_name": "2014_Kia_K7",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000212",
+            "personal": "A2256W000347"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 28,
+            "personal": 66
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000212",
+            "personal": "A2256W000347"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000347"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 66
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30100007,
+        "competition_name": "2016_Hyundai_Ioniq",
+        "personal_name": "2016_Hyundai_Ioniq",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000068",
+            "personal": "A2256W000346"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 3,
+            "personal": 88
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000068",
+            "personal": "A2256W000346"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000346"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 88
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30100008,
+        "competition_name": "2020_hyundai_sonata",
+        "personal_name": "2020_hyundai_sonata",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000366"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 511,
+            "personal": 14
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000366"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000366"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 14
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5653,
+            "personal": 5654
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30100009,
+        "competition_name": "2020_Kia_Stinger",
+        "personal_name": "2020_Kia_Stinger",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000172"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 523,
+            "personal": 33
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000172"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000172"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 33
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5652,
+            "personal": 5653
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30100010,
+        "competition_name": "2021_Hyundai_G80",
+        "personal_name": "2021_Hyundai_G80",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000367"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 572,
+            "personal": 8
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000367"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000367"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 8
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5654,
+            "personal": 5655
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30100011,
+        "competition_name": "2019_Toyota_Prius",
+        "personal_name": "2019_Toyota_Prius",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000346"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 617,
+            "personal": 51
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000346"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000346"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 51
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30100012,
+        "competition_name": "2019_hyundai_genesis_g90",
+        "personal_name": "2019_hyundai_genesis_g90",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000172"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 551,
+            "personal": 46
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000172"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000172"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 46
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30100013,
+        "competition_name": "2016_Hyundai_Genesis_DH",
+        "personal_name": "2016_Hyundai_Genesis_DH",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000068",
+            "personal": "A2256W000347"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 44,
+            "personal": 89
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000068",
+            "personal": "A2256W000347"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000347"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 89
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30100014,
+        "competition_name": "2020_Kia_K5",
+        "personal_name": "2020_Kia_K5",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000176"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 536,
+            "personal": 36
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000176"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000176"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 36
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5651,
+            "personal": 5652
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30100015,
+        "competition_name": "DEFAULT_SEDAN",
+        "personal_name": "DEFAULT_SEDAN",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000176"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 593,
+            "personal": 109
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000334",
+            "personal": "A2256W000176"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000176"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 109
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5655,
+            "personal": 5656
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30200001,
+        "competition_name": "2016_Hyundai_Santafe",
+        "personal_name": "2016_Hyundai_Santafe",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W001066",
+            "personal": "A2256W000347"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 2224,
+            "personal": 9
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W001066",
+            "personal": "A2256W000347"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000347"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 9
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5656,
+            "personal": 5657
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30200002,
+        "competition_name": "2017_Kia_Sorento",
+        "personal_name": "2017_Kia_Sorento",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W001066",
+            "personal": "A2256W000176"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 2184,
+            "personal": 15
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W001066",
+            "personal": "A2256W000176"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000176"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 15
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5658,
+            "personal": 5659
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30200003,
+        "competition_name": "2017_Kia_Niro(HEV)",
+        "personal_name": "2017_Kia_Niro(HEV)",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W001066",
+            "personal": "A2256W000344"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 2210,
+            "personal": 10
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W001066",
+            "personal": "A2256W000344"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000344"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 10
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5657,
+            "personal": 5658
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30200005,
+        "competition_name": "2019_Hyundai_Nexo",
+        "personal_name": "2019_Hyundai_Nexo",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W001069",
+            "personal": "A2256W000104"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 207,
+            "personal": 54
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W001069",
+            "personal": "A2256W000104"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000104"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 54
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5659,
+            "personal": 5660
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30200006,
+        "competition_name": "2020_volvo_xc90",
+        "personal_name": "2020_volvo_xc90",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W001069",
+            "personal": "A2256W000019"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 226,
+            "personal": 51
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W001069",
+            "personal": "A2256W000019"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000019"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 51
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5660,
+            "personal": 5661
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30200007,
+        "competition_name": "2021_Hyundai_Genesis_GV80",
+        "personal_name": "2021_Hyundai_Genesis_GV80",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W001066",
+            "personal": "A2256W000031"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 2102,
+            "personal": 187
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W001066",
+            "personal": "A2256W000031"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000031"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 187
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5662,
+            "personal": 5663
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30200010,
+        "competition_name": "2021_Volkswagen_Golf_GTI",
+        "personal_name": "2021_Volkswagen_Golf_GTI",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W001069",
+            "personal": "A2256W000031"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 304,
+            "personal": 154
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W001069",
+            "personal": "A2256W000031"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000031"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 154
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5663,
+            "personal": 5664
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30200011,
+        "competition_name": "DEFAULT_SUV",
+        "personal_name": "DEFAULT_SUV",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000618",
+            "personal": "A2256W000253"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 280,
+            "personal": 49
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000618",
+            "personal": "A2256W000253"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000253"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 49
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5666,
+            "personal": 5667
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30200012,
+        "competition_name": "2021_Hyundai_GV70",
+        "personal_name": "2021_Hyundai_GV70",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W001066",
+            "personal": "A2256W000192"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 2123,
+            "personal": 28
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W001066",
+            "personal": "A2256W000192"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000192"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 28
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5661,
+            "personal": 5662
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30200013,
+        "competition_name": "2023_Kia_EV6",
+        "personal_name": "2023_Kia_EV6",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000459",
+            "personal": "A2256W000254"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 641,
+            "personal": 100
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000459",
+            "personal": "A2256W000254"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000254"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 100
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5665,
+            "personal": 5666
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30200014,
+        "competition_name": "2023_Hyundai_Ioniq5",
+        "personal_name": "2023_Hyundai_Ioniq5",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W001066",
+            "personal": "A2256W000253"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 2036,
+            "personal": 88
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W001066",
+            "personal": "A2256W000253"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000253"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 88
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5664,
+            "personal": 5665
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30300001,
+        "competition_name": "2016_Hyundai_Universe",
+        "personal_name": "2016_Hyundai_Universe",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000458",
+            "personal": "A2256W000153"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 614,
+            "personal": 107
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000458",
+            "personal": "A2256W000153"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000153"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 107
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5667,
+            "personal": 5669
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30300002,
+        "competition_name": "2017_hyundai_solati_h350",
+        "personal_name": "2017_hyundai_solati_h350",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000459",
+            "personal": "A2256W000424"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 686,
+            "personal": 186
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000459",
+            "personal": "A2256W000424"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000424"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 186
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5668,
+            "personal": 5671
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30300003,
+        "competition_name": "DEFAULT_BUS",
+        "personal_name": "DEFAULT_BUS",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000621",
+            "personal": "A2256W000432"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 195,
+            "personal": 146
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000621",
+            "personal": "A2256W000432"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000432"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 146
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5669,
+            "personal": 5670
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30400001,
+        "competition_name": "2013_Hyundai_Porter2",
+        "personal_name": "2013_Hyundai_Porter2",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000458",
+            "personal": "A2256W000153"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 471,
+            "personal": 61
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000458",
+            "personal": "A2256W000153"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000153"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 61
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5671,
+            "personal": 5673
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30400002,
+        "competition_name": "2012_Hyundai_HD65",
+        "personal_name": "2012_Hyundai_HD65",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000458",
+            "personal": "A2256W000424"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 524,
+            "personal": 29
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000458",
+            "personal": "A2256W000424"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000424"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 29
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5670,
+            "personal": 5672
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30400003,
+        "competition_name": "2013_Hyundai_Xcient(P520)",
+        "personal_name": "2013_Hyundai_Xcient(P520)",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000458",
+            "personal": "A2256W000424"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 438,
+            "personal": 82
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000458",
+            "personal": "A2256W000424"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000424"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 82
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5672,
+            "personal": 5674
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30400004,
+        "competition_name": "2013_Hyundai_Xcient(P540)",
+        "personal_name": "2013_Hyundai_Xcient(P540)",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000459",
+            "personal": "A2256W000153"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 406,
+            "personal": 223
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000459",
+            "personal": "A2256W000153"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000153"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 223
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5673,
+            "personal": 5675
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30400005,
+        "competition_name": "2014_Hyundai_Xcient(Mixer)",
+        "personal_name": "2014_Hyundai_Xcient(Mixer)",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000621",
+            "personal": "A2256W000424"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 511,
+            "personal": 241
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000621",
+            "personal": "A2256W000424"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000424"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 241
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5674,
+            "personal": 5676
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30400007,
+        "competition_name": "DEFAULT_TRUCK",
+        "personal_name": "DEFAULT_TRUCK",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000459",
+            "personal": "A2256W000425"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 294,
+            "personal": 52
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000459",
+            "personal": "A2256W000425"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000425"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 52
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5675,
+            "personal": 5677
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30500001,
+        "competition_name": "2015_Toyota_Prius(HEV)",
+        "personal_name": "2015_Toyota_Prius(HEV)",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000861",
+            "personal": "A2256W000421"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 53,
+            "personal": 217
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000861",
+            "personal": "A2256W000421"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000421"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 217
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5676,
+            "personal": 5679
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30500002,
+        "competition_name": "DEFAULT_WAGON",
+        "personal_name": "DEFAULT_WAGON",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000861",
+            "personal": "A2256W000387"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 101,
+            "personal": 41
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000861",
+            "personal": "A2256W000387"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000387"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 41
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5677,
+            "personal": 5680
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30700003,
+        "competition_name": "2019_Hyundai_Kona(EV)",
+        "personal_name": "2019_Hyundai_Kona(EV)",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W001057",
+            "personal": "A2256W000190"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 1442,
+            "personal": 35
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W001057",
+            "personal": "A2256W000190"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000190"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 35
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5680,
+            "personal": 5684
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30700004,
+        "competition_name": "2020_Kia_Niro(EV)",
+        "personal_name": "2020_Kia_Niro(EV)",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000522",
+            "personal": "A2256W000353"
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000522",
+            "personal": "A2256W000353"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000353"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 33
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5679,
+            "personal": 5685
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30700005,
+        "competition_name": "2016_Kia_Soul(EV)",
+        "personal_name": "2016_Kia_Soul(EV)",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W001072",
+            "personal": "A2256W000184"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 51,
+            "personal": 31
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W001072",
+            "personal": "A2256W000184"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000185"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 46
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5678,
+            "personal": 5683
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30700006,
+        "competition_name": "2020_Kia_Soul(EV)",
+        "personal_name": "2020_Kia_Soul(EV)",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W001057",
+            "personal": "A2256W000073"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 1459,
+            "personal": 25
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W001057",
+            "personal": "A2256W000073"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000073"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 25
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5681,
+            "personal": 5687
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30800001,
+        "competition_name": "2019_kia_sedona",
+        "personal_name": "2019_kia_sedona",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000963",
+            "personal": "A2256W000236"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 47,
+            "personal": 52
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000963",
+            "personal": "A2256W000236"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000236"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 52
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5682,
+            "personal": 5688
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30800002,
+        "competition_name": "2021_Kia_Carnival",
+        "personal_name": "2021_Kia_Carnival",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000963",
+            "personal": "A2256W000215"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 7,
+            "personal": 26
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000963",
+            "personal": "A2256W000215"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000215"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 26
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5684,
+            "personal": 5691
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30800003,
+        "competition_name": "2020_chrysler_pacifica_hybrid",
+        "personal_name": "2020_chrysler_pacifica_hybrid",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000963",
+            "personal": "A2256W000236"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 69,
+            "personal": 30
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000963",
+            "personal": "A2256W000236"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000236"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 30
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5683,
+            "personal": 5689
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      },
+      {
+        "data_id": 30800004,
+        "competition_name": "DEFAULT_MPV",
+        "personal_name": "DEFAULT_MPV",
+        "changed_fields": [
+          {
+            "path": "activeDistance",
+            "change": "competition_only_key"
+          },
+          {
+            "path": "currentLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "A2256W000861",
+            "personal": "A2256W000219"
+          },
+          {
+            "path": "currentLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 21,
+            "personal": 40
+          },
+          {
+            "path": "initPosition.initLink",
+            "change": "value_changed",
+            "competition": "A2256W000861",
+            "personal": "A2256W000219"
+          },
+          {
+            "path": "startPointLinkInfo.linkIdx",
+            "change": "value_changed",
+            "competition": "",
+            "personal": "A2256W000219"
+          },
+          {
+            "path": "startPointLinkInfo.pointIdx",
+            "change": "value_changed",
+            "competition": 0,
+            "personal": 40
+          },
+          {
+            "path": "v2vUDPSessionInfo.v2vConfig.Port",
+            "change": "value_changed",
+            "competition": 5685,
+            "personal": 5690
+          },
+          {
+            "path": "wayPointInfos",
+            "change": "competition_only_key"
+          }
+        ]
+      }
+    ],
+    "pedestrian": [
+      {
+        "data_id": 50100001,
+        "competition_name": "Man1",
+        "personal_name": "Man1",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -312932,
+            "personal": -369444
+          }
+        ]
+      },
+      {
+        "data_id": 50100002,
+        "competition_name": "Man2",
+        "personal_name": "Man2",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -348372,
+            "personal": -370454
+          }
+        ]
+      },
+      {
+        "data_id": 50100003,
+        "competition_name": "Man3",
+        "personal_name": "Man3",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -350836,
+            "personal": -371466
+          }
+        ]
+      },
+      {
+        "data_id": 50100004,
+        "competition_name": "Woman1",
+        "personal_name": "Woman1",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -316232,
+            "personal": -377614
+          }
+        ]
+      },
+      {
+        "data_id": 50100005,
+        "competition_name": "Woman2",
+        "personal_name": "Woman2",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -366962,
+            "personal": -378624
+          }
+        ]
+      },
+      {
+        "data_id": 50100006,
+        "competition_name": "Woman3",
+        "personal_name": "Woman3",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -369072,
+            "personal": -379640
+          }
+        ]
+      },
+      {
+        "data_id": 50100007,
+        "competition_name": "Man4",
+        "personal_name": "Man4",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -354294,
+            "personal": -372388
+          }
+        ]
+      },
+      {
+        "data_id": 50100008,
+        "competition_name": "Man5",
+        "personal_name": "Man5",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -356702,
+            "personal": -373220
+          }
+        ]
+      },
+      {
+        "data_id": 50100009,
+        "competition_name": "Man6",
+        "personal_name": "Man6",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -359056,
+            "personal": -374052
+          }
+        ]
+      },
+      {
+        "data_id": 50100010,
+        "competition_name": "Man7",
+        "personal_name": "Man7",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -361542,
+            "personal": -374884
+          }
+        ]
+      },
+      {
+        "data_id": 50100011,
+        "competition_name": "Man8",
+        "personal_name": "Man8",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -364066,
+            "personal": -375710
+          }
+        ]
+      },
+      {
+        "data_id": 50100012,
+        "competition_name": "Woman4",
+        "personal_name": "Woman4",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -371524,
+            "personal": -380570
+          }
+        ]
+      },
+      {
+        "data_id": 50100013,
+        "competition_name": "Woman5",
+        "personal_name": "Woman5",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -375042,
+            "personal": -381422
+          }
+        ]
+      },
+      {
+        "data_id": 50100014,
+        "competition_name": "Woman6",
+        "personal_name": "Woman6",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -377328,
+            "personal": -382262
+          }
+        ]
+      },
+      {
+        "data_id": 50100015,
+        "competition_name": "Woman7",
+        "personal_name": "Woman7",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -379554,
+            "personal": -383094
+          }
+        ]
+      },
+      {
+        "data_id": 50100016,
+        "competition_name": "Woman8",
+        "personal_name": "Woman8",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -382964,
+            "personal": -384032
+          }
+        ]
+      },
+      {
+        "data_id": 50100017,
+        "competition_name": "NCAP_EBT",
+        "personal_name": "NCAP_EBT",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -314204,
+            "personal": -376332
+          }
+        ]
+      },
+      {
+        "data_id": 50100018,
+        "competition_name": "NCAP_EPTa",
+        "personal_name": "NCAP_EPTa",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -315144,
+            "personal": -376830
+          }
+        ]
+      },
+      {
+        "data_id": 50100058,
+        "competition_name": "police_m_2",
+        "personal_name": "police_m_2",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -323094,
+            "personal": -386386
+          }
+        ]
+      },
+      {
+        "data_id": 50100074,
+        "competition_name": "worker_f_1",
+        "personal_name": "worker_f_1",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -326064,
+            "personal": -387638
+          }
+        ]
+      },
+      {
+        "data_id": 50100077,
+        "competition_name": "worker_m_1",
+        "personal_name": "worker_m_1",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -327058,
+            "personal": -388806
+          }
+        ]
+      },
+      {
+        "data_id": 50100084,
+        "competition_name": "Bicycle_Female1",
+        "personal_name": "Bicycle_Female1",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -311634,
+            "personal": -298634
+          }
+        ]
+      },
+      {
+        "data_id": 50200001,
+        "competition_name": "Boy1",
+        "personal_name": "Boy1",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -329348,
+            "personal": -389886
+          }
+        ]
+      },
+      {
+        "data_id": 50200002,
+        "competition_name": "Girl1",
+        "personal_name": "Girl1",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -332466,
+            "personal": -390886
+          }
+        ]
+      },
+      {
+        "data_id": 50200004,
+        "competition_name": "Girl2",
+        "personal_name": "Girl2",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -334074,
+            "personal": -391812
+          }
+        ]
+      },
+      {
+        "data_id": 50200005,
+        "competition_name": "NCAP_EPTc",
+        "personal_name": "NCAP_EPTc",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -335402,
+            "personal": -392520
+          }
+        ]
+      },
+      {
+        "data_id": 50300001,
+        "competition_name": "Deer1",
+        "personal_name": "Deer1",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -337020,
+            "personal": -393028
+          }
+        ]
+      },
+      {
+        "data_id": 50300002,
+        "competition_name": "Dog1",
+        "personal_name": "Dog1",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -338310,
+            "personal": -393580
+          }
+        ]
+      },
+      {
+        "data_id": 50300003,
+        "competition_name": "Dog2",
+        "personal_name": "Dog2",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -339696,
+            "personal": -394220
+          }
+        ]
+      },
+      {
+        "data_id": 50300018,
+        "competition_name": "Ped_Pet1",
+        "personal_name": "Ped_Pet1",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -342230,
+            "personal": -396126
+          }
+        ]
+      }
+    ],
+    "obstacle": []
+  }
+}

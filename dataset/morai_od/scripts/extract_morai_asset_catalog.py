@@ -15,6 +15,19 @@ def parse_args():
     parser.add_argument("--scenario-dir", type=Path, required=True)
     parser.add_argument("--option-list", type=Path, required=True)
     parser.add_argument(
+        "--vehicle-file",
+        default="vehicle_list.json",
+        help="MORAI scenario containing one instance of each vehicleList asset.",
+    )
+    parser.add_argument(
+        "--pedestrian-file",
+        default="pedestrian_list.json",
+        help=(
+            "MORAI scenario containing one instance of each pedestrianList "
+            "asset."
+        ),
+    )
+    parser.add_argument(
         "--obstacle-file",
         default="obstacle_list_without_vehicle_and_ped_like_objects.json",
         help="Curated MORAI scenario containing the allowed objectList assets.",
@@ -224,8 +237,8 @@ def main():
     option_list = args.option_list.expanduser().resolve()
     names = load_names(option_list)
     sources = {
-        "vehicle": ("vehicle_list.json", "vehicleList"),
-        "pedestrian": ("pedestrian_list.json", "pedestrianList"),
+        "vehicle": (args.vehicle_file, "vehicleList"),
+        "pedestrian": (args.pedestrian_file, "pedestrianList"),
         "obstacle": (
             args.obstacle_file,
             "objectList",

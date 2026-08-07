@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_179",
+  "scenario_stem": "od_s13v2_179",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080718179,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 4068,
+    "arc_m": 2080.2278255359724,
+    "curvature_deg": 8.439257976069143,
+    "crosswalk_distance_m": 213.21074481191667,
+    "parking_distance_m": 40.639121816871196,
+    "stopline_distance_m": 29.422766122268083,
+    "branch_distance_m": 40.050581090326226
+  },
+  "ego": {
+    "x": -148.62792232974437,
+    "y": -524.1596743653776,
+    "z": 28.816787642504742,
+    "yaw": 124.40162482987034,
+    "link_idx": "A2256W000128",
+    "point_idx": 167
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 0,
+    "obstacle": 4
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -139.14695948338345,
+        "y": -539.2993423930183,
+        "z": 28.970797375731195,
+        "yaw": -39.2993356472646
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -146.50925955097506,
+        "y": -532.541896066094,
+        "z": 28.983518421382268,
+        "yaw": -45.746179679682086
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200162,
+      "name": "concrete-barrier",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -161.972643721337,
+        "y": -531.7547865437058,
+        "z": 28.528998385844872,
+        "yaw": 143.27594880242685
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100001,
+      "name": "CargoBox",
+      "ontology_class": "Obstacle",
+      "subtype": "box",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -126.69529224818243,
+        "y": -523.9314840113685,
+        "z": 28.47634196894861,
+        "yaw": 118.94088058244597
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100052,
+      "name": "Concrete_Barricade02",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -154.5501526113306,
+        "y": -524.0713009634694,
+        "z": 28.524921666275855,
+        "yaw": 121.40141859800792
+      }
+    },
+    {
+      "unique_id": 3004,
+      "group": "objectList",
+      "data_id": 40100060,
+      "name": "Bicycle_mountain",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -147.597825219985,
+        "y": -517.1814402284562,
+        "z": 28.506097908852386,
+        "yaw": 134.50699848476143
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

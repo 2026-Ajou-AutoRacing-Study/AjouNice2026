@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_025",
+  "scenario_stem": "od_s13v2_025",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "intersection",
+  "seed": 26080718025,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1137,
+    "arc_m": 627.8738491044402,
+    "curvature_deg": 30.541780837294567,
+    "crosswalk_distance_m": 108.27438486941915,
+    "parking_distance_m": 105.99715979271984,
+    "stopline_distance_m": 7.396608705778708,
+    "branch_distance_m": 7.185363822265183
+  },
+  "ego": {
+    "x": 1.693991678838163,
+    "y": 107.8592281689899,
+    "z": 28.760034066622534,
+    "yaw": 66.58363843411072,
+    "link_idx": "A2256W000083",
+    "point_idx": 36
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 4,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -2.8854113268465453,
+        "y": 128.5704376105559,
+        "z": 28.880049634558727,
+        "yaw": -78.65510307570254
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30800004,
+      "name": "DEFAULT_MPV",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -4.441192256334783,
+        "y": 90.38145968398152,
+        "z": 28.73616292992004,
+        "yaw": -90.3131825346022
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100010,
+      "name": "2021_Hyundai_G80",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 6.9879053904152535,
+        "y": 93.37488651753358,
+        "z": 28.72354903522435,
+        "yaw": 90.91178879452212
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30700005,
+      "name": "2016_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -12.193290983419683,
+        "y": 98.92459302515744,
+        "z": 28.7251161123578,
+        "yaw": -0.9196912292831598
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 5.236118512364902,
+        "y": 103.53089052820911,
+        "z": 28.489728091509807,
+        "yaw": 79.7926715248069
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100012,
+      "name": "Woman4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 5.863921369817116,
+        "y": 132.0202792406335,
+        "z": 28.515872321518767,
+        "yaw": -157.02707021593574
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50200002,
+      "name": "Girl1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 9.118616623784856,
+        "y": 109.50584964029521,
+        "z": 28.452744653400163,
+        "yaw": 144.7129851498455
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 4.0301259115581285,
+        "y": 96.92111706790939,
+        "z": 28.473240165893962,
+        "yaw": -88.30582717561697
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200108,
+      "name": "KR_Sign_SL_90",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 7.826566164805026,
+        "y": 111.9544473316024,
+        "z": 28.435848010943456,
+        "yaw": 77.25648856171631
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200104,
+      "name": "KR_Sign_SL_50",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -7.452369984817352,
+        "y": 109.85200993284447,
+        "z": 28.369598206180587,
+        "yaw": 64.46933864524686
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40200110,
+      "name": "KR_Sign_SL_110",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 12.345496476157479,
+        "y": 106.51744832235671,
+        "z": 28.439043662977596,
+        "yaw": 63.162230453524046
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_027",
+  "scenario_stem": "od_s13v2_027",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080718027,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2841,
+    "arc_m": 1472.2253400587153,
+    "curvature_deg": 0.03436128834465535,
+    "crosswalk_distance_m": 36.2075044315728,
+    "parking_distance_m": 125.1828012881301,
+    "stopline_distance_m": 33.87745733839178,
+    "branch_distance_m": 33.867117363829685
+  },
+  "ego": {
+    "x": 67.72080393766602,
+    "y": -96.87261094197032,
+    "z": 28.686473337938875,
+    "yaw": -89.70350181960204,
+    "link_idx": "A2256W000408",
+    "point_idx": 207
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 1,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30500001,
+      "name": "2015_Toyota_Prius(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "wagon",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 63.943619856019,
+        "y": -87.78244135898404,
+        "z": 28.660634316095162,
+        "yaw": -89.84677538493314
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200006,
+      "name": "2020_volvo_xc90",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.30835890642767,
+        "y": -85.37711401088374,
+        "z": 28.79071866881631,
+        "yaw": -89.54944216250648
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100012,
+      "name": "2019_hyundai_genesis_g90",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.41978700922644,
+        "y": -106.87676017639278,
+        "z": 28.732016777395497,
+        "yaw": -89.78477269562849
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100009,
+      "name": "2020_Kia_Stinger",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 51.006456236887644,
+        "y": -105.36533414506542,
+        "z": 28.743532253933846,
+        "yaw": 90.52589789181314
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 50.93107009463267,
+        "y": -96.86568655319827,
+        "z": 28.897623823101245,
+        "yaw": 90.27930273842543
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 63.24835116430808,
+        "y": -76.218602777266,
+        "z": 28.35342770109767,
+        "yaw": -33.61780223064437
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100063,
+      "name": "Scooter_02",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": 47.919691528697186,
+        "y": -91.1355192503887,
+        "z": 28.44155194345585,
+        "yaw": -99.86694929422502
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

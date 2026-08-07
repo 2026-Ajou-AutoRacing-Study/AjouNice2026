@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_072",
+  "scenario_stem": "od_s13v2_072",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080718072,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2362,
+    "arc_m": 1234.2387776941252,
+    "curvature_deg": 0.020804893704195138,
+    "crosswalk_distance_m": 157.25598389801362,
+    "parking_distance_m": 176.5747997869047,
+    "stopline_distance_m": 64.42127532822116,
+    "branch_distance_m": 51.9116670556501
+  },
+  "ego": {
+    "x": 63.9933029848634,
+    "y": 141.0289673663807,
+    "z": 28.618251480580902,
+    "yaw": -86.27278732349481,
+    "link_idx": "A2256W000411",
+    "point_idx": 231
+  },
+  "counts": {
+    "npc": 8,
+    "pedestrian": 0,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800003,
+      "name": "2020_chrysler_pacifica_hybrid",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 82.13652679219734,
+        "y": 150.07530851513576,
+        "z": 28.764188745651065,
+        "yaw": 90.24689200442003
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200005,
+      "name": "2019_Hyundai_Nexo",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 85.69774784349782,
+        "y": 137.38633914594615,
+        "z": 28.679002173094055,
+        "yaw": 90.29331201770464
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30400003,
+      "name": "2013_Hyundai_Xcient(P520)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 70.1113417648385,
+        "y": 153.07031411430685,
+        "z": 28.874301788644996,
+        "yaw": -89.62192575440963
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30700005,
+      "name": "2016_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 77.1804457356572,
+        "y": 136.1391127214346,
+        "z": 28.715086336391167,
+        "yaw": -89.61676042724493
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100001,
+      "name": "2017_Hyundai_Grandeur",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 85.76166720441704,
+        "y": 125.38651580664917,
+        "z": 28.6431373188516,
+        "yaw": 90.32182894295232
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 66.57205633798907,
+        "y": 131.03541574766672,
+        "z": 28.78249301992647,
+        "yaw": -89.70368490305783
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30100003,
+      "name": "2016_Hyundai_Sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 77.14692850246567,
+        "y": 142.63902482127256,
+        "z": 28.706261523967438,
+        "yaw": -89.70215537753388
+      }
+    },
+    {
+      "unique_id": 1008,
+      "group": "vehicleList",
+      "data_id": 30100010,
+      "name": "2021_Hyundai_G80",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 77.22507050607936,
+        "y": 127.13923877311518,
+        "z": 28.700955313384075,
+        "yaw": -89.86564764804538
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100059,
+      "name": "Bicycle_city",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": 46.06209633565183,
+        "y": 152.41671918679717,
+        "z": 28.301942256455618,
+        "yaw": -66.56761034121243
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100003,
+      "name": "RedBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 88.9102305642499,
+        "y": 150.59603198097355,
+        "z": 28.374164623211268,
+        "yaw": -86.59218339857048
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

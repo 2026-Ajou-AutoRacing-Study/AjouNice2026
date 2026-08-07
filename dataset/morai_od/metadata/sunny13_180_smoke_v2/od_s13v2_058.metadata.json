@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_058",
+  "scenario_stem": "od_s13v2_058",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "intersection",
+  "seed": 26080718058,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 577,
+    "arc_m": 283.9226671242927,
+    "curvature_deg": 3.2999799295878347,
+    "crosswalk_distance_m": 45.33300330548399,
+    "parking_distance_m": 94.4750702677019,
+    "stopline_distance_m": 31.94173693450464,
+    "branch_distance_m": 3.6322291020457915
+  },
+  "ego": {
+    "x": -63.414055920758926,
+    "y": -187.1335648449882,
+    "z": 28.739138282672826,
+    "yaw": 77.85892040514534,
+    "link_idx": "A2256W000213",
+    "point_idx": 93
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 6,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200007,
+      "name": "2021_Hyundai_Genesis_GV80",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -68.02729470328325,
+        "y": -192.32591113616715,
+        "z": 28.771712931025686,
+        "yaw": -103.21342798806856
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100007,
+      "name": "2016_Hyundai_Ioniq",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -65.80190882079859,
+        "y": -180.85174561039221,
+        "z": 28.73065156977514,
+        "yaw": -99.87337207962426
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100013,
+      "name": "2016_Hyundai_Genesis_DH",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -61.527722834089545,
+        "y": -176.29988919705391,
+        "z": 28.721212575201555,
+        "yaw": 82.56983337716628
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100003,
+      "name": "2016_Hyundai_Sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -64.3497964224204,
+        "y": -170.454969028487,
+        "z": 28.74286347814907,
+        "yaw": -95.68303291627026
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100011,
+      "name": "Man8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -61.29228703407446,
+        "y": -200.15306907949474,
+        "z": 28.468024251391615,
+        "yaw": -115.91411120232914
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -55.517682583389984,
+        "y": -169.5444151642937,
+        "z": 28.44048211721401,
+        "yaw": -161.6879251419008
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100013,
+      "name": "Woman5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -59.19123920487572,
+        "y": -192.1908768748639,
+        "z": 28.45625348633731,
+        "yaw": -93.0236144272067
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -56.0179321816602,
+        "y": -180.7067897568765,
+        "z": 28.43153909354616,
+        "yaw": 162.5271022505343
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -68.34234112821407,
+        "y": -188.18666213463362,
+        "z": 28.44646428686979,
+        "yaw": 69.36286226228694
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -73.12704174409369,
+        "y": -207.41288855852156,
+        "z": 28.466187122440747,
+        "yaw": 148.0568074869377
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100029,
+      "name": "PE_Firewall_White",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -50.13158833836193,
+        "y": -192.28723475361548,
+        "z": 28.43226400707798,
+        "yaw": 96.06865919791119
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

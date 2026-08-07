@@ -16,14 +16,18 @@ split은 frame이 아니라 scenario 단위로 고정했다. 한 scenario의 6�
 
 ## 생성 결과
 
-- Scenario: `dataset/morai_od/scenarios/sunny13_180_smoke/`
-- Metadata: `dataset/morai_od/metadata/sunny13_180_smoke/`
+- Scenario: `dataset/morai_od/scenarios/sunny13_180_smoke_v2/`
+- Metadata: `dataset/morai_od/metadata/sunny13_180_smoke_v2/`
 - Capture manifest:
-  `dataset/morai_od/manifests/sunny13_180_smoke_sunny_t13.json`
+  `dataset/morai_od/manifests/sunny13_180_smoke_v2_sunny_t13.json`
 - Split:
-  `dataset/morai_od/manifests/sunny13_180_smoke_{train,val,test}.txt`
+  `dataset/morai_od/manifests/sunny13_180_smoke_v2_{train,val,test}.txt`
 - 생성 요약:
-  `dataset/morai_od/reports/sunny13_180_smoke_generation_summary.json`
+  `dataset/morai_od/reports/sunny13_180_smoke_v2_generation_summary.json`
+
+v2는 대회용·개인용 공통 DataID만 배치하고, 개인용 런처가 저장한 actor
+template를 사용한다. v1의 asset 호환 실패 분석과 상세 정책은
+`morai_launcher_asset_compatibility_260807.md`를 참고한다.
 
 MORAI 설치 위치는 다음과 같다.
 
@@ -59,14 +63,14 @@ source base_ws/devel/setup.bash
 source ~/morai_personal_ws/devel/setup.bash
 
 RUN_TAG="$(date +%y%m%d_%H%M%S)"
-RUN_DIR="/home/luv/morai_cap/sunny13_180_smoke_${RUN_TAG}"
+RUN_DIR="/home/luv/morai_cap/sunny13_180_smoke_v2_${RUN_TAG}"
 mkdir -p "$RUN_DIR"
 
 set -o pipefail
 
 python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
   --manifest \
-  dataset/morai_od/manifests/sunny13_180_smoke_sunny_t13.json \
+  dataset/morai_od/manifests/sunny13_180_smoke_v2_sunny_t13.json \
   --capture-dir "$RUN_DIR" \
   --no-timestamp-prefix \
   --motion-mode rolling-grouped \

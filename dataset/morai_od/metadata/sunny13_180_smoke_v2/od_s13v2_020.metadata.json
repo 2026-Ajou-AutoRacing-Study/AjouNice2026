@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_020",
+  "scenario_stem": "od_s13v2_020",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "intersection",
+  "seed": 26080718020,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2466,
+    "arc_m": 1286.1517821201455,
+    "curvature_deg": 1.8005423282635888,
+    "crosswalk_distance_m": 113.06121218092491,
+    "parking_distance_m": 162.0517200748211,
+    "stopline_distance_m": 56.08566039189137,
+    "branch_distance_m": 0.0
+  },
+  "ego": {
+    "x": 66.88496106746607,
+    "y": 89.19790052389726,
+    "z": 28.63935643790693,
+    "yaw": -87.61955993121113,
+    "link_idx": "A2256W000409",
+    "point_idx": 335
+  },
+  "counts": {
+    "npc": 3,
+    "pedestrian": 3,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200007,
+      "name": "2021_Hyundai_Genesis_GV80",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 73.96148343005791,
+        "y": 83.20895071015224,
+        "z": 28.766710966530212,
+        "yaw": -89.68570271984235
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100008,
+      "name": "2020_hyundai_sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 73.8960417445521,
+        "y": 95.10528181916615,
+        "z": 28.700244455507388,
+        "yaw": -89.68392031124095
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30400007,
+      "name": "DEFAULT_TRUCK",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 85.98717894739113,
+        "y": 76.38721756338549,
+        "z": 28.86453905322118,
+        "yaw": 90.36691277751584
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100074,
+      "name": "worker_f_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 61.382177545195006,
+        "y": 79.70268011087302,
+        "z": 28.33489791147815,
+        "yaw": 137.53585674687406
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100005,
+      "name": "Woman2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.903373579233296,
+        "y": 78.3257098298148,
+        "z": 28.336038107545246,
+        "yaw": -113.52199850525868
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.025320179157546,
+        "y": 108.28267313156908,
+        "z": 28.316308968429833,
+        "yaw": -113.24087057084078
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100031,
+      "name": "Road_Sign_Mark",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 71.91366907211787,
+        "y": 105.66722020334525,
+        "z": 28.379238477570247,
+        "yaw": -103.2531425407969
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

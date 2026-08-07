@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_056",
+  "scenario_stem": "od_s13v2_056",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "merge_diverge",
+  "seed": 26080718056,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1620,
+    "arc_m": 867.9995281031943,
+    "curvature_deg": 1.3595439781276468,
+    "crosswalk_distance_m": 212.10096389807214,
+    "parking_distance_m": 241.93802100696578,
+    "stopline_distance_m": 17.093545389541223,
+    "branch_distance_m": 9.499893123849237
+  },
+  "ego": {
+    "x": -99.3889080471087,
+    "y": 300.7055793203751,
+    "z": 28.712067907597838,
+    "yaw": 89.74854930799808,
+    "link_idx": "A2256W000148",
+    "point_idx": 19
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 5,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200002,
+      "name": "2017_Kia_Sorento",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -104.01605024734333,
+        "y": 309.76676690950814,
+        "z": 28.73032463494909,
+        "yaw": -89.55023292541225
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200010,
+      "name": "2021_Volkswagen_Golf_GTI",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -95.88783547395415,
+        "y": 294.7115945885825,
+        "z": 28.6834685796985,
+        "yaw": 88.9947886339981
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200003,
+      "name": "2017_Kia_Niro(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -99.42211501734938,
+        "y": 284.81571521228364,
+        "z": 28.739450934417544,
+        "yaw": 90.00104153582947
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30800004,
+      "name": "DEFAULT_MPV",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -107.40421149510038,
+        "y": 281.02915427782847,
+        "z": 28.694106939858678,
+        "yaw": -89.64191832192932
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100011,
+      "name": "Man8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -103.77283525574083,
+        "y": 298.1154314435872,
+        "z": 28.422325081936243,
+        "yaw": 136.34755376198706
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100010,
+      "name": "Man7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -92.84683742178143,
+        "y": 287.4114934326486,
+        "z": 28.4125167723431,
+        "yaw": -104.66773111242958
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100058,
+      "name": "police_m_2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -103.96828507676385,
+        "y": 295.17744511431926,
+        "z": 28.42147490046157,
+        "yaw": -160.95126748946785
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -94.85504895221771,
+        "y": 318.4737103171118,
+        "z": 28.404649139360192,
+        "yaw": -175.15856313747878
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100012,
+      "name": "Woman4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -92.64478417444826,
+        "y": 310.21514361864445,
+        "z": 28.359536077413527,
+        "yaw": 3.0646273610082346
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100060,
+      "name": "Bicycle_mountain",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -106.20603653117884,
+        "y": 303.36920905516,
+        "z": 28.32094387477396,
+        "yaw": 99.26440938860458
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_180",
+  "scenario_stem": "od_s13v2_180",
+  "split": "train",
+  "scene_type": "pedestrian_centric",
+  "topology": "crosswalk",
+  "seed": 26080718180,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 654,
+    "arc_m": 321.9060619468347,
+    "curvature_deg": 0.6600403594329123,
+    "crosswalk_distance_m": 11.65744889698205,
+    "parking_distance_m": 108.78959922070794,
+    "stopline_distance_m": 5.999963805174253,
+    "branch_distance_m": 5.999963805174253
+  },
+  "ego": {
+    "x": -59.84300237175135,
+    "y": -149.39325432121143,
+    "z": 28.73095939169387,
+    "yaw": 90.09611751612977,
+    "link_idx": "A2256W000222",
+    "point_idx": 12
+  },
+  "counts": {
+    "npc": 0,
+    "pedestrian": 5,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -66.75338094851615,
+        "y": -133.69058291540554,
+        "z": 28.378831923358184,
+        "yaw": 136.37357690124395
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100058,
+      "name": "police_m_2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -54.78161133070582,
+        "y": -163.38393752420617,
+        "z": 28.449238674924583,
+        "yaw": -148.6219103805683
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100009,
+      "name": "Man6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -50.491230621225206,
+        "y": -134.60858435020137,
+        "z": 28.405999389240073,
+        "yaw": -25.892876997959178
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -53.485907979993584,
+        "y": -142.06769701728106,
+        "z": 28.392421366328463,
+        "yaw": 6.844705114743476
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100013,
+      "name": "Woman5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -48.63435118304905,
+        "y": -138.10761608577099,
+        "z": 28.420017743800784,
+        "yaw": 79.71981822151099
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200103,
+      "name": "KR_Sign_SL_40",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -41.664498149656055,
+        "y": -167.2943070957297,
+        "z": 28.42683610060658,
+        "yaw": 76.68135442955554
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100067,
+      "name": "Bollard04",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -66.56088260552751,
+        "y": -156.91406674246332,
+        "z": 28.40519084384615,
+        "yaw": 102.97837641318284
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}
