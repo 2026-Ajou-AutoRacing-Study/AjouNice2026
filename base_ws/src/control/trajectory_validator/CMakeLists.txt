@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   rviz
   std_msgs
+  std_srvs
   tier4_planning_msgs
   trajectory_follower
   visualization_msgs
@@ -45,6 +46,7 @@ catkin_package(
     rospy
     rviz
     std_msgs
+    std_srvs
     tier4_planning_msgs
     trajectory_follower
     visualization_msgs
@@ -56,8 +58,10 @@ include_directories(
 )
 
 add_library(trajectory_validator_rviz_panel
+  src/planner_csv_logger_panel.cpp
   src/planning_status_panel.cpp
   src/purepursuit_hud_panel.cpp
+  include/trajectory_validator/planner_csv_logger_panel.hpp
   include/trajectory_validator/planning_status_panel.hpp
   include/trajectory_validator/purepursuit_hud_panel.hpp
 )

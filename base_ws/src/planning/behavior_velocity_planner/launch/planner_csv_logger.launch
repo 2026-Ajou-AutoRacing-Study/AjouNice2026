@@ -1,0 +1,18 @@
+<launch>
+  <arg name="output_dir" default="" />
+  <arg name="rate_hz" default="10.0" />
+  <arg name="scenario_note" default="" />
+  <arg name="rosout_min_level" default="INFO" />
+  <arg name="auto_start" default="false" />
+
+  <node pkg="behavior_velocity_planner"
+        type="planner_csv_logger.py"
+        name="planner_csv_logger"
+        output="screen">
+    <param name="output_dir" value="$(arg output_dir)" />
+    <param name="rate_hz" value="$(arg rate_hz)" />
+    <param name="scenario_note" value="$(arg scenario_note)" />
+    <param name="rosout_min_level" value="$(arg rosout_min_level)" />
+    <param name="auto_start" value="$(arg auto_start)" />
+  </node>
+</launch>

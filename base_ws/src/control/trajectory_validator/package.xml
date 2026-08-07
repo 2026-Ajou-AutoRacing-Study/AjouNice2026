@@ -21,6 +21,7 @@
   <depend>rospy</depend>
   <depend>rviz</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>tier4_planning_msgs</depend>
   <depend>trajectory_follower</depend>
   <depend>visualization_msgs</depend>

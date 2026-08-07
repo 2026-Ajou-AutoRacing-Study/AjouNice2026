@@ -10,14 +10,18 @@
   <buildtool_depend>catkin</buildtool_depend>
 
   <depend>autoware_internal_planning_msgs</depend>
+  <depend>autoware_adapi_v1_msgs</depend>
   <depend>autoware_map_msgs</depend>
   <depend>autoware_perception_msgs</depend>
   <depend>autoware_planning_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
+  <depend>morai_msgs</depend>
+  <depend>rosgraph_msgs</depend>
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>tier4_planning_msgs</depend>
   <depend>tier4_v2x_msgs</depend>
   <depend>visualization_msgs</depend>

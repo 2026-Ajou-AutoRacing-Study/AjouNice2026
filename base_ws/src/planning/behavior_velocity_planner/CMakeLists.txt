@@ -2,15 +2,19 @@ cmake_minimum_required(VERSION 3.0.2)
 project(behavior_velocity_planner)
 
 find_package(catkin REQUIRED COMPONENTS
+  autoware_adapi_v1_msgs
   autoware_internal_planning_msgs
   autoware_map_msgs
   autoware_perception_msgs
   autoware_planning_msgs
   geometry_msgs
   nav_msgs
+  morai_msgs
+  rosgraph_msgs
   rospy
   sensor_msgs
   std_msgs
+  std_srvs
   tier4_planning_msgs
   tier4_v2x_msgs
   visualization_msgs
@@ -20,15 +24,19 @@ catkin_python_setup()
 
 catkin_package(
   CATKIN_DEPENDS
+  autoware_adapi_v1_msgs
   autoware_internal_planning_msgs
   autoware_map_msgs
   autoware_perception_msgs
   autoware_planning_msgs
   geometry_msgs
   nav_msgs
+  morai_msgs
+  rosgraph_msgs
   rospy
   sensor_msgs
   std_msgs
+  std_srvs
   tier4_planning_msgs
   tier4_v2x_msgs
   visualization_msgs
@@ -37,6 +45,7 @@ catkin_package(
 catkin_install_python(
   PROGRAMS
   scripts/behavior_velocity_planner.py
+  scripts/planner_csv_logger.py
   validation/scripts/replay_capture_ros1_bvp_blind_spot.py
   validation/scripts/replay_capture_ros1_bvp_restricted_area.py
   validation/scripts/replay_capture_ros1_bvp_advanced.py

@@ -9,4 +9,9 @@
          base_class_type="rviz::Panel">
     <description>Live planning input rates, behavior decision, and mission route state.</description>
   </class>
+  <class name="trajectory_validator/PlannerCsvLogger"
+         type="trajectory_validator::PlannerCsvLoggerPanel"
+         base_class_type="rviz::Panel">
+    <description>Start and stop the planner CSV diagnostic logger from RViz.</description>
+  </class>
 </library>

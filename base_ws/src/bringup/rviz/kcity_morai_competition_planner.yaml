@@ -12,6 +12,8 @@ Panels:
     Tree Height: 690
   - Class: trajectory_validator/PlanningStatus
     Name: Planning Status
+  - Class: trajectory_validator/PlannerCsvLogger
+    Name: Planner CSV Logger
 Visualization Manager:
   Class: ""
   Displays:
