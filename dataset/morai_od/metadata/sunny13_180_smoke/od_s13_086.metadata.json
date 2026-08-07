@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_086",
+  "scenario_stem": "od_s13_086",
+  "split": "train",
+  "scene_type": "camera_seam_occlusion",
+  "topology": "curve",
+  "seed": 26080718086,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3587,
+    "arc_m": 1842.0538715160046,
+    "curvature_deg": 10.294955106522565,
+    "crosswalk_distance_m": 146.34051617499298,
+    "parking_distance_m": 146.57482018857155,
+    "stopline_distance_m": 35.520111397259825,
+    "branch_distance_m": 46.72910031213683
+  },
+  "ego": {
+    "x": 55.49561306247204,
+    "y": -463.3491583521851,
+    "z": 28.616571710037412,
+    "yaw": -124.37058160006539,
+    "link_idx": "A2256W000446",
+    "point_idx": 121
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 4,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 80.35443664267335,
+        "y": -469.5476453116098,
+        "z": 28.805189731946783,
+        "yaw": -89.88548018729065
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 63.57148641639648,
+        "y": -446.1978019369816,
+        "z": 28.667206179599,
+        "yaw": -109.97919501236926
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100012,
+      "name": "Woman4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 57.043297364892965,
+        "y": -469.46682266051255,
+        "z": 28.327106911401028,
+        "yaw": -138.91913974481952
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50200002,
+      "name": "Girl1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 29.67962742128056,
+        "y": -470.88532634680735,
+        "z": 28.35886481270225,
+        "yaw": -79.55966374639142
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50200003,
+      "name": "Boy2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 69.19919710961135,
+        "y": -460.03128827029946,
+        "z": 28.34631351823088,
+        "yaw": 172.83792765179498
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 50.25387518660573,
+        "y": -442.25542757607417,
+        "z": 28.239811742884484,
+        "yaw": -126.49952329703906
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100003,
+      "name": "RedBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 56.12584665749819,
+        "y": -480.10350614796585,
+        "z": 28.500566827707782,
+        "yaw": -106.15326767331159
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100067,
+      "name": "Bollard04",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 61.91046127492468,
+        "y": -461.0555556596293,
+        "z": 28.28188416396443,
+        "yaw": -140.6423722557912
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

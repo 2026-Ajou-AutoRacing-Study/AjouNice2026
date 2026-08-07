@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_035",
+  "scenario_stem": "od_s13_035",
+  "split": "val",
+  "scene_type": "pedestrian_centric",
+  "topology": "curve",
+  "seed": 26080718035,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1283,
+    "arc_m": 700.1095851757103,
+    "curvature_deg": 5.227384517520136,
+    "crosswalk_distance_m": 117.42274542193385,
+    "parking_distance_m": 133.05044119280885,
+    "stopline_distance_m": 60.828860817992755,
+    "branch_distance_m": 60.828860817992755
+  },
+  "ego": {
+    "x": -23.070396324816823,
+    "y": 172.48979500325945,
+    "z": 28.785945973387257,
+    "yaw": 136.77349132400116,
+    "link_idx": "A2256W000304",
+    "point_idx": 130
+  },
+  "counts": {
+    "npc": 0,
+    "pedestrian": 6,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -13.976580249276372,
+        "y": 171.16313567215053,
+        "z": 28.512360640926474,
+        "yaw": -79.43432702528986
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -26.465298590945046,
+        "y": 183.1550022690941,
+        "z": 28.535915380194183,
+        "yaw": 73.29834207059275
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100058,
+      "name": "police_m_2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -12.523950484901624,
+        "y": 169.95527859900693,
+        "z": 28.51105479190761,
+        "yaw": -172.87768772408572
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100077,
+      "name": "worker_m_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -13.83151444155663,
+        "y": 157.71105463224404,
+        "z": 28.46831693094648,
+        "yaw": -23.35633102626153
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100014,
+      "name": "Woman6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -16.547153661922458,
+        "y": 175.13638387304974,
+        "z": 28.515568846318352,
+        "yaw": 161.03319715182806
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100015,
+      "name": "Woman7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -21.20459718619503,
+        "y": 161.86956491271485,
+        "z": 28.45926384729539,
+        "yaw": 37.441299469305136
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100004,
+      "name": "YellowBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -30.74645974090391,
+        "y": 147.59090145853554,
+        "z": 28.39421184993954,
+        "yaw": 129.35872314840503
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100031,
+      "name": "Road_Sign_Mark",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -23.67580907670519,
+        "y": 165.21353899905813,
+        "z": 28.438731424392213,
+        "yaw": 125.10921748936181
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

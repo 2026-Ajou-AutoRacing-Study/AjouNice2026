@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_od180_v1",
+  "base_scenario_id": "base005",
+  "scenario_stem": "od180_b005",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "intersection",
+  "seed": 2608073005,
+  "anchor": {
+    "index": 641,
+    "arc_m": 315.90609814166044,
+    "curvature_deg": 3.078568287192354,
+    "crosswalk_distance_m": 16.91399963496264,
+    "parking_distance_m": 105.26162051741801,
+    "stopline_distance_m": 0.0,
+    "branch_distance_m": 0.0
+  },
+  "ego": {
+    "x": -59.83293701335788,
+    "y": -155.39320968370885,
+    "z": 28.751429980014446,
+    "yaw": 88.06654060111839,
+    "link_idx": "A2256W000222",
+    "point_idx": 0
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 6,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30700003,
+      "name": "2019_Hyundai_Kona(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -62.64763751255395,
+        "y": -130.1310488738868,
+        "z": 28.708285963535083,
+        "yaw": -78.10522617512092
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100010,
+      "name": "2021_Hyundai_G80",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -59.8656493538169,
+        "y": -135.893372413473,
+        "z": 28.72595998339859,
+        "yaw": 90.09611752380698
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -62.89251913656729,
+        "y": -149.39756660570802,
+        "z": 28.753258253094288,
+        "yaw": -97.75441915422883
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100005,
+      "name": "2014_Kia_K7",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -64.03648577985633,
+        "y": -166.9691447045983,
+        "z": 28.747776532937486,
+        "yaw": -94.93113668158362
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100012,
+      "name": "Woman4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -55.54248852393169,
+        "y": -163.53969809707007,
+        "z": 28.447787918760397,
+        "yaw": -34.69372609920123
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -66.52670209865435,
+        "y": -155.98063198255932,
+        "z": 28.422364272623216,
+        "yaw": 114.25421930775326
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -55.669033813733094,
+        "y": -160.8065853776495,
+        "z": 28.457017380237406,
+        "yaw": 64.82633602981477
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100055,
+      "name": "police_f_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -52.401091311579556,
+        "y": -134.30349214478665,
+        "z": 28.4145873459759,
+        "yaw": 3.27921931182766
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50200003,
+      "name": "Boy2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -54.79397122166583,
+        "y": -141.7895132273998,
+        "z": 28.401657513551,
+        "yaw": 38.29574186539159
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -66.11164058411407,
+        "y": -171.45338440028388,
+        "z": 28.45700749421409,
+        "yaw": 122.66453055025602
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200108,
+      "name": "KR_Sign_SL_90",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -35.88181550021619,
+        "y": -144.93691267955197,
+        "z": 28.380294386686142,
+        "yaw": 107.64534131840276
+      }
+    }
+  ],
+  "environment_policy": "The same base scenario is captured in all six environment batches; weather/time are not embedded in this JSON.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "5f796c9ffdaf8dfb08557666046c2218e5939033487a37c12d90b4535638659d"
+  }
+}

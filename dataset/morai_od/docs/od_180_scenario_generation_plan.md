@@ -19,13 +19,13 @@ multi-sensor frame이고, Camera 4대 기준 RGB image는 4,320장이다. 이는
 
 | 항목 | 값 |
 |---|---:|
-| 이동 방식 | `rolling-fast` |
+| 이동 방식 | `rolling-grouped` |
 | Ego 목표 속도 | 3.6 km/h |
 | 장면당 캡처 | 6프레임 |
 | 캡처 간격 | 이동거리 0.6 m |
 | 마지막 프레임까지 이동거리 | 약 3.6 m |
 | `load-settle-sec` | 0.5초 |
-| `capture-stable-sec` | 0.3초 |
+| `capture-stable-sec` | 0.5초 |
 
 3.6 km/h를 쓰는 이유는 다음과 같다.
 
@@ -33,8 +33,13 @@ multi-sensor frame이고, Camera 4대 기준 RGB image는 4,320장이다. 이는
 2. 0.5 m/s 이하보다 장면 처리량이 낫고, 현재 검증된 제어 범위 안이다.
 3. 0.6 m 간격에서 인접 프레임이 완전히 같지는 않으면서도 객체 association이
    가능한 정도의 시점 차이를 만든다.
-4. p01~p03 18프레임 `rolling-fast`에서 필수 센서 파일 누락 없이
-   통과한 실행 근거가 있다.
+4. p01~p03 rolling 결과에서 각 장면의 6개 MORAI timestamp 모두 Camera
+   4대·LiDAR·GT 필수 파일이 완전하게 묶인 실행 근거가 있다.
+
+실제 학습 데이터는 `rolling-grouped`를 사용한다. 주행 중 6회 연속
+trigger한 뒤 마지막에 한 번만 대기하고, MORAI 공통 timestamp로 파일을
+프레임화하여 완전성만 검사한다. 원래 `rolling-fast`는
+`quality_verified=False`인 처리량 benchmark로 남긴다.
 
 이 속도는 대회 주행 속도나 최종 temporal 모델 입력 주기를 뜻하지 않는다.
 현재 6프레임은 sparse viewpoint augmentation에 가깝다. StreamPETR처럼

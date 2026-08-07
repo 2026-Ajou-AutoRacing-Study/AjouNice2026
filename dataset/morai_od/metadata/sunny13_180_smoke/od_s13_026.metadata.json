@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_026",
+  "scenario_stem": "od_s13_026",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080718026,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2781,
+    "arc_m": 1442.225347883371,
+    "curvature_deg": 0.04840410044022292,
+    "crosswalk_distance_m": 62.94098856452445,
+    "parking_distance_m": 153.80731455906187,
+    "stopline_distance_m": 41.2544629095897,
+    "branch_distance_m": 41.2544629095897
+  },
+  "ego": {
+    "x": 67.57061715163887,
+    "y": -66.8731530781575,
+    "z": 28.690532482036343,
+    "yaw": -89.3016612056311,
+    "link_idx": "A2256W000408",
+    "point_idx": 147
+  },
+  "counts": {
+    "npc": 6,
+    "pedestrian": 0,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30700006,
+      "name": "2020_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 71.22831675748803,
+        "y": -73.37472859800644,
+        "z": 28.73668548184828,
+        "yaw": -89.75104676701325
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200007,
+      "name": "2021_Hyundai_Genesis_GV80",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 67.49193238693196,
+        "y": -53.87361462781814,
+        "z": 28.734377688023496,
+        "yaw": -89.79948761115011
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30800003,
+      "name": "2020_chrysler_pacifica_hybrid",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 63.87818237393136,
+        "y": -75.28263257683243,
+        "z": 28.681010645203155,
+        "yaw": -89.81484169779682
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200001,
+      "name": "2016_Hyundai_Santafe",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.15644989528437,
+        "y": -56.87763363410328,
+        "z": 28.814678827282453,
+        "yaw": -89.61629825265351
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30800002,
+      "name": "2021_Kia_Carnival",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.25145914260067,
+        "y": -75.37730787436918,
+        "z": 28.800675924565205,
+        "yaw": -89.5265635292366
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30700003,
+      "name": "2019_Hyundai_Kona(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 71.25873203520727,
+        "y": -80.3746621125112,
+        "z": 28.739073659708023,
+        "yaw": -89.75104676701325
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100032,
+      "name": "Speed_Bump",
+      "ontology_class": "RoadSurfaceObject",
+      "subtype": "road_surface",
+      "generation_policy": "enabled_surface_aligned_only",
+      "pose": {
+        "x": 71.14558644119538,
+        "y": -48.42102138323434,
+        "z": 28.434593070345272,
+        "yaw": -89.82802908839678
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

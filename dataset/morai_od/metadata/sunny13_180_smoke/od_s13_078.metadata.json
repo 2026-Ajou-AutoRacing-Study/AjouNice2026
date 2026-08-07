@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_078",
+  "scenario_stem": "od_s13_078",
+  "split": "train",
+  "scene_type": "pedestrian_centric",
+  "topology": "crosswalk",
+  "seed": 26080718078,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 533,
+    "arc_m": 261.92269712905113,
+    "curvature_deg": 2.8133692539919366,
+    "crosswalk_distance_m": 23.84054246483428,
+    "parking_distance_m": 96.65683658475939,
+    "stopline_distance_m": 21.79665699495937,
+    "branch_distance_m": 21.79665699495937
+  },
+  "ego": {
+    "x": -69.60418275864073,
+    "y": -208.22673528806374,
+    "z": 28.75029144099123,
+    "yaw": 70.19067086179666,
+    "link_idx": "A2256W000213",
+    "point_idx": 49
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 6,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100007,
+      "name": "2016_Hyundai_Ioniq",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -73.3686945890525,
+        "y": -217.48871222443975,
+        "z": 28.74393637467473,
+        "yaw": 65.85262022403222
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30400004,
+      "name": "2013_Hyundai_Xcient(P540)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -63.96941734692274,
+        "y": -189.57099059967123,
+        "z": 28.95326137689281,
+        "yaw": 76.12703015878367
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -81.7520419152912,
+        "y": -230.41501041779077,
+        "z": 28.469637663547946,
+        "yaw": 131.33418607535225
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -83.49561866412027,
+        "y": -228.4187311658987,
+        "z": 28.44830445240578,
+        "yaw": 15.716648265721375
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100008,
+      "name": "Man5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -74.71508601574871,
+        "y": -210.1795774567576,
+        "z": 28.465409387647856,
+        "yaw": 73.49549220567738
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100077,
+      "name": "worker_m_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -81.55835417090206,
+        "y": -228.48618726345296,
+        "z": 28.462192801346387,
+        "yaw": 29.791327336534238
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50200003,
+      "name": "Boy2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -57.406528650610284,
+        "y": -190.58088271128273,
+        "z": 28.45226400707798,
+        "yaw": -150.10475994019868
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100016,
+      "name": "Woman8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -80.28528175849478,
+        "y": -230.40184604762726,
+        "z": 28.45345079772285,
+        "yaw": 56.59621301342736
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100005,
+      "name": "TrafficBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -53.855070067837474,
+        "y": -222.92696109965627,
+        "z": 28.438036668677572,
+        "yaw": 70.75800970937922
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

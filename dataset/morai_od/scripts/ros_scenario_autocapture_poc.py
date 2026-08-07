@@ -110,6 +110,7 @@ def parse_args():
             "route-follow",
             "rolling-safe",
             "rolling-fast",
+            "rolling-grouped",
             "teleport",
         ),
         default="stationary",
@@ -375,7 +376,17 @@ def capture_artifact_status(
 
 
 def capture_suffix(filename):
-    known_suffixes = (
+    for suffix in capture_known_suffixes():
+        if filename.endswith(suffix):
+            return suffix
+    marker = filename.find("_")
+    if marker < 0:
+        return "_" + filename
+    return filename[marker:]
+
+
+def capture_known_suffixes():
+    return (
         "_Instance_8Points.txt",
         "_BBox2D.txt",
         "_BBox3D.txt",
@@ -388,13 +399,29 @@ def capture_suffix(filename):
         "_Instance.bin",
         "_Instance.txt",
     )
-    for suffix in known_suffixes:
+
+
+def capture_timestamp_stem(filename):
+    """Return the MORAI timestamp shared by one multisensor snapshot."""
+
+    for suffix in capture_known_suffixes():
         if filename.endswith(suffix):
-            return suffix
-    marker = filename.find("_")
-    if marker < 0:
-        return "_" + filename
-    return filename[marker:]
+            return filename[: -len(suffix)]
+    return None
+
+
+def group_capture_files_by_timestamp(files):
+    """Group Camera/LiDAR artifacts emitted by one SaveSensorData request."""
+
+    grouped = {}
+    unrecognized = []
+    for path in sorted(files):
+        timestamp_stem = capture_timestamp_stem(path.name)
+        if timestamp_stem is None:
+            unrecognized.append(path)
+            continue
+        grouped.setdefault(timestamp_stem, set()).add(path)
+    return grouped, unrecognized
 
 
 def relocate_capture_files(source_root, destination_root, capture_id, files):
@@ -736,6 +763,9 @@ class AutoCapture:
         self.waypoints = load_waypoints(waypoint_path)
         self.state = SharedState()
         self.run_id = time.strftime("r%m%d%H%M%S", time.localtime())
+        self.dataset_id = manifest.get("dataset_id")
+        self.environment = dict(manifest.get("environment", {}))
+        self.environment_id = self.environment.get("id")
 
         rospy.init_node("morai_ros_scenario_autocapture_poc", anonymous=False)
         self.scenario_pub = rospy.Publisher(
@@ -779,6 +809,18 @@ class AutoCapture:
                 queue_size=10,
             ),
         ]
+
+    def capture_identifier(self, scene, frame_index):
+        if self.dataset_id and self.environment_id:
+            return "{}_{}_f{:02d}_{}".format(
+                scene["id"],
+                self.environment_id,
+                frame_index,
+                self.run_id,
+            )
+        return "{}_{}_f{:02d}".format(
+            self.run_id, scene["id"], frame_index
+        )
 
     def wait_for_connections(
         self,
@@ -1071,9 +1113,7 @@ class AutoCapture:
 
     def trigger_capture(self, scene, frame_index):
         self.wait_for_connections(context="before sensor capture")
-        capture_id = "{}_{}_f{:02d}".format(
-            self.run_id, scene["id"], frame_index
-        )
+        capture_id = self.capture_identifier(scene, frame_index)
         source_root = self.args.morai_sensor_data_dir
         before = recursive_files(source_root)
         triggered_unix = time.time()
@@ -1521,7 +1561,12 @@ class AutoCapture:
             )
         return captures
 
-    def drive_and_trigger_burst(self, scene, capture_count):
+    def drive_and_trigger_burst(
+        self,
+        scene,
+        capture_count,
+        group_verified_frames=False,
+    ):
         """Trigger captures by distance without waiting for each file set.
 
         This intentionally prioritizes trigger throughput over dataset
@@ -1629,8 +1674,8 @@ class AutoCapture:
                     trigger_unix = time.time()
                     self.publish_capture_request()
                     trigger = {
-                        "capture_id": "{}_{}_f{:02d}".format(
-                            self.run_id, scene["id"], len(triggers)
+                        "capture_id": self.capture_identifier(
+                            scene, len(triggers)
                         ),
                         "triggered_unix": trigger_unix,
                         "trigger_distance_m": travelled,
@@ -1659,8 +1704,9 @@ class AutoCapture:
                 )
             )
 
-        # Wait only once after the burst. Files are deliberately not assigned
-        # to individual triggers because concurrent MORAI writes may overlap.
+        # Wait only once after the burst. MORAI gives all artifacts belonging
+        # to one SaveSensorData snapshot the same timestamp stem, so the
+        # grouped mode can build verified frames without blocking per trigger.
         drain_started = time.monotonic()
         deadline = drain_started + self.args.capture_timeout_sec
         last_files = set()
@@ -1680,18 +1726,152 @@ class AutoCapture:
                 break
             time.sleep(0.1)
 
-        burst_root = (
-            self.args.capture_dir / "rolling_fast_raw" / scene["id"]
-        )
         relocated = []
-        for source in sorted(new_files):
-            relative = source.relative_to(source_root)
-            destination = burst_root / relative
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            if destination.exists():
-                raise FileExistsError(destination)
-            shutil.move(str(source), str(destination))
-            relocated.append(destination)
+        complete_group_count = 0
+        incomplete_groups = {}
+        timestamp_groups, unrecognized = group_capture_files_by_timestamp(
+            new_files
+        )
+        if group_verified_frames:
+            require_object_labels = (
+                sum(scene["expected_counts"].values()) > 0
+            )
+            complete_groups = []
+            for timestamp_stem, group_files in sorted(
+                timestamp_groups.items()
+            ):
+                (
+                    observed_artifacts,
+                    required_artifacts,
+                    missing_artifacts,
+                ) = capture_artifact_status(
+                    source_root,
+                    group_files,
+                    self.args.required_sensor_dirs,
+                    require_object_labels,
+                )
+                observed_sensors = observed_sensor_directories(
+                    source_root, group_files
+                )
+                missing_sensors = (
+                    set(self.args.required_sensor_dirs) - observed_sensors
+                )
+                if missing_sensors or missing_artifacts:
+                    incomplete_groups[timestamp_stem] = {
+                        "file_count": len(group_files),
+                        "missing_sensor_dirs": sorted(missing_sensors),
+                        "missing_artifacts": missing_artifacts,
+                    }
+                    continue
+                complete_groups.append(
+                    (
+                        timestamp_stem,
+                        group_files,
+                        observed_sensors,
+                        observed_artifacts,
+                        required_artifacts,
+                    )
+                )
+
+            if (
+                len(complete_groups) != capture_count
+                or incomplete_groups
+                or unrecognized
+            ):
+                rejected_root = (
+                    self.args.capture_dir
+                    / "rolling_grouped_rejected"
+                    / scene["id"]
+                )
+                for source in sorted(new_files):
+                    relative = source.relative_to(source_root)
+                    destination = rejected_root / relative
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(source), str(destination))
+                raise RuntimeError(
+                    "rolling-grouped produced {} complete timestamp groups "
+                    "for {} triggers; incomplete_groups={}, "
+                    "unrecognized_files={}. Raw files were preserved at {}"
+                    .format(
+                        len(complete_groups),
+                        capture_count,
+                        incomplete_groups,
+                        [
+                            str(path.relative_to(source_root))
+                            for path in unrecognized
+                        ],
+                        rejected_root,
+                    )
+                )
+
+            completed_unix = time.time()
+            for index, (
+                timestamp_stem,
+                group_files,
+                observed_sensors,
+                observed_artifacts,
+                required_artifacts,
+            ) in enumerate(complete_groups):
+                trigger = triggers[index]
+                source_files = sorted(
+                    str(path.relative_to(source_root))
+                    for path in group_files
+                )
+                frame_destinations = relocate_capture_files(
+                    source_root,
+                    self.args.capture_dir,
+                    trigger["capture_id"],
+                    group_files,
+                )
+                relocated.extend(frame_destinations)
+                trigger.update(
+                    {
+                        "verified": True,
+                        "completed_unix": completed_unix,
+                        "duration_sec": (
+                            completed_unix - trigger["triggered_unix"]
+                        ),
+                        "morai_timestamp_stem": timestamp_stem,
+                        "new_file_count": len(group_files),
+                        "observed_sensor_dirs": sorted(observed_sensors),
+                        "missing_sensor_dirs": [],
+                        "require_object_labels": require_object_labels,
+                        "observed_artifacts": {
+                            sensor: sorted(suffixes)
+                            for sensor, suffixes in sorted(
+                                observed_artifacts.items()
+                            )
+                        },
+                        "required_artifacts": {
+                            sensor: sorted(suffixes)
+                            for sensor, suffixes in sorted(
+                                required_artifacts.items()
+                            )
+                        },
+                        "missing_artifacts": {},
+                        "morai_source_files": source_files,
+                        "new_files": sorted(
+                            str(
+                                path.relative_to(self.args.capture_dir)
+                            )
+                            for path in frame_destinations
+                        ),
+                    }
+                )
+            complete_group_count = len(complete_groups)
+            burst_root = None
+        else:
+            burst_root = (
+                self.args.capture_dir / "rolling_fast_raw" / scene["id"]
+            )
+            for source in sorted(new_files):
+                relative = source.relative_to(source_root)
+                destination = burst_root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if destination.exists():
+                    raise FileExistsError(destination)
+                shutil.move(str(source), str(destination))
+                relocated.append(destination)
 
         trigger_span = 0.0
         trigger_hz = 0.0
@@ -1703,24 +1883,40 @@ class AutoCapture:
             if trigger_span > 0.0:
                 trigger_hz = (len(triggers) - 1) / trigger_span
         metrics = {
-            "experimental": True,
-            "quality_verified": False,
+            "experimental": not group_verified_frames,
+            "quality_verified": group_verified_frames,
             "trigger_count": len(triggers),
             "trigger_span_sec": trigger_span,
             "trigger_rate_hz": trigger_hz,
             "drain_duration_sec": time.monotonic() - drain_started,
             "observed_file_count": len(new_files),
             "relocated_file_count": len(relocated),
-            "raw_output_dir": str(burst_root),
+            "timestamp_group_count": len(timestamp_groups),
+            "complete_timestamp_group_count": complete_group_count,
+            "incomplete_timestamp_groups": incomplete_groups,
+            "raw_output_dir": (
+                str(burst_root) if burst_root is not None else None
+            ),
         }
-        rospy.logwarn(
-            "Rolling-fast benchmark: triggers=%d, span=%.3fs, "
-            "rate=%.3fHz, files=%d (quality not verified)",
-            len(triggers),
-            trigger_span,
-            trigger_hz,
-            len(new_files),
-        )
+        if group_verified_frames:
+            rospy.loginfo(
+                "Rolling-grouped complete: triggers=%d, frames=%d, "
+                "span=%.3fs, rate=%.3fHz, files=%d",
+                len(triggers),
+                complete_group_count,
+                trigger_span,
+                trigger_hz,
+                len(new_files),
+            )
+        else:
+            rospy.logwarn(
+                "Rolling-fast benchmark: triggers=%d, span=%.3fs, "
+                "rate=%.3fHz, files=%d (quality not verified)",
+                len(triggers),
+                trigger_span,
+                trigger_hz,
+                len(new_files),
+            )
         return triggers, metrics
 
     def run_scene(self, scene):
@@ -1757,6 +1953,13 @@ class AutoCapture:
             captures, mode_metrics = self.drive_and_trigger_burst(
                 scene, self.args.captures_per_scene
             )
+        elif self.args.motion_mode == "rolling-grouped":
+            self.select_external_control_mode()
+            captures, mode_metrics = self.drive_and_trigger_burst(
+                scene,
+                self.args.captures_per_scene,
+                group_verified_frames=True,
+            )
         else:
             captures = self.teleport_and_capture(
                 scene, self.args.captures_per_scene
@@ -1791,7 +1994,11 @@ class AutoCapture:
             )
         return {
             "id": scene["id"],
+            "base_scenario_id": scene.get(
+                "base_scenario_id", scene["id"]
+            ),
             "file_name": scene["file_name"],
+            "split": scene.get("split"),
             "status": "completed",
             "captures": captures,
             "metrics": mode_metrics,
@@ -1803,6 +2010,8 @@ class AutoCapture:
         )
         report = {
             "schema_version": 1,
+            "dataset_id": self.dataset_id,
+            "environment": self.environment,
             "started_unix": time.time(),
             "motion_mode": self.args.motion_mode,
             "capture_dir": str(self.args.capture_dir),
@@ -1817,7 +2026,11 @@ class AutoCapture:
                     raise
                 result = {
                     "id": scene["id"],
+                    "base_scenario_id": scene.get(
+                        "base_scenario_id", scene["id"]
+                    ),
                     "file_name": scene["file_name"],
+                    "split": scene.get("split"),
                     "status": "failed",
                     "error": "{}: {}".format(type(error).__name__, error),
                     "captures": [],
@@ -1831,6 +2044,39 @@ class AutoCapture:
                     error,
                 )
             report["scenes"].append(result)
+            partial_report = dict(report)
+            partial_report["checkpoint_unix"] = time.time()
+            partial_report["summary"] = {
+                "requested_scenes": len(scenes),
+                "attempted_scenes": len(report["scenes"]),
+                "completed_scenes": sum(
+                    item.get("status") == "completed"
+                    for item in report["scenes"]
+                ),
+                "failed_scenes": sum(
+                    item.get("status") == "failed"
+                    for item in report["scenes"]
+                ),
+                "completed_captures": sum(
+                    len(item.get("captures", []))
+                    for item in report["scenes"]
+                ),
+            }
+            partial_path = (
+                self.args.capture_dir
+                / "ros_capture_poc_report.partial.json"
+            )
+            partial_temporary = partial_path.with_suffix(".json.tmp")
+            partial_temporary.write_text(
+                json.dumps(
+                    partial_report,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            os.replace(str(partial_temporary), str(partial_path))
         report["finished_unix"] = time.time()
         report["summary"] = {
             "requested_scenes": len(scenes),
@@ -1921,7 +2167,7 @@ def validate_policy(args, manifest):
     if not 0.5 <= args.speed_kph <= 7.2:
         raise ValueError("--speed-kph must be within the PoC safety range 0.5..7.2")
     capture_intervals = max(0, args.captures_per_scene - 1)
-    if args.motion_mode == "rolling-fast":
+    if args.motion_mode in ("rolling-fast", "rolling-grouped"):
         # rolling-fast takes its first frame after one full spacing interval,
         # so every requested frame consumes route distance.
         capture_intervals = args.captures_per_scene
@@ -1932,6 +2178,7 @@ def validate_policy(args, manifest):
             "route-follow",
             "rolling-safe",
             "rolling-fast",
+            "rolling-grouped",
             "teleport",
         )
         and required_motion > args.maximum_motion_m
@@ -2011,6 +2258,11 @@ def main():
         encoding="utf-8",
     )
     os.replace(str(temporary), str(report_path))
+    partial_path = (
+        args.capture_dir / "ros_capture_poc_report.partial.json"
+    )
+    if partial_path.exists():
+        partial_path.unlink()
     print("auto-capture complete")
     print("report:", report_path)
 

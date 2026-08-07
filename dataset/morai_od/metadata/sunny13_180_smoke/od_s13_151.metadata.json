@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_151",
+  "scenario_stem": "od_s13_151",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "merge_diverge",
+  "seed": 26080718151,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 613,
+    "arc_m": 301.92261653948776,
+    "curvature_deg": 2.288238312732801,
+    "crosswalk_distance_m": 30.445022675861203,
+    "parking_distance_m": 98.80598491524874,
+    "stopline_distance_m": 13.98166525944933,
+    "branch_distance_m": 8.392980834278122
+  },
+  "ego": {
+    "x": -60.73032390397535,
+    "y": -169.3460466782358,
+    "z": 28.73048211721401,
+    "yaw": 85.19165794935202,
+    "link_idx": "A2256W000213",
+    "point_idx": 129
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 4,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200007,
+      "name": "2021_Hyundai_Genesis_GV80",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -65.93836166444592,
+        "y": -173.88682307030004,
+        "z": 28.769937946374704,
+        "yaw": -89.29890596194346
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200011,
+      "name": "DEFAULT_SUV",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -68.43733985688279,
+        "y": -148.59066270934457,
+        "z": 28.715078616062566,
+        "yaw": -83.9269452345219
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30500001,
+      "name": "2015_Toyota_Prius(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "wagon",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -63.326945824330245,
+        "y": -153.37304716783922,
+        "z": 28.77191928215215,
+        "yaw": -95.32556285364284
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30400002,
+      "name": "2012_Hyundai_HD65",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -53.20943411078469,
+        "y": -145.2869671978329,
+        "z": 28.882005685425693,
+        "yaw": 18.94625133293013
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -56.184546608076275,
+        "y": -175.36549859696115,
+        "z": 28.428681455533585,
+        "yaw": -179.16571958488294
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100011,
+      "name": "Man8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -55.76996606514643,
+        "y": -190.89801158707937,
+        "z": 28.45226400707798,
+        "yaw": 156.35136213252986
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100015,
+      "name": "Woman7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -57.06479656240541,
+        "y": -187.35066477485432,
+        "z": 28.446590752680073,
+        "yaw": 28.136809043756898
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100009,
+      "name": "Man6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -65.5286191561733,
+        "y": -166.002431042353,
+        "z": 28.455334690611107,
+        "yaw": -119.60806050325363
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100063,
+      "name": "Scooter_02",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -52.48629851823734,
+        "y": -172.2629903609987,
+        "z": 28.415320114276614,
+        "yaw": 94.49029487198277
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

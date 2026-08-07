@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_od180_v1",
+  "base_scenario_id": "base002",
+  "scenario_stem": "od180_b002",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 2608073002,
+  "anchor": {
+    "index": 24,
+    "arc_m": 11.999971511794662,
+    "curvature_deg": 0.12395319676451777,
+    "crosswalk_distance_m": 106.61505169512603,
+    "parking_distance_m": 6.059190607320716,
+    "stopline_distance_m": 22.939131934226705,
+    "branch_distance_m": 11.999888177484257
+  },
+  "ego": {
+    "x": -125.85481379629148,
+    "y": -417.84530499102647,
+    "z": 28.89357299017097,
+    "yaw": 60.985710417364544,
+    "link_idx": "A2256W000748",
+    "point_idx": 24
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 0,
+    "obstacle": 4
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30700004,
+      "name": "2020_Kia_Niro(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -119.2892816704614,
+        "y": -406.0493985631283,
+        "z": 28.901459420673852,
+        "yaw": 60.92851010221949
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30800003,
+      "name": "2020_chrysler_pacifica_hybrid",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -121.6247990534026,
+        "y": -399.9021890345148,
+        "z": 28.9334095276489,
+        "yaw": -119.24253355556984
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200164,
+      "name": "hole-cover",
+      "ontology_class": "RoadSurfaceObject",
+      "subtype": "road_surface",
+      "generation_policy": "enabled_surface_aligned_only",
+      "pose": {
+        "x": -133.107041518066,
+        "y": -425.2580866271301,
+        "z": 28.584613312268253,
+        "yaw": -119.06927672479199
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200102,
+      "name": "KR_Sign_SL_30",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -139.44463541445776,
+        "y": -404.24213244072877,
+        "z": 28.590475832635526,
+        "yaw": 57.00293538986898
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100047,
+      "name": "Concrete_Barricade01",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -134.46686349275967,
+        "y": -418.0706018527243,
+        "z": 28.5806064187119,
+        "yaw": 41.57816863182234
+      }
+    },
+    {
+      "unique_id": 3004,
+      "group": "objectList",
+      "data_id": 40200105,
+      "name": "KR_Sign_SL_60",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -120.28634322491406,
+        "y": -421.48760373822455,
+        "z": 28.58320830561174,
+        "yaw": 74.39026492171683
+      }
+    }
+  ],
+  "environment_policy": "The same base scenario is captured in all six environment batches; weather/time are not embedded in this JSON.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "5f796c9ffdaf8dfb08557666046c2218e5939033487a37c12d90b4535638659d"
+  }
+}

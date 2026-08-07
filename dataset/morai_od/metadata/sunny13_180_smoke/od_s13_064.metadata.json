@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_064",
+  "scenario_stem": "od_s13_064",
+  "split": "train",
+  "scene_type": "camera_seam_occlusion",
+  "topology": "curve",
+  "seed": 26080718064,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1419,
+    "arc_m": 768.1094875593408,
+    "curvature_deg": 7.802831074760036,
+    "crosswalk_distance_m": 119.25158622873012,
+    "parking_distance_m": 147.08928685134185,
+    "stopline_distance_m": 106.8732558569828,
+    "branch_distance_m": 85.88261891913324
+  },
+  "ego": {
+    "x": -81.71278102484268,
+    "y": 205.57881791840083,
+    "z": 28.749579696273592,
+    "yaw": 135.13374285077083,
+    "link_idx": "A2256W000304",
+    "point_idx": 266
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 5,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -86.25071747122932,
+        "y": 216.35800020976893,
+        "z": 28.847829642821658,
+        "yaw": 124.60617831190814
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30400002,
+      "name": "2012_Hyundai_HD65",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -82.08935198542974,
+        "y": 195.32443268008635,
+        "z": 29.032708006412975,
+        "yaw": -38.83179917802266
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50200001,
+      "name": "Boy1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -93.66452502901107,
+        "y": 205.64339318065507,
+        "z": 28.50765471404937,
+        "yaw": 88.59450084233777
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50200004,
+      "name": "Girl2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -82.78243273158107,
+        "y": 230.59607547101336,
+        "z": 28.37545233573981,
+        "yaw": -175.23081621012403
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100012,
+      "name": "Woman4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -80.80647830278734,
+        "y": 183.98093677781253,
+        "z": 28.51919606970418,
+        "yaw": -24.363541130308363
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100016,
+      "name": "Woman8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -69.40017163605103,
+        "y": 205.1984687693998,
+        "z": 28.429245792155964,
+        "yaw": 143.22224174660482
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -88.71144472049608,
+        "y": 206.19296033648314,
+        "z": 28.492489436721034,
+        "yaw": 151.88435930306787
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100060,
+      "name": "Bicycle_mountain",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -88.16244829313268,
+        "y": 203.6612420393381,
+        "z": 28.473802962306564,
+        "yaw": 136.3019349284832
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100052,
+      "name": "Concrete_Barricade02",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -79.19478950433621,
+        "y": 210.52832801302998,
+        "z": 28.39972441469521,
+        "yaw": 144.81430621706164
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

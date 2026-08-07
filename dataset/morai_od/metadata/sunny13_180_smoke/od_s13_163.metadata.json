@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_163",
+  "scenario_stem": "od_s13_163",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "intersection",
+  "seed": 26080718163,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 994,
+    "arc_m": 558.1158659080314,
+    "curvature_deg": 24.29474026587718,
+    "crosswalk_distance_m": 44.245352438010585,
+    "parking_distance_m": 42.96457468944443,
+    "stopline_distance_m": 7.44461792735496,
+    "branch_distance_m": 7.44461792735496
+  },
+  "ego": {
+    "x": -59.50492347597731,
+    "y": 86.62360265881036,
+    "z": 28.698674089887795,
+    "yaw": 66.99195907540732,
+    "link_idx": "A2256W000318",
+    "point_idx": 15
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 3,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800002,
+      "name": "2021_Kia_Carnival",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -60.94670627838189,
+        "y": 71.50713365330016,
+        "z": 28.749792269834707,
+        "yaw": 89.48393819159486
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30800004,
+      "name": "DEFAULT_MPV",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -37.20091203057115,
+        "y": 98.77428251274185,
+        "z": 28.7492695399597,
+        "yaw": 0.786424208758632
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200013,
+      "name": "2023_Kia_EV6",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -60.86333362231623,
+        "y": 79.80624280155243,
+        "z": 28.73700787241032,
+        "yaw": 88.49606470703839
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -77.5141766598183,
+        "y": 98.56560847780685,
+        "z": 28.831489823236723,
+        "yaw": -10.85751699170578
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -60.16823457872369,
+        "y": 97.14597428154809,
+        "z": 28.41334851572423,
+        "yaw": 31.425252213619387
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100010,
+      "name": "Man7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -68.29101877677728,
+        "y": 76.79877136082544,
+        "z": 28.338036355908873,
+        "yaw": -4.185296488880169
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100005,
+      "name": "Woman2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -69.09692817291959,
+        "y": 79.263242264852,
+        "z": 28.338672898572856,
+        "yaw": 71.18149788952184
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200104,
+      "name": "KR_Sign_SL_50",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -61.4098313137241,
+        "y": 92.37150673815795,
+        "z": 28.39587457455109,
+        "yaw": 70.63065710429129
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100047,
+      "name": "Concrete_Barricade01",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -72.47346196344519,
+        "y": 77.52981047871464,
+        "z": 28.31816366444167,
+        "yaw": 62.345001535727704
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

@@ -1,0 +1,4904 @@
+{
+  "schema_version": 3,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "purpose": "180 MORAI base scenarios for PointPainting and future multi-sensor BEV fine-tuning",
+  "map_name": "R_KR_PR_K-city_2025",
+  "base_scenario_count": 180,
+  "environment": {
+    "id": "base_only",
+    "note": "Use an environment batch manifest to capture."
+  },
+  "network_policy": {
+    "transport": "rosbridge",
+    "load_network_connection_data": true,
+    "sidecar_scope": "ego_only",
+    "required_unique_ids": [
+      0
+    ],
+    "forbidden_unique_ids": [
+      -100
+    ],
+    "required_topics": [
+      "/ScenarioLoad",
+      "/SaveSensorData",
+      "/Ego_topic",
+      "/Object_topic"
+    ],
+    "template_sha256": "7751cdcd69851deca5e14ec3d353b45c76175e8b9edb4972a3079a0a65ee9882",
+    "note": "Load the Simulator Network once. Each ScenarioLoad restores only the Ego Network from EgoNetwork/<stem>_MN.json."
+  },
+  "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+  "capture_policy": {
+    "captures_per_scene": 6,
+    "capture_spacing_m": 0.6,
+    "ego_target_speed_kph": 3.6,
+    "maximum_motion_m": 4.0,
+    "recommended_motion_mode": "rolling-grouped",
+    "load_settle_sec": 0.5,
+    "capture_stable_sec": 0.5,
+    "continue_on_scene_error": true,
+    "note": "Use rolling-grouped for training data. It sends captures while moving, then groups and verifies Camera/LiDAR/GT artifacts by their shared MORAI timestamp."
+  },
+  "scenes": [
+    {
+      "id": "s13_001",
+      "base_scenario_id": "s13_001",
+      "file_name": "od_s13_001",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_001.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_001.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_001_MN.json",
+      "split": "val",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2282,
+      "generation_seed": 26080718001,
+      "expected_ego": {
+        "x": 62.60319612089764,
+        "y": 180.99815160500134,
+        "z": 28.6040294380063,
+        "yaw": -89.6381350691572,
+        "link_idx": "A2256W000411",
+        "point_idx": 151
+      },
+      "expected_counts": {
+        "npc": 6,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_002",
+      "base_scenario_id": "s13_002",
+      "file_name": "od_s13_002",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_002.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_002.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_002_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 4225,
+      "generation_seed": 26080718002,
+      "expected_ego": {
+        "x": -145.4985434438333,
+        "y": -453.12552290233856,
+        "z": 28.825988134413784,
+        "yaw": 60.81504639590551,
+        "link_idx": "A2256W000332",
+        "point_idx": 48
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 4,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_003",
+      "base_scenario_id": "s13_003",
+      "file_name": "od_s13_003",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_003.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_003.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_003_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1067,
+      "generation_seed": 26080718003,
+      "expected_ego": {
+        "x": -28.70131004411808,
+        "y": 98.83507084969659,
+        "z": 28.711356053789096,
+        "yaw": 0.07496144641240221,
+        "link_idx": "A2256W000308",
+        "point_idx": 26
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 4,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_004",
+      "base_scenario_id": "s13_004",
+      "file_name": "od_s13_004",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_004.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_004.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_004_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3276,
+      "generation_seed": 26080718004,
+      "expected_ego": {
+        "x": 70.37206654344747,
+        "y": -312.1173470146435,
+        "z": 28.69857813726159,
+        "yaw": -89.7564076349619,
+        "link_idx": "A2256W000153",
+        "point_idx": 189
+      },
+      "expected_counts": {
+        "npc": 8,
+        "pedestrian": 1,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_005",
+      "base_scenario_id": "s13_005",
+      "file_name": "od_s13_005",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_005.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_005.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_005_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3867,
+      "generation_seed": 26080718005,
+      "expected_ego": {
+        "x": -60.274634998444995,
+        "y": -536.8954568171087,
+        "z": 28.776654287583874,
+        "yaw": -152.44124829548406,
+        "link_idx": "A2256W000126",
+        "point_idx": 205
+      },
+      "expected_counts": {
+        "npc": 7,
+        "pedestrian": 1,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_006",
+      "base_scenario_id": "s13_006",
+      "file_name": "od_s13_006",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_006.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_006.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_006_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3799,
+      "generation_seed": 26080718006,
+      "expected_ego": {
+        "x": -30.295932965635316,
+        "y": -520.856667903515,
+        "z": 28.775087301030005,
+        "yaw": -152.08815852069478,
+        "link_idx": "A2256W000126",
+        "point_idx": 137
+      },
+      "expected_counts": {
+        "npc": 7,
+        "pedestrian": 1,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_007",
+      "base_scenario_id": "s13_007",
+      "file_name": "od_s13_007",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_007.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_007.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_007_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 84,
+      "generation_seed": 26080718007,
+      "expected_ego": {
+        "x": -111.2576949348273,
+        "y": -391.63612424151614,
+        "z": 28.88328883286746,
+        "yaw": 61.020925443123275,
+        "link_idx": "A2256W000748",
+        "point_idx": 84
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_008",
+      "base_scenario_id": "s13_008",
+      "file_name": "od_s13_008",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_008.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_008.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_008_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1728,
+      "generation_seed": 26080718008,
+      "expected_ego": {
+        "x": -76.07077739526925,
+        "y": 341.57601181803585,
+        "z": 28.698288423344305,
+        "yaw": 6.443190069737028,
+        "link_idx": "A2256W000866",
+        "point_idx": 10
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_009",
+      "base_scenario_id": "s13_009",
+      "file_name": "od_s13_009",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_009.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_009.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_009_MN.json",
+      "split": "val",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3316,
+      "generation_seed": 26080718009,
+      "expected_ego": {
+        "x": 70.42416288950717,
+        "y": -332.11722548950036,
+        "z": 28.692758912295297,
+        "yaw": -89.86246441845195,
+        "link_idx": "A2256W000153",
+        "point_idx": 229
+      },
+      "expected_counts": {
+        "npc": 7,
+        "pedestrian": 1,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_010",
+      "base_scenario_id": "s13_010",
+      "file_name": "od_s13_010",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_010.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_010.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_010_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 1579,
+      "generation_seed": 26080718010,
+      "expected_ego": {
+        "x": -99.4007631385558,
+        "y": 280.8157936303676,
+        "z": 28.705166456893767,
+        "yaw": 90.37520228434664,
+        "link_idx": "A2256W000304",
+        "point_idx": 426
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 4,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_011",
+      "base_scenario_id": "s13_011",
+      "file_name": "od_s13_011",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_011.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_011.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_011_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1694,
+      "generation_seed": 26080718011,
+      "expected_ego": {
+        "x": -88.09874615911394,
+        "y": 332.42220899648964,
+        "z": 28.690338197335294,
+        "yaw": 48.226721760419025,
+        "link_idx": "A2256W000134",
+        "point_idx": 59
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_012",
+      "base_scenario_id": "s13_012",
+      "file_name": "od_s13_012",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_012.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_012.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_012_MN.json",
+      "split": "test",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 24,
+      "generation_seed": 26080718012,
+      "expected_ego": {
+        "x": -125.85481379629148,
+        "y": -417.84530499102647,
+        "z": 28.89357299017097,
+        "yaw": 60.985710417364544,
+        "link_idx": "A2256W000748",
+        "point_idx": 24
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 4,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_013",
+      "base_scenario_id": "s13_013",
+      "file_name": "od_s13_013",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_013.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_013.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_013_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 694,
+      "generation_seed": 26080718013,
+      "expected_ego": {
+        "x": -59.87655348409931,
+        "y": -129.39341187952127,
+        "z": 28.728658398925692,
+        "yaw": 90.09611751202976,
+        "link_idx": "A2256W000222",
+        "point_idx": 52
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 8,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_014",
+      "base_scenario_id": "s13_014",
+      "file_name": "od_s13_014",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_014.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_014.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_014_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1980,
+      "generation_seed": 26080718014,
+      "expected_ego": {
+        "x": 42.48459648812883,
+        "y": 326.7845321243485,
+        "z": 28.67957736535655,
+        "yaw": -49.45551541619619,
+        "link_idx": "A2256W000846",
+        "point_idx": 119
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 3,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_015",
+      "base_scenario_id": "s13_015",
+      "file_name": "od_s13_015",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_015.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_015.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_015_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1038,
+      "generation_seed": 26080718015,
+      "expected_ego": {
+        "x": -42.44880849626213,
+        "y": 98.68296089627306,
+        "z": 28.697530336538527,
+        "yaw": 3.8003712622047203,
+        "link_idx": "A2256W000318",
+        "point_idx": 59
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 6,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_016",
+      "base_scenario_id": "s13_016",
+      "file_name": "od_s13_016",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_016.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_016.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_016_MN.json",
+      "split": "test",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1223,
+      "generation_seed": 26080718016,
+      "expected_ego": {
+        "x": -5.080645896557592,
+        "y": 148.68368213554484,
+        "z": 28.801146897515604,
+        "yaw": 117.08771491874438,
+        "link_idx": "A2256W000304",
+        "point_idx": 70
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 3,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_017",
+      "base_scenario_id": "s13_017",
+      "file_name": "od_s13_017",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_017.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_017.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_017_MN.json",
+      "split": "test",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 864,
+      "generation_seed": 26080718017,
+      "expected_ego": {
+        "x": -60.452654794406456,
+        "y": 22.510597096342075,
+        "z": 28.735625724537908,
+        "yaw": 90.3618118031925,
+        "link_idx": "A2256W000315",
+        "point_idx": 22
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 5,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_018",
+      "base_scenario_id": "s13_018",
+      "file_name": "od_s13_018",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_018.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_018.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_018_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2398,
+      "generation_seed": 26080718018,
+      "expected_ego": {
+        "x": 65.04373202704984,
+        "y": 123.05982416551348,
+        "z": 28.62573638194364,
+        "yaw": -86.6032336088843,
+        "link_idx": "A2256W000411",
+        "point_idx": 267
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 1,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_019",
+      "base_scenario_id": "s13_019",
+      "file_name": "od_s13_019",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_019.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_019.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_019_MN.json",
+      "split": "val",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 2487,
+      "generation_seed": 26080718019,
+      "expected_ego": {
+        "x": 66.98617047126186,
+        "y": 79.19842428644569,
+        "z": 28.62413693640295,
+        "yaw": -89.61922468279039,
+        "link_idx": "A2256W000420",
+        "point_idx": 20
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 4,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_020",
+      "base_scenario_id": "s13_020",
+      "file_name": "od_s13_020",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_020.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_020.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_020_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 2466,
+      "generation_seed": 26080718020,
+      "expected_ego": {
+        "x": 66.88496106746607,
+        "y": 89.19790052389726,
+        "z": 28.63935643790693,
+        "yaw": -87.61955993121113,
+        "link_idx": "A2256W000409",
+        "point_idx": 335
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 3,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_021",
+      "base_scenario_id": "s13_021",
+      "file_name": "od_s13_021",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_021.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_021.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_021_MN.json",
+      "split": "val",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 2028,
+      "generation_seed": 26080718021,
+      "expected_ego": {
+        "x": 54.61649859725213,
+        "y": 306.1915948996058,
+        "z": 28.65116031021943,
+        "yaw": -68.5258054775803,
+        "link_idx": "A2256W000846",
+        "point_idx": 167
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 4,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_022",
+      "base_scenario_id": "s13_022",
+      "file_name": "od_s13_022",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_022.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_022.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_022_MN.json",
+      "split": "val",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 3027,
+      "generation_seed": 26080718022,
+      "expected_ego": {
+        "x": 72.21292670065604,
+        "y": -188.69057087493627,
+        "z": 28.71378294344284,
+        "yaw": -83.63727016050018,
+        "link_idx": "A2256W000445",
+        "point_idx": 92
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 0,
+        "obstacle": 4
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_023",
+      "base_scenario_id": "s13_023",
+      "file_name": "od_s13_023",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_023.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_023.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_023_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 3007,
+      "generation_seed": 26080718023,
+      "expected_ego": {
+        "x": 71.19845367341847,
+        "y": -178.74267168166907,
+        "z": 28.70233989093662,
+        "yaw": -84.58900246842197,
+        "link_idx": "A2256W000445",
+        "point_idx": 72
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 6,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_024",
+      "base_scenario_id": "s13_024",
+      "file_name": "od_s13_024",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_024.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_024.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_024_MN.json",
+      "split": "test",
+      "scene_type": "pedestrian_centric",
+      "topology": "curve",
+      "anchor_index": 3507,
+      "generation_seed": 26080718024,
+      "expected_ego": {
+        "x": 69.16571532174112,
+        "y": -425.98341560225504,
+        "z": 28.446352499632383,
+        "yaw": -99.52004667270302,
+        "link_idx": "A2256W000446",
+        "point_idx": 41
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 5,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_025",
+      "base_scenario_id": "s13_025",
+      "file_name": "od_s13_025",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_025.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_025.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_025_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1137,
+      "generation_seed": 26080718025,
+      "expected_ego": {
+        "x": 1.693991678838163,
+        "y": 107.8592281689899,
+        "z": 28.760034066622534,
+        "yaw": 66.58363843411072,
+        "link_idx": "A2256W000083",
+        "point_idx": 36
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 4,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_026",
+      "base_scenario_id": "s13_026",
+      "file_name": "od_s13_026",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_026.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_026.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_026_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2781,
+      "generation_seed": 26080718026,
+      "expected_ego": {
+        "x": 67.57061715163887,
+        "y": -66.8731530781575,
+        "z": 28.690532482036343,
+        "yaw": -89.3016612056311,
+        "link_idx": "A2256W000408",
+        "point_idx": 147
+      },
+      "expected_counts": {
+        "npc": 6,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_027",
+      "base_scenario_id": "s13_027",
+      "file_name": "od_s13_027",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_027.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_027.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_027_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2841,
+      "generation_seed": 26080718027,
+      "expected_ego": {
+        "x": 67.72080393766602,
+        "y": -96.87261094197032,
+        "z": 28.686473337938875,
+        "yaw": -89.70350181960204,
+        "link_idx": "A2256W000408",
+        "point_idx": 207
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 1,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_028",
+      "base_scenario_id": "s13_028",
+      "file_name": "od_s13_028",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_028.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_028.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_028_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 767,
+      "generation_seed": 26080718028,
+      "expected_ego": {
+        "x": -60.217810042342684,
+        "y": -23.510376335851646,
+        "z": 28.773879199651528,
+        "yaw": 90.32172015679328,
+        "link_idx": "A2256W000599",
+        "point_idx": 22
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 8,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_029",
+      "base_scenario_id": "s13_029",
+      "file_name": "od_s13_029",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_029.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_029.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_029_MN.json",
+      "split": "val",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3779,
+      "generation_seed": 26081718032,
+      "expected_ego": {
+        "x": -21.479699430403855,
+        "y": -516.1375351190468,
+        "z": 28.788618510940285,
+        "yaw": -151.81439109341062,
+        "link_idx": "A2256W000126",
+        "point_idx": 117
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 1,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_030",
+      "base_scenario_id": "s13_030",
+      "file_name": "od_s13_030",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_030.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_030.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_030_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 805,
+      "generation_seed": 26080718030,
+      "expected_ego": {
+        "x": -60.31968975155536,
+        "y": -5.366605675195023,
+        "z": 28.736798142800627,
+        "yaw": 90.32172027131378,
+        "link_idx": "A2256W000207",
+        "point_idx": 6
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 6,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_031",
+      "base_scenario_id": "s13_031",
+      "file_name": "od_s13_031",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_031.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_031.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_031_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 349,
+      "generation_seed": 26080718031,
+      "expected_ego": {
+        "x": -111.64685764454747,
+        "y": -287.62748445552296,
+        "z": 28.93310125872459,
+        "yaw": 60.96000825379804,
+        "link_idx": "A2256W000236",
+        "point_idx": 24
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_032",
+      "base_scenario_id": "s13_032",
+      "file_name": "od_s13_032",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_032.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_032.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_032_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 251,
+      "generation_seed": 26080718032,
+      "expected_ego": {
+        "x": -126.54158762786817,
+        "y": -330.6297881829315,
+        "z": 28.7862020052134,
+        "yaw": 127.71918776643463,
+        "link_idx": "A2256W000329",
+        "point_idx": 58
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 8,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_033",
+      "base_scenario_id": "s13_033",
+      "file_name": "od_s13_033",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_033.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_033.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_033_MN.json",
+      "split": "train",
+      "scene_type": "sparse_empty_background",
+      "topology": "straight",
+      "anchor_index": 2717,
+      "generation_seed": 26080718033,
+      "expected_ego": {
+        "x": 67.42418334140785,
+        "y": -34.87379754539862,
+        "z": 28.67568722007936,
+        "yaw": -89.72552828653562,
+        "link_idx": "A2256W000408",
+        "point_idx": 83
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_034",
+      "base_scenario_id": "s13_034",
+      "file_name": "od_s13_034",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_034.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_034.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_034_MN.json",
+      "split": "test",
+      "scene_type": "vehicle_centric",
+      "topology": "curve",
+      "anchor_index": 2048,
+      "generation_seed": 26080718034,
+      "expected_ego": {
+        "x": 57.583141030608225,
+        "y": 296.6471198791748,
+        "z": 28.62317233903433,
+        "yaw": -74.7204562845854,
+        "link_idx": "A2256W000846",
+        "point_idx": 187
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 1,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_035",
+      "base_scenario_id": "s13_035",
+      "file_name": "od_s13_035",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_035.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_035.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_035_MN.json",
+      "split": "val",
+      "scene_type": "pedestrian_centric",
+      "topology": "curve",
+      "anchor_index": 1283,
+      "generation_seed": 26080718035,
+      "expected_ego": {
+        "x": -23.070396324816823,
+        "y": 172.48979500325945,
+        "z": 28.785945973387257,
+        "yaw": 136.77349132400116,
+        "link_idx": "A2256W000304",
+        "point_idx": 130
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 6,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_036",
+      "base_scenario_id": "s13_036",
+      "file_name": "od_s13_036",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_036.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_036.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_036_MN.json",
+      "split": "val",
+      "scene_type": "pedestrian_centric",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 3968,
+      "generation_seed": 26080718036,
+      "expected_ego": {
+        "x": -107.42347133944125,
+        "y": -549.8251014495328,
+        "z": 28.76764695891927,
+        "yaw": 171.16986593032925,
+        "link_idx": "A2256W000128",
+        "point_idx": 67
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 8,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_037",
+      "base_scenario_id": "s13_037",
+      "file_name": "od_s13_037",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_037.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_037.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_037_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 2929,
+      "generation_seed": 26080718037,
+      "expected_ego": {
+        "x": 67.99614333654235,
+        "y": -140.87119648478202,
+        "z": 28.66886009982097,
+        "yaw": -88.57275736016926,
+        "link_idx": "A2256W000408",
+        "point_idx": 295
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 7,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_038",
+      "base_scenario_id": "s13_038",
+      "file_name": "od_s13_038",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_038.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_038.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_038_MN.json",
+      "split": "val",
+      "scene_type": "pedestrian_centric",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 3920,
+      "generation_seed": 26080718038,
+      "expected_ego": {
+        "x": -83.74061705072654,
+        "y": -547.9317103869878,
+        "z": 28.78347616795158,
+        "yaw": -163.69529812354511,
+        "link_idx": "A2256W000128",
+        "point_idx": 19
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 8,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_039",
+      "base_scenario_id": "s13_039",
+      "file_name": "od_s13_039",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_039.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_039.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_039_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2575,
+      "generation_seed": 26080718039,
+      "expected_ego": {
+        "x": 67.22718791532414,
+        "y": 35.199305676797835,
+        "z": 28.706307888907673,
+        "yaw": -89.80851309085158,
+        "link_idx": "A2256W000420",
+        "point_idx": 108
+      },
+      "expected_counts": {
+        "npc": 7,
+        "pedestrian": 1,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_040",
+      "base_scenario_id": "s13_040",
+      "file_name": "od_s13_040",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_040.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_040.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_040_MN.json",
+      "split": "test",
+      "scene_type": "pedestrian_centric",
+      "topology": "curve",
+      "anchor_index": 3607,
+      "generation_seed": 26080718040,
+      "expected_ego": {
+        "x": 49.09222937802593,
+        "y": -471.0165272607984,
+        "z": 28.622549558680646,
+        "yaw": -133.4179168735638,
+        "link_idx": "A2256W000446",
+        "point_idx": 141
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 5,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_041",
+      "base_scenario_id": "s13_041",
+      "file_name": "od_s13_041",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_041.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_041.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_041_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 4028,
+      "generation_seed": 26080718041,
+      "expected_ego": {
+        "x": -134.87746611724756,
+        "y": -538.5535132349905,
+        "z": 28.78648203220535,
+        "yaw": 142.90161242885517,
+        "link_idx": "A2256W000128",
+        "point_idx": 127
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 4
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_042",
+      "base_scenario_id": "s13_042",
+      "file_name": "od_s13_042",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_042.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_042.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_042_MN.json",
+      "split": "test",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 956,
+      "generation_seed": 26080718042,
+      "expected_ego": {
+        "x": -60.934037397673826,
+        "y": 68.50742325192607,
+        "z": 28.709477072748644,
+        "yaw": 91.00002131415232,
+        "link_idx": "A2256W000315",
+        "point_idx": 114
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 3,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_043",
+      "base_scenario_id": "s13_043",
+      "file_name": "od_s13_043",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_043.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_043.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_043_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3735,
+      "generation_seed": 26080718043,
+      "expected_ego": {
+        "x": -2.131651398502857,
+        "y": -505.6663539819441,
+        "z": 28.7359752016122,
+        "yaw": -151.33935277757195,
+        "link_idx": "A2256W000126",
+        "point_idx": 73
+      },
+      "expected_counts": {
+        "npc": 6,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_044",
+      "base_scenario_id": "s13_044",
+      "file_name": "od_s13_044",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_044.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_044.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_044_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2210,
+      "generation_seed": 26080718044,
+      "expected_ego": {
+        "x": 62.426307750863266,
+        "y": 216.9974829293051,
+        "z": 28.60756084923254,
+        "yaw": -89.27792551847601,
+        "link_idx": "A2256W000411",
+        "point_idx": 79
+      },
+      "expected_counts": {
+        "npc": 6,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_045",
+      "base_scenario_id": "s13_045",
+      "file_name": "od_s13_045",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_045.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_045.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_045_MN.json",
+      "split": "test",
+      "scene_type": "vehicle_centric",
+      "topology": "curve",
+      "anchor_index": 2088,
+      "generation_seed": 26080718045,
+      "expected_ego": {
+        "x": 61.15355270387,
+        "y": 276.99574880013665,
+        "z": 28.59696429016274,
+        "yaw": -84.67973559169424,
+        "link_idx": "A2256W000846",
+        "point_idx": 227
+      },
+      "expected_counts": {
+        "npc": 7,
+        "pedestrian": 1,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_046",
+      "base_scenario_id": "s13_046",
+      "file_name": "od_s13_046",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_046.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_046.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_046_MN.json",
+      "split": "val",
+      "scene_type": "pedestrian_centric",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 3988,
+      "generation_seed": 26080718046,
+      "expected_ego": {
+        "x": -117.16067021300695,
+        "y": -547.6123429128781,
+        "z": 28.76344950906745,
+        "yaw": 162.55444077431196,
+        "link_idx": "A2256W000128",
+        "point_idx": 87
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 5,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_047",
+      "base_scenario_id": "s13_047",
+      "file_name": "od_s13_047",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_047.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_047.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_047_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 493,
+      "generation_seed": 26080718047,
+      "expected_ego": {
+        "x": -77.8151054489309,
+        "y": -226.4431701590804,
+        "z": 28.729032794593966,
+        "yaw": 61.79796682064847,
+        "link_idx": "A2256W000213",
+        "point_idx": 9
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 8,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_048",
+      "base_scenario_id": "s13_048",
+      "file_name": "od_s13_048",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_048.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_048.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_048_MN.json",
+      "split": "test",
+      "scene_type": "vehicle_centric",
+      "topology": "curve",
+      "anchor_index": 3543,
+      "generation_seed": 26080718048,
+      "expected_ego": {
+        "x": 64.58462081823686,
+        "y": -443.37407088243435,
+        "z": 28.52551487254363,
+        "yaw": -108.93049770819486,
+        "link_idx": "A2256W000446",
+        "point_idx": 77
+      },
+      "expected_counts": {
+        "npc": 7,
+        "pedestrian": 1,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_049",
+      "base_scenario_id": "s13_049",
+      "file_name": "od_s13_049",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_049.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_049.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_049_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 144,
+      "generation_seed": 26080718049,
+      "expected_ego": {
+        "x": -96.64731037527072,
+        "y": -365.4351007390074,
+        "z": 28.876075400067176,
+        "yaw": 60.96023126017539,
+        "link_idx": "A2256W000748",
+        "point_idx": 144
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 6,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_050",
+      "base_scenario_id": "s13_050",
+      "file_name": "od_s13_050",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_050.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_050.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_050_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 844,
+      "generation_seed": 26080718050,
+      "expected_ego": {
+        "x": -60.41624947743851,
+        "y": 12.510678143202238,
+        "z": 28.722198255977606,
+        "yaw": 90.4287567981313,
+        "link_idx": "A2256W000315",
+        "point_idx": 2
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 6,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_051",
+      "base_scenario_id": "s13_051",
+      "file_name": "od_s13_051",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_051.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_051.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_051_MN.json",
+      "split": "test",
+      "scene_type": "sparse_empty_background",
+      "topology": "straight",
+      "anchor_index": 3376,
+      "generation_seed": 26080718051,
+      "expected_ego": {
+        "x": 70.19961351808415,
+        "y": -362.11355732741913,
+        "z": 28.66721704650036,
+        "yaw": -89.55078953725813,
+        "link_idx": "A2256W000153",
+        "point_idx": 289
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_052",
+      "base_scenario_id": "s13_052",
+      "file_name": "od_s13_052",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_052.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_052.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_052_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 2649,
+      "generation_seed": 26080718052,
+      "expected_ego": {
+        "x": 67.30151025043398,
+        "y": -0.8741172374997832,
+        "z": 28.67466436085028,
+        "yaw": -90.14223462142552,
+        "link_idx": "A2256W000408",
+        "point_idx": 15
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 6,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_053",
+      "base_scenario_id": "s13_053",
+      "file_name": "od_s13_053",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_053.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_053.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_053_MN.json",
+      "split": "val",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 1559,
+      "generation_seed": 26080718053,
+      "expected_ego": {
+        "x": -99.34277284242178,
+        "y": 270.81599124503407,
+        "z": 28.705274936022207,
+        "yaw": 90.30579682653126,
+        "link_idx": "A2256W000304",
+        "point_idx": 406
+      },
+      "expected_counts": {
+        "npc": 6,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_054",
+      "base_scenario_id": "s13_054",
+      "file_name": "od_s13_054",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_054.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_054.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_054_MN.json",
+      "split": "val",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 3446,
+      "generation_seed": 26080718054,
+      "expected_ego": {
+        "x": 70.69044728539045,
+        "y": -396.2416522562189,
+        "z": 28.478729120373963,
+        "yaw": -89.5460528577941,
+        "link_idx": "A2256W000451",
+        "point_idx": 61
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 3,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_055",
+      "base_scenario_id": "s13_055",
+      "file_name": "od_s13_055",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_055.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_055.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_055_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 633,
+      "generation_seed": 26080718055,
+      "expected_ego": {
+        "x": -60.019409589270346,
+        "y": -159.3723029373158,
+        "z": 28.75026884222704,
+        "yaw": 87.0722559908736,
+        "link_idx": "A2256W000213",
+        "point_idx": 149
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 6,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_056",
+      "base_scenario_id": "s13_056",
+      "file_name": "od_s13_056",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_056.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_056.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_056_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 1620,
+      "generation_seed": 26080718056,
+      "expected_ego": {
+        "x": -99.3889080471087,
+        "y": 300.7055793203751,
+        "z": 28.712067907597838,
+        "yaw": 89.74854930799808,
+        "link_idx": "A2256W000148",
+        "point_idx": 19
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_057",
+      "base_scenario_id": "s13_057",
+      "file_name": "od_s13_057",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_057.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_057.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_057_MN.json",
+      "split": "train",
+      "scene_type": "sparse_empty_background",
+      "topology": "straight",
+      "anchor_index": 1539,
+      "generation_seed": 26080718057,
+      "expected_ego": {
+        "x": -99.308287866218,
+        "y": 260.8160717892409,
+        "z": 28.703143563017445,
+        "yaw": 90.542735395421,
+        "link_idx": "A2256W000304",
+        "point_idx": 386
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_058",
+      "base_scenario_id": "s13_058",
+      "file_name": "od_s13_058",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_058.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_058.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_058_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 577,
+      "generation_seed": 26080718058,
+      "expected_ego": {
+        "x": -63.414055920758926,
+        "y": -187.1335648449882,
+        "z": 28.739138282672826,
+        "yaw": 77.85892040514534,
+        "link_idx": "A2256W000213",
+        "point_idx": 93
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 6,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_059",
+      "base_scenario_id": "s13_059",
+      "file_name": "od_s13_059",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_059.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_059.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_059_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 4155,
+      "generation_seed": 26080718059,
+      "expected_ego": {
+        "x": -158.787145868989,
+        "y": -484.48049006221527,
+        "z": 28.74216104285613,
+        "yaw": 79.53012006637522,
+        "link_idx": "A2256W000154",
+        "point_idx": 2
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 6,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_060",
+      "base_scenario_id": "s13_060",
+      "file_name": "od_s13_060",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_060.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_060.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_060_MN.json",
+      "split": "val",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 2000,
+      "generation_seed": 26080718060,
+      "expected_ego": {
+        "x": 48.326224607537036,
+        "y": 318.682698939678,
+        "z": 28.66776116793741,
+        "yaw": -58.97768468570747,
+        "link_idx": "A2256W000846",
+        "point_idx": 139
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_061",
+      "base_scenario_id": "s13_061",
+      "file_name": "od_s13_061",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_061.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_061.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_061_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 1790,
+      "generation_seed": 26080718061,
+      "expected_ego": {
+        "x": -45.890651855490646,
+        "y": 343.7933661017606,
+        "z": 28.652966715882933,
+        "yaw": 4.291307844852412,
+        "link_idx": "A2256W000054",
+        "point_idx": 39
+      },
+      "expected_counts": {
+        "npc": 8,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_062",
+      "base_scenario_id": "s13_062",
+      "file_name": "od_s13_062",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_062.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_062.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_062_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 369,
+      "generation_seed": 26080718062,
+      "expected_ego": {
+        "x": -106.79276890113417,
+        "y": -278.88488343242506,
+        "z": 28.881090242544204,
+        "yaw": 60.95996211483401,
+        "link_idx": "A2256W000236",
+        "point_idx": 44
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 7,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_063",
+      "base_scenario_id": "s13_063",
+      "file_name": "od_s13_063",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_063.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_063.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_063_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 2881,
+      "generation_seed": 26080718063,
+      "expected_ego": {
+        "x": 67.80932761528928,
+        "y": -116.87237783701138,
+        "z": 28.66500646597335,
+        "yaw": -89.7325356996247,
+        "link_idx": "A2256W000408",
+        "point_idx": 247
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 8,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_064",
+      "base_scenario_id": "s13_064",
+      "file_name": "od_s13_064",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_064.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_064.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_064_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1419,
+      "generation_seed": 26080718064,
+      "expected_ego": {
+        "x": -81.71278102484268,
+        "y": 205.57881791840083,
+        "z": 28.749579696273592,
+        "yaw": 135.13374285077083,
+        "link_idx": "A2256W000304",
+        "point_idx": 266
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 5,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_065",
+      "base_scenario_id": "s13_065",
+      "file_name": "od_s13_065",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_065.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_065.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_065_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3296,
+      "generation_seed": 26080718065,
+      "expected_ego": {
+        "x": 70.3972894493947,
+        "y": -322.1172709365149,
+        "z": 28.69279681755581,
+        "yaw": -89.73427449742786,
+        "link_idx": "A2256W000153",
+        "point_idx": 209
+      },
+      "expected_counts": {
+        "npc": 6,
+        "pedestrian": 1,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_066",
+      "base_scenario_id": "s13_066",
+      "file_name": "od_s13_066",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_066.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_066.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_066_MN.json",
+      "split": "val",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 1018,
+      "generation_seed": 26080718066,
+      "expected_ego": {
+        "x": -51.82952927038725,
+        "y": 95.60230760582674,
+        "z": 28.712253844302015,
+        "yaw": 32.03060995197754,
+        "link_idx": "A2256W000318",
+        "point_idx": 39
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_067",
+      "base_scenario_id": "s13_067",
+      "file_name": "od_s13_067",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_067.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_067.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_067_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2677,
+      "generation_seed": 26080718067,
+      "expected_ego": {
+        "x": 67.33914565786966,
+        "y": -14.87400789075991,
+        "z": 28.67884735692376,
+        "yaw": -89.66458504366368,
+        "link_idx": "A2256W000408",
+        "point_idx": 43
+      },
+      "expected_counts": {
+        "npc": 8,
+        "pedestrian": 1,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_068",
+      "base_scenario_id": "s13_068",
+      "file_name": "od_s13_068",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_068.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_068.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_068_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1960,
+      "generation_seed": 26080718068,
+      "expected_ego": {
+        "x": 35.37744201198572,
+        "y": 333.7945559830894,
+        "z": 28.71246683872113,
+        "yaw": -39.332398500233154,
+        "link_idx": "A2256W000846",
+        "point_idx": 99
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_069",
+      "base_scenario_id": "s13_069",
+      "file_name": "od_s13_069",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_069.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_069.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_069_MN.json",
+      "split": "train",
+      "scene_type": "sparse_empty_background",
+      "topology": "straight",
+      "anchor_index": 2507,
+      "generation_seed": 26080718069,
+      "expected_ego": {
+        "x": 67.044161778589,
+        "y": 69.19873330722689,
+        "z": 28.662373524939625,
+        "yaw": -89.63127724475983,
+        "link_idx": "A2256W000420",
+        "point_idx": 40
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_070",
+      "base_scenario_id": "s13_070",
+      "file_name": "od_s13_070",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_070.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_070.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_070_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1463,
+      "generation_seed": 26080718070,
+      "expected_ego": {
+        "x": -94.22721758478927,
+        "y": 223.50837129688355,
+        "z": 28.718177087267897,
+        "yaw": 113.41143827805877,
+        "link_idx": "A2256W000304",
+        "point_idx": 310
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 5,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_071",
+      "base_scenario_id": "s13_071",
+      "file_name": "od_s13_071",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_071.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_071.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_071_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2809,
+      "generation_seed": 26080718071,
+      "expected_ego": {
+        "x": 67.65118432529229,
+        "y": -80.87285332490525,
+        "z": 28.692179533802918,
+        "yaw": -89.75040285843903,
+        "link_idx": "A2256W000408",
+        "point_idx": 175
+      },
+      "expected_counts": {
+        "npc": 8,
+        "pedestrian": 1,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_072",
+      "base_scenario_id": "s13_072",
+      "file_name": "od_s13_072",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_072.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_072.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_072_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2362,
+      "generation_seed": 26080718072,
+      "expected_ego": {
+        "x": 63.9933029848634,
+        "y": 141.0289673663807,
+        "z": 28.618251480580902,
+        "yaw": -86.27278732349481,
+        "link_idx": "A2256W000411",
+        "point_idx": 231
+      },
+      "expected_counts": {
+        "npc": 8,
+        "pedestrian": 0,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_073",
+      "base_scenario_id": "s13_073",
+      "file_name": "od_s13_073",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_073.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_073.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_073_MN.json",
+      "split": "test",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 4008,
+      "generation_seed": 26080718073,
+      "expected_ego": {
+        "x": -126.41026332730706,
+        "y": -543.8527993831626,
+        "z": 28.783619305359828,
+        "yaw": 152.32426127222277,
+        "link_idx": "A2256W000128",
+        "point_idx": 107
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_074",
+      "base_scenario_id": "s13_074",
+      "file_name": "od_s13_074",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_074.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_074.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_074_MN.json",
+      "split": "test",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1263,
+      "generation_seed": 26080718074,
+      "expected_ego": {
+        "x": -16.116940517952916,
+        "y": 165.3138161273517,
+        "z": 28.78219622342572,
+        "yaw": 130.57676260284973,
+        "link_idx": "A2256W000304",
+        "point_idx": 110
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 3,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_075",
+      "base_scenario_id": "s13_075",
+      "file_name": "od_s13_075",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_075.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_075.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_075_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 674,
+      "generation_seed": 26080718075,
+      "expected_ego": {
+        "x": -59.859777943218,
+        "y": -139.39332453671952,
+        "z": 28.7086203894136,
+        "yaw": 90.09611752380698,
+        "link_idx": "A2256W000222",
+        "point_idx": 32
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 6,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_076",
+      "base_scenario_id": "s13_076",
+      "file_name": "od_s13_076",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_076.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_076.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_076_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 2901,
+      "generation_seed": 26083718085,
+      "expected_ego": {
+        "x": 67.87429713992975,
+        "y": -126.87213394392234,
+        "z": 28.659180315147267,
+        "yaw": -89.24238014364137,
+        "link_idx": "A2256W000408",
+        "point_idx": 267
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 5,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_077",
+      "base_scenario_id": "s13_077",
+      "file_name": "od_s13_077",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_077.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_077.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_077_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 896,
+      "generation_seed": 26080718077,
+      "expected_ego": {
+        "x": -60.55209655250666,
+        "y": 38.51018331195797,
+        "z": 28.729678838495616,
+        "yaw": 90.23568825282933,
+        "link_idx": "A2256W000315",
+        "point_idx": 54
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_078",
+      "base_scenario_id": "s13_078",
+      "file_name": "od_s13_078",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_078.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_078.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_078_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 533,
+      "generation_seed": 26080718078,
+      "expected_ego": {
+        "x": -69.60418275864073,
+        "y": -208.22673528806374,
+        "z": 28.75029144099123,
+        "yaw": 70.19067086179666,
+        "link_idx": "A2256W000213",
+        "point_idx": 49
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 6,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_079",
+      "base_scenario_id": "s13_079",
+      "file_name": "od_s13_079",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_079.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_079.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_079_MN.json",
+      "split": "train",
+      "scene_type": "sparse_empty_background",
+      "topology": "straight",
+      "anchor_index": 2741,
+      "generation_seed": 26080718079,
+      "expected_ego": {
+        "x": 67.46934355953147,
+        "y": -46.873680675205264,
+        "z": 28.684218442467305,
+        "yaw": -89.84322139477004,
+        "link_idx": "A2256W000408",
+        "point_idx": 107
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_080",
+      "base_scenario_id": "s13_080",
+      "file_name": "od_s13_080",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_080.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_080.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_080_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1100,
+      "generation_seed": 26080718080,
+      "expected_ego": {
+        "x": -12.693221560504753,
+        "y": 98.93261842010543,
+        "z": 28.717354667989614,
+        "yaw": 0.25315914340205836,
+        "link_idx": "A2256W000297",
+        "point_idx": 0
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 3,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_081",
+      "base_scenario_id": "s13_081",
+      "file_name": "od_s13_081",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_081.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_081.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_081_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 3467,
+      "generation_seed": 26080718081,
+      "expected_ego": {
+        "x": 70.76204987467547,
+        "y": -406.0784495037453,
+        "z": 28.46973527579624,
+        "yaw": -89.39420963332947,
+        "link_idx": "A2256W000446",
+        "point_idx": 1
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 3,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_082",
+      "base_scenario_id": "s13_082",
+      "file_name": "od_s13_082",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_082.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_082.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_082_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3256,
+      "generation_seed": 26080718082,
+      "expected_ego": {
+        "x": 70.33456207625228,
+        "y": -302.1174488859629,
+        "z": 28.70508724667125,
+        "yaw": -89.78825821180307,
+        "link_idx": "A2256W000153",
+        "point_idx": 169
+      },
+      "expected_counts": {
+        "npc": 8,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_083",
+      "base_scenario_id": "s13_083",
+      "file_name": "od_s13_083",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_083.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_083.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_083_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1640,
+      "generation_seed": 26080718083,
+      "expected_ego": {
+        "x": -99.50225297703784,
+        "y": 310.70379518836904,
+        "z": 28.693187247132112,
+        "yaw": 89.49847465989541,
+        "link_idx": "A2256W000148",
+        "point_idx": 39
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 6,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_084",
+      "base_scenario_id": "s13_084",
+      "file_name": "od_s13_084",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_084.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_084.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_084_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1748,
+      "generation_seed": 26080718084,
+      "expected_ego": {
+        "x": -66.09286236943342,
+        "y": 342.201506091689,
+        "z": 28.824288033199334,
+        "yaw": 3.8545827925329377,
+        "link_idx": "A2256W000866",
+        "point_idx": 30
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 4,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_085",
+      "base_scenario_id": "s13_085",
+      "file_name": "od_s13_085",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_085.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_085.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_085_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 162,
+      "generation_seed": 26080718085,
+      "expected_ego": {
+        "x": -94.44879763108415,
+        "y": -357.72128661311643,
+        "z": 28.914070431519352,
+        "yaw": 90.73991898684994,
+        "link_idx": "A2256W000182",
+        "point_idx": 15
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 3,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_086",
+      "base_scenario_id": "s13_086",
+      "file_name": "od_s13_086",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_086.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_086.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_086_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 3587,
+      "generation_seed": 26080718086,
+      "expected_ego": {
+        "x": 55.49561306247204,
+        "y": -463.3491583521851,
+        "z": 28.616571710037412,
+        "yaw": -124.37058160006539,
+        "link_idx": "A2256W000446",
+        "point_idx": 121
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 4,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_087",
+      "base_scenario_id": "s13_087",
+      "file_name": "od_s13_087",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_087.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_087.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_087_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3835,
+      "generation_seed": 26091718120,
+      "expected_ego": {
+        "x": -46.15615794271721,
+        "y": -529.367938238188,
+        "z": 28.761165526861657,
+        "yaw": -152.18754150252542,
+        "link_idx": "A2256W000126",
+        "point_idx": 173
+      },
+      "expected_counts": {
+        "npc": 8,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_088",
+      "base_scenario_id": "s13_088",
+      "file_name": "od_s13_088",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_088.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_088.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_088_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 916,
+      "generation_seed": 26080718088,
+      "expected_ego": {
+        "x": -60.6514128707382,
+        "y": 48.50959358857683,
+        "z": 28.70660397166748,
+        "yaw": 90.15378762471403,
+        "link_idx": "A2256W000315",
+        "point_idx": 74
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 0,
+        "obstacle": 4
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_089",
+      "base_scenario_id": "s13_089",
+      "file_name": "od_s13_089",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_089.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_089.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_089_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 211,
+      "generation_seed": 26080718089,
+      "expected_ego": {
+        "x": -110.03911297654403,
+        "y": -341.68917143567774,
+        "z": 28.758190172319136,
+        "yaw": 152.05710548586126,
+        "link_idx": "A2256W000329",
+        "point_idx": 18
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 6,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_090",
+      "base_scenario_id": "s13_090",
+      "file_name": "od_s13_090",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_090.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_090.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_090_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3418,
+      "generation_seed": 26080718090,
+      "expected_ego": {
+        "x": 70.43953534378896,
+        "y": -382.24482186983863,
+        "z": 28.493076609503817,
+        "yaw": -88.22178182880857,
+        "link_idx": "A2256W000451",
+        "point_idx": 33
+      },
+      "expected_counts": {
+        "npc": 7,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_091",
+      "base_scenario_id": "s13_091",
+      "file_name": "od_s13_091",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_091.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_091.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_091_MN.json",
+      "split": "train",
+      "scene_type": "sparse_empty_background",
+      "topology": "straight",
+      "anchor_index": 2422,
+      "generation_seed": 26080718091,
+      "expected_ego": {
+        "x": 65.7564006632978,
+        "y": 111.08105187607472,
+        "z": 28.61182139026005,
+        "yaw": -86.68859816730891,
+        "link_idx": "A2256W000411",
+        "point_idx": 291
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_092",
+      "base_scenario_id": "s13_092",
+      "file_name": "od_s13_092",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_092.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_092.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_092_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 4197,
+      "generation_seed": 26080718092,
+      "expected_ego": {
+        "x": -152.20338342569613,
+        "y": -465.4150298409243,
+        "z": 28.816484222351928,
+        "yaw": 63.063015821907925,
+        "link_idx": "A2256W000332",
+        "point_idx": 20
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_093",
+      "base_scenario_id": "s13_093",
+      "file_name": "od_s13_093",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_093.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_093.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_093_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 390,
+      "generation_seed": 26080718093,
+      "expected_ego": {
+        "x": -102.04653700197804,
+        "y": -270.3367024535831,
+        "z": 28.727825409039106,
+        "yaw": 61.004824007681435,
+        "link_idx": "A2256W000219",
+        "point_idx": 11
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 5,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_094",
+      "base_scenario_id": "s13_094",
+      "file_name": "od_s13_094",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_094.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_094.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_094_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 787,
+      "generation_seed": 26080718094,
+      "expected_ego": {
+        "x": -60.27396042346335,
+        "y": -13.510548283080386,
+        "z": 28.763613274596377,
+        "yaw": 90.32171998706053,
+        "link_idx": "A2256W000599",
+        "point_idx": 42
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 8,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_095",
+      "base_scenario_id": "s13_095",
+      "file_name": "od_s13_095",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_095.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_095.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_095_MN.json",
+      "split": "test",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3168,
+      "generation_seed": 26080718095,
+      "expected_ego": {
+        "x": 71.5742181615639,
+        "y": -258.17137032137134,
+        "z": 28.716358881135772,
+        "yaw": -95.56270242467858,
+        "link_idx": "A2256W000153",
+        "point_idx": 81
+      },
+      "expected_counts": {
+        "npc": 6,
+        "pedestrian": 1,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_096",
+      "base_scenario_id": "s13_096",
+      "file_name": "od_s13_096",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_096.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_096.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_096_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 2967,
+      "generation_seed": 26080718096,
+      "expected_ego": {
+        "x": 69.2231113028686,
+        "y": -158.84078248886104,
+        "z": 28.68717379325829,
+        "yaw": -84.53357700313788,
+        "link_idx": "A2256W000445",
+        "point_idx": 32
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_097",
+      "base_scenario_id": "s13_097",
+      "file_name": "od_s13_097",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_097.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_097.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_097_MN.json",
+      "split": "val",
+      "scene_type": "pedestrian_centric",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 3948,
+      "generation_seed": 26080718097,
+      "expected_ego": {
+        "x": -97.46144400366974,
+        "y": -550.4823207055811,
+        "z": 28.773594024636886,
+        "yaw": -179.04646645267232,
+        "link_idx": "A2256W000128",
+        "point_idx": 47
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 7,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_098",
+      "base_scenario_id": "s13_098",
+      "file_name": "od_s13_098",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_098.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_098.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_098_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1940,
+      "generation_seed": 26080718098,
+      "expected_ego": {
+        "x": 27.089860979291576,
+        "y": 339.36352085537686,
+        "z": 28.705463220065266,
+        "yaw": -28.578816100240772,
+        "link_idx": "A2256W000846",
+        "point_idx": 79
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 4,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_099",
+      "base_scenario_id": "s13_099",
+      "file_name": "od_s13_099",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_099.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_099.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_099_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 3088,
+      "generation_seed": 26080718099,
+      "expected_ego": {
+        "x": 75.37400188358407,
+        "y": -218.35343505626287,
+        "z": 28.721970758299303,
+        "yaw": -94.61176815552346,
+        "link_idx": "A2256W000153",
+        "point_idx": 1
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 3,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_100",
+      "base_scenario_id": "s13_100",
+      "file_name": "od_s13_100",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_100.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_100.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_100_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 4088,
+      "generation_seed": 26080718100,
+      "expected_ego": {
+        "x": -153.33936434940279,
+        "y": -515.3615229952724,
+        "z": 28.822485326216004,
+        "yaw": 112.45155868839953,
+        "link_idx": "A2256W000128",
+        "point_idx": 187
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_101",
+      "base_scenario_id": "s13_101",
+      "file_name": "od_s13_101",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_101.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_101.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_101_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 712,
+      "generation_seed": 26080718101,
+      "expected_ego": {
+        "x": -60.0333712142789,
+        "y": -121.06112510561279,
+        "z": 28.728525286495305,
+        "yaw": 90.24711186960837,
+        "link_idx": "A2256W000220",
+        "point_idx": 7
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 8,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_102",
+      "base_scenario_id": "s13_102",
+      "file_name": "od_s13_102",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_102.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_102.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_102_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1495,
+      "generation_seed": 26080718102,
+      "expected_ego": {
+        "x": -98.64236303098083,
+        "y": 238.84479546514027,
+        "z": 28.707795385210105,
+        "yaw": 98.63954014963525,
+        "link_idx": "A2256W000304",
+        "point_idx": 342
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 4,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_103",
+      "base_scenario_id": "s13_103",
+      "file_name": "od_s13_103",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_103.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_103.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_103_MN.json",
+      "split": "test",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 4175,
+      "generation_seed": 26080718103,
+      "expected_ego": {
+        "x": -156.28769826144526,
+        "y": -474.80731696870504,
+        "z": 28.768651534609923,
+        "yaw": 72.16656156624447,
+        "link_idx": "A2256W000154",
+        "point_idx": 22
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 3,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_104",
+      "base_scenario_id": "s13_104",
+      "file_name": "od_s13_104",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_104.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_104.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_104_MN.json",
+      "split": "test",
+      "scene_type": "pedestrian_centric",
+      "topology": "curve",
+      "anchor_index": 1371,
+      "generation_seed": 26080718104,
+      "expected_ego": {
+        "x": -61.51684928205916,
+        "y": 193.0147456372288,
+        "z": 28.78973981119446,
+        "yaw": 160.76746195600788,
+        "link_idx": "A2256W000304",
+        "point_idx": 218
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 7,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_105",
+      "base_scenario_id": "s13_105",
+      "file_name": "od_s13_105",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_105.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_105.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_105_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 190,
+      "generation_seed": 26080718105,
+      "expected_ego": {
+        "x": -101.36696611823903,
+        "y": -346.3035633737489,
+        "z": 28.860840036786044,
+        "yaw": 148.78865195190144,
+        "link_idx": "A2256W000182",
+        "point_idx": 43
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 5,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_106",
+      "base_scenario_id": "s13_106",
+      "file_name": "od_s13_106",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_106.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_106.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_106_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1770,
+      "generation_seed": 26080718106,
+      "expected_ego": {
+        "x": -55.861000190415,
+        "y": 343.02817378475135,
+        "z": 28.68117137182443,
+        "yaw": 4.6807689188322,
+        "link_idx": "A2256W000054",
+        "point_idx": 19
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 6,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_107",
+      "base_scenario_id": "s13_107",
+      "file_name": "od_s13_107",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_107.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_107.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_107_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1155,
+      "generation_seed": 26080718107,
+      "expected_ego": {
+        "x": 2.8776370550487913,
+        "y": 115.94186719141592,
+        "z": 28.7713237621439,
+        "yaw": 91.44125553024111,
+        "link_idx": "A2256W000304",
+        "point_idx": 2
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_108",
+      "base_scenario_id": "s13_108",
+      "file_name": "od_s13_108",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_108.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_108.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_108_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 291,
+      "generation_seed": 26080718108,
+      "expected_ego": {
+        "x": -125.29653198479622,
+        "y": -312.13702417620965,
+        "z": 28.73643666442058,
+        "yaw": 61.49595356930817,
+        "link_idx": "A2256W000329",
+        "point_idx": 98
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_109",
+      "base_scenario_id": "s13_109",
+      "file_name": "od_s13_109",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_109.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_109.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_109_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1391,
+      "generation_seed": 26080718109,
+      "expected_ego": {
+        "x": -70.63542347089242,
+        "y": 197.0766841034552,
+        "z": 28.76714819134695,
+        "yaw": 148.5868307537661,
+        "link_idx": "A2256W000304",
+        "point_idx": 238
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 3,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_110",
+      "base_scenario_id": "s13_110",
+      "file_name": "od_s13_110",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_110.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_110.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_110_MN.json",
+      "split": "test",
+      "scene_type": "pedestrian_centric",
+      "topology": "curve",
+      "anchor_index": 3196,
+      "generation_seed": 26080718110,
+      "expected_ego": {
+        "x": 70.38297420308876,
+        "y": -272.11939422688874,
+        "z": 28.682148057278315,
+        "yaw": -92.89792900228682,
+        "link_idx": "A2256W000153",
+        "point_idx": 109
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 7,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_111",
+      "base_scenario_id": "s13_111",
+      "file_name": "od_s13_111",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_111.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_111.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_111_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1920,
+      "generation_seed": 26080718111,
+      "expected_ego": {
+        "x": 17.925590944095504,
+        "y": 343.317518555512,
+        "z": 28.677280182159997,
+        "yaw": -17.95957283340175,
+        "link_idx": "A2256W000846",
+        "point_idx": 59
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 3,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_112",
+      "base_scenario_id": "s13_112",
+      "file_name": "od_s13_112",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_112.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_112.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_112_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1203,
+      "generation_seed": 26080718112,
+      "expected_ego": {
+        "x": -1.0994553030436016,
+        "y": 139.5186873916506,
+        "z": 28.79548454327689,
+        "yaw": 110.00794943628978,
+        "link_idx": "A2256W000304",
+        "point_idx": 50
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 3,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_113",
+      "base_scenario_id": "s13_113",
+      "file_name": "od_s13_113",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_113.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_113.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_113_MN.json",
+      "split": "train",
+      "scene_type": "sparse_empty_background",
+      "topology": "straight",
+      "anchor_index": 2242,
+      "generation_seed": 26080718113,
+      "expected_ego": {
+        "x": 62.50039874531466,
+        "y": 200.99781783297163,
+        "z": 28.60973791325973,
+        "yaw": -89.95511161432552,
+        "link_idx": "A2256W000411",
+        "point_idx": 111
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_114",
+      "base_scenario_id": "s13_114",
+      "file_name": "od_s13_114",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_114.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_114.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_114_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 2861,
+      "generation_seed": 26080718114,
+      "expected_ego": {
+        "x": 67.77066014137387,
+        "y": -106.87247217296412,
+        "z": 28.675609959133322,
+        "yaw": -89.91619632426496,
+        "link_idx": "A2256W000408",
+        "point_idx": 227
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_115",
+      "base_scenario_id": "s13_115",
+      "file_name": "od_s13_115",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_115.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_115.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_115_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 2146,
+      "generation_seed": 26080718115,
+      "expected_ego": {
+        "x": 62.190518034439286,
+        "y": 248.99588445221124,
+        "z": 28.61001864440189,
+        "yaw": -89.09152631136139,
+        "link_idx": "A2256W000411",
+        "point_idx": 15
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 4,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_116",
+      "base_scenario_id": "s13_116",
+      "file_name": "od_s13_116",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_116.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_116.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_116_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 3663,
+      "generation_seed": 26080718116,
+      "expected_ego": {
+        "x": 29.175123170503078,
+        "y": -487.9302927001621,
+        "z": 28.641230740792043,
+        "yaw": -145.94141315515395,
+        "link_idx": "A2256W000126",
+        "point_idx": 1
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 4,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_117",
+      "base_scenario_id": "s13_117",
+      "file_name": "od_s13_117",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_117.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_117.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_117_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1658,
+      "generation_seed": 26080718117,
+      "expected_ego": {
+        "x": -99.08331648775348,
+        "y": 318.77226150410456,
+        "z": 28.687081403050957,
+        "yaw": 75.83015022235543,
+        "link_idx": "A2256W000146",
+        "point_idx": 2
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 6,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_118",
+      "base_scenario_id": "s13_118",
+      "file_name": "od_s13_118",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_118.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_118.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_118_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 4048,
+      "generation_seed": 26080718118,
+      "expected_ego": {
+        "x": -142.3615081426983,
+        "y": -531.9353239550765,
+        "z": 28.804512322644275,
+        "yaw": 134.94431250324135,
+        "link_idx": "A2256W000128",
+        "point_idx": 147
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_119",
+      "base_scenario_id": "s13_119",
+      "file_name": "od_s13_119",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_119.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_119.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_119_MN.json",
+      "split": "val",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 3108,
+      "generation_seed": 26080718119,
+      "expected_ego": {
+        "x": 74.51531515718307,
+        "y": -228.3164718009061,
+        "z": 28.72508130477933,
+        "yaw": -94.98144359873656,
+        "link_idx": "A2256W000153",
+        "point_idx": 21
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 3,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_120",
+      "base_scenario_id": "s13_120",
+      "file_name": "od_s13_120",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_120.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_120.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_120_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 410,
+      "generation_seed": 26080718120,
+      "expected_ego": {
+        "x": -97.21561848673979,
+        "y": -261.5811146365576,
+        "z": 28.726197017431467,
+        "yaw": 60.8077295690195,
+        "link_idx": "A2256W000219",
+        "point_idx": 31
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 7,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_121",
+      "base_scenario_id": "s13_121",
+      "file_name": "od_s13_121",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_121.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_121.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_121_MN.json",
+      "split": "val",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 2611,
+      "generation_seed": 26080718121,
+      "expected_ego": {
+        "x": 67.32317848387937,
+        "y": 17.19964153836793,
+        "z": 28.67163564709494,
+        "yaw": -89.65555779320599,
+        "link_idx": "A2256W000420",
+        "point_idx": 144
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 4,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_122",
+      "base_scenario_id": "s13_122",
+      "file_name": "od_s13_122",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_122.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_122.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_122_MN.json",
+      "split": "test",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 3148,
+      "generation_seed": 26080718122,
+      "expected_ego": {
+        "x": 72.58872652508823,
+        "y": -248.22299541551055,
+        "z": 28.721429093073127,
+        "yaw": -95.94034592891488,
+        "link_idx": "A2256W000153",
+        "point_idx": 61
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_123",
+      "base_scenario_id": "s13_123",
+      "file_name": "od_s13_123",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_123.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_123.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_123_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 3067,
+      "generation_seed": 26080718123,
+      "expected_ego": {
+        "x": 74.36916717997097,
+        "y": -208.57398532261465,
+        "z": 28.70581169508812,
+        "yaw": -83.7479864603911,
+        "link_idx": "A2256W000445",
+        "point_idx": 132
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 3,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_124",
+      "base_scenario_id": "s13_124",
+      "file_name": "od_s13_124",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_124.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_124.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_124_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2170,
+      "generation_seed": 26080718124,
+      "expected_ego": {
+        "x": 62.31374269817674,
+        "y": 236.9968641244694,
+        "z": 28.6133716320204,
+        "yaw": -90.00367091997087,
+        "link_idx": "A2256W000411",
+        "point_idx": 39
+      },
+      "expected_counts": {
+        "npc": 8,
+        "pedestrian": 1,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_125",
+      "base_scenario_id": "s13_125",
+      "file_name": "od_s13_125",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_125.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_125.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_125_MN.json",
+      "split": "test",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 124,
+      "generation_seed": 26080718125,
+      "expected_ego": {
+        "x": -101.55824463291565,
+        "y": -374.1456564363203,
+        "z": 28.867251117329598,
+        "yaw": 61.04273262809198,
+        "link_idx": "A2256W000748",
+        "point_idx": 124
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 4,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_126",
+      "base_scenario_id": "s13_126",
+      "file_name": "od_s13_126",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_126.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_126.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_126_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 472,
+      "generation_seed": 26080718126,
+      "expected_ego": {
+        "x": -82.60978392009403,
+        "y": -235.178402012525,
+        "z": 28.777044678593157,
+        "yaw": 61.097481062814325,
+        "link_idx": "A2256W000215",
+        "point_idx": 47
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 5,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_127",
+      "base_scenario_id": "s13_127",
+      "file_name": "od_s13_127",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_127.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_127.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_127_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 4245,
+      "generation_seed": 26080718127,
+      "expected_ego": {
+        "x": -140.86064807948424,
+        "y": -444.8091244036332,
+        "z": 28.85994530392639,
+        "yaw": 60.30564042765184,
+        "link_idx": "A2256W000332",
+        "point_idx": 68
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 6,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_128",
+      "base_scenario_id": "s13_128",
+      "file_name": "od_s13_128",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_128.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_128.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_128_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 48,
+      "generation_seed": 26080718128,
+      "expected_ego": {
+        "x": -120.01813140026391,
+        "y": -407.3604178019793,
+        "z": 28.894033664132078,
+        "yaw": 60.92851010221949,
+        "link_idx": "A2256W000748",
+        "point_idx": 48
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 0,
+        "obstacle": 4
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_129",
+      "base_scenario_id": "s13_129",
+      "file_name": "od_s13_129",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_129.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_129.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_129_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 4128,
+      "generation_seed": 26080718129,
+      "expected_ego": {
+        "x": -158.85955110844225,
+        "y": -496.57321140216663,
+        "z": 28.808558355992123,
+        "yaw": 101.35156436699617,
+        "link_idx": "A2256W000333",
+        "point_idx": 0
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 6,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_130",
+      "base_scenario_id": "s13_130",
+      "file_name": "od_s13_130",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_130.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_130.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_130_MN.json",
+      "split": "val",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 1838,
+      "generation_seed": 26080718130,
+      "expected_ego": {
+        "x": -21.942828860325488,
+        "y": 345.36426961851697,
+        "z": 28.679898082769387,
+        "yaw": 3.400401301202777,
+        "link_idx": "A2256W000054",
+        "point_idx": 87
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 3,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_131",
+      "base_scenario_id": "s13_131",
+      "file_name": "od_s13_131",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_131.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_131.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_131_MN.json",
+      "split": "val",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 3128,
+      "generation_seed": 26080718131,
+      "expected_ego": {
+        "x": 73.6022784801803,
+        "y": -238.2745139338929,
+        "z": 28.727357411917605,
+        "yaw": -95.71649251323802,
+        "link_idx": "A2256W000153",
+        "point_idx": 41
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_132",
+      "base_scenario_id": "s13_132",
+      "file_name": "od_s13_132",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_132.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_132.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_132_MN.json",
+      "split": "test",
+      "scene_type": "pedestrian_centric",
+      "topology": "curve",
+      "anchor_index": 2068,
+      "generation_seed": 26080718132,
+      "expected_ego": {
+        "x": 59.83064562379121,
+        "y": 286.905256973531,
+        "z": 28.59910298807908,
+        "yaw": -79.62379414660475,
+        "link_idx": "A2256W000846",
+        "point_idx": 207
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_133",
+      "base_scenario_id": "s13_133",
+      "file_name": "od_s13_133",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_133.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_133.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_133_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 329,
+      "generation_seed": 26080718133,
+      "expected_ego": {
+        "x": -116.49917753273243,
+        "y": -296.37082118958494,
+        "z": 28.841936048754224,
+        "yaw": 60.97937898986282,
+        "link_idx": "A2256W000236",
+        "point_idx": 4
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 7,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_134",
+      "base_scenario_id": "s13_134",
+      "file_name": "od_s13_134",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_134.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_134.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_134_MN.json",
+      "split": "val",
+      "scene_type": "sparse_empty_background",
+      "topology": "straight",
+      "anchor_index": 2555,
+      "generation_seed": 26080718134,
+      "expected_ego": {
+        "x": 67.17627551648646,
+        "y": 45.19914790585487,
+        "z": 28.692749372229855,
+        "yaw": -89.64147669609662,
+        "link_idx": "A2256W000420",
+        "point_idx": 88
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_135",
+      "base_scenario_id": "s13_135",
+      "file_name": "od_s13_135",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_135.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_135.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_135_MN.json",
+      "split": "val",
+      "scene_type": "pedestrian_centric",
+      "topology": "curve",
+      "anchor_index": 3629,
+      "generation_seed": 26080718135,
+      "expected_ego": {
+        "x": 41.92123832263979,
+        "y": -478.10307300838645,
+        "z": 28.64435034452825,
+        "yaw": -138.3043251390067,
+        "link_idx": "A2256W000448",
+        "point_idx": 5
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 8,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_136",
+      "base_scenario_id": "s13_136",
+      "file_name": "od_s13_136",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_136.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_136.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_136_MN.json",
+      "split": "val",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 2446,
+      "generation_seed": 26080718136,
+      "expected_ego": {
+        "x": 66.45716368868653,
+        "y": 99.10166348200934,
+        "z": 28.621283659190933,
+        "yaw": -87.00534640058235,
+        "link_idx": "A2256W000411",
+        "point_idx": 315
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 6,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_137",
+      "base_scenario_id": "s13_137",
+      "file_name": "od_s13_137",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_137.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_137.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_137_MN.json",
+      "split": "test",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 1818,
+      "generation_seed": 26080718137,
+      "expected_ego": {
+        "x": -31.92521761008936,
+        "y": 344.7711362851771,
+        "z": 28.669520343674794,
+        "yaw": 3.400401301202777,
+        "link_idx": "A2256W000054",
+        "point_idx": 67
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 0,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_138",
+      "base_scenario_id": "s13_138",
+      "file_name": "od_s13_138",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_138.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_138.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_138_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 428,
+      "generation_seed": 26080718138,
+      "expected_ego": {
+        "x": -93.24254769699756,
+        "y": -254.4374966048809,
+        "z": 28.786946053332972,
+        "yaw": 61.09658288909071,
+        "link_idx": "A2256W000215",
+        "point_idx": 3
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 7,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_139",
+      "base_scenario_id": "s13_139",
+      "file_name": "od_s13_139",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_139.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_139.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_139_MN.json",
+      "split": "test",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 1175,
+      "generation_seed": 26080718139,
+      "expected_ego": {
+        "x": 2.056794192181325,
+        "y": 125.90326455170025,
+        "z": 28.79487720763092,
+        "yaw": 97.24197217746678,
+        "link_idx": "A2256W000304",
+        "point_idx": 22
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_140",
+      "base_scenario_id": "s13_140",
+      "file_name": "od_s13_140",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_140.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_140.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_140_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3232,
+      "generation_seed": 26080718140,
+      "expected_ego": {
+        "x": 70.3090291605268,
+        "y": -290.11758604441155,
+        "z": 28.70062516356935,
+        "yaw": -89.73055588145398,
+        "link_idx": "A2256W000153",
+        "point_idx": 145
+      },
+      "expected_counts": {
+        "npc": 7,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_141",
+      "base_scenario_id": "s13_141",
+      "file_name": "od_s13_141",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_141.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_141.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_141_MN.json",
+      "split": "val",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1331,
+      "generation_seed": 26080718141,
+      "expected_ego": {
+        "x": -42.79171132745164,
+        "y": 186.02107793674335,
+        "z": 28.81109427235966,
+        "yaw": 154.13821042740415,
+        "link_idx": "A2256W000304",
+        "point_idx": 178
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 4,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_142",
+      "base_scenario_id": "s13_142",
+      "file_name": "od_s13_142",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_142.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_142.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_142_MN.json",
+      "split": "val",
+      "scene_type": "pedestrian_centric",
+      "topology": "curve",
+      "anchor_index": 1243,
+      "generation_seed": 26080718142,
+      "expected_ego": {
+        "x": -10.156003407152145,
+        "y": 157.29418147784966,
+        "z": 28.792530070660547,
+        "yaw": 124.10037745757103,
+        "link_idx": "A2256W000304",
+        "point_idx": 90
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 7,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_143",
+      "base_scenario_id": "s13_143",
+      "file_name": "od_s13_143",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_143.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_143.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_143_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 4108,
+      "generation_seed": 26080718143,
+      "expected_ego": {
+        "x": -156.6229627408622,
+        "y": -505.92215773608797,
+        "z": 28.826408912163476,
+        "yaw": 105.74703203602604,
+        "link_idx": "A2256W000128",
+        "point_idx": 207
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_144",
+      "base_scenario_id": "s13_144",
+      "file_name": "od_s13_144",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_144.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_144.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_144_MN.json",
+      "split": "test",
+      "scene_type": "sparse_empty_background",
+      "topology": "straight",
+      "anchor_index": 3340,
+      "generation_seed": 26080718144,
+      "expected_ego": {
+        "x": 70.30027539754488,
+        "y": -344.11520495650433,
+        "z": 28.696087514116428,
+        "yaw": -91.32317824696294,
+        "link_idx": "A2256W000153",
+        "point_idx": 253
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_145",
+      "base_scenario_id": "s13_145",
+      "file_name": "od_s13_145",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_145.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_145.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_145_MN.json",
+      "split": "val",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 231,
+      "generation_seed": 26080718145,
+      "expected_ego": {
+        "x": -118.79726001803697,
+        "y": -336.86522589067977,
+        "z": 28.74960267414294,
+        "yaw": 148.78825917851645,
+        "link_idx": "A2256W000329",
+        "point_idx": 38
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_146",
+      "base_scenario_id": "s13_146",
+      "file_name": "od_s13_146",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_146.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_146.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_146_MN.json",
+      "split": "test",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2987,
+      "generation_seed": 26080718146,
+      "expected_ego": {
+        "x": 70.23377938299669,
+        "y": -168.7894867050109,
+        "z": 28.667806804792328,
+        "yaw": -84.05609801335268,
+        "link_idx": "A2256W000445",
+        "point_idx": 52
+      },
+      "expected_counts": {
+        "npc": 6,
+        "pedestrian": 1,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_147",
+      "base_scenario_id": "s13_147",
+      "file_name": "od_s13_147",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_147.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_147.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_147_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1599,
+      "generation_seed": 26080718147,
+      "expected_ego": {
+        "x": -99.44000246360883,
+        "y": 290.81566039127205,
+        "z": 28.718062626426164,
+        "yaw": 90.2475360410333,
+        "link_idx": "A2256W000304",
+        "point_idx": 446
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 4,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_148",
+      "base_scenario_id": "s13_148",
+      "file_name": "od_s13_148",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_148.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_148.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_148_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 2947,
+      "generation_seed": 26080718148,
+      "expected_ego": {
+        "x": 68.31320228691433,
+        "y": -148.8825750375422,
+        "z": 28.68264036432151,
+        "yaw": -85.79882121361146,
+        "link_idx": "A2256W000445",
+        "point_idx": 12
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 7,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_149",
+      "base_scenario_id": "s13_149",
+      "file_name": "od_s13_149",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_149.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_149.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_149_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1876,
+      "generation_seed": 26080718149,
+      "expected_ego": {
+        "x": -3.8393950333346365,
+        "y": 345.7760975134221,
+        "z": 28.680782823368556,
+        "yaw": -0.4624037275638955,
+        "link_idx": "A2256W000846",
+        "point_idx": 15
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 6,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_150",
+      "base_scenario_id": "s13_150",
+      "file_name": "od_s13_150",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_150.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_150.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_150_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1900,
+      "generation_seed": 26080718150,
+      "expected_ego": {
+        "x": 8.146804137563272,
+        "y": 345.32487802751234,
+        "z": 28.672452113275824,
+        "yaw": -6.114765478655102,
+        "link_idx": "A2256W000846",
+        "point_idx": 39
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 3,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_151",
+      "base_scenario_id": "s13_151",
+      "file_name": "od_s13_151",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_151.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_151.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_151_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 613,
+      "generation_seed": 26080718151,
+      "expected_ego": {
+        "x": -60.73032390397535,
+        "y": -169.3460466782358,
+        "z": 28.73048211721401,
+        "yaw": 85.19165794935202,
+        "link_idx": "A2256W000213",
+        "point_idx": 129
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 4,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_152",
+      "base_scenario_id": "s13_152",
+      "file_name": "od_s13_152",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_152.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_152.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_152_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2697,
+      "generation_seed": 26080718152,
+      "expected_ego": {
+        "x": 67.38485544121266,
+        "y": -24.873887201509174,
+        "z": 28.678769038796453,
+        "yaw": -89.84837474734388,
+        "link_idx": "A2256W000408",
+        "point_idx": 63
+      },
+      "expected_counts": {
+        "npc": 8,
+        "pedestrian": 1,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_153",
+      "base_scenario_id": "s13_153",
+      "file_name": "od_s13_153",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_153.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_153.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_153_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 513,
+      "generation_seed": 26080718153,
+      "expected_ego": {
+        "x": -73.3686945890525,
+        "y": -217.48871222443975,
+        "z": 28.74393637467473,
+        "yaw": 65.85262022403222,
+        "link_idx": "A2256W000213",
+        "point_idx": 29
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 8,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_154",
+      "base_scenario_id": "s13_154",
+      "file_name": "od_s13_154",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_154.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_154.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_154_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3711,
+      "generation_seed": 26081718157,
+      "expected_ego": {
+        "x": 8.427496938553968,
+        "y": -499.9655613545883,
+        "z": 28.6818927566136,
+        "yaw": -151.7388721166558,
+        "link_idx": "A2256W000126",
+        "point_idx": 49
+      },
+      "expected_counts": {
+        "npc": 6,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_155",
+      "base_scenario_id": "s13_155",
+      "file_name": "od_s13_155",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_155.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_155.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_155_MN.json",
+      "split": "test",
+      "scene_type": "pedestrian_centric",
+      "topology": "curve",
+      "anchor_index": 3567,
+      "generation_seed": 26080718155,
+      "expected_ego": {
+        "x": 60.19024400684882,
+        "y": -454.53620681456533,
+        "z": 28.566802946129847,
+        "yaw": -113.61772111814818,
+        "link_idx": "A2256W000446",
+        "point_idx": 101
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_156",
+      "base_scenario_id": "s13_156",
+      "file_name": "od_s13_156",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_156.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_156.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_156_MN.json",
+      "split": "test",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1303,
+      "generation_seed": 26080718156,
+      "expected_ego": {
+        "x": -30.80183171808817,
+        "y": 178.82103246112771,
+        "z": 28.803900122210422,
+        "yaw": 144.4503800879329,
+        "link_idx": "A2256W000304",
+        "point_idx": 150
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 3,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_157",
+      "base_scenario_id": "s13_157",
+      "file_name": "od_s13_157",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_157.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_157.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_157_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 2631,
+      "generation_seed": 26080718157,
+      "expected_ego": {
+        "x": 67.34408163720623,
+        "y": 7.199824479600041,
+        "z": 28.682854088101188,
+        "yaw": -90.29748510535889,
+        "link_idx": "A2256W000420",
+        "point_idx": 164
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_158",
+      "base_scenario_id": "s13_158",
+      "file_name": "od_s13_158",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_158.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_158.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_158_MN.json",
+      "split": "test",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 3487,
+      "generation_seed": 26080718158,
+      "expected_ego": {
+        "x": 70.41322702748957,
+        "y": -416.06711096916456,
+        "z": 28.4518894555849,
+        "yaw": -94.24327566727709,
+        "link_idx": "A2256W000446",
+        "point_idx": 21
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 6,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_159",
+      "base_scenario_id": "s13_159",
+      "file_name": "od_s13_159",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_159.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_159.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_159_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 3899,
+      "generation_seed": 26080718159,
+      "expected_ego": {
+        "x": -74.42483354398665,
+        "y": -544.3623561136682,
+        "z": 28.768863435367106,
+        "yaw": -153.675086145185,
+        "link_idx": "A2256W000126",
+        "point_idx": 237
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 5,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_160",
+      "base_scenario_id": "s13_160",
+      "file_name": "od_s13_160",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_160.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_160.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_160_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 448,
+      "generation_seed": 26080718160,
+      "expected_ego": {
+        "x": -88.40957403105305,
+        "y": -245.6836113303988,
+        "z": 28.816470149906348,
+        "yaw": 61.09744583257378,
+        "link_idx": "A2256W000215",
+        "point_idx": 23
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 5,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_161",
+      "base_scenario_id": "s13_161",
+      "file_name": "od_s13_161",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_161.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_161.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_161_MN.json",
+      "split": "val",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 2108,
+      "generation_seed": 26080718161,
+      "expected_ego": {
+        "x": 61.87393426562401,
+        "y": 267.0232616648085,
+        "z": 28.599880416521998,
+        "yaw": -88.0083500220651,
+        "link_idx": "A2256W000846",
+        "point_idx": 247
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 3,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_162",
+      "base_scenario_id": "s13_162",
+      "file_name": "od_s13_162",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_162.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_162.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_162_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 3047,
+      "generation_seed": 26080718162,
+      "expected_ego": {
+        "x": 73.28213059616,
+        "y": -198.63324598207396,
+        "z": 28.70994318524909,
+        "yaw": -83.86217981555534,
+        "link_idx": "A2256W000445",
+        "point_idx": 112
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_163",
+      "base_scenario_id": "s13_163",
+      "file_name": "od_s13_163",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_163.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_163.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_163_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 994,
+      "generation_seed": 26080718163,
+      "expected_ego": {
+        "x": -59.50492347597731,
+        "y": 86.62360265881036,
+        "z": 28.698674089887795,
+        "yaw": 66.99195907540732,
+        "link_idx": "A2256W000318",
+        "point_idx": 15
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 3,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_164",
+      "base_scenario_id": "s13_164",
+      "file_name": "od_s13_164",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_164.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_164.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_164_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1858,
+      "generation_seed": 26081718167,
+      "expected_ego": {
+        "x": -11.949813789432508,
+        "y": 345.7182489148833,
+        "z": 28.681853196584843,
+        "yaw": 1.6858322835303454,
+        "link_idx": "A2256W000054",
+        "point_idx": 107
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 6,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_165",
+      "base_scenario_id": "s13_165",
+      "file_name": "od_s13_165",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_165.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_165.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_165_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 3759,
+      "generation_seed": 26080718165,
+      "expected_ego": {
+        "x": -12.685037349182855,
+        "y": -511.37801466838033,
+        "z": 28.786800051512383,
+        "yaw": -151.63909343426474,
+        "link_idx": "A2256W000126",
+        "point_idx": 97
+      },
+      "expected_counts": {
+        "npc": 7,
+        "pedestrian": 0,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_166",
+      "base_scenario_id": "s13_166",
+      "file_name": "od_s13_166",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_166.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_166.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_166_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 823,
+      "generation_seed": 26080718166,
+      "expected_ego": {
+        "x": -60.36664833802847,
+        "y": 2.783248826198347,
+        "z": 28.718628504269635,
+        "yaw": 90.39024732102627,
+        "link_idx": "A2256W000205",
+        "point_idx": 6
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 6,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_167",
+      "base_scenario_id": "s13_167",
+      "file_name": "od_s13_167",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_167.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_167.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_167_MN.json",
+      "split": "test",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 557,
+      "generation_seed": 26080718167,
+      "expected_ego": {
+        "x": -65.86728035155762,
+        "y": -196.8263361036956,
+        "z": 28.758522478373695,
+        "yaw": 74.27633131549422,
+        "link_idx": "A2256W000213",
+        "point_idx": 73
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 6,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_168",
+      "base_scenario_id": "s13_168",
+      "file_name": "od_s13_168",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_168.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_168.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_168_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 104,
+      "generation_seed": 26080718168,
+      "expected_ego": {
+        "x": -106.41592133164893,
+        "y": -382.8864379646754,
+        "z": 28.877807011064736,
+        "yaw": 60.96855379461621,
+        "link_idx": "A2256W000748",
+        "point_idx": 104
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 0,
+        "obstacle": 4
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_169",
+      "base_scenario_id": "s13_169",
+      "file_name": "od_s13_169",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_169.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_169.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_169_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 1439,
+      "generation_seed": 26080718169,
+      "expected_ego": {
+        "x": -88.2530205411148,
+        "y": 213.1264385388422,
+        "z": 28.749554825746053,
+        "yaw": 126.4138482157681,
+        "link_idx": "A2256W000304",
+        "point_idx": 286
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 3,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_170",
+      "base_scenario_id": "s13_170",
+      "file_name": "od_s13_170",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_170.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_170.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_170_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 936,
+      "generation_seed": 26080718170,
+      "expected_ego": {
+        "x": -60.78981215174727,
+        "y": 58.50851457093197,
+        "z": 28.70528072840477,
+        "yaw": 90.58330256087203,
+        "link_idx": "A2256W000315",
+        "point_idx": 94
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 4
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_171",
+      "base_scenario_id": "s13_171",
+      "file_name": "od_s13_171",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_171.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_171.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_171_MN.json",
+      "split": "val",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2190,
+      "generation_seed": 26080718171,
+      "expected_ego": {
+        "x": 62.384398136611416,
+        "y": 226.99730336327846,
+        "z": 28.604188365233327,
+        "yaw": -89.75892988456891,
+        "link_idx": "A2256W000411",
+        "point_idx": 59
+      },
+      "expected_counts": {
+        "npc": 7,
+        "pedestrian": 0,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_172",
+      "base_scenario_id": "s13_172",
+      "file_name": "od_s13_172",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_172.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_172.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_172_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 311,
+      "generation_seed": 26080718172,
+      "expected_ego": {
+        "x": -120.4209005524708,
+        "y": -303.406264141573,
+        "z": 28.753850150146324,
+        "yaw": 60.704686350859475,
+        "link_idx": "A2256W000329",
+        "point_idx": 118
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 6,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_173",
+      "base_scenario_id": "s13_173",
+      "file_name": "od_s13_173",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_173.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_173.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_173_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2262,
+      "generation_seed": 26080718173,
+      "expected_ego": {
+        "x": 62.549788873752625,
+        "y": 190.9979961308529,
+        "z": 28.61007846443252,
+        "yaw": -89.76227299750698,
+        "link_idx": "A2256W000411",
+        "point_idx": 131
+      },
+      "expected_counts": {
+        "npc": 8,
+        "pedestrian": 1,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_174",
+      "base_scenario_id": "s13_174",
+      "file_name": "od_s13_174",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_174.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_174.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_174_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2535,
+      "generation_seed": 26080718174,
+      "expected_ego": {
+        "x": 67.12491369818052,
+        "y": 55.19899189968064,
+        "z": 28.680199763883095,
+        "yaw": -89.78423149235533,
+        "link_idx": "A2256W000420",
+        "point_idx": 68
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 1,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_175",
+      "base_scenario_id": "s13_175",
+      "file_name": "od_s13_175",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_175.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_175.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_175_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 976,
+      "generation_seed": 26080718175,
+      "expected_ego": {
+        "x": -60.88365829018695,
+        "y": 78.50684935662339,
+        "z": 28.707550878496598,
+        "yaw": 89.48393819159486,
+        "link_idx": "A2256W000315",
+        "point_idx": 134
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 5,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_176",
+      "base_scenario_id": "s13_176",
+      "file_name": "od_s13_176",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_176.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_176.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_176_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 2128,
+      "generation_seed": 26080718176,
+      "expected_ego": {
+        "x": 62.06478035050757,
+        "y": 257.0251125046335,
+        "z": 28.60830481650953,
+        "yaw": -89.01308091829472,
+        "link_idx": "A2256W000846",
+        "point_idx": 267
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 6,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_177",
+      "base_scenario_id": "s13_177",
+      "file_name": "od_s13_177",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_177.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_177.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_177_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 2761,
+      "generation_seed": 26080718177,
+      "expected_ego": {
+        "x": 67.50243112212483,
+        "y": -56.87358268228077,
+        "z": 28.713402584870874,
+        "yaw": -89.79948761115011,
+        "link_idx": "A2256W000408",
+        "point_idx": 127
+      },
+      "expected_counts": {
+        "npc": 7,
+        "pedestrian": 1,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_178",
+      "base_scenario_id": "s13_178",
+      "file_name": "od_s13_178",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_178.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_178.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_178_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 271,
+      "generation_seed": 26080718178,
+      "expected_ego": {
+        "x": -129.1829515195437,
+        "y": -321.2806466218201,
+        "z": 28.75039803513768,
+        "yaw": 82.98483336769743,
+        "link_idx": "A2256W000329",
+        "point_idx": 78
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 8,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_179",
+      "base_scenario_id": "s13_179",
+      "file_name": "od_s13_179",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_179.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_179.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_179_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 4068,
+      "generation_seed": 26080718179,
+      "expected_ego": {
+        "x": -148.62792232974437,
+        "y": -524.1596743653776,
+        "z": 28.816787642504742,
+        "yaw": 124.40162482987034,
+        "link_idx": "A2256W000128",
+        "point_idx": 167
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 0,
+        "obstacle": 4
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "s13_180",
+      "base_scenario_id": "s13_180",
+      "file_name": "od_s13_180",
+      "scenario": "dataset/morai_od/scenarios/sunny13_180_smoke/od_s13_180.json",
+      "metadata": "dataset/morai_od/metadata/sunny13_180_smoke/od_s13_180.metadata.json",
+      "network_sidecar": "EgoNetwork/od_s13_180_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 654,
+      "generation_seed": 26080718180,
+      "expected_ego": {
+        "x": -59.84300237175135,
+        "y": -149.39325432121143,
+        "z": 28.73095939169387,
+        "yaw": 90.09611751612977,
+        "link_idx": "A2256W000222",
+        "point_idx": 12
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 5,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    }
+  ]
+}

@@ -805,6 +805,42 @@ scenes[].metrics.observed_file_count
 않지만, 첫 실험 종료 후 차량과 시나리오가 초기 상태로 다시 로드됐는지
 확인한 뒤 두 번째 명령을 실행한다.
 
+### rolling-grouped
+
+`rolling-fast`와 똑같이 주행 중 연속 trigger하고 마지막에 한 번만
+기다린다. 차이는 MORAI가 한 번의 `SaveSensorData` snapshot에 공통으로
+붙이는 timestamp를 기준으로 Camera 4대·LiDAR·GT 파일을 프레임별로
+묶는다는 점이다.
+
+```bash
+cd ~/AjouNice2026
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+source ~/morai_personal_ws/devel/setup.bash
+
+python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
+  --capture-dir /home/luv/morai_cap/p01_rolling_grouped_v1 \
+  --scenario p01 \
+  --motion-mode rolling-grouped \
+  --captures-per-scene 6 \
+  --capture-spacing-m 0.6 \
+  --speed-kph 3.6 \
+  --maximum-motion-m 4.0 \
+  --capture-stable-sec 0.5
+```
+
+기존 p01~p03 rolling 결과를 사후 검사했을 때 장면마다 정확히 6개
+timestamp가 있었고, 모든 timestamp에 `CAMERA_1..4`와 `LIDAR_5`의 필수
+학습 산출물이 함께 존재했다. 따라서 실제 대량 수집은 매 프레임 정차
+검사 대신 이 모드를 우선 사용한다.
+
+검증을 완전히 생략하지는 않는다. 연속 trigger가 끝난 뒤 파일 집합이
+한 번 안정될 때까지 기다리고, 각 timestamp 묶음의 필수 센서·GT 존재
+여부만 검사한다. 6개 중 하나라도 불완전하면 그 장면의 원본을
+`rolling_grouped_rejected/`에 보존하고 실패 처리한다. 누락 프레임은
+버려도 되지만 서로 다른 시점의 image·point cloud·GT를 한 sample로
+학습시키지는 않는다는 정책이다.
+
 ### 대기시간 축소 시험과 현재 채택 상태
 
 대량 수집 시간을 줄이기 위해 다음 두 대기시간을 함께 축소할 수 있다.

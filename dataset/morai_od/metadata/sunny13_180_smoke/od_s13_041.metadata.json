@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_041",
+  "scenario_stem": "od_s13_041",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080718041,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 4028,
+    "arc_m": 2060.227862783394,
+    "curvature_deg": 7.818497353555358,
+    "crosswalk_distance_m": 219.22639528737298,
+    "parking_distance_m": 51.651850416701244,
+    "stopline_distance_m": 48.34755570346739,
+    "branch_distance_m": 55.17403541825484
+  },
+  "ego": {
+    "x": -134.87746611724756,
+    "y": -538.5535132349905,
+    "z": 28.78648203220535,
+    "yaw": 142.90161242885517,
+    "link_idx": "A2256W000128",
+    "point_idx": 127
+  },
+  "counts": {
+    "npc": 0,
+    "pedestrian": 0,
+    "obstacle": 4
+  },
+  "assets": [
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200102,
+      "name": "KR_Sign_SL_30",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -134.15994702555275,
+        "y": -552.9754619514897,
+        "z": 28.51088366351357,
+        "yaw": 149.95924969883447
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200103,
+      "name": "KR_Sign_SL_40",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -140.23516449906407,
+        "y": -554.6004984438441,
+        "z": 28.518401603788405,
+        "yaw": 135.31114048798935
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40200108,
+      "name": "KR_Sign_SL_90",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -142.17325314028466,
+        "y": -545.7944761381123,
+        "z": 28.522516570171778,
+        "yaw": 142.99003762282973
+      }
+    },
+    {
+      "unique_id": 3004,
+      "group": "objectList",
+      "data_id": 40100033,
+      "name": "Steel_Barricade",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -145.67520463172724,
+        "y": -550.302307377544,
+        "z": 28.522516570171778,
+        "yaw": 154.93856361952544
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

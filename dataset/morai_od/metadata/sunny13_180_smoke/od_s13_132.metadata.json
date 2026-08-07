@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_132",
+  "scenario_stem": "od_s13_132",
+  "split": "test",
+  "scene_type": "pedestrian_centric",
+  "topology": "curve",
+  "seed": 26080718132,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2068,
+    "arc_m": 1088.2086547046583,
+    "curvature_deg": 4.4221966939120705,
+    "crosswalk_distance_m": 258.0030406128504,
+    "parking_distance_m": 274.12471871373276,
+    "stopline_distance_m": 82.21635191900093,
+    "branch_distance_m": 30.492956331909138
+  },
+  "ego": {
+    "x": 59.83064562379121,
+    "y": 286.905256973531,
+    "z": 28.59910298807908,
+    "yaw": -79.62379414660475,
+    "link_idx": "A2256W000846",
+    "point_idx": 207
+  },
+  "counts": {
+    "npc": 0,
+    "pedestrian": 5,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50200001,
+      "name": "Boy1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.60434785523614,
+        "y": 294.5707256959904,
+        "z": 28.3693867620581,
+        "yaw": -85.80907034918019
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100015,
+      "name": "Woman7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 60.40685077536088,
+        "y": 309.33109159138996,
+        "z": 28.33948039444875,
+        "yaw": 152.73445789042842
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100058,
+      "name": "police_m_2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 52.94320549907212,
+        "y": 291.0377084448093,
+        "z": 28.319428754580656,
+        "yaw": 23.36589278809535
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100011,
+      "name": "Man8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 67.45808827144212,
+        "y": 273.098453657186,
+        "z": 28.336031257249243,
+        "yaw": 121.39331497044816
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100077,
+      "name": "worker_m_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 55.70319198655779,
+        "y": 279.6502826449826,
+        "z": 28.31416581338291,
+        "yaw": -115.45522502022271
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200009,
+      "name": "Tree08",
+      "ontology_class": "RoadsideFurniture",
+      "subtype": "fixed_roadside_object",
+      "generation_policy": "enabled_roadside_only",
+      "pose": {
+        "x": 65.95209783348955,
+        "y": 302.2360749513982,
+        "z": 28.326188636284993,
+        "yaw": -83.37334290786069
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

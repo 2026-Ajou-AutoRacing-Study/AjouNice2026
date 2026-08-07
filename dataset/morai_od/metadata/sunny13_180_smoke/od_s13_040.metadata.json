@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_040",
+  "scenario_stem": "od_s13_040",
+  "split": "test",
+  "scene_type": "pedestrian_centric",
+  "topology": "curve",
+  "seed": 26080718040,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3607,
+    "arc_m": 1852.0538615995092,
+    "curvature_deg": 3.9812115620940745,
+    "crosswalk_distance_m": 149.04396058948714,
+    "parking_distance_m": 139.80239884456893,
+    "stopline_distance_m": 25.632860901346994,
+    "branch_distance_m": 43.84606232773679
+  },
+  "ego": {
+    "x": 49.09222937802593,
+    "y": -471.0165272607984,
+    "z": 28.622549558680646,
+    "yaw": -133.4179168735638,
+    "link_idx": "A2256W000446",
+    "point_idx": 141
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 5,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 35.18448140817801,
+        "y": -487.91228990654486,
+        "z": 28.86265353930533,
+        "yaw": 35.44167269638791
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30400007,
+      "name": "DEFAULT_TRUCK",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 69.81511613436733,
+        "y": -479.3340453708939,
+        "z": 28.855406201765742,
+        "yaw": -42.32517066013881
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100004,
+      "name": "Woman1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 56.090286956340805,
+        "y": -472.13202334481855,
+        "z": 28.517839158889615,
+        "yaw": 162.46795650938202
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100074,
+      "name": "worker_f_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 49.48242350741628,
+        "y": -480.0316626284269,
+        "z": 28.511452915973155,
+        "yaw": 51.02919540810092
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100011,
+      "name": "Man8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 55.76911202222107,
+        "y": -469.9662546271388,
+        "z": 28.326343858049462,
+        "yaw": 43.595315351692136
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50200003,
+      "name": "Boy2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 65.26429476812189,
+        "y": -460.1813325758305,
+        "z": 28.291340953452647,
+        "yaw": -127.11444325059995
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.21352466533028,
+        "y": -463.84233975325753,
+        "z": 28.312796572263316,
+        "yaw": 23.155646137717554
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100063,
+      "name": "Scooter_02",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": 51.354252263026844,
+        "y": -447.26867640735406,
+        "z": 28.239102397692367,
+        "yaw": -125.8540910803859
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100029,
+      "name": "PE_Firewall_White",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 35.73079343145914,
+        "y": -464.4380887511267,
+        "z": 28.318788414297295,
+        "yaw": -144.75814744511823
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

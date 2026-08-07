@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_od180_v1",
+  "base_scenario_id": "base026",
+  "scenario_stem": "od180_b026",
+  "split": "val",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 2608073026,
+  "anchor": {
+    "index": 4185,
+    "arc_m": 2136.2280637231447,
+    "curvature_deg": 6.32516053008851,
+    "crosswalk_distance_m": 166.97814932667347,
+    "parking_distance_m": 9.105404278603498,
+    "stopline_distance_m": 14.148815757233738,
+    "branch_distance_m": 15.210129791249381
+  },
+  "ego": {
+    "x": -154.7285143181664,
+    "y": -470.8556933710446,
+    "z": 28.789511122288083,
+    "yaw": 67.3716560733223,
+    "link_idx": "A2256W000332",
+    "point_idx": 8
+  },
+  "counts": {
+    "npc": 1,
+    "pedestrian": 0,
+    "obstacle": 4
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30700004,
+      "name": "2020_Kia_Niro(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -157.71569630744943,
+        "y": -479.5980795622027,
+        "z": 28.754726240158643,
+        "yaw": 74.90146593094485
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100032,
+      "name": "Speed_Bump",
+      "ontology_class": "RoadSurfaceObject",
+      "subtype": "road_surface",
+      "generation_policy": "enabled_surface_aligned_only",
+      "pose": {
+        "x": -153.81983122854635,
+        "y": -460.40046766721207,
+        "z": 28.514377520490896,
+        "yaw": 61.62386712953136
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100058,
+      "name": "Bollard01",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -166.41351118471425,
+        "y": -460.3443966663243,
+        "z": 28.49050839530657,
+        "yaw": 72.32555306877276
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100059,
+      "name": "Bicycle_city",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -151.27059411940402,
+        "y": -483.61699165763656,
+        "z": 28.42491669455606,
+        "yaw": 82.30755820501474
+      }
+    },
+    {
+      "unique_id": 3004,
+      "group": "objectList",
+      "data_id": 40100005,
+      "name": "TrafficBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -166.59802027655653,
+        "y": -465.8490421160414,
+        "z": 28.572102307333143,
+        "yaw": 82.78183657289799
+      }
+    }
+  ],
+  "environment_policy": "The same base scenario is captured in all six environment batches; weather/time are not embedded in this JSON.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "5f796c9ffdaf8dfb08557666046c2218e5939033487a37c12d90b4535638659d"
+  }
+}

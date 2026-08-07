@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_123",
+  "scenario_stem": "od_s13_123",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "merge_diverge",
+  "seed": 26080718123,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3067,
+    "arc_m": 1584.2437741912345,
+    "curvature_deg": 0.1507360865459475,
+    "crosswalk_distance_m": 64.38967957558239,
+    "parking_distance_m": 48.02326175458456,
+    "stopline_distance_m": 60.22674893802923,
+    "branch_distance_m": 9.339718218957767
+  },
+  "ego": {
+    "x": 74.36916717997097,
+    "y": -208.57398532261465,
+    "z": 28.70581169508812,
+    "yaw": -83.7479864603911,
+    "link_idx": "A2256W000445",
+    "point_idx": 132
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 3,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30400004,
+      "name": "2013_Hyundai_Xcient(P540)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 87.43849281673059,
+        "y": -212.60869304546426,
+        "z": 28.820374644304238,
+        "yaw": 90.38726066452637
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200005,
+      "name": "2019_Hyundai_Nexo",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 73.60685458443497,
+        "y": -201.61561834386038,
+        "z": 28.73872642846492,
+        "yaw": -83.7479864603911
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30700006,
+      "name": "2020_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 87.50116106129079,
+        "y": -222.1084800328419,
+        "z": 28.62807325716082,
+        "yaw": 90.21061647399915
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200010,
+      "name": "2021_Volkswagen_Golf_GTI",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.33686409011727,
+        "y": -218.87772657752512,
+        "z": 28.661807805159714,
+        "yaw": -89.71959783982764
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100055,
+      "name": "police_f_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.33763734404195,
+        "y": -194.4988302946801,
+        "z": 28.42657364298837,
+        "yaw": 171.311433337572
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100014,
+      "name": "Woman6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 66.35959868293145,
+        "y": -187.4887822346492,
+        "z": 28.338420425660914,
+        "yaw": 4.628276552031622
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100011,
+      "name": "Man8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 81.85397324482338,
+        "y": -224.033473973106,
+        "z": 28.371953888129514,
+        "yaw": 170.69808762806719
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100003,
+      "name": "RedBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.89640324290448,
+        "y": -222.29609800012508,
+        "z": 28.401875312682826,
+        "yaw": -102.30213587787479
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100004,
+      "name": "YellowBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 80.88941838753392,
+        "y": -206.1738562530762,
+        "z": 28.398122654531925,
+        "yaw": -95.52918655472729
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100001,
+      "name": "CargoBox",
+      "ontology_class": "Obstacle",
+      "subtype": "box",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 96.41763849862812,
+        "y": -208.3569588385389,
+        "z": 28.295896276039795,
+        "yaw": -95.94495933888359
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

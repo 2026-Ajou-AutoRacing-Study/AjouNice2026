@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_169",
+  "scenario_stem": "od_s13_169",
+  "split": "train",
+  "scene_type": "camera_seam_occlusion",
+  "topology": "curve",
+  "seed": 26080718169,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1439,
+    "arc_m": 778.1094839906706,
+    "curvature_deg": 8.172759336957768,
+    "crosswalk_distance_m": 125.60400363511353,
+    "parking_distance_m": 154.30829255040558,
+    "stopline_distance_m": 105.25517346151969,
+    "branch_distance_m": 77.02590709984973
+  },
+  "ego": {
+    "x": -88.2530205411148,
+    "y": 213.1264385388422,
+    "z": 28.749554825746053,
+    "yaw": 126.4138482157681,
+    "link_idx": "A2256W000304",
+    "point_idx": 286
+  },
+  "counts": {
+    "npc": 3,
+    "pedestrian": 3,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200002,
+      "name": "2017_Kia_Sorento",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -102.75317977821474,
+        "y": 223.08305355067554,
+        "z": 28.79126204963554,
+        "yaw": -68.34398365370151
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100008,
+      "name": "2020_hyundai_sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -96.60865901538135,
+        "y": 218.21241543904964,
+        "z": 28.76751282000639,
+        "yaw": -61.75857008571256
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30800001,
+      "name": "2019_kia_sedona",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -76.19843523087917,
+        "y": 205.28727608717674,
+        "z": 28.75173905628926,
+        "yaw": 139.9588829443818
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -95.06134100403388,
+        "y": 214.1768967879308,
+        "z": 28.484206412806948,
+        "yaw": 176.1764673963251
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -86.86846112339467,
+        "y": 227.06615213070518,
+        "z": 28.382089785241185,
+        "yaw": -35.01730769929799
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100008,
+      "name": "Man5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -90.01454871494774,
+        "y": 200.10340010786555,
+        "z": 28.522387962469317,
+        "yaw": -130.7098674907972
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_150",
+  "scenario_stem": "od_s13_150",
+  "split": "train",
+  "scene_type": "camera_seam_occlusion",
+  "topology": "curve",
+  "seed": 26080718150,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1900,
+    "arc_m": 1004.2089033459237,
+    "curvature_deg": 7.523650337582637,
+    "crosswalk_distance_m": 280.60259040722707,
+    "parking_distance_m": 303.5555315451461,
+    "stopline_distance_m": 58.076273235866346,
+    "branch_distance_m": 19.489970639856846
+  },
+  "ego": {
+    "x": 8.146804137563272,
+    "y": 345.32487802751234,
+    "z": 28.672452113275824,
+    "yaw": -6.114765478655102,
+    "link_idx": "A2256W000846",
+    "point_idx": 39
+  },
+  "counts": {
+    "npc": 3,
+    "pedestrian": 3,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800003,
+      "name": "2020_chrysler_pacifica_hybrid",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -16.947649615020136,
+        "y": 345.57115352132183,
+        "z": 28.721928467837007,
+        "yaw": 1.6858322835303454
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 27.52893837442092,
+        "y": 339.12433864272356,
+        "z": 28.847169161654932,
+        "yaw": -29.519965397494673
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100014,
+      "name": "2020_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 0.6602876150012291,
+        "y": 345.7261494229053,
+        "z": 28.675206737442394,
+        "yaw": -1.068026160256494
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100058,
+      "name": "police_m_2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 16.76660152065466,
+        "y": 352.27133644412646,
+        "z": 28.384095881002725,
+        "yaw": -89.28641425754738
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 12.624124985569853,
+        "y": 340.5912673355321,
+        "z": 28.384066204760266,
+        "yaw": 14.53892394084076
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 1.7492032153897723,
+        "y": 352.47175888356765,
+        "z": 28.38441889919121,
+        "yaw": -87.59452147557066
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

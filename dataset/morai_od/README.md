@@ -123,16 +123,20 @@ MORAI Internal Scenario JSON, `/ScenarioLoad`, `/SaveSensorData` 기반으로
 ROS Synchronous Mode는 개인용 런처에서 `frame=0`,
 `can_send_tick=false` 교착과 `/SyncModeCmd` 무응답이 재현되어 현재 수집
 경로에서 제외한다. 이 시험에는 Scenario Runner를 사용하지 않았다.
-기본 대량 수집은 검증된 일반 `/ScenarioLoad` → 제한형 `route-follow`
-→ 정차 → `/SaveSensorData` 방식을 사용한다. 상세 재현 결과는
+기본 대량 수집은 일반 `/ScenarioLoad` → 제한형 저속 주행 →
+`rolling-grouped` 연속 캡처 방식을 사용한다. 상세 재현 결과는
 `docs/ros_scenario_autocapture_poc.md`의 “Synchronous Mode PoC 결과와
 제외 결정”에 기록한다.
 
-처리량 탐색용으로 `rolling-safe`와 `rolling-fast` 모드를 제공한다.
+처리량 탐색용으로 `rolling-safe`와 `rolling-fast`, 실제 수집용으로
+`rolling-grouped` 모드를 제공한다.
 전자는 정차 없이 캡처별 파일 완료를 기다리고, 후자는 1 m/s 주행 중
 0.6 m 간격 trigger를 겹쳐 보낸 뒤 마지막에 파일을 수거한다.
 `rolling-fast`는 파일을 trigger별 학습 프레임으로 검증하지 않으므로
-속도 실험에만 사용한다.
+속도 실험에만 사용한다. `rolling-grouped`는 같은 연속 trigger 방식을
+쓰되 마지막에 한 번만 파일 쓰기 완료를 기다리고, MORAI 공통 timestamp로
+Camera 4대·LiDAR·GT를 프레임화한다. 누락 묶음은 학습에 섞지 않고 해당
+장면을 실패 처리한다.
 
 현재 초기 수집 정책은 3.6 km/h, 장면당 6프레임이다. 대기시간
 `load-settle=0.5초`, `capture-stable=0.3초` 조합은 p01~p03 총
@@ -153,6 +157,10 @@ ScenarioLoad·SaveSensorData·CtrlCmd·`/Service_MoraiEventCmd`가 모두 여기
 `speed01`은 p01과 같은 경로 anchor에서 모든 actor를 제거한 7.2 km/h
 전용 benchmark 장면이다. 기본 p01~p03 batch에서는 제외되며
 `--scenario speed01`을 명시할 때만 실행된다.
+
+Sunny 13시 고정 180-scenario 파인튜닝 smoke dataset은
+`docs/sunny13_180_smoke_capture.md`를 따른다. split은 scenario 단위
+126/27/27이며, 개별 실패는 기록하고 다음 장면으로 진행한다.
 
 연속 로드 안정성만 빠르게 확인할 때는 생성기에 `--stress-count 20`을
 주어 `manifests/ros_capture_stress.json`과 `stress001~stress020`을 만든다.
@@ -178,3 +186,8 @@ ontology는 `configs/morai_asset_catalog_260807.json`에 정리했다. 특히
 `pedestrianList`의 자전거 탑승자와 사람+동물 복합 자산은 실제
 Semantic/Instance/3D box를 확인하기 전까지 격리한다. 근거와 audit 절차는
 `docs/morai_asset_catalog_260807.md`를 따른다.
+
+30개 base scenario를 여섯 날씨·시간 조건에서 반복하는 OD180 파일럿은
+`scripts/generate_od180_pilot_set.py`로 생성한다. 환경별 캡처 폴더,
+base 단위 split, 1,080 sample handoff index 생성 방법은
+`docs/od180_capture_and_handoff.md`를 따른다.

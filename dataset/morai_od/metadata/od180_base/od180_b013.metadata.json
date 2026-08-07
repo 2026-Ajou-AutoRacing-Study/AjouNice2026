@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_od180_v1",
+  "base_scenario_id": "base013",
+  "scenario_stem": "od180_b013",
+  "split": "train",
+  "scene_type": "pedestrian_centric",
+  "topology": "crosswalk",
+  "seed": 2608073013,
+  "anchor": {
+    "index": 324,
+    "arc_m": 160.0091672706355,
+    "curvature_deg": 0.28873128497096445,
+    "crosswalk_distance_m": 1.2580609085137993,
+    "parking_distance_m": 91.21263207604251,
+    "stopline_distance_m": 0.0,
+    "branch_distance_m": 0.0
+  },
+  "ego": {
+    "x": -117.46220726403408,
+    "y": -298.12224265327677,
+    "z": 28.775463653342698,
+    "yaw": 60.777133016792334,
+    "link_idx": "A2256W000329",
+    "point_idx": 131
+  },
+  "counts": {
+    "npc": 1,
+    "pedestrian": 6,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -113.71383066003267,
+        "y": -288.39553310184846,
+        "z": 29.058056554356604,
+        "yaw": -152.38587687082534
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100012,
+      "name": "Woman4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -130.80082725292516,
+        "y": -307.7301836239356,
+        "z": 28.473057460598497,
+        "yaw": 110.64704469375494
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100058,
+      "name": "police_m_2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -106.34186433162883,
+        "y": -279.00383056208517,
+        "z": 28.598436360490737,
+        "yaw": 40.21119056953316
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50200003,
+      "name": "Boy2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -107.81981895237824,
+        "y": -294.2968503086072,
+        "z": 28.604702216858495,
+        "yaw": 61.129306751757184
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100010,
+      "name": "Man7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -108.55180604205889,
+        "y": -272.18740853965784,
+        "z": 28.525333496282865,
+        "yaw": 179.32572707311363
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100009,
+      "name": "Man6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -109.81080089122533,
+        "y": -278.18860700365013,
+        "z": 28.608298463030174,
+        "yaw": -29.396369135211017
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100074,
+      "name": "worker_f_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -105.9452986878797,
+        "y": -289.6065807063838,
+        "z": 28.612284575221814,
+        "yaw": 136.75905425645772
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200163,
+      "name": "fr-streetlight-2",
+      "ontology_class": "RoadsideFurniture",
+      "subtype": "fixed_roadside_object",
+      "generation_policy": "enabled_roadside_only",
+      "pose": {
+        "x": -132.78321084378243,
+        "y": -282.4198461628521,
+        "z": 28.592103314199704,
+        "yaw": 76.83824732454599
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100003,
+      "name": "RedBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -135.64638686327783,
+        "y": -296.44283229715876,
+        "z": 28.4656309773424,
+        "yaw": 59.029999112003196
+      }
+    }
+  ],
+  "environment_policy": "The same base scenario is captured in all six environment batches; weather/time are not embedded in this JSON.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "5f796c9ffdaf8dfb08557666046c2218e5939033487a37c12d90b4535638659d"
+  }
+}

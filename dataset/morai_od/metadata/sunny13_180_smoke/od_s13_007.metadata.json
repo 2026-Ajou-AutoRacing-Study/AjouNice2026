@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_007",
+  "scenario_stem": "od_s13_007",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080718007,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 84,
+    "arc_m": 41.9999612761817,
+    "curvature_deg": 0.22412576046423283,
+    "crosswalk_distance_m": 76.62016246297061,
+    "parking_distance_m": 4.903509871025147,
+    "stopline_distance_m": 30.62836072358452,
+    "branch_distance_m": 30.62836072358452
+  },
+  "ego": {
+    "x": -111.2576949348273,
+    "y": -391.63612424151614,
+    "z": 28.88328883286746,
+    "yaw": 61.020925443123275,
+    "link_idx": "A2256W000748",
+    "point_idx": 84
+  },
+  "counts": {
+    "npc": 0,
+    "pedestrian": 0,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100063,
+      "name": "Scooter_02",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -99.3842410632198,
+        "y": -391.804839255152,
+        "z": 28.568472038083332,
+        "yaw": 64.59869360113618
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100052,
+      "name": "Concrete_Barricade02",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -114.82714480925164,
+        "y": -387.78853000288007,
+        "z": 28.580063551749216,
+        "yaw": 55.53628552293702
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100060,
+      "name": "Bicycle_mountain",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -106.07295334853822,
+        "y": -409.8885650328389,
+        "z": 28.577508825296846,
+        "yaw": 78.3301481249332
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

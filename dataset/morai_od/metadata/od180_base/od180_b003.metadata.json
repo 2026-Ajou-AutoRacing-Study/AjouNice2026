@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_od180_v1",
+  "base_scenario_id": "base003",
+  "scenario_stem": "od180_b003",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 2608073003,
+  "anchor": {
+    "index": 3390,
+    "arc_m": 1744.2180394529266,
+    "curvature_deg": 0.00847212191933977,
+    "crosswalk_distance_m": 99.87187325282576,
+    "parking_distance_m": 159.10762657980328,
+    "stopline_distance_m": 100.59043161834178,
+    "branch_distance_m": 37.651768653740206
+  },
+  "ego": {
+    "x": 70.21902550136232,
+    "y": -368.24837946010786,
+    "z": 28.621011946148222,
+    "yaw": -89.78072206519406,
+    "link_idx": "A2256W000451",
+    "point_idx": 5
+  },
+  "counts": {
+    "npc": 6,
+    "pedestrian": 0,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200011,
+      "name": "DEFAULT_SUV",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 88.35513426389791,
+        "y": -380.6057549425769,
+        "z": 28.641436152703786,
+        "yaw": 90.24492887805826
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100003,
+      "name": "2016_Hyundai_Sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 84.6987199080588,
+        "y": -355.41744943539544,
+        "z": 28.64040520601508,
+        "yaw": 90.29387485145662
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30400005,
+      "name": "2014_Hyundai_Xcient(Mixer)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.64541426342561,
+        "y": -373.7311043507958,
+        "z": 28.86916631311863,
+        "yaw": -89.27579643764838
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200012,
+      "name": "2021_Hyundai_GV70",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.57767709345666,
+        "y": -359.324287151516,
+        "z": 28.751912474270487,
+        "yaw": -89.14236297100867
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100007,
+      "name": "2016_Hyundai_Ioniq",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 70.19177359010602,
+        "y": -361.11361271740714,
+        "z": 28.674239327980786,
+        "yaw": -89.55078953725813
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30200007,
+      "name": "2021_Hyundai_Genesis_GV80",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 56.078897378258084,
+        "y": -366.2701855989008,
+        "z": 28.667217514112426,
+        "yaw": -113.35474933989423
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100029,
+      "name": "PE_Firewall_White",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 50.64151933800973,
+        "y": -378.2410679057436,
+        "z": 28.336746734052166,
+        "yaw": -89.75432143999339
+      }
+    }
+  ],
+  "environment_policy": "The same base scenario is captured in all six environment batches; weather/time are not embedded in this JSON.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "5f796c9ffdaf8dfb08557666046c2218e5939033487a37c12d90b4535638659d"
+  }
+}
