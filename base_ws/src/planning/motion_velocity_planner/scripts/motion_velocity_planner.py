@@ -27,6 +27,25 @@ from mvp_utils import (
 )
 
 
+class CachedObjectProjection:
+    __slots__ = (
+        "obj",
+        "projection",
+        "ahead_of_ego",
+        "speed",
+        "hard_stop",
+        "dynamic",
+    )
+
+    def __init__(self, obj, projection, ahead_of_ego, speed, hard_stop, dynamic):
+        self.obj = obj
+        self.projection = projection
+        self.ahead_of_ego = ahead_of_ego
+        self.speed = speed
+        self.hard_stop = hard_stop
+        self.dynamic = dynamic
+
+
 class MotionVelocityPlanner:
     def __init__(self):
         self.frame_id = rospy.get_param("~frame_id", "map")
@@ -318,16 +337,57 @@ class MotionVelocityPlanner:
             return None
         return proj
 
-    def closest_obstacle_distance(self, point_s, hard_stop_only=False):
-        if not self.objects or len(self.objects.objects) == 0 or self.trajectory is None:
+    def build_object_projection_cache(self, trajectory, objects, odometry):
+        if trajectory is None or objects is None or len(objects.objects) == 0:
+            return []
+
+        ego_projection = None
+        if odometry is not None:
+            ego_projection = project_pose_to_path(
+                trajectory,
+                odometry.pose.pose,
+                yaw_threshold=self.delta_yaw_threshold,
+            )
+            if ego_projection is None:
+                ego_projection = project_pose_to_path(trajectory, odometry.pose.pose)
+
+        cache = []
+        for obj in objects.objects:
+            projection = project_pose_to_path(trajectory, object_pose(obj))
+            if projection is None:
+                continue
+            cache.append(
+                CachedObjectProjection(
+                    obj=obj,
+                    projection=projection,
+                    ahead_of_ego=(
+                        ego_projection is None
+                        or projection.longitudinal_distance
+                        >= ego_projection.longitudinal_distance
+                    ),
+                    speed=object_speed(obj),
+                    hard_stop=self.is_hard_stop_distance_object(obj),
+                    dynamic=self.is_dynamic_object(obj),
+                )
+            )
+        return cache
+
+    def closest_obstacle_distance(
+        self, point_s, hard_stop_only=False, object_projection_cache=None
+    ):
+        if object_projection_cache is None:
+            object_projection_cache = self.build_object_projection_cache(
+                self.trajectory, self.objects, self.odometry
+            )
+        if not object_projection_cache:
             return float('inf')
 
         dmin = float('inf')
-        for obj in self.objects.objects:
-            if hard_stop_only and not self.is_hard_stop_distance_object(obj):
+        for cached in object_projection_cache:
+            if hard_stop_only and not cached.hard_stop:
                 continue
 
-            proj = project_pose_to_path(self.trajectory, object_pose(obj))
+            proj = cached.projection
             if proj is None or proj.distance > self.max_lateral_distance:
                 continue
             delta = proj.longitudinal_distance - point_s
@@ -336,14 +396,18 @@ class MotionVelocityPlanner:
             dmin = min(dmin, delta)
         return dmin
 
-    def obstacle_info(self, point_s):
-        if not self.objects or len(self.objects.objects) == 0 or self.trajectory is None:
+    def obstacle_info(self, point_s, object_projection_cache=None):
+        if object_projection_cache is None:
+            object_projection_cache = self.build_object_projection_cache(
+                self.trajectory, self.objects, self.odometry
+            )
+        if not object_projection_cache:
             return float('inf'), float('inf')
 
         min_distance = float('inf')
         min_ttc = float('inf')
-        for obj in self.objects.objects:
-            proj = project_pose_to_path(self.trajectory, object_pose(obj))
+        for cached in object_projection_cache:
+            proj = cached.projection
             if proj is None or proj.distance > self.max_lateral_distance:
                 continue
 
@@ -358,8 +422,7 @@ class MotionVelocityPlanner:
                     self.odometry.twist.twist.linear.y,
                 )
             ego_speed = max(ego_speed, 0.1)
-            obj_speed = object_speed(obj)
-            relative_speed = max(ego_speed - obj_speed, 0.1)
+            relative_speed = max(ego_speed - cached.speed, 0.1)
             ttc = distance / relative_speed
             min_distance = min(min_distance, distance)
             min_ttc = min(min_ttc, ttc)
@@ -373,19 +436,25 @@ class MotionVelocityPlanner:
             if current_velocity > 0.0:
                 set_point_velocity(point, min(current_velocity, target_velocity))
 
-    def apply_stop(self, out, distances):
-        if self.objects is None:
-            return
-
+    def apply_stop(self, out, distances, object_projection_cache=None):
         stop_lines = []
-        for obj in self.objects.objects:
-            if not self.is_hard_stop_distance_object(obj):
+        if object_projection_cache is None:
+            object_projection_cache = self.build_object_projection_cache(
+                self.trajectory, self.objects, self.odometry
+            )
+        for cached in object_projection_cache:
+            if not cached.hard_stop:
                 continue
 
-            proj = self.stop_object_projection(obj)
-            if proj is not None:
-                stop_distance = self.speed_based_stop_distance(self.stop_distance, obj)
-                stop_lines.append(max(0.0, proj.longitudinal_distance - stop_distance))
+            proj = cached.projection
+            if (
+                proj.longitudinal_distance < 0.0
+                or proj.distance > self.max_lateral_distance
+                or not cached.ahead_of_ego
+            ):
+                continue
+            stop_distance = self.speed_based_stop_distance(self.stop_distance, cached.obj)
+            stop_lines.append(max(0.0, proj.longitudinal_distance - stop_distance))
 
         if not stop_lines:
             return
@@ -401,19 +470,26 @@ class MotionVelocityPlanner:
                     target_velocity = min(target_velocity, self.min_stop_velocity)
             set_point_velocity(point, min(point_velocity(point), target_velocity))
 
-    def apply_dynamic_stop(self, out, distances):
-        if self.objects is None:
-            return
-
+    def apply_dynamic_stop(self, out, distances, object_projection_cache=None):
         stop_lines = []
-        for obj in self.objects.objects:
-            proj = self.dynamic_object_projection(obj)
-            if proj is None or not self.should_dynamic_stop_object(obj, proj):
+        if object_projection_cache is None:
+            object_projection_cache = self.build_object_projection_cache(
+                self.trajectory, self.objects, self.odometry
+            )
+        for cached in object_projection_cache:
+            proj = cached.projection
+            if (
+                not cached.dynamic
+                or proj.longitudinal_distance < 0.0
+                or proj.distance > self.max_lateral_distance
+                or not cached.ahead_of_ego
+                or not self.should_dynamic_stop_object(cached.obj, proj)
+            ):
                 continue
 
             stop_distance = self.speed_based_stop_distance(
                 self.dynamic_stop_distance,
-                obj,
+                cached.obj,
                 dynamic=True,
             )
             stop_lines.append(max(0.0, proj.longitudinal_distance - stop_distance))
@@ -432,11 +508,19 @@ class MotionVelocityPlanner:
                     target_velocity = min(target_velocity, self.min_stop_velocity)
             set_point_velocity(point, min(point_velocity(point), target_velocity))
 
-    def apply_slowdown(self, out, distances):
+    def apply_slowdown(self, out, distances, object_projection_cache=None):
+        if object_projection_cache is None:
+            object_projection_cache = self.build_object_projection_cache(
+                self.trajectory, self.objects, self.odometry
+            )
         stop_slow_distance = self.speed_based_stop_distance(self.stop_slow_distance)
         slowdown_distance = max(self.slowdown_distance, stop_slow_distance + 1.0)
         for point, station in zip(out.points, distances):
-            d = self.closest_obstacle_distance(station, hard_stop_only=True)
+            d = self.closest_obstacle_distance(
+                station,
+                hard_stop_only=True,
+                object_projection_cache=object_projection_cache,
+            )
             if d <= 0.0:
                 target_velocity = 0.0
             elif d <= slowdown_distance:
@@ -453,14 +537,22 @@ class MotionVelocityPlanner:
                 target_velocity = point_velocity(point)
             set_point_velocity(point, min(point_velocity(point), target_velocity))
 
-    def apply_cruise(self, out, distances):
+    def apply_cruise(self, out, distances, object_projection_cache=None):
+        if object_projection_cache is None:
+            object_projection_cache = self.build_object_projection_cache(
+                self.trajectory, self.objects, self.odometry
+            )
         for point, station in zip(out.points, distances):
             base_vel = self.cruise_speed
             current_velocity = point_velocity(point)
             if current_velocity > 0.0:
                 base_vel = min(base_vel, current_velocity)
 
-            d = self.closest_obstacle_distance(station, hard_stop_only=True)
+            d = self.closest_obstacle_distance(
+                station,
+                hard_stop_only=True,
+                object_projection_cache=object_projection_cache,
+            )
             if d <= 0.0:
                 target_velocity = 0.0
             elif d <= self.safe_distance:
@@ -471,10 +563,16 @@ class MotionVelocityPlanner:
 
             set_point_velocity(point, min(point_velocity(point), target_velocity))
 
-    def apply_ttc_limit(self, out, distances):
+    def apply_ttc_limit(self, out, distances, object_projection_cache=None):
+        if object_projection_cache is None:
+            object_projection_cache = self.build_object_projection_cache(
+                self.trajectory, self.objects, self.odometry
+            )
         for point, station in zip(out.points, distances):
             current_velocity = point_velocity(point)
-            distance, ttc = self.obstacle_info(station)
+            distance, ttc = self.obstacle_info(
+                station, object_projection_cache=object_projection_cache
+            )
             if distance <= 0.0 or ttc <= 0.0:
                 target_velocity = 0.0
             elif ttc < self.min_ttc:
@@ -493,22 +591,34 @@ class MotionVelocityPlanner:
             )
             return
 
-        out = deepcopy(self.trajectory)
+        trajectory = self.trajectory
+        objects = self.objects
+        odometry = self.odometry
+        out = deepcopy(trajectory)
         self.apply_base_velocity(out)
         distances = path_cumulative_lengths(out)
-        self.apply_stop(out, distances)
-        self.apply_dynamic_stop(out, distances)
-        self.apply_slowdown(out, distances)
-        self.apply_cruise(out, distances)
-        self.apply_ttc_limit(out, distances)
-        if self.odometry is not None:
+        object_projection_cache = self.build_object_projection_cache(
+            trajectory, objects, odometry
+        )
+        self.apply_stop(out, distances, object_projection_cache)
+        self.apply_dynamic_stop(out, distances, object_projection_cache)
+        self.apply_slowdown(out, distances, object_projection_cache)
+        self.apply_cruise(out, distances, object_projection_cache)
+        self.apply_ttc_limit(out, distances, object_projection_cache)
+        if odometry is not None:
             out = crop_trajectory_around_ego(
                 out,
-                self.odometry.pose.pose,
+                odometry.pose.pose,
                 forward_length=self.extract_ahead_dist,
                 backward_length=self.extract_behind_dist,
                 yaw_threshold=self.delta_yaw_threshold,
             )
+        if self.trajectory is not trajectory:
+            rospy.logwarn_throttle(
+                1.0,
+                "motion_velocity_planner: discarding stale result because a newer trajectory arrived",
+            )
+            return
         rospy.loginfo_throttle(
             5.0,
             "motion_velocity_planner: publishing trajectory with %d points",

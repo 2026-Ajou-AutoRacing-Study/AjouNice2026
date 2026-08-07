@@ -6,6 +6,7 @@ keeps trajectory geometry and updates longitudinal velocity and acceleration.
 """
 
 from dataclasses import dataclass
+import bisect
 import math
 
 
@@ -21,6 +22,8 @@ class SmootherParameters:
     max_deceleration_mps2: float = 2.5
     max_jerk_mps3: float = 1.0
     max_deceleration_jerk_mps3: float = 1.5
+    limit_max_deceleration_mps2: float = 2.5
+    limit_max_deceleration_jerk_mps3: float = 1.5
     min_velocity_for_time_calculation_mps: float = 1.0
     stop_velocity_threshold_mps: float = 0.01
 
@@ -33,6 +36,30 @@ class VelocityProfile:
     accelerations: tuple
     deceleration_target_indices: tuple
     velocity_cap_clamp_count: int
+    deceleration_mode: str
+    stop_feasible: bool
+    stop_velocity_before_overwrite_mps: float
+
+
+@dataclass(frozen=True)
+class ProjectedMotionState:
+    """Velocity and acceleration interpolated at a position on a trajectory."""
+
+    velocity_mps: float
+    acceleration_mps2: float
+    distance_m: float
+    segment_index: int
+    segment_ratio: float
+
+
+@dataclass(frozen=True)
+class ResampledProfileInput:
+    """Dense geometry and caps plus station mappings back to the input path."""
+
+    positions: tuple
+    velocity_caps: tuple
+    stations: tuple
+    input_stations: tuple
 
 
 @dataclass(frozen=True)
@@ -160,6 +187,147 @@ def nearest_index_2d(positions, target_position):
             best_index = index
             best_distance_squared = distance_squared
     return best_index, math.sqrt(best_distance_squared)
+
+
+def project_motion_state(
+    positions,
+    velocities,
+    accelerations,
+    target_position,
+):
+    """Project a position onto a trajectory and interpolate its motion state."""
+    if not positions:
+        return None
+    if len(positions) != len(velocities) or len(positions) != len(accelerations):
+        raise ValueError("positions, velocities, and accelerations must have the same length")
+
+    target_x = float(target_position[0])
+    target_y = float(target_position[1])
+    if len(positions) == 1:
+        dx = float(positions[0][0]) - target_x
+        dy = float(positions[0][1]) - target_y
+        return ProjectedMotionState(
+            float(velocities[0]),
+            float(accelerations[0]),
+            math.hypot(dx, dy),
+            0,
+            0.0,
+        )
+
+    best = None
+    for index, (first, second) in enumerate(zip(positions[:-1], positions[1:])):
+        first_x = float(first[0])
+        first_y = float(first[1])
+        segment_x = float(second[0]) - first_x
+        segment_y = float(second[1]) - first_y
+        length_squared = segment_x * segment_x + segment_y * segment_y
+        if length_squared <= EPSILON * EPSILON:
+            ratio = 0.0
+        else:
+            ratio = clamp(
+                ((target_x - first_x) * segment_x + (target_y - first_y) * segment_y)
+                / length_squared,
+                0.0,
+                1.0,
+            )
+        projected_x = first_x + ratio * segment_x
+        projected_y = first_y + ratio * segment_y
+        distance = math.hypot(projected_x - target_x, projected_y - target_y)
+        if best is not None and distance >= best.distance_m:
+            continue
+        velocity = float(velocities[index]) + ratio * (
+            float(velocities[index + 1]) - float(velocities[index])
+        )
+        acceleration = float(accelerations[index]) + ratio * (
+            float(accelerations[index + 1]) - float(accelerations[index])
+        )
+        best = ProjectedMotionState(
+            velocity,
+            acceleration,
+            distance,
+            index,
+            ratio,
+        )
+    return best
+
+
+def _interpolate_scalar_at_station(source_stations, values, station):
+    if not source_stations:
+        raise ValueError("source_stations must not be empty")
+    if len(source_stations) != len(values):
+        raise ValueError("source_stations and values must have the same length")
+    station = clamp(float(station), source_stations[0], source_stations[-1])
+    upper = bisect.bisect_right(source_stations, station)
+    if upper <= 0:
+        return float(values[0])
+    if upper >= len(source_stations):
+        return float(values[-1])
+    lower = upper - 1
+    distance = source_stations[upper] - source_stations[lower]
+    if distance <= EPSILON:
+        return float(values[upper])
+    ratio = (station - source_stations[lower]) / distance
+    return float(values[lower]) + ratio * (float(values[upper]) - float(values[lower]))
+
+
+def interpolate_values_at_stations(source_stations, values, target_stations):
+    """Interpolate scalar profile values onto another station sequence."""
+    return tuple(
+        _interpolate_scalar_at_station(source_stations, values, station)
+        for station in target_stations
+    )
+
+
+def resample_profile_inputs(positions, velocity_caps, interval_m):
+    """Densify path geometry and speed caps while retaining every input station."""
+    if len(positions) != len(velocity_caps):
+        raise ValueError("positions and velocity_caps must have the same length")
+    if not positions:
+        return ResampledProfileInput((), (), (), ())
+
+    input_stations = tuple(cumulative_lengths(positions))
+    total_length = input_stations[-1]
+    interval = max(float(interval_m), EPSILON)
+    if len(positions) == 1 or total_length <= EPSILON:
+        return ResampledProfileInput(
+            tuple(positions),
+            tuple(float(value) for value in velocity_caps),
+            input_stations,
+            input_stations,
+        )
+
+    stations = list(input_stations)
+    uniform_count = int(math.floor(total_length / interval))
+    stations.extend(index * interval for index in range(uniform_count + 1))
+    stations.append(total_length)
+    stations.sort()
+    unique_stations = []
+    for station in stations:
+        if unique_stations and abs(station - unique_stations[-1]) <= EPSILON:
+            continue
+        unique_stations.append(station)
+
+    x_values = [float(position[0]) for position in positions]
+    y_values = [float(position[1]) for position in positions]
+    z_values = [float(position[2]) for position in positions]
+    resampled_positions = tuple(
+        (
+            _interpolate_scalar_at_station(input_stations, x_values, station),
+            _interpolate_scalar_at_station(input_stations, y_values, station),
+            _interpolate_scalar_at_station(input_stations, z_values, station),
+        )
+        for station in unique_stations
+    )
+    resampled_caps = tuple(
+        _interpolate_scalar_at_station(input_stations, velocity_caps, station)
+        for station in unique_stations
+    )
+    return ResampledProfileInput(
+        resampled_positions,
+        resampled_caps,
+        tuple(unique_stations),
+        input_stations,
+    )
 
 
 def select_initial_state(
@@ -507,68 +675,39 @@ def _sanitize_velocity_caps(velocity_caps, parameters):
 
 
 def _deceleration_target_indices(velocity_caps):
-    return tuple(
-        index
-        for index in range(1, len(velocity_caps))
-        if velocity_caps[index] + EPSILON < velocity_caps[index - 1]
-    )
+    targets = []
+    for index in range(1, len(velocity_caps)):
+        is_decreasing = velocity_caps[index] + EPSILON < velocity_caps[index - 1]
+        is_end_of_decrease = (
+            index == len(velocity_caps) - 1
+            or velocity_caps[index + 1] + EPSILON >= velocity_caps[index]
+        )
+        if is_decreasing and is_end_of_decrease:
+            targets.append(index)
+    return tuple(targets)
 
 
-def apply_backward_deceleration_limits(velocity_caps, arc_lengths, parameters):
-    """Sample a physical S-curve before every lower speed cap."""
+def apply_backward_deceleration_limits(
+    velocity_caps,
+    arc_lengths,
+    max_deceleration_mps2,
+    max_deceleration_jerk_mps3,
+):
+    """Build the maximum jerk-constrained speed envelope before lower caps."""
     filtered = list(velocity_caps)
     target_indices = _deceleration_target_indices(velocity_caps)
     for target_index in reversed(target_indices):
         target_velocity = filtered[target_index]
-        start_index = None
-        curve = None
-
         for index in range(target_index - 1, -1, -1):
-            initial_velocity = filtered[index]
-            if initial_velocity <= target_velocity + EPSILON:
-                continue
-            candidate_curve = _make_deceleration_curve(
-                initial_velocity,
-                target_velocity,
-                parameters.max_deceleration_mps2,
-                parameters.max_deceleration_jerk_mps3,
-            )
             available_distance = arc_lengths[target_index] - arc_lengths[index]
-            if candidate_curve.total_distance <= available_distance + EPSILON:
-                start_index = index
-                curve = candidate_curve
-                break
-
-        if start_index is None:
-            # Preserve an infeasibly close stop cap and brake from the first point.
-            start_index = 0
-            curve = _make_deceleration_curve(
-                filtered[start_index],
-                target_velocity,
-                parameters.max_deceleration_mps2,
-                parameters.max_deceleration_jerk_mps3,
-            )
-
-        available_distance = arc_lengths[target_index] - arc_lengths[start_index]
-        if curve.total_distance <= available_distance + EPSILON:
-            curve = _make_deceleration_curve_for_distance(
-                filtered[start_index],
-                target_velocity,
+            feasible_velocity = maximum_velocity_for_distance(
                 available_distance,
-                parameters.max_deceleration_mps2,
-                parameters.max_deceleration_jerk_mps3,
+                target_velocity,
+                filtered[index],
+                max_deceleration_mps2,
+                max_deceleration_jerk_mps3,
             )
-
-        start_station = arc_lengths[start_index]
-        for index in range(start_index + 1, target_index + 1):
-            travelled_distance = arc_lengths[index] - start_station
-            if travelled_distance >= curve.total_distance - EPSILON:
-                planned_velocity = target_velocity
-            else:
-                _distance, planned_velocity, _acceleration = curve.state_at_distance(
-                    travelled_distance
-                )
-            filtered[index] = min(filtered[index], planned_velocity)
+            filtered[index] = min(filtered[index], feasible_velocity)
     return filtered, target_indices
 
 
@@ -679,33 +818,77 @@ def smooth_velocity_profile(
     if len(caps) != len(positions):
         raise ValueError("positions and velocity_caps must have the same length")
     if not caps:
-        return VelocityProfile((), (), (), 0)
+        return VelocityProfile((), (), (), 0, "normal", True, 0.0)
     if len(caps) == 1:
-        return VelocityProfile((caps[0],), (0.0,), (), 0)
-
-    arc_lengths = cumulative_lengths(positions)
-    backward_caps, target_indices = apply_backward_deceleration_limits(
-        caps,
-        arc_lengths,
-        parameters,
-    )
-
-    if initial_velocity_mps is None or not math.isfinite(float(initial_velocity_mps)):
-        initial_velocity = backward_caps[0]
-    else:
-        initial_velocity = clamp(
-            float(initial_velocity_mps),
-            0.0,
-            backward_caps[0],
+        stop_threshold = max(float(parameters.stop_velocity_threshold_mps), 0.0)
+        is_stop = caps[0] <= stop_threshold
+        return VelocityProfile(
+            (0.0 if is_stop else caps[0],),
+            (0.0,),
+            (),
+            0,
+            "normal",
+            True,
+            caps[0] if is_stop else 0.0,
         )
 
-    max_acceleration = max(float(parameters.max_acceleration_mps2), EPSILON)
-    max_deceleration = max(float(parameters.max_deceleration_mps2), EPSILON)
-    max_jerk = max(float(parameters.max_jerk_mps3), EPSILON)
-    max_deceleration_jerk = max(
+    arc_lengths = cumulative_lengths(positions)
+    if initial_velocity_mps is None or not math.isfinite(float(initial_velocity_mps)):
+        requested_initial_velocity = caps[0]
+    else:
+        requested_initial_velocity = max(float(initial_velocity_mps), 0.0)
+
+    normal_max_deceleration = max(
+        float(parameters.max_deceleration_mps2),
+        EPSILON,
+    )
+    normal_max_deceleration_jerk = max(
         float(parameters.max_deceleration_jerk_mps3),
         EPSILON,
     )
+    limit_max_deceleration = max(
+        float(parameters.limit_max_deceleration_mps2),
+        normal_max_deceleration,
+    )
+    limit_max_deceleration_jerk = max(
+        float(parameters.limit_max_deceleration_jerk_mps3),
+        normal_max_deceleration_jerk,
+    )
+
+    normal_backward_caps, target_indices = apply_backward_deceleration_limits(
+        caps,
+        arc_lengths,
+        normal_max_deceleration,
+        normal_max_deceleration_jerk,
+    )
+    needs_limit = bool(target_indices) and (
+        requested_initial_velocity > normal_backward_caps[0] + EPSILON
+    )
+    if needs_limit:
+        limit_backward_caps, _unused_target_indices = apply_backward_deceleration_limits(
+            caps,
+            arc_lengths,
+            limit_max_deceleration,
+            limit_max_deceleration_jerk,
+        )
+        target_feasible = requested_initial_velocity <= limit_backward_caps[0] + EPSILON
+        deceleration_mode = "limit" if target_feasible else "infeasible"
+        backward_caps = limit_backward_caps
+        selected_max_deceleration = limit_max_deceleration
+        selected_max_deceleration_jerk = limit_max_deceleration_jerk
+    else:
+        target_feasible = True
+        deceleration_mode = "normal"
+        backward_caps = normal_backward_caps
+        selected_max_deceleration = normal_max_deceleration
+        selected_max_deceleration_jerk = normal_max_deceleration_jerk
+
+    initial_velocity = clamp(requested_initial_velocity, 0.0, backward_caps[0])
+
+    max_acceleration = max(float(parameters.max_acceleration_mps2), EPSILON)
+    max_deceleration = selected_max_deceleration
+    max_jerk = max(float(parameters.max_jerk_mps3), EPSILON)
+    max_deceleration_jerk = selected_max_deceleration_jerk
     velocity = [0.0] * len(caps)
     velocity[0] = initial_velocity
     acceleration = clamp(
@@ -716,6 +899,15 @@ def smooth_velocity_profile(
         max_acceleration,
     )
     velocity_cap_clamp_count = 0
+    stop_threshold = max(float(parameters.stop_velocity_threshold_mps), 0.0)
+    stop_index = next(
+        (index for index, cap in enumerate(caps) if cap <= stop_threshold),
+        None,
+    )
+    stop_feasible = target_feasible if stop_index is not None else True
+    stop_velocity_before_overwrite = (
+        requested_initial_velocity if stop_index == 0 else 0.0
+    )
 
     for index in range(len(caps) - 1):
         distance = arc_lengths[index + 1] - arc_lengths[index]
@@ -746,6 +938,8 @@ def smooth_velocity_profile(
             + 0.5 * jerk * duration * duration,
             0.0,
         )
+        if stop_index is not None and index + 1 == stop_index:
+            stop_velocity_before_overwrite = predicted_velocity
 
         if predicted_velocity > cap + EPSILON:
             velocity[index + 1] = cap
@@ -757,7 +951,6 @@ def smooth_velocity_profile(
             velocity[index + 1] = predicted_velocity
             acceleration = next_acceleration
 
-    stop_threshold = max(float(parameters.stop_velocity_threshold_mps), 0.0)
     for index, cap in enumerate(caps):
         if cap <= stop_threshold:
             velocity[index] = 0.0
@@ -768,4 +961,7 @@ def smooth_velocity_profile(
         tuple(accelerations),
         target_indices,
         velocity_cap_clamp_count,
+        deceleration_mode,
+        stop_feasible,
+        stop_velocity_before_overwrite,
     )

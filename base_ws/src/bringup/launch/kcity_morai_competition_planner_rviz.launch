@@ -31,6 +31,8 @@
   <arg name="software_rendering" default="1" />
   <arg name="enable_planner_csv_logger" default="true" />
   <arg name="planner_csv_output_dir" default="" />
+  <arg name="enable_planner_bag_recorder" default="true" />
+  <arg name="planner_bag_output_dir" default="/home/ajou/planner_bags" />
 
   <include file="$(find mission_planner)/launch/mission_planner.launch">
     <arg name="frame_id" value="$(arg frame_id)" />
@@ -64,6 +66,14 @@
       <arg name="output_dir" value="$(arg planner_csv_output_dir)" />
       <arg name="rate_hz" value="$(arg planning_hz)" />
       <arg name="auto_start" value="false" />
+    </include>
+  </group>
+
+  <group if="$(arg enable_planner_bag_recorder)">
+    <include file="$(find behavior_velocity_planner)/launch/planner_bag_recorder.launch">
+      <arg name="output_dir" value="$(arg planner_bag_output_dir)" />
+      <arg name="filename_prefix" value="stopline_debug" />
+      <arg name="compression" value="lz4" />
     </include>
   </group>
 

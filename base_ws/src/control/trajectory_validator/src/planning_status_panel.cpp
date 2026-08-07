@@ -455,7 +455,7 @@ PlanningStatusPanel::PlanningStatusPanel(QWidget * parent) : rviz::Panel(parent)
   rate_row->addWidget(
     makeStatusGroup("Input", "KINEMATIC", &kinematic_rate_label_));
   rate_row->addWidget(
-    makeStatusGroup("Output", "TRAJECTORY", &trajectory_rate_label_));
+    makeStatusGroup("Output", "MVP RAW TRAJECTORY", &trajectory_rate_label_));
   layout->addLayout(rate_row);
   auto * speed_row = new QHBoxLayout();
   speed_row->setSpacing(8);
@@ -478,6 +478,10 @@ PlanningStatusPanel::PlanningStatusPanel(QWidget * parent) : rviz::Panel(parent)
   kinematic_subscriber_ = node_handle_.subscribe(
     "/localization/kinematic_state", 20,
     &PlanningStatusPanel::kinematicCallback, this);
+  mvp_raw_trajectory_subscriber_ = node_handle_.subscribe(
+    "/planning/scenario_planning/lane_driving/motion_planning/"
+    "motion_velocity_planner/raw_trajectory",
+    20, &PlanningStatusPanel::mvpRawTrajectoryCallback, this);
   trajectory_subscriber_ = node_handle_.subscribe(
     "/control/trajectory",
     20, &PlanningStatusPanel::trajectoryCallback, this);
@@ -530,11 +534,18 @@ void PlanningStatusPanel::kinematicCallback(
   updateTrajectorySpeed();
 }
 
+void PlanningStatusPanel::mvpRawTrajectoryCallback(
+  const autoware_planning_msgs::Trajectory::ConstPtr &)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  mvp_raw_trajectory_rate_.record(ros::WallTime::now());
+}
+
 void PlanningStatusPanel::trajectoryCallback(
   const autoware_planning_msgs::Trajectory::ConstPtr & message)
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  trajectory_rate_.record(ros::WallTime::now());
+  control_trajectory_rate_.record(ros::WallTime::now());
   latest_trajectory_ = *message;
   updateTrajectorySpeed();
 }
@@ -748,7 +759,7 @@ void PlanningStatusPanel::refreshPanel()
     setStatusLabel(label, QString("%1 Hz").arg(rate, 0, 'f', 1), "good");
   };
   update_rate(kinematic_rate_label_, kinematic_rate_);
-  update_rate(trajectory_rate_label_, trajectory_rate_);
+  update_rate(trajectory_rate_label_, mvp_raw_trajectory_rate_);
   if (kinematic_rate_.isFresh(now, kSignalTimeoutSec)) {
     setStatusLabel(
       vehicle_speed_label_,
@@ -758,7 +769,7 @@ void PlanningStatusPanel::refreshPanel()
     setStatusLabel(vehicle_speed_label_, "NO SIGNAL", "error");
   }
   if (kinematic_rate_.isFresh(now, kSignalTimeoutSec) &&
-      trajectory_rate_.isFresh(now, kSignalTimeoutSec) &&
+      control_trajectory_rate_.isFresh(now, kSignalTimeoutSec) &&
       trajectory_speed_received_) {
     setStatusLabel(
       trajectory_speed_label_,

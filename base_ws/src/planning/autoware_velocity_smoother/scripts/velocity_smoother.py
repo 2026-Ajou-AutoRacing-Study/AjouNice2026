@@ -16,7 +16,9 @@ from autoware_velocity_smoother.analytical_jerk_constrained import (
     apply_lateral_acceleration_limits,
     apply_engage_velocity_floor,
     cumulative_lengths,
-    nearest_index_2d,
+    interpolate_values_at_stations,
+    project_motion_state,
+    resample_profile_inputs,
     select_initial_state,
     smooth_velocity_profile,
 )
@@ -30,7 +32,7 @@ class VelocitySmootherNode:
             0.0,
         )
         self.replan_velocity_deviation = max(
-            float(rospy.get_param("~replan_velocity_deviation_mps", 5.53)),
+            float(rospy.get_param("~replan_velocity_deviation_mps", 0.5)),
             0.0,
         )
         self.previous_state_max_distance = max(
@@ -67,6 +69,24 @@ class VelocitySmootherNode:
                 float(rospy.get_param("~backward/max_jerk_mps3", 1.5)),
                 0.01,
             ),
+            limit_max_deceleration_mps2=max(
+                float(
+                    rospy.get_param(
+                        "~backward/limit_max_deceleration_mps2",
+                        2.5,
+                    )
+                ),
+                0.01,
+            ),
+            limit_max_deceleration_jerk_mps3=max(
+                float(
+                    rospy.get_param(
+                        "~backward/limit_max_jerk_mps3",
+                        1.5,
+                    )
+                ),
+                0.01,
+            ),
             min_velocity_for_time_calculation_mps=max(
                 float(
                     rospy.get_param(
@@ -80,6 +100,19 @@ class VelocitySmootherNode:
                 float(rospy.get_param("~stop_velocity_threshold_mps", 0.01)),
                 0.0,
             ),
+        )
+        self.resample_interval = max(
+            float(rospy.get_param("~resample/interval_m", 0.1)),
+            0.01,
+        )
+        self.stop_velocity_warn_threshold = max(
+            float(
+                rospy.get_param(
+                    "~debug/stop_velocity_warn_threshold_mps",
+                    0.3,
+                )
+            ),
+            0.0,
         )
         self.enable_lateral_acceleration_limit = bool(
             rospy.get_param("~curve/enable_lateral_acceleration_limit", True)
@@ -216,14 +249,24 @@ class VelocitySmootherNode:
         if current_position is None:
             return None, None, None
         positions = self.positions_from_trajectory(self.previous_output)
-        index, distance = nearest_index_2d(positions, current_position)
-        if index < 0 or distance > self.previous_state_max_distance:
-            return None, None, distance
-        point = self.previous_output.points[index]
+        velocities = self.velocities_from_trajectory(self.previous_output)
+        accelerations = [
+            float(point.acceleration_mps2) for point in self.previous_output.points
+        ]
+        state = project_motion_state(
+            positions,
+            velocities,
+            accelerations,
+            current_position,
+        )
+        if state is None:
+            return None, None, None
+        if state.distance_m > self.previous_state_max_distance:
+            return None, None, state.distance_m
         return (
-            float(point.longitudinal_velocity_mps),
-            float(point.acceleration_mps2),
-            distance,
+            state.velocity_mps,
+            state.acceleration_mps2,
+            state.distance_m,
         )
 
     def publish_status(self, text):
@@ -275,16 +318,31 @@ class VelocitySmootherNode:
                 self.parameters.max_deceleration_jerk_mps3,
                 initial_state.velocity_mps,
             )
-        profile = smooth_velocity_profile(
+        resampled = resample_profile_inputs(
             positions,
             velocity_caps,
+            self.resample_interval,
+        )
+        dense_profile = smooth_velocity_profile(
+            resampled.positions,
+            resampled.velocity_caps,
             initial_velocity_mps=initial_state.velocity_mps,
             initial_acceleration_mps2=initial_state.acceleration_mps2,
             parameters=self.parameters,
         )
+        profile_velocities = interpolate_values_at_stations(
+            resampled.stations,
+            dense_profile.velocities,
+            resampled.input_stations,
+        )
+        profile_accelerations = interpolate_values_at_stations(
+            resampled.stations,
+            dense_profile.accelerations,
+            resampled.input_stations,
+        )
         velocities, engaged = apply_engage_velocity_floor(
             positions,
-            profile.velocities,
+            profile_velocities,
             velocity_caps,
             current_velocity,
             self.engage_velocity,
@@ -298,7 +356,7 @@ class VelocitySmootherNode:
                 cumulative_lengths(positions),
             )
             if engaged
-            else profile.accelerations
+            else profile_accelerations
         )
 
         output = deepcopy(raw)
@@ -315,19 +373,38 @@ class VelocitySmootherNode:
         self.output_pub.publish(output)
         self.closest_velocity_pub.publish(Float32(data=velocities[0]))
         self.closest_acceleration_pub.publish(Float32(data=accelerations[0]))
+        if (
+            dense_profile.deceleration_mode == "infeasible"
+            or not dense_profile.stop_feasible
+            or dense_profile.stop_velocity_before_overwrite_mps
+            > self.stop_velocity_warn_threshold
+        ):
+            rospy.logwarn_throttle(
+                1.0,
+                "velocity_smoother deceleration profile: mode=%s stop_feasible=%s "
+                "velocity_before_zero=%.3f m/s",
+                dense_profile.deceleration_mode,
+                dense_profile.stop_feasible,
+                dense_profile.stop_velocity_before_overwrite_mps,
+            )
         self.publish_status(
-            "velocity_smoother: points={} targets={} curve_caps={} cap_clamps={} "
-            "init={} prev_dist={} engaged={} ego_speed_mps={}".format(
+            "velocity_smoother: points={}/{} targets={} curve_caps={} cap_clamps={} "
+            "init={} prev_dist={} engaged={} ego_speed_mps={} decel_mode={} "
+            "stop_feasible={} stop_pre_zero_mps={:.3f}".format(
                 len(output.points),
-                len(profile.deceleration_target_indices),
+                len(resampled.positions),
+                len(dense_profile.deceleration_target_indices),
                 curve_cap_count,
-                profile.velocity_cap_clamp_count,
+                dense_profile.velocity_cap_clamp_count,
                 initial_state.source,
                 "n/a"
                 if previous_distance is None
                 else "{:.2f}".format(previous_distance),
                 engaged,
                 "n/a" if current_velocity is None else "{:.2f}".format(current_velocity),
+                dense_profile.deceleration_mode,
+                dense_profile.stop_feasible,
+                dense_profile.stop_velocity_before_overwrite_mps,
             )
         )
 

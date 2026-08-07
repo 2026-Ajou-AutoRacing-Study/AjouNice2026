@@ -1,0 +1,34 @@
+<launch>
+  <arg name="output_dir" default="/home/ajou/planner_bags" />
+  <arg name="filename_prefix" default="stopline_debug" />
+  <arg name="compression" default="lz4" />
+  <arg name="stop_timeout_sec" default="15.0" />
+
+  <node pkg="behavior_velocity_planner"
+        type="planner_bag_recorder.py"
+        name="planner_bag_recorder"
+        output="screen">
+    <param name="output_dir" value="$(arg output_dir)" />
+    <param name="filename_prefix" value="$(arg filename_prefix)" />
+    <param name="compression" value="$(arg compression)" />
+    <param name="stop_timeout_sec" value="$(arg stop_timeout_sec)" />
+    <rosparam param="topics">
+      - /planning/scenario_planning/lane_driving/behavior_planning/path
+      - /planning/scenario_planning/status/stop_reasons
+      - /planning/debug/behavior_velocity_planner/status
+      - /planning/planning_factors/behavior_velocity_planner
+      - /planning/scenario_planning/lane_driving/motion_planning/path_smoother/path
+      - /planning/scenario_planning/lane_driving/motion_planning/path_smoother/trajectory
+      - /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory
+      - /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/raw_trajectory
+      - /control/trajectory
+      - /localization/kinematic_state
+      - /localization/acceleration
+      - /perception/object_recognition/objects
+      - /perception/traffic_light_recognition/traffic_signals
+      - /planning/virtual_traffic_light_states
+      - /tf
+      - /tf_static
+    </rosparam>
+  </node>
+</launch>

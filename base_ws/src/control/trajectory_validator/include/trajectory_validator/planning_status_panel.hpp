@@ -44,6 +44,8 @@ private:
   };
 
   void kinematicCallback(const nav_msgs::Odometry::ConstPtr & message);
+  void mvpRawTrajectoryCallback(
+    const autoware_planning_msgs::Trajectory::ConstPtr & message);
   void trajectoryCallback(const autoware_planning_msgs::Trajectory::ConstPtr & message);
   void moduleStatusCallback(const std_msgs::String::ConstPtr & message);
   void motionStatusCallback(const std_msgs::String::ConstPtr & message);
@@ -63,6 +65,7 @@ private:
 
   ros::NodeHandle node_handle_;
   ros::Subscriber kinematic_subscriber_;
+  ros::Subscriber mvp_raw_trajectory_subscriber_;
   ros::Subscriber trajectory_subscriber_;
   ros::Subscriber module_status_subscriber_;
   ros::Subscriber motion_status_subscriber_;
@@ -82,7 +85,8 @@ private:
 
   mutable std::mutex mutex_;
   RateTracker kinematic_rate_;
-  RateTracker trajectory_rate_;
+  RateTracker mvp_raw_trajectory_rate_;
+  RateTracker control_trajectory_rate_;
   double vehicle_speed_kph_ = 0.0;
   double vehicle_position_x_ = 0.0;
   double vehicle_position_y_ = 0.0;

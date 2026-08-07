@@ -13,8 +13,11 @@ from autoware_velocity_smoother.analytical_jerk_constrained import (  # noqa: E4
     SmootherParameters,
     apply_engage_velocity_floor,
     apply_lateral_acceleration_limits,
+    interpolate_values_at_stations,
     minimum_deceleration_distance,
     nearest_index_2d,
+    project_motion_state,
+    resample_profile_inputs,
     select_initial_state,
     smooth_velocity_profile,
 )
@@ -76,6 +79,31 @@ class AnalyticalJerkConstrainedSmootherTest(unittest.TestCase):
         self.assertEqual(index, 1)
         self.assertLess(distance, 0.5)
 
+    def test_projected_state_interpolates_between_previous_points(self):
+        state = project_motion_state(
+            [(0.0, 0.0, 0.0), (2.0, 0.0, 0.0)],
+            [4.0, 2.0],
+            [-0.2, -0.6],
+            (0.5, 0.2, 0.0),
+        )
+        self.assertAlmostEqual(state.velocity_mps, 3.5)
+        self.assertAlmostEqual(state.acceleration_mps2, -0.3)
+        self.assertAlmostEqual(state.distance_m, 0.2)
+        self.assertAlmostEqual(state.segment_ratio, 0.25)
+
+    def test_resampling_keeps_original_stations_and_stop_cap(self):
+        positions = straight_positions(3, interval=0.5)
+        caps = [3.0, 3.0, 0.0]
+        result = resample_profile_inputs(positions, caps, 0.1)
+        self.assertEqual(len(result.positions), 11)
+        self.assertEqual(result.input_stations, (0.0, 0.5, 1.0))
+        recovered_caps = interpolate_values_at_stations(
+            result.stations,
+            result.velocity_caps,
+            result.input_stations,
+        )
+        self.assertEqual(recovered_caps, tuple(caps))
+
     def test_initial_state_uses_previous_plan_when_tracking_is_consistent(self):
         state = select_initial_state(
             current_velocity_mps=4.2,
@@ -121,6 +149,122 @@ class AnalyticalJerkConstrainedSmootherTest(unittest.TestCase):
         )
         self.assertLess(abs(result.accelerations[stop_index - 2]), 2.6)
         self.assertLess(abs(result.accelerations[stop_index - 1]), 2.6)
+
+    def test_deceleration_uses_normal_limit_and_infeasible_modes(self):
+        parameters = SmootherParameters(
+            max_velocity_mps=10.0,
+            max_acceleration_mps2=1.0,
+            max_deceleration_mps2=1.0,
+            max_jerk_mps3=1.0,
+            max_deceleration_jerk_mps3=1.0,
+            limit_max_deceleration_mps2=2.5,
+            limit_max_deceleration_jerk_mps3=1.5,
+        )
+
+        def profile_for_stop_distance(distance_m):
+            positions = straight_positions(int(distance_m * 10.0) + 1, interval=0.1)
+            caps = [2.78] * (len(positions) - 1) + [0.0]
+            return smooth_velocity_profile(
+                positions,
+                caps,
+                initial_velocity_mps=2.78,
+                parameters=parameters,
+            )
+
+        normal = profile_for_stop_distance(6.0)
+        limited = profile_for_stop_distance(4.5)
+        infeasible = profile_for_stop_distance(3.0)
+        self.assertEqual(normal.deceleration_mode, "normal")
+        self.assertTrue(normal.stop_feasible)
+        self.assertEqual(limited.deceleration_mode, "limit")
+        self.assertTrue(limited.stop_feasible)
+        self.assertEqual(infeasible.deceleration_mode, "infeasible")
+        self.assertFalse(infeasible.stop_feasible)
+        self.assertLess(infeasible.velocities[0], 2.78)
+
+    def test_receding_horizon_preserves_deceleration_state(self):
+        parameters = SmootherParameters(
+            max_velocity_mps=10.0,
+            max_acceleration_mps2=1.0,
+            max_deceleration_mps2=1.0,
+            max_jerk_mps3=1.0,
+            max_deceleration_jerk_mps3=1.0,
+            limit_max_deceleration_mps2=2.5,
+            limit_max_deceleration_jerk_mps3=1.5,
+        )
+        previous_positions = None
+        previous_velocities = None
+        previous_accelerations = None
+        planned_ego_velocities = []
+        planned_ego_accelerations = []
+        stop_position = 6.0
+
+        for cycle in range(18):
+            ego_position = cycle * 0.27
+            stations = []
+            station = ego_position
+            while station < 8.0 - 1.0e-6:
+                stations.append(round(station, 8))
+                station += 0.5
+            stations.append(stop_position)
+            stations = sorted(set(stations))
+            positions = [(station, 0.0, 0.0) for station in stations]
+            caps = [2.78 if station < stop_position else 0.0 for station in stations]
+
+            previous_velocity = None
+            previous_acceleration = None
+            if previous_positions is not None:
+                previous_state = project_motion_state(
+                    previous_positions,
+                    previous_velocities,
+                    previous_accelerations,
+                    (ego_position, 0.0, 0.0),
+                )
+                previous_velocity = previous_state.velocity_mps
+                previous_acceleration = previous_state.acceleration_mps2
+            initial_state = select_initial_state(
+                2.78 if previous_velocity is None else previous_velocity,
+                previous_velocity,
+                previous_acceleration,
+                0.5,
+            )
+            resampled = resample_profile_inputs(positions, caps, 0.1)
+            profile = smooth_velocity_profile(
+                resampled.positions,
+                resampled.velocity_caps,
+                initial_state.velocity_mps,
+                initial_state.acceleration_mps2,
+                parameters,
+            )
+            velocities = interpolate_values_at_stations(
+                resampled.stations,
+                profile.velocities,
+                resampled.input_stations,
+            )
+            accelerations = interpolate_values_at_stations(
+                resampled.stations,
+                profile.accelerations,
+                resampled.input_stations,
+            )
+            planned_ego_velocities.append(velocities[0])
+            planned_ego_accelerations.append(accelerations[0])
+            previous_positions = positions
+            previous_velocities = velocities
+            previous_accelerations = accelerations
+
+        self.assertTrue(
+            all(
+                after <= before + 1.0e-6
+                for before, after in zip(
+                    planned_ego_velocities[1:-1],
+                    planned_ego_velocities[2:],
+                )
+            )
+        )
+        self.assertTrue(
+            all(acceleration <= 1.0e-6 for acceleration in planned_ego_accelerations[2:])
+        )
+        self.assertLess(planned_ego_velocities[-1], 1.5)
 
     def test_standing_vehicle_accelerates_gradually(self):
         caps = [4.0] * 40

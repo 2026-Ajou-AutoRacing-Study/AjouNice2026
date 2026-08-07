@@ -12,6 +12,6 @@
   <class name="trajectory_validator/PlannerCsvLogger"
          type="trajectory_validator::PlannerCsvLoggerPanel"
          base_class_type="rviz::Panel">
-    <description>Start and stop the planner CSV diagnostic logger from RViz.</description>
+    <description>Start and stop planner CSV diagnostics and debug bag recording from RViz.</description>
   </class>
 </library>

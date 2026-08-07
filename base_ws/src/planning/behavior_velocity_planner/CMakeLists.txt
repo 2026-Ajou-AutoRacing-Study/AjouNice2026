@@ -45,6 +45,7 @@ catkin_package(
 catkin_install_python(
   PROGRAMS
   scripts/behavior_velocity_planner.py
+  scripts/planner_bag_recorder.py
   scripts/planner_csv_logger.py
   validation/scripts/replay_capture_ros1_bvp_blind_spot.py
   validation/scripts/replay_capture_ros1_bvp_restricted_area.py
@@ -81,4 +82,5 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_nosetests(test/test_traffic_light_module.py)
   catkin_add_nosetests(test/test_virtual_traffic_light_module.py)
   catkin_add_nosetests(test/test_walkway_module.py)
+  catkin_add_nosetests(test/test_planner_bag_recorder.py)
 endif()
