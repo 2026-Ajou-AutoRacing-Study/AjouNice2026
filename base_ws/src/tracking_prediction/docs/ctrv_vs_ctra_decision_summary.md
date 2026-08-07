@@ -27,4 +27,4 @@
 
 예측 결과는 planning의 안전마진 산정에 쓰이므로 "평균적으로 정확함"보다 "최악의 경우에도 덜 위험함"이 우선 → **CTRV를 기본 모델로 채택**. CTRA는 `prediction_node.py`에 `~model=ctra`로 전환 가능하도록 코드만 보존(재조율 대비).
 
-이후 로터리 진입구간 좁혀서 본 재평가(`docs/entry_zone_ctrv_ctra_summary.md`)에서도 CTRA는 p90 기준 CTRV 대비 수십~수백 배 나쁜 것으로 재확인되어 이 결론이 더 강하게 뒷받침됨(예: 2.0s에서 CTRV p90=22.7m vs CTRA p90=963.6m — omega가 노이즈 수준으로 작을 때 CTRA의 1/omega² 항이 CTRV의 1/omega 항보다 노이즈를 훨씬 크게 증폭시키기 때문).
+**2026-08-02 정정:** 이전에는 로터리 진입구간 재평가(`docs/entry_zone_ctrv_ctra_summary.md`)에서 CTRA가 p90 기준 수십~수백 배 나쁘다고 적었으나(2.0s에서 CTRV p90=22.7m vs CTRA p90=963.6m), 이 수치는 그 평가 스크립트(`eval_entry_zone_ctrv_ctra.py`)의 가속도 추정 버그(직전/현재 프레임 속도 부호 처리가 비대칭이라 가속도가 순간적으로 수백~수천 배 부풀려짐)로 오염된 값이었음(팀원이 Codex로 발견, 본 저장소에도 반영해 수정함). 버그 수정 후 재평가하면 CTRA는 mean에서만 CTRV보다 나쁘고(2.0s 기준 8.16m vs 5.84m) p90/p95는 CTRV와 거의 같거나 근소하게 더 나음 — "1/omega² 증폭" 설명도 틀렸음(최악 표본의 omega는 0.466 rad/s로 작지 않았음). 위 표(`eval_model_ablation.py`/`eval_final_horizon_decision_ctra.py` 기준, +0.2~+9.6% 수준)는 이 버그와 무관한 스크립트로 계산된 값이라 그대로 유효하며, CTRV 채택 결론의 실제 근거는 이 표임. 자세한 내용은 `docs/entry_zone_ctrv_ctra_summary.md` 참고.

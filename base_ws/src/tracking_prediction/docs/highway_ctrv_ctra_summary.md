@@ -13,7 +13,7 @@
 | 고정 표본집합(생존편향 제거, 전 horizon 공통) | n=3704 |
 | 평가 스크립트 | `scripts/eval_highway_ctrv_ctra.py` |
 
-CTRV vs CTRA: 로터리와 동일하게 **CTRV가 전 horizon·전 percentile에서 압도적으로 우수**(기존 결론 재확인, 표는 생략).
+CTRV vs CTRA: **2026-08-02 정정** — 원래 "CTRV가 전 horizon·전 percentile에서 압도적으로 우수"라고 적었으나, 이는 `eval_highway_ctrv_ctra.py`의 가속도 추정 버그(로터리 쪽과 동일한 버그, 상세 원인은 `docs/entry_zone_ctrv_ctra_summary.md` 참고)로 CTRA 수치가 부풀려진 상태에서 낸 결론이었음. 버그 수정 후에는 CTRA가 mean에서만 CTRV보다 나쁘고 p90/p95는 거의 비등한 수준으로 좁혀질 것으로 예상됨(로터리 쪽 수정 결과와 동일한 패턴). 이 문서 자체의 표(FDE 커버리지, ADE/FDE)는 전부 CTRV만 쓰므로 버그 영향 없이 그대로 유효하고, 아래 horizon=1.5s 결론도 바뀌지 않음 — 다만 하이웨이용 CTRV vs CTRA 수치 표는 아직 생략된 상태라(수정 전에도 "표는 생략"이었음) 필요하면 수정된 스크립트로 재실행해서 채울 것.
 
 ## 고정 표본집합 FDE 통계 (n=3704, 단위: m)
 
