@@ -6,3 +6,14 @@ YAML 설정으로 관리할 디렉터리다. 현재 프로토타입은 명령행
 `scenario_runner_asset_catalog.yaml`은 설치된 Scenario Runner v1.7.0의 XOSC
 예제에서 실제로 관찰한 MORAI 모델명을 정리한 참고 카탈로그다. MORAI 전체
 Asset 목록이 아니므로 생성 전 실제 시뮬레이터에서 로드 검증해야 한다.
+
+`morai_asset_catalog_260807.json`은 MORAI Scenario Edit에서 확인한
+차량·보행자 관련·curated 장애물 109개 고유 DataID와 표시명, 1차 ontology,
+생성·학습 정책을 담는다. 원본 시나리오와 `optionList.byte`의 SHA-256을
+기록하며 `scripts/extract_morai_asset_catalog.py`로 재생성한다.
+
+`od_180_pilot.yaml`은 180-run PointPainting/향후 BEV 공용 파일럿의
+anchor, 환경, split, 객체 수·거리, visibility와 충돌 제약 초안이다.
+위 실제 카탈로그를 참조한다. 사람 결합형 obstacle은 제외하며,
+`pedestrianList`의 자전거 탑승자·사람+동물 복합 모델과 자산별 footprint는
+label audit 후 확정한다.

@@ -5,15 +5,21 @@
   "network_policy": {
     "transport": "rosbridge",
     "load_network_connection_data": true,
+    "sidecar_scope": "ego_only",
+    "required_unique_ids": [
+      0
+    ],
+    "forbidden_unique_ids": [
+      -100
+    ],
     "required_topics": [
       "/ScenarioLoad",
       "/SaveSensorData",
       "/Ego_topic",
-      "/Object_topic",
-      "/ego_setting"
+      "/Object_topic"
     ],
-    "template_sha256": "6576f72e6b3a8399bc9e491900b6b6517d8fc0457a01ca5061e76a750d269d1a",
-    "note": "Each scenario must have EgoNetwork/<stem>_MN.json copied from a ROS bridge profile saved by the target MORAI version."
+    "template_sha256": "7751cdcd69851deca5e14ec3d353b45c76175e8b9edb4972a3079a0a65ee9882",
+    "note": "Each scenario must have EgoNetwork/<stem>_MN.json copied from only the UNIQUEID=0 part of a ROS profile. Keep UNIQUEID=-100 in the separately loaded Simulator Network bootstrap profile so ScenarioLoad does not disconnect it."
   },
   "environment": {
     "weather": "sunny",
@@ -47,7 +53,8 @@
         "npc": 4,
         "pedestrian": 3,
         "obstacle": 2
-      }
+      },
+      "run_by_default": true
     },
     {
       "id": "p02",
@@ -68,7 +75,8 @@
         "npc": 5,
         "pedestrian": 4,
         "obstacle": 2
-      }
+      },
+      "run_by_default": true
     },
     {
       "id": "p03",
@@ -89,7 +97,30 @@
         "npc": 4,
         "pedestrian": 5,
         "obstacle": 3
-      }
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "speed01",
+      "file_name": "od_speed_clear_01",
+      "scenario": "dataset/morai_od/scenarios/ros_capture_poc/od_speed_clear_01.json",
+      "metadata": "dataset/morai_od/metadata/ros_capture_poc/od_speed_clear_01.metadata.json",
+      "network_sidecar": "EgoNetwork/od_speed_clear_01_MN.json",
+      "anchor_index": 500,
+      "expected_ego": {
+        "x": -76.18682759348809,
+        "y": -223.34518327661468,
+        "z": 28.735550078333453,
+        "yaw": 62.908557225536924,
+        "link_idx": "A2256W000213",
+        "point_idx": 16
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": false
     }
   ]
 }

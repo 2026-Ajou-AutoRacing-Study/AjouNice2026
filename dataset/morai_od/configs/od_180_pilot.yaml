@@ -1,0 +1,190 @@
+schema_version: 1
+status: draft_asset_catalog_extracted_pending_label_audit
+
+purpose:
+  immediate: pointpainting_pedestrian_finetune_smoke_test
+  reusable_for:
+    - multiclass_pointpillars
+    - bevfusion
+    - camera_bev_representation
+
+sensor_profile:
+  file: configs/sensors/Sensor_6.json
+  cameras:
+    count: 4
+    rate_hz: 30
+    names: [front, front_left, front_right, back]
+  lidar:
+    model: VLP16
+    configured_rate_hz: 15
+    physical_range_m: 100
+    training_range_xyz_m: [-30, -30, -3, 30, 30, 2]
+
+capture:
+  total_runs: 180
+  unique_geometry_layouts: 30
+  environment_variants_per_layout: 6
+  frames_per_run: 6
+  total_multisensor_frames: 1080
+  motion_mode: rolling-fast
+  ego_speed_kph: 3.6
+  spacing_m: 0.6
+  maximum_motion_m: 4.0
+  load_settle_sec: 0.5
+  capture_stable_sec: 0.3
+  continue_on_scene_error: true
+
+geometry:
+  anchor_count: 30
+  layouts_per_anchor: 1
+  anchor_selection: route_arc_length_stratified
+  minimum_anchor_route_distance_m: 20
+  topology_targets:
+    straight: 7
+    curve: 5
+    intersection: 5
+    crosswalk: 5
+    merge_diverge_roundabout: 4
+    roadside_parking_clutter: 4
+
+environment:
+  weather:
+    sunny: {}
+    foggy:
+      density: 1
+      distance: 0
+  time_hours: [11, 13, 15]
+  runs_per_weather_time_pair: 30
+  paired_layouts_across_all_environments: 30
+  simulator_state_persists_across_scenario_load: true
+  apply_environment_once_per_batch: true
+
+split:
+  unit: anchor
+  anchors:
+    train: 20
+    val: 5
+    test: 5
+  runs:
+    train: 120
+    val: 30
+    test: 30
+  base_scenarios:
+    train: 20
+    val: 5
+    test: 5
+  leakage_rules:
+    - keep_all_frames_of_a_run_together
+    - keep_all_layouts_of_an_anchor_together
+    - keep_all_environment_variants_of_a_layout_together
+
+scene_mix_percent:
+  pedestrian_centric: 25
+  vehicle_centric: 20
+  mixed_vehicle_pedestrian: 30
+  obstacle_hard_negative: 10
+  camera_seam_occlusion: 10
+  sparse_empty_background: 5
+
+actor_sampling:
+  maximum_total_actors: 14
+  npc_vehicle:
+    count_range: [0, 8]
+    count_bins:
+      "0": 0.15
+      "1-2": 0.25
+      "3-5": 0.40
+      "6-8": 0.20
+  pedestrian:
+    count_range: [0, 10]
+    count_bins:
+      "0": 0.20
+      "1-2": 0.25
+      "3-6": 0.40
+      "7-10": 0.15
+  obstacle:
+    count_range: [0, 4]
+    count_bins:
+      "0": 0.40
+      "1-2": 0.45
+      "3-4": 0.15
+
+distance_sampling:
+  maximum_training_radius_m: 28
+  bins:
+    - range_m: [3, 8]
+      weight: 0.25
+    - range_m: [8, 15]
+      weight: 0.35
+    - range_m: [15, 22]
+      weight: 0.30
+    - range_m: [22, 28]
+      weight: 0.10
+
+visibility:
+  camera_overlap_target: 0.20
+  partial_truncation_target: 0.10
+  require_one_clear_camera_for_core_positive: true
+  pointpainting_pedestrian_core_min_lidar_points: 3
+  preserve_sparse_hard_cases: true
+
+geometry_constraints:
+  ego_swept_corridor:
+    rear_extent_m: 1.5
+    forward_extent_m: 8.5
+    lateral_margin_each_side_m: 0.75
+  footprint_margin_m:
+    vehicle: 0.8
+    pedestrian: 0.5
+    obstacle: 0.5
+  npc_require_drivable_lane_or_parking: true
+  npc_align_yaw_to_link_tangent: true
+  pedestrian_prefer_crosswalk_or_walkway: true
+  reject_actor_footprint_overlap: true
+
+asset_catalog:
+  status: extracted_pending_label_audit
+  reference: dataset/morai_od/configs/morai_asset_catalog_260807.json
+  counts:
+    vehicles: 43
+    pedestrian_container_assets: 33
+    obstacles: 33
+    total_unique_entries: 109
+  sampling_rules:
+    - sample_generation_policy_enabled
+    - allow_limited_weight_assets_at_configured_low_ratio
+    - keep_hard_negatives_out_of_pedestrian_positive_labels
+    - exclude_pedestrian_container_quarantine_assets_from_training_runs
+    - exclude_human_integrated_obstacle_assets
+    - treat_unoccupied_bicycle_and_scooter_as_regular_obstacles
+    - preserve_all_raw_gt_for_future_ontology_remapping
+  ncap_dummy_max_fraction_of_pedestrian_scenes: 0.10
+  quarantine_audit_before_180_run:
+    - cyclist_in_pedestrian_container
+    - composite_person_animal
+
+required_outputs:
+  camera:
+    - intensity
+    - semantic
+    - instance
+    - depth
+    - bbox2d_if_present
+    - bbox3d_if_present
+  lidar:
+    - intensity
+    - semantic
+    - instance
+    - instance_box_center_size
+    - instance_box_8points
+  metadata:
+    - sensor_config_hash
+    - scenario_stem
+    - layout_id
+    - seed
+    - anchor_and_link
+    - environment_id
+    - split
+    - capture_timestamp_group
+    - actor_catalog_mapping
+    - quality_tier

@@ -60,17 +60,27 @@ ScenarioLoad의 `delete_all`은 `false`로 보낸다. MORAI 문서상 이 상태
 제어 batch runner의 `configs/network/ego_network_1.json`은 대회용 UDP
 profile이므로 이 ROS 캡처 PoC의 template으로 사용하지 않는다. 개인용
 MORAI에서 ROS network를 연결한 상태로 저장한
-초기 PoC에서는 `EgoNetwork/ros_path_probe_MN.json`을 사용했지만, 이
-파일에는 Ego별 네트워크(`UNIQUEID=0`)만 있고 `/ego_setting`을 담당하는
-시스템 네트워크(`UNIQUEID=-100`)가 빠져 있었다. 순간이동 모드에서는
-개인용 MORAI가 저장한 전체 ROS profile
-`SaveFile/Network/26.R1.H3/ros.json`을 사용한다.
+`EgoNetwork/ros_path_probe_MN.json`의 Ego별 네트워크
+`UNIQUEID=0`만 각 시나리오 sidecar에 사용한다.
 
-단, `ScenarioLoad(load_network_connection_data=true)`가 자동 복구하는 것은
-Ego Network뿐이다. 전체 profile의 `UNIQUEID=-100` 항목을 scenario
-sidecar에 넣어도 Simulator Network의 `Connect` 버튼까지 자동으로
-켜지지는 않는다. `/ego_setting`을 쓰기 전에는 MORAI UI에서 한 번 다음을
-수행해야 한다.
+Simulator Network `UNIQUEID=-100`은 sidecar에 넣지 않는다. 초기
+route-follow PoC에서는 Ego-only sidecar로 p01~p03, 각 6프레임 연속
+수집을 세 차례 성공했다. 이후 전체 `ros.json`을 sidecar로 복제했을 때는
+ScenarioLoad마다 Simulator Network가 Disconnected로 바뀌고
+`/Service_MoraiEventCmd`가 실패했다. 따라서 두 설정은 다음처럼 분리한다.
+
+```text
+시나리오 EgoNetwork/<stem>_MN.json
+└── UNIQUEID=0만 포함
+
+MORAI 시작 시 Simulator Network bootstrap
+└── SaveFile/Network/26.R1.H3/ros.json의 UNIQUEID=-100 사용
+```
+
+`/Service_MoraiEventCmd`는 개인용 ROS profile에서도 `UNIQUEID=0`에
+포함되어 있으므로 현재 route-follow/rolling 수집에는 Simulator Network가
+필요하지 않다. Simulator Network는 `/ego_setting`, `/Service_MoraiSL`,
+Sync Mode 등을 별도로 시험할 때만 전체 `ros.json`으로 Connect한다.
 
 ```text
 Network Settings
@@ -82,22 +92,20 @@ Network Settings
 → Status: Connected 확인
 ```
 
-이것은 매 시나리오마다 반복할 작업이 아니라 MORAI를 시작한 뒤 batch 실행
-전에 한 번 수행하는 bootstrap이다. 연결이 꺼진 상태에서는 MORAI가 ROS
-명령을 받을 transport 자체가 없으므로 ROS 명령만으로 자기 연결을 켤 수
-없다. 생성기는 다음 항목이 profile에 포함됐는지 검사한다.
+생성기는 전체 `ros.json`을 입력으로 받아도 `UNIQUEID=0`만 추출해
+sidecar를 만들고, runner는 `-100`이 sidecar에 들어 있으면 실행을
+거부한다. Ego-only sidecar의 필수 topic은 다음과 같다.
 
 ```text
 /ScenarioLoad
 /SaveSensorData
 /Ego_topic
 /Object_topic
-/ego_setting
 ```
 
-각 sidecar는 이 template을 byte 단위로 그대로 복제한다. manifest에는
-template SHA256을 기록하고, 자동 캡처 노드는 실행 전에 설치된 모든
-sidecar의 SHA256과 필수 ROS topic을 다시 검사한다.
+manifest에는 추출된 Ego-only payload의 SHA256을 기록하고, 자동 캡처
+노드는 실행 전에 설치된 모든 sidecar의 SHA256, 필수 ROS topic,
+`UNIQUEID=0` 존재 및 `UNIQUEID=-100` 부재를 검사한다.
 
 ## 현재 PoC 장면
 
@@ -202,6 +210,51 @@ actor-only /ScenarioLoad
 → 즉시 /ego_setting
 → ROS 연결 유지 기대
 ```
+
+### Network-preserving 후보의 실패와 폐기
+
+`teleport → actor-only ScenarioLoad` 순서로 Ego와 Network를 보존하려는
+`--network-preserving-batch`도 시험했으나, p01 actor-only load 직후
+`/ScenarioLoad`, `/SaveSensorData`, `/ctrl_cmd`, `/ego_setting`이 모두
+끊겼다. 따라서 이 옵션은 제거했다.
+
+생산 후보는 이미 세 차례 성공한 다음 흐름으로 복원한다.
+
+```text
+UNIQUEID=0만 포함한 sidecar로 full ScenarioLoad
+→ Ego·actor·Ego Network 자동 복구
+→ ScenarioLoad·SaveSensorData·CtrlCmd·Event service 자동 복구
+→ 매 장면 /Service_MoraiEventCmd로 ExternalCtrl·D 기어 확인
+→ 3.6 km/h, 6프레임 캡처
+→ 다음 장면
+```
+
+2026-08-07 복원 시험에서도 p01~p03 각 6프레임, 총 18프레임과 센서 파일
+510개가 모두 검증됐다. 실행시간 68.839초는 과거 성공 실행
+68.686~69.728초와 같은 범위다.
+
+### 제어팀 trajectory_batch_runner와의 구조 비교
+
+두 구현은 ScenarioLoad transport 외에도 세부 검증 범위가 다르지만 핵심
+구조는 같다.
+
+| 항목 | 제어팀 batch runner | MORAI OD 수집 |
+|---|---|---|
+| 시나리오 본문 | Ego와 actor 전체 로드 | Ego와 actor 전체 로드 |
+| network flag | `load_network_connection_data=true` | 동일 |
+| sidecar | `ego_network_1.json` 복제 | 개인용 ROS profile의 `UNIQUEID=0`만 추출 |
+| Ego Network | 매 장면 sidecar로 복구 | 동일 |
+| Simulator Network | 핵심 주행 경로에서 별도 사용 안 함 | route-follow/rolling에서 사용 안 함 |
+| 제어 모드 | scenario/F4 UDP 설정에 의존 | Ego sidecar의 `/Service_MoraiEventCmd`로 매 장면 확인 |
+| 적용 확인 | Ego 시작 위치 | fresh Ego 위치 + 객체 수 + ROS 연결 |
+| 데이터 확인 | trajectory 평가 준비 | Camera/LiDAR/GT 파일까지 프레임별 검증 |
+
+제어팀의 `configs/network/ego_network_1.json`에는 `UNIQUEID=0`과 `-100`이
+모두 있지만, `-100`에는 한 개의 UDP 항목만 있다. 개인용 26.R1 ROS
+profile의 `-100`에는 `/ego_setting`, Sync Mode, ScenarioLoad service 등
+여러 Simulator service가 들어 있어 이를 sidecar로 복제했을 때 Connect
+상태가 끊겼다. 따라서 이름이 같은 `-100`이라도 두 profile을 동일하게
+취급하면 안 된다.
 
 다중 시나리오 무인 실행은 일반 `/ScenarioLoad`와 `/ego_setting`을
 연결하는 대신 Simulator Network의 Synchronous Mode
@@ -358,7 +411,8 @@ MORAI 버전에 따라 `morai_msgs/CtrlCmd`의 조향 필드가 다르므로 자
 ## 1. 시나리오 생성 및 MORAI 폴더 설치
 
 개인용 MORAI에서 현재 사용하는 K-City 2025 시나리오 폴더와, MORAI
-UI에서 직접 저장해 검증한 ROS network sidecar를 지정한다.
+UI에서 직접 저장한 전체 ROS profile을 지정한다. 생성기는 전체 profile을
+sidecar로 그대로 복사하지 않고 `UNIQUEID=0`만 추출한다.
 
 ```bash
 # PoC 시나리오 3개와 ROS network sidecar를 개인용 MORAI에 설치
@@ -391,13 +445,16 @@ find "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_
 3. 팀의 현재 Camera 4대 + 3D LiDAR 센서 구성을 적용한다.
 4. Camera와 LiDAR에서 필요한 GT(Intensity, Semantic, Instance 등)를 켠다.
 5. 모든 GT를 한 번에 저장하려면 각 센서의 **Capture Mode**를 켠다.
-6. ROS1 network에서 다음 인터페이스를 켠다.
+6. **Ego Network**의 ROS1 설정에서 다음 topic을 Connect한다.
 
 ```text
 Subscriber: /ScenarioLoad, /SaveSensorData, /ctrl_cmd
 Publisher:  /Ego_topic, /Object_topic, /CollisionData, /clock
-Service:    /Service_MoraiEventCmd
 ```
+
+7. Simulator Network는 현재 route-follow/rolling 수집에는 연결하지
+   않아도 된다. `/ego_setting`, `/Service_MoraiSL`, Sync Mode를 별도로
+   시험할 때만 전체 `ros.json`을 Load하고 Connect한다.
 
 Capture Mode가 켜진 Camera/LiDAR는 평상시 Sensor List에서 비활성 또는
 빨간 상태로 보일 수 있고 `/SaveSensorData` 순간에만 활성화된다. 이는 문서상
@@ -602,6 +659,296 @@ python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
 
 총 기대 캡처 수는 18개다. 하나의 capture 명령은 Camera/LiDAR 각각의 여러
 GT 파일을 만들므로 실제 파일 수는 18보다 훨씬 많다.
+
+## 8.1 Phase D: 20개 시나리오 짧은 연속 수집
+
+이 시험은 객체 배치 품질이나 주행 성능이 아니라 다음 항목만 빠르게
+확인한다.
+
+- 서로 다른 이름의 시나리오 20개 연속 ScenarioLoad
+- 시나리오별 Ego Network sidecar 복구
+- 시나리오별 객체 수와 Ego pose 확인
+- 시나리오별 `/SaveSensorData` 1회
+- Camera 4대와 LiDAR 필수 파일 저장
+
+경로와 제어기의 영향을 배제하기 위해 모든 장면은 검증된 동일 anchor를
+사용하고 seed만 바꾼다. 차량은 움직이지 않으며 장면당 1장만 저장한다.
+
+```bash
+# stress001~stress020과 sidecar를 생성하고 개인용 MORAI에 설치
+cd ~/AjouNice2026
+
+python3 dataset/morai_od/scripts/generate_ros_capture_poc_set.py \
+  --install-dir \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025" \
+  --stress-count 20
+```
+
+MORAI·rosbridge 연결을 확인한 뒤 실행한다.
+
+```bash
+# 20개 시나리오에서 각각 정지 상태 1장씩 연속 캡처
+cd ~/AjouNice2026
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+source ~/morai_personal_ws/devel/setup.bash
+
+python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
+  --manifest dataset/morai_od/manifests/ros_capture_stress.json \
+  --capture-dir /home/luv/morai_cap/stress20_stationary_v1 \
+  --motion-mode stationary \
+  --captures-per-scene 1 \
+  --load-settle-sec 0.5 \
+  --capture-stable-sec 0.3 \
+  --continue-on-scene-error
+```
+
+성공 기준은 report의 장면 수와 capture 수가 모두 20이고, 모든 capture의
+`verified`가 `true`이며 `missing_sensors`와 `missing_artifacts`가 비어
+있는 것이다. 실패 장면은 report의 `status=failed`와 `error`에 남기고
+다음 시나리오를 계속 처리한다. 이 시험이 통과해야 이동 캡처를 포함한
+20~50장면 batch로 확장한다.
+
+### 2026-08-07 최초 stress20 결과
+
+첫 실행은 `stress001`부터 `stress016`까지 연속 성공하고
+`stress017`의 장면 검증에서 중단됐다.
+
+| 항목 | 결과 |
+|---|---:|
+| 연속 ScenarioLoad·capture 성공 | 16장면 |
+| 저장된 capture | 16 |
+| 저장 파일 | 452 |
+| 0 byte 파일 | 0 |
+| 필수 Camera·LiDAR 누락 | 0 |
+| 중단 장면 | `stress017` |
+| 중단 이유 | obstacle 예상 2개, 실제 `/Object_topic` 1개 |
+
+`stress017`에서도 `/ScenarioLoad`와 `/SaveSensorData`의 rosbridge 재연결은
+성공했다. 따라서 이 결과는 17번째에서 네트워크가 끊긴 증거가 아니라,
+MORAI가 해당 장면의 actor 하나를 적용하지 않은 장면 무결성 실패다.
+
+기존 구현은 한 장면 오류에서 전체 실행을 예외 종료해 최종 report도
+남기지 않았다. 이후 `--continue-on-scene-error`를 추가했다. 이 옵션은
+실패 장면을 `status=failed`와 오류 문자열로 기록하고 다음 manifest
+장면을 계속 실행한다. 시작 시 필수 ROS 연결 자체가 없으면 batch 전체를
+시작하지 않는 정책은 유지한다.
+
+## 9. 실험용 rolling 처리량 비교
+
+기존 `route-follow`은 각 캡처 전에 brake를 걸고 Camera 4대와 LiDAR의
+필수 산출물이 모두 저장될 때까지 기다린다. 다음 두 모드는 데이터 품질보다
+처리량을 먼저 측정하기 위한 실험용이며, 검증된 기본 수집 모드를 대체하지
+않는다.
+
+### rolling-safe
+
+차량을 정차시키지 않지만 한 캡처의 파일 검증이 끝난 후 다음 캡처를
+요청한다. `trigger_capture()`가 기다리는 동안 마지막 control 명령이
+유지되므로 곡선 구간의 장거리 수집에는 사용하지 않는다. 저장 중 약
+1~2 m를 이동할 수 있어 기본 4 m 제한보다 큰 이동 허용값을 명시한다.
+
+```bash
+cd ~/AjouNice2026
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+source ~/morai_personal_ws/devel/setup.bash
+
+python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
+  --capture-dir /home/luv/morai_cap/benchmark_p01_rolling_safe_v1 \
+  --scenario p01 \
+  --motion-mode rolling-safe \
+  --captures-per-scene 6 \
+  --capture-spacing-m 0.6 \
+  --speed-kph 3.6 \
+  --maximum-motion-m 12.0
+```
+
+### rolling-fast
+
+1 m/s로 주행하며 0.6 m마다 `/SaveSensorData`를 보내고 개별 저장 완료를
+기다리지 않는다. 6개 trigger를 모두 보낸 뒤 한 번만 정차하고 파일 쓰기가
+안정될 때까지 기다린다. 목표 trigger rate는 약 1.67 Hz다.
+
+```bash
+cd ~/AjouNice2026
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+source ~/morai_personal_ws/devel/setup.bash
+
+python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
+  --capture-dir /home/luv/morai_cap/benchmark_p01_rolling_fast_v1 \
+  --scenario p01 \
+  --motion-mode rolling-fast \
+  --captures-per-scene 6 \
+  --capture-spacing-m 0.6 \
+  --speed-kph 3.6 \
+  --maximum-motion-m 4.0
+```
+
+`rolling-fast`의 파일은 trigger별 GT 완전성을 주장하지 않고
+`rolling_fast_raw/<scene id>/<sensor>/` 아래에 원래 MORAI 파일명으로
+보존한다. 보고서에서 다음 값을 비교한다.
+
+```text
+scenes[].metrics.trigger_rate_hz
+scenes[].metrics.end_to_end_capture_rate_hz
+scenes[].metrics.trigger_span_sec
+scenes[].metrics.drain_duration_sec
+scenes[].metrics.observed_file_count
+```
+
+콘솔의 `Rolling-fast benchmark` 로그에도 trigger rate와 관측 파일 수가
+출력된다. `trigger_rate_hz`는 주행 중 요청 속도이고,
+`end_to_end_capture_rate_hz`는 시나리오 로드와 마지막 파일 drain까지
+포함한 전체 처리량이다. 두 실험은 각각 새 MORAI 재시작까지 요구하지
+않지만, 첫 실험 종료 후 차량과 시나리오가 초기 상태로 다시 로드됐는지
+확인한 뒤 두 번째 명령을 실행한다.
+
+### 대기시간 축소 시험과 현재 채택 상태
+
+대량 수집 시간을 줄이기 위해 다음 두 대기시간을 함께 축소할 수 있다.
+
+- `--load-settle-sec 0.5`: 객체 수와 Ego 상태가 검증된 뒤 추가 대기를
+  기본 2.0초에서 0.5초로 줄인다.
+- `--capture-stable-sec 0.3`: 마지막 capture 뒤 새 파일 집합이 변하지
+  않는지 확인하는 시간을 기본 1.0초에서 0.3초로 줄인다.
+
+2026-08-07에 `p01`, 3.6 km/h, 0.6 m 간격, 6프레임
+`rolling-fast`로 두 값을 동시에 시험했다.
+
+| 항목 | 결과 |
+|---|---:|
+| trigger 수 | 6 |
+| timestamp 그룹 수 | 6 |
+| 전체 파일 수 | 162 |
+| 그룹별 파일 수 | 27 |
+| trigger span | 6.238초 |
+| 마지막 file drain | 0.560초 |
+| 장면 전체 시간 | 10.677초 |
+| end-to-end 처리량 | 0.562 frame/s |
+
+같은 p01의 기존 기본 대기시간 결과와 비교하면 다음과 같다. 두 실행의
+실제 주행 속도와 시나리오 로드 응답시간이 완전히 같지는 않으므로
+`load-settle-sec`의 효과만 분리한 엄밀한 A/B 측정은 아니다.
+
+| 항목 | 기본 2.0/1.0초 | 축소 0.5/0.3초 | 변화 |
+|---|---:|---:|---:|
+| trigger span | 6.087초 | 6.238초 | +0.151초 |
+| 마지막 file drain | 1.210초 | 0.560초 | -0.650초 |
+| 장면 전체 시간 | 10.875초 | 10.677초 | -0.199초 |
+| end-to-end 처리량 | 0.552 frame/s | 0.562 frame/s | +1.9% |
+
+`capture-stable-sec` 축소는 drain 감소로 직접 관찰됐다. 반면 전체 시간은
+시나리오 로드와 차량 가속 변동이 섞여 이 한 쌍만으로 1.5초 절감을
+보장할 수 없다.
+
+각 timestamp 그룹에서 Camera 1~4의 Intensity·Semantic·Instance·Depth와
+관측 객체가 있는 카메라의 BBox2D·BBox3D, LiDAR의
+Intensity·Semantic·Instance·Instance.txt·Instance_8Points.txt가 모두
+확인됐다. 따라서 이 한 장면에서는 축소 조합으로 인한 파일 누락이
+관찰되지 않았다.
+
+Ego Network만 담은 sidecar를 복원한 뒤 p01~p03 연속 시험도 통과했다.
+3개 장면 모두 6개 timestamp 그룹과 Camera 1~4·LiDAR 5의 필수 산출물이
+확인됐고, 0 byte 파일은 없었다.
+
+| 항목 | route-follow 기준 | rolling-fast 0.5/0.3초 |
+|---|---:|---:|
+| 장면 수 / 캡처 수 | 3 / 18 | 3 / 18 |
+| 전체 센서 파일 수 | 510 | 510 |
+| 누락 센서·필수 산출물 | 0 | 0 |
+| 전체 실행시간 | 68.839초 | 34.666초 |
+| 시간 단축 | - | 49.6% |
+
+바로 이어서 같은 조건을 반복했을 때 p02에서 `/Ego_topic`이 갱신되지
+않고 `/Service_MoraiEventCmd` 호출도 응답하지 않아 실행이 멈추는 현상이
+한 차례 발생했다. 이는 캡처 대기시간이나 파일 누락 문제가 아니라 오래
+연결된 MORAI·rosbridge의 제어 통신 상태 문제로 분류한다. 자동화 노드는
+이후 제어 모드 service 응답 제한시간과 Ego heartbeat 확인을 추가해,
+같은 상태에서 무기한 정지하지 않고 명확한 오류로 종료하도록 보완했다.
+
+따라서 현재 정책은 다음과 같다.
+
+1. 스크립트 기본값 `2.0초/1.0초`는 유지한다.
+2. 초기 빠른 데이터 수집에서는 아래 `0.5초/0.3초` 조합을 사용할 수
+   있다. p01~p03 18프레임의 1차 통과 근거가 있다.
+3. 장시간 무인 수집 전에는 소규모 묶음으로 나눠 실행하고, 묶음 사이에
+   `/Ego_topic` 갱신과 제어 service 응답 여부를 확인한다.
+4. 수백~수천 장 기본값으로 확정하기 전에는 서로 다른 장면에서
+   timestamp 그룹 수, Camera 4대, LiDAR 및 BBox/GT 누락률을 표본
+   검사한다.
+5. MORAI 제어 service·heartbeat 오류는 센서 누락과 별도로 집계한다.
+
+```bash
+cd ~/AjouNice2026
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+source ~/morai_personal_ws/devel/setup.bash
+
+python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
+  --capture-dir /home/luv/morai_cap/rolling_fast_fast_wait_v1 \
+  --scenario p01 \
+  --motion-mode rolling-fast \
+  --captures-per-scene 6 \
+  --capture-spacing-m 0.6 \
+  --speed-kph 3.6 \
+  --maximum-motion-m 4.0 \
+  --load-settle-sec 0.5 \
+  --capture-stable-sec 0.3
+```
+
+### 장면당 프레임 수 정책
+
+현재 PoC와 초기 학습 데이터 수집은 **장면당 6프레임**을 유지한다. 센서
+동기화, 수집 안정성, 장면 내 시점 변화량을 먼저 검증하기 위해서다.
+
+향후 동일한 총 프레임 예산에서는 장면당 3~4프레임으로 줄이고 시나리오
+수를 늘리는 방안을 비교한다. 예를 들어 `180장면 × 6프레임`과
+`360장면 × 3프레임`은 모두 1,080프레임이지만, 후자는 객체 종류·배치·
+가림·거리·방향·날씨의 다양성을 늘리기 유리할 가능성이 크다. 다만 이
+변경은 첫 파인튜닝 성공과 100장면 수집 안정성 확인 이후 별도 실험으로
+결정하며, 현재 수집 명령의 `--captures-per-scene 6`은 변경하지 않는다.
+
+### 전방 무객체 7.2 km/h benchmark
+
+`speed01` (`od_speed_clear_01`)은 p01과 같은 공식 경로 anchor를 사용하지만
+NPC·보행자·장애물을 모두 제거한 속도 전용 장면이다. 기존 p01~p03 기본
+batch에는 포함되지 않으며 `--scenario speed01`로 명시할 때만 실행된다.
+
+먼저 새 시나리오와 ROS network sidecar를 개인용 MORAI 폴더에 설치한다.
+
+```bash
+cd ~/AjouNice2026
+
+python3 dataset/morai_od/scripts/generate_ros_capture_poc_set.py \
+  --install-dir \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025" \
+  --network-template \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Network/26.R1.H3/ros.json"
+```
+
+설치 후 7.2 km/h 명령, 0.6 m 거리 trigger로 6프레임을 시험한다.
+
+```bash
+cd ~/AjouNice2026
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+source ~/morai_personal_ws/devel/setup.bash
+
+python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
+  --capture-dir /home/luv/morai_cap/benchmark_speed01_rolling_fast_2ms_v1 \
+  --scenario speed01 \
+  --motion-mode rolling-fast \
+  --captures-per-scene 6 \
+  --capture-spacing-m 0.6 \
+  --speed-kph 7.2 \
+  --maximum-motion-m 4.0
+```
+
+이 장면은 actor GT 생성량과 검출 품질을 평가하지 않는다. 실제 평균 Ego
+속도, `trigger_rate_hz`, `end_to_end_capture_rate_hz`, 6개 timestamp
+그룹과 Camera 4대·LiDAR 파일 완전성만 기존 3.6 km/h 결과와 비교한다.
 
 ## 실패 해석
 

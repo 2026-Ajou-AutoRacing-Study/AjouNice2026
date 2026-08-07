@@ -13,6 +13,7 @@ import hashlib
 import json
 import math
 import os
+import queue
 import shutil
 import threading
 import time
@@ -104,7 +105,13 @@ def parse_args():
     )
     parser.add_argument(
         "--motion-mode",
-        choices=("stationary", "route-follow", "teleport"),
+        choices=(
+            "stationary",
+            "route-follow",
+            "rolling-safe",
+            "rolling-fast",
+            "teleport",
+        ),
         default="stationary",
     )
     parser.add_argument("--captures-per-scene", type=int, default=None)
@@ -191,6 +198,24 @@ def parse_args():
         help="MORAI service used to select AV-ExternalCtrl after every load.",
     )
     parser.add_argument(
+        "--control-mode-timeout-sec",
+        type=float,
+        default=5.0,
+        help=(
+            "Wall-clock timeout for the MoraiEventCmd service response. "
+            "Prevents an unhealthy rosbridge service from hanging a batch."
+        ),
+    )
+    parser.add_argument(
+        "--ego-heartbeat-timeout-sec",
+        type=float,
+        default=3.0,
+        help=(
+            "Require a fresh /Ego_topic message within this wall-clock time "
+            "after selecting external control mode."
+        ),
+    )
+    parser.add_argument(
         "--skip-control-mode-service",
         action="store_true",
         help=(
@@ -205,6 +230,15 @@ def parse_args():
         help=(
             "Do not fail when no new file appears under --capture-dir. "
             "Use only to diagnose MORAI versions that ignore file_dir."
+        ),
+    )
+    parser.add_argument(
+        "--continue-on-scene-error",
+        action="store_true",
+        help=(
+            "Record a failed scene and continue with the next manifest "
+            "entry. Intended for multi-scene stress tests and unattended "
+            "collection batches."
         ),
     )
     parser.add_argument(
@@ -532,6 +566,27 @@ def configured_ros_topics(network_sidecar):
     return topics
 
 
+def configured_network_unique_ids(network_sidecar):
+    document = load_json(network_sidecar)
+    ego_network_data = document.get("egoNetworkData")
+    if not isinstance(ego_network_data, list) or not ego_network_data:
+        raise ValueError(
+            "network sidecar has no egoNetworkData: {}".format(
+                network_sidecar
+            )
+        )
+
+    unique_ids = set()
+    for entry in ego_network_data:
+        value = None
+        for key in ("uniqueId", "UNIQUEID", "uniqueID"):
+            if key in entry:
+                value = int(entry[key])
+                break
+        unique_ids.add(value)
+    return unique_ids
+
+
 def validate_installed_scenes(args, manifest, scenes, project_root):
     network_policy = manifest.get("network_policy")
     if not isinstance(network_policy, dict):
@@ -547,6 +602,12 @@ def validate_installed_scenes(args, manifest, scenes, project_root):
         )
 
     required_topics = set(network_policy.get("required_topics", []))
+    required_unique_ids = set(
+        network_policy.get("required_unique_ids", [])
+    )
+    forbidden_unique_ids = set(
+        network_policy.get("forbidden_unique_ids", [])
+    )
     expected_digest = network_policy.get("template_sha256")
     if not expected_digest:
         raise ValueError(
@@ -610,6 +671,18 @@ def validate_installed_scenes(args, manifest, scenes, project_root):
             raise ValueError(
                 "network sidecar misses required ROS topics {}: {}".format(
                     missing_topics, network_sidecar
+                )
+            )
+        unique_ids = configured_network_unique_ids(network_sidecar)
+        missing_unique_ids = sorted(required_unique_ids - unique_ids)
+        forbidden_present = sorted(forbidden_unique_ids & unique_ids)
+        if missing_unique_ids or forbidden_present:
+            raise ValueError(
+                "network sidecar has invalid UNIQUEIDs: {}; missing={}, "
+                "forbidden_present={}".format(
+                    network_sidecar,
+                    missing_unique_ids,
+                    forbidden_present,
                 )
             )
     return install_dir
@@ -718,7 +791,11 @@ class AutoCapture:
             ("SaveSensorData", self.capture_pub),
         )
         if include_motion_interface:
-            if self.args.motion_mode == "route-follow":
+            if self.args.motion_mode in (
+                "route-follow",
+                "rolling-safe",
+                "rolling-fast",
+            ):
                 required += (("CtrlCmd", self.control_pub),)
             elif self.args.motion_mode == "teleport":
                 required += (("EgoSetting", self.ego_setting_pub),)
@@ -928,7 +1005,37 @@ class AutoCapture:
         request.request.lamps.turnSignal = 3
         request.request.lamps.emergencySignal = 0
         request.request.set_pause = False
-        response = self.control_mode_client(request)
+        result_queue = queue.Queue(maxsize=1)
+
+        def invoke_service():
+            try:
+                result_queue.put(("response", self.control_mode_client(request)))
+            except BaseException as error:  # Preserve rospy service errors.
+                result_queue.put(("error", error))
+
+        worker = threading.Thread(target=invoke_service)
+        worker.daemon = True
+        worker.start()
+        try:
+            result_type, result = result_queue.get(
+                timeout=self.args.control_mode_timeout_sec
+            )
+        except queue.Empty as error:
+            raise RuntimeError(
+                "{} did not respond within {:.1f}s. MORAI Ego Network or "
+                "rosbridge service is stale; restart/reconnect before "
+                "continuing the batch.".format(
+                    self.args.control_mode_service,
+                    self.args.control_mode_timeout_sec,
+                )
+            ) from error
+        if result_type == "error":
+            raise RuntimeError(
+                "{} call failed: {}".format(
+                    self.args.control_mode_service, result
+                )
+            ) from result
+        response = result
         rospy.loginfo(
             "MORAI control response: ctrl_mode=%d, gear=%d",
             response.response.ctrl_mode,
@@ -946,6 +1053,21 @@ class AutoCapture:
                     response.response.gear
                 )
             )
+        deadline = time.monotonic() + self.args.ego_heartbeat_timeout_sec
+        while not rospy.is_shutdown() and time.monotonic() < deadline:
+            snapshot = self.state.snapshot()
+            if (
+                snapshot["ego"] is not None
+                and time.monotonic() - snapshot["ego_wall_time"] <= 1.0
+            ):
+                return
+            time.sleep(0.05)
+        raise RuntimeError(
+            "/Ego_topic heartbeat did not recover within {:.1f}s after "
+            "control-mode selection".format(
+                self.args.ego_heartbeat_timeout_sec
+            )
+        )
 
     def trigger_capture(self, scene, frame_index):
         self.wait_for_connections(context="before sensor capture")
@@ -954,14 +1076,9 @@ class AutoCapture:
         )
         source_root = self.args.morai_sensor_data_dir
         before = recursive_files(source_root)
-        message = SaveSensorData()
-        # The personal MORAI build writes cameras but omits 3D LiDAR when
-        # is_custom_file_name=true. Capture every sensor to the simulator's
-        # default SensorData directory, then relocate the verified set.
-        message.is_custom_file_name = False
-        message.custom_file_name = ""
-        message.file_dir = ""
-        self.capture_pub.publish(message)
+        triggered_unix = time.time()
+        started = time.monotonic()
+        self.publish_capture_request()
 
         deadline = time.monotonic() + self.args.capture_timeout_sec
         new_files = set()
@@ -1041,17 +1158,24 @@ class AutoCapture:
                 capture_id,
                 new_files,
             )
+        completed_unix = time.time()
+        duration_sec = time.monotonic() - started
         rospy.loginfo(
-            "Capture %s: files=%d, sensors=%s, relocated=%d, verified=%s",
+            "Capture %s: files=%d, sensors=%s, relocated=%d, "
+            "verified=%s, duration=%.3fs",
             capture_id,
             len(new_files),
             ",".join(sorted(observed_sensors)),
             len(relocated_files),
             verified,
+            duration_sec,
         )
         return {
             "capture_id": capture_id,
             "verified": verified,
+            "triggered_unix": triggered_unix,
+            "completed_unix": completed_unix,
+            "duration_sec": duration_sec,
             "new_file_count": len(new_files),
             "observed_sensor_dirs": sorted(observed_sensors),
             "missing_sensor_dirs": sorted(missing_sensors),
@@ -1071,6 +1195,16 @@ class AutoCapture:
                 for path in relocated_files
             ),
         }
+
+    def publish_capture_request(self):
+        message = SaveSensorData()
+        # The personal MORAI build writes cameras but omits 3D LiDAR when
+        # is_custom_file_name=true. Capture every sensor to the simulator's
+        # default SensorData directory, then relocate the verified set.
+        message.is_custom_file_name = False
+        message.custom_file_name = ""
+        message.file_dir = ""
+        self.capture_pub.publish(message)
 
     def publish_stop(self):
         message = CtrlCmd()
@@ -1256,7 +1390,9 @@ class AutoCapture:
         candidates += list(snapshot["collision"].collision_objecta)
         return any(item.type != -1 for item in candidates)
 
-    def drive_and_capture(self, scene, capture_count):
+    def drive_and_capture(
+        self, scene, capture_count, stop_for_capture=True
+    ):
         # Keep Ego stationary while MORAI writes the multi-sensor frame.
         # Otherwise the most recent velocity command remains active during the
         # roughly 1--2 s blocking capture and skips several spacing intervals.
@@ -1350,21 +1486,29 @@ class AutoCapture:
                     distance_xy(last_capture, position)
                     >= self.args.capture_spacing_m
                 ):
-                    self.publish_stop()
-                    stopped_snapshot = self.state.snapshot()
-                    if stopped_snapshot["ego"] is None:
-                        raise RuntimeError(
-                            "Ego telemetry disappeared before sensor capture"
+                    capture_position = position
+                    if stop_for_capture:
+                        self.publish_stop()
+                        stopped_snapshot = self.state.snapshot()
+                        if stopped_snapshot["ego"] is None:
+                            raise RuntimeError(
+                                "Ego telemetry disappeared before sensor capture"
+                            )
+                        stopped_ego = stopped_snapshot["ego"]
+                        capture_position = (
+                            stopped_ego.position.x,
+                            stopped_ego.position.y,
                         )
-                    stopped_ego = stopped_snapshot["ego"]
-                    stopped_position = (
-                        stopped_ego.position.x,
-                        stopped_ego.position.y,
-                    )
+                    else:
+                        rospy.logwarn(
+                            "Rolling-safe capture starts while Ego is moving; "
+                            "the last control command remains active during "
+                            "blocking file verification"
+                        )
                     captures.append(
                         self.trigger_capture(scene, len(captures))
                     )
-                    last_capture = stopped_position
+                    last_capture = capture_position
                 time.sleep(0.05)
         finally:
             self.publish_stop()
@@ -1376,6 +1520,282 @@ class AutoCapture:
                 )
             )
         return captures
+
+    def drive_and_trigger_burst(self, scene, capture_count):
+        """Trigger captures by distance without waiting for each file set.
+
+        This intentionally prioritizes trigger throughput over dataset
+        completeness. It is an experimental benchmark, not a production
+        collection mode.
+        """
+
+        source_root = self.args.morai_sensor_data_dir
+        before = recursive_files(source_root)
+        snapshot = self.state.snapshot()
+        if snapshot["ego"] is None:
+            raise RuntimeError("Ego telemetry unavailable before rolling-fast")
+        start = (
+            snapshot["ego"].position.x,
+            snapshot["ego"].position.y,
+        )
+        nearest_hint = scene["anchor_index"]
+        issued = time.monotonic()
+        deadline = issued + self.args.motion_timeout_sec
+        triggers = []
+
+        try:
+            while (
+                not rospy.is_shutdown()
+                and len(triggers) < capture_count
+                and time.monotonic() < deadline
+            ):
+                snapshot = self.state.snapshot()
+                if snapshot["ego"] is None:
+                    raise RuntimeError(
+                        "Ego telemetry disappeared during rolling-fast"
+                    )
+                ego = snapshot["ego"]
+                position = (ego.position.x, ego.position.y)
+                travelled = distance_xy(start, position)
+                if travelled > self.args.maximum_motion_m:
+                    raise RuntimeError(
+                        "maximum motion reached before all rolling-fast "
+                        "triggers: {:.2f} m".format(travelled)
+                    )
+                if self.real_collision_after(issued):
+                    raise RuntimeError(
+                        "collision reported during rolling-fast"
+                    )
+
+                nearest_hint = self.nearest_waypoint_index(
+                    position, hint=nearest_hint
+                )
+                route_point = self.waypoints[nearest_hint]
+                route_error = distance_xy(position, route_point)
+                if route_error > self.args.route_deviation_limit_m:
+                    raise RuntimeError(
+                        "route deviation {:.2f} m exceeds safety limit".format(
+                            route_error
+                        )
+                    )
+
+                target_index = self.lookahead_index(
+                    nearest_hint, self.args.lookahead_m
+                )
+                target = self.waypoints[target_index]
+                target_heading = math.atan2(
+                    target[1] - position[1], target[0] - position[0]
+                )
+                ego_heading = math.radians(ego.heading)
+                heading_error = wrapped_angle(target_heading - ego_heading)
+                if (
+                    abs(math.degrees(heading_error))
+                    > self.args.heading_error_limit_deg
+                ):
+                    raise RuntimeError(
+                        "heading error {:.1f} deg exceeds safety limit".format(
+                            math.degrees(heading_error)
+                        )
+                    )
+
+                target_distance = max(0.5, distance_xy(position, target))
+                curvature = 2.0 * math.sin(heading_error) / target_distance
+                steering = math.atan(self.args.wheelbase_m * curvature)
+                steering = max(
+                    -self.args.maximum_steering_rad,
+                    min(self.args.maximum_steering_rad, steering),
+                )
+
+                command = CtrlCmd()
+                command.longlCmdType = 2
+                command.velocity = self.args.speed_kph
+                set_ctrl_steering(
+                    command,
+                    steering,
+                    self.args.personal_max_steering_angle_deg,
+                )
+                command.accel = 0.0
+                command.brake = 0.0
+                command.acceleration = 0.0
+                self.control_pub.publish(command)
+
+                threshold = self.args.capture_spacing_m * (
+                    len(triggers) + 1
+                )
+                if travelled >= threshold:
+                    self.wait_for_connections(
+                        context="before rolling-fast trigger"
+                    )
+                    trigger_unix = time.time()
+                    self.publish_capture_request()
+                    trigger = {
+                        "capture_id": "{}_{}_f{:02d}".format(
+                            self.run_id, scene["id"], len(triggers)
+                        ),
+                        "triggered_unix": trigger_unix,
+                        "trigger_distance_m": travelled,
+                        "ego_position": {
+                            "x": ego.position.x,
+                            "y": ego.position.y,
+                            "z": ego.position.z,
+                        },
+                        "verified": False,
+                    }
+                    triggers.append(trigger)
+                    rospy.loginfo(
+                        "Rolling-fast trigger %d/%d: distance=%.3fm",
+                        len(triggers),
+                        capture_count,
+                        travelled,
+                    )
+                time.sleep(0.05)
+        finally:
+            self.publish_stop()
+
+        if len(triggers) != capture_count:
+            raise RuntimeError(
+                "rolling-fast ended with {}/{} triggers".format(
+                    len(triggers), capture_count
+                )
+            )
+
+        # Wait only once after the burst. Files are deliberately not assigned
+        # to individual triggers because concurrent MORAI writes may overlap.
+        drain_started = time.monotonic()
+        deadline = drain_started + self.args.capture_timeout_sec
+        last_files = set()
+        stable_since = None
+        new_files = set()
+        while not rospy.is_shutdown() and time.monotonic() < deadline:
+            new_files = recursive_files(source_root) - before
+            if new_files != last_files:
+                last_files = set(new_files)
+                stable_since = time.monotonic()
+            if (
+                new_files
+                and stable_since is not None
+                and time.monotonic() - stable_since
+                >= self.args.capture_stable_sec
+            ):
+                break
+            time.sleep(0.1)
+
+        burst_root = (
+            self.args.capture_dir / "rolling_fast_raw" / scene["id"]
+        )
+        relocated = []
+        for source in sorted(new_files):
+            relative = source.relative_to(source_root)
+            destination = burst_root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if destination.exists():
+                raise FileExistsError(destination)
+            shutil.move(str(source), str(destination))
+            relocated.append(destination)
+
+        trigger_span = 0.0
+        trigger_hz = 0.0
+        if len(triggers) > 1:
+            trigger_span = (
+                triggers[-1]["triggered_unix"]
+                - triggers[0]["triggered_unix"]
+            )
+            if trigger_span > 0.0:
+                trigger_hz = (len(triggers) - 1) / trigger_span
+        metrics = {
+            "experimental": True,
+            "quality_verified": False,
+            "trigger_count": len(triggers),
+            "trigger_span_sec": trigger_span,
+            "trigger_rate_hz": trigger_hz,
+            "drain_duration_sec": time.monotonic() - drain_started,
+            "observed_file_count": len(new_files),
+            "relocated_file_count": len(relocated),
+            "raw_output_dir": str(burst_root),
+        }
+        rospy.logwarn(
+            "Rolling-fast benchmark: triggers=%d, span=%.3fs, "
+            "rate=%.3fHz, files=%d (quality not verified)",
+            len(triggers),
+            trigger_span,
+            trigger_hz,
+            len(new_files),
+        )
+        return triggers, metrics
+
+    def run_scene(self, scene):
+        scene_started = time.time()
+        mode_metrics = {}
+        if self.args.skip_scenario_load:
+            issued = time.monotonic()
+            rospy.loginfo(
+                "ScenarioLoad skipped; validating current scene as %s",
+                scene["file_name"],
+            )
+            self.wait_for_scene(scene, issued)
+        else:
+            self.load_and_verify_scene(scene)
+        if self.args.motion_mode == "stationary":
+            captures = [
+                self.trigger_capture(scene, index)
+                for index in range(self.args.captures_per_scene)
+            ]
+        elif self.args.motion_mode == "route-follow":
+            self.select_external_control_mode()
+            captures = self.drive_and_capture(
+                scene, self.args.captures_per_scene
+            )
+        elif self.args.motion_mode == "rolling-safe":
+            self.select_external_control_mode()
+            captures = self.drive_and_capture(
+                scene,
+                self.args.captures_per_scene,
+                stop_for_capture=False,
+            )
+        elif self.args.motion_mode == "rolling-fast":
+            self.select_external_control_mode()
+            captures, mode_metrics = self.drive_and_trigger_burst(
+                scene, self.args.captures_per_scene
+            )
+        else:
+            captures = self.teleport_and_capture(
+                scene, self.args.captures_per_scene
+            )
+        scene_finished = time.time()
+        trigger_times = [
+            item["triggered_unix"]
+            for item in captures
+            if "triggered_unix" in item
+        ]
+        scene_duration = scene_finished - scene_started
+        mode_metrics.update(
+            {
+                "scene_duration_sec": scene_duration,
+                "end_to_end_capture_rate_hz": (
+                    len(captures) / scene_duration
+                    if scene_duration > 0.0
+                    else 0.0
+                ),
+            }
+        )
+        if (
+            "trigger_rate_hz" not in mode_metrics
+            and len(trigger_times) > 1
+        ):
+            trigger_span = trigger_times[-1] - trigger_times[0]
+            mode_metrics["trigger_span_sec"] = trigger_span
+            mode_metrics["trigger_rate_hz"] = (
+                (len(trigger_times) - 1) / trigger_span
+                if trigger_span > 0.0
+                else 0.0
+            )
+        return {
+            "id": scene["id"],
+            "file_name": scene["file_name"],
+            "status": "completed",
+            "captures": captures,
+            "metrics": mode_metrics,
+        }
 
     def run(self, scenes):
         self.wait_for_connections(
@@ -1389,44 +1809,54 @@ class AutoCapture:
             "scenes": [],
         }
         for scene in scenes:
-            if self.args.skip_scenario_load:
-                issued = time.monotonic()
-                rospy.loginfo(
-                    "ScenarioLoad skipped; validating current scene as %s",
-                    scene["file_name"],
-                )
-                self.wait_for_scene(scene, issued)
-            else:
-                self.load_and_verify_scene(scene)
-            if self.args.motion_mode == "stationary":
-                captures = [
-                    self.trigger_capture(scene, index)
-                    for index in range(self.args.captures_per_scene)
-                ]
-            elif self.args.motion_mode == "route-follow":
-                self.select_external_control_mode()
-                captures = self.drive_and_capture(
-                    scene, self.args.captures_per_scene
-                )
-            else:
-                captures = self.teleport_and_capture(
-                    scene, self.args.captures_per_scene
-                )
-            report["scenes"].append(
-                {
+            scene_started = time.time()
+            try:
+                result = self.run_scene(scene)
+            except Exception as error:
+                if not self.args.continue_on_scene_error:
+                    raise
+                result = {
                     "id": scene["id"],
                     "file_name": scene["file_name"],
-                    "captures": captures,
+                    "status": "failed",
+                    "error": "{}: {}".format(type(error).__name__, error),
+                    "captures": [],
+                    "metrics": {
+                        "scene_duration_sec": time.time() - scene_started,
+                    },
                 }
-            )
+                rospy.logerr(
+                    "Scene %s failed and will be skipped: %s",
+                    scene["id"],
+                    error,
+                )
+            report["scenes"].append(result)
         report["finished_unix"] = time.time()
+        report["summary"] = {
+            "requested_scenes": len(scenes),
+            "completed_scenes": sum(
+                item.get("status") == "completed"
+                for item in report["scenes"]
+            ),
+            "failed_scenes": sum(
+                item.get("status") == "failed"
+                for item in report["scenes"]
+            ),
+            "completed_captures": sum(
+                len(item.get("captures", []))
+                for item in report["scenes"]
+            ),
+        }
         return report
 
 
 def select_scenes(manifest, requested):
     scenes = manifest["scenes"]
     if not requested:
-        return scenes
+        return [
+            scene for scene in scenes
+            if scene.get("run_by_default", True)
+        ]
     requested_set = set(requested)
     selected = [
         scene
@@ -1467,6 +1897,10 @@ def validate_policy(args, manifest):
         raise ValueError("--teleport-z-tolerance-m must be positive")
     if args.teleport_settle_sec < 0.0:
         raise ValueError("--teleport-settle-sec must be non-negative")
+    if args.control_mode_timeout_sec <= 0.0:
+        raise ValueError("--control-mode-timeout-sec must be positive")
+    if args.ego_heartbeat_timeout_sec <= 0.0:
+        raise ValueError("--ego-heartbeat-timeout-sec must be positive")
     if args.required_sensor_dir is None:
         args.required_sensor_dirs = (
             "CAMERA_1",
@@ -1486,11 +1920,20 @@ def validate_policy(args, manifest):
         raise ValueError("--capture-spacing-m must be positive")
     if not 0.5 <= args.speed_kph <= 7.2:
         raise ValueError("--speed-kph must be within the PoC safety range 0.5..7.2")
-    required_motion = (
-        args.capture_spacing_m * max(0, args.captures_per_scene - 1)
-    )
+    capture_intervals = max(0, args.captures_per_scene - 1)
+    if args.motion_mode == "rolling-fast":
+        # rolling-fast takes its first frame after one full spacing interval,
+        # so every requested frame consumes route distance.
+        capture_intervals = args.captures_per_scene
+    required_motion = args.capture_spacing_m * capture_intervals
     if (
-        args.motion_mode in ("route-follow", "teleport")
+        args.motion_mode
+        in (
+            "route-follow",
+            "rolling-safe",
+            "rolling-fast",
+            "teleport",
+        )
         and required_motion > args.maximum_motion_m
     ):
         raise ValueError(

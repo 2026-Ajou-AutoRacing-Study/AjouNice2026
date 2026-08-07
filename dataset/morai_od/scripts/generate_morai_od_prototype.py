@@ -342,6 +342,8 @@ def select_road_samples(
     actor_radius,
     clearance,
 ):
+    if count == 0:
+        return []
     candidates = []
     for raw_sample in all_samples:
         distance = distance_xy(raw_sample, ego_sample)

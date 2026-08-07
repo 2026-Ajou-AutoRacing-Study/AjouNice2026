@@ -127,3 +127,54 @@ ROS Synchronous Mode는 개인용 런처에서 `frame=0`,
 → 정차 → `/SaveSensorData` 방식을 사용한다. 상세 재현 결과는
 `docs/ros_scenario_autocapture_poc.md`의 “Synchronous Mode PoC 결과와
 제외 결정”에 기록한다.
+
+처리량 탐색용으로 `rolling-safe`와 `rolling-fast` 모드를 제공한다.
+전자는 정차 없이 캡처별 파일 완료를 기다리고, 후자는 1 m/s 주행 중
+0.6 m 간격 trigger를 겹쳐 보낸 뒤 마지막에 파일을 수거한다.
+`rolling-fast`는 파일을 trigger별 학습 프레임으로 검증하지 않으므로
+속도 실험에만 사용한다.
+
+현재 초기 수집 정책은 3.6 km/h, 장면당 6프레임이다. 대기시간
+`load-settle=0.5초`, `capture-stable=0.3초` 조합은 p01~p03 총
+18프레임에서 필수 센서 파일 누락 없이 통과했고, route-follow 대비 전체
+실행시간이 68.839초에서 34.666초로 줄었다. 다만 연속 재실행에서
+MORAI·rosbridge의 제어 service와 `/Ego_topic`이 응답하지 않는 현상이
+한 차례 발생했으므로, 자동화 노드는 service timeout과 Ego heartbeat로
+무한 대기를 차단한다. 장면당 3~4프레임으로 줄이고 시나리오 수를 늘리는
+전략은 초기 파인튜닝과 수집 안정성 검증 이후 비교한다.
+
+수천 장 무인 수집에서는 시나리오 `_MN.json`에 Ego Network
+`UNIQUEID=0`만 설치한다. 현재 route-follow/rolling에 필요한
+ScenarioLoad·SaveSensorData·CtrlCmd·`/Service_MoraiEventCmd`가 모두 여기에
+포함된다. Simulator Network `UNIQUEID=-100`은 `/ego_setting`·Sync Mode
+시험용이며 sidecar에는 포함하지 않는다. 이 분리 구조로 p01~p03 각
+6프레임 route-follow를 과거 세 차례, 복원 후 한 차례 성공했다.
+
+`speed01`은 p01과 같은 경로 anchor에서 모든 actor를 제거한 7.2 km/h
+전용 benchmark 장면이다. 기본 p01~p03 batch에서는 제외되며
+`--scenario speed01`을 명시할 때만 실행된다.
+
+연속 로드 안정성만 빠르게 확인할 때는 생성기에 `--stress-count 20`을
+주어 `manifests/ros_capture_stress.json`과 `stress001~stress020`을 만든다.
+이 묶음은 동일한 검증 anchor에서 seed만 바꾸고, stationary 모드로 장면당
+1장만 저장한다. 객체 배치나 학습 품질을 평가하는 데이터가 아니라
+ScenarioLoad·network 복구·센서 저장의 짧은 batch 시험용이다.
+
+최초 stress20 실행은 16장면·452파일을 누락 없이 저장한 뒤 17번째
+시나리오의 장애물 수 불일치로 중단됐다. rosbridge network는 17번째에도
+복구됐다. 대량 실행에서는 `--continue-on-scene-error`로 개별 장면 실패를
+report에 남기고 다음 장면을 계속 처리한다.
+
+180-run PointPainting/향후 BEV 공용 파일럿의 sampling·split·환경·센서
+설계는 `docs/od_180_scenario_generation_plan.md`, 기계 판독 설정 초안은
+`configs/od_180_pilot.yaml`을 사용한다. 임시 수집 속도는 3.6 km/h다.
+
+MORAI Scenario Edit에서 확인하고 사람 결합형 obstacle을 제외한 109개
+고유 자산의 DataID·표시명과 1차
+ontology는 `configs/morai_asset_catalog_260807.json`에 정리했다. 특히
+시나리오의 `pedestrianList`·`objectList`를 학습 class와 동일시하지 않는다.
+스쿠터·킥보드 탑승자와 유모차를 미는 사람 같은 결합형 obstacle은 자동
+배치에서 제외하고, 사람이 없는 자전거·스쿠터는 일반 obstacle로 배치한다.
+`pedestrianList`의 자전거 탑승자와 사람+동물 복합 자산은 실제
+Semantic/Instance/3D box를 확인하기 전까지 격리한다. 근거와 audit 절차는
+`docs/morai_asset_catalog_260807.md`를 따른다.
