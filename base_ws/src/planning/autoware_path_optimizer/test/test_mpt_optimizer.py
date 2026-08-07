@@ -4,7 +4,9 @@ import math
 import importlib.util
 import os
 import sys
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 
 PACKAGE_SRC = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src")
@@ -88,6 +90,105 @@ class ModelPredictiveTrajectoryTest(unittest.TestCase):
         result = ModelPredictiveTrajectory().optimize(source, 0.0, 0.0, left, right)
         self.assertFalse(result.success)
         self.assertIn("narrower than vehicle", result.status)
+
+    def test_warm_start_is_aligned_by_position_after_path_crop_moves(self):
+        source = [
+            TrajectorySample(x=float(index + 2), y=0.0)
+            for index in range(100)
+        ]
+        left = [(float(index + 2), 2.0, 0.0) for index in range(100)]
+        right = [(float(index + 2), -2.0, 0.0) for index in range(100)]
+        optimizer = ModelPredictiveTrajectory()
+        optimizer.previous_points = [
+            TrajectorySample(x=float(index), y=0.4)
+            for index in range(110)
+        ]
+
+        result = optimizer.optimize(source, 7.0, 0.0, left, right)
+
+        self.assertTrue(result.success, result.status)
+        ego_index = min(
+            range(len(result.points)),
+            key=lambda index: abs(result.points[index].x - 7.0),
+        )
+        self.assertAlmostEqual(result.points[ego_index].y, 0.4, delta=0.02)
+
+    def test_temporal_consistency_decays_before_far_return_path(self):
+        source = path(count=100)
+        left, right = bounds(count=100)
+        optimizer = ModelPredictiveTrajectory(
+            MPTParameters(
+                temporal_consistency_decay_start=2.0,
+                temporal_consistency_decay_end=10.0,
+            )
+        )
+        optimizer.previous_points = [
+            TrajectorySample(x=float(index), y=0.4)
+            for index in range(100)
+        ]
+
+        result = optimizer.optimize(source, 5.0, 0.0, left, right)
+
+        self.assertTrue(result.success, result.status)
+        ego_index = min(
+            range(len(result.points)),
+            key=lambda index: abs(result.points[index].x - 5.0),
+        )
+        far_index = min(
+            range(len(result.points)),
+            key=lambda index: abs(result.points[index].x - 20.0),
+        )
+        self.assertAlmostEqual(result.points[ego_index].y, 0.4, delta=0.02)
+        self.assertLess(abs(result.points[far_index].y), 0.1)
+
+    def test_trajectory_over_steering_limit_is_rejected(self):
+        source = path(lateral_noise=0.08)
+        left, right = bounds()
+        optimizer = ModelPredictiveTrajectory(
+            MPTParameters(max_steer_angle=0.01)
+        )
+
+        result = optimizer.optimize(source, 2.0, source[2].y, left, right)
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.status, "kinematic validation failure")
+
+    def test_lateral_validation_failure_returns_fixed_points_cleanly(self):
+        source = path()
+        left = [(float(index), 3.0, 0.0) for index in range(len(source))]
+        right = [(float(index), 0.5, 0.0) for index in range(len(source))]
+        optimizer = ModelPredictiveTrajectory(
+            MPTParameters(
+                vehicle_width=1.0,
+                soft_clearance_from_road=0.1,
+                max_validation_lat_error=0.5,
+            )
+        )
+
+        result = optimizer.optimize(source, 2.0, 0.0, left, right)
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.status, "lateral validation failure")
+        self.assertGreater(len(result.fixed_points), 0)
+
+    def test_solver_failure_returns_fixed_points_cleanly(self):
+        source = path()
+        left, right = bounds()
+        optimizer = ModelPredictiveTrajectory()
+
+        with patch(
+            "autoware_path_optimizer.mpt_optimizer.minimize",
+            return_value=SimpleNamespace(
+                success=False,
+                x=[],
+                message="forced failure",
+            ),
+        ):
+            result = optimizer.optimize(source, 2.0, 0.0, left, right)
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.status, "solver failure: forced failure")
+        self.assertGreater(len(result.fixed_points), 0)
 
     def test_fallback_uses_current_input_instead_of_stale_previous_output(self):
         module = load_path_optimizer_node_module()

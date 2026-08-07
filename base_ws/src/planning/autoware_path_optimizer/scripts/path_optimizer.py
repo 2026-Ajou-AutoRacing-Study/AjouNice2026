@@ -98,6 +98,14 @@ class PathOptimizerNode:
             ),
             0.0,
         )
+        self.kinematic_validation_forward_distance = max(
+            float(
+                rospy.get_param(
+                    "~mpt/validation/forward_distance", 50.0
+                )
+            ),
+            1.0,
+        )
         parameters = MPTParameters(
             num_points=int(rospy.get_param("~mpt/common/num_points", 100)),
             delta_arc_length=float(
@@ -136,6 +144,19 @@ class PathOptimizerNode:
             goal_lat_error_weight=float(
                 rospy.get_param("~mpt/weight/goal_lat_error_weight", 1000.0)
             ),
+            temporal_consistency_weight=float(
+                rospy.get_param("~mpt/weight/temporal_consistency_weight", 20.0)
+            ),
+            temporal_consistency_decay_start=float(
+                rospy.get_param(
+                    "~mpt/weight/temporal_consistency_decay_start", 2.0
+                )
+            ),
+            temporal_consistency_decay_end=float(
+                rospy.get_param(
+                    "~mpt/weight/temporal_consistency_decay_end", 10.0
+                )
+            ),
             max_iteration=int(rospy.get_param("~mpt/qp/max_iteration", 2000)),
             tolerance=float(rospy.get_param("~mpt/qp/tolerance", 1.0e-8)),
             enable_warm_start=bool(
@@ -148,6 +169,9 @@ class PathOptimizerNode:
             ),
             max_validation_lat_error=float(
                 rospy.get_param("~mpt/validation/max_lat_error", 5.0)
+            ),
+            max_curvature_rate=float(
+                rospy.get_param("~mpt/validation/max_curvature_rate", 0.15)
             ),
         )
         self.parameters = parameters
@@ -270,7 +294,7 @@ class PathOptimizerNode:
             self.previous_geometry = None
         should_replan = (
             self.previous_geometry is None
-            or self.replan_checker.replan_required(source, now)
+            or self.replan_checker.replan_required(source, now, ego_position)
         )
         status = "reused previous trajectory"
         result = None
@@ -297,6 +321,20 @@ class PathOptimizerNode:
 
         optimized = apply_input_velocity(optimized, source)
         output = join_with_remaining_path(source, optimized, self.output_interval)
+        output_stations = cumulative_lengths(output)
+        validation_length = (
+            self.parameters.output_backward_traj_length
+            + self.kinematic_validation_forward_distance
+        )
+        validation_count = int((output_stations <= validation_length).sum())
+        validation_output = output[:max(validation_count, 3)]
+        if (
+            not self.enable_skip_optimization
+            and self.parameters.enable_optimization_validation
+            and not self.optimizer.kinematically_feasible(validation_output)
+        ):
+            output = self.fallback(source, left_bound, right_bound)
+            status = "fallback: output kinematic validation failure"
         output = set_zero_velocity_after_first_stop(output)
         output = [
             replace(

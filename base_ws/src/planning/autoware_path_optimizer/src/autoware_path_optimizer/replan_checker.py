@@ -2,7 +2,12 @@
 
 import math
 
-from .trajectory_utils import distance_2d, project_point
+from .trajectory_utils import (
+    cumulative_lengths,
+    distance_2d,
+    interpolate_samples,
+    project_point,
+)
 
 
 class ReplanChecker:
@@ -36,18 +41,42 @@ class ReplanChecker:
             return True
         return distance_2d(points[-1], self.previous_input[-1]) > self.goal_threshold
 
-    def replan_required(self, points, now):
+    def replan_required(self, points, now, ego=None):
         if self.previous_input is None or self.previous_time is None:
             return True
         if self.time_threshold > 0.0 and now - self.previous_time >= self.time_threshold:
             return True
-        count = min(len(points), len(self.previous_input))
-        if count < 2:
+        if len(points) < 2 or len(self.previous_input) < 2:
             return True
-        stride = max(count // 20, 1)
+        ego_x, ego_y = ego if ego is not None else (points[0].x, points[0].y)
+        _, current_ego_station, _, _ = project_point(points, ego_x, ego_y)
+        _, previous_ego_station, _, _ = project_point(
+            self.previous_input, ego_x, ego_y
+        )
+        current_stations = cumulative_lengths(points)
+        previous_stations = cumulative_lengths(self.previous_input)
+        common_forward = min(
+            self.forward_length,
+            float(current_stations[-1]) - current_ego_station,
+            float(previous_stations[-1]) - previous_ego_station,
+        )
+        if common_forward <= 0.0:
+            return True
+        sample_count = 20
+        offsets = [
+            common_forward * float(index) / float(sample_count - 1)
+            for index in range(sample_count)
+        ]
+        current_samples = interpolate_samples(
+            points, [current_ego_station + offset for offset in offsets]
+        )
+        previous_samples = interpolate_samples(
+            self.previous_input,
+            [previous_ego_station + offset for offset in offsets],
+        )
         return any(
-            distance_2d(points[index], self.previous_input[index]) > self.forward_threshold
-            for index in range(0, count, stride)
+            distance_2d(current, previous) > self.forward_threshold
+            for current, previous in zip(current_samples, previous_samples)
         )
 
     def update(self, points, ego, replanned, now):

@@ -54,4 +54,5 @@ install(
 
 if(CATKIN_ENABLE_TESTING)
   catkin_add_nosetests(test/test_mpt_optimizer.py)
+  catkin_add_nosetests(test/test_replan_checker.py)
 endif()

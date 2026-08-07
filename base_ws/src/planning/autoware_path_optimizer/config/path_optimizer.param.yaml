@@ -40,8 +40,13 @@ mpt:
     steer_rate_weight: 30.0
     terminal_lat_error_weight: 100.0
     goal_lat_error_weight: 1000.0
+    temporal_consistency_weight: 20.0
+    temporal_consistency_decay_start: 2.0
+    temporal_consistency_decay_end: 10.0
   qp:
     max_iteration: 2000
     tolerance: 1.0e-8
   validation:
     max_lat_error: 5.0
+    max_curvature_rate: 0.15
+    forward_distance: 50.0

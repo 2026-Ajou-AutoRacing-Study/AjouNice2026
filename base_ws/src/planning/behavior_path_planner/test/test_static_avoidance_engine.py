@@ -3,6 +3,8 @@
 import math
 import os
 import sys
+from copy import deepcopy
+from types import SimpleNamespace
 import unittest
 
 from autoware_internal_planning_msgs.msg import PathPointWithLaneId, PathWithLaneId
@@ -23,8 +25,11 @@ from bpp_map_tools import CenterlineMap
 from bpp_path_tools import quaternion_from_yaw
 from bpp_static_avoidance_tools import (
     ObjectPolicy,
+    ShiftLine,
     StaticAvoidanceEngine,
     StaticAvoidanceParameters,
+    StaticAvoidanceResult,
+    StaticAvoidanceScene,
 )
 
 
@@ -170,6 +175,154 @@ class StaticAvoidanceEngineTest(unittest.TestCase):
         self.assertAlmostEqual(output.right_bound[50].y, -5.0)
         self.assertAlmostEqual(self.path.left_bound[0].y, 2.5)
         self.assertEqual(len(self.path.left_bound), 2)
+
+    def test_shift_profile_is_shortened_before_narrow_corridors(self):
+        line = ShiftLine(
+            object_ids=["object"],
+            direction="left",
+            shift_length=1.0,
+            start_s=0.0,
+            avoid_end_s=50.0,
+            return_start_s=50.0,
+            return_end_s=110.0,
+        )
+        stations = [float(value) for value in range(121)]
+        lower = [-2.0] * len(stations)
+        upper = [
+            0.2 if station < 30.0 or station > 75.0 else 2.0
+            for station in stations
+        ]
+
+        fitted = self.engine._fit_shift_line_to_bounds(
+            line, stations, lower, upper, ego_speed=4.0
+        )
+
+        self.assertTrue(fitted)
+        self.assertGreater(line.start_s, 0.0)
+        self.assertLess(line.return_end_s, 110.0)
+        self.assertTrue(
+            self.engine._line_is_within_bounds(line, stations, lower, upper)
+        )
+
+    def test_return_distance_uses_return_nominal_speed_only(self):
+        parameters = make_parameters()
+        parameters.nominal_avoidance_speed = 8.33
+        parameters.nominal_return_speed = 4.17
+        parameters.return_min_jerk = 0.6
+        engine = StaticAvoidanceEngine(parameters, make_map())
+        objects = PredictedObjects()
+        objects.objects = [make_object()]
+
+        engine.plan(self.path, objects, self.odometry, 0.0)
+        result = engine.plan(self.path, objects, self.odometry, 2.1)
+
+        self.assertEqual(len(result.shift_lines), 1)
+        line = result.shift_lines[0]
+        return_distance = line.return_end_s - line.return_start_s
+        expected = 4.0 * parameters.nominal_return_speed * (
+            abs(line.shift_length) / (2.0 * parameters.return_min_jerk)
+        ) ** (1.0 / 3.0)
+        self.assertAlmostEqual(return_distance, expected, delta=2.0)
+        self.assertLess(return_distance, 25.0)
+
+    def test_fully_passed_object_does_not_insert_current_position_stop(self):
+        target = SimpleNamespace(
+            longitudinal=0.0,
+            relative_longitudinal=-10.0,
+            half_longitudinal=2.0,
+        )
+
+        output, stop_distance = self.engine._stop_path(
+            self.path, ego_s=5.0, nearest_target=target
+        )
+
+        self.assertEqual(stop_distance, 0.0)
+        self.assertTrue(
+            all(
+                point.point.longitudinal_velocity_mps > 4.0
+                for point in output.points
+            )
+        )
+
+    def test_registered_return_is_kept_until_actual_shift_is_recovered(self):
+        class FakeRTCController:
+            def __init__(self):
+                self.completed = 0
+
+            def evaluate(self, *_args, **_kwargs):
+                return True, 0, None, True
+
+            def complete(self, _stamp):
+                self.completed += 1
+
+        line = ShiftLine(
+            object_ids=["object"],
+            direction="left",
+            shift_length=1.0,
+            start_s=0.0,
+            avoid_end_s=10.0,
+            return_start_s=20.0,
+            return_end_s=40.0,
+        )
+        registered_path, _ = self.engine._shift_path(self.path, [line])
+        scene = StaticAvoidanceScene.__new__(StaticAvoidanceScene)
+        scene.params = make_parameters()
+        scene.engine = self.engine
+        scene.avoid_rtc_controller = FakeRTCController()
+        scene.return_rtc_controller = FakeRTCController()
+        scene._return_in_progress = False
+        scene._registered_return_path = None
+        scene._registered_return_reference = None
+        scene._registered_return_stations = []
+        scene._registered_return_offsets = []
+        scene._registered_avoid_direction = None
+        scene._registered_return_direction = None
+        scene._registered_avoid_signature = None
+        scene._registered_return_signature = None
+        scene._registered_max_shift = 0.0
+        seed = StaticAvoidanceResult(
+            reference_path=self.path,
+            candidate_path=registered_path,
+            output_path=registered_path,
+            candidates=[],
+            targets=[],
+            shift_lines=[line],
+            direction="left",
+            return_direction="right",
+            max_shift=1.0,
+            signature=(("object", "left", 1.0),),
+        )
+        return_signature = seed.signature + (("return", "right"),)
+        scene._register_return(seed, registered_path, return_signature)
+
+        odometry = make_odometry()
+        odometry.pose.pose.position.x = 25.0
+        odometry.pose.pose.position.y = 0.8
+        result = StaticAvoidanceResult(
+            reference_path=self.path,
+            candidate_path=deepcopy(self.path),
+            output_path=deepcopy(self.path),
+            candidates=[],
+            targets=[],
+            shift_lines=[],
+            valid=False,
+        )
+
+        active = scene._continue_registered_return(result, odometry, 1.0)
+
+        self.assertTrue(active)
+        self.assertTrue(scene._return_in_progress)
+        self.assertGreater(result.output_path.points[25].point.pose.position.y, 0.1)
+        self.assertEqual(scene.avoid_rtc_controller.completed, 0)
+
+        odometry.pose.pose.position.x = 50.0
+        odometry.pose.pose.position.y = 0.0
+        completed = scene._continue_registered_return(result, odometry, 2.0)
+
+        self.assertFalse(completed)
+        self.assertFalse(scene._return_in_progress)
+        self.assertEqual(scene.avoid_rtc_controller.completed, 1)
+        self.assertEqual(scene.return_rtc_controller.completed, 1)
 
 
 if __name__ == "__main__":

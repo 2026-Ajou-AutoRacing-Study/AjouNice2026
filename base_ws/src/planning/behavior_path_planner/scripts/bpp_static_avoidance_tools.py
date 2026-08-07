@@ -171,6 +171,7 @@ class StaticAvoidanceParameters:
     min_prepare_distance: float = 1.0
     min_slow_down_speed: float = 1.38
     nominal_avoidance_speed: float = 8.33
+    nominal_return_speed: float = 8.33
     soft_drivable_bound_margin: float = 0.3
     hard_drivable_bound_margin: float = 0.3
     max_right_shift_length: float = 5.0
@@ -180,7 +181,7 @@ class StaticAvoidanceParameters:
     quantize_size: float = 0.1
     avoid_min_jerk: float = 0.2
     return_min_jerk: float = 0.2
-    lateral_max_jerk: float = 3.0
+    lateral_max_jerk: float = 1.0
     return_approval_ratio: float = 0.5
     stop_max_distance: float = 20.0
     stop_buffer: float = 1.0
@@ -376,6 +377,13 @@ class StaticAvoidanceParameters:
             _get_param(
                 prefix,
                 "avoidance/longitudinal/nominal_avoidance_speed",
+                params.nominal_avoidance_speed,
+            )
+        )
+        params.nominal_return_speed = float(
+            _get_param(
+                prefix,
+                "avoidance/longitudinal/nominal_return_speed",
                 params.nominal_avoidance_speed,
             )
         )
@@ -1082,7 +1090,7 @@ class StaticAvoidanceEngine:
             _lateral_jerk_distance(
                 shift,
                 self.params.return_min_jerk,
-                max(ego_speed, self.params.nominal_avoidance_speed),
+                max(ego_speed, self.params.nominal_return_speed),
             ),
         )
         candidate.return_end_s = min(
@@ -1134,9 +1142,10 @@ class StaticAvoidanceEngine:
             return 0.0
         return max(values, key=abs)
 
-    def _shift_path(self, path, lines):
+    def _shift_path(self, path, lines, expand_bounds=True):
         output = deepcopy(path)
-        self._expand_drivable_bounds(output)
+        if expand_bounds:
+            self._expand_drivable_bounds(output)
         distances = path_cumulative_lengths(output)
         offsets = []
         for point, station in zip(output.points, distances):
@@ -1156,6 +1165,137 @@ class StaticAvoidanceEngine:
                     math.atan2(after.y - before.y, after.x - before.x)
                 )
         return output, offsets
+
+    def _expanded_profile_bounds(self, path):
+        """Return vehicle-center shift limits along an expanded reference path."""
+        expanded = deepcopy(path)
+        self._expand_drivable_bounds(expanded)
+        stations = path_cumulative_lengths(expanded)
+        margin = 0.5 * self.params.vehicle_width + self.params.soft_drivable_bound_margin
+        lower = []
+        upper = []
+        point_count = len(expanded.points)
+        direct_bounds = (
+            len(expanded.left_bound) == point_count
+            and len(expanded.right_bound) == point_count
+        )
+        for index, path_point in enumerate(expanded.points):
+            position = path_point.point.pose.position
+            yaw = _path_tangent_yaw(expanded, index)
+            normal = (-math.sin(yaw), math.cos(yaw))
+            if direct_bounds:
+                left = expanded.left_bound[index]
+                right = expanded.right_bound[index]
+                left_point = (left.x, left.y, left.z)
+                right_point = (right.x, right.y, right.z)
+            else:
+                left_point = self._boundary_point(expanded.left_bound, position)
+                right_point = self._boundary_point(expanded.right_bound, position)
+            if left_point is None or right_point is None:
+                lower.append(float("inf"))
+                upper.append(float("-inf"))
+                continue
+            left_distance = (
+                (left_point[0] - position.x) * normal[0]
+                + (left_point[1] - position.y) * normal[1]
+            )
+            right_distance = (
+                (right_point[0] - position.x) * normal[0]
+                + (right_point[1] - position.y) * normal[1]
+            )
+            if left_distance <= right_distance:
+                left_distance = math.hypot(
+                    left_point[0] - position.x, left_point[1] - position.y
+                )
+                right_distance = -math.hypot(
+                    right_point[0] - position.x, right_point[1] - position.y
+                )
+            lower.append(right_distance + margin)
+            upper.append(left_distance - margin)
+        return expanded, stations, lower, upper
+
+    @staticmethod
+    def _line_is_within_bounds(line, stations, lower, upper, leg=None):
+        tolerance = 1.0e-3
+        for station, minimum, maximum in zip(stations, lower, upper):
+            if leg == "avoid" and station > line.avoid_end_s + tolerance:
+                continue
+            if leg == "return" and station < line.return_start_s - tolerance:
+                continue
+            offset = line.value_at(station)
+            if offset < minimum - tolerance or offset > maximum + tolerance:
+                return False
+        return True
+
+    @staticmethod
+    def _required_lateral_jerk(shift_length, distance, velocity):
+        distance = max(float(distance), 1.0e-3)
+        phase_time = distance / max(float(velocity), 0.1) / 4.0
+        return abs(float(shift_length)) / max(2.0 * phase_time**3, 1.0e-6)
+
+    def _fit_shift_line_to_bounds(self, line, stations, lower, upper, ego_speed):
+        """Relax a shift line up to max jerk while keeping the footprint in bounds."""
+        speed = max(float(ego_speed), self.params.min_slow_down_speed)
+        minimum_transition = _lateral_jerk_distance(
+            line.shift_length, self.params.lateral_max_jerk, speed
+        )
+        latest_start = line.avoid_end_s - minimum_transition
+        earliest_end = line.return_start_s + minimum_transition
+        if latest_start <= line.start_s:
+            avoid_starts = [line.start_s]
+        else:
+            avoid_starts = [line.start_s]
+            avoid_starts.extend(
+                station
+                for station in stations
+                if line.start_s < station < latest_start
+            )
+            avoid_starts.append(latest_start)
+
+        original_start = line.start_s
+        fitted_start = None
+        for start in sorted(set(avoid_starts)):
+            line.start_s = start
+            if self._line_is_within_bounds(
+                line, stations, lower, upper, leg="avoid"
+            ):
+                fitted_start = start
+                break
+        if fitted_start is None:
+            line.start_s = original_start
+            return False
+
+        original_end = line.return_end_s
+        if earliest_end >= original_end:
+            return_ends = [original_end]
+        else:
+            return_ends = [original_end]
+            return_ends.extend(
+                station
+                for station in stations
+                if earliest_end < station < original_end
+            )
+            return_ends.append(earliest_end)
+        fitted_end = None
+        for end in sorted(set(return_ends), reverse=True):
+            line.return_end_s = end
+            if self._line_is_within_bounds(
+                line, stations, lower, upper, leg="return"
+            ):
+                fitted_end = end
+                break
+        if fitted_end is None:
+            line.start_s = original_start
+            line.return_end_s = original_end
+            return False
+
+        avoid_jerk = self._required_lateral_jerk(
+            line.shift_length, line.avoid_end_s - line.start_s, speed
+        )
+        return_jerk = self._required_lateral_jerk(
+            line.shift_length, line.return_end_s - line.return_start_s, speed
+        )
+        return max(avoid_jerk, return_jerk) <= self.params.lateral_max_jerk + 0.1
 
     @staticmethod
     def _boundary_point(boundary, position):
@@ -1288,6 +1428,8 @@ class StaticAvoidanceEngine:
     def _stop_path(self, path, ego_s, nearest_target):
         if nearest_target is None:
             return deepcopy(path), 0.0
+        if self._target_fully_passed(nearest_target):
+            return deepcopy(path), 0.0
         stop_s = (
             nearest_target.longitudinal
             - nearest_target.half_longitudinal
@@ -1308,6 +1450,14 @@ class StaticAvoidanceEngine:
                     point.point.longitudinal_velocity_mps, feasible_velocity
                 )
         return output, stop_s - ego_s
+
+    def _target_fully_passed(self, target):
+        return (
+            target.relative_longitudinal
+            + target.half_longitudinal
+            + self.params.base_link_to_rear
+            < 0.0
+        )
 
     def plan(self, path, objects_message, odometry, stamp):
         reference = deepcopy(path)
@@ -1352,25 +1502,102 @@ class StaticAvoidanceEngine:
                 shift_lines=[],
             )
 
+        expanded_reference = None
+        profile_stations = []
+        profile_lower = []
+        profile_upper = []
+        if targets:
+            (
+                expanded_reference,
+                profile_stations,
+                profile_lower,
+                profile_upper,
+            ) = self._expanded_profile_bounds(reference)
+            fitted_targets = []
+            for target in targets:
+                line = ShiftLine(
+                    object_ids=[target.object_id],
+                    direction=target.direction,
+                    shift_length=target.shift_length,
+                    start_s=target.start_s,
+                    avoid_end_s=target.avoid_end_s,
+                    return_start_s=target.return_start_s,
+                    return_end_s=target.return_end_s,
+                )
+                if not self._fit_shift_line_to_bounds(
+                    line,
+                    profile_stations,
+                    profile_lower,
+                    profile_upper,
+                    ego_speed,
+                ):
+                    target.allow_avoidance = False
+                    target.failed_reason = "shift_profile_outside_drivable_bounds"
+                    continue
+                target.start_s = line.start_s
+                target.avoid_end_s = line.avoid_end_s
+                target.return_start_s = line.return_start_s
+                target.return_end_s = line.return_end_s
+                planning_speed = max(ego_speed, self.params.min_slow_down_speed)
+                target.required_jerk = max(
+                    self._required_lateral_jerk(
+                        target.shift_length,
+                        target.avoid_end_s - target.start_s,
+                        planning_speed,
+                    ),
+                    self._required_lateral_jerk(
+                        target.shift_length,
+                        target.return_end_s - target.return_start_s,
+                        planning_speed,
+                    ),
+                )
+                fitted_targets.append(target)
+            targets = fitted_targets
+
         lines, conflict = self._merge_shift_lines(targets)
-        candidate_path, _ = self._shift_path(reference, lines)
+        profile_valid = bool(lines) and all(
+            self._line_is_within_bounds(
+                line, profile_stations, profile_lower, profile_upper
+            )
+            for line in lines
+        )
+        if expanded_reference is None:
+            expanded_reference, _, _, _ = self._expanded_profile_bounds(reference)
+        candidate_path, _ = self._shift_path(
+            expanded_reference, lines, expand_bounds=False
+        )
         signature = tuple(
             (item.object_id, item.direction, round(item.shift_length, 2))
             for item in targets
         )
-        raw_safe, safety_reason = self._raw_safety(
-            candidate_path, targets, object_messages, conflict
-        )
+        if not profile_valid:
+            raw_safe, safety_reason = False, "shift_profile_outside_drivable_bounds"
+        else:
+            raw_safe, safety_reason = self._raw_safety(
+                candidate_path, targets, object_messages, conflict
+            )
         safe = self._hysteresis_safety(raw_safe, signature)
         comfortable = all(
             item.required_jerk <= self.params.lateral_max_jerk + 0.1 for item in targets
         )
-        valid = bool(lines) and not conflict
+        valid = bool(lines) and not conflict and profile_valid
         request_operator = any(item.request_operator for item in blocking)
         ready = safe and comfortable and valid and not request_operator
 
         nearest = min(blocking, key=lambda item: item.relative_longitudinal)
-        stopped_path, stop_distance = self._stop_path(reference, ego_s, nearest)
+        unpassed_blocking = [
+            candidate
+            for candidate in blocking
+            if not self._target_fully_passed(candidate)
+        ]
+        stop_target = min(
+            unpassed_blocking,
+            key=lambda item: item.relative_longitudinal,
+            default=None,
+        )
+        stopped_path, stop_distance = self._stop_path(
+            reference, ego_s, stop_target
+        )
         direction = lines[0].direction if lines else None
         start_distance = min((line.start_s for line in lines), default=ego_s) - ego_s
         finish_distance = max((line.return_start_s for line in lines), default=ego_s) - ego_s
@@ -1466,25 +1693,220 @@ class StaticAvoidanceScene:
         self.return_rtc_controller = RTCSceneController(self.rtc_interfaces)
         # Kept as a compatibility alias for launch/integration code.
         self.rtc_controller = self.avoid_rtc_controller
+        self._return_in_progress = False
+        self._registered_return_path = None
+        self._registered_return_reference = None
+        self._registered_return_stations = []
+        self._registered_return_offsets = []
+        self._registered_avoid_direction = None
+        self._registered_return_direction = None
+        self._registered_avoid_signature = None
+        self._registered_return_signature = None
+        self._registered_max_shift = 0.0
 
     def set_centerline_map(self, centerline_map):
         self.engine.set_centerline_map(centerline_map)
 
+    @staticmethod
+    def _path_xyz(path):
+        return [
+            (
+                point.point.pose.position.x,
+                point.point.pose.position.y,
+                point.point.pose.position.z,
+            )
+            for point in path.points
+        ]
+
+    def _align_registered_return(self, path):
+        output = deepcopy(path)
+        if self._registered_return_reference is None:
+            return output, 0
+        registered_points = self._path_xyz(self._registered_return_reference)
+        if len(registered_points) < 2:
+            return output, 0
+        maximum_distance = max(self.params.max_deviation_from_lane + 1.0, 2.0)
+        aligned_count = 0
+        for index, point in enumerate(output.points):
+            position = point.point.pose.position
+            projection = project_point_to_polyline_with_point(
+                registered_points,
+                (position.x, position.y, position.z),
+            )
+            if projection is None or projection[1] > maximum_distance:
+                continue
+            shift = self._interpolate_registered_shift(projection[0])
+            yaw = _path_tangent_yaw(path, index)
+            position.x += -math.sin(yaw) * shift
+            position.y += math.cos(yaw) * shift
+            aligned_count += 1
+        for index, point in enumerate(output.points):
+            point.point.pose.orientation = quaternion_from_yaw(
+                _path_tangent_yaw(output, index)
+            )
+        return output, aligned_count
+
+    def _interpolate_registered_shift(self, station):
+        stations = self._registered_return_stations
+        offsets = self._registered_return_offsets
+        if not stations or not offsets:
+            return 0.0
+        if station <= stations[0]:
+            return offsets[0]
+        if station >= stations[-1]:
+            return offsets[-1]
+        for index in range(len(stations) - 1):
+            if station > stations[index + 1]:
+                continue
+            length = max(stations[index + 1] - stations[index], 1.0e-6)
+            ratio = (station - stations[index]) / length
+            return offsets[index] + ratio * (
+                offsets[index + 1] - offsets[index]
+            )
+        return offsets[-1]
+
+    @staticmethod
+    def _requested_shift_at(reference, candidate, index):
+        if not reference.points or not candidate.points:
+            return 0.0
+        index = int(
+            clamp(index, 0, min(len(reference.points), len(candidate.points)) - 1)
+        )
+        reference_position = reference.points[index].point.pose.position
+        candidate_position = candidate.points[index].point.pose.position
+        yaw = _path_tangent_yaw(reference, index)
+        delta_x = candidate_position.x - reference_position.x
+        delta_y = candidate_position.y - reference_position.y
+        return -math.sin(yaw) * delta_x + math.cos(yaw) * delta_y
+
+    def _registered_return_state(self, reference, candidate, odometry):
+        projection = project_pose_to_path(reference, odometry.pose.pose)
+        if projection is None:
+            return 0.0, 0.0
+        requested_shift = self._requested_shift_at(
+            reference, candidate, projection.index
+        )
+        return requested_shift, projection.signed_lateral_distance
+
+    def _register_return(self, result, candidate_path, return_signature):
+        self._return_in_progress = True
+        self._registered_return_path = deepcopy(candidate_path)
+        self._registered_return_reference = deepcopy(result.reference_path)
+        count = min(
+            len(result.reference_path.points), len(candidate_path.points)
+        )
+        self._registered_return_stations = path_cumulative_lengths(
+            result.reference_path
+        )[:count]
+        self._registered_return_offsets = [
+            self._requested_shift_at(result.reference_path, candidate_path, index)
+            for index in range(count)
+        ]
+        self._registered_avoid_direction = result.direction
+        self._registered_return_direction = result.return_direction
+        self._registered_avoid_signature = result.signature
+        self._registered_return_signature = return_signature
+        self._registered_max_shift = result.max_shift
+
+    def _clear_registered_return(self, stamp):
+        self._return_in_progress = False
+        self._registered_return_path = None
+        self._registered_return_reference = None
+        self._registered_return_stations = []
+        self._registered_return_offsets = []
+        self._registered_avoid_direction = None
+        self._registered_return_direction = None
+        self._registered_avoid_signature = None
+        self._registered_return_signature = None
+        self._registered_max_shift = 0.0
+        self.avoid_rtc_controller.complete(stamp)
+        self.return_rtc_controller.complete(stamp)
+
+    def _continue_registered_return(self, result, odometry, stamp):
+        continuation, aligned_count = self._align_registered_return(
+            result.candidate_path
+        )
+        requested_shift, actual_shift = self._registered_return_state(
+            result.reference_path, continuation, odometry
+        )
+        completion_threshold = self.params.lateral_execution_threshold
+        actual_completion_threshold = max(
+            completion_threshold, self.params.max_deviation_from_lane
+        )
+        complete = (
+            aligned_count < 2
+            or (
+                abs(requested_shift) <= completion_threshold
+                and abs(actual_shift) <= actual_completion_threshold
+            )
+        )
+        if complete:
+            self._clear_registered_return(stamp)
+            result.candidate_path = result.reference_path
+            result.output_path = result.reference_path
+            result.status += "; registered return completed"
+            return False
+
+        self.avoid_rtc_controller.evaluate(
+            self._registered_avoid_direction,
+            self._registered_avoid_signature,
+            True,
+            0.0,
+            0.0,
+            stamp,
+        )
+        self.return_rtc_controller.evaluate(
+            self._registered_return_direction,
+            self._registered_return_signature,
+            True,
+            0.0,
+            0.0,
+            stamp,
+        )
+        result.candidate_path = continuation
+        result.output_path = continuation
+        result.direction = self._registered_avoid_direction
+        result.return_direction = self._registered_return_direction
+        result.max_shift = self._registered_max_shift
+        result.safe = True
+        result.comfortable = True
+        result.valid = True
+        result.ready = True
+        result.activated = True
+        result.return_ready = True
+        result.status += (
+            "; registered return active, requested_shift={:.2f} m, "
+            "actual_shift={:.2f} m"
+        ).format(requested_shift, actual_shift)
+        return True
+
     def process(self, path, objects, odometry, stamp):
         result = self.engine.plan(path, objects, odometry, stamp)
         if result.direction is None or not result.shift_lines:
+            if self._return_in_progress and self._continue_registered_return(
+                result, odometry, stamp
+            ):
+                return result
             self.avoid_rtc_controller.complete(stamp)
             self.return_rtc_controller.complete(stamp)
-            result.output_path = result.output_path if result.targets else result.reference_path
+            has_blocking_object = any(
+                candidate.avoid_required for candidate in result.candidates
+            )
+            if not has_blocking_object:
+                result.output_path = result.reference_path
             return result
 
+        full_candidate = deepcopy(result.candidate_path)
         path_end = path_cumulative_lengths(result.reference_path)[-1]
         avoid_only_lines = deepcopy(result.shift_lines)
         for line in avoid_only_lines:
             line.return_start_s = path_end + 1.0
             line.return_end_s = path_end + 2.0
+        expanded_reference = deepcopy(result.reference_path)
+        expanded_reference.left_bound = deepcopy(result.candidate_path.left_bound)
+        expanded_reference.right_bound = deepcopy(result.candidate_path.right_bound)
         avoid_candidate, _ = self.engine._shift_path(
-            result.reference_path, avoid_only_lines
+            expanded_reference, avoid_only_lines, expand_bounds=False
         )
 
         execution_ready = (
@@ -1493,16 +1915,19 @@ class StaticAvoidanceScene:
             and result.valid
             and not result.request_operator
         )
+        rtc_execution_ready = execution_ready or self._return_in_progress
         activated, state, _, auto_mode = self.avoid_rtc_controller.evaluate(
             result.direction,
             result.signature,
-            execution_ready,
+            rtc_execution_ready,
             result.start_distance,
             result.finish_distance,
             stamp,
             requested=result.request_operator,
         )
-        result.activated = bool(activated and result.ready)
+        result.activated = bool(
+            activated and (result.ready or self._return_in_progress)
+        )
         result.auto_mode = auto_mode
         result.rtc_state = state
         result.candidate_path = avoid_candidate
@@ -1528,15 +1953,10 @@ class StaticAvoidanceScene:
 
         if not result.activated or self.params.approval_policy != "per_shift_line":
             if result.activated and self.params.approval_policy != "per_shift_line":
-                result.candidate_path = self.engine._shift_path(
-                    result.reference_path, result.shift_lines
-                )[0]
+                result.candidate_path = full_candidate
                 result.output_path = result.candidate_path
             return result
 
-        full_candidate, _ = self.engine._shift_path(
-            result.reference_path, result.shift_lines
-        )
         ego_s, _ = self.engine._ego_state(result.reference_path, odometry)
         main_shift = max(result.shift_lines, key=lambda line: abs(line.shift_length))
         current_shift = main_shift.value_at(ego_s)
@@ -1545,7 +1965,7 @@ class StaticAvoidanceScene:
             if abs(main_shift.shift_length) > 1.0e-6
             else 0.0
         )
-        result.return_ready = (
+        result.return_ready = self._return_in_progress or (
             execution_ready
             and remaining_ratio < self.params.return_approval_ratio + 1.0e-3
         )
@@ -1561,6 +1981,7 @@ class StaticAvoidanceScene:
         result.candidate_path = full_candidate
         if return_activated and result.return_ready:
             result.output_path = full_candidate
+            self._register_return(result, full_candidate, return_signature)
         return_state_name = {
             State.WAITING_FOR_EXECUTION: "waiting",
             State.RUNNING: "running",

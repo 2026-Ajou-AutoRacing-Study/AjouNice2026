@@ -16,12 +16,19 @@ from std_srvs.srv import Trigger, TriggerResponse
 
 DEFAULT_TOPICS = (
     "/planning/scenario_planning/lane_driving/behavior_planning/path",
+    "/planning/path_reference/static_obstacle_avoidance",
+    "/planning/path_candidate/static_obstacle_avoidance",
+    "/planning/debug/bpp/module_status",
+    "/planning/debug/bpp/static_obstacle_avoidance",
     "/planning/scenario_planning/status/stop_reasons",
     "/planning/debug/behavior_velocity_planner/status",
     "/planning/planning_factors/behavior_velocity_planner",
     "/planning/scenario_planning/lane_driving/motion_planning/path_smoother/path",
     "/planning/scenario_planning/lane_driving/motion_planning/path_smoother/trajectory",
     "/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory",
+    "/path_optimizer/debug/status",
+    "/path_optimizer/debug/processing_time_ms",
+    "/elastic_band_smoother/debug/processing_time_ms",
     "/planning/scenario_planning/lane_driving/motion_planning/"
     "motion_velocity_planner/raw_trajectory",
     "/control/trajectory",
