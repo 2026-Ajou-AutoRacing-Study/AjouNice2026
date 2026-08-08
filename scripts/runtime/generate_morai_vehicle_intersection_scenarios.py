@@ -12,8 +12,9 @@ The default mapping is:
 * ``2_trigger.json``: arrow tip
 * ``3_trigger.json``: first dashed line
 
-Target and ego speeds are recorded in the filename.  The target NPC speed is
-also written to the MORAI vehicle fields.  Ego speed remains a planner launch
+Target and ego speeds are recorded in the filename.  The target NPC is created
+by a dedicated Spawn Point every three seconds; its vehicle type and speed are
+written into the Spawn Point fields.  Ego speed remains a planner launch
 setting, so the validation runner must be launched at the matching speed.
 """
 
@@ -41,8 +42,8 @@ DEFAULT_TRIGGER_TEMPLATES = (
     ("trigger03", DEFAULT_SCENARIO_DIR / "3_trigger.json"),
 )
 DEFAULT_VEHICLE_TEMPLATES = (
-    ("left", DEFAULT_SCENARIO_DIR / "car_left_2trigger.json"),
-    ("right", DEFAULT_SCENARIO_DIR / "car1_right_sur14.json"),
+    ("left", DEFAULT_SCENARIO_DIR / "left_spawnpoint.json"),
+    ("right", DEFAULT_SCENARIO_DIR / "right_spawnpoint.json"),
 )
 DEFAULT_TRIGGER_DESCRIPTIONS = {
     "trigger01": "before_stopline",
@@ -52,6 +53,9 @@ DEFAULT_TRIGGER_DESCRIPTIONS = {
 DEFAULT_TARGET_SPEEDS_KPH = (10.0, 20.0, 30.0, 40.0, 50.0, 60.0)
 DEFAULT_EGO_SPEEDS_KPH = (10.0, 20.0, 30.0, 40.0, 50.0, 60.0)
 DEFAULT_TARGET_UNIQUE_ID = 14
+DEFAULT_TARGET_SPAWN_UNIQUE_ID = 18
+TARGET_SPAWN_PERIOD_SECONDS = 3.0
+TARGET_MAXIMUM_SPAWN = 50
 
 
 class GenerationError(RuntimeError):
@@ -139,6 +143,32 @@ def target_vehicle(scene: Dict[str, Any], unique_id: int, role: str) -> Dict[str
     return matches[0]
 
 
+def target_spawn_point(
+    scene: Dict[str, Any], unique_id: int, role: str
+) -> Dict[str, Any]:
+    matches = [
+        spawn_point
+        for spawn_point in scene.get("spawnPointList", [])
+        if isinstance(spawn_point, dict)
+        and int(spawn_point.get("UNIQUEID", -1)) == unique_id
+    ]
+    if len(matches) != 1:
+        raise GenerationError(
+            "{} template must contain exactly one Spawn Point UNIQUEID {} "
+            "(found {})".format(role, unique_id, len(matches))
+        )
+    spawn_point = matches[0]
+    start_link = spawn_point.get("startLinkInfo", {}).get("linkIdx", "")
+    end_link = spawn_point.get("endLinkInfo", {}).get("linkIdx", "")
+    if not start_link or not end_link:
+        raise GenerationError(
+            "{} Spawn Point UNIQUEID {} needs both start and destination links".format(
+                role, unique_id
+            )
+        )
+    return spawn_point
+
+
 def scale_velocity(vector: Any, target_speed_kph: float) -> None:
     """Keep serialized physics state consistent with the requested speed."""
     if not isinstance(vector, dict):
@@ -179,6 +209,28 @@ def set_vehicle_speed(vehicle: Dict[str, Any], speed_kph: float) -> None:
         scale_velocity(saved_vehicle.get("lastVelocity"), speed_kph)
 
 
+def configure_target_spawn_point(
+    spawn_point: Dict[str, Any], vehicle_model_id: int, target_speed_kph: float
+) -> Dict[str, Any]:
+    """Pin a Spawn Point to the validation vehicle and a three-second period."""
+    configured = copy.deepcopy(spawn_point)
+    configured["spawnVehicleTypeID"] = vehicle_model_id
+    configured["ParameterType"] = 2
+    configured["maximumSpawnVehicle"] = TARGET_MAXIMUM_SPAWN
+    configured["minSpawnPeriod"] = TARGET_SPAWN_PERIOD_SECONDS
+    configured["maxSpawnPeriod"] = TARGET_SPAWN_PERIOD_SECONDS
+    configured["SpawnVelocityType"] = 2
+    configured["MinSpawnVelocity_Custom"] = target_speed_kph
+    configured["MaxSpawnVelocity_Custom"] = target_speed_kph
+    configured["DesiredVelocityType"] = 2
+    configured["MinDesiredVelocity_Custom"] = target_speed_kph
+    configured["MaxDesiredVelocity_Custom"] = target_speed_kph
+    configured["spawnedVehiclesCount"] = 0
+    configured["isSpawning"] = False
+    configured["waitSpawnTime"] = TARGET_SPAWN_PERIOD_SECONDS
+    return configured
+
+
 def is_target_path_entry(entry: Any, unique_id: int) -> bool:
     if not isinstance(entry, dict):
         return False
@@ -188,38 +240,41 @@ def is_target_path_entry(entry: Any, unique_id: int) -> bool:
     }
 
 
-def replace_target_vehicle(
+def configure_target_spawn(
     trigger_scene: Dict[str, Any], vehicle_scene: Dict[str, Any], unique_id: int,
-    target_speed_kph: float,
+    spawn_unique_id: int, target_speed_kph: float,
 ) -> Dict[str, Any]:
-    """Preserve trigger-scene ego state while substituting one NPC trajectory."""
+    """Preserve trigger ego state and add the dedicated repeating vehicle Spawn Point."""
     output = copy.deepcopy(trigger_scene)
-    source_target = copy.deepcopy(target_vehicle(vehicle_scene, unique_id, "vehicle"))
-    set_vehicle_speed(source_target, target_speed_kph)
+    source_target = target_vehicle(vehicle_scene, unique_id, "vehicle")
+    source_spawn = target_spawn_point(vehicle_scene, spawn_unique_id, "vehicle")
+    configured_spawn = configure_target_spawn_point(
+        source_spawn, int(source_target["DataID"]), target_speed_kph
+    )
 
-    replaced = False
-    vehicles = []
-    for vehicle in output["vehicleList"]:
-        if isinstance(vehicle, dict) and int(vehicle.get("UNIQUEID", -1)) == unique_id:
-            vehicles.append(copy.deepcopy(source_target))
-            replaced = True
-        else:
-            vehicles.append(vehicle)
-    if not replaced:
-        raise GenerationError("trigger scene lost target vehicle UNIQUEID {}".format(unique_id))
-    output["vehicleList"] = vehicles
-
-    source_paths = [
-        copy.deepcopy(entry)
-        for entry in vehicle_scene.get("waypointDataList", [])
-        if is_target_path_entry(entry, unique_id)
+    # The original trigger scene contains a single NPC with this ID.  Removing
+    # it avoids a one-off vehicle in addition to the repeating Spawn Point.
+    target_vehicle(output, unique_id, "trigger")
+    output["vehicleList"] = [
+        vehicle
+        for vehicle in output["vehicleList"]
+        if not (
+            isinstance(vehicle, dict) and int(vehicle.get("UNIQUEID", -1)) == unique_id
+        )
     ]
-    base_paths = [
+    output["waypointDataList"] = [
         entry
         for entry in output.get("waypointDataList", [])
         if not is_target_path_entry(entry, unique_id)
     ]
-    output["waypointDataList"] = base_paths + source_paths
+    output["spawnPointList"] = [
+        spawn_point
+        for spawn_point in output.get("spawnPointList", [])
+        if not (
+            isinstance(spawn_point, dict)
+            and int(spawn_point.get("UNIQUEID", -1)) == spawn_unique_id
+        )
+    ] + [configured_spawn]
     return output
 
 
@@ -290,6 +345,9 @@ def parse_args() -> argparse.Namespace:
         help="target vehicle trajectory template; may be repeated",
     )
     parser.add_argument("--target-unique-id", type=int, default=DEFAULT_TARGET_UNIQUE_ID)
+    parser.add_argument(
+        "--target-spawn-unique-id", type=int, default=DEFAULT_TARGET_SPAWN_UNIQUE_ID
+    )
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_SCENARIO_DIR)
     parser.add_argument(
         "--target-speeds-kph",
@@ -300,6 +358,14 @@ def parse_args() -> argparse.Namespace:
         default=",".join(compact_number(value) for value in DEFAULT_EGO_SPEEDS_KPH),
     )
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--sync-template-spawns",
+        action="store_true",
+        help=(
+            "write the fixed vehicle model, 3-second period and maximum spawn "
+            "settings back to the left/right Spawn Point templates"
+        ),
+    )
     parser.add_argument(
         "--prune",
         action="store_true",
@@ -332,6 +398,27 @@ def main() -> int:
             target_vehicle(scene, args.target_unique_id, "trigger")
         for _, _, scene in vehicle_scenes:
             target_vehicle(scene, args.target_unique_id, "vehicle")
+            target_spawn_point(scene, args.target_spawn_unique_id, "vehicle")
+
+        if args.sync_template_spawns:
+            for _, path, scene in vehicle_scenes:
+                vehicle = target_vehicle(scene, args.target_unique_id, "vehicle")
+                replacement = configure_target_spawn_point(
+                    target_spawn_point(
+                        scene, args.target_spawn_unique_id, "vehicle"
+                    ),
+                    int(vehicle["DataID"]),
+                    float(vehicle.get("desiredVelocity", 0.0)),
+                )
+                scene["spawnPointList"] = [
+                    replacement
+                    if isinstance(spawn_point, dict)
+                    and int(spawn_point.get("UNIQUEID", -1))
+                    == args.target_spawn_unique_id
+                    else spawn_point
+                    for spawn_point in scene["spawnPointList"]
+                ]
+                atomic_json(path, scene)
 
         plans: List[Tuple[Path, Dict[str, Any], Dict[str, Any]]] = []
         for side_name, side_path, vehicle_scene in vehicle_scenes:
@@ -347,10 +434,11 @@ def main() -> int:
                             trigger_location,
                             ego_speed_kph,
                         )
-                        scene = replace_target_vehicle(
+                        scene = configure_target_spawn(
                             trigger_scene,
                             vehicle_scene,
                             args.target_unique_id,
+                            args.target_spawn_unique_id,
                             target_speed_kph,
                         )
                         plans.append(
@@ -366,6 +454,8 @@ def main() -> int:
                                     "trigger_template": trigger_path.name,
                                     "target_speed_kph": target_speed_kph,
                                     "ego_speed_kph": ego_speed_kph,
+                                    "target_spawn_point_unique_id": args.target_spawn_unique_id,
+                                    "target_spawn_period_s": TARGET_SPAWN_PERIOD_SECONDS,
                                 },
                             )
                         )

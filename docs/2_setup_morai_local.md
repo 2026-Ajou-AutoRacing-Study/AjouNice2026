@@ -204,8 +204,10 @@ python3 scripts/runtime/generate_morai_dynamic_crosswalk_scenarios.py \
 
 `1_trigger.json`, `2_trigger.json`, `3_trigger.json`은 각각 정지선 이전,
 화살표 끝, 첫 번째 점선의 에고 시작 위치로 사용한다.
-`car_left_2trigger.json`과 `car1_right_sur14.json`은 각각 좌·우에서 진입하는
-대상 NPC 차량 경로다. 모든 파일에서 대상 NPC의 `UNIQUEID`는 `14`여야 한다.
+`left_spawnpoint.json`과 `right_spawnpoint.json`은 각각 좌·우에서 진입하는
+대상 NPC Spawn Point 경로다. 모든 파일에서 대상 NPC의 `UNIQUEID`는 `14`,
+전용 Spawn Point의 `UNIQUEID`는 `18`이어야 한다. 생성기는 전용 Spawn Point를
+대상 차량 모델로 고정하고, 주기를 `3초`, 최대 동시 생성 수를 `50`으로 설정한다.
 
 ```bash
 cd ~/Desktop/AjouNice2026
@@ -213,12 +215,13 @@ cd ~/Desktop/AjouNice2026
 # 216개 조건을 만들기 전 템플릿 구조만 점검한다.
 python3 scripts/runtime/generate_morai_vehicle_intersection_scenarios.py --dry-run
 
-# 대상 차량 10~60 km/h, 에고 플래너 10~60 km/h 조건으로 216개 JSON을 생성한다.
-python3 scripts/runtime/generate_morai_vehicle_intersection_scenarios.py
+# Spawn Point 템플릿도 고정 차량·3초 주기로 동기화하고, 대상 차량 10~60 km/h,
+# 에고 플래너 10~60 km/h 조건으로 216개 JSON을 생성한다.
+python3 scripts/runtime/generate_morai_vehicle_intersection_scenarios.py --sync-template-spawns
 ```
 
 파일명 예시는 `dynamic_car_left_obj10_before_stopline_ego10_pos001.json`이다. 파일의
-NPC 차량 속도는 `10 km/h`로 설정되며, `ego10`은 플래너를
+좌측 Spawn Point는 `3초`마다 `10 km/h` 대상 차량을 생성하며, `ego10`은 플래너를
 `default_velocity_kph:=10`으로 실행해야 한다는 뜻이다.
 
 ## 실제 토픽 값 잘 나오고, 잘 변하는지 테스트
