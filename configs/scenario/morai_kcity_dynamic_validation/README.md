@@ -1,11 +1,11 @@
 # MORAI K-City 동적 객체 검증 시나리오
 
 `kcity_2025_dynamic_validation.tar.gz`에는 MORAI Standard의
-`R_KR_PR_K-city_2025` 시나리오 폴더에 넣어 사용할 JSON 1,489개가 들어 있다.
+`R_KR_PR_K-city_2025` 시나리오 폴더에 넣어 사용할 JSON 2,329개가 들어 있다.
 무결성은 `cd configs/scenario/morai_kcity_dynamic_validation && sha256sum -c SHA256SUMS`로
 확인할 수 있다.
 
-- 보행자/동물/자전거: 1,260개
+- 보행자/동물/자전거: 2,100개
 - 좌·우 NPC 차량: 216개
 - 원본 템플릿: 11개
 - 검증 매트릭스 인덱스: 2개
@@ -40,7 +40,7 @@ MORAI_SCENARIO_DIR="$MORAI_SCENARIO_DIR" \
 보행자/동물 시나리오:
 
 ```text
-dynamic_<actor>_loc<01|02>_obj<speed>_<front|opposite>_crosswalk_ego<speed>_act<7|10|15>_pos001.json
+dynamic_<actor>_loc<01|02>_obj<speed>_<front|opposite>_crosswalk_ego<speed>_act<7|10|12|15|17>_pos001.json
 ```
 
 NPC 차량 시나리오:
