@@ -167,7 +167,7 @@ $ rostopic list
 ```bash
 cd ~/Desktop/AjouNice2026
 
-# 먼저 1,260개 씬(6 객체 × 두 위치 × 5 객체 속도 × 3 활성 거리 × 7 에고 속도)을 검증만 한다.
+# 먼저 2,100개 씬(6 객체 × 두 위치 × 5 객체 속도 × 5 활성 거리 × 7 에고 속도)을 검증만 한다.
 python3 scripts/runtime/generate_morai_dynamic_crosswalk_scenarios.py --dry-run
 
 # MORAI SaveFile/Scenario/R_KR_PR_K-city_2025에 JSON과 matrix index를 생성한다.
@@ -175,14 +175,14 @@ python3 scripts/runtime/generate_morai_dynamic_crosswalk_scenarios.py
 ```
 
 기본 조합은 보행 속도 `2,3,5,10,15 km/h`, MORAI 활성 거리
-`7,10,15 m`, 에고 플래너 속도 `5,10,20,30,40,50,60 km/h`이다. 에고 속도는
+`7,10,12,15,17 m`, 에고 플래너 속도 `5,10,20,30,40,50,60 km/h`이다. 에고 속도는
 MORAI JSON의 값이 아니라 플래너 실행 인자이므로,
 `dynamic_crosswalk_matrix_index.json`에 각 씬의 실행 속도 조합으로 기록된다.
-따라서 현재 생성되는 1,260개 JSON은 각각 정확히 하나의 검증 케이스를 의미한다.
+따라서 현재 생성되는 2,100개 JSON은 각각 정확히 하나의 검증 케이스를 의미한다.
 파일명은 `dynamic_장애물_장소_장애물속도_앞뒤횡단보도_차량속도_act활성거리_pos001.json`
 형식이다. 예를 들어
-`dynamic_kid_loc01_obj02_front_crosswalk_ego05_act05_pos001.json`은 전방 횡단
-위치(`loc01`)에서 어린이가 `2 km/h`, 활성 거리 `5 m`, 에고 플래너 속도
+`dynamic_kid_loc01_obj02_front_crosswalk_ego05_act12_pos001.json`은 전방 횡단
+위치(`loc01`)에서 어린이가 `2 km/h`, 활성 거리 `12 m`, 에고 플래너 속도
 `5 km/h`인 경우다.
 
 기본 대상은 어린이·성인·자전거·사슴·개·사람+개다. 새 대상은 해당 MORAI
