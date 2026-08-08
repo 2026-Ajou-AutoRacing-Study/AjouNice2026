@@ -151,6 +151,56 @@ class StaticAvoidanceEngineTest(unittest.TestCase):
         self.assertEqual(len(result.shift_lines), 1)
         self.assertEqual(result.shift_lines[0].direction, "left")
 
+    def test_static_non_target_object_collision_is_unsafe(self):
+        line = ShiftLine(
+            object_ids=["target"],
+            direction="left",
+            shift_length=2.0,
+            start_s=0.0,
+            avoid_end_s=20.0,
+            return_start_s=80.0,
+            return_end_s=100.0,
+        )
+        candidate_path, _ = self.engine._shift_path(self.path, [line])
+        static_other_object = make_object(
+            x=50.0, y=3.2, speed=0.0, object_id=2
+        )
+
+        safe, reason = self.engine._raw_safety(
+            candidate_path,
+            targets=[],
+            all_objects=[static_other_object],
+            conflict=False,
+        )
+
+        self.assertFalse(safe)
+        self.assertEqual(reason, "static_other_object_collision")
+
+    def test_static_non_target_object_with_hard_margin_is_safe(self):
+        line = ShiftLine(
+            object_ids=["target"],
+            direction="left",
+            shift_length=2.0,
+            start_s=0.0,
+            avoid_end_s=20.0,
+            return_start_s=80.0,
+            return_end_s=100.0,
+        )
+        candidate_path, _ = self.engine._shift_path(self.path, [line])
+        static_other_object = make_object(
+            x=50.0, y=4.2, speed=0.0, object_id=2
+        )
+
+        safe, reason = self.engine._raw_safety(
+            candidate_path,
+            targets=[],
+            all_objects=[static_other_object],
+            conflict=False,
+        )
+
+        self.assertTrue(safe)
+        self.assertEqual(reason, "safe")
+
     def test_intersection_area_is_propagated_to_output_drivable_bounds(self):
         centerline_map = make_map()
         centerline_map.intersection_areas = {

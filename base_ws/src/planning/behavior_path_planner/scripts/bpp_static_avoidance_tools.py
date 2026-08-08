@@ -160,6 +160,7 @@ class StaticAvoidanceParameters:
     close_vehicle_policy: str = "ignore"
     unstable_classification_time: float = 2.0
     enable_safety_check: bool = True
+    check_other_objects: bool = True
     check_all_predicted_paths: bool = False
     safety_backward_distance: float = 100.0
     hysteresis_expand_rate: float = 1.5
@@ -302,6 +303,13 @@ class StaticAvoidanceParameters:
         )
         params.enable_safety_check = _as_bool(
             _get_param(prefix, "safety_check/enable", params.enable_safety_check)
+        )
+        params.check_other_objects = _as_bool(
+            _get_param(
+                prefix,
+                "safety_check/check_other_object",
+                params.check_other_objects,
+            )
         )
         params.check_all_predicted_paths = _as_bool(
             _get_param(
@@ -1395,14 +1403,27 @@ class StaticAvoidanceEngine:
             _, half_lateral = _projected_object_half_extents(
                 predicted_object, _path_tangent_yaw(candidate_path, projection.index)
             )
+            policy = self._policy(_highest_probability_label(predicted_object))
+            speed = object_speed(predicted_object)
+            if (
+                self.params.check_other_objects
+                and speed <= policy.moving_speed_threshold
+            ):
+                clearance = (
+                    abs(projection.signed_lateral_distance)
+                    - 0.5 * self.params.vehicle_width
+                    - half_lateral
+                )
+                if clearance + 1.0e-3 < max(policy.hard_margin, 0.0):
+                    return False, "static_other_object_collision"
+                continue
             lateral_threshold = (
                 0.5 * self.params.vehicle_width
                 + half_lateral
                 + self.params.safety_lateral_threshold
             )
             if abs(projection.signed_lateral_distance) < lateral_threshold:
-                speed = object_speed(predicted_object)
-                if speed > self._policy(_highest_probability_label(predicted_object)).moving_speed_threshold:
+                if speed > policy.moving_speed_threshold:
                     return False, "predicted_object_collision"
         return True, "safe"
 
