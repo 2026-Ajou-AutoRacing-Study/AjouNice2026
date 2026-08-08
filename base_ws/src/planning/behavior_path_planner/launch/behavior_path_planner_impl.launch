@@ -74,6 +74,7 @@
     <param name="static_obstacle_avoidance/target_filtering/avoidance_for_ambiguous_vehicle/policy" value="manual" />
     <param name="static_obstacle_avoidance/target_filtering/avoidance_for_ambiguous_vehicle/condition/th_stopped_time" value="3.0" />
     <param name="static_obstacle_avoidance/safety_check/enable" value="true" />
+    <param name="static_obstacle_avoidance/safety_check/check_other_object" value="true" />
     <param name="static_obstacle_avoidance/safety_check/hysteresis_factor_safe_count" value="3" />
     <param name="static_obstacle_avoidance/avoidance/lateral/soft_drivable_bound_margin" value="0.3" />
     <param name="static_obstacle_avoidance/avoidance/lateral/hard_drivable_bound_margin" value="0.3" />
@@ -85,7 +86,7 @@
     <param name="static_obstacle_avoidance/avoidance/longitudinal/max_prepare_time" value="2.0" />
     <param name="static_obstacle_avoidance/avoidance/longitudinal/min_prepare_distance" value="1.0" />
     <param name="static_obstacle_avoidance/avoidance/longitudinal/min_slow_down_speed" value="1.38" />
-    <param name="static_obstacle_avoidance/avoidance/longitudinal/nominal_return_speed" value="4.17" />
+    <param name="static_obstacle_avoidance/avoidance/longitudinal/nominal_return_speed" value="2.7" />
     <param name="static_obstacle_avoidance/stop/max_distance" value="20.0" />
     <param name="static_obstacle_avoidance/stop/stop_buffer" value="1.0" />
     <param name="static_obstacle_avoidance/policy/make_approval_request" value="per_shift_line" />
@@ -101,7 +102,7 @@
     <param name="static_obstacle_avoidance/target_object/car/lateral_margin/hard_margin_for_parked_vehicle" value="0.7" />
     <rosparam param="static_obstacle_avoidance/constraints/lateral/min_jerk_values/avoid">[0.2, 0.2, 0.2]</rosparam>
     <rosparam param="static_obstacle_avoidance/constraints/lateral/min_jerk_values/return">[0.6, 0.6, 0.6]</rosparam>
-    <rosparam param="static_obstacle_avoidance/constraints/lateral/max_jerk_values">[1.0, 1.0, 1.0]</rosparam>
+    <rosparam param="static_obstacle_avoidance/constraints/lateral/max_jerk_values">[2.5, 2.5, 2.5]</rosparam>
     <param name="static_obstacle_avoidance/rtc/enable_left" value="$(arg static_avoidance_enable_rtc_left)" />
     <param name="static_obstacle_avoidance/rtc/enable_right" value="$(arg static_avoidance_enable_rtc_right)" />
 
