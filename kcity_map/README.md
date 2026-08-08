@@ -27,10 +27,10 @@ Google Drive에서 관리하는 파일:
 
 현재 기준 자산:
 
-- Lanelet2: `lanelet_map/lanelet2_map_v56.osm`
+- Lanelet2: `lanelet_map/lanelet2_map_v60.osm`
 - Pointcloud: `lanelet_map/pointcloud_map_v1.pcd`
 - Projector: `lanelet_map/map_projector_info_v1.yaml`
-- Competition route: `competition_route/v44/`
+- Competition route: `competition_route/v60/`
 
 ## 최초 준비
 
@@ -110,10 +110,11 @@ scripts/map/upload_kcity_map_assets.sh --dry-run
 cd ~/AjouNice2026/kcity_map
 
 python3 scripts/kcity_map_workflow/generate_drive_course_from_map.py \
-  --map lanelet_map/lanelet2_map_v44.osm \
-  --reference-csv competition_route/v41/drive_course_v41_lanelets.csv \
-  --out-dir competition_route/v44 \
-  --output-prefix drive_course_v44
+  --map lanelet_map/lanelet2_map_v60.osm \
+  --reference-csv competition_route/v60/drive_course_v60_lanelets.csv \
+  --route-definition competition_route/v60/route_definition.yaml \
+  --out-dir competition_route/v60 \
+  --output-prefix drive_course_v60
 ```
 
 일부 Autoware 연동 검증 스크립트는 선택적으로 상위 워크스페이스의

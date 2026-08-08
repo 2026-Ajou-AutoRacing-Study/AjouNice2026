@@ -245,6 +245,35 @@ def project_point_to_polyline(points, target, min_s=None, max_s=None):
     return best_s, best_distance
 
 
+def coincident_polyline_error(first, second, tolerance=0.5):
+    """Return boundary mismatch when two separately-IDed ways describe one line."""
+    if len(first) < 2 or len(second) < 2:
+        return None
+    tolerance = max(float(tolerance), 0.0)
+    if (
+        distance_2d(first[0], second[0]) > tolerance
+        or distance_2d(first[-1], second[-1]) > tolerance
+    ):
+        return None
+
+    def directed_error(source, target):
+        interval = max(cumulative_lengths(source)[-1] / 12.0, 1.0)
+        distances = []
+        for point in resample_polyline(source, interval):
+            projection = project_point_to_polyline(target, point)
+            if projection is None:
+                return None
+            distances.append(float(projection[1]))
+        return max(distances, default=0.0)
+
+    forward = directed_error(first, second)
+    backward = directed_error(second, first)
+    if forward is None or backward is None:
+        return None
+    error = max(forward, backward)
+    return error if error <= tolerance else None
+
+
 def project_point_to_polyline_with_point(points, target):
     """Project target to a polyline and return station, distance, and XYZ point."""
     if not points:
@@ -635,14 +664,36 @@ class CenterlineMap:
             return False
         return distance_2d(first[-1], second[0]) <= max(float(geometric_tolerance), 0.0)
 
+    def geometric_lateral_sides(self, first_lane_id, second_lane_id, tolerance=0.5):
+        if not self._same_direction(first_lane_id, second_lane_id):
+            return None
+        first = self.get_boundaries(first_lane_id)
+        second = self.get_boundaries(second_lane_id)
+        if first is None or second is None:
+            return None
+        matches = []
+        for first_side, second_side in ((0, 1), (1, 0)):
+            error = coincident_polyline_error(
+                first[first_side], second[second_side], tolerance
+            )
+            if error is not None:
+                matches.append((error, first_side, second_side))
+        if not matches:
+            return None
+        _, first_side, second_side = min(matches)
+        return first_side, second_side
+
     def is_lateral_neighbor(self, first_lane_id, second_lane_id):
         first_ids = self.get_boundary_ids(first_lane_id)
         second_ids = self.get_boundary_ids(second_lane_id)
         if first_ids is None or second_ids is None:
             return False
-        return bool(set(first_ids) & set(second_ids)) and self._same_direction(
+        return (
+            bool(set(first_ids) & set(second_ids))
+            and self._same_direction(first_lane_id, second_lane_id)
+        ) or self.geometric_lateral_sides(
             first_lane_id, second_lane_id
-        )
+        ) is not None
 
     def _same_direction(self, first_lane_id, second_lane_id):
         first = self.get_centerline(first_lane_id)
@@ -677,6 +728,23 @@ class CenterlineMap:
             shared_candidate_side = "left" if candidate_ids[0] == shared_id else "right"
             outer_side = "right" if shared_candidate_side == "left" else "left"
             return int(candidate_id), outer_side
+
+        geometric_candidates = []
+        for candidate_id in self.boundary_ids:
+            if str(candidate_id) == str(lane_id):
+                continue
+            if (
+                use_lane_type == "same_direction_lane"
+                and not self._same_direction(lane_id, candidate_id)
+            ):
+                continue
+            matched_sides = self.geometric_lateral_sides(lane_id, candidate_id)
+            if matched_sides is None or matched_sides[0] != side_index:
+                continue
+            candidate_outer_side = "right" if matched_sides[1] == 0 else "left"
+            geometric_candidates.append((int(candidate_id), candidate_outer_side))
+        if geometric_candidates:
+            return min(geometric_candidates, key=lambda value: value[0])
         return None
 
     def expanded_outer_boundary(

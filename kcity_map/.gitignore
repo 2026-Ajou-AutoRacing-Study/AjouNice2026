@@ -42,7 +42,8 @@ competition_route/**/tmp/
 /drive_assets.sha256
 /lanelet_map/*.osm
 /lanelet_map/*.pcd
-/competition_route/v*/
+/competition_route/v*/*
+!/competition_route/v*/route_definition.yaml
 /example_map/
 /gis_map/
 /mgeo_map/

@@ -32,6 +32,11 @@ class EditedRouteDefinitionTest(unittest.TestCase):
 
     def test_loads_preferred_candidates_and_assignments(self):
         content = """
+format_version: 1
+map_version: 60
+map_file: lanelet_map/lanelet2_map_v60.osm
+map_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+required_lanelet_ids: [102]
 preferred_lane_ids: [101, 102]
 candidate_lane_ids: [201, 202]
 candidate_assignments:
@@ -45,6 +50,7 @@ candidate_assignments:
 
         self.assertEqual(route["preferred_lane_ids"], [101, 102])
         self.assertEqual(route["candidate_lane_ids"], [201, 202])
+        self.assertEqual(route["required_lanelet_ids"], [102])
         self.assertEqual(
             self.module.parse_candidate_assignments(
                 route["candidate_assignments"]
