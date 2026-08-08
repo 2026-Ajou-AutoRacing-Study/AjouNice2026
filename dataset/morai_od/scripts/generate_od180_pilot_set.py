@@ -43,7 +43,34 @@ SPLIT_COUNTS = {"train": 20, "val": 5, "test": 5}
 MINIMUM_ANCHOR_ARC_DISTANCE_M = 20.0
 EXCLUDED_ANCHOR_INDICES = set()
 ANCHOR_CANDIDATE_SPACING_M = 4.0
+# Large datasets can contain more independently randomized actor layouts than
+# the official route has mutually separated safe Ego anchors. Version wrappers
+# may reuse a validated anchor pool while keeping the default strict behavior.
+ALLOW_ANCHOR_REUSE = False
 MASTER_SEED = 26080730
+# Version wrappers may quarantine assets after an actual unattended capture
+# campaign without rewriting the launcher-compatibility catalog.  The latter
+# answers "does this asset exist in both launchers?"; this policy answers the
+# separate question "did it load reliably enough for automated production?".
+RUNTIME_EXCLUDED_ASSET_IDS = {
+    "vehicle": set(),
+    "pedestrian": set(),
+    "obstacle": set(),
+}
+
+# A moving six-frame capture observes the scene from 0 m through roughly 9 m.
+# Legacy datasets laid out all actors around the initial Ego pose.  New
+# wrappers can instead use a point near the capture trajectory's centre so
+# that captures do not become rear-camera-heavy as Ego moves forward.
+ACTOR_LAYOUT_REFERENCE_AHEAD_M = 0.0
+FRONT_BIASED_SCENE_TYPES = set()
+FRONT_BIASED_PROBABILITY = 0.0
+# Optional mission-aware spatial policies used by newer dataset wrappers.
+# Empty mappings preserve the legacy generator exactly.
+DIRECTIONAL_SECTOR_WEIGHTS = {}
+VEHICLE_TRAFFIC_RELATION_WEIGHTS = {}
+VEHICLE_LINK_EXCLUSION_ZONES = ()
+CAMERA_SEAM_ANGLES_DEG = (45.0, -45.0, 135.0, -135.0)
 ENVIRONMENTS = (
     {"id": "sunny_t11", "weather": "sunny", "time_hour": 11},
     {"id": "sunny_t13", "weather": "sunny", "time_hour": 13},
@@ -339,7 +366,17 @@ def parse_args():
         default=None,
         help=(
             "Optional MORAI current-map Scenario directory. When supplied, "
-            "the 30 JSON files and Ego-only ROS network sidecars are installed."
+            "the generated JSON files and Ego-only ROS network sidecars are "
+            "installed."
+        ),
+    )
+    parser.add_argument(
+        "--install-only",
+        action="store_true",
+        help=(
+            "Install an already generated scenario set and network "
+            "sidecars without regenerating actor layouts. Requires "
+            "--install-dir."
         ),
     )
     parser.add_argument(
@@ -624,10 +661,13 @@ def select_anchors(candidates, minimum_arc_distance_m=20.0):
                     added, count, topology
                 )
             )
-    if len(selected) != BASE_SCENARIO_COUNT:
+    expected_anchor_count = sum(
+        count for _topology, count in TOPOLOGY_TARGETS
+    )
+    if len(selected) != expected_anchor_count:
         raise AssertionError(
-            "anchor selection did not produce {} scenes".format(
-                BASE_SCENARIO_COUNT
+            "anchor selection did not produce {} anchors".format(
+                expected_anchor_count
             )
         )
     return selected
@@ -635,6 +675,7 @@ def select_anchors(candidates, minimum_arc_distance_m=20.0):
 
 def make_scene_specs(rng, anchors):
     remaining = list(anchors)
+    anchor_usage = Counter()
     pending = []
     for type_spec in SCENE_TYPE_SPECS:
         for local_index in range(type_spec["count"]):
@@ -653,20 +694,47 @@ def make_scene_specs(rng, anchors):
     specs = []
     for type_spec, local_index in pending:
         anchor = None
+        available = anchors if ALLOW_ANCHOR_REUSE else remaining
         for preferred in type_spec["topology_preference"]:
-            anchor = next(
-                (
-                    item
-                    for item in remaining
-                    if item["topology"] == preferred
-                ),
-                None,
-            )
-            if anchor is not None:
+            matching = [
+                item
+                for item in available
+                if item["topology"] == preferred
+            ]
+            if matching:
+                if ALLOW_ANCHOR_REUSE:
+                    minimum_use = min(
+                        anchor_usage[item["index"]] for item in matching
+                    )
+                    matching = [
+                        item
+                        for item in matching
+                        if anchor_usage[item["index"]] == minimum_use
+                    ]
+                    anchor = rng.choice(matching)
+                else:
+                    anchor = matching[0]
                 break
         if anchor is None:
-            anchor = remaining[0]
-        remaining.remove(anchor)
+            if not available:
+                raise RuntimeError("No anchor remains for scene specification")
+            if ALLOW_ANCHOR_REUSE:
+                minimum_use = min(
+                    anchor_usage[item["index"]] for item in available
+                )
+                anchor = rng.choice(
+                    [
+                        item
+                        for item in available
+                        if anchor_usage[item["index"]] == minimum_use
+                    ]
+                )
+            else:
+                anchor = available[0]
+        if ALLOW_ANCHOR_REUSE:
+            anchor_usage[anchor["index"]] += 1
+        else:
+            remaining.remove(anchor)
 
         npc = rng.randint(*type_spec["npc_range"])
         pedestrian = rng.randint(*type_spec["pedestrian_range"])
@@ -693,9 +761,12 @@ def make_scene_specs(rng, anchors):
                 "minimum_obstacle_count": type_spec["obstacle_range"][0],
             }
         )
-    if remaining or len(specs) != BASE_SCENARIO_COUNT:
+    if (
+        (remaining and not ALLOW_ANCHOR_REUSE)
+        or len(specs) != BASE_SCENARIO_COUNT
+    ):
         raise AssertionError(
-            "scene specification did not consume {} anchors".format(
+            "scene specification did not produce {} layouts".format(
                 BASE_SCENARIO_COUNT
             )
         )
@@ -777,9 +848,17 @@ def point_segment_distance(point, before, after):
 def route_corridor_points(
     waypoints,
     anchor_index,
-    behind_m=EGO_ROUTE_BEHIND_M,
-    ahead_m=EGO_ROUTE_AHEAD_M,
+    behind_m=None,
+    ahead_m=None,
 ):
+    # Dataset version wrappers override these policy constants after importing
+    # this module. Resolve defaults at call time so the actual check and the
+    # value recorded in metadata cannot silently diverge.
+    if behind_m is None:
+        behind_m = EGO_ROUTE_BEHIND_M
+    if ahead_m is None:
+        ahead_m = EGO_ROUTE_AHEAD_M
+
     def collect(step, limit):
         points = [waypoints[anchor_index]]
         distance = 0.0
@@ -797,6 +876,148 @@ def route_corridor_points(
     behind = list(reversed(collect(-1, behind_m)))
     ahead = collect(1, ahead_m)
     return behind[:-1] + ahead
+
+
+def route_reference_pose(waypoints, anchor_index, ahead_m):
+    """Interpolate a pose ``ahead_m`` along the official capture route."""
+
+    index = anchor_index
+    remaining = max(0.0, float(ahead_m))
+    point = waypoints[index]
+    while index + 1 < len(waypoints):
+        following = waypoints[index + 1]
+        segment = distance_xy(point, following)
+        if segment > 2.0:
+            break
+        if segment >= remaining and segment > 1e-9:
+            ratio = remaining / segment
+            x = point[0] + (following[0] - point[0]) * ratio
+            y = point[1] + (following[1] - point[1]) * ratio
+            z = point[2] + (following[2] - point[2]) * ratio
+            return {
+                "x": x,
+                "y": y,
+                "z": z,
+                "yaw": heading_degrees(point, following),
+            }
+        remaining -= segment
+        index += 1
+        point = following
+    before = waypoints[max(0, index - 1)]
+    return {
+        "x": point[0],
+        "y": point[1],
+        "z": point[2],
+        "yaw": heading_degrees(before, point),
+    }
+
+
+def actor_view_relation(reference, point, actor_yaw=None):
+    """Describe an actor in route coordinates for audit and balancing."""
+
+    longitudinal, lateral = local_coordinates(reference, point)
+    if longitudinal >= 3.0:
+        view_zone = "front"
+    elif longitudinal <= -3.0:
+        view_zone = "rear"
+    else:
+        view_zone = "side"
+    if lateral > 2.0:
+        side = "left"
+    elif lateral < -2.0:
+        side = "right"
+    else:
+        side = "center"
+    relation = {
+        "longitudinal_m": round(longitudinal, 3),
+        "lateral_m": round(lateral, 3),
+        "view_zone": view_zone,
+        "side": side,
+        "directional_sector": directional_sector(reference, point),
+    }
+    if actor_yaw is not None:
+        delta = abs(wrap_degrees(float(actor_yaw) - reference["yaw"]))
+        if delta <= 45.0:
+            direction = "same_direction"
+        elif delta >= 135.0:
+            direction = "opposing_direction"
+        else:
+            direction = "crossing_or_merging"
+        relation.update(
+            {
+                "heading_difference_deg": round(delta, 3),
+                "traffic_direction_relation": direction,
+            }
+        )
+    return relation
+
+
+def directional_sector(reference, point):
+    """Return a four-camera-oriented front/left/right/rear sector.
+
+    The sector is evaluated in the tangent frame of ``reference``.  For a
+    curved route this means that a 4.5 m-ahead reference naturally rotates
+    with a right or left turn instead of assuming the initial Ego heading.
+    """
+
+    longitudinal, lateral = local_coordinates(reference, point)
+    angle = math.degrees(math.atan2(lateral, longitudinal))
+    if -60.0 <= angle <= 60.0:
+        return "front"
+    if 60.0 < angle < 135.0:
+        return "left"
+    if -135.0 < angle < -60.0:
+        return "right"
+    return "rear"
+
+
+def weighted_choice(rng, weights):
+    if not weights:
+        return None
+    names = []
+    values = []
+    for name, value in weights.items():
+        if float(value) > 0.0:
+            names.append(name)
+            values.append(float(value))
+    if not names:
+        return None
+    return rng.choices(names, weights=values, k=1)[0]
+
+
+def vehicle_traffic_relation(reference, sample):
+    delta = abs(wrap_degrees(float(sample["yaw"]) - reference["yaw"]))
+    if delta <= 45.0:
+        return "same_direction"
+    if delta >= 135.0:
+        return "opposing_direction"
+    return "crossing_or_merging"
+
+
+def in_vehicle_link_exclusion_zone(sample):
+    for zone in VEHICLE_LINK_EXCLUSION_ZONES:
+        if str(sample.get("link_idx")) != str(zone["link_idx"]):
+            continue
+        if math.hypot(
+            sample["x"] - float(zone["x"]),
+            sample["y"] - float(zone["y"]),
+        ) <= float(zone["radius_m"]):
+            return True
+    return False
+
+
+def sample_sector_coordinates(rng, sector, distance):
+    """Sample route-local coordinates without imposing left/right balance."""
+
+    ranges = {
+        "front": (-55.0, 55.0),
+        "left": (65.0, 125.0),
+        "right": (-125.0, -65.0),
+        "rear": (140.0, 220.0),
+    }
+    low, high = ranges[sector]
+    angle = math.radians(rng.uniform(low, high))
+    return math.cos(angle) * distance, math.sin(angle) * distance
 
 
 def in_ego_swept_corridor(
@@ -839,16 +1060,24 @@ def choose_vehicle_samples(
     occupied,
     route_points,
     static_collision_index,
+    layout_reference=None,
+    front_bias_probability=0.0,
 ):
+    layout_reference = layout_reference or ego
     if isinstance(samples, RoadSampleIndex):
-        nearby = samples.within(ego["x"], ego["y"], 28.0)
+        nearby = samples.within(
+            layout_reference["x"], layout_reference["y"], 28.0
+        )
     else:
         nearby = samples
     candidates = [
         item
         for item in nearby
-        if 5.0
-        <= math.hypot(item["x"] - ego["x"], item["y"] - ego["y"])
+        if 5.0 <= math.hypot(
+            item["x"] - layout_reference["x"],
+            item["y"] - layout_reference["y"],
+        ) <= 28.0
+        and math.hypot(item["x"] - ego["x"], item["y"] - ego["y"])
         <= 28.0
     ]
     selected = []
@@ -856,12 +1085,47 @@ def choose_vehicle_samples(
         radius = VEHICLE_RADIUS.get(row["subtype"], 3.0)
         is_bus_van = row["subtype"] == "bus_van"
         target_distance = weighted_distance(rng)
+        prefer_front = (
+            front_bias_probability > 0.0
+            and rng.random() < front_bias_probability
+        )
+        target_sector = weighted_choice(
+            rng, DIRECTIONAL_SECTOR_WEIGHTS.get("vehicle")
+        )
+        target_relation = weighted_choice(
+            rng, VEHICLE_TRAFFIC_RELATION_WEIGHTS
+        )
         ordered = list(candidates)
         rng.shuffle(ordered)
         ordered.sort(
-            key=lambda item: abs(
-                math.hypot(item["x"] - ego["x"], item["y"] - ego["y"])
-                - target_distance
+            key=lambda item: (
+                0
+                if (
+                    target_sector is None
+                    or directional_sector(layout_reference, item)
+                    == target_sector
+                )
+                else 40,
+                0
+                if (
+                    target_relation is None
+                    or vehicle_traffic_relation(layout_reference, item)
+                    == target_relation
+                )
+                else 30,
+                0
+                if (
+                    not prefer_front
+                    or local_coordinates(layout_reference, item)[0] >= 6.0
+                )
+                else 20,
+                abs(
+                    math.hypot(
+                        item["x"] - layout_reference["x"],
+                        item["y"] - layout_reference["y"],
+                    )
+                    - target_distance
+                ),
             )
         )
         sample = next(
@@ -869,6 +1133,9 @@ def choose_vehicle_samples(
                 item
                 for item in ordered
                 if (
+                    not in_vehicle_link_exclusion_zone(item)
+                )
+                and (
                     not is_bus_van
                     or (
                         item.get("link_length_m", 0.0)
@@ -945,41 +1212,85 @@ def choose_pedestrian_poses(
     topology,
     route_points,
     static_collision_index,
+    layout_reference=None,
+    front_bias_probability=0.0,
 ):
+    layout_reference = layout_reference or ego
     selected = []
     crosswalks = nearby_crosswalks(features, ego)
-    seam_angles = (45.0, -45.0, 135.0, -135.0)
+    seam_angles = CAMERA_SEAM_ANGLES_DEG
     for index in range(count):
         pose = None
+        target_sector = weighted_choice(
+            rng, DIRECTIONAL_SECTOR_WEIGHTS.get("pedestrian")
+        )
         # Dense pedestrian scenes can exhaust the immediately sampled area
         # after vehicles have already occupied several valid road-adjacent
         # poses.  Keep the validated 2.05 m centre spacing and search a wider
         # random pool instead of weakening the collider-clearance rule.
         for _ in range(300):
+            target_crosswalks = (
+                [
+                    polygon
+                    for polygon in crosswalks
+                    if target_sector is None
+                    or directional_sector(
+                        layout_reference,
+                        {
+                            "x": path_centroid(polygon)[0],
+                            "y": path_centroid(polygon)[1],
+                        },
+                    )
+                    == target_sector
+                ]
+            )
             use_crosswalk = (
                 topology == "crosswalk"
-                and crosswalks
+                and target_crosswalks
                 and rng.random() < 0.70
             )
             if use_crosswalk:
-                x, y = random_point_in_polygon(rng, rng.choice(crosswalks))
+                x, y = random_point_in_polygon(
+                    rng, rng.choice(target_crosswalks)
+                )
             else:
                 radius = weighted_distance(rng)
                 if scene_type == "camera_seam_occlusion":
                     angle = seam_angles[index % len(seam_angles)]
                     angle += rng.uniform(-6.0, 6.0)
+                    longitudinal = math.cos(math.radians(angle)) * radius
+                    lateral = math.sin(math.radians(angle)) * radius
+                elif target_sector is not None:
+                    longitudinal, lateral = sample_sector_coordinates(
+                        rng, target_sector, radius
+                    )
                 else:
                     lateral_sign = rng.choice((-1.0, 1.0))
                     lateral = lateral_sign * rng.uniform(4.0, min(7.0, radius))
                     longitudinal = math.sqrt(
                         max(0.0, radius * radius - lateral * lateral)
                     )
-                    longitudinal *= rng.choice((-1.0, 1.0))
-                    angle = math.degrees(math.atan2(lateral, longitudinal))
-                global_angle = math.radians(ego["yaw"] + angle)
-                x = ego["x"] + math.cos(global_angle) * radius
-                y = ego["y"] + math.sin(global_angle) * radius
+                    prefer_front = (
+                        front_bias_probability > 0.0
+                        and rng.random() < front_bias_probability
+                    )
+                    longitudinal *= (
+                        1.0 if prefer_front else rng.choice((-1.0, 1.0))
+                    )
+                yaw = math.radians(layout_reference["yaw"])
+                x = (
+                    layout_reference["x"]
+                    + math.cos(yaw) * longitudinal
+                    - math.sin(yaw) * lateral
+                )
+                y = (
+                    layout_reference["y"]
+                    + math.sin(yaw) * longitudinal
+                    + math.cos(yaw) * lateral
+                )
             raw = {"x": x, "y": y}
+            if math.hypot(x - ego["x"], y - ego["y"]) > 28.0:
+                continue
             if in_ego_swept_corridor(
                 ego,
                 raw,
@@ -1009,7 +1320,9 @@ def choose_pedestrian_poses(
                 continue
             pose = {
                 **candidate,
-                "yaw": wrap_degrees(ego["yaw"] + rng.uniform(-180.0, 180.0)),
+                "yaw": wrap_degrees(
+                    layout_reference["yaw"] + rng.uniform(-180.0, 180.0)
+                ),
             }
             break
         if pose is None:
@@ -1027,31 +1340,58 @@ def choose_obstacle_poses(
     occupied,
     route_points,
     static_collision_index,
+    layout_reference=None,
+    front_bias_probability=0.0,
 ):
+    layout_reference = layout_reference or ego
     selected = []
     for row, actor in assets:
         pose = None
         subtype = row["subtype"]
         actor_radius = OBSTACLE_RADIUS.get(subtype, 1.0)
+        target_sector = weighted_choice(
+            rng, DIRECTIONAL_SECTOR_WEIGHTS.get("obstacle")
+        )
         for _ in range(300):
             distance = weighted_distance(rng)
             if subtype == "road_surface":
                 longitudinal = rng.choice((-1.0, 1.0)) * max(10.0, distance)
                 lateral = rng.choice((-1.0, 1.0)) * rng.uniform(2.5, 4.0)
             else:
-                longitudinal = rng.uniform(-min(20.0, distance), min(20.0, distance))
-                lateral_mag = math.sqrt(
-                    max(0.0, distance * distance - longitudinal * longitudinal)
-                )
-                lateral = rng.choice((-1.0, 1.0)) * max(4.0, lateral_mag)
-            yaw = math.radians(ego["yaw"])
+                if target_sector is not None:
+                    longitudinal, lateral = sample_sector_coordinates(
+                        rng, target_sector, distance
+                    )
+                else:
+                    prefer_front = (
+                        front_bias_probability > 0.0
+                        and rng.random() < front_bias_probability
+                    )
+                    if prefer_front:
+                        longitudinal = rng.uniform(
+                            6.0, max(6.0, min(20.0, distance))
+                        )
+                    else:
+                        longitudinal = rng.uniform(
+                            -min(20.0, distance), min(20.0, distance)
+                        )
+                    lateral_mag = math.sqrt(
+                        max(
+                            0.0,
+                            distance * distance - longitudinal * longitudinal,
+                        )
+                    )
+                    lateral = rng.choice((-1.0, 1.0)) * max(
+                        4.0, lateral_mag
+                    )
+            yaw = math.radians(layout_reference["yaw"])
             x = (
-                ego["x"]
+                layout_reference["x"]
                 + math.cos(yaw) * longitudinal
                 - math.sin(yaw) * lateral
             )
             y = (
-                ego["y"]
+                layout_reference["y"]
                 + math.sin(yaw) * longitudinal
                 + math.cos(yaw) * lateral
             )
@@ -1077,7 +1417,9 @@ def choose_obstacle_poses(
                 "yaw": (
                     road["yaw"]
                     if subtype == "road_surface"
-                    else wrap_degrees(ego["yaw"] + rng.uniform(-20.0, 20.0))
+                    else wrap_degrees(
+                        layout_reference["yaw"] + rng.uniform(-20.0, 20.0)
+                    )
                 ),
             }
             if not is_clear(
@@ -1180,6 +1522,24 @@ def generate_scene(
         waypoints,
         spec["anchor"]["index"],
     )
+    if ACTOR_LAYOUT_REFERENCE_AHEAD_M > 0.0:
+        layout_reference = route_reference_pose(
+            waypoints,
+            spec["anchor"]["index"],
+            ACTOR_LAYOUT_REFERENCE_AHEAD_M,
+        )
+    else:
+        layout_reference = {
+            "x": ego["x"],
+            "y": ego["y"],
+            "z": ego["z"],
+            "yaw": ego["yaw"],
+        }
+    front_bias_probability = (
+        FRONT_BIASED_PROBABILITY
+        if spec["scene_type"] in FRONT_BIASED_SCENE_TYPES
+        else 0.0
+    )
     scenario = copy.deepcopy(template)
     clear_template_lists(scenario)
     set_vehicle_pose(
@@ -1200,6 +1560,8 @@ def generate_scene(
         occupied,
         route_points,
         features["static_collision_index"],
+        layout_reference=layout_reference,
+        front_bias_probability=front_bias_probability,
     )
     for actor_index, (row, actor, sample) in enumerate(vehicle_placements):
         unique_id = 1001 + actor_index
@@ -1211,12 +1573,17 @@ def generate_scene(
             ego=False,
         )
         scenario["vehicleList"].append(actor)
-        assets.append(
-            actor_record_with_pose(
-                row, unique_id, "vehicleList", actor["initPosition"]["pos"],
-                sample["yaw"]
-            )
+        record = actor_record_with_pose(
+            row,
+            unique_id,
+            "vehicleList",
+            actor["initPosition"]["pos"],
+            sample["yaw"],
         )
+        record["capture_layout_relation"] = actor_view_relation(
+            layout_reference, sample, sample["yaw"]
+        )
+        assets.append(record)
 
     pedestrian_count = spec["pedestrian_count"]
     pedestrian_assets = pedestrian_deck.take(pedestrian_count)
@@ -1235,6 +1602,8 @@ def generate_scene(
         spec["anchor"]["topology"],
         route_points,
         features["static_collision_index"],
+        layout_reference=layout_reference,
+        front_bias_probability=front_bias_probability,
     )
     for actor_index, ((row, actor), pose) in enumerate(
         zip(pedestrian_assets, pedestrian_poses)
@@ -1242,11 +1611,17 @@ def generate_scene(
         unique_id = 2001 + actor_index
         set_pedestrian_pose(actor, pose, pose["yaw"], unique_id)
         scenario["pedestrianList"].append(actor)
-        assets.append(
-            actor_record_with_pose(
-                row, unique_id, "pedestrianList", actor["pos"], pose["yaw"]
-            )
+        record = actor_record_with_pose(
+            row,
+            unique_id,
+            "pedestrianList",
+            actor["pos"],
+            pose["yaw"],
         )
+        record["capture_layout_relation"] = actor_view_relation(
+            layout_reference, pose
+        )
+        assets.append(record)
 
     obstacle_assets = obstacle_deck.take(spec["obstacle_count"])
     obstacle_placements = choose_obstacle_poses(
@@ -1257,6 +1632,8 @@ def generate_scene(
         occupied,
         route_points,
         features["static_collision_index"],
+        layout_reference=layout_reference,
+        front_bias_probability=front_bias_probability,
     )
     for actor_index, (row, actor, pose) in enumerate(obstacle_placements):
         unique_id = 3001 + actor_index
@@ -1268,11 +1645,17 @@ def generate_scene(
         )
         actor["rot"]["yaw"] = "{:.3f}".format(pose["yaw"])
         scenario["objectList"].append(actor)
-        assets.append(
-            actor_record_with_pose(
-                row, unique_id, "objectList", actor["pos"], pose["yaw"]
-            )
+        record = actor_record_with_pose(
+            row,
+            unique_id,
+            "objectList",
+            actor["pos"],
+            pose["yaw"],
         )
+        record["capture_layout_relation"] = actor_view_relation(
+            layout_reference, pose
+        )
+        assets.append(record)
 
     expected = {
         "vehicleList": spec["npc_count"],
@@ -1282,7 +1665,7 @@ def generate_scene(
     validate_scenario(
         scenario, ego, radius=28.0, link_ids=link_ids, expected_counts=expected
     )
-    return scenario, ego, assets, expected
+    return scenario, ego, layout_reference, assets, expected
 
 
 def capture_policy(config):
@@ -1383,10 +1766,58 @@ def build_manifest(
     }
 
 
+def install_existing_scenarios(project_root, workspace, args):
+    if args.install_dir is None:
+        raise ValueError("--install-only requires --install-dir")
+    manifest_path = (
+        workspace / "manifests/{}_base.json".format(MANIFEST_STEM)
+    )
+    if not manifest_path.is_file():
+        raise FileNotFoundError(
+            "Generate the scenario set before --install-only: {}".format(
+                manifest_path
+            )
+        )
+    manifest = load_json(manifest_path)
+    scenes = manifest.get("scenes", [])
+    if len(scenes) != BASE_SCENARIO_COUNT:
+        raise RuntimeError(
+            "generated scene count {} != {}".format(
+                len(scenes), BASE_SCENARIO_COUNT
+            )
+        )
+    _network_document, network_payload = build_ego_only_network_template(
+        args.network_template.expanduser().resolve()
+    )
+    install_dir = args.install_dir.expanduser().resolve()
+    sidecar_dir = install_dir / "EgoNetwork"
+    install_dir.mkdir(parents=True, exist_ok=True)
+    sidecar_dir.mkdir(parents=True, exist_ok=True)
+    for index, scene in enumerate(scenes, start=1):
+        source = project_root / scene["scenario"]
+        if not source.is_file():
+            raise FileNotFoundError(source)
+        shutil.copy2(source, install_dir / (scene["file_name"] + ".json"))
+        (sidecar_dir / (scene["file_name"] + "_MN.json")).write_bytes(
+            network_payload
+        )
+        if index == 1 or index % 30 == 0 or index == len(scenes):
+            print(
+                "Installing existing scenarios: {}/{}".format(
+                    index, len(scenes)
+                ),
+                flush=True,
+            )
+    print("MORAI install complete:", install_dir)
+
+
 def main():
     args = parse_args()
     project_root = args.project_root.resolve()
     workspace = project_root / "dataset/morai_od"
+    if args.install_only:
+        install_existing_scenarios(project_root, workspace, args)
+        return
     config_path = args.config.expanduser().resolve()
     catalog_path = workspace / "configs/morai_asset_catalog_260807.json"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
@@ -1462,6 +1893,8 @@ def main():
         key: set(values)
         for key, values in compatibility["automatic_eligible"].items()
     }
+    for key, excluded in RUNTIME_EXCLUDED_ASSET_IDS.items():
+        automatic_ids[key].difference_update(excluded)
 
     vehicle_rows = [
         row
@@ -1555,6 +1988,13 @@ def main():
     split_ids = {"train": [], "val": [], "test": []}
     coverage = Counter()
     for scene_index, spec in enumerate(specs, start=1):
+        if scene_index == 1 or scene_index % 10 == 0:
+            print(
+                "Generating scenarios: {}/{}".format(
+                    scene_index, len(specs)
+                ),
+                flush=True,
+            )
         base_id = "{}{:03d}".format(SCENE_ID_PREFIX, scene_index)
         stem = "{}{:03d}".format(SCENARIO_FILE_PREFIX, scene_index)
         initial_scene_seed = args.seed * 100 + scene_index
@@ -1587,8 +2027,9 @@ def main():
                     spec["obstacle_count"] -= 1
             if generation_attempt and generation_attempt % 4 == 0:
                 old_anchor = spec["anchor"]
-                reserved_anchor_indices.discard(old_anchor["index"])
-                rejected_anchor_indices.add(old_anchor["index"])
+                if not ALLOW_ANCHOR_REUSE:
+                    reserved_anchor_indices.discard(old_anchor["index"])
+                    rejected_anchor_indices.add(old_anchor["index"])
                 replacement = next(
                     (
                         candidate
@@ -1598,15 +2039,23 @@ def main():
                                 old_anchor["topology"], item
                             ),
                         )
-                        if candidate["index"]
-                        not in reserved_anchor_indices
-                        and candidate["index"]
-                        not in rejected_anchor_indices
-                        and all(
-                            abs(candidate["arc_m"] - item["anchor"]["arc_m"])
-                            >= MINIMUM_ANCHOR_ARC_DISTANCE_M
-                            for item in specs
-                            if item is not spec
+                        if candidate["index"] != old_anchor["index"]
+                        and candidate["index"] not in rejected_anchor_indices
+                        and (
+                            ALLOW_ANCHOR_REUSE
+                            or (
+                                candidate["index"]
+                                not in reserved_anchor_indices
+                                and all(
+                                    abs(
+                                        candidate["arc_m"]
+                                        - item["anchor"]["arc_m"]
+                                    )
+                                    >= MINIMUM_ANCHOR_ARC_DISTANCE_M
+                                    for item in specs
+                                    if item is not spec
+                                )
+                            )
                         )
                     ),
                     None,
@@ -1621,10 +2070,11 @@ def main():
                     **replacement,
                     "topology": old_anchor["topology"],
                 }
-                reserved_anchor_indices.add(replacement["index"])
+                if not ALLOW_ANCHOR_REUSE:
+                    reserved_anchor_indices.add(replacement["index"])
             scene_seed = initial_scene_seed + generation_attempt * 1000003
             try:
-                scenario, ego, assets, expected = generate_scene(
+                scenario, ego, layout_reference, assets, expected = generate_scene(
                     template,
                     spec,
                     scene_index,
@@ -1685,6 +2135,10 @@ def main():
                 "link_idx": ego["link_idx"],
                 "point_idx": ego["point_idx"],
             },
+            "capture_layout_reference": {
+                "ahead_m": ACTOR_LAYOUT_REFERENCE_AHEAD_M,
+                **layout_reference,
+            },
             "counts": {
                 "npc": expected["vehicleList"],
                 "pedestrian": expected["pedestrianList"],
@@ -1692,7 +2146,7 @@ def main():
             },
             "assets": assets,
             "geometry_policy": {
-                "version": 2,
+                "version": 3,
                 "ego_route_behind_m": EGO_ROUTE_BEHIND_M,
                 "ego_route_ahead_m": EGO_ROUTE_AHEAD_M,
                 "ego_route_half_width_m": EGO_ROUTE_HALF_WIDTH_M,
@@ -1709,6 +2163,25 @@ def main():
                 ),
                 "maximum_obstacle_road_distance_m": 6.0,
                 "maximum_road_surface_object_road_distance_m": 2.0,
+                "actor_layout_reference_ahead_m": (
+                    ACTOR_LAYOUT_REFERENCE_AHEAD_M
+                ),
+                "front_biased_scene_types": sorted(
+                    FRONT_BIASED_SCENE_TYPES
+                ),
+                "front_bias_probability": FRONT_BIASED_PROBABILITY,
+                "directional_sector_weights": DIRECTIONAL_SECTOR_WEIGHTS,
+                "vehicle_traffic_relation_weights": (
+                    VEHICLE_TRAFFIC_RELATION_WEIGHTS
+                ),
+                "vehicle_link_exclusion_zones": list(
+                    VEHICLE_LINK_EXCLUSION_ZONES
+                ),
+                "camera_seam_angles_deg": list(CAMERA_SEAM_ANGLES_DEG),
+                "runtime_excluded_asset_ids": {
+                    key: sorted(value)
+                    for key, value in RUNTIME_EXCLUDED_ASSET_IDS.items()
+                },
             },
             "environment_policy": (
                 "Weather/time are not embedded in this JSON. Capture it in "
@@ -1887,6 +2360,25 @@ def main():
                     "static_collision_sample_count"
                 ],
                 "type_specific_actor_footprints": True,
+                "actor_layout_reference_ahead_m": (
+                    ACTOR_LAYOUT_REFERENCE_AHEAD_M
+                ),
+                "front_biased_scene_types": sorted(
+                    FRONT_BIASED_SCENE_TYPES
+                ),
+                "front_bias_probability": FRONT_BIASED_PROBABILITY,
+                "directional_sector_weights": DIRECTIONAL_SECTOR_WEIGHTS,
+                "vehicle_traffic_relation_weights": (
+                    VEHICLE_TRAFFIC_RELATION_WEIGHTS
+                ),
+                "vehicle_link_exclusion_zones": list(
+                    VEHICLE_LINK_EXCLUSION_ZONES
+                ),
+                "camera_seam_angles_deg": list(CAMERA_SEAM_ANGLES_DEG),
+                "runtime_excluded_asset_ids": {
+                    key: sorted(value)
+                    for key, value in RUNTIME_EXCLUDED_ASSET_IDS.items()
+                },
             },
             "capture_policy": policy,
         },

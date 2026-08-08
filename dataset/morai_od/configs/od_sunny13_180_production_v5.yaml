@@ -1,0 +1,68 @@
+schema_version: 5
+status: implementation_static_validation_pending_live_smoke
+
+purpose:
+  immediate: multisensor_bev_and_pointpainting_finetune_dataset
+  reusable_for:
+    - pointpainting
+    - bevfusion
+    - fast_bev
+    - camera_bev_representation
+
+capture:
+  total_runs: 180
+  unique_geometry_layouts: 180
+  environment_variants_per_layout: 1
+  frames_per_run: 6
+  total_multisensor_frames: 1080
+  motion_mode: rolling-grouped
+  ego_speed_kph: 5.4
+  spacing_m: 1.5
+  maximum_motion_m: 10.5
+  load_settle_sec: 0.5
+  capture_stable_sec: 0.5
+  continue_on_scene_error: true
+  route_deviation_limit_m: 1.2
+  heading_error_limit_deg: 45.0
+  lookahead_m: 1.8
+  maximum_steering_rad: 0.35
+  personal_steering_sign: -1.0
+  adaptive_curve_control: true
+  curve_control_window_m: 8.0
+  curve_control_full_turn_deg: 18.0
+  minimum_curve_speed_kph: 3.6
+  minimum_curve_lookahead_m: 1.2
+  curve_maximum_steering_rad: 0.45
+
+environment:
+  id: sunny_t13
+  weather: sunny
+  time_hour: 13
+  apply_environment_once_per_batch: true
+
+split:
+  unit: scenario
+  train: 126
+  val: 27
+  test: 27
+  ratio: [0.70, 0.15, 0.15]
+  spatial_overlap_restriction: false
+
+generation_improvements:
+  actor_layout_reference:
+    distance_ahead_along_route_m: 4.5
+    heading_source: official_route_tangent_at_reference
+    curve_behavior: rotates_with_route_including_right_turns
+  directional_sector_target_weights:
+    vehicle: {front: 0.50, left: 0.17, right: 0.13, rear: 0.20}
+    pedestrian: {front: 0.65, left: 0.17, right: 0.13, rear: 0.05}
+    obstacle: {front: 0.70, left: 0.16, right: 0.12, rear: 0.02}
+  vehicle_traffic_relation_target_weights:
+    same_direction: 0.62
+    opposing_direction: 0.18
+    crossing_or_merging: 0.20
+  preserve_mgeo_feasibility_over_target_quota: true
+  preserve_natural_left_right_road_availability: true
+  maximum_pedestrian_road_distance_m: 4.0
+  repeated_failure_pose_exclusion: true
+  split_spatial_overlap_policy: intentionally_not_implemented

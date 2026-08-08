@@ -1,0 +1,305 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v5",
+  "base_scenario_id": "s13p5_173",
+  "scenario_stem": "od_s13p5_173",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080918173,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2258,
+    "arc_m": 1182.238810898848,
+    "curvature_deg": 0.03329965888417519,
+    "crosswalk_distance_m": 197.63284237775932,
+    "parking_distance_m": 204.85853832046874,
+    "stopline_distance_m": 101.51943460356584,
+    "branch_distance_m": 63.49867047340931
+  },
+  "ego": {
+    "x": 62.54149066087425,
+    "y": 192.9979786406545,
+    "z": 28.609029583799796,
+    "yaw": -89.76227299750698,
+    "link_idx": "A2256W000411",
+    "point_idx": 127
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": 62.5601616424182,
+    "y": 188.49801737477142,
+    "z": 28.271389565547963,
+    "yaw": -89.76227299750698
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 1,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30400002,
+      "name": "2012_Hyundai_HD65",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 73.42653776116286,
+        "y": 188.60394680099935,
+        "z": 28.909880606636346,
+        "yaw": -89.64241416784822
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -0.061,
+        "lateral_m": 10.867,
+        "view_zone": "side",
+        "side": "left",
+        "directional_sector": "left",
+        "heading_difference_deg": 0.12,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200013,
+      "name": "2023_Kia_EV6",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 69.85148010275195,
+        "y": 206.56959130397027,
+        "z": 28.69393490250986,
+        "yaw": -89.82257764446352
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -18.041,
+        "lateral_m": 7.366,
+        "view_zone": "rear",
+        "side": "left",
+        "directional_sector": "rear",
+        "heading_difference_deg": 0.06,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200003,
+      "name": "2017_Kia_Niro(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 69.9863556669335,
+        "y": 178.56998801396477,
+        "z": 28.700796349416446,
+        "yaw": -89.59710673647776
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 9.959,
+        "lateral_m": 7.385,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front",
+        "heading_difference_deg": 0.165,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30800003,
+      "name": "2020_chrysler_pacifica_hybrid",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 76.83258840682889,
+        "y": 208.638167415758,
+        "z": 28.745629884153757,
+        "yaw": -89.75432815372099
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -20.081,
+        "lateral_m": 14.356,
+        "view_zone": "rear",
+        "side": "left",
+        "directional_sector": "rear",
+        "heading_difference_deg": 0.008,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30200010,
+      "name": "2021_Volkswagen_Golf_GTI",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 77.01466638098114,
+        "y": 174.6387147803976,
+        "z": 28.73623245331053,
+        "yaw": -89.729382977633
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 13.919,
+        "lateral_m": 14.397,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front",
+        "heading_difference_deg": 0.033,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 65.73700967937742,
+        "y": 183.75244330123212,
+        "z": 28.348787239508223,
+        "yaw": -86.08792698510118
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 4.759,
+        "lateral_m": 3.157,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100026,
+      "name": "Lane_Separation_Bar",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 82.24127520890255,
+        "y": 189.28936172856402,
+        "z": 28.380005651219896,
+        "yaw": -75.07849972705932
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -0.71,
+        "lateral_m": 19.684,
+        "view_zone": "side",
+        "side": "left",
+        "directional_sector": "left"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 15.0,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "directional_sector_weights": {
+      "vehicle": {
+        "front": 0.5,
+        "left": 0.17,
+        "right": 0.13,
+        "rear": 0.2
+      },
+      "pedestrian": {
+        "front": 0.65,
+        "left": 0.17,
+        "right": 0.13,
+        "rear": 0.05
+      },
+      "obstacle": {
+        "front": 0.7,
+        "left": 0.16,
+        "right": 0.12,
+        "rear": 0.02
+      }
+    },
+    "vehicle_traffic_relation_weights": {
+      "same_direction": 0.62,
+      "opposing_direction": 0.18,
+      "crossing_or_merging": 0.2
+    },
+    "vehicle_link_exclusion_zones": [
+      {
+        "link_idx": "A2256W000131",
+        "x": -42.4204343,
+        "y": -531.3443126,
+        "radius_m": 6.0,
+        "reason": "repeated MORAI actor omission beside GPS-shadow dome"
+      },
+      {
+        "link_idx": "A2256W000075",
+        "x": -86.210599,
+        "y": -358.2504731,
+        "radius_m": 6.0,
+        "reason": "Stinger omitted in three consecutive s13p5_005 loads"
+      },
+      {
+        "link_idx": "A2256W000324",
+        "x": -80.5328075,
+        "y": -361.7210144,
+        "radius_m": 6.0,
+        "reason": "DEFAULT_MPV omitted in three consecutive s13p5_005 loads"
+      }
+    ],
+    "camera_seam_angles_deg": [
+      45.0,
+      -45.0,
+      100.0,
+      -100.0
+    ],
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30100009,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004,
+        30800004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b926b5a98170a8070c292ff814579984807e14acdcdede4835740014a14c5952",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

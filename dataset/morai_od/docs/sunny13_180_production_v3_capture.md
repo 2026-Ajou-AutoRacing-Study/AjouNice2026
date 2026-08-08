@@ -1,5 +1,8 @@
 # Sunny 13시 180-scenario production v3 수집
 
+복사·붙여넣기용 명령만 필요한 경우
+`docs/sunny13_180_production_v3_commands.md`를 사용한다.
+
 ## 목적과 확정 설정
 
 PointPainting의 1차 파인튜닝 성능 상승을 확인하고, 이후 BEVFusion 등
@@ -270,3 +273,32 @@ python3 dataset/morai_od/scripts/build_sunny13_180_smoke_handoff.py \
 학습 담당자에게 `RUN_DIR` 전체를 전달한다. `samples.jsonl`은 성공한 동기
 frame만, `failed_scenarios.jsonl`은 누락 장면과 원인을 담는다. 동일 scene의
 6개 frame은 항상 같은 split에 속한다.
+
+## 2026-08-08 전체 수집 결론
+
+최종 report
+`/home/luv/morai_cap/sunny13_180_production_v3_260808_210602/ros_capture_poc_report.json`
+기준 결과는 다음과 같다.
+
+- 시도 180, 완료 127, 실패 53, 성공률 70.6%
+- 검증 완료 frame 762개; 완료 frame의 Camera 1~4·LiDAR·GT 누락 0
+- 48.06분, 약 3.8 GB
+- 실패 9개는 `sparse_empty_background`에서 객체가 없기 때문에 생성된
+  0바이트 LiDAR `Instance.txt`를 runner가 잘못 거부한 false failure
+- 나머지 대부분은 특정 차량 asset이 서로 다른 링크에서도 반복적으로
+  로드되지 않은 actor mismatch
+
+반복 누락률이 높아 production v4 자동 풀에서 격리한 차량은 Grandeur,
+Porter2, DEFAULT_SUV, DEFAULT_BUS, Niro EV, Xcient Mixer다. 호환성 catalog에서
+삭제하지는 않으며 수동 재검증 대상에 남긴다. 상세 수치는
+`configs/morai_runtime_asset_reliability_260808.json`에 기록했다.
+
+실패 분석은 다음 명령으로 재현할 수 있다.
+
+```bash
+python3 dataset/morai_od/scripts/analyze_morai_capture_failures.py \
+  --report \
+  /home/luv/morai_cap/sunny13_180_production_v3_260808_210602/ros_capture_poc_report.json \
+  --manifest \
+  dataset/morai_od/manifests/sunny13_180_production_v3_sunny_t13.json
+```

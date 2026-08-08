@@ -148,7 +148,12 @@ def obstacle_policy(data_id, name):
         subtype = "fixed_roadside_object"
         policy = "enabled_roadside_only"
         audit = False
-    elif any(token in lowered for token in ("speed_bump", "hole-cover")):
+    elif "speed_bump" in lowered:
+        ontology = "RoadSurfaceObject"
+        subtype = "road_surface"
+        policy = "excluded_dataset_scope"
+        audit = False
+    elif "hole-cover" in lowered:
         ontology = "RoadSurfaceObject"
         subtype = "road_surface"
         policy = "enabled_surface_aligned_only"
@@ -187,16 +192,23 @@ def obstacle_policy(data_id, name):
         "subtype": subtype,
         "pointpainting_pedestrian_role": (
             "context_background"
-            if subtype == "unoccupied_bicycle_or_scooter"
+            if (
+                subtype == "unoccupied_bicycle_or_scooter"
+                or policy == "excluded_dataset_scope"
+            )
             else "hard_negative_or_context"
         ),
         "future_bev_role": (
-            "candidate_two_wheeler"
-            if subtype == "unoccupied_bicycle_or_scooter"
+            "background_not_target"
+            if policy == "excluded_dataset_scope"
             else (
-                "positive"
-                if ontology == "Obstacle"
-                else "context_or_separate_class"
+                "candidate_two_wheeler"
+                if subtype == "unoccupied_bicycle_or_scooter"
+                else (
+                    "positive"
+                    if ontology == "Obstacle"
+                    else "context_or_separate_class"
+                )
             )
         ),
         "generation_policy": policy,

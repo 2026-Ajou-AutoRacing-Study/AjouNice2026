@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_162",
+  "scenario_stem": "od_s13p4_162",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080818262,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 4221,
+    "arc_m": 2154.2279558306996,
+    "curvature_deg": 0.16644473743934896,
+    "crosswalk_distance_m": 148.99172416294803,
+    "parking_distance_m": 9.598149930408663,
+    "stopline_distance_m": 21.157840144424263,
+    "branch_distance_m": 11.522209462929561
+  },
+  "ego": {
+    "x": -146.47282495852633,
+    "y": -454.8721647784885,
+    "z": 28.822267143016944,
+    "yaw": 60.87916326844527,
+    "link_idx": "A2256W000332",
+    "point_idx": 44
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": -144.28882462777003,
+    "y": -450.93773187724116,
+    "z": 28.493433768682735,
+    "yaw": 61.427441794342684
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 0,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200006,
+      "name": "2020_volvo_xc90",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -144.5307056538471,
+        "y": -440.94207008388673,
+        "z": 28.901635884230515,
+        "yaw": -120.08386483571893
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 8.663,
+        "lateral_m": 4.993,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 178.489,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30400007,
+      "name": "DEFAULT_TRUCK",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -155.7803211710292,
+        "y": -456.18781782131003,
+        "z": 29.0936929170637,
+        "yaw": -136.19660779762881
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -10.107,
+        "lateral_m": 7.581,
+        "view_zone": "rear",
+        "side": "left",
+        "heading_difference_deg": 162.376,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100001,
+      "name": "CargoBox",
+      "ontology_class": "Obstacle",
+      "subtype": "box",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -134.94416728366312,
+        "y": -474.7124346016276,
+        "z": 28.133167413450565,
+        "yaw": 48.19826074828512
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -16.41,
+        "lateral_m": -19.577,
+        "view_zone": "rear",
+        "side": "right"
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200108,
+      "name": "KR_Sign_SL_90",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -140.43433275845032,
+        "y": -456.25372194800616,
+        "z": 28.51465566212675,
+        "yaw": 72.43721923232098
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -2.825,
+        "lateral_m": -5.928,
+        "view_zone": "side",
+        "side": "right"
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100047,
+      "name": "Concrete_Barricade01",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -149.84253603204613,
+        "y": -450.5884367865153,
+        "z": 28.55152352902919,
+        "yaw": 78.69131558437823
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -2.349,
+        "lateral_m": 5.044,
+        "view_zone": "side",
+        "side": "left"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

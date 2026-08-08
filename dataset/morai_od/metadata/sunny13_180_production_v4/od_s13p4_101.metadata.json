@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_101",
+  "scenario_stem": "od_s13p4_101",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080818201,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3312,
+    "arc_m": 1706.083307108531,
+    "curvature_deg": 0.01526939937062366,
+    "crosswalk_distance_m": 80.34403014191287,
+    "parking_distance_m": 122.93588237335854,
+    "stopline_distance_m": 80.42612896602667,
+    "branch_distance_m": 75.60090038902062
+  },
+  "ego": {
+    "x": 70.41928686458603,
+    "y": -330.11723217070596,
+    "z": 28.691041600809932,
+    "yaw": -89.86031198573127,
+    "link_idx": "A2256W000153",
+    "point_idx": 225
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": 70.43007008987158,
+    "y": -334.61721924777925,
+    "z": 28.348110131110342,
+    "yaw": -89.86461685410046
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 0,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800001,
+      "name": "2019_kia_sedona",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 87.94473625082159,
+        "y": -313.1072673995701,
+        "z": 28.647521735963085,
+        "yaw": 90.3262702732423
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -21.469,
+        "lateral_m": 17.565,
+        "view_zone": "rear",
+        "side": "left",
+        "heading_difference_deg": 179.809,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200012,
+      "name": "2021_Hyundai_GV70",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.0153296006039,
+        "y": -333.85392256102097,
+        "z": 28.65562235665674,
+        "yaw": -95.92717911354517
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -0.778,
+        "lateral_m": -6.413,
+        "view_zone": "side",
+        "side": "right",
+        "heading_difference_deg": 6.063,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30700005,
+      "name": "2016_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.55895124484589,
+        "y": -342.3246753989726,
+        "z": 28.71982507045972,
+        "yaw": -89.76742823320772
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 7.729,
+        "lateral_m": 9.111,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 0.097,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100005,
+      "name": "2014_Kia_K7",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.51933911896711,
+        "y": -334.32478287112525,
+        "z": 28.707112586232256,
+        "yaw": -89.60381001060314
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -0.271,
+        "lateral_m": 9.09,
+        "view_zone": "side",
+        "side": "left",
+        "heading_difference_deg": 0.261,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30200003,
+      "name": "2017_Kia_Niro(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.71410602140764,
+        "y": -320.8741387420692,
+        "z": 28.657439270323184,
+        "yaw": -91.83090172680947
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -13.757,
+        "lateral_m": -5.683,
+        "view_zone": "rear",
+        "side": "right",
+        "heading_difference_deg": 1.966,
+        "traffic_direction_relation": "same_direction"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

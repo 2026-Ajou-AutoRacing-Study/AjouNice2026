@@ -1,0 +1,323 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v5",
+  "base_scenario_id": "s13p5_166",
+  "scenario_stem": "od_s13p5_166",
+  "split": "train",
+  "scene_type": "camera_seam_occlusion",
+  "topology": "curve",
+  "seed": 26080918166,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1117,
+    "arc_m": 617.8739015887949,
+    "curvature_deg": 30.845193780307085,
+    "crosswalk_distance_m": 100.25910653595074,
+    "parking_distance_m": 96.81948365374713,
+    "stopline_distance_m": 7.919707777964071,
+    "branch_distance_m": 7.90590775340657
+  },
+  "ego": {
+    "x": -4.961761753017498,
+    "y": 100.6490975296648,
+    "z": 28.745929621104107,
+    "yaw": 27.073337158608894,
+    "link_idx": "A2256W000083",
+    "point_idx": 16
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": -1.3673878927742356,
+    "y": 103.3291666506301,
+    "z": 28.42396560629527,
+    "yaw": 46.888007860589425
+  },
+  "counts": {
+    "npc": 3,
+    "pedestrian": 5,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800002,
+      "name": "2021_Kia_Carnival",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 7.498301646089761,
+        "y": 101.55116464124453,
+        "z": 28.82525379359732,
+        "yaw": -158.67598369722097
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 4.761,
+        "lateral_m": -7.687,
+        "view_zone": "front",
+        "side": "right",
+        "directional_sector": "front",
+        "heading_difference_deg": 154.436,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100005,
+      "name": "2014_Kia_K7",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -0.9173435753327472,
+        "y": 91.20908752824297,
+        "z": 28.744285241830593,
+        "yaw": -93.95083995600878
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -8.54,
+        "lateral_m": -8.612,
+        "view_zone": "rear",
+        "side": "right",
+        "directional_sector": "right",
+        "heading_difference_deg": 140.839,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100011,
+      "name": "2019_Toyota_Prius",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -1.8170098849329974,
+        "y": 118.13511707547606,
+        "z": 28.73444278843764,
+        "yaw": -88.67551240210514
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 10.501,
+        "lateral_m": 10.447,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front",
+        "heading_difference_deg": 135.564,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100013,
+      "name": "Woman5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -3.4367118313381777,
+        "y": 123.6439246051414,
+        "z": 28.449835756883342,
+        "yaw": -80.65952855339091
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 13.416,
+        "lateral_m": 15.394,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front"
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100012,
+      "name": "Woman4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 2.2444426133885225,
+        "y": 103.50200144866363,
+        "z": 28.49140688415759,
+        "yaw": 58.66958796743384
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 2.595,
+        "lateral_m": -2.519,
+        "view_zone": "side",
+        "side": "right",
+        "directional_sector": "front"
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100015,
+      "name": "Woman7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -11.092368668315967,
+        "y": 109.37581367656544,
+        "z": 28.388859289528423,
+        "yaw": 125.97716215752405
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -2.232,
+        "lateral_m": 11.232,
+        "view_zone": "side",
+        "side": "left",
+        "directional_sector": "left"
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 4.915491742200034,
+        "y": 96.52051588896703,
+        "z": 28.47075954708603,
+        "yaw": -94.13165797552176
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -0.677,
+        "lateral_m": -9.24,
+        "view_zone": "side",
+        "side": "right",
+        "directional_sector": "right"
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100077,
+      "name": "worker_m_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -0.9357381943544978,
+        "y": 109.67287143395978,
+        "z": 28.455187980695246,
+        "yaw": -168.65112030894778
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 4.926,
+        "lateral_m": 4.02,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 15.0,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "directional_sector_weights": {
+      "vehicle": {
+        "front": 0.5,
+        "left": 0.17,
+        "right": 0.13,
+        "rear": 0.2
+      },
+      "pedestrian": {
+        "front": 0.65,
+        "left": 0.17,
+        "right": 0.13,
+        "rear": 0.05
+      },
+      "obstacle": {
+        "front": 0.7,
+        "left": 0.16,
+        "right": 0.12,
+        "rear": 0.02
+      }
+    },
+    "vehicle_traffic_relation_weights": {
+      "same_direction": 0.62,
+      "opposing_direction": 0.18,
+      "crossing_or_merging": 0.2
+    },
+    "vehicle_link_exclusion_zones": [
+      {
+        "link_idx": "A2256W000131",
+        "x": -42.4204343,
+        "y": -531.3443126,
+        "radius_m": 6.0,
+        "reason": "repeated MORAI actor omission beside GPS-shadow dome"
+      },
+      {
+        "link_idx": "A2256W000075",
+        "x": -86.210599,
+        "y": -358.2504731,
+        "radius_m": 6.0,
+        "reason": "Stinger omitted in three consecutive s13p5_005 loads"
+      },
+      {
+        "link_idx": "A2256W000324",
+        "x": -80.5328075,
+        "y": -361.7210144,
+        "radius_m": 6.0,
+        "reason": "DEFAULT_MPV omitted in three consecutive s13p5_005 loads"
+      }
+    ],
+    "camera_seam_angles_deg": [
+      45.0,
+      -45.0,
+      100.0,
+      -100.0
+    ],
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30100009,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004,
+        30800004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b926b5a98170a8070c292ff814579984807e14acdcdede4835740014a14c5952",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

@@ -14,6 +14,9 @@
       "pedestrian": [
         50100005,
         50200004
+      ],
+      "obstacle": [
+        40100032
       ]
     },
     "geometry_fields_from_catalog_scenarios": false
@@ -152,7 +155,6 @@
       40100028,
       40100029,
       40100031,
-      40100032,
       40100033,
       40100047,
       40100052,
@@ -287,6 +289,13 @@
       }
     ],
     "obstacle": [
+      {
+        "data_id": 40100032,
+        "name": "Speed_Bump",
+        "present_in_competition": true,
+        "present_in_personal": true,
+        "reason": "Speed_Bump is a thin road-surface infrastructure asset, not a target object or mission element in the competition. Excluded from both-launcher automatic OD generation to avoid distorting 3D box geometry and class balance."
+      },
       {
         "data_id": 40200009,
         "name": "Tree08",

@@ -165,6 +165,18 @@ Sunny 13시 고정 180-scenario production v3 수집은
 단위 126/27/27이며, 개별 실패는 기록하고 다음 장면으로 진행한다. 과거
 v1/v2 smoke 절차는 `docs/sunny13_180_smoke_capture.md`에 보존한다.
 
+촬영 경로 중앙 4.5 m의 경로 접선을 기준으로 클래스별 전·좌·우·후 분포,
+같은 방향·대향·교차 차량 비율과 반복 실패 위치 제외를 적용한 최신 생성기는
+production v5다. 공간 기반 split 중복 제한은 의도적으로 적용하지 않았다.
+정책, 정적 분포 검증 및 live smoke 명령은
+`docs/sunny13_180_production_v5_plan.md`를 따른다.
+
+v3 전체 180장면 실측에서 확인된 반복 누락 에셋, 빈 negative GT 판정,
+촬영 궤적 중심 배치 개선을 적용한 다음 생성기는 production v4다.
+설계·정적 검증·짧은 live smoke 절차는
+`docs/sunny13_180_production_v4_generation.md`를 따른다. v4는 기존 v3
+시나리오를 덮어쓰지 않는다.
+
 넓은 시점 간격과 강화된 기하 충돌 회피는 전체 재수집 전에
 `docs/geometry_trial_20.md`의 v2 20장면 시험으로 검증한다. 시험 설정은
 `5.4 km/h`, 프레임 간 `1.5 m`, 장면당 6장, 최대 이동 10.5 m다.

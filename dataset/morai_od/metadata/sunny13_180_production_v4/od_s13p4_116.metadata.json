@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_116",
+  "scenario_stem": "od_s13p4_116",
+  "split": "test",
+  "scene_type": "vehicle_centric",
+  "topology": "curve",
+  "seed": 26081818219,
+  "generation_attempt": 2,
+  "anchor": {
+    "index": 3899,
+    "arc_m": 1996.2415797553435,
+    "curvature_deg": 5.729967106599361,
+    "crosswalk_distance_m": 174.3610018165395,
+    "parking_distance_m": 59.92193255051193,
+    "stopline_distance_m": 3.570414455927569,
+    "branch_distance_m": 76.61566399603824
+  },
+  "ego": {
+    "x": -74.42483354398665,
+    "y": -544.3623561136682,
+    "z": 28.768863435367106,
+    "yaw": -153.675086145185,
+    "link_idx": "A2256W000126",
+    "point_idx": 237
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": -78.553846980564,
+    "y": -546.1488978717944,
+    "z": 28.437781290815625,
+    "yaw": -158.34804627916822
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 1,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30400004,
+      "name": "2013_Hyundai_Xcient(P540)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -91.9960947984102,
+        "y": -549.9347170718345,
+        "z": 28.99321515719478,
+        "yaw": -169.9285216329983
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 13.891,
+        "lateral_m": -1.441,
+        "view_zone": "front",
+        "side": "center",
+        "heading_difference_deg": 11.58,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100008,
+      "name": "2020_hyundai_sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -66.67082615414326,
+        "y": -544.311521941374,
+        "z": 28.77638525203078,
+        "yaw": 28.25075340206726
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -11.723,
+        "lateral_m": 2.677,
+        "view_zone": "rear",
+        "side": "left",
+        "heading_difference_deg": 173.401,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30700006,
+      "name": "2020_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -63.80261618696257,
+        "y": -538.7803563020548,
+        "z": 28.785633118526416,
+        "yaw": -151.8382920218111
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -16.429,
+        "lateral_m": -1.406,
+        "view_zone": "rear",
+        "side": "center",
+        "heading_difference_deg": 6.51,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200005,
+      "name": "2019_Hyundai_Nexo",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -57.41520679895099,
+        "y": -539.3537499670604,
+        "z": 28.77908784762648,
+        "yaw": 27.807676162302556
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -22.154,
+        "lateral_m": 1.484,
+        "view_zone": "rear",
+        "side": "center",
+        "heading_difference_deg": 173.844,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30200001,
+      "name": "2016_Hyundai_Santafe",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -100.96111638867328,
+        "y": -550.4644109016754,
+        "z": 28.797668596894066,
+        "yaw": 178.33651786759322
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 22.419,
+        "lateral_m": -4.257,
+        "view_zone": "front",
+        "side": "right",
+        "heading_difference_deg": 23.315,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100058,
+      "name": "police_m_2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -72.09933134425818,
+        "y": -548.7774169957593,
+        "z": 28.50269152108653,
+        "yaw": 43.62931543230553
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -5.029,
+        "lateral_m": 4.825,
+        "view_zone": "rear",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200163,
+      "name": "fr-streetlight-2",
+      "ontology_class": "RoadsideFurniture",
+      "subtype": "fixed_roadside_object",
+      "generation_policy": "enabled_roadside_only",
+      "pose": {
+        "x": -74.57317039144544,
+        "y": -550.7205304547689,
+        "z": 28.491580360085933,
+        "yaw": -171.7968384316946
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -2.013,
+        "lateral_m": 5.718,
+        "view_zone": "side",
+        "side": "left"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

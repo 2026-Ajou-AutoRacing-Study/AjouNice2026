@@ -1,0 +1,283 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_600_production_v6",
+  "base_scenario_id": "s13p6_031",
+  "scenario_stem": "od_s13p6_031",
+  "split": "test",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26084960043,
+  "generation_attempt": 5,
+  "anchor": {
+    "index": 670,
+    "arc_m": 329.906012645317,
+    "curvature_deg": 1.6638068700558506e-09,
+    "crosswalk_distance_m": 6.902541162234802,
+    "parking_distance_m": 113.81593143423407,
+    "stopline_distance_m": 13.99991450365665,
+    "branch_distance_m": 11.59475629866273
+  },
+  "ego": {
+    "x": -59.856422821353235,
+    "y": -141.39331487958555,
+    "z": 28.707599592131555,
+    "yaw": 90.09611753905915,
+    "link_idx": "A2256W000222",
+    "point_idx": 28
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": -59.86397187087857,
+    "y": -136.89332121160652,
+    "z": 28.381005999585426,
+    "yaw": 90.09611752380698
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 0,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200002,
+      "name": "2017_Kia_Sorento",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -67.50833461797764,
+        "y": -131.99233339139815,
+        "z": 28.687334012642054,
+        "yaw": -90.05326332314547
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 4.914,
+        "lateral_m": 7.636,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front",
+        "heading_difference_deg": 179.851,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30400003,
+      "name": "2013_Hyundai_Xcient(P520)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -67.52264355209275,
+        "y": -122.98541361043317,
+        "z": 28.847244045917318,
+        "yaw": -90.28151128365829
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 13.921,
+        "lateral_m": 7.635,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front",
+        "heading_difference_deg": 179.622,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30700003,
+      "name": "2019_Hyundai_Kona(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -68.75472718480795,
+        "y": -145.6075179884684,
+        "z": 28.68445513351159,
+        "yaw": -83.9269452345219
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -8.699,
+        "lateral_m": 8.905,
+        "view_zone": "rear",
+        "side": "left",
+        "directional_sector": "left",
+        "heading_difference_deg": 174.023,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100003,
+      "name": "2016_Hyundai_Sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -54.47664487882812,
+        "y": -133.95520213266826,
+        "z": 28.709833983871444,
+        "yaw": 153.53787972525902
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 2.929,
+        "lateral_m": -5.392,
+        "view_zone": "side",
+        "side": "right",
+        "directional_sector": "right",
+        "heading_difference_deg": 63.442,
+        "traffic_direction_relation": "crossing_or_merging"
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30800003,
+      "name": "2020_chrysler_pacifica_hybrid",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -60.046309915064455,
+        "y": -118.0611544769542,
+        "z": 28.76555590814504,
+        "yaw": 90.24711186960837
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 18.832,
+        "lateral_m": 0.151,
+        "view_zone": "front",
+        "side": "center",
+        "directional_sector": "front",
+        "heading_difference_deg": 0.151,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200163,
+      "name": "fr-streetlight-2",
+      "ontology_class": "RoadsideFurniture",
+      "subtype": "fixed_roadside_object",
+      "generation_policy": "enabled_roadside_only",
+      "pose": {
+        "x": -38.724272195694454,
+        "y": -139.1261309000759,
+        "z": 28.409313605183872,
+        "yaw": 94.30923218805395
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -2.268,
+        "lateral_m": -21.136,
+        "view_zone": "side",
+        "side": "right",
+        "directional_sector": "right"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 15.0,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "directional_sector_weights": {
+      "vehicle": {
+        "front": 0.5,
+        "left": 0.17,
+        "right": 0.13,
+        "rear": 0.2
+      },
+      "pedestrian": {
+        "front": 0.65,
+        "left": 0.17,
+        "right": 0.13,
+        "rear": 0.05
+      },
+      "obstacle": {
+        "front": 0.7,
+        "left": 0.16,
+        "right": 0.12,
+        "rear": 0.02
+      }
+    },
+    "vehicle_traffic_relation_weights": {
+      "same_direction": 0.62,
+      "opposing_direction": 0.18,
+      "crossing_or_merging": 0.2
+    },
+    "vehicle_link_exclusion_zones": [
+      {
+        "link_idx": "A2256W000131",
+        "x": -42.4204343,
+        "y": -531.3443126,
+        "radius_m": 6.0,
+        "reason": "repeated MORAI actor omission beside GPS-shadow dome"
+      },
+      {
+        "link_idx": "A2256W000075",
+        "x": -86.210599,
+        "y": -358.2504731,
+        "radius_m": 6.0,
+        "reason": "Stinger omitted in three consecutive s13p5_005 loads"
+      },
+      {
+        "link_idx": "A2256W000324",
+        "x": -80.5328075,
+        "y": -361.7210144,
+        "radius_m": 6.0,
+        "reason": "DEFAULT_MPV omitted in three consecutive s13p5_005 loads"
+      }
+    ],
+    "camera_seam_angles_deg": [
+      45.0,
+      -45.0,
+      100.0,
+      -100.0
+    ],
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30100009,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004,
+        30800004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "57f6977fdd63f7e6ade7840de615055db56f0a1aecc85bc40d4acb3fd9a5de96",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

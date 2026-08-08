@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_114",
+  "scenario_stem": "od_s13p4_114",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080818214,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 100,
+    "arc_m": 49.99995881735504,
+    "curvature_deg": 0.03429344758978914,
+    "crosswalk_distance_m": 68.62171873528898,
+    "parking_distance_m": 8.56222152806417,
+    "stopline_distance_m": 22.628437327136425,
+    "branch_distance_m": 22.628437327136425
+  },
+  "ego": {
+    "x": -107.3865004772223,
+    "y": -384.63514494792406,
+    "z": 28.87771258888846,
+    "yaw": 60.96855379461621,
+    "link_idx": "A2256W000748",
+    "point_idx": 100
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": -105.20690868764693,
+    "y": -380.69822568070674,
+    "z": 28.53869331731064,
+    "yaw": 61.1523657600394
+  },
+  "counts": {
+    "npc": 1,
+    "pedestrian": 0,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100011,
+      "name": "2019_Toyota_Prius",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -93.56184058157812,
+        "y": -362.06061251759206,
+        "z": 28.88505187628344,
+        "yaw": 31.82948874919441
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 21.943,
+        "lateral_m": -1.208,
+        "view_zone": "front",
+        "side": "center",
+        "heading_difference_deg": 29.323,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100026,
+      "name": "Lane_Separation_Bar",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -108.76250211400907,
+        "y": -378.8626446677722,
+        "z": 28.58543036298048,
+        "yaw": 43.925448365501126
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -0.108,
+        "lateral_m": 4.0,
+        "view_zone": "side",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100067,
+      "name": "Bollard04",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -112.1236508199516,
+        "y": -379.8435156892019,
+        "z": 28.589285591627057,
+        "yaw": 56.930192171291196
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -2.589,
+        "lateral_m": 6.471,
+        "view_zone": "side",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100005,
+      "name": "TrafficBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -105.81563984768044,
+        "y": -373.512862337437,
+        "z": 28.570403028187005,
+        "yaw": 41.76119906722252
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 6.0,
+        "lateral_m": 4.0,
+        "view_zone": "front",
+        "side": "left"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

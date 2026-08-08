@@ -1,0 +1,329 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v5",
+  "base_scenario_id": "s13p5_023",
+  "scenario_stem": "od_s13p5_023",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080918023,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2845,
+    "arc_m": 1474.2253394918328,
+    "curvature_deg": 0.013551976024331225,
+    "crosswalk_distance_m": 34.51266195142208,
+    "parking_distance_m": 123.29785684904073,
+    "stopline_distance_m": 32.2992736631671,
+    "branch_distance_m": 32.145891330653654
+  },
+  "ego": {
+    "x": 67.7311536274877,
+    "y": -98.87258359588071,
+    "z": 28.684967505526867,
+    "yaw": -89.70350181960204,
+    "link_idx": "A2256W000408",
+    "point_idx": 211
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": 67.75524930886942,
+    "y": -103.37251899322497,
+    "z": 28.34094987040317,
+    "yaw": -89.68032899722049
+  },
+  "counts": {
+    "npc": 6,
+    "pedestrian": 0,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100012,
+      "name": "2019_hyundai_genesis_g90",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.34780733477892,
+        "y": -92.87697775246048,
+        "z": 28.75437715441414,
+        "yaw": -89.86913810263582
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -10.436,
+        "lateral_m": 10.651,
+        "view_zone": "rear",
+        "side": "left",
+        "directional_sector": "left",
+        "heading_difference_deg": 0.189,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30700005,
+      "name": "2016_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.90766076146092,
+        "y": -107.87513431519412,
+        "z": 28.734943410521705,
+        "yaw": -89.7560569061106
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 4.542,
+        "lateral_m": 7.127,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front",
+        "heading_difference_deg": 0.076,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200007,
+      "name": "2021_Hyundai_Genesis_GV80",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.87998644044004,
+        "y": -101.37520767611738,
+        "z": 28.768648102321347,
+        "yaw": -89.7560569061106
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -1.958,
+        "lateral_m": 7.136,
+        "view_zone": "side",
+        "side": "left",
+        "directional_sector": "left",
+        "heading_difference_deg": 0.076,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30500001,
+      "name": "2015_Toyota_Prius(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "wagon",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.30835890642767,
+        "y": -85.37711401088374,
+        "z": 28.77071866881631,
+        "yaw": -89.54944216250648
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -17.936,
+        "lateral_m": 10.653,
+        "view_zone": "rear",
+        "side": "left",
+        "directional_sector": "rear",
+        "heading_difference_deg": 0.131,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 83.43156983756668,
+        "y": -103.42092668811878,
+        "z": 28.668955516142393,
+        "yaw": 90.31887602331153
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 0.136,
+        "lateral_m": 15.676,
+        "view_zone": "side",
+        "side": "left",
+        "directional_sector": "left",
+        "heading_difference_deg": 179.999,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30100008,
+      "name": "2020_hyundai_sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.94837014845073,
+        "y": -114.37498826699817,
+        "z": 28.71641416220872,
+        "yaw": -89.542666305337
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 11.042,
+        "lateral_m": 7.132,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front",
+        "heading_difference_deg": 0.138,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100001,
+      "name": "CargoBox",
+      "ontology_class": "Obstacle",
+      "subtype": "box",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 92.42031381888347,
+        "y": -91.3337639847473,
+        "z": 28.319220716563024,
+        "yaw": -109.21731520381805
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -11.901,
+        "lateral_m": 24.732,
+        "view_zone": "rear",
+        "side": "left",
+        "directional_sector": "left"
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100063,
+      "name": "Scooter_02",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": 66.96015617723666,
+        "y": -118.16442827979732,
+        "z": 28.354221134816168,
+        "yaw": -92.62497142153919
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 14.787,
+        "lateral_m": -0.878,
+        "view_zone": "front",
+        "side": "center",
+        "directional_sector": "front"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 15.0,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "directional_sector_weights": {
+      "vehicle": {
+        "front": 0.5,
+        "left": 0.17,
+        "right": 0.13,
+        "rear": 0.2
+      },
+      "pedestrian": {
+        "front": 0.65,
+        "left": 0.17,
+        "right": 0.13,
+        "rear": 0.05
+      },
+      "obstacle": {
+        "front": 0.7,
+        "left": 0.16,
+        "right": 0.12,
+        "rear": 0.02
+      }
+    },
+    "vehicle_traffic_relation_weights": {
+      "same_direction": 0.62,
+      "opposing_direction": 0.18,
+      "crossing_or_merging": 0.2
+    },
+    "vehicle_link_exclusion_zones": [
+      {
+        "link_idx": "A2256W000131",
+        "x": -42.4204343,
+        "y": -531.3443126,
+        "radius_m": 6.0,
+        "reason": "repeated MORAI actor omission beside GPS-shadow dome"
+      },
+      {
+        "link_idx": "A2256W000075",
+        "x": -86.210599,
+        "y": -358.2504731,
+        "radius_m": 6.0,
+        "reason": "Stinger omitted in three consecutive s13p5_005 loads"
+      },
+      {
+        "link_idx": "A2256W000324",
+        "x": -80.5328075,
+        "y": -361.7210144,
+        "radius_m": 6.0,
+        "reason": "DEFAULT_MPV omitted in three consecutive s13p5_005 loads"
+      }
+    ],
+    "camera_seam_angles_deg": [
+      45.0,
+      -45.0,
+      100.0,
+      -100.0
+    ],
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30100009,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004,
+        30800004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b926b5a98170a8070c292ff814579984807e14acdcdede4835740014a14c5952",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

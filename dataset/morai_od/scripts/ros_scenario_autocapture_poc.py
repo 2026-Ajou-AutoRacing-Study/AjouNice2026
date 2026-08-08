@@ -526,7 +526,22 @@ def group_capture_files_by_timestamp(files):
     return grouped, unrecognized
 
 
-def relocate_capture_files(source_root, destination_root, capture_id, files):
+def relocate_capture_files(
+    source_root,
+    destination_root,
+    capture_id,
+    files,
+    allow_empty_suffixes=(),
+):
+    """Move one snapshot while preserving valid empty-label files.
+
+    MORAI writes a zero-byte LiDAR ``_Instance.txt`` (and, depending on the
+    build, ``_Instance_8Points.txt``) when a scene intentionally contains no
+    actors.  That is a valid negative label, not a failed sensor write.  Image
+    and point-cloud payloads must still be non-empty.
+    """
+
+    allow_empty_suffixes = set(allow_empty_suffixes)
     destinations = []
     plan = []
     for source in sorted(files):
@@ -552,9 +567,14 @@ def relocate_capture_files(source_root, destination_root, capture_id, files):
     for source, destination in plan:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(source), str(destination))
-        if (
-            not destination.is_file()
-            or destination.stat().st_size <= 0
+        suffix = capture_suffix(destination.name)
+        empty_is_valid = (
+            destination.is_file()
+            and destination.stat().st_size == 0
+            and suffix in allow_empty_suffixes
+        )
+        if not destination.is_file() or (
+            destination.stat().st_size <= 0 and not empty_is_valid
         ):
             raise RuntimeError(
                 "relocated capture file is invalid: {}".format(destination)
@@ -1502,11 +1522,17 @@ class AutoCapture:
         )
         relocated_files = []
         if verified:
+            allow_empty_suffixes = (
+                {"_Instance.txt", "_Instance_8Points.txt"}
+                if not require_object_labels
+                else set()
+            )
             relocated_files = relocate_capture_files(
                 source_root,
                 self.args.capture_dir,
                 capture_id,
                 new_files,
+                allow_empty_suffixes=allow_empty_suffixes,
             )
         completed_unix = time.time()
         duration_sec = time.monotonic() - started
@@ -1843,16 +1869,33 @@ class AutoCapture:
             captures.append(self.trigger_capture(scene, frame_index))
         return captures
 
-    def real_collision_after(self, issued):
+    def collision_observations_after(self, issued):
+        """Return MORAI collision participants reported after motion starts."""
+
         snapshot = self.state.snapshot()
         if (
             snapshot["collision"] is None
             or snapshot["collision_wall_time"] <= issued
         ):
-            return False
-        candidates = list(snapshot["collision"].collision_object)
-        candidates += list(snapshot["collision"].collision_objecta)
-        return any(item.type != -1 for item in candidates)
+            return []
+
+        observations = []
+        for field_name in ("collision_object", "collision_objecta"):
+            for item in getattr(snapshot["collision"], field_name, []):
+                if item.type == -1:
+                    continue
+                observations.append(
+                    {
+                        "source": field_name,
+                        "unique_id": int(item.unique_id),
+                        "type": int(item.type),
+                        "name": str(item.name),
+                        "x": round(float(item.position.x), 3),
+                        "y": round(float(item.position.y), 3),
+                        "z": round(float(item.position.z), 3),
+                    }
+                )
+        return observations
 
     def drive_and_capture(
         self, scene, capture_count, stop_for_capture=True
@@ -1890,8 +1933,13 @@ class AutoCapture:
                     raise RuntimeError("Ego telemetry disappeared during motion")
                 ego = snapshot["ego"]
                 position = (ego.position.x, ego.position.y)
-                if self.real_collision_after(issued):
-                    raise RuntimeError("collision reported during PoC motion")
+                collision = self.collision_observations_after(issued)
+                if collision:
+                    raise RuntimeError(
+                        "collision reported during PoC motion: {}".format(
+                            collision
+                        )
+                    )
 
                 nearest_hint = self.nearest_waypoint_index(
                     position,
@@ -2042,9 +2090,12 @@ class AutoCapture:
                     )
                 ego = snapshot["ego"]
                 position = (ego.position.x, ego.position.y)
-                if self.real_collision_after(issued):
+                collision = self.collision_observations_after(issued)
+                if collision:
                     raise RuntimeError(
-                        "collision reported during rolling-fast"
+                        "collision reported during rolling-fast: {}".format(
+                            collision
+                        )
                     )
 
                 nearest_hint = self.nearest_waypoint_index(
@@ -2285,6 +2336,11 @@ class AutoCapture:
                     self.args.capture_dir,
                     trigger["capture_id"],
                     group_files,
+                    allow_empty_suffixes=(
+                        {"_Instance.txt", "_Instance_8Points.txt"}
+                        if not require_object_labels
+                        else set()
+                    ),
                 )
                 relocated.extend(frame_destinations)
                 trigger.update(

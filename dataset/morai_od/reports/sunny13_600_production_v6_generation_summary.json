@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_600_production_v6",
+  "quality_status": "static_validated_simulator_visual_check_pending",
+  "base_scenarios": 600,
+  "environment_variants": 1,
+  "capture_runs": 600,
+  "expected_multisensor_frames": 3600,
+  "split_base_scenarios": {
+    "test": 90,
+    "train": 420,
+    "val": 90
+  },
+  "scene_types": {
+    "camera_seam_occlusion": 60,
+    "mixed_vehicle_pedestrian": 180,
+    "obstacle_context": 60,
+    "pedestrian_centric": 150,
+    "sparse_empty_background": 30,
+    "vehicle_centric": 120
+  },
+  "topologies": {
+    "crosswalk": 150,
+    "curve": 60,
+    "intersection": 180,
+    "roadside_parking_clutter": 60,
+    "straight": 150
+  },
+  "actor_instances_per_base_pass": {
+    "vehicleList": 1886,
+    "pedestrianList": 2042,
+    "objectList": 894
+  },
+  "unique_assets_placed": 86,
+  "route_constraints": {
+    "minimum_anchor_arc_distance_m": 3.0,
+    "path_discontinuity_rejection_threshold_m": 2.0,
+    "ego_swept_corridor_clear": true,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 15.0,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "mgeo_static_collision_samples": 54797,
+    "type_specific_actor_footprints": true,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "directional_sector_weights": {
+      "vehicle": {
+        "front": 0.5,
+        "left": 0.17,
+        "right": 0.13,
+        "rear": 0.2
+      },
+      "pedestrian": {
+        "front": 0.65,
+        "left": 0.17,
+        "right": 0.13,
+        "rear": 0.05
+      },
+      "obstacle": {
+        "front": 0.7,
+        "left": 0.16,
+        "right": 0.12,
+        "rear": 0.02
+      }
+    },
+    "vehicle_traffic_relation_weights": {
+      "same_direction": 0.62,
+      "opposing_direction": 0.18,
+      "crossing_or_merging": 0.2
+    },
+    "vehicle_link_exclusion_zones": [
+      {
+        "link_idx": "A2256W000131",
+        "x": -42.4204343,
+        "y": -531.3443126,
+        "radius_m": 6.0,
+        "reason": "repeated MORAI actor omission beside GPS-shadow dome"
+      },
+      {
+        "link_idx": "A2256W000075",
+        "x": -86.210599,
+        "y": -358.2504731,
+        "radius_m": 6.0,
+        "reason": "Stinger omitted in three consecutive s13p5_005 loads"
+      },
+      {
+        "link_idx": "A2256W000324",
+        "x": -80.5328075,
+        "y": -361.7210144,
+        "radius_m": 6.0,
+        "reason": "DEFAULT_MPV omitted in three consecutive s13p5_005 loads"
+      }
+    ],
+    "camera_seam_angles_deg": [
+      45.0,
+      -45.0,
+      100.0,
+      -100.0
+    ],
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30100009,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004,
+        30800004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "capture_policy": {
+    "captures_per_scene": 6,
+    "capture_spacing_m": 1.5,
+    "ego_target_speed_kph": 5.4,
+    "maximum_motion_m": 10.5,
+    "recommended_motion_mode": "rolling-grouped",
+    "load_settle_sec": 0.5,
+    "capture_stable_sec": 0.5,
+    "continue_on_scene_error": true,
+    "route_deviation_limit_m": 1.2,
+    "heading_error_limit_deg": 45.0,
+    "lookahead_m": 1.8,
+    "maximum_steering_rad": 0.35,
+    "adaptive_curve_control": true,
+    "curve_control_window_m": 8.0,
+    "curve_control_full_turn_deg": 18.0,
+    "minimum_curve_speed_kph": 3.6,
+    "minimum_curve_lookahead_m": 1.2,
+    "curve_maximum_steering_rad": 0.45,
+    "personal_steering_sign": -1.0,
+    "note": "Use rolling-grouped for training data. It sends captures while moving, then groups and verifies Camera/LiDAR/GT artifacts by their shared MORAI timestamp."
+  }
+}

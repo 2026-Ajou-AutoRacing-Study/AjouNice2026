@@ -1,0 +1,349 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_600_production_v6",
+  "base_scenario_id": "s13p6_326",
+  "scenario_stem": "od_s13p6_326",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "intersection",
+  "seed": 26080960326,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 4155,
+    "arc_m": 2121.9791354803306,
+    "curvature_deg": 10.58966314566328,
+    "crosswalk_distance_m": 180.91927072086116,
+    "parking_distance_m": 15.041720130427091,
+    "stopline_distance_m": 0.9998068437267462,
+    "branch_distance_m": 0.9998068437267462
+  },
+  "ego": {
+    "x": -158.787145868989,
+    "y": -484.48049006221527,
+    "z": 28.74216104285613,
+    "yaw": 79.53012006637522,
+    "link_idx": "A2256W000154",
+    "point_idx": 2
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": -157.84592377681773,
+    "y": -480.0807731230874,
+    "z": 28.403762614911468,
+    "yaw": 74.90146593094485
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 3,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100015,
+      "name": "DEFAULT_SEDAN",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -151.97688252935544,
+        "y": -464.96928552935964,
+        "z": 28.819542434998443,
+        "yaw": 62.424211140986245
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 16.119,
+        "lateral_m": -1.73,
+        "view_zone": "front",
+        "side": "center",
+        "directional_sector": "front",
+        "heading_difference_deg": 12.477,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200002,
+      "name": "2017_Kia_Sorento",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -171.2702127491266,
+        "y": -465.4848320014415,
+        "z": 28.908974023759743,
+        "yaw": 162.44176247762118
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 10.595,
+        "lateral_m": 16.763,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front",
+        "heading_difference_deg": 87.54,
+        "traffic_direction_relation": "crossing_or_merging"
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -164.95289224678655,
+        "y": -476.1243319916107,
+        "z": 28.84646932512851,
+        "yaw": 119.31185758198154
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 1.969,
+        "lateral_m": 7.892,
+        "view_zone": "side",
+        "side": "left",
+        "directional_sector": "left",
+        "heading_difference_deg": 44.41,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200001,
+      "name": "2016_Hyundai_Santafe",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -135.28764553236687,
+        "y": -475.21757531532353,
+        "z": 28.464901862327054,
+        "yaw": 102.03147237425145
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 10.571,
+        "lateral_m": -20.513,
+        "view_zone": "front",
+        "side": "right",
+        "directional_sector": "right",
+        "heading_difference_deg": 27.13,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -157.5494376836732,
+        "y": -502.54717234956246,
+        "z": 28.964838596130605,
+        "yaw": 104.82124064049538
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -21.614,
+        "lateral_m": -6.138,
+        "view_zone": "rear",
+        "side": "right",
+        "directional_sector": "rear",
+        "heading_difference_deg": 29.92,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100074,
+      "name": "worker_f_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -150.9841252133231,
+        "y": -460.4836162724653,
+        "z": 28.53573954252245,
+        "yaw": -154.28781839262786
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 20.708,
+        "lateral_m": -1.52,
+        "view_zone": "front",
+        "side": "center",
+        "directional_sector": "front"
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100012,
+      "name": "Woman4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -153.73644865558978,
+        "y": -459.35286716431096,
+        "z": 28.595105591261145,
+        "yaw": -13.017133980224344
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 21.083,
+        "lateral_m": 1.432,
+        "view_zone": "front",
+        "side": "center",
+        "directional_sector": "front"
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50200001,
+      "name": "Boy1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -160.55303426478085,
+        "y": -474.5046364326292,
+        "z": 28.512216047513206,
+        "yaw": -78.2230727645443
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 4.678,
+        "lateral_m": 4.066,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100028,
+      "name": "PE_Firewall_Orange",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -160.90466146039705,
+        "y": -470.3153021344725,
+        "z": 28.545845767060197,
+        "yaw": 86.13753958479862
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 8.632,
+        "lateral_m": 5.497,
+        "view_zone": "front",
+        "side": "left",
+        "directional_sector": "front"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 15.0,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "directional_sector_weights": {
+      "vehicle": {
+        "front": 0.5,
+        "left": 0.17,
+        "right": 0.13,
+        "rear": 0.2
+      },
+      "pedestrian": {
+        "front": 0.65,
+        "left": 0.17,
+        "right": 0.13,
+        "rear": 0.05
+      },
+      "obstacle": {
+        "front": 0.7,
+        "left": 0.16,
+        "right": 0.12,
+        "rear": 0.02
+      }
+    },
+    "vehicle_traffic_relation_weights": {
+      "same_direction": 0.62,
+      "opposing_direction": 0.18,
+      "crossing_or_merging": 0.2
+    },
+    "vehicle_link_exclusion_zones": [
+      {
+        "link_idx": "A2256W000131",
+        "x": -42.4204343,
+        "y": -531.3443126,
+        "radius_m": 6.0,
+        "reason": "repeated MORAI actor omission beside GPS-shadow dome"
+      },
+      {
+        "link_idx": "A2256W000075",
+        "x": -86.210599,
+        "y": -358.2504731,
+        "radius_m": 6.0,
+        "reason": "Stinger omitted in three consecutive s13p5_005 loads"
+      },
+      {
+        "link_idx": "A2256W000324",
+        "x": -80.5328075,
+        "y": -361.7210144,
+        "radius_m": 6.0,
+        "reason": "DEFAULT_MPV omitted in three consecutive s13p5_005 loads"
+      }
+    ],
+    "camera_seam_angles_deg": [
+      45.0,
+      -45.0,
+      100.0,
+      -100.0
+    ],
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30100009,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004,
+        30800004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "57f6977fdd63f7e6ade7840de615055db56f0a1aecc85bc40d4acb3fd9a5de96",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

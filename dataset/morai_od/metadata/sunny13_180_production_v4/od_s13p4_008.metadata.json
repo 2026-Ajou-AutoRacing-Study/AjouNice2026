@@ -1,0 +1,265 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_008",
+  "scenario_stem": "od_s13p4_008",
+  "split": "test",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080818108,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3268,
+    "arc_m": 1684.0833281030734,
+    "curvature_deg": 0.04445613222975453,
+    "crosswalk_distance_m": 71.28886845060367,
+    "parking_distance_m": 102.63622169528928,
+    "stopline_distance_m": 72.33677720244529,
+    "branch_distance_m": 69.16553250979155
+  },
+  "ego": {
+    "x": 70.35289516137796,
+    "y": -308.1173977138615,
+    "z": 28.69983639821186,
+    "yaw": -89.67369073841398,
+    "link_idx": "A2256W000153",
+    "point_idx": 181
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": 70.37419227735053,
+    "y": -312.61734627505155,
+    "z": 28.357902589629862,
+    "yaw": -90.0291405699955
+  },
+  "counts": {
+    "npc": 6,
+    "pedestrian": 1,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100011,
+      "name": "2019_Toyota_Prius",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.79433769120985,
+        "y": -316.37508679956005,
+        "z": 28.634867960379648,
+        "yaw": -90.61703339275888
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 3.761,
+        "lateral_m": -5.578,
+        "view_zone": "front",
+        "side": "right",
+        "heading_difference_deg": 0.588,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100005,
+      "name": "2014_Kia_K7",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.39162998387543,
+        "y": -296.8239561676541,
+        "z": 28.74184696153226,
+        "yaw": -89.70180065254189
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -15.795,
+        "lateral_m": 4.009,
+        "view_zone": "rear",
+        "side": "left",
+        "heading_difference_deg": 0.327,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30400004,
+      "name": "2013_Hyundai_Xcient(P540)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.79588252544866,
+        "y": -296.3751863224331,
+        "z": 28.8450399217438,
+        "yaw": -89.84133680776024
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -16.239,
+        "lateral_m": -5.587,
+        "view_zone": "rear",
+        "side": "right",
+        "heading_difference_deg": 0.188,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.56694196932216,
+        "y": -317.3253437890559,
+        "z": 28.863042562369593,
+        "yaw": -89.57873414081564
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 4.703,
+        "lateral_m": 9.195,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 0.45,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.50324517007537,
+        "y": -308.82563223575204,
+        "z": 28.73017047888835,
+        "yaw": -89.28858783802443
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -3.796,
+        "lateral_m": 9.127,
+        "view_zone": "rear",
+        "side": "left",
+        "heading_difference_deg": 0.741,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30700006,
+      "name": "2020_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.64457745856112,
+        "y": -322.8729240712315,
+        "z": 28.63745804175225,
+        "yaw": -92.04603748464642
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 10.258,
+        "lateral_m": -5.724,
+        "view_zone": "front",
+        "side": "right",
+        "heading_difference_deg": 2.017,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100014,
+      "name": "Woman6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 75.19808183372939,
+        "y": -333.843194500324,
+        "z": 28.427936742783228,
+        "yaw": -67.02318722387143
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 21.223,
+        "lateral_m": 4.835,
+        "view_zone": "front",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100059,
+      "name": "Bicycle_city",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": 82.76769622247026,
+        "y": -297.03803972183175,
+        "z": 28.354399919483367,
+        "yaw": -89.36002962807484
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -15.586,
+        "lateral_m": 12.386,
+        "view_zone": "rear",
+        "side": "left"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

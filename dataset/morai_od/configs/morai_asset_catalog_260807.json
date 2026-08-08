@@ -21,6 +21,7 @@
   "policy": {
     "vehicle_shaped_object_entries": "excluded by user before catalog extraction",
     "human_integrated_obstacle_assets": "excluded by user before catalog extraction; only unoccupied bicycle/scooter assets remain eligible as hard negatives",
+    "speed_bump_asset": "retained in the catalog for provenance but excluded from automatic dataset generation because it is non-mission road infrastructure with an extremely thin 3D shape",
     "deduplicate_by_data_id": true
   },
   "counts": {
@@ -1409,10 +1410,10 @@
       "morai_object_type": 4,
       "ontology_class": "RoadSurfaceObject",
       "subtype": "road_surface",
-      "pointpainting_pedestrian_role": "hard_negative_or_context",
-      "future_bev_role": "context_or_separate_class",
-      "generation_policy": "enabled_surface_aligned_only",
-      "label_audit_required": true
+      "pointpainting_pedestrian_role": "context_background",
+      "future_bev_role": "background_not_target",
+      "generation_policy": "excluded_dataset_scope",
+      "label_audit_required": false
     },
     {
       "data_id": 40100005,

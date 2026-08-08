@@ -29,6 +29,14 @@ POLICY_EXCLUDED_DATA_IDS = {
             "geometry trial geo009."
         ),
     },
+    "obstacle": {
+        40100032: (
+            "Speed_Bump is a thin road-surface infrastructure asset, not a "
+            "target object or mission element in the competition. Excluded "
+            "from both-launcher automatic OD generation to avoid distorting "
+            "3D box geometry and class balance."
+        ),
+    },
 }
 
 IGNORED_TEMPLATE_KEYS = {
