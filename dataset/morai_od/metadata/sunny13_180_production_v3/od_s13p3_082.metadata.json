@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v3",
+  "base_scenario_id": "s13p3_082",
+  "scenario_stem": "od_s13p3_082",
+  "split": "train",
+  "scene_type": "camera_seam_occlusion",
+  "topology": "curve",
+  "seed": 26080818082,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1715,
+    "arc_m": 914.0010454487349,
+    "curvature_deg": 34.79488243245254,
+    "crosswalk_distance_m": 252.3627162518841,
+    "parking_distance_m": 281.2655201680736,
+    "stopline_distance_m": 7.762337240271042,
+    "branch_distance_m": 9.930362651577912
+  },
+  "ego": {
+    "x": -81.60282341982833,
+    "y": 339.9332069433064,
+    "z": 28.705304504980415,
+    "yaw": 33.00496312384547,
+    "link_idx": "A2256W000151",
+    "point_idx": 20
+  },
+  "counts": {
+    "npc": 3,
+    "pedestrian": 3,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100008,
+      "name": "2020_hyundai_sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -84.4033197587421,
+        "y": 346.4219713535573,
+        "z": 28.707027734725607,
+        "yaw": 100.03567953210438
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30400004,
+      "name": "2013_Hyundai_Xcient(P540)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -91.56743187091709,
+        "y": 328.96600455050935,
+        "z": 28.90524967022903,
+        "yaw": 39.999103153786734
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30300003,
+      "name": "DEFAULT_BUS",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -76.78172645442534,
+        "y": 332.3161499056607,
+        "z": 28.779991598889886,
+        "yaw": 34.06249856835268
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100008,
+      "name": "Man5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -79.1950594235071,
+        "y": 352.7256573888449,
+        "z": 28.394571784682764,
+        "yaw": -160.33983025503812
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100013,
+      "name": "Woman5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -73.5837835613537,
+        "y": 337.9421958178876,
+        "z": 28.338028663987888,
+        "yaw": 10.762863439923251
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -90.75294558905411,
+        "y": 342.3223030704628,
+        "z": 28.441112541100058,
+        "yaw": 137.74028920822406
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100060,
+      "name": "Bicycle_mountain",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -81.88401201177567,
+        "y": 355.0749875939995,
+        "z": 28.36608712392372,
+        "yaw": 44.53144906152801
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "f8357698666fb706292ca37016cbabaac40939953ba1221a6fd0c56cd574b41e",
+    "generation_config": "dd7af3e1afca784f8c640002fca20d5bc015e73b8a06dfddd04c9a1b02188f1d",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

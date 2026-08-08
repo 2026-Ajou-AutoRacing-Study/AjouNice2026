@@ -16,6 +16,20 @@ GROUPS = (
 # this policy separate from launcher compatibility so that a tree present in
 # both launchers is still never selected automatically.
 POLICY_EXCLUDED_NAME_PREFIXES = ("tree",)
+POLICY_EXCLUDED_DATA_IDS = {
+    "pedestrian": {
+        50100005: (
+            "Woman2 was the only common pedestrian in geometry trial v3 "
+            "scenes geo3_005, geo3_010, and geo3_016; every scene loaded "
+            "exactly one fewer pedestrian. Excluded from personal-launcher "
+            "automatic generation after three deterministic failures."
+        ),
+        50200004: (
+            "Girl2 failed to appear from the personal-launcher template in "
+            "geometry trial geo009."
+        ),
+    },
+}
 
 IGNORED_TEMPLATE_KEYS = {
     "UNIQUEID",
@@ -30,12 +44,14 @@ IGNORED_TEMPLATE_KEYS = {
 }
 
 
-def is_policy_excluded(row):
+def policy_exclusion_reason(group, row):
     name = str(row.get("name", "")).strip().lower()
-    return any(
-        name.startswith(prefix)
-        for prefix in POLICY_EXCLUDED_NAME_PREFIXES
-    )
+    if any(name.startswith(prefix) for prefix in POLICY_EXCLUDED_NAME_PREFIXES):
+        return (
+            "Tree asset excluded from the OD actor dataset by project policy."
+        )
+    data_id = int(row.get("data_id", row.get("DataID", -1)))
+    return POLICY_EXCLUDED_DATA_IDS.get(group, {}).get(data_id)
 
 
 def parse_args():
@@ -238,6 +254,10 @@ def main():
             "dataset_scope_excluded_name_prefixes": list(
                 POLICY_EXCLUDED_NAME_PREFIXES
             ),
+            "runtime_observed_excluded_data_ids": {
+                group: sorted(rows)
+                for group, rows in POLICY_EXCLUDED_DATA_IDS.items()
+            },
             "geometry_fields_from_catalog_scenarios": False,
         },
         "competition": {
@@ -272,7 +292,8 @@ def main():
         excluded_ids = {
             data_id
             for data_id in all_ids
-            if is_policy_excluded(
+            if policy_exclusion_reason(
+                group,
                 competition_rows.get(data_id, personal_rows.get(data_id))
             )
         }
@@ -314,9 +335,9 @@ def main():
                 )["name"],
                 "present_in_competition": data_id in competition_ids,
                 "present_in_personal": data_id in personal_ids,
-                "reason": (
-                    "Tree asset excluded from the OD actor dataset by "
-                    "project policy."
+                "reason": policy_exclusion_reason(
+                    group,
+                    competition_rows.get(data_id, personal_rows.get(data_id)),
                 ),
             }
             for data_id in sorted(excluded_ids)

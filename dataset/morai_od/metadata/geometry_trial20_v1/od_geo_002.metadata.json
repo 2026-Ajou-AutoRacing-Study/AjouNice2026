@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_geometry_trial20_v1",
+  "base_scenario_id": "geo002",
+  "scenario_stem": "od_geo_002",
+  "split": "test",
+  "scene_type": "pedestrian_centric",
+  "topology": "merge_diverge",
+  "seed": 26080752002,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1599,
+    "arc_m": 858.1093570329434,
+    "curvature_deg": 0.48647044727368893,
+    "crosswalk_distance_m": 202.2136114334216,
+    "parking_distance_m": 232.05409018971903,
+    "stopline_distance_m": 26.983594739728016,
+    "branch_distance_m": 0.3901760671968742
+  },
+  "ego": {
+    "x": -99.44000246360883,
+    "y": 290.81566039127205,
+    "z": 28.718062626426164,
+    "yaw": 90.2475360410333,
+    "link_idx": "A2256W000304",
+    "point_idx": 446
+  },
+  "counts": {
+    "npc": 1,
+    "pedestrian": 8,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -93.81686601568025,
+        "y": 309.4971326168879,
+        "z": 28.79000231370756,
+        "yaw": 72.7648425964305
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100010,
+      "name": "Man7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -105.22951143530852,
+        "y": 288.1955912809926,
+        "z": 28.41756510111793,
+        "yaw": 54.48053132538013
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -93.49844950297981,
+        "y": 302.36737887361755,
+        "z": 28.360065733216498,
+        "yaw": 122.93051848735519
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100015,
+      "name": "Woman7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -104.773074365727,
+        "y": 273.10917070418475,
+        "z": 28.405791353131477,
+        "yaw": 89.72511934289281
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100074,
+      "name": "worker_f_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -105.57755971509565,
+        "y": 282.03383153114584,
+        "z": 28.41427359735458,
+        "yaw": -100.2648733549351
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50200002,
+      "name": "Girl1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -94.94407457438146,
+        "y": 274.092472429865,
+        "z": 28.374551992779757,
+        "yaw": -169.2156929441649
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100009,
+      "name": "Man6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -94.82890636399492,
+        "y": 289.64674608712943,
+        "z": 28.420146937227248,
+        "yaw": -2.3630895108920527
+      }
+    },
+    {
+      "unique_id": 2007,
+      "group": "pedestrianList",
+      "data_id": 50100013,
+      "name": "Woman5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -105.84831547093911,
+        "y": 265.8222884175125,
+        "z": 28.382104538592582,
+        "yaw": 167.58487402802672
+      }
+    },
+    {
+      "unique_id": 2008,
+      "group": "pedestrianList",
+      "data_id": 50100018,
+      "name": "NCAP_EPTa",
+      "ontology_class": "Pedestrian",
+      "subtype": "pedestrian_dummy",
+      "generation_policy": "limited_weight",
+      "pose": {
+        "x": -104.5430995941328,
+        "y": 286.59051815315365,
+        "z": 28.416655259659915,
+        "yaw": 139.53958439640166
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 7.0,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "65594a9281ee0c362358daf625e76b6e36699a0c922cf248a610e865d84c5f7c",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

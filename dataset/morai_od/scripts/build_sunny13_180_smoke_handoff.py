@@ -12,10 +12,17 @@ DATASET_PROFILES = {
     "morai_sunny13_180_smoke_v1": {
         "manifest_stem": "sunny13_180_smoke",
         "scenario_group": "sunny13_180_smoke",
+        "config": "od_sunny13_180_smoke.yaml",
     },
     "morai_sunny13_180_smoke_v2": {
         "manifest_stem": "sunny13_180_smoke_v2",
         "scenario_group": "sunny13_180_smoke_v2",
+        "config": "od_sunny13_180_smoke.yaml",
+    },
+    "morai_sunny13_180_production_v3": {
+        "manifest_stem": "sunny13_180_production_v3",
+        "scenario_group": "sunny13_180_production_v3",
+        "config": "od_sunny13_180_production_v3.yaml",
     },
 }
 
@@ -61,7 +68,7 @@ def copy_metadata(project_root, destination, profile):
     metadata_root = destination / "handoff_metadata"
     manifest_stem = profile["manifest_stem"]
     files = (
-        "dataset/morai_od/configs/od_sunny13_180_smoke.yaml",
+        "dataset/morai_od/configs/{}".format(profile["config"]),
         "dataset/morai_od/configs/morai_asset_catalog_260807.json",
         "dataset/morai_od/configs/morai_asset_catalog_personal_260807.json",
         (

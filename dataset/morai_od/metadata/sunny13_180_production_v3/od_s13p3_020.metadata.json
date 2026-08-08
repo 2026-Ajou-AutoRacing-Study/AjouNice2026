@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v3",
+  "base_scenario_id": "s13p3_020",
+  "scenario_stem": "od_s13p3_020",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080818020,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2865,
+    "arc_m": 1484.2253255191474,
+    "curvature_deg": 0.026212907888293557,
+    "crosswalk_distance_m": 26.67353921881327,
+    "parking_distance_m": 113.9286326413468,
+    "stopline_distance_m": 25.311466452997387,
+    "branch_distance_m": 24.185323310116612
+  },
+  "ego": {
+    "x": 67.77358543003169,
+    "y": -108.87246290078905,
+    "z": 28.670268489234072,
+    "yaw": -89.91619632426496,
+    "link_idx": "A2256W000408",
+    "point_idx": 231
+  },
+  "counts": {
+    "npc": 8,
+    "pedestrian": 0,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30400003,
+      "name": "2013_Hyundai_Xcient(P520)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.88637282221408,
+        "y": -102.87519074667355,
+        "z": 28.945485481136814,
+        "yaw": -89.7560569061106
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200014,
+      "name": "2023_Hyundai_Ioniq5",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.46523225968235,
+        "y": -115.376623335765,
+        "z": 28.74727959381631,
+        "yaw": -89.67105261477649
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100014,
+      "name": "2020_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 83.41323620377612,
+        "y": -99.92098469034326,
+        "z": 28.676660797210076,
+        "yaw": 90.27513048394428
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30400004,
+      "name": "2013_Hyundai_Xcient(P540)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 63.99030337335272,
+        "y": -99.28225763568877,
+        "z": 28.8563651305068,
+        "yaw": -89.5390041838576
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100007,
+      "name": "2016_Hyundai_Ioniq",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.98521862389364,
+        "y": -120.87487424738123,
+        "z": 28.71776635655358,
+        "yaw": -89.76886579862871
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30700004,
+      "name": "2020_Kia_Niro(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 71.32525343989977,
+        "y": -94.87450131537337,
+        "z": 28.734328064487965,
+        "yaw": -89.72236394619026
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 51.022890801127545,
+        "y": -108.86528882896643,
+        "z": 28.884678567095975,
+        "yaw": 90.22622932780632
+      }
+    },
+    {
+      "unique_id": 1008,
+      "group": "vehicleList",
+      "data_id": 30800004,
+      "name": "DEFAULT_MPV",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.11916942550488,
+        "y": -125.2817786792516,
+        "z": 28.6623448596388,
+        "yaw": -89.56787447913965
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "f8357698666fb706292ca37016cbabaac40939953ba1221a6fd0c56cd574b41e",
+    "generation_config": "dd7af3e1afca784f8c640002fca20d5bc015e73b8a06dfddd04c9a1b02188f1d",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

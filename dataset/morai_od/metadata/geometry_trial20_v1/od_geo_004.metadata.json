@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_geometry_trial20_v1",
+  "base_scenario_id": "geo004",
+  "scenario_stem": "od_geo_004",
+  "split": "test",
+  "scene_type": "vehicle_centric",
+  "topology": "curve",
+  "seed": 26080752004,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1715,
+    "arc_m": 914.0010454487349,
+    "curvature_deg": 34.79488243245254,
+    "crosswalk_distance_m": 252.3627162518841,
+    "parking_distance_m": 281.2655201680736,
+    "stopline_distance_m": 7.762337240271042,
+    "branch_distance_m": 9.930362651577912
+  },
+  "ego": {
+    "x": -81.60282341982833,
+    "y": 339.9332069433064,
+    "z": 28.705304504980415,
+    "yaw": 33.00496312384547,
+    "link_idx": "A2256W000151",
+    "point_idx": 20
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 0,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30700006,
+      "name": "2020_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -71.28938839798806,
+        "y": 345.42374240911255,
+        "z": 28.668483096891528,
+        "yaw": -179.69787700624397
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30400007,
+      "name": "DEFAULT_TRUCK",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -88.87939530946493,
+        "y": 355.22800710715813,
+        "z": 28.88348409885071,
+        "yaw": 130.46605373147548
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30700005,
+      "name": "2016_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -86.29776403754337,
+        "y": 334.8209302885906,
+        "z": 28.706724763523994,
+        "yaw": 54.43748155609046
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100012,
+      "name": "2019_hyundai_genesis_g90",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -86.25749058460086,
+        "y": 323.48908644794227,
+        "z": 28.614392450632778,
+        "yaw": 50.81452615139142
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -62.33858938688698,
+        "y": 342.4978078212181,
+        "z": 28.9188962226814,
+        "yaw": 4.6807689188322
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100028,
+      "name": "PE_Firewall_Orange",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -77.18767046472757,
+        "y": 334.8486226304242,
+        "z": 28.331479438148964,
+        "yaw": 15.877848998402214
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100047,
+      "name": "Concrete_Barricade01",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -81.60337798115435,
+        "y": 333.61756577817914,
+        "z": 28.323063449735475,
+        "yaw": 19.115899059775558
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 7.0,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "65594a9281ee0c362358daf625e76b6e36699a0c922cf248a610e865d84c5f7c",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

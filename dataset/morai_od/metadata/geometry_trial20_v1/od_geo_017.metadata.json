@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_geometry_trial20_v1",
+  "base_scenario_id": "geo017",
+  "scenario_stem": "od_geo_017",
+  "split": "train",
+  "scene_type": "camera_seam_occlusion",
+  "topology": "curve",
+  "seed": 26080752017,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 263,
+    "arc_m": 129.95326047751817,
+    "curvature_deg": 36.440465923990814,
+    "crosswalk_distance_m": 30.72872996448353,
+    "parking_distance_m": 64.67279944149591,
+    "stopline_distance_m": 29.517835860691783,
+    "branch_distance_m": 29.517835860691783
+  },
+  "ego": {
+    "x": -129.0706261566785,
+    "y": -325.2616465655155,
+    "z": 28.764462596244066,
+    "yaw": 100.496331722138,
+    "link_idx": "A2256W000329",
+    "point_idx": 70
+  },
+  "counts": {
+    "npc": 3,
+    "pedestrian": 4,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -128.04478882165597,
+        "y": -333.99492537132204,
+        "z": 28.91761664874665,
+        "yaw": -45.961716860959484
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30400004,
+      "name": "2013_Hyundai_Xcient(P540)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -129.38443662834956,
+        "y": -312.8182948802999,
+        "z": 28.961070288642464,
+        "yaw": -118.67211031848076
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100010,
+      "name": "2021_Hyundai_G80",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -120.0683072659581,
+        "y": -336.0687910196643,
+        "z": 28.7453099426585,
+        "yaw": 147.1924297911733
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100009,
+      "name": "Man6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -136.9475272446798,
+        "y": -318.8573588361297,
+        "z": 28.457652403195002,
+        "yaw": -10.13061179482986
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100077,
+      "name": "worker_m_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -124.3738741935571,
+        "y": -318.30254268023543,
+        "z": 28.44691063319442,
+        "yaw": -49.58313251825999
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -135.398067675201,
+        "y": -335.49618288826593,
+        "z": 28.49353242949039,
+        "yaw": -141.16298084941428
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100058,
+      "name": "police_m_2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -122.1714136394057,
+        "y": -329.91639207485207,
+        "z": 28.479225546782583,
+        "yaw": 117.89666816545707
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 7.0,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "65594a9281ee0c362358daf625e76b6e36699a0c922cf248a610e865d84c5f7c",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

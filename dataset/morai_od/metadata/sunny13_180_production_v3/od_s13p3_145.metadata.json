@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v3",
+  "base_scenario_id": "s13p3_145",
+  "scenario_stem": "od_s13p3_145",
+  "split": "test",
+  "scene_type": "vehicle_centric",
+  "topology": "curve",
+  "seed": 26080818145,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3924,
+    "arc_m": 2008.2279129671467,
+    "curvature_deg": 6.118141591600647,
+    "crosswalk_distance_m": 182.88630251466296,
+    "parking_distance_m": 60.02701825235877,
+    "stopline_distance_m": 12.355059367581186,
+    "branch_distance_m": 73.95546249324187
+  },
+  "ego": {
+    "x": -85.66400371510284,
+    "y": -548.4799277185243,
+    "z": 28.784422682350375,
+    "yaw": -164.407168613921,
+    "link_idx": "A2256W000128",
+    "point_idx": 23
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 1,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100005,
+      "name": "2014_Kia_K7",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -64.90801932280539,
+        "y": -543.366836678657,
+        "z": 28.768210624045974,
+        "yaw": 27.994874223058133
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200014,
+      "name": "2023_Hyundai_Ioniq5",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -71.09224618136234,
+        "y": -546.6461054478135,
+        "z": 28.819690648282307,
+        "yaw": 27.220782899323638
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30400001,
+      "name": "2013_Hyundai_Porter2",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -103.95587331186611,
+        "y": -550.2944335537429,
+        "z": 28.977813187147277,
+        "yaw": 175.06642378191066
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100007,
+      "name": "2016_Hyundai_Ioniq",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -62.0416532597241,
+        "y": -537.8321952288516,
+        "z": 28.776018026591373,
+        "yaw": -151.70049870071182
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100011,
+      "name": "2019_Toyota_Prius",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -77.61541049111872,
+        "y": -545.7658228019891,
+        "z": 28.7761493323052,
+        "yaw": -157.22570713786854
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -82.81976876251554,
+        "y": -552.4023223225234,
+        "z": 28.525819611247968,
+        "yaw": -85.53988977641154
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "f8357698666fb706292ca37016cbabaac40939953ba1221a6fd0c56cd574b41e",
+    "generation_config": "dd7af3e1afca784f8c640002fca20d5bc015e73b8a06dfddd04c9a1b02188f1d",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

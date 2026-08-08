@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_geometry_trial20_v1",
+  "base_scenario_id": "geo018",
+  "scenario_stem": "od_geo_018",
+  "split": "train",
+  "scene_type": "sparse_empty_background",
+  "topology": "straight",
+  "seed": 26080752018,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1826,
+    "arc_m": 968.0976693729971,
+    "curvature_deg": 2.842170943040401e-14,
+    "crosswalk_distance_m": 267.7489202463512,
+    "parking_distance_m": 293.2884486623821,
+    "stopline_distance_m": 28.788341581940873,
+    "branch_distance_m": 16.609392160475277
+  },
+  "ego": {
+    "x": -27.93226211018381,
+    "y": 345.00838961851304,
+    "z": 28.67367143931263,
+    "yaw": 3.400401301202777,
+    "link_idx": "A2256W000054",
+    "point_idx": 75
+  },
+  "counts": {
+    "npc": 0,
+    "pedestrian": 0,
+    "obstacle": 0
+  },
+  "assets": [],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 7.0,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "65594a9281ee0c362358daf625e76b6e36699a0c922cf248a610e865d84c5f7c",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

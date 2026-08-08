@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v3",
+  "base_scenario_id": "s13p3_079",
+  "scenario_stem": "od_s13p3_079",
+  "split": "test",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080818079,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 4213,
+    "arc_m": 2150.2279610859428,
+    "curvature_deg": 0.629679338062374,
+    "crosswalk_distance_m": 152.99161285054132,
+    "parking_distance_m": 10.605342398427066,
+    "stopline_distance_m": 18.266912074366672,
+    "branch_distance_m": 15.522157350334066
+  },
+  "ego": {
+    "x": -148.40428484878723,
+    "y": -458.37492379406166,
+    "z": 28.826520120258238,
+    "yaw": 61.229319807110784,
+    "link_idx": "A2256W000332",
+    "point_idx": 36
+  },
+  "counts": {
+    "npc": 1,
+    "pedestrian": 0,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30400002,
+      "name": "2012_Hyundai_HD65",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -157.67330858430333,
+        "y": -457.8183244919721,
+        "z": 29.093711576156256,
+        "yaw": -142.6540648778751
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100026,
+      "name": "Lane_Separation_Bar",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -139.0337007232675,
+        "y": -467.5629647130902,
+        "z": 28.2153889324397,
+        "yaw": 42.48134945219951
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100003,
+      "name": "RedBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -174.69889133876174,
+        "y": -466.59903254543667,
+        "z": 28.45192796076466,
+        "yaw": 71.07248459867492
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100047,
+      "name": "Concrete_Barricade01",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -137.1679020554222,
+        "y": -476.88286458768766,
+        "z": 28.109573519856387,
+        "yaw": 59.6410899974355
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "f8357698666fb706292ca37016cbabaac40939953ba1221a6fd0c56cd574b41e",
+    "generation_config": "dd7af3e1afca784f8c640002fca20d5bc015e73b8a06dfddd04c9a1b02188f1d",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

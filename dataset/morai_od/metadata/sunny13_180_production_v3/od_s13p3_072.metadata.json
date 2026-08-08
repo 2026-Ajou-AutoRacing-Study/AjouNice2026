@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v3",
+  "base_scenario_id": "s13p3_072",
+  "scenario_stem": "od_s13p3_072",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080818072,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 40,
+    "arc_m": 19.999970224089452,
+    "curvature_deg": 0.06074076859110278,
+    "crosswalk_distance_m": 98.61599561817891,
+    "parking_distance_m": 6.276399207904985,
+    "stopline_distance_m": 30.68172943756108,
+    "branch_distance_m": 19.999882976087225
+  },
+  "ego": {
+    "x": -121.96807797376144,
+    "y": -410.852937014941,
+    "z": 28.89687153036285,
+    "yaw": 60.809598839762316,
+    "link_idx": "A2256W000748",
+    "point_idx": 40
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 0,
+    "obstacle": 4
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800004,
+      "name": "DEFAULT_MPV",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -133.045530857774,
+        "y": -420.4401305945457,
+        "z": 28.93050138480773,
+        "yaw": -119.24527050534915
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30400003,
+      "name": "2013_Hyundai_Xcient(P520)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -132.89991470645595,
+        "y": -434.91153789033723,
+        "z": 29.060495915758274,
+        "yaw": 94.33218998036915
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200103,
+      "name": "KR_Sign_SL_40",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -116.69790459948342,
+        "y": -412.6218265761026,
+        "z": 28.586305877483415,
+        "yaw": 55.78779354186884
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100029,
+      "name": "PE_Firewall_White",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -121.3048196006761,
+        "y": -392.6164304204538,
+        "z": 28.574214631126726,
+        "yaw": 47.30481298324639
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40200102,
+      "name": "KR_Sign_SL_30",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -114.67759289332388,
+        "y": -406.55723684422446,
+        "z": 28.578027096062883,
+        "yaw": 56.00099976514633
+      }
+    },
+    {
+      "unique_id": 3004,
+      "group": "objectList",
+      "data_id": 40100028,
+      "name": "PE_Firewall_Orange",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -112.50679645598521,
+        "y": -403.82793332704244,
+        "z": 28.576472283764772,
+        "yaw": 53.95144485977664
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "f8357698666fb706292ca37016cbabaac40939953ba1221a6fd0c56cd574b41e",
+    "generation_config": "dd7af3e1afca784f8c640002fca20d5bc015e73b8a06dfddd04c9a1b02188f1d",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

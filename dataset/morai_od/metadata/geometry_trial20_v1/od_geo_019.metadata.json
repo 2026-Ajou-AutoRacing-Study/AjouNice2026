@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_geometry_trial20_v1",
+  "base_scenario_id": "geo019",
+  "scenario_stem": "od_geo_019",
+  "split": "train",
+  "scene_type": "camera_seam_occlusion",
+  "topology": "curve",
+  "seed": 26080752019,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 166,
+    "arc_m": 82.12886801898158,
+    "curvature_deg": 34.9586749867068,
+    "crosswalk_distance_m": 37.15470861437702,
+    "parking_distance_m": 39.30360227317669,
+    "stopline_distance_m": 9.317731710649031,
+    "branch_distance_m": 5.655506959226734
+  },
+  "ego": {
+    "x": -94.61139770156399,
+    "y": -355.7294903014141,
+    "z": 28.92012439541736,
+    "yaw": 98.59174011680369,
+    "link_idx": "A2256W000182",
+    "point_idx": 19
+  },
+  "counts": {
+    "npc": 3,
+    "pedestrian": 4,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200005,
+      "name": "2019_Hyundai_Nexo",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -87.94811700349896,
+        "y": -357.5689494782772,
+        "z": 28.91968877940354,
+        "yaw": -29.36567009111164
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100008,
+      "name": "2020_hyundai_sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -88.12199666312806,
+        "y": -348.6858788666755,
+        "z": 28.893705459552486,
+        "yaw": 43.591188862323975
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200013,
+      "name": "2023_Kia_EV6",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -101.07409039060148,
+        "y": -373.27068068422335,
+        "z": 28.89377219629227,
+        "yaw": 61.04273262809198
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -114.81614264565368,
+        "y": -340.2270882407508,
+        "z": 28.45009002157461,
+        "yaw": 137.60172661356734
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -87.079607088841,
+        "y": -344.25384058978136,
+        "z": 28.564531535830373,
+        "yaw": 81.95508750972158
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -98.61856424818866,
+        "y": -360.498688408068,
+        "z": 28.577155498799733,
+        "yaw": 124.1379942345468
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100008,
+      "name": "Man5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -79.8072721866767,
+        "y": -368.8721202226657,
+        "z": 28.559652550637885,
+        "yaw": -123.22510296616281
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100067,
+      "name": "Bollard04",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -99.19119835952255,
+        "y": -352.1924670748571,
+        "z": 28.541203187198263,
+        "yaw": 109.33800593404226
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200107,
+      "name": "KR_Sign_SL_80",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -84.49478659297706,
+        "y": -340.92459382068347,
+        "z": 28.528869225651768,
+        "yaw": 96.69798023631688
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 7.0,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "65594a9281ee0c362358daf625e76b6e36699a0c922cf248a610e865d84c5f7c",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

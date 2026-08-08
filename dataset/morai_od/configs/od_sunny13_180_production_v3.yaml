@@ -1,0 +1,47 @@
+schema_version: 3
+status: ready_for_sunny_13_production_capture
+
+purpose:
+  immediate: pointpainting_finetune_improvement_dataset
+  reusable_for:
+    - multiclass_pointpillars
+    - bevfusion
+    - camera_bev_representation
+
+capture:
+  total_runs: 180
+  unique_geometry_layouts: 180
+  environment_variants_per_layout: 1
+  frames_per_run: 6
+  total_multisensor_frames: 1080
+  motion_mode: rolling-grouped
+  ego_speed_kph: 5.4
+  spacing_m: 1.5
+  maximum_motion_m: 10.5
+  load_settle_sec: 0.5
+  capture_stable_sec: 0.5
+  continue_on_scene_error: true
+  route_deviation_limit_m: 1.2
+  heading_error_limit_deg: 45.0
+  lookahead_m: 1.8
+  maximum_steering_rad: 0.35
+  personal_steering_sign: -1.0
+  adaptive_curve_control: true
+  curve_control_window_m: 8.0
+  curve_control_full_turn_deg: 18.0
+  minimum_curve_speed_kph: 3.6
+  minimum_curve_lookahead_m: 1.2
+  curve_maximum_steering_rad: 0.45
+
+environment:
+  id: sunny_t13
+  weather: sunny
+  time_hour: 13
+  apply_environment_once_per_batch: true
+
+split:
+  unit: scenario
+  train: 126
+  val: 27
+  test: 27
+  ratio: [0.70, 0.15, 0.15]

@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_geometry_trial20_v1",
+  "base_scenario_id": "geo009",
+  "scenario_stem": "od_geo_009",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080752009,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 767,
+    "arc_m": 447.7946818000962,
+    "curvature_deg": 7.385551725747064e-09,
+    "crosswalk_distance_m": 2.8417155359405735,
+    "parking_distance_m": 81.35235360457412,
+    "stopline_distance_m": 10.999978676774173,
+    "branch_distance_m": 7.760990026510565
+  },
+  "ego": {
+    "x": -60.217810042342684,
+    "y": -23.510376335851646,
+    "z": 28.773879199651528,
+    "yaw": 90.32172015679328,
+    "link_idx": "A2256W000599",
+    "point_idx": 22
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 1,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200010,
+      "name": "2021_Volkswagen_Golf_GTI",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -60.11704408629063,
+        "y": -41.455796714665325,
+        "z": 28.766037105623795,
+        "yaw": 90.32172015278115
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100003,
+      "name": "2016_Hyundai_Sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -64.13510860260547,
+        "y": -11.249402698936954,
+        "z": 28.74768690203971,
+        "yaw": -89.20142543278747
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200003,
+      "name": "2017_Kia_Niro(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -38.567865375139306,
+        "y": -21.415596899122917,
+        "z": 28.77665954504903,
+        "yaw": 0.04962832516810067
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100013,
+      "name": "2016_Hyundai_Genesis_DH",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -64.0647382421689,
+        "y": -30.747612914822323,
+        "z": 28.743498206211168,
+        "yaw": -89.35532659168898
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30500002,
+      "name": "DEFAULT_WAGON",
+      "ontology_class": "Vehicle",
+      "subtype": "wagon",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -56.07632331794573,
+        "y": -1.5244857727148402,
+        "z": 28.69549696401036,
+        "yaw": 103.36573524195046
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50200004,
+      "name": "Girl2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -65.01215495886234,
+        "y": -34.85439524342057,
+        "z": 28.44475731714598,
+        "yaw": -24.820713254073212
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100029,
+      "name": "PE_Firewall_White",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -79.84514937205566,
+        "y": -17.413327839375526,
+        "z": 28.36510253340488,
+        "yaw": 96.72162705642722
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 7.0,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "65594a9281ee0c362358daf625e76b6e36699a0c922cf248a610e865d84c5f7c",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

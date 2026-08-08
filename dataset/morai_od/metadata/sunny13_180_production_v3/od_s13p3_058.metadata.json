@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v3",
+  "base_scenario_id": "s13p3_058",
+  "scenario_stem": "od_s13p3_058",
+  "split": "train",
+  "scene_type": "camera_seam_occlusion",
+  "topology": "curve",
+  "seed": 26080818058,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3587,
+    "arc_m": 1842.0538715160046,
+    "curvature_deg": 10.294955106522565,
+    "crosswalk_distance_m": 146.34051617499298,
+    "parking_distance_m": 146.57482018857155,
+    "stopline_distance_m": 35.520111397259825,
+    "branch_distance_m": 46.72910031213683
+  },
+  "ego": {
+    "x": 55.49561306247204,
+    "y": -463.3491583521851,
+    "z": 28.616571710037412,
+    "yaw": -124.37058160006539,
+    "link_idx": "A2256W000446",
+    "point_idx": 121
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 4,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100015,
+      "name": "DEFAULT_SEDAN",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 59.56410714002645,
+        "y": -455.89911489148096,
+        "z": 28.573968212864077,
+        "yaw": -115.20307300738537
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30400005,
+      "name": "2014_Hyundai_Xcient(Mixer)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.76624987109614,
+        "y": -475.7396597332276,
+        "z": 28.965280811073324,
+        "yaw": -12.751980944176353
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100015,
+      "name": "Woman7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 56.75270560694114,
+        "y": -471.397226260822,
+        "z": 28.513549634059345,
+        "yaw": 156.06548866190025
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 45.358533321485986,
+        "y": -466.07747877161887,
+        "z": 28.33040777680646,
+        "yaw": 0.39384041112180057
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100016,
+      "name": "Woman8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.52096340206174,
+        "y": -462.2986382935444,
+        "z": 28.307274584174827,
+        "yaw": -10.27457576531117
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100014,
+      "name": "Woman6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 53.965760723321004,
+        "y": -453.69169865437567,
+        "z": 28.286425793060268,
+        "yaw": 47.93224428064576
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100027,
+      "name": "PE_Drum",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 61.71767852575478,
+        "y": -464.36840622864503,
+        "z": 28.295623350246608,
+        "yaw": -117.25284032916889
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100058,
+      "name": "Bollard01",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 75.85816895001038,
+        "y": -458.6670098830664,
+        "z": 28.324712897773626,
+        "yaw": -124.3048453619951
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "f8357698666fb706292ca37016cbabaac40939953ba1221a6fd0c56cd574b41e",
+    "generation_config": "dd7af3e1afca784f8c640002fca20d5bc015e73b8a06dfddd04c9a1b02188f1d",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

@@ -8,7 +8,7 @@ import json
 import math
 import random
 import shutil
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import yaml
@@ -41,6 +41,7 @@ SCENARIO_FILE_PREFIX = "od180_b"
 BASE_SCENARIO_COUNT = 30
 SPLIT_COUNTS = {"train": 20, "val": 5, "test": 5}
 MINIMUM_ANCHOR_ARC_DISTANCE_M = 20.0
+EXCLUDED_ANCHOR_INDICES = set()
 ANCHOR_CANDIDATE_SPACING_M = 4.0
 MASTER_SEED = 26080730
 ENVIRONMENTS = (
@@ -163,6 +164,116 @@ VEHICLE_RADIUS = {
     "bus_van": 4.5,
     "truck": 5.0,
 }
+
+VEHICLE_HALF_WIDTH = {
+    "passenger_car": 1.05,
+    "electric_passenger_car": 1.05,
+    "suv": 1.12,
+    "wagon": 1.08,
+    "mpv": 1.12,
+    "bus_van": 1.30,
+    "truck": 1.35,
+}
+
+OBSTACLE_RADIUS = {
+    "road_surface": 0.8,
+    "fixed_roadside_object": 0.8,
+    "road_sign": 0.55,
+    "unoccupied_bicycle_or_scooter": 1.1,
+    "barrier": 1.4,
+    "box": 0.9,
+    "barrel_or_drum": 0.65,
+}
+
+EGO_ROUTE_BEHIND_M = 2.5
+EGO_ROUTE_AHEAD_M = 10.5
+EGO_ROUTE_HALF_WIDTH_M = 1.9
+EGO_STATIC_ROUTE_CLEARANCE_M = 2.0
+MAXIMUM_PEDESTRIAN_ROAD_DISTANCE_M = 4.0
+# MORAI can silently omit one pedestrian when two static pedestrian colliders
+# are accepted at the old 1.45 m center distance.  A 1.60 m candidate
+# clearance plus the existing 0.45 m pedestrian radius enforces 2.05 m.
+PEDESTRIAN_PLACEMENT_CLEARANCE_M = 1.60
+
+
+class RoadSampleIndex:
+    """Spatial grid over MGeo link samples used during mass generation."""
+
+    def __init__(self, samples, cell_size=4.0):
+        self.samples = list(samples)
+        self.cell_size = float(cell_size)
+        self.cells = defaultdict(list)
+        for sample in self.samples:
+            self.cells[self.key(sample["x"], sample["y"])].append(sample)
+
+    def key(self, x, y):
+        return (
+            math.floor(float(x) / self.cell_size),
+            math.floor(float(y) / self.cell_size),
+        )
+
+    def within(self, x, y, radius):
+        center_x, center_y = self.key(x, y)
+        reach = int(math.ceil(radius / self.cell_size)) + 1
+        result = []
+        radius_squared = radius * radius
+        for cell_x in range(center_x - reach, center_x + reach + 1):
+            for cell_y in range(center_y - reach, center_y + reach + 1):
+                for sample in self.cells.get((cell_x, cell_y), ()):
+                    if (
+                        (sample["x"] - x) ** 2 + (sample["y"] - y) ** 2
+                        <= radius_squared
+                    ):
+                        result.append(sample)
+        return result
+
+    def nearest(self, x, y):
+        # Generated actors are constrained to remain near the road. Eight
+        # metres covers the configured pedestrian/obstacle acceptance range.
+        candidates = self.within(x, y, 8.0)
+        if not candidates:
+            candidates = self.samples
+        return min(
+            candidates,
+            key=lambda sample: (sample["x"] - x) ** 2
+            + (sample["y"] - y) ** 2,
+        )
+
+
+def indexed_nearest_sample(samples, x, y):
+    if isinstance(samples, RoadSampleIndex):
+        return samples.nearest(x, y)
+    return nearest_sample(samples, x, y)
+
+
+class StaticCollisionIndex:
+    """Small spatial hash for MGeo poles, curbs, walls, and barriers."""
+
+    def __init__(self, entries, cell_size=4.0):
+        self.cell_size = float(cell_size)
+        self.cells = defaultdict(list)
+        for entry in entries:
+            key = self._key(entry["x"], entry["y"])
+            self.cells[key].append(entry)
+
+    def _key(self, x, y):
+        return (
+            math.floor(float(x) / self.cell_size),
+            math.floor(float(y) / self.cell_size),
+        )
+
+    def is_clear(self, point, clearance):
+        center_x, center_y = self._key(point["x"], point["y"])
+        reach = int(math.ceil((clearance + 1.0) / self.cell_size))
+        for cell_x in range(center_x - reach, center_x + reach + 1):
+            for cell_y in range(center_y - reach, center_y + reach + 1):
+                for entry in self.cells.get((cell_x, cell_y), ()):
+                    if math.hypot(
+                        point["x"] - entry["x"],
+                        point["y"] - entry["y"],
+                    ) < clearance + entry["radius"]:
+                        return False
+        return True
 
 
 def parse_args():
@@ -305,6 +416,7 @@ def mgeo_feature_points(mgeo_dir):
     parking = load_json(mgeo_dir / "parking_space_set.json")
     nodes = load_json(mgeo_dir / "node_set.json")
     links = load_json(mgeo_dir / "link_set.json")
+    map_objects = load_json(mgeo_dir / "object_set.json")
 
     crosswalk_centers = [
         path_centroid(item["points"])
@@ -331,6 +443,41 @@ def mgeo_feature_points(mgeo_dir):
         for node_id, value in degree.items()
         if value >= 3 and node_id in node_points
     ]
+    static_collision_entries = []
+    static_radii = {
+        "light_pole": 0.45,
+        "sign_pole": 0.45,
+        "concrete_curb": 0.25,
+        "guardrail": 0.40,
+        "wall": 0.50,
+        "temporary_structure": 0.60,
+        "concrete_barrier": 0.50,
+        "other_facilities": 0.50,
+    }
+    for item in map_objects:
+        radius = static_radii.get(item.get("name"))
+        points = item.get("points", [])
+        if radius is None or not points:
+            continue
+        for before, after in zip(points, points[1:]):
+            segment_length = distance_xy(before, after)
+            steps = max(1, int(math.ceil(segment_length / 0.5)))
+            for step in range(steps):
+                ratio = step / steps
+                static_collision_entries.append(
+                    {
+                        "x": before[0] + (after[0] - before[0]) * ratio,
+                        "y": before[1] + (after[1] - before[1]) * ratio,
+                        "radius": radius,
+                    }
+                )
+        static_collision_entries.append(
+            {
+                "x": points[-1][0],
+                "y": points[-1][1],
+                "radius": radius,
+            }
+        )
     return {
         "crosswalk_centers": crosswalk_centers,
         "parking_centers": parking_centers,
@@ -339,6 +486,10 @@ def mgeo_feature_points(mgeo_dir):
         "crosswalk_polygons": [
             item["points"] for item in crosswalks if item.get("points")
         ],
+        "static_collision_index": StaticCollisionIndex(
+            static_collision_entries
+        ),
+        "static_collision_sample_count": len(static_collision_entries),
     }
 
 
@@ -361,6 +512,15 @@ def build_anchor_candidates(
         if any(
             length > 2.0
             for length in segment_lengths[check_start:check_stop]
+        ):
+            continue
+        route_points = route_corridor_points(waypoints, index)
+        if not all(
+            features["static_collision_index"].is_clear(
+                {"x": route_point[0], "y": route_point[1]},
+                EGO_STATIC_ROUTE_CLEARANCE_M,
+            )
+            for route_point in route_points
         ):
             continue
         point = waypoints[index]
@@ -434,6 +594,8 @@ def select_anchors(candidates, minimum_arc_distance_m=20.0):
         )
         added = 0
         for candidate in ordered:
+            if candidate["index"] in EXCLUDED_ANCHOR_INDICES:
+                continue
             if candidate["index"] in used_indices:
                 continue
             if any(
@@ -515,6 +677,11 @@ def make_scene_specs(rng, anchors):
                 "npc_count": npc,
                 "pedestrian_count": pedestrian,
                 "obstacle_count": obstacle,
+                "minimum_npc_count": type_spec["npc_range"][0],
+                "minimum_pedestrian_count": type_spec[
+                    "pedestrian_range"
+                ][0],
+                "minimum_obstacle_count": type_spec["obstacle_range"][0],
             }
         )
     if remaining or len(specs) != BASE_SCENARIO_COUNT:
@@ -583,7 +750,58 @@ def local_coordinates(ego, point):
     )
 
 
-def in_ego_swept_corridor(ego, point, extra_margin=0.0):
+def point_segment_distance(point, before, after):
+    dx = after[0] - before[0]
+    dy = after[1] - before[1]
+    length_squared = dx * dx + dy * dy
+    if length_squared <= 1e-12:
+        return distance_xy(point, before)
+    ratio = (
+        (point[0] - before[0]) * dx
+        + (point[1] - before[1]) * dy
+    ) / length_squared
+    ratio = max(0.0, min(1.0, ratio))
+    projection = (before[0] + ratio * dx, before[1] + ratio * dy)
+    return distance_xy(point, projection)
+
+
+def route_corridor_points(
+    waypoints,
+    anchor_index,
+    behind_m=EGO_ROUTE_BEHIND_M,
+    ahead_m=EGO_ROUTE_AHEAD_M,
+):
+    def collect(step, limit):
+        points = [waypoints[anchor_index]]
+        distance = 0.0
+        index = anchor_index
+        while 0 <= index + step < len(waypoints) and distance < limit:
+            next_index = index + step
+            segment = distance_xy(waypoints[index], waypoints[next_index])
+            if segment > 2.0:
+                break
+            distance += segment
+            points.append(waypoints[next_index])
+            index = next_index
+        return points
+
+    behind = list(reversed(collect(-1, behind_m)))
+    ahead = collect(1, ahead_m)
+    return behind[:-1] + ahead
+
+
+def in_ego_swept_corridor(
+    ego,
+    point,
+    extra_margin=0.0,
+    route_points=None,
+):
+    if route_points and len(route_points) >= 2:
+        query = (point["x"], point["y"])
+        return min(
+            point_segment_distance(query, before, after)
+            for before, after in zip(route_points, route_points[1:])
+        ) <= EGO_ROUTE_HALF_WIDTH_M + extra_margin
     longitudinal, lateral = local_coordinates(ego, point)
     return (
         -2.0 - extra_margin
@@ -604,12 +822,25 @@ def weighted_distance(rng):
     return rng.uniform(22.0, 28.0)
 
 
-def choose_vehicle_samples(rng, samples, ego, assets, occupied):
+def choose_vehicle_samples(
+    rng,
+    samples,
+    ego,
+    assets,
+    occupied,
+    route_points,
+    static_collision_index,
+):
+    if isinstance(samples, RoadSampleIndex):
+        nearby = samples.within(ego["x"], ego["y"], 28.0)
+    else:
+        nearby = samples
     candidates = [
         item
-        for item in samples
-        if 5.0 <= math.hypot(item["x"] - ego["x"], item["y"] - ego["y"]) <= 28.0
-        and not in_ego_swept_corridor(ego, item, extra_margin=1.0)
+        for item in nearby
+        if 5.0
+        <= math.hypot(item["x"] - ego["x"], item["y"] - ego["y"])
+        <= 28.0
     ]
     selected = []
     for row, actor in assets:
@@ -627,7 +858,17 @@ def choose_vehicle_samples(rng, samples, ego, assets, occupied):
             (
                 item
                 for item in ordered
-                if is_clear(item, occupied, radius + 0.8)
+                if not in_ego_swept_corridor(
+                    ego,
+                    item,
+                    extra_margin=radius + 0.5,
+                    route_points=route_points,
+                )
+                and is_clear(item, occupied, radius + 0.8)
+                and static_collision_index.is_clear(
+                    item,
+                    VEHICLE_HALF_WIDTH.get(row["subtype"], 1.2) + 0.35,
+                )
             ),
             None,
         )
@@ -681,12 +922,18 @@ def choose_pedestrian_poses(
     occupied,
     scene_type,
     topology,
+    route_points,
+    static_collision_index,
 ):
     selected = []
     crosswalks = nearby_crosswalks(features, ego)
     seam_angles = (45.0, -45.0, 135.0, -135.0)
     for index in range(count):
         pose = None
+        # Dense pedestrian scenes can exhaust the immediately sampled area
+        # after vehicles have already occupied several valid road-adjacent
+        # poses.  Keep the validated 2.05 m centre spacing and search a wider
+        # random pool instead of weakening the collider-clearance rule.
         for _ in range(300):
             use_crosswalk = (
                 topology == "crosswalk"
@@ -712,11 +959,32 @@ def choose_pedestrian_poses(
                 x = ego["x"] + math.cos(global_angle) * radius
                 y = ego["y"] + math.sin(global_angle) * radius
             raw = {"x": x, "y": y}
-            if in_ego_swept_corridor(ego, raw, extra_margin=0.4):
+            if in_ego_swept_corridor(
+                ego,
+                raw,
+                extra_margin=0.4,
+                route_points=route_points,
+            ):
                 continue
-            road = nearest_sample(samples, x, y)
+            road = indexed_nearest_sample(samples, x, y)
+            maximum_road_distance = (
+                7.0
+                if scene_type == "camera_seam_occlusion"
+                else MAXIMUM_PEDESTRIAN_ROAD_DISTANCE_M
+            )
+            if (
+                distance_xy((x, y), (road["x"], road["y"]))
+                > maximum_road_distance
+            ):
+                continue
             candidate = {"x": x, "y": y, "z": road["z"] + 0.05}
-            if not is_clear(candidate, occupied, required_clearance=1.0):
+            if not is_clear(
+                candidate,
+                occupied,
+                required_clearance=PEDESTRIAN_PLACEMENT_CLEARANCE_M,
+            ):
+                continue
+            if not static_collision_index.is_clear(candidate, 0.65):
                 continue
             pose = {
                 **candidate,
@@ -730,11 +998,20 @@ def choose_pedestrian_poses(
     return selected
 
 
-def choose_obstacle_poses(rng, samples, ego, assets, occupied):
+def choose_obstacle_poses(
+    rng,
+    samples,
+    ego,
+    assets,
+    occupied,
+    route_points,
+    static_collision_index,
+):
     selected = []
     for row, actor in assets:
         pose = None
         subtype = row["subtype"]
+        actor_radius = OBSTACLE_RADIUS.get(subtype, 1.0)
         for _ in range(300):
             distance = weighted_distance(rng)
             if subtype == "road_surface":
@@ -760,9 +1037,18 @@ def choose_obstacle_poses(rng, samples, ego, assets, occupied):
             raw = {"x": x, "y": y}
             if math.hypot(x - ego["x"], y - ego["y"]) > 28.0:
                 continue
-            if in_ego_swept_corridor(ego, raw, extra_margin=0.5):
+            if in_ego_swept_corridor(
+                ego,
+                raw,
+                extra_margin=actor_radius + 0.4,
+                route_points=route_points,
+            ):
                 continue
-            road = nearest_sample(samples, x, y)
+            road = indexed_nearest_sample(samples, x, y)
+            road_distance = distance_xy((x, y), (road["x"], road["y"]))
+            maximum_road_distance = 2.0 if subtype == "road_surface" else 6.0
+            if road_distance > maximum_road_distance:
+                continue
             candidate = {
                 "x": x,
                 "y": y,
@@ -773,20 +1059,35 @@ def choose_obstacle_poses(rng, samples, ego, assets, occupied):
                     else wrap_degrees(ego["yaw"] + rng.uniform(-20.0, 20.0))
                 ),
             }
-            if not is_clear(candidate, occupied, required_clearance=1.7):
+            if not is_clear(
+                candidate,
+                occupied,
+                required_clearance=actor_radius + 0.7,
+            ):
+                continue
+            if not static_collision_index.is_clear(
+                candidate,
+                actor_radius + 0.25,
+            ):
                 continue
             pose = candidate
             break
         if pose is None:
             raise RuntimeError("Could not place obstacle {}".format(row["name"]))
-        occupied.append({"x": pose["x"], "y": pose["y"], "radius": 1.0})
+        occupied.append(
+            {
+                "x": pose["x"],
+                "y": pose["y"],
+                "radius": OBSTACLE_RADIUS.get(subtype, 1.0),
+            }
+        )
         selected.append((row, actor, pose))
     return selected
 
 
 def choose_ego_sample(waypoints, samples, anchor_index):
     anchor = waypoints[anchor_index]
-    nearest = nearest_sample(samples, anchor[0], anchor[1])
+    nearest = indexed_nearest_sample(samples, anchor[0], anchor[1])
     before = waypoints[max(0, anchor_index - 1)]
     after = waypoints[min(len(waypoints) - 1, anchor_index + 1)]
     return {
@@ -854,6 +1155,10 @@ def generate_scene(
     ego = choose_ego_sample(
         waypoints, samples, spec["anchor"]["index"]
     )
+    route_points = route_corridor_points(
+        waypoints,
+        spec["anchor"]["index"],
+    )
     scenario = copy.deepcopy(template)
     clear_template_lists(scenario)
     set_vehicle_pose(
@@ -867,7 +1172,13 @@ def generate_scene(
 
     vehicle_assets = vehicle_deck.take(spec["npc_count"])
     vehicle_placements = choose_vehicle_samples(
-        rng, samples, ego, vehicle_assets, occupied
+        rng,
+        samples,
+        ego,
+        vehicle_assets,
+        occupied,
+        route_points,
+        features["static_collision_index"],
     )
     for actor_index, (row, actor, sample) in enumerate(vehicle_placements):
         unique_id = 1001 + actor_index
@@ -901,6 +1212,8 @@ def generate_scene(
         occupied,
         spec["scene_type"],
         spec["anchor"]["topology"],
+        route_points,
+        features["static_collision_index"],
     )
     for actor_index, ((row, actor), pose) in enumerate(
         zip(pedestrian_assets, pedestrian_poses)
@@ -916,7 +1229,13 @@ def generate_scene(
 
     obstacle_assets = obstacle_deck.take(spec["obstacle_count"])
     obstacle_placements = choose_obstacle_poses(
-        rng, samples, ego, obstacle_assets, occupied
+        rng,
+        samples,
+        ego,
+        obstacle_assets,
+        occupied,
+        route_points,
+        features["static_collision_index"],
     )
     for actor_index, (row, actor, pose) in enumerate(obstacle_placements):
         unique_id = 3001 + actor_index
@@ -956,6 +1275,37 @@ def capture_policy(config):
         "load_settle_sec": float(policy["load_settle_sec"]),
         "capture_stable_sec": float(policy["capture_stable_sec"]),
         "continue_on_scene_error": bool(policy["continue_on_scene_error"]),
+        "route_deviation_limit_m": float(
+            policy.get("route_deviation_limit_m", 1.2)
+        ),
+        "heading_error_limit_deg": float(
+            policy.get("heading_error_limit_deg", 45.0)
+        ),
+        "lookahead_m": float(policy.get("lookahead_m", 1.8)),
+        "maximum_steering_rad": float(
+            policy.get("maximum_steering_rad", 0.35)
+        ),
+        "adaptive_curve_control": bool(
+            policy.get("adaptive_curve_control", False)
+        ),
+        "curve_control_window_m": float(
+            policy.get("curve_control_window_m", 8.0)
+        ),
+        "curve_control_full_turn_deg": float(
+            policy.get("curve_control_full_turn_deg", 18.0)
+        ),
+        "minimum_curve_speed_kph": float(
+            policy.get("minimum_curve_speed_kph", 3.6)
+        ),
+        "minimum_curve_lookahead_m": float(
+            policy.get("minimum_curve_lookahead_m", 1.2)
+        ),
+        "curve_maximum_steering_rad": float(
+            policy.get("curve_maximum_steering_rad", 0.45)
+        ),
+        "personal_steering_sign": float(
+            policy.get("personal_steering_sign", -1.0)
+        ),
         "note": (
             "Use rolling-grouped for training data. It sends captures while "
             "moving, then groups and verifies Camera/LiDAR/GT artifacts by "
@@ -1114,6 +1464,7 @@ def main():
         row
         for row in catalog["obstacles_and_related"]
         if row["generation_policy"].startswith("enabled")
+        and row["subtype"] != "road_surface"
         and row["data_id"] in automatic_ids["obstacle"]
     ]
     for rows, source, name in (
@@ -1136,7 +1487,7 @@ def main():
     template = load_json(template_path)
     waypoints = load_waypoints(waypoints_path)
     links = load_json(mgeo_dir / "link_set.json")
-    samples = build_link_samples(links)
+    samples = RoadSampleIndex(build_link_samples(links))
     link_ids = {str(link["idx"]) for link in links}
     arc_lengths = route_arc_lengths(waypoints)
     features = mgeo_feature_points(mgeo_dir)
@@ -1153,6 +1504,10 @@ def main():
 
     rng = random.Random(args.seed)
     specs = make_scene_specs(rng, anchors)
+    reserved_anchor_indices = {
+        item["anchor"]["index"] for item in specs
+    }
+    rejected_anchor_indices = set(EXCLUDED_ANCHOR_INDICES)
     vehicle_deck = AssetDeck(vehicle_rows, vehicle_source, args.seed + 1)
     pedestrian_deck = AssetDeck(
         pedestrian_rows, pedestrian_source, args.seed + 2
@@ -1182,6 +1537,68 @@ def main():
         initial_scene_seed = args.seed * 100 + scene_index
         generation_error = None
         for generation_attempt in range(20):
+            # A geometry-valid anchor can still be too crowded for the
+            # randomly selected upper end of a scene type's actor-count
+            # range. After several independent layouts fail, reduce only the
+            # failing actor class toward that type's declared minimum. This
+            # preserves collider clearances and route safety while avoiding a
+            # single dense scene stalling an entire 180-scene batch.
+            if generation_attempt and generation_attempt % 2 == 0:
+                message = str(generation_error or "").lower()
+                if (
+                    "pedestrian" in message
+                    and spec["pedestrian_count"]
+                    > spec["minimum_pedestrian_count"]
+                ):
+                    spec["pedestrian_count"] -= 1
+                elif (
+                    "vehicle" in message
+                    and spec["npc_count"] > spec["minimum_npc_count"]
+                ):
+                    spec["npc_count"] -= 1
+                elif (
+                    "obstacle" in message
+                    and spec["obstacle_count"]
+                    > spec["minimum_obstacle_count"]
+                ):
+                    spec["obstacle_count"] -= 1
+            if generation_attempt and generation_attempt % 4 == 0:
+                old_anchor = spec["anchor"]
+                reserved_anchor_indices.discard(old_anchor["index"])
+                rejected_anchor_indices.add(old_anchor["index"])
+                replacement = next(
+                    (
+                        candidate
+                        for candidate in sorted(
+                            candidates,
+                            key=lambda item: topology_sort_key(
+                                old_anchor["topology"], item
+                            ),
+                        )
+                        if candidate["index"]
+                        not in reserved_anchor_indices
+                        and candidate["index"]
+                        not in rejected_anchor_indices
+                        and all(
+                            abs(candidate["arc_m"] - item["anchor"]["arc_m"])
+                            >= MINIMUM_ANCHOR_ARC_DISTANCE_M
+                            for item in specs
+                            if item is not spec
+                        )
+                    ),
+                    None,
+                )
+                if replacement is None:
+                    raise RuntimeError(
+                        "No replacement anchor remains for scene {}".format(
+                            base_id
+                        )
+                    )
+                spec["anchor"] = {
+                    **replacement,
+                    "topology": old_anchor["topology"],
+                }
+                reserved_anchor_indices.add(replacement["index"])
             scene_seed = initial_scene_seed + generation_attempt * 1000003
             try:
                 scenario, ego, assets, expected = generate_scene(
@@ -1251,6 +1668,25 @@ def main():
                 "obstacle": expected["objectList"],
             },
             "assets": assets,
+            "geometry_policy": {
+                "version": 2,
+                "ego_route_behind_m": EGO_ROUTE_BEHIND_M,
+                "ego_route_ahead_m": EGO_ROUTE_AHEAD_M,
+                "ego_route_half_width_m": EGO_ROUTE_HALF_WIDTH_M,
+                "ego_static_route_clearance_m": (
+                    EGO_STATIC_ROUTE_CLEARANCE_M
+                ),
+                "mgeo_static_collision_check": True,
+                "type_specific_actor_footprints": True,
+                "maximum_pedestrian_road_distance_m": (
+                    MAXIMUM_PEDESTRIAN_ROAD_DISTANCE_M
+                ),
+                "minimum_pedestrian_center_distance_m": (
+                    PEDESTRIAN_PLACEMENT_CLEARANCE_M + 0.45
+                ),
+                "maximum_obstacle_road_distance_m": 6.0,
+                "maximum_road_surface_object_road_distance_m": 2.0,
+            },
             "environment_policy": (
                 "Weather/time are not embedded in this JSON. Capture it in "
                 "the environment variants declared by the manifest."
@@ -1264,6 +1700,8 @@ def main():
                 "asset_catalog": sha256(catalog_path),
                 "asset_compatibility": sha256(compatibility_path),
                 "generation_config": sha256(config_path),
+                "mgeo_link_set": sha256(mgeo_dir / "link_set.json"),
+                "mgeo_object_set": sha256(mgeo_dir / "object_set.json"),
             },
         }
         write_json(metadata_path, metadata)
@@ -1415,6 +1853,17 @@ def main():
                 ),
                 "path_discontinuity_rejection_threshold_m": 2.0,
                 "ego_swept_corridor_clear": True,
+                "ego_route_behind_m": EGO_ROUTE_BEHIND_M,
+                "ego_route_ahead_m": EGO_ROUTE_AHEAD_M,
+                "ego_route_half_width_m": EGO_ROUTE_HALF_WIDTH_M,
+                "ego_static_route_clearance_m": (
+                    EGO_STATIC_ROUTE_CLEARANCE_M
+                ),
+                "mgeo_static_collision_check": True,
+                "mgeo_static_collision_samples": features[
+                    "static_collision_sample_count"
+                ],
+                "type_specific_actor_footprints": True,
             },
             "capture_policy": policy,
         },
@@ -1438,7 +1887,7 @@ def main():
             )
             sidecar.write_bytes(network_payload)
 
-    print("MORAI OD 180-run pilot generated")
+    print("MORAI OD scenario set generated")
     print("base scenarios:", len(scenes))
     print("environment manifests:", len(ENVIRONMENTS))
     print("capture runs:", len(scenes) * len(ENVIRONMENTS))

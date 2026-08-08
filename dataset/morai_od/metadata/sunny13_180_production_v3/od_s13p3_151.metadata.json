@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v3",
+  "base_scenario_id": "s13p3_151",
+  "scenario_stem": "od_s13p3_151",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080818151,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 4189,
+    "arc_m": 2138.228004892333,
+    "curvature_deg": 5.855835651286242,
+    "crosswalk_distance_m": 164.98626447138955,
+    "parking_distance_m": 9.539602027986621,
+    "stopline_distance_m": 13.848248778735327,
+    "branch_distance_m": 17.1965021877886
+  },
+  "ego": {
+    "x": -153.93907678096377,
+    "y": -469.0181960829354,
+    "z": 28.80456671611735,
+    "yaw": 65.7760957295917,
+    "link_idx": "A2256W000332",
+    "point_idx": 12
+  },
+  "counts": {
+    "npc": 0,
+    "pedestrian": 0,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100063,
+      "name": "Scooter_02",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -159.42743636319764,
+        "y": -465.06889692334886,
+        "z": 28.540273141670127,
+        "yaw": 75.21497407098713
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200105,
+      "name": "KR_Sign_SL_60",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -127.69628261463575,
+        "y": -460.8726860994724,
+        "z": 28.384279289323235,
+        "yaw": 82.90989370634611
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100033,
+      "name": "Steel_Barricade",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -166.13209591986148,
+        "y": -469.43700525879143,
+        "z": 28.562410935032478,
+        "yaw": 51.66553710954827
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "f8357698666fb706292ca37016cbabaac40939953ba1221a6fd0c56cd574b41e",
+    "generation_config": "dd7af3e1afca784f8c640002fca20d5bc015e73b8a06dfddd04c9a1b02188f1d",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

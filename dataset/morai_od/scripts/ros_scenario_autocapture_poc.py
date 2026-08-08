@@ -9,12 +9,14 @@ time.
 """
 
 import argparse
+import ctypes
 import hashlib
 import json
 import math
 import os
 import queue
 import shutil
+import socket
 import threading
 import time
 from pathlib import Path
@@ -30,6 +32,46 @@ from morai_msgs.msg import (
     ScenarioLoad,
 )
 from morai_msgs.srv import MoraiEventCmdSrv, MoraiEventCmdSrvRequest
+
+
+class ScenarioLoadUdpPacket(ctypes.Structure):
+    """MORAI NetworkModule-compatible 69-byte ScenarioLoad packet."""
+
+    _pack_ = 1
+    _fields_ = [
+        ("header", ctypes.c_char * 14),
+        ("data_length", ctypes.c_int32),
+        ("aux_data", ctypes.c_int32 * 3),
+        ("filename", ctypes.c_char * 30),
+        ("delete_all", ctypes.c_bool),
+        ("network", ctypes.c_bool),
+        ("ego", ctypes.c_bool),
+        ("npc", ctypes.c_bool),
+        ("pedestrian", ctypes.c_bool),
+        ("object", ctypes.c_bool),
+        ("pause", ctypes.c_bool),
+        ("tail", ctypes.c_char * 2),
+    ]
+
+
+def build_scenario_load_payload(filename, request):
+    encoded = filename.encode("ascii")
+    if not encoded or len(encoded) > 30:
+        raise ValueError("ScenarioLoad filename must be 1..30 ASCII bytes")
+    packet = ScenarioLoadUdpPacket()
+    packet.header = b"#ScenarioLoad$"
+    packet.data_length = 37
+    packet.aux_data = (ctypes.c_int32 * 3)(0, 0, 0)
+    packet.filename = encoded.ljust(30, b" ")
+    packet.delete_all = request["delete_all"]
+    packet.network = request["load_network_connection_data"]
+    packet.ego = request["load_ego_vehicle_data"]
+    packet.npc = request["load_surrounding_vehicle_data"]
+    packet.pedestrian = request["load_pedestrian_data"]
+    packet.object = request["load_obstacle_data"]
+    packet.pause = request["set_pause"]
+    packet.tail = b"\r\n"
+    return ctypes.string_at(ctypes.addressof(packet), ctypes.sizeof(packet))
 
 
 def parse_args():
@@ -121,6 +163,15 @@ def parse_args():
     parser.add_argument("--maximum-motion-m", type=float, default=None)
     parser.add_argument("--load-timeout-sec", type=float, default=15.0)
     parser.add_argument(
+        "--scenario-load-attempts",
+        type=int,
+        default=3,
+        help=(
+            "Retry ScenarioLoad when MORAI keeps publishing the previous "
+            "scene or drops an actor while rosbridge clients are rebuilding."
+        ),
+    )
+    parser.add_argument(
         "--network-reconnect-timeout-sec",
         type=float,
         default=20.0,
@@ -152,11 +203,31 @@ def parse_args():
         ),
     )
     parser.add_argument("--ego-position-tolerance-m", type=float, default=5.0)
-    parser.add_argument("--route-deviation-limit-m", type=float, default=2.5)
-    parser.add_argument("--heading-error-limit-deg", type=float, default=40.0)
-    parser.add_argument("--lookahead-m", type=float, default=3.0)
+    parser.add_argument("--route-deviation-limit-m", type=float, default=None)
+    parser.add_argument("--heading-error-limit-deg", type=float, default=None)
+    parser.add_argument("--lookahead-m", type=float, default=None)
     parser.add_argument("--wheelbase-m", type=float, default=3.0)
-    parser.add_argument("--maximum-steering-rad", type=float, default=0.20)
+    parser.add_argument("--maximum-steering-rad", type=float, default=None)
+    parser.add_argument(
+        "--adaptive-curve-control",
+        action="store_true",
+        default=None,
+        help=(
+            "Adapt speed, lookahead, and steering limit to upcoming route "
+            "heading change. Generated production manifests may enable it."
+        ),
+    )
+    parser.add_argument("--curve-control-window-m", type=float, default=None)
+    parser.add_argument(
+        "--curve-control-full-turn-deg", type=float, default=None
+    )
+    parser.add_argument("--minimum-curve-speed-kph", type=float, default=None)
+    parser.add_argument(
+        "--minimum-curve-lookahead-m", type=float, default=None
+    )
+    parser.add_argument(
+        "--curve-maximum-steering-rad", type=float, default=None
+    )
     parser.add_argument("--ego-setting-topic", default="/ego_setting")
     parser.add_argument("--teleport-timeout-sec", type=float, default=5.0)
     parser.add_argument(
@@ -187,7 +258,29 @@ def parse_args():
             "personal MORAI front_steer schema."
         ),
     )
+    parser.add_argument(
+        "--personal-steering-sign",
+        type=float,
+        default=None,
+        help=(
+            "Sign converting mathematical steering (left positive) to the "
+            "personal MORAI normalized front_steer field. The personal "
+            "launcher uses right-positive steering, so generated manifests "
+            "default this to -1. Competition CtrlCmd.steering is unaffected."
+        ),
+    )
     parser.add_argument("--scenario-topic", default="/ScenarioLoad")
+    parser.add_argument(
+        "--scenario-load-transport",
+        choices=("ros", "udp"),
+        default="ros",
+        help=(
+            "Send ScenarioLoad through the ROS topic or the independent MORAI "
+            "UDP port. UDP remains usable while rosbridge subscribers rebuild."
+        ),
+    )
+    parser.add_argument("--scenario-load-udp-host", default="127.0.0.1")
+    parser.add_argument("--scenario-load-udp-port", type=int, default=9095)
     parser.add_argument("--capture-topic", default="/SaveSensorData")
     parser.add_argument("--control-topic", default="/ctrl_cmd")
     parser.add_argument("--ego-topic", default="/Ego_topic")
@@ -240,6 +333,15 @@ def parse_args():
             "Record a failed scene and continue with the next manifest "
             "entry. Intended for multi-scene stress tests and unattended "
             "collection batches."
+        ),
+    )
+    parser.add_argument(
+        "--resume-report",
+        type=Path,
+        help=(
+            "Resume an interrupted run from its partial/final report. "
+            "Completed scenes are preserved and skipped; failed and "
+            "unattempted scenes are run again in the same capture directory."
         ),
     )
     parser.add_argument(
@@ -462,7 +564,10 @@ def relocate_capture_files(source_root, destination_root, capture_id, files):
 
 
 def set_ctrl_steering(
-    message, steering_rad, personal_max_steering_angle_deg=36.25
+    message,
+    steering_rad,
+    personal_max_steering_angle_deg=36.25,
+    personal_steering_sign=-1.0,
 ):
     """Set steering on competition and personal MORAI CtrlCmd schemas."""
 
@@ -473,7 +578,13 @@ def set_ctrl_steering(
         maximum_rad = math.radians(personal_max_steering_angle_deg)
         if maximum_rad <= 0.0:
             raise ValueError("personal maximum steering angle must be positive")
-        normalized = max(-1.0, min(1.0, steering_rad / maximum_rad))
+        normalized = max(
+            -1.0,
+            min(
+                1.0,
+                personal_steering_sign * steering_rad / maximum_rad,
+            ),
+        )
         message.front_steer = normalized
         message.rear_steer = 0.0
         return "front_steer"
@@ -761,6 +872,11 @@ class AutoCapture:
         if not waypoint_path.is_absolute():
             waypoint_path = project_root / waypoint_path
         self.waypoints = load_waypoints(waypoint_path)
+        self.waypoint_arc_m = [0.0]
+        for before, after in zip(self.waypoints, self.waypoints[1:]):
+            self.waypoint_arc_m.append(
+                self.waypoint_arc_m[-1] + distance_xy(before, after)
+            )
         self.state = SharedState()
         self.run_id = time.strftime("r%m%d%H%M%S", time.localtime())
         self.dataset_id = manifest.get("dataset_id")
@@ -781,13 +897,34 @@ class AutoCapture:
             args.ego_setting_topic, MultiEgoSetting, queue_size=1
         )
         steering_field = set_ctrl_steering(
-            CtrlCmd(), 0.0, args.personal_max_steering_angle_deg
+            CtrlCmd(),
+            0.0,
+            args.personal_max_steering_angle_deg,
+            args.personal_steering_sign,
         )
         rospy.loginfo(
-            "CtrlCmd schema detected: steering field=%s", steering_field
+            "CtrlCmd schema detected: steering field=%s, personal sign=%+.1f",
+            steering_field,
+            args.personal_steering_sign,
+        )
+        rospy.loginfo(
+            "Curve control: adaptive=%s, speed=%.2f->%.2f km/h, "
+            "lookahead=%.2f->%.2f m, steering=%.3f->%.3f rad",
+            args.adaptive_curve_control,
+            args.speed_kph,
+            args.minimum_curve_speed_kph,
+            args.lookahead_m,
+            args.minimum_curve_lookahead_m,
+            args.maximum_steering_rad,
+            args.curve_maximum_steering_rad,
         )
         self.control_mode_client = rospy.ServiceProxy(
             args.control_mode_service, MoraiEventCmdSrv
+        )
+        self.scenario_udp_socket = (
+            socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            if args.scenario_load_transport == "udp"
+            else None
         )
         self.subscribers = [
             rospy.Subscriber(
@@ -828,23 +965,20 @@ class AutoCapture:
         context="startup",
         include_motion_interface=True,
     ):
-        required = (
-            ("ScenarioLoad", self.scenario_pub),
-            ("SaveSensorData", self.capture_pub),
-        )
+        required = (("SaveSensorData", self.capture_pub),)
+        if self.args.scenario_load_transport == "ros":
+            required = (("ScenarioLoad", self.scenario_pub),) + required
         if include_motion_interface:
-            if self.args.motion_mode in (
-                "route-follow",
-                "rolling-safe",
-                "rolling-fast",
-            ):
+            if self.uses_ctrl_cmd():
                 required += (("CtrlCmd", self.control_pub),)
             elif self.args.motion_mode == "teleport":
                 required += (("EgoSetting", self.ego_setting_pub),)
         if timeout_sec is None:
             timeout_sec = self.args.network_reconnect_timeout_sec
+        started = time.monotonic()
         deadline = time.monotonic() + timeout_sec
         missing = []
+        warned = False
         while not rospy.is_shutdown() and time.monotonic() < deadline:
             missing = [
                 name
@@ -858,6 +992,20 @@ class AutoCapture:
                     ", ".join(name for name, _publisher in required),
                 )
                 return
+            if not warned and time.monotonic() - started >= 1.0:
+                network_hint = (
+                    "Simulator Network"
+                    if "EgoSetting" in missing
+                    else "Ego Network"
+                )
+                rospy.logwarn(
+                    "Waiting for MORAI ROS connections (%s): %s. "
+                    "Reconnect %s in MORAI if needed.",
+                    context,
+                    ", ".join(missing),
+                    network_hint,
+                )
+                warned = True
             time.sleep(0.1)
         hint = ""
         if "EgoSetting" in missing:
@@ -869,10 +1017,28 @@ class AutoCapture:
                 "network sidecar는 Ego Network만 복구하며 Simulator "
                 "Network의 Connect 상태를 켜지 않습니다."
             )
+        elif "CtrlCmd" in missing:
+            hint = (
+                " MORAI Network Settings에서 Ego Network의 ROS 연결을 "
+                "확인하세요. rolling-grouped에 필요한 /ctrl_cmd와 "
+                "/Service_MoraiEventCmd는 scenario EgoNetwork sidecar의 "
+                "UNIQUEID=0에 포함됩니다. Simulator Network는 필요하지 "
+                "않습니다."
+            )
+        if rospy.is_shutdown():
+            raise InterruptedError("ROS shutdown requested")
         raise RuntimeError(
             "MORAI subscriber connection missing after {} ({:.1f}s): {}.{}".format(
                 context, timeout_sec, ", ".join(missing), hint
             )
+        )
+
+    def uses_ctrl_cmd(self):
+        return self.args.motion_mode in (
+            "route-follow",
+            "rolling-safe",
+            "rolling-fast",
+            "rolling-grouped",
         )
 
     def publish_scenario_load(self, scene, file_name):
@@ -897,14 +1063,61 @@ class AutoCapture:
             )
         message.set_pause = False
         issued = time.monotonic()
-        self.scenario_pub.publish(message)
-        rospy.loginfo(
-            "ScenarioLoad published: %s (delete_all=false, "
-            "load_network_connection_data=%s, load_ego_vehicle_data=%s)",
-            file_name,
-            str(message.load_network_connection_data).lower(),
-            str(message.load_ego_vehicle_data).lower(),
-        )
+        if self.args.scenario_load_transport == "udp":
+            request = {
+                "delete_all": bool(message.delete_all),
+                "load_network_connection_data": bool(
+                    message.load_network_connection_data
+                ),
+                "load_ego_vehicle_data": bool(
+                    message.load_ego_vehicle_data
+                ),
+                "load_surrounding_vehicle_data": bool(
+                    message.load_surrounding_vehicle_data
+                ),
+                "load_pedestrian_data": bool(message.load_pedestrian_data),
+                "load_obstacle_data": bool(
+                    getattr(
+                        message,
+                        "load_obstacle_data",
+                        getattr(message, "load_object_data", False),
+                    )
+                ),
+                "set_pause": bool(message.set_pause),
+            }
+            payload = build_scenario_load_payload(file_name, request)
+            sent = self.scenario_udp_socket.sendto(
+                payload,
+                (
+                    self.args.scenario_load_udp_host,
+                    self.args.scenario_load_udp_port,
+                ),
+            )
+            if sent != len(payload):
+                raise RuntimeError(
+                    "ScenarioLoad UDP payload partially sent: {}/{}".format(
+                        sent, len(payload)
+                    )
+                )
+            rospy.loginfo(
+                "ScenarioLoad UDP sent: %s -> %s:%d "
+                "(delete_all=false, load_network_connection_data=%s, "
+                "load_ego_vehicle_data=%s)",
+                file_name,
+                self.args.scenario_load_udp_host,
+                self.args.scenario_load_udp_port,
+                str(message.load_network_connection_data).lower(),
+                str(message.load_ego_vehicle_data).lower(),
+            )
+        else:
+            self.scenario_pub.publish(message)
+            rospy.loginfo(
+                "ScenarioLoad ROS published: %s (delete_all=false, "
+                "load_network_connection_data=%s, load_ego_vehicle_data=%s)",
+                file_name,
+                str(message.load_network_connection_data).lower(),
+                str(message.load_ego_vehicle_data).lower(),
+            )
         # The message is delivered before MORAI tears down and recreates its
         # rosbridge clients. Use wall time because /clock can reset here.
         time.sleep(0.2)
@@ -948,6 +1161,9 @@ class AutoCapture:
             ready, reason = self.scene_is_ready(scene, issued)
             if ready:
                 time.sleep(self.args.load_settle_sec)
+                ready, reason = self.scene_is_ready(scene, issued)
+                if not ready:
+                    continue
                 rospy.loginfo(
                     "Scenario verified: %s (npc=%d, pedestrian=%d, obstacle=%d)",
                     scene["file_name"],
@@ -1001,26 +1217,77 @@ class AutoCapture:
         # The currently loaded legacy sidecar may not yet contain a newly
         # introduced motion interface such as /ego_setting. ScenarioLoad and
         # SaveSensorData are sufficient to install the new sidecar first.
-        self.wait_for_connections(
-            context="before scenario load",
-            include_motion_interface=self.args.motion_mode == "teleport",
-        )
-        issued = self.publish_scenario_load(scene, scene["file_name"])
-        if self.args.motion_mode == "teleport":
-            rospy.loginfo(
-                "Waiting for actor-only load while preserving Ego and "
-                "ROS networks after %s",
-                scene["file_name"],
+        last_error = None
+        for attempt in range(1, self.args.scenario_load_attempts + 1):
+            self.wait_for_connections(
+                context="before scenario load",
+                include_motion_interface=self.args.motion_mode == "teleport",
             )
-        else:
-            rospy.loginfo(
-                "Waiting for MORAI rosbridge clients to reconnect after %s",
-                scene["file_name"],
+            issued = self.publish_scenario_load(scene, scene["file_name"])
+            if self.args.motion_mode == "teleport":
+                rospy.loginfo(
+                    "Waiting for actor-only load while preserving Ego and "
+                    "ROS networks after %s",
+                    scene["file_name"],
+                )
+            else:
+                rospy.loginfo(
+                    "Waiting for MORAI rosbridge clients to reconnect after %s",
+                    scene["file_name"],
+                )
+            self.wait_for_connections(
+                context="scenario {} network recovery".format(
+                    scene["file_name"]
+                )
             )
-        self.wait_for_connections(
-            context="scenario {} network recovery".format(scene["file_name"])
-        )
-        self.wait_for_scene(scene, issued)
+            try:
+                # Validate the new scene before calling a Simulator Network
+                # service. Immediately after ScenarioLoad, rosbridge may still
+                # expose the old service briefly and return handler=None.
+                self.wait_for_scene(scene, issued)
+                last_error = None
+                break
+            except RuntimeError as error:
+                last_error = error
+                if attempt == self.args.scenario_load_attempts:
+                    raise
+                rospy.logwarn(
+                    "ScenarioLoad attempt %d/%d failed for %s: %s; retrying",
+                    attempt,
+                    self.args.scenario_load_attempts,
+                    scene["file_name"],
+                    error,
+                )
+                time.sleep(0.5)
+        if last_error is not None:
+            raise last_error
+        control_prepared = False
+        if self.uses_ctrl_cmd():
+            # Once the new scene identity is confirmed, enter external mode
+            # and hold the brake before starting the capture drive.
+            control_error = None
+            for attempt in range(1, 4):
+                try:
+                    self.select_external_control_mode()
+                    control_error = None
+                    break
+                except RuntimeError as error:
+                    control_error = error
+                    if attempt == 3:
+                        raise
+                    rospy.logwarn(
+                        "Control-mode attempt %d/3 failed after %s: %s; "
+                        "waiting for Simulator Network",
+                        attempt,
+                        scene["file_name"],
+                        error,
+                    )
+                    time.sleep(1.0)
+            if control_error is not None:
+                raise control_error
+            self.publish_stop()
+            control_prepared = True
+        return control_prepared
 
     def select_external_control_mode(self):
         if self.args.skip_control_mode_service:
@@ -1028,9 +1295,14 @@ class AutoCapture:
                 "Control-mode service skipped; verify AV-ExternalCtrl in MORAI UI"
             )
             return
+        rospy.loginfo(
+            "Waiting for MORAI control-mode service: %s",
+            self.args.control_mode_service,
+        )
         try:
             rospy.wait_for_service(
-                self.args.control_mode_service, timeout=5.0
+                self.args.control_mode_service,
+                timeout=self.args.network_reconnect_timeout_sec,
             )
         except rospy.ROSException as error:
             raise RuntimeError(
@@ -1252,7 +1524,10 @@ class AutoCapture:
         message.accel = 0.0
         message.brake = 1.0
         set_ctrl_steering(
-            message, 0.0, self.args.personal_max_steering_angle_deg
+            message,
+            0.0,
+            self.args.personal_max_steering_angle_deg,
+            self.args.personal_steering_sign,
         )
         message.velocity = 0.0
         message.acceleration = 0.0
@@ -1260,20 +1535,48 @@ class AutoCapture:
             self.control_pub.publish(message)
             time.sleep(0.05)
 
-    def nearest_waypoint_index(self, position, hint=None, window=120):
+    def nearest_waypoint_index(
+        self,
+        position,
+        hint=None,
+        window=100,
+        heading_deg=None,
+    ):
         if hint is None:
             candidates = range(len(self.waypoints))
         else:
-            start = max(0, hint - 20)
+            # Ego only moves forward during capture.  A small backward window
+            # tolerates localization jitter without allowing a nearby branch
+            # at an intersection to pull the controller far backwards.
+            start = max(0, hint - 8)
             stop = min(len(self.waypoints), hint + window)
             candidates = range(start, stop)
+
+        def score(index):
+            distance_squared = (
+                (self.waypoints[index][0] - position[0]) ** 2
+                + (self.waypoints[index][1] - position[1]) ** 2
+            )
+            if heading_deg is None:
+                return distance_squared
+            before = self.waypoints[max(0, index - 1)]
+            after = self.waypoints[min(len(self.waypoints) - 1, index + 1)]
+            route_heading = math.degrees(
+                math.atan2(after[1] - before[1], after[0] - before[0])
+            )
+            heading_error = abs(
+                math.degrees(
+                    wrapped_angle(
+                        math.radians(route_heading - heading_deg)
+                    )
+                )
+            )
+            # A 45-degree heading mismatch costs one metre of position error.
+            return distance_squared + (heading_error / 45.0) ** 2
+
         return min(
             candidates,
-            key=lambda index: (
-                self.waypoints[index][0] - position[0]
-            )
-            ** 2
-            + (self.waypoints[index][1] - position[1]) ** 2,
+            key=score,
         )
 
     def lookahead_index(self, nearest, distance):
@@ -1285,6 +1588,89 @@ class AutoCapture:
             )
             index += 1
         return index
+
+    def route_coordinate_m(self, position, nearest):
+        """Project an XY position onto the local route and return arc length."""
+
+        candidates = []
+        for before_index, after_index in (
+            (nearest - 1, nearest),
+            (nearest, nearest + 1),
+        ):
+            if before_index < 0 or after_index >= len(self.waypoints):
+                continue
+            before = self.waypoints[before_index]
+            after = self.waypoints[after_index]
+            dx = after[0] - before[0]
+            dy = after[1] - before[1]
+            length_squared = dx * dx + dy * dy
+            if length_squared <= 1e-12:
+                continue
+            ratio = (
+                (position[0] - before[0]) * dx
+                + (position[1] - before[1]) * dy
+            ) / length_squared
+            ratio = max(0.0, min(1.0, ratio))
+            projected = (
+                before[0] + ratio * dx,
+                before[1] + ratio * dy,
+            )
+            error = distance_xy(position, projected)
+            coordinate = self.waypoint_arc_m[before_index] + ratio * math.sqrt(
+                length_squared
+            )
+            candidates.append((error, coordinate))
+        if not candidates:
+            return self.waypoint_arc_m[nearest]
+        return min(candidates, key=lambda item: item[0])[1]
+
+    def curve_control_limits(self, nearest):
+        """Return speed, lookahead, steering limit, and route turn severity."""
+
+        if not self.args.adaptive_curve_control:
+            return (
+                self.args.speed_kph,
+                self.args.lookahead_m,
+                self.args.maximum_steering_rad,
+                0.0,
+            )
+
+        start_before = self.waypoints[max(0, nearest - 1)]
+        start_after = self.waypoints[min(len(self.waypoints) - 1, nearest + 1)]
+        end_index = self.lookahead_index(
+            nearest, self.args.curve_control_window_m
+        )
+        end_before = self.waypoints[max(0, end_index - 1)]
+        end_after = self.waypoints[
+            min(len(self.waypoints) - 1, end_index + 1)
+        ]
+        start_heading = math.atan2(
+            start_after[1] - start_before[1],
+            start_after[0] - start_before[0],
+        )
+        end_heading = math.atan2(
+            end_after[1] - end_before[1],
+            end_after[0] - end_before[0],
+        )
+        turn_deg = abs(
+            math.degrees(wrapped_angle(end_heading - start_heading))
+        )
+        severity = min(
+            1.0,
+            turn_deg / self.args.curve_control_full_turn_deg,
+        )
+
+        speed = self.args.speed_kph - severity * (
+            self.args.speed_kph - self.args.minimum_curve_speed_kph
+        )
+        lookahead = self.args.lookahead_m - severity * (
+            self.args.lookahead_m - self.args.minimum_curve_lookahead_m
+        )
+        steering_limit = self.args.maximum_steering_rad + severity * (
+            self.args.curve_maximum_steering_rad
+            - self.args.maximum_steering_rad
+        )
+        return speed, lookahead, steering_limit, turn_deg
 
     def teleport_ego(self, scene, target_position, target_yaw_deg):
         snapshot = self.state.snapshot()
@@ -1443,9 +1829,15 @@ class AutoCapture:
 
         snapshot = self.state.snapshot()
         ego = snapshot["ego"]
-        start = (ego.position.x, ego.position.y)
-        last_capture = start
         nearest_hint = scene["anchor_index"]
+        start = (ego.position.x, ego.position.y)
+        nearest_hint = self.nearest_waypoint_index(
+            start,
+            hint=nearest_hint,
+            heading_deg=ego.heading,
+        )
+        start_route_m = self.route_coordinate_m(start, nearest_hint)
+        last_capture_route_m = start_route_m
         issued = time.monotonic()
         deadline = issued + self.args.motion_timeout_sec
 
@@ -1460,19 +1852,23 @@ class AutoCapture:
                     raise RuntimeError("Ego telemetry disappeared during motion")
                 ego = snapshot["ego"]
                 position = (ego.position.x, ego.position.y)
-                travelled = distance_xy(start, position)
-                if travelled > self.args.maximum_motion_m:
-                    raise RuntimeError(
-                        "maximum motion reached before all captures: {:.2f} m".format(
-                            travelled
-                        )
-                    )
                 if self.real_collision_after(issued):
                     raise RuntimeError("collision reported during PoC motion")
 
                 nearest_hint = self.nearest_waypoint_index(
-                    position, hint=nearest_hint
+                    position,
+                    hint=nearest_hint,
+                    heading_deg=ego.heading,
                 )
+                route_position_m = self.route_coordinate_m(
+                    position, nearest_hint
+                )
+                travelled = max(0.0, route_position_m - start_route_m)
+                if travelled > self.args.maximum_motion_m:
+                    raise RuntimeError(
+                        "maximum route motion reached before all captures: "
+                        "{:.2f} m".format(travelled)
+                    )
                 route_point = self.waypoints[nearest_hint]
                 route_error = distance_xy(position, route_point)
                 if route_error > self.args.route_deviation_limit_m:
@@ -1482,8 +1878,14 @@ class AutoCapture:
                         )
                     )
 
+                (
+                    command_speed_kph,
+                    command_lookahead_m,
+                    command_steering_limit,
+                    route_turn_deg,
+                ) = self.curve_control_limits(nearest_hint)
                 target_index = self.lookahead_index(
-                    nearest_hint, self.args.lookahead_m
+                    nearest_hint, command_lookahead_m
                 )
                 target = self.waypoints[target_index]
                 target_heading = math.atan2(
@@ -1505,17 +1907,18 @@ class AutoCapture:
                 curvature = 2.0 * math.sin(heading_error) / target_distance
                 steering = math.atan(self.args.wheelbase_m * curvature)
                 steering = max(
-                    -self.args.maximum_steering_rad,
-                    min(self.args.maximum_steering_rad, steering),
+                    -command_steering_limit,
+                    min(command_steering_limit, steering),
                 )
 
                 command = CtrlCmd()
                 command.longlCmdType = 2
-                command.velocity = self.args.speed_kph
+                command.velocity = command_speed_kph
                 set_ctrl_steering(
                     command,
                     steering,
                     self.args.personal_max_steering_angle_deg,
+                    self.args.personal_steering_sign,
                 )
                 command.accel = 0.0
                 command.brake = 0.0
@@ -1523,10 +1926,9 @@ class AutoCapture:
                 self.control_pub.publish(command)
 
                 if (
-                    distance_xy(last_capture, position)
+                    route_position_m - last_capture_route_m
                     >= self.args.capture_spacing_m
                 ):
-                    capture_position = position
                     if stop_for_capture:
                         self.publish_stop()
                         stopped_snapshot = self.state.snapshot()
@@ -1534,11 +1936,6 @@ class AutoCapture:
                             raise RuntimeError(
                                 "Ego telemetry disappeared before sensor capture"
                             )
-                        stopped_ego = stopped_snapshot["ego"]
-                        capture_position = (
-                            stopped_ego.position.x,
-                            stopped_ego.position.y,
-                        )
                     else:
                         rospy.logwarn(
                             "Rolling-safe capture starts while Ego is moving; "
@@ -1548,7 +1945,7 @@ class AutoCapture:
                     captures.append(
                         self.trigger_capture(scene, len(captures))
                     )
-                    last_capture = capture_position
+                    last_capture_route_m = route_position_m
                 time.sleep(0.05)
         finally:
             self.publish_stop()
@@ -1584,6 +1981,12 @@ class AutoCapture:
             snapshot["ego"].position.y,
         )
         nearest_hint = scene["anchor_index"]
+        nearest_hint = self.nearest_waypoint_index(
+            start,
+            hint=nearest_hint,
+            heading_deg=snapshot["ego"].heading,
+        )
+        start_route_m = self.route_coordinate_m(start, nearest_hint)
         issued = time.monotonic()
         deadline = issued + self.args.motion_timeout_sec
         triggers = []
@@ -1601,20 +2004,25 @@ class AutoCapture:
                     )
                 ego = snapshot["ego"]
                 position = (ego.position.x, ego.position.y)
-                travelled = distance_xy(start, position)
-                if travelled > self.args.maximum_motion_m:
-                    raise RuntimeError(
-                        "maximum motion reached before all rolling-fast "
-                        "triggers: {:.2f} m".format(travelled)
-                    )
                 if self.real_collision_after(issued):
                     raise RuntimeError(
                         "collision reported during rolling-fast"
                     )
 
                 nearest_hint = self.nearest_waypoint_index(
-                    position, hint=nearest_hint
+                    position,
+                    hint=nearest_hint,
+                    heading_deg=ego.heading,
                 )
+                route_position_m = self.route_coordinate_m(
+                    position, nearest_hint
+                )
+                travelled = max(0.0, route_position_m - start_route_m)
+                if travelled > self.args.maximum_motion_m:
+                    raise RuntimeError(
+                        "maximum route motion reached before all rolling-fast "
+                        "triggers: {:.2f} m".format(travelled)
+                    )
                 route_point = self.waypoints[nearest_hint]
                 route_error = distance_xy(position, route_point)
                 if route_error > self.args.route_deviation_limit_m:
@@ -1624,8 +2032,14 @@ class AutoCapture:
                         )
                     )
 
+                (
+                    command_speed_kph,
+                    command_lookahead_m,
+                    command_steering_limit,
+                    route_turn_deg,
+                ) = self.curve_control_limits(nearest_hint)
                 target_index = self.lookahead_index(
-                    nearest_hint, self.args.lookahead_m
+                    nearest_hint, command_lookahead_m
                 )
                 target = self.waypoints[target_index]
                 target_heading = math.atan2(
@@ -1647,17 +2061,18 @@ class AutoCapture:
                 curvature = 2.0 * math.sin(heading_error) / target_distance
                 steering = math.atan(self.args.wheelbase_m * curvature)
                 steering = max(
-                    -self.args.maximum_steering_rad,
-                    min(self.args.maximum_steering_rad, steering),
+                    -command_steering_limit,
+                    min(command_steering_limit, steering),
                 )
 
                 command = CtrlCmd()
                 command.longlCmdType = 2
-                command.velocity = self.args.speed_kph
+                command.velocity = command_speed_kph
                 set_ctrl_steering(
                     command,
                     steering,
                     self.args.personal_max_steering_angle_deg,
+                    self.args.personal_steering_sign,
                 )
                 command.accel = 0.0
                 command.brake = 0.0
@@ -1679,6 +2094,10 @@ class AutoCapture:
                         ),
                         "triggered_unix": trigger_unix,
                         "trigger_distance_m": travelled,
+                        "route_turn_deg": route_turn_deg,
+                        "command_speed_kph": command_speed_kph,
+                        "command_lookahead_m": command_lookahead_m,
+                        "command_steering_limit_rad": command_steering_limit,
                         "ego_position": {
                             "x": ego.position.x,
                             "y": ego.position.y,
@@ -1688,10 +2107,16 @@ class AutoCapture:
                     }
                     triggers.append(trigger)
                     rospy.loginfo(
-                        "Rolling-fast trigger %d/%d: distance=%.3fm",
+                        "Rolling-fast trigger %d/%d: distance=%.3fm, "
+                        "turn=%.1fdeg, speed=%.2fkm/h, lookahead=%.2fm, "
+                        "steering_limit=%.3frad",
                         len(triggers),
                         capture_count,
                         travelled,
+                        route_turn_deg,
+                        command_speed_kph,
+                        command_lookahead_m,
+                        command_steering_limit,
                     )
                 time.sleep(0.05)
         finally:
@@ -1922,6 +2347,7 @@ class AutoCapture:
     def run_scene(self, scene):
         scene_started = time.time()
         mode_metrics = {}
+        control_prepared = False
         if self.args.skip_scenario_load:
             issued = time.monotonic()
             rospy.loginfo(
@@ -1930,31 +2356,35 @@ class AutoCapture:
             )
             self.wait_for_scene(scene, issued)
         else:
-            self.load_and_verify_scene(scene)
+            control_prepared = self.load_and_verify_scene(scene)
         if self.args.motion_mode == "stationary":
             captures = [
                 self.trigger_capture(scene, index)
                 for index in range(self.args.captures_per_scene)
             ]
         elif self.args.motion_mode == "route-follow":
-            self.select_external_control_mode()
+            if not control_prepared:
+                self.select_external_control_mode()
             captures = self.drive_and_capture(
                 scene, self.args.captures_per_scene
             )
         elif self.args.motion_mode == "rolling-safe":
-            self.select_external_control_mode()
+            if not control_prepared:
+                self.select_external_control_mode()
             captures = self.drive_and_capture(
                 scene,
                 self.args.captures_per_scene,
                 stop_for_capture=False,
             )
         elif self.args.motion_mode == "rolling-fast":
-            self.select_external_control_mode()
+            if not control_prepared:
+                self.select_external_control_mode()
             captures, mode_metrics = self.drive_and_trigger_burst(
                 scene, self.args.captures_per_scene
             )
         elif self.args.motion_mode == "rolling-grouped":
-            self.select_external_control_mode()
+            if not control_prepared:
+                self.select_external_control_mode()
             captures, mode_metrics = self.drive_and_trigger_burst(
                 scene,
                 self.args.captures_per_scene,
@@ -2004,7 +2434,13 @@ class AutoCapture:
             "metrics": mode_metrics,
         }
 
-    def run(self, scenes):
+    def run(
+        self,
+        scenes,
+        prior_completed=None,
+        requested_scene_count=None,
+        original_started_unix=None,
+    ):
         self.wait_for_connections(
             include_motion_interface=self.args.motion_mode == "teleport"
         )
@@ -2012,16 +2448,32 @@ class AutoCapture:
             "schema_version": 1,
             "dataset_id": self.dataset_id,
             "environment": self.environment,
-            "started_unix": time.time(),
+            "started_unix": original_started_unix or time.time(),
+            "resumed_unix": (
+                time.time() if prior_completed else None
+            ),
             "motion_mode": self.args.motion_mode,
             "capture_dir": str(self.args.capture_dir),
-            "scenes": [],
+            "scenes": list(prior_completed or []),
         }
+        requested_scene_count = requested_scene_count or len(scenes)
+        interrupted = False
         for scene in scenes:
+            if rospy.is_shutdown():
+                interrupted = True
+                rospy.logwarn("ROS shutdown requested; capture batch paused")
+                break
             scene_started = time.time()
             try:
                 result = self.run_scene(scene)
             except Exception as error:
+                if rospy.is_shutdown() or isinstance(error, InterruptedError):
+                    interrupted = True
+                    rospy.logwarn(
+                        "ROS shutdown requested during %s; scene left pending",
+                        scene["id"],
+                    )
+                    break
                 if not self.args.continue_on_scene_error:
                     raise
                 result = {
@@ -2047,7 +2499,7 @@ class AutoCapture:
             partial_report = dict(report)
             partial_report["checkpoint_unix"] = time.time()
             partial_report["summary"] = {
-                "requested_scenes": len(scenes),
+                "requested_scenes": requested_scene_count,
                 "attempted_scenes": len(report["scenes"]),
                 "completed_scenes": sum(
                     item.get("status") == "completed"
@@ -2077,9 +2529,12 @@ class AutoCapture:
                 encoding="utf-8",
             )
             os.replace(str(partial_temporary), str(partial_path))
-        report["finished_unix"] = time.time()
+        report["interrupted"] = interrupted
+        if not interrupted:
+            report["finished_unix"] = time.time()
         report["summary"] = {
-            "requested_scenes": len(scenes),
+            "requested_scenes": requested_scene_count,
+            "attempted_scenes": len(report["scenes"]),
             "completed_scenes": sum(
                 item.get("status") == "completed"
                 for item in report["scenes"]
@@ -2128,9 +2583,55 @@ def validate_policy(args, manifest):
         args.speed_kph = float(policy["ego_target_speed_kph"])
     if args.maximum_motion_m is None:
         args.maximum_motion_m = float(policy["maximum_motion_m"])
+    if args.route_deviation_limit_m is None:
+        args.route_deviation_limit_m = float(
+            policy.get("route_deviation_limit_m", 2.5)
+        )
+    if args.heading_error_limit_deg is None:
+        args.heading_error_limit_deg = float(
+            policy.get("heading_error_limit_deg", 40.0)
+        )
+    if args.lookahead_m is None:
+        args.lookahead_m = float(policy.get("lookahead_m", 3.0))
+    if args.maximum_steering_rad is None:
+        args.maximum_steering_rad = float(
+            policy.get("maximum_steering_rad", 0.20)
+        )
+    if args.adaptive_curve_control is None:
+        args.adaptive_curve_control = bool(
+            policy.get("adaptive_curve_control", False)
+        )
+    if args.curve_control_window_m is None:
+        args.curve_control_window_m = float(
+            policy.get("curve_control_window_m", 8.0)
+        )
+    if args.curve_control_full_turn_deg is None:
+        args.curve_control_full_turn_deg = float(
+            policy.get("curve_control_full_turn_deg", 18.0)
+        )
+    if args.minimum_curve_speed_kph is None:
+        args.minimum_curve_speed_kph = float(
+            policy.get("minimum_curve_speed_kph", 3.6)
+        )
+    if args.minimum_curve_lookahead_m is None:
+        args.minimum_curve_lookahead_m = float(
+            policy.get("minimum_curve_lookahead_m", 1.2)
+        )
+    if args.curve_maximum_steering_rad is None:
+        args.curve_maximum_steering_rad = float(
+            policy.get("curve_maximum_steering_rad", 0.45)
+        )
+    if args.personal_steering_sign is None:
+        args.personal_steering_sign = float(
+            policy.get("personal_steering_sign", -1.0)
+        )
 
     if args.captures_per_scene < 1:
         raise ValueError("--captures-per-scene must be >= 1")
+    if args.scenario_load_attempts < 1:
+        raise ValueError("--scenario-load-attempts must be >= 1")
+    if not 1 <= args.scenario_load_udp_port <= 65535:
+        raise ValueError("--scenario-load-udp-port must be within 1..65535")
     if args.capture_stable_sec <= 0.0:
         raise ValueError("--capture-stable-sec must be positive")
     if args.teleport_timeout_sec <= 0.0:
@@ -2164,6 +2665,33 @@ def validate_policy(args, manifest):
         raise ValueError("--required-sensor-dir values must be directory names")
     if args.capture_spacing_m <= 0.0:
         raise ValueError("--capture-spacing-m must be positive")
+    if args.route_deviation_limit_m <= 0.0:
+        raise ValueError("--route-deviation-limit-m must be positive")
+    if not 0.0 < args.heading_error_limit_deg < 180.0:
+        raise ValueError("--heading-error-limit-deg must be within 0..180")
+    if args.lookahead_m <= 0.0:
+        raise ValueError("--lookahead-m must be positive")
+    if args.maximum_steering_rad <= 0.0:
+        raise ValueError("--maximum-steering-rad must be positive")
+    if args.curve_control_window_m <= 0.0:
+        raise ValueError("--curve-control-window-m must be positive")
+    if args.curve_control_full_turn_deg <= 0.0:
+        raise ValueError("--curve-control-full-turn-deg must be positive")
+    if not 0.5 <= args.minimum_curve_speed_kph <= args.speed_kph:
+        raise ValueError(
+            "--minimum-curve-speed-kph must be within 0.5..--speed-kph"
+        )
+    if not 0.5 <= args.minimum_curve_lookahead_m <= args.lookahead_m:
+        raise ValueError(
+            "--minimum-curve-lookahead-m must be within 0.5..--lookahead-m"
+        )
+    if args.curve_maximum_steering_rad < args.maximum_steering_rad:
+        raise ValueError(
+            "--curve-maximum-steering-rad must be >= "
+            "--maximum-steering-rad"
+        )
+    if args.personal_steering_sign not in (-1.0, 1.0):
+        raise ValueError("--personal-steering-sign must be either -1 or +1")
     if not 0.5 <= args.speed_kph <= 7.2:
         raise ValueError("--speed-kph must be within the PoC safety range 0.5..7.2")
     capture_intervals = max(0, args.captures_per_scene - 1)
@@ -2194,12 +2722,31 @@ def main():
     args = parse_args()
     project_root = Path(__file__).resolve().parents[3]
     args.manifest = args.manifest.expanduser().resolve()
+    resume_report = None
+    if args.resume_report is not None:
+        args.resume_report = args.resume_report.expanduser().resolve()
+        resume_report = load_json(args.resume_report)
+        if resume_report.get("dataset_id") != load_json(args.manifest).get(
+            "dataset_id"
+        ):
+            raise ValueError(
+                "--resume-report dataset_id differs from --manifest"
+            )
     requested_capture_dir = args.capture_dir.expanduser()
     if not args.no_timestamp_prefix:
         requested_capture_dir = timestamped_capture_dir(
             requested_capture_dir
         )
     args.capture_dir = requested_capture_dir.resolve()
+    if resume_report is not None:
+        if not args.no_timestamp_prefix:
+            raise ValueError("--resume-report requires --no-timestamp-prefix")
+        if args.capture_dir != args.resume_report.parent:
+            raise ValueError(
+                "--capture-dir must be the resume report directory: {}".format(
+                    args.resume_report.parent
+                )
+            )
     args.morai_sensor_data_dir = (
         args.morai_sensor_data_dir.expanduser().resolve()
     )
@@ -2208,7 +2755,35 @@ def main():
     )
     manifest = load_json(args.manifest)
     validate_policy(args, manifest)
-    scenes = select_scenes(manifest, args.scenario)
+    selected_scenes = select_scenes(manifest, args.scenario)
+    requested_scene_count = len(selected_scenes)
+    prior_completed = []
+    if resume_report is not None:
+        completed_by_id = {
+            item["id"]: item
+            for item in resume_report.get("scenes", [])
+            if item.get("status") == "completed"
+        }
+        selected_ids = {scene["id"] for scene in selected_scenes}
+        prior_completed = [
+            completed_by_id[scene["id"]]
+            for scene in selected_scenes
+            if scene["id"] in completed_by_id
+        ]
+        scenes = [
+            scene
+            for scene in selected_scenes
+            if scene["id"] not in completed_by_id
+        ]
+        unknown_completed = set(completed_by_id) - selected_ids
+        if unknown_completed:
+            raise ValueError(
+                "resume report contains completed scenes outside selection: {}".format(
+                    ", ".join(sorted(unknown_completed))
+                )
+            )
+    else:
+        scenes = selected_scenes
     if args.skip_scenario_load and len(scenes) != 1:
         raise ValueError(
             "--skip-scenario-load requires exactly one --scenario"
@@ -2231,6 +2806,7 @@ def main():
     print("MORAI ROS auto-capture PoC")
     print("scenes:", ", ".join(scene["id"] for scene in scenes))
     print("motion mode:", args.motion_mode)
+    print("scenario load transport:", args.scenario_load_transport)
     print("captures per scene:", args.captures_per_scene)
     print("capture spacing m:", args.capture_spacing_m)
     print("capture dir:", args.capture_dir)
@@ -2238,6 +2814,10 @@ def main():
     print("required sensor dirs:", ", ".join(args.required_sensor_dirs))
     print("MORAI scenario dir:", install_dir)
     print("ROS network sidecars: verified")
+    if resume_report is not None:
+        print("resume report:", args.resume_report)
+        print("completed scenes preserved:", len(prior_completed))
+        print("scenes remaining/retrying:", len(scenes))
     if args.dry_run:
         print("dry-run validation: OK")
         return
@@ -2250,7 +2830,29 @@ def main():
         )
     args.capture_dir.mkdir(parents=True, exist_ok=True)
     runner = AutoCapture(args, manifest, project_root)
-    report = runner.run(scenes)
+    report = runner.run(
+        scenes,
+        prior_completed=prior_completed,
+        requested_scene_count=requested_scene_count,
+        original_started_unix=(
+            resume_report.get("started_unix")
+            if resume_report is not None
+            else None
+        ),
+    )
+    if report.get("interrupted"):
+        partial_path = (
+            args.capture_dir / "ros_capture_poc_report.partial.json"
+        )
+        temporary = partial_path.with_suffix(".json.tmp")
+        temporary.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(str(temporary), str(partial_path))
+        print("auto-capture paused by ROS shutdown")
+        print("resume report:", partial_path)
+        return
     report_path = args.capture_dir / "ros_capture_poc_report.json"
     temporary = report_path.with_suffix(".json.tmp")
     temporary.write_text(

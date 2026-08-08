@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_geometry_trial20_v3",
+  "base_scenario_id": "geo3_009",
+  "scenario_stem": "od_geo3_009",
+  "split": "train",
+  "scene_type": "pedestrian_centric",
+  "topology": "crosswalk",
+  "seed": 26080752109,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 428,
+    "arc_m": 209.95871839574355,
+    "curvature_deg": 0.17859648701556807,
+    "crosswalk_distance_m": 0.41916211374548723,
+    "parking_distance_m": 126.30119551616846,
+    "stopline_distance_m": 1.4997771687117996,
+    "branch_distance_m": 1.4997771687117996
+  },
+  "ego": {
+    "x": -93.24254769699756,
+    "y": -254.4374966048809,
+    "z": 28.786946053332972,
+    "yaw": 61.09658288909071,
+    "link_idx": "A2256W000215",
+    "point_idx": 3
+  },
+  "counts": {
+    "npc": 1,
+    "pedestrian": 7,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800003,
+      "name": "2020_chrysler_pacifica_hybrid",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -99.45777815144449,
+        "y": -259.0163749152067,
+        "z": 28.790497459003884,
+        "yaw": -119.15713010206312
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100074,
+      "name": "worker_f_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -84.33106916633731,
+        "y": -233.07997808242433,
+        "z": 28.4721562214694,
+        "yaw": -98.29205732354129
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100004,
+      "name": "Woman1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -83.10669301163192,
+        "y": -231.23281825749288,
+        "z": 28.47230594041695,
+        "yaw": 97.53488623313916
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100011,
+      "name": "Man8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -78.78876402251865,
+        "y": -244.6652040444485,
+        "z": 28.53070858929735,
+        "yaw": -57.43025600723652
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -74.45680830527242,
+        "y": -246.12491435252275,
+        "z": 28.48888156026579,
+        "yaw": 135.53146750090025
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -91.9296631421464,
+        "y": -242.83814777394613,
+        "z": 28.47935039363279,
+        "yaw": -70.16035067134982
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100013,
+      "name": "Woman5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -108.0562705314912,
+        "y": -272.699145325662,
+        "z": 28.525333496282865,
+        "yaw": -46.46836855692274
+      }
+    },
+    {
+      "unique_id": 2007,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -78.0321088855868,
+        "y": -249.0303992844361,
+        "z": 28.528618744313935,
+        "yaw": 145.80160804604066
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100027,
+      "name": "PE_Drum",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -93.16097730454761,
+        "y": -238.53271987422383,
+        "z": 28.44005443041148,
+        "yaw": 69.97967476371906
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200105,
+      "name": "KR_Sign_SL_60",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -95.13870136156955,
+        "y": -249.4657738584031,
+        "z": 28.498982799014748,
+        "yaw": 48.64882213287203
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "a247a2aea2c5f34c54edb590b78a4428419f887682440b6f1748f7c6af91d8bf",
+    "generation_config": "0575362f7eb209602d2f5917cecb703b5dea96c2ba6f63517f7fb735f65f794b",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

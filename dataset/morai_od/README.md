@@ -158,9 +158,14 @@ ScenarioLoad·SaveSensorData·CtrlCmd·`/Service_MoraiEventCmd`가 모두 여기
 전용 benchmark 장면이다. 기본 p01~p03 batch에서는 제외되며
 `--scenario speed01`을 명시할 때만 실행된다.
 
-Sunny 13시 고정 180-scenario 파인튜닝 smoke dataset은
-`docs/sunny13_180_smoke_capture.md`를 따른다. split은 scenario 단위
-126/27/27이며, 개별 실패는 기록하고 다음 장면으로 진행한다.
+Sunny 13시 고정 180-scenario production v3 수집은
+`docs/sunny13_180_production_v3_capture.md`를 따른다. split은 scenario
+단위 126/27/27이며, 개별 실패는 기록하고 다음 장면으로 진행한다. 과거
+v1/v2 smoke 절차는 `docs/sunny13_180_smoke_capture.md`에 보존한다.
+
+넓은 시점 간격과 강화된 기하 충돌 회피는 전체 재수집 전에
+`docs/geometry_trial_20.md`의 v2 20장면 시험으로 검증한다. 시험 설정은
+`5.4 km/h`, 프레임 간 `1.5 m`, 장면당 6장, 최대 이동 10.5 m다.
 
 대회용 asset coverage와 개인용 자동 캡처 호환성은
 `docs/morai_launcher_asset_compatibility_260807.md`를 따른다. 자동

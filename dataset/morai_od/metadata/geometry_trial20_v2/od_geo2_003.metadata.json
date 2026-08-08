@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_geometry_trial20_v2",
+  "base_scenario_id": "geo2_003",
+  "scenario_stem": "od_geo2_003",
+  "split": "test",
+  "scene_type": "pedestrian_centric",
+  "topology": "merge_diverge",
+  "seed": 26080752103,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3088,
+    "arc_m": 1594.0835239691,
+    "curvature_deg": 10.680212025566846,
+    "crosswalk_distance_m": 73.84833553406106,
+    "parking_distance_m": 48.67532439779083,
+    "stopline_distance_m": 69.68941788156503,
+    "branch_distance_m": 0.49999990210460504
+  },
+  "ego": {
+    "x": 75.37400188358407,
+    "y": -218.35343505626287,
+    "z": 28.721970758299303,
+    "yaw": -94.61176815552346,
+    "link_idx": "A2256W000153",
+    "point_idx": 1
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 6,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30300003,
+      "name": "DEFAULT_BUS",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 84.00102791352275,
+        "y": -218.41939241744177,
+        "z": 28.801415700376854,
+        "yaw": 90.41722044929787
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200012,
+      "name": "2021_Hyundai_GV70",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.90892556866714,
+        "y": -207.41781330666169,
+        "z": 28.737274519579646,
+        "yaw": -89.85052599832578
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50200001,
+      "name": "Boy1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 71.0764604865575,
+        "y": -203.71868528763738,
+        "z": 28.41789364750012,
+        "yaw": 125.68926537588584
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100014,
+      "name": "Woman6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 72.5101440991344,
+        "y": -200.97515825375885,
+        "z": 28.419142818947318,
+        "yaw": -6.502060447824135
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100010,
+      "name": "Man7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 82.17927372858621,
+        "y": -201.4740683527612,
+        "z": 28.35907206530705,
+        "yaw": 95.20026597949129
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.84550031043545,
+        "y": -236.01223743039807,
+        "z": 28.419401451637142,
+        "yaw": -93.932770994073
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.82667940517025,
+        "y": -237.7848714984994,
+        "z": 28.41557588653437,
+        "yaw": 35.57125614604058
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100077,
+      "name": "worker_m_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 81.18710813349388,
+        "y": -198.88866063423214,
+        "z": 28.424065092601243,
+        "yaw": -88.81014903449432
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200107,
+      "name": "KR_Sign_SL_80",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 69.72313639522464,
+        "y": -218.38544315378485,
+        "z": 28.32194702432671,
+        "yaw": -86.6105624759623
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100067,
+      "name": "Bollard04",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 78.83261932945521,
+        "y": -225.2260110801727,
+        "z": 28.406212973264672,
+        "yaw": -94.978104405607
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "a247a2aea2c5f34c54edb590b78a4428419f887682440b6f1748f7c6af91d8bf",
+    "generation_config": "ac3f42c91d8b4de77b90a660dfb476a4eb29718d2ae5e9dde4956a02fa7a8a88",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

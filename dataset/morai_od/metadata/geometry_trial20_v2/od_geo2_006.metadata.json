@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_geometry_trial20_v2",
+  "base_scenario_id": "geo2_006",
+  "scenario_stem": "od_geo2_006",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080752106,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 452,
+    "arc_m": 221.95809567441597,
+    "curvature_deg": 2.8440422738640336e-05,
+    "crosswalk_distance_m": 6.833611792786816,
+    "parking_distance_m": 117.80811612289223,
+    "stopline_distance_m": 13.499154447022006,
+    "branch_distance_m": 11.471573690822868
+  },
+  "ego": {
+    "x": -87.44294641387697,
+    "y": -243.93275100939405,
+    "z": 28.80558327192118,
+    "yaw": 61.09748078202415,
+    "link_idx": "A2256W000215",
+    "point_idx": 27
+  },
+  "counts": {
+    "npc": 7,
+    "pedestrian": 0,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30700004,
+      "name": "2020_Kia_Niro(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -81.29183166432558,
+        "y": -246.76444799334445,
+        "z": 28.850485283046243,
+        "yaw": -25.514343155306477
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200005,
+      "name": "2019_Hyundai_Nexo",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -93.74877270995631,
+        "y": -248.8580075405904,
+        "z": 28.84858500875932,
+        "yaw": -120.61025103492727
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30800001,
+      "name": "2019_kia_sedona",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -74.74335627430543,
+        "y": -246.6495097680223,
+        "z": 28.827651737674252,
+        "yaw": 151.25247062976666
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -94.78033962411371,
+        "y": -257.21433449775435,
+        "z": 28.890461243518175,
+        "yaw": 60.956421521479456
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100009,
+      "name": "2020_Kia_Stinger",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -66.96085315210159,
+        "y": -250.9674682134321,
+        "z": 28.77191209438156,
+        "yaw": 150.8770871085983
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30200002,
+      "name": "2017_Kia_Sorento",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -82.5837080013399,
+        "y": -228.75548424038527,
+        "z": 28.78467442208024,
+        "yaw": -117.73688274429166
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30400005,
+      "name": "2014_Hyundai_Xcient(Mixer)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -75.95912164063171,
+        "y": -222.90004290170953,
+        "z": 28.9457637675366,
+        "yaw": 63.14298911046271
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100058,
+      "name": "Bollard01",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -95.90850050547911,
+        "y": -241.82120398534602,
+        "z": 28.466997217077655,
+        "yaw": 43.04697032930062
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "a247a2aea2c5f34c54edb590b78a4428419f887682440b6f1748f7c6af91d8bf",
+    "generation_config": "ac3f42c91d8b4de77b90a660dfb476a4eb29718d2ae5e9dde4956a02fa7a8a88",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}
