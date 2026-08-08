@@ -50,5 +50,7 @@ dynamic_car_<left|right>_obj<speed>_<before_stopline|arrow_tip|first_dashed_line
 ```
 
 차량 트리거는 `1_trigger=정지선 이전`, `2_trigger=화살표 끝`,
-`3_trigger=첫 번째 점선`으로 정의한다. 생성·수정은 저장소의
+`3_trigger=첫 번째 점선`으로 정의한다. 각 차량 시나리오의 전용 Spawn Point는
+`Sur-14` 검증 차량을 `3초`마다 생성하며 최대 동시 생성 수는 `50`이다. 기존의
+단발성 대상 차량은 출력 시나리오에서 제거된다. 생성·수정은 저장소의
 `scripts/runtime/generate_morai_*_scenarios.py`를 사용한다.
