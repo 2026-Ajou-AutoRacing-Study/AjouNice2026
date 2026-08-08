@@ -158,6 +158,69 @@ $ rostopic list
 /tf
 ```
 
+## 횡단보도 동적 객체 시나리오 행렬 생성
+
+`Dynamic_kid_10.json`(전방 횡단 위치)과 `dynamic_test_1.json`(반대편 횡단
+위치)을 템플릿으로 사용한다. 생성기는 두 파일의 좌표·방향·웨이포인트는
+그대로 보존하고, 대상 모델·보행 속도·MORAI 활성 거리만 바꾼다.
+
+```bash
+cd ~/Desktop/AjouNice2026
+
+# 먼저 1,260개 씬(6 객체 × 두 위치 × 5 객체 속도 × 3 활성 거리 × 7 에고 속도)을 검증만 한다.
+python3 scripts/runtime/generate_morai_dynamic_crosswalk_scenarios.py --dry-run
+
+# MORAI SaveFile/Scenario/R_KR_PR_K-city_2025에 JSON과 matrix index를 생성한다.
+python3 scripts/runtime/generate_morai_dynamic_crosswalk_scenarios.py
+```
+
+기본 조합은 보행 속도 `2,3,5,10,15 km/h`, MORAI 활성 거리
+`7,10,15 m`, 에고 플래너 속도 `5,10,20,30,40,50,60 km/h`이다. 에고 속도는
+MORAI JSON의 값이 아니라 플래너 실행 인자이므로,
+`dynamic_crosswalk_matrix_index.json`에 각 씬의 실행 속도 조합으로 기록된다.
+따라서 현재 생성되는 1,260개 JSON은 각각 정확히 하나의 검증 케이스를 의미한다.
+파일명은 `dynamic_장애물_장소_장애물속도_앞뒤횡단보도_차량속도_act활성거리_pos001.json`
+형식이다. 예를 들어
+`dynamic_kid_loc01_obj02_front_crosswalk_ego05_act05_pos001.json`은 전방 횡단
+위치(`loc01`)에서 어린이가 `2 km/h`, 활성 거리 `5 m`, 에고 플래너 속도
+`5 km/h`인 경우다.
+
+기본 대상은 어린이·성인·자전거·사슴·개·사람+개다. 새 대상은 해당 MORAI
+동적 객체가 하나만 든 JSON으로 저장한 뒤 다음처럼 대상 템플릿을 추가한다.
+사람+개처럼 MORAI가 하나의 동적 모델로 저장한 경우도 하나의 대상 템플릿으로
+처리한다.
+
+```bash
+python3 scripts/runtime/generate_morai_dynamic_crosswalk_scenarios.py \
+  --actor-template kid=~/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/Dynamic_kid_10.json \
+  --actor-template adult=~/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/dynamic_test_1.json \
+  --actor-template bicycle=/path/to/bicycle_template.json
+```
+
+생성 파일은 이름에 `*_pos001.json`을 포함하므로 기존 MORAI 검증 러너의
+기본 시나리오 패턴으로 선택할 수 있다.
+
+## 교차로 NPC 차량 시나리오 행렬 생성
+
+`1_trigger.json`, `2_trigger.json`, `3_trigger.json`은 각각 정지선 이전,
+화살표 끝, 첫 번째 점선의 에고 시작 위치로 사용한다.
+`car_left_2trigger.json`과 `car1_right_sur14.json`은 각각 좌·우에서 진입하는
+대상 NPC 차량 경로다. 모든 파일에서 대상 NPC의 `UNIQUEID`는 `14`여야 한다.
+
+```bash
+cd ~/Desktop/AjouNice2026
+
+# 216개 조건을 만들기 전 템플릿 구조만 점검한다.
+python3 scripts/runtime/generate_morai_vehicle_intersection_scenarios.py --dry-run
+
+# 대상 차량 10~60 km/h, 에고 플래너 10~60 km/h 조건으로 216개 JSON을 생성한다.
+python3 scripts/runtime/generate_morai_vehicle_intersection_scenarios.py
+```
+
+파일명 예시는 `dynamic_car_left_obj10_before_stopline_ego10_pos001.json`이다. 파일의
+NPC 차량 속도는 `10 km/h`로 설정되며, `ego10`은 플래너를
+`default_velocity_kph:=10`으로 실행해야 한다는 뜻이다.
+
 ## 실제 토픽 값 잘 나오고, 잘 변하는지 테스트
 
 ### /Ego_topic/position 테스트
