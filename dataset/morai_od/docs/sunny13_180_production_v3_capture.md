@@ -41,30 +41,91 @@ multi-sensor BEV 모델에도 재사용할 180개 독립 장면을 수집한다.
 
 ## MORAI 사전 준비
 
+수집 전 다음 상태를 만든다.
+
 1. 개인용 MORAI에서 `R_KR_PR_K-city_2025` 맵을 연다.
 2. Sunny, 13시로 설정한다.
 3. Camera 1~4와 LiDAR 5의 Capture Mode 및 필요한 GT 출력을 켠다.
-4. Ego Network를 ROS로 연결한다. Simulator Network는 teleport·Sync Mode를
-   쓰지 않는 `rolling-grouped` 수집에는 연결하지 않아도 된다.
-5. `roscore`, `rosbridge_websocket`이 실행 중인지 확인한다.
+4. Ego Network를 ROS로 Load하고 Connect한다.
+5. Simulator Network는 연결하지 않아도 된다. `rolling-grouped`는
+   `/ego_setting`이나 Sync Mode를 사용하지 않는다.
+6. 아래 순서대로 `roscore`, `rosbridge_websocket`, 수집기를 실행한다.
 
-현재 생성·설치된 scenario sidecar에서 `/ScenarioLoad` handler의
-`commType`은 `3`(ROS)이다. 따라서 현재 production 절차는 ROS transport를
-사용한다. runner가 UDP 패킷을 보내는 것만으로는 현재 설정의 MORAI가 이를
-수신하지 않는다.
+production sidecar는 개인용 MORAI의 Ego Network 전체를 ROS
+(`connectedType=3`)로 유지한다. `/ScenarioLoad`, `/SaveSensorData`,
+`/Ego_topic`, `/Object_topic`, `/ctrl_cmd`가 같은 ROS 연결 수명주기를 갖는다.
 
-MORAI network JSON은 handler별로 `commType`을 저장하므로 이론적으로
-ScenarioLoad만 UDP이고 나머지는 ROS인 hybrid 구성이 가능하다. 실제 제어팀
-`configs/network/ego_network_1.json`도 ScenarioLoad handler를
-`commType=1`로 둔다. 하지만 production sidecar를 hybrid로 변환하고 개인용
-launcher에서 검증하기 전까지 `--scenario-load-transport udp`는 실험용이다.
+제어팀 설정은 Ego Network 전체가 UDP(`connectedType=1`)이며 persistent
+`morai_udp_interface.launch`가 상태와 제어를 변환한다. 개인용 ROS profile에서
+ScenarioLoad handler 하나만 UDP로 바꾸는 hybrid 구성은 실제 런처에서
+Ego/Simulator Network 세션이 끊겼으므로 사용하지 않는다.
 
-ScenarioLoad 뒤 Simulator Network UI가 끊기면 정상으로 단정하지 않는다.
 `rostopic list`는 topic 이름만 보여 주므로 실제 MORAI 연결은
 `rostopic info /ScenarioLoad`, `/SaveSensorData`, `/ctrl_cmd`의 subscriber로
 확인한다.
 
-## 전체 수집 명령
+## 최초 한 번: 수정된 시나리오 설치
+
+현재 PC에는 이미 설치되어 있다. 새 PC, 새 MORAI 설치 또는 시나리오 재생성
+후에는 다음 명령으로 180개 JSON과 Ego Network sidecar를 함께 설치한다.
+
+```bash
+cd ~/AjouNice2026
+
+python3 dataset/morai_od/scripts/generate_sunny13_180_production_v3_set.py \
+  --install-dir \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025"
+```
+
+출력 마지막에 `MORAI install:` 경로가 나오는지 확인한다.
+
+## 전체 수집 터미널 순서
+
+### 터미널 1: ROS master
+
+```bash
+cd ~/AjouNice2026
+source /opt/ros/noetic/setup.bash
+
+roscore
+```
+
+### 터미널 2: MORAI rosbridge
+
+터미널 1의 `roscore`가 뜬 뒤 실행한다.
+
+```bash
+cd ~/AjouNice2026
+
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+source ~/morai_personal_ws/devel/setup.bash
+
+roslaunch rosbridge_server rosbridge_websocket.launch
+```
+
+그다음 MORAI Ego Network에서 ROS profile을 Connect한다.
+
+### 터미널 3: 연결 사전 점검
+
+```bash
+cd ~/AjouNice2026
+
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+source ~/morai_personal_ws/devel/setup.bash
+
+rostopic info /ScenarioLoad
+rostopic info /SaveSensorData
+rostopic info /ctrl_cmd
+rosservice info /Service_MoraiEventCmd
+```
+
+세 topic의 `Subscribers`와 service의 `Providers`에
+`/rosbridge_websocket`이 있어야 한다. Simulator Network UI가
+Disconnected여도 이 네 항목이 정상이면 수집 가능하다.
+
+### 터미널 3: 전체 180개 수집
 
 프로젝트 루트에서 실행한다.
 
@@ -78,6 +139,7 @@ source ~/morai_personal_ws/devel/setup.bash
 RUN_TAG="$(date +%y%m%d_%H%M%S)"
 RUN_DIR="/home/luv/morai_cap/sunny13_180_production_v3_${RUN_TAG}"
 mkdir -p "$RUN_DIR"
+printf '%s\n' "$RUN_DIR" | tee /tmp/morai_sunny13_current_run_dir
 
 set -o pipefail
 
@@ -87,6 +149,7 @@ python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
   --capture-dir "$RUN_DIR" \
   --no-timestamp-prefix \
   --motion-mode rolling-grouped \
+  --scenario-load-attempts 1 \
   --continue-on-scene-error \
   2>&1 | tee "$RUN_DIR/console.log"
 ```
@@ -94,17 +157,27 @@ python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
 속도·간격·곡선 제어 값은 manifest에서 자동으로 읽으므로 명령행에서 다시
 지정하지 않는다. 예상 소요시간은 기존 v3 실측을 기준으로 약 47~55분이다.
 
-100개 이상의 장기 수집은 별도 터미널에서 monitor를 실행한다. `--run-dir`
-없이 실행하면 `/home/luv/morai_cap`에서 가장 최근에 갱신된 실행 폴더를
-자동 선택한다. 따라서 이후 다른 100개 이상 batch에도 그대로 재사용한다.
+production에서는 `--scenario-load-attempts 1`을 사용한다. 객체 한 개 누락처럼
+이미 로드된 장면의 품질 문제 때문에 같은 장면을 즉시 다시 load하면 MORAI
+network session이 다시 초기화되어 다음 장면까지 막힐 수 있다. 해당 장면은
+failed scene으로 기록하고 다음 장면을 새로 load하는 편이 대량 수집에 더
+안전하다.
+
+### 터미널 4: 실시간 모니터링
+
+수집 명령이 저장한 정확한 실행 폴더를 읽으므로 과거 진단 폴더를 잘못
+선택하지 않는다.
 
 ```bash
 cd ~/AjouNice2026
 
-python3 dataset/morai_od/scripts/monitor_ros_capture_progress.py
+RUN_DIR="$(< /tmp/morai_sunny13_current_run_dir)"
+
+python3 dataset/morai_od/scripts/monitor_ros_capture_progress.py \
+  --run-dir "$RUN_DIR"
 ```
 
-특정 실행 폴더를 직접 지정할 수도 있다.
+터미널을 새로 열었거나 `/tmp` 기록이 없다면 실제 폴더를 직접 지정한다.
 
 ```bash
 python3 dataset/morai_od/scripts/monitor_ros_capture_progress.py \
@@ -124,9 +197,11 @@ Ego Network가 자동 복구되지 않으면 이 대기 시간 안에 UI의 Ego 
 MORAI가 rosbridge client를 교체하는 짧은 구간에는 이전 연결이 살아 있어
 연결 완료로 보이거나 `/Service_MoraiEventCmd`가 `handler returned None`을
 반환할 수 있다. runner는 새 Ego 위치와 객체 수로 실제 scene identity를
-먼저 확인하며, 이전 scene이 남아 있거나 actor가 누락되면 ScenarioLoad를
-기본 3회 재시도한다. scene 확인 후 control-mode service도 최대 3회
-재시도하고 브레이크를 적용한 뒤 수집을 시작한다.
+먼저 확인한다. runner 자체 기본값은 ScenarioLoad 3회 재시도이지만, 이번
+production 명령은 network 재초기화를 줄이기 위해 1회만 시도하고 실패를
+report에 남긴 뒤 다음 scene으로 진행한다. scene 확인 후 control-mode
+service는 최대 3회 재시도한다. ExternalCtrl/D 설정 직후 별도 brake 명령은
+보내지 않고 velocity CtrlCmd를 바로 시작한다.
 
 ### 중단 후 같은 폴더에서 재개
 
@@ -149,6 +224,7 @@ python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
   --capture-dir "$RUN_DIR" \
   --no-timestamp-prefix \
   --motion-mode rolling-grouped \
+  --scenario-load-attempts 1 \
   --continue-on-scene-error \
   --resume-report "$RUN_DIR/ros_capture_poc_report.partial.json" \
   2>&1 | tee -a "$RUN_DIR/console.log"
@@ -159,6 +235,27 @@ resume report에서는 `status=completed`인 scene만 건너뛴다. 과거 실�
 결과를 합친다.
 
 ## 실패와 전달
+
+### 대형 버스 링크 제약
+
+`s13p3_005` 초기본은 `DEFAULT_BUS`를 길이 약 25.3 m인 짧은 합류 링크
+`A2256W000319`에 배치했다. 같은 장면을 세 번 로드했을 때 다른 9개 객체는
+모두 나타났지만 버스만 항상 누락되어 일시적 rosbridge 문제가 아닌 MORAI
+actor 초기화 거부로 판정했다. 동일 bus asset은 다른 긴 링크에서 정상
+로드되므로 asset 자체는 유효하다.
+
+생성기는 이제 `bus_van` 계열을 길이 35 m 이상이고 양쪽 링크 끝에서 각각
+6 m 이상 떨어진 표본에만 배치한다. 이 제약으로 `s13p3_005`의 버스는
+`A2256W000323`으로 이동했으며, 180개 중 bus/van 배치가 있던 14개 장면만
+재생성했다. 해당 장면들은 실제 캡처 전에 새 버전이 MORAI Scenario 폴더에
+설치되어 있어야 한다.
+
+수정본 `s13p3_005` 단일 검증 결과는 다음과 같다.
+
+- NPC 3, 보행자 5, 장애물 2 모두 로드
+- `DEFAULT_BUS` 포함 확인
+- Camera 1~4와 LiDAR 5 모두 저장
+- 필수 GT 누락 0, 총 29개 파일, `verified=true`
 
 최종 report는 `ros_capture_poc_report.json`, 진행 중 report는
 `ros_capture_poc_report.partial.json`이다. 일부 장면 실패는 전체 batch를

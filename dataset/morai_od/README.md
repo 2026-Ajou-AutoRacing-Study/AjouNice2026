@@ -138,7 +138,9 @@ ROS Synchronous Mode는 개인용 런처에서 `frame=0`,
 Camera 4대·LiDAR·GT를 프레임화한다. 누락 묶음은 학습에 섞지 않고 해당
 장면을 실패 처리한다.
 
-현재 초기 수집 정책은 3.6 km/h, 장면당 6프레임이다. 대기시간
+초기 PoC 수집 정책은 3.6 km/h, 장면당 6프레임이었다. 현재 Sunny 13시
+production v3는 직선 5.4 km/h, 곡선 최소 3.6 km/h adaptive control,
+1.5 m 간격, 장면당 6프레임을 사용한다. 대기시간
 `load-settle=0.5초`, `capture-stable=0.3초` 조합은 p01~p03 총
 18프레임에서 필수 센서 파일 누락 없이 통과했고, route-follow 대비 전체
 실행시간이 68.839초에서 34.666초로 줄었다. 다만 연속 재실행에서

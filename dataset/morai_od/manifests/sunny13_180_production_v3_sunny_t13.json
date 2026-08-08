@@ -26,7 +26,7 @@
       "/Object_topic"
     ],
     "template_sha256": "7751cdcd69851deca5e14ec3d353b45c76175e8b9edb4972a3079a0a65ee9882",
-    "note": "Load the Simulator Network once. Each ScenarioLoad restores only the Ego Network from EgoNetwork/<stem>_MN.json."
+    "note": "Connect the ROS Ego Network. Each ScenarioLoad restores only UNIQUEID=0 from EgoNetwork/<stem>_MN.json. The rolling-grouped production path does not require the Simulator Network."
   },
   "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
   "capture_policy": {

@@ -155,6 +155,16 @@ def build_link_samples(links):
     samples = []
     for link in links:
         points = link.get("points", [])
+        cumulative_lengths = [0.0]
+        for before, after in zip(points, points[1:]):
+            cumulative_lengths.append(
+                cumulative_lengths[-1]
+                + math.hypot(
+                    float(after[0]) - float(before[0]),
+                    float(after[1]) - float(before[1]),
+                )
+            )
+        link_length = cumulative_lengths[-1] if cumulative_lengths else 0.0
         for point_index, point in enumerate(points):
             if len(points) == 1:
                 yaw = 0.0
@@ -176,6 +186,13 @@ def build_link_samples(links):
                         else 0.0
                     ),
                     "max_speed": float(link.get("max_speed") or 0.0),
+                    "link_length_m": link_length,
+                    "distance_from_link_start_m": cumulative_lengths[
+                        point_index
+                    ],
+                    "distance_to_link_end_m": (
+                        link_length - cumulative_lengths[point_index]
+                    ),
                 }
             )
     if not samples:

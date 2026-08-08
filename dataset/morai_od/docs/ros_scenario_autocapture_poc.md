@@ -10,7 +10,7 @@
 → MORAI 현재 맵의 Scenario 폴더에 설치
 → 시나리오별 ROS EgoNetwork sidecar 설치
 → ROS /ScenarioLoad
-→ rosbridge 일시 단절 및 sidecar 기반 자동 복구
+→ ROS-only Ego sidecar 기반 capture/control 경로 자동 복구
 → Ego 위치와 /Object_topic 객체 수 검증
 → ROS /SaveSensorData
 → 실제 파일 생성 확인
@@ -20,6 +20,27 @@
 자동 캡처 자체가 되지 않으면 대량 시나리오 생성은 의미가 없으므로, 먼저
 정지 상태의 단일 프레임으로 로드와 저장만 검증한다. 그다음에만 Ego 이동을
 켜고 마지막에 3개 시나리오 배치를 실행한다.
+
+## 현재 production 결론
+
+이 문서의 stationary·route-follow·teleport·Sync Mode 내용은 자동화 방식을
+선정하기 위한 PoC 이력이다. 현재 Sunny 13시 180개 production은 다음 구성만
+사용한다.
+
+```text
+개인용 MORAI Ego Network 전체를 ROS로 연결
+→ UNIQUEID=0만 포함한 scenario sidecar
+→ full ScenarioLoad와 rosbridge 자동 복구
+→ /Service_MoraiEventCmd로 ExternalCtrl·D 설정
+→ 별도 선행 brake 없이 velocity CtrlCmd 시작
+→ 5.4 km/h, 곡선 최소 3.6 km/h adaptive control
+→ 1.5 m 간격 rolling-grouped 6프레임
+→ Camera 4대·LiDAR·GT를 MORAI timestamp로 묶어 검증
+```
+
+ScenarioLoad handler만 UDP로 바꾸는 hybrid, teleport batch, Sync Mode는
+현재 production에서 사용하지 않는다. 실제 실행 명령과 재개·모니터링은
+`docs/sunny13_180_production_v3_capture.md`를 따른다.
 
 ## 구현 파일
 
@@ -234,6 +255,47 @@ UNIQUEID=0만 포함한 sidecar로 full ScenarioLoad
 68.686~69.728초와 같은 범위다.
 
 ### 제어팀 trajectory_batch_runner와의 구조 비교
+
+#### 2026-08-08 ScenarioLoad-only UDP 혼합 구성 기각
+
+제어팀 설정을 참고해 개인용 ROS sidecar의 ScenarioLoad handler만 UDP로
+바꾸는 시험을 수행했으나 사용하지 않기로 했다.
+
+- 제어팀 `configs/network/ego_network_1.json`의 상위 Ego Network는
+  `connectedType=1`이며 persistent UDP interface가 상태·제어를 담당한다.
+- 개인용 캡처 profile의 상위 Ego Network는 `connectedType=3`이며
+  SaveSensorData·Ego·Object·CtrlCmd가 rosbridge 연결에 의존한다.
+- 개인용 profile에서 ScenarioLoad entry만 `netType/commType=1`로 바꾸자 첫
+  load 후 MORAI Simulator Network가 끊겼고, retry 전에 SaveSensorData ROS
+  subscriber도 복구되지 않았다.
+- 첫 장면은 obstacle 2개 중 1개만 로드되어 scene 검증 단계에서 멈췄으므로
+  차량 제어 단계에도 진입하지 않았다.
+
+따라서 handler별 JSON 필드만으로 개인용 런처가 안정적인 mixed transport를
+지원한다고 판단할 수 없다. 현재 수집기는 개인용 Ego Network 전체와
+ScenarioLoad를 ROS로 통일한다. 제어팀처럼 UDP를 사용하려면 ScenarioLoad만
+옮기는 것이 아니라 개인용 메시지에 맞는 상태·제어·capture UDP interface
+전체를 별도로 구현하고 검증해야 한다.
+
+같은 날 ROS-only 복구 시험에서 scene 검증과 `ctrl_mode=3, gear=4` 응답이
+정상이었지만 두 장면 모두 `0/6 triggers`로 종료됐다. 원인은 당일 commit에서
+ExternalCtrl service 성공 직후 새로 추가된 `publish_stop()`이었다. 이 호출은
+`brake=1`을 10회 보낸 뒤 velocity-mode 주행을 시작했으며, 개인용 런처에서
+브레이크 상태가 유지되어 Ego가 움직이지 않았다. 해당 호출을 제거하여 과거
+성공 순서인 `scene 검증 → ExternalCtrl/D 설정 → 즉시 velocity CtrlCmd`로
+복구했다. Simulator Network UI 단절과 차량 무이동은 같은 시점에 관측됐지만,
+서비스 응답과 CtrlCmd subscriber가 정상인 이 사례의 직접 원인은 제어 순서
+회귀였다.
+
+수정 후 `s13p3_002` 단일 장면 재검증은 Simulator Network UI가
+Disconnected인 상태에서도 성공했다. ExternalCtrl/D 응답 뒤 Ego가 정상
+주행했고 6/6 timestamp group, 프레임당 29개, 총 174개 파일이 모두
+검증됐으며 누락 artifact는 없었다. trigger 구간은 8.615초, 장면 전체는
+15.640초였다. 따라서 `rolling-grouped` 수집에서 Simulator Network UI의
+Connected 표시는 필수 조건이 아니다. 실제 필수 조건은 Ego sidecar에서
+복구되는 ScenarioLoad·SaveSensorData·CtrlCmd 연결과 MoraiEventCmd service
+응답이다. Simulator Network는 teleport와 Sync Mode 기능을 사용할 때만
+별도로 필요하다.
 
 두 구현은 ScenarioLoad transport 외에도 세부 검증 범위가 다르지만 핵심
 구조는 같다.

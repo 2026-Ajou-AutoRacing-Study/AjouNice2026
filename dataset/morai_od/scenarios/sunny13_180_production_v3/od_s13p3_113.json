@@ -637,20 +637,20 @@
       "initPosition": {
         "initPositionMode": "Absolute",
         "pos": {
-          "x": 28.202110613253517,
-          "y": -492.73712403059744,
-          "z": 29.001401093750328,
-          "_x": "28.202",
-          "_y": "-492.737",
-          "_z": "29.001"
+          "x": -16.637293019493235,
+          "y": -513.5296622148646,
+          "z": 28.928696213363136,
+          "_x": "-16.637",
+          "_y": "-513.530",
+          "_z": "28.929"
         },
         "rot": {
           "roll": "0.000",
           "pitch": "0.000",
-          "yaw": "33.210"
+          "yaw": "-151.549"
         },
-        "initLink": "A2256W000131",
-        "initLinkRatio": 0.9665271966527197,
+        "initLink": "A2256W000126",
+        "initLinkRatio": 0.44537815126050423,
         "gear": 4,
         "vehicleSaveData": {
           "velocity": 0.0,
@@ -762,20 +762,20 @@
       "spawnPointUniqueID": -1,
       "destinationUniqueID": -1,
       "startPointLinkInfo": {
-        "linkIdx": "A2256W000131",
-        "pointIdx": 231
+        "linkIdx": "A2256W000126",
+        "pointIdx": 106
       },
       "endPointLinkInfo": {
-        "linkIdx": "A2256W000131",
-        "pointIdx": 231
+        "linkIdx": "A2256W000126",
+        "pointIdx": 106
       },
       "currentLinkInfo": {
-        "linkIdx": "A2256W000131",
-        "pointIdx": 231
+        "linkIdx": "A2256W000126",
+        "pointIdx": 106
       },
       "loopStartLinkInfo": {
-        "linkIdx": "A2256W000131",
-        "pointIdx": 231
+        "linkIdx": "A2256W000126",
+        "pointIdx": 106
       },
       "v2vUDPSessionInfo": {
         "isInit": false,
@@ -801,20 +801,20 @@
       "initPosition": {
         "initPositionMode": "Absolute",
         "pos": {
-          "x": -15.319224031458235,
-          "y": -512.8136394649159,
-          "z": 28.818964686704863,
-          "_x": "-15.319",
-          "_y": "-512.814",
-          "_z": "28.819"
+          "x": 26.517248826986794,
+          "y": -493.81469978275913,
+          "z": 28.882959557676056,
+          "_x": "26.517",
+          "_y": "-493.815",
+          "_z": "28.883"
         },
         "rot": {
           "roll": "0.000",
           "pitch": "0.000",
-          "yaw": "-151.364"
+          "yaw": "32.601"
         },
-        "initLink": "A2256W000126",
-        "initLinkRatio": 0.4327731092436975,
+        "initLink": "A2256W000131",
+        "initLinkRatio": 0.9497907949790795,
         "gear": 4,
         "vehicleSaveData": {
           "velocity": 0.0,
@@ -926,20 +926,20 @@
       "spawnPointUniqueID": -1,
       "destinationUniqueID": -1,
       "startPointLinkInfo": {
-        "linkIdx": "A2256W000126",
-        "pointIdx": 103
+        "linkIdx": "A2256W000131",
+        "pointIdx": 227
       },
       "endPointLinkInfo": {
-        "linkIdx": "A2256W000126",
-        "pointIdx": 103
+        "linkIdx": "A2256W000131",
+        "pointIdx": 227
       },
       "currentLinkInfo": {
-        "linkIdx": "A2256W000126",
-        "pointIdx": 103
+        "linkIdx": "A2256W000131",
+        "pointIdx": 227
       },
       "loopStartLinkInfo": {
-        "linkIdx": "A2256W000126",
-        "pointIdx": 103
+        "linkIdx": "A2256W000131",
+        "pointIdx": 227
       },
       "v2vUDPSessionInfo": {
         "isInit": false,

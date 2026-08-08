@@ -175,6 +175,15 @@ VEHICLE_HALF_WIDTH = {
     "truck": 1.35,
 }
 
+# MORAI can reject a physically large bus on a short merge/connector link even
+# when its center point and our circular/static-geometry checks are valid.  A
+# confirmed example was DEFAULT_BUS on the 25.3 m link A2256W000319: the other
+# nine actors loaded, while only the bus disappeared in three consecutive
+# loads.  Keep bus/van assets on sufficiently long links and away from their
+# endpoints.  Other vehicle classes retain the existing placement policy.
+BUS_VAN_MINIMUM_LINK_LENGTH_M = 35.0
+BUS_VAN_MINIMUM_LINK_END_CLEARANCE_M = 6.0
+
 OBSTACLE_RADIUS = {
     "road_surface": 0.8,
     "fixed_roadside_object": 0.8,
@@ -845,6 +854,7 @@ def choose_vehicle_samples(
     selected = []
     for row, actor in assets:
         radius = VEHICLE_RADIUS.get(row["subtype"], 3.0)
+        is_bus_van = row["subtype"] == "bus_van"
         target_distance = weighted_distance(rng)
         ordered = list(candidates)
         rng.shuffle(ordered)
@@ -858,7 +868,18 @@ def choose_vehicle_samples(
             (
                 item
                 for item in ordered
-                if not in_ego_swept_corridor(
+                if (
+                    not is_bus_van
+                    or (
+                        item.get("link_length_m", 0.0)
+                        >= BUS_VAN_MINIMUM_LINK_LENGTH_M
+                        and item.get("distance_from_link_start_m", 0.0)
+                        >= BUS_VAN_MINIMUM_LINK_END_CLEARANCE_M
+                        and item.get("distance_to_link_end_m", 0.0)
+                        >= BUS_VAN_MINIMUM_LINK_END_CLEARANCE_M
+                    )
+                )
+                and not in_ego_swept_corridor(
                     ego,
                     item,
                     extra_margin=radius + 0.5,
@@ -1350,8 +1371,10 @@ def build_manifest(
             "required_topics": list(EGO_SIDECAR_REQUIRED_ROS_TOPICS),
             "template_sha256": network_sha,
             "note": (
-                "Load the Simulator Network once. Each ScenarioLoad restores "
-                "only the Ego Network from EgoNetwork/<stem>_MN.json."
+                "Connect the ROS Ego Network. Each ScenarioLoad restores "
+                "only UNIQUEID=0 from EgoNetwork/<stem>_MN.json. The "
+                "rolling-grouped production path does not require the "
+                "Simulator Network."
             ),
         },
         "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",

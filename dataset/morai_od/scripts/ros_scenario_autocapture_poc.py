@@ -276,7 +276,7 @@ def parse_args():
         default="ros",
         help=(
             "Send ScenarioLoad through the ROS topic or the independent MORAI "
-            "UDP port. UDP remains usable while rosbridge subscribers rebuild."
+            "UDP port. UDP requires a matching full UDP Ego Network profile."
         ),
     )
     parser.add_argument("--scenario-load-udp-host", default="127.0.0.1")
@@ -688,6 +688,8 @@ def configured_ros_topics(network_sidecar):
         for entry in ego.get("listEgoNetworkInfo", []):
             if entry.get("netType") == 3:
                 ros_bridge_entries += 1
+            else:
+                continue
             topic = (
                 entry.get("config", {})
                 .get("rosConfig", {})
@@ -1210,8 +1212,41 @@ class AutoCapture:
                     objects.num_of_obstacle,
                 )
             )
+            parts.append(
+                "actual object identities={}".format(
+                    self.object_observation(objects)["identities"]
+                )
+            )
         parts.append("expected objects={}".format(scene["expected_counts"]))
         return "; ".join(parts)
+
+    @staticmethod
+    def object_observation(objects):
+        if objects is None:
+            return None
+
+        def identities(items):
+            return [
+                {
+                    "unique_id": int(item.unique_id),
+                    "type": int(item.type),
+                    "name": str(item.name),
+                }
+                for item in items
+            ]
+
+        return {
+            "counts": {
+                "npc": int(objects.num_of_npcs),
+                "pedestrian": int(objects.num_of_pedestrian),
+                "obstacle": int(objects.num_of_obstacle),
+            },
+            "identities": {
+                "npc": identities(objects.npc_list),
+                "pedestrian": identities(objects.pedestrian_list),
+                "obstacle": identities(objects.obstacle_list),
+            },
+        }
 
     def load_and_verify_scene(self, scene):
         # The currently loaded legacy sidecar may not yet contain a newly
@@ -1263,8 +1298,12 @@ class AutoCapture:
             raise last_error
         control_prepared = False
         if self.uses_ctrl_cmd():
-            # Once the new scene identity is confirmed, enter external mode
-            # and hold the brake before starting the capture drive.
+            # Once the new scene identity is confirmed, enter external mode.
+            # Do not publish the brake command after this service call: the
+            # personal MORAI launcher can retain that brake state even after
+            # velocity-mode CtrlCmd messages begin, leaving Ego stationary.
+            # The loaded scenario already starts at zero velocity and the
+            # motion routine immediately starts publishing its drive command.
             control_error = None
             for attempt in range(1, 4):
                 try:
@@ -1285,7 +1324,6 @@ class AutoCapture:
                     time.sleep(1.0)
             if control_error is not None:
                 raise control_error
-            self.publish_stop()
             control_prepared = True
         return control_prepared
 
@@ -2430,6 +2468,10 @@ class AutoCapture:
             "file_name": scene["file_name"],
             "split": scene.get("split"),
             "status": "completed",
+            "expected_counts": dict(scene["expected_counts"]),
+            "actual_objects": self.object_observation(
+                self.state.snapshot()["objects"]
+            ),
             "captures": captures,
             "metrics": mode_metrics,
         }
@@ -2485,6 +2527,10 @@ class AutoCapture:
                     "split": scene.get("split"),
                     "status": "failed",
                     "error": "{}: {}".format(type(error).__name__, error),
+                    "expected_counts": dict(scene["expected_counts"]),
+                    "actual_objects": self.object_observation(
+                        self.state.snapshot()["objects"]
+                    ),
                     "captures": [],
                     "metrics": {
                         "scene_duration_sec": time.time() - scene_started,

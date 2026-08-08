@@ -637,20 +637,20 @@
       "initPosition": {
         "initPositionMode": "Absolute",
         "pos": {
-          "x": 40.04733533637175,
-          "y": -484.39803263879094,
-          "z": 28.97317149256398,
-          "_x": "40.047",
-          "_y": "-484.398",
-          "_z": "28.973"
+          "x": 5.3432943971825,
+          "y": -501.62011985307663,
+          "z": 28.831602839150854,
+          "_x": "5.343",
+          "_y": "-501.620",
+          "_z": "28.832"
         },
         "rot": {
           "roll": "0.000",
           "pitch": "0.000",
-          "yaw": "36.511"
+          "yaw": "-151.911"
         },
-        "initLink": "A2256W000129",
-        "initLinkRatio": 0.5526315789473685,
+        "initLink": "A2256W000126",
+        "initLinkRatio": 0.23529411764705882,
         "gear": 4,
         "vehicleSaveData": {
           "velocity": 0.0,
@@ -762,20 +762,20 @@
       "spawnPointUniqueID": -1,
       "destinationUniqueID": -1,
       "startPointLinkInfo": {
-        "linkIdx": "A2256W000129",
-        "pointIdx": 21
+        "linkIdx": "A2256W000126",
+        "pointIdx": 56
       },
       "endPointLinkInfo": {
-        "linkIdx": "A2256W000129",
-        "pointIdx": 21
+        "linkIdx": "A2256W000126",
+        "pointIdx": 56
       },
       "currentLinkInfo": {
-        "linkIdx": "A2256W000129",
-        "pointIdx": 21
+        "linkIdx": "A2256W000126",
+        "pointIdx": 56
       },
       "loopStartLinkInfo": {
-        "linkIdx": "A2256W000129",
-        "pointIdx": 21
+        "linkIdx": "A2256W000126",
+        "pointIdx": 56
       },
       "v2vUDPSessionInfo": {
         "isInit": false,
@@ -801,20 +801,20 @@
       "initPosition": {
         "initPositionMode": "Absolute",
         "pos": {
-          "x": 49.74875685887526,
-          "y": -477.7654443589228,
-          "z": 28.79664014679349,
-          "_x": "49.749",
-          "_y": "-477.765",
-          "_z": "28.797"
+          "x": 36.811330055752784,
+          "y": -486.7490179289748,
+          "z": 28.850704393581356,
+          "_x": "36.811",
+          "_y": "-486.749",
+          "_z": "28.851"
         },
         "rot": {
           "roll": "0.000",
           "pitch": "0.000",
-          "yaw": "27.785"
+          "yaw": "35.691"
         },
-        "initLink": "A2256W000028",
-        "initLinkRatio": 0.06666666666666667,
+        "initLink": "A2256W000129",
+        "initLinkRatio": 0.34210526315789475,
         "gear": 4,
         "vehicleSaveData": {
           "velocity": 0.0,
@@ -926,20 +926,20 @@
       "spawnPointUniqueID": -1,
       "destinationUniqueID": -1,
       "startPointLinkInfo": {
-        "linkIdx": "A2256W000028",
-        "pointIdx": 7
+        "linkIdx": "A2256W000129",
+        "pointIdx": 13
       },
       "endPointLinkInfo": {
-        "linkIdx": "A2256W000028",
-        "pointIdx": 7
+        "linkIdx": "A2256W000129",
+        "pointIdx": 13
       },
       "currentLinkInfo": {
-        "linkIdx": "A2256W000028",
-        "pointIdx": 7
+        "linkIdx": "A2256W000129",
+        "pointIdx": 13
       },
       "loopStartLinkInfo": {
-        "linkIdx": "A2256W000028",
-        "pointIdx": 7
+        "linkIdx": "A2256W000129",
+        "pointIdx": 13
       },
       "v2vUDPSessionInfo": {
         "isInit": false,
@@ -965,29 +965,29 @@
       "UNIQUEID": 2001,
       "m_eobstacleObjType": 2,
       "pos": {
-        "x": 45.90717465105643,
-        "y": -481.6477989670899,
-        "z": 28.530527512841413,
-        "_x": "45.907",
-        "_y": "-481.648",
-        "_z": "28.531"
+        "x": 44.29759077538053,
+        "y": -483.2733225196512,
+        "z": 28.537300114611426,
+        "_x": "44.298",
+        "_y": "-483.273",
+        "_z": "28.537"
       },
       "rot": {
         "roll": "0.000",
         "pitch": "0.000",
-        "yaw": "142.188"
+        "yaw": "-81.883"
       },
       "activeDistance": 100.0,
       "speed": 0.0,
       "active": true,
       "loop": false,
       "initPos": {
-        "x": -45.90717465105643,
-        "y": 28.530527512841413,
-        "z": 481.6477989670899,
-        "_x": "-45.907",
-        "_y": "28.531",
-        "_z": "481.648"
+        "x": -44.29759077538053,
+        "y": 28.537300114611426,
+        "z": 483.2733225196512,
+        "_x": "-44.298",
+        "_y": "28.537",
+        "_z": "483.273"
       },
       "initRot": {
         "roll": "0.000",
@@ -997,12 +997,12 @@
       "movingDistance": 0.0,
       "movingDistanceAmount": 0.0,
       "standardPos": {
-        "x": -45.90717465105643,
-        "y": 28.530527512841413,
-        "z": 481.6477989670899,
-        "_x": "-45.907",
-        "_y": "28.531",
-        "_z": "481.648"
+        "x": -44.29759077538053,
+        "y": 28.537300114611426,
+        "z": 483.2733225196512,
+        "_x": "-44.298",
+        "_y": "28.537",
+        "_z": "483.273"
       },
       "anim": {
         "m_FileID": -372388,
@@ -1020,6 +1020,120 @@
     {
       "DataID": 50100006,
       "UNIQUEID": 2002,
+      "m_eobstacleObjType": 2,
+      "pos": {
+        "x": 29.970730788141566,
+        "y": -493.97542969491093,
+        "z": 28.575107356864525,
+        "_x": "29.971",
+        "_y": "-493.975",
+        "_z": "28.575"
+      },
+      "rot": {
+        "roll": "0.000",
+        "pitch": "0.000",
+        "yaw": "-155.444"
+      },
+      "activeDistance": 100.0,
+      "speed": 0.0,
+      "active": true,
+      "loop": false,
+      "initPos": {
+        "x": -29.970730788141566,
+        "y": 28.575107356864525,
+        "z": 493.97542969491093,
+        "_x": "-29.971",
+        "_y": "28.575",
+        "_z": "493.975"
+      },
+      "initRot": {
+        "roll": "0.000",
+        "pitch": "0.000",
+        "yaw": "0.000"
+      },
+      "movingDistance": 0.0,
+      "movingDistanceAmount": 0.0,
+      "standardPos": {
+        "x": -29.970730788141566,
+        "y": 28.575107356864525,
+        "z": 493.97542969491093,
+        "_x": "-29.971",
+        "_y": "28.575",
+        "_z": "493.975"
+      },
+      "anim": {
+        "m_FileID": -379640,
+        "m_PathID": 0
+      },
+      "stateNameHash": 2081823275,
+      "stateNormalizedTime": 0.002266903640702367,
+      "pedestrianBehavior": 1,
+      "pedestrianType": 2,
+      "listObjIDForBehavior": [],
+      "animSpeed": 0.0,
+      "isWaypointMode": false,
+      "waypointEventList": []
+    },
+    {
+      "DataID": 50100013,
+      "UNIQUEID": 2003,
+      "m_eobstacleObjType": 2,
+      "pos": {
+        "x": 44.94849663443006,
+        "y": -471.6468563118177,
+        "z": 28.338006297549985,
+        "_x": "44.948",
+        "_y": "-471.647",
+        "_z": "28.338"
+      },
+      "rot": {
+        "roll": "0.000",
+        "pitch": "0.000",
+        "yaw": "-73.301"
+      },
+      "activeDistance": 100.0,
+      "speed": 0.0,
+      "active": true,
+      "loop": false,
+      "initPos": {
+        "x": -44.94849663443006,
+        "y": 28.338006297549985,
+        "z": 471.6468563118177,
+        "_x": "-44.948",
+        "_y": "28.338",
+        "_z": "471.647"
+      },
+      "initRot": {
+        "roll": "0.000",
+        "pitch": "0.000",
+        "yaw": "0.000"
+      },
+      "movingDistance": 0.0,
+      "movingDistanceAmount": 0.0,
+      "standardPos": {
+        "x": -44.94849663443006,
+        "y": 28.338006297549985,
+        "z": 471.6468563118177,
+        "_x": "-44.948",
+        "_y": "28.338",
+        "_z": "471.647"
+      },
+      "anim": {
+        "m_FileID": -381422,
+        "m_PathID": 0
+      },
+      "stateNameHash": 2081823275,
+      "stateNormalizedTime": 0.0020981901325285435,
+      "pedestrianBehavior": 1,
+      "pedestrianType": 2,
+      "listObjIDForBehavior": [],
+      "animSpeed": 0.0,
+      "isWaypointMode": false,
+      "waypointEventList": []
+    },
+    {
+      "DataID": 50100004,
+      "UNIQUEID": 2004,
       "m_eobstacleObjType": 2,
       "pos": {
         "x": 33.52188099605608,
@@ -1062,11 +1176,11 @@
         "_z": "490.448"
       },
       "anim": {
-        "m_FileID": -379640,
+        "m_FileID": -377614,
         "m_PathID": 0
       },
       "stateNameHash": 2081823275,
-      "stateNormalizedTime": 0.002266903640702367,
+      "stateNormalizedTime": 0.001998630352318287,
       "pedestrianBehavior": 1,
       "pedestrianType": 2,
       "listObjIDForBehavior": [],
@@ -1075,8 +1189,8 @@
       "waypointEventList": []
     },
     {
-      "DataID": 50100013,
-      "UNIQUEID": 2003,
+      "DataID": 50100009,
+      "UNIQUEID": 2005,
       "m_eobstacleObjType": 2,
       "pos": {
         "x": 23.152044878990182,
@@ -1119,120 +1233,6 @@
         "_z": "497.321"
       },
       "anim": {
-        "m_FileID": -381422,
-        "m_PathID": 0
-      },
-      "stateNameHash": 2081823275,
-      "stateNormalizedTime": 0.0020981901325285435,
-      "pedestrianBehavior": 1,
-      "pedestrianType": 2,
-      "listObjIDForBehavior": [],
-      "animSpeed": 0.0,
-      "isWaypointMode": false,
-      "waypointEventList": []
-    },
-    {
-      "DataID": 50100004,
-      "UNIQUEID": 2004,
-      "m_eobstacleObjType": 2,
-      "pos": {
-        "x": 4.239800661189953,
-        "y": -499.1365877416424,
-        "z": 28.401602839150854,
-        "_x": "4.240",
-        "_y": "-499.137",
-        "_z": "28.402"
-      },
-      "rot": {
-        "roll": "0.000",
-        "pitch": "0.000",
-        "yaw": "96.488"
-      },
-      "activeDistance": 100.0,
-      "speed": 0.0,
-      "active": true,
-      "loop": false,
-      "initPos": {
-        "x": -4.239800661189953,
-        "y": 28.401602839150854,
-        "z": 499.1365877416424,
-        "_x": "-4.240",
-        "_y": "28.402",
-        "_z": "499.137"
-      },
-      "initRot": {
-        "roll": "0.000",
-        "pitch": "0.000",
-        "yaw": "0.000"
-      },
-      "movingDistance": 0.0,
-      "movingDistanceAmount": 0.0,
-      "standardPos": {
-        "x": -4.239800661189953,
-        "y": 28.401602839150854,
-        "z": 499.1365877416424,
-        "_x": "-4.240",
-        "_y": "28.402",
-        "_z": "499.137"
-      },
-      "anim": {
-        "m_FileID": -377614,
-        "m_PathID": 0
-      },
-      "stateNameHash": 2081823275,
-      "stateNormalizedTime": 0.001998630352318287,
-      "pedestrianBehavior": 1,
-      "pedestrianType": 2,
-      "listObjIDForBehavior": [],
-      "animSpeed": 0.0,
-      "isWaypointMode": false,
-      "waypointEventList": []
-    },
-    {
-      "DataID": 50100009,
-      "UNIQUEID": 2005,
-      "m_eobstacleObjType": 2,
-      "pos": {
-        "x": 36.19322602708004,
-        "y": -489.8550444684778,
-        "z": 28.575666454967337,
-        "_x": "36.193",
-        "_y": "-489.855",
-        "_z": "28.576"
-      },
-      "rot": {
-        "roll": "0.000",
-        "pitch": "0.000",
-        "yaw": "124.577"
-      },
-      "activeDistance": 100.0,
-      "speed": 0.0,
-      "active": true,
-      "loop": false,
-      "initPos": {
-        "x": -36.19322602708004,
-        "y": 28.575666454967337,
-        "z": 489.8550444684778,
-        "_x": "-36.193",
-        "_y": "28.576",
-        "_z": "489.855"
-      },
-      "initRot": {
-        "roll": "0.000",
-        "pitch": "0.000",
-        "yaw": "0.000"
-      },
-      "movingDistance": 0.0,
-      "movingDistanceAmount": 0.0,
-      "standardPos": {
-        "x": -36.19322602708004,
-        "y": 28.575666454967337,
-        "z": 489.8550444684778,
-        "_x": "-36.193",
-        "_y": "28.576",
-        "_z": "489.855"
-      },
-      "anim": {
         "m_FileID": -374052,
         "m_PathID": 0
       },
@@ -1252,17 +1252,17 @@
       "UNIQUEID": 3001,
       "m_eobstacleObjType": 4,
       "pos": {
-        "x": 46.548493652675056,
-        "y": -485.3716717742294,
-        "z": 28.515945594257424,
-        "_x": "46.548",
-        "_y": "-485.372",
-        "_z": "28.516"
+        "x": 32.14697742389303,
+        "y": -479.4254873762122,
+        "z": 28.343084839658083,
+        "_x": "32.147",
+        "_y": "-479.425",
+        "_z": "28.343"
       },
       "rot": {
         "roll": "0.000",
         "pitch": "0.000",
-        "yaw": "-133.966"
+        "yaw": "-158.162"
       },
       "scale": {
         "x": 1.0,
