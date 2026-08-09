@@ -291,3 +291,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+*:Zone.Identifier
