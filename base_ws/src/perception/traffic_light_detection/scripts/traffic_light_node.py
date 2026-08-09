@@ -9,6 +9,8 @@ traffic_light_node.py
   구독: /sensor/camera/front/compressed (sensor_msgs/CompressedImage)
         -- configs/sensors/Sensor_*.json 에서 확인한 실제 MORAI 퍼블리시 토픽
   발행: /perception/traffic_light_recognition/traffic_signals (autoware_perception_msgs/TrafficLightGroupArray)
+  발행(디버그): ~debug_image/compressed (sensor_msgs/CompressedImage)
+        -- 박스+라벨 그려진 이미지. rqt_image_view로 실시간 확인용.
 
 주의(팀 확인 필요):
   - traffic_light_group_id: 실제 Autoware는 lanelet2 map의 regulatory element ID를 씀.
@@ -33,6 +35,8 @@ _this_dir = os.path.dirname(os.path.abspath(__file__))
 if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
 
+import time
+
 import cv2
 import numpy as np
 import rospy
@@ -54,6 +58,9 @@ COLOR_MAP = {
     "green": TrafficLightElement.GREEN,
 }
 
+# 실시간성(Hz) 로그를 몇 프레임마다 찍을지
+HZ_LOG_INTERVAL = 30
+
 
 class TrafficLightNode:
     def __init__(self):
@@ -64,6 +71,8 @@ class TrafficLightNode:
         self.y_weight = rospy.get_param("~y_weight", 0.6)
         self.group_id = rospy.get_param("~traffic_light_group_id", 0)
         self.publish_rate_limit_hz = rospy.get_param("~max_rate_hz", 10.0)
+        self.publish_debug_image = rospy.get_param("~publish_debug_image", True)
+        self.debug_jpeg_quality = rospy.get_param("~debug_jpeg_quality", 60)
 
         if not os.path.exists(weights_path):
             rospy.logerr(f"[traffic_light_node] 가중치 파일 없음: {weights_path}")
@@ -76,17 +85,50 @@ class TrafficLightNode:
             TrafficLightGroupArray,
             queue_size=1,
         )
+        self.debug_pub = None
+        if self.publish_debug_image:
+            self.debug_pub = rospy.Publisher(
+                "~debug_image/compressed", CompressedImage, queue_size=1
+            )
+
         self._last_stamp = rospy.Time(0)
         self._min_period = rospy.Duration(1.0 / self.publish_rate_limit_hz) if self.publish_rate_limit_hz > 0 else rospy.Duration(0)
 
+        # 실시간성(Hz) 측정용
+        self._n_processed = 0
+        self._proc_time_sum = 0.0
+        self._proc_time_max = 0.0
+        self._hz_window_start = time.time()
+
         self.sub = rospy.Subscriber(image_topic, CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
-        rospy.loginfo(f"[traffic_light_node] 구독: {image_topic} (CompressedImage) / 발행: /perception/traffic_light_recognition/traffic_signals")
+        rospy.loginfo(
+            f"[traffic_light_node] 구독: {image_topic} (CompressedImage) / "
+            f"발행: /perception/traffic_light_recognition/traffic_signals"
+            + (" / 디버그 이미지: ~debug_image/compressed" if self.publish_debug_image else "")
+        )
+
+    def _log_hz_if_needed(self):
+        self._n_processed += 1
+        if self._n_processed % HZ_LOG_INTERVAL == 0:
+            elapsed = time.time() - self._hz_window_start
+            hz = HZ_LOG_INTERVAL / elapsed if elapsed > 0 else 0.0
+            avg_ms = (self._proc_time_sum / HZ_LOG_INTERVAL) * 1000.0
+            max_ms = self._proc_time_max * 1000.0
+            rospy.loginfo(
+                f"[traffic_light_node] 실시간성: 최근 {HZ_LOG_INTERVAL}프레임 "
+                f"평균 {hz:.1f} Hz, 프레임당 처리시간 평균 {avg_ms:.1f}ms / 최대 {max_ms:.1f}ms"
+            )
+            self._hz_window_start = time.time()
+            self._proc_time_sum = 0.0
+            self._proc_time_max = 0.0
 
     def image_callback(self, msg):
         now = rospy.Time.now()
         if now - self._last_stamp < self._min_period:
             return
         self._last_stamp = now
+
+        t_start = time.time()
 
         try:
             np_arr = np.frombuffer(msg.data, np.uint8)
@@ -115,6 +157,8 @@ class TrafficLightNode:
         group_array = TrafficLightGroupArray()
         group_array.stamp = msg.header.stamp if msg.header.stamp.to_sec() > 0 else now
 
+        debug_img = img if self.publish_debug_image else None
+
         best = pick_ego_lane_box(boxes, self.center_tolerance_ratio, self.y_weight)
         if best is not None:
             x1, y1, x2, y2, det_conf = best[4]
@@ -125,29 +169,58 @@ class TrafficLightNode:
             group = TrafficLightGroup()
             group.traffic_light_group_id = self.group_id
 
+            label_text = "off"
             if crop.size > 0:
                 color_results, _counts = classify_crop(crop)
+                labels_for_debug = []
                 for color, shape, is_left in color_results:
                     elem = TrafficLightElement()
                     elem.color = COLOR_MAP.get(color, TrafficLightElement.UNKNOWN)
                     if shape == "circle":
                         elem.shape = TrafficLightElement.CIRCLE
+                        labels_for_debug.append(color)
                     elif shape == "arrow":
                         if is_left is False:
                             elem.shape = TrafficLightElement.RIGHT_ARROW
+                            labels_for_debug.append(f"{color}_right")
                         else:
                             # is_left True 또는 None(불확실) -> K-City 샘플 시나리오는
                             # 좌회전 신호만 있는 걸로 조사됨 -> 기본 LEFT_ARROW
                             elem.shape = TrafficLightElement.LEFT_ARROW
+                            labels_for_debug.append(f"{color}_left")
                     else:
                         elem.shape = TrafficLightElement.CIRCLE
+                        labels_for_debug.append(color)
                     elem.status = TrafficLightElement.SOLID_ON
                     elem.confidence = det_conf
                     group.elements.append(elem)
+                if labels_for_debug:
+                    label_text = "+".join(labels_for_debug)
 
             group_array.traffic_light_groups.append(group)
 
+            if debug_img is not None:
+                cv2.rectangle(debug_img, (x1c, y1c), (x2c, y2c), (0, 255, 255), 2)
+                cv2.putText(
+                    debug_img, f"{label_text} ({det_conf:.2f})", (x1c, max(0, y1c - 8)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA,
+                )
+
         self.pub.publish(group_array)
+
+        if self.debug_pub is not None and debug_img is not None:
+            ok, enc = cv2.imencode(".jpg", debug_img, [cv2.IMWRITE_JPEG_QUALITY, self.debug_jpeg_quality])
+            if ok:
+                debug_msg = CompressedImage()
+                debug_msg.header.stamp = now
+                debug_msg.format = "jpeg"
+                debug_msg.data = enc.tobytes()
+                self.debug_pub.publish(debug_msg)
+
+        proc_time = time.time() - t_start
+        self._proc_time_sum += proc_time
+        self._proc_time_max = max(self._proc_time_max, proc_time)
+        self._log_hz_if_needed()
 
 
 def main():
