@@ -198,13 +198,60 @@ class ModelPredictiveTrajectoryTest(unittest.TestCase):
             TrajectorySample(x=float(index - 30), y=0.0)
             for index in range(80)
         ]
-        node.stop_before_outside = lambda points, _left, _right: points
+        node.stop_before_outside = (
+            lambda points, _left, _right, _ego_position=None: points
+        )
         source = path(count=80)
 
         output = node.fallback(source, [], [])
 
         self.assertAlmostEqual(output[0].x, source[0].x)
         self.assertAlmostEqual(output[-1].x, source[-1].x)
+
+    def test_fallback_ignores_drivable_area_violation_behind_ego(self):
+        module = load_path_optimizer_node_module()
+        node = module.PathOptimizerNode.__new__(module.PathOptimizerNode)
+        node.enable_outside_stop = True
+        node.stop_margin = 1.0
+        node.output_interval = 0.5
+        node.optimizer = SimpleNamespace(
+            lateral_bounds=lambda points, _left, _right: (
+                [0.2 if point.x < 3.0 else -1.0 for point in points],
+                [1.0 for _point in points],
+            )
+        )
+        source = path(count=20)
+
+        output = node.fallback(source, [], [], ego_position=(5.0, 0.0))
+
+        ego_index = min(
+            range(len(output)), key=lambda index: abs(output[index].x - 5.0)
+        )
+        self.assertGreater(output[ego_index].longitudinal_velocity_mps, 0.0)
+
+    def test_fallback_stops_for_drivable_area_violation_ahead_of_ego(self):
+        module = load_path_optimizer_node_module()
+        node = module.PathOptimizerNode.__new__(module.PathOptimizerNode)
+        node.enable_outside_stop = True
+        node.stop_margin = 1.0
+        node.output_interval = 0.5
+        node.optimizer = SimpleNamespace(
+            lateral_bounds=lambda points, _left, _right: (
+                [0.2 if point.x >= 8.0 else -1.0 for point in points],
+                [1.0 for _point in points],
+            )
+        )
+        source = path(count=20)
+
+        output = node.fallback(source, [], [], ego_position=(5.0, 0.0))
+
+        last_moving = max(
+            point.x
+            for point in output
+            if point.longitudinal_velocity_mps > 0.0
+        )
+        self.assertLess(last_moving, 8.0)
+        self.assertGreaterEqual(last_moving, 6.0)
 
 
 if __name__ == "__main__":

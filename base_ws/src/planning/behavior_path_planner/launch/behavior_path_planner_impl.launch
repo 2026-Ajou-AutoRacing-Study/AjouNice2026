@@ -89,6 +89,7 @@
     <param name="static_obstacle_avoidance/avoidance/longitudinal/nominal_return_speed" value="2.7" />
     <param name="static_obstacle_avoidance/stop/max_distance" value="20.0" />
     <param name="static_obstacle_avoidance/stop/stop_buffer" value="1.0" />
+    <param name="static_obstacle_avoidance/constraints/longitudinal/max_acceleration" value="0.5" />
     <param name="static_obstacle_avoidance/policy/make_approval_request" value="per_shift_line" />
     <param name="static_obstacle_avoidance/policy/lateral_margin" value="best_effort" />
     <param name="static_obstacle_avoidance/policy/candidate_path_turn_signal" value="none" />

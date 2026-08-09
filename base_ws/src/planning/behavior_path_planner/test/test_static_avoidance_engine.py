@@ -24,6 +24,7 @@ sys.path.insert(0, SCRIPT_DIR)
 from bpp_map_tools import CenterlineMap
 from bpp_path_tools import quaternion_from_yaw
 from bpp_static_avoidance_tools import (
+    AvoidanceObject,
     ObjectPolicy,
     ShiftLine,
     StaticAvoidanceEngine,
@@ -134,8 +135,205 @@ class StaticAvoidanceEngineTest(unittest.TestCase):
         self.assertTrue(result.valid)
         self.assertLess(result.start_distance, 8.0)
         self.assertAlmostEqual(result.finish_distance, 48.5, delta=2.0)
+        line = result.shift_lines[0]
+        target = result.targets[0]
+        self.assertLess(line.avoid_end_s, target.longitudinal)
+        self.assertGreater(line.return_start_s, target.longitudinal)
+        self.assertGreater(line.return_start_s - line.avoid_end_s, 5.0)
+        self.assertAlmostEqual(
+            line.value_at(target.longitudinal), line.shift_length, delta=1.0e-6
+        )
         result.activated = True
         self.assertFalse(self.engine.turn_signal_required(result))
+
+    def test_uses_other_side_when_primary_direction_has_insufficient_space(self):
+        parameters = make_parameters()
+        parameters.object_policies[ObjectClassification.UNKNOWN] = ObjectPolicy(
+            0.28, 1.0, 0.4, 0.2, 0.7, 0.0, 0.1
+        )
+        engine = StaticAvoidanceEngine(parameters, make_map())
+        candidate = AvoidanceObject(
+            object_id="unknown",
+            message=make_object(),
+            label=ObjectClassification.UNKNOWN,
+            longitudinal=50.0,
+            relative_longitudinal=45.0,
+            lateral=0.70,
+            half_longitudinal=0.30,
+            half_lateral=1.06,
+            current_left_bound=1.69,
+            current_right_bound=1.68,
+            expanded_left_bound=5.60,
+            expanded_right_bound=2.14,
+            stopped_time=5.0,
+            total_movement=0.0,
+            avoid_required=True,
+        )
+
+        engine._desired_shift(candidate, ego_speed=2.7, path_end=120.0)
+
+        self.assertTrue(candidate.allow_avoidance)
+        self.assertEqual(candidate.direction, "left")
+        self.assertAlmostEqual(candidate.shift_length, 3.3, delta=0.1)
+        self.assertGreater(candidate.available_shift, 4.3)
+        self.assertGreaterEqual(candidate.start_s, 6.0)
+
+    def test_prefers_shorter_conventional_side_when_both_sides_are_feasible(self):
+        parameters = make_parameters()
+        parameters.object_policies[ObjectClassification.UNKNOWN] = ObjectPolicy(
+            0.28, 1.0, 0.4, 0.2, 0.7, 0.0, 0.1
+        )
+        engine = StaticAvoidanceEngine(parameters, make_map())
+        candidate = AvoidanceObject(
+            object_id="unknown",
+            message=make_object(),
+            label=ObjectClassification.UNKNOWN,
+            longitudinal=50.0,
+            relative_longitudinal=45.0,
+            lateral=0.70,
+            half_longitudinal=0.30,
+            half_lateral=1.06,
+            current_left_bound=1.69,
+            current_right_bound=1.68,
+            expanded_left_bound=5.60,
+            expanded_right_bound=5.60,
+            stopped_time=5.0,
+            total_movement=0.0,
+            avoid_required=True,
+        )
+
+        engine._desired_shift(candidate, ego_speed=2.7, path_end=120.0)
+
+        self.assertTrue(candidate.allow_avoidance)
+        self.assertEqual(candidate.direction, "right")
+        self.assertAlmostEqual(candidate.shift_length, -1.9, delta=0.1)
+
+    def test_rejects_avoidance_when_neither_side_keeps_hard_margin(self):
+        parameters = make_parameters()
+        parameters.object_policies[ObjectClassification.UNKNOWN] = ObjectPolicy(
+            0.28, 1.0, 0.4, 0.2, 0.7, 0.0, 0.1
+        )
+        engine = StaticAvoidanceEngine(parameters, make_map())
+        candidate = AvoidanceObject(
+            object_id="unknown",
+            message=make_object(),
+            label=ObjectClassification.UNKNOWN,
+            longitudinal=50.0,
+            relative_longitudinal=45.0,
+            lateral=0.70,
+            half_longitudinal=0.30,
+            half_lateral=1.06,
+            current_left_bound=1.69,
+            current_right_bound=1.68,
+            expanded_left_bound=2.14,
+            expanded_right_bound=2.14,
+            stopped_time=5.0,
+            total_movement=0.0,
+            avoid_required=True,
+        )
+
+        engine._desired_shift(candidate, ego_speed=2.7, path_end=120.0)
+
+        self.assertFalse(candidate.allow_avoidance)
+        self.assertEqual(candidate.failed_reason, "insufficient_drivable_space")
+
+    def test_plan_uses_alternate_only_after_primary_full_profile_fails(self):
+        parameters = make_parameters()
+        parameters.enable_safety_check = False
+        parameters.ambiguous_stopped_time = 2.0
+        parameters.ambiguous_policy = "auto"
+        engine = StaticAvoidanceEngine(parameters)
+        wide_path = make_path()
+        wide_path.left_bound = [
+            Point(x=0.0, y=6.0),
+            Point(x=120.0, y=6.0),
+        ]
+        wide_path.right_bound = [
+            Point(x=0.0, y=-6.0),
+            Point(x=120.0, y=-6.0),
+        ]
+        objects = PredictedObjects()
+        objects.objects = [make_object()]
+        engine.plan(wide_path, objects, self.odometry, 0.0)
+
+        original_fit = engine._fit_directional_candidate
+        attempted_directions = []
+
+        def fail_primary(candidate, direction, *args):
+            attempted_directions.append(direction)
+            if direction == "left":
+                return None, None, "shift_profile_outside_drivable_bounds"
+            return original_fit(candidate, direction, *args)
+
+        engine._fit_directional_candidate = fail_primary
+
+        result = engine.plan(wide_path, objects, self.odometry, 2.1)
+
+        self.assertEqual(attempted_directions, ["left", "right"])
+        self.assertEqual(len(result.targets), 1)
+        self.assertEqual(result.direction, "right")
+        self.assertTrue(result.valid)
+        self.assertIn("alternate_direction_fallback", result.status)
+        self.assertIn(
+            "shift_profile_outside_drivable_bounds", result.status
+        )
+
+    def test_plan_retries_alternate_when_primary_path_is_unsafe(self):
+        parameters = make_parameters()
+        parameters.ambiguous_stopped_time = 2.0
+        parameters.ambiguous_policy = "auto"
+        engine = StaticAvoidanceEngine(parameters)
+        wide_path = make_path()
+        wide_path.left_bound = [
+            Point(x=0.0, y=6.0),
+            Point(x=120.0, y=6.0),
+        ]
+        wide_path.right_bound = [
+            Point(x=0.0, y=-6.0),
+            Point(x=120.0, y=-6.0),
+        ]
+        objects = PredictedObjects()
+        objects.objects = [make_object()]
+        engine.plan(wide_path, objects, self.odometry, 0.0)
+        checked_directions = []
+
+        def primary_is_unsafe(_path, targets, _objects, _conflict):
+            checked_directions.append(targets[0].direction)
+            if targets[0].direction == "left":
+                return False, "forced_primary_collision"
+            return True, "safe"
+
+        engine._raw_safety = primary_is_unsafe
+
+        result = engine.plan(wide_path, objects, self.odometry, 2.1)
+
+        self.assertEqual(checked_directions, ["left", "right"])
+        self.assertEqual(result.direction, "right")
+        self.assertTrue(result.safe)
+        self.assertTrue(result.valid)
+        self.assertIn("forced_primary_collision", result.status)
+
+    def test_plan_stops_when_primary_and_alternate_profiles_fail(self):
+        parameters = make_parameters()
+        engine = StaticAvoidanceEngine(parameters)
+        objects = PredictedObjects()
+        objects.objects = [make_object()]
+        engine.plan(self.path, objects, self.odometry, 0.0)
+        attempted_directions = []
+
+        def fail_both(_candidate, direction, *_args):
+            attempted_directions.append(direction)
+            return None, None, "shift_profile_outside_drivable_bounds"
+
+        engine._fit_directional_candidate = fail_both
+
+        result = engine.plan(self.path, objects, self.odometry, 2.1)
+
+        self.assertEqual(attempted_directions, ["left", "right"])
+        self.assertFalse(result.targets)
+        self.assertFalse(result.valid)
+        self.assertGreater(result.stop_distance, 0.0)
+        self.assertIn("alternate_right", result.status)
 
     def test_filters_moving_object(self):
         result = self.plan([make_object(speed=2.0)], 3.0)
@@ -294,6 +492,91 @@ class StaticAvoidanceEngineTest(unittest.TestCase):
             )
         )
 
+    def test_activated_avoidance_keeps_registered_shift_until_return(self):
+        class FakeRTCController:
+            def __init__(self):
+                self.completed = 0
+
+            def evaluate(self, *_args, **_kwargs):
+                return True, 0, None, True
+
+            def complete(self, _stamp):
+                self.completed += 1
+
+        line = ShiftLine(
+            object_ids=["object"],
+            direction="left",
+            shift_length=1.0,
+            start_s=0.0,
+            avoid_end_s=20.0,
+            return_start_s=60.0,
+            return_end_s=90.0,
+        )
+        full_candidate, _ = self.engine._shift_path(self.path, [line])
+        avoid_only_line = deepcopy(line)
+        avoid_only_line.return_start_s = 121.0
+        avoid_only_line.return_end_s = 122.0
+        avoid_candidate, _ = self.engine._shift_path(
+            self.path, [avoid_only_line]
+        )
+
+        scene = StaticAvoidanceScene.__new__(StaticAvoidanceScene)
+        scene.params = make_parameters()
+        scene.engine = self.engine
+        scene.avoid_rtc_controller = FakeRTCController()
+        scene.return_rtc_controller = FakeRTCController()
+        scene._return_in_progress = False
+        seed = StaticAvoidanceResult(
+            reference_path=self.path,
+            candidate_path=avoid_candidate,
+            output_path=avoid_candidate,
+            candidates=[],
+            targets=[],
+            shift_lines=[line],
+            direction="left",
+            return_direction="right",
+            max_shift=1.0,
+            signature=(("object", "left", 1.0),),
+        )
+        scene._register_avoidance(seed, avoid_candidate, full_candidate)
+
+        # Simulate a following cycle where fresh planning no longer emits a
+        # valid shift line.  The activated maneuver must not snap back to the
+        # new centerline before its separately approved return phase.
+        fresh_result = StaticAvoidanceResult(
+            reference_path=self.path,
+            candidate_path=deepcopy(self.path),
+            output_path=deepcopy(self.path),
+            candidates=[],
+            targets=[],
+            shift_lines=[],
+            valid=False,
+        )
+        objects = PredictedObjects()
+
+        active = scene._continue_committed_avoidance(
+            fresh_result, objects, self.odometry, 1.0
+        )
+
+        self.assertTrue(active)
+        self.assertTrue(scene._avoid_in_progress)
+        self.assertTrue(fresh_result.activated)
+        self.assertAlmostEqual(
+            fresh_result.output_path.points[30].point.pose.position.y,
+            1.0,
+            delta=0.05,
+        )
+        self.assertAlmostEqual(
+            fresh_result.output_path.points[70].point.pose.position.y,
+            1.0,
+            delta=0.05,
+        )
+        self.assertLess(
+            fresh_result.candidate_path.points[70].point.pose.position.y,
+            1.0,
+        )
+        self.assertFalse(fresh_result.return_ready)
+
     def test_registered_return_is_kept_until_actual_shift_is_recovered(self):
         class FakeRTCController:
             def __init__(self):
@@ -343,7 +626,9 @@ class StaticAvoidanceEngineTest(unittest.TestCase):
             signature=(("object", "left", 1.0),),
         )
         return_signature = seed.signature + (("return", "right"),)
-        scene._register_return(seed, registered_path, return_signature)
+        scene._register_return(
+            seed, registered_path, return_signature, self.odometry
+        )
 
         odometry = make_odometry()
         odometry.pose.pose.position.x = 25.0
@@ -373,6 +658,79 @@ class StaticAvoidanceEngineTest(unittest.TestCase):
         self.assertFalse(scene._return_in_progress)
         self.assertEqual(scene.avoid_rtc_controller.completed, 1)
         self.assertEqual(scene.return_rtc_controller.completed, 1)
+
+    def test_active_avoidance_limits_acceleration_and_holds_return_speed(self):
+        scene = StaticAvoidanceScene.__new__(StaticAvoidanceScene)
+        scene.params = make_parameters()
+        scene.params.max_acceleration = 0.5
+        scene.params.nominal_return_speed = 2.7
+        odometry = make_odometry()
+        odometry.twist.twist.linear.x = 2.0
+
+        constrained = scene._apply_longitudinal_constraints(
+            self.path,
+            self.path,
+            odometry,
+            maneuver_end_s=40.0,
+            return_start_s=20.0,
+            return_speed_limit=2.0,
+        )
+
+        self.assertAlmostEqual(
+            constrained.points[5].point.longitudinal_velocity_mps, 2.0
+        )
+        self.assertLessEqual(
+            constrained.points[6].point.longitudinal_velocity_mps,
+            math.sqrt(5.0) + 1.0e-6,
+        )
+        self.assertAlmostEqual(
+            constrained.points[20].point.longitudinal_velocity_mps, 2.0
+        )
+        self.assertGreater(
+            constrained.points[41].point.longitudinal_velocity_mps, 4.0
+        )
+
+    def test_registered_return_extends_when_actual_speed_exceeds_plan(self):
+        line = ShiftLine(
+            object_ids=["object"],
+            direction="left",
+            shift_length=1.0,
+            start_s=0.0,
+            avoid_end_s=10.0,
+            return_start_s=20.0,
+            return_end_s=40.0,
+        )
+        registered_path, _ = self.engine._shift_path(self.path, [line])
+        scene = StaticAvoidanceScene.__new__(StaticAvoidanceScene)
+        scene.params = make_parameters()
+        scene._return_in_progress = False
+        scene._registered_return_signature = None
+        seed = StaticAvoidanceResult(
+            reference_path=self.path,
+            candidate_path=registered_path,
+            output_path=registered_path,
+            candidates=[],
+            targets=[],
+            shift_lines=[line],
+            direction="left",
+            return_direction="right",
+            max_shift=1.0,
+            signature=(("object", "left", 1.0),),
+        )
+        return_signature = seed.signature + (("return", "right"),)
+        scene._register_return(
+            seed, registered_path, return_signature, self.odometry
+        )
+        original_end = scene._registered_return_end_s
+
+        fast_odometry = make_odometry()
+        fast_odometry.pose.pose.position.x = 20.0
+        fast_odometry.twist.twist.linear.x = 10.0
+        extended = scene._extend_registered_return_for_speed(fast_odometry)
+
+        self.assertTrue(extended)
+        self.assertGreater(scene._registered_return_end_s, original_end)
+        self.assertGreater(abs(scene._interpolate_registered_shift(40.0)), 0.05)
 
 
 if __name__ == "__main__":

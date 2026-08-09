@@ -642,7 +642,7 @@ class BehaviorPathPlanner:
                 route_target.section_index,
                 route_target.target_lane_id,
             )
-            reference = build_route_lane_change_path(
+            candidate = build_route_lane_change_path(
                 reference,
                 self.centerline_map,
                 self.odometry.pose.pose,
@@ -657,6 +657,8 @@ class BehaviorPathPlanner:
                 pose_to_point3(self.route.goal_pose),
                 self.stop_at_goal,
             )
+            if candidate is not None:
+                reference = candidate
 
         self.forward_path_length = local_forward_length
         reference.header.stamp = stamp
@@ -1062,6 +1064,14 @@ class BehaviorPathPlanner:
                 pose_to_point3(self.route.goal_pose),
                 self.stop_at_goal,
             )
+            if candidate is None:
+                self.lane_change_rtc_controller.complete(stamp)
+                self.active_route_lane_change_target = None
+                return (
+                    path,
+                    "lane_change: pass-through, route target is not local or candidate is invalid",
+                    TurnIndicatorsCommand.NO_COMMAND,
+                )
             safe = self.is_lane_change_safe(path, target_offset)
             return self.apply_lane_change_rtc_gate(
                 path,
