@@ -93,6 +93,10 @@ fi
 batch_id="$(date +%Y%m%d_%H%M%S)"
 host_batch_dir="$REPO_ROOT/artifacts/morai_scenario_validation/batches/$batch_id"
 container_batch_dir="/home/ajou/AjouNice2026/artifacts/morai_scenario_validation/batches/$batch_id"
+runner_batch_dir="$host_batch_dir"
+if [[ "${AJOUNICE_ROS1_MODE:-auto}" == "docker" || ( "${AJOUNICE_ROS1_MODE:-auto}" == "auto" && ( ! -f /opt/ros/noetic/setup.bash || ! -f "$REPO_ROOT/base_ws/devel/setup.bash" ) ) ]]; then
+  runner_batch_dir="$container_batch_dir"
+fi
 mkdir -p "$host_batch_dir"
 
 overall_status=0
@@ -105,7 +109,7 @@ for speed in "${SPEEDS[@]}"; do
     --velocity-kph "$speed"
     --scenario-service "$SCENARIO_SERVICE"
     --scenario-timeout "$SCENARIO_TIMEOUT"
-    --output-dir "$container_batch_dir"
+    --output-dir "$runner_batch_dir"
   )
   if [[ "$WITH_ROSBAG" != true ]]; then
     runner_args+=(--no-rosbag)
@@ -115,6 +119,11 @@ for speed in "${SPEEDS[@]}"; do
     overall_status=1
   fi
 done
+
+if ! compgen -G "$host_batch_dir/*/summary.json" >/dev/null; then
+  echo "No validation session was created; see the error above." >&2
+  exit 1
+fi
 
 python3 "$SCRIPT_DIR/summarize_morai_scenario_validation.py" \
   --input-root "$host_batch_dir" \

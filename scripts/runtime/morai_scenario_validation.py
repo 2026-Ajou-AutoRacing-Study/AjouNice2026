@@ -28,12 +28,11 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.parse import urlparse
 
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SCENARIO_DIR = Path("/morai_scenarios")
-DEFAULT_OUTPUT_DIR = Path(
-    "/home/ajou/AjouNice2026/artifacts/morai_scenario_validation"
-)
-DEFAULT_HISTORY_DIR = Path(
-    "/home/ajou/AjouNice2026/base_ws/src/control/trajectory_validator/history"
+DEFAULT_OUTPUT_DIR = REPOSITORY_ROOT / "artifacts/morai_scenario_validation"
+DEFAULT_HISTORY_DIR = (
+    REPOSITORY_ROOT / "base_ws/src/control/trajectory_validator/history"
 )
 DEFAULT_TRAJECTORY_REFERENCE = "traj_sample/variable/200889_200889_v.csv"
 DRIVABLE_PATH_TOPIC = (
