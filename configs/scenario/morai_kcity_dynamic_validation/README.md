@@ -36,8 +36,8 @@ MORAI_SCENARIO_DIR="$MORAI_SCENARIO_DIR" \
 파일명의 `ego40`은 MORAI JSON 속도가 아니라 플래너 실행 속도다. 따라서
 `ego40` 파일은 항상 `--velocity-kph 40`과 짝지어 실행한다.
 
-MORAI를 켜고 Ego Network를 연결한 상태에서 실행한다. Service Model의 시나리오
-로드 서비스 기본값은 `/Service_MoraiSL`이며, 실행 결과는
+MORAI를 켜고 Ego Network를 연결한 상태에서 실행한다. 검증 러너는 Service Model의
+`/Service_MoraiSL`과 Publish-Subscribe Model의 `/ScenarioLoad`을 자동 감지한다. 실행 결과는
 `artifacts/morai_scenario_validation/<실행시각>/results.csv`와 `summary.json`에
 저장된다. 전체 속도 조건을 자동 실행하고 하나의 결과표로 합치려면 다음을 사용한다.
 

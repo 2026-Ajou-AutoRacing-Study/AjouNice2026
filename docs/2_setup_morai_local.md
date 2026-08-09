@@ -230,7 +230,8 @@ MORAI를 열어 K-City 맵을 선택한 뒤 `Edit > Network Settings > Ego Netwo
 연결하고, Ego 제어 모드를 `AV-ExternalCtrl`로 둔다. 검증 러너가 ROS master와
 플래너·제어기를 직접 시작하므로, 실행 전에 기존 AJOUNICE ROS 스택은 모두 종료해야
 한다. MORAI Service Model의 시나리오 로드 서비스는 `/Service_MoraiSL`이며,
-`/ScenarioLoad`는 같은 기능의 토픽 이름이므로 서비스 인자로 사용하지 않는다.
+Publish-Subscribe Model의 시나리오 로드 토픽은 `/ScenarioLoad`다. 검증 러너는 두
+방식을 자동 감지하므로 현재 MORAI Network Settings를 서비스 모델로 바꿀 필요가 없다.
 
 먼저 한 조건만 자동으로 검증한다. `ego20` 파일은 반드시 `--velocity-kph 20`과
 짝지어 실행한다.

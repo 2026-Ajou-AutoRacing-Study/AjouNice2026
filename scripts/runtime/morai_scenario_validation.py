@@ -402,6 +402,7 @@ def atomic_csv(path: Path, rows: Sequence[Dict[str, Any]], columns: Sequence[str
 RESULT_COLUMNS = (
     "session_id",
     "scenario",
+    "scenario_load_transport",
     "kind",
     "actor",
     "location",
@@ -445,6 +446,7 @@ def result_table_row(summary: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "session_id": summary.get("session_id", ""),
         "scenario": summary.get("scenario", ""),
+        "scenario_load_transport": summary.get("scenario_load_transport", ""),
         "kind": parameters.get("kind", ""),
         "actor": parameters.get("actor", "") or "",
         "location": parameters.get("location", "") or "",
@@ -688,6 +690,63 @@ def wait_for_node(node_name: str, process: ManagedProcess, timeout: float) -> No
     )
 
 
+def wait_for_scenario_transport(
+    rospy: Any, args: argparse.Namespace, topic_publisher: Any
+) -> str:
+    """Choose MORAI's available ScenarioLoad transport without UI changes.
+
+    MORAI exposes ScenarioLoad either as the Service Model service
+    ``/Service_MoraiSL`` or as a Publish-Subscribe Model subscriber on
+    ``/ScenarioLoad``.  The latter cannot acknowledge a request, but it is the
+    correct transport for the default Ego/Simulator Network topic setup.
+    """
+    deadline = time.monotonic() + args.startup_timeout
+    while time.monotonic() < deadline:
+        service_ready = False
+        if args.scenario_transport != "topic":
+            try:
+                service_ready = args.scenario_service in run_checked(
+                    ("rosservice", "list"), timeout=2.0
+                ).splitlines()
+            except (ValidationError, subprocess.TimeoutExpired):
+                pass
+        topic_ready = (
+            args.scenario_transport != "service"
+            and topic_publisher.get_num_connections() > 0
+        )
+        if service_ready:
+            return "service"
+        if topic_ready:
+            return "topic"
+        if rospy.is_shutdown():
+            break
+        time.sleep(0.25)
+    if args.scenario_transport == "service":
+        target = "service {}".format(args.scenario_service)
+    elif args.scenario_transport == "topic":
+        target = "subscriber on topic {}".format(args.scenario_topic)
+    else:
+        target = "service {} or subscriber on topic {}".format(
+            args.scenario_service, args.scenario_topic
+        )
+    raise ValidationError(
+        "timeout exceeded while waiting for MORAI ScenarioLoad {}".format(target)
+    )
+
+
+def make_scenario_load_message(message_type: Any, scenario_name: str) -> Any:
+    message = message_type()
+    message.file_name = scenario_name
+    message.load_network_connection_data = False
+    message.delete_all = True
+    message.load_ego_vehicle_data = True
+    message.load_surrounding_vehicle_data = True
+    message.load_pedestrian_data = True
+    message.load_obstacle_data = True
+    message.set_pause = False
+    return message
+
+
 def metadata_snapshot(history_root: Path) -> Set[Path]:
     if not history_root.is_dir():
         return set()
@@ -776,7 +835,11 @@ def print_dry_run(
     for name in ("roscore", "udp", "sensing", "localization", "planner"):
         print("  {}: {}".format(name, shell_join(commands[name])))
     print("\nPer scenario:")
-    print("  1. call {} with the scenario filename".format(args.scenario_service))
+    print(
+        "  1. auto-select {} or {} and load the scenario filename".format(
+            args.scenario_service, args.scenario_topic
+        )
+    )
     print("  2. {}".format(shell_join(commands["kroute"])))
     print("  3. rosbag record -> <session>/<scenario>/topics.bag")
     print("  4. {}".format(shell_join(commands["validator"])))
@@ -840,7 +903,15 @@ def assert_critical_processes(processes: Iterable[ManagedProcess]) -> None:
 
 def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
     require_commands(
-        ("roscore", "roslaunch", "rosnode", "rostopic", "rosbag", "rosparam")
+        (
+            "roscore",
+            "roslaunch",
+            "rosnode",
+            "rosservice",
+            "rostopic",
+            "rosbag",
+            "rosparam",
+        )
     )
     master_uri = os.environ.get("ROS_MASTER_URI", "http://127.0.0.1:11311")
     master_host, master_port = master_endpoint(master_uri)
@@ -882,6 +953,7 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
             CtrlCmd,
             EgoVehicleStatus,
             ObjectStatusList,
+            ScenarioLoad,
         )
         from morai_msgs.srv import MoraiScenarioLoadSrv, MoraiScenarioLoadSrvRequest
         from nav_msgs.msg import Odometry
@@ -1069,9 +1141,24 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
             "/planning/mission_planning/mission_planner/set_lanelet_route",
             timeout=args.startup_timeout,
         )
-        rospy.wait_for_service(args.scenario_service, timeout=args.startup_timeout)
-        scenario_loader = rospy.ServiceProxy(
-            args.scenario_service, MoraiScenarioLoadSrv, persistent=False
+        scenario_topic_publisher = rospy.Publisher(
+            args.scenario_topic, ScenarioLoad, queue_size=1
+        )
+        scenario_transport = wait_for_scenario_transport(
+            rospy, args, scenario_topic_publisher
+        )
+        scenario_loader = None
+        if scenario_transport == "service":
+            scenario_loader = rospy.ServiceProxy(
+                args.scenario_service, MoraiScenarioLoadSrv, persistent=False
+            )
+        print(
+            "[ready] MORAI ScenarioLoad transport: {} ({})".format(
+                scenario_transport,
+                args.scenario_service
+                if scenario_transport == "service"
+                else args.scenario_topic,
+            )
         )
 
         critical_shared = (core, udp, sensing, localization, planner)
@@ -1142,20 +1229,18 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
             try:
                 assert_critical_processes(critical_shared)
 
-                request = MoraiScenarioLoadSrvRequest()
-                request.request.file_name = scenario.name
-                request.request.load_network_connection_data = False
-                request.request.delete_all = True
-                request.request.load_ego_vehicle_data = True
-                request.request.load_surrounding_vehicle_data = True
-                request.request.load_pedestrian_data = True
-                request.request.load_obstacle_data = True
-                request.request.set_pause = False
-                response = scenario_loader(request)
-                if not bool(response.response.result):
-                    raise ValidationError(
-                        "MORAI rejected scenario load: {}".format(scenario.name)
-                    )
+                load_message = make_scenario_load_message(ScenarioLoad, scenario.name)
+                if scenario_transport == "service":
+                    request = MoraiScenarioLoadSrvRequest()
+                    request.request = load_message
+                    response = scenario_loader(request)
+                    if not bool(response.response.result):
+                        raise ValidationError(
+                            "MORAI rejected scenario load: {}".format(scenario.name)
+                        )
+                else:
+                    scenario_topic_publisher.publish(load_message)
+                    time.sleep(args.scenario_load_settle_seconds)
 
                 with monitor_lock:
                     goal_state["active"] = True
@@ -1373,6 +1458,7 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
                 "scenario": scenario.name,
                 "scenario_index": index,
                 "scenario_parameters": parameters,
+                "scenario_load_transport": scenario_transport,
                 "started_at": scenario_started.isoformat(),
                 "finished_at": datetime.now().astimezone().isoformat(),
                 "end_reason": end_reason,
@@ -1491,6 +1577,17 @@ def parse_args() -> argparse.Namespace:
             "/Service_MoraiSL, while /ScenarioLoad is a topic"
         ),
     )
+    parser.add_argument(
+        "--scenario-topic",
+        default="/ScenarioLoad",
+        help="MORAI Publish-Subscribe Model ScenarioLoad topic",
+    )
+    parser.add_argument(
+        "--scenario-transport",
+        choices=("auto", "service", "topic"),
+        default="auto",
+        help="prefer the available MORAI ScenarioLoad service or topic (default: auto)",
+    )
     parser.add_argument("--velocity-kph", type=float, default=10.0)
     parser.add_argument(
         "--goal-x",
@@ -1533,6 +1630,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--settle-seconds", type=float, default=2.0)
     parser.add_argument("--route-settle-seconds", type=float, default=2.0)
     parser.add_argument("--post-collision-seconds", type=float, default=2.0)
+    parser.add_argument(
+        "--scenario-load-settle-seconds",
+        type=float,
+        default=1.0,
+        help="wait after topic-based scenario load because that transport has no response",
+    )
     parser.add_argument(
         "--dynamic-reaction-policy",
         choices=("auto", "required", "ignore"),
@@ -1615,6 +1718,7 @@ def parse_args() -> argparse.Namespace:
         "settle_seconds": 0.0,
         "route_settle_seconds": 0.0,
         "post_collision_seconds": 0.0,
+        "scenario_load_settle_seconds": 0.0,
         "dynamic_encounter_distance": 0.001,
         "dynamic_stop_speed_threshold": 0.0,
         "dynamic_resume_speed_threshold": 0.001,

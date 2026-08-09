@@ -14,6 +14,7 @@ if str(RUNTIME_DIR) not in sys.path:
 
 from morai_scenario_validation import (  # noqa: E402
     DynamicReactionMonitor,
+    make_scenario_load_message,
     object_counts,
     result_table_row,
     scenario_parameters,
@@ -66,6 +67,21 @@ class MoraiScenarioValidationTest(unittest.TestCase):
         counts = object_counts(object_message(pedestrian=(object_at(3.0, 2.0),)))
         self.assertEqual({"npc": 0, "pedestrian": 1, "obstacle": 0}, counts)
         self.assertEqual(1, sum(counts.values()))
+
+    def test_topic_scenario_load_uses_all_dynamic_object_flags(self):
+        message = make_scenario_load_message(
+            Value, "dynamic_kid_loc01_obj02_front_crosswalk_ego20_act12_pos001.json"
+        )
+        self.assertEqual(
+            "dynamic_kid_loc01_obj02_front_crosswalk_ego20_act12_pos001.json",
+            message.file_name,
+        )
+        self.assertTrue(message.delete_all)
+        self.assertTrue(message.load_ego_vehicle_data)
+        self.assertTrue(message.load_surrounding_vehicle_data)
+        self.assertTrue(message.load_pedestrian_data)
+        self.assertTrue(message.load_obstacle_data)
+        self.assertFalse(message.set_pause)
 
     def test_dynamic_reaction_requires_encounter_stop_and_resume(self):
         monitor = DynamicReactionMonitor(
