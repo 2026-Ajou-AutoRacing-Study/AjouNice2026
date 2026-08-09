@@ -28,12 +28,26 @@ MORAI의 `Scenario Load`에서 JSON 파일을 불러오거나, ROS 검증 실행
 ```bash
 MORAI_SCENARIO_DIR="$MORAI_SCENARIO_DIR" \
   scripts/runtime/run_morai_scenario_validation.sh \
+  --execute \
   --velocity-kph 40 \
   --scenario dynamic_car_left_obj30_arrow_tip_ego40_pos001.json
 ```
 
 파일명의 `ego40`은 MORAI JSON 속도가 아니라 플래너 실행 속도다. 따라서
 `ego40` 파일은 항상 `--velocity-kph 40`과 짝지어 실행한다.
+
+MORAI를 켜고 Ego Network를 연결한 상태에서 실행한다. Service Model의 시나리오
+로드 서비스 기본값은 `/Service_MoraiSL`이며, 실행 결과는
+`artifacts/morai_scenario_validation/<실행시각>/results.csv`와 `summary.json`에
+저장된다. 전체 속도 조건을 자동 실행하고 하나의 결과표로 합치려면 다음을 사용한다.
+
+```bash
+scripts/runtime/run_morai_scenario_batch_validation.sh --execute
+```
+
+배치 결과는 `artifacts/morai_scenario_validation/batches/<실행시각>/results.csv`와
+`summary.md`에 기록된다. 기본 배치는 디스크 사용량을 줄이기 위해 rosbag을 남기지
+않으며, 모든 케이스의 bag이 필요할 때만 `--with-rosbag`을 추가한다.
 
 ## 파일명 규칙
 

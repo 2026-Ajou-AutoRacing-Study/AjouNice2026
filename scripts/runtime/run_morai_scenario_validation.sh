@@ -3,7 +3,9 @@ set -euo pipefail
 
 # Host-side entry point.  MORAI itself runs on the host; the ROS1 validation
 # stack runs in the project Noetic image with host networking.
-REPO_ROOT="${AJOUNICE_REPO_ROOT:-$HOME/AjouNice2026}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="${AJOUNICE_REPO_ROOT:-$DEFAULT_REPO_ROOT}"
 SCENARIO_DIR="${MORAI_SCENARIO_DIR:-$HOME/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025}"
 IMAGE="${AJOUNICE_ROS1_IMAGE:-ajounice2026-ros1:noetic}"
 PROFILE_FILE="${AJOUNICE_ROS1_PROFILE:-$HOME/.local/share/ajounice2026/ros1_noetic/ajou_ros1.bash}"

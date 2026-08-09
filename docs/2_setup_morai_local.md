@@ -224,6 +224,66 @@ python3 scripts/runtime/generate_morai_vehicle_intersection_scenarios.py --sync-
 좌측 Spawn Point는 `3초`마다 `10 km/h` 대상 차량을 생성하며, `ego10`은 플래너를
 `default_velocity_kph:=10`으로 실행해야 한다는 뜻이다.
 
+## MORAI 동적 시나리오 자동 검증 및 결과표
+
+MORAI를 열어 K-City 맵을 선택한 뒤 `Edit > Network Settings > Ego Network`를
+연결하고, Ego 제어 모드를 `AV-ExternalCtrl`로 둔다. 검증 러너가 ROS master와
+플래너·제어기를 직접 시작하므로, 실행 전에 기존 AJOUNICE ROS 스택은 모두 종료해야
+한다. MORAI Service Model의 시나리오 로드 서비스는 `/Service_MoraiSL`이며,
+`/ScenarioLoad`는 같은 기능의 토픽 이름이므로 서비스 인자로 사용하지 않는다.
+
+먼저 한 조건만 자동으로 검증한다. `ego20` 파일은 반드시 `--velocity-kph 20`과
+짝지어 실행한다.
+
+```bash
+cd ~/Desktop/AjouNice2026
+
+MORAI_SCENARIO_DIR="$HOME/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025" \
+  scripts/runtime/run_morai_scenario_validation.sh \
+  --execute \
+  --scenario dynamic_kid_loc01_obj02_front_crosswalk_ego20_act12_pos001.json \
+  --velocity-kph 20
+```
+
+러너는 각 파일을 MORAI 서비스로 로드하고, UDP·인지·위치추정·플래너·경로 발행기·제어기를
+순서대로 실행한다. 동적 `dynamic_*` 시나리오는 다음을 모두 만족해야 통과한다.
+
+- MORAI의 NPC·보행자·장애물 목록 중 하나가 실제로 수신됨
+- 에고와 객체가 기본 `18 m` 안에서 만난 뒤, 에고가 `0.3 m/s` 이하로 정지함
+- 객체 정지 뒤 에고가 `0.7 m/s` 이상으로 다시 출발함
+- 충돌·차선 이탈·목표 미도달이 없음
+
+기본값은 보행자 대기 자체를 실패로 처리하지 않는다. 장시간 멈춤도 별도 실패로
+확인하려면 `--stopped-duration 10`처럼 지정한다. 객체가 지나가기 전에 시나리오가
+끝나는 특수 케이스는 `--dynamic-no-require-resume`을 사용한다.
+
+전체 검증은 플래너 속도별로 ROS 스택을 새로 띄운다. 기본 실행은 모든 속도
+`5,10,20,30,40,50,60 km/h`를 대상으로 하고, 디스크 사용량을 줄이기 위해 rosbag은
+기록하지 않는다. 처음에는 한 속도만 실행하는 편이 좋다.
+
+```bash
+# 실행 계획만 출력
+scripts/runtime/run_morai_scenario_batch_validation.sh
+
+# ego20 조건(보행자 300개 + 차량 36개)을 실제 실행
+scripts/runtime/run_morai_scenario_batch_validation.sh --execute --speed 20
+
+# 전체 2,316개 조건 실행. 실패해도 다음 속도 묶음으로 계속 진행한다.
+scripts/runtime/run_morai_scenario_batch_validation.sh --execute
+```
+
+배치가 끝나면 `artifacts/morai_scenario_validation/batches/<실행시각>/`에 다음 결과가
+자동 생성된다.
+
+- `results.csv`: 조건별 통과·충돌·정지·재출발·실패 사유 표
+- `summary.md`: 통과/실패/충돌/동적 객체 반응 실패 집계
+- `summary.json`: 다른 분석 도구에서 읽을 수 있는 집계값
+- 각 속도 세션의 `summary.json`, `results.csv`, `logs/` 및 선택 시 `topics.bag`
+
+모든 케이스의 rosbag이 필요할 때만 배치 명령에 `--with-rosbag`을 추가한다. 먼저
+rosbag 없이 전체 표를 만들고 실패 시나리오만 단일 러너로 다시 실행해 bag을 남기는
+방식을 권장한다.
+
 ## 실제 토픽 값 잘 나오고, 잘 변하는지 테스트
 
 ### /Ego_topic/position 테스트

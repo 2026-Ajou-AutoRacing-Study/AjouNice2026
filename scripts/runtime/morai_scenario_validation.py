@@ -7,6 +7,7 @@ using the host ROS master/UDP ports.
 """
 
 import argparse
+import csv
 import json
 import math
 import os
@@ -55,10 +56,262 @@ DEFAULT_TOPICS = (
 
 SAFE_COMPONENT = re.compile(r"[^0-9A-Za-z._-]+")
 POSITION_SUFFIX = re.compile(r"_pos(\d+)$", re.IGNORECASE)
+CROSSWALK_SCENARIO = re.compile(
+    r"^dynamic_(?P<actor>kid|adult|bicycle|deer|dog|human_dog)"
+    r"_loc(?P<location>\d+)"
+    r"_obj(?P<object_speed>[0-9p]+)"
+    r"_(?P<crosswalk>front|opposite)_crosswalk"
+    r"_ego(?P<ego_speed>[0-9p]+)"
+    r"_act(?P<activation_distance>[0-9p]+)"
+    r"_pos(?P<position>\d+)$",
+    re.IGNORECASE,
+)
+VEHICLE_SCENARIO = re.compile(
+    r"^dynamic_car_(?P<location>left|right)"
+    r"_obj(?P<object_speed>[0-9p]+)"
+    r"_(?P<trigger>before_stopline|arrow_tip|first_dashed_line)"
+    r"_ego(?P<ego_speed>[0-9p]+)"
+    r"_pos(?P<position>\d+)$",
+    re.IGNORECASE,
+)
+OBJECT_GROUPS = (
+    ("npc", "npc_list", "num_of_npcs"),
+    ("pedestrian", "pedestrian_list", "num_of_pedestrian"),
+    ("obstacle", "obstacle_list", "num_of_obstacle"),
+)
 
 
 class ValidationError(RuntimeError):
     """Raised when the validation cannot continue safely."""
+
+
+def scenario_parameters(scenario: Path) -> Dict[str, Any]:
+    """Extract the generated validation dimensions from a scenario filename."""
+    result: Dict[str, Any] = {
+        "kind": "other",
+        "is_dynamic": False,
+        "actor": None,
+        "location": None,
+        "crosswalk": None,
+        "trigger": None,
+        "object_speed_kph": None,
+        "ego_speed_kph": None,
+        "activation_distance_m": None,
+        "position": None,
+    }
+    match = CROSSWALK_SCENARIO.match(scenario.stem)
+    if match:
+        groups = match.groupdict()
+        result.update(
+            {
+                "kind": "crosswalk_dynamic_object",
+                "is_dynamic": True,
+                "actor": groups["actor"].lower(),
+                "location": "loc" + groups["location"],
+                "crosswalk": groups["crosswalk"].lower(),
+                "object_speed_kph": float(groups["object_speed"].replace("p", ".")),
+                "ego_speed_kph": float(groups["ego_speed"].replace("p", ".")),
+                "activation_distance_m": float(
+                    groups["activation_distance"].replace("p", ".")
+                ),
+                "position": int(groups["position"]),
+            }
+        )
+        return result
+
+    match = VEHICLE_SCENARIO.match(scenario.stem)
+    if match:
+        groups = match.groupdict()
+        result.update(
+            {
+                "kind": "intersection_vehicle",
+                "is_dynamic": True,
+                "actor": "car",
+                "location": groups["location"].lower(),
+                "trigger": groups["trigger"].lower(),
+                "object_speed_kph": float(groups["object_speed"].replace("p", ".")),
+                "ego_speed_kph": float(groups["ego_speed"].replace("p", ".")),
+                "position": int(groups["position"]),
+            }
+        )
+    return result
+
+
+def object_groups(message: Any) -> Dict[str, List[Any]]:
+    """Read all MORAI object categories; pedestrians are not obstacles."""
+    return {
+        name: list(getattr(message, list_name, []) or [])
+        for name, list_name, _count_name in OBJECT_GROUPS
+    }
+
+
+def object_counts(message: Any) -> Dict[str, int]:
+    """Return robust object counts from message lists and MORAI count fields."""
+    groups = object_groups(message)
+    counts = {}
+    for name, _list_name, count_name in OBJECT_GROUPS:
+        try:
+            reported = int(getattr(message, count_name, 0))
+        except (TypeError, ValueError):
+            reported = 0
+        counts[name] = max(len(groups[name]), reported, 0)
+    return counts
+
+
+def distance_xy(first: Tuple[float, float], second: Tuple[float, float]) -> float:
+    return math.hypot(first[0] - second[0], first[1] - second[1])
+
+
+@dataclass
+class DynamicReactionMonitor:
+    """Observe whether ego stopped for a MORAI dynamic object and resumed.
+
+    The monitor intentionally uses MORAI's Ego/Object coordinates together, so
+    it does not depend on the map-frame TF timing of the planner stack.
+    """
+
+    encounter_distance_m: float
+    stop_speed_threshold_mps: float
+    resume_speed_threshold_mps: float
+    object_freshness_seconds: float
+    require_resume: bool
+    required: bool = False
+    active: bool = False
+    last_ego_position: Optional[Tuple[float, float]] = None
+    last_ego_speed_mps: Optional[float] = None
+    has_moved: bool = False
+    object_seen_categories: Set[str] = field(default_factory=set)
+    maximum_object_counts: Dict[str, int] = field(
+        default_factory=lambda: {name: 0 for name, _list_name, _count_name in OBJECT_GROUPS}
+    )
+    encounter_detected: bool = False
+    stopped_for_dynamic_object: bool = False
+    resumed_after_dynamic_object: bool = False
+    first_encounter_at: Optional[str] = None
+    stopped_at: Optional[str] = None
+    resumed_at: Optional[str] = None
+    minimum_ego_object_distance_m: Optional[float] = None
+    _last_encounter_monotonic: Optional[float] = None
+
+    def activate(self, required: bool) -> None:
+        self.required = required
+        self.active = True
+        self.last_ego_position = None
+        self.last_ego_speed_mps = None
+        self.has_moved = False
+        self.object_seen_categories.clear()
+        self.maximum_object_counts = {
+            name: 0 for name, _list_name, _count_name in OBJECT_GROUPS
+        }
+        self.encounter_detected = False
+        self.stopped_for_dynamic_object = False
+        self.resumed_after_dynamic_object = False
+        self.first_encounter_at = None
+        self.stopped_at = None
+        self.resumed_at = None
+        self.minimum_ego_object_distance_m = None
+        self._last_encounter_monotonic = None
+
+    def deactivate(self) -> None:
+        self.active = False
+
+    def update_ego(
+        self, position: Tuple[float, float], speed_mps: float, now: float, now_iso: str
+    ) -> None:
+        self.last_ego_position = position
+        self.last_ego_speed_mps = speed_mps
+        if not self.active:
+            return
+        if speed_mps >= self.resume_speed_threshold_mps:
+            self.has_moved = True
+            if self.stopped_for_dynamic_object and not self.resumed_after_dynamic_object:
+                self.resumed_after_dynamic_object = True
+                self.resumed_at = now_iso
+        if (
+            self.has_moved
+            and self._encounter_is_fresh(now)
+            and speed_mps <= self.stop_speed_threshold_mps
+            and not self.stopped_for_dynamic_object
+        ):
+            self.stopped_for_dynamic_object = True
+            self.stopped_at = now_iso
+
+    def update_objects(self, message: Any, now: float, now_iso: str) -> None:
+        groups = object_groups(message)
+        counts = object_counts(message)
+        for category, count in counts.items():
+            self.maximum_object_counts[category] = max(
+                self.maximum_object_counts[category], count
+            )
+            if count:
+                self.object_seen_categories.add(category)
+        if not self.active or self.last_ego_position is None:
+            return
+        positions = [
+            (float(item.position.x), float(item.position.y))
+            for items in groups.values()
+            for item in items
+        ]
+        if not positions:
+            return
+        nearest = min(distance_xy(self.last_ego_position, position) for position in positions)
+        if (
+            self.minimum_ego_object_distance_m is None
+            or nearest < self.minimum_ego_object_distance_m
+        ):
+            self.minimum_ego_object_distance_m = nearest
+        if nearest <= self.encounter_distance_m:
+            self._last_encounter_monotonic = now
+            if not self.encounter_detected:
+                self.encounter_detected = True
+                self.first_encounter_at = now_iso
+            if (
+                self.has_moved
+                and self.last_ego_speed_mps is not None
+                and self.last_ego_speed_mps <= self.stop_speed_threshold_mps
+                and not self.stopped_for_dynamic_object
+            ):
+                self.stopped_for_dynamic_object = True
+                self.stopped_at = now_iso
+
+    def _encounter_is_fresh(self, now: float) -> bool:
+        return (
+            self._last_encounter_monotonic is not None
+            and now - self._last_encounter_monotonic <= self.object_freshness_seconds
+        )
+
+    def summary(self) -> Dict[str, Any]:
+        failure_reasons = []
+        object_seen = bool(self.object_seen_categories)
+        if self.required:
+            if not object_seen:
+                failure_reasons.append("dynamic_object_not_observed")
+            if not self.encounter_detected:
+                failure_reasons.append("dynamic_object_never_reached_encounter_distance")
+            if not self.stopped_for_dynamic_object:
+                failure_reasons.append("ego_never_stopped_for_dynamic_object")
+            if self.require_resume and not self.resumed_after_dynamic_object:
+                failure_reasons.append("ego_never_resumed_after_dynamic_object")
+        return {
+            "required": self.required,
+            "encounter_distance_m": self.encounter_distance_m,
+            "stop_speed_threshold_mps": self.stop_speed_threshold_mps,
+            "resume_speed_threshold_mps": self.resume_speed_threshold_mps,
+            "object_freshness_seconds": self.object_freshness_seconds,
+            "require_resume": self.require_resume,
+            "object_seen": object_seen,
+            "object_seen_categories": sorted(self.object_seen_categories),
+            "maximum_object_counts": self.maximum_object_counts,
+            "encounter_detected": self.encounter_detected,
+            "first_encounter_at": self.first_encounter_at,
+            "minimum_ego_object_distance_m": self.minimum_ego_object_distance_m,
+            "stopped_for_dynamic_object": self.stopped_for_dynamic_object,
+            "stopped_at": self.stopped_at,
+            "resumed_after_dynamic_object": self.resumed_after_dynamic_object,
+            "resumed_at": self.resumed_at,
+            "passed": not failure_reasons,
+            "failure_reasons": failure_reasons,
+        }
 
 
 def shell_join(command: Sequence[str]) -> str:
@@ -125,6 +378,119 @@ def atomic_json(path: Path, document: Dict[str, Any]) -> None:
         except FileNotFoundError:
             pass
         raise
+
+
+def atomic_csv(path: Path, rows: Sequence[Dict[str, Any]], columns: Sequence[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(
+        prefix=path.name + ".", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=list(columns), extrasaction="ignore")
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+        os.replace(temporary, path)
+    except Exception:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+RESULT_COLUMNS = (
+    "session_id",
+    "scenario",
+    "kind",
+    "actor",
+    "location",
+    "crosswalk",
+    "trigger",
+    "object_speed_kph",
+    "ego_speed_kph",
+    "activation_distance_m",
+    "position",
+    "passed",
+    "end_reason",
+    "error",
+    "collision_detected",
+    "reached_goal",
+    "stopped_too_long",
+    "lane_departure",
+    "dynamic_reaction_required",
+    "dynamic_object_seen",
+    "dynamic_object_categories",
+    "dynamic_max_npcs",
+    "dynamic_max_pedestrians",
+    "dynamic_max_obstacles",
+    "dynamic_encounter_detected",
+    "dynamic_first_encounter_at",
+    "dynamic_minimum_distance_m",
+    "dynamic_stopped",
+    "dynamic_stopped_at",
+    "dynamic_resumed",
+    "dynamic_resumed_at",
+    "dynamic_failure_reasons",
+    "scenario_summary",
+    "rosbag_file",
+)
+
+
+def result_table_row(summary: Dict[str, Any]) -> Dict[str, Any]:
+    """Flatten a per-scenario JSON result into one spreadsheet row."""
+    parameters = summary.get("scenario_parameters") or {}
+    reaction = summary.get("dynamic_reaction") or {}
+    maximum_counts = reaction.get("maximum_object_counts") or {}
+    return {
+        "session_id": summary.get("session_id", ""),
+        "scenario": summary.get("scenario", ""),
+        "kind": parameters.get("kind", ""),
+        "actor": parameters.get("actor", "") or "",
+        "location": parameters.get("location", "") or "",
+        "crosswalk": parameters.get("crosswalk", "") or "",
+        "trigger": parameters.get("trigger", "") or "",
+        "object_speed_kph": parameters.get("object_speed_kph", "") or "",
+        "ego_speed_kph": parameters.get("ego_speed_kph", "") or "",
+        "activation_distance_m": parameters.get("activation_distance_m", "") or "",
+        "position": parameters.get("position", "") or "",
+        "passed": summary.get("passed", False),
+        "end_reason": summary.get("end_reason", ""),
+        "error": summary.get("error", "") or "",
+        "collision_detected": summary.get("collision_detected", False),
+        "reached_goal": summary.get("reached_goal", False),
+        "stopped_too_long": summary.get("stopped_too_long", False),
+        "lane_departure": summary.get("lane_departure", False),
+        "dynamic_reaction_required": reaction.get("required", False),
+        "dynamic_object_seen": reaction.get("object_seen", False),
+        "dynamic_object_categories": ";".join(
+            reaction.get("object_seen_categories", [])
+        ),
+        "dynamic_max_npcs": maximum_counts.get("npc", 0),
+        "dynamic_max_pedestrians": maximum_counts.get("pedestrian", 0),
+        "dynamic_max_obstacles": maximum_counts.get("obstacle", 0),
+        "dynamic_encounter_detected": reaction.get("encounter_detected", False),
+        "dynamic_first_encounter_at": reaction.get("first_encounter_at", "") or "",
+        "dynamic_minimum_distance_m": reaction.get(
+            "minimum_ego_object_distance_m", ""
+        ),
+        "dynamic_stopped": reaction.get("stopped_for_dynamic_object", False),
+        "dynamic_stopped_at": reaction.get("stopped_at", "") or "",
+        "dynamic_resumed": reaction.get("resumed_after_dynamic_object", False),
+        "dynamic_resumed_at": reaction.get("resumed_at", "") or "",
+        "dynamic_failure_reasons": ";".join(reaction.get("failure_reasons", [])),
+        "scenario_summary": summary.get("summary_file", ""),
+        "rosbag_file": summary.get("rosbag_file", "") or "",
+    }
+
+
+def write_session_results_table(session_dir: Path, summaries: Sequence[Dict[str, Any]]) -> Path:
+    """Write a spreadsheet-ready table beside the aggregate session JSON."""
+    table_path = session_dir / "results.csv"
+    rows = [result_table_row(summary) for summary in summaries]
+    atomic_csv(table_path, rows, RESULT_COLUMNS)
+    return table_path
 
 
 def discover_scenarios(
@@ -427,11 +793,19 @@ def print_dry_run(
         )
     )
     print(
-        "     fail if speed <= {:.2f}m/s for {:.1f}s, or outside BPP "
-        "drivable bounds for {:.1f}s".format(
-            args.stopped_speed_threshold,
+        "     fail if an unexpected stop lasts {:.1f}s (0 disables it), or outside "
+        "BPP drivable bounds for {:.1f}s".format(
             args.stopped_duration,
             args.lane_departure_duration,
+        )
+    )
+    print(
+        "     dynamic scenarios require object observation within {:.1f}m, a stop "
+        "at <= {:.2f}m/s, and resume={} (policy={})".format(
+            args.dynamic_encounter_distance,
+            args.dynamic_stop_speed_threshold,
+            args.dynamic_require_resume,
+            args.dynamic_reaction_policy,
         )
     )
     print("\nPass --execute to perform this plan.")
@@ -550,6 +924,13 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
             "maximum_continuous_outside_s": 0.0,
             "failed_at": None,
         }
+        reaction_monitor = DynamicReactionMonitor(
+            encounter_distance_m=args.dynamic_encounter_distance,
+            stop_speed_threshold_mps=args.dynamic_stop_speed_threshold,
+            resume_speed_threshold_mps=args.dynamic_resume_speed_threshold,
+            object_freshness_seconds=args.dynamic_object_freshness,
+            require_resume=args.dynamic_require_resume,
+        )
 
         def collision_callback(message: Any) -> None:
             objects = list(message.collision_object) + list(message.collision_objecta)
@@ -593,13 +974,23 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
                         stopped_state["maximum_continuous_stopped_s"] = max(
                             stopped_state["maximum_continuous_stopped_s"], duration
                         )
-                        if duration >= args.stopped_duration:
+                        if (
+                            args.stopped_duration > 0.0
+                            and duration >= args.stopped_duration
+                        ):
                             if stopped_state["failed_at"] is None:
                                 stopped_state["failed_at"] = now_iso
                             stopped_event.set()
                     else:
                         stopped_state["stopped_since_monotonic"] = None
                         stopped_state["continuous_stopped_s"] = 0.0
+                reaction_monitor.update_ego((x, y), speed, now_monotonic, now_iso)
+
+        def object_callback(message: Any) -> None:
+            now_monotonic = time.monotonic()
+            now_iso = datetime.now().astimezone().isoformat()
+            with monitor_lock:
+                reaction_monitor.update_objects(message, now_monotonic, now_iso)
 
         def drivable_path_callback(message: Any) -> None:
             left = [(float(item.x), float(item.y)) for item in message.left_bound]
@@ -647,6 +1038,9 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
         ego_goal_subscriber = rospy.Subscriber(
             "/Ego_topic", EgoVehicleStatus, ego_goal_callback, queue_size=20
         )
+        object_subscriber = rospy.Subscriber(
+            "/Object_topic", ObjectStatusList, object_callback, queue_size=20
+        )
         drivable_path_subscriber = rospy.Subscriber(
             DRIVABLE_PATH_TOPIC,
             PathWithLaneId,
@@ -693,6 +1087,11 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
                 "\n=== Scenario {}/{}: {} ===".format(index, len(scenarios), scenario.name)
             )
             scenario_started = datetime.now().astimezone()
+            parameters = scenario_parameters(scenario)
+            reaction_required = args.dynamic_reaction_policy == "required" or (
+                args.dynamic_reaction_policy == "auto"
+                and bool(parameters["is_dynamic"])
+            )
             scenario_dir = session_dir / safe_component(scenario.stem)
             scenario_dir.mkdir(parents=True, exist_ok=False)
             logs = scenario_dir / "logs"
@@ -768,9 +1167,10 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
                 object_message = rospy.wait_for_message(
                     "/Object_topic", ObjectStatusList, timeout=args.startup_timeout
                 )
-                if int(object_message.num_of_obstacle) <= 0:
+                loaded_counts = object_counts(object_message)
+                if sum(loaded_counts.values()) <= 0:
                     raise ValidationError(
-                        "loaded scenario reports no MORAI obstacles: {}".format(
+                        "loaded scenario reports no MORAI dynamic objects: {}".format(
                             scenario.name
                         )
                     )
@@ -844,6 +1244,7 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
                     ):
                         stopped_state["stopped_since_monotonic"] = time.monotonic()
                     lane_state["active"] = True
+                    reaction_monitor.activate(reaction_required)
 
                 deadline = time.monotonic() + args.scenario_timeout
                 while time.monotonic() < deadline:
@@ -898,6 +1299,7 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
                     goal_state["active"] = False
                     stopped_state["active"] = False
                     lane_state["active"] = False
+                    reaction_monitor.deactivate()
                 follower_process = next(
                     (item for item in per_scenario if item.name == "follower"), None
                 )
@@ -959,9 +1361,19 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
                         "maximum_continuous_outside_s"
                     ],
                 }
+                dynamic_reaction_data = reaction_monitor.summary()
+            if (
+                error_message is None
+                and end_reason == "goal_reached"
+                and not dynamic_reaction_data["passed"]
+            ):
+                end_reason = "dynamic_reaction_failed"
+            scenario_summary_path = scenario_dir / "summary.json"
             summary: Dict[str, Any] = {
+                "session_id": session_id,
                 "scenario": scenario.name,
                 "scenario_index": index,
+                "scenario_parameters": parameters,
                 "started_at": scenario_started.isoformat(),
                 "finished_at": datetime.now().astimezone().isoformat(),
                 "end_reason": end_reason,
@@ -976,10 +1388,12 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
                     and not collision_detected
                     and not stopped_too_long
                     and not lane_departure
+                    and dynamic_reaction_data["passed"]
                 ),
                 "fixed_goal": fixed_goal_data,
                 "stopped_failure": stopped_data,
                 "lane_departure_failure": lane_departure_data,
+                "dynamic_reaction": dynamic_reaction_data,
                 "validator_finished_before_fixed_goal": (
                     validator_finished_before_goal
                 ),
@@ -987,9 +1401,10 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
                 "rosbag_file": str(scenario_dir / "topics.bag")
                 if not args.no_rosbag
                 else None,
+                "summary_file": str(scenario_summary_path),
                 "validator": validator_data,
             }
-            atomic_json(scenario_dir / "summary.json", summary)
+            atomic_json(scenario_summary_path, summary)
             session_results.append(summary)
 
             if not summary["passed"] and args.fail_fast:
@@ -1010,11 +1425,20 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
             "lane_departures": sum(
                 1 for item in session_results if item["lane_departure"]
             ),
+            "dynamic_reaction_failures": sum(
+                1
+                for item in session_results
+                if item["dynamic_reaction"]["required"]
+                and not item["dynamic_reaction"]["passed"]
+            ),
             "errors": sum(1 for item in session_results if item["error"]),
             "results": session_results,
         }
+        results_csv = write_session_results_table(session_dir, session_results)
+        aggregate["results_csv"] = str(results_csv)
         atomic_json(session_dir / "summary.json", aggregate)
         print("\nSession summary: {}".format(session_dir / "summary.json"))
+        print("Session results table: {}".format(results_csv))
         return 1 if aggregate["failed"] else 0
 
     finally:
@@ -1060,7 +1484,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--history-dir", type=Path, default=DEFAULT_HISTORY_DIR
     )
-    parser.add_argument("--scenario-service", default="/ScenarioLoad")
+    parser.add_argument(
+        "--scenario-service",
+        default="/Service_MoraiSL",
+        help=(
+            "MORAI ScenarioLoad service; MORAI Service Model normally exposes "
+            "/Service_MoraiSL, while /ScenarioLoad is a topic"
+        ),
+    )
     parser.add_argument("--velocity-kph", type=float, default=10.0)
     parser.add_argument(
         "--goal-x",
@@ -1083,8 +1514,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--stopped-duration",
         type=float,
-        default=10.0,
-        help="fail after this many continuous stopped seconds",
+        default=0.0,
+        help="fail after this many unexpected continuous stopped seconds; 0 disables it",
     )
     parser.add_argument(
         "--stopped-speed-threshold",
@@ -1103,6 +1534,50 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--settle-seconds", type=float, default=2.0)
     parser.add_argument("--route-settle-seconds", type=float, default=2.0)
     parser.add_argument("--post-collision-seconds", type=float, default=2.0)
+    parser.add_argument(
+        "--dynamic-reaction-policy",
+        choices=("auto", "required", "ignore"),
+        default="auto",
+        help="require stop/resume for generated dynamic_* scenarios, every scenario, or none",
+    )
+    parser.add_argument(
+        "--dynamic-encounter-distance",
+        type=float,
+        default=18.0,
+        help="MORAI Ego/Object distance that begins a dynamic-object encounter (m)",
+    )
+    parser.add_argument(
+        "--dynamic-stop-speed-threshold",
+        type=float,
+        default=0.3,
+        help="speed at or below which ego is considered stopped for a dynamic object (m/s)",
+    )
+    parser.add_argument(
+        "--dynamic-resume-speed-threshold",
+        type=float,
+        default=0.7,
+        help="speed at or above which ego is considered resumed after a dynamic object (m/s)",
+    )
+    parser.add_argument(
+        "--dynamic-object-freshness",
+        type=float,
+        default=1.0,
+        help="seconds an observed nearby dynamic object remains associated with an ego stop",
+    )
+    resume_group = parser.add_mutually_exclusive_group()
+    resume_group.add_argument(
+        "--dynamic-require-resume",
+        dest="dynamic_require_resume",
+        action="store_true",
+        help="require ego to resume after stopping for a dynamic object (default)",
+    )
+    resume_group.add_argument(
+        "--dynamic-no-require-resume",
+        dest="dynamic_require_resume",
+        action="store_false",
+        help="allow a scenario to finish after a verified dynamic-object stop",
+    )
+    parser.set_defaults(dynamic_require_resume=True)
     collision_group = parser.add_mutually_exclusive_group()
     collision_group.add_argument(
         "--stop-on-collision",
@@ -1133,7 +1608,7 @@ def parse_args() -> argparse.Namespace:
     minimum_values = {
         "velocity_kph": 0.001,
         "goal_radius": 0.001,
-        "stopped_duration": 0.001,
+        "stopped_duration": 0.0,
         "stopped_speed_threshold": 0.0,
         "lane_departure_duration": 0.001,
         "startup_timeout": 0.001,
@@ -1141,6 +1616,10 @@ def parse_args() -> argparse.Namespace:
         "settle_seconds": 0.0,
         "route_settle_seconds": 0.0,
         "post_collision_seconds": 0.0,
+        "dynamic_encounter_distance": 0.001,
+        "dynamic_stop_speed_threshold": 0.0,
+        "dynamic_resume_speed_threshold": 0.001,
+        "dynamic_object_freshness": 0.001,
     }
     for name, minimum in minimum_values.items():
         value = float(getattr(args, name))
@@ -1150,8 +1629,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("timeouts must be positive")
     if args.goal_radius <= 0.0:
         parser.error("--goal-radius must be positive")
-    if args.stopped_duration <= 0.0:
-        parser.error("--stopped-duration must be positive")
+    if args.stopped_duration < 0.0:
+        parser.error("--stopped-duration must be non-negative")
     if args.stopped_speed_threshold < 0.0:
         parser.error("--stopped-speed-threshold must be non-negative")
     if args.lane_departure_duration <= 0.0:
