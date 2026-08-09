@@ -11,6 +11,7 @@ sys.path.insert(0, SCRIPT_DIR)
 
 from bpp_map_tools import (
     CenterlineMap,
+    apply_boundary_overrides,
     project_point_to_polyline,
     stitch_route_bounds,
     stitch_route_centerlines,
@@ -19,6 +20,29 @@ from bpp_map_tools import (
 
 
 class MapToolsTest(unittest.TestCase):
+    def test_boundary_override_offsets_shared_nodes_to_the_way_right(self):
+        nodes = {
+            "1": (0.0, 0.0, 0.0),
+            "2": (0.0, 10.0, 0.0),
+        }
+        ways = {
+            "100": {
+                "refs": ["1", "2"],
+                "tags": {"type": "road_border"},
+            }
+        }
+
+        apply_boundary_overrides(
+            nodes,
+            ways,
+            [{"way_id": "100", "right_offset_m": 0.8}],
+        )
+
+        self.assertAlmostEqual(nodes["1"][0], 0.8)
+        self.assertAlmostEqual(nodes["2"][0], 0.8)
+        self.assertAlmostEqual(nodes["1"][1], 0.0)
+        self.assertAlmostEqual(nodes["2"][1], 10.0)
+
     def test_duplicate_geometric_boundary_is_a_lateral_neighbor(self):
         centerline_map = CenterlineMap(
             "duplicated_boundary_ways",
@@ -43,6 +67,24 @@ class MapToolsTest(unittest.TestCase):
         self.assertEqual(
             centerline_map.adjacent_lane(10, "right", "same_direction_lane"),
             (11, "right"),
+        )
+
+        first = centerline_map.expanded_outer_boundary(
+            10,
+            "right",
+            "same_direction_lane",
+        )
+        cache_size = len(centerline_map._expanded_outer_boundary_cache)
+        second = centerline_map.expanded_outer_boundary(
+            10,
+            "right",
+            "same_direction_lane",
+        )
+
+        self.assertIs(first, second)
+        self.assertEqual(
+            len(centerline_map._expanded_outer_boundary_cache),
+            cache_size,
         )
 
     def test_osm_intersection_area_expands_lateral_drivable_distance(self):

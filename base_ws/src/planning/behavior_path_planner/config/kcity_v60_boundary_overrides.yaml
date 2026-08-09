@@ -1,0 +1,5 @@
+# Planner-only correction for the K-City v60 right-turn road border.
+# The stock map clips the manually verified IONIQ 5 footprint by about 0.33 m.
+boundary_offsets:
+  - way_id: "100205"
+    right_offset_m: 0.8

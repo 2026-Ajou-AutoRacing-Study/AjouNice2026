@@ -3,6 +3,7 @@ project(behavior_path_planner)
 
 find_package(catkin REQUIRED COMPONENTS
   autoware_adapi_v1_msgs
+  autoware_internal_debug_msgs
   autoware_internal_planning_msgs
   autoware_map_msgs
   autoware_perception_msgs
@@ -21,6 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   CATKIN_DEPENDS
   autoware_adapi_v1_msgs
+  autoware_internal_debug_msgs
   autoware_internal_planning_msgs
   autoware_map_msgs
   autoware_perception_msgs

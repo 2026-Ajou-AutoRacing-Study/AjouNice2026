@@ -16,6 +16,7 @@ class ReplanChecker:
         max_path_shape_around_ego_lat_dist=2.0,
         max_path_shape_forward_lon_dist=100.0,
         max_path_shape_forward_lat_dist=0.1,
+        max_path_shape_forward_reset_lat_dist=0.3,
         max_ego_moving_dist=5.0,
         max_goal_moving_dist=15.0,
         max_delta_time_sec=1.0,
@@ -23,6 +24,9 @@ class ReplanChecker:
         self.around_threshold = float(max_path_shape_around_ego_lat_dist)
         self.forward_length = float(max_path_shape_forward_lon_dist)
         self.forward_threshold = float(max_path_shape_forward_lat_dist)
+        self.forward_reset_threshold = float(
+            max_path_shape_forward_reset_lat_dist
+        )
         self.ego_threshold = float(max_ego_moving_dist)
         self.goal_threshold = float(max_goal_moving_dist)
         self.time_threshold = float(max_delta_time_sec)
@@ -39,16 +43,20 @@ class ReplanChecker:
         previous_distance = project_point(self.previous_input, ego[0], ego[1])[2]
         if abs(current_distance - previous_distance) > self.around_threshold:
             return True
-        return distance_2d(points[-1], self.previous_input[-1]) > self.goal_threshold
-
-    def replan_required(self, points, now, ego=None):
-        if self.previous_input is None or self.previous_time is None:
+        if distance_2d(points[-1], self.previous_input[-1]) > self.goal_threshold:
             return True
-        if self.time_threshold > 0.0 and now - self.previous_time >= self.time_threshold:
+        return self._forward_shape_changed(
+            points,
+            ego,
+            self.forward_reset_threshold,
+        )
+
+    def _forward_shape_changed(self, points, ego, threshold):
+        if self.previous_input is None:
             return True
         if len(points) < 2 or len(self.previous_input) < 2:
             return True
-        ego_x, ego_y = ego if ego is not None else (points[0].x, points[0].y)
+        ego_x, ego_y = ego
         _, current_ego_station, _, _ = project_point(points, ego_x, ego_y)
         _, previous_ego_station, _, _ = project_point(
             self.previous_input, ego_x, ego_y
@@ -75,8 +83,20 @@ class ReplanChecker:
             [previous_ego_station + offset for offset in offsets],
         )
         return any(
-            distance_2d(current, previous) > self.forward_threshold
+            distance_2d(current, previous) > threshold
             for current, previous in zip(current_samples, previous_samples)
+        )
+
+    def replan_required(self, points, now, ego=None):
+        if self.previous_input is None or self.previous_time is None:
+            return True
+        if self.time_threshold > 0.0 and now - self.previous_time >= self.time_threshold:
+            return True
+        ego_x, ego_y = ego if ego is not None else (points[0].x, points[0].y)
+        return self._forward_shape_changed(
+            points,
+            (ego_x, ego_y),
+            self.forward_threshold,
         )
 
     def update(self, points, ego, replanned, now):

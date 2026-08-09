@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import math
+from bisect import bisect_left
 from copy import deepcopy
 from dataclasses import dataclass, field
 from itertools import combinations
@@ -13,6 +14,7 @@ from tier4_rtc_msgs.msg import Module, State
 from geometry_msgs.msg import Point
 
 from bpp_map_tools import (
+    _point_in_polygon,
     project_point_to_polyline,
     project_point_to_polyline_with_point,
 )
@@ -129,6 +131,94 @@ def _lateral_jerk_distance(shift_length, jerk, velocity):
     return 4.0 * phase_time * velocity
 
 
+def _point_segment_distance(point, first, second):
+    vx = second[0] - first[0]
+    vy = second[1] - first[1]
+    length_squared = vx * vx + vy * vy
+    if length_squared < 1.0e-12:
+        return math.hypot(point[0] - first[0], point[1] - first[1])
+    ratio = clamp(
+        ((point[0] - first[0]) * vx + (point[1] - first[1]) * vy)
+        / length_squared,
+        0.0,
+        1.0,
+    )
+    closest_x = first[0] + ratio * vx
+    closest_y = first[1] + ratio * vy
+    return math.hypot(point[0] - closest_x, point[1] - closest_y)
+
+
+def _orientation(first, second, third):
+    value = (second[1] - first[1]) * (third[0] - second[0]) - (
+        second[0] - first[0]
+    ) * (third[1] - second[1])
+    if abs(value) < 1.0e-9:
+        return 0
+    return 1 if value > 0.0 else 2
+
+
+def _point_on_segment(first, point, second):
+    return (
+        min(first[0], second[0]) - 1.0e-9
+        <= point[0]
+        <= max(first[0], second[0]) + 1.0e-9
+        and min(first[1], second[1]) - 1.0e-9
+        <= point[1]
+        <= max(first[1], second[1]) + 1.0e-9
+    )
+
+
+def _segments_intersect(first_a, first_b, second_a, second_b):
+    orientations = (
+        _orientation(first_a, first_b, second_a),
+        _orientation(first_a, first_b, second_b),
+        _orientation(second_a, second_b, first_a),
+        _orientation(second_a, second_b, first_b),
+    )
+    if orientations[0] != orientations[1] and orientations[2] != orientations[3]:
+        return True
+    return (
+        (orientations[0] == 0 and _point_on_segment(first_a, second_a, first_b))
+        or (orientations[1] == 0 and _point_on_segment(first_a, second_b, first_b))
+        or (orientations[2] == 0 and _point_on_segment(second_a, first_a, second_b))
+        or (orientations[3] == 0 and _point_on_segment(second_a, first_b, second_b))
+    )
+
+
+def _polygons_intersect(first, second):
+    if not first or not second:
+        return False
+    if _point_in_polygon(first[0], second) or _point_in_polygon(second[0], first):
+        return True
+    first_edges = zip(first, first[1:] + first[:1])
+    second_edges = list(zip(second, second[1:] + second[:1]))
+    return any(
+        _segments_intersect(first_a, first_b, second_a, second_b)
+        for first_a, first_b in first_edges
+        for second_a, second_b in second_edges
+    )
+
+
+def _polygon_distance(first, second):
+    if _polygons_intersect(first, second):
+        return 0.0
+    first_edges = list(zip(first, first[1:] + first[:1]))
+    second_edges = list(zip(second, second[1:] + second[:1]))
+    if not first_edges or not second_edges:
+        return float("inf")
+    first_to_second = min(
+        _point_segment_distance(point, edge_start, edge_end)
+        for point in first
+        for edge_start, edge_end in second_edges
+    )
+    second_to_first = min(
+        _point_segment_distance(point, edge_start, edge_end)
+        for point in second
+        for edge_start, edge_end in first_edges
+    )
+    return min(first_to_second, second_to_first)
+
+
 @dataclass
 class ObjectPolicy:
     moving_speed_threshold: float
@@ -181,8 +271,10 @@ class StaticAvoidanceParameters:
     max_deviation_from_lane: float = 0.2
     lateral_execution_threshold: float = 0.09
     quantize_size: float = 0.1
+    resample_interval_for_planning: float = 0.3
     avoid_min_jerk: float = 0.2
     return_min_jerk: float = 0.2
+    return_reanchor_lateral_error_threshold: float = 0.3
     lateral_max_jerk: float = 1.0
     return_approval_ratio: float = 0.5
     stop_max_distance: float = 20.0
@@ -449,6 +541,16 @@ class StaticAvoidanceParameters:
         params.quantize_size = float(
             _get_param(prefix, "shift_line_pipeline/trim/quantize_size", params.quantize_size)
         )
+        params.resample_interval_for_planning = max(
+            float(
+                _get_param(
+                    prefix,
+                    "resample_interval_for_planning",
+                    params.resample_interval_for_planning,
+                )
+            ),
+            0.1,
+        )
         avoid_jerks = _get_param(
             prefix,
             "constraints/lateral/min_jerk_values/avoid",
@@ -466,6 +568,16 @@ class StaticAvoidanceParameters:
         )
         params.avoid_min_jerk = float(avoid_jerks[0])
         params.return_min_jerk = float(return_jerks[0])
+        params.return_reanchor_lateral_error_threshold = max(
+            float(
+                _get_param(
+                    prefix,
+                    "avoidance/lateral/return_reanchor_lateral_error_threshold",
+                    params.return_reanchor_lateral_error_threshold,
+                )
+            ),
+            0.0,
+        )
         params.lateral_max_jerk = float(max_jerks[0])
         params.stop_max_distance = float(
             _get_param(prefix, "stop/max_distance", params.stop_max_distance)
@@ -624,8 +736,14 @@ class AvoidanceObject:
     avoid_required: bool = False
     allow_avoidance: bool = False
     shift_length: float = 0.0
+    minimum_shift_length: float = 0.0
     preferred_shift_length: float = 0.0
     available_shift: float = 0.0
+    uses_hard_drivable_bound: bool = False
+    uses_diagonal_profile: bool = False
+    profile_min_bound_clearance: float = float("inf")
+    profile_min_object_clearance: float = float("inf")
+    profile_failure_station: float = 0.0
     required_jerk: float = 0.0
     start_s: float = 0.0
     avoid_end_s: float = 0.0
@@ -661,6 +779,8 @@ class ShiftLine:
     avoid_end_s: float
     return_start_s: float
     return_end_s: float
+    uses_hard_drivable_bound: bool = False
+    uses_diagonal_profile: bool = False
 
     def value_at(self, station):
         if station <= self.start_s:
@@ -909,7 +1029,14 @@ class StaticAvoidanceEngine:
 
     def _bound_distances(self, path, projection):
         index = int(clamp(projection.index, 0, len(path.points) - 1))
-        position = path.points[index].point.pose.position
+        # Query the map at the object's exact projection onto the path.  Using
+        # the beginning of a coarse path segment can substantially underestimate
+        # the available space where an intersection or shoulder widens quickly.
+        position = (
+            projection.projected_position
+            if projection.projected_position is not None
+            else path.points[index].point.pose.position
+        )
         current_left = self._path_bound_distance(path, position, True)
         current_right = self._path_bound_distance(path, position, False)
         current_left = current_left if current_left is not None else 1.75
@@ -1036,8 +1163,14 @@ class StaticAvoidanceEngine:
     ):
         candidate.allow_avoidance = False
         candidate.shift_length = 0.0
+        candidate.minimum_shift_length = 0.0
         candidate.preferred_shift_length = 0.0
         candidate.available_shift = 0.0
+        candidate.uses_hard_drivable_bound = False
+        candidate.uses_diagonal_profile = False
+        candidate.profile_min_bound_clearance = float("inf")
+        candidate.profile_min_object_clearance = float("inf")
+        candidate.profile_failure_station = 0.0
         candidate.required_jerk = 0.0
         candidate.start_s = 0.0
         candidate.avoid_end_s = 0.0
@@ -1062,7 +1195,7 @@ class StaticAvoidanceEngine:
                 object_outer_edge = candidate.lateral + candidate.half_lateral
                 preferred = max(object_outer_edge + preferred_margin, 0.0)
                 minimum = max(object_outer_edge + minimum_margin, 0.0)
-                capacity = max(
+                soft_capacity = max(
                     min(
                         candidate.expanded_left_bound
                         - vehicle_half_width
@@ -1071,13 +1204,20 @@ class StaticAvoidanceEngine:
                     ),
                     0.0,
                 )
-                signed_capacity = capacity
-                shift = min(preferred, capacity)
+                hard_capacity = max(
+                    min(
+                        candidate.expanded_left_bound
+                        - vehicle_half_width
+                        - self.params.hard_drivable_bound_margin,
+                        self.params.max_left_shift_length,
+                    ),
+                    0.0,
+                )
             else:
                 object_outer_edge = candidate.lateral - candidate.half_lateral
                 preferred_magnitude = max(preferred_margin - object_outer_edge, 0.0)
                 minimum_magnitude = max(minimum_margin - object_outer_edge, 0.0)
-                capacity = max(
+                soft_capacity = max(
                     min(
                         candidate.expanded_right_bound
                         - vehicle_half_width
@@ -1086,12 +1226,30 @@ class StaticAvoidanceEngine:
                     ),
                     0.0,
                 )
+                hard_capacity = max(
+                    min(
+                        candidate.expanded_right_bound
+                        - vehicle_half_width
+                        - self.params.hard_drivable_bound_margin,
+                        self.params.max_right_shift_length,
+                    ),
+                    0.0,
+                )
                 preferred = -preferred_magnitude
                 minimum = -minimum_magnitude
-                signed_capacity = -capacity
-                shift = -min(preferred_magnitude, capacity)
 
             required_magnitude = abs(minimum)
+            soft_feasible = soft_capacity + 1.0e-6 >= required_magnitude
+            hard_feasible = hard_capacity + 1.0e-6 >= required_magnitude
+            uses_hard_bound = not soft_feasible and hard_feasible
+            capacity = (
+                hard_capacity
+                if uses_hard_bound or not soft_feasible
+                else soft_capacity
+            )
+            sign = 1.0 if direction == "left" else -1.0
+            signed_capacity = sign * capacity
+            shift = sign * min(abs(preferred), capacity)
             options.append(
                 {
                     "direction": direction,
@@ -1099,8 +1257,9 @@ class StaticAvoidanceEngine:
                     "minimum": minimum,
                     "available": signed_capacity,
                     "shift": shift,
-                    "hard_clearance": capacity - required_magnitude,
-                    "feasible": capacity + 1.0e-6 >= required_magnitude,
+                    "hard_clearance": hard_capacity - required_magnitude,
+                    "feasible": soft_feasible or hard_feasible,
+                    "uses_hard_bound": uses_hard_bound,
                 }
             )
 
@@ -1126,12 +1285,16 @@ class StaticAvoidanceEngine:
                 requested_direction, option_by_direction[primary_direction]
             )
             candidate.preferred_shift_length = requested["preferred"]
+            candidate.minimum_shift_length = requested["minimum"]
             candidate.available_shift = requested["available"]
+            candidate.uses_hard_drivable_bound = requested["uses_hard_bound"]
             candidate.failed_reason = "insufficient_drivable_space"
             return
 
         candidate.preferred_shift_length = selected["preferred"]
+        candidate.minimum_shift_length = selected["minimum"]
         candidate.available_shift = selected["available"]
+        candidate.uses_hard_drivable_bound = selected["uses_hard_bound"]
         shift = selected["shift"]
         if abs(shift) < self.params.lateral_execution_threshold:
             candidate.failed_reason = "less_than_execution_threshold"
@@ -1139,7 +1302,19 @@ class StaticAvoidanceEngine:
             return
 
         quantize = max(self.params.quantize_size, 1.0e-3)
-        shift = round(shift / quantize) * quantize
+        raw_shift = shift
+        shift = round(raw_shift / quantize) * quantize
+        if abs(shift) + 1.0e-6 < abs(selected["minimum"]):
+            quantized_minimum = (
+                math.ceil(abs(selected["minimum"]) / quantize - 1.0e-9)
+                * quantize
+            )
+            if quantized_minimum <= abs(selected["available"]) + 1.0e-6:
+                shift = math.copysign(quantized_minimum, raw_shift)
+            else:
+                # Preserve the exact feasible capacity instead of rounding below
+                # the hard object clearance requirement.
+                shift = raw_shift
         candidate.shift_length = shift
 
         planning_speed = max(ego_speed, self.params.min_slow_down_speed)
@@ -1220,6 +1395,8 @@ class StaticAvoidanceEngine:
                 avoid_end_s=target.avoid_end_s,
                 return_start_s=target.return_start_s,
                 return_end_s=target.return_end_s,
+                uses_hard_drivable_bound=target.uses_hard_drivable_bound,
+                uses_diagonal_profile=target.uses_diagonal_profile,
             )
             if lines:
                 previous = lines[-1]
@@ -1232,6 +1409,14 @@ class StaticAvoidanceEngine:
                     previous.avoid_end_s = min(previous.avoid_end_s, line.avoid_end_s)
                     previous.return_start_s = max(previous.return_start_s, line.return_start_s)
                     previous.return_end_s = max(previous.return_end_s, line.return_end_s)
+                    previous.uses_hard_drivable_bound = (
+                        previous.uses_hard_drivable_bound
+                        or line.uses_hard_drivable_bound
+                    )
+                    previous.uses_diagonal_profile = (
+                        previous.uses_diagonal_profile
+                        or line.uses_diagonal_profile
+                    )
                     continue
                 if overlaps and line.direction != previous.direction:
                     conflict = True
@@ -1269,11 +1454,18 @@ class StaticAvoidanceEngine:
         return output, offsets
 
     def _expanded_profile_bounds(self, path):
-        """Return vehicle-center shift limits along an expanded reference path."""
+        """Return Autoware-style hard vehicle-center limits along the path."""
         expanded = deepcopy(path)
         self._expand_drivable_bounds(expanded)
         stations = path_cumulative_lengths(expanded)
-        margin = 0.5 * self.params.vehicle_width + self.params.soft_drivable_bound_margin
+        vehicle_half_width = 0.5 * self.params.vehicle_width
+        # Autoware validates the complete shift line against the hard bound and
+        # permits the configured maximum lane deviation in that final check.
+        margin = (
+            vehicle_half_width
+            + self.params.hard_drivable_bound_margin
+            - self.params.max_deviation_from_lane
+        )
         lower = []
         upper = []
         point_count = len(expanded.points)
@@ -1315,6 +1507,243 @@ class StaticAvoidanceEngine:
             lower.append(right_distance + margin)
             upper.append(left_distance - margin)
         return expanded, stations, lower, upper
+
+    @staticmethod
+    def _path_position_at(path, stations, station):
+        if not path.points:
+            return None
+        if len(path.points) == 1 or not stations:
+            point = path.points[0].point.pose.position
+            return (point.x, point.y, point.z)
+        station = clamp(station, stations[0], stations[-1])
+        after = min(max(bisect_left(stations, station), 1), len(stations) - 1)
+        before = after - 1
+        span = max(stations[after] - stations[before], 1.0e-6)
+        ratio = (station - stations[before]) / span
+        first = path.points[before].point.pose.position
+        second = path.points[after].point.pose.position
+        return (
+            first.x + (second.x - first.x) * ratio,
+            first.y + (second.y - first.y) * ratio,
+            first.z + (second.z - first.z) * ratio,
+        )
+
+    def _shifted_center_at(self, path, stations, line, station):
+        position = self._path_position_at(path, stations, station)
+        if position is None:
+            return None
+        delta = 0.05
+        before = self._path_position_at(path, stations, station - delta)
+        after = self._path_position_at(path, stations, station + delta)
+        if before is None or after is None:
+            return None
+        yaw = math.atan2(after[1] - before[1], after[0] - before[0])
+        offset = line.value_at(station)
+        return (
+            position[0] - math.sin(yaw) * offset,
+            position[1] + math.cos(yaw) * offset,
+            position[2],
+        )
+
+    def _vehicle_polygon_at(self, path, stations, line, station):
+        delta = 0.05
+        center = self._shifted_center_at(path, stations, line, station)
+        before = self._shifted_center_at(path, stations, line, station - delta)
+        after = self._shifted_center_at(path, stations, line, station + delta)
+        if center is None or before is None or after is None:
+            return []
+        yaw = math.atan2(after[1] - before[1], after[0] - before[0])
+        cosine = math.cos(yaw)
+        sine = math.sin(yaw)
+        half_width = 0.5 * self.params.vehicle_width
+        corners = []
+        for longitudinal, lateral in (
+            (self.params.base_link_to_front, half_width),
+            (self.params.base_link_to_front, -half_width),
+            (-self.params.base_link_to_rear, -half_width),
+            (-self.params.base_link_to_rear, half_width),
+        ):
+            corners.append(
+                (
+                    center[0] + cosine * longitudinal - sine * lateral,
+                    center[1] + sine * longitudinal + cosine * lateral,
+                )
+            )
+        return corners
+
+    def _expanded_object_polygon(self, candidate):
+        pose = object_pose(candidate.message)
+        length, width = _object_dimensions(candidate.message)
+        policy = self._policy(candidate.label)
+        hard_margin = (
+            policy.parked_hard_margin if candidate.is_parked else policy.hard_margin
+        )
+        half_length = 0.5 * length + policy.envelope_buffer + hard_margin
+        half_width = 0.5 * width + policy.envelope_buffer + hard_margin
+        yaw = yaw_from_quaternion(pose.orientation)
+        cosine = math.cos(yaw)
+        sine = math.sin(yaw)
+        return [
+            (
+                pose.position.x + cosine * longitudinal - sine * lateral,
+                pose.position.y + sine * longitudinal + cosine * lateral,
+            )
+            for longitudinal, lateral in (
+                (half_length, half_width),
+                (half_length, -half_width),
+                (-half_length, -half_width),
+                (-half_length, half_width),
+            )
+        ]
+
+    def _profile_footprint_clearance(
+        self, path, stations, line, candidate, sampling_interval=None
+    ):
+        """Validate an oriented ego footprint against bounds and target polygon."""
+        if len(path.points) < 2 or len(stations) != len(path.points):
+            return False, "footprint_path_unavailable", 0.0, 0.0, line.start_s
+
+        local_start = max(
+            line.start_s - self.params.base_link_to_rear - 1.0,
+            stations[0],
+        )
+        local_end = min(
+            line.return_end_s + self.params.base_link_to_front + 1.0,
+            stations[-1],
+        )
+        first_index = max(bisect_left(stations, local_start) - 1, 0)
+        last_index = min(bisect_left(stations, local_end) + 1, len(stations) - 1)
+        direct_bounds = (
+            len(path.left_bound) == len(path.points)
+            and len(path.right_bound) == len(path.points)
+        )
+        left_source = (
+            path.left_bound[first_index : last_index + 1]
+            if direct_bounds
+            else path.left_bound
+        )
+        right_source = (
+            path.right_bound[first_index : last_index + 1]
+            if direct_bounds
+            else path.right_bound
+        )
+        left = [(point.x, point.y) for point in left_source]
+        right = [(point.x, point.y) for point in right_source]
+        drivable_polygon = left + list(reversed(right))
+        if len(left) < 2 or len(right) < 2:
+            return False, "footprint_bound_unavailable", 0.0, 0.0, line.start_s
+
+        bound_edges = list(
+            zip(
+                drivable_polygon,
+                drivable_polygon[1:] + drivable_polygon[:1],
+            )
+        )
+        object_polygon = self._expanded_object_polygon(candidate)
+        required_bound_clearance = max(
+            self.params.hard_drivable_bound_margin
+            - self.params.max_deviation_from_lane,
+            0.0,
+        )
+        interval = max(
+            float(
+                self.params.resample_interval_for_planning
+                if sampling_interval is None
+                else sampling_interval
+            ),
+            0.1,
+        )
+        profile_start = max(line.start_s, stations[0])
+        # The diagonal relaxation only changes the avoidance leg.  The return
+        # leg already passed the conventional center-bound fit above.
+        profile_end = min(line.return_start_s, stations[-1])
+        sample_count = max(
+            int(math.ceil((profile_end - profile_start) / interval)),
+            1,
+        )
+        sample_stations = [
+            profile_start + (profile_end - profile_start) * index / sample_count
+            for index in range(sample_count + 1)
+        ]
+        sample_stations.extend(
+            [line.start_s, line.avoid_end_s, line.return_start_s, line.return_end_s]
+        )
+
+        minimum_bound_clearance = float("inf")
+        minimum_object_clearance = float("inf")
+        failure_station = profile_start
+        for station in sorted(
+            {
+                clamp(value, profile_start, profile_end)
+                for value in sample_stations
+            }
+        ):
+            footprint = self._vehicle_polygon_at(path, stations, line, station)
+            if len(footprint) != 4:
+                return False, "footprint_generation_failed", 0.0, 0.0, station
+
+            footprint_edges = list(
+                zip(footprint, footprint[1:] + footprint[:1])
+            )
+            crosses_bound = any(
+                _segments_intersect(
+                    vehicle_start,
+                    vehicle_end,
+                    bound_start,
+                    bound_end,
+                )
+                for vehicle_start, vehicle_end in footprint_edges
+                for bound_start, bound_end in bound_edges
+            )
+            station_bound_clearance = min(
+                min(
+                    _point_segment_distance(point, first, second)
+                    for point in footprint
+                    for first, second in bound_edges
+                ),
+                min(
+                    _point_segment_distance(point, first, second)
+                    for point in drivable_polygon
+                    for first, second in footprint_edges
+                ),
+            )
+            if crosses_bound or not all(
+                _point_in_polygon(point, drivable_polygon)
+                for point in footprint
+            ):
+                station_bound_clearance = -station_bound_clearance
+            if station_bound_clearance < minimum_bound_clearance:
+                minimum_bound_clearance = station_bound_clearance
+                failure_station = station
+            if station_bound_clearance + 1.0e-3 < required_bound_clearance:
+                return (
+                    False,
+                    "footprint_outside_drivable_bounds",
+                    minimum_bound_clearance,
+                    minimum_object_clearance,
+                    station,
+                )
+
+            object_clearance = _polygon_distance(footprint, object_polygon)
+            minimum_object_clearance = min(
+                minimum_object_clearance, object_clearance
+            )
+            if _polygons_intersect(footprint, object_polygon):
+                return (
+                    False,
+                    "target_hard_margin_collision",
+                    minimum_bound_clearance,
+                    0.0,
+                    station,
+                )
+
+        return (
+            True,
+            "safe",
+            minimum_bound_clearance,
+            minimum_object_clearance,
+            failure_station,
+        )
 
     @staticmethod
     def _line_is_within_bounds(line, stations, lower, upper, leg=None):
@@ -1399,12 +1828,115 @@ class StaticAvoidanceEngine:
         )
         return max(avoid_jerk, return_jerk) <= self.params.lateral_max_jerk + 0.1
 
+    def _fit_diagonal_shift_line(
+        self,
+        candidate,
+        base_line,
+        expanded_path,
+        stations,
+        lower,
+        upper,
+        ego_speed,
+    ):
+        """Search a later, hard-margin shift using oriented-footprint checks."""
+        quantize = max(self.params.quantize_size, 1.0e-3)
+        preferred_magnitude = abs(base_line.shift_length)
+        quantized_minimum = (
+            math.ceil(abs(candidate.minimum_shift_length) / quantize - 1.0e-9)
+            * quantize
+        )
+        minimum_magnitude = min(quantized_minimum, preferred_magnitude)
+        if minimum_magnitude > preferred_magnitude + 1.0e-6:
+            return None, "insufficient_drivable_space", None
+
+        magnitude_count = max(
+            int(math.floor((preferred_magnitude - minimum_magnitude) / quantize)),
+            0,
+        )
+        magnitudes = [
+            preferred_magnitude - quantize * index
+            for index in range(magnitude_count + 1)
+        ]
+        if not magnitudes or magnitudes[-1] > minimum_magnitude + 1.0e-6:
+            magnitudes.append(minimum_magnitude)
+
+        maximum_avoid_end = min(
+            candidate.longitudinal,
+            candidate.return_start_s - 0.05,
+        )
+        if maximum_avoid_end <= candidate.avoid_end_s + 1.0e-6:
+            return None, "shift_profile_outside_drivable_bounds", None
+        avoid_ends = []
+        value = candidate.avoid_end_s
+        search_interval = max(
+            self.params.resample_interval_for_planning,
+            0.1,
+        )
+        while value < maximum_avoid_end - 1.0e-6:
+            avoid_ends.append(value)
+            value += search_interval
+        avoid_ends.append(maximum_avoid_end)
+
+        sign = 1.0 if base_line.direction == "left" else -1.0
+        last_failure = "shift_profile_outside_drivable_bounds"
+        last_metrics = None
+        speed = max(float(ego_speed), self.params.min_slow_down_speed)
+        for magnitude in magnitudes:
+            bound_valid_ends = []
+            for avoid_end in avoid_ends:
+                if avoid_end <= base_line.start_s + 1.0e-6:
+                    continue
+                line = deepcopy(base_line)
+                line.shift_length = sign * magnitude
+                line.avoid_end_s = avoid_end
+                line.uses_diagonal_profile = True
+                required_jerk = self._required_lateral_jerk(
+                    line.shift_length,
+                    line.avoid_end_s - line.start_s,
+                    speed,
+                )
+                if required_jerk > self.params.lateral_max_jerk + 0.1:
+                    last_failure = "insufficient_longitudinal_distance"
+                    continue
+                if not self._line_is_within_bounds(
+                    line, stations, lower, upper
+                ):
+                    last_failure = "shift_profile_outside_drivable_bounds"
+                    continue
+                bound_valid_ends.append(avoid_end)
+
+            # The earliest bound-valid completion keeps the most clearance in
+            # front of the obstacle.  Check only the first few neighboring
+            # samples instead of repeating full footprint geometry for every
+            # 0.3 m anchor.
+            footprint_ends = bound_valid_ends[:2]
+            if bound_valid_ends and bound_valid_ends[-1] not in footprint_ends:
+                footprint_ends.append(bound_valid_ends[-1])
+            for avoid_end in footprint_ends:
+                line = deepcopy(base_line)
+                line.shift_length = sign * magnitude
+                line.avoid_end_s = avoid_end
+                line.uses_diagonal_profile = True
+                metrics = self._profile_footprint_clearance(
+                    expanded_path,
+                    stations,
+                    line,
+                    candidate,
+                )
+                valid, reason = metrics[:2]
+                if valid:
+                    return line, "", metrics
+                last_failure = reason
+                last_metrics = metrics
+        return None, last_failure, last_metrics
+
     def _fit_directional_candidate(
         self,
         candidate,
         direction,
         ego_speed,
         path_end,
+        expanded_path,
         stations,
         lower,
         upper,
@@ -1428,16 +1960,59 @@ class StaticAvoidanceEngine:
             avoid_end_s=trial.avoid_end_s,
             return_start_s=trial.return_start_s,
             return_end_s=trial.return_end_s,
+            uses_hard_drivable_bound=trial.uses_hard_drivable_bound,
         )
-        if not self._fit_shift_line_to_bounds(
+        standard_fitted = self._fit_shift_line_to_bounds(
             line, stations, lower, upper, ego_speed
-        ):
-            return None, None, "shift_profile_outside_drivable_bounds"
+        )
+        metrics = None
+        failure = "shift_profile_outside_drivable_bounds"
 
+        if not standard_fitted:
+            line, diagonal_failure, diagonal_metrics = self._fit_diagonal_shift_line(
+                trial,
+                ShiftLine(
+                    object_ids=[trial.object_id],
+                    direction=trial.direction,
+                    shift_length=trial.shift_length,
+                    start_s=trial.start_s,
+                    avoid_end_s=trial.avoid_end_s,
+                    return_start_s=trial.return_start_s,
+                    return_end_s=trial.return_end_s,
+                    uses_hard_drivable_bound=trial.uses_hard_drivable_bound,
+                ),
+                expanded_path,
+                stations,
+                lower,
+                upper,
+                ego_speed,
+            )
+            if line is None:
+                if diagonal_metrics is not None:
+                    trial.profile_min_bound_clearance = diagonal_metrics[2]
+                    trial.profile_min_object_clearance = diagonal_metrics[3]
+                    trial.profile_failure_station = diagonal_metrics[4]
+                    diagonal_failure = (
+                        "{}(s={:.2f},bound={:.2f},object={:.2f})"
+                    ).format(
+                        diagonal_failure or failure,
+                        diagonal_metrics[4],
+                        diagonal_metrics[2],
+                        diagonal_metrics[3],
+                    )
+                return None, None, diagonal_failure or failure
+            metrics = diagonal_metrics
+
+        trial.shift_length = line.shift_length
         trial.start_s = line.start_s
         trial.avoid_end_s = line.avoid_end_s
         trial.return_start_s = line.return_start_s
         trial.return_end_s = line.return_end_s
+        trial.uses_diagonal_profile = line.uses_diagonal_profile
+        if metrics is not None:
+            trial.profile_min_bound_clearance = metrics[2]
+            trial.profile_min_object_clearance = metrics[3]
+            trial.profile_failure_station = metrics[4]
         planning_speed = max(ego_speed, self.params.min_slow_down_speed)
         trial.required_jerk = max(
             self._required_lateral_jerk(
@@ -1714,6 +2289,7 @@ class StaticAvoidanceEngine:
                     direction,
                     ego_speed,
                     path_end,
+                    expanded_reference,
                     profile_stations,
                     profile_lower,
                     profile_upper,
@@ -1900,6 +2476,20 @@ class StaticAvoidanceEngine:
                 alternate,
                 nearest.direction_failures.get(alternate, "not_available"),
             )
+        diagonal_details = [
+            "{}:{} shift={:.2f} end={:.2f} bound={:.2f} object={:.2f}".format(
+                target.object_id[:8],
+                target.direction,
+                target.shift_length,
+                target.avoid_end_s,
+                target.profile_min_bound_clearance,
+                target.profile_min_object_clearance,
+            )
+            for target in targets
+            if target.uses_diagonal_profile
+        ]
+        if diagonal_details:
+            reason += "; diagonal_profile=" + ",".join(diagonal_details)
 
         return StaticAvoidanceResult(
             reference_path=reference,
@@ -2220,6 +2810,101 @@ class StaticAvoidanceScene:
                 stretched_offsets.append(0.0)
         self._registered_return_offsets = stretched_offsets
         self._registered_return_end_s = extended_end
+        self._registered_return_planning_speed = planning_speed
+        return True
+
+    def _reanchor_registered_return(
+        self,
+        odometry,
+        requested_shift,
+        actual_shift,
+    ):
+        """Rebuild the remaining return from the lateral state actually reached."""
+        threshold = self.params.return_reanchor_lateral_error_threshold
+        if (
+            threshold <= 0.0
+            or odometry is None
+            or self._registered_return_reference is None
+            or len(self._registered_return_stations) < 2
+            or len(self._registered_return_offsets) < 2
+            or abs(actual_shift - requested_shift) <= threshold
+        ):
+            return False
+
+        projection = project_pose_to_path(
+            self._registered_return_reference,
+            odometry.pose.pose,
+        )
+        if projection is None:
+            return False
+
+        anchor_s = clamp(
+            projection.longitudinal_distance,
+            self._registered_return_stations[0],
+            self._registered_return_stations[-1],
+        )
+        # Use the live reference-path error for the lateral anchor.  The
+        # registered reference is retained only for its longitudinal station;
+        # on parallel lanelets its nearest-segment lateral sign can be stale.
+        anchor_shift = float(actual_shift)
+        completion_threshold = max(
+            self.params.lateral_execution_threshold,
+            self.params.max_deviation_from_lane,
+        )
+        if abs(anchor_shift) <= completion_threshold:
+            self._registered_return_offsets = [
+                0.0 for _station in self._registered_return_stations
+            ]
+            self._registered_return_start_s = anchor_s
+            self._registered_return_end_s = anchor_s
+            return True
+
+        planning_speed = max(
+            self._odometry_speed(odometry),
+            self.params.min_slow_down_speed,
+            self.params.nominal_return_speed,
+        )
+        nominal_prepare = max(
+            planning_speed * self.params.max_prepare_time,
+            self.params.min_prepare_distance,
+        )
+        return_distance = max(
+            _lateral_jerk_distance(
+                anchor_shift,
+                self.params.return_min_jerk,
+                planning_speed,
+            ),
+            nominal_prepare,
+        )
+        return_end_s = min(
+            self._registered_return_stations[-1],
+            anchor_s + return_distance,
+        )
+        if return_end_s <= anchor_s + 0.1:
+            return False
+
+        offsets = []
+        for station in self._registered_return_stations:
+            if station <= anchor_s:
+                offsets.append(anchor_shift)
+            elif station < return_end_s:
+                offsets.append(
+                    anchor_shift
+                    * (
+                        1.0
+                        - _quintic_smoothstep(
+                            anchor_s,
+                            return_end_s,
+                            station,
+                        )
+                    )
+                )
+            else:
+                offsets.append(0.0)
+
+        self._registered_return_offsets = offsets
+        self._registered_return_start_s = anchor_s
+        self._registered_return_end_s = return_end_s
         self._registered_return_planning_speed = planning_speed
         return True
 
@@ -2598,6 +3283,21 @@ class StaticAvoidanceScene:
         requested_shift, actual_shift = self._registered_return_state(
             result.reference_path, continuation, odometry
         )
+        tracking_error = actual_shift - requested_shift
+        profile_reanchored = self._reanchor_registered_return(
+            odometry,
+            requested_shift,
+            actual_shift,
+        )
+        if profile_reanchored:
+            continuation, aligned_count = self._align_registered_return(
+                result.candidate_path
+            )
+            requested_shift, actual_shift = self._registered_return_state(
+                result.reference_path,
+                continuation,
+                odometry,
+            )
         completion_threshold = self.params.lateral_execution_threshold
         actual_completion_threshold = max(
             completion_threshold, self.params.max_deviation_from_lane
@@ -2659,12 +3359,15 @@ class StaticAvoidanceScene:
         result.output_path = continuation
         result.status += (
             "; registered return active, requested_shift={:.2f} m, "
-            "actual_shift={:.2f} m, speed_limit={:.2f} m/s, extended={}"
+            "actual_shift={:.2f} m, speed_limit={:.2f} m/s, extended={}, "
+            "reanchored={}, tracking_error={:.2f} m"
         ).format(
             requested_shift,
             actual_shift,
             return_speed_limit,
             profile_extended,
+            profile_reanchored,
+            tracking_error,
         )
         return True
 

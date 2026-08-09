@@ -8,6 +8,7 @@ import time
 from copy import deepcopy
 
 import rospy
+from autoware_internal_debug_msgs.msg import Float64Stamped
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from nav_msgs.msg import Odometry, Path
 from std_msgs.msg import String
@@ -160,6 +161,9 @@ class BehaviorPathPlanner:
         self.use_map_centerline = param_bool(rospy.get_param("~use_map_centerline", True))
         self.map_file = rospy.get_param("~map_file", rospy.get_param("~centerline_map_file", ""))
         self.projector_file = rospy.get_param("~projector_file", "")
+        self.map_boundary_override_file = rospy.get_param(
+            "~map_boundary_override_file", ""
+        )
         self.projector_type = rospy.get_param("~map_projector_type", "MGRS")
         self.flatten_map_z = param_bool(rospy.get_param("~flatten_map_z", False))
         self.route_lanelet_tracker = RouteLaneletTracker(
@@ -332,6 +336,11 @@ class BehaviorPathPlanner:
             "~output/is_reroute_available", RerouteAvailability, queue_size=1
         )
         self.status_pub = rospy.Publisher("~debug/module_status", String, queue_size=1)
+        self.processing_time_pub = rospy.Publisher(
+            "~debug/processing_time_ms",
+            Float64Stamped,
+            queue_size=1,
+        )
         self.full_route_reference_pub = rospy.Publisher(
             "~debug/full_route_path", PathWithLaneId, queue_size=1, latch=True
         )
@@ -410,6 +419,7 @@ class BehaviorPathPlanner:
                 self.projector_file,
                 self.flatten_map_z,
                 self.projector_type,
+                self.map_boundary_override_file,
             )
             self.route_lanelet_tracker.clear()
             rospy.loginfo(
@@ -480,6 +490,7 @@ class BehaviorPathPlanner:
                 self.flatten_map_z,
                 self.projector_type,
                 self.projector_file,
+                self.map_boundary_override_file,
             )
             self.route_lanelet_tracker.clear()
             if self.static_avoidance_scene is not None:
@@ -608,10 +619,14 @@ class BehaviorPathPlanner:
         self.publish_turn_command(stamp, turn_command)
         self.publish_hazard_command(stamp, HazardLightsCommand.NO_COMMAND)
         self.publish_status(statuses)
+        processing_time_ms = (time.perf_counter() - processing_started) * 1000.0
+        self.processing_time_pub.publish(
+            Float64Stamped(stamp=rospy.Time.now(), data=processing_time_ms)
+        )
         if self.debug_processing_time:
             rospy.loginfo(
                 "behavior_path_planner: cycle %.1f ms, output=%d points",
-                (time.perf_counter() - processing_started) * 1000.0,
+                processing_time_ms,
                 len(path.points),
             )
 

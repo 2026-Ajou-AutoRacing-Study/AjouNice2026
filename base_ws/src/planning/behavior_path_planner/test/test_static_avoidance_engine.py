@@ -22,7 +22,7 @@ SCRIPT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts")
 sys.path.insert(0, SCRIPT_DIR)
 
 from bpp_map_tools import CenterlineMap
-from bpp_path_tools import quaternion_from_yaw
+from bpp_path_tools import project_pose_to_path, quaternion_from_yaw
 from bpp_static_avoidance_tools import (
     AvoidanceObject,
     ObjectPolicy,
@@ -177,6 +177,178 @@ class StaticAvoidanceEngineTest(unittest.TestCase):
         self.assertAlmostEqual(candidate.shift_length, 3.3, delta=0.1)
         self.assertGreater(candidate.available_shift, 4.3)
         self.assertGreaterEqual(candidate.start_s, 6.0)
+
+    def test_bound_distance_uses_exact_object_projection_on_coarse_path(self):
+        class PositionSensitiveMap:
+            def __init__(self):
+                self.last_position = None
+
+            @staticmethod
+            def has_lane(_lane_id):
+                return True
+
+            def expanded_bound_distances(self, _lane_id, position, *_args):
+                self.last_position = position
+                return 5.0, float(position[0])
+
+        path = PathWithLaneId()
+        for x in (0.0, 10.0):
+            point = PathPoint()
+            point.pose.position.x = x
+            point.pose.orientation = quaternion_from_yaw(0.0)
+            item = PathPointWithLaneId()
+            item.point = point
+            item.lane_ids = [10]
+            path.points.append(item)
+        path.left_bound = [Point(x=0.0, y=2.5), Point(x=10.0, y=2.5)]
+        path.right_bound = [Point(x=0.0, y=-2.5), Point(x=10.0, y=-2.5)]
+
+        object_message = make_object(x=8.0, y=0.7)
+        projection = project_pose_to_path(
+            path,
+            object_message.kinematics.initial_pose_with_covariance.pose,
+        )
+        centerline_map = PositionSensitiveMap()
+        engine = StaticAvoidanceEngine(make_parameters(), centerline_map)
+
+        bounds = engine._bound_distances(path, projection)
+
+        self.assertEqual(projection.index, 0)
+        self.assertAlmostEqual(projection.segment_ratio, 0.8)
+        self.assertAlmostEqual(centerline_map.last_position[0], 8.0)
+        self.assertAlmostEqual(bounds[3], 8.0)
+
+    def test_relaxes_soft_drivable_bound_to_hard_bound_when_needed(self):
+        parameters = make_parameters()
+        parameters.object_policies[ObjectClassification.UNKNOWN] = ObjectPolicy(
+            0.28, 1.0, 0.4, 0.2, 0.7, 0.0, 0.1
+        )
+        parameters.soft_drivable_bound_margin = 0.3
+        parameters.hard_drivable_bound_margin = 0.0
+        engine = StaticAvoidanceEngine(parameters, make_map())
+        candidate = AvoidanceObject(
+            object_id="unknown",
+            message=make_object(),
+            label=ObjectClassification.UNKNOWN,
+            longitudinal=50.0,
+            relative_longitudinal=45.0,
+            lateral=0.70,
+            half_longitudinal=0.30,
+            half_lateral=1.06,
+            current_left_bound=1.69,
+            current_right_bound=1.68,
+            expanded_left_bound=2.14,
+            expanded_right_bound=2.49,
+            stopped_time=5.0,
+            total_movement=0.0,
+            avoid_required=True,
+        )
+        stations = [float(value) for value in range(121)]
+        lower = [-1.55] * len(stations)
+        upper = [5.0] * len(stations)
+        expanded_path = make_path()
+
+        trial, line, failure = engine._fit_directional_candidate(
+            candidate,
+            "right",
+            2.7,
+            120.0,
+            expanded_path,
+            stations,
+            lower,
+            upper,
+        )
+
+        self.assertEqual(failure, "")
+        self.assertIsNotNone(trial)
+        self.assertTrue(trial.uses_hard_drivable_bound)
+        self.assertTrue(line.uses_hard_drivable_bound)
+        self.assertAlmostEqual(trial.shift_length, -1.5, delta=0.05)
+        self.assertAlmostEqual(trial.available_shift, -1.54, delta=0.02)
+
+    def test_profile_bound_uses_hard_margin_minus_maximum_deviation(self):
+        parameters = make_parameters()
+        parameters.vehicle_width = 2.0
+        parameters.hard_drivable_bound_margin = 0.3
+        parameters.max_deviation_from_lane = 0.2
+        engine = StaticAvoidanceEngine(parameters)
+
+        _expanded, _stations, lower, upper = engine._expanded_profile_bounds(
+            make_path()
+        )
+
+        # 2.5 m lane half-width - (1.0 m vehicle half-width + 0.3 m
+        # hard margin - 0.2 m allowed deviation) = 1.4 m center shift.
+        self.assertAlmostEqual(lower[0], -1.4)
+        self.assertAlmostEqual(upper[0], 1.4)
+
+    def test_diagonal_profile_relaxes_shift_and_delays_completion(self):
+        engine = StaticAvoidanceEngine(make_parameters())
+        candidate = AvoidanceObject(
+            object_id="diagonal",
+            message=make_object(x=24.0, y=0.7),
+            label=ObjectClassification.UNKNOWN,
+            longitudinal=24.0,
+            relative_longitudinal=19.0,
+            lateral=0.7,
+            half_longitudinal=0.3,
+            half_lateral=1.06,
+            current_left_bound=2.5,
+            current_right_bound=2.5,
+            expanded_left_bound=5.0,
+            expanded_right_bound=3.0,
+            stopped_time=5.0,
+            total_movement=0.0,
+            avoid_required=True,
+            allow_avoidance=True,
+            shift_length=-1.9,
+            minimum_shift_length=-1.5,
+            start_s=10.0,
+            avoid_end_s=20.0,
+            return_start_s=30.0,
+            return_end_s=45.0,
+        )
+        line = ShiftLine(
+            object_ids=[candidate.object_id],
+            direction="right",
+            shift_length=-1.9,
+            start_s=10.0,
+            avoid_end_s=20.0,
+            return_start_s=30.0,
+            return_end_s=45.0,
+        )
+        stations = [float(value) for value in range(121)]
+        lower = [-1.5] * len(stations)
+        upper = [5.0] * len(stations)
+        lower[18] = -1.0
+        lower[19] = -1.2
+        lower[20] = -1.35
+        lower[21] = -1.45
+        engine._profile_footprint_clearance = lambda *_args, **_kwargs: (
+            True,
+            "safe",
+            0.2,
+            0.3,
+            18.0,
+        )
+
+        fitted, failure, metrics = engine._fit_diagonal_shift_line(
+            candidate,
+            line,
+            make_path(),
+            stations,
+            lower,
+            upper,
+            ego_speed=1.38,
+        )
+
+        self.assertEqual(failure, "")
+        self.assertIsNotNone(fitted)
+        self.assertTrue(fitted.uses_diagonal_profile)
+        self.assertGreater(fitted.avoid_end_s, line.avoid_end_s)
+        self.assertLess(abs(fitted.shift_length), abs(line.shift_length))
+        self.assertGreaterEqual(abs(fitted.shift_length), 1.5)
+        self.assertEqual(metrics[1], "safe")
 
     def test_prefers_shorter_conventional_side_when_both_sides_are_feasible(self):
         parameters = make_parameters()
@@ -731,6 +903,107 @@ class StaticAvoidanceEngineTest(unittest.TestCase):
         self.assertTrue(extended)
         self.assertGreater(scene._registered_return_end_s, original_end)
         self.assertGreater(abs(scene._interpolate_registered_shift(40.0)), 0.05)
+
+    def test_registered_return_reanchors_from_actual_lateral_offset(self):
+        class FakeRTCController:
+            def evaluate(self, *_args, **_kwargs):
+                return True, 0, None, True
+
+            def complete(self, _stamp):
+                pass
+
+        parameters = make_parameters()
+        parameters.nominal_return_speed = 2.7
+        parameters.return_min_jerk = 0.3
+        parameters.return_reanchor_lateral_error_threshold = 0.3
+        line = ShiftLine(
+            object_ids=["object"],
+            direction="left",
+            shift_length=1.0,
+            start_s=0.0,
+            avoid_end_s=10.0,
+            return_start_s=20.0,
+            return_end_s=40.0,
+        )
+        registered_path, _ = self.engine._shift_path(self.path, [line])
+        scene = StaticAvoidanceScene.__new__(StaticAvoidanceScene)
+        scene.params = parameters
+        scene.engine = self.engine
+        scene.avoid_rtc_controller = FakeRTCController()
+        scene.return_rtc_controller = FakeRTCController()
+        scene._return_in_progress = False
+        scene._registered_return_signature = None
+        seed = StaticAvoidanceResult(
+            reference_path=self.path,
+            candidate_path=registered_path,
+            output_path=registered_path,
+            candidates=[],
+            targets=[],
+            shift_lines=[line],
+            direction="left",
+            return_direction="right",
+            max_shift=1.0,
+            signature=(("object", "left", 1.0),),
+        )
+        return_signature = seed.signature + (("return", "right"),)
+        scene._register_return(
+            seed,
+            registered_path,
+            return_signature,
+            self.odometry,
+        )
+
+        lagging_odometry = make_odometry()
+        lagging_odometry.pose.pose.position.x = 34.0
+        lagging_odometry.pose.pose.position.y = 0.9
+        lagging_odometry.twist.twist.linear.x = 2.7
+        result = StaticAvoidanceResult(
+            reference_path=self.path,
+            candidate_path=deepcopy(self.path),
+            output_path=deepcopy(self.path),
+            candidates=[],
+            targets=[],
+            shift_lines=[],
+            valid=False,
+        )
+
+        active = scene._continue_registered_return(
+            result,
+            lagging_odometry,
+            1.0,
+        )
+
+        self.assertTrue(active)
+        self.assertIn("reanchored=True", result.status)
+        self.assertAlmostEqual(scene._registered_return_start_s, 34.0, delta=0.1)
+        self.assertGreater(scene._registered_return_end_s, 45.0)
+        self.assertAlmostEqual(
+            result.output_path.points[34].point.pose.position.y,
+            0.9,
+            delta=0.05,
+        )
+
+        recovered_odometry = make_odometry()
+        recovered_odometry.pose.pose.position.x = 36.0
+        recovered_odometry.pose.pose.position.y = 0.0
+        recovered_result = StaticAvoidanceResult(
+            reference_path=self.path,
+            candidate_path=deepcopy(self.path),
+            output_path=deepcopy(self.path),
+            candidates=[],
+            targets=[],
+            shift_lines=[],
+            valid=False,
+        )
+
+        active = scene._continue_registered_return(
+            recovered_result,
+            recovered_odometry,
+            2.0,
+        )
+
+        self.assertFalse(active)
+        self.assertFalse(scene._return_in_progress)
 
 
 if __name__ == "__main__":

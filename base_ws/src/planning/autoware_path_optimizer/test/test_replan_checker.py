@@ -24,6 +24,7 @@ class ReplanCheckerTest(unittest.TestCase):
         return ReplanChecker(
             max_path_shape_forward_lon_dist=50.0,
             max_path_shape_forward_lat_dist=0.1,
+            max_path_shape_forward_reset_lat_dist=0.3,
             max_delta_time_sec=10.0,
         )
 
@@ -42,6 +43,15 @@ class ReplanCheckerTest(unittest.TestCase):
         checker.update(previous, (5.0, 0.0), True, 0.0)
 
         self.assertTrue(checker.replan_required(current, 1.0, (7.0, 0.0)))
+        self.assertFalse(checker.reset_required(current, (7.0, 0.0)))
+
+    def test_large_forward_shape_change_resets_previous_optimization(self):
+        checker = self.make_checker()
+        previous = straight_path(0)
+        current = straight_path(2, lateral=0.5)
+        checker.update(previous, (5.0, 0.0), True, 0.0)
+
+        self.assertTrue(checker.reset_required(current, (7.0, 0.0)))
 
 
 if __name__ == "__main__":

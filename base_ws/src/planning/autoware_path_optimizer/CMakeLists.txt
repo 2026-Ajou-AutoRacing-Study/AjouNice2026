@@ -3,6 +3,7 @@ project(autoware_path_optimizer)
 
 find_package(catkin REQUIRED COMPONENTS
   autoware_internal_debug_msgs
+  autoware_perception_msgs
   autoware_planning_msgs
   geometry_msgs
   nav_msgs
@@ -16,6 +17,7 @@ catkin_python_setup()
 catkin_package(
   CATKIN_DEPENDS
   autoware_internal_debug_msgs
+  autoware_perception_msgs
   autoware_planning_msgs
   geometry_msgs
   nav_msgs
@@ -55,4 +57,5 @@ install(
 if(CATKIN_ENABLE_TESTING)
   catkin_add_nosetests(test/test_mpt_optimizer.py)
   catkin_add_nosetests(test/test_replan_checker.py)
+  catkin_add_nosetests(test/test_static_collision_checker.py)
 endif()

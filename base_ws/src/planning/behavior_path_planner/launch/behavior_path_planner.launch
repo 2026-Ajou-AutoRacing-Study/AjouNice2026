@@ -6,6 +6,7 @@
   <arg name="forward_path_length" default="300.0" />
   <arg name="map_file" default="" />
   <arg name="projector_file" default="" />
+  <arg name="map_boundary_override_file" default="" />
   <arg name="map_projector_type" default="MGRS" />
   <arg name="lane_change_enable_rtc_left" default="false" />
   <arg name="lane_change_enable_rtc_right" default="false" />
@@ -22,6 +23,7 @@
     <arg name="forward_path_length" value="$(arg forward_path_length)" />
     <arg name="map_file" value="$(arg map_file)" />
     <arg name="projector_file" value="$(arg projector_file)" />
+    <arg name="map_boundary_override_file" value="$(arg map_boundary_override_file)" />
     <arg name="map_projector_type" value="$(arg map_projector_type)" />
     <arg name="lane_change_enable_rtc_left" value="$(arg lane_change_enable_rtc_left)" />
     <arg name="lane_change_enable_rtc_right" value="$(arg lane_change_enable_rtc_right)" />

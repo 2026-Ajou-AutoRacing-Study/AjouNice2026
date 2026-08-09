@@ -145,6 +145,49 @@ def way_points(way_id, ways, nodes):
     return [nodes[ref] for ref in ways[way_id]["refs"] if ref in nodes]
 
 
+def read_boundary_overrides(path):
+    if not path:
+        return []
+    if yaml is None:
+        raise RuntimeError("PyYAML is required to read boundary override files")
+    with open(path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f) or {}
+    overrides = config.get("boundary_offsets", [])
+    if not isinstance(overrides, list):
+        raise ValueError("boundary_offsets must be a list")
+    return overrides
+
+
+def apply_boundary_overrides(nodes, ways, overrides):
+    """Offset selected map ways while preserving their shared-node topology."""
+    for override in overrides or []:
+        way_id = str(override.get("way_id", ""))
+        if way_id not in ways:
+            raise ValueError("boundary override way does not exist: {}".format(way_id))
+        if ways[way_id]["tags"].get("type") != "road_border":
+            raise ValueError("boundary override is not a road_border: {}".format(way_id))
+        right_offset = float(override.get("right_offset_m", 0.0))
+        refs = [ref for ref in ways[way_id]["refs"] if ref in nodes]
+        if len(refs) < 2 or abs(right_offset) < 1.0e-9:
+            continue
+
+        original = {ref: nodes[ref] for ref in refs}
+        for index, ref in enumerate(refs):
+            before = original[refs[max(index - 1, 0)]]
+            after = original[refs[min(index + 1, len(refs) - 1)]]
+            dx = after[0] - before[0]
+            dy = after[1] - before[1]
+            length = math.hypot(dx, dy)
+            if length < 1.0e-9:
+                continue
+            point = original[ref]
+            nodes[ref] = (
+                point[0] + right_offset * dy / length,
+                point[1] - right_offset * dx / length,
+                point[2],
+            )
+
+
 def cumulative_lengths(points):
     if not points:
         return []
@@ -441,15 +484,31 @@ class CenterlineMap:
         self.boundary_node_ids = boundary_node_ids or {}
         self.intersection_areas = intersection_areas or {}
         self.lane_intersection_area_ids = lane_intersection_area_ids or {}
+        # Lane topology is immutable after map construction.  Static avoidance
+        # queries the same outer bounds for every path point and every cycle,
+        # so avoid repeating the full neighboring-lane graph search.
+        self._adjacent_lane_cache = {}
+        self._expanded_outer_boundary_cache = {}
 
     @classmethod
-    def load(cls, map_file, projector_file="", flatten_z=False, projector_type="none"):
+    def load(
+        cls,
+        map_file,
+        projector_file="",
+        flatten_z=False,
+        projector_type="none",
+        boundary_override_file="",
+    ):
         if not map_file:
             return None
         ext = os.path.splitext(map_file)[1].lower()
         if ext in (".osm", ".xml"):
             return cls.from_osm_file(
-                map_file, projector_file, flatten_z, projector_type
+                map_file,
+                projector_file,
+                flatten_z,
+                projector_type,
+                boundary_override_file,
             )
         if ext == ".json":
             return cls.from_mgeo_link_file(map_file, flatten_z)
@@ -457,7 +516,12 @@ class CenterlineMap:
 
     @classmethod
     def from_osm_file(
-        cls, map_file, projector_file="", flatten_z=False, projector_type="none"
+        cls,
+        map_file,
+        projector_file="",
+        flatten_z=False,
+        projector_type="none",
+        boundary_override_file="",
     ):
         tree = ET.parse(map_file)
         root = tree.getroot()
@@ -475,7 +539,13 @@ class CenterlineMap:
         if first_node is None:
             raise ValueError("Lanelet2 OSM does not contain a node")
         projector = read_projector(projector_type, projector_file, first_node)
-        return cls.from_osm_root(root, projector, map_file, flatten_z)
+        return cls.from_osm_root(
+            root,
+            projector,
+            map_file,
+            flatten_z,
+            read_boundary_overrides(boundary_override_file),
+        )
 
     @classmethod
     def from_osm_bytes(
@@ -485,6 +555,7 @@ class CenterlineMap:
         flatten_z=False,
         projector_type="none",
         projector_file="",
+        boundary_override_file="",
     ):
         root = ET.fromstring(bytes(data).decode("utf-8"))
         first_node = None
@@ -501,10 +572,23 @@ class CenterlineMap:
         if first_node is None:
             raise ValueError("Lanelet2 OSM does not contain a node")
         projector = read_projector(projector_type, projector_file, first_node)
-        return cls.from_osm_root(root, projector, source, flatten_z)
+        return cls.from_osm_root(
+            root,
+            projector,
+            source,
+            flatten_z,
+            read_boundary_overrides(boundary_override_file),
+        )
 
     @classmethod
-    def from_osm_root(cls, root, projector, source, flatten_z=False):
+    def from_osm_root(
+        cls,
+        root,
+        projector,
+        source,
+        flatten_z=False,
+        boundary_overrides=None,
+    ):
         nodes = {}
         ways = {}
         relations = []
@@ -543,6 +627,8 @@ class CenterlineMap:
                         },
                     }
                 )
+
+        apply_boundary_overrides(nodes, ways, boundary_overrides)
 
         centerlines = {}
         boundaries = {}
@@ -706,15 +792,21 @@ class CenterlineMap:
 
     def adjacent_lane(self, lane_id, side, use_lane_type="opposite_direction_lane"):
         """Return the lane and its outer side across a shared Lanelet boundary."""
+        cache_key = (int(lane_id), str(side), str(use_lane_type))
+        if cache_key in self._adjacent_lane_cache:
+            return self._adjacent_lane_cache[cache_key]
         if use_lane_type == "current_lane":
+            self._adjacent_lane_cache[cache_key] = None
             return None
 
         ids = self.get_boundary_ids(lane_id)
         if ids is None:
+            self._adjacent_lane_cache[cache_key] = None
             return None
         side_index = 0 if side == "left" else 1
         shared_id = ids[side_index]
         if shared_id is None:
+            self._adjacent_lane_cache[cache_key] = None
             return None
 
         for candidate_id, candidate_ids in self.boundary_ids.items():
@@ -727,7 +819,9 @@ class CenterlineMap:
                 continue
             shared_candidate_side = "left" if candidate_ids[0] == shared_id else "right"
             outer_side = "right" if shared_candidate_side == "left" else "left"
-            return int(candidate_id), outer_side
+            result = (int(candidate_id), outer_side)
+            self._adjacent_lane_cache[cache_key] = result
+            return result
 
         geometric_candidates = []
         for candidate_id in self.boundary_ids:
@@ -744,13 +838,24 @@ class CenterlineMap:
             candidate_outer_side = "right" if matched_sides[1] == 0 else "left"
             geometric_candidates.append((int(candidate_id), candidate_outer_side))
         if geometric_candidates:
-            return min(geometric_candidates, key=lambda value: value[0])
+            result = min(geometric_candidates, key=lambda value: value[0])
+            self._adjacent_lane_cache[cache_key] = result
+            return result
+        self._adjacent_lane_cache[cache_key] = None
         return None
 
     def expanded_outer_boundary(
         self, lane_id, side, use_lane_type="opposite_direction_lane", max_depth=8
     ):
         """Get the outermost boundary reachable through shared lane boundaries."""
+        cache_key = (
+            int(lane_id),
+            str(side),
+            str(use_lane_type),
+            max(int(max_depth), 1),
+        )
+        if cache_key in self._expanded_outer_boundary_cache:
+            return self._expanded_outer_boundary_cache[cache_key]
         current_lane_id = int(lane_id)
         current_side = side
         visited = {current_lane_id}
@@ -768,6 +873,7 @@ class CenterlineMap:
                 break
             current_lane_id, current_side = adjacent
             visited.add(current_lane_id)
+        self._expanded_outer_boundary_cache[cache_key] = boundary
         return boundary
 
     def expanded_bound_distances(

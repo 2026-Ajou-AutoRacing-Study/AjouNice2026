@@ -18,6 +18,7 @@
       - /planning/path_candidate/static_obstacle_avoidance
       - /planning/debug/bpp/module_status
       - /planning/debug/bpp/static_obstacle_avoidance
+      - /behavior_path_planner/debug/processing_time_ms
       - /planning/scenario_planning/status/stop_reasons
       - /planning/debug/behavior_velocity_planner/status
       - /planning/planning_factors/behavior_velocity_planner

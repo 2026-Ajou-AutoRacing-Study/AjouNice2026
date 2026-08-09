@@ -4,7 +4,7 @@ import math
 from copy import deepcopy
 
 import rospy
-from geometry_msgs.msg import Pose, PoseStamped, Quaternion
+from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from nav_msgs.msg import Path
 from std_msgs.msg import String
 
@@ -140,11 +140,21 @@ def set_velocity_window(path, start_distance, end_distance, velocity_mps, mode="
 
 
 class PathProjection:
-    def __init__(self, index, longitudinal_distance, signed_lateral_distance, distance):
+    def __init__(
+        self,
+        index,
+        longitudinal_distance,
+        signed_lateral_distance,
+        distance,
+        segment_ratio=0.0,
+        projected_position=None,
+    ):
         self.index = index
         self.longitudinal_distance = longitudinal_distance
         self.signed_lateral_distance = signed_lateral_distance
         self.distance = distance
+        self.segment_ratio = segment_ratio
+        self.projected_position = projected_position
 
 
 def project_pose_to_path(path, pose):
@@ -158,7 +168,14 @@ def project_pose_to_path(path, pose):
         dx = position.x - path_pose.position.x
         dy = position.y - path_pose.position.y
         signed_lateral = -math.sin(yaw) * dx + math.cos(yaw) * dy
-        return PathProjection(0, 0.0, signed_lateral, math.hypot(dx, dy))
+        return PathProjection(
+            0,
+            0.0,
+            signed_lateral,
+            math.hypot(dx, dy),
+            segment_ratio=0.0,
+            projected_position=deepcopy(path_pose.position),
+        )
 
     cumulative = path_cumulative_lengths(path)
     best = None
@@ -177,6 +194,7 @@ def project_pose_to_path(path, pose):
         ratio = clamp((wx * vx + wy * vy) / (segment_length * segment_length), 0.0, 1.0)
         closest_x = a.x + vx * ratio
         closest_y = a.y + vy * ratio
+        closest_z = a.z + (b.z - a.z) * ratio
         dx = position.x - closest_x
         dy = position.y - closest_y
         distance = math.hypot(dx, dy)
@@ -184,7 +202,18 @@ def project_pose_to_path(path, pose):
         longitudinal = cumulative[idx] + segment_length * ratio
 
         if best is None or distance < best.distance:
-            best = PathProjection(idx, longitudinal, signed_lateral, distance)
+            best = PathProjection(
+                idx,
+                longitudinal,
+                signed_lateral,
+                distance,
+                segment_ratio=ratio,
+                projected_position=Point(
+                    x=closest_x,
+                    y=closest_y,
+                    z=closest_z,
+                ),
+            )
 
     return best
 

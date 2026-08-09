@@ -3,6 +3,8 @@
        default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/lanelet2_map_v60.osm" />
   <arg name="projector_file"
        default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
+  <arg name="map_boundary_override_file"
+       default="$(find behavior_path_planner)/config/kcity_v60_boundary_overrides.yaml" />
   <arg name="map_projector_type" default="LocalCartesianUTM" />
   <arg name="frame_id" default="map" />
   <arg name="route_preset" default="full" />
@@ -46,6 +48,7 @@
     <arg name="forward_path_length" value="$(arg forward_path_length)" />
     <arg name="map_file" value="$(arg map_file)" />
     <arg name="projector_file" value="$(arg projector_file)" />
+    <arg name="map_boundary_override_file" value="$(arg map_boundary_override_file)" />
     <arg name="map_projector_type" value="$(arg map_projector_type)" />
     <arg name="require_lane_driving_scenario" value="true" />
     <arg name="enable_goal_planner" value="false" />
@@ -154,7 +157,7 @@
     <param name="vehicle_width" value="1.892" />
     <param name="wheelbase" value="3.0" />
     <param name="rear_overhang" value="0.79" />
-    <param name="icon_scale" value="2.0" />
+    <param name="icon_scale" value="1.0" />
   </node>
 
   <node pkg="bringup"

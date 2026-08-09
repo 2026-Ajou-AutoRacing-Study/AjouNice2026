@@ -6,6 +6,7 @@
   <arg name="forward_path_length" default="300.0" />
   <arg name="map_file" default="" />
   <arg name="projector_file" default="" />
+  <arg name="map_boundary_override_file" default="" />
   <arg name="map_projector_type" default="MGRS" />
   <arg name="lane_change_enable_rtc_left" default="false" />
   <arg name="lane_change_enable_rtc_right" default="false" />
@@ -34,6 +35,7 @@
     <param name="use_map_centerline" value="true" />
     <param name="map_file" value="$(arg map_file)" />
     <param name="projector_file" value="$(arg projector_file)" />
+    <param name="map_boundary_override_file" value="$(arg map_boundary_override_file)" />
     <param name="map_projector_type" value="$(arg map_projector_type)" />
 
     <param name="enable_lane_change" value="true" />
@@ -81,6 +83,8 @@
     <param name="static_obstacle_avoidance/avoidance/lateral/max_right_shift_length" value="5.0" />
     <param name="static_obstacle_avoidance/avoidance/lateral/max_left_shift_length" value="5.0" />
     <param name="static_obstacle_avoidance/avoidance/lateral/th_avoid_execution" value="0.09" />
+    <param name="static_obstacle_avoidance/avoidance/lateral/return_reanchor_lateral_error_threshold" value="0.3" />
+    <param name="static_obstacle_avoidance/resample_interval_for_planning" value="0.3" />
     <param name="static_obstacle_avoidance/avoidance/lateral/ratio_for_return_shift_approval" value="0.5" />
     <param name="static_obstacle_avoidance/avoidance/longitudinal/min_prepare_time" value="1.0" />
     <param name="static_obstacle_avoidance/avoidance/longitudinal/max_prepare_time" value="2.0" />
@@ -102,7 +106,7 @@
     <param name="static_obstacle_avoidance/target_object/car/lateral_margin/hard_margin" value="0.2" />
     <param name="static_obstacle_avoidance/target_object/car/lateral_margin/hard_margin_for_parked_vehicle" value="0.7" />
     <rosparam param="static_obstacle_avoidance/constraints/lateral/min_jerk_values/avoid">[0.2, 0.2, 0.2]</rosparam>
-    <rosparam param="static_obstacle_avoidance/constraints/lateral/min_jerk_values/return">[0.6, 0.6, 0.6]</rosparam>
+    <rosparam param="static_obstacle_avoidance/constraints/lateral/min_jerk_values/return">[0.3, 0.3, 0.3]</rosparam>
     <rosparam param="static_obstacle_avoidance/constraints/lateral/max_jerk_values">[2.5, 2.5, 2.5]</rosparam>
     <param name="static_obstacle_avoidance/rtc/enable_left" value="$(arg static_avoidance_enable_rtc_left)" />
     <param name="static_obstacle_avoidance/rtc/enable_right" value="$(arg static_avoidance_enable_rtc_right)" />

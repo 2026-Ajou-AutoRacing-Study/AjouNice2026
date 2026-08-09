@@ -7,6 +7,7 @@ from dataclasses import replace
 
 import rospy
 from autoware_internal_debug_msgs.msg import Float64Stamped, StringStamped
+from autoware_perception_msgs.msg import PredictedObjects
 from autoware_planning_msgs.msg import Path, Trajectory, TrajectoryPoint
 from geometry_msgs.msg import Quaternion
 from nav_msgs.msg import Odometry
@@ -14,6 +15,10 @@ from std_msgs.msg import String
 
 from autoware_path_optimizer.mpt_optimizer import MPTParameters, ModelPredictiveTrajectory
 from autoware_path_optimizer.replan_checker import ReplanChecker
+from autoware_path_optimizer.static_collision_checker import (
+    first_static_collision,
+    static_obstacles_from_message,
+)
 from autoware_path_optimizer.trajectory_utils import (
     TrajectorySample,
     apply_input_velocity,
@@ -99,6 +104,51 @@ class PathOptimizerNode:
             ),
             0.0,
         )
+        self.vehicle_width = float(rospy.get_param("~vehicle/width", 1.896))
+        self.base_link_to_front = float(
+            rospy.get_param("~vehicle/base_link_to_front", 3.845)
+        )
+        self.base_link_to_rear = float(
+            rospy.get_param("~vehicle/base_link_to_rear", 0.790)
+        )
+        self.enable_static_collision_check = bool(
+            rospy.get_param("~safety/enable_static_object_collision_check", True)
+        )
+        self.static_object_speed_threshold = max(
+            float(rospy.get_param("~safety/static_object_speed_threshold", 1.0)),
+            0.0,
+        )
+        self.static_object_margin = max(
+            float(rospy.get_param("~safety/static_object_margin", 0.3)),
+            0.0,
+        )
+        self.collision_sampling_interval = max(
+            float(rospy.get_param("~safety/collision_sampling_interval", 0.25)),
+            0.05,
+        )
+        self.collision_forward_distance = max(
+            float(rospy.get_param("~safety/collision_forward_distance", 60.0)),
+            1.0,
+        )
+        self.static_object_stop_margin = max(
+            float(rospy.get_param("~safety/static_object_stop_margin", 1.0)),
+            0.0,
+        )
+        self.allow_initial_margin_overlap_escape = bool(
+            rospy.get_param(
+                "~safety/allow_initial_margin_overlap_escape",
+                True,
+            )
+        )
+        self.maximum_margin_overlap_escape_distance = max(
+            float(
+                rospy.get_param(
+                    "~safety/maximum_margin_overlap_escape_distance",
+                    1.0,
+                )
+            ),
+            0.0,
+        )
         self.kinematic_validation_forward_distance = max(
             float(
                 rospy.get_param(
@@ -115,7 +165,7 @@ class PathOptimizerNode:
             output_backward_traj_length=float(
                 rospy.get_param("~common/output_backward_traj_length", 5.0)
             ),
-            vehicle_width=float(rospy.get_param("~vehicle/width", 1.896)),
+            vehicle_width=self.vehicle_width,
             wheel_base=float(rospy.get_param("~vehicle/wheel_base", 2.79)),
             max_steer_angle=float(
                 rospy.get_param("~vehicle/max_steer_angle", 0.61)
@@ -187,6 +237,11 @@ class PathOptimizerNode:
             max_path_shape_forward_lat_dist=float(
                 rospy.get_param("~replan/max_path_shape_forward_lat_dist", 0.1)
             ),
+            max_path_shape_forward_reset_lat_dist=float(
+                rospy.get_param(
+                    "~replan/max_path_shape_forward_reset_lat_dist", 0.3
+                )
+            ),
             max_ego_moving_dist=float(
                 rospy.get_param("~replan/max_ego_moving_dist", 5.0)
             ),
@@ -198,6 +253,7 @@ class PathOptimizerNode:
             ),
         )
         self.odometry = None
+        self.objects = None
         self.previous_geometry = None
         self.previous_output = None
 
@@ -222,10 +278,98 @@ class PathOptimizerNode:
             "~debug/processing_time_ms", Float64Stamped, queue_size=1
         )
         rospy.Subscriber("~input/odometry", Odometry, self.on_odometry, queue_size=1)
+        rospy.Subscriber(
+            "~input/objects", PredictedObjects, self.on_objects, queue_size=1
+        )
         rospy.Subscriber("~input/path", Path, self.on_path, queue_size=1)
 
     def on_odometry(self, message):
         self.odometry = message
+
+    def on_objects(self, message):
+        self.objects = message
+
+    def first_static_collision(self, points, ego_position):
+        if not self.enable_static_collision_check or self.objects is None:
+            return None
+        obstacles = static_obstacles_from_message(
+            self.objects,
+            self.static_object_speed_threshold,
+            self.static_object_margin,
+        )
+        collision = first_static_collision(
+            points,
+            obstacles,
+            ego_position,
+            vehicle_width=self.vehicle_width,
+            base_link_to_front=self.base_link_to_front,
+            base_link_to_rear=self.base_link_to_rear,
+            sampling_interval=self.collision_sampling_interval,
+            backward_distance=0.0,
+            forward_distance=self.collision_forward_distance,
+            ignore_initial_overlap=self.allow_initial_margin_overlap_escape,
+            maximum_initial_overlap_distance=(
+                self.maximum_margin_overlap_escape_distance
+            ),
+        )
+        if collision is not None:
+            return collision
+
+        # An initial overlap may only be ignored when it comes exclusively
+        # from the configured safety margin.  A true footprint collision still
+        # requires the normal fallback/stop response.
+        physical_obstacles = static_obstacles_from_message(
+            self.objects,
+            self.static_object_speed_threshold,
+            0.0,
+        )
+        return first_static_collision(
+            points,
+            physical_obstacles,
+            ego_position,
+            vehicle_width=self.vehicle_width,
+            base_link_to_front=self.base_link_to_front,
+            base_link_to_rear=self.base_link_to_rear,
+            sampling_interval=self.collision_sampling_interval,
+            backward_distance=0.0,
+            forward_distance=self.collision_forward_distance,
+        )
+
+    @staticmethod
+    def first_stop_station(points):
+        stations = cumulative_lengths(points)
+        for index, point in enumerate(points):
+            if abs(point.longitudinal_velocity_mps) < 1.0e-4:
+                return float(stations[index])
+        return None
+
+    def stop_before_static_collision(self, points, collision, ego_position):
+        if not points:
+            return []
+        stations = cumulative_lengths(points)
+        _, ego_station, _, _ = project_point(
+            points, ego_position[0], ego_position[1]
+        )
+        stop_station = max(
+            float(ego_station),
+            float(collision.station) - self.static_object_stop_margin,
+        )
+        if stop_station <= float(ego_station) + 1.0e-6:
+            stop_index = next(
+                (
+                    index
+                    for index, station in enumerate(stations)
+                    if float(station) >= float(ego_station) - 1.0e-6
+                ),
+                len(points) - 1,
+            )
+        else:
+            stop_index = 0
+            for index, station in enumerate(stations):
+                if float(station) > stop_station + 1.0e-6:
+                    break
+                stop_index = index
+        return set_zero_velocity_after(points, stop_index)
 
     def publish_time(self, milliseconds):
         stamp = rospy.Time.now()
@@ -353,6 +497,46 @@ class PathOptimizerNode:
         ):
             output = self.fallback(source, left_bound, right_bound, ego_position)
             status = "fallback: output kinematic validation failure"
+
+        collision = self.first_static_collision(output, ego_position)
+        if collision is not None:
+            fallback = self.fallback(
+                source, left_bound, right_bound, ego_position
+            )
+            fallback_collision = self.first_static_collision(
+                fallback, ego_position
+            )
+            object_id = collision.object_id[:8] or "unknown"
+            if fallback_collision is None:
+                output = fallback
+                status = (
+                    "fallback: optimized trajectory collides with static object "
+                    + object_id
+                )
+                # The upstream path is safe, so the previous MPT geometry is
+                # the source of the collision. Do not reuse it next cycle.
+                self.optimizer.reset()
+                self.previous_geometry = None
+            else:
+                first_stop = self.first_stop_station(fallback)
+                if (
+                    first_stop is not None
+                    and first_stop <= fallback_collision.station + 1.0e-3
+                ):
+                    output = fallback
+                    status = (
+                        "fallback: upstream stop protects static object "
+                        + object_id
+                    )
+                else:
+                    output = self.stop_before_static_collision(
+                        fallback,
+                        fallback_collision,
+                        ego_position,
+                    )
+                    status = "fallback: inserted stop for static object " + object_id
+                    self.optimizer.reset()
+                    self.previous_geometry = None
         output = set_zero_velocity_after_first_stop(output)
         output = [
             replace(

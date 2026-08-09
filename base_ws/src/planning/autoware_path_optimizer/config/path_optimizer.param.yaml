@@ -11,12 +11,29 @@ common:
 vehicle:
   width: 1.892
   wheel_base: 3.000
+  base_link_to_front: 3.845
+  base_link_to_rear: 0.790
   max_steer_angle: 0.61
+
+safety:
+  enable_static_object_collision_check: true
+  static_object_speed_threshold: 1.0
+  # Matches the BPP UNKNOWN-object envelope buffer (0.1 m) + hard margin (0.2 m).
+  static_object_margin: 0.3
+  collision_sampling_interval: 0.25
+  collision_forward_distance: 60.0
+  static_object_stop_margin: 1.0
+  # Do not trap the ego when only the safety envelope overlaps an object that
+  # is already behind and the forward trajectory clears it immediately.
+  allow_initial_margin_overlap_escape: true
+  maximum_margin_overlap_escape_distance: 1.0
 
 replan:
   max_path_shape_around_ego_lat_dist: 2.0
   max_path_shape_forward_lon_dist: 100.0
   max_path_shape_forward_lat_dist: 0.1
+  # Reset the previous MPT geometry when a new avoidance path appears ahead.
+  max_path_shape_forward_reset_lat_dist: 0.3
   max_ego_moving_dist: 5.0
   max_goal_moving_dist: 15.0
   max_delta_time_sec: 1.0
