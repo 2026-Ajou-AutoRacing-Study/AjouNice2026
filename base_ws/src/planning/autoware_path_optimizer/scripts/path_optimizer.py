@@ -20,6 +20,7 @@ from autoware_path_optimizer.trajectory_utils import (
     cumulative_lengths,
     join_with_remaining_path,
     resample,
+    project_point,
     set_zero_velocity_after,
     set_zero_velocity_after_first_stop,
 )
@@ -243,30 +244,45 @@ class PathOptimizerNode:
             )
         )
 
-    def stop_before_outside(self, points, left_bound, right_bound):
+    def stop_before_outside(
+        self, points, left_bound, right_bound, ego_position=None
+    ):
         if not self.enable_outside_stop or not points:
             return list(points)
         lower, upper = self.optimizer.lateral_bounds(points, left_bound, right_bound)
+        stations = cumulative_lengths(points)
+        ego_station = 0.0
+        if ego_position is not None:
+            _, ego_station, _, _ = project_point(
+                points, ego_position[0], ego_position[1]
+            )
         outside_index = next(
             (
                 index
-                for index, (low, high) in enumerate(zip(lower, upper))
+                for index, (station, low, high) in enumerate(
+                    zip(stations, lower, upper)
+                )
+                if station >= ego_station - 1.0e-3
                 if low > 0.0 or high < 0.0 or low > high
             ),
             None,
         )
         if outside_index is None:
             return list(points)
-        stations = cumulative_lengths(points)
-        stop_station = max(float(stations[outside_index]) - self.stop_margin, 0.0)
+        stop_station = max(
+            float(stations[outside_index]) - self.stop_margin,
+            ego_station,
+        )
         stop_index = int(max(0, min(len(points) - 1, (stations <= stop_station).sum() - 1)))
         return set_zero_velocity_after(points, stop_index)
 
-    def fallback(self, source, left_bound, right_bound):
+    def fallback(self, source, left_bound, right_bound, ego_position=None):
         # A stale previous output eventually places ego behind the reusable
         # trajectory window. Keep fallback rolling with the current input path.
         geometry = resample(source, self.output_interval, preserve_stop=True)
-        geometry = self.stop_before_outside(geometry, left_bound, right_bound)
+        geometry = self.stop_before_outside(
+            geometry, left_bound, right_bound, ego_position
+        )
         return set_zero_velocity_after_first_stop(geometry)
 
     def on_path(self, message):
@@ -310,7 +326,9 @@ class PathOptimizerNode:
                 self.previous_geometry = [replace(point) for point in optimized]
                 status = result.status
             else:
-                output = self.fallback(source, left_bound, right_bound)
+                output = self.fallback(
+                    source, left_bound, right_bound, ego_position
+                )
                 status = result.status if result is not None else "optimization failure"
                 status = "fallback: {}".format(status)
                 self.publish(message, output, result, status, started)
@@ -333,7 +351,7 @@ class PathOptimizerNode:
             and self.parameters.enable_optimization_validation
             and not self.optimizer.kinematically_feasible(validation_output)
         ):
-            output = self.fallback(source, left_bound, right_bound)
+            output = self.fallback(source, left_bound, right_bound, ego_position)
             status = "fallback: output kinematic validation failure"
         output = set_zero_velocity_after_first_stop(output)
         output = [
