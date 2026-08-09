@@ -16,11 +16,8 @@
        default="/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/raw_trajectory" />
   <arg name="forward_path_length" default="300.0" />
   <arg name="mission_publish_rate" default="5.0" />
-  <arg name="route_lane_ids" default="[]" />
-  <arg name="preferred_lane_ids" default="[]" />
-  <arg name="candidate_lane_ids" default="[]" />
   <arg name="route_definition_file"
-       default="$(find bringup)/config/kcity_competition_route.yaml" />
+       default="$(env AJOUNICE_ROOT)/kcity_map/competition_route/v60/route_definition.yaml" />
   <arg name="enable_path_smoother_debug" default="false" />
   <arg name="enable_path_optimizer_debug" default="false" />
   <arg name="mvp_extract_ahead_dist" default="200.0" />
@@ -40,7 +37,6 @@
     <arg name="map_file" value="$(arg map_file)" />
     <arg name="projector_file" value="$(arg projector_file)" />
     <arg name="map_projector_type" value="$(arg map_projector_type)" />
-    <arg name="route_lane_ids" value="$(arg route_lane_ids)" />
   </include>
 
   <include file="$(find behavior_path_planner)/launch/behavior_path_planner.launch">
@@ -132,9 +128,6 @@
       <param name="map_file" value="$(arg map_file)" />
       <param name="projector_file" value="$(arg projector_file)" />
       <param name="map_projector_type" value="$(arg map_projector_type)" />
-      <param name="route_lane_ids" value="$(arg route_lane_ids)" />
-      <param name="preferred_lane_ids" value="$(arg preferred_lane_ids)" />
-      <param name="candidate_lane_ids" value="$(arg candidate_lane_ids)" />
       <param name="route_definition_file" value="$(arg route_definition_file)" />
       <param name="keep_alive" value="true" />
     </node>

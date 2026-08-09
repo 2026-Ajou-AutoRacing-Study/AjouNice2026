@@ -48,7 +48,7 @@ class LaneChangeBPP(PathModuleBase):
         self.transition_interval = float(rospy.get_param("~transition_interval", 1.0))
         self.target_interval = float(rospy.get_param("~target_interval", 4.0))
         self.prepare_velocity_ratio = float(
-            rospy.get_param("~prepare_velocity_ratio", 2.0 / 3.0)
+            rospy.get_param("~prepare_velocity_ratio", 1.0)
         )
         self.route_driven = bool(rospy.get_param("~route_driven", True))
         self.map_file = rospy.get_param("~map_file", "")

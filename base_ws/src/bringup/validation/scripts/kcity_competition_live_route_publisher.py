@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import hashlib
 import math
 import os
 import sys
@@ -38,107 +39,11 @@ if BPP_SCRIPT_DIR not in sys.path:
 from bpp_map_tools import CenterlineMap, project_point_to_polyline  # noqa: E402
 
 
-COMPETITION_PREFERRED_LANE_IDS = [
-    200889,
-    200392,
-    200178,
-    200337,
-    200287,
-    200348,
-    200346,
-    200291,
-    200292,
-    200305,
-    200841,
-    200950,
-    200310,
-    200308,
-    200258,
-    200261,
-    200315,
-    200445,
-    200311,
-    200968,
-    201095,
-    201098,
-    201096,
-    201087,
-    201086,
-    200101,
-    201438,
-    200128,
-    200102,
-    201442,
-    200134,
-    201446,
-    200360,
-    201447,
-    201399,
-    200088,
-    201401,
-    200183,
-    200037,
-    200471,
-    201071,
-    201432,
-    200182,
-    200361,
-    200181,
-    200892,
-]
-
-COMPETITION_CANDIDATE_LANE_IDS = [
-    201434,
-    200152,
-    200142,
-    200136,
-    200099,
-    201435,
-    201436,
-    201437,
-    200137,
-    200138,
-    200186,
-    200187,
-    201444,
-    200141,
-    201443,
-    200188,
-    201445,
-    200130,
-    200127,
-    200148,
-    201441,
-    201439,
-    201440,
-    200185,
-    200147,
-    201448,
-    201449,
-    201400,
-    201450,
-    200150,
-    200149,
-    201402,
-    201403,
-]
-
-
 def quaternion_from_yaw(yaw):
     pose = Pose()
     pose.orientation.z = math.sin(yaw * 0.5)
     pose.orientation.w = math.cos(yaw * 0.5)
     return pose.orientation
-
-
-def lane_ids_param_is_set(value):
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return value.strip() not in ("", "[]")
-    if isinstance(value, (list, tuple)):
-        return len(value) > 0
-    return True
 
 
 def parse_lane_ids(value, default_lane_ids=None):
@@ -165,14 +70,107 @@ def unique_lane_ids(lane_ids):
     return result
 
 
-def load_route_definition(path):
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def load_route_definition(path, map_file=""):
     if not path:
-        return {}
+        raise ValueError("route definition file is required")
     with open(os.path.expanduser(path), "r", encoding="utf-8") as stream:
         data = yaml.safe_load(stream) or {}
     if not isinstance(data, dict):
         raise ValueError("route definition root must be a mapping")
-    return data
+
+    if int(data.get("format_version", 0)) != 1:
+        raise ValueError("route definition format_version must be 1")
+    if int(data.get("map_version", 0)) <= 0:
+        raise ValueError("route definition map_version must be a positive integer")
+    definition_map_file = str(data.get("map_file", "")).strip()
+    if not definition_map_file:
+        raise ValueError("route definition map_file is required")
+    definition_map_sha256 = str(data.get("map_sha256", "")).strip().lower()
+    if len(definition_map_sha256) != 64 or any(
+        character not in "0123456789abcdef" for character in definition_map_sha256
+    ):
+        raise ValueError("route definition map_sha256 must be a SHA-256 hex digest")
+
+    preferred = parse_lane_ids(data.get("preferred_lane_ids"), [])
+    candidates = parse_lane_ids(data.get("candidate_lane_ids"), [])
+    required = parse_lane_ids(data.get("required_lanelet_ids"), [])
+    if not preferred:
+        raise ValueError("route definition preferred_lane_ids is empty")
+    if len(preferred) != len(set(preferred)):
+        raise ValueError("route definition preferred_lane_ids contains duplicates")
+    if len(candidates) != len(set(candidates)):
+        raise ValueError("route definition candidate_lane_ids contains duplicates")
+    if len(required) != len(set(required)):
+        raise ValueError("route definition required_lanelet_ids contains duplicates")
+    overlap = set(preferred) & set(candidates)
+    if overlap:
+        raise ValueError(
+            "preferred/candidate lane IDs overlap: {}".format(sorted(overlap))
+        )
+    missing_required = set(required) - set(preferred)
+    if missing_required:
+        raise ValueError(
+            "required lane IDs are not preferred: {}".format(sorted(missing_required))
+        )
+
+    assignments = parse_candidate_assignments(data.get("candidate_assignments", {}))
+    unknown_assignment_keys = set(assignments) - set(preferred)
+    if unknown_assignment_keys:
+        raise ValueError(
+            "candidate assignment keys are not preferred: {}".format(
+                sorted(unknown_assignment_keys)
+            )
+        )
+    assigned = [lane_id for values in assignments.values() for lane_id in values]
+    unknown_assigned = set(assigned) - set(candidates)
+    if unknown_assigned:
+        raise ValueError(
+            "assigned lane IDs are not candidates: {}".format(sorted(unknown_assigned))
+        )
+    if len(assigned) != len(set(assigned)):
+        raise ValueError("a candidate lane ID is assigned more than once")
+    unassigned = set(candidates) - set(assigned)
+    if unassigned:
+        raise ValueError(
+            "candidate lane IDs are not assigned: {}".format(sorted(unassigned))
+        )
+
+    expanded_map_file = os.path.expanduser(map_file) if map_file else ""
+    if expanded_map_file:
+        if os.path.basename(expanded_map_file) != os.path.basename(definition_map_file):
+            raise ValueError(
+                "route definition map_file does not match planner map_file: {} != {}".format(
+                    definition_map_file,
+                    expanded_map_file,
+                )
+            )
+        actual_sha256 = sha256_file(expanded_map_file)
+        if actual_sha256 != definition_map_sha256:
+            raise ValueError(
+                "route definition map_sha256 does not match planner map: {} != {}".format(
+                    definition_map_sha256,
+                    actual_sha256,
+                )
+            )
+
+    return {
+        "format_version": 1,
+        "map_version": int(data["map_version"]),
+        "map_file": definition_map_file,
+        "map_sha256": definition_map_sha256,
+        "required_lanelet_ids": required,
+        "preferred_lane_ids": preferred,
+        "candidate_lane_ids": candidates,
+        "candidate_assignments": assignments,
+    }
 
 
 def parse_candidate_assignments(value):
@@ -204,68 +202,33 @@ class KcityCompetitionLiveRoutePublisher:
         self.route_definition_file = os.path.expanduser(
             rospy.get_param(
                 "~route_definition_file",
-                "/tmp/kcity_route_editor_lane_ids.yaml",
+                "",
             )
         )
-        route_definition = {}
         try:
-            route_definition = load_route_definition(self.route_definition_file)
-            rospy.loginfo(
-                "loaded edited route definition from %s",
+            route_definition = load_route_definition(
                 self.route_definition_file,
+                self.map_file,
             )
         except (OSError, ValueError, yaml.YAMLError) as error:
-            rospy.logwarn(
-                "edited route definition unavailable at %s; using built-in route: %s",
-                self.route_definition_file,
-                error,
-            )
-
-        route_lane_ids = rospy.get_param("~route_lane_ids", [])
-        if lane_ids_param_is_set(route_lane_ids):
-            self.preferred_lane_ids = unique_lane_ids(
-                parse_lane_ids(route_lane_ids, [])
-            )
-            self.candidate_lane_ids = unique_lane_ids(
-                parse_lane_ids(rospy.get_param("~candidate_lane_ids", []), [])
-            )
-            self.edited_candidate_assignments = {}
-        else:
-            definition_preferred = parse_lane_ids(
-                route_definition.get(
-                    "preferred_lane_ids",
-                    COMPETITION_PREFERRED_LANE_IDS,
-                ),
-                COMPETITION_PREFERRED_LANE_IDS,
-            )
-            definition_candidates = parse_lane_ids(
-                route_definition.get(
-                    "candidate_lane_ids",
-                    COMPETITION_CANDIDATE_LANE_IDS,
-                ),
-                COMPETITION_CANDIDATE_LANE_IDS,
-            )
-            preferred_param = rospy.get_param("~preferred_lane_ids", [])
-            candidate_param = rospy.get_param("~candidate_lane_ids", [])
-            self.preferred_lane_ids = unique_lane_ids(
-                parse_lane_ids(
-                    preferred_param,
-                    definition_preferred,
+            raise RuntimeError(
+                "invalid competition route definition at {}: {}".format(
+                    self.route_definition_file,
+                    error,
                 )
-                if lane_ids_param_is_set(preferred_param)
-                else definition_preferred
             )
-            self.candidate_lane_ids = unique_lane_ids(
-                parse_lane_ids(
-                    candidate_param,
-                    definition_candidates,
-                )
-                if lane_ids_param_is_set(candidate_param)
-                else definition_candidates
-            )
-            self.edited_candidate_assignments = parse_candidate_assignments(
-                route_definition.get("candidate_assignments", {})
-            )
+        rospy.loginfo(
+            "loaded competition route definition from %s (map v%d, required=%s)",
+            self.route_definition_file,
+            route_definition["map_version"],
+            route_definition["required_lanelet_ids"],
+        )
+        self.required_lanelet_ids = route_definition["required_lanelet_ids"]
+        self.preferred_lane_ids = route_definition["preferred_lane_ids"]
+        self.candidate_lane_ids = route_definition["candidate_lane_ids"]
+        self.edited_candidate_assignments = route_definition[
+            "candidate_assignments"
+        ]
 
         self.candidate_lane_ids = [
             lane_id

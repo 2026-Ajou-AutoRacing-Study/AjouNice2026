@@ -19,6 +19,32 @@ from bpp_map_tools import (
 
 
 class MapToolsTest(unittest.TestCase):
+    def test_duplicate_geometric_boundary_is_a_lateral_neighbor(self):
+        centerline_map = CenterlineMap(
+            "duplicated_boundary_ways",
+            {
+                "10": [(0.0, 0.0, 0.0), (100.0, 0.0, 0.0)],
+                "11": [(0.0, -4.0, 0.0), (100.0, -4.0, 0.0)],
+            },
+            boundaries={
+                "10": (
+                    [(0.0, 2.0, 0.0), (100.0, 2.0, 0.0)],
+                    [(0.0, -2.0, 0.0), (100.0, -2.0, 0.0)],
+                ),
+                "11": (
+                    [(0.2, -2.0, 0.0), (100.0, -2.0, 0.0)],
+                    [(0.0, -6.0, 0.0), (100.0, -6.0, 0.0)],
+                ),
+            },
+            boundary_ids={"10": (100, 101), "11": (102, 103)},
+        )
+
+        self.assertTrue(centerline_map.is_lateral_neighbor(10, 11))
+        self.assertEqual(
+            centerline_map.adjacent_lane(10, "right", "same_direction_lane"),
+            (11, "right"),
+        )
+
     def test_osm_intersection_area_expands_lateral_drivable_distance(self):
         root = ET.fromstring(
             """

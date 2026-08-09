@@ -172,7 +172,7 @@ def build_route_lane_change_path(
     target_forward_length=300.0,
     transition_interval=1.0,
     target_interval=4.0,
-    prepare_velocity_ratio=2.0 / 3.0,
+    prepare_velocity_ratio=1.0,
     target_lane_ids=None,
     goal_point=None,
     stop_at_goal=True,

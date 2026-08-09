@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
-from dataclasses import dataclass
+import re
+from collections import deque
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import xml.etree.ElementTree as ET
@@ -219,6 +222,198 @@ def load_reference_csv(path: Path) -> List[CourseReference]:
     return refs
 
 
+def load_route_definition(path: Path) -> Dict[str, object]:
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        raise ValueError("route definition root must be a mapping")
+
+    if int(data.get("format_version", 0)) != 1:
+        raise ValueError("route definition format_version must be 1")
+    map_version = int(data.get("map_version", 0))
+    if map_version <= 0:
+        raise ValueError("route definition map_version must be a positive integer")
+    map_file = str(data.get("map_file", "")).strip()
+    if not map_file:
+        raise ValueError("route definition map_file is required")
+    map_sha256 = str(data.get("map_sha256", "")).strip().lower()
+    if len(map_sha256) != 64 or any(
+        character not in "0123456789abcdef" for character in map_sha256
+    ):
+        raise ValueError("route definition map_sha256 must be a SHA-256 hex digest")
+
+    preferred = [int(value) for value in data.get("preferred_lane_ids", [])]
+    candidates = [int(value) for value in data.get("candidate_lane_ids", [])]
+    required = [int(value) for value in data.get("required_lanelet_ids", [])]
+    raw_assignments = data.get("candidate_assignments", {}) or {}
+    if not isinstance(raw_assignments, dict):
+        raise ValueError("candidate_assignments must be a mapping")
+    assignments = {
+        int(preferred_id): [int(value) for value in values]
+        for preferred_id, values in raw_assignments.items()
+    }
+
+    if not preferred:
+        raise ValueError("route definition preferred_lane_ids is empty")
+    if len(preferred) != len(set(preferred)):
+        raise ValueError("route definition preferred_lane_ids contains duplicates")
+    if len(candidates) != len(set(candidates)):
+        raise ValueError("route definition candidate_lane_ids contains duplicates")
+    if len(required) != len(set(required)):
+        raise ValueError("route definition required_lanelet_ids contains duplicates")
+    overlap = set(preferred) & set(candidates)
+    if overlap:
+        raise ValueError(f"preferred/candidate lane IDs overlap: {sorted(overlap)}")
+    if set(assignments) - set(preferred):
+        raise ValueError("candidate_assignments contains a non-preferred key")
+    assigned = [lane_id for values in assignments.values() for lane_id in values]
+    if set(assigned) - set(candidates):
+        raise ValueError("candidate_assignments contains a non-candidate lane ID")
+    if len(assigned) != len(set(assigned)):
+        raise ValueError("a candidate lane ID is assigned to multiple preferred lanes")
+    unassigned = set(candidates) - set(assigned)
+    if unassigned:
+        raise ValueError(f"candidate lane IDs are not assigned: {sorted(unassigned)}")
+    missing_required = set(required) - set(preferred)
+    if missing_required:
+        raise ValueError(
+            f"required lane IDs are not preferred: {sorted(missing_required)}"
+        )
+
+    return {
+        "format_version": 1,
+        "map_version": map_version,
+        "map_file": map_file,
+        "map_sha256": map_sha256,
+        "required_lanelet_ids": required,
+        "preferred_lane_ids": preferred,
+        "candidate_lane_ids": candidates,
+        "candidate_assignments": assignments,
+    }
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def validate_route_definition_map(
+    route_definition: Dict[str, object], map_path: Path
+) -> None:
+    definition_map_file = Path(str(route_definition["map_file"]))
+    if definition_map_file.name != map_path.name:
+        raise ValueError(
+            f"route definition map_file does not match input map: "
+            f"{definition_map_file} != {map_path}"
+        )
+    version_match = re.search(r"v(\d+)$", map_path.stem)
+    if version_match and int(version_match.group(1)) != int(route_definition["map_version"]):
+        raise ValueError(
+            "route definition map_version does not match input map filename: "
+            f"{route_definition['map_version']} != {version_match.group(1)}"
+        )
+    actual_sha256 = sha256_file(map_path)
+    if actual_sha256 != route_definition["map_sha256"]:
+        raise ValueError(
+            "route definition map_sha256 does not match input map: "
+            f"{route_definition['map_sha256']} != {actual_sha256}"
+        )
+
+
+def write_route_definition(path: Path, route_definition: Dict[str, object]) -> None:
+    serializable = {
+        "format_version": route_definition["format_version"],
+        "map_version": route_definition["map_version"],
+        "map_file": route_definition["map_file"],
+        "map_sha256": route_definition["map_sha256"],
+        "required_lanelet_ids": route_definition["required_lanelet_ids"],
+        "preferred_lane_ids": route_definition["preferred_lane_ids"],
+        "candidate_lane_ids": route_definition["candidate_lane_ids"],
+        "candidate_assignments": route_definition["candidate_assignments"],
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump(serializable, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+
+def apply_route_definition(
+    references: Sequence[CourseReference],
+    route_definition: Dict[str, object],
+    lanelets: Optional[Dict[int, LaneletData]] = None,
+) -> List[CourseReference]:
+    by_lanelet_id: Dict[int, List[CourseReference]] = {}
+    for reference in references:
+        by_lanelet_id.setdefault(reference.source_lanelet_id, []).append(reference)
+
+    preferred_ids = list(route_definition["preferred_lane_ids"])
+    candidate_ids = list(route_definition["candidate_lane_ids"])
+    configured_ids = set(preferred_ids) | set(candidate_ids)
+    available_ids = set(by_lanelet_id)
+    removed_ids = available_ids - configured_ids
+    if removed_ids:
+        raise ValueError(
+            f"route definition removed reference lane IDs: {sorted(removed_ids)}"
+        )
+    for lanelet_id in sorted(configured_ids - available_ids):
+        lanelet = (lanelets or {}).get(lanelet_id)
+        if lanelet is None or not lanelet.center:
+            raise ValueError(f"route lane ID {lanelet_id} is unavailable in the reference and map")
+        by_lanelet_id[lanelet_id] = [
+            CourseReference(
+                source_order="",
+                source_lanelet_id=lanelet_id,
+                role="candidate_corridor",
+                section="",
+                maneuver="candidate",
+                maneuver_ko=MANEUVER_KO["candidate"],
+                points=list(lanelet.center),
+            )
+        ]
+
+    ordered: List[CourseReference] = []
+    for index, lanelet_id in enumerate(preferred_ids, start=1):
+        ordered.append(
+            replace(
+                by_lanelet_id[lanelet_id][0],
+                source_order=str(index),
+                role="preferred_course",
+            )
+        )
+
+    # A closed competition course repeats its first lanelet after the final lanelet.
+    source_preferred_ids = [
+        reference.source_lanelet_id
+        for reference in references
+        if reference.role == "preferred_course"
+    ]
+    if (
+        len(source_preferred_ids) > 1
+        and source_preferred_ids[0] == source_preferred_ids[-1]
+        and preferred_ids[-1] != preferred_ids[0]
+    ):
+        ordered.append(
+            replace(
+                by_lanelet_id[preferred_ids[0]][-1],
+                source_order=str(len(ordered) + 1),
+                role="preferred_course",
+            )
+        )
+
+    for index, lanelet_id in enumerate(candidate_ids, start=1):
+        ordered.append(
+            replace(
+                by_lanelet_id[lanelet_id][0],
+                source_order=f"C{index:02d}",
+                role="candidate_corridor",
+            )
+        )
+    return ordered
+
+
 def interpolate_polyline(points: Sequence[Point3], fraction: float) -> Tuple[Point3, float]:
     if not points:
         return (0.0, 0.0, 0.0), 0.0
@@ -414,6 +609,121 @@ def resolve_course(
     return resolved
 
 
+def lanelet_is_successor(first: LaneletData, second: LaneletData, tolerance_m: float = 0.5) -> bool:
+    if not first.left or not first.right or not second.left or not second.right:
+        return False
+    return (
+        distance(first.left[-1], second.left[0]) <= tolerance_m
+        and distance(first.right[-1], second.right[0]) <= tolerance_m
+    )
+
+
+def dashed_lateral_neighbor(first: LaneletData, second: LaneletData, ways: Dict[int, WayData]) -> bool:
+    shared_way_id = None
+    if first.left_way_id == second.right_way_id:
+        shared_way_id = first.left_way_id
+    elif first.right_way_id == second.left_way_id:
+        shared_way_id = first.right_way_id
+    if shared_way_id is None or shared_way_id not in ways:
+        return False
+    shared_way = ways[shared_way_id]
+    return (
+        shared_way.tags.get("type") == "line_thin"
+        and shared_way.tags.get("subtype") in ("dashed", "solid_dashed")
+    )
+
+
+def lateral_path(
+    start_lanelet_id: int,
+    goal_lanelet_id: int,
+    allowed_lanelet_ids: Sequence[int],
+    lanelets: Dict[int, LaneletData],
+    ways: Dict[int, WayData],
+) -> Optional[List[int]]:
+    allowed = list(dict.fromkeys(int(value) for value in allowed_lanelet_ids))
+    queue = deque([(int(start_lanelet_id), [int(start_lanelet_id)])])
+    visited = {int(start_lanelet_id)}
+    while queue:
+        current, path = queue.popleft()
+        if current == int(goal_lanelet_id):
+            return path
+        for candidate in allowed:
+            if candidate in visited:
+                continue
+            if not dashed_lateral_neighbor(lanelets[current], lanelets[candidate], ways):
+                continue
+            visited.add(candidate)
+            queue.append((candidate, path + [candidate]))
+    return None
+
+
+def validate_route_transitions(
+    matches: Sequence[MatchResult],
+    route_definition: Dict[str, object],
+    lanelets: Dict[int, LaneletData],
+    ways: Dict[int, WayData],
+) -> Tuple[List[int], List[Dict[str, object]]]:
+    preferred = [match.lanelet.lanelet_id for match in matches if match.reference.role == "preferred_course"]
+    assignments = route_definition["candidate_assignments"]
+    successors: List[int] = []
+    transitions: List[Dict[str, object]] = []
+
+    for current_id, next_preferred_id in zip(preferred, preferred[1:]):
+        next_segment_ids = [next_preferred_id] + list(assignments.get(next_preferred_id, []))
+        direct_successors = [
+            lanelet_id
+            for lanelet_id in next_segment_ids
+            if lanelet_is_successor(lanelets[current_id], lanelets[lanelet_id])
+        ]
+        if not direct_successors:
+            raise ValueError(
+                f"no longitudinal successor from preferred {current_id} into next route segment {next_preferred_id}"
+            )
+
+        selected_successor = None
+        selected_lateral_path = None
+        if next_preferred_id in direct_successors:
+            selected_successor = next_preferred_id
+            selected_lateral_path = [next_preferred_id]
+        else:
+            for candidate in direct_successors:
+                path = lateral_path(
+                    candidate,
+                    next_preferred_id,
+                    next_segment_ids,
+                    lanelets,
+                    ways,
+                )
+                if path is not None:
+                    selected_successor = candidate
+                    selected_lateral_path = path
+                    break
+        if selected_successor is None or selected_lateral_path is None:
+            raise ValueError(
+                f"next preferred {next_preferred_id} is unreachable from successors of {current_id}"
+            )
+
+        current = lanelets[current_id]
+        next_preferred = lanelets[next_preferred_id]
+        successor = lanelets[selected_successor]
+        preferred_gap = distance(current.center[-1], next_preferred.center[0])
+        successor_gap = distance(current.center[-1], successor.center[0])
+        lane_change_path = selected_lateral_path if len(selected_lateral_path) > 1 else []
+        successors.append(selected_successor)
+        transitions.append(
+            {
+                "from_preferred_lanelet_id": current_id,
+                "longitudinal_successor_lanelet_id": selected_successor,
+                "next_preferred_lanelet_id": next_preferred_id,
+                "transition_type": "successor_then_lane_change" if lane_change_path else "successor",
+                "lane_change_path": lane_change_path,
+                "preferred_endpoint_gap_m": round(preferred_gap, 6),
+                "longitudinal_successor_gap_m": round(successor_gap, 6),
+            }
+        )
+    return successors, transitions
+
+
 def lanelet_bounds(lanelets: Iterable[LaneletData]) -> Tuple[float, float, float, float]:
     xs: List[float] = []
     ys: List[float] = []
@@ -534,7 +844,11 @@ def label_overlap_count(labels: Sequence[Dict[str, object]]) -> int:
     return count
 
 
-def write_course_csv(path: Path, matches: Sequence[MatchResult]) -> List[Dict[str, object]]:
+def write_course_csv(
+    path: Path,
+    matches: Sequence[MatchResult],
+    preferred_successor_ids: Optional[Sequence[int]] = None,
+) -> List[Dict[str, object]]:
     preferred = [match for match in matches if match.reference.role == "preferred_course"]
     candidates = [match for match in matches if match.reference.role == "candidate_corridor"]
     headings = [heading_deg(match.lanelet.center) for match in preferred]
@@ -543,6 +857,11 @@ def write_course_csv(path: Path, matches: Sequence[MatchResult]) -> List[Dict[st
     for idx, match in enumerate(preferred, start=1):
         lanelet = match.lanelet
         next_match = preferred[idx] if idx < len(preferred) else None
+        successor_lanelet_id = (
+            preferred_successor_ids[idx - 1]
+            if preferred_successor_ids is not None and idx - 1 < len(preferred_successor_ids)
+            else next_match.lanelet.lanelet_id if next_match else ""
+        )
         delta = normalize_angle(headings[idx] - headings[idx - 1]) if idx < len(preferred) else None
         maneuver = classify_maneuver(delta, match.reference.maneuver)
         start = lanelet.center[0] if lanelet.center else (0.0, 0.0, 0.0)
@@ -554,7 +873,7 @@ def write_course_csv(path: Path, matches: Sequence[MatchResult]) -> List[Dict[st
                 "lanelet_id": lanelet.lanelet_id,
                 "role": "preferred_course",
                 "section": match.reference.section,
-                "successor_lanelet_id": next_match.lanelet.lanelet_id if next_match else "",
+                "successor_lanelet_id": successor_lanelet_id,
                 "speed_limit_kph": "" if lanelet.speed_kph is None else f"{lanelet.speed_kph:.0f}",
                 "maneuver": maneuver,
                 "maneuver_ko": MANEUVER_KO.get(maneuver, maneuver),
@@ -573,7 +892,13 @@ def write_course_csv(path: Path, matches: Sequence[MatchResult]) -> List[Dict[st
                 "match_mean_distance_m": f"{match.mean_distance_m:.3f}",
                 "match_max_distance_m": f"{match.max_distance_m:.3f}",
                 "match_method": match.match_method,
-                "note": "coordinate-resolved preferred drive-course lanelet",
+                "note": (
+                    "route preferred; longitudinal successor {} then lane change to {}".format(
+                        successor_lanelet_id, next_match.lanelet.lanelet_id
+                    )
+                    if next_match is not None and successor_lanelet_id != next_match.lanelet.lanelet_id
+                    else "coordinate-resolved preferred drive-course lanelet"
+                ),
             }
         )
 
@@ -824,6 +1149,9 @@ def write_summary(
     matches: Sequence[MatchResult],
     match_threshold_m: float,
     max_distance_m: float,
+    route_definition_path: Optional[Path] = None,
+    route_definition: Optional[Dict[str, object]] = None,
+    route_transitions: Optional[Sequence[Dict[str, object]]] = None,
 ) -> None:
     gaps = endpoint_gaps(rows)
     preferred = [match for match in matches if match.reference.role == "preferred_course"]
@@ -844,6 +1172,38 @@ def write_summary(
         "max_match_mean_distance_m": max(match_distances) if match_distances else None,
         "render_validation": render_validation,
     }
+    if route_definition_path is not None and route_definition is not None:
+        transitions = list(route_transitions or [])
+        lane_change_transitions = [
+            transition
+            for transition in transitions
+            if transition["transition_type"] == "successor_then_lane_change"
+        ]
+        summary.update(
+            {
+                "route_definition": str(route_definition_path),
+                "route_required_lanelet_ids": route_definition[
+                    "required_lanelet_ids"
+                ],
+                "route_preferred_lane_ids": route_definition["preferred_lane_ids"],
+                "route_candidate_lane_ids": route_definition["candidate_lane_ids"],
+                "candidate_assignments": {
+                    str(key): value
+                    for key, value in route_definition["candidate_assignments"].items()
+                },
+                "route_transition_validation": "all preferred route sections reachable",
+                "route_transition_count": len(transitions),
+                "intentional_lane_change_transition_count": len(lane_change_transitions),
+                "max_longitudinal_successor_gap_m": max(
+                    (
+                        float(transition["longitudinal_successor_gap_m"])
+                        for transition in transitions
+                    ),
+                    default=0.0,
+                ),
+                "intentional_lane_change_transitions": lane_change_transitions,
+            }
+        )
     path.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
@@ -853,6 +1213,12 @@ def main() -> int:
     parser.add_argument("--map", type=str, required=True, help="Lanelet2 OSM path")
     parser.add_argument("--projector", type=str, default="lanelet_map/map_projector_info_v1.yaml")
     parser.add_argument("--reference-csv", type=str, default="competition_route/v41/drive_course_v41_lanelets.csv")
+    parser.add_argument(
+        "--route-definition",
+        type=str,
+        default="",
+        help="Optional preferred/candidate route YAML used to reorder the reference lanelets",
+    )
     parser.add_argument("--out-dir", type=str, required=True)
     parser.add_argument("--output-prefix", type=str, default="drive_course")
     parser.add_argument("--utm-projection", type=str, default="+proj=utm +zone=52 +datum=WGS84 +units=m +no_defs")
@@ -869,6 +1235,9 @@ def main() -> int:
     map_path = as_path(root, args.map)
     projector_path = as_path(root, args.projector)
     reference_csv = as_path(root, args.reference_csv)
+    route_definition_path = (
+        as_path(root, args.route_definition).resolve() if args.route_definition else None
+    )
     out_dir = as_path(root, args.out_dir)
     output_prefix = out_dir / args.output_prefix
     csv_path = output_prefix.with_name(f"{args.output_prefix}_lanelets.csv")
@@ -879,6 +1248,13 @@ def main() -> int:
     projector = LocalMapProjector(projector_path, args.utm_projection)
     lanelets, ways = load_lanelet_osm(map_path, projector)
     references = load_reference_csv(reference_csv)
+    route_definition = None
+    if route_definition_path is not None:
+        route_definition = load_route_definition(route_definition_path)
+        validate_route_definition_map(route_definition, map_path)
+        route_definition_path = out_dir / "route_definition.yaml"
+        write_route_definition(route_definition_path, route_definition)
+        references = apply_route_definition(references, route_definition, lanelets)
     matches = resolve_course(
         references,
         lanelets,
@@ -887,7 +1263,17 @@ def main() -> int:
         not args.no_prefer_source_id,
     )
 
-    rows = write_course_csv(csv_path, matches)
+    preferred_successor_ids = None
+    route_transitions = None
+    if route_definition is not None:
+        preferred_successor_ids, route_transitions = validate_route_transitions(
+            matches,
+            route_definition,
+            lanelets,
+            ways,
+        )
+
+    rows = write_course_csv(csv_path, matches, preferred_successor_ids)
     write_match_audit(audit_path, matches)
     render_validation = render_map(image_prefix, lanelets, ways, matches)
     write_summary(
@@ -901,6 +1287,9 @@ def main() -> int:
         matches,
         args.match_threshold_m,
         args.max_distance_m,
+        route_definition_path,
+        route_definition,
+        route_transitions,
     )
 
     print(f"wrote {csv_path}")
@@ -909,6 +1298,8 @@ def main() -> int:
     print(f"wrote {image_prefix.with_suffix('.pdf')}")
     print(f"wrote {image_prefix.with_suffix('.png')}")
     print(f"wrote {summary_path}")
+    if route_definition_path is not None:
+        print(f"wrote {route_definition_path}")
     print(json.dumps(render_validation, indent=2, ensure_ascii=False))
     return 0
 

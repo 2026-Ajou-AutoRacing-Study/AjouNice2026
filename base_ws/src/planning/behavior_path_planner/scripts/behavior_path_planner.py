@@ -226,7 +226,7 @@ class BehaviorPathPlanner:
             rospy.get_param("~lane_change/target_interval", 4.0)
         )
         self.lane_change_prepare_velocity_ratio = float(
-            rospy.get_param("~lane_change/prepare_velocity_ratio", 2.0 / 3.0)
+            rospy.get_param("~lane_change/prepare_velocity_ratio", 1.0)
         )
         self.lane_change_enable_safety_check = param_bool(
             rospy.get_param("~lane_change/enable_safety_check", True)
