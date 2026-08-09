@@ -18,7 +18,7 @@ from bpp_map_tools import (
     trim_polyline,
 )
 from bpp_path_tools import clamp, project_pose_to_path, quaternion_from_yaw, smoothstep
-from bpp_route_tools import current_route_lane, following_lane, route_sections
+from bpp_route_tools import current_route_lane, route_sections
 
 
 @dataclass
@@ -76,60 +76,62 @@ def route_lane_change_target(
         )
     if section_index is None or source_lane_id is None:
         return None
+    if section_index < 0 or section_index >= len(sections):
+        return None
 
-    for candidate_index in range(section_index, len(sections)):
-        section = sections[candidate_index]
-        if candidate_index != section_index:
-            source_lane_id = following_lane(centerline_map, source_lane_id, section)
-            if source_lane_id is None:
-                return None
+    # A future route section may require a lane change, but it must not become
+    # executable while ego is still driving an earlier preferred lane.  The
+    # route tracker advances this index as ego reaches each section, so only
+    # the current section is eligible here.
+    section = sections[section_index]
+    if source_lane_id not in section.lane_ids:
+        return None
 
-        preferred_lane_id = section.preferred_lane_id
-        if not preferred_lane_id or source_lane_id == preferred_lane_id:
-            continue
-        target_lane_id = _next_lateral_lane(
-            centerline_map,
-            section.lane_ids,
-            source_lane_id,
-            preferred_lane_id,
-        )
-        if target_lane_id is None:
-            continue
+    preferred_lane_id = section.preferred_lane_id
+    if not preferred_lane_id or source_lane_id == preferred_lane_id:
+        return None
+    target_lane_id = _next_lateral_lane(
+        centerline_map,
+        section.lane_ids,
+        source_lane_id,
+        preferred_lane_id,
+    )
+    if target_lane_id is None:
+        return None
 
-        source = centerline_map.get_centerline(source_lane_id)
-        target = centerline_map.get_centerline(target_lane_id)
-        ego = (
-            float(ego_pose.position.x),
-            float(ego_pose.position.y),
-            float(ego_pose.position.z),
-        )
-        source_projection = project_point_to_polyline(source, ego)
-        if source_projection is None:
-            continue
-        source_s = source_projection[0]
-        source_point = interpolate_polyline(source, source_s)
-        target_projection = project_point_to_polyline(target, source_point)
-        if target_projection is None:
-            continue
-        target_point = interpolate_polyline(target, target_projection[0])
-        before = interpolate_polyline(source, max(0.0, source_s - 0.5))
-        after = interpolate_polyline(source, source_s + 0.5)
-        tangent_x = after[0] - before[0]
-        tangent_y = after[1] - before[1]
-        tangent_length = max(math.hypot(tangent_x, tangent_y), 1.0e-6)
-        lateral_offset = (
-            tangent_x * (target_point[1] - source_point[1])
-            - tangent_y * (target_point[0] - source_point[0])
-        ) / tangent_length
-        if abs(lateral_offset) < 0.1:
-            continue
-        return RouteLaneChangeTarget(
-            source_lane_id=source_lane_id,
-            target_lane_id=target_lane_id,
-            lateral_offset=lateral_offset,
-            section_index=candidate_index,
-        )
-    return None
+    source = centerline_map.get_centerline(source_lane_id)
+    target = centerline_map.get_centerline(target_lane_id)
+    ego = (
+        float(ego_pose.position.x),
+        float(ego_pose.position.y),
+        float(ego_pose.position.z),
+    )
+    source_projection = project_point_to_polyline(source, ego)
+    if source_projection is None:
+        return None
+    source_s = source_projection[0]
+    source_point = interpolate_polyline(source, source_s)
+    target_projection = project_point_to_polyline(target, source_point)
+    if target_projection is None:
+        return None
+    target_point = interpolate_polyline(target, target_projection[0])
+    before = interpolate_polyline(source, max(0.0, source_s - 0.5))
+    after = interpolate_polyline(source, source_s + 0.5)
+    tangent_x = after[0] - before[0]
+    tangent_y = after[1] - before[1]
+    tangent_length = max(math.hypot(tangent_x, tangent_y), 1.0e-6)
+    lateral_offset = (
+        tangent_x * (target_point[1] - source_point[1])
+        - tangent_y * (target_point[0] - source_point[0])
+    ) / tangent_length
+    if abs(lateral_offset) < 0.1:
+        return None
+    return RouteLaneChangeTarget(
+        source_lane_id=source_lane_id,
+        target_lane_id=target_lane_id,
+        lateral_offset=lateral_offset,
+        section_index=section_index,
+    )
 
 
 def _path_polyline(path):
@@ -162,6 +164,44 @@ def _sample_distances(start, end, interval):
     return result
 
 
+def _lane_station_range(path, distances, lane_id):
+    stations = [
+        distances[index]
+        for index, item in enumerate(path.points)
+        if lane_id in item.lane_ids
+    ]
+    if not stations:
+        return None
+    return min(stations), max(stations)
+
+
+def _candidate_geometry_is_valid(points, transition_interval, target_interval):
+    if len(points) < 2:
+        return False
+    if any(not all(math.isfinite(value) for value in point[:2]) for point in points):
+        return False
+
+    maximum_spacing = 1.5 * max(
+        float(transition_interval),
+        float(target_interval),
+        0.1,
+    )
+    headings = []
+    for first, second in zip(points[:-1], points[1:]):
+        delta_x = second[0] - first[0]
+        delta_y = second[1] - first[1]
+        spacing = math.hypot(delta_x, delta_y)
+        if spacing < 1.0e-6 or spacing > maximum_spacing + 1.0e-6:
+            return False
+        headings.append(math.atan2(delta_y, delta_x))
+
+    for first, second in zip(headings[:-1], headings[1:]):
+        delta = abs(math.atan2(math.sin(second - first), math.cos(second - first)))
+        if delta > math.radians(60.0):
+            return False
+    return True
+
+
 def build_route_lane_change_path(
     path,
     centerline_map,
@@ -178,7 +218,7 @@ def build_route_lane_change_path(
     stop_at_goal=True,
 ):
     if not path.points or target is None:
-        return deepcopy(path)
+        return None
 
     source_polyline = _path_polyline(path)
     source_distances = cumulative_lengths(source_polyline)
@@ -202,33 +242,56 @@ def build_route_lane_change_path(
         centerline_map, target_lane_ids
     )
     if len(target_centerline) < 2:
-        return deepcopy(path)
+        return None
 
-    source_lane_start_s = None
-    for index, item in enumerate(path.points):
-        if target.source_lane_id in item.lane_ids:
-            source_lane_start_s = source_distances[index]
-            break
-    if source_lane_start_s is not None:
-        start_s = max(
-            start_s,
-            min(
-                source_lane_start_s + max(float(prepare_distance), 0.0),
-                source_distances[-1],
-            ),
-        )
-        finish_s = clamp(
-            start_s + max(float(lane_change_distance), 0.1),
-            start_s,
+    source_range = _lane_station_range(
+        path,
+        source_distances,
+        target.source_lane_id,
+    )
+    if source_range is None:
+        return None
+    source_lane_start_s, source_lane_end_s = source_range
+    local_tolerance = max(float(prepare_distance), float(transition_interval), 0.1)
+    if (
+        ego_s < source_lane_start_s - local_tolerance
+        or ego_s > source_lane_end_s + local_tolerance
+    ):
+        return None
+    if not centerline_map.is_lateral_neighbor(
+        target.source_lane_id,
+        target.target_lane_id,
+    ):
+        return None
+
+    start_s = max(
+        start_s,
+        min(
+            source_lane_start_s + max(float(prepare_distance), 0.0),
             source_distances[-1],
-        )
+        ),
+    )
+    finish_s = clamp(
+        start_s + max(float(lane_change_distance), 0.1),
+        start_s,
+        source_distances[-1],
+    )
 
     generated = []
     generated_lane_ids = []
     generated_velocities = []
+    maximum_target_distance = max(
+        abs(float(target.lateral_offset)) * 1.5,
+        abs(float(target.lateral_offset)) + 2.0,
+        3.0,
+    )
     for distance in _sample_distances(0.0, finish_s, transition_interval):
         source_point = interpolate_polyline(source_polyline, distance)
         target_projection = project_point_to_polyline(target_centerline, source_point)
+        if target_projection is None:
+            return None
+        if distance >= start_s and target_projection[1] > maximum_target_distance:
+            return None
         target_point = interpolate_polyline(target_centerline, target_projection[0])
         ratio = smoothstep(start_s, finish_s, distance)
         point = (
@@ -248,6 +311,7 @@ def build_route_lane_change_path(
         if distance <= start_s:
             base_velocity *= max(float(prepare_velocity_ratio), 0.0)
         generated_velocities.append(base_velocity)
+    transition_point_count = len(generated)
 
     target_start = generated[-1]
     target_tail = trim_polyline(
@@ -271,6 +335,13 @@ def build_route_lane_change_path(
             )
         )
         generated_velocities.append(target_velocity)
+
+    if not _candidate_geometry_is_valid(
+        generated[: min(len(generated), transition_point_count + 2)],
+        transition_interval,
+        target_interval,
+    ):
+        return None
 
     if reaches_goal and stop_at_goal and generated_velocities:
         generated_velocities[-1] = 0.0

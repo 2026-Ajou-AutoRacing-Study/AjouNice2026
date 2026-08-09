@@ -264,6 +264,13 @@ class LaneChangeBPP(PathModuleBase):
                 self.prepare_velocity_ratio,
                 target_lane_ids,
             )
+            if candidate is None:
+                self.rtc_controller.complete(stamp)
+                self.publish_turn_signal(stamp, 0.0)
+                return (
+                    path,
+                    "lane_change: pass-through, route target is not local or candidate is invalid",
+                )
             safe = self.is_lane_change_safe(path, target_offset)
             return self.apply_rtc_gate(
                 path,

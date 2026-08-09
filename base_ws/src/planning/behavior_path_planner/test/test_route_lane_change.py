@@ -12,6 +12,7 @@ sys.path.insert(0, SCRIPT_DIR)
 
 from bpp_lane_change_tools import (
     RouteLaneChangeTarget,
+    _candidate_geometry_is_valid,
     build_route_lane_change_path,
     route_lane_change_target,
 )
@@ -161,15 +162,25 @@ class RouteLaneChangeTest(unittest.TestCase):
         self.assertEqual(xs, sorted(xs))
         self.assertEqual(centerline[-1][:2], (80.0, 4.0))
 
-    def test_lane_change_target_uses_route_progression(self):
+    def test_future_lane_change_is_not_requested_from_current_preferred_lane(self):
         target = route_lane_change_target(
             self.route, self.map, Pose(5.0, 0.0)
+        )
+        self.assertIsNone(target)
+
+    def test_lane_change_target_is_requested_after_tracker_reaches_source_lane(self):
+        target = route_lane_change_target(
+            self.route,
+            self.map,
+            Pose(20.0, 0.0, yaw=0.0),
+            current_section_index=1,
+            current_lane_id=200316,
         )
         self.assertIsNotNone(target)
         self.assertEqual(target.source_lane_id, 200316)
         self.assertEqual(target.target_lane_id, 200315)
 
-    def test_lane_change_target_uses_tracked_root_not_global_nearest(self):
+    def test_tracked_current_section_does_not_activate_spatially_close_future_change(self):
         target = route_lane_change_target(
             self.route,
             self.map,
@@ -177,9 +188,7 @@ class RouteLaneChangeTest(unittest.TestCase):
             current_section_index=0,
             current_lane_id=200262,
         )
-        self.assertIsNotNone(target)
-        self.assertEqual(target.source_lane_id, 200316)
-        self.assertEqual(target.target_lane_id, 200315)
+        self.assertIsNone(target)
 
     def test_no_lane_change_when_preferred_lane_is_longitudinal_successor(self):
         route = PreferredLaneRoute()
@@ -287,7 +296,7 @@ class RouteLaneChangeTest(unittest.TestCase):
         candidate = build_route_lane_change_path(
             path,
             self.map,
-            Pose(0.0, 0.0),
+            Pose(12.0, 0.0),
             target,
             prepare_distance=3.0,
             lane_change_distance=28.0,
@@ -313,6 +322,69 @@ class RouteLaneChangeTest(unittest.TestCase):
             2.1,
         )
 
+    def test_candidate_is_rejected_when_source_lane_is_not_local(self):
+        path = PathWithLaneId()
+        for x in range(41):
+            point = PathPoint()
+            point.pose.position.x = float(x)
+            point.longitudinal_velocity_mps = 5.0
+            item = PathPointWithLaneId()
+            item.point = point
+            item.lane_ids = [200262]
+            path.points.append(item)
+
+        target = RouteLaneChangeTarget(200316, 200315, 4.0, 1)
+        self.assertIsNone(
+            build_route_lane_change_path(
+                path,
+                self.map,
+                Pose(0.0, 0.0),
+                target,
+                prepare_distance=3.0,
+                lane_change_distance=28.0,
+                target_forward_length=100.0,
+                transition_interval=1.0,
+                target_interval=2.0,
+                target_lane_ids=[200315, 200272],
+            )
+        )
+
+    def test_candidate_is_rejected_when_source_lane_is_too_far_ahead(self):
+        path = PathWithLaneId()
+        for x in range(41):
+            point = PathPoint()
+            point.pose.position.x = float(x)
+            point.longitudinal_velocity_mps = 5.0
+            item = PathPointWithLaneId()
+            item.point = point
+            item.lane_ids = [200262 if x < 10 else 200316]
+            path.points.append(item)
+
+        target = RouteLaneChangeTarget(200316, 200315, 4.0, 1)
+        self.assertIsNone(
+            build_route_lane_change_path(
+                path,
+                self.map,
+                Pose(0.0, 0.0),
+                target,
+                prepare_distance=3.0,
+                lane_change_distance=28.0,
+                target_forward_length=100.0,
+                transition_interval=1.0,
+                target_interval=2.0,
+                target_lane_ids=[200315, 200272],
+            )
+        )
+
+    def test_candidate_geometry_rejects_discontinuous_heading(self):
+        self.assertFalse(
+            _candidate_geometry_is_valid(
+                [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)],
+                transition_interval=1.0,
+                target_interval=1.0,
+            )
+        )
+
     def test_candidate_stops_at_route_goal(self):
         path = PathWithLaneId()
         for x in range(41):
@@ -328,7 +400,7 @@ class RouteLaneChangeTest(unittest.TestCase):
         candidate = build_route_lane_change_path(
             path,
             self.map,
-            Pose(0.0, 0.0),
+            Pose(12.0, 0.0),
             target,
             prepare_distance=3.0,
             lane_change_distance=28.0,
