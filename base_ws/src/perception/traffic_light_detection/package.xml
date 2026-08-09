@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>traffic_light_detection</name>
+  <version>0.0.1</version>
+  <description>YOLO26 + HSV 기반 신호등 색상/모양 인식 노드</description>
+  <maintainer email="dwher1224@gmail.com">wook</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>autoware_perception_msgs</depend>
+</package>

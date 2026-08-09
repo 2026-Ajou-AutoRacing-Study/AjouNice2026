@@ -1,0 +1,17 @@
+<launch>
+  <!-- configs/sensors/Sensor_*.json 기준 확인된 실제 토픽 (CompressedImage) -->
+  <arg name="image_topic" default="/sensor/camera/front/compressed" />
+  <arg name="weights_path" default="$(find traffic_light_detection)/weights/best.pt" />
+  <arg name="conf" default="0.25" />
+  <arg name="max_rate_hz" default="10.0" />
+  <!-- TODO: 맵 매칭 하기 전까지는 고정값. 판단팀과 협의 후 수정 -->
+  <arg name="traffic_light_group_id" default="0" />
+
+  <node pkg="traffic_light_detection" type="traffic_light_node.py" name="traffic_light_node" output="screen">
+    <param name="image_topic" value="$(arg image_topic)" />
+    <param name="weights_path" value="$(arg weights_path)" />
+    <param name="conf" value="$(arg conf)" />
+    <param name="max_rate_hz" value="$(arg max_rate_hz)" />
+    <param name="traffic_light_group_id" value="$(arg traffic_light_group_id)" />
+  </node>
+</launch>
