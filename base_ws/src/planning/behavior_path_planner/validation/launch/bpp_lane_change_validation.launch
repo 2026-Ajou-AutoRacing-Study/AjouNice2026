@@ -41,7 +41,6 @@
     <param name="target_forward_length" value="300.0" />
     <param name="transition_interval" value="1.0" />
     <param name="target_interval" value="4.0" />
-    <param name="prepare_velocity_ratio" value="0.6666666667" />
     <param name="enable_safety_check" value="true" />
     <param name="rtc/enable_left" value="$(arg lane_change_enable_rtc_left)" />
     <param name="rtc/enable_right" value="$(arg lane_change_enable_rtc_right)" />
