@@ -1,8 +1,12 @@
 <launch>
+  <arg name="map_file"
+       default="$(env AJOUNICE_ROOT)/kcity_map/lanelet_map/lanelet2_map_v60.osm" />
   <arg name="frame_id" default="map" />
   <arg name="vector_map_topic" default="/map/vector_map" />
   <arg name="projector_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/map_projector_info_v1.yaml" />
   <arg name="map_projector_type" default="LocalCartesianUTM" />
+  <arg name="route_definition_file"
+       default="$(env AJOUNICE_ROOT)/kcity_map/competition_route/v60/route_definition.yaml" />
   <arg name="map_wait_timeout" default="10.0" />
   <arg name="keep_alive" default="true" />
 
@@ -11,10 +15,11 @@
         name="kcity_competition_live_route_publisher"
         output="screen">
     <param name="frame_id" value="$(arg frame_id)" />
-    <param name="map_file" value="" />
+    <param name="map_file" value="$(arg map_file)" />
     <param name="vector_map_topic" value="$(arg vector_map_topic)" />
     <param name="projector_file" value="$(arg projector_file)" />
     <param name="map_projector_type" value="$(arg map_projector_type)" />
+    <param name="route_definition_file" value="$(arg route_definition_file)" />
     <param name="map_wait_timeout" value="$(arg map_wait_timeout)" />
     <param name="keep_alive" value="$(arg keep_alive)" />
   </node>

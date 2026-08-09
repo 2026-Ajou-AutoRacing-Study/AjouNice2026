@@ -11,6 +11,7 @@ SCENARIO_DIR="${MORAI_SCENARIO_DIR:-$HOME/Desktop/MoraiLauncher_Lin/MoraiLaunche
 MODE="${AJOUNICE_ROS1_MODE:-auto}"
 IMAGE="${AJOUNICE_ROS1_IMAGE:-ajounice2026-ros1:noetic}"
 PROFILE_FILE="${AJOUNICE_ROS1_PROFILE:-$HOME/.local/share/ajounice2026/ros1_noetic/ajou_ros1.bash}"
+RUNNER_ARGS=("$@")
 
 if [[ ! -d "$REPO_ROOT" ]]; then
   echo "AjouNice2026 repository not found: $REPO_ROOT" >&2
@@ -38,12 +39,25 @@ if [[ "$MODE" == "native" ]]; then
     echo "Build it with scripts/workspace/build_all.sh first." >&2
     exit 1
   fi
+  # Catkin setup scripts interpret their caller's positional parameters.  Keep
+  # validation options (notably --help) away from them, then restore the
+  # options for the runner below.
+  set --
   source /opt/ros/noetic/setup.bash
   source "$REPO_ROOT/base_ws/devel/setup.bash"
+  set -- "${RUNNER_ARGS[@]}"
+
+  # rosbridge_websocket is installed with a ``/usr/bin/env python3`` shebang.
+  # A Conda environment (the usual shell prompt is ``(base)``) otherwise wins
+  # that lookup and does not provide Noetic's system ``tornado`` module.
+  # Prefer Ubuntu's Python only for this native ROS process tree; it leaves the
+  # user's shell/Conda environment unchanged after the command exits.
+  export PATH="/usr/bin:/bin:$PATH"
+  export AJOUNICE_ROOT="${AJOUNICE_ROOT:-$REPO_ROOT}"
   cd "$REPO_ROOT"
-  exec python3 scripts/runtime/morai_scenario_validation.py \
+  exec /usr/bin/python3 scripts/runtime/morai_scenario_validation.py \
     --scenario-dir "$SCENARIO_DIR" \
-    "$@"
+    "${RUNNER_ARGS[@]}"
 fi
 
 if [[ "$MODE" != "docker" ]]; then

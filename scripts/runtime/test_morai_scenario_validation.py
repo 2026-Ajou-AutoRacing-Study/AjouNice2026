@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Unit tests for MORAI batch-validation logic that does not require ROS."""
 
+import argparse
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 RUNTIME_DIR = Path(__file__).resolve().parent
@@ -16,8 +18,11 @@ from morai_scenario_validation import (  # noqa: E402
     DynamicReactionMonitor,
     make_scenario_load_message,
     object_counts,
+    process_commands,
     result_table_row,
     scenario_parameters,
+    trajectory_validation_error,
+    wait_for_topic_transport_after_load,
 )
 from summarize_morai_scenario_validation import (  # noqa: E402
     build_aggregate,
@@ -28,6 +33,30 @@ from summarize_morai_scenario_validation import (  # noqa: E402
 class Value:
     def __init__(self, **values):
         self.__dict__.update(values)
+
+
+class SequencePublisher:
+    def __init__(self, connections):
+        self._connections = iter(connections)
+        self._last = 0
+
+    def get_num_connections(self):
+        try:
+            self._last = next(self._connections)
+        except StopIteration:
+            pass
+        return self._last
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
 
 
 def object_message(npc=(), pedestrian=(), obstacle=()):
@@ -68,6 +97,22 @@ class MoraiScenarioValidationTest(unittest.TestCase):
         self.assertEqual({"npc": 0, "pedestrian": 1, "obstacle": 0}, counts)
         self.assertEqual(1, sum(counts.values()))
 
+    def test_trajectory_validation_reports_the_controller_rejection_reason(self):
+        point = Value(
+            pose=Value(
+                position=Value(x=1.0, y=2.0, z=0.0),
+                orientation=Value(x=0.0, y=0.0, z=0.0, w=1.0),
+            ),
+            longitudinal_velocity_mps=2.0,
+        )
+        valid = Value(header=Value(frame_id="map"), points=[point, point, point])
+        self.assertIsNone(trajectory_validation_error(valid))
+        invalid = Value(header=Value(frame_id="map"), points=[point])
+        self.assertEqual(
+            "has 1 points; controller requires at least 3",
+            trajectory_validation_error(invalid),
+        )
+
     def test_topic_scenario_load_uses_all_dynamic_object_flags(self):
         message = make_scenario_load_message(
             Value, "dynamic_kid_loc01_obj02_front_crosswalk_ego20_act12_pos001.json"
@@ -82,6 +127,35 @@ class MoraiScenarioValidationTest(unittest.TestCase):
         self.assertTrue(message.load_pedestrian_data)
         self.assertTrue(message.load_obstacle_data)
         self.assertFalse(message.set_pause)
+
+    def test_runner_starts_rosbridge_without_replacing_udp_stack(self):
+        commands = process_commands(
+            argparse.Namespace(velocity_kph=20.0, rosbridge_port=9090)
+        )
+        self.assertEqual(
+            [
+                "roslaunch",
+                "rosbridge_server",
+                "rosbridge_websocket.launch",
+                "port:=9090",
+            ],
+            commands["rosbridge"],
+        )
+        self.assertEqual(
+            ["roslaunch", "sensor_interface", "morai_udp_interface.launch"],
+            commands["udp"],
+        )
+
+    def test_topic_load_waits_for_morai_reconnect(self):
+        clock = FakeClock()
+        publisher = SequencePublisher((1, 0, 1))
+        rospy = Value(is_shutdown=lambda: False)
+        with patch("morai_scenario_validation.time.monotonic", clock.monotonic), patch(
+            "morai_scenario_validation.time.sleep", clock.sleep
+        ):
+            wait_for_topic_transport_after_load(
+                rospy, publisher, "/ScenarioLoad", timeout=5.0
+            )
 
     def test_dynamic_reaction_requires_encounter_stop_and_resume(self):
         monitor = DynamicReactionMonitor(

@@ -157,6 +157,61 @@ def object_counts(message: Any) -> Dict[str, int]:
     return counts
 
 
+def trajectory_validation_error(message: Any, minimum_points: int = 3) -> Optional[str]:
+    """Return the controller's reason for rejecting a trajectory, if any."""
+    frame_id = str(getattr(getattr(message, "header", None), "frame_id", "")).strip()
+    if not frame_id:
+        return "header.frame_id is empty"
+    points = list(getattr(message, "points", []) or [])
+    if len(points) < minimum_points:
+        return "has {} points; controller requires at least {}".format(
+            len(points), minimum_points
+        )
+    for index, point in enumerate(points):
+        pose = getattr(point, "pose", None)
+        position = getattr(pose, "position", None)
+        orientation = getattr(pose, "orientation", None)
+        coordinates = (
+            getattr(position, "x", float("nan")),
+            getattr(position, "y", float("nan")),
+            getattr(position, "z", float("nan")),
+            getattr(orientation, "x", float("nan")),
+            getattr(orientation, "y", float("nan")),
+            getattr(orientation, "z", float("nan")),
+            getattr(orientation, "w", float("nan")),
+            getattr(point, "longitudinal_velocity_mps", float("nan")),
+        )
+        if not all(math.isfinite(float(value)) for value in coordinates):
+            return "point {} contains a non-finite pose or velocity".format(index)
+    return None
+
+
+def wait_for_valid_trajectory(
+    rospy: Any, trajectory_type: Any, topic: str, timeout: float
+) -> Any:
+    """Wait for a controller-acceptable trajectory, ignoring startup placeholders."""
+    deadline = time.monotonic() + timeout
+    last_error = "no trajectory received"
+    while time.monotonic() < deadline:
+        remaining = max(0.1, deadline - time.monotonic())
+        try:
+            message = rospy.wait_for_message(
+                topic, trajectory_type, timeout=min(1.0, remaining)
+            )
+        except Exception as error:
+            last_error = "no message ({})".format(type(error).__name__)
+            continue
+        validation_error = trajectory_validation_error(message)
+        if validation_error is None:
+            return message
+        last_error = validation_error
+    raise ValidationError(
+        "planner did not publish a valid {} within {:.1f}s: {}".format(
+            topic, timeout, last_error
+        )
+    )
+
+
 def distance_xy(first: Tuple[float, float], second: Tuple[float, float]) -> float:
     return math.hypot(first[0] - second[0], first[1] - second[1])
 
@@ -674,6 +729,23 @@ def wait_for_master(process: ManagedProcess, timeout: float) -> None:
     raise ValidationError("ROS master did not become ready within {:.1f}s".format(timeout))
 
 
+def wait_for_tcp_port(
+    host: str, port: int, process: ManagedProcess, timeout: float, label: str
+) -> None:
+    """Wait for a child process to expose a TCP endpoint."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        process.assert_running()
+        if tcp_port_open(host, port):
+            return
+        time.sleep(0.25)
+    raise ValidationError(
+        "{} did not listen on {}:{} within {:.1f}s".format(
+            label, host, port, timeout
+        )
+    )
+
+
 def wait_for_node(node_name: str, process: ManagedProcess, timeout: float) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -700,7 +772,18 @@ def wait_for_scenario_transport(
     ``/ScenarioLoad``.  The latter cannot acknowledge a request, but it is the
     correct transport for the default Ego/Simulator Network topic setup.
     """
-    deadline = time.monotonic() + args.startup_timeout
+    print(
+        "[action required] In MORAI, connect Simulator Network > ROS to "
+        "ws://{}:{}; "
+        "waiting up to {:.0f}s for {} or {}.".format(
+            args.morai_bridge_host,
+            args.rosbridge_port,
+            args.morai_connect_timeout,
+            args.scenario_service,
+            args.scenario_topic,
+        )
+    )
+    deadline = time.monotonic() + args.morai_connect_timeout
     while time.monotonic() < deadline:
         service_ready = False
         if args.scenario_transport != "topic":
@@ -731,6 +814,56 @@ def wait_for_scenario_transport(
         )
     raise ValidationError(
         "timeout exceeded while waiting for MORAI ScenarioLoad {}".format(target)
+    )
+
+
+def wait_for_topic_transport_after_load(
+    rospy: Any,
+    topic_publisher: Any,
+    topic: str,
+    timeout: float,
+    reconnect_detection_seconds: float = 2.0,
+) -> None:
+    """Wait through MORAI's ROS reset caused by a topic ScenarioLoad request.
+
+    MORAI tears down its rosbridge clients while applying a scenario, then
+    recreates them.  Publishing the next load request or reading the first
+    object message during that gap produces false ``no objects`` failures.
+    If a simulator version applies the scene in place, no disconnect is seen
+    during the short detection window and it can proceed immediately.
+    """
+    started_at = time.monotonic()
+    deadline = started_at + timeout
+    detection_deadline = started_at + min(timeout, reconnect_detection_seconds)
+    saw_disconnect = topic_publisher.get_num_connections() <= 0
+    reconnect_notice_printed = False
+    while time.monotonic() < deadline:
+        connected = topic_publisher.get_num_connections() > 0
+        if not connected:
+            saw_disconnect = True
+            if not reconnect_notice_printed:
+                print(
+                    "[action required] MORAI applied ScenarioLoad and reset its "
+                    "ROS clients. In MORAI, reconnect both Ego Network > "
+                    "Publisher, Subscriber, Service > ROS and Simulator Network "
+                    "> ROS using the same bridge address; waiting up to {:.0f}s."
+                    .format(deadline - time.monotonic())
+                )
+                reconnect_notice_printed = True
+        elif saw_disconnect:
+            print("[ready] MORAI ROS transport reconnected after ScenarioLoad")
+            return
+        elif time.monotonic() >= detection_deadline:
+            # Some MORAI releases preserve their rosbridge clients while a
+            # scenario is applied. Do not add a needless full timeout there.
+            return
+        if rospy.is_shutdown():
+            break
+        time.sleep(0.25)
+    raise ValidationError(
+        "MORAI did not reconnect {} within {:.1f}s after ScenarioLoad".format(
+            topic, timeout
+        )
     )
 
 
@@ -779,6 +912,16 @@ def load_validator_result(metadata_path: Optional[Path]) -> Dict[str, Any]:
 def process_commands(args: argparse.Namespace) -> Dict[str, List[str]]:
     return {
         "roscore": ["roscore"],
+        # MORAI's Simulator Network uses rosbridge for ScenarioLoad.  Ego
+        # control and sensor telemetry remain on the project's existing UDP
+        # interface, so this is an additional endpoint rather than a
+        # replacement for the Ego Network configuration.
+        "rosbridge": [
+            "roslaunch",
+            "rosbridge_server",
+            "rosbridge_websocket.launch",
+            "port:={}".format(args.rosbridge_port),
+        ],
         "udp": ["roslaunch", "sensor_interface", "morai_udp_interface.launch"],
         "sensing": [
             "roslaunch",
@@ -832,7 +975,14 @@ def print_dry_run(
     for scenario in scenarios:
         print("  - {}".format(scenario.name))
     print("\nShared stack:")
-    for name in ("roscore", "udp", "sensing", "localization", "planner"):
+    for name in (
+        "roscore",
+        "rosbridge",
+        "udp",
+        "sensing",
+        "localization",
+        "planner",
+    ):
         print("  {}: {}".format(name, shell_join(commands[name])))
     print("\nPer scenario:")
     print(
@@ -941,6 +1091,16 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
     try:
         core = start_process("roscore", commands["roscore"], shared_logs, shared)
         wait_for_master(core, args.startup_timeout)
+        bridge = start_process(
+            "rosbridge", commands["rosbridge"], shared_logs, shared
+        )
+        wait_for_tcp_port(
+            "127.0.0.1",
+            args.rosbridge_port,
+            bridge,
+            args.startup_timeout,
+            "rosbridge",
+        )
 
         # ROS imports are intentionally delayed so dry-run works on the Ubuntu
         # 22.04 host where only ROS2 is installed.
@@ -1161,7 +1321,7 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
             )
         )
 
-        critical_shared = (core, udp, sensing, localization, planner)
+        critical_shared = (core, bridge, udp, sensing, localization, planner)
         rospy.set_param(
             "/trajectory_publisher/trajectory_csv", args.trajectory_reference
         )
@@ -1241,6 +1401,12 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
                 else:
                     scenario_topic_publisher.publish(load_message)
                     time.sleep(args.scenario_load_settle_seconds)
+                    wait_for_topic_transport_after_load(
+                        rospy,
+                        scenario_topic_publisher,
+                        args.scenario_topic,
+                        args.scenario_reconnect_timeout,
+                    )
 
                 with monitor_lock:
                     goal_state["active"] = True
@@ -1251,13 +1417,11 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
                 object_message = rospy.wait_for_message(
                     "/Object_topic", ObjectStatusList, timeout=args.startup_timeout
                 )
-                loaded_counts = object_counts(object_message)
-                if sum(loaded_counts.values()) <= 0:
-                    raise ValidationError(
-                        "loaded scenario reports no MORAI dynamic objects: {}".format(
-                            scenario.name
-                        )
-                    )
+                # A trigger-distance scenario can legitimately publish zero
+                # dynamic actors before ego reaches its activation distance.
+                # The reaction monitor evaluates object observation during
+                # the drive, instead of rejecting the scenario at load time.
+                object_callback(object_message)
                 rospy.wait_for_message(
                     "/localization/kinematic_state",
                     Odometry,
@@ -1291,8 +1455,11 @@ def execute(args: argparse.Namespace, scenarios: Sequence[Path]) -> int:
                 )
                 time.sleep(args.route_settle_seconds)
                 kroute.assert_running()
-                rospy.wait_for_message(
-                    "/control/trajectory", Trajectory, timeout=args.startup_timeout
+                wait_for_valid_trajectory(
+                    rospy,
+                    Trajectory,
+                    "/control/trajectory",
+                    args.startup_timeout,
                 )
                 first_drivable_path = rospy.wait_for_message(
                     DRIVABLE_PATH_TOPIC,
@@ -1588,6 +1755,20 @@ def parse_args() -> argparse.Namespace:
         default="auto",
         help="prefer the available MORAI ScenarioLoad service or topic (default: auto)",
     )
+    parser.add_argument(
+        "--rosbridge-port",
+        type=int,
+        default=9090,
+        help="local rosbridge WebSocket port for MORAI Simulator Network",
+    )
+    parser.add_argument(
+        "--morai-bridge-host",
+        default=os.environ.get("MORAI_ROSBRIDGE_HOST", "127.0.0.1"),
+        help=(
+            "address entered in MORAI Simulator Network; defaults to "
+            "MORAI_ROSBRIDGE_HOST or 127.0.0.1"
+        ),
+    )
     parser.add_argument("--velocity-kph", type=float, default=10.0)
     parser.add_argument(
         "--goal-x",
@@ -1626,6 +1807,15 @@ def parse_args() -> argparse.Namespace:
         help="fail after this many continuous seconds outside BPP drivable bounds",
     )
     parser.add_argument("--startup-timeout", type=float, default=45.0)
+    parser.add_argument(
+        "--morai-connect-timeout",
+        type=float,
+        default=120.0,
+        help=(
+            "seconds to wait for MORAI Simulator Network to connect and expose "
+            "ScenarioLoad"
+        ),
+    )
     parser.add_argument("--scenario-timeout", type=float, default=120.0)
     parser.add_argument("--settle-seconds", type=float, default=2.0)
     parser.add_argument("--route-settle-seconds", type=float, default=2.0)
@@ -1635,6 +1825,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=1.0,
         help="wait after topic-based scenario load because that transport has no response",
+    )
+    parser.add_argument(
+        "--scenario-reconnect-timeout",
+        type=float,
+        default=45.0,
+        help="wait for MORAI rosbridge clients to reconnect after a topic ScenarioLoad",
     )
     parser.add_argument(
         "--dynamic-reaction-policy",
@@ -1714,11 +1910,13 @@ def parse_args() -> argparse.Namespace:
         "stopped_speed_threshold": 0.0,
         "lane_departure_duration": 0.001,
         "startup_timeout": 0.001,
+        "morai_connect_timeout": 0.001,
         "scenario_timeout": 0.001,
         "settle_seconds": 0.0,
         "route_settle_seconds": 0.0,
         "post_collision_seconds": 0.0,
         "scenario_load_settle_seconds": 0.0,
+        "scenario_reconnect_timeout": 0.001,
         "dynamic_encounter_distance": 0.001,
         "dynamic_stop_speed_threshold": 0.0,
         "dynamic_resume_speed_threshold": 0.001,
@@ -1740,6 +1938,10 @@ def parse_args() -> argparse.Namespace:
         parser.error("--lane-departure-duration must be positive")
     if not math.isfinite(args.goal_x) or not math.isfinite(args.goal_y):
         parser.error("--goal-x and --goal-y must be finite")
+    if not 1 <= args.rosbridge_port <= 65535:
+        parser.error("--rosbridge-port must be between 1 and 65535")
+    if not args.morai_bridge_host.strip():
+        parser.error("--morai-bridge-host must not be empty")
     return args
 
 

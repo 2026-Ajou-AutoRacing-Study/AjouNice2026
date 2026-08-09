@@ -77,7 +77,9 @@ roslaunch bringup sensing.launch start_rviz:=false enable_vehicle_model:=false
 
 - 센서 설정: `configs/sensors/Sensor.json`
 - Ego Network 설정: `configs/network/ego_network_1.json`
-- rosbridge/WebSocket 9090은 실행하지 않는다.
+- 일반적인 UDP 수동 구동에서는 rosbridge/WebSocket 9090이 필요 없다. 단, 아래의
+  **자동 시나리오 검증**은 MORAI Simulator Network의 ScenarioLoad를 쓰므로 러너가
+  rosbridge/WebSocket 9090을 함께 실행한다.
 
 ## WSL2 IP 확인
 ```bash
@@ -226,12 +228,54 @@ python3 scripts/runtime/generate_morai_vehicle_intersection_scenarios.py --sync-
 
 ## MORAI 동적 시나리오 자동 검증 및 결과표
 
-MORAI를 열어 K-City 맵을 선택한 뒤 `Edit > Network Settings > Ego Network`를
-연결하고, Ego 제어 모드를 `AV-ExternalCtrl`로 둔다. 검증 러너가 ROS master와
-플래너·제어기를 직접 시작하므로, 실행 전에 기존 AJOUNICE ROS 스택은 모두 종료해야
-한다. MORAI Service Model의 시나리오 로드 서비스는 `/Service_MoraiSL`이며,
-Publish-Subscribe Model의 시나리오 로드 토픽은 `/ScenarioLoad`다. 검증 러너는 두
-방식을 자동 감지하므로 현재 MORAI Network Settings를 서비스 모델로 바꿀 필요가 없다.
+MORAI를 열어 K-City 맵을 선택한 뒤 `Edit > Network Settings`에서 다음 두 연결을
+분리해서 설정한다.
+
+- **Ego Network > Cmd Control**: 기존 `UDP` 설정과 `MoraiCmdController` 포트
+  (`9315`/`9314`)를 그대로 유지한다. 제어 명령은 ROS로 바꾸지 않는다.
+- **Ego Network > Publisher, Subscriber, Service**: 상태·객체·충돌 데이터와
+  `/ScenarioLoad`는 전용 프로필에서 ROS Bridge로 연결한다.
+- **Simulator Network**: `ROS`를 선택하고 ROS Bridge를 설정한다. 이 PC에서는
+  `192.168.0.5:9090`을 사용한다. 화면의 `MultiEgoTransformHandler`는 고정 표시라
+  변경하지 않는다. 현재 전용 프로필은 Publish-Subscribe Model의
+  ScenarioLoad 토픽 `/ScenarioLoad`를 사용한다. MORAI에서 Service Model을 별도로
+  구성한 경우에만 `/Service_MoraiSL` 서비스를 사용할 수 있다.
+
+자동 ScenarioLoad에는 Ego의 Publish/Subscribe 네트워크도 ROS여야 한다. 제어 명령
+`MoraiCmdController`는 기존 UDP 포트를 유지하므로, 상태·객체·충돌 데이터와
+`/ScenarioLoad`만 ROS Bridge로 연결하는 전용 프로필
+`ajounice_full_ros_scenario_load.json`을 사용한다. 이 파일은 생성 스크립트가 원본
+`ego_network_1.json`을 복사해 만들며 원본을 덮어쓰지 않는다.
+
+Ego 제어 모드는 `AV-ExternalCtrl`로 둔다. 검증 러너가 ROS master, rosbridge,
+플래너·제어기를 직접 시작하므로 실행 전에 기존 AJOUNICE ROS 스택은 모두 종료해야
+한다. 명령을 시작하면 rosbridge가 먼저 열리므로, MORAI의 **Simulator Network**는
+실행 중인 `192.168.0.5:9090`에 연결한다. 러너는 `/Service_MoraiSL`과
+`/ScenarioLoad`를 자동 감지해 사용 가능한 쪽으로 시나리오를 로드한다.
+Conda의 `(base)` 프롬프트에서 실행해도 러너는 ROS 프로세스에 한해 Ubuntu 시스템
+Python을 우선 사용하므로 별도로 `conda deactivate`할 필요가 없다.
+
+러너가 `[action required] In MORAI, connect Simulator Network ...`를 출력하면
+MORAI 창의 **Simulator Network > ROS > Connect**를 누른다. 상태가 `Connected`가
+되어야 하며, 기본 연결 대기 시간은 120초다. loopback 연결이 되지 않는 이 PC에서는
+배치 실행에도 동일한 주소를 전달한다.
+
+`/ScenarioLoad` 토픽 방식은 MORAI가 시나리오를 적용하면서 ROS 클라이언트를 한 번
+초기화한다. 러너가 두 번째 `[action required] MORAI applied ScenarioLoad ...`를
+출력하면, 45초 안에 다음 두 탭을 다시 연결해야 한다.
+
+- **Ego Network > Publisher, Subscriber, Service > ROS**
+- **Simulator Network > ROS**
+
+재연결되면 `[ready] MORAI ROS transport reconnected after ScenarioLoad`가 출력되고
+검증을 계속한다. 이 재연결이 반복적으로 필요하면 현재 Publish-Subscribe 방식만으로는
+완전 무인 배치가 불가능하다. 그 경우 MORAI의 Service Model에서
+`/Service_MoraiSL`을 제공하도록 구성해야 한다.
+
+```bash
+MORAI_ROSBRIDGE_HOST=192.168.0.5 \
+  scripts/runtime/run_morai_scenario_batch_validation.sh --execute --speed 20
+```
 
 먼저 한 조건만 자동으로 검증한다. `ego20` 파일은 반드시 `--velocity-kph 20`과
 짝지어 실행한다.
