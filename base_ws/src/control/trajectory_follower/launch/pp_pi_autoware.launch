@@ -7,6 +7,10 @@
        default="$(find trajectory_follower)/config/longi_pi_autoware.yaml"/>
   <arg name="vehicle_config"
        default="$(find ioniq5)/../../../configs/vehicle/ioniq5.yaml"/>
+  <!-- Leave each gain unset by default so that pi_config remains authoritative.
+       Batch runs can still override either value with kp:=... or ki:=.... -->
+  <arg name="kp" default="from_yaml"/>
+  <arg name="ki" default="from_yaml"/>
 
   <!-- This launch owns /control/command/steering and /ctrl_cmd. Do not run pp_pi.launch too. -->
   <node pkg="trajectory_follower"
@@ -27,5 +31,7 @@
     <rosparam command="load" file="$(arg common_config)"/>
     <rosparam command="load" file="$(arg pi_config)"/>
     <rosparam command="load" file="$(arg vehicle_config)"/>
+    <param if="$(eval arg('kp') != 'from_yaml')" name="kp" value="$(arg kp)"/>
+    <param if="$(eval arg('ki') != 'from_yaml')" name="ki" value="$(arg ki)"/>
   </node>
 </launch>
