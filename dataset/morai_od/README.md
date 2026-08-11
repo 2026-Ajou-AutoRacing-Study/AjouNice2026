@@ -171,6 +171,9 @@ production v5다. 공간 기반 split 중복 제한은 의도적으로 적용하
 정책, 정적 분포 검증 및 live smoke 명령은
 `docs/sunny13_180_production_v5_plan.md`를 따른다.
 
+대규모 수집의 경량 로그 형식과 분석 순서는
+`docs/capture_logging_and_debug_policy.md`를 따른다.
+
 v3 전체 180장면 실측에서 확인된 반복 누락 에셋, 빈 negative GT 판정,
 촬영 궤적 중심 배치 개선을 적용한 다음 생성기는 production v4다.
 설계·정적 검증·짧은 live smoke 절차는

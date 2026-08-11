@@ -375,6 +375,95 @@ def load_json(path):
         return json.load(stream)
 
 
+def write_json_atomic(path, document):
+    """Atomically replace a small JSON state file."""
+
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(document, ensure_ascii=False, separators=(",", ":"))
+        + "\n",
+        encoding="utf-8",
+    )
+    os.replace(str(temporary), str(path))
+
+
+def append_jsonl(path, document):
+    """Append one compact record without rewriting prior scene results."""
+
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(
+            json.dumps(
+                document,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            + "\n"
+        )
+
+
+def compact_scene_result(result):
+    """Keep only fields needed for progress, handoff, and resume."""
+
+    metrics = result.get("metrics", {})
+    compact_metrics = {
+        key: metrics[key]
+        for key in (
+            "scene_duration_sec",
+            "trigger_count",
+            "trigger_span_sec",
+            "drain_duration_sec",
+            "complete_timestamp_group_count",
+            "relocated_file_count",
+            "quality_verified",
+        )
+        if key in metrics
+    }
+    error = result.get("error")
+    if error is not None and len(error) > 1000:
+        error = error[:1000] + "...<truncated; see failures.jsonl>"
+    return {
+        "id": result.get("id"),
+        "base_scenario_id": result.get("base_scenario_id"),
+        "file_name": result.get("file_name"),
+        "split": result.get("split"),
+        "status": result.get("status"),
+        "capture_count": int(
+            result.get("capture_count", len(result.get("captures", [])))
+        ),
+        "error": error,
+        "metrics": compact_metrics,
+    }
+
+
+def detailed_failure_result(result):
+    """Bound failure detail so one malformed error cannot explode a report."""
+
+    failure = {
+        "id": result.get("id"),
+        "base_scenario_id": result.get("base_scenario_id"),
+        "file_name": result.get("file_name"),
+        "split": result.get("split"),
+        "status": "failed",
+        "expected_counts": result.get("expected_counts"),
+        "actual_objects": result.get("actual_objects"),
+        "metrics": {
+            key: result.get("metrics", {})[key]
+            for key in (
+                "scene_duration_sec",
+                "trigger_count",
+                "trigger_span_sec",
+                "complete_timestamp_group_count",
+                "relocated_file_count",
+            )
+            if key in result.get("metrics", {})
+        },
+    }
+    error = str(result.get("error", ""))
+    failure["error"] = error[:8192]
+    failure["error_truncated"] = len(error) > 8192
+    return failure
+
+
 def load_waypoints(path):
     points = []
     with path.open("r", encoding="utf-8") as stream:
@@ -2542,8 +2631,14 @@ class AutoCapture:
         self.wait_for_connections(
             include_motion_interface=self.args.motion_mode == "teleport"
         )
+        scenes_path = self.args.capture_dir / "scenes.jsonl"
+        failures_path = self.args.capture_dir / "failures.jsonl"
+        summary_path = self.args.capture_dir / "summary.json"
+        if original_started_unix is None:
+            scenes_path.write_text("", encoding="utf-8")
+            failures_path.write_text("", encoding="utf-8")
         report = {
-            "schema_version": 1,
+            "schema_version": 2,
             "dataset_id": self.dataset_id,
             "environment": self.environment,
             "started_unix": original_started_unix or time.time(),
@@ -2552,10 +2647,66 @@ class AutoCapture:
             ),
             "motion_mode": self.args.motion_mode,
             "capture_dir": str(self.args.capture_dir),
-            "scenes": list(prior_completed or []),
+            "scenes": [
+                compact_scene_result(item)
+                for item in (prior_completed or [])
+            ],
         }
         requested_scene_count = requested_scene_count or len(scenes)
         interrupted = False
+
+        def current_summary(finished=False):
+            completed = [
+                item
+                for item in report["scenes"]
+                if item.get("status") == "completed"
+            ]
+            failed = [
+                item
+                for item in report["scenes"]
+                if item.get("status") == "failed"
+            ]
+            document = {
+                "schema_version": 2,
+                "dataset_id": self.dataset_id,
+                "environment": self.environment,
+                "started_unix": report["started_unix"],
+                "resumed_unix": report.get("resumed_unix"),
+                "checkpoint_unix": time.time(),
+                "motion_mode": self.args.motion_mode,
+                "capture_dir": str(self.args.capture_dir),
+                "interrupted": interrupted,
+                "finished": finished,
+                "requested_scenes": requested_scene_count,
+                "attempted_scenes": len(report["scenes"]),
+                "completed_scenes": len(completed),
+                "failed_scenes": len(failed),
+                "completed_captures": sum(
+                    int(item.get("capture_count", 0))
+                    for item in completed
+                ),
+                "completed_scene_ids": [item["id"] for item in completed],
+                "failed_scene_ids": [item["id"] for item in failed],
+                "recent_failed_scene_ids": [
+                    item["id"] for item in failed[-8:]
+                ],
+                "latest_scene": (
+                    report["scenes"][-1] if report["scenes"] else None
+                ),
+                "files": {
+                    "scene_records": "scenes.jsonl",
+                    "failure_details": "failures.jsonl",
+                },
+            }
+            if finished:
+                document["finished_unix"] = time.time()
+            return document
+
+        # Mark an existing summary active immediately on resume. Otherwise a
+        # monitor started before the first retried scene can see the previous
+        # finished=true state and exit prematurely.
+        write_json_atomic(summary_path, current_summary())
+
         for scene in scenes:
             if rospy.is_shutdown():
                 interrupted = True
@@ -2597,60 +2748,16 @@ class AutoCapture:
                     scene["id"],
                     error,
                 )
-            report["scenes"].append(result)
-            partial_report = dict(report)
-            partial_report["checkpoint_unix"] = time.time()
-            partial_report["summary"] = {
-                "requested_scenes": requested_scene_count,
-                "attempted_scenes": len(report["scenes"]),
-                "completed_scenes": sum(
-                    item.get("status") == "completed"
-                    for item in report["scenes"]
-                ),
-                "failed_scenes": sum(
-                    item.get("status") == "failed"
-                    for item in report["scenes"]
-                ),
-                "completed_captures": sum(
-                    len(item.get("captures", []))
-                    for item in report["scenes"]
-                ),
-            }
-            partial_path = (
-                self.args.capture_dir
-                / "ros_capture_poc_report.partial.json"
-            )
-            partial_temporary = partial_path.with_suffix(".json.tmp")
-            partial_temporary.write_text(
-                json.dumps(
-                    partial_report,
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            os.replace(str(partial_temporary), str(partial_path))
+            compact = compact_scene_result(result)
+            report["scenes"].append(compact)
+            append_jsonl(scenes_path, compact)
+            if compact["status"] == "failed":
+                append_jsonl(failures_path, detailed_failure_result(result))
+            write_json_atomic(summary_path, current_summary())
         report["interrupted"] = interrupted
-        if not interrupted:
-            report["finished_unix"] = time.time()
-        report["summary"] = {
-            "requested_scenes": requested_scene_count,
-            "attempted_scenes": len(report["scenes"]),
-            "completed_scenes": sum(
-                item.get("status") == "completed"
-                for item in report["scenes"]
-            ),
-            "failed_scenes": sum(
-                item.get("status") == "failed"
-                for item in report["scenes"]
-            ),
-            "completed_captures": sum(
-                len(item.get("captures", []))
-                for item in report["scenes"]
-            ),
-        }
-        return report
+        summary = current_summary(finished=not interrupted)
+        write_json_atomic(summary_path, summary)
+        return summary
 
 
 def select_scenes(manifest, requested):
@@ -2861,11 +2968,31 @@ def main():
     requested_scene_count = len(selected_scenes)
     prior_completed = []
     if resume_report is not None:
-        completed_by_id = {
-            item["id"]: item
-            for item in resume_report.get("scenes", [])
-            if item.get("status") == "completed"
-        }
+        if "completed_scene_ids" in resume_report:
+            selected_by_id = {
+                scene["id"]: scene for scene in selected_scenes
+            }
+            completed_by_id = {
+                scene_id: {
+                    "id": scene_id,
+                    "base_scenario_id": selected_by_id[scene_id].get(
+                        "base_scenario_id", scene_id
+                    ),
+                    "file_name": selected_by_id[scene_id]["file_name"],
+                    "split": selected_by_id[scene_id].get("split"),
+                    "status": "completed",
+                    "capture_count": args.captures_per_scene,
+                    "metrics": {},
+                }
+                for scene_id in resume_report["completed_scene_ids"]
+                if scene_id in selected_by_id
+            }
+        else:
+            completed_by_id = {
+                item["id"]: item
+                for item in resume_report.get("scenes", [])
+                if item.get("status") == "completed"
+            }
         selected_ids = {scene["id"] for scene in selected_scenes}
         prior_completed = [
             completed_by_id[scene["id"]]
@@ -2906,7 +3033,14 @@ def main():
     )
 
     print("MORAI ROS auto-capture PoC")
-    print("scenes:", ", ".join(scene["id"] for scene in scenes))
+    if len(scenes) <= 20:
+        print("scenes:", ", ".join(scene["id"] for scene in scenes))
+    else:
+        print(
+            "scenes: {} total ({} ... {})".format(
+                len(scenes), scenes[0]["id"], scenes[-1]["id"]
+            )
+        )
     print("motion mode:", args.motion_mode)
     print("scenario load transport:", args.scenario_load_transport)
     print("captures per scene:", args.captures_per_scene)
@@ -2942,33 +3076,13 @@ def main():
             else None
         ),
     )
+    summary_path = args.capture_dir / "summary.json"
     if report.get("interrupted"):
-        partial_path = (
-            args.capture_dir / "ros_capture_poc_report.partial.json"
-        )
-        temporary = partial_path.with_suffix(".json.tmp")
-        temporary.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        os.replace(str(temporary), str(partial_path))
         print("auto-capture paused by ROS shutdown")
-        print("resume report:", partial_path)
+        print("resume report:", summary_path)
         return
-    report_path = args.capture_dir / "ros_capture_poc_report.json"
-    temporary = report_path.with_suffix(".json.tmp")
-    temporary.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    os.replace(str(temporary), str(report_path))
-    partial_path = (
-        args.capture_dir / "ros_capture_poc_report.partial.json"
-    )
-    if partial_path.exists():
-        partial_path.unlink()
     print("auto-capture complete")
-    print("report:", report_path)
+    print("summary:", summary_path)
 
 
 if __name__ == "__main__":

@@ -30,7 +30,9 @@ systemd-inhibit \
   --motion-mode rolling-grouped \
   --scenario-load-attempts 1 \
   --continue-on-scene-error \
-  2>&1 | tee "$RUN_DIR/console.log"
+  2>&1 | stdbuf -oL awk \
+    '/Scenario verified|Rolling-grouped complete|Scene .*failed|auto-capture|summary:|\[WARN\]|\[ERROR\]/ {print; fflush()}' \
+  | tee "$RUN_DIR/console.log"
 ```
 
 ## 터미널 2: 실시간 모니터링
@@ -65,8 +67,10 @@ python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
   --motion-mode rolling-grouped \
   --scenario-load-attempts 1 \
   --continue-on-scene-error \
-  --resume-report "$RUN_DIR/ros_capture_poc_report.partial.json" \
-  2>&1 | tee -a "$RUN_DIR/console.log"
+  --resume-report "$RUN_DIR/summary.json" \
+  2>&1 | stdbuf -oL awk \
+    '/Scenario verified|Rolling-grouped complete|Scene .*failed|auto-capture|summary:|\[WARN\]|\[ERROR\]/ {print; fflush()}' \
+  | tee -a "$RUN_DIR/console.log"
 ```
 
 ## 완료 결과 확인
