@@ -1,36 +1,46 @@
 #!/usr/bin/env python3
 """
-traffic_light_node.py
+traffic_light_node.py (v2 - group_id 동적 매칭 추가)
 
 카메라 이미지 -> YOLO26(신호등 위치 탐지) -> 우리 차로 필터링 -> 색상/모양 분류
 -> autoware_perception_msgs/TrafficLightGroupArray 로 발행.
 
+v1 대비 변경점:
+  - traffic_light_group_id 고정값(기본 0) 대신, /Ego_topic(차량 현재 위치)을 구독해서
+    build_traffic_light_group_id_table.py로 미리 생성한 테이블(traffic_light_group_id_table.json)에서
+    가장 가까운 lanelet2 regulatory element id를 찾아 동적으로 채움.
+  - 가장 가까운 신호등까지 거리가 ~max_group_id_match_dist(기본 80m)보다 크면
+    "지금 어떤 신호등 구역에도 속하지 않는다"고 판단, 매칭 실패로 처리하고
+    폴백값(~fallback_group_id, 기본 0)을 사용.
+  - 테이블 로드/매칭 실패 시 항상 안전하게 폴백값으로 동작(노드가 죽지 않음).
+
 토픽:
   구독: /sensor/camera/front/compressed (sensor_msgs/CompressedImage)
-        -- configs/sensors/Sensor_*.json 에서 확인한 실제 MORAI 퍼블리시 토픽
+  구독: /Ego_topic (morai_msgs/EgoVehicleStatus) - group_id 매칭용 차량 위치
   발행: /perception/traffic_light_recognition/traffic_signals (autoware_perception_msgs/TrafficLightGroupArray)
   발행(디버그): ~debug_image/compressed (sensor_msgs/CompressedImage)
-        -- 박스+라벨 그려진 이미지. rqt_image_view로 실시간 확인용.
 
-주의(팀 확인 필요):
-  - traffic_light_group_id: 실제 Autoware는 lanelet2 map의 regulatory element ID를 씀.
-    우리는 맵 매칭을 안 하고 "우리 차로에 보이는 신호등 1개"만 다루므로, 일단 고정값
-    ~traffic_light_group_id(기본 0)을 씀. 맵 매칭이 필요하면 판단팀과 협의 후 수정.
+주의(팀 확인 필요, 2026-08-11):
+  - 룩업 테이블은 lanelet2 좌표 - (mgeo 원점 - lanelet2 원점) 오프셋으로 계산됨.
+    Ego_topic이 mgeo local 좌표계와 동일한 프레임을 쓴다는 가정 하에 만들어졌고,
+    아직 실측으로 이 가정을 완전히 검증하지 않음 (구간별 정지선 Ego 좌표와
+    테이블 매칭 거리로 검증 권장, build_traffic_light_group_id_table.py 참고).
+  - id 201395, 201396은 lanelet2 맵 자체 데이터 오류(전구 위치가 도로 밖에 찍힘)로
+    확인되어 테이블에서 제외됨. 맵 수정 전까지 이 두 신호등 근처에서는 매칭이
+    안 되고 폴백값이 나갈 수 있음.
   - 화살표 방향(LEFT_ARROW/RIGHT_ARROW)은 신뢰도가 낮을 때(면적 작음) 방향을 못 정함.
     K-City 샘플 시나리오는 좌회전 신호만 있는 걸로 조사돼 있어, 방향 불명 화살표는
-    기본적으로 LEFT_ARROW로 채움 (직접 확인해서 필요시 수정).
+    기본적으로 LEFT_ARROW로 채움.
 """
+import json
+import math
 import os
 import sys
 
-# roslaunch가 쓰는 PYTHONPATH엔 사용자 site-packages(~/.local/lib/pythonX.Y/site-packages)가
-# 빠져 있어서 ultralytics/cv2 등이 여기 안 잡힘 -> 명시적으로 추가.
 _user_site = os.path.expanduser(f"~/.local/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages")
 if os.path.isdir(_user_site) and _user_site not in sys.path:
     sys.path.insert(0, _user_site)
 
-# catkin의 devel wrapper가 exec()로 이 파일을 실행하기 때문에, 이 스크립트와 같은 폴더에
-# 있는 light_color_utils.py를 자동으로 못 찾음 -> 이 파일 자신의 실제 경로 기준으로 추가.
 _this_dir = os.path.dirname(os.path.abspath(__file__))
 if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
@@ -41,6 +51,7 @@ import cv2
 import numpy as np
 import rospy
 from sensor_msgs.msg import CompressedImage
+from morai_msgs.msg import EgoVehicleStatus
 from ultralytics import YOLO
 
 from autoware_perception_msgs.msg import (
@@ -58,18 +69,73 @@ COLOR_MAP = {
     "green": TrafficLightElement.GREEN,
 }
 
-# 실시간성(Hz) 로그를 몇 프레임마다 찍을지
 HZ_LOG_INTERVAL = 30
+
+
+class TrafficLightGroupIdMatcher:
+    """차량 위치 기반 가장 가까운 lanelet2 신호등 group_id 매칭."""
+
+    def __init__(self, table_path, max_match_dist, fallback_group_id):
+        self.max_match_dist = max_match_dist
+        self.fallback_group_id = fallback_group_id
+        self.entries = []  # [(group_id, x, y), ...]
+        self.loaded = False
+
+        if not os.path.exists(table_path):
+            rospy.logwarn(
+                f"[traffic_light_node] group_id 테이블 없음: {table_path} "
+                f"-> 항상 고정값({fallback_group_id}) 사용"
+            )
+            return
+
+        try:
+            with open(table_path) as f:
+                data = json.load(f)
+            self.entries = [
+                (e["group_id"], e["ego_frame_x"], e["ego_frame_y"])
+                for e in data.get("traffic_lights", [])
+            ]
+            self.loaded = len(self.entries) > 0
+            rospy.loginfo(f"[traffic_light_node] group_id 테이블 로드: {len(self.entries)}개 신호등")
+        except Exception as e:
+            rospy.logwarn(f"[traffic_light_node] group_id 테이블 로드 실패: {e} -> 고정값 사용")
+
+        self._latest_ego_xy = None
+
+    def update_ego_position(self, x, y):
+        self._latest_ego_xy = (x, y)
+
+    def get_group_id(self):
+        """현재 ego 위치 기준 가장 가까운 group_id 반환. 매칭 실패 시 fallback."""
+        if not self.loaded or self._latest_ego_xy is None:
+            return self.fallback_group_id
+
+        ex, ey = self._latest_ego_xy
+        best_id, best_dist = None, None
+        for gid, x, y in self.entries:
+            d = math.hypot(ex - x, ey - y)
+            if best_dist is None or d < best_dist:
+                best_dist, best_id = d, gid
+
+        if best_id is not None and best_dist <= self.max_match_dist:
+            return best_id
+        return self.fallback_group_id
 
 
 class TrafficLightNode:
     def __init__(self):
         weights_path = rospy.get_param("~weights_path")
         image_topic = rospy.get_param("~image_topic", "/sensor/camera/front/compressed")
+        ego_topic = rospy.get_param("~ego_topic", "/Ego_topic")
         self.conf_threshold = rospy.get_param("~conf", 0.25)
         self.center_tolerance_ratio = rospy.get_param("~center_tolerance_ratio", 0.20)
         self.y_weight = rospy.get_param("~y_weight", 0.6)
-        self.group_id = rospy.get_param("~traffic_light_group_id", 0)
+        self.fallback_group_id = rospy.get_param("~fallback_group_id", 0)
+        self.max_group_id_match_dist = rospy.get_param("~max_group_id_match_dist", 80.0)
+        table_path = rospy.get_param(
+            "~group_id_table_path",
+            os.path.join(_this_dir, "..", "traffic_light_group_id_table.json"),
+        )
         self.publish_rate_limit_hz = rospy.get_param("~max_rate_hz", 10.0)
         self.publish_debug_image = rospy.get_param("~publish_debug_image", True)
         self.debug_jpeg_quality = rospy.get_param("~debug_jpeg_quality", 60)
@@ -79,6 +145,10 @@ class TrafficLightNode:
 
         rospy.loginfo(f"[traffic_light_node] YOLO 가중치 로드: {weights_path}")
         self.model = YOLO(weights_path)
+
+        self.group_id_matcher = TrafficLightGroupIdMatcher(
+            table_path, self.max_group_id_match_dist, self.fallback_group_id
+        )
 
         self.pub = rospy.Publisher(
             "/perception/traffic_light_recognition/traffic_signals",
@@ -94,18 +164,22 @@ class TrafficLightNode:
         self._last_stamp = rospy.Time(0)
         self._min_period = rospy.Duration(1.0 / self.publish_rate_limit_hz) if self.publish_rate_limit_hz > 0 else rospy.Duration(0)
 
-        # 실시간성(Hz) 측정용
         self._n_processed = 0
         self._proc_time_sum = 0.0
         self._proc_time_max = 0.0
         self._hz_window_start = time.time()
 
+        self.sub_ego = rospy.Subscriber(ego_topic, EgoVehicleStatus, self.ego_callback, queue_size=1)
         self.sub = rospy.Subscriber(image_topic, CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
+
         rospy.loginfo(
-            f"[traffic_light_node] 구독: {image_topic} (CompressedImage) / "
+            f"[traffic_light_node] 구독: {image_topic} (CompressedImage), {ego_topic} (EgoVehicleStatus) / "
             f"발행: /perception/traffic_light_recognition/traffic_signals"
             + (" / 디버그 이미지: ~debug_image/compressed" if self.publish_debug_image else "")
         )
+
+    def ego_callback(self, msg):
+        self.group_id_matcher.update_ego_position(msg.position.x, msg.position.y)
 
     def _log_hz_if_needed(self):
         self._n_processed += 1
@@ -167,7 +241,7 @@ class TrafficLightNode:
             crop = img[y1c:y2c, x1c:x2c]
 
             group = TrafficLightGroup()
-            group.traffic_light_group_id = self.group_id
+            group.traffic_light_group_id = self.group_id_matcher.get_group_id()
 
             label_text = "off"
             if crop.size > 0:
@@ -184,8 +258,6 @@ class TrafficLightNode:
                             elem.shape = TrafficLightElement.RIGHT_ARROW
                             labels_for_debug.append(f"{color}_right")
                         else:
-                            # is_left True 또는 None(불확실) -> K-City 샘플 시나리오는
-                            # 좌회전 신호만 있는 걸로 조사됨 -> 기본 LEFT_ARROW
                             elem.shape = TrafficLightElement.LEFT_ARROW
                             labels_for_debug.append(f"{color}_left")
                     else:
@@ -202,7 +274,8 @@ class TrafficLightNode:
             if debug_img is not None:
                 cv2.rectangle(debug_img, (x1c, y1c), (x2c, y2c), (0, 255, 255), 2)
                 cv2.putText(
-                    debug_img, f"{label_text} ({det_conf:.2f})", (x1c, max(0, y1c - 8)),
+                    debug_img, f"{label_text} ({det_conf:.2f}) gid={group.traffic_light_group_id}",
+                    (x1c, max(0, y1c - 8)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA,
                 )
 
