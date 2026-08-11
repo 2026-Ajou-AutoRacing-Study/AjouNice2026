@@ -174,6 +174,17 @@ production v5다. 공간 기반 split 중복 제한은 의도적으로 적용하
 대규모 수집의 경량 로그 형식과 분석 순서는
 `docs/capture_logging_and_debug_policy.md`를 따른다.
 
+현재 Sunny 13시 수집본에서 정상 1,500프레임을 선별해 4-camera single-frame
+Fast-BEV quick baseline을 만들고, 이후 timestamp-matched Ego pose 메타데이터를
+보강해 StreamPETR용 temporal dataset을 새로 수집하는 단계별 계획은
+`docs/fastbev_baseline_and_streampetr_transition_plan.md`를 따른다.
+선별·split·calibration·GT/PKL 생성기는
+`scripts/build_fastbev_sunny13_1500_dataset.py`, 경량 loader 검증은
+`scripts/smoke_fastbev_morai_infos.py`를 사용한다. 고정 split과 작은 검증 결과는
+`manifests/fastbev_sunny13_1500_v1/`, Fast-BEV 4-camera adapter와 설정은
+`fastbev_plugin/`에 관리한다. 실제 생성 데이터는 Git 밖의
+`/home/luv/ajounice_data/morai_od/processed/fastbev_sunny13_1500_v1`에 둔다.
+
 v3 전체 180장면 실측에서 확인된 반복 누락 에셋, 빈 negative GT 판정,
 촬영 궤적 중심 배치 개선을 적용한 다음 생성기는 production v4다.
 설계·정적 검증·짧은 live smoke 절차는

@@ -17,3 +17,7 @@ anchor, 환경, split, 객체 수·거리, visibility와 충돌 제약 초안이
 위 실제 카탈로그를 참조한다. 사람 결합형 obstacle은 제외하며,
 `pedestrianList`의 자전거 탑승자·사람+동물 복합 모델과 자산별 footprint는
 label audit 후 확정한다.
+
+`fastbev_sunny13_1500_v1.json`은 완료된 Sunny 13시 286 scene에서 250 scene,
+1,500 frame을 재현 가능하게 고르는 Fast-BEV baseline 설정이다. source capture,
+Sensor_6 calibration, 고정 seed, 175/38/37 scene split과 coarse class를 정의한다.

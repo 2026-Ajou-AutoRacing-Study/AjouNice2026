@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "dataset_id": "fastbev_sunny13_1500_v1",
+  "selection_seed": 260811,
+  "source_capture_root": "/home/luv/morai_cap/sunny13_600_production_v6_260809_063924",
+  "source_manifest": "dataset/morai_od/manifests/sunny13_600_production_v6_sunny_t13.json",
+  "sensor_config": "configs/sensors/Sensor_6.json",
+  "scene_count": 250,
+  "frames_per_scene": 6,
+  "camera_order": [
+    "front",
+    "front_left",
+    "front_right",
+    "back"
+  ],
+  "split_scene_counts": {
+    "train": 175,
+    "val": 38,
+    "test": 37
+  },
+  "classes": [
+    "vehicle",
+    "pedestrian",
+    "obstacle"
+  ],
+  "selection_strata": [
+    "scene_type",
+    "topology"
+  ],
+  "notes": [
+    "Split is scene-level; all six frames stay in one split.",
+    "Fast-BEV v1 is a Sunny 13:00 single-frame baseline.",
+    "Large generated metadata and PKL files live outside Git."
+  ]
+}
