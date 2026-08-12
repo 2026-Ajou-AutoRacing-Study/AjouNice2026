@@ -3,7 +3,7 @@ planning_hz: 10.0
 kinematic_velocity_scale_to_mps: 1.0
 # The local controller can deviate more than Autoware's integrated controller.
 # Re-anchor the profile to measured speed once tracking error exceeds 1.8 km/h.
-replan_velocity_deviation_mps: 0.5
+replan_velocity_deviation_mps: 1.0
 
 initial_state:
   max_previous_pose_distance_m: 5.0
@@ -28,21 +28,21 @@ forward:
 
 backward:
   # Normal constraints are used whenever the target is reachable comfortably.
-  max_deceleration_mps2: 1.0
-  max_jerk_mps3: 1.0
+  max_deceleration_mps2: 2.0
+  max_jerk_mps3: 3.0
   # Limit constraints are only selected when the normal envelope cannot reach
   # a lower velocity target. Tune these to the vehicle/controller capability.
-  limit_max_deceleration_mps2: 2.5
-  limit_max_jerk_mps3: 1.5
+  limit_max_deceleration_mps2: 4.0
+  limit_max_jerk_mps3: 5.0
 
 debug:
   stop_velocity_warn_threshold_mps: 0.3
 
 curve:
   enable_lateral_acceleration_limit: true
-  max_lateral_accel_mps2: 2.0
-  min_curve_velocity_mps: 10
-  decel_distance_before_curve_m: 40.0
+  max_lateral_accel_mps2: 4.0
+  min_curve_velocity_mps: 5.555555555555556
+  decel_distance_before_curve_m: 15.0
   decel_distance_after_curve_m: 4.0
-  curvature_window: 3
+  curvature_window: 2
   min_curve_radius_m: 1.0

@@ -156,6 +156,40 @@ def clamp(value, low, high):
     return max(low, min(high, value))
 
 
+def speed_dependent_curve_decel_distance(
+    velocity_mps,
+    min_distance_m,
+    low_speed_mps,
+    low_speed_distance_m,
+    high_speed_mps,
+    high_speed_distance_m,
+    maximum_speed_mps,
+    maximum_distance_m,
+):
+    """Piecewise-linear curve look-ahead distance from measured speed."""
+    velocity = max(float(velocity_mps), 0.0)
+    minimum_distance = max(float(min_distance_m), 0.0)
+    low_speed = max(float(low_speed_mps), 0.0)
+    high_speed = max(float(high_speed_mps), low_speed)
+    low_distance = max(float(low_speed_distance_m), minimum_distance)
+    high_distance = max(float(high_speed_distance_m), low_distance)
+    maximum_speed = max(float(maximum_speed_mps), high_speed)
+    maximum_distance = max(float(maximum_distance_m), high_distance)
+
+    if low_speed <= EPSILON or velocity <= low_speed:
+        ratio = 1.0 if low_speed <= EPSILON else velocity / low_speed
+        return minimum_distance + ratio * (low_distance - minimum_distance)
+    if high_speed <= low_speed + EPSILON or velocity <= high_speed:
+        ratio = 1.0 if high_speed <= low_speed + EPSILON else (
+            (velocity - low_speed) / (high_speed - low_speed)
+        )
+        return low_distance + ratio * (high_distance - low_distance)
+    if maximum_speed <= high_speed + EPSILON or velocity >= maximum_speed:
+        return maximum_distance
+    ratio = (velocity - high_speed) / (maximum_speed - high_speed)
+    return high_distance + ratio * (maximum_distance - high_distance)
+
+
 def cumulative_lengths(positions):
     """Return trajectory arc lengths for a sequence of ``(x, y, z)`` tuples."""
     if not positions:
@@ -485,8 +519,10 @@ def apply_lateral_acceleration_limits(
                 max_deceleration_mps2,
                 max_deceleration_jerk_mps3,
             )
-            if required_distance > available_distance + EPSILON:
-                continue
+            # Keep the curve cap even when the requested speed cannot be reached
+            # inside the nominal look-ahead. Dropping it here makes the cap flicker
+            # on and off at the feasibility boundary; the backward profile will
+            # still produce the strongest reachable deceleration.
         for cap_index, station in enumerate(arc_lengths):
             if station < start_station - EPSILON or station > end_station + EPSILON:
                 continue

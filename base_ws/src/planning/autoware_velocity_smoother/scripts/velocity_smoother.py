@@ -21,6 +21,7 @@ from autoware_velocity_smoother.analytical_jerk_constrained import (
     resample_profile_inputs,
     select_initial_state,
     smooth_velocity_profile,
+    speed_dependent_curve_decel_distance,
 )
 
 
@@ -129,6 +130,16 @@ class VelocitySmootherNode:
             float(rospy.get_param("~curve/decel_distance_before_curve_m", 30.0)),
             0.0,
         )
+        # Temporary vehicle-speed calibration for curve look-ahead distance:
+        # 0 km/h -> 4 m, 20 km/h -> 6 m, 60 km/h -> 15 m,
+        # and 120 km/h or faster -> 25 m.
+        self.dynamic_curve_min_distance = 4.0
+        self.dynamic_curve_low_speed = 20.0 / 3.6
+        self.dynamic_curve_low_distance = 6.0
+        self.dynamic_curve_high_speed = 60.0 / 3.6
+        self.dynamic_curve_high_distance = 15.0
+        self.dynamic_curve_maximum_speed = 120.0 / 3.6
+        self.dynamic_curve_maximum_distance = 25.0
         self.decel_distance_after_curve = max(
             float(rospy.get_param("~curve/decel_distance_after_curve_m", 4.0)),
             0.0,
@@ -141,10 +152,14 @@ class VelocitySmootherNode:
             float(rospy.get_param("~curve/min_curve_radius_m", 1.0)),
             0.01,
         )
+        self.curve_cap_release_hold_cycles = 5
+        self.curve_cap_hold_match_distance = 2.0
 
         self.trajectory = None
         self.odometry = None
         self.previous_output = None
+        self.curve_cap_cache = []
+        self.curve_cap_hold_remaining = 0
 
         input_topic = rospy.get_param(
             "~input_trajectory_topic",
@@ -242,6 +257,41 @@ class VelocitySmootherNode:
         position = self.odometry.pose.pose.position
         return position.x, position.y, position.z
 
+    def stabilize_curve_caps(self, positions, raw_caps, curve_caps, curve_cap_count):
+        """Delay only curve-cap release, while applying new lower caps immediately."""
+        if curve_cap_count > 0:
+            self.curve_cap_cache = [
+                (position[0], position[1], float(cap))
+                for position, raw, cap in zip(positions, raw_caps, curve_caps)
+                if float(cap) + 1.0e-6 < float(raw)
+            ]
+            self.curve_cap_hold_remaining = self.curve_cap_release_hold_cycles
+            return tuple(curve_caps), curve_cap_count, False
+
+        if self.curve_cap_hold_remaining <= 0 or not self.curve_cap_cache:
+            return tuple(curve_caps), curve_cap_count, False
+
+        output = list(curve_caps)
+        maximum_distance_squared = self.curve_cap_hold_match_distance ** 2
+        for index, position in enumerate(positions):
+            nearest = min(
+                self.curve_cap_cache,
+                key=lambda cached: (cached[0] - position[0]) ** 2
+                + (cached[1] - position[1]) ** 2,
+            )
+            distance_squared = (nearest[0] - position[0]) ** 2 + (
+                nearest[1] - position[1]
+            ) ** 2
+            if distance_squared <= maximum_distance_squared:
+                output[index] = min(float(output[index]), nearest[2])
+        self.curve_cap_hold_remaining -= 1
+        held_count = sum(
+            1
+            for raw, cap in zip(raw_caps, output)
+            if float(cap) + 1.0e-6 < float(raw)
+        )
+        return tuple(output), held_count, held_count > 0
+
     def previous_planned_state(self):
         if self.previous_output is None:
             return None, None, None
@@ -303,13 +353,26 @@ class VelocitySmootherNode:
         raw_velocities = self.velocities_from_trajectory(raw)
         velocity_caps = raw_velocities
         curve_cap_count = 0
+        curve_hold_applied = False
+        curve_decel_distance = self.decel_distance_before_curve
+        if current_velocity is not None:
+            curve_decel_distance = speed_dependent_curve_decel_distance(
+                current_velocity,
+                self.dynamic_curve_min_distance,
+                self.dynamic_curve_low_speed,
+                self.dynamic_curve_low_distance,
+                self.dynamic_curve_high_speed,
+                self.dynamic_curve_high_distance,
+                self.dynamic_curve_maximum_speed,
+                self.dynamic_curve_maximum_distance,
+            )
         if self.enable_lateral_acceleration_limit:
             velocity_caps, curve_cap_count = apply_lateral_acceleration_limits(
                 positions,
                 raw_velocities,
                 self.max_lateral_accel,
                 self.min_curve_velocity,
-                self.decel_distance_before_curve,
+                curve_decel_distance,
                 self.decel_distance_after_curve,
                 self.curvature_window,
                 self.min_curve_radius,
@@ -317,6 +380,12 @@ class VelocitySmootherNode:
                 self.parameters.max_deceleration_mps2,
                 self.parameters.max_deceleration_jerk_mps3,
                 initial_state.velocity_mps,
+            )
+            velocity_caps, curve_cap_count, curve_hold_applied = self.stabilize_curve_caps(
+                positions,
+                raw_velocities,
+                velocity_caps,
+                curve_cap_count,
             )
         resampled = resample_profile_inputs(
             positions,
@@ -388,13 +457,15 @@ class VelocitySmootherNode:
                 dense_profile.stop_velocity_before_overwrite_mps,
             )
         self.publish_status(
-            "velocity_smoother: points={}/{} targets={} curve_caps={} cap_clamps={} "
+            "velocity_smoother: points={}/{} targets={} curve_caps={} curve_hold={} curve_decel_m={:.2f} cap_clamps={} "
             "init={} prev_dist={} engaged={} ego_speed_mps={} decel_mode={} "
             "stop_feasible={} stop_pre_zero_mps={:.3f}".format(
                 len(output.points),
                 len(resampled.positions),
                 len(dense_profile.deceleration_target_indices),
                 curve_cap_count,
+                curve_hold_applied,
+                curve_decel_distance,
                 dense_profile.velocity_cap_clamp_count,
                 initial_state.source,
                 "n/a"

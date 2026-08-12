@@ -17,7 +17,7 @@ control_limits:
   max_brake_cmd: 1.0
 
 safety:
-  trajectory_timeout_s: 0.5
+  trajectory_timeout_s: 1.2
   state_timeout_s: 0.5
   steering_timeout_s: 0.5
   lateral_valid_timeout_s: 0.2

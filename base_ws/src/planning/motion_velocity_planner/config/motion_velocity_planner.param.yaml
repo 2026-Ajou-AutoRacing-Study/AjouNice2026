@@ -11,9 +11,9 @@ base_link_to_front: 3.845
 dynamic_stop_distance: 5.0
 warning_distance: 6.0
 min_stop_velocity_mps: 0.5
-max_deceleration: 2.0
+max_deceleration: 4.0
 reaction_time: 0.8
-comfortable_deceleration: 3.0
+comfortable_deceleration: 4.0
 object_size_margin: 0.0
 dynamic_object_time_margin: 1.0
 slow_dynamic_stop_speed_threshold_mps: 1.0

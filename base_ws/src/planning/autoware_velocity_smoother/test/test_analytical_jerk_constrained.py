@@ -20,6 +20,7 @@ from autoware_velocity_smoother.analytical_jerk_constrained import (  # noqa: E4
     resample_profile_inputs,
     select_initial_state,
     smooth_velocity_profile,
+    speed_dependent_curve_decel_distance,
 )
 
 
@@ -371,6 +372,24 @@ class AnalyticalJerkConstrainedSmootherTest(unittest.TestCase):
         self.assertLess(min(output), 3.5)
         self.assertGreaterEqual(min(value for value in output if value > 0.01), 1.0)
 
+    def test_curve_decel_distance_interpolates_from_vehicle_speed(self):
+        args = (
+            4.0,
+            20.0 / 3.6,
+            6.0,
+            60.0 / 3.6,
+            15.0,
+            120.0 / 3.6,
+            25.0,
+        )
+        self.assertAlmostEqual(speed_dependent_curve_decel_distance(0.0, *args), 4.0)
+        self.assertAlmostEqual(speed_dependent_curve_decel_distance(20.0 / 3.6, *args), 6.0)
+        self.assertAlmostEqual(speed_dependent_curve_decel_distance(40.0 / 3.6, *args), 10.5)
+        self.assertAlmostEqual(speed_dependent_curve_decel_distance(60.0 / 3.6, *args), 15.0)
+        self.assertAlmostEqual(speed_dependent_curve_decel_distance(90.0 / 3.6, *args), 20.0)
+        self.assertAlmostEqual(speed_dependent_curve_decel_distance(120.0 / 3.6, *args), 25.0)
+        self.assertAlmostEqual(speed_dependent_curve_decel_distance(140.0 / 3.6, *args), 25.0)
+
     def test_lateral_acceleration_limit_preserves_stop_caps(self):
         positions = arc_positions(10.0, 11)
         caps = [8.0] * len(positions)
@@ -389,7 +408,7 @@ class AnalyticalJerkConstrainedSmootherTest(unittest.TestCase):
         self.assertGreater(count, 0)
         self.assertEqual(output[5], 0.0)
 
-    def test_lateral_acceleration_limit_skips_infeasible_close_curve(self):
+    def test_lateral_acceleration_limit_keeps_infeasible_close_curve_cap(self):
         positions = arc_positions(10.0, 11)
         caps = [10.0] * len(positions)
         output, count = apply_lateral_acceleration_limits(
@@ -406,8 +425,8 @@ class AnalyticalJerkConstrainedSmootherTest(unittest.TestCase):
             1.5,
             10.0,
         )
-        self.assertEqual(count, 0)
-        self.assertEqual(output, tuple(caps))
+        self.assertGreater(count, 0)
+        self.assertLess(min(output), min(caps))
 
     def test_lateral_acceleration_limit_applies_when_deceleration_is_feasible(self):
         positions = straight_then_arc_positions(10.0, 11)
