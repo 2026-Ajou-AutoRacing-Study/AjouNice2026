@@ -1,6 +1,6 @@
 # 동적장애물 자동화 인수인계
 
-작성일: 2026-08-10
+작성일: 2026-08-13
 목적: MORAI에 저장한 `dynamic_*.json` 시나리오를 AJOUNICE 스택으로 반복 검증하고,
 조건별 결과표를 남기는 작업을 다음 담당자가 안전하게 이어갈 수 있게 한다.
 
@@ -12,7 +12,66 @@
 - 변경된 플래너 런타임은 [morai_scenario_validation.py](../scripts/runtime/morai_scenario_validation.py)뿐이다.
 - 필수 경로 발행 보정은 [kcity_competition_route.launch](../base_ws/src/bringup/launch/kcity_competition_route.launch)에만 있다. `v60` 맵과 그에 대응하는 route definition을 명시해, ScenarioLoad 뒤의 kroute가 빈 경로 정의로 종료되지 않게 한다.
 - 사용자 데이터인 `planner_logs/log_data_06.csv`, `log_data_07.csv`, `log_data_08.csv`와 `artifacts/`는 수정·삭제·커밋하지 않는다.
-- 아직 커밋하거나 푸시하지 않았다. 다음 담당자는 자동화 관련 파일만 별도 커밋으로 묶고, 다른 브랜치 변경과 섞지 않는다.
+- 자동화 제약과 수동 검증 절차는 `5b998fa`에 저장되어 있다. 결과물·로그와 다른
+  플래닝 변경은 자동화 인수인계와 분리한다.
+
+## 결론: 현재 MORAI JSON Load로는 무인 배치를 만들 수 없다
+
+현재 설치된 대회 MORAI는 `25.S4.251001.MolitComp03`이다. 이 빌드에서 실제로 확인한
+결과는 다음과 같다.
+
+| 항목 | 결과 | 의미 |
+| --- | --- | --- |
+| Publish-Subscribe `/ScenarioLoad` | 시나리오 요청 수신 성공 | 요청 적용 직후 MORAI가 rosbridge 클라이언트를 끊음 |
+| Topic 재연결 | 한 건에서는 kroute·validator·follower까지 재기동 성공 | **매 시나리오마다** 사람이 Ego/Simulator ROS 연결을 다시 눌러야 함 |
+| `Morai SLService Provider` | Network Settings UI에 없음 | `/Service_MoraiSL`을 제공할 수 없음 |
+| Service Model JSON 주입 | MORAI가 항목을 기본값으로 되돌림 | 프로필을 편집해서 Service Provider를 만들 수 없음 |
+| gRPC `7789` | Simulator 포트는 열려 있음 | 배치 제어용 Scenario Runner 클라이언트/권한은 현재 설치되지 않음 |
+
+따라서 현재 `dynamic_*.json`을 MORAI에 자동 Load하는 대규모 무인 배치는 중단한다.
+`/ScenarioLoad`을 336개 또는 전체 조건에 반복 발행하는 것은 재연결 때문에 무인
+검증이 아니며, 실패 결과를 신뢰할 수 없으므로 실행하지 않는다.
+
+## 권장 전환: ROS 입력 재생 기반 자동검증
+
+완전 자동 결과표가 필요한 경우, 이미 저장소에서 사용 중인 MVP/BVP 검증 방식을 따른다.
+MORAI GUI를 조작하지 않고 테스트 러너가 동일한 ROS 입력을 반복 발행해 플래너 출력으로
+판정한다.
+
+```text
+YAML 케이스
+  └─ route / odometry / PredictedObjects(+ predicted paths) 발행
+       └─ BPP → BVP → Path Optimizer → MVP
+            └─ trajectory 분석: 예상 충돌 전 정지 · 객체 해제 후 재출발 · 실패 사유
+                 └─ results.csv / summary.json
+```
+
+이 방식의 선례는 다음과 같다.
+
+- [MVP 검증 러너](../base_ws/src/planning/motion_velocity_planner/scripts/validation/run_motion_velocity_planner_cases.py)는 YAML의 객체 위치·속도·기대 정지 위치를 읽어 `Trajectory`, `Odometry`, `PredictedObjects`를 직접 발행하고 JSON/CSV 결과를 만든다.
+- [MVP 검증 문서](../base_ws/src/planning/motion_velocity_planner/docs/validation/README.md)는 정적·저속 동적 객체를 포함한 자동 케이스와 결과 형식을 설명한다.
+- [합류/Run Out 검증 문서](../base_ws/src/planning/behavior_velocity_planner/docs/BVP_ADVANCED_MODULES_VALIDATION.md)는 Planning Simulator에서 캡처한 입력을 ROS 1에 재생해 정지 위치와 속도 프로파일을 비교한다.
+
+이 전환은 **플래너 판단 로직**을 완전 자동으로 검증한다. 반면 MORAI의 실제 객체 생성,
+UDP 변환, 인지, 차량 제어까지 포함하는 통합 검증은 보장하지 않는다. 그 범위는 아래의
+단일 MORAI 점검으로 별도 유지한다.
+
+### 다음 구현 담당자 작업 순서
+
+1. `dynamic_*.json` 파일명에 있는 대상·위치·객체 속도·트리거·ego 속도를 읽어 ROS
+   검증 케이스 YAML로 변환한다. 첫 단계에서는 성인/어린이 한 종류와 한 속도만 만든다.
+2. 객체의 현재 pose뿐 아니라 횡단 predicted path와 시간 간격을 `PredictedObjects`로
+   발행한다. 정적장애물은 predicted path 없이 0 m/s 객체로 발행한다.
+3. 기존 MVP 러너의 결과 형식을 확장해 `object_seen`, `predicted_conflict`,
+   `stopped_before_conflict`, `resumed_after_clear`, `trajectory_invalid`을 기록한다.
+4. 케이스 하나를 BPP/BVP/MVP 전체 경로에서 통과시킨 뒤, YAML 조합을 생성해 결과를
+   `artifacts/` 아래에만 저장한다. 결과물은 코드와 별도로 관리한다.
+5. MORAI에서는 대표 케이스만 아래 단일 절차로 재현해 입력 토픽과 실제 동작이 같은지
+   교차 확인한다.
+
+Scenario Runner 권한이 나중에 제공되면 그때만 별도 경로를 검토한다. Scenario Runner의
+입력은 현재 MORAI 저장 JSON이 아니라 OpenSCENARIO `.xosc`이므로, ROS 재생 검증과
+동일한 것으로 취급하거나 즉시 대체하지 않는다.
 
 ## 구성
 
