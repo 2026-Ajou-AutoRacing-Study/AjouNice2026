@@ -10,6 +10,23 @@ data_root = '/home/luv/ajounice_data/morai_od/processed/fastbev_sunny13_1500_v1/
 point_cloud_range = [-50, -50, -5, 50, 50, 3]
 
 model = dict(
+    # The upstream M0 config assumes 6 cameras over 4 timesteps.  MORAI uses
+    # one timestep from a fixed four-camera rig, so make both dimensions
+    # explicit instead of relying on Fast-BEV's historical 6-camera default.
+    num_cameras=4,
+    backbone=dict(
+        init_cfg=dict(
+            type='Pretrained',
+            checkpoint=(
+                'https://download.pytorch.org/models/'
+                'resnet18-f37072fd.pth'))),
+    neck_3d=dict(
+        in_channels=64 * 4,
+        # Preserve the native 0.5 m BEV grid for pedestrians and obstacles.
+        # The upstream stride-2 head produces a 1.0 m output grid, which was
+        # shown by the 21-frame ablation to be too coarse for MORAI small boxes.
+        stride=1,
+        fuse=dict(in_channels=64 * 4, out_channels=64 * 4)),
     bbox_head=dict(
         num_classes=3,
         anchor_generator=dict(
@@ -57,7 +74,8 @@ img_norm_cfg = dict(
 train_pipeline = [
     dict(type='MoraiMultiViewPipeline', n_images=4, transforms=[
         dict(type='LoadImageFromFile', file_client_args=file_client_args)]),
-    dict(type='LoadAnnotations3D', with_bbox=True, with_label=True),
+    dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True,
+         with_bbox=False, with_label=False),
     dict(type='LoadPointsFromFile', dummy=True, coord_type='LIDAR', load_dim=5, use_dim=5),
     dict(type='RandomFlip3D', flip_2d=False, sync_2d=False,
          flip_ratio_bev_horizontal=0.5, flip_ratio_bev_vertical=0.0,
@@ -87,7 +105,6 @@ common_dataset = dict(
     data_root=data_root,
     classes=class_names,
     modality=input_modality,
-    with_box2d=False,
     box_type_3d='LiDAR',
     load_interval=1,
     sequential=False,
@@ -98,12 +115,46 @@ common_dataset = dict(
 data = dict(
     samples_per_gpu=1,
     workers_per_gpu=2,
-    train=dict(**common_dataset, pipeline=train_pipeline, test_mode=False,
+    train=dict(_delete_=True, **common_dataset,
+               pipeline=train_pipeline, test_mode=False,
                ann_file=data_root + 'fastbev_infos/morai_infos_train.pkl'),
-    val=dict(**common_dataset, pipeline=test_pipeline, test_mode=True,
+    val=dict(_delete_=True, **common_dataset,
+             pipeline=test_pipeline, test_mode=True,
              ann_file=data_root + 'fastbev_infos/morai_infos_val.pkl'),
-    test=dict(**common_dataset, pipeline=test_pipeline, test_mode=True,
+    test=dict(_delete_=True, **common_dataset,
+              pipeline=test_pipeline, test_mode=True,
               ann_file=data_root + 'fastbev_infos/morai_infos_test.pkl'))
 
-evaluation = dict(interval=1)
+# Upstream AdamW2 calls torch.optim._functional.adamw with the pre-PyTorch-2
+# positional API.  Standard AdamW has the same intended optimizer semantics
+# and is maintained by PyTorch/MMCV for the installed runtime.
+optimizer = dict(
+    _delete_=True,
+    type='AdamW',
+    lr=0.0004,
+    weight_decay=0.01,
+    paramwise_cfg=dict(
+        custom_keys={'backbone': dict(lr_mult=0.1, decay_mult=1.0)}))
+
+# Keep per-epoch validation compact.  Final checkpoint evaluation additionally
+# reports TP errors, distance bins and runtime through evaluate_fastbev_morai.py.
+evaluation = dict(
+    interval=1,
+    metric=('center',),
+    center_thresholds=(0.5, 1.0, 2.0, 4.0),
+    distance_bins=(),
+    compact=True,
+    save_best='center_mAP',
+    rule='greater')
 total_epochs = 12
+runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
+checkpoint_config = dict(
+    interval=1,
+    max_keep_ckpts=3,
+    save_last=True)
+
+# The inherited config points to an upstream checkpoint path that is not part
+# of this repository.  Keep a clean from-scratch default; an explicit MORAI or
+# Fast-BEV checkpoint can still be supplied with --load-from/--resume-from.
+load_from = None
+resume_from = None
