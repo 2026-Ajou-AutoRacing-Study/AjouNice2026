@@ -214,6 +214,36 @@ GT의 최대 IoU를 비교했을 때 IoU 0.5 이상 anchor를 갖는 비율은 v
 비교 재현용으로 명시적으로 고정한다. anchor 종류 증가는 head 비용을 더 늘리므로
 첫 1,050-frame baseline 결과를 보기 전에는 적용하지 않는다.
 
+### 5.3 Obstacle 크기 다양성 후속 과제
+
+현재 `obstacle`은 상자, 배럴, 표지판, 콘, 자전거·스쿠터형 물체처럼 크기와 종횡비가
+서로 다른 asset을 하나의 class와 `[1.0, 1.0, 1.0] m` anchor로 학습한다. train split의
+1,521개 obstacle GT 크기를 확인한 결과 중앙값은 약 `0.50x0.60x1.03 m`, 90 percentile은
+약 `1.65x1.92x3.01 m`, 전체 범위는 `0.13x0.11x0.03 m`부터
+`1.88x3.21x6.44 m`까지다. 이 다양성은 높은 center AP에 비해 obstacle mASE와
+IoU AP@0.50이 낮은 원인 후보다.
+
+첫 production baseline 전에는 class 정의를 바꾸지 않고 현재 설정을 유지한다. 이후
+다음 순서로 별도 ablation을 수행한다.
+
+1. 약 `0.13x0.11x0.03 m`인 퇴화 GT 43개의 asset 이름을 역추적한다.
+2. 대회 OD 대상이 아닌 바닥형·잘못된 asset이면 이름 기반으로 dataset 변환에서 제외한다.
+3. 정상 train obstacle만 log-space clustering하여 다중 anchor 후보를 만든다.
+4. 단일 anchor와 다중 anchor를 동일 split·seed·epoch로 비교한다.
+5. obstacle mASE/IoU 개선과 vehicle·pedestrian 성능, FPS, VRAM 변화를 함께 판단한다.
+
+현재 train 분포에서 얻은 초기 3-anchor 후보는 다음과 같으며 확정값은 아니다.
+
+```text
+small/low:  0.45 x 0.45 x 0.76 m
+tall/thin:  0.37 x 0.53 x 3.22 m
+bulk/wide:  0.84 x 1.42 x 0.99 m
+```
+
+출력 class는 우선 `obstacle` 하나로 유지하고 내부 anchor template만 늘리는 방향을
+우선한다. 의미 subclass 분리는 다중 anchor로도 해결되지 않을 때만 검토한다. 평가에서는
+center AP/mATE와 mASE/IoU AP를 함께 보고 위치 검출과 크기 회귀 문제를 분리한다.
+
 학습 전 검증 순서는 다음과 같다.
 
 1. Camera 3D corner를 이미지에 재투영하여 저장 BBox pixel과 비교
@@ -617,3 +647,60 @@ dataset/morai_od/scripts/evaluate_fastbev_morai_test.sh \
 최종 산출물은 `best_center_mAP_epoch_*.pth`, `test_metrics.json`,
 `test_evaluation.log`이다. 모델 비교 표에는 test center mAP, 클래스별 AP, TP error,
 IoU AP, 거리 구간 결과와 FP16 runtime을 함께 기록한다.
+
+## W&B 학습 모니터링
+
+Fast-BEV 원본 학습 루프를 수정하지 않고 MMCV 1.4의 `WandbLoggerHook`를 사용한다.
+기존 text/TensorBoard 로그는 그대로 유지하며 W&B에는 train loss, learning rate,
+gradient norm, epoch/iteration, 매 epoch validation `center_mAP`와 클래스별 AP가
+기록된다. W&B 클라이언트가 GPU·CPU·메모리 같은 시스템 지표도 별도로 수집한다.
+
+기본 run 식별자는 다음과 같다.
+
+- entity: `AjouNice2026`
+- project: `morai-fastbev`
+- group: `sunny13-1500-single-frame`
+- run name 및 run id: `train_fastbev_morai.sh`의 첫 번째 인자
+- tags: `fastbev,morai,4cam,single-frame,s384x704,fp16`
+- best checkpoint 기준: `center_mAP`
+
+checkpoint는 파일당 약 180 MB이므로 W&B artifact로 자동 업로드하지 않는다. config와
+metric은 W&B에 남고, checkpoint와 전체 MMCV config는 로컬 work directory에 남는다.
+최종 best checkpoint만 필요할 때 별도 artifact로 올리는 방식을 사용한다.
+
+처음 한 번만 환경을 준비하고 로그인한다. API key는 코드, `.env`, 문서 또는 Git에
+저장하지 않는다.
+
+```bash
+cd ~/AjouNice2026
+
+dataset/morai_od/scripts/setup_fastbev_wandb.sh
+
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
+conda activate fastbev_rtx50
+wandb login
+```
+
+이후 평소 학습 명령만 실행하면 W&B가 자동 활성화된다.
+
+```bash
+cd ~/AjouNice2026
+
+dataset/morai_od/scripts/train_fastbev_morai.sh \
+  full1500_stride1_fp16_v1
+```
+
+실험별 project/group/tag를 바꾸려면 실행 전 환경변수를 지정한다.
+
+```bash
+export WANDB_PROJECT=morai-fastbev
+export WANDB_RUN_GROUP=grid-ablation
+export WANDB_TAGS=fastbev,morai,4cam,grid-0.4m,fp16
+
+dataset/morai_od/scripts/train_fastbev_morai.sh \
+  full1500_grid04_fp16_v1
+```
+
+인터넷 없이 로컬 W&B 기록만 시험할 때는 `WANDB_MODE=offline`, W&B 자체를 제외하고
+학습할 때는 `FASTBEV_DISABLE_WANDB=1`을 사용한다. 같은 run name으로 checkpoint 학습을
+재개할 때는 `WANDB_RUN_ID`와 `resume=allow`에 의해 같은 W&B run으로 이어진다.

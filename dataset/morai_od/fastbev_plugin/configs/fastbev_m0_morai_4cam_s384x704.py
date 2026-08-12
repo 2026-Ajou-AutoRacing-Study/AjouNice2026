@@ -153,6 +153,63 @@ checkpoint_config = dict(
     max_keep_ckpts=3,
     save_last=True)
 
+# MMCV's logger hook sends the same train/validation scalars that appear in
+# the text log to W&B.  Runtime identity comes from environment variables so
+# teammates can reuse this config without committing credentials or personal
+# settings.  Checkpoints remain local by default; they are large and the best
+# model is already selected by CheckpointHook above.
+wandb_tags = [
+    tag.strip() for tag in __import__('os').getenv(
+        'WANDB_TAGS',
+        'fastbev,morai,4cam,single-frame,s384x704,fp16').split(',')
+    if tag.strip()
+]
+wandb_config = dict(
+    architecture='FastBEV-M0-ResNet18',
+    dataset='MORAI-fastbev-sunny13-1500-v1',
+    train_frames=1050,
+    val_frames=228,
+    test_frames=222,
+    cameras=4,
+    input_height=384,
+    input_width=704,
+    bev_range_m='[-50,50]x[-50,50]',
+    bev_grid_m=0.5,
+    batch_size_per_gpu=1,
+    optimizer='AdamW',
+    learning_rate=0.0004,
+    weight_decay=0.01,
+    max_epochs=total_epochs,
+    fp16=True,
+    selection_metric='center_mAP')
+log_config = dict(
+    interval=10,
+    hooks=[
+        dict(type='TextLoggerHook'),
+        dict(type='TensorboardLoggerHook'),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                entity=__import__('os').getenv(
+                    'WANDB_ENTITY', 'AjouNice2026'),
+                project=__import__('os').getenv(
+                    'WANDB_PROJECT', 'morai-fastbev'),
+                name=__import__('os').getenv(
+                    'WANDB_NAME', 'fastbev_m0_morai_baseline'),
+                id=__import__('os').getenv('WANDB_RUN_ID'),
+                resume=__import__('os').getenv('WANDB_RESUME', 'allow'),
+                group=__import__('os').getenv(
+                    'WANDB_RUN_GROUP', 'sunny13-1500-single-frame'),
+                job_type=__import__('os').getenv(
+                    'WANDB_JOB_TYPE', 'train'),
+                tags=wandb_tags,
+                notes=__import__('os').getenv(
+                    'WANDB_NOTES',
+                    'MORAI 4-camera Fast-BEV single-frame baseline'),
+                config=wandb_config),
+            interval=10)
+    ])
+
 # The inherited config points to an upstream checkpoint path that is not part
 # of this repository.  Keep a clean from-scratch default; an explicit MORAI or
 # Fast-BEV checkpoint can still be supplied with --load-from/--resume-from.

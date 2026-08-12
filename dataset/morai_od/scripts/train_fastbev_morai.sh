@@ -19,15 +19,43 @@ export PYTHONPATH="$ROOT/third_party/fastbev:$ROOT/dataset/morai_od${PYTHONPATH:
 export MPLCONFIGDIR="${MPLCONFIGDIR:-/tmp/matplotlib-fastbev}"
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 
-mkdir -p "$WORK_DIR"
+# W&B credentials are managed by `wandb login`; never put an API key here.
+# Reusing RUN_NAME intentionally resumes the same W&B run when local training
+# is resumed.  Override any value from the shell when comparing experiments.
+export WANDB_ENTITY="${WANDB_ENTITY:-AjouNice2026}"
+export WANDB_PROJECT="${WANDB_PROJECT:-morai-fastbev}"
+export WANDB_NAME="${WANDB_NAME:-$RUN_NAME}"
+export WANDB_RUN_ID="${WANDB_RUN_ID:-$RUN_NAME}"
+export WANDB_RESUME="${WANDB_RESUME:-allow}"
+export WANDB_RUN_GROUP="${WANDB_RUN_GROUP:-sunny13-1500-single-frame}"
+export WANDB_JOB_TYPE="${WANDB_JOB_TYPE:-train}"
+export WANDB_TAGS="${WANDB_TAGS:-fastbev,morai,4cam,single-frame,s384x704,fp16}"
+export WANDB_DIR="${WANDB_DIR:-$WORK_DIR}"
+export WANDB_CACHE_DIR="${WANDB_CACHE_DIR:-$WORK_DIR/.wandb_cache}"
+
+mkdir -p "$WORK_DIR" "$WANDB_CACHE_DIR"
 printf 'config: %s\nwork_dir: %s\nselection_metric: center_mAP\n' \
   "$CONFIG" "$WORK_DIR"
 
+TRAIN_ARGS=(
+  "$CONFIG"
+  --work-dir "$WORK_DIR"
+  --gpus 1
+  --seed 0
+)
+
+if [[ "${FASTBEV_DISABLE_WANDB:-0}" == "1" ]]; then
+  TRAIN_ARGS+=(--wo-wandb)
+  printf 'wandb: disabled by FASTBEV_DISABLE_WANDB=1\n'
+else
+  python -c 'import wandb; print("wandb version:", wandb.__version__)'
+  printf 'wandb: entity=%s project=%s run=%s group=%s mode=%s\n' \
+    "$WANDB_ENTITY" "$WANDB_PROJECT" "$WANDB_NAME" \
+    "$WANDB_RUN_GROUP" "${WANDB_MODE:-online}"
+fi
+
 python3 third_party/fastbev/tools/train.py \
-  "$CONFIG" \
-  --work-dir "$WORK_DIR" \
-  --gpus 1 \
-  --seed 0 \
+  "${TRAIN_ARGS[@]}" \
   2>&1 | tee "$WORK_DIR/console.log"
 
 printf 'training complete: %s\n' "$WORK_DIR"
