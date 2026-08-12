@@ -1,33 +1,35 @@
 #!/usr/bin/env python3
 """
-traffic_light_node.py (v2 - group_id 동적 매칭 추가)
+traffic_light_node.py (v3 - route 기반 lanelet 매칭 추가)
 
 카메라 이미지 -> YOLO26(신호등 위치 탐지) -> 우리 차로 필터링 -> 색상/모양 분류
 -> autoware_perception_msgs/TrafficLightGroupArray 로 발행.
 
-v1 대비 변경점:
-  - traffic_light_group_id 고정값(기본 0) 대신, /Ego_topic(차량 현재 위치)을 구독해서
-    build_traffic_light_group_id_table.py로 미리 생성한 테이블(traffic_light_group_id_table.json)에서
-    가장 가까운 lanelet2 regulatory element id를 찾아 동적으로 채움.
-  - 가장 가까운 신호등까지 거리가 ~max_group_id_match_dist(기본 80m)보다 크면
-    "지금 어떤 신호등 구역에도 속하지 않는다"고 판단, 매칭 실패로 처리하고
-    폴백값(~fallback_group_id, 기본 0)을 사용.
-  - 테이블 로드/매칭 실패 시 항상 안전하게 폴백값으로 동작(노드가 죽지 않음).
+v2 -> v3 변경점 (2026-08-12):
+  - group_id 결정 방식을 2단계로 바꿈.
+    1순위: LaneletRouteGroupIdMatcher — /planning/mission_planning/route(LaneletRoute)와
+           lanelet2 맵 자체의 lanelet<->regulatory_element 연결관계를 이용해서,
+           "에고 위치부터 route를 따라가며 처음 만나는 신호등"을 찾는 정석(Autoware) 방식.
+           route 순서 기준으로만 탐색하므로 뒤쪽/다른 분기 신호등 오매칭이 구조적으로 없음.
+    2순위(폴백): 기존 v2의 TrafficLightGroupIdMatcher — /Ego_topic 기반 유클리드 최근접 매칭.
+           route 토픽이 없거나, lanelet2 바인딩이 없거나, 맵 로드에 실패하거나,
+           route/ego pose가 아직 안 왔거나 오래됐을 때 자동으로 이쪽을 씀.
+  - 디버그 라벨에 매칭에 쓰인 방식(route/dist)을 같이 표시.
 
 토픽:
   구독: /sensor/camera/front/compressed (sensor_msgs/CompressedImage)
-  구독: /Ego_topic (morai_msgs/EgoVehicleStatus) - group_id 매칭용 차량 위치
+  구독: /Ego_topic (morai_msgs/EgoVehicleStatus) - 폴백 매칭용 차량 위치
+  구독: /planning/mission_planning/route (autoware_planning_msgs/LaneletRoute) - route 기반 매칭용
+  구독: /localization/kinematic_state (nav_msgs/Odometry) - route 기반 매칭용 차량 위치
   발행: /perception/traffic_light_recognition/traffic_signals (autoware_perception_msgs/TrafficLightGroupArray)
   발행(디버그): ~debug_image/compressed (sensor_msgs/CompressedImage)
 
-주의(팀 확인 필요, 2026-08-11):
-  - 룩업 테이블은 lanelet2 좌표 - (mgeo 원점 - lanelet2 원점) 오프셋으로 계산됨.
-    Ego_topic이 mgeo local 좌표계와 동일한 프레임을 쓴다는 가정 하에 만들어졌고,
-    아직 실측으로 이 가정을 완전히 검증하지 않음 (구간별 정지선 Ego 좌표와
-    테이블 매칭 거리로 검증 권장, build_traffic_light_group_id_table.py 참고).
+주의(팀 확인 필요):
+  - route 기반 매칭이 쓰는 lanelet2 맵 좌표계와, 폴백이 쓰는 /Ego_topic + 오프셋보정
+    좌표계는 서로 다른 프레임이다. 둘을 섞어서 계산하지 않도록 각자 독립적으로 동작.
   - id 201395, 201396은 lanelet2 맵 자체 데이터 오류(전구 위치가 도로 밖에 찍힘)로
-    확인되어 테이블에서 제외됨. 맵 수정 전까지 이 두 신호등 근처에서는 매칭이
-    안 되고 폴백값이 나갈 수 있음.
+    확인되어 두 매칭 방식 모두에서 제외됨. 맵 수정 전까지 이 두 신호등 근처에서는
+    매칭이 안 되고 폴백값이 나갈 수 있음.
   - 화살표 방향(LEFT_ARROW/RIGHT_ARROW)은 신뢰도가 낮을 때(면적 작음) 방향을 못 정함.
     K-City 샘플 시나리오는 좌회전 신호만 있는 걸로 조사돼 있어, 방향 불명 화살표는
     기본적으로 LEFT_ARROW로 채움.
@@ -40,7 +42,6 @@ import sys
 _user_site = os.path.expanduser(f"~/.local/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages")
 if os.path.isdir(_user_site) and _user_site not in sys.path:
     sys.path.insert(0, _user_site)
-
 _this_dir = os.path.dirname(os.path.abspath(__file__))
 if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
@@ -61,7 +62,7 @@ from autoware_perception_msgs.msg import (
 )
 
 from light_color_utils import classify_crop, pick_ego_lane_box
-
+from lanelet_route_matcher import LaneletRouteGroupIdMatcher
 
 COLOR_MAP = {
     "red": TrafficLightElement.RED,
@@ -73,13 +74,14 @@ HZ_LOG_INTERVAL = 30
 
 
 class TrafficLightGroupIdMatcher:
-    """차량 위치 기반 가장 가까운 lanelet2 신호등 group_id 매칭."""
+    """[폴백] 차량 위치 기반 가장 가까운 lanelet2 신호등 group_id 매칭 (유클리드 최근접, v2)."""
 
     def __init__(self, table_path, max_match_dist, fallback_group_id):
         self.max_match_dist = max_match_dist
         self.fallback_group_id = fallback_group_id
         self.entries = []  # [(group_id, x, y), ...]
         self.loaded = False
+        self._latest_ego_xy = None
 
         if not os.path.exists(table_path):
             rospy.logwarn(
@@ -87,7 +89,6 @@ class TrafficLightGroupIdMatcher:
                 f"-> 항상 고정값({fallback_group_id}) 사용"
             )
             return
-
         try:
             with open(table_path) as f:
                 data = json.load(f)
@@ -100,7 +101,8 @@ class TrafficLightGroupIdMatcher:
         except Exception as e:
             rospy.logwarn(f"[traffic_light_node] group_id 테이블 로드 실패: {e} -> 고정값 사용")
 
-        self._latest_ego_xy = None
+    def valid_group_ids(self):
+        return [gid for gid, _, _ in self.entries]
 
     def update_ego_position(self, x, y):
         self._latest_ego_xy = (x, y)
@@ -109,14 +111,12 @@ class TrafficLightGroupIdMatcher:
         """현재 ego 위치 기준 가장 가까운 group_id 반환. 매칭 실패 시 fallback."""
         if not self.loaded or self._latest_ego_xy is None:
             return self.fallback_group_id
-
         ex, ey = self._latest_ego_xy
         best_id, best_dist = None, None
         for gid, x, y in self.entries:
             d = math.hypot(ex - x, ey - y)
             if best_dist is None or d < best_dist:
                 best_dist, best_id = d, gid
-
         if best_id is not None and best_dist <= self.max_match_dist:
             return best_id
         return self.fallback_group_id
@@ -140,15 +140,40 @@ class TrafficLightNode:
         self.publish_debug_image = rospy.get_param("~publish_debug_image", True)
         self.debug_jpeg_quality = rospy.get_param("~debug_jpeg_quality", 60)
 
+        # --- route 기반 매칭(1순위) 설정 ---
+        self.enable_route_matching = rospy.get_param("~enable_route_matching", True)
+        lanelet2_map_file = rospy.get_param("~lanelet2_map_file", "")
+        lanelet2_projector_file = rospy.get_param("~lanelet2_projector_file", "")
+        lanelet2_projector_type = rospy.get_param("~lanelet2_projector_type", "LocalCartesianUTM")
+        route_topic = rospy.get_param("~route_topic", "/planning/mission_planning/route")
+        odom_topic = rospy.get_param("~odometry_topic", "/localization/kinematic_state")
+
         if not os.path.exists(weights_path):
             rospy.logerr(f"[traffic_light_node] 가중치 파일 없음: {weights_path}")
 
         rospy.loginfo(f"[traffic_light_node] YOLO 가중치 로드: {weights_path}")
         self.model = YOLO(weights_path)
 
-        self.group_id_matcher = TrafficLightGroupIdMatcher(
+        # 폴백 매처 먼저 생성 (route 매처의 valid_group_ids 계산에도 재사용)
+        self.fallback_matcher = TrafficLightGroupIdMatcher(
             table_path, self.max_group_id_match_dist, self.fallback_group_id
         )
+
+        self.route_matcher = None
+        if self.enable_route_matching:
+            if not lanelet2_map_file:
+                rospy.logwarn(
+                    "[traffic_light_node] ~lanelet2_map_file 파라미터 없음 "
+                    "-> route 기반 매칭 비활성화, 폴백(유클리드)만 사용"
+                )
+            else:
+                self.route_matcher = LaneletRouteGroupIdMatcher(
+                    map_file=lanelet2_map_file,
+                    projector_type=lanelet2_projector_type,
+                    projector_file=lanelet2_projector_file,
+                    valid_group_ids=self.fallback_matcher.valid_group_ids(),
+                )
+                self.route_matcher.start_subscribers(route_topic, odom_topic)
 
         self.pub = rospy.Publisher(
             "/perception/traffic_light_recognition/traffic_signals",
@@ -171,7 +196,6 @@ class TrafficLightNode:
 
         self.sub_ego = rospy.Subscriber(ego_topic, EgoVehicleStatus, self.ego_callback, queue_size=1)
         self.sub = rospy.Subscriber(image_topic, CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
-
         rospy.loginfo(
             f"[traffic_light_node] 구독: {image_topic} (CompressedImage), {ego_topic} (EgoVehicleStatus) / "
             f"발행: /perception/traffic_light_recognition/traffic_signals"
@@ -179,7 +203,15 @@ class TrafficLightNode:
         )
 
     def ego_callback(self, msg):
-        self.group_id_matcher.update_ego_position(msg.position.x, msg.position.y)
+        self.fallback_matcher.update_ego_position(msg.position.x, msg.position.y)
+
+    def _resolve_group_id(self):
+        """1순위 route 기반, 실패 시 2순위 유클리드 폴백. (group_id, method) 반환."""
+        if self.route_matcher is not None:
+            gid = self.route_matcher.get_group_id()
+            if gid is not None:
+                return gid, "route"
+        return self.fallback_matcher.get_group_id(), "dist"
 
     def _log_hz_if_needed(self):
         self._n_processed += 1
@@ -241,7 +273,7 @@ class TrafficLightNode:
             crop = img[y1c:y2c, x1c:x2c]
 
             group = TrafficLightGroup()
-            group.traffic_light_group_id = self.group_id_matcher.get_group_id()
+            group.traffic_light_group_id, gid_method = self._resolve_group_id()
 
             label_text = "off"
             if crop.size > 0:
@@ -258,6 +290,8 @@ class TrafficLightNode:
                             elem.shape = TrafficLightElement.RIGHT_ARROW
                             labels_for_debug.append(f"{color}_right")
                         else:
+                            # is_left True 또는 None(불확실) -> K-City 샘플 시나리오는
+                            # 좌회전 신호만 있는 걸로 조사됨 -> 기본 LEFT_ARROW
                             elem.shape = TrafficLightElement.LEFT_ARROW
                             labels_for_debug.append(f"{color}_left")
                     else:
@@ -274,7 +308,8 @@ class TrafficLightNode:
             if debug_img is not None:
                 cv2.rectangle(debug_img, (x1c, y1c), (x2c, y2c), (0, 255, 255), 2)
                 cv2.putText(
-                    debug_img, f"{label_text} ({det_conf:.2f}) gid={group.traffic_light_group_id}",
+                    debug_img,
+                    f"{label_text} ({det_conf:.2f}) gid={group.traffic_light_group_id}({gid_method})",
                     (x1c, max(0, y1c - 8)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA,
                 )
