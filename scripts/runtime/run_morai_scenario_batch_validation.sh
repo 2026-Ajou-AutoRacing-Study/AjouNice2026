@@ -19,9 +19,10 @@ usage() {
 Usage: run_morai_scenario_batch_validation.sh [options]
 
 Plans or runs all generated dynamic_*_pos001.json cases grouped by the
-ego-speed encoded in each filename.  MORAI must be open, Ego Network must be
-connected, and no other AJOUNICE ROS stack may be running when --execute is
-used.
+ego-speed encoded in each filename. An actual MORAI Service Model provider for
+`/Service_MoraiSL` is required: topic `/ScenarioLoad` resets MORAI ROS clients
+after every case and is unsafe for an unattended batch. MORAI must be open and
+no other AJOUNICE ROS stack may be running when --execute is used.
 
 Options:
   --execute                 Run MORAI/ROS validation. Without this, print the plan.
@@ -86,7 +87,7 @@ if [[ "$EXECUTE" != true ]]; then
     printf -v speed_token '%02d' "$speed"
     echo "  ${speed} km/h: dynamic_*_ego${speed_token}*_pos001.json"
   done
-  echo "Pass --execute after MORAI Ego Network is connected."
+  echo "Pass --execute only when MORAI exposes /Service_MoraiSL."
   exit 0
 fi
 
@@ -108,6 +109,7 @@ for speed in "${SPEEDS[@]}"; do
     --scenario-pattern "dynamic_*_ego${speed_token}*_pos001.json"
     --velocity-kph "$speed"
     --scenario-service "$SCENARIO_SERVICE"
+    --scenario-transport service
     --scenario-timeout "$SCENARIO_TIMEOUT"
     --output-dir "$runner_batch_dir"
   )

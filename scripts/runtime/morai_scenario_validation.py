@@ -767,10 +767,15 @@ def wait_for_scenario_transport(
 ) -> str:
     """Choose MORAI's available ScenarioLoad transport without UI changes.
 
-    MORAI exposes ScenarioLoad either as the Service Model service
+    MORAI can expose ScenarioLoad as the Service Model service
     ``/Service_MoraiSL`` or as a Publish-Subscribe Model subscriber on
-    ``/ScenarioLoad``.  The latter cannot acknowledge a request, but it is the
+    ``/ScenarioLoad``. The latter cannot acknowledge a request, but it is the
     correct transport for the default Ego/Simulator Network topic setup.
+
+    Some product builds, including the local competition build, do not expose
+    the Service Model provider in the Network Settings UI. In that case a
+    ``service`` request must fail plainly rather than suggesting profile edits
+    that MORAI will discard.
     """
     print(
         "[action required] In MORAI, connect Simulator Network > ROS to "
@@ -813,7 +818,11 @@ def wait_for_scenario_transport(
             args.scenario_service, args.scenario_topic
         )
     raise ValidationError(
-        "timeout exceeded while waiting for MORAI ScenarioLoad {}".format(target)
+        "timeout exceeded while waiting for MORAI ScenarioLoad {}. "
+        "If this MORAI build has no Morai SLService Provider in Network "
+        "Settings, /Service_MoraiSL is unavailable; use --scenario-transport "
+        "topic only for a manual one-case check, or install MORAI Scenario "
+        "Runner for unattended batches.".format(target)
     )
 
 
@@ -1753,7 +1762,10 @@ def parse_args() -> argparse.Namespace:
         "--scenario-transport",
         choices=("auto", "service", "topic"),
         default="auto",
-        help="prefer the available MORAI ScenarioLoad service or topic (default: auto)",
+        help=(
+            "prefer the available MORAI ScenarioLoad service or topic; topic "
+            "requires a manual MORAI reconnect after every load (default: auto)"
+        ),
     )
     parser.add_argument(
         "--rosbridge-port",

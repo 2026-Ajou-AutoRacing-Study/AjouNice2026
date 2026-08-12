@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for MORAI batch-validation logic that does not require ROS."""
+"""Unit tests for MORAI validation logic that does not require ROS."""
 
 import argparse
 import json

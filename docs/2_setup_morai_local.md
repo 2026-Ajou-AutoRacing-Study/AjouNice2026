@@ -238,8 +238,10 @@ MORAI를 열어 K-City 맵을 선택한 뒤 `Edit > Network Settings`에서 다�
 - **Simulator Network**: `ROS`를 선택하고 ROS Bridge를 설정한다. 이 PC에서는
   `192.168.0.5:9090`을 사용한다. 화면의 `MultiEgoTransformHandler`는 고정 표시라
   변경하지 않는다. 현재 전용 프로필은 Publish-Subscribe Model의
-  ScenarioLoad 토픽 `/ScenarioLoad`를 사용한다. MORAI에서 Service Model을 별도로
-  구성한 경우에만 `/Service_MoraiSL` 서비스를 사용할 수 있다.
+  ScenarioLoad 토픽 `/ScenarioLoad`를 사용한다. 현재 설치된 대회 빌드
+  (`25.S4.251001.MolitComp03`)의 UI에는 `Morai SLService Provider`가 없으므로
+  `/Service_MoraiSL` Service Model은 구성할 수 없다. JSON 프로필에 해당 항목을
+  직접 추가해도 MORAI가 기본값으로 되돌리므로 사용하지 않는다.
 
 자동 ScenarioLoad에는 Ego의 Publish/Subscribe 네트워크도 ROS여야 한다. 제어 명령
 `MoraiCmdController`는 기존 UDP 포트를 유지하므로, 상태·객체·충돌 데이터와
@@ -269,13 +271,20 @@ MORAI 창의 **Simulator Network > ROS > Connect**를 누른다. 상태가 `Conn
 
 재연결되면 `[ready] MORAI ROS transport reconnected after ScenarioLoad`가 출력되고
 검증을 계속한다. 이 재연결이 반복적으로 필요하면 현재 Publish-Subscribe 방식만으로는
-완전 무인 배치가 불가능하다. 그 경우 MORAI의 Service Model에서
-`/Service_MoraiSL`을 제공하도록 구성해야 한다.
+완전 무인 배치가 불가능하다. 이 대회 빌드에서는 Service Model을 대신 구성하려 하지
+말고, MORAI Launcher에서 별도 **Scenario Runner** 설치 권한이 제공되는지 확인해야
+한다. Scenario Runner는 gRPC 기본 포트 `7789`을 사용하지만, `dynamic_*.json`은
+Scenario Runner 입력인 OpenSCENARIO(`.xosc`) 파일이 아니므로 배치 전 별도의
+변환·검증 작업이 필요하다.
 
 ```bash
 MORAI_ROSBRIDGE_HOST=192.168.0.5 \
   scripts/runtime/run_morai_scenario_batch_validation.sh --execute --speed 20
 ```
+
+위 배치 명령은 실제 `/Service_MoraiSL`을 제공하는 다른 MORAI 설치본에서만 무인으로
+사용한다. 현재 대회 빌드에서는 한 건씩 Topic 방식으로 점검하고, 전체 무인 배치는
+Scenario Runner 전환 후 진행한다.
 
 먼저 한 조건만 자동으로 검증한다. `ego20` 파일은 반드시 `--velocity-kph 20`과
 짝지어 실행한다.

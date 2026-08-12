@@ -30,7 +30,7 @@ MORAI 시나리오 JSON
 | --- | --- | --- |
 | 단일 실행 | [run_morai_scenario_validation.sh](../scripts/runtime/run_morai_scenario_validation.sh) | ROS 환경, 시스템 Python, `AJOUNICE_ROOT`를 준비하고 Python runner를 실행 |
 | 검증 본체 | [morai_scenario_validation.py](../scripts/runtime/morai_scenario_validation.py) | ROS 스택 기동, ScenarioLoad, kroute/follower/validator 실행, 결과 저장 |
-| 속도별 배치 | [run_morai_scenario_batch_validation.sh](../scripts/runtime/run_morai_scenario_batch_validation.sh) | 파일명의 `egoXX` 별로 스택을 재기동하고 결과를 합침 |
+| 속도별 배치 | [run_morai_scenario_batch_validation.sh](../scripts/runtime/run_morai_scenario_batch_validation.sh) | 실제 `/Service_MoraiSL`을 제공하는 MORAI 설치본에서 파일명의 `egoXX` 별로 스택을 재기동하고 결과를 합침 |
 | 결과 집계 | [summarize_morai_scenario_validation.py](../scripts/runtime/summarize_morai_scenario_validation.py) | 여러 세션의 `summary.json`을 결과 CSV/Markdown으로 합침 |
 | 네트워크 프로필 생성 | [create_morai_scenario_load_network.py](../scripts/runtime/create_morai_scenario_load_network.py) | MORAI 원본 프로필을 덮어쓰지 않고 `/ScenarioLoad`용 프로필 생성 |
 | 단위 테스트 | [test_morai_scenario_validation.py](../scripts/runtime/test_morai_scenario_validation.py) | ROS 없이 파일명 파싱·동적 반응·재연결·궤적 유효성 검증 |
@@ -57,8 +57,17 @@ ROS Bridge 주소는 이 PC 기준 `192.168.0.5:9090`이다.
 - **Simulator Network > ROS**도 같은 Bridge 주소를 쓴다.
 - Ego 제어 모드는 `AV-ExternalCtrl`이어야 한다.
 
-현재 프로필은 Publish-Subscribe 방식의 `/ScenarioLoad`를 사용한다. Service Model의
-`/Service_MoraiSL`은 아직 구성·검증하지 않았다.
+현재 프로필은 Publish-Subscribe 방식의 `/ScenarioLoad`를 사용한다. 설치된 MORAI
+`25.S4.251001.MolitComp03`에서는 UI에 `Morai SLService Provider`가 없어
+`/Service_MoraiSL`을 제공할 수 없다. Service 항목을 JSON으로 주입한 프로필도
+MORAI가 기본값으로 되돌리는 것을 확인했으므로, 그 프로필과 Service Model 방식은
+사용하지 않는다.
+
+Simulator 프로세스는 gRPC `7789`을 열고 있지만, 배치 제어용 **Scenario Runner
+클라이언트**는 현재 설치되어 있지 않다. Scenario Runner는 별도 Launcher 권한과
+설치 항목이며, 입력도 현재의 MORAI JSON이 아니라 OpenSCENARIO `.xosc`다. 따라서
+무인 전체 배치는 Scenario Runner를 설치한 뒤 JSON→`.xosc` 변환기를 추가하는 작업으로
+이어가야 한다.
 
 ## 단일 시나리오 실행 절차
 
@@ -102,8 +111,9 @@ artifacts/morai_scenario_validation/<세션시각>/<시나리오이름>/logs/
 `dynamic_object_seen`, `dynamic_encounter_detected`, `dynamic_stopped`,
 `dynamic_resumed`, `dynamic_failure_reasons`다.
 
-속도별 배치는 다음 명령이다. 단, 현재 `/ScenarioLoad` 방식은 매 케이스마다 위의
-수동 재연결이 필요하므로 336개 같은 대규모 무인 실행에는 사용하면 안 된다.
+속도별 배치는 실제 `/Service_MoraiSL`을 제공하는 MORAI 설치본에서만 다음 명령으로
+무인 실행한다. 현재 대회 빌드의 `/ScenarioLoad` 방식은 매 케이스마다 위의 수동
+재연결이 필요하므로 336개 같은 대규모 무인 실행에는 사용하면 안 된다.
 
 ```bash
 MORAI_ROSBRIDGE_HOST=192.168.0.5 \
@@ -127,7 +137,7 @@ scripts/runtime/run_morai_scenario_batch_validation.sh --execute --speed 20
 1. 단일 시나리오에서 두 번째 재연결까지 완료해 `[ready] ... reconnected` 이후의 결과를 확보한다.
 2. `planner did not publish a valid /control/trajectory ...`가 나오면 그 상세 사유를 기준으로 velocity smoother 또는 trajectory publisher를 조사한다. 이 단계 전에는 동적장애물 판단 로직을 수정하지 않는다.
 3. 차가 실제 주행하고 `/Object_topic`에서 객체가 보이면, `results.csv`의 정지·재출발 판정을 검증한다.
-4. **완전 무인 배치가 목표라면** MORAI의 Service Model에서 `/Service_MoraiSL`을 제공하도록 네트워크를 구성하고, ScenarioLoad 뒤에도 연결이 유지되는지 한 건으로 검증한다. 이것이 확인되기 전에는 336/전체 배치를 실행하지 않는다.
+4. **완전 무인 배치가 목표라면** Launcher에 `Install Scenario Runner`/`Start Scenario Runner`가 제공되는지 권한을 확인한다. 설치 후 Scenario Runner의 gRPC `7789` 연결을 한 건으로 검증하고, 현재 `dynamic_*.json`을 OpenSCENARIO `.xosc`로 변환하는 도구를 추가한다. 이것이 확인되기 전에는 336/전체 배치를 실행하지 않는다.
 
 ## 변경 검증
 
