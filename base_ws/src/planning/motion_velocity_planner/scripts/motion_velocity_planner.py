@@ -13,9 +13,12 @@ from nav_msgs.msg import Odometry
 from autoware_internal_planning_msgs.msg import VelocityLimit
 from autoware_perception_msgs.msg import PredictedObjects, ObjectClassification
 from autoware_planning_msgs.msg import Trajectory
+from std_msgs.msg import String
 
 from mvp_utils import (
     crop_trajectory_around_ego,
+    object_id_string,
+    object_longitudinal_half_extent,
     object_pose,
     object_speed,
     feasible_stop_velocity,
@@ -63,6 +66,9 @@ class MotionVelocityPlanner:
         )
 
         self.stop_distance = float(rospy.get_param("~stop_distance", 3.0))
+        self.base_link_to_front = max(
+            float(rospy.get_param("~base_link_to_front", 3.845)), 0.0
+        )
         self.dynamic_stop_distance = float(rospy.get_param("~dynamic_stop_distance", 5.0))
         self.warning_distance = float(rospy.get_param("~warning_distance", 6.0))
         self.min_stop_velocity = float(rospy.get_param("~min_stop_velocity_mps", 0.5))
@@ -158,6 +164,8 @@ class MotionVelocityPlanner:
         self.pub_trajectory = rospy.Publisher(
             output_trajectory_topic, Trajectory, queue_size=1
         )
+        self.pub_status = rospy.Publisher("~debug/status", String, queue_size=1)
+        self._static_stop_status = "static_stop: clear"
         self.planning_timer = rospy.Timer(
             rospy.Duration(1.0 / max(self.planning_hz, 0.1)), self.on_planning_timer
         )
@@ -207,13 +215,15 @@ class MotionVelocityPlanner:
         return self.default_velocity_mps
 
     def ego_speed_for_stop_distance(self):
-        odometry_speed = 0.0
-        if self.odometry is not None:
-            odometry_speed = math.hypot(
+        if self.odometry is None:
+            return max(self.current_target_velocity(), 0.0)
+        return max(
+            math.hypot(
                 self.odometry.twist.twist.linear.x,
                 self.odometry.twist.twist.linear.y,
-            )
-        return max(odometry_speed, self.current_target_velocity(), 0.0)
+            ),
+            0.0,
+        )
 
     def speed_based_stop_distance(self, base_distance, obj=None, dynamic=False):
         ego_speed = self.ego_speed_for_stop_distance()
@@ -338,11 +348,8 @@ class MotionVelocityPlanner:
         return proj
 
     def build_object_projection_cache(self, trajectory, objects, odometry):
-        if trajectory is None or objects is None or len(objects.objects) == 0:
-            return []
-
         ego_projection = None
-        if odometry is not None:
+        if trajectory is not None and odometry is not None:
             ego_projection = project_pose_to_path(
                 trajectory,
                 odometry.pose.pose,
@@ -350,6 +357,12 @@ class MotionVelocityPlanner:
             )
             if ego_projection is None:
                 ego_projection = project_pose_to_path(trajectory, odometry.pose.pose)
+        self._projection_cache_trajectory = trajectory
+        self._projection_cache_odometry = odometry
+        self._projection_cache_ego = ego_projection
+
+        if trajectory is None or objects is None or len(objects.objects) == 0:
+            return []
 
         cache = []
         for obj in objects.objects:
@@ -437,11 +450,32 @@ class MotionVelocityPlanner:
                 set_point_velocity(point, min(current_velocity, target_velocity))
 
     def apply_stop(self, out, distances, object_projection_cache=None):
-        stop_lines = []
+        stop_candidates = []
         if object_projection_cache is None:
             object_projection_cache = self.build_object_projection_cache(
                 self.trajectory, self.objects, self.odometry
             )
+        ego_projection = None
+        if (
+            getattr(self, "_projection_cache_trajectory", None) is self.trajectory
+            and getattr(self, "_projection_cache_odometry", None) is self.odometry
+        ):
+            ego_projection = getattr(self, "_projection_cache_ego", None)
+        elif self.odometry is not None:
+            ego_projection = project_pose_to_path(
+                self.trajectory,
+                self.odometry.pose.pose,
+                yaw_threshold=self.delta_yaw_threshold,
+            )
+            if ego_projection is None:
+                ego_projection = project_pose_to_path(
+                    self.trajectory, self.odometry.pose.pose
+                )
+        ego_station = (
+            float(ego_projection.longitudinal_distance)
+            if ego_projection is not None
+            else 0.0
+        )
         for cached in object_projection_cache:
             if not cached.hard_stop:
                 continue
@@ -453,22 +487,63 @@ class MotionVelocityPlanner:
                 or not cached.ahead_of_ego
             ):
                 continue
-            stop_distance = self.speed_based_stop_distance(self.stop_distance, cached.obj)
-            stop_lines.append(max(0.0, proj.longitudinal_distance - stop_distance))
+            half_longitudinal = object_longitudinal_half_extent(
+                cached.obj, proj.segment_yaw
+            )
+            collision_station = proj.longitudinal_distance - half_longitudinal
+            stop_station = (
+                collision_station
+                - self.base_link_to_front
+                - max(self.stop_distance, 0.0)
+            )
+            stop_candidates.append((stop_station, collision_station, cached))
 
-        if not stop_lines:
+        if not stop_candidates:
+            self._static_stop_status = "static_stop: clear"
             return
 
-        stop_line = min(stop_lines)
+        stop_station, collision_station, selected = min(
+            stop_candidates, key=lambda item: item[0]
+        )
+        hold_current_position = stop_station <= ego_station
+        effective_stop_station = max(stop_station, ego_station)
+        current_speed = self.ego_speed_for_stop_distance()
+        available_distance = max(effective_stop_station - ego_station, 0.0)
+        response_distance = current_speed * self.reaction_time
+        braking_distance = max(available_distance - response_distance, 0.0)
+        if current_speed <= 1.0e-3:
+            required_deceleration = 0.0
+        elif braking_distance <= 1.0e-3:
+            required_deceleration = float("-inf")
+        else:
+            required_deceleration = -(
+                current_speed * current_speed / (2.0 * braking_distance)
+            )
+
         for point, station in zip(out.points, distances):
-            if station >= stop_line:
-                target_velocity = 0.0
-            else:
-                remaining = stop_line - station
-                target_velocity = feasible_stop_velocity(remaining, self.max_deceleration)
-                if station >= stop_line - self.warning_distance:
-                    target_velocity = min(target_velocity, self.min_stop_velocity)
-            set_point_velocity(point, min(point_velocity(point), target_velocity))
+            if station >= effective_stop_station:
+                set_point_velocity(point, 0.0)
+
+        required_text = (
+            "unavailable"
+            if not math.isfinite(required_deceleration)
+            else "{:.2f}".format(required_deceleration)
+        )
+        self._static_stop_status = (
+            "static_stop: object_id={}; collision_s={:.2f}; stop_s={:.2f}; "
+            "ego_s={:.2f}; current_velocity={:.2f}; required_deceleration={}; "
+            "stop_margin={:.2f}; base_link_to_front={:.2f}; decision={}"
+        ).format(
+            object_id_string(selected.obj)[:8],
+            collision_station,
+            effective_stop_station,
+            ego_station,
+            current_speed,
+            required_text,
+            max(self.stop_distance, 0.0),
+            self.base_link_to_front,
+            "hold_current_position" if hold_current_position else "insert_stop",
+        )
 
     def apply_dynamic_stop(self, out, distances, object_projection_cache=None):
         stop_lines = []
@@ -627,6 +702,7 @@ class MotionVelocityPlanner:
         if not rospy.is_shutdown():
             try:
                 self.pub_trajectory.publish(out)
+                self.pub_status.publish(String(data=self._static_stop_status))
             except rospy.ROSException:
                 if not rospy.is_shutdown():
                     raise

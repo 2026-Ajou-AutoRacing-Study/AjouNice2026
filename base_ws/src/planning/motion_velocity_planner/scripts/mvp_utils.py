@@ -294,3 +294,27 @@ def object_speed(predicted_object):
     twist = predicted_object.kinematics.initial_twist_with_covariance.twist
     linear = twist.linear
     return math.sqrt(linear.x * linear.x + linear.y * linear.y + linear.z * linear.z)
+
+
+def object_longitudinal_half_extent(predicted_object, path_yaw):
+    """Return a conservative half extent along the local path tangent."""
+    dimensions = predicted_object.shape.dimensions
+    length = max(float(dimensions.x), 0.0)
+    width = max(float(dimensions.y), 0.0)
+    footprint = getattr(predicted_object.shape, "footprint", None)
+    if footprint is not None and footprint.points:
+        xs = [float(point.x) for point in footprint.points]
+        ys = [float(point.y) for point in footprint.points]
+        length = max(length, max(xs) - min(xs))
+        width = max(width, max(ys) - min(ys))
+
+    object_yaw = yaw_from_quaternion(object_pose(predicted_object).orientation)
+    delta = normalize_angle(object_yaw - float(path_yaw))
+    return 0.5 * (
+        abs(length * math.cos(delta)) + abs(width * math.sin(delta))
+    )
+
+
+def object_id_string(predicted_object):
+    raw = getattr(getattr(predicted_object, "object_id", None), "uuid", [])
+    return "".join("{:02x}".format(int(value) & 0xFF) for value in raw)

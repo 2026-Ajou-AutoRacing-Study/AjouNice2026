@@ -1385,7 +1385,6 @@ class StaticAvoidanceEngine:
     def _merge_shift_lines(self, targets):
         ordered = sorted(targets, key=lambda item: item.longitudinal)
         lines = []
-        conflict = False
         for target in ordered:
             line = ShiftLine(
                 object_ids=[target.object_id],
@@ -1398,36 +1397,121 @@ class StaticAvoidanceEngine:
                 uses_hard_drivable_bound=target.uses_hard_drivable_bound,
                 uses_diagonal_profile=target.uses_diagonal_profile,
             )
-            if lines:
-                previous = lines[-1]
-                overlaps = line.start_s <= previous.return_end_s
-                if overlaps and line.direction == previous.direction:
-                    previous.object_ids.extend(line.object_ids)
-                    if abs(line.shift_length) > abs(previous.shift_length):
-                        previous.shift_length = line.shift_length
-                    previous.start_s = min(previous.start_s, line.start_s)
-                    previous.avoid_end_s = min(previous.avoid_end_s, line.avoid_end_s)
-                    previous.return_start_s = max(previous.return_start_s, line.return_start_s)
-                    previous.return_end_s = max(previous.return_end_s, line.return_end_s)
-                    previous.uses_hard_drivable_bound = (
-                        previous.uses_hard_drivable_bound
-                        or line.uses_hard_drivable_bound
-                    )
-                    previous.uses_diagonal_profile = (
-                        previous.uses_diagonal_profile
-                        or line.uses_diagonal_profile
-                    )
-                    continue
-                if overlaps and line.direction != previous.direction:
-                    conflict = True
-            lines.append(line)
-        return lines, conflict
+            same_direction = next(
+                (
+                    existing
+                    for existing in reversed(lines)
+                    if existing.direction == line.direction
+                    and line.start_s <= existing.return_end_s
+                ),
+                None,
+            )
+            if same_direction is None:
+                lines.append(line)
+                continue
+            same_direction.object_ids.extend(line.object_ids)
+            if abs(line.shift_length) > abs(same_direction.shift_length):
+                same_direction.shift_length = line.shift_length
+            same_direction.start_s = min(same_direction.start_s, line.start_s)
+            same_direction.avoid_end_s = min(
+                same_direction.avoid_end_s, line.avoid_end_s
+            )
+            same_direction.return_start_s = max(
+                same_direction.return_start_s, line.return_start_s
+            )
+            same_direction.return_end_s = max(
+                same_direction.return_end_s, line.return_end_s
+            )
+            same_direction.uses_hard_drivable_bound = (
+                same_direction.uses_hard_drivable_bound
+                or line.uses_hard_drivable_bound
+            )
+            same_direction.uses_diagonal_profile = (
+                same_direction.uses_diagonal_profile
+                or line.uses_diagonal_profile
+            )
+
+        lines.sort(key=lambda item: item.start_s)
+        opposite_overlap = any(
+            first.direction != second.direction
+            and second.start_s <= first.return_end_s
+            and first.start_s <= second.return_end_s
+            for index, first in enumerate(lines)
+            for second in lines[index + 1 :]
+        )
+        return lines, opposite_overlap
 
     def _profile(self, lines, station):
         values = [line.value_at(station) for line in lines]
         if not values:
             return 0.0
-        return max(values, key=abs)
+        # Each line is a smooth offset contribution.  Summing opposite signed
+        # lines produces a continuous transition between consecutive obstacle
+        # offsets instead of switching discontinuously to the largest line.
+        return sum(values)
+
+    def _profile_is_within_bounds(self, lines, stations, lower, upper):
+        tolerance = 1.0e-3
+        return all(
+            minimum - tolerance
+            <= self._profile(lines, station)
+            <= maximum + tolerance
+            for station, minimum, maximum in zip(stations, lower, upper)
+        )
+
+    @staticmethod
+    def _line_jerk_at(line, station, velocity):
+        def normalized_jerk(start, finish, value):
+            if finish <= start or value < start or value > finish:
+                return 0.0
+            ratio = clamp((value - start) / (finish - start), 0.0, 1.0)
+            return (60.0 - 360.0 * ratio + 360.0 * ratio * ratio) / 60.0
+
+        avoid_required = StaticAvoidanceEngine._required_lateral_jerk(
+            line.shift_length,
+            line.avoid_end_s - line.start_s,
+            velocity,
+        )
+        return_required = StaticAvoidanceEngine._required_lateral_jerk(
+            line.shift_length,
+            line.return_end_s - line.return_start_s,
+            velocity,
+        )
+        sign = 1.0 if line.shift_length >= 0.0 else -1.0
+        return sign * (
+            avoid_required
+            * normalized_jerk(line.start_s, line.avoid_end_s, station)
+            - return_required
+            * normalized_jerk(line.return_start_s, line.return_end_s, station)
+        )
+
+    def _profile_required_lateral_jerk(self, lines, velocity):
+        if not lines:
+            return 0.0
+        interval = max(min(self.params.resample_interval_for_planning, 0.25), 0.05)
+        start = min(line.start_s for line in lines)
+        finish = max(line.return_end_s for line in lines)
+        sample_count = max(int(math.ceil((finish - start) / interval)), 1)
+        samples = [start + index * interval for index in range(sample_count + 1)]
+        samples.extend(
+            value
+            for line in lines
+            for value in (
+                line.start_s,
+                line.avoid_end_s,
+                line.return_start_s,
+                line.return_end_s,
+            )
+        )
+        return max(
+            abs(
+                sum(
+                    self._line_jerk_at(line, station, velocity)
+                    for line in lines
+                )
+            )
+            for station in samples
+        )
 
     def _shift_path(self, path, lines, expand_bounds=True):
         output = deepcopy(path)
@@ -2319,22 +2403,31 @@ class StaticAvoidanceEngine:
             option_groups
         ):
             trial_targets = [item[0] for item in combination]
-            trial_lines, trial_conflict = self._merge_shift_lines(
+            trial_lines, trial_opposite_overlap = self._merge_shift_lines(
                 trial_targets
             )
-            trial_profile_valid = bool(trial_lines) and all(
-                self._line_is_within_bounds(
-                    line,
-                    profile_stations,
-                    profile_lower,
-                    profile_upper,
-                )
-                for line in trial_lines
+            trial_profile_valid = bool(trial_lines) and self._profile_is_within_bounds(
+                trial_lines,
+                profile_stations,
+                profile_lower,
+                profile_upper,
+            )
+            planning_speed = max(ego_speed, self.params.min_slow_down_speed)
+            trial_profile_jerk = self._profile_required_lateral_jerk(
+                trial_lines, planning_speed
+            )
+            trial_transition_valid = (
+                not trial_opposite_overlap
+                or trial_profile_jerk
+                <= self.params.lateral_max_jerk + 0.1
             )
             trial_path, _ = self._shift_path(
                 expanded_reference, trial_lines, expand_bounds=False
             )
-            if not trial_profile_valid:
+            if not trial_transition_valid:
+                trial_raw_safe = False
+                trial_safety_reason = "opposite_shift_transition_jerk"
+            elif not trial_profile_valid:
                 trial_raw_safe = False
                 trial_safety_reason = (
                     "shift_profile_outside_drivable_bounds"
@@ -2344,22 +2437,24 @@ class StaticAvoidanceEngine:
                     trial_path,
                     trial_targets,
                     object_messages,
-                    trial_conflict,
+                    False,
                 )
             trial_comfortable = all(
                 item.required_jerk
                 <= self.params.lateral_max_jerk + 0.1
                 for item in trial_targets
-            )
+            ) and trial_transition_valid
             trial_valid = (
                 bool(trial_lines)
-                and not trial_conflict
                 and trial_profile_valid
+                and trial_transition_valid
             )
             plan = {
                 "targets": trial_targets,
                 "lines": trial_lines,
-                "conflict": trial_conflict,
+                "conflict": not trial_transition_valid,
+                "opposite_overlap": trial_opposite_overlap,
+                "profile_jerk": trial_profile_jerk,
                 "profile_valid": trial_profile_valid,
                 "candidate_path": trial_path,
                 "raw_safe": trial_raw_safe,
@@ -2380,6 +2475,8 @@ class StaticAvoidanceEngine:
                 "targets": [],
                 "lines": [],
                 "conflict": False,
+                "opposite_overlap": False,
+                "profile_jerk": 0.0,
                 "profile_valid": False,
                 "candidate_path": deepcopy(expanded_reference),
                 "raw_safe": False,
@@ -2403,6 +2500,8 @@ class StaticAvoidanceEngine:
         targets = selected_plan["targets"]
         lines = selected_plan["lines"]
         conflict = selected_plan["conflict"]
+        opposite_overlap = selected_plan["opposite_overlap"]
+        profile_jerk = selected_plan["profile_jerk"]
         profile_valid = selected_plan["profile_valid"]
         candidate_path = selected_plan["candidate_path"]
         raw_safe = selected_plan["raw_safe"]
@@ -2438,7 +2537,11 @@ class StaticAvoidanceEngine:
         stopped_path, stop_distance = self._stop_path(
             reference, ego_s, stop_target
         )
-        direction = lines[0].direction if lines else None
+        direction = (
+            max(lines, key=lambda line: abs(line.shift_length)).direction
+            if lines
+            else None
+        )
         start_distance = min((line.start_s for line in lines), default=ego_s) - ego_s
         finish_distance = max((line.return_start_s for line in lines), default=ego_s) - ego_s
         return_start_distance = finish_distance
@@ -2490,6 +2593,10 @@ class StaticAvoidanceEngine:
         ]
         if diagonal_details:
             reason += "; diagonal_profile=" + ",".join(diagonal_details)
+        if opposite_overlap:
+            reason += "; opposite_shift_composed jerk={:.3f}".format(
+                profile_jerk
+            )
 
         return StaticAvoidanceResult(
             reference_path=reference,

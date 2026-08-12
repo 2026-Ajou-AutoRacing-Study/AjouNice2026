@@ -41,7 +41,13 @@ def trajectory(velocities):
     return message
 
 
-def predicted_object(x, y=0.0, label=ObjectClassification.UNKNOWN):
+def predicted_object(
+    x,
+    y=0.0,
+    label=ObjectClassification.UNKNOWN,
+    length=4.5,
+    width=2.0,
+):
     obj = PredictedObject()
     obj.kinematics.initial_pose_with_covariance.pose.position.x = float(x)
     obj.kinematics.initial_pose_with_covariance.pose.position.y = float(y)
@@ -50,6 +56,9 @@ def predicted_object(x, y=0.0, label=ObjectClassification.UNKNOWN):
     classification.label = label
     classification.probability = 1.0
     obj.classification.append(classification)
+    obj.shape.dimensions.x = float(length)
+    obj.shape.dimensions.y = float(width)
+    obj.shape.dimensions.z = 1.6
     return obj
 
 
@@ -82,6 +91,7 @@ def obstacle_planner():
     planner.object_size_margin = 0.0
     planner.dynamic_object_time_margin = 1.0
     planner.stop_distance = 3.0
+    planner.base_link_to_front = 3.845
     planner.dynamic_stop_distance = 5.0
     planner.warning_distance = 6.0
     planner.min_stop_velocity = 0.5
@@ -241,6 +251,61 @@ class TrajectoryInterfaceTest(unittest.TestCase):
 
         self.assertEqual(calls_after_cache_build, 3)
         self.assertEqual(projection.call_count, calls_after_cache_build)
+
+    def test_static_stop_station_uses_geometry_not_target_velocity(self):
+        planner = obstacle_planner()
+        planner.objects.objects = [
+            predicted_object(30.0, label=ObjectClassification.PEDESTRIAN)
+        ]
+        distances = path_cumulative_lengths(planner.trajectory)
+
+        slow_target = deepcopy(planner.trajectory)
+        planner.default_velocity_mps = 2.0
+        planner.apply_stop(slow_target, distances)
+        slow_stop = next(
+            index
+            for index, point in enumerate(slow_target.points)
+            if point.longitudinal_velocity_mps == 0.0
+        )
+
+        fast_target = deepcopy(planner.trajectory)
+        planner.default_velocity_mps = 8.33
+        planner.apply_stop(fast_target, distances)
+        fast_stop = next(
+            index
+            for index, point in enumerate(fast_target.points)
+            if point.longitudinal_velocity_mps == 0.0
+        )
+
+        self.assertEqual(slow_stop, fast_stop)
+        self.assertEqual(fast_stop, 21)
+        self.assertGreater(fast_target.points[20].longitudinal_velocity_mps, 0.0)
+        self.assertIn("decision=insert_stop", planner._static_stop_status)
+
+    def test_stop_distance_uses_measured_speed_when_odometry_is_available(self):
+        planner = obstacle_planner()
+        planner.default_velocity_mps = 8.33
+        planner.odometry.twist.twist.linear.x = 0.4
+
+        self.assertAlmostEqual(planner.ego_speed_for_stop_distance(), 0.4)
+
+        planner.odometry = None
+        self.assertAlmostEqual(planner.ego_speed_for_stop_distance(), 8.33)
+
+    def test_static_stop_holds_current_pose_only_after_margin_is_violated(self):
+        planner = obstacle_planner()
+        planner.odometry.pose.pose.position.x = 10.0
+        planner.odometry.twist.twist.linear.x = 0.0
+        planner.objects.objects = [
+            predicted_object(15.0, label=ObjectClassification.PEDESTRIAN)
+        ]
+        output = deepcopy(planner.trajectory)
+
+        planner.apply_stop(output, path_cumulative_lengths(output))
+
+        self.assertGreater(output.points[9].longitudinal_velocity_mps, 0.0)
+        self.assertEqual(output.points[10].longitudinal_velocity_mps, 0.0)
+        self.assertIn("decision=hold_current_position", planner._static_stop_status)
 
 
 if __name__ == "__main__":

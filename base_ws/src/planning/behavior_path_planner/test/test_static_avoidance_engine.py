@@ -521,6 +521,82 @@ class StaticAvoidanceEngineTest(unittest.TestCase):
         self.assertEqual(len(result.shift_lines), 1)
         self.assertEqual(result.shift_lines[0].direction, "left")
 
+    def test_composes_overlapping_opposite_shifts_continuously(self):
+        first = SimpleNamespace(
+            object_id="first",
+            direction="left",
+            shift_length=0.2,
+            start_s=5.0,
+            avoid_end_s=12.0,
+            return_start_s=18.0,
+            return_end_s=28.0,
+            longitudinal=15.0,
+            uses_hard_drivable_bound=False,
+            uses_diagonal_profile=False,
+        )
+        second = SimpleNamespace(
+            object_id="second",
+            direction="right",
+            shift_length=-2.2,
+            start_s=14.0,
+            avoid_end_s=32.0,
+            return_start_s=42.0,
+            return_end_s=62.0,
+            longitudinal=35.0,
+            uses_hard_drivable_bound=False,
+            uses_diagonal_profile=False,
+        )
+
+        lines, opposite_overlap = self.engine._merge_shift_lines(
+            [first, second]
+        )
+        offsets = [
+            self.engine._profile(lines, station / 10.0)
+            for station in range(0, 621)
+        ]
+
+        self.assertTrue(opposite_overlap)
+        self.assertEqual(len(lines), 2)
+        self.assertAlmostEqual(offsets[0], 0.0)
+        self.assertAlmostEqual(offsets[-1], 0.0)
+        self.assertLess(max(abs(b - a) for a, b in zip(offsets, offsets[1:])), 0.1)
+        self.assertLess(min(offsets), -2.0)
+        self.assertLessEqual(
+            self.engine._profile_required_lateral_jerk(lines, velocity=1.38),
+            self.engine.params.lateral_max_jerk + 0.1,
+        )
+
+    def test_combined_profile_checks_sum_against_drivable_bound(self):
+        lines = [
+            ShiftLine(
+                object_ids=["one"],
+                direction="left",
+                shift_length=1.0,
+                start_s=0.0,
+                avoid_end_s=10.0,
+                return_start_s=30.0,
+                return_end_s=40.0,
+            ),
+            ShiftLine(
+                object_ids=["two"],
+                direction="left",
+                shift_length=0.8,
+                start_s=0.0,
+                avoid_end_s=10.0,
+                return_start_s=30.0,
+                return_end_s=40.0,
+            ),
+        ]
+
+        self.assertFalse(
+            self.engine._profile_is_within_bounds(
+                lines,
+                [0.0, 10.0, 20.0, 30.0, 40.0],
+                [-2.0] * 5,
+                [1.5] * 5,
+            )
+        )
+
     def test_static_non_target_object_collision_is_unsafe(self):
         line = ShiftLine(
             object_ids=["target"],

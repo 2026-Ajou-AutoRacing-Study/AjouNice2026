@@ -32,6 +32,7 @@ DEFAULT_TOPICS = (
     "/elastic_band_smoother/debug/processing_time_ms",
     "/planning/scenario_planning/lane_driving/motion_planning/"
     "motion_velocity_planner/raw_trajectory",
+    "/motion_velocity_planner/debug/status",
     "/control/trajectory",
     "/localization/kinematic_state",
     "/localization/acceleration",

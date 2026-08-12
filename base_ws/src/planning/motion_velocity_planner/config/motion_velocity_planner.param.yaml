@@ -7,6 +7,7 @@ extract_behind_dist: 0.0
 delta_yaw_threshold: 1.0472
 
 stop_distance: 3.0
+base_link_to_front: 3.845
 dynamic_stop_distance: 5.0
 warning_distance: 6.0
 min_stop_velocity_mps: 0.5
