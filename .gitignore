@@ -290,3 +290,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+/data/morai_4class_v1/
