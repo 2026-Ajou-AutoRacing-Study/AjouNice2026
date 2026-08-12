@@ -138,13 +138,14 @@ optimizer = dict(
     paramwise_cfg=dict(
         custom_keys={'backbone': dict(lr_mult=0.1, decay_mult=1.0)}))
 
-# Keep per-epoch validation compact.  Final checkpoint evaluation additionally
-# reports TP errors, distance bins and runtime through fastbev/tools/evaluate.py.
+# Keep per-epoch validation diagnostic but dashboard-sized: center AP, TP box
+# errors, a 1 m operating point, IoU AP/AR, and range summaries through 30 m.
+# Runtime and the verbose per-threshold range breakdown remain test-only.
 evaluation = dict(
     interval=1,
-    metric=('center',),
+    metric=('center', 'tp', 'iou'),
     center_thresholds=(0.5, 1.0, 2.0, 4.0),
-    distance_bins=(),
+    distance_bins=((0.0, 10.0), (10.0, 20.0), (20.0, 30.0)),
     compact=True,
     save_best='center_mAP',
     rule='greater')
@@ -190,7 +191,11 @@ log_config = dict(
         dict(type='TextLoggerHook'),
         dict(type='TensorboardLoggerHook'),
         dict(
-            type='WandbLoggerHook',
+            type='MoraiWandbLoggerHook',
+            # MMCV's explicit W&B ``step=runner.iter`` can move backwards
+            # across epoch-end validation.  Let W&B keep its own monotonic
+            # _step and use our explicit global_step/epoch axes instead.
+            with_step=False,
             init_kwargs=dict(
                 entity=__import__('os').getenv(
                     'WANDB_ENTITY', 'AjouNice2026'),

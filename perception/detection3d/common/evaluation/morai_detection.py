@@ -256,7 +256,10 @@ def _evaluate_center(samples, class_names, center_thresholds,
                 metrics[f"{operating_prefix}_score"] = score
             class_aps.append(ap)
         mean_ap = float(np.mean(class_aps))
-        metrics[f"{prefix}/{class_name}_mAP"] = mean_ap
+        # This is the mean over distance thresholds for one class, not a
+        # mean over classes.  Spell that distinction out in dashboards and
+        # exported JSON instead of overloading the conventional ``mAP`` name.
+        metrics[f"{prefix}/{class_name}_mean_AP"] = mean_ap
         class_mean_aps.append(mean_ap)
 
         if include_tp:

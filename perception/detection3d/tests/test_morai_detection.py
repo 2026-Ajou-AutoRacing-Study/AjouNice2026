@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 
 from perception.detection3d.common.evaluation.morai_detection import (
+    _evaluate_center,
     _orientation_error,
     _scale_error,
     accumulate,
@@ -63,6 +64,22 @@ class MoraiDetectionEvalTest(unittest.TestCase):
         self.assertAlmostEqual(_scale_error([2, 2, 2], [2, 2, 2]), 0.0)
         self.assertAlmostEqual(
             _orientation_error(-np.pi + 0.1, np.pi - 0.1), 0.2)
+
+    def test_class_threshold_average_has_unambiguous_name(self):
+        metrics = _evaluate_center(
+            [sample([BOX], [0], [BOX], [0], [0.9])],
+            ["vehicle"],
+            (0.5, 1.0),
+            1.0,
+            0.1,
+            0.1,
+            "center",
+            include_tp=False,
+            include_operating_points=False,
+        )
+        self.assertIn("center/vehicle_mean_AP", metrics)
+        self.assertNotIn("center/vehicle_mAP", metrics)
+        self.assertAlmostEqual(metrics["center/vehicle_mean_AP"], 1.0)
 
 
 if __name__ == "__main__":

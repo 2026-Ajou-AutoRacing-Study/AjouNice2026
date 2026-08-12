@@ -599,15 +599,20 @@ optimizer update와 augmentation에 사용하고, validation은 매 epoch 모델
 AP@0.5/1/2/4 m를 다시 평균한다. 따라서 많이 등장하는 vehicle이 작은 class를 압도하지
 않는다.
 
-매 epoch validation은 다음 경량 지표만 계산한다.
+매 epoch validation은 다음 진단 지표를 계산한다.
 
 - `center_mAP`: best checkpoint 선택값
 - 클래스별 center AP@0.5/1/2/4 m
-- 클래스별 center mAP
+- 클래스별 `center/{class}_mean_AP` (AP@0.5/1/2/4 m의 평균)
+- 클래스별 `tp/{class}_mATE`, `mASE`, `mAOE`
+- 클래스별 `operating/{class}_1m_precision`, `recall`, `F1`, `score`
+- 클래스별·전체 IoU AP/AR@0.25/0.50
+- 0--10 m, 10--20 m, 20--30 m의 클래스별 mean AP와 전체 mAP
 
-best-F1 operating point, TP error, IoU AP, 거리 구간 및 FPS는 학습 중에는 계산하지 않고
-최종 test에서만 계산한다. 최근 일반 checkpoint는 3개만 보존하고 validation best
-checkpoint는 별도로 보존한다.
+거리 구간의 threshold별 상세 AP, GT/prediction 수, 30--50 m 진단 및 FPS는 최종
+test에서만 계산한다. 최근 일반 checkpoint는 3개만 보존하고 validation best
+checkpoint는 별도로 보존한다. best checkpoint 기준은 계속 `center_mAP`이며 추가
+지표는 진단과 ROS confidence threshold 결정에 사용한다.
 
 학습은 Fast-BEV 원본 `tools/train.py`를 얇은 launcher로 실행한다.
 
@@ -650,12 +655,73 @@ perception/detection3d/fastbev/scripts/evaluate_test.sh \
 `test_evaluation.log`이다. 모델 비교 표에는 test center mAP, 클래스별 AP, TP error,
 IoU AP, 거리 구간 결과와 FP16 runtime을 함께 기록한다.
 
+## Scratch baseline의 클래스별 개선 가능성
+
+Sunny 13시 1,500-frame split에서 ImageNet backbone과 나머지 계층을 scratch로 학습한
+12-epoch baseline은 validation best epoch 11에서 `center_mAP=0.6081`, held-out test에서
+`center_mAP=0.6001`을 기록했다. validation과 test 차이가 작아 현재 split에 대한
+일반화는 안정적이지만, 클래스와 거리에 따라 병목이 다르다.
+
+### Vehicle
+
+- test mean AP는 `0.6874`이며 AP@2 m는 `0.8599`로 객체 존재 검출은 안정적이다.
+- AP@0.5 m는 `0.3326`이므로 정밀 중심 위치가 주된 병목이다.
+- 10--20 m mean AP는 `0.7174`, 20--30 m는 `0.4324`로 작은 객체보다 원거리 저하가
+  완만하다.
+- 데이터 추가로 개선될 수 있지만 이미 가장 강한 클래스이므로 절대 상승 폭은 다른
+  클래스보다 작을 가능성이 있다.
+- sedan/SUV/bus/truck 크기 통계에 맞춘 다중 anchor, 좌표 변환 검증, pretrained
+  backbone/FPN이 우선 후보이다.
+
+### Pedestrian
+
+- test mean AP는 `0.6645`이고 0--10 m mean AP는 `0.9306`으로 근거리는 강하다.
+- 10--20 m에서 `0.3472`, 20--30 m에서 `0.0686`으로 원거리 small-object 성능이
+  급격히 하락한다.
+- 10--30 m 표본, 부분 가림, 카메라 경계, 다양한 자세를 늘리면 개선 가능성이 높다.
+- NuImages 등 2D pretrained backbone/FPN, 전방 고해상도 활용, small-object
+  augmentation과 pedestrian anchor 통계 비교가 유효하다.
+
+### Obstacle
+
+- test mean AP는 `0.4483`, IoU AP@0.50은 `0.0878`로 세 클래스 중 가장 약하다.
+- 0--10 m mean AP는 `0.7350`이지만 10--20 m는 `0.2565`, 20--30 m는 `0.0420`이다.
+- cone, barrel, sign, cargo box, bicycle/scooter처럼 크기와 형상이 다른 객체를 하나의
+  클래스와 대표 anchor로 회귀하는 class 내부 다양성이 핵심 병목이다.
+- 데이터 수만 늘리기보다 asset별 크기 분포를 먼저 분석하고 obstacle 다중 anchor,
+  class-balanced sampling/loss, 필요 시 학습용 세부 taxonomy 후 추론 시 obstacle 통합을
+  비교한다.
+
+### 공통 실험 순서
+
+단순히 현재 12-epoch schedule의 epoch만 늘리면 마지막 learning rate가 거의 0이므로
+효과가 제한적이다. 한 번에 한 요소만 바꿔 다음 순서로 validation에서 비교한다.
+
+1. 현재 scratch baseline을 고정한다.
+2. 같은 데이터·seed·schedule에서 NuImages pretrained backbone/FPN을 비교한다.
+3. 다양한 거리·가림·asset을 포함한 약 3,000 frame 데이터로 비교한다.
+4. 학습 곡선이 계속 상승하면 LR schedule과 함께 18--24 epoch를 비교한다.
+5. obstacle 크기 통계에 근거한 다중 anchor를 비교한다.
+
+Epoch와 실험 설정 선택은 validation으로 수행하고, 채택한 최종 후보만 test로 보고한다.
+이번 test에서 확인한 원거리 약점은 다음 데이터 버전의 설계 근거로 기록하되, 동일 test를
+반복적으로 튜닝 기준으로 사용하지 않는다.
+
 ## W&B 학습 모니터링
 
-Fast-BEV 원본 학습 루프를 수정하지 않고 MMCV 1.4의 `WandbLoggerHook`를 사용한다.
+Fast-BEV 원본 학습 루프를 수정하지 않고 MMCV 1.4의 `WandbLoggerHook`를 상속한
+로컬 `MoraiWandbLoggerHook`를 사용한다.
 기존 text/TensorBoard 로그는 그대로 유지하며 W&B에는 train loss, learning rate,
-gradient norm, epoch/iteration, 매 epoch validation `center_mAP`와 클래스별 AP가
-기록된다. W&B 클라이언트가 GPU·CPU·메모리 같은 시스템 지표도 별도로 수집한다.
+gradient norm, `epoch`, `global_step`, 매 epoch validation `center_mAP`와 클래스별 AP가
+기록된다. train metric은 `global_step`, validation metric은 `epoch`를 기본 축으로
+정의한다. MMCV의 기본 `_step=runner.iter`는 epoch-end validation 뒤 다음 train
+로그보다 커져 W&B가 일부 값을 버릴 수 있으므로 사용하지 않는다. W&B 내부 `_step`은
+로그 이벤트 순서로만 유지하고 차트 축에는 `global_step` 또는 `epoch`를 사용한다.
+클래스별 네 거리 threshold 평균은 클래스 평균과 혼동하지 않도록
+`vehicle_mean_AP`, `pedestrian_mean_AP`, `obstacle_mean_AP`로 기록한다. W&B
+클라이언트가 GPU·CPU·메모리 같은 시스템 지표도 별도로 수집한다. 상세 validation
+metric은 자동 패널 생성만 숨기고 history는 모두 보존한다. Workspace에서는 관련
+metric 여러 개를 한 패널에 묶어 공용 dashboard를 한 번 구성해 이후 run에 재사용한다.
 
 기본 run 식별자는 다음과 같다.
 

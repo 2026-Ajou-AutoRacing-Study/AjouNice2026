@@ -94,7 +94,9 @@ class MoraiMultiViewDataset(MultiViewMixin, NuScenesDataset):
                 min_precision=min_precision,
                 distance_bins=distance_bins if 'center' in requested else (),
                 include_tp='tp' in requested,
-                include_operating_points=not compact)
+                # Compact validation still keeps the 1 m operating point;
+                # the remaining thresholds are filtered below.
+                include_operating_points=True)
             if 'center' not in requested:
                 center_metrics = {
                     key: value for key, value in center_metrics.items()
@@ -108,12 +110,29 @@ class MoraiMultiViewDataset(MultiViewMixin, NuScenesDataset):
                 # A slash would accidentally create a path component.
                 center_metrics['center_mAP'] = center_metrics['center/mAP']
             if compact:
-                center_metrics = {
-                    key: value for key, value in center_metrics.items()
-                    if '_best_' not in key
-                    and not key.endswith('_GT')
-                    and not key.endswith('_predictions')
-                    and not key.startswith('meta/')}
+                compact_metrics = {}
+                for key, value in center_metrics.items():
+                    if (key.endswith('_GT') or
+                            key.endswith('_predictions') or
+                            key.startswith('meta/')):
+                        continue
+                    if key.startswith('range/'):
+                        # Retain only one summary per class and range instead
+                        # of all four thresholds and operating points.
+                        if key.endswith('_mean_AP') or key.endswith('/mAP'):
+                            compact_metrics[key] = value
+                        continue
+                    if '_best_' in key:
+                        # One practical operating point per class is enough
+                        # for ROS score-threshold calibration.
+                        if '_1m_best_' in key and key.startswith('center/'):
+                            renamed = key.replace(
+                                'center/', 'operating/', 1).replace(
+                                    '_1m_best_', '_1m_')
+                            compact_metrics[renamed] = value
+                        continue
+                    compact_metrics[key] = value
+                center_metrics = compact_metrics
             metrics.update(center_metrics)
 
         if 'iou' not in requested:
