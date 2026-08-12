@@ -395,7 +395,7 @@ python3 dataset/morai_od/scripts/build_fastbev_sunny13_1500_dataset.py \
 cd ~/AjouNice2026
 
 for split in train val test; do
-  python3 dataset/morai_od/scripts/smoke_fastbev_morai_infos.py \
+  python3 perception/detection3d/fastbev/scripts/smoke_infos.py \
     /home/luv/ajounice_data/morai_od/processed/fastbev_sunny13_1500_v1 \
     --split "$split" \
     --samples 20
@@ -405,7 +405,8 @@ done
 MORAI dataset·pipeline·config는 다음 integration layer로 분리했다.
 
 ```text
-dataset/morai_od/fastbev_plugin/
+perception/detection3d/fastbev/
+├── plugin/
 ├── morai_dataset.py
 ├── pipelines.py
 └── configs/fastbev_m0_morai_4cam_s384x704.py
@@ -439,7 +440,7 @@ cd ~/AjouNice2026
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate fastbev_rtx50
 
-python3 dataset/morai_od/scripts/smoke_fastbev_native_train.py
+python3 perception/detection3d/fastbev/scripts/smoke_train.py
 ```
 
 이 smoke가 통과한 뒤 10~20 frame overfit으로 넘어간다. 단일 train step 통과만으로
@@ -459,34 +460,34 @@ source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate fastbev_rtx50
 
 export MMDET3D="$PWD/third_party/fastbev"
-export PYTHONPATH="$PWD/third_party/fastbev:$PWD/dataset/morai_od${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$PWD:$PWD/third_party/fastbev${PYTHONPATH:+:$PYTHONPATH}"
 export MPLCONFIGDIR=/tmp/matplotlib-fastbev
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 
-mkdir -p artifacts/fastbev_runs/overfit20_smoke3
+mkdir -p artifacts/detection3d/fastbev/runs/overfit20_smoke3
 
 python3 third_party/fastbev/tools/train.py \
-  dataset/morai_od/fastbev_plugin/configs/fastbev_m0_morai_4cam_overfit20.py \
-  --work-dir artifacts/fastbev_runs/overfit20_smoke3 \
+  perception/detection3d/fastbev/configs/fastbev_m0_morai_4cam_overfit20.py \
+  --work-dir artifacts/detection3d/fastbev/runs/overfit20_smoke3 \
   --gpus 1 \
   --seed 0 \
   --no-validate \
   --cfg-options runner.max_epochs=3 total_epochs=3 \
-  2>&1 | tee artifacts/fastbev_runs/overfit20_smoke3/console.log
+  2>&1 | tee artifacts/detection3d/fastbev/runs/overfit20_smoke3/console.log
 ```
 
 3 epoch가 끝나면 별도 work directory에서 30 epoch overfit을 실행한다.
 
 ```bash
-mkdir -p artifacts/fastbev_runs/overfit20_v1
+mkdir -p artifacts/detection3d/fastbev/runs/overfit20_v1
 
 python3 third_party/fastbev/tools/train.py \
-  dataset/morai_od/fastbev_plugin/configs/fastbev_m0_morai_4cam_overfit20.py \
-  --work-dir artifacts/fastbev_runs/overfit20_v1 \
+  perception/detection3d/fastbev/configs/fastbev_m0_morai_4cam_overfit20.py \
+  --work-dir artifacts/detection3d/fastbev/runs/overfit20_v1 \
   --gpus 1 \
   --seed 0 \
   --no-validate \
-  2>&1 | tee artifacts/fastbev_runs/overfit20_v1/console.log
+  2>&1 | tee artifacts/detection3d/fastbev/runs/overfit20_v1/console.log
 ```
 
 `positive_bag_loss`, `negative_bag_loss`, 전체 `loss`가 초반보다 명확하게 감소하고
@@ -499,7 +500,7 @@ load/decode를 제외하되 H2D/scatter·backprojection·head·NMS를 포함하�
 `end-to-end`는 dataloader까지 포함한다.
 
 ```bash
-python3 dataset/morai_od/scripts/evaluate_fastbev_morai.py
+python3 perception/detection3d/fastbev/tools/evaluate.py
 ```
 
 처음 5 frame은 CUDA warm-up에서 제외하며, 출력에는 inference/end-to-end FPS,
@@ -553,7 +554,8 @@ native BEV voxel은 `0.5x0.5 m`이다. `neck_3d.stride=1`을 사용해 detection
 
 ## MORAI detection 평가 규약
 
-`fastbev_plugin/morai_detection_eval.py`는 nuScenes detection evaluator의 matching과
+`perception/detection3d/common/evaluation/morai_detection.py`는 nuScenes
+detection evaluator의 matching과
 101-point recall interpolation을 MORAI ego-frame box에 적용한다. 별도 nuScenes DB는
 필요하지 않다.
 
@@ -570,7 +572,7 @@ mAOE는 참고값으로만 해석한다. 학습 중 validation은 center AP와 I
 최종 checkpoint에서 TP·거리 구간·FPS를 모두 측정한다.
 
 ```bash
-python3 dataset/morai_od/scripts/evaluate_fastbev_morai.py \
+python3 perception/detection3d/fastbev/tools/evaluate.py \
   --config <config.py> \
   --checkpoint <checkpoint.pth> \
   --fp16 \
@@ -612,7 +614,7 @@ checkpoint는 별도로 보존한다.
 ```bash
 cd ~/AjouNice2026
 
-dataset/morai_od/scripts/train_fastbev_morai.sh \
+perception/detection3d/fastbev/scripts/train.sh \
   full1500_stride1_fp16_v1
 ```
 
@@ -624,24 +626,24 @@ source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate fastbev_rtx50
 
 export MMDET3D="$PWD/third_party/fastbev"
-export PYTHONPATH="$PWD/third_party/fastbev:$PWD/dataset/morai_od${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$PWD:$PWD/third_party/fastbev${PYTHONPATH:+:$PYTHONPATH}"
 export MPLCONFIGDIR=/tmp/matplotlib-fastbev
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 
 python3 third_party/fastbev/tools/train.py \
-  dataset/morai_od/fastbev_plugin/configs/fastbev_m0_morai_4cam_s384x704.py \
-  --work-dir artifacts/fastbev_runs/full1500_stride1_fp16_v1 \
-  --resume-from artifacts/fastbev_runs/full1500_stride1_fp16_v1/latest.pth \
+  perception/detection3d/fastbev/configs/fastbev_m0_morai_4cam_s384x704.py \
+  --work-dir artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_v1 \
+  --resume-from artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_v1/latest.pth \
   --gpus 1 \
   --seed 0 \
-  2>&1 | tee -a artifacts/fastbev_runs/full1500_stride1_fp16_v1/console.log
+  2>&1 | tee -a artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_v1/console.log
 ```
 
 학습 완료 후 validation best checkpoint를 held-out test 222장에 한 번 평가한다.
 
 ```bash
-dataset/morai_od/scripts/evaluate_fastbev_morai_test.sh \
-  artifacts/fastbev_runs/full1500_stride1_fp16_v1
+perception/detection3d/fastbev/scripts/evaluate_test.sh \
+  artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_v1
 ```
 
 최종 산출물은 `best_center_mAP_epoch_*.pth`, `test_metrics.json`,
@@ -660,7 +662,7 @@ gradient norm, epoch/iteration, 매 epoch validation `center_mAP`와 클래스�
 - entity: `AjouNice2026`
 - project: `morai-fastbev`
 - group: `sunny13-1500-single-frame`
-- run name 및 run id: `train_fastbev_morai.sh`의 첫 번째 인자
+- run name 및 run id: `fastbev/scripts/train.sh`의 첫 번째 인자
 - tags: `fastbev,morai,4cam,single-frame,s384x704,fp16`
 - best checkpoint 기준: `center_mAP`
 
@@ -674,7 +676,7 @@ metric은 W&B에 남고, checkpoint와 전체 MMCV config는 로컬 work directo
 ```bash
 cd ~/AjouNice2026
 
-dataset/morai_od/scripts/setup_fastbev_wandb.sh
+perception/detection3d/fastbev/scripts/setup_wandb.sh
 
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate fastbev_rtx50
@@ -686,7 +688,7 @@ wandb login
 ```bash
 cd ~/AjouNice2026
 
-dataset/morai_od/scripts/train_fastbev_morai.sh \
+perception/detection3d/fastbev/scripts/train.sh \
   full1500_stride1_fp16_v1
 ```
 
@@ -697,7 +699,7 @@ export WANDB_PROJECT=morai-fastbev
 export WANDB_RUN_GROUP=grid-ablation
 export WANDB_TAGS=fastbev,morai,4cam,grid-0.4m,fp16
 
-dataset/morai_od/scripts/train_fastbev_morai.sh \
+perception/detection3d/fastbev/scripts/train.sh \
   full1500_grid04_fp16_v1
 ```
 

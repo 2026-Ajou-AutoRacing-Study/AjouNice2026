@@ -19,11 +19,11 @@ from mmdet3d.models import build_model
 
 DEFAULT_CONFIG = (
     Path(__file__).resolve().parents[1]
-    / "fastbev_plugin/configs/fastbev_m0_morai_4cam_overfit20.py"
+    / "configs/fastbev_m0_morai_4cam_overfit20.py"
 )
 DEFAULT_CHECKPOINT = (
-    Path(__file__).resolve().parents[3]
-    / "artifacts/fastbev_runs/overfit20_v1/epoch_30.pth"
+    Path(__file__).resolve().parents[4]
+    / "artifacts/detection3d/fastbev/runs/overfit20_v1/epoch_30.pth"
 )
 
 

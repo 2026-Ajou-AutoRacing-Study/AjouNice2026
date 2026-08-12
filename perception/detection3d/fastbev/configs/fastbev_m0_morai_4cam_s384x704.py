@@ -2,7 +2,9 @@ _base_ = [
     '../../../../third_party/fastbev/configs/fastbev/exp/paper/fastbev_m0_r18_s256x704_v200x200x4_c192_d2_f4.py'
 ]
 
-custom_imports = dict(imports=['fastbev_plugin'], allow_failed_imports=False)
+custom_imports = dict(
+    imports=['perception.detection3d.fastbev.plugin'],
+    allow_failed_imports=False)
 
 class_names = ['vehicle', 'pedestrian', 'obstacle']
 dataset_type = 'MoraiMultiViewDataset'
@@ -137,7 +139,7 @@ optimizer = dict(
         custom_keys={'backbone': dict(lr_mult=0.1, decay_mult=1.0)}))
 
 # Keep per-epoch validation compact.  Final checkpoint evaluation additionally
-# reports TP errors, distance bins and runtime through evaluate_fastbev_morai.py.
+# reports TP errors, distance bins and runtime through fastbev/tools/evaluate.py.
 evaluation = dict(
     interval=1,
     metric=('center',),

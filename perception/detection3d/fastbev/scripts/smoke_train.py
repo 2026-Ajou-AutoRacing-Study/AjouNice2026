@@ -15,7 +15,7 @@ from mmdet3d.models import build_model
 
 DEFAULT_CONFIG = (
     Path(__file__).resolve().parents[1]
-    / "fastbev_plugin/configs/fastbev_m0_morai_4cam_s384x704.py"
+    / "configs/fastbev_m0_morai_4cam_s384x704.py"
 )
 
 

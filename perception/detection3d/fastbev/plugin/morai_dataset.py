@@ -62,7 +62,9 @@ class MoraiMultiViewDataset(MultiViewMixin, NuScenesDataset):
         use the generic 3D IoU AP/recall evaluator on native LiDAR boxes.
         """
         from mmdet3d.core.evaluation import indoor_eval
-        from .morai_detection_eval import morai_detection_eval
+        from perception.detection3d.common.evaluation import (
+            morai_detection_eval,
+        )
 
         if len(results) != len(self.data_infos):
             raise AssertionError(

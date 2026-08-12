@@ -2,11 +2,14 @@
 set -euo pipefail
 
 # Thin launcher: Fast-BEV's original tools/train.py remains the training engine.
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 CONDA_ENV="${CONDA_ENV:-fastbev_rtx50}"
-CONFIG="${FASTBEV_CONFIG:-$ROOT/dataset/morai_od/fastbev_plugin/configs/fastbev_m0_morai_4cam_s384x704.py}"
+CONFIG="${FASTBEV_CONFIG:-$ROOT/perception/detection3d/fastbev/configs/fastbev_m0_morai_4cam_s384x704.py}"
 RUN_NAME="${1:-$(date +%y%m%d_%H%M%S)_fastbev_m0_morai_baseline}"
-WORK_DIR="${FASTBEV_WORK_DIR:-$ROOT/artifacts/fastbev_runs/$RUN_NAME}"
+WORK_DIR="${FASTBEV_WORK_DIR:-$ROOT/artifacts/detection3d/fastbev/runs/$RUN_NAME}"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
 
 cd "$ROOT"
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
@@ -15,7 +18,7 @@ conda activate "$CONDA_ENV"
 set -u
 
 export MMDET3D="$ROOT/third_party/fastbev"
-export PYTHONPATH="$ROOT/third_party/fastbev:$ROOT/dataset/morai_od${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$ROOT:$ROOT/third_party/fastbev${PYTHONPATH:+:$PYTHONPATH}"
 export MPLCONFIGDIR="${MPLCONFIGDIR:-/tmp/matplotlib-fastbev}"
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 
@@ -42,6 +45,7 @@ TRAIN_ARGS=(
   --work-dir "$WORK_DIR"
   --gpus 1
   --seed 0
+  "$@"
 )
 
 if [[ "${FASTBEV_DISABLE_WANDB:-0}" == "1" ]]; then

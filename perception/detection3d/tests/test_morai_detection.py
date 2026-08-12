@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from fastbev_plugin.morai_detection_eval import (
+from perception.detection3d.common.evaluation.morai_detection import (
     _orientation_error,
     _scale_error,
     accumulate,

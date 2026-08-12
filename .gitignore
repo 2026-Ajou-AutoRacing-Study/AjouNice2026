@@ -1,7 +1,7 @@
 ### Custom .gitignore configs는 여기에 추가 ###
 
 # fast bev 실험
-artifacts/fastbev_runs/
+artifacts/detection3d/
 
 # python 가상환경 폴더
 .venv/
