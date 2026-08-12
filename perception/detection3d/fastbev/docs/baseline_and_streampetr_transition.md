@@ -571,6 +571,158 @@ detection evaluator의 matching과
 mAOE는 참고값으로만 해석한다. 학습 중 validation은 center AP와 IoU AP만 계산하고,
 최종 checkpoint에서 TP·거리 구간·FPS를 모두 측정한다.
 
+### 향후 복합 지표: GDQS
+
+공식 NDS를 흉내 내거나 특정 시뮬레이터 이름을 붙이지 않고, 현재 확보한 GT만으로
+검출과 3D box 품질을 함께 비교하는 프로젝트 지표의 이름은
+`GDQS (Geometry-aware Detection Quality Score)`로 정한다. 정적 객체 중심 데이터라
+신뢰할 수 없는 velocity와 attribute 항목을 제외하고, 검출 성능과 3D box의 위치·크기·
+방향 정확도를 결합한다. 초기 후보 정의는 다음과 같다.
+
+```text
+GDQS =
+  0.625 * center_mAP
+  0.125 * position_score
+  0.125 * scale_score
+  0.125 * orientation_score
+
+position_score    = max(0, 1 - mATE / 1.0 m)
+scale_score       = max(0, 1 - mASE / 0.5)
+orientation_score = max(0, 1 - mAOE / (pi / 2))
+```
+
+`GDQS/vehicle`, `GDQS/pedestrian`, `GDQS/obstacle`을 먼저 계산하고 전체 `GDQS`는
+세 class 점수의 동일 가중 평균으로 계산한다. vehicle 표본 수가 pedestrian과 obstacle을
+압도하지 않게 하기 위함이다. 세 class 모두 orientation score를 포함한다. 차량은 미래
+궤적, 보행자는 횡단 방향, obstacle은 바리케이드·자전거·킥보드처럼 길쭉한 물체의 점유
+방향을 평가할 가치가 있기 때문이다.
+
+단, 이 지표는 아직 설계안이며 현재 best checkpoint 기준은 `center_mAP`이다. 공식 NDS와
+비교하거나 논문 수치에 NDS로 표기하지 않는다. GDQS를 도입하더라도 center AP, mATE,
+mASE, mAOE 원본 지표를 항상 함께 보존한다.
+
+구현 전에 다음 항목을 검증·개선한다.
+
+1. MORAI asset별 GT yaw 축과 차량·보행자 heading의 좌표계가 일관적인지 확인한다.
+2. 차량과 이동 방향이 정의된 보행자는 directed yaw를 사용한다. 긴 대칭 obstacle은
+   필요하면 0도와 180도를 같은 축으로 보는 axial yaw 평가를 asset subtype별로 적용한다.
+3. 원형 obstacle처럼 방향 의미가 약한 asset도 우선 공통 mAOE에 포함하되, 해당 asset이
+   전체 obstacle 점수를 불안정하게 만드는지 별도 분석한다.
+4. 1.0 m, 0.5, 90도의 정규화 한계와 62.5/12.5/12.5/12.5 가중치는 validation에서
+   고정한 뒤 test 결과에 맞춰 변경하지 않는다.
+5. temporal dataset에서 신뢰 가능한 velocity GT를 확보하면 velocity score를 추가한
+   새 버전으로 명시적으로 올린다. 이전 GDQS 버전과 수치를 직접 혼용하지 않는다.
+6. 최종 prediction 목적에서는 GDQS만으로 결정하지 않고 yaw flip rate, temporal yaw
+   jitter, tracking ID metric, ADE/FDE, miss rate를 함께 평가한다.
+7. 향후 class별 중요도를 달리하거나 vehicle yaw 비중을 높인 prediction 전용 점수가
+   필요하면 GDQS와 분리해 이름과 용도를 명시한다.
+
+#### 2026-08-12 pedestrian yaw 진단
+
+GDQS는 아래 문제가 해결될 때까지 문서상 후보 지표로만 보존하고 best checkpoint
+선택에는 사용하지 않는다. 현재 best 기준은 계속 `center_mAP`이다.
+
+12-epoch baseline의 held-out test에서 pedestrian mAOE는 `1.672 rad (95.8 deg)`였다.
+`tools/diagnose_yaw.py`로 동일 checkpoint의 2 m center-matched TP를 다시 조사한 결과는
+다음과 같다. 진단 도구의 단순 match 평균은 공식 mAOE의 recall interpolation과 계산법이
+달라 숫자가 완전히 같지는 않다.
+
+| class | directed yaw 평균 | 180도 대칭 axial yaw 평균 | 중앙값 |
+|---|---:|---:|---:|
+| vehicle | 34.4 deg | 11.5 deg | 3.2 deg |
+| pedestrian | 95.5 deg | 47.8 deg | 94.7 deg |
+| obstacle | 25.8 deg | 11.8 deg | 11.8 deg |
+
+확인된 사실은 다음과 같다.
+
+- 시나리오 pedestrian yaw와 Ego/LiDAR의 상대 yaw가 `_Instance.txt` yaw와 일치한다.
+- `_Instance_8Points.txt` corner로 얻은 box 축도 `_Instance.txt` yaw와 일치한다.
+- vehicle과 obstacle은 같은 변환·평가 경로에서 낮은 axial yaw 오차를 보인다.
+- pedestrian 오차는 고정 `+90/-90/180 deg` 보정으로 개선되지 않는다. 따라서 전 class에
+  공통인 좌표계 offset이나 단순 부호 오류가 아니다.
+- 0--10 m pedestrian도 평균 약 `97.1 deg`로, 원거리 해상도만의 문제도 아니다.
+- 종횡비가 1.25 이하인 pedestrian과 더 길쭉한 pedestrian 모두 약 94--96 deg로,
+  정사각형 box만의 문제도 아니다.
+- test GT pedestrian yaw의 circular concentration은 `0.109`로 거의 균등하지만 예측은
+  `0.338`로 일부 방향에 치우쳤다. 현재 모델이 임의 GT 방향을 충분히 복원하지 못했다.
+- 같은 파이프라인의 21-frame overfit은 pedestrian mAOE `0.652 rad (37.4 deg)`까지
+  내려갔다. 따라서 yaw 학습 경로가 완전히 끊긴 구현 오류라기보다 full baseline의
+  일반화·학습 문제가 주원인이다.
+
+가장 가능성 높은 원인은 다음 조합이다.
+
+1. 생성기가 정적 pedestrian yaw를 `[-180, 180] deg`에서 균등 무작위로 배치한다.
+   도로 방향이나 이동 경로 prior가 없으므로 모델은 작은 사람의 시각적 앞뒤만으로
+   방향을 회귀해야 한다.
+2. pedestrian BEV box는 중앙 종횡비가 약 `1.5`이고 약 23%는 1.25 이하로 방향 단서가
+   약하다. 현재 pedestrian anchor도 `0.6 x 0.6 m` 정사각형이다.
+3. 384x704로 축소한 camera-only 입력, 1,050 train frame, 12 epoch 및 새 3D detection
+   head 조합에서는 보행자 orientation 일반화가 부족하다.
+4. 정적 보행자의 asset yaw가 실제 보행 진행 방향을 의미하는지는 아직 별도 검증하지
+   않았다. BBox 기하 축은 일관되지만 semantic facing direction과 같은지는 다를 수 있다.
+
+다음 개선 순서는 다음과 같다.
+
+1. simulator에서 동일 pedestrian asset을 yaw 0/90/180/270 deg로 놓고, 사람의 얼굴·
+   진행 방향과 `_Instance.txt` yaw 축의 관계를 한 번 확인한다.
+2. 동적 횡단 pedestrian은 yaw를 waypoint tangent 및 velocity 방향과 정렬하고 frame별
+   velocity GT를 저장한다. prediction에는 static asset yaw보다 velocity heading을
+   우선 사용한다.
+3. pedestrian anchor를 실제 크기 통계에 맞춘 비정사각형 후보와 비교하고, class별 yaw
+   loss/방향 정확도를 별도로 기록한다.
+4. yaw 학습 여부를 확인하는 소규모 train/validation ablation을 먼저 수행한 뒤 전체
+   학습을 반복한다. center mAP가 비슷할 때 pedestrian mAOE가 실제로 낮아지는지 본다.
+5. 인접 pedestrian이 2 m center matching에서 서로 바뀌는 영향을 0.5/1 m matching과
+   Hungarian matching으로 추가 비교한다.
+6. directed yaw가 신뢰 가능해진 뒤에만 GDQS를 shadow best 기준으로 기록하고,
+   `best_center_mAP`와 여러 run에서 비교한 후 주 기준으로 승격한다.
+
+진단 명령은 다음과 같다.
+
+```bash
+python3 perception/detection3d/fastbev/tools/diagnose_yaw.py \
+  --config perception/detection3d/fastbev/configs/fastbev_m0_morai_4cam_s384x704.py \
+  --checkpoint <checkpoint.pth> \
+  --fp16
+```
+
+#### Obstacle yaw 해석과 제한
+
+Obstacle도 pedestrian과 다른 이유로 directed yaw 추정이 어렵다. 현재 test의 공식
+obstacle mAOE는 `0.326 rad (18.7 deg)`이고 단순 TP 진단의 directed/axial 평균은 각각
+`25.8/11.8 deg`다. 수치만 보면 pedestrian보다 좋지만 그대로 일반화하면 안 된다.
+
+- obstacle 통합 class에는 원형·정사각형에 가까운 물체와 바리케이드·자전거·킥보드·
+  표지판처럼 길쭉한 물체가 함께 들어 있다. test GT의 약 27%는 BEV 종횡비 1.25 이하라
+  yaw의 시각적·기하학적 의미가 약하다.
+- 긴 대칭 물체는 0도와 180도가 같은 점유 축을 만든다. 이 경우 directed yaw는 실제
+  planning geometry가 동일한 예측도 180도 오차로 벌한다.
+- 반대로 앞뒤가 구분되는 표지판이나 이동 가능한 자전거·킥보드는 directed yaw가 의미
+  있을 수 있다. obstacle 전체에 한 가지 yaw 규칙을 적용하면 둘 중 하나를 왜곡한다.
+- 현재 test obstacle GT yaw의 circular concentration은 `0.977`로 대부분 한 방향에
+  몰려 있다. 예측도 `0.814`로 같은 방향에 치우쳐 있어, 낮은 mAOE 일부는 다양한
+  방향을 복원한 성능이 아니라 데이터 방향 편향을 이용한 결과일 수 있다.
+- 종횡비 1.25 이하 obstacle의 directed 평균은 `42.8 deg`, 길쭉한 obstacle은
+  `20.7 deg`였다. 작은·대칭 물체의 방향이 전체 평균을 불안정하게 만들 수 있다.
+- 현재 obstacle anchor는 `1.0 x 1.0 x 1.0 m` 하나다. 실제 obstacle의 큰 크기 다양성과
+  방향성을 하나의 정사각형 anchor로 표현하므로 class별 크기·yaw 회귀에 불리하다.
+
+따라서 obstacle yaw도 현재 GDQS에 즉시 반영하지 않는다. 향후 asset catalog의 subtype과
+실제 GT box 종횡비를 연결해 다음처럼 평가하는 방안을 검증한다.
+
+1. 앞뒤 의미가 있는 subtype은 directed yaw를 사용한다.
+2. 길지만 앞뒤가 대칭인 subtype은 axial yaw를 사용한다.
+3. 원형 또는 거의 정사각형이고 방향 의미가 없는 subtype은 orientation score에서
+   제외하고 나머지 GDQS 항목을 재정규화한다.
+4. 방향별로 균형 잡힌 obstacle validation subset을 만들어, 현재 낮은 mAOE가 방향
+   편향 때문인지 실제 orientation 학습 때문인지 구분한다.
+5. subtype 또는 크기 군집별 anchor와 class 분리 필요성을 obstacle 크기 다양성 실험과
+   함께 검증한다.
+
+요약하면 pedestrian은 현재 모델이 무작위 directed yaw를 거의 학습하지 못한 문제이고,
+obstacle은 heterogeneous asset·대칭성·방향 분포 편향 때문에 하나의 mAOE가 의미를
+섞는 문제다. 둘 다 정리되기 전까지 GDQS는 보류한다.
+
 ```bash
 python3 perception/detection3d/fastbev/tools/evaluate.py \
   --config <config.py> \
