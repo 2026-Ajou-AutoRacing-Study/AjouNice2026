@@ -6,8 +6,8 @@ Panels:
       Expanded:
         - /Global Options1
         - /Standard Object Pipeline1
-      Splitter Ratio: 0.52
-    Tree Height: 620
+      Splitter Ratio: 0.5199999809265137
+    Tree Height: 295
   - Class: rviz/Views
     Expanded:
       - /Current View1
@@ -20,13 +20,13 @@ Toolbars:
 Visualization Manager:
   Class: ""
   Displays:
-    - Alpha: 0.45
+    - Alpha: 0.44999998807907104
       Cell Size: 1
       Class: rviz/Grid
       Color: 120; 120; 120
-      Enabled: true
+      Enabled: false
       Line Style:
-        Line Width: 0.03
+        Line Width: 0.029999999329447746
         Value: Lines
       Name: Grid
       Normal Cell Count: 0
@@ -37,8 +37,8 @@ Visualization Manager:
       Plane: XY
       Plane Cell Count: 40
       Reference Frame: <Fixed Frame>
-      Value: true
-    - Alpha: 0.8
+      Value: false
+    - Alpha: 0.800000011920929
       Class: rviz/RobotModel
       Collision Enabled: true
       Enabled: true
@@ -70,7 +70,7 @@ Visualization Manager:
       Class: rviz/PointCloud2
       Color: 255; 255; 255
       Color Transformer: Intensity
-      Decay Time: 0.2
+      Decay Time: 0.20000000298023224
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
@@ -80,7 +80,7 @@ Visualization Manager:
       Queue Size: 3
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.04
+      Size (m): 0.03999999910593033
       Style: Flat Squares
       Topic: /sensor/lidar1
       Unreliable: false
@@ -91,7 +91,14 @@ Visualization Manager:
       Enabled: true
       Marker Topic: /map/lanelet_map
       Name: Lanelet Map
-      Namespaces: {}
+      Namespaces:
+        features/lane_markings: true
+        features/road_borders: true
+        features/stop_lines: true
+        features/traffic_lights: true
+        lanelet/centerlines: true
+        lanelet/left_boundaries: true
+        lanelet/right_boundaries: true
       Queue Size: 5
       Value: true
     - Class: rviz/Group
@@ -100,21 +107,27 @@ Visualization Manager:
           Enabled: true
           Marker Topic: /perception/object_recognition/visualization/detections
           Name: Detections (green)
-          Namespaces: {}
+          Namespaces:
+            detected_boxes: true
           Queue Size: 5
           Value: true
         - Class: rviz/MarkerArray
           Enabled: true
           Marker Topic: /perception/object_recognition/visualization/tracks
           Name: Tracks (class color)
-          Namespaces: {}
+          Namespaces:
+            tracked_boxes: true
+            tracked_labels: true
           Queue Size: 5
           Value: true
         - Class: rviz/MarkerArray
           Enabled: true
           Marker Topic: /perception/object_recognition/visualization/predictions
           Name: Predictions (0-3s)
-          Namespaces: {}
+          Namespaces:
+            predicted_ends: true
+            predicted_paths: true
+            predicted_samples: true
           Queue Size: 5
           Value: true
       Enabled: true
@@ -126,13 +139,50 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-      Marker Alpha: 0.7
-      Marker Scale: 0.7
+        base_link:
+          Value: true
+        camera_back:
+          Value: true
+        camera_front:
+          Value: true
+        camera_front_left:
+          Value: true
+        camera_front_right:
+          Value: true
+        gps:
+          Value: true
+        imu:
+          Value: true
+        lidar1:
+          Value: true
+        map:
+          Value: true
+        morai_map:
+          Value: true
+      Marker Alpha: 0.699999988079071
+      Marker Scale: 0.699999988079071
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: false
-      Tree: {}
+      Tree:
+        map:
+          morai_map:
+            base_link:
+              camera_back:
+                {}
+              camera_front:
+                {}
+              camera_front_left:
+                {}
+              camera_front_right:
+                {}
+              gps:
+                {}
+              imu:
+                {}
+              lidar1:
+                {}
       Update Interval: 0
       Value: true
     - Class: rviz/Image
@@ -198,7 +248,7 @@ Visualization Manager:
     - Class: rviz/FocusCamera
     - Class: rviz/Measure
     - Class: rviz/SetInitialPose
-      Theta std deviation: 0.261799
+      Theta std deviation: 0.26179900765419006
       Topic: /initialpose
       X std deviation: 0.5
       Y std deviation: 0.5
@@ -210,37 +260,37 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Class: rviz/Orbit
-      Distance: 32
+      Class: rviz/ThirdPersonFollower
+      Distance: 10.100000381469727
       Enable Stereo Rendering:
-        Stereo Eye Separation: 0.06
+        Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
-      Field of View: 0.785398
+      Field of View: 0.7853981852531433
       Focal Point:
         X: 0
         Y: 0
         Z: 0
       Focal Shape Fixed Size: false
-      Focal Shape Size: 0.05
+      Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
-      Near Clip Distance: 0.01
-      Pitch: 0.72
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 0.5053983926773071
       Target Frame: base_link
-      Yaw: 3.14
+      Yaw: 3.0453999042510986
     Saved:
-      - Class: rviz/TopDownOrtho
-        Angle: 0
+      - Angle: 0
+        Class: rviz/TopDownOrtho
         Enable Stereo Rendering:
-          Stereo Eye Separation: 0.06
+          Stereo Eye Separation: 0.05999999865889549
           Stereo Focal Distance: 1
           Swap Stereo Eyes: false
           Value: false
         Invert Z Axis: false
         Name: Top Down
-        Near Clip Distance: 0.01
+        Near Clip Distance: 0.009999999776482582
         Scale: 20
         Target Frame: base_link
         X: 0
@@ -254,14 +304,14 @@ Window Geometry:
     collapsed: false
   Front Right Camera:
     collapsed: false
-  Height: 1016
+  Height: 752
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd000000020000000000000156000002b2fc0200000001fb000000100044006900730070006c0061007900730100000129000002b2000000c900ffffff0000000200000738000000e6fc0100000006fb0000000a0056006900650077007301000000000000016a0000010000fffffffb0000001c0047006c006f00620061006c0020004d0069006e0069006d0061007001000001700000011c000000b700fffffffb0000002200460072006f006e00740020004c006500660074002000430061006d00650072006101000002920000011f000000c800fffffffb0000001800460072006f006e0074002000430061006d00650072006101000003b700000128000000a900fffffffb0000002400460072006f006e0074002000520069006700680074002000430061006d00650072006101000004e500000126000000d100fffffffb000000160052006500610072002000430061006d006500720061010000061100000127000000a300ffffff000005dc000002b200000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd000000020000000000000156000001aafc0200000001fb000000100044006900730070006c0061007900730100000129000001aa000000c900ffffff00000002000003fd000000e6fc0100000006fb0000000a005600690065007700730100000000000001000000010000fffffffb0000001c0047006c006f00620061006c0020004d0069006e0069006d0061007001000001700000011c0000000000000000fb0000002200460072006f006e00740020004c006500660074002000430061006d0065007200610100000106000000c8000000c800fffffffb0000001800460072006f006e0074002000430061006d00650072006101000001d4000000a9000000a900fffffffb0000002400460072006f006e0074002000520069006700680074002000430061006d0065007200610100000283000000d1000000d100fffffffb000000160052006500610072002000430061006d006500720061010000035a000000a3000000a300ffffff000002a1000001aa00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Rear Camera:
     collapsed: false
   Views:
     collapsed: false
-  Width: 1848
-  X: 72
-  Y: 27
+  Width: 1021
+  X: 274
+  Y: 277

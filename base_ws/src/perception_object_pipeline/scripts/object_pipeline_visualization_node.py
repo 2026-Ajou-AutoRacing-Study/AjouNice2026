@@ -59,11 +59,16 @@ def uuid_bytes(object_id):
 
 def uuid_marker_id(object_id):
     raw = uuid_bytes(object_id)
-    return int.from_bytes(raw[:4], byteorder="big", signed=False) & 0x7FFFFFFF
+    # StableTrackUuid stores the tracker ID in the final four bytes; the first
+    # four bytes are the shared "AJOU" namespace and therefore cannot
+    # distinguish objects in one MarkerArray.
+    # Marker.id is int32, so interpreting the stored uint32 bit pattern as a
+    # signed value preserves all 32 bits without introducing mask collisions.
+    return int.from_bytes(raw[-4:], byteorder="big", signed=True)
 
 
 def short_uuid(object_id):
-    return uuid_bytes(object_id).hex()[:8]
+    return uuid_bytes(object_id).hex()[-8:]
 
 
 def clear_marker(header):

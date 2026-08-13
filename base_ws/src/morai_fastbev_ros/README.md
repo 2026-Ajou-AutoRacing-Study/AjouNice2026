@@ -57,3 +57,8 @@ export FASTBEV_CHECKPOINT=/absolute/path/to/checkpoint.pth
 
 세부 계약과 검증 순서는 [docs/ONLINE_INTEGRATION.md](docs/ONLINE_INTEGRATION.md)에
 정리한다.
+
+MORAI Sensor/Ego 연결부터 Fast-BEV, T&P, RViz와 topic 모니터링까지의 전체
+터미널 순서는
+[`docs/runbooks/morai_fastbev_object_pipeline_live.md`](../../../docs/runbooks/morai_fastbev_object_pipeline_live.md)를
+따른다.

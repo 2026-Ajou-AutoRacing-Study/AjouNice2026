@@ -4,6 +4,10 @@ This package defines the production ROS1 object boundary shared by
 PointPainting, Fast-BEV, EKF tracking, prediction and the Autoware-derived
 planning stack.
 
+MORAI live 환경을 처음부터 실행하는 터미널별 명령은
+[`docs/runbooks/morai_fastbev_object_pipeline_live.md`](../../../docs/runbooks/morai_fastbev_object_pipeline_live.md)에
+정리되어 있다.
+
 ```text
 PointPainting or Fast-BEV
   autoware_perception_msgs/DetectedObjects
