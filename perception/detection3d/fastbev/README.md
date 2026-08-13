@@ -3,6 +3,20 @@
 Fast-BEV 원본 구현은 `third_party/fastbev` submodule에 보존한다. 이 디렉터리에는
 MORAI 4-camera dataset adapter, 프로젝트 config, 얇은 학습·평가 launcher만 둔다.
 
+이미지 변환 backend는 Fast-BEV 원본 PIL과 OpenCV를 모두 지원한다. 기본값
+`pil`은 기존 실험 재현용이며, 배포 전처리와 맞춘 학습·validation·test는 아래처럼
+한 번에 선택한다.
+
+```bash
+FASTBEV_IMAGE_BACKEND=opencv \
+perception/detection3d/fastbev/scripts/train.sh \
+  full1500_stride1_fp16_opencv_v1
+```
+
+`MoraiAugImageMultiViewImage`가 픽셀 resize/crop/flip/rotate backend만 바꾸고,
+augmentation 표본과 camera projection 보정 수식은 같은 Fast-BEV 경로를
+공유한다. 선택한 backend는 config와 W&B run config에도 기록된다.
+
 ```bash
 cd ~/AjouNice2026
 

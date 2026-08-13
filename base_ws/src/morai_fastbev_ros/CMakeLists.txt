@@ -31,6 +31,8 @@ catkin_package(
 catkin_install_python(
   PROGRAMS
     scripts/fastbev_online_node.py
+    scripts/benchmark_fastbev_runtime.py
+    scripts/validate_fastbev_preprocessing.py
     scripts/run_fastbev.sh
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

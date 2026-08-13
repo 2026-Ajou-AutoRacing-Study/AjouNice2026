@@ -1,9 +1,13 @@
 """Four-camera pipeline primitives for Fast-BEV."""
 
+import cv2
 import numpy as np
 
 from mmdet.datasets.builder import PIPELINES
 from mmdet.datasets.pipelines import Compose
+from mmdet3d.datasets.pipelines.transforms_3d import (
+    RandomAugImageMultiViewImage,
+)
 
 
 @PIPELINES.register_module()
@@ -83,3 +87,79 @@ class MoraiMultiViewArrayPipeline:
             to_rgb=False,
         )
         return results
+
+
+@PIPELINES.register_module()
+class MoraiAugImageMultiViewImage(RandomAugImageMultiViewImage):
+    """Fast-BEV image geometry with a selectable pixel backend.
+
+    Fast-BEV's original transform uses Pillow for resize/crop/flip/rotate.
+    The OpenCV backend preserves the same sampled geometry and projection
+    update while replacing only the pixel operations.  Keeping both paths
+    makes the original training reproducible and lets deployment-matched
+    experiments select OpenCV explicitly.
+    """
+
+    def __init__(self, backend="pil", **kwargs):
+        super().__init__(**kwargs)
+        self.backend = str(backend).lower()
+        if self.backend not in ("pil", "opencv"):
+            raise ValueError(
+                "MoraiAugImageMultiViewImage backend must be 'pil' or "
+                f"'opencv', got {backend!r}")
+
+    @staticmethod
+    def _crop_with_border(image, crop):
+        """Match Pillow crop size and zero-fill out-of-image regions."""
+        left, top, right, bottom = map(int, crop)
+        width, height = right - left, bottom - top
+        if width <= 0 or height <= 0:
+            raise ValueError(f"Invalid image crop: {crop}")
+        output = np.zeros((height, width, image.shape[2]), dtype=image.dtype)
+        src_left, src_top = max(left, 0), max(top, 0)
+        src_right, src_bottom = min(right, image.shape[1]), min(
+            bottom, image.shape[0])
+        if src_right > src_left and src_bottom > src_top:
+            dst_left, dst_top = src_left - left, src_top - top
+            output[
+                dst_top:dst_top + src_bottom - src_top,
+                dst_left:dst_left + src_right - src_left,
+            ] = image[src_top:src_bottom, src_left:src_right]
+        return output
+
+    def img_transform_core(self, img, resize_dims, crop, flip, rotate, pad):
+        if self.backend == "pil":
+            return super().img_transform_core(
+                img, resize_dims, crop, flip, rotate, pad)
+
+        image = cv2.resize(
+            np.asarray(img), tuple(map(int, resize_dims)),
+            interpolation=cv2.INTER_LINEAR)
+        image = self._crop_with_border(image, crop)
+        if flip:
+            image = cv2.flip(image, 1)
+        if rotate:
+            height, width = image.shape[:2]
+            matrix = cv2.getRotationMatrix2D(
+                (width / 2.0, height / 2.0), float(rotate), 1.0)
+            image = cv2.warpAffine(
+                image,
+                matrix,
+                (width, height),
+                flags=cv2.INTER_NEAREST,
+                borderMode=cv2.BORDER_CONSTANT,
+                borderValue=0,
+            )
+
+        top, right, bottom, left = map(int, pad[0])
+        if any((top, right, bottom, left)):
+            image = cv2.copyMakeBorder(
+                image,
+                top,
+                bottom,
+                left,
+                right,
+                cv2.BORDER_CONSTANT,
+                value=pad[1],
+            )
+        return image

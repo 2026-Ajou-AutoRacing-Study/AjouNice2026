@@ -49,6 +49,25 @@ base_ws/src/morai_fastbev_ros/scripts/run_fastbev.sh live
 
 rosbag에서는 `live` 대신 `bag`을 사용하고 `rosbag play --clock`으로 재생한다.
 
+기본 runtime은 test 222프레임에서 기존 PIL과 사실상 같은 정확도를 확인한
+OpenCV 최적화 설정이다.
+
+- `preprocess_backend=opencv`(기본): 고정 4카메라 resize/crop을 OpenCV로
+  병렬 처리한다. PIL 대비 center mAP 변화는 -0.00022였고 CPU 변환은 약
+  1.6배 빨랐다.
+- `preprocess_backend=fixed`: 기존 학습/평가와 픽셀 결과가 완전히 같은 PIL
+  resize를 사용하는 재현·rollback 경로다.
+- `pipeline_mode=staged`: 네 카메라 CPU 전처리와 GPU 추론을 서로 겹쳐 수행한다.
+- 카메라 네 장의 JPEG decode와 resize/normalize도 4 worker로 병렬 수행한다.
+- 대기열은 각 단계마다 최신 세트 하나만 유지하므로 처리 지연이 누적되지 않는다.
+
+기존 PIL 경로를 명시적으로 선택하려면 다음처럼 실행한다.
+
+```bash
+FASTBEV_PREPROCESS_BACKEND=fixed \
+base_ws/src/morai_fastbev_ros/scripts/run_fastbev.sh bag
+```
+
 체크포인트를 바꾸려면 다음 환경변수를 사용한다.
 
 ```bash
@@ -57,6 +76,9 @@ export FASTBEV_CHECKPOINT=/absolute/path/to/checkpoint.pth
 
 세부 계약과 검증 순서는 [docs/ONLINE_INTEGRATION.md](docs/ONLINE_INTEGRATION.md)에
 정리한다.
+
+runtime 구현·동등성·23/30/35 Hz 결과는
+[docs/RUNTIME_OPTIMIZATION.md](docs/RUNTIME_OPTIMIZATION.md)에 정리한다.
 
 MORAI Sensor/Ego 연결부터 Fast-BEV, T&P, RViz와 topic 모니터링까지의 전체
 터미널 순서는

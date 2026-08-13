@@ -21,6 +21,8 @@
   <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
   <arg name="fastbev_checkpoint"
        default="$(arg repo_root)/artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_wandb_v1/best_center_mAP_epoch_11.pth"/>
+  <arg name="fastbev_preprocess_backend" default="opencv"/>
+  <arg name="fastbev_pipeline_mode" default="staged"/>
   <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
   <arg name="pointpainting_cfg"
        default="$(arg openpcdet_root)/tools/cfgs/custom_models/pointpillar_morai_pointpainting.yaml"/>
@@ -43,6 +45,8 @@
       <arg name="repo_root" value="$(arg repo_root)"/>
       <arg name="checkpoint" value="$(arg fastbev_checkpoint)"/>
       <arg name="objects_topic" value="$(arg detection_objects)"/>
+      <arg name="preprocess_backend" value="$(arg fastbev_preprocess_backend)"/>
+      <arg name="pipeline_mode" value="$(arg fastbev_pipeline_mode)"/>
       <arg name="warmup_iterations" value="$(arg warmup_iterations)"/>
       <arg name="use_sim_time" value="$(arg use_sim_time)"/>
     </include>

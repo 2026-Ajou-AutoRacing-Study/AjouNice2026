@@ -17,8 +17,14 @@
   <arg name="fp16" default="true"/>
   <arg name="cudnn_benchmark" default="true"/>
   <arg name="sync_queue_size" default="12"/>
-  <arg name="sync_slop_sec" default="0.05"/>
+  <arg name="sync_slop_sec" default="0.015"/>
   <arg name="warmup_iterations" default="2"/>
+  <arg name="preprocess_backend" default="opencv"/>
+  <arg name="pipeline_mode" default="staged"/>
+  <arg name="pin_memory" default="true"/>
+  <arg name="metrics_window" default="100"/>
+  <arg name="log_interval" default="20"/>
+  <arg name="preprocess_workers" default="4"/>
   <arg name="use_sim_time" default="false"/>
 
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
@@ -45,5 +51,11 @@
     <param name="sync_queue_size" value="$(arg sync_queue_size)"/>
     <param name="sync_slop_sec" value="$(arg sync_slop_sec)"/>
     <param name="warmup_iterations" value="$(arg warmup_iterations)"/>
+    <param name="preprocess_backend" value="$(arg preprocess_backend)"/>
+    <param name="pipeline_mode" value="$(arg pipeline_mode)"/>
+    <param name="pin_memory" value="$(arg pin_memory)"/>
+    <param name="metrics_window" value="$(arg metrics_window)"/>
+    <param name="log_interval" value="$(arg log_interval)"/>
+    <param name="preprocess_workers" value="$(arg preprocess_workers)"/>
   </node>
 </launch>

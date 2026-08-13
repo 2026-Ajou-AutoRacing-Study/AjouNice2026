@@ -28,9 +28,11 @@ Fast-BEV는 표준 객체와 legacy/debug 출력을 동시에 발행한다.
 ## 동기화와 지연 정책
 
 - 네 카메라는 ApproximateTimeSynchronizer로 묶는다.
-- callback과 CUDA 추론을 분리한다.
-- 추론 중 새 세트가 들어오면 가장 최신 세트 하나만 남기고 이전 대기 세트를
-  버린다. 따라서 처리율이 입력률보다 낮아져도 지연이 누적되지 않는다.
+- ApproximateTimeSynchronizer 허용폭은 기본 15 ms다. 35 Hz 스트레스 재생에서
+  50 ms를 쓰면 서로 이웃한 카메라 프레임이 묶일 수 있어 축소했다.
+- callback, 4-camera CPU 전처리, GPU 추론을 분리한다.
+- raw와 prepared 단계마다 가장 최신 세트 하나만 남긴다. 따라서 처리율이
+  입력률보다 낮아져도 과거 프레임 backlog가 누적되지 않는다.
 - `dropped_lidar_frames`, `skipped_lidar_frames`는 기존 메시지 호환 때문에
   유지한 이름이다. Fast-BEV에서는 각각 dropped/skipped 4-camera set 수다.
 
@@ -46,3 +48,7 @@ rostopic echo -n 1 /perception/object_recognition/objects
 
 확인할 핵심 값은 camera span, preprocessing/inference/total ms, Detection Hz,
 dropped/skipped set, 각 class 검출 수, TF/RViz box 정렬이다.
+
+`total_ms`는 호환 메시지의 단계별 계산량 합계다. staged mode에서는 CPU와 GPU가
+겹쳐 실행되므로 실제 steady-state 처리율은 `1 / max(preprocess, inference)`에
+가깝고, 로그의 `latency`가 한 세트의 end-to-end wall latency다.

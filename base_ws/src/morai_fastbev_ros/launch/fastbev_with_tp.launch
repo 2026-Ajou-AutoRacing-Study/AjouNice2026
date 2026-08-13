@@ -9,12 +9,16 @@
        default="/perception/object_recognition/objects"/>
   <arg name="prediction_time_step" default="0.1"/>
   <arg name="prediction_horizon" default="3.0"/>
+  <arg name="preprocess_backend" default="opencv"/>
+  <arg name="pipeline_mode" default="staged"/>
 
   <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
     <arg name="detector" value="fastbev"/>
     <arg name="python_executable" value="$(arg python_executable)"/>
     <arg name="repo_root" value="$(arg repo_root)"/>
     <arg name="fastbev_checkpoint" value="$(arg checkpoint)"/>
+    <arg name="fastbev_preprocess_backend" value="$(arg preprocess_backend)"/>
+    <arg name="fastbev_pipeline_mode" value="$(arg pipeline_mode)"/>
     <arg name="predicted_objects" value="$(arg planning_output_topic)"/>
     <arg name="prediction_time_step" value="$(arg prediction_time_step)"/>
     <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>

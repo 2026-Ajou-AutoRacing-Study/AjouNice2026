@@ -6,6 +6,16 @@ custom_imports = dict(
     imports=['perception.detection3d.fastbev.plugin'],
     allow_failed_imports=False)
 
+# Keep the upstream PIL path reproducible while allowing the next training,
+# validation and test run to match the OpenCV online deployment backend:
+#   FASTBEV_IMAGE_BACKEND=opencv perception/.../scripts/train.sh
+image_transform_backend = __import__('os').environ.get(
+    'FASTBEV_IMAGE_BACKEND', 'pil').lower()
+if image_transform_backend not in ('pil', 'opencv'):
+    raise ValueError(
+        'FASTBEV_IMAGE_BACKEND must be either pil or opencv, got '
+        + repr(image_transform_backend))
+
 class_names = ['vehicle', 'pedestrian', 'obstacle']
 dataset_type = 'MoraiMultiViewDataset'
 data_root = '/home/luv/ajounice_data/morai_od/processed/fastbev_sunny13_1500_v1/'
@@ -85,7 +95,8 @@ train_pipeline = [
     dict(type='GlobalRotScaleTrans', rot_range=[-0.20, 0.20],
          scale_ratio_range=[0.95, 1.05], translation_std=[0.05, 0.05, 0.05],
          update_img2lidar=True),
-    dict(type='RandomAugImageMultiViewImage', data_config=data_config),
+    dict(type='MoraiAugImageMultiViewImage', data_config=data_config,
+         backend=image_transform_backend),
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
     dict(type='KittiSetOrigin', point_cloud_range=point_cloud_range),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
@@ -96,7 +107,8 @@ test_pipeline = [
     dict(type='MoraiMultiViewPipeline', n_images=4, transforms=[
         dict(type='LoadImageFromFile', file_client_args=file_client_args)]),
     dict(type='LoadPointsFromFile', dummy=True, coord_type='LIDAR', load_dim=5, use_dim=5),
-    dict(type='RandomAugImageMultiViewImage', data_config=data_config, is_train=False),
+    dict(type='MoraiAugImageMultiViewImage', data_config=data_config,
+         backend=image_transform_backend, is_train=False),
     dict(type='KittiSetOrigin', point_cloud_range=point_cloud_range),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='DefaultFormatBundle3D', class_names=class_names, with_label=False),
@@ -169,6 +181,7 @@ wandb_tags = [
 ]
 wandb_config = dict(
     architecture='FastBEV-M0-ResNet18',
+    image_transform_backend=image_transform_backend,
     dataset='MORAI-fastbev-sunny13-1500-v1',
     train_frames=1050,
     val_frames=228,

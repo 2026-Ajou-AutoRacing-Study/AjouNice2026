@@ -9,6 +9,8 @@ import math
 import sys
 import threading
 import time
+from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
@@ -27,6 +29,7 @@ import message_filters
 import numpy as np
 import rospy
 import torch
+from PIL import Image
 from autoware_perception_msgs.msg import DetectedObjects
 from geometry_msgs.msg import Pose, Vector3
 from jsk_recognition_msgs.msg import BoundingBox, BoundingBoxArray
@@ -192,6 +195,22 @@ class FastBEVOnlineNode:
         self.sync_queue_size = max(2, int(rospy.get_param("~sync_queue_size", 12)))
         self.sync_slop_sec = max(0.0, float(rospy.get_param("~sync_slop_sec", 0.05)))
         self.max_detection_range = float(rospy.get_param("~max_detection_range", 50.0))
+        self.preprocess_backend = str(
+            rospy.get_param("~preprocess_backend", "opencv")).lower()
+        if self.preprocess_backend not in ("fixed", "opencv", "reference"):
+            raise ValueError(
+                "preprocess_backend must be 'fixed', 'opencv' or 'reference'")
+        self.pipeline_mode = str(rospy.get_param("~pipeline_mode", "staged")).lower()
+        if self.pipeline_mode not in ("staged", "serial"):
+            raise ValueError("pipeline_mode must be 'staged' or 'serial'")
+        self.pin_memory = bool(rospy.get_param("~pin_memory", True))
+        self.metrics_window = max(5, int(rospy.get_param("~metrics_window", 100)))
+        self.log_interval = max(1, int(rospy.get_param("~log_interval", 20)))
+        self.preprocess_workers = max(
+            1, int(rospy.get_param("~preprocess_workers", 4)))
+        self._cpu_pool = ThreadPoolExecutor(
+            max_workers=self.preprocess_workers,
+            thread_name_prefix="fastbev_camera")
 
         for path, label in (
             (self.config_path, "Fast-BEV config"),
@@ -212,6 +231,7 @@ class FastBEVOnlineNode:
         self.calibration = _camera_calibration(self.sensor_config_path)
         self.projection_metadata = _projection_metadata(self.calibration)
         self._load_model_and_pipeline()
+        self._initialize_online_preprocessor()
 
         self.detections_pub = rospy.Publisher(
             rospy.get_param("~detections_topic", "/fastbev/detections"),
@@ -240,16 +260,27 @@ class FastBEVOnlineNode:
         self.synchronizer.registerCallback(self._synchronized_callback)
 
         self._condition = threading.Condition()
-        self._pending = None
+        self._raw_pending = None
+        self._prepared_pending = None
         self._shutdown = False
         self.received_sets = 0
         self.processed_sets = 0
-        self.dropped_sets = 0
+        self.dropped_raw_sets = 0
+        self.dropped_prepared_sets = 0
         self.skipped_sets = 0
+        self._metrics = defaultdict(lambda: deque(maxlen=self.metrics_window))
         self._warmup_complete = self.warmup_iterations == 0
-        self.worker = threading.Thread(target=self._worker_loop, name="fastbev_worker")
-        self.worker.daemon = True
-        self.worker.start()
+        if self.pipeline_mode == "staged":
+            self.preprocess_worker = threading.Thread(
+                target=self._preprocess_loop, name="fastbev_preprocess", daemon=True)
+            self.inference_worker = threading.Thread(
+                target=self._inference_loop, name="fastbev_inference", daemon=True)
+            self.preprocess_worker.start()
+            self.inference_worker.start()
+        else:
+            self.inference_worker = threading.Thread(
+                target=self._serial_loop, name="fastbev_serial", daemon=True)
+            self.inference_worker.start()
         rospy.on_shutdown(self._on_shutdown)
 
         rospy.loginfo("Fast-BEV online node ready")
@@ -258,6 +289,9 @@ class FastBEVOnlineNode:
         rospy.loginfo("  cameras: %s", ", ".join(topics))
         rospy.loginfo("  output frame: %s", self.output_frame_id)
         rospy.loginfo("  precision: %s", "FP16" if self.use_fp16 else "FP32")
+        rospy.loginfo(
+            "  runtime: pipeline=%s preprocess=%s pin_memory=%s",
+            self.pipeline_mode, self.preprocess_backend, self.pin_memory)
         if not self._warmup_complete:
             rospy.loginfo(
                 "Waiting for the first synchronized real 4-camera set for %d warm-up iterations",
@@ -290,46 +324,39 @@ class FastBEVOnlineNode:
         torch.backends.cudnn.benchmark = self.cudnn_benchmark
         self.model = model.cuda().eval()
 
-    def _synchronized_callback(self, *messages: CompressedImage) -> None:
-        received_at = time.perf_counter()
-        self.received_sets += 1
-        with self._condition:
-            if self._pending is not None:
-                self.dropped_sets += 1
-            self._pending = (messages, received_at)
-            self._condition.notify()
+    def _initialize_online_preprocessor(self) -> None:
+        """Cache fixed Sensor_6 geometry and fixed inference transforms."""
+        if not hasattr(self, "_cpu_pool"):
+            self.preprocess_workers = 4
+            self._cpu_pool = ThreadPoolExecutor(
+                max_workers=self.preprocess_workers,
+                thread_name_prefix="fastbev_camera")
+        blank_images = []
+        for name in CAMERA_NAMES:
+            width, height = self.calibration[name]["resolution"]
+            blank_images.append(np.zeros((int(height), int(width), 3), np.uint8))
+        _, static_meta = self._prepare_reference(blank_images, "static_geometry")
+        self.static_image_meta = static_meta[0]
 
-    def _worker_loop(self) -> None:
-        while not rospy.is_shutdown():
-            with self._condition:
-                while self._pending is None and not self._shutdown:
-                    self._condition.wait(timeout=0.2)
-                if self._shutdown:
-                    return
-                messages, received_at = self._pending
-                self._pending = None
-            try:
-                self._process(messages, received_at)
-            except Exception as error:  # keep the ROS node alive for transient bad frames
-                self.skipped_sets += 1
-                rospy.logerr_throttle(1.0, "Fast-BEV frame failed: %s", error)
+        data_config = self.cfg.data_config
+        self.input_height, self.input_width = map(
+            int, data_config["test_input_size"])
+        norm = self.cfg.img_norm_cfg
+        self.normalization_mean = np.asarray(norm["mean"], dtype=np.float32)
+        self.normalization_std = np.asarray(norm["std"], dtype=np.float32)
+        self.normalization_to_rgb = bool(norm.get("to_rgb", True))
+        self._resize_specs = []
+        for name in CAMERA_NAMES:
+            width, height = map(int, self.calibration[name]["resolution"])
+            resize = self.input_width / float(width) + float(
+                data_config.get("test_resize", 0.0))
+            resized_width, resized_height = int(width * resize), int(height * resize)
+            left = (resized_width - self.input_width) // 2
+            top = (resized_height - self.input_height) // 2
+            self._resize_specs.append(
+                ((resized_width, resized_height), left, top))
 
-    def _decode_images(self, messages: Sequence[CompressedImage]) -> List[np.ndarray]:
-        images = []
-        for name, message in zip(CAMERA_NAMES, messages):
-            encoded = np.frombuffer(message.data, dtype=np.uint8)
-            image = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
-            if image is None:
-                raise ValueError(f"Failed to decode {name} compressed image")
-            expected = self.calibration[name]["resolution"]
-            if image.shape[1] != expected[0] or image.shape[0] != expected[1]:
-                raise ValueError(
-                    f"{name} resolution {image.shape[1]}x{image.shape[0]} != "
-                    f"Sensor_6 {expected[0]}x{expected[1]}")
-            images.append(image)
-        return images
-
-    def _prepare(self, images: Sequence[np.ndarray], sample_idx: str):
+    def _prepare_reference(self, images: Sequence[np.ndarray], sample_idx: str):
         results = {
             "sample_idx": sample_idx,
             "camera_images": list(images),
@@ -338,13 +365,149 @@ class FastBEVOnlineNode:
             "box_mode_3d": self.box_mode_3d,
         }
         prepared = self.pipeline(results)
-        image_container = prepared["img"]
-        meta_container = prepared["img_metas"]
-        image_tensor = getattr(image_container, "data", image_container)
-        image_meta = getattr(meta_container, "data", meta_container)
+        image_tensor = getattr(prepared["img"], "data", prepared["img"])
+        image_meta = getattr(
+            prepared["img_metas"], "data", prepared["img_metas"])
         if image_tensor.ndim != 4 or image_tensor.shape[0] != 4:
-            raise AssertionError(f"Unexpected online image tensor shape: {image_tensor.shape}")
-        return image_tensor.unsqueeze(0).cuda(non_blocking=True), [image_meta]
+            raise AssertionError(
+                f"Unexpected online image tensor shape: {image_tensor.shape}")
+        return image_tensor, [image_meta]
+
+    def _prepare_opencv(self, images: Sequence[np.ndarray]):
+        return self._prepare_fixed_pixels(images, use_opencv=True)
+
+    def _prepare_fixed(self, images: Sequence[np.ndarray]):
+        return self._prepare_fixed_pixels(images, use_opencv=False)
+
+    def _prepare_fixed_pixels(
+            self, images: Sequence[np.ndarray], use_opencv: bool):
+        output = np.empty(
+            (4, 3, self.input_height, self.input_width), dtype=np.float32)
+        futures = [
+            self._cpu_pool.submit(
+                self._transform_camera, index, image, spec, use_opencv)
+            for index, (image, spec) in enumerate(zip(images, self._resize_specs))
+        ]
+        for index, future in enumerate(futures):
+            output[index] = future.result()
+        tensor = torch.from_numpy(output)
+        if self.pin_memory:
+            tensor = tensor.pin_memory()
+        return tensor, [self.static_image_meta]
+
+    def _transform_camera(self, index, image, spec, use_opencv):
+        resize_dims, left, top = spec
+        if use_opencv:
+            resized = cv2.resize(
+                image, resize_dims, interpolation=cv2.INTER_LINEAR)
+            cropped = resized[
+                top:top + self.input_height,
+                left:left + self.input_width,
+            ]
+        else:
+            # Preserve the exact training/test resize semantics while
+            # bypassing the generic per-frame Compose metadata path.
+            pil_image = Image.fromarray(image, mode="RGB")
+            pil_image = pil_image.resize(resize_dims)
+            pil_image = pil_image.crop((
+                left, top, left + self.input_width,
+                top + self.input_height))
+            cropped = np.asarray(pil_image)
+        if cropped.shape[:2] != (self.input_height, self.input_width):
+            raise ValueError(
+                f"Invalid fixed crop for {CAMERA_NAMES[index]}: {cropped.shape}")
+        pixels = cropped.astype(np.float32)
+        if self.normalization_to_rgb:
+            pixels = pixels[..., ::-1]
+        return ((pixels - self.normalization_mean) /
+                self.normalization_std).transpose(2, 0, 1)
+
+    def _synchronized_callback(self, *messages: CompressedImage) -> None:
+        received_at = time.perf_counter()
+        self.received_sets += 1
+        with self._condition:
+            if self._raw_pending is not None:
+                self.dropped_raw_sets += 1
+            self._raw_pending = (messages, received_at)
+            self._condition.notify_all()
+
+    def _take_raw(self):
+        with self._condition:
+            while self._raw_pending is None and not self._shutdown:
+                self._condition.wait(timeout=0.2)
+            if self._shutdown:
+                return None
+            item = self._raw_pending
+            self._raw_pending = None
+            return item
+
+    def _serial_loop(self) -> None:
+        while not rospy.is_shutdown():
+            item = self._take_raw()
+            if item is None:
+                return
+            try:
+                self._infer_and_publish(self._preprocess(*item))
+            except Exception as error:  # keep the ROS node alive for transient bad frames
+                self.skipped_sets += 1
+                rospy.logerr_throttle(1.0, "Fast-BEV frame failed: %s", error)
+
+    def _preprocess_loop(self) -> None:
+        while not rospy.is_shutdown():
+            item = self._take_raw()
+            if item is None:
+                return
+            try:
+                prepared = self._preprocess(*item)
+                with self._condition:
+                    if self._prepared_pending is not None:
+                        self.dropped_prepared_sets += 1
+                    self._prepared_pending = prepared
+                    self._condition.notify_all()
+            except Exception as error:
+                self.skipped_sets += 1
+                rospy.logerr_throttle(1.0, "Fast-BEV preprocess failed: %s", error)
+
+    def _inference_loop(self) -> None:
+        while not rospy.is_shutdown():
+            with self._condition:
+                while self._prepared_pending is None and not self._shutdown:
+                    self._condition.wait(timeout=0.2)
+                if self._shutdown:
+                    return
+                prepared = self._prepared_pending
+                self._prepared_pending = None
+            try:
+                self._infer_and_publish(prepared)
+            except Exception as error:
+                self.skipped_sets += 1
+                rospy.logerr_throttle(1.0, "Fast-BEV inference failed: %s", error)
+
+    def _decode_images(self, messages: Sequence[CompressedImage]) -> List[np.ndarray]:
+        futures = [
+            self._cpu_pool.submit(self._decode_image, name, message)
+            for name, message in zip(CAMERA_NAMES, messages)
+        ]
+        return [future.result() for future in futures]
+
+    def _decode_image(self, name, message):
+        encoded = np.frombuffer(message.data, dtype=np.uint8)
+        image = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError(f"Failed to decode {name} compressed image")
+        expected = self.calibration[name]["resolution"]
+        if image.shape[1] != expected[0] or image.shape[0] != expected[1]:
+            raise ValueError(
+                f"{name} resolution {image.shape[1]}x{image.shape[0]} != "
+                f"Sensor_6 {expected[0]}x{expected[1]}")
+        return image
+
+    def _prepare(self, images: Sequence[np.ndarray], sample_idx: str):
+        if self.preprocess_backend == "reference":
+            return self._prepare_reference(images, sample_idx)
+        if self.preprocess_backend == "opencv":
+            return self._prepare_opencv(images)
+        return self._prepare_fixed(images)
 
     def _infer(self, image_tensor, image_metas):
         with torch.no_grad():
@@ -397,7 +560,8 @@ class FastBEVOnlineNode:
         detections.total_ms = float(total_ms)
         # These legacy field names are kept for wire compatibility.  For this
         # camera-only detector they count dropped/skipped synchronized sets.
-        detections.dropped_lidar_frames = int(self.dropped_sets)
+        detections.dropped_lidar_frames = int(
+            self.dropped_raw_sets + self.dropped_prepared_sets)
         detections.skipped_lidar_frames = int(self.skipped_sets)
 
         jsk = BoundingBoxArray()
@@ -453,50 +617,96 @@ class FastBEVOnlineNode:
         self.jsk_pub.publish(jsk)
         self.markers_pub.publish(markers)
 
-    def _process(self, messages, received_at: float) -> None:
-        total_start = time.perf_counter()
+    def _preprocess(self, messages, received_at: float):
+        preprocess_start = time.perf_counter()
         timestamps = [_stamp_sec(message) for message in messages]
         camera_span_ms = (max(timestamps) - min(timestamps)) * 1000.0
-        queue_delay_ms = (total_start - received_at) * 1000.0
+        queue_delay_ms = (preprocess_start - received_at) * 1000.0
 
-        preprocess_start = time.perf_counter()
+        decode_start = time.perf_counter()
         images = self._decode_images(messages)
-        image_tensor, image_metas = self._prepare(
+        decode_ms = (time.perf_counter() - decode_start) * 1000.0
+        transform_start = time.perf_counter()
+        cpu_tensor, image_metas = self._prepare(
             images, f"ros_{messages[0].header.seq}")
-        torch.cuda.synchronize()
-        preprocess_ms = (time.perf_counter() - preprocess_start) * 1000.0
+        transform_ms = (time.perf_counter() - transform_start) * 1000.0
+        return {
+            "messages": messages,
+            "received_at": received_at,
+            "prepared_at": time.perf_counter(),
+            "cpu_tensor": cpu_tensor,
+            "image_metas": image_metas,
+            "camera_span_ms": camera_span_ms,
+            "queue_delay_ms": queue_delay_ms,
+            "decode_ms": decode_ms,
+            "transform_ms": transform_ms,
+        }
+
+    def _infer_and_publish(self, prepared) -> None:
+        inference_queue_ms = (
+            time.perf_counter() - prepared["prepared_at"]) * 1000.0
+        h2d_start = torch.cuda.Event(enable_timing=True)
+        h2d_end = torch.cuda.Event(enable_timing=True)
+        h2d_start.record()
+        image_tensor = prepared["cpu_tensor"].unsqueeze(0).cuda(
+            non_blocking=self.pin_memory)
+        h2d_end.record()
+        h2d_end.synchronize()
+        h2d_ms = h2d_start.elapsed_time(h2d_end)
 
         if not self._warmup_complete:
             for _ in range(self.warmup_iterations):
-                self._infer(image_tensor, image_metas)
+                self._infer(image_tensor, prepared["image_metas"])
             torch.cuda.synchronize()
             self._warmup_complete = True
             rospy.loginfo("Real-input Fast-BEV warm-up complete")
 
-        torch.cuda.synchronize()
         inference_start = time.perf_counter()
-        boxes, scores, labels = self._infer(image_tensor, image_metas)
+        boxes, scores, labels = self._infer(image_tensor, prepared["image_metas"])
         torch.cuda.synchronize()
         inference_ms = (time.perf_counter() - inference_start) * 1000.0
-        total_ms = (time.perf_counter() - total_start) * 1000.0
-        header = self._header(messages)
+        preprocess_ms = prepared["decode_ms"] + prepared["transform_ms"] + h2d_ms
+        total_ms = preprocess_ms + inference_ms
+        header = self._header(prepared["messages"])
+        publish_start = time.perf_counter()
         self._publish(
-            header, boxes, scores, labels, camera_span_ms, queue_delay_ms,
+            header, boxes, scores, labels, prepared["camera_span_ms"],
+            prepared["queue_delay_ms"],
             preprocess_ms, inference_ms, total_ms)
+        publish_ms = (time.perf_counter() - publish_start) * 1000.0
+        latency_ms = (time.perf_counter() - prepared["received_at"]) * 1000.0
         self.processed_sets += 1
-        if self.processed_sets <= 5 or self.processed_sets % 20 == 0:
+        frame_metrics = {
+            "camera_span": prepared["camera_span_ms"],
+            "raw_queue": prepared["queue_delay_ms"],
+            "decode": prepared["decode_ms"],
+            "transform": prepared["transform_ms"],
+            "inference_queue": inference_queue_ms,
+            "h2d": h2d_ms,
+            "inference": inference_ms,
+            "publish": publish_ms,
+            "latency": latency_ms,
+        }
+        for key, value in frame_metrics.items():
+            self._metrics[key].append(float(value))
+        if self.processed_sets <= 5 or self.processed_sets % self.log_interval == 0:
+            averages = {
+                key: float(np.mean(values)) for key, values in self._metrics.items()}
             rospy.loginfo(
-                "frame=%d boxes=%d camera_span=%.1fms queue=%.1fms "
-                "preprocess=%.1fms inference=%.1fms total=%.1fms "
-                "dropped=%d skipped=%d",
-                self.processed_sets, len(boxes), camera_span_ms, queue_delay_ms,
-                preprocess_ms, inference_ms, total_ms,
-                self.dropped_sets, self.skipped_sets)
+                "frame=%d boxes=%d avg[%d]: span=%.1f raw_q=%.1f decode=%.1f "
+                "transform=%.1f infer_q=%.1f h2d=%.1f infer=%.1f publish=%.1f "
+                "latency=%.1fms dropped_raw=%d dropped_prepared=%d skipped=%d",
+                self.processed_sets, len(boxes), len(self._metrics["latency"]),
+                averages["camera_span"], averages["raw_queue"], averages["decode"],
+                averages["transform"], averages["inference_queue"], averages["h2d"],
+                averages["inference"], averages["publish"], averages["latency"],
+                self.dropped_raw_sets, self.dropped_prepared_sets, self.skipped_sets)
 
     def _on_shutdown(self) -> None:
         with self._condition:
             self._shutdown = True
             self._condition.notify_all()
+        self._cpu_pool.shutdown(wait=False, cancel_futures=True)
 
 
 def main() -> None:

@@ -11,6 +11,8 @@ CONDA_ENV="${CONDA_ENV:-fastbev_rtx50}"
 FASTBEV_CONFIG="${FASTBEV_CONFIG:-$REPO_ROOT/perception/detection3d/fastbev/configs/fastbev_m0_morai_4cam_s384x704.py}"
 FASTBEV_CHECKPOINT="${FASTBEV_CHECKPOINT:-$REPO_ROOT/artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_wandb_v1/best_center_mAP_epoch_11.pth}"
 FASTBEV_WITH_TP="${FASTBEV_WITH_TP:-false}"
+FASTBEV_PREPROCESS_BACKEND="${FASTBEV_PREPROCESS_BACKEND:-opencv}"
+FASTBEV_PIPELINE_MODE="${FASTBEV_PIPELINE_MODE:-staged}"
 
 case "$MODE" in
   live) USE_SIM_TIME=false ;;
@@ -76,6 +78,8 @@ echo "Conda environment : $CONDA_ENV"
 echo "Python            : $(command -v python)"
 echo "Config            : $FASTBEV_CONFIG"
 echo "Checkpoint        : $FASTBEV_CHECKPOINT"
+echo "Preprocess        : $FASTBEV_PREPROCESS_BACKEND"
+echo "Pipeline          : $FASTBEV_PIPELINE_MODE"
 echo "use_sim_time      : $USE_SIM_TIME"
 echo "=============================================="
 
@@ -89,4 +93,6 @@ exec roslaunch morai_fastbev_ros "$LAUNCH_FILE" \
   python_executable:="$(command -v python)" \
   repo_root:="$REPO_ROOT" \
   checkpoint:="$FASTBEV_CHECKPOINT" \
+  preprocess_backend:="$FASTBEV_PREPROCESS_BACKEND" \
+  pipeline_mode:="$FASTBEV_PIPELINE_MODE" \
   use_sim_time:="$USE_SIM_TIME"
