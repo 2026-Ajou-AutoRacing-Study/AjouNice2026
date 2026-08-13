@@ -28,11 +28,11 @@
     <remap from="~output/predictions" to="$(arg prediction_markers)"/>
   </node>
 
-  <node if="$(arg start_rviz)"
-        pkg="rviz"
-        type="rviz"
-        name="object_pipeline_rviz"
-        args="-d $(arg rviz_config)"
-        output="screen"
-        respawn="false"/>
+  <!-- Publish the IONIQ 5 URDF as robot_description and launch RViz.  Keeping
+       this in the visualization launch makes the Ego model available even
+       when bringup/sensing.launch is run with enable_vehicle_model:=false. -->
+  <include file="$(find ioniq5)/launch/display_ioniq5.launch">
+    <arg name="start_rviz" value="$(arg start_rviz)"/>
+    <arg name="rviz_config" value="$(arg rviz_config)"/>
+  </include>
 </launch>
