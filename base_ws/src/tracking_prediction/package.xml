@@ -22,6 +22,7 @@
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>morai_msgs</depend>
+  <depend>morai_pointpainting_ros</depend>
   <!-- gt_to_jsk_bbox_bridge.py / ekf_tracking_node.py에서 사용 (2026-07-30 추가) -->
   <depend>jsk_recognition_msgs</depend>
   <depend>visualization_msgs</depend>

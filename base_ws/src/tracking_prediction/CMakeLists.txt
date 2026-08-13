@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   message_generation
   morai_msgs
+  morai_pointpainting_ros
 )
 
 add_message_files(
@@ -33,6 +34,7 @@ catkin_package(
   geometry_msgs
   message_runtime
   morai_msgs
+  morai_pointpainting_ros
 )
 
 include_directories(

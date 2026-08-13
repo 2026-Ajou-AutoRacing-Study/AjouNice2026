@@ -1,0 +1,20 @@
+camera_order: [front, front_left, front_right, back]
+cameras:
+  front:
+    topic: /sensor/camera/front/compressed
+  front_left:
+    topic: /sensor/camera/front_left/compressed
+  front_right:
+    topic: /sensor/camera/front_right/compressed
+  back:
+    topic: /sensor/camera/back/compressed
+
+# Fast-BEV class order is fixed by the MORAI training config/checkpoint.
+class_names: [vehicle, pedestrian, obstacle]
+
+# Initial online operating point. Tune class-specific thresholds on validation
+# data before competition deployment.
+score_thresholds:
+  vehicle: 0.20
+  pedestrian: 0.20
+  obstacle: 0.20
