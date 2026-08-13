@@ -18,7 +18,7 @@ public:
     private_nh.param<std::string>("parent_frame", parent_frame_, "morai_map");
     private_nh.param<std::string>("child_frame", child_frame_, "base_link");
     private_nh.param<bool>("heading_in_degrees", heading_in_degrees_, true);
-    private_nh.param<double>("heading_yaw_offset_deg", heading_yaw_offset_deg_, -1.37);
+    private_nh.param<double>("heading_yaw_offset_deg", heading_yaw_offset_deg_, -1.347);
 
     heading_yaw_offset_rad_ = heading_yaw_offset_deg_ * M_PI / 180.0;
     ego_subscriber_ = node_handle_.subscribe(ego_topic_, 50, &EgoTfBroadcasterDegCorrection::egoCallback, this);
@@ -75,7 +75,7 @@ private:
   std::string parent_frame_;
   std::string child_frame_;
   bool heading_in_degrees_ = true;
-  double heading_yaw_offset_deg_ = -1.37;
+  double heading_yaw_offset_deg_ = -1.347;
   double heading_yaw_offset_rad_ = 0.0;
   ros::Time last_stamp_;
 };

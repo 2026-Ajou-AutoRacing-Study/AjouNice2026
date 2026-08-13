@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Evaluate FAST-LIO at the vehicle base_link reference point.
+"""Evaluate a body-frame localization result at the vehicle base_link.
 
-FAST-LIO publishes the IMU/body pose.  This script reads the IMU mounting pose
-from a MORAI Sensor JSON, applies body -> base_link first, and then performs the
-same initial-Ego-pose alignment and evaluation as eval_fast_lio_with_rviz.py.
+The script reads the IMU mounting pose from a MORAI Sensor JSON, applies
+body -> base_link, and performs the same initial-Ego-pose alignment and
+evaluation as eval_localization_pose_with_rviz.py.
 """
 
 import argparse
@@ -15,7 +15,7 @@ import os
 
 import numpy as np
 
-import eval_fast_lio_with_rviz as core
+import eval_localization_pose_with_rviz as core
 
 
 def read_imu_pose(sensor_config, imu_name):
@@ -119,7 +119,7 @@ def print_and_save_corrected_report(
 ):
     buffer = io.StringIO()
     with contextlib.redirect_stdout(buffer):
-        print("====== FAST-LIO base_link-corrected vs MORAI Ego ======")
+        print("=== Base-link-corrected Localization vs MORAI Ego ===")
         print(f"sensor config: {sensor_config}")
         print(f"IMU sensor: {imu_name}")
         print(
@@ -175,8 +175,8 @@ def main():
     )
     parser = argparse.ArgumentParser(
         description=(
-            "Evaluate FAST-LIO after converting its IMU/body pose to the vehicle "
-            "base_link using a MORAI Sensor JSON."
+            "Evaluate localization after converting an IMU/body pose to the "
+            "vehicle base_link using a MORAI Sensor JSON."
         )
     )
     parser.add_argument("bag", help="Bag containing /Ego_topic and /localization/odom")

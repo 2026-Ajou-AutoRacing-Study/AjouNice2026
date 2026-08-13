@@ -67,6 +67,19 @@ class GnssImuInitialPosePublisher:
                 )
             )
         self.heading_in_degrees = heading_unit == "degrees"
+        self.use_heading_correction = bool(
+            rospy.get_param("~use_heading_correction", False)
+        )
+        self.heading_yaw_offset_deg = float(
+            rospy.get_param("~heading_yaw_offset_deg", 0.0)
+        )
+        if not math.isfinite(self.heading_yaw_offset_deg):
+            raise rospy.ROSInitException(
+                "~heading_yaw_offset_deg must be finite"
+            )
+        self.heading_yaw_offset_rad = math.radians(
+            self.heading_yaw_offset_deg
+        )
 
         position_stddev = self.positive_param(
             initialization_ns + "/position_stddev_m", 0.1
@@ -138,10 +151,13 @@ class GnssImuInitialPosePublisher:
             )
 
         rospy.loginfo(
-            "gnss_imu_initial_pose_publisher source=%s: %s -> %s",
+            "gnss_imu_initial_pose_publisher source=%s: %s -> %s, "
+            "Ego heading correction=%s (%+.3f deg)",
             self.source,
             self.ego_topic if self.source == "ego" else self.manual_frame,
             self.output_topic,
+            self.use_heading_correction,
+            self.heading_yaw_offset_deg,
         )
 
     @staticmethod
@@ -239,6 +255,8 @@ class GnssImuInitialPosePublisher:
         yaw = message.heading
         if self.heading_in_degrees:
             yaw = math.radians(yaw)
+        if self.use_heading_correction:
+            yaw += self.heading_yaw_offset_rad
         source_pose = tft.euler_matrix(0.0, 0.0, yaw)
         source_pose[0:3, 3] = values[0:3]
         self.publish_once(

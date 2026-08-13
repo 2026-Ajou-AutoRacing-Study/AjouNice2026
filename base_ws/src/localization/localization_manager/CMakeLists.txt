@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   tf
   tf2_ros
+  visualization_msgs
 )
 
 catkin_package()
@@ -22,8 +23,11 @@ catkin_install_python(PROGRAMS
   scripts/morai_gps_to_navsatfix.py
   scripts/imu_covariance_adapter.py
   scripts/morai_gps_to_local_odometry.py
+  scripts/morai_gt_motion_adapter.py
   scripts/gnss_imu_initial_pose_publisher.py
   scripts/gnss_imu_kinematic_state_publisher.py
+  scripts/localization_minimap_publisher.py
+  scripts/localization_state_rviz_marker.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

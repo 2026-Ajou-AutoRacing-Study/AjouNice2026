@@ -257,7 +257,7 @@ cd ~/AjouNice2026/base_ws
 source devel/setup.bash
 cd ~/AjouNice2026
 
-python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
+python3 scripts/evaluation/localization/eval_localization_state_with_rviz.py \
   rosbags/eval/fast_lio_gnss_full_MMDD_HHMM.bag \
   --state-topic /localization/kinematic_state \
   --out rosbags/eval/fast_lio_gnss_eval_1.csv \
@@ -278,7 +278,7 @@ cd ~/AjouNice2026/base_ws
 source devel/setup.bash
 cd ~/AjouNice2026
 
-python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
+python3 scripts/evaluation/localization/eval_localization_state_with_rviz.py \
   rosbags/eval/fast_lio_gnss_full_MMDD_HHMM.bag \
   --state-topic /localization/kinematic_state \
   --position-error-threshold 1.0 \
@@ -315,9 +315,9 @@ rviz
 RViz 설정:
 
 - Fixed Frame: `map`
-- Path: `/fast_lio_state_eval/ego_path` (GT)
-- Path: `/fast_lio_state_eval/lio_aligned_path` (GNSS-corrected result)
-- MarkerArray: `/fast_lio_state_eval/error_markers`
+- Path: `/localization_state_eval/ego_path` (GT)
+- Path: `/localization_state_eval/state_aligned_path` (localization result)
+- MarkerArray: `/localization_state_eval/error_markers`
 - PointCloud2: `/cloud_registered`
 
 경로는 latched publisher라 평가 프로세스를 켜 둔 뒤 RViz를 열어도 보인다.
@@ -355,4 +355,3 @@ update가 적용되는 것이다.
    확인한다.
 6. 검증이 끝날 때까지 planning 기본 provider는 기존 FAST-LIO 또는 MORAI GT로
    유지하고, GNSS provider는 선택 실행한다.
-

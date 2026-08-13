@@ -49,7 +49,7 @@ LiDAR와 IMU를 포함한 나머지 토픽도 bag timestamp를 유지해 그대�
 
 ### 수정
 
-- `scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py`
+- `scripts/evaluation/localization/eval_localization_state_with_rviz.py`
   - 제거된 `EgoVehicleStatus.angular_velocity`를 직접 읽지 않는다.
   - old/new 메시지 모두 heading 시계열의 local regression으로 GT yaw rate를
     계산해 같은 기준으로 비교한다.
@@ -187,7 +187,7 @@ cd ~/AjouNice2026/base_ws
 source devel/setup.bash
 cd ~/AjouNice2026
 
-python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
+python3 scripts/evaluation/localization/eval_localization_state_with_rviz.py \
   rosbags/eval/fast_lio_gnss_full_0717_2004.bag \
   --state-topic /localization/kinematic_state \
   --out rosbags/eval/fast_lio_gnss_eval_2.csv \
@@ -208,7 +208,7 @@ cd ~/AjouNice2026/base_ws
 source devel/setup.bash
 cd ~/AjouNice2026
 
-python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
+python3 scripts/evaluation/localization/eval_localization_state_with_rviz.py \
   rosbags/eval/fast_lio_gnss_full_0717_2004.bag \
   --state-topic /localization/kinematic_state \
   --position-error-threshold 1.0 \
@@ -247,9 +247,9 @@ RViz 설정:
 ```text
 Fixed Frame: map
 
-Path:        /fast_lio_state_eval/ego_path
-Path:        /fast_lio_state_eval/lio_aligned_path
-MarkerArray: /fast_lio_state_eval/error_markers
+Path:        /localization_state_eval/ego_path
+Path:        /localization_state_eval/state_aligned_path
+MarkerArray: /localization_state_eval/error_markers
 PointCloud2: /cloud_registered
 ```
 

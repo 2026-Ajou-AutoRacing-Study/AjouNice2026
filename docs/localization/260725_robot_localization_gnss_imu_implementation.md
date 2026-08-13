@@ -240,7 +240,7 @@ GT residual의 분산으로 다시 추정해야 하며, 현재 값을 최종 cal
 - `base_ws/src/localization/localization_manager/package.xml`
 - `base_ws/src/localization/localization_manager/README.md`
 - `base_ws/src/bringup/package.xml`
-- `scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py`
+- `scripts/evaluation/localization/eval_localization_state_with_rviz.py`
   - 기존 기본값은 유지
   - startup transient 이후의 시점을 정렬 기준으로 고를 수 있는
     `--alignment-reference-sec` 추가
@@ -416,7 +416,7 @@ speed 오차는 그대로 계산하며, 단지 불안정한 첫 yaw가 전체 �
 cd ~/AjouNice2026
 source base_ws/devel/setup.bash
 
-python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
+python3 scripts/evaluation/localization/eval_localization_state_with_rviz.py \
   rosbags/eval/localization/gnss_imu_kcity_eval_v1_run01.bag \
   --state-topic /localization/kinematic_state \
   --sensor-config configs/sensors/Sensor.json \
@@ -469,7 +469,7 @@ roslaunch lanelet_map_visualizer kcity_lanelet_map.launch
 cd ~/AjouNice2026
 source base_ws/devel/setup.bash
 
-python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
+python3 scripts/evaluation/localization/eval_localization_state_with_rviz.py \
   rosbags/eval/localization/gnss_imu_kcity_eval_v1_run01.bag \
   --state-topic /localization/kinematic_state \
   --sensor-config configs/sensors/Sensor.json \

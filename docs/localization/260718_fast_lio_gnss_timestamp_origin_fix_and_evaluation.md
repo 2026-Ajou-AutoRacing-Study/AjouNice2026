@@ -165,7 +165,7 @@ source /opt/ros/noetic/setup.bash
 source devel/setup.bash
 cd ~/AjouNice2026
 
-python3 scripts/evaluation/fast_lio/eval_fast_lio_state_with_rviz.py \
+python3 scripts/evaluation/localization/eval_localization_state_with_rviz.py \
   rosbags/eval/260718_fast_lio_gnss_timestamp_origin_full.bag \
   --state-topic /localization/kinematic_state \
   --out rosbags/eval/260718_fast_lio_gnss_timestamp_origin_eval.csv

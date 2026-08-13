@@ -7,7 +7,7 @@
   <arg name="parent_frame" default="morai_map"/>
   <arg name="child_frame" default="base_link"/>
   <arg name="heading_in_degrees" default="true"/>
-  <arg name="heading_yaw_offset_deg" default="-1.37"/>
+  <arg name="heading_yaw_offset_deg" default="-1.347"/>
 
   <node pkg="tf_pub"
         type="ego_tf_broadcaster_deg_correction"

@@ -5,6 +5,7 @@
   <arg name="frame_id" default="morai_map"/>
   <arg name="output_topic" default="/map/morai_map"/>
   <arg name="publish_rate" default="0.0"/>
+  <arg name="flatten_z" default="false"/>
 
   <arg name="alpha" default="0.85"/>
   <arg name="z_offset" default="0.08"/>
@@ -40,6 +41,7 @@
     <param name="frame_id" value="$(arg frame_id)"/>
     <param name="output_topic" value="$(arg output_topic)"/>
     <param name="publish_rate" value="$(arg publish_rate)"/>
+    <param name="flatten_z" value="$(arg flatten_z)"/>
     <param name="alpha" value="$(arg alpha)"/>
     <param name="z_offset" value="$(arg z_offset)"/>
     <param name="line_width" value="$(arg line_width)"/>
