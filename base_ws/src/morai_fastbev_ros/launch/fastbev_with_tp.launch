@@ -1,38 +1,21 @@
 <launch>
+  <!-- Compatibility entrypoint for the standardized production pipeline. -->
   <arg name="python_executable" default=""/>
   <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
   <arg name="checkpoint"
        default="$(arg repo_root)/artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_wandb_v1/best_center_mAP_epoch_11.pth"/>
   <arg name="use_sim_time" default="false"/>
-  <arg name="output_frame_id" default="velodyne"/>
-  <arg name="planning_output_topic" default="/perception/object_recognition/objects"/>
-  <arg name="horizons" default="[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 3.0]"/>
+  <arg name="planning_output_topic"
+       default="/perception/object_recognition/objects"/>
+  <arg name="horizons" default="[0.3, 0.6, 0.9, 1.2, 1.5]"/>
 
-  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
-
-  <include file="$(find morai_fastbev_ros)/launch/fastbev_online.launch">
+  <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+    <arg name="detector" value="fastbev"/>
     <arg name="python_executable" value="$(arg python_executable)"/>
     <arg name="repo_root" value="$(arg repo_root)"/>
-    <arg name="checkpoint" value="$(arg checkpoint)"/>
-    <arg name="output_frame_id" value="$(arg output_frame_id)"/>
-    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
-  </include>
-
-  <!-- Run the existing EKF tracker directly instead of its wrapper launch,
-       whose historical configuration forces /use_sim_time=true. -->
-  <rosparam file="$(find ekf_multi_object_tracking)/config/config.yaml" command="load"/>
-  <node pkg="ekf_multi_object_tracking"
-        type="ekf_multi_object_tracking"
-        name="ekf_multi_object_tracking"
-        output="screen"
-        respawn="false"/>
-
-  <include file="$(find tracking_prediction)/launch/ekf_tracking.launch"/>
-  <include file="$(find tracking_prediction)/launch/prediction.launch">
+    <arg name="fastbev_checkpoint" value="$(arg checkpoint)"/>
+    <arg name="predicted_objects" value="$(arg planning_output_topic)"/>
     <arg name="horizons" value="$(arg horizons)"/>
-  </include>
-  <include file="$(find tracking_prediction)/launch/extrapolation.launch"/>
-  <include file="$(find tracking_prediction)/launch/predicted_objects_autoware_bridge.launch">
-    <arg name="output_topic" value="$(arg planning_output_topic)"/>
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
   </include>
 </launch>

@@ -15,6 +15,7 @@ POINTPAINTING_CFG="${POINTPAINTING_CFG:-$PACKAGE_DIR/config/openpcdet/pointpilla
 POINTPAINTING_CKPT="${POINTPAINTING_CKPT:-$OPENPCDET_ROOT/output/custom_models/pointpillar_morai_pointpainting/pointpainting_20epoch/ckpt/checkpoint_epoch_20.pth}"
 POINTPAINTING_REAL_INPUT_WARMUP="${POINTPAINTING_REAL_INPUT_WARMUP:-true}"
 POINTPAINTING_REAL_INPUT_WARMUP_ITERATIONS="${POINTPAINTING_REAL_INPUT_WARMUP_ITERATIONS:-2}"
+POINTPAINTING_WITH_TP="${POINTPAINTING_WITH_TP:-false}"
 
 case "$MODE" in
     live)
@@ -103,11 +104,18 @@ echo "Config            : $POINTPAINTING_CFG"
 echo "Checkpoint        : $POINTPAINTING_CKPT"
 echo "Real input warm-up: $POINTPAINTING_REAL_INPUT_WARMUP"
 echo "Warm-up iterations: $POINTPAINTING_REAL_INPUT_WARMUP_ITERATIONS"
+echo "With T&P          : $POINTPAINTING_WITH_TP"
 echo "use_sim_time      : $USE_SIM_TIME"
 echo "=============================================="
 
+if [[ "$POINTPAINTING_WITH_TP" == "true" ]]; then
+    LAUNCH_FILE=pointpainting_with_tp.launch
+else
+    LAUNCH_FILE=pointpainting_online.launch
+fi
+
 exec roslaunch morai_pointpainting_ros \
-    pointpainting_online.launch \
+    "$LAUNCH_FILE" \
     python_executable:="$(command -v python)" \
     openpcdet_root:="$OPENPCDET_ROOT" \
     cfg_file:="$POINTPAINTING_CFG" \

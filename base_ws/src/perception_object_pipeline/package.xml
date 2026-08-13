@@ -9,6 +9,7 @@
 
   <buildtool_depend>catkin</buildtool_depend>
   <depend>autoware_perception_msgs</depend>
+  <exec_depend>ekf_multi_object_tracking</exec_depend>
   <depend>geometry_msgs</depend>
   <depend>rospy</depend>
   <depend>std_msgs</depend>

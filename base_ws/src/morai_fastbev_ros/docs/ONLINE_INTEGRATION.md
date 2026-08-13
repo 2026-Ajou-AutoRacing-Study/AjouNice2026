@@ -12,19 +12,17 @@
 
 ## T&P 연결
 
-Fast-BEV는 두 형태를 동시에 발행한다.
+Fast-BEV는 표준 객체와 legacy/debug 출력을 동시에 발행한다.
 
-1. `/fastbev/detections`
-   - 기존 PointPainting용 lightweight tracking adapter와 호환된다.
-   - `tracking_from_fastbev.launch`로 `/tracking/objects`를 만들 수 있다.
-2. `/hmi/perc/jsk_pillar_objects`
-   - `ekf-multi-object-tracking`의 정식 detection 입력이다.
-   - class label은 tracker enum에 맞춰 vehicle=CAR(1), pedestrian=3,
-     obstacle=UNKNOWN(0)으로 변환한다.
+1. `/perception/object_recognition/detection/objects`
+   - `autoware_perception_msgs/DetectedObjects`
+   - EKF의 유일한 production 입력이다.
+2. `/fastbev/detections`, `/hmi/perc/jsk_pillar_objects`
+   - 과거 실험 호환과 RViz/debug용이다.
 
-운용 경로는 2번 EKF 경로를 권장한다. 이는 지속 ID와 속도 추정을 제공하며,
-이후 `/tracking/objects`, `/prediction/objects`,
-`/perception/object_recognition/objects`로 이어진다.
+표준 입력은 `/perception/object_recognition/tracking/objects`를 거쳐 최종
+`/perception/object_recognition/objects`로 이어진다. Marker text나 JSK box를
+데이터 전달에 사용하지 않는다.
 
 ## 동기화와 지연 정책
 
@@ -39,10 +37,9 @@ Fast-BEV는 두 형태를 동시에 발행한다.
 
 ```bash
 rostopic hz --wall-time /fastbev/detections
-rostopic hz --wall-time /hmi/perc/jsk_pillar_objects
+rostopic hz --wall-time /perception/object_recognition/detection/objects
 rostopic echo -n 1 /fastbev/detections
-rostopic echo -n 1 /tracking/objects
-rostopic echo -n 1 /prediction/objects
+rostopic echo -n 1 /perception/object_recognition/tracking/objects
 rostopic echo -n 1 /perception/object_recognition/objects
 ```
 

@@ -2,6 +2,16 @@
 
 ## Topic
 
+Production:
+
+`/perception/object_recognition/detection/objects`
+
+Type:
+
+`autoware_perception_msgs/DetectedObjects`
+
+Legacy diagnostics:
+
 `/pointpainting/detections`
 
 Type:
@@ -20,6 +30,8 @@ Type:
   - `size.z`: box height.
 - `detection_id`: unique only inside one message. It is not a tracking ID.
 - Downstream tracking must assign persistent IDs.
+- Production tracking uses the standard detection header and transforms the
+  measurement to `map` at this timestamp.
 
 ## Timing fields
 

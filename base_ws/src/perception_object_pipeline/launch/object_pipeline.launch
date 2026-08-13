@@ -1,0 +1,80 @@
+<launch>
+  <!--
+    Detector-neutral production path.  The detector itself may run in a
+    different Python/Conda process; ROS messages are the only boundary here.
+  -->
+  <arg name="detector" default="fastbev"/>
+  <arg name="start_detector" default="true"/>
+  <arg name="use_sim_time" default="false"/>
+  <arg name="world_frame_id" default="map"/>
+  <arg name="detection_objects"
+       default="/perception/object_recognition/detection/objects"/>
+  <arg name="tracked_objects"
+       default="/perception/object_recognition/tracking/objects"/>
+  <arg name="predicted_objects"
+       default="/perception/object_recognition/objects"/>
+  <arg name="horizons" default="[0.3, 0.6, 0.9, 1.2, 1.5]"/>
+
+  <!-- Detector-specific launch arguments. -->
+  <arg name="python_executable" default=""/>
+  <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
+  <arg name="fastbev_checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_wandb_v1/best_center_mAP_epoch_11.pth"/>
+  <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
+  <arg name="pointpainting_cfg"
+       default="$(arg openpcdet_root)/tools/cfgs/custom_models/pointpillar_morai_pointpainting.yaml"/>
+  <arg name="pointpainting_checkpoint"
+       default="$(arg openpcdet_root)/output/custom_models/pointpillar_morai_pointpainting/pointpainting_20epoch/ckpt/checkpoint_epoch_20.pth"/>
+  <arg name="publish_painted_points" default="false"/>
+  <arg name="segmentation_short_side" default="320"/>
+  <arg name="warmup_segmentation" default="true"/>
+  <arg name="warmup_full_pipeline" default="true"/>
+  <arg name="warmup_iterations" default="2"/>
+  <arg name="warmup_point_count" default="12000"/>
+  <arg name="real_input_warmup" default="true"/>
+  <arg name="real_input_warmup_iterations" default="2"/>
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+
+  <group if="$(eval arg('start_detector') and arg('detector') == 'fastbev')">
+    <include file="$(find morai_fastbev_ros)/launch/fastbev_online.launch">
+      <arg name="python_executable" value="$(arg python_executable)"/>
+      <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="checkpoint" value="$(arg fastbev_checkpoint)"/>
+      <arg name="objects_topic" value="$(arg detection_objects)"/>
+      <arg name="warmup_iterations" value="$(arg warmup_iterations)"/>
+      <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('start_detector') and arg('detector') == 'pointpainting')">
+    <include file="$(find morai_pointpainting_ros)/launch/pointpainting_online.launch">
+      <arg name="python_executable" value="$(arg python_executable)"/>
+      <arg name="openpcdet_root" value="$(arg openpcdet_root)"/>
+      <arg name="cfg_file" value="$(arg pointpainting_cfg)"/>
+      <arg name="checkpoint" value="$(arg pointpainting_checkpoint)"/>
+      <arg name="objects_topic" value="$(arg detection_objects)"/>
+      <arg name="publish_painted_points" value="$(arg publish_painted_points)"/>
+      <arg name="segmentation_short_side" value="$(arg segmentation_short_side)"/>
+      <arg name="warmup_segmentation" value="$(arg warmup_segmentation)"/>
+      <arg name="warmup_full_pipeline" value="$(arg warmup_full_pipeline)"/>
+      <arg name="warmup_iterations" value="$(arg warmup_iterations)"/>
+      <arg name="warmup_point_count" value="$(arg warmup_point_count)"/>
+      <arg name="real_input_warmup" value="$(arg real_input_warmup)"/>
+      <arg name="real_input_warmup_iterations" value="$(arg real_input_warmup_iterations)"/>
+    </include>
+  </group>
+
+  <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch">
+    <arg name="input_objects" value="$(arg detection_objects)"/>
+    <arg name="output_objects" value="$(arg tracked_objects)"/>
+    <arg name="world_frame_id" value="$(arg world_frame_id)"/>
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+  </include>
+
+  <include file="$(find perception_object_pipeline)/launch/object_prediction.launch">
+    <arg name="input_objects" value="$(arg tracked_objects)"/>
+    <arg name="output_objects" value="$(arg predicted_objects)"/>
+    <arg name="horizons" value="$(arg horizons)"/>
+  </include>
+</launch>
