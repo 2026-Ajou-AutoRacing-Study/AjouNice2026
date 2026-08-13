@@ -1,0 +1,14 @@
+<launch>
+  <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+    <arg name="start_detector" value="false"/>
+    <arg name="use_sim_time" value="false"/>
+    <arg name="detection_objects" value="/test/detections"/>
+    <arg name="tracked_objects" value="/test/tracks"/>
+    <arg name="predicted_objects" value="/test/predictions"/>
+  </include>
+
+  <test test-name="standard_object_pipeline"
+        pkg="perception_object_pipeline"
+        type="test_standard_pipeline.py"
+        time-limit="15"/>
+</launch>

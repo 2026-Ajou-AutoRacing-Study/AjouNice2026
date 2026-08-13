@@ -29,5 +29,7 @@ install(
 )
 
 if(CATKIN_ENABLE_TESTING)
+  find_package(rostest REQUIRED)
   catkin_add_nosetests(test)
+  add_rostest(test/standard_pipeline.test)
 endif()
