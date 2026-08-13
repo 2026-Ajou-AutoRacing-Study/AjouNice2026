@@ -21,6 +21,11 @@ def normalized_frame(frame):
     return frame.lstrip("/")
 
 
+def is_zero_geodetic_position(latitude, longitude, epsilon):
+    """Return whether MORAI is using its all-zero GNSS outage sentinel."""
+    return abs(latitude) <= epsilon and abs(longitude) <= epsilon
+
+
 def wgs84_to_utm(latitude_deg, longitude_deg, zone, northern_hemisphere):
     f = 1.0 / WGS84_INV_F
     e2 = f * (2.0 - f)
@@ -136,6 +141,19 @@ class MoraiGpsToLocalOdometry:
         self.require_status_ok = bool(
             rospy.get_param("~require_status_ok", True)
         )
+        self.reject_zero_position = bool(
+            rospy.get_param("~reject_zero_position", True)
+        )
+        self.zero_position_epsilon_deg = float(
+            rospy.get_param("~zero_position_epsilon_deg", 1.0e-9)
+        )
+        if (
+            not math.isfinite(self.zero_position_epsilon_deg)
+            or self.zero_position_epsilon_deg < 0.0
+        ):
+            raise rospy.ROSInitException(
+                "~zero_position_epsilon_deg must be finite and non-negative"
+            )
         self.reject_duplicate_stamps = bool(
             rospy.get_param("~reject_duplicate_stamps", True)
         )
@@ -154,6 +172,7 @@ class MoraiGpsToLocalOdometry:
         self.vertical_variance = vertical_stddev**2
         self.gps_z_in_base = self.read_gps_height()
         self.last_stamp = None
+        self.outage_start_stamp = None
 
         self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(30.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -242,11 +261,32 @@ class MoraiGpsToLocalOdometry:
         if not all(math.isfinite(value) for value in values):
             rospy.logwarn_throttle(2.0, "Rejecting non-finite MORAI GPS")
             return
+        if self.reject_zero_position and is_zero_geodetic_position(
+            message.latitude,
+            message.longitude,
+            self.zero_position_epsilon_deg,
+        ):
+            if self.outage_start_stamp is None:
+                self.outage_start_stamp = message.header.stamp
+                rospy.logwarn(
+                    "GNSS outage started: rejecting zero latitude/longitude "
+                    "from /sensor/gps"
+                )
+            return
         if not (-90.0 <= message.latitude <= 90.0) or not (
             -180.0 <= message.longitude <= 180.0
         ):
             rospy.logwarn_throttle(2.0, "Rejecting invalid MORAI latitude/longitude")
             return
+        if self.outage_start_stamp is not None:
+            outage_duration = (
+                message.header.stamp - self.outage_start_stamp
+            ).to_sec()
+            rospy.loginfo(
+                "GNSS outage ended after %.3f sec; resuming position updates",
+                max(0.0, outage_duration),
+            )
+            self.outage_start_stamp = None
 
         easting, northing = wgs84_to_utm(
             message.latitude,

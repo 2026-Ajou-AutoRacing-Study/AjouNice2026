@@ -1,0 +1,158 @@
+<launch>
+  <!--
+    GT-assisted CTRA-like provider:
+      selected MORAI status -> absolute yaw and longitudinal velocity
+      IMU                    -> yaw rate and longitudinal acceleration
+      GPS                    -> global x/y
+
+    TF ownership:
+      local EKF:  odom -> base_link
+      global EKF: map -> odom
+  -->
+  <arg name="sensor_config"
+       default="$(env HOME)/AjouNice2026/configs/sensors/Sensor.json"/>
+  <arg name="config"
+       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+  <arg name="measurement_noise_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/gnss_imu_gt_noise_sensor6_ideal.yaml"/>
+  <arg name="local_ekf_base_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/robot_localization_gnss_imu_local.yaml"/>
+  <arg name="global_ekf_base_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/robot_localization_gnss_imu_global.yaml"/>
+  <arg name="local_ekf_gt_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/robot_localization_gnss_imu_gt_ctra_local.yaml"/>
+  <arg name="global_ekf_gt_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/robot_localization_gnss_imu_gt_ctra_global.yaml"/>
+
+  <arg name="gt_source" default="ego"/>
+  <arg name="use_heading_correction" default="true"/>
+  <arg name="heading_yaw_offset_deg" default="-1.347"/>
+  <arg name="ego_topic" default="/Ego_topic"/>
+  <arg name="competition_topic" default="/Competition_topic"/>
+  <arg name="gt_orientation_topic" default="/localization/gt/orientation"/>
+  <arg name="gt_twist_topic" default="/localization/gt/twist"/>
+  <arg name="imu_topic" default="/sensor/imu"/>
+  <arg name="gps_topic" default="/sensor/gps"/>
+  <arg name="normalized_imu_topic" default="/localization/imu"/>
+  <arg name="gnss_odom_topic" default="/localization/gnss/odom"/>
+  <arg name="local_odom_topic" default="/localization/odometry/local"/>
+  <arg name="global_odom_topic" default="/localization/odom"/>
+  <arg name="kinematic_state_topic" default="/localization/kinematic_state"/>
+  <arg name="acceleration_topic" default="/localization/acceleration"/>
+  <arg name="initial_pose_topic" default="/localization/initialpose"/>
+
+  <arg name="map_frame" default="map"/>
+  <arg name="morai_map_frame" default="morai_map"/>
+  <arg name="base_frame" default="base_link"/>
+  <arg name="noise_namespace"
+       default="/localization_manager/providers/gnss_imu_gt/noise"/>
+
+  <rosparam command="load"
+            file="$(arg config)"
+            ns="localization_manager"/>
+  <rosparam command="load"
+            file="$(arg measurement_noise_config)"
+            ns="$(arg noise_namespace)"/>
+
+  <node pkg="localization_manager"
+        type="morai_gt_motion_adapter.py"
+        name="morai_gt_motion_adapter"
+        output="screen">
+    <param name="source" value="$(arg gt_source)"/>
+    <param name="ego_topic" value="$(arg ego_topic)"/>
+    <param name="competition_topic" value="$(arg competition_topic)"/>
+    <param name="orientation_topic" value="$(arg gt_orientation_topic)"/>
+    <param name="twist_topic" value="$(arg gt_twist_topic)"/>
+    <param name="map_frame" value="$(arg map_frame)"/>
+    <param name="source_frame" value="$(arg morai_map_frame)"/>
+    <param name="base_frame" value="$(arg base_frame)"/>
+    <param name="heading_unit" value="degrees"/>
+    <param name="use_heading_correction"
+           value="$(arg use_heading_correction)"/>
+    <param name="heading_yaw_offset_deg"
+           value="$(arg heading_yaw_offset_deg)"/>
+    <param name="noise_namespace" value="$(arg noise_namespace)"/>
+    <param name="reject_duplicate_stamps" value="true"/>
+    <param name="tf_timeout_sec" value="0.05"/>
+  </node>
+
+  <node pkg="localization_manager"
+        type="imu_covariance_adapter.py"
+        name="imu_covariance_adapter"
+        output="screen">
+    <param name="input_topic" value="$(arg imu_topic)"/>
+    <param name="output_topic" value="$(arg normalized_imu_topic)"/>
+    <param name="noise_namespace" value="$(arg noise_namespace)"/>
+    <param name="preserve_valid_covariance" value="true"/>
+    <param name="reject_duplicate_stamps" value="true"/>
+  </node>
+
+  <node pkg="localization_manager"
+        type="morai_gps_to_local_odometry.py"
+        name="morai_gps_to_local_odometry"
+        output="screen">
+    <param name="input_topic" value="$(arg gps_topic)"/>
+    <param name="output_topic" value="$(arg gnss_odom_topic)"/>
+    <param name="sensor_config" value="$(arg sensor_config)"/>
+    <param name="map_frame" value="$(arg map_frame)"/>
+    <param name="morai_map_frame" value="$(arg morai_map_frame)"/>
+    <param name="base_frame" value="$(arg base_frame)"/>
+    <param name="noise_namespace" value="$(arg noise_namespace)"/>
+    <param name="utm_zone" value="52"/>
+    <param name="northern_hemisphere" value="true"/>
+    <param name="use_message_offsets" value="true"/>
+    <param name="fallback_east_offset" value="302595.0"/>
+    <param name="fallback_north_offset" value="4124145.0"/>
+    <param name="morai_origin_altitude" value="0.0"/>
+    <param name="require_status_ok" value="true"/>
+    <param name="reject_zero_position" value="true"/>
+    <param name="zero_position_epsilon_deg" value="1.0e-9"/>
+    <param name="reject_duplicate_stamps" value="true"/>
+    <param name="tf_timeout_sec" value="0.1"/>
+  </node>
+
+  <!-- Initial pose remains independent of the continuously selected GT source. -->
+  <node pkg="localization_manager"
+        type="gnss_imu_initial_pose_publisher.py"
+        name="gnss_imu_initial_pose_publisher"
+        output="screen">
+    <param name="use_heading_correction"
+           value="$(arg use_heading_correction)"/>
+    <param name="heading_yaw_offset_deg"
+           value="$(arg heading_yaw_offset_deg)"/>
+  </node>
+
+  <node pkg="robot_localization"
+        type="ekf_localization_node"
+        name="gnss_imu_gt_local_ekf"
+        clear_params="true"
+        output="screen">
+    <rosparam command="load" file="$(arg local_ekf_base_config)"/>
+    <rosparam command="load" file="$(arg local_ekf_gt_config)"/>
+    <remap from="odometry/filtered" to="$(arg local_odom_topic)"/>
+    <remap from="set_pose"
+           to="/localization/gnss_imu_gt/local_set_pose_unused"/>
+  </node>
+
+  <node pkg="robot_localization"
+        type="ekf_localization_node"
+        name="gnss_imu_gt_global_ekf"
+        clear_params="true"
+        output="screen">
+    <rosparam command="load" file="$(arg global_ekf_base_config)"/>
+    <rosparam command="load" file="$(arg global_ekf_gt_config)"/>
+    <remap from="odometry/filtered" to="$(arg global_odom_topic)"/>
+    <remap from="accel/filtered" to="$(arg acceleration_topic)"/>
+    <remap from="set_pose" to="$(arg initial_pose_topic)"/>
+  </node>
+
+  <node pkg="localization_manager"
+        type="gnss_imu_kinematic_state_publisher.py"
+        name="gnss_imu_kinematic_state_publisher"
+        output="screen">
+    <param name="input_topic" value="$(arg global_odom_topic)"/>
+    <param name="output_topic" value="$(arg kinematic_state_topic)"/>
+    <param name="map_frame" value="$(arg map_frame)"/>
+    <param name="base_frame" value="$(arg base_frame)"/>
+  </node>
+</launch>

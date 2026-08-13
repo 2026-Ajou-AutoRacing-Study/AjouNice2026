@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Evaluate FAST-LIO pose and twist against MORAI Ego ground truth.
+"""Evaluate localization pose and twist against MORAI Ego ground truth.
 
-The evaluator accepts either the raw FAST-LIO odometry contract
-(`camera_init -> body`) or the Planning contract (`map -> base_link`).  Raw
-body pose and twist are converted to the base_link reference point using the
-IMU mounting pose in a MORAI Sensor JSON before comparison.
+The evaluator accepts either a raw body-referenced odometry contract or the
+Planning contract (`map -> base_link`). Raw body pose and twist are converted
+to the base_link reference point using the IMU mounting pose in a MORAI Sensor
+JSON before comparison.
 """
 
 import argparse
@@ -19,8 +19,8 @@ from dataclasses import dataclass
 import numpy as np
 import rosbag
 
-import eval_fast_lio_base_link_with_rviz as base_eval
-import eval_fast_lio_with_rviz as core
+import eval_localization_base_link_with_rviz as base_eval
+import eval_localization_pose_with_rviz as core
 
 
 # /Ego_topic.position is expressed in MORAI's local map coordinates.  The
@@ -67,10 +67,19 @@ def finite_sample(sample):
     return bool(np.all(np.isfinite(values)))
 
 
-def read_bag_states(bag_path, ego_topic, state_topic, ego_velocity_unit="mps"):
+def read_bag_states(
+    bag_path,
+    ego_topic,
+    state_topic,
+    ego_velocity_unit="mps",
+    ego_heading_yaw_offset_deg=0.0,
+):
     ego_samples = []
     state_samples = []
     ego_velocity_scale = EGO_VELOCITY_SCALES_TO_MPS[ego_velocity_unit]
+    ego_heading_yaw_offset_rad = math.radians(
+        ego_heading_yaw_offset_deg
+    )
 
     with rosbag.Bag(bag_path, "r") as bag:
         for topic, message, bag_time in bag.read_messages(
@@ -84,7 +93,10 @@ def read_bag_states(bag_path, ego_topic, state_topic, ego_velocity_unit="mps"):
                     x=float(message.position.x),
                     y=float(message.position.y),
                     z=float(message.position.z),
-                    yaw=math.radians(float(message.heading)),
+                    yaw=core.wrap_angle(
+                        math.radians(float(message.heading))
+                        + ego_heading_yaw_offset_rad
+                    ),
                     linear=ego_velocity_scale
                     * np.array(
                         [
@@ -352,13 +364,13 @@ def project_position_error_to_ego_frame(position_error_xyz, ego_yaw):
     return longitudinal, lateral
 
 
-def align_from_reference_pose(matched, reference_time_sec):
-    """Rigidly align state and Ego at a selected elapsed timestamp.
+def align_from_reference_pose(matched, reference_time_sec, alignment_yaw_mode):
+    """Align state and Ego origins at a selected elapsed timestamp.
 
-    The default reference time of zero preserves the historical evaluator
-    behavior. A positive time is useful when a recorded estimator or simulated
-    IMU publishes a transient orientation during startup; the transient is
-    still evaluated, but it no longer rotates the entire trajectory.
+    ``estimate`` performs the historical one-time yaw and translation
+    alignment. ``none`` preserves the estimator's absolute yaw and applies
+    translation only, which is required when evaluating a known global heading
+    bias.
     """
     first_stamp = matched[0][0].stamp
     reference_index = len(matched) - 1
@@ -368,9 +380,11 @@ def align_from_reference_pose(matched, reference_time_sec):
             break
 
     ego_reference, state_reference, _ = matched[reference_index]
-    alignment_yaw = core.wrap_angle(
-        ego_reference.yaw - state_reference.yaw
-    )
+    alignment_yaw = 0.0
+    if alignment_yaw_mode == "estimate":
+        alignment_yaw = core.wrap_angle(
+            ego_reference.yaw - state_reference.yaw
+        )
     cosine = math.cos(alignment_yaw)
     sine = math.sin(alignment_yaw)
     rotation = np.array([[cosine, -sine], [sine, cosine]], dtype=float)
@@ -462,6 +476,8 @@ def print_report(
     mount,
     interpolation_statistics,
     ego_velocity_unit,
+    ego_heading_yaw_offset_deg,
+    alignment_yaw_mode,
     alignment_reference_sec,
 ):
     ego_distance = float(np.linalg.norm(np.diff(ego_xyz[:, :2], axis=0), axis=1).sum())
@@ -478,13 +494,18 @@ def print_report(
     linear_error = state_linear - ego_linear
     yaw_rate_error = state_angular[:, 2] - ego_angular[:, 2]
 
-    print("======= FAST-LIO Pose + Twist vs MORAI Ego Evaluation =======")
+    print("======= Localization State vs MORAI Ego Evaluation =======")
     print(f"bag: {bag_path}")
     print(f"state topic: {state_topic}")
     if ego_velocity_unit == "kmph":
         print("Ego velocity input: km/h (converted to m/s with scale 1/3.6)")
     else:
         print("Ego velocity input: m/s")
+    print(
+        "Ego heading yaw offset: "
+        f"{ego_heading_yaw_offset_deg:+.3f} deg"
+    )
+    print(f"alignment yaw mode:    {alignment_yaw_mode}")
     print(f"matched samples: {len(matched)}")
     print(f"duration: {relative_times[-1]:.3f} sec")
     print("comparison time: state timestamp (Ego GT interpolated)")
@@ -514,7 +535,7 @@ def print_report(
 
     print("------------------------- Pose -------------------------")
     print(f"ego path length:       {ego_distance:.3f} m")
-    print(f"FAST-LIO path length:  {state_distance:.3f} m")
+    print(f"state path length:     {state_distance:.3f} m")
     print(f"path length ratio:     {path_ratio:.5f}")
     print(f"path length error:     {state_distance - ego_distance:+.3f} m")
     print(f"initial alignment yaw: {math.degrees(alignment_yaw):.3f} deg")
@@ -714,6 +735,7 @@ def publish_rviz(
     yaw_rate_threshold,
     marker_stride,
     publish_alignment_tf,
+    rviz_ground_z,
 ):
     import rospy
     import tf2_ros
@@ -721,15 +743,15 @@ def publish_rviz(
     from nav_msgs.msg import Path
     from visualization_msgs.msg import Marker, MarkerArray
 
-    rospy.init_node("fast_lio_state_eval_visualizer", anonymous=True)
+    rospy.init_node("localization_state_eval_visualizer", anonymous=True)
     ego_publisher = rospy.Publisher(
-        "/fast_lio_state_eval/ego_path", Path, queue_size=1, latch=True
+        "/localization_state_eval/ego_path", Path, queue_size=1, latch=True
     )
     state_publisher = rospy.Publisher(
-        "/fast_lio_state_eval/lio_aligned_path", Path, queue_size=1, latch=True
+        "/localization_state_eval/state_aligned_path", Path, queue_size=1, latch=True
     )
     marker_publisher = rospy.Publisher(
-        "/fast_lio_state_eval/error_markers", MarkerArray, queue_size=1, latch=True
+        "/localization_state_eval/error_markers", MarkerArray, queue_size=1, latch=True
     )
 
     stamp = rospy.Time.now()
@@ -744,7 +766,11 @@ def publish_rviz(
         ego_pose.header = ego_path.header
         ego_pose.pose.position.x = float(ego_xyz[index, 0])
         ego_pose.pose.position.y = float(ego_xyz[index, 1])
-        ego_pose.pose.position.z = float(ego_xyz[index, 2])
+        ego_pose.pose.position.z = (
+            float(rviz_ground_z)
+            if rviz_ground_z is not None
+            else float(ego_xyz[index, 2])
+        )
         core.quaternion_from_yaw(ego_sample.yaw, ego_pose.pose.orientation)
         ego_path.poses.append(ego_pose)
 
@@ -752,7 +778,11 @@ def publish_rviz(
         state_pose.header = state_path.header
         state_pose.pose.position.x = float(aligned_xyz[index, 0])
         state_pose.pose.position.y = float(aligned_xyz[index, 1])
-        state_pose.pose.position.z = float(aligned_xyz[index, 2])
+        state_pose.pose.position.z = (
+            float(rviz_ground_z)
+            if rviz_ground_z is not None
+            else float(aligned_xyz[index, 2])
+        )
         core.quaternion_from_yaw(aligned_yaw[index], state_pose.pose.orientation)
         state_path.poses.append(state_pose)
 
@@ -779,7 +809,11 @@ def publish_rviz(
         point = Point(
             x=float(aligned_xyz[index, 0]),
             y=float(aligned_xyz[index, 1]),
-            z=float(aligned_xyz[index, 2]),
+            z=(
+                float(rviz_ground_z)
+                if rviz_ground_z is not None
+                else float(aligned_xyz[index, 2])
+            ),
         )
         if position_errors[index] >= position_threshold:
             position_marker.points.append(point)
@@ -790,9 +824,11 @@ def publish_rviz(
 
     ego_publisher.publish(ego_path)
     state_publisher.publish(state_path)
-    marker_publisher.publish(
-        MarkerArray(markers=[position_marker, speed_marker, yaw_rate_marker])
-    )
+    threshold_markers = [position_marker, speed_marker, yaw_rate_marker]
+    for marker in threshold_markers:
+        if not marker.points:
+            marker.action = Marker.DELETE
+    marker_publisher.publish(MarkerArray(markers=threshold_markers))
 
     static_broadcaster = None
     if publish_alignment_tf:
@@ -815,13 +851,13 @@ def publish_rviz(
         static_broadcaster.sendTransform(transform)
 
     rospy.loginfo(
-        "Published FAST-LIO state evaluation paths and markers in frame '%s'",
+        "Published localization state evaluation paths and markers in frame '%s'",
         frame_id,
     )
     rospy.loginfo(
-        "RViz topics: /fast_lio_state_eval/ego_path, "
-        "/fast_lio_state_eval/lio_aligned_path, "
-        "/fast_lio_state_eval/error_markers"
+        "RViz topics: /localization_state_eval/ego_path, "
+        "/localization_state_eval/state_aligned_path, "
+        "/localization_state_eval/error_markers"
     )
     rospy.spin()
 
@@ -835,7 +871,10 @@ def main():
     )
 
     parser = argparse.ArgumentParser(
-        description="Evaluate FAST-LIO pose and twist at the base_link reference point."
+        description=(
+            "Evaluate localization pose and twist at the base_link reference "
+            "point."
+        )
     )
     parser.add_argument("bag", help="Bag containing /Ego_topic and the state topic")
     parser.add_argument(
@@ -859,9 +898,20 @@ def main():
         ),
     )
     parser.add_argument(
+        "--ego-heading-yaw-offset-deg",
+        type=float,
+        default=0.0,
+        help=(
+            "Constant yaw offset in degrees applied to /Ego_topic heading "
+            "before alignment and evaluation (default: 0). Use the same "
+            "value as the localization launch when heading correction is "
+            "enabled."
+        ),
+    )
+    parser.add_argument(
         "--state-topic",
         default="/localization/odom",
-        help="Raw FAST-LIO odom or base_link /localization/kinematic_state",
+        help="Body-referenced odom or base_link /localization/kinematic_state",
     )
     parser.add_argument("--sensor-config", default=default_sensor_config)
     parser.add_argument("--imu-name", default="imu")
@@ -875,6 +925,16 @@ def main():
             "alignment. Keep 0 for the historical first-sample behavior; "
             "use a positive value only when a documented startup transient "
             "must not define the whole-run alignment."
+        ),
+    )
+    parser.add_argument(
+        "--alignment-yaw-mode",
+        choices=("estimate", "none"),
+        default="estimate",
+        help=(
+            "Yaw alignment policy. 'estimate' rotates the state trajectory "
+            "once to match Ego at the reference time (historical default). "
+            "'none' preserves absolute state yaw and aligns translation only."
         ),
     )
     parser.add_argument(
@@ -912,14 +972,27 @@ def main():
     parser.add_argument("--stationary-speed-threshold", type=float, default=0.1)
     parser.add_argument("--stationary-min-duration", type=float, default=1.0)
     parser.add_argument("--publish-rviz", action="store_true")
+    parser.add_argument(
+        "--rviz-ground-z",
+        type=float,
+        default=None,
+        help=(
+            "Visualization-only constant z for both GT/state paths and error "
+            "markers. Evaluation values are unchanged. Use -0.3105 with the "
+            "planar Lanelet playback launch."
+        ),
+    )
     parser.add_argument("--marker-stride", type=int, default=1)
     args = parser.parse_args()
 
+    if not math.isfinite(args.ego_heading_yaw_offset_deg):
+        raise ValueError("--ego-heading-yaw-offset-deg must be finite")
     ego_samples, raw_state_samples = read_bag_states(
         args.bag,
         args.ego_topic,
         args.state_topic,
         args.ego_velocity_unit,
+        args.ego_heading_yaw_offset_deg,
     )
     if not ego_samples:
         raise RuntimeError(f"No valid messages found on {args.ego_topic}")
@@ -975,7 +1048,9 @@ def main():
         alignment_yaw,
         alignment_reference_sec,
     ) = align_from_reference_pose(
-        matched, args.alignment_reference_sec
+        matched,
+        args.alignment_reference_sec,
+        args.alignment_yaw_mode,
     )
     position_error_xyz = aligned_xyz - ego_xyz
     position_errors = np.linalg.norm(position_error_xyz[:, :2], axis=1)
@@ -1056,6 +1131,8 @@ def main():
             mount,
             interpolation_statistics,
             args.ego_velocity_unit,
+            args.ego_heading_yaw_offset_deg,
+            args.alignment_yaw_mode,
             alignment_reference_sec,
         )
     report = report_buffer.getvalue()
@@ -1101,6 +1178,7 @@ def main():
             args.yaw_rate_error_threshold,
             args.marker_stride,
             original_child_frame == "body",
+            args.rviz_ground_z,
         )
 
 

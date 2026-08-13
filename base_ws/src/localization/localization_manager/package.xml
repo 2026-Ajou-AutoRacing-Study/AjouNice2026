@@ -18,8 +18,12 @@
   <depend>sensor_msgs</depend>
   <depend>tf</depend>
   <depend>tf2_ros</depend>
+  <depend>visualization_msgs</depend>
 
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>ioniq5</exec_depend>
+  <exec_depend>lanelet_map_visualizer</exec_depend>
   <exec_depend>tf_pub</exec_depend>
 
   <export/>

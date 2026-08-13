@@ -1,0 +1,63 @@
+<launch>
+  <!-- GT-assisted GNSS+IMU CTRA-like provider for live MORAI or bag replay. -->
+  <arg name="use_sim_time" default="false"/>
+  <arg name="gt_source" default="ego"/>
+  <arg name="use_heading_correction" default="true"/>
+  <arg name="heading_yaw_offset_deg" default="-1.347"/>
+  <arg name="sensor_config"
+       default="$(env HOME)/AjouNice2026/configs/sensors/Sensor.json"/>
+  <arg name="measurement_noise_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/gnss_imu_gt_noise_sensor6_ideal.yaml"/>
+  <arg name="localization_manager_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+  <arg name="local_ekf_base_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/robot_localization_gnss_imu_local.yaml"/>
+  <arg name="global_ekf_base_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/robot_localization_gnss_imu_global.yaml"/>
+  <arg name="local_ekf_gt_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/robot_localization_gnss_imu_gt_ctra_local.yaml"/>
+  <arg name="global_ekf_gt_config"
+       default="$(env HOME)/AjouNice2026/configs/localization/robot_localization_gnss_imu_gt_ctra_global.yaml"/>
+  <arg name="publish_sensor_tf" default="true"/>
+
+  <arg name="map_frame" default="map"/>
+  <arg name="morai_map_frame" default="morai_map"/>
+  <arg name="base_frame" default="base_link"/>
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+
+  <include file="$(find tf_pub)/launch/map_tf.launch">
+    <arg name="parent_frame" value="$(arg map_frame)"/>
+    <arg name="child_frame" value="$(arg morai_map_frame)"/>
+  </include>
+
+  <group if="$(arg publish_sensor_tf)">
+    <include file="$(find tf_pub)/launch/sensor_tf.launch">
+      <arg name="sensor_config" value="$(arg sensor_config)"/>
+      <arg name="parent_frame" value="$(arg base_frame)"/>
+      <arg name="publish_lidar" value="false"/>
+      <arg name="publish_imu" value="true"/>
+      <arg name="publish_camera" value="false"/>
+      <arg name="publish_gps" value="true"/>
+    </include>
+  </group>
+
+  <include file="$(find localization_manager)/launch/gnss_imu_gt_ctra.launch">
+    <arg name="gt_source" value="$(arg gt_source)"/>
+    <arg name="use_heading_correction"
+         value="$(arg use_heading_correction)"/>
+    <arg name="heading_yaw_offset_deg"
+         value="$(arg heading_yaw_offset_deg)"/>
+    <arg name="sensor_config" value="$(arg sensor_config)"/>
+    <arg name="config" value="$(arg localization_manager_config)"/>
+    <arg name="measurement_noise_config"
+         value="$(arg measurement_noise_config)"/>
+    <arg name="local_ekf_base_config" value="$(arg local_ekf_base_config)"/>
+    <arg name="global_ekf_base_config" value="$(arg global_ekf_base_config)"/>
+    <arg name="local_ekf_gt_config" value="$(arg local_ekf_gt_config)"/>
+    <arg name="global_ekf_gt_config" value="$(arg global_ekf_gt_config)"/>
+    <arg name="map_frame" value="$(arg map_frame)"/>
+    <arg name="morai_map_frame" value="$(arg morai_map_frame)"/>
+    <arg name="base_frame" value="$(arg base_frame)"/>
+  </include>
+</launch>
