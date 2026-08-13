@@ -2,10 +2,12 @@ cmake_minimum_required(VERSION 3.0.2)
 project(morai_fastbev_ros)
 
 find_package(catkin REQUIRED COMPONENTS
+  autoware_perception_msgs
   geometry_msgs
   jsk_recognition_msgs
   message_filters
   morai_pointpainting_ros
+  perception_object_pipeline
   rospy
   sensor_msgs
   std_msgs
@@ -14,10 +16,12 @@ find_package(catkin REQUIRED COMPONENTS
 
 catkin_package(
   CATKIN_DEPENDS
+  autoware_perception_msgs
   geometry_msgs
   jsk_recognition_msgs
   message_filters
   morai_pointpainting_ros
+  perception_object_pipeline
   rospy
   sensor_msgs
   std_msgs

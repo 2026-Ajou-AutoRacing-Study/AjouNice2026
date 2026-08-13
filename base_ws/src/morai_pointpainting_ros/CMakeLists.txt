@@ -2,9 +2,11 @@ cmake_minimum_required(VERSION 3.0.2)
 project(morai_pointpainting_ros)
 
 find_package(catkin REQUIRED COMPONENTS
+  autoware_perception_msgs
   cv_bridge
   geometry_msgs
   message_generation
+  perception_object_pipeline
   rospy
   sensor_msgs
   std_msgs
@@ -25,9 +27,11 @@ generate_messages(
 
 catkin_package(
   CATKIN_DEPENDS
+  autoware_perception_msgs
   cv_bridge
   geometry_msgs
   message_runtime
+  perception_object_pipeline
   rospy
   sensor_msgs
   std_msgs

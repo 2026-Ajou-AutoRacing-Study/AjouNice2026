@@ -9,6 +9,8 @@
        default="$(arg repo_root)/configs/sensors/Sensor_6.json"/>
 
   <arg name="detections_topic" default="/fastbev/detections"/>
+  <arg name="objects_topic"
+       default="/perception/object_recognition/detection/objects"/>
   <arg name="jsk_boxes_topic" default="/hmi/perc/jsk_pillar_objects"/>
   <arg name="markers_topic" default="/fastbev/detection_markers"/>
   <arg name="output_frame_id" default="velodyne"/>
@@ -27,6 +29,7 @@
         launch-prefix="$(arg python_executable)"
         output="screen"
         respawn="false">
+    <remap from="~output/objects" to="$(arg objects_topic)"/>
     <rosparam command="load"
               file="$(find morai_fastbev_ros)/config/morai_4cam.yaml"/>
     <param name="repo_root" value="$(arg repo_root)"/>

@@ -49,6 +49,8 @@ from morai_pointpainting_ros.msg import (
     PointPaintingDetection,
     PointPaintingDetectionArray,
 )
+from autoware_perception_msgs.msg import DetectedObjects
+from perception_object_pipeline import make_detected_objects
 
 
 SEMANTIC_NAMES = (
@@ -483,6 +485,11 @@ class PointPaintingOnlineNode:
         self.detections_pub = rospy.Publisher(
             self.detections_topic,
             PointPaintingDetectionArray,
+            queue_size=1,
+        )
+        self.objects_pub = rospy.Publisher(
+            "~output/objects",
+            DetectedObjects,
             queue_size=1,
         )
         self.markers_pub = rospy.Publisher(
@@ -1521,14 +1528,17 @@ class PointPaintingOnlineNode:
             detection_ms=detection_ms,
             total_ms=total_ms,
         )
-        self.detections_pub.publish(output)
-
         names = [
             self.class_names[int(label) - 1]
             if 0 < int(label) <= len(self.class_names)
             else "unknown"
             for label in labels
         ]
+        self.objects_pub.publish(
+            make_detected_objects(msg.header, boxes, scores, names)
+        )
+        self.detections_pub.publish(output)
+
         self.markers_pub.publish(
             make_markers(
                 boxes,

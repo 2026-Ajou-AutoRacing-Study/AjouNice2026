@@ -13,6 +13,8 @@
 
   <arg name="lidar_topic" default="/sensor/lidar1"/>
   <arg name="detections_topic" default="/pointpainting/detections"/>
+  <arg name="objects_topic"
+       default="/perception/object_recognition/detection/objects"/>
   <arg name="markers_topic" default="/pointpainting/detection_markers"/>
   <arg name="painted_points_topic" default="/pointpainting/painted_points"/>
 
@@ -34,6 +36,7 @@
         launch-prefix="$(arg python_executable)"
         output="screen"
         respawn="false">
+    <remap from="~output/objects" to="$(arg objects_topic)"/>
 
     <rosparam command="load"
               file="$(find morai_pointpainting_ros)/config/morai_4cam.yaml"/>

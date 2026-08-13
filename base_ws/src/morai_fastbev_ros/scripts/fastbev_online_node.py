@@ -27,6 +27,7 @@ import message_filters
 import numpy as np
 import rospy
 import torch
+from autoware_perception_msgs.msg import DetectedObjects
 from geometry_msgs.msg import Pose, Vector3
 from jsk_recognition_msgs.msg import BoundingBox, BoundingBoxArray
 from mmcv import Config
@@ -39,6 +40,7 @@ from morai_pointpainting_ros.msg import (
     PointPaintingDetection,
     PointPaintingDetectionArray,
 )
+from perception_object_pipeline import make_detected_objects
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker, MarkerArray
@@ -214,6 +216,8 @@ class FastBEVOnlineNode:
         self.detections_pub = rospy.Publisher(
             rospy.get_param("~detections_topic", "/fastbev/detections"),
             PointPaintingDetectionArray, queue_size=1)
+        self.objects_pub = rospy.Publisher(
+            "~output/objects", DetectedObjects, queue_size=1)
         self.jsk_pub = rospy.Publisher(
             rospy.get_param("~jsk_boxes_topic", "/hmi/perc/jsk_pillar_objects"),
             BoundingBoxArray, queue_size=1)
@@ -378,6 +382,10 @@ class FastBEVOnlineNode:
 
     def _publish(self, header, boxes, scores, labels, camera_span_ms,
                  queue_delay_ms, preprocess_ms, inference_ms, total_ms) -> None:
+        class_names = [self.class_names[int(label)] for label in labels]
+        self.objects_pub.publish(
+            make_detected_objects(header, boxes, scores, class_names))
+
         detections = PointPaintingDetectionArray()
         detections.header = header
         detections.camera_age_max_ms = float(camera_span_ms)
