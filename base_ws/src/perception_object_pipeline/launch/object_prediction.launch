@@ -1,0 +1,17 @@
+<launch>
+  <arg name="input_objects"
+       default="/perception/object_recognition/tracking/objects"/>
+  <arg name="output_objects"
+       default="/perception/object_recognition/objects"/>
+  <arg name="horizons" default="[0.3, 0.6, 0.9, 1.2, 1.5]"/>
+
+  <node pkg="perception_object_pipeline"
+        type="object_prediction_node.py"
+        name="object_prediction"
+        output="screen"
+        respawn="false">
+    <remap from="~input/objects" to="$(arg input_objects)"/>
+    <remap from="~output/objects" to="$(arg output_objects)"/>
+    <rosparam param="horizons" subst_value="true">$(arg horizons)</rosparam>
+  </node>
+</launch>
