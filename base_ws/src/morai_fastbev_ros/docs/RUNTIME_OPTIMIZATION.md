@@ -29,6 +29,43 @@ projection error가 모두 정확히 `0`이다. `opencv`는 보간 차이로 픽
 이에 따라 ROS 기본값은 `opencv`로 전환하고 `fixed`는 재현·rollback용으로
 유지한다.
 
+학습도 `FASTBEV_IMAGE_BACKEND=opencv`로 같은 image geometry backend를
+선택할 수 있다. Deployment-matched 학습의 기본 augmentation은 upstream의
+50% flip보다 약하게 설정한다.
+
+- BEV horizontal flip: 10%
+- image horizontal flip: 20%
+- BEV vertical flip: 0%
+
+실제 값은 W&B run config에 기록하며 `FASTBEV_BEV_FLIP_PROB`와
+`FASTBEV_IMAGE_FLIP_PROB`로 비교 실험할 수 있다.
+
+### Deployment-matched 12-epoch 학습 결과
+
+동일한 1,050/228/222 train/val/test split, seed와 FP16 조건에서 기존
+PIL/BEV 50%/image 50% baseline과 OpenCV/BEV 10%/image 20% 후보를 비교했다.
+두 실험 모두 epoch 11의 validation `center_mAP` best checkpoint를 사용했다.
+
+| test 지표 | PIL 50/50 | OpenCV 10/20 | 변화 |
+|---|---:|---:|---:|
+| center mAP | 0.6001 | 0.5753 | -0.0248 |
+| vehicle mean AP | 0.6874 | 0.6884 | +0.0010 |
+| pedestrian mean AP | 0.6645 | 0.6488 | -0.0158 |
+| obstacle mean AP | 0.4483 | 0.3888 | -0.0595 |
+| IoU mAP@0.25 | 0.5783 | 0.5596 | -0.0187 |
+| 순수 inference FPS | 43.75 | 42.85 | -0.90 |
+| offline end-to-end FPS | 10.88 | 13.56 | +2.68 |
+
+OpenCV는 모델 연산 자체가 아니라 image transform 경로를 줄이므로 순수 inference
+FPS는 동등하고, disk load와 전처리를 포함한 end-to-end FPS가 약 24.7% 증가했다.
+반면 이번 학습은 backend와 두 flip 확률을 동시에 바꾼 결합 실험이므로 정확도 하락을
+OpenCV 픽셀 보간 하나의 영향으로 단정할 수 없다. 특히 obstacle 성능 하락이 커서,
+기존 PIL 모델은 정확도 baseline으로 유지하고 OpenCV 모델은 실시간 배포 후보로
+보존한다. 후속 실험은 OpenCV backend를 고정한 채 flip 확률만 분리해 비교한다.
+
+- W&B: <https://wandb.ai/AjouNice2026/morai-fastbev/runs/full1500_stride1_fp16_opencv_flip10_20_v1>
+- 로컬 결과: `artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_opencv_flip10_20_v1/`
+
 ## 2026-08-14 benchmark
 
 입력 bag:

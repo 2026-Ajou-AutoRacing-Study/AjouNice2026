@@ -16,6 +16,18 @@ if image_transform_backend not in ('pil', 'opencv'):
         'FASTBEV_IMAGE_BACKEND must be either pil or opencv, got '
         + repr(image_transform_backend))
 
+# MORAI has fixed camera roles and a meaningful right-hand-traffic bias. The
+# upstream 50/50 flips are reduced while remaining configurable for ablations.
+bev_horizontal_flip_prob = float(__import__('os').environ.get(
+    'FASTBEV_BEV_FLIP_PROB', '0.1'))
+image_horizontal_flip_prob = float(__import__('os').environ.get(
+    'FASTBEV_IMAGE_FLIP_PROB', '0.2'))
+for _name, _probability in (
+        ('FASTBEV_BEV_FLIP_PROB', bev_horizontal_flip_prob),
+        ('FASTBEV_IMAGE_FLIP_PROB', image_horizontal_flip_prob)):
+    if not 0.0 <= _probability <= 1.0:
+        raise ValueError(_name + ' must be in [0, 1]')
+
 class_names = ['vehicle', 'pedestrian', 'obstacle']
 dataset_type = 'MoraiMultiViewDataset'
 data_root = '/home/luv/ajounice_data/morai_od/processed/fastbev_sunny13_1500_v1/'
@@ -69,6 +81,7 @@ data_config = dict(
     crop=(-0.02, 0.02),
     rot=(-2.0, 2.0),
     flip=True,
+    flip_prob=image_horizontal_flip_prob,
     test_input_size=(384, 704),
     test_resize=0.0,
     test_rotate=0.0,
@@ -90,7 +103,8 @@ train_pipeline = [
          with_bbox=False, with_label=False),
     dict(type='LoadPointsFromFile', dummy=True, coord_type='LIDAR', load_dim=5, use_dim=5),
     dict(type='RandomFlip3D', flip_2d=False, sync_2d=False,
-         flip_ratio_bev_horizontal=0.5, flip_ratio_bev_vertical=0.0,
+         flip_ratio_bev_horizontal=bev_horizontal_flip_prob,
+         flip_ratio_bev_vertical=0.0,
          update_img2lidar=True),
     dict(type='GlobalRotScaleTrans', rot_range=[-0.20, 0.20],
          scale_ratio_range=[0.95, 1.05], translation_std=[0.05, 0.05, 0.05],
@@ -182,6 +196,8 @@ wandb_tags = [
 wandb_config = dict(
     architecture='FastBEV-M0-ResNet18',
     image_transform_backend=image_transform_backend,
+    bev_horizontal_flip_prob=bev_horizontal_flip_prob,
+    image_horizontal_flip_prob=image_horizontal_flip_prob,
     dataset='MORAI-fastbev-sunny13-1500-v1',
     train_frames=1050,
     val_frames=228,
@@ -198,11 +214,11 @@ wandb_config = dict(
     max_epochs=total_epochs,
     fp16=True,
     selection_metric='center_mAP')
-log_config = dict(
-    interval=10,
-    hooks=[
-        dict(type='TextLoggerHook'),
-        dict(type='TensorboardLoggerHook'),
+log_hooks = [
+    dict(type='TextLoggerHook'),
+    dict(type='TensorboardLoggerHook')]
+if __import__('os').environ.get('FASTBEV_DISABLE_WANDB', '0') != '1':
+    log_hooks.append(
         dict(
             type='MoraiWandbLoggerHook',
             # MMCV's explicit W&B ``step=runner.iter`` can move backwards
@@ -227,8 +243,8 @@ log_config = dict(
                     'WANDB_NOTES',
                     'MORAI 4-camera Fast-BEV single-frame baseline'),
                 config=wandb_config),
-            interval=10)
-    ])
+            interval=10))
+log_config = dict(interval=10, hooks=log_hooks)
 
 # The inherited config points to an upstream checkpoint path that is not part
 # of this repository.  Keep a clean from-scratch default; an explicit MORAI or

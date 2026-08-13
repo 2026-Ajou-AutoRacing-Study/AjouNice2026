@@ -13,6 +13,28 @@ perception/detection3d/fastbev/scripts/train.sh \
   full1500_stride1_fp16_opencv_v1
 ```
 
+MORAI의 고정 camera role과 우측통행 분포를 보존하기 위해 production
+config의 기본 flip 확률은 BEV horizontal `0.1`, image horizontal `0.2`이다.
+비교 실험에서는 다음 환경변수로만 바꾼다.
+
+```bash
+FASTBEV_BEV_FLIP_PROB=0.1 \
+FASTBEV_IMAGE_FLIP_PROB=0.2 \
+FASTBEV_IMAGE_BACKEND=opencv \
+perception/detection3d/fastbev/scripts/train.sh <run-name>
+```
+
+학습 전에 image flip sampling, PIL/OpenCV projection geometry, 3D annotation
+변환과 실제 dataset sample을 한 번에 검사할 수 있다.
+
+```bash
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
+conda activate fastbev_rtx50
+export PYTHONPATH="$PWD:$PWD/third_party/fastbev${PYTHONPATH:+:$PYTHONPATH}"
+FASTBEV_IMAGE_BACKEND=opencv \
+python3 perception/detection3d/fastbev/scripts/validate_augmentation.py
+```
+
 `MoraiAugImageMultiViewImage`가 픽셀 resize/crop/flip/rotate backend만 바꾸고,
 augmentation 표본과 camera projection 보정 수식은 같은 Fast-BEV 경로를
 공유한다. 선택한 backend는 config와 W&B run config에도 기록된다.

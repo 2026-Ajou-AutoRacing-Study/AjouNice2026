@@ -108,6 +108,29 @@ class MoraiAugImageMultiViewImage(RandomAugImageMultiViewImage):
                 "MoraiAugImageMultiViewImage backend must be 'pil' or "
                 f"'opencv', got {backend!r}")
 
+        # Upstream Fast-BEV exposes image flipping as a boolean and therefore
+        # hard-codes a 50% probability whenever it is enabled. MORAI's camera
+        # roles and right-hand-traffic distribution are asymmetric, so retain
+        # the legacy boolean behaviour while allowing a smaller probability.
+        flip_prob = self.data_config.get("flip_prob")
+        if flip_prob is not None:
+            flip_prob = float(flip_prob)
+            if not 0.0 <= flip_prob <= 1.0:
+                raise ValueError(
+                    "data_config.flip_prob must be in [0, 1], got "
+                    f"{flip_prob}")
+            self.data_config["flip_prob"] = flip_prob
+
+    def sample_augmentation(self, H, W):
+        sampled = super().sample_augmentation(H, W)
+        if not self.is_train or "flip_prob" not in self.data_config:
+            return sampled
+
+        resize, resize_dims, crop, _flip, rotate, pad = sampled
+        enabled = bool(self.data_config.get("flip", False))
+        flip = enabled and np.random.rand() < self.data_config["flip_prob"]
+        return resize, resize_dims, crop, flip, rotate, pad
+
     @staticmethod
     def _crop_with_border(image, crop):
         """Match Pillow crop size and zero-fill out-of-image regions."""

@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 import statistics
 import time
 from pathlib import Path
@@ -56,6 +57,16 @@ def parse_args():
         "--output-json",
         help="optional path for machine-readable metrics and runtime",
     )
+    parser.add_argument(
+        "--wandb",
+        action="store_true",
+        help="append test metrics to the selected W&B training run",
+    )
+    parser.add_argument("--wandb-run-id", default=os.getenv("WANDB_RUN_ID"))
+    parser.add_argument(
+        "--wandb-entity", default=os.getenv("WANDB_ENTITY", "AjouNice2026"))
+    parser.add_argument(
+        "--wandb-project", default=os.getenv("WANDB_PROJECT", "morai-fastbev"))
     return parser.parse_args()
 
 
@@ -147,31 +158,74 @@ def main():
     print("metrics:")
     for key in sorted(metrics):
         print(f"  {key}: {metrics[key]:.6f}")
+    payload = {
+        "evaluation_protocol": "morai_nuscenes_style_v1",
+        "config": str(Path(args.config).expanduser().resolve()),
+        "checkpoint": str(Path(args.checkpoint).expanduser().resolve()),
+        "dataset_frames": len(dataset),
+        "warmup_frames": args.warmup,
+        "precision": "FP16" if args.fp16 else "FP32",
+        "runtime": {
+            "inference_fps": 1.0 / statistics.fmean(inference_times),
+            "inference_mean_ms": statistics.fmean(inference_times) * 1000.0,
+            "inference_p50_ms": float(
+                np.percentile(inference_times, 50) * 1000.0),
+            "inference_p95_ms": float(
+                np.percentile(inference_times, 95) * 1000.0),
+            "end_to_end_fps": 1.0 / statistics.fmean(end_to_end_times),
+            "peak_cuda_mib": torch.cuda.max_memory_allocated() / 1024**2,
+        },
+        "metrics": {key: float(value) for key, value in metrics.items()},
+    }
     if args.output_json:
         output_path = Path(args.output_json).expanduser().resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "evaluation_protocol": "morai_nuscenes_style_v1",
-            "config": str(Path(args.config).expanduser().resolve()),
-            "checkpoint": str(Path(args.checkpoint).expanduser().resolve()),
-            "dataset_frames": len(dataset),
-            "warmup_frames": args.warmup,
-            "precision": "FP16" if args.fp16 else "FP32",
-            "runtime": {
-                "inference_fps": 1.0 / statistics.fmean(inference_times),
-                "inference_mean_ms": statistics.fmean(inference_times) * 1000.0,
-                "inference_p50_ms": float(np.percentile(inference_times, 50) * 1000.0),
-                "inference_p95_ms": float(np.percentile(inference_times, 95) * 1000.0),
-                "end_to_end_fps": 1.0 / statistics.fmean(end_to_end_times),
-                "peak_cuda_mib": torch.cuda.max_memory_allocated() / 1024**2,
-            },
-            "metrics": {key: float(value) for key, value in metrics.items()},
-        }
         output_path.write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         print("metrics JSON:", output_path)
+    if args.wandb:
+        if not args.wandb_run_id:
+            raise ValueError("--wandb requires --wandb-run-id or WANDB_RUN_ID")
+        import wandb
+
+        run = wandb.init(
+            entity=args.wandb_entity,
+            project=args.wandb_project,
+            id=args.wandb_run_id,
+            resume="allow",
+            dir=str(Path(args.checkpoint).expanduser().resolve().parent),
+        )
+
+        def wandb_metric(key):
+            if key.startswith("tp/") or key.startswith("iou/"):
+                return True
+            if key.startswith("center/"):
+                return "_best_" not in key and not key.endswith((
+                    "_GT", "_predictions", "_ground_truth"))
+            if key.startswith("range/"):
+                return key.endswith(("_mean_AP", "/mAP"))
+            return False
+
+        # Keep the complete 377-metric report in JSON, but append only the
+        # dashboard-sized final-test subset to W&B. This avoids hundreds of
+        # automatically generated panels while preserving detailed offline
+        # diagnostics.
+        log_values = {
+            f"test/{key}": value
+            for key, value in payload["metrics"].items()
+            if wandb_metric(key)
+        }
+        log_values.update({
+            f"test/runtime/{key}": value
+            for key, value in payload["runtime"].items()
+        })
+        log_values["test/dataset_frames"] = payload["dataset_frames"]
+        run.log(log_values)
+        run.summary["test/checkpoint"] = payload["checkpoint"]
+        run.finish()
+        print("W&B test metrics appended to run:", args.wandb_run_id)
     print("Fast-BEV MORAI evaluation + FPS: OK")
 
 

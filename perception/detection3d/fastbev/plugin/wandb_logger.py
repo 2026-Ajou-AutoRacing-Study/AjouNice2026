@@ -31,7 +31,6 @@ class MoraiWandbLoggerHook(WandbLoggerHook):
                 step_metric="epoch",
                 hidden=False,
                 summary="max",
-                goal="maximize",
                 overwrite=True)
         self.wandb.define_metric(
             "learning_rate", step_metric="global_step")
