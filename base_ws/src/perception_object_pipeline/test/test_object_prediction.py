@@ -41,8 +41,9 @@ class ObjectPredictionTest(unittest.TestCase):
         self.assertEqual(output.header.frame_id, "map")
         self.assertEqual(output.objects[0].object_id.uuid[15], 7)
         path = output.objects[0].kinematics.predicted_paths[0]
-        self.assertEqual(len(path.path), 3)
+        self.assertEqual(len(path.path), 4)
         self.assertAlmostEqual(path.time_step.to_sec(), 0.5)
+        self.assertAlmostEqual(path.path[0].position.x, 1.0)
         self.assertGreater(path.path[-1].position.x, path.path[0].position.x)
         self.assertGreater(path.path[-1].position.y, path.path[0].position.y)
 
@@ -52,7 +53,7 @@ class ObjectPredictionTest(unittest.TestCase):
             self._track(ObjectClassification.PEDESTRIAN, vx=0.0, vy=1.0)
         ]
         output = make_predicted_objects(message, [1.0])
-        pose = output.objects[0].kinematics.predicted_paths[0].path[0]
+        pose = output.objects[0].kinematics.predicted_paths[0].path[1]
         self.assertAlmostEqual(pose.position.x, 1.0)
         self.assertAlmostEqual(pose.position.y, 3.0)
         self.assertAlmostEqual(pose.orientation.z, math.sqrt(0.5), places=6)

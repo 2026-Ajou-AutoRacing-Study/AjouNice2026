@@ -57,7 +57,8 @@ so their message MD5 sums match.
 - Detector output uses its real measurement timestamp and sensor/Ego frame.
 - EKF looks up that timestamp's TF and tracks in `map`.
 - `TrackedObjects` and `PredictedObjects` remain in `map`.
-- The predictor emits five uniformly spaced poses from 0.3 through 1.5 seconds.
+- The predictor emits the current pose followed by five uniformly spaced poses
+  from 0.3 through 1.5 seconds (`time_step=0.3s`).
 - JSK boxes and visualization markers are debug-only and never carry IDs or
   kinematics between production nodes.
 

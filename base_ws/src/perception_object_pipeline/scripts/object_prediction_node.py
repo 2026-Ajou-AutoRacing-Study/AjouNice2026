@@ -118,7 +118,11 @@ def make_predicted_objects(message: TrackedObjects, horizons) -> PredictedObject
         )
 
         path = PredictedPath()
-        path.path = [predict_pose(tracked, horizon) for horizon in horizons]
+        # Autoware's PredictedPath convention places the current object pose at
+        # index 0; subsequent entries are separated by ``time_step``.
+        path.path = [
+            copy.deepcopy(tracked.kinematics.pose_with_covariance.pose)
+        ] + [predict_pose(tracked, horizon) for horizon in horizons]
         path.time_step = rospy.Duration(horizons[0])
         path.confidence = 1.0
         predicted.kinematics.predicted_paths = [path]
