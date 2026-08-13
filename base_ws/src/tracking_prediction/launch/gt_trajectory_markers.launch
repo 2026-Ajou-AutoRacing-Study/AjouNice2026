@@ -1,0 +1,12 @@
+<launch>
+  <arg name="input_topic" default="/Object_topic" />
+  <arg name="output_topic" default="/gt/markers" />
+  <!-- 2026-08-01: RViz 렌더링 부하 완화용 - GT 원본 rate(~50Hz) 대신 이 속도로만 발행 -->
+  <arg name="publish_hz" default="10.0" />
+
+  <node pkg="tracking_prediction" type="gt_trajectory_markers_node.py" name="gt_trajectory_markers_node" output="screen">
+    <param name="input_topic" value="$(arg input_topic)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+    <param name="publish_hz" value="$(arg publish_hz)" />
+  </node>
+</launch>

@@ -1,0 +1,8 @@
+<launch>
+  <!-- bringup/launch 등 상위 wrapper에서 이 파일 하나만 include 하면 됨 -->
+  <include file="$(find tracking_prediction)/launch/tracking.launch" />
+  <include file="$(find tracking_prediction)/launch/prediction.launch" />
+  <!-- 2026-07-31 추가: 판단/제어용 고rate(20~50Hz) 출력. prediction의 입력에는
+       영향 없음(별도 토픽 /tracking/objects_highrate로만 발행) -->
+  <include file="$(find tracking_prediction)/launch/extrapolation.launch" />
+</launch>

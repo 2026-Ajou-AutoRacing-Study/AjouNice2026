@@ -1,0 +1,24 @@
+<launch>
+  <!--
+    이 브릿지 실행 전, rosbag 재생시 반드시 클록옵션 옵션을 붙여야 함
+    (ekf_multi_class_object_tracking.launch가 use_sim_time:=true를 요구하기 때문):
+    rosbag play 클록옵션 <bag파일>
+  -->
+  <arg name="input_topic" default="/Object_topic" />
+  <arg name="output_topic" default="/hmi/perc/jsk_pillar_objects" />
+  <arg name="frame_id" default="" />
+  <!-- 2026-07-31 추가: 순간이동(텔레포트)하는 junk NPC를 트래커 입력 단계에서 제외.
+       sensor_cam_raw_roundabout1.bag 기준으로 확인된 목록(eval 스크립트들과 동일) -->
+  <arg name="exclude_ids" default="16,18,20,21,23,25,27,30,31,34,35,40" />
+  <!-- ID 무관 순간이동 가드: 직전 프레임 대비 이 거리(m) 이상 점프하면 그 프레임만 스킵.
+       EKF의 max_association_dist_m(config.yaml)과 같은 값 기본. -->
+  <arg name="teleport_guard_dist_m" default="5.0" />
+
+  <node pkg="tracking_prediction" type="gt_to_jsk_bbox_bridge.py" name="gt_to_jsk_bbox_bridge" output="screen">
+    <param name="input_topic" value="$(arg input_topic)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="exclude_ids" value="$(arg exclude_ids)" />
+    <param name="teleport_guard_dist_m" value="$(arg teleport_guard_dist_m)" />
+  </node>
+</launch>
