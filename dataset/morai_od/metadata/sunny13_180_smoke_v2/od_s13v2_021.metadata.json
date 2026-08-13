@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_021",
+  "scenario_stem": "od_s13v2_021",
+  "split": "val",
+  "scene_type": "camera_seam_occlusion",
+  "topology": "curve",
+  "seed": 26080718021,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2028,
+    "arc_m": 1068.2087463854189,
+    "curvature_deg": 7.00680838643305,
+    "crosswalk_distance_m": 269.97823215477234,
+    "parking_distance_m": 287.66801684731547,
+    "stopline_distance_m": 63.25585495653412,
+    "branch_distance_m": 26.41732016213142
+  },
+  "ego": {
+    "x": 54.61649859725213,
+    "y": 306.1915948996058,
+    "z": 28.65116031021943,
+    "yaw": -68.5258054775803,
+    "link_idx": "A2256W000846",
+    "point_idx": 167
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 4,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100005,
+      "name": "2014_Kia_K7",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 65.70273482116369,
+        "y": 323.2779842601024,
+        "z": 28.64358993037689,
+        "yaw": -89.76818350510622
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100007,
+      "name": "2016_Hyundai_Ioniq",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 44.38072944785331,
+        "y": 324.4607827696529,
+        "z": 28.6757345960498,
+        "yaw": -52.89652066755637
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50200004,
+      "name": "Girl2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.036773503816306,
+        "y": 302.6019176632466,
+        "z": 28.345474597210924,
+        "yaw": -135.1638668179109
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100004,
+      "name": "Woman1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 52.470859673430695,
+        "y": 300.170160306263,
+        "z": 28.341287105812857,
+        "yaw": -156.76393666562706
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 56.74566530834295,
+        "y": 310.4534093149496,
+        "z": 28.37214063729948,
+        "yaw": -137.766236350876
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100077,
+      "name": "worker_m_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 40.14995355134212,
+        "y": 313.25925634656556,
+        "z": 28.377116403913334,
+        "yaw": -109.62036225008005
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200163,
+      "name": "fr-streetlight-2",
+      "ontology_class": "RoadsideFurniture",
+      "subtype": "fixed_roadside_object",
+      "generation_policy": "enabled_roadside_only",
+      "pose": {
+        "x": 71.35039608073797,
+        "y": 306.6637739043854,
+        "z": 28.36838844432914,
+        "yaw": -73.61460345127585
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

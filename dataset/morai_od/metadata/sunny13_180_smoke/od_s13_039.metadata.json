@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_039",
+  "scenario_stem": "od_s13_039",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080718039,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2575,
+    "arc_m": 1340.1516108108945,
+    "curvature_deg": 0.017047491557093508,
+    "crosswalk_distance_m": 72.21955438864967,
+    "parking_distance_m": 161.27770341489187,
+    "stopline_distance_m": 45.18396026754011,
+    "branch_distance_m": 28.573758348620807
+  },
+  "ego": {
+    "x": 67.22718791532414,
+    "y": 35.199305676797835,
+    "z": 28.706307888907673,
+    "yaw": -89.80851309085158,
+    "link_idx": "A2256W000420",
+    "point_idx": 108
+  },
+  "counts": {
+    "npc": 7,
+    "pedestrian": 1,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30300003,
+      "name": "DEFAULT_BUS",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.18288720692178,
+        "y": 40.20972628188056,
+        "z": 28.873885212516893,
+        "yaw": -89.67880321428355
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200012,
+      "name": "2021_Hyundai_GV70",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.24174925837958,
+        "y": 29.70989582681953,
+        "z": 28.75410391043623,
+        "yaw": -89.67880321428355
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30500002,
+      "name": "DEFAULT_WAGON",
+      "ontology_class": "Vehicle",
+      "subtype": "wagon",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 77.76885637673765,
+        "y": 23.715977799543563,
+        "z": 28.74811013388091,
+        "yaw": -89.58949770950387
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200014,
+      "name": "2023_Hyundai_Ioniq5",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 67.27818969555875,
+        "y": 24.69947148558074,
+        "z": 28.715286323511194,
+        "yaw": -89.6565798533085
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100003,
+      "name": "2016_Hyundai_Sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.34508232261595,
+        "y": 9.710177856421147,
+        "z": 28.725281171160432,
+        "yaw": -89.73005153585717
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30200010,
+      "name": "2021_Volkswagen_Golf_GTI",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 50.088358907718,
+        "y": 37.97096639237194,
+        "z": 28.782835486742563,
+        "yaw": 90.38901195896801
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30400005,
+      "name": "2014_Hyundai_Xcient(Mixer)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 67.1305624910472,
+        "y": 53.69900256319967,
+        "z": 28.889914137359256,
+        "yaw": -89.78423149235533
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100016,
+      "name": "Woman8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 60.697919330659694,
+        "y": 29.17803903763187,
+        "z": 28.4101524332625,
+        "yaw": 35.57540059227017
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200105,
+      "name": "KR_Sign_SL_60",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 83.64228603371456,
+        "y": 34.93041313383834,
+        "z": 28.36667964620123,
+        "yaw": -99.32696715849073
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

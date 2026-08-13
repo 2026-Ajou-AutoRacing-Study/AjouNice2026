@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_113",
+  "scenario_stem": "od_s13_113",
+  "split": "train",
+  "scene_type": "sparse_empty_background",
+  "topology": "straight",
+  "seed": 26080718113,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2242,
+    "arc_m": 1174.2388159315935,
+    "curvature_deg": 0.000329812106542704,
+    "crosswalk_distance_m": 201.93532680849046,
+    "parking_distance_m": 210.15298570223467,
+    "stopline_distance_m": 107.80636559709274,
+    "branch_distance_m": 55.49874844494924
+  },
+  "ego": {
+    "x": 62.50039874531466,
+    "y": 200.99781783297163,
+    "z": 28.60973791325973,
+    "yaw": -89.95511161432552,
+    "link_idx": "A2256W000411",
+    "point_idx": 111
+  },
+  "counts": {
+    "npc": 0,
+    "pedestrian": 0,
+    "obstacle": 0
+  },
+  "assets": [],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

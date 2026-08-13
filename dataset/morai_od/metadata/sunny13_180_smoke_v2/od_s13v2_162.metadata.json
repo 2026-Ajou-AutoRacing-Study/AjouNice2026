@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_162",
+  "scenario_stem": "od_s13v2_162",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080718162,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3047,
+    "arc_m": 1574.2437750451659,
+    "curvature_deg": 0.09991919180831133,
+    "crosswalk_distance_m": 54.88060859009379,
+    "parking_distance_m": 49.33698298532376,
+    "stopline_distance_m": 50.72284957396485,
+    "branch_distance_m": 19.339690734891665
+  },
+  "ego": {
+    "x": 73.28213059616,
+    "y": -198.63324598207396,
+    "z": 28.70994318524909,
+    "yaw": -83.86217981555534,
+    "link_idx": "A2256W000445",
+    "point_idx": 112
+  },
+  "counts": {
+    "npc": 1,
+    "pedestrian": 0,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30400005,
+      "name": "2014_Hyundai_Xcient(Mixer)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 87.39477269692082,
+        "y": -204.60882529316652,
+        "z": 28.80896505229724,
+        "yaw": 90.26864252433228
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100026,
+      "name": "Lane_Separation_Bar",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 61.28118640325107,
+        "y": -199.51416783049729,
+        "z": 28.315842659542568,
+        "yaw": -74.32996784148551
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200104,
+      "name": "KR_Sign_SL_50",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 83.78476460753242,
+        "y": -188.89387214578403,
+        "z": 28.342507502860233,
+        "yaw": -87.89972156758209
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100067,
+      "name": "Bollard04",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 54.334799303593975,
+        "y": -191.6869935401562,
+        "z": 28.504436017331624,
+        "yaw": -81.04886982431523
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

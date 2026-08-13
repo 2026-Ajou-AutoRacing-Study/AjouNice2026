@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_008",
+  "scenario_stem": "od_s13_008",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "intersection",
+  "seed": 26080718008,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1728,
+    "arc_m": 919.834413618767,
+    "curvature_deg": 18.221049554869666,
+    "crosswalk_distance_m": 254.57448205922,
+    "parking_distance_m": 283.17035743185914,
+    "stopline_distance_m": 4.104567907249765,
+    "branch_distance_m": 10.763843502453094
+  },
+  "ego": {
+    "x": -76.07077739526925,
+    "y": 341.57601181803585,
+    "z": 28.698288423344305,
+    "yaw": 6.443190069737028,
+    "link_idx": "A2256W000866",
+    "point_idx": 10
+  },
+  "counts": {
+    "npc": 3,
+    "pedestrian": 5,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30700006,
+      "name": "2020_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -85.62217588311965,
+        "y": 350.2150946357558,
+        "z": 28.69537288118814,
+        "yaw": 114.79348657342308
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30400003,
+      "name": "2013_Hyundai_Xcient(P520)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -89.4250231582948,
+        "y": 330.98300511067544,
+        "z": 28.90047252520284,
+        "yaw": 45.44449445505893
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200014,
+      "name": "2023_Hyundai_Ioniq5",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -84.67192955063304,
+        "y": 338.49659460133313,
+        "z": 28.751535396337715,
+        "yaw": 71.32953089420172
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -95.53614448133649,
+        "y": 334.8210432526503,
+        "z": 28.402502218567424,
+        "yaw": -86.43270800256319
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100014,
+      "name": "Woman6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -78.19794017563048,
+        "y": 345.5966101764669,
+        "z": 28.382444282202908,
+        "yaw": -104.65245623110653
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100058,
+      "name": "police_m_2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -94.36194421856882,
+        "y": 345.3407129360343,
+        "z": 28.40300630767079,
+        "yaw": -22.22016982863815
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -63.47650674075199,
+        "y": 337.56232135238815,
+        "z": 28.325818071010413,
+        "yaw": -141.26762769752065
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100005,
+      "name": "Woman2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -82.6120869763289,
+        "y": 335.1234503891252,
+        "z": 28.41577219798289,
+        "yaw": 104.75253874905877
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100033,
+      "name": "Steel_Barricade",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -76.17518077596206,
+        "y": 328.74607342397394,
+        "z": 28.327096596193833,
+        "yaw": 11.308455566528892
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

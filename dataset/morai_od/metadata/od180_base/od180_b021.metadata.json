@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_od180_v1",
+  "base_scenario_id": "base021",
+  "scenario_stem": "od180_b021",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "intersection",
+  "seed": 2608073021,
+  "anchor": {
+    "index": 1858,
+    "arc_m": 984.0976650641913,
+    "curvature_deg": 1.277169742047903,
+    "crosswalk_distance_m": 273.4649503700904,
+    "parking_distance_m": 297.88910696331567,
+    "stopline_distance_m": 44.680765771938226,
+    "branch_distance_m": 0.6112533344850053
+  },
+  "ego": {
+    "x": -11.949813789432508,
+    "y": 345.7182489148833,
+    "z": 28.681853196584843,
+    "yaw": 1.6858322835303454,
+    "link_idx": "A2256W000054",
+    "point_idx": 107
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 5,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100012,
+      "name": "2019_hyundai_genesis_g90",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -19.521869772695265,
+        "y": 343.86033952901596,
+        "z": 28.6602760891586,
+        "yaw": 12.911471946429941
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30700006,
+      "name": "2020_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 7.649069057527256,
+        "y": 345.3724148463762,
+        "z": 28.682654483831993,
+        "yaw": -5.455558575276768
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30800002,
+      "name": "2021_Kia_Carnival",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -1.839476925290801,
+        "y": 345.75820688325155,
+        "z": 28.718046681839997,
+        "yaw": -0.5125361160071691
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100007,
+      "name": "2016_Hyundai_Ioniq",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -30.794675974523823,
+        "y": 341.6437179431189,
+        "z": 28.631138527989407,
+        "yaw": 5.420390546827207
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100004,
+      "name": "Woman1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -33.245205793705736,
+        "y": 349.1986760978555,
+        "z": 28.406905901463062,
+        "yaw": 0.16850085021459904
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100005,
+      "name": "Woman2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -24.831912254796542,
+        "y": 340.81433479922174,
+        "z": 28.354861882787525,
+        "yaw": 13.359539642132262
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50200002,
+      "name": "Girl1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 2.3312845747715834,
+        "y": 341.9238048082344,
+        "z": 28.384024980065618,
+        "yaw": -122.59562844780382
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100015,
+      "name": "Woman7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 4.685921489041913,
+        "y": 352.54907168129375,
+        "z": 28.384442749178643,
+        "yaw": -45.18094627047179
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -10.254290454877735,
+        "y": 339.25082534109055,
+        "z": 28.392229128193147,
+        "yaw": -72.7767077098109
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200103,
+      "name": "KR_Sign_SL_40",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -11.997351259416329,
+        "y": 337.09099172147046,
+        "z": 28.365690295529678,
+        "yaw": -3.817708311602729
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100028,
+      "name": "PE_Firewall_Orange",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -1.3685042146895672,
+        "y": 329.9306415827887,
+        "z": 28.36736264645786,
+        "yaw": -6.096053491398038
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100059,
+      "name": "Bicycle_city",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -24.971765714441116,
+        "y": 367.2941589485925,
+        "z": 28.37318678903483,
+        "yaw": -4.850558269901285
+      }
+    }
+  ],
+  "environment_policy": "The same base scenario is captured in all six environment batches; weather/time are not embedded in this JSON.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "5f796c9ffdaf8dfb08557666046c2218e5939033487a37c12d90b4535638659d"
+  }
+}

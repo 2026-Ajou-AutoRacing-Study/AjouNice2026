@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.bak
+*.before_*
+
+# ROS
+build/
+devel/
+install/
+log/
+*.bag
+
+# Models and datasets
+*.pth
+*.pt
+*.ckpt
+*.bin
+dataset/
+datasets/
+
+# Runtime outputs
+*.log
+*.csv
+*.npy
+*.npz
+
+# Editors
+.vscode/
+.idea/
+*~

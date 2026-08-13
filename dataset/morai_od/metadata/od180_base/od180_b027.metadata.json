@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_od180_v1",
+  "base_scenario_id": "base027",
+  "scenario_stem": "od180_b027",
+  "split": "val",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 2608073027,
+  "anchor": {
+    "index": 932,
+    "arc_m": 527.8162763354999,
+    "curvature_deg": 0.01218872614299471,
+    "crosswalk_distance_m": 50.02694353063639,
+    "parking_distance_m": 31.63256292242103,
+    "stopline_distance_m": 22.79796329470859,
+    "branch_distance_m": 22.79796329470859
+  },
+  "ego": {
+    "x": -60.759579165516875,
+    "y": 56.50875142340238,
+    "z": 28.706108159227867,
+    "yaw": 90.96042928967188,
+    "link_idx": "A2256W000315",
+    "point_idx": 90
+  },
+  "counts": {
+    "npc": 7,
+    "pedestrian": 1,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -60.9512097061101,
+        "y": 71.00715396020564,
+        "z": 28.709952369216,
+        "yaw": 89.48393819159486
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100008,
+      "name": "2020_hyundai_sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -60.8764564244193,
+        "y": 79.3064151215367,
+        "z": 28.707294848129727,
+        "yaw": 90.92711684678738
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100001,
+      "name": "2017_Hyundai_Grandeur",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -68.1336275522628,
+        "y": 39.857054718719255,
+        "z": 28.684975964065625,
+        "yaw": -90.66506359129386
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100003,
+      "name": "2016_Hyundai_Sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -64.40517715307487,
+        "y": 50.856156252068644,
+        "z": 28.702043140553524,
+        "yaw": -90.3415728641522
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30700003,
+      "name": "2019_Hyundai_Kona(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -67.71030992367535,
+        "y": 60.35244016910398,
+        "z": 28.668096097707757,
+        "yaw": -91.16892305666943
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30100013,
+      "name": "2016_Hyundai_Genesis_DH",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -56.947815630622976,
+        "y": 46.03557450660296,
+        "z": 28.689081661766526,
+        "yaw": 91.15394327339061
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30200007,
+      "name": "2021_Hyundai_Genesis_GV80",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -67.3789928494416,
+        "y": 82.4687177868836,
+        "z": 28.65972732043998,
+        "yaw": -90.87080360047996
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100008,
+      "name": "Man5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -56.41367587899981,
+        "y": 55.50955403433062,
+        "z": 28.388343435895987,
+        "yaw": 163.4973826536991
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200104,
+      "name": "KR_Sign_SL_50",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -74.7374583449931,
+        "y": 48.34083862746597,
+        "z": 28.353353383680474,
+        "yaw": 86.54586030456062
+      }
+    }
+  ],
+  "environment_policy": "The same base scenario is captured in all six environment batches; weather/time are not embedded in this JSON.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "5f796c9ffdaf8dfb08557666046c2218e5939033487a37c12d90b4535638659d"
+  }
+}

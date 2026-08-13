@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_od180_v1",
+  "base_scenario_id": "base028",
+  "scenario_stem": "od180_b028",
+  "split": "val",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "merge_diverge",
+  "seed": 2608073028,
+  "anchor": {
+    "index": 195,
+    "arc_m": 95.95424039915723,
+    "curvature_deg": 10.980230619688427,
+    "crosswalk_distance_m": 34.92601253953257,
+    "parking_distance_m": 47.092170610675744,
+    "stopline_distance_m": 3.401761587413863,
+    "branch_distance_m": 0.9999944559137071
+  },
+  "ego": {
+    "x": -102.9572095954724,
+    "y": -345.40880477571557,
+    "z": 28.85591982487856,
+    "yaw": 152.28057192681712,
+    "link_idx": "A2256W000329",
+    "point_idx": 2
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 6,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30400005,
+      "name": "2014_Hyundai_Xcient(Mixer)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -85.86075869762206,
+        "y": -352.51451755085185,
+        "z": 29.075330476005327,
+        "yaw": 112.46291246019564
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30300003,
+      "name": "DEFAULT_BUS",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -97.38003512913015,
+        "y": -356.3172029830679,
+        "z": 29.02194141599148,
+        "yaw": -119.21944523187166
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30400004,
+      "name": "2013_Hyundai_Xcient(P540)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -86.72381999959833,
+        "y": -337.1626513398731,
+        "z": 29.041692163300763,
+        "yaw": -119.2511220139224
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200003,
+      "name": "2017_Kia_Niro(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -119.15147746415539,
+        "y": -340.4205541746514,
+        "z": 28.799375874448298,
+        "yaw": -30.19325683167915
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30500001,
+      "name": "2015_Toyota_Prius(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "wagon",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -89.98251558511224,
+        "y": -360.2830178621755,
+        "z": 28.88659665053219,
+        "yaw": 21.45099756432711
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50200004,
+      "name": "Girl2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -122.62583740413515,
+        "y": -342.58120044261443,
+        "z": 28.473388708788764,
+        "yaw": 0.7569630065545425
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100077,
+      "name": "worker_m_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -97.82638026794056,
+        "y": -341.5151044106841,
+        "z": 28.561535482984212,
+        "yaw": -166.85950575142323
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100012,
+      "name": "Woman4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -90.11821798584762,
+        "y": -347.21771268414517,
+        "z": 28.59727581056616,
+        "yaw": 110.55659096111208
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50200002,
+      "name": "Girl1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -121.88340921227291,
+        "y": -329.87446799721545,
+        "z": 28.479225546782583,
+        "yaw": 89.85933058483323
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100005,
+      "name": "Woman2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -125.18956642302132,
+        "y": -340.51558535892707,
+        "z": 28.473761519850534,
+        "yaw": 15.465051618750635
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100016,
+      "name": "Woman8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -104.17408127201286,
+        "y": -340.0715301862602,
+        "z": 28.53003051295127,
+        "yaw": 64.35314456719962
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200110,
+      "name": "KR_Sign_SL_110",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -100.09289868990496,
+        "y": -340.14667220097243,
+        "z": 28.54591982487856,
+        "yaw": 135.4061206852706
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100062,
+      "name": "Scooter_01",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -118.21580101484129,
+        "y": -353.4115228571884,
+        "z": 28.447347956809878,
+        "yaw": 156.6950969707753
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100063,
+      "name": "Scooter_02",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -89.30160295881377,
+        "y": -328.43418941018626,
+        "z": 28.534863575900573,
+        "yaw": 168.4354004513046
+      }
+    }
+  ],
+  "environment_policy": "The same base scenario is captured in all six environment batches; weather/time are not embedded in this JSON.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "5f796c9ffdaf8dfb08557666046c2218e5939033487a37c12d90b4535638659d"
+  }
+}

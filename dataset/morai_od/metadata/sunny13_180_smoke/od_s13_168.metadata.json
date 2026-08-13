@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_168",
+  "scenario_stem": "od_s13_168",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080718168,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 104,
+    "arc_m": 51.999958815126185,
+    "curvature_deg": 0.091544253149209,
+    "crosswalk_distance_m": 66.62223425589093,
+    "parking_distance_m": 10.276078900747342,
+    "stopline_distance_m": 20.628448545909464,
+    "branch_distance_m": 20.628448545909464
+  },
+  "ego": {
+    "x": -106.41592133164893,
+    "y": -382.8864379646754,
+    "z": 28.877807011064736,
+    "yaw": 60.96855379461621,
+    "link_idx": "A2256W000748",
+    "point_idx": 104
+  },
+  "counts": {
+    "npc": 1,
+    "pedestrian": 0,
+    "obstacle": 4
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30700003,
+      "name": "2019_Hyundai_Kona(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -94.40629862454773,
+        "y": -361.38468928592556,
+        "z": 28.907360307036782,
+        "yaw": 61.058471527129626
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200162,
+      "name": "concrete-barrier",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -90.43264234331666,
+        "y": -390.10573132985013,
+        "z": 28.56813392049441,
+        "yaw": 53.128990365922306
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100067,
+      "name": "Bollard04",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -91.6944932046029,
+        "y": -398.1376081475309,
+        "z": 28.570132569737485,
+        "yaw": 43.47519612362055
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40200106,
+      "name": "KR_Sign_SL_70",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -95.48177333569402,
+        "y": -382.29419474040543,
+        "z": 28.567751366255607,
+        "yaw": 69.21740358824195
+      }
+    },
+    {
+      "unique_id": 3004,
+      "group": "objectList",
+      "data_id": 40100052,
+      "name": "Concrete_Barricade02",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -86.59548889486385,
+        "y": -392.41211319872076,
+        "z": 28.567854222152874,
+        "yaw": 45.795578292970674
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

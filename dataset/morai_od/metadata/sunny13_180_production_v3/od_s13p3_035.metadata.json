@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v3",
+  "base_scenario_id": "s13p3_035",
+  "scenario_stem": "od_s13p3_035",
+  "split": "test",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080818035,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3268,
+    "arc_m": 1684.0833281030734,
+    "curvature_deg": 0.04445613222975453,
+    "crosswalk_distance_m": 71.28886845060367,
+    "parking_distance_m": 102.63622169528928,
+    "stopline_distance_m": 72.33677720244529,
+    "branch_distance_m": 69.16553250979155
+  },
+  "ego": {
+    "x": 70.35289516137796,
+    "y": -308.1173977138615,
+    "z": 28.69983639821186,
+    "yaw": -89.67369073841398,
+    "link_idx": "A2256W000153",
+    "point_idx": 181
+  },
+  "counts": {
+    "npc": 8,
+    "pedestrian": 1,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800004,
+      "name": "DEFAULT_MPV",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.40517416081586,
+        "y": -300.82393084884774,
+        "z": 28.78077443944469,
+        "yaw": -89.84072439362161
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100013,
+      "name": "2016_Hyundai_Genesis_DH",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 84.45643996687724,
+        "y": -314.4182327566412,
+        "z": 28.663072914829378,
+        "yaw": 90.28180198710669
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200011,
+      "name": "DEFAULT_SUV",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.81239980859928,
+        "y": -303.8751660597983,
+        "z": 28.66358296670608,
+        "yaw": -89.97105242848876
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.37067622777509,
+        "y": -292.3240102906308,
+        "z": 28.877668130551147,
+        "yaw": -89.77246549751383
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30200001,
+      "name": "2016_Hyundai_Santafe",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.76203053754833,
+        "y": -319.37491146667793,
+        "z": 28.66200188748601,
+        "yaw": -91.22396629434806
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30200002,
+      "name": "2017_Kia_Sorento",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.49082900659575,
+        "y": -307.825709484268,
+        "z": 28.760744890747194,
+        "yaw": -89.28858783802443
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.79311333388185,
+        "y": -295.375190156746,
+        "z": 28.7750536798257,
+        "yaw": -89.84133680776024
+      }
+    },
+    {
+      "unique_id": 1008,
+      "group": "vehicleList",
+      "data_id": 30200013,
+      "name": "2023_Kia_EV6",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 87.88019176841368,
+        "y": -300.6074491511557,
+        "z": 28.643043428832733,
+        "yaw": 90.17112119646993
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100004,
+      "name": "Woman1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 65.61417103805566,
+        "y": -281.8303705997011,
+        "z": 28.32867928178235,
+        "yaw": -122.73029396646969
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100031,
+      "name": "Road_Sign_Mark",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 79.06361497195724,
+        "y": -318.2512327133691,
+        "z": 28.412422349982993,
+        "yaw": -82.54162494737137
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100028,
+      "name": "PE_Firewall_Orange",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 87.61425198802637,
+        "y": -307.9892502515703,
+        "z": 28.305794420172905,
+        "yaw": -96.92416149246777
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "f8357698666fb706292ca37016cbabaac40939953ba1221a6fd0c56cd574b41e",
+    "generation_config": "dd7af3e1afca784f8c640002fca20d5bc015e73b8a06dfddd04c9a1b02188f1d",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

@@ -1,0 +1,40 @@
+schema_version: 2
+status: geometry_and_controller_trial
+
+purpose:
+  immediate: validate_mgeo_clearance_and_wider_viewpoint_spacing
+  reusable_for:
+    - pointpainting
+    - bevfusion
+    - camera_bev_representation
+
+capture:
+  total_runs: 20
+  unique_geometry_layouts: 20
+  environment_variants_per_layout: 1
+  frames_per_run: 6
+  total_multisensor_frames: 120
+  motion_mode: rolling-grouped
+  ego_speed_kph: 5.4
+  spacing_m: 1.5
+  maximum_motion_m: 10.5
+  load_settle_sec: 0.5
+  capture_stable_sec: 0.5
+  continue_on_scene_error: true
+  route_deviation_limit_m: 1.2
+  heading_error_limit_deg: 45.0
+  lookahead_m: 1.8
+  maximum_steering_rad: 0.35
+
+environment:
+  id: sunny_t13
+  weather: sunny
+  time_hour: 13
+  apply_environment_once_per_batch: true
+
+split:
+  unit: scenario
+  train: 14
+  val: 3
+  test: 3
+  ratio: [0.70, 0.15, 0.15]

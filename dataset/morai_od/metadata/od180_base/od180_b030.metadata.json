@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_od180_v1",
+  "base_scenario_id": "base030",
+  "scenario_stem": "od180_b030",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "intersection",
+  "seed": 2608073030,
+  "anchor": {
+    "index": 144,
+    "arc_m": 71.99988974749711,
+    "curvature_deg": 13.620013410681423,
+    "crosswalk_distance_m": 46.633013293273116,
+    "parking_distance_m": 29.457135771306717,
+    "stopline_distance_m": 0.6290789492765214,
+    "branch_distance_m": 0.6290789492765214
+  },
+  "ego": {
+    "x": -96.64731037527072,
+    "y": -365.4351007390074,
+    "z": 28.876075400067176,
+    "yaw": 60.96023126017539,
+    "link_idx": "A2256W000748",
+    "point_idx": 144
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 3,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800004,
+      "name": "DEFAULT_MPV",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -98.13744609884485,
+        "y": -358.51756657127197,
+        "z": 28.920166814115927,
+        "yaw": -143.27802964939656
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30700004,
+      "name": "2020_Kia_Niro(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -88.11541972672526,
+        "y": -350.00827888450976,
+        "z": 28.907808627054926,
+        "yaw": 61.05847089397798
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100012,
+      "name": "2019_hyundai_genesis_g90",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -104.60690646426025,
+        "y": -369.3183417580257,
+        "z": 28.854444407820385,
+        "yaw": -118.9239037158293
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200010,
+      "name": "2021_Volkswagen_Golf_GTI",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -98.19569259784583,
+        "y": -348.02262046311006,
+        "z": 28.908406958391456,
+        "yaw": 151.0043325702926
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100015,
+      "name": "Woman7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -92.20031438063192,
+        "y": -345.7544756813187,
+        "z": 28.56332350749094,
+        "yaw": -5.601349962161976
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50200003,
+      "name": "Boy2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -110.28275090911954,
+        "y": -377.99014499505614,
+        "z": 28.605430362980478,
+        "yaw": 25.987911155259496
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -113.86738405516732,
+        "y": -387.4766539845032,
+        "z": 28.60036126353961,
+        "yaw": 171.28355547619628
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200109,
+      "name": "KR_Sign_SL_100",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -117.30714450087382,
+        "y": -367.91481317916157,
+        "z": 28.57559062275769,
+        "yaw": 43.526710002408834
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200103,
+      "name": "KR_Sign_SL_40",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -103.91697319791845,
+        "y": -354.08755984853354,
+        "z": 28.53526047310524,
+        "yaw": 51.79589809882066
+      }
+    }
+  ],
+  "environment_policy": "The same base scenario is captured in all six environment batches; weather/time are not embedded in this JSON.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "5f796c9ffdaf8dfb08557666046c2218e5939033487a37c12d90b4535638659d"
+  }
+}

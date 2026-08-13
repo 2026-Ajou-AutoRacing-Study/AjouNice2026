@@ -19,5 +19,7 @@
 + /gis_map/**
 + /mgeo_map/
 + /mgeo_map/**
++ /mgeo_map_scenario_runner_2025/
++ /mgeo_map/**
 
 - **

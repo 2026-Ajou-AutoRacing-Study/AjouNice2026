@@ -1,0 +1,585 @@
+{
+  "schema_version": 3,
+  "dataset_id": "morai_geometry_trial20_v1",
+  "purpose": "20 MORAI base scenarios for PointPainting and future multi-sensor BEV fine-tuning",
+  "map_name": "R_KR_PR_K-city_2025",
+  "base_scenario_count": 20,
+  "environment": {
+    "id": "sunny_t13",
+    "weather": "sunny",
+    "time_hour": 13
+  },
+  "network_policy": {
+    "transport": "rosbridge",
+    "load_network_connection_data": true,
+    "sidecar_scope": "ego_only",
+    "required_unique_ids": [
+      0
+    ],
+    "forbidden_unique_ids": [
+      -100
+    ],
+    "required_topics": [
+      "/ScenarioLoad",
+      "/SaveSensorData",
+      "/Ego_topic",
+      "/Object_topic"
+    ],
+    "template_sha256": "7751cdcd69851deca5e14ec3d353b45c76175e8b9edb4972a3079a0a65ee9882",
+    "note": "Load the Simulator Network once. Each ScenarioLoad restores only the Ego Network from EgoNetwork/<stem>_MN.json."
+  },
+  "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+  "capture_policy": {
+    "captures_per_scene": 6,
+    "capture_spacing_m": 1.5,
+    "ego_target_speed_kph": 5.4,
+    "maximum_motion_m": 9.0,
+    "recommended_motion_mode": "rolling-grouped",
+    "load_settle_sec": 0.5,
+    "capture_stable_sec": 0.5,
+    "continue_on_scene_error": true,
+    "note": "Use rolling-grouped for training data. It sends captures while moving, then groups and verifies Camera/LiDAR/GT artifacts by their shared MORAI timestamp."
+  },
+  "scenes": [
+    {
+      "id": "geo001",
+      "base_scenario_id": "geo001",
+      "file_name": "od_geo_001",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_001.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_001.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_001_MN.json",
+      "split": "train",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 84,
+      "generation_seed": 26080752001,
+      "expected_ego": {
+        "x": -111.2576949348273,
+        "y": -391.63612424151614,
+        "z": 28.88328883286746,
+        "yaw": 61.020925443123275,
+        "link_idx": "A2256W000748",
+        "point_idx": 84
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo002",
+      "base_scenario_id": "geo002",
+      "file_name": "od_geo_002",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_002.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_002.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_002_MN.json",
+      "split": "test",
+      "scene_type": "pedestrian_centric",
+      "topology": "merge_diverge",
+      "anchor_index": 1599,
+      "generation_seed": 26080752002,
+      "expected_ego": {
+        "x": -99.44000246360883,
+        "y": 290.81566039127205,
+        "z": 28.718062626426164,
+        "yaw": 90.2475360410333,
+        "link_idx": "A2256W000304",
+        "point_idx": 446
+      },
+      "expected_counts": {
+        "npc": 1,
+        "pedestrian": 8,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo003",
+      "base_scenario_id": "geo003",
+      "file_name": "od_geo_003",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_003.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_003.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_003_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 428,
+      "generation_seed": 26080752003,
+      "expected_ego": {
+        "x": -93.24254769699756,
+        "y": -254.4374966048809,
+        "z": 28.786946053332972,
+        "yaw": 61.09658288909071,
+        "link_idx": "A2256W000215",
+        "point_idx": 3
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 6,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo004",
+      "base_scenario_id": "geo004",
+      "file_name": "od_geo_004",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_004.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_004.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_004_MN.json",
+      "split": "test",
+      "scene_type": "vehicle_centric",
+      "topology": "curve",
+      "anchor_index": 1715,
+      "generation_seed": 26080752004,
+      "expected_ego": {
+        "x": -81.60282341982833,
+        "y": 339.9332069433064,
+        "z": 28.705304504980415,
+        "yaw": 33.00496312384547,
+        "link_idx": "A2256W000151",
+        "point_idx": 20
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 0,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo005",
+      "base_scenario_id": "geo005",
+      "file_name": "od_geo_005",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_005.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_005.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_005_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 641,
+      "generation_seed": 26080752005,
+      "expected_ego": {
+        "x": -59.83293701335788,
+        "y": -155.39320968370885,
+        "z": 28.751429980014446,
+        "yaw": 88.06654060111839,
+        "link_idx": "A2256W000222",
+        "point_idx": 0
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo006",
+      "base_scenario_id": "geo006",
+      "file_name": "od_geo_006",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_006.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_006.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_006_MN.json",
+      "split": "val",
+      "scene_type": "pedestrian_centric",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 24,
+      "generation_seed": 26080752006,
+      "expected_ego": {
+        "x": -125.85481379629148,
+        "y": -417.84530499102647,
+        "z": 28.89357299017097,
+        "yaw": 60.985710417364544,
+        "link_idx": "A2256W000748",
+        "point_idx": 24
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 8,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo007",
+      "base_scenario_id": "geo007",
+      "file_name": "od_geo_007",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_007.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_007.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_007_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 4245,
+      "generation_seed": 26080752007,
+      "expected_ego": {
+        "x": -140.86064807948424,
+        "y": -444.8091244036332,
+        "z": 28.85994530392639,
+        "yaw": 60.30564042765184,
+        "link_idx": "A2256W000332",
+        "point_idx": 68
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 3,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo008",
+      "base_scenario_id": "geo008",
+      "file_name": "od_geo_008",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_008.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_008.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_008_MN.json",
+      "split": "val",
+      "scene_type": "obstacle_context",
+      "topology": "roadside_parking_clutter",
+      "anchor_index": 48,
+      "generation_seed": 26080752008,
+      "expected_ego": {
+        "x": -120.01813140026391,
+        "y": -407.3604178019793,
+        "z": 28.894033664132078,
+        "yaw": 60.92851010221949,
+        "link_idx": "A2256W000748",
+        "point_idx": 48
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo009",
+      "base_scenario_id": "geo009",
+      "file_name": "od_geo_009",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_009.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_009.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_009_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 767,
+      "generation_seed": 26080752009,
+      "expected_ego": {
+        "x": -60.217810042342684,
+        "y": -23.510376335851646,
+        "z": 28.773879199651528,
+        "yaw": 90.32172015679328,
+        "link_idx": "A2256W000599",
+        "point_idx": 22
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 1,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo010",
+      "base_scenario_id": "geo010",
+      "file_name": "od_geo_010",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_010.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_010.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_010_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 2466,
+      "generation_seed": 26080752010,
+      "expected_ego": {
+        "x": 66.88496106746607,
+        "y": 89.19790052389726,
+        "z": 28.63935643790693,
+        "yaw": -87.61955993121113,
+        "link_idx": "A2256W000409",
+        "point_idx": 335
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 5,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo011",
+      "base_scenario_id": "geo011",
+      "file_name": "od_geo_011",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_011.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_011.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_011_MN.json",
+      "split": "val",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 1694,
+      "generation_seed": 26080752011,
+      "expected_ego": {
+        "x": -88.09874615911394,
+        "y": 332.42220899648964,
+        "z": 28.690338197335294,
+        "yaw": 48.226721760419025,
+        "link_idx": "A2256W000134",
+        "point_idx": 59
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 3,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo012",
+      "base_scenario_id": "geo012",
+      "file_name": "od_geo_012",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_012.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_012.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_012_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 369,
+      "generation_seed": 26080752012,
+      "expected_ego": {
+        "x": -106.79276890113417,
+        "y": -278.88488343242506,
+        "z": 28.881090242544204,
+        "yaw": 60.95996211483401,
+        "link_idx": "A2256W000236",
+        "point_idx": 44
+      },
+      "expected_counts": {
+        "npc": 2,
+        "pedestrian": 8,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo013",
+      "base_scenario_id": "geo013",
+      "file_name": "od_geo_013",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_013.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_013.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_013_MN.json",
+      "split": "train",
+      "scene_type": "pedestrian_centric",
+      "topology": "crosswalk",
+      "anchor_index": 329,
+      "generation_seed": 26080752013,
+      "expected_ego": {
+        "x": -116.49917753273243,
+        "y": -296.37082118958494,
+        "z": 28.841936048754224,
+        "yaw": 60.97937898986282,
+        "link_idx": "A2256W000236",
+        "point_idx": 4
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 8,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo014",
+      "base_scenario_id": "geo014",
+      "file_name": "od_geo_014",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_014.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_014.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_014_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 472,
+      "generation_seed": 26080752014,
+      "expected_ego": {
+        "x": -82.60978392009403,
+        "y": -235.178402012525,
+        "z": 28.777044678593157,
+        "yaw": 61.097481062814325,
+        "link_idx": "A2256W000215",
+        "point_idx": 47
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo015",
+      "base_scenario_id": "geo015",
+      "file_name": "od_geo_015",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_015.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_015.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_015_MN.json",
+      "split": "train",
+      "scene_type": "vehicle_centric",
+      "topology": "straight",
+      "anchor_index": 670,
+      "generation_seed": 26080752015,
+      "expected_ego": {
+        "x": -59.856422821353235,
+        "y": -141.39331487958555,
+        "z": 28.707599592131555,
+        "yaw": 90.09611753905915,
+        "link_idx": "A2256W000222",
+        "point_idx": 28
+      },
+      "expected_counts": {
+        "npc": 8,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo016",
+      "base_scenario_id": "geo016",
+      "file_name": "od_geo_016",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_016.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_016.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_016_MN.json",
+      "split": "test",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "merge_diverge",
+      "anchor_index": 2933,
+      "generation_seed": 26080752016,
+      "expected_ego": {
+        "x": 68.04595834678413,
+        "y": -142.87057583762808,
+        "z": 28.669677515033737,
+        "yaw": -88.57275736017027,
+        "link_idx": "A2256W000408",
+        "point_idx": 299
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 3,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo017",
+      "base_scenario_id": "geo017",
+      "file_name": "od_geo_017",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_017.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_017.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_017_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 263,
+      "generation_seed": 26080752017,
+      "expected_ego": {
+        "x": -129.0706261566785,
+        "y": -325.2616465655155,
+        "z": 28.764462596244066,
+        "yaw": 100.496331722138,
+        "link_idx": "A2256W000329",
+        "point_idx": 70
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 4,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo018",
+      "base_scenario_id": "geo018",
+      "file_name": "od_geo_018",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_018.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_018.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_018_MN.json",
+      "split": "train",
+      "scene_type": "sparse_empty_background",
+      "topology": "straight",
+      "anchor_index": 1826,
+      "generation_seed": 26080752018,
+      "expected_ego": {
+        "x": -27.93226211018381,
+        "y": 345.00838961851304,
+        "z": 28.67367143931263,
+        "yaw": 3.400401301202777,
+        "link_idx": "A2256W000054",
+        "point_idx": 75
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo019",
+      "base_scenario_id": "geo019",
+      "file_name": "od_geo_019",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_019.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_019.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_019_MN.json",
+      "split": "train",
+      "scene_type": "camera_seam_occlusion",
+      "topology": "curve",
+      "anchor_index": 166,
+      "generation_seed": 26080752019,
+      "expected_ego": {
+        "x": -94.61139770156399,
+        "y": -355.7294903014141,
+        "z": 28.92012439541736,
+        "yaw": 98.59174011680369,
+        "link_idx": "A2256W000182",
+        "point_idx": 19
+      },
+      "expected_counts": {
+        "npc": 3,
+        "pedestrian": 4,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "geo020",
+      "base_scenario_id": "geo020",
+      "file_name": "od_geo_020",
+      "scenario": "dataset/morai_od/scenarios/geometry_trial20_v1/od_geo_020.json",
+      "metadata": "dataset/morai_od/metadata/geometry_trial20_v1/od_geo_020.metadata.json",
+      "network_sidecar": "EgoNetwork/od_geo_020_MN.json",
+      "split": "train",
+      "scene_type": "mixed_vehicle_pedestrian",
+      "topology": "intersection",
+      "anchor_index": 1100,
+      "generation_seed": 26080752020,
+      "expected_ego": {
+        "x": -12.693221560504753,
+        "y": 98.93261842010543,
+        "z": 28.717354667989614,
+        "yaw": 0.25315914340205836,
+        "link_idx": "A2256W000297",
+        "point_idx": 0
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 5,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    }
+  ]
+}

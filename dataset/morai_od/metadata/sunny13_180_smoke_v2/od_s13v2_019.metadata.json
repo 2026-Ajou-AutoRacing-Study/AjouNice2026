@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_019",
+  "scenario_stem": "od_s13v2_019",
+  "split": "val",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "merge_diverge",
+  "seed": 26080718019,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2487,
+    "arc_m": 1296.1517705384763,
+    "curvature_deg": 0.2567382473661155,
+    "crosswalk_distance_m": 105.06674514410703,
+    "parking_distance_m": 160.5817012586852,
+    "stopline_distance_m": 59.34588847715515,
+    "branch_distance_m": 9.999988418332062
+  },
+  "ego": {
+    "x": 66.98617047126186,
+    "y": 79.19842428644569,
+    "z": 28.62413693640295,
+    "yaw": -89.61922468279039,
+    "link_idx": "A2256W000420",
+    "point_idx": 20
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 4,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800003,
+      "name": "2020_chrysler_pacifica_hybrid",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 66.08134634093726,
+        "y": 105.59068605458386,
+        "z": 28.64653386612731,
+        "yaw": -86.41110135557584
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30700006,
+      "name": "2020_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 73.92362475958473,
+        "y": 90.10535815540524,
+        "z": 28.7086526495897,
+        "yaw": -89.68392031124095
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30400005,
+      "name": "2014_Hyundai_Xcient(Mixer)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 85.95313502097532,
+        "y": 84.38712328355082,
+        "z": 28.871731349927984,
+        "yaw": 90.18787318013977
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30400002,
+      "name": "2012_Hyundai_HD65",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 70.52634789549232,
+        "y": 70.70365222491938,
+        "z": 28.88510195860635,
+        "yaw": -89.69876853701913
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.21458520553131,
+        "y": 78.0850516525297,
+        "z": 28.336038107545246,
+        "yaw": 43.215547920131314
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100012,
+      "name": "Woman4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 60.239336941571196,
+        "y": 103.69554921347611,
+        "z": 28.32006621692292,
+        "yaw": -145.1148732626184
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 72.65778132276196,
+        "y": 97.21956833813549,
+        "z": 28.410881177874465,
+        "yaw": 93.1328402574477
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100014,
+      "name": "Woman6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 61.685958055956434,
+        "y": 103.97158037738376,
+        "z": 28.32006621692292,
+        "yaw": -56.74702618382591
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100004,
+      "name": "YellowBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 87.13056359248418,
+        "y": 73.15638606624361,
+        "z": 28.348953843486743,
+        "yaw": -84.51194083136755
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

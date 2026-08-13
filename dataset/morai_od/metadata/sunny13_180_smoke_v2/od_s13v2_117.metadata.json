@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_117",
+  "scenario_stem": "od_s13v2_117",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "intersection",
+  "seed": 26080718117,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1658,
+    "arc_m": 886.097789370257,
+    "curvature_deg": 25.18885761428777,
+    "crosswalk_distance_m": 230.1692115091913,
+    "parking_distance_m": 259.9893447158328,
+    "stopline_distance_m": 0.999965129039345,
+    "branch_distance_m": 17.52089757545822
+  },
+  "ego": {
+    "x": -99.08331648775348,
+    "y": 318.77226150410456,
+    "z": 28.687081403050957,
+    "yaw": 75.83015022235543,
+    "link_idx": "A2256W000146",
+    "point_idx": 2
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 6,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200001,
+      "name": "2016_Hyundai_Santafe",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -109.51296322549418,
+        "y": 307.74413839111105,
+        "z": 28.637515193562574,
+        "yaw": -71.96877069752371
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -95.88783547395415,
+        "y": 294.7115945885825,
+        "z": 28.653468579698497,
+        "yaw": 88.9947886339981
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200003,
+      "name": "2017_Kia_Niro(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -117.94975506630632,
+        "y": 322.9391909113804,
+        "z": 28.58356939918774,
+        "yaw": -51.17795891601219
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30800002,
+      "name": "2021_Kia_Carnival",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -103.9689512607353,
+        "y": 303.76695528597025,
+        "z": 28.74681828753293,
+        "yaw": -89.55023292541225
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30400007,
+      "name": "DEFAULT_TRUCK",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -94.39142504444939,
+        "y": 307.5817159849895,
+        "z": 28.858054663123703,
+        "yaw": 74.91592655996155
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -91.01670414934237,
+        "y": 322.9684888292868,
+        "z": 28.316808438827778,
+        "yaw": -30.21045230756488
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100010,
+      "name": "Man7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -109.6449463220667,
+        "y": 300.7896299502941,
+        "z": 28.325748413067565,
+        "yaw": -24.986368035466853
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100005,
+      "name": "Woman2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -103.44378076985795,
+        "y": 324.90372822779864,
+        "z": 28.433851003518658,
+        "yaw": -155.70051270686855
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100058,
+      "name": "police_m_2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -110.87655307828669,
+        "y": 298.7691424133863,
+        "z": 28.314124912257846,
+        "yaw": 96.56252188132316
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100008,
+      "name": "Man5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -99.08558286579654,
+        "y": 337.9260875903008,
+        "z": 28.41133054037859,
+        "yaw": -9.319800106604617
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100011,
+      "name": "Man8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -101.50992241587599,
+        "y": 325.9312138870235,
+        "z": 28.43439412041877,
+        "yaw": 12.154662675436043
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200107,
+      "name": "KR_Sign_SL_80",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -99.44750815920628,
+        "y": 333.6698541600141,
+        "z": 28.408756884992666,
+        "yaw": 76.81938925662547
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200102,
+      "name": "KR_Sign_SL_30",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -94.14215110196857,
+        "y": 322.002800684397,
+        "z": 28.398818407925045,
+        "yaw": 87.04931678718754
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

@@ -1,0 +1,309 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_065",
+  "scenario_stem": "od_s13p4_065",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080818165,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2210,
+    "arc_m": 1158.2388329436344,
+    "curvature_deg": 0.0328527765831268,
+    "crosswalk_distance_m": 211.19387822970086,
+    "parking_distance_m": 221.23581443759105,
+    "stopline_distance_m": 120.99287794921435,
+    "branch_distance_m": 39.49901663238855
+  },
+  "ego": {
+    "x": 62.426307750863266,
+    "y": 216.9974829293051,
+    "z": 28.60756084923254,
+    "yaw": -89.27792551847601,
+    "link_idx": "A2256W000411",
+    "point_idx": 79
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": 62.45009055726248,
+    "y": 212.49760411175285,
+    "z": 28.261485188813463,
+    "yaw": -89.40551651498679
+  },
+  "counts": {
+    "npc": 7,
+    "pedestrian": 1,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200002,
+      "name": "2017_Kia_Sorento",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 69.8976583862979,
+        "y": 196.06972441694094,
+        "z": 28.6984361824592,
+        "yaw": -89.56160977839836
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 16.504,
+        "lateral_m": 7.277,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 0.156,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100008,
+      "name": "2020_hyundai_sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.54149066087425,
+        "y": 192.9979786406545,
+        "z": 28.609029583799796,
+        "yaw": -89.76227299750698
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 19.5,
+        "lateral_m": -0.111,
+        "view_zone": "front",
+        "side": "center",
+        "heading_difference_deg": 0.357,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30500001,
+      "name": "2015_Toyota_Prius(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "wagon",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 69.82542103181947,
+        "y": 212.56951230546986,
+        "z": 28.672296379546385,
+        "yaw": -89.53687603001498
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 0.005,
+        "lateral_m": 7.376,
+        "view_zone": "side",
+        "side": "left",
+        "heading_difference_deg": 0.131,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200010,
+      "name": "2021_Volkswagen_Golf_GTI",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 76.83258840682889,
+        "y": 208.638167415758,
+        "z": 28.73562988415376,
+        "yaw": -89.75432815372099
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 4.008,
+        "lateral_m": 14.342,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 0.349,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30200006,
+      "name": "2020_volvo_xc90",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.35080200395254,
+        "y": 230.49710669198967,
+        "z": 28.64118493938867,
+        "yaw": -89.19616024449253
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -18.0,
+        "lateral_m": 0.087,
+        "view_zone": "rear",
+        "side": "center",
+        "heading_difference_deg": 0.209,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 69.78290489057139,
+        "y": 221.56933040037103,
+        "z": 28.81694544551477,
+        "yaw": -89.50055622546617
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -8.995,
+        "lateral_m": 7.427,
+        "view_zone": "rear",
+        "side": "left",
+        "heading_difference_deg": 0.095,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30800003,
+      "name": "2020_chrysler_pacifica_hybrid",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 76.86300060343949,
+        "y": 201.6382350737639,
+        "z": 28.750308330209926,
+        "yaw": -89.74673033134665
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 11.008,
+        "lateral_m": 14.299,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 0.341,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 67.979156539175,
+        "y": 200.83526928022957,
+        "z": 28.35037201964163,
+        "yaw": 125.24993715293675
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 11.719,
+        "lateral_m": 5.408,
+        "view_zone": "front",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100029,
+      "name": "PE_Firewall_White",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 57.09918027646184,
+        "y": 214.8217068656696,
+        "z": 28.295351865029886,
+        "yaw": -100.56012846913242
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -2.379,
+        "lateral_m": -5.327,
+        "view_zone": "side",
+        "side": "right"
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100052,
+      "name": "Concrete_Barricade02",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 82.98384847978195,
+        "y": 208.40995608928154,
+        "z": 28.350577642680854,
+        "yaw": -92.23133411631827
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 4.3,
+        "lateral_m": 20.49,
+        "view_zone": "front",
+        "side": "left"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

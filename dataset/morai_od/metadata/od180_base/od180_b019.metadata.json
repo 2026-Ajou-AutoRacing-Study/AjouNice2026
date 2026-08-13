@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_od180_v1",
+  "base_scenario_id": "base019",
+  "scenario_stem": "od180_b019",
+  "split": "train",
+  "scene_type": "pedestrian_centric",
+  "topology": "crosswalk",
+  "seed": 2608073019,
+  "anchor": {
+    "index": 373,
+    "arc_m": 184.00705509625328,
+    "curvature_deg": 0.000556049441200912,
+    "crosswalk_distance_m": 1.5754824865104733,
+    "parking_distance_m": 113.05816718261589,
+    "stopline_distance_m": 5.141528566822213,
+    "branch_distance_m": 2.278676651688295
+  },
+  "ego": {
+    "x": -105.82200145741055,
+    "y": -277.13645513684713,
+    "z": 28.8564109915625,
+    "yaw": 60.95996211483401,
+    "link_idx": "A2256W000236",
+    "point_idx": 48
+  },
+  "counts": {
+    "npc": 0,
+    "pedestrian": 5,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -103.35240454291299,
+        "y": -286.18113783905034,
+        "z": 28.58220823236769,
+        "yaw": 106.03327642258353
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100011,
+      "name": "Man8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -103.06101864181454,
+        "y": -290.4772348964947,
+        "z": 28.58404394754098,
+        "yaw": 179.79809641247834
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100015,
+      "name": "Woman7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -108.09272962370666,
+        "y": -272.3360867034662,
+        "z": 28.525333496282865,
+        "yaw": 102.00464034347033
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100013,
+      "name": "Woman5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -114.255218299572,
+        "y": -291.7231478757743,
+        "z": 28.60699158627641,
+        "yaw": -95.31439644912666
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -116.34570254483612,
+        "y": -294.45462843227136,
+        "z": 28.5739582637631,
+        "yaw": -86.13132219790018
+      }
+    }
+  ],
+  "environment_policy": "The same base scenario is captured in all six environment batches; weather/time are not embedded in this JSON.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "5f796c9ffdaf8dfb08557666046c2218e5939033487a37c12d90b4535638659d"
+  }
+}

@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_126",
+  "scenario_stem": "od_s13v2_126",
+  "split": "train",
+  "scene_type": "pedestrian_centric",
+  "topology": "crosswalk",
+  "seed": 26080718126,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 472,
+    "arc_m": 231.9579999764729,
+    "curvature_deg": 2.5956694571505068e-08,
+    "crosswalk_distance_m": 1.4042442465721343,
+    "parking_distance_m": 111.22490050167534,
+    "stopline_distance_m": 8.71665892951898,
+    "branch_distance_m": 5.46479023136745
+  },
+  "ego": {
+    "x": -82.60978392009403,
+    "y": -235.178402012525,
+    "z": 28.777044678593157,
+    "yaw": 61.097481062814325,
+    "link_idx": "A2256W000215",
+    "point_idx": 47
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 5,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200006,
+      "name": "2020_volvo_xc90",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -80.40465821197034,
+        "y": -247.22578926299286,
+        "z": 28.865180031110583,
+        "yaw": -27.916415468174478
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200003,
+      "name": "2017_Kia_Niro(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -88.5355493274745,
+        "y": -248.66759066512324,
+        "z": 28.8891053225851,
+        "yaw": 36.49291628660964
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50200002,
+      "name": "Girl1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -92.86934561743666,
+        "y": -251.48113192013173,
+        "z": 28.54865462943808,
+        "yaw": 142.923696509163
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100009,
+      "name": "Man6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -75.5796065772953,
+        "y": -210.47059005822317,
+        "z": 28.465311771657856,
+        "yaw": 111.05655924561768
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100010,
+      "name": "Man7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -83.51157333302848,
+        "y": -228.36299295805773,
+        "z": 28.44830445240578,
+        "yaw": 17.16404301072359
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100005,
+      "name": "Woman2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -75.35174694222918,
+        "y": -247.95207895762888,
+        "z": 28.497651737674254,
+        "yaw": 94.30685054198852
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100016,
+      "name": "Woman8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -100.76092063307328,
+        "y": -256.08191225835037,
+        "z": 28.462953018758054,
+        "yaw": -130.39227771544353
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100032,
+      "name": "Speed_Bump",
+      "ontology_class": "RoadSurfaceObject",
+      "subtype": "road_surface",
+      "generation_policy": "enabled_surface_aligned_only",
+      "pose": {
+        "x": -79.21102527137822,
+        "y": -223.27332864708788,
+        "z": 28.440702511909493,
+        "yaw": -117.9042188673106
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100059,
+      "name": "Bicycle_city",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -87.48212114433963,
+        "y": -219.3662117036208,
+        "z": 28.438163952993648,
+        "yaw": 47.20434760572172
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

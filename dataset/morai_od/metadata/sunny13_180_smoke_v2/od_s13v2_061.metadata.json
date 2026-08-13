@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_061",
+  "scenario_stem": "od_s13v2_061",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080718061,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1790,
+    "arc_m": 950.0976813828293,
+    "curvature_deg": 0.024338601957936135,
+    "crosswalk_distance_m": 261.9370334800727,
+    "parking_distance_m": 288.6775876879555,
+    "stopline_distance_m": 11.130612263439385,
+    "branch_distance_m": 19.498531201006713
+  },
+  "ego": {
+    "x": -45.890651855490646,
+    "y": 343.7933661017606,
+    "z": 28.652966715882933,
+    "yaw": 4.291307844852412,
+    "link_idx": "A2256W000054",
+    "point_idx": 39
+  },
+  "counts": {
+    "npc": 8,
+    "pedestrian": 0,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100012,
+      "name": "2019_hyundai_genesis_g90",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -61.81798708422523,
+        "y": 346.7697384375927,
+        "z": 28.653850462332027,
+        "yaw": -160.60970890716212
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200006,
+      "name": "2020_volvo_xc90",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -43.82568782192815,
+        "y": 350.3835084232337,
+        "z": 28.732817232157,
+        "yaw": -32.966782631886105
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -39.77197617780947,
+        "y": 341.0058927504726,
+        "z": 28.62172098492077,
+        "yaw": 4.223112905500329
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30400001,
+      "name": "2013_Hyundai_Porter2",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -54.66143870231848,
+        "y": 354.5714019565886,
+        "z": 28.899143765436893,
+        "yaw": -108.80867110455085
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100005,
+      "name": "2014_Kia_K7",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -28.91574062078926,
+        "y": 345.4041631193707,
+        "z": 28.686389948590374,
+        "yaw": -1.2256552988097553
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -50.24477054638555,
+        "y": 364.03075485210866,
+        "z": 28.868785046116088,
+        "yaw": 89.17753995434919
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30200011,
+      "name": "DEFAULT_SUV",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -63.11773369267256,
+        "y": 338.3357329929281,
+        "z": 28.6436599844026,
+        "yaw": 16.318503908843127
+      }
+    },
+    {
+      "unique_id": 1008,
+      "group": "vehicleList",
+      "data_id": 30300003,
+      "name": "DEFAULT_BUS",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -54.721442904286995,
+        "y": 339.7799997162397,
+        "z": 28.750529673115533,
+        "yaw": 5.570168493132513
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200163,
+      "name": "fr-streetlight-2",
+      "ontology_class": "RoadsideFurniture",
+      "subtype": "fixed_roadside_object",
+      "generation_policy": "enabled_roadside_only",
+      "pose": {
+        "x": -41.75023840342157,
+        "y": 322.1727440626358,
+        "z": 28.306554242753446,
+        "yaw": -15.228202336785387
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_076",
+  "scenario_stem": "od_s13v2_076",
+  "split": "train",
+  "scene_type": "pedestrian_centric",
+  "topology": "crosswalk",
+  "seed": 26083718085,
+  "generation_attempt": 4,
+  "anchor": {
+    "index": 2901,
+    "arc_m": 1502.2253192132368,
+    "curvature_deg": 8.718398021301255e-05,
+    "crosswalk_distance_m": 18.7889374462692,
+    "parking_distance_m": 97.3910550729363,
+    "stopline_distance_m": 20.51888099848366,
+    "branch_distance_m": 16.018082569275045
+  },
+  "ego": {
+    "x": 67.87429713992975,
+    "y": -126.87213394392234,
+    "z": 28.659180315147267,
+    "yaw": -89.24238014364137,
+    "link_idx": "A2256W000408",
+    "point_idx": 267
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 5,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200002,
+      "name": "2017_Kia_Sorento",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 51.070004845564014,
+        "y": -127.06171332450077,
+        "z": 28.833778343329577,
+        "yaw": 89.83151252755925
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30800001,
+      "name": "2019_kia_sedona",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 71.53986335379575,
+        "y": -132.873842653918,
+        "z": 28.741465713936638,
+        "yaw": -89.52637039249554
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100005,
+      "name": "Woman2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 45.263597599363834,
+        "y": -129.78781233983318,
+        "z": 28.502564846073376,
+        "yaw": -1.4414506637849627
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50200001,
+      "name": "Boy1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 63.10469497458245,
+        "y": -111.90325122162535,
+        "z": 28.31751608410437,
+        "yaw": 152.81262666373374
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100016,
+      "name": "Woman8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.31810116665238,
+        "y": -149.96070047043924,
+        "z": 28.346000149114214,
+        "yaw": 141.75297920510673
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100074,
+      "name": "worker_f_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 46.49940585170645,
+        "y": -131.12399930123107,
+        "z": 28.501864209134933,
+        "yaw": -148.63134739867314
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 52.300205632522776,
+        "y": -130.8569970446433,
+        "z": 28.518425180167824,
+        "yaw": 45.94120580003994
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

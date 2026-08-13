@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_045",
+  "scenario_stem": "od_s13_045",
+  "split": "test",
+  "scene_type": "vehicle_centric",
+  "topology": "curve",
+  "seed": 26080718045,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2088,
+    "arc_m": 1098.2086342136613,
+    "curvature_deg": 2.7969037649459665,
+    "crosswalk_distance_m": 251.34438785275117,
+    "parking_distance_m": 266.69724603582665,
+    "stopline_distance_m": 92.11561953544772,
+    "branch_distance_m": 20.521470106611567
+  },
+  "ego": {
+    "x": 61.15355270387,
+    "y": 276.99574880013665,
+    "z": 28.59696429016274,
+    "yaw": -84.67973559169424,
+    "link_idx": "A2256W000846",
+    "point_idx": 227
+  },
+  "counts": {
+    "npc": 7,
+    "pedestrian": 1,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30700005,
+      "name": "2016_Kia_Soul(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 76.61897775077915,
+        "y": 254.13757082819558,
+        "z": 28.706482543297916,
+        "yaw": -89.48836201842579
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200003,
+      "name": "2017_Kia_Niro(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 60.294947839034094,
+        "y": 283.94140989532934,
+        "z": 28.63492964710532,
+        "yaw": -81.09667630668547
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 69.4949469587718,
+        "y": 275.18421414418805,
+        "z": 28.79458669245798,
+        "yaw": -89.75068589497931
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100012,
+      "name": "2019_hyundai_genesis_g90",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 58.90664079120123,
+        "y": 291.30936621094077,
+        "z": 28.605177056985134,
+        "yaw": -77.36645065805517
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30700003,
+      "name": "2019_Hyundai_Kona(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 66.01509194795725,
+        "y": 255.0335766727473,
+        "z": 28.66259433003222,
+        "yaw": -89.84100984805922
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30400001,
+      "name": "2013_Hyundai_Porter2",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 72.60730110289299,
+        "y": 287.1023914136051,
+        "z": 28.893707029536234,
+        "yaw": -88.99232635635832
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 84.48590929834054,
+        "y": 272.87204927902525,
+        "z": 28.663126773808226,
+        "yaw": 94.07659741864188
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100010,
+      "name": "Man7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 69.42657234914051,
+        "y": 262.8032558654838,
+        "z": 28.38093330843638,
+        "yaw": 170.6504234068031
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200106,
+      "name": "KR_Sign_SL_70",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 49.52737982579657,
+        "y": 271.9464724976226,
+        "z": 28.28473479263144,
+        "yaw": -77.96296374682558
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100026,
+      "name": "Lane_Separation_Bar",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 57.47553038839819,
+        "y": 273.35238481315594,
+        "z": 28.28507940603231,
+        "yaw": -98.97727969231923
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

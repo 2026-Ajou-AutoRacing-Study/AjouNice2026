@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_052",
+  "scenario_stem": "od_s13_052",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "merge_diverge",
+  "seed": 26080718052,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2649,
+    "arc_m": 1376.2255784320955,
+    "curvature_deg": 0.320084096057343,
+    "crosswalk_distance_m": 50.84942676573484,
+    "parking_distance_m": 170.42115437384805,
+    "stopline_distance_m": 20.96357263638781,
+    "branch_distance_m": 7.499996128165276
+  },
+  "ego": {
+    "x": 67.30151025043398,
+    "y": -0.8741172374997832,
+    "z": 28.67466436085028,
+    "yaw": -90.14223462142552,
+    "link_idx": "A2256W000408",
+    "point_idx": 15
+  },
+  "counts": {
+    "npc": 3,
+    "pedestrian": 6,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100001,
+      "name": "2017_Hyundai_Grandeur",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 70.86624793871067,
+        "y": 5.124272804065298,
+        "z": 28.71180601186713,
+        "yaw": -89.74079471378732
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.41808075535434,
+        "y": -5.8770471923535545,
+        "z": 28.878255418716297,
+        "yaw": -89.76790478968348
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100015,
+      "name": "DEFAULT_SEDAN",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 67.31865644658367,
+        "y": -11.374068786990978,
+        "z": 28.681389428919257,
+        "yaw": -89.66458504366368
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50200002,
+      "name": "Girl1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.51679870987057,
+        "y": -15.729689764202048,
+        "z": 28.364783864664613,
+        "yaw": -39.00971283644549
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 72.51095567650535,
+        "y": 22.233476865958146,
+        "z": 28.416285890910846,
+        "yaw": 44.83415299861997
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.73321988415309,
+        "y": 10.485514715976338,
+        "z": 28.39632244025426,
+        "yaw": 82.55592627043978
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100013,
+      "name": "Woman5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 61.94583401957714,
+        "y": -22.029988330283455,
+        "z": 28.363909500200403,
+        "yaw": -154.36734681077138
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100058,
+      "name": "police_m_2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 60.64225667295164,
+        "y": -14.491469538179137,
+        "z": 28.365533378480247,
+        "yaw": -150.5870588474071
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100008,
+      "name": "Man5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 61.78299965993134,
+        "y": 22.287595785687458,
+        "z": 28.387027373649357,
+        "yaw": 3.349416363647606
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200110,
+      "name": "KR_Sign_SL_110",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 55.70770989420344,
+        "y": 7.904399615317815,
+        "z": 28.442283124868947,
+        "yaw": -81.33298700248693
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200102,
+      "name": "KR_Sign_SL_30",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 61.24852959595985,
+        "y": -1.395565386315572,
+        "z": 28.32822743744214,
+        "yaw": -78.69438379439603
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

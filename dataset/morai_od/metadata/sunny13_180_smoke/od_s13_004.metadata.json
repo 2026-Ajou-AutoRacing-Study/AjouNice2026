@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_004",
+  "scenario_stem": "od_s13_004",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080718004,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3276,
+    "arc_m": 1688.0833243238865,
+    "curvature_deg": 0.12017202643625069,
+    "crosswalk_distance_m": 72.83812540554571,
+    "parking_distance_m": 106.2796373027932,
+    "stopline_distance_m": 74.21180351964598,
+    "branch_distance_m": 70.95457557560768
+  },
+  "ego": {
+    "x": 70.37206654344747,
+    "y": -312.1173470146435,
+    "z": 28.69857813726159,
+    "yaw": -89.7564076349619,
+    "link_idx": "A2256W000153",
+    "point_idx": 189
+  },
+  "counts": {
+    "npc": 8,
+    "pedestrian": 1,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100014,
+      "name": "2020_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 84.48840922122815,
+        "y": -320.91814639244694,
+        "z": 28.6530382827954,
+        "yaw": 90.28180198710669
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100013,
+      "name": "2016_Hyundai_Genesis_DH",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 70.41928686458603,
+        "y": -330.11723217070596,
+        "z": 28.691041600809932,
+        "yaw": -89.86031198573127
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30400007,
+      "name": "DEFAULT_TRUCK",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 84.36815969260257,
+        "y": -295.91845232985577,
+        "z": 28.873592539738695,
+        "yaw": 90.23787087529439
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100012,
+      "name": "2019_hyundai_genesis_g90",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.37464743464703,
+        "y": -293.324000159123,
+        "z": 28.73978766560484,
+        "yaw": -89.77246549751383
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30200012,
+      "name": "2021_Hyundai_GV70",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.50831715938466,
+        "y": -329.32483247871295,
+        "z": 28.738458564421798,
+        "yaw": -90.05362057729647
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30200010,
+      "name": "2021_Volkswagen_Golf_GTI",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 87.89618692176244,
+        "y": -304.1074088337834,
+        "z": 28.645331041816434,
+        "yaw": 90.29813501898508
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30100011,
+      "name": "2019_Toyota_Prius",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.5344351708031,
+        "y": -325.37036447900874,
+        "z": 28.6285989601861,
+        "yaw": -93.24401906431342
+      }
+    },
+    {
+      "unique_id": 1008,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.81315765413498,
+        "y": -305.3751657059562,
+        "z": 28.772884972154365,
+        "yaw": -89.97105242848876
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50200002,
+      "name": "Girl1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 75.92815011069322,
+        "y": -308.7060410252176,
+        "z": 28.446179763660425,
+        "yaw": 20.60614788130303
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100058,
+      "name": "Bollard01",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 90.62165029835865,
+        "y": -318.7446276705928,
+        "z": 28.284248741387596,
+        "yaw": -82.65687473914818
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

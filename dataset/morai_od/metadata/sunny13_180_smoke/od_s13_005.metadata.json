@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_005",
+  "scenario_stem": "od_s13_005",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080718005,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3867,
+    "arc_m": 1980.241594928117,
+    "curvature_deg": 0.03364017199260161,
+    "crosswalk_distance_m": 165.37968588619623,
+    "parking_distance_m": 61.35051666170128,
+    "stopline_distance_m": 16.985112103677057,
+    "branch_distance_m": 77.97851279808577
+  },
+  "ego": {
+    "x": -60.274634998444995,
+    "y": -536.8954568171087,
+    "z": 28.776654287583874,
+    "yaw": -152.44124829548406,
+    "link_idx": "A2256W000126",
+    "point_idx": 205
+  },
+  "counts": {
+    "npc": 7,
+    "pedestrian": 1,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800002,
+      "name": "2021_Kia_Carnival",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -74.42483354398665,
+        "y": -544.3623561136682,
+        "z": 28.808863435367105,
+        "yaw": -153.675086145185
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100003,
+      "name": "2016_Hyundai_Sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -53.44081119085434,
+        "y": -537.2433398993056,
+        "z": 28.739338890784435,
+        "yaw": 28.33674360219726
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200013,
+      "name": "2023_Kia_EV6",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -65.78994922525523,
+        "y": -543.8381947670017,
+        "z": 28.802235293788446,
+        "yaw": 28.25075340206726
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30500001,
+      "name": "2015_Toyota_Prius(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "wagon",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -50.13137273439573,
+        "y": -531.4768311864935,
+        "z": 28.77450614271809,
+        "yaw": -151.70262806107004
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -43.73967219023645,
+        "y": -532.0581816716491,
+        "z": 28.723040540731546,
+        "yaw": 28.10795817239287
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30200001,
+      "name": "2016_Hyundai_Santafe",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -40.42749023070592,
+        "y": -526.2968945875174,
+        "z": 28.79482532687364,
+        "yaw": -151.98749700244346
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30100009,
+      "name": "2020_Kia_Stinger",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -78.22191394957176,
+        "y": -549.8068846217182,
+        "z": 28.809254417264203,
+        "yaw": 19.29945695752076
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50200004,
+      "name": "Girl2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -60.54880480170799,
+        "y": -531.7239630515556,
+        "z": 28.486972550413793,
+        "yaw": 72.65686133910964
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200163,
+      "name": "fr-streetlight-2",
+      "ontology_class": "RoadsideFurniture",
+      "subtype": "fixed_roadside_object",
+      "generation_policy": "enabled_roadside_only",
+      "pose": {
+        "x": -57.18101304557439,
+        "y": -545.7296140233316,
+        "z": 28.44303519905276,
+        "yaw": -162.0069883830834
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

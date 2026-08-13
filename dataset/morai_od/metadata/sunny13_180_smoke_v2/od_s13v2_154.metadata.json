@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_154",
+  "scenario_stem": "od_s13v2_154",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26081718157,
+  "generation_attempt": 2,
+  "anchor": {
+    "index": 3711,
+    "arc_m": 1902.2418860137363,
+    "curvature_deg": 0.023312870111908524,
+    "crosswalk_distance_m": 141.33362286450298,
+    "parking_distance_m": 102.3796038058112,
+    "stopline_distance_m": 24.4844973603641,
+    "branch_distance_m": 68.73909831075471
+  },
+  "ego": {
+    "x": 8.427496938553968,
+    "y": -499.9655613545883,
+    "z": 28.6818927566136,
+    "yaw": -151.7388721166558,
+    "link_idx": "A2256W000126",
+    "point_idx": 49
+  },
+  "counts": {
+    "npc": 6,
+    "pedestrian": 0,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200014,
+      "name": "2023_Hyundai_Ioniq5",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 27.780895166686836,
+        "y": -493.00651796863787,
+        "z": 28.88929070973176,
+        "yaw": 32.60148879110534
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200006,
+      "name": "2020_volvo_xc90",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -5.64799448473366,
+        "y": -507.57289615950555,
+        "z": 28.78587247636801,
+        "yaw": -151.64667824542352
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30400003,
+      "name": "2013_Hyundai_Xcient(P520)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 18.976941568579164,
+        "y": -494.24693781669976,
+        "z": 28.863862908658568,
+        "yaw": -150.11565214735
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100003,
+      "name": "2016_Hyundai_Sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 4.245933066400682,
+        "y": -506.2210598665505,
+        "z": 28.772664660021675,
+        "yaw": 28.192335715538974
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30800004,
+      "name": "DEFAULT_MPV",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -9.38874439681148,
+        "y": -513.5927472523304,
+        "z": 28.81030085865132,
+        "yaw": 28.353789766006997
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 30.486324285435252,
+        "y": -487.0078490365244,
+        "z": 28.640916119206878,
+        "yaw": -144.38914100649689
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

@@ -28,6 +28,12 @@
 [submodule "third_party/bevfusion"]
 	path = third_party/bevfusion
 	url = https://github.com/2026-Ajou-AutoRacing-Study/bevfusion.git
+[submodule "third_party/streampetr"]
+	path = third_party/streampetr
+	url = https://github.com/2026-Ajou-AutoRacing-Study/StreamPETR.git
+[submodule "third_party/fastbev"]
+	path = third_party/fastbev
+	url = https://github.com/2026-Ajou-AutoRacing-Study/Fast-BEV.git
 [submodule "base_ws/src/ekf-multi-object-tracking"]
 	path = base_ws/src/ekf-multi-object-tracking
 	url = https://github.com/2026-Ajou-AutoRacing-Study/ekf-multi-object-tracking.git

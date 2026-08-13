@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_175",
+  "scenario_stem": "od_s13p4_175",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080818275,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2535,
+    "arc_m": 1320.1516451990701,
+    "curvature_deg": 0.023581597075974514,
+    "crosswalk_distance_m": 87.5001571225305,
+    "parking_distance_m": 159.4709937409996,
+    "stopline_distance_m": 63.63010076003001,
+    "branch_distance_m": 33.99975536533782
+  },
+  "ego": {
+    "x": 67.12491369818052,
+    "y": 55.19899189968064,
+    "z": 28.680199763883095,
+    "yaw": -89.78423149235533,
+    "link_idx": "A2256W000420",
+    "point_idx": 68
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": 67.14186007729106,
+    "y": 50.6990238086568,
+    "z": 28.339342884510437,
+    "yaw": -89.64147669609662
+  },
+  "counts": {
+    "npc": 7,
+    "pedestrian": 0,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100012,
+      "name": "2019_hyundai_genesis_g90",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 82.7176994002006,
+        "y": 32.07703197915175,
+        "z": 28.679414846980123,
+        "yaw": 90.32846745104109
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 18.719,
+        "lateral_m": 15.459,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 179.97,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100014,
+      "name": "2020_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.14067325878825,
+        "y": 50.70962134412942,
+        "z": 28.7191964439602,
+        "yaw": -89.63932328463338
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 0.033,
+        "lateral_m": 6.999,
+        "view_zone": "side",
+        "side": "left",
+        "heading_difference_deg": 0.002,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100009,
+      "name": "2020_Kia_Stinger",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.09975613447375,
+        "y": 57.209479710894215,
+        "z": 28.706273559786997,
+        "yaw": -89.63932328463338
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -6.467,
+        "lateral_m": 6.998,
+        "view_zone": "rear",
+        "side": "left",
+        "heading_difference_deg": 0.002,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30400003,
+      "name": "2013_Hyundai_Xcient(P520)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.17558344568616,
+        "y": 41.70970662811718,
+        "z": 28.944026882777514,
+        "yaw": -89.80543992457338
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 9.033,
+        "lateral_m": 6.977,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 0.164,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30400004,
+      "name": "2013_Hyundai_Xcient(P540)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 50.042185089386116,
+        "y": 45.470775114998496,
+        "z": 28.951075546691833,
+        "yaw": 90.64692025150526
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 5.121,
+        "lateral_m": -17.132,
+        "view_zone": "front",
+        "side": "right",
+        "heading_difference_deg": 179.712,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30200013,
+      "name": "2023_Kia_EV6",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 70.56840753130858,
+        "y": 62.703766048694035,
+        "z": 28.7123237640227,
+        "yaw": -89.69876853701913
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -11.983,
+        "lateral_m": 3.502,
+        "view_zone": "rear",
+        "side": "left",
+        "heading_difference_deg": 0.057,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30400007,
+      "name": "DEFAULT_TRUCK",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 82.64247644941727,
+        "y": 50.57679612092117,
+        "z": 28.92337976869545,
+        "yaw": 90.24585093167718
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 0.219,
+        "lateral_m": 15.5,
+        "view_zone": "side",
+        "side": "left",
+        "heading_difference_deg": 179.887,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

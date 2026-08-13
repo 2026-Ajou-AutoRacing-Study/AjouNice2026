@@ -1,0 +1,286 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_108",
+  "scenario_stem": "od_s13p4_108",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080818208,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2414,
+    "arc_m": 1260.2387503797497,
+    "curvature_deg": 0.02282809877078762,
+    "crosswalk_distance_m": 134.47097943649925,
+    "parking_distance_m": 167.52659618039033,
+    "stopline_distance_m": 54.599363925505344,
+    "branch_distance_m": 25.912074206598614
+  },
+  "ego": {
+    "x": 65.51400090985635,
+    "y": 115.07368182484583,
+    "z": 28.620234869141008,
+    "yaw": -86.42801640854945,
+    "link_idx": "A2256W000411",
+    "point_idx": 283
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": 65.78528252279816,
+    "y": 110.58187785932768,
+    "z": 28.270718883676253,
+    "yaw": -86.68859816730891
+  },
+  "counts": {
+    "npc": 6,
+    "pedestrian": 1,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200014,
+      "name": "2023_Hyundai_Ioniq5",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 73.80098287183614,
+        "y": 110.60494966950111,
+        "z": 28.75124495877308,
+        "yaw": -89.72183855933902
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 0.44,
+        "lateral_m": 8.004,
+        "view_zone": "side",
+        "side": "left",
+        "heading_difference_deg": 3.033,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100015,
+      "name": "DEFAULT_SEDAN",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 70.35519272786196,
+        "y": 100.57092661599435,
+        "z": 28.689176207607513,
+        "yaw": -89.6852128163825
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 10.258,
+        "lateral_m": 3.984,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 2.997,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30400003,
+      "name": "2013_Hyundai_Xcient(P520)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 66.82626916952466,
+        "y": 90.60976676177962,
+        "z": 28.846867400617363,
+        "yaw": -87.61955993121315
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 19.999,
+        "lateral_m": -0.114,
+        "view_zone": "front",
+        "side": "center",
+        "heading_difference_deg": 0.931,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200010,
+      "name": "2021_Volkswagen_Golf_GTI",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 85.82292627515557,
+        "y": 113.88668078250483,
+        "z": 28.676859729623473,
+        "yaw": 90.27935572847758
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -2.142,
+        "lateral_m": 20.195,
+        "view_zone": "side",
+        "side": "left",
+        "heading_difference_deg": 176.968,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 73.75971706632967,
+        "y": 119.10482626127563,
+        "z": 28.84136889525685,
+        "yaw": -89.72183855933902
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -8.048,
+        "lateral_m": 8.453,
+        "view_zone": "rear",
+        "side": "left",
+        "heading_difference_deg": 3.033,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30100008,
+      "name": "2020_hyundai_sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 66.59619761171092,
+        "y": 127.03548878082952,
+        "z": 28.64128518253569,
+        "yaw": -89.65419961082976
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -16.379,
+        "lateral_m": 1.76,
+        "view_zone": "rear",
+        "side": "center",
+        "heading_difference_deg": 2.966,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100011,
+      "name": "Man8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 71.77667160771774,
+        "y": 124.92002704909433,
+        "z": 28.380636612983444,
+        "yaw": -80.69730149564491
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -13.968,
+        "lateral_m": 6.81,
+        "view_zone": "rear",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200110,
+      "name": "KR_Sign_SL_110",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 85.57631705412814,
+        "y": 108.97902984397123,
+        "z": 28.342519333300324,
+        "yaw": -79.03549320802048
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 2.743,
+        "lateral_m": 19.665,
+        "view_zone": "side",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100004,
+      "name": "YellowBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 62.13594862223458,
+        "y": 104.40558642966481,
+        "z": 28.29888876665772,
+        "yaw": -93.01675880680023
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 5.955,
+        "lateral_m": -4.0,
+        "view_zone": "front",
+        "side": "right"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

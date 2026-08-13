@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_geometry_trial20_v3",
+  "base_scenario_id": "geo3_001",
+  "scenario_stem": "od_geo3_001",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "intersection",
+  "seed": 26080752101,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 4245,
+    "arc_m": 2165.7504748286974,
+    "curvature_deg": 0.21181654597555166,
+    "crosswalk_distance_m": 137.47037562037414,
+    "parking_distance_m": 9.673670073959068,
+    "stopline_distance_m": 11.139984405784595,
+    "branch_distance_m": 0.0
+  },
+  "ego": {
+    "x": -140.86064807948424,
+    "y": -444.8091244036332,
+    "z": 28.85994530392639,
+    "yaw": 60.30564042765184,
+    "link_idx": "A2256W000332",
+    "point_idx": 68
+  },
+  "counts": {
+    "npc": 3,
+    "pedestrian": 6,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100001,
+      "name": "2017_Hyundai_Grandeur",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -130.1540401717058,
+        "y": -461.1941517473272,
+        "z": 28.687986051943707,
+        "yaw": 61.332256884081914
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200011,
+      "name": "DEFAULT_SUV",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -148.55221179891197,
+        "y": -447.2689252309745,
+        "z": 28.898499601277422,
+        "yaw": -125.06685047018338
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30800002,
+      "name": "2021_Kia_Carnival",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -122.9550708812071,
+        "y": -444.8736294434446,
+        "z": 28.871940564311092,
+        "yaw": -30.09503835123084
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50200002,
+      "name": "Girl1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -129.50141531048632,
+        "y": -435.9401816916452,
+        "z": 28.553774565510146,
+        "yaw": -78.55483017231614
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -139.75835257659688,
+        "y": -431.332383194748,
+        "z": 28.60349870892932,
+        "yaw": 107.47863210556852
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100012,
+      "name": "Woman4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -149.7998872908455,
+        "y": -452.2748412583842,
+        "z": 28.570023166972934,
+        "yaw": 9.54313576323571
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100074,
+      "name": "worker_f_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -133.98921794109458,
+        "y": -441.95066909431677,
+        "z": 28.52556817671186,
+        "yaw": -150.563274830173
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100058,
+      "name": "police_m_2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -145.8845894546898,
+        "y": -443.5030242439785,
+        "z": 28.588230144704518,
+        "yaw": -31.90597958363628
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100018,
+      "name": "NCAP_EPTa",
+      "ontology_class": "Pedestrian",
+      "subtype": "pedestrian_dummy",
+      "generation_policy": "limited_weight",
+      "pose": {
+        "x": -130.05954446025376,
+        "y": -439.8565660423775,
+        "z": 28.535229038787467,
+        "yaw": -76.11998982354697
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200162,
+      "name": "concrete-barrier",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -128.0046871954104,
+        "y": -442.17944177160285,
+        "z": 28.532038133153456,
+        "yaw": 80.23163251912729
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100028,
+      "name": "PE_Firewall_Orange",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -142.80881475766583,
+        "y": -438.64309263169946,
+        "z": 28.560221225046437,
+        "yaw": 42.15452637343947
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 2,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "a247a2aea2c5f34c54edb590b78a4428419f887682440b6f1748f7c6af91d8bf",
+    "generation_config": "0575362f7eb209602d2f5917cecb703b5dea96c2ba6f63517f7fb735f65f794b",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

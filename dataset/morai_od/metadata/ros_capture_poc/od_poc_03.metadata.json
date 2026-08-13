@@ -1,0 +1,31 @@
+{
+  "prototype_version": 0,
+  "scenario_stem": "od_poc_03",
+  "scenario_group": "ros_capture_poc",
+  "scenario_file": "od_poc_03.json",
+  "template": "configs/scenario/2026_molit_comp_sample_scene.json",
+  "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+  "mgeo_dir": "kcity_map/mgeo_map",
+  "seed": 26080603,
+  "anchor_index": 3500,
+  "ego": {
+    "x": 69.71951261864368,
+    "y": -422.52774121879435,
+    "z": 28.448734846774247,
+    "yaw": -98.06612478343351,
+    "link_idx": "A2256W000446",
+    "point_idx": 34
+  },
+  "radius_m": 20.0,
+  "weather": "sunny",
+  "time_hour": 13,
+  "environment_note": "Internal Scenario JSON does not set weather/time. Apply these values in MORAI UI or a validated Scenario Runner.",
+  "foggy_density": null,
+  "foggy_distance": null,
+  "counts": {
+    "vehicleList": 4,
+    "pedestrianList": 5,
+    "objectList": 3
+  },
+  "pedestrian_placement": "Prototype road-edge placement. GIS/Lanelet crosswalk constraints will be added before bulk generation."
+}

@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_140",
+  "scenario_stem": "od_s13v2_140",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080718140,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3232,
+    "arc_m": 1666.0833563531403,
+    "curvature_deg": 0.007602793304670286,
+    "crosswalk_distance_m": 66.11881945357257,
+    "parking_distance_m": 86.65230675135587,
+    "stopline_distance_m": 66.31426063094496,
+    "branch_distance_m": 63.69555359653723
+  },
+  "ego": {
+    "x": 70.3090291605268,
+    "y": -290.11758604441155,
+    "z": 28.70062516356935,
+    "yaw": -89.73055588145398,
+    "link_idx": "A2256W000153",
+    "point_idx": 145
+  },
+  "counts": {
+    "npc": 7,
+    "pedestrian": 0,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30400003,
+      "name": "2013_Hyundai_Xcient(P520)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.80394163860025,
+        "y": -299.3751754315311,
+        "z": 28.844885872772576,
+        "yaw": -89.86980849103686
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100001,
+      "name": "2017_Hyundai_Grandeur",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.69065280024273,
+        "y": -272.87556543004087,
+        "z": 28.612769847951718,
+        "yaw": -89.47496594741787
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30500001,
+      "name": "2015_Toyota_Prius(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "wagon",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.46160810501914,
+        "y": -304.32583638172406,
+        "z": 28.741235860149036,
+        "yaw": -89.56048320469536
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200002,
+      "name": "2017_Kia_Sorento",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 84.36193226756895,
+        "y": -294.4184657457531,
+        "z": 28.69238147012169,
+        "yaw": 90.23787087529439
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30200003,
+      "name": "2017_Kia_Niro(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 70.30029734563749,
+        "y": -283.11765347807864,
+        "z": 28.717155371273883,
+        "yaw": -90.10713092394161
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30300002,
+      "name": "2017_hyundai_solati_h350",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.2067353485461,
+        "y": -282.3281708234462,
+        "z": 28.857818786476653,
+        "yaw": -89.75776747480873
+      }
+    },
+    {
+      "unique_id": 1007,
+      "group": "vehicleList",
+      "data_id": 30400004,
+      "name": "2013_Hyundai_Xcient(P540)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.3323453327544,
+        "y": -272.82418206182854,
+        "z": 28.923156528449194,
+        "yaw": -91.31570214927174
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100067,
+      "name": "Bollard04",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.3417764004505,
+        "y": -297.07164609057673,
+        "z": 28.431846961532262,
+        "yaw": -104.22706969496541
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

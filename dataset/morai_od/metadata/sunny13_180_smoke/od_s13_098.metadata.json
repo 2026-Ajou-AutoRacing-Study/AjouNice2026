@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_098",
+  "scenario_stem": "od_s13_098",
+  "split": "train",
+  "scene_type": "camera_seam_occlusion",
+  "topology": "curve",
+  "seed": 26080718098,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1940,
+    "arc_m": 1024.2088583171965,
+    "curvature_deg": 8.292678420651868,
+    "crosswalk_distance_m": 283.4982589788195,
+    "parking_distance_m": 304.8453979872481,
+    "stopline_distance_m": 45.20576176945821,
+    "branch_distance_m": 37.761239052957144
+  },
+  "ego": {
+    "x": 27.089860979291576,
+    "y": 339.36352085537686,
+    "z": 28.705463220065266,
+    "yaw": -28.578816100240772,
+    "link_idx": "A2256W000846",
+    "point_idx": 79
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 4,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 20.76063898192814,
+        "y": 342.33733713067846,
+        "z": 28.68437181026637,
+        "yaw": -20.71647365805424
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30400003,
+      "name": "2013_Hyundai_Xcient(P520)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 36.15092310829826,
+        "y": 333.1607383222369,
+        "z": 28.920994956034672,
+        "yaw": -40.23098688789818
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30800003,
+      "name": "2020_chrysler_pacifica_hybrid",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 43.76667850702066,
+        "y": 325.2500481276649,
+        "z": 28.717013933655053,
+        "yaw": -52.11697123537874
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30400002,
+      "name": "2012_Hyundai_HD65",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 9.636332923546883,
+        "y": 345.14794870324334,
+        "z": 28.88235241432302,
+        "yaw": -7.53585006149649
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100016,
+      "name": "Woman8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 33.58765472542687,
+        "y": 340.83656111651635,
+        "z": 28.424012764214314,
+        "yaw": 111.7116805046075
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100005,
+      "name": "Woman2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 29.41181403228161,
+        "y": 330.4918885417014,
+        "z": 28.426118291297787,
+        "yaw": 131.78941691954543
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50200004,
+      "name": "Girl2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 26.058805918151368,
+        "y": 343.67679927749367,
+        "z": 28.406224914202266,
+        "yaw": -43.913782901575246
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 22.513123541393497,
+        "y": 337.95063454778864,
+        "z": 28.404851420504265,
+        "yaw": 53.541528770702826
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_140",
+  "scenario_stem": "od_s13p4_140",
+  "split": "train",
+  "scene_type": "pedestrian_centric",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080818240,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 108,
+    "arc_m": 53.99995865754938,
+    "curvature_deg": 0.14222487972327258,
+    "crosswalk_distance_m": 64.62271085349693,
+    "parking_distance_m": 12.07952089499765,
+    "stopline_distance_m": 18.628480212004142,
+    "branch_distance_m": 18.628480212004142
+  },
+  "ego": {
+    "x": -105.44814978795104,
+    "y": -381.13617875048675,
+    "z": 28.878413618835946,
+    "yaw": 61.1523657600394,
+    "link_idx": "A2256W000748",
+    "point_idx": 108
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": -103.26633725910892,
+    "y": -377.20052156837914,
+    "z": 28.536581134227077,
+    "yaw": 60.68717836912873
+  },
+  "counts": {
+    "npc": 0,
+    "pedestrian": 8,
+    "obstacle": 2
+  },
+  "assets": [
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100015,
+      "name": "Woman7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -114.74508830152595,
+        "y": -385.3771006445794,
+        "z": 28.601254398910797,
+        "yaw": -116.38518788121803
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -12.749,
+        "lateral_m": 6.006,
+        "view_zone": "rear",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -102.52965297437137,
+        "y": -363.3463920833377,
+        "z": 28.5664868994126,
+        "yaw": 127.45464084435298
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 12.441,
+        "lateral_m": 6.14,
+        "view_zone": "front",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50200001,
+      "name": "Boy1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -118.74702644297174,
+        "y": -394.38503123324307,
+        "z": 28.594294094145123,
+        "yaw": -58.34857134801908
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -22.563,
+        "lateral_m": 5.085,
+        "view_zone": "rear",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100013,
+      "name": "Woman5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -107.02826859465756,
+        "y": -369.87611531328224,
+        "z": 28.569470737930303,
+        "yaw": 82.62715880626683
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 4.545,
+        "lateral_m": 6.866,
+        "view_zone": "front",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100014,
+      "name": "Woman6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -118.32015659372223,
+        "y": -389.99240494650104,
+        "z": 28.596111501896146,
+        "yaw": 7.718033216720016
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -18.524,
+        "lateral_m": 6.864,
+        "view_zone": "rear",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 2006,
+      "group": "pedestrianList",
+      "data_id": 50100012,
+      "name": "Woman4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -99.33917019123268,
+        "y": -358.82341737631754,
+        "z": 28.58034608719212,
+        "yaw": -147.1015334873441
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 17.947,
+        "lateral_m": 5.573,
+        "view_zone": "front",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 2007,
+      "group": "pedestrianList",
+      "data_id": 50100008,
+      "name": "Man5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -116.67461632243234,
+        "y": -387.3127013619293,
+        "z": 28.59976583995882,
+        "yaw": 152.01902519642874
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -15.382,
+        "lateral_m": 6.741,
+        "view_zone": "rear",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 2008,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -104.5682732128632,
+        "y": -370.1965418952765,
+        "z": 28.566119851190358,
+        "yaw": -67.62370313565165
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 5.47,
+        "lateral_m": 4.564,
+        "view_zone": "front",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100001,
+      "name": "CargoBox",
+      "ontology_class": "Obstacle",
+      "subtype": "box",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -95.07393404053148,
+        "y": -372.86845705742655,
+        "z": 28.549133679666998,
+        "yaw": 62.068179778745815
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 7.788,
+        "lateral_m": -5.023,
+        "view_zone": "front",
+        "side": "right"
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200110,
+      "name": "KR_Sign_SL_110",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -104.27949578112249,
+        "y": -367.19720177785706,
+        "z": 28.543628099133684,
+        "yaw": 59.984041511563646
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 8.226,
+        "lateral_m": 5.781,
+        "view_zone": "front",
+        "side": "left"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

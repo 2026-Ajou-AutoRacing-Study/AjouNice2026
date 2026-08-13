@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_025",
+  "scenario_stem": "od_s13p4_025",
+  "split": "val",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080818125,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 64,
+    "arc_m": 31.999963282784933,
+    "curvature_deg": 0.03613293320918842,
+    "crosswalk_distance_m": 86.61797350398507,
+    "parking_distance_m": 9.881075294490573,
+    "stopline_distance_m": 40.62833222133616,
+    "branch_distance_m": 31.999868572881383
+  },
+  "ego": {
+    "x": -116.12717844885942,
+    "y": -400.37039927922666,
+    "z": 28.886008794104225,
+    "yaw": 60.956710604860746,
+    "link_idx": "A2256W000748",
+    "point_idx": 64
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": -113.94178083125304,
+    "y": -396.43669412321856,
+    "z": 28.546521746219074,
+    "yaw": 60.931105664135174
+  },
+  "counts": {
+    "npc": 1,
+    "pedestrian": 0,
+    "obstacle": 4
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30500002,
+      "name": "DEFAULT_WAGON",
+      "ontology_class": "Vehicle",
+      "subtype": "wagon",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -128.19602803474993,
+        "y": -411.69484413807123,
+        "z": 28.910180203543362,
+        "yaw": -119.3032278500664
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -20.262,
+        "lateral_m": 5.045,
+        "view_zone": "rear",
+        "side": "left",
+        "heading_difference_deg": 179.766,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100028,
+      "name": "PE_Firewall_Orange",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -106.70780130664518,
+        "y": -391.6559858430786,
+        "z": 28.571485253936046,
+        "yaw": 66.95694467888165
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 7.693,
+        "lateral_m": -4.0,
+        "view_zone": "front",
+        "side": "right"
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100002,
+      "name": "WoodBox",
+      "ontology_class": "Obstacle",
+      "subtype": "box",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -116.62642359100265,
+        "y": -393.03340501666065,
+        "z": 28.573896779053133,
+        "yaw": 69.84695963133208
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 1.67,
+        "lateral_m": 4.0,
+        "view_zone": "side",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100047,
+      "name": "Concrete_Barricade01",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -110.28376935335709,
+        "y": -401.7470722147475,
+        "z": 28.575702262687933,
+        "yaw": 51.528323292006945
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -2.864,
+        "lateral_m": -5.777,
+        "view_zone": "side",
+        "side": "right"
+      }
+    },
+    {
+      "unique_id": 3004,
+      "group": "objectList",
+      "data_id": 40100026,
+      "name": "Lane_Separation_Bar",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -103.21107703488845,
+        "y": -385.4244035588571,
+        "z": 28.567783405520668,
+        "yaw": 42.211031407050086
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 14.839,
+        "lateral_m": -4.029,
+        "view_zone": "front",
+        "side": "right"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_171",
+  "scenario_stem": "od_s13p4_171",
+  "split": "test",
+  "scene_type": "pedestrian_centric",
+  "topology": "curve",
+  "seed": 26080818271,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3908,
+    "arc_m": 2000.2279184825964,
+    "curvature_deg": 7.0975599053717815,
+    "crosswalk_distance_m": 176.9780768622973,
+    "parking_distance_m": 59.93449839763268,
+    "stopline_distance_m": 5.076857514329299,
+    "branch_distance_m": 76.0185572027052
+  },
+  "ego": {
+    "x": -78.07642846488123,
+    "y": -545.9593735619987,
+    "z": 28.776878144762353,
+    "yaw": -157.78687657288307,
+    "link_idx": "A2256W000128",
+    "point_idx": 7
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": -82.30904762219699,
+    "y": -547.4840606749719,
+    "z": 28.442849955344165,
+    "yaw": -162.25093839077857
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 5,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800003,
+      "name": "2020_chrysler_pacifica_hybrid",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -64.90801932280539,
+        "y": -543.366836678657,
+        "z": 28.808210624045973,
+        "yaw": 27.994874223058133
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -17.828,
+        "lateral_m": 1.383,
+        "view_zone": "rear",
+        "side": "center",
+        "heading_difference_deg": 169.754,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200014,
+      "name": "2023_Hyundai_Ioniq5",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -92.26020537049892,
+        "y": -553.3166457060328,
+        "z": 28.83620428764772,
+        "yaw": 7.2130374386201765
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 11.256,
+        "lateral_m": 2.521,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 169.464,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100010,
+      "name": "Man7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -79.91327473852908,
+        "y": -550.9714572301783,
+        "z": 28.52944483343539,
+        "yaw": 42.46828656468256
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -1.219,
+        "lateral_m": 4.052,
+        "view_zone": "side",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100004,
+      "name": "Woman1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -74.0538168387269,
+        "y": -550.237085911905,
+        "z": 28.51072741235279,
+        "yaw": 123.21312046165838
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -7.023,
+        "lateral_m": 5.139,
+        "view_zone": "rear",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50200001,
+      "name": "Boy1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -104.16690440404618,
+        "y": -548.5208336486576,
+        "z": 28.47875562497674,
+        "yaw": 26.57533897765876
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 21.133,
+        "lateral_m": -5.676,
+        "view_zone": "front",
+        "side": "right"
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -68.5128908707063,
+        "y": -548.1885359923319,
+        "z": 28.498200868481728,
+        "yaw": 73.582727143064
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -12.925,
+        "lateral_m": 4.877,
+        "view_zone": "rear",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 2005,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -96.66524735294911,
+        "y": -557.281843235334,
+        "z": 28.51118702642742,
+        "yaw": -38.1562647823356
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 16.66,
+        "lateral_m": 4.955,
+        "view_zone": "front",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100028,
+      "name": "PE_Firewall_Orange",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -81.71274805820715,
+        "y": -541.2696659295444,
+        "z": 28.470924539714268,
+        "yaw": -172.73795550854985
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -2.462,
+        "lateral_m": -5.737,
+        "view_zone": "side",
+        "side": "right"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

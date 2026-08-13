@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_102",
+  "scenario_stem": "od_s13_102",
+  "split": "train",
+  "scene_type": "camera_seam_occlusion",
+  "topology": "curve",
+  "seed": 26080718102,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1495,
+    "arc_m": 806.1093879734093,
+    "curvature_deg": 8.360318733284714,
+    "crosswalk_distance_m": 150.3056736328315,
+    "parking_distance_m": 180.0850576412957,
+    "stopline_distance_m": 78.95700460545959,
+    "branch_distance_m": 49.97946495495114
+  },
+  "ego": {
+    "x": -98.64236303098083,
+    "y": 238.84479546514027,
+    "z": 28.707795385210105,
+    "yaw": 98.63954014963525,
+    "link_idx": "A2256W000304",
+    "point_idx": 342
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 4,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30400007,
+      "name": "DEFAULT_TRUCK",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -99.29407930293108,
+        "y": 259.3161394706075,
+        "z": 28.912068273237658,
+        "yaw": 90.542735395421
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30500002,
+      "name": "DEFAULT_WAGON",
+      "ontology_class": "Vehicle",
+      "subtype": "wagon",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -93.58937638859531,
+        "y": 222.15114183071384,
+        "z": 28.733213166910794,
+        "yaw": 116.0515248045366
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200011,
+      "name": "DEFAULT_SUV",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -107.27784555486664,
+        "y": 255.52956690435127,
+        "z": 28.722546955029223,
+        "yaw": -89.71207137722175
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30400005,
+      "name": "2014_Hyundai_Xcient(Mixer)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -102.93769564214928,
+        "y": 223.5477595251995,
+        "z": 28.969760983938613,
+        "yaw": -68.74509186745959
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100005,
+      "name": "Woman2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -104.88949582564466,
+        "y": 243.36747589249606,
+        "z": 28.441657546460238,
+        "yaw": -3.9703076174184844
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100015,
+      "name": "Woman7",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -84.99503960532434,
+        "y": 254.67278881417522,
+        "z": 28.37233853224031,
+        "yaw": 111.55446436831954
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50200003,
+      "name": "Boy2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -109.501938025935,
+        "y": 225.61220445447665,
+        "z": 28.45650889478233,
+        "yaw": 43.89243578694925
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100002,
+      "name": "Man2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -93.09217404648308,
+        "y": 235.49353061055814,
+        "z": 28.37485045733109,
+        "yaw": 62.2497386020454
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

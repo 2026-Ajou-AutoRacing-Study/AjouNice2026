@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_122",
+  "scenario_stem": "od_s13v2_122",
+  "split": "test",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080718122,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3148,
+    "arc_m": 1624.0835193348319,
+    "curvature_deg": 0.028663535031711262,
+    "crosswalk_distance_m": 73.30698294472472,
+    "parking_distance_m": 56.46503709604144,
+    "stopline_distance_m": 72.64461509022408,
+    "branch_distance_m": 30.499101453146423
+  },
+  "ego": {
+    "x": 72.58872652508823,
+    "y": -248.22299541551055,
+    "z": 28.721429093073127,
+    "yaw": -95.94034592891488,
+    "link_idx": "A2256W000153",
+    "point_idx": 61
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 0,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100008,
+      "name": "2020_hyundai_sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.00756686366854,
+        "y": -227.33101676178006,
+        "z": 28.716088603831086,
+        "yaw": -89.32761012226783
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100011,
+      "name": "2019_Toyota_Prius",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 87.51586482338305,
+        "y": -226.10845069146666,
+        "z": 28.613768664122166,
+        "yaw": 90.21061647399915
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200105,
+      "name": "KR_Sign_SL_60",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 99.39243572803133,
+        "y": -252.46037983284083,
+        "z": 28.281373866430986,
+        "yaw": -84.07012043054607
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200104,
+      "name": "KR_Sign_SL_50",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 65.46471772472115,
+        "y": -256.74140282455687,
+        "z": 28.32174032880678,
+        "yaw": -106.74942731380703
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100027,
+      "name": "PE_Drum",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.7098747350612,
+        "y": -241.90603689340202,
+        "z": 28.392835269552197,
+        "yaw": -79.70237924525667
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

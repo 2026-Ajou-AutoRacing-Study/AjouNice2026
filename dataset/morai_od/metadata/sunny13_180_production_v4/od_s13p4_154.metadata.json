@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_154",
+  "scenario_stem": "od_s13p4_154",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080818254,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 4181,
+    "arc_m": 2134.228077821262,
+    "curvature_deg": 6.852522110792904,
+    "crosswalk_distance_m": 168.96749558266117,
+    "parking_distance_m": 9.070856210196709,
+    "stopline_distance_m": 13.223838023919003,
+    "branch_distance_m": 13.223838023919003
+  },
+  "ego": {
+    "x": -155.49087475707563,
+    "y": -472.7046635046256,
+    "z": 28.782690024918097,
+    "yaw": 67.8140417377628,
+    "link_idx": "A2256W000332",
+    "point_idx": 4
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": -153.7278077098172,
+    "y": -468.56494304783837,
+    "z": 28.46511537012035,
+    "yaw": 65.00896038111688
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 0,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30400003,
+      "name": "2013_Hyundai_Xcient(P520)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -156.5193944243584,
+        "y": -456.86094589446196,
+        "z": 29.09580378000896,
+        "yaw": -139.15055413266654
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 9.429,
+        "lateral_m": 7.475,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 155.84,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100008,
+      "name": "2020_hyundai_sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -163.1685645552323,
+        "y": -485.1002232386324,
+        "z": 28.806560980150216,
+        "yaw": 81.24072769675217
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -18.976,
+        "lateral_m": 1.571,
+        "view_zone": "rear",
+        "side": "center",
+        "heading_difference_deg": 16.232,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100027,
+      "name": "PE_Drum",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -171.37048977122654,
+        "y": -470.25043521699337,
+        "z": 28.534192938070536,
+        "yaw": 68.58435190995033
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -8.981,
+        "lateral_m": 15.279,
+        "view_zone": "rear",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100060,
+      "name": "Bicycle_mountain",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -165.56522904565165,
+        "y": -465.60569645334914,
+        "z": 28.568591044773108,
+        "yaw": 61.438141897704554
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -2.319,
+        "lateral_m": 11.979,
+        "view_zone": "side",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100004,
+      "name": "YellowBarrel",
+      "ontology_class": "Obstacle",
+      "subtype": "barrel_or_drum",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -155.41267366813472,
+        "y": -446.99421543741056,
+        "z": 28.550773348001062,
+        "yaw": 53.96090406029481
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 18.839,
+        "lateral_m": 10.64,
+        "view_zone": "front",
+        "side": "left"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

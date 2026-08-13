@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_147",
+  "scenario_stem": "od_s13_147",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "intersection",
+  "seed": 26080718147,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 1599,
+    "arc_m": 858.1093570329434,
+    "curvature_deg": 0.48647044727368893,
+    "crosswalk_distance_m": 202.2136114334216,
+    "parking_distance_m": 232.05409018971903,
+    "stopline_distance_m": 26.983594739728016,
+    "branch_distance_m": 0.3901760671968742
+  },
+  "ego": {
+    "x": -99.44000246360883,
+    "y": 290.81566039127205,
+    "z": 28.718062626426164,
+    "yaw": 90.2475360410333,
+    "link_idx": "A2256W000304",
+    "point_idx": 446
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 4,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200012,
+      "name": "2021_Hyundai_GV70",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -94.39142504444939,
+        "y": 307.5817159849895,
+        "z": 28.678054663123703,
+        "yaw": 74.91592655996155
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100004,
+      "name": "2015_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -95.87201235317535,
+        "y": 284.9707244067083,
+        "z": 28.691240580413165,
+        "yaw": 90.14765224589712
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30500002,
+      "name": "DEFAULT_WAGON",
+      "ontology_class": "Vehicle",
+      "subtype": "wagon",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -103.87693999928374,
+        "y": 285.5476276746673,
+        "z": 28.716048698687906,
+        "yaw": -89.67307396148121
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100013,
+      "name": "2016_Hyundai_Genesis_DH",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -107.54659215511279,
+        "y": 295.45147019424996,
+        "z": 28.61105726651006,
+        "yaw": -89.20807562358036
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100005,
+      "name": "2014_Kia_K7",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -95.85274878105945,
+        "y": 296.7112866180316,
+        "z": 28.65262517005739,
+        "yaw": 88.9947886339981
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100007,
+      "name": "Man4",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -103.43642656376826,
+        "y": 273.0157616628808,
+        "z": 28.405791353131477,
+        "yaw": -62.67960721309723
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100016,
+      "name": "Woman8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -103.77550596747922,
+        "y": 303.53184735138996,
+        "z": 28.41681828753293,
+        "yaw": 171.2942277152763
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100011,
+      "name": "Man8",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -104.64692048895195,
+        "y": 264.71394496533856,
+        "z": 28.42387321524223,
+        "yaw": -85.81296598130328
+      }
+    },
+    {
+      "unique_id": 2004,
+      "group": "pedestrianList",
+      "data_id": 50100055,
+      "name": "police_f_1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -94.38860824193901,
+        "y": 280.3769105546739,
+        "z": 28.377055182788915,
+        "yaw": 152.58673565751036
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200106,
+      "name": "KR_Sign_SL_70",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -127.2339337959181,
+        "y": 290.77806006660734,
+        "z": 28.32515135956264,
+        "yaw": 73.38105441469943
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100001,
+      "name": "CargoBox",
+      "ontology_class": "Obstacle",
+      "subtype": "box",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -74.87604221910564,
+        "y": 285.61241796095015,
+        "z": 28.383970846926214,
+        "yaw": 89.8885791069714
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100002,
+      "name": "WoodBox",
+      "ontology_class": "Obstacle",
+      "subtype": "box",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -113.3750331850398,
+        "y": 298.3366683316353,
+        "z": 28.294124912257846,
+        "yaw": 78.69861823325232
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

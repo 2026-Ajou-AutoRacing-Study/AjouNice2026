@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_077",
+  "scenario_stem": "od_s13_077",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080718077,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 896,
+    "arc_m": 509.8163091293544,
+    "curvature_deg": 0.4513066744669345,
+    "crosswalk_distance_m": 48.430289813178845,
+    "parking_distance_m": 37.719307155069984,
+    "stopline_distance_m": 40.797521238273674,
+    "branch_distance_m": 26.99985758700218
+  },
+  "ego": {
+    "x": -60.55209655250666,
+    "y": 38.51018331195797,
+    "z": 28.729678838495616,
+    "yaw": 90.23568825282933,
+    "link_idx": "A2256W000315",
+    "point_idx": 54
+  },
+  "counts": {
+    "npc": 1,
+    "pedestrian": 0,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30800004,
+      "name": "DEFAULT_MPV",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -64.4381918424108,
+        "y": 44.35627814967899,
+        "z": 28.75231107331393,
+        "yaw": -90.17138130954102
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100026,
+      "name": "Lane_Separation_Bar",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -52.618196220197454,
+        "y": 19.662098519560736,
+        "z": 28.383759901102888,
+        "yaw": 107.54345701897284
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100062,
+      "name": "Scooter_01",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -53.91859105459738,
+        "y": 38.0220224108046,
+        "z": 28.38816306435831,
+        "yaw": 102.12188216309755
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100058,
+      "name": "Bollard01",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -77.1373815456059,
+        "y": 43.915268092409136,
+        "z": 28.366743371937012,
+        "yaw": 100.0600000507435
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

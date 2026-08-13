@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_od180_v1",
+  "base_scenario_id": "base006",
+  "scenario_stem": "od180_b006",
+  "split": "test",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 2608073006,
+  "anchor": {
+    "index": 2575,
+    "arc_m": 1340.1516108108945,
+    "curvature_deg": 0.017047491557093508,
+    "crosswalk_distance_m": 72.21955438864967,
+    "parking_distance_m": 161.27770341489187,
+    "stopline_distance_m": 45.18396026754011,
+    "branch_distance_m": 28.573758348620807
+  },
+  "ego": {
+    "x": 67.22718791532414,
+    "y": 35.199305676797835,
+    "z": 28.706307888907673,
+    "yaw": -89.80851309085158,
+    "link_idx": "A2256W000420",
+    "point_idx": 108
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 1,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100015,
+      "name": "DEFAULT_SEDAN",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 70.67873669066684,
+        "y": 41.20408031911023,
+        "z": 28.711964011150254,
+        "yaw": -89.65483226026792
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100001,
+      "name": "2017_Hyundai_Grandeur",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 77.65686528598663,
+        "y": 47.21539893910457,
+        "z": 28.722046840203372,
+        "yaw": -89.6962542077977
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30300003,
+      "name": "DEFAULT_BUS",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 82.72920642232066,
+        "y": 30.077065711764114,
+        "z": 28.820713828817887,
+        "yaw": 90.33321293997915
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30100014,
+      "name": "2020_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 74.29561186599824,
+        "y": 20.21006127155624,
+        "z": 28.726251991852738,
+        "yaw": -89.73005153585717
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30800002,
+      "name": "2021_Kia_Carnival",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 50.114361004009154,
+        "y": 32.97104628361691,
+        "z": 28.797298412764057,
+        "yaw": 90.16139248853261
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100005,
+      "name": "Woman2",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 61.65274926941048,
+        "y": 17.576444682842627,
+        "z": 28.380505893774995,
+        "yaw": 47.64425581729154
+      }
+    }
+  ],
+  "environment_policy": "The same base scenario is captured in all six environment batches; weather/time are not embedded in this JSON.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "5f796c9ffdaf8dfb08557666046c2218e5939033487a37c12d90b4535638659d"
+  }
+}

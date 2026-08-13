@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_018",
+  "scenario_stem": "od_s13v2_018",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080718018,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2398,
+    "arc_m": 1252.238754719846,
+    "curvature_deg": 0.026385940019565624,
+    "crosswalk_distance_m": 141.3624991489411,
+    "parking_distance_m": 169.9364778920336,
+    "stopline_distance_m": 56.53791144280902,
+    "branch_distance_m": 33.91194475535013
+  },
+  "ego": {
+    "x": 65.04373202704984,
+    "y": 123.05982416551348,
+    "z": 28.62573638194364,
+    "yaw": -86.6032336088843,
+    "link_idx": "A2256W000411",
+    "point_idx": 267
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 1,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200002,
+      "name": "2017_Kia_Sorento",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.63474363061135,
+        "y": 130.04786260200666,
+        "z": 28.65388010932203,
+        "yaw": -86.69771690675782
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30700003,
+      "name": "2019_Hyundai_Kona(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 70.28939315460842,
+        "y": 114.07075122273523,
+        "z": 28.693329659808736,
+        "yaw": -89.79372124241327
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30100013,
+      "name": "2016_Hyundai_Genesis_DH",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 73.72081129313898,
+        "y": 128.6047400002441,
+        "z": 28.694255516585844,
+        "yaw": -89.77695710122163
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200013,
+      "name": "2023_Kia_EV6",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 77.25287252269526,
+        "y": 121.13930895751743,
+        "z": 28.73347923842906,
+        "yaw": -89.61731027459275
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30400001,
+      "name": "2013_Hyundai_Porter2",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 70.17720789466156,
+        "y": 137.07045813519974,
+        "z": 28.87627769728358,
+        "yaw": -89.84273264774738
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100009,
+      "name": "Man6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 59.83537898933267,
+        "y": 134.4594419400581,
+        "z": 28.326493566442817,
+        "yaw": 83.80374389670106
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

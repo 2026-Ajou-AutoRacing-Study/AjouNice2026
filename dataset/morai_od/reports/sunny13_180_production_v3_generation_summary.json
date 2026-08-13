@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v3",
+  "quality_status": "static_validated_simulator_visual_check_pending",
+  "base_scenarios": 180,
+  "environment_variants": 1,
+  "capture_runs": 180,
+  "expected_multisensor_frames": 1080,
+  "split_base_scenarios": {
+    "test": 27,
+    "train": 126,
+    "val": 27
+  },
+  "scene_types": {
+    "camera_seam_occlusion": 18,
+    "mixed_vehicle_pedestrian": 54,
+    "obstacle_context": 18,
+    "pedestrian_centric": 45,
+    "sparse_empty_background": 9,
+    "vehicle_centric": 36
+  },
+  "topologies": {
+    "crosswalk": 30,
+    "curve": 30,
+    "intersection": 30,
+    "merge_diverge": 24,
+    "roadside_parking_clutter": 24,
+    "straight": 42
+  },
+  "actor_instances_per_base_pass": {
+    "vehicleList": 557,
+    "pedestrianList": 625,
+    "objectList": 275
+  },
+  "unique_assets_placed": 94,
+  "route_constraints": {
+    "minimum_anchor_arc_distance_m": 3.0,
+    "path_discontinuity_rejection_threshold_m": 2.0,
+    "ego_swept_corridor_clear": true,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "mgeo_static_collision_samples": 54797,
+    "type_specific_actor_footprints": true
+  },
+  "capture_policy": {
+    "captures_per_scene": 6,
+    "capture_spacing_m": 1.5,
+    "ego_target_speed_kph": 5.4,
+    "maximum_motion_m": 10.5,
+    "recommended_motion_mode": "rolling-grouped",
+    "load_settle_sec": 0.5,
+    "capture_stable_sec": 0.5,
+    "continue_on_scene_error": true,
+    "route_deviation_limit_m": 1.2,
+    "heading_error_limit_deg": 45.0,
+    "lookahead_m": 1.8,
+    "maximum_steering_rad": 0.35,
+    "adaptive_curve_control": true,
+    "curve_control_window_m": 8.0,
+    "curve_control_full_turn_deg": 18.0,
+    "minimum_curve_speed_kph": 3.6,
+    "minimum_curve_lookahead_m": 1.2,
+    "curve_maximum_steering_rad": 0.45,
+    "personal_steering_sign": -1.0,
+    "note": "Use rolling-grouped for training data. It sends captures while moving, then groups and verifies Camera/LiDAR/GT artifacts by their shared MORAI timestamp."
+  }
+}

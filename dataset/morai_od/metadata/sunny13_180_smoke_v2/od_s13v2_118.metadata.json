@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_118",
+  "scenario_stem": "od_s13v2_118",
+  "split": "train",
+  "scene_type": "obstacle_context",
+  "topology": "roadside_parking_clutter",
+  "seed": 26080718118,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 4048,
+    "arc_m": 2070.22783517025,
+    "curvature_deg": 7.7488376324181445,
+    "crosswalk_distance_m": 217.15473976966814,
+    "parking_distance_m": 46.090347248416315,
+    "stopline_distance_m": 39.02133295909041,
+    "branch_distance_m": 49.3460589442719
+  },
+  "ego": {
+    "x": -142.3615081426983,
+    "y": -531.9353239550765,
+    "z": 28.804512322644275,
+    "yaw": 134.94431250324135,
+    "link_idx": "A2256W000128",
+    "point_idx": 147
+  },
+  "counts": {
+    "npc": 2,
+    "pedestrian": 0,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -124.04636658993508,
+        "y": -548.9649188702178,
+        "z": 28.95546865325827,
+        "yaw": -23.9399698528145
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30800004,
+      "name": "DEFAULT_MPV",
+      "ontology_class": "Vehicle",
+      "subtype": "mpv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -149.76634593399118,
+        "y": -528.7511854574095,
+        "z": 28.882756089660933,
+        "yaw": -51.5222030107513
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100033,
+      "name": "Steel_Barricade",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -146.7535254335034,
+        "y": -553.2645820108231,
+        "z": 28.522437653029552,
+        "yaw": 119.46750639277673
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40200104,
+      "name": "KR_Sign_SL_50",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -159.70204984989218,
+        "y": -549.4476042575773,
+        "z": 28.538488941786337,
+        "yaw": 129.01188057883883
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100060,
+      "name": "Bicycle_mountain",
+      "ontology_class": "Obstacle",
+      "subtype": "unoccupied_bicycle_or_scooter",
+      "generation_policy": "enabled_realistic_zone_only",
+      "pose": {
+        "x": -133.3925053698495,
+        "y": -535.2594178418593,
+        "z": 28.476524975900748,
+        "yaw": 140.28629179832564
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

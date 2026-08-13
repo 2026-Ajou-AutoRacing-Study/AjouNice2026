@@ -1,0 +1,261 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_production_v4",
+  "base_scenario_id": "s13p4_111",
+  "scenario_stem": "od_s13p4_111",
+  "split": "train",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "merge_diverge",
+  "seed": 26080818211,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 577,
+    "arc_m": 283.9226671242927,
+    "curvature_deg": 3.2999799295878347,
+    "crosswalk_distance_m": 45.33300330548399,
+    "parking_distance_m": 94.4750702677019,
+    "stopline_distance_m": 31.94173693450464,
+    "branch_distance_m": 3.6322291020457915
+  },
+  "ego": {
+    "x": -63.414055920758926,
+    "y": -187.1335648449882,
+    "z": 28.739138282672826,
+    "yaw": 77.85892040514534,
+    "link_idx": "A2256W000213",
+    "point_idx": 93
+  },
+  "capture_layout_reference": {
+    "ahead_m": 4.5,
+    "x": -62.53760099501607,
+    "y": -182.72005657778203,
+    "z": 28.385923524518503,
+    "yaw": 79.71604499422256
+  },
+  "counts": {
+    "npc": 4,
+    "pedestrian": 3,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200007,
+      "name": "2021_Hyundai_Genesis_GV80",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -65.95059755565663,
+        "y": -172.8869145037937,
+        "z": 28.77569481996398,
+        "yaw": -89.29890596194346
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 9.066,
+        "lateral_m": 5.114,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 169.015,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200014,
+      "name": "2023_Hyundai_Ioniq5",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -60.14710026007941,
+        "y": -161.86902659394198,
+        "z": 28.772140187252955,
+        "yaw": 86.60180417578329
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 20.943,
+        "lateral_m": 1.37,
+        "view_zone": "front",
+        "side": "center",
+        "heading_difference_deg": 6.886,
+        "traffic_direction_relation": "same_direction"
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200013,
+      "name": "2023_Kia_EV6",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -67.00327994594292,
+        "y": -159.68239012462072,
+        "z": 28.75426824282388,
+        "yaw": -83.7280570258202
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 21.87,
+        "lateral_m": 8.507,
+        "view_zone": "front",
+        "side": "left",
+        "heading_difference_deg": 163.444,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30300001,
+      "name": "2016_Hyundai_Universe",
+      "ontology_class": "Vehicle",
+      "subtype": "bus_van",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -68.73195904710747,
+        "y": -195.2418381868433,
+        "z": 28.889149809457503,
+        "yaw": -104.33012741690236
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -13.426,
+        "lateral_m": 3.859,
+        "view_zone": "rear",
+        "side": "left",
+        "heading_difference_deg": 175.954,
+        "traffic_direction_relation": "opposing_direction"
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100014,
+      "name": "Woman6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -65.99327884430505,
+        "y": -182.09305310768704,
+        "z": 28.442718357790465,
+        "yaw": 10.226578434915268
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 0.0,
+        "lateral_m": 3.512,
+        "view_zone": "side",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100013,
+      "name": "Woman5",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -64.63008362656615,
+        "y": -164.37770830887638,
+        "z": 28.460211995192253,
+        "yaw": -88.84937544293888
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 17.674,
+        "lateral_m": 5.333,
+        "view_zone": "front",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50200002,
+      "name": "Girl1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -66.07062725167548,
+        "y": -179.0492708088772,
+        "z": 28.46348896317471,
+        "yaw": -172.31417703021526
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": 2.981,
+        "lateral_m": 4.132,
+        "view_zone": "side",
+        "side": "left"
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40100002,
+      "name": "WoodBox",
+      "ontology_class": "Obstacle",
+      "subtype": "box",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -72.26621405379855,
+        "y": -183.41558899462257,
+        "z": 28.44282015548273,
+        "yaw": 83.58162106355013
+      },
+      "capture_layout_relation": {
+        "longitudinal_m": -2.421,
+        "lateral_m": 9.448,
+        "view_zone": "side",
+        "side": "left"
+      }
+    }
+  ],
+  "geometry_policy": {
+    "version": 3,
+    "ego_route_behind_m": 2.5,
+    "ego_route_ahead_m": 10.5,
+    "ego_route_half_width_m": 1.9,
+    "ego_static_route_clearance_m": 2.0,
+    "mgeo_static_collision_check": true,
+    "type_specific_actor_footprints": true,
+    "maximum_pedestrian_road_distance_m": 4.0,
+    "minimum_pedestrian_center_distance_m": 2.0500000000000003,
+    "maximum_obstacle_road_distance_m": 6.0,
+    "maximum_road_surface_object_road_distance_m": 2.0,
+    "actor_layout_reference_ahead_m": 4.5,
+    "front_biased_scene_types": [
+      "mixed_vehicle_pedestrian",
+      "obstacle_context",
+      "pedestrian_centric"
+    ],
+    "front_bias_probability": 0.45,
+    "runtime_excluded_asset_ids": {
+      "vehicle": [
+        30100001,
+        30200011,
+        30300003,
+        30400001,
+        30400005,
+        30700004
+      ],
+      "pedestrian": [],
+      "obstacle": []
+    }
+  },
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "650e5cf981efa3f25cdc829fd8fdbb8273853fdbf86249dec2af408f4021fd75",
+    "asset_compatibility": "38087eac298d17ece8e94ed7f29e4950bdcc9f0c8887b74413306e93528c6124",
+    "generation_config": "b56a7c1b4387800bb303e84610798867d8a27844e4b603be6f0c4e083b7dc311",
+    "mgeo_link_set": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "mgeo_object_set": "b5955efe4136239683ae3dfb55caeda9a149f5f80af44b0b62e86371c774be6e"
+  }
+}

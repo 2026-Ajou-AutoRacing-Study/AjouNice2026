@@ -1,0 +1,126 @@
+{
+  "schema_version": 2,
+  "purpose": "MORAI ROS ScenarioLoad and SaveSensorData proof of concept",
+  "map_name": "R_KR_PR_K-city_2025",
+  "network_policy": {
+    "transport": "rosbridge",
+    "load_network_connection_data": true,
+    "sidecar_scope": "ego_only",
+    "required_unique_ids": [
+      0
+    ],
+    "forbidden_unique_ids": [
+      -100
+    ],
+    "required_topics": [
+      "/ScenarioLoad",
+      "/SaveSensorData",
+      "/Ego_topic",
+      "/Object_topic"
+    ],
+    "template_sha256": "7751cdcd69851deca5e14ec3d353b45c76175e8b9edb4972a3079a0a65ee9882",
+    "note": "Each scenario must have EgoNetwork/<stem>_MN.json copied from only the UNIQUEID=0 part of a ROS profile. Keep UNIQUEID=-100 in the separately loaded Simulator Network bootstrap profile so ScenarioLoad does not disconnect it."
+  },
+  "environment": {
+    "weather": "sunny",
+    "time_hour": 13,
+    "note": "Set once in the MORAI UI before running this PoC."
+  },
+  "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+  "capture_policy": {
+    "captures_per_scene": 6,
+    "capture_spacing_m": 0.6,
+    "ego_target_speed_kph": 3.6,
+    "maximum_motion_m": 4.0
+  },
+  "scenes": [
+    {
+      "id": "p01",
+      "file_name": "od_poc_01",
+      "scenario": "dataset/morai_od/scenarios/ros_capture_poc/od_poc_01.json",
+      "metadata": "dataset/morai_od/metadata/ros_capture_poc/od_poc_01.metadata.json",
+      "network_sidecar": "EgoNetwork/od_poc_01_MN.json",
+      "anchor_index": 500,
+      "expected_ego": {
+        "x": -76.18682759348809,
+        "y": -223.34518327661468,
+        "z": 28.735550078333453,
+        "yaw": 62.908557225536924,
+        "link_idx": "A2256W000213",
+        "point_idx": 16
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 3,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "p02",
+      "file_name": "od_poc_02",
+      "scenario": "dataset/morai_od/scenarios/ros_capture_poc/od_poc_02.json",
+      "metadata": "dataset/morai_od/metadata/ros_capture_poc/od_poc_02.metadata.json",
+      "network_sidecar": "EgoNetwork/od_poc_02_MN.json",
+      "anchor_index": 2516,
+      "expected_ego": {
+        "x": 67.07312095126154,
+        "y": 64.69883346904518,
+        "z": 28.670298968153524,
+        "yaw": -89.63127724475983,
+        "link_idx": "A2256W000420",
+        "point_idx": 49
+      },
+      "expected_counts": {
+        "npc": 5,
+        "pedestrian": 4,
+        "obstacle": 2
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "p03",
+      "file_name": "od_poc_03",
+      "scenario": "dataset/morai_od/scenarios/ros_capture_poc/od_poc_03.json",
+      "metadata": "dataset/morai_od/metadata/ros_capture_poc/od_poc_03.metadata.json",
+      "network_sidecar": "EgoNetwork/od_poc_03_MN.json",
+      "anchor_index": 3500,
+      "expected_ego": {
+        "x": 69.71951261864368,
+        "y": -422.52774121879435,
+        "z": 28.448734846774247,
+        "yaw": -98.06612478343351,
+        "link_idx": "A2256W000446",
+        "point_idx": 34
+      },
+      "expected_counts": {
+        "npc": 4,
+        "pedestrian": 5,
+        "obstacle": 3
+      },
+      "run_by_default": true
+    },
+    {
+      "id": "speed01",
+      "file_name": "od_speed_clear_01",
+      "scenario": "dataset/morai_od/scenarios/ros_capture_poc/od_speed_clear_01.json",
+      "metadata": "dataset/morai_od/metadata/ros_capture_poc/od_speed_clear_01.metadata.json",
+      "network_sidecar": "EgoNetwork/od_speed_clear_01_MN.json",
+      "anchor_index": 500,
+      "expected_ego": {
+        "x": -76.18682759348809,
+        "y": -223.34518327661468,
+        "z": 28.735550078333453,
+        "yaw": 62.908557225536924,
+        "link_idx": "A2256W000213",
+        "point_idx": 16
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "run_by_default": false
+    }
+  ]
+}

@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_029",
+  "scenario_stem": "od_s13v2_029",
+  "split": "val",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26081718032,
+  "generation_attempt": 2,
+  "anchor": {
+    "index": 3779,
+    "arc_m": 1936.2416351624654,
+    "curvature_deg": 0.1640573500444873,
+    "crosswalk_distance_m": 147.20836505507154,
+    "parking_distance_m": 80.87868574112414,
+    "stopline_distance_m": 58.47711121475887,
+    "branch_distance_m": 96.08547656311478
+  },
+  "ego": {
+    "x": -21.479699430403855,
+    "y": -516.1375351190468,
+    "z": 28.788618510940285,
+    "yaw": -151.81439109341062,
+    "link_idx": "A2256W000126",
+    "point_idx": 117
+  },
+  "counts": {
+    "npc": 5,
+    "pedestrian": 1,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30200011,
+      "name": "DEFAULT_SUV",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -32.30149414958464,
+        "y": -525.8805726745865,
+        "z": 28.75645233074279,
+        "yaw": 28.08533224049836
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100014,
+      "name": "2020_Kia_K5",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -10.268775440762974,
+        "y": -514.0676613967421,
+        "z": 28.771685459420016,
+        "yaw": 28.353789766006997
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30400002,
+      "name": "2012_Hyundai_HD65",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -4.76838330071677,
+        "y": -507.0972319194784,
+        "z": 28.96069244914247,
+        "yaw": -151.54724892240327
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30400001,
+      "name": "2013_Hyundai_Porter2",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -41.310331856795166,
+        "y": -526.7665569534989,
+        "z": 28.972010149328685,
+        "yaw": -151.98749700244346
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30200003,
+      "name": "2017_Kia_Niro(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 4.245933066400682,
+        "y": -506.2210598665505,
+        "z": 28.802664660021676,
+        "yaw": 28.192335715538974
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50200001,
+      "name": "Boy1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -33.39821826777515,
+        "y": -516.1478543640128,
+        "z": 28.484995241848406,
+        "yaw": -6.670389233615197
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

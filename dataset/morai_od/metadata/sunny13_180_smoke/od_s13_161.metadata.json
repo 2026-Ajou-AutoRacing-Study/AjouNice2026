@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_161",
+  "scenario_stem": "od_s13_161",
+  "split": "val",
+  "scene_type": "mixed_vehicle_pedestrian",
+  "topology": "merge_diverge",
+  "seed": 26080718161,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 2108,
+    "arc_m": 1108.2086278428992,
+    "curvature_deg": 2.714341530498359,
+    "crosswalk_distance_m": 244.45453835071814,
+    "parking_distance_m": 259.0328167054197,
+    "stopline_distance_m": 102.09082499550266,
+    "branch_distance_m": 10.530233165765262
+  },
+  "ego": {
+    "x": 61.87393426562401,
+    "y": 267.0232616648085,
+    "z": 28.599880416521998,
+    "yaw": -88.0083500220651,
+    "link_idx": "A2256W000846",
+    "point_idx": 247
+  },
+  "counts": {
+    "npc": 3,
+    "pedestrian": 3,
+    "obstacle": 3
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30100011,
+      "name": "2019_Toyota_Prius",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 60.449715244115055,
+        "y": 282.95346086926213,
+        "z": 28.606871866780732,
+        "yaw": -81.77884536040935
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30100003,
+      "name": "2016_Hyundai_Sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 69.50364963359422,
+        "y": 273.1842334743754,
+        "z": 28.655845194356328,
+        "yaw": -89.75068589497931
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200003,
+      "name": "2017_Kia_Niro(HEV)",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 61.42423709959544,
+        "y": 274.0080047452698,
+        "z": 28.62542401943318,
+        "yaw": -85.11023545169037
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100006,
+      "name": "Woman3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 68.53191620124159,
+        "y": 261.8757235887066,
+        "z": 28.382560321634227,
+        "yaw": 165.74098639424108
+      }
+    },
+    {
+      "unique_id": 2002,
+      "group": "pedestrianList",
+      "data_id": 50100003,
+      "name": "Man3",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 67.50881842476394,
+        "y": 253.01652755613685,
+        "z": 28.363456039634716,
+        "yaw": 122.53525247729317
+      }
+    },
+    {
+      "unique_id": 2003,
+      "group": "pedestrianList",
+      "data_id": 50100001,
+      "name": "Man1",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 55.90403713731628,
+        "y": 287.4231703041894,
+        "z": 28.31112767771443,
+        "yaw": 35.50547897263175
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200163,
+      "name": "fr-streetlight-2",
+      "ontology_class": "RoadsideFurniture",
+      "subtype": "fixed_roadside_object",
+      "generation_policy": "enabled_roadside_only",
+      "pose": {
+        "x": 47.82639265391305,
+        "y": 268.2311291692793,
+        "z": 28.289367503728972,
+        "yaw": -74.2215878692347
+      }
+    },
+    {
+      "unique_id": 3002,
+      "group": "objectList",
+      "data_id": 40100029,
+      "name": "PE_Firewall_White",
+      "ontology_class": "Obstacle",
+      "subtype": "barrier",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 73.5596233243354,
+        "y": 268.6552579479954,
+        "z": 28.36882499722231,
+        "yaw": -76.78170150711321
+      }
+    },
+    {
+      "unique_id": 3003,
+      "group": "objectList",
+      "data_id": 40100031,
+      "name": "Road_Sign_Mark",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": 54.71061475087662,
+        "y": 263.832621167615,
+        "z": 28.292086057924916,
+        "yaw": -72.61059768381651
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

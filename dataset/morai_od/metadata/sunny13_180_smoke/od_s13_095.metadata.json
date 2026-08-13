@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v1",
+  "base_scenario_id": "s13_095",
+  "scenario_stem": "od_s13_095",
+  "split": "test",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080718095,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3168,
+    "arc_m": 1634.0835106658271,
+    "curvature_deg": 0.36213630129776675,
+    "crosswalk_distance_m": 69.08763127735968,
+    "parking_distance_m": 62.07145734747638,
+    "stopline_distance_m": 68.46054385582543,
+    "branch_distance_m": 40.49877595438941
+  },
+  "ego": {
+    "x": 71.5742181615639,
+    "y": -258.17137032137134,
+    "z": 28.716358881135772,
+    "yaw": -95.56270242467858,
+    "link_idx": "A2256W000153",
+    "point_idx": 81
+  },
+  "counts": {
+    "npc": 6,
+    "pedestrian": 1,
+    "obstacle": 0
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30700004,
+      "name": "2020_Kia_Niro(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.16764181468615,
+        "y": -253.82895317393414,
+        "z": 28.729646958014992,
+        "yaw": -90.59998202758956
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30700003,
+      "name": "2019_Hyundai_Kona(EV)",
+      "ontology_class": "Vehicle",
+      "subtype": "electric_passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 64.67315028683245,
+        "y": -270.37565102285936,
+        "z": 28.623552553038614,
+        "yaw": -90.09446673055328
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200011,
+      "name": "DEFAULT_SUV",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 73.6022784801803,
+        "y": -238.2745139338929,
+        "z": 28.757357411917607,
+        "yaw": -95.71649251323802
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200010,
+      "name": "2021_Volkswagen_Golf_GTI",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 72.43348718193994,
+        "y": -249.71493990340696,
+        "z": 28.749882686120802,
+        "yaw": -95.94034592891488
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30100007,
+      "name": "2016_Hyundai_Ioniq",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.18986273664719,
+        "y": -279.3282366988936,
+        "z": 28.709232841056714,
+        "yaw": -89.51772481242855
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30100003,
+      "name": "2016_Hyundai_Sonata",
+      "ontology_class": "Vehicle",
+      "subtype": "passenger_car",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 79.19530992602166,
+        "y": -267.3287772093163,
+        "z": 28.714013738713344,
+        "yaw": -89.4734257646547
+      }
+    },
+    {
+      "unique_id": 2001,
+      "group": "pedestrianList",
+      "data_id": 50100014,
+      "name": "Woman6",
+      "ontology_class": "Pedestrian",
+      "subtype": "person",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 77.06943592094389,
+        "y": -263.64852619080773,
+        "z": 28.4273564846888,
+        "yaw": 148.69884994349695
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}

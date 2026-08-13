@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_sunny13_180_smoke_v2",
+  "base_scenario_id": "s13v2_043",
+  "scenario_stem": "od_s13v2_043",
+  "split": "train",
+  "scene_type": "vehicle_centric",
+  "topology": "straight",
+  "seed": 26080718043,
+  "generation_attempt": 1,
+  "anchor": {
+    "index": 3735,
+    "arc_m": 1914.2417533614343,
+    "curvature_deg": 0.015481712003946768,
+    "crosswalk_distance_m": 142.5190885148585,
+    "parking_distance_m": 93.94592163782544,
+    "stopline_distance_m": 36.4801520158722,
+    "branch_distance_m": 79.12955848953685
+  },
+  "ego": {
+    "x": -2.131651398502857,
+    "y": -505.6663539819441,
+    "z": 28.7359752016122,
+    "yaw": -151.33935277757195,
+    "link_idx": "A2256W000126",
+    "point_idx": 73
+  },
+  "counts": {
+    "npc": 6,
+    "pedestrian": 0,
+    "obstacle": 1
+  },
+  "assets": [
+    {
+      "unique_id": 1001,
+      "group": "vehicleList",
+      "data_id": 30400005,
+      "name": "2014_Hyundai_Xcient(Mixer)",
+      "ontology_class": "Vehicle",
+      "subtype": "truck",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 18.3253334425028,
+        "y": -498.6206818854519,
+        "z": 29.025701659802934,
+        "yaw": 28.803270701103315
+      }
+    },
+    {
+      "unique_id": 1002,
+      "group": "vehicleList",
+      "data_id": 30200007,
+      "name": "2021_Hyundai_Genesis_GV80",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -15.319224031458235,
+        "y": -512.8136394649159,
+        "z": 28.818964686704863,
+        "yaw": -151.36386051274837
+      }
+    },
+    {
+      "unique_id": 1003,
+      "group": "vehicleList",
+      "data_id": 30200012,
+      "name": "2021_Hyundai_GV70",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 8.427496938553968,
+        "y": -499.9655613545883,
+        "z": 28.7118927566136,
+        "yaw": -151.7388721166558
+      }
+    },
+    {
+      "unique_id": 1004,
+      "group": "vehicleList",
+      "data_id": 30200001,
+      "name": "2016_Hyundai_Santafe",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -8.510323195590145,
+        "y": -513.1148739994129,
+        "z": 28.798887131029062,
+        "yaw": 28.73981167528504
+      }
+    },
+    {
+      "unique_id": 1005,
+      "group": "vehicleList",
+      "data_id": 30200002,
+      "name": "2017_Kia_Sorento",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": 5.126607876909869,
+        "y": -505.7473407982477,
+        "z": 28.804121526839786,
+        "yaw": 28.27601412128041
+      }
+    },
+    {
+      "unique_id": 1006,
+      "group": "vehicleList",
+      "data_id": 30200014,
+      "name": "2023_Hyundai_Ioniq5",
+      "ontology_class": "Vehicle",
+      "subtype": "suv",
+      "generation_policy": "enabled",
+      "pose": {
+        "x": -19.516171398615658,
+        "y": -519.0409068106518,
+        "z": 28.78032123095992,
+        "yaw": 28.41904348535482
+      }
+    },
+    {
+      "unique_id": 3001,
+      "group": "objectList",
+      "data_id": 40200107,
+      "name": "KR_Sign_SL_80",
+      "ontology_class": "RoadFurniture",
+      "subtype": "road_sign",
+      "generation_policy": "enabled_semantic_zone_only",
+      "pose": {
+        "x": -0.5205158483310282,
+        "y": -525.4602031145574,
+        "z": 28.457444276553236,
+        "yaw": -149.11622172494017
+      }
+    }
+  ],
+  "environment_policy": "Weather/time are not embedded in this JSON. Capture it in the environment variants declared by the manifest.",
+  "source_hashes": {
+    "template": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "waypoints": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "sensor_config": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+    "asset_catalog": "52fa8c3f992f77307e6f660d173e9f77cec7ea68b1eb690ab8d435cbb25580a9",
+    "asset_compatibility": "be0ef98a65427a676cb020a1adce35e3d7fabc2059879cb66d3ca1359151aaaa",
+    "generation_config": "f7999d66f5af31c7820355cfa4d276655d9d4f40824ee4429b8d6a503fcd88ae"
+  }
+}
