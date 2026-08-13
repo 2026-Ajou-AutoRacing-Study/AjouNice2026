@@ -58,10 +58,10 @@ if [[ -n "$SYSTEM_LIBFFI" ]]; then
   export LD_PRELOAD="$SYSTEM_LIBFFI${LD_PRELOAD:+:$LD_PRELOAD}"
 fi
 
-if ! python -c 'import catkin_pkg, message_filters, rospkg, rospy' >/dev/null 2>&1; then
+if ! python -c 'import catkin_pkg, message_filters, netifaces, rospkg, rospy' >/dev/null 2>&1; then
   echo "[ERROR] Conda ROS Python dependencies are missing." >&2
   echo "        conda activate $CONDA_ENV" >&2
-  echo "        python -m pip install rospkg catkin-pkg" >&2
+  echo "        python -m pip install rospkg catkin-pkg netifaces" >&2
   exit 1
 fi
 
