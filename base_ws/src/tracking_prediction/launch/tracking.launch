@@ -1,0 +1,14 @@
+<launch>
+  <!--
+    GT(Object_topic) 기반 dummy tracking.
+    나중에 실제 OD+MOT로 교체할 때는, 이 launch 대신 real_tracking.launch
+    (아직 미작성) 같은 걸 만들어서 output_topic만 동일하게 맞추면 됨.
+  -->
+  <arg name="input_topic" default="/Object_topic" />
+  <arg name="output_topic" default="/tracking/objects" />
+
+  <node pkg="tracking_prediction" type="tracking_node.py" name="tracking_node" output="screen">
+    <param name="input_topic" value="$(arg input_topic)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+  </node>
+</launch>

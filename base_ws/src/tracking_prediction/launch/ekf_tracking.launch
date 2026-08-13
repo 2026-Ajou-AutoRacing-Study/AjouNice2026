@@ -1,0 +1,19 @@
+<launch>
+  <!--
+    ekf-multi-object-tracking(실제 EKF 트래커)의 출력을 /tracking/objects로
+    변환하는 브릿지. tracking.launch(GT dummy) 대신 이걸 띄우면
+    prediction.launch는 전혀 안 바꿔도 됨 (2026-07-30 소스 확인 후 신설).
+
+    사전조건: ekf_multi_object_tracking 노드(ekf_multi_class_object_tracking.launch)가
+    이미 떠서 jsk_track_topic/marker_topic을 발행 중이어야 함.
+  -->
+  <arg name="jsk_track_topic" default="/app/perc/jsk_all_track" />
+  <arg name="marker_topic" default="/app/perc/vis_all_track" />
+  <arg name="output_topic" default="/tracking/objects" />
+
+  <node pkg="tracking_prediction" type="ekf_tracking_node.py" name="ekf_tracking_node" output="screen">
+    <param name="jsk_track_topic" value="$(arg jsk_track_topic)" />
+    <param name="marker_topic" value="$(arg marker_topic)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+  </node>
+</launch>
