@@ -17,7 +17,7 @@ prediction_node.py
     ~model 파라미터로 "ctrv"(기본) / "ctra" 전환 가능 (재조율 필요시 대비,
     CTRA 코드는 삭제하지 않고 그대로 둠).
 
-horizon 정책 (2026-08-01 최종 결정, docs/entry_zone_ctrv_ctra_summary.md,
+horizon 정확도 분석 (2026-08-01, docs/entry_zone_ctrv_ctra_summary.md,
 docs/highway_ctrv_ctra_summary.md):
     처음엔 미션(로터리/하이웨이)마다 다른 "안전마진용" horizon(3.0m 이내 90%
     확률 보장 기준: 로터리 0.3s, 하이웨이 1.7s)을 쓰려 했으나, 이건 지나치게
@@ -27,13 +27,14 @@ docs/highway_ctrv_ctra_summary.md):
     전체를 재평가하니 **2.0s는 하이웨이에서 손실이 있음**(3.0m 커버리지
     94.3%→84.7%, -9.6%p, 1.6s부터 하락 시작). 반면 **1.5s는 로터리·하이웨이
     둘 다에서 커버리지 손실이 없는(둘 다 baseline 그대로 유지) 값**이라,
-    미션 무관 단일 고정 horizon으로 **1.5s를 최종 채택**함.
+    당시 미션 무관 단일 안전 horizon으로 **1.5s를 채택**함.
     미션별 동적 전환(mission_switching 노드)은 하지 않기로 결정 - horizon을
     미션 무관하게 하나로 고정하는 쪽을 택함.
 
-    ~horizons 기본값은 이제 [1.5] 하나뿐이라, 매 프레임 trajectory 배열에는
-    점이 정확히 1개만 들어있음 - 판단/제어는 trajectory[0]을 쓰면 됨
-    (여러 horizon 중 어느 걸 골라야 하는지 고민할 필요 없음).
+runtime 메시지 계약 (2026-08-13 팀 최종 합의):
+    Planning의 시간 경로 소비를 위해 현재 시점부터 3.0초까지 0.1초
+    간격으로 총 31점을 발행함. 위의 1.5초 분석은 예측 신뢰도를 해석하는
+    근거로 유지하며, 메시지의 최대 시간 범위를 1.5초로 제한하지는 않음.
 
 CTRV 상태: s = [x, y, theta, v, omega]  (CTRA 선택 시에만 a 사용)
     - v, a: TrackedObject.velocity / .acceleration 벡터를 heading 방향으로
@@ -151,10 +152,11 @@ class CtraPredictionNode(object):
     def __init__(self):
         input_topic = rospy.get_param("~input_topic", "/tracking/objects")
         output_topic = rospy.get_param("~output_topic", "/prediction/objects")
-        # 2026-08-01 최종 결정: horizon을 미션 무관하게 1.5s 하나로 고정 (docstring 참고,
-        # 하이웨이 재평가로 2.0 -> 1.5 수정).
-        # 리스트 형태는 유지(여러 개 다시 필요해지면 override 가능하게) - 기본값만 단일값.
-        self._horizons = rospy.get_param("~horizons", [1.5])
+        # 2026-08-13 team runtime contract: current through 3.0 s at 0.1 s
+        # intervals. The custom legacy message stores each time offset.
+        self._horizons = rospy.get_param(
+            "~horizons", [round(0.1 * index, 1) for index in range(31)]
+        )
         self._decay_lambda = rospy.get_param("~decay_lambda", DECAY_LAMBDA)
         # 2026-07-30: 기본 모델 CTRV로 확정 (docs/ctrv_vs_ctra_decision_summary.md).
         # "ctra"로 덮어쓰면 이전 감쇠가속도 CTRA로 되돌릴 수 있음(재조율 대비, 코드 보존).

@@ -3,7 +3,8 @@
        default="/perception/object_recognition/tracking/objects"/>
   <arg name="output_objects"
        default="/perception/object_recognition/objects"/>
-  <arg name="horizons" default="[0.3, 0.6, 0.9, 1.2, 1.5]"/>
+  <arg name="prediction_time_step" default="0.1"/>
+  <arg name="prediction_horizon" default="3.0"/>
 
   <node pkg="perception_object_pipeline"
         type="object_prediction_node.py"
@@ -12,6 +13,7 @@
         respawn="false">
     <remap from="~input/objects" to="$(arg input_objects)"/>
     <remap from="~output/objects" to="$(arg output_objects)"/>
-    <rosparam param="horizons" subst_value="true">$(arg horizons)</rosparam>
+    <param name="prediction_time_step" value="$(arg prediction_time_step)"/>
+    <param name="prediction_horizon" value="$(arg prediction_horizon)"/>
   </node>
 </launch>

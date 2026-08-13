@@ -1,5 +1,11 @@
 # T&P 파이프라인 구조: Tracking / Extrapolation / Prediction
 
+> **2026-08-13 변경 공지:** 이 문서의 `[1.5]` 단일점 설명은 당시 안전
+> horizon 분석을 기록한 역사적 내용이다. 팀의 최종 runtime 메시지 계약은
+> 현재 위치 `t=0.0`부터 `t=3.0`까지 `0.1초` 간격의 31점이다. 신규 대회
+> 파이프라인은 `perception_object_pipeline`을 사용하며, 이 문서의 legacy
+> launch들은 호환·회귀 확인용으로만 유지한다.
+
 `tracking_prediction` 패키지의 런타임 노드를 세 단계(Tracking → Extrapolation / Prediction)로 나눠 정리한 문서. 평가/시각화용 스크립트는 마지막 절에 별도로 분류함.
 
 ## 전체 흐름

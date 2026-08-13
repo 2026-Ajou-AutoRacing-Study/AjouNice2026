@@ -98,6 +98,25 @@ def predict_pose(tracked, horizon: float) -> Pose:
     return output
 
 
+def build_prediction_horizons(time_step: float, prediction_horizon: float):
+    """Return positive, uniformly spaced samples up to the final horizon.
+
+    The current pose is added separately at path index zero, following the
+    Autoware PredictedPath contract.
+    """
+    if time_step <= 0.0:
+        raise ValueError("~prediction_time_step must be positive")
+    if prediction_horizon <= 0.0:
+        raise ValueError("~prediction_horizon must be positive")
+    step_count = int(round(prediction_horizon / time_step))
+    if step_count < 1 or abs(step_count * time_step - prediction_horizon) > 1.0e-6:
+        raise ValueError(
+            "~prediction_horizon must be an integer multiple of "
+            f"~prediction_time_step; received {prediction_horizon} and {time_step}"
+        )
+    return [time_step * index for index in range(1, step_count + 1)]
+
+
 def make_predicted_objects(message: TrackedObjects, horizons) -> PredictedObjects:
     output = PredictedObjects()
     output.header = copy.copy(message.header)
@@ -132,11 +151,15 @@ def make_predicted_objects(message: TrackedObjects, horizons) -> PredictedObject
 
 class ObjectPredictionNode:
     def __init__(self):
-        self.horizons = [
-            float(value)
-            for value in rospy.get_param("~horizons", [0.3, 0.6, 0.9, 1.2, 1.5])
-        ]
-        self._validate_horizons()
+        self.prediction_time_step = float(
+            rospy.get_param("~prediction_time_step", 0.1)
+        )
+        self.prediction_horizon = float(
+            rospy.get_param("~prediction_horizon", 3.0)
+        )
+        self.horizons = build_prediction_horizons(
+            self.prediction_time_step, self.prediction_horizon
+        )
         self.publisher = rospy.Publisher(
             "~output/objects", PredictedObjects, queue_size=1
         )
@@ -144,20 +167,12 @@ class ObjectPredictionNode:
             "~input/objects", TrackedObjects, self.callback, queue_size=1
         )
         rospy.loginfo(
-            "[object_prediction] standardized CTRV/CV prediction, horizons=%s",
-            self.horizons,
+            "[object_prediction] standardized CTRV/CV prediction, "
+            "time_step=%.3fs, horizon=%.3fs, path_points=%d",
+            self.prediction_time_step,
+            self.prediction_horizon,
+            len(self.horizons) + 1,
         )
-
-    def _validate_horizons(self):
-        if not self.horizons or self.horizons[0] <= 0.0:
-            raise ValueError("~horizons must contain positive values")
-        step = self.horizons[0]
-        for index, horizon in enumerate(self.horizons, start=1):
-            if abs(horizon - step * index) > 1.0e-6:
-                raise ValueError(
-                    "~horizons must be uniformly spaced from one time_step; "
-                    f"received {self.horizons}"
-                )
 
     def callback(self, message):
         if message.header.frame_id != "map":

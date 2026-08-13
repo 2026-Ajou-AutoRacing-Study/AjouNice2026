@@ -92,13 +92,18 @@ class StandardPipelineTest(unittest.TestCase):
         )
 
         path = predicted.kinematics.predicted_paths[0]
-        self.assertEqual(len(path.path), 6)
-        self.assertAlmostEqual(path.time_step.to_sec(), 0.3)
+        self.assertEqual(len(path.path), 31)
+        self.assertAlmostEqual(path.time_step.to_sec(), 0.1)
         self.assertAlmostEqual(
             path.path[0].position.x,
             predicted.kinematics.initial_pose_with_covariance.pose.position.x,
         )
         self.assertGreater(path.path[-1].position.x, path.path[0].position.x)
+        self.assertAlmostEqual(
+            path.path[-1].position.x - path.path[0].position.x,
+            6.0,
+            delta=0.5,
+        )
 
 
 if __name__ == "__main__":

@@ -13,7 +13,8 @@
        default="/perception/object_recognition/tracking/objects"/>
   <arg name="predicted_objects"
        default="/perception/object_recognition/objects"/>
-  <arg name="horizons" default="[0.3, 0.6, 0.9, 1.2, 1.5]"/>
+  <arg name="prediction_time_step" default="0.1"/>
+  <arg name="prediction_horizon" default="3.0"/>
 
   <!-- Detector-specific launch arguments. -->
   <arg name="python_executable" default=""/>
@@ -75,6 +76,7 @@
   <include file="$(find perception_object_pipeline)/launch/object_prediction.launch">
     <arg name="input_objects" value="$(arg tracked_objects)"/>
     <arg name="output_objects" value="$(arg predicted_objects)"/>
-    <arg name="horizons" value="$(arg horizons)"/>
+    <arg name="prediction_time_step" value="$(arg prediction_time_step)"/>
+    <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
   </include>
 </launch>

@@ -9,7 +9,8 @@
   <arg name="use_sim_time" default="false"/>
   <arg name="planning_output_topic"
        default="/perception/object_recognition/objects"/>
-  <arg name="horizons" default="[0.3, 0.6, 0.9, 1.2, 1.5]"/>
+  <arg name="prediction_time_step" default="0.1"/>
+  <arg name="prediction_horizon" default="3.0"/>
   <arg name="publish_painted_points" default="false"/>
   <arg name="segmentation_short_side" default="320"/>
   <arg name="warmup_segmentation" default="true"/>
@@ -26,7 +27,8 @@
     <arg name="pointpainting_cfg" value="$(arg cfg_file)"/>
     <arg name="pointpainting_checkpoint" value="$(arg checkpoint)"/>
     <arg name="predicted_objects" value="$(arg planning_output_topic)"/>
-    <arg name="horizons" value="$(arg horizons)"/>
+    <arg name="prediction_time_step" value="$(arg prediction_time_step)"/>
+    <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
     <arg name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="publish_painted_points" value="$(arg publish_painted_points)"/>
     <arg name="segmentation_short_side" value="$(arg segmentation_short_side)"/>

@@ -57,8 +57,12 @@ so their message MD5 sums match.
 - Detector output uses its real measurement timestamp and sensor/Ego frame.
 - EKF looks up that timestamp's TF and tracks in `map`.
 - `TrackedObjects` and `PredictedObjects` remain in `map`.
-- The predictor emits the current pose followed by five uniformly spaced poses
-  from 0.3 through 1.5 seconds (`time_step=0.3s`).
+- The predictor emits the current pose followed by 30 uniformly spaced future
+  poses from 0.1 through 3.0 seconds (`time_step=0.1s`, 31 path poses total),
+  matching the team-agreed planning contract.
+- The full 3.0-second path is a message/runtime contract, not a claim that all
+  points have equal accuracy. The prior evaluation still identifies 1.5
+  seconds as the more strongly validated safety horizon.
 - JSK boxes and visualization markers are debug-only and never carry IDs or
   kinematics between production nodes.
 
@@ -68,3 +72,43 @@ For simultaneous model comparison, override each detector's `objects_topic`
 with `/perception/detection/fastbev/objects` or
 `/perception/detection/pointpainting/objects`. Only one source should be
 remapped to the canonical detection topic during a competition run.
+
+## Legacy compatibility and planned cleanup
+
+The production data path uses only the typed Autoware object messages:
+
+```text
+DetectedObjects -> TrackedObjects -> PredictedObjects
+```
+
+PointPainting currently continues to publish its pre-refactor outputs for
+backward compatibility:
+
+- `/pointpainting/detections` (`PointPaintingDetectionArray`)
+- `/pointpainting/detection_markers` (`visualization_msgs/MarkerArray`)
+- `/pointpainting/painted_points` (`sensor_msgs/PointCloud2`)
+
+Fast-BEV likewise retains its legacy detection, JSK box and marker outputs for
+debugging and existing RViz configurations. These topics are diagnostic-only:
+the tracker and predictor must not consume them, parse marker text, or derive
+IDs and kinematics from visualization messages.
+
+This compatibility layer is intentionally temporary. After reviewing the
+change with the PointPainting maintainer and confirming that no team runbook,
+rosbag evaluation, RViz configuration or external consumer still requires the
+old interfaces, remove the legacy algorithm-facing detection publishers and
+their unused custom-message dependencies. Keep a visualization output only if
+it remains useful for RViz, and generate it from the canonical typed object
+message rather than treating it as an inter-node interface.
+
+Before removal, complete this checklist:
+
+1. Agree on the canonical `DetectedObjects` contract with the PointPainting
+   maintainer.
+2. Search launch files, scripts, RViz configs, rosbag tooling and team
+   documentation for legacy-topic consumers.
+3. Migrate any necessary diagnostic or evaluation consumer to
+   `/perception/object_recognition/detection/objects`.
+4. Remove obsolete publishers, parameters, message dependencies and docs.
+5. Rebuild and rerun the end-to-end Detection -> Tracking -> Prediction test
+   with both PointPainting and Fast-BEV.
