@@ -1,0 +1,38 @@
+<launch>
+  <arg name="detections"
+       default="/perception/object_recognition/detection/objects"/>
+  <arg name="tracks"
+       default="/perception/object_recognition/tracking/objects"/>
+  <arg name="predictions"
+       default="/perception/object_recognition/objects"/>
+  <arg name="detection_markers"
+       default="/perception/object_recognition/visualization/detections"/>
+  <arg name="tracking_markers"
+       default="/perception/object_recognition/visualization/tracks"/>
+  <arg name="prediction_markers"
+       default="/perception/object_recognition/visualization/predictions"/>
+  <arg name="start_rviz" default="true"/>
+  <arg name="rviz_config"
+       default="$(find perception_object_pipeline)/rviz/object_pipeline_live.rviz"/>
+
+  <node pkg="perception_object_pipeline"
+        type="object_pipeline_visualization_node.py"
+        name="object_pipeline_visualization"
+        output="screen"
+        respawn="false">
+    <param name="input/detections" value="$(arg detections)"/>
+    <param name="input/tracks" value="$(arg tracks)"/>
+    <param name="input/predictions" value="$(arg predictions)"/>
+    <remap from="~output/detections" to="$(arg detection_markers)"/>
+    <remap from="~output/tracks" to="$(arg tracking_markers)"/>
+    <remap from="~output/predictions" to="$(arg prediction_markers)"/>
+  </node>
+
+  <node if="$(arg start_rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="object_pipeline_rviz"
+        args="-d $(arg rviz_config)"
+        output="screen"
+        respawn="false"/>
+</launch>

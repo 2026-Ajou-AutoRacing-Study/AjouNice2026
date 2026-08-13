@@ -4,8 +4,9 @@
 
 - Fast-BEV 학습 GT와 온라인 calibration은 모두 `Sensor_6.json`에서 생성한다.
 - 출력 좌표는 학습 당시 LiDAR 좌표계(`x forward, y left, z up`)다.
-- 기본 ROS frame은 `velodyne`이며 실제 TF 이름이 다르면 launch의
-  `output_frame_id`를 수정한다.
+- `Sensor_6.json`과 UDP LiDAR의 기본 ROS frame은 `lidar1`이며 Fast-BEV
+  `DetectedObjects`도 동일한 frame을 사용한다. 다른 센서 구성을 사용할
+  때만 launch의 `output_frame_id`를 함께 수정한다.
 - `size`는 `(length x, width y, height z)`, yaw는 ROS 표준 CCW radian이다.
 - class 순서는 `vehicle=0, pedestrian=1, obstacle=2`이며 기존 detection
   메시지의 `class_id`에는 1부터 시작하는 값으로 기록한다.

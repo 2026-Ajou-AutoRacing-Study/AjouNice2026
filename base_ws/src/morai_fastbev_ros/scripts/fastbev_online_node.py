@@ -185,7 +185,7 @@ class FastBEVOnlineNode:
         self.checkpoint_path = Path(rospy.get_param("~checkpoint")).expanduser().resolve()
         self.sensor_config_path = Path(
             rospy.get_param("~sensor_config")).expanduser().resolve()
-        self.output_frame_id = str(rospy.get_param("~output_frame_id", "velodyne"))
+        self.output_frame_id = str(rospy.get_param("~output_frame_id", "lidar1"))
         self.use_fp16 = bool(rospy.get_param("~fp16", True))
         self.cudnn_benchmark = bool(rospy.get_param("~cudnn_benchmark", True))
         self.warmup_iterations = max(0, int(rospy.get_param("~warmup_iterations", 2)))

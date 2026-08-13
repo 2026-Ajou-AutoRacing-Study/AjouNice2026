@@ -52,6 +52,26 @@ Different Python versions communicate safely because ROS serializes generated
 messages across processes. All processes must source the same catkin workspace
 so their message MD5 sums match.
 
+## Standard RViz visualization
+
+Launch the visualization adapter and the shared live RViz configuration after
+the detector, tracker and predictor are running:
+
+```bash
+roslaunch perception_object_pipeline object_pipeline_visualization.launch
+```
+
+The visualization consumes only the canonical object messages. It does not
+subscribe to the legacy PointPainting/Fast-BEV markers.
+
+- translucent green boxes: detections in the detector measurement frame
+- class-colored boxes and labels: map-frame tracks with stable short UUIDs
+- class-colored lines: map-frame 0.0--3.0 second predicted paths
+- small path spheres: 0.5-second samples (the message itself remains 0.1 s)
+
+The RViz fixed frame is `map` and the camera follows `base_link`, so live use
+requires the sensor static TF and the `map -> morai_map -> base_link` chain.
+
 ## Coordinate and timestamp contract
 
 - Detector output uses its real measurement timestamp and sensor/Ego frame.

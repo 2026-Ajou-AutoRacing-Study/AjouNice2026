@@ -14,12 +14,16 @@ from autoware_perception_msgs.msg import (
     Shape,
     TrackedObjects,
 )
+from visualization_msgs.msg import MarkerArray
 
 
 class StandardPipelineTest(unittest.TestCase):
     def setUp(self):
         self.tracked = []
         self.predicted = []
+        self.detection_markers = []
+        self.tracking_markers = []
+        self.prediction_markers = []
         self.publisher = rospy.Publisher(
             "/test/detections", DetectedObjects, queue_size=1
         )
@@ -28,6 +32,24 @@ class StandardPipelineTest(unittest.TestCase):
         )
         self.predicted_subscriber = rospy.Subscriber(
             "/test/predictions", PredictedObjects, self.predicted.append, queue_size=10
+        )
+        self.detection_marker_subscriber = rospy.Subscriber(
+            "/test/markers/detections",
+            MarkerArray,
+            self.detection_markers.append,
+            queue_size=10,
+        )
+        self.tracking_marker_subscriber = rospy.Subscriber(
+            "/test/markers/tracks",
+            MarkerArray,
+            self.tracking_markers.append,
+            queue_size=10,
+        )
+        self.prediction_marker_subscriber = rospy.Subscriber(
+            "/test/markers/predictions",
+            MarkerArray,
+            self.prediction_markers.append,
+            queue_size=10,
         )
 
     def _wait_for(self, predicate, timeout=5.0):
@@ -104,6 +126,17 @@ class StandardPipelineTest(unittest.TestCase):
             6.0,
             delta=0.5,
         )
+        self.assertTrue(
+            self._wait_for(
+                lambda: self.detection_markers
+                and self.tracking_markers
+                and self.prediction_markers
+            ),
+            "Standard object visualization markers were not produced",
+        )
+        self.assertTrue(any(len(message.markers) > 1 for message in self.detection_markers))
+        self.assertTrue(any(len(message.markers) > 1 for message in self.tracking_markers))
+        self.assertTrue(any(len(message.markers) > 1 for message in self.prediction_markers))
 
 
 if __name__ == "__main__":

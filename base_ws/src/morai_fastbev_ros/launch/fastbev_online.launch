@@ -13,7 +13,7 @@
        default="/perception/object_recognition/detection/objects"/>
   <arg name="jsk_boxes_topic" default="/hmi/perc/jsk_pillar_objects"/>
   <arg name="markers_topic" default="/fastbev/detection_markers"/>
-  <arg name="output_frame_id" default="velodyne"/>
+  <arg name="output_frame_id" default="lidar1"/>
   <arg name="fp16" default="true"/>
   <arg name="cudnn_benchmark" default="true"/>
   <arg name="sync_queue_size" default="12"/>

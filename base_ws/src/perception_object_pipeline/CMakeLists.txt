@@ -6,6 +6,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   rospy
   std_msgs
+  visualization_msgs
 )
 
 catkin_python_setup()
@@ -16,15 +17,18 @@ catkin_package(
     geometry_msgs
     rospy
     std_msgs
+    visualization_msgs
 )
 
 catkin_install_python(
-  PROGRAMS scripts/object_prediction_node.py
+  PROGRAMS
+    scripts/object_prediction_node.py
+    scripts/object_pipeline_visualization_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 install(
-  DIRECTORY launch
+  DIRECTORY launch rviz
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
