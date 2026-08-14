@@ -54,6 +54,15 @@ def parse_args():
         help="skip the 0-10/10-20/20-30/30-50 m diagnostics",
     )
     parser.add_argument(
+        "--ann-file",
+        help="override cfg.data.test.ann_file (for validation-only sweeps)",
+    )
+    parser.add_argument(
+        "--merged-obstacle-nms-iou-threshold",
+        type=float,
+        help="override the shape-to-obstacle merge NMS IoU threshold",
+    )
+    parser.add_argument(
         "--output-json",
         help="optional path for machine-readable metrics and runtime",
     )
@@ -90,9 +99,20 @@ def main():
 
     cfg = Config.fromfile(args.config)
     import_modules_from_strings(**cfg.custom_imports)
+    if args.ann_file:
+        cfg.data.test.ann_file = str(
+            Path(args.ann_file).expanduser().resolve())
     cfg.data.test.test_mode = True
 
     dataset = build_dataset(cfg.data.test)
+    if args.merged_obstacle_nms_iou_threshold is not None:
+        threshold = args.merged_obstacle_nms_iou_threshold
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError(
+                "--merged-obstacle-nms-iou-threshold must be in [0, 1]")
+        if not getattr(dataset, "obstacle_shape_merge", False):
+            raise ValueError("NMS override requires obstacle_shape_merge")
+        dataset.merged_obstacle_nms_iou_threshold = threshold
     if args.warmup >= len(dataset):
         raise ValueError("--warmup must be smaller than the dataset")
     loader = build_dataloader(
@@ -165,6 +185,8 @@ def main():
         "dataset_frames": len(dataset),
         "warmup_frames": args.warmup,
         "precision": "FP16" if args.fp16 else "FP32",
+        "merged_obstacle_nms_iou_threshold": getattr(
+            dataset, "merged_obstacle_nms_iou_threshold", None),
         "runtime": {
             "inference_fps": 1.0 / statistics.fmean(inference_times),
             "inference_mean_ms": statistics.fmean(inference_times) * 1000.0,
@@ -199,13 +221,17 @@ def main():
         )
 
         def wandb_metric(key):
-            if key.startswith("tp/") or key.startswith("iou/"):
+            normalized = key[len("merged/"):] if key.startswith(
+                "merged/") else key
+            if key == "merged_center_mAP":
                 return True
-            if key.startswith("center/"):
-                return "_best_" not in key and not key.endswith((
+            if normalized.startswith("tp/") or normalized.startswith("iou/"):
+                return True
+            if normalized.startswith("center/"):
+                return "_best_" not in normalized and not normalized.endswith((
                     "_GT", "_predictions", "_ground_truth"))
-            if key.startswith("range/"):
-                return key.endswith(("_mean_AP", "/mAP"))
+            if normalized.startswith("range/"):
+                return normalized.endswith(("_mean_AP", "/mAP"))
             return False
 
         # Keep the complete 377-metric report in JSON, but append only the

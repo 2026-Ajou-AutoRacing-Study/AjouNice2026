@@ -23,9 +23,16 @@ class MoraiWandbLoggerHook(WandbLoggerHook):
             "val/*", step_metric="epoch", hidden=True)
         for name in (
                 "val/center_mAP",
+                "val/merged_center_mAP",
                 "val/center/vehicle_mean_AP",
                 "val/center/pedestrian_mean_AP",
-                "val/center/obstacle_mean_AP"):
+                "val/center/obstacle_mean_AP",
+                "val/center/compact_obstacle_mean_AP",
+                "val/center/tall_obstacle_mean_AP",
+                "val/center/long_obstacle_mean_AP",
+                "val/merged/center/vehicle_mean_AP",
+                "val/merged/center/pedestrian_mean_AP",
+                "val/merged/center/obstacle_mean_AP"):
             self.wandb.define_metric(
                 name,
                 step_metric="epoch",

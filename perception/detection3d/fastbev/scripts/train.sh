@@ -37,7 +37,7 @@ export WANDB_DIR="${WANDB_DIR:-$WORK_DIR}"
 export WANDB_CACHE_DIR="${WANDB_CACHE_DIR:-$WORK_DIR/.wandb_cache}"
 
 mkdir -p "$WORK_DIR" "$WANDB_CACHE_DIR"
-printf 'config: %s\nwork_dir: %s\nselection_metric: center_mAP\n' \
+printf 'config: %s\nwork_dir: %s\nselection_metric: config evaluation.save_best\n' \
   "$CONFIG" "$WORK_DIR"
 
 TRAIN_ARGS=(
@@ -64,4 +64,5 @@ python3 third_party/fastbev/tools/train.py \
 
 printf 'training complete: %s\n' "$WORK_DIR"
 find "$WORK_DIR" -maxdepth 1 -type f \
-  -name 'best_center_mAP_epoch_*.pth' -print
+  \( -name 'best_center_mAP_epoch_*.pth' \
+     -o -name 'best_merged_center_mAP_epoch_*.pth' \) -print

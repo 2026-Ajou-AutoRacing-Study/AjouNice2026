@@ -6,32 +6,33 @@ import json
 from pathlib import Path
 
 
-PRIMARY_METRICS = tuple(
-    ["center/mAP"]
-    + [
-        f"center/{class_name}_AP_{threshold}m"
-        for class_name in ("vehicle", "pedestrian", "obstacle")
-        for threshold in ("0.5", "1", "2", "4")
-    ]
-    + [
+BASE_CLASSES = ("vehicle", "pedestrian", "obstacle")
+SHAPE_CLASSES = (
+    "compact_obstacle", "tall_obstacle", "long_obstacle")
+
+
+def primary_metrics(candidate_metrics):
+    prefix = "merged/" if "merged/center/mAP" in candidate_metrics else ""
+    metrics = [prefix + "center/mAP"]
+    metrics += [
+        f"{prefix}center/{class_name}_AP_{threshold}m"
+        for class_name in BASE_CLASSES
+        for threshold in ("0.5", "1", "2", "4")]
+    metrics += [
+        f"{prefix}center/{class_name}_mean_AP"
+        for class_name in BASE_CLASSES]
+    metrics += [
         f"center/{class_name}_mean_AP"
-        for class_name in ("vehicle", "pedestrian", "obstacle")
-    ]
-    + [
-        "tp/vehicle_mATE",
-        "tp/vehicle_mASE",
-        "tp/vehicle_mAOE",
-        "tp/pedestrian_mATE",
-        "tp/pedestrian_mASE",
-        "tp/pedestrian_mAOE",
-        "tp/obstacle_mATE",
-        "tp/obstacle_mASE",
-        "tp/obstacle_mAOE",
-        "iou/mAP_0.25",
-        "iou/mAR_0.25",
-        "iou/mAP_0.50",
-        "iou/mAR_0.50",
-    ])
+        for class_name in SHAPE_CLASSES
+        if f"center/{class_name}_mean_AP" in candidate_metrics]
+    metrics += [
+        f"{prefix}tp/{class_name}_{error}"
+        for class_name in BASE_CLASSES
+        for error in ("mATE", "mASE", "mAOE")]
+    metrics += [
+        f"{prefix}iou/{metric}"
+        for metric in ("mAP_0.25", "mAR_0.25", "mAP_0.50", "mAR_0.50")]
+    return tuple(dict.fromkeys(metrics))
 
 
 def load_report(path):
@@ -76,8 +77,10 @@ def main():
         f"| Metric | {args.baseline_name} | {args.candidate_name} | Delta |",
         "|---|---:|---:|---:|",
     ]
-    for key in PRIMARY_METRICS:
-        left = baseline_metrics.get(key)
+    for key in primary_metrics(candidate_metrics):
+        baseline_key = key[len("merged/"):] if key.startswith(
+            "merged/") else key
+        left = baseline_metrics.get(baseline_key)
         right = candidate_metrics.get(key)
         lines.append(
             f"| `{key}` | {display(left)} | {display(right)} | "

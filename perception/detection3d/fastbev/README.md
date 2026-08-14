@@ -56,3 +56,8 @@ perception/detection3d/fastbev/scripts/train.sh \
 
 상세 환경, 평가 규약, W&B 설정은
 `docs/baseline_and_streampetr_transition.md`를 따른다.
+
+Obstacle을 크기 형상별 내부 subclass로 나누고 최종 3-class로 병합한 실험은
+`docs/obstacle_shape_subclass_experiment.md`에 재현 방법과 채택 여부를 기록한다.
+후속 anchor/regression 가설과 실패 시 개선 우선순위는
+`docs/obstacle_regression_roadmap.md`를 따른다.
