@@ -6,10 +6,20 @@ import copy
 import hashlib
 import json
 import pickle
+import sys
 from collections import Counter
 from pathlib import Path
 
 import numpy as np
+
+ROOT = Path(__file__).resolve().parents[4]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from perception.detection3d.common.obstacle_shape import (
+    SHAPE_CLASSES,
+    classify_obstacle_shape,
+)
 
 
 DEFAULT_SOURCE = Path(
@@ -21,25 +31,7 @@ DEFAULT_OUTPUT = (
     / "artifacts/detection3d/fastbev/data/"
     "fastbev_sunny13_1500_shape5_v1/fastbev_infos"
 )
-SHAPE_CLASSES = (
-    "compact_obstacle",
-    "tall_obstacle",
-    "long_obstacle",
-)
 ALL_CLASSES = ("vehicle", "pedestrian") + SHAPE_CLASSES
-
-
-def classify_obstacle_shape(size, ratio_threshold=2.0):
-    """Return an exclusive shape label for a (length, width, height) box."""
-    length, width, height = (float(value) for value in size)
-    horizontal_max = max(length, width)
-    horizontal_min = max(min(length, width), 1e-8)
-    if height > ratio_threshold * horizontal_max:
-        return "tall_obstacle"
-    if (horizontal_max > ratio_threshold * horizontal_min or
-            horizontal_max > ratio_threshold * max(height, 1e-8)):
-        return "long_obstacle"
-    return "compact_obstacle"
 
 
 def sha256(path):

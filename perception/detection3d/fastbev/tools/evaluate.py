@@ -4,6 +4,7 @@
 import argparse
 import json
 import os
+import pickle
 import statistics
 import time
 from pathlib import Path
@@ -63,8 +64,17 @@ def parse_args():
         help="override the shape-to-obstacle merge NMS IoU threshold",
     )
     parser.add_argument(
+        "--nms-iou-threshold",
+        type=float,
+        help="override every detector class NMS IoU threshold",
+    )
+    parser.add_argument(
         "--output-json",
         help="optional path for machine-readable metrics and runtime",
+    )
+    parser.add_argument(
+        "--output-predictions",
+        help="optional pickle path for CPU per-frame boxes, scores and labels",
     )
     parser.add_argument(
         "--wandb",
@@ -99,6 +109,12 @@ def main():
 
     cfg = Config.fromfile(args.config)
     import_modules_from_strings(**cfg.custom_imports)
+    if args.nms_iou_threshold is not None:
+        threshold = args.nms_iou_threshold
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError("--nms-iou-threshold must be in [0, 1]")
+        class_count = len(cfg.class_names)
+        cfg.model.test_cfg.nms_thr_list = [threshold] * class_count
     if args.ann_file:
         cfg.data.test.ann_file = str(
             Path(args.ann_file).expanduser().resolve())
@@ -185,6 +201,7 @@ def main():
         "dataset_frames": len(dataset),
         "warmup_frames": args.warmup,
         "precision": "FP16" if args.fp16 else "FP32",
+        "nms_iou_thresholds": list(cfg.model.test_cfg.nms_thr_list),
         "merged_obstacle_nms_iou_threshold": getattr(
             dataset, "merged_obstacle_nms_iou_threshold", None),
         "runtime": {
@@ -207,6 +224,24 @@ def main():
             encoding="utf-8",
         )
         print("metrics JSON:", output_path)
+    if args.output_predictions:
+        prediction_path = Path(
+            args.output_predictions).expanduser().resolve()
+        prediction_path.parent.mkdir(parents=True, exist_ok=True)
+        serialized = []
+        for result in results:
+            if "pts_bbox" in result:
+                result = result["pts_bbox"]
+            elif "img_bbox" in result:
+                result = result["img_bbox"]
+            serialized.append({
+                "boxes": result["boxes_3d"].tensor.detach().cpu().numpy(),
+                "scores": result["scores_3d"].detach().cpu().numpy(),
+                "labels": result["labels_3d"].detach().cpu().numpy(),
+            })
+        with prediction_path.open("wb") as stream:
+            pickle.dump(serialized, stream, protocol=pickle.HIGHEST_PROTOCOL)
+        print("predictions pickle:", prediction_path)
     if args.wandb:
         if not args.wandb_run_id:
             raise ValueError("--wandb requires --wandb-run-id or WANDB_RUN_ID")

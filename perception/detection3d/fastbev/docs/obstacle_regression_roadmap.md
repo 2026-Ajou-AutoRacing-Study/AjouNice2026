@@ -47,6 +47,41 @@ multimodal 형상에 더 가까운 초기 box를 제공하는 것이다. 모든 
 최소 증거는 obstacle mASE 또는 IoU AP가 반복 가능한 수준으로 좋아지는 것이다.
 Center mAP만 소폭 움직이고 IoU가 그대로라면 anchor 형상은 핵심 병목이 아니다.
 
+### H1 실험 결과와 판정
+
+동일한 1,050/228/222 split, OpenCV, flip `0.5/0.5`, seed 0, FP16,
+12 epochs 조건에서 실험했다. best checkpoint는 validation `center_mAP`가 가장
+높은 epoch 12를 사용했다. 일반 NMS IoU `0.1/0.2/0.3`의 validation 결과는
+다음과 같다.
+
+| NMS IoU | Val center mAP | Val obstacle mean AP | Val IoU mAP@0.50 |
+|---:|---:|---:|---:|
+| 0.1 | 0.6095 | 0.4392 | 0.2134 |
+| 0.2 | 0.5743 | 0.3763 | 0.2227 |
+| 0.3 | 0.5434 | 0.3295 | 0.2361 |
+
+NMS를 바꾸면 anchor ablation과 후처리 효과가 섞이므로 held-out test의 H1
+비교에는 baseline과 같은 `0.2`를 유지했다.
+
+| Metric | 3-anchor baseline | H1 5-anchor | Delta |
+|---|---:|---:|---:|
+| Center mAP | 0.5919 | 0.5569 | -0.0350 |
+| Vehicle mean AP | 0.6938 | 0.6628 | -0.0311 |
+| Pedestrian mean AP | 0.6625 | 0.6445 | -0.0180 |
+| Obstacle mean AP | 0.4194 | 0.3634 | -0.0560 |
+| Obstacle mATE, lower is better | 0.3704 | 0.3896 | +0.0191 |
+| Obstacle mASE, lower is better | 0.2379 | 0.2325 | -0.0054 |
+| Obstacle mAOE, lower is better | 0.6084 | 1.6952 | +1.0868 |
+| Obstacle IoU AP@0.25 | 0.3412 | 0.3076 | -0.0336 |
+| Obstacle IoU AP@0.50 | 0.1020 | 0.0728 | -0.0292 |
+| Inference FPS | 41.48 | 41.50 | +0.02 |
+
+H1은 obstacle mASE만 `0.0054` 개선했으나 center AP `13.4%`, obstacle
+IoU AP@0.50 `28.6%`가 상대적으로 하락했고 위치와 yaw도 나빠졌다. extra anchor가
+초기 크기를 조금 가깝게 만들 수는 있지만, 모든 class가 모든 크기 anchor와
+경쟁하면서 positive matching과 방향 회귀가 더 모호해진 것으로 해석한다.
+따라서 **five shared anchors는 채택하지 않고 기존 three anchors를 유지한다.**
+
 ## H2: 5-class + class-dedicated anchors/regression
 
 내부 class를 vehicle, pedestrian, compact, tall, long으로 유지하되 각 class는
@@ -74,6 +109,21 @@ top-k matching하기 때문이다. 별도 `ClassAwareFreeAnchor3DHead`가 필요
 `120` channel로 줄일 수 있다. 후보 class-anchor score도 `2,000,000`에서
 `400,000`으로 감소한다. 다만 subclass별 표본 분할과 임의적인 형상 경계 문제는
 남는다.
+
+### H2 진행 여부
+
+현재는 H2를 바로 구현하지 않는다. H2가 H1과 달리 class-anchor 경쟁을 제거하는
+별도 가설인 것은 맞지만, 아래 두 선행 실험에서 anchor/shape 분해가 production
+baseline을 개선한다는 신호가 없었다.
+
+- shared Shape5: obstacle mean AP `0.4194 -> 0.4034`
+- H1 five shared anchors: obstacle mean AP `0.4194 -> 0.3634`
+
+H2는 별도 FreeAnchor head 구현, subclass 표본 분할, 병합 NMS라는 비용과 오류
+표면을 추가한다. 그에 비해 현재 증거상 기대 이득은 낮다. 먼저 3-class 출력을
+유지한 오류 분해로 compact/tall/long 각각에서 검출 누락, 중심, 크기, yaw 중
+실제 병목을 확인한다. 그 결과 shape별 크기·yaw 회귀가 명확한 병목이고 각
+subclass 표본이 충분할 때만 H2를 다시 연다.
 
 ## 공정한 실험 규약
 
@@ -103,6 +153,8 @@ top-k matching하기 때문이다. 별도 `ClassAwareFreeAnchor3DHead`가 필요
 학습 class는 3개로 유지하되 test obstacle을 사후 분석에서만 compact/tall/long,
 거리, 가림 정도, 크기로 나눈다. 검출 누락인지 중심·크기·yaw 중 무엇이 병목인지
 먼저 분리한다. Shape label은 진단용이며 model output contract에는 넣지 않는다.
+Baseline 222-frame test의 실제 분해 결과와 재현 도구는
+`obstacle_error_analysis_and_next_experiments.md`에 기록한다.
 
 ### 2. 3-class main task + auxiliary shape head
 
@@ -154,14 +206,16 @@ weighted box fusion을 적용할 수 있다. 정적 obstacle은 Tracking에서 v
 ## 현재 권장 실험 순서
 
 ```text
-H1 3-class + five shared anchors
- -> H2 5-class + dedicated anchors/regression
+H1 3-class + five shared anchors (완료, 기각)
  -> 오류 분해
  -> auxiliary shape + center loss
  -> anchor-free CenterHead
  -> 고해상도 BEV
  -> temporal/LiDAR fusion
 ```
+
+H2 dedicated anchors/regression은 오류 분해가 shape별 regression 병목을 확인한
+경우에만 auxiliary shape 또는 CenterHead와 함께 다시 비교한다.
 
 어느 단계에서도 대회에 나올 수 있는 obstacle asset을 단순 삭제해 성능을 높이지
 않는다. 분포 제어가 필요하면 제거 대신 균형 수집과 sampling으로 해결한다.

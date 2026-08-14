@@ -10,18 +10,19 @@ custom_imports = dict(
 # validation and test run to match the OpenCV online deployment backend:
 #   FASTBEV_IMAGE_BACKEND=opencv perception/.../scripts/train.sh
 image_transform_backend = __import__('os').environ.get(
-    'FASTBEV_IMAGE_BACKEND', 'pil').lower()
+    'FASTBEV_IMAGE_BACKEND', 'opencv').lower()
 if image_transform_backend not in ('pil', 'opencv'):
     raise ValueError(
         'FASTBEV_IMAGE_BACKEND must be either pil or opencv, got '
         + repr(image_transform_backend))
 
-# MORAI has fixed camera roles and a meaningful right-hand-traffic bias. The
-# upstream 50/50 flips are reduced while remaining configurable for ablations.
+# The held-out ablation selected OpenCV with 50/50 BEV/image flips as the
+# production C0 baseline.  Keep both probabilities configurable so the former
+# 10/20 experiment and upstream-style ablations remain reproducible.
 bev_horizontal_flip_prob = float(__import__('os').environ.get(
-    'FASTBEV_BEV_FLIP_PROB', '0.1'))
+    'FASTBEV_BEV_FLIP_PROB', '0.5'))
 image_horizontal_flip_prob = float(__import__('os').environ.get(
-    'FASTBEV_IMAGE_FLIP_PROB', '0.2'))
+    'FASTBEV_IMAGE_FLIP_PROB', '0.5'))
 for _name, _probability in (
         ('FASTBEV_BEV_FLIP_PROB', bev_horizontal_flip_prob),
         ('FASTBEV_IMAGE_FLIP_PROB', image_horizontal_flip_prob)):

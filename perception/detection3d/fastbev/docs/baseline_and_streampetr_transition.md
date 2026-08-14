@@ -201,9 +201,9 @@ ablation에서는 OpenCV를 고정한 채 flip 확률만 비교한다.
 `0.5753`보다 0.0166 높았고, PIL 50%/50%의 `0.6001`과는 0.0082 차이였다.
 vehicle/pedestrian mean AP는 PIL과 사실상 동등했고 IoU mAP@0.50은
 `0.2654 -> 0.2751`로 높아졌다. obstacle mean AP는 `0.4483 -> 0.4194`로
-여전히 낮았다. 이 결과에 따라 다음 single-frame 배포 후보 학습에는 OpenCV
-backend와 50%/50% flip을 권장하고, obstacle 데이터 및 annotation 품질을 별도로
-개선한다. 현재 production config 기본값은 추가 결정 전까지 10%/20%를 유지한다.
+여전히 낮았다. 이 결과에 따라 single-frame production C0는 OpenCV backend와
+50%/50% flip을 사용하고, obstacle 데이터 및 annotation 품질을 별도로 개선한다.
+2026-08-15부터 production config 기본값도 이 조건과 일치시켰다.
 
 ### 5.2 작은 객체용 BEV 출력 격자
 
