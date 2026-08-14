@@ -197,6 +197,14 @@ backend와 두 flip 확률을 동시에 변경했으므로 단일 요인의 인�
 PIL 모델을 정확도 baseline, OpenCV 모델을 실시간 배포 후보로 각각 보존하고 다음
 ablation에서는 OpenCV를 고정한 채 flip 확률만 비교한다.
 
+후속 OpenCV 50%/50% 통제 실험은 test center mAP `0.5919`를 기록해 10%/20%의
+`0.5753`보다 0.0166 높았고, PIL 50%/50%의 `0.6001`과는 0.0082 차이였다.
+vehicle/pedestrian mean AP는 PIL과 사실상 동등했고 IoU mAP@0.50은
+`0.2654 -> 0.2751`로 높아졌다. obstacle mean AP는 `0.4483 -> 0.4194`로
+여전히 낮았다. 이 결과에 따라 다음 single-frame 배포 후보 학습에는 OpenCV
+backend와 50%/50% flip을 권장하고, obstacle 데이터 및 annotation 품질을 별도로
+개선한다. 현재 production config 기본값은 추가 결정 전까지 10%/20%를 유지한다.
+
 ### 5.2 작은 객체용 BEV 출력 격자
 
 MORAI 기본 port의 `M2BevNeck stride=2`는 0.5 m BEV voxel을 다시 downsample하여

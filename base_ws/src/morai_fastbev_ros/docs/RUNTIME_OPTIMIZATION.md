@@ -66,6 +66,32 @@ OpenCV 픽셀 보간 하나의 영향으로 단정할 수 없다. 특히 obstacl
 - W&B: <https://wandb.ai/AjouNice2026/morai-fastbev/runs/full1500_stride1_fp16_opencv_flip10_20_v1>
 - 로컬 결과: `artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_opencv_flip10_20_v1/`
 
+### OpenCV flip 통제 실험
+
+backend와 flip 효과를 분리하기 위해 OpenCV를 유지하고 BEV/image flip을 기존과
+같은 50%/50%로 복원해 동일한 12-epoch 실험을 수행했다. epoch 12의 validation
+`center_mAP=0.59425` checkpoint를 222-frame test에 사용했다.
+
+| test 지표 | PIL 50/50 | OpenCV 10/20 | OpenCV 50/50 |
+|---|---:|---:|---:|
+| center mAP | 0.6001 | 0.5753 | 0.5919 |
+| vehicle mean AP | 0.6874 | 0.6884 | 0.6938 |
+| pedestrian mean AP | 0.6645 | 0.6488 | 0.6625 |
+| obstacle mean AP | 0.4483 | 0.3888 | 0.4194 |
+| IoU mAP@0.25 | 0.5783 | 0.5596 | 0.5744 |
+| IoU mAP@0.50 | 0.2654 | 0.2547 | 0.2751 |
+| offline end-to-end FPS | 10.88 | 13.56 | 13.20 |
+
+OpenCV 50/50은 10/20 대비 center mAP를 0.0166 회복했고 PIL 50/50과의 차이를
+0.0082로 줄였다. vehicle과 pedestrian mean AP 및 IoU AP는 PIL과 동등하거나
+더 높았지만 obstacle mean AP는 아직 0.0290 낮다. 따라서 이전 정확도 하락의 큰
+부분은 flip 확률 축소 영향으로 판단하며, 배포 후보의 기본 학습 정책은 OpenCV
+50/50으로 되돌리는 편을 권장한다. 현재 config 기본값 변경은 별도 결정으로 남긴다.
+단, obstacle 표본 수·크기 다양성과 yaw label 품질은 별도 개선 과제로 남는다.
+
+- W&B: <https://wandb.ai/AjouNice2026/morai-fastbev/runs/full1500_stride1_fp16_opencv_flip50_50_v1>
+- 로컬 결과: `artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_opencv_flip50_50_v1/`
+
 ## 2026-08-14 benchmark
 
 입력 bag:
