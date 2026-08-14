@@ -3,20 +3,13 @@
   <arg name="image_topic" default="/sensor/camera/front/compressed" />
   <arg name="weights_path" default="$(find traffic_light_detection)/weights/best.pt" />
   <arg name="conf" default="0.25" />
-  <arg name="max_rate_hz" default="10.0" />
+  <arg name="max_rate_hz" default="30.0" />
 
   <arg name="publish_debug_image" default="true" />
   <arg name="debug_jpeg_quality" default="60" />
 
-  <!-- ===== group_id 매칭: 폴백(유클리드, v2) ===== -->
-  <arg name="ego_topic" default="/Ego_topic" />
-  <arg name="group_id_table_path"
-       default="$(find traffic_light_detection)/traffic_light_group_id_table.json" />
-  <arg name="max_group_id_match_dist" default="80.0" />
+  <!-- ===== group_id 매칭: route 기반 (유일한 매칭 경로, 실패 시 fallback_group_id) ===== -->
   <arg name="fallback_group_id" default="0" />
-
-  <!-- ===== group_id 매칭: route 기반(1순위, v3, 정석 Autoware 방식) ===== -->
-  <arg name="enable_route_matching" default="true" />
   <arg name="lanelet2_map_file" default="" />
   <arg name="lanelet2_projector_file" default="" />
   <arg name="lanelet2_projector_type" default="LocalCartesianUTM" />
@@ -31,12 +24,7 @@
     <param name="publish_debug_image" value="$(arg publish_debug_image)" />
     <param name="debug_jpeg_quality" value="$(arg debug_jpeg_quality)" />
 
-    <param name="ego_topic" value="$(arg ego_topic)" />
-    <param name="group_id_table_path" value="$(arg group_id_table_path)" />
-    <param name="max_group_id_match_dist" value="$(arg max_group_id_match_dist)" />
     <param name="fallback_group_id" value="$(arg fallback_group_id)" />
-
-    <param name="enable_route_matching" value="$(arg enable_route_matching)" />
     <param name="lanelet2_map_file" value="$(arg lanelet2_map_file)" />
     <param name="lanelet2_projector_file" value="$(arg lanelet2_projector_file)" />
     <param name="lanelet2_projector_type" value="$(arg lanelet2_projector_type)" />
