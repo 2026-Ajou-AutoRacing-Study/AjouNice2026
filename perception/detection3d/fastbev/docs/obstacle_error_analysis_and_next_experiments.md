@@ -156,6 +156,39 @@ candidate B2: x [-30, 30], y [-25, 25], 240 x 200, 0.25 m
 - vehicle/pedestrian 전체 AP의 큰 회귀 없음
 - online target 30 Hz를 감당할 inference throughput과 안정적인 p95
 
+### 단계 A 실험 결과 (2026-08-15)
+
+정적 검증, FP32 한 batch forward/backward, FP16 1-epoch smoke를 모두 통과한 뒤
+C0와 동일한 split, seed 0, OpenCV backend, BEV/image flip `0.5/0.5`, FP16,
+12 epoch 조건으로 학습했다. Validation-selected checkpoint는 epoch 12였다.
+
+| Held-out test 지표 | C0 0.5 m / 100 x 100 m | A 0.3 m / 60 x 60 m | 변화 |
+|---|---:|---:|---:|
+| 전체 center mAP | **0.5919** | 0.5428 | -8.3% |
+| vehicle mean AP | **0.6938** | 0.6259 | -9.8% |
+| pedestrian mean AP | **0.6625** | 0.6219 | -6.1% |
+| obstacle mean AP | **0.4194** | 0.3806 | -9.2% |
+| obstacle AP@0.5 m | **0.3104** | 0.2944 | -5.2% |
+| obstacle IoU AP@0.25 | **0.3412** | 0.3378 | -1.0% |
+| obstacle IoU AP@0.50 | **0.1020** | 0.0952 | -6.6% |
+| obstacle mATE, 낮을수록 좋음 | **0.3704 m** | 0.3798 m | +2.5% |
+| obstacle mASE, 낮을수록 좋음 | **0.2379** | 0.2550 | +7.2% |
+| inference FPS | **41.48** | 40.50 | -2.4% |
+| inference p95 | 26.36 ms | **26.04 ms** | -1.2% |
+| end-to-end FPS | **13.20** | 12.92 | -2.1% |
+
+Test obstacle은 새 범위 안에 100% 남았지만 obstacle center/IoU/translation/scale가
+모두 C0보다 나빠졌다. `10-20 m` Recall@1m만 `46% -> 53%`로 올랐고,
+0.5/2/4 m operating point와 `20-30 m` recall은 개선되지 않았다. 따라서 이
+결과는 단순한 0.5 m BEV spacing이 현재 obstacle 병목의 주원인이라는 가설을
+지지하지 않는다. Vehicle GT는 약 8.9%, 전체 scene context도 잘려 전체 class AP
+하락에도 영향을 준다.
+
+단계 A는 **production 미채택**이며 C0를 유지한다. 사전 결정한 gate에 따라 A가
+실패했으므로 44% 더 많은 cell을 쓰는 B1 `0.25 m, 240 x 240`의 장시간 학습은
+진행하지 않는다. B1/B2는 데이터 확대나 position-oriented loss에서 병목이 더
+명확해진 뒤 다시 열 수 있는 보류 후보로 둔다.
+
 ## 15 Hz VLP16 LiDAR fusion 판단
 
 규정상 camera는 최대 30 Hz, VLP16 한 대는 최대 15 Hz이며 10 Hz 이하가
@@ -456,11 +489,11 @@ Vehicle center 오차가 더 크다면 크기 자체보다 거리 분포, occlus
 1. **Symmetry-aware yaw 진단·loss ablation: 완료, production 미채택**
    - H1-A/H1-B 모두 `π`-symmetric mAOE는 소폭 개선
    - IoU AP와 recall 손실 때문에 C0 유지
-2. **관심 범위 고해상도 BEV: 다음 실험**
-   - 먼저 `0.3 m, rear20, 200x200`과 `0.3125 m, rear30, 224x192` 정적 검증
-   - 1-epoch smoke 후 동일 조건 12-epoch 비교
-   - 거리별 recall/mATE, IoU, FPS, p95로 선택
-3. **Position-oriented obstacle loss**
+2. **관심 범위 고해상도 BEV: 단계 A 완료, production 미채택**
+   - `0.3 m, rear20/front40/side30, 200x200`은 전체 class와 obstacle 지표가 하락
+   - 동일 cell 수라 속도는 유지됐지만 정확도 gate 실패
+   - B1/B2는 추가 근거가 생길 때까지 보류
+3. **Position-oriented obstacle loss: 다음 실험**
    - 기존 3-class/3-anchor 유지
    - obstacle x/y center L1 가중치를 높이는 최소 ablation
    - size/yaw와 positive-bag 균형 붕괴 여부 확인
@@ -481,8 +514,9 @@ Vehicle center 오차가 더 크다면 크기 자체보다 거리 분포, occlus
    - 정적 obstacle velocity prior와 EKF 평활화
    - 단일-frame metric과 Planning 입력 jitter를 함께 비교
 
-즉 symmetry-aware yaw 실험은 끝났고 현재 다음 구현 1순위는 두 고해상도 BEV 후보
-비교다. LiDAR fusion은 먼저 기존 rosbag의 point-hit upper bound를 계산해 효과
+즉 symmetry-aware yaw와 첫 고해상도 BEV 실험은 끝났고 production은 C0를 유지한다.
+현재 다음 구현 1순위는 기존 3-class/3-anchor를 유지한 position-oriented obstacle
+loss다. LiDAR fusion은 먼저 기존 rosbag의 point-hit upper bound를 계산해 효과
 가능성을 확인한 뒤 구현한다.
 
 ## 참고 자료
