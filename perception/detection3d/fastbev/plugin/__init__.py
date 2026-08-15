@@ -7,7 +7,10 @@ from .pipelines import (
     MoraiMultiViewPipeline,
 )
 from .wandb_logger import MoraiWandbLoggerHook
-from .symmetry_aware_head import SymmetryAwareFreeAnchor3DHead
+from .symmetry_aware_head import (
+    ObstacleAwareFreeAnchor3DHead,
+    SymmetryAwareFreeAnchor3DHead,
+)
 
 __all__ = [
     "MoraiMultiViewDataset",
@@ -15,5 +18,6 @@ __all__ = [
     "MoraiMultiViewArrayPipeline",
     "MoraiMultiViewPipeline",
     "MoraiWandbLoggerHook",
+    "ObstacleAwareFreeAnchor3DHead",
     "SymmetryAwareFreeAnchor3DHead",
 ]

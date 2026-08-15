@@ -84,17 +84,72 @@ artifacts/detection3d/fastbev/diagnostics/obstacle_baseline_v1/
 └── obstacle_error_summary.md
 ```
 
-## 1순위 후속 과제: 데이터 확대
+## C0 이후 성능 도약 로드맵
+
+Anchor, subclass, yaw symmetry, BEV spacing, obstacle x/y loss처럼 같은 1,050-frame
+정보 안에서 재배분한 작은 ablation은 모두 C0를 일관되게 넘지 못했다. 다음에는
+새 정보, 더 강한 초기 feature, 모델 capacity, 물리적 depth를 추가하는 아래 네
+과제를 반드시 순서대로 검증한다.
+
+### 1. 공식 Fast-BEV 2D pretraining 복원
+
+현재 C0는 ResNet-18의 ImageNet weight만 사용하고 `load_from=None`이므로 FPN과
+후속 detector 대부분을 MORAI 1,050 frame으로 학습한다. 원본 Fast-BEV M0 recipe는
+COCO와 nuImages로 학습한 Cascade Mask R-CNN R18/FPN checkpoint를 `load_from`으로
+사용한다. MORAI 4-camera 구조와 shape이 맞는 backbone/FPN key만 부분 로드하고,
+BEV neck와 3-class head는 새로 학습한다.
+
+- 동일한 C0 data/config/seed/12 epoch로 pretraining 유무만 비교
+- checkpoint의 실제 loaded/missing/unexpected key를 보고서로 저장
+- validation-best 선택 뒤 held-out test를 한 번 평가
+- 전체·class·거리별 AP와 mATE/mASE/IoU, FPS를 C0와 비교
+
+### 2. Dataset V2를 8,000-12,000 frame으로 확대
 
 현재는 추가 수집이 필요하므로 구현을 미루되 반드시 수행한다.
 
-- train 1,050 frame에서 우선 3,000-5,000 frame으로 확대
+- train 1,050 frame에서 8,000-12,000 frame으로 확대
+- scenario당 2-3 frame만 사용하고 최소 3,000개 이상의 서로 다른 배치를 우선
 - compact/tall/long을 삭제하지 않고 scene quota로 균형화
 - 특히 long과 compact의 asset/pose/거리 다양성 보강
 - `0-10/10-20/20-30 m` 거리 quota를 형상별로 적용
 - 같은 scene의 유사 연속 frame보다 서로 다른 scene 수를 우선
 - 새 metadata에 asset 이름, camera visibility, 2D projected area 보존
 - 기존 baseline과 architecture/config를 고정한 data-scale ablation 수행
+
+현재 train obstacle은 거리별 `537/785/194/5`개뿐이고 20-30 m가 특히 부족하다.
+Dataset V2에서는 각 compact/tall/long 형상에 대해 0-10 m와 10-20 m를 각각 최소
+2,000개, 20-30 m를 최소 1,000개 확보하는 것을 목표로 한다. Frame 수보다 서로
+다른 scene과 관측 조건의 수를 우선한다.
+
+### 3. 이미지 feature와 모델 capacity 확대
+
+공식 pretraining과 Dataset V2를 먼저 고정한 뒤 R18/C0와 다음 후보를 비교한다.
+
+- R18에서 R34로 backbone 확대
+- 384x704에서 약 448x800으로 입력 확대
+- C0의 3-class/3-anchor, stride-1, 0.5 m BEV는 유지
+- 추론 FPS/p95와 ROS end-to-end latency를 함께 측정
+- 30 Hz 목표를 넘는 후보 중 10-30 m pedestrian/obstacle 성능이 가장 높은 구성 채택
+
+BEV grid만 조밀하게 하는 것과 달리 실제 원거리 image feature 정보량을 늘리는
+실험이다. R34와 해상도를 동시에 바꾸기 전에 각각의 smoke/FPS로 실행 가능한
+조합을 좁힌다.
+
+### 4. 물리적 depth 신호 추가
+
+Camera-only 모델은 원거리 depth가 본질적으로 모호하므로, 위 세 단계 뒤에도
+위치 오차가 남으면 VLP16을 전체 30 Hz pipeline의 clock으로 만들지 않는 방식으로
+사용한다.
+
+- 기존 rosbag에서 거리·형상별 GT box 내부 LiDAR point 수 upper-bound 분석
+- 학습 시 LiDAR depth supervision 가능성 검증
+- 30 Hz camera detection은 계속 발행
+- 10-15 Hz LiDAR가 도착할 때 최근 box center/size만 보정하는 dual-rate late fusion
+- tracker가 LiDAR 사이 camera frame을 timestamp 기반으로 propagation
+
+이 네 단계가 완료되기 전에는 auxiliary shape head나 추가 loss 상수 탐색을 주된
+성능 향상 수단으로 삼지 않는다.
 
 ## 2순위 계획: 관심 범위 기반 고해상도 BEV
 
@@ -188,6 +243,57 @@ Test obstacle은 새 범위 안에 100% 남았지만 obstacle center/IoU/transla
 실패했으므로 44% 더 많은 cell을 쓰는 B1 `0.25 m, 240 x 240`의 장시간 학습은
 진행하지 않는다. B1/B2는 데이터 확대나 position-oriented loss에서 병목이 더
 명확해진 뒤 다시 열 수 있는 보류 후보로 둔다.
+
+## Position-oriented obstacle loss ablation 결과 (2026-08-15)
+
+3-class, 기존 three-anchor, 0.5 m/100 x 100 m BEV와 모든 학습 조건을 C0와
+동일하게 유지하고 obstacle positive bag의 encoded x/y regression 두 channel에만
+가중치를 적용했다. Vehicle/Pedestrian과 obstacle의 z/size/yaw/direction/classification
+loss는 바꾸지 않았다. `1.0x`는 stock C0 결과를 재사용했고 `1.5x`, `2.0x`만 새로
+학습했다. Validation-best는 각각 epoch 12와 epoch 11이다.
+
+| Held-out test 지표 | C0 1.0x | XY 1.5x | XY 2.0x |
+|---|---:|---:|---:|
+| 전체 center mAP | **0.5919** | 0.5877 | 0.5747 |
+| vehicle mean AP | **0.6938** | 0.6830 | 0.6649 |
+| pedestrian mean AP | **0.6625** | 0.6564 | 0.6545 |
+| obstacle mean AP | 0.4194 | **0.4238** | 0.4047 |
+| obstacle AP@0.5 m | 0.3104 | 0.2996 | **0.3104** |
+| obstacle AP@1 m | 0.4214 | **0.4395** | 0.4164 |
+| obstacle IoU AP@0.25 | **0.3412** | 0.3139 | 0.3298 |
+| obstacle IoU AP@0.50 | 0.1020 | 0.0766 | **0.1194** |
+| obstacle mATE, 낮을수록 좋음 | 0.3704 m | 0.3701 m | **0.3506 m** |
+| obstacle mASE, 낮을수록 좋음 | **0.2379** | 0.2506 | 0.2486 |
+| obstacle raw mAOE, 낮을수록 좋음 | **0.6084 rad** | 0.9622 rad | 2.6019 rad |
+| inference FPS | 41.48 | 43.23 | 43.32 |
+
+추론 graph는 세 모델이 같으므로 FPS의 약 4% 차이는 측정 변동이며 position loss의
+배포 비용 증감으로 해석하지 않는다.
+
+거리별 obstacle mean AP와 Recall@1m은 다음과 같다. Recall은 각 bin의
+best-F1 operating point 값이다.
+
+| 거리 | 지표 | C0 1.0x | XY 1.5x | XY 2.0x |
+|---|---|---:|---:|---:|
+| 0-10 m | mean AP | 0.7034 | 0.6979 | **0.7248** |
+| 0-10 m | Recall@1m | 67% | 70% | **72%** |
+| 10-20 m | mean AP | **0.2270** | 0.2254 | 0.1981 |
+| 10-20 m | Recall@1m | **46%** | 41% | 40% |
+| 20-30 m | mean AP | **0.0387** | 0.0315 | 0.0340 |
+| 20-30 m | Recall@1m | 14% | 14% | **17%** |
+
+`1.5x`는 obstacle mean AP를 절대 `+0.0044` 올렸지만 mATE는 `0.3 mm` 차이로
+사실상 같고 IoU와 다른 두 class가 하락했다. `2.0x`는 mATE를 약 `1.98 cm`
+개선하고 IoU AP@0.50을 절대 `+0.0174` 올렸지만, 전체 center mAP는 2.9%,
+obstacle mean AP는 3.5% 낮아졌다. 특히 10-20 m recall이 악화됐고 scale/yaw
+trade-off가 크다. IoU AP@0.25도 C0보다 낮아 일부 정밀 box의 개선이 전체
+detection 품질 개선으로 이어지지 않았다.
+
+따라서 두 후보 모두 **production 미채택**이며 C0를 유지한다. 이 결과는 단일
+positive-bag 안에서 x/y 항만 키우면 shared feature와 box code 사이 trade-off가
+생기며, 현재 병목인 원거리 누락을 해결하지 못한다는 증거다. Position weighting을
+다시 열려면 단순 상수 배율이 아니라 loss 항을 분리해 직접 모니터링하고 matched
+box에만 제한적으로 적용하는 설계가 필요하다.
 
 ## 15 Hz VLP16 LiDAR fusion 판단
 
@@ -493,11 +599,10 @@ Vehicle center 오차가 더 크다면 크기 자체보다 거리 분포, occlus
    - `0.3 m, rear20/front40/side30, 200x200`은 전체 class와 obstacle 지표가 하락
    - 동일 cell 수라 속도는 유지됐지만 정확도 gate 실패
    - B1/B2는 추가 근거가 생길 때까지 보류
-3. **Position-oriented obstacle loss: 다음 실험**
-   - 기존 3-class/3-anchor 유지
-   - obstacle x/y center L1 가중치를 높이는 최소 ablation
-   - size/yaw와 positive-bag 균형 붕괴 여부 확인
-4. **Auxiliary shape head**
+3. **Position-oriented obstacle loss: 완료, production 미채택**
+   - `1.5x`는 mATE 개선 없음, `2.0x`는 약 2 cm 개선
+   - 두 후보 모두 전체 AP와 box code 균형이 악화되어 C0 유지
+4. **Auxiliary shape head: 다음 모델 실험**
    - 최종 class는 obstacle 유지
    - obstacle positive에만 compact/tall/long auxiliary supervision
    - 효과가 있을 때만 soft regression expert 검토
@@ -515,9 +620,9 @@ Vehicle center 오차가 더 크다면 크기 자체보다 거리 분포, occlus
    - 단일-frame metric과 Planning 입력 jitter를 함께 비교
 
 즉 symmetry-aware yaw와 첫 고해상도 BEV 실험은 끝났고 production은 C0를 유지한다.
-현재 다음 구현 1순위는 기존 3-class/3-anchor를 유지한 position-oriented obstacle
-loss다. LiDAR fusion은 먼저 기존 rosbag의 point-hit upper bound를 계산해 효과
-가능성을 확인한 뒤 구현한다.
+현재 다음 실행은 공식 Fast-BEV 2D pretraining 복원 실험이다. 이어서 Dataset V2,
+R34/고해상도 image feature, LiDAR depth 순으로 진행한다. Auxiliary shape head는
+이 네 단계보다 우선하지 않는다.
 
 ## 참고 자료
 

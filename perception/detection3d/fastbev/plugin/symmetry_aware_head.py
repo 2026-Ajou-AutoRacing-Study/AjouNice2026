@@ -1,4 +1,4 @@
-"""FreeAnchor head with class/shape-aware obstacle yaw supervision."""
+"""FreeAnchor head with class-aware obstacle box supervision."""
 
 import torch
 from mmcv.runner import force_fp32
@@ -10,8 +10,8 @@ from mmdet3d.models.dense_heads.train_mixins import get_direction_target
 
 
 @HEADS.register_module()
-class SymmetryAwareFreeAnchor3DHead(FreeAnchor3DHead):
-    """Apply obstacle symmetry only to matched positive-anchor losses.
+class ObstacleAwareFreeAnchor3DHead(FreeAnchor3DHead):
+    """Apply obstacle-specific weights only to matched positive-anchor losses.
 
     The stock Fast-BEV/FreeAnchor head uses a sine yaw residual, which is
     already pi-periodic, plus a two-bin direction cross entropy that separates
@@ -27,6 +27,8 @@ class SymmetryAwareFreeAnchor3DHead(FreeAnchor3DHead):
                  mask_near_square_obstacle_yaw=False,
                  near_square_aspect_ratio=1.2,
                  yaw_code_index=6,
+                 obstacle_xy_loss_weight=1.0,
+                 xy_code_indices=(0, 1),
                  **kwargs):
         super().__init__(**kwargs)
         if near_square_aspect_ratio < 1.0:
@@ -37,6 +39,12 @@ class SymmetryAwareFreeAnchor3DHead(FreeAnchor3DHead):
             mask_near_square_obstacle_yaw)
         self.near_square_aspect_ratio = float(near_square_aspect_ratio)
         self.yaw_code_index = int(yaw_code_index)
+        if obstacle_xy_loss_weight <= 0.0:
+            raise ValueError("obstacle_xy_loss_weight must be > 0")
+        if len(xy_code_indices) != 2:
+            raise ValueError("xy_code_indices must contain exactly two indices")
+        self.obstacle_xy_loss_weight = float(obstacle_xy_loss_weight)
+        self.xy_code_indices = tuple(int(index) for index in xy_code_indices)
 
     def _obstacle_symmetry_masks(self, gt_labels, gt_boxes):
         """Return per-GT masks for direction and continuous yaw losses."""
@@ -58,6 +66,17 @@ class SymmetryAwareFreeAnchor3DHead(FreeAnchor3DHead):
                 aspect_ratio <= self.near_square_aspect_ratio)
             yaw_keep[near_square_obstacle] = 0.0
         return direction_keep, yaw_keep
+
+    def _apply_obstacle_xy_weights(self, bbox_weights, gt_labels):
+        """Scale x/y regression for obstacle GT bags and no other codes."""
+        if self.obstacle_xy_loss_weight == 1.0 or not gt_labels.numel():
+            return bbox_weights
+        obstacle_scale = bbox_weights.new_ones(gt_labels.shape)
+        obstacle_scale[gt_labels == self.obstacle_label] = (
+            self.obstacle_xy_loss_weight)
+        for code_index in self.xy_code_indices:
+            bbox_weights[:, :, code_index] *= obstacle_scale.unsqueeze(1)
+        return bbox_weights
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds', 'dir_cls_preds'))
     def loss(self,
@@ -179,6 +198,8 @@ class SymmetryAwareFreeAnchor3DHead(FreeAnchor3DHead):
             if code_weight:
                 bbox_weights = bbox_weights * bbox_weights.new_tensor(
                     code_weight)
+            bbox_weights = self._apply_obstacle_xy_weights(
+                bbox_weights, gt_labels_)
             bbox_weights[:, :, self.yaw_code_index] *= yaw_keep.unsqueeze(1)
             loss_bbox = self.loss_bbox(
                 pos_preds,
@@ -202,3 +223,8 @@ class SymmetryAwareFreeAnchor3DHead(FreeAnchor3DHead):
             'positive_bag_loss': positive_loss * self.pos_loss_weight,
             'negative_bag_loss': negative_loss * self.neg_loss_weight,
         }
+
+
+@HEADS.register_module()
+class SymmetryAwareFreeAnchor3DHead(ObstacleAwareFreeAnchor3DHead):
+    """Backward-compatible name for the completed yaw-symmetry ablations."""
