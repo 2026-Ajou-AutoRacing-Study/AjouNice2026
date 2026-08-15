@@ -1,7 +1,0 @@
-<launch>
-  <!-- Legacy compatibility wrapper. prediction.launch now owns the single
-       team-wide 0.0 to 3.0 s / 0.1 s contract, so this file only adds the old
-       custom-message-to-Autoware bridge to the legacy EKF pipeline. -->
-  <include file="$(find tracking_prediction)/launch/tracking_and_prediction_ekf.launch" />
-  <include file="$(find tracking_prediction)/launch/predicted_objects_autoware_bridge.launch" />
-</launch>

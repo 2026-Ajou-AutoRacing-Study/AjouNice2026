@@ -90,6 +90,16 @@ requires the sensor static TF and the `map -> morai_map -> base_link` chain.
 - JSK boxes and visualization markers are debug-only and never carry IDs or
   kinematics between production nodes.
 
+## Evaluation and map-based prediction
+
+The audit of the legacy CTRV/CTRA evaluation, the replacement benchmark
+design, and the staged ROS1 port of Autoware map-based prediction are recorded
+in
+[`docs/tracking_prediction_evaluation_map_prediction_plan.md`](docs/tracking_prediction_evaluation_map_prediction_plan.md).
+The legacy evaluation numbers are motion-model studies based mainly on MORAI
+GT state; they are not treated as end-to-end accuracy measurements of the
+current standardized pipeline.
+
 ## Debug A/B topics
 
 For simultaneous model comparison, override each detector's `objects_topic`

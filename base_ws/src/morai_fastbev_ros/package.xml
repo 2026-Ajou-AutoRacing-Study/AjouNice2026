@@ -20,9 +20,8 @@
   <depend>std_msgs</depend>
   <depend>visualization_msgs</depend>
 
-  <!-- Launch-only dependencies used by fastbev_with_tp.launch. -->
+  <!-- Launch-only dependency used by fastbev_with_tp.launch. -->
   <exec_depend>ekf_multi_object_tracking</exec_depend>
-  <exec_depend>tracking_prediction</exec_depend>
 
   <export/>
 </package>
