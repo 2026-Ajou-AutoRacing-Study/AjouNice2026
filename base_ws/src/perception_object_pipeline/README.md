@@ -122,18 +122,15 @@ backward compatibility:
 - `/pointpainting/detection_markers` (`visualization_msgs/MarkerArray`)
 - `/pointpainting/painted_points` (`sensor_msgs/PointCloud2`)
 
-Fast-BEV likewise retains its legacy detection, JSK box and marker outputs for
-debugging and existing RViz configurations. These topics are diagnostic-only:
-the tracker and predictor must not consume them, parse marker text, or derive
-IDs and kinematics from visualization messages.
+Fast-BEV is already decoupled from these PointPainting messages. It publishes
+standard `diagnostic_msgs/DiagnosticArray` runtime data and retains JSK/Marker
+outputs only for RViz. The tracker and predictor consume only canonical
+Autoware object messages.
 
-This compatibility layer is intentionally temporary. After reviewing the
-change with the PointPainting maintainer and confirming that no team runbook,
-rosbag evaluation, RViz configuration or external consumer still requires the
-old interfaces, remove the legacy algorithm-facing detection publishers and
-their unused custom-message dependencies. Keep a visualization output only if
-it remains useful for RViz, and generate it from the canonical typed object
-message rather than treating it as an inter-node interface.
+The PointPainting compatibility layer is intentionally retained until its
+maintainer confirms that no team runbook, rosbag evaluation, RViz configuration
+or external consumer still requires it. Removing it is a PointPainting-owned
+migration and is independent from the Fast-BEV runtime.
 
 Before removal, complete this checklist:
 

@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 import rospy
-from morai_pointpainting_ros.msg import PointPaintingDetectionArray
+from diagnostic_msgs.msg import DiagnosticArray
 from sensor_msgs.msg import CompressedImage
 
 
@@ -42,7 +42,7 @@ class Monitor:
             "/sensor/camera/front/compressed", CompressedImage,
             self._input, queue_size=200)
         rospy.Subscriber(
-            "/fastbev/detections", PointPaintingDetectionArray,
+            "/fastbev/diagnostics", DiagnosticArray,
             self._output, queue_size=200)
 
     def _input(self, message):
@@ -50,13 +50,17 @@ class Monitor:
         self.input_stamp.append(message.header.stamp.to_sec())
 
     def _output(self, message):
+        if not message.status:
+            return
+        values = {item.key: item.value for item in message.status[0].values}
+        if not all(key in values for key in self.timings):
+            rospy.logwarn_throttle(
+                1.0, "Fast-BEV diagnostics are missing runtime timing keys")
+            return
         self.output_wall.append(time.perf_counter())
         self.output_stamp.append(message.header.stamp.to_sec())
-        self.timings["camera_span_ms"].append(float(message.camera_span_ms))
-        self.timings["queue_delay_ms"].append(float(message.queue_delay_ms))
-        self.timings["preprocess_ms"].append(float(message.painting_ms))
-        self.timings["inference_ms"].append(float(message.detection_ms))
-        self.timings["total_ms"].append(float(message.total_ms))
+        for key in self.timings:
+            self.timings[key].append(float(values[key]))
 
     @staticmethod
     def _rate(wall, stamps):

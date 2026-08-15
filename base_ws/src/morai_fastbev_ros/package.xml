@@ -10,10 +10,10 @@
   <buildtool_depend>catkin</buildtool_depend>
 
   <depend>autoware_perception_msgs</depend>
+  <depend>diagnostic_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>jsk_recognition_msgs</depend>
   <depend>message_filters</depend>
-  <depend>morai_pointpainting_ros</depend>
   <depend>perception_object_pipeline</depend>
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>

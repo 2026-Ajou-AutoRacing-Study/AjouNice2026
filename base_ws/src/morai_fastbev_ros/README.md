@@ -16,13 +16,13 @@ MORAI `Sensor_6.json`의 네 압축 카메라 영상을 동기화하여 Fast-BEV
 출력:
 
 - `/perception/object_recognition/detection/objects`: `autoware_perception_msgs/DetectedObjects`
-- `/fastbev/detections`: `morai_pointpainting_ros/PointPaintingDetectionArray`
+- `/fastbev/diagnostics`: `diagnostic_msgs/DiagnosticArray`
 - `/hmi/perc/jsk_pillar_objects`: `jsk_recognition_msgs/BoundingBoxArray`
 - `/fastbev/detection_markers`: `visualization_msgs/MarkerArray`
 
-첫 출력이 production tracker의 정식 입력이다. 나머지는 성능 진단과 RViz 및
-과거 실험 재현용 legacy/debug 출력이며, track ID나 kinematics 전달에 사용하지
-않는다.
+첫 출력이 production tracker의 정식 입력이다. diagnostics는 Fast-BEV의 처리 시간과
+drop 상태 전용이고, JSK/Marker는 RViz 전용이다. 이 package는 PointPainting custom
+message에 의존하지 않는다.
 
 ## 실행
 

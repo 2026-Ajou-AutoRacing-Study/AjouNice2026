@@ -31,6 +31,7 @@ import rospy
 import torch
 from PIL import Image
 from autoware_perception_msgs.msg import DetectedObjects
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from geometry_msgs.msg import Pose, Vector3
 from jsk_recognition_msgs.msg import BoundingBox, BoundingBoxArray
 from mmcv import Config
@@ -39,10 +40,6 @@ from mmcv.utils import import_modules_from_strings
 from mmdet.datasets.pipelines import Compose
 from mmdet3d.core.bbox import get_box_type
 from mmdet3d.models import build_model
-from morai_pointpainting_ros.msg import (
-    PointPaintingDetection,
-    PointPaintingDetectionArray,
-)
 from perception_object_pipeline import make_detected_objects
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Header
@@ -233,9 +230,9 @@ class FastBEVOnlineNode:
         self._load_model_and_pipeline()
         self._initialize_online_preprocessor()
 
-        self.detections_pub = rospy.Publisher(
-            rospy.get_param("~detections_topic", "/fastbev/detections"),
-            PointPaintingDetectionArray, queue_size=1)
+        self.diagnostics_pub = rospy.Publisher(
+            rospy.get_param("~diagnostics_topic", "/fastbev/diagnostics"),
+            DiagnosticArray, queue_size=1)
         self.objects_pub = rospy.Publisher(
             "~output/objects", DetectedObjects, queue_size=1)
         self.jsk_pub = rospy.Publisher(
@@ -543,26 +540,10 @@ class FastBEVOnlineNode:
         header.frame_id = self.output_frame_id
         return header
 
-    def _publish(self, header, boxes, scores, labels, camera_span_ms,
-                 queue_delay_ms, preprocess_ms, inference_ms, total_ms) -> None:
+    def _publish(self, header, boxes, scores, labels) -> None:
         class_names = [self.class_names[int(label)] for label in labels]
         self.objects_pub.publish(
             make_detected_objects(header, boxes, scores, class_names))
-
-        detections = PointPaintingDetectionArray()
-        detections.header = header
-        detections.camera_age_max_ms = float(camera_span_ms)
-        detections.camera_span_ms = float(camera_span_ms)
-        detections.queue_delay_ms = float(queue_delay_ms)
-        detections.segmentation_ms = 0.0
-        detections.painting_ms = float(preprocess_ms)
-        detections.detection_ms = float(inference_ms)
-        detections.total_ms = float(total_ms)
-        # These legacy field names are kept for wire compatibility.  For this
-        # camera-only detector they count dropped/skipped synchronized sets.
-        detections.dropped_lidar_frames = int(
-            self.dropped_raw_sets + self.dropped_prepared_sets)
-        detections.skipped_lidar_frames = int(self.skipped_sets)
 
         jsk = BoundingBoxArray()
         jsk.header = header
@@ -580,16 +561,6 @@ class FastBEVOnlineNode:
             pose.orientation.x, pose.orientation.y = qx, qy
             pose.orientation.z, pose.orientation.w = qz, qw
             size = Vector3(x=float(box[3]), y=float(box[4]), z=float(box[5]))
-
-            detection = PointPaintingDetection()
-            detection.detection_id = index
-            detection.class_id = int(label) + 1
-            detection.class_name = class_name
-            detection.score = float(score)
-            detection.pose = pose
-            detection.size = size
-            detection.distance = float(np.linalg.norm(box[:2]))
-            detections.detections.append(detection)
 
             tracked_input = BoundingBox()
             tracked_input.header = header
@@ -613,9 +584,30 @@ class FastBEVOnlineNode:
             marker.lifetime = rospy.Duration(0.2)
             markers.markers.append(marker)
 
-        self.detections_pub.publish(detections)
         self.jsk_pub.publish(jsk)
         self.markers_pub.publish(markers)
+
+    def _publish_diagnostics(self, header, metrics, box_count) -> None:
+        message = DiagnosticArray()
+        message.header = header
+        status = DiagnosticStatus()
+        status.level = DiagnosticStatus.OK
+        status.name = "fastbev/runtime"
+        status.message = "online inference healthy"
+        status.hardware_id = "cuda"
+        values = dict(metrics)
+        values.update({
+            "box_count": int(box_count),
+            "dropped_raw_sets": int(self.dropped_raw_sets),
+            "dropped_prepared_sets": int(self.dropped_prepared_sets),
+            "skipped_sets": int(self.skipped_sets),
+        })
+        status.values = [
+            KeyValue(key=str(key), value=str(value))
+            for key, value in values.items()
+        ]
+        message.status = [status]
+        self.diagnostics_pub.publish(message)
 
     def _preprocess(self, messages, received_at: float):
         preprocess_start = time.perf_counter()
@@ -669,24 +661,24 @@ class FastBEVOnlineNode:
         total_ms = preprocess_ms + inference_ms
         header = self._header(prepared["messages"])
         publish_start = time.perf_counter()
-        self._publish(
-            header, boxes, scores, labels, prepared["camera_span_ms"],
-            prepared["queue_delay_ms"],
-            preprocess_ms, inference_ms, total_ms)
+        self._publish(header, boxes, scores, labels)
         publish_ms = (time.perf_counter() - publish_start) * 1000.0
         latency_ms = (time.perf_counter() - prepared["received_at"]) * 1000.0
         self.processed_sets += 1
         frame_metrics = {
-            "camera_span": prepared["camera_span_ms"],
-            "raw_queue": prepared["queue_delay_ms"],
-            "decode": prepared["decode_ms"],
-            "transform": prepared["transform_ms"],
-            "inference_queue": inference_queue_ms,
-            "h2d": h2d_ms,
-            "inference": inference_ms,
-            "publish": publish_ms,
-            "latency": latency_ms,
+            "camera_span_ms": prepared["camera_span_ms"],
+            "queue_delay_ms": prepared["queue_delay_ms"],
+            "decode_ms": prepared["decode_ms"],
+            "transform_ms": prepared["transform_ms"],
+            "inference_queue_ms": inference_queue_ms,
+            "h2d_ms": h2d_ms,
+            "preprocess_ms": preprocess_ms,
+            "inference_ms": inference_ms,
+            "publish_ms": publish_ms,
+            "total_ms": total_ms,
+            "latency_ms": latency_ms,
         }
+        self._publish_diagnostics(header, frame_metrics, len(boxes))
         for key, value in frame_metrics.items():
             self._metrics[key].append(float(value))
         if self.processed_sets <= 5 or self.processed_sets % self.log_interval == 0:
@@ -696,10 +688,12 @@ class FastBEVOnlineNode:
                 "frame=%d boxes=%d avg[%d]: span=%.1f raw_q=%.1f decode=%.1f "
                 "transform=%.1f infer_q=%.1f h2d=%.1f infer=%.1f publish=%.1f "
                 "latency=%.1fms dropped_raw=%d dropped_prepared=%d skipped=%d",
-                self.processed_sets, len(boxes), len(self._metrics["latency"]),
-                averages["camera_span"], averages["raw_queue"], averages["decode"],
-                averages["transform"], averages["inference_queue"], averages["h2d"],
-                averages["inference"], averages["publish"], averages["latency"],
+                self.processed_sets, len(boxes), len(self._metrics["latency_ms"]),
+                averages["camera_span_ms"], averages["queue_delay_ms"],
+                averages["decode_ms"], averages["transform_ms"],
+                averages["inference_queue_ms"], averages["h2d_ms"],
+                averages["inference_ms"], averages["publish_ms"],
+                averages["latency_ms"],
                 self.dropped_raw_sets, self.dropped_prepared_sets, self.skipped_sets)
 
     def _on_shutdown(self) -> None:

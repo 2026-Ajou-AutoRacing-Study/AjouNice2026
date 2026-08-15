@@ -8,7 +8,7 @@
   <arg name="sensor_config"
        default="$(arg repo_root)/configs/sensors/Sensor_6.json"/>
 
-  <arg name="detections_topic" default="/fastbev/detections"/>
+  <arg name="diagnostics_topic" default="/fastbev/diagnostics"/>
   <arg name="objects_topic"
        default="/perception/object_recognition/detection/objects"/>
   <arg name="jsk_boxes_topic" default="/hmi/perc/jsk_pillar_objects"/>
@@ -42,7 +42,7 @@
     <param name="config" value="$(arg config)"/>
     <param name="checkpoint" value="$(arg checkpoint)"/>
     <param name="sensor_config" value="$(arg sensor_config)"/>
-    <param name="detections_topic" value="$(arg detections_topic)"/>
+    <param name="diagnostics_topic" value="$(arg diagnostics_topic)"/>
     <param name="jsk_boxes_topic" value="$(arg jsk_boxes_topic)"/>
     <param name="markers_topic" value="$(arg markers_topic)"/>
     <param name="output_frame_id" value="$(arg output_frame_id)"/>
