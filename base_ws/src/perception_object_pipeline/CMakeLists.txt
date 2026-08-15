@@ -23,12 +23,13 @@ catkin_package(
 catkin_install_python(
   PROGRAMS
     scripts/object_prediction_node.py
+    scripts/map_based_prediction_node.py
     scripts/object_pipeline_visualization_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 install(
-  DIRECTORY launch rviz
+  DIRECTORY config launch rviz
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 

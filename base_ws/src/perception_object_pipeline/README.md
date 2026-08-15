@@ -19,7 +19,7 @@ EKF tracker
   /perception/object_recognition/tracking/objects
                          |
                          v
-CTRV/CV predictor
+CTRV/CV or Lanelet2 map-based predictor
   autoware_perception_msgs/PredictedObjects
   /perception/object_recognition/objects
                          |
@@ -99,6 +99,29 @@ in
 The legacy evaluation numbers are motion-model studies based mainly on MORAI
 GT state; they are not treated as end-to-end accuracy measurements of the
 current standardized pipeline.
+
+The first ROS1 map-based vehicle predictor is available behind an explicit
+launch switch. It uses the K-City v60 Lanelet2 map, publishes the same
+`PredictedObjects` contract, and falls back to CTRV/CV for low-speed, off-lane,
+wrong-direction and non-vehicle objects.
+
+```bash
+# Existing production baseline
+roslaunch perception_object_pipeline object_pipeline.launch \
+  start_detector:=false \
+  prediction_model:=ctrv
+
+# P1 map-based prototype
+roslaunch perception_object_pipeline object_pipeline.launch \
+  start_detector:=false \
+  prediction_model:=map_based
+```
+
+The map-based output still contains the current pose plus 0.1--3.0 second
+samples. At a routing branch it may contain multiple `PredictedPath` entries;
+their confidences are normalized to sum to one. Planning does not need a topic
+or message change. CTRV remains the default until the E0 map-based benchmark
+shows a measurable improvement.
 
 ## Debug A/B topics
 

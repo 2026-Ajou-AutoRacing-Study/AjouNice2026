@@ -66,10 +66,11 @@ roslaunch bringup localization_morai_gt.launch \
 ## 터미널 5 — Fast-BEV, tracking, prediction
 
 ```bash
-# Fast-BEV → EKF tracking → 0.0~3.0 s prediction 실행
+# Fast-BEV → EKF tracking → Lanelet2 Map P1 prediction 실행
 cd ~/AjouNice2026
 
 FASTBEV_WITH_TP=true \
+FASTBEV_PREDICTION_MODEL=map_based \
 CONDA_ENV=fastbev_rtx50 \
 base_ws/src/morai_fastbev_ros/scripts/run_fastbev.sh live
 ```
@@ -77,7 +78,7 @@ base_ws/src/morai_fastbev_ros/scripts/run_fastbev.sh live
 ## 터미널 6 — Object pipeline RViz
 
 ```bash
-# Ego 차량, Lanelet map, LiDAR, 카메라 4대, detection/tracking/prediction 표시
+# 미래 궤적은 얇은 선, 1.5 s와 3.0 s는 작은 점으로 표시
 cd ~/AjouNice2026
 source /opt/ros/noetic/setup.bash
 source base_ws/devel/setup.bash
@@ -110,4 +111,3 @@ source base_ws/devel/setup.bash
 
 rostopic echo /perception/object_recognition/objects
 ```
-

@@ -5,15 +5,40 @@
        default="/perception/object_recognition/objects"/>
   <arg name="prediction_time_step" default="0.1"/>
   <arg name="prediction_horizon" default="3.0"/>
+  <arg name="prediction_model" default="ctrv"/>
+  <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
+  <arg name="map_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v60.osm"/>
+  <arg name="projector_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
 
-  <node pkg="perception_object_pipeline"
-        type="object_prediction_node.py"
-        name="object_prediction"
-        output="screen"
-        respawn="false">
-    <remap from="~input/objects" to="$(arg input_objects)"/>
-    <remap from="~output/objects" to="$(arg output_objects)"/>
-    <param name="prediction_time_step" value="$(arg prediction_time_step)"/>
-    <param name="prediction_horizon" value="$(arg prediction_horizon)"/>
-  </node>
+  <group if="$(eval arg('prediction_model') == 'ctrv')">
+    <node pkg="perception_object_pipeline"
+          type="object_prediction_node.py"
+          name="object_prediction"
+          output="screen"
+          respawn="false">
+      <remap from="~input/objects" to="$(arg input_objects)"/>
+      <remap from="~output/objects" to="$(arg output_objects)"/>
+      <param name="prediction_time_step" value="$(arg prediction_time_step)"/>
+      <param name="prediction_horizon" value="$(arg prediction_horizon)"/>
+    </node>
+  </group>
+
+  <group if="$(eval arg('prediction_model') == 'map_based')">
+    <node pkg="perception_object_pipeline"
+          type="map_based_prediction_node.py"
+          name="map_based_prediction"
+          output="screen"
+          respawn="false">
+      <remap from="~input/objects" to="$(arg input_objects)"/>
+      <remap from="~output/objects" to="$(arg output_objects)"/>
+      <rosparam command="load"
+                file="$(find perception_object_pipeline)/config/map_based_prediction.yaml"/>
+      <param name="prediction_time_step" value="$(arg prediction_time_step)"/>
+      <param name="prediction_horizon" value="$(arg prediction_horizon)"/>
+      <param name="map_file" value="$(arg map_file)"/>
+      <param name="projector_file" value="$(arg projector_file)"/>
+    </node>
+  </group>
 </launch>

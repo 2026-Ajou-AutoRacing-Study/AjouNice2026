@@ -125,9 +125,10 @@ Visualization Manager:
           Marker Topic: /perception/object_recognition/visualization/predictions
           Name: Predictions (0-3s)
           Namespaces:
-            predicted_ends: true
+            predicted_horizon_1_sec: true
+            predicted_horizon_2_sec: true
+            predicted_horizon_3_sec: true
             predicted_paths: true
-            predicted_samples: true
           Queue Size: 5
           Value: true
       Enabled: true

@@ -204,6 +204,59 @@ segment 경계로 자동 분리하고, 경계 주변 미래 horizon을 정상 pr
 
 이 단계만으로 직선·곡선·로터리에서 핵심 가설을 검증한다.
 
+#### 2026-08-15 구현 현황
+
+P1의 runtime prototype을 `perception_object_pipeline`에 구현했다.
+
+- `map_based_prediction.py`: ROS message와 분리된 lane matching, routing graph,
+  다중 forward route, centerline 경로와 confidence core
+- `map_based_prediction_node.py`: `TrackedObjects -> PredictedObjects` ROS1 adapter
+- `prediction_model:=ctrv|map_based`: 기존 CTRV를 보존하는 launch 선택 구조
+- 차량만 map-based를 적용하고 pedestrian·obstacle·unknown은 CV를 유지한다.
+- 저속, 3 m 밖, yaw 45도 초과, dead-end 길이 부족은 CTRV로 fallback한다.
+- 현재 위치에서 centerline으로 1.5초 동안 수렴시켜 첫 sample의 순간이동을
+  방지한다.
+- v60 map hash를 node 시작 로그에 남긴다.
+
+검증 결과는 다음과 같다.
+
+- Python 단위 테스트와 기존 CTRV 회귀 테스트 통과
+- catkin build 및 Detection -> Tracking -> CTRV 통합 rostest 통과
+- v60 road lanelet 200개 중심 표본 중 199개에서 map path 생성(99.5%)
+- 실제 ROS message smoke test에서 31 pose, 0.1초 간격, confidence 합 1.0 확인
+- 20 vehicle core benchmark 평균 35.2 ms, p95 36.4 ms
+
+아직 E0 bag 기준 CTRV 대비 ADE/FDE 개선을 검증하지 않았으므로 production
+기본값은 계속 `ctrv`다. 현재 branch confidence는 지도 geometry와 lane matching
+score 기반이며 실제 maneuver frequency로 calibration된 확률은 아니다. 객체별 lane
+history와 lane-change intention은 P2 범위로 남긴다.
+
+#### 2026-08-15 P1 E0 평가
+
+raw `/Object_topic`은 `morai_map` 좌표이므로
+`configs/tf/morai_lanelet_static_tf.yaml`의 고정 변환으로 Lanelet `map` 좌표에
+정렬한 뒤 평가했다. 변환을 생략하면 v60 중심선과 약 20 m 어긋나 모든 표본이
+CTRV fallback이 되므로, 평가 report에 transform 경로·map hash·mapped/fallback
+origin 수를 기록한다.
+
+3초 vehicle FDE는 다음과 같다.
+
+| Bag | Model | mean | p50 | p90 | p95 |
+|---|---|---:|---:|---:|---:|
+| roundabout1 | CTRV | 2.245 | 1.263 | 6.795 | 7.847 |
+| roundabout1 | Map P1 | 1.869 | 0.449 | 7.149 | 8.445 |
+| roundabout2 | CTRV | 3.114 | 1.962 | 8.156 | 8.789 |
+| roundabout2 | Map P1 | 2.840 | 1.518 | 8.244 | 8.797 |
+| highway1 | CTRV | 2.136 | 1.201 | 5.770 | 8.459 |
+| highway1 | Map P1 | 1.569 | 0.460 | 5.673 | 8.394 |
+
+Map P1은 세 bag 모두 mean과 p50을 개선했다. Highway에서는 p90/p95도 소폭
+개선했지만 roundabout에서는 p90/p95가 악화했다. 이는 단순 centerline 수렴이
+다수 표본에는 유리하지만 잘못된 lane/branch 선택과 횡운동 모델 부재가 tail
+error를 키운다는 증거다. 다음 predictor 개선은 자체 휴리스틱보다 Autoware의
+Frenet polynomial path generator, object history와 maneuver prediction을 우선
+포팅하고 동일 E0 표본으로 ablation한다.
+
 ### P2: History와 lane-change maneuver
 
 - 객체별 lane association history를 유지한다.

@@ -23,6 +23,9 @@
     <param name="input/detections" value="$(arg detections)"/>
     <param name="input/tracks" value="$(arg tracks)"/>
     <param name="input/predictions" value="$(arg predictions)"/>
+    <rosparam param="prediction_marker_horizons_sec">[1.0, 2.0, 3.0]</rosparam>
+    <param name="prediction_marker_diameter_m" value="0.45"/>
+    <param name="prediction_marker_diameter_step_m" value="0.08"/>
     <remap from="~output/detections" to="$(arg detection_markers)"/>
     <remap from="~output/tracks" to="$(arg tracking_markers)"/>
     <remap from="~output/predictions" to="$(arg prediction_markers)"/>

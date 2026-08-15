@@ -201,7 +201,16 @@ def read_morai_trajectories(
     minimum_points: int = 8,
 ) -> list[TrajectorySegment]:
     """Read MORAI GT frames and reconstruct persistent actor trajectories."""
-    import rosbag
+    try:
+        import rosbag
+    except ModuleNotFoundError as error:
+        if error.name and error.name.startswith("Cryptodome"):
+            raise RuntimeError(
+                "ROS Noetic rosbag cannot be imported from the active Conda "
+                "environment. Run this evaluator with /usr/bin/python3; the "
+                "Fast-BEV Conda environment is not required for E0 evaluation."
+            ) from error
+        raise
 
     include = set(include_classes)
     # Some bags contain the exact same ObjectStatusList more than once with an
@@ -250,6 +259,33 @@ def read_morai_trajectories(
         maximum_assignment_distance_m=maximum_assignment_distance_m,
         minimum_points=minimum_points,
     )
+
+
+def transform_segments_planar(
+    segments: Sequence[TrajectorySegment],
+    translation_xyz: Sequence[float],
+    yaw: float,
+) -> list[TrajectorySegment]:
+    """Transform MORAI-local GT trajectories into the Lanelet map frame."""
+    if len(translation_xyz) != 3:
+        raise ValueError("translation_xyz must contain exactly three values")
+    cosine = math.cos(yaw)
+    sine = math.sin(yaw)
+    transformed = []
+    for segment in segments:
+        points = []
+        for point in segment.points:
+            points.append(
+                replace(
+                    point,
+                    x=cosine * point.x - sine * point.y + translation_xyz[0],
+                    y=sine * point.x + cosine * point.y + translation_xyz[1],
+                    z=point.z + translation_xyz[2],
+                    yaw=normalize_angle(point.yaw + yaw),
+                )
+            )
+        transformed.append(replace(segment, points=tuple(points)))
+    return transformed
 
 
 def interpolate_point(

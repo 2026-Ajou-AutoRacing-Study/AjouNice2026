@@ -1,9 +1,12 @@
+import math
 import unittest
 
 from tracking_prediction_evaluation.trajectory import (
     TrajectoryPoint,
+    TrajectorySegment,
     interpolate_point,
     reconstruct_trajectory_segments,
+    transform_segments_planar,
 )
 
 
@@ -25,6 +28,26 @@ def point(timestamp, x, yaw=0.0):
 
 
 class TrajectoryTest(unittest.TestCase):
+    def test_planar_transform_updates_position_and_yaw(self):
+        source_point = point(0.0, 1.0)
+        source_point = TrajectoryPoint(
+            **{**source_point.__dict__, "y": 2.0, "object_id": 7}
+        )
+        original = TrajectorySegment(
+            key="vehicle:7:0",
+            class_name="vehicle",
+            object_id=7,
+            asset_name="synthetic",
+            points=(source_point,),
+        )
+        transformed = transform_segments_planar(
+            [original], (10.0, 20.0, 3.0), math.pi / 2.0
+        )[0].points[0]
+        self.assertAlmostEqual(transformed.x, 8.0)
+        self.assertAlmostEqual(transformed.y, 21.0)
+        self.assertAlmostEqual(transformed.z, 3.0)
+        self.assertAlmostEqual(transformed.yaw, math.pi / 2.0)
+
     def test_interpolation_uses_timestamp_bracket(self):
         result = interpolate_point([point(0.0, 0.0), point(0.2, 2.0)], 0.1, 0.3)
         self.assertIsNotNone(result)

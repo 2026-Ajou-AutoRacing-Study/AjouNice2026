@@ -11,6 +11,13 @@
   <depend>autoware_perception_msgs</depend>
   <exec_depend>ekf_multi_object_tracking</exec_depend>
   <depend>geometry_msgs</depend>
+  <exec_depend>lanelet2_core</exec_depend>
+  <exec_depend>lanelet2_io</exec_depend>
+  <exec_depend>lanelet2_projection</exec_depend>
+  <exec_depend>lanelet2_python</exec_depend>
+  <exec_depend>lanelet2_routing</exec_depend>
+  <exec_depend>lanelet2_traffic_rules</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
   <exec_depend>ioniq5</exec_depend>
   <depend>rospy</depend>
   <depend>std_msgs</depend>

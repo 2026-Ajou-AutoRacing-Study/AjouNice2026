@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, Sequence
 
 
 @dataclass(frozen=True)
@@ -15,6 +15,7 @@ class MotionState:
     speed: float
     yaw_rate: float
     acceleration: float
+    z: float = 0.0
 
 
 class Predictor(Protocol):
@@ -51,6 +52,15 @@ class CTRVPredictor:
             * (math.cos(state.yaw) - math.cos(next_yaw)),
             next_yaw,
         )
+
+    def predict_path(
+        self,
+        state: MotionState,
+        horizons: Sequence[float],
+        class_name: str = "vehicle",
+    ) -> tuple[tuple[float, float, float], ...]:
+        del class_name
+        return tuple(self.predict(state, horizon) for horizon in horizons)
 
 
 class CTRAPredictor:
@@ -101,6 +111,62 @@ class CTRAPredictor:
             state.y + y_constant_velocity + y_acceleration,
             next_yaw,
         )
+
+    def predict_path(
+        self,
+        state: MotionState,
+        horizons: Sequence[float],
+        class_name: str = "vehicle",
+    ) -> tuple[tuple[float, float, float], ...]:
+        del class_name
+        return tuple(self.predict(state, horizon) for horizon in horizons)
+
+
+class MapBasedP1Predictor:
+    """Adapter from the ROS-independent Lanelet network to the E0 evaluator.
+
+    The highest-confidence route is evaluated as the planning-facing top-1
+    prediction. Non-vehicle or unmatched samples use the same CTRV fallback as
+    the runtime ROS node.
+    """
+
+    name = "map_p1"
+
+    def __init__(self, network, fallback: Predictor | None = None):
+        self.network = network
+        self.fallback = fallback or CTRVPredictor()
+        self.mapped_origin_count = 0
+        self.fallback_origin_count = 0
+
+    def predict_path(
+        self,
+        state: MotionState,
+        horizons: Sequence[float],
+        class_name: str = "vehicle",
+    ) -> tuple[tuple[float, float, float], ...]:
+        trajectories = ()
+        if class_name == "vehicle":
+            trajectories = self.network.predict(
+                x=state.x,
+                y=state.y,
+                z=state.z,
+                yaw=state.yaw,
+                speed=state.speed,
+                horizons=horizons,
+            )
+        if trajectories:
+            self.mapped_origin_count += 1
+            top_path = max(trajectories, key=lambda item: item.confidence)
+            return tuple((x, y, yaw) for x, y, _z, yaw in top_path.poses)
+
+        self.fallback_origin_count += 1
+        predict_path = getattr(self.fallback, "predict_path", None)
+        if predict_path is not None:
+            return tuple(predict_path(state, horizons, class_name))
+        return tuple(self.fallback.predict(state, horizon) for horizon in horizons)
+
+    def predict(self, state: MotionState, horizon: float) -> tuple[float, float, float]:
+        return self.predict_path(state, (horizon,), "vehicle")[0]
 
 
 def default_predictors() -> list[Predictor]:

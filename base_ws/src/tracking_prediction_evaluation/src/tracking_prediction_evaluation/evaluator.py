@@ -94,6 +94,7 @@ def estimate_motion_state(
         speed=speed,
         yaw_rate=yaw_rate,
         acceleration=acceleration,
+        z=current.z,
     )
 
 
@@ -150,6 +151,24 @@ def evaluate_segments(
                 if point is not None:
                     future_gt[round(offset, 9)] = point
 
+            predicted_paths = {}
+            for predictor in predictors:
+                predict_path = getattr(predictor, "predict_path", None)
+                if predict_path is None:
+                    path = tuple(
+                        predictor.predict(state, offset) for offset in path_offsets
+                    )
+                else:
+                    path = tuple(
+                        predict_path(state, path_offsets, segment.class_name)
+                    )
+                if len(path) != len(path_offsets):
+                    raise ValueError(
+                        f"{predictor.name} returned {len(path)} poses for "
+                        f"{len(path_offsets)} requested offsets"
+                    )
+                predicted_paths[predictor.name] = path
+
             for horizon in config.horizons:
                 required_offsets = [
                     offset for offset in path_offsets if offset <= horizon + 1.0e-9
@@ -160,8 +179,10 @@ def evaluate_segments(
                     continue
                 for predictor in predictors:
                     errors = []
-                    for offset in required_offsets:
-                        predicted_x, predicted_y, _ = predictor.predict(state, offset)
+                    for path_index, offset in enumerate(required_offsets):
+                        predicted_x, predicted_y, _ = predicted_paths[predictor.name][
+                            path_index
+                        ]
                         gt = future_gt[round(offset, 9)]
                         errors.append(math.hypot(predicted_x - gt.x, predicted_y - gt.y))
                     samples.append(

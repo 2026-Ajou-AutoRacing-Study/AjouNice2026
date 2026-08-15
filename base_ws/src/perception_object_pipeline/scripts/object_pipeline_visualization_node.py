@@ -97,8 +97,17 @@ class ObjectPipelineVisualization:
         self.lifetime = rospy.Duration(
             float(rospy.get_param("~marker_lifetime_sec", 0.5))
         )
-        self.path_point_stride = max(
-            1, int(rospy.get_param("~prediction_point_stride", 5))
+        self.prediction_marker_horizons = tuple(
+            float(value)
+            for value in rospy.get_param(
+                "~prediction_marker_horizons_sec", [1.0, 2.0, 3.0]
+            )
+        )
+        self.prediction_marker_diameter = float(
+            rospy.get_param("~prediction_marker_diameter_m", 0.45)
+        )
+        self.prediction_marker_diameter_step = float(
+            rospy.get_param("~prediction_marker_diameter_step_m", 0.08)
         )
 
         detection_topic = rospy.get_param(
@@ -221,45 +230,37 @@ class ObjectPipelineVisualization:
             line.type = Marker.LINE_STRIP
             line.action = Marker.ADD
             line.pose.orientation.w = 1.0
-            line.scale.x = 0.18
+            line.scale.x = 0.08
             line.color = color_for(label, 0.95)
             line.points = [copy.deepcopy(pose.position) for pose in path.path]
             line.lifetime = self.lifetime
             markers.markers.append(line)
 
-            samples = Marker()
-            samples.header = copy.deepcopy(message.header)
-            samples.ns = "predicted_samples"
-            samples.id = marker_id
-            samples.type = Marker.SPHERE_LIST
-            samples.action = Marker.ADD
-            samples.pose.orientation.w = 1.0
-            samples.scale.x = 0.28
-            samples.scale.y = 0.28
-            samples.scale.z = 0.28
-            samples.color = color_for(label, 0.70)
-            samples.points = [
-                copy.deepcopy(path.path[index].position)
-                for index in range(0, len(path.path), self.path_point_stride)
-            ]
-            if (len(path.path) - 1) % self.path_point_stride:
-                samples.points.append(copy.deepcopy(path.path[-1].position))
-            samples.lifetime = self.lifetime
-            markers.markers.append(samples)
-
-            end = Marker()
-            end.header = copy.deepcopy(message.header)
-            end.ns = "predicted_ends"
-            end.id = marker_id
-            end.type = Marker.SPHERE
-            end.action = Marker.ADD
-            end.pose = copy.deepcopy(path.path[-1])
-            end.scale.x = 0.55
-            end.scale.y = 0.55
-            end.scale.z = 0.55
-            end.color = color_for(label, 1.0)
-            end.lifetime = self.lifetime
-            markers.markers.append(end)
+            time_step = path.time_step.to_sec()
+            if time_step > 1.0e-6:
+                for horizon_index, horizon in enumerate(
+                    self.prediction_marker_horizons
+                ):
+                    path_index = int(round(horizon / time_step))
+                    if path_index < 0 or path_index >= len(path.path):
+                        continue
+                    milestone = Marker()
+                    milestone.header = copy.deepcopy(message.header)
+                    milestone.ns = "predicted_horizon_%g_sec" % horizon
+                    milestone.id = marker_id
+                    milestone.type = Marker.SPHERE
+                    milestone.action = Marker.ADD
+                    milestone.pose = copy.deepcopy(path.path[path_index])
+                    diameter = (
+                        self.prediction_marker_diameter
+                        + self.prediction_marker_diameter_step * horizon_index
+                    )
+                    milestone.scale.x = diameter
+                    milestone.scale.y = diameter
+                    milestone.scale.z = diameter
+                    milestone.color = color_for(label, 1.0)
+                    milestone.lifetime = self.lifetime
+                    markers.markers.append(milestone)
 
         self.prediction_pub.publish(markers)
 

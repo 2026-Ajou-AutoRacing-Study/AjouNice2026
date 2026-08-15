@@ -11,6 +11,7 @@ CONDA_ENV="${CONDA_ENV:-fastbev_rtx50}"
 FASTBEV_CONFIG="${FASTBEV_CONFIG:-$REPO_ROOT/perception/detection3d/fastbev/configs/fastbev_m0_morai_4cam_s384x704.py}"
 FASTBEV_CHECKPOINT="${FASTBEV_CHECKPOINT:-$REPO_ROOT/artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_wandb_v1/best_center_mAP_epoch_11.pth}"
 FASTBEV_WITH_TP="${FASTBEV_WITH_TP:-false}"
+FASTBEV_PREDICTION_MODEL="${FASTBEV_PREDICTION_MODEL:-ctrv}"
 FASTBEV_PREPROCESS_BACKEND="${FASTBEV_PREPROCESS_BACKEND:-opencv}"
 FASTBEV_PIPELINE_MODE="${FASTBEV_PIPELINE_MODE:-staged}"
 
@@ -74,6 +75,7 @@ echo "MORAI Fast-BEV ROS"
 echo "=============================================="
 echo "Mode              : $MODE"
 echo "With T&P          : $FASTBEV_WITH_TP"
+echo "Prediction model  : $FASTBEV_PREDICTION_MODEL"
 echo "Conda environment : $CONDA_ENV"
 echo "Python            : $(command -v python)"
 echo "Config            : $FASTBEV_CONFIG"
@@ -85,8 +87,10 @@ echo "=============================================="
 
 if [[ "$FASTBEV_WITH_TP" == "true" ]]; then
   LAUNCH_FILE=fastbev_with_tp.launch
+  EXTRA_LAUNCH_ARGS=(prediction_model:="$FASTBEV_PREDICTION_MODEL")
 else
   LAUNCH_FILE=fastbev_online.launch
+  EXTRA_LAUNCH_ARGS=()
 fi
 
 exec roslaunch morai_fastbev_ros "$LAUNCH_FILE" \
@@ -95,4 +99,5 @@ exec roslaunch morai_fastbev_ros "$LAUNCH_FILE" \
   checkpoint:="$FASTBEV_CHECKPOINT" \
   preprocess_backend:="$FASTBEV_PREPROCESS_BACKEND" \
   pipeline_mode:="$FASTBEV_PIPELINE_MODE" \
-  use_sim_time:="$USE_SIM_TIME"
+  use_sim_time:="$USE_SIM_TIME" \
+  "${EXTRA_LAUNCH_ARGS[@]}"

@@ -15,6 +15,7 @@
        default="/perception/object_recognition/objects"/>
   <arg name="prediction_time_step" default="0.1"/>
   <arg name="prediction_horizon" default="3.0"/>
+  <arg name="prediction_model" default="ctrv"/>
 
   <!-- Detector-specific launch arguments. -->
   <arg name="python_executable" default=""/>
@@ -82,5 +83,7 @@
     <arg name="output_objects" value="$(arg predicted_objects)"/>
     <arg name="prediction_time_step" value="$(arg prediction_time_step)"/>
     <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
+    <arg name="prediction_model" value="$(arg prediction_model)"/>
+    <arg name="repo_root" value="$(arg repo_root)"/>
   </include>
 </launch>
