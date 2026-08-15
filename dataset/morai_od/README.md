@@ -62,6 +62,9 @@ dataset/morai_od/
 보행자와 장애물을 배치한다. 날씨와 시간은 MORAI Internal Scenario JSON에
 검증된 필드가 없어 metadata에만 기록한다.
 
+향후 Dataset V2의 혼합/class-focused 장면 비율, obstacle 형상·거리 quota와
+단계적 수집 계획은 `docs/dataset_v2_scenario_generation_plan.md`를 따른다.
+
 ```bash
 # 기본 seed와 anchor로 프로토타입 시나리오 생성
 cd ~/AjouNice2026

@@ -3,7 +3,7 @@
 Fast-BEV 원본 구현은 `third_party/fastbev` submodule에 보존한다. 이 디렉터리에는
 MORAI 4-camera dataset adapter, 프로젝트 config, 얇은 학습·평가 launcher만 둔다.
 
-이미지 변환 backend는 Fast-BEV 원본 PIL과 OpenCV를 모두 지원한다. Production C0의
+이미지 변환 backend는 Fast-BEV 원본 PIL과 OpenCV를 모두 지원한다. 현재 실험 기준의
 기본값은 배포 전처리와 동일한 `opencv`이며, 기존 PIL 실험은
 `FASTBEV_IMAGE_BACKEND=pil`로 재현한다.
 
@@ -13,8 +13,10 @@ perception/detection3d/fastbev/scripts/train.sh \
   full1500_stride1_fp16_opencv_v1
 ```
 
-현재 production C0는 held-out test에서 선택한 BEV/image horizontal
-`0.5/0.5`를 기본값으로 사용한다. 비교 실험에서는 다음 환경변수로만 바꾼다.
+현재 실험 기준은 nuScenes Fast-BEV의 호환 image/BEV weight를 복원한 `I3`이며,
+held-out test에서 선택한 BEV/image horizontal `0.5/0.5`를 기본값으로 사용한다.
+`scripts/train.sh`와 `scripts/smoke_train.py`도 별도 config 지정이 없으면 I3를
+사용한다. 비교 실험에서는 다음 환경변수로만 증강 조건을 바꾼다.
 
 ```bash
 FASTBEV_BEV_FLIP_PROB=0.5 \
@@ -48,6 +50,20 @@ perception/detection3d/fastbev/scripts/train.sh \
 첫 번째 인자 뒤의 값은 원본 `third_party/fastbev/tools/train.py`로 전달되므로
 `--resume-from`, `--cfg-options` 같은 MMCV 옵션을 그대로 사용할 수 있다.
 
+I3 weight는 Git 밖의 artifact이므로 새 PC에서는 최초 한 번 준비한다.
+
+```bash
+perception/detection3d/fastbev/scripts/download_initialization_weights.sh
+perception/detection3d/fastbev/scripts/prepare_initialization_experiments.sh
+```
+
+역사적 C0를 재현할 때만 base config를 명시한다.
+
+```bash
+FASTBEV_CONFIG="$PWD/perception/detection3d/fastbev/configs/fastbev_m0_morai_4cam_s384x704.py" \
+perception/detection3d/fastbev/scripts/train.sh <c0-run-name>
+```
+
 기본 산출물 경로는
 `artifacts/detection3d/fastbev/runs/<run-name>/`이다. 데이터 구축과 split 정보는
 `dataset/morai_od/`에 있으며 실제 이미지·GT는 Git 밖의
@@ -64,13 +80,16 @@ Baseline obstacle의 형상·거리별 오류 분해, 데이터 확대 과제, �
 dual-rate LiDAR fusion 계획은
 `docs/obstacle_error_analysis_and_next_experiments.md`에 정리한다.
 
-## Production obstacle 기준
+## 현재 학습·평가 기준
 
-- 모델/config: 기존 3-class, shared three-anchor C0
+- 모델/config: 기존 3-class와 shared three-anchor를 유지한 I3 초기화
 - 학습 조건: OpenCV, BEV/image flip `0.5/0.5`, FP16, seed 0, 12 epochs
-- 배포 checkpoint: `full1500_stride1_fp16_opencv_flip50_50_v1`의 validation-selected
-  `best_center_mAP_epoch_12.pth`
+- 기본 config: `configs/fastbev_m0_morai_4cam_s384x704_i3_nuscenes_bev.py`
+- 기준 checkpoint: `init_i3_nuscenes_bev_seed0_12e`의 validation-selected
+  `best_center_mAP_epoch_12.pth`; seed 1에서도 개선 재현
+- C0: 과거 실험 비교와 rollback용으로만 보존
 - H1-A/H1-B symmetry checkpoint: `artifacts/detection3d/fastbev/runs/`에 연구 기록으로만
   보존하며 production에서 선택하지 않는다.
 - 주 평가: center AP, 3D IoU AP, mATE, mASE
 - 보조 진단: obstacle `pi`-symmetric mAOE. Best checkpoint 선택에는 사용하지 않는다.
+- ROS 배포 checkpoint 교체는 별도의 실시간 검증 후 수행한다.

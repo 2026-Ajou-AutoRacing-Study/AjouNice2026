@@ -201,9 +201,12 @@ ablation에서는 OpenCV를 고정한 채 flip 확률만 비교한다.
 `0.5753`보다 0.0166 높았고, PIL 50%/50%의 `0.6001`과는 0.0082 차이였다.
 vehicle/pedestrian mean AP는 PIL과 사실상 동등했고 IoU mAP@0.50은
 `0.2654 -> 0.2751`로 높아졌다. obstacle mean AP는 `0.4483 -> 0.4194`로
-여전히 낮았다. 이 결과에 따라 single-frame production C0는 OpenCV backend와
-50%/50% flip을 사용하고, obstacle 데이터 및 annotation 품질을 별도로 개선한다.
-2026-08-15부터 production config 기본값도 이 조건과 일치시켰다.
+여전히 낮았다. 이 결과에 따라 당시 single-frame C0는 OpenCV backend와 50%/50%
+flip을 사용하고, obstacle 데이터 및 annotation 품질을 별도로 개선하기로 했다.
+이 조건은 역사적 C0 재현 config에 보존한다. 이후 공식 nuScenes Fast-BEV 호환
+weight 초기화 실험에서 I3가 두 seed와 held-out test 개선을 재현하여,
+2026-08-15부터 새 실험의 기본은 동일 학습 조건의 I3로 전환했다. 상세 수치와 준비
+방법은 `initialization_ablation_runbook.md`를 따른다.
 
 ### 5.2 작은 객체용 BEV 출력 격자
 
@@ -567,7 +570,7 @@ mean/p50/p95 latency, peak CUDA memory 및 class별 3D AP/Recall이 포함된다
 
 ## BEV 격자 해상도와 ROI 후보
 
-현재 production 설정은 `[-50, 50] m`의 XY 범위를 `200x200` cell로 표현하므로
+현재 C0/I3 공통 설정은 `[-50, 50] m`의 XY 범위를 `200x200` cell로 표현하므로
 native BEV voxel은 `0.5x0.5 m`이다. `neck_3d.stride=1`을 사용해 detection head도
 이 0.5 m grid를 유지한다. 이는 Fast-BEV 구조의 하한이 아니라 현재 속도와 작은 객체
 성능 사이에서 선택한 baseline이다. box center는 anchor에 대한 연속 offset으로

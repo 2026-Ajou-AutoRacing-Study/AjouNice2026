@@ -7,7 +7,7 @@ from pathlib import Path
 import torch
 from mmcv import Config
 from mmcv.parallel import MMDataParallel
-from mmcv.runner import build_optimizer
+from mmcv.runner import build_optimizer, load_checkpoint
 from mmcv.utils import import_modules_from_strings
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_model
@@ -15,7 +15,7 @@ from mmdet3d.models import build_model
 
 DEFAULT_CONFIG = (
     Path(__file__).resolve().parents[1]
-    / "configs/fastbev_m0_morai_4cam_s384x704.py"
+    / "configs/fastbev_m0_morai_4cam_s384x704_i3_nuscenes_bev.py"
 )
 
 
@@ -50,6 +50,14 @@ def main():
         test_cfg=cfg.get("test_cfg"),
     )
     model.init_weights()
+    if cfg.get("load_from"):
+        checkpoint_path = Path(cfg.load_from)
+        if not checkpoint_path.is_absolute():
+            checkpoint_path = Path.cwd() / checkpoint_path
+        if not checkpoint_path.is_file():
+            raise FileNotFoundError(checkpoint_path)
+        load_checkpoint(model, str(checkpoint_path), map_location="cpu")
+        print("initialization checkpoint:", checkpoint_path)
     optimizer = build_optimizer(model, cfg.optimizer)
     model = MMDataParallel(model.cuda(), device_ids=[torch.cuda.current_device()])
     model.train()

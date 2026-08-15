@@ -16,9 +16,9 @@ if image_transform_backend not in ('pil', 'opencv'):
         'FASTBEV_IMAGE_BACKEND must be either pil or opencv, got '
         + repr(image_transform_backend))
 
-# The held-out ablation selected OpenCV with 50/50 BEV/image flips as the
-# production C0 baseline.  Keep both probabilities configurable so the former
-# 10/20 experiment and upstream-style ablations remain reproducible.
+# The held-out ablation selected OpenCV with 50/50 BEV/image flips for the
+# historical C0 recipe. Keep both probabilities configurable so the former
+# 10/20 experiment, C0 rollback and upstream-style ablations remain reproducible.
 bev_horizontal_flip_prob = float(__import__('os').environ.get(
     'FASTBEV_BEV_FLIP_PROB', '0.5'))
 image_horizontal_flip_prob = float(__import__('os').environ.get(

@@ -96,13 +96,36 @@ Anchor, subclass, yaw symmetry, BEV spacing, obstacle x/y loss처럼 같은 1,05
 현재 C0는 ResNet-18의 ImageNet weight만 사용하고 `load_from=None`이므로 FPN과
 후속 detector 대부분을 MORAI 1,050 frame으로 학습한다. 원본 Fast-BEV M0 recipe는
 COCO와 nuImages로 학습한 Cascade Mask R-CNN R18/FPN checkpoint를 `load_from`으로
-사용한다. MORAI 4-camera 구조와 shape이 맞는 backbone/FPN key만 부분 로드하고,
-BEV neck와 3-class head는 새로 학습한다.
+사용한다. 공식 파일을 실제 검사한 결과 Cascade Mask R-CNN FPN은 256 channel,
+Fast-BEV M0 FPN은 64 channel이라 FPN convolution 40개는 shape이 맞지 않는다.
+따라서 I1은 호환되는 R18 backbone만 로드하고 FPN, BEV neck와 3-class head는
+새로 학습한다.
 
 - 동일한 C0 data/config/seed/12 epoch로 pretraining 유무만 비교
 - checkpoint의 실제 loaded/missing/unexpected key를 보고서로 저장
 - validation-best 선택 뒤 held-out test를 한 번 평가
 - 전체·class·거리별 AP와 mATE/mASE/IoU, FPS를 C0와 비교
+
+이 단계는 다음 세 초기화 후보로 확장한다. 기존 ImageNet C0를 `I0`으로 두고
+동일 data, augmentation, seed, 12 epoch에서 초기화만 바꾼다.
+
+- `I1`: COCO→nuImages R18 backbone만 로드하고 FPN 이후는 새로 학습
+- `I2`: 완성된 nuScenes Fast-BEV checkpoint에서 backbone/FPN만 로드
+- `I3`: nuScenes checkpoint에서 backbone/FPN과 shape이 맞는 BEV neck까지 로드
+
+원본 M0는 6 cameras, 4 temporal frames, 10 classes, stride-2 head이고 MORAI C0는
+4 cameras, single frame, 3 classes, stride-1 head다. 따라서 I3도 checkpoint
+전체를 그대로 쓰지 않는다. 모델 key와 tensor shape이 모두 일치하는 parameter만
+선별하고, temporal fuse 첫 계층과 3D detection head 등 불일치 항목을 보고서에
+남긴다.
+
+I1-I3는 아래의 Dataset V2, capacity, physical depth 계획을 대체하지 않는다.
+기존 bottom-up 로드맵의 첫 단계인 초기 feature 복원을 세분화한 것이다. Seed 0
+후보 비교 뒤 가장 좋은 초기화만 seed 1/2와 24 epoch로 검증하고, 그 결과를 고정한
+후 Dataset V2와 R34/해상도 실험으로 진행한다.
+
+다운로드, tensor 호환성 audit, I1-I3 실행 절차는
+[`initialization_ablation_runbook.md`](initialization_ablation_runbook.md)에 고정한다.
 
 ### 2. Dataset V2를 8,000-12,000 frame으로 확대
 
@@ -619,10 +642,13 @@ Vehicle center 오차가 더 크다면 크기 자체보다 거리 분포, occlus
    - 정적 obstacle velocity prior와 EKF 평활화
    - 단일-frame metric과 Planning 입력 jitter를 함께 비교
 
-즉 symmetry-aware yaw와 첫 고해상도 BEV 실험은 끝났고 production은 C0를 유지한다.
-현재 다음 실행은 공식 Fast-BEV 2D pretraining 복원 실험이다. 이어서 Dataset V2,
-R34/고해상도 image feature, LiDAR depth 순으로 진행한다. Auxiliary shape head는
-이 네 단계보다 우선하지 않는다.
+즉 symmetry-aware yaw와 첫 고해상도 BEV 실험은 끝났고 당시 production은 C0를
+유지했다. 이후 공식 초기화 실험에서 I3가 seed 0/1 validation과 seed 0 held-out
+test 개선을 재현했으므로, **2026-08-15부터 새 실험의 대조군은 I3로 교체한다.**
+위 C0 비교표와 미채택 결론은 당시 실험 기록으로 보존한다. 다음 실행은 I3를 기준으로
+Dataset V2, R34/고해상도 image feature, LiDAR depth 순으로 진행한다. Auxiliary shape
+head는 이 단계들보다 우선하지 않는다. ROS production checkpoint 교체는 별도의
+실시간 검증 뒤 결정한다.
 
 ## 참고 자료
 
