@@ -17,6 +17,11 @@ DetectedObjects
 1. 현재 tracking과 CTRV/CTRA prediction의 실제 성능을 재평가한다.
 2. K-City Lanelet2 지도를 이용하는 map-based prediction을 ROS1 시스템에 도입한다.
 
+대회 규정의 끼어들기 의미, v60의 실제 로터리·고주로 Lanelet 관계, 최신
+Planning의 모듈별 다중 predicted path 소비 정책과 합류 기능 공백은
+[`competition_merge_prediction_planning_contract.md`](competition_merge_prediction_planning_contract.md)에
+별도로 정리한다.
+
 ## 현재 코드 감사 결과
 
 ### 런타임 파이프라인
