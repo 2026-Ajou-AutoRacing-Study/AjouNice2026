@@ -1,7 +1,8 @@
 ### Custom .gitignore configs는 여기에 추가 ###
 
-# fast bev 실험
-artifacts/detection3d/
+# 로컬 실행·학습·평가 산출물. 구조 설명만 Git으로 관리한다.
+artifacts/*
+!artifacts/README.md
 
 # python 가상환경 폴더
 .venv/
@@ -26,7 +27,6 @@ build_external/
 
 docs/external_docs/
 docs/local_notes.md
-artifacts/mvp_validation/
 
 ### 아래는 ros catkin 관련.
 
