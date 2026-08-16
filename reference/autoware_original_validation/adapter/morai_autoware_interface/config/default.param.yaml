@@ -1,0 +1,44 @@
+morai_autoware_interface:
+  ros__parameters:
+    morai:
+      ego_topic: /Ego_topic
+      object_topic: /Object_topic
+      ctrl_topic: /ctrl_cmd
+      event_service: /Service_MoraiEventCmd
+
+    autoware:
+      control_topic: /control/command/control_cmd
+      gear_topic: /control/command/gear_cmd
+      turn_topic: /control/command/turn_indicators_cmd
+      hazard_topic: /control/command/hazard_lights_cmd
+      control_mode_service: /control/control_mode_request
+
+    frames:
+      map: map
+      base_link: base_link
+
+    publish:
+      tf: true
+      kinematic_state: true
+      objects: true
+      localization_initialization_state: true
+
+    status_publish_rate_hz: 20.0
+
+    command:
+      publish_rate_hz: 30.0
+      timeout_sec: 0.5
+      max_velocity_kmh: 30.0
+      max_steering_tire_angle: 0.70
+      steering_sign: 1.0
+
+    report:
+      steering_sign: 1.0
+      ego_velocity_is_kmh: false
+      object_velocity_is_kmh: true
+      morai_steering_is_degrees: true
+
+    initial:
+      control_mode: manual
+      gear: park
+      set_autonomous_and_drive_on_start: false
