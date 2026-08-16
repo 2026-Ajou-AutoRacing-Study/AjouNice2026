@@ -1,40 +1,36 @@
 #!/usr/bin/env python3
 """
-lanelet_route_matcher.py (v5 - 판단팀 MISSING 오판 방지용 전환 마진 추가)
+lanelet_route_matcher.py (v6 - 판단팀 GO_OUT 연동 분리, 신호등 물리 위치 기준 전환)
 
 /planning/mission_planning/route (autoware_planning_msgs/LaneletRoute) 기준으로,
-"현재 에고 위치부터 route를 따라가며 아직 정지선을 통과하지 않은 첫 신호등"의
-group_id를 구하는 모듈.
+"현재 에고 위치부터 route를 따라가며 아직 통과하지 않은 첫 신호등"의 group_id를
+구하는 모듈.
 
-v4 -> v5 변경점 (2026-08-14, behavior_velocity_traffic_light_module.py 검토 후):
-  - 판단팀 코드(_signal_requires_stop) 확인 결과, 판단팀은 신호등을 이미
-    지났는지를 저희(perception)에 의존하지 않고 자체 경로 거리 계산
-    (distance_to_stop < passed_deadline)으로 독립적으로 판단해서 GO_OUT 상태로
-    전환함. 즉 물리적으로 이미 지난 신호등은 저희가 id를 계속 안 보내도 문제없음.
-  - 반대로 위험한 케이스가 있음: 판단팀이 아직 그 신호등을 "APPROACH"(안 지남)
-    상태로 보고 있는데, 저희가 그 id를 그만 보내고 다음 신호등 id로 먼저
-    전환해버리면, 판단팀의 _find_signal이 그 id를 못 찾아서
-    (has_received_signal=True인 상태에서) should_stop=True("MISSING")로
-    오판하여 불필요하게 정지할 위험이 있음.
-  - 이를 막기 위해, 저희 쪽 "통과 판정"에 여유 마진(crossing_margin_m)을 추가함.
-    정지선을 정확히 0m 넘는 순간이 아니라, 그보다 margin만큼 더 지난 뒤에야
-    다음 신호등으로 id를 전환하도록 해서, 판단팀이 자체적으로 GO_OUT 전환을
-    마칠 시간을 확보해줌 (저희 전환이 판단팀 전환보다 항상 느리게 맞추는 방향).
-  - 마진값 1.79m는 판단팀 traffic_light.param.yaml의 실제 파라미터로 역산한 값:
-    판단팀은 distance_to_stop(=stop_station-ego_station) < passed_deadline(-2.0)일
-    때 GO_OUT 전환하고, stop_station = collision_station - stop_margin(0.0) -
-    base_link_to_front(3.79). 정리하면 ego_station이 collision_station(정지선
-    교차점) 기준 약 1.79m를 지나야 판단팀이 GO_OUT으로 전환한다는 뜻이라, 저희도
-    동일하게 1.79m로 맞춤(2026-08-14, 판단팀 파라미터 확인 후 5.0m -> 1.79m로 수정).
-
-정지선 판정 방법:
-  - 신호등 regulatory element의 ref_line(정지선 way)의 두 끝점을 lanelet2 맵과 동일한
-    projector로 투영해서 중점과, 그 신호등이 걸린 lanelet의 centerline 진행방향 벡터를
-    구해둠.
-  - 매 프레임: (ego 위치 - 정지선 중점) 벡터를 진행방향 벡터에 내적해서, 그 값이
-    crossing_margin_m보다 커야 "이미 정지선을 지남"으로 판정 (0을 넘는 순간이
-    아니라 마진만큼 더 지나야 전환).
-  - 정지선 파싱에 실패한 신호등은 안전하게 "아직 안 지남"으로 간주(경고 로그만 남김).
+v5 -> v6 변경점 (2026-08-16, 팀 피드백 반영):
+  - 배경: 기존 v4/v5는 전환 기준점으로 lanelet2의 정지선(ref_line)을 쓰고,
+    전환 마진(1.79m)도 판단팀 traffic_light.param.yaml의 passed_deadline/
+    base_link_to_front/stop_margin을 역산해서 판단팀 GO_OUT 전환 시점에
+    맞췄었음.
+  - 문제(주상우님 지적): 판단팀 GO_OUT은 애초에 "운전자 신호등"이 아니라
+    "보행자 신호등"을 지나는 시점 기준으로 설계된 Autoware 레거시 코드라서,
+    저희 목적(운전자 신호등을 지나는 시점)과 대응되지 않음. 판단팀 파라미터를
+    정밀하게 따라간 것 자체가 잘못된 기준을 그대로 이식한 것이었음.
+  - 수정: 판단팀 GO_OUT 연동을 완전히 끊고, 인지(perception) 목적에 맞는 독립
+    기준으로 재설계함.
+      1) 기준점: 정지선(ref_line) 대신 신호등이 실제로 서 있는 위치(전구/폴대,
+         regulatory element의 refers role 소속 way)를 사용.
+      2) 판정 방식: crossing_reference="bulb" 기준점 + lanelet centerline
+         진행방향 벡터로, "차량이 신호등 바로 아래를 지나는 지점을 지났는가"를
+         정지선 때와 동일한 벡터 내적 방식으로 판정 (기준점만 바뀜, 계산 방식은
+         재사용). 즉 신호등 위치를 지나는, 도로 진행방향과 수직인 가상의 선을
+         넘었는지로 판정하는 "선 통과" 방식을 채택함 (점 근접이 아니라 선
+         통과 방식이, 차로 폭 방향 오차에 덜 민감해서 더 안정적일 것으로 판단).
+      3) 전환 마진: 판단팀 값에서 역산하지 않고, 독립적인 기본값을 사용함.
+         기본값은 잠정치이며 실측 후 확정 필요 (아래 DEFAULT_CROSSING_MARGIN_M
+         주석 참고).
+  - 정지선(ref_line) 기준 계산 코드는 옵션으로 남겨둠(crossing_reference="stopline"
+    으로 전환 가능) - 신호등 위치 기준이 실측 검증 전 예상과 다르게 나올 경우
+    대체 옵션으로 바로 전환 가능하도록.
 
 정석(Autoware) 방식: mission_planner가 lanelet2 RoutingGraph로 이미 계산해서 발행하는
 route를 그대로 구독하고, lanelet2 지도 자체에서 lanelet -> regulatory_element(신호등)
@@ -50,8 +46,7 @@ route를 그대로 구독하고, lanelet2 지도 자체에서 lanelet -> regulat
 
 좌표계: lanelet2 맵을 직접 로드해서 쓰기 때문에, ego pose도 반드시 같은 프레임
        (Autoware "map" 프레임, mission_planner가 쓰는 /localization/kinematic_state와
-       동일)이어야 한다. 정지선 좌표도 맵 로드에 쓴 것과 동일한 projector로 투영해서
-       같은 프레임을 보장함.
+       동일)이어야 한다.
 """
 import math
 import xml.etree.ElementTree as ET
@@ -72,6 +67,14 @@ try:
     import yaml
 except ImportError:  # pragma: no cover
     yaml = None
+
+
+# 판단팀 파라미터와 무관하게, 저희가 독립적으로 정하는 잠정 마진값(m).
+# "신호등 바로 아래를 지나는 가상의 선"을 넘고도 이만큼 더 지나야 다음
+# 신호등으로 전환. 0.0으로 두면 신호등 바로 아래를 넘는 즉시 전환.
+# TODO(2026-08-16): 아직 실측 검증 안 된 잠정치. 학교에서 실주행하면서
+# 카메라가 실제로 신호등을 인식 유지하는 거리와 비교해서 확정 필요.
+DEFAULT_CROSSING_MARGIN_M = 0.0
 
 
 def _load_projector(map_file, projector_type, projector_file):
@@ -123,8 +126,11 @@ def _is_traffic_light_regulatory_element(reg_elem):
     return str(subtype) == "traffic_light"
 
 
-def _parse_ref_line_latlon(map_file):
-    """osm 원본을 직접 파싱해서, regulatory element id -> ref_line way의 평균 lat/lon 딕셔너리 구축."""
+def _parse_reference_latlon(map_file, member_role):
+    """osm 원본을 직접 파싱해서, regulatory element id -> 지정한 role(member_role)
+    way들의 평균 lat/lon 딕셔너리 구축.
+    member_role="refers" -> 신호등 전구/폴대 위치
+    member_role="ref_line" -> 정지선 위치 (구버전 호환용)"""
     result = {}
     try:
         tree = ET.parse(map_file)
@@ -137,9 +143,9 @@ def _parse_ref_line_latlon(map_file):
             if tags.get("subtype") != "traffic_light":
                 continue
             rid = rel.get("id")
-            ref_line_way_ids = [m.get("ref") for m in rel.findall("member") if m.get("role") == "ref_line"]
+            way_ids = [m.get("ref") for m in rel.findall("member") if m.get("role") == member_role]
             pts = []
-            for wid in ref_line_way_ids:
+            for wid in way_ids:
                 for nref in ways.get(wid, []):
                     if nref in nodes:
                         pts.append(nodes[nref])
@@ -149,13 +155,14 @@ def _parse_ref_line_latlon(map_file):
             lon = sum(p[1] for p in pts) / len(pts)
             result[rid] = (lat, lon)
     except Exception as e:
-        rospy.logwarn(f"[lanelet_route_matcher] ref_line osm 파싱 실패: {e}")
+        rospy.logwarn(f"[lanelet_route_matcher] {member_role} osm 파싱 실패: {e}")
     return result
 
 
 class LaneletRouteGroupIdMatcher:
     """
-    route + lanelet2 맵 기반 group_id 매처. 정지선 통과 여부(마진 포함)로 신호등 전환을 판단.
+    route + lanelet2 맵 기반 group_id 매처. 신호등 물리 위치(기본) 또는 정지선
+    통과 여부(옵션)로 신호등 전환을 판단. 판단팀 파라미터와 완전히 독립적.
 
     사용법:
         matcher = LaneletRouteGroupIdMatcher(map_file, projector_type, projector_file,
@@ -167,18 +174,24 @@ class LaneletRouteGroupIdMatcher:
 
     def __init__(self, map_file, projector_type, projector_file, excluded_group_ids=None,
                  projector_type_default="LocalCartesianUTM", pose_stale_sec=2.0,
-                 crossing_margin_m=1.79):
+                 crossing_margin_m=DEFAULT_CROSSING_MARGIN_M,
+                 crossing_reference="bulb"):
+        """
+        crossing_reference: "bulb"(기본, 신호등 전구/폴대 위치 기준) 또는
+                             "stopline"(정지선 위치 기준, 구버전 호환용).
+        """
+        if crossing_reference not in ("bulb", "stopline"):
+            raise ValueError('crossing_reference는 "bulb" 또는 "stopline"이어야 합니다')
+
         self.available = False
         self.map = None
         self.lanelet_group_id = {}
-        # group_id -> (mid_x, mid_y, dir_x, dir_y) 정지선 중점 + 진행방향(정규화)
-        self.stopline_info = {}
+        # group_id -> (mid_x, mid_y, dir_x, dir_y) 기준점 + 진행방향(정규화)
+        self.crossing_info = {}
         self.excluded_group_ids = set(int(g) for g in (excluded_group_ids or []))
         self.pose_stale_sec = pose_stale_sec
-        # 정지선을 넘고도 이만큼(m) 더 지나야 다음 신호등으로 전환. 판단팀이 자체
-        # 계산으로 GO_OUT 전환을 마칠 시간을 벌어줘서, 판단팀보다 먼저 id를 끊어서
-        # MISSING 오판(불필요한 정지)이 나는 걸 방지하기 위함.
         self.crossing_margin_m = crossing_margin_m
+        self.crossing_reference = crossing_reference
 
         self._route_segments = None  # list[list[int]] (각 segment의 primitive id들, [0]이 preferred)
         self._route_stamp = None  # 참고/디버그용 (매칭 유효성 판단에는 안 씀)
@@ -203,18 +216,18 @@ class LaneletRouteGroupIdMatcher:
             self.projector = _load_projector(map_file, projector_type or projector_type_default, projector_file)
             self.map = io.load(map_file, self.projector)
             self._build_lanelet_group_id_map()
-            self._build_stopline_info(map_file)
+            self._build_crossing_info(map_file)
             self.available = True
-            n_missing_stopline = len(self.lanelet_group_id) - len(
-                set(self.stopline_info.keys()) & set(self.lanelet_group_id.values())
+            n_missing = len(self.lanelet_group_id) - len(
+                set(self.crossing_info.keys()) & set(self.lanelet_group_id.values())
             )
             rospy.loginfo(
                 f"[lanelet_route_matcher] lanelet2 맵 로드 완료: lanelet {len(self.map.laneletLayer)}개, "
                 f"신호등 연결 lanelet {len(self.lanelet_group_id)}개, "
-                f"정지선 정보 확보 {len(self.stopline_info)}개, "
-                f"전환 마진 {self.crossing_margin_m}m"
-                + (f" (정지선 정보 없는 신호등 {n_missing_stopline}개, 통과판정 불가 -> 항상 미통과로 간주)"
-                   if n_missing_stopline > 0 else "")
+                f"기준점({self.crossing_reference}) 정보 확보 {len(self.crossing_info)}개, "
+                f"전환 마진 {self.crossing_margin_m}m (판단팀 파라미터와 무관한 독립값)"
+                + (f" (기준점 정보 없는 신호등 {n_missing}개, 통과판정 불가 -> 항상 미통과로 간주)"
+                   if n_missing > 0 else "")
             )
         except Exception as e:
             rospy.logwarn(f"[lanelet_route_matcher] 맵 로드/파싱 실패: {e} -> route 기반 매칭 비활성화")
@@ -236,9 +249,10 @@ class LaneletRouteGroupIdMatcher:
                 self.lanelet_group_id[int(lanelet.id)] = rid
                 break  # 신호등 하나 찾으면 이 lanelet은 됐음
 
-    def _build_stopline_info(self, map_file):
-        """각 신호등 group_id의 정지선 중점 + 진행방향 벡터를 미리 계산해둔다."""
-        ref_line_latlon = _parse_ref_line_latlon(map_file)
+    def _build_crossing_info(self, map_file):
+        """각 신호등 group_id의 기준점(전구 위치 또는 정지선) + 진행방향 벡터를 미리 계산."""
+        member_role = "refers" if self.crossing_reference == "bulb" else "ref_line"
+        reference_latlon = _parse_reference_latlon(map_file, member_role)
 
         # lanelet_id -> group_id 역방향으로, group_id별 대표 lanelet 하나 골라 진행방향 계산용으로 씀
         group_id_to_lanelet_id = {}
@@ -247,7 +261,7 @@ class LaneletRouteGroupIdMatcher:
 
         for gid, lane_id in group_id_to_lanelet_id.items():
             rid_str = str(gid)
-            latlon = ref_line_latlon.get(rid_str)
+            latlon = reference_latlon.get(rid_str)
             if latlon is None:
                 continue
             try:
@@ -255,7 +269,7 @@ class LaneletRouteGroupIdMatcher:
                 p = self.projector.forward(gps)
                 mid_x, mid_y = p.x, p.y
             except Exception as e:
-                rospy.logwarn(f"[lanelet_route_matcher] group_id={gid} 정지선 투영 실패: {e}")
+                rospy.logwarn(f"[lanelet_route_matcher] group_id={gid} 기준점 투영 실패: {e}")
                 continue
 
             try:
@@ -273,7 +287,7 @@ class LaneletRouteGroupIdMatcher:
                 rospy.logwarn(f"[lanelet_route_matcher] group_id={gid} 진행방향 계산 실패: {e}")
                 continue
 
-            self.stopline_info[gid] = (mid_x, mid_y, dir_x, dir_y)
+            self.crossing_info[gid] = (mid_x, mid_y, dir_x, dir_y)
 
     def start_subscribers(self, route_topic, odom_topic):
         if not self.available:
@@ -305,10 +319,10 @@ class LaneletRouteGroupIdMatcher:
             return False
         return (rospy.Time.now() - stamp).to_sec() <= max_age_sec
 
-    def _has_crossed_stopline(self, gid, ex, ey):
-        """이 신호등의 정지선을 마진(crossing_margin_m)까지 포함해서 이미 통과했는지.
-        정보 없으면 항상 False(미통과로 간주, 안전)."""
-        info = self.stopline_info.get(gid)
+    def _has_crossed(self, gid, ex, ey):
+        """이 신호등의 기준점(전구 위치 또는 정지선)을 마진까지 포함해서 이미
+        통과했는지. 정보 없으면 항상 False(미통과로 간주, 안전)."""
+        info = self.crossing_info.get(gid)
         if info is None:
             return False
         mid_x, mid_y, dir_x, dir_y = info
@@ -316,7 +330,7 @@ class LaneletRouteGroupIdMatcher:
         return dot > self.crossing_margin_m
 
     def get_group_id(self):
-        """route를 순서대로 훑어서, 아직 정지선(+마진)을 안 넘은 첫 신호등의 group_id 반환.
+        """route를 순서대로 훑어서, 아직 기준점을 안 넘은 첫 신호등의 group_id 반환.
         못 구하면 None (호출자가 fallback_group_id 사용)."""
         if not self.available:
             return None
@@ -334,6 +348,6 @@ class LaneletRouteGroupIdMatcher:
                 if gid is None or gid in seen_gids:
                     continue
                 seen_gids.add(gid)
-                if not self._has_crossed_stopline(gid, ex, ey):
+                if not self._has_crossed(gid, ex, ey):
                     return gid
         return None
