@@ -7,15 +7,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CATKIN_WS="$(cd "$PACKAGE_DIR/../.." && pwd)"
 
-CONDA_ENV="${CONDA_ENV:-openpcdet}"
+CONDA_ENV="${CONDA_ENV:-openpcdet_team}"
 OPENPCDET_ROOT="${OPENPCDET_ROOT:-$HOME/OpenPCDet}"
+REPO_ROOT="$(cd "$CATKIN_WS/.." && pwd)"
 
-POINTPAINTING_CFG="${POINTPAINTING_CFG:-$PACKAGE_DIR/config/openpcdet/pointpillar_morai_pointpainting.yaml}"
+POINTPAINTING_RELEASE="${POINTPAINTING_RELEASE:-$REPO_ROOT/artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e}"
+POINTPAINTING_CFG="${POINTPAINTING_CFG:-$REPO_ROOT/perception/pointpainting/openpcdet_patch/tools/cfgs/custom_models/pointpillar_morai_pointpainting_sunny13_1500_9feat.yaml}"
 
-POINTPAINTING_CKPT="${POINTPAINTING_CKPT:-$OPENPCDET_ROOT/output/custom_models/pointpillar_morai_pointpainting/pointpainting_20epoch/ckpt/checkpoint_epoch_20.pth}"
+POINTPAINTING_CKPT="${POINTPAINTING_CKPT:-$POINTPAINTING_RELEASE/pointpainting_B0_epoch11.pth}"
+POINTPAINTING_SEG_CKPT="${POINTPAINTING_SEG_CKPT:-$POINTPAINTING_RELEASE/lraspp_4class_best_miou.pth}"
 POINTPAINTING_REAL_INPUT_WARMUP="${POINTPAINTING_REAL_INPUT_WARMUP:-true}"
 POINTPAINTING_REAL_INPUT_WARMUP_ITERATIONS="${POINTPAINTING_REAL_INPUT_WARMUP_ITERATIONS:-2}"
 POINTPAINTING_WITH_TP="${POINTPAINTING_WITH_TP:-false}"
+POINTPAINTING_PREDICTION_MODEL="${POINTPAINTING_PREDICTION_MODEL:-map_based}"
 
 case "$MODE" in
     live)
@@ -83,6 +87,12 @@ if [[ ! -f "$POINTPAINTING_CKPT" ]]; then
     exit 1
 fi
 
+if [[ ! -f "$POINTPAINTING_SEG_CKPT" ]]; then
+    echo "[ERROR] LRASPP checkpoint가 없습니다:"
+    echo "  $POINTPAINTING_SEG_CKPT"
+    exit 1
+fi
+
 # Conda libffi 충돌 방지
 SYSTEM_LIBFFI="$(ldconfig -p | awk '/libffi\.so\.7/{print $NF; exit}')"
 
@@ -102,29 +112,38 @@ echo "Python            : $(which python)"
 echo "OpenPCDet         : $OPENPCDET_ROOT"
 echo "Config            : $POINTPAINTING_CFG"
 echo "Checkpoint        : $POINTPAINTING_CKPT"
+echo "Seg checkpoint    : $POINTPAINTING_SEG_CKPT"
 echo "Real input warm-up: $POINTPAINTING_REAL_INPUT_WARMUP"
 echo "Warm-up iterations: $POINTPAINTING_REAL_INPUT_WARMUP_ITERATIONS"
 echo "With T&P          : $POINTPAINTING_WITH_TP"
+echo "Prediction model  : $POINTPAINTING_PREDICTION_MODEL"
 echo "use_sim_time      : $USE_SIM_TIME"
 echo "=============================================="
 
 if [[ "$POINTPAINTING_WITH_TP" == "true" ]]; then
     LAUNCH_FILE=pointpainting_with_tp.launch
+    EXTRA_LAUNCH_ARGS=(
+        prediction_model:="$POINTPAINTING_PREDICTION_MODEL"
+    )
 else
     LAUNCH_FILE=pointpainting_online.launch
+    EXTRA_LAUNCH_ARGS=()
 fi
 
 exec roslaunch morai_pointpainting_ros \
     "$LAUNCH_FILE" \
     python_executable:="$(command -v python)" \
     openpcdet_root:="$OPENPCDET_ROOT" \
+    repo_root:="$REPO_ROOT" \
     cfg_file:="$POINTPAINTING_CFG" \
     checkpoint:="$POINTPAINTING_CKPT" \
+    segmentation_checkpoint:="$POINTPAINTING_SEG_CKPT" \
     publish_painted_points:=false \
-    segmentation_short_side:=320 \
+    segmentation_short_side:=384 \
     warmup_segmentation:=true \
     warmup_full_pipeline:=true \
     warmup_iterations:=2 \
     warmup_point_count:=12000 \
     real_input_warmup:="$POINTPAINTING_REAL_INPUT_WARMUP" \
-    real_input_warmup_iterations:="$POINTPAINTING_REAL_INPUT_WARMUP_ITERATIONS"
+    real_input_warmup_iterations:="$POINTPAINTING_REAL_INPUT_WARMUP_ITERATIONS" \
+    "${EXTRA_LAUNCH_ARGS[@]}"

@@ -26,11 +26,13 @@
   <arg name="fastbev_pipeline_mode" default="staged"/>
   <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
   <arg name="pointpainting_cfg"
-       default="$(arg openpcdet_root)/tools/cfgs/custom_models/pointpillar_morai_pointpainting.yaml"/>
+       default="$(arg repo_root)/perception/pointpainting/openpcdet_patch/tools/cfgs/custom_models/pointpillar_morai_pointpainting_sunny13_1500_9feat.yaml"/>
   <arg name="pointpainting_checkpoint"
-       default="$(arg openpcdet_root)/output/custom_models/pointpillar_morai_pointpainting/pointpainting_20epoch/ckpt/checkpoint_epoch_20.pth"/>
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/pointpainting_B0_epoch11.pth"/>
+  <arg name="pointpainting_segmentation_checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/lraspp_4class_best_miou.pth"/>
   <arg name="publish_painted_points" default="false"/>
-  <arg name="segmentation_short_side" default="320"/>
+  <arg name="segmentation_short_side" default="384"/>
   <arg name="warmup_segmentation" default="true"/>
   <arg name="warmup_full_pipeline" default="true"/>
   <arg name="warmup_iterations" default="2"/>
@@ -57,8 +59,10 @@
     <include file="$(find morai_pointpainting_ros)/launch/pointpainting_online.launch">
       <arg name="python_executable" value="$(arg python_executable)"/>
       <arg name="openpcdet_root" value="$(arg openpcdet_root)"/>
+      <arg name="repo_root" value="$(arg repo_root)"/>
       <arg name="cfg_file" value="$(arg pointpainting_cfg)"/>
       <arg name="checkpoint" value="$(arg pointpainting_checkpoint)"/>
+      <arg name="segmentation_checkpoint" value="$(arg pointpainting_segmentation_checkpoint)"/>
       <arg name="objects_topic" value="$(arg detection_objects)"/>
       <arg name="publish_painted_points" value="$(arg publish_painted_points)"/>
       <arg name="segmentation_short_side" value="$(arg segmentation_short_side)"/>

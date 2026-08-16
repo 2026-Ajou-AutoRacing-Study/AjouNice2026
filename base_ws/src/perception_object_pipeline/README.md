@@ -44,6 +44,16 @@ roslaunch perception_object_pipeline object_pipeline.launch \
   python_executable:="$HOME/miniconda3/envs/openpcdet_rtx50/bin/python"
 ```
 
+The PointPainting default profile is the 2026-08-16 Sunny13 release:
+
+- LRASPP: `background/pedestrian/vehicle/obstacle`
+- painted point contract: 9 features including `unknown`
+- PointPillars: `Pedestrian/Vehicle/Obstacle`, with six obstacle anchor sizes
+- online output range: 30 m, score threshold: 0.10
+
+The checkpoints stay under ignored `artifacts/`; launch files point to the
+stable release directory name rather than an external teammate workspace.
+
 If a detector is already running in another environment, launch only the
 standard tracker and predictor:
 

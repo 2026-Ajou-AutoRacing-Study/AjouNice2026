@@ -297,3 +297,5 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 *:Zone.Identifier
+/data/morai_4class_v1/
+/outputs/

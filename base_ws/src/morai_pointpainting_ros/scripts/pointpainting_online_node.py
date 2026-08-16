@@ -8,7 +8,7 @@ Data flow:
     -> LRASPP semantic segmentation
 LiDAR PointCloud2
     -> camera projection and semantic painting
-    -> 10-channel painted points
+    -> 9-channel MORAI painted points (or legacy 10-channel points)
     -> OpenPCDet PointPillars
     -> custom 3D detection array + RViz markers
 
@@ -53,12 +53,20 @@ from autoware_perception_msgs.msg import DetectedObjects
 from perception_object_pipeline import make_detected_objects
 
 
-SEMANTIC_NAMES = (
+LEGACY_SEMANTIC_NAMES = (
     "background",
     "person",
     "vehicle",
     "two_wheeler",
     "dog",
+    "unknown",
+)
+
+MORAI_4CLASS_SEMANTIC_NAMES = (
+    "background",
+    "pedestrian",
+    "vehicle",
+    "obstacle",
     "unknown",
 )
 
@@ -195,22 +203,23 @@ def cloud_to_xyzi(msg: PointCloud2) -> np.ndarray:
     return output
 
 
-def make_painted_cloud(points: np.ndarray, header: Header) -> PointCloud2:
-    if points.ndim != 2 or points.shape[1] != 10:
-        raise RuntimeError("Painted points must have shape (N, 10), got {}".format(points.shape))
-
+def make_painted_cloud(
+    points: np.ndarray,
+    header: Header,
+    semantic_names: Sequence[str],
+) -> PointCloud2:
     names = [
         "x",
         "y",
         "z",
         "intensity",
-        "background",
-        "person",
-        "vehicle",
-        "two_wheeler",
-        "dog",
-        "unknown",
-    ]
+    ] + list(semantic_names)
+    if points.ndim != 2 or points.shape[1] != len(names):
+        raise RuntimeError(
+            "Painted points must have shape (N, {}), got {}".format(
+                len(names), points.shape
+            )
+        )
 
     output = PointCloud2()
     output.header = copy.copy(header)
@@ -221,7 +230,7 @@ def make_painted_cloud(points: np.ndarray, header: Header) -> PointCloud2:
         for index, name in enumerate(names)
     ]
     output.is_bigendian = False
-    output.point_step = 40
+    output.point_step = 4 * len(names)
     output.row_step = output.point_step * output.width
     output.is_dense = bool(np.isfinite(points).all())
     output.data = np.ascontiguousarray(points, dtype=np.float32).tobytes()
@@ -351,6 +360,24 @@ class PointPaintingOnlineNode:
                 "pointpainting_20epoch/ckpt/checkpoint_epoch_20.pth",
             )
         )
+        segmentation_checkpoint_value = str(
+            rospy.get_param("~segmentation_checkpoint", "")
+        ).strip()
+        self.segmentation_checkpoint = (
+            expand_path(segmentation_checkpoint_value)
+            if segmentation_checkpoint_value
+            else None
+        )
+        self.semantic_profile = str(
+            rospy.get_param(
+                "~semantic_profile",
+                "morai_4class" if self.segmentation_checkpoint else "legacy_voc",
+            )
+        ).strip().lower()
+        if self.semantic_profile not in ("morai_4class", "legacy_voc"):
+            raise ValueError(
+                "semantic_profile must be morai_4class or legacy_voc"
+            )
 
         self.lidar_topic = rospy.get_param("~lidar_topic", "/sensor/lidar1")
         self.detections_topic = rospy.get_param(
@@ -367,10 +394,10 @@ class PointPaintingOnlineNode:
         )
 
         self.score_threshold = float(
-            rospy.get_param("~score_threshold", 0.20)
+            rospy.get_param("~score_threshold", 0.10)
         )
         self.max_detection_range = float(
-            rospy.get_param("~max_detection_range", 20.0)
+            rospy.get_param("~max_detection_range", 30.0)
         )
         self.max_camera_age_ms = float(
             rospy.get_param("~max_camera_age_ms", 100.0)
@@ -597,7 +624,60 @@ class PointPaintingOnlineNode:
                 "CUDA GPU is required for the competition pipeline."
             )
 
-        if LRASPP_MobileNet_V3_Large_Weights is not None:
+        if self.semantic_profile == "morai_4class":
+            if self.segmentation_checkpoint is None:
+                raise ValueError(
+                    "morai_4class requires segmentation_checkpoint"
+                )
+            if not self.segmentation_checkpoint.exists():
+                raise FileNotFoundError(
+                    "Segmentation checkpoint not found: {}".format(
+                        self.segmentation_checkpoint
+                    )
+                )
+
+            try:
+                self.segmentation_model = lraspp_mobilenet_v3_large(
+                    pretrained=False,
+                    pretrained_backbone=False,
+                    num_classes=4,
+                )
+            except TypeError:
+                self.segmentation_model = lraspp_mobilenet_v3_large(
+                    weights=None,
+                    weights_backbone=None,
+                    num_classes=4,
+                )
+
+            checkpoint = torch.load(
+                str(self.segmentation_checkpoint),
+                map_location="cpu",
+            )
+            if not isinstance(checkpoint, dict):
+                raise RuntimeError(
+                    "Unexpected segmentation checkpoint type: {}".format(
+                        type(checkpoint).__name__
+                    )
+                )
+            state_dict = checkpoint.get(
+                "model_state_dict",
+                checkpoint.get("state_dict", checkpoint),
+            )
+            state_dict = {
+                (key[7:] if key.startswith("module.") else key): value
+                for key, value in state_dict.items()
+            }
+            self.segmentation_model.load_state_dict(
+                state_dict,
+                strict=True,
+            )
+            self.segmentation_model = self.segmentation_model.to(
+                self.device
+            ).eval().to(memory_format=torch.channels_last)
+            self.semantic_names = MORAI_4CLASS_SEMANTIC_NAMES
+            self.segmentation_indices = None
+            torchvision_api = "MORAI 4-class checkpoint"
+        elif LRASPP_MobileNet_V3_Large_Weights is not None:
             weights = LRASPP_MobileNet_V3_Large_Weights.DEFAULT
 
             # Apply the launch parameter to the actual segmentation input size.
@@ -667,28 +747,30 @@ class PointPaintingOnlineNode:
             ]
             torchvision_api = "legacy pretrained=True"
 
-        def category_index(*candidates: str) -> int:
-            for candidate in candidates:
-                if candidate in categories:
-                    return categories.index(candidate)
-            raise RuntimeError(
-                "Segmentation category not found: {} in {}".format(
-                    candidates,
-                    categories,
+        if self.semantic_profile == "legacy_voc":
+            def category_index(*candidates: str) -> int:
+                for candidate in candidates:
+                    if candidate in categories:
+                        return categories.index(candidate)
+                raise RuntimeError(
+                    "Segmentation category not found: {} in {}".format(
+                        candidates,
+                        categories,
+                    )
                 )
-            )
 
-        self.segmentation_indices = {
-            "person": category_index("person"),
-            "car": category_index("car"),
-            "bus": category_index("bus"),
-            "bicycle": category_index("bicycle", "bike"),
-            "motorbike": category_index(
-                "motorbike",
-                "motorcycle",
-            ),
-            "dog": category_index("dog"),
-        }
+            self.segmentation_indices = {
+                "person": category_index("person"),
+                "car": category_index("car"),
+                "bus": category_index("bus"),
+                "bicycle": category_index("bicycle", "bike"),
+                "motorbike": category_index(
+                    "motorbike",
+                    "motorcycle",
+                ),
+                "dog": category_index("dog"),
+            }
+            self.semantic_names = LEGACY_SEMANTIC_NAMES
 
         if self.warmup_segmentation:
             warmup_shapes = [
@@ -720,11 +802,12 @@ class PointPaintingOnlineNode:
 
         rospy.loginfo(
             "Segmentation model loaded on %s (%s), "
-            "short_side=%d, channels_last=True, warmup=%s",
+            "short_side=%d, channels_last=True, warmup=%s, profile=%s",
             self.device,
             torchvision_api,
             self.segmentation_short_side,
             self.warmup_segmentation,
+            self.semantic_profile,
         )
 
     def _load_detection_model(self) -> None:
@@ -747,6 +830,8 @@ class PointPaintingOnlineNode:
         sys.path.insert(0, str(self.tools_dir))
         os.chdir(str(self.tools_dir))
 
+        import yaml
+
         from pcdet.config import cfg, cfg_from_yaml_file
         from pcdet.datasets import DatasetTemplate
         from pcdet.models import build_network
@@ -768,7 +853,73 @@ class PointPaintingOnlineNode:
             def __getitem__(self, index):
                 raise IndexError(index)
 
-        cfg_from_yaml_file(str(self.cfg_file), cfg)
+        # OpenPCDet의 _BASE_CONFIG_는 현재 작업 디렉터리를
+        # 기준으로 해석된다. 저장소 config와 OpenPCDet config를
+        # 모두 지원하도록 실제 base config가 존재하는 기준 폴더를 찾는다.
+        config_load_dir = self.tools_dir
+
+        with self.cfg_file.open("r", encoding="utf-8") as config_file:
+            raw_config = yaml.safe_load(config_file) or {}
+
+        base_config_value = (
+            raw_config
+            .get("DATA_CONFIG", {})
+            .get("_BASE_CONFIG_")
+        )
+
+        if base_config_value:
+            base_config_path = Path(
+                str(base_config_value)
+            ).expanduser()
+
+            if base_config_path.is_absolute():
+                if not base_config_path.exists():
+                    raise FileNotFoundError(
+                        "Base config not found: {}".format(
+                            base_config_path
+                        )
+                    )
+            else:
+                candidate_directories = (
+                    self.cfg_file.parent,
+                    self.tools_dir,
+                    self.openpcdet_root,
+                )
+
+                resolved_directory = next(
+                    (
+                        directory
+                        for directory in candidate_directories
+                        if (directory / base_config_path).exists()
+                    ),
+                    None,
+                )
+
+                if resolved_directory is None:
+                    searched = [
+                        str(directory / base_config_path)
+                        for directory in candidate_directories
+                    ]
+                    raise FileNotFoundError(
+                        "Base config not found. searched={}".format(
+                            searched
+                        )
+                    )
+
+                config_load_dir = resolved_directory
+
+        rospy.loginfo(
+            "OpenPCDet config load cwd: %s",
+            config_load_dir,
+        )
+
+        try:
+            os.chdir(str(config_load_dir))
+            cfg_from_yaml_file(str(self.cfg_file), cfg)
+        finally:
+            # 이후 OpenPCDet 동작은 기존처럼 tools 기준으로 유지한다.
+            os.chdir(str(self.tools_dir))
+
         self.pcdet_cfg = cfg
         self.pcdet_load_data_to_gpu = None
 
@@ -780,6 +931,22 @@ class PointPaintingOnlineNode:
             logger=logger,
         )
         self.class_names = list(cfg.CLASS_NAMES)
+        configured_features = list(
+            cfg.DATA_CONFIG.POINT_FEATURE_ENCODING.used_feature_list
+        )
+        runtime_features = [
+            "x",
+            "y",
+            "z",
+            "intensity",
+        ] + list(self.semantic_names)
+        if configured_features != runtime_features:
+            raise RuntimeError(
+                "Point feature contract mismatch: config={} runtime={}".format(
+                    configured_features,
+                    runtime_features,
+                )
+            )
         self.point_cloud_range = np.asarray(
             cfg.DATA_CONFIG.POINT_CLOUD_RANGE,
             dtype=np.float32,
@@ -801,8 +968,9 @@ class PointPaintingOnlineNode:
         self.pcdet_load_data_to_gpu = load_data_to_gpu
 
         rospy.loginfo(
-            "PointPillars loaded: %s",
+            "PointPillars loaded: %s (features=%s)",
             self.checkpoint,
+            configured_features,
         )
 
     def _warmup_full_pipeline(self) -> None:
@@ -1121,6 +1289,13 @@ class PointPaintingOnlineNode:
                 dim=1,
             )
 
+        if self.semantic_profile == "morai_4class":
+            scores = probabilities.permute(0, 2, 3, 1).cpu().numpy()
+            return {
+                name: scores[array_index].astype(np.float32, copy=False)
+                for array_index, name in enumerate(names)
+            }
+
         index = self.segmentation_indices
         person = probabilities[:, index["person"]]
         vehicle = (
@@ -1249,8 +1424,9 @@ class PointPaintingOnlineNode:
             copy=False,
         )
 
+        known_semantic_count = len(self.semantic_names) - 1
         semantic_sum = np.zeros(
-            (len(lidar), 5),
+            (len(lidar), known_semantic_count),
             dtype=np.float32,
         )
         camera_count = np.zeros(
@@ -1270,14 +1446,14 @@ class PointPaintingOnlineNode:
 
         seen = camera_count > 0
         final_semantic = np.zeros(
-            (len(lidar), 6),
+            (len(lidar), len(self.semantic_names)),
             dtype=np.float32,
         )
-        final_semantic[seen, :5] = (
+        final_semantic[seen, :known_semantic_count] = (
             semantic_sum[seen]
             / camera_count[seen, None]
         )
-        final_semantic[~seen, 5] = 1.0
+        final_semantic[~seen, -1] = 1.0
 
         return np.concatenate(
             [lidar[:, :4], final_semantic],
@@ -1529,7 +1705,7 @@ class PointPaintingOnlineNode:
             total_ms=total_ms,
         )
         names = [
-            self.class_names[int(label) - 1]
+            self.class_names[int(label) - 1].lower()
             if 0 < int(label) <= len(self.class_names)
             else "unknown"
             for label in labels
@@ -1550,7 +1726,11 @@ class PointPaintingOnlineNode:
 
         if self.publish_painted_points:
             self.painted_pub.publish(
-                make_painted_cloud(painted, msg.header)
+                make_painted_cloud(
+                    painted,
+                    msg.header,
+                    self.semantic_names,
+                )
             )
 
         self.processed_frames += 1

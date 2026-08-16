@@ -1,6 +1,7 @@
 # MORAI PointPainting ROS
 
-ROS1 Noetic package that converts four camera images and one LiDAR scan directly into oriented 3D pedestrian boxes.
+ROS1 Noetic package that converts four camera images and one LiDAR scan into
+three-class oriented 3D detections.
 
 ## Why this package exists
 
@@ -21,13 +22,14 @@ The node therefore subscribes to the original sensor topics, performs segmentati
 /sensor/cam/back
           │
           ├── latest image at or before LiDAR timestamp
-          ├── LRASPP MobileNetV3 semantic segmentation
+          ├── MORAI LRASPP MobileNetV3 4-class segmentation
           │
 /sensor/lidar1
-          ├── projection + semantic painting (10 point features)
-          ├── PointPillars epoch-20 inference
-          └── /pointpainting/detections
-                └── tracking / trajectory prediction / planning
+          ├── projection + camera-probability averaging
+          ├── 9 features: XYZI + bg/ped/veh/obs/unknown
+          ├── PointPillars 3-class inference
+          ├── /perception/object_recognition/detection/objects (official)
+          └── /pointpainting/detections (legacy diagnostics)
 ```
 
 The LiDAR queue is intentionally size 1. When processing is slower than sensor input, stale scans are replaced by the newest scan instead of building latency.
@@ -44,6 +46,7 @@ Inputs:
 
 Outputs:
 
+- `/perception/object_recognition/detection/objects`
 - `/pointpainting/detections`
 - `/pointpainting/detection_markers`
 - `/pointpainting/painted_points` when debug publishing is enabled
@@ -52,10 +55,10 @@ Outputs:
 
 - Ubuntu 20.04 / ROS Noetic
 - CUDA GPU
-- existing `openpcdet` Conda environment
+- `openpcdet_rtx50` Conda environment
 - OpenPCDet at `~/OpenPCDet`
-- trained checkpoint:
-  `~/OpenPCDet/output/custom_models/pointpillar_morai_pointpainting/pointpainting_20epoch/ckpt/checkpoint_epoch_20.pth`
+- release bundle at
+  `artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/`
 
 Install ROS dependencies:
 
@@ -66,12 +69,8 @@ sudo apt install -y \
   ros-noetic-visualization-msgs
 ```
 
-Pre-download segmentation weights before competition day:
-
-```bash
-conda activate openpcdet
-python src/morai_pointpainting_ros/scripts/download_segmentation_weights.py
-```
+The release contains both the MORAI LRASPP checkpoint and PointPillars
+checkpoint. Runtime does not download VOC segmentation weights.
 
 ## Build
 
@@ -89,7 +88,7 @@ The shell must use the OpenPCDet Conda Python. Do not keep a second virtualenv a
 
 ```bash
 deactivate 2>/dev/null || true
-conda activate openpcdet
+conda activate openpcdet_rtx50
 source /opt/ros/noetic/setup.bash
 source ~/catkin_ws/devel/setup.bash
 which python
@@ -113,7 +112,7 @@ Terminal 2:
 
 ```bash
 deactivate 2>/dev/null || true
-conda activate openpcdet
+conda activate openpcdet_rtx50
 source /opt/ros/noetic/setup.bash
 source ~/catkin_ws/devel/setup.bash
 

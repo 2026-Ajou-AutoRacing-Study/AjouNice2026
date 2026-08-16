@@ -1,5 +1,6 @@
 <launch>
   <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
+  <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
   <!--
     An explicit interpreter lets the same catkin wrapper run with either the
     teammate's Python 3.8 Conda environment or the RTX 50 Python 3.11
@@ -7,9 +8,12 @@
   -->
   <arg name="python_executable" default=""/>
   <arg name="cfg_file"
-       default="$(env HOME)/OpenPCDet/tools/cfgs/custom_models/pointpillar_morai_pointpainting.yaml"/>
+       default="$(arg repo_root)/perception/pointpainting/openpcdet_patch/tools/cfgs/custom_models/pointpillar_morai_pointpainting_sunny13_1500_9feat.yaml"/>
   <arg name="checkpoint"
-       default="$(env HOME)/OpenPCDet/output/custom_models/pointpillar_morai_pointpainting/pointpainting_20epoch/ckpt/checkpoint_epoch_20.pth"/>
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/pointpainting_B0_epoch11.pth"/>
+  <arg name="segmentation_checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/lraspp_4class_best_miou.pth"/>
+  <arg name="semantic_profile" default="morai_4class"/>
 
   <arg name="lidar_topic" default="/sensor/lidar1"/>
   <arg name="detections_topic" default="/pointpainting/detections"/>
@@ -18,11 +22,11 @@
   <arg name="markers_topic" default="/pointpainting/detection_markers"/>
   <arg name="painted_points_topic" default="/pointpainting/painted_points"/>
 
-  <arg name="score_threshold" default="0.20"/>
-  <arg name="max_detection_range" default="20.0"/>
+  <arg name="score_threshold" default="0.10"/>
+  <arg name="max_detection_range" default="30.0"/>
   <arg name="publish_painted_points" default="false"/>
   <arg name="use_amp" default="true"/>
-  <arg name="segmentation_short_side" default="320"/>
+  <arg name="segmentation_short_side" default="384"/>
   <arg name="warmup_segmentation" default="true"/>
 
   <arg name="warmup_full_pipeline" default="true"/>
@@ -44,6 +48,8 @@
     <param name="openpcdet_root" value="$(arg openpcdet_root)"/>
     <param name="cfg_file" value="$(arg cfg_file)"/>
     <param name="checkpoint" value="$(arg checkpoint)"/>
+    <param name="segmentation_checkpoint" value="$(arg segmentation_checkpoint)"/>
+    <param name="semantic_profile" value="$(arg semantic_profile)"/>
 
     <param name="lidar_topic" value="$(arg lidar_topic)"/>
     <param name="detections_topic" value="$(arg detections_topic)"/>

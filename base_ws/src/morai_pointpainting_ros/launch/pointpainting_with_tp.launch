@@ -2,10 +2,13 @@
   <!-- Compatibility entrypoint for the standardized production pipeline. -->
   <arg name="python_executable" default=""/>
   <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
+  <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
   <arg name="cfg_file"
-       default="$(arg openpcdet_root)/tools/cfgs/custom_models/pointpillar_morai_pointpainting.yaml"/>
+       default="$(arg repo_root)/perception/pointpainting/openpcdet_patch/tools/cfgs/custom_models/pointpillar_morai_pointpainting_sunny13_1500_9feat.yaml"/>
   <arg name="checkpoint"
-       default="$(arg openpcdet_root)/output/custom_models/pointpillar_morai_pointpainting/pointpainting_20epoch/ckpt/checkpoint_epoch_20.pth"/>
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/pointpainting_B0_epoch11.pth"/>
+  <arg name="segmentation_checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/lraspp_4class_best_miou.pth"/>
   <arg name="use_sim_time" default="false"/>
   <arg name="planning_output_topic"
        default="/perception/object_recognition/objects"/>
@@ -13,7 +16,7 @@
   <arg name="prediction_horizon" default="3.0"/>
   <arg name="prediction_model" default="ctrv"/>
   <arg name="publish_painted_points" default="false"/>
-  <arg name="segmentation_short_side" default="320"/>
+  <arg name="segmentation_short_side" default="384"/>
   <arg name="warmup_segmentation" default="true"/>
   <arg name="warmup_full_pipeline" default="true"/>
   <arg name="warmup_iterations" default="2"/>
@@ -24,9 +27,11 @@
   <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
     <arg name="detector" value="pointpainting"/>
     <arg name="python_executable" value="$(arg python_executable)"/>
+    <arg name="repo_root" value="$(arg repo_root)"/>
     <arg name="openpcdet_root" value="$(arg openpcdet_root)"/>
     <arg name="pointpainting_cfg" value="$(arg cfg_file)"/>
     <arg name="pointpainting_checkpoint" value="$(arg checkpoint)"/>
+    <arg name="pointpainting_segmentation_checkpoint" value="$(arg segmentation_checkpoint)"/>
     <arg name="predicted_objects" value="$(arg planning_output_topic)"/>
     <arg name="prediction_time_step" value="$(arg prediction_time_step)"/>
     <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
