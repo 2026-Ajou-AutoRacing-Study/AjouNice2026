@@ -38,20 +38,29 @@ Point feature order:
 - `openpcdet_patch/tools/eval_morai_competition_metrics.py`
   - Center-distance AP evaluation.
 
+- `tools/run_rosbag_runtime_benchmark.sh`
+  - Measures input/output Hz, end-to-end latency, stage timing, queue delay,
+    dropped LiDAR scans, and skipped frames without loading the full log into
+    the analysis context.
+
+- `docs/runtime_benchmark_260816.md`
+  - RTX 5060 Ti runtime results and the production decision to use four
+    camera CPU workers with the training-compatible torchvision backend.
+
 ## Weights
 
 Weights are distributed separately and are not committed to Git.
 
 Runtime release location in this workspace:
 
-`artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/`
+`artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/`
 
 - `lraspp_4class_best_miou.pth`
   - LRASPP semantic segmentation checkpoint.
 
-- `pointpainting_B0_epoch11.pth`
+- `pointpainting_B0_best_epoch65.pth`
   - PointPillars detector checkpoint.
-  - 12-epoch comparison best checkpoint: epoch 11.
+  - 80-epoch run production checkpoint: best epoch 65.
 
 ## OpenPCDet patch
 

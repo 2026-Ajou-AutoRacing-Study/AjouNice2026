@@ -6,9 +6,9 @@
   <arg name="cfg_file"
        default="$(arg repo_root)/perception/pointpainting/openpcdet_patch/tools/cfgs/custom_models/pointpillar_morai_pointpainting_sunny13_1500_9feat.yaml"/>
   <arg name="checkpoint"
-       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/pointpainting_B0_epoch11.pth"/>
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/pointpainting_B0_best_epoch65.pth"/>
   <arg name="segmentation_checkpoint"
-       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/lraspp_4class_best_miou.pth"/>
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/lraspp_4class_best_miou.pth"/>
   <arg name="use_sim_time" default="false"/>
   <arg name="planning_output_topic"
        default="/perception/object_recognition/objects"/>
@@ -17,12 +17,18 @@
   <arg name="prediction_model" default="ctrv"/>
   <arg name="publish_painted_points" default="false"/>
   <arg name="segmentation_short_side" default="384"/>
+  <arg name="segmentation_preprocess_backend" default="torchvision"/>
+  <arg name="camera_cpu_workers" default="4"/>
   <arg name="warmup_segmentation" default="true"/>
   <arg name="warmup_full_pipeline" default="true"/>
   <arg name="warmup_iterations" default="2"/>
   <arg name="warmup_point_count" default="12000"/>
   <arg name="real_input_warmup" default="true"/>
   <arg name="real_input_warmup_iterations" default="2"/>
+  <arg name="benchmark_output_dir" default=""/>
+  <arg name="benchmark_label" default="pointpainting"/>
+  <arg name="benchmark_exclude_frames" default="10"/>
+  <arg name="detailed_timing" default="false"/>
 
   <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
     <arg name="detector" value="pointpainting"/>
@@ -39,11 +45,19 @@
     <arg name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="publish_painted_points" value="$(arg publish_painted_points)"/>
     <arg name="segmentation_short_side" value="$(arg segmentation_short_side)"/>
+    <arg name="pointpainting_preprocess_backend"
+         value="$(arg segmentation_preprocess_backend)"/>
+    <arg name="pointpainting_camera_cpu_workers"
+         value="$(arg camera_cpu_workers)"/>
     <arg name="warmup_segmentation" value="$(arg warmup_segmentation)"/>
     <arg name="warmup_full_pipeline" value="$(arg warmup_full_pipeline)"/>
     <arg name="warmup_iterations" value="$(arg warmup_iterations)"/>
     <arg name="warmup_point_count" value="$(arg warmup_point_count)"/>
     <arg name="real_input_warmup" value="$(arg real_input_warmup)"/>
     <arg name="real_input_warmup_iterations" value="$(arg real_input_warmup_iterations)"/>
+    <arg name="pointpainting_benchmark_output_dir" value="$(arg benchmark_output_dir)"/>
+    <arg name="pointpainting_benchmark_label" value="$(arg benchmark_label)"/>
+    <arg name="pointpainting_benchmark_exclude_frames" value="$(arg benchmark_exclude_frames)"/>
+    <arg name="pointpainting_detailed_timing" value="$(arg detailed_timing)"/>
   </include>
 </launch>

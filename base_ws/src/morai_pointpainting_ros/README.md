@@ -16,10 +16,10 @@ The node therefore subscribes to the original sensor topics, performs segmentati
 ## Runtime graph
 
 ```text
-/sensor/cam/front
-/sensor/cam/front_left
-/sensor/cam/front_right
-/sensor/cam/back
+/sensor/camera/front/compressed
+/sensor/camera/front_left/compressed
+/sensor/camera/front_right/compressed
+/sensor/camera/back/compressed
           │
           ├── latest image at or before LiDAR timestamp
           ├── MORAI LRASPP MobileNetV3 4-class segmentation
@@ -38,10 +38,10 @@ The LiDAR queue is intentionally size 1. When processing is slower than sensor i
 
 Inputs:
 
-- `/sensor/cam/front`
-- `/sensor/cam/front_left`
-- `/sensor/cam/front_right`
-- `/sensor/cam/back`
+- `/sensor/camera/front/compressed`
+- `/sensor/camera/front_left/compressed`
+- `/sensor/camera/front_right/compressed`
+- `/sensor/camera/back/compressed`
 - `/sensor/lidar1`
 
 Outputs:
@@ -58,7 +58,7 @@ Outputs:
 - `openpcdet_rtx50` Conda environment
 - OpenPCDet at `~/OpenPCDet`
 - release bundle at
-  `artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/`
+  `artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/`
 
 Install ROS dependencies:
 
@@ -167,13 +167,17 @@ Debug cloud publishing should be disabled for the final run to reduce copying an
 
 ## Real-time acceptance checks
 
-The current measured offline budget was approximately:
+The 2026-08-16 runtime benchmark uses four CPU workers for camera decode and
+the training-compatible torchvision/PIL preprocessing path. At a stress input
+of camera 34.6 Hz / LiDAR 15.0 Hz it measured:
 
-- segmentation + painting: 78.5 ms
-- PointPillars: 21.2 ms
-- total compute: about 100 ms
+- detection publish: 14.97 Hz
+- total compute p50/p95: 54.9 / 59.5 ms
+- arrival-to-publish p50/p95: 58.5 / 72.5 ms
+- LiDAR replacement: 1/464 frames (0.22%)
+- continuously growing queue: not observed
 
-The original 8.7 Hz test bag gives about 115 ms per LiDAR scan. During the rosbag and live tests, confirm:
+During rosbag and live tests, confirm:
 
 - `total_ms` usually remains below the LiDAR period.
 - `queue_delay_ms` does not grow continuously.
@@ -181,6 +185,19 @@ The original 8.7 Hz test bag gives about 115 ms per LiDAR scan. During the rosba
 - `camera_age_max_ms` stays below 100 ms.
 - output `header.stamp` equals the source LiDAR stamp.
 - output `header.frame_id` is `lidar1`.
+
+Run a reproducible benchmark with:
+
+```bash
+perception/pointpainting/tools/run_rosbag_runtime_benchmark.sh \
+  rosbags/raw_sensor_w_cam/sensor_cam_raw_roundabout1.bag \
+  1.73 \
+  artifacts/detection3d/pointpainting/benchmarks/roundabout_x1p73
+```
+
+See
+[`perception/pointpainting/docs/runtime_benchmark_260816.md`](../../../perception/pointpainting/docs/runtime_benchmark_260816.md)
+for stage timings, throughput/latency separation, and the OpenCV comparison.
 
 ## Temporal matching limitation
 

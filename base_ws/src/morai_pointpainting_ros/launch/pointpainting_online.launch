@@ -1,4 +1,5 @@
 <launch>
+  <arg name="use_sim_time" default="false"/>
   <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
   <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
   <!--
@@ -10,9 +11,9 @@
   <arg name="cfg_file"
        default="$(arg repo_root)/perception/pointpainting/openpcdet_patch/tools/cfgs/custom_models/pointpillar_morai_pointpainting_sunny13_1500_9feat.yaml"/>
   <arg name="checkpoint"
-       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/pointpainting_B0_epoch11.pth"/>
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/pointpainting_B0_best_epoch65.pth"/>
   <arg name="segmentation_checkpoint"
-       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260816_sunny13_1500_9feat_12e/lraspp_4class_best_miou.pth"/>
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/lraspp_4class_best_miou.pth"/>
   <arg name="semantic_profile" default="morai_4class"/>
 
   <arg name="lidar_topic" default="/sensor/lidar1"/>
@@ -27,6 +28,8 @@
   <arg name="publish_painted_points" default="false"/>
   <arg name="use_amp" default="true"/>
   <arg name="segmentation_short_side" default="384"/>
+  <arg name="segmentation_preprocess_backend" default="torchvision"/>
+  <arg name="camera_cpu_workers" default="4"/>
   <arg name="warmup_segmentation" default="true"/>
 
   <arg name="warmup_full_pipeline" default="true"/>
@@ -34,6 +37,11 @@
   <arg name="warmup_point_count" default="12000"/>
   <arg name="real_input_warmup" default="true"/>
   <arg name="real_input_warmup_iterations" default="2"/>
+  <arg name="benchmark_output_dir" default=""/>
+  <arg name="benchmark_label" default="pointpainting"/>
+  <arg name="benchmark_exclude_frames" default="10"/>
+  <arg name="detailed_timing" default="false"/>
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
   <node pkg="morai_pointpainting_ros"
         type="pointpainting_online_node.py"
         name="pointpainting_online"
@@ -61,6 +69,9 @@
     <param name="publish_painted_points" value="$(arg publish_painted_points)"/>
     <param name="use_amp" value="$(arg use_amp)"/>
     <param name="segmentation_short_side" value="$(arg segmentation_short_side)"/>
+    <param name="segmentation_preprocess_backend"
+           value="$(arg segmentation_preprocess_backend)"/>
+    <param name="camera_cpu_workers" value="$(arg camera_cpu_workers)"/>
     <param name="warmup_segmentation" value="$(arg warmup_segmentation)"/>
 
     <param name="warmup_full_pipeline" value="$(arg warmup_full_pipeline)"/>
@@ -69,6 +80,10 @@
     <param name="real_input_warmup" value="$(arg real_input_warmup)"/>
     <param name="real_input_warmup_iterations"
            value="$(arg real_input_warmup_iterations)"/>
+    <param name="benchmark_output_dir" value="$(arg benchmark_output_dir)"/>
+    <param name="benchmark_label" value="$(arg benchmark_label)"/>
+    <param name="benchmark_exclude_frames" value="$(arg benchmark_exclude_frames)"/>
+    <param name="detailed_timing" value="$(arg detailed_timing)"/>
     <!-- Causal real-time matching: newest camera image at or before LiDAR stamp. -->
     <param name="max_camera_age_ms" value="100.0"/>
     <param name="max_camera_span_ms" value="80.0"/>

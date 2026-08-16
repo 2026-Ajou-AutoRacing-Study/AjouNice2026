@@ -598,6 +598,8 @@ class FastBEVOnlineNode:
         values = dict(metrics)
         values.update({
             "box_count": int(box_count),
+            "received_sets": int(self.received_sets),
+            "processed_sets": int(self.processed_sets),
             "dropped_raw_sets": int(self.dropped_raw_sets),
             "dropped_prepared_sets": int(self.dropped_prepared_sets),
             "skipped_sets": int(self.skipped_sets),
