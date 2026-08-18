@@ -465,6 +465,7 @@ def _path_errors(
     timestamp: float,
     horizon: float,
     maximum_interpolation_bracket_sec: float,
+    gt_translation_xy=(0.0, 0.0),
 ):
     """Return (ADE, FDE, maximum displacement) for one trajectory hypothesis."""
     if path.step_sec <= 0.0:
@@ -483,7 +484,9 @@ def _path_errors(
         )
         if predicted is None or future is None:
             return None
-        errors.append(math.hypot(predicted[0] - future.x, predicted[1] - future.y))
+        target_x = future.x + gt_translation_xy[0]
+        target_y = future.y + gt_translation_xy[1]
+        errors.append(math.hypot(predicted[0] - target_x, predicted[1] - target_y))
     return float(np.mean(errors)), errors[-1], max(errors)
 
 
@@ -635,6 +638,10 @@ def evaluate_pipeline(
     horizon_min_max_displacement = defaultdict(list)
     horizon_best_confidence = defaultdict(list)
     horizon_brier_min_fde = defaultdict(list)
+    horizon_origin_aligned_top1_fde = defaultdict(list)
+    horizon_origin_aligned_top1_ade = defaultdict(list)
+    horizon_origin_aligned_min_fde = defaultdict(list)
+    horizon_origin_aligned_min_ade = defaultdict(list)
     horizon_eligible = defaultdict(int)
     horizon_matched = defaultdict(int)
     horizon_best_of_k_matched = defaultdict(int)
@@ -666,7 +673,7 @@ def evaluate_pipeline(
             for index in matched_estimates
         )
         match_by_gt = {gt_index: estimate_index for gt_index, estimate_index, _ in matches}
-        for gt_index, (segment, _) in enumerate(gt_items):
+        for gt_index, (segment, origin) in enumerate(gt_items):
             for horizon in horizons:
                 future = interpolate_point(
                     segment.points,
@@ -689,6 +696,15 @@ def evaluate_pipeline(
                 if estimate_index is None:
                     continue
                 estimate = visible_estimates[estimate_index]
+                # Object_topic and detector boxes may use different physical
+                # reference points (for example vehicle model origin versus
+                # geometric box center).  Translation-aligning GT at t=0
+                # isolates future-motion quality without pretending that the
+                # current-state center error has disappeared.
+                gt_translation = (
+                    estimate.x - origin.x,
+                    estimate.y - origin.y,
+                )
                 paths = _estimate_paths(estimate)
                 if not paths:
                     continue
@@ -706,22 +722,36 @@ def evaluate_pipeline(
                         horizon,
                         maximum_interpolation_bracket_sec,
                     )
-                    if errors is not None:
-                        candidate_errors.append((path, errors))
+                    aligned_errors = _path_errors(
+                        path,
+                        segment,
+                        timestamp,
+                        horizon,
+                        maximum_interpolation_bracket_sec,
+                        gt_translation,
+                    )
+                    if errors is not None and aligned_errors is not None:
+                        candidate_errors.append((path, errors, aligned_errors))
                 if not candidate_errors:
                     continue
 
-                top_path, (top_ade, top_fde, _top_max_error) = candidate_errors[0]
+                top_path, (top_ade, top_fde, _top_max_error), (
+                    aligned_top_ade,
+                    aligned_top_fde,
+                    _aligned_top_max,
+                ) = candidate_errors[0]
                 del top_path
                 horizon_matched[horizon] += 1
                 horizon_errors[horizon].append(top_fde)
                 horizon_top1_ade[horizon].append(top_ade)
+                horizon_origin_aligned_top1_fde[horizon].append(aligned_top_fde)
+                horizon_origin_aligned_top1_ade[horizon].append(aligned_top_ade)
 
-                best_fde_path, (_best_fde_ade, best_fde, _best_fde_max) = min(
+                best_fde_path, (_best_fde_ade, best_fde, _best_fde_max), _ = min(
                     candidate_errors,
                     key=lambda item: item[1][1],
                 )
-                _best_ade_path, (best_ade, _best_ade_fde, _best_ade_max) = min(
+                _best_ade_path, (best_ade, _best_ade_fde, _best_ade_max), _ = min(
                     candidate_errors,
                     key=lambda item: item[1][0],
                 )
@@ -729,11 +759,23 @@ def evaluate_pipeline(
                     _best_max_ade,
                     _best_max_fde,
                     best_max_error,
-                ) = min(candidate_errors, key=lambda item: item[1][2])
+                ), _ = min(candidate_errors, key=lambda item: item[1][2])
+                _aligned_fde_path, _, (
+                    _aligned_best_fde_ade,
+                    aligned_best_fde,
+                    _aligned_best_fde_max,
+                ) = min(candidate_errors, key=lambda item: item[2][1])
+                _aligned_ade_path, _, (
+                    aligned_best_ade,
+                    _aligned_best_ade_fde,
+                    _aligned_best_ade_max,
+                ) = min(candidate_errors, key=lambda item: item[2][0])
                 horizon_best_of_k_matched[horizon] += 1
                 horizon_min_fde[horizon].append(best_fde)
                 horizon_min_ade[horizon].append(best_ade)
                 horizon_min_max_displacement[horizon].append(best_max_error)
+                horizon_origin_aligned_min_fde[horizon].append(aligned_best_fde)
+                horizon_origin_aligned_min_ade[horizon].append(aligned_best_ade)
                 best_confidence = max(0.0, min(1.0, best_fde_path.confidence))
                 horizon_best_confidence[horizon].append(best_confidence)
                 horizon_brier_min_fde[horizon].append(
@@ -799,6 +841,24 @@ def evaluate_pipeline(
                 horizon_best_confidence[horizon]
             ),
             "brier_min_fde_m": statistics(horizon_brier_min_fde[horizon]),
+            "origin_aligned": {
+                "description": (
+                    "GT future translated by the matched estimate-minus-GT "
+                    "offset at the prediction origin; isolates motion error"
+                ),
+                "top1_ade_m": statistics(
+                    horizon_origin_aligned_top1_ade[horizon]
+                ),
+                "top1_fde_m": statistics(
+                    horizon_origin_aligned_top1_fde[horizon]
+                ),
+                "min_ade_k_m": statistics(
+                    horizon_origin_aligned_min_ade[horizon]
+                ),
+                "min_fde_k_m": statistics(
+                    horizon_origin_aligned_min_fde[horizon]
+                ),
+            },
         }
 
     return {
@@ -820,7 +880,13 @@ def evaluate_pipeline(
             "recall": recall,
             "f1": f1,
             "mota": mota,
+            "object_status_reference_distance_m": statistics(tracking_errors),
             "motp_center_error_m": statistics(tracking_errors),
+            "motp_center_error_caveat": (
+                "Compatibility alias only: MORAI ObjectStatus.position and "
+                "detector bbox center have different empirical longitudinal "
+                "reference points, so this is not validated bbox-center MOTP"
+            ),
             "absolute_speed_error_mps": statistics(tracking_speed_errors),
             "absolute_yaw_error_deg": statistics(tracking_yaw_errors),
             "yaw_flip_rate_over_90deg": (

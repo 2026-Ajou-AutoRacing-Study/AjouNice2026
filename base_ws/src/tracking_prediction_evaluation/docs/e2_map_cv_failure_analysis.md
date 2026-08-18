@@ -1,4 +1,4 @@
-# E2 PointPainting Map-CV failure analysis
+ㅁㅁㅁㅁ# E2 PointPainting Map-CV failure analysis
 
 ## 목적과 범위
 
@@ -29,17 +29,20 @@ predictor가 사용할 수 있는 정보가 아니며, tracking 평가는 전체
 
 현재 큰 오차는 하나의 원인이 아니라 세 문제가 이어져 발생한다.
 
-1. Detection/tracking state에 약 `0.11 s`에 해당하는 종방향 위치 편향이 있다.
+1. Detection/tracking의 bbox center와 MORAI `ObjectStatus.position`이 같은 물리적
+   기준점이 아니다. 이를 시간 이동으로 맞추면 약 `0.11 s`처럼 보이는 착시가
+   생긴다.
 2. 로터리에서 매 프레임 독립적으로 Lanelet을 고르므로 작은 위치·yaw 오차가
    잘못된 출구 선택으로 증폭된다.
 3. 차량 yaw가 약 `pi` 반전되면 tracker의 body-frame 종방향 속도가 음수가 되고,
    Map predictor가 정합을 포기하여 CTRV fallback이 곡선 도로를 직선으로
    이탈한다.
 
-따라서 Map-CV 자체만 교체해서는 해결되지 않는다. 센서 시간 정렬, tracker의
-`pi` 방향 모호성 해소, track-level Lanelet 이력 유지가 각각 필요하다.
+따라서 Map-CV 자체만 교체해서는 해결되지 않는다. evaluator의 위치 기준점
+분리, tracker의 `pi` 방향 모호성 해소, 갈림길의 다중 hypothesis 활용이 각각
+필요하다.
 
-## 1. 약 0.11초 시간 정렬 가설
+## 1. 약 0.11초 시간 정렬 가설 재검증: 기각
 
 사용자가 언급한 `0.11 m`와 구분해야 한다. 현재 관측된 것은 **0.11초의
 시간 차이에 상당하는 위치 편향 가설**이며, 위치 오차가 0.11 m라는 뜻이 아니다.
@@ -60,9 +63,44 @@ Highway도 동일 header 비교 시 center mean이 약 `1.56 m`였지만, GT를
 `+0.11 s` 이동하면 약 `0.55 m`로 감소했다. 종방향 signed bias를 속도로
 환산한 값도 Roundabout 약 `0.108 s`, Highway 약 `0.118 s`로 유사했다.
 
-서로 다른 장면에서 비슷한 값이 반복되므로 LiDAR scan 기준 시각, message
-header, localization 보간 사이의 시간 의미가 어긋났을 가능성이 높다. 다만
-현재 결과만으로 원인이 확정된 것은 아니다.
+이 결과만 보면 시간 편향처럼 보이지만, 움직이는 GT를 미래로 옮기면 **고정된
+종방향 공간 offset도** 더 잘 맞게 된다. 따라서 shift sweep 단독으로 시간과
+기준점 차이를 구분할 수 없다.
+
+### 2026-08-18 엄밀 재검증
+
+새 evaluator는 다음을 지킨다.
+
+- shift와 관계없이 동일한 estimate/GT association 표본만 사용한다.
+- Detection은 sensor frame에 둔 채 GT와 Ego를 같은 후보 시각으로 이동한다.
+- Detection, tracking, prediction header 전달과 bag arrival 지연을 별도로 잰다.
+- 종방향 오차를 `time slope * speed + spatial intercept`로 분해하고 actor별로
+  다시 적합한다.
+
+그 결과 LiDAR→Detection→Tracking→Prediction header 차이는 모두 정확히
+`0.000 s`였다. bag 기록 시각에서 header를 뺀 평균은 Roundabout 기준 LiDAR
+`0.9 ms`, Detection `34.5 ms`, Tracking `44.3 ms`, Prediction `59.2 ms`였다.
+이는 runtime latency이며 state 기준 시각을 `+0.11 s` 이동할 근거가 아니다.
+
+더 결정적인 반례는 Highway의 동일 asset `A2256W001105`다.
+
+| 동일 asset의 관측 | GT 속도 | 동일시각 종방향 offset | offset을 시간으로 오해한 최적 shift |
+|---|---:|---:|---:|
+| actor A | 16.50 m/s | 1.376 m | 0.085 s |
+| actor B | 8.47 m/s | 1.426 m | 0.140 s |
+
+진짜 고정 시간 지연이라면 속도가 약 두 배일 때 공간 오차도 약 두 배여야 한다.
+실제로는 속도와 무관하게 약 `1.4 m`로 유지되고, 이를 GT 이동으로 없애려 해서
+최적 shift만 속도에 반비례한다. Highway tracking 전체 회귀도 time slope
+`-0.005 s`, spatial intercept `1.467 m`, `R^2=0.003`이었다. 즉 시간 성분은
+설명력이 없고 고정 공간 성분이 지배적이다. Roundabout은 관측 차량 속도가 모두
+약 `5.7 m/s`로 좁아 독립 식별이 어렵지만, 약 `0.6 m / 5.7 m/s = 0.105 s`가
+되어 같은 착시를 만든다.
+
+LiDAR cloud에는 point별 `time` field도 있으며, 두 bag의 32-cloud 표본은 header
+대비 대략 `-0.171~+0.001 s` 범위였다. header는 scan end에 가깝고, 현재 PointPainting은
+이 field를 버리고 full scan을 처리한다. 이는 향후 deskew 과제이지만 관측된
+**양의 0.11초 state shift의 증거는 아니다.**
 
 ### 관련 현 설정
 
@@ -74,19 +112,64 @@ lidar_rotation_period: 0.1
 lidar_sync_scan_start: false
 ```
 
-즉 10 Hz 회전 주기를 알고 있지만 detection별 LiDAR motion compensation은
-비활성화되어 있다. 약 `0.1 s`와 관측 편향이 비슷하다는 사실은 가설을
-강화하지만, 그대로 `0.11 s`를 하드코딩할 근거는 아니다.
+이 값은 upstream tracker의 기존 기본값이며 현재 Sensor_6의 `15 Hz` 설정과도
+일치하지 않는다. 다만 `cal_detection_individual_time: false`이므로 현
+PointPainting/EKF 경로의 state timestamp에는 사용되지 않는다. 숫자가 관측된
+가상 shift와 비슷하다는 것만으로 시간 가설의 증거가 되지 않는다.
 
-### 해결 방향
+### 적용 결론
 
-- 임시 진단: 평가기에서만 여러 time shift를 sweep하여 장면별 최적값과
-  일관성을 확인한다.
-- 임시 보정: scan timestamp 의미가 검증된 뒤에만 state를 올바른 기준 시각으로
-  외삽한다. 고정 `+0.11 s` 보정은 진단 전에는 production에 넣지 않는다.
-- 근본 해결: LiDAR stamp가 scan start/end 중 무엇인지 확정하고, Ego pose를
-  scan/object 기준 시각으로 보간하며, 필요하면 deskew 또는 detection individual
-  time compensation을 적용한다.
+- production message timestamp와 tracker state에는 `+0.11 s` 보정을 넣지 않는다.
+- 절대 center error는 기존대로 남겨 현재 상태의 위치 차이를 표시한다.
+- prediction motion 품질에는 GT future 전체를 현재 estimate-GT offset만큼 평행
+  이동한 `origin_aligned` ADE/FDE를 함께 기록한다. 이는 초기 box 기준점 차이를
+  제거하지만 속도·곡률·갈림길 예측 오차는 그대로 남긴다. 동시에 현재 프레임의
+  순수 tracking translation error도 제거하므로 end-to-end 안전성 지표를 대체하지
+  않고 motion-model 조건부 진단으로만 사용한다.
+- 진짜 bbox-center tracking 정확도가 필요하면 MORAI LiDAR Instance GT 또는
+  asset별 검증된 geometric-center 변환을 별도로 확보한다. 모델 출력으로 GT를
+  사후 calibration해 tracking 성능을 부풀리지 않는다.
+- point-time deskew는 별도 ablation으로 다루며 timestamp 보정과 혼합하지 않는다.
+
+### 2026-08-18 BBox 기준점 교차 검증
+
+고정 `+0.11 s` 보정을 적용하지 않고 시나리오 actor 좌표와 SaveSensorData
+`Instance.txt`를 독립적으로 비교했다.
+
+- 190개 장면, 차량 GT box 3,299개를 사용했다.
+- 길이 5.5 m 미만 승용차급 2,813개에서 bbox 중심은 scenario actor
+  기준점보다 차량 진행 방향으로 중앙값 `+1.340 m` 앞에 있었다.
+- 같은 표본의 횡방향 중앙값은 `-0.009 m`, p95는 `0.122 m`였다.
+- 길이 7.5 m 이상 버스·대형차의 중앙값은 약 `3.220 m`로 달라서 모든
+  asset에 하나의 offset을 적용할 수는 없다.
+- PointPainting 온라인 차량 box 크기는 ObjectStatus `size`와 대체로
+  일치했다. 고주로에서 1.340 m 기준점 보정 후 detection center p50은
+  `1.549 m -> 0.508 m`, BEV IoU p50은 `0.416 -> 0.643`으로 개선됐다.
+- 로터리에서는 center p50이 `0.809 -> 0.746 m`로만 개선됐다. 회전식
+  LiDAR scan 내 운동 왜곡과 detector translation error가 남아 있으므로,
+  이 오차까지 매 프레임 제거하는 `origin_aligned`는 낙관적인 진단값이다.
+
+따라서 지표의 역할은 다음과 같이 구분한다.
+
+1. `ObjectStatus.position` 절대 오차는 actor-reference 호환 지표다.
+2. `origin_aligned`는 prediction 경로 형상과 이동거리 모델의 조건부 상한이다.
+3. 최종 bbox-center 절대 지표는 asset-aware offset 또는 동기화된 dynamic
+   `Instance_8Points` GT를 추가한 뒤 확정한다.
+4. 이번 결과는 고정 time shift가 아니라 공간 기준점 차이를 지지한다.
+
+CV-stable origin-aligned 결과는 기준점 문제가 Highway의 대표 오차를 크게
+부풀렸음을 보여준다.
+
+| 장면 | horizon | Top-1 FDE 기존 | origin-aligned | minFDE-K 기존 | origin-aligned |
+|---|---:|---:|---:|---:|---:|
+| Roundabout | 1 s | 1.268 m | **1.000 m** | 0.993 m | **0.738 m** |
+| Roundabout | 3 s | **5.680 m** | 5.689 m | **2.134 m** | 2.203 m |
+| Highway | 1 s | 1.478 m | **0.606 m** | 1.469 m | **0.576 m** |
+| Highway | 3 s | 1.747 m | **1.520 m** | 1.624 m | **1.338 m** |
+
+Roundabout 3초 오차가 거의 그대로인 이유는 고정 위치 offset이 아니라 sibling
+branch Top-1 오선택이 지배하기 때문이다. 반면 Highway 1초 p50은 `1.487 m`에서
+`0.490 m`로 내려가 기존 약 `1.4 m` floor의 대부분이 기준점 차이였음을 확인했다.
 
 ## 2. 로터리의 잘못된 Lanelet·갈림길 선택
 
@@ -234,18 +317,20 @@ Highway CV-stable 3초 matched 128개에서는 올바른 mapped route가 118개
 Roundabout보다 branch/yaw 문제가 훨씬 작고, 동일 header 기준 약 `1.56 m`의
 초기 center bias가 주된 문제였다. 따라서 우선순위는 다음과 같다.
 
-1. 공통: `0.11 s` 시간 정렬 가설을 계측으로 검증하고 center bias를 제거한다.
+1. 공통: evaluator에서 ObjectStatus reference point와 detector bbox center를
+   분리하고 absolute/origin-aligned 지표를 함께 유지한다.
 2. Roundabout: yaw canonicalization 후 Top-K route의 confidence 순위 오류를
    분해한다. track-level continuity는 비연결 Lanelet 점프가 실제로 확인될 때
    적용한다.
-3. Highway: 시간 정렬 후 남는 coverage 부족과 7개 wrong-route 표본을 분리해
-   분석한다.
+3. Highway: origin alignment 후 남는 motion error, coverage 부족과 7개
+   wrong-route 표본을 분리해 분석한다.
 4. 모든 변경은 all-motion과 CV-stable을 함께 평가하되, production 모델 선택은
    CV-stable을 주 지표로 사용한다.
 
 ## 권장 구현 순서
 
-1. evaluator에 detection -> tracking paired yaw 진단과 time-shift sweep을 추가한다.
+1. evaluator에 detection -> tracking paired yaw, 엄밀한 time-shift sweep,
+   origin-aligned prediction metric을 유지한다.
 2. 움직이는 차량에 한해 tracker output yaw/speed canonicalization을 구현하고
    기존 E2 bag과 동일 조건으로 회귀 평가한다.
 3. predictor fallback을 world velocity 기반으로 바꿔 방어한다.
@@ -308,9 +393,9 @@ Roundabout paired 641건에서 detector flip 223건을 모두 올바른 방향�
 아래의 route-topology 재분석 결과, 이를 곧바로 비연결 Lanelet 점프로 간주해
 track-level continuity를 최우선으로 구현하는 것은 부정확하다.
 
-Highway는 방향 반전이 원래 적어 FDE 변화는 작았다. 남은 주요 오차는 앞서
-확인한 약 0.11초 시간 정렬 가설과 coverage 문제이므로 방향 threshold를 더
-공격적으로 조정할 우선순위는 낮다.
+Highway는 방향 반전이 원래 적어 FDE 변화는 작았다. 남은 주요 오차는
+ObjectStatus와 bbox center의 기준점 차이, coverage, 실제 motion error이므로 방향
+threshold를 더 공격적으로 조정할 우선순위는 낮다.
 
 ## 2026-08-17 Roundabout p90 tail route-topology 재분석
 
@@ -367,8 +452,9 @@ Top-1을 그대로 누적하면 잘못된 선택을 오히려 강화하거나 �
 
 1. evaluator에 top-1/min-K, sibling-successor 오선택률, confidence margin을
    정식 지표로 추가한다.
-2. 약 `0.11 s` 시간 의미와 tracking 위치·yaw bias를 먼저 바로잡아 기하학 입력
-   자체가 sibling 후보 순위를 체계적으로 왜곡하는지 확인한다.
+2. bbox center와 ObjectStatus 기준점 차이를 분리하고 tracking 위치·yaw 오차가
+   sibling 후보 순위를 체계적으로 왜곡하는지 확인한다. 고정 `+0.11 s` 보정은
+   적용하지 않는다.
 3. 현재 branch prior와 곡률 기반 transition score가 두 sibling 후보에 어떤
    confidence를 부여하는지 계측한다.
 4. Autoware의 lateral-kinematics history와 maneuver continuity를 offline causal

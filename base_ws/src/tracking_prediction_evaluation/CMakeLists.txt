@@ -14,6 +14,8 @@ catkin_python_setup()
 catkin_package()
 
 catkin_install_python(PROGRAMS
+  scripts/audit_bbox_reference_geometry.py
+  scripts/audit_timestamp_alignment.py
   scripts/evaluate_oracle_prediction.py
   scripts/evaluate_pipeline_prediction.py
   scripts/oracle_gt_tracks_node.py

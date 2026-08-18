@@ -7,8 +7,6 @@ import argparse
 import json
 from pathlib import Path
 
-import yaml
-
 from tracking_prediction_evaluation.evaluator import (
     EvaluationConfig,
     build_summary,
@@ -16,6 +14,9 @@ from tracking_prediction_evaluation.evaluator import (
     write_report,
 )
 from tracking_prediction_evaluation.models import MapBasedP1Predictor, default_predictors
+from tracking_prediction_evaluation.static_transform import (
+    load_morai_to_map_transform,
+)
 from tracking_prediction_evaluation.trajectory import (
     read_morai_trajectories,
     transform_segments_planar,
@@ -71,18 +72,6 @@ def parse_args():
         help="map->morai_map static TF used to transform raw MORAI GT",
     )
     return parser.parse_args()
-
-
-def load_morai_to_map_transform(path):
-    document = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    transform = document["map_to_morai_map"]
-    xyz = tuple(float(value) for value in transform["xyz"])
-    rpy = tuple(float(value) for value in transform["rpy"])
-    if len(xyz) != 3 or len(rpy) != 3:
-        raise ValueError("map_to_morai_map xyz/rpy must each contain three values")
-    if abs(rpy[0]) > 1.0e-9 or abs(rpy[1]) > 1.0e-9:
-        raise ValueError("E0 evaluator supports a yaw-only MORAI static transform")
-    return xyz, rpy[2]
 
 
 def main():

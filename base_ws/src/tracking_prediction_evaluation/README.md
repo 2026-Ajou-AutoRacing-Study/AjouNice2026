@@ -75,10 +75,61 @@ of the current standardized object pipeline.
 `PointPainting -> EKF tracking -> Map-CV prediction` against MORAI GT. It
 reports 30 m vehicle tracking precision/recall/F1, MOTA, ID switches,
 center/speed/yaw error, and 1/2/3-second prediction metrics. The legacy
+`tracking.motp_center_error_m` key is retained for compatibility, but its
+validated meaning is only ObjectStatus-reference distance. It must not be
+reported as true bbox-center MOTP until MORAI Instance GT or an independently
+validated asset-origin transform is available.
+The legacy
 `prediction.fde_m` field remains the planning-facing confidence Top-1 FDE.
 `prediction.multimodal` additionally reports Top-1 ADE/FDE, minADE-K,
 minFDE-K, Top-1 and best-of-K miss rates, GT-closest-path confidence,
 Brier-minFDE, path-count statistics and the multi-path object rate.
+Each horizon also contains `origin_aligned`: GT future positions are translated
+by the matched estimate-minus-GT offset at the prediction origin. Keep absolute
+metrics for end-to-end state accuracy, and use origin-aligned ADE/FDE to compare
+motion models when MORAI `ObjectStatus.position` and detector bbox center use
+different physical reference points. This alignment also removes the current
+frame's detector/tracker translation error, so it is a conditional motion-model
+diagnostic rather than a replacement production safety metric.
+
+### ObjectStatus reference versus bbox center
+
+`audit_bbox_reference_geometry.py` independently compares generated scenario
+actor positions, SaveSensorData `Instance.txt` box centers, and online detector
+boxes. Run it with the system ROS Python rather than a detector Conda Python:
+
+```bash
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+source ~/morai_personal_ws/devel/setup.bash
+
+rosrun tracking_prediction_evaluation audit_bbox_reference_geometry.py \
+  --dataset-root \
+  artifacts/detection3d/datasets/pointpainting_sunny13_1500_semantic_v1 \
+  --raw-bag rosbags/raw_sensor_w_cam/sensor_cam_raw_highway1.bag \
+  --output-bag \
+  artifacts/prediction_evaluation/e2_highway1_pointpainting_epoch65_clustered_max/pipeline_outputs.bag \
+  --output-dir \
+  artifacts/prediction_evaluation/reference_geometry/highway1_epoch65
+```
+
+The current 1,500-frame capture audit found that passenger-sized vehicle
+`Instance` bbox centers are `1.340 m` (median) ahead of scenario actor
+positions, with only `-0.009 m` median lateral offset. This is a spatial actor
+reference convention, not evidence for a fixed timestamp correction. Larger
+bus/truck assets have different offsets, so a single `1.340 m` correction must
+not be applied blindly to every vehicle class.
+
+Use the metrics as follows:
+
+- `object_status_reference_distance_m`: compatibility/debug distance to the
+  MORAI actor reference point; not bbox-center MOTP.
+- `origin_aligned`: motion/path-shape diagnostic that also removes genuine
+  current-frame detector translation error.
+- Absolute planning-facing bbox accuracy: requires an asset-aware reference
+  correction or synchronized dynamic bbox GT. The audit provides evidence for
+  that implementation but does not silently change production evaluation.
+
 When the output bag also contains canonical `DetectedObjects`, it additionally
 associates detection and tracking independently to the same MORAI actor at the
 same timestamp and reports the four yaw-flow cases: flip retained, flip
@@ -114,6 +165,25 @@ metrics remain evaluated over the complete recording.
 Keep the all-motion result as a secondary robustness diagnostic rather than
 using non-interacting spawn acceleration tails to choose the production model.
 
+## Timestamp/reference-point audit
+
+Do not infer a sensor timestamp offset from a GT shift sweep alone. A fixed
+longitudinal difference between MORAI's actor origin and a detector bbox center
+can produce the same apparent optimum. The audit keeps associations fixed,
+checks the full header chain, evaluates detections in sensor coordinates, and
+reports per-actor spatial/time decomposition.
+
+```bash
+/usr/bin/python3 \
+  base_ws/src/tracking_prediction_evaluation/scripts/audit_timestamp_alignment.py \
+  RAW_INPUT.bag PIPELINE_OUTPUTS.bag \
+  --output-dir artifacts/prediction_evaluation/timestamp_alignment/SCENE
+```
+
+Read the compact `summary.json` first. The complete shift curves are stored
+separately in `shift_sweep.csv`; they are intentionally not duplicated in the
+JSON report.
+
 Canonical evaluation inputs:
 
 - Roundabout 1:
@@ -124,7 +194,8 @@ The Roundabout 1 alias intentionally means the filtered bag containing only
 the roundabout NPC population. The older mixed bag must not be used for new
 quantitative comparisons.
 
-The measured `~0.11 s` temporal-alignment hypothesis, Roundabout wrong-branch
+The rejected `~0.11 s` temporal-alignment hypothesis, MORAI/bbox reference-point
+separation, Roundabout wrong-branch
 tail, PointPainting/EKF `pi` yaw flips, negative longitudinal speed and
 straight off-road fallback are documented in
 [`docs/e2_map_cv_failure_analysis.md`](docs/e2_map_cv_failure_analysis.md).

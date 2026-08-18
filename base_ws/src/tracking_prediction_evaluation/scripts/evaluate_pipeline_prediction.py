@@ -15,13 +15,13 @@ from tracking_prediction_evaluation.pipeline_evaluator import (
     read_ego_points,
     read_output_frames,
 )
+from tracking_prediction_evaluation.static_transform import (
+    load_morai_to_map_transform,
+)
 from tracking_prediction_evaluation.trajectory import (
     read_morai_trajectories,
     transform_segments_planar,
 )
-
-from evaluate_oracle_prediction import load_morai_to_map_transform
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)

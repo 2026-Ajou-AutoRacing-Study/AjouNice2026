@@ -112,6 +112,49 @@ def test_multimodal_metrics_separate_top1_from_best_of_k():
     assert summary["prediction"]["multimodal"]["multi_path_object_rate"] == 1.0
 
 
+def test_origin_aligned_prediction_removes_only_current_translation_offset():
+    points = tuple(
+        TrajectoryPoint(
+            timestamp=float(timestamp),
+            x=float(timestamp),
+            y=0.0,
+            z=0.0,
+            yaw=0.0,
+            longitudinal_velocity=1.0,
+            lateral_velocity=0.0,
+            longitudinal_acceleration=0.0,
+            lateral_acceleration=0.0,
+            class_name="vehicle",
+            object_id=1,
+            asset_name="test",
+        )
+        for timestamp in range(4)
+    )
+    segment = TrajectorySegment("vehicle-1", "vehicle", 1, "test", points)
+    shifted_path = PredictedPathEstimate(
+        points=((1.0, 0.0), (2.0, 0.0), (3.0, 0.0), (4.0, 0.0)),
+        step_sec=1.0,
+        confidence=1.0,
+    )
+    estimate = ObjectEstimate(
+        object_id=b"track",
+        x=1.0,
+        y=0.0,
+        predicted_paths=(shifted_path,),
+    )
+    summary = evaluate_pipeline(
+        (segment,),
+        (),
+        tracking_frames={},
+        prediction_frames={0.0: (estimate,)},
+        horizons=(3.0,),
+        maximum_association_distance_m=2.0,
+    )
+    metrics = summary["prediction"]["multimodal"]["horizons"]["3"]
+    assert math.isclose(metrics["top1_fde_m"]["mean"], 1.0)
+    assert math.isclose(metrics["origin_aligned"]["top1_fde_m"]["mean"], 0.0)
+
+
 def test_sensor_estimate_transform_preserves_pi_yaw_sign():
     ego = EgoPoint(1.0, 10.0, 20.0, math.pi / 2.0)
     estimate = ObjectEstimate(b"", 2.0, 0.0, yaw=math.pi)
