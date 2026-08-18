@@ -183,7 +183,9 @@ During rosbag and live tests, confirm:
 - `queue_delay_ms` does not grow continuously.
 - `dropped_lidar_frames` does not increase continuously.
 - `camera_age_max_ms` stays below 100 ms.
-- output `header.stamp` equals the source LiDAR stamp.
+- output `header.stamp` is the representative object-point acquisition time
+  when `lidar_measurement_stamp_mode:=object_points_median` (production
+  default). `header` mode preserves the source LiDAR scan stamp for A/B tests.
 - output `header.frame_id` is `lidar1`.
 
 Run a reproducible benchmark with:
@@ -202,6 +204,11 @@ for stage timings, throughput/latency separation, and the OpenCV comparison.
 ## Temporal matching limitation
 
 Version 0.1 uses the newest camera image whose timestamp is not later than the LiDAR timestamp. This is causal and works for both rosbag and live operation.
+
+The rolling-LiDAR correction changes the detection measurement timestamp; it
+does not alter camera selection. The representative timestamp is the median
+of per-box point-time medians, with the scan point median as fallback. This
+avoids letting one dense box dominate the frame timestamp.
 
 It does not yet apply ego-motion compensation between the camera and LiDAR timestamps. The recorded bag had camera matching errors in the tens of milliseconds, so the first integration test must inspect box stability while the ego vehicle is moving. Ego-motion compensation should be added only if that test shows a measurable projection error.
 

@@ -20,7 +20,9 @@ Type:
 
 ## Coordinate and time contract
 
-- `header.stamp`: original LiDAR scan timestamp.
+- `header.stamp`: representative rolling-LiDAR object acquisition time in
+  production (`object_points_median`), or the original scan timestamp when
+  `lidar_measurement_stamp_mode=header`.
 - `header.frame_id`: original LiDAR frame, expected `lidar1`.
 - Position: metres in the LiDAR coordinate frame.
 - Orientation: quaternion generated from OpenPCDet yaw.
@@ -31,7 +33,9 @@ Type:
 - `detection_id`: unique only inside one message. It is not a tracking ID.
 - Downstream tracking must assign persistent IDs.
 - Production tracking uses the standard detection header and transforms the
-  measurement to `map` at this timestamp.
+  measurement to `map` at this timestamp. Object-specific point times are
+  reduced to one robust frame timestamp because `DetectedObjects` has one
+  shared header.
 
 ## Timing fields
 

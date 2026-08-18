@@ -144,6 +144,12 @@ def test_multimodal_metrics_separate_top1_from_best_of_k():
     assert math.isclose(metrics["min_ade_k_m"]["mean"], 0.0)
     assert math.isclose(metrics["best_fde_path_confidence"]["mean"], 0.4)
     assert math.isclose(metrics["brier_min_fde_m"]["mean"], 0.36)
+    top1_components = metrics["top1_fde_components_gt_heading"]
+    assert math.isclose(top1_components["signed_longitudinal_m"]["p50"], 0.0)
+    assert math.isclose(top1_components["signed_lateral_m"]["p50"], 10.0)
+    min_k_components = metrics["min_fde_k_components_gt_heading"]
+    assert math.isclose(min_k_components["absolute_longitudinal_m"]["p50"], 0.0)
+    assert math.isclose(min_k_components["absolute_lateral_m"]["p50"], 0.0)
     assert summary["prediction"]["multimodal"]["multi_path_object_rate"] == 1.0
 
 

@@ -20,6 +20,7 @@ catkin_install_python(PROGRAMS
   scripts/audit_timestamp_alignment.py
   scripts/evaluate_oracle_prediction.py
   scripts/evaluate_pipeline_prediction.py
+  scripts/retime_rolling_lidar_detections.py
   scripts/oracle_gt_tracks_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

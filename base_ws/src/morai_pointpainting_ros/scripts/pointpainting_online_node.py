@@ -57,6 +57,9 @@ from morai_pointpainting_ros.msg import (
 )
 from autoware_perception_msgs.msg import DetectedObjects
 from perception_object_pipeline import make_detected_objects
+from perception_object_pipeline.rolling_lidar import (
+    representative_detection_time_offset,
+)
 
 
 LEGACY_SEMANTIC_NAMES = (
@@ -172,7 +175,7 @@ def stamp_to_sec(stamp) -> float:
     return value
 
 
-def cloud_to_xyzi(msg: PointCloud2) -> np.ndarray:
+def cloud_to_xyzi(msg: PointCloud2, include_time: bool = False):
     fields = {field.name: field for field in msg.fields}
 
     for required in ("x", "y", "z"):
@@ -187,6 +190,9 @@ def cloud_to_xyzi(msg: PointCloud2) -> np.ndarray:
     names = ["x", "y", "z"]
     if "intensity" in fields:
         names.append("intensity")
+    has_time = include_time and "time" in fields
+    if has_time:
+        names.append("time")
 
     endian = ">" if msg.is_bigendian else "<"
     dtype_names = []
@@ -217,7 +223,10 @@ def cloud_to_xyzi(msg: PointCloud2) -> np.ndarray:
 
     count = int(msg.width) * int(msg.height)
     if count <= 0:
-        return np.empty((0, 4), dtype=np.float32)
+        empty_points = np.empty((0, 4), dtype=np.float32)
+        if include_time:
+            return empty_points, np.empty((0,), dtype=np.float32)
+        return empty_points
 
     raw = np.frombuffer(msg.data, dtype=dtype, count=count)
     output = np.zeros((count, 4), dtype=np.float32)
@@ -228,6 +237,13 @@ def cloud_to_xyzi(msg: PointCloud2) -> np.ndarray:
     if "intensity" in names:
         output[:, 3] = raw["intensity"].astype(np.float32, copy=False)
 
+    if include_time:
+        offsets = (
+            raw["time"].astype(np.float32, copy=False)
+            if has_time
+            else np.full((count,), np.nan, dtype=np.float32)
+        )
+        return output, offsets
     return output
 
 
@@ -442,6 +458,18 @@ class PointPaintingOnlineNode:
         self.publish_painted_points = bool(
             rospy.get_param("~publish_painted_points", False)
         )
+        self.lidar_measurement_stamp_mode = str(
+            rospy.get_param(
+                "~lidar_measurement_stamp_mode",
+                "object_points_median",
+            )
+        ).strip().lower()
+        self.lidar_timing_box_extent_scale = float(
+            rospy.get_param("~lidar_timing_box_extent_scale", 0.65)
+        )
+        self.lidar_timing_minimum_points_per_box = int(
+            rospy.get_param("~lidar_timing_minimum_points_per_box", 3)
+        )
         self.use_amp = bool(rospy.get_param("~use_amp", True))
         self.segmentation_short_side = int(
             rospy.get_param("~segmentation_short_side", 520)
@@ -504,6 +532,21 @@ class PointPaintingOnlineNode:
             )
         if self.camera_cpu_workers < 1 or self.camera_cpu_workers > 4:
             raise ValueError("camera_cpu_workers must be between 1 and 4")
+        if self.lidar_measurement_stamp_mode not in {
+            "header",
+            "point_median",
+            "object_points_median",
+        }:
+            raise ValueError(
+                "lidar_measurement_stamp_mode must be header, point_median, "
+                "or object_points_median"
+            )
+        if self.lidar_timing_box_extent_scale <= 0.0:
+            raise ValueError("lidar_timing_box_extent_scale must be positive")
+        if self.lidar_timing_minimum_points_per_box < 1:
+            raise ValueError(
+                "lidar_timing_minimum_points_per_box must be >= 1"
+            )
         if self.warmup_iterations < 1:
             raise ValueError("warmup_iterations must be >= 1")
         if self.warmup_point_count < 1000:
@@ -1688,15 +1731,16 @@ class PointPaintingOnlineNode:
             axis=1,
         ).astype(np.float32, copy=False)
 
-    def _preprocess_lidar(self, msg: PointCloud2) -> np.ndarray:
-        points = cloud_to_xyzi(msg)
+    def _preprocess_lidar(self, msg: PointCloud2):
+        points, point_time_offsets = cloud_to_xyzi(msg, include_time=True)
         if len(points) == 0:
-            return points
+            return points, point_time_offsets
 
         finite = np.isfinite(points).all(axis=1)
         points = points[finite]
+        point_time_offsets = point_time_offsets[finite]
         if len(points) == 0:
-            return points
+            return points, point_time_offsets
 
         if self.normalize_intensity:
             intensity = points[:, 3]
@@ -1734,9 +1778,9 @@ class PointPaintingOnlineNode:
             )
             inside &= ~in_ego
 
-        return np.ascontiguousarray(
-            points[inside],
-            dtype=np.float32,
+        return (
+            np.ascontiguousarray(points[inside], dtype=np.float32),
+            np.ascontiguousarray(point_time_offsets[inside], dtype=np.float32),
         )
 
     def _detect(
@@ -1894,6 +1938,7 @@ class PointPaintingOnlineNode:
                 "sim_sensor_age_at_publish_ms",
                 "camera_age_max_ms",
                 "camera_span_ms",
+                "measurement_time_offset_ms",
             )
             timing_summary = {
                 key: self._distribution(analyzed_rows, key)
@@ -2111,7 +2156,7 @@ class PointPaintingOnlineNode:
         ) * 1000.0
 
         lidar_preprocess_start = time.perf_counter()
-        lidar = self._preprocess_lidar(msg)
+        lidar, point_time_offsets = self._preprocess_lidar(msg)
         lidar_preprocess_ms = (
             time.perf_counter() - lidar_preprocess_start
         ) * 1000.0
@@ -2150,13 +2195,34 @@ class PointPaintingOnlineNode:
         )
         detection_ms = float(sum(detection_stage_ms.values()))
 
+        measurement_time_offset_sec = 0.0
+        if self.lidar_measurement_stamp_mode == "point_median":
+            finite_time = point_time_offsets[np.isfinite(point_time_offsets)]
+            if finite_time.size:
+                measurement_time_offset_sec = float(np.median(finite_time))
+        elif self.lidar_measurement_stamp_mode == "object_points_median":
+            measurement_time_offset_sec = representative_detection_time_offset(
+                lidar,
+                point_time_offsets,
+                boxes,
+                extent_scale=self.lidar_timing_box_extent_scale,
+                minimum_points_per_box=(
+                    self.lidar_timing_minimum_points_per_box
+                ),
+            )
+        measurement_header = copy.deepcopy(msg.header)
+        if self.lidar_measurement_stamp_mode != "header":
+            measurement_header.stamp = rospy.Time.from_sec(
+                max(0.0, lidar_timestamp + measurement_time_offset_sec)
+            )
+
         prepublish_total_ms = (
             time.perf_counter() - total_start
         ) * 1000.0
 
         message_publish_start = time.perf_counter()
         output = self._make_detection_array(
-            header=msg.header,
+            header=measurement_header,
             boxes=boxes,
             scores=scores,
             labels=labels,
@@ -2175,7 +2241,7 @@ class PointPaintingOnlineNode:
             for label in labels
         ]
         self.objects_pub.publish(
-            make_detected_objects(msg.header, boxes, scores, names)
+            make_detected_objects(measurement_header, boxes, scores, names)
         )
         self.detections_pub.publish(output)
 
@@ -2184,7 +2250,7 @@ class PointPaintingOnlineNode:
                 boxes,
                 scores,
                 names,
-                msg.header,
+                measurement_header,
             )
         )
 
@@ -2222,6 +2288,12 @@ class PointPaintingOnlineNode:
             "frame_index": int(self.processed_frames),
             "source_seq": int(msg.header.seq),
             "source_stamp_sec": float(lidar_timestamp),
+            "measurement_stamp_sec": float(
+                measurement_header.stamp.to_sec()
+            ),
+            "measurement_time_offset_ms": float(
+                measurement_time_offset_sec * 1000.0
+            ),
             "lidar_points": int(len(lidar)),
             "detection_count": int(len(boxes)),
             "camera_match_ms": float(camera_match_ms),

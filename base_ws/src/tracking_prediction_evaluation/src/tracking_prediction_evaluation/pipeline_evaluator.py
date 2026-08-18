@@ -637,6 +637,39 @@ def _path_errors(
     return float(np.mean(errors)), errors[-1], max(errors)
 
 
+def _path_final_signed_error(
+    path: PredictedPathEstimate,
+    segment: TrajectorySegment,
+    timestamp: float,
+    horizon: float,
+    maximum_interpolation_bracket_sec: float,
+    gt_translation_xy=(0.0, 0.0),
+):
+    """Project final displacement error into the future GT heading frame.
+
+    Positive longitudinal error means that the prediction is ahead of GT.
+    Positive lateral error means that it is left of GT.  Translation is kept
+    optional so the same convention can later be applied to origin-aligned
+    diagnostics without changing the absolute production metric.
+    """
+    predicted = _sample_predicted_path(path.points, path.step_sec, horizon)
+    future = interpolate_point(
+        segment.points,
+        timestamp + horizon,
+        maximum_interpolation_bracket_sec,
+    )
+    if predicted is None or future is None:
+        return None
+    error_x = predicted[0] - (future.x + gt_translation_xy[0])
+    error_y = predicted[1] - (future.y + gt_translation_xy[1])
+    cosine = math.cos(future.yaw)
+    sine = math.sin(future.yaw)
+    return (
+        error_x * cosine + error_y * sine,
+        -error_x * sine + error_y * cosine,
+    )
+
+
 def is_cv_stable_horizon(
     segment: TrajectorySegment,
     origin_timestamp: float,
@@ -784,6 +817,10 @@ def evaluate_pipeline(
     horizon_min_fde = defaultdict(list)
     horizon_min_ade = defaultdict(list)
     horizon_min_max_displacement = defaultdict(list)
+    horizon_top1_signed_longitudinal_fde = defaultdict(list)
+    horizon_top1_signed_lateral_fde = defaultdict(list)
+    horizon_min_k_signed_longitudinal_fde = defaultdict(list)
+    horizon_min_k_signed_lateral_fde = defaultdict(list)
     horizon_best_confidence = defaultdict(list)
     horizon_brier_min_fde = defaultdict(list)
     horizon_origin_aligned_top1_fde = defaultdict(list)
@@ -888,10 +925,24 @@ def evaluate_pipeline(
                     aligned_top_fde,
                     _aligned_top_max,
                 ) = candidate_errors[0]
-                del top_path
+                top_signed_error = _path_final_signed_error(
+                    top_path,
+                    segment,
+                    timestamp,
+                    horizon,
+                    maximum_interpolation_bracket_sec,
+                )
+                if top_signed_error is None:
+                    continue
                 horizon_matched[horizon] += 1
                 horizon_errors[horizon].append(top_fde)
                 horizon_top1_ade[horizon].append(top_ade)
+                horizon_top1_signed_longitudinal_fde[horizon].append(
+                    top_signed_error[0]
+                )
+                horizon_top1_signed_lateral_fde[horizon].append(
+                    top_signed_error[1]
+                )
                 horizon_origin_aligned_top1_fde[horizon].append(aligned_top_fde)
                 horizon_origin_aligned_top1_ade[horizon].append(aligned_top_ade)
 
@@ -899,6 +950,15 @@ def evaluate_pipeline(
                     candidate_errors,
                     key=lambda item: item[1][1],
                 )
+                best_fde_signed_error = _path_final_signed_error(
+                    best_fde_path,
+                    segment,
+                    timestamp,
+                    horizon,
+                    maximum_interpolation_bracket_sec,
+                )
+                if best_fde_signed_error is None:
+                    continue
                 _best_ade_path, (best_ade, _best_ade_fde, _best_ade_max), _ = min(
                     candidate_errors,
                     key=lambda item: item[1][0],
@@ -920,6 +980,12 @@ def evaluate_pipeline(
                 ) = min(candidate_errors, key=lambda item: item[2][0])
                 horizon_best_of_k_matched[horizon] += 1
                 horizon_min_fde[horizon].append(best_fde)
+                horizon_min_k_signed_longitudinal_fde[horizon].append(
+                    best_fde_signed_error[0]
+                )
+                horizon_min_k_signed_lateral_fde[horizon].append(
+                    best_fde_signed_error[1]
+                )
                 horizon_min_ade[horizon].append(best_ade)
                 horizon_min_max_displacement[horizon].append(best_max_error)
                 horizon_origin_aligned_min_fde[horizon].append(aligned_best_fde)
@@ -966,8 +1032,48 @@ def evaluate_pipeline(
             "best_of_k_coverage": best_matched / eligible if eligible else 0.0,
             "top1_ade_m": statistics(horizon_top1_ade[horizon]),
             "top1_fde_m": statistics(top1_fde),
+            "top1_fde_components_gt_heading": {
+                "description": (
+                    "Final displacement projected into future GT heading; "
+                    "positive longitudinal=ahead, positive lateral=left"
+                ),
+                "signed_longitudinal_m": _signed_statistics(
+                    horizon_top1_signed_longitudinal_fde[horizon]
+                ),
+                "absolute_longitudinal_m": statistics(
+                    abs(value)
+                    for value in horizon_top1_signed_longitudinal_fde[horizon]
+                ),
+                "signed_lateral_m": _signed_statistics(
+                    horizon_top1_signed_lateral_fde[horizon]
+                ),
+                "absolute_lateral_m": statistics(
+                    abs(value)
+                    for value in horizon_top1_signed_lateral_fde[horizon]
+                ),
+            },
             "min_ade_k_m": statistics(horizon_min_ade[horizon]),
             "min_fde_k_m": statistics(min_fde),
+            "min_fde_k_components_gt_heading": {
+                "description": (
+                    "GT-closest candidate final displacement projected into "
+                    "future GT heading"
+                ),
+                "signed_longitudinal_m": _signed_statistics(
+                    horizon_min_k_signed_longitudinal_fde[horizon]
+                ),
+                "absolute_longitudinal_m": statistics(
+                    abs(value)
+                    for value in horizon_min_k_signed_longitudinal_fde[horizon]
+                ),
+                "signed_lateral_m": _signed_statistics(
+                    horizon_min_k_signed_lateral_fde[horizon]
+                ),
+                "absolute_lateral_m": statistics(
+                    abs(value)
+                    for value in horizon_min_k_signed_lateral_fde[horizon]
+                ),
+            },
             "top1_fde_miss_rate_1m": (
                 float(np.mean(np.asarray(top1_fde) > 1.0)) if top1_fde else None
             ),

@@ -104,6 +104,11 @@ The legacy
 `prediction.multimodal` additionally reports Top-1 ADE/FDE, minADE-K,
 minFDE-K, Top-1 and best-of-K miss rates, GT-closest-path confidence,
 Brier-minFDE, path-count statistics and the multi-path object rate.
+Each Top-1 and minFDE-K horizon also includes
+`*_fde_components_gt_heading`: the final displacement is projected into the
+future GT heading frame. Positive longitudinal means ahead, and positive
+lateral means left. Use signed statistics to diagnose systematic bias and
+absolute statistics to measure error magnitude; neither replaces scalar FDE.
 Each horizon also contains `origin_aligned`: GT future positions are translated
 by the matched estimate-minus-GT offset at the prediction origin. Keep absolute
 metrics for end-to-end state accuracy, and use origin-aligned ADE/FDE to compare
@@ -270,11 +275,30 @@ compares header-time geometry with the point acquisition-time diagnostic.
   --output /tmp/lidar_detection_timing.json
 ```
 
-Acquisition-aligned distance is not a production metric: it compares both GT
-and the Ego transform at the earlier point time. A production correction must
-then propagate the object state to the common output timestamp. This audit is
-intended to distinguish rolling-scan geometry from a false global timestamp
-shift before changing runtime behavior.
+Acquisition-aligned distance by itself is not a production metric: it compares
+both GT and the Ego transform at the earlier point time. Runtime A/B must also
+check whether retaining that measurement-time state or propagating it to a
+common output timestamp performs better. This audit distinguishes rolling-scan
+geometry from a false fixed global timestamp shift before changing runtime
+behavior.
+
+For a detector-only A/B bag, retime recorded detections from raw per-point
+times without rerunning PointPainting:
+
+```bash
+/usr/bin/python3 \
+  base_ws/src/tracking_prediction_evaluation/scripts/retime_rolling_lidar_detections.py \
+  RAW_INPUT.bag PIPELINE_OUTPUTS.bag RETIMED_DETECTIONS.bag \
+  --report /tmp/retimed_detection_report.json
+```
+
+The roundabout/highway recordings had representative object times about
+`71 ms` earlier than the scan header at p50. Replaying those honest
+measurement timestamps through EKF and Map-CV improved roundabout tracking
+p50 from `0.772 m` to `0.533 m` and 3-second minFDE-K p50 from `1.520 m` to
+`1.328 m`. A second experiment that extrapolated EKF output to current ROS
+time worsened both scenes slightly, so that option remains disabled by
+default. This is a per-frame correction, not a fixed global timestamp shift.
 
 ## E2 pipeline output RViz
 

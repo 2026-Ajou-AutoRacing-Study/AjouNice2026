@@ -90,6 +90,11 @@ requires the sensor static TF and the `map -> morai_map -> base_link` chain.
 
 - Detector output uses its real measurement timestamp and sensor/Ego frame.
 - EKF looks up that timestamp's TF and tracks in `map`.
+- PointPainting uses the median acquisition time of points belonging to
+  detected boxes for rolling LiDAR. A scan-wide median is used as fallback.
+- EKF current-time output extrapolation exists as an experimental launch
+  option but is disabled by default: roundabout/highway A/B evaluation showed
+  that it degraded prediction compared with retaining measurement-time state.
 - `TrackedObjects` and `PredictedObjects` remain in `map`.
 - The predictor emits the current pose followed by 30 uniformly spaced future
   poses from 0.1 through 3.0 seconds (`time_step=0.1s`, 31 path poses total),

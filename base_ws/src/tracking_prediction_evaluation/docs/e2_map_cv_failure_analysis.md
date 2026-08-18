@@ -553,11 +553,74 @@ MGeo 점에서 방향이 맞는 Lanelet v60 centerline까지 필요한 2D 보정
 - Roundabout의 일부 오차가 rolling scan 시간 구조와 연결된다는 근거임.
 - 하지만 acquisition-aligned 값은 과거 시점의 진단값이며 그대로 Planning에
   발행할 수 없음.
-- production에서는 객체별 측정 시각으로 sensor→map 변환한 뒤, tracker 속도
-  상태로 공통 header/output 시각까지 전파해야 함.
+- production에서는 표준 메시지의 단일 header 제약 때문에 검출 box별 point-time
+  median의 median을 프레임 대표 측정시각으로 사용함.
 - Highway 개선 폭이 작으므로 고정 시간 이동이나 장면별 하드코딩은 금지함.
-- 다음 우선순위는 per-point time 보존·객체별 acquisition stamp 추정·공통시각
-  propagation을 별도 ablation으로 구현하는 것임.
+- per-point time 보존·대표 acquisition stamp 추정·현재시각 propagation을 각각
+  분리해 A/B한 결과는 아래와 같음.
+
+| 장면 | 설정 | Tracking p50 | 1초 minFDE-K p50 | 3초 minFDE-K p50 |
+|---|---|---:|---:|---:|
+| Roundabout 1 | scan header | 0.772 m | 0.755 m | 1.520 m |
+| Roundabout 1 | object-point time | **0.533 m** | **0.586 m** | **1.328 m** |
+| Roundabout 1 | object-point time + current-time propagation | 0.536 m | 0.622 m | 1.366 m |
+| Highway 1 | scan header | 0.500 m | 0.604 m | **1.239 m** |
+| Highway 1 | object-point time | **0.489 m** | **0.551 m** | 1.366 m |
+| Highway 1 | object-point time + current-time propagation | 0.519 m | 0.572 m | 1.420 m |
+
+- 대표 object point는 두 bag에서 scan header보다 p50 약 `71 ms` 앞섬.
+- 로터리는 rolling-scan 시각 보정으로 tracking과 모든 horizon이 개선됨.
+- Highway는 tracking·1초·MR@2m가 개선됐지만 2~3초 p50은 악화함. 이는 시각
+  보정 이후의 종방향 속도 추정과 CV 이동거리 누적 오차가 남았기 때문임.
+- current-time propagation은 두 장면에서 일관되게 추가 이득이 없었음. 내부 EKF
+  측정시각 상태를 유지하고 출력 copy만 외삽하는 구현은 실험 옵션으로 남기되,
+  production 기본값은 `false`로 결정함.
+- production 기본은 `object_points_median + measurement-time EKF output`임.
+  고정 `+0.11 s` 이동이나 장면별 보정은 사용하지 않음.
+
+### 다음 구현 우선순위
+
+1. 실제 PointPainting online 실행으로 새 대표 measurement timestamp가 표준
+   `DetectedObjects` header와 benchmark JSONL에 정상 반영되는지 짧은 live/rosbag
+   smoke test를 수행함.
+2. 최근 `0.3~0.5 s` 위치 이력을 이용한 robust 종방향 속도 fitting을 offline
+   ablation으로 구현함. Highway의 2~3초 누적 오차를 줄이되 Roundabout과 ID
+   switch 성능을 손상하지 않는 경우에만 production에 반영함.
+3. Roundabout의 경로 confidence calibration과 branch history를 개선함. 갈림길
+   후보 자체는 유지하고 관측 근거 없이 하나를 과도하게 확정하지 않음.
+4. Planning에 horizon별 불확실성과 안전 margin을 전달함. 현재 성능에서는 1초를
+   주 판단, 2초를 보조 판단, 3초를 보수적 위험 확인에 사용하는 정책을 우선함.
+
+위 순서는 서로 독립적인 숫자 튜닝이 아님. 1번으로 입력 timestamp 계약을 먼저
+고정하고, 2번으로 종방향 상태 품질을 높인 다음, 3번의 경로 확률을 calibration함.
+Planning uncertainty 계약은 앞 단계들의 실제 p50/p90/MR@2m 결과를 반영해 마지막에
+결정함.
+
+### v60 TF 전후 Prediction 종·횡 FDE 분해
+
+일반 FDE가 지도 정합 개선을 가리는지 확인하기 위해 각 1/2/3초 최종 오차를
+미래 GT heading의 종방향·횡방향으로 투영했다. 동일 epoch-65 Detection과
+CV-stable 표본에서 v23 legacy TF와 v60 runtime-origin TF만 비교했다.
+
+| 장면 | horizon | Top-1 횡오차 abs p50 기존 | 수정 | 변화 |
+|---|---:|---:|---:|---:|
+| Roundabout 1 | 1 s | 0.182 m | **0.151 m** | -0.031 m |
+| Roundabout 1 | 2 s | 0.167 m | **0.115 m** | -0.052 m |
+| Roundabout 1 | 3 s | 0.264 m | **0.224 m** | -0.040 m |
+| Highway 1 | 1 s | 0.202 m | **0.176 m** | -0.026 m |
+| Highway 1 | 2 s | 0.141 m | **0.062 m** | -0.078 m |
+| Highway 1 | 3 s | 0.145 m | **0.061 m** | -0.085 m |
+
+- Highway signed lateral p50은 3초 기준 `-0.094 m -> -0.009 m`로 고정
+  centerline bias가 거의 제거됨.
+- Roundabout signed lateral p50도 3초 기준 `+0.100 m -> +0.058 m`로 감소함.
+- 종방향 abs p50은 거의 변하지 않았고, Roundabout 3초는 약 `2.25 m`,
+  Highway 3초는 약 `1.19 m`로 횡오차보다 훨씬 큼.
+- 따라서 v60 TF 수정 효과는 횡방향에서 직접 확인되며, 일반 FDE 변화가 작은
+  원인은 종방향 이동거리 오차가 지배하기 때문임.
+- Highway 횡오차 p90은 일부 horizon에서 약 `0.36 -> 0.51 m`로 악화됨. 이는
+  median 고정 bias와 별개의 Lanelet 후보·tail 문제이므로 production 판단에서는
+  p50과 p90을 함께 유지함.
 
 ### 중복 route hypothesis 정리의 현재 한계
 

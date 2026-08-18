@@ -20,6 +20,9 @@
   <arg name="orientation_canonicalization_min_speed_mps" default="1.0"/>
   <arg name="orientation_flip_enter_error_deg" default="100.0"/>
   <arg name="orientation_flip_exit_error_deg" default="80.0"/>
+  <!-- Experimental: A/B evaluation favored measurement-time output. -->
+  <arg name="compensate_tracking_output_to_current_time" default="false"/>
+  <arg name="maximum_tracking_output_compensation_sec" default="0.25"/>
 
   <!-- Detector-specific launch arguments. -->
   <arg name="python_executable" default=""/>
@@ -49,6 +52,8 @@
   <arg name="pointpainting_benchmark_label" default="pointpainting"/>
   <arg name="pointpainting_benchmark_exclude_frames" default="10"/>
   <arg name="pointpainting_detailed_timing" default="false"/>
+  <arg name="pointpainting_lidar_measurement_stamp_mode"
+       default="object_points_median"/>
 
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
 
@@ -91,6 +96,8 @@
       <arg name="benchmark_label" value="$(arg pointpainting_benchmark_label)"/>
       <arg name="benchmark_exclude_frames" value="$(arg pointpainting_benchmark_exclude_frames)"/>
       <arg name="detailed_timing" value="$(arg pointpainting_detailed_timing)"/>
+      <arg name="lidar_measurement_stamp_mode"
+           value="$(arg pointpainting_lidar_measurement_stamp_mode)"/>
     </include>
   </group>
 
@@ -107,6 +114,10 @@
          value="$(arg orientation_flip_enter_error_deg)"/>
     <arg name="orientation_flip_exit_error_deg"
          value="$(arg orientation_flip_exit_error_deg)"/>
+    <arg name="compensate_output_to_current_time"
+         value="$(arg compensate_tracking_output_to_current_time)"/>
+    <arg name="maximum_output_compensation_sec"
+         value="$(arg maximum_tracking_output_compensation_sec)"/>
   </include>
 
   <include file="$(find perception_object_pipeline)/launch/object_prediction.launch">
