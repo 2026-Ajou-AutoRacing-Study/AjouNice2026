@@ -49,6 +49,11 @@ from PIL import Image
 import torchvision
 import torchvision.transforms.functional as TF
 
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
 
 CAMERA_ORDER = ("front", "front_left", "front_right", "back")
 CLASS_NAMES = ("Background", "Pedestrian", "Vehicle", "Obstacle")
@@ -92,6 +97,15 @@ def parse_args():
         type=int,
         default=384,
         help="LRASPP short-side resize used by current baseline.",
+    )
+    p.add_argument(
+        "--preprocess-backend",
+        choices=("torchvision", "opencv"),
+        default="torchvision",
+        help=(
+            "Camera resize/tensor/normalize backend. torchvision preserves "
+            "the training baseline; opencv matches the optional ROS runtime."
+        ),
     )
     p.add_argument(
         "--min-lidar-range",
@@ -218,7 +232,36 @@ def resize_short_side_pil(image, short_side):
     )
 
 
-def preprocess_image(path, short_side):
+def preprocess_image(path, short_side, backend):
+    if backend == "opencv":
+        if cv2 is None:
+            raise RuntimeError("OpenCV backend requested but cv2 is unavailable")
+        image_bgr = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        if image_bgr is None:
+            raise ValueError(f"OpenCV failed to decode image: {path}")
+        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        orig_h, orig_w = image_rgb.shape[:2]
+        if orig_h <= orig_w:
+            new_h = short_side
+            new_w = int(short_side * orig_w / orig_h)
+        else:
+            new_w = short_side
+            new_h = int(short_side * orig_h / orig_w)
+        resized = cv2.resize(
+            image_rgb,
+            (new_w, new_h),
+            interpolation=cv2.INTER_LINEAR,
+        )
+        tensor = (
+            torch.from_numpy(resized)
+            .permute(2, 0, 1)
+            .to(dtype=torch.float32)
+            .div_(255.0)
+        )
+        mean = torch.as_tensor(IMAGENET_MEAN, dtype=torch.float32)[:, None, None]
+        std = torch.as_tensor(IMAGENET_STD, dtype=torch.float32)[:, None, None]
+        return tensor.sub_(mean).div_(std), (orig_w, orig_h)
+
     with Image.open(path) as im:
         image = im.convert("RGB")
 
@@ -236,7 +279,7 @@ def preprocess_image(path, short_side):
 
 
 @torch.no_grad()
-def infer_four_cameras(model, camera_paths, short_side, device):
+def infer_four_cameras(model, camera_paths, short_side, device, backend):
     """
     Inference is grouped by resized tensor shape.
     front/back generally form one batch and side cameras another batch.
@@ -250,6 +293,7 @@ def infer_four_cameras(model, camera_paths, short_side, device):
         tensor, original_size = preprocess_image(
             camera_paths[camera_name],
             short_side,
+            backend,
         )
         prepared[camera_name] = {
             "tensor": tensor,
@@ -568,6 +612,7 @@ def main():
     print("selected splits  :", sorted(selected_splits))
     print("selected frames  :", len(selected_frames))
     print("short side       :", args.short_side)
+    print("preprocess       :", args.preprocess_backend)
     print("min LiDAR range  :", args.min_lidar_range)
     print("feature order    : x y z intensity bg ped vehicle obstacle unknown")
     print("MORAI GT semantic: NOT USED AS INPUT")
@@ -675,6 +720,7 @@ def main():
                 camera_paths=camera_paths,
                 short_side=args.short_side,
                 device=device,
+                backend=args.preprocess_backend,
             )
 
             if device.type == "cuda":
@@ -849,6 +895,7 @@ def main():
         f.write(f"checkpoint={args.checkpoint}\n")
         f.write(f"splits={sorted(selected_splits)}\n")
         f.write(f"short_side={args.short_side}\n")
+        f.write(f"preprocess_backend={args.preprocess_backend}\n")
         f.write(f"min_lidar_range={args.min_lidar_range}\n")
         f.write(
             "point_features="

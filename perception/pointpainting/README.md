@@ -47,6 +47,10 @@ Point feature order:
   - RTX 5060 Ti runtime results and the production decision to use four
     camera CPU workers with the training-compatible torchvision backend.
 
+- `docs/opencv_validation_ablation_epoch65.md`
+  - Same-checkpoint, same-validation-split PIL versus OpenCV preprocessing
+    accuracy comparison for the 80-epoch production release.
+
 ## Weights
 
 Weights are distributed separately and are not committed to Git.

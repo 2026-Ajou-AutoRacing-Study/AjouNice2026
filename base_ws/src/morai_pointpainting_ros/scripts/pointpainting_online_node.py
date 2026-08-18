@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import hashlib
 import json
 import math
 import os
@@ -98,6 +99,28 @@ POINTFIELD_TO_DTYPE = {
 
 def expand_path(value: str) -> Path:
     return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
+
+
+def file_identity(path: Optional[Path]) -> Optional[Dict[str, object]]:
+    """Return a reproducible artifact identity outside measured frame timing."""
+    if path is None:
+        return None
+    identity: Dict[str, object] = {"path": str(path)}
+    try:
+        stat = path.stat()
+        digest = hashlib.sha256()
+        with path.open("rb") as file:
+            for chunk in iter(lambda: file.read(1024 * 1024), b""):
+                digest.update(chunk)
+        identity.update(
+            {
+                "size_bytes": int(stat.st_size),
+                "sha256": digest.hexdigest(),
+            }
+        )
+    except OSError as error:
+        identity["identity_error"] = str(error)
+    return identity
 
 
 def rotation_matrix(roll_deg: float, pitch_deg: float, yaw_deg: float) -> np.ndarray:
@@ -1914,9 +1937,18 @@ class PointPaintingOnlineNode:
             publish_count = int(self.processed_frames)
 
             summary = {
-                "schema_version": 1,
+                "schema_version": 2,
                 "label": self.benchmark_label,
                 "generated_at": datetime.now().astimezone().isoformat(),
+                "artifacts": {
+                    "pointpillars_config": file_identity(self.cfg_file),
+                    "pointpillars_checkpoint": file_identity(
+                        self.checkpoint
+                    ),
+                    "segmentation_checkpoint": file_identity(
+                        self.segmentation_checkpoint
+                    ),
+                },
                 "runtime": {
                     "semantic_profile": self.semantic_profile,
                     "segmentation_short_side": self.segmentation_short_side,

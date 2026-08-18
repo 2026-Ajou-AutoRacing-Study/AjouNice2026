@@ -68,6 +68,10 @@ def parse_args():
     )
     p.add_argument('--workers', type=int, default=4)
     p.add_argument(
+        '--data_path', default='',
+        help='Optional processed dataset root overriding DATA_CONFIG.DATA_PATH.'
+    )
+    p.add_argument(
         '--score_thresh', type=float, default=0.01,
         help='Low inference floor for PR-curve evaluation; not the ROS publish threshold.'
     )
@@ -318,6 +322,8 @@ def evaluate_center(samples, class_names, min_recall, min_precision, prefix,
 
 def collect_samples(args):
     cfg_from_yaml_file(args.cfg_file, cfg)
+    if args.data_path:
+        cfg.DATA_CONFIG.DATA_PATH = str(Path(args.data_path).expanduser().resolve())
     cfg.MODEL.POST_PROCESSING.SCORE_THRESH = float(args.score_thresh)
 
     logger = common_utils.create_logger()
@@ -346,6 +352,7 @@ def collect_samples(args):
     print('\n========== MORAI COMPETITION EVALUATION ==========')
     print('classes         :', list(cfg.CLASS_NAMES))
     print('checkpoint      :', args.ckpt)
+    print('data path       :', cfg.DATA_CONFIG.DATA_PATH)
     print('frames          :', limit)
     print('score floor     :', args.score_thresh)
     print('pointcloud range:', pc_range.tolist())
