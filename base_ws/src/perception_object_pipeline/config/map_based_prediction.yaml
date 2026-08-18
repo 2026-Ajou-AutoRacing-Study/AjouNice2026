@@ -9,3 +9,4 @@ maximum_nearest_lanelets: 12
 maximum_start_lanelets: 3
 maximum_paths: 6
 maximum_route_depth: 12
+trajectory_cluster_distance_m: 0.75

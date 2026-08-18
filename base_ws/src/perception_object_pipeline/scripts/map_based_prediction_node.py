@@ -146,6 +146,9 @@ class MapBasedPredictionNode:
             maximum_route_depth=int(
                 rospy.get_param("~maximum_route_depth", 12)
             ),
+            trajectory_cluster_distance_m=float(
+                rospy.get_param("~trajectory_cluster_distance_m", 0.75)
+            ),
         )
         map_file = rospy.get_param("~map_file")
         projector_file = rospy.get_param("~projector_file")

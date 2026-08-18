@@ -16,6 +16,10 @@
   <arg name="prediction_time_step" default="0.1"/>
   <arg name="prediction_horizon" default="3.0"/>
   <arg name="prediction_model" default="ctrv"/>
+  <arg name="canonicalize_vehicle_orientation_to_motion" default="true"/>
+  <arg name="orientation_canonicalization_min_speed_mps" default="1.0"/>
+  <arg name="orientation_flip_enter_error_deg" default="100.0"/>
+  <arg name="orientation_flip_exit_error_deg" default="80.0"/>
 
   <!-- Detector-specific launch arguments. -->
   <arg name="python_executable" default=""/>
@@ -95,6 +99,14 @@
     <arg name="output_objects" value="$(arg tracked_objects)"/>
     <arg name="world_frame_id" value="$(arg world_frame_id)"/>
     <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="canonicalize_vehicle_orientation_to_motion"
+         value="$(arg canonicalize_vehicle_orientation_to_motion)"/>
+    <arg name="orientation_canonicalization_min_speed_mps"
+         value="$(arg orientation_canonicalization_min_speed_mps)"/>
+    <arg name="orientation_flip_enter_error_deg"
+         value="$(arg orientation_flip_enter_error_deg)"/>
+    <arg name="orientation_flip_exit_error_deg"
+         value="$(arg orientation_flip_exit_error_deg)"/>
   </include>
 
   <include file="$(find perception_object_pipeline)/launch/object_prediction.launch">

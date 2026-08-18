@@ -26,6 +26,9 @@
     <rosparam param="prediction_marker_horizons_sec">[1.0, 2.0, 3.0]</rosparam>
     <param name="prediction_marker_diameter_m" value="0.45"/>
     <param name="prediction_marker_diameter_step_m" value="0.08"/>
+    <param name="prediction_line_width_m" value="0.08"/>
+    <rosparam param="prediction_secondary_color_rgba">[1.0, 0.55, 0.0, 0.95]</rosparam>
+    <param name="prediction_show_confidence_labels" value="true"/>
     <remap from="~output/detections" to="$(arg detection_markers)"/>
     <remap from="~output/tracks" to="$(arg tracking_markers)"/>
     <remap from="~output/predictions" to="$(arg prediction_markers)"/>

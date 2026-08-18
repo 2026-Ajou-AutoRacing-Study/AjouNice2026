@@ -132,6 +132,7 @@ class MapPredictionConfig:
     maximum_start_lanelets: int = 3
     maximum_paths: int = 6
     maximum_route_depth: int = 12
+    trajectory_cluster_distance_m: float = 0.75
 
 
 @dataclass(frozen=True)
@@ -354,6 +355,54 @@ class LaneletNetwork:
                 points.extend(centerline)
         return tuple(points)
 
+    def _same_trajectory_hypothesis(
+        self,
+        first: Sequence[Tuple[float, float, float, float]],
+        second: Sequence[Tuple[float, float, float, float]],
+    ) -> bool:
+        """Return whether two routes express the same observable motion.
+
+        Route enumeration can reach the same physical future through several
+        nearby start-lanelet matches.  Exact lanelet-ID equality would retain
+        those map-matching duplicates, so clustering is performed on the
+        predicted XY samples within the actual output horizon instead.
+        """
+        if not first or len(first) != len(second):
+            return False
+        threshold = max(0.0, self.config.trajectory_cluster_distance_m)
+        return max(
+            math.hypot(a[0] - b[0], a[1] - b[1])
+            for a, b in zip(first, second)
+        ) <= threshold
+
+    def _distinct_trajectory_hypotheses(self, raw_paths):
+        """Keep the highest-scoring representative of each geometric mode.
+
+        Using the maximum raw score is intentionally conservative.  The
+        current lane and route scores are heuristic rather than calibrated
+        probabilities, so summing duplicate scores would reward hypotheses
+        merely because the map enumerated them more often.  A later revision
+        should normalize start-lane probabilities and conditional branch
+        probabilities, then marginalize probability mass per cluster.
+        """
+        representatives = []
+        for candidate in sorted(raw_paths, key=lambda item: item[0], reverse=True):
+            if any(
+                # Geometry alone is insufficient near the beginning of a
+                # fork: two legitimate sibling branches can remain closer
+                # than the clustering threshold for most of a short/slow
+                # horizon.  Only routes reaching the same downstream
+                # Lanelet are eligible to collapse.
+                candidate[1][-1] == existing[1][-1]
+                and self._same_trajectory_hypothesis(candidate[2], existing[2])
+                for existing in representatives
+            ):
+                continue
+            representatives.append(candidate)
+            if len(representatives) >= max(1, int(self.config.maximum_paths)):
+                break
+        return representatives
+
     def predict(
         self,
         x: float,
@@ -406,8 +455,11 @@ class LaneletNetwork:
                     (candidate.score * route_score, tuple(lanelet_ids), tuple(poses))
                 )
 
-        raw_paths.sort(key=lambda item: item[0], reverse=True)
-        raw_paths = raw_paths[: max(1, int(self.config.maximum_paths))]
+        # Enumerate generously first, then cap the number of *distinct*
+        # geometric futures.  Capping raw routes before clustering can let
+        # duplicate start-lane matches crowd a real sibling branch out of the
+        # published Top-K set.
+        raw_paths = self._distinct_trajectory_hypotheses(raw_paths)
         total_score = sum(max(score, 0.0) for score, _, _ in raw_paths)
         if total_score <= 1.0e-12:
             return ()

@@ -65,6 +65,37 @@ class MapBasedPredictionCoreTest(unittest.TestCase):
             network.predict(5.0, 0.0, 0.0, math.pi, 2.0, (1.0, 2.0, 3.0)), ()
         )
 
+    def test_duplicate_start_lane_matches_collapse_per_future_branch(self):
+        records = [
+            LaneletRecord(1, ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0)), (3, 4)),
+            LaneletRecord(2, ((0.0, 0.1, 0.0), (10.0, 0.1, 0.0)), (3, 4)),
+            LaneletRecord(3, ((10.0, 0.0, 0.0), (20.0, 0.0, 0.0))),
+            LaneletRecord(4, ((10.0, 0.0, 0.0), (18.0, 6.0, 0.0))),
+        ]
+        network = LaneletNetwork(
+            records,
+            MapPredictionConfig(
+                maximum_lane_distance_m=2.0,
+                maximum_start_lanelets=2,
+                maximum_paths=6,
+                lateral_convergence_time_sec=1.5,
+                trajectory_cluster_distance_m=0.75,
+            ),
+        )
+
+        trajectories = network.predict(
+            x=5.0,
+            y=0.05,
+            z=0.0,
+            yaw=0.0,
+            speed=2.0,
+            horizons=(0.5, 1.0, 1.5, 2.0, 3.0),
+        )
+
+        self.assertEqual(len(trajectories), 2)
+        self.assertEqual({path.lanelet_ids[-1] for path in trajectories}, {3, 4})
+        self.assertAlmostEqual(sum(path.confidence for path in trajectories), 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

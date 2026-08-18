@@ -8,8 +8,10 @@ import json
 from pathlib import Path
 
 from tracking_prediction_evaluation.pipeline_evaluator import (
+    evaluate_detection_tracking_yaw_flow,
     evaluate_pipeline,
     evaluate_oracle_predictor_at_timestamps,
+    read_detection_frames,
     read_ego_points,
     read_output_frames,
 )
@@ -29,6 +31,10 @@ def parse_args():
     parser.add_argument("--object-topic", default="/Object_topic")
     parser.add_argument("--ego-topic", default="/Ego_topic")
     parser.add_argument(
+        "--detection-topic",
+        default="/perception/object_recognition/detection/objects",
+    )
+    parser.add_argument(
         "--tracking-topic",
         default="/perception/object_recognition/tracking/objects",
     )
@@ -39,6 +45,11 @@ def parse_args():
     parser.add_argument("--horizons", nargs="+", type=float, default=(1.0, 2.0, 3.0))
     parser.add_argument("--maximum-range-m", type=float, default=30.0)
     parser.add_argument("--maximum-association-distance-m", type=float, default=2.0)
+    parser.add_argument(
+        "--maximum-detection-association-distance-m", type=float, default=3.0
+    )
+    parser.add_argument("--sensor-to-ego-x-m", type=float, default=0.855)
+    parser.add_argument("--sensor-to-ego-y-m", type=float, default=0.0)
     parser.add_argument("--maximum-interpolation-bracket-sec", type=float, default=0.15)
     parser.add_argument(
         "--prediction-motion-slice",
@@ -90,6 +101,7 @@ def main():
         args.tracking_topic,
         args.prediction_topic,
     )
+    detection_frames = read_detection_frames(args.output_bag, args.detection_topic)
     summary = evaluate_pipeline(
         segments,
         ego_points,
@@ -103,6 +115,24 @@ def main():
         maximum_longitudinal_acceleration_mps2=(
             args.maximum_longitudinal_acceleration_mps2
         ),
+    )
+    summary["detection_to_tracking_yaw_flow"] = evaluate_detection_tracking_yaw_flow(
+        segments,
+        ego_points,
+        detection_frames,
+        tracking_frames,
+        maximum_range_m=args.maximum_range_m,
+        maximum_detection_association_distance_m=(
+            args.maximum_detection_association_distance_m
+        ),
+        maximum_tracking_association_distance_m=(
+            args.maximum_association_distance_m
+        ),
+        maximum_interpolation_bracket_sec=(
+            args.maximum_interpolation_bracket_sec
+        ),
+        sensor_to_ego_x_m=args.sensor_to_ego_x_m,
+        sensor_to_ego_y_m=args.sensor_to_ego_y_m,
     )
     from perception_object_pipeline.map_based_prediction import LaneletNetwork
     from tracking_prediction_evaluation.models import MapBasedP1Predictor
@@ -133,6 +163,7 @@ def main():
         "trajectory_segment_count": len(segments),
         "ego_sample_count": len(ego_points),
         "tracking_frame_count": len(tracking_frames),
+        "detection_frame_count": len(detection_frames),
         "prediction_frame_count": len(prediction_frames),
         "morai_static_tf": str(args.morai_static_tf.resolve()),
         "map_file": str(args.map_file.resolve()),

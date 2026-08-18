@@ -109,6 +109,20 @@ class ObjectPipelineVisualization:
         self.prediction_marker_diameter_step = float(
             rospy.get_param("~prediction_marker_diameter_step_m", 0.08)
         )
+        self.prediction_line_width = float(
+            rospy.get_param("~prediction_line_width_m", 0.08)
+        )
+        secondary_rgba = rospy.get_param(
+            "~prediction_secondary_color_rgba", [1.0, 0.55, 0.0, 0.95]
+        )
+        if len(secondary_rgba) != 4:
+            raise ValueError("~prediction_secondary_color_rgba must contain RGBA")
+        self.prediction_secondary_color = ColorRGBA(
+            *(float(value) for value in secondary_rgba)
+        )
+        self.prediction_show_confidence_labels = bool(
+            rospy.get_param("~prediction_show_confidence_labels", True)
+        )
 
         detection_topic = rospy.get_param(
             "~input/detections",
@@ -216,51 +230,82 @@ class ObjectPipelineVisualization:
                 continue
             label, _ = dominant_classification(obj)
             marker_id = uuid_marker_id(obj.object_id)
-            path = max(
+            paths = sorted(
                 obj.kinematics.predicted_paths,
                 key=lambda candidate: candidate.confidence,
+                reverse=True,
             )
-            if not path.path:
-                continue
+            for rank_index, path in enumerate(paths):
+                if not path.path:
+                    continue
+                rank = rank_index + 1
+                rank_namespace = "top_%d" % rank
+                path_color = (
+                    color_for(label, 0.95)
+                    if rank == 1
+                    else copy.deepcopy(self.prediction_secondary_color)
+                )
 
-            line = Marker()
-            line.header = copy.deepcopy(message.header)
-            line.ns = "predicted_paths"
-            line.id = marker_id
-            line.type = Marker.LINE_STRIP
-            line.action = Marker.ADD
-            line.pose.orientation.w = 1.0
-            line.scale.x = 0.08
-            line.color = color_for(label, 0.95)
-            line.points = [copy.deepcopy(pose.position) for pose in path.path]
-            line.lifetime = self.lifetime
-            markers.markers.append(line)
+                line = Marker()
+                line.header = copy.deepcopy(message.header)
+                line.ns = "predicted_paths/%s" % rank_namespace
+                line.id = marker_id
+                line.type = Marker.LINE_STRIP
+                line.action = Marker.ADD
+                line.pose.orientation.w = 1.0
+                # Keep every hypothesis at the same width and opacity so it
+                # remains visible from a distant RViz camera. Top-1 retains
+                # its class color; lower-ranked hypotheses use orange.
+                line.scale.x = self.prediction_line_width
+                line.color = copy.deepcopy(path_color)
+                line.points = [copy.deepcopy(pose.position) for pose in path.path]
+                line.lifetime = self.lifetime
+                markers.markers.append(line)
 
-            time_step = path.time_step.to_sec()
-            if time_step > 1.0e-6:
-                for horizon_index, horizon in enumerate(
-                    self.prediction_marker_horizons
-                ):
-                    path_index = int(round(horizon / time_step))
-                    if path_index < 0 or path_index >= len(path.path):
-                        continue
-                    milestone = Marker()
-                    milestone.header = copy.deepcopy(message.header)
-                    milestone.ns = "predicted_horizon_%g_sec" % horizon
-                    milestone.id = marker_id
-                    milestone.type = Marker.SPHERE
-                    milestone.action = Marker.ADD
-                    milestone.pose = copy.deepcopy(path.path[path_index])
-                    diameter = (
-                        self.prediction_marker_diameter
-                        + self.prediction_marker_diameter_step * horizon_index
-                    )
-                    milestone.scale.x = diameter
-                    milestone.scale.y = diameter
-                    milestone.scale.z = diameter
-                    milestone.color = color_for(label, 1.0)
-                    milestone.lifetime = self.lifetime
-                    markers.markers.append(milestone)
+                time_step = path.time_step.to_sec()
+                if time_step > 1.0e-6:
+                    for horizon_index, horizon in enumerate(
+                        self.prediction_marker_horizons
+                    ):
+                        path_index = int(round(horizon / time_step))
+                        if path_index < 0 or path_index >= len(path.path):
+                            continue
+                        milestone = Marker()
+                        milestone.header = copy.deepcopy(message.header)
+                        milestone.ns = "predicted_horizon_%g_sec/%s" % (
+                            horizon,
+                            rank_namespace,
+                        )
+                        milestone.id = marker_id
+                        milestone.type = Marker.SPHERE
+                        milestone.action = Marker.ADD
+                        milestone.pose = copy.deepcopy(path.path[path_index])
+                        diameter = (
+                            self.prediction_marker_diameter
+                            + self.prediction_marker_diameter_step * horizon_index
+                        )
+                        milestone.scale.x = diameter
+                        milestone.scale.y = diameter
+                        milestone.scale.z = diameter
+                        milestone.color = copy.deepcopy(path_color)
+                        milestone.lifetime = self.lifetime
+                        markers.markers.append(milestone)
+
+                if self.prediction_show_confidence_labels:
+                    confidence = Marker()
+                    confidence.header = copy.deepcopy(message.header)
+                    confidence.ns = "predicted_confidence/%s" % rank_namespace
+                    confidence.id = marker_id
+                    confidence.type = Marker.TEXT_VIEW_FACING
+                    confidence.action = Marker.ADD
+                    confidence.pose.position = copy.deepcopy(path.path[-1].position)
+                    confidence.pose.position.z += 0.45
+                    confidence.pose.orientation.w = 1.0
+                    confidence.scale.z = 0.42
+                    confidence.color = copy.deepcopy(path_color)
+                    confidence.text = "#%d p=%.2f" % (rank, path.confidence)
+                    confidence.lifetime = self.lifetime
+                    markers.markers.append(confidence)
 
         self.prediction_pub.publish(markers)
 

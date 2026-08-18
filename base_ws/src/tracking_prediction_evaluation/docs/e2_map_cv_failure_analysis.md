@@ -235,7 +235,9 @@ Roundabout보다 branch/yaw 문제가 훨씬 작고, 동일 header 기준 약 `1
 초기 center bias가 주된 문제였다. 따라서 우선순위는 다음과 같다.
 
 1. 공통: `0.11 s` 시간 정렬 가설을 계측으로 검증하고 center bias를 제거한다.
-2. Roundabout: yaw canonicalization과 track-level Lanelet continuity를 구현한다.
+2. Roundabout: yaw canonicalization 후 Top-K route의 confidence 순위 오류를
+   분해한다. track-level continuity는 비연결 Lanelet 점프가 실제로 확인될 때
+   적용한다.
 3. Highway: 시간 정렬 후 남는 coverage 부족과 7개 wrong-route 표본을 분리해
    분석한다.
 4. 모든 변경은 all-motion과 CV-stable을 함께 평가하되, production 모델 선택은
@@ -247,11 +249,153 @@ Roundabout보다 branch/yaw 문제가 훨씬 작고, 동일 header 기준 약 `1
 2. 움직이는 차량에 한해 tracker output yaw/speed canonicalization을 구현하고
    기존 E2 bag과 동일 조건으로 회귀 평가한다.
 3. predictor fallback을 world velocity 기반으로 바꿔 방어한다.
-4. track-level Lanelet hysteresis를 넣고 Roundabout wrong-route 152건 및 p90 tail
-   62건이 얼마나 감소하는지 확인한다.
-5. 이후 Autoware map-based prediction의 다중 경로 확률·lane history 로직을
-   단계적으로 포팅한다.
+4. Roundabout p90 tail에서 비연결 Lanelet 점프와 합법적인 sibling successor의
+   Top-1 순위 오류를 분리한다.
+5. 전자가 유의미하면 Autoware의 lane history/continuity를 포팅하고, 후자가
+   지배적이면 기존 다중 경로의 confidence와 Planning 소비 정책을 먼저 개선한다.
 
 각 단계는 center/FDE 평균만 보지 말고 coverage, p50, p90, p95, wrong-route,
 fallback, yaw-flip 비율을 함께 비교해야 한다. 평균 개선이 일부 path 누락으로
 만들어진 것은 아닌지 반드시 확인한다.
+
+## 2026-08-17 vehicle orientation canonicalization 결과
+
+첫 번째 완화책을 EKF 내부 association이 아니라 표준 `TrackedObjects` 출력단에
+구현했다. CAR/TRUCK이 1.0 m/s 이상으로 움직일 때 EKF world velocity와 box yaw의
+차이를 계산하고, 100도 이상이면 `yaw + pi` 표현으로 진입하며 80도 이하가 될
+때만 원래 표현으로 복귀한다. 저속에서는 직전 결정을 유지한다. 위치, world
+velocity, association 및 detector 출력은 바꾸지 않는다.
+
+동일한 epoch-65 PointPainting detection bag을 재생해 tracker와 Map-CV만 다시
+실행했다. 따라서 전후 차이는 detector 추론 변동이 아니라 이 정규화와 그에
+따른 map matching 변화다.
+
+### Detection -> tracking paired yaw
+
+| 장면 | 지표 | 기존 | 정규화 후 |
+|---|---|---:|---:|
+| Roundabout | paired detection yaw flip | 34.8% | 34.8% |
+| Roundabout | paired tracking yaw flip | 32.3% | **0.0%** |
+| Roundabout | 전체 tracking 음수 종방향 속도 | 33.2% | **0.0%** |
+| Roundabout | tracking yaw mean error | 62.7 deg | **8.0 deg** |
+| Roundabout | tracking speed mean error | 4.06 m/s | **0.61 m/s** |
+| Highway | paired detection yaw flip | 17.6% | 17.6% |
+| Highway | paired tracking yaw flip | 13.2% | **1.7%** |
+| Highway | 전체 tracking 음수 종방향 속도 | 11.9% | **1.3%** |
+| Highway | tracking yaw mean error | 24.0 deg | **5.1 deg** |
+| Highway | tracking speed mean error | 2.92 m/s | **0.65 m/s** |
+
+Roundabout paired 641건에서 detector flip 223건을 모두 올바른 방향으로
+정규화했으며 correct detection 418건을 새로 뒤집지 않았다. Highway paired
+295건에서는 detector flip 52건 중 51건을 교정했다. 남은 5개 tracking flip은
+대부분 저속 hysteresis 또는 noisy velocity 경계 표본으로 후속 진단 대상이다.
+
+### CV-stable Map-CV FDE
+
+| 장면 | horizon | 지표 | 기존 | 정규화 후 |
+|---|---:|---|---:|---:|
+| Roundabout | 1 s | mean / p50 | 1.37 / 1.29 m | **1.27 / 1.04 m** |
+| Roundabout | 2 s | mean / p50 | 3.31 / 3.21 m | **2.99 / 1.78 m** |
+| Roundabout | 3 s | mean / p50 | 6.29 / 4.94 m | **5.68 / 2.45 m** |
+| Roundabout | 3 s | p90 / p95 | **12.92 / 15.29 m** | 15.37 / 17.00 m |
+| Highway | 3 s | mean / p50 | 1.79 / 1.48 m | **1.75 / 1.48 m** |
+| Highway | 3 s | p90 / p95 | 3.66 / 4.15 m | **3.52 / 3.94 m** |
+
+모든 horizon의 coverage는 전후 동일했다. 따라서 누락을 늘려 평균을 낮춘 결과가
+아니다. Roundabout의 대표 오차와 평균은 크게 개선됐지만 p90/p95는 악화됐다.
+기존 yaw-flip 객체가 straight fallback하는 문제는 제거됐으나, 정규화 후 지도
+정합에 들어온 일부 객체가 잘못된 Top-1 route를 따라 더 큰 tail을 만들었다.
+아래의 route-topology 재분석 결과, 이를 곧바로 비연결 Lanelet 점프로 간주해
+track-level continuity를 최우선으로 구현하는 것은 부정확하다.
+
+Highway는 방향 반전이 원래 적어 FDE 변화는 작았다. 남은 주요 오차는 앞서
+확인한 약 0.11초 시간 정렬 가설과 coverage 문제이므로 방향 threshold를 더
+공격적으로 조정할 우선순위는 낮다.
+
+## 2026-08-17 Roundabout p90 tail route-topology 재분석
+
+yaw canonicalization 결과의 CV-stable 3초 표본 624건을 대상으로 Top-1 FDE
+p90인 `15.291 m` 이상 63건을 다시 분류했다. 각 표본에서 현재 Top-1뿐 아니라
+Map-CV가 이미 생성한 모든 graph-valid path를 재구성하고, GT 3초 위치에 가장
+가까운 best-of-K 경로와 Lanelet topology를 비교했다.
+
+| p90 tail 유형 | 건수 | 비율 |
+|---|---:|---:|
+| 동일 predecessor의 합법적인 sibling successor 중 Top-1 오선택 | 61 | **96.8%** |
+| 현재 Top-K로 해결 불가 | 2 | 3.2% |
+| 이전 후보 집합 밖의 비연결 시작 Lanelet 점프 | 0 | **0.0%** |
+
+61건의 세부 topology는 다음 두 쌍으로 완전히 설명된다.
+
+| Top-1 시작 | GT에 가까운 후보 시작 | 공통 predecessor | 건수 |
+|---:|---:|---|---:|
+| `201108` | `201094` | `201144`, `201146` | 39 |
+| `201098` | `201097` | `201094`, `201095` | 22 |
+
+즉 `201094`와 `201108`, `201097`과 `201098`은 각각 graph상 연결되지 않은
+엉뚱한 Lanelet 쌍이 아니다. 동일 predecessor에서 정상적으로 갈라지는 합법적
+미래 후보다. 화면에서는 잘못된 출구를 선택한 것처럼 보이며 실제로 Top-1은
+틀렸지만, 원인은 continuity 단절보다 branch confidence 순위 오류다.
+
+Top-1과 oracle best-of-K의 3초 FDE를 동일 624건에서 비교하면 다음과 같다.
+
+| 경로 선택 | mean | p50 | p90 | p95 |
+|---|---:|---:|---:|---:|
+| 현재 confidence Top-1 | 5.656 m | 2.440 m | 15.291 m | 17.010 m |
+| GT에 가장 가까운 oracle best-of-K | **2.069 m** | **1.712 m** | **4.193 m** | **5.299 m** |
+
+oracle best-of-K는 runtime에서 선택할 수 없는 진단 상한이지만, 미래 경로 생성
+coverage는 이미 충분하고 병목이 confidence ranking과 downstream 소비라는 것을
+보여준다. 단순히 후보 수를 더 늘리는 실험의 우선순위는 낮다.
+
+61개 오선택 중 GT에 가장 가까운 후보는 59개가 confidence 2위, 2개가 3위였다.
+Top-1 confidence 중앙값은 `0.520`, GT에 가까운 후보는 `0.477`이며 둘의 차이
+중앙값은 불과 `0.043`이었다. 즉 모델이 압도적으로 잘못된 출구를 확신한 것이
+아니라, 이미 생성된 두 합법 후보의 근소한 기하학 점수 차이가 Top-1 순서를
+결정한 경우가 대부분이다. Planning에서 합리적인 confidence threshold로 Top-N을
+사용하거나 관측된 maneuver 단서로 이 작은 margin을 재정렬할 여지가 크다.
+
+단순 confidence EMA나 이전 Top-1 고정도 직접 해결책은 아니다. 이전 표본이 있는
+tail 62건 중 90.3%는 직전 프레임도 이미 오선택이었고, 85.5%는 동일한 잘못된
+sibling 쌍을 연속 선택했다. tail과 겹치는 오선택 run의 길이는 중앙값 4 frame
+(`0.32 s`), p90 11 frame(`1.10 s`), 최대 12 frame(`1.29 s`)이었다. 따라서 과거
+Top-1을 그대로 누적하면 잘못된 선택을 오히려 강화하거나 수정 시점만 늦출 수
+있다. 이력은 Top-1 smoothing이 아니라 lateral motion, velocity direction처럼
+새로운 maneuver 관측 단서를 추출하는 데 사용해야 한다.
+
+### 수정된 개선 순서
+
+1. evaluator에 top-1/min-K, sibling-successor 오선택률, confidence margin을
+   정식 지표로 추가한다.
+2. 약 `0.11 s` 시간 의미와 tracking 위치·yaw bias를 먼저 바로잡아 기하학 입력
+   자체가 sibling 후보 순위를 체계적으로 왜곡하는지 확인한다.
+3. 현재 branch prior와 곡률 기반 transition score가 두 sibling 후보에 어떤
+   confidence를 부여하는지 계측한다.
+4. Autoware의 lateral-kinematics history와 maneuver continuity를 offline causal
+   ablation으로 먼저 검증하고, 실제
+   출구 진입 단서가 관측될 때 confidence를 재정렬한다. 단, 아무 단서가 없는
+   branch에서는 하나를 억지로 확정하지 않는다.
+5. Planning의 safety-critical 모듈이 confidence threshold 이상의 복수 경로를
+   활용하도록 모듈별 정책을 검토한다. 현재 교차로 일부는 복수 경로를 쓰지만
+   동적 회피/cut-in 일부는 Top-1만 사용한다.
+6. lane history gating은 일반적인 map matching 안정장치로 남기되, 이번 로터리
+   p90 tail의 직접 해결책으로 과대평가하지 않는다.
+
+따라서 다음 production 작업은 track-level Lanelet continuity 단독 구현이 아니라
+`confidence 진단 -> Autoware식 maneuver/lateral history -> Planning의 Top-N 소비`
+순서로 수정한다.
+
+### 중복 route hypothesis 정리의 현재 한계
+
+시작 Lanelet 후보가 달라도 동일한 downstream Lanelet에 도달하고 실제 3초 미래
+궤적이 `0.75 m` 이내로 겹치면 하나의 물리적 hypothesis로 묶고, 그룹 내 최고
+raw score만 대표 confidence 계산에 사용한다. downstream Lanelet 조건은 갈림길
+진입 초기에 아직 기하 거리가 가까운 정상 sibling 경로를 합치는 오류를 막는다.
+따라서 동일한 순환 경로가 여러 번 열거되어 실제 출구 후보를 Top-K 밖으로
+밀어내는 문제를 방지한다. `maximum_paths=6`은 서로 다른 미래 움직임의 안전
+상한이며, 두 갈래에서는 보통 두 경로만 남는 것이 목표다.
+
+다만 현재 score는 정식 확률이 아닌 거리·yaw·분기·전환 곡률 기반 heuristic이다.
+따라서 중복 score의 단순 합산은 보류한다. 향후에는 시작 Lanelet posterior와
+조건부 branch probability를 각각 정규화한 뒤 동일 hypothesis로 확률 질량을
+marginalization하고, Brier score와 calibration curve로 검증해야 한다.

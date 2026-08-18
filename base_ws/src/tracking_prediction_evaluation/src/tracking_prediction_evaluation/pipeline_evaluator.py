@@ -21,6 +21,14 @@ class EgoPoint:
     timestamp: float
     x: float
     y: float
+    yaw: float = 0.0
+
+
+@dataclass(frozen=True)
+class PredictedPathEstimate:
+    points: tuple[tuple[float, float], ...]
+    step_sec: float
+    confidence: float
 
 
 @dataclass(frozen=True)
@@ -32,6 +40,7 @@ class ObjectEstimate:
     speed: float = 0.0
     predicted_path: tuple[tuple[float, float], ...] = ()
     path_step_sec: float = 0.0
+    predicted_paths: tuple[PredictedPathEstimate, ...] = ()
 
 
 def message_timestamp(message, bag_timestamp) -> float:
@@ -63,7 +72,16 @@ def read_ego_points(bag_path, topic, translation_xyz, transform_yaw):
                 translation_xyz,
                 transform_yaw,
             )
-            points.append(EgoPoint(timestamp, x, y))
+            points.append(
+                EgoPoint(
+                    timestamp,
+                    x,
+                    y,
+                    (math.radians(float(message.heading)) + transform_yaw + math.pi)
+                    % (2.0 * math.pi)
+                    - math.pi,
+                )
+            )
     # Duplicate stamps occur in some MORAI bags. Keep one deterministic sample.
     return tuple({point.timestamp: point for point in points}.values())
 
@@ -83,10 +101,12 @@ def interpolate_ego(points: Sequence[EgoPoint], timestamp: float, maximum_gap: f
     if dt <= 0.0 or dt > maximum_gap:
         return None
     ratio = (timestamp - before.timestamp) / dt
+    yaw_delta = (after.yaw - before.yaw + math.pi) % (2.0 * math.pi) - math.pi
     return EgoPoint(
         timestamp,
         before.x + ratio * (after.x - before.x),
         before.y + ratio * (after.y - before.y),
+        before.yaw + ratio * yaw_delta,
     )
 
 
@@ -107,14 +127,20 @@ def quaternion_yaw(quaternion) -> float:
     )
 
 
-def _highest_confidence_path(obj):
+def _predicted_paths(obj):
     paths = obj.kinematics.predicted_paths
     if not paths:
-        return (), 0.0
-    selected = max(paths, key=lambda path: path.confidence)
-    return (
-        tuple((float(pose.position.x), float(pose.position.y)) for pose in selected.path),
-        float(selected.time_step.to_sec()),
+        return ()
+    return tuple(
+        PredictedPathEstimate(
+            points=tuple(
+                (float(pose.position.x), float(pose.position.y))
+                for pose in path.path
+            ),
+            step_sec=float(path.time_step.to_sec()),
+            confidence=float(path.confidence),
+        )
+        for path in paths
     )
 
 
@@ -147,7 +173,12 @@ def read_output_frames(bag_path, tracking_topic, prediction_topic):
                     )
                 else:
                     pose = obj.kinematics.initial_pose_with_covariance.pose
-                    path, step = _highest_confidence_path(obj)
+                    paths = _predicted_paths(obj)
+                    top_path = (
+                        max(paths, key=lambda path: path.confidence)
+                        if paths
+                        else PredictedPathEstimate((), 0.0, 0.0)
+                    )
                     estimates.append(
                         ObjectEstimate(
                             object_id=uuid_bytes(obj),
@@ -157,13 +188,182 @@ def read_output_frames(bag_path, tracking_topic, prediction_topic):
                             speed=float(
                                 obj.kinematics.initial_twist_with_covariance.twist.linear.x
                             ),
-                            predicted_path=path,
-                            path_step_sec=step,
+                            predicted_path=top_path.points,
+                            path_step_sec=top_path.step_sec,
+                            predicted_paths=paths,
                         )
                     )
             target = tracking_frames if topic == tracking_topic else prediction_frames
             target[timestamp] = tuple(estimates)
     return tracking_frames, prediction_frames
+
+
+def read_detection_frames(bag_path, detection_topic):
+    """Read vehicle detections in their source sensor frame."""
+    import rosbag
+
+    frames = {}
+    with rosbag.Bag(str(bag_path), "r") as bag:
+        for _, message, bag_timestamp in bag.read_messages(topics=[detection_topic]):
+            timestamp = message_timestamp(message, bag_timestamp)
+            estimates = []
+            for obj in message.objects:
+                if dominant_label(obj) not in VEHICLE_LABELS:
+                    continue
+                pose = obj.kinematics.pose_with_covariance.pose
+                estimates.append(
+                    ObjectEstimate(
+                        object_id=b"",
+                        x=float(pose.position.x),
+                        y=float(pose.position.y),
+                        yaw=quaternion_yaw(pose.orientation),
+                    )
+                )
+            frames[timestamp] = tuple(estimates)
+    return frames
+
+
+def transform_sensor_estimates_to_map(
+    estimates: Sequence[ObjectEstimate],
+    ego: EgoPoint,
+    sensor_to_ego_x_m: float,
+    sensor_to_ego_y_m: float,
+):
+    """Transform detector-frame estimates using the synchronized MORAI Ego pose."""
+    cosine = math.cos(ego.yaw)
+    sine = math.sin(ego.yaw)
+    transformed = []
+    for estimate in estimates:
+        local_x = sensor_to_ego_x_m + estimate.x
+        local_y = sensor_to_ego_y_m + estimate.y
+        transformed.append(
+            ObjectEstimate(
+                object_id=estimate.object_id,
+                x=ego.x + cosine * local_x - sine * local_y,
+                y=ego.y + sine * local_x + cosine * local_y,
+                yaw=(estimate.yaw + ego.yaw + math.pi) % (2.0 * math.pi) - math.pi,
+            )
+        )
+    return tuple(transformed)
+
+
+def _absolute_yaw_error_deg(estimate_yaw: float, gt_yaw: float) -> float:
+    delta = (estimate_yaw - gt_yaw + math.pi) % (2.0 * math.pi) - math.pi
+    return abs(math.degrees(delta))
+
+
+def evaluate_detection_tracking_yaw_flow(
+    segments: Sequence[TrajectorySegment],
+    ego_points: Sequence[EgoPoint],
+    detection_frames,
+    tracking_frames,
+    maximum_range_m=30.0,
+    maximum_detection_association_distance_m=3.0,
+    maximum_tracking_association_distance_m=2.0,
+    maximum_interpolation_bracket_sec=0.15,
+    sensor_to_ego_x_m=0.855,
+    sensor_to_ego_y_m=0.0,
+):
+    """Measure whether pi-yaw ambiguity is inherited or corrected by tracking.
+
+    Detection and tracking estimates are associated independently to the same
+    MORAI GT actor at the same header timestamp. This avoids assuming detector
+    object order or tracker UUID continuity.
+    """
+    counts = defaultdict(int)
+    detection_errors = []
+    tracking_errors = []
+    timestamps = sorted(set(detection_frames) & set(tracking_frames))
+    for timestamp in timestamps:
+        ego = interpolate_ego(ego_points, timestamp, maximum_interpolation_bracket_sec)
+        if ego is None:
+            counts["missing_ego_frames"] += 1
+            continue
+        gt_items = active_gt(
+            segments,
+            timestamp,
+            maximum_interpolation_bracket_sec,
+            ego,
+            maximum_range_m,
+        )
+        detections = transform_sensor_estimates_to_map(
+            detection_frames[timestamp],
+            ego,
+            sensor_to_ego_x_m,
+            sensor_to_ego_y_m,
+        )
+        detections = tuple(
+            item
+            for item in detections
+            if math.hypot(item.x - ego.x, item.y - ego.y) <= maximum_range_m
+        )
+        tracks = tuple(
+            item
+            for item in tracking_frames[timestamp]
+            if math.hypot(item.x - ego.x, item.y - ego.y) <= maximum_range_m
+        )
+        detection_matches, _, _ = match_estimates(
+            gt_items, detections, maximum_detection_association_distance_m
+        )
+        tracking_matches, _, _ = match_estimates(
+            gt_items, tracks, maximum_tracking_association_distance_m
+        )
+        detection_by_gt = {gt: estimate for gt, estimate, _ in detection_matches}
+        tracking_by_gt = {gt: estimate for gt, estimate, _ in tracking_matches}
+        for gt_index in sorted(set(detection_by_gt) & set(tracking_by_gt)):
+            gt_yaw = gt_items[gt_index][1].yaw
+            detection_error = _absolute_yaw_error_deg(
+                detections[detection_by_gt[gt_index]].yaw, gt_yaw
+            )
+            tracking_error = _absolute_yaw_error_deg(
+                tracks[tracking_by_gt[gt_index]].yaw, gt_yaw
+            )
+            detection_errors.append(detection_error)
+            tracking_errors.append(tracking_error)
+            detection_flip = detection_error > 90.0
+            tracking_flip = tracking_error > 90.0
+            if detection_flip and tracking_flip:
+                counts["detection_flip_to_tracking_flip"] += 1
+            elif detection_flip:
+                counts["detection_flip_to_tracking_correct"] += 1
+            elif tracking_flip:
+                counts["detection_correct_to_tracking_flip"] += 1
+            else:
+                counts["detection_correct_to_tracking_correct"] += 1
+
+    paired = len(detection_errors)
+    counts["paired_objects"] = paired
+    return {
+        "counts": dict(counts),
+        "detection_absolute_yaw_error_deg": statistics(detection_errors),
+        "tracking_absolute_yaw_error_deg": statistics(tracking_errors),
+        "detection_yaw_flip_rate_over_90deg": (
+            float(np.mean(np.asarray(detection_errors) > 90.0))
+            if detection_errors
+            else None
+        ),
+        "tracking_yaw_flip_rate_over_90deg": (
+            float(np.mean(np.asarray(tracking_errors) > 90.0))
+            if tracking_errors
+            else None
+        ),
+        "tracker_correction_rate_given_detection_flip": (
+            counts["detection_flip_to_tracking_correct"]
+            / max(
+                1,
+                counts["detection_flip_to_tracking_correct"]
+                + counts["detection_flip_to_tracking_flip"],
+            )
+        ),
+        "tracker_regression_rate_given_detection_correct": (
+            counts["detection_correct_to_tracking_flip"]
+            / max(
+                1,
+                counts["detection_correct_to_tracking_correct"]
+                + counts["detection_correct_to_tracking_flip"],
+            )
+        ),
+    }
 
 
 def active_gt(
@@ -220,9 +420,7 @@ def statistics(values: Iterable[float]):
     }
 
 
-def _path_position(estimate: ObjectEstimate, horizon: float):
-    path = estimate.predicted_path
-    step = estimate.path_step_sec
+def _sample_predicted_path(path, step: float, horizon: float):
     if not path or step <= 0.0:
         return None
     index = horizon / step
@@ -237,6 +435,56 @@ def _path_position(estimate: ObjectEstimate, horizon: float):
         path[low][0] + ratio * (path[high][0] - path[low][0]),
         path[low][1] + ratio * (path[high][1] - path[low][1]),
     )
+
+
+def _path_position(estimate: ObjectEstimate, horizon: float):
+    return _sample_predicted_path(
+        estimate.predicted_path,
+        estimate.path_step_sec,
+        horizon,
+    )
+
+
+def _estimate_paths(estimate: ObjectEstimate):
+    if estimate.predicted_paths:
+        return estimate.predicted_paths
+    if estimate.predicted_path and estimate.path_step_sec > 0.0:
+        return (
+            PredictedPathEstimate(
+                estimate.predicted_path,
+                estimate.path_step_sec,
+                1.0,
+            ),
+        )
+    return ()
+
+
+def _path_errors(
+    path: PredictedPathEstimate,
+    segment: TrajectorySegment,
+    timestamp: float,
+    horizon: float,
+    maximum_interpolation_bracket_sec: float,
+):
+    """Return (ADE, FDE, maximum displacement) for one trajectory hypothesis."""
+    if path.step_sec <= 0.0:
+        return None
+    sample_count = int(math.floor(horizon / path.step_sec + 1.0e-9))
+    sample_times = [path.step_sec * index for index in range(1, sample_count + 1)]
+    if not sample_times or sample_times[-1] < horizon - 1.0e-6:
+        sample_times.append(horizon)
+    errors = []
+    for offset in sample_times:
+        predicted = _sample_predicted_path(path.points, path.step_sec, offset)
+        future = interpolate_point(
+            segment.points,
+            timestamp + offset,
+            maximum_interpolation_bracket_sec,
+        )
+        if predicted is None or future is None:
+            return None
+        errors.append(math.hypot(predicted[0] - future.x, predicted[1] - future.y))
+    return float(np.mean(errors)), errors[-1], max(errors)
 
 
 def is_cv_stable_horizon(
@@ -319,6 +567,7 @@ def evaluate_pipeline(
     tracking_errors = []
     tracking_speed_errors = []
     tracking_yaw_errors = []
+    tracking_longitudinal_speeds = []
     previous_track_by_gt = {}
     last_seen_by_gt = {}
 
@@ -349,6 +598,7 @@ def evaluate_pipeline(
             segment, _ = gt_items[gt_index]
             estimate = visible_estimates[estimate_index]
             tracking_errors.append(distance)
+            tracking_longitudinal_speeds.append(estimate.speed)
             from .evaluator import estimate_motion_state
 
             history = [
@@ -379,10 +629,18 @@ def evaluate_pipeline(
     mota = 1.0 - (fn + fp + tracking_counts["id_switches"]) / max(1, tracking_counts["gt"])
 
     horizon_errors = defaultdict(list)
+    horizon_top1_ade = defaultdict(list)
+    horizon_min_fde = defaultdict(list)
+    horizon_min_ade = defaultdict(list)
+    horizon_min_max_displacement = defaultdict(list)
+    horizon_best_confidence = defaultdict(list)
+    horizon_brier_min_fde = defaultdict(list)
     horizon_eligible = defaultdict(int)
     horizon_matched = defaultdict(int)
+    horizon_best_of_k_matched = defaultdict(int)
     prediction_fp = 0
     prediction_frames_used = 0
+    prediction_path_counts = []
     for timestamp, estimates in sorted(prediction_frames.items()):
         ego = interpolate_ego(ego_points, timestamp, maximum_interpolation_bracket_sec)
         gt_items = active_gt(
@@ -403,6 +661,10 @@ def evaluate_pipeline(
         )
         prediction_fp += len(visible_estimates) - len(matched_estimates)
         prediction_frames_used += 1
+        prediction_path_counts.extend(
+            len(_estimate_paths(visible_estimates[index]))
+            for index in matched_estimates
+        )
         match_by_gt = {gt_index: estimate_index for gt_index, estimate_index, _ in matches}
         for gt_index, (segment, _) in enumerate(gt_items):
             for horizon in horizons:
@@ -426,15 +688,60 @@ def evaluate_pipeline(
                 estimate_index = match_by_gt.get(gt_index)
                 if estimate_index is None:
                     continue
-                predicted = _path_position(visible_estimates[estimate_index], horizon)
-                if predicted is None:
+                estimate = visible_estimates[estimate_index]
+                paths = _estimate_paths(estimate)
+                if not paths:
                     continue
+                ordered_paths = sorted(
+                    paths,
+                    key=lambda path: path.confidence,
+                    reverse=True,
+                )
+                candidate_errors = []
+                for path in ordered_paths:
+                    errors = _path_errors(
+                        path,
+                        segment,
+                        timestamp,
+                        horizon,
+                        maximum_interpolation_bracket_sec,
+                    )
+                    if errors is not None:
+                        candidate_errors.append((path, errors))
+                if not candidate_errors:
+                    continue
+
+                top_path, (top_ade, top_fde, _top_max_error) = candidate_errors[0]
+                del top_path
                 horizon_matched[horizon] += 1
-                horizon_errors[horizon].append(
-                    math.hypot(predicted[0] - future.x, predicted[1] - future.y)
+                horizon_errors[horizon].append(top_fde)
+                horizon_top1_ade[horizon].append(top_ade)
+
+                best_fde_path, (_best_fde_ade, best_fde, _best_fde_max) = min(
+                    candidate_errors,
+                    key=lambda item: item[1][1],
+                )
+                _best_ade_path, (best_ade, _best_ade_fde, _best_ade_max) = min(
+                    candidate_errors,
+                    key=lambda item: item[1][0],
+                )
+                _best_max_path, (
+                    _best_max_ade,
+                    _best_max_fde,
+                    best_max_error,
+                ) = min(candidate_errors, key=lambda item: item[1][2])
+                horizon_best_of_k_matched[horizon] += 1
+                horizon_min_fde[horizon].append(best_fde)
+                horizon_min_ade[horizon].append(best_ade)
+                horizon_min_max_displacement[horizon].append(best_max_error)
+                best_confidence = max(0.0, min(1.0, best_fde_path.confidence))
+                horizon_best_confidence[horizon].append(best_confidence)
+                horizon_brier_min_fde[horizon].append(
+                    best_fde + (1.0 - best_confidence) ** 2
                 )
 
     prediction = {}
+    multimodal_horizons = {}
     for horizon in horizons:
         eligible = horizon_eligible[horizon]
         matched = horizon_matched[horizon]
@@ -457,6 +764,42 @@ def evaluate_pipeline(
             }
         )
         prediction[f"{horizon:g}"] = stats
+        best_matched = horizon_best_of_k_matched[horizon]
+        top1_fde = horizon_errors[horizon]
+        min_fde = horizon_min_fde[horizon]
+        min_max_displacement = horizon_min_max_displacement[horizon]
+        multimodal_horizons[f"{horizon:g}"] = {
+            "eligible_gt": eligible,
+            "top1_matched_predictions": matched,
+            "best_of_k_matched_predictions": best_matched,
+            "top1_coverage": matched / eligible if eligible else 0.0,
+            "best_of_k_coverage": best_matched / eligible if eligible else 0.0,
+            "top1_ade_m": statistics(horizon_top1_ade[horizon]),
+            "top1_fde_m": statistics(top1_fde),
+            "min_ade_k_m": statistics(horizon_min_ade[horizon]),
+            "min_fde_k_m": statistics(min_fde),
+            "top1_fde_miss_rate_1m": (
+                float(np.mean(np.asarray(top1_fde) > 1.0)) if top1_fde else None
+            ),
+            "top1_fde_miss_rate_2m": (
+                float(np.mean(np.asarray(top1_fde) > 2.0)) if top1_fde else None
+            ),
+            "min_fde_k_miss_rate_1m": (
+                float(np.mean(np.asarray(min_fde) > 1.0)) if min_fde else None
+            ),
+            "min_fde_k_miss_rate_2m": (
+                float(np.mean(np.asarray(min_fde) > 2.0)) if min_fde else None
+            ),
+            "min_k_max_displacement_miss_rate_2m": (
+                float(np.mean(np.asarray(min_max_displacement) > 2.0))
+                if min_max_displacement
+                else None
+            ),
+            "best_fde_path_confidence": statistics(
+                horizon_best_confidence[horizon]
+            ),
+            "brier_min_fde_m": statistics(horizon_brier_min_fde[horizon]),
+        }
 
     return {
         "evaluation": {
@@ -485,11 +828,25 @@ def evaluate_pipeline(
                 if tracking_yaw_errors
                 else None
             ),
+            "negative_longitudinal_speed_rate": (
+                float(np.mean(np.asarray(tracking_longitudinal_speeds) < -0.1))
+                if tracking_longitudinal_speeds
+                else None
+            ),
         },
         "prediction": {
             "frames": prediction_frames_used,
             "unmatched_output_objects": prediction_fp,
             "fde_m": prediction,
+            "multimodal": {
+                "matched_object_path_count": statistics(prediction_path_counts),
+                "multi_path_object_rate": (
+                    float(np.mean(np.asarray(prediction_path_counts) > 1))
+                    if prediction_path_counts
+                    else None
+                ),
+                "horizons": multimodal_horizons,
+            },
         },
     }
 

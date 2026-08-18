@@ -102,6 +102,19 @@ requires the sensor static TF and the `map -> morai_map -> base_link` chain.
 
 ## Evaluation and map-based prediction
 
+Moving CAR/TRUCK tracks are canonicalized at the EKF `TrackedObjects` output
+boundary by default. The tracker preserves its world-frame velocity and box
+axis, but chooses between the equivalent `yaw` and `yaw + pi` representations
+so forward longitudinal speed agrees with the measured motion direction.
+The 100/80-degree enter/exit thresholds prevent toggling around 90 degrees;
+tracks below 1.0 m/s retain their previous decision. Disable the behavior only
+for controlled A/B evaluation:
+
+```bash
+roslaunch perception_object_pipeline object_pipeline.launch \
+  canonicalize_vehicle_orientation_to_motion:=false
+```
+
 The audit of the legacy CTRV/CTRA evaluation, the replacement benchmark
 design, and the staged ROS1 port of Autoware map-based prediction are recorded
 in
@@ -129,9 +142,22 @@ roslaunch perception_object_pipeline object_pipeline.launch \
 
 The map-based output still contains the current pose plus 0.1--3.0 second
 samples. At a routing branch it may contain multiple `PredictedPath` entries;
-their confidences are normalized to sum to one. Planning does not need a topic
-or message change. CTRV remains the default until the E0 map-based benchmark
-shows a measurable improvement.
+their confidences are normalized to sum to one. Raw routes that reach the same
+downstream Lanelet and remain within `0.75 m` of one another throughout the
+prediction horizon are treated as one physical motion hypothesis. Requiring
+the same downstream Lanelet prevents two legitimate sibling branches from
+being collapsed while they are still geometrically close near a fork. The
+highest-scoring route represents each group, so nearby start-lanelet matches
+cannot crowd a real sibling branch out of the six-path safety cap. Planning
+does not need a topic or message change.
+
+The per-group maximum score is a conservative first implementation, not a
+calibrated probability model. Raw heuristic scores must not simply be summed,
+because a hypothesis could gain confidence only by being enumerated through
+more duplicate start Lanelets. A later improvement should normalize
+`P(start lane | observation)` and `P(branch | start lane)` separately and then
+marginalize probability mass into each geometric hypothesis. CTRV remains the
+default until the E0 map-based benchmark shows a measurable improvement.
 
 ## Debug A/B topics
 

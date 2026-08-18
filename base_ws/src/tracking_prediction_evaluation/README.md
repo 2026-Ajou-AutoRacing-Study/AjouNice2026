@@ -74,7 +74,15 @@ of the current standardized object pipeline.
 `evaluate_pipeline_prediction.py` compares the real standardized pipeline
 `PointPainting -> EKF tracking -> Map-CV prediction` against MORAI GT. It
 reports 30 m vehicle tracking precision/recall/F1, MOTA, ID switches,
-center/speed/yaw error, and 1/2/3-second prediction FDE plus coverage.
+center/speed/yaw error, and 1/2/3-second prediction metrics. The legacy
+`prediction.fde_m` field remains the planning-facing confidence Top-1 FDE.
+`prediction.multimodal` additionally reports Top-1 ADE/FDE, minADE-K,
+minFDE-K, Top-1 and best-of-K miss rates, GT-closest-path confidence,
+Brier-minFDE, path-count statistics and the multi-path object rate.
+When the output bag also contains canonical `DetectedObjects`, it additionally
+associates detection and tracking independently to the same MORAI actor at the
+same timestamp and reports the four yaw-flow cases: flip retained, flip
+corrected, correct retained, and correct regressed.
 
 The report also computes an Object_topic Map-CV oracle on the exact same
 output timestamps, range gate and GT actors. This avoids an unfair global-GT
@@ -120,3 +128,31 @@ The measured `~0.11 s` temporal-alignment hypothesis, Roundabout wrong-branch
 tail, PointPainting/EKF `pi` yaw flips, negative longitudinal speed and
 straight off-road fallback are documented in
 [`docs/e2_map_cv_failure_analysis.md`](docs/e2_map_cv_failure_analysis.md).
+
+## E2 pipeline output RViz
+
+`pipeline_prediction_rviz.launch` displays the raw cameras and LiDAR together
+with recorded detections, tracks and every predicted path. The confidence
+Top-1 line retains its class color; lower-ranked paths are orange. Every path
+uses the same alpha `0.95` and `0.08 m` line width, and its final point is
+labeled with rank and confidence.
+
+Start the launch and play the raw and output bags together. Always use
+`--pause` so localization, map and visualization subscribers are ready before
+the first sample.
+
+```bash
+roslaunch tracking_prediction_evaluation pipeline_prediction_rviz.launch
+
+rosbag play --clock --pause \
+  rosbags/raw_sensor_w_cam/sensor_cam_raw_roundabout1_roundabout_only.bag \
+  artifacts/prediction_evaluation/e2_roundabout1_pointpainting_epoch65_clustered_max/pipeline_outputs.bag
+```
+
+For Highway 1, keep the launch running and use:
+
+```bash
+rosbag play --clock --pause \
+  rosbags/raw_sensor_w_cam/sensor_cam_raw_highway1.bag \
+  artifacts/prediction_evaluation/e2_highway1_pointpainting_epoch65_clustered_max/pipeline_outputs.bag
+```
