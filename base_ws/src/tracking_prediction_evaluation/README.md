@@ -153,7 +153,11 @@ Use the metrics as follows:
 When the output bag also contains canonical `DetectedObjects`, it additionally
 associates detection and tracking independently to the same MORAI actor at the
 same timestamp and reports the four yaw-flow cases: flip retained, flip
-corrected, correct retained, and correct regressed.
+corrected, correct retained, and correct regressed. The same section now
+reports detection/tracking center, signed GT-heading longitudinal/lateral,
+range, motion-slice and equivalent-lag statistics. These stage metrics showed
+that the EKF is center-neutral while substantially improving yaw; do not tune
+EKF position noise to hide a center offset already present in detections.
 
 The report also computes an Object_topic Map-CV oracle on the exact same
 output timestamps, range gate and GT actors. This avoids an unfair global-GT
@@ -228,6 +232,49 @@ separation, Roundabout wrong-branch
 tail, PointPainting/EKF `pi` yaw flips, negative longitudinal speed and
 straight off-road fallback are documented in
 [`docs/e2_map_cv_failure_analysis.md`](docs/e2_map_cv_failure_analysis.md).
+
+### v60 centerline-vector audit
+
+The map audit compares direction-aware MGeo samples and observed NPC paths
+against Lanelet2 v60. It reports the full global correction vector rather than
+separate absolute X/Y errors, so an arbitrary-direction translation bias is
+preserved.
+
+```bash
+/usr/bin/python3 \
+  base_ws/src/tracking_prediction_evaluation/scripts/audit_lanelet_centerline_bias.py \
+  rosbags/raw_sensor_w_cam/sensor_cam_raw_roundabout1_roundabout_only.bag \
+  rosbags/raw_sensor_w_cam/sensor_cam_raw_highway1.bag \
+  --output /tmp/lanelet_centerline_bias.json
+```
+
+The historical v23 transform left a bag-region MGeo-to-Lanelet p50 residual of
+`0.0946 m` and required a mean correction vector of
+`(-0.0856, +0.0005) m`. The v60 runtime-origin transform reduces these to
+`0.0025 m` and `(+0.0028, -0.0003) m`. Production therefore uses
+`configs/tf/morai_lanelet_static_tf.yaml`; reproduce already-recorded legacy
+map-frame outputs with
+`configs/tf/morai_lanelet_static_tf_v23_refined_legacy.yaml`.
+
+### rolling-LiDAR timing audit
+
+MORAI `/sensor/lidar1` contains a per-point `time` field, but PointPainting
+currently consumes only XYZI and stamps every box with the scan header time.
+The following audit associates raw points inside each detected vehicle box and
+compares header-time geometry with the point acquisition-time diagnostic.
+
+```bash
+/usr/bin/python3 \
+  base_ws/src/tracking_prediction_evaluation/scripts/audit_lidar_detection_timing.py \
+  RAW_INPUT.bag PIPELINE_OUTPUTS.bag \
+  --output /tmp/lidar_detection_timing.json
+```
+
+Acquisition-aligned distance is not a production metric: it compares both GT
+and the Ego transform at the earlier point time. A production correction must
+then propagate the object state to the common output timestamp. This audit is
+intended to distinguish rolling-scan geometry from a false global timestamp
+shift before changing runtime behavior.
 
 ## E2 pipeline output RViz
 

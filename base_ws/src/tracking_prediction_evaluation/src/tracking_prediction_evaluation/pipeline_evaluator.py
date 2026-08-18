@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import math
 from collections import defaultdict
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ from typing import Iterable, Sequence
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
+from .evaluator import estimate_motion_state
 from .trajectory import TrajectoryPoint, TrajectorySegment, interpolate_point
 
 
@@ -252,6 +254,57 @@ def _absolute_yaw_error_deg(estimate_yaw: float, gt_yaw: float) -> float:
     return abs(math.degrees(delta))
 
 
+def _signed_position_error(estimate: ObjectEstimate, gt: TrajectoryPoint):
+    """Return estimate-minus-GT error in GT longitudinal/lateral axes."""
+    dx = estimate.x - gt.x
+    dy = estimate.y - gt.y
+    cosine = math.cos(gt.yaw)
+    sine = math.sin(gt.yaw)
+    return (
+        dx * cosine + dy * sine,
+        -dx * sine + dy * cosine,
+    )
+
+
+def _signed_statistics(values: Iterable[float]):
+    values = list(values)
+    if not values:
+        return {"count": 0}
+    array = np.asarray(values, dtype=np.float64)
+    return {
+        "count": int(array.size),
+        "mean": float(array.mean()),
+        "p05": float(np.percentile(array, 5)),
+        "p50": float(np.percentile(array, 50)),
+        "p95": float(np.percentile(array, 95)),
+        "minimum": float(array.min()),
+        "maximum": float(array.max()),
+    }
+
+
+def _range_bucket(distance_m: float) -> str:
+    if distance_m < 10.0:
+        return "0_10m"
+    if distance_m < 20.0:
+        return "10_20m"
+    return "20_30m"
+
+
+def _motion_bucket(speed_mps: float, yaw_rate_rps: float) -> str:
+    if speed_mps < 1.0:
+        return "slow_under_1mps"
+    if abs(yaw_rate_rps) >= 0.05:
+        return "turning"
+    return "straight"
+
+
+def _causal_motion_state(segment: TrajectorySegment, timestamp: float):
+    times = [point.timestamp for point in segment.points]
+    right = bisect.bisect_right(times, timestamp + 1.0e-9)
+    left = bisect.bisect_left(times, timestamp - 0.5)
+    return estimate_motion_state(segment.points[left:right])
+
+
 def evaluate_detection_tracking_yaw_flow(
     segments: Sequence[TrajectorySegment],
     ego_points: Sequence[EgoPoint],
@@ -273,6 +326,24 @@ def evaluate_detection_tracking_yaw_flow(
     counts = defaultdict(int)
     detection_errors = []
     tracking_errors = []
+    stage_center_errors = {"detection": [], "tracking": []}
+    stage_longitudinal_errors = {"detection": [], "tracking": []}
+    stage_lateral_errors = {"detection": [], "tracking": []}
+    stage_yaw_errors = {"detection": [], "tracking": []}
+    stage_range_errors = {
+        "detection": defaultdict(list),
+        "tracking": defaultdict(list),
+    }
+    stage_motion_errors = {
+        "detection": defaultdict(list),
+        "tracking": defaultdict(list),
+    }
+    stage_motion_longitudinal_errors = {
+        "detection": defaultdict(list),
+        "tracking": defaultdict(list),
+    }
+    stage_equivalent_lag_sec = {"detection": [], "tracking": []}
+    paired_center_change = []
     timestamps = sorted(set(detection_frames) & set(tracking_frames))
     for timestamp in timestamps:
         ego = interpolate_ego(ego_points, timestamp, maximum_interpolation_bracket_sec)
@@ -310,6 +381,36 @@ def evaluate_detection_tracking_yaw_flow(
         )
         detection_by_gt = {gt: estimate for gt, estimate, _ in detection_matches}
         tracking_by_gt = {gt: estimate for gt, estimate, _ in tracking_matches}
+
+        for stage, estimates, matches in (
+            ("detection", detections, detection_matches),
+            ("tracking", tracks, tracking_matches),
+        ):
+            for gt_index, estimate_index, distance in matches:
+                gt_point = gt_items[gt_index][1]
+                estimate = estimates[estimate_index]
+                longitudinal, lateral = _signed_position_error(estimate, gt_point)
+                yaw_error = _absolute_yaw_error_deg(estimate.yaw, gt_point.yaw)
+                stage_center_errors[stage].append(distance)
+                stage_longitudinal_errors[stage].append(longitudinal)
+                stage_lateral_errors[stage].append(lateral)
+                stage_yaw_errors[stage].append(yaw_error)
+                gt_range = math.hypot(gt_point.x - ego.x, gt_point.y - ego.y)
+                stage_range_errors[stage][_range_bucket(gt_range)].append(distance)
+                motion_state = _causal_motion_state(gt_items[gt_index][0], timestamp)
+                if motion_state is not None:
+                    motion_bucket = _motion_bucket(
+                        abs(motion_state.speed), motion_state.yaw_rate
+                    )
+                    stage_motion_errors[stage][motion_bucket].append(distance)
+                    stage_motion_longitudinal_errors[stage][motion_bucket].append(
+                        longitudinal
+                    )
+                    if abs(motion_state.speed) >= 1.0:
+                        stage_equivalent_lag_sec[stage].append(
+                            -longitudinal / abs(motion_state.speed)
+                        )
+
         for gt_index in sorted(set(detection_by_gt) & set(tracking_by_gt)):
             gt_yaw = gt_items[gt_index][1].yaw
             detection_error = _absolute_yaw_error_deg(
@@ -320,6 +421,15 @@ def evaluate_detection_tracking_yaw_flow(
             )
             detection_errors.append(detection_error)
             tracking_errors.append(tracking_error)
+            detection_distance = math.hypot(
+                detections[detection_by_gt[gt_index]].x - gt_items[gt_index][1].x,
+                detections[detection_by_gt[gt_index]].y - gt_items[gt_index][1].y,
+            )
+            tracking_distance = math.hypot(
+                tracks[tracking_by_gt[gt_index]].x - gt_items[gt_index][1].x,
+                tracks[tracking_by_gt[gt_index]].y - gt_items[gt_index][1].y,
+            )
+            paired_center_change.append(tracking_distance - detection_distance)
             detection_flip = detection_error > 90.0
             tracking_flip = tracking_error > 90.0
             if detection_flip and tracking_flip:
@@ -333,6 +443,7 @@ def evaluate_detection_tracking_yaw_flow(
 
     paired = len(detection_errors)
     counts["paired_objects"] = paired
+    improved_count = sum(value < 0.0 for value in paired_center_change)
     return {
         "counts": dict(counts),
         "detection_absolute_yaw_error_deg": statistics(detection_errors),
@@ -362,6 +473,42 @@ def evaluate_detection_tracking_yaw_flow(
                 counts["detection_correct_to_tracking_correct"]
                 + counts["detection_correct_to_tracking_flip"],
             )
+        ),
+        "state_error_by_stage": {
+            stage: {
+                "center_distance_m": statistics(stage_center_errors[stage]),
+                "signed_longitudinal_error_m": _signed_statistics(
+                    stage_longitudinal_errors[stage]
+                ),
+                "signed_lateral_error_m": _signed_statistics(
+                    stage_lateral_errors[stage]
+                ),
+                "absolute_yaw_error_deg": statistics(stage_yaw_errors[stage]),
+                "center_distance_by_gt_range_m": {
+                    bucket: statistics(values)
+                    for bucket, values in sorted(stage_range_errors[stage].items())
+                },
+                "center_distance_by_gt_motion": {
+                    bucket: statistics(values)
+                    for bucket, values in sorted(stage_motion_errors[stage].items())
+                },
+                "signed_longitudinal_error_by_gt_motion_m": {
+                    bucket: _signed_statistics(values)
+                    for bucket, values in sorted(
+                        stage_motion_longitudinal_errors[stage].items()
+                    )
+                },
+                "longitudinal_equivalent_lag_sec": _signed_statistics(
+                    stage_equivalent_lag_sec[stage]
+                ),
+            }
+            for stage in ("detection", "tracking")
+        },
+        "paired_tracking_minus_detection_center_error_m": _signed_statistics(
+            paired_center_change
+        ),
+        "paired_tracking_center_improvement_rate": (
+            improved_count / paired if paired else None
         ),
     }
 

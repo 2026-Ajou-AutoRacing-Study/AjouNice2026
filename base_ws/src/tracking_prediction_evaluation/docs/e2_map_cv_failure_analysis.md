@@ -502,6 +502,63 @@ Top-1을 그대로 누적하면 잘못된 선택을 오히려 강화하거나 �
 `confidence 진단 -> Autoware식 maneuver/lateral history -> Planning의 Top-N 소비`
 순서로 수정한다.
 
+## 2026-08-18 v60 지도 벡터·Detection→EKF 단계 재검증
+
+사용자가 의심한 약 `0.1 m` 오차를 X 또는 Y 단일축 보정으로 가정하지 않고,
+MGeo 점에서 방향이 맞는 Lanelet v60 centerline까지 필요한 2D 보정 벡터로 직접
+측정했다.
+
+| 변환 | bag 구간 MGeo p50 | 필요한 평균 보정 벡터 |
+|---|---:|---:|
+| 과거 v23 refinement | 0.0946 m | (-0.0856, +0.0005) m |
+| v60 runtime-origin only | **0.0025 m** | **(+0.0028, -0.0003) m** |
+
+- 원인은 MGeo 차량이 임의 방향으로 `0.1 m` 치우쳐 달린 것이 아니라, v23에서
+  산출한 `(+0.0974, -0.0174) m` refinement가 v60에 중복 적용된 것임.
+- production TF는 runtime-origin only로 수정함.
+- 과거 output bag은 이미 옛 map 좌표로 기록됐으므로 legacy YAML을 사용해야 함.
+- 새 TF로 localization→EKF→Map-CV를 완전 재생한 결과 FDE 변화는 수 cm 이하의
+  혼합 결과였음. 지도 일관성은 고쳐졌지만 약 `0.5~0.8 m`의 detector/tracker
+  오차와 갈림길 모호성보다 작기 때문임.
+
+동일 GT에 Detection과 Tracking을 각각 연결한 단계별 결과는 다음과 같음.
+
+| 장면 | 단계 | center p50 | 종방향 p50 | 횡방향 p50 |
+|---|---|---:|---:|---:|
+| Roundabout 1 | Detection | 0.763 m | -0.657 m | +0.059 m |
+| Roundabout 1 | Tracking | 0.772 m | -0.677 m | +0.035 m |
+| Highway 1 | Detection | 0.507 m | +0.150 m | -0.089 m |
+| Highway 1 | Tracking | 0.500 m | +0.131 m | -0.106 m |
+
+- EKF 전후 center 차이 중앙값은 Roundabout 약 `0.000 m`, Highway
+  `-0.010 m`로 거의 없음.
+- EKF는 yaw 반전을 크게 줄였지만 detector 중심 오차를 만드는 단계는 아님.
+- Roundabout 종방향 오차를 시간으로 환산하면 약 `0.114 s`이지만 Highway는
+  약 `-0.011 s`임. 따라서 전역 `+0.11 s` 보정 가설은 다시 기각함.
+
+### rolling LiDAR point-time 진단
+
+원본 PointCloud2에는 `time` 필드가 있고 점 시각은 header 기준 대략
+`-0.16~+0.001 s` 범위임. 현재 PointPainting은 XYZI만 남겨 이 정보를 버리고,
+검출 box 전체에 scan header stamp 하나를 부여함.
+
+검출 box 내부 점의 median acquisition time을 사용해 Ego와 GT를 같은 과거 시점에
+정렬한 진단 결과는 다음과 같음.
+
+| 장면 | header-time Detection p50 | acquisition-aligned p50 |
+|---|---:|---:|
+| Roundabout 1 | 0.761 m | **0.596 m** |
+| Highway 1 | 0.508 m | **0.498 m** |
+
+- Roundabout의 일부 오차가 rolling scan 시간 구조와 연결된다는 근거임.
+- 하지만 acquisition-aligned 값은 과거 시점의 진단값이며 그대로 Planning에
+  발행할 수 없음.
+- production에서는 객체별 측정 시각으로 sensor→map 변환한 뒤, tracker 속도
+  상태로 공통 header/output 시각까지 전파해야 함.
+- Highway 개선 폭이 작으므로 고정 시간 이동이나 장면별 하드코딩은 금지함.
+- 다음 우선순위는 per-point time 보존·객체별 acquisition stamp 추정·공통시각
+  propagation을 별도 ablation으로 구현하는 것임.
+
 ### 중복 route hypothesis 정리의 현재 한계
 
 시작 Lanelet 후보가 달라도 동일한 downstream Lanelet에 도달하고 실제 3초 미래

@@ -8,15 +8,15 @@
 # morai_map:
 #   MORAI k-city MGeo local frame from the current live simulator account.
 #
-# The final transform uses the live competition runtime GPS east/north offsets
-# as the MORAI local-frame origin, then applies the small geometry refinement
-# recorded below. The previous extracted scene origin is kept because the
-# available K-City MGeo JSON uses that origin.
+# The v60 Lanelet geometry is already aligned to the live competition MGeo
+# origin. Do not reapply the historical v23 geometry refinement: doing so
+# introduces an approximately 0.09 m fixed-vector bias in the competition bag
+# region.
 map_to_morai_map:
   parent: "map"
   child: "morai_map"
-  xyz: [131.656525062, 545.893929229, 0.0]
-  rpy: [0.0, 0.0, 0.000146070411]
+  xyz: [131.559130220, 545.911338186, 0.0]
+  rpy: [0.0, 0.0, 0.0]
 
   source:
     morai_scene: "k-city competition runtime"
@@ -26,18 +26,27 @@ map_to_morai_map:
     morai_previous_scene_origin_in_global: [302459.942, 4122635.537, 28.991]
     morai_runtime_z_is_altitude_like: true
 
-    lanelet_map: "kcity_map/lanelet_map/lanelet2_map_v23.osm"
+    lanelet_map: "kcity_map/lanelet_map/lanelet2_map_v60.osm"
     lanelet_projector: "kcity_map/lanelet_map/map_projector_info_v1.yaml"
     lanelet_projector_type: "LocalCartesianUTM"
     lanelet_map_origin_lat_lon_alt: [37.2380038082, 126.7730819386, 0.0]
     lanelet_map_origin_utm52: [302463.440869780, 4123599.088661814, 0.0]
 
     alignment_refinement:
-      method: "Reverted raw-LiDAR intensity fit; current transform follows MGeo-vs-Lanelet geometry fit"
+      applied: false
+      method: "Historical v23 MGeo geometry fit; disabled for v60 after direct centerline audit"
       yaw_rad: 0.000146070411
       yaw_deg: 0.008369218
       translation_delta_from_runtime_origin_m: [0.097394842, -0.017408957, 0.0]
       applied_for: "RViz LiDAR intensity lane alignment check"
+      legacy_transform_file: "configs/tf/morai_lanelet_static_tf_v23_refined_legacy.yaml"
+      v60_audit:
+        date: "2026-08-18"
+        bags: ["roundabout1_roundabout_only", "highway1"]
+        configured_refinement_bag_region_mgeo_to_lanelet_p50_m: 0.0946
+        runtime_origin_only_bag_region_mgeo_to_lanelet_p50_m: 0.0025
+        configured_refinement_mean_correction_xy_m: [-0.0856, 0.0005]
+        runtime_origin_only_mean_correction_xy_m: [0.0028, -0.0003]
       residuals:
         rejected_raw_lidar_lane_component:
           source_bag: "rosbags/raw/raw_sensor_0701_0100.bag"
@@ -57,6 +66,7 @@ map_to_morai_map:
           note: "Rejected after RViz check: high-intensity ground points were not lane-only and likely included arrows, stop lines, road markings, or scan-band artifacts."
 
     mgeo_geometry_reference:
+      status: "historical-v23-audit; not applied to v60 production"
       source_mgeo_dir: "/home/jihun/catkin_ws/src/MORAI-DriveExample_ROS/morai_standard/scripts/autonomous_driving/mgeo/lib/mgeo_data/R_KR_PG_K-City"
       method: "Balanced robust 2D rigid fit of MGeo link_set to Lanelet centerlines and MGeo lane_boundary_set to Lanelet relation boundaries"
       yaw_rad: 0.000146070411

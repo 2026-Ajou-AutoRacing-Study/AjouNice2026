@@ -53,14 +53,13 @@ lanelet map origin UTM52:
 ```text
 map -> morai_map
 translation:
-  x: 131.656525062
-  y: 545.893929229
+  x: 131.559130220
+  y: 545.911338186
   z: 0.0
 rotation:
   roll:  0.0
   pitch: 0.0
-  yaw:   0.000146070411 rad
-         0.008369218 deg
+  yaw:   0.0 rad
 ```
 
 The unrefined translation from runtime GPS origin to Lanelet map origin is:
@@ -99,7 +98,7 @@ The fitted translation differs from the raw GPS-origin delta by
 small yaw correction centered on the live trajectory instead of rotating around
 the raw origin.
 
-The current applied transform uses the MGeo geometry fit. A later raw-LiDAR
+The historical v23 transform used the MGeo geometry fit. A later raw-LiDAR
 intensity refinement from `rosbags/raw/raw_sensor_0701_0100.bag` was tested and
 rejected after RViz inspection because the high-intensity ground set was not
 lane-only.
@@ -117,12 +116,34 @@ balanced robust fit:
        0.008369218 deg
   translation: [131.656525062, 545.893929229, 0.0]
 
-current config residuals:
+This refinement is retained only in
+`configs/tf/morai_lanelet_static_tf_v23_refined_legacy.yaml`. It is not applied
+to the current v60 runtime transform.
+
+## Lanelet v60 Decision
+
+The v60 centerlines were audited directly against the current competition MGeo
+and the NPC trajectories from the filtered Roundabout 1 and Highway 1 bags.
+The residual is expressed as the global XY vector required to move transformed
+MGeo points onto the nearest direction-compatible Lanelet centerline.
+
+| transform | bag-region MGeo p50 | mean correction vector |
+|---|---:|---:|
+| historical v23 refinement | 0.0946 m | (-0.0856, +0.0005) m |
+| runtime-origin only | **0.0025 m** | **(+0.0028, -0.0003) m** |
+
+The old refinement therefore duplicated geometry alignment already present in
+v60 and introduced the suspected approximately `0.1 m` fixed-vector bias. The
+production transform now uses the runtime-origin delta without the historical
+yaw refinement. Historical output bags remain reproducible with the legacy
+YAML above.
+
+historical v23 pre-refinement residuals:
   link -> centerline rms:         0.9679 m
   lane boundary -> boundary rms:  0.8775 m
   lane nonstop -> boundary rms:   0.8757 m
 
-refined config residuals:
+historical v23 refined residuals:
   link -> centerline rms:         0.9661 m
   lane boundary -> boundary rms:  0.8668 m
   lane nonstop -> boundary rms:   0.8650 m

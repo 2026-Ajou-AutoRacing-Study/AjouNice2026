@@ -15,6 +15,8 @@ catkin_package()
 
 catkin_install_python(PROGRAMS
   scripts/audit_bbox_reference_geometry.py
+  scripts/audit_lidar_detection_timing.py
+  scripts/audit_lanelet_centerline_bias.py
   scripts/audit_timestamp_alignment.py
   scripts/evaluate_oracle_prediction.py
   scripts/evaluate_pipeline_prediction.py

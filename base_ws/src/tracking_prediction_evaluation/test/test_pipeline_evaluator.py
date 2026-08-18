@@ -5,6 +5,7 @@ from tracking_prediction_evaluation.pipeline_evaluator import (
     ObjectEstimate,
     PredictedPathEstimate,
     _path_position,
+    evaluate_detection_tracking_yaw_flow,
     evaluate_pipeline,
     is_cv_stable_horizon,
     match_estimates,
@@ -44,6 +45,40 @@ def test_assignment_uses_global_minimum_and_distance_gate():
     assert [round(item[2], 6) for item in matches] == [0.2, 0.3]
     assert matched_gt == {0, 1}
     assert matched_estimates == {0, 1}
+
+
+def test_detection_tracking_flow_reports_signed_stage_errors():
+    gt_point = TrajectoryPoint(
+        timestamp=0.0,
+        x=0.0,
+        y=0.0,
+        z=0.0,
+        yaw=0.0,
+        longitudinal_velocity=0.0,
+        lateral_velocity=0.0,
+        longitudinal_acceleration=0.0,
+        lateral_acceleration=0.0,
+        class_name="vehicle",
+        object_id=1,
+        asset_name="test",
+    )
+    segment = TrajectorySegment("vehicle", "vehicle", 1, "test", (gt_point,))
+    result = evaluate_detection_tracking_yaw_flow(
+        (segment,),
+        (EgoPoint(0.0, 0.0, 0.0, 0.0),),
+        {0.0: (ObjectEstimate(b"", 1.0, 0.2, yaw=0.1),)},
+        {0.0: (ObjectEstimate(b"track", 0.5, -0.1, yaw=0.05),)},
+        sensor_to_ego_x_m=0.0,
+        sensor_to_ego_y_m=0.0,
+    )
+
+    stages = result["state_error_by_stage"]
+    assert math.isclose(stages["detection"]["signed_longitudinal_error_m"]["p50"], 1.0)
+    assert math.isclose(stages["detection"]["signed_lateral_error_m"]["p50"], 0.2)
+    assert math.isclose(stages["tracking"]["signed_longitudinal_error_m"]["p50"], 0.5)
+    assert math.isclose(stages["tracking"]["signed_lateral_error_m"]["p50"], -0.1)
+    assert result["paired_tracking_center_improvement_rate"] == 1.0
+    assert result["paired_tracking_minus_detection_center_error_m"]["p50"] < 0.0
 
 
 def test_predicted_path_interpolates_by_message_time_step():
