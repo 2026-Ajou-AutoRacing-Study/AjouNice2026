@@ -108,6 +108,9 @@ class OracleGtTracksNode:
                 class_name=class_name,
                 object_id=int(status.unique_id),
                 asset_name=str(status.name),
+                length=float(status.size.x),
+                width=float(status.size.y),
+                height=float(status.size.z),
             )
         )
         cutoff = timestamp - self.history_sec

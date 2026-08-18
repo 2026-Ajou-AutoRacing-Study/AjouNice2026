@@ -75,10 +75,30 @@ of the current standardized object pipeline.
 `PointPainting -> EKF tracking -> Map-CV prediction` against MORAI GT. It
 reports 30 m vehicle tracking precision/recall/F1, MOTA, ID switches,
 center/speed/yaw error, and 1/2/3-second prediction metrics. The legacy
-`tracking.motp_center_error_m` key is retained for compatibility, but its
-validated meaning is only ObjectStatus-reference distance. It must not be
-reported as true bbox-center MOTP until MORAI Instance GT or an independently
-validated asset-origin transform is available.
+`tracking.motp_center_error_m` key is retained for compatibility and aliases
+the active GT reference selected by `--gt-reference`. With the default
+calibrated policy, use the explicit
+`tracking.bbox_center_absolute_distance_m` key for production comparison. With
+`--gt-reference object-status`, the same legacy key remains an actor-pivot
+distance and must not be described as bbox-center MOTP.
+
+The CLI now defaults to `--gt-reference bbox-center-calibrated-v1` for the
+production comparison. It shifts only MORAI GT, never detector/tracker output.
+The calibrated policy currently supports:
+
+- passenger vehicles up to `5.5 m`: `+1.340 m` along each GT heading;
+- the observed `6.557 x 2.517 x 2.505 m` medium vehicle profile:
+  `+1.383 m`;
+- every other large or missing-size profile: excluded from the primary metric
+  and counted under `unsupported_segment_count`.
+
+Profiles are matched by the reported 3D dimensions rather than
+`ObjectStatus.name`: the recorded highway bag reuses the same name for
+different dimensions, so that field is not a stable asset identifier.
+
+The same report retains the uncorrected legacy result under
+`object_status_reference_evaluation`. To reproduce the historical primary
+layout explicitly, pass `--gt-reference object-status`.
 The legacy
 `prediction.fde_m` field remains the planning-facing confidence Top-1 FDE.
 `prediction.multimodal` additionally reports Top-1 ADE/FDE, minADE-K,
@@ -126,9 +146,9 @@ Use the metrics as follows:
   MORAI actor reference point; not bbox-center MOTP.
 - `origin_aligned`: motion/path-shape diagnostic that also removes genuine
   current-frame detector translation error.
-- Absolute planning-facing bbox accuracy: requires an asset-aware reference
-  correction or synchronized dynamic bbox GT. The audit provides evidence for
-  that implementation but does not silently change production evaluation.
+- `bbox_center_absolute_distance_m`: production comparison against the
+  independently calibrated bbox-center GT for supported vehicle profiles;
+  inspect `unsupported_segment_count` before comparing runs.
 
 When the output bag also contains canonical `DetectedObjects`, it additionally
 associates detection and tracking independently to the same MORAI actor at the
@@ -144,6 +164,15 @@ versus local-detector comparison.
   base_ws/src/tracking_prediction_evaluation/scripts/evaluate_pipeline_prediction.py \
   RAW_INPUT.bag PIPELINE_OUTPUTS.bag \
   --output artifacts/prediction_evaluation/SCENE/summary.json
+```
+
+Primary paths in the resulting report are:
+
+```text
+tracking.bbox_center_absolute_distance_m
+prediction.multimodal.horizons.<sec>
+prediction.multimodal.horizons.<sec>.origin_aligned
+object_status_reference_evaluation
 ```
 
 For production model selection, report the offline CV-stable prediction slice

@@ -26,6 +26,9 @@ class TrajectoryPoint:
     class_name: str
     object_id: int
     asset_name: str
+    length: float = 0.0
+    width: float = 0.0
+    height: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -246,6 +249,9 @@ def read_morai_trajectories(
                             class_name=class_name,
                             object_id=int(obj.unique_id),
                             asset_name=str(obj.name),
+                            length=float(obj.size.x),
+                            width=float(obj.size.y),
+                            height=float(obj.size.z),
                         )
                     )
 
@@ -324,4 +330,7 @@ def interpolate_point(
         class_name=before.class_name,
         object_id=before.object_id,
         asset_name=before.asset_name,
+        length=before.length + ratio * (after.length - before.length),
+        width=before.width + ratio * (after.width - before.width),
+        height=before.height + ratio * (after.height - before.height),
     )

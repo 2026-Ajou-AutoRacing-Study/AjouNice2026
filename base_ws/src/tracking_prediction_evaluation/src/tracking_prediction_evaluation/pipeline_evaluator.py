@@ -565,6 +565,7 @@ def evaluate_pipeline(
     maximum_interpolation_bracket_sec=0.15,
     prediction_motion_slice="all",
     maximum_longitudinal_acceleration_mps2=0.5,
+    gt_reference="object-status",
 ):
     tracking_counts = defaultdict(int)
     tracking_errors = []
@@ -864,6 +865,7 @@ def evaluate_pipeline(
     return {
         "evaluation": {
             "class": "vehicle",
+            "gt_reference": gt_reference,
             "maximum_range_m": maximum_range_m,
             "maximum_association_distance_m": maximum_association_distance_m,
             "horizons_sec": list(horizons),
@@ -880,12 +882,28 @@ def evaluate_pipeline(
             "recall": recall,
             "f1": f1,
             "mota": mota,
-            "object_status_reference_distance_m": statistics(tracking_errors),
+            "object_status_reference_distance_m": (
+                statistics(tracking_errors)
+                if gt_reference == "object-status"
+                else {
+                    "count": 0,
+                    "reason": "available in object_status_reference_evaluation",
+                }
+            ),
             "motp_center_error_m": statistics(tracking_errors),
             "motp_center_error_caveat": (
-                "Compatibility alias only: MORAI ObjectStatus.position and "
-                "detector bbox center have different empirical longitudinal "
-                "reference points, so this is not validated bbox-center MOTP"
+                "Validated bbox-center distance for the supported calibrated "
+                "vehicle subset"
+                if gt_reference == "bbox-center-calibrated-v1"
+                else "Compatibility alias only: MORAI ObjectStatus.position "
+                "and detector bbox center have different empirical "
+                "longitudinal reference points, so this is not validated "
+                "bbox-center MOTP"
+            ),
+            "bbox_center_absolute_distance_m": (
+                statistics(tracking_errors)
+                if gt_reference == "bbox-center-calibrated-v1"
+                else {"count": 0, "reason": "bbox-center GT not selected"}
             ),
             "absolute_speed_error_mps": statistics(tracking_speed_errors),
             "absolute_yaw_error_deg": statistics(tracking_yaw_errors),

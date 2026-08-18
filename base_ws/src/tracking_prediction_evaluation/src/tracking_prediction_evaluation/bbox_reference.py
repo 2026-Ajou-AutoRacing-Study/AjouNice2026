@@ -5,6 +5,7 @@ from __future__ import annotations
 import bisect
 import json
 import math
+from dataclasses import replace
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,9 +14,30 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from .pipeline_evaluator import dominant_label, message_timestamp, quaternion_yaw, statistics
+from .trajectory import TrajectorySegment
 
 
 VEHICLE_LABELS = frozenset((1, 2, 3, 4, 5, 6))
+PASSENGER_BBOX_REFERENCE_V1 = {
+    "policy": "bbox-center-calibrated-v1",
+    "longitudinal_offset_m": 1.34,
+    "maximum_length_m": 5.5,
+    "source_vehicle_boxes": 2813,
+    "source_scenes": 190,
+    "source_longitudinal_p95_m": 1.48,
+    "source_lateral_p50_m": -0.009,
+}
+EXPLICIT_VEHICLE_REFERENCE_PROFILES_V1 = (
+    {
+        "profile": "data_id_30400002_medium_vehicle",
+        "length_m": 6.557,
+        "width_m": 2.517,
+        "height_m": 2.505,
+        "longitudinal_offset_m": 1.383,
+        "dimension_tolerance_m": 0.08,
+        "source_vehicle_boxes": 126,
+    },
+)
 
 
 @dataclass(frozen=True)
@@ -49,6 +71,126 @@ class DetectionBox:
     length: float
     width: float
     height: float
+
+
+def _segment_dimensions(segment):
+    dimensions = [
+        (point.length, point.width, point.height)
+        for point in segment.points
+        if point.length > 0.0 and point.width > 0.0 and point.height > 0.0
+    ]
+    if not dimensions:
+        return 0.0, 0.0, 0.0
+    return tuple(float(value) for value in np.median(dimensions, axis=0))
+
+
+def _reference_profile(length, width, height, maximum_passenger_length_m):
+    if 0.0 < length <= maximum_passenger_length_m:
+        return {
+            "profile": "passenger_under_5_5m",
+            "longitudinal_offset_m": PASSENGER_BBOX_REFERENCE_V1[
+                "longitudinal_offset_m"
+            ],
+        }
+    for profile in EXPLICIT_VEHICLE_REFERENCE_PROFILES_V1:
+        tolerance = profile["dimension_tolerance_m"]
+        if all(
+            abs(actual - profile[key]) <= tolerance
+            for actual, key in (
+                (length, "length_m"),
+                (width, "width_m"),
+                (height, "height_m"),
+            )
+        ):
+            return profile
+    return None
+
+
+def transform_segments_to_calibrated_bbox_center(
+    segments,
+    *,
+    longitudinal_offset_m=PASSENGER_BBOX_REFERENCE_V1["longitudinal_offset_m"],
+    maximum_length_m=PASSENGER_BBOX_REFERENCE_V1["maximum_length_m"],
+    exclude_unsupported=True,
+):
+    """Transform supported MORAI vehicle actor pivots to bbox-center GT.
+
+    The current calibration supports passenger-sized vehicles plus explicitly
+    audited larger dimension profiles. Every other large vehicle has a
+    materially different pivot-to-center offset and is excluded from the
+    primary metric instead of being silently mis-corrected.
+    """
+    transformed = []
+    supported = []
+    supported_profiles = defaultdict(int)
+    unsupported_missing_size = []
+    unsupported_large_vehicle = []
+    unchanged_non_vehicle = []
+    for segment in segments:
+        if segment.class_name != "vehicle":
+            transformed.append(segment)
+            unchanged_non_vehicle.append(segment.key)
+            continue
+        median_length, median_width, median_height = _segment_dimensions(segment)
+        if median_length <= 0.0:
+            unsupported_missing_size.append(segment.key)
+            if not exclude_unsupported:
+                transformed.append(segment)
+            continue
+        profile = _reference_profile(
+            median_length, median_width, median_height, maximum_length_m
+        )
+        if profile is None:
+            unsupported_large_vehicle.append(segment.key)
+            if not exclude_unsupported:
+                transformed.append(segment)
+            continue
+        offset = (
+            float(longitudinal_offset_m)
+            if profile["profile"] == "passenger_under_5_5m"
+            else float(profile["longitudinal_offset_m"])
+        )
+        corrected_points = tuple(
+            replace(
+                point,
+                x=point.x + offset * math.cos(point.yaw),
+                y=point.y + offset * math.sin(point.yaw),
+            )
+            for point in segment.points
+        )
+        transformed.append(replace(segment, points=corrected_points))
+        supported.append(segment.key)
+        supported_profiles[profile["profile"]] += 1
+    report = {
+        **PASSENGER_BBOX_REFERENCE_V1,
+        "longitudinal_offset_m": float(longitudinal_offset_m),
+        "maximum_length_m": float(maximum_length_m),
+        "input_segment_count": len(segments),
+        "supported_segment_count": len(supported),
+        "supported_profiles": dict(supported_profiles),
+        "explicit_profiles": [
+            dict(profile) for profile in EXPLICIT_VEHICLE_REFERENCE_PROFILES_V1
+        ],
+        "unsupported_segment_count": (
+            len(unsupported_missing_size) + len(unsupported_large_vehicle)
+        ),
+        "unsupported_missing_size_count": len(unsupported_missing_size),
+        "unsupported_large_vehicle_count": len(unsupported_large_vehicle),
+        "unchanged_non_vehicle_count": len(unchanged_non_vehicle),
+        "exclude_unsupported": bool(exclude_unsupported),
+        "unsupported_segment_keys": {
+            "missing_size": unsupported_missing_size,
+            "large_vehicle": unsupported_large_vehicle,
+        },
+    }
+    return tuple(transformed), report
+
+
+# Compatibility name retained for the audit/test code written before the
+# explicit calibrated medium-vehicle profile was added.
+transform_segments_to_passenger_bbox_center = (
+    transform_segments_to_calibrated_bbox_center
+)
 
 
 def _read_jsonl(path: Path):
@@ -266,6 +408,8 @@ def audit_capture_dataset(dataset_root: str | Path):
                 "data_id": data_id,
                 "count": len(selected),
                 "length_m": float(np.median([row["length_m"] for row in selected])),
+                "width_m": float(np.median([row["width_m"] for row in selected])),
+                "height_m": float(np.median([row["height_m"] for row in selected])),
                 "longitudinal_offset_m": _group_stats(
                     selected, "longitudinal_offset_m"
                 ),

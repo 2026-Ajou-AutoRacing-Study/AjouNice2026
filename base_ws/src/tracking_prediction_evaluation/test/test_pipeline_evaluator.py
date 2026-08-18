@@ -155,6 +155,42 @@ def test_origin_aligned_prediction_removes_only_current_translation_offset():
     assert math.isclose(metrics["origin_aligned"]["top1_fde_m"]["mean"], 0.0)
 
 
+def test_bbox_center_reference_exposes_absolute_tracking_metric():
+    points = tuple(
+        TrajectoryPoint(
+            timestamp=float(timestamp),
+            x=1.34 + float(timestamp),
+            y=0.0,
+            z=0.0,
+            yaw=0.0,
+            longitudinal_velocity=1.0,
+            lateral_velocity=0.0,
+            longitudinal_acceleration=0.0,
+            lateral_acceleration=0.0,
+            class_name="vehicle",
+            object_id=1,
+            asset_name="test",
+        )
+        for timestamp in range(2)
+    )
+    segment = TrajectorySegment("vehicle", "vehicle", 1, "test", points)
+    estimate = ObjectEstimate(b"track", 1.5, 0.0)
+    summary = evaluate_pipeline(
+        (segment,),
+        (),
+        tracking_frames={0.0: (estimate,)},
+        prediction_frames={},
+        gt_reference="bbox-center-calibrated-v1",
+    )
+
+    assert math.isclose(
+        summary["tracking"]["bbox_center_absolute_distance_m"]["p50"],
+        0.16,
+        abs_tol=1.0e-9,
+    )
+    assert summary["tracking"]["object_status_reference_distance_m"]["count"] == 0
+
+
 def test_sensor_estimate_transform_preserves_pi_yaw_sign():
     ego = EgoPoint(1.0, 10.0, 20.0, math.pi / 2.0)
     estimate = ObjectEstimate(b"", 2.0, 0.0, yaw=math.pi)

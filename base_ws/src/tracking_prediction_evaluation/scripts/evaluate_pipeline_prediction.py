@@ -7,6 +7,9 @@ import argparse
 import json
 from pathlib import Path
 
+from tracking_prediction_evaluation.bbox_reference import (
+    transform_segments_to_calibrated_bbox_center,
+)
 from tracking_prediction_evaluation.pipeline_evaluator import (
     evaluate_detection_tracking_yaw_flow,
     evaluate_pipeline,
@@ -52,6 +55,20 @@ def parse_args():
     parser.add_argument("--sensor-to-ego-y-m", type=float, default=0.0)
     parser.add_argument("--maximum-interpolation-bracket-sec", type=float, default=0.15)
     parser.add_argument(
+        "--gt-reference",
+        choices=("bbox-center-calibrated-v1", "object-status"),
+        default="bbox-center-calibrated-v1",
+        help=(
+            "primary GT reference; bbox-center-calibrated-v1 supports "
+            "passenger vehicles and explicitly calibrated larger assets"
+        ),
+    )
+    parser.add_argument(
+        "--skip-object-status-reference",
+        action="store_true",
+        help="do not retain a legacy ObjectStatus-reference comparison",
+    )
+    parser.add_argument(
         "--prediction-motion-slice",
         choices=("all", "cv-stable"),
         default="all",
@@ -84,12 +101,28 @@ def parse_args():
 def main():
     args = parse_args()
     translation_xyz, transform_yaw = load_morai_to_map_transform(args.morai_static_tf)
-    segments = read_morai_trajectories(
+    object_status_segments = read_morai_trajectories(
         args.raw_bag,
         topic=args.object_topic,
         include_classes=("vehicle",),
     )
-    segments = transform_segments_planar(segments, translation_xyz, transform_yaw)
+    reference_calibration = None
+    if args.gt_reference == "bbox-center-calibrated-v1":
+        primary_segments, reference_calibration = (
+            transform_segments_to_calibrated_bbox_center(object_status_segments)
+        )
+        if not primary_segments:
+            raise RuntimeError(
+                "bbox-center-calibrated-v1 found no supported vehicle segments"
+            )
+    else:
+        primary_segments = tuple(object_status_segments)
+    segments = transform_segments_planar(
+        primary_segments, translation_xyz, transform_yaw
+    )
+    object_status_map_segments = transform_segments_planar(
+        object_status_segments, translation_xyz, transform_yaw
+    )
     ego_points = read_ego_points(
         args.raw_bag,
         args.ego_topic,
@@ -115,7 +148,44 @@ def main():
         maximum_longitudinal_acceleration_mps2=(
             args.maximum_longitudinal_acceleration_mps2
         ),
+        gt_reference=args.gt_reference,
     )
+    if reference_calibration is not None:
+        summary["evaluation"]["gt_reference_calibration"] = reference_calibration
+        summary["evaluation"]["primary_metric_paths"] = {
+            "tracking": "tracking.bbox_center_absolute_distance_m",
+            "prediction": "prediction.multimodal.horizons",
+            "motion_only": (
+                "prediction.multimodal.horizons.<sec>.origin_aligned"
+            ),
+            "legacy": "object_status_reference_evaluation",
+        }
+    if (
+        args.gt_reference != "object-status"
+        and not args.skip_object_status_reference
+    ):
+        legacy = evaluate_pipeline(
+            object_status_map_segments,
+            ego_points,
+            tracking_frames,
+            prediction_frames,
+            horizons=tuple(sorted(set(args.horizons))),
+            maximum_range_m=args.maximum_range_m,
+            maximum_association_distance_m=args.maximum_association_distance_m,
+            maximum_interpolation_bracket_sec=(
+                args.maximum_interpolation_bracket_sec
+            ),
+            prediction_motion_slice=args.prediction_motion_slice,
+            maximum_longitudinal_acceleration_mps2=(
+                args.maximum_longitudinal_acceleration_mps2
+            ),
+            gt_reference="object-status",
+        )
+        summary["object_status_reference_evaluation"] = {
+            "evaluation": legacy["evaluation"],
+            "tracking": legacy["tracking"],
+            "prediction": legacy["prediction"],
+        }
     summary["detection_to_tracking_yaw_flow"] = evaluate_detection_tracking_yaw_flow(
         segments,
         ego_points,
@@ -161,6 +231,7 @@ def main():
         "raw_bag": str(args.raw_bag.resolve()),
         "output_bag": str(args.output_bag.resolve()),
         "trajectory_segment_count": len(segments),
+        "object_status_trajectory_segment_count": len(object_status_segments),
         "ego_sample_count": len(ego_points),
         "tracking_frame_count": len(tracking_frames),
         "detection_frame_count": len(detection_frames),
@@ -171,7 +242,24 @@ def main():
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    print(json.dumps(summary, indent=2))
+    print(
+        json.dumps(
+            {
+                "output": str(args.output),
+                "gt_reference": args.gt_reference,
+                "trajectory_segment_count": len(segments),
+                "tracking_bbox_center_p50_m": summary["tracking"][
+                    "bbox_center_absolute_distance_m"
+                ].get("p50"),
+                "unsupported_segment_count": (
+                    reference_calibration["unsupported_segment_count"]
+                    if reference_calibration is not None
+                    else 0
+                ),
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

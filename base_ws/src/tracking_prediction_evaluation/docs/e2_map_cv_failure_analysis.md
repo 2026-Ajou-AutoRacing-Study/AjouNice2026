@@ -153,23 +153,54 @@ PointPainting/EKF 경로의 state timestamp에는 사용되지 않는다. 숫자
 
 1. `ObjectStatus.position` 절대 오차는 actor-reference 호환 지표다.
 2. `origin_aligned`는 prediction 경로 형상과 이동거리 모델의 조건부 상한이다.
-3. 최종 bbox-center 절대 지표는 asset-aware offset 또는 동기화된 dynamic
-   `Instance_8Points` GT를 추가한 뒤 확정한다.
+3. production 비교는 캡처 `Instance_8Points`로 독립 calibration된
+   `bbox_center_absolute_distance_m`를 사용한다. 미검증 asset은 억지로
+   보정하지 않고 주 지표에서 제외한다.
 4. 이번 결과는 고정 time shift가 아니라 공간 기준점 차이를 지지한다.
 
-CV-stable origin-aligned 결과는 기준점 문제가 Highway의 대표 오차를 크게
-부풀렸음을 보여준다.
+### Production evaluator 적용
 
-| 장면 | horizon | Top-1 FDE 기존 | origin-aligned | minFDE-K 기존 | origin-aligned |
+`evaluate_pipeline_prediction.py`의 기본 GT reference를
+`bbox-center-calibrated-v1`로 변경했다.
+
+- 모델의 detection/tracking/prediction 좌표는 수정하지 않는다.
+- 승용차급 GT만 각 시점 heading 방향으로 `1.340 m` 이동한다.
+- 고주로 bag에서 확인된 `6.557 x 2.517 x 2.505 m` profile은 캡처 GT의
+  `DataID 30400002` 중앙값 `1.383 m`를 사용한다.
+- 다른 미검증 대형차는 주 지표에서 제외하고 개수를 보고한다.
+- `ObjectStatus.name`은 같은 문자열이 서로 다른 크기에 재사용되어 안정적인 asset
+  key가 아니므로, 명시적 profile은 `length/width/height`로 식별한다.
+- 기존 ObjectStatus 기준 결과는 같은 summary의
+  `object_status_reference_evaluation`에 함께 저장한다.
+- `origin_aligned`는 보정된 BBox GT에서도 현재 estimate 위치에 다시
+  정렬한 motion-only 진단으로 유지한다.
+
+PointPainting epoch 65의 CV-stable production 결과는 다음과 같다.
+
+| 장면 | Tracking BBox center p50 | 1 s Top-1/minK p50 | 2 s Top-1/minK p50 | 3 s Top-1/minK p50 |
+|---|---:|---:|---:|---:|
+| Roundabout 1 | 0.772 m | 0.974 / 0.751 m | 1.640 / 1.129 m | 2.285 / 1.510 m |
+| Highway 1 | **0.500 m** | **0.611 / 0.593 m** | **0.925 / 0.869 m** | **1.306 / 1.224 m** |
+
+두 bag 모두 unsupported segment는 `0`이다. Highway는 승용차 17개와 명시적
+중형 vehicle profile 2개를 사용한다. Roundabout의 잔여 current error는 기준점
+문제만으로 사라지지 않으므로 LiDAR scan motion distortion과 detector/tracker
+translation error를 다음 단계에서 분리한다.
+
+CV-stable origin-aligned p50은 현재 tracking translation error를 추가로 제거했을
+때 motion/path 모델이 도달하는 조건부 성능을 보여준다.
+
+| 장면 | horizon | Top-1 FDE p50 | origin-aligned | minFDE-K p50 | origin-aligned |
 |---|---:|---:|---:|---:|---:|
-| Roundabout | 1 s | 1.268 m | **1.000 m** | 0.993 m | **0.738 m** |
-| Roundabout | 3 s | **5.680 m** | 5.689 m | **2.134 m** | 2.203 m |
-| Highway | 1 s | 1.478 m | **0.606 m** | 1.469 m | **0.576 m** |
-| Highway | 3 s | 1.747 m | **1.520 m** | 1.624 m | **1.338 m** |
+| Roundabout | 1 s | 0.974 m | **0.688 m** | 0.751 m | **0.554 m** |
+| Roundabout | 3 s | **2.285 m** | 2.311 m | **1.510 m** | 1.590 m |
+| Highway | 1 s | 0.611 m | **0.514 m** | 0.593 m | **0.514 m** |
+| Highway | 3 s | 1.306 m | **1.266 m** | 1.224 m | **1.194 m** |
 
 Roundabout 3초 오차가 거의 그대로인 이유는 고정 위치 offset이 아니라 sibling
-branch Top-1 오선택이 지배하기 때문이다. 반면 Highway 1초 p50은 `1.487 m`에서
-`0.490 m`로 내려가 기존 약 `1.4 m` floor의 대부분이 기준점 차이였음을 확인했다.
+branch Top-1 오선택이 지배하기 때문이다. 반면 Highway tracking p50은 legacy
+ObjectStatus 기준 `1.479 m`에서 BBox 기준 `0.500 m`로 내려가 기존 약 `1.4 m`
+floor의 상당 부분이 기준점 차이였음을 확인했다.
 
 ## 2. 로터리의 잘못된 Lanelet·갈림길 선택
 

@@ -4,7 +4,9 @@ import math
 from tracking_prediction_evaluation.bbox_reference import (
     audit_capture_dataset,
     oriented_bev_iou,
+    transform_segments_to_calibrated_bbox_center,
 )
+from tracking_prediction_evaluation.trajectory import TrajectoryPoint, TrajectorySegment
 
 
 def write_jsonl(path, items):
@@ -82,3 +84,72 @@ def test_oriented_bev_iou_handles_identical_and_shifted_boxes():
     assert math.isclose(oriented_bev_iou(box, box), 1.0, abs_tol=1.0e-9)
     shifted = (2.0, 0.0, 4.0, 2.0, 0.0)
     assert math.isclose(oriented_bev_iou(box, shifted), 1.0 / 3.0, abs_tol=1.0e-9)
+
+
+def test_passenger_reference_transform_shifts_supported_and_excludes_large():
+    def segment(key, length, yaw=0.0):
+        return TrajectorySegment(
+            key,
+            "vehicle",
+            1,
+            "test",
+            (
+                TrajectoryPoint(
+                    0.0,
+                    10.0,
+                    20.0,
+                    0.0,
+                    yaw,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    "vehicle",
+                    1,
+                    "test",
+                    length=length,
+                    width=2.0,
+                    height=1.5,
+                ),
+            ),
+        )
+
+    transformed, report = transform_segments_to_calibrated_bbox_center(
+        (segment("passenger", 4.8, math.pi / 2.0), segment("bus", 8.0))
+    )
+
+    assert len(transformed) == 1
+    assert transformed[0].key == "passenger"
+    assert math.isclose(transformed[0].points[0].x, 10.0, abs_tol=1.0e-9)
+    assert math.isclose(transformed[0].points[0].y, 21.34, abs_tol=1.0e-9)
+    assert report["supported_segment_count"] == 1
+    assert report["unsupported_large_vehicle_count"] == 1
+
+
+def test_explicit_medium_vehicle_profile_uses_its_own_offset():
+    point = TrajectoryPoint(
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        "vehicle",
+        1,
+        "medium",
+        length=6.557,
+        width=2.517,
+        height=2.505,
+    )
+    segment = TrajectorySegment("medium", "vehicle", 1, "medium", (point,))
+
+    transformed, report = transform_segments_to_calibrated_bbox_center((segment,))
+
+    assert len(transformed) == 1
+    assert math.isclose(transformed[0].points[0].x, 1.383, abs_tol=1.0e-9)
+    assert report["supported_profiles"] == {
+        "data_id_30400002_medium_vehicle": 1
+    }
