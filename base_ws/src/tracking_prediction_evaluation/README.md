@@ -327,3 +327,26 @@ rosbag play --clock --pause \
   rosbags/raw_sensor_w_cam/sensor_cam_raw_highway1.bag \
   artifacts/prediction_evaluation/e2_highway1_pointpainting_epoch65_clustered_max/pipeline_outputs.bag
 ```
+
+Roundabout 2 originally contains a second, spatially disjoint set of Highway
+NPCs in `/Object_topic`.  The evaluation copy retains only NPC observations in
+the roundabout region (`x=-140..-70`, `y=300..380`); images, LiDAR, Ego state,
+and all other topics remain byte-for-byte copied from the source bag.  Replay
+the filtered GT bag with its separately generated PointPainting pipeline bag:
+
+```bash
+rosbag play --clock --pause \
+  rosbags/raw_sensor_w_cam/sensor_cam_raw_roundabout2_roundabout_only.bag \
+  artifacts/prediction_evaluation/e2_roundabout2_pointpainting_epoch65_latest/pipeline_outputs.bag
+```
+
+To reproduce the GT-only filtering step:
+
+```bash
+python3 \
+  base_ws/src/tracking_prediction_evaluation/scripts/filter_morai_object_region.py \
+  rosbags/raw_sensor_w_cam/sensor_cam_raw_roundabout_2.bag \
+  rosbags/raw_sensor_w_cam/sensor_cam_raw_roundabout2_roundabout_only.bag \
+  --xmin -140 --xmax -70 --ymin 300 --ymax 380 \
+  --report /tmp/roundabout2_filter_report.json
+```

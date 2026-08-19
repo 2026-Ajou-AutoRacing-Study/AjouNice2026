@@ -205,12 +205,29 @@ for stage timings, throughput/latency separation, and the OpenCV comparison.
 
 Version 0.1 uses the newest camera image whose timestamp is not later than the LiDAR timestamp. This is causal and works for both rosbag and live operation.
 
-The rolling-LiDAR correction changes the detection measurement timestamp; it
-does not alter camera selection. The representative timestamp is the median
-of per-box point-time medians, with the scan point median as fallback. This
-avoids letting one dense box dominate the frame timestamp.
+The production rolling-LiDAR correction changes only the detection measurement
+timestamp. The representative timestamp is the median of per-box point-time
+medians, with the scan point median as fallback. This avoids letting one dense
+box dominate the frame timestamp.
 
-It does not yet apply ego-motion compensation between the camera and LiDAR timestamps. The recorded bag had camera matching errors in the tens of milliseconds, so the first integration test must inspect box stability while the ego vehicle is moving. Ego-motion compensation should be added only if that test shows a measurable projection error.
+An optional `ego_pose_2d` point-coordinate deskew is also implemented, but it
+remains disabled. Highway A/B improved static scan alignment while worsening
+detection precision, tracking and Map-CV prediction with the current checkpoint.
+See
+[`rolling_lidar_ego_deskew_ab_260820.md`](../../../perception/pointpainting/docs/rolling_lidar_ego_deskew_ab_260820.md).
+
+Experimental controls are:
+
+- `lidar_deskew_mode:=off|ego_pose_2d`.
+- `lidar_deskew_reference:=header|point_median`.
+- `lidar_deskew_camera_reference:=header|reference`.
+
+When deskew is enabled, `reference` camera matching keeps point coordinates and
+camera observations at the same time and is the physically consistent default.
+
+The production path does not apply ego-motion compensation between camera and
+LiDAR timestamps. Enabling coordinate deskew without training-time deskew is
+not recommended for the current model.
 
 ## Git repository policy
 

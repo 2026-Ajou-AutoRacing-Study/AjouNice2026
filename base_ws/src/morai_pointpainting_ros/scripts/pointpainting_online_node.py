@@ -50,6 +50,7 @@ from sensor_msgs.msg import (
 )
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker, MarkerArray
+from morai_msgs.msg import EgoVehicleStatus
 
 from morai_pointpainting_ros.msg import (
     PointPaintingDetection,
@@ -58,7 +59,10 @@ from morai_pointpainting_ros.msg import (
 from autoware_perception_msgs.msg import DetectedObjects
 from perception_object_pipeline import make_detected_objects
 from perception_object_pipeline.rolling_lidar import (
+    PlanarPoseBuffer,
+    deskew_points_to_reference_pose,
     representative_detection_time_offset,
+    transform_boxes_between_lidar_times,
 )
 
 
@@ -470,6 +474,22 @@ class PointPaintingOnlineNode:
         self.lidar_timing_minimum_points_per_box = int(
             rospy.get_param("~lidar_timing_minimum_points_per_box", 3)
         )
+        self.lidar_deskew_mode = str(
+            rospy.get_param("~lidar_deskew_mode", "off")
+        ).strip().lower()
+        self.lidar_deskew_reference = str(
+            rospy.get_param("~lidar_deskew_reference", "point_median")
+        ).strip().lower()
+        self.lidar_deskew_camera_reference = str(
+            rospy.get_param("~lidar_deskew_camera_reference", "reference")
+        ).strip().lower()
+        self.ego_topic = str(rospy.get_param("~ego_topic", "/Ego_topic"))
+        self.ego_pose_buffer_duration_sec = float(
+            rospy.get_param("~ego_pose_buffer_duration_sec", 2.0)
+        )
+        self.lidar_deskew_maximum_extrapolation_sec = float(
+            rospy.get_param("~lidar_deskew_maximum_extrapolation_sec", 0.08)
+        )
         self.use_amp = bool(rospy.get_param("~use_amp", True))
         self.segmentation_short_side = int(
             rospy.get_param("~segmentation_short_side", 520)
@@ -547,6 +567,22 @@ class PointPaintingOnlineNode:
             raise ValueError(
                 "lidar_timing_minimum_points_per_box must be >= 1"
             )
+        if self.lidar_deskew_mode not in {"off", "ego_pose_2d"}:
+            raise ValueError("lidar_deskew_mode must be off or ego_pose_2d")
+        if self.lidar_deskew_reference not in {"header", "point_median"}:
+            raise ValueError(
+                "lidar_deskew_reference must be header or point_median"
+            )
+        if self.lidar_deskew_camera_reference not in {"header", "reference"}:
+            raise ValueError(
+                "lidar_deskew_camera_reference must be header or reference"
+            )
+        if self.ego_pose_buffer_duration_sec < 0.2:
+            raise ValueError("ego_pose_buffer_duration_sec must be >= 0.2")
+        if self.lidar_deskew_maximum_extrapolation_sec < 0.0:
+            raise ValueError(
+                "lidar_deskew_maximum_extrapolation_sec must be non-negative"
+            )
         if self.warmup_iterations < 1:
             raise ValueError("warmup_iterations must be >= 1")
         if self.warmup_point_count < 1000:
@@ -605,6 +641,12 @@ class PointPaintingOnlineNode:
         )
         self.r_vehicle_lidar = rotation_matrix(
             *self.lidar_config["rotation"]
+        )
+        self.lidar_yaw_rad = math.radians(
+            float(self.lidar_config["rotation"][2])
+        )
+        self.ego_pose_buffer = PlanarPoseBuffer(
+            self.ego_pose_buffer_duration_sec
         )
 
         self.camera_buffers = {
@@ -673,6 +715,13 @@ class PointPaintingOnlineNode:
         )
 
         self.camera_subscribers = []
+        self.ego_subscriber = rospy.Subscriber(
+            self.ego_topic,
+            EgoVehicleStatus,
+            self._ego_callback,
+            queue_size=100,
+            tcp_nodelay=True,
+        )
         for camera_name in self.camera_names:
             camera_config = self.camera_configs[camera_name]
             topic = camera_config["topic"]
@@ -720,6 +769,13 @@ class PointPaintingOnlineNode:
         rospy.on_shutdown(self._shutdown_camera_executor)
 
         rospy.loginfo("LiDAR       <- %s", self.lidar_topic)
+        rospy.loginfo(
+            "Ego pose    <- %s (deskew=%s reference=%s camera=%s)",
+            self.ego_topic,
+            self.lidar_deskew_mode,
+            self.lidar_deskew_reference,
+            self.lidar_deskew_camera_reference,
+        )
         rospy.loginfo("Detections  -> %s", self.detections_topic)
         rospy.loginfo("Markers     -> %s", self.markers_topic)
         rospy.loginfo(
@@ -1313,6 +1369,15 @@ class PointPaintingOnlineNode:
                 (timestamp, msg)
             )
 
+    def _ego_callback(self, msg: EgoVehicleStatus) -> None:
+        self.ego_pose_buffer.add(
+            stamp_to_sec(msg.header.stamp),
+            msg.position.x,
+            msg.position.y,
+            msg.position.z,
+            math.radians(msg.heading),
+        )
+
     def _lidar_callback(self, msg: PointCloud2) -> None:
         enqueue_time = time.perf_counter()
         with self.lidar_lock:
@@ -1733,14 +1798,55 @@ class PointPaintingOnlineNode:
 
     def _preprocess_lidar(self, msg: PointCloud2):
         points, point_time_offsets = cloud_to_xyzi(msg, include_time=True)
+        deskew = {
+            "applied": False,
+            "reference_time_offset_sec": 0.0,
+            "point_displacement_mean_m": 0.0,
+            "point_displacement_p95_m": 0.0,
+            "point_displacement_max_m": 0.0,
+        }
         if len(points) == 0:
-            return points, point_time_offsets
+            return points, point_time_offsets, deskew
 
         finite = np.isfinite(points).all(axis=1)
         points = points[finite]
         point_time_offsets = point_time_offsets[finite]
         if len(points) == 0:
-            return points, point_time_offsets
+            return points, point_time_offsets, deskew
+
+        if self.lidar_deskew_mode == "ego_pose_2d":
+            finite_time = point_time_offsets[np.isfinite(point_time_offsets)]
+            reference_offset = 0.0
+            if self.lidar_deskew_reference == "point_median" and finite_time.size:
+                reference_offset = float(np.median(finite_time))
+            corrected = deskew_points_to_reference_pose(
+                points,
+                point_time_offsets,
+                stamp_to_sec(msg.header.stamp),
+                reference_offset,
+                self.ego_pose_buffer.snapshot(),
+                lidar_position=self.lidar_position,
+                lidar_yaw=self.lidar_yaw_rad,
+                maximum_extrapolation_sec=(
+                    self.lidar_deskew_maximum_extrapolation_sec
+                ),
+            )
+            if corrected is not None:
+                points, displacement, _ = corrected
+                deskew = {
+                    "applied": True,
+                    "reference_time_offset_sec": reference_offset,
+                    "point_displacement_mean_m": float(np.mean(displacement)),
+                    "point_displacement_p95_m": float(
+                        np.percentile(displacement, 95)
+                    ),
+                    "point_displacement_max_m": float(np.max(displacement)),
+                }
+            else:
+                rospy.logwarn_throttle(
+                    2.0,
+                    "LiDAR ego deskew skipped: insufficient timed ego poses.",
+                )
 
         if self.normalize_intensity:
             intensity = points[:, 3]
@@ -1781,6 +1887,7 @@ class PointPaintingOnlineNode:
         return (
             np.ascontiguousarray(points[inside], dtype=np.float32),
             np.ascontiguousarray(point_time_offsets[inside], dtype=np.float32),
+            deskew,
         )
 
     def _detect(
@@ -2005,6 +2112,38 @@ class PointPaintingOnlineNode:
                     "detailed_timing": self.detailed_timing,
                     "score_threshold": self.score_threshold,
                     "maximum_detection_range_m": self.max_detection_range,
+                    "lidar_measurement_stamp_mode": (
+                        self.lidar_measurement_stamp_mode
+                    ),
+                    "lidar_deskew_mode": self.lidar_deskew_mode,
+                    "lidar_deskew_reference": self.lidar_deskew_reference,
+                    "lidar_deskew_camera_reference": (
+                        self.lidar_deskew_camera_reference
+                    ),
+                },
+                "lidar_deskew": {
+                    "applied_frames": int(
+                        sum(
+                            int(row.get("lidar_deskew_applied", 0))
+                            for row in analyzed_rows
+                        )
+                    ),
+                    "reference_offset_ms": self._distribution(
+                        analyzed_rows,
+                        "lidar_deskew_reference_offset_ms",
+                    ),
+                    "point_displacement_mean_m": self._distribution(
+                        analyzed_rows,
+                        "lidar_deskew_point_displacement_mean_m",
+                    ),
+                    "point_displacement_p95_m": self._distribution(
+                        analyzed_rows,
+                        "lidar_deskew_point_displacement_p95_m",
+                    ),
+                    "point_displacement_max_m": self._distribution(
+                        analyzed_rows,
+                        "lidar_deskew_point_displacement_max_m",
+                    ),
                 },
                 "counts": {
                     "camera_input_frames": dict(self.camera_input_frames),
@@ -2129,9 +2268,29 @@ class PointPaintingOnlineNode:
         ) * 1000.0
         lidar_timestamp = stamp_to_sec(msg.header.stamp)
 
+        lidar_preprocess_start = time.perf_counter()
+        lidar, point_time_offsets, deskew = self._preprocess_lidar(msg)
+        lidar_preprocess_ms = (
+            time.perf_counter() - lidar_preprocess_start
+        ) * 1000.0
+        if len(lidar) == 0:
+            self.skipped_lidar_frames += 1
+            self.skip_reasons["empty_lidar"] += 1
+            rospy.logwarn_throttle(
+                1.0,
+                "Skipping empty LiDAR scan.",
+            )
+            return
+
+        camera_reference_timestamp = lidar_timestamp
+        if (
+            deskew["applied"]
+            and self.lidar_deskew_camera_reference == "reference"
+        ):
+            camera_reference_timestamp += deskew["reference_time_offset_sec"]
         camera_match_start = time.perf_counter()
-        camera_messages, camera_ages_ms = (
-            self._select_camera_messages(lidar_timestamp)
+        camera_messages, camera_ages_ms = self._select_camera_messages(
+            camera_reference_timestamp
         )
         camera_match_ms = (
             time.perf_counter() - camera_match_start
@@ -2154,20 +2313,6 @@ class PointPaintingOnlineNode:
         camera_span_ms = (
             max(camera_timestamps) - min(camera_timestamps)
         ) * 1000.0
-
-        lidar_preprocess_start = time.perf_counter()
-        lidar, point_time_offsets = self._preprocess_lidar(msg)
-        lidar_preprocess_ms = (
-            time.perf_counter() - lidar_preprocess_start
-        ) * 1000.0
-        if len(lidar) == 0:
-            self.skipped_lidar_frames += 1
-            self.skip_reasons["empty_lidar"] += 1
-            rospy.logwarn_throttle(
-                1.0,
-                "Skipping empty LiDAR scan.",
-            )
-            return
 
         camera_decode_start = time.perf_counter()
         images_rgb = self._decode_images(camera_messages)
@@ -2210,6 +2355,32 @@ class PointPaintingOnlineNode:
                     self.lidar_timing_minimum_points_per_box
                 ),
             )
+        if deskew["applied"]:
+            source_time = (
+                lidar_timestamp + deskew["reference_time_offset_sec"]
+            )
+            target_time = lidar_timestamp + measurement_time_offset_sec
+            transformed_boxes = transform_boxes_between_lidar_times(
+                boxes,
+                source_time,
+                target_time,
+                self.ego_pose_buffer.snapshot(),
+                lidar_position=self.lidar_position,
+                lidar_yaw=self.lidar_yaw_rad,
+                maximum_extrapolation_sec=(
+                    self.lidar_deskew_maximum_extrapolation_sec
+                ),
+            )
+            if transformed_boxes is None:
+                # Keep the coordinate frame and timestamp coherent when a
+                # late pose sample is unavailable.
+                measurement_time_offset_sec = deskew[
+                    "reference_time_offset_sec"
+                ]
+            else:
+                boxes = np.ascontiguousarray(
+                    transformed_boxes, dtype=np.float32
+                )
         measurement_header = copy.deepcopy(msg.header)
         if self.lidar_measurement_stamp_mode != "header":
             measurement_header.stamp = rospy.Time.from_sec(
@@ -2255,10 +2426,15 @@ class PointPaintingOnlineNode:
         )
 
         if self.publish_painted_points:
+            painted_header = copy.deepcopy(msg.header)
+            if deskew["applied"]:
+                painted_header.stamp = rospy.Time.from_sec(
+                    lidar_timestamp + deskew["reference_time_offset_sec"]
+                )
             self.painted_pub.publish(
                 make_painted_cloud(
                     painted,
-                    msg.header,
+                    painted_header,
                     self.semantic_names,
                 )
             )
@@ -2298,6 +2474,19 @@ class PointPaintingOnlineNode:
             "detection_count": int(len(boxes)),
             "camera_match_ms": float(camera_match_ms),
             "lidar_preprocess_ms": float(lidar_preprocess_ms),
+            "lidar_deskew_applied": int(deskew["applied"]),
+            "lidar_deskew_reference_offset_ms": float(
+                deskew["reference_time_offset_sec"] * 1000.0
+            ),
+            "lidar_deskew_point_displacement_mean_m": float(
+                deskew["point_displacement_mean_m"]
+            ),
+            "lidar_deskew_point_displacement_p95_m": float(
+                deskew["point_displacement_p95_m"]
+            ),
+            "lidar_deskew_point_displacement_max_m": float(
+                deskew["point_displacement_max_m"]
+            ),
             "camera_decode_ms": float(camera_decode_ms),
             "camera_preprocess_ms": float(
                 segmentation_stage_ms["camera_preprocess_ms"]

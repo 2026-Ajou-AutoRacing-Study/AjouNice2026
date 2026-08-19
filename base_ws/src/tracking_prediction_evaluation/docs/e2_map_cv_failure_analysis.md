@@ -596,6 +596,73 @@ MGeo 점에서 방향이 맞는 Lanelet v60 centerline까지 필요한 2D 보정
 Planning uncertainty 계약은 앞 단계들의 실제 p50/p90/MR@2m 결과를 반영해 마지막에
 결정함.
 
+### Detection-driven vs fixed 15/30 Hz Tracking A/B
+
+동일한 rolling-LiDAR retimed Detection과 EKF 설정을 유지하고 publish cadence만
+변경함. Fixed-rate adapter는 EKF measurement state를 수정하지 않고, 마지막
+TrackedObjects를 target ROS time까지 causal CTRV/CV 외삽함. `0 Hz`는 기존처럼
+Detection callback마다 한 번 발행하는 기준선임.
+
+| 장면 | 모드 | 실제 Tracking 출력 | Tracking center p50 | 1초 minFDE-K p50 | 2초 | 3초 |
+|---|---|---:|---:|---:|---:|---:|
+| Roundabout 1 | Detection-driven | 8.68 Hz | **0.533 m** | **0.586 m** | **0.935 m** | **1.328 m** |
+| Roundabout 1 | Fixed 15 Hz | 15.00 Hz | 0.554 m | 0.620 m | 0.964 m | 1.383 m |
+| Roundabout 1 | Fixed 30 Hz | 30.00 Hz | 0.554 m | 0.617 m | 0.966 m | 1.371 m |
+| Highway 1 | Detection-driven | 8.69 Hz | **0.489 m** | **0.551 m** | **0.913 m** | **1.366 m** |
+| Highway 1 | Fixed 15 Hz | 15.00 Hz | 0.536 m | 0.617 m | 0.993 m | 1.459 m |
+| Highway 1 | Fixed 30 Hz | 30.00 Hz | 0.538 m | 0.626 m | 0.983 m | 1.453 m |
+
+- Fixed 15 Hz와 30 Hz의 정확도는 사실상 같음. 출력 횟수를 두 배로 늘려도 새
+  sensor information은 추가되지 않기 때문임.
+- Fixed 출력의 source measurement age p50은 Roundabout 약 `148~150 ms`,
+  Highway 약 `145~147 ms`였음. 여기에는 rolling-LiDAR 대표시각과 약 `8.7 Hz`
+  bag의 Detection 간격이 함께 포함됨.
+- 따라서 이번 결과는 fixed-rate 자체의 연산 주기보다 오래된 속도·yaw 상태를
+  외삽하는 오차를 보여줌.
+- 현재 bag 조건에서는 15/30 Hz 모두 p50과 장기 prediction을 악화시켰으므로,
+  이 절의 외부 fixed-rate adapter는 production에서 사용하지 않음.
+- 대회 입력이 실제 `15 Hz`라면 source age가 감소하므로 30 Hz 손해도 이번보다
+  작을 가능성이 있음. Production 전환 판단은 실제 15 Hz bag에서 다시 수행함.
+- 메시지 자체의 measurement-time 정확도와 Planning이 임의 시각에 마지막
+  메시지를 조회할 때의 freshness는 다른 문제임. 향후 Planning common-query-time
+  평가는 Detection-driven zero-order hold와 fixed-rate 외삽을 동일 30 Hz query
+  grid에서 비교해야 함.
+
+### EKF 내부 15/30 Hz scheduler A/B
+
+외부 adapter 실험과 별도로 EKF 노드의 100 Hz main loop 안에 ROS-time output
+scheduler를 구현함. Detection이 들어올 때만 measurement-time EKF 상태를 갱신하고,
+고정 출력 시각에는 `GetPredictedTrackResults(target_time)`으로 내부 CTRV 상태의
+복사본을 직접 예측함. 원본 filter state와 다음 Detection의 `dt`는 바꾸지 않으며,
+마지막 measurement로부터 `0.25 s`를 넘으면 출력을 생략함.
+
+| 장면 | 모드 | 실제 출력 | Tracking center p50 | 속도오차 p50 | 1초 minFDE-K p50 | 2초 | 3초 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Roundabout 1 | Detection-driven | 8.67 Hz | 0.532 m | 0.423 m/s | **0.586 m** | **0.935 m** | **1.328 m** |
+| Roundabout 1 | EKF internal 15 Hz | 14.85 Hz | **0.526 m** | **0.421 m/s** | 0.617 m | 0.962 m | 1.366 m |
+| Roundabout 1 | EKF internal 30 Hz | 29.72 Hz | **0.526 m** | 0.422 m/s | 0.628 m | 0.980 m | 1.384 m |
+| Highway 1 | Detection-driven | 8.67 Hz | **0.489 m** | **0.474 m/s** | **0.551 m** | **0.913 m** | **1.365 m** |
+| Highway 1 | EKF internal 15 Hz | 14.80 Hz | 0.536 m | 0.516 m/s | 0.620 m | 0.989 m | 1.471 m |
+| Highway 1 | EKF internal 30 Hz | 29.74 Hz | 0.532 m | 0.504 m/s | 0.610 m | 0.983 m | 1.448 m |
+
+- 모든 fixed-rate bag의 header 간격은 각각 `0.06667 s`, `0.03333 s`이고 역행·중복
+  timestamp는 0건임.
+- output bag receipt time과 header의 차이는 p50 약 `5 ms`로, Planning이 보는
+  메시지 freshness는 detector-driven의 약 `103~105 ms`보다 크게 개선됨.
+- 그러나 scheduler target 시각에서 인과적으로 사용할 수 있었던 마지막 Detection
+  state의 age는 p50 약 `129~135 ms`, p95 약 `212~216 ms`임. 출력률이 새 센서
+  정보를 만들지는 않음.
+- 내부 scheduler는 외부 adapter보다 center p50이 Roundabout에서 약 `0.028 m`
+  좋고 대부분의 Prediction 지표도 수 mm~수 cm 차이로 소폭 우세함. 내부 EKF의
+  CTRV state와 covariance를 직접 사용하기 때문임.
+- 그럼에도 Highway는 모든 fixed-rate 조건이 자연 발행보다 나쁘고, Roundabout도
+  center p50만 `6 mm` 좋아졌을 뿐 Prediction p50/p90과 coverage가 악화함.
+- 15 Hz와 30 Hz 정확도 차이는 다시 매우 작음. 정확도만 보면 detector-driven이
+  우세하지만, Planning 입력의 규칙성과 current-timestamp freshness를 위해
+  competition production은 EKF 내부 scheduler `30 Hz`를 사용함. 일반 EKF
+  패키지 기본값은 `0 Hz`로 유지하고 대회용 `object_pipeline.launch`에서만
+  `30 Hz`를 기본 활성화함.
+
 ### v60 TF 전후 Prediction 종·횡 FDE 분해
 
 일반 FDE가 지도 정합 개선을 가리는지 확인하기 위해 각 1/2/3초 최종 오차를
@@ -636,3 +703,21 @@ raw score만 대표 confidence 계산에 사용한다. downstream Lanelet 조건
 따라서 중복 score의 단순 합산은 보류한다. 향후에는 시작 Lanelet posterior와
 조건부 branch probability를 각각 정규화한 뒤 동일 hypothesis로 확률 질량을
 marginalization하고, Brier score와 calibration curve로 검증해야 한다.
+
+### Rolling LiDAR ego-motion deskew A/B
+
+Point별 측정시각과 `/Ego_topic` pose를 이용한 2D ego-motion deskew를 구현해
+Highway 1에서 전체 PointPainting → EKF → Map-CV를 다시 평가했다. 정적 구조의
+scan 간 nearest-neighbor p50은 `0.498 -> 0.449 m`로 좋아져 변환 방향은
+검증됐지만, 현재 raw-scan checkpoint에서는 다음과 같이 악화했다.
+
+- Detection precision은 `0.873 -> 0.749`이다.
+- Tracking center p50은 `0.532 -> 0.562 m`이다.
+- 속도오차 p50은 `0.504 -> 0.668 m/s`이다.
+- 1/2/3초 minFDE-K p50은 각각 `0.610/0.983/1.448 m`에서
+  `0.774/1.207/1.705 m`로 악화했다.
+
+따라서 production은 기존 `object_points_median` timestamp만 유지하고 좌표
+deskew는 `off`로 둔다. 재검토하려면 학습 데이터와 online inference에 동일한
+deskew 및 camera-time 정책을 적용해야 한다. 상세 결과는
+`perception/pointpainting/docs/rolling_lidar_ego_deskew_ab_260820.md`에 기록한다.

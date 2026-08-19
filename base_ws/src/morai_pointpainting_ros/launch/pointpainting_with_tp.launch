@@ -29,6 +29,10 @@
   <arg name="benchmark_label" default="pointpainting"/>
   <arg name="benchmark_exclude_frames" default="10"/>
   <arg name="detailed_timing" default="false"/>
+  <arg name="lidar_measurement_stamp_mode" default="object_points_median"/>
+  <arg name="lidar_deskew_mode" default="off"/>
+  <arg name="lidar_deskew_reference" default="point_median"/>
+  <arg name="lidar_deskew_camera_reference" default="reference"/>
 
   <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
     <arg name="detector" value="pointpainting"/>
@@ -59,5 +63,12 @@
     <arg name="pointpainting_benchmark_label" value="$(arg benchmark_label)"/>
     <arg name="pointpainting_benchmark_exclude_frames" value="$(arg benchmark_exclude_frames)"/>
     <arg name="pointpainting_detailed_timing" value="$(arg detailed_timing)"/>
+    <arg name="pointpainting_lidar_measurement_stamp_mode"
+         value="$(arg lidar_measurement_stamp_mode)"/>
+    <arg name="pointpainting_lidar_deskew_mode" value="$(arg lidar_deskew_mode)"/>
+    <arg name="pointpainting_lidar_deskew_reference"
+         value="$(arg lidar_deskew_reference)"/>
+    <arg name="pointpainting_lidar_deskew_camera_reference"
+         value="$(arg lidar_deskew_camera_reference)"/>
   </include>
 </launch>

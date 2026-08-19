@@ -23,6 +23,14 @@
   <!-- Experimental: A/B evaluation favored measurement-time output. -->
   <arg name="compensate_tracking_output_to_current_time" default="false"/>
   <arg name="maximum_tracking_output_compensation_sec" default="0.25"/>
+  <!-- Production: update on detector input and publish predicted EKF state at 30 Hz. -->
+  <arg name="tracking_internal_publish_rate_hz" default="30.0"/>
+  <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
+  <!-- 0: detector-driven EKF output, >0: causal fixed-rate resampling. -->
+  <arg name="tracking_publish_rate_hz" default="0.0"/>
+  <arg name="maximum_tracking_resample_age_sec" default="0.25"/>
+  <arg name="measurement_tracked_objects"
+       default="/perception/object_recognition/tracking/measurement_objects"/>
 
   <!-- Detector-specific launch arguments. -->
   <arg name="python_executable" default=""/>
@@ -54,6 +62,9 @@
   <arg name="pointpainting_detailed_timing" default="false"/>
   <arg name="pointpainting_lidar_measurement_stamp_mode"
        default="object_points_median"/>
+  <arg name="pointpainting_lidar_deskew_mode" default="off"/>
+  <arg name="pointpainting_lidar_deskew_reference" default="point_median"/>
+  <arg name="pointpainting_lidar_deskew_camera_reference" default="reference"/>
 
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
 
@@ -98,12 +109,19 @@
       <arg name="detailed_timing" value="$(arg pointpainting_detailed_timing)"/>
       <arg name="lidar_measurement_stamp_mode"
            value="$(arg pointpainting_lidar_measurement_stamp_mode)"/>
+      <arg name="lidar_deskew_mode"
+           value="$(arg pointpainting_lidar_deskew_mode)"/>
+      <arg name="lidar_deskew_reference"
+           value="$(arg pointpainting_lidar_deskew_reference)"/>
+      <arg name="lidar_deskew_camera_reference"
+           value="$(arg pointpainting_lidar_deskew_camera_reference)"/>
     </include>
   </group>
 
   <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch">
     <arg name="input_objects" value="$(arg detection_objects)"/>
-    <arg name="output_objects" value="$(arg tracked_objects)"/>
+    <arg name="output_objects"
+         value="$(eval arg('tracked_objects') if float(arg('tracking_publish_rate_hz')) &lt;= 0.0 else arg('measurement_tracked_objects'))"/>
     <arg name="world_frame_id" value="$(arg world_frame_id)"/>
     <arg name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="canonicalize_vehicle_orientation_to_motion"
@@ -118,7 +136,25 @@
          value="$(arg compensate_tracking_output_to_current_time)"/>
     <arg name="maximum_output_compensation_sec"
          value="$(arg maximum_tracking_output_compensation_sec)"/>
+    <arg name="fixed_output_rate_hz"
+         value="$(eval arg('tracking_internal_publish_rate_hz') if float(arg('tracking_publish_rate_hz')) &lt;= 0.0 else '0.0')"/>
+    <arg name="maximum_fixed_output_prediction_age_sec"
+         value="$(arg maximum_tracking_internal_prediction_age_sec)"/>
   </include>
+
+  <group if="$(eval float(arg('tracking_publish_rate_hz')) &gt; 0.0)">
+    <node pkg="perception_object_pipeline"
+          type="tracked_objects_fixed_rate_node.py"
+          name="tracked_objects_fixed_rate"
+          output="screen"
+          respawn="false">
+      <remap from="~input/objects" to="$(arg measurement_tracked_objects)"/>
+      <remap from="~output/objects" to="$(arg tracked_objects)"/>
+      <param name="rate_hz" value="$(arg tracking_publish_rate_hz)"/>
+      <param name="maximum_age_sec"
+             value="$(arg maximum_tracking_resample_age_sec)"/>
+    </node>
+  </group>
 
   <include file="$(find perception_object_pipeline)/launch/object_prediction.launch">
     <arg name="input_objects" value="$(arg tracked_objects)"/>

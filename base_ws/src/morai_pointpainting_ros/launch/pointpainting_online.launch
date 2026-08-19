@@ -42,6 +42,10 @@
   <arg name="benchmark_exclude_frames" default="10"/>
   <arg name="detailed_timing" default="false"/>
   <arg name="lidar_measurement_stamp_mode" default="object_points_median"/>
+  <arg name="lidar_deskew_mode" default="off"/>
+  <arg name="lidar_deskew_reference" default="point_median"/>
+  <arg name="lidar_deskew_camera_reference" default="reference"/>
+  <arg name="ego_topic" default="/Ego_topic"/>
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
   <node pkg="morai_pointpainting_ros"
         type="pointpainting_online_node.py"
@@ -87,6 +91,11 @@
     <param name="detailed_timing" value="$(arg detailed_timing)"/>
     <param name="lidar_measurement_stamp_mode"
            value="$(arg lidar_measurement_stamp_mode)"/>
+    <param name="lidar_deskew_mode" value="$(arg lidar_deskew_mode)"/>
+    <param name="lidar_deskew_reference" value="$(arg lidar_deskew_reference)"/>
+    <param name="lidar_deskew_camera_reference"
+           value="$(arg lidar_deskew_camera_reference)"/>
+    <param name="ego_topic" value="$(arg ego_topic)"/>
     <!-- Causal real-time matching: newest camera image at or before LiDAR stamp. -->
     <param name="max_camera_age_ms" value="100.0"/>
     <param name="max_camera_span_ms" value="80.0"/>

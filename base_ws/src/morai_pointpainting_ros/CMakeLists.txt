@@ -6,6 +6,7 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   geometry_msgs
   message_generation
+  morai_msgs
   perception_object_pipeline
   rospy
   sensor_msgs
@@ -31,6 +32,7 @@ catkin_package(
   cv_bridge
   geometry_msgs
   message_runtime
+  morai_msgs
   perception_object_pipeline
   rospy
   sensor_msgs

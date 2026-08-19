@@ -95,6 +95,49 @@ requires the sensor static TF and the `map -> morai_map -> base_link` chain.
 - EKF current-time output extrapolation exists as an experimental launch
   option but is disabled by default: roundabout/highway A/B evaluation showed
   that it degraded prediction compared with retaining measurement-time state.
+
+### Tracking publish cadence
+
+`object_pipeline.launch` uses the EKF-internal 30 Hz scheduler in production:
+
+```bash
+tracking_internal_publish_rate_hz:=30.0
+tracking_publish_rate_hz:=0.0
+maximum_tracking_internal_prediction_age_sec:=0.25
+compensate_tracking_output_to_current_time:=false
+```
+
+The detector updates the EKF only when a new measurement arrives (for example,
+about 12--15 Hz from PointPainting/LiDAR). Between measurements, the scheduler
+asks the EKF motion model for a predicted output copy at each 30 Hz ROS-time
+slot; it does not invent measurements or mutate the measurement-time filter
+state. It stops publishing when the latest measurement is older than 0.25 s.
+
+Set `tracking_internal_publish_rate_hz:=0.0` only for the detector-driven A/B
+baseline. `tracking_publish_rate_hz` is the downstream adapter retained for
+the earlier experiment and remains disabled in production. Do not enable both
+fixed-rate mechanisms simultaneously.
+
+```text
+tracking_publish_rate_hz:=0.0
+```
+
+Set a positive value to route the measurement-time EKF output through the
+causal fixed-rate adapter. The adapter never mutates the EKF state, does not
+invent measurement updates, and stops publishing once the latest track is
+older than `maximum_tracking_resample_age_sec`.
+
+```text
+tracking_publish_rate_hz:=15.0
+tracking_publish_rate_hz:=30.0
+```
+
+These downstream-adapter settings are experimental and are not the production
+path. Bag A/B tests showed that fixed-rate output adds a small prediction error,
+but the EKF-internal 30 Hz scheduler was selected for production to provide a
+regular, current-timestamp Tracking/Prediction interface to Planning. The
+generic EKF package itself still defaults to detector-driven output; the 30 Hz
+choice is made by this competition production launch.
 - `TrackedObjects` and `PredictedObjects` remain in `map`.
 - The predictor emits the current pose followed by 30 uniformly spaced future
   poses from 0.1 through 3.0 seconds (`time_step=0.1s`, 31 path poses total),
@@ -139,7 +182,7 @@ roslaunch perception_object_pipeline object_pipeline.launch \
   start_detector:=false \
   prediction_model:=ctrv
 
-# P1 map-based prototype
+# Competition Map-CV path
 roslaunch perception_object_pipeline object_pipeline.launch \
   start_detector:=false \
   prediction_model:=map_based
@@ -156,13 +199,18 @@ highest-scoring route represents each group, so nearby start-lanelet matches
 cannot crowd a real sibling branch out of the six-path safety cap. Planning
 does not need a topic or message change.
 
-The per-group maximum score is a conservative first implementation, not a
+The per-group maximum score is a conservative implementation, not a
 calibrated probability model. Raw heuristic scores must not simply be summed,
 because a hypothesis could gain confidence only by being enumerated through
 more duplicate start Lanelets. A later improvement should normalize
 `P(start lane | observation)` and `P(branch | start lane)` separately and then
-marginalize probability mass into each geometric hypothesis. CTRV remains the
-default until the E0 map-based benchmark shows a measurable improvement.
+marginalize probability mass into each geometric hypothesis. The generic
+launch default remains CTRV for compatibility; the PointPainting competition
+run explicitly selects `prediction_model=map_based`.
+
+The complete 2026-08-20 production contract, evaluated metrics, rejected
+ablations and restart order are documented in
+[`map_cv_production_handoff_260820.md`](docs/map_cv_production_handoff_260820.md).
 
 ## Debug A/B topics
 

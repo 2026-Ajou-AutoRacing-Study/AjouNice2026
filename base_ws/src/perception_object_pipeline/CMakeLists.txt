@@ -25,6 +25,7 @@ catkin_install_python(
     scripts/object_prediction_node.py
     scripts/map_based_prediction_node.py
     scripts/object_pipeline_visualization_node.py
+    scripts/tracked_objects_fixed_rate_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
