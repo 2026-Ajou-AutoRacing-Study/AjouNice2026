@@ -8,6 +8,13 @@
   <arg name="publish_debug_image" default="true" />
   <arg name="debug_jpeg_quality" default="60" />
 
+  <!-- ===== 화살표 템플릿 수집용 (임시 디버그 기능, 비어있으면 비활성) ===== -->
+  <arg name="debug_save_crop_dir" default="" />
+
+  <!-- ===== 단발성 오검출/미검출 스무딩 (큐 기반 과반수 투표) ===== -->
+  <arg name="smoothing_window_size" default="5" />
+  <arg name="smoothing_majority_count" default="3" />
+
   <!-- ===== group_id 매칭: route 기반 (유일한 매칭 경로, 실패 시 fallback_group_id) ===== -->
   <arg name="fallback_group_id" default="0" />
   <arg name="lanelet2_map_file" default="" />
@@ -23,6 +30,11 @@
     <param name="max_rate_hz" value="$(arg max_rate_hz)" />
     <param name="publish_debug_image" value="$(arg publish_debug_image)" />
     <param name="debug_jpeg_quality" value="$(arg debug_jpeg_quality)" />
+
+    <param name="debug_save_crop_dir" value="$(arg debug_save_crop_dir)" />
+
+    <param name="smoothing_window_size" value="$(arg smoothing_window_size)" />
+    <param name="smoothing_majority_count" value="$(arg smoothing_majority_count)" />
 
     <param name="fallback_group_id" value="$(arg fallback_group_id)" />
     <param name="lanelet2_map_file" value="$(arg lanelet2_map_file)" />
