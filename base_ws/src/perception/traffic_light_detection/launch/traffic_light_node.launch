@@ -12,8 +12,8 @@
   <arg name="debug_save_crop_dir" default="" />
 
   <!-- ===== 단발성 오검출/미검출 스무딩 (큐 기반 과반수 투표) ===== -->
-  <arg name="smoothing_window_size" default="5" />
-  <arg name="smoothing_majority_count" default="3" />
+  <arg name="smoothing_window_size" default="7" />
+  <arg name="smoothing_majority_count" default="4" />
 
   <!-- ===== group_id 매칭: route 기반 (유일한 매칭 경로, 실패 시 fallback_group_id) ===== -->
   <arg name="fallback_group_id" default="0" />

@@ -1,4 +1,17 @@
 #!/usr/bin/env python3
+"""
+traffic_light_node.py (v14 - raw 라벨 디버그 토픽 추가, 스무딩 파라미터 재조정용)
+
+v13 -> v14 변경점 (2026-08-19, 스무딩 창(5)/과반수(3) 값 재조정을 위한 실측 준비):
+  - 지금까지 사용해온 스무딩 파라미터(window_size=5, majority_count=3)는 실측
+    근거 없는 잠정치. 이걸 재조정하려면 raw(스무딩 전) 데이터가 매 프레임 얼마나
+    오래(몇 프레임) 지속되는지 알아야 하는데, 기존 구조는 최종(스무딩 후) 데이터만
+    외부에서 관측 가능했음.
+  - 수정: raw_color_results(보정까지는 거치되 스무딩 전)를 매 프레임
+    ~debug_raw_label(std_msgs/String) 토픽으로 추가 발행. 이 토픽을 별도
+    로거(raw_streak_analyzer.py)로 구독해서, raw 라벨이 몇 프레임 연속으로
+    유지되는지 실측 가능하게 함.
+"""
 import os
 import sys
 import time as _time_module
@@ -16,6 +29,7 @@ import cv2
 import numpy as np
 import rospy
 from sensor_msgs.msg import CompressedImage
+from std_msgs.msg import String
 from ultralytics import YOLO
 
 from autoware_perception_msgs.msg import (
@@ -57,8 +71,16 @@ def _pick_draw_color(color_results):
     return "mixed"
 
 
-def _conflict_summary(color_results):
-    return "+".join(f"{c}_{s}" for c, s, _l in color_results)
+def _raw_label_for(color_results):
+    if not color_results:
+        return "off"
+    parts = []
+    for color, shape, is_left in color_results:
+        if shape == "arrow":
+            parts.append(f"{color}_arrow_left" if is_left else f"{color}_arrow_right")
+        else:
+            parts.append(f"{color}_{shape}")
+    return "+".join(sorted(parts))
 
 
 class TrafficLightNode:
@@ -78,8 +100,7 @@ class TrafficLightNode:
         if self.debug_save_crop_dir:
             os.makedirs(self.debug_save_crop_dir, exist_ok=True)
             rospy.loginfo(
-                f"[traffic_light_node] 무효 조합 타겟 크롭 저장 활성화: {self.debug_save_crop_dir} "
-                "(has_impossible_conflict인 프레임만 저장)"
+                f"[traffic_light_node] 무효 조합 타겟 크롭 저장 활성화: {self.debug_save_crop_dir}"
             )
 
         smoothing_window_size = int(rospy.get_param("~smoothing_window_size", 5))
@@ -132,6 +153,8 @@ class TrafficLightNode:
                 "~debug_image/compressed", CompressedImage, queue_size=1
             )
 
+        self.raw_debug_pub = rospy.Publisher("~debug_raw_label", String, queue_size=10)
+
         self._last_stamp = rospy.Time(0)
         self._min_period = rospy.Duration(1.0 / self.publish_rate_limit_hz) if self.publish_rate_limit_hz > 0 else rospy.Duration(0)
 
@@ -144,7 +167,7 @@ class TrafficLightNode:
         self.sub = rospy.Subscriber(image_topic, CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
         rospy.loginfo(
             f"[traffic_light_node] 구독: {image_topic} (CompressedImage) / "
-            f"발행: /perception/traffic_light_recognition/traffic_signals"
+            f"발행: /perception/traffic_light_recognition/traffic_signals, ~debug_raw_label"
             + (" / 디버그 이미지: ~debug_image/compressed" if self.publish_debug_image else "")
         )
 
@@ -171,7 +194,7 @@ class TrafficLightNode:
         if not self.debug_save_crop_dir:
             return
         self._save_crop_count += 1
-        summary = _conflict_summary(raw_color_results).replace("/", "-")
+        summary = "+".join(f"{c}_{s}" for c, s, _l in raw_color_results).replace("/", "-")
         fname = f"conflict_{int(_time_module.time() * 1000)}_{self._save_crop_count:04d}_{summary}.png"
         fpath = os.path.join(self.debug_save_crop_dir, fname)
         cv2.imwrite(fpath, crop)
@@ -249,6 +272,8 @@ class TrafficLightNode:
                     f"{raw_color_results} -> {fixed}",
                 )
             raw_color_results = fixed
+
+        self.raw_debug_pub.publish(String(data=_raw_label_for(raw_color_results)))
 
         smoothed = self.signal_smoother.update(
             raw_color_results, payload=(raw_color_results, raw_det_conf)
