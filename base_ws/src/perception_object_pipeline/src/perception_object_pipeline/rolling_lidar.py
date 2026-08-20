@@ -213,6 +213,15 @@ def transform_boxes_between_lidar_times(
     output[:, 1] = -sin_target * dx + cos_target * dy
     output[:, 2] = world_z - target[2]
     output[:, 6] = normalize_angle(values[:, 6] + source[3] - target[3])
+    if values.shape[1] >= 9:
+        # vx/vy are absolute planar velocity components expressed in the
+        # source LiDAR axes.  Re-expression at a different Ego yaw rotates
+        # the vector but does not apply the frame translation.
+        delta_yaw = source[3] - target[3]
+        cosine = math.cos(delta_yaw)
+        sine = math.sin(delta_yaw)
+        output[:, 7] = cosine * values[:, 7] - sine * values[:, 8]
+        output[:, 8] = sine * values[:, 7] + cosine * values[:, 8]
     return output
 
 

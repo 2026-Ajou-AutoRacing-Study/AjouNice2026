@@ -49,6 +49,10 @@ def make_detected_object(
     *,
     class_labels: Mapping[str, int] = CLASS_LABELS,
     orientation_availability: Mapping[str, int] = ORIENTATION_AVAILABILITY,
+    include_velocity: bool = False,
+    velocity_classes: Sequence[str] = ("vehicle",),
+    velocity_noise_std_mps: float = 1.0,
+    maximum_velocity_mps: float = 30.0,
 ) -> DetectedObject:
     """Convert ``[x, y, z, length, width, height, yaw]`` to one object."""
     if len(box) < 7:
@@ -76,6 +80,29 @@ def make_detected_object(
     )
     output.kinematics.has_twist = False
     output.kinematics.has_twist_covariance = False
+    if include_velocity and len(box) >= 9 and class_name in velocity_classes:
+        velocity_x = float(box[7])
+        velocity_y = float(box[8])
+        speed = math.hypot(velocity_x, velocity_y)
+        if (
+            math.isfinite(velocity_x)
+            and math.isfinite(velocity_y)
+            and speed <= max(0.0, float(maximum_velocity_mps))
+        ):
+            # The PointPillars target is a vector in detector/LiDAR axes.
+            # Our standardized DetectedObject contract stores twist in the
+            # object's body axes; the EKF rotates it back to map VX/VY.
+            cosine = math.cos(float(box[6]))
+            sine = math.sin(float(box[6]))
+            twist = output.kinematics.twist_with_covariance.twist.linear
+            twist.x = cosine * velocity_x + sine * velocity_y
+            twist.y = -sine * velocity_x + cosine * velocity_y
+            variance = max(0.0, float(velocity_noise_std_mps)) ** 2
+            covariance = output.kinematics.twist_with_covariance.covariance
+            covariance[0] = variance
+            covariance[7] = variance
+            output.kinematics.has_twist = True
+            output.kinematics.has_twist_covariance = True
 
     output.shape.type = Shape.BOUNDING_BOX
     output.shape.dimensions = Vector3(
@@ -91,12 +118,25 @@ def make_detected_objects(
     boxes: Iterable[Sequence[float]],
     scores: Iterable[float],
     class_names: Iterable[str],
+    *,
+    include_velocity: bool = False,
+    velocity_classes: Sequence[str] = ("vehicle",),
+    velocity_noise_std_mps: float = 1.0,
+    maximum_velocity_mps: float = 30.0,
 ) -> DetectedObjects:
     """Build one frame of standardized detector output."""
     output = DetectedObjects()
     output.header = copy.copy(header)
     output.objects = [
-        make_detected_object(box, score, class_name)
+        make_detected_object(
+            box,
+            score,
+            class_name,
+            include_velocity=include_velocity,
+            velocity_classes=velocity_classes,
+            velocity_noise_std_mps=velocity_noise_std_mps,
+            maximum_velocity_mps=maximum_velocity_mps,
+        )
         for box, score, class_name in zip(boxes, scores, class_names)
     ]
     return output

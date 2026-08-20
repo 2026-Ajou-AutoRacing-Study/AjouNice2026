@@ -447,6 +447,21 @@ class PointPaintingOnlineNode:
         self.max_detection_range = float(
             rospy.get_param("~max_detection_range", 30.0)
         )
+        self.publish_detector_velocity = bool(
+            rospy.get_param("~publish_detector_velocity", False)
+        )
+        self.detector_velocity_classes = tuple(
+            str(value).strip().lower()
+            for value in rospy.get_param(
+                "~detector_velocity_classes", ["vehicle"]
+            )
+        )
+        self.detector_velocity_noise_std_mps = float(
+            rospy.get_param("~detector_velocity_noise_std_mps", 1.0)
+        )
+        self.detector_maximum_velocity_mps = float(
+            rospy.get_param("~detector_maximum_velocity_mps", 30.0)
+        )
         self.max_camera_age_ms = float(
             rospy.get_param("~max_camera_age_ms", 100.0)
         )
@@ -552,6 +567,10 @@ class PointPaintingOnlineNode:
             )
         if self.camera_cpu_workers < 1 or self.camera_cpu_workers > 4:
             raise ValueError("camera_cpu_workers must be between 1 and 4")
+        if self.detector_velocity_noise_std_mps < 0.0:
+            raise ValueError("detector_velocity_noise_std_mps must be non-negative")
+        if self.detector_maximum_velocity_mps <= 0.0:
+            raise ValueError("detector_maximum_velocity_mps must be positive")
         if self.lidar_measurement_stamp_mode not in {
             "header",
             "point_median",
@@ -1953,7 +1972,7 @@ class PointPaintingOnlineNode:
             & (distance <= self.max_detection_range)
         )
 
-        boxes = np.ascontiguousarray(boxes[valid, :7], dtype=np.float32)
+        boxes = np.ascontiguousarray(boxes[valid], dtype=np.float32)
         scores = np.asarray(scores[valid], dtype=np.float32)
         labels = np.asarray(labels[valid], dtype=np.int32)
 
@@ -2412,7 +2431,16 @@ class PointPaintingOnlineNode:
             for label in labels
         ]
         self.objects_pub.publish(
-            make_detected_objects(measurement_header, boxes, scores, names)
+            make_detected_objects(
+                measurement_header,
+                boxes,
+                scores,
+                names,
+                include_velocity=self.publish_detector_velocity,
+                velocity_classes=self.detector_velocity_classes,
+                velocity_noise_std_mps=self.detector_velocity_noise_std_mps,
+                maximum_velocity_mps=self.detector_maximum_velocity_mps,
+            )
         )
         self.detections_pub.publish(output)
 

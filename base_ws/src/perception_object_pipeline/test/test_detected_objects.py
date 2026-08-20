@@ -51,6 +51,42 @@ class DetectedObjectsTest(unittest.TestCase):
         )
         self.assertEqual(obj.shape.dimensions.x, 0.0)
 
+    def test_opt_in_lidar_velocity_is_published_in_object_body_frame(self):
+        message = make_detected_objects(
+            Header(frame_id="base_link"),
+            [[0.0, 0.0, 0.0, 4.0, 2.0, 1.5, math.pi / 2.0, 0.0, 3.0]],
+            [0.9],
+            ["vehicle"],
+            include_velocity=True,
+            velocity_noise_std_mps=0.5,
+        )
+        kinematics = message.objects[0].kinematics
+        self.assertTrue(kinematics.has_twist)
+        self.assertTrue(kinematics.has_twist_covariance)
+        self.assertAlmostEqual(
+            kinematics.twist_with_covariance.twist.linear.x, 3.0, places=6
+        )
+        self.assertAlmostEqual(
+            kinematics.twist_with_covariance.twist.linear.y, 0.0, places=6
+        )
+        self.assertAlmostEqual(
+            kinematics.twist_with_covariance.covariance[0], 0.25
+        )
+
+    def test_velocity_remains_disabled_for_legacy_and_non_vehicle_boxes(self):
+        message = make_detected_objects(
+            Header(frame_id="base_link"),
+            [
+                [0.0, 0.0, 0.0, 4.0, 2.0, 1.5, 0.0],
+                [1.0, 0.0, 0.0, 0.6, 0.6, 1.7, 0.0, 1.0, 0.0],
+            ],
+            [0.9, 0.9],
+            ["vehicle", "pedestrian"],
+            include_velocity=True,
+        )
+        self.assertFalse(message.objects[0].kinematics.has_twist)
+        self.assertFalse(message.objects[1].kinematics.has_twist)
+
 
 if __name__ == "__main__":
     unittest.main()

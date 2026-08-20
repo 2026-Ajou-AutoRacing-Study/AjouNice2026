@@ -104,9 +104,11 @@ epoch를 동일하게 비교한다.
 구간의 Ego pose trajectory는 포함하지 않는다. 따라서 현재 3,000-frame 패키지는
 정확한 point-time feature 또는 point별 deskew 재학습에 바로 사용할 수 없다.
 
-저장 순서가 `1,200 azimuth x 16 channel`이라는 사실과 scan 시작 방향을 live
-PointCloud2와 대조해 검증하면 상대시각을 근사 복원할 여지는 있다. 검증되지 않은
-index 기반 시간을 production GT처럼 사용하지 않는다.
+기존 동적 1,500장 전체를 감사해 저장 순서가 `1,200 azimuth x 16 channel`, 첫
+방위각 0도, clockwise 약 0.299도 간격임을 확인했다. XYZ 방위각으로 상대시각을
+근사한 offline raw/deskew A/B와 학습 smoke는
+`temporal_sweep_alignment_azimuth_deskew_ab.md`에 기록한다. 다만 exact point
+timestamp를 복원한 것은 아니므로 production GT로 승격하지 않는다.
 
 ### 다음 수집의 sidecar 계약
 

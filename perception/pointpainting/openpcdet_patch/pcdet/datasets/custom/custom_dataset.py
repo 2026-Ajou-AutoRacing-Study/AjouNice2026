@@ -24,6 +24,12 @@ class CustomDataset(DatasetTemplate):
             dataset_cfg=dataset_cfg, class_names=class_names, training=training, root_path=root_path, logger=logger
         )
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
+        # MORAI position-only checkpoints use seven box values while the
+        # optional velocity target appends lidar-frame vx/vy.  Keep the
+        # default compatible with every existing CustomDataset config.
+        self.gt_box_dim = int(self.dataset_cfg.get('GT_BOX_DIM', 7))
+        if self.gt_box_dim not in (7, 9):
+            raise ValueError('GT_BOX_DIM must be 7 or 9, got %d' % self.gt_box_dim)
 
         split_dir = os.path.join(self.root_path, 'ImageSets', (self.split + '.txt'))
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if os.path.exists(split_dir) else None
@@ -53,17 +59,23 @@ class CustomDataset(DatasetTemplate):
         with open(label_file, 'r') as f:
             lines = f.readlines()
 
-        # [N, 8]: (x y z dx dy dz heading_angle category_id)
+        # [N, D+1]: (x y z dx dy dz heading [vx vy] category_id)
         gt_boxes = []
         gt_names = []
         for line in lines:
             line_list = line.strip().split(' ')
-            gt_boxes.append(line_list[:-1])
+            values = line_list[:-1]
+            if len(values) != self.gt_box_dim:
+                raise ValueError(
+                    '%s: expected %d box values, got %d' %
+                    (label_file, self.gt_box_dim, len(values))
+                )
+            gt_boxes.append(values)
             gt_names.append(line_list[-1])
 
         gt_boxes = np.asarray(
             gt_boxes, dtype=np.float32
-        ).reshape(-1, 7)
+        ).reshape(-1, self.gt_box_dim)
 
         gt_names = np.asarray(gt_names)
 
@@ -168,7 +180,7 @@ class CustomDataset(DatasetTemplate):
                 annotations = {}
                 gt_boxes_lidar, name = self.get_label(sample_idx)
                 annotations['name'] = name
-                annotations['gt_boxes_lidar'] = gt_boxes_lidar[:, :7]
+                annotations['gt_boxes_lidar'] = gt_boxes_lidar
                 info['annos'] = annotations
 
             return info
@@ -203,7 +215,7 @@ class CustomDataset(DatasetTemplate):
 
             num_obj = gt_boxes.shape[0]
             point_indices = roiaware_pool3d_utils.points_in_boxes_cpu(
-                torch.from_numpy(points[:, 0:3]), torch.from_numpy(gt_boxes)
+                torch.from_numpy(points[:, 0:3]), torch.from_numpy(gt_boxes[:, :7])
             ).numpy()  # (nboxes, npoints)
 
             for i in range(num_obj):
@@ -239,9 +251,13 @@ class CustomDataset(DatasetTemplate):
                 name = gt_names[idx]
                 if name not in class_names:
                     continue
-                line = "{x} {y} {z} {l} {w} {h} {angle} {name}\n".format(
+                velocity = ""
+                if boxes.shape[0] >= 9:
+                    velocity = " {vx} {vy}".format(vx=boxes[7], vy=boxes[8])
+                line = "{x} {y} {z} {l} {w} {h} {angle}{velocity} {name}\n".format(
                     x=boxes[0], y=boxes[1], z=(boxes[2]), l=boxes[3],
-                    w=boxes[4], h=boxes[5], angle=boxes[6], name=name
+                    w=boxes[4], h=boxes[5], angle=boxes[6],
+                    velocity=velocity, name=name
                 )
                 f.write(line)
 

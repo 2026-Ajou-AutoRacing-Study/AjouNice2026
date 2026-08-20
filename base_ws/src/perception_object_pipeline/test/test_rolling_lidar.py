@@ -121,6 +121,21 @@ class RollingLidarDeskewTest(unittest.TestCase):
         self.assertAlmostEqual(float(transformed[0, 0]), 8.0, places=6)
         self.assertAlmostEqual(float(transformed[0, 6]), 0.0, places=6)
 
+    def test_velocity_vector_rotates_with_lidar_axes(self):
+        poses = self.poses(
+            (1.0, 0.0, 0.0, 0.0, 0.0),
+            (2.0, 0.0, 0.0, 0.0, np.pi / 2.0),
+        )
+        boxes = np.asarray(
+            [[5.0, 0.0, 0.0, 4.0, 2.0, 1.5, 0.0, 2.0, 0.0]],
+            dtype=np.float32,
+        )
+        transformed = transform_boxes_between_lidar_times(
+            boxes, 1.0, 2.0, poses
+        )
+        self.assertAlmostEqual(float(transformed[0, 7]), 0.0, places=6)
+        self.assertAlmostEqual(float(transformed[0, 8]), -2.0, places=6)
+
     def test_rejects_pose_gap_outside_tolerance(self):
         poses = self.poses(
             (1.0, 0.0, 0.0, 0.0, 0.0),

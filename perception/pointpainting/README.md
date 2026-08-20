@@ -51,6 +51,14 @@ Point feature order:
   - Same-checkpoint, same-validation-split PIL versus OpenCV preprocessing
     accuracy comparison for the 80-epoch production release.
 
+- `docs/velocity_regression_9d.md`
+  - 3,000-frame 9D velocity GT contract, Epoch65 checkpoint migration,
+    training smoke validation, full-training command, metrics, and ROS opt-in.
+
+- `docs/temporal_sweep_alignment_azimuth_deskew_ab.md`
+  - Existing dynamic data reuse, 3-sweep Ego alignment, physical simulation
+    time recovery, azimuth Ego-deskew A/B, smoke results, and training commands.
+
 ## Weights
 
 Weights are distributed separately and are not committed to Git.

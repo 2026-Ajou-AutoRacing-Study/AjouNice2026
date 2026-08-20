@@ -25,6 +25,10 @@
 
   <arg name="score_threshold" default="0.10"/>
   <arg name="max_detection_range" default="30.0"/>
+  <!-- Disabled for legacy 7D checkpoints; enable only with a validated 9D head. -->
+  <arg name="publish_detector_velocity" default="false"/>
+  <arg name="detector_velocity_noise_std_mps" default="1.0"/>
+  <arg name="detector_maximum_velocity_mps" default="30.0"/>
   <arg name="publish_painted_points" default="false"/>
   <arg name="use_amp" default="true"/>
   <arg name="segmentation_short_side" default="384"/>
@@ -71,6 +75,12 @@
 
     <param name="score_threshold" value="$(arg score_threshold)"/>
     <param name="max_detection_range" value="$(arg max_detection_range)"/>
+    <param name="publish_detector_velocity" value="$(arg publish_detector_velocity)"/>
+    <rosparam param="detector_velocity_classes">[vehicle]</rosparam>
+    <param name="detector_velocity_noise_std_mps"
+           value="$(arg detector_velocity_noise_std_mps)"/>
+    <param name="detector_maximum_velocity_mps"
+           value="$(arg detector_maximum_velocity_mps)"/>
     <param name="publish_painted_points" value="$(arg publish_painted_points)"/>
     <param name="use_amp" value="$(arg use_amp)"/>
     <param name="segmentation_short_side" value="$(arg segmentation_short_side)"/>

@@ -320,6 +320,75 @@ def evaluate_center(samples, class_names, min_recall, min_precision, prefix,
     return metrics
 
 
+def evaluate_velocity(samples, class_names, distance_threshold=TP_THRESHOLD):
+    """Evaluate velocity on score-ranked, one-to-one centre matches.
+
+    Velocity is stored in lidar axes in the 9D OpenPCDet box.  In addition to
+    vector and speed errors, report longitudinal/lateral errors after rotating
+    the residual into the GT object's yaw frame.  Geometry matching deliberately
+    mirrors the centre-distance protocol instead of using velocity to decide a
+    match.
+    """
+    metrics = {}
+    class_maves = []
+
+    for class_index, class_name in enumerate(class_names):
+        matches = []
+        for sample in samples:
+            if sample['gt_boxes'].shape[1] < 9 or sample['pred_boxes'].shape[1] < 9:
+                continue
+
+            gt_indices = np.nonzero(sample['gt_labels'] == class_index)[0]
+            pred_indices = np.nonzero(sample['pred_labels'] == class_index)[0]
+            pred_indices = sorted(
+                pred_indices,
+                key=lambda i: float(sample['pred_scores'][i]),
+                reverse=True,
+            )
+            taken = set()
+            for pred_index in pred_indices:
+                best_gt, best_distance = None, np.inf
+                for gt_index in gt_indices:
+                    if int(gt_index) in taken:
+                        continue
+                    distance = np.linalg.norm(
+                        sample['gt_boxes'][gt_index, :2]
+                        - sample['pred_boxes'][pred_index, :2]
+                    )
+                    if distance < best_distance:
+                        best_gt, best_distance = int(gt_index), float(distance)
+                if best_gt is not None and best_distance < distance_threshold:
+                    taken.add(best_gt)
+                    matches.append((sample['gt_boxes'][best_gt], sample['pred_boxes'][pred_index]))
+
+        prefix = f'velocity/{class_name}'
+        metrics[f'{prefix}_matches'] = float(len(matches))
+        if not matches:
+            continue
+
+        gt_boxes = np.asarray([pair[0] for pair in matches], dtype=np.float64)
+        pred_boxes = np.asarray([pair[1] for pair in matches], dtype=np.float64)
+        residual = pred_boxes[:, 7:9] - gt_boxes[:, 7:9]
+        yaw = gt_boxes[:, 6]
+        longitudinal = np.cos(yaw) * residual[:, 0] + np.sin(yaw) * residual[:, 1]
+        lateral = -np.sin(yaw) * residual[:, 0] + np.cos(yaw) * residual[:, 1]
+        vector_error = np.linalg.norm(residual, axis=1)
+        speed_error = np.abs(
+            np.linalg.norm(pred_boxes[:, 7:9], axis=1)
+            - np.linalg.norm(gt_boxes[:, 7:9], axis=1)
+        )
+
+        metrics[f'{prefix}_mAVE'] = float(np.mean(vector_error))
+        metrics[f'{prefix}_speed_MAE'] = float(np.mean(speed_error))
+        metrics[f'{prefix}_longitudinal_MAE'] = float(np.mean(np.abs(longitudinal)))
+        metrics[f'{prefix}_lateral_MAE'] = float(np.mean(np.abs(lateral)))
+        class_maves.append(metrics[f'{prefix}_mAVE'])
+
+    if class_maves:
+        metrics['velocity/mAVE'] = float(np.mean(class_maves))
+    return metrics
+
+
 def collect_samples(args):
     cfg_from_yaml_file(args.cfg_file, cfg)
     if args.data_path:
@@ -374,7 +443,9 @@ def collect_samples(args):
                 (raw_gt[:, -1] > 0)
             )
             raw_gt = raw_gt[valid]
-            gt_boxes = raw_gt[:, :7]
+            # The class id is appended by DatasetTemplate.collate_batch. Keep
+            # all box codes so 9D velocity metrics remain available.
+            gt_boxes = raw_gt[:, :-1]
             gt_labels = raw_gt[:, -1].astype(np.int64) - 1
             mask = center_range_mask(gt_boxes, pc_range)
             gt_boxes, gt_labels = gt_boxes[mask], gt_labels[mask]
@@ -459,6 +530,22 @@ def print_report(metrics, class_names):
                 f'{metrics[f"{prefix}/{class_name}_mean_AP"]:.6f}'
             )
 
+    if 'velocity/mAVE' in metrics:
+        print('\n===== VELOCITY (2m center matches) =====')
+        for class_name in class_names:
+            prefix = f'velocity/{class_name}'
+            if f'{prefix}_mAVE' not in metrics:
+                print(f'{class_name}: no matched 9D boxes')
+                continue
+            print(
+                f'{class_name}: matches={int(metrics[f"{prefix}_matches"])}  '
+                f'mAVE={metrics[f"{prefix}_mAVE"]:.6f}m/s  '
+                f'speed_MAE={metrics[f"{prefix}_speed_MAE"]:.6f}m/s  '
+                f'longitudinal={metrics[f"{prefix}_longitudinal_MAE"]:.6f}m/s  '
+                f'lateral={metrics[f"{prefix}_lateral_MAE"]:.6f}m/s'
+            )
+        print('velocity/mAVE=', f'{metrics["velocity/mAVE"]:.6f}m/s')
+
     print('\nOfficial NDS available: NO')
 
 
@@ -491,6 +578,7 @@ def main():
         )
 
     metrics['meta/official_NDS_available'] = 0.0
+    metrics.update(evaluate_velocity(samples, class_names))
     print_report(metrics, class_names)
 
     payload = {

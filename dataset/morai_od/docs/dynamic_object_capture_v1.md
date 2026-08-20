@@ -180,6 +180,13 @@ metadata의 실제 timestamp를 사용한다.
 원시 velocity는 임의 변환하지 않는다. 파생 m/s 값과 함께 남겨 launcher별 단위
 차이를 감사한다. calibration은 `configs/sensors/Sensor_6.json`을 참조한다.
 
+개인용 launcher가 real time보다 느리게 실행될 때 ROS header/wall time 차분은
+물리 속도를 축소한다. 학습 변환 단계에서는 Ego/actor 위치 차이와 MORAI raw
+physical speed로 scene simulator time을 복원한다. 기존 원본 metadata는 감사
+가능성을 위해 그대로 보존한다. 구현과 A/B 결과는
+`../../../perception/pointpainting/docs/temporal_sweep_alignment_azimuth_deskew_ab.md`
+를 따른다.
+
 ## 생성·검증·설치
 
 ```bash
