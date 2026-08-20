@@ -84,3 +84,57 @@ Roundabout 1은 Ego가 정지해 있어 deskew의 유효 A/B 장면이 아니다
 - 학습과 online inference가 동일한 LiDAR reference와 camera matching 정책을 사용한다.
 - moving-object distortion은 별도 문제로 분리한다.
 - Highway처럼 Ego가 실제 이동하는 bag에서 detection AP, tracking, prediction을 함께 비교한다.
+
+## 향후 deskew 재학습 계획
+
+현재 결과는 deskew 자체의 최종 기각이 아니다. raw rolling scan으로 학습한
+checkpoint에 deskew 좌표를 inference에서만 적용해 입력 분포가 달라진 실험이다.
+다음 대규모 데이터 수집에서 학습과 inference의 계약을 일치시킨 별도 A/B를 다시
+수행한다.
+
+모델 구조 변경은 필수가 아니다. 기존 9-feature PointPainting과 PointPillars head를
+그대로 유지하고, semantic painting 전에 LiDAR XYZ만 공통 reference pose로 변환한다.
+raw와 deskew 데이터는 같은 원본 frame에서 함께 생성해 split, seed, optimizer와
+epoch를 동일하게 비교한다.
+
+### 현재 SaveSensorData의 한계
+
+실제 정적·동적 capture의 `LIDAR_5/*_Intensity.bin`은 307,200 byte이며,
+`19,200 point x 4 float32`인 `x,y,z,intensity`만 저장한다. point별 `time`과 scan
+구간의 Ego pose trajectory는 포함하지 않는다. 따라서 현재 3,000-frame 패키지는
+정확한 point-time feature 또는 point별 deskew 재학습에 바로 사용할 수 없다.
+
+저장 순서가 `1,200 azimuth x 16 channel`이라는 사실과 scan 시작 방향을 live
+PointCloud2와 대조해 검증하면 상대시각을 근사 복원할 여지는 있다. 검증되지 않은
+index 기반 시간을 production GT처럼 사용하지 않는다.
+
+### 다음 수집의 sidecar 계약
+
+SaveSensorData를 Camera·LiDAR·GT의 canonical snapshot으로 계속 사용하면서 다음
+정보만 작은 sidecar로 저장한다.
+
+- `/sensor/lidar1` PointCloud2의 point별 `time` 또는 원본 field layout.
+- scan 시작·종료·reference timestamp.
+- scan 구간을 덮는 `/Ego_topic` pose samples.
+- 적용한 LiDAR extrinsic과 deskew contract version.
+- SaveSensorData XYZI와 ROS scan의 point count, timestamp, coordinate/hash 대조 결과.
+
+동일 scan임을 검증하지 못한 frame은 deskew 학습 대상으로 승인하지 않는다. rosbag을
+주 수집 수단으로 되돌리는 계획은 아니며, SaveSensorData snapshot에 timing sidecar만
+보강하는 방식이다.
+
+### 실험 순서와 채택 기준
+
+1. Live smoke 한 장에서 SaveSensorData XYZI와 `/sensor/lidar1`이 동일 scan인지
+   좌표·순서·개수로 검증한다.
+2. 100--300 frame pilot에서 raw 9-feature와 deskew 9-feature를 동시에 만든다.
+3. 같은 초기 weight와 학습 설정으로 짧은 A/B를 수행한다.
+4. Detection center AP·IoU AP·mATE·mAOE뿐 아니라 Tracking center/speed error와
+   Map-CV 1/2/3초 minFDE-K를 함께 비교한다.
+5. p50만 좋아지고 precision, p90/p95, recall 또는 coverage가 악화하면 production에
+   적용하지 않는다.
+6. 효과가 확인된 뒤에만 전체 수집과 online launch의 기본값을 deskew로 변경한다.
+
+Point-time을 열 번째 feature로 추가해 object-motion 단서를 학습하는 실험과
+`vx,vy` velocity head는 별도 ablation이다. Ego deskew만으로 움직이는 NPC의 scan
+내부 distortion이나 실제 속도가 자동으로 해결된다고 가정하지 않는다.

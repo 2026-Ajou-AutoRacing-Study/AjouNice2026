@@ -349,3 +349,30 @@ ScenarioLoad 직후 개인용 launcher의 센서 writer를 초기화하기 위�
 텍스트 객체 목록의 빈 내용만으로 저장 실패라고 판정하지 않는다. Camera 또는
 LiDAR payload 누락·0 byte는 계속 scene 실패다. 이 구분은
 `batch001_m_dmc003` 4-frame 재검증에서 errors 0, warnings 0으로 확인했다.
+
+## 향후 rolling-LiDAR timing sidecar
+
+현재 SaveSensorData `LIDAR_5/*_Intensity.bin`은 `x,y,z,intensity`만 저장하며
+point별 측정 시각을 포함하지 않는다. 실제 표본은 19,200 point, 307,200 byte로
+확인됐다. 현재 수집한 3,000 frame은 동적 객체의 frame-level GT 속도를 이용한
+single-frame `vx,vy` regression에는 사용할 수 있지만, 정확한 point-time feature와
+point별 Ego-motion deskew 학습에는 정보가 부족하다.
+
+다음 대규모 batch를 시작하기 전에 다음 pilot을 수행한다.
+
+1. SaveSensorData trigger 주변의 `/sensor/lidar1` PointCloud2와 `/Ego_topic`을 작은
+   sidecar recorder로 보존한다.
+2. SaveSensorData XYZI와 ROS scan의 point count·좌표·순서가 같은지 검증한다.
+3. 동일 scan으로 확인된 frame에만 point-time과 scan 구간 Ego pose를 연결한다.
+4. 같은 원본에서 raw와 Ego-deskew painted point를 함께 생성해 재수집 없이 A/B할 수
+   있게 한다.
+
+이 sidecar는 rosbag 기반 수집으로 회귀하는 것이 아니다. Camera 4대·LiDAR·GT의
+canonical frame은 계속 SaveSensorData가 담당하고, ROS는 SaveSensorData가 버리는
+rolling-scan timing 정보만 보완한다. 구현과 검증 근거는
+`perception/pointpainting/docs/rolling_lidar_ego_deskew_ab_260820.md`를 따른다.
+
+Deskew를 production에 적용하려면 학습과 online inference가 같은 reference time,
+LiDAR extrinsic, camera matching 정책을 사용해야 한다. 현재 raw-scan Epoch 65
+checkpoint의 production 기본값 `lidar_deskew_mode=off`는 이 A/B가 통과할 때까지
+유지한다.

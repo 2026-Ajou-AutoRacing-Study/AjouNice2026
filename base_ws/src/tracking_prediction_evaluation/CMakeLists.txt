@@ -21,6 +21,8 @@ catkin_install_python(PROGRAMS
   scripts/evaluate_oracle_prediction.py
   scripts/evaluate_pipeline_prediction.py
   scripts/evaluate_map_centerline_snap_ablation.py
+  scripts/evaluate_velocity_oracle_ablation.py
+  scripts/create_gt_velocity_oracle_detections.py
   scripts/filter_morai_object_region.py
   scripts/retime_rolling_lidar_detections.py
   scripts/oracle_gt_tracks_node.py

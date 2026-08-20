@@ -26,6 +26,9 @@
   <!-- Production: update on detector input and publish predicted EKF state at 30 Hz. -->
   <arg name="tracking_internal_publish_rate_hz" default="30.0"/>
   <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
+  <!-- Optional detector velocity fusion: 0 off, 1 init only, 2 every update. -->
+  <arg name="detection_velocity_fusion_mode" default="0"/>
+  <arg name="detection_velocity_noise_std_mps" default="1.0"/>
   <!-- 0: detector-driven EKF output, >0: causal fixed-rate resampling. -->
   <arg name="tracking_publish_rate_hz" default="0.0"/>
   <arg name="maximum_tracking_resample_age_sec" default="0.25"/>
@@ -140,6 +143,10 @@
          value="$(eval arg('tracking_internal_publish_rate_hz') if float(arg('tracking_publish_rate_hz')) &lt;= 0.0 else '0.0')"/>
     <arg name="maximum_fixed_output_prediction_age_sec"
          value="$(arg maximum_tracking_internal_prediction_age_sec)"/>
+    <arg name="detection_velocity_fusion_mode"
+         value="$(arg detection_velocity_fusion_mode)"/>
+    <arg name="detection_velocity_noise_std_mps"
+         value="$(arg detection_velocity_noise_std_mps)"/>
   </include>
 
   <group if="$(eval float(arg('tracking_publish_rate_hz')) &gt; 0.0)">
