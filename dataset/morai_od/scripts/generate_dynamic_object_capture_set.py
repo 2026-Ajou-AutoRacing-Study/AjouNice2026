@@ -95,6 +95,16 @@ def parse_args():
     parser.add_argument("--group", default="dynamic_object_v1_smoke")
     parser.add_argument("--seed", type=int)
     parser.add_argument(
+        "--id-prefix",
+        default="",
+        help="Prefix every public scene id so independently generated batches cannot collide.",
+    )
+    parser.add_argument(
+        "--stem-prefix",
+        default="",
+        help="Prefix every MORAI scenario stem so installed batch files cannot overwrite one another.",
+    )
+    parser.add_argument(
         "--install-dir",
         type=Path,
         help="Optionally install generated scenario JSON into MORAI SaveFile/Scenario.",
@@ -489,7 +499,14 @@ def build_highway_cruise_scene(
             float(family["ego_speed_limit_kph"]),
             target + rng.uniform(*family["ego_speed_advantage_kph"]),
         )
-    set_ego_pose(scenario["egoVehicle"], ego_sample, ego_speed)
+    initial_speed = float(
+        uniform_or_choice(
+            rng,
+            family.get("ego_initial_speed_kph", min(ego_speed, 15.0)),
+        )
+    )
+    initial_speed = min(initial_speed, ego_speed)
+    set_ego_pose(scenario["egoVehicle"], ego_sample, initial_speed)
     runtime = [
         {
             "spawn_unique_id": npc_spawn_id,
@@ -501,6 +518,7 @@ def build_highway_cruise_scene(
             "ego_lane_spawn_id": ego_lane_id,
             "ego_lane_link": route_link_ids[0],
             "ego_target_speed_kph": ego_speed,
+            "ego_initial_speed_kph": initial_speed,
             "same_lane": same_lane,
         }
     ]
@@ -749,11 +767,21 @@ def main():
                         rng, family.get("ego_target_speed_kph", 0.0)
                     )
                 )
-                set_ego_pose(scenario["egoVehicle"], ego_sample, ego_speed)
+                ego_initial_speed = float(
+                    uniform_or_choice(
+                        rng,
+                        family.get("ego_initial_speed_kph", ego_speed),
+                    )
+                )
+                ego_initial_speed = min(ego_initial_speed, ego_speed)
+                set_ego_pose(
+                    scenario["egoVehicle"], ego_sample, ego_initial_speed
+                )
                 if ego_speed > 0.0:
                     capture_overrides.update(
                         {
                             "ego_target_speed_kph": ego_speed,
+                            "ego_initial_speed_kph": ego_initial_speed,
                             "minimum_ego_speed_kph": ego_speed
                             * float(family.get("minimum_ego_speed_ratio", 0.8)),
                             "maximum_motion_m": 60.0,
@@ -777,8 +805,13 @@ def main():
             )
 
             code = FAMILY_CODES[name]
-            scene_id = f"d{code}{variant_index + 1:03d}"
-            stem = f"{config['scenario_prefix']}_{code}{variant_index + 1:03d}"
+            scene_id = (
+                f"{args.id_prefix}d{code}{variant_index + 1:03d}"
+            )
+            stem = (
+                f"{config['scenario_prefix']}_{args.stem_prefix}"
+                f"{code}{variant_index + 1:03d}"
+            )
             scenario_path = scenario_dir / f"{stem}.json"
             metadata_path = metadata_dir / f"{stem}.metadata.json"
             route_path = None
@@ -806,6 +839,12 @@ def main():
                     "lead_distance_m": lead,
                     "route_index": route_pose["route_index"],
                     "pose": ego_sample,
+                    "initial_speed_kph": float(
+                        scenario["egoVehicle"].get("currentVelocity", 0.0)
+                    ),
+                    "target_speed_kph": float(
+                        capture_overrides.get("ego_target_speed_kph", 0.0)
+                    ),
                 },
                 "runtime_actors": runtime,
                 "target_position": target,
@@ -893,6 +932,8 @@ def main():
         "generation": {
             "seed": seed,
             "scenario_count": len(scenes),
+            "id_prefix": args.id_prefix,
+            "stem_prefix": args.stem_prefix,
             "config": project_relative(args.config),
             "template": project_relative(args.template),
         },

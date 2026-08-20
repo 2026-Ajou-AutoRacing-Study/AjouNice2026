@@ -1806,6 +1806,51 @@ class AutoCapture:
         message.file_dir = ""
         self.capture_pub.publish(message)
 
+    def prime_timed_sensor_writers(self, scene):
+        """Discard one warm-up snapshot after ScenarioLoad.
+
+        The personal launcher can create a zero-byte LiDAR Instance label on
+        the first SaveSensorData request of a newly loaded high-speed scene.
+        Keeping that request outside the temporal clip prevents a known
+        writer-initialization artifact without accepting an incomplete GT
+        frame or shifting any frame metadata.
+        """
+
+        source_root = self.args.morai_sensor_data_dir
+        before = recursive_files(source_root)
+        self.wait_for_connections(context="before timed sensor prime")
+        self.publish_capture_request()
+        deadline = time.monotonic() + self.args.capture_timeout_sec
+        last_files = set()
+        stable_since = None
+        new_files = set()
+        while not rospy.is_shutdown() and time.monotonic() < deadline:
+            new_files = recursive_files(source_root) - before
+            if new_files != last_files:
+                last_files = set(new_files)
+                stable_since = time.monotonic()
+            if (
+                new_files
+                and stable_since is not None
+                and time.monotonic() - stable_since
+                >= self.args.capture_stable_sec
+            ):
+                break
+            time.sleep(0.1)
+        if not new_files:
+            raise RuntimeError("timed sensor priming produced no files")
+        prime_root = self.args.capture_dir / "sensor_primes" / scene["id"]
+        for source in sorted(new_files):
+            relative = source.relative_to(source_root)
+            destination = prime_root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(source), str(destination))
+        rospy.loginfo(
+            "Timed sensor writers primed for %s: files=%d",
+            scene["id"],
+            len(new_files),
+        )
+
     def publish_stop(self):
         message = CtrlCmd()
         message.longlCmdType = 1
@@ -2347,8 +2392,11 @@ class AutoCapture:
         )
         complete_groups = []
         incomplete_groups = {}
-        # Dynamic clips are positive training clips. An empty object-label
-        # artifact is therefore treated as an incomplete snapshot.
+        # Keep object-label artifacts mandatory, but do not require a row in
+        # the text label. A dynamic actor can legitimately be outside the
+        # LiDAR field of view (or fully occluded) at an individual keyframe.
+        # The fixed-size Instance/Semantic binary payloads remain mandatory,
+        # so a missing sensor write is still rejected.
         require_object_labels = True
         for timestamp_stem, group_files in sorted(timestamp_groups.items()):
             observed, required, missing = capture_artifact_status(
@@ -2415,6 +2463,10 @@ class AutoCapture:
                 self.args.capture_dir,
                 trigger["capture_id"],
                 group_files,
+                allow_empty_suffixes=(
+                    "_Instance.txt",
+                    "_Instance_8Points.txt",
+                ),
             )
             relocated_count += len(destinations)
             trigger.update(
@@ -2535,6 +2587,12 @@ class AutoCapture:
                 "Dynamic warm-up: %.2fs", self.args.dynamic_warmup_sec
             )
             time.sleep(self.args.dynamic_warmup_sec)
+        if self.args.prime_capture_before_clip:
+            # Priming waits for asynchronous writers to settle. Hold Ego in
+            # place during that wait; otherwise a moving scenario can drift
+            # without fresh steering commands before the control loop starts.
+            self.publish_stop()
+            self.prime_timed_sensor_writers(scene)
         source_root = self.args.morai_sensor_data_dir
         before = recursive_files(source_root)
         motion_started = time.monotonic()
@@ -3470,6 +3528,9 @@ def validate_policy(args, manifest):
             policy.get("actor_ready_timeout_sec", 15.0)
         )
     args.dynamic_warmup_sec = float(policy.get("warmup_sec", 0.0))
+    args.prime_capture_before_clip = bool(
+        policy.get("prime_capture_before_clip", False)
+    )
     if args.speed_kph is None:
         args.speed_kph = float(policy["ego_target_speed_kph"])
     if args.maximum_motion_m is None:

@@ -33,3 +33,23 @@ checkpoints/
 *.jpeg
 *.bmp
 *.tiff
+
+# Reproducible production-batch outputs
+#
+# Keep the generators, capture/validation scripts, configs, tests, and design
+# documents in Git. The following files are deterministic or machine-local
+# products of those tools and can be regenerated from a batch name and seed.
+# This also prevents absolute local capture/install paths from entering Git.
+manifests/dynamic_dataset_batch*
+metadata/dynamic_dataset_batch*/
+metadata/production_batches/batch*/
+scenarios/dynamic_dataset_batch*/
+
+# Runtime-only validation and MORAI installation reports.
+reports/*_live_motion.json
+reports/*_installation.json
+reports/*_runtime_validation.json
+reports/batch*_generation_validation.json
+reports/batch*_static_obstacle_coverage.json
+reports/dynamic_dataset_batch*_asset_coverage.json
+reports/dynamic_dataset_batch*_generation_summary.json

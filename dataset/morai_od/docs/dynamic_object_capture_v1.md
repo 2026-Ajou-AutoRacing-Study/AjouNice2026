@@ -69,6 +69,12 @@ velocity regression과 향후 temporal OD에는 저속→가속 전이, rolling 
 - metadata의 `motion_phase`와 `sampling_role`로 두 분포를 분리하여 sampler와
   평가기가 독립적으로 선택할 수 있게 한다.
 
+다만 Batch001 live production에서는 이 family의 Ego 초기 pose가 capture
+route에서 1.6--15.8 m 벗어나 hard clip 18개 중 11개가 실패했다. 따라서 생성
+실험과 향후 경로 수정 대상으로는 유지하지만 현재 production hard quota에서는
+제외한다. Batch001 hard dynamic은 검증된 `roundabout_sample_spawn` 12개와
+`crosswalk_pedestrian` 6개로 교체했고 216 frame 모두 통과했다.
+
 - 공식 40·50·60 km/h spawn이 있는 세 MGeo 차선을 모두 사용한다.
 - Ego 차선 3개와 NPC 차선 3개를 조합해 총 9개 smoke scene을 만든다.
 - 같은 차선에서는 Ego와 NPC 속도를 같게 두어 안정 following을 수집한다.
@@ -210,6 +216,38 @@ python3 dataset/morai_od/scripts/verify_dynamic_scene_live.py \
 `dso001`, `dgo001`이다. 각 spawn/cruise 쌍에서 실제 초기속도가 서로 다른지,
 보행자 설정 speed와 실제 변위의 단위 관계도 확인한다.
 
+2026-08-20 live 검증에서 `dhm001`, `dmc001`, `dhc002`, `dpd001`도 모두
+통과했다. `dhm001`은 실제 0 속도에서 가속했고, `dmc001`은 첫 관측부터 약
+40 raw speed로 움직였다. `dhc002`는 약 41-48 raw speed의 다차선 순항 차량,
+`dpd001`은 약 13.8 m를 이동한 횡단 보행자를 확인했다. 네 장면의 실제
+SaveSensorData 4-frame capture도 artifact/metadata validator에서 errors 0,
+warnings 0으로 통과했다.
+
+## Production batch 명령
+
+시나리오 생성·검증·설치는 다음 한 명령으로 묶는다. 동적 component는 단순 JSON
+복사로 끝내지 않고 검증된 Ego-only ROS sidecar와 runtime manifest를 생성한다.
+
+```bash
+python3 dataset/morai_od/scripts/generate_dynamic_dataset_batch.py \
+  --batch-index 1 \
+  --install-dir \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025"
+```
+
+전체 primary component를 순서대로 수집하려면 ROS 환경을 source한 뒤 실행한다.
+예비 scene은 기본적으로 수집하지 않는다.
+
+```bash
+python3 dataset/morai_od/scripts/capture_dynamic_dataset_batch.py \
+  --batch-index 1 \
+  --capture-root /home/luv/morai_cap
+```
+
+한 component만 재개·검증할 때는 `--component mission`, `static`,
+`hard_dynamic`, `hard_static` 중 하나를 지정한다. 예비 세트는 실패 원인을 확인한
+뒤 해당 reserve component를 명시적으로 실행한다.
+
 ## 첫 SaveSensorData smoke
 
 터미널 1에서 ROS master를 실행한다.
@@ -298,3 +336,16 @@ python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
 python3 dataset/morai_od/scripts/validate_dynamic_capture_output.py \
   /home/luv/morai_cap/<실제_timestamp_prefix가_붙은_capture_dir>
 ```
+
+### 동적 clip의 빈 LiDAR 객체 목록 처리
+
+ScenarioLoad 직후 개인용 launcher의 센서 writer를 초기화하기 위해 실제 clip과
+분리된 prime snapshot을 한 번 저장한다. prime은 `sensor_primes/<scene_id>`로
+이동하며 학습 frame과 temporal metadata에 포함하지 않는다.
+
+`_Instance.txt`와 `_Instance_8Points.txt`는 해당 keyframe에서 LiDAR로 보이는
+객체가 없으면 정상적으로 0 byte일 수 있다. 따라서 파일 존재와 고정 크기
+`_Intensity.bin`, `_Semantic.bin`, `_Instance.bin` payload는 엄격히 검사하되,
+텍스트 객체 목록의 빈 내용만으로 저장 실패라고 판정하지 않는다. Camera 또는
+LiDAR payload 누락·0 byte는 계속 scene 실패다. 이 구분은
+`batch001_m_dmc003` 4-frame 재검증에서 errors 0, warnings 0으로 확인했다.

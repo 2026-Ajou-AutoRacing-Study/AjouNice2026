@@ -64,6 +64,88 @@ temporal OD 파이프라인은 현재 미션 dynamic만으로 검증할 수 있�
 scene을 다른 split의 frame으로 메우지 않고 같은 family·split의 예비 scene으로
 대체한다.
 
+#### Batch001 구현 결과 (2026-08-20)
+
+`generate_dynamic_dataset_batch.py --batch-index 1`이 아래 component를 서로 다른
+seed, scene ID와 MORAI file stem으로 생성한다. capture mode가 다른 component를
+하나의 manifest에 억지로 섞지 않고 batch plan이 논리적으로 묶는다.
+
+| component | primary scene/clip | frame | capture mode |
+|---|---:|---:|---|
+| mission | 62 | 744 | timed-grouped, 12 frame |
+| static | 175 | 525 | rolling-grouped, 3 frame |
+| hard dynamic | 18 | 216 | timed-grouped, 12 frame |
+| hard static | 5 | 15 | rolling-grouped, 3 frame |
+| 합계 | 260 | **1,500** | clip-safe |
+
+Batch001 최초 예비 세트는 mission 60, static 39, hard dynamic 24 frame으로 총
+123 frame, 즉 8.2%였다. 실제 개인용 launcher에서 정적 dense scene의 부분 누락률이
+약 23%였으므로 Batch002부터 static reserve를 150 frame으로 확장한다. 이후 예비
+세트는 mission 60, static 150, hard dynamic 24 frame으로 총 234 frame, 즉 15.6%다.
+예비 scene은 primary target에 포함하지 않으며 같은 component의 실제 실패를 교체할
+때만 사용한다. 설치 전 `--no-install` 생성에서도 source manifest로 frame quota와
+scene ID 중복을 검증하고, 설치 후에는 runtime manifest를 우선 검증한다.
+
+정적 primary 175개는 현실적 혼합 61, 차량 중심 18, 보행자 중심 17, obstacle
+중심 70, 희소 배경 9개다. hard static 5개는 camera seam 2, dense obstacle
+occlusion 2, sparse hard-negative 1개다. 기존 v6 생성기의 다음 안전 제약을
+그대로 사용한다.
+
+- 15 m Ego swept collision corridor와 MGeo 정적 구조물 충돌 검사.
+- actor별 footprint와 최소 간격.
+- 대회 launcher와 개인 launcher의 공통 asset만 자동 배치.
+- 반복 누락 asset과 road-surface object 제외.
+
+Batch001 생성 보고서는 primary 1,500 frame, reserve 123 frame, 280 unique scene
+ID로 통과했다. 정적 primary와 hard-static 180개에서 obstacle은 scene당 unique
+placement 기준 596개, asset 29종이다. 같은 3-frame scene의 obstacle을 세 번
+세지 않는다. 거리 분포는 0-10 m 216, 10-20 m 278, 20-30 m 102 placements다.
+형상 proxy는 compact barrier 123, long/wide 61, tall/vertical 230,
+thin-irregular 61, other-irregular 121이다. proxy는 asset taxonomy 기준이며 실제
+GT 크기 분포는 SaveSensorData accepted frame에서 다시 감사한다.
+
+실제 Batch001 수집에서는 mission 62 clip, 744 frame이 모두 통과했다. Static
+primary는 개인용 launcher의 NPC/보행자 부분 누락 때문에 175 scene 중 134개,
+402 frame이 성공했고 기존 static reserve에서 7 scene, 21 frame을 추가했다.
+추가 recovery는 NPC/보행자 밀도를 낮추고 obstacle-focused를 70%로 높여 50개 중
+42개가 성공했다. 이 중 36 scene, 108 frame만 채택하고 6개 성공 scene은 reserve로
+남긴다.
+
+최초 hard dynamic의 highway spawn family는 live 수집에서 Ego route error
+1.6--15.8 m가 확인되어 production 부적합 판정을 받았다. 이를 검증된
+roundabout spawn 12 clip과 crosswalk pedestrian 6 clip으로 교체한 뒤 216 frame
+전체가 통과했다. Hard static은 9 frame이 성공했고 부족한 6 frame은 recovery
+static 2개 clip으로 대체했다. 최종 채택량은 mission 744, static 525, hard 231,
+총 1,500 frame이며 선택 목록은
+`metadata/production_batches/batch001/accepted_capture_set.json`에 고정한다.
+
+Batch002는 primary 1,500 frame, reserve 234 frame, 317 unique scene ID로 설치 전
+생성 검증을 통과했다. 다음 batch를 즉시 수집하지 않고 Batch001의 학습·artifact
+감사를 먼저 통과시킨 뒤 설치 및 수집한다.
+
+모델 중립 인덱스는
+`artifacts/datasets/morai_dynamic_batch001_accepted1500`에 생성했다. Split은 clip을
+자르지 않고 train/val/test 1050/225/225 frame으로 재균형했다. LiDAR GT instance는
+Vehicle 1,791, Pedestrian 1,194, Obstacle 1,865개이며 960개 동적 frame에는 Ego와
+actor의 pose, velocity, acceleration, stable ID가 저장돼 있다. Camera에는 보이지만
+16채널 LiDAR Instance가 없는 292 frame은 센서 실패가 아니므로 frame을 유지하되
+`camera_only_object_ids`로 기록한다. PointPainting annotation에는 LiDAR GT만 쓰고,
+향후 camera-only/BEV 모델은 Camera BBox union을 별도 구축해야 한다.
+
+PointPainting OpenCV 9-feature 전체 변환도 1,500 frame에 대해 완료했다. E65
+checkpoint의 새 val 대조군과 1-epoch warm-start smoke의 BEV IoU@0.5 AP는 다음과
+같다. 이 결과는 장기 학습 성능이 아니라 새 데이터 파이프라인의 학습 가능성
+검증이다.
+
+| 모델 | Pedestrian | Vehicle | Obstacle |
+|---|---:|---:|---:|
+| 기존 E65, 새 val | 0.525 | 0.542 | 0.777 |
+| E65 + Batch001 1 epoch | 0.766 | 0.603 | 0.808 |
+
+1-epoch 학습은 525 iteration, 평균 loss 약 0.465로 완료됐다. 다음 정식 비교는
+optimizer/scheduler를 새로 시작한 20--30 epoch warm-start와 기존 정적+신규 동적
+혼합 3,000-frame 학습을 분리해 수행한다.
+
 모든 temporal frame은 clip 단위로 같은 train/val/test split에 둔다. 동일 anchor,
 동일 actor path, 같은 base scenario의 variant도 split을 넘나들지 않는다.
 

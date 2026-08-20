@@ -229,6 +229,25 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertEqual(len(segments), 2)
         self.assertEqual([len(item) for item in segments], [2, 2])
 
+    def test_highway_ego_load_speed_is_below_capture_target(self):
+        config = generator.load_json(
+            ROOT / "dataset/morai_od/configs/dynamic_object_capture_v1.json"
+        )
+        for name in (
+            "highway_merge_sample_spawn",
+            "highway_merge_cruise",
+            "highway_cruise_overtake",
+        ):
+            family = next(item for item in config["families"] if item["name"] == name)
+            self.assertIn("ego_initial_speed_kph", family)
+            self.assertLessEqual(max(family["ego_initial_speed_kph"]), 20.0)
+
+    def test_dynamic_capture_primes_writer_before_training_clip(self):
+        config = generator.load_json(
+            ROOT / "dataset/morai_od/configs/dynamic_object_capture_v1.json"
+        )
+        self.assertTrue(config["capture"]["prime_capture_before_clip"])
+
 
 if __name__ == "__main__":
     unittest.main()
