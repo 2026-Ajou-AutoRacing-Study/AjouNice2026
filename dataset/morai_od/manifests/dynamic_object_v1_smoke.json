@@ -1,0 +1,1224 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_dynamic_object_v1_smoke",
+  "scenario_group": "dynamic_object_v1_smoke",
+  "environment": {
+    "weather": "Sunny",
+    "time": "13:00"
+  },
+  "sensor_config": "configs/sensors/Sensor_6.json",
+  "sensor_config_sha256": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+  "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+  "capture_policy": {
+    "format": "morai_save_sensor_data_timed_grouped",
+    "captures_per_scene": 12,
+    "capture_period_sec": 0.5,
+    "capture_motion_arm_m": 0.3,
+    "minimum_capture_progress_m": 0.2,
+    "motion_stall_timeout_sec": 5.0,
+    "clip_duration_sec": 5.5,
+    "warmup_sec": 0.2,
+    "actor_ready_timeout_sec": 15.0,
+    "capture_spacing_m": 1.5,
+    "ego_target_speed_kph": 5.4,
+    "maximum_motion_m": 15.0,
+    "route_deviation_limit_m": 1.5,
+    "heading_error_limit_deg": 50.0,
+    "lookahead_m": 1.8,
+    "maximum_steering_rad": 0.35,
+    "adaptive_curve_control": true,
+    "curve_control_window_m": 8.0,
+    "curve_control_full_turn_deg": 18.0,
+    "minimum_curve_speed_kph": 3.6,
+    "minimum_curve_lookahead_m": 1.2,
+    "curve_maximum_steering_rad": 0.45,
+    "personal_steering_sign": -1.0,
+    "split_unit": "scenario_clip",
+    "required_sensor_dirs": [
+      "CAMERA_1",
+      "CAMERA_2",
+      "CAMERA_3",
+      "CAMERA_4",
+      "LIDAR_5"
+    ]
+  },
+  "scenes": [
+    {
+      "id": "drs001",
+      "file": "od_dyn_rs001",
+      "file_name": "od_dyn_rs001",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_rs001.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_rs001.metadata.json",
+      "mission_family": "roundabout_sample_spawn",
+      "split": "train",
+      "anchor_index": 1659,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -98.95323590016368,
+        "y": 319.2550292775465,
+        "z": 28.690865271205574
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "drs002",
+      "file": "od_dyn_rs002",
+      "file_name": "od_dyn_rs002",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_rs002.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_rs002.metadata.json",
+      "mission_family": "roundabout_sample_spawn",
+      "split": "train",
+      "anchor_index": 1652,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -99.35272766836474,
+        "y": 316.70135868269483,
+        "z": 28.6809699560851
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "drc001",
+      "file": "od_dyn_rc001",
+      "file_name": "od_dyn_rc001",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_rc001.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_rc001.metadata.json",
+      "mission_family": "roundabout_circulation",
+      "split": "train",
+      "anchor_index": 1663,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -98.36407237921713,
+        "y": 321.1647639597276,
+        "z": 28.704206939125918
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "drc002",
+      "file": "od_dyn_rc002",
+      "file_name": "od_dyn_rc002",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_rc002.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_rc002.metadata.json",
+      "mission_family": "roundabout_circulation",
+      "split": "train",
+      "anchor_index": 1669,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -96.98470409020345,
+        "y": 323.81570537489074,
+        "z": 28.708818407925044
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "drc003",
+      "file": "od_dyn_rc003",
+      "file_name": "od_dyn_rc003",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_rc003.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_rc003.metadata.json",
+      "mission_family": "roundabout_circulation",
+      "split": "val",
+      "anchor_index": 1665,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -97.99977785094376,
+        "y": 322.0957476227161,
+        "z": 28.709054559965992
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "drc004",
+      "file": "od_dyn_rc004",
+      "file_name": "od_dyn_rc004",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_rc004.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_rc004.metadata.json",
+      "mission_family": "roundabout_circulation",
+      "split": "test",
+      "anchor_index": 1663,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -98.36407237921713,
+        "y": 321.1647639597276,
+        "z": 28.704206939125918
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dhm001",
+      "file": "od_dyn_hm001",
+      "file_name": "od_dyn_hm001",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_hm001.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_hm001.metadata.json",
+      "mission_family": "highway_merge_sample_spawn",
+      "split": "train",
+      "anchor_index": 1987,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 20.41023820238627,
+        "minimum_ego_speed_kph": 16.328190561909018,
+        "maximum_motion_m": 60.0,
+        "motion_stall_timeout_sec": 10.0,
+        "lookahead_m": 4.0
+      },
+      "expected_ego": {
+        "x": 44.676904138191006,
+        "y": 324.05794253100623,
+        "z": 28.675191521049697
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dhm002",
+      "file": "od_dyn_hm002",
+      "file_name": "od_dyn_hm002",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_hm002.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_hm002.metadata.json",
+      "mission_family": "highway_merge_sample_spawn",
+      "split": "val",
+      "anchor_index": 1977,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 24.976898034815797,
+        "minimum_ego_speed_kph": 19.981518427852638,
+        "maximum_motion_m": 60.0,
+        "motion_stall_timeout_sec": 10.0,
+        "lookahead_m": 4.0
+      },
+      "expected_ego": {
+        "x": 41.50953993965333,
+        "y": 327.9243834420261,
+        "z": 28.68150112825542
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dhm003",
+      "file": "od_dyn_hm003",
+      "file_name": "od_dyn_hm003",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_hm003.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_hm003.metadata.json",
+      "mission_family": "highway_merge_sample_spawn",
+      "split": "test",
+      "anchor_index": 2045,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 27.72167046149924,
+        "minimum_ego_speed_kph": 22.177336369199395,
+        "maximum_motion_m": 60.0,
+        "motion_stall_timeout_sec": 10.0,
+        "lookahead_m": 4.0
+      },
+      "expected_ego": {
+        "x": 57.18784812991517,
+        "y": 298.0940969161543,
+        "z": 28.62416083070144
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dmc001",
+      "file": "od_dyn_mc001",
+      "file_name": "od_dyn_mc001",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_mc001.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_mc001.metadata.json",
+      "mission_family": "highway_merge_cruise",
+      "split": "train",
+      "anchor_index": 1962,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 21.526945078492997,
+        "minimum_ego_speed_kph": 17.2215560627944,
+        "maximum_motion_m": 60.0,
+        "motion_stall_timeout_sec": 10.0,
+        "lookahead_m": 4.0
+      },
+      "expected_ego": {
+        "x": 36.15092310829826,
+        "y": 333.1607383222369,
+        "z": 28.71099495603467
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dmc002",
+      "file": "od_dyn_mc002",
+      "file_name": "od_dyn_mc002",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_mc002.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_mc002.metadata.json",
+      "mission_family": "highway_merge_cruise",
+      "split": "train",
+      "anchor_index": 1962,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 31.096006605365986,
+        "minimum_ego_speed_kph": 24.87680528429279,
+        "maximum_motion_m": 60.0,
+        "motion_stall_timeout_sec": 10.0,
+        "lookahead_m": 4.0
+      },
+      "expected_ego": {
+        "x": 36.15092310829826,
+        "y": 333.1607383222369,
+        "z": 28.71099495603467
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dmc003",
+      "file": "od_dyn_mc003",
+      "file_name": "od_dyn_mc003",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_mc003.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_mc003.metadata.json",
+      "mission_family": "highway_merge_cruise",
+      "split": "train",
+      "anchor_index": 2054,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 29.517218413357092,
+        "minimum_ego_speed_kph": 23.613774730685677,
+        "maximum_motion_m": 60.0,
+        "motion_stall_timeout_sec": 10.0,
+        "lookahead_m": 4.0
+      },
+      "expected_ego": {
+        "x": 58.32651150376376,
+        "y": 293.74110160547485,
+        "z": 28.615806300973937
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dmc004",
+      "file": "od_dyn_mc004",
+      "file_name": "od_dyn_mc004",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_mc004.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_mc004.metadata.json",
+      "mission_family": "highway_merge_cruise",
+      "split": "train",
+      "anchor_index": 1962,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 21.503183172296207,
+        "minimum_ego_speed_kph": 17.202546537836966,
+        "maximum_motion_m": 60.0,
+        "motion_stall_timeout_sec": 10.0,
+        "lookahead_m": 4.0
+      },
+      "expected_ego": {
+        "x": 36.15092310829826,
+        "y": 333.1607383222369,
+        "z": 28.71099495603467
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dmc005",
+      "file": "od_dyn_mc005",
+      "file_name": "od_dyn_mc005",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_mc005.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_mc005.metadata.json",
+      "mission_family": "highway_merge_cruise",
+      "split": "val",
+      "anchor_index": 1963,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 22.150060017811573,
+        "minimum_ego_speed_kph": 17.720048014249258,
+        "maximum_motion_m": 60.0,
+        "motion_stall_timeout_sec": 10.0,
+        "lookahead_m": 4.0
+      },
+      "expected_ego": {
+        "x": 36.52753246753829,
+        "y": 332.831858483716,
+        "z": 28.709139599660023
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dmc006",
+      "file": "od_dyn_mc006",
+      "file_name": "od_dyn_mc006",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_mc006.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_mc006.metadata.json",
+      "mission_family": "highway_merge_cruise",
+      "split": "test",
+      "anchor_index": 2044,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 21.266622888586483,
+        "minimum_ego_speed_kph": 17.013298310869185,
+        "maximum_motion_m": 60.0,
+        "motion_stall_timeout_sec": 10.0,
+        "lookahead_m": 4.0
+      },
+      "expected_ego": {
+        "x": 57.048786277609345,
+        "y": 298.57436846937105,
+        "z": 28.625178870003072
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dhc001",
+      "file": "od_dyn_hc001",
+      "file_name": "od_dyn_hc001",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_hc001.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_hc001.metadata.json",
+      "mission_family": "highway_cruise_overtake",
+      "split": "train",
+      "anchor_index": 18,
+      "waypoints": "dataset/morai_od/metadata/dynamic_object_v1_smoke/routes/od_dyn_hc001.waypoints.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 33.82621732556707,
+        "minimum_ego_speed_kph": 27.060973860453657,
+        "maximum_motion_m": 130.0,
+        "motion_stall_timeout_sec": 12.0,
+        "lookahead_m": 6.0,
+        "adaptive_curve_control": false
+      },
+      "expected_ego": {
+        "x": 65.1824811182961,
+        "y": 339.2664969697476,
+        "z": 28.680267788259528
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dhc002",
+      "file": "od_dyn_hc002",
+      "file_name": "od_dyn_hc002",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_hc002.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_hc002.metadata.json",
+      "mission_family": "highway_cruise_overtake",
+      "split": "train",
+      "anchor_index": 35,
+      "waypoints": "dataset/morai_od/metadata/dynamic_object_v1_smoke/routes/od_dyn_hc002.waypoints.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 57.46774857166311,
+        "minimum_ego_speed_kph": 45.97419885733049,
+        "maximum_motion_m": 130.0,
+        "motion_stall_timeout_sec": 12.0,
+        "lookahead_m": 6.0,
+        "adaptive_curve_control": false
+      },
+      "expected_ego": {
+        "x": 65.58918562305621,
+        "y": 330.7769454097501,
+        "z": 28.658865879617068
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dhc003",
+      "file": "od_dyn_hc003",
+      "file_name": "od_dyn_hc003",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_hc003.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_hc003.metadata.json",
+      "mission_family": "highway_cruise_overtake",
+      "split": "train",
+      "anchor_index": 54,
+      "waypoints": "dataset/morai_od/metadata/dynamic_object_v1_smoke/routes/od_dyn_hc003.waypoints.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 64.37906976892904,
+        "minimum_ego_speed_kph": 51.503255815143234,
+        "maximum_motion_m": 130.0,
+        "motion_stall_timeout_sec": 12.0,
+        "lookahead_m": 6.0,
+        "adaptive_curve_control": false
+      },
+      "expected_ego": {
+        "x": 65.71082672051881,
+        "y": 321.2780008178111,
+        "z": 28.64272290952583
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dhc004",
+      "file": "od_dyn_hc004",
+      "file_name": "od_dyn_hc004",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_hc004.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_hc004.metadata.json",
+      "mission_family": "highway_cruise_overtake",
+      "split": "train",
+      "anchor_index": 59,
+      "waypoints": "dataset/morai_od/metadata/dynamic_object_v1_smoke/routes/od_dyn_hc004.waypoints.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 45.81361328701253,
+        "minimum_ego_speed_kph": 36.650890629610025,
+        "maximum_motion_m": 130.0,
+        "motion_stall_timeout_sec": 12.0,
+        "lookahead_m": 6.0,
+        "adaptive_curve_control": false
+      },
+      "expected_ego": {
+        "x": 69.24465249180523,
+        "y": 319.18322512143055,
+        "z": 28.67203993028738
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dhc005",
+      "file": "od_dyn_hc005",
+      "file_name": "od_dyn_hc005",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_hc005.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_hc005.metadata.json",
+      "mission_family": "highway_cruise_overtake",
+      "split": "train",
+      "anchor_index": 54,
+      "waypoints": "dataset/morai_od/metadata/dynamic_object_v1_smoke/routes/od_dyn_hc005.waypoints.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 40.004941347698086,
+        "minimum_ego_speed_kph": 32.00395307815847,
+        "maximum_motion_m": 130.0,
+        "motion_stall_timeout_sec": 12.0,
+        "lookahead_m": 6.0,
+        "adaptive_curve_control": false
+      },
+      "expected_ego": {
+        "x": 69.00224128068687,
+        "y": 321.671439841465,
+        "z": 28.676970622709025
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dhc006",
+      "file": "od_dyn_hc006",
+      "file_name": "od_dyn_hc006",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_hc006.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_hc006.metadata.json",
+      "mission_family": "highway_cruise_overtake",
+      "split": "train",
+      "anchor_index": 52,
+      "waypoints": "dataset/morai_od/metadata/dynamic_object_v1_smoke/routes/od_dyn_hc006.waypoints.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 65.64869096328702,
+        "minimum_ego_speed_kph": 52.518952770629625,
+        "maximum_motion_m": 130.0,
+        "motion_stall_timeout_sec": 12.0,
+        "lookahead_m": 6.0,
+        "adaptive_curve_control": false
+      },
+      "expected_ego": {
+        "x": 68.90527679623953,
+        "y": 322.66672572947874,
+        "z": 28.678942899677683
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dhc007",
+      "file": "od_dyn_hc007",
+      "file_name": "od_dyn_hc007",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_hc007.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_hc007.metadata.json",
+      "mission_family": "highway_cruise_overtake",
+      "split": "train",
+      "anchor_index": 58,
+      "waypoints": "dataset/morai_od/metadata/dynamic_object_v1_smoke/routes/od_dyn_hc007.waypoints.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 47.17284673389628,
+        "minimum_ego_speed_kph": 37.73827738711702,
+        "maximum_motion_m": 130.0,
+        "motion_stall_timeout_sec": 12.0,
+        "lookahead_m": 6.0,
+        "adaptive_curve_control": false
+      },
+      "expected_ego": {
+        "x": 70.79698137957948,
+        "y": 320.0014288416624,
+        "z": 28.693361166731947
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dhc008",
+      "file": "od_dyn_hc008",
+      "file_name": "od_dyn_hc008",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_hc008.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_hc008.metadata.json",
+      "mission_family": "highway_cruise_overtake",
+      "split": "val",
+      "anchor_index": 34,
+      "waypoints": "dataset/morai_od/metadata/dynamic_object_v1_smoke/routes/od_dyn_hc008.waypoints.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 57.330063144915954,
+        "minimum_ego_speed_kph": 45.86405051593277,
+        "maximum_motion_m": 130.0,
+        "motion_stall_timeout_sec": 12.0,
+        "lookahead_m": 6.0,
+        "adaptive_curve_control": false
+      },
+      "expected_ego": {
+        "x": 68.05819299463394,
+        "y": 331.68299684452694,
+        "z": 28.69171867028699
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dhc009",
+      "file": "od_dyn_hc009",
+      "file_name": "od_dyn_hc009",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_hc009.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_hc009.metadata.json",
+      "mission_family": "highway_cruise_overtake",
+      "split": "test",
+      "anchor_index": 60,
+      "waypoints": "dataset/morai_od/metadata/dynamic_object_v1_smoke/routes/od_dyn_hc009.waypoints.txt",
+      "capture_policy_overrides": {
+        "ego_target_speed_kph": 57.52192244164728,
+        "minimum_ego_speed_kph": 46.01753795331783,
+        "maximum_motion_m": 130.0,
+        "motion_stall_timeout_sec": 12.0,
+        "lookahead_m": 6.0,
+        "adaptive_curve_control": false
+      },
+      "expected_ego": {
+        "x": 71.00234289327707,
+        "y": 319.0227428620581,
+        "z": 28.69272711803813
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "route_aligned",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 0,
+        "spawn_points": 1,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dpd001",
+      "file": "od_dyn_pd001",
+      "file_name": "od_dyn_pd001",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_pd001.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_pd001.metadata.json",
+      "mission_family": "crosswalk_pedestrian",
+      "split": "train",
+      "anchor_index": 759,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -60.19534986616214,
+        "y": -27.510311533884053,
+        "z": 28.770448019922398
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 1,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 1,
+        "obstacle": 0,
+        "spawn_points": 0,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dpd002",
+      "file": "od_dyn_pd002",
+      "file_name": "od_dyn_pd002",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_pd002.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_pd002.metadata.json",
+      "mission_family": "crosswalk_pedestrian",
+      "split": "train",
+      "anchor_index": 761,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -60.20096490718921,
+        "y": -26.51032826841302,
+        "z": 28.771724265081414
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 1,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 1,
+        "obstacle": 0,
+        "spawn_points": 0,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dpd003",
+      "file": "od_dyn_pd003",
+      "file_name": "od_dyn_pd003",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_pd003.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_pd003.metadata.json",
+      "mission_family": "crosswalk_pedestrian",
+      "split": "val",
+      "anchor_index": 753,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -60.17850475515319,
+        "y": -30.510259194148883,
+        "z": 28.76494548353842
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 1,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 1,
+        "obstacle": 0,
+        "spawn_points": 0,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dpd004",
+      "file": "od_dyn_pd004",
+      "file_name": "od_dyn_pd004",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_pd004.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_pd004.metadata.json",
+      "mission_family": "crosswalk_pedestrian",
+      "split": "test",
+      "anchor_index": 749,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -60.16727468114723,
+        "y": -32.51022430099211,
+        "z": 28.7612771259491
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 1,
+        "obstacle": 0
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 1,
+        "obstacle": 0,
+        "spawn_points": 0,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dso001",
+      "file": "od_dyn_so001",
+      "file_name": "od_dyn_so001",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_so001.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_so001.metadata.json",
+      "mission_family": "static_obstacle",
+      "split": "train",
+      "anchor_index": 634,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -59.99387145510853,
+        "y": -158.87295820599056,
+        "z": 28.751894573221858
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 1,
+        "spawn_points": 0,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dso002",
+      "file": "od_dyn_so002",
+      "file_name": "od_dyn_so002",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_so002.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_so002.metadata.json",
+      "mission_family": "static_obstacle",
+      "split": "val",
+      "anchor_index": 620,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -60.42935476251321,
+        "y": -165.85902791894821,
+        "z": 28.736836100606578
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 1,
+        "spawn_points": 0,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dso003",
+      "file": "od_dyn_so003",
+      "file_name": "od_dyn_so003",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_so003.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_so003.metadata.json",
+      "mission_family": "static_obstacle",
+      "split": "test",
+      "anchor_index": 623,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -60.31886746508136,
+        "y": -164.36310264772712,
+        "z": 28.736461897098803
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 1,
+        "spawn_points": 0,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dgo001",
+      "file": "od_dyn_go001",
+      "file_name": "od_dyn_go001",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_go001.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_go001.metadata.json",
+      "mission_family": "gps_shadow_obstacle",
+      "split": "train",
+      "anchor_index": 3745,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -6.5280168829512135,
+        "y": -508.04779635646634,
+        "z": 28.76138442357917
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 1,
+        "spawn_points": 0,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dgo002",
+      "file": "od_dyn_go002",
+      "file_name": "od_dyn_go002",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_go002.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_go002.metadata.json",
+      "mission_family": "gps_shadow_obstacle",
+      "split": "val",
+      "anchor_index": 3750,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -8.72707174907133,
+        "y": -509.2369177180073,
+        "z": 28.772962863732797
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 1,
+        "spawn_points": 0,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    },
+    {
+      "id": "dgo003",
+      "file": "od_dyn_go003",
+      "file_name": "od_dyn_go003",
+      "scenario": "dataset/morai_od/scenarios/dynamic_object_v1_smoke/od_dyn_go003.json",
+      "metadata": "dataset/morai_od/metadata/dynamic_object_v1_smoke/od_dyn_go003.metadata.json",
+      "mission_family": "gps_shadow_obstacle",
+      "split": "test",
+      "anchor_index": 3736,
+      "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+      "capture_policy_overrides": {},
+      "expected_ego": {
+        "x": -2.5703833761762036,
+        "y": -505.90616121174475,
+        "z": 28.73857218104268
+      },
+      "expected_counts": {
+        "npc": 0,
+        "pedestrian": 0,
+        "obstacle": 1
+      },
+      "dynamic_actor_policy": "observe_after_warmup",
+      "ego_readiness_policy": "fixed_pose",
+      "expected": {
+        "static_npc": 0,
+        "pedestrian": 0,
+        "obstacle": 1,
+        "spawn_points": 0,
+        "dynamic_actor_policy": "observe_after_warmup"
+      }
+    }
+  ],
+  "generation": {
+    "seed": 260820,
+    "scenario_count": 34,
+    "config": "dataset/morai_od/configs/dynamic_object_capture_v1.json",
+    "template": "configs/scenario/2026_molit_comp_sample_scene.json"
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_dynamic_object_v1_smoke",
+  "scene_id": "dmc003",
+  "scenario_stem": "od_dyn_mc003",
+  "mission_family": "highway_merge_cruise",
+  "motion_phase": "target_speed_start",
+  "sampling_role": "production_representative",
+  "recommended_phase_share_within_segment": [
+    0.8,
+    0.85
+  ],
+  "seed": 272928,
+  "split": "train",
+  "environment": {
+    "weather": "Sunny",
+    "time": "13:00"
+  },
+  "capture_policy": {
+    "format": "morai_save_sensor_data_timed_grouped",
+    "captures_per_scene": 12,
+    "capture_period_sec": 0.5,
+    "capture_motion_arm_m": 0.3,
+    "minimum_capture_progress_m": 0.2,
+    "motion_stall_timeout_sec": 5.0,
+    "clip_duration_sec": 5.5,
+    "warmup_sec": 0.2,
+    "actor_ready_timeout_sec": 15.0,
+    "capture_spacing_m": 1.5,
+    "ego_target_speed_kph": 5.4,
+    "maximum_motion_m": 15.0,
+    "route_deviation_limit_m": 1.5,
+    "heading_error_limit_deg": 50.0,
+    "lookahead_m": 1.8,
+    "maximum_steering_rad": 0.35,
+    "adaptive_curve_control": true,
+    "curve_control_window_m": 8.0,
+    "curve_control_full_turn_deg": 18.0,
+    "minimum_curve_speed_kph": 3.6,
+    "minimum_curve_lookahead_m": 1.2,
+    "curve_maximum_steering_rad": 0.45,
+    "personal_steering_sign": -1.0,
+    "split_unit": "scenario_clip",
+    "required_sensor_dirs": [
+      "CAMERA_1",
+      "CAMERA_2",
+      "CAMERA_3",
+      "CAMERA_4",
+      "LIDAR_5"
+    ]
+  },
+  "capture_policy_overrides": {
+    "ego_target_speed_kph": 29.517218413357092,
+    "minimum_ego_speed_kph": 23.613774730685677,
+    "maximum_motion_m": 60.0,
+    "motion_stall_timeout_sec": 10.0,
+    "lookahead_m": 4.0
+  },
+  "ego": {
+    "lead_distance_m": 28.501906012382626,
+    "route_index": 2054,
+    "pose": {
+      "x": 58.32651150376376,
+      "y": 293.74110160547485,
+      "z": 28.275806300973937,
+      "yaw": -76.58198151679778,
+      "link_idx": "A2256W000846",
+      "point_idx": 193,
+      "point_ratio": 0.7174721189591078,
+      "max_speed": 40.0
+    }
+  },
+  "runtime_actors": [
+    {
+      "spawn_unique_id": 10,
+      "start_link": "A2256W000029",
+      "end_link": "A2256W000432",
+      "target_speed_kph": 61.04929509846385,
+      "spawn_speed_kph": 61.04929509846385,
+      "spawn_period_sec": 9.553029888756459,
+      "motion_phase": "target_speed_start"
+    }
+  ],
+  "target_position": {
+    "x": 73.00800323486328,
+    "y": 265.6050109863281,
+    "z": 28.34600067138672
+  },
+  "validation": {
+    "ego_route_distance_m": 0.0,
+    "unique_id_count": 2
+  },
+  "sources": {
+    "official_template": "/home/luv/AjouNice2026/configs/scenario/2026_molit_comp_sample_scene.json",
+    "official_template_sha256": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "route": "/home/luv/AjouNice2026/configs/global_path/2026_molit_comp_global_path.txt",
+    "route_sha256": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "mgeo_link_set": "/home/luv/AjouNice2026/kcity_map/mgeo_map_scenario_runner_2025/link_set.json",
+    "mgeo_link_set_sha256": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "config": "/home/luv/AjouNice2026/dataset/morai_od/configs/dynamic_object_capture_v1.json",
+    "config_sha256": "194728da5c433f25092e5113d3b9da6ba6ed3803f36cbb2d34f9f342acd376b0"
+  },
+  "notes": {
+    "velocity_ground_truth": "Record /Object_topic raw velocity and acceleration plus finite-difference derivatives.",
+    "temporal_split": "Keep every frame from this scene/clip in the same split."
+  }
+}

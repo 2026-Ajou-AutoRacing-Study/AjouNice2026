@@ -1,0 +1,103 @@
+{
+  "scene": "drs001",
+  "scenario_file": "od_dyn_rs001",
+  "mission_family": "roundabout_sample_spawn",
+  "motion_phase": "spawn_acceleration",
+  "sampling_role": "minority_hard_case",
+  "observe_sec": 12.0,
+  "status": "pass",
+  "criterion": "a spawned vehicle moved and accelerated by >= 0.5 raw speed units",
+  "actors": [
+    {
+      "class": "vehicle",
+      "unique_id": 1,
+      "segment_index": 0,
+      "sample_count": 6,
+      "duration_sec": 0.09800004959106445,
+      "displacement_m": 0.03844477567683594,
+      "initial_morai_raw_speed": 1.041152402995571,
+      "final_morai_raw_speed": 1.9648253603805466,
+      "minimum_morai_raw_speed": 1.041152402995571,
+      "maximum_morai_raw_speed": 1.9648253603805466,
+      "endpoint_speed_change_raw": 0.9236729573849756
+    },
+    {
+      "class": "vehicle",
+      "unique_id": 1,
+      "segment_index": 1,
+      "sample_count": 551,
+      "duration_sec": 11.019000053405762,
+      "displacement_m": 34.431880620685135,
+      "initial_morai_raw_speed": 0.0,
+      "final_morai_raw_speed": 18.65573022742088,
+      "minimum_morai_raw_speed": 0.0,
+      "maximum_morai_raw_speed": 18.8175845279363,
+      "endpoint_speed_change_raw": 18.65573022742088
+    },
+    {
+      "class": "vehicle",
+      "unique_id": 3,
+      "segment_index": 0,
+      "sample_count": 6,
+      "duration_sec": 0.09800004959106445,
+      "displacement_m": 0.5104702598073195,
+      "initial_morai_raw_speed": 18.619186901355945,
+      "final_morai_raw_speed": 18.616753262114607,
+      "minimum_morai_raw_speed": 18.616753262114607,
+      "maximum_morai_raw_speed": 18.619186901355945,
+      "endpoint_speed_change_raw": -0.0024336392413388808
+    },
+    {
+      "class": "vehicle",
+      "unique_id": 3,
+      "segment_index": 1,
+      "sample_count": 284,
+      "duration_sec": 5.668999910354614,
+      "displacement_m": 19.40404803571896,
+      "initial_morai_raw_speed": 0.0,
+      "final_morai_raw_speed": 18.790255096124188,
+      "minimum_morai_raw_speed": 0.0,
+      "maximum_morai_raw_speed": 18.8162650753769,
+      "endpoint_speed_change_raw": 18.790255096124188
+    },
+    {
+      "class": "vehicle",
+      "unique_id": 7,
+      "segment_index": 0,
+      "sample_count": 6,
+      "duration_sec": 0.09800004959106445,
+      "displacement_m": 0.51018378127236,
+      "initial_morai_raw_speed": 18.603531405405924,
+      "final_morai_raw_speed": 18.589716390888537,
+      "minimum_morai_raw_speed": 18.589716390888537,
+      "maximum_morai_raw_speed": 18.603531405405924,
+      "endpoint_speed_change_raw": -0.013815014517387425
+    },
+    {
+      "class": "vehicle",
+      "unique_id": 7,
+      "segment_index": 1,
+      "sample_count": 15,
+      "duration_sec": 0.2799999713897705,
+      "displacement_m": 0.01229262148294188,
+      "initial_morai_raw_speed": 0.0,
+      "final_morai_raw_speed": 0.2553163908145586,
+      "minimum_morai_raw_speed": 0.0,
+      "maximum_morai_raw_speed": 0.2553163908145586,
+      "endpoint_speed_change_raw": 0.2553163908145586
+    },
+    {
+      "class": "vehicle",
+      "unique_id": 9,
+      "segment_index": 0,
+      "sample_count": 6,
+      "duration_sec": 0.09800004959106445,
+      "displacement_m": 0.5127263786349766,
+      "initial_morai_raw_speed": 18.72130049694968,
+      "final_morai_raw_speed": 18.683703814658195,
+      "minimum_morai_raw_speed": 18.683703814658195,
+      "maximum_morai_raw_speed": 18.72130049694968,
+      "endpoint_speed_change_raw": -0.03759668229148616
+    }
+  ]
+}
