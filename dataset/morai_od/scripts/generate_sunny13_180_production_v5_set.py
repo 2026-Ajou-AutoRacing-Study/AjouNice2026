@@ -15,19 +15,13 @@ generator.SCENE_ID_PREFIX = "s13p5_"
 generator.SCENARIO_FILE_PREFIX = "od_s13p5_"
 generator.MASTER_SEED = 260809180
 
-# These two assets loaded in earlier scenes but were reproducibly omitted in
-# the v5 smoke scene across multiple positions and two unrelated anchors.
-# Preserve them in the catalog; replace them only in unattended v5 capture.
+# The two former v5 quarantines also passed both placements in the 2026-08-22
+# interleaved revalidation. Keep the historical bad anchor excluded below,
+# but no longer treat either vehicle as intrinsically incompatible.
 generator.RUNTIME_EXCLUDED_ASSET_IDS = {
     key: set(values)
     for key, values in generator.RUNTIME_EXCLUDED_ASSET_IDS.items()
 }
-generator.RUNTIME_EXCLUDED_ASSET_IDS["vehicle"].update(
-    {
-        30100009,  # 2020_Kia_Stinger
-        30800004,  # DEFAULT_MPV
-    }
-)
 
 # This tight intersection anchor reproducibly omitted two otherwise proven
 # vehicle assets even after both were moved to different valid MGeo links.

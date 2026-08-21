@@ -79,7 +79,14 @@ def timing_summary(histories, configured_topics):
 
 
 def stable_ego_motion(samples, minimum_window_sec, maximum_acceleration_mps2):
-    """Return whether recent serialized Ego samples satisfy a stability gate."""
+    """Return whether recent Ego samples have stable longitudinal speed.
+
+    MORAI acceleration is expressed in world axes.  Its vector magnitude also
+    contains the centripetal acceleration of an otherwise steady-speed turn,
+    so using that magnitude rejects valid roundabout clips.  Project the
+    acceleration onto the velocity direction and retain the old magnitude
+    fallback only when velocity was not serialized by an older sidecar.
+    """
 
     if len(samples) < 2:
         return False
@@ -91,9 +98,28 @@ def stable_ego_motion(samples, minimum_window_sec, maximum_acceleration_mps2):
     for sample in samples:
         state = sample.get("state") or {}
         acceleration = state.get("acceleration_raw") or {}
-        magnitude = math.sqrt(
-            sum(float(acceleration.get(axis, 0.0)) ** 2 for axis in ("x", "y", "z"))
-        )
-        if magnitude > float(maximum_acceleration_mps2):
+        velocity = state.get("velocity_raw") or {}
+        velocity_components = [
+            float(velocity.get(axis, 0.0)) for axis in ("x", "y", "z")
+        ]
+        acceleration_components = [
+            float(acceleration.get(axis, 0.0)) for axis in ("x", "y", "z")
+        ]
+        speed = math.sqrt(sum(value * value for value in velocity_components))
+        if speed > 1e-3:
+            longitudinal_acceleration = abs(
+                sum(
+                    accel * component
+                    for accel, component in zip(
+                        acceleration_components, velocity_components
+                    )
+                )
+                / speed
+            )
+        else:
+            longitudinal_acceleration = math.sqrt(
+                sum(value * value for value in acceleration_components)
+            )
+        if longitudinal_acceleration > float(maximum_acceleration_mps2):
             return False
     return True

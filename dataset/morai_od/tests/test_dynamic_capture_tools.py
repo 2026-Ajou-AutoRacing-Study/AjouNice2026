@@ -149,12 +149,122 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertFalse(timing.stable_ego_motion(samples, 0.5, 1.0))
         self.assertFalse(timing.stable_ego_motion(samples[:2], 0.5, 1.0))
 
+    def test_stable_ego_gate_ignores_steady_turn_lateral_acceleration(self):
+        samples = [
+            {
+                "callback_monotonic": value,
+                "state": {
+                    "velocity_raw": {"x": 5.0, "y": 0.0, "z": 0.0},
+                    "acceleration_raw": {"x": 0.1, "y": 2.0, "z": 0.0},
+                },
+            }
+            for value in (1.0, 1.25, 1.5)
+        ]
+        self.assertTrue(timing.stable_ego_motion(samples, 0.5, 1.0))
+        samples[-1]["state"]["acceleration_raw"]["x"] = 1.1
+        self.assertFalse(timing.stable_ego_motion(samples, 0.5, 1.0))
+
     def test_pedestrian_waypoint_coordinate_round_trip(self):
         world = {"x": -56.744, "y": -11.614, "z": 28.561}
         internal = generator.world_to_morai_waypoint(world)
         restored = generator.waypoint_to_world(internal)
         for axis in ("x", "y", "z"):
             self.assertAlmostEqual(world[axis], restored[axis], places=6)
+
+    def test_temporal_pedestrian_crosswalk_quota_is_location_diverse(self):
+        config = generator.load_json(
+            ROOT
+            / "dataset/morai_od/configs/temporal_sequence_capture_v2_pilot304.json"
+        )
+        family = next(
+            row for row in config["families"]
+            if row["name"] == "crosswalk_pedestrian"
+        )
+        locations = family["crosswalk_locations"]
+        counts = {row["crosswalk_id"]: 0 for row in locations}
+        for index in range(156):
+            selected = generator.weighted_variant_choice(locations, index, 156)
+            counts[selected["crosswalk_id"]] += 1
+        self.assertEqual(
+            counts,
+            {
+                "CW000000": 39,
+                "CW000002": 39,
+                "CW000013": 23,
+                "CW000015": 24,
+                "CW000001": 15,
+                "CW000014": 16,
+            },
+        )
+        self.assertAlmostEqual(
+            sum(
+                row["weight"] for row in locations
+                if row["crosswalk_id"] != "CW000000"
+            ),
+            0.75,
+        )
+
+    def test_pedestrian_smoke_covers_every_configured_crosswalk(self):
+        config = generator.load_json(
+            ROOT
+            / "dataset/morai_od/configs/temporal_sequence_capture_v2_pilot304.json"
+        )
+        family = next(
+            row for row in config["families"]
+            if row["name"] == "crosswalk_pedestrian"
+        )
+        self.assertTrue(family["cover_all_crosswalks_when_possible"])
+        selected = []
+        for index in range(family["count"]):
+            if family["count"] <= len(family["crosswalk_locations"]):
+                location = family["crosswalk_locations"][
+                    index % len(family["crosswalk_locations"])
+                ]
+            else:
+                location = generator.weighted_variant_choice(
+                    family["crosswalk_locations"], index, family["count"]
+                )
+            selected.append(location["crosswalk_id"])
+        self.assertEqual(
+            set(selected),
+            {row["crosswalk_id"] for row in family["crosswalk_locations"]},
+        )
+
+    def test_unverified_pedestrian_occlusion_profiles_are_disabled(self):
+        config = generator.load_json(
+            ROOT
+            / "dataset/morai_od/configs/temporal_sequence_capture_v2_pilot304.json"
+        )
+        family = next(
+            row for row in config["families"]
+            if row["name"] == "crosswalk_pedestrian"
+        )
+        weights = {
+            row["name"]: float(row["weight"])
+            for row in family["motion_profiles"]
+        }
+        self.assertEqual(weights["occluded_runout"], 0.0)
+        self.assertEqual(weights["partial_visibility_transition"], 0.0)
+        self.assertAlmostEqual(
+            weights["normal_visible"] + weights["fast_crossing"],
+            1.0,
+        )
+
+    def test_generated_crosswalk_path_extends_beyond_polygon(self):
+        catalog = generator.load_crosswalk_catalog(
+            ROOT / "kcity_map/mgeo_map_scenario_runner_2025"
+        )
+        center, start, end = generator.crosswalk_path_endpoints(
+            catalog["CW000013"], 4.0
+        )
+        self.assertGreater(math.hypot(end["x"] - start["x"], end["y"] - start["y"]), 10.0)
+        self.assertLess(
+            math.hypot(
+                (start["x"] + end["x"]) / 2.0 - center["x"],
+                (start["y"] + end["y"]) / 2.0 - center["y"],
+            ),
+            1e-6,
+        )
 
     def test_route_pose_before_moves_back_in_arc_length(self):
         route = [
@@ -189,6 +299,33 @@ class DynamicCaptureToolsTest(unittest.TestCase):
             scenario["pedestrianList"][0]["activeDistance"], 10.0
         )
         self.assertAlmostEqual(runtime[0]["activation_margin_m"], 5.0)
+
+    def test_generated_pedestrian_activation_is_deferred_safely(self):
+        scenario = {
+            "egoVehicle": {
+                "initPosition": {"pos": {"x": 0.0, "y": 0.0}}
+            },
+            "pedestrianList": [
+                {
+                    "pos": {"x": 8.0, "y": 6.0},
+                    "activeDistance": 20.0,
+                }
+            ],
+        }
+        runtime = [{"activation_policy": "deferred_ego_approach"}]
+        route = [
+            {"x": 0.0, "y": 0.0},
+            {"x": 10.0, "y": 0.0},
+        ]
+        distance = generator.configure_pedestrian_activation(
+            scenario, runtime, route, deferred_preroll_m=1.5
+        )
+        self.assertAlmostEqual(distance, 10.0)
+        self.assertAlmostEqual(
+            scenario["pedestrianList"][0]["activeDistance"], 8.5
+        )
+        self.assertAlmostEqual(runtime[0]["activation_preroll_m"], 1.5)
+        self.assertAlmostEqual(runtime[0]["route_clearance_to_actor_m"], 6.0)
 
     def test_smoothed_velocity_uses_position_difference_in_mps(self):
         records = []
@@ -384,7 +521,9 @@ class DynamicCaptureToolsTest(unittest.TestCase):
             / "dataset/morai_od/configs/temporal_sequence_capture_v2_pilot304.json"
         )
         self.assertEqual(config["capture"]["captures_per_scene"], 8)
-        self.assertAlmostEqual(config["capture"]["capture_period_sec"], 0.15)
+        self.assertAlmostEqual(
+            config["capture"]["capture_period_sec"], 1.0 / 12.0
+        )
         self.assertEqual(
             sum(int(family["count"]) for family in config["families"]),
             38,
@@ -394,7 +533,7 @@ class DynamicCaptureToolsTest(unittest.TestCase):
     def test_temporal_v2_primary_batch_rounds_to_1504_frames(self):
         self.assertEqual(sum(v2_batch.PRIMARY_COUNTS.values()), 188)
         self.assertEqual(sum(v2_batch.PRIMARY_COUNTS.values()) * 8, 1504)
-        self.assertEqual(sum(v2_batch.RESERVE_COUNTS.values()), 20)
+        self.assertEqual(sum(v2_batch.RESERVE_COUNTS.values()), 28)
         self.assertEqual(
             v2_batch.grouped_counts(v2_batch.PRIMARY_COUNTS),
             {
@@ -406,7 +545,7 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertEqual(
             v2_batch.grouped_counts(v2_batch.RESERVE_COUNTS),
             {
-                "mission_dynamic": 10,
+                "mission_dynamic": 18,
                 "static_temporal": 7,
                 "hard_transition": 3,
             },
@@ -542,6 +681,16 @@ class DynamicCaptureToolsTest(unittest.TestCase):
             ROOT / "dataset/morai_od/configs/dynamic_object_capture_v1.json"
         )
         self.assertTrue(config["capture"]["prime_capture_before_clip"])
+
+    def test_temporal_v2_loads_ego_stationary_before_external_control(self):
+        config = generator.load_json(
+            ROOT
+            / "dataset/morai_od/configs/temporal_sequence_capture_v2_pilot304.json"
+        )
+        self.assertEqual(
+            config["capture"]["scenario_load_initial_speed_kph"],
+            0.0,
+        )
 
 
 if __name__ == "__main__":

@@ -145,6 +145,124 @@ def load_json(path):
         return json.load(stream)
 
 
+def load_crosswalk_catalog(mgeo_dir):
+    single_rows = load_json(mgeo_dir / "singlecrosswalk_set.json")
+    group_rows = load_json(mgeo_dir / "crosswalk_set.json")
+    link_rows = load_json(mgeo_dir / "link_set.json")
+    singles = {row["idx"]: row for row in single_rows}
+    links = {row["idx"]: row for row in link_rows}
+    catalog = {}
+    for group in group_rows:
+        points = []
+        link_ids = []
+        for single_id in group.get("single_crosswalk_list", []):
+            single = singles.get(single_id, {})
+            polygon = single.get("points", [])
+            link_ids.extend(single.get("link_id_list", []))
+            points.extend(
+                {
+                    "x": float(point[0]),
+                    "y": float(point[1]),
+                    "z": float(point[2]) if len(point) >= 3 else 0.0,
+                }
+                for point in polygon
+                if len(point) >= 2
+            )
+        if points:
+            center_x = sum(point["x"] for point in points) / len(points)
+            center_y = sum(point["y"] for point in points) / len(points)
+            road_vectors = []
+            for link_id in sorted(set(link_ids)):
+                link_points = links.get(link_id, {}).get("points", [])
+                if len(link_points) < 2:
+                    continue
+                nearest = min(
+                    range(len(link_points)),
+                    key=lambda index: math.hypot(
+                        float(link_points[index][0]) - center_x,
+                        float(link_points[index][1]) - center_y,
+                    ),
+                )
+                before = link_points[max(0, nearest - 1)]
+                after = link_points[min(len(link_points) - 1, nearest + 1)]
+                dx = float(after[0]) - float(before[0])
+                dy = float(after[1]) - float(before[1])
+                length = math.hypot(dx, dy)
+                if length <= 1e-9:
+                    continue
+                vector = (dx / length, dy / length)
+                if road_vectors and (
+                    vector[0] * road_vectors[0][0]
+                    + vector[1] * road_vectors[0][1]
+                ) < 0.0:
+                    vector = (-vector[0], -vector[1])
+                road_vectors.append(vector)
+            pedestrian_axis = None
+            if road_vectors:
+                road_x = sum(vector[0] for vector in road_vectors)
+                road_y = sum(vector[1] for vector in road_vectors)
+                length = math.hypot(road_x, road_y)
+                if length > 1e-9:
+                    pedestrian_axis = (-road_y / length, road_x / length)
+            catalog[group["idx"]] = {
+                "crosswalk_id": group["idx"],
+                "single_crosswalk_ids": list(
+                    group.get("single_crosswalk_list", [])
+                ),
+                "traffic_light_ids": list(
+                    group.get("ref_traffic_light_list", [])
+                ),
+                "link_ids": sorted(set(link_ids)),
+                "pedestrian_axis": pedestrian_axis,
+                "points": points,
+            }
+    return catalog
+
+
+def weighted_variant_choice(rows, variant_index, family_count):
+    if not rows:
+        raise ValueError("weighted variant rows are empty")
+    weights = [float(row.get("weight", 1.0)) for row in rows]
+    total = sum(weights)
+    if total <= 0.0:
+        raise ValueError("weighted variant rows must have positive total weight")
+    quantile = (int(variant_index) + 0.5) / max(1, int(family_count))
+    cumulative = 0.0
+    for row, weight in zip(rows, weights):
+        cumulative += weight / total
+        if quantile <= cumulative:
+            return row
+    return rows[-1]
+
+
+def point_to_route_distance(point, route, maximum_segment_m=10.0):
+    """Return distance to valid local route segments, ignoring route jumps."""
+
+    best = float("inf")
+    for before, after in zip(route, route[1:]):
+        dx = after["x"] - before["x"]
+        dy = after["y"] - before["y"]
+        length_squared = dx * dx + dy * dy
+        if length_squared <= 1e-12:
+            continue
+        if math.sqrt(length_squared) > maximum_segment_m:
+            continue
+        ratio = (
+            (point["x"] - before["x"]) * dx
+            + (point["y"] - before["y"]) * dy
+        ) / length_squared
+        ratio = max(0.0, min(1.0, ratio))
+        projected_x = before["x"] + ratio * dx
+        projected_y = before["y"] + ratio * dy
+        best = min(
+            best,
+            math.hypot(point["x"] - projected_x, point["y"] - projected_y),
+        )
+    if not math.isfinite(best):
+        raise ValueError("route has no valid local segment")
+    return best
+
+
 def write_json(path, document):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -963,7 +1081,68 @@ def static_highway_lane_for_variant(variant_index, family_count):
     return 6 if quantile < 0.60 else (8 if quantile < 0.85 else 10)
 
 
-def build_pedestrian_scene(scenario, template, family, rng):
+def crosswalk_path_endpoints(crosswalk, margin_m=4.0):
+    points = crosswalk["points"]
+    center = {
+        axis: sum(point[axis] for point in points) / len(points)
+        for axis in ("x", "y", "z")
+    }
+    xx = yy = xy = 0.0
+    for point in points:
+        dx = point["x"] - center["x"]
+        dy = point["y"] - center["y"]
+        xx += dx * dx
+        yy += dy * dy
+        xy += dx * dy
+    axis = crosswalk.get("pedestrian_axis")
+    if axis is None:
+        angle = 0.5 * math.atan2(2.0 * xy, xx - yy)
+        axis = (math.cos(angle), math.sin(angle))
+    projections = [
+        (point["x"] - center["x"]) * axis[0]
+        + (point["y"] - center["y"]) * axis[1]
+        for point in points
+    ]
+    polygon_low = min(projections)
+    polygon_high = max(projections)
+    path_center_offset = (polygon_low + polygon_high) / 2.0
+    center = {
+        "x": center["x"] + axis[0] * path_center_offset,
+        "y": center["y"] + axis[1] * path_center_offset,
+        "z": center["z"],
+    }
+    low = (polygon_low - path_center_offset) - float(margin_m)
+    high = (polygon_high - path_center_offset) + float(margin_m)
+    start = {
+        "x": center["x"] + axis[0] * low,
+        "y": center["y"] + axis[1] * low,
+        "z": center["z"],
+    }
+    end = {
+        "x": center["x"] + axis[0] * high,
+        "y": center["y"] + axis[1] * high,
+        "z": center["z"],
+    }
+    return center, start, end
+
+
+def set_pedestrian_waypoint_path(path, start, end):
+    prototype = copy.deepcopy(path["waypointData"][0])
+    path["waypointData"] = []
+    for position in (start, end):
+        waypoint = copy.deepcopy(prototype)
+        waypoint["pos"] = world_to_morai_waypoint(position)
+        path["waypointData"].append(waypoint)
+
+
+def build_pedestrian_scene(
+    scenario,
+    template,
+    family,
+    rng,
+    variant_index,
+    crosswalk_catalog,
+):
     actor = copy.deepcopy(template["pedestrianList"][0])
     path = copy.deepcopy(
         next(
@@ -972,18 +1151,79 @@ def build_pedestrian_scene(scenario, template, family, rng):
             if item.get("pathName") == "PedPath - 3"
         )
     )
-    reverse = rng.random() < float(family.get("reverse_probability", 0.5))
+    family_count = int(family.get("count", 1))
+    locations = family.get("crosswalk_locations") or [
+        {
+            "crosswalk_id": "CW000000",
+            "weight": 1.0,
+            "role": "official_sample_direct",
+            "use_official_path": True,
+        }
+    ]
+    if (
+        family.get("cover_all_crosswalks_when_possible", False)
+        and family_count <= len(locations)
+    ):
+        # A small smoke set is for geometry/visibility coverage rather than
+        # production-frequency matching. Exercise each configured location
+        # once before the weighted production quota is trusted.
+        location = locations[variant_index % len(locations)]
+    else:
+        location = weighted_variant_choice(
+            locations,
+            variant_index,
+            family_count,
+        )
+    crosswalk_id = location["crosswalk_id"]
+    if crosswalk_id not in crosswalk_catalog:
+        raise ValueError("unknown MGeo crosswalk {}".format(crosswalk_id))
+    crosswalk = crosswalk_catalog[crosswalk_id]
+    if location.get("use_official_path", False):
+        start = waypoint_to_world(path["waypointData"][0]["pos"])
+        end = waypoint_to_world(path["waypointData"][-1]["pos"])
+        target = {
+            axis: (start[axis] + end[axis]) / 2.0
+            for axis in ("x", "y", "z")
+        }
+    else:
+        target, start, end = crosswalk_path_endpoints(
+            crosswalk,
+            family.get("crosswalk_path_margin_m", 4.0),
+        )
+        set_pedestrian_waypoint_path(path, start, end)
+
+    profile_index = (variant_index * 7 + 1) % max(1, family_count)
+    profile = weighted_variant_choice(
+        family.get(
+            "motion_profiles",
+            [{"name": "normal_visible", "weight": 1.0}],
+        ),
+        profile_index,
+        family_count,
+    )
+    reverse_probability = float(
+        profile.get(
+            "reverse_probability",
+            family.get("reverse_probability", 0.5),
+        )
+    )
+    reverse = rng.random() < reverse_probability
+    if profile.get("official_occluded_start", False) and location.get(
+        "use_official_path", False
+    ):
+        reverse = False
     if reverse:
         path["waypointData"].reverse()
-    speed = float(uniform_or_choice(rng, family["speed"]))
+        start, end = end, start
+    speed = float(
+        uniform_or_choice(rng, profile.get("speed", family["speed"]))
+    )
     active_distance = float(uniform_or_choice(rng, family["active_distance_m"]))
     actor["speed"] = speed
     actor["activeDistance"] = active_distance
     actor["active"] = True
     actor["loop"] = False
     actor["isWaypointMode"] = True
-    start = waypoint_to_world(path["waypointData"][0]["pos"])
-    end = waypoint_to_world(path["waypointData"][-1]["pos"])
     yaw = math.degrees(math.atan2(end["y"] - start["y"], end["x"] - start["x"]))
     set_actor_world_position(actor, start, yaw)
     scenario["pedestrianList"] = [actor]
@@ -995,10 +1235,26 @@ def build_pedestrian_scene(scenario, template, family, rng):
         "speed_unit": "morai_pedestrian_config_value_unverified",
         "active_distance_m": active_distance,
         "reversed": reverse,
+        "crosswalk_id": crosswalk_id,
+        "crosswalk_role": location.get("role"),
+        "crosswalk_split": location.get("split"),
+        "difficulty_profile": profile.get("name"),
+        "visibility_audit_required": bool(
+            profile.get("visibility_audit_required", False)
+        ),
+        "activation_policy": location.get(
+            "activation_policy",
+            (
+                "active_at_load"
+                if location.get("use_official_path", False)
+                else "deferred_ego_approach"
+            ),
+        ),
+        "traffic_light_ids": crosswalk.get("traffic_light_ids", []),
         "start": start,
         "end": end,
     }]
-    return target_position_for_family(template, family["name"]), runtime
+    return target, runtime
 
 
 def arm_pedestrian_before_capture(scenario, runtime, activation_margin_m):
@@ -1023,6 +1279,59 @@ def arm_pedestrian_before_capture(scenario, runtime, activation_margin_m):
         actor["activeDistance"] - distance
     )
     return distance
+
+
+def configure_pedestrian_activation(
+    scenario,
+    runtime,
+    ego_route,
+    activation_margin_m=5.0,
+    deferred_preroll_m=1.5,
+    route_clearance_margin_m=0.5,
+):
+    """Keep the verified official scene or defer generated crossings safely."""
+
+    if runtime[0].get("activation_policy") != "deferred_ego_approach":
+        return arm_pedestrian_before_capture(
+            scenario, runtime, activation_margin_m
+        )
+
+    ego = scenario["egoVehicle"]["initPosition"]["pos"]
+    actor = scenario["pedestrianList"][0]
+    actor_position = {
+        "x": float(actor["pos"]["x"]),
+        "y": float(actor["pos"]["y"]),
+    }
+    initial_distance = math.hypot(
+        actor_position["x"] - float(ego["x"]),
+        actor_position["y"] - float(ego["y"]),
+    )
+    route_clearance = point_to_route_distance(actor_position, ego_route)
+    minimum_active_distance = route_clearance + float(
+        route_clearance_margin_m
+    )
+    maximum_active_distance = initial_distance - float(deferred_preroll_m)
+    if maximum_active_distance <= minimum_active_distance:
+        raise ValueError(
+            "generated pedestrian lacks safe activation window: "
+            "initial={:.2f}m, route_clearance={:.2f}m".format(
+                initial_distance, route_clearance
+            )
+        )
+    actor["activeDistance"] = min(
+        maximum_active_distance,
+        max(float(actor["activeDistance"]), minimum_active_distance),
+    )
+    runtime[0].update(
+        {
+            "active_distance_m": float(actor["activeDistance"]),
+            "initial_ego_distance_m": initial_distance,
+            "activation_preroll_m": initial_distance
+            - float(actor["activeDistance"]),
+            "route_clearance_to_actor_m": route_clearance,
+        }
+    )
+    return initial_distance
 
 
 def shade_local_to_world(shade, longitudinal, lateral):
@@ -1411,6 +1720,7 @@ def main():
     links = load_json(args.mgeo_dir / "link_set.json")
     links_by_id = {item["idx"]: item for item in links}
     samples = mgeo_samples(links)
+    crosswalk_catalog = load_crosswalk_catalog(args.mgeo_dir)
     obstacle_pool = None
     if config.get("use_runtime_obstacle_pool", False):
         obstacle_pool = load_runtime_obstacle_pool(
@@ -1502,7 +1812,14 @@ def main():
                 )
                 target = dict(runtime[0]["position"])
             elif name == "crosswalk_pedestrian":
-                target, runtime = build_pedestrian_scene(scenario, template, family, rng)
+                target, runtime = build_pedestrian_scene(
+                    scenario,
+                    template,
+                    family,
+                    rng,
+                    variant_index,
+                    crosswalk_catalog,
+                )
             elif name == "stopped_vehicle":
                 target, runtime = build_stopped_vehicle_scene(
                     scenario, template, family, rng, samples
@@ -1576,6 +1893,10 @@ def main():
                             "lookahead_m": 4.0,
                         }
                     )
+                    if "minimum_curve_speed_kph" in family:
+                        capture_overrides["minimum_curve_speed_kph"] = float(
+                            family["minimum_curve_speed_kph"]
+                        )
                 validation_route = route
             else:
                 lead = None
@@ -1595,10 +1916,16 @@ def main():
                     }
                 )
             if name == "crosswalk_pedestrian":
-                arm_pedestrian_before_capture(
+                configure_pedestrian_activation(
                     scenario,
                     runtime,
-                    family.get("activation_margin_m", 5.0),
+                    route,
+                    activation_margin_m=family.get(
+                        "activation_margin_m", 5.0
+                    ),
+                    deferred_preroll_m=family.get(
+                        "deferred_activation_preroll_m", 1.5
+                    ),
                 )
                 # Start the short crossing clip immediately after MORAI first
                 # reports motion.  Priming the heavyweight SaveSensorData
@@ -1617,12 +1944,35 @@ def main():
                         ),
                     }
                 )
+            scenario_load_initial_speed = config["capture"].get(
+                "scenario_load_initial_speed_kph"
+            )
+            if scenario_load_initial_speed is not None:
+                nominal_initial_speed = float(
+                    scenario["egoVehicle"].get("currentVelocity", 0.0)
+                )
+                set_ego_pose(
+                    scenario["egoVehicle"],
+                    ego_sample,
+                    float(scenario_load_initial_speed),
+                )
+                capture_overrides["nominal_ego_initial_speed_kph"] = (
+                    nominal_initial_speed
+                )
+                capture_overrides["ego_initial_speed_kph"] = float(
+                    scenario_load_initial_speed
+                )
             validation = validate_scene(
                 scenario, name, links_by_id, validation_route, runtime
             )
             effective_motion_phase = capture_overrides.get(
                 "clip_motion_phase", family.get("motion_phase")
             )
+            scene_split = split_for_variant(
+                variant_index, int(family["count"])
+            )
+            if name == "crosswalk_pedestrian":
+                scene_split = runtime[0].get("crosswalk_split") or scene_split
 
             code = FAMILY_CODES[name]
             scene_id = (
@@ -1651,7 +2001,7 @@ def main():
                     "recommended_phase_share_within_segment"
                 ),
                 "seed": scene_seed,
-                "split": split_for_variant(variant_index, int(family["count"])),
+                "split": scene_split,
                 "environment": config["environment"],
                 "capture_policy": config["capture"],
                 "capture_policy_overrides": capture_overrides,
@@ -1711,7 +2061,11 @@ def main():
                         ),
                         "split_group": scene_id,
                         "pointpainting_sweep_count": 3,
-                        "pointpainting_target_lags_sec": [0.0, -0.15, -0.30],
+                        "pointpainting_target_lags_sec": [
+                            -index
+                            * float(config["capture"]["capture_period_sec"])
+                            for index in range(3)
+                        ],
                         "exact_point_time_available": False,
                     },
                     "split": metadata["split"],
@@ -1733,6 +2087,16 @@ def main():
                         "obstacle": len(scenario["objectList"]),
                     },
                     "dynamic_actor_policy": "observe_after_warmup",
+                    "dynamic_actor_ready_requires_motion": not bool(
+                        name == "crosswalk_pedestrian"
+                        and runtime[0].get("activation_policy")
+                        == "deferred_ego_approach"
+                    ),
+                    "capture_arm_requires_actor_motion": bool(
+                        name == "crosswalk_pedestrian"
+                        and runtime[0].get("activation_policy")
+                        == "deferred_ego_approach"
+                    ),
                     "ego_readiness_policy": (
                         "route_aligned"
                         if capture_overrides.get("minimum_ego_speed_kph", 0.0)

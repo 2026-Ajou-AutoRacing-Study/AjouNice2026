@@ -44,7 +44,10 @@ RESERVE_COUNTS = {
     "highway_merge_cruise": 2,
     "highway_cruise_overtake": 3,
     "highway_lane_change_overtake": 1,
-    "crosswalk_pedestrian": 2,
+    # Ten reserve clips cover every configured crosswalk ID.  A reserve from
+    # another physical location must not replace a failed location-disjoint
+    # pedestrian clip.
+    "crosswalk_pedestrian": 10,
     "static_obstacle": 4,
     "static_highway_obstacle": 1,
     "stopped_vehicle": 1,

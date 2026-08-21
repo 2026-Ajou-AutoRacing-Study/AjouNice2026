@@ -2573,12 +2573,19 @@ class AutoCapture:
     def wait_for_dynamic_actor(self, scene):
         deadline = time.monotonic() + self.args.actor_ready_timeout_sec
         initial_pedestrian_positions = {}
+        require_motion = bool(
+            scene.get("dynamic_actor_ready_requires_motion", True)
+        )
         while not rospy.is_shutdown() and time.monotonic() < deadline:
             snapshot = self.state.snapshot()
             objects = snapshot["objects"]
             present = self.dynamic_actor_ready(scene, objects)
             moving = True
-            if present and scene.get("mission_family") == "crosswalk_pedestrian":
+            if (
+                present
+                and require_motion
+                and scene.get("mission_family") == "crosswalk_pedestrian"
+            ):
                 moving = False
                 for actor in objects.pedestrian_list:
                     key = int(actor.unique_id)
@@ -2943,6 +2950,13 @@ class AutoCapture:
         snapshot = self.state.snapshot()
         if snapshot["ego"] is None:
             raise RuntimeError("Ego telemetry unavailable before timed-grouped")
+        initial_actor_positions = {}
+        if scene.get("capture_arm_requires_actor_motion", False):
+            for actor in snapshot["objects"].pedestrian_list:
+                initial_actor_positions[int(actor.unique_id)] = (
+                    float(actor.position.x),
+                    float(actor.position.y),
+                )
         position = (snapshot["ego"].position.x, snapshot["ego"].position.y)
         nearest_hint = self.nearest_waypoint_index(
             position,
@@ -3054,7 +3068,35 @@ class AutoCapture:
                             self.scene_stable_ego_window_sec * 0.9,
                             self.scene_maximum_stable_acceleration_mps2,
                         )
-                    if not motion_ready or not speed_ready or not stable_ready:
+                    actor_motion_ready = True
+                    if scene.get("capture_arm_requires_actor_motion", False):
+                        actor_motion_ready = False
+                        for actor in snapshot["objects"].pedestrian_list:
+                            initial = initial_actor_positions.get(
+                                int(actor.unique_id)
+                            )
+                            if initial is None:
+                                continue
+                            actor_position = (
+                                float(actor.position.x),
+                                float(actor.position.y),
+                            )
+                            actor_speed = math.hypot(
+                                float(actor.velocity.x),
+                                float(actor.velocity.y),
+                            )
+                            if (
+                                distance_xy(actor_position, initial) > 0.02
+                                and actor_speed > 0.05
+                            ):
+                                actor_motion_ready = True
+                                break
+                    if (
+                        not motion_ready
+                        or not speed_ready
+                        or not stable_ready
+                        or not actor_motion_ready
+                    ):
                         if (
                             now - motion_started
                             > self.args.motion_stall_timeout_sec
@@ -3062,7 +3104,8 @@ class AutoCapture:
                             raise RuntimeError(
                                 "Ego did not arm timed-grouped capture: "
                                 "progress={:.3f}/{:.3f}m, "
-                                "speed={:.2f}/{:.2f}km/h, stable={} in {:.3f}s. "
+                                "speed={:.2f}/{:.2f}km/h, stable={}, "
+                                "actor_motion={} in {:.3f}s. "
                                 "CtrlCmd is connected but may not be "
                                 "applied by MORAI.".format(
                                     travelled,
@@ -3070,6 +3113,7 @@ class AutoCapture:
                                     ego_speed_kph,
                                     self.scene_minimum_ego_speed_kph,
                                     stable_ready,
+                                    actor_motion_ready,
                                     now - motion_started,
                                 )
                             )

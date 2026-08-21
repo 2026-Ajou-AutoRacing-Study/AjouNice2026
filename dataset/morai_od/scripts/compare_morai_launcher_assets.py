@@ -17,18 +17,7 @@ GROUPS = (
 # both launchers is still never selected automatically.
 POLICY_EXCLUDED_NAME_PREFIXES = ("tree",)
 POLICY_EXCLUDED_DATA_IDS = {
-    "pedestrian": {
-        50100005: (
-            "Woman2 was the only common pedestrian in geometry trial v3 "
-            "scenes geo3_005, geo3_010, and geo3_016; every scene loaded "
-            "exactly one fewer pedestrian. Excluded from personal-launcher "
-            "automatic generation after three deterministic failures."
-        ),
-        50200004: (
-            "Girl2 failed to appear from the personal-launcher template in "
-            "geometry trial geo009."
-        ),
-    },
+    "pedestrian": {},
     "obstacle": {
         40100032: (
             "Speed_Bump is a thin road-surface infrastructure asset, not a "

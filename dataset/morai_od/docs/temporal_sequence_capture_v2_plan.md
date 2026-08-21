@@ -1,5 +1,21 @@
 # MORAI temporal sequence capture V2 계획.
 
+## Production cadence 결정.
+
+- 2026-08-22부터 canonical capture cadence는 `12 Hz`, 즉 `1/12초`로 고정한다.
+- 8-frame clip의 nominal span은 첫 frame부터 마지막 frame까지 `7/12초`, 약
+  `0.583초`다.
+- 3-sweep PointPainting 입력의 nominal lag는 `0`, `-1/12`, `-2/12초`다.
+- 실제 frame metadata에는 nominal 값과 별개로 측정된 timestamp와
+  `time_lag_sec`를 보존한다.
+- 부분 전체주행 bag의 LiDAR는 99.35초 동안 1,182 frame, 평균 `11.89 Hz`였고
+  header 간격 p50은 79.3 ms, p95는 106.2 ms였다. 따라서 12 Hz를 중심 분포로
+  사용하되 실제 지터와 누락은 timestamp 기반 loader에서 처리한다.
+- 이후 대회 클라이언트 PC 실측 분포가 달라지면 새 dataset을 수집한다. 현재
+  production dataset을 미리 10 Hz로 낮춰 수집하지 않는다.
+- 아래 2026-08-21 `0.15초` live gate 결과는 구형 저속 pilot의 역사적 검증이며,
+  신규 production cadence를 뜻하지 않는다.
+
 ## 구현 상태.
 
 - 2026-08-21 기준 V2 offline generator와 validator를 구현했다.
@@ -30,7 +46,8 @@
   저장한다. SaveSensorData에 노출되지 않는 실제 exposure/point time은 추정값으로
   위조하지 않고 limitation으로 기록한다.
 - `generate_temporal_sequence_v2_batch.py`는 batch별 seed와 scenario prefix를 분리하고
-  primary 1,504 frame 및 reserve 160 frame을 생성한다.
+  primary 1,504 frame 및 reserve 224 frame을 생성한다. Pedestrian reserve 10 clip은
+  여섯 crosswalk ID를 모두 포함하여 다른 위치의 clip으로 실패를 대체하지 않게 한다.
 - Offline smoke는 188-clip primary batch까지 생성했고 static validation은 통과했다.
 - MORAI live smoke는 static obstacle, crosswalk pedestrian, highway lane-change에서
   실제 launcher load, CtrlCmd 추종과 SaveSensorData 완전성을 통과했다.
@@ -53,7 +70,7 @@
 ## Production 후보 입력 계약.
 
 - PointPainting temporal baseline은 raw 3-sweep과 sweep 간 Ego-pose 정합을 사용한다.
-- 현재, 약 0.15초 전, 약 0.30초 전 sweep을 실제 timestamp로 선택한다.
+- 현재, 약 0.083초 전, 약 0.167초 전 sweep을 실제 timestamp로 선택한다.
 - point feature에 실제 `time_lag_sec`를 추가한다.
 - scan 내부 방위각 근사 Ego deskew는 production에서 끈다.
 - SaveSensorData와 현재 MORAI PointCloud2에는 point별 time field가 없어 exact
@@ -327,6 +344,77 @@ compact/long 조합을 우선 채운다. 하나의 placement는 일반 clip에�
   포함해 mission 위치만 외우는 shortcut을 막는다.
 - 공식 sample JSON의 exact actor path·seed·capture는 내부 mission-holdout에서 격리한다.
 
+### 동적 보행자 위치·난이도 production 정책.
+
+MGeo grouped crosswalk 28개와 2,184.6 m competition waypoint를 polygon 기준으로
+교차 검사했다. Waypoint가 직접 통과하는 곳은 `CW000000`, `CW000002`, `CW000013`,
+`CW000015` 네 곳이며, 같은 교차로의 측면에서 각각 2.96 m와 5.61 m 떨어진
+`CW000001`, `CW000014` 두 곳도 관측 다양성 후보로 사용한다. 공식 sample pedestrian은
+`CW000000`에 있다.
+
+동적 pedestrian 1,248 frame/156 clip은 다음 location quota를 사용한다.
+
+| 위치 | 비율 | 역할과 split |
+| --- | ---: | --- |
+| `CW000000` | 25% | 공식 sample 직접 통과, train. |
+| `CW000002` | 25% | 다른 직접 통과, train. |
+| `CW000013` | 15% | 다른 직접 통과, location-disjoint val. |
+| `CW000015` | 15% | 다른 직접 통과, location-disjoint test. |
+| `CW000001` | 10% | waypoint 인접 측면 관측, train. |
+| `CW000014` | 10% | waypoint 인접 측면 관측, train. |
+
+따라서 공식 sample 위치는 충분한 25%를 유지하지만 나머지 위치가 75%여서 한 배경에
+과적합되지 않는다. 같은 crosswalk ID는 split을 넘지 않는다. 공식 sample의 exact
+capture를 그대로 복제하지 않고 Ego gap, 속도와 capture seed를 바꾼다.
+
+304-frame smoke set의 pedestrian 6 clip은 production 비율을 흉내 내지 않고 위 6개
+crosswalk를 정확히 한 번씩 사용한다. 이 단계의 목적은 빈도 학습이 아니라 생성 경로,
+Ego 접근, 실제 가시성과 SaveSensorData artifact를 위치별로 검증하는 것이다. Smoke를
+통과한 뒤 production batch부터 위 25/25/15/15/10/10 quota를 적용한다.
+
+난이도 quota는 normal visible 35%, fast crossing 25%, occluded run-out 25%, partial
+visibility transition 15%다. 공식 sample path의 알려진 가림 시작 방향은 run-out에서
+보존한다. 다른 횡단보도의 `occluded_runout`과 `partial_visibility_transition`은 이름만으로
+성공 처리하지 않고 live camera projection에서 실제 가림→등장 변화가 확인돼야 accepted
+clip으로 승격한다. 지도 구조물이 부적합하면 현실적인 정차 차량 가림을 사용하고,
+무관한 obstacle을 횡단보도에 임의 배치하지 않는다.
+
+### Generic structured-random vehicle pilot.
+
+Mission vehicle만 학습하면 모델이 로터리·고주로 배경과 motion을 결합하는 shortcut을
+가질 수 있으므로 일반 도로 vehicle family도 후보로 유지한다. 다만 첫 1,504-frame
+pipeline gate에는 넣지 않는다. 먼저 mission/static/hard 기준선을 만든 뒤 별도
+304--504 frame pilot으로 다음을 검증한다.
+
+- Competition waypoint corridor의 유효 MGeo lane에서만 Ego와 NPC를 배치한다.
+- NPC는 연결된 centerline을 따라 lane-following하며 역주행·임의 횡단은 만들지 않는다.
+- 일반도로 제한속도 60 km/h와 고주로 예외를 지키면서 initial/target speed, acceleration,
+  same/adjacent lane, longitudinal gap, relative approach와 camera sector를 randomize한다.
+- 공식 로터리·고주로 spawn anchor와 crosswalk mission anchor는 generic 후보에서 제외한다.
+- Clip split은 spawn link와 route segment group 기준으로 묶어 같은 공간이 split을 넘지
+  않게 한다.
+
+Pilot이 mission-holdout의 vehicle center AP, velocity error와 1--3초 prediction을
+개선하고 mission recall을 손상시키지 않으면 최종 10,000 frame에서 전체의 5%를
+generic vehicle로 배정한다. 이 5%는 동적 vehicle 37.44% 내부에서 가져와 mission
+vehicle 32.44% + generic vehicle 5%로 구성한다. 효과가 명확할 때만 generic을 최대
+8%까지 높이고, 개선이 없으면 기존 mission vehicle 37.44%를 유지한다.
+
+### 2026-08-22 전체 quota 재검토 결론.
+
+- 동적 vehicle 37.44%는 로터리·합류·순항·추월을 모두 담으면서 static과 pedestrian을
+  압도하지 않으므로 유지한다. Generic 5%는 위 pilot 통과 후 이 내부에서 재배분한다.
+- 동적 pedestrian 12.48%는 대회 run-out 위험과 velocity 학습에 충분하므로 유지하고,
+  비율을 늘리는 대신 6개 crosswalk와 난이도 quota로 다양화한다.
+- 정적 temporal 35.04%는 정지 vehicle/pedestrian의 zero-velocity target과 obstacle
+  geometry를 함께 학습해야 하므로 유지한다.
+- 정적 내부 obstacle-focused 약 70%는 30종 asset의 unique placement 부족을 해결하는
+  직접적인 quota이므로 유지한다. Mission dynamic clip에는 무관한 obstacle을 섞지 않는다.
+- Hard temporal 15.04%는 spawn acceleration, GPS 음영 obstacle, 원거리·가림·camera seam을
+  격리해 평균 분포를 오염시키지 않는 역할이므로 유지한다.
+- 모든 canonical clip은 8 frame, 12 Hz이며 frame이 아니라 clip/location/link group으로
+  split한다.
+
 대회 맵과 공개 sample family를 학습에 활용하는 것은 허용된 domain specialization이며
 숨겨진 본 대회 시나리오에 대한 평가 누수와 같지 않다. 반면 내부 test로 선언한 exact
 sample clip을 반복 튜닝에 사용하면 내부 성능을 과대평가하는 실제 누수다.
@@ -359,7 +447,7 @@ mission-adapted variant와 계속 격리한 general variant를 별도로 비교�
 3. simulator-time lag, speed phase, Ego pose, stable ID, velocity GT와 camera 4대
    artifact 완전성을 검사한다.
 4. 3-sweep PointPainting dataset과 StreamPETR metadata loader를 모두 smoke한다.
-5. SaveSensorData 5 Hz 상당을 먼저 검증하고 안정적일 때만 10 Hz pilot을 수행한다.
+5. SaveSensorData 저속 pilot을 먼저 검증하고 안정적일 때 canonical 12 Hz pilot을 수행한다.
 6. 기존 Epoch 65 geometry, tracker-only velocity와 비교한 뒤 V2 비율을 확정한다.
 
 ## 실행 명령.
@@ -384,7 +472,7 @@ python3 dataset/morai_od/scripts/install_dynamic_capture_set.py \
 ```
 
 ROS/MORAI가 연결된 뒤 한 clip을 live smoke하려면 다음처럼 실행한다. Pilot manifest의
-기본 capture policy가 8 frame, 0.15초이므로 CLI에서 다시 덮어쓰지 않는다.
+기본 capture policy가 8 frame, 1/12초이므로 CLI에서 다시 덮어쓰지 않는다.
 
 ```bash
 python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
@@ -397,7 +485,7 @@ python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
 ```
 
 SaveSensorData는 한 snapshot을 쓰는 동안 MORAI wall-clock topic을 약 0.6초까지
-늦출 수 있다. 따라서 V2의 0.15초는 host wall-clock 간격이 아니다. 캡처기는 Ego의
+늦출 수 있다. 따라서 V2의 1/12초는 host wall-clock 간격이 아니다. 캡처기는 Ego의
 이동거리와 측정 속도를 적분한 `sequence_time_sec`을 물리 simulation-time 근사로
 사용한다. `triggered_unix`와 MORAI 파일명 시간은 provenance와 I/O 진단용으로만
 보존한다. 이 분리가 없으면 저장 I/O 지연을 실제 객체 운동 시간으로 오인하여
@@ -447,9 +535,150 @@ python3 dataset/morai_od/scripts/generate_temporal_sequence_v2_batch.py \
     temporal 간격은 `sequence_time_sec`으로 각각 역할을 분리한다.
 
 Production batch 001은 이 수정본으로 primary 188 clips/1,504 frames와 reserve
-20 clips/160 frames를 생성했고 두 manifest 모두 정적 검증 오류 0개를 통과했다.
+28 clips/224 frames를 생성했고 두 manifest 모두 정적 검증 오류 0개를 통과했다.
 Primary quota는 mission dynamic 93 clips/744 frames, static temporal 66 clips/528
 frames, hard transition 29 clips/232 frames다. Static 내부 explicit obstacle family는
 45/66 clips로 약 68.2%다.
 생성 manifest·scenario·route·validation report는 재현 가능한 산출물이므로 Git에는
 넣지 않고 `dataset/morai_od/.gitignore`로 제외한다.
+
+## Runtime 실패 triage 원칙.
+
+- 첫 live 실패 한 번만으로 생성 quota, arm threshold나 actor activation 정책을 바꾸지
+  않는다.
+- 먼저 같은 manifest와 scenario를 MORAI Ego Network 재연결 후 한 번 더 실행한다.
+- 두 실행의 ROS subscriber 복구 시간, control-mode 응답, 실제 Ego 진행거리·속도와 actor
+  상태를 비교한다.
+- 동일 조건에서 재현되면 그때 network/control, scenario geometry, capture policy 순으로
+  원인을 분리한다.
+- 안전 검증 완화나 생성기 정책 변경은 재현 로그 또는 artifact 근거가 있을 때만 적용한다.
+
+`dpd001` 첫 12 Hz smoke는 10초 동안 Ego가 14.455 m 이동했지만 speed gate를 넘지 못해
+실패했다. 그러나 변경되지 않은 기존 runtime manifest를 다시 로드한 두 번째 실행은 초기
+rosbridge 복구 후 0.782초 만에 10.33 km/h로 arm되고 8/8 frame을 완료했다. 따라서 이
+사례는 생성기 결함으로 확정하지 않고 일시적인 MORAI/ROS control 적용 상태로 분류한다.
+
+## 2026-08-22 six-crosswalk live gate와 deferred activation.
+
+첫 `dpd002` 실행은 일시적인 ROS 문제가 아니라 재현 가능한 geometry 결함이었다. 생성된
+Ego 시작점은 pedestrian과 11.84 m 떨어져 있었지만 pedestrian `activeDistance`는
+21.00 m여서 actor가 시나리오 로드 직후부터 횡단했다. 그 결과 Ego가 생성된 횡단보도
+중심으로부터 약 0.10 m 떨어진 곳에서 `Man1`과 충돌했다. 수정은 공식 sample인
+`dpd001`의 동작을 보존하고 비공식 횡단보도에만 다음과 같이 적용했다.
+
+- `dpd001`은 공식 path와 알려진 출발 방향을 재현하므로 `active_at_load`를 유지한다.
+- 나머지 횡단보도 scene은 `deferred_ego_approach`를 사용한다.
+- Activation distance는 Ego route clearance와 초기 Ego-actor 거리 사이에 두고 1.5 m
+  pre-roll을 확보한다.
+- Dynamic-actor readiness는 처음 정지한 pedestrian을 허용하지만, capture arm은 실제
+  pedestrian motion을 요구한다. Actor가 움직이기 전에 정지 frame 8장을 저장하지 않는다.
+- Route clearance 계산은 10 m보다 큰 불연속 waypoint jump를 제외한다. Sparse global
+  route가 거짓 collision-safe window를 만들지 않게 한다.
+
+수정 후 6개 위치 smoke 결과는 다음과 같다.
+
+| Scene | Crosswalk 역할 | 8-frame rate | Actor 이동 | Derived speed | 최소 Ego 거리 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `dpd001` | 공식 sample | 11.368 Hz | 0.810 m | 1.289--1.331 m/s | 9.532 m |
+| `dpd002` | direct train | 11.997 Hz | 1.506 m | 1.632--3.534 m/s | 5.163 m |
+| `dpd003` | direct validation | 11.814 Hz | 1.577 m | 2.631--2.690 m/s | 9.970 m |
+| `dpd004` | direct test | 11.728 Hz | 1.397 m | 2.203--2.981 m/s | 7.735 m |
+| `dpd005` | adjacent-side train | 11.600 Hz | 1.081 m | 1.786--1.798 m/s | 8.004 m |
+| `dpd006` | adjacent-side train | 11.586 Hz | 0.838 m | 1.365--1.407 m/s | 14.360 m |
+
+6개 clip 모두 collision 없이 8/8 SaveSensorData frame을 완료했다. Output validator 오류는
+0개였고 유일한 경고는 `/clock` 부재였다. 이 경우 message header time과
+`sequence_time_sec`을 계속 사용한다. 4-camera contact sheet를 눈으로 검사했을 때 모든
+설정 횡단보도에서 pedestrian이 실제 camera coverage에 들어왔다.
+
+`dpd004/005`의 `occluded_runout`과 `partial_visibility_transition` 명칭은 아직 실제
+occlusion 성공으로 인정하지 않는다. Smoke 영상에서 횡단과 부분 camera 관측은 확인됐지만,
+구조물 뒤 완전 가림에서 등장하는 전환은 명확하지 않았다. 따라서 geometry smoke로는
+유효하지만, production occlusion quota에는 전용 visibility audit를 통과하거나 실제적인
+정차 차량 occluder가 추가된 clip만 집계한다.
+
+추가 Instance-mask audit에서도 이 판단이 확인됐다. `dpd004` pedestrian은 CAMERA_1과
+CAMERA_2의 8/8 frame에 모두 Instance pixel이 있었고, CAMERA_2 후반 감소는 image-right
+boundary clipping이었다. `dpd005`도 CAMERA_3의 8/8 frame에 계속 보였으며
+visible-pixel/BBox 비율이 약 0.35--0.46으로 유지됐다. 가림→등장 전환이 아니므로 첫
+production batch에서는 두 profile weight를 0으로 비활성화하고 normal visible 60%, fast
+crossing 40%로 재배분한다. 실제 occluder placement와 camera-projection gate가 구현된 뒤에만
+occlusion profile을 다시 활성화한다.
+
+이 수정본으로 batch 001을 재생성하고 개인용 MORAI launcher에 설치했다. Source manifest와
+설치된 runtime manifest가 모두 정적 검증을 통과했다.
+
+- Primary는 188 clips/1,504 frames이며 오류 0개, pedestrian speed-unit audit 경고
+  25개다.
+- Reserve는 28 clips/224 frames이며 오류 0개, 같은 경고 10개다.
+- Speed-unit 경고는 MORAI pedestrian JSON 값의 단위가 schema에 명시되지 않아 유지한다.
+  실제 live displacement를 acceptance 근거로 사용한다.
+
+## 2026-08-22 production representative live gate.
+
+Batch 001 설치본에서 고위험 family 8개, 총 64개 저장 frame을 live gate로 검사했다.
+최초 실행에서는 `dhc001`, `dlc001`, `dso001`, `dsh001`이 통과했고 `drc001`,
+`dmc001`, `drs001`, `dhm001`이 route 검증에서 실패했다. 실패 4개를 변경 없이 다시
+실행해 모두 재현한 뒤 원인을 수정했다.
+
+원인은 scenario JSON에 저장한 11--29 km/h Ego 초기 속도였다. ScenarioLoad 직후
+rosbridge와 external control이 복구되기 전에 Ego가 접선 방향으로 이동해 route를
+1.5--12.3 m 벗어났다. 학습에 필요한 캡처 속도 다양성과는 별개인 load-time race이므로
+다음 정책으로 변경했다.
+
+- 모든 Temporal V2 scenario는 load 시 Ego 속도 0 km/h로 시작한다.
+- Family별 nominal initial speed는 metadata의 `nominal_ego_initial_speed_kph`에 보존한다.
+- External control이 연결된 뒤 기존 target speed까지 가속한다.
+- 기존 minimum speed, route progress와 stability gate를 통과한 뒤에만 frame 0을 저장한다.
+
+이 수정으로 `dmc001`, `drs001`, `dhm001`은 8/8 frame을 완료했다. `drc001`은 route
+이탈은 사라졌지만 stability gate가 로터리의 정상 횡가속을 가감속으로 오인해 두 번
+실패했다. Stability gate를 world acceleration magnitude가 아니라 velocity 방향에 투영한
+종방향 acceleration으로 바꿨다. 실제 종방향 가감속은 계속 차단하고 steady-speed turn의
+구심가속만 허용한다. 수정 후 `drc001`도 15.88 km/h에서 arm되어 8/8 frame을 완료했다.
+
+최종 대표 family live 결과는 다음과 같다.
+
+| Family scene | 역할 | 결과 |
+| --- | --- | --- |
+| `drc001` | 로터리 순항 | 8/8, 11.433 Hz. |
+| `dmc001` | 고주로 합류 순항 | 8/8, 11.515 Hz. |
+| `dhc001` | 고주로 순항·추월 | 8/8, 11.345 Hz. |
+| `dlc001` | 고주로 차선 변경 | 8/8, 11.500 Hz. |
+| `dso001` | 일반 정적 obstacle | 8/8, 11.593 Hz. |
+| `dsh001` | 고주로 정적 obstacle | 8/8, 11.519 Hz. |
+| `drs001` | 로터리 spawn transition | 8/8, 11.635 Hz. |
+| `dhm001` | 고주로 spawn transition | 8/8, 11.385 Hz. |
+
+세 capture directory를 각각 output validator로 검사한 결과 총 8 clips/64 frames,
+오류 0개였다. 경고 8개는 모두 Capture Mode의 `/clock` 부재이며 sensor artifact,
+frame metadata와 sequence contract 결손은 없었다.
+
+## 2026-08-22 Batch 001 초기 중단과 로터리 readiness 보정.
+
+첫 primary 실행은 14개 scene을 시도해 3개만 성공하고 11개가 실패하여 중단했다. 대형
+console 원문 대신 `summary.json`과 `failures.jsonl`의 작은 집계만 사용한 결과,
+실패는 readiness 9건과 collision 2건이었다. 대표 실패 `drc005`를 변경 없이 단독
+재실행했을 때 Ego가 34.37 m 이동하고 CtrlCmd, actor motion과 sensor writer가 모두
+정상이었지만, 10초 시점 속도 16.43 km/h가 목표의 85%인 17.79 km/h보다 낮고 stable
+gate도 충족하지 못해 동일하게 실패했다. 반면 `drc011`은 같은 조건에서 timeout 직전인
+9.92초에 겨우 arm되어 8/8 frame을 저장했다. 따라서 ROS 연결 문제가 아니라 곡선
+제어와 readiness 정책의 불일치로 확정했다.
+
+로터리 production 정책은 다음과 같이 보정했다.
+
+- `roundabout_circulation`의 capture 최소속도를 target의 85%에서 65%로 낮췄다.
+- 로터리에서 constant-speed만 강제하던 0.5초 stable acceleration gate를 제거했다.
+  3 m motion arm, actor motion, collision, route와 artifact 검증은 유지한다.
+- 로터리 NPC는 18--22 km/h인데 adaptive curve가 Ego 명령을 12 km/h까지 낮추면서
+  뒤따르던 NPC가 약 `(-102, 325)`에서 Ego를 추돌했다. 두 roundabout family에만
+  `minimum_curve_speed_kph=16`을 적용해 이 비현실적인 catch-up을 줄였다.
+- Family별 curve minimum을 scenario runtime override로 전달하도록 generator를
+  보강했다. 다른 family의 곡선 속도 정책은 바꾸지 않았다.
+
+수정 후 기존 실패 `drc005`는 3.21초, 13.64 km/h에서 arm되어 8/8, 11.776 Hz로
+완료했다. 최종 runtime manifest로 충돌 이력이 있던 `drc002`, `drc004`, `drc007`과
+hard-transition `drs001`을 연속 실행한 결과 4/4 clip, 32/32 frame이 성공했고 sequence
+rate는 11.254--11.873 Hz였다. 장면 전환 중 rosbridge reconnect 경고 한 번은 자동
+복구됐으며 collision, readiness와 artifact 실패는 없었다. Primary 188 scenes와 reserve
+28 scenes runtime manifest도 정적 validator 오류 0건을 유지했다.

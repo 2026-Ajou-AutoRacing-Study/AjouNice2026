@@ -254,10 +254,10 @@ def validate_scene(entry):
             errors.append("temporal V2 canonical clip must contain 8 frames")
         if not math.isclose(
             float(policy.get("capture_period_sec", 0.0)),
-            0.15,
+            1.0 / 12.0,
             abs_tol=1e-9,
         ):
-            errors.append("temporal V2 canonical period must be 0.15 sec")
+            errors.append("temporal V2 canonical period must be 1/12 sec (12 Hz)")
     required_sensor_dirs = set(policy.get("required_sensor_dirs", []))
     expected_sensor_dirs = {
         "CAMERA_1", "CAMERA_2", "CAMERA_3", "CAMERA_4", "LIDAR_5"
@@ -268,10 +268,50 @@ def validate_scene(entry):
         units = metadata["runtime_actors"][0].get("speed_unit")
         if units and units.endswith("unverified"):
             warnings.append("pedestrian speed config unit requires MORAI displacement audit")
+        pedestrian = metadata["runtime_actors"][0]
+        if not pedestrian.get("crosswalk_id"):
+            errors.append("crosswalk pedestrian is missing MGeo crosswalk_id")
+        if pedestrian.get("crosswalk_role") not in {
+            "official_sample_direct",
+            "route_direct_train",
+            "route_direct_validation",
+            "route_direct_test",
+            "route_adjacent_side",
+        }:
+            errors.append("crosswalk pedestrian has unknown crosswalk role")
+        if pedestrian.get("difficulty_profile") not in {
+            "normal_visible",
+            "fast_crossing",
+            "occluded_runout",
+            "partial_visibility_transition",
+        }:
+            errors.append("crosswalk pedestrian has unknown difficulty profile")
+        expected_split = pedestrian.get("crosswalk_split")
+        if expected_split and metadata.get("split") != expected_split:
+            errors.append("crosswalk location leaked into a different split")
         runtime = metadata["runtime_actors"][0]
         initial_distance = float(runtime.get("initial_ego_distance_m", 0.0))
         active_distance = float(runtime.get("active_distance_m", 0.0))
-        if active_distance <= initial_distance:
+        if runtime.get("activation_policy") == "deferred_ego_approach":
+            route_clearance = float(
+                runtime.get("route_clearance_to_actor_m", 0.0)
+            )
+            preroll = float(runtime.get("activation_preroll_m", 0.0))
+            if not route_clearance < active_distance < initial_distance:
+                errors.append(
+                    "deferred pedestrian activation distance is outside safe window"
+                )
+            if preroll < 1.0:
+                errors.append("deferred pedestrian activation pre-roll is too short")
+            if entry.get("dynamic_actor_ready_requires_motion", True):
+                errors.append(
+                    "deferred pedestrian readiness must accept stationary actor"
+                )
+            if not entry.get("capture_arm_requires_actor_motion", False):
+                errors.append(
+                    "deferred pedestrian capture must wait for actor motion"
+                )
+        elif active_distance <= initial_distance:
             errors.append(
                 "pedestrian activeDistance does not include initial Ego pose"
             )

@@ -47,3 +47,86 @@ append되며 `summary.json`은 작은 최신 상태 파일로 원자적으로 �
 
 두 스크립트의 작은 결과 JSON만 Codex가 읽는다. 로컬 스크립트가 대형 로그를
 순차적으로 읽는 것은 허용하지만, 대형 원문을 채팅 context로 불러오지는 않는다.
+
+## Capture Monitor V2
+
+Temporal V2 production 수집은 다음 read-only sidecar를 기본 monitor로 사용한다.
+
+```bash
+cd ~/AjouNice2026
+
+python3 dataset/morai_od/scripts/monitor_ros_capture_progress_v2.py \
+  --run-dir /home/luv/morai_cap/<실제_실행_폴더> \
+  --manifest \
+  dataset/morai_od/manifests/temporal_sequence_v2_batch001_primary_runtime.json
+```
+
+한 번만 출력하거나 다른 로컬 도구에서 작은 snapshot을 읽으려면 다음 옵션을 쓴다.
+
+```bash
+python3 dataset/morai_od/scripts/monitor_ros_capture_progress_v2.py \
+  --run-dir /home/luv/morai_cap/<실제_실행_폴더> \
+  --manifest \
+  dataset/morai_od/manifests/temporal_sequence_v2_batch001_primary_runtime.json \
+  --once --no-clear --no-color
+
+python3 dataset/morai_od/scripts/monitor_ros_capture_progress_v2.py \
+  --run-dir /home/luv/morai_cap/<실제_실행_폴더> \
+  --manifest \
+  dataset/morai_od/manifests/temporal_sequence_v2_batch001_primary_runtime.json \
+  --json
+```
+
+V2는 다음 정보를 표시한다.
+
+- scene과 검증 frame 진행률, elapsed time과 ETA.
+- mission dynamic, static temporal, hard transition 그룹별 quota.
+- 13개 family와 train/val/test split별 완료 수.
+- 최근 scene 처리시간 p50/p95와 실제 sequence rate p50/p05.
+- checkpoint age, disk free space, 연속 실패 수와 실패 유형별 집계.
+- 최근 실패 여섯 건의 ID, 유형과 짧게 자른 오류 내용.
+- `console.log`가 있으면 현재 scenario load/capture 단계와 clip frame 진행률.
+
+수집 영향 방지 원칙은 다음과 같다.
+
+- capture runner 코드를 import하거나 수정하지 않는다.
+- ROS topic을 구독하지 않는다.
+- Camera/LiDAR sensor directory를 반복 scan하지 않는다.
+- 2초마다 1 MiB 이하의 atomic `summary.json`만 다시 읽는다.
+- `scenes.jsonl`과 `failures.jsonl`은 최초 한 번 읽고 이후 append된 byte만 읽는다.
+  `console.log`는 최초에도 마지막 256 KiB만 읽고 이후 append만 추적한다.
+- run directory에 파일을 쓰지 않는다. Monitor가 종료되거나 예외가 나도 capture
+  runner에는 영향을 주지 않는다.
+- `--interval-sec`은 최소 1초로 제한하고 production 기본은 2초로 유지한다.
+
+실제 52-scene 결과에서 실패 유형 `actor_missing=6`과 높은 실패율 경고를 정확히
+표시했다. 완료된 Temporal V2 clip에서는 8/8 frame, sequence 11.43 Hz와 scene
+duration 16.15초를 복원했다. 동일 snapshot 1,000회 refresh benchmark는 평균 약
+0.08 ms/refresh였고, production 기본 2초 주기로 환산한 monitor CPU 비율은 약
+0.004%였다. 이 부하는 capture에 영향을 줄 수준이 아니다.
+
+선택 실행은 manifest 전체가 아니라 실제 selector를 monitor에도 반복해 전달한다.
+그렇지 않으면 family target이 전체 manifest 기준이 되어
+`manifest_selection_mismatch` 경고가 발생한다.
+
+```bash
+python3 dataset/morai_od/scripts/monitor_ros_capture_progress_v2.py \
+  --run-dir /home/luv/morai_cap/<smoke_실행_폴더> \
+  --manifest \
+  dataset/morai_od/manifests/temporal_sequence_v2_batch001_primary_runtime.json \
+  --scenario drc001 --scenario dmc001
+```
+
+### 후순위 ROS diagnostics 계획
+
+`/diagnostics`와 `rqt_runtime_monitor` 연동은 첫 production 수집 범위에서 제외한다.
+여러 perception/tracking/prediction node를 동시에 운영하는 단계에서 다음 상태를
+표준 ROS DiagnosticArray로 통합할 때 구현한다.
+
+- ScenarioLoad, SaveSensorData, CtrlCmd 연결 상태.
+- Ego/Object heartbeat age.
+- capture checkpoint stale, disk 부족과 연속 실패 상태.
+- detector, tracker와 prediction node의 heartbeat와 처리율.
+
+Capture Monitor V2가 dataset 진행과 실패 문맥을 담당하고 ROS diagnostics는 전체 ROS
+stack의 공통 health GUI를 담당한다. 두 기능을 중복 구현하지 않는다.
