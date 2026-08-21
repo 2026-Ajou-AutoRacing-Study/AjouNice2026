@@ -259,11 +259,10 @@ class TrafficLightNode:
             if crop.size > 0:
                 raw_color_results, _counts = classify_crop(crop)
 
-                if has_impossible_conflict(raw_color_results):
-                    self._maybe_save_conflict_crop(crop, raw_color_results)
+                self._maybe_save_conflict_crop(crop, raw_color_results)
 
         if has_impossible_conflict(raw_color_results):
-            fixed = resolve_conflict(raw_color_results)
+            fixed = resolve_conflict(raw_color_results, gid=group.traffic_light_group_id)
             if fixed != raw_color_results:
                 self._n_conflict_fixed += 1
                 rospy.logwarn_throttle(
