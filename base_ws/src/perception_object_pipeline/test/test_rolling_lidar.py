@@ -7,6 +7,7 @@ from perception_object_pipeline.rolling_lidar import (
     deskew_points_to_reference_pose,
     representative_detection_time_offset,
     transform_boxes_between_lidar_times,
+    transform_points_between_lidar_times,
 )
 
 
@@ -120,6 +121,25 @@ class RollingLidarDeskewTest(unittest.TestCase):
         self.assertIsNotNone(transformed)
         self.assertAlmostEqual(float(transformed[0, 0]), 8.0, places=6)
         self.assertAlmostEqual(float(transformed[0, 6]), 0.0, places=6)
+
+    def test_past_sweep_is_reexpressed_in_current_lidar_frame(self):
+        poses = self.poses(
+            (0.0, 0.0, 0.0, 0.0, 0.0),
+            (1.0, 1.0, 0.0, 0.0, 0.0),
+        )
+        points = np.asarray(
+            [[5.0, 0.0, 0.0, 0.7, 0.1, 0.9]], dtype=np.float32
+        )
+        transformed = transform_points_between_lidar_times(
+            points,
+            source_time_sec=0.0,
+            target_time_sec=1.0,
+            pose_samples=poses,
+            maximum_extrapolation_sec=0.0,
+        )
+        self.assertIsNotNone(transformed)
+        np.testing.assert_allclose(transformed[:, :3], [[4.0, 0.0, 0.0]])
+        np.testing.assert_allclose(transformed[:, 3:], points[:, 3:])
 
     def test_velocity_vector_rotates_with_lidar_axes(self):
         poses = self.poses(

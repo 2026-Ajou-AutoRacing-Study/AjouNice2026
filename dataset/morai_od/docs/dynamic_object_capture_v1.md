@@ -40,10 +40,13 @@ frame이 아니라 scenario clip 전체를 train/val/test 중 하나에 배정�
 
 첫 10,000-frame 학습에서는 `structured_random_dynamic`을 보류한다. 미션 family
 자체를 무작위 혼합으로 바꾸지 않고 로터리·고주로·횡단보도의 pure한 상호작용을
-유지한다. 최종 구성은 미션 중심 약 50%, 정적 random 35%, hard case 15%이며,
-obstacle 종류 부족은 동적 clip에 임의 배치하지 않고 정적 random의 obstacle 중심
-quota를 40%로 높여 해결한다. structured dynamic은 첫 학습에서 일반 도로 동적
-운동이나 문맥 shortcut 문제가 확인될 때만 별도 pilot으로 재검토한다.
+유지한다. 과거 Batch001의 미션 50%/정적 random 35%/hard 15%와 정적 내부 obstacle
+40%는 1,500-frame single-frame 인수용 구성으로만 보존한다. 신규 temporal V2의
+production 기준은 `temporal_sequence_capture_v2_plan.md`의 동적 차량 45%, 동적
+보행자 15%, 정적 temporal 25%, hard temporal 15%와 정적 내부 obstacle-focused
+70%다. Obstacle 종류 부족은 동적 mission clip에 임의 배치하지 않고 asset·형상·거리
+quota가 있는 정적/hard family로 해결한다. structured dynamic은 첫 학습에서 일반
+도로 동적 운동이나 문맥 shortcut 문제가 확인될 때만 별도 pilot으로 재검토한다.
 
 ### 고주로 장면 분리
 
@@ -152,6 +155,50 @@ SaveSensorData를 안정적으로 처리하는지 보기 전에는 15~30 Hz를 �
 0.5초보다 길어질 수 있다. temporal 학습은 고정 0.5초로 가정하지 않고 frame
 metadata의 실제 timestamp를 사용한다.
 
+### Dynamic keyframe 간격과 temporal 3-sweep.
+
+현재 동적 생성기의 설정값은 장면당 12 frame, `capture_period_sec=0.5`초다. 이 값은
+SaveSensorData 요청의 wall/ROS-time 최소 간격이며 LiDAR 원래 발행률이나 고정된
+simulator-time 간격이 아니다. 개인용 MORAI가 real time보다 느리게 실행된 기존
+1,500-frame 수집에서는 인접 저장 frame의 복원된 simulator-time lag p50이 약
+0.147초, 두 frame 전 lag p50이 약 0.293초였다.
+
+따라서 temporal PointPainting의 `0.15초`는 설계에서 강제한 촬영 주기가 아니라
+기존 데이터에서 관측된 결과다. 3-sweep early temporal 입력은 다음처럼 동작한다.
+
+1. 현재 frame과 같은 clip의 직전 두 저장 frame을 선택한다.
+2. 각 frame의 실제 `time_lag_sec`를 point feature로 추가한다.
+3. 저장된 Ego pose로 과거 sweep 전체를 현재 LiDAR 좌표계에 정합한다.
+4. 정합한 세 point cloud를 하나로 합쳐 PointPillars에 입력한다.
+
+모델은 정확히 0.15초 간격만 받을 필요는 없지만, 지나치게 긴 간격은 학습 분포를
+바꾸고 association을 어렵게 한다. 현재 정적 `rolling-grouped`는 5.4 km/h Ego가
+3 m씩 이동한 뒤 촬영하므로 인접 frame이 물리적으로 약 2초 떨어진다. 이 3장은
+temporal 3-sweep이 아니라 같은 배치를 서로 다른 거리에서 본 single-frame 표본
+3장으로 취급한다.
+
+정적 객체를 temporal 학습에도 포함하려면 기존 거리 기반 3장을 대체하지 않고,
+별도의 짧은 keyframe burst와 frame별 timestamp/Ego pose sidecar를 추가한다. 정적
+객체의 world velocity target은 계속 `(0,0)`이며, 센서에서 보이는 상대 이동은 Ego
+pose 정합으로 처리한다.
+
+### 1,500-frame production의 정적 구성.
+
+Primary 1,500 frame 중 일반 정적은 525 frame, hard static은 15 frame으로 전체
+정적 비율은 36%다. 일반 정적은 175 scene을 장면당 3 frame으로 수집한다.
+
+| 정적 scene type | Scene | Frame | 일반 정적 내 비율 | 배치 내용 |
+| --- | ---: | ---: | ---: | --- |
+| `realistic_mixed` | 61 | 183 | 34.9% | NPC 2--5, pedestrian 1--4, obstacle 1--3. |
+| `vehicle_centric` | 18 | 54 | 10.3% | NPC 5--8, pedestrian 0--2, obstacle 0--2. |
+| `pedestrian_centric` | 17 | 51 | 9.7% | NPC 0--2, pedestrian 6--10, obstacle 0--2. |
+| `obstacle_centric` | 70 | 210 | 40.0% | NPC 0--2, pedestrian 0--2, obstacle 5--7. |
+| `sparse_empty_background` | 9 | 27 | 5.1% | NPC 0--1, pedestrian 0, obstacle 0. |
+
+Hard static 5 scene, 15 frame은 camera seam/occlusion 2 scene, dense obstacle
+occlusion 2 scene, sparse hard-negative 1 scene으로 구성한다. 예비 static 50 scene,
+150 frame은 실패 교체용이며 primary 1,500 frame에는 자동으로 포함하지 않는다.
+
 ## 출력과 metadata
 
 ```text
@@ -160,6 +207,7 @@ metadata의 실제 timestamp를 사용한다.
 ├── LIDAR_5/
 ├── dynamic_metadata/
 │   ├── drs001.frames.jsonl
+│   ├── drs001.timing.jsonl
 │   └── drs001.clip.json
 ├── scenes.jsonl
 ├── failures.jsonl
@@ -176,6 +224,15 @@ metadata의 실제 timestamp를 사용한다.
 - MORAI raw velocity/acceleration.
 - clip 내 중앙차분 velocity, acceleration, yaw rate와 motion phase.
 - Ego/Object callback age와 actor 존재 여부.
+- 가장 가까운 `/clock`, Ego, Object, 선택적 sensor-header sample ID와 시간차.
+
+`*.timing.jsonl`은 clip 앞뒤 0.25초를 포함한 연속 상태 이력을 저장한다.
+
+- `/clock` simulator time.
+- Ego pose·heading·velocity·acceleration.
+- 모든 actor의 pose·heading·size·velocity·acceleration.
+- ROS 센서 토픽이 존재할 때 LiDAR·4-camera header와 payload 형상 metadata.
+- 이미지나 point cloud payload는 중복 저장하지 않는다.
 
 원시 velocity는 임의 변환하지 않는다. 파생 m/s 값과 함께 남겨 launcher별 단위
 차이를 감사한다. calibration은 `configs/sensors/Sensor_6.json`을 참조한다.
@@ -357,7 +414,7 @@ ScenarioLoad 직후 개인용 launcher의 센서 writer를 초기화하기 위�
 LiDAR payload 누락·0 byte는 계속 scene 실패다. 이 구분은
 `batch001_m_dmc003` 4-frame 재검증에서 errors 0, warnings 0으로 확인했다.
 
-## 향후 rolling-LiDAR timing sidecar
+## rolling-LiDAR timing sidecar
 
 현재 SaveSensorData `LIDAR_5/*_Intensity.bin`은 `x,y,z,intensity`만 저장하며
 point별 측정 시각을 포함하지 않는다. 실제 표본은 19,200 point, 307,200 byte로
@@ -365,13 +422,21 @@ point별 측정 시각을 포함하지 않는다. 실제 표본은 19,200 point,
 single-frame `vx,vy` regression에는 사용할 수 있지만, 정확한 point-time feature와
 point별 Ego-motion deskew 학습에는 정보가 부족하다.
 
-다음 대규모 batch를 시작하기 전에 다음 pilot을 수행한다.
+현재 capture runner는 lightweight timing sidecar를 기본 생성한다.
 
-1. SaveSensorData trigger 주변의 `/sensor/lidar1` PointCloud2와 `/Ego_topic`을 작은
-   sidecar recorder로 보존한다.
-2. SaveSensorData XYZI와 ROS scan의 point count·좌표·순서가 같은지 검증한다.
-3. 동일 scan으로 확인된 frame에만 point-time과 scan 구간 Ego pose를 연결한다.
-4. 같은 원본에서 raw와 Ego-deskew painted point를 함께 생성해 재수집 없이 A/B할 수
+1. SaveSensorData trigger 주변의 `/clock`, `/Ego_topic`, `/Object_topic` 연속 이력을
+   보존한다.
+2. `/sensor/lidar1`과 4-camera compressed topic이 존재할 때 payload 없이 header,
+   field/shape, byte-size metadata만 보존한다.
+3. 각 frame은 가장 가까운 timing sample ID와 trigger 대비 시간차를 참조한다.
+4. Capture Mode에서 센서 ROS topic이 없으면 실패시키지 않고 clip metadata에
+   `available: false`로 기록한다.
+
+정확한 point-time 연결은 아래 조건을 만족할 때 추가 검증한다.
+
+1. SaveSensorData XYZI와 ROS scan의 point count·좌표·순서가 같은지 검증한다.
+2. 동일 scan으로 확인된 frame에만 point-time과 scan 구간 Ego pose를 연결한다.
+3. 같은 원본에서 raw와 Ego-deskew painted point를 함께 생성해 재수집 없이 A/B할 수
    있게 한다.
 
 이 sidecar는 rosbag 기반 수집으로 회귀하는 것이 아니다. Camera 4대·LiDAR·GT의
@@ -383,3 +448,17 @@ Deskew를 production에 적용하려면 학습과 online inference가 같은 ref
 LiDAR extrinsic, camera matching 정책을 사용해야 한다. 현재 raw-scan Epoch 65
 checkpoint의 production 기본값 `lidar_deskew_mode=off`는 이 A/B가 통과할 때까지
 유지한다.
+
+### Timing sidecar live smoke (`260821_095908`).
+
+- `drs001` 2-frame SaveSensorData capture가 완료됐고 frame당 25개, 총 50개 sensor
+  artifact를 저장했다.
+- validator 결과는 errors 0, warnings 1, status pass다.
+- clip 주변 1.05초 동안 Ego 22개와 Object 22개 sample을 저장하여 둘 다 약 20 Hz다.
+- capture trigger와 nearest Ego/Object sample의 절대 시간차는 약 5~8 ms다.
+- NPC 이동량 1.593 m와 raw speed 변화 11.460→14.108을 연속 이력에서 확인했다.
+- Capture Mode에서는 `/clock`, `/sensor/lidar1`, 4-camera compressed topic payload가
+  발행되지 않아 `available: false`로 기록됐다. Ego/Object message header timestamp는
+  정상이며 frame-level temporal alignment에는 사용 가능하다.
+- 따라서 sweep 간 Ego 정합과 actor velocity label 검증에는 sidecar를 사용할 수 있다.
+  반면 exact scan-internal point-time deskew는 이 capture profile만으로 해결되지 않는다.

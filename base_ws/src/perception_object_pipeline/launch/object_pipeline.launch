@@ -68,6 +68,12 @@
   <arg name="pointpainting_lidar_deskew_mode" default="off"/>
   <arg name="pointpainting_lidar_deskew_reference" default="point_median"/>
   <arg name="pointpainting_lidar_deskew_camera_reference" default="reference"/>
+  <arg name="pointpainting_temporal_num_sweeps" default="0"/>
+  <arg name="pointpainting_temporal_maximum_gap_sec" default="0.75"/>
+  <arg name="pointpainting_temporal_lidar_scan_period_sec"
+       default="0.06666667"/>
+  <arg name="pointpainting_publish_detector_velocity" default="false"/>
+  <arg name="pointpainting_detector_velocity_noise_std_mps" default="1.0"/>
 
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
 
@@ -118,6 +124,16 @@
            value="$(arg pointpainting_lidar_deskew_reference)"/>
       <arg name="lidar_deskew_camera_reference"
            value="$(arg pointpainting_lidar_deskew_camera_reference)"/>
+      <arg name="temporal_num_sweeps"
+           value="$(arg pointpainting_temporal_num_sweeps)"/>
+      <arg name="temporal_maximum_gap_sec"
+           value="$(arg pointpainting_temporal_maximum_gap_sec)"/>
+      <arg name="temporal_lidar_scan_period_sec"
+           value="$(arg pointpainting_temporal_lidar_scan_period_sec)"/>
+      <arg name="publish_detector_velocity"
+           value="$(arg pointpainting_publish_detector_velocity)"/>
+      <arg name="detector_velocity_noise_std_mps"
+           value="$(arg pointpainting_detector_velocity_noise_std_mps)"/>
     </include>
   </group>
 

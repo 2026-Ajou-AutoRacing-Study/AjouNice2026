@@ -155,11 +155,17 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate openpcdet_rtx50
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 
-python train.py \
+python ~/AjouNice2026/perception/pointpainting/tools/train_openpcdet_wandb.py \
+  --wandb-entity AjouNice2026 \
+  --wandb-project pointpainting-morai \
+  --wandb-group temporal3-deskew-ab-e30-v1 \
+  --wandb-run-name temporal3-raw-velocity9d-e30-v1 \
+  --wandb-tags temporal3,velocity9d,raw \
   --cfg_file cfgs/custom_models/pointpillar_morai_pointpainting_temporal3_velocity9d.yaml \
   --pretrained_model \
   ~/AjouNice2026/artifacts/detection3d/pointpainting/releases/260820_dynamic1500_temporal3_velocity9d_init/pointpainting_B0_epoch65_temporal3_velocity9d_init.pth \
   --epochs 30 \
+  --num_epochs_to_eval 30 \
   --workers 4 \
   --fix_random_seed \
   --extra_tag temporal3_raw_velocity9d_e30_v1 \
@@ -177,11 +183,17 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate openpcdet_rtx50
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 
-python train.py \
+python ~/AjouNice2026/perception/pointpainting/tools/train_openpcdet_wandb.py \
+  --wandb-entity AjouNice2026 \
+  --wandb-project pointpainting-morai \
+  --wandb-group temporal3-deskew-ab-e30-v1 \
+  --wandb-run-name temporal3-azimuth-deskew-velocity9d-e30-v1 \
+  --wandb-tags temporal3,velocity9d,azimuth-deskew \
   --cfg_file cfgs/custom_models/pointpillar_morai_pointpainting_temporal3_velocity9d.yaml \
   --pretrained_model \
   ~/AjouNice2026/artifacts/detection3d/pointpainting/releases/260820_dynamic1500_temporal3_velocity9d_init/pointpainting_B0_epoch65_temporal3_velocity9d_init.pth \
   --epochs 30 \
+  --num_epochs_to_eval 30 \
   --workers 4 \
   --fix_random_seed \
   --extra_tag temporal3_azimuth_ego_deskew_velocity9d_e30_v1 \
@@ -201,3 +213,119 @@ python train.py \
   sidecar와 online deskew 계약으로 승격한다.
 - 최종 production 학습에는 temporal metadata를 갖춘 obstacle/static clip을 새로
   포함해야 한다.
+
+## 2026-08-21 학습 결과
+
+- A raw는 epoch 26, B azimuth Ego-deskew는 epoch 14가 각 run의 best였다.
+- 동일한 동적 validation 130 frame에서 A raw가 B보다 geometry와 velocity를
+  종합적으로 더 안정적으로 유지했다.
+- A raw epoch 26의 핵심 결과는 다음과 같다.
+  - center mean AP: Pedestrian `0.9807`, Vehicle `0.9745`.
+  - BEV IoU AP@0.3/AP@0.5: Pedestrian `0.9851/0.8008`, Vehicle
+    `0.9867/0.9867`.
+  - mAVE: Pedestrian `0.899 m/s`, Vehicle `1.999 m/s`.
+- Geometry 우선 선택에서는 A raw를 먼저 online 이식 검증 대상으로 골랐다.
+  그러나 Vehicle velocity가 실제 목표라면 B도 반드시 별도로 평가해야 한다.
+  B14는 A26보다 Vehicle mAVE와 speed MAE가 각각 약 `0.256 m/s`, `0.223 m/s`
+  낮다. A만 평가한 결과로 B를 기각할 수 없다.
+- 다만 validation에는 Pedestrian 40개, Vehicle 81개, Obstacle 0개만 존재한다.
+  이 결과만으로 기존 3-class epoch 65 production을 대체할 수 없다.
+
+## Online ROS 이식 및 end-to-end 검증
+
+Online node에 우선 A raw용 다음 pilot 경로를 구현했다.
+
+- 현재 painted sweep과 과거 2개 painted sweep을 보관한다.
+- `/Ego_topic` pose를 보간해 과거 sweep 전체를 현재 LiDAR frame으로 정합한다.
+- 각 point에 `time_lag_sec`를 추가해 학습과 같은 10-feature 입력을 만든다.
+- scan 내부 deskew는 A 조건에 맞게 적용하지 않는다.
+- 9D Vehicle box의 `vx,vy`는 표준 `DetectedObjects.has_twist`로 선택적으로
+  발행한다.
+- EKF velocity fusion은 mode 0과 mode 2를 같은 Detection bag으로 비교한다.
+
+로터리 1 raw bag에서 node startup, 3-sweep history, GPU inference와 469개
+Detection 메시지 발행은 모두 정상 동작했다. 그러나 domain-generalization은
+실패했다.
+
+| 모델/모드 | Tracking recall | Tracking precision | Center p50 | Speed p50/p90 | 1s minFDE-K p50 | 2s | 3s | 1s coverage |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| E65 single-frame production | 0.931 | 0.993 | **0.733 m** | **0.453/1.313 m/s** | **0.726 m** | **1.136 m** | **1.527 m** | **0.930** |
+| A26 temporal, velocity fusion off | 0.477 | 0.727 | 0.797 m | 0.998/2.646 m/s | 1.468 m | 2.499 m | 3.423 m | 0.465 |
+| A26 temporal, velocity fusion mode 2, noise 2.0 m/s | 0.248 | 0.445 | 0.732 m | 1.198/3.682 m/s | 1.319 m | 2.291 m | 3.478 m | 0.242 |
+
+- A26은 E65보다 detection 수가 `736 -> 533`, non-empty frame이
+  `468 -> 320`, score p50이 `0.686 -> 0.484`로 감소했다.
+- velocity fusion은 A26의 noisy velocity 때문에 track propagation과 association을
+  더 악화했다. covariance를 조정하는 문제 이전에 detector recall과 velocity
+  generalization이 부족하다.
+- 동적 validation의 높은 AP는 현재 sample-scene 로터리 bag에 일반화되지 않았다.
+  인접 frame이 많은 작은 validation과 제한된 mission family 결과를 production
+  성능으로 해석하면 안 된다.
+- 위 표는 A26만 평가한 결과이며 B14의 결과가 아니다.
+- 현재 raw ROS bag의 PointCloud2에는 point별 `time` field가 없다. B를 공정하게
+  평가하려면 학습 때와 동일하게 azimuth에서 point offset을 추정하고 scan 내부
+  Ego deskew를 적용하는 online 경로가 먼저 필요하다.
+- A26 checkpoint와 online temporal 경로는 연구 pilot으로만 유지한다.
+- B14는 아직 production 후보도 기각 후보도 아니며, online azimuth deskew 계약을
+  일치시킨 뒤 별도 end-to-end gate를 통과시켜야 한다.
+- production은 E65 single-frame, detector velocity 비활성, EKF velocity fusion
+  mode 0을 유지한다.
+- 다음 velocity 학습은 scene/route/actor profile을 분리한 validation과 실제
+  로터리·고주로 replay를 필수 gate로 사용하고, obstacle/static temporal clip까지
+  포함해야 한다.
+
+### A26 online 저하 원인 감사
+
+단순히 같은 `roundabout` family를 학습했다는 사실만으로 official sample bag을
+본 것으로 간주할 수 없다. 실제 센서 관측 조건을 분해한 결과는 다음과 같다.
+
+- Temporal train 540 target 중 stationary Ego frame은 0개다. Ego raw speed는
+  최소 `0.965 m/s`다.
+- Train roundabout vehicle의 상대 방위각 중앙값은 약 `86 deg`로 주로 좌측방이다.
+- Official roundabout1 bag은 Ego가 전 구간 완전 정지하며, vehicle 상대 방위각
+  중앙값은 약 `3 deg`로 정면 통과다.
+- Vehicle 속도 중앙값은 train roundabout `5.11 m/s`, bag `5.51 m/s`다.
+- Vehicle 거리 중앙값도 train roundabout 약 `20.9 m`, bag 약 `19.4 m`로
+  비슷하다. asset도 train에 반복 포함된 K5 계열이다.
+
+Vehicle asset, 속도, 거리보다 stationary-Ego/front-crossing 관측 조건이 더 크게
+달랐고, multi-sweep voxel 분포 차이도 관측됐다. 다만 Ego pose 정합이 정확하면
+Ego translation 자체는 좌표상 대부분 상쇄된다. 따라서 아래 결과는
+stationary Ego가 단독 원인이라는 증명이 아니라 viewpoint, ray sampling, occlusion,
+rolling-scan timing과 online temporal construction을 함께 점검해야 한다는 근거다.
+
+| 입력 | 30m 내 3-sweep point p50 | occupied pillar p50 |
+| --- | ---: | ---: |
+| Temporal train roundabout | 23,619 | 7,966 |
+| Official roundabout1 online | 35,743 | 3,803 |
+
+Stationary Ego에서는 같은 beam의 배경 point가 세 sweep에 반복되어 point 수는
+51% 많지만 occupied pillar는 약 52% 적다. Moving-Ego train에서는 시점 변화로
+complementary surface가 누적된다. 이 density/coverage 차이는 실제지만, 현재
+결과만으로 모델 실패의 단독 원인이라고 확정하지 않는다.
+
+실제 거리별 online 검출도 이 해석을 지지한다.
+
+- E65는 nearest vehicle 15m 미만 frame의 100%에서 하나 이상 검출했다.
+- A26은 같은 구간에서 40.5%만 검출했다.
+- 20--25m에서는 A26도 100% 검출했다.
+- ROS score threshold를 `0.10 -> 0.01`로 낮춰도 object 수는 `533 -> 534`,
+  non-empty frame은 `320 -> 321`에 그쳤다. score threshold 문제가 아니다.
+
+E65는 1,050 train frame, 80 epoch와 GT sampling을 통해 세 class 및 다양한 상대
+배치를 계속 봤다. A26은 E65에서 시작했지만 540 dynamic target만 30 epoch
+fine-tune했고 coherent temporal history가 없는 GT sampling은 비활성화했다.
+Obstacle GT도 0개다. 제한된 moving-Ego mission 분포에 모든 backbone/head를
+계속 update한 결과, 동일 generator validation은 향상됐지만 E65의 광범위한
+single-frame robustness를 일부 잃은 specialization으로 해석하는 것이 가장
+근거가 강하다.
+
+B deskew는 Vehicle velocity offline 지표가 A보다 낫지만 official roundabout1의
+Ego가 정지해 있어 intra-scan Ego deskew 변위 자체는 거의 0이다. B checkpoint의
+학습 차이로 결과가 달라질 수는 있으나, 위 stationary/front-view domain gap을
+deskew만으로 근본 해결할 수는 없다.
+
+원인을 확정하려면 저장된 동일 3-frame clip에 대해 offline temporal builder 출력과
+online temporal assembler 출력을 point/time-lag 단위로 대조해야 한다. 두 입력이
+일치하면 generator-to-official-bag domain gap과 specialization이 원인이고, 다르면
+online temporal contract 구현 오류가 원인이다.

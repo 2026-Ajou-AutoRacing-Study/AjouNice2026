@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_motion_deskew_pilot100",
+  "seed": 260821100,
+  "purpose": "raw versus azimuth-estimated Ego-deskew engineering pilot",
+  "capture_mode": "timed-grouped SaveSensorData",
+  "frames_per_clip": 10,
+  "family_clip_counts": {
+    "highway_cruise_overtake": 4,
+    "roundabout_circulation": 3,
+    "highway_merge_cruise": 2,
+    "crosswalk_pedestrian": 1
+  },
+  "target_frames": 100,
+  "split_unit": "scenario_clip",
+  "environment": {
+    "weather": "Sunny",
+    "time": "13:00"
+  },
+  "manifest": "dataset/morai_od/manifests/motion_deskew_pilot100.json",
+  "reserve_manifest": "dataset/morai_od/manifests/motion_deskew_pilot100_reserve.json",
+  "reserve_frames": 20
+}

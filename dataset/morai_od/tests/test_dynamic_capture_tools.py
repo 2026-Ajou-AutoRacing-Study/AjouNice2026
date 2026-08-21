@@ -27,6 +27,10 @@ metadata = load_module(
     "dynamic_metadata",
     "dataset/morai_od/scripts/dynamic_capture_metadata.py",
 )
+timing = load_module(
+    "dynamic_timing",
+    "dataset/morai_od/scripts/dynamic_timing_sidecar.py",
+)
 live_verifier = load_module(
     "dynamic_live_verifier",
     "dataset/morai_od/scripts/verify_dynamic_scene_live.py",
@@ -52,6 +56,57 @@ def actor(unique_id, x, timestamp):
 
 
 class DynamicCaptureToolsTest(unittest.TestCase):
+    def test_timing_sidecar_binds_nearest_samples(self):
+        histories = {
+            "clock": [
+                {
+                    "sample_id": "clock:0",
+                    "callback_monotonic": 9.9,
+                    "callback_unix": 99.9,
+                    "message_timestamp": 41.0,
+                    "simulation_time": 41.0,
+                },
+                {
+                    "sample_id": "clock:1",
+                    "callback_monotonic": 10.1,
+                    "callback_unix": 100.1,
+                    "message_timestamp": 41.2,
+                    "simulation_time": 41.2,
+                },
+            ],
+            "lidar": [],
+        }
+        triggers = [{"triggered_monotonic": 10.04}]
+        timing.bind_trigger_timing(triggers, histories)
+        reference = triggers[0]["timing_samples"]["clock"]
+        self.assertEqual(reference["sample_id"], "clock:1")
+        self.assertAlmostEqual(reference["offset_from_trigger_sec"], 0.06)
+        self.assertIsNone(triggers[0]["timing_samples"]["lidar"])
+
+    def test_timing_window_keeps_only_clip_context(self):
+        samples = [
+            {
+                "sample_id": "ego:{}".format(index),
+                "callback_monotonic": value,
+                "callback_unix": value,
+            }
+            for index, value in enumerate((1.0, 1.8, 2.0, 3.2, 4.0))
+        ]
+        selected = timing.samples_in_window(samples, 2.0, 3.0, 0.2)
+        self.assertEqual(
+            [item["sample_id"] for item in selected],
+            ["ego:1", "ego:2", "ego:3"],
+        )
+
+    def test_timing_summary_marks_missing_capture_mode_topics(self):
+        summary = timing.timing_summary(
+            {"clock": [{"message_timestamp": 3.0}], "lidar": []},
+            {"clock": "/clock", "lidar": "/sensor/lidar1"},
+        )
+        self.assertTrue(summary["clock"]["available"])
+        self.assertFalse(summary["lidar"]["available"])
+        self.assertEqual(summary["lidar"]["sample_count"], 0)
+
     def test_pedestrian_waypoint_coordinate_round_trip(self):
         world = {"x": -56.744, "y": -11.614, "z": 28.561}
         internal = generator.world_to_morai_waypoint(world)

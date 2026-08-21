@@ -46,6 +46,14 @@ def parse_args():
         default="drop",
         help="Policy for a moving box with no trustworthy derived velocity.",
     )
+    parser.add_argument(
+        "--all-dynamic",
+        action="store_true",
+        help=(
+            "Treat every input frame as dynamic and use dynamic-source "
+            "metadata directly. Intended for small dynamic-only pilots."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -199,10 +207,15 @@ def main():
     dynamic_root = args.dynamic_source_root.resolve()
     output_root = args.output_root.resolve()
 
-    combined_rows = read_jsonl(input_root / "metadata/frames.jsonl")
-    combined_by_id = {row["frame_id"]: row for row in combined_rows}
     dynamic_frames = read_jsonl(dynamic_root / "metadata/frames.jsonl")
     derive_actor_velocities(dynamic_frames)
+    if args.all_dynamic:
+        combined_rows = [
+            dict(row, source="dynamic1500") for row in dynamic_frames
+        ]
+    else:
+        combined_rows = read_jsonl(input_root / "metadata/frames.jsonl")
+    combined_by_id = {row["frame_id"]: row for row in combined_rows}
     dynamic_by_id = {row["frame_id"]: row for row in dynamic_frames}
     dynamic_boxes = {
         row["frame_id"]: row.get("boxes", [])

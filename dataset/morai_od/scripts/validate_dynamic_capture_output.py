@@ -56,6 +56,56 @@ def validate_clip(capture_dir, clip_path):
     if len(stems) != len(set(stems)):
         errors.append("MORAI timestamp stems are not unique")
 
+    timing_stream_counts = {}
+    timing_relative = clip.get("timing_sidecar")
+    timing_samples = []
+    if timing_relative:
+        timing_path = capture_dir / timing_relative
+        if not timing_path.is_file():
+            errors.append("timing sidecar is missing")
+        else:
+            timing_samples = load_jsonl(timing_path)
+            sample_ids = {
+                sample.get("sample_id") for sample in timing_samples
+            }
+            timing_stream_counts = dict(
+                Counter(sample.get("stream") for sample in timing_samples)
+            )
+            for required_stream in ("ego", "objects"):
+                if timing_stream_counts.get(required_stream, 0) == 0:
+                    errors.append(
+                        "timing sidecar has no {} samples".format(
+                            required_stream
+                        )
+                    )
+            if timing_stream_counts.get("clock", 0) == 0:
+                warnings.append(
+                    "timing sidecar has no /clock samples; message header "
+                    "timestamps remain available"
+                )
+            for frame in frames:
+                references = frame.get("timing_samples")
+                if not references:
+                    errors.append("frame has no timing sample references")
+                    continue
+                for required_stream in ("ego", "objects"):
+                    reference = references.get(required_stream)
+                    if not reference:
+                        errors.append(
+                            "frame {} has no {} timing reference".format(
+                                frame.get("frame_index"), required_stream
+                            )
+                        )
+                    elif reference.get("sample_id") not in sample_ids:
+                        errors.append(
+                            "frame {} references missing timing sample {}".format(
+                                frame.get("frame_index"),
+                                reference.get("sample_id"),
+                            )
+                        )
+    elif int(clip.get("schema_version", 1)) >= 2:
+        errors.append("schema v2 clip has no timing sidecar")
+
     timed_grouped = (
         clip.get("capture_format")
         == "morai_save_sensor_data_timed_grouped"
@@ -133,6 +183,8 @@ def validate_clip(capture_dir, clip_path):
         "class_observations": dict(class_counts),
         "motion_phases": dict(phase_counts),
         "stable_track_count": len(stable_tracks),
+        "timing_stream_counts": timing_stream_counts,
+        "timing_streams": clip.get("timing_streams", {}),
         "error_count": len(errors),
         "warning_count": len(warnings),
         "errors": errors,

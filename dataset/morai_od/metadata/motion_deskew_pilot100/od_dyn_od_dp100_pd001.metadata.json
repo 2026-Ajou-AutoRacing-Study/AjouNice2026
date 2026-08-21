@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "dataset_id": "morai_motion_deskew_pilot100",
+  "scene_id": "dp100_dpd001",
+  "scenario_stem": "od_dyn_od_dp100_pd001",
+  "mission_family": "crosswalk_pedestrian",
+  "motion_phase": null,
+  "sampling_role": null,
+  "recommended_phase_share_within_segment": null,
+  "seed": 260831190,
+  "split": "train",
+  "environment": {
+    "weather": "Sunny",
+    "time": "13:00"
+  },
+  "capture_policy": {
+    "format": "morai_save_sensor_data_timed_grouped",
+    "captures_per_scene": 10,
+    "capture_period_sec": 0.5,
+    "capture_motion_arm_m": 0.3,
+    "minimum_capture_progress_m": 0.2,
+    "motion_stall_timeout_sec": 5.0,
+    "clip_duration_sec": 4.5,
+    "warmup_sec": 0.2,
+    "prime_capture_before_clip": true,
+    "actor_ready_timeout_sec": 15.0,
+    "capture_spacing_m": 1.5,
+    "ego_target_speed_kph": 5.4,
+    "maximum_motion_m": 15.0,
+    "route_deviation_limit_m": 1.5,
+    "heading_error_limit_deg": 50.0,
+    "lookahead_m": 1.8,
+    "maximum_steering_rad": 0.35,
+    "adaptive_curve_control": true,
+    "curve_control_window_m": 8.0,
+    "curve_control_full_turn_deg": 18.0,
+    "minimum_curve_speed_kph": 3.6,
+    "minimum_curve_lookahead_m": 1.2,
+    "curve_maximum_steering_rad": 0.45,
+    "personal_steering_sign": -1.0,
+    "split_unit": "scenario_clip",
+    "required_sensor_dirs": [
+      "CAMERA_1",
+      "CAMERA_2",
+      "CAMERA_3",
+      "CAMERA_4",
+      "LIDAR_5"
+    ]
+  },
+  "capture_policy_overrides": {},
+  "ego": {
+    "lead_distance_m": 15.063080363147028,
+    "route_index": 761,
+    "pose": {
+      "x": -60.20096490718921,
+      "y": -26.51032826841302,
+      "z": 28.431724265081414,
+      "yaw": 90.3217201567933,
+      "link_idx": "A2256W000599",
+      "point_idx": 16,
+      "point_ratio": 0.3018867924528302,
+      "max_speed": 50.0
+    },
+    "initial_speed_kph": 0.0,
+    "target_speed_kph": 0.0
+  },
+  "runtime_actors": [
+    {
+      "unique_id": 3,
+      "data_id": 50100001,
+      "speed_config_value": 6.0,
+      "speed_unit": "morai_pedestrian_config_value_unverified",
+      "active_distance_m": 20.292193965883392,
+      "reversed": false,
+      "start": {
+        "x": -56.74399948120117,
+        "y": -11.61400032043457,
+        "z": 28.56100082397461
+      },
+      "end": {
+        "x": -70.56900024414062,
+        "y": -11.928999900817871,
+        "z": 28.433000564575195
+      },
+      "initial_ego_distance_m": 15.292193965883394,
+      "activation_margin_m": 4.999999999999998
+    }
+  ],
+  "target_position": {
+    "x": -56.74399948120117,
+    "y": -11.61400032043457,
+    "z": 28.56100082397461,
+    "_x": "-56.744",
+    "_y": "-11.614",
+    "_z": "28.561"
+  },
+  "validation": {
+    "ego_route_distance_m": 0.0,
+    "unique_id_count": 2
+  },
+  "sources": {
+    "official_template": "/home/luv/AjouNice2026/configs/scenario/2026_molit_comp_sample_scene.json",
+    "official_template_sha256": "430d3a69c05f12679ea758d58815218b44efd7cfec31b9db64dfdeb5e477cb5f",
+    "route": "/home/luv/AjouNice2026/configs/global_path/2026_molit_comp_global_path.txt",
+    "route_sha256": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "mgeo_link_set": "/home/luv/AjouNice2026/kcity_map/mgeo_map_scenario_runner_2025/link_set.json",
+    "mgeo_link_set_sha256": "f141f5a08950cb165f8de342931ddc69d80c4d56001a79be2f0b644de0016991",
+    "config": "/home/luv/AjouNice2026/dataset/morai_od/metadata/deskew_pilot100/deskew_pilot100.json",
+    "config_sha256": "48b575099363390cadcad6376593b1209ca99d51723a191d9fd9b0a690f40785"
+  },
+  "notes": {
+    "velocity_ground_truth": "Record /Object_topic raw velocity and acceleration plus finite-difference derivatives.",
+    "temporal_split": "Keep every frame from this scene/clip in the same split."
+  }
+}

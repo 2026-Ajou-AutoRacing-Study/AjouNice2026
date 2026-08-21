@@ -225,6 +225,39 @@ def transform_boxes_between_lidar_times(
     return output
 
 
+def transform_points_between_lidar_times(
+    points,
+    source_time_sec,
+    target_time_sec,
+    pose_samples,
+    lidar_position=(0.0, 0.0, 0.0),
+    lidar_yaw=0.0,
+    maximum_extrapolation_sec=0.03,
+):
+    """Re-express a stored sweep in another time-indexed LiDAR frame.
+
+    All points share the stored sweep reference time.  This aligns complete
+    past sweeps to the current Ego pose without performing intra-scan deskew,
+    and preserves intensity and painted semantic features after XYZ.
+    """
+    values = np.asarray(points)
+    if values.ndim != 2 or values.shape[1] < 3 or not len(values):
+        return np.array(values, copy=True)
+    transformed = deskew_points_to_reference_pose(
+        values,
+        np.zeros(len(values), dtype=np.float64),
+        float(source_time_sec),
+        float(target_time_sec) - float(source_time_sec),
+        pose_samples,
+        lidar_position=lidar_position,
+        lidar_yaw=lidar_yaw,
+        maximum_extrapolation_sec=maximum_extrapolation_sec,
+    )
+    if transformed is None:
+        return None
+    return transformed[0]
+
+
 def representative_detection_time_offset(
     points: np.ndarray,
     point_time_offsets: np.ndarray,

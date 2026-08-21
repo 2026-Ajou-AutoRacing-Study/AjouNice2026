@@ -63,6 +63,7 @@ from perception_object_pipeline.rolling_lidar import (
     deskew_points_to_reference_pose,
     representative_detection_time_offset,
     transform_boxes_between_lidar_times,
+    transform_points_between_lidar_times,
 )
 
 
@@ -505,6 +506,15 @@ class PointPaintingOnlineNode:
         self.lidar_deskew_maximum_extrapolation_sec = float(
             rospy.get_param("~lidar_deskew_maximum_extrapolation_sec", 0.08)
         )
+        self.requested_temporal_num_sweeps = int(
+            rospy.get_param("~temporal_num_sweeps", 0)
+        )
+        self.temporal_maximum_gap_sec = float(
+            rospy.get_param("~temporal_maximum_gap_sec", 0.75)
+        )
+        self.temporal_lidar_scan_period_sec = float(
+            rospy.get_param("~temporal_lidar_scan_period_sec", 1.0 / 15.0)
+        )
         self.use_amp = bool(rospy.get_param("~use_amp", True))
         self.segmentation_short_side = int(
             rospy.get_param("~segmentation_short_side", 520)
@@ -602,6 +612,12 @@ class PointPaintingOnlineNode:
             raise ValueError(
                 "lidar_deskew_maximum_extrapolation_sec must be non-negative"
             )
+        if self.requested_temporal_num_sweeps < 0:
+            raise ValueError("temporal_num_sweeps must be >= 0")
+        if self.temporal_maximum_gap_sec <= 0.0:
+            raise ValueError("temporal_maximum_gap_sec must be positive")
+        if self.temporal_lidar_scan_period_sec <= 0.0:
+            raise ValueError("temporal_lidar_scan_period_sec must be positive")
         if self.warmup_iterations < 1:
             raise ValueError("warmup_iterations must be >= 1")
         if self.warmup_point_count < 1000:
@@ -686,6 +702,7 @@ class PointPaintingOnlineNode:
         self.skip_reasons = {
             "camera_sync": 0,
             "empty_lidar": 0,
+            "temporal_history": 0,
             "processing_error": 0,
         }
         self.camera_input_frames = {
@@ -1167,19 +1184,40 @@ class PointPaintingOnlineNode:
         configured_features = list(
             cfg.DATA_CONFIG.POINT_FEATURE_ENCODING.used_feature_list
         )
-        runtime_features = [
+        single_sweep_features = [
             "x",
             "y",
             "z",
             "intensity",
         ] + list(self.semantic_names)
-        if configured_features != runtime_features:
+        if configured_features == single_sweep_features:
+            inferred_temporal_sweeps = 1
+        elif configured_features == single_sweep_features + ["time_lag_sec"]:
+            inferred_temporal_sweeps = 3
+        else:
             raise RuntimeError(
                 "Point feature contract mismatch: config={} runtime={}".format(
                     configured_features,
-                    runtime_features,
+                    single_sweep_features,
                 )
             )
+        if self.requested_temporal_num_sweeps:
+            self.temporal_num_sweeps = self.requested_temporal_num_sweeps
+        else:
+            self.temporal_num_sweeps = inferred_temporal_sweeps
+        if inferred_temporal_sweeps == 1 and self.temporal_num_sweeps != 1:
+            raise RuntimeError(
+                "temporal_num_sweeps={} requires time_lag_sec in config".format(
+                    self.temporal_num_sweeps
+                )
+            )
+        if inferred_temporal_sweeps > 1 and self.temporal_num_sweeps < 2:
+            raise RuntimeError(
+                "time_lag_sec config requires temporal_num_sweeps >= 2"
+            )
+        self.temporal_history = deque(
+            maxlen=max(0, self.temporal_num_sweeps - 1)
+        )
         self.point_cloud_range = np.asarray(
             cfg.DATA_CONFIG.POINT_CLOUD_RANGE,
             dtype=np.float32,
@@ -1201,9 +1239,97 @@ class PointPaintingOnlineNode:
         self.pcdet_load_data_to_gpu = load_data_to_gpu
 
         rospy.loginfo(
-            "PointPillars loaded: %s (features=%s)",
+            "PointPillars loaded: %s (features=%s temporal_sweeps=%d)",
             self.checkpoint,
             configured_features,
+            self.temporal_num_sweeps,
+        )
+
+    def _estimated_temporal_point_offsets(self, points: np.ndarray) -> np.ndarray:
+        azimuth = np.mod(
+            np.arctan2(points[:, 1], points[:, 0]), 2.0 * np.pi
+        )
+        clockwise_phase = np.mod(-azimuth, 2.0 * np.pi)
+        return np.asarray(
+            clockwise_phase
+            / (2.0 * np.pi)
+            * self.temporal_lidar_scan_period_sec,
+            dtype=np.float32,
+        )
+
+    def _warmup_temporal_points(self, painted: np.ndarray) -> np.ndarray:
+        if self.temporal_num_sweeps == 1:
+            return painted
+        offsets = self._estimated_temporal_point_offsets(painted)
+        sweeps = []
+        for sweep_index in range(self.temporal_num_sweeps):
+            lag = offsets - 0.1 * float(sweep_index)
+            sweeps.append(np.concatenate((painted, lag[:, None]), axis=1))
+        return np.ascontiguousarray(np.concatenate(sweeps), dtype=np.float32)
+
+    def _temporal_points(
+        self,
+        painted: np.ndarray,
+        timestamp: float,
+    ) -> Optional[np.ndarray]:
+        if self.temporal_num_sweeps == 1:
+            return painted
+
+        if self.temporal_history:
+            newest_timestamp = float(self.temporal_history[-1][0])
+            gap = float(timestamp) - newest_timestamp
+            if gap <= 0.0 or gap > self.temporal_maximum_gap_sec:
+                self.temporal_history.clear()
+
+        if len(self.temporal_history) < self.temporal_num_sweeps - 1:
+            self.temporal_history.append(
+                (float(timestamp), np.array(painted, copy=True))
+            )
+            return None
+
+        pose_samples = self.ego_pose_buffer.snapshot()
+        temporal_sweeps = [
+            np.concatenate(
+                (
+                    painted,
+                    self._estimated_temporal_point_offsets(painted)[:, None],
+                ),
+                axis=1,
+            )
+        ]
+        history = list(self.temporal_history)[-(self.temporal_num_sweeps - 1):]
+        for source_timestamp, source_points in reversed(history):
+            transformed = transform_points_between_lidar_times(
+                source_points,
+                source_timestamp,
+                timestamp,
+                pose_samples,
+                lidar_position=self.lidar_position,
+                lidar_yaw=self.lidar_yaw_rad,
+                maximum_extrapolation_sec=(
+                    self.lidar_deskew_maximum_extrapolation_sec
+                ),
+            )
+            if transformed is None:
+                self.temporal_history.clear()
+                self.temporal_history.append(
+                    (float(timestamp), np.array(painted, copy=True))
+                )
+                return None
+            lag = (
+                float(source_timestamp)
+                - float(timestamp)
+                + self._estimated_temporal_point_offsets(source_points)
+            )
+            temporal_sweeps.append(
+                np.concatenate((transformed, lag[:, None]), axis=1)
+            )
+
+        self.temporal_history.append(
+            (float(timestamp), np.array(painted, copy=True))
+        )
+        return np.ascontiguousarray(
+            np.concatenate(temporal_sweeps, axis=0), dtype=np.float32
         )
 
     def _warmup_full_pipeline(self) -> None:
@@ -1280,7 +1406,7 @@ class PointPaintingOnlineNode:
                     score_maps,
                 )
                 self._detect(
-                    painted,
+                    self._warmup_temporal_points(painted),
                     "warmup_{}".format(iteration),
                 )
 
@@ -1327,7 +1453,7 @@ class PointPaintingOnlineNode:
                 score_maps = self._segment_4cam(images_rgb)
                 painted = self._paint_lidar(lidar, score_maps)
                 self._detect(
-                    painted,
+                    self._warmup_temporal_points(painted),
                     "real_warmup_{}".format(iteration),
                 )
 
@@ -1358,11 +1484,13 @@ class PointPaintingOnlineNode:
         self.skip_reasons = {
             "camera_sync": 0,
             "empty_lidar": 0,
+            "temporal_history": 0,
             "processing_error": 0,
         }
         self.publish_first_wall_time = None
         self.publish_last_wall_time = None
         self.benchmark_rows = []
+        self.temporal_history.clear()
         with self.camera_lock:
             for camera_name in self.camera_names:
                 self.camera_input_frames[camera_name] = 0
@@ -2353,8 +2481,21 @@ class PointPaintingOnlineNode:
             time.perf_counter() - painting_start
         ) * 1000.0
 
+        temporal_points = self._temporal_points(painted, lidar_timestamp)
+        if temporal_points is None:
+            self.skipped_lidar_frames += 1
+            self.skip_reasons["temporal_history"] += 1
+            rospy.loginfo_throttle(
+                1.0,
+                "Waiting for %d-sweep temporal history (%d/%d past sweeps).",
+                self.temporal_num_sweeps,
+                len(self.temporal_history),
+                self.temporal_num_sweeps - 1,
+            )
+            return
+
         boxes, scores, labels, detection_stage_ms = self._detect(
-            painted,
+            temporal_points,
             str(msg.header.seq),
         )
         detection_ms = float(sum(detection_stage_ms.values()))

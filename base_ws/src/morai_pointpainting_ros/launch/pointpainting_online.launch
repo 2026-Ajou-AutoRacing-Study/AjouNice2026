@@ -49,6 +49,10 @@
   <arg name="lidar_deskew_mode" default="off"/>
   <arg name="lidar_deskew_reference" default="point_median"/>
   <arg name="lidar_deskew_camera_reference" default="reference"/>
+  <!-- 0 infers one sweep or temporal3 from the PointPillars feature config. -->
+  <arg name="temporal_num_sweeps" default="0"/>
+  <arg name="temporal_maximum_gap_sec" default="0.75"/>
+  <arg name="temporal_lidar_scan_period_sec" default="0.06666667"/>
   <arg name="ego_topic" default="/Ego_topic"/>
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
   <node pkg="morai_pointpainting_ros"
@@ -105,6 +109,11 @@
     <param name="lidar_deskew_reference" value="$(arg lidar_deskew_reference)"/>
     <param name="lidar_deskew_camera_reference"
            value="$(arg lidar_deskew_camera_reference)"/>
+    <param name="temporal_num_sweeps" value="$(arg temporal_num_sweeps)"/>
+    <param name="temporal_maximum_gap_sec"
+           value="$(arg temporal_maximum_gap_sec)"/>
+    <param name="temporal_lidar_scan_period_sec"
+           value="$(arg temporal_lidar_scan_period_sec)"/>
     <param name="ego_topic" value="$(arg ego_topic)"/>
     <!-- Causal real-time matching: newest camera image at or before LiDAR stamp. -->
     <param name="max_camera_age_ms" value="100.0"/>

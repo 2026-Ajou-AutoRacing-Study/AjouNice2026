@@ -34,6 +34,14 @@ def parse_args():
         type=Path,
         default=ROOT / "configs/sensors/Sensor_6.json",
     )
+    parser.add_argument(
+        "--preserve-splits",
+        action="store_true",
+        help=(
+            "Keep manifest clip splits and infer split frame counts instead "
+            "of enforcing the 1,500-frame production target."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -149,7 +157,12 @@ def main():
                     "component_index": component_index,
                 }
             )
-    split_counts = rebalance_splits(scenes)
+    if args.preserve_splits:
+        split_counts = Counter()
+        for scene in scenes:
+            split_counts[scene["split"]] += scene["frame_count"]
+    else:
+        split_counts = rebalance_splits(scenes)
 
     frame_rows, box_rows = [], []
     fastbev_infos = defaultdict(list)

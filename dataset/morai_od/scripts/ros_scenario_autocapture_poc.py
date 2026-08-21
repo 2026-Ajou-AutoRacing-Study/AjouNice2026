@@ -19,12 +19,18 @@ import shutil
 import socket
 import threading
 import time
+from collections import deque
 from pathlib import Path
 
 from dynamic_capture_metadata import (
     enrich_derived_motion,
     serialize_ego,
     serialize_objects,
+)
+from dynamic_timing_sidecar import (
+    bind_trigger_timing,
+    samples_in_window,
+    timing_summary,
 )
 
 import rospy
@@ -38,6 +44,8 @@ from morai_msgs.msg import (
     ScenarioLoad,
 )
 from morai_msgs.srv import MoraiEventCmdSrv, MoraiEventCmdSrvRequest
+from rosgraph_msgs.msg import Clock
+from sensor_msgs.msg import CompressedImage, PointCloud2
 
 
 class ScenarioLoadUdpPacket(ctypes.Structure):
@@ -335,6 +343,35 @@ def parse_args():
     parser.add_argument("--ego-topic", default="/Ego_topic")
     parser.add_argument("--object-topic", default="/Object_topic")
     parser.add_argument("--collision-topic", default="/CollisionData")
+    parser.add_argument("--clock-topic", default="/clock")
+    parser.add_argument("--lidar-timing-topic", default="/sensor/lidar1")
+    parser.add_argument(
+        "--camera-timing-topic",
+        action="append",
+        default=None,
+        metavar="NAME=TOPIC",
+        help=(
+            "Optional compressed-camera topic whose header timing is stored. "
+            "Repeatable. Defaults to front/front_left/front_right/back."
+        ),
+    )
+    parser.add_argument(
+        "--timing-history-sec",
+        type=float,
+        default=20.0,
+        help="Retention window for lightweight ROS timing/state samples.",
+    )
+    parser.add_argument(
+        "--timing-window-padding-sec",
+        type=float,
+        default=0.25,
+        help="Context retained before and after each timed capture clip.",
+    )
+    parser.add_argument(
+        "--no-timing-sidecar",
+        action="store_true",
+        help="Disable continuous clock/Ego/Object and optional sensor timing metadata.",
+    )
     parser.add_argument(
         "--control-mode-service",
         default="/Service_MoraiEventCmd",
@@ -417,6 +454,35 @@ def timestamped_capture_dir(path, timestamp=None):
     if timestamp is None:
         timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
     return path.with_name("{}_{}".format(timestamp, path.name))
+
+
+def parse_named_topics(values):
+    """Parse repeatable NAME=TOPIC arguments into stable stream names."""
+
+    if values is None:
+        values = (
+            "camera_front=/sensor/camera/front/compressed",
+            "camera_front_left=/sensor/camera/front_left/compressed",
+            "camera_front_right=/sensor/camera/front_right/compressed",
+            "camera_back=/sensor/camera/back/compressed",
+        )
+    result = {}
+    for value in values:
+        if "=" not in value:
+            raise ValueError(
+                "--camera-timing-topic must use NAME=TOPIC: {}".format(value)
+            )
+        name, topic = value.split("=", 1)
+        name = name.strip()
+        topic = topic.strip()
+        if not name or not topic.startswith("/"):
+            raise ValueError(
+                "invalid --camera-timing-topic NAME=TOPIC: {}".format(value)
+            )
+        if name in result:
+            raise ValueError("duplicate camera timing stream: {}".format(name))
+        result[name] = topic
+    return result
 
 
 def load_json(path):
@@ -991,8 +1057,16 @@ def validate_installed_scenes(args, manifest, scenes, project_root):
 
 
 class SharedState:
-    def __init__(self):
+    def __init__(self, timing_history_sec=20.0, timing_enabled=True):
         self.lock = threading.Lock()
+        self.timing_history_sec = float(timing_history_sec)
+        self.timing_enabled = bool(timing_enabled)
+        self.histories = {
+            "clock": deque(),
+            "ego": deque(),
+            "objects": deque(),
+        }
+        self.sample_sequences = {}
         self.ego = None
         self.ego_wall_time = 0.0
         self.ego_unix_time = 0.0
@@ -1002,22 +1076,122 @@ class SharedState:
         self.collision = None
         self.collision_wall_time = 0.0
 
+    def _append_timing(self, stream, record):
+        if not self.timing_enabled:
+            return
+        sequence = self.sample_sequences.get(stream, 0)
+        self.sample_sequences[stream] = sequence + 1
+        record["sample_id"] = "{}:{:09d}".format(stream, sequence)
+        history = self.histories.setdefault(stream, deque())
+        history.append(record)
+        cutoff = record["callback_monotonic"] - self.timing_history_sec
+        while history and history[0]["callback_monotonic"] < cutoff:
+            history.popleft()
+
     def ego_callback(self, message):
+        callback_monotonic = time.monotonic()
+        callback_unix = time.time()
         with self.lock:
             self.ego = message
-            self.ego_wall_time = time.monotonic()
-            self.ego_unix_time = time.time()
+            self.ego_wall_time = callback_monotonic
+            self.ego_unix_time = callback_unix
+            state = serialize_ego(message, callback_unix, callback_monotonic)
+            self._append_timing(
+                "ego",
+                {
+                    "stream": "ego",
+                    "callback_monotonic": callback_monotonic,
+                    "callback_unix": callback_unix,
+                    "message_timestamp": state.get("timestamp"),
+                    "state": state,
+                },
+            )
 
     def object_callback(self, message):
+        callback_monotonic = time.monotonic()
+        callback_unix = time.time()
         with self.lock:
             self.objects = message
-            self.objects_wall_time = time.monotonic()
-            self.objects_unix_time = time.time()
+            self.objects_wall_time = callback_monotonic
+            self.objects_unix_time = callback_unix
+            state = serialize_objects(message, callback_unix, callback_monotonic)
+            self._append_timing(
+                "objects",
+                {
+                    "stream": "objects",
+                    "callback_monotonic": callback_monotonic,
+                    "callback_unix": callback_unix,
+                    "message_timestamp": state.get("timestamp"),
+                    "state": state,
+                },
+            )
 
     def collision_callback(self, message):
         with self.lock:
             self.collision = message
             self.collision_wall_time = time.monotonic()
+
+    def clock_callback(self, message):
+        callback_monotonic = time.monotonic()
+        callback_unix = time.time()
+        with self.lock:
+            self._append_timing(
+                "clock",
+                {
+                    "stream": "clock",
+                    "callback_monotonic": callback_monotonic,
+                    "callback_unix": callback_unix,
+                    "message_timestamp": message.clock.to_sec(),
+                    "simulation_time": message.clock.to_sec(),
+                },
+            )
+
+    def pointcloud_callback(self, message, stream):
+        callback_monotonic = time.monotonic()
+        callback_unix = time.time()
+        with self.lock:
+            self._append_timing(
+                stream,
+                {
+                    "stream": stream,
+                    "callback_monotonic": callback_monotonic,
+                    "callback_unix": callback_unix,
+                    "message_timestamp": message.header.stamp.to_sec(),
+                    "frame_id": message.header.frame_id,
+                    "width": int(message.width),
+                    "height": int(message.height),
+                    "point_step": int(message.point_step),
+                    "row_step": int(message.row_step),
+                    "is_dense": bool(message.is_dense),
+                    "fields": [field.name for field in message.fields],
+                },
+            )
+
+    def camera_callback(self, message, stream):
+        callback_monotonic = time.monotonic()
+        callback_unix = time.time()
+        with self.lock:
+            self._append_timing(
+                stream,
+                {
+                    "stream": stream,
+                    "callback_monotonic": callback_monotonic,
+                    "callback_unix": callback_unix,
+                    "message_timestamp": message.header.stamp.to_sec(),
+                    "frame_id": message.header.frame_id,
+                    "format": str(message.format),
+                    "compressed_size_bytes": len(message.data),
+                },
+            )
+
+    def timing_window(self, start_monotonic, end_monotonic, padding_sec):
+        with self.lock:
+            return {
+                stream: samples_in_window(
+                    list(samples), start_monotonic, end_monotonic, padding_sec
+                )
+                for stream, samples in self.histories.items()
+            }
 
     def snapshot(self):
         with self.lock:
@@ -1057,7 +1231,10 @@ class AutoCapture:
             )
         }
         self.scene_minimum_ego_speed_kph = 0.0
-        self.state = SharedState()
+        self.state = SharedState(
+            timing_history_sec=args.timing_history_sec,
+            timing_enabled=not args.no_timing_sidecar,
+        )
         self.run_id = time.strftime("r%m%d%H%M%S", time.localtime())
         self.dataset_id = manifest.get("dataset_id")
         self.environment = dict(manifest.get("environment", {}))
@@ -1126,6 +1303,41 @@ class AutoCapture:
                 queue_size=10,
             ),
         ]
+        self.timing_topics = {
+            "clock": args.clock_topic,
+            "ego": args.ego_topic,
+            "objects": args.object_topic,
+            "lidar": args.lidar_timing_topic,
+        }
+        self.timing_topics.update(args.camera_timing_topics)
+        if not args.no_timing_sidecar:
+            self.subscribers.append(
+                rospy.Subscriber(
+                    args.clock_topic,
+                    Clock,
+                    self.state.clock_callback,
+                    queue_size=100,
+                )
+            )
+            self.subscribers.append(
+                rospy.Subscriber(
+                    args.lidar_timing_topic,
+                    PointCloud2,
+                    self.state.pointcloud_callback,
+                    callback_args="lidar",
+                    queue_size=4,
+                )
+            )
+            for stream, topic in sorted(args.camera_timing_topics.items()):
+                self.subscribers.append(
+                    rospy.Subscriber(
+                        topic,
+                        CompressedImage,
+                        self.state.camera_callback,
+                        callback_args=stream,
+                        queue_size=4,
+                    )
+                )
 
     def load_scene_waypoints(self, waypoint_path):
         self.waypoints = load_waypoints(waypoint_path)
@@ -2368,6 +2580,22 @@ class AutoCapture:
         """Verify, relocate, and annotate one timed SaveSensorData clip."""
 
         source_root = self.args.morai_sensor_data_dir
+        # Snapshot trigger-adjacent state before waiting for asynchronous
+        # SaveSensorData writers. Otherwise a slow writer could let the
+        # bounded live-history deque prune the exact clip interval.
+        timing_histories = {}
+        timing_path = None
+        timing_availability = {}
+        if not self.args.no_timing_sidecar:
+            timing_histories = self.state.timing_window(
+                triggers[0]["triggered_monotonic"],
+                triggers[-1]["triggered_monotonic"],
+                self.args.timing_window_padding_sec,
+            )
+            bind_trigger_timing(triggers, timing_histories)
+            timing_availability = timing_summary(
+                timing_histories, self.timing_topics
+            )
         drain_started = time.monotonic()
         deadline = drain_started + self.args.capture_timeout_sec
         last_files = set()
@@ -2494,6 +2722,17 @@ class AutoCapture:
         enrich_derived_motion(triggers)
         metadata_dir = self.args.capture_dir / "dynamic_metadata"
         metadata_dir.mkdir(parents=True, exist_ok=True)
+        if not self.args.no_timing_sidecar:
+            timing_path = metadata_dir / "{}.timing.jsonl".format(scene["id"])
+            timing_path.write_text(
+                "".join(
+                    json.dumps(sample, ensure_ascii=False, separators=(",", ":"))
+                    + "\n"
+                    for stream in sorted(timing_histories)
+                    for sample in timing_histories[stream]
+                ),
+                encoding="utf-8",
+            )
         frames_path = metadata_dir / "{}.frames.jsonl".format(scene["id"])
         frames_path.write_text(
             "".join(
@@ -2504,7 +2743,7 @@ class AutoCapture:
             encoding="utf-8",
         )
         clip_document = {
-            "schema_version": 1,
+            "schema_version": 2,
             "dataset_id": self.dataset_id,
             "clip_id": scene["id"],
             "scene_id": scene["id"],
@@ -2519,6 +2758,21 @@ class AutoCapture:
             "motion_stall_timeout_sec": self.args.motion_stall_timeout_sec,
             "frame_count": len(triggers),
             "frames_jsonl": str(frames_path.relative_to(self.args.capture_dir)),
+            "timing_sidecar": (
+                str(timing_path.relative_to(self.args.capture_dir))
+                if timing_path is not None
+                else None
+            ),
+            "timing_streams": timing_availability,
+            "timing_notes": {
+                "sensor_payload_source": "MORAI SaveSensorData files",
+                "sidecar_payload_policy": "headers_and_state_only",
+                "missing_sensor_topics_are_fatal": False,
+                "capture_mode_limitation": (
+                    "MORAI Capture Mode may not publish camera/LiDAR ROS topics; "
+                    "missing streams are recorded as unavailable."
+                ),
+            },
             "sensor_config": self.manifest.get("sensor_config"),
             "sensor_config_sha256": self.manifest.get(
                 "sensor_config_sha256"
@@ -2553,6 +2807,12 @@ class AutoCapture:
             "relocated_file_count": relocated_count,
             "frames_metadata": str(frames_path.relative_to(self.args.capture_dir)),
             "clip_metadata": str(clip_path.relative_to(self.args.capture_dir)),
+            "timing_metadata": (
+                str(timing_path.relative_to(self.args.capture_dir))
+                if timing_path is not None
+                else None
+            ),
+            "timing_streams": timing_availability,
             "drain_duration_sec": time.monotonic() - drain_started,
         }
         compact = [
@@ -3610,6 +3870,11 @@ def validate_policy(args, manifest):
         raise ValueError("--control-mode-timeout-sec must be positive")
     if args.ego_heartbeat_timeout_sec <= 0.0:
         raise ValueError("--ego-heartbeat-timeout-sec must be positive")
+    if args.timing_history_sec <= 0.0:
+        raise ValueError("--timing-history-sec must be positive")
+    if args.timing_window_padding_sec < 0.0:
+        raise ValueError("--timing-window-padding-sec must be non-negative")
+    args.camera_timing_topics = parse_named_topics(args.camera_timing_topic)
     if args.required_sensor_dir is None:
         args.required_sensor_dirs = (
             "CAMERA_1",
