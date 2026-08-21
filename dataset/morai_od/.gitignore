@@ -34,22 +34,32 @@ checkpoints/
 *.bmp
 *.tiff
 
-# Reproducible production-batch outputs
+# Reproducible MORAI generator outputs
 #
-# Keep the generators, capture/validation scripts, configs, tests, and design
-# documents in Git. The following files are deterministic or machine-local
-# products of those tools and can be regenerated from a batch name and seed.
-# This also prevents absolute local capture/install paths from entering Git.
-manifests/dynamic_dataset_batch*
-metadata/dynamic_dataset_batch*/
-metadata/production_batches/batch*/
-scenarios/dynamic_dataset_batch*/
+# Keep generators, configs, asset policies, docs, tests, and small reviewed
+# fixtures in Git. Scenario JSON, per-scene metadata, generated manifests,
+# routes, and machine reports are local build products. They must be recreated
+# from the tracked config and seed before capture.
+scenarios/*/
+!scenarios/prototypes/
+!scenarios/prototypes/**
+!scenarios/ros_capture_poc/
+!scenarios/ros_capture_poc/**
 
-# Runtime-only validation and MORAI installation reports.
-reports/*_live_motion.json
-reports/*_installation.json
-reports/*_runtime_validation.json
-reports/batch*_generation_validation.json
-reports/batch*_static_obstacle_coverage.json
-reports/dynamic_dataset_batch*_asset_coverage.json
-reports/dynamic_dataset_batch*_generation_summary.json
+metadata/*/
+!metadata/prototypes/
+!metadata/prototypes/**
+!metadata/ros_capture_poc/
+!metadata/ros_capture_poc/**
+
+# Root manifests are generator outputs unless explicitly allowlisted. The
+# Fast-BEV directory is a frozen dataset release split, not a scenario build.
+manifests/*
+!manifests/README.md
+!manifests/ros_capture_poc.json
+!manifests/fastbev_sunny13_1500_v1/
+!manifests/fastbev_sunny13_1500_v1/**
+
+# Machine-readable reports may contain local absolute paths and are always
+# regenerated. Distilled conclusions belong in docs/*.md.
+reports/*.json
