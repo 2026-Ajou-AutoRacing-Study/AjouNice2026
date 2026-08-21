@@ -35,6 +35,14 @@ live_verifier = load_module(
     "dynamic_live_verifier",
     "dataset/morai_od/scripts/verify_dynamic_scene_live.py",
 )
+v2_batch = load_module(
+    "temporal_v2_batch",
+    "dataset/morai_od/scripts/generate_temporal_sequence_v2_batch.py",
+)
+benchmark_builder = load_module(
+    "benchmark_scenario_builder",
+    "dataset/morai_od/scripts/build_raw_benchmark_scenarios.py",
+)
 
 
 def vector(x, y, z=0.0):
@@ -56,6 +64,25 @@ def actor(unique_id, x, timestamp):
 
 
 class DynamicCaptureToolsTest(unittest.TestCase):
+    def test_benchmark_scenarios_keep_only_mission_spawners(self):
+        template = generator.load_json(
+            ROOT / "configs/scenario/2026_molit_comp_sample_scene.json"
+        )
+        expected = {
+            "roundabout": {4},
+            "highway_merge": {6, 8, 10},
+        }
+        for mission, expected_ids in expected.items():
+            scenario = benchmark_builder.build_scenario(template, mission)
+            benchmark_builder.validate_scenario(scenario, mission)
+            self.assertEqual(
+                {item["UNIQUEID"] for item in scenario["spawnPointList"]},
+                expected_ids,
+            )
+            self.assertEqual(scenario["egoVehicle"]["beforeControlMode"], 0)
+            self.assertEqual(scenario["egoVehicle"]["currentControlMode"], 0)
+            self.assertEqual(scenario["egoVehicle"]["initPosition"]["gear"], 1)
+
     def test_timing_sidecar_binds_nearest_samples(self):
         histories = {
             "clock": [
@@ -106,6 +133,21 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertTrue(summary["clock"]["available"])
         self.assertFalse(summary["lidar"]["available"])
         self.assertEqual(summary["lidar"]["sample_count"], 0)
+
+    def test_stable_ego_gate_requires_full_low_acceleration_window(self):
+        samples = [
+            {
+                "callback_monotonic": value,
+                "state": {
+                    "acceleration_raw": {"x": 0.4, "y": 0.1, "z": 0.0}
+                },
+            }
+            for value in (1.0, 1.25, 1.5)
+        ]
+        self.assertTrue(timing.stable_ego_motion(samples, 0.5, 1.0))
+        samples[-1]["state"]["acceleration_raw"]["x"] = 1.1
+        self.assertFalse(timing.stable_ego_motion(samples, 0.5, 1.0))
+        self.assertFalse(timing.stable_ego_motion(samples[:2], 0.5, 1.0))
 
     def test_pedestrian_waypoint_coordinate_round_trip(self):
         world = {"x": -56.744, "y": -11.614, "z": 28.561}
@@ -217,6 +259,57 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertAlmostEqual(relative["position_m"]["y"], 0.0)
         self.assertAlmostEqual(relative["heading_deg"], 0.0)
 
+    def test_frame_transforms_capture_consecutive_ego_motion(self):
+        frames = [
+            {
+                "ego": {
+                    "position_m": {"x": 10.0, "y": 20.0, "z": 1.0},
+                    "heading_deg": 90.0,
+                }
+            },
+            {
+                "ego": {
+                    "position_m": {"x": 10.0, "y": 22.0, "z": 1.0},
+                    "heading_deg": 90.0,
+                }
+            },
+        ]
+        metadata.enrich_frame_transforms(frames)
+        first = frames[0]["transforms"]
+        second = frames[1]["transforms"]
+        self.assertIsNone(first["previous_ego_to_current_ego"])
+        previous_in_current = second["previous_ego_to_current_ego"]
+        self.assertAlmostEqual(previous_in_current[0][3], -2.0, places=6)
+        self.assertAlmostEqual(previous_in_current[1][3], 0.0, places=6)
+        current_in_first = second["current_ego_to_first_ego"]
+        self.assertAlmostEqual(current_in_first[0][3], 2.0, places=6)
+        self.assertAlmostEqual(current_in_first[1][3], 0.0, places=6)
+
+    def test_normalized_sensor_calibration_is_invertible(self):
+        calibration = metadata.normalized_sensor_calibration(
+            ROOT / "configs/sensors/Sensor_6.json"
+        )
+        self.assertEqual(calibration["schema_version"], 1)
+        self.assertEqual(set(calibration["cameras"]), {
+            "Camera_front",
+            "Camera_front_left",
+            "Camera_front_right",
+            "Camera_back",
+        })
+        front = calibration["cameras"]["Camera_front"]
+        self.assertEqual(front["resolution_px"], [1280, 720])
+        self.assertAlmostEqual(front["intrinsic"][0][0], 640.0, places=6)
+        product = metadata._matrix_multiply(
+            front["sensor_to_ego"], front["ego_to_sensor"]
+        )
+        for row in range(4):
+            for column in range(4):
+                self.assertAlmostEqual(
+                    product[row][column],
+                    1.0 if row == column else 0.0,
+                    places=6,
+                )
+
     def test_highway_cruise_uses_three_lane_routes(self):
         links = generator.load_json(
             ROOT
@@ -231,6 +324,153 @@ class DynamicCaptureToolsTest(unittest.TestCase):
             self.assertGreater(len(route), 100)
             route_lengths.append(arc[-1])
         self.assertTrue(all(length > 500.0 for length in route_lengths))
+
+    def test_lane_change_route_connects_adjacent_mgeo_centerlines(self):
+        links = generator.load_json(
+            ROOT / "kcity_map/mgeo_map_scenario_runner_2025/link_set.json"
+        )
+        links_by_id = {item["idx"]: item for item in links}
+        source, source_arc = generator.route_from_link_path(
+            links_by_id, generator.HIGHWAY_LANE_LINK_PATHS[6]
+        )
+        target, target_arc = generator.route_from_link_path(
+            links_by_id, generator.HIGHWAY_LANE_LINK_PATHS[8]
+        )
+        route = generator.build_lane_change_route(
+            source,
+            source_arc,
+            target,
+            target_arc,
+            start_arc_m=90.0,
+            transition_length_m=50.0,
+            pre_length_m=25.0,
+            post_length_m=30.0,
+        )
+        self.assertGreater(len(route), 150)
+        self.assertLess(
+            min(
+                math.hypot(
+                    route[0]["x"] - point["x"],
+                    route[0]["y"] - point["y"],
+                )
+                for point in source
+            ),
+            0.2,
+        )
+        self.assertLess(
+            min(
+                math.hypot(
+                    route[-1]["x"] - point["x"],
+                    route[-1]["y"] - point["y"],
+                )
+                for point in target
+            ),
+            0.2,
+        )
+        headings = []
+        for before, after in zip(route, route[1:]):
+            headings.append(
+                math.atan2(after["y"] - before["y"], after["x"] - before["x"])
+            )
+        heading_jumps = [
+            abs(math.atan2(math.sin(b - a), math.cos(b - a)))
+            for a, b in zip(headings, headings[1:])
+        ]
+        self.assertLess(max(heading_jumps), math.radians(3.0))
+
+    def test_temporal_v2_pilot_is_38_eight_frame_clips(self):
+        config = generator.load_json(
+            ROOT
+            / "dataset/morai_od/configs/temporal_sequence_capture_v2_pilot304.json"
+        )
+        self.assertEqual(config["capture"]["captures_per_scene"], 8)
+        self.assertAlmostEqual(config["capture"]["capture_period_sec"], 0.15)
+        self.assertEqual(
+            sum(int(family["count"]) for family in config["families"]),
+            38,
+        )
+        self.assertEqual(38 * 8, 304)
+
+    def test_temporal_v2_primary_batch_rounds_to_1504_frames(self):
+        self.assertEqual(sum(v2_batch.PRIMARY_COUNTS.values()), 188)
+        self.assertEqual(sum(v2_batch.PRIMARY_COUNTS.values()) * 8, 1504)
+        self.assertEqual(sum(v2_batch.RESERVE_COUNTS.values()), 20)
+        self.assertEqual(
+            v2_batch.grouped_counts(v2_batch.PRIMARY_COUNTS),
+            {
+                "mission_dynamic": 93,
+                "static_temporal": 66,
+                "hard_transition": 29,
+            },
+        )
+        self.assertEqual(
+            v2_batch.grouped_counts(v2_batch.RESERVE_COUNTS),
+            {
+                "mission_dynamic": 10,
+                "static_temporal": 7,
+                "hard_transition": 3,
+            },
+        )
+        self.assertEqual(
+            v2_batch.PRIMARY_COUNTS["highway_cruise_overtake"], 32
+        )
+        self.assertEqual(
+            v2_batch.PRIMARY_COUNTS["highway_lane_change_overtake"], 4
+        )
+
+    def test_highway_cruise_lane_prior_is_twenty_nine_three(self):
+        _base, defaults = v2_batch.family_defaults()
+        family = defaults["highway_cruise_overtake"]
+        family["count"] = 32
+        lanes = generator.weighted_lane_schedule(family)
+        self.assertEqual(lanes.count(6), 20)
+        self.assertEqual(lanes.count(8), 9)
+        self.assertEqual(lanes.count(10), 3)
+        self.assertEqual(
+            generator.ego_lane_speed_range(family, 6), (35.0, 50.0)
+        )
+        self.assertEqual(
+            generator.ego_lane_speed_range(family, 8), (45.0, 55.0)
+        )
+        self.assertEqual(
+            generator.ego_lane_speed_range(family, 10), (50.0, 60.0)
+        )
+
+    def test_static_highway_lane_quota_rounds_to_five_two_one(self):
+        lanes = [
+            generator.static_highway_lane_for_variant(index, 8)
+            for index in range(8)
+        ]
+        self.assertEqual(lanes.count(6), 5)
+        self.assertEqual(lanes.count(8), 2)
+        self.assertEqual(lanes.count(10), 1)
+
+    def test_weighted_obstacle_deck_matches_documented_quota(self):
+        subtypes = (
+            ["box"] * 2
+            + ["barrel_or_drum"] * 4
+            + ["barrier"] * 9
+            + ["unoccupied_bicycle_or_scooter"] * 3
+            + ["road_sign"] * 10
+            + ["fixed_roadside_object", "road_surface"]
+        )
+        rows = [
+            {"data_id": index + 1, "name": "asset{}".format(index), "subtype": subtype}
+            for index, subtype in enumerate(subtypes)
+        ]
+        deck = generator.build_weighted_obstacle_deck(rows)
+        self.assertEqual(len(deck), 1415)
+        counts = {}
+        for row in deck:
+            counts[row["data_id"]] = counts.get(row["data_id"], 0) + 1
+        self.assertEqual(
+            counts,
+            {
+                row["data_id"]: generator.obstacle_unique_quota(row)
+                for row in rows
+            },
+        )
+        self.assertEqual(len({row["data_id"] for row in deck[:215]}), 30)
 
     def test_spawn_and_cruise_families_have_distinct_initial_speed(self):
         config = generator.load_json(

@@ -1,5 +1,45 @@
 # MORAI temporal sequence capture V2 계획.
 
+## 구현 상태.
+
+- 2026-08-21 기준 V2 offline generator와 validator를 구현했다.
+- Canonical pilot은 38 clip x 8 frame = 304 frame이다. `1,500` 단위 production은
+  clip을 자르지 않기 위해 188 clip x 8 = 1,504 frame으로 생성한다.
+- `temporal_sequence_capture_v2_pilot304.json`은 Sunny 13시에서 로터리, 고주로
+  합류·순항·차선 변경, 횡단 보행자, 일반·고주로 static obstacle과 GPS 음영 hard
+  case를 포함한다.
+- Personal launcher에서 자동 가능한 obstacle 30종을 V2 asset deck으로 순환시킨다.
+  Pilot 69 unique placement에서 30종이 모두 최소 1회 선택되는 것을 검증했다.
+- Production batch는 아래 1,415-placement quota를 smooth weighted round-robin으로
+  interleave한다. 따라서 한 asset quota를 모두 소진한 뒤 다음 asset으로 넘어가지 않고,
+  1,504-frame 첫 batch에서도 30종이 전부 등장한다.
+- 고주로 lane-change route는 세 MGeo centerline을 arc-length로 대응시키고 quintic
+  smoothstep으로 연결한다. Entry/middle/exit clip의 capture arm 위치를 따로 둔다.
+- Static highway clip은 clip 단위 right/middle/left 60/25/15 weighted lane policy를
+  사용한다. 8-clip production batch에서는 5/2/1 clip으로 반올림된다.
+- Scene별 `capture_period_sec`, motion arm, 최소 frame 진행거리, warm-up과 속도 설정이
+  실제 capture runtime에 적용된다.
+- Stable family는 목표속도, 최소 진행거리뿐 아니라 최근 0.5초 Ego acceleration gate를
+  통과해야 capture를 시작한다. Spawn·횡단·전이 family에는 이 gate를 강제하지 않는다.
+- Frame/clip metadata에 motion phase, sampling role, 8-frame sequence contract,
+  PointPainting target lag와 clip split group을 저장한다.
+- Dynamic clip schema V3는 `dynamic_metadata/calibration.json`을 clip 공용 파일로
+  저장한다. Camera intrinsic, distortion, `sensor_to_ego`/`ego_to_sensor`,
+  LiDAR extrinsic과 행렬·축 convention을 명시한다. 각 frame에는
+  `ego_to_global`/`global_to_ego`, 이전 frame 및 clip 첫 frame과의 Ego 상대변환을
+  저장한다. SaveSensorData에 노출되지 않는 실제 exposure/point time은 추정값으로
+  위조하지 않고 limitation으로 기록한다.
+- `generate_temporal_sequence_v2_batch.py`는 batch별 seed와 scenario prefix를 분리하고
+  primary 1,504 frame 및 reserve 160 frame을 생성한다.
+- Offline smoke는 188-clip primary batch까지 생성했고 static validation은 통과했다.
+- MORAI live smoke는 static obstacle, crosswalk pedestrian, highway lane-change에서
+  실제 launcher load, CtrlCmd 추종과 SaveSensorData 완전성을 통과했다.
+
+현재 asset deck은 asset별 quota까지 구현했지만 거리·형상·방향·가시성의 교차 quota는
+아직 실제 부족 bin을 feedback해 고르는 scheduler가 아니다. 10,000-frame production
+전에는 아래 조건부 quota scheduler를 추가해야 한다. 따라서 pilot selection count를
+최종 obstacle 공간 분포로 해석하지 않는다.
+
 ## 상태와 목표.
 
 - 상태: 설계 확정 전 구현 대기.
@@ -74,7 +114,9 @@ Family별 목표속도는 다음 범위에서 정한다.
 - GPS 음영 mission: 20--35 km/h.
 - 일반 static roadside/background: 30--45 km/h.
 - 고주로 합류: 25--45 km/h.
-- 고주로 순항·추월: 40--60 km/h.
+- 고주로 합류 이후 오른쪽 차로: 35--50 km/h.
+- 고주로 합류 이후 가운데 차로: 45--55 km/h.
+- 고주로 합류 이후 왼쪽 차로: 50--60 km/h.
 
 고속 capture는 기존 10.5--15 m 회랑을 재사용하지 않는다. 전체 clip의 예상 이동거리로
 route, collision corridor, 최대 motion과 객체 visibility 구간을 다시 만든다.
@@ -95,20 +137,28 @@ Behavior Path Planner에는 느린 앞차만으로 추월 차로를 자동 선�
 - `highway_lane_change_overtake`: 오른쪽→가운데, 가운데→왼쪽과 두 복귀 방향을
   실제 연속 waypoint로 수집한다.
 
-현재 Planning prior를 반영한 고주로 순항·추월 clip의 초기 quota는 다음과 같다.
+공식 샘플 시나리오와 현재 Planning prior를 다시 대조한 결과, Batch001의 합류 이후
+36 clip은 다음과 같이 고정한다. 합류 접근 22 clip은 이 표와 별개이며 모두 공식
+global route와 가장 오른쪽 합류 차로를 따른다.
 
-| Ego route 유형 | 비율 |
-| --- | ---: |
-| 공식 global route/right lane 유지 | 55% |
-| middle lane 유지 | 20% |
-| left lane 유지 | 10% |
-| 실제 lane-change sequence | 15% |
+| Ego route 유형 | Clip | 합류 이후 비율 |
+| --- | ---: | ---: |
+| right lane 유지 | 20 | 55.6% |
+| middle lane 유지 | 9 | 25.0% |
+| left lane 유지 | 3 | 8.3% |
+| 실제 lane-change sequence | 4 | 11.1% |
 
-Lane-change frame까지 포함한 최종 차로 점유는 대략 right 55--60%, middle 27--30%,
-left 12--15%를 목표로 한다. Planning에 자동 추월이 production으로 들어오면
-45/35/20 수준으로 재조정할 수 있으나, 현 단계에서 35/40/25는 middle/left를
-과대표집하므로 사용하지 않는다. NPC는 절대 차로 번호와 별개로
-`relative_lane`, ahead/alongside/behind와 relative speed quota를 관리한다.
+고정 순항의 차로별 Ego 목표속도는 right 35--50, middle 45--55, left 50--60 km/h로
+제한한다. Ego가 NPC보다 왼쪽 차로에 있을 때만 추월 속도 우위를 적극적으로 만들고,
+오른쪽 차로에 있을 때에는 나란히 달리거나 뒤따르는 표본으로 제한한다. 따라서
+오른쪽 차로에서 55--60 km/h로 반복 추월하는 비현실적인 shortcut을 학습하지 않는다.
+고정 순항 시작점은 각 고주로 centerline의 arc 70--300 m, lane-change 중심은
+100--240 m에서 뽑는다. 합류 직후 곡선부에서 고속 초기화하면 control mode 전환 전에
+Ego가 접선 방향으로 이탈하므로, 이 구간은 merge family에 맡기고 cruise/overtake는
+세 차로가 평행해진 이후부터 수집한다.
+Planning에 자동 추월이 production으로 들어오면 middle/left와 lane-change 비율을 다시
+높일 수 있다. NPC는 절대 차로 번호와 별개로 `relative_lane`,
+ahead/alongside/behind와 relative speed quota를 관리한다.
 
 ### Lane-change route 생성.
 
@@ -167,9 +217,9 @@ frame만 조정한다.
 
 | 구성 | Frame | 8-frame clip | 비율 |
 | --- | ---: | ---: | ---: |
-| 동적 차량 sequence | 4,504 | 563 | 45.04% |
-| 동적 보행자 sequence | 1,496 | 187 | 14.96% |
-| 정적 temporal sequence | 2,496 | 312 | 24.96% |
+| 동적 차량 sequence | 3,744 | 468 | 37.44% |
+| 동적 보행자 sequence | 1,248 | 156 | 12.48% |
+| 정적 temporal sequence | 3,504 | 438 | 35.04% |
 | Hard temporal sequence | 1,504 | 188 | 15.04% |
 | 합계 | 10,000 | 1,250 | 100% |
 
@@ -183,20 +233,20 @@ Obstacle은 velocity regression에서 제외하고 online output을 `(0,0)`으�
 
 ### 정적 temporal 내부 구성.
 
-정적 25%는 velocity가 0인 same-class vehicle/pedestrian, obstacle과 background를
-학습하기 위한 절충안이다. 그보다 낮으면 기존 1,500-frame 학습에서 확인한 obstacle
-표본 부족이 반복되고, 크게 높이면 신규 수집의 주 목적인 moving velocity 학습을
-침범한다. 정적 내부 obstacle-focused 70%는 전체 데이터의 약 17.5%이며 hard와 mixed
-표본까지 합치면 obstacle 관련 frame은 전체의 약 20--22%가 된다.
+정적 35%는 velocity가 0인 same-class vehicle/pedestrian, obstacle과 background를
+학습하기 위한 절충안이다. 기존 1,500-frame 학습에서 확인한 obstacle 표본 부족을
+해결하면서도 mission dynamic 50%와 hard 15%를 유지한다. 정적 내부
+obstacle-focused 70%는 전체 데이터의 약 24.5%이며 hard와 mixed 표본까지 합치면
+obstacle 관련 frame은 전체의 약 28--30%가 된다.
 
 | 정적 family | Frame | Clip | 정적 내 비율 |
 | --- | ---: | ---: | ---: |
-| obstacle-focused | 1,752 | 219 | 70.2% |
-| stopped vehicle | 376 | 47 | 15.1% |
-| standing pedestrian | 128 | 16 | 5.1% |
-| realistic mixed | 120 | 15 | 4.8% |
-| sparse/background | 120 | 15 | 4.8% |
-| 합계 | 2,496 | 312 | 100% |
+| obstacle-focused | 2,448 | 306 | 69.9% |
+| stopped vehicle | 528 | 66 | 15.1% |
+| standing pedestrian | 176 | 22 | 5.0% |
+| realistic mixed | 176 | 22 | 5.0% |
+| sparse/background | 176 | 22 | 5.0% |
+| 합계 | 3,504 | 438 | 100% |
 
 Hard temporal 중 304 frame, 38 clip을 원거리 작은 obstacle, 부분 가림, camera seam,
 길거나 높은 형상과 밀집 배치에 사용한다. 이는 mission family 안에 무관한 obstacle을
@@ -208,15 +258,15 @@ Hard temporal 중 304 frame, 38 clip을 원거리 작은 obstacle, 부분 가림
 
 | 출처 | 계산 | unique placement |
 | --- | ---: | ---: |
-| obstacle-focused | 219 clip x 6 | 1,314 |
-| realistic mixed | 15 clip x 2 | 30 |
+| obstacle-focused | 306 clip x 6 | 1,836 |
+| realistic mixed | 22 clip x 2 | 44 |
 | hard obstacle | 38 clip x 3 | 114 |
-| 합계 |  | 약 1,458 |
+| 합계 |  | 약 1,994 |
 
-30개 자동 가능 asset을 독립 균등 난수로만 선택하면 asset당 평균은 약 48.6회지만,
-30종 중 하나 이상이 35회 미만으로 선택될 확률이 약 39%다. 로드 실패와 가시성
-실패까지 더해지므로 pure random sampling은 사용하지 않는다. 부족한 asset을 우선하는
-quota deck을 사용하고 실패 placement는 quota 완료로 집계하지 않는다.
+30개 자동 가능 asset을 독립 균등 난수로만 선택하면 asset당 평균은 약 66.5회지만,
+로드 실패와 가시성 실패까지 더해지므로 pure random sampling은 사용하지 않는다.
+부족한 asset을 우선하는 quota deck을 사용하고 실패 placement는 quota 완료로
+집계하지 않는다.
 
 ### Obstacle catalog와 asset quota.
 
@@ -304,10 +354,102 @@ mission-adapted variant와 계속 격리한 general variant를 별도로 비교�
 ## 다음 구현 gate.
 
 1. V2 generator를 바로 10,000장으로 실행하지 않는다.
-2. 300-frame pilot을 vehicle dynamic, pedestrian dynamic, static temporal과 hard
+2. 304-frame pilot을 vehicle dynamic, pedestrian dynamic, static temporal과 hard
    transition으로 구성한다.
 3. simulator-time lag, speed phase, Ego pose, stable ID, velocity GT와 camera 4대
    artifact 완전성을 검사한다.
 4. 3-sweep PointPainting dataset과 StreamPETR metadata loader를 모두 smoke한다.
 5. SaveSensorData 5 Hz 상당을 먼저 검증하고 안정적일 때만 10 Hz pilot을 수행한다.
 6. 기존 Epoch 65 geometry, tracker-only velocity와 비교한 뒤 V2 비율을 확정한다.
+
+## 실행 명령.
+
+Pilot 생성·설치 전 정적 검증은 다음과 같다.
+
+```bash
+python3 dataset/morai_od/scripts/generate_dynamic_object_capture_set.py \
+  --config dataset/morai_od/configs/temporal_sequence_capture_v2_pilot304.json \
+  --output-root dataset/morai_od \
+  --group temporal_sequence_v2_pilot304
+
+python3 dataset/morai_od/scripts/validate_dynamic_capture_set.py \
+  dataset/morai_od/manifests/temporal_sequence_v2_pilot304.json
+
+python3 dataset/morai_od/scripts/install_dynamic_capture_set.py \
+  dataset/morai_od/manifests/temporal_sequence_v2_pilot304.json \
+  --network-template \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/EgoNetwork/od_s13p6_186_MN.json" \
+  --install-dir \
+  "$HOME/MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025"
+```
+
+ROS/MORAI가 연결된 뒤 한 clip을 live smoke하려면 다음처럼 실행한다. Pilot manifest의
+기본 capture policy가 8 frame, 0.15초이므로 CLI에서 다시 덮어쓰지 않는다.
+
+```bash
+python3 dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
+  --manifest dataset/morai_od/manifests/temporal_sequence_v2_pilot304_runtime.json \
+  --capture-dir /home/luv/morai_cap/temporal_v2_pilot_smoke \
+  --motion-mode timed-grouped \
+  --scenario dlc001 \
+  --scenario-load-attempts 1 \
+  --continue-on-scene-error
+```
+
+SaveSensorData는 한 snapshot을 쓰는 동안 MORAI wall-clock topic을 약 0.6초까지
+늦출 수 있다. 따라서 V2의 0.15초는 host wall-clock 간격이 아니다. 캡처기는 Ego의
+이동거리와 측정 속도를 적분한 `sequence_time_sec`을 물리 simulation-time 근사로
+사용한다. `triggered_unix`와 MORAI 파일명 시간은 provenance와 I/O 진단용으로만
+보존한다. 이 분리가 없으면 저장 I/O 지연을 실제 객체 운동 시간으로 오인하여
+velocity GT가 과소 계산된다.
+
+Capture가 끝나면 다음으로 sensor artifact, timing sidecar, frame 간 진행거리와 V2
+sequence contract를 검사한다.
+
+```bash
+python3 dataset/morai_od/scripts/validate_dynamic_capture_output.py \
+  /home/luv/morai_cap/<실제_timestamp_prefix가_붙은_capture_dir>
+```
+
+첫 production chunk는 명목 1,500장이 아니라 canonical 1,504장으로 생성한다.
+
+```bash
+python3 dataset/morai_od/scripts/generate_temporal_sequence_v2_batch.py \
+  --batch-index 1
+```
+
+## 2026-08-21 live gate 결과.
+
+- `dso001` static obstacle.
+  - 8/8 frame과 Camera 4대·LiDAR artifact가 완전했다.
+  - 6개 obstacle track이 모든 frame에 유지됐다.
+  - sequence interval 중앙값은 0.151초였다.
+- `dpd001` crosswalk pedestrian.
+  - 최초 구현은 sensor writer priming과 Ego arm 동안 보행자가 path 끝에 도달해
+    stationary clip이 됐다.
+  - pedestrian family만 priming과 warm-up을 끄고 capture arm을 0.3m로 낮췄다.
+  - 수정 후 동일 pedestrian ID가 8 frame 유지됐고 1.051초 동안 2.949m 이동했다.
+- `dhc010` left-lane highway cruise.
+  - 최초 18--45 m 시작점은 합류 직후 곡선부여서, 50 km/h로 초기화된 Ego가 control
+    mode 전환 전에 접선 방향으로 3.93 m 이탈했다.
+  - cruise 시작 범위를 평행 직선부 70--300 m로 옮긴 뒤 scenario verification과
+    8/8 SaveSensorData frame이 통과했다.
+  - 캡처는 왼쪽 차로 centerline에서 44.56 km/h에 arm됐고 1.061초 동안 13.49 m
+    진행했다. 두 NPC track도 8 frame 전체에서 유지됐다.
+- `dlc001` highway lane change.
+  - Ego target 52.9km/h, capture 시작 45.0km/h 조건을 통과했다.
+  - 동적 vehicle 2대가 각각 8 frame 유지됐다.
+  - sequence interval 중앙값은 0.150초였고 route deviation·collision은 없었다.
+- 세 clip 모두 validator 오류는 0개였다.
+  - MORAI Capture Mode가 `/clock`과 Camera/LiDAR ROS topic을 발행하지 않아
+    `/clock` availability 경고만 남는다.
+  - sensor payload는 SaveSensorData artifact, state time은 Ego/Object header,
+    temporal 간격은 `sequence_time_sec`으로 각각 역할을 분리한다.
+
+Production batch 001은 이 수정본으로 primary 188 clips/1,504 frames와 reserve
+20 clips/160 frames를 생성했고 두 manifest 모두 정적 검증 오류 0개를 통과했다.
+Primary quota는 mission dynamic 93 clips/744 frames, static temporal 66 clips/528
+frames, hard transition 29 clips/232 frames다. Static 내부 explicit obstacle family는
+45/66 clips로 약 68.2%다.
+생성 manifest·scenario·route·validation report는 재현 가능한 산출물이므로 Git에는
+넣지 않고 `dataset/morai_od/.gitignore`로 제외한다.

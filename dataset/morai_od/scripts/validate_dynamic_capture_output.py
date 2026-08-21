@@ -4,6 +4,8 @@
 import argparse
 import hashlib
 import json
+import math
+import statistics
 from collections import Counter
 from pathlib import Path
 
@@ -55,6 +57,72 @@ def validate_clip(capture_dir, clip_path):
     stems = [frame.get("morai_timestamp_stem") for frame in frames]
     if len(stems) != len(set(stems)):
         errors.append("MORAI timestamp stems are not unique")
+
+    dataset_id = str(clip.get("dataset_id", ""))
+    sequence_contract = clip.get("sequence_contract") or {}
+    if dataset_id.startswith("morai_temporal_sequence_v2"):
+        if len(frames) != 8:
+            errors.append("temporal V2 clip does not contain 8 frames")
+        if int(sequence_contract.get("clip_length", 0)) != 8:
+            errors.append("temporal V2 sequence contract has invalid clip length")
+        target_period = float(
+            sequence_contract.get(
+                "nominal_period_sec", clip.get("capture_period_sec", 0.0)
+            )
+        )
+        sequence_times = [
+            frame.get("sequence_time_sec") for frame in frames
+        ]
+        if any(value is None for value in sequence_times):
+            errors.append("temporal V2 frame misses sequence_time_sec")
+            sequence_times = trigger_times
+        else:
+            sequence_times = [float(value) for value in sequence_times]
+            if any(
+                right <= left
+                for left, right in zip(sequence_times, sequence_times[1:])
+            ):
+                errors.append("sequence timestamps are not strictly increasing")
+        intervals = [
+            right - left
+            for left, right in zip(sequence_times, sequence_times[1:])
+        ]
+        if intervals and abs(statistics.median(intervals) - target_period) > 0.04:
+            errors.append(
+                "temporal V2 median sequence period differs from contract: "
+                "{:.3f}s vs {:.3f}s".format(
+                    statistics.median(intervals), target_period
+                )
+            )
+        if sequence_contract.get("split_group") != clip.get("clip_id"):
+            errors.append("temporal V2 split group must equal clip id")
+        for frame in frames:
+            if frame.get("sequence_contract") != sequence_contract:
+                errors.append(
+                    "frame {} sequence contract differs from clip".format(
+                        frame.get("frame_index")
+                    )
+                )
+            expected_prev = int(frame.get("frame_index", 0)) > 0
+            if bool(frame.get("prev_exists")) != expected_prev:
+                errors.append(
+                    "frame {} has invalid prev_exists".format(
+                        frame.get("frame_index")
+                    )
+                )
+            expected_prev_id = (
+                "{}_f{:06d}".format(
+                    clip.get("clip_id"), int(frame["frame_index"]) - 1
+                )
+                if expected_prev
+                else None
+            )
+            if frame.get("prev_frame_id") != expected_prev_id:
+                errors.append(
+                    "frame {} has invalid prev_frame_id".format(
+                        frame.get("frame_index")
+                    )
+                )
 
     timing_stream_counts = {}
     timing_relative = clip.get("timing_sidecar")
@@ -143,6 +211,8 @@ def validate_clip(capture_dir, clip_path):
     class_counts = Counter()
     phase_counts = Counter()
     stable_tracks = Counter()
+    track_positions = {}
+    static_motion_violations = 0
     for frame in frames:
         if not frame.get("verified"):
             errors.append("unverified frame present")
@@ -159,7 +229,17 @@ def validate_clip(capture_dir, clip_path):
         for actor in objects.get("actors", []):
             class_counts[actor["class"]] += 1
             stable_tracks[(actor["class"], int(actor["unique_id"]))] += 1
+            track_positions.setdefault(
+                (actor["class"], int(actor["unique_id"])), []
+            ).append(actor["position_m"])
             phase_counts[actor.get("motion_phase", "missing")] += 1
+            if actor["class"] == "obstacle":
+                velocity = actor.get("derived_velocity_mps") or {}
+                if (
+                    float(velocity.get("x", 0.0)) ** 2
+                    + float(velocity.get("y", 0.0)) ** 2
+                ) ** 0.5 > 0.15:
+                    static_motion_violations += 1
             for key in (
                 "morai_velocity_raw",
                 "morai_acceleration_raw",
@@ -167,6 +247,43 @@ def validate_clip(capture_dir, clip_path):
             ):
                 if actor.get(key) is None:
                     errors.append("actor metadata misses {}".format(key))
+    if static_motion_violations:
+        errors.append(
+            "{} obstacle observations have non-static derived velocity".format(
+                static_motion_violations
+            )
+        )
+    if clip.get("mission_family") == "crosswalk_pedestrian":
+        pedestrian_displacements = []
+        for (class_name, _unique_id), positions in track_positions.items():
+            if class_name != "pedestrian" or len(positions) < 2:
+                continue
+            pedestrian_displacements.append(
+                math.hypot(
+                    float(positions[-1]["x"]) - float(positions[0]["x"]),
+                    float(positions[-1]["y"]) - float(positions[0]["y"]),
+                )
+            )
+        if not pedestrian_displacements or max(pedestrian_displacements) < 0.2:
+            errors.append(
+                "crosswalk pedestrian moved less than 0.2 m during clip"
+            )
+    expected_scene = clip.get("source_scene_expected") or {}
+    if int(expected_scene.get("spawn_points", 0)) > 0:
+        vehicle_displacements = []
+        for (class_name, _unique_id), positions in track_positions.items():
+            if class_name != "vehicle" or len(positions) < 2:
+                continue
+            vehicle_displacements.append(
+                math.hypot(
+                    float(positions[-1]["x"]) - float(positions[0]["x"]),
+                    float(positions[-1]["y"]) - float(positions[0]["y"]),
+                )
+            )
+        if not vehicle_displacements:
+            errors.append("spawned-vehicle clip contains no vehicle track")
+        elif max(vehicle_displacements) < 0.2:
+            errors.append("spawned vehicles moved less than 0.2 m during clip")
 
     sensor_config = clip.get("sensor_config")
     if sensor_config:
@@ -183,6 +300,9 @@ def validate_clip(capture_dir, clip_path):
         "class_observations": dict(class_counts),
         "motion_phases": dict(phase_counts),
         "stable_track_count": len(stable_tracks),
+        "tracks_visible_at_least_6_frames": sum(
+            count >= 6 for count in stable_tracks.values()
+        ),
         "timing_stream_counts": timing_stream_counts,
         "timing_streams": clip.get("timing_streams", {}),
         "error_count": len(errors),

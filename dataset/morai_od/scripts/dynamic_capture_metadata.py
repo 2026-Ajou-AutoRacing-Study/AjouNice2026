@@ -6,7 +6,17 @@ without a running ROS master.  Runtime messages only need to expose the
 standard MORAI message attributes used below.
 """
 
+import hashlib
+import json
 import math
+from pathlib import Path
+
+
+CAMERA_OPTICAL_TO_PHYSICAL = (
+    (0.0, 0.0, 1.0),
+    (-1.0, 0.0, 0.0),
+    (0.0, -1.0, 0.0),
+)
 
 
 def vector3(value):
@@ -35,6 +45,197 @@ def message_stamp_sec(message):
 
 def wrapped_degrees(value):
     return (float(value) + 180.0) % 360.0 - 180.0
+
+
+def _matrix_multiply(left, right):
+    return [
+        [
+            sum(left[row][index] * right[index][column] for index in range(4))
+            for column in range(4)
+        ]
+        for row in range(4)
+    ]
+
+
+def _rotation_multiply(left, right):
+    return [
+        [
+            sum(left[row][index] * right[index][column] for index in range(3))
+            for column in range(3)
+        ]
+        for row in range(3)
+    ]
+
+
+def _rpy_rotation(roll_deg, pitch_deg, yaw_deg):
+    roll, pitch, yaw = map(
+        math.radians, (float(roll_deg), float(pitch_deg), float(yaw_deg))
+    )
+    rx = (
+        (1.0, 0.0, 0.0),
+        (0.0, math.cos(roll), -math.sin(roll)),
+        (0.0, math.sin(roll), math.cos(roll)),
+    )
+    ry = (
+        (math.cos(pitch), 0.0, math.sin(pitch)),
+        (0.0, 1.0, 0.0),
+        (-math.sin(pitch), 0.0, math.cos(pitch)),
+    )
+    rz = (
+        (math.cos(yaw), -math.sin(yaw), 0.0),
+        (math.sin(yaw), math.cos(yaw), 0.0),
+        (0.0, 0.0, 1.0),
+    )
+    return _rotation_multiply(_rotation_multiply(rz, ry), rx)
+
+
+def _rigid_transform(rotation, translation):
+    return [
+        [rotation[0][0], rotation[0][1], rotation[0][2], float(translation[0])],
+        [rotation[1][0], rotation[1][1], rotation[1][2], float(translation[1])],
+        [rotation[2][0], rotation[2][1], rotation[2][2], float(translation[2])],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+
+
+def _invert_rigid(transform):
+    rotation = [[transform[row][column] for column in range(3)] for row in range(3)]
+    transpose = [[rotation[column][row] for column in range(3)] for row in range(3)]
+    translation = [transform[row][3] for row in range(3)]
+    inverse_translation = [
+        -sum(transpose[row][column] * translation[column] for column in range(3))
+        for row in range(3)
+    ]
+    return _rigid_transform(transpose, inverse_translation)
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def normalized_sensor_calibration(sensor_config_path):
+    """Normalize MORAI Sensor JSON into explicit intrinsic/extrinsic matrices."""
+
+    sensor_config_path = Path(sensor_config_path).resolve()
+    raw = json.loads(sensor_config_path.read_text(encoding="utf-8"))
+    lidar = raw["Lidar3DList"][0]
+    lidar_rotation = _rpy_rotation(
+        lidar["rot"]["roll"], lidar["rot"]["pitch"], lidar["rot"]["yaw"]
+    )
+    lidar_to_ego = _rigid_transform(
+        lidar_rotation, [lidar["pos"][axis] for axis in "xyz"]
+    )
+    result = {
+        "schema_version": 1,
+        "source": str(sensor_config_path),
+        "source_sha256": _sha256_file(sensor_config_path),
+        "units": {"translation": "metre", "rotation": "degree"},
+        "matrix_convention": (
+            "4x4 row-major matrix with column vectors: "
+            "point_destination = T_destination_from_source @ point_source"
+        ),
+        "coordinate_axes": {
+            "morai_map": "x/y map plane, z up",
+            "ego": "x forward, y left, z up",
+            "lidar": "x forward, y left, z up",
+            "camera_optical": "x right, y down, z forward",
+        },
+        "lidar": {
+            "sensor_unique_id": int(lidar["m_SensorUniqueID"]),
+            "sensor_name": lidar["lc"]["sensorName"],
+            "topic": lidar["lc"].get("rosConfig", {}).get("Topic"),
+            "period_sec": float(lidar["lc"]["sensorPeriod"]),
+            "lidar_to_ego": lidar_to_ego,
+            "ego_to_lidar": _invert_rigid(lidar_to_ego),
+        },
+        "cameras": {},
+        "limitations": [
+            "SaveSensorData does not expose per-image exposure time in the saved filename.",
+            "Capture Mode may omit camera/LiDAR ROS topics; unavailable timestamps are not synthesized.",
+        ],
+    }
+    for item in raw["cameraList"]:
+        camera = item["cc"]
+        name = str(camera["sensorName"])
+        width = int(camera["cameraResWidth"])
+        height = int(camera["cameraResHeight"])
+        fov = float(camera["cameraFOV"])
+        effective_focal = width / (2.0 * math.tan(math.radians(fov) / 2.0))
+        cx = float(camera["principalPoint"]["x"])
+        cy = float(camera["principalPoint"]["y"])
+        physical_rotation = _rpy_rotation(
+            item["rot"]["roll"], item["rot"]["pitch"], item["rot"]["yaw"]
+        )
+        optical_rotation = _rotation_multiply(
+            physical_rotation, CAMERA_OPTICAL_TO_PHYSICAL
+        )
+        camera_to_ego = _rigid_transform(
+            optical_rotation, [item["pos"][axis] for axis in "xyz"]
+        )
+        result["cameras"][name] = {
+            "sensor_unique_id": int(item["m_SensorUniqueID"]),
+            "topic": camera.get("rosConfig", {}).get("Topic"),
+            "period_sec": float(camera["sensorPeriod"]),
+            "resolution_px": [width, height],
+            "horizontal_fov_deg": fov,
+            "source_focal_length_pixel": float(camera["focalLengthpixel"]),
+            "effective_pinhole_focal_pixel": effective_focal,
+            "intrinsic": [
+                [effective_focal, 0.0, cx],
+                [0.0, effective_focal, cy],
+                [0.0, 0.0, 1.0],
+            ],
+            "distortion": [float(value) for value in camera.get("lensDistortion", [])],
+            "sensor_to_ego": camera_to_ego,
+            "ego_to_sensor": _invert_rigid(camera_to_ego),
+        }
+    return result
+
+
+def enrich_frame_transforms(frames):
+    """Attach absolute and consecutive Ego transforms to capture frames."""
+
+    first_ego_to_global = None
+    previous_ego_to_global = None
+    for frame in frames:
+        ego = frame.get("ego")
+        if not ego:
+            frame["transforms"] = None
+            continue
+        position = ego["position_m"]
+        ego_to_global = _rigid_transform(
+            _rpy_rotation(0.0, 0.0, ego["heading_deg"]),
+            [position["x"], position["y"], position["z"]],
+        )
+        global_to_ego = _invert_rigid(ego_to_global)
+        if first_ego_to_global is None:
+            first_ego_to_global = ego_to_global
+        transforms = {
+            "ego_to_global": ego_to_global,
+            "global_to_ego": global_to_ego,
+            "previous_ego_to_current_ego": None,
+            "current_ego_to_previous_ego": None,
+            "first_ego_to_current_ego": _matrix_multiply(
+                global_to_ego, first_ego_to_global
+            ),
+            "current_ego_to_first_ego": _matrix_multiply(
+                _invert_rigid(first_ego_to_global), ego_to_global
+            ),
+        }
+        if previous_ego_to_global is not None:
+            transforms["previous_ego_to_current_ego"] = _matrix_multiply(
+                global_to_ego, previous_ego_to_global
+            )
+            transforms["current_ego_to_previous_ego"] = _matrix_multiply(
+                _invert_rigid(previous_ego_to_global), ego_to_global
+            )
+        frame["transforms"] = transforms
+        previous_ego_to_global = ego_to_global
+    return frames
 
 
 def actor_class_lists(message):
@@ -119,6 +320,13 @@ def motion_phase(speed_mps, acceleration_mps2, yaw_rate_dps):
 
 
 def _state_time(frame, state):
+    # SaveSensorData may throttle MORAI wall-clock publication while physical
+    # simulation advances much more slowly.  Temporal capture frames therefore
+    # carry a kinematically integrated sequence time; prefer it for finite
+    # differences so velocity labels are not divided by disk-I/O latency.
+    sequence_time = frame.get("sequence_time_sec")
+    if sequence_time is not None:
+        return float(sequence_time)
     value = state.get("timestamp") if state else None
     if value is not None:
         return float(value)

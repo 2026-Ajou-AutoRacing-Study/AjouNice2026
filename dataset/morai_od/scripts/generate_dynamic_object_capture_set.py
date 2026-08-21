@@ -31,6 +31,17 @@ DEFAULT_ROUTE = (
 )
 DEFAULT_MGEO = PROJECT_ROOT / "kcity_map/mgeo_map_scenario_runner_2025"
 DEFAULT_OUTPUT = PROJECT_ROOT / "dataset/morai_od"
+DEFAULT_ASSET_CATALOG = (
+    PROJECT_ROOT / "dataset/morai_od/configs/morai_asset_catalog_personal_260807.json"
+)
+DEFAULT_ASSET_COMPATIBILITY = (
+    PROJECT_ROOT
+    / "dataset/morai_od/configs/morai_asset_launcher_compatibility_260807.json"
+)
+DEFAULT_RUNTIME_ASSET_DIR = Path.home() / (
+    "MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/"
+    "Scenario/R_KR_PR_K-city_2025"
+)
 
 
 FAMILY_CODES = {
@@ -39,9 +50,15 @@ FAMILY_CODES = {
     "highway_merge_sample_spawn": "hm",
     "highway_merge_cruise": "mc",
     "highway_cruise_overtake": "hc",
+    "highway_lane_change_overtake": "lc",
     "crosswalk_pedestrian": "pd",
     "static_obstacle": "so",
     "gps_shadow_obstacle": "go",
+    "stopped_vehicle": "sv",
+    "standing_pedestrian": "sp",
+    "realistic_mixed_static": "mx",
+    "sparse_background": "bg",
+    "static_highway_obstacle": "sh",
 }
 
 
@@ -92,6 +109,17 @@ def parse_args():
     parser.add_argument("--route", type=Path, default=DEFAULT_ROUTE)
     parser.add_argument("--mgeo-dir", type=Path, default=DEFAULT_MGEO)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--asset-catalog", type=Path, default=DEFAULT_ASSET_CATALOG)
+    parser.add_argument(
+        "--asset-compatibility",
+        type=Path,
+        default=DEFAULT_ASSET_COMPATIBILITY,
+    )
+    parser.add_argument(
+        "--runtime-asset-scenario-dir",
+        type=Path,
+        default=DEFAULT_RUNTIME_ASSET_DIR,
+    )
     parser.add_argument("--group", default="dynamic_object_v1_smoke")
     parser.add_argument("--seed", type=int)
     parser.add_argument(
@@ -341,6 +369,12 @@ def target_position_for_family(template, family_name, selected_spawns=None):
         return dict(template["objectList"][0]["pos"])
     if family_name == "gps_shadow_obstacle":
         return dict(template["shadedAreaList"][0]["pos"])
+    if family_name == "stopped_vehicle":
+        return dict(template["vehicleList"][0]["initPosition"]["pos"])
+    if family_name == "standing_pedestrian":
+        return dict(template["pedestrianList"][0]["pos"])
+    if family_name in {"realistic_mixed_static", "sparse_background"}:
+        return dict(template["objectList"][0]["pos"])
     raise ValueError(f"unsupported family: {family_name}")
 
 
@@ -364,6 +398,67 @@ def configure_spawn(spawn, rng, family, base_target_speed=None):
         spawn["MinSpawnVelocity_Custom"] = target
         spawn["MaxSpawnVelocity_Custom"] = target
     return target, period
+
+
+def set_spawn_target_speed(spawn, target, match_spawn_velocity=False):
+    target = float(target)
+    spawn["MinDesiredVelocity_Custom"] = target
+    spawn["MaxDesiredVelocity_Custom"] = target
+    if match_spawn_velocity:
+        spawn["SpawnVelocityType"] = 2
+        spawn["MinSpawnVelocity_Custom"] = target
+        spawn["MaxSpawnVelocity_Custom"] = target
+
+
+def weighted_lane_schedule(family):
+    """Return an interleaved, exact-count Ego lane schedule for one family."""
+
+    total = int(family.get("count", 1))
+    raw_weights = family.get("ego_lane_weights")
+    if not raw_weights:
+        source_ids = [int(item) for item in family["source_spawn_ids"]]
+        return [source_ids[index % len(source_ids)] for index in range(total)]
+    weights = {int(key): float(value) for key, value in raw_weights.items()}
+    weight_sum = sum(weights.values())
+    if total <= 0 or weight_sum <= 0.0:
+        raise ValueError("invalid Ego lane weight configuration")
+    exact = {
+        lane: total * weight / weight_sum for lane, weight in weights.items()
+    }
+    quotas = {lane: int(math.floor(value)) for lane, value in exact.items()}
+    remaining = total - sum(quotas.values())
+    for lane in sorted(
+        weights,
+        key=lambda item: (-(exact[item] - quotas[item]), item),
+    )[:remaining]:
+        quotas[lane] += 1
+    selected = {lane: 0 for lane in quotas}
+    schedule = []
+    while len(schedule) < total:
+        candidates = [lane for lane in quotas if selected[lane] < quotas[lane]]
+        lane = min(
+            candidates,
+            key=lambda item: (
+                (selected[item] + 1.0) / quotas[item],
+                item,
+            ),
+        )
+        schedule.append(lane)
+        selected[lane] += 1
+    return schedule
+
+
+def ego_lane_speed_range(family, lane_id):
+    configured = family.get("ego_lane_speed_kph", {})
+    value = configured.get(str(lane_id), configured.get(lane_id))
+    if value is None:
+        return None
+    if not isinstance(value, list) or len(value) != 2:
+        raise ValueError("ego_lane_speed_kph values must be [min, max]")
+    lower, upper = float(value[0]), float(value[1])
+    if lower <= 0.0 or upper < lower:
+        raise ValueError("invalid Ego lane speed range for {}".format(lane_id))
+    return lower, upper
 
 
 def build_vehicle_scene(scenario, template, family, rng, variant_index):
@@ -421,6 +516,19 @@ def route_from_link_path(links_by_id, link_ids):
     return route, arc
 
 
+def route_arc_coordinates(route):
+    arc = [0.0]
+    for before, after in zip(route, route[1:]):
+        arc.append(
+            arc[-1]
+            + math.hypot(
+                after["x"] - before["x"],
+                after["y"] - before["y"],
+            )
+        )
+    return arc
+
+
 def route_pose_at(route, arc, distance_m, link_id, links_by_id):
     index = min(
         range(len(arc)), key=lambda item: abs(arc[item] - float(distance_m))
@@ -449,6 +557,111 @@ def route_pose_at(route, arc, distance_m, link_id, links_by_id):
     }
 
 
+def sample_route_at_arc(route, arc, distance_m):
+    """Linearly sample a route at an arc-length coordinate."""
+
+    distance_m = max(0.0, min(float(distance_m), float(arc[-1])))
+    after_index = bisect.bisect_left(arc, distance_m)
+    if after_index <= 0:
+        before_index, after_index = 0, 1
+    elif after_index >= len(route):
+        before_index, after_index = len(route) - 2, len(route) - 1
+    else:
+        before_index = after_index - 1
+    before = route[before_index]
+    after = route[after_index]
+    span = max(1e-9, arc[after_index] - arc[before_index])
+    ratio = (distance_m - arc[before_index]) / span
+    return {
+        axis: float(before[axis]) + ratio * (
+            float(after[axis]) - float(before[axis])
+        )
+        for axis in ("x", "y", "z")
+    }
+
+
+def smoothstep_quintic(value):
+    value = max(0.0, min(1.0, float(value)))
+    return value * value * value * (10.0 + value * (-15.0 + 6.0 * value))
+
+
+def build_lane_change_route(
+    source_route,
+    source_arc,
+    target_route,
+    target_arc,
+    start_arc_m,
+    transition_length_m,
+    pre_length_m=25.0,
+    post_length_m=30.0,
+    sample_spacing_m=0.5,
+):
+    """Blend adjacent MGeo centerlines into one smooth lane-change route."""
+
+    source_start = max(0.0, float(start_arc_m) - float(pre_length_m))
+    source_change_start = float(start_arc_m)
+    source_change_end = source_change_start + float(transition_length_m)
+    source_end = source_change_end + float(post_length_m)
+    if source_end > source_arc[-1]:
+        raise ValueError("source lane does not contain the requested maneuver")
+
+    source_anchor = sample_route_at_arc(
+        source_route, source_arc, source_change_start
+    )
+    target_change_start = min(
+        target_arc,
+        key=lambda value: math.hypot(
+            sample_route_at_arc(target_route, target_arc, value)["x"]
+            - source_anchor["x"],
+            sample_route_at_arc(target_route, target_arc, value)["y"]
+            - source_anchor["y"],
+        ),
+    )
+    target_end = (
+        float(target_change_start)
+        + float(transition_length_m)
+        + float(post_length_m)
+    )
+    if target_end > target_arc[-1]:
+        raise ValueError("target lane does not contain the requested maneuver")
+
+    total_length = pre_length_m + transition_length_m + post_length_m
+    sample_count = int(math.ceil(total_length / sample_spacing_m)) + 1
+    output = []
+    for index in range(sample_count):
+        local_arc = min(total_length, index * sample_spacing_m)
+        source_distance = source_start + local_arc
+        source = sample_route_at_arc(source_route, source_arc, source_distance)
+        if local_arc <= pre_length_m:
+            point = source
+        elif local_arc < pre_length_m + transition_length_m:
+            progress = (local_arc - pre_length_m) / transition_length_m
+            target_distance = float(target_change_start) + (
+                local_arc - pre_length_m
+            )
+            target = sample_route_at_arc(
+                target_route, target_arc, target_distance
+            )
+            blend = smoothstep_quintic(progress)
+            point = {
+                axis: source[axis] + blend * (target[axis] - source[axis])
+                for axis in ("x", "y", "z")
+            }
+        else:
+            target_distance = float(target_change_start) + (
+                local_arc - pre_length_m
+            )
+            point = sample_route_at_arc(
+                target_route, target_arc, target_distance
+            )
+        if not output or math.hypot(
+            point["x"] - output[-1]["x"],
+            point["y"] - output[-1]["y"],
+        ) > 1e-4:
+            output.append(point)
+    return output
+
+
 def write_waypoint_route(path, route):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -467,7 +680,7 @@ def build_highway_cruise_scene(
 ):
     source_ids = list(family["source_spawn_ids"])
     npc_spawn_id = source_ids[variant_index % len(source_ids)]
-    ego_lane_id = source_ids[(variant_index // len(source_ids)) % len(source_ids)]
+    ego_lane_id = weighted_lane_schedule(family)[variant_index]
     spawn = copy.deepcopy(
         next(
             item
@@ -492,13 +705,40 @@ def build_highway_cruise_scene(
         ego_route, ego_route_arc, start_arc, route_link_ids[0], links_by_id
     )
     same_lane = ego_lane_id == npc_spawn_id
+    lane_speed_range = ego_lane_speed_range(family, ego_lane_id)
     if same_lane:
+        if lane_speed_range is not None:
+            target = max(
+                lane_speed_range[0], min(lane_speed_range[1], target)
+            )
+            set_spawn_target_speed(
+                spawn,
+                target,
+                match_spawn_velocity=family.get(
+                    "spawn_velocity_equals_target", False
+                ),
+            )
         ego_speed = target
+        relative_lane_intent = "same_lane_following"
+    elif ego_lane_id > npc_spawn_id:
+        # Higher lane IDs are farther left in the southbound competition
+        # highway.  Only a left-side Ego is assigned an overtaking speed
+        # advantage; this prevents systematic right-side passing scenes.
+        desired = target + rng.uniform(*family["ego_speed_advantage_kph"])
+        if lane_speed_range is not None:
+            ego_speed = max(
+                lane_speed_range[0], min(lane_speed_range[1], desired)
+            )
+        else:
+            ego_speed = min(float(family["ego_speed_limit_kph"]), desired)
+        relative_lane_intent = "left_side_overtake"
     else:
-        ego_speed = min(
-            float(family["ego_speed_limit_kph"]),
-            target + rng.uniform(*family["ego_speed_advantage_kph"]),
-        )
+        if lane_speed_range is not None:
+            sampled = rng.uniform(*lane_speed_range)
+            ego_speed = max(lane_speed_range[0], min(sampled, target))
+        else:
+            ego_speed = min(float(family["ego_speed_limit_kph"]), target)
+        relative_lane_intent = "right_side_parallel_or_following"
     initial_speed = float(
         uniform_or_choice(
             rng,
@@ -520,6 +760,7 @@ def build_highway_cruise_scene(
             "ego_target_speed_kph": ego_speed,
             "ego_initial_speed_kph": initial_speed,
             "same_lane": same_lane,
+            "relative_lane_intent": relative_lane_intent,
         }
     ]
     capture_overrides = {
@@ -533,6 +774,193 @@ def build_highway_cruise_scene(
         "adaptive_curve_control": False,
     }
     return ego_route, ego_sample, runtime, capture_overrides
+
+
+def build_highway_lane_change_scene(
+    scenario, template, family, rng, variant_index, links_by_id
+):
+    lane_pairs = [tuple(item) for item in family["lane_change_pairs"]]
+    source_lane, target_lane = lane_pairs[variant_index % len(lane_pairs)]
+    source_ids = HIGHWAY_LANE_LINK_PATHS[source_lane]
+    target_ids = HIGHWAY_LANE_LINK_PATHS[target_lane]
+    source_route, source_arc = route_from_link_path(links_by_id, source_ids)
+    target_route, target_arc = route_from_link_path(links_by_id, target_ids)
+
+    target_lane_speed_range = ego_lane_speed_range(family, target_lane)
+    if target_lane_speed_range is None:
+        ego_speed = float(uniform_or_choice(rng, family["ego_target_speed_kph"]))
+    else:
+        ego_speed = rng.uniform(*target_lane_speed_range)
+    transition_length = max(
+        float(family.get("minimum_transition_length_m", 35.0)),
+        min(
+            float(family.get("maximum_transition_length_m", 75.0)),
+            ego_speed / 3.6 * float(family.get("transition_duration_sec", 4.0)),
+        ),
+    )
+    start_arc = float(uniform_or_choice(rng, family["lane_change_start_arc_m"]))
+    pre_length = float(uniform_or_choice(rng, family["pre_length_m"]))
+    post_length = float(uniform_or_choice(rng, family["post_length_m"]))
+    ego_route = build_lane_change_route(
+        source_route,
+        source_arc,
+        target_route,
+        target_arc,
+        start_arc,
+        transition_length,
+        pre_length,
+        post_length,
+    )
+    ego_sample = route_pose_at(
+        ego_route,
+        route_arc_coordinates(ego_route),
+        0.0,
+        source_ids[0],
+        links_by_id,
+    )
+    initial_speed = min(
+        ego_speed,
+        float(uniform_or_choice(rng, family["ego_initial_speed_kph"])),
+    )
+    set_ego_pose(scenario["egoVehicle"], ego_sample, initial_speed)
+    phase_names = ("lane_change_entry", "lane_change_middle", "lane_change_exit")
+    phase_progress = (0.0, 0.45, 0.85)
+    phase_index = variant_index % len(phase_names)
+
+    spawn_by_id = {
+        item["UNIQUEID"]: item for item in template["spawnPointList"]
+    }
+    npc_lane = target_lane if variant_index % 2 == 0 else source_lane
+    spawn = copy.deepcopy(spawn_by_id[npc_lane])
+    target_speed = max(
+        10.0,
+        ego_speed - float(uniform_or_choice(rng, family["ego_speed_advantage_kph"])),
+    )
+    target_speed, period = configure_spawn(
+        spawn,
+        rng,
+        {**family, "target_speed_kph": target_speed},
+        target_speed,
+    )
+    scenario["spawnPointList"] = [spawn]
+    runtime = [{
+        "spawn_unique_id": npc_lane,
+        "target_speed_kph": target_speed,
+        "spawn_period_sec": period,
+        "source_ego_lane_spawn_id": source_lane,
+        "target_ego_lane_spawn_id": target_lane,
+        "lane_change_direction": "left" if target_lane > source_lane else "right",
+        "lane_change_start_arc_m": start_arc,
+        "lane_change_transition_length_m": transition_length,
+        "pre_length_m": pre_length,
+        "post_length_m": post_length,
+        "capture_phase": phase_names[phase_index],
+        "capture_phase_progress": phase_progress[phase_index],
+    }]
+    capture_overrides = {
+        "ego_target_speed_kph": ego_speed,
+        "minimum_ego_speed_kph": ego_speed
+        * float(family.get("minimum_ego_speed_ratio", 0.85)),
+        "capture_motion_arm_m": pre_length
+        + transition_length * phase_progress[phase_index],
+        "minimum_capture_progress_m": float(
+            family.get("minimum_capture_progress_m", 0.3)
+        ),
+        "maximum_motion_m": pre_length + transition_length + post_length + 10.0,
+        "motion_stall_timeout_sec": 15.0,
+        "route_deviation_limit_m": 1.2,
+        "lookahead_m": 6.0,
+        "adaptive_curve_control": False,
+        "clip_motion_phase": phase_names[phase_index],
+    }
+    return ego_route, ego_sample, runtime, capture_overrides
+
+
+def build_static_highway_scene(
+    scenario,
+    family,
+    rng,
+    variant_index,
+    links_by_id,
+    obstacle_pool,
+    obstacle_pool_offset=0,
+):
+    lane_id = static_highway_lane_for_variant(
+        variant_index, int(family.get("count", 1))
+    )
+    route_ids = HIGHWAY_LANE_LINK_PATHS[lane_id]
+    ego_route, ego_arc = route_from_link_path(links_by_id, route_ids)
+    start_arc = float(uniform_or_choice(rng, family["ego_start_arc_m"]))
+    ego_sample = route_pose_at(
+        ego_route, ego_arc, start_arc, route_ids[0], links_by_id
+    )
+    ego_speed = float(uniform_or_choice(rng, family["ego_target_speed_kph"]))
+    initial_speed = min(
+        ego_speed,
+        float(uniform_or_choice(rng, family["ego_initial_speed_kph"])),
+    )
+    set_ego_pose(scenario["egoVehicle"], ego_sample, initial_speed)
+    scenario["objectList"] = []
+    runtime = []
+    count = int(family.get("objects_per_scene", 5))
+    for index in range(count):
+        row = obstacle_pool[(obstacle_pool_offset + index) % len(obstacle_pool)]
+        actor = copy.deepcopy(row["template"])
+        route_point = sample_route_at_arc(
+            ego_route,
+            ego_arc,
+            start_arc + 18.0 + index * 7.0,
+        )
+        next_point = sample_route_at_arc(
+            ego_route,
+            ego_arc,
+            start_arc + 19.0 + index * 7.0,
+        )
+        yaw = math.degrees(
+            math.atan2(
+                next_point["y"] - route_point["y"],
+                next_point["x"] - route_point["x"],
+            )
+        )
+        lateral = (-1.0 if index % 2 == 0 else 1.0) * rng.uniform(4.0, 6.0)
+        position = obstacle_local_to_world(route_point, yaw, 0.0, lateral)
+        actor["UNIQUEID"] = 3001 + index
+        set_actor_world_position(actor, position, yaw + rng.uniform(-15.0, 15.0))
+        actor["moveSpeed"] = 0.0
+        actor["isWaypointMode"] = False
+        actor["activeDistance"] = 0.0
+        scenario["objectList"].append(actor)
+        runtime.append({
+            "unique_id": 3001 + index,
+            "data_id": int(row["data_id"]),
+            "name": row.get("name"),
+            "subtype": row.get("subtype"),
+            "motion": "static",
+            "class": "obstacle",
+            "position": position,
+            "yaw_deg": yaw,
+            "ego_lane_spawn_id": lane_id,
+        })
+    capture_overrides = {
+        "ego_target_speed_kph": ego_speed,
+        "minimum_ego_speed_kph": ego_speed
+        * float(family.get("minimum_ego_speed_ratio", 0.85)),
+        "capture_motion_arm_m": float(family.get("capture_motion_arm_m", 10.0)),
+        "minimum_capture_progress_m": float(
+            family.get("minimum_capture_progress_m", 0.3)
+        ),
+        "maximum_motion_m": 110.0,
+        "motion_stall_timeout_sec": 15.0,
+        "lookahead_m": 6.0,
+        "adaptive_curve_control": False,
+    }
+    return ego_route, ego_sample, runtime, capture_overrides
+
+
+def static_highway_lane_for_variant(variant_index, family_count):
+    family_count = max(1, int(family_count))
+    quantile = (int(variant_index) + 0.5) / family_count
+    return 6 if quantile < 0.60 else (8 if quantile < 0.85 else 10)
 
 
 def build_pedestrian_scene(scenario, template, family, rng):
@@ -606,8 +1034,92 @@ def shade_local_to_world(shade, longitudinal, lateral):
     }
 
 
-def build_obstacle_scene(scenario, template, family, rng, samples):
-    actor = copy.deepcopy(template["objectList"][0])
+def load_runtime_obstacle_pool(catalog_path, compatibility_path, runtime_dir):
+    catalog = load_json(catalog_path)
+    compatibility = load_json(compatibility_path)
+    source_name = compatibility["personal"]["generated_from"]["obstacle"][
+        "file_name"
+    ]
+    source_path = runtime_dir.expanduser().resolve() / source_name
+    source = load_json(source_path)
+    actors = {
+        int(actor["DataID"]): actor for actor in source.get("objectList", [])
+    }
+    eligible = set(compatibility["automatic_eligible"]["obstacle"])
+    rows = []
+    for row in catalog["obstacles_and_related"]:
+        data_id = int(row["data_id"])
+        if data_id not in eligible or data_id not in actors:
+            continue
+        if not str(row.get("generation_policy", "")).startswith("enabled"):
+            continue
+        rows.append({**row, "template": actors[data_id]})
+    if not rows:
+        raise ValueError("runtime obstacle pool is empty")
+    rows.sort(key=lambda row: (row.get("subtype", ""), row["name"]))
+    return rows
+
+
+def obstacle_unique_quota(row):
+    subtype = row.get("subtype")
+    if subtype in {"box", "barrel_or_drum"}:
+        return 72
+    if subtype == "barrier":
+        return 62
+    if subtype == "unoccupied_bicycle_or_scooter":
+        return 45
+    if subtype == "road_sign":
+        return 25
+    if subtype in {"fixed_roadside_object", "road_surface"}:
+        return 20
+    raise ValueError("no V2 obstacle quota for {}".format(row.get("name")))
+
+
+def build_weighted_obstacle_deck(rows):
+    """Interleave the documented 1,415-placement quota without random starvation."""
+
+    quotas = {int(row["data_id"]): obstacle_unique_quota(row) for row in rows}
+    selected = {data_id: 0 for data_id in quotas}
+    row_by_id = {int(row["data_id"]): row for row in rows}
+    deck = []
+    while len(deck) < sum(quotas.values()):
+        candidates = [
+            data_id
+            for data_id, quota in quotas.items()
+            if selected[data_id] < quota
+        ]
+        data_id = min(
+            candidates,
+            key=lambda item: (
+                (selected[item] + 1.0) / quotas[item],
+                selected[item],
+                item,
+            ),
+        )
+        deck.append(row_by_id[data_id])
+        selected[data_id] += 1
+    return deck
+
+
+def obstacle_local_to_world(center, yaw_deg, longitudinal, lateral):
+    yaw = math.radians(float(yaw_deg))
+    return {
+        "x": center["x"] + math.cos(yaw) * longitudinal - math.sin(yaw) * lateral,
+        "y": center["y"] + math.sin(yaw) * longitudinal + math.cos(yaw) * lateral,
+        "z": center["z"] + 0.03,
+    }
+
+
+def build_obstacle_scene(
+    scenario,
+    template,
+    family,
+    rng,
+    samples,
+    obstacle_pool=None,
+    obstacle_pool_offset=0,
+):
+    base_actor = copy.deepcopy(template["objectList"][0])
     scale = float(uniform_or_choice(rng, family["scale_factor"]))
     if family["name"] == "gps_shadow_obstacle":
         shade = template["shadedAreaList"][0]
@@ -618,33 +1130,220 @@ def build_obstacle_scene(scenario, template, family, rng, samples):
             rng.uniform(-half_length, half_length),
             rng.uniform(float(lateral_range[0]), float(lateral_range[1])),
         )
-        road = nearest_sample(samples, raw)
-        position = {"x": road["x"], "y": road["y"], "z": road["z"] + 0.03}
-        yaw = road["yaw"]
+        # Keep the placement in the official shaded-area OBB. A global
+        # nearest-link query can snap this narrow zone to a nearby parallel
+        # road and silently move the actor tens of metres away.
+        position = raw
+        yaw = float(shade["rot"]["yaw"])
         target = dict(shade["pos"])
     else:
-        position = dict(actor["pos"])
-        yaw = float(actor["rot"]["yaw"])
+        position = dict(base_actor["pos"])
+        yaw = float(base_actor["rot"]["yaw"])
         target = target_position_for_family(template, family["name"])
-    set_actor_world_position(actor, position, yaw)
-    actor["scale"] = formatted_vector(
-        float(actor["scale"]["x"]) * scale,
-        float(actor["scale"]["y"]) * scale,
-        float(actor["scale"]["z"]) * scale,
+
+    count = int(uniform_or_choice(rng, family.get("objects_per_scene", 1)))
+    selected = []
+    if obstacle_pool:
+        for index in range(count):
+            selected.append(
+                obstacle_pool[(obstacle_pool_offset + index) % len(obstacle_pool)]
+            )
+    else:
+        selected = [{
+            "data_id": int(base_actor["DataID"]),
+            "name": "template_obstacle",
+            "subtype": "unknown",
+            "template": base_actor,
+        }]
+
+    road = (
+        {**position, "yaw": yaw}
+        if family["name"] == "gps_shadow_obstacle"
+        else nearest_sample(samples, position)
     )
-    actor["moveSpeed"] = 0.0
-    actor["isWaypointMode"] = False
-    actor["activeDistance"] = 0.0
-    scenario["objectList"] = [actor]
-    runtime = [{
-        "unique_id": actor["UNIQUEID"],
-        "data_id": actor["DataID"],
-        "motion": "static",
-        "position": position,
-        "yaw_deg": yaw,
-        "scale_factor": scale,
-    }]
+    scenario["objectList"] = []
+    runtime = []
+    if family["name"] == "gps_shadow_obstacle":
+        longitudinal_slots = [-2.0, 0.0, 2.0]
+    else:
+        longitudinal_slots = [-7.0, -2.0, 3.0, 8.0, 13.0, 18.0, 23.0]
+    rng.shuffle(longitudinal_slots)
+    for index, row in enumerate(selected):
+        actor = copy.deepcopy(row["template"])
+        unique_id = 3001 + index
+        actor["UNIQUEID"] = unique_id
+        lateral_sign = -1.0 if index % 2 == 0 else 1.0
+        subtype = row.get("subtype")
+        if family["name"] == "gps_shadow_obstacle":
+            lateral = lateral_sign * rng.uniform(0.2, 0.8)
+        elif subtype == "road_surface":
+            lateral = lateral_sign * rng.uniform(1.4, 2.0)
+        elif subtype in {"road_sign", "fixed_roadside_object"}:
+            lateral = lateral_sign * rng.uniform(4.5, 6.5)
+        elif subtype == "unoccupied_bicycle_or_scooter":
+            lateral = lateral_sign * rng.uniform(2.5, 4.0)
+        else:
+            lateral = lateral_sign * rng.uniform(3.0, 6.0)
+        actor_position = obstacle_local_to_world(
+            road,
+            road["yaw"],
+            longitudinal_slots[index % len(longitudinal_slots)],
+            lateral,
+        )
+        actor_yaw = road["yaw"] + rng.uniform(-20.0, 20.0)
+        set_actor_world_position(actor, actor_position, actor_yaw)
+        local_scale = scale * rng.uniform(0.95, 1.05)
+        actor["scale"] = formatted_vector(
+            float(actor["scale"]["x"]) * local_scale,
+            float(actor["scale"]["y"]) * local_scale,
+            float(actor["scale"]["z"]) * local_scale,
+        )
+        actor["moveSpeed"] = 0.0
+        actor["isWaypointMode"] = False
+        actor["activeDistance"] = 0.0
+        scenario["objectList"].append(actor)
+        runtime.append({
+            "unique_id": unique_id,
+            "data_id": int(row["data_id"]),
+            "name": row.get("name"),
+            "subtype": row.get("subtype"),
+            "motion": "static",
+            "class": "obstacle",
+            "position": actor_position,
+            "yaw_deg": actor_yaw,
+            "scale_factor": local_scale,
+            "distance_bin_target": family.get("distance_bin_target"),
+            "visibility_target": family.get("visibility_target", "clear"),
+        })
     return target, runtime
+
+
+def set_static_vehicle_actor(actor, sample, unique_id):
+    actor["UNIQUEID"] = unique_id
+    initial = actor["initPosition"]
+    initial["initPositionMode"] = "Absolute"
+    initial["pos"] = formatted_vector(sample["x"], sample["y"], sample["z"] + 0.36)
+    initial["rot"] = formatted_rotation(sample["yaw"])
+    initial["initLink"] = sample["link_idx"]
+    initial["initLinkRatio"] = sample["point_ratio"]
+    initial["gear"] = 4
+    for key in (
+        "linkVelocity",
+        "constantVelocity",
+        "desiredVelocity",
+        "currentVelocity",
+        "viewCurrentVelocity",
+    ):
+        if key in actor:
+            actor[key] = 0.0
+    actor["velocityType"] = 1
+    actor["isCloseLoop"] = False
+    actor["isLaneChange"] = False
+    actor["isEgo"] = False
+    actor["spawnPointUniqueID"] = -1
+    actor["destinationUniqueID"] = -1
+    actor["isWaypointMode"] = False
+    actor["wayPointInfos"] = []
+    actor["activeDistance"] = 0.0
+
+
+def build_stopped_vehicle_scene(scenario, template, family, rng, samples):
+    target = target_position_for_family(template, family["name"])
+    road = nearest_sample(samples, target)
+    count = int(family.get("actors_per_scene", 2))
+    scenario["vehicleList"] = []
+    runtime = []
+    for index in range(count):
+        actor = copy.deepcopy(template["vehicleList"][index % len(template["vehicleList"])])
+        position = obstacle_local_to_world(
+            road,
+            road["yaw"],
+            4.0 + index * 9.0,
+            (-1.0 if index % 2 == 0 else 1.0) * rng.uniform(3.0, 4.5),
+        )
+        sample = nearest_sample(samples, position)
+        set_static_vehicle_actor(actor, sample, 1001 + index)
+        scenario["vehicleList"].append(actor)
+        runtime.append({
+            "unique_id": 1001 + index,
+            "data_id": int(actor["DataID"]),
+            "motion": "static",
+            "class": "vehicle",
+            "position": position,
+            "yaw_deg": sample["yaw"],
+        })
+    return target, runtime
+
+
+def build_standing_pedestrian_scene(scenario, template, family, rng, samples):
+    target = target_position_for_family(template, family["name"])
+    road = nearest_sample(samples, target)
+    count = int(family.get("actors_per_scene", 2))
+    scenario["pedestrianList"] = []
+    runtime = []
+    for index in range(count):
+        actor = copy.deepcopy(template["pedestrianList"][0])
+        position = obstacle_local_to_world(
+            road,
+            road["yaw"],
+            3.0 + index * 7.0,
+            (-1.0 if index % 2 == 0 else 1.0) * rng.uniform(2.5, 4.0),
+        )
+        set_actor_world_position(actor, position, road["yaw"])
+        actor["UNIQUEID"] = 2001 + index
+        actor["speed"] = 0.0
+        actor["active"] = True
+        actor["loop"] = False
+        actor["movingDistance"] = 0.0
+        actor["movingDistanceAmount"] = 0.0
+        actor["animSpeed"] = 0.0
+        actor["isWaypointMode"] = False
+        actor["waypointEventList"] = []
+        scenario["pedestrianList"].append(actor)
+        runtime.append({
+            "unique_id": 2001 + index,
+            "data_id": int(actor["DataID"]),
+            "motion": "static",
+            "class": "pedestrian",
+            "position": position,
+            "yaw_deg": road["yaw"],
+        })
+    return target, runtime
+
+
+def build_realistic_mixed_scene(
+    scenario,
+    template,
+    family,
+    rng,
+    samples,
+    obstacle_pool,
+    obstacle_pool_offset,
+):
+    target, runtime = build_obstacle_scene(
+        scenario,
+        template,
+        {**family, "name": "static_obstacle"},
+        rng,
+        samples,
+        obstacle_pool=obstacle_pool,
+        obstacle_pool_offset=obstacle_pool_offset,
+    )
+    _, vehicles = build_stopped_vehicle_scene(
+        scenario,
+        template,
+        {**family, "name": "stopped_vehicle", "actors_per_scene": 1},
+        rng,
+        samples,
+    )
+    _, pedestrians = build_standing_pedestrian_scene(
+        scenario,
+        template,
+        {**family, "name": "standing_pedestrian", "actors_per_scene": 1},
+        rng,
+        samples,
+    )
+    return target, runtime + vehicles + pedestrians
 
 
 def scenario_unique_ids(scenario):
@@ -681,8 +1380,11 @@ def validate_scene(scenario, family, links_by_id, route, expected_runtime):
         if scenario["pedestrianList"][0]["speed"] <= 0.0:
             raise ValueError("dynamic pedestrian speed must be positive")
     if family.endswith("obstacle"):
-        if len(scenario["objectList"]) != 1 or scenario["objectList"][0]["moveSpeed"] != 0.0:
-            raise ValueError("obstacle family must contain one static obstacle")
+        if not scenario["objectList"] or any(
+            actor["moveSpeed"] != 0.0
+            for actor in scenario["objectList"]
+        ):
+            raise ValueError("obstacle family must contain static obstacles")
     if not expected_runtime:
         raise ValueError("runtime actor specification is empty")
     return {"ego_route_distance_m": route_distance, "unique_id_count": len(identifiers)}
@@ -709,13 +1411,29 @@ def main():
     links = load_json(args.mgeo_dir / "link_set.json")
     links_by_id = {item["idx"]: item for item in links}
     samples = mgeo_samples(links)
+    obstacle_pool = None
+    if config.get("use_runtime_obstacle_pool", False):
+        obstacle_pool = load_runtime_obstacle_pool(
+            args.asset_catalog,
+            args.asset_compatibility,
+            args.runtime_asset_scenario_dir,
+        )
+        if config.get("weighted_obstacle_quota_deck", False):
+            obstacle_pool = build_weighted_obstacle_deck(obstacle_pool)
     seed = int(args.seed if args.seed is not None else config["seed"])
     scenario_dir = args.output_root / "scenarios" / args.group
     metadata_dir = args.output_root / "metadata" / args.group
+    # A group is a deterministic generator-owned output.  Remove stale files
+    # before regeneration so lowering a family quota cannot leave orphaned
+    # scenarios/metadata that disagree with the new manifest.
+    for generated_dir in (scenario_dir, metadata_dir):
+        if generated_dir.exists():
+            shutil.rmtree(generated_dir)
     route_dir = metadata_dir / "routes"
     manifest_path = args.output_root / "manifests" / f"{args.group}.json"
     scenes = []
     global_index = 0
+    obstacle_pool_cursor = 0
 
     for family in config["families"]:
         name = family["name"]
@@ -751,11 +1469,80 @@ def main():
                 )
                 spawn = scenario["spawnPointList"][0]
                 target = dict(spawn["pos"])
+            elif name == "highway_lane_change_overtake":
+                (
+                    route_override,
+                    ego_sample,
+                    runtime,
+                    capture_overrides,
+                ) = build_highway_lane_change_scene(
+                    scenario,
+                    template,
+                    family,
+                    rng,
+                    variant_index,
+                    links_by_id,
+                )
+                spawn = scenario["spawnPointList"][0]
+                target = dict(spawn["pos"])
+            elif name == "static_highway_obstacle":
+                (
+                    route_override,
+                    ego_sample,
+                    runtime,
+                    capture_overrides,
+                ) = build_static_highway_scene(
+                    scenario,
+                    family,
+                    rng,
+                    variant_index,
+                    links_by_id,
+                    obstacle_pool,
+                    obstacle_pool_cursor,
+                )
+                target = dict(runtime[0]["position"])
             elif name == "crosswalk_pedestrian":
                 target, runtime = build_pedestrian_scene(scenario, template, family, rng)
+            elif name == "stopped_vehicle":
+                target, runtime = build_stopped_vehicle_scene(
+                    scenario, template, family, rng, samples
+                )
+            elif name == "standing_pedestrian":
+                target, runtime = build_standing_pedestrian_scene(
+                    scenario, template, family, rng, samples
+                )
+            elif name == "realistic_mixed_static":
+                target, runtime = build_realistic_mixed_scene(
+                    scenario,
+                    template,
+                    family,
+                    rng,
+                    samples,
+                    obstacle_pool,
+                    obstacle_pool_cursor,
+                )
             else:
                 target, runtime = build_obstacle_scene(
-                    scenario, template, family, rng, samples
+                    scenario,
+                    template,
+                    family,
+                    rng,
+                    samples,
+                    obstacle_pool=obstacle_pool,
+                    obstacle_pool_offset=obstacle_pool_cursor,
+                )
+
+            if name in {
+                "static_obstacle",
+                "static_highway_obstacle",
+                "realistic_mixed_static",
+                "sparse_background",
+                "gps_shadow_obstacle",
+            }:
+                obstacle_pool_cursor += sum(
+                    actor.get("motion") == "static"
+                    and actor.get("name") is not None
+                    for actor in runtime
                 )
 
             if route_override is None:
@@ -794,14 +1581,47 @@ def main():
                 lead = None
                 route_pose = ego_sample
                 validation_route = route_override
+            if family.get("stable_ego_gate", False):
+                capture_overrides.update(
+                    {
+                        "stable_ego_window_sec": float(
+                            family.get("stable_ego_window_sec", 0.5)
+                        ),
+                        "maximum_stable_acceleration_mps2": float(
+                            family.get(
+                                "maximum_stable_acceleration_mps2", 1.0
+                            )
+                        ),
+                    }
+                )
             if name == "crosswalk_pedestrian":
                 arm_pedestrian_before_capture(
                     scenario,
                     runtime,
                     family.get("activation_margin_m", 5.0),
                 )
+                # Start the short crossing clip immediately after MORAI first
+                # reports motion.  Priming the heavyweight SaveSensorData
+                # writers after the pedestrian starts can consume most of the
+                # 13.8 m sample path before frame zero is recorded.
+                capture_overrides.update(
+                    {
+                        "warmup_sec": float(
+                            family.get("dynamic_warmup_sec", 0.0)
+                        ),
+                        "prime_capture_before_clip": bool(
+                            family.get("prime_capture_before_clip", False)
+                        ),
+                        "capture_motion_arm_m": float(
+                            family.get("capture_motion_arm_m", 0.3)
+                        ),
+                    }
+                )
             validation = validate_scene(
                 scenario, name, links_by_id, validation_route, runtime
+            )
+            effective_motion_phase = capture_overrides.get(
+                "clip_motion_phase", family.get("motion_phase")
             )
 
             code = FAMILY_CODES[name]
@@ -825,7 +1645,7 @@ def main():
                 "scene_id": scene_id,
                 "scenario_stem": stem,
                 "mission_family": name,
-                "motion_phase": family.get("motion_phase"),
+                "motion_phase": effective_motion_phase,
                 "sampling_role": family.get("sampling_role"),
                 "recommended_phase_share_within_segment": family.get(
                     "recommended_phase_share_within_segment"
@@ -882,6 +1702,18 @@ def main():
                     "scenario": project_relative(scenario_path),
                     "metadata": project_relative(metadata_path),
                     "mission_family": name,
+                    "motion_phase": effective_motion_phase,
+                    "sampling_role": family.get("sampling_role"),
+                    "sequence_contract": {
+                        "clip_length": int(config["capture"]["captures_per_scene"]),
+                        "nominal_period_sec": float(
+                            config["capture"]["capture_period_sec"]
+                        ),
+                        "split_group": scene_id,
+                        "pointpainting_sweep_count": 3,
+                        "pointpainting_target_lags_sec": [0.0, -0.15, -0.30],
+                        "exact_point_time_available": False,
+                    },
                     "split": metadata["split"],
                     "anchor_index": route_pose["route_index"],
                     "waypoints": (

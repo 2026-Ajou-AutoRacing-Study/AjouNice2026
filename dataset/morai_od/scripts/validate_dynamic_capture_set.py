@@ -16,12 +16,14 @@ SPAWN_VEHICLE_FAMILIES = {
     "highway_merge_sample_spawn",
     "highway_merge_cruise",
     "highway_cruise_overtake",
+    "highway_lane_change_overtake",
 }
 
 TARGET_SPEED_START_FAMILIES = {
     "roundabout_circulation",
     "highway_merge_cruise",
     "highway_cruise_overtake",
+    "highway_lane_change_overtake",
 }
 
 
@@ -56,6 +58,40 @@ def shade_coordinates(shade, position):
     )
 
 
+def load_waypoint_route(path):
+    points = []
+    with path.open("r", encoding="utf-8") as stream:
+        for line in stream:
+            fields = line.split()
+            if len(fields) >= 2:
+                points.append((float(fields[0]), float(fields[1])))
+    return points
+
+
+def route_geometry_audit(path):
+    points = load_waypoint_route(path)
+    if len(points) < 3:
+        return {"point_count": len(points), "length_m": 0.0, "max_heading_jump_deg": None}
+    distances = [
+        math.hypot(after[0] - before[0], after[1] - before[1])
+        for before, after in zip(points, points[1:])
+    ]
+    headings = [
+        math.atan2(after[1] - before[1], after[0] - before[0])
+        for before, after in zip(points, points[1:])
+    ]
+    jumps = [
+        abs(math.degrees(math.atan2(math.sin(b - a), math.cos(b - a))))
+        for a, b in zip(headings, headings[1:])
+    ]
+    return {
+        "point_count": len(points),
+        "length_m": sum(distances),
+        "maximum_segment_m": max(distances),
+        "max_heading_jump_deg": max(jumps),
+    }
+
+
 def validate_scene(entry):
     scenario_path = resolve(entry["scenario"])
     metadata_path = resolve(entry["metadata"])
@@ -64,6 +100,7 @@ def validate_scene(entry):
     family = entry["mission_family"]
     errors = []
     warnings = []
+    route_audit = None
 
     if metadata["scene_id"] != entry["id"]:
         errors.append("scene id differs between manifest and metadata")
@@ -84,7 +121,10 @@ def validate_scene(entry):
         if not motion_phase:
             errors.append("vehicle family metadata has no motion_phase")
         if sampling_role not in {
-            "minority_hard_case", "production_representative"
+            "minority_hard_case",
+            "production_representative",
+            "hard_transition",
+            "mission_dynamic_vehicle",
         }:
             errors.append("vehicle family metadata has invalid sampling_role")
         if scenario["vehicleList"]:
@@ -115,10 +155,22 @@ def validate_scene(entry):
             "highway_merge_sample_spawn",
             "highway_merge_cruise",
             "highway_cruise_overtake",
+            "highway_lane_change_overtake",
         }:
             waypoint_path = resolve(entry.get("waypoints", ""))
             if not waypoint_path.is_file():
                 errors.append("highway vehicle route is missing")
+            elif family in {
+                "highway_cruise_overtake",
+                "highway_lane_change_overtake",
+            }:
+                route_audit = route_geometry_audit(waypoint_path)
+                if route_audit["point_count"] < 3:
+                    errors.append("highway route has fewer than three points")
+                if route_audit.get("maximum_segment_m", 0.0) > 1.0:
+                    errors.append("highway route sampling gap exceeds 1.0 m")
+                if route_audit.get("max_heading_jump_deg", 0.0) > 5.0:
+                    errors.append("highway route heading discontinuity exceeds 5 deg")
             overrides = entry.get("capture_policy_overrides", {})
             if float(overrides.get("ego_target_speed_kph", 0.0)) <= 0.0:
                 errors.append("highway Ego target speed is missing")
@@ -126,6 +178,19 @@ def validate_scene(entry):
                 errors.append("highway Ego speed gate is missing")
             if entry.get("ego_readiness_policy") != "route_aligned":
                 errors.append("moving highway Ego must use route-aligned readiness")
+            if family == "highway_lane_change_overtake" and route_audit:
+                arm = float(overrides.get("capture_motion_arm_m", 0.0))
+                speed_mps = float(overrides.get("ego_target_speed_kph", 0.0)) / 3.6
+                clip_duration = float(
+                    metadata.get("capture_policy", {}).get(
+                        "clip_duration_sec", 0.0
+                    )
+                )
+                required_length = arm + speed_mps * clip_duration + 5.0
+                if route_audit["length_m"] < required_length:
+                    errors.append(
+                        "lane-change route lacks post-capture distance margin"
+                    )
     elif family == "crosswalk_pedestrian":
         if len(scenario["pedestrianList"]) != 1:
             errors.append("pedestrian scene must contain exactly one primary pedestrian")
@@ -142,10 +207,24 @@ def validate_scene(entry):
                 if gap > 0.05:
                     errors.append(f"pedestrian actor/path start gap is {gap:.3f} m")
     elif family.endswith("obstacle"):
-        if len(scenario["objectList"]) != 1:
-            errors.append("obstacle scene must contain exactly one obstacle")
-        elif scenario["objectList"][0].get("moveSpeed") != 0.0:
-            errors.append("competition obstacle must remain static")
+        if not scenario["objectList"]:
+            errors.append("obstacle scene must contain at least one obstacle")
+        elif any(
+            actor.get("moveSpeed") != 0.0
+            for actor in scenario["objectList"]
+        ):
+            errors.append("competition obstacles must remain static")
+
+    if family == "static_highway_obstacle":
+        waypoint_path = resolve(entry.get("waypoints", ""))
+        if not waypoint_path.is_file():
+            errors.append("static highway route is missing")
+        else:
+            route_audit = route_geometry_audit(waypoint_path)
+            if route_audit["point_count"] < 3:
+                errors.append("static highway route has fewer than three points")
+            if route_audit.get("maximum_segment_m", 0.0) > 1.0:
+                errors.append("static highway route sampling gap exceeds 1.0 m")
 
     if family == "gps_shadow_obstacle" and scenario["objectList"]:
         shade = scenario["shadedAreaList"][0]
@@ -168,6 +247,17 @@ def validate_scene(entry):
         errors.append("temporal clip must contain at least two SaveSensorData frames")
     if float(policy.get("capture_period_sec", 0.0)) <= 0.0:
         errors.append("capture_period_sec must be positive")
+    if metadata.get("dataset_id", "").startswith(
+        "morai_temporal_sequence_v2"
+    ):
+        if int(policy.get("captures_per_scene", 0)) != 8:
+            errors.append("temporal V2 canonical clip must contain 8 frames")
+        if not math.isclose(
+            float(policy.get("capture_period_sec", 0.0)),
+            0.15,
+            abs_tol=1e-9,
+        ):
+            errors.append("temporal V2 canonical period must be 0.15 sec")
     required_sensor_dirs = set(policy.get("required_sensor_dirs", []))
     expected_sensor_dirs = {
         "CAMERA_1", "CAMERA_2", "CAMERA_3", "CAMERA_4", "LIDAR_5"
@@ -189,7 +279,20 @@ def validate_scene(entry):
     return {
         "id": entry["id"],
         "family": family,
+        "split": entry.get("split"),
+        "frame_count": int(policy.get("captures_per_scene", 0)),
+        "static_assets": [
+            {
+                "data_id": actor.get("data_id"),
+                "name": actor.get("name"),
+                "subtype": actor.get("subtype"),
+                "class": actor.get("class"),
+            }
+            for actor in metadata.get("runtime_actors", [])
+            if actor.get("motion") == "static"
+        ],
         "scenario": str(scenario_path),
+        "route_geometry": route_audit,
         "errors": errors,
         "warnings": warnings,
     }
@@ -201,11 +304,34 @@ def main():
     results = [validate_scene(entry) for entry in manifest["scenes"]]
     errors = [message for item in results for message in item["errors"]]
     warnings = [message for item in results for message in item["warnings"]]
+    static_assets = [
+        actor for item in results for actor in item["static_assets"]
+    ]
+    static_obstacles = [
+        actor for actor in static_assets if actor.get("class") == "obstacle"
+    ]
     report = {
         "schema_version": 1,
         "manifest": str(args.manifest.resolve()),
         "scenario_count": len(results),
         "family_counts": dict(Counter(item["family"] for item in results)),
+        "split_clip_counts": dict(Counter(item["split"] for item in results)),
+        "total_frame_count": sum(item["frame_count"] for item in results),
+        "static_asset_placement_count": len(static_assets),
+        "static_asset_unique_data_id_count": len(
+            {actor["data_id"] for actor in static_assets}
+        ),
+        "static_obstacle_placement_count": len(static_obstacles),
+        "static_obstacle_unique_data_id_count": len(
+            {actor["data_id"] for actor in static_obstacles}
+        ),
+        "static_asset_counts": dict(
+            sorted(
+                Counter(
+                    actor["name"] or "unknown" for actor in static_assets
+                ).items()
+            )
+        ),
         "error_count": len(errors),
         "warning_count": len(warnings),
         "status": "pass" if not errors else "fail",

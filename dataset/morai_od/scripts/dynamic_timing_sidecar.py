@@ -2,6 +2,7 @@
 """Pure helpers for compact temporal-capture timing sidecars."""
 
 from bisect import bisect_left
+import math
 
 
 def samples_in_window(samples, start_monotonic, end_monotonic, padding_sec=0.0):
@@ -75,3 +76,24 @@ def timing_summary(histories, configured_topics):
             ),
         }
     return result
+
+
+def stable_ego_motion(samples, minimum_window_sec, maximum_acceleration_mps2):
+    """Return whether recent serialized Ego samples satisfy a stability gate."""
+
+    if len(samples) < 2:
+        return False
+    span = float(samples[-1]["callback_monotonic"]) - float(
+        samples[0]["callback_monotonic"]
+    )
+    if span + 1e-6 < float(minimum_window_sec):
+        return False
+    for sample in samples:
+        state = sample.get("state") or {}
+        acceleration = state.get("acceleration_raw") or {}
+        magnitude = math.sqrt(
+            sum(float(acceleration.get(axis, 0.0)) ** 2 for axis in ("x", "y", "z"))
+        )
+        if magnitude > float(maximum_acceleration_mps2):
+            return False
+    return True
