@@ -87,6 +87,105 @@ V2는 다음 정보를 표시한다.
 - 최근 실패 여섯 건의 ID, 유형과 짧게 자른 오류 내용.
 - `console.log`가 있으면 현재 scenario load/capture 단계와 clip frame 진행률.
 
+### 10k session 표준 2-pane 모니터링.
+
+여러 batch를 연속 실행할 때는 `run_temporal_v2_10k_capture.sh`가
+`/tmp/morai_temporal_v2_10k_session_dir`와 session 내부 `current_capture.tsv`를
+갱신한다. 모니터는 이 포인터를 읽으므로 batch가 넘어가도 `RUN_DIR`과 manifest를
+손으로 바꾸지 않는다.
+
+두 터미널을 다음처럼 나눠 쓰는 것을 production 표준으로 정한다.
+
+- 상단 pane은 quota group, family, split, recent failure를 표시한다.
+- 하단 pane은 current scene, performance, health, progress와 ETA를 표시한다.
+- 둘 다 `watch -n 5`로 5초마다 갱신하며 capture ROS topic이나 sensor directory를
+  읽지 않는다.
+
+상단 pane 명령은 다음과 같다.
+
+```bash
+watch -n 5 -t '
+SESSION_ROOT=$(cat /tmp/morai_temporal_v2_10k_session_dir)
+STATE_FILE="$SESSION_ROOT/current_capture.tsv"
+
+if [ ! -f "$STATE_FILE" ]; then
+  echo "Waiting for current batch state..."
+  exit
+fi
+
+BATCH=$(cut -f1 "$STATE_FILE")
+RUN_DIR=$(cut -f2 "$STATE_FILE")
+MANIFEST=$(cut -f3 "$STATE_FILE")
+
+if [ "$BATCH" = "DONE" ]; then
+  echo "Temporal V2 10k capture loop finished."
+  echo "Session: $SESSION_ROOT"
+  exit
+fi
+
+echo "10k Capture Session | Batch ${BATCH}/007"
+echo "Session: $SESSION_ROOT"
+echo
+
+if [ -f "$RUN_DIR/summary.json" ]; then
+  cd /home/luv/AjouNice2026
+  python3 dataset/morai_od/scripts/monitor_ros_capture_progress_v2.py \
+    --run-dir "$RUN_DIR" \
+    --manifest "$MANIFEST" \
+    --once \
+    --no-clear \
+    --no-color |
+  sed -n "1,/^LIVE STATUS/p"
+else
+  echo "Waiting for Batch ${BATCH} summary.json..."
+  echo "Run directory: $RUN_DIR"
+fi
+'
+```
+
+하단 pane 명령은 다음과 같다. `sed`의 마지막 주소에 쓰는 `$`는 watch 내부 shell이
+먼저 확장하지 않도록 `\$p`로 escape해야 한다.
+
+```bash
+watch -n 5 -t '
+SESSION_ROOT=$(cat /tmp/morai_temporal_v2_10k_session_dir)
+STATE_FILE="$SESSION_ROOT/current_capture.tsv"
+
+if [ ! -f "$STATE_FILE" ]; then
+  echo "Waiting for current batch state..."
+  exit
+fi
+
+BATCH=$(cut -f1 "$STATE_FILE")
+RUN_DIR=$(cut -f2 "$STATE_FILE")
+MANIFEST=$(cut -f3 "$STATE_FILE")
+
+if [ "$BATCH" = "DONE" ]; then
+  echo "Temporal V2 10k capture loop finished."
+  echo "Session: $SESSION_ROOT"
+  exit
+fi
+
+echo "10k Capture Session | Batch ${BATCH}/007"
+echo "Session: $SESSION_ROOT"
+echo
+
+if [ -f "$RUN_DIR/summary.json" ]; then
+  cd /home/luv/AjouNice2026
+  python3 dataset/morai_od/scripts/monitor_ros_capture_progress_v2.py \
+    --run-dir "$RUN_DIR" \
+    --manifest "$MANIFEST" \
+    --once \
+    --no-clear \
+    --no-color |
+  sed -n "/^LIVE STATUS/,\$p"
+else
+  echo "Waiting for Batch ${BATCH} summary.json..."
+  echo "Run directory: $RUN_DIR"
+fi
+'
+```
+
 수집 영향 방지 원칙은 다음과 같다.
 
 - capture runner 코드를 import하거나 수정하지 않는다.

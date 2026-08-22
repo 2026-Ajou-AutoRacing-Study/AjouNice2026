@@ -5,6 +5,7 @@ import copy
 import math
 import random
 import unittest
+from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -64,6 +65,39 @@ def actor(unique_id, x, timestamp):
 
 
 class DynamicCaptureToolsTest(unittest.TestCase):
+    def test_static_vehicle_keeps_offset_world_position(self):
+        template = generator.load_json(
+            ROOT / "configs/scenario/2026_molit_comp_sample_scene.json"
+        )
+        vehicle = copy.deepcopy(template["vehicleList"][0])
+        link_sample = {
+            "x": 100.0,
+            "y": 200.0,
+            "z": 28.0,
+            "yaw": 15.0,
+            "link_idx": "test_link",
+            "point_ratio": 0.5,
+        }
+        offset_position = {"x": 96.0, "y": 203.5, "z": 28.0}
+        generator.set_static_vehicle_actor(
+            vehicle, link_sample, offset_position, 1001
+        )
+        position = vehicle["initPosition"]["pos"]
+        self.assertAlmostEqual(float(position["x"]), 96.0)
+        self.assertAlmostEqual(float(position["y"]), 203.5)
+        self.assertEqual(vehicle["initPosition"]["initLink"], "test_link")
+
+    def test_point_to_route_distance_measures_swept_path_clearance(self):
+        route = [
+            {"x": 0.0, "y": 0.0},
+            {"x": 10.0, "y": 0.0},
+            {"x": 20.0, "y": 0.0},
+        ]
+        self.assertAlmostEqual(
+            generator.point_to_route_distance({"x": 5.0, "y": 3.5}, route),
+            3.5,
+        )
+
     def test_benchmark_scenarios_keep_only_mission_spawners(self):
         template = generator.load_json(
             ROOT / "configs/scenario/2026_molit_comp_sample_scene.json"
@@ -537,24 +571,48 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertEqual(
             v2_batch.grouped_counts(v2_batch.PRIMARY_COUNTS),
             {
-                "mission_dynamic": 93,
-                "static_temporal": 66,
+                "mission_dynamic": 79,
+                "static_temporal": 80,
                 "hard_transition": 29,
             },
         )
         self.assertEqual(
             v2_batch.grouped_counts(v2_batch.RESERVE_COUNTS),
             {
-                "mission_dynamic": 18,
-                "static_temporal": 7,
+                "mission_dynamic": 16,
+                "static_temporal": 9,
                 "hard_transition": 3,
             },
         )
         self.assertEqual(
-            v2_batch.PRIMARY_COUNTS["highway_cruise_overtake"], 32
+            v2_batch.PRIMARY_COUNTS["highway_cruise_overtake"], 26
+        )
+        self.assertNotIn(
+            "east_corridor_relative_vehicle", v2_batch.PRIMARY_COUNTS
         )
         self.assertEqual(
             v2_batch.PRIMARY_COUNTS["highway_lane_change_overtake"], 4
+        )
+        _base, defaults = v2_batch.family_defaults()
+        highway = defaults["highway_cruise_overtake"]
+        highway["count"] = v2_batch.PRIMARY_COUNTS[
+            "highway_cruise_overtake"
+        ]
+        self.assertEqual(
+            Counter(
+                generator.weighted_zone_schedule(
+                    highway, key="interaction_roles"
+                )
+            ),
+            Counter(
+                {
+                    "front_overtake": 12,
+                    "front_following": 4,
+                    "side_parallel": 4,
+                    "rear_receding": 3,
+                    "rear_approach": 3,
+                }
+            ),
         )
         self.assertEqual(v2_batch.PRIMARY_COUNTS["gps_shadow_obstacle"], 6)
         self.assertEqual(
@@ -566,38 +624,38 @@ class DynamicCaptureToolsTest(unittest.TestCase):
             1,
             "primary",
             v2_batch.PRIMARY_COUNTS,
-            campaign_tag="f1",
-            seed_base=260822000,
+            campaign_tag="f3",
+            seed_base=260824000,
         )
         reserve = v2_batch.build_config(
             1,
             "reserve",
             v2_batch.RESERVE_COUNTS,
-            campaign_tag="f1",
-            seed_base=260822000,
+            campaign_tag="f3",
+            seed_base=260824000,
         )
         batch_two = v2_batch.build_config(
             2,
             "primary",
             v2_batch.PRIMARY_COUNTS,
-            campaign_tag="f1",
-            seed_base=260822000,
+            campaign_tag="f3",
+            seed_base=260824000,
         )
-        self.assertEqual(primary["scenario_prefix"], "t2f1b001p")
-        self.assertEqual(reserve["scenario_prefix"], "t2f1b001r")
-        self.assertEqual(batch_two["scenario_prefix"], "t2f1b002p")
-        self.assertEqual(primary["seed"], 260832000)
-        self.assertEqual(reserve["seed"], 260837000)
-        self.assertEqual(batch_two["seed"], 260842000)
+        self.assertEqual(primary["scenario_prefix"], "t2f3b001p")
+        self.assertEqual(reserve["scenario_prefix"], "t2f3b001r")
+        self.assertEqual(batch_two["scenario_prefix"], "t2f3b002p")
+        self.assertEqual(primary["seed"], 260834000)
+        self.assertEqual(reserve["seed"], 260839000)
+        self.assertEqual(batch_two["seed"], 260844000)
         self.assertEqual(len({primary["seed"], reserve["seed"], batch_two["seed"]}), 3)
 
-    def test_highway_cruise_lane_prior_is_twenty_nine_three(self):
+    def test_highway_cruise_lane_prior_matches_production_quota(self):
         _base, defaults = v2_batch.family_defaults()
         family = defaults["highway_cruise_overtake"]
-        family["count"] = 32
+        family["count"] = 26
         lanes = generator.weighted_lane_schedule(family)
-        self.assertEqual(lanes.count(6), 20)
-        self.assertEqual(lanes.count(8), 9)
+        self.assertEqual(lanes.count(6), 16)
+        self.assertEqual(lanes.count(8), 7)
         self.assertEqual(lanes.count(10), 3)
         self.assertEqual(
             generator.ego_lane_speed_range(family, 6), (35.0, 50.0)
@@ -612,25 +670,25 @@ class DynamicCaptureToolsTest(unittest.TestCase):
     def test_highway_cruise_interaction_role_quota_is_exact(self):
         _base, defaults = v2_batch.family_defaults()
         family = defaults["highway_cruise_overtake"]
-        family["count"] = 32
+        family["count"] = 26
         roles = generator.weighted_zone_schedule(
             family, key="interaction_roles"
         )
-        self.assertEqual(roles.count("front_overtake"), 18)
-        self.assertEqual(roles.count("front_following"), 6)
+        self.assertEqual(roles.count("front_overtake"), 12)
+        self.assertEqual(roles.count("front_following"), 4)
         self.assertEqual(roles.count("side_parallel"), 4)
         self.assertEqual(roles.count("rear_receding"), 3)
-        self.assertEqual(roles.count("rear_approach"), 1)
+        self.assertEqual(roles.count("rear_approach"), 3)
         self.assertEqual(family["maximum_spawn_vehicles"], 1)
 
     def test_highway_merge_and_lane_change_role_quotas_are_exact(self):
         _base, defaults = v2_batch.family_defaults()
         merge = defaults["highway_merge_cruise"]
-        merge["count"] = 14
+        merge["count"] = 10
         merge_roles = generator.weighted_zone_schedule(
             merge, key="interaction_roles"
         )
-        self.assertEqual(merge_roles, ["front_merge_traffic"] * 14)
+        self.assertEqual(merge_roles, ["merge_interacting_traffic"] * 10)
 
         lane_change = defaults["highway_lane_change_overtake"]
         lane_change["count"] = 4
@@ -641,9 +699,66 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertEqual(lane_roles.count("side_target_lane"), 2)
         self.assertNotIn("rear_source_lane", lane_roles)
         self.assertEqual(
-            set(lane_change["lane_pair_offset_overrides"]),
-            {"6-8", "8-10", "10-8", "8-6"},
+            lane_change["lane_change_ego_speed_advantage_kph"], [2.0, 5.0]
         )
+        roles_by_name = {
+            role["name"]: role for role in lane_change["interaction_roles"]
+        }
+        self.assertIn(
+            "desired_capture_longitudinal_m",
+            roles_by_name["front_target_lane"],
+        )
+        self.assertEqual(
+            roles_by_name["side_target_lane"][
+                "desired_capture_longitudinal_ranges_m"
+            ],
+            [[-42.0, -34.0], [12.0, 18.0]],
+        )
+
+    def test_east_corridor_relative_vehicle_quota_is_exact_and_split_is_not_spatial(self):
+        _base, defaults = v2_batch.family_defaults()
+        family = defaults["east_corridor_relative_vehicle"]
+        family["count"] = 28
+        self.assertEqual(family["maximum_spawn_vehicles"], 2)
+        self.assertTrue(family["structured_backup_front"])
+        zones = generator.weighted_zone_schedule(family)
+        roles = generator.weighted_zone_schedule(
+            family, key="interaction_roles"
+        )
+        self.assertEqual(zones.count("train_stable_a"), 10)
+        self.assertEqual(zones.count("train_stable_d"), 10)
+        self.assertEqual(zones.count("val_stable_a"), 2)
+        self.assertEqual(zones.count("val_stable_d"), 2)
+        self.assertEqual(zones.count("test_stable_a"), 2)
+        self.assertEqual(zones.count("test_stable_d"), 2)
+        self.assertEqual(roles.count("front_slow"), 12)
+        self.assertEqual(roles.count("front_matched"), 6)
+        self.assertEqual(roles.count("rear_approach"), 6)
+        self.assertEqual(roles.count("rear_receding"), 4)
+        split_by_zone = {
+            row["name"]: row["split"] for row in family["ego_capture_zones"]
+        }
+        self.assertEqual(split_by_zone["val_stable_a"], "val")
+        self.assertEqual(split_by_zone["test_stable_d"], "test")
+        ranges = {
+            row["name"]: row["route_index_range"]
+            for row in family["ego_capture_zones"]
+        }
+        self.assertEqual(ranges["train_stable_a"], ranges["val_stable_a"])
+        self.assertEqual(ranges["train_stable_a"], ranges["test_stable_a"])
+        self.assertEqual(ranges["train_stable_d"], ranges["val_stable_d"])
+        self.assertEqual(ranges["train_stable_d"], ranges["test_stable_d"])
+
+        pairs = generator.weighted_pair_schedule(family)
+        self.assertEqual(len(pairs), 28)
+        self.assertEqual(
+            Counter(role for _zone, role in pairs), Counter(roles)
+        )
+        for zone in ("train_stable_a", "train_stable_d"):
+            self.assertGreaterEqual(
+                len({role for pair_zone, role in pairs if pair_zone == zone}),
+                3,
+            )
 
     def test_capture_actor_gate_uses_ego_aligned_coordinates(self):
         ego = {
@@ -656,6 +771,7 @@ class DynamicCaptureToolsTest(unittest.TestCase):
                     "unique_id": 7,
                     "class": "vehicle",
                     "position_m": {"x": 7.0, "y": 45.0, "z": 0.0},
+                    "derived_speed_mps": 2.0,
                 }
             ]
         }
@@ -674,16 +790,65 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertAlmostEqual(observation["longitudinal_m"], 25.0)
         self.assertAlmostEqual(observation["lateral_m"], 3.0)
 
+        too_close, observation = metadata.capture_actor_gate_observation(
+            ego,
+            objects,
+            {
+                "class": "vehicle",
+                "minimum_distance_m": 30.0,
+                "maximum_distance_m": 50.0,
+            },
+        )
+        self.assertFalse(too_close)
+        self.assertAlmostEqual(observation["distance_m"], math.hypot(25.0, 3.0))
+
+        stopped, observation = metadata.capture_actor_gate_observation(
+            ego,
+            objects,
+            {"class": "vehicle", "minimum_actor_speed_mps": 3.0},
+        )
+        self.assertFalse(stopped)
+        self.assertAlmostEqual(observation["speed_mps"], 2.0)
+
+        raw_speed_ready, observation = metadata.capture_actor_gate_observation(
+            ego,
+            {
+                "actors": [
+                    {
+                        "unique_id": 8,
+                        "class": "vehicle",
+                        "position_m": {"x": 10.0, "y": 35.0, "z": 0.0},
+                        "derived_speed_mps": None,
+                        "morai_speed_raw": 18.0,
+                    }
+                ]
+            },
+            {"class": "vehicle", "minimum_actor_speed_mps": 4.0},
+        )
+        self.assertTrue(raw_speed_ready)
+        self.assertAlmostEqual(observation["speed_mps"], 5.0)
+
     def test_roundabout_capture_zones_are_interleaved_exact_quotas(self):
         _base, defaults = v2_batch.family_defaults()
         family = defaults["roundabout_circulation"]
-        family["count"] = 18
+        family["count"] = 14
         zones = generator.weighted_zone_schedule(family)
-        self.assertEqual(zones.count("approach"), 4)
+        self.assertEqual(zones.count("approach"), 2)
         self.assertEqual(zones.count("merge_entry"), 5)
-        self.assertEqual(zones.count("circulation"), 5)
-        self.assertEqual(zones.count("exit"), 4)
-        self.assertGreaterEqual(len(set(zones[:4])), 3)
+        self.assertEqual(zones.count("circulation"), 6)
+        self.assertEqual(zones.count("exit"), 1)
+        self.assertGreaterEqual(len(set(zones[:5])), 3)
+
+        self.assertEqual(family["maximum_spawn_vehicles"], 1)
+        self.assertTrue(family["backup_roundabout_spawn"])
+        self.assertEqual(family["backup_roundabout_spawn_unique_id"], 104)
+        self.assertTrue(family["spawn_velocity_equals_target"])
+        self.assertEqual(
+            family["capture_actor_gate"]["minimum_distance_m"], 5.0
+        )
+        self.assertEqual(
+            family["capture_actor_gate"]["maximum_distance_m"], 55.0
+        )
 
     def test_roundabout_spawn_reposition_stays_on_legal_path(self):
         links = generator.load_json(
@@ -707,6 +872,10 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertEqual(spawn["startLinkInfo"]["linkIdx"], pose["link_idx"])
         self.assertAlmostEqual(spawn["pos"]["x"], pose["x"])
         self.assertLess(math.hypot(pose["x"] + 65.0, pose["y"] - 342.0), 25.0)
+        _samples, arc = generator.link_path_samples(
+            links_by_id, generator.ROUNDABOUT_NPC_LINK_PATH
+        )
+        self.assertGreater(arc[-1], 200.0)
 
     def test_gps_shadow_vehicle_uses_legal_tunnel_route(self):
         links = generator.load_json(

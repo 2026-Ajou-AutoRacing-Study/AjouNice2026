@@ -488,7 +488,7 @@ visibility transition 15%다. 공식 sample path의 알려진 가림 시작 방�
 clip으로 승격한다. 지도 구조물이 부적합하면 현실적인 정차 차량 가림을 사용하고,
 무관한 obstacle을 횡단보도에 임의 배치하지 않는다.
 
-### Generic structured-random vehicle pilot.
+### Generic east-corridor relative-vehicle pilot.
 
 Mission vehicle만 학습하면 모델이 로터리·고주로 배경과 motion을 결합하는 shortcut을
 가질 수 있으므로 일반 도로 vehicle family도 후보로 유지한다. 다만 첫 1,504-frame
@@ -913,3 +913,337 @@ metadata 결손 없이 통과했다.
   scenario·metadata·mrp scenario·EgoNetwork sidecar 누락은 0개다.
 - 대규모 최초 실행은 primary만 수집한다. 실패 scene은 reserve로 바로 섞지 않고 batch
   종료 후 실패 family/split을 확인해 동일 stratum reserve로 보충한다.
+
+## 2026-08-22 final2 로터리 객체 coverage와 합류 gate 보정.
+
+Final1 Batch 001을 136 frame까지 수집한 뒤 로터리 frame metadata를 감사했다. 당시 완료된
+17개 `roundabout_circulation` clip 중 4개는 8 frame 전체에 vehicle이 없었고, 30 m 안에
+vehicle이 한 번이라도 들어온 clip도 6개뿐이었다. 원인은 두 가지가 겹친 것이었다.
+
+- 로터리 NPC 경로가 공식 `144→133→134→135→102`에서 끝나 약 114 m 뒤 MORAI가 actor를
+  삭제했다.
+- `dynamic_actor_ready`는 capture arm보다 먼저 검사하므로, 준비 시점에는 있던 actor가
+  frame 0 직전에 멀어지거나 사라져도 clip이 저장될 수 있었다.
+
+Final2는 다음과 같이 보정한다.
+
+- 로터리 순항 NPC 경로를 합법적으로 이어지는 `848→845→843`까지 연장해 총 200 m 이상
+  유지한다.
+- `roundabout_circulation` 18 clips 모두 frame 0과 매 frame에서 차량 거리 8--45 m를
+  live gate로 확인한다.
+- 순항 NPC는 중간 spawn에서 `spawn speed = target speed`를 유지한다. 공식 정지 spawn
+  가속은 별도 hard-transition family인 `roundabout_sample_spawn`에만 남긴다.
+- 순항 18 clips의 공간 quota는 접근 3, 합류·진입 6, 로터리 순환 7, 탈출 2다.
+  탈출 후 후방 관측은 완전히 삭제하지 않되 11.1%로 축소한다.
+
+접근, 합류, 순환, 탈출 대표 4 clips를 live capture한 결과 모두 8/8 frame을 완료했다.
+선택 차량은 각 clip 전체에서 19.0--39.3 m 안에 유지됐고, 탈출 clip의 차량도 후방
+20.6--22.0 m에 남아 있었다. 따라서 탈출 quota는 소량 보존하되 더 늘리지 않는다.
+
+고주로 합류의 기존 front-only gate도 실제 simulator 좌표계에서 취약했다. 실패한
+`dmc001`의 차량은 사라진 것이 아니라 Ego 뒤 15.0 m, 횡 4.2 m에 있었지만 종방향 0 m
+이상 조건 때문에 버려졌다. 합류에서는 뒤쪽 본선 차량도 중요한 충돌 후보이므로 다음처럼
+바꿨다.
+
+- 역할명을 `merge_interacting_traffic`으로 일반화한다.
+- live gate는 종방향 -25--60 m, 횡방향 절댓값 22 m 이하, 거리 8--65 m를 사용한다.
+- 같은 실패 scene을 재실행한 결과 8/8 frame, 11.97 Hz로 통과했다.
+- 실패 메시지에는 마지막 actor gate 상대 위치를 함께 기록해 ROS 연결 실패와 실제 배치
+  실패를 구분한다.
+
+Final2 campaign tag는 `f2`, seed base는 `260823000`이다. 구형 Final1 10k 중단 capture와
+Final1/초기 Final2 생성·MORAI 설치본은 삭제하고 Batch 001--007을 전부 재생성했다.
+
+- Primary는 총 1,316 clips/10,528 frames다.
+- Reserve는 총 196 clips/1,568 frames다.
+- Source/runtime manifest 28개와 primary dry-run 7개는 모두 통과했다.
+- 1,512개 scene ID, file stem, temporal split group은 모두 고유하다.
+- 14개 batch/role seed도 모두 고유하고 scenario, metadata, MORAI scenario와 EgoNetwork
+  sidecar 누락은 0개다.
+- 대표 live output validator는 7 clips/56 frames 모두 오류 0개였다. 남은 경고는 기존
+  Capture Mode의 `/clock` 부재뿐이다.
+
+## 2026-08-22 final3 east-corridor relative vehicle 15% 편성.
+
+Final2 수집 시작 전, mission 좌표와 차량 운동을 함께 외우는 shortcut을 줄이기 위해
+vehicle-only `east_corridor_relative_vehicle`을 28 clips/224 frames, 즉 batch의 14.9%로
+승격했다. 보행자·obstacle quota를 깎지 않고 기존 mission vehicle 28 clips를 일반
+lane-following vehicle로 교체하므로 class balance는 유지한다.
+
+| 그룹 | Final2 clip | Final3 clip | Final3 비율 |
+| --- | ---: | ---: | ---: |
+| Mission dynamic | 93 | 65 | 34.6% |
+| East-corridor relative vehicle | 0 | 28 | 14.9% |
+| Static temporal | 66 | 66 | 35.1% |
+| Hard transition | 29 | 29 | 15.4% |
+
+Mission dynamic 내부는 로터리 순항 14, 고주로 합류 10, 고주로 순항·추월 12,
+고주로 lane change 4, 횡단보도 pedestrian 25 clips다. Static obstacle, pedestrian과
+공식 spawn/GPS hard-transition quota는 Final2와 동일하다.
+
+Generic vehicle은 완전 랜덤 spawn이 아니다. Competition route의 live 검증된 일반
+lane-following corridor에서만 Ego와 NPC 좌표, 속도와 상대 gap을 연속 랜덤화한다.
+
+- 공간 quota는 train 20, val 4, test 4 clips다.
+- 역할 quota는 느린 전방 12, 유사 속도 전방 6, 후방 접근 6, 후방 멀어짐 4 clips다.
+- 보행자와 obstacle은 섞지 않고 vehicle 한 대만 배치해 실패 원인을 귀속 가능하게 한다.
+- 모든 frame은 live actor gate로 차량 존재, 종·횡방향 위치와 거리 범위를 확인한다.
+- rear vehicle은 ScenarioLoad 중 정지 Ego를 추돌하지 않도록 28--42 m 후방에서 속도 0으로
+  spawn한 뒤 목표속도로 가속한다. Actor motion을 capture 시작 전 강제하지 않고 실제 frame
+  gate를 사용한다.
+
+초기 전역 후보 smoke는 structured randomization과 완전 randomization의 차이를 확인시켰다.
+
+- Route 120--500은 NPC가 분기 뒤 횡방향 16 m 이탈했다.
+- Route 850--1200은 역할에 따라 횡방향 40 m까지 갈라졌다.
+- Route 4000--4180은 capture arm 전에 NPC가 route 끝에서 사라졌다.
+- 이 구간들은 quota를 맞추기 위해 억지로 gate를 완화하지 않고 후보에서 제거했다.
+
+최종 corridor는 동측 상단 A 2250--2475, 동측 상단 B 2476--2700, 동측 하단 2750--3050,
+val 동측 3100--3250, test 동측 3300--3500이다. Val/test는 train 좌표와 겹치지 않는다.
+초기 대표 smoke는 다섯 corridor와 네 상대 역할을 모두 포함하여 6 clips/48
+frames를 8/8 frame으로 저장했다. 다만 output validator가 서측 신호 구간의
+`front_matched` 하나가 clip 동안 0.2 m 미만 이동한 것을 추가로 검출했다.
+
+이 결과를 영상을 정상 저장했다는 이유로 무시하지 않고 다음처럼 Final3를
+마지막으로 보정했다.
+
+- 신호·분기가 있던 서측 550--750 corridor는 train에서 제거하고, 이미 live
+  검증된 동측 연속 주행 구간을 A/B로 나뉘다.
+- 차량이 상대 위치 gate 안에 있어도 실제 속도가 0.5 m/s 미만이면 capture arm을
+  통과하지 못하게 했다. Dynamic quota가 또 다른 stopped-vehicle clip으로 변하는
+  것을 막는 방어선이다.
+- 동측 B corridor의 `front_matched`를 다시 live capture한 결과 8/8 frame, 11.45 Hz,
+  vehicle 8/8 관측, output validator 오류 0으로 통과했다.
+
+Final3 campaign tag는 `f3`, seed base는 `260824000`이다. Batch 001--007 primary는
+여전히 총 10,528 frames이며 reserve는 동일한 실패 보충 전용이다.
+
+## 2026-08-22 east-corridor relative vehicle 재설계와 반복 live 검증.
+
+이 family는 route 전체의 무작위 동적 객체가 아니다. Ego capture anchor는 실제
+MRP live capture를 반복 통과한 동측 남북방향 corridor 두 구간, global route index
+`2250--2500` 약 `(x=62.5--67.0, y=197.0--72.7)`과 `3045--3300` 약
+`(x=73.2--70.4, y=-197.6---324.1)` 안에서만 무작위 선택된다. 이 제약을
+이름에 드러내고 route-wide random으로 오해하지 않도록 기존
+`structured_random_vehicle`을 `east_corridor_relative_vehicle`로 변경했다. 기존에
+생성된 historical manifest의 이름은 실험 추적성을 위해 그대로 두고, 다음
+batch 재생성부터 새 family ID와 `ecv` scene prefix를 사용한다.
+
+Final3의 east-corridor relative vehicle은 정적 JSON 검사와 소수 smoke에는 통과했지만, 임의 legal
+link에 옮긴 spawn이 MORAI 내부에서 항상 유효한 lane-following path를 생성한다는 보장은
+없었다. 또한 Train/Val/Test를 연속된 서로 다른 route block으로 나누면 scenario clip
+누수는 막지만, 위치 자체가 split label이 되는 불필요한 domain shift가 생겼다.
+
+다음 대안들을 실제 MRP에서 순차 검증했다.
+
+| 대안 | Live 결과 | 판단 |
+| --- | ---: | --- |
+| 11개 전역 spatial block spawn | 6/11 | 임의 MGeo 위치만으로는 부족. |
+| 14개 interleaved block spawn | 6/14 | split 순서 변경만으로 해결되지 않음. |
+| `vehicleList` direct actor | 6/14 | 요청 위치·속도·경로가 안정적으로 유지되지 않음. |
+| direct actor `velocityType=1` | 0/6 | 기각. |
+| spawn wait/route 길이/active distance 변경 | 3/14--8/14 | seed 의존성이 크고 근본 해결 아님. |
+| 동측 corridor 단일 spawn 대표 15개 | 9/15 | 개선됐지만 production 성공률 부족. |
+| 동측 corridor 보조 spawn 28개 | 17/28 | artifact는 정상이나 39.3% scene 실패. |
+
+단일 spawn 28개에서 role별 성공률은 `rear_approach` 6/6, `rear_receding` 3/4,
+`front_slow` 8/12, `front_matched` 0/6이었다. 특히 동일 속도 앞차는 MORAI가 생성한 짧은
+경로를 먼저 벗어나면 Ego가 따라잡을 수도 없어 빈 clip이 됐다. 성공 17 clips/136 frames는
+output validator 오류 0이었지만 이 성공률로는 15% production quota를 안정적으로 채울 수
+없다.
+
+최종 후보 정책은 다음과 같다.
+
+- Competition route 밖의 좌표를 사용하지 않는다.
+- 임의 route-wide relocation은 제거한다. 반복 live 검증된 두 동측 일반주행 band만
+  structured regularizer에 사용하고, 나머지 route coverage는 로터리·고주로·GPS shadow·
+  횡단보도 mission family가 담당한다.
+- Train/Val/Test는 두 band를 모두 공유한다. 같은 8-frame scenario clip은 한 split에만
+  속하지만, 공간 위치 자체로 split을 나누지는 않는다. 각 scene seed와 차량 속도·gap·
+  차종은 독립이다.
+- 두 spawn source를 사용하고 각 source가 4--6초 간격으로 최대 2회 생성하게 한다. 첫
+  actor가 capture 전에 짧은 경로 끝에서 사라져도 유효한 대체 actor를 확보하기 위함이다.
+- 계획한 `front_slow`, `front_matched`, `rear_approach`, `rear_receding`은 generation
+  metadata로 보존한다. Live 승인 조건은 특정 sign 하나가 아니라 Ego 기준 종방향
+  -55--55 m 안의 실제 이동 차량이며, 선택 actor의 실측 종·횡 위치·속도는 모든 frame에
+  기록한다.
+- Capture actor speed fallback은 MORAI raw km/h를 m/s로 변환한 뒤 0.5 m/s gate와
+  비교한다.
+
+독립 seed 대표 16개를 Train 8, Val 4, Test 4와 두 band 8/8로 구성해 다시 capture했다.
+
+- 16/16 clips, 128/128 frames 성공.
+- Camera 4대, LiDAR와 temporal metadata output validator 오류 0개.
+- Sequence rate 평균 11.678 Hz, 범위 11.364--11.994 Hz.
+- 계획 capture anchor 대비 실제 frame-0 위치 편차는 p50 1.30 m, p90 7.58 m,
+  최대 12.35 m.
+- Frame당 이동 차량은 평균 2.84대, 최소 2대, 최대 4대였다. 이 밀집도는 전체의 15%인
+  structured regularizer에만 적용하고 mission clip의 순수성은 유지한다.
+- Gate actor의 종방향 범위는 -26.7--51.9 m, 횡방향 절댓값 p95는 1.1 m였다.
+- `/clock`이 없는 Capture Mode 특성상 validator warning은 clip당 1개 남지만,
+  Ego/Object header timestamp와 timing sidecar는 정상이다.
+
+### 1차 production baseline 편성 결정.
+
+반복 live 검증 후 `east_corridor_relative_vehicle`은 동측 두 corridor에서만
+안정적이었다. 이는 초기 목표였던 route-wide generic dynamic을 대표하지 못하고
+`highway_cruise_overtake`의 직선 상대운동과 중복된다. 따라서 구현과 live 검증
+기록은 연구용으로 보존하되 1차 production primary quota에서는 제외한다.
+유용한 전방 저속·동일속도, 측면 병렬, 후방 접근·이탈 role은
+`highway_cruise_overtake` 내부 분포로 통합한다.
+
+| 그룹 | Clips | Frames | 비율 |
+| --- | ---: | ---: | ---: |
+| Mission dynamic | 79 | 632 | 42.0% |
+| Static temporal | 80 | 640 | 42.6% |
+| Hard transition | 29 | 232 | 15.4% |
+| 합계 | 188 | 1,504 | 100.0% |
+
+Static temporal 80 clips은 `static_obstacle` 41, `static_highway_obstacle` 12,
+`stopped_vehicle` 8, `standing_pedestrian` 5, `realistic_mixed_static` 7,
+`sparse_background` 7이다. 명시적 obstacle family는 53/80=66.3%, 전체의
+53/188=28.2%다. 이 baseline은 새 batch를 아직 생성하지 않고 generator quota에만
+반영한다.
+
+Batch 001--007 재생성은 사용자가 별도로 요청할 때까지 수행하지 않는다.
+
+### Baseline 1 단계적 capture session.
+
+1차 수집은 Batch 001--003, 4,512 frames까지 먼저 수집하고 artifact·family
+coverage·scene failure·sequence rate를 감사한다. 통과하면 동일 session root에
+Batch 004--007을 `--resume`로 추가해 총 10,528 frames로 완성한다.
+
+`run_temporal_v2_10k_capture.sh`는 `--start-batch`, `--end-batch`, `--session-root`,
+`--resume`를 지원한다. 첫 단계가 끝나면 `current_capture.tsv`를 `PAUSED`로,
+Batch 007까지 끝나면 `DONE`으로 표시한다. Resume 시에는 앞 batch의
+`summary.json`, campaign tag, seed base, frame 수와 family quota로 만든 baseline signature를
+검증하며 기존 batch output을 덮어쓰지 않는다.
+
+2026-08-22에 campaign tag `base1`로 Batch 001--003 primary/reserve를 생성하고
+MRP EgoNetwork sidecar와 runtime manifest를 설치했다. 각 primary는 188 clips/1,504
+frames, reserve는 28 clips이며 source/runtime static validator는 모두 error 0으로
+통과했다. Primary 3개의 scene ID 564개는 모두 고유하며, 전체 4,512
+ frames이다. Batch 004--007은 1차 수집 감사 전에 생성하지 않는다.
+
+### Baseline 1 Batch 001--003 실수집 감사와 재생성 전 수정.
+
+첫 단계 실수집은 564 clips 중 461 clips, 3,688/4,512 frames를 저장해 성공률이
+81.7%였다. 성공 artifact는 세 batch 모두 output validator 오류 0이었고 sequence rate
+p50은 11.64--11.65 Hz였다. 그러나 103개 실패 중 72개가 collision이었으므로 reserve로
+단순 보충하지 않고 generator를 먼저 수정한다.
+
+- `static_obstacle`은 123 clips 중 47개가 충돌했다. 인접·교차 MGeo link 중 global
+  nearest link를 고르면서 일부 actor가 실제 Ego 경로에서 1.0--1.6 m에 배치된 것이
+  원인이었다.
+- `stopped_vehicle`은 24 clips 중 12개가 충돌했다. 3.0--4.5 m 옆으로 계산한 world
+  position을 metadata에는 기록하면서 실제 scenario JSON은 nearest MGeo sample x/y로
+  다시 snap해 차선 중앙에 놓는 구현 버그였다.
+- `highway_cruise_overtake`은 계획 역할 gate가 ScenarioLoad 중 변한 actor 상대 위치를
+  끝까지 강제해, 유효 차량이 35--58 m에 보여도 Ego가 110--130 m를 달린 뒤 실패했다.
+  우측 차로 Ego와 같은 차로에 더 느린 front-overtake NPC를 둔 장면은 회피 planner가
+  없는 capture controller 특성상 추돌했다.
+- `realistic_mixed_static`은 obstacle, stopped vehicle, pedestrian을 서로 다른 공식
+  template 위치에 놓아 이름과 달리 한 sensor scene에 함께 보이지 않는 오류도 있었다.
+
+재생성 전 generator 방어선은 다음과 같다.
+
+- Static actor는 global nearest MGeo link가 아니라 실제 Ego capture route tangent를
+  기준으로 배치한다. 일반 actor 중심은 swept path에서 최소 2.8 m, barrier·sign·fixed
+  roadside object는 최소 4.0 m를 확보한다. 곡선이나 가까운 return segment가 있으면 양쪽
+  roadside를 탐색해 최소 offset으로 안전한 쪽을 고른다.
+- Stopped vehicle은 world offset 좌표를 scenario와 metadata에 동일하게 기록하고 MGeo
+  link는 yaw/link metadata에만 사용한다. 최소 route clearance는 3.0 m다.
+- Mixed-static의 세 class는 같은 target route 구간에 함께 배치한다.
+- Highway의 planned role은 metadata로 유지하되 live 승인 gate는 반경 65 m 안의 실제
+  이동 차량을 사용한다. Front-overtake는 Ego보다 오른쪽의 별도 차로에만 두며, 우측
+  차로로 뽑힌 Ego는 중간/좌측 overtaking lane으로 재배정한다.
+- Lane-change NPC spawn offset은 고정 lane-pair magic number 대신 Ego capture phase까지의
+  예상 시간, Ego/NPC 속도와 원하는 capture 상대 종방향 위치로 계산한다.
+- Roundabout cruising은 최대 2회 spawn을 허용하고 gate 거리를 5--55 m로 조정한다.
+  Ego 목표속도는 NPC보다 최대 2 km/h만 높게 제한해 capture controller 추돌을 줄인다.
+
+독립 `fix1` seed로 Batch 001--003 총 564 clips를 임시 생성한 오프라인 결과는 다음과 같다.
+
+- Scene ID와 seed는 각각 564/564개 고유하다.
+- 세 manifest 모두 188 clips/1,504 frames이며 static validator error는 0이다.
+- Route-clearance metadata가 있는 924 actor는 의도적으로 shaded corridor 내부에 두는
+  `gps_shadow_obstacle`을 제외하면 최소 clearance를 모두 만족한다.
+- Stopped vehicle의 scenario world position과 metadata position 차이는 0이다.
+- Mixed-static vehicle/pedestrian은 static target에서 약 5--7 m 안에 함께 배치된다.
+
+이 수정본은 MRP ROS master가 다시 연결된 뒤 대표 static obstacle, stopped vehicle,
+highway cruise, lane change, roundabout live smoke를 통과해야 새 production campaign과
+Batch 001--003을 재생성한다. 기존 `base1` 실수집은 실패 분석 자료로만 보존하고 학습
+dataset에는 섞지 않는다.
+
+### Baseline 2 live 승인과 Batch 001--003 재생성.
+
+MRP 재연결 후 수정본을 단계적으로 live 검증했다.
+
+- 대표 family 12개 smoke에서 highway cruise 5개 role, static obstacle, stopped
+  vehicle, mixed static, GPS obstacle은 모두 성공했다. 성공 10 clips/80 frames의
+  output validator 오류는 0이었다.
+- 첫 roundabout circulation은 NPC가 capture 전에 사라졌다. 동일 legal route에
+  28 m 간격의 독립 backup spawn을 추가한 뒤 서로 다른 spatial phase의 대표 4개가
+  4/4 clips, 32/32 frames로 통과했다.
+- Lane-change의 고정 spawn offset을 Ego가 정지 상태에서 목표속도까지 가속하는 실제
+  도달시간으로 교체했다. 전방 target 2개와 측면 target 2개를 모두 live 실행한 broad
+  smoke는 4/4 clips, 32/32 frames로 통과했다.
+- 측면 target을 Ego 종방향 -5--8 m에 두면 차선 진입 중 물리적 충돌이 발생했다.
+  전방과 후방의 안전 gap을 별도 quota로 나눴다. MORAI는 Ego controller가 시작되기
+  전에 NPC spawn을 먼저 움직이므로, 후방 spawn은 20--30 m의 선행 이동 여유도
+  포함한다.
+- 최종 후방 side-target live 표본은 frame-0에서 -26.70 m, frame-7에서 -27.23 m였고,
+  전방 side-target은 약 +18--20 m였다. 둘 다 8/8 frame, collision 0, output validator
+  오류 0으로 통과했다.
+
+최종 broad smoke 결과는 roundabout 4개와 lane-change 4개가 8/8 clips, 64/64
+frames로 성공했고 전체 output validator 오류는 0이었다. Sequence rate는 약
+11.4--12.0 Hz 범위였다. 일시적인 MORAI network reconnect warning은 자동 복구됐으며
+artifact 누락으로 이어지지 않았다.
+
+이 결과를 기준으로 production campaign을 `base2`, seed base `260826000`으로 정했다.
+구형 Batch 001--003 생성물을 제거하고 primary/reserve를 모두 다시 생성·설치했다.
+
+- Primary는 batch당 188 clips/1,504 frames, 3개 합계 564 clips/4,512 frames다.
+- Reserve는 batch당 28 clips이며 실패 scene 보충 전용이다.
+- Source와 runtime manifest 6개 모두 static validator 오류 0이다.
+- Primary scene ID는 564/564, seed는 564/564로 모두 고유하다.
+- 기존 `base1` capture는 실패 분석 자료일 뿐 `base2` 학습 데이터에 포함하지 않는다.
+- 1차 실수집은 Batch 001--003까지만 수행하고 결과 감사를 통과한 뒤 동일 session에
+  Batch 004--007을 생성·추가한다.
+
+### Baseline 2 Batch 001--003 감사와 Batch 004--007 승인.
+
+Velocity GT, 객체 상대 방향 분포, 로터리 add-on과 Ego spatial coverage의 상세 후속 계획은
+`base2_batch001_003_audit_and_followups.md`에 정리한다.
+
+실수집 Batch 001--003은 564 clips 중 543 clips, 4,344 frames가 성공했다. 성공 clip은
+모두 8 frames였고 sequence rate는 평균 약 11.65 Hz였다. Batch별 source/runtime
+validator는 오류 0개를 유지했다.
+
+Batch 003의 `t2base2b003p_dmx006` 한 clip에서는 `Road_Sign_Mark`가 생성 위치에서
+수 m 이탈하며 지면 아래로 낙하했다. 그러나 Batch 001--003의 같은 asset 18개 배치 중
+17개는 안정적이었으므로 asset 전체를 제거하지 않는다. 다음 runtime gate를 capture
+runner에 추가했다.
+
+- Metadata의 `motion=static` actor를 SaveSensorData 전에 0.5초간 관측한다.
+- 생성 위치와 3 m 이상 어긋나거나 관측 창에서 3D 위치가 0.10 m 이상 움직이면 해당
+  scene을 실패 처리한다.
+- Sample-spawn scene은 MORAI가 NPC unique ID를 재사용할 수 있으므로 static vehicle을
+  gate에서 제외하고, static pedestrian과 obstacle은 계속 검사한다.
+- 이 gate는 새 scenario를 만드는 로직이 아니라, 불안정 runtime 배치를 frame 저장 전에
+  차단하는 quality gate다. 실패 clip은 동일 family와 split의 reserve로 나중에 보충한다.
+
+기존 성공 1,068개 static actor frame-0 위치를 역검산해 MORAI의 정상적인 ground snap은
+허용하고, 낙하한 `Road_Sign_Mark`는 차단되는 허용치를 선택했다. 이어서 campaign tag
+`base2`, seed base `260826000`으로 Batch 004--007 primary/reserve를 생성하고 MRP에
+설치했다.
+
+- 각 primary는 188 clips/1,504 frames, 네 batch 합계 752 clips/6,016 frames다.
+- Batch 001--007 primary scene ID와 seed는 각각 1,316/1,316개로 모두 고유하다.
+- 일곱 batch의 baseline signature는 하나로 일치한다.
+- Batch 004--007 source/runtime manifest 16개는 validator 오류 0개다.
+- 기존 Batch 001--003 session root에 `--start-batch 4 --end-batch 7 --resume`로 이어서
+  수집할 수 있다.

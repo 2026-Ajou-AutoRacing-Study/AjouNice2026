@@ -68,12 +68,21 @@ def capture_actor_gate_observation(ego, objects, gate):
         longitudinal = cosine * dx + sine * dy
         lateral = -sine * dx + cosine * dy
         distance = math.hypot(dx, dy)
+        actor_speed = actor.get("derived_speed_mps")
+        if actor_speed is None:
+            actor_speed = actor.get("morai_speed_raw")
+            if actor_speed is not None:
+                # MORAI ObjectStatus velocity magnitude is reported in km/h.
+                actor_speed = float(actor_speed) / 3.6
+        if actor_speed is None:
+            actor_speed = 0.0
         observation = {
             "unique_id": actor.get("unique_id"),
             "class": actor.get("class"),
             "longitudinal_m": longitudinal,
             "lateral_m": lateral,
             "distance_m": distance,
+            "speed_mps": float(actor_speed),
         }
         ready = (
             longitudinal
@@ -82,7 +91,10 @@ def capture_actor_gate_observation(ego, objects, gate):
             <= float(gate.get("maximum_longitudinal_m", math.inf))
             and abs(lateral)
             <= float(gate.get("maximum_abs_lateral_m", math.inf))
+            and distance >= float(gate.get("minimum_distance_m", 0.0))
             and distance <= float(gate.get("maximum_distance_m", math.inf))
+            and observation["speed_mps"]
+            >= float(gate.get("minimum_actor_speed_mps", 0.0))
         )
         candidates.append((not ready, distance, observation))
     if not candidates:

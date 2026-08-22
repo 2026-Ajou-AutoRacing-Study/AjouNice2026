@@ -9,6 +9,7 @@ time.
 """
 
 import argparse
+import fnmatch
 import ctypes
 import hashlib
 import json
@@ -242,6 +243,34 @@ def parse_args():
         ),
     )
     parser.add_argument("--load-settle-sec", type=float, default=2.0)
+    parser.add_argument(
+        "--static-actor-stability-window-sec",
+        type=float,
+        default=0.5,
+        help=(
+            "Observe metadata actors marked motion=static for this long "
+            "after ScenarioLoad and reject actors that fall or drift before "
+            "capture. Set to 0 to disable the gate."
+        ),
+    )
+    parser.add_argument(
+        "--static-actor-max-displacement-m",
+        type=float,
+        default=0.10,
+        help="Maximum 3D displacement allowed during the static actor gate.",
+    )
+    parser.add_argument(
+        "--static-actor-max-spawn-xy-error-m",
+        type=float,
+        default=3.00,
+        help="Maximum horizontal error from a generated static actor pose.",
+    )
+    parser.add_argument(
+        "--static-actor-max-spawn-z-error-m",
+        type=float,
+        default=3.00,
+        help="Maximum vertical error from a generated static actor pose.",
+    )
     parser.add_argument("--capture-timeout-sec", type=float, default=8.0)
     parser.add_argument(
         "--capture-stable-sec",
@@ -1672,6 +1701,158 @@ class AutoCapture:
             )
         )
 
+    def expected_static_actors(self, scene):
+        """Return generated actors that must remain fixed before capture."""
+        metadata_path = Path(scene.get("metadata", ""))
+        if not str(metadata_path):
+            return []
+        if not metadata_path.is_absolute():
+            metadata_path = self.project_root / metadata_path
+        if not metadata_path.is_file():
+            rospy.logwarn(
+                "Static actor gate skipped; metadata is missing: %s",
+                metadata_path,
+            )
+            return []
+        metadata = load_json(metadata_path)
+        # Sample-spawn scenes can reuse NPC identifiers after warm-up. Their
+        # metadata vehicles are therefore not stable identities, while their
+        # static pedestrians and obstacles remain safe to validate.
+        allow_static_vehicle = (
+            scene.get("dynamic_actor_policy") != "observe_after_warmup"
+        )
+        actors = []
+        for actor in metadata.get("runtime_actors", []):
+            actor_class = str(actor.get("class", ""))
+            if actor.get("motion") != "static":
+                continue
+            if actor_class == "vehicle" and not allow_static_vehicle:
+                continue
+            if actor_class not in ("vehicle", "pedestrian", "obstacle"):
+                continue
+            position = actor.get("position") or {}
+            if not all(key in position for key in ("x", "y", "z")):
+                continue
+            actors.append(
+                {
+                    "class": actor_class,
+                    "unique_id": int(actor["unique_id"]),
+                    "name": str(actor.get("name", "")),
+                    "position": {
+                        "x": float(position["x"]),
+                        "y": float(position["y"]),
+                        "z": float(position["z"]),
+                    },
+                }
+            )
+        return actors
+
+    @staticmethod
+    def runtime_actor_positions(objects):
+        positions = {}
+        class_lists = {
+            "vehicle": objects.npc_list,
+            "pedestrian": objects.pedestrian_list,
+            "obstacle": objects.obstacle_list,
+        }
+        for actor_class, items in class_lists.items():
+            for item in items:
+                positions[(actor_class, int(item.unique_id))] = {
+                    "name": str(item.name),
+                    "x": float(item.position.x),
+                    "y": float(item.position.y),
+                    "z": float(item.position.z),
+                }
+        return positions
+
+    def wait_for_static_actor_stability(self, scene):
+        expected = self.expected_static_actors(scene)
+        window_sec = self.args.static_actor_stability_window_sec
+        if not expected or window_sec <= 0.0:
+            return
+
+        references = {}
+        observed_messages = 0
+        last_objects_wall_time = -1.0
+        deadline = time.monotonic() + max(2.0, window_sec + 1.0)
+        observation_started = None
+        while not rospy.is_shutdown() and time.monotonic() < deadline:
+            snapshot = self.state.snapshot()
+            objects = snapshot["objects"]
+            objects_wall_time = snapshot["objects_wall_time"]
+            if objects is None or objects_wall_time <= last_objects_wall_time:
+                time.sleep(0.02)
+                continue
+            last_objects_wall_time = objects_wall_time
+            observed_messages += 1
+            if observation_started is None:
+                observation_started = time.monotonic()
+            positions = self.runtime_actor_positions(objects)
+
+            for actor in expected:
+                key = (actor["class"], actor["unique_id"])
+                current = positions.get(key)
+                label = "{}/{}:{}".format(
+                    actor["class"],
+                    actor["unique_id"],
+                    current["name"] if current else actor["name"],
+                )
+                if current is None:
+                    raise RuntimeError(
+                        "static actor stability gate: {} disappeared".format(
+                            label
+                        )
+                    )
+                generated = actor["position"]
+                spawn_xy_error = math.hypot(
+                    current["x"] - generated["x"],
+                    current["y"] - generated["y"],
+                )
+                spawn_z_error = abs(current["z"] - generated["z"])
+                if (
+                    spawn_xy_error
+                    > self.args.static_actor_max_spawn_xy_error_m
+                    or spawn_z_error
+                    > self.args.static_actor_max_spawn_z_error_m
+                ):
+                    raise RuntimeError(
+                        "static actor stability gate: {} spawned away from "
+                        "the generated pose (xy={:.3f}m, z={:.3f}m)".format(
+                            label, spawn_xy_error, spawn_z_error
+                        )
+                    )
+                reference = references.setdefault(key, dict(current))
+                displacement = math.sqrt(
+                    (current["x"] - reference["x"]) ** 2
+                    + (current["y"] - reference["y"]) ** 2
+                    + (current["z"] - reference["z"]) ** 2
+                )
+                if displacement > self.args.static_actor_max_displacement_m:
+                    raise RuntimeError(
+                        "static actor stability gate: {} moved {:.3f}m "
+                        "during {:.2f}s pre-capture validation".format(
+                            label, displacement, window_sec
+                        )
+                    )
+
+            if (
+                observed_messages >= 3
+                and time.monotonic() - observation_started >= window_sec
+            ):
+                rospy.loginfo(
+                    "Static actor stability verified: scene=%s actors=%d "
+                    "window=%.2fs",
+                    scene["id"],
+                    len(expected),
+                    window_sec,
+                )
+                return
+            time.sleep(0.02)
+        raise RuntimeError(
+            "static actor stability gate timed out for {} after {} fresh "
+            "ObjectStatus messages".format(scene["id"], observed_messages)
+        )
+
     def scene_diagnostics(self, scene):
         snapshot = self.state.snapshot()
         parts = []
@@ -1769,6 +1950,7 @@ class AutoCapture:
                 # service. Immediately after ScenarioLoad, rosbridge may still
                 # expose the old service briefly and return handler=None.
                 self.wait_for_scene(scene, issued)
+                self.wait_for_static_actor_stability(scene)
                 last_error = None
                 break
             except RuntimeError as error:
@@ -2994,9 +3176,27 @@ class AutoCapture:
                 route_position_m = self.route_coordinate_m(position, nearest_hint)
                 travelled = max(0.0, route_position_m - start_route_m)
                 if travelled > self.args.maximum_motion_m:
+                    gate_ego = serialize_ego(
+                        ego,
+                        snapshot["ego_unix_time"],
+                        snapshot["ego_wall_time"],
+                    )
+                    gate_objects = serialize_objects(
+                        snapshot["objects"],
+                        snapshot["objects_unix_time"],
+                        snapshot["objects_wall_time"],
+                    )
+                    _, gate_observation = capture_actor_gate_observation(
+                        gate_ego,
+                        gate_objects,
+                        self.scene_capture_actor_gate,
+                    )
                     raise RuntimeError(
                         "maximum route motion reached during timed-grouped: "
-                        "{:.2f} m".format(travelled)
+                        "{:.2f} m; actor_gate_observation={}".format(
+                            travelled,
+                            gate_observation,
+                        )
                     )
                 route_error = distance_xy(position, self.waypoints[nearest_hint])
                 if route_error > self.args.route_deviation_limit_m:
@@ -3987,12 +4187,21 @@ def select_scenes(manifest, requested):
     selected = [
         scene
         for scene in scenes
-        if scene["id"] in requested_set
-        or scene["file_name"] in requested_set
+        if any(
+            fnmatch.fnmatchcase(scene["id"], pattern)
+            or fnmatch.fnmatchcase(scene["file_name"], pattern)
+            for pattern in requested_set
+        )
     ]
-    found = {scene["id"] for scene in selected}
-    found.update(scene["file_name"] for scene in selected)
-    missing = requested_set - found
+    missing = {
+        pattern
+        for pattern in requested_set
+        if not any(
+            fnmatch.fnmatchcase(scene["id"], pattern)
+            or fnmatch.fnmatchcase(scene["file_name"], pattern)
+            for scene in selected
+        )
+    }
     if missing:
         raise ValueError("unknown scenario selectors: " + ", ".join(sorted(missing)))
     return selected
@@ -4081,6 +4290,22 @@ def validate_policy(args, manifest):
         raise ValueError("--scenario-load-udp-port must be within 1..65535")
     if args.capture_stable_sec <= 0.0:
         raise ValueError("--capture-stable-sec must be positive")
+    if args.static_actor_stability_window_sec < 0.0:
+        raise ValueError(
+            "--static-actor-stability-window-sec must be non-negative"
+        )
+    if args.static_actor_max_displacement_m <= 0.0:
+        raise ValueError(
+            "--static-actor-max-displacement-m must be positive"
+        )
+    if args.static_actor_max_spawn_xy_error_m <= 0.0:
+        raise ValueError(
+            "--static-actor-max-spawn-xy-error-m must be positive"
+        )
+    if args.static_actor_max_spawn_z_error_m <= 0.0:
+        raise ValueError(
+            "--static-actor-max-spawn-z-error-m must be positive"
+        )
     if args.capture_period_sec <= 0.0:
         raise ValueError("--capture-period-sec must be positive")
     if args.capture_motion_arm_m <= 0.0:
