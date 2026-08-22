@@ -168,6 +168,36 @@ The report also computes an Object_topic Map-CV oracle on the exact same
 output timestamps, range gate and GT actors. This avoids an unfair global-GT
 versus local-detector comparison.
 
+## Online rosbag detection evaluation
+
+Use the detector-only evaluator when the question is model/runtime OD quality,
+not tracker or predictor quality. It associates canonical `DetectedObjects`
+with interpolated `/Object_topic` GT at each detection header timestamp and
+reports center AP at 0.5/1/2/4 m, distance-bin AP, the production 1 m operating
+point, BEV IoU AP at 0.3/0.5 and matched-box mATE/mASE/mAOE. Runtime
+LiDAR-to-output message coverage is reported separately so dropped frames are
+not hidden by the AP calculation.
+
+Record the detector with a low `0.01` evaluation confidence floor so the AP
+curve is not truncated. The JSON also evaluates the deployed `0.10` threshold.
+
+```bash
+/usr/bin/python3 \
+  base_ws/src/tracking_prediction_evaluation/scripts/evaluate_rosbag_detection.py \
+  RAW_INPUT.bag DETECTION_OUTPUT.bag \
+  --output artifacts/detection3d/online_rosbag/SCENE/summary.json
+```
+
+The evaluator uses the independently audited vehicle actor-origin to BBox-center
+calibration. Unsupported large vehicle profiles are excluded and counted in
+`gt_reference_calibration`; pedestrian and obstacle actor pivots are currently
+left unchanged.
+
+For reproducible bag evaluation, let the node complete one short real-input
+prewarm before recording the measured replay. The synthetic startup warmup does
+not instantiate every real camera tensor shape and the first real inference can
+otherwise block long enough to replace several LiDAR frames.
+
 ```bash
 /usr/bin/python3 \
   base_ws/src/tracking_prediction_evaluation/scripts/evaluate_pipeline_prediction.py \
