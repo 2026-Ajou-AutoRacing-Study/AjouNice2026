@@ -53,16 +53,23 @@ p_ego_current
 이는 multi-sweep PointPainting, BEVFusion과 이후 temporal BEV 모델에 공통으로 사용할 수
 있다. 학습과 online 추론에서 같은 pose interpolation과 transform 구현을 사용해야 한다.
 
-다만 rosbag 자체가 scan 내부 exact deskew를 자동으로 보장하지는 않는다.
+2026-08-22 대회용 raw bag
+`260822_005713_competition_full_route_raw_hz_run01.bag`을 직접 검사한 결과
+`/sensor/lidar1`의 `PointCloud2`에는 `x, y, z, intensity, ring, time` field가 모두 있었다.
+첫 scan의 point별 time은 `0.0--0.08253065초` 범위였다. 따라서 rosbag 경로에서는
+scan header와 방위각으로 point time을 역산하지 않고 각 point 측정 시각의 Ego pose를
+interpolation하는 exact Ego deskew를 구현할 수 있다.
 
-- `PointCloud2`에 point별 `time` 또는 offset field가 있으면 각 point 측정 시각의 Ego pose를
-  interpolation하여 exact Ego deskew가 가능하다.
-- 현재 MORAI LiDAR message에 point별 time이 없다면 scan header와 azimuth/scan period에
-  의존한 근사만 가능하다.
-- 이전 100-frame 검증에서는 방위각 기반 근사 scan-internal deskew가 raw보다 소폭
-  악화됐으므로 production에 넣지 않았다.
-- 따라서 rosbag의 확실한 1차 이점은 **센서 간 시간 보정과 sweep 간 Ego 정합**이다.
-  scan 내부 exact deskew는 point-time 제공 여부를 다시 확인한 뒤 별도 A/B한다.
+- `point_time = lidar_header_stamp + point.time`의 의미와 기준점은 여러 scan에서 다시
+  검증한다.
+- 해당 시각의 Ego pose는 `/Ego_topic`, localization pose 또는 simulator pose history에서
+  interpolation한다.
+- 이전 100-frame 검증에서 raw보다 소폭 악화된 것은 SaveSensorData point cloud에 time
+  field가 없어 방위각으로 시간을 근사한 실험이었다. rosbag의 실제 point-time 기반
+  deskew와는 다른 실험이다.
+- 이로써 rosbag의 1차 이점은 **센서 간 시간 보정, sweep 간 Ego 정합, scan 내부 exact
+  Ego deskew**까지 확장된다. moving-object deskew는 객체별 motion을 별도로 알아야 하므로
+  여전히 다른 문제다.
 
 ## nuScenes 방식에 대응하는 후처리
 
@@ -158,8 +165,9 @@ MORAI의 `/Morai_SimProc` 서비스는 다음 기능을 제공한다.
 - `/sim/process/state/msg/MoraiSimProcStatus`를 통한 성공·종료 확인.
 
 제약은 서비스의 replay option이 `current_mode=0x10`인 Replay Mode에서만 유효하다는 점이다.
-최초 UI의 Rosbag Replay 화면 진입까지 자동화되는지는 live smoke로 확인한다. 최소한 최초
-1회 Replay Mode 진입 이후 bag load부터 batch 반복까지는 ROS 자동화 대상으로 삼는다.
+공식 명세만 보면 최초 1회 Replay Mode 진입 이후 bag load부터 batch 반복까지 자동화할 수
+있어 보이지만, 아래 live smoke에서 개인용 2026 launcher의 실제 동작이 명세와 일치하지
+않았다. 따라서 가능하다고 가정하지 않고 launcher-version compatibility 문제로 보류한다.
 
 자동 runner의 상태 기계는 다음과 같다.
 
@@ -181,19 +189,92 @@ Direct Replay의 built-in `Sensor Frame Rate` 저장과 기존 `/SaveSensorData`
 smoke에서 비교한다. custom filename, frame-level sidecar와 실패 복구가 필요한 production은
 제어 가능성이 더 높은 방식을 선택한다.
 
+### 2026-08-22 `/Morai_SimProc` live 시행착오
+
+개인용 2026 launcher(`mrp`)에서 rosbag 파일을 launcher의
+`SaveFile/Rosbag`에 설치하고, UI에서 compatible ReplayInfo-only bag을 직접 load한 뒤
+Replayer Control Panel을 paused 상태로 열어 시험했다. rosbridge와 다음 endpoint는 모두
+ROS graph에 보였다.
+
+- service `/Morai_SimProc`.
+- status `/sim/process/state/msg/MoraiSimProcStatus`.
+- Direct Replay output `/ReplayInfo_topic_out`.
+
+하지만 status publisher는 seq와 header stamp만 계속 갱신하면서 다음 값을 항상 0으로
+보냈다.
+
+```text
+current_mode=0
+current_status=0
+command_result=0
+latest_command_time=0
+```
+
+UI에서 실제 Direct Replay mode와 paused control panel을 확인한 상태에서도 같았다. 따라서
+이 launcher build에서는 status topic을 mode/EOF gate로 사용할 수 없다.
+
+공식 bitmask를 사용해 `load + target + play`를 요청했다.
+
+```text
+sim_process_status = 0x01
+replay_option = 0x0011
+replay_target_option = 0x0111  # Ego + NPC + pedestrian
+replay_speed = 1
+start_time = 0
+```
+
+ROS TCP service 연결은 성립했지만 MORAI는 5초, 60초, 이후 사용자가 시험한 120초
+timeout에서도 service response를 반환하지 않았다. 단순 pause 요청도 즉시 응답하지 않았다.
+그러나 timeout을 실패로 오인해 같은 load 명령을 여러 번 보낸 뒤 약 30초 이상 지나자,
+MORAI Replay 창이 여러 차례 연속 새로고침되며 각 load 요청을 늦게 처리했다. 즉 다음 두
+현상이 동시에 있었다.
+
+- ROS service response는 돌아오지 않거나 비정상적으로 오래 지연됐다.
+- request side effect는 MORAI 내부 queue에 남아 뒤늦게 순차 실행됐다.
+
+따라서 service timeout은 명령 미전달을 의미하지 않는다. timeout 직후 재시도하면 duplicate
+load가 queue에 쌓인다. 이미 전달된 queue는 rosbridge client를 닫아도 MORAI 내부에 남을 수
+있으므로, 반복 새로고침이 멈추지 않으면 MORAI 재시작이 가장 확실한 초기화다.
+
+또한 combined `load + play` 요청은 파일 load/UI refresh만 일으키고 자동 재생으로 이어지지
+않았다. load 완료 후 별도 resume를 보내는 2-stage runner도 구현했지만 load service가
+120초 내에 정상 response를 주지 않아 안전하게 다음 명령을 보낼 completion signal이 없다.
+status 값도 0이라 EOF와 load completion을 대체 판단할 수 없었다.
+
+실험용 `morai_direct_replay_runner.py`에는 다음 safeguard를 넣었다.
+
+- status 0 build를 명시적으로만 허용하는 `--allow-unreported-mode`.
+- 장시간 service timeout.
+- timeout 시 즉시 재시도 금지 경고.
+- 정상 load response 뒤에만 resume를 한 번 보내는 2-stage flow.
+- bag 존재와 target bitmask 검증.
+
+현재 결론은 다음과 같다.
+
+- Direct Replay 수동 재생은 가능하고 Network보다 상태 순서가 안정적이다.
+- `mrp`의 `/Morai_SimProc` 기반 unattended batch 자동화는 현재 검증 실패다.
+- status와 service response가 정상인 다른 MORAI build에서만 runner를 다시 시험한다.
+- GUI 자동조작은 취약성과 복구 난이도 때문에 production 대안으로 채택하지 않는다.
+- Network Replay는 자동화 가능하지만 state backtracking 때문에 temporal production으로
+  채택하지 않는다.
+- 당분간 production 수집은 검증된 ScenarioLoad + SaveSensorData Temporal V2를 유지한다.
+
 ## 제안하는 migration 단계
 
-1. `/Morai_SimProc`로 Direct Replay file load/play/pause/stop smoke를 수행한다.
-2. Direct Replay에서 8-frame sensor capture를 실행하고 4-camera, LiDAR, GT 완전성을
+1. 현재 `mrp`에서는 `/Morai_SimProc` 자동화를 보류하고 SaveSensorData Temporal V2를
+   계속 수집한다.
+2. 다른 MORAI build 또는 공식 지원 확인 시 service response, status mode와 EOF를 가장
+   먼저 재검증한다. timeout된 load는 절대 즉시 재시도하지 않는다.
+3. Direct 수동 Replay에서 8-frame sensor capture를 실행하고 4-camera, LiDAR, GT 완전성을
    검사한다.
-3. 원본, Direct, Network를 Ego/NPC 위치·yaw·속도와 상태 순서로 반복 비교한다.
-4. raw bag extractor를 구현해 LiDAR keyframe, causal camera association와 pose
+4. 원본, Direct, Network를 Ego/NPC 위치·yaw·속도와 상태 순서로 반복 비교한다.
+5. raw bag extractor를 구현해 LiDAR keyframe, causal camera association와 pose
    interpolation metadata를 만든다.
-5. 기존 `SaveSensorData` dataset과 동일 model/config로 A/B한다.
-6. online ROS adapter에도 같은 causal association과 Ego-motion transform을 적용한다.
-7. detection AP뿐 아니라 velocity error, tracking error와 1/2/3초 prediction FDE를
+6. 기존 `SaveSensorData` dataset과 동일 model/config로 A/B한다.
+7. online ROS adapter에도 같은 causal association과 Ego-motion transform을 적용한다.
+8. detection AP뿐 아니라 velocity error, tracking error와 1/2/3초 prediction FDE를
    비교한다.
-8. 성능과 재현성이 확인된 뒤에만 production 수집을 rosbag-first로 전환한다.
+9. 성능과 재현성이 확인된 뒤에만 production 수집을 rosbag-first로 전환한다.
 
 ## Production 결정 기준
 
@@ -207,3 +288,23 @@ rosbag 전환은 다음 조건을 모두 만족할 때 수행한다.
 
 그 전까지는 `SaveSensorData Temporal V2`가 production이고 rosbag 경로는 실험·독립 test
 set·차세대 temporal model을 위한 병행 경로다.
+
+## JPEG train--inference A/B gate
+
+실제 대회 raw bag의 네 `sensor_msgs/CompressedImage`를 검사한 결과 MORAI image payload는
+JPEG quality 90, 4:2:0 chroma subsampling이었다. rosbag은 이 byte payload를 재압축하지
+않고 그대로 저장한다. 반면 현재 SaveSensorData의 RGB `Intensity.png`는 lossless PNG다.
+따라서 rosbag-first 전환 전에 다음 고정 split·seed 실험을 수행한다.
+
+| Train | Test | 목적 |
+| --- | --- | --- |
+| PNG | PNG | 기존 offline 기준. |
+| PNG | JPEG Q90 | 현재 모델의 compression distribution shift 측정. |
+| JPEG Q90 | JPEG Q90 | production-matched 학습 효과. |
+| JPEG quality 85--95 random | 실제 ROS JPEG | 제한적 compression robustness 검증. |
+
+동일 PNG를 한 번만 Q90/4:2:0으로 encode/decode하여 compression만 격리한다. 이미 JPEG인
+ROS frame을 다시 encode하는 double compression은 이 실험에 사용하지 않는다. 전체 mAP
+외에 20--30 m pedestrian/obstacle AP, LRASPP mIoU와 boundary quality를 별도로 본다.
+PointPainting은 LiDAR geometry가 있어 영향이 제한적일 가능성이 높고 camera-only Fast-BEV는
+상대적으로 더 민감할 수 있다. 최종 결정은 실제 ROS JPEG test 결과로 내린다.

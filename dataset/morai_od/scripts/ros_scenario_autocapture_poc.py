@@ -23,6 +23,7 @@ from collections import deque
 from pathlib import Path
 
 from dynamic_capture_metadata import (
+    capture_actor_gate_observation,
     enrich_frame_transforms,
     enrich_derived_motion,
     normalized_sensor_calibration,
@@ -1388,6 +1389,9 @@ class AutoCapture:
         self.scene_maximum_stable_acceleration_mps2 = float(
             overrides.get("maximum_stable_acceleration_mps2", 0.0)
         )
+        self.scene_capture_actor_gate = dict(
+            overrides.get("capture_actor_gate", {})
+        )
         waypoint_path = Path(
             scene.get("waypoints", self.default_waypoint_path)
         )
@@ -1397,13 +1401,14 @@ class AutoCapture:
         rospy.loginfo(
             "Scene motion policy: route=%s, speed=%.1fkm/h, "
             "capture_period=%.3fs, minimum_capture_speed=%.1fkm/h, "
-            "maximum_motion=%.1fm, "
+            "maximum_motion=%.1fm, actor_gate=%s, "
             "stall_timeout=%.1fs, stable_window=%.2fs, adaptive_curve=%s",
             waypoint_path,
             self.args.speed_kph,
             self.args.capture_period_sec,
             self.scene_minimum_ego_speed_kph,
             self.args.maximum_motion_m,
+            self.scene_capture_actor_gate.get("role", "off"),
             self.args.motion_stall_timeout_sec,
             self.scene_stable_ego_window_sec,
             self.args.adaptive_curve_control,
@@ -3091,11 +3096,29 @@ class AutoCapture:
                             ):
                                 actor_motion_ready = True
                                 break
+                    gate_ego = serialize_ego(
+                        ego,
+                        snapshot["ego_unix_time"],
+                        snapshot["ego_wall_time"],
+                    )
+                    gate_objects = serialize_objects(
+                        snapshot["objects"],
+                        snapshot["objects_unix_time"],
+                        snapshot["objects_wall_time"],
+                    )
+                    actor_gate_ready, actor_gate_observation = (
+                        capture_actor_gate_observation(
+                            gate_ego,
+                            gate_objects,
+                            self.scene_capture_actor_gate,
+                        )
+                    )
                     if (
                         not motion_ready
                         or not speed_ready
                         or not stable_ready
                         or not actor_motion_ready
+                        or not actor_gate_ready
                     ):
                         if (
                             now - motion_started
@@ -3105,7 +3128,7 @@ class AutoCapture:
                                 "Ego did not arm timed-grouped capture: "
                                 "progress={:.3f}/{:.3f}m, "
                                 "speed={:.2f}/{:.2f}km/h, stable={}, "
-                                "actor_motion={} in {:.3f}s. "
+                                "actor_motion={}, actor_gate={} ({}) in {:.3f}s. "
                                 "CtrlCmd is connected but may not be "
                                 "applied by MORAI.".format(
                                     travelled,
@@ -3114,6 +3137,8 @@ class AutoCapture:
                                     self.scene_minimum_ego_speed_kph,
                                     stable_ready,
                                     actor_motion_ready,
+                                    actor_gate_ready,
+                                    actor_gate_observation,
                                     now - motion_started,
                                 )
                             )
@@ -3207,6 +3232,20 @@ class AutoCapture:
                         snapshot["ego_unix_time"],
                         snapshot["ego_wall_time"],
                     )
+                    actor_gate_ready, actor_gate_observation = (
+                        capture_actor_gate_observation(
+                            ego_state,
+                            objects,
+                            self.scene_capture_actor_gate,
+                        )
+                    )
+                    if self.scene_capture_actor_gate and not actor_gate_ready:
+                        raise RuntimeError(
+                            "actor left capture gate before timed-grouped "
+                            "frame {}: {}".format(
+                                len(triggers) + 1, actor_gate_observation
+                            )
+                        )
                     self.publish_capture_request()
                     frame_index = len(triggers)
                     triggers.append(
@@ -3265,6 +3304,9 @@ class AutoCapture:
                                 "actor_present": self.dynamic_actor_ready(
                                     scene, snapshot["objects"]
                                 ),
+                                "actor_gate_ready": actor_gate_ready,
+                                "actor_gate": self.scene_capture_actor_gate,
+                                "actor_gate_observation": actor_gate_observation,
                             },
                             "verified": False,
                         }

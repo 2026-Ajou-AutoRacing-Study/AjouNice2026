@@ -561,6 +561,36 @@ class DynamicCaptureToolsTest(unittest.TestCase):
             v2_batch.PRIMARY_COUNTS["gps_shadow_vehicle_interaction"], 7
         )
 
+    def test_temporal_v2_final_campaign_separates_ids_and_seeds(self):
+        primary = v2_batch.build_config(
+            1,
+            "primary",
+            v2_batch.PRIMARY_COUNTS,
+            campaign_tag="f1",
+            seed_base=260822000,
+        )
+        reserve = v2_batch.build_config(
+            1,
+            "reserve",
+            v2_batch.RESERVE_COUNTS,
+            campaign_tag="f1",
+            seed_base=260822000,
+        )
+        batch_two = v2_batch.build_config(
+            2,
+            "primary",
+            v2_batch.PRIMARY_COUNTS,
+            campaign_tag="f1",
+            seed_base=260822000,
+        )
+        self.assertEqual(primary["scenario_prefix"], "t2f1b001p")
+        self.assertEqual(reserve["scenario_prefix"], "t2f1b001r")
+        self.assertEqual(batch_two["scenario_prefix"], "t2f1b002p")
+        self.assertEqual(primary["seed"], 260832000)
+        self.assertEqual(reserve["seed"], 260837000)
+        self.assertEqual(batch_two["seed"], 260842000)
+        self.assertEqual(len({primary["seed"], reserve["seed"], batch_two["seed"]}), 3)
+
     def test_highway_cruise_lane_prior_is_twenty_nine_three(self):
         _base, defaults = v2_batch.family_defaults()
         family = defaults["highway_cruise_overtake"]
@@ -578,6 +608,71 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertEqual(
             generator.ego_lane_speed_range(family, 10), (50.0, 60.0)
         )
+
+    def test_highway_cruise_interaction_role_quota_is_exact(self):
+        _base, defaults = v2_batch.family_defaults()
+        family = defaults["highway_cruise_overtake"]
+        family["count"] = 32
+        roles = generator.weighted_zone_schedule(
+            family, key="interaction_roles"
+        )
+        self.assertEqual(roles.count("front_overtake"), 18)
+        self.assertEqual(roles.count("front_following"), 6)
+        self.assertEqual(roles.count("side_parallel"), 4)
+        self.assertEqual(roles.count("rear_receding"), 3)
+        self.assertEqual(roles.count("rear_approach"), 1)
+        self.assertEqual(family["maximum_spawn_vehicles"], 1)
+
+    def test_highway_merge_and_lane_change_role_quotas_are_exact(self):
+        _base, defaults = v2_batch.family_defaults()
+        merge = defaults["highway_merge_cruise"]
+        merge["count"] = 14
+        merge_roles = generator.weighted_zone_schedule(
+            merge, key="interaction_roles"
+        )
+        self.assertEqual(merge_roles, ["front_merge_traffic"] * 14)
+
+        lane_change = defaults["highway_lane_change_overtake"]
+        lane_change["count"] = 4
+        lane_roles = generator.weighted_zone_schedule(
+            lane_change, key="interaction_roles"
+        )
+        self.assertEqual(lane_roles.count("front_target_lane"), 2)
+        self.assertEqual(lane_roles.count("side_target_lane"), 2)
+        self.assertNotIn("rear_source_lane", lane_roles)
+        self.assertEqual(
+            set(lane_change["lane_pair_offset_overrides"]),
+            {"6-8", "8-10", "10-8", "8-6"},
+        )
+
+    def test_capture_actor_gate_uses_ego_aligned_coordinates(self):
+        ego = {
+            "position_m": {"x": 10.0, "y": 20.0, "z": 0.0},
+            "heading_deg": 90.0,
+        }
+        objects = {
+            "actors": [
+                {
+                    "unique_id": 7,
+                    "class": "vehicle",
+                    "position_m": {"x": 7.0, "y": 45.0, "z": 0.0},
+                }
+            ]
+        }
+        ready, observation = metadata.capture_actor_gate_observation(
+            ego,
+            objects,
+            {
+                "class": "vehicle",
+                "minimum_longitudinal_m": 10.0,
+                "maximum_longitudinal_m": 40.0,
+                "maximum_abs_lateral_m": 4.0,
+                "maximum_distance_m": 50.0,
+            },
+        )
+        self.assertTrue(ready)
+        self.assertAlmostEqual(observation["longitudinal_m"], 25.0)
+        self.assertAlmostEqual(observation["lateral_m"], 3.0)
 
     def test_roundabout_capture_zones_are_interleaved_exact_quotas(self):
         _base, defaults = v2_batch.family_defaults()

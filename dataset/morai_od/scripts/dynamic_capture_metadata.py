@@ -47,6 +47,52 @@ def wrapped_degrees(value):
     return (float(value) + 180.0) % 360.0 - 180.0
 
 
+def capture_actor_gate_observation(ego, objects, gate):
+    """Evaluate an actor-relative capture gate and return its best candidate."""
+
+    if not gate:
+        return True, None
+    if not ego or not objects:
+        return False, None
+    ego_position = ego["position_m"]
+    yaw = math.radians(float(ego["heading_deg"]))
+    cosine = math.cos(yaw)
+    sine = math.sin(yaw)
+    candidates = []
+    for actor in objects.get("actors", []):
+        if gate.get("class") and actor.get("class") != gate["class"]:
+            continue
+        position = actor["position_m"]
+        dx = float(position["x"]) - float(ego_position["x"])
+        dy = float(position["y"]) - float(ego_position["y"])
+        longitudinal = cosine * dx + sine * dy
+        lateral = -sine * dx + cosine * dy
+        distance = math.hypot(dx, dy)
+        observation = {
+            "unique_id": actor.get("unique_id"),
+            "class": actor.get("class"),
+            "longitudinal_m": longitudinal,
+            "lateral_m": lateral,
+            "distance_m": distance,
+        }
+        ready = (
+            longitudinal
+            >= float(gate.get("minimum_longitudinal_m", -math.inf))
+            and longitudinal
+            <= float(gate.get("maximum_longitudinal_m", math.inf))
+            and abs(lateral)
+            <= float(gate.get("maximum_abs_lateral_m", math.inf))
+            and distance <= float(gate.get("maximum_distance_m", math.inf))
+        )
+        candidates.append((not ready, distance, observation))
+    if not candidates:
+        return False, None
+    not_ready, _distance, observation = min(
+        candidates, key=lambda item: (item[0], item[1])
+    )
+    return not not_ready, observation
+
+
 def _matrix_multiply(left, right):
     return [
         [

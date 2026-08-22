@@ -87,6 +87,17 @@ FAMILY_GROUPS = {
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--batch-index", type=int, default=1)
+    parser.add_argument(
+        "--campaign-tag",
+        default="f1",
+        help="Short ID namespace for a clean production regeneration (default: f1).",
+    )
+    parser.add_argument(
+        "--seed-base",
+        type=int,
+        default=260822000,
+        help="Campaign seed base; batch and role offsets are added automatically.",
+    )
     parser.add_argument("--output-root", type=Path, default=DATASET_ROOT)
     parser.add_argument("--install-dir", type=Path)
     parser.add_argument("--no-reserve", action="store_true")
@@ -234,17 +245,118 @@ def family_defaults():
         "sampling_role": "static_sparse_background",
         "stable_ego_gate": True,
     }
+    # These families represent traffic that was already cruising before Ego
+    # entered sensor range. The official spawn/acceleration cases stay in the
+    # separate highway_merge_sample_spawn hard-transition family.
+    rows["highway_cruise_overtake"].update(
+        {
+            "maximum_spawn_vehicles": 1,
+            "start_ego_at_target_speed": True,
+            "capture_motion_arm_m": 3.0,
+            "interaction_roles": [
+                {
+                    "name": "front_overtake",
+                    "weight": 18,
+                    "npc_longitudinal_offset_m": [18.0, 38.0],
+                    "gate_longitudinal_m": [8.0, 48.0],
+                    "maximum_abs_lateral_m": 6.5,
+                },
+                {
+                    "name": "front_following",
+                    "weight": 6,
+                    "npc_longitudinal_offset_m": [15.0, 35.0],
+                    "gate_longitudinal_m": [6.0, 45.0],
+                    "maximum_abs_lateral_m": 2.8,
+                    "ego_speed_delta_kph": [-3.0, 3.0],
+                },
+                {
+                    "name": "side_parallel",
+                    "weight": 4,
+                    "npc_longitudinal_offset_m": [-8.0, 12.0],
+                    "gate_longitudinal_m": [-18.0, 22.0],
+                    "maximum_abs_lateral_m": 6.5,
+                    "npc_speed_delta_kph": [-5.0, 5.0],
+                },
+                {
+                    "name": "rear_receding",
+                    "weight": 3,
+                    "npc_longitudinal_offset_m": [-35.0, -15.0],
+                    "gate_longitudinal_m": [-45.0, -6.0],
+                    "maximum_abs_lateral_m": 3.0,
+                },
+                {
+                    "name": "rear_approach",
+                    "weight": 1,
+                    "npc_longitudinal_offset_m": [-35.0, -15.0],
+                    "gate_longitudinal_m": [-45.0, -6.0],
+                    "maximum_abs_lateral_m": 3.0,
+                    "npc_speed_advantage_kph": [5.0, 10.0],
+                },
+            ],
+        }
+    )
+    rows["highway_merge_cruise"].update(
+        {
+            "maximum_spawn_vehicles": 1,
+            "start_ego_at_target_speed": False,
+            "interaction_roles": [
+                {
+                    "name": "front_merge_traffic",
+                    "weight": 1,
+                    "npc_longitudinal_offset_m": [-42.0, -25.0],
+                    "gate_longitudinal_m": [0.0, 55.0],
+                    "maximum_abs_lateral_m": 22.0,
+                },
+            ],
+        }
+    )
+    rows["highway_lane_change_overtake"].update(
+        {
+            "maximum_spawn_vehicles": 1,
+            "spawn_wait_sec": 4.0,
+            "pre_length_m": [80.0, 100.0],
+            "minimum_ego_speed_ratio": 0.70,
+            "minimum_curve_speed_kph": 30.0,
+            "route_deviation_limit_m": 2.0,
+            # MORAI advances spawned traffic during ScenarioLoad verification.
+            # Each lane pair has a different pre-roll arc, so compensate the
+            # spawn point per legal lane pair and still verify the live role
+            # with capture_actor_gate before writing frame zero.
+            "lane_pair_offset_overrides": {
+                "6-8": [-105.0, -75.0],
+                "8-10": [-170.0, -145.0],
+                "10-8": [-135.0, -120.0],
+                "8-6": [-95.0, -70.0],
+            },
+            "interaction_roles": [
+                {
+                    "name": "front_target_lane",
+                    "weight": 2,
+                    "npc_longitudinal_offset_m": [-105.0, -75.0],
+                    "gate_longitudinal_m": [5.0, 42.0],
+                },
+                {
+                    "name": "side_target_lane",
+                    "weight": 2,
+                    "npc_longitudinal_offset_m": [-135.0, -110.0],
+                    "gate_longitudinal_m": [-16.0, 20.0],
+                },
+            ],
+        }
+    )
     return base, rows
 
 
-def build_config(batch_index, role, counts):
+def build_config(batch_index, role, counts, campaign_tag="f1", seed_base=260822000):
     base, defaults = family_defaults()
     config = copy.deepcopy(base)
     tag = "batch{:03d}_{}".format(batch_index, role)
     config["dataset_id"] = "morai_temporal_sequence_v2_{}".format(tag)
-    config["seed"] = 260821000 + batch_index * 10000 + (0 if role == "primary" else 5000)
-    config["scenario_prefix"] = "t2b{:03d}{}".format(
-        batch_index, "p" if role == "primary" else "r"
+    config["seed"] = int(seed_base) + batch_index * 10000 + (
+        0 if role == "primary" else 5000
+    )
+    config["scenario_prefix"] = "t2{}b{:03d}{}".format(
+        campaign_tag, batch_index, "p" if role == "primary" else "r"
     )
     config["weighted_obstacle_quota_deck"] = True
     config["families"] = []
@@ -268,7 +380,9 @@ def grouped_counts(counts):
     }
 
 
-def run_generator(config_path, output_root, group, install_dir=None):
+def run_generator(
+    config_path, output_root, group, id_prefix, install_dir=None
+):
     command = [
         sys.executable,
         str(GENERATOR),
@@ -278,6 +392,8 @@ def run_generator(config_path, output_root, group, install_dir=None):
         str(output_root),
         "--group",
         group,
+        "--id-prefix",
+        id_prefix,
     ]
     if install_dir is not None:
         command.extend(["--install-dir", str(install_dir)])
@@ -288,12 +404,19 @@ def main():
     args = parse_args()
     if args.batch_index < 1:
         raise ValueError("--batch-index must be positive")
+    campaign_tag = "".join(
+        char for char in str(args.campaign_tag).lower() if char.isalnum()
+    )
+    if not campaign_tag:
+        raise ValueError("--campaign-tag must contain at least one alphanumeric character")
     roles = [("primary", PRIMARY_COUNTS)]
     if not args.no_reserve:
         roles.append(("reserve", RESERVE_COUNTS))
     plan = {
         "schema_version": 1,
         "batch_index": args.batch_index,
+        "campaign_tag": campaign_tag,
+        "seed_base": args.seed_base,
         "canonical_frames_per_clip": 8,
         "requested_chunk_frames": 1500,
         "primary_clip_count": sum(PRIMARY_COUNTS.values()),
@@ -310,19 +433,37 @@ def main():
         raise ValueError("primary Temporal V2 quota drift: {}".format(primary_groups))
     config_root = args.output_root / "metadata/temporal_v2_batches" / "batch{:03d}".format(args.batch_index)
     for role, counts in roles:
-        config = build_config(args.batch_index, role, counts)
+        config = build_config(
+            args.batch_index,
+            role,
+            counts,
+            campaign_tag=campaign_tag,
+            seed_base=args.seed_base,
+        )
         config_path = config_root / "{}_config.json".format(role)
         write_json(config_path, config)
         group = "temporal_sequence_v2_batch{:03d}_{}".format(
             args.batch_index, role
         )
-        run_generator(config_path, args.output_root, group, args.install_dir)
+        id_prefix = "t2{}b{:03d}{}_".format(
+            campaign_tag,
+            args.batch_index,
+            "p" if role == "primary" else "r",
+        )
+        run_generator(
+            config_path,
+            args.output_root,
+            group,
+            id_prefix,
+            args.install_dir,
+        )
         clip_count = sum(counts.values())
         plan["roles"].append(
             {
                 "role": role,
                 "group": group,
                 "config": str(config_path),
+                "scene_id_prefix": id_prefix,
                 "clip_count": clip_count,
                 "frame_count": clip_count * 8,
                 "family_clip_counts": counts,

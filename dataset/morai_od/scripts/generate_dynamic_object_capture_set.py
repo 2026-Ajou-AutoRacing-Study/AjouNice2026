@@ -524,9 +524,11 @@ def configure_spawn(spawn, rng, family, base_target_speed=None):
     period = uniform_or_choice(rng, family["spawn_period_sec"])
     spawn["minSpawnPeriod"] = period
     spawn["maxSpawnPeriod"] = period
-    spawn["maximumSpawnVehicle"] = 20
+    spawn["maximumSpawnVehicle"] = int(
+        family.get("maximum_spawn_vehicles", 20)
+    )
     spawn["spawnedVehiclesCount"] = 0
-    spawn["waitSpawnTime"] = 0.0
+    spawn["waitSpawnTime"] = float(family.get("spawn_wait_sec", 0.0))
     spawn["isSpawning"] = True
     if "target_speed_kph" in family:
         target = float(uniform_or_choice(rng, family["target_speed_kph"]))
@@ -747,11 +749,85 @@ def build_route_anchored_vehicle_scene(
         ego_speed,
         float(uniform_or_choice(rng, family.get("ego_initial_speed_kph", 0.0))),
     )
+    if family.get("start_ego_at_target_speed", False):
+        ego_initial_speed = ego_speed
     set_ego_pose(scenario["egoVehicle"], ego_sample, ego_initial_speed)
 
+    capture_overrides = {}
     npc_link_path = family.get("npc_link_path")
     if family.get("reposition_roundabout_spawn", False):
         npc_link_path = ROUNDABOUT_NPC_LINK_PATH
+    if family.get("name") == "highway_merge_cruise":
+        role_name = weighted_zone_schedule(
+            family, key="interaction_roles"
+        )[variant_index]
+        roles = {
+            str(item["name"]): item
+            for item in family.get("interaction_roles", [])
+        }
+        role = roles[role_name]
+        if role_name == "side_merge_traffic":
+            npc_speed_factor = rng.uniform(0.90, 1.05)
+        else:
+            npc_speed_factor = rng.uniform(0.75, 0.95)
+        npc_target_speed = max(10.0, ego_speed * npc_speed_factor)
+        spawn = scenario["spawnPointList"][0]
+        set_spawn_target_speed(
+            spawn, npc_target_speed, match_spawn_velocity=True
+        )
+        runtime[0]["target_speed_kph"] = npc_target_speed
+        runtime[0]["spawn_speed_kph"] = npc_target_speed
+        npc_link_path = HIGHWAY_LANE_LINK_PATHS[
+            int(runtime[0]["spawn_unique_id"])
+        ]
+        offset_range = role["npc_longitudinal_offset_m"]
+        selected_offset = rng.uniform(
+            float(offset_range[0]), float(offset_range[1])
+        )
+        npc_pose = reposition_spawn_on_link_path(
+            spawn,
+            links_by_id,
+            npc_link_path,
+            capture_anchor,
+            selected_offset,
+        )
+        npc_distance = math.hypot(
+            npc_pose["x"] - capture_anchor["x"],
+            npc_pose["y"] - capture_anchor["y"],
+        )
+        runtime[0].update(
+            {
+                "start_link": npc_pose["link_idx"],
+                "end_link": npc_link_path[-1],
+                "spawn_position": {
+                    axis: float(npc_pose[axis]) for axis in ("x", "y", "z")
+                },
+                "spatial_phase": zone_name,
+                "interaction_role": role_name,
+                "planned_spawn_distance_m": float(npc_distance),
+                "planned_spawn_offset_m": float(selected_offset),
+            }
+        )
+        gate_range = role["gate_longitudinal_m"]
+        capture_overrides = {
+            "capture_actor_gate": {
+                "class": "vehicle",
+                "role": role_name,
+                "minimum_longitudinal_m": float(gate_range[0]),
+                "maximum_longitudinal_m": float(gate_range[1]),
+                "maximum_abs_lateral_m": float(
+                    role.get("maximum_abs_lateral_m", 15.0)
+                ),
+                "maximum_distance_m": float(
+                    role.get("maximum_distance_m", 55.0)
+                ),
+            },
+            "prime_capture_before_clip": False,
+            "preserve_ego_initial_speed_on_load": bool(
+                family.get("start_ego_at_target_speed", False)
+            ),
+        }
+        npc_link_path = None
     if npc_link_path:
         spawn = scenario["spawnPointList"][0]
         desired_distance = float(
@@ -810,7 +886,7 @@ def build_route_anchored_vehicle_scene(
             }
         )
 
-    capture_overrides = {
+    capture_overrides.update({
         "ego_target_speed_kph": ego_speed,
         "ego_initial_speed_kph": ego_initial_speed,
         "minimum_ego_speed_kph": ego_speed
@@ -826,7 +902,7 @@ def build_route_anchored_vehicle_scene(
             family.get("motion_stall_timeout_sec", 14.0)
         ),
         "lookahead_m": float(family.get("lookahead_m", 4.0)),
-    }
+    })
     if "minimum_curve_speed_kph" in family:
         capture_overrides["minimum_curve_speed_kph"] = float(
             family["minimum_curve_speed_kph"]
@@ -1065,8 +1141,23 @@ def build_highway_cruise_scene(
     scenario, template, family, rng, variant_index, links_by_id
 ):
     source_ids = list(family["source_spawn_ids"])
-    npc_spawn_id = source_ids[variant_index % len(source_ids)]
     ego_lane_id = weighted_lane_schedule(family)[variant_index]
+    roles = {
+        str(item["name"]): item
+        for item in family.get("interaction_roles", [])
+    }
+    role_name = weighted_zone_schedule(
+        family, key="interaction_roles"
+    )[variant_index]
+    role = roles[role_name]
+    if role_name == "side_parallel":
+        adjacent = [lane for lane in source_ids if abs(lane - ego_lane_id) == 2]
+        npc_spawn_id = adjacent[variant_index % len(adjacent)]
+    elif role_name == "front_overtake":
+        same_or_right = [lane for lane in source_ids if lane <= ego_lane_id]
+        npc_spawn_id = same_or_right[variant_index % len(same_or_right)]
+    else:
+        npc_spawn_id = ego_lane_id
     spawn = copy.deepcopy(
         next(
             item
@@ -1082,8 +1173,6 @@ def build_highway_cruise_scene(
         {**family, "target_speed_kph": base_target * scale},
         base_target,
     )
-    scenario["spawnPointList"] = [spawn]
-
     route_link_ids = HIGHWAY_LANE_LINK_PATHS[ego_lane_id]
     ego_route, ego_route_arc = route_from_link_path(links_by_id, route_link_ids)
     start_arc = rng.uniform(*family["ego_start_arc_m"])
@@ -1092,7 +1181,45 @@ def build_highway_cruise_scene(
     )
     same_lane = ego_lane_id == npc_spawn_id
     lane_speed_range = ego_lane_speed_range(family, ego_lane_id)
-    if same_lane:
+    if role_name == "front_following":
+        ego_speed = max(
+            10.0,
+            target
+            + rng.uniform(*role.get("ego_speed_delta_kph", [-3.0, 3.0])),
+        )
+        relative_lane_intent = "same_lane_following"
+    elif role_name in {"front_overtake", "rear_receding"}:
+        desired = target + rng.uniform(*family["ego_speed_advantage_kph"])
+        if lane_speed_range is not None:
+            ego_speed = max(
+                lane_speed_range[0], min(lane_speed_range[1], desired)
+            )
+        else:
+            ego_speed = min(float(family["ego_speed_limit_kph"]), desired)
+        relative_lane_intent = role_name
+    elif role_name == "rear_approach":
+        target += rng.uniform(
+            *role.get("npc_speed_advantage_kph", [5.0, 10.0])
+        )
+        set_spawn_target_speed(spawn, target, match_spawn_velocity=True)
+        if lane_speed_range is not None:
+            ego_speed = rng.uniform(*lane_speed_range)
+        else:
+            ego_speed = max(10.0, target - 7.0)
+        relative_lane_intent = "rear_approach"
+    elif role_name == "side_parallel":
+        if lane_speed_range is not None:
+            ego_speed = rng.uniform(*lane_speed_range)
+        else:
+            ego_speed = target
+        target = max(
+            10.0,
+            ego_speed
+            + rng.uniform(*role.get("npc_speed_delta_kph", [-5.0, 5.0])),
+        )
+        set_spawn_target_speed(spawn, target, match_spawn_velocity=True)
+        relative_lane_intent = "side_parallel"
+    elif same_lane:
         if lane_speed_range is not None:
             target = max(
                 lane_speed_range[0], min(lane_speed_range[1], target)
@@ -1125,14 +1252,42 @@ def build_highway_cruise_scene(
         else:
             ego_speed = min(float(family["ego_speed_limit_kph"]), target)
         relative_lane_intent = "right_side_parallel_or_following"
-    initial_speed = float(
-        uniform_or_choice(
-            rng,
-            family.get("ego_initial_speed_kph", min(ego_speed, 15.0)),
+    if family.get("start_ego_at_target_speed", False):
+        initial_speed = ego_speed
+    else:
+        initial_speed = float(
+            uniform_or_choice(
+                rng,
+                family.get("ego_initial_speed_kph", min(ego_speed, 15.0)),
+            )
         )
-    )
-    initial_speed = min(initial_speed, ego_speed)
+        initial_speed = min(initial_speed, ego_speed)
     set_ego_pose(scenario["egoVehicle"], ego_sample, initial_speed)
+    capture_arm_m = float(family.get("capture_motion_arm_m", 3.0))
+    capture_anchor = sample_route_at_arc(
+        ego_route, ego_route_arc, start_arc + capture_arm_m
+    )
+    offset_range = role.get("npc_longitudinal_offset_m", [15.0, 30.0])
+    offset_m = rng.uniform(float(offset_range[0]), float(offset_range[1]))
+    npc_pose = reposition_spawn_on_link_path(
+        spawn,
+        links_by_id,
+        HIGHWAY_LANE_LINK_PATHS[npc_spawn_id],
+        capture_anchor,
+        offset_m,
+    )
+    scenario["spawnPointList"] = [spawn]
+    gate_range = role.get("gate_longitudinal_m", [-40.0, 40.0])
+    actor_gate = {
+        "class": "vehicle",
+        "role": role_name,
+        "minimum_longitudinal_m": float(gate_range[0]),
+        "maximum_longitudinal_m": float(gate_range[1]),
+        "maximum_abs_lateral_m": float(
+            role.get("maximum_abs_lateral_m", 6.5)
+        ),
+        "maximum_distance_m": float(role.get("maximum_distance_m", 50.0)),
+    }
     runtime = [
         {
             "spawn_unique_id": npc_spawn_id,
@@ -1147,6 +1302,11 @@ def build_highway_cruise_scene(
             "ego_initial_speed_kph": initial_speed,
             "same_lane": same_lane,
             "relative_lane_intent": relative_lane_intent,
+            "interaction_role": role_name,
+            "planned_longitudinal_offset_m": offset_m,
+            "spawn_position": {
+                axis: float(npc_pose[axis]) for axis in ("x", "y", "z")
+            },
         }
     ]
     capture_overrides = {
@@ -1158,6 +1318,12 @@ def build_highway_cruise_scene(
         "motion_stall_timeout_sec": 12.0,
         "lookahead_m": 6.0,
         "adaptive_curve_control": False,
+        "capture_motion_arm_m": capture_arm_m,
+        "prime_capture_before_clip": False,
+        "preserve_ego_initial_speed_on_load": bool(
+            family.get("start_ego_at_target_speed", False)
+        ),
+        "capture_actor_gate": actor_gate,
     }
     return ego_route, ego_sample, runtime, capture_overrides
 
@@ -1216,7 +1382,15 @@ def build_highway_lane_change_scene(
     spawn_by_id = {
         item["UNIQUEID"]: item for item in template["spawnPointList"]
     }
-    npc_lane = target_lane if variant_index % 2 == 0 else source_lane
+    roles = {
+        str(item["name"]): item
+        for item in family.get("interaction_roles", [])
+    }
+    role_name = weighted_zone_schedule(
+        family, key="interaction_roles"
+    )[variant_index]
+    role = roles[role_name]
+    npc_lane = target_lane if role_name != "rear_source_lane" else source_lane
     spawn = copy.deepcopy(spawn_by_id[npc_lane])
     target_speed = max(
         10.0,
@@ -1227,6 +1401,23 @@ def build_highway_lane_change_scene(
         rng,
         {**family, "target_speed_kph": target_speed},
         target_speed,
+    )
+    capture_arc = pre_length + transition_length * phase_progress[phase_index]
+    capture_anchor = sample_route_at_arc(
+        ego_route, route_arc_coordinates(ego_route), capture_arc
+    )
+    pair_key = "{}-{}".format(source_lane, target_lane)
+    offset_range = family.get("lane_pair_offset_overrides", {}).get(
+        pair_key,
+        role.get("npc_longitudinal_offset_m", [15.0, 30.0]),
+    )
+    offset_m = rng.uniform(float(offset_range[0]), float(offset_range[1]))
+    npc_pose = reposition_spawn_on_link_path(
+        spawn,
+        links_by_id,
+        HIGHWAY_LANE_LINK_PATHS[npc_lane],
+        capture_anchor,
+        offset_m,
     )
     scenario["spawnPointList"] = [spawn]
     runtime = [{
@@ -1242,6 +1433,11 @@ def build_highway_lane_change_scene(
         "post_length_m": post_length,
         "capture_phase": phase_names[phase_index],
         "capture_phase_progress": phase_progress[phase_index],
+        "interaction_role": role_name,
+        "planned_longitudinal_offset_m": offset_m,
+        "spawn_position": {
+            axis: float(npc_pose[axis]) for axis in ("x", "y", "z")
+        },
     }]
     capture_overrides = {
         "ego_target_speed_kph": ego_speed,
@@ -1254,10 +1450,32 @@ def build_highway_lane_change_scene(
         ),
         "maximum_motion_m": pre_length + transition_length + post_length + 10.0,
         "motion_stall_timeout_sec": 15.0,
-        "route_deviation_limit_m": 1.2,
+        "route_deviation_limit_m": float(
+            family.get("route_deviation_limit_m", 1.2)
+        ),
         "lookahead_m": 6.0,
-        "adaptive_curve_control": False,
+        "adaptive_curve_control": True,
+        "minimum_curve_speed_kph": float(
+            family.get("minimum_curve_speed_kph", 30.0)
+        ),
         "clip_motion_phase": phase_names[phase_index],
+        "prime_capture_before_clip": False,
+        "capture_actor_gate": {
+            "class": "vehicle",
+            "role": role_name,
+            "minimum_longitudinal_m": float(
+                role.get("gate_longitudinal_m", [-40.0, 40.0])[0]
+            ),
+            "maximum_longitudinal_m": float(
+                role.get("gate_longitudinal_m", [-40.0, 40.0])[1]
+            ),
+            "maximum_abs_lateral_m": float(
+                role.get("maximum_abs_lateral_m", 6.5)
+            ),
+            "maximum_distance_m": float(
+                role.get("maximum_distance_m", 50.0)
+            ),
+        },
     }
     return ego_route, ego_sample, runtime, capture_overrides
 
@@ -2234,7 +2452,12 @@ def main():
             scenario_load_initial_speed = config["capture"].get(
                 "scenario_load_initial_speed_kph"
             )
-            if scenario_load_initial_speed is not None:
+            if (
+                scenario_load_initial_speed is not None
+                and not capture_overrides.get(
+                    "preserve_ego_initial_speed_on_load", False
+                )
+            ):
                 nominal_initial_speed = float(
                     scenario["egoVehicle"].get("currentVelocity", 0.0)
                 )
