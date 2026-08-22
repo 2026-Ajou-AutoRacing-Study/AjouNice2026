@@ -556,6 +556,10 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertEqual(
             v2_batch.PRIMARY_COUNTS["highway_lane_change_overtake"], 4
         )
+        self.assertEqual(v2_batch.PRIMARY_COUNTS["gps_shadow_obstacle"], 6)
+        self.assertEqual(
+            v2_batch.PRIMARY_COUNTS["gps_shadow_vehicle_interaction"], 7
+        )
 
     def test_highway_cruise_lane_prior_is_twenty_nine_three(self):
         _base, defaults = v2_batch.family_defaults()
@@ -574,6 +578,82 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertEqual(
             generator.ego_lane_speed_range(family, 10), (50.0, 60.0)
         )
+
+    def test_roundabout_capture_zones_are_interleaved_exact_quotas(self):
+        _base, defaults = v2_batch.family_defaults()
+        family = defaults["roundabout_circulation"]
+        family["count"] = 18
+        zones = generator.weighted_zone_schedule(family)
+        self.assertEqual(zones.count("approach"), 4)
+        self.assertEqual(zones.count("merge_entry"), 5)
+        self.assertEqual(zones.count("circulation"), 5)
+        self.assertEqual(zones.count("exit"), 4)
+        self.assertGreaterEqual(len(set(zones[:4])), 3)
+
+    def test_roundabout_spawn_reposition_stays_on_legal_path(self):
+        links = generator.load_json(
+            ROOT / "kcity_map/mgeo_map_scenario_runner_2025/link_set.json"
+        )
+        links_by_id = {item["idx"]: item for item in links}
+        template = generator.load_json(
+            ROOT / "configs/scenario/2026_molit_comp_sample_scene.json"
+        )
+        spawn = copy.deepcopy(
+            next(item for item in template["spawnPointList"] if item["UNIQUEID"] == 4)
+        )
+        pose = generator.reposition_spawn_on_link_path(
+            spawn,
+            links_by_id,
+            generator.ROUNDABOUT_NPC_LINK_PATH,
+            {"x": -65.0, "y": 342.0},
+            0.0,
+        )
+        self.assertIn(pose["link_idx"], generator.ROUNDABOUT_NPC_LINK_PATH)
+        self.assertEqual(spawn["startLinkInfo"]["linkIdx"], pose["link_idx"])
+        self.assertAlmostEqual(spawn["pos"]["x"], pose["x"])
+        self.assertLess(math.hypot(pose["x"] + 65.0, pose["y"] - 342.0), 25.0)
+
+    def test_gps_shadow_vehicle_uses_legal_tunnel_route(self):
+        links = generator.load_json(
+            ROOT / "kcity_map/mgeo_map_scenario_runner_2025/link_set.json"
+        )
+        links_by_id = {item["idx"]: item for item in links}
+        route, arc = generator.link_path_samples(
+            links_by_id, generator.GPS_SHADOW_NPC_LINK_PATH
+        )
+        self.assertGreater(arc[-1], 200.0)
+        self.assertEqual(route[0]["link_idx"], "A2256W000126")
+        self.assertEqual(route[-1]["link_idx"], "A2256W000128")
+
+    def test_gps_shadow_capture_zones_cover_mission_progress(self):
+        _base, defaults = v2_batch.family_defaults()
+        family = defaults["gps_shadow_vehicle_interaction"]
+        self.assertFalse(family["spawn_velocity_equals_target"])
+        self.assertEqual(family["capture_preroll_distance_m"], [3.0, 6.0])
+        self.assertEqual(family["minimum_ego_speed_ratio"], 0.45)
+        self.assertEqual(family["target_speed_kph"], [10.0, 20.0])
+        self.assertEqual(family["npc_relative_distance_m"], [6.0, 12.0])
+        self.assertEqual(
+            family["npc_phase_offset_candidates_m"], [6.0, 8.0, 10.0, 12.0]
+        )
+        self.assertEqual(family["minimum_npc_spawn_distance_m"], 6.0)
+        family["count"] = 7
+        zones = generator.weighted_zone_schedule(family)
+        self.assertEqual(
+            {name: zones.count(name) for name in set(zones)},
+            {
+                "approach_entry": 1,
+                "early_shadow": 2,
+                "deep_shadow": 2,
+                "exit_recovery": 2,
+            },
+        )
+        ranges = {
+            item["name"]: item["route_index_range"]
+            for item in family["ego_capture_zones"]
+        }
+        self.assertLess(ranges["approach_entry"][0], 3661)
+        self.assertGreater(ranges["exit_recovery"][1], 3900)
 
     def test_static_highway_lane_quota_rounds_to_five_two_one(self):
         lanes = [

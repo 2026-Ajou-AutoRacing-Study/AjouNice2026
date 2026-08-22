@@ -17,6 +17,7 @@ SPAWN_VEHICLE_FAMILIES = {
     "highway_merge_cruise",
     "highway_cruise_overtake",
     "highway_lane_change_overtake",
+    "gps_shadow_vehicle_interaction",
 }
 
 TARGET_SPEED_START_FAMILIES = {
@@ -146,7 +147,10 @@ def validate_scene(entry):
                     errors.append(
                         "target-speed-start spawn and desired velocities differ"
                     )
-            elif motion_phase == "spawn_acceleration" and (
+            elif (
+                motion_phase == "spawn_acceleration"
+                or family == "gps_shadow_vehicle_interaction"
+            ) and (
                 float(spawn.get("MinSpawnVelocity_Custom", 0.0))
                 >= float(spawn["MinDesiredVelocity_Custom"])
             ):
@@ -235,6 +239,37 @@ def validate_scene(entry):
             errors.append("GPS obstacle is outside shaded area longitudinally")
         if abs(lateral) > float(shade["size"]["y"]) / 2 + 2.0:
             errors.append("GPS obstacle is outside shaded area laterally")
+
+    if family == "gps_shadow_vehicle_interaction":
+        spawns = scenario["spawnPointList"]
+        if len(spawns) != 1:
+            errors.append("GPS vehicle interaction must contain one lead NPC spawn")
+        elif spawns[0]["startLinkInfo"]["linkIdx"] not in {
+            "A2256W000126",
+            "A2256W000128",
+        }:
+            errors.append("GPS vehicle spawn is outside the tunnel route")
+        elif spawns[0]["endLinkInfo"]["linkIdx"] != "A2256W000128":
+            errors.append("GPS vehicle destination does not leave the tunnel legally")
+        overrides = metadata.get("capture_policy_overrides", {})
+        if overrides.get("spatial_phase") not in {
+            "approach_entry",
+            "early_shadow",
+            "deep_shadow",
+            "exit_recovery",
+        }:
+            errors.append("GPS vehicle capture has no valid spatial phase")
+        anchor = int(overrides.get("planned_capture_anchor_route_index", -1))
+        if not 3610 <= anchor <= 3940:
+            errors.append("GPS vehicle capture anchor is outside mission coverage")
+        runtime = metadata.get("runtime_actors", [{}])[0]
+        gap = float(runtime.get("planned_ego_distance_m", -1.0))
+        if not 6.0 <= gap <= 16.0:
+            errors.append("GPS lead NPC gap is outside the safe interaction range")
+        spawn_gap = float(runtime.get("planned_spawn_distance_m", -1.0))
+        preroll = float(overrides.get("capture_motion_arm_m", 0.0))
+        if spawn_gap + preroll < 8.0:
+            errors.append("GPS NPC starts too close to the Ego vehicle")
 
     if not metadata.get("runtime_actors"):
         errors.append("runtime actor metadata is empty")

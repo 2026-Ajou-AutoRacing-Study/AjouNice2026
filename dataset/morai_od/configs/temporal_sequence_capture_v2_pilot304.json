@@ -260,7 +260,7 @@
     },
     {
       "name": "gps_shadow_obstacle",
-      "count": 4,
+      "count": 2,
       "objects_per_scene": 3,
       "route_lateral_offset_m": [-1.2, 1.2],
       "scale_factor": [0.8, 1.15],
@@ -271,6 +271,48 @@
       "motion_phase": "hard_static_visibility",
       "sampling_role": "hard_temporal",
       "stable_ego_gate": true
+    },
+    {
+      "name": "gps_shadow_vehicle_interaction",
+      "count": 2,
+      "source_spawn_ids": [4],
+      "target_speed_kph": [15.0, 30.0],
+      "spawn_period_sec": [8.0, 12.0],
+      "spawn_velocity_equals_target": true,
+      "ego_capture_zones": [
+        {
+          "name": "approach_entry",
+          "route_index_range": [3610, 3690],
+          "weight": 0.20
+        },
+        {
+          "name": "early_shadow",
+          "route_index_range": [3691, 3760],
+          "weight": 0.25
+        },
+        {
+          "name": "deep_shadow",
+          "route_index_range": [3761, 3840],
+          "weight": 0.30
+        },
+        {
+          "name": "exit_recovery",
+          "route_index_range": [3841, 3940],
+          "weight": 0.25
+        }
+      ],
+      "capture_preroll_distance_m": [10.0, 18.0],
+      "npc_link_path": ["A2256W000126", "A2256W000128"],
+      "npc_phase_offset_candidates_m": [12.0, 16.0, 20.0, 24.0, 28.0],
+      "npc_relative_distance_m": [12.0, 28.0],
+      "ego_target_speed_kph": [20.0, 35.0],
+      "ego_initial_speed_kph": [12.0, 24.0],
+      "minimum_ego_speed_ratio": 0.75,
+      "maximum_motion_m": 100.0,
+      "motion_stall_timeout_sec": 14.0,
+      "motion_phase": "gps_shadow_same_lane_interaction",
+      "sampling_role": "hard_transition",
+      "stable_ego_gate": false
     }
   ]
 }

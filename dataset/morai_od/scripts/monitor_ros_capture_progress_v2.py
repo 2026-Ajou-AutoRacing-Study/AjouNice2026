@@ -41,6 +41,7 @@ HARD_TRANSITION = {
     "roundabout_sample_spawn",
     "highway_merge_sample_spawn",
     "gps_shadow_obstacle",
+    "gps_shadow_vehicle_interaction",
 }
 
 

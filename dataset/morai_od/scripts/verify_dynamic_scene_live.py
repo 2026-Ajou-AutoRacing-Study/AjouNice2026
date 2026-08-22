@@ -17,6 +17,7 @@ VEHICLE_FAMILIES = {
     "highway_merge_sample_spawn",
     "highway_merge_cruise",
     "highway_cruise_overtake",
+    "gps_shadow_vehicle_interaction",
 }
 
 TRACK_SEGMENT_GAP_SEC = 0.5
@@ -134,6 +135,9 @@ def main():
             time.sleep(0.1)
         else:
             raise SystemExit("fresh Ego/Object messages did not arrive after ScenarioLoad")
+        # Exclude actors observed before/during ScenarioLoad. MORAI can reuse
+        # actor IDs, so stale samples must not become part of the test track.
+        tracks.clear()
 
     start = time.monotonic()
     while not rospy.is_shutdown() and time.monotonic() - start < args.observe_sec:

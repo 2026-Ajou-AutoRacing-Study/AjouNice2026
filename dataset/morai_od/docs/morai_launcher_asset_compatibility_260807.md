@@ -1,5 +1,11 @@
 # 대회용·개인용 MORAI asset 호환 정책
 
+## 런처 약칭
+
+- `mrp`: 개인용 런처, 2026년도 버전, `~/MoraiLauncher_Lin_per`.
+- `mr`: 대회용 런처, 2025년도 버전, `~/MoraiLauncher_Lin`.
+- 이후 문서와 작업 대화에서는 위 약칭을 표준으로 사용한다.
+
 ## 1. 목적
 
 최종 학습 대상 domain은 대회용 런처지만 자동 Camera·LiDAR·GT 수집은

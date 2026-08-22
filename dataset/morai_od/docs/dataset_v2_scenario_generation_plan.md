@@ -40,8 +40,9 @@ temporal OD 파이프라인은 현재 미션 dynamic만으로 검증할 수 있�
 때만 10~15% pilot을 추가하고 이후 최대 20~27%까지 검토한다.
 
 미션 중심 약 50%는 실제 대회처럼 family별 주 객체를 분리한다. 로터리·고주로에는
-차량, 횡단보도에는 보행자, 정적 장애물·GPS 음영 obstacle mission에는 obstacle을
-중심으로 두며, 각 family에 관계없는 obstacle을 추가하지 않는다.
+차량, 횡단보도에는 보행자, 정적 장애물과 GPS 음영 obstacle mission에는 obstacle을
+중심으로 둔다. GPS 음영의 별도 끼어들기 랜덤 미션은 동일방향 동적 차량 family로
+수집하며, 각 family에 관계없는 obstacle을 추가하지 않는다.
 다중 class 일반화는 정적 random의 현실적 혼합 장면으로 담당한다.
 
 ### 1,500-frame 단계 수집

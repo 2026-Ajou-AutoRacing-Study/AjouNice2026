@@ -1,5 +1,29 @@
 # MORAI temporal sequence capture V2 계획.
 
+## 런처 약칭.
+
+- `mrp`: 개인용 MORAI 런처. 2026년도 버전이며 경로는
+  `~/MoraiLauncher_Lin_per`이다.
+- `mr`: 대회용 MORAI 런처. 2025년도 버전이며 경로는
+  `~/MoraiLauncher_Lin`이다.
+- 이후 문서와 작업 대화에서 별도 설명이 없으면 위 약칭을 사용한다.
+
+## ROS bag 기본 계약.
+
+- 별도 설명이 없으면 ROS bag은 `mrp`에서 녹화한다.
+- `mrp`에서 녹화하는 모든 ROS bag에는 `/ReplayInfo_topic`을 반드시 포함한다.
+- 센서 benchmark·online 평가용 bag은 기존 목적별 sensor topic에
+  `/ReplayInfo_topic`을 추가한다. `/ReplayInfo_topic`이 다른 raw sensor topic을
+  대체하지는 않는다.
+- MORAI Rosbag Replay만을 위한 최소 world-motion bag은
+  `/ReplayInfo_topic` 하나로 생성할 수 있다. 다만 map, scenario, sensor config,
+  weather, time-of-day와 traffic-light 상태를 완전히 설명하지 않으므로 해당 설정
+  파일과 metadata를 sidecar로 함께 보존한다.
+- 재현성 검증용 world-motion bag에는 `/clock`, `/Ego_topic`, `/Object_topic`,
+  `/ctrl_cmd`, collision topic을 함께 기록한다. MORAI Replay의 필수 payload는
+  `/ReplayInfo_topic`이고 나머지는 원본과 replay 궤적의 차이를 검증하기 위한
+  보조 자료다.
+
 ## Production cadence 결정.
 
 - 2026-08-22부터 canonical capture cadence는 `12 Hz`, 즉 `1/12초`로 고정한다.
@@ -16,6 +40,59 @@
 - 아래 2026-08-21 `0.15초` live gate 결과는 구형 저속 pilot의 역사적 검증이며,
   신규 production cadence를 뜻하지 않는다.
 
+## 실주행 bag 기반 held-out test 계획.
+
+- Procedural generator의 train/val/test는 scene ID가 분리돼도 같은 생성 분포를
+  공유한다. 따라서 이 test는 `synthetic IID test`로만 해석하고 최종 대회 일반화
+  지표로 단독 사용하지 않는다.
+- 최종 주 지표는 mrp에서 사람이 실제 대회 경로를 주행해 녹화한 raw bag을
+  LiDAR frame 기준으로 parsing한 `real-drive held-out test`로 구성한다.
+- 모델 입력 camera는 online production과 동일하게 LiDAR보다 늦지 않은 최신 frame을
+  causal selection한다. GT Object/Ego 상태는 평가 label이므로 앞뒤 고주기 메시지를
+  LiDAR timestamp로 보간할 수 있다.
+- 하나의 연속 주행을 frame 단위로 train/val/test에 나누지 않는다. Bag/run 전체가
+  하나의 split group이다.
+- 반복 튜닝에 사용할 `real-drive dev`와 마지막까지 보지 않을 `real-drive final test`를
+  서로 다른 주행으로 녹화한다. Generated validation은 epoch/checkpoint 선택에 유지한다.
+- 전체 평균만 내면 긴 배경 구간이 rare mission을 덮으므로 roundabout, highway merge,
+  highway cruise/overtake, pedestrian, static obstacle, GPS-shadow 구간별 지표와
+  mission macro average를 함께 기록한다.
+
+### 두 test 생성 방식 비교.
+
+- MORAI rosbag replay 뒤 SaveSensorData를 다시 요청하는 방식.
+  - 현재 canonical SaveSensorData는 frame당 약 4.82 MB다.
+  - 센서별 label이 바로 생성되는 장점이 있다.
+  - 다만 replay는 simulator가 원 bag을 그대로 반환하는 것이 아니라 actor 상태를
+    재생해 센서를 다시 렌더링하는 방식이다.
+  - 현재 `replay_target_option`에는 Ego/NPC/pedestrian만 있고 static obstacle bit가
+    없으므로, 원 scenario를 함께 정확히 load하지 않으면 obstacle test가 달라질 수 있다.
+  - 원본 packet timing/drop을 보존하지 않으므로 최종 primary test로 쓰지 않는다.
+- Raw bag 직접 parsing 방식.
+  - 원본 JPEG, PointCloud2, timestamp와 실제 drop/jitter를 그대로 보존한다.
+  - `/Object_topic`, `/Ego_topic`, calibration으로 canonical 3D label을 생성해야 한다.
+  - GT box의 sensor range, camera visibility, LiDAR point-hit filtering을 구현·검증해야
+    하지만 최종 배포 조건과 가장 가까우므로 primary test로 사용한다.
+- Replay SaveSensorData는 raw-bag label converter의 소규모 대조·검증용 secondary
+  benchmark로만 사용한다. 전체 bag을 두 방식으로 중복 변환하지 않는다.
+
+### 실측 크기 추정.
+
+| Bag | 길이 | 12 Hz frame | SaveSensorData 예상 | Raw bag | Raw parsing payload 예상 |
+|---|---:|---:|---:|---:|---:|
+| 최신 부분 주행 | 99.47초 | 약 1,194 | 약 5.75 GB | 1.12 GB | 실측 약 0.64 GB |
+| 기존 full high-speed | 155.72초 | 약 1,869 | 약 9.00 GB | 1.59 GB | 약 1.00 GB |
+| 기존 full slow | 282.02초 | 약 3,384 | 약 16.31 GB | 2.86 GB | 약 1.80 GB |
+
+- SaveSensorData 1회는 live smoke에서 wall time 약 0.65초를 사용했다. 따라서 replay
+  전체 변환은 각각 대략 13분, 20분, 37분이고 launcher 상태에 따라 더 길어질 수 있다.
+- 최신 99.47초 bag은 LiDAR 1,182 frame, 11.887 Hz였다. Raw parsing에서는 억지로
+  1,194 frame을 만들지 않고 실제 1,182개 LiDAR frame을 anchor로 쓴다.
+- 같은 bag의 LiDAR 대비 nearest camera header 차이는 99.92%가 50 ms 이내였고,
+  p95는 camera별 3.6~5.4 ms였다. Online과 같은 causal selection에서는 front/back
+  p95 age가 약 38~40 ms, side camera는 약 5.4 ms였다. Object/Ego causal age p95는
+  약 21 ms로, GT interpolation을 구현할 근거가 충분하다.
+
 ## 구현 상태.
 
 - 2026-08-21 기준 V2 offline generator와 validator를 구현했다.
@@ -24,6 +101,16 @@
 - `temporal_sequence_capture_v2_pilot304.json`은 Sunny 13시에서 로터리, 고주로
   합류·순항·차선 변경, 횡단 보행자, 일반·고주로 static obstacle과 GPS 음영 hard
   case를 포함한다.
+- GPS 음영 랜덤 미션의 `장애물 회피`뿐 아니라 `끼어들기`도 빠뜨리지 않는다.
+  `gps_shadow_vehicle_interaction`은 추월 없는 동일방향 차량 상호작용으로 만들고,
+  진입 전·음영 전반·후반·출구 네 구간에 capture anchor를 분산한다. 규정만으로
+  급격한 측면 cut-in을 확정할 수 없으므로 이를 임의로 학습 prior로 만들지 않는다.
+  NPC를 목표속도로 즉시 생성하면 ScenarioLoad 검증과 Ego 가속 gate 동안 먼저
+  구간을 벗어나므로, NPC는 0 km/h에서 목표속도로 가속하고 Ego capture preroll은
+  3~6 m로 제한한다. MORAI pause setup은 spawn-point actor가 생성되지 않아 기각했다.
+  거리 역산 하드코딩도 초기 충돌 위험이 있어 사용하지 않는다. 대신 터널 NPC를
+  10~20 km/h, 초기 선행 간격을 6~12 m로 두어 준비 지연 후 frame 0에서도
+  검출·상호작용 범위에 남게 한다.
 - Personal launcher에서 자동 가능한 obstacle 30종을 V2 asset deck으로 순환시킨다.
   Pilot 69 unique placement에서 30종이 모두 최소 1회 선택되는 것을 검증했다.
 - Production batch는 아래 1,415-placement quota를 smooth weighted round-robin으로
@@ -33,6 +120,28 @@
   smoothstep으로 연결한다. Entry/middle/exit clip의 capture arm 위치를 따로 둔다.
 - Static highway clip은 clip 단위 right/middle/left 60/25/15 weighted lane policy를
   사용한다. 8-clip production batch에서는 5/2/1 clip으로 반올림된다.
+
+### 2026-08-22 공간 분산·GPS 차량 live smoke.
+
+- GPS 차량 최초안은 15~30 km/h 목표속도와 12~28 m 선행 간격을 사용했다.
+  ScenarioLoad, scene settle, sensor writer prime, Ego arm 동안 NPC가 먼저 이동해
+  frame 0 거리가 약 85 m가 됐으므로 기각했다.
+- NPC를 0 km/h에서 가속하고 Ego arm을 3~6 m로 줄인 중간안은 약 53 m였다.
+- ScenarioLoad pause는 pause 상태에서 spawn-point actor가 생성되지 않고
+  EventCmd로 정상 resume되지 않아 production에서 제거했다.
+- 최종안은 GPS 터널 NPC 10~20 km/h, initial lead 6~12 m를 사용한다.
+  Ego 시작점과 NPC center 간 최소 계획 간격은 preroll을 포함해 8 m 이상인지
+  validator가 확인한다.
+- GPS 4-frame live smoke는 4/4 frame, 92 sensor artifact, validation error 0이었다.
+  측정 간격은 약 11.0 Hz였고, 해당 상단속도 seed의 frame 0~3 거리는
+  35.21~35.26 m, 횡방향 차이는 0.11~0.14 m였다.
+- Roundabout exit smoke는 실제 route index 1760~1763으로 계획 zone 1741~1780
+  안에 있었다. Highway settled smoke는 2125~2130으로 계획 zone 2061~2130
+  안에 있었다. 두 clip 모두 4/4 frame과 validation error 0을 기록했다.
+- 188 clip/1,504 frame production dry-run은 error 0으로 통과했다.
+  split은 train/val/test 129/29/30 clip이고 GPS 차량 7 clip은 네 spatial phase를
+  1/2/2/2로 포함한다. 남은 25 warning은 기존 pedestrian speed 단위의 live
+  displacement audit 안내이며 새 GPS/공간 분산 오류가 아니다.
 - Scene별 `capture_period_sec`, motion arm, 최소 frame 진행거리, warm-up과 속도 설정이
   실제 capture runtime에 적용된다.
 - Stable family는 목표속도, 최소 진행거리뿐 아니라 최근 0.5초 Ego acceleration gate를
@@ -410,8 +519,11 @@ vehicle 32.44% + generic vehicle 5%로 구성한다. 효과가 명확할 때만 
   geometry를 함께 학습해야 하므로 유지한다.
 - 정적 내부 obstacle-focused 약 70%는 30종 asset의 unique placement 부족을 해결하는
   직접적인 quota이므로 유지한다. Mission dynamic clip에는 무관한 obstacle을 섞지 않는다.
-- Hard temporal 15.04%는 spawn acceleration, GPS 음영 obstacle, 원거리·가림·camera seam을
-  격리해 평균 분포를 오염시키지 않는 역할이므로 유지한다.
+- Hard temporal 15.04%는 spawn acceleration, GPS 음영 obstacle·vehicle interaction,
+  원거리·가림·camera seam을 격리해 평균 분포를 오염시키지 않는 역할이므로 유지한다.
+- 첫 1,504-frame batch의 GPS 전용 13 clip은 obstacle 6 clip과 같은 방향 vehicle
+  interaction 7 clip으로 나눈다. 일반 static obstacle은 다른 family에서 충분히
+  확보하므로 GPS 랜덤 미션 두 종류의 누락 방지를 우선한다.
 - 모든 canonical clip은 8 frame, 12 Hz이며 frame이 아니라 clip/location/link group으로
   split한다.
 
@@ -682,3 +794,53 @@ hard-transition `drs001`을 연속 실행한 결과 4/4 clip, 32/32 frame이 성
 rate는 11.254--11.873 Hz였다. 장면 전환 중 rosbridge reconnect 경고 한 번은 자동
 복구됐으며 collision, readiness와 artifact 실패는 없었다. Primary 188 scenes와 reserve
 28 scenes runtime manifest도 정적 validator 오류 0건을 유지했다.
+
+## 2026-08-22 Batch 001 공간 anchor 감사와 mission-wide 보정.
+
+첫 A 실험을 368 frame에서 중단한 뒤 이미지 payload 전체를 읽지 않고 `summary.json`과
+frame별 Ego/Object metadata만 집계했다. 46개 성공 clip 중 당시 완료된 세 vehicle
+family의 실제 capture 시작점 최대 간격은 다음과 같았다.
+
+| Family | 완료 clip | 실제 capture 시작점 최대 간격 | 판단 |
+| --- | ---: | ---: | --- |
+| `roundabout_circulation` | 17 | 9.0 m | 한 짧은 구간에 편향. |
+| `highway_merge_cruise` | 10 | 41.9 m | 일부 분산됐지만 접근 초반이 부족. |
+| `highway_cruise_overtake` | 19 | 214.5 m | 충분한 연속 공간 분산. |
+
+기존 로터리 18개 scene의 scenario Ego start도 global-route index `1651--1668`에
+집중됐다. 모든 scene이 공식 NPC spawn 4의 고정 위치를 route에 투영하고 그보다
+18--27 m 앞에서 Ego를 시작했기 때문이다. 더구나 scenario load 속도 0, 3 m motion
+arm과 최소속도 gate가 실제 capture 위치를 downstream으로 더 모았다. 목표속도
+randomization만으로는 공간 분포가 넓어지지 않았다.
+
+Temporal V2의 네 simple spawn vehicle family를 capture-anchor 중심으로 변경했다.
+
+- `roundabout_sample_spawn`, `roundabout_circulation`은 접근, 합류·진입, 순환, 이탈의
+  네 route-index 구간에 exact quota를 배정한다. 각 구간 내부 좌표는 연속 랜덤이다.
+- `highway_merge_sample_spawn`, `highway_merge_cruise`는 접근, 합류, 합류 후 안정의 세
+  구간에 같은 정책을 쓴다.
+- 먼저 원하는 `planned_capture_anchor`를 뽑고, target speed에 도달할 preroll 거리를
+  upstream으로 역산해 scenario Ego start와 `capture_motion_arm_m`을 함께 정한다.
+  따라서 속도 gate가 캡처 위치를 임의로 결정하지 않는다.
+- 로터리 NPC는 공식 `144→133→134→135→102` MGeo 경로를 유지하면서 capture anchor
+  주변 phase로 이동한다. 여러 합법 후보 중 Ego와 약 14--28 m 떨어진 후보를 우선해
+  객체 소실과 즉시 충돌을 모두 방지한다.
+- 기존에 공간 분포가 충분한 고주로 순항·추월, lane-change, 여섯 횡단보도 정책은
+  변경하지 않았다. GPS shadow와 static hard family의 좁은 범위는 미션 구역 자체가
+  제한적인 의도된 분포이므로 동일 결함으로 보지 않는다.
+
+재생성된 primary의 계획 capture anchor 결과는 다음과 같다.
+
+| Family | clip | 공간 phase quota | anchor 최대 간격 |
+| --- | ---: | --- | ---: |
+| `roundabout_sample_spawn` | 8 | 2/2/2/2 | 64.3 m |
+| `roundabout_circulation` | 18 | 4/5/5/4 | 69.5 m |
+| `highway_merge_sample_spawn` | 8 | 2/3/3 | 72.9 m |
+| `highway_merge_cruise` | 14 | 3/6/5 | 73.8 m |
+
+로터리 계획 capture anchor와 NPC spawn의 초기 거리는 primary에서 최소 15.6--17.3 m,
+중앙값 25.3--29.6 m, 최대 38.9--41.3 m였다. Primary 188 clips와 reserve 28 clips는
+source/runtime manifest 모두 validator 오류 0개를 유지했고 개인 MORAI launcher에
+재설치했다. 이 변경 중 ROS master가 종료된 상태여서 신규 공간 phase의 live
+SaveSensorData smoke는 다음 MORAI 연결 시 수행해야 한다. 기존 368-frame A 폴더는 같은
+scene ID의 구형 공간 정책을 포함하므로 신규 runtime manifest로 resume하지 않는다.

@@ -23,8 +23,12 @@ Semantic/Instance GT 처리 비용 때문이다.
 | `static_obstacle` | 3 | 공식 장애물 구간 정적 obstacle. |
 | `gps_shadow_obstacle` | 3 | GPS 음영 OBB 내부 도로 정적 obstacle. |
 
-GPS 음영 끼어들기 차량은 검증된 MORAI spawn/waypoint template이 없어 아직
-생성하지 않는다. 수동 저장 template을 확보한 뒤 family로 추가한다.
+V1은 GPS 음영 끼어들기 차량을 생성하지 않았던 구형 smoke다. Temporal V2에서는
+MGeo `A2256W000126 -> A2256W000128`을 따라가는
+`gps_shadow_vehicle_interaction`을 추가했다. Ego는 추월하지 않고 같은 방향 NPC와
+주행하며, 진입 전·음영 전반·후반·출구의 capture 위치와 초기 gap·속도를 바꾼다.
+규정에 구체적인 측면 cut-in 동작이 공개되지 않았으므로 급격한 차선 횡단은 주
+분포에 넣지 않는다.
 
 위 count는 각 구현 경로를 고르게 live 검증하기 위한 smoke quota이며 최종 학습
 비율이 아니다. 본 수집에서는 아래 motion-phase 권장 비율로 다시 sampling한다.

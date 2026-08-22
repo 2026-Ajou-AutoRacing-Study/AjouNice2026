@@ -54,6 +54,7 @@ FAMILY_CODES = {
     "crosswalk_pedestrian": "pd",
     "static_obstacle": "so",
     "gps_shadow_obstacle": "go",
+    "gps_shadow_vehicle_interaction": "gv",
     "stopped_vehicle": "sv",
     "standing_pedestrian": "sp",
     "realistic_mixed_static": "mx",
@@ -67,11 +68,13 @@ SIMPLE_SPAWN_VEHICLE_FAMILIES = {
     "roundabout_circulation",
     "highway_merge_sample_spawn",
     "highway_merge_cruise",
+    "gps_shadow_vehicle_interaction",
 }
 
 SINGLE_LANE_SPAWN_FAMILIES = {
     "highway_merge_sample_spawn",
     "highway_merge_cruise",
+    "gps_shadow_vehicle_interaction",
 }
 
 
@@ -100,6 +103,27 @@ HIGHWAY_LANE_LINK_PATHS = {
         "A2256W000423",
     ),
 }
+
+
+# Ordered MGeo path used by the official roundabout NPC spawn. Temporal V2
+# moves the start point along this same legal path so spatially distributed
+# Ego capture anchors do not lose the actor.
+ROUNDABOUT_NPC_LINK_PATH = (
+    "A2256W000144",
+    "A2256W000133",
+    "A2256W000134",
+    "A2256W000135",
+    "A2256W000102",
+)
+
+
+# The competition route traverses the GPS-shadow tunnel on these two
+# consecutive links.  A vehicle spawned here stays on the legal route instead
+# of borrowing a roundabout/highway spawn whose destination is unrelated.
+GPS_SHADOW_NPC_LINK_PATH = (
+    "A2256W000126",
+    "A2256W000128",
+)
 
 
 def parse_args():
@@ -564,6 +588,250 @@ def weighted_lane_schedule(family):
         schedule.append(lane)
         selected[lane] += 1
     return schedule
+
+
+def weighted_zone_schedule(family, key="ego_capture_zones"):
+    """Return an interleaved exact-count spatial-zone schedule."""
+
+    zones = list(family.get(key, []))
+    total = int(family.get("count", 1))
+    if not zones:
+        return []
+    weights = {
+        str(zone["name"]): float(zone.get("weight", 1.0)) for zone in zones
+    }
+    if len(weights) != len(zones) or any(
+        value <= 0.0 for value in weights.values()
+    ):
+        raise ValueError("invalid or duplicate capture-zone configuration")
+    weight_sum = sum(weights.values())
+    exact = {name: total * weight / weight_sum for name, weight in weights.items()}
+    quotas = {name: int(math.floor(value)) for name, value in exact.items()}
+    remaining = total - sum(quotas.values())
+    for name in sorted(
+        weights,
+        key=lambda item: (-(exact[item] - quotas[item]), item),
+    )[:remaining]:
+        quotas[name] += 1
+    selected = {name: 0 for name in quotas}
+    schedule = []
+    while len(schedule) < total:
+        candidates = [name for name in quotas if selected[name] < quotas[name]]
+        name = min(
+            candidates,
+            key=lambda item: ((selected[item] + 1.0) / quotas[item], item),
+        )
+        schedule.append(name)
+        selected[name] += 1
+    return schedule
+
+
+def route_pose_at_index(route, index):
+    index = max(0, min(len(route) - 1, int(index)))
+    before = route[max(0, index - 1)]
+    after = route[min(len(route) - 1, index + 1)]
+    return {
+        **route[index],
+        "yaw": math.degrees(
+            math.atan2(after["y"] - before["y"], after["x"] - before["x"])
+        ),
+        "route_index": index,
+    }
+
+
+def route_index_at_arc(arc, distance_m):
+    insertion = bisect.bisect_left(arc, float(distance_m))
+    candidates = [max(0, min(len(arc) - 1, insertion))]
+    if insertion:
+        candidates.append(insertion - 1)
+    return min(candidates, key=lambda item: abs(arc[item] - float(distance_m)))
+
+
+def link_path_samples(links_by_id, link_ids):
+    """Flatten a directed MGeo link path while retaining link/point identity."""
+
+    samples = []
+    for link_id in link_ids:
+        link = links_by_id[link_id]
+        points = link["points"]
+        for point_index, point in enumerate(points):
+            row = {
+                "x": float(point[0]),
+                "y": float(point[1]),
+                "z": float(point[2]) if len(point) >= 3 else 0.0,
+                "link_idx": link_id,
+                "point_idx": point_index,
+            }
+            if samples and math.hypot(
+                samples[-1]["x"] - row["x"], samples[-1]["y"] - row["y"]
+            ) < 1e-4:
+                continue
+            samples.append(row)
+    arc = [0.0]
+    for before, after in zip(samples, samples[1:]):
+        arc.append(
+            arc[-1]
+            + math.hypot(after["x"] - before["x"], after["y"] - before["y"])
+        )
+    return samples, arc
+
+
+def reposition_spawn_on_link_path(
+    spawn, links_by_id, link_ids, ego_anchor, offset_m
+):
+    """Move a cloned MORAI spawn along its existing legal route."""
+
+    samples, arc = link_path_samples(links_by_id, link_ids)
+    nearest = min(
+        range(len(samples)),
+        key=lambda index: math.hypot(
+            samples[index]["x"] - ego_anchor["x"],
+            samples[index]["y"] - ego_anchor["y"],
+        ),
+    )
+    # Leave enough route after the spawn for the complete temporal clip.
+    desired_arc = max(0.0, min(arc[-1] - 8.0, arc[nearest] + float(offset_m)))
+    index = route_index_at_arc(arc, desired_arc)
+    before = samples[max(0, index - 1)]
+    after = samples[min(len(samples) - 1, index + 1)]
+    pose = dict(samples[index])
+    pose["yaw"] = math.degrees(
+        math.atan2(after["y"] - before["y"], after["x"] - before["x"])
+    )
+    spawn["pos"] = formatted_vector(pose["x"], pose["y"], pose["z"])
+    spawn["rot"] = formatted_rotation(pose["yaw"])
+    spawn["startLinkInfo"] = {
+        "linkIdx": pose["link_idx"],
+        "pointIdx": int(pose["point_idx"]),
+    }
+    final_link = links_by_id[link_ids[-1]]
+    spawn["endLinkInfo"] = {
+        "linkIdx": link_ids[-1],
+        "pointIdx": len(final_link["points"]) - 1,
+    }
+    return pose
+
+
+def build_route_anchored_vehicle_scene(
+    scenario,
+    template,
+    family,
+    rng,
+    variant_index,
+    route,
+    route_arc,
+    samples,
+    links_by_id,
+):
+    """Build a spawn-vehicle scene around an explicit desired capture anchor."""
+
+    _target, runtime = build_vehicle_scene(
+        scenario, template, family, rng, variant_index
+    )
+    zones = {str(item["name"]): item for item in family["ego_capture_zones"]}
+    zone_name = weighted_zone_schedule(family)[variant_index]
+    zone = zones[zone_name]
+    lower, upper = [int(value) for value in zone["route_index_range"]]
+    if lower < 1 or upper >= len(route) or upper < lower:
+        raise ValueError("capture zone is outside the competition route")
+    capture_index = rng.randint(lower, upper)
+    capture_anchor = route_pose_at_index(route, capture_index)
+    preroll = float(uniform_or_choice(rng, family["capture_preroll_distance_m"]))
+    start_arc = max(0.0, route_arc[capture_index] - preroll)
+    start_index = route_index_at_arc(route_arc, start_arc)
+    route_pose = route_pose_at_index(route, start_index)
+    ego_sample = nearest_aligned_sample(samples, route_pose)
+    ego_sample["route_index"] = start_index
+    ego_speed = float(uniform_or_choice(rng, family["ego_target_speed_kph"]))
+    ego_initial_speed = min(
+        ego_speed,
+        float(uniform_or_choice(rng, family.get("ego_initial_speed_kph", 0.0))),
+    )
+    set_ego_pose(scenario["egoVehicle"], ego_sample, ego_initial_speed)
+
+    npc_link_path = family.get("npc_link_path")
+    if family.get("reposition_roundabout_spawn", False):
+        npc_link_path = ROUNDABOUT_NPC_LINK_PATH
+    if npc_link_path:
+        spawn = scenario["spawnPointList"][0]
+        desired_distance = float(
+            uniform_or_choice(
+                rng, family.get("npc_relative_distance_m", [14.0, 28.0])
+            )
+        )
+        offsets = family.get(
+            "npc_phase_offset_candidates_m",
+            [-28.0, -22.0, -16.0, 16.0, 22.0, 28.0],
+        )
+        minimum_spawn_distance = float(
+            family.get("minimum_npc_spawn_distance_m", 10.0)
+        )
+        candidates = []
+        for offset in offsets:
+            candidate_spawn = copy.deepcopy(spawn)
+            candidate_pose = reposition_spawn_on_link_path(
+                candidate_spawn,
+                links_by_id,
+                npc_link_path,
+                capture_anchor,
+                float(offset),
+            )
+            distance = math.hypot(
+                candidate_pose["x"] - capture_anchor["x"],
+                candidate_pose["y"] - capture_anchor["y"],
+            )
+            candidates.append(
+                (
+                    distance < minimum_spawn_distance,
+                    abs(distance - desired_distance),
+                    rng.random(),
+                    candidate_spawn,
+                    candidate_pose,
+                    distance,
+                    float(offset),
+                )
+            )
+        _, _, _, selected_spawn, npc_pose, npc_distance, selected_offset = min(
+            candidates, key=lambda row: row[:3]
+        )
+        spawn.clear()
+        spawn.update(selected_spawn)
+        runtime[0].update(
+            {
+                "start_link": npc_pose["link_idx"],
+                "end_link": npc_link_path[-1],
+                "spawn_position": {
+                    axis: float(npc_pose[axis]) for axis in ("x", "y", "z")
+                },
+                "spatial_phase": zone_name,
+                "planned_ego_distance_m": float(desired_distance),
+                "planned_spawn_distance_m": float(npc_distance),
+                "planned_spawn_offset_m": float(selected_offset),
+            }
+        )
+
+    capture_overrides = {
+        "ego_target_speed_kph": ego_speed,
+        "ego_initial_speed_kph": ego_initial_speed,
+        "minimum_ego_speed_kph": ego_speed
+        * float(family.get("minimum_ego_speed_ratio", 0.65)),
+        "capture_motion_arm_m": preroll,
+        "planned_capture_anchor_route_index": capture_index,
+        "planned_capture_anchor": {
+            axis: float(capture_anchor[axis]) for axis in ("x", "y", "z")
+        },
+        "spatial_phase": zone_name,
+        "maximum_motion_m": float(family.get("maximum_motion_m", 90.0)),
+        "motion_stall_timeout_sec": float(
+            family.get("motion_stall_timeout_sec", 14.0)
+        ),
+        "lookahead_m": float(family.get("lookahead_m", 4.0)),
+    }
+    if "minimum_curve_speed_kph" in family:
+        capture_overrides["minimum_curve_speed_kph"] = float(
+            family["minimum_curve_speed_kph"]
+        )
+    return ego_sample, runtime, capture_overrides, capture_anchor
 
 
 def ego_lane_speed_range(family, lane_id):
@@ -1759,7 +2027,26 @@ def main():
             capture_overrides = {}
             ego_sample = None
 
-            if name in SIMPLE_SPAWN_VEHICLE_FAMILIES:
+            if name in SIMPLE_SPAWN_VEHICLE_FAMILIES and family.get(
+                "ego_capture_zones"
+            ):
+                (
+                    ego_sample,
+                    runtime,
+                    capture_overrides,
+                    target,
+                ) = build_route_anchored_vehicle_scene(
+                    scenario,
+                    template,
+                    family,
+                    rng,
+                    variant_index,
+                    route,
+                    route_arc,
+                    samples,
+                    links_by_id,
+                )
+            elif name in SIMPLE_SPAWN_VEHICLE_FAMILIES:
                 target, runtime = build_vehicle_scene(
                     scenario, template, family, rng, variant_index
                 )
@@ -1862,7 +2149,7 @@ def main():
                     for actor in runtime
                 )
 
-            if route_override is None:
+            if ego_sample is None:
                 lead = choose_lead(rng, family)
                 route_pose = route_pose_before(route, route_arc, target, lead)
                 ego_sample = nearest_aligned_sample(samples, route_pose)
@@ -1901,7 +2188,7 @@ def main():
             else:
                 lead = None
                 route_pose = ego_sample
-                validation_route = route_override
+                validation_route = route_override if route_override is not None else route
             if family.get("stable_ego_gate", False):
                 capture_overrides.update(
                     {

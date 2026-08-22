@@ -34,7 +34,8 @@ PRIMARY_COUNTS = {
     # Hard transitions: 29 clips / 232 frames (15.4%).
     "roundabout_sample_spawn": 8,
     "highway_merge_sample_spawn": 8,
-    "gps_shadow_obstacle": 13,
+    "gps_shadow_obstacle": 6,
+    "gps_shadow_vehicle_interaction": 7,
 }
 
 RESERVE_COUNTS = {
@@ -54,7 +55,8 @@ RESERVE_COUNTS = {
     "standing_pedestrian": 1,
     "realistic_mixed_static": 0,
     "sparse_background": 0,
-    "gps_shadow_obstacle": 1,
+    "gps_shadow_obstacle": 0,
+    "gps_shadow_vehicle_interaction": 1,
 }
 
 FAMILY_GROUPS = {
@@ -77,6 +79,7 @@ FAMILY_GROUPS = {
         "roundabout_sample_spawn",
         "highway_merge_sample_spawn",
         "gps_shadow_obstacle",
+        "gps_shadow_vehicle_interaction",
     },
 }
 
@@ -106,6 +109,70 @@ def write_json(path, document):
 def family_defaults():
     base = load_json(BASE_CONFIG)
     rows = {row["name"]: copy.deepcopy(row) for row in base["families"]}
+    # These are quota strata, not fixed points. Each scene samples a continuous
+    # route-index range inside its assigned phase, then starts Ego far enough
+    # upstream to reach the requested speed near that capture anchor.
+    roundabout_zones = [
+        {"name": "approach", "route_index_range": [1600, 1640], "weight": 0.20},
+        {"name": "merge_entry", "route_index_range": [1641, 1690], "weight": 0.30},
+        {"name": "circulation", "route_index_range": [1691, 1740], "weight": 0.30},
+        {"name": "exit", "route_index_range": [1741, 1780], "weight": 0.20},
+    ]
+    highway_merge_zones = [
+        {"name": "approach", "route_index_range": [1940, 1995], "weight": 0.25},
+        {"name": "merge", "route_index_range": [1996, 2060], "weight": 0.40},
+        {"name": "settled", "route_index_range": [2061, 2130], "weight": 0.35},
+    ]
+    gps_shadow_zones = [
+        {"name": "approach_entry", "route_index_range": [3610, 3690], "weight": 0.20},
+        {"name": "early_shadow", "route_index_range": [3691, 3760], "weight": 0.25},
+        {"name": "deep_shadow", "route_index_range": [3761, 3840], "weight": 0.30},
+        {"name": "exit_recovery", "route_index_range": [3841, 3940], "weight": 0.25},
+    ]
+    for name in ("roundabout_sample_spawn", "roundabout_circulation"):
+        rows[name]["ego_capture_zones"] = copy.deepcopy(roundabout_zones)
+        rows[name]["capture_preroll_distance_m"] = [10.0, 16.0]
+        rows[name]["npc_phase_offset_candidates_m"] = [
+            -28.0,
+            -22.0,
+            -16.0,
+            16.0,
+            22.0,
+            28.0,
+        ]
+        rows[name]["npc_relative_distance_m"] = [14.0, 28.0]
+        rows[name]["reposition_roundabout_spawn"] = True
+        rows[name]["maximum_motion_m"] = 110.0
+        rows[name]["motion_stall_timeout_sec"] = 16.0
+    for name in ("highway_merge_sample_spawn", "highway_merge_cruise"):
+        rows[name]["ego_capture_zones"] = copy.deepcopy(highway_merge_zones)
+        rows[name]["capture_preroll_distance_m"] = [12.0, 22.0]
+        rows[name]["maximum_motion_m"] = 110.0
+        rows[name]["motion_stall_timeout_sec"] = 16.0
+    rows["gps_shadow_vehicle_interaction"] = {
+        "name": "gps_shadow_vehicle_interaction",
+        "source_spawn_ids": [4],
+        "target_speed_kph": [10.0, 20.0],
+        "spawn_period_sec": [8.0, 12.0],
+        # ScenarioLoad and Ego acceleration take several seconds. Starting at
+        # target speed lets the NPC leave the interaction corridor before
+        # frame 0, so use the template's zero spawn speed and accelerate.
+        "spawn_velocity_equals_target": False,
+        "ego_capture_zones": gps_shadow_zones,
+        "capture_preroll_distance_m": [3.0, 6.0],
+        "npc_link_path": ["A2256W000126", "A2256W000128"],
+        "npc_phase_offset_candidates_m": [6.0, 8.0, 10.0, 12.0],
+        "npc_relative_distance_m": [6.0, 12.0],
+        "minimum_npc_spawn_distance_m": 6.0,
+        "ego_target_speed_kph": [20.0, 35.0],
+        "ego_initial_speed_kph": [12.0, 24.0],
+        "minimum_ego_speed_ratio": 0.45,
+        "maximum_motion_m": 100.0,
+        "motion_stall_timeout_sec": 14.0,
+        "motion_phase": "gps_shadow_same_lane_interaction",
+        "sampling_role": "hard_transition",
+        "stable_ego_gate": False,
+    }
     rows["stopped_vehicle"] = {
         "name": "stopped_vehicle",
         "actors_per_scene": 2,
