@@ -3,7 +3,7 @@
   <arg name="python_executable" default=""/>
   <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
   <arg name="checkpoint"
-       default="$(arg repo_root)/artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_wandb_v1/best_center_mAP_epoch_11.pth"/>
+       default="$(arg repo_root)/artifacts/detection3d/fastbev/releases/fastbev_i3_production.pth"/>
   <arg name="use_sim_time" default="false"/>
   <arg name="planning_output_topic"
        default="/perception/object_recognition/objects"/>

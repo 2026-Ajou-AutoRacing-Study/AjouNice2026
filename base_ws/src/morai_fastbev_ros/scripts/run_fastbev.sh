@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "$CATKIN_WS/.." && pwd)"
 
 CONDA_ENV="${CONDA_ENV:-fastbev_rtx50}"
 FASTBEV_CONFIG="${FASTBEV_CONFIG:-$REPO_ROOT/perception/detection3d/fastbev/configs/fastbev_m0_morai_4cam_s384x704.py}"
-FASTBEV_CHECKPOINT="${FASTBEV_CHECKPOINT:-$REPO_ROOT/artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_wandb_v1/best_center_mAP_epoch_11.pth}"
+FASTBEV_CHECKPOINT="${FASTBEV_CHECKPOINT:-$REPO_ROOT/artifacts/detection3d/fastbev/releases/fastbev_i3_production.pth}"
 FASTBEV_WITH_TP="${FASTBEV_WITH_TP:-false}"
 FASTBEV_PREDICTION_MODEL="${FASTBEV_PREDICTION_MODEL:-ctrv}"
 FASTBEV_PREPROCESS_BACKEND="${FASTBEV_PREPROCESS_BACKEND:-opencv}"

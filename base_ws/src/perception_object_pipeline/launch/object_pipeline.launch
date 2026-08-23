@@ -39,7 +39,7 @@
   <arg name="python_executable" default=""/>
   <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
   <arg name="fastbev_checkpoint"
-       default="$(arg repo_root)/artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_wandb_v1/best_center_mAP_epoch_11.pth"/>
+       default="$(arg repo_root)/artifacts/detection3d/fastbev/releases/fastbev_i3_production.pth"/>
   <arg name="fastbev_preprocess_backend" default="opencv"/>
   <arg name="fastbev_pipeline_mode" default="staged"/>
   <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>

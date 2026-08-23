@@ -4,7 +4,7 @@
   <arg name="config"
        default="$(arg repo_root)/perception/detection3d/fastbev/configs/fastbev_m0_morai_4cam_s384x704.py"/>
   <arg name="checkpoint"
-       default="$(arg repo_root)/artifacts/detection3d/fastbev/runs/full1500_stride1_fp16_wandb_v1/best_center_mAP_epoch_11.pth"/>
+       default="$(arg repo_root)/artifacts/detection3d/fastbev/releases/fastbev_i3_production.pth"/>
   <arg name="sensor_config"
        default="$(arg repo_root)/configs/sensors/Sensor_6.json"/>
 
