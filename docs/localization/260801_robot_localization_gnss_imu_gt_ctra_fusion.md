@@ -922,6 +922,10 @@ MGeo width edge는 `link centerline +/- width/2`로 계산한 추정 경계이�
 
 ## 지도와 LiDAR 노면 도료의 미세 정합 검토
 
+> 이 절은 Lanelet v60 시점의 과거 진단 기록이다. 현재 v61 런타임은
+> `map -> morai_map = (131.559130220, 545.911338186, 0.0)`, `yaw=0`을
+> 사용하며, 아래의 기존·반대 미세 보정값은 적용하지 않는다.
+
 ### 관찰
 
 Lanelet v60 중심선과 MGeo 중심선은 미세 보정 전 `map -> morai_map`
