@@ -28,8 +28,8 @@ class CustomDataset(DatasetTemplate):
         # optional velocity target appends lidar-frame vx/vy.  Keep the
         # default compatible with every existing CustomDataset config.
         self.gt_box_dim = int(self.dataset_cfg.get('GT_BOX_DIM', 7))
-        if self.gt_box_dim not in (7, 9):
-            raise ValueError('GT_BOX_DIM must be 7 or 9, got %d' % self.gt_box_dim)
+        if self.gt_box_dim not in (7, 9, 10):
+            raise ValueError('GT_BOX_DIM must be 7, 9 or 10, got %d' % self.gt_box_dim)
 
         split_dir = os.path.join(self.root_path, 'ImageSets', (self.split + '.txt'))
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if os.path.exists(split_dir) else None

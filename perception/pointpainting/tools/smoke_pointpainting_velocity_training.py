@@ -17,6 +17,8 @@ def parse_args():
     parser.add_argument('--cfg-file', required=True)
     parser.add_argument('--data-path', required=True)
     parser.add_argument('--checkpoint', required=True)
+    parser.add_argument('--batch-size', type=int, default=1)
+    parser.add_argument('--expect-zero-velocity-gradient', action='store_true')
     return parser.parse_args()
 
 
@@ -42,7 +44,7 @@ def main():
     dataset, loader, _ = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
         class_names=cfg.CLASS_NAMES,
-        batch_size=1,
+        batch_size=args.batch_size,
         dist=False,
         workers=0,
         logger=logger,
@@ -63,8 +65,12 @@ def main():
             break
     if batch is None:
         raise RuntimeError('no non-zero velocity GT found in the first 64 batches')
-    if batch['gt_boxes'].shape[-1] != 10:  # 9 box codes + class id.
-        raise RuntimeError('expected collated 9D GT boxes, got %s' % (batch['gt_boxes'].shape,))
+    expected_gt_width = 11 if cfg.MODEL.DENSE_HEAD.NAME == 'AnchorHeadSingleVelocityWeighted' else 10
+    if batch['gt_boxes'].shape[-1] != expected_gt_width:
+        raise RuntimeError(
+            'expected collated weighted 9D GT boxes, got %s' %
+            (batch['gt_boxes'].shape,)
+        )
 
     model = build_network(cfg.MODEL, len(cfg.CLASS_NAMES), dataset)
     model.load_params_from_file(
@@ -84,8 +90,24 @@ def main():
         box_gradient.reshape(-1, 9, *box_gradient.shape[1:])[:, 7:9]
         .abs().sum().detach().cpu()
     )
-    if velocity_gradient_l1 <= 0.0:
+    if args.expect_zero_velocity_gradient and velocity_gradient_l1 > 1.0e-8:
+        raise RuntimeError(
+            'masked velocity target leaked gradient: %s' % velocity_gradient_l1
+        )
+    if not args.expect_zero_velocity_gradient and velocity_gradient_l1 <= 0.0:
         raise RuntimeError('velocity output channels received zero gradient')
+    geometry_gradient_l1 = float(
+        box_gradient.reshape(-1, 9, *box_gradient.shape[1:])[:, :7]
+        .abs().sum().detach().cpu()
+    )
+    if geometry_gradient_l1 <= 0.0:
+        raise RuntimeError('geometry output channels received zero gradient')
+    metrics = result.tb_dict
+    if cfg.MODEL.DENSE_HEAD.NAME == 'AnchorHeadSingleVelocityWeighted':
+        required = ('rpn_loss_geometry', 'rpn_loss_velocity', 'velocity_positive_weight_mean')
+        missing = [name for name in required if name not in metrics]
+        if missing:
+            raise RuntimeError('weighted velocity metrics missing: %s' % missing)
 
     model.eval()
     eval_batch = next(iter(loader))
@@ -107,6 +129,11 @@ def main():
     print('moving velocity targets:', moving_targets)
     print('train loss:', float(loss.detach().cpu()))
     print('velocity-channel gradient L1:', velocity_gradient_l1)
+    print('geometry-channel gradient L1:', geometry_gradient_l1)
+    print('loss components:', {
+        key: metrics[key] for key in metrics
+        if key in ('rpn_loss_geometry', 'rpn_loss_velocity', 'velocity_positive_weight_mean')
+    })
     print('prediction shape:', pred_shape)
     print('serialized prediction shape:', serialized_shape)
     print('PointPainting velocity 9D forward/backward smoke: OK')

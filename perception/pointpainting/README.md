@@ -33,7 +33,10 @@ Point feature order:
 
 - `openpcdet_patch/pcdet/datasets/custom/custom_dataset.py`
 - `openpcdet_patch/pcdet/datasets/custom/morai_eval.py`
+- `openpcdet_patch/pcdet/datasets/custom/morai_center_metrics.py`
   - MORAI CustomDataset/evaluation support for OpenPCDet.
+  - Fast-BEV and PointPainting share the same model-neutral W&B validation
+    keys for center AP, box quality, operating points, distance bins and IoU.
 
 - `openpcdet_patch/tools/eval_morai_competition_metrics.py`
   - Center-distance AP evaluation.
@@ -58,6 +61,12 @@ Point feature order:
 - `docs/temporal_sweep_alignment_azimuth_deskew_ab.md`
   - Existing dynamic data reuse, 3-sweep Ego alignment, physical simulation
     time recovery, azimuth Ego-deskew A/B, smoke results, and training commands.
+
+- `docs/base2_temporal3_velocity_d4_readiness.md`
+  - Base2 10K D4 materialization, 3-sweep/time-lag contract, weighted velocity
+    loss, online ROS parity, GPU/W&B smoke results, interleaved epoch train/val,
+    and the approved full-run command. Full training is intentionally not
+    started by this preparation.
 
 ## Weights
 

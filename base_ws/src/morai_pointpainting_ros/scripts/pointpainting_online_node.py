@@ -515,6 +515,9 @@ class PointPaintingOnlineNode:
         self.temporal_lidar_scan_period_sec = float(
             rospy.get_param("~temporal_lidar_scan_period_sec", 1.0 / 15.0)
         )
+        self.temporal_time_lag_mode = str(
+            rospy.get_param("~temporal_time_lag_mode", "sweep_constant")
+        ).strip().lower()
         self.use_amp = bool(rospy.get_param("~use_amp", True))
         self.segmentation_short_side = int(
             rospy.get_param("~segmentation_short_side", 520)
@@ -618,6 +621,13 @@ class PointPaintingOnlineNode:
             raise ValueError("temporal_maximum_gap_sec must be positive")
         if self.temporal_lidar_scan_period_sec <= 0.0:
             raise ValueError("temporal_lidar_scan_period_sec must be positive")
+        if self.temporal_time_lag_mode not in {
+            "sweep_constant",
+            "azimuth_approx",
+        }:
+            raise ValueError(
+                "temporal_time_lag_mode must be sweep_constant or azimuth_approx"
+            )
         if self.warmup_iterations < 1:
             raise ValueError("warmup_iterations must be >= 1")
         if self.warmup_point_count < 1000:
@@ -1260,10 +1270,13 @@ class PointPaintingOnlineNode:
     def _warmup_temporal_points(self, painted: np.ndarray) -> np.ndarray:
         if self.temporal_num_sweeps == 1:
             return painted
-        offsets = self._estimated_temporal_point_offsets(painted)
         sweeps = []
         for sweep_index in range(self.temporal_num_sweeps):
-            lag = offsets - 0.1 * float(sweep_index)
+            lag = np.full(
+                len(painted),
+                -self.temporal_lidar_scan_period_sec * float(sweep_index),
+                dtype=np.float32,
+            )
             sweeps.append(np.concatenate((painted, lag[:, None]), axis=1))
         return np.ascontiguousarray(np.concatenate(sweeps), dtype=np.float32)
 
@@ -1288,14 +1301,11 @@ class PointPaintingOnlineNode:
             return None
 
         pose_samples = self.ego_pose_buffer.snapshot()
+        current_lag = np.zeros(len(painted), dtype=np.float32)
+        if self.temporal_time_lag_mode == "azimuth_approx":
+            current_lag += self._estimated_temporal_point_offsets(painted)
         temporal_sweeps = [
-            np.concatenate(
-                (
-                    painted,
-                    self._estimated_temporal_point_offsets(painted)[:, None],
-                ),
-                axis=1,
-            )
+            np.concatenate((painted, current_lag[:, None]), axis=1)
         ]
         history = list(self.temporal_history)[-(self.temporal_num_sweeps - 1):]
         for source_timestamp, source_points in reversed(history):
@@ -1316,11 +1326,13 @@ class PointPaintingOnlineNode:
                     (float(timestamp), np.array(painted, copy=True))
                 )
                 return None
-            lag = (
-                float(source_timestamp)
-                - float(timestamp)
-                + self._estimated_temporal_point_offsets(source_points)
+            lag = np.full(
+                len(source_points),
+                float(source_timestamp) - float(timestamp),
+                dtype=np.float32,
             )
+            if self.temporal_time_lag_mode == "azimuth_approx":
+                lag += self._estimated_temporal_point_offsets(source_points)
             temporal_sweeps.append(
                 np.concatenate((transformed, lag[:, None]), axis=1)
             )

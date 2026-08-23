@@ -53,6 +53,8 @@
   <arg name="temporal_num_sweeps" default="0"/>
   <arg name="temporal_maximum_gap_sec" default="0.75"/>
   <arg name="temporal_lidar_scan_period_sec" default="0.06666667"/>
+  <!-- Base2 D3 uses one measured lag per sweep; azimuth_approx is research-only. -->
+  <arg name="temporal_time_lag_mode" default="sweep_constant"/>
   <arg name="ego_topic" default="/Ego_topic"/>
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
   <node pkg="morai_pointpainting_ros"
@@ -114,6 +116,8 @@
            value="$(arg temporal_maximum_gap_sec)"/>
     <param name="temporal_lidar_scan_period_sec"
            value="$(arg temporal_lidar_scan_period_sec)"/>
+    <param name="temporal_time_lag_mode"
+           value="$(arg temporal_time_lag_mode)"/>
     <param name="ego_topic" value="$(arg ego_topic)"/>
     <!-- Causal real-time matching: newest camera image at or before LiDAR stamp. -->
     <param name="max_camera_age_ms" value="100.0"/>
