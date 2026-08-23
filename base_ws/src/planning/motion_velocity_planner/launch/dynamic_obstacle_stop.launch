@@ -1,7 +1,0 @@
-<launch>
-  <node pkg="motion_velocity_planner" type="dynamic_obstacle_stop.py" name="dynamic_obstacle_stop" output="screen">
-    <param name="dynamic_stop_distance" value="5.0" />
-    <param name="warning_distance" value="10.0" />
-    <param name="min_velocity_mps" value="0.5" />
-  </node>
-</launch>

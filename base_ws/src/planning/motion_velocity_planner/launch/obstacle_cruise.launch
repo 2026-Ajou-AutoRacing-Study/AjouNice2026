@@ -1,7 +1,0 @@
-<launch>
-  <node pkg="motion_velocity_planner" type="obstacle_cruise.py" name="obstacle_cruise" output="screen">
-    <param name="cruise_speed_mps" value="5.0" />
-    <param name="safe_distance" value="10.0" />
-    <param name="slow_velocity_mps" value="1.0" />
-  </node>
-</launch>
