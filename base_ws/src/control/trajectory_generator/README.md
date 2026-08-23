@@ -102,7 +102,7 @@ rosrun trajectory_generator generate_trajectory.py \
 base_ws/src/control/trajectory_generator/traj_sample/<start_lanelet_id>_<end_lanelet_id>.csv
 ```
 
-### K-City v44 competition samples
+### K-City v61 competition samples
 
 `config/samples/`에는 competition route publisher의 시작 preset과 대응하는 생성 설정을 둔다.
 모두 안전한 초기 비교용 `20 km/h` 상한이며, map의 더 낮은 제한속도는 그대로 적용된다.
