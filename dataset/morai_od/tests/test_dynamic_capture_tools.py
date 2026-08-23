@@ -65,6 +65,52 @@ def actor(unique_id, x, timestamp):
 
 
 class DynamicCaptureToolsTest(unittest.TestCase):
+    def test_competition_route_uses_native_mgeo_links_across_guide_gap(self):
+        guide, _ = generator.load_route(
+            ROOT / "configs/global_path/2026_molit_comp_global_path.txt"
+        )
+        links = generator.load_json(
+            ROOT / "kcity_map/mgeo_map_scenario_runner_2025/link_set.json"
+        )
+        route, audit = generator.build_mgeo_guided_competition_route(
+            guide, links
+        )
+        self.assertEqual(audit["source"], (
+            "mgeo_directed_links_guided_by_sparse_global_path"
+        ))
+        self.assertLessEqual(audit["maximum_segment_m"], 0.5 + 1e-6)
+        self.assertLessEqual(audit["closing_gap_m"], 1e-6)
+        self.assertLessEqual(audit["guide_distance_max_m"], 1e-6)
+        self.assertEqual(len(audit["guide_gaps"]), 1)
+        self.assertAlmostEqual(audit["guide_gaps"][0]["length_m"], 71.01896, places=4)
+        self.assertIn("A2256W000202", audit["link_path"])
+        self.assertIn("A2256W000728", audit["link_path"])
+        self.assertNotIn("A2256W000009-A2256W000202", audit["link_path"])
+        self.assertTrue(any(
+            row.get("link_idx") == "A2256W000202"
+            and -90.0 < row["y"] < -50.0
+            for row in route
+        ))
+        arc = generator.route_arc_coordinates(route)
+        seam_pose = generator.continuous_route_pose_at_arc(
+            route, arc, 21.0 - 25.0, wrap=True
+        )
+        self.assertEqual(seam_pose["link_idx"], "A2256W000751")
+        self.assertGreater(seam_pose["point_ratio"], 0.5)
+        execution_route, anchor_index, rotation = (
+            generator.rotate_closed_route_for_ego(
+                route, arc, seam_pose, backtrack_m=12.0
+            )
+        )
+        execution_arc = generator.route_arc_coordinates(execution_route)
+        self.assertGreaterEqual(execution_arc[anchor_index], 8.0)
+        self.assertGreater(
+            execution_arc[-1] - execution_arc[anchor_index],
+            2000.0,
+        )
+        self.assertLessEqual(rotation["maximum_segment_m"], 0.5 + 1e-6)
+        self.assertLessEqual(rotation["closing_gap_m"], 1e-6)
+
     def test_static_vehicle_keeps_offset_world_position(self):
         template = generator.load_json(
             ROOT / "configs/scenario/2026_molit_comp_sample_scene.json"

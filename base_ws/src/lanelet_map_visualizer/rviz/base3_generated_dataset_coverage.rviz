@@ -1,0 +1,91 @@
+Panels:
+  - Class: rviz/Displays
+    Help Height: 70
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Base3 Generated Coverage1
+        - /Base3 Generated Coverage1/Namespaces1
+      Splitter Ratio: 0.5
+    Tree Height: 795
+Preferences:
+  PromptSaveOnExit: true
+Toolbars:
+  toolButtonStyle: 2
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz/MarkerArray
+      Enabled: false
+      Marker Topic: /map/lanelet_map
+      Name: Lanelet Map
+      Namespaces:
+        {}
+      Queue Size: 10
+      Value: false
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /dataset/base3/generated_coverage
+      Name: Base3 Generated Coverage
+      Namespaces:
+        actor_obstacle: true
+        actor_pedestrian: true
+        actor_vehicle: true
+        competition_route: false
+        ego_crosswalk_pedestrian: true
+        ego_gps_shadow_obstacle: true
+        ego_gps_shadow_vehicle_interaction: true
+        ego_highway_cruise_overtake: true
+        ego_highway_lane_change_overtake: true
+        ego_highway_merge_cruise: true
+        ego_highway_merge_sample_spawn: true
+        ego_realistic_mixed_static: true
+        ego_roundabout_circulation: true
+        ego_roundabout_sample_spawn: true
+        ego_sparse_background: true
+        ego_standing_pedestrian: true
+        ego_static_highway_obstacle: true
+        ego_static_obstacle: true
+        ego_stopped_vehicle: true
+      Queue Size: 10
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 32; 32; 32
+    Default Light: true
+    Fixed Frame: morai_map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+      Hide Inactive Objects: true
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
+  Value: true
+  Views:
+    Current:
+      Angle: -1.5899988412857056
+      Class: rviz/TopDownOrtho
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Scale: 2.3976404666900635
+      Target Frame: <Fixed Frame>
+      X: 0
+      Y: 0
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 1016
+  Hide Left Dock: false
+  Hide Right Dock: false
+  QMainWindow State: 000000ff00000000fd0000000100000000000001560000039efc0200000001fb000000100044006900730070006c006100790073010000003d0000039e000000c900ffffff000005dc0000039e00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Width: 1848
+  X: 72
+  Y: 27

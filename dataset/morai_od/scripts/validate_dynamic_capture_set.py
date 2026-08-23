@@ -50,7 +50,9 @@ def waypoint_to_world(position):
 
 
 def shade_coordinates(shade, position):
-    yaw = math.radians(float(shade["rot"]["yaw"]))
+    # MORAI shaded-area ``size.x`` follows the vehicle-style local forward
+    # axis, which is rot.yaw-90 degrees in world XY for this scenario schema.
+    yaw = math.radians(float(shade["rot"]["yaw"]) - 90.0)
     dx = float(position["x"]) - float(shade["pos"]["x"])
     dy = float(position["y"]) - float(shade["pos"]["y"])
     return (
@@ -90,6 +92,10 @@ def route_geometry_audit(path):
         "length_m": sum(distances),
         "maximum_segment_m": max(distances),
         "max_heading_jump_deg": max(jumps),
+        "closing_gap_m": math.hypot(
+            points[-1][0] - points[0][0],
+            points[-1][1] - points[0][1],
+        ),
     }
 
 
@@ -115,6 +121,39 @@ def validate_scene(entry):
     ids = [item for item in ids if item is not None]
     if len(ids) != len(set(ids)):
         errors.append("duplicate UNIQUEID")
+
+    execution_route = metadata.get("ego", {}).get("execution_route")
+    if execution_route is not None:
+        waypoint_path = resolve(entry.get("waypoints", ""))
+        if not waypoint_path.is_file():
+            errors.append("rotated route-wide waypoint file is missing")
+        else:
+            route_audit = route_geometry_audit(waypoint_path)
+            if route_audit["point_count"] < 3:
+                errors.append("rotated route-wide route has too few points")
+            if route_audit.get("maximum_segment_m", float("inf")) > 0.75:
+                errors.append("rotated route-wide route has a sampling jump")
+            if route_audit.get("closing_gap_m", float("inf")) > 0.75:
+                errors.append("rotated route-wide route is not closed")
+            anchor_index = int(entry.get("anchor_index", -1))
+            points = load_waypoint_route(waypoint_path)
+            if not 0 < anchor_index < len(points):
+                errors.append("rotated route-wide anchor index is invalid")
+            else:
+                anchor_arc = sum(
+                    math.hypot(
+                        after[0] - before[0],
+                        after[1] - before[1],
+                    )
+                    for before, after in zip(
+                        points[:anchor_index],
+                        points[1 : anchor_index + 1],
+                    )
+                )
+                if anchor_arc < 8.0:
+                    errors.append("rotated route-wide seam is too close behind Ego")
+                if route_audit["length_m"] - anchor_arc < 90.0:
+                    errors.append("rotated route-wide route is too short ahead of Ego")
 
     if family in SPAWN_VEHICLE_FAMILIES:
         motion_phase = metadata.get("motion_phase")
@@ -271,7 +310,10 @@ def validate_scene(entry):
         if spawn_gap + preroll < 8.0:
             errors.append("GPS NPC starts too close to the Ego vehicle")
 
-    if not metadata.get("runtime_actors"):
+    if (
+        not metadata.get("runtime_actors")
+        and family != "sparse_background"
+    ):
         errors.append("runtime actor metadata is empty")
     policy = metadata.get("capture_policy", {})
     if policy.get("format") != "morai_save_sensor_data_timed_grouped":
@@ -377,7 +419,30 @@ def main():
     args = parse_args()
     manifest = load_json(args.manifest)
     results = [validate_scene(entry) for entry in manifest["scenes"]]
-    errors = [message for item in results for message in item["errors"]]
+    manifest_errors = []
+    generation = manifest.get("generation", {})
+    if generation.get("route_wide_route_source") == "mgeo_guided":
+        reconstruction = generation.get("route_reconstruction")
+        if not isinstance(reconstruction, dict):
+            manifest_errors.append("MGeo route reconstruction audit is missing")
+        else:
+            if reconstruction.get("source") != (
+                "mgeo_directed_links_guided_by_sparse_global_path"
+            ):
+                manifest_errors.append("MGeo route reconstruction source is invalid")
+            if int(reconstruction.get("link_count", 0)) < 2:
+                manifest_errors.append("MGeo route reconstruction has too few links")
+            if float(reconstruction.get("maximum_segment_m", float("inf"))) > 0.75:
+                manifest_errors.append("MGeo route reconstruction has a sampling jump")
+            if float(reconstruction.get("closing_gap_m", float("inf"))) > 0.75:
+                manifest_errors.append("MGeo route reconstruction is not closed")
+            if float(reconstruction.get("guide_distance_max_m", float("inf"))) > 1.0:
+                manifest_errors.append("MGeo route diverges from the planner guide")
+            if not reconstruction.get("link_path"):
+                manifest_errors.append("MGeo route reconstruction link path is empty")
+    errors = manifest_errors + [
+        message for item in results for message in item["errors"]
+    ]
     warnings = [message for item in results for message in item["warnings"]]
     static_assets = [
         actor for item in results for actor in item["static_assets"]
@@ -408,6 +473,7 @@ def main():
             )
         ),
         "error_count": len(errors),
+        "manifest_errors": manifest_errors,
         "warning_count": len(warnings),
         "status": "pass" if not errors else "fail",
         "scenes": results,
@@ -427,6 +493,8 @@ def main():
     print(f"status: {report['status']}")
     print(f"report: {report_path}")
     if errors:
+        for error in manifest_errors:
+            print(f"ERROR manifest: {error}")
         for item in results:
             for error in item["errors"]:
                 print(f"ERROR {item['id']}: {error}")

@@ -11,11 +11,12 @@ import argparse
 import bisect
 import copy
 import hashlib
+import heapq
 import json
 import math
 import random
 import shutil
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 
@@ -62,6 +63,14 @@ FAMILY_CODES = {
     "realistic_mixed_static": "mx",
     "sparse_background": "bg",
     "static_highway_obstacle": "sh",
+}
+
+ROUTE_WIDE_STATIC_FAMILIES = {
+    "static_obstacle",
+    "stopped_vehicle",
+    "standing_pedestrian",
+    "realistic_mixed_static",
+    "sparse_background",
 }
 
 
@@ -352,6 +361,301 @@ def load_route(path):
     return route, arc
 
 
+def densify_route(route, maximum_segment_m=0.5):
+    """Fill long waypoint gaps without modifying the official route file."""
+
+    dense = [dict(route[0])]
+    for before, after in zip(route, route[1:]):
+        distance = math.hypot(
+            after["x"] - before["x"], after["y"] - before["y"]
+        )
+        steps = max(1, int(math.ceil(distance / maximum_segment_m)))
+        for step in range(1, steps + 1):
+            ratio = step / steps
+            dense.append({
+                "x": before["x"] + (after["x"] - before["x"]) * ratio,
+                "y": before["y"] + (after["y"] - before["y"]) * ratio,
+                "z": before["z"] + (after["z"] - before["z"]) * ratio,
+            })
+    return dense
+
+
+def _wrapped_radians(value):
+    return math.atan2(math.sin(value), math.cos(value))
+
+
+def _link_length(link):
+    return sum(
+        math.hypot(
+            float(after[0]) - float(before[0]),
+            float(after[1]) - float(before[1]),
+        )
+        for before, after in zip(link.get("points", []), link.get("points", [])[1:])
+    )
+
+
+def _guide_link_anchors(guide_route, links, maximum_guide_segment_m=2.0):
+    """Identify stable MGeo links from short, directed guide segments.
+
+    Point matching is ambiguous at MGeo link boundaries because multiple
+    links intentionally share the same endpoint.  A run of at least two
+    matching guide segments supplies both position and direction and is a
+    much safer route anchor.  One-segment connector links are recovered later
+    from the directed graph instead of being guessed here.
+    """
+
+    cell_size = 2.0
+    segment_grid = defaultdict(list)
+    for link in links:
+        points = link.get("points", [])
+        for point_index, (before, after) in enumerate(zip(points, points[1:])):
+            dx = float(after[0]) - float(before[0])
+            dy = float(after[1]) - float(before[1])
+            length = math.hypot(dx, dy)
+            if length <= 1e-9:
+                continue
+            midpoint_x = (float(before[0]) + float(after[0])) * 0.5
+            midpoint_y = (float(before[1]) + float(after[1])) * 0.5
+            cell = (
+                int(math.floor(midpoint_x / cell_size)),
+                int(math.floor(midpoint_y / cell_size)),
+            )
+            segment_grid[cell].append({
+                "link_idx": link["idx"],
+                "point_index": point_index,
+                "x": midpoint_x,
+                "y": midpoint_y,
+                "yaw": math.atan2(dy, dx),
+                "length": length,
+            })
+
+    matched_links = []
+    unmatched_long_segments = []
+    for segment_index, (before, after) in enumerate(
+        zip(guide_route, guide_route[1:])
+    ):
+        dx = float(after["x"]) - float(before["x"])
+        dy = float(after["y"]) - float(before["y"])
+        length = math.hypot(dx, dy)
+        if length > float(maximum_guide_segment_m):
+            matched_links.append(None)
+            unmatched_long_segments.append({
+                "segment_index": segment_index,
+                "length_m": length,
+                "from": dict(before),
+                "to": dict(after),
+            })
+            continue
+        if length <= 1e-9:
+            matched_links.append(None)
+            continue
+        midpoint_x = (float(before["x"]) + float(after["x"])) * 0.5
+        midpoint_y = (float(before["y"]) + float(after["y"])) * 0.5
+        yaw = math.atan2(dy, dx)
+        cell = (
+            int(math.floor(midpoint_x / cell_size)),
+            int(math.floor(midpoint_y / cell_size)),
+        )
+        candidates = []
+        for cell_dx in (-1, 0, 1):
+            for cell_dy in (-1, 0, 1):
+                candidates.extend(
+                    segment_grid.get((cell[0] + cell_dx, cell[1] + cell_dy), [])
+                )
+        if not candidates:
+            raise ValueError(
+                "guide segment {} has no nearby MGeo segment".format(segment_index)
+            )
+        best = min(
+            candidates,
+            key=lambda item: (
+                math.hypot(item["x"] - midpoint_x, item["y"] - midpoint_y)
+                + 2.0 * abs(_wrapped_radians(item["yaw"] - yaw))
+                + 0.1 * abs(item["length"] - length)
+            ),
+        )
+        distance = math.hypot(best["x"] - midpoint_x, best["y"] - midpoint_y)
+        heading_error = abs(
+            math.degrees(_wrapped_radians(best["yaw"] - yaw))
+        )
+        if distance > 1.5 or heading_error > 45.0:
+            raise ValueError(
+                "guide segment {} cannot be aligned to MGeo: distance={:.2f}m "
+                "heading={:.1f}deg".format(segment_index, distance, heading_error)
+            )
+        matched_links.append(best["link_idx"])
+
+    runs = []
+    for segment_index, link_id in enumerate(matched_links):
+        if link_id is None:
+            continue
+        if runs and runs[-1]["link_idx"] == link_id:
+            runs[-1]["last_segment"] = segment_index
+            runs[-1]["segment_count"] += 1
+        else:
+            runs.append({
+                "link_idx": link_id,
+                "first_segment": segment_index,
+                "last_segment": segment_index,
+                "segment_count": 1,
+            })
+    anchors = [run for run in runs if run["segment_count"] >= 2]
+    if len(anchors) < 2:
+        raise ValueError("guide route does not provide enough stable MGeo link anchors")
+    return anchors, unmatched_long_segments
+
+
+def _shortest_directed_link_path(links_by_id, successors, start_link, goal_link):
+    """Return a deterministic shortest directed MGeo link path."""
+
+    if start_link == goal_link:
+        return [start_link]
+    queue = [(0.0, (start_link,), start_link)]
+    best_cost = {}
+    while queue:
+        cost, path_key, link_id = heapq.heappop(queue)
+        if link_id in best_cost:
+            continue
+        best_cost[link_id] = cost
+        if link_id == goal_link:
+            return list(path_key)
+        node_id = links_by_id[link_id]["to_node_idx"]
+        for successor in sorted(successors.get(node_id, [])):
+            if successor in best_cost or successor in path_key:
+                continue
+            successor_cost = max(0.01, _link_length(links_by_id[successor]))
+            heapq.heappush(
+                queue,
+                (cost + successor_cost, path_key + (successor,), successor),
+            )
+    raise ValueError(
+        "MGeo has no directed path from {} to {}".format(start_link, goal_link)
+    )
+
+
+def _sampled_route_point_distances(points, route, cell_size=2.0):
+    """Measure guide-to-route distance with a small spatial hash."""
+
+    grid = defaultdict(list)
+    for row in route:
+        cell = (
+            int(math.floor(float(row["x"]) / cell_size)),
+            int(math.floor(float(row["y"]) / cell_size)),
+        )
+        grid[cell].append(row)
+    distances = []
+    for point in points:
+        cell = (
+            int(math.floor(float(point["x"]) / cell_size)),
+            int(math.floor(float(point["y"]) / cell_size)),
+        )
+        candidates = []
+        for cell_dx in (-1, 0, 1):
+            for cell_dy in (-1, 0, 1):
+                candidates.extend(
+                    grid.get((cell[0] + cell_dx, cell[1] + cell_dy), [])
+                )
+        if not candidates:
+            raise ValueError("guide point has no nearby reconstructed route sample")
+        distances.append(min(
+            math.hypot(
+                float(candidate["x"]) - float(point["x"]),
+                float(candidate["y"]) - float(point["y"]),
+            )
+            for candidate in candidates
+        ))
+    return distances
+
+
+def build_mgeo_guided_competition_route(guide_route, links):
+    """Reconstruct the closed competition route from native MGeo geometry.
+
+    The planner guide selects the directed link sequence; generated Ego poses,
+    headings, and arc distances come exclusively from MGeo link geometry.
+    """
+
+    links_by_id = {link["idx"]: link for link in links}
+    successors = defaultdict(list)
+    for link in links:
+        # MGeo materializes lane-change shortcuts as lazy two-point links.
+        # They are valid graph edges for planning, but not native road
+        # centerline geometry for spatial dataset sampling.  A normal
+        # directed lane path is always preferred here; explicit multi-lane
+        # dataset families already build their own verified MGeo routes.
+        if link.get("lazy_init") or link.get("lane_ch_link_path"):
+            continue
+        successors[link["from_node_idx"]].append(link["idx"])
+    anchors, guide_gaps = _guide_link_anchors(guide_route, links)
+    anchor_ids = [row["link_idx"] for row in anchors]
+    link_path = [anchor_ids[0]]
+    inserted_paths = []
+    for pair_index in range(len(anchor_ids)):
+        start = anchor_ids[pair_index]
+        goal = anchor_ids[(pair_index + 1) % len(anchor_ids)]
+        path = _shortest_directed_link_path(
+            links_by_id, successors, start, goal
+        )
+        inserted = path[1:-1]
+        if inserted:
+            inserted_paths.append({
+                "from_link": start,
+                "to_link": goal,
+                "inserted_links": inserted,
+            })
+        if pair_index < len(anchor_ids) - 1:
+            link_path.extend(path[1:])
+        else:
+            # The final path closes the loop back to the first anchor.  Keep
+            # connector links but do not duplicate the first link itself.
+            link_path.extend(path[1:-1])
+
+    if len(link_path) != len(set(link_path)):
+        duplicates = [
+            link_id for link_id, count in Counter(link_path).items() if count > 1
+        ]
+        raise ValueError(
+            "MGeo competition route repeats links: {}".format(duplicates)
+        )
+    samples, _ = link_path_samples(links_by_id, link_path)
+    if len(samples) < 2:
+        raise ValueError("MGeo competition route contains fewer than two samples")
+    closing_gap = math.hypot(
+        samples[-1]["x"] - samples[0]["x"],
+        samples[-1]["y"] - samples[0]["y"],
+    )
+    if closing_gap > 0.75:
+        raise ValueError(
+            "MGeo competition route is not closed: gap={:.3f}m".format(closing_gap)
+        )
+    maximum_segment = max(
+        math.hypot(after["x"] - before["x"], after["y"] - before["y"])
+        for before, after in zip(samples, samples[1:])
+    )
+    if maximum_segment > 0.75:
+        raise ValueError(
+            "MGeo competition route sampling gap exceeds 0.75m: {:.3f}m".format(
+                maximum_segment
+            )
+        )
+    guide_distances = _sampled_route_point_distances(guide_route, samples)
+    audit = {
+        "source": "mgeo_directed_links_guided_by_sparse_global_path",
+        "guide_point_count": len(guide_route),
+        "stable_anchor_link_count": len(anchor_ids),
+        "link_count": len(link_path),
+        "link_path": link_path,
+        "inserted_paths": inserted_paths,
+        "guide_gaps": guide_gaps,
+        "point_count": len(samples),
+        "length_m": route_arc_coordinates(samples)[-1],
+        "maximum_segment_m": maximum_segment,
+        "closing_gap_m": closing_gap,
+        "guide_distance_mean_m": sum(guide_distances) / len(guide_distances),
+        "guide_distance_max_m": max(guide_distances),
+    }
+    return samples, audit
+
+
 def nearest_index(points, x, y):
     return min(
         range(len(points)),
@@ -359,23 +663,158 @@ def nearest_index(points, x, y):
     )
 
 
-def route_pose_before(route, arc, target, lead_distance):
+def continuous_route_pose_at_arc(route, arc, distance_m, wrap=False):
+    """Interpolate a pose on an open or closed route arc.
+
+    Legacy guide routes retain their route indices.  Native MGeo routes also
+    retain link identity so a pose near the closed-loop seam cannot later be
+    snapped to the spatially identical point on the wrong directed link.
+    """
+
+    distance_m = float(distance_m)
+    if wrap and arc[-1] > 0.0:
+        distance_m %= arc[-1]
+    else:
+        distance_m = max(0.0, min(float(arc[-1]), distance_m))
+    upper = bisect.bisect_left(arc, distance_m)
+    upper = max(1, min(len(route) - 1, upper))
+    lower = upper - 1
+    span = max(1e-9, float(arc[upper]) - float(arc[lower]))
+    ratio = (distance_m - float(arc[lower])) / span
+    before = route[lower]
+    after = route[upper]
+    pose = {
+        "x": before["x"] + (after["x"] - before["x"]) * ratio,
+        "y": before["y"] + (after["y"] - before["y"]) * ratio,
+        "z": before["z"] + (after["z"] - before["z"]) * ratio,
+        "yaw": math.degrees(
+            math.atan2(after["y"] - before["y"], after["x"] - before["x"])
+        ),
+        "route_index": lower,
+        "route_arc_m": distance_m,
+    }
+    # Native MGeo routes carry an unambiguous link identity.  Preserve it so
+    # a closed-loop seam shared by the final and first link cannot be snapped
+    # to the wrong occurrence by a later nearest-point query.
+    selected = before if ratio < 0.5 else after
+    if selected.get("link_idx") is not None:
+        pose["link_idx"] = selected["link_idx"]
+        pose["point_idx"] = int(selected.get("point_idx", 0))
+        pose["max_speed"] = float(selected.get("max_speed", 30.0))
+        if before.get("link_idx") == after.get("link_idx"):
+            pose["point_ratio"] = (
+                float(before.get("point_ratio", 0.0))
+                + (
+                    float(after.get("point_ratio", 0.0))
+                    - float(before.get("point_ratio", 0.0))
+                )
+                * ratio
+            )
+        else:
+            pose["point_ratio"] = float(selected.get("point_ratio", 0.0))
+    return pose
+
+
+def route_pose_before(
+    route, arc, target, lead_distance, wrap_closed_route=False
+):
     target_index = nearest_index(route, target["x"], target["y"])
-    target_arc = max(0.0, arc[target_index] - lead_distance)
-    insertion = bisect.bisect_left(arc, target_arc)
-    candidates = [min(len(arc) - 1, insertion)]
-    if insertion:
-        candidates.append(insertion - 1)
-    index = min(candidates, key=lambda item: abs(arc[item] - target_arc))
-    after = min(len(route) - 1, index + 1)
-    before = max(0, index - 1)
-    heading = math.degrees(
-        math.atan2(
-            route[after]["y"] - route[before]["y"],
-            route[after]["x"] - route[before]["x"],
+    target_arc = float(target.get("route_arc_m", arc[target_index]))
+    if not wrap_closed_route:
+        target_arc = max(0.0, target_arc - lead_distance)
+        index = route_index_at_arc(arc, target_arc)
+        return route_pose_at_index(route, index)
+    return continuous_route_pose_at_arc(
+        route,
+        arc,
+        target_arc - lead_distance,
+        wrap=wrap_closed_route,
+    )
+
+
+def rotate_closed_route_for_ego(
+    route,
+    arc,
+    ego_pose,
+    backtrack_m=12.0,
+):
+    """Move a closed waypoint array's seam behind the scene's Ego pose.
+
+    The online controller intentionally does not wrap an array index from the
+    final waypoint back to zero.  A geometrically closed route can therefore
+    still fail when Ego starts close to the file's final waypoint: lookahead
+    clamps at the end and eventually points behind the vehicle.  Rotating the
+    same directed MGeo route per scene keeps its geometry unchanged while
+    placing the file seam safely behind Ego.
+    """
+
+    if len(route) < 3 or len(route) != len(arc):
+        raise ValueError("closed route rotation requires matching route/arc")
+    closing_gap = math.hypot(
+        route[-1]["x"] - route[0]["x"],
+        route[-1]["y"] - route[0]["y"],
+    )
+    if closing_gap > 0.75:
+        raise ValueError(
+            "cannot rotate an open route: closing gap={:.3f}m".format(
+                closing_gap
+            )
+        )
+
+    # The native MGeo reconstruction ends at the same coordinate at which it
+    # starts.  Keep only one copy while rotating, then append a closing copy.
+    core = list(route[:-1]) if closing_gap < 1e-4 else list(route)
+    total_length = float(arc[-1])
+    ego_arc = float(
+        ego_pose.get(
+            "route_arc_m",
+            arc[nearest_index(route, ego_pose["x"], ego_pose["y"])],
         )
     )
-    return {**route[index], "yaw": heading, "route_index": index}
+    start_arc = (ego_arc - float(backtrack_m)) % total_length
+    start_index = route_index_at_arc(arc, start_arc)
+    start_index = min(start_index, len(core) - 1)
+    rotated = core[start_index:] + core[:start_index]
+    rotated.append(dict(rotated[0]))
+    anchor_index = nearest_index(
+        rotated,
+        ego_pose["x"],
+        ego_pose["y"],
+    )
+    execution_arc = route_arc_coordinates(rotated)
+    if anchor_index <= 0 or execution_arc[anchor_index] < 8.0:
+        raise ValueError(
+            "rotated route did not retain enough controller backtrack: "
+            "anchor={} arc={:.3f}m".format(
+                anchor_index,
+                execution_arc[anchor_index],
+            )
+        )
+    maximum_segment = max(
+        math.hypot(
+            after["x"] - before["x"],
+            after["y"] - before["y"],
+        )
+        for before, after in zip(rotated, rotated[1:])
+    )
+    if maximum_segment > 0.75:
+        raise ValueError(
+            "rotated route sampling gap exceeds 0.75m: {:.3f}m".format(
+                maximum_segment
+            )
+        )
+    return rotated, anchor_index, {
+        "canonical_ego_arc_m": ego_arc,
+        "execution_start_arc_m": start_arc,
+        "execution_anchor_index": anchor_index,
+        "execution_anchor_arc_m": execution_arc[anchor_index],
+        "execution_length_m": execution_arc[-1],
+        "maximum_segment_m": maximum_segment,
+        "closing_gap_m": math.hypot(
+            rotated[-1]["x"] - rotated[0]["x"],
+            rotated[-1]["y"] - rotated[0]["y"],
+        ),
+    }
 
 
 def mgeo_samples(links):
@@ -765,6 +1204,80 @@ def route_index_at_arc(arc, distance_m):
     return min(candidates, key=lambda item: abs(arc[item] - float(distance_m)))
 
 
+def route_wide_anchor_for_variant(route, arc, family, variant_index, rng):
+    """Sample a deterministic, stratified anchor over the competition route."""
+
+    bin_count = int(family.get("route_wide_bin_count", 24))
+    margin_m = float(family.get("route_wide_margin_m", 35.0))
+    if family.get("route_wide_closed_loop", False):
+        margin_m = 0.0
+    usable_start = margin_m
+    usable_end = max(usable_start + 1.0, float(arc[-1]) - margin_m)
+    slot_count = int(family.get("route_wide_slot_count", bin_count))
+    family_offset = (
+        sum(ord(char) for char in family["name"])
+        + int(family.get("route_wide_phase_offset", 0))
+    ) % slot_count
+    slot_index = (int(variant_index) * 7 + family_offset) % slot_count
+    slot_width = (usable_end - usable_start) / slot_count
+    lower = usable_start + slot_index * slot_width
+    # Keep jitter inside the middle 40% of each slot.  The old 76% jitter
+    # could align adjacent samples at opposite bin edges and leave a visible
+    # 100+ m hole despite nominal 24-bin coverage.
+    target_arc = rng.uniform(
+        lower + 0.30 * slot_width,
+        lower + 0.70 * slot_width,
+    )
+    bin_index = min(
+        bin_count - 1,
+        int((target_arc - usable_start) / (usable_end - usable_start) * bin_count),
+    )
+    pose = continuous_route_pose_at_arc(
+        route,
+        arc,
+        target_arc,
+        wrap=family.get("route_wide_closed_loop", False),
+    )
+    index = int(pose["route_index"])
+    pose.update({
+        "route_wide_bin": bin_index,
+        "route_wide_bin_count": bin_count,
+        "route_arc_m": float(target_arc),
+    })
+    return pose
+
+
+def route_wide_crosswalk_target(crosswalk_catalog, route, family, variant_index):
+    """Choose a route-adjacent crosswalk without making map position a split."""
+
+    candidates = []
+    for crosswalk in crosswalk_catalog.values():
+        center = {
+            axis: sum(float(point[axis]) for point in crosswalk["points"])
+            / len(crosswalk["points"])
+            for axis in ("x", "y", "z")
+        }
+        distance = point_to_route_distance(center, route)
+        if distance <= float(family.get("maximum_crosswalk_route_distance_m", 18.0)):
+            candidates.append((crosswalk["crosswalk_id"], center, distance))
+    if not candidates:
+        raise ValueError("no route-adjacent crosswalk is available")
+    candidates.sort(key=lambda row: row[0])
+    selected = candidates[
+        (
+            int(variant_index) * 5
+            + 1
+            + int(family.get("route_wide_phase_offset", 0))
+        )
+        % len(candidates)
+    ]
+    return {
+        **selected[1],
+        "crosswalk_id": selected[0],
+        "route_distance_m": selected[2],
+    }
+
+
 def link_path_samples(links_by_id, link_ids):
     """Flatten a directed MGeo link path while retaining link/point identity."""
 
@@ -779,6 +1292,8 @@ def link_path_samples(links_by_id, link_ids):
                 "z": float(point[2]) if len(point) >= 3 else 0.0,
                 "link_idx": link_id,
                 "point_idx": point_index,
+                "point_ratio": point_index / max(1, len(points) - 1),
+                "max_speed": float(link.get("max_speed", 30.0)),
             }
             if samples and math.hypot(
                 samples[-1]["x"] - row["x"], samples[-1]["y"] - row["y"]
@@ -2003,12 +2518,26 @@ def build_static_highway_scene(
     obstacle_pool,
     obstacle_pool_offset=0,
 ):
-    lane_id = static_highway_lane_for_variant(
-        variant_index, int(family.get("count", 1))
-    )
+    if family.get("ego_lane_weights"):
+        lane_schedule = weighted_lane_schedule({
+            **family,
+            "source_spawn_ids": list(HIGHWAY_LANE_LINK_PATHS),
+        })
+        lane_id = lane_schedule[int(variant_index) % len(lane_schedule)]
+    else:
+        lane_id = static_highway_lane_for_variant(
+            variant_index, int(family.get("count", 1))
+        )
     route_ids = HIGHWAY_LANE_LINK_PATHS[lane_id]
     ego_route, ego_arc = route_from_link_path(links_by_id, route_ids)
-    start_arc = float(uniform_or_choice(rng, family["ego_start_arc_m"]))
+    if "ego_start_fraction" in family:
+        lower, upper = family["ego_start_fraction"]
+        count = max(1, int(family.get("count", 1)))
+        quantile = (int(variant_index) + rng.uniform(0.15, 0.85)) / count
+        fraction = float(lower) + (float(upper) - float(lower)) * quantile
+        start_arc = max(20.0, min(ego_arc[-1] - 70.0, ego_arc[-1] * fraction))
+    else:
+        start_arc = float(uniform_or_choice(rng, family["ego_start_arc_m"]))
     ego_sample = route_pose_at(
         ego_route, ego_arc, start_arc, route_ids[0], links_by_id
     )
@@ -2335,7 +2864,11 @@ def configure_pedestrian_activation(
 
 
 def shade_local_to_world(shade, longitudinal, lateral):
-    yaw = math.radians(float(shade["rot"]["yaw"]))
+    # MORAI's shaded-area rectangle uses the vehicle-style local axis: its
+    # long ``size.x`` corridor is yaw-90 degrees in world XY.  Treating the
+    # raw yaw as the long axis placed GPS-shadow obstacles perpendicular to
+    # the competition road by about 93 degrees.
+    yaw = math.radians(float(shade["rot"]["yaw"]) - 90.0)
     return {
         "x": float(shade["pos"]["x"]) + math.cos(yaw) * longitudinal - math.sin(yaw) * lateral,
         "y": float(shade["pos"]["y"]) + math.sin(yaw) * longitudinal + math.cos(yaw) * lateral,
@@ -2365,6 +2898,39 @@ def load_runtime_obstacle_pool(catalog_path, compatibility_path, runtime_dir):
         rows.append({**row, "template": actors[data_id]})
     if not rows:
         raise ValueError("runtime obstacle pool is empty")
+    rows.sort(key=lambda row: (row.get("subtype", ""), row["name"]))
+    return rows
+
+
+def load_runtime_pedestrian_pool(catalog_path, compatibility_path, runtime_dir):
+    catalog = load_json(catalog_path)
+    compatibility = load_json(compatibility_path)
+    source_name = compatibility["personal"]["generated_from"]["pedestrian"][
+        "file_name"
+    ]
+    source = load_json(runtime_dir.expanduser().resolve() / source_name)
+    actors = {
+        int(actor["DataID"]): actor for actor in source.get("pedestrianList", [])
+    }
+    eligible = set(compatibility["automatic_eligible"]["pedestrian"])
+    rows = []
+    for row in catalog["pedestrians_and_related"]:
+        data_id = int(row["data_id"])
+        if data_id not in eligible or data_id not in actors:
+            continue
+        if row.get("ontology_class") != "Pedestrian":
+            continue
+        # NCAP test dummies are catalogued as Pedestrian positives, but some
+        # MRP builds accept their DataID in a scenario and then omit the actor
+        # from ObjectStatus.  Route-wide standing/mixed scenes need a stable
+        # human actor, so keep the runtime pool to real person assets.
+        if row.get("subtype") != "person":
+            continue
+        if row.get("generation_policy") not in {"enabled", "limited_weight"}:
+            continue
+        rows.append({**row, "template": actors[data_id]})
+    if not rows:
+        raise ValueError("runtime pedestrian pool is empty")
     rows.sort(key=lambda row: (row.get("subtype", ""), row["name"]))
     return rows
 
@@ -2428,24 +2994,35 @@ def build_obstacle_scene(
     ego_route,
     obstacle_pool=None,
     obstacle_pool_offset=0,
+    target_override=None,
 ):
     base_actor = copy.deepcopy(template["objectList"][0])
     scale = float(uniform_or_choice(rng, family["scale_factor"]))
     if family["name"] == "gps_shadow_obstacle":
         shade = template["shadedAreaList"][0]
-        half_length = max(4.0, float(shade["size"]["x"]) * 0.35)
         lateral_range = family["route_lateral_offset_m"]
+        # SaveSensorData takes substantially longer in wall time than the
+        # nominal 12 Hz sequence clock.  Ego also travels 11--21 m while it
+        # reaches the capture speed.  The shaded-area centre is about 26 m
+        # ahead of the generated Ego, so place the cluster another 18--30 m
+        # down the corridor.  The initial 42--57 m gap becomes roughly
+        # 20--40 m at the first captured frame and remains collision-free
+        # throughout the eight-frame approach.
         raw = shade_local_to_world(
             shade,
-            rng.uniform(-half_length, half_length),
+            rng.uniform(18.0, 30.0),
             rng.uniform(float(lateral_range[0]), float(lateral_range[1])),
         )
         # Keep the placement in the official shaded-area OBB. A global
         # nearest-link query can snap this narrow zone to a nearby parallel
         # road and silently move the actor tens of metres away.
         position = raw
-        yaw = float(shade["rot"]["yaw"])
+        yaw = float(shade["rot"]["yaw"]) - 90.0
         target = dict(shade["pos"])
+    elif target_override is not None:
+        position = dict(target_override)
+        yaw = float(target_override.get("yaw", 0.0))
+        target = dict(target_override)
     else:
         position = dict(base_actor["pos"])
         yaw = float(base_actor["rot"]["yaw"])
@@ -2467,23 +3044,18 @@ def build_obstacle_scene(
         }]
 
     swept_route = local_route_window(ego_route, target)
-    road = (
-        {**position, "yaw": yaw}
-        if family["name"] == "gps_shadow_obstacle"
-        # The MGeo map contains adjacent and crossing links around the
-        # official static-obstacle zone.  A global nearest-link lookup can
-        # therefore choose a different road direction from the route driven
-        # by Ego.  Place actors relative to the actual capture route instead.
-        else route_pose_at_index(
-            swept_route,
-            min(
-                range(len(swept_route)),
-                key=lambda route_index: math.hypot(
-                    swept_route[route_index]["x"] - position["x"],
-                    swept_route[route_index]["y"] - position["y"],
-                ),
+    # Always use the actual Ego capture route tangent.  In the GPS shaded
+    # area this also prevents the OBB's display rotation from becoming the
+    # obstacle/road heading.
+    road = route_pose_at_index(
+        swept_route,
+        min(
+            range(len(swept_route)),
+            key=lambda route_index: math.hypot(
+                swept_route[route_index]["x"] - position["x"],
+                swept_route[route_index]["y"] - position["y"],
             ),
-        )
+        ),
     )
     scenario["objectList"] = []
     runtime = []
@@ -2671,19 +3243,48 @@ def build_stopped_vehicle_scene(
     for index in range(count):
         actor = copy.deepcopy(template["vehicleList"][index % len(template["vehicleList"])])
         longitudinal = 4.0 + index * 9.0
-        lateral = (-1.0 if index % 2 == 0 else 1.0) * rng.uniform(3.5, 5.0)
-        position = obstacle_local_to_world(
-            road, road["yaw"], longitudinal, lateral
-        )
-        route_clearance = point_to_route_distance(position, swept_route)
-        for _ in range(20):
-            if route_clearance >= 3.0:
+        preferred_sign = -1.0 if index % 2 == 0 else 1.0
+        base_lateral = rng.uniform(3.5, 5.0)
+        clearance_candidates = []
+        for longitudinal_shift in (0.0, 5.0, -5.0, 10.0, -10.0):
+            for step in range(29):
+                magnitude = base_lateral + step * 0.5
+                for sign_penalty, sign in enumerate(
+                    (preferred_sign, -preferred_sign)
+                ):
+                    candidate_lateral = sign * magnitude
+                    candidate_longitudinal = longitudinal + longitudinal_shift
+                    candidate = obstacle_local_to_world(
+                        road,
+                        road["yaw"],
+                        candidate_longitudinal,
+                        candidate_lateral,
+                    )
+                    clearance = point_to_route_distance(candidate, swept_route)
+                    if clearance >= 3.0:
+                        clearance_candidates.append((
+                            abs(longitudinal_shift),
+                            magnitude,
+                            sign_penalty,
+                            candidate_longitudinal,
+                            candidate_lateral,
+                            candidate,
+                            clearance,
+                        ))
+                if clearance_candidates:
+                    break
+            if clearance_candidates:
                 break
-            lateral += math.copysign(0.5, lateral)
+        if not clearance_candidates:
+            route_clearance = 0.0
             position = obstacle_local_to_world(
-                road, road["yaw"], longitudinal, lateral
+                road, road["yaw"], longitudinal, preferred_sign * base_lateral
             )
-            route_clearance = point_to_route_distance(position, swept_route)
+            lateral = preferred_sign * base_lateral
+        else:
+            (
+                _, _, _, longitudinal, lateral, position, route_clearance
+            ) = min(clearance_candidates, key=lambda item: item[:3])
         sample = nearest_aligned_sample(
             samples, {**position, "yaw": road["yaw"]}, search_radius_m=8.0
         )
@@ -2717,6 +3318,8 @@ def build_standing_pedestrian_scene(
     samples,
     ego_route=None,
     target_override=None,
+    pedestrian_pool=None,
+    pedestrian_pool_offset=0,
 ):
     target = (
         dict(target_override)
@@ -2741,7 +3344,14 @@ def build_standing_pedestrian_scene(
     scenario["pedestrianList"] = []
     runtime = []
     for index in range(count):
-        actor = copy.deepcopy(template["pedestrianList"][0])
+        asset = (
+            pedestrian_pool[(pedestrian_pool_offset + index) % len(pedestrian_pool)]
+            if pedestrian_pool
+            else None
+        )
+        actor = copy.deepcopy(
+            asset["template"] if asset else template["pedestrianList"][0]
+        )
         position = obstacle_local_to_world(
             road,
             road["yaw"],
@@ -2762,6 +3372,7 @@ def build_standing_pedestrian_scene(
         runtime.append({
             "unique_id": 2001 + index,
             "data_id": int(actor["DataID"]),
+            "name": asset.get("name") if asset else actor.get("name", "Man1"),
             "motion": "static",
             "class": "pedestrian",
             "position": position,
@@ -2779,6 +3390,9 @@ def build_realistic_mixed_scene(
     ego_route,
     obstacle_pool,
     obstacle_pool_offset,
+    target_override=None,
+    pedestrian_pool=None,
+    pedestrian_pool_offset=0,
 ):
     target, runtime = build_obstacle_scene(
         scenario,
@@ -2789,6 +3403,7 @@ def build_realistic_mixed_scene(
         ego_route,
         obstacle_pool=obstacle_pool,
         obstacle_pool_offset=obstacle_pool_offset,
+        target_override=target_override,
     )
     _, vehicles = build_stopped_vehicle_scene(
         scenario,
@@ -2807,6 +3422,8 @@ def build_realistic_mixed_scene(
         samples,
         ego_route=ego_route,
         target_override=target,
+        pedestrian_pool=pedestrian_pool,
+        pedestrian_pool_offset=pedestrian_pool_offset,
     )
     return target, runtime + vehicles + pedestrians
 
@@ -2831,7 +3448,15 @@ def validate_scene(scenario, family, links_by_id, route, expected_runtime):
         for item in route
     )
     if route_distance > 2.5:
-        raise ValueError(f"Ego is {route_distance:.2f} m from competition route")
+        raise ValueError(
+            "Ego is {:.2f} m from competition route: family={} "
+            "position=({:.3f}, {:.3f})".format(
+                route_distance,
+                family,
+                float(ego_pos["x"]),
+                float(ego_pos["y"]),
+            )
+        )
     for spawn in scenario["spawnPointList"]:
         for key in ("startLinkInfo", "endLinkInfo"):
             link = spawn[key]["linkIdx"]
@@ -2850,7 +3475,7 @@ def validate_scene(scenario, family, links_by_id, route, expected_runtime):
             for actor in scenario["objectList"]
         ):
             raise ValueError("obstacle family must contain static obstacles")
-    if not expected_runtime:
+    if not expected_runtime and family != "sparse_background":
         raise ValueError("runtime actor specification is empty")
     return {"ego_route_distance_m": route_distance, "unique_id_count": len(identifiers)}
 
@@ -2877,6 +3502,14 @@ def main():
     links_by_id = {item["idx"]: item for item in links}
     samples = mgeo_samples(links)
     crosswalk_catalog = load_crosswalk_catalog(args.mgeo_dir)
+    route_reconstruction = None
+    if config.get("route_wide_route_source") == "mgeo_guided":
+        dense_route, route_reconstruction = build_mgeo_guided_competition_route(
+            route, links
+        )
+    else:
+        dense_route = densify_route(route)
+    dense_route_arc = route_arc_coordinates(dense_route)
     obstacle_pool = None
     if config.get("use_runtime_obstacle_pool", False):
         obstacle_pool = load_runtime_obstacle_pool(
@@ -2886,6 +3519,13 @@ def main():
         )
         if config.get("weighted_obstacle_quota_deck", False):
             obstacle_pool = build_weighted_obstacle_deck(obstacle_pool)
+    pedestrian_pool = None
+    if config.get("use_runtime_pedestrian_pool", False):
+        pedestrian_pool = load_runtime_pedestrian_pool(
+            args.asset_catalog,
+            args.asset_compatibility,
+            args.runtime_asset_scenario_dir,
+        )
     seed = int(args.seed if args.seed is not None else config["seed"])
     scenario_dir = args.output_root / "scenarios" / args.group
     metadata_dir = args.output_root / "metadata" / args.group
@@ -2900,6 +3540,7 @@ def main():
     scenes = []
     global_index = 0
     obstacle_pool_cursor = 0
+    pedestrian_pool_cursor = 0
 
     for family in config["families"]:
         name = family["name"]
@@ -2914,6 +3555,25 @@ def main():
             route_override = None
             capture_overrides = {}
             ego_sample = None
+            route_wide_target = None
+            scene_route = route
+            scene_route_arc = route_arc
+            if family.get("spatial_policy") == "route_wide_competition_route":
+                scene_route = dense_route
+                scene_route_arc = dense_route_arc
+                route_override = scene_route
+                if name == "standing_pedestrian":
+                    route_wide_target = route_wide_crosswalk_target(
+                        crosswalk_catalog, scene_route, family, variant_index
+                    )
+                elif name in ROUTE_WIDE_STATIC_FAMILIES:
+                    route_wide_target = route_wide_anchor_for_variant(
+                        scene_route,
+                        scene_route_arc,
+                        family,
+                        variant_index,
+                        rng,
+                    )
 
             if name in SIMPLE_SPAWN_VEHICLE_FAMILIES and family.get(
                 "ego_capture_zones"
@@ -3013,11 +3673,25 @@ def main():
                 )
             elif name == "stopped_vehicle":
                 target, runtime = build_stopped_vehicle_scene(
-                    scenario, template, family, rng, samples, route
+                    scenario,
+                    template,
+                    family,
+                    rng,
+                    samples,
+                    scene_route,
+                    target_override=route_wide_target,
                 )
             elif name == "standing_pedestrian":
                 target, runtime = build_standing_pedestrian_scene(
-                    scenario, template, family, rng, samples
+                    scenario,
+                    template,
+                    family,
+                    rng,
+                    samples,
+                    ego_route=scene_route,
+                    target_override=route_wide_target,
+                    pedestrian_pool=pedestrian_pool,
+                    pedestrian_pool_offset=pedestrian_pool_cursor,
                 )
             elif name == "realistic_mixed_static":
                 target, runtime = build_realistic_mixed_scene(
@@ -3026,10 +3700,23 @@ def main():
                     family,
                     rng,
                     samples,
-                    route,
+                    scene_route,
                     obstacle_pool,
                     obstacle_pool_cursor,
+                    target_override=route_wide_target,
+                    pedestrian_pool=pedestrian_pool,
+                    pedestrian_pool_offset=pedestrian_pool_cursor,
                 )
+            elif (
+                name == "sparse_background"
+                and (
+                    family.get("empty_scene", False)
+                    or int(variant_index)
+                    < int(family.get("empty_scene_count", 0))
+                )
+            ):
+                target = route_wide_target
+                runtime = []
             else:
                 target, runtime = build_obstacle_scene(
                     scenario,
@@ -3037,9 +3724,10 @@ def main():
                     family,
                     rng,
                     samples,
-                    route,
+                    scene_route,
                     obstacle_pool=obstacle_pool,
                     obstacle_pool_offset=obstacle_pool_cursor,
+                    target_override=route_wide_target,
                 )
 
             if name in {
@@ -3054,11 +3742,25 @@ def main():
                     and actor.get("name") is not None
                     for actor in runtime
                 )
+            pedestrian_pool_cursor += sum(
+                actor.get("class") == "pedestrian" for actor in runtime
+            )
 
             if ego_sample is None:
                 lead = choose_lead(rng, family)
-                route_pose = route_pose_before(route, route_arc, target, lead)
-                ego_sample = nearest_aligned_sample(samples, route_pose)
+                route_pose = route_pose_before(
+                    scene_route,
+                    scene_route_arc,
+                    target,
+                    lead,
+                    wrap_closed_route=bool(
+                        family.get("route_wide_closed_loop", False)
+                    ),
+                )
+                if route_pose.get("link_idx") in links_by_id:
+                    ego_sample = dict(route_pose)
+                else:
+                    ego_sample = nearest_aligned_sample(samples, route_pose)
                 ego_speed = float(
                     uniform_or_choice(
                         rng, family.get("ego_target_speed_kph", 0.0)
@@ -3081,8 +3783,12 @@ def main():
                             "ego_initial_speed_kph": ego_initial_speed,
                             "minimum_ego_speed_kph": ego_speed
                             * float(family.get("minimum_ego_speed_ratio", 0.8)),
-                            "maximum_motion_m": 60.0,
-                            "motion_stall_timeout_sec": 10.0,
+                            "maximum_motion_m": float(
+                                family.get("maximum_motion_m", 60.0)
+                            ),
+                            "motion_stall_timeout_sec": float(
+                                family.get("motion_stall_timeout_sec", 10.0)
+                            ),
                             "lookahead_m": 4.0,
                         }
                     )
@@ -3090,7 +3796,7 @@ def main():
                         capture_overrides["minimum_curve_speed_kph"] = float(
                             family["minimum_curve_speed_kph"]
                         )
-                validation_route = route
+                validation_route = scene_route
             else:
                 lead = None
                 route_pose = ego_sample
@@ -3160,6 +3866,22 @@ def main():
                 capture_overrides["ego_initial_speed_kph"] = float(
                     scenario_load_initial_speed
                 )
+            execution_route = route_override
+            execution_anchor_index = int(route_pose["route_index"])
+            execution_route_rotation = None
+            if (
+                route_override is not None
+                and family.get("route_wide_closed_loop", False)
+            ):
+                (
+                    execution_route,
+                    execution_anchor_index,
+                    execution_route_rotation,
+                ) = rotate_closed_route_for_ego(
+                    route_override,
+                    scene_route_arc,
+                    route_pose,
+                )
             validation = validate_scene(
                 scenario, name, links_by_id, validation_route, runtime
             )
@@ -3187,9 +3909,9 @@ def main():
             scenario_path = scenario_dir / f"{stem}.json"
             metadata_path = metadata_dir / f"{stem}.metadata.json"
             route_path = None
-            if route_override is not None:
+            if execution_route is not None:
                 route_path = route_dir / f"{stem}.waypoints.txt"
-                write_waypoint_route(route_path, route_override)
+                write_waypoint_route(route_path, execution_route)
             write_json(scenario_path, scenario)
             metadata = {
                 "schema_version": 1,
@@ -3210,6 +3932,7 @@ def main():
                 "ego": {
                     "lead_distance_m": lead,
                     "route_index": route_pose["route_index"],
+                    "execution_route": execution_route_rotation,
                     "pose": ego_sample,
                     "initial_speed_kph": float(
                         scenario["egoVehicle"].get("currentVelocity", 0.0)
@@ -3220,6 +3943,25 @@ def main():
                 },
                 "runtime_actors": runtime,
                 "target_position": target,
+                "spatial_sampling": {
+                    "policy": family.get("spatial_policy", "mission_conditioned"),
+                    "route_wide_bin": (
+                        route_wide_target.get("route_wide_bin")
+                        if route_wide_target else None
+                    ),
+                    "route_wide_bin_count": (
+                        route_wide_target.get("route_wide_bin_count")
+                        if route_wide_target else None
+                    ),
+                    "route_arc_m": (
+                        route_wide_target.get("route_arc_m")
+                        if route_wide_target else None
+                    ),
+                    "crosswalk_id": (
+                        route_wide_target.get("crosswalk_id")
+                        if route_wide_target else None
+                    ),
+                },
                 "validation": validation,
                 "sources": {
                     "official_template": str(args.template.resolve()),
@@ -3271,7 +4013,7 @@ def main():
                         "exact_point_time_available": False,
                     },
                     "split": metadata["split"],
-                    "anchor_index": route_pose["route_index"],
+                    "anchor_index": execution_anchor_index,
                     "waypoints": (
                         project_relative(route_path)
                         if route_path is not None
@@ -3292,7 +4034,7 @@ def main():
                     "dynamic_actor_ready_requires_motion": bool(
                         capture_overrides.get(
                             "dynamic_actor_ready_requires_motion",
-                            not bool(
+                            bool(runtime) and not bool(
                                 name == "crosswalk_pedestrian"
                                 and runtime[0].get("activation_policy")
                                 == "deferred_ego_approach"
@@ -3332,13 +4074,17 @@ def main():
         "waypoints": str(args.route.relative_to(PROJECT_ROOT)),
         "capture_policy": config["capture"],
         "scenes": scenes,
-        "generation": {
+                "generation": {
             "seed": seed,
             "scenario_count": len(scenes),
             "id_prefix": args.id_prefix,
             "stem_prefix": args.stem_prefix,
             "config": project_relative(args.config),
             "template": project_relative(args.template),
+            "route_wide_route_source": config.get(
+                "route_wide_route_source", "densified_guide"
+            ),
+            "route_reconstruction": route_reconstruction,
         },
     }
     write_json(manifest_path, manifest)
