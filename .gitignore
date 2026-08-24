@@ -1,13 +1,17 @@
 ### Custom .gitignore configs는 여기에 추가 ###
 
-# fast bev 실험
-artifacts/detection3d/
+# Autoware Planning porting harness runtime artifacts
+porting/runs/
+porting/validation_views/
 
-# Local planning route analysis outputs
-artifacts/planning_route_waypoints_v61/
+# 로컬에서 생성되는 검증·시각화·실험 산출물은 Git에 올리지 않는다.
+artifacts/
 
 # python 가상환경 폴더
 .venv/
+
+# Codex 에이전트 로컬 상태
+.codex/
 
 # Local VS Code settings
 .vscode/settings.json

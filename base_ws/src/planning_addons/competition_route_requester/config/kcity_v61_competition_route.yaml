@@ -1,0 +1,320 @@
+# RouteSelector/MissionPlanner의 ROS1 인터페이스와 무관한 K-City v61 경로 정의다.
+schema_version: 1
+frame_id: map
+
+map:
+  version: 61
+  file: "kcity_map/lanelet_map/lanelet2_map_v61.osm"
+  projector_file: "kcity_map/lanelet_map/map_projector_info_v1.yaml"
+  sha256: "c8ee07fb70334a13373f8cbd54fabe95980ac1e9589bbc05382337074f089dc2"  # 다른 맵에서 잘못 요청하지 않도록 v61을 고정한다.
+
+start:
+  source: "2026 competition official START / END"
+  morai_map_pose:
+    x: -131.68979755061446
+    y: -428.3310229377821
+    z: 28.543960281954277
+    yaw_deg: 61.298126221
+  map_pose:  # configs/tf/morai_lanelet_static_tf.yaml의 map->morai_map 변환을 적용한 좌표다.
+    x: -0.130667330614472
+    y: 117.580315248218
+    z: 28.543960281954277
+    yaw_deg: 61.298126221
+  location: lanelet_boundary
+  incoming_lanelet_id: 200892  # 공식 좌표는 200892의 끝점과 일치한다.
+  outgoing_lanelet_id: 200889  # 대회 진행 방향의 첫 lanelet이다.
+  accepted_start_lanelet_ids: [200892, 200889]  # 경계점의 closest-lanelet tie를 둘 다 허용한다.
+  expected_pose_tolerance_m: 3.0
+
+poses:
+  wp_200178:  # 출발 직후 Route B 요청을 준비하는 지점이다.
+    lanelet_id: 200178
+    lanelet_s_m: 8.0
+    x: 22.403179284
+    y: 203.754548892
+    z: 28.426544568
+    yaw_deg: 152.142116
+
+  wp_200346:
+    lanelet_id: 200346
+    lanelet_s_m: 8.0
+    x: 55.372342969
+    y: 322.566233491
+    z: 28.395550038
+    yaw_deg: 62.908626
+
+  wp_200315:
+    lanelet_id: 200315
+    lanelet_s_m: 8.0
+    x: 97.857900365
+    y: 644.733659115
+    z: 28.377580051
+    yaw_deg: 0.786433
+
+  wp_200311:
+    lanelet_id: 200311
+    lanelet_s_m: 8.0
+    x: 133.972899406
+    y: 668.836010783
+    z: 28.456207034
+    yaw_deg: 96.630231
+
+  wp_201095:
+    lanelet_id: 201095
+    lanelet_s_m: 8.0
+    x: 35.498898210
+    y: 870.908058982
+    z: 28.366444863
+    yaw_deg: 46.922030
+
+  wp_201086:
+    lanelet_id: 201086
+    lanelet_s_m: 8.0
+    x: 128.219749370
+    y: 891.682962259
+    z: 28.340098952
+    yaw_deg: -0.512511
+
+  wp_200101:
+    lanelet_id: 200101
+    lanelet_s_m: 8.0
+    x: 193.758883490
+    y: 794.407252250
+    z: 28.269918989
+    yaw_deg: -88.941709
+
+  wp_200128:  # 200101→201438→200128을 고정해 체크포인트 11을 통과시킨다.
+    lanelet_id: 200128
+    lanelet_s_m: 8.0
+    x: 198.525059278
+    y: 627.109647741
+    z: 28.287180985
+    yaw_deg: -89.420105
+
+  wp_200360:
+    lanelet_id: 200360
+    lanelet_s_m: 8.0
+    x: 206.291528240
+    y: 320.085422642
+    z: 28.383890000
+    yaw_deg: -94.981481
+
+  wp_200183:
+    lanelet_id: 200183
+    lanelet_s_m: 8.0
+    x: 202.157329135
+    y: 132.337284715
+    z: 28.114087922
+    yaw_deg: -94.243270
+
+  wp_200181:
+    lanelet_id: 200181
+    lanelet_s_m: 8.0
+    x: -21.534942897
+    y: 78.705997954
+    z: 28.466761132
+    yaw_deg: 65.009025
+
+  goal_route_a_200181:  # start 경계의 200892로 재진입하기 전에 끝나는 비순환 임시 goal이다.
+    lanelet_id: 200181
+    lanelet_ratio: 0.75
+    x: -13.382585757
+    y: 93.782754520
+    z: 28.489031327
+    yaw_deg: 60.815021
+
+  goal_200210:  # 결승선 통과 후 약 365.9m 지점의 최종 goal이다.
+    lanelet_id: 200210
+    lanelet_ratio: 0.75
+    x: 140.571582282
+    y: 448.911321375
+    z: 28.376972856
+    yaw_deg: 89.559814
+
+route_a:
+  uuid: "0d1cf5e0-1e6c-5705-8f69-1f39dd27db13"  # start/goal 변경을 반영한 Route A UUID다.
+  allow_modification: false
+  waypoint_refs:
+    - wp_200178
+    - wp_200346
+    - wp_200315
+    - wp_200311
+    - wp_201095
+    - wp_201086
+    - wp_200101
+    - wp_200128
+    - wp_200360
+    - wp_200183
+    - wp_200181
+  goal_ref: goal_route_a_200181
+  accepted_start_prefixes:  # 공식 start가 경계이므로 planner의 closest-lanelet tie를 둘 다 허용한다.
+    - [200889]
+    - [200892, 200889]
+  expected_path_lanelet_ids:  # v61에서 계산된 Route A 전체 경로다.
+    - 200889
+    - 200392
+    - 200178
+    - 200337
+    - 200287
+    - 200348
+    - 200346
+    - 200291
+    - 200292
+    - 200305
+    - 200841
+    - 200950
+    - 200310
+    - 200308
+    - 200258
+    - 200261
+    - 200315
+    - 200445
+    - 200311
+    - 200968
+    - 201095
+    - 201098
+    - 201096
+    - 201087
+    - 201086
+    - 200101
+    - 201438
+    - 200128
+    - 200102
+    - 201442
+    - 200134
+    - 201446
+    - 200360
+    - 201454
+    - 201447
+    - 201399
+    - 201451
+    - 200088
+    - 201401
+    - 200183
+    - 200037
+    - 200471
+    - 201071
+    - 201432
+    - 200182
+    - 200361
+    - 200181
+
+route_b:
+  uuid: "2021f042-0112-5658-a8c0-b29b04788809"  # Route A와 구분되는 고정 UUID다.
+  allow_modification: false
+  waypoint_refs:  # 200178은 요청 시점의 현재 lanelet이므로 제외한다.
+    - wp_200346
+    - wp_200315
+    - wp_200311
+    - wp_201095
+    - wp_201086
+    - wp_200101
+    - wp_200128
+    - wp_200360
+    - wp_200183
+    - wp_200181
+  goal_ref: goal_200210
+  expected_path_lanelet_ids:  # v61에서 계산된 Route B 전체 경로다.
+    - 200178
+    - 200337
+    - 200287
+    - 200348
+    - 200346
+    - 200291
+    - 200292
+    - 200305
+    - 200841
+    - 200950
+    - 200310
+    - 200308
+    - 200258
+    - 200261
+    - 200315
+    - 200445
+    - 200311
+    - 200968
+    - 201095
+    - 201098
+    - 201096
+    - 201087
+    - 201086
+    - 200101
+    - 201438
+    - 200128
+    - 200102
+    - 201442
+    - 200134
+    - 201446
+    - 200360
+    - 201454
+    - 201447
+    - 201399
+    - 201451
+    - 200088
+    - 201401
+    - 200183
+    - 200037
+    - 200471
+    - 201071
+    - 201432
+    - 200182
+    - 200361
+    - 200181
+    - 200892
+    - 200889
+    - 200220
+    - 200168
+    - 200180
+    - 200165
+    - 200202
+    - 200221
+    - 200401
+    - 200207
+    - 200249
+    - 200210
+
+fallback_route:
+  uuid: "ecb64d95-e029-5f47-94fc-93eee6b2f2a6"  # 정상 Route A/B 요청과 구분되는 fallback UUID다.
+  request_type: set_lanelet_route  # waypoint 재탐색 대신 검증된 lanelet segment를 직접 요청한다.
+  allow_modification: false
+  hard_cutoff_pose_ref: wp_200360  # 200360의 s=8m에서 결승선 통과 route가 없으면 요청한다.
+  goal_ref: goal_200210
+  expected_path_lanelet_ids:  # hard cutoff의 현재 lanelet부터 결승선 이후 goal까지의 비순환 suffix다.
+    - 200360
+    - 201454
+    - 201447
+    - 201399
+    - 201451
+    - 200088
+    - 201401
+    - 200183
+    - 200037
+    - 200471
+    - 201071
+    - 201432
+    - 200182
+    - 200361
+    - 200181
+    - 200892
+    - 200889
+    - 200220
+    - 200168
+    - 200180
+    - 200165
+    - 200202
+    - 200221
+    - 200401
+    - 200207
+    - 200249
+    - 200210
+
+reroute_trigger:
+  pose_ref: wp_200178
+  minimum_lanelet_s_m: 8.0  # 200178에 8m 이상 진입한 뒤 Route B를 준비한다.
+  deadline_pose_ref: wp_200346  # 200346 도달 전 Route B 적용을 끝내야 한다.
+
+validation:
+  checkpoint_radius_m: 3.0  # 대회 체크포인트는 중심에서 반경 3m 이내로 통과해야 한다.
+  route_pose_tolerance_m: 0.5  # 수신 route의 goal과 설정값 차이를 검사한다.
+  require_expected_lanelet_order: true  # 예상 lanelet 순서가 달라지면 다른 route로 판정한다.
+  require_unique_lanelets: true  # 폐루프 재발을 막기 위해 중복 lanelet을 허용하지 않는다.
