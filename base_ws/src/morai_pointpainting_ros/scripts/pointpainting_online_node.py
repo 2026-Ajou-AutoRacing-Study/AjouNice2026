@@ -1215,15 +1215,12 @@ class PointPaintingOnlineNode:
             self.temporal_num_sweeps = self.requested_temporal_num_sweeps
         else:
             self.temporal_num_sweeps = inferred_temporal_sweeps
+        self.temporal_uses_time_lag_feature = inferred_temporal_sweeps > 1
         if inferred_temporal_sweeps == 1 and self.temporal_num_sweeps != 1:
             raise RuntimeError(
                 "temporal_num_sweeps={} requires time_lag_sec in config".format(
                     self.temporal_num_sweeps
                 )
-            )
-        if inferred_temporal_sweeps > 1 and self.temporal_num_sweeps < 2:
-            raise RuntimeError(
-                "time_lag_sec config requires temporal_num_sweeps >= 2"
             )
         self.temporal_history = deque(
             maxlen=max(0, self.temporal_num_sweeps - 1)
@@ -1269,7 +1266,15 @@ class PointPaintingOnlineNode:
 
     def _warmup_temporal_points(self, painted: np.ndarray) -> np.ndarray:
         if self.temporal_num_sweeps == 1:
-            return painted
+            if not self.temporal_uses_time_lag_feature:
+                return painted
+            return np.ascontiguousarray(
+                np.concatenate(
+                    (painted, np.zeros((len(painted), 1), dtype=np.float32)),
+                    axis=1,
+                ),
+                dtype=np.float32,
+            )
         sweeps = []
         for sweep_index in range(self.temporal_num_sweeps):
             lag = np.full(
@@ -1286,7 +1291,15 @@ class PointPaintingOnlineNode:
         timestamp: float,
     ) -> Optional[np.ndarray]:
         if self.temporal_num_sweeps == 1:
-            return painted
+            if not self.temporal_uses_time_lag_feature:
+                return painted
+            return np.ascontiguousarray(
+                np.concatenate(
+                    (painted, np.zeros((len(painted), 1), dtype=np.float32)),
+                    axis=1,
+                ),
+                dtype=np.float32,
+            )
 
         if self.temporal_history:
             newest_timestamp = float(self.temporal_history[-1][0])

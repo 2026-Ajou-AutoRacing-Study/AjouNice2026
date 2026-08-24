@@ -229,13 +229,132 @@ python perception/pointpainting/tools/train_openpcdet_wandb.py \
 6. 필요할 때만 E65 initialization ablation을 수행함.
 7. 최종 후보를 정한 뒤 봉인된 Test split을 한 번 평가함.
 
+## T0 40-epoch 완료 결과와 online 판정.
+
+- Base2 validation에서는 temporal velocity 학습 자체가 성립함.
+  - Center mAP best는 epoch 25의 `0.928269`임.
+  - Vehicle mAVE best는 epoch 33의 `0.771284 m/s`임.
+  - Detection과 velocity의 실용 Pareto 후보는 epoch 35임.
+    - Center mAP `0.916078`.
+    - BEV IoU AP@0.50 `0.876759`.
+    - Vehicle mATE `0.164562 m`.
+    - Vehicle mAVE `0.775446 m/s`.
+- 그러나 epoch 35를 실제 동적 rosbag에 적용하면 E65보다 detection geometry와
+  recall이 크게 저하됨.
+  - 새 로터리 Vehicle center mAP: E65 `0.681`, T0 `0.428`.
+  - 고주로 Vehicle center mAP: E65 `0.653`, T0 `0.431`.
+  - 새 로터리 detector mAVE 진단값: `1.794 m/s`.
+  - 고주로 detector mAVE 진단값: `2.921 m/s`.
+- Detector velocity를 EKF measurement로 직접 융합하면 두 장면 모두 tracker의
+  위치 차분 기반 속도보다 Map-CV FDE가 악화됨.
+- 판정은 다음과 같음.
+  - T0를 production으로 채택하지 않음.
+  - E65와 tracker 위치 차분 속도를 production으로 유지함.
+  - 봉인 Test split은 실패한 T0에 소비하지 않음.
+  - velocity loss 가중치 ablation보다 Base2 SaveSensorData validation과 실제
+    asynchronous rosbag 사이의 geometry/domain gap 진단을 우선함.
+
+### T0 checkpoint online 1-sweep 진단.
+
+- Epoch 35의 구조와 가중치를 그대로 두고 online 입력만 3-sweep에서 현재
+  1-sweep으로 바꿔 새 로터리와 고주로를 다시 평가함.
+- 10-feature 계약은 유지하고 현재 sweep의 `time_lag_sec=0`을 명시함.
+- 새 로터리는 혼합 결과임.
+  - Vehicle center mAP는 `0.428 -> 0.312`로 악화됨.
+  - CV minFDE-K p50은 1/2/3초 `1.009/1.589/2.283 m`에서
+    `0.624/1.417/1.964 m`로 개선됨.
+  - p90과 coverage는 E65보다 여전히 크게 나쁨.
+- 고주로는 1-sweep이 일관되게 개선됨.
+  - Vehicle center mAP `0.431 -> 0.496`.
+  - Tracking F1 `0.642 -> 0.796`.
+  - CV minFDE-K p50 1/2/3초 `0.987/1.508/2.037 m`에서
+    `0.641/0.949/1.583 m`로 개선됨.
+- 결론은 다음과 같음.
+  - online 3-sweep stacking이 특히 고주로 성능 악화의 주요 원인임.
+  - 로터리 center AP 저하는 temporal stacking 하나로 설명되지 않으며 scene
+    domain·semantic·confidence 문제도 함께 존재함.
+  - 본 모델은 3-sweep으로 학습됐으므로 1-sweep 결과는 production 후보가 아니라
+    원인 분리용 진단임.
+  - 다음 통제 실험은 동일 Base2 데이터로 학습한 진짜 single-frame S0여야 함.
+
+## Base2 S0 single-frame 통제 실험.
+
+- D4가 보존한 target-frame painted cache에서 9-feature S0 dataset을 파생함.
+  - 경로: `artifacts/datasets/morai_pointpainting_base2_singleframe9`.
+  - Train `5,509`, Val `1,181`, 총 `6,690` sample임.
+  - T0와 target frame과 split이 정확히 동일함.
+  - Point 파일은 D4 cache와 hard-link하므로 센서 처리 재실행과 3.1 GB 중복
+    저장을 피함.
+- S0 학습 계약은 다음과 같음.
+  - 현재 1-sweep만 사용하는 9-feature PointPainting임.
+  - 7D box head이며 velocity regression과 `time_lag_sec`를 제거함.
+  - T0와 동일한 batch size 4, 40 epoch, one-cycle LR, 무증강 정책을 사용함.
+  - E65가 사용한 GT sampling·flip·rotation·scale은 첫 통제 실험에 넣지 않음.
+    데이터와 temporal/velocity 계약 차이를 먼저 분리한 뒤 별도 ablation함.
+- Dataloader smoke 결과는 다음과 같음.
+  - Train sample `5,509`, batch `1,378`.
+  - Item point shape `(N, 9)`.
+  - Item GT shape `(M, 8)`이며 마지막 열은 OpenPCDet가 추가한 class index임.
+
 ## 활성 최우선 계획.
 
 - 이 절은 다음 작업에서 반드시 다시 언급할 최우선 항목만 유지함.
 - 항목을 완료했거나 검토 결과 더 이상 최우선이 아니면 이 절에서 제거함.
 - 새 작업 중 최우선 후속 조치가 생기면 대화에서 명시하고 이 절에 추가함.
 
-### P0. Batch size 8/12와 learning-rate scaling ablation.
+### P0. Base2 validation과 online rosbag 사이의 domain gap 진단.
+
+- T0는 Base2 validation에서는 E65에 가까운 detection 성능과 `0.77 m/s` 수준의
+  Vehicle mAVE를 보였지만 실제 rosbag에서는 detection과 velocity가 모두 악화됨.
+- 다음 실험은 velocity gradient를 키우기 전에 다음 차이를 하나씩 분리함.
+  - SaveSensorData와 online rosbag의 camera/LiDAR 시각 및 JPEG 입력 차이.
+  - 학습 3-sweep 구성과 online sweep history 구성·time-lag 분포 차이.
+  - 저장된 semantic score와 online LRASPP score 분포 차이.
+  - Base2 scenario 분포와 실제 로터리·고주로 객체 거리·방향 분포 차이.
+- 동일 checkpoint에 대해 single-sweep/temporal, offline/online 입력을 교차 평가해
+  geometry 붕괴가 sweep 정합, semantic 입력, 또는 scene domain 중 어디서 시작하는지
+  특정함.
+- rosbag Vehicle center mAP와 F1이 E65에 근접하기 전에는 velocity head를
+  production tracker에 연결하지 않음.
+
+### P1. Vehicle velocity supervision 재설계 ablation.
+
+- 현재 velocity regression channel 가중치는 `vx=0.2`, `vy=0.2`임.
+  - 첫 T0에서 geometry 성능을 보호하기 위한 보수적인 기준값임.
+  - Vehicle AVE가 약 `1 m/s` 부근에서 정체한다면 supervision이 약한 것이
+    병목인지 확인할 근거가 충분함.
+- 전체 box 수에서 정지 Obstacle이 다수를 차지하므로 전체 velocity loss 감소만
+  보고 판단하지 않음.
+  - Vehicle moving label을 class-balanced 또는 moving-balanced 방식으로 별도
+    정규화하는 후보를 검토함.
+  - 정적 객체의 `0 m/s` supervision은 유지하되 쉬운 zero target이 gradient를
+    지배하지 않도록 함.
+- 다음 ablation 후보는 한 번에 하나의 요인만 바꿔 비교함.
+  - V0: T0와 동일한 `0.2` baseline.
+  - V1: Vehicle velocity channel 가중치 `0.5`.
+  - V2: `0.2`를 유지하고 class-balanced/moving-balanced velocity loss 적용.
+  - V3: V1과 V2가 각각 유효할 때만 두 방법을 결합함.
+- 판단 지표는 train 전체 velocity loss가 아니라 다음을 우선함.
+  - Vehicle AVE, speed MAE, 종방향/횡방향 MAE.
+  - Vehicle Center AP, mATE, BEV IoU AP의 손상 여부.
+  - Rosbag tracking velocity error와 Map-CV 1/2/3초 FDE.
+- P0 online geometry/domain gap을 해결한 뒤 짧은 ablation으로 gradient scale과
+  detection 손상을 먼저 확인하고, 유효한 후보만 본 학습함.
+- velocity supervision 정책을 확정하면 이 항목을 제거함.
+
+### P2. Epoch 단위 learning-rate 실시간 W&B 기록.
+
+- 현재 LR은 TensorBoard 원본 `meta_data/learning_rate`로 iteration마다 기록됨.
+- `epoch/learning_rate_last` 요약은 학습 종료 후 업로드되므로 진행 중인 run의
+  epoch panel에서 즉시 보기에는 부적합함.
+- 다음 trainer 수정에서 각 epoch 종료 시 다음을 W&B에 즉시 기록함.
+  - `epoch`을 공통 x축으로 사용함.
+  - 해당 epoch의 시작 LR, 마지막 LR, 필요 시 평균 LR을 기록함.
+  - Train section에서 모델과 무관하게 재사용할 canonical key를 사용함.
+- 기존 iteration 단위 TensorBoard LR은 상세 진단용으로 유지함.
+- epoch LR panel이 실제 online smoke에서 갱신되는 것을 확인하면 이 항목을 제거함.
+
+### P3. Batch size 8/12와 learning-rate scaling ablation.
 
 - 현재 진행 중인 T0는 검증된 기준선인 batch size 4로 끝까지 학습함.
 - T0 완료 후 다음 본 학습 전에 batch size 8을 최우선으로 비교함.
