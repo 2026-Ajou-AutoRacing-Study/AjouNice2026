@@ -296,6 +296,195 @@ python perception/pointpainting/tools/train_openpcdet_wandb.py \
   - Item point shape `(N, 9)`.
   - Item GT shape `(M, 8)`이며 마지막 열은 OpenPCDet가 추가한 class index임.
 
+## S0 online semantic ablation과 Vehicle 난이도 audit.
+
+- S0 E28의 foreground semantic probability를 `1.0/0.5/0.25/0.0`으로 줄여
+  새 로터리와 고주로 rosbag을 재평가함.
+  - 줄어든 foreground probability는 background로 이동해 feature 확률 합을
+    항상 1로 유지함.
+  - Detector velocity는 발행하지 않고 tracker 위치 차분 속도만 사용함.
+- Semantic scale `1.0`이 두 장면 모두 가장 높았음.
+  - 로터리 Vehicle center mAP: `0.553/0.536/0.535/0.536`.
+  - 고주로 Vehicle center mAP: `0.710/0.696/0.680/0.674`.
+  - online camera/LiDAR 비동기가 존재하더라도 semantic painting을 약화하는
+    것만으로 성능이 회복되지 않으므로 주 병목 가설에서 제외함.
+- Base2 Val E28 prediction과 online rosbag을 30 m 안의 Vehicle positive 기준으로
+  동일하게 slice audit함.
+  - Base2 Val은 전방 `72.3%`, 좌측 `7.7%`, 우측 `2.2%`, 후방 `17.8%`임.
+  - 새 로터리는 전방 `50.7%`, 좌측 `21.5%`, 후방 `27.8%`임.
+  - Base2 Val recall@1m은 전방/좌측/우측/후방
+    `100/100/100/93.1%`임.
+  - 새 로터리는 `80.6/29.5/-/86.1%`임.
+- 가장 큰 실패 조합은 `좌측 + Ego yaw-rate >= 5 deg/s`임.
+  - Base2 Val은 이 조합이 6개뿐이며 모두 point가 매우 조밀함.
+  - 새 로터리는 50개이며 recall@1m이 `22.0%`, score mean이 `0.073`임.
+  - 같은 고회전 후방 Vehicle 36개는 recall@1m `100%`이므로 회전 하나만의
+    문제가 아니라 회전 중 측방 관측 조합의 domain gap임.
+- Train split도 별도로 확인함.
+  - 30 m 안의 Vehicle 1,697개 중 좌측+고회전은 44개(`2.6%`)뿐임.
+  - 실제 로터리는 284개 중 50개(`17.6%`)라 약 6.8배 높은 비중임.
+  - Train의 로터리 두 family에 한정하면 좌측+고회전 Vehicle은 19개뿐임.
+- Base2의 `roundabout_circulation` Val Vehicle 50개는 전방 17개·후방 33개이고
+  좌우 측방이 0개임.
+- 전체 Train frame 5,509개 중 30 m 안에 Vehicle이 있는 frame은 1,643개
+  (`29.8%`), 모든 객체가 없는 frame은 1,057개(`19.2%`)임.
+  - no-Vehicle frame 비중은 높지만 로터리 miss가 좌측+고회전에 집중되므로
+    hard negative 과다만으로 현재 실패를 설명하기는 어려움.
+  - 생성된 raw Vehicle box 중 약 절반은 30 m model range 밖이라 dataloader에서
+    Vehicle supervision으로 사용되지 않는 점은 다음 dataset quota에서 수정함.
+- 로터리 point-count p50은 53개, Base2 Val은 63개라 차이는 있지만 주 병목으로
+  보기 어려움.
+  - 로터리 좌측 Vehicle은 point-count p50 51개인데도 recall이 29.5%임.
+  - online point count는 adjusted detection stamp와 가장 가까운 raw LiDAR scan을
+    연결한 근삿값이며 방향·score·recall 통계에는 이 근사가 들어가지 않음.
+- 재현 가능한 도구와 결과는 다음과 같음.
+  - `perception/pointpainting/tools/audit_base2_vehicle_difficulty.py`.
+  - `artifacts/detection3d/pointpainting/analysis/base2_s0_vehicle_difficulty`.
+
+## S1 single-frame geometric augmentation ablation 준비.
+
+- 목적은 S0의 실제 rosbag 측방·고회전 Vehicle domain gap이 기하 증강 부재에서
+  비롯됐는지 통제 실험으로 확인하는 것임.
+- S0와 동일하게 유지하는 조건은 다음과 같음.
+  - Base2 single-frame9 Train `5,509`, Val `1,181`과 동일 split.
+  - 9-feature painted point, 7D box head, 3-class anchor, optimizer, LR, batch size 4,
+    40 epoch를 그대로 사용함.
+  - velocity head와 GT sampling은 사용하지 않음.
+- Train에만 다음 기하 증강을 적용함.
+  - `random_world_flip`: x/y 축.
+  - `random_world_rotation`: `-45~+45 deg`.
+  - `random_world_scaling`: `0.95~1.05`.
+- OpenPCDet config loader는 중첩 `_BASE_CONFIG_`를 재귀적으로 병합하지 않으므로
+  model과 dataset S1 YAML에 전체 계약을 명시함.
+  - S0/S1 config를 로드해 비교한 결과 `DATA_AUGMENTOR` 이외의 model, optimizer,
+    class, dataset 항목이 동일함을 확인함.
+- 증강 smoke 결과는 다음과 같음.
+  - Train augmentor 3개, Val augmentor 0개임.
+  - 다른 seed의 동일 Train sample은 GT와 point가 함께 변함.
+  - Val sample은 seed와 무관하게 동일함.
+  - synthetic box center와 해당 point의 변환 후 거리 오차는 `0`임.
+  - intensity와 semantic painting feature는 기하 증강 전후 동일함.
+- 1 epoch 전체 offline smoke를 완료함.
+  - Train `1,378` iteration과 Val `1,181` frame이 정상 종료됨.
+  - AMP, checkpoint, best checkpoint, epoch validation, W&B offline logging이
+    모두 정상임.
+  - 소요 시간은 약 `2분 40초`임.
+  - 1 epoch OneCycle을 한 번에 끝낸 `center_mAP=0.4328`은 구조 검증값일 뿐
+    성능 비교에 사용하지 않음.
+- 본 S1 평가 순서는 다음과 같음.
+  - 먼저 Base2 Val의 center AP, mATE, mASE, mAOE, BEV IoU를 S0와 비교함.
+  - 같은 새 로터리·고주로 rosbag을 재평가함.
+  - 특히 로터리 `좌측 + Ego yaw-rate >= 5 deg/s` recall과 score를 다시 audit함.
+  - S1의 목표는 offline Val의 작은 상승보다 online 측방 domain gap 회복임.
+  - S1도 해당 slice를 회복하지 못하면 기하 증강만으로 해결할 수 없다고 보고,
+    targeted side/high-yaw data 또는 rotational rolling-scan 입력 문제로 넘어감.
+
+## S1 single-frame geometric augmentation 최종 결과.
+
+- 최종 비교 checkpoint는 S0 E28과 S1 E38임.
+  - S0: `best_center_mAP_epoch_28.pth`.
+  - S1: `best_center_mAP_epoch_38.pth`.
+- Base2 Val에서는 S1이 전반적으로 소폭 개선됨.
+  - 전체 center mAP: `0.9381 -> 0.9417`.
+  - Vehicle center AP: `0.9738 -> 0.9767`.
+  - Vehicle mATE: `0.1043 -> 0.0962 m`.
+  - Vehicle BEV IoU AP@0.50: `0.9755 -> 0.9800`.
+  - Pedestrian center AP: `0.9856 -> 0.9918`.
+  - Obstacle center AP: `0.8549 -> 0.8565`이며 BEV IoU AP@0.50은
+    `0.7364 -> 0.7709`로 개선됨.
+- 동일 online rosbag에서도 Vehicle 검출은 명확히 개선됨.
+  - S0와 S1을 같은 runner, score threshold, frame coverage로 재실행해 비교함.
+  - 새 로터리 center mAP: `0.5275 -> 0.6878`.
+  - 새 로터리 1 m operating-point F1: `0.6232 -> 0.8836`.
+  - 고주로 center mAP: `0.7123 -> 0.7717`.
+  - 고주로 1 m operating-point F1: `0.5739 -> 0.9403`.
+  - 고주로 AP@0.5 m는 `0.3195 -> 0.2711`로 낮아져, coarse recall 개선이
+    sub-meter 위치 정밀도 개선을 의미하지는 않음.
+- 기존 production E65도 같은 runner와 frame coverage로 추가 재평가함.
+  - 새 로터리 Vehicle center mAP는 E65 `0.6566`, S1 `0.6878`임.
+  - 새 로터리 F1@1m는 E65 `0.8744`, S1 `0.8836`임.
+  - 고주로 center mAP는 E65 `0.6571`, S1 `0.7717`임.
+  - 고주로 F1@1m는 E65 `0.8010`, S1 `0.9403`임.
+  - E65 대비 online Vehicle detection은 S1이 두 장면 모두 우세함.
+- 목표였던 측방·고회전 domain gap도 회복됨.
+  - 새 로터리 좌측 Vehicle recall@1m: `29.5% -> 54.1%`.
+  - 새 로터리 Ego yaw-rate 10 deg/s 초과 recall@1m: `56.0% -> 74.5%`.
+  - 고주로 좌측 Vehicle recall@1m: `56.3% -> 87.5%`.
+- 객체가 전혀 없는 `competition_route_full_highspeed.bag`의 false detection도
+  크게 감소함.
+  - Vehicle false prediction: `940 -> 55`, 검출 frame 비율 `36.0 -> 2.5%`.
+  - Pedestrian: `158 -> 19`, 검출 frame 비율 `7.2 -> 1.0%`.
+  - Obstacle: `6,148 -> 1,193`, 검출 frame 비율 `84.7 -> 41.2%`.
+  - Obstacle false positive는 여전히 높으므로 full-route hard-negative mining이
+    후속 과제로 남음.
+- S1의 주 부작용은 online Vehicle의 180도 방향 반전임.
+  - 새 로터리 raw mAOE: `0.311 -> 0.785 rad`지만 pi-symmetric mean은
+    `0.147 -> 0.055 rad`로 개선됨.
+  - 고주로 raw mAOE: `0.063 -> 0.472 rad`지만 pi-symmetric mean은
+    `0.061 -> 0.041 rad`로 개선됨.
+  - 90도 초과 방향 반전 비율은 로터리 `7.8 -> 24.4%`, 고주로
+    `0.3 -> 14.1%`임. 거의 모든 표본이 135도 이상이라 일반 yaw noise가 아니라
+    정확한 앞뒤 방향 ambiguity임.
+  - S1이 사용한 x/y 양축 flip 중 front-back flip이 방향 supervision을 불필요하게
+    흔든 가능성이 가장 큼.
+  - 다만 E65 raw mAOE도 로터리 `0.885 rad`, 고주로 `0.583 rad`로 S1의
+    `0.785/0.472 rad`보다 더 나쁨. S1의 yaw 문제는 S0 대비 regression이지만
+    현재 E65 production 대비로는 개선임.
+- 결론은 S1 가설 자체는 채택함.
+  - 기하 증강은 실제 측방 recall과 hard-negative 일반화를 크게 개선함.
+  - 다만 현재 S1 E38을 그대로 production으로 확정하지 않고, left-right flip만
+    유지하고 front-back flip을 제거한 S1b를 다음 통제 실험으로 수행함.
+  - S1b에서도 raw yaw 반전이 남으면 detector 출력 yaw를 이동 방향·Lanelet로
+    정규화하는 후처리와 direction-head 학습을 별도로 비교함.
+
+## 팀원 B0 E80 object-compensated 3-sweep checkpoint audit.
+
+- 전달받은 원본 artifact는 다음 release 디렉터리에 보존함.
+  - `artifacts/detection3d/pointpainting/releases/260824_base2_team_b0_temporal3_object_compensated_80e`.
+  - checkpoint는 80 epoch, OpenPCDet `0.6.0+233f849`, 127개 state tensor임.
+- 제공 model YAML의 주요 차이는 다음과 같음.
+  - 3-sweep 9-feature이며 `time_lag_sec`와 velocity head가 없음.
+  - 7D box, direction head, Pedestrian/Vehicle 1-size anchor를 사용함.
+  - Obstacle은 6-size anchor를 사용함.
+  - batch size 2, 80 epoch, OneCycle LR `0.003`, `PCT_START=0.4`임.
+- 제공되지 않은 artifact가 있음.
+  - YAML이 참조하는 dataset config가 빠져 있어 9-feature/range30 계약을 복원함.
+  - object-motion compensation을 수행하는 train/validation builder와 online
+    inference 구현은 제공되지 않음.
+  - 따라서 팀원 Val 점수는 같은 raw Base2에서 나왔더라도 전처리 입력 분포가
+    우리 S0/S1과 다르며, 현재 파일 두 개만으로 동일 Val을 재현할 수 없음.
+- online node에 9-feature temporal history를 지원하는 일반 경로를 추가함.
+  - 기존 10-feature temporal model의 time-lag 동작은 유지함.
+  - 9-feature model은 과거 sweep을 Ego pose로 현재 LiDAR frame에 옮기되
+    `time_lag_sec`를 추가하지 않음.
+  - 이는 production에서 가능한 Ego-only 조건이며 object compensation은 아님.
+- 동일 rosbag의 Vehicle 결과는 다음과 같음.
+
+| 장면 | 입력 | center mAP | F1@1m | mATE | mAOE |
+|---|---:|---:|---:|---:|---:|
+| 로터리 | Team E80 single-sweep | 0.446 | 0.731 | 0.552 m | 1.049 rad |
+| 로터리 | Team E80 Ego-only 3-sweep | 0.200 | 0.360 | 0.873 m | 1.131 rad |
+| 고주로 | Team E80 single-sweep | 0.646 | 0.889 | 0.492 m | 0.641 rad |
+| 고주로 | Team E80 Ego-only 3-sweep | 0.268 | 0.409 | 0.847 m | 0.515 rad |
+
+- S1 E38은 같은 조건에서 로터리/고주로 center mAP `0.688/0.772`, F1@1m
+  `0.884/0.940`임.
+- 객체가 없는 전체 경로에서 Team E80 Ego-only 3-sweep은 오검출이 적음.
+  - Vehicle 9개, Pedestrian 4개, Obstacle 896개임.
+  - 검출 frame 비율은 각각 `0.47/0.21/29.28%`임.
+  - S1의 `2.84/0.98/42.25%`보다 낮아 background 억제는 강함.
+- runtime은 12.54 Hz 입력을 drop 없이 처리함.
+  - Team E80 Ego-only 3-sweep compute p50/p95 `54.26/61.51 ms`.
+  - S1 single-sweep `43.14/46.98 ms`보다 p50 약 11.1 ms 느림.
+- 결론은 checkpoint 자체의 고득점 가능성을 부정하는 것이 아님.
+  - object-compensated Val에서는 동적 객체 point가 한 box에 정렬되어 훨씬 쉬운
+    분포가 되므로 높은 점수가 나올 수 있음.
+  - 하지만 online에서 같은 정렬을 하려면 이전 detection/tracking association과
+    객체 motion 추정이 먼저 필요함. GT `/Object_topic`을 사용하면 oracle 평가일
+    뿐 production 검증이 아님.
+  - 팀원 inference 전처리 코드나 명확한 causal object-compensation 계약을 받기
+    전에는 이 checkpoint를 production 후보로 비교하지 않음.
+
 ## 활성 최우선 계획.
 
 - 이 절은 다음 작업에서 반드시 다시 언급할 최우선 항목만 유지함.
@@ -306,11 +495,15 @@ python perception/pointpainting/tools/train_openpcdet_wandb.py \
 
 - T0는 Base2 validation에서는 E65에 가까운 detection 성능과 `0.77 m/s` 수준의
   Vehicle mAVE를 보였지만 실제 rosbag에서는 detection과 velocity가 모두 악화됨.
-- 다음 실험은 velocity gradient를 키우기 전에 다음 차이를 하나씩 분리함.
-  - SaveSensorData와 online rosbag의 camera/LiDAR 시각 및 JPEG 입력 차이.
-  - 학습 3-sweep 구성과 online sweep history 구성·time-lag 분포 차이.
-  - 저장된 semantic score와 online LRASPP score 분포 차이.
-  - Base2 scenario 분포와 실제 로터리·고주로 객체 거리·방향 분포 차이.
+- semantic scale ablation 결과 online LRASPP foreground를 약화해도 성능이
+  회복되지 않아 semantic 비동기는 주 병목 가설에서 제외함.
+- Base2 scenario와 실제 로터리의 객체 방향·Ego 회전 분포 차이는 S1에서 실제로
+  회복되어 주 병목 가설로 채택함.
+  - 측방·고회전 recall과 full-route false positive가 함께 개선됨.
+  - 남은 주요 문제는 sub-meter 위치 정밀도와 180도 방향 반전임.
+  - S1b에서 front-back flip을 제거해 yaw 부작용을 먼저 분리함.
+  - 그 뒤에도 남는 차이는 SaveSensorData/online 입력과 실제 rotational
+    rolling-scan 또는 targeted scene coverage로 분리함.
 - 동일 checkpoint에 대해 single-sweep/temporal, offline/online 입력을 교차 평가해
   geometry 붕괴가 sweep 정합, semantic 입력, 또는 scene domain 중 어디서 시작하는지
   특정함.

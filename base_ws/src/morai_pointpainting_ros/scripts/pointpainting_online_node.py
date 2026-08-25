@@ -445,6 +445,9 @@ class PointPaintingOnlineNode:
         self.score_threshold = float(
             rospy.get_param("~score_threshold", 0.10)
         )
+        self.foreground_semantic_scale = float(
+            rospy.get_param("~foreground_semantic_scale", 1.0)
+        )
         self.max_detection_range = float(
             rospy.get_param("~max_detection_range", 30.0)
         )
@@ -584,6 +587,10 @@ class PointPaintingOnlineNode:
             raise ValueError("detector_velocity_noise_std_mps must be non-negative")
         if self.detector_maximum_velocity_mps <= 0.0:
             raise ValueError("detector_maximum_velocity_mps must be positive")
+        if not 0.0 <= self.foreground_semantic_scale <= 1.0:
+            raise ValueError(
+                "foreground_semantic_scale must be between 0.0 and 1.0"
+            )
         if self.lidar_measurement_stamp_mode not in {
             "header",
             "point_median",
@@ -1216,12 +1223,6 @@ class PointPaintingOnlineNode:
         else:
             self.temporal_num_sweeps = inferred_temporal_sweeps
         self.temporal_uses_time_lag_feature = inferred_temporal_sweeps > 1
-        if inferred_temporal_sweeps == 1 and self.temporal_num_sweeps != 1:
-            raise RuntimeError(
-                "temporal_num_sweeps={} requires time_lag_sec in config".format(
-                    self.temporal_num_sweeps
-                )
-            )
         self.temporal_history = deque(
             maxlen=max(0, self.temporal_num_sweeps - 1)
         )
@@ -1277,6 +1278,9 @@ class PointPaintingOnlineNode:
             )
         sweeps = []
         for sweep_index in range(self.temporal_num_sweeps):
+            if not self.temporal_uses_time_lag_feature:
+                sweeps.append(painted)
+                continue
             lag = np.full(
                 len(painted),
                 -self.temporal_lidar_scan_period_sec * float(sweep_index),
@@ -1314,12 +1318,15 @@ class PointPaintingOnlineNode:
             return None
 
         pose_samples = self.ego_pose_buffer.snapshot()
-        current_lag = np.zeros(len(painted), dtype=np.float32)
-        if self.temporal_time_lag_mode == "azimuth_approx":
-            current_lag += self._estimated_temporal_point_offsets(painted)
-        temporal_sweeps = [
-            np.concatenate((painted, current_lag[:, None]), axis=1)
-        ]
+        if self.temporal_uses_time_lag_feature:
+            current_lag = np.zeros(len(painted), dtype=np.float32)
+            if self.temporal_time_lag_mode == "azimuth_approx":
+                current_lag += self._estimated_temporal_point_offsets(painted)
+            temporal_sweeps = [
+                np.concatenate((painted, current_lag[:, None]), axis=1)
+            ]
+        else:
+            temporal_sweeps = [painted]
         history = list(self.temporal_history)[-(self.temporal_num_sweeps - 1):]
         for source_timestamp, source_points in reversed(history):
             transformed = transform_points_between_lidar_times(
@@ -1339,16 +1346,19 @@ class PointPaintingOnlineNode:
                     (float(timestamp), np.array(painted, copy=True))
                 )
                 return None
-            lag = np.full(
-                len(source_points),
-                float(source_timestamp) - float(timestamp),
-                dtype=np.float32,
-            )
-            if self.temporal_time_lag_mode == "azimuth_approx":
-                lag += self._estimated_temporal_point_offsets(source_points)
-            temporal_sweeps.append(
-                np.concatenate((transformed, lag[:, None]), axis=1)
-            )
+            if self.temporal_uses_time_lag_feature:
+                lag = np.full(
+                    len(source_points),
+                    float(source_timestamp) - float(timestamp),
+                    dtype=np.float32,
+                )
+                if self.temporal_time_lag_mode == "azimuth_approx":
+                    lag += self._estimated_temporal_point_offsets(source_points)
+                temporal_sweeps.append(
+                    np.concatenate((transformed, lag[:, None]), axis=1)
+                )
+            else:
+                temporal_sweeps.append(transformed)
 
         self.temporal_history.append(
             (float(timestamp), np.array(painted, copy=True))
@@ -1961,6 +1971,16 @@ class PointPaintingOnlineNode:
             semantic_sum[seen]
             / camera_count[seen, None]
         )
+        if self.foreground_semantic_scale < 1.0:
+            foreground = final_semantic[
+                seen, 1:known_semantic_count
+            ]
+            removed_foreground = (
+                foreground.sum(axis=1)
+                * (1.0 - self.foreground_semantic_scale)
+            )
+            foreground *= self.foreground_semantic_scale
+            final_semantic[seen, 0] += removed_foreground
         final_semantic[~seen, -1] = 1.0
 
         return np.concatenate(

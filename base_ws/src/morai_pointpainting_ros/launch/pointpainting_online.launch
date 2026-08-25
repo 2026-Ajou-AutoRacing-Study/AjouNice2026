@@ -24,6 +24,7 @@
   <arg name="painted_points_topic" default="/pointpainting/painted_points"/>
 
   <arg name="score_threshold" default="0.10"/>
+  <arg name="foreground_semantic_scale" default="1.0"/>
   <arg name="max_detection_range" default="30.0"/>
   <!-- Disabled for legacy 7D checkpoints; enable only with a validated 9D head. -->
   <arg name="publish_detector_velocity" default="false"/>
@@ -80,6 +81,8 @@
     <param name="painted_points_topic" value="$(arg painted_points_topic)"/>
 
     <param name="score_threshold" value="$(arg score_threshold)"/>
+    <param name="foreground_semantic_scale"
+           value="$(arg foreground_semantic_scale)"/>
     <param name="max_detection_range" value="$(arg max_detection_range)"/>
     <param name="publish_detector_velocity" value="$(arg publish_detector_velocity)"/>
     <rosparam param="detector_velocity_classes">[vehicle]</rosparam>

@@ -1,0 +1,392 @@
+{
+  "source_template": "configs/scenario/2026_molit_comp_sample_scene.json",
+  "source_template_control": "Keyboard",
+  "source_template_gear": "P",
+  "route": "configs/global_path/2026_molit_comp_global_path.txt",
+  "mgeo_dir": "kcity_map/mgeo_map_scenario_runner_2025",
+  "route_reconstruction": {
+    "source": "mgeo_directed_links_guided_by_sparse_global_path",
+    "guide_point_count": 4285,
+    "stable_anchor_link_count": 37,
+    "link_count": 39,
+    "link_path": [
+      "A2256W000748",
+      "A2256W000182",
+      "A2256W000329",
+      "A2256W000236",
+      "A2256W000219",
+      "A2256W000215",
+      "A2256W000213",
+      "A2256W000222",
+      "A2256W000220",
+      "A2256W000202",
+      "A2256W000728",
+      "A2256W000599",
+      "A2256W000207",
+      "A2256W000205",
+      "A2256W000315",
+      "A2256W000318",
+      "A2256W000308",
+      "A2256W000083",
+      "A2256W000304",
+      "A2256W000148",
+      "A2256W000146",
+      "A2256W000151",
+      "A2256W000866",
+      "A2256W000054",
+      "A2256W000846",
+      "A2256W000411",
+      "A2256W000420",
+      "A2256W000408",
+      "A2256W000445",
+      "A2256W000153",
+      "A2256W000451",
+      "A2256W000446",
+      "A2256W000448",
+      "A2256W000126",
+      "A2256W000128",
+      "A2256W000333",
+      "A2256W000154",
+      "A2256W000332",
+      "A2256W000751"
+    ],
+    "inserted_paths": [
+      {
+        "from_link": "A2256W000220",
+        "to_link": "A2256W000599",
+        "inserted_links": [
+          "A2256W000202",
+          "A2256W000728"
+        ]
+      }
+    ],
+    "guide_gaps": [
+      {
+        "segment_index": 744,
+        "length_m": 71.01896256666944,
+        "from": {
+          "x": -59.90742897847667,
+          "y": -105.52870900509879,
+          "z": 28.363638963491564
+        },
+        "to": {
+          "x": -60.15604465093929,
+          "y": -34.51018160348758,
+          "z": 28.41479381805757
+        }
+      }
+    ],
+    "point_count": 4392,
+    "length_m": 2184.6117233360674,
+    "maximum_segment_m": 0.49999999999982975,
+    "closing_gap_m": 0.0,
+    "guide_distance_mean_m": 0.0,
+    "guide_distance_max_m": 0.0
+  },
+  "outputs": [
+    {
+      "file": "sample_gps_shadow_obstacle_ego_start.json",
+      "mission": "gps_shadow_obstacle",
+      "ego_anchor": "start",
+      "ego_route_arc_m": null,
+      "ego_position": {
+        "x": -131.48599243164062,
+        "y": -427.96099853515625,
+        "z": 28.882999420166016,
+        "_x": "-131.486",
+        "_y": "-427.961",
+        "_z": "28.883"
+      },
+      "ego_yaw_deg": 62.515,
+      "extra_actor": {
+        "kind": "static_obstacle",
+        "data_id": 40100001,
+        "unique_id": 1001,
+        "position": {
+          "x": -24.192602957596588,
+          "y": -518.4789113184229,
+          "z": 28.44315776042348,
+          "_x": "-24.193",
+          "_y": "-518.479",
+          "_z": "28.443"
+        },
+        "route_heading_deg": -151.61494529982377
+      }
+    },
+    {
+      "file": "sample_gps_shadow_obstacle_ego_signal_to_roundabout.json",
+      "mission": "gps_shadow_obstacle",
+      "ego_anchor": "signal_to_roundabout",
+      "ego_route_arc_m": 650.0,
+      "ego_position": {
+        "x": 1.467078601882065,
+        "y": 129.74485441758716,
+        "z": 28.78530085544371,
+        "_x": "1.467",
+        "_y": "129.745",
+        "_z": "28.785"
+      },
+      "ego_yaw_deg": 101.684,
+      "extra_actor": {
+        "kind": "static_obstacle",
+        "data_id": 40100001,
+        "unique_id": 1001,
+        "position": {
+          "x": -24.192602957596588,
+          "y": -518.4789113184229,
+          "z": 28.44315776042348,
+          "_x": "-24.193",
+          "_y": "-518.479",
+          "_z": "28.443"
+        },
+        "route_heading_deg": -151.61494529982377
+      }
+    },
+    {
+      "file": "sample_gps_shadow_obstacle_ego_roundabout_to_highway.json",
+      "mission": "gps_shadow_obstacle",
+      "ego_anchor": "roundabout_to_highway",
+      "ego_route_arc_m": 990.0,
+      "ego_position": {
+        "x": -6.051115219463313,
+        "y": 345.790425091241,
+        "z": 28.686097836923487,
+        "_x": "-6.051",
+        "_y": "345.790",
+        "_z": "28.686"
+      },
+      "ego_yaw_deg": 0.017,
+      "extra_actor": {
+        "kind": "static_obstacle",
+        "data_id": 40100001,
+        "unique_id": 1001,
+        "position": {
+          "x": -24.192602957596588,
+          "y": -518.4789113184229,
+          "z": 28.44315776042348,
+          "_x": "-24.193",
+          "_y": "-518.479",
+          "_z": "28.443"
+        },
+        "route_heading_deg": -151.61494529982377
+      }
+    },
+    {
+      "file": "sample_gps_shadow_obstacle_ego_surround_to_gps_shadow.json",
+      "mission": "gps_shadow_obstacle",
+      "ego_anchor": "surround_to_gps_shadow",
+      "ego_route_arc_m": 1670.0,
+      "ego_position": {
+        "x": 70.30137405169067,
+        "y": -294.0313291097931,
+        "z": 28.699397757830614,
+        "_x": "70.301",
+        "_y": "-294.031",
+        "_z": "28.699"
+      },
+      "ego_yaw_deg": -90.243,
+      "extra_actor": {
+        "kind": "static_obstacle",
+        "data_id": 40100001,
+        "unique_id": 1001,
+        "position": {
+          "x": -24.192602957596588,
+          "y": -518.4789113184229,
+          "z": 28.44315776042348,
+          "_x": "-24.193",
+          "_y": "-518.479",
+          "_z": "28.443"
+        },
+        "route_heading_deg": -151.61494529982377
+      }
+    },
+    {
+      "file": "sample_gps_shadow_vehicle_ego_start.json",
+      "mission": "gps_shadow_vehicle",
+      "ego_anchor": "start",
+      "ego_route_arc_m": null,
+      "ego_position": {
+        "x": -131.48599243164062,
+        "y": -427.96099853515625,
+        "z": 28.882999420166016,
+        "_x": "-131.486",
+        "_y": "-427.961",
+        "_z": "28.883"
+      },
+      "ego_yaw_deg": 62.515,
+      "extra_actor": {
+        "kind": "gps_shadow_vehicle_spawn",
+        "data_id": 30100005,
+        "unique_id": 1002,
+        "start_speed_kph": 0.0,
+        "target_speed_kph": 50.0,
+        "start": {
+          "x": 22.864782854865936,
+          "y": -491.98130932750894,
+          "z": 28.303568225927922,
+          "yaw": -149.07456743343351,
+          "route_index": 3790,
+          "route_arc_m": 1885.744798962567,
+          "link_idx": "A2256W000126",
+          "point_idx": 16,
+          "max_speed": 50.0,
+          "point_ratio": 0.06722689927376857
+        },
+        "end": {
+          "x": -53.653270588080595,
+          "y": -533.3731799137108,
+          "z": 28.42875601531315,
+          "yaw": -151.6104494596774,
+          "route_index": 3963,
+          "route_arc_m": 1972.744458299742,
+          "link_idx": "A2256W000126",
+          "point_idx": 190,
+          "max_speed": 50.0,
+          "point_ratio": 0.798319262323005
+        },
+        "route_span_m": 86.99965933717499
+      }
+    },
+    {
+      "file": "sample_gps_shadow_vehicle_ego_signal_to_roundabout.json",
+      "mission": "gps_shadow_vehicle",
+      "ego_anchor": "signal_to_roundabout",
+      "ego_route_arc_m": 650.0,
+      "ego_position": {
+        "x": 1.467078601882065,
+        "y": 129.74485441758716,
+        "z": 28.78530085544371,
+        "_x": "1.467",
+        "_y": "129.745",
+        "_z": "28.785"
+      },
+      "ego_yaw_deg": 101.684,
+      "extra_actor": {
+        "kind": "gps_shadow_vehicle_spawn",
+        "data_id": 30100005,
+        "unique_id": 1002,
+        "start_speed_kph": 0.0,
+        "target_speed_kph": 50.0,
+        "start": {
+          "x": 22.864782854865936,
+          "y": -491.98130932750894,
+          "z": 28.303568225927922,
+          "yaw": -149.07456743343351,
+          "route_index": 3790,
+          "route_arc_m": 1885.744798962567,
+          "link_idx": "A2256W000126",
+          "point_idx": 16,
+          "max_speed": 50.0,
+          "point_ratio": 0.06722689927376857
+        },
+        "end": {
+          "x": -53.653270588080595,
+          "y": -533.3731799137108,
+          "z": 28.42875601531315,
+          "yaw": -151.6104494596774,
+          "route_index": 3963,
+          "route_arc_m": 1972.744458299742,
+          "link_idx": "A2256W000126",
+          "point_idx": 190,
+          "max_speed": 50.0,
+          "point_ratio": 0.798319262323005
+        },
+        "route_span_m": 86.99965933717499
+      }
+    },
+    {
+      "file": "sample_gps_shadow_vehicle_ego_roundabout_to_highway.json",
+      "mission": "gps_shadow_vehicle",
+      "ego_anchor": "roundabout_to_highway",
+      "ego_route_arc_m": 990.0,
+      "ego_position": {
+        "x": -6.051115219463313,
+        "y": 345.790425091241,
+        "z": 28.686097836923487,
+        "_x": "-6.051",
+        "_y": "345.790",
+        "_z": "28.686"
+      },
+      "ego_yaw_deg": 0.017,
+      "extra_actor": {
+        "kind": "gps_shadow_vehicle_spawn",
+        "data_id": 30100005,
+        "unique_id": 1002,
+        "start_speed_kph": 0.0,
+        "target_speed_kph": 50.0,
+        "start": {
+          "x": 22.864782854865936,
+          "y": -491.98130932750894,
+          "z": 28.303568225927922,
+          "yaw": -149.07456743343351,
+          "route_index": 3790,
+          "route_arc_m": 1885.744798962567,
+          "link_idx": "A2256W000126",
+          "point_idx": 16,
+          "max_speed": 50.0,
+          "point_ratio": 0.06722689927376857
+        },
+        "end": {
+          "x": -53.653270588080595,
+          "y": -533.3731799137108,
+          "z": 28.42875601531315,
+          "yaw": -151.6104494596774,
+          "route_index": 3963,
+          "route_arc_m": 1972.744458299742,
+          "link_idx": "A2256W000126",
+          "point_idx": 190,
+          "max_speed": 50.0,
+          "point_ratio": 0.798319262323005
+        },
+        "route_span_m": 86.99965933717499
+      }
+    },
+    {
+      "file": "sample_gps_shadow_vehicle_ego_surround_to_gps_shadow.json",
+      "mission": "gps_shadow_vehicle",
+      "ego_anchor": "surround_to_gps_shadow",
+      "ego_route_arc_m": 1670.0,
+      "ego_position": {
+        "x": 70.30137405169067,
+        "y": -294.0313291097931,
+        "z": 28.699397757830614,
+        "_x": "70.301",
+        "_y": "-294.031",
+        "_z": "28.699"
+      },
+      "ego_yaw_deg": -90.243,
+      "extra_actor": {
+        "kind": "gps_shadow_vehicle_spawn",
+        "data_id": 30100005,
+        "unique_id": 1002,
+        "start_speed_kph": 0.0,
+        "target_speed_kph": 50.0,
+        "start": {
+          "x": 22.864782854865936,
+          "y": -491.98130932750894,
+          "z": 28.303568225927922,
+          "yaw": -149.07456743343351,
+          "route_index": 3790,
+          "route_arc_m": 1885.744798962567,
+          "link_idx": "A2256W000126",
+          "point_idx": 16,
+          "max_speed": 50.0,
+          "point_ratio": 0.06722689927376857
+        },
+        "end": {
+          "x": -53.653270588080595,
+          "y": -533.3731799137108,
+          "z": 28.42875601531315,
+          "yaw": -151.6104494596774,
+          "route_index": 3963,
+          "route_arc_m": 1972.744458299742,
+          "link_idx": "A2256W000126",
+          "point_idx": 190,
+          "max_speed": 50.0,
+          "point_ratio": 0.798319262323005
+        },
+        "route_span_m": 86.99965933717499
+      }
+    }
+  ]
+}
