@@ -57,8 +57,10 @@ Outputs:
 - CUDA GPU
 - `openpcdet_rtx50` Conda environment
 - OpenPCDet at `~/OpenPCDet`
-- release bundle at
-  `artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/`
+- S1 E38 detector release bundle at
+  `artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/`
+- shared LRASPP checkpoint at
+  `artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/lraspp_4class_best_miou.pth`
 
 Install ROS dependencies:
 
@@ -69,8 +71,8 @@ sudo apt install -y \
   ros-noetic-visualization-msgs
 ```
 
-The release contains both the MORAI LRASPP checkpoint and PointPillars
-checkpoint. Runtime does not download VOC segmentation weights.
+The detector and segmentation checkpoints are stored in separate release
+directories. Runtime does not download VOC segmentation weights.
 
 ## Build
 

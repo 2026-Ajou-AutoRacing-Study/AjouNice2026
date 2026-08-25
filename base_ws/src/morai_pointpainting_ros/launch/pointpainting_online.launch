@@ -9,9 +9,9 @@
   -->
   <arg name="python_executable" default=""/>
   <arg name="cfg_file"
-       default="$(arg repo_root)/perception/pointpainting/openpcdet_patch/tools/cfgs/custom_models/pointpillar_morai_pointpainting_sunny13_1500_9feat.yaml"/>
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpillar_morai_pointpainting_base2_singleframe9_geom_aug.yaml"/>
   <arg name="checkpoint"
-       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/pointpainting_B0_best_epoch65.pth"/>
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpainting_base2_s1_best_epoch38.pth"/>
   <arg name="segmentation_checkpoint"
        default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/lraspp_4class_best_miou.pth"/>
   <arg name="semantic_profile" default="morai_4class"/>
@@ -26,7 +26,7 @@
   <arg name="score_threshold" default="0.10"/>
   <arg name="foreground_semantic_scale" default="1.0"/>
   <arg name="max_detection_range" default="30.0"/>
-  <!-- Disabled for legacy 7D checkpoints; enable only with a validated 9D head. -->
+  <!-- S1 E38 is a 7D detector; enable only with a validated 9D checkpoint. -->
   <arg name="publish_detector_velocity" default="false"/>
   <arg name="detector_velocity_noise_std_mps" default="1.0"/>
   <arg name="detector_maximum_velocity_mps" default="30.0"/>

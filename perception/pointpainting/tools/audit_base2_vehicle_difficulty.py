@@ -21,6 +21,11 @@ def parse_args():
     parser.add_argument("--d3-index", type=Path, required=True)
     parser.add_argument("--val-predictions", type=Path, required=True)
     parser.add_argument(
+        "--include-train",
+        action="store_true",
+        help="Also audit the Base2 train GT distribution without detector metrics.",
+    )
+    parser.add_argument(
         "--online",
         action="append",
         nargs=3,
@@ -120,23 +125,26 @@ def target_ego(row):
     return row["sweeps_oldest_to_current"][-1]["ego_pose"]
 
 
-def audit_validation(
+def audit_dataset_split(
     dataset_root,
     d3_rows,
+    split,
     predictions_path,
     match_distance,
     maximum_range,
 ):
-    with (dataset_root / "custom_infos_val.pkl").open("rb") as stream:
+    with (dataset_root / ("custom_infos_{}.pkl".format(split))).open("rb") as stream:
         infos = pickle.load(stream)
-    with predictions_path.open("rb") as stream:
-        predictions = pickle.load(stream)
-    prediction_by_id = {item["frame_id"]: item for item in predictions}
+    prediction_by_id = None
+    if predictions_path is not None:
+        with predictions_path.open("rb") as stream:
+            predictions = pickle.load(stream)
+        prediction_by_id = {item["frame_id"]: item for item in predictions}
     records = []
     for info in infos:
         frame_id = info["point_cloud"]["lidar_idx"]
         row = d3_rows[frame_id]
-        names = np.asarray(info["annos"]["name"])
+        names = np.asarray(info["annos"]["name"], dtype=str)
         all_boxes = np.asarray(info["annos"]["gt_boxes_lidar"])
         vehicle_mask = names == "Vehicle"
         vehicle_mask &= all_boxes[:, 0] >= -30.0
@@ -150,17 +158,21 @@ def audit_validation(
         if not len(vehicle_boxes):
             continue
         points = np.load(dataset_root / "points" / (frame_id + ".npy"), mmap_mode="r")
-        prediction = prediction_by_id.get(frame_id, {})
-        pred_names = np.asarray(prediction.get("name", []), dtype=str)
-        pred_boxes = np.asarray(prediction.get("boxes_lidar", np.empty((0, 7))))
-        pred_scores = np.asarray(prediction.get("score", np.empty((0,))))
-        vehicle_mask = pred_names == "Vehicle"
-        matches = greedy_center_matches(
-            vehicle_boxes,
-            pred_boxes[vehicle_mask],
-            pred_scores[vehicle_mask],
-            match_distance,
-        )
+        matches = None
+        if prediction_by_id is not None:
+            prediction = prediction_by_id.get(frame_id, {})
+            pred_names = np.asarray(prediction.get("name", []), dtype=str)
+            pred_boxes = np.asarray(
+                prediction.get("boxes_lidar", np.empty((0, 7)))
+            )
+            pred_scores = np.asarray(prediction.get("score", np.empty((0,))))
+            vehicle_mask = pred_names == "Vehicle"
+            matches = greedy_center_matches(
+                vehicle_boxes,
+                pred_boxes[vehicle_mask],
+                pred_scores[vehicle_mask],
+                match_distance,
+            )
         ego = target_ego(row)
         yaw_rate = float(ego.get("derived_yaw_rate_dps") or 0.0)
         for gt_index, box in enumerate(vehicle_boxes):
@@ -169,12 +181,12 @@ def audit_validation(
             vehicle_semantic = (
                 float(np.asarray(points[inside, 6]).mean()) if point_count else None
             )
-            match = matches.get(gt_index)
+            match = matches.get(gt_index) if matches is not None else None
             x, y = float(box[0]), float(box[1])
             records.append(
                 {
-                    "source": "base2_val",
-                    "scene": "base2_val",
+                    "source": "base2_{}".format(split),
+                    "scene": "base2_{}".format(split),
                     "frame_id": frame_id,
                     "family": row["mission_family"],
                     "distance_m": math.hypot(x, y),
@@ -183,8 +195,14 @@ def audit_validation(
                     "vehicle_semantic_mean": vehicle_semantic,
                     "ego_speed_mps": float(ego.get("derived_speed_mps") or 0.0),
                     "ego_yaw_rate_dps": yaw_rate,
-                    "matched_1m": match is not None,
-                    "score": float(match["score"]) if match else 0.0,
+                    "matched_1m": (
+                        match is not None if matches is not None else None
+                    ),
+                    "score": (
+                        float(match["score"])
+                        if match
+                        else (0.0 if matches is not None else None)
+                    ),
                     "center_error_m": match["center_error_m"] if match else None,
                 }
             )
@@ -381,16 +399,17 @@ def audit_online(
 def summary_stats(records):
     if not records:
         return {"count": 0}
-    scores = np.asarray([row["score"] for row in records], dtype=np.float64)
+    scored = [row for row in records if row["matched_1m"] is not None]
+    scores = np.asarray([row["score"] for row in scored], dtype=np.float64)
     points = np.asarray([row["point_count"] for row in records], dtype=np.float64)
-    matched = np.asarray([row["matched_1m"] for row in records], dtype=bool)
+    matched = np.asarray([row["matched_1m"] for row in scored], dtype=bool)
     yaw = np.asarray([abs(row["ego_yaw_rate_dps"]) for row in records], dtype=np.float64)
     semantic = [row["vehicle_semantic_mean"] for row in records if row["vehicle_semantic_mean"] is not None]
     return {
         "count": len(records),
-        "recall_1m": float(matched.mean()),
-        "score_mean_including_misses": float(scores.mean()),
-        "score_p50_including_misses": float(np.median(scores)),
+        "recall_1m": float(matched.mean()) if len(matched) else None,
+        "score_mean_including_misses": float(scores.mean()) if len(scores) else None,
+        "score_p50_including_misses": float(np.median(scores)) if len(scores) else None,
         "point_count_mean": float(points.mean()),
         "point_count_p50": float(np.median(points)),
         "point_count_p10": float(np.percentile(points, 10)),
@@ -424,13 +443,15 @@ def markdown_table(title, mapping):
     lines = ["## " + title, "", "| Slice | GT | Share | Recall@1m | Score mean | Points p50 |", "|---|---:|---:|---:|---:|---:|"]
     total = sum(item["count"] for item in mapping.values())
     for key, item in mapping.items():
+        recall = item["recall_1m"]
+        score = item["score_mean_including_misses"]
         lines.append(
-            "| {} | {} | {:.1%} | {:.1%} | {:.3f} | {:.1f} |".format(
+            "| {} | {} | {:.1%} | {} | {} | {:.1f} |".format(
                 key,
                 item["count"],
                 item["count"] / max(total, 1),
-                item["recall_1m"],
-                item["score_mean_including_misses"],
+                "{:.1%}".format(recall) if recall is not None else "—",
+                "{:.3f}".format(score) if score is not None else "—",
                 item["point_count_p50"],
             )
         )
@@ -442,13 +463,26 @@ def main():
     repo_root = Path(__file__).resolve().parents[3]
     dataset_root = args.dataset_root.resolve()
     d3_rows = load_d3_rows(args.d3_index.resolve() / "temporal_samples.jsonl")
-    records = audit_validation(
+    records = []
+    if args.include_train:
+        records.extend(
+            audit_dataset_split(
+                dataset_root,
+                d3_rows,
+                "train",
+                None,
+                args.match_distance_m,
+                args.maximum_range_m,
+            )
+        )
+    records.extend(audit_dataset_split(
         dataset_root,
         d3_rows,
+        "val",
         args.val_predictions.resolve(),
         args.match_distance_m,
         args.maximum_range_m,
-    )
+    ))
     online_offsets = {}
     for scene, raw_bag, output_bag in args.online:
         scene_records, offsets = audit_online(

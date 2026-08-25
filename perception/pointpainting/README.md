@@ -74,14 +74,24 @@ Weights are distributed separately and are not committed to Git.
 
 Runtime release location in this workspace:
 
+`artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/`
+
+- `pointpainting_base2_s1_best_epoch38.pth`
+  - Base2 single-sweep 7D detector with geometric augmentation.
+  - Current Vehicle production comparator and default ROS checkpoint.
+  - Detector velocity publication remains disabled.
+- `pointpillar_morai_pointpainting_base2_singleframe9_geom_aug.yaml`
+  - Exact S1 training/runtime model configuration.
+
+The shared LRASPP checkpoint remains at:
+
 `artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/`
 
 - `lraspp_4class_best_miou.pth`
   - LRASPP semantic segmentation checkpoint.
 
 - `pointpainting_B0_best_epoch65.pth`
-  - PointPillars detector checkpoint.
-  - 80-epoch run production checkpoint: best epoch 65.
+  - Legacy E65 detector retained as the historical static-data baseline.
 
 ## OpenPCDet patch
 

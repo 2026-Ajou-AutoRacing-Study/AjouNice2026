@@ -4,9 +4,9 @@
   <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
   <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
   <arg name="cfg_file"
-       default="$(arg repo_root)/perception/pointpainting/openpcdet_patch/tools/cfgs/custom_models/pointpillar_morai_pointpainting_sunny13_1500_9feat.yaml"/>
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpillar_morai_pointpainting_base2_singleframe9_geom_aug.yaml"/>
   <arg name="checkpoint"
-       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/pointpainting_B0_best_epoch65.pth"/>
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpainting_base2_s1_best_epoch38.pth"/>
   <arg name="segmentation_checkpoint"
        default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/lraspp_4class_best_miou.pth"/>
   <arg name="use_sim_time" default="false"/>
