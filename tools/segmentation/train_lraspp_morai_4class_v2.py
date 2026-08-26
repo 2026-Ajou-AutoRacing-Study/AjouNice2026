@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import random
 from pathlib import Path
 
@@ -32,7 +33,10 @@ from PIL import Image
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
-from torchvision.models.segmentation import lraspp_mobilenet_v3_large
+from torchvision.models.segmentation import (
+    LRASPP_MobileNet_V3_Large_Weights,
+    lraspp_mobilenet_v3_large,
+)
 from torchvision.transforms import functional as TF
 from torchvision.transforms.functional import InterpolationMode
 
@@ -55,8 +59,20 @@ def parse_args():
     p.add_argument("--short-side", type=int, default=384)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--weight-decay", type=float, default=1e-4)
+    p.add_argument(
+        "--class-weight-mode", choices=("none", "enet"), default="none",
+        help="ENet inverse-log pixel-frequency weighting improves rare classes.",
+    )
+    p.add_argument(
+        "--scheduler", choices=("none", "cosine"), default="none"
+    )
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--amp", action="store_true")
+    p.add_argument("--wandb-project", default="")
+    p.add_argument("--wandb-entity", default="")
+    p.add_argument("--wandb-run-name", default="")
+    p.add_argument("--wandb-mode", choices=("online", "offline", "disabled"),
+                   default="online")
     p.add_argument("--max-train-batches", type=int, default=0,
                    help="0 = all batches; useful for a very fast smoke test.")
     p.add_argument("--max-val-batches", type=int, default=0,
@@ -79,6 +95,29 @@ def read_manifest(path: Path):
     if not rows:
         raise RuntimeError(f"Empty manifest: {path}")
     return rows
+
+
+def class_weights_from_manifest(rows, mode):
+    if mode == "none":
+        return None, None
+    columns = [
+        "background_pixels", "pedestrian_pixels", "vehicle_pixels",
+        "obstacle_pixels",
+    ]
+    counts = np.zeros(NUM_CLASSES, dtype=np.float64)
+    for row in rows:
+        for index, column in enumerate(columns):
+            if column not in row or row[column] == "":
+                raise RuntimeError(
+                    f"{mode} class weighting requires CSV column {column}"
+                )
+            counts[index] += float(row[column])
+    frequencies = counts / counts.sum()
+    # ENet weighting: bounded inverse-log frequency.  This avoids the extreme
+    # gradients produced by raw inverse frequency on small obstacle pixels.
+    weights = 1.0 / np.log(1.02 + frequencies)
+    weights /= weights.mean()
+    return weights.astype(np.float32), counts.astype(np.int64)
 
 
 class MoraiSegDataset(Dataset):
@@ -184,7 +223,9 @@ def build_model():
     # torchvision 0.11.x: load VOC-pretrained LRASPP first, then replace only
     # the two final class-projection convolutions. This keeps the pretrained
     # MobileNetV3 backbone and LR-ASPP feature layers.
-    model = lraspp_mobilenet_v3_large(pretrained=True)
+    model = lraspp_mobilenet_v3_large(
+        weights=LRASPP_MobileNet_V3_Large_Weights.DEFAULT
+    )
 
     if not hasattr(model, "classifier"):
         raise RuntimeError("Unexpected LRASPP model: no classifier")
@@ -269,7 +310,7 @@ def train_one_epoch(model, loader, optimizer, scaler, criterion, device,
 
         optimizer.zero_grad(set_to_none=True)
 
-        with torch.cuda.amp.autocast(enabled=amp):
+        with torch.amp.autocast("cuda", enabled=amp):
             output = model(images)["out"]
             if output.shape[1] != NUM_CLASSES:
                 raise RuntimeError(
@@ -316,7 +357,7 @@ def validate(model, loader, criterion, device, amp, max_batches):
         )
         masks = masks.to(device, non_blocking=True)
 
-        with torch.cuda.amp.autocast(enabled=amp):
+        with torch.amp.autocast("cuda", enabled=amp):
             output = model(images)["out"]
             loss = criterion(output, masks)
 
@@ -340,18 +381,25 @@ def validate(model, loader, criterion, device, amp, max_batches):
     return metrics
 
 
-def save_checkpoint(path, model, optimizer, epoch, metrics, args):
+def save_checkpoint(path, model, optimizer, scheduler, epoch, metrics, args,
+                    class_weights):
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": (
+                scheduler.state_dict() if scheduler is not None else None
+            ),
             "metrics": metrics,
             "num_classes": NUM_CLASSES,
             "class_names": CLASS_NAMES,
             "short_side": args.short_side,
             "architecture": "lraspp_mobilenet_v3_large",
+            "class_weights": (
+                class_weights.tolist() if class_weights is not None else None
+            ),
         },
         path,
     )
@@ -383,6 +431,19 @@ def main():
     print("train images:", len(train_ds))
     print("val images:", len(val_ds))
 
+    class_weights, class_pixel_counts = class_weights_from_manifest(
+        train_ds.rows, args.class_weight_mode
+    )
+    if class_pixel_counts is not None:
+        print("train class pixels:", {
+            name: int(class_pixel_counts[index])
+            for index, name in enumerate(CLASS_NAMES)
+        })
+        print("loss class weights:", {
+            name: float(class_weights[index])
+            for index, name in enumerate(CLASS_NAMES)
+        })
+
     train_loader = DataLoader(
         train_ds,
         batch_size=args.batch_size,
@@ -406,15 +467,27 @@ def main():
 
     # Smoke-test baseline: unweighted CE. Class rebalancing should only be
     # introduced after confirming the full pipeline and inspecting per-class IoU.
-    criterion = nn.CrossEntropyLoss(ignore_index=255)
+    criterion = nn.CrossEntropyLoss(
+        weight=(
+            torch.as_tensor(class_weights, device=device)
+            if class_weights is not None else None
+        ),
+        ignore_index=255,
+    )
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.lr,
         weight_decay=args.weight_decay,
     )
+    scheduler = (
+        torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=args.epochs, eta_min=args.lr * 0.01
+        )
+        if args.scheduler == "cosine" else None
+    )
 
-    scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
+    scaler = torch.amp.GradScaler("cuda", enabled=args.amp)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     config = vars(args).copy()
@@ -423,6 +496,27 @@ def main():
         json.dumps(config, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
+
+    wandb_run = None
+    if args.wandb_project and args.wandb_mode != "disabled":
+        import wandb
+        wandb_run = wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity or None,
+            name=args.wandb_run_name or args.output_dir.name,
+            mode=args.wandb_mode,
+            config={
+                **config,
+                "class_names": CLASS_NAMES,
+                "class_weights": (
+                    class_weights.tolist() if class_weights is not None else None
+                ),
+                "class_pixel_counts": (
+                    class_pixel_counts.tolist()
+                    if class_pixel_counts is not None else None
+                ),
+            },
+        )
 
     best_miou = -1.0
     history = []
@@ -453,16 +547,35 @@ def main():
         for name, value in val_metrics["class_iou"].items():
             print(f"  IoU {name:10s}: {value}")
 
+        if wandb_run is not None:
+            wandb_run.log(
+                {
+                    "epoch": epoch,
+                    "train/loss": train_loss,
+                    "train/lr": optimizer.param_groups[0]["lr"],
+                    "val/loss": val_metrics["loss"],
+                    "val/pixel_accuracy": val_metrics["pixel_accuracy"],
+                    "val/miou_4class": val_metrics["miou_4class"],
+                    **{
+                        f"val/iou/{name}": value
+                        for name, value in val_metrics["class_iou"].items()
+                    },
+                },
+                step=epoch,
+            )
+
         save_checkpoint(
             args.output_dir / "last.pth",
-            model, optimizer, epoch, val_metrics, args
+            model, optimizer, scheduler, epoch, val_metrics, args,
+            class_weights,
         )
 
         if val_metrics["miou_4class"] > best_miou:
             best_miou = val_metrics["miou_4class"]
             save_checkpoint(
                 args.output_dir / "best_miou.pth",
-                model, optimizer, epoch, val_metrics, args
+                model, optimizer, scheduler, epoch, val_metrics, args,
+                class_weights,
             )
             print("  saved new best_miou.pth")
 
@@ -470,10 +583,14 @@ def main():
             json.dumps(history, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+        if scheduler is not None:
+            scheduler.step()
 
     print("\nTraining finished.")
     print("best val mIoU:", best_miou)
     print("output:", args.output_dir)
+    if wandb_run is not None:
+        wandb_run.finish()
 
 
 if __name__ == "__main__":
