@@ -32,7 +32,7 @@ from PIL import Image
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, Sampler
 from torchvision.models.segmentation import (
     LRASPP_MobileNet_V3_Large_Weights,
     lraspp_mobilenet_v3_large,
@@ -65,6 +65,25 @@ def parse_args():
     )
     p.add_argument(
         "--scheduler", choices=("none", "cosine"), default="none"
+    )
+    p.add_argument(
+        "--sampling-mode",
+        choices=("natural", "class_clip_aware"),
+        default="natural",
+        help=(
+            "class_clip_aware draws an exact class-source mixture while "
+            "cycling scenes uniformly inside every source pool."
+        ),
+    )
+    p.add_argument("--sample-ratio-vehicle", type=float, default=0.10)
+    p.add_argument("--sample-ratio-pedestrian", type=float, default=0.15)
+    p.add_argument("--sample-ratio-obstacle", type=float, default=0.30)
+    p.add_argument("--sample-ratio-empty", type=float, default=0.45)
+    p.add_argument(
+        "--checkpoint-interval",
+        type=int,
+        default=0,
+        help="Also retain checkpoint_epoch_N.pth every N epochs; 0 disables it.",
     )
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--amp", action="store_true")
@@ -176,6 +195,114 @@ class MoraiSegDataset(Dataset):
             )
 
         return image, mask
+
+
+class SceneBalancedClassSampler(Sampler):
+    """Sample a fixed class mixture without letting large clips dominate.
+
+    A row containing more than one foreground class belongs to each matching
+    source pool.  The requested ratios describe the *source pool draws*, not
+    mutually exclusive labels.  Inside a pool, scenes are visited in shuffled
+    round-robin order, then one eligible camera frame from that scene is drawn.
+    This keeps a large/pixel-heavy scene from dominating merely because it has
+    more eligible rows.
+    """
+
+    POOL_COLUMNS = {
+        "vehicle": "vehicle_pixels",
+        "pedestrian": "pedestrian_pixels",
+        "obstacle": "obstacle_pixels",
+    }
+
+    def __init__(self, rows, ratios, seed=42, num_samples=None):
+        self.rows = rows
+        self.ratios = dict(ratios)
+        self.seed = int(seed)
+        self.epoch = 0
+        self.num_samples = int(num_samples or len(rows))
+        if self.num_samples <= 0:
+            raise ValueError("sampler num_samples must be positive")
+        if any(value < 0 for value in self.ratios.values()):
+            raise ValueError("sampling ratios must be non-negative")
+        ratio_sum = sum(self.ratios.values())
+        if not math.isclose(ratio_sum, 1.0, rel_tol=0.0, abs_tol=1.0e-8):
+            raise ValueError(
+                f"sampling ratios must sum to 1.0, got {ratio_sum:.12f}"
+            )
+
+        self.scene_pools = {}
+        for pool_name in self.ratios:
+            scene_to_indices = {}
+            for index, row in enumerate(rows):
+                if self._belongs(row, pool_name):
+                    scene_to_indices.setdefault(row["scene_key"], []).append(index)
+            if self.ratios[pool_name] > 0 and not scene_to_indices:
+                raise ValueError(f"sampling pool is empty: {pool_name}")
+            self.scene_pools[pool_name] = scene_to_indices
+
+        self.draw_counts = self._apportion_counts()
+
+    def _belongs(self, row, pool_name):
+        if pool_name == "empty":
+            return all(int(row[column]) == 0 for column in self.POOL_COLUMNS.values())
+        return int(row[self.POOL_COLUMNS[pool_name]]) > 0
+
+    def _apportion_counts(self):
+        raw = {
+            name: self.num_samples * ratio
+            for name, ratio in self.ratios.items()
+        }
+        counts = {name: int(math.floor(value)) for name, value in raw.items()}
+        remaining = self.num_samples - sum(counts.values())
+        order = sorted(
+            raw,
+            key=lambda name: (raw[name] - counts[name], name),
+            reverse=True,
+        )
+        for name in order[:remaining]:
+            counts[name] += 1
+        return counts
+
+    def set_epoch(self, epoch):
+        self.epoch = int(epoch)
+
+    def __len__(self):
+        return self.num_samples
+
+    def __iter__(self):
+        rng = random.Random(self.seed + 1000003 * self.epoch)
+        sampled = []
+        for pool_name, draw_count in self.draw_counts.items():
+            scene_to_indices = self.scene_pools[pool_name]
+            scenes = list(scene_to_indices)
+            if not scenes:
+                continue
+            scene_order = []
+            while len(scene_order) < draw_count:
+                cycle = scenes.copy()
+                rng.shuffle(cycle)
+                scene_order.extend(cycle)
+            for scene in scene_order[:draw_count]:
+                sampled.append(rng.choice(scene_to_indices[scene]))
+        rng.shuffle(sampled)
+        if len(sampled) != self.num_samples:
+            raise RuntimeError(
+                f"sampler produced {len(sampled)} != {self.num_samples} indices"
+            )
+        return iter(sampled)
+
+    def summary(self):
+        return {
+            name: {
+                "ratio": self.ratios[name],
+                "draws_per_epoch": self.draw_counts[name],
+                "eligible_rows": sum(
+                    len(indices) for indices in self.scene_pools[name].values()
+                ),
+                "eligible_scenes": len(self.scene_pools[name]),
+            }
+            for name in self.ratios
+        }
 
 
 def segmentation_collate(batch):
@@ -405,6 +532,62 @@ def save_checkpoint(path, model, optimizer, scheduler, epoch, metrics, args,
     )
 
 
+def define_wandb_metrics(run):
+    """Use the same explicit epoch axis as the PointPainting trainer.
+
+    W&B's private ``_step`` is intentionally not used as the chart axis.  One
+    committed record represents one complete Train N -> Val N cycle, so every
+    train and validation scalar for an epoch stays aligned in the dashboard.
+    """
+    run.define_metric("epoch", hidden=True)
+    run.define_metric(
+        "train/loss", step_metric="epoch", summary="min", overwrite=True
+    )
+    run.define_metric(
+        "train/lr", step_metric="epoch", summary="last", overwrite=True
+    )
+    run.define_metric(
+        "val/loss", step_metric="epoch", summary="min", overwrite=True
+    )
+    run.define_metric(
+        "val/pixel_accuracy",
+        step_metric="epoch",
+        summary="max",
+        overwrite=True,
+    )
+    run.define_metric(
+        "val/miou_4class",
+        step_metric="epoch",
+        summary="max",
+        overwrite=True,
+    )
+    for name in CLASS_NAMES:
+        run.define_metric(
+            f"val/iou/{name}",
+            step_metric="epoch",
+            summary="max",
+            overwrite=True,
+        )
+
+
+def wandb_epoch_payload(epoch, train_loss, learning_rate, val_metrics):
+    """Flatten a completed Train N -> Val N cycle into one W&B record."""
+    return {
+        "epoch": int(epoch),
+        "train/loss": float(train_loss),
+        "train/lr": float(learning_rate),
+        "val/loss": float(val_metrics["loss"]),
+        "val/pixel_accuracy": float(val_metrics["pixel_accuracy"]),
+        "val/miou_4class": float(val_metrics["miou_4class"]),
+        **{
+            f"val/iou/{name}": (
+                float(value) if value is not None else float("nan")
+            )
+            for name, value in val_metrics["class_iou"].items()
+        },
+    }
+
+
 def main():
     args = parse_args()
     seed_everything(args.seed)
@@ -444,10 +627,28 @@ def main():
             for index, name in enumerate(CLASS_NAMES)
         })
 
+    train_sampler = None
+    if args.sampling_mode == "class_clip_aware":
+        train_sampler = SceneBalancedClassSampler(
+            train_ds.rows,
+            ratios={
+                "vehicle": args.sample_ratio_vehicle,
+                "pedestrian": args.sample_ratio_pedestrian,
+                "obstacle": args.sample_ratio_obstacle,
+                "empty": args.sample_ratio_empty,
+            },
+            seed=args.seed,
+            num_samples=len(train_ds),
+        )
+        print("train sampler:", json.dumps(
+            train_sampler.summary(), indent=2, ensure_ascii=False
+        ))
+
     train_loader = DataLoader(
         train_ds,
         batch_size=args.batch_size,
-        shuffle=True,
+        shuffle=(train_sampler is None),
+        sampler=train_sampler,
         num_workers=args.workers,
         pin_memory=True,
         drop_last=False,
@@ -517,12 +718,17 @@ def main():
                 ),
             },
         )
+        define_wandb_metrics(wandb_run)
+        print("wandb run:", wandb_run.url)
 
     best_miou = -1.0
     history = []
 
     for epoch in range(1, args.epochs + 1):
         print(f"\nEpoch {epoch}/{args.epochs}")
+
+        if train_sampler is not None:
+            train_sampler.set_epoch(epoch)
 
         train_loss = train_one_epoch(
             model, train_loader, optimizer, scaler,
@@ -549,19 +755,13 @@ def main():
 
         if wandb_run is not None:
             wandb_run.log(
-                {
-                    "epoch": epoch,
-                    "train/loss": train_loss,
-                    "train/lr": optimizer.param_groups[0]["lr"],
-                    "val/loss": val_metrics["loss"],
-                    "val/pixel_accuracy": val_metrics["pixel_accuracy"],
-                    "val/miou_4class": val_metrics["miou_4class"],
-                    **{
-                        f"val/iou/{name}": value
-                        for name, value in val_metrics["class_iou"].items()
-                    },
-                },
-                step=epoch,
+                wandb_epoch_payload(
+                    epoch,
+                    train_loss,
+                    optimizer.param_groups[0]["lr"],
+                    val_metrics,
+                ),
+                commit=True,
             )
 
         save_checkpoint(
@@ -569,6 +769,15 @@ def main():
             model, optimizer, scheduler, epoch, val_metrics, args,
             class_weights,
         )
+        if (
+            args.checkpoint_interval > 0
+            and epoch % args.checkpoint_interval == 0
+        ):
+            save_checkpoint(
+                args.output_dir / f"checkpoint_epoch_{epoch}.pth",
+                model, optimizer, scheduler, epoch, val_metrics, args,
+                class_weights,
+            )
 
         if val_metrics["miou_4class"] > best_miou:
             best_miou = val_metrics["miou_4class"]
@@ -578,6 +787,9 @@ def main():
                 class_weights,
             )
             print("  saved new best_miou.pth")
+            if wandb_run is not None:
+                wandb_run.summary["best/epoch"] = epoch
+                wandb_run.summary["best/val_miou_4class"] = best_miou
 
         (args.output_dir / "history.json").write_text(
             json.dumps(history, indent=2, ensure_ascii=False),

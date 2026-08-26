@@ -162,11 +162,12 @@ def extract(args):
         camera_time, camera_message = nearest(cameras, lidar_time)
         ego_time, ego = nearest(egos, lidar_time)
         object_time, object_list = nearest(objects, lidar_time)
-        target_objects = (
-            object_list.pedestrian_list
-            if args.target_class == "pedestrian"
-            else object_list.obstacle_list
-        )
+        if args.target_class == "pedestrian":
+            target_objects = object_list.pedestrian_list
+        elif args.target_class == "vehicle":
+            target_objects = object_list.npc_list
+        else:
+            target_objects = object_list.obstacle_list
         if not target_objects:
             continue
         points = np.asarray(
@@ -438,7 +439,9 @@ def parser():
     extract_parser.add_argument("cache", type=Path)
     extract_parser.add_argument("--stride", type=int, default=3)
     extract_parser.add_argument(
-        "--target-class", choices=("pedestrian", "obstacle"), default="pedestrian"
+        "--target-class",
+        choices=("pedestrian", "vehicle", "obstacle"),
+        default="pedestrian",
     )
     extract_parser.add_argument(
         "--sensor-config", type=Path, default=ROOT / "configs/sensors/Sensor_6.json"
