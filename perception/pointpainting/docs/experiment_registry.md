@@ -35,6 +35,26 @@
 | S0 | 현재 sweep만 사용하는 single-frame 9-feature 7D box. T0와 같은 target frame·split, 기하 증강 없음. | Base2 single-frame Train 5,509 / Val 1,181 | 40 epoch | E28 | Temporal stacking 원인 분리용 통제군. Online에서 E65를 안정적으로 넘지 못해 production 기각. |
 | S1 | S0 + train-only x/y flip, ±45도 rotation, 0.95~1.05 scaling. | S0와 동일 | 40 epoch | E38 | Offline·online Vehicle 성능과 hard-negative 일반화가 개선됨. 현재 Vehicle production 비교 기준. |
 | S1b | S1에서 left-right flip만 유지하고 front-back flip 제거. Rotation·scaling은 유지. | S0/S1과 동일 | 40 epoch | E30 | Offline은 S1과 동률이나 두 online rosbag과 downstream이 하락해 기각. |
+| S1g | S1 + class별 GT database sampling 10개. 9-feature 7D single-frame. | S0/S1과 동일 | 40 epoch | E37 | Val-derived score 0.40에서 S1의 고주로 성능을 유지하고 로터리·Map-CV를 개선한 새 production 후보. |
+
+## S1g 통제 조건.
+
+### S1g: S1 + GT database sampling.
+
+- 가설은 다음과 같음.
+  - Base2의 empty/hard-negative 비중 때문에 실제 객체 supervision 밀도가 낮음.
+  - 팀원 legacy 설정의 class별 GT database sampling을 추가하면 S1의 기하 일반화는
+    유지하면서 Vehicle·Pedestrian·Obstacle 학습 밀도를 높일 수 있음.
+- 첫 통제 실험은 S1과 동일한 split, 9-feature, 7D head, batch size 4, 40 epoch,
+  OneCycle LR을 유지함.
+- 유일한 변경 변수는 다음 GT database sampling임.
+  - Pedestrian 최대 10개.
+  - Vehicle 최대 10개.
+  - Obstacle 최대 10개.
+- Offline Val만으로 채택하지 않고 동일 신로터리·고주로 rosbag의 Full-360 및
+  interaction-critical OD, Tracking, Map-CV를 함께 비교함.
+- S1g가 S1보다 좋아질 때만 80 epoch schedule 연장 실험을 별도로 수행한다는
+  조건이었으며, E37에서 후보 조건을 충족함.
 
 ## 주요 결과.
 
@@ -103,6 +123,64 @@
   낮음.
 - FRONT_BACK flip 제거가 전체 production 성능을 높인다는 가설은 기각함.
 - 전체 rosbag 비교표는 `rosbag_vehicle_leaderboard.md`에서 관리함.
+
+### S1g.
+
+- 최종 비교 checkpoint는 E37이며 Base2 Val center mAP는 `0.9618`임.
+  - S1 E38의 `0.9417`보다 `+0.0201` 높음.
+- 고정 production score `0.10`에서는 다음 문제가 발생함.
+  - 로터리 Vehicle center mAP/F1은 `0.7197/0.8878`로 개선함.
+  - 고주로 center mAP는 `0.8031`로 개선하지만 F1은 `0.8822`로 하락함.
+  - 고주로 Tracking F1도 `0.8618`로 하락해 그대로는 production 불가임.
+- Base2 Val에서 Vehicle·Obstacle best score가 `0.407/0.409`였으므로 장면별
+  tuning 없이 전역 score `0.40`을 calibration 후보로 고정함.
+- score `0.40`의 동일 controlled online 결과는 다음과 같음.
+  - 로터리 Tracking F1/MOTA `0.9596/0.9223`, center p50 `0.464 m`.
+  - 고주로 Tracking F1/MOTA `0.9526/0.9049`, center p50 `0.441 m`.
+  - 로터리 3초 minFDE-K p50/p90 `1.096/2.875 m`.
+  - 고주로 3초 minFDE-K p50/p90 `0.956/2.410 m`.
+- S1 대비 interaction-critical 결과는 다음과 같음.
+  - 로터리 OD Recall@1m `89.2% -> 90.5%`.
+  - 고주로 OD Recall@1m `97.7% -> 97.3%`로 사실상 동률임.
+  - 고주로 conflict-critical tracking coverage는 둘 다 `100%`이며 3초 CV
+    minFDE-K p50은 `1.345 -> 0.757 m`로 감소함.
+- class별 production 검증 결과는
+  `s1g_class_production_validation.md`에 기록함.
+  - Vehicle에는 score `0.40`이 적합함.
+  - Pedestrian은 낮은 score에서 큰 recall gain이 있지만 Vehicle scene class
+    confusion이 남음.
+  - Obstacle은 AP가 약 2배 상승했지만 scene별 최적 score와 FP가 불안정함.
+- 따라서 전체 3-class production 승격은 보류함.
+  - 현재 default는 S1을 유지함.
+  - S1g E37은 class-calibration 실험의 기준 checkpoint로 유지함.
+  - score `0.10` 결과와 calibrated 결과를 같은 행으로 섞지 않음.
+
+### S1h.
+
+- S1g의 class calibration 원인을 분리하는 후속 controlled ablation임.
+- S1g와 동일하게 유지하는 조건은 다음과 같음.
+  - Base2 single-frame 9-feature.
+  - left-right/front-back flip, rotation, scaling.
+  - 모델·anchor·optimizer·40 epoch·batch size 4·seed 0.
+  - Pedestrian/Vehicle GT sampling 각각 10개.
+- 유일한 변경은 Obstacle GT sampling을 `10 -> 3`으로 줄이는 것임.
+- 가설은 다음과 같음.
+  - S1g의 Vehicle 좌측·planning-relevant gain과 Pedestrian gain은 유지함.
+  - Obstacle 저신뢰 후보·Vehicle scene FP와 scene별 threshold 편차를 줄임.
+- 채택 조건은 `s1g_class_production_validation.md`의 S1h 기준을 사용함.
+- 최종 비교 checkpoint는 E32이며 Base2 Val center mAP는 `0.9533`임.
+  - S1g E37의 `0.9618`보다 `-0.0085` 낮음.
+- online 결과는 다음과 같음.
+  - 고주로 score 0.40 Obstacle FP는 `79 -> 21`로 감소함.
+  - Obstacle3 mAP/best F1은 `0.157/0.336 -> 0.169/0.414`로 개선함.
+  - Pedestrian crossing mAP는 `0.442 -> 0.381`로 하락함.
+  - Pedestrian distance mAP는 `0.642 -> 0.444`로 하락함.
+  - 로터리 Tracking F1은 `0.960 -> 0.894`로 하락함.
+  - 고주로 Tracking F1은 `0.953 -> 0.962`로 소폭 개선함.
+- 가설 판정은 부분 채택임.
+  - Obstacle FP 감소 가설은 확인함.
+  - Vehicle·Pedestrian gain 유지 가설은 기각함.
+- 전체 production 후보로는 기각하며 S1g E37을 후속 calibration 기준으로 유지함.
 
 ## 완료된 정식 실험 설계.
 

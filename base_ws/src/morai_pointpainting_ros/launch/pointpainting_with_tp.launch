@@ -19,6 +19,7 @@
   <arg name="segmentation_short_side" default="384"/>
   <arg name="segmentation_preprocess_backend" default="torchvision"/>
   <arg name="camera_cpu_workers" default="4"/>
+  <arg name="score_threshold" default="0.10"/>
   <arg name="warmup_segmentation" default="true"/>
   <arg name="warmup_full_pipeline" default="true"/>
   <arg name="warmup_iterations" default="2"/>
@@ -53,6 +54,7 @@
          value="$(arg segmentation_preprocess_backend)"/>
     <arg name="pointpainting_camera_cpu_workers"
          value="$(arg camera_cpu_workers)"/>
+    <arg name="pointpainting_score_threshold" value="$(arg score_threshold)"/>
     <arg name="warmup_segmentation" value="$(arg warmup_segmentation)"/>
     <arg name="warmup_full_pipeline" value="$(arg warmup_full_pipeline)"/>
     <arg name="warmup_iterations" value="$(arg warmup_iterations)"/>
