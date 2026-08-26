@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit LRASPP pedestrian scores at MORAI GT boxes and LiDAR returns.
+"""Audit LRASPP target-class scores at MORAI GT boxes and LiDAR returns.
 
 Extraction uses the ROS system Python. Inference uses the PointPainting Conda
 environment. Keeping the two phases separate avoids mixing ROS Noetic's Python
@@ -92,7 +92,7 @@ def object_corners_ego(obj, ego):
     return np.asarray(result)
 
 
-def lidar_points_in_object(points, obj, ego, lidar_to_ego):
+def lidar_points_in_object(points, obj, ego, lidar_to_ego, target_class):
     center_ego = world_to_ego(
         obj.position.x,
         obj.position.y,
@@ -109,7 +109,8 @@ def lidar_points_in_object(points, obj, ego, lidar_to_ego):
     # collect many ground returns inside the footprint and falsely make the
     # semantic model look background-biased.
     margin_xy = 0.08
-    bottom = -0.5 * float(obj.size.z) + 0.15
+    bottom_clearance = 0.15 if target_class == "pedestrian" else 0.03
+    bottom = -0.5 * float(obj.size.z) + bottom_clearance
     top = 0.5 * float(obj.size.z) + 0.08
     return (
         (np.abs(local_x) <= 0.5 * float(obj.size.x) + margin_xy)
@@ -161,7 +162,12 @@ def extract(args):
         camera_time, camera_message = nearest(cameras, lidar_time)
         ego_time, ego = nearest(egos, lidar_time)
         object_time, object_list = nearest(objects, lidar_time)
-        if not object_list.pedestrian_list:
+        target_objects = (
+            object_list.pedestrian_list
+            if args.target_class == "pedestrian"
+            else object_list.obstacle_list
+        )
+        if not target_objects:
             continue
         points = np.asarray(
             list(
@@ -176,7 +182,7 @@ def extract(args):
         image = cv2.imdecode(np.frombuffer(camera_message.data, np.uint8), cv2.IMREAD_COLOR)
         if image is None or image.shape[:2] != (height, width):
             raise RuntimeError("unexpected front image shape")
-        for obj in object_list.pedestrian_list:
+        for obj in target_objects:
             corners_ego = object_corners_ego(obj, ego)
             corners_h = np.concatenate([corners_ego, np.ones((8, 1))], axis=1)
             corners_camera = (ego_to_camera @ corners_h.T).T[:, :3]
@@ -194,7 +200,9 @@ def extract(args):
             ]
             if clipped[2] - clipped[0] < 2.0 or clipped[3] - clipped[1] < 4.0:
                 continue
-            mask = lidar_points_in_object(points, obj, ego, lidar_to_ego)
+            mask = lidar_points_in_object(
+                points, obj, ego, lidar_to_ego, args.target_class
+            )
             point_uv, point_valid = project_xyz(
                 points[mask, :3], lidar_to_camera, intrinsic
             )
@@ -212,6 +220,11 @@ def extract(args):
                 {
                     "image": image_name,
                     "lidar_index": lidar_index,
+                    "object_unique_id": int(getattr(obj, "unique_id", -1)),
+                    "object_name": str(getattr(obj, "name", "")),
+                    "size_xyz_m": [
+                        float(obj.size.x), float(obj.size.y), float(obj.size.z)
+                    ],
                     "distance_m": distance,
                     "bbox_xyxy": [float(value) for value in clipped],
                     "gt_lidar_point_uv": point_uv.tolist(),
@@ -226,6 +239,7 @@ def extract(args):
         "bag": str(args.bag),
         "sensor_config": str(args.sensor_config),
         "camera": "front",
+        "target_class": args.target_class,
         "resolution": [width, height],
         "frames": sampled_frames,
         "objects": rows,
@@ -258,6 +272,9 @@ def infer(args):
     from torchvision import transforms
 
     manifest = json.loads((args.cache / "manifest.json").read_text())
+    target_class = manifest.get("target_class", "pedestrian")
+    class_names = ["background", "pedestrian", "vehicle", "obstacle"]
+    target_index = class_names.index(target_class)
     try:
         model = torchvision.models.segmentation.lraspp_mobilenet_v3_large(
             weights=None, weights_backbone=None, num_classes=4
@@ -313,19 +330,20 @@ def infer(args):
             result = dict(source)
             result.update(
                 {
-                    "bbox_ped_probability_mean": float(np.mean(roi[1])),
-                    "bbox_ped_probability_p50": float(np.median(roi[1])),
-                    "bbox_ped_probability_p90": float(np.percentile(roi[1], 90)),
-                    "bbox_ped_argmax_fraction": float(np.mean(labels == 1)),
+                    "bbox_target_probability_mean": float(np.mean(roi[target_index])),
+                    "bbox_target_probability_p50": float(np.median(roi[target_index])),
+                    "bbox_target_probability_p90": float(np.percentile(roi[target_index], 90)),
+                    "bbox_target_argmax_fraction": float(np.mean(labels == target_index)),
                     "bbox_argmax_background_fraction": float(np.mean(labels == 0)),
                     "bbox_argmax_vehicle_fraction": float(np.mean(labels == 2)),
                     "bbox_argmax_obstacle_fraction": float(np.mean(labels == 3)),
                     "lidar_visible_point_count": int(lidar_probs.shape[1]),
-                    "lidar_ped_probability_mean": (
-                        float(np.mean(lidar_probs[1])) if lidar_probs.shape[1] else None
+                    "lidar_target_probability_mean": (
+                        float(np.mean(lidar_probs[target_index]))
+                        if lidar_probs.shape[1] else None
                     ),
-                    "lidar_ped_argmax_fraction": (
-                        float(np.mean(np.argmax(lidar_probs, axis=0) == 1))
+                    "lidar_target_argmax_fraction": (
+                        float(np.mean(np.argmax(lidar_probs, axis=0) == target_index))
                         if lidar_probs.shape[1]
                         else None
                     ),
@@ -345,7 +363,10 @@ def infer(args):
                 }
             )
             results.append(result)
-    usable_lidar = [row for row in results if row["lidar_ped_probability_mean"] is not None]
+    usable_lidar = [
+        row for row in results
+        if row["lidar_target_probability_mean"] is not None
+    ]
     distance_bins = {}
     for label, low, high in (
         ("0-7m", 0.0, 7.0),
@@ -356,11 +377,11 @@ def infer(args):
         selected = [row for row in usable_lidar if low <= row["distance_m"] < high]
         distance_bins[label] = {
             "objects": len(selected),
-            "lidar_ped_probability_mean": statistics(
-                [row["lidar_ped_probability_mean"] for row in selected]
+            "lidar_target_probability_mean": statistics(
+                [row["lidar_target_probability_mean"] for row in selected]
             ),
-            "lidar_ped_argmax_fraction": statistics(
-                [row["lidar_ped_argmax_fraction"] for row in selected]
+            "lidar_target_argmax_fraction": statistics(
+                [row["lidar_target_argmax_fraction"] for row in selected]
             ),
         }
     probability_by_class = []
@@ -379,23 +400,24 @@ def infer(args):
     summary = {
         "bag": manifest["bag"],
         "checkpoint": str(args.checkpoint),
+        "target_class": target_class,
         "short_side": args.short_side,
         "object_count": len(results),
-        "bbox_ped_probability_mean": statistics(
-            [row["bbox_ped_probability_mean"] for row in results]
+        "bbox_target_probability_mean": statistics(
+            [row["bbox_target_probability_mean"] for row in results]
         ),
-        "bbox_ped_argmax_fraction": statistics(
-            [row["bbox_ped_argmax_fraction"] for row in results]
+        "bbox_target_argmax_fraction": statistics(
+            [row["bbox_target_argmax_fraction"] for row in results]
         ),
         "lidar_objects_with_visible_points": len(usable_lidar),
         "lidar_visible_point_count": statistics(
             [row["lidar_visible_point_count"] for row in usable_lidar]
         ),
-        "lidar_ped_probability_mean": statistics(
-            [row["lidar_ped_probability_mean"] for row in usable_lidar]
+        "lidar_target_probability_mean": statistics(
+            [row["lidar_target_probability_mean"] for row in usable_lidar]
         ),
-        "lidar_ped_argmax_fraction": statistics(
-            [row["lidar_ped_argmax_fraction"] for row in usable_lidar]
+        "lidar_target_argmax_fraction": statistics(
+            [row["lidar_target_argmax_fraction"] for row in usable_lidar]
         ),
         "class_order": ["background", "pedestrian", "vehicle", "obstacle"],
         "lidar_probability_mean_by_class": probability_by_class,
@@ -415,6 +437,9 @@ def parser():
     extract_parser.add_argument("bag", type=Path)
     extract_parser.add_argument("cache", type=Path)
     extract_parser.add_argument("--stride", type=int, default=3)
+    extract_parser.add_argument(
+        "--target-class", choices=("pedestrian", "obstacle"), default="pedestrian"
+    )
     extract_parser.add_argument(
         "--sensor-config", type=Path, default=ROOT / "configs/sensors/Sensor_6.json"
     )

@@ -50,7 +50,7 @@ from sensor_msgs.msg import (
 )
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker, MarkerArray
-from morai_msgs.msg import EgoVehicleStatus
+from morai_msgs.msg import EgoVehicleStatus, ObjectStatusList
 
 from morai_pointpainting_ros.msg import (
     PointPaintingDetection,
@@ -64,6 +64,9 @@ from perception_object_pipeline.rolling_lidar import (
     representative_detection_time_offset,
     transform_boxes_between_lidar_times,
     transform_points_between_lidar_times,
+)
+from morai_pointpainting_ros.oracle_painting import (
+    override_semantics_in_oriented_boxes,
 )
 
 
@@ -503,6 +506,18 @@ class PointPaintingOnlineNode:
             rospy.get_param("~lidar_deskew_camera_reference", "reference")
         ).strip().lower()
         self.ego_topic = str(rospy.get_param("~ego_topic", "/Ego_topic"))
+        self.oracle_painting_class = str(
+            rospy.get_param("~oracle_painting_class", "")
+        ).strip().lower()
+        self.oracle_object_topic = str(
+            rospy.get_param("~oracle_object_topic", "/Object_topic")
+        )
+        self.oracle_maximum_age_sec = float(
+            rospy.get_param("~oracle_maximum_age_sec", 0.10)
+        )
+        self.oracle_painting_mode = str(
+            rospy.get_param("~oracle_painting_mode", "one_hot")
+        ).strip().lower()
         self.ego_pose_buffer_duration_sec = float(
             rospy.get_param("~ego_pose_buffer_duration_sec", 2.0)
         )
@@ -700,6 +715,17 @@ class PointPaintingOnlineNode:
         self.ego_pose_buffer = PlanarPoseBuffer(
             self.ego_pose_buffer_duration_sec
         )
+        if self.oracle_painting_class not in ("", "off", "pedestrian", "obstacle"):
+            raise ValueError(
+                "oracle_painting_class must be off, pedestrian, or obstacle"
+            )
+        if self.oracle_painting_mode not in ("one_hot", "swap_background"):
+            raise ValueError(
+                "oracle_painting_mode must be one_hot or swap_background"
+            )
+        self.oracle_state_lock = threading.Lock()
+        self.oracle_ego_messages = deque(maxlen=100)
+        self.oracle_object_messages = deque(maxlen=100)
 
         self.camera_buffers = {
             name: deque(maxlen=self.camera_buffer_size)
@@ -775,6 +801,20 @@ class PointPaintingOnlineNode:
             queue_size=100,
             tcp_nodelay=True,
         )
+        self.oracle_object_subscriber = None
+        if self.oracle_painting_class not in ("", "off"):
+            self.oracle_object_subscriber = rospy.Subscriber(
+                self.oracle_object_topic,
+                ObjectStatusList,
+                self._oracle_object_callback,
+                queue_size=100,
+                tcp_nodelay=True,
+            )
+            rospy.logwarn(
+                "DIAGNOSTIC ONLY: GT oracle painting enabled for %s from %s",
+                self.oracle_painting_class,
+                self.oracle_object_topic,
+            )
         for camera_name in self.camera_names:
             camera_config = self.camera_configs[camera_name]
             topic = camera_config["topic"]
@@ -1552,13 +1592,121 @@ class PointPaintingOnlineNode:
             )
 
     def _ego_callback(self, msg: EgoVehicleStatus) -> None:
+        timestamp = stamp_to_sec(msg.header.stamp)
         self.ego_pose_buffer.add(
-            stamp_to_sec(msg.header.stamp),
+            timestamp,
             msg.position.x,
             msg.position.y,
             msg.position.z,
             math.radians(msg.heading),
         )
+        if self.oracle_painting_class not in ("", "off"):
+            with self.oracle_state_lock:
+                self.oracle_ego_messages.append((timestamp, msg))
+
+    def _oracle_object_callback(self, msg: ObjectStatusList) -> None:
+        timestamp = stamp_to_sec(msg.header.stamp)
+        with self.oracle_state_lock:
+            self.oracle_object_messages.append((timestamp, msg))
+
+    @staticmethod
+    def _nearest_message(records, timestamp: float):
+        if not records:
+            return None
+        return min(records, key=lambda item: abs(item[0] - timestamp))
+
+    def _oracle_boxes_at(self, timestamp: float) -> Optional[np.ndarray]:
+        if self.oracle_painting_class in ("", "off"):
+            return np.empty((0, 7), dtype=np.float32)
+        with self.oracle_state_lock:
+            ego_record = self._nearest_message(
+                tuple(self.oracle_ego_messages), timestamp
+            )
+            object_record = self._nearest_message(
+                tuple(self.oracle_object_messages), timestamp
+            )
+        if ego_record is None or object_record is None:
+            return None
+        if (
+            abs(ego_record[0] - timestamp) > self.oracle_maximum_age_sec
+            or abs(object_record[0] - timestamp) > self.oracle_maximum_age_sec
+        ):
+            return None
+
+        ego = ego_record[1]
+        objects = object_record[1]
+        source = (
+            objects.pedestrian_list
+            if self.oracle_painting_class == "pedestrian"
+            else objects.obstacle_list
+        )
+        ego_yaw = math.radians(float(ego.heading))
+        cosine = math.cos(ego_yaw)
+        sine = math.sin(ego_yaw)
+        boxes = []
+        for obj in source:
+            dx = float(obj.position.x) - float(ego.position.x)
+            dy = float(obj.position.y) - float(ego.position.y)
+            center_ego = np.asarray(
+                [
+                    cosine * dx + sine * dy,
+                    -sine * dx + cosine * dy,
+                    float(obj.position.z) - float(ego.position.z)
+                    + 0.5 * float(obj.size.z),
+                ],
+                dtype=np.float64,
+            )
+            center_lidar = self.r_vehicle_lidar.T @ (
+                center_ego - self.lidar_position
+            )
+            yaw = (
+                math.radians(float(obj.heading) - float(ego.heading))
+                - self.lidar_yaw_rad
+            )
+            boxes.append(
+                [
+                    center_lidar[0],
+                    center_lidar[1],
+                    center_lidar[2],
+                    float(obj.size.x),
+                    float(obj.size.y),
+                    float(obj.size.z),
+                    yaw,
+                ]
+            )
+        return np.asarray(boxes, dtype=np.float32).reshape(-1, 7)
+
+    def _apply_oracle_painting(
+        self, painted: np.ndarray, timestamp: float
+    ) -> np.ndarray:
+        boxes = self._oracle_boxes_at(timestamp)
+        if boxes is None:
+            rospy.logwarn_throttle(1.0, "Oracle painting skipped: stale GT state")
+            return painted
+        semantic_index = self.semantic_names.index(self.oracle_painting_class)
+        bottom_clearance = (
+            0.15 if self.oracle_painting_class == "pedestrian" else 0.03
+        )
+        painted, count = override_semantics_in_oriented_boxes(
+            painted,
+            boxes,
+            semantic_index,
+            semantic_count=len(self.semantic_names),
+            bottom_clearance_m=bottom_clearance,
+            # Preserve the production camera-visibility boundary. Oracle GT
+            # must not label a return the four-camera painter could never see.
+            eligible_mask=painted[:, 4 + len(self.semantic_names) - 1] < 0.5,
+            mode=self.oracle_painting_mode,
+        )
+        rospy.loginfo_throttle(
+            1.0,
+            "Oracle %s painting (%s): boxes=%d points=%d",
+            self.oracle_painting_class,
+            self.oracle_painting_mode,
+            len(boxes),
+            count,
+        )
+        return painted
 
     def _lidar_callback(self, msg: PointCloud2) -> None:
         enqueue_time = time.perf_counter()
@@ -2522,6 +2670,8 @@ class PointPaintingOnlineNode:
 
         painting_start = time.perf_counter()
         painted = self._paint_lidar(lidar, score_maps)
+        if self.oracle_painting_class not in ("", "off"):
+            painted = self._apply_oracle_painting(painted, lidar_timestamp)
         painting_ms = (
             time.perf_counter() - painting_start
         ) * 1000.0

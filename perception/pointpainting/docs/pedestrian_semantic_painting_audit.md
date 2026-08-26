@@ -53,16 +53,19 @@
   Background로 칠하는 semantic domain gap이 실제로 존재함.
 - 이 결과는 semantic stage가 Pedestrian confidence 저하에 기여한다는 직접
   증거임.
-- 다만 LRASPP가 3D detection miss의 유일한 원인인지는 아직 증명하지 않음.
-  - 완전한 causal 분리는 GT BBox 안 point의 Pedestrian channel을 1로 바꾸는
-    oracle-painting ablation과 원본 painting 결과를 같은 PointPillars checkpoint에
-    넣어 비교해야 함.
+- 후속 oracle-painting A/B까지 수행함.
+  - 상세 결과는 `semantic_oracle_painting_ablation.md`에 기록함.
+  - Distance bag에서는 분포 보존 oracle가 mAP를 `0.642 -> 0.889`로 개선해
+    semantic 병목의 인과성이 확인됨.
+  - Crossing bag에서는 `0.442 -> 0.365`로 하락해 semantic만으로 설명되지 않음.
+    이미 Pedestrian argmax인 point가 많고 GT box 안 background-like point를
+    강제 보정하면 오히려 잡음이 추가되는 장면임.
 
 ## Obstacle에 대한 후속 원칙.
 
 - 단순 positive frame 증량을 우선하지 않음.
-- 최신 competition sensor bag에서 Obstacle GT point semantic audit과 oracle
-  painting ablation을 먼저 수행함.
+- Obstacle GT point semantic audit과 oracle painting ablation을 수행했으며,
+  결과는 `semantic_oracle_painting_ablation.md`에 기록함.
 - LRASPP 병목이면 Base2/Base3 current-JPEG semantic data로 segmentation을
   재학습함.
 - PointPillars 병목이면 compact/long/tall shape supervision을 분리하고 ROS
