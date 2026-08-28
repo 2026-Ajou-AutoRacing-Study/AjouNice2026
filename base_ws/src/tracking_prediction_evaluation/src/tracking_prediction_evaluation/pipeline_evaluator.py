@@ -750,6 +750,7 @@ def evaluate_pipeline(
     tracking_counts = defaultdict(int)
     tracking_errors = []
     tracking_speed_errors = []
+    tracking_velocity_l2_errors = []
     tracking_yaw_errors = []
     tracking_longitudinal_speeds = []
     previous_track_by_gt = {}
@@ -795,6 +796,13 @@ def evaluate_pipeline(
             state = estimate_motion_state(history)
             if state is not None:
                 tracking_speed_errors.append(abs(estimate.speed - state.speed))
+                estimate_vx = estimate.speed * math.cos(estimate.yaw)
+                estimate_vy = estimate.speed * math.sin(estimate.yaw)
+                state_vx = state.speed * math.cos(state.yaw)
+                state_vy = state.speed * math.sin(state.yaw)
+                tracking_velocity_l2_errors.append(
+                    math.hypot(estimate_vx - state_vx, estimate_vy - state_vy)
+                )
                 yaw_delta = (estimate.yaw - state.yaw + math.pi) % (2.0 * math.pi) - math.pi
                 tracking_yaw_errors.append(abs(math.degrees(yaw_delta)))
             previous = previous_track_by_gt.get(segment.key)
@@ -1159,6 +1167,7 @@ def evaluate_pipeline(
                 else {"count": 0, "reason": "bbox-center GT not selected"}
             ),
             "absolute_speed_error_mps": statistics(tracking_speed_errors),
+            "velocity_l2_error_mps": statistics(tracking_velocity_l2_errors),
             "absolute_yaw_error_deg": statistics(tracking_yaw_errors),
             "yaw_flip_rate_over_90deg": (
                 float(np.mean(np.asarray(tracking_yaw_errors) > 90.0))

@@ -13,6 +13,9 @@
        default="/perception/object_recognition/tracking/objects"/>
   <arg name="predictions"
        default="/perception/object_recognition/objects"/>
+  <arg name="show_gt_boxes" default="true"/>
+  <arg name="gt_objects" default="/Object_topic"/>
+  <arg name="gt_markers" default="/evaluation/visualization/gt_boxes"/>
 
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
 
@@ -48,4 +51,17 @@
     <arg name="predictions" value="$(arg predictions)"/>
     <arg name="start_rviz" value="$(arg start_rviz)"/>
   </include>
+
+  <node if="$(arg show_gt_boxes)"
+        pkg="tracking_prediction_evaluation"
+        type="morai_gt_bbox_visualization_node.py"
+        name="morai_gt_bbox_visualization"
+        output="screen">
+    <param name="input" value="$(arg gt_objects)"/>
+    <param name="output" value="$(arg gt_markers)"/>
+    <param name="morai_static_tf"
+           value="$(arg repo_root)/configs/tf/morai_lanelet_static_tf.yaml"/>
+    <param name="line_width_m" value="0.09"/>
+    <rosparam param="color_rgba">[1.0, 0.0, 0.85, 1.0]</rosparam>
+  </node>
 </launch>

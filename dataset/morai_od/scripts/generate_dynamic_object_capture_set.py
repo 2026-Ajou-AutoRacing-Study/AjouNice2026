@@ -850,13 +850,42 @@ def nearest_sample(samples, pose):
     )
 
 
+_M_GEO_SAMPLE_GRID_CACHE = {}
+
+
+def nearby_mgeo_samples(samples, pose, radius_m, cell_size_m=5.0):
+    """Return local MGeo samples without rescanning the complete map."""
+
+    cache_key = id(samples)
+    cached = _M_GEO_SAMPLE_GRID_CACHE.get(cache_key)
+    if cached is None or cached[0] is not samples:
+        grid = {}
+        for item in samples:
+            cell = (
+                int(math.floor(float(item["x"]) / cell_size_m)),
+                int(math.floor(float(item["y"]) / cell_size_m)),
+            )
+            grid.setdefault(cell, []).append(item)
+        cached = (samples, grid)
+        _M_GEO_SAMPLE_GRID_CACHE[cache_key] = cached
+    grid = cached[1]
+    center_x = int(math.floor(float(pose["x"]) / cell_size_m))
+    center_y = int(math.floor(float(pose["y"]) / cell_size_m))
+    reach = int(math.ceil(float(radius_m) / cell_size_m))
+    nearby = []
+    for cell_x in range(center_x - reach, center_x + reach + 1):
+        for cell_y in range(center_y - reach, center_y + reach + 1):
+            nearby.extend(grid.get((cell_x, cell_y), ()))
+    return nearby
+
+
 def wrapped_degrees(value):
     return (float(value) + 180.0) % 360.0 - 180.0
 
 
 def nearest_aligned_sample(samples, pose, search_radius_m=6.0):
     nearby = []
-    for item in samples:
+    for item in nearby_mgeo_samples(samples, pose, search_radius_m):
         distance = math.hypot(item["x"] - pose["x"], item["y"] - pose["y"])
         if distance <= search_radius_m:
             heading_error = abs(wrapped_degrees(item["yaw"] - pose["yaw"]))
@@ -954,6 +983,19 @@ def uniform_or_choice(rng, value):
     if isinstance(value, list):
         return rng.choice(value)
     return value
+
+
+def integer_count(rng, value):
+    """Choose an inclusive integer count from either N or [minimum, maximum]."""
+
+    if isinstance(value, list):
+        if len(value) != 2:
+            return int(rng.choice(value))
+        lower, upper = (int(value[0]), int(value[1]))
+        if lower > upper:
+            raise ValueError("integer count range is reversed")
+        return rng.randint(lower, upper)
+    return int(value)
 
 
 def choose_lead(rng, family):
@@ -1245,6 +1287,106 @@ def route_wide_anchor_for_variant(route, arc, family, variant_index, rng):
         "route_arc_m": float(target_arc),
     })
     return pose
+
+
+def route_anchor_in_intervals(route, arc, intervals, variant_index, total, rng):
+    """Stratify samples by metric distance over one or more route intervals."""
+
+    valid = [(float(a), float(b)) for a, b in intervals if float(b) > float(a)]
+    length = sum(b - a for a, b in valid)
+    if not valid or length <= 0.0:
+        raise ValueError("route interval sampling requires a positive interval")
+    slot = (int(variant_index) + rng.uniform(0.30, 0.70)) / max(1, int(total))
+    distance = (slot % 1.0) * length
+    for lower, upper in valid:
+        span = upper - lower
+        if distance <= span:
+            pose = continuous_route_pose_at_arc(route, arc, lower + distance, wrap=True)
+            pose["route_arc_m"] = float(lower + distance)
+            return pose
+        distance -= span
+    return continuous_route_pose_at_arc(route, arc, valid[-1][1], wrap=True)
+
+
+def static_spatial_target(
+    family,
+    variant_index,
+    rng,
+    route,
+    arc,
+    links_by_id,
+):
+    """Resolve Base3 static's route stratum, roundabout phase, and highway lane."""
+
+    global_strata = family.get("global_spatial_stratum_schedule")
+    global_variant_index = int(variant_index) + int(
+        family.get("family_global_variant_offset", 0)
+    )
+    if global_strata:
+        strata = list(global_strata)
+        schedule_index = global_variant_index
+    else:
+        strata = weighted_zone_schedule(family, key="spatial_strata")
+        schedule_index = int(variant_index)
+    stratum = strata[schedule_index] if strata else "route_general"
+    metadata = {"spatial_stratum": stratum}
+    if stratum == "roundabout":
+        count = strata.count(stratum)
+        within = sum(item == stratum for item in strata[:schedule_index])
+        phase_family = {
+            "count": count,
+            "roundabout_phases": family["roundabout_phases"],
+        }
+        phase_schedule = weighted_zone_schedule(
+            phase_family, key="roundabout_phases"
+        )
+        phase = phase_schedule[within]
+        phase_within = sum(item == phase for item in phase_schedule[:within])
+        phase_total = phase_schedule.count(phase)
+        row = next(item for item in family["roundabout_phases"] if item["name"] == phase)
+        target = route_anchor_in_intervals(
+            route, arc, [row["arc_m"]], phase_within, phase_total, rng
+        )
+        metadata["roundabout_phase"] = phase
+        return route, arc, target, metadata
+    if stratum == "highway_three_lane":
+        count = strata.count(stratum)
+        within = sum(item == stratum for item in strata[:schedule_index])
+        lane_family = {
+            "count": count,
+            "source_spawn_ids": list(HIGHWAY_LANE_LINK_PATHS),
+            "ego_lane_weights": {"6": 1.0, "8": 1.0, "10": 1.0},
+        }
+        lane_schedule = weighted_lane_schedule(lane_family)
+        lane_id = lane_schedule[within]
+        lane_within = sum(item == lane_id for item in lane_schedule[:within])
+        lane_total = lane_schedule.count(lane_id)
+        lane_route, lane_arc = route_from_link_path(
+            links_by_id, HIGHWAY_LANE_LINK_PATHS[lane_id]
+        )
+        margin = 35.0
+        target = route_anchor_in_intervals(
+            lane_route,
+            lane_arc,
+            [(margin, max(margin + 1.0, lane_arc[-1] - margin))],
+            lane_within,
+            lane_total,
+            rng,
+        )
+        metadata["highway_lane_id"] = lane_id
+        return lane_route, lane_arc, target, metadata
+    intervals = family.get(
+        "route_general_arc_intervals_m", [[0.0, float(arc[-1])]]
+    )
+    count = strata.count(stratum) if strata else int(family["count"])
+    within = (
+        sum(item == stratum for item in strata[:schedule_index])
+        if strata else int(variant_index)
+    )
+    target = route_anchor_in_intervals(
+        route, arc, intervals, within, count, rng
+    )
+    return route, arc, target, metadata
 
 
 def route_wide_crosswalk_target(crosswalk_catalog, route, family, variant_index):
@@ -2935,6 +3077,35 @@ def load_runtime_pedestrian_pool(catalog_path, compatibility_path, runtime_dir):
     return rows
 
 
+def load_runtime_vehicle_pool(catalog_path, compatibility_path, runtime_dir):
+    """Load the personal-launcher vehicle assets proven safe for automation."""
+
+    catalog = load_json(catalog_path)
+    compatibility = load_json(compatibility_path)
+    source_name = compatibility["personal"]["generated_from"]["vehicle"][
+        "file_name"
+    ]
+    source = load_json(runtime_dir.expanduser().resolve() / source_name)
+    actors = {
+        int(actor["DataID"]): actor for actor in source.get("vehicleList", [])
+    }
+    eligible = set(compatibility["automatic_eligible"]["vehicle"])
+    rows = []
+    for row in catalog["vehicles"]:
+        data_id = int(row["data_id"])
+        if data_id not in eligible or data_id not in actors:
+            continue
+        if row.get("ontology_class") != "Vehicle":
+            continue
+        if row.get("generation_policy") not in {"enabled", "limited_weight"}:
+            continue
+        rows.append({**row, "template": actors[data_id]})
+    if not rows:
+        raise ValueError("runtime vehicle pool is empty")
+    rows.sort(key=lambda row: (row.get("subtype", ""), row["name"]))
+    return rows
+
+
 def obstacle_unique_quota(row):
     subtype = row.get("subtype")
     if subtype in {"box", "barrel_or_drum"}:
@@ -3028,7 +3199,7 @@ def build_obstacle_scene(
         yaw = float(base_actor["rot"]["yaw"])
         target = target_position_for_family(template, family["name"])
 
-    count = int(uniform_or_choice(rng, family.get("objects_per_scene", 1)))
+    count = integer_count(rng, family.get("objects_per_scene", 1))
     selected = []
     if obstacle_pool:
         for index in range(count):
@@ -3172,13 +3343,18 @@ def build_obstacle_scene(
             "visibility_target": family.get("visibility_target", "clear"),
             "ego_route_clearance_m": route_clearance,
             "minimum_ego_route_clearance_m": minimum_clearance,
+            "placement_footprint_radius_m": static_actor_footprint_radius({
+                "class": "obstacle", "subtype": row.get("subtype")
+            }),
             "route_relative_lateral_offset_m": lateral,
             "route_relative_longitudinal_offset_m": longitudinal,
         })
     return target, runtime
 
 
-def set_static_vehicle_actor(actor, sample, position, unique_id):
+def set_static_vehicle_actor(
+    actor, sample, position, unique_id, yaw_override=None
+):
     actor["UNIQUEID"] = unique_id
     initial = actor["initPosition"]
     initial["initPositionMode"] = "Absolute"
@@ -3188,7 +3364,12 @@ def set_static_vehicle_actor(actor, sample, position, unique_id):
     initial["pos"] = formatted_vector(
         position["x"], position["y"], position["z"] + 0.36
     )
-    initial["rot"] = formatted_rotation(sample["yaw"])
+    actor_yaw = (
+        float(sample["yaw"])
+        if yaw_override is None
+        else float(yaw_override)
+    )
+    initial["rot"] = formatted_rotation(actor_yaw)
     initial["initLink"] = sample["link_idx"]
     initial["initLinkRatio"] = sample["point_ratio"]
     initial["gear"] = 4
@@ -3212,6 +3393,250 @@ def set_static_vehicle_actor(actor, sample, position, unique_id):
     actor["activeDistance"] = 0.0
 
 
+def static_actor_footprint_radius(actor):
+    """Return a conservative BEV clearance radius for generated actors.
+
+    MORAI's asset catalog does not expose physical dimensions.  The values
+    below are deliberately conservative placement envelopes, not GT box
+    dimensions.  They keep large buses and long barriers from overlapping a
+    different generated actor while preserving the class/asset diversity.
+    """
+
+    actor_class = actor.get("class")
+    subtype = actor.get("subtype")
+    if actor_class == "vehicle":
+        if subtype in {"bus_van", "truck"}:
+            return 5.5
+        return 3.0
+    if actor_class == "obstacle":
+        if subtype in {"barrier", "fixed_roadside_object"}:
+            return 3.0
+        if subtype in {"unoccupied_bicycle_or_scooter", "road_sign"}:
+            return 1.2
+        return 1.7
+    if actor_class == "pedestrian":
+        return 0.8
+    return 1.5
+
+
+def vehicle_subtype_policy(family, key, subtype, default):
+    """Resolve one Base3 static policy value for a vehicle subtype."""
+
+    configured = family.get(key, {})
+    if isinstance(configured, dict) and subtype in configured:
+        return configured[subtype]
+    return default
+
+
+def static_vehicle_heading_jitter_deg(family, subtype, geometry_role=None):
+    if geometry_role and (
+        geometry_role == "roundabout_left_legal_path"
+        or geometry_role.startswith("highway_left_adjacent_lane_")
+    ):
+        return float(family.get("legal_path_heading_jitter_deg", 1.0))
+    return float(
+        vehicle_subtype_policy(
+            family,
+            "actor_heading_jitter_deg_by_subtype",
+            subtype,
+            family.get("actor_heading_jitter_deg", 0.0),
+        )
+    )
+
+
+def same_lane_capture_slots(family, subtype):
+    default = family.get(
+        "same_lane_fallback_capture_slots_m",
+        [-18.0, 15.0, 24.0, 33.0, 42.0],
+    )
+    return [
+        float(value)
+        for value in vehicle_subtype_policy(
+            family,
+            "same_lane_fallback_capture_slots_by_subtype",
+            subtype,
+            default,
+        )
+    ]
+
+
+def minimum_final_capture_separation_m(family, subtype):
+    return float(
+        vehicle_subtype_policy(
+            family,
+            "minimum_final_capture_separation_m_by_subtype",
+            subtype,
+            8.0,
+        )
+    )
+
+
+def static_actor_candidate_is_clear(position, radius, occupied_runtime, margin_m=0.8):
+    for occupied in occupied_runtime or []:
+        other = occupied.get("position")
+        if not other:
+            continue
+        required = (
+            float(radius)
+            + static_actor_footprint_radius(occupied)
+            + float(margin_m)
+        )
+        if math.hypot(
+            float(position["x"]) - float(other["x"]),
+            float(position["y"]) - float(other["y"]),
+        ) < required:
+            return False
+    return True
+
+
+def static_vehicle_candidate_is_clear(
+    position, radius, subtype, occupied_runtime
+):
+    """Use body-class margins for static Vehicle-to-Vehicle placement."""
+
+    pair_margins = {
+        "passenger_car": 1.0,
+        "electric_passenger_car": 1.0,
+        "wagon": 1.2,
+        "suv": 2.0,
+        "mpv": 2.0,
+        "bus_van": 4.0,
+        "truck": 4.0,
+    }
+    current_margin = float(pair_margins.get(subtype, 1.0))
+    for occupied in occupied_runtime or []:
+        other = occupied.get("position")
+        if not other:
+            continue
+        if occupied.get("class") == "vehicle":
+            margin = max(
+                current_margin,
+                float(pair_margins.get(occupied.get("subtype"), 1.0)),
+            )
+        else:
+            margin = 0.8
+        required = (
+            float(radius)
+            + static_actor_footprint_radius(occupied)
+            + margin
+        )
+        if math.hypot(
+            float(position["x"]) - float(other["x"]),
+            float(position["y"]) - float(other["y"]),
+        ) < required:
+            return False
+    return True
+
+
+def link_sample_pose(samples, index):
+    """Return one legal MGeo-link sample with a local tangent yaw."""
+
+    index = max(0, min(len(samples) - 1, int(index)))
+    before = samples[max(0, index - 1)]
+    after = samples[min(len(samples) - 1, index + 1)]
+    pose = dict(samples[index])
+    pose["yaw"] = math.degrees(
+        math.atan2(after["y"] - before["y"], after["x"] - before["x"])
+    )
+    return pose
+
+
+def legal_path_pose_near_target(links_by_id, link_ids, target, offset_m):
+    """Pick a legal lane-centre pose near a target plus pathwise offset."""
+
+    samples, arc = link_path_samples(links_by_id, link_ids)
+    nearest = min(
+        range(len(samples)),
+        key=lambda index: math.hypot(
+            samples[index]["x"] - float(target["x"]),
+            samples[index]["y"] - float(target["y"]),
+        ),
+    )
+    desired_arc = max(0.0, min(arc[-1], arc[nearest] + float(offset_m)))
+    return link_sample_pose(samples, route_index_at_arc(arc, desired_arc))
+
+
+def roundabout_left_vehicle_poses(
+    links_by_id,
+    ego_route,
+    target,
+    count,
+    phase_index,
+):
+    """Select stable left-side snapshots on the official roundabout NPC path.
+
+    The candidates stay on a legal MGeo path and outside Ego's swept route.
+    This represents the static geometry of a circulating/merging vehicle; it
+    intentionally does not pretend to reproduce dynamic sensor timing.
+    """
+
+    samples, _ = link_path_samples(links_by_id, ROUNDABOUT_NPC_LINK_PATH)
+    target_yaw = math.radians(float(target.get("yaw", 0.0)))
+    swept_route = local_route_window(ego_route, target)
+    desired_distances = (12.0, 20.0, 28.0, 36.0)
+    selected = []
+    for order in range(max(0, int(count))):
+        desired = desired_distances[(int(phase_index) + order) % len(desired_distances)]
+        candidates = []
+        for index in range(len(samples)):
+            pose = link_sample_pose(samples, index)
+            dx = pose["x"] - float(target["x"])
+            dy = pose["y"] - float(target["y"])
+            longitudinal = math.cos(target_yaw) * dx + math.sin(target_yaw) * dy
+            lateral = -math.sin(target_yaw) * dx + math.cos(target_yaw) * dy
+            distance = math.hypot(dx, dy)
+            route_clearance = point_to_route_distance(pose, swept_route)
+            if not (
+                lateral >= 2.5
+                and 7.0 <= distance <= 42.0
+                and route_clearance >= 3.15
+            ):
+                continue
+            if not static_actor_candidate_is_clear(pose, 3.0, selected, margin_m=1.5):
+                continue
+            candidates.append((abs(distance - desired), -lateral, pose, route_clearance))
+        if not candidates:
+            break
+        _, _, pose, route_clearance = min(candidates, key=lambda row: row[:2])
+        selected.append({
+            "position": {axis: float(pose[axis]) for axis in ("x", "y", "z")},
+            "sample": pose,
+            "yaw_deg": float(pose["yaw"]),
+            "ego_route_clearance_m": float(route_clearance),
+            "geometry_role": "roundabout_left_legal_path",
+        })
+    return selected
+
+
+def highway_left_vehicle_poses(
+    links_by_id,
+    ego_lane_id,
+    target,
+    count,
+    variant_index,
+):
+    """Place static snapshots in the legal lane immediately left of Ego."""
+
+    left_lane = {6: 8, 8: 10}.get(int(ego_lane_id))
+    if left_lane is None:
+        return []
+    offsets = (-10.0, 0.0, 12.0, 24.0, 36.0)
+    poses = []
+    for index in range(max(0, int(count))):
+        offset = offsets[(int(variant_index) + index) % len(offsets)]
+        pose = legal_path_pose_near_target(
+            links_by_id, HIGHWAY_LANE_LINK_PATHS[left_lane], target, offset
+        )
+        poses.append({
+            "position": {axis: float(pose[axis]) for axis in ("x", "y", "z")},
+            "sample": pose,
+            "yaw_deg": float(pose["yaw"]),
+            "ego_route_clearance_m": 3.15,
+            "geometry_role": "highway_left_adjacent_lane_{}".format(left_lane),
+        })
+    return poses
+
+
 def build_stopped_vehicle_scene(
     scenario,
     template,
@@ -3220,6 +3645,14 @@ def build_stopped_vehicle_scene(
     samples,
     ego_route,
     target_override=None,
+    vehicle_pool=None,
+    vehicle_pool_offset=0,
+    occupied_runtime=None,
+    forced_actor_poses=None,
+    ego_lead_distance_m=None,
+    capture_motion_arm_m=0.0,
+    capture_spacing_m=3.0,
+    capture_count=3,
 ):
     target = (
         dict(target_override)
@@ -3227,41 +3660,178 @@ def build_stopped_vehicle_scene(
         else target_position_for_family(template, family["name"])
     )
     swept_route = local_route_window(ego_route, target)
+    ego_route_arc = route_arc_coordinates(ego_route)
+    target_route_index = min(
+        range(len(ego_route)),
+        key=lambda route_index: math.hypot(
+            float(ego_route[route_index]["x"]) - float(target["x"]),
+            float(ego_route[route_index]["y"]) - float(target["y"]),
+        ),
+    )
+    # Route-wide samplers carry the exact directed arc.  Prefer it over a
+    # nearest-coordinate lookup because roundabout entry/circulation links can
+    # be spatially close while representing different route occurrences.
+    target_route_arc = float(
+        target.get("route_arc_m", ego_route_arc[target_route_index])
+    )
     road = route_pose_at_index(
-        swept_route,
+        ego_route,
         min(
-            range(len(swept_route)),
+            range(len(ego_route)),
             key=lambda route_index: math.hypot(
-                swept_route[route_index]["x"] - target["x"],
-                swept_route[route_index]["y"] - target["y"],
+                ego_route[route_index]["x"] - target["x"],
+                ego_route[route_index]["y"] - target["y"],
             ),
         ),
     )
-    count = int(family.get("actors_per_scene", 2))
+    count = integer_count(rng, family.get("actors_per_scene", 2))
     scenario["vehicleList"] = []
     runtime = []
+    longitudinal_slots = list(
+        family.get(
+            "actor_longitudinal_slots_m",
+            [4.0 + index * 9.0 for index in range(max(1, count))],
+        )
+    )
+    if family.get("shuffle_actor_longitudinal_slots", False):
+        rng.shuffle(longitudinal_slots)
+    forced_actor_poses = list(forced_actor_poses or [])
     for index in range(count):
-        actor = copy.deepcopy(template["vehicleList"][index % len(template["vehicleList"])])
-        longitudinal = 4.0 + index * 9.0
-        preferred_sign = -1.0 if index % 2 == 0 else 1.0
-        base_lateral = rng.uniform(3.5, 5.0)
+        asset = (
+            vehicle_pool[(vehicle_pool_offset + index) % len(vehicle_pool)]
+            if vehicle_pool
+            else None
+        )
+        actor = copy.deepcopy(
+            asset["template"]
+            if asset
+            else template["vehicleList"][index % len(template["vehicleList"])]
+        )
+        footprint_radius = static_actor_footprint_radius({
+            "class": "vehicle",
+            "subtype": asset.get("subtype") if asset else None,
+        })
+        subtype = asset.get("subtype") if asset else None
+        fallback_capture_slots = same_lane_capture_slots(family, subtype)
+        if family.get("shuffle_actor_longitudinal_slots", False):
+            rng.shuffle(fallback_capture_slots)
+        longitudinal = float(longitudinal_slots[index % len(longitudinal_slots)])
+        preferred_sign = float(
+            family.get(
+                "actor_lateral_sign",
+                -1.0 if index % 2 == 0 else 1.0,
+            )
+        )
+        same_lane_ahead = family.get("actor_placement_mode") == "same_lane_ahead"
+        base_lateral = (
+            rng.uniform(0.0, 0.45)
+            if same_lane_ahead
+            else rng.uniform(3.5, 5.0)
+        )
+        minimum_route_clearance = 0.0 if same_lane_ahead else max(
+            3.0, footprint_radius * 0.55 + 1.5
+        )
         clearance_candidates = []
-        for longitudinal_shift in (0.0, 5.0, -5.0, 10.0, -10.0):
-            for step in range(29):
+        planned_ego_minimum_distance_m = None
+        forced = forced_actor_poses[index] if index < len(forced_actor_poses) else None
+        fallback_only = bool(
+            family.get("same_lane_fallback_only", False) and not forced
+        )
+        snap_to_mgeo = bool(
+            family.get("snap_static_vehicle_to_mgeo", False)
+            and not same_lane_ahead
+            and not fallback_only
+        )
+        longitudinal_shifts = (
+            ()
+            if fallback_only
+            else (
+                (0.0,)
+                if forced
+                else (
+                    (0.0, 5.0, -5.0)
+                    if snap_to_mgeo
+                    else (0.0, 5.0, -5.0, 10.0, -10.0)
+                )
+            )
+        )
+        lateral_steps = 1 if forced else (6 if snap_to_mgeo else 29)
+        for longitudinal_shift in longitudinal_shifts:
+            for step in range(lateral_steps):
+                if forced and step > 0:
+                    break
                 magnitude = base_lateral + step * 0.5
                 for sign_penalty, sign in enumerate(
                     (preferred_sign, -preferred_sign)
                 ):
                     candidate_lateral = sign * magnitude
                     candidate_longitudinal = longitudinal + longitudinal_shift
-                    candidate = obstacle_local_to_world(
-                        road,
-                        road["yaw"],
-                        candidate_longitudinal,
-                        candidate_lateral,
-                    )
+                    forced_sample = None
+                    geometry_role = None
+                    if forced:
+                        candidate = dict(forced["position"])
+                        candidate_yaw = float(forced["yaw_deg"])
+                        forced_sample = dict(forced["sample"])
+                        candidate_longitudinal = longitudinal
+                        candidate_lateral = 0.0
+                        geometry_role = forced.get("geometry_role")
+                    elif same_lane_ahead:
+                        candidate_road = continuous_route_pose_at_arc(
+                            ego_route,
+                            ego_route_arc,
+                            target_route_arc
+                            + candidate_longitudinal,
+                            wrap=bool(family.get("route_wide_closed_loop", False)),
+                        )
+                        candidate = obstacle_local_to_world(
+                            candidate_road,
+                            candidate_road["yaw"],
+                            0.0,
+                            candidate_lateral,
+                        )
+                        candidate_yaw = float(candidate_road["yaw"])
+                    else:
+                        candidate = obstacle_local_to_world(
+                            road,
+                            road["yaw"],
+                            candidate_longitudinal,
+                            candidate_lateral,
+                        )
+                        candidate_yaw = float(road["yaw"])
                     clearance = point_to_route_distance(candidate, swept_route)
-                    if clearance >= 3.0:
+                    candidate_sample = forced_sample
+                    if (
+                        not forced
+                        and not same_lane_ahead
+                        and snap_to_mgeo
+                    ):
+                        candidate_sample = nearest_aligned_sample(
+                            samples, {**candidate, "yaw": candidate_yaw}, search_radius_m=8.0
+                        )
+                        snap_distance = math.hypot(
+                            float(candidate_sample["x"]) - float(candidate["x"]),
+                            float(candidate_sample["y"]) - float(candidate["y"]),
+                        )
+                        if snap_distance > float(
+                            family.get("maximum_vehicle_lane_snap_distance_m", 2.75)
+                        ):
+                            continue
+                        candidate = {
+                            axis: float(candidate_sample[axis]) for axis in ("x", "y", "z")
+                        }
+                        candidate_yaw = float(candidate_sample["yaw"])
+                        clearance = point_to_route_distance(candidate, swept_route)
+                    # Route clearance protects Ego's swept corridor.  The
+                    # mutual-clearance check protects mixed-class layouts.
+                    if (
+                        clearance >= minimum_route_clearance
+                        and static_vehicle_candidate_is_clear(
+                            candidate,
+                            footprint_radius,
+                            subtype,
+                            list(occupied_runtime or []) + runtime,
+                        )
+                    ):
                         clearance_candidates.append((
                             abs(longitudinal_shift),
                             magnitude,
@@ -3270,42 +3840,192 @@ def build_stopped_vehicle_scene(
                             candidate_lateral,
                             candidate,
                             clearance,
+                            candidate_yaw,
+                            candidate_sample,
+                            geometry_role,
                         ))
                 if clearance_candidates:
                     break
             if clearance_candidates:
                 break
         if not clearance_candidates:
-            route_clearance = 0.0
-            position = obstacle_local_to_world(
-                road, road["yaw"], longitudinal, preferred_sign * base_lateral
+            # A route-general location can have no legal neighbouring lane.
+            # Fall back to a same-lane queue well beyond the three capture
+            # frames instead of placing a vehicle on unverified shoulder.
+            target_arc = target_route_arc
+            preferred_capture_relative = float(
+                fallback_capture_slots[index % len(fallback_capture_slots)]
             )
-            lateral = preferred_sign * base_lateral
+            fallback_options = [preferred_capture_relative] + [
+                float(value)
+                for value in fallback_capture_slots + [-30.0, 50.0, 62.0]
+                if not math.isclose(float(value), preferred_capture_relative)
+            ]
+            fallback_choice = None
+            for capture_relative in fallback_options:
+                final_relative = (
+                    capture_relative
+                    - float(capture_spacing_m) * (int(capture_count) - 1)
+                    if capture_relative > 0.0
+                    else capture_relative
+                )
+                minimum_separation = minimum_final_capture_separation_m(
+                    family, subtype
+                )
+                if (
+                    capture_relative > 0.0
+                    and final_relative < minimum_separation
+                ) or (
+                    capture_relative < 0.0
+                    and abs(capture_relative) < minimum_separation
+                ):
+                    continue
+                fallback_arc = (
+                    target_arc
+                    - float(ego_lead_distance_m or 0.0)
+                    + float(capture_motion_arm_m)
+                    + capture_relative
+                )
+                fallback = continuous_route_pose_at_arc(
+                    ego_route,
+                    ego_route_arc,
+                    fallback_arc,
+                    wrap=bool(family.get("route_wide_closed_loop", False)),
+                )
+                candidate_sample = nearest_aligned_sample(samples, fallback)
+                candidate_position = {
+                    axis: float(candidate_sample[axis]) for axis in ("x", "y", "z")
+                }
+                ego_start_arc = target_arc - float(ego_lead_distance_m or 0.0)
+                planned_ego_arcs = [ego_start_arc] + [
+                    ego_start_arc
+                    + float(capture_motion_arm_m)
+                    + float(capture_spacing_m) * frame_index
+                    for frame_index in range(int(capture_count))
+                ]
+                planned_ego_poses = [
+                    continuous_route_pose_at_arc(
+                        ego_route,
+                        ego_route_arc,
+                        arc,
+                        wrap=bool(family.get("route_wide_closed_loop", False)),
+                    )
+                    for arc in planned_ego_arcs
+                ]
+                physical_distances = [
+                    math.hypot(
+                        float(candidate_position["x"]) - float(ego_pose["x"]),
+                        float(candidate_position["y"]) - float(ego_pose["y"]),
+                    )
+                    for ego_pose in planned_ego_poses
+                ]
+                physical_minimum = min(physical_distances)
+                # Arc distance alone is unsafe on roundabouts and other
+                # self-near route geometry.  Enforce physical body clearance
+                # against the initial Ego pose and every planned capture pose.
+                if physical_minimum < minimum_separation:
+                    continue
+                if static_vehicle_candidate_is_clear(
+                    candidate_position,
+                    footprint_radius,
+                    subtype,
+                    list(occupied_runtime or []) + runtime,
+                ):
+                    fallback_choice = (
+                        capture_relative,
+                        candidate_sample,
+                        candidate_position,
+                        physical_minimum,
+                    )
+                    break
+            if fallback_choice is None:
+                if len(runtime) >= 3:
+                    # Preserve the family contract (at least three Vehicles)
+                    # rather than forcing an overlapping fourth/fifth actor.
+                    break
+                raise ValueError("no collision-free same-lane Vehicle fallback")
+            (
+                capture_relative,
+                sample,
+                position,
+                planned_ego_minimum_distance_m,
+            ) = fallback_choice
+            route_clearance = 0.0
+            lateral = 0.0
+            longitudinal = capture_relative
+            placement_yaw = float(sample["yaw"])
+            geometry_role = "same_lane_safe_fallback"
+            minimum_route_clearance = 0.0
         else:
             (
-                _, _, _, longitudinal, lateral, position, route_clearance
+                _, _, _, longitudinal, lateral, position, route_clearance,
+                placement_yaw, sample, geometry_role,
             ) = min(clearance_candidates, key=lambda item: item[:3])
-        sample = nearest_aligned_sample(
-            samples, {**position, "yaw": road["yaw"]}, search_radius_m=8.0
-        )
-        if route_clearance < 3.0:
+            if sample is None:
+                sample = nearest_aligned_sample(
+                    samples, {**position, "yaw": placement_yaw}, search_radius_m=8.0
+                )
+        if route_clearance < minimum_route_clearance:
             raise ValueError(
                 "stopped vehicle violates Ego swept-path clearance: "
-                "clearance={:.2f}/3.00m".format(route_clearance)
+                "clearance={:.2f}/{:.2f}m".format(
+                    route_clearance, minimum_route_clearance
+                )
             )
-        set_static_vehicle_actor(actor, sample, position, 1001 + index)
+        # Keep the body aligned with the route used to construct the offset.
+        # Using the yaw of a nearby parallel/opposing link can rotate a long
+        # bus across Ego's lane even when its centre has enough clearance.
+        heading_jitter_limit = static_vehicle_heading_jitter_deg(
+            family, subtype, geometry_role
+        )
+        heading_jitter = rng.uniform(
+            -heading_jitter_limit, heading_jitter_limit
+        )
+        actor_yaw = float(placement_yaw) + heading_jitter
+        opposite_heading_applied = False
+        if rng.random() < float(
+            family.get("opposite_heading_probability", 0.0)
+        ):
+            actor_yaw += 180.0
+            opposite_heading_applied = True
+        set_static_vehicle_actor(
+            actor,
+            sample,
+            position,
+            1001 + index,
+            yaw_override=actor_yaw,
+        )
         scenario["vehicleList"].append(actor)
         runtime.append({
             "unique_id": 1001 + index,
             "data_id": int(actor["DataID"]),
+            "name": asset.get("name") if asset else None,
+            "subtype": asset.get("subtype") if asset else None,
             "motion": "static",
             "class": "vehicle",
             "position": position,
-            "yaw_deg": sample["yaw"],
+            "yaw_deg": actor_yaw,
+            "base_lane_yaw_deg": float(placement_yaw),
+            "heading_jitter_deg": heading_jitter,
+            "opposite_heading_applied": opposite_heading_applied,
             "ego_route_clearance_m": route_clearance,
-            "minimum_ego_route_clearance_m": 3.0,
+            "minimum_ego_route_clearance_m": minimum_route_clearance,
+            "placement_footprint_radius_m": footprint_radius,
             "route_relative_lateral_offset_m": lateral,
             "route_relative_longitudinal_offset_m": longitudinal,
+            "planned_capture_relative_longitudinal_m": [
+                float(longitudinal) - float(capture_spacing_m) * frame_index
+                for frame_index in range(int(capture_count))
+            ],
+            "geometry_role": geometry_role or (
+                "same_lane_queue" if same_lane_ahead else "mgeo_lane_snapped"
+            ),
+            "capture_relative_longitudinal_target_m": (
+                longitudinal if geometry_role == "same_lane_safe_fallback" else None
+            ),
+            "planned_ego_minimum_physical_distance_m": (
+                planned_ego_minimum_distance_m
+            ),
         })
     return target, runtime
 
@@ -3320,6 +4040,7 @@ def build_standing_pedestrian_scene(
     target_override=None,
     pedestrian_pool=None,
     pedestrian_pool_offset=0,
+    occupied_runtime=None,
 ):
     target = (
         dict(target_override)
@@ -3340,9 +4061,17 @@ def build_standing_pedestrian_scene(
                 ),
             ),
         )
-    count = int(family.get("actors_per_scene", 2))
+    count = integer_count(rng, family.get("actors_per_scene", 2))
     scenario["pedestrianList"] = []
     runtime = []
+    longitudinal_slots = list(
+        family.get(
+            "actor_longitudinal_slots_m",
+            [3.0 + index * 7.0 for index in range(max(1, count))],
+        )
+    )
+    if family.get("shuffle_actor_longitudinal_slots", False):
+        rng.shuffle(longitudinal_slots)
     for index in range(count):
         asset = (
             pedestrian_pool[(pedestrian_pool_offset + index) % len(pedestrian_pool)]
@@ -3352,12 +4081,34 @@ def build_standing_pedestrian_scene(
         actor = copy.deepcopy(
             asset["template"] if asset else template["pedestrianList"][0]
         )
-        position = obstacle_local_to_world(
-            road,
-            road["yaw"],
-            3.0 + index * 7.0,
-            (-1.0 if index % 2 == 0 else 1.0) * rng.uniform(2.5, 4.0),
-        )
+        longitudinal = float(longitudinal_slots[index % len(longitudinal_slots)])
+        preferred_sign = -1.0 if index % 2 == 0 else 1.0
+        position = None
+        for longitudinal_shift in (
+            0.0, 3.0, -3.0, 6.0, -6.0, 9.0, -9.0, 12.0, -12.0,
+            15.0, -15.0,
+        ):
+            for step in range(18):
+                magnitude = rng.uniform(2.5, 4.0) + step * 0.45
+                for sign in (preferred_sign, -preferred_sign):
+                    lateral = sign * magnitude
+                    candidate = obstacle_local_to_world(
+                        road,
+                        road["yaw"],
+                        longitudinal + longitudinal_shift,
+                        lateral,
+                    )
+                    if static_actor_candidate_is_clear(
+                        candidate, 0.8, list(occupied_runtime or []) + runtime
+                    ):
+                        position = candidate
+                        break
+                if position is not None:
+                    break
+            if position is not None:
+                break
+        if position is None:
+            raise ValueError("could not place standing pedestrian without overlap")
         set_actor_world_position(actor, position, road["yaw"])
         actor["UNIQUEID"] = 2001 + index
         actor["speed"] = 0.0
@@ -3377,6 +4128,7 @@ def build_standing_pedestrian_scene(
             "class": "pedestrian",
             "position": position,
             "yaw_deg": road["yaw"],
+            "placement_footprint_radius_m": 0.8,
         })
     return target, runtime
 
@@ -3393,6 +4145,12 @@ def build_realistic_mixed_scene(
     target_override=None,
     pedestrian_pool=None,
     pedestrian_pool_offset=0,
+    vehicle_pool=None,
+    vehicle_pool_offset=0,
+    ego_lead_distance_m=None,
+    capture_motion_arm_m=3.0,
+    capture_spacing_m=3.0,
+    capture_count=3,
 ):
     target, runtime = build_obstacle_scene(
         scenario,
@@ -3408,22 +4166,40 @@ def build_realistic_mixed_scene(
     _, vehicles = build_stopped_vehicle_scene(
         scenario,
         template,
-        {**family, "name": "stopped_vehicle", "actors_per_scene": 1},
+        {
+            **family,
+            "name": "stopped_vehicle",
+            "actors_per_scene": family.get("vehicle_actors_per_scene", 1),
+        },
         rng,
         samples,
         ego_route,
         target_override=target,
+        vehicle_pool=vehicle_pool,
+        vehicle_pool_offset=vehicle_pool_offset,
+        occupied_runtime=runtime,
+        ego_lead_distance_m=ego_lead_distance_m,
+        capture_motion_arm_m=float(capture_motion_arm_m),
+        capture_spacing_m=float(capture_spacing_m),
+        capture_count=int(capture_count),
     )
     _, pedestrians = build_standing_pedestrian_scene(
         scenario,
         template,
-        {**family, "name": "standing_pedestrian", "actors_per_scene": 1},
+        {
+            **family,
+            "name": "standing_pedestrian",
+            "actors_per_scene": family.get(
+                "pedestrian_actors_per_scene", 1
+            ),
+        },
         rng,
         samples,
         ego_route=ego_route,
         target_override=target,
         pedestrian_pool=pedestrian_pool,
         pedestrian_pool_offset=pedestrian_pool_offset,
+        occupied_runtime=runtime + vehicles,
     )
     return target, runtime + vehicles + pedestrians
 
@@ -3526,6 +4302,13 @@ def main():
             args.asset_compatibility,
             args.runtime_asset_scenario_dir,
         )
+    vehicle_pool = None
+    if config.get("use_runtime_vehicle_pool", False):
+        vehicle_pool = load_runtime_vehicle_pool(
+            args.asset_catalog,
+            args.asset_compatibility,
+            args.runtime_asset_scenario_dir,
+        )
     seed = int(args.seed if args.seed is not None else config["seed"])
     scenario_dir = args.output_root / "scenarios" / args.group
     metadata_dir = args.output_root / "metadata" / args.group
@@ -3541,6 +4324,7 @@ def main():
     global_index = 0
     obstacle_pool_cursor = 0
     pedestrian_pool_cursor = 0
+    vehicle_pool_cursor = 0
 
     for family in config["families"]:
         name = family["name"]
@@ -3556,16 +4340,74 @@ def main():
             capture_overrides = {}
             ego_sample = None
             route_wide_target = None
+            spatial_details = {}
+            preselected_ego_lead = None
             scene_route = route
             scene_route_arc = route_arc
+            scene_route_closed_loop = bool(
+                family.get("route_wide_closed_loop", False)
+            )
+            if name in {"stopped_vehicle", "realistic_mixed_static"} and family.get(
+                "same_lane_fallback_capture_slots_m"
+            ):
+                preselected_ego_lead = choose_lead(rng, family)
             if family.get("spatial_policy") == "route_wide_competition_route":
                 scene_route = dense_route
                 scene_route_arc = dense_route_arc
                 route_override = scene_route
-                if name == "standing_pedestrian":
+                crosswalk_scene_count = int(
+                    family.get("crosswalk_scene_count", family["count"])
+                )
+                family_scene_count = int(family["count"])
+                use_crosswalk_target = (
+                    ((variant_index + 1) * crosswalk_scene_count)
+                    // family_scene_count
+                    > (variant_index * crosswalk_scene_count)
+                    // family_scene_count
+                )
+                if (
+                    name == "standing_pedestrian"
+                    and use_crosswalk_target
+                ):
                     route_wide_target = route_wide_crosswalk_target(
                         crosswalk_catalog, scene_route, family, variant_index
                     )
+                    spatial_details["spatial_stratum"] = "crosswalk"
+                elif family.get("spatial_strata"):
+                    (
+                        scene_route,
+                        scene_route_arc,
+                        route_wide_target,
+                        spatial_details,
+                    ) = static_spatial_target(
+                        family,
+                        variant_index,
+                        rng,
+                        dense_route,
+                        dense_route_arc,
+                        links_by_id,
+                    )
+                    route_override = scene_route
+                    scene_route_closed_loop = (
+                        spatial_details.get("spatial_stratum")
+                        != "highway_three_lane"
+                    )
+                    if route_wide_target is not None:
+                        bin_count = int(family.get("route_wide_bin_count", 24))
+                        route_wide_target.setdefault(
+                            "route_wide_bin_count", bin_count
+                        )
+                        route_wide_target.setdefault(
+                            "route_wide_bin",
+                            min(
+                                bin_count - 1,
+                                int(
+                                    float(route_wide_target["route_arc_m"])
+                                    / max(1e-9, float(scene_route_arc[-1]))
+                                    * bin_count
+                                ),
+                            ),
+                        )
                 elif name in ROUTE_WIDE_STATIC_FAMILIES:
                     route_wide_target = route_wide_anchor_for_variant(
                         scene_route,
@@ -3672,14 +4514,80 @@ def main():
                     crosswalk_catalog,
                 )
             elif name == "stopped_vehicle":
+                placement_family = family
+                roundabout_phase = spatial_details.get("roundabout_phase")
+                forced_vehicle_poses = []
+                if roundabout_phase in {
+                    "approach", "entry_merge", "circulation", "exit_egress"
+                }:
+                    placement_family = {
+                        **family,
+                        "actors_per_scene": [3, 4],
+                        # Keep non-forced actors in the same class-aware queue
+                        # for every roundabout phase. The first actor can still
+                        # use the explicit legal-left path below.
+                        "same_lane_fallback_only": True,
+                    }
+                if (
+                    roundabout_phase in {"approach", "entry_merge", "circulation"}
+                    and rng.random() < float(
+                        family.get("roundabout_left_vehicle_probability", 0.0)
+                    )
+                ):
+                    forced_vehicle_poses = roundabout_left_vehicle_poses(
+                        links_by_id,
+                        scene_route,
+                        route_wide_target,
+                        1,
+                        {"approach": 0, "entry_merge": 1, "circulation": 2}[
+                            roundabout_phase
+                        ],
+                    )
+                highway_lane_id = spatial_details.get("highway_lane_id")
+                if highway_lane_id in (6, 10):
+                    # Outermost highway lanes have only one paved neighbour.
+                    # Point every lateral placement toward the road interior.
+                    placement_family = {
+                        **placement_family,
+                        "actor_lateral_sign": 1.0 if highway_lane_id == 6 else -1.0,
+                    }
+                if (
+                    highway_lane_id in (6, 8)
+                    and rng.random() < float(
+                        family.get("highway_left_vehicle_probability", 0.0)
+                    )
+                ):
+                    forced_vehicle_poses = highway_left_vehicle_poses(
+                        links_by_id,
+                        highway_lane_id,
+                        route_wide_target,
+                        1,
+                        variant_index,
+                    )
                 target, runtime = build_stopped_vehicle_scene(
                     scenario,
                     template,
-                    family,
+                    placement_family,
                     rng,
                     samples,
                     scene_route,
                     target_override=route_wide_target,
+                    vehicle_pool=vehicle_pool,
+                    vehicle_pool_offset=vehicle_pool_cursor,
+                    forced_actor_poses=forced_vehicle_poses,
+                    ego_lead_distance_m=preselected_ego_lead,
+                    capture_motion_arm_m=float(
+                        family.get(
+                            "capture_motion_arm_m",
+                            config["capture"].get("capture_motion_arm_m", 0.0),
+                        )
+                    ),
+                    capture_spacing_m=float(
+                        config["capture"].get("capture_spacing_m", 3.0)
+                    ),
+                    capture_count=int(
+                        config["capture"].get("captures_per_scene", 3)
+                    ),
                 )
             elif name == "standing_pedestrian":
                 target, runtime = build_standing_pedestrian_scene(
@@ -3694,10 +4602,16 @@ def main():
                     pedestrian_pool_offset=pedestrian_pool_cursor,
                 )
             elif name == "realistic_mixed_static":
+                placement_family = family
+                if spatial_details.get("roundabout_phase") == "exit_egress":
+                    placement_family = {
+                        **family,
+                        "actor_longitudinal_slots_m": [-10.0, -3.0, 5.0, 10.0],
+                    }
                 target, runtime = build_realistic_mixed_scene(
                     scenario,
                     template,
-                    family,
+                    placement_family,
                     rng,
                     samples,
                     scene_route,
@@ -3706,6 +4620,21 @@ def main():
                     target_override=route_wide_target,
                     pedestrian_pool=pedestrian_pool,
                     pedestrian_pool_offset=pedestrian_pool_cursor,
+                    vehicle_pool=vehicle_pool,
+                    vehicle_pool_offset=vehicle_pool_cursor,
+                    ego_lead_distance_m=preselected_ego_lead,
+                    capture_motion_arm_m=float(
+                        family.get(
+                            "capture_motion_arm_m",
+                            config["capture"].get("capture_motion_arm_m", 0.0),
+                        )
+                    ),
+                    capture_spacing_m=float(
+                        config["capture"].get("capture_spacing_m", 3.0)
+                    ),
+                    capture_count=int(
+                        config["capture"].get("captures_per_scene", 3)
+                    ),
                 )
             elif (
                 name == "sparse_background"
@@ -3745,16 +4674,23 @@ def main():
             pedestrian_pool_cursor += sum(
                 actor.get("class") == "pedestrian" for actor in runtime
             )
+            vehicle_pool_cursor += sum(
+                actor.get("class") == "vehicle" for actor in runtime
+            )
 
             if ego_sample is None:
-                lead = choose_lead(rng, family)
+                lead = (
+                    preselected_ego_lead
+                    if preselected_ego_lead is not None
+                    else choose_lead(rng, family)
+                )
                 route_pose = route_pose_before(
                     scene_route,
                     scene_route_arc,
                     target,
                     lead,
                     wrap_closed_route=bool(
-                        family.get("route_wide_closed_loop", False)
+                        scene_route_closed_loop
                     ),
                 )
                 if route_pose.get("link_idx") in links_by_id:
@@ -3871,7 +4807,7 @@ def main():
             execution_route_rotation = None
             if (
                 route_override is not None
-                and family.get("route_wide_closed_loop", False)
+                and scene_route_closed_loop
             ):
                 (
                     execution_route,
@@ -3961,6 +4897,9 @@ def main():
                         route_wide_target.get("crosswalk_id")
                         if route_wide_target else None
                     ),
+                    "spatial_stratum": spatial_details.get("spatial_stratum"),
+                    "roundabout_phase": spatial_details.get("roundabout_phase"),
+                    "highway_lane_id": spatial_details.get("highway_lane_id"),
                 },
                 "validation": validation,
                 "sources": {
@@ -4030,11 +4969,20 @@ def main():
                         "pedestrian": len(scenario["pedestrianList"]),
                         "obstacle": len(scenario["objectList"]),
                     },
-                    "dynamic_actor_policy": "observe_after_warmup",
+                    "dynamic_actor_policy": (
+                        "observe_after_warmup"
+                        if any(
+                            actor.get("motion") != "static" for actor in runtime
+                        ) or bool(scenario["spawnPointList"])
+                        else "fixed_static"
+                    ),
                     "dynamic_actor_ready_requires_motion": bool(
                         capture_overrides.get(
                             "dynamic_actor_ready_requires_motion",
-                            bool(runtime) and not bool(
+                            any(
+                                actor.get("motion") != "static"
+                                for actor in runtime
+                            ) and not bool(
                                 name == "crosswalk_pedestrian"
                                 and runtime[0].get("activation_policy")
                                 == "deferred_ego_approach"
@@ -4057,7 +5005,14 @@ def main():
                         "pedestrian": len(scenario["pedestrianList"]),
                         "obstacle": len(scenario["objectList"]),
                         "spawn_points": len(scenario["spawnPointList"]),
-                        "dynamic_actor_policy": "observe_after_warmup",
+                        "dynamic_actor_policy": (
+                            "observe_after_warmup"
+                            if any(
+                                actor.get("motion") != "static"
+                                for actor in runtime
+                            ) or bool(scenario["spawnPointList"])
+                            else "fixed_static"
+                        ),
                     },
                 }
             )

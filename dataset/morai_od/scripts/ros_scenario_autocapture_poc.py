@@ -3669,21 +3669,65 @@ class AutoCapture:
                         context="before rolling-fast trigger"
                     )
                     trigger_unix = time.time()
+                    trigger_monotonic = time.monotonic()
                     self.publish_capture_request()
+                    frame_index = len(triggers)
+                    ego_state = serialize_ego(
+                        ego,
+                        snapshot["ego_unix_time"],
+                        snapshot["ego_wall_time"],
+                    )
+                    objects = serialize_objects(
+                        snapshot["objects"],
+                        snapshot["objects_unix_time"],
+                        snapshot["objects_wall_time"],
+                    )
                     trigger = {
+                        "schema_version": 1,
+                        "dataset_id": self.dataset_id,
+                        "clip_id": scene["id"],
+                        "scene_id": scene["id"],
+                        "mission_family": scene.get("mission_family"),
+                        "motion_phase": scene.get("motion_phase"),
+                        "sampling_role": scene.get("sampling_role"),
+                        "sequence_contract": scene.get("sequence_contract"),
+                        "split": scene.get("split"),
+                        "frame_index": frame_index,
+                        "frame_id": "{}_f{:06d}".format(
+                            scene["id"], frame_index
+                        ),
+                        "prev_exists": frame_index > 0,
+                        "prev_frame_id": (
+                            "{}_f{:06d}".format(scene["id"], frame_index - 1)
+                            if frame_index > 0
+                            else None
+                        ),
                         "capture_id": self.capture_identifier(
-                            scene, len(triggers)
+                            scene, frame_index
                         ),
                         "triggered_unix": trigger_unix,
+                        "triggered_monotonic": trigger_monotonic,
                         "trigger_distance_m": travelled,
                         "route_turn_deg": route_turn_deg,
                         "command_speed_kph": command_speed_kph,
                         "command_lookahead_m": command_lookahead_m,
                         "command_steering_limit_rad": command_steering_limit,
+                        "ego": ego_state,
+                        "objects": objects,
                         "ego_position": {
                             "x": ego.position.x,
                             "y": ego.position.y,
                             "z": ego.position.z,
+                        },
+                        "quality": {
+                            "ego_state_age_sec": max(
+                                0.0,
+                                trigger_unix - snapshot["ego_unix_time"],
+                            ),
+                            "object_state_age_sec": max(
+                                0.0,
+                                trigger_unix - snapshot["objects_unix_time"],
+                            ),
                         },
                         "verified": False,
                     }
@@ -3700,6 +3744,11 @@ class AutoCapture:
                         command_lookahead_m,
                         command_steering_limit,
                     )
+                    if len(triggers) >= capture_count:
+                        # Leave the loop immediately so ``finally`` publishes
+                        # the existing stop command without one extra 50 ms
+                        # control interval after the final snapshot.
+                        break
                 time.sleep(0.05)
         finally:
             self.publish_stop()
@@ -3709,6 +3758,19 @@ class AutoCapture:
                 "rolling-fast ended with {}/{} triggers".format(
                     len(triggers), capture_count
                 )
+            )
+
+        timing_histories = {}
+        timing_availability = {}
+        if group_verified_frames and not self.args.no_timing_sidecar:
+            timing_histories = self.state.timing_window(
+                triggers[0]["triggered_monotonic"],
+                triggers[-1]["triggered_monotonic"],
+                self.args.timing_window_padding_sec,
+            )
+            bind_trigger_timing(triggers, timing_histories)
+            timing_availability = timing_summary(
+                timing_histories, self.timing_topics
             )
 
         # Wait only once after the burst. MORAI gives all artifacts belonging
@@ -3911,6 +3973,14 @@ class AutoCapture:
             ),
         }
         if group_verified_frames:
+            metadata = self.write_rolling_grouped_metadata(
+                scene,
+                triggers,
+                timing_histories,
+                timing_availability,
+            )
+            metrics.update(metadata)
+        if group_verified_frames:
             rospy.loginfo(
                 "Rolling-grouped complete: triggers=%d, frames=%d, "
                 "span=%.3fs, rate=%.3fHz, files=%d",
@@ -3930,6 +4000,151 @@ class AutoCapture:
                 len(new_files),
             )
         return triggers, metrics
+
+    def write_rolling_grouped_metadata(
+        self,
+        scene,
+        triggers,
+        timing_histories,
+        timing_availability,
+    ):
+        """Persist live state and timing for distance-triggered clips."""
+
+        enrich_derived_motion(triggers)
+        enrich_frame_transforms(triggers)
+        metadata_dir = self.args.capture_dir / "dynamic_metadata"
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+
+        calibration_path = None
+        sensor_config = self.manifest.get("sensor_config")
+        if sensor_config:
+            sensor_config_path = Path(sensor_config).expanduser()
+            if not sensor_config_path.is_absolute():
+                sensor_config_path = (
+                    Path(__file__).resolve().parents[3]
+                    / sensor_config_path
+                )
+            calibration_path = metadata_dir / "calibration.json"
+            if not calibration_path.exists():
+                write_json_atomic(
+                    calibration_path,
+                    normalized_sensor_calibration(sensor_config_path),
+                )
+
+        timing_path = None
+        if not self.args.no_timing_sidecar:
+            timing_path = metadata_dir / "{}.timing.jsonl".format(
+                scene["id"]
+            )
+            timing_path.write_text(
+                "".join(
+                    json.dumps(
+                        sample,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    )
+                    + "\n"
+                    for stream in sorted(timing_histories)
+                    for sample in timing_histories[stream]
+                ),
+                encoding="utf-8",
+            )
+
+        frames_path = metadata_dir / "{}.frames.jsonl".format(scene["id"])
+        frames_path.write_text(
+            "".join(
+                json.dumps(
+                    frame,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+                + "\n"
+                for frame in triggers
+            ),
+            encoding="utf-8",
+        )
+        clip_path = metadata_dir / "{}.clip.json".format(scene["id"])
+        write_json_atomic(
+            clip_path,
+            {
+                "schema_version": 3,
+                "dataset_id": self.dataset_id,
+                "clip_id": scene["id"],
+                "scene_id": scene["id"],
+                "scenario_stem": scene["file_name"],
+                "mission_family": scene.get("mission_family"),
+                "motion_phase": scene.get("motion_phase"),
+                "sampling_role": scene.get("sampling_role"),
+                "sequence_contract": scene.get("sequence_contract"),
+                "split": scene.get("split"),
+                "environment": self.environment,
+                "capture_format": "morai_save_sensor_data_rolling_grouped",
+                "capture_spacing_m": self.args.capture_spacing_m,
+                "frame_count": len(triggers),
+                "frames_jsonl": str(
+                    frames_path.relative_to(self.args.capture_dir)
+                ),
+                "timing_sidecar": (
+                    str(timing_path.relative_to(self.args.capture_dir))
+                    if timing_path is not None
+                    else None
+                ),
+                "timing_streams": timing_availability,
+                "timing_notes": {
+                    "sensor_payload_source": "MORAI SaveSensorData files",
+                    "sidecar_payload_policy": "headers_and_state_only",
+                    "trigger_policy": "ego route displacement",
+                    "state_binding": (
+                        "nearest ROS callback plus trigger-adjacent snapshot"
+                    ),
+                    "missing_sensor_topics_are_fatal": False,
+                },
+                "sensor_config": self.manifest.get("sensor_config"),
+                "sensor_config_sha256": self.manifest.get(
+                    "sensor_config_sha256"
+                ),
+                "calibration": (
+                    str(calibration_path.relative_to(self.args.capture_dir))
+                    if calibration_path is not None
+                    else None
+                ),
+                "coordinate_frames": {
+                    "authoritative_pose": "morai_map",
+                    "relative_pose": "ego_at_capture_request",
+                    "raw_velocity": "MORAI message axes, unmodified",
+                    "derived_velocity": "finite difference in morai_map",
+                    "frame_transform_field": (
+                        "frames_jsonl[*].transforms"
+                    ),
+                },
+                "velocity_label_policy": {
+                    "canonical_static_source": "scenario_static_zero",
+                    "canonical_dynamic_source": (
+                        "fresh_plausible_morai_raw_local_rotated"
+                    ),
+                    "derived_velocity_role": "diagnostic_only",
+                    "derived_velocity_training_loss_weight": 0.0,
+                    "handoff_rule": (
+                        "publish one canonical velocity_target and keep "
+                        "derived motion only in quality/audit fields"
+                    ),
+                },
+                "source_scene_metadata": scene.get("metadata"),
+                "source_scene_expected": scene.get("expected"),
+            },
+        )
+        return {
+            "frames_metadata": str(
+                frames_path.relative_to(self.args.capture_dir)
+            ),
+            "clip_metadata": str(clip_path.relative_to(self.args.capture_dir)),
+            "timing_metadata": (
+                str(timing_path.relative_to(self.args.capture_dir))
+                if timing_path is not None
+                else None
+            ),
+            "timing_streams": timing_availability,
+        }
 
     def run_scene(self, scene):
         self.configure_scene_motion(scene)

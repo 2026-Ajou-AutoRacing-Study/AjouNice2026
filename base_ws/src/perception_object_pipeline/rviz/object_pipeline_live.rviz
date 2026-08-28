@@ -133,6 +133,23 @@ Visualization Manager:
           Value: true
       Enabled: true
       Name: Standard Object Pipeline
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /evaluation/visualization/gt_boxes
+      Name: MORAI GT BBoxes (magenta)
+      Namespaces:
+        morai_gt_boxes: true
+      Queue Size: 5
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /evaluation/visualization/gt_paths
+      Name: Matched GT Future Paths (purple)
+      Namespaces:
+        matched_gt_future_paths: true
+        matched_gt_horizons: true
+      Queue Size: 5
+      Value: true
     - Class: rviz/TF
       Enabled: true
       Filter (blacklist): ""

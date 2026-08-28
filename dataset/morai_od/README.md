@@ -78,6 +78,13 @@ velocity/acceleration/temporal metadata 수집은
 `configs/od_static_random_1998_v1.yaml`에 정의한다. 서로 다른 666개 scene을
 장면당 3 frame, 3.0 m 간격으로 모두 Sunny 13:00에서 촬영한다.
 
+E65의 높은 객체 관측 밀도 가설을 Base3의 전역 MGeo Ego 분포와 결합한
+`Base3-Static 10K` 통제 실험은
+`docs/base3_static_classcentric_10k_design.md`를 따른다. 정식 ID는
+`morai_static_classcentric_base3_10k`이며 3,334 static-layout clips,
+10,002 frames로 구성한다. 이는 velocity/temporal dataset이 아니라
+single-frame LRASPP·PointPainting 일반화 실험용이다.
+
 ```bash
 # 기본 seed와 anchor로 프로토타입 시나리오 생성
 cd ~/AjouNice2026

@@ -316,15 +316,35 @@ def validate_scene(entry):
     ):
         errors.append("runtime actor metadata is empty")
     policy = metadata.get("capture_policy", {})
-    if policy.get("format") != "morai_save_sensor_data_timed_grouped":
-        errors.append("dynamic scene must use timed grouped SaveSensorData capture")
-    if policy.get("split_unit") != "scenario_clip":
-        errors.append("temporal split unit must be scenario_clip")
+    dataset_id = metadata.get("dataset_id", "")
+    is_static_classcentric = dataset_id.startswith(
+        "morai_static_classcentric_base3_10k"
+    )
+    if is_static_classcentric:
+        if policy.get("format") != "morai_save_sensor_data_rolling_grouped":
+            errors.append(
+                "Base3-Static scene must use rolling grouped SaveSensorData capture"
+            )
+        if policy.get("split_unit") != "static_layout_clip":
+            errors.append("Base3-Static split unit must be static_layout_clip")
+        if int(policy.get("captures_per_scene", 0)) != 3:
+            errors.append("Base3-Static clip must contain exactly 3 frames")
+        if not math.isclose(
+            float(policy.get("capture_spacing_m", 0.0)),
+            3.0,
+            abs_tol=1e-9,
+        ):
+            errors.append("Base3-Static capture spacing must be 3 m")
+    else:
+        if policy.get("format") != "morai_save_sensor_data_timed_grouped":
+            errors.append("dynamic scene must use timed grouped SaveSensorData capture")
+        if policy.get("split_unit") != "scenario_clip":
+            errors.append("temporal split unit must be scenario_clip")
     if int(policy.get("captures_per_scene", 0)) < 2:
         errors.append("temporal clip must contain at least two SaveSensorData frames")
     if float(policy.get("capture_period_sec", 0.0)) <= 0.0:
         errors.append("capture_period_sec must be positive")
-    if metadata.get("dataset_id", "").startswith(
+    if dataset_id.startswith(
         "morai_temporal_sequence_v2"
     ):
         if int(policy.get("captures_per_scene", 0)) != 8:

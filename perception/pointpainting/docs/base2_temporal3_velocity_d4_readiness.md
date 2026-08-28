@@ -493,6 +493,33 @@ python perception/pointpainting/tools/train_openpcdet_wandb.py \
 
 ### P0. Base2 validation과 online rosbag 사이의 domain gap 진단.
 
+- 최신 LRASPP semantic audit에서 Base2 natural model은 offline Vehicle IoU 약
+  `0.70`에도 불구하고 online 로터리·고주로 Vehicle point를 거의 전부 Background로
+  분류했다.
+  - Base2 train의 Vehicle-positive camera row가 1.76%, 36 scenes뿐이고 한 scene이
+    Vehicle pixel의 53.5%를 차지한 clip/domain 편중이 확인됐다.
+  - Base2 class/clip-aware balanced LRASPP와 별도로 E65의 높은 객체 관측 밀도 가설을
+    검증할 `Base3-Static 10K`를 최우선 controlled dataset 실험으로 추가한다.
+  - 정식 ID는 `morai_static_classcentric_base3_10k`이며 Base3 전역 MGeo Ego 분포,
+    static Vehicle/Obstacle/Pedestrian class-centric layout, route-wide hard-negative를
+    사용한다.
+  - offline 생성·검증은 완료했고 MORAI representative live smoke와 실제 positive-pixel
+    audit 후에만 10K production capture로 승격한다.
+  - Base2 class/clip-aware balanced LRASPP 실험은 완료했으며 sampling-only 가설은
+    기각한다.
+    - offline best mIoU는 natural `0.7436`에서 balanced `0.7441`로 사실상 동일했다.
+    - online 로터리·고주로 Vehicle semantic argmax p50은 모두 `0%`였다.
+    - S1g 연결 rosbag Vehicle mAP/F1도 로터리 `0.091/0.301`, 고주로
+      `0.090/0.339`로 production에 크게 못 미쳤다.
+    - 같은 36개 Vehicle-positive scene을 반복하는 sampling은 새 visual domain을
+      만들지 못하므로 추가 sampling ablation을 P0 해결책으로 반복하지 않는다.
+  - 현재는 팀원 요청의 rosbag 검토를 먼저 수행하고, 종료 직후 `Base3-Static 10K`를
+    즉시 재개한다.
+    - 재개 시 `dataset/morai_od/docs/base3_static_classcentric_10k_design.md`를 먼저
+      읽는다.
+    - representative live smoke와 positive-pixel audit부터 시작하며 곧바로 10K
+      capture로 건너뛰지 않는다.
+
 - T0는 Base2 validation에서는 E65에 가까운 detection 성능과 `0.77 m/s` 수준의
   Vehicle mAVE를 보였지만 실제 rosbag에서는 detection과 velocity가 모두 악화됨.
 - semantic scale ablation 결과 online LRASPP foreground를 약화해도 성능이
