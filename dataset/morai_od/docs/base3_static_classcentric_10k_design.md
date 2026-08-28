@@ -277,8 +277,10 @@ Base3-Static에서 지금 해결하는 항목과 후속 연구를 분리한다.
 
 ## Production Batch와 수집 runner.
 
-- 최종 geometry 보강본은 campaign tag `prod2`, seed base `260829000`으로
-  Batch 001--007을 재생성했다.
+- 현재 production source는 Queue5 동일 차선 역할 분리와 로터리 clearance 보강을
+  반영한 campaign tag `queue5prod`, seed base `260829000`이다.
+- 기존 `prod2`, `safety3` source·capture·MRP 설치 사본은 삭제하고 Batch 001--007을
+  전부 새 scene ID로 재생성했다.
 - primary는 총 `3,334 clips`, `10,002 frames`다.
 - 각 batch는 기존 validator와 class-centric audit를 모두 통과했다.
 - `run_base3_static_10k_capture.sh`가 다음을 담당한다.
@@ -411,6 +413,297 @@ Base3-Static에서 지금 해결하는 항목과 후속 연구를 분리한다.
     same-lane queue를 유지한다.
 - 위 변경은 중단된 safety3 batch에 소급되지 않는다. generator test와 100--120 scene
   pilot을 다시 통과한 새 campaign으로 001--007을 재생성한다.
+
+### Side6 측방 기하 재설계와 120-scene live pilot.
+
+위 원칙을 `side6` 생성기에 실제로 반영했다.
+
+- 고주로.
+  - Ego lane 6/8/10 중 Ego가 없는 나머지 같은 방향 lane을 모두 후보로 사용한다.
+  - 외곽 lane에서는 인접 lane 70%, 두 lane 떨어진 lane 30%를 우선한다.
+  - 가운데 lane에서는 좌우 lane을 균형 있게 선택한다.
+  - scene 일부에는 두 non-Ego lane을 동시에 포함한다.
+- 로터리.
+  - 접근·진입·순환에서 공식 NPC MGeo path를 이용해 좌측 Vehicle을 0/1/2대로
+    분산한다.
+  - 목표 quota는 30%/50%/20%에 가깝게 두되, 차체 간격을 만족하지 못하면 안전하게
+    1대 또는 0대로 fallback한다.
+  - 이탈 phase의 낮은 quota와 same-lane 표본은 유지한다.
+- 일반 도로.
+  - 임의 횡방향 offset은 사용하지 않는다.
+  - MGeo link가 명시적인 lane-change destination을 제공하고, 진행 방향·도로 여유·차체
+    간격 검사를 모두 통과한 경우에만 해당 link centerline에 Vehicle을 배치한다.
+  - topology가 없는 곳은 기존 same-lane queue를 유지한다.
+
+최종 static audit와 live pilot 결과는 다음과 같다.
+
+| 항목 | 결과 |
+| --- | ---: |
+| static validation | 120 scenes, error 0, warning 0 |
+| live 요청/완료 scenes | 120 / 120 |
+| 완료 frames | 360 / 360 |
+| 최종 실패 scenes | 0 |
+| 최종 실패율 | 0% |
+| scene duration mean / p50 / p95 | 10.20 / 10.04 / 10.84 sec |
+| route-general / highway / roundabout | 69 / 26 / 22 scenes |
+| highway lane 6 / 8 / 10 | 11 / 8 / 7 scenes |
+| Ego state age p50 / p95 | 10.6 / 28.7 ms |
+| Object state age p50 / p95 | 11.1 / 30.0 ms |
+
+- 최초 실행에서는 `dsv001--003`이 MORAI ROS subscriber 일시 단절로 실패했다.
+  같은 run을 resume한 뒤 세 scene 모두 정상 완료됐으며, placement·collision·artifact
+  quality에 의한 최종 실패는 없었다.
+- 생성 Vehicle 438대 중 same-lane은 384대, 실제 다른 lane/path를 사용한 Vehicle은
+  54대다. 측방 기하 비율은 `12.3%`로 중단 Batch 002의 `5.6%`보다 약 2.2배다.
+- 다른 lane/path Vehicle 54대의 구성은 highway 28대, roundabout 15대,
+  route-general explicit topology 11대다.
+- 3개 frame의 실제 Vehicle 관측 1,314건은 front 986, rear 299, left 19,
+  right 10이다. 구버전의 right 0은 제거됐다.
+- 관측 sector는 종방향 offset의 영향을 받으므로 다른 lane actor가 front/rear로도
+  분류된다. 측방 다양성의 주 지표는 `geometry_role`이고 sector는 보조 지표다.
+- 전체 Vehicle 거리 p50/p95는 26.33/58.02 m다. same-lane p05는 11.84 m이고,
+  다른 lane의 짧은 center distance는 차로 횡분리 상태에서만 허용됐다.
+- live pilot에서 collision은 0건이므로 앞차 안전거리 보강과 다차로 배치가 서로
+  충돌하지 않았다.
+
+결론적으로 중단된 safety3 Batch 001--002를 최종 데이터로 이어 쓰지 않는다. 다음
+Base3-Static 수집은 `side6` 이후 generator로 새 scene ID와 seed를 사용해 001--007을
+전부 재생성한다.
+
+### Queue4 동일 차선 역할 분리와 LiDAR GT evidence 정책.
+
+`side6` pilot의 실제 LiDAR를 다시 감사한 결과, 동일 차선 전방 queue가 학습 라벨
+노이즈의 주 원인이었다.
+
+- Vehicle scene의 79.1%에 동일 차선 전방 차량이 2대 이상 있었다.
+- 첫 번째 전방 차량 152건은 zero-point 0%, point p50 96이었다.
+- 두 번째 전방 차량 74건은 zero-point 45.9%, point p50 2였다.
+- 세 번째 전방 차량 23건은 zero-point 65.2%, point p50 0이었다.
+- Base2 train/val Vehicle GT 2,022건은 minimum 8 points였으므로 Base3의 희소 GT는
+  모델 난이도 자체보다 생성 배치가 만든 불필요한 label noise로 판단했다.
+
+따라서 Vehicle scene의 역할을 다음처럼 분리한다.
+
+- 동일 차선 전방은 정확히 1대다.
+- 동일 차선 후방은 0--1대이며 scene 전체에서 50:50으로 interleave한다.
+- 고주로·로터리·명시적 MGeo topology의 옆 차선/path Vehicle은 위 제한과 독립이다.
+- 옆 차선 후보가 body-clearance 검사를 통과하지 못하면 제거한다. 실패한 옆 차선
+  actor를 두 번째 전방 차량으로 바꾸지 않는다.
+- 고주로 한 대 측방 표본은 전방 60%, 후방 40% offset deck을 사용한다. 두 대면
+  front/rear 하나씩 두되 lane assignment를 번갈아 배치한다.
+
+거리 정합 감사 중 두 가지 generator 오류도 수정했다.
+
+- 역할별 slot을 사용하면서 구형 slot key만 확인해 preselected Ego lead가 actor
+  배치 전에 전달되지 않던 문제를 수정했다.
+- sparse MGeo vertex에 Ego pose를 양자화하던 `route_pose_before`를 metric arc
+  interpolation으로 변경했다.
+- source pilot의 같은 차선 전방 목표 오차 p50은 약 14.6 m에서 0.15 m로 감소했다.
+- 수정 후 초기/중간/마지막 capture의 실제 같은 차선 전방 거리 p50은 pilot 초반
+  기준 약 21.0/18.0/15.3 m였다.
+
+LiDAR GT는 raw MORAI 파일을 보존하되 학습/evaluation info 생성 시 evidence를
+명시적으로 기록한다.
+
+- `num_points_in_gt == 0`: GT에서 제거한다.
+- `1 <= num_points_in_gt <= 4`: 정상 positive에서 제외한다.
+- `num_points_in_gt >= 5`: 첫 Base3 normal-positive 기준이다.
+- OpenPCDet `CustomDataset`의 `MIN_GT_POINTS`는 opt-in이며 기본값 0이라 기존 Base2와
+  production 모델의 재현성에는 영향을 주지 않는다.
+- Base3 info 생성 때 `MIN_GT_POINTS: 5`와 `num_points_in_gt`를 함께 사용한다.
+- 실제 분포는 `audit_morai_lidar_gt_visibility.py`로 class·geometry role별 감사한다.
+
+#### Queue4 live pilot과 Queue5 최종 보강.
+
+Queue4 120-scene pilot을 MORAI `SaveSensorData`로 끝까지 실행했다.
+
+- 120 scene 중 119 scene, 357 frame을 정상 저장했다. 실패율은 0.83%다.
+- scene 처리시간 p50/p95는 10.05/10.83초, sequence rate p50/p05는
+  0.81/0.70 Hz였다.
+- Ego state age p50/p95는 11.2/28.2 ms, Object state age는
+  11.7/30.5 ms였다.
+- 같은 차선 전방 차량은 첫 frame 기준 110건이며 거리 min/p50/p90/max는
+  16.84/21.92/29.91/30.28 m였다.
+- 명시적 side actor 실제 관측은 159건이며 front-left 72, front-right 52,
+  rear-left 20, rear-right 15건이었다. 동일 차선 queue 제한이 대각선 표본을
+  줄이지 않았음을 확인했다.
+
+30 m 이내 LiDAR GT 649개를 실제 point로 감사한 결과는 다음과 같다.
+
+- 621개(95.7%)가 5 point 이상 normal-positive였다.
+- 21개는 1--4 point sparse GT, 7개는 zero-point GT였다.
+- Vehicle은 535개 중 533개(99.63%)가 normal-positive였고 zero/sparse는 각각
+  1개뿐이었다.
+- 동일 차선 전방 306건의 point p50은 61, 후방 112건은 30이었다.
+- pilot의 Pedestrian·Obstacle은 각 3 scene뿐이므로 해당 class 비율은 production
+  분포 결론이 아니라 evidence filter 동작 확인용이다.
+
+유일한 실패는 로터리 진입 scene `dsv102`의 측방 SUV가 route에서 5.12 m밖에
+떨어지지 않아 발생한 collision이었다. Queue5에서 로터리 side actor의 최소 route
+clearance를 7.0 m로 올렸다. 같은 seed의 actor clearance는 13.90 m가 됐고, 해당
+scene을 다시 live capture해 3/3 frame, collision 0건, 모든 Vehicle GT 20 point
+이상을 확인했다.
+
+따라서 최종 generator 기준은 Queue5다. 전체 120 scene을 다시 반복하지는 않았지만,
+Queue4 full pilot과 유일 실패 seed의 Queue5 live 재검증을 함께 통과한 상태다. 실제
+10K Batch 001--007은 이 기준으로 새 ID와 seed를 생성한다.
+
+2026-08-28 `queue5prod` Batch 001--007을 생성했다.
+
+- Batch 001--002는 각각 477 clips, 1,431 frames다.
+- Batch 003--007은 각각 476 clips, 1,428 frames다.
+- 전체는 3,334 clips, 10,002 frames다.
+- 7개 batch 모두 capture-set validator의 errors/warnings가 0이고 class-centric
+  spatial audit를 통과했다.
+- 각 batch의 runtime asset coverage는 Vehicle 43종, Pedestrian 22종,
+  Obstacle 30종이다.
+
+### Queue5 부분 수집 LiDAR GT 감사와 다음 개편 계획.
+
+`queue5prod` Batch 001은 477 scene 중 377 scene을 시도한 시점에 수집을 중단하고
+Vehicle·Pedestrian·Obstacle의 실제 LiDAR evidence를 다시 감사했다. 이 결과는 완성
+dataset이 아니라 다음 generator 개편을 위한 진단 자료다.
+
+- 완료 373 scene, 실패 4 scene, 완료 1,119 frames다.
+- 30 m 이내 실제 GT box는 Vehicle 819, Pedestrian 604, Obstacle 2,751개다.
+- point 수는 MORAI `LIDAR_5/Instance.txt` box 안에 실제 XYZI point가 몇 개 있는지
+  계산했다.
+
+| Class | 전체 GT | 0 point | 1--4 point | 5 point 이상 | 5 point 미만 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Vehicle | 819 | 1 | 1 | 817 | 0.2% |
+| Pedestrian | 604 | 10 | 70 | 524 | 13.2% |
+| Obstacle | 2,751 | 266 | 627 | 1,858 | 32.5% |
+| 전체 | 4,174 | 277 | 698 | 3,199 | 23.4% |
+
+Vehicle은 같은 차선 queue 제한과 명시적 side-path 정책을 적용한 뒤 LiDAR evidence가
+충분하다. 남은 Vehicle 후속 수정은 다음과 같다.
+
+- `same_lane_primary_front`의 실제 종방향 부호가 항상 양수인지 생성·감사 단계에서
+  invariant로 검사한다. 실패한 측방 placement가 전방 역할 이름을 가진 후방 slot으로
+  대체되지 않게 한다.
+- 같은 차선 전방은 최대 1대, 후방은 0--1대를 유지한다.
+- 후방 차량은 capture가 진행되며 더 멀어지는 점을 고려해 subtype별 시작 거리를
+  조금 당기되, Ego 차체가 LiDAR를 완전히 가리는 초근거리는 피한다.
+- 옆 차선의 좌전방·우전방·좌후방·우후방 Vehicle은 같은 차선 제한과 독립적으로
+  유지한다.
+- 고주로는 실제 양쪽 인접 차로, 로터리는 실제 circulating path, 일반 도로는 명시적
+  MGeo topology가 있을 때만 측방 Vehicle을 둔다.
+- Vehicle yaw는 실제 lane/path 접선을 사용한다. 임의 180도 반전은 넣지 않고 실제
+  반대 방향 차로에 배치한 경우만 반대 방향 관측으로 인정한다.
+
+Pedestrian은 asset보다 방향·거리 분포가 우선 문제다.
+
+- standing Pedestrian이 거의 도로 진행 방향 하나로 정렬된 현 상태를 폐기한다.
+- route-relative 전방, 후방, 좌횡단, 우횡단 방향과 작은 yaw jitter를 혼합한다.
+- 횡단보도에서는 횡단 방향을 우선하고, route-wide standing family에서는 네 방향을
+  비교적 고르게 사용한다.
+- 5 point 미만 13.2%를 줄이기 위해 근·중거리 비중을 높이고 과도한 원거리·가림
+  배치를 줄인다.
+- 특정 asset이 한 scene에서 빠졌더라도 다른 scene의 정상 spawn evidence가 있으면
+  자산 고유 실패로 단정하지 않는다. ROS/MORAI 재시도 뒤 reserve로 보충한다.
+
+Obstacle은 MORAI `objectList` 컨테이너와 대회 OD ontology를 분리한다. 공식 샘플
+시나리오의 정적 장애물은 `40100001 CargoBox` 한 종류다. 대회가 LiDAR로 거의 관측할
+수 없는 노면·고정 시설물을 회피 장애물로 낼 가능성은 낮다고 판단하고, 자동 positive
+pool을 30종에서 18종으로 줄인다.
+
+다음 12종은 catalog provenance만 유지하고 자동 배치와 Obstacle positive quota에서는
+제외한다.
+
+- `Road_Sign_Mark`: 관측 46/46개가 0 point다.
+- `hole-cover`: 97.6%가 0 point이며 5 point 이상 관측은 0개다.
+- `fr-streetlight-2`: 검출 가능 여부와 무관하게 고정 도로시설이다.
+- `KR_Sign_SL_30`, `40`, `50`, `60`, `70`, `80`, `90`, `100`, `110`: 고정 속도
+  표지판이며 이를 positive로 학습하면 도로시설 오검출을 강화할 수 있다.
+
+유지하는 18종과 첫 quota는 다음과 같다.
+
+| 그룹 | Asset | Obstacle 내부 비중 |
+| --- | --- | ---: |
+| box | `CargoBox`, `WoodBox` | 25% |
+| barrel/drum | `PE_Drum`, `TrafficBarrel`, `RedBarrel`, `YellowBarrel` | 25% |
+| large barrier | `concrete-barrier`, `Concrete_Barricade01`, `Concrete_Barricade02`, `Steel_Barricade`, `PE_Firewall_Orange`, `PE_Firewall_White` | 35% |
+| small barrier | `Bollard01`, `Bollard04`, `Lane_Separation_Bar` | 10% |
+| unoccupied two-wheeler | `Bicycle_city`, `Bicycle_mountain`, `Scooter_02` | 5% |
+
+- 공식 샘플인 `CargoBox`는 Obstacle placement의 약 15%를 우선 목표로 한다.
+- Bollard와 lane bar는 주로 10 m 이내, two-wheeler는 15 m 이내, box와 barrel은
+  20 m 이내를 중심으로 둔다.
+- 대형 barrier만 20--30 m stress 표본을 충분히 유지한다.
+- box와 barrel은 다양한 yaw, 긴 barrier는 평행·대각·수직 yaw를 혼합한다.
+- 현재 차로 전방뿐 아니라 회피할 인접 차로, 좌우 대각선, 추월 중 근거리 측방도
+  중요한 positive다. 주행 가능 영역 밖 도로변·원거리 후방만 낮은 비율로 둔다.
+- `PE_Firewall_White` 이동 0.124 m와 `Steel_Barricade`의 특정 지형 spawn 이탈은 다른
+  scene에서 정상 evidence가 충분하므로 자산 전체 제거 사유가 아니다. stability gate로
+  clip만 차단한다.
+
+Obstacle relative-position 첫 목표는 현재 차로 전방 35%, 인접 차로·회피 경로 전방
+25%, 좌우 대각선 20%, 근거리 측·후측방 10%, 비충돌 도로변 context 10%다. 긴 barrier
+yaw는 수직 40%, 대각선 35%, 평행 25%를 첫 audit 목표로 사용한다.
+
+### Mission-weighted dataset과 evaluation 원칙.
+
+Base3-Static의 목적은 모든 MORAI asset을 모든 방향에서 동일하게 맞히는 범용 benchmark가
+아니라 대회 Planning에 필요한 객체를 안정적으로 제공하는 것이다. 다만 미션 좌표에
+과적합하지 않도록 route-wide background와 기하 기반 ROI를 함께 유지한다.
+
+다음 10K 재생성의 첫 family 비율은 Vehicle 40%, Obstacle 30%, Pedestrian 15%,
+empty/hard-negative 15%다. 현재 `queue5prod` 35/35/20/10 source에는 소급 적용하지 않고
+새 campaign ID와 seed로 생성한다.
+
+- Vehicle은 로터리 접근·순환, 고주로 합류·추월, GPS 음영 전방·인접 차로를 우선한다.
+- Pedestrian은 횡단보도, 가림 뒤 진입, Ego corridor와 충돌 가능한 전·측방을 우선한다.
+- Obstacle은 현재 차로와 가능한 회피 차로의 전방·대각·측방을 우선한다.
+- empty/hard-negative는 대회 route 전역의 중앙분리대, 가드레일, 기둥, 고정 표지판
+  오검출을 줄이는 역할이다.
+
+평가는 다음 네 slice를 함께 보고 production 선택은 `Mission-relevant`를 주 지표로 한다.
+
+- `Global`: 기존 전체 센서 범위 AP·ATE·ASE·AOE·AVE다.
+- `Mission-relevant`: lane relation, 상대 종횡방향, 거리와 가능한 Ego corridor로 고른
+  객체다. 특정 scenario ID나 절대 좌표를 하드코딩하지 않는다.
+- `Peripheral`: 원거리·후방·도로 밖 객체 진단 지표다.
+- `Sparse`: LiDAR point가 적은 별도 stress 지표다.
+
+로터리는 좌측 접근·순환 Vehicle, 고주로는 같은 차로 전방과 양쪽 인접 차로 Vehicle,
+횡단보도는 corridor로 진입하는 Pedestrian, 정적 장애물과 GPS 음영은 현재·회피 차로의
+Vehicle/Obstacle을 주요 ROI로 삼는다.
+
+### Loss 변경 경계와 다음 검증 순서.
+
+첫 Base3 개편에서는 dataset 효과와 loss 효과를 섞지 않는다. 필수 변경은 학습 target
+quality mask뿐이다.
+
+- 0 point GT는 classification·center·size·yaw loss 전체에서 제외한다.
+- 1--4 point GT도 첫 normal-positive 학습에서는 제외한다.
+- 5 point 이상 GT만 기본 positive로 사용한다.
+- raw MORAI GT는 보존하고 OpenPCDet info 생성 시 `MIN_GT_POINTS: 5`로 mask한다.
+- `WoodBox` 대표 zero-point 표본에서 실제 point가 GT 경계보다 약 2--4 mm 밖에 있던
+  수치 사례가 있어 point-count 판정에만 약 2 cm tolerance를 줄지 A/B한다. GT box를
+  임의로 키우지는 않는다.
+
+첫 baseline에서는 class loss weight, GT sampling 비율, velocity loss, yaw loss 공식을
+바꾸지 않는다. Vehicle과 긴 barrier, bicycle, 직사각형 box의 yaw는 유지해야 한다.
+barrel·drum·bollard처럼 회전 대칭인 자산과 near-symmetric Pedestrian의 yaw weight 또는
+mask는 새 baseline의 subtype별 mAOE와 loss gradient를 확인한 뒤에만 별도 A/B한다.
+
+구현·검증 순서는 다음이다.
+
+1. Vehicle role invariant, Pedestrian yaw deck, Obstacle 18종 pool·quota·거리·yaw 정책을
+   generator와 static audit에 구현한다.
+2. family별 smoke capture로 실제 spawn·방향·거리·artifact를 확인한다.
+3. 100--120 scene live pilot을 실행해 실패율 한 자릿수, 가능하면 5% 이하를 확인한다.
+4. 30 m 이내 point audit에서 Vehicle 5 point 미만 1% 이하, Pedestrian 5--8% 이하,
+   Obstacle 10--15% 이하를 첫 목표로 삼는다.
+5. 학습 info의 quality mask 적용 후 실제 학습 target에는 5 point 미만 GT가 0개인지
+   확인한다.
+6. Camera·LiDAR 정성 표본과 mission/global/peripheral/sparse 분포를 확인한 뒤에만 기존
+   중단 capture와 source를 정리하고 Batch 001--007을 새로 생성한다.
+
+이 절의 Vehicle 후속 미세조정, Pedestrian 방향 다양화, Obstacle pool 축소, family 비율
+변경과 mission evaluator는 아직 다음 generator campaign의 계획이다. `queue5prod` 부분
+수집 결과를 완성 dataset으로 오인하지 않는다.
 
 ## 모델 실험 순서.
 

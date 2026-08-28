@@ -722,8 +722,10 @@ def route_pose_before(
     target_arc = float(target.get("route_arc_m", arc[target_index]))
     if not wrap_closed_route:
         target_arc = max(0.0, target_arc - lead_distance)
-        index = route_index_at_arc(arc, target_arc)
-        return route_pose_at_index(route, index)
+        # Do not quantize Ego to a sparse MGeo vertex.  Highway link points
+        # can be more than 10 m apart, which previously turned an intended
+        # 11 m lead into 22+ m and shifted every same-lane target accordingly.
+        return continuous_route_pose_at_arc(route, arc, target_arc, wrap=False)
     return continuous_route_pose_at_arc(
         route,
         arc,
@@ -1348,6 +1350,8 @@ def static_spatial_target(
             route, arc, [row["arc_m"]], phase_within, phase_total, rng
         )
         metadata["roundabout_phase"] = phase
+        metadata["roundabout_phase_within"] = phase_within
+        metadata["roundabout_phase_total"] = phase_total
         return route, arc, target, metadata
     if stratum == "highway_three_lane":
         count = strata.count(stratum)
@@ -3431,7 +3435,8 @@ def vehicle_subtype_policy(family, key, subtype, default):
 def static_vehicle_heading_jitter_deg(family, subtype, geometry_role=None):
     if geometry_role and (
         geometry_role == "roundabout_left_legal_path"
-        or geometry_role.startswith("highway_left_adjacent_lane_")
+        or geometry_role.startswith("highway_parallel_lane_")
+        or geometry_role.startswith("route_general_")
     ):
         return float(family.get("legal_path_heading_jitter_deg", 1.0))
     return float(
@@ -3458,6 +3463,36 @@ def same_lane_capture_slots(family, subtype):
             default,
         )
     ]
+
+
+def controlled_same_lane_capture_slots(family, subtype, role):
+    """Return role-specific capture-relative slots for Base3 static cars."""
+
+    if role == "front":
+        key = "same_lane_front_capture_slots_by_subtype"
+        default = family.get("same_lane_front_capture_slots_m", [18.0, 21.0, 24.0])
+    elif role == "rear":
+        key = "same_lane_rear_capture_slots_by_subtype"
+        default = family.get("same_lane_rear_capture_slots_m", [-18.0, -21.0, -24.0])
+    else:
+        raise ValueError("unknown controlled same-lane role: {}".format(role))
+    return [
+        float(value)
+        for value in vehicle_subtype_policy(family, key, subtype, default)
+    ]
+
+
+def same_lane_rear_count(family, variant_index):
+    """Choose an interleaved rear count without random quota drift."""
+
+    rows = family.get("same_lane_rear_count_weights")
+    if not rows:
+        return 0
+    schedule = weighted_zone_schedule(
+        {"count": 100, "same_lane_rear_counts": rows},
+        key="same_lane_rear_counts",
+    )
+    return int(schedule[int(variant_index) % len(schedule)])
 
 
 def minimum_final_capture_separation_m(family, subtype):
@@ -3573,10 +3608,21 @@ def roundabout_left_vehicle_poses(
     samples, _ = link_path_samples(links_by_id, ROUNDABOUT_NPC_LINK_PATH)
     target_yaw = math.radians(float(target.get("yaw", 0.0)))
     swept_route = local_route_window(ego_route, target)
-    desired_distances = (12.0, 20.0, 28.0, 36.0)
+    # Two-actor layouts must remain valid even when the runtime asset deck
+    # assigns buses or trucks to both forced slots.  Keep their desired
+    # distances roughly 18 m apart instead of packing them into adjacent
+    # 8 m rings.
+    desired_distance_sets = (
+        (14.0, 32.0),
+        (18.0, 36.0),
+        (12.0, 30.0),
+    )
+    desired_distances = desired_distance_sets[
+        int(phase_index) % len(desired_distance_sets)
+    ]
     selected = []
     for order in range(max(0, int(count))):
-        desired = desired_distances[(int(phase_index) + order) % len(desired_distances)]
+        desired = desired_distances[order % len(desired_distances)]
         candidates = []
         for index in range(len(samples)):
             pose = link_sample_pose(samples, index)
@@ -3589,10 +3635,17 @@ def roundabout_left_vehicle_poses(
             if not (
                 lateral >= 2.5
                 and 7.0 <= distance <= 42.0
-                and route_clearance >= 3.15
+                # The online controller can cut an entry curve by more than
+                # the source centreline suggests.  The old 3.15 m gate caused
+                # one real SUV collision at 5.12 m clearance in queue4.
+                and route_clearance >= 7.0
             ):
                 continue
-            if not static_actor_candidate_is_clear(pose, 3.0, selected, margin_m=1.5):
+            # Use the largest vehicle envelope here because the asset subtype
+            # is assigned later by build_stopped_vehicle_scene.
+            if not static_actor_candidate_is_clear(
+                pose, 5.5, selected, margin_m=4.0
+            ):
                 continue
             candidates.append((abs(distance - desired), -lateral, pose, route_clearance))
         if not candidates:
@@ -3604,37 +3657,168 @@ def roundabout_left_vehicle_poses(
             "yaw_deg": float(pose["yaw"]),
             "ego_route_clearance_m": float(route_clearance),
             "geometry_role": "roundabout_left_legal_path",
+            # Conservative placeholder used only while choosing the next
+            # forced pose.  The actual asset metadata replaces it later.
+            "class": "vehicle",
+            "subtype": "bus_van",
         })
     return selected
 
 
-def highway_left_vehicle_poses(
+def roundabout_left_vehicle_count(family, spatial_details, rng):
+    """Return an exact-quota 0/1/2 actor count for one roundabout phase."""
+
+    rows = family.get("roundabout_left_actor_count_weights")
+    phase_total = spatial_details.get("roundabout_phase_total")
+    phase_within = spatial_details.get("roundabout_phase_within")
+    if rows and phase_total is not None and phase_within is not None:
+        schedule = weighted_zone_schedule(
+            {"count": int(phase_total), "actor_counts": rows},
+            key="actor_counts",
+        )
+        return int(schedule[int(phase_within)])
+    if rng.random() >= float(
+        family.get("roundabout_left_vehicle_probability", 0.0)
+    ):
+        return 0
+    return 1 + int(
+        rng.random() < float(
+            family.get("roundabout_second_left_vehicle_probability", 0.0)
+        )
+    )
+
+
+def highway_other_lane_order(ego_lane_id, count, variant_index):
+    """Return deterministic near/far target lanes for one highway scene.
+
+    The three competition highway lanes share one direction.  Outer-lane Ego
+    scenes prefer the immediately adjacent lane but retain a 30% far-lane
+    sample.  Middle-lane scenes balance both adjacent lanes.  When two side
+    actors are requested, both non-Ego lanes are represented.
+    """
+
+    ego_lane_id = int(ego_lane_id)
+    count = max(0, min(2, int(count)))
+    if ego_lane_id not in HIGHWAY_LANE_LINK_PATHS or count == 0:
+        return []
+    if ego_lane_id == 6:
+        near, far = 8, 10
+    elif ego_lane_id == 10:
+        near, far = 8, 6
+    else:
+        near, far = ((6, 10) if int(variant_index) % 2 == 0 else (10, 6))
+    if count >= 2:
+        return [near, far]
+    if ego_lane_id == 8:
+        return [near]
+    # Seven slots out of ten prefer the adjacent lane, while three preserve
+    # the two-lanes-away geometry that the old left-only helper never emitted.
+    return [near if int(variant_index) % 10 < 7 else far]
+
+
+def highway_other_lane_vehicle_poses(
     links_by_id,
     ego_lane_id,
     target,
     count,
     variant_index,
 ):
-    """Place static snapshots in the legal lane immediately left of Ego."""
+    """Place static snapshots in all valid same-direction highway lanes."""
 
-    left_lane = {6: 8, 8: 10}.get(int(ego_lane_id))
-    if left_lane is None:
-        return []
-    offsets = (-10.0, 0.0, 12.0, 24.0, 36.0)
+    target_lanes = highway_other_lane_order(
+        ego_lane_id, count, variant_index
+    )
+    # Alternate useful front/rear diagonals.  All anchors stay inside the
+    # 30 m training/evaluation range, unlike the old +38 m tail.
+    single_offsets = (12.0, 20.0, 28.0, -12.0, -20.0)
+    double_offsets = ((14.0, -14.0), (-14.0, 14.0))
     poses = []
-    for index in range(max(0, int(count))):
-        offset = offsets[(int(variant_index) + index) % len(offsets)]
+    ego_lane_position = {6: 0, 8: 1, 10: 2}[int(ego_lane_id)]
+    for index, target_lane in enumerate(target_lanes):
+        if len(target_lanes) >= 2:
+            offset = double_offsets[int(variant_index) % 2][index]
+        else:
+            offset = single_offsets[int(variant_index) % len(single_offsets)]
         pose = legal_path_pose_near_target(
-            links_by_id, HIGHWAY_LANE_LINK_PATHS[left_lane], target, offset
+            links_by_id, HIGHWAY_LANE_LINK_PATHS[target_lane], target, offset
+        )
+        lane_gap = abs(
+            {6: 0, 8: 1, 10: 2}[int(target_lane)] - ego_lane_position
         )
         poses.append({
             "position": {axis: float(pose[axis]) for axis in ("x", "y", "z")},
             "sample": pose,
             "yaw_deg": float(pose["yaw"]),
             "ego_route_clearance_m": 3.15,
-            "geometry_role": "highway_left_adjacent_lane_{}".format(left_lane),
+            "geometry_role": "highway_parallel_lane_{}_gap_{}".format(
+                target_lane, lane_gap
+            ),
         })
     return poses
+
+
+def route_general_parallel_vehicle_poses(
+    links_by_id,
+    ego_route,
+    target,
+    count,
+    variant_index,
+):
+    """Use only explicit MGeo lane-change neighbours in ordinary roads.
+
+    A nearby centreline alone is not enough: it may be opposing, turning, or
+    disconnected.  This helper requires an explicit MGeo lane-change edge,
+    compatible tangent heading, ordinary lane width, and Ego-route clearance.
+    It therefore improves the few topology-complete route-general locations
+    without guessing at the majority of single-lane/ambiguous locations.
+    """
+
+    if int(count) <= 0:
+        return []
+    source = links_by_id.get(str(target.get("link_idx")))
+    if not source:
+        return []
+    neighbours = []
+    for side in ("left", "right"):
+        if not source.get("can_move_{}_lane".format(side)):
+            continue
+        destination_id = source.get("{}_lane_change_dst_link_idx".format(side))
+        destination = links_by_id.get(str(destination_id))
+        if not destination or len(destination.get("points", [])) < 3:
+            continue
+        pose = legal_path_pose_near_target(
+            links_by_id,
+            (str(destination_id),),
+            target,
+            (-12.0, 10.0, 18.0, 26.0)[int(variant_index) % 4],
+        )
+        heading_error = abs(
+            wrapped_degrees(float(pose["yaw"]) - float(target["yaw"]))
+        )
+        distance = math.hypot(
+            float(pose["x"]) - float(target["x"]),
+            float(pose["y"]) - float(target["y"]),
+        )
+        clearance = point_to_route_distance(
+            pose, local_route_window(ego_route, target)
+        )
+        if heading_error > 15.0 or not 2.5 <= distance <= 36.0 or clearance < 3.15:
+            continue
+        neighbours.append((side, str(destination_id), pose, clearance))
+    if not neighbours:
+        return []
+    side, destination_id, pose, clearance = neighbours[
+        int(variant_index) % len(neighbours)
+    ]
+    return [{
+        "position": {axis: float(pose[axis]) for axis in ("x", "y", "z")},
+        "sample": pose,
+        "yaw_deg": float(pose["yaw"]),
+        "ego_route_clearance_m": float(clearance),
+        "geometry_role": "route_general_{}_parallel_link_{}".format(
+            side, destination_id
+        ),
+    }]
 
 
 def build_stopped_vehicle_scene(
@@ -3674,6 +3858,22 @@ def build_stopped_vehicle_scene(
     target_route_arc = float(
         target.get("route_arc_m", ego_route_arc[target_route_index])
     )
+    # ``route_arc_m`` belongs to the reconstructed competition loop.  A
+    # highway scene can replace that loop segment with lane 6/8/10, whose
+    # cumulative arc origin is different.  Reusing the global scalar then
+    # moves a nominal +24 m actor tens of metres away.  Validate the supplied
+    # arc in the actual scene route and fall back to its nearest directed arc.
+    supplied_arc_pose = continuous_route_pose_at_arc(
+        ego_route,
+        ego_route_arc,
+        target_route_arc,
+        wrap=bool(family.get("route_wide_closed_loop", False)),
+    )
+    if math.hypot(
+        float(supplied_arc_pose["x"]) - float(target["x"]),
+        float(supplied_arc_pose["y"]) - float(target["y"]),
+    ) > 5.0:
+        target_route_arc = float(ego_route_arc[target_route_index])
     road = route_pose_at_index(
         ego_route,
         min(
@@ -3712,7 +3912,27 @@ def build_stopped_vehicle_scene(
             "subtype": asset.get("subtype") if asset else None,
         })
         subtype = asset.get("subtype") if asset else None
-        fallback_capture_slots = same_lane_capture_slots(family, subtype)
+        forced = forced_actor_poses[index] if index < len(forced_actor_poses) else None
+        nonforced_index = index - len(forced_actor_poses)
+        controlled_same_lane = bool(
+            family.get("controlled_same_lane_front_rear", False) and not forced
+        )
+        controlled_role = None
+        if controlled_same_lane:
+            if nonforced_index == 0:
+                controlled_role = "front"
+            elif nonforced_index == 1:
+                controlled_role = "rear"
+            else:
+                raise ValueError(
+                    "controlled static Vehicle layout permits only one front "
+                    "and one optional rear actor"
+                )
+            fallback_capture_slots = controlled_same_lane_capture_slots(
+                family, subtype, controlled_role
+            )
+        else:
+            fallback_capture_slots = same_lane_capture_slots(family, subtype)
         if family.get("shuffle_actor_longitudinal_slots", False):
             rng.shuffle(fallback_capture_slots)
         longitudinal = float(longitudinal_slots[index % len(longitudinal_slots)])
@@ -3733,9 +3953,9 @@ def build_stopped_vehicle_scene(
         )
         clearance_candidates = []
         planned_ego_minimum_distance_m = None
-        forced = forced_actor_poses[index] if index < len(forced_actor_poses) else None
         fallback_only = bool(
-            family.get("same_lane_fallback_only", False) and not forced
+            (family.get("same_lane_fallback_only", False) or controlled_same_lane)
+            and not forced
         )
         snap_to_mgeo = bool(
             family.get("snap_static_vehicle_to_mgeo", False)
@@ -3775,6 +3995,21 @@ def build_stopped_vehicle_scene(
                         candidate_longitudinal = longitudinal
                         candidate_lateral = 0.0
                         geometry_role = forced.get("geometry_role")
+                        if geometry_role and (
+                            geometry_role == "roundabout_left_legal_path"
+                        ):
+                            minimum_route_clearance = 7.0
+                        elif geometry_role and (
+                            geometry_role.startswith("highway_parallel_lane_")
+                            or geometry_role.startswith("route_general_")
+                        ):
+                            # The generic footprint radius includes vehicle
+                            # length and is intentionally conservative for
+                            # arbitrary placements.  It must not reject a bus
+                            # that is legally parallel in an adjacent lane.
+                            # MGeo establishes the lane relationship; body-to-
+                            # body spacing is still checked separately below.
+                            minimum_route_clearance = 3.15
                     elif same_lane_ahead:
                         candidate_road = continuous_route_pose_at_arc(
                             ego_route,
@@ -3849,6 +4084,10 @@ def build_stopped_vehicle_scene(
             if clearance_candidates:
                 break
         if not clearance_candidates:
+            if forced:
+                # Side-path context is optional.  Never convert a failed side
+                # placement into an additional same-lane front queue.
+                continue
             # A route-general location can have no legal neighbouring lane.
             # Fall back to a same-lane queue well beyond the three capture
             # frames instead of placing a vehicle on unverified shoulder.
@@ -3939,9 +4178,8 @@ def build_stopped_vehicle_scene(
                     )
                     break
             if fallback_choice is None:
-                if len(runtime) >= 3:
-                    # Preserve the family contract (at least three Vehicles)
-                    # rather than forcing an overlapping fourth/fifth actor.
+                if controlled_role == "rear":
+                    # Rear context is optional; the primary front actor is not.
                     break
                 raise ValueError("no collision-free same-lane Vehicle fallback")
             (
@@ -3954,7 +4192,13 @@ def build_stopped_vehicle_scene(
             lateral = 0.0
             longitudinal = capture_relative
             placement_yaw = float(sample["yaw"])
-            geometry_role = "same_lane_safe_fallback"
+            geometry_role = (
+                "same_lane_primary_front"
+                if controlled_role == "front"
+                else "same_lane_optional_rear"
+                if controlled_role == "rear"
+                else "same_lane_safe_fallback"
+            )
             minimum_route_clearance = 0.0
         else:
             (
@@ -4021,7 +4265,13 @@ def build_stopped_vehicle_scene(
                 "same_lane_queue" if same_lane_ahead else "mgeo_lane_snapped"
             ),
             "capture_relative_longitudinal_target_m": (
-                longitudinal if geometry_role == "same_lane_safe_fallback" else None
+                longitudinal
+                if geometry_role in {
+                    "same_lane_safe_fallback",
+                    "same_lane_primary_front",
+                    "same_lane_optional_rear",
+                }
+                else None
             ),
             "planned_ego_minimum_physical_distance_m": (
                 planned_ego_minimum_distance_m
@@ -4347,8 +4597,9 @@ def main():
             scene_route_closed_loop = bool(
                 family.get("route_wide_closed_loop", False)
             )
-            if name in {"stopped_vehicle", "realistic_mixed_static"} and family.get(
-                "same_lane_fallback_capture_slots_m"
+            if name in {"stopped_vehicle", "realistic_mixed_static"} and (
+                family.get("same_lane_fallback_capture_slots_m")
+                or family.get("controlled_same_lane_front_rear", False)
             ):
                 preselected_ego_lead = choose_lead(rng, family)
             if family.get("spatial_policy") == "route_wide_competition_route":
@@ -4522,48 +4773,75 @@ def main():
                 }:
                     placement_family = {
                         **family,
-                        "actors_per_scene": [3, 4],
                         # Keep non-forced actors in the same class-aware queue
-                        # for every roundabout phase. The first actor can still
-                        # use the explicit legal-left path below.
+                        # for every roundabout phase. Legal circulating actors
+                        # remain optional and never become queue fallbacks.
                         "same_lane_fallback_only": True,
                     }
+                if roundabout_phase in {
+                    "approach", "entry_merge", "circulation"
+                }:
+                    roundabout_vehicle_count = roundabout_left_vehicle_count(
+                        family, spatial_details, rng
+                    )
+                    if roundabout_vehicle_count:
+                        forced_vehicle_poses = roundabout_left_vehicle_poses(
+                            links_by_id,
+                            scene_route,
+                            route_wide_target,
+                            roundabout_vehicle_count,
+                            {"approach": 0, "entry_merge": 1, "circulation": 2}[
+                                roundabout_phase
+                            ],
+                        )
+                highway_lane_id = spatial_details.get("highway_lane_id")
                 if (
-                    roundabout_phase in {"approach", "entry_merge", "circulation"}
+                    highway_lane_id in HIGHWAY_LANE_LINK_PATHS
                     and rng.random() < float(
-                        family.get("roundabout_left_vehicle_probability", 0.0)
+                        family.get(
+                            "highway_side_vehicle_probability",
+                            family.get("highway_left_vehicle_probability", 0.0),
+                        )
                     )
                 ):
-                    forced_vehicle_poses = roundabout_left_vehicle_poses(
+                    highway_vehicle_count = 1 + int(
+                        rng.random() < float(
+                            family.get(
+                                "highway_second_side_vehicle_probability",
+                                0.0,
+                            )
+                        )
+                    )
+                    forced_vehicle_poses = highway_other_lane_vehicle_poses(
+                        links_by_id,
+                        highway_lane_id,
+                        route_wide_target,
+                        highway_vehicle_count,
+                        variant_index,
+                    )
+                elif (
+                    spatial_details.get("spatial_stratum") == "route_general"
+                    and rng.random() < float(
+                        family.get(
+                            "route_general_parallel_vehicle_probability", 0.0
+                        )
+                    )
+                ):
+                    forced_vehicle_poses = route_general_parallel_vehicle_poses(
                         links_by_id,
                         scene_route,
                         route_wide_target,
                         1,
-                        {"approach": 0, "entry_merge": 1, "circulation": 2}[
-                            roundabout_phase
-                        ],
-                    )
-                highway_lane_id = spatial_details.get("highway_lane_id")
-                if highway_lane_id in (6, 10):
-                    # Outermost highway lanes have only one paved neighbour.
-                    # Point every lateral placement toward the road interior.
-                    placement_family = {
-                        **placement_family,
-                        "actor_lateral_sign": 1.0 if highway_lane_id == 6 else -1.0,
-                    }
-                if (
-                    highway_lane_id in (6, 8)
-                    and rng.random() < float(
-                        family.get("highway_left_vehicle_probability", 0.0)
-                    )
-                ):
-                    forced_vehicle_poses = highway_left_vehicle_poses(
-                        links_by_id,
-                        highway_lane_id,
-                        route_wide_target,
-                        1,
                         variant_index,
                     )
+                placement_family = {
+                    **placement_family,
+                    "actors_per_scene": (
+                        len(forced_vehicle_poses)
+                        + 1
+                        + same_lane_rear_count(family, variant_index)
+                    ),
+                }
                 target, runtime = build_stopped_vehicle_scene(
                     scenario,
                     template,
@@ -4899,6 +5177,12 @@ def main():
                     ),
                     "spatial_stratum": spatial_details.get("spatial_stratum"),
                     "roundabout_phase": spatial_details.get("roundabout_phase"),
+                    "roundabout_phase_within": spatial_details.get(
+                        "roundabout_phase_within"
+                    ),
+                    "roundabout_phase_total": spatial_details.get(
+                        "roundabout_phase_total"
+                    ),
                     "highway_lane_id": spatial_details.get("highway_lane_id"),
                 },
                 "validation": validation,

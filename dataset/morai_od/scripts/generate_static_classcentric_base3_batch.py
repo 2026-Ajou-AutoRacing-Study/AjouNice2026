@@ -195,9 +195,18 @@ def static_defaults():
 
     rows["stopped_vehicle"].update(
         {
-            "actors_per_scene": [3, 5],
-            "actor_longitudinal_slots_m": [-12.0, -5.0, 3.0, 11.0, 19.0],
-            "shuffle_actor_longitudinal_slots": True,
+            # One learnable same-lane lead is the invariant.  Additional
+            # Vehicles may occupy verified neighbouring paths, while an
+            # optional rear observation is interleaved across half the clips.
+            # Never fill a failed side placement with a second front queue.
+            "actors_per_scene": [1, 4],
+            "controlled_same_lane_front_rear": True,
+            "same_lane_rear_count_weights": [
+                {"name": "0", "weight": 0.50},
+                {"name": "1", "weight": 0.50},
+            ],
+            "actor_longitudinal_slots_m": [0.0],
+            "shuffle_actor_longitudinal_slots": False,
             # Preserve small pose diversity without creating wrong-way cars
             # on the same physical lane. Long vehicles receive much less
             # jitter because a few degrees moves their corners materially.
@@ -225,14 +234,23 @@ def static_defaults():
             # class-aware same-lane queue; legal side views are injected only
             # by the explicit roundabout/highway path helpers below.
             "same_lane_fallback_only": True,
-            "same_lane_fallback_capture_slots_m": [-18.0, 15.0, 24.0, 33.0, 42.0],
-            "same_lane_fallback_capture_slots_by_subtype": {
-                "passenger_car": [-18.0, 15.0, 24.0, 33.0, 42.0],
-                "electric_passenger_car": [-18.0, 15.0, 24.0, 33.0, 42.0],
-                "suv": [-20.0, 18.0, 28.0, 38.0, 48.0],
-                "mpv": [-20.0, 18.0, 28.0, 38.0, 48.0],
-                "bus_van": [-28.0, 24.0, 40.0, 56.0, 72.0],
-                "truck": [-28.0, 26.0, 42.0, 58.0, 74.0],
+            "same_lane_front_capture_slots_m": [18.0, 21.0, 24.0],
+            "same_lane_front_capture_slots_by_subtype": {
+                "passenger_car": [18.0, 21.0, 24.0],
+                "electric_passenger_car": [18.0, 21.0, 24.0],
+                "suv": [22.0, 25.0, 28.0],
+                "mpv": [22.0, 25.0, 28.0],
+                "bus_van": [26.0, 28.0, 30.0],
+                "truck": [26.0, 28.0, 30.0],
+            },
+            "same_lane_rear_capture_slots_m": [-18.0, -21.0, -24.0],
+            "same_lane_rear_capture_slots_by_subtype": {
+                "passenger_car": [-18.0, -21.0, -24.0],
+                "electric_passenger_car": [-18.0, -21.0, -24.0],
+                "suv": [-20.0, -24.0, -28.0],
+                "mpv": [-20.0, -24.0, -28.0],
+                "bus_van": [-28.0, -30.0, -32.0],
+                "truck": [-28.0, -30.0, -32.0],
             },
             "minimum_final_capture_separation_m_by_subtype": {
                 "passenger_car": 8.0,
@@ -242,10 +260,24 @@ def static_defaults():
                 "bus_van": 16.0,
                 "truck": 16.0,
             },
-            # Legal-path side-view anchors are added separately for the two
-            # mission structures where left-side Vehicle recall matters.
+            # Legal-path side-view anchors are added separately where MGeo
+            # topology is authoritative. Roundabout scenes retain 30% clean
+            # no-left-actor layouts; 30% of the active layouts use two
+            # well-separated circulating actors. Highway scenes cover every
+            # non-Ego lane instead of the old left-only helper.
             "roundabout_left_vehicle_probability": 0.70,
-            "highway_left_vehicle_probability": 1.0,
+            "roundabout_second_left_vehicle_probability": 0.30,
+            "roundabout_left_actor_count_weights": [
+                {"name": "0", "weight": 0.30},
+                {"name": "1", "weight": 0.49},
+                {"name": "2", "weight": 0.21},
+            ],
+            "highway_side_vehicle_probability": 1.0,
+            "highway_second_side_vehicle_probability": 0.35,
+            # Ordinary roads use side actors only where MGeo explicitly
+            # exposes a compatible lane-change destination. Most route-wide
+            # anchors remain conservative same-lane queues.
+            "route_general_parallel_vehicle_probability": 1.0,
             "sampling_role": "base3_static_vehicle_centric",
         }
     )
@@ -273,7 +305,7 @@ def static_defaults():
     rows["realistic_mixed_static"].update(
         {
             "objects_per_scene": [1, 3],
-            "vehicle_actors_per_scene": [1, 2],
+            "vehicle_actors_per_scene": 1,
             "pedestrian_actors_per_scene": [1, 2],
             "actor_longitudinal_slots_m": [-10.0, -3.0, 5.0, 13.0],
             "shuffle_actor_longitudinal_slots": True,
@@ -289,14 +321,15 @@ def static_defaults():
             "legal_path_heading_jitter_deg": 1.0,
             "opposite_heading_probability": 0.0,
             "same_lane_fallback_only": True,
-            "same_lane_fallback_capture_slots_m": [-18.0, 15.0, 24.0, 33.0, 42.0],
-            "same_lane_fallback_capture_slots_by_subtype": {
-                "passenger_car": [-18.0, 15.0, 24.0, 33.0, 42.0],
-                "electric_passenger_car": [-18.0, 15.0, 24.0, 33.0, 42.0],
-                "suv": [-20.0, 18.0, 28.0, 38.0, 48.0],
-                "mpv": [-20.0, 18.0, 28.0, 38.0, 48.0],
-                "bus_van": [-28.0, 24.0, 40.0, 56.0, 72.0],
-                "truck": [-28.0, 26.0, 42.0, 58.0, 74.0],
+            "controlled_same_lane_front_rear": True,
+            "same_lane_front_capture_slots_m": [18.0, 21.0, 24.0],
+            "same_lane_front_capture_slots_by_subtype": {
+                "passenger_car": [18.0, 21.0, 24.0],
+                "electric_passenger_car": [18.0, 21.0, 24.0],
+                "suv": [22.0, 25.0, 28.0],
+                "mpv": [22.0, 25.0, 28.0],
+                "bus_van": [26.0, 28.0, 30.0],
+                "truck": [26.0, 28.0, 30.0],
             },
             "minimum_final_capture_separation_m_by_subtype": {
                 "passenger_car": 8.0,

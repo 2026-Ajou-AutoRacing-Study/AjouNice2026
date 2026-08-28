@@ -120,6 +120,9 @@ def main():
     actor_counts = defaultdict(list)
     opposite_heading_vehicle_count = 0
     same_lane_final_separation_violations = []
+    same_lane_front_count_distribution = Counter()
+    same_lane_rear_count_distribution = Counter()
+    diagonal_vehicle_quadrants = Counter()
     errors = []
 
     for entry in manifest["scenes"]:
@@ -134,6 +137,15 @@ def main():
         split_counts[split] += 1
         family_split_counts[family][split] += 1
         actor_counts[family].append(len(actors))
+        if family in {"stopped_vehicle", "realistic_mixed_static"}:
+            same_lane_front_count_distribution[sum(
+                actor.get("geometry_role") == "same_lane_primary_front"
+                for actor in actors
+            )] += 1
+            same_lane_rear_count_distribution[sum(
+                actor.get("geometry_role") == "same_lane_optional_rear"
+                for actor in actors
+            )] += 1
         if spatial.get("route_wide_bin") is not None:
             family_bins[family].add(int(spatial["route_wide_bin"]))
         if spatial.get("route_arc_m") is not None:
@@ -218,7 +230,10 @@ def main():
                     "planned_capture_relative_longitudinal_m"
                 )
                 if planned and geometry_role in {
-                    "same_lane_safe_fallback", "same_lane_queue"
+                    "same_lane_safe_fallback",
+                    "same_lane_queue",
+                    "same_lane_primary_front",
+                    "same_lane_optional_rear",
                 }:
                     policy = config_family_rows[family].get(
                         "minimum_final_capture_separation_m_by_subtype", {}
@@ -244,7 +259,11 @@ def main():
                         "planned_ego_minimum_physical_distance_m"
                     )
                     if (
-                        geometry_role == "same_lane_safe_fallback"
+                        geometry_role in {
+                            "same_lane_safe_fallback",
+                            "same_lane_primary_front",
+                            "same_lane_optional_rear",
+                        }
                         and physical_minimum is not None
                         and float(physical_minimum) < minimum
                     ):
@@ -273,6 +292,16 @@ def main():
                 (actor.get("data_id"), actor.get("name"), actor.get("subtype"))
             )
             class_sectors[actor_class][sector] += 1
+            if actor_class == "vehicle" and (
+                geometry_role.startswith("highway_parallel_lane_")
+                or geometry_role.startswith("route_general_")
+                or geometry_role == "roundabout_left_legal_path"
+            ):
+                longitudinal_side = "front" if longitudinal >= 0.0 else "rear"
+                lateral_side = "left" if lateral >= 0.0 else "right"
+                diagonal_vehicle_quadrants[
+                    "{}_{}".format(longitudinal_side, lateral_side)
+                ] += 1
             arm = float(
                 metadata.get("capture_policy_overrides", {}).get(
                     "capture_motion_arm_m",
@@ -407,12 +436,38 @@ def main():
         "same_lane_vehicle_final_separation_safe": (
             not same_lane_final_separation_violations
         ),
+        "vehicle_scenes_have_exactly_one_same_lane_front": (
+            same_lane_front_count_distribution == Counter({1: sum(
+                expected_family_counts.get(name, 0)
+                for name in ("stopped_vehicle", "realistic_mixed_static")
+            )})
+        ),
+        "vehicle_scenes_have_at_most_one_same_lane_rear": (
+            not any(
+                count > 1 and scenes > 0
+                for count, scenes in same_lane_rear_count_distribution.items()
+            )
+        ),
         "roundabout_has_legal_left_vehicle_snapshots": (
             roundabout_vehicle_geometry_roles["roundabout_left_legal_path"] > 0
         ),
-        "highway_has_legal_left_vehicle_snapshots": any(
-            name.startswith("highway_left_adjacent_lane_") and count > 0
+        "highway_has_legal_parallel_lane_snapshots": any(
+            name.startswith("highway_parallel_lane_") and count > 0
             for name, count in highway_vehicle_geometry_roles.items()
+        ),
+        "highway_has_near_and_far_lane_snapshots": (
+            any(
+                name.startswith("highway_parallel_lane_")
+                and name.endswith("_gap_1")
+                and count > 0
+                for name, count in highway_vehicle_geometry_roles.items()
+            )
+            and any(
+                name.startswith("highway_parallel_lane_")
+                and name.endswith("_gap_2")
+                and count > 0
+                for name, count in highway_vehicle_geometry_roles.items()
+            )
         ),
     }
     if args.placement_pilot:
@@ -495,6 +550,13 @@ def main():
         "same_lane_final_separation_violations": (
             same_lane_final_separation_violations
         ),
+        "same_lane_front_count_distribution": dict(
+            same_lane_front_count_distribution
+        ),
+        "same_lane_rear_count_distribution": dict(
+            same_lane_rear_count_distribution
+        ),
+        "diagonal_vehicle_quadrants": dict(diagonal_vehicle_quadrants),
         "roundabout_vehicle_geometry_roles": dict(
             roundabout_vehicle_geometry_roles
         ),

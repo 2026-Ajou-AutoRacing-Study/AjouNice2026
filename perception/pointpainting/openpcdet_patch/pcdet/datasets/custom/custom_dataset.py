@@ -30,6 +30,13 @@ class CustomDataset(DatasetTemplate):
         self.gt_box_dim = int(self.dataset_cfg.get('GT_BOX_DIM', 7))
         if self.gt_box_dim not in (7, 9, 10):
             raise ValueError('GT_BOX_DIM must be 7, 9 or 10, got %d' % self.gt_box_dim)
+        # Opt-in sparse-label policy for MORAI-generated datasets.  A box
+        # containing no return must never become a detection target.  Base3
+        # uses five points as the first normal-positive threshold; older
+        # datasets remain bit-for-bit compatible because the default is zero.
+        self.min_gt_points = int(self.dataset_cfg.get('MIN_GT_POINTS', 0))
+        if self.min_gt_points < 0:
+            raise ValueError('MIN_GT_POINTS must be non-negative')
 
         split_dir = os.path.join(self.root_path, 'ImageSets', (self.split + '.txt'))
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if os.path.exists(split_dir) else None
@@ -48,10 +55,53 @@ class CustomDataset(DatasetTemplate):
                 continue
             with open(info_path, 'rb') as f:
                 infos = pickle.load(f)
+                if self.min_gt_points > 0:
+                    infos = [self._filter_sparse_annos(info) for info in infos]
                 custom_infos.extend(infos)
 
         self.custom_infos.extend(custom_infos)
         self.logger.info('Total samples for CUSTOM dataset: %d' % (len(custom_infos)))
+
+    def _filter_sparse_annos(self, info):
+        """Exclude boxes below the configured LiDAR evidence threshold."""
+
+        annos = info.get('annos')
+        if not annos or len(annos.get('name', [])) == 0:
+            return info
+        if 'num_points_in_gt' not in annos:
+            raise ValueError(
+                'MIN_GT_POINTS=%d requires num_points_in_gt in every info; '
+                'regenerate dataset infos with the Base3 visibility audit enabled'
+                % self.min_gt_points
+            )
+        counts = np.asarray(annos['num_points_in_gt'], dtype=np.int64)
+        keep = counts >= self.min_gt_points
+        if len(counts) != len(annos['name']):
+            raise ValueError('num_points_in_gt length does not match annotations')
+        filtered = copy.deepcopy(info)
+        filtered_annos = filtered['annos']
+        filtered_annos.setdefault('sparse_gt_count', int((~keep).sum()))
+        for key, value in list(filtered_annos.items()):
+            if key == 'sparse_gt_count':
+                continue
+            if isinstance(value, np.ndarray) and len(value) == len(keep):
+                filtered_annos[key] = value[keep]
+            elif isinstance(value, list) and len(value) == len(keep):
+                filtered_annos[key] = [item for item, valid in zip(value, keep) if valid]
+        return filtered
+
+    @staticmethod
+    def count_points_in_gt(points, gt_boxes):
+        """Count target-sweep points inside oriented 3D boxes."""
+
+        if len(gt_boxes) == 0:
+            return np.zeros((0,), dtype=np.int32)
+        import torch
+        inside = roiaware_pool3d_utils.points_in_boxes_cpu(
+            torch.from_numpy(np.asarray(points[:, :3], dtype=np.float32)),
+            torch.from_numpy(np.asarray(gt_boxes[:, :7], dtype=np.float32)),
+        ).numpy()
+        return np.asarray((inside > 0).sum(axis=1), dtype=np.int32)
 
     def get_label(self, idx):
         label_file = self.root_path / 'labels' / ('%s.txt' % idx)
@@ -181,6 +231,17 @@ class CustomDataset(DatasetTemplate):
                 gt_boxes_lidar, name = self.get_label(sample_idx)
                 annotations['name'] = name
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
+                if self.min_gt_points > 0:
+                    points = self.get_lidar(sample_idx)
+                    annotations['num_points_in_gt'] = self.count_points_in_gt(
+                        points, gt_boxes_lidar
+                    )
+                    keep = annotations['num_points_in_gt'] >= self.min_gt_points
+                    annotations['sparse_gt_count'] = int((~keep).sum())
+                    annotations['minimum_gt_points'] = self.min_gt_points
+                    annotations['name'] = annotations['name'][keep]
+                    annotations['gt_boxes_lidar'] = annotations['gt_boxes_lidar'][keep]
+                    annotations['num_points_in_gt'] = annotations['num_points_in_gt'][keep]
                 info['annos'] = annotations
 
             return info
