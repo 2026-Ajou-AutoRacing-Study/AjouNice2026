@@ -24,32 +24,30 @@ TOTAL_FRAMES = TOTAL_CLIPS * FRAMES_PER_CLIP
 INSTALLER = Path(__file__).resolve().with_name("install_dynamic_capture_set.py")
 
 GLOBAL_PRIMARY_COUNTS = {
-    "stopped_vehicle": 1167,
-    "static_obstacle": 1167,
+    "stopped_vehicle": 1334,
+    "static_obstacle": 1000,
     "standing_pedestrian": 500,
-    "realistic_mixed_static": 167,
-    "sparse_background": 333,
+    "sparse_background": 500,
 }
 
 # Distribute the indivisible global quota into seven nearly equal capture
 # batches.  Batch totals are 477, 477, then 476 clips, giving exactly 10,002
 # frames over the complete campaign.
 PRIMARY_COUNTS_BY_BATCH = (
-    {"stopped_vehicle": 167, "static_obstacle": 167, "standing_pedestrian": 72, "realistic_mixed_static": 24, "sparse_background": 47},
-    {"stopped_vehicle": 167, "static_obstacle": 167, "standing_pedestrian": 72, "realistic_mixed_static": 23, "sparse_background": 48},
-    {"stopped_vehicle": 167, "static_obstacle": 167, "standing_pedestrian": 71, "realistic_mixed_static": 24, "sparse_background": 47},
-    {"stopped_vehicle": 167, "static_obstacle": 166, "standing_pedestrian": 72, "realistic_mixed_static": 24, "sparse_background": 47},
-    {"stopped_vehicle": 166, "static_obstacle": 167, "standing_pedestrian": 71, "realistic_mixed_static": 24, "sparse_background": 48},
-    {"stopped_vehicle": 167, "static_obstacle": 166, "standing_pedestrian": 71, "realistic_mixed_static": 24, "sparse_background": 48},
-    {"stopped_vehicle": 166, "static_obstacle": 167, "standing_pedestrian": 71, "realistic_mixed_static": 24, "sparse_background": 48},
+    {"stopped_vehicle": 191, "static_obstacle": 143, "standing_pedestrian": 72, "sparse_background": 71},
+    {"stopped_vehicle": 191, "static_obstacle": 143, "standing_pedestrian": 72, "sparse_background": 71},
+    {"stopped_vehicle": 191, "static_obstacle": 143, "standing_pedestrian": 72, "sparse_background": 70},
+    {"stopped_vehicle": 191, "static_obstacle": 143, "standing_pedestrian": 71, "sparse_background": 71},
+    {"stopped_vehicle": 190, "static_obstacle": 143, "standing_pedestrian": 71, "sparse_background": 72},
+    {"stopped_vehicle": 190, "static_obstacle": 143, "standing_pedestrian": 71, "sparse_background": 72},
+    {"stopped_vehicle": 190, "static_obstacle": 142, "standing_pedestrian": 71, "sparse_background": 73},
 )
 
 RESERVE_COUNTS = {
-    "stopped_vehicle": 9,
-    "static_obstacle": 9,
+    "stopped_vehicle": 10,
+    "static_obstacle": 7,
     "standing_pedestrian": 4,
-    "realistic_mixed_static": 1,
-    "sparse_background": 2,
+    "sparse_background": 4,
 }
 
 HIGHWAY_ROUTE_SHARE = 0.217
@@ -64,8 +62,135 @@ ROUNDABOUT_PHASES = [
 ]
 ROUNDABOUT_SHARE = {
     "stopped_vehicle": 0.20,
-    "realistic_mixed_static": 0.15,
     "sparse_background": 0.15,
+}
+
+
+# Batch 001--004 were captured before the highway topology audit and contain
+# no ramp-Ego, exit-split, taper, post-taper, or right-lane ordinary-road
+# samples.  Batch 005--007 therefore use exact corrective spatial quotas.  The
+# complete seven-batch dataset, not each corrective batch in isolation, is the
+# distribution target.
+CORRECTIVE_SPATIAL_COUNTS_BY_BATCH = {
+    5: {
+        "stopped_vehicle": {
+            "highway_ramp_approach": 4, "highway_merge_lane": 8,
+            "highway_exit_split": 15,
+            "highway_four_to_three_taper": 12,
+            "highway_post_taper_two_usable": 21,
+            "route_general_two_lane_right": 15,
+            "route_general_two_lane_left": 5,
+            "roundabout": 38, "route_general": 72,
+        },
+        "static_obstacle": {
+            "highway_ramp_approach": 1, "highway_merge_lane": 4,
+            "highway_exit_split": 8,
+            "highway_four_to_three_taper": 8,
+            "highway_post_taper_two_usable": 9,
+            "route_general_two_lane_right": 20,
+            "route_general_two_lane_left": 10,
+            "route_general": 83,
+        },
+        "sparse_background": {
+            "highway_ramp_approach": 1, "highway_merge_lane": 2,
+            "highway_exit_split": 5,
+            "highway_four_to_three_taper": 5,
+            "highway_post_taper_two_usable": 11,
+            "route_general_two_lane_right": 5,
+            "route_general_two_lane_left": 5,
+            "roundabout": 11, "route_general": 27,
+        },
+    },
+    6: {
+        "stopped_vehicle": {
+            "highway_ramp_approach": 4, "highway_merge_lane": 8,
+            "highway_exit_split": 15,
+            "highway_four_to_three_taper": 12,
+            "highway_post_taper_two_usable": 21,
+            "route_general_two_lane_right": 15,
+            "route_general_two_lane_left": 5,
+            "roundabout": 38, "route_general": 72,
+        },
+        "static_obstacle": {
+            "highway_ramp_approach": 1, "highway_merge_lane": 4,
+            "highway_exit_split": 8,
+            "highway_four_to_three_taper": 8,
+            "highway_post_taper_two_usable": 9,
+            "route_general_two_lane_right": 20,
+            "route_general_two_lane_left": 10,
+            "route_general": 83,
+        },
+        "sparse_background": {
+            "highway_ramp_approach": 1, "highway_merge_lane": 2,
+            "highway_exit_split": 5,
+            "highway_four_to_three_taper": 5,
+            "highway_post_taper_two_usable": 11,
+            "route_general_two_lane_right": 5,
+            "route_general_two_lane_left": 5,
+            "roundabout": 11, "route_general": 27,
+        },
+    },
+    7: {
+        "stopped_vehicle": {
+            "highway_ramp_approach": 4, "highway_merge_lane": 8,
+            "highway_exit_split": 15,
+            "highway_four_to_three_taper": 12,
+            "highway_post_taper_two_usable": 21,
+            "route_general_two_lane_right": 15,
+            "route_general_two_lane_left": 5,
+            "roundabout": 38, "route_general": 72,
+        },
+        "static_obstacle": {
+            "highway_ramp_approach": 1, "highway_merge_lane": 4,
+            "highway_exit_split": 8,
+            "highway_four_to_three_taper": 8,
+            "highway_post_taper_two_usable": 9,
+            "route_general_two_lane_right": 20,
+            "route_general_two_lane_left": 10,
+            "route_general": 82,
+        },
+        "sparse_background": {
+            "highway_ramp_approach": 1, "highway_merge_lane": 2,
+            "highway_exit_split": 6,
+            "highway_four_to_three_taper": 5,
+            "highway_post_taper_two_usable": 12,
+            "route_general_two_lane_right": 5,
+            "route_general_two_lane_left": 5,
+            "roundabout": 10, "route_general": 27,
+        },
+    },
+}
+
+
+def exact_spatial_schedule(counts):
+    """Interleave exact named quotas without making phase a long run."""
+
+    rows = [
+        {"name": name, "weight": int(count)}
+        for name, count in counts.items()
+        if int(count) > 0
+    ]
+    return dynamic_generator.weighted_zone_schedule(
+        {"count": sum(int(value) for value in counts.values()),
+         "spatial_strata": rows},
+        key="spatial_strata",
+    )
+
+# Keep only assets that produce useful LiDAR geometry for the competition.
+# Tiny road markings, manholes, lamp posts and speed-sign plates are valid
+# simulator assets but turn Base3 into a sparse-point benchmark unrelated to
+# the obstacle missions.
+BASE3_OBSTACLE_ASSET_WEIGHTS = {
+    "CargoBox": 60,
+    "PE_Drum": 40,
+    "TrafficBarrel": 40,
+    "YellowBarrel": 40,
+    "concrete-barrier": 40,
+    "Concrete_Barricade01": 40,
+    "Concrete_Barricade02": 40,
+    "Steel_Barricade": 40,
+    "PE_Firewall_Orange": 40,
+    "PE_Firewall_White": 40,
 }
 
 
@@ -120,6 +245,13 @@ def static_defaults():
     base["use_runtime_pedestrian_pool"] = True
     base["use_runtime_obstacle_pool"] = True
     base["weighted_obstacle_quota_deck"] = True
+    base["runtime_obstacle_asset_allowlist"] = list(
+        BASE3_OBSTACLE_ASSET_WEIGHTS
+    )
+    base["obstacle_asset_quota_weights"] = copy.deepcopy(
+        BASE3_OBSTACLE_ASSET_WEIGHTS
+    )
+    base["obstacle_asset_quota_deck_size"] = 600
     base["capture"].update(
         {
             "format": "morai_save_sensor_data_rolling_grouped",
@@ -243,14 +375,14 @@ def static_defaults():
                 "bus_van": [26.0, 28.0, 30.0],
                 "truck": [26.0, 28.0, 30.0],
             },
-            "same_lane_rear_capture_slots_m": [-18.0, -21.0, -24.0],
+            "same_lane_rear_capture_slots_m": [-14.0, -17.0, -20.0],
             "same_lane_rear_capture_slots_by_subtype": {
-                "passenger_car": [-18.0, -21.0, -24.0],
-                "electric_passenger_car": [-18.0, -21.0, -24.0],
-                "suv": [-20.0, -24.0, -28.0],
-                "mpv": [-20.0, -24.0, -28.0],
-                "bus_van": [-28.0, -30.0, -32.0],
-                "truck": [-28.0, -30.0, -32.0],
+                "passenger_car": [-14.0, -17.0, -20.0],
+                "electric_passenger_car": [-14.0, -17.0, -20.0],
+                "suv": [-16.0, -20.0, -24.0],
+                "mpv": [-16.0, -20.0, -24.0],
+                "bus_van": [-22.0, -26.0, -30.0],
+                "truck": [-22.0, -26.0, -30.0],
             },
             "minimum_final_capture_separation_m_by_subtype": {
                 "passenger_car": 8.0,
@@ -283,16 +415,36 @@ def static_defaults():
     )
     rows["static_obstacle"].update(
         {
-            "objects_per_scene": [5, 8],
+            "objects_per_scene": [4, 7],
             "scale_factor": [0.85, 1.15],
+            # One collision-corridor obstacle is enough to represent the
+            # mission. Additional same-lane actors only occlude each other
+            # and create zero-point GT. The remaining actors cover avoidance
+            # and contextual geometries.
+            "maximum_current_lane_obstacles_per_scene": 1,
+            "obstacle_geometry_role_templates": {
+                "4": ["current_lane_front", "adjacent_avoidance_front", "diagonal_context", "roadside_context"],
+                "5": ["current_lane_front", "adjacent_avoidance_front", "diagonal_context", "near_side_or_rear", "roadside_context"],
+                "6": ["current_lane_front", "adjacent_avoidance_front", "adjacent_avoidance_front", "diagonal_context", "near_side_or_rear", "roadside_context"],
+                "7": ["current_lane_front", "adjacent_avoidance_front", "adjacent_avoidance_front", "diagonal_context", "diagonal_context", "near_side_or_rear", "roadside_context"],
+            },
             "sampling_role": "base3_static_obstacle_centric",
         }
     )
     rows["standing_pedestrian"].update(
         {
-            "actors_per_scene": [4, 7],
-            "actor_longitudinal_slots_m": [-12.0, -7.0, -2.0, 4.0, 10.0, 16.0, 22.0],
+            "actors_per_scene": [3, 5],
+            "actor_longitudinal_slots_m": [-5.0, 0.0, 4.0, 8.0, 12.0],
             "shuffle_actor_longitudinal_slots": True,
+            "ego_lead_distance_m": [8.0, 14.0],
+            "pedestrian_heading_jitter_deg": 10.0,
+            "pedestrian_crosswalk_heading_modes": [
+                "cross_left_to_right", "cross_right_to_left"
+            ],
+            "pedestrian_route_heading_modes": [
+                "with_traffic", "against_traffic",
+                "cross_left_to_right", "cross_right_to_left",
+            ],
             # Crosswalks remain the majority, while the rest use route-wide
             # roadside placements so Man1/the official mission is not the
             # only appearance context.  build_config converts this ratio to
@@ -381,8 +533,30 @@ def build_config(batch_index, role, counts, campaign_tag, seed_base):
             )
         if name == "sparse_background":
             row["empty_scene_count"] = int(count)
+        corrective_counts = (
+            CORRECTIVE_SPATIAL_COUNTS_BY_BATCH.get(batch_index, {}).get(name)
+            if role == "primary" else None
+        )
+        if corrective_counts is not None:
+            if sum(int(value) for value in corrective_counts.values()) != int(count):
+                raise ValueError(
+                    "corrective spatial quota drift for batch {} {}".format(
+                        batch_index, name
+                    )
+                )
+            row["spatial_strata"] = [
+                {"name": str(stratum), "weight": int(value)}
+                for stratum, value in corrective_counts.items()
+                if int(value) > 0
+            ]
+            row["family_global_variant_offset"] = 0
+            row["global_spatial_stratum_schedule"] = exact_spatial_schedule(
+                corrective_counts
+            )
         if row.get("spatial_strata"):
-            if role == "primary":
+            if corrective_counts is not None:
+                pass
+            elif role == "primary":
                 global_count = int(GLOBAL_PRIMARY_COUNTS[name])
                 global_row = {**row, "count": global_count}
                 global_schedule = dynamic_generator.weighted_zone_schedule(

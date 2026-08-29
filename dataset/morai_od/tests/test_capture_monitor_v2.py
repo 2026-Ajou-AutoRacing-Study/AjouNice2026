@@ -16,6 +16,27 @@ SPEC.loader.exec_module(MONITOR)
 
 
 class CaptureMonitorV2Test(unittest.TestCase):
+    def test_load_manifest_accepts_production_sized_document(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            document = {
+                "dataset_id": "large-demo",
+                "scenes": [
+                    {
+                        "id": "scene001",
+                        "file_name": "scene001",
+                        "metadata_padding": "x" * (MONITOR.MAX_JSON_BYTES + 1),
+                    }
+                ],
+            }
+            path.write_text(json.dumps(document), encoding="utf-8")
+            self.assertGreater(path.stat().st_size, MONITOR.MAX_JSON_BYTES)
+
+            manifest = MONITOR.load_manifest(path, [])
+
+            self.assertEqual(manifest["dataset_id"], "large-demo")
+            self.assertEqual(len(manifest["scenes"]), 1)
+
     def test_failure_classification(self):
         cases = {
             "collision reported during timed-grouped": "collision",

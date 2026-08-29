@@ -282,6 +282,11 @@ Base3-Static에서 지금 해결하는 항목과 후속 연구를 분리한다.
 - 기존 `prod2`, `safety3` source·capture·MRP 설치 사본은 삭제하고 Batch 001--007을
   전부 새 scene ID로 재생성했다.
 - primary는 총 `3,334 clips`, `10,002 frames`다.
+- 최종 Base3는 움직이는 Pedestrian도 동일한 single-frame 정책으로 보강한다.
+  - Batch 008: 300 clips, clip당 3 frames, 총 900 frames.
+  - 전체: 3,634 clips, 10,902 frames.
+  - 이름은 계속 `Base3-Static 10K`를 사용한다. 여기서 Static은 actor가 모두 멈춘다는
+    뜻이 아니라 temporal sequence/velocity 학습용 dataset이 아니라는 뜻이다.
 - 각 batch는 기존 validator와 class-centric audit를 모두 통과했다.
 - `run_base3_static_10k_capture.sh`가 다음을 담당한다.
   - 현재 batch만 MRP Scenario directory에 설치한다.
@@ -719,3 +724,314 @@ mask는 새 baseline의 subtype별 mAOE와 loss gradient를 확인한 뒤에만 
 - Static 10K는 velocity regression이나 temporal fusion의 대체물이 아니다.
 - single-frame 표현력 baseline을 먼저 확립한 뒤 temporal/velocity dataset과 모델을
   분리해 결합한다.
+
+## 2026-08-29 Mission-geometry 최종 후보 구현·검증.
+
+이 절은 위 Queue5와 부분 수집 감사 이후 실제 구현·live 검증을 반영한 최신 기준이다.
+과거 35/35/15/5/10 quota와 18종 obstacle 계획은 실험 이력으로만 남기고, 새 campaign은
+아래 설정을 사용한다.
+
+### 최종 family 구성.
+
+| Family | Clips | Frames | 전체 비율 |
+| --- | ---: | ---: | ---: |
+| `stopped_vehicle` | 1,334 | 4,002 | 40.01% |
+| `static_obstacle` | 1,000 | 3,000 | 29.99% |
+| `standing_pedestrian` | 500 | 1,500 | 15.00% |
+| `sparse_background` | 500 | 1,500 | 15.00% |
+| 합계 | 3,334 | 10,002 | 100% |
+
+- production quota에서 `realistic_mixed_static`을 제거했다. 세 class를 한 scene에 섞는
+  것보다 class별 positive geometry와 point support를 통제하는 편이 이번 baseline의
+  원인 분석에 적합하다.
+- empty/hard-negative를 15%로 올려 route 전역 고정 시설물 오검출을 억제한다.
+- Vehicle 40%는 Base2에서 부족했던 실제 차량 관측과 로터리·고주로 기하를 보강한다.
+
+### Vehicle 최종 정책.
+
+- 같은 차로 전방은 정확히 1대, 후방은 0--1대다.
+- front fallback은 양수 slot만, rear fallback은 음수 slot만 사용할 수 있다. 120-scene
+  audit에서 발견한 front `-30 m`, rear `+50 m` 역할 역전 회귀를 코드와 audit 양쪽에서
+  차단했다.
+- 후방 slot은 승용차 `-14/-17/-20 m`, SUV·MPV `-16/-20/-24 m`, 버스·트럭
+  `-22/-26/-30 m`로 조정했다.
+- 고주로 양쪽 실제 인접 차로, 로터리 circulating path, 명시적 MGeo lane-change
+  destination만 side actor로 사용한다.
+
+### Pedestrian 최종 정책.
+
+- scene당 3--5명으로 줄여 과도한 가림을 줄였다.
+- route-general은 정방향, 역방향, 좌횡단, 우횡단을 순환한다.
+- crosswalk scene은 좌횡단과 우횡단을 우선한다.
+- 모든 방향에 최대 `±10 deg` jitter를 적용한다.
+- Ego lead는 8--16 m, longitudinal slot은 `-5/0/5/10/15 m`로 조정해 30 m를 넘는
+  희소 Pedestrian을 줄였다.
+
+### Obstacle 최종 정책.
+
+120-scene live point audit 결과 small barrier와 two-wheeler는 대회 중요도 대비
+희소 positive 비율이 지나치게 높았다.
+
+- `Lane_Separation_Bar`: 18 관측 중 zero 2, sparse 15.
+- `Bollard01`: 18 관측 중 sparse 9.
+- `Bollard04`: 18 관측 중 sparse 12.
+- `Bicycle_mountain`: 9 관측 중 sparse 6.
+
+따라서 production 자동 positive pool은 120-scene pilot 이후 12종으로 먼저 제한했고,
+추가 30-clip 반복 pilot에서 `RedBarrel`의 zero/sparse 회귀와 `WoodBox`의 asset mesh--GT
+box 경계 불일치를 확인해 최종 10종으로 제한한다.
+
+- Box: `CargoBox`.
+- Barrel/drum: `PE_Drum`, `TrafficBarrel`, `YellowBarrel`.
+- Large barricade: `concrete-barrier`, `Concrete_Barricade01`,
+  `Concrete_Barricade02`, `Steel_Barricade`, `PE_Firewall_Orange`,
+  `PE_Firewall_White`.
+
+scene당 Obstacle은 4--7개지만 current-lane obstacle은 정확히 1개다. 나머지는
+adjacent avoidance, diagonal, near side/rear, roadside context로 분배한다. 같은 차로에
+세 개가 줄지어 뒤 actor가 0 point가 된 smoke 사례를 이 정책으로 제거했다. 긴 barrier
+yaw는 수직 40%, 대각 35%, 평행 25%를 유지하고 box·barrel은 전체 회전 범위를 사용한다.
+첫 capture 거리 상한은 barrel/drum 16 m, box 20 m, 대형 barrier 30 m다. 이는
+`TrafficBarrel` 24--27 m zero-point 회귀를 제거하면서 대형 장애물 원거리 stress는
+유지하기 위한 sensor-observability 기준이다.
+
+### 실제 검증 결과.
+
+최종 기하 후보의 balanced pilot은 Vehicle 48, Obstacle 36, Pedestrian 18,
+empty 18 scene이다.
+
+| 항목 | 결과 |
+| --- | ---: |
+| 요청/시도 scene | 120/120 |
+| 완료 scene | 120 |
+| 실패 scene | 0 |
+| 완료 frame | 360/360 |
+| Live failure rate | 0% |
+
+12종 정제 직전 18종 pool의 30 m LiDAR audit은 다음과 같다. 이 audit은 작은 asset을
+제외하기 전 값이므로 최종 pool 성능의 보수적 하한이다.
+
+| Class | 관측 GT | zero | 1--4 points | 5+ points |
+| --- | ---: | ---: | ---: | ---: |
+| Vehicle | 255 | 0 | 0 | 255 |
+| Pedestrian | 219 | 1 | 21 | 197 |
+| Obstacle | 555 | 22 | 85 | 448 |
+
+- 작은 asset을 제외해 같은 결과를 재집계하면 Obstacle 474관측 중 zero 20,
+  sparse 40, normal-positive 414다. normal-positive 비율은 80.7%에서 87.3%로 오른다.
+- Vehicle은 모든 관측이 5 point 이상이다.
+- raw MORAI GT는 보존하지만 OpenPCDet info 생성과 학습은 `MIN_GT_POINTS: 5`를
+  사용한다. `custom_dataset.py`가 `num_points_in_gt`를 계산하고 5 미만 annotation을
+  실제 학습 target에서 제거한다.
+
+### 최종 10종 gate 결과와 다음 단계.
+
+최종 barrel/drum 16 m 제한까지 적용한 4-family live smoke는 Vehicle, Obstacle,
+Pedestrian, Empty 모두 성공해 12/12 frame을 저장했다. 실행 도구의 호출 시간 경계로
+Empty 한 scene은 별도 호출했지만 MORAI capture failure는 없었다.
+
+| Class | 관측 GT | zero | 1--4 points | 5+ points |
+| --- | ---: | ---: | ---: | ---: |
+| Vehicle | 3 | 0 | 0 | 3 |
+| Pedestrian | 9 | 0 | 3 | 6 |
+| Obstacle | 15 | 0 | 0 | 15 |
+
+- 최종 Obstacle pool에서는 five geometry role 모두 zero·sparse 없이 normal-positive였다.
+- Pedestrian sparse 3건은 raw audit에는 남지만 `MIN_GT_POINTS: 5`에 따라 학습 target에서
+  제외한다.
+- Batch 001과 같은 477 clips / 1,431 frames를 새 seed로 offline 생성해 audit을
+  통과했다. family는 Vehicle 191, Obstacle 143, Pedestrian 72, Empty 71이고 asset
+  diversity는 Vehicle 43종, 당시 Obstacle 12종, Pedestrian 22종이다. 이후 30-clip
+  반복 pilot에서 `RedBarrel`, `WoodBox`를 제거해 production pool은 10종이다.
+
+따라서 generator 구현 gate는 통과했다. 다음 production 단계는 다음과 같다.
+
+1. 기존 중단 batch를 이어 쓰지 않고 새 campaign tag·seed로 Batch 001--007을 만든다.
+2. 첫 batch capture 후 asset·geometry role별 point audit을 다시 실행한다.
+3. 실패율이 5% 이하이고 final info에 5 point 미만 positive가 0개면 전체 10K 수집을
+   계속한다.
+
+## 2026-08-29 30-clip 반복 pilot 최종 gate.
+
+최종 10K 생성 전에 서로 다른 seed의 balanced 30-clip pilot을 반복했다. 각 pilot은
+Vehicle 12, Obstacle 9, Pedestrian 5, Empty 4 clips이며 90 frames를 저장한다.
+
+| Pilot | 완료 clips/frames | Capture failure | 확인 결과 |
+| --- | ---: | ---: | --- |
+| R1 | 30/90 | 0 | WoodBox 경계 불일치, PE_Drum 과근접, Pedestrian 원거리 sparse 확인. |
+| R2 | 30/90 | 0 | 과근접·Pedestrian 개선, RedBarrel 반복 zero/sparse 확인. |
+| R3 | 30/90 | 0 | RedBarrel 제거 검증, WoodBox pose별 5--10 cm 경계 불일치 확인. |
+| R4 | 30/90 | 0 | 최종 10종 pool, zero-point 0, 반복 asset failure 없음. |
+
+R4의 30 m 이내 LiDAR evidence 결과는 다음과 같다. point-count는 원 GT box를 바꾸지
+않고 오직 positive evidence 판정에만 `3 cm` tolerance를 적용했다.
+
+| Class | 관측 GT | zero | 1--4 points | 5+ points | 5+ 비율 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Vehicle | 73 | 0 | 0 | 73 | 100% |
+| Pedestrian | 60 | 0 | 2 | 58 | 96.7% |
+| Obstacle | 156 | 0 | 5 | 151 | 96.8% |
+| 합계 | 289 | 0 | 7 | 282 | 97.6% |
+
+- `RedBarrel`은 같은 기능을 하는 `TrafficBarrel`, `YellowBarrel`, `PE_Drum`보다
+  반복 sparse가 커 제거했다.
+- `WoodBox`는 회전·scene에 따라 실제 mesh point가 GT box보다 5--10 cm 밖에 있어,
+  안전한 3 cm tolerance로도 일관되게 복구되지 않아 제거했다. Box category는
+  `CargoBox`로 유지한다.
+- 작은 obstacle near/rear는 첫 capture 기준 전방 `+12 m`, 후방 `-6 m`를 사용해
+  LiDAR blind range와 불필요한 후방 원거리를 피한다.
+- Base3 OpenPCDet config는 `MIN_GT_POINTS: 5`와
+  `GT_POINT_COUNT_BOX_TOLERANCE_M: 0.03`을 함께 사용한다. tolerance는
+  `num_points_in_gt` 계산에만 적용하고 center·size·yaw regression target은 원본 MORAI
+  GT를 그대로 사용한다.
+- R4의 sparse 7건은 개별 stress frame이며 동일 asset의 전체 관측이 무너지는 패턴은
+  아니다. 이를 모두 없애려고 거리·yaw를 더 제한하면 mission-relevant hard positive를
+  제거하므로 추가 축소하지 않는다.
+
+최종 10종 pool의 Batch 001 규모 offline 재생성도 477 clips / 1,431 frames, Vehicle
+43종, Obstacle 10종, Pedestrian 22종으로 audit을 통과했다. 다음 단계는 새 campaign의
+Batch 001--007 생성과 첫 실제 batch capture 후 동일 point audit이다.
+
+### Final10Prod production batch 생성 완료.
+
+최종 generator gate 통과 후 campaign tag `final10prod`, seed base `2608291000`으로
+Batch 001--007을 전부 새 scene ID로 생성했다.
+
+- Primary: 3,334 clips / 10,002 frames.
+- Failure reserve: batch당 25 clips, 전체 175 clips / 525 frames.
+- Family primary 합계: Vehicle 1,334, Obstacle 1,000, Pedestrian 500, Empty 500 clips.
+- 7개 batch의 primary와 reserve 모두 기본 scenario validator를 통과했다.
+- 7개 primary는 전체 class-centric quota·asset·geometry audit를 통과했다.
+- reserve는 소규모 placement-pilot audit를 통과했다.
+- capture runner가 현재 batch만 MRP에 설치하고 완료된 batch를 archive하므로 MORAI UI에
+  3,334개 scenario를 한꺼번에 노출하지 않는다.
+
+첫 실제 Batch 001 capture가 끝나면 R4와 동일하게 `MIN_GT_POINTS: 5`,
+`GT_POINT_COUNT_BOX_TOLERANCE_M: 0.03` 기준 asset·geometry role별 point audit을 수행한다.
+
+## 2026-08-29 Batch 001--004 공간분포 감사와 Batch 005--007 corrective 설계.
+
+Batch 001--004 완료본 1,898 clips를 MGeo link 기준으로 다시 감사했다. 기존
+`highway_three_lane` 추상화는 안정 mainline만 반복했고 다음 공간이 전혀 없었다.
+
+- Ramp Ego와 merge lane Ego.
+- Exit split과 exit branch.
+- 4-to-3 taper와 taper 이후 usable 2-lane 구간.
+- 일반 편도 2차로의 우측 Ego.
+
+고주로의 `ego_lane` 숫자는 물리적 역할과 일대일 대응하지 않는다. `A411`은 합류하는
+entry lane5이고 `A179`는 빠져나가는 exit lane5다. 따라서 둘을 lane number 하나로
+취급하지 않고 link topology와 phase로 분리한다. 왼쪽 solid-separated lane 후보
+`A010/A429/A433/A421/A425/A424`는 MGeo 속성만으로 버스전용을 확정할 수는 없지만,
+공식 sample 경로·실선 경계·대회 Ego 주행 의도를 함께 고려해 Ego와 NPC 모두 금지한다.
+
+새 phase-aware strata는 다음과 같다.
+
+- `highway_ramp_approach`.
+- `highway_merge_lane`.
+- `highway_exit_split`.
+- `highway_four_to_three_taper`.
+- `highway_post_taper_two_usable`.
+- `route_general_two_lane_left/right`.
+
+각 stratum은 실제 MGeo link sequence를 별도 execution waypoint로 기록한다. 일반도로
+우측 Ego도 pose만 옮긴 뒤 canonical route로 복귀시키지 않고, topology가 완전한 다섯
+2차로 구간의 우측 route를 끝까지 따른다. Highway side Vehicle은 해당 phase에서 허용한
+usable side route에만 놓고, 일반도로 side Vehicle은 명시적 lane-change destination과
+heading·clearance 조건을 통과할 때만 놓는다.
+
+Batch 005--007은 기존 family 40/30/15/15 비율을 유지하면서 다음 부족분을 정확 quota로
+보충한다.
+
+| Corrective 공간 | B5--B7 clips |
+| --- | ---: |
+| Ramp approach | 18 |
+| Merge lane | 42 |
+| Exit split/branch | 85 |
+| 4-to-3 taper | 75 |
+| Post-taper usable 2-lane | 124 |
+| 일반 2차로 우측 Ego | 120 |
+| 일반 2차로 좌측 Ego 보조 | 60 |
+
+기존 mainline 안정주행은 Batch 001--004에 이미 349 clips가 있어 corrective batch에서 더
+늘리지 않는다. 최종 일반 편도 2차로 우측 Ego는 약 18% 수준으로 만들며, 전역 route
+coverage를 깨지 않도록 좌측과 route-general도 유지한다.
+
+Offline corrective pilot은 30 clips와 120 clips 모두 scenario audit을 통과했다.
+
+- 제한 link Ego/NPC 0.
+- execution waypoint jump 0.
+- 같은 차로 front 정확히 1대, rear 최대 1대.
+- 합류·exit·taper·post-taper와 일반 2차로 좌·우 Ego 모두 포함.
+- 120 clips에서 side Vehicle의 front-left/front-right/rear-left/rear-right를 모두 포함.
+- low-share `exit_branch_ego`도 최소 1회 포함되도록 weighted variant deck에 minimum
+  coverage를 적용함.
+
+이 결과는 offline gate다. MORAI live 30 clips와 100--120 clips에서 scenario load,
+실제 경로 추종, 충돌, actor stability, SaveSensorData artifact를 통과하기 전에는 최종
+Batch 005--007을 생성하지 않는다.
+
+### Corrective topology MORAI live gate 결과.
+
+2026-08-29에 동일 생성기를 대상으로 30 clips와 120 clips를 MRP에서 실제 캡처했다.
+
+- 30-clip pilot: 30/30 clips, 90/90 frames, runtime failure 0, artifact error 0.
+- 120-clip pilot: 120/120 clips, 360/360 frames, runtime failure 0, artifact error 0.
+- Vehicle 48, Obstacle 36, Pedestrian 18, Empty 18 clips가 모두 완료됐다.
+- 제한 link Ego/NPC, 경로 이탈, 충돌, static actor instability로 최종 실패한 scene은 0이다.
+- scenario load 직후 rosbridge가 1--2초 재접속한 경우는 있었지만 모두 자동 복구됐다.
+
+120-clip LiDAR GT evidence audit은 30 m 이내 GT 1,055개를 확인했다.
+
+| Class | 전체 GT | 5+ points | 0 point 제거 | 1--4 points 제외 |
+| --- | ---: | ---: | ---: | ---: |
+| Vehicle | 272 | 272 (100.0%) | 0 | 0 |
+| Pedestrian | 210 | 200 (95.2%) | 2 | 8 |
+| Obstacle | 573 | 538 (93.9%) | 13 | 22 |
+| 전체 | 1,055 | 1,010 (95.7%) | 15 | 30 |
+
+제외 표본은 CargoBox, barrel, 얇은 barricade, 일부 작은 Pedestrian의 측방·가림·원거리
+관측에 집중됐다. 같은 asset의 대부분 관측은 정상이고 Vehicle은 전부 5 points 이상이다.
+따라서 scene 다양성을 다시 줄이지 않고 raw GT를 보존하되, Base3 info 생성과 학습에서
+`MIN_GT_POINTS: 5`를 적용한다.
+
+MRP capture 실행 셸은 다음 source 순서를 지켜야 한다.
+
+1. `/opt/ros/noetic/setup.bash`.
+2. `base_ws/devel/setup.bash`.
+3. `morai_personal_ws/devel/setup.bash`.
+
+마지막 개인용 workspace가 `CtrlCmd.front_steer/rear_steer` MD5를 제공한다. `base_ws`만
+source하면 구형 `CtrlCmd.steering`과 MRP rosbridge 사이에 MD5 mismatch가 발생하므로
+이를 MORAI 재연결 문제로 오인하지 않는다.
+
+### Corrective Batch 005--007 source 생성 완료.
+
+Live gate 통과 후 기존 Batch 001--004의 campaign tag `final10prod`, seed base
+`2608291000`을 유지해 Batch 005--007 source와 failure reserve를 재생성했다.
+
+- Primary: batch당 476 clips / 1,428 frames.
+- Reserve: batch당 25 clips / 75 frames.
+- 세 primary와 세 reserve 모두 scenario validator error 0, warning 0이다.
+- 세 primary와 세 reserve 모두 placement·topology audit을 통과했다.
+- 전체 campaign은 3,334 primary clips / 10,002 frames이며 family quota는
+  Vehicle 1,334, Obstacle 1,000, Pedestrian 500, Empty 500이다.
+- corrective strata 합계는 ramp 18, merge 42, exit 85, taper 75, post-taper 124,
+  일반 2차로 우측 Ego 120, 좌측 Ego 60 clips로 설계값과 정확히 일치한다.
+
+다음 단계는 기존 capture session에서 `--start-batch 5 --end-batch 7 --resume`으로
+실제 수집하는 것이다. 기존 Batch 001--004 capture는 보존하며 다시 실행하지 않는다.
+
+### Capture artifact validator와 실패 보충 계약.
+
+구 validator는 Temporal V2의 `sensor_files`만 읽어 Base3 rolling-grouped의 모든 frame을
+오류로 표시했다. `new_files`, `observed_artifacts`, `required_artifacts`,
+`missing_artifacts`를 함께 읽도록 호환성을 수정했다. 이미 수집된 Batch 001--004 전체
+1,898 clips / 5,694 frames에 소급 적용한 결과 artifact 오류는 0이었다. 남은 clip당
+warning 1개는 Capture Mode에서 `/clock` stream이 없다는 정보성 경고다.
+
+`audit_static_classcentric_base3_campaign.py`는 manifest와 `scenes.jsonl`을 결합해
+family, split, spatial stratum, highway variant, ordinary-road side, roundabout phase를
+하나의 replacement quota key로 기록한다. 현재 Batch 001--004의 1,906 요청 중 1,898개가
+완료됐고 실패 8개는 이 exact key로 보충해야 한다. 단순히 총 frame 수만 맞춰 family나
+공간분포를 바꾸지 않는다.

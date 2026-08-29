@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 
 import random
+import math
+import json
+import tempfile
 import sys
 import unittest
 from pathlib import Path
 
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "dataset/morai_od/scripts"
@@ -12,12 +16,57 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 import generate_dynamic_object_capture_set as generator
+import audit_morai_lidar_gt_visibility as lidar_visibility
 import generate_static_classcentric_base3_batch as static_base3
 import generate_static_classcentric_base3_pilot as static_base3_pilot
 import generate_static_classcentric_base3_smoke as static_base3_smoke
+import validate_dynamic_capture_output as capture_validator
 
 
 class StaticClasscentricBase3Test(unittest.TestCase):
+    def test_output_validator_accepts_base3_artifact_schema(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact = root / "LIDAR_5/frame_Instance.bin"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_bytes(b"test")
+            frame = {
+                "frame_index": 0,
+                "triggered_unix": 1.0,
+                "morai_timestamp_stem": "frame",
+                "verified": True,
+                "quality": {"actor_present": False},
+                "new_files": ["LIDAR_5/frame_Instance.bin"],
+                "observed_artifacts": {"LIDAR_5": ["_Instance.bin"]},
+                "required_artifacts": {"LIDAR_5": ["_Instance.bin"]},
+                "missing_artifacts": {},
+                "objects": {"actors": []},
+            }
+            frames_path = root / "frames.jsonl"
+            frames_path.write_text(json.dumps(frame) + "\n", encoding="utf-8")
+            clip = {
+                "clip_id": "base3_schema",
+                "dataset_id": "morai_static_classcentric_base3_test",
+                "frames_jsonl": "frames.jsonl",
+                "frame_count": 1,
+            }
+            clip_path = root / "clip.json"
+            clip_path.write_text(json.dumps(clip), encoding="utf-8")
+            result = capture_validator.validate_clip(root, clip_path)
+            self.assertEqual([], result["errors"])
+
+    def test_lidar_evidence_tolerance_does_not_change_gt_box(self):
+        points = np.asarray([[0.51, 0.0, 0.0, 1.0]], dtype=np.float32)
+        box = {
+            "center": np.zeros(3, dtype=np.float32),
+            "size": np.ones(3, dtype=np.float32),
+            "rotation_rpy": [0.0, 0.0, 0.0],
+        }
+        self.assertFalse(lidar_visibility.points_in_box(points, box).any())
+        self.assertTrue(
+            lidar_visibility.points_in_box(points, box, 0.02).any()
+        )
+
     def test_campaign_quota_is_exact(self):
         static_base3.validate_global_quota()
         self.assertEqual(3334, static_base3.TOTAL_CLIPS)
@@ -25,11 +74,10 @@ class StaticClasscentricBase3Test(unittest.TestCase):
         self.assertEqual(
             static_base3.GLOBAL_PRIMARY_COUNTS,
             {
-                "stopped_vehicle": 1167,
-                "static_obstacle": 1167,
+                "stopped_vehicle": 1334,
+                "static_obstacle": 1000,
                 "standing_pedestrian": 500,
-                "realistic_mixed_static": 167,
-                "sparse_background": 333,
+                "sparse_background": 500,
             },
         )
 
@@ -58,7 +106,7 @@ class StaticClasscentricBase3Test(unittest.TestCase):
             rows["stopped_vehicle"]["same_lane_front_capture_slots_m"],
         )
         self.assertEqual(
-            [-28.0, -30.0, -32.0],
+            [-22.0, -26.0, -30.0],
             rows["stopped_vehicle"][
                 "same_lane_rear_capture_slots_by_subtype"
             ]["truck"],
@@ -96,8 +144,20 @@ class StaticClasscentricBase3Test(unittest.TestCase):
                 "highway_second_side_vehicle_probability"
             ],
         )
-        self.assertEqual([5, 8], rows["static_obstacle"]["objects_per_scene"])
-        self.assertEqual([4, 7], rows["standing_pedestrian"]["actors_per_scene"])
+        self.assertEqual([4, 7], rows["static_obstacle"]["objects_per_scene"])
+        self.assertEqual(
+            10, len(base["runtime_obstacle_asset_allowlist"])
+        )
+        self.assertNotIn(
+            "Lane_Separation_Bar", base["runtime_obstacle_asset_allowlist"]
+        )
+        self.assertNotIn(
+            "RedBarrel", base["runtime_obstacle_asset_allowlist"]
+        )
+        self.assertNotIn(
+            "WoodBox", base["runtime_obstacle_asset_allowlist"]
+        )
+        self.assertEqual([3, 5], rows["standing_pedestrian"]["actors_per_scene"])
         self.assertTrue(rows["sparse_background"]["empty_scene"])
 
     def test_config_has_only_static_classcentric_families(self):
@@ -138,9 +198,9 @@ class StaticClasscentricBase3Test(unittest.TestCase):
             "count": static_base3.GLOBAL_PRIMARY_COUNTS["stopped_vehicle"],
         }
         strata = generator.weighted_zone_schedule(family, key="spatial_strata")
-        self.assertEqual(1167, len(strata))
-        self.assertEqual(234, strata.count("roundabout"))
-        self.assertEqual(253, strata.count("highway_three_lane"))
+        self.assertEqual(1334, len(strata))
+        self.assertEqual(267, strata.count("roundabout"))
+        self.assertEqual(289, strata.count("highway_three_lane"))
         lane_schedule = generator.weighted_lane_schedule(
             {
                 "count": strata.count("highway_three_lane"),
@@ -149,7 +209,7 @@ class StaticClasscentricBase3Test(unittest.TestCase):
             }
         )
         lane_counts = {lane: lane_schedule.count(lane) for lane in (6, 8, 10)}
-        self.assertEqual(253, sum(lane_counts.values()))
+        self.assertEqual(289, sum(lane_counts.values()))
         self.assertLessEqual(max(lane_counts.values()) - min(lane_counts.values()), 1)
 
     def test_integer_count_range_is_inclusive_and_deterministic(self):
@@ -243,7 +303,7 @@ class StaticClasscentricBase3Test(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            [-20.0, -24.0, -28.0],
+            [-16.0, -20.0, -24.0],
             generator.controlled_same_lane_capture_slots(
                 family, "suv", "rear"
             ),
@@ -280,6 +340,36 @@ class StaticClasscentricBase3Test(unittest.TestCase):
             )
         )
 
+    def test_obstacle_scene_has_one_current_lane_actor(self):
+        family = static_base3.static_defaults()[1]["static_obstacle"]
+        for count in range(4, 8):
+            for scene_index in range(12):
+                roles = generator.static_obstacle_scene_roles(
+                    family, count, scene_index
+                )
+                self.assertEqual(count, len(roles))
+                self.assertEqual(1, roles.count("current_lane_front"))
+
+    def test_small_obstacle_range_is_capped_but_long_barrier_is_not(self):
+        self.assertEqual(
+            14.0,
+            generator.static_obstacle_first_capture_distance(
+                {"name": "TrafficBarrel", "subtype": "barrel_or_drum"}, 30.0
+            ),
+        )
+        self.assertEqual(
+            16.0,
+            generator.static_obstacle_first_capture_distance(
+                {"name": "WoodBox", "subtype": "box"}, 30.0
+            ),
+        )
+        self.assertEqual(
+            30.0,
+            generator.static_obstacle_first_capture_distance(
+                {"name": "Steel_Barricade"}, 30.0
+            ),
+        )
+
     def test_smoke_has_one_representative_clip_per_family(self):
         self.assertEqual(
             set(static_base3.GLOBAL_PRIMARY_COUNTS),
@@ -289,10 +379,100 @@ class StaticClasscentricBase3Test(unittest.TestCase):
             all(count == 1 for count in static_base3_smoke.SMOKE_COUNTS.values())
         )
 
-    def test_vehicle_pilot_quota_is_120_clips(self):
+    def test_balanced_pilot_quota_is_120_clips(self):
         self.assertEqual(120, sum(static_base3_pilot.PILOT_COUNTS.values()))
         self.assertEqual(
-            108, static_base3_pilot.PILOT_COUNTS["stopped_vehicle"]
+            48, static_base3_pilot.PILOT_COUNTS["stopped_vehicle"]
+        )
+        self.assertEqual(
+            {
+                "stopped_vehicle": 12,
+                "static_obstacle": 9,
+                "standing_pedestrian": 5,
+                "sparse_background": 4,
+            },
+            static_base3_pilot.balanced_pilot_counts(30),
+        )
+
+    def test_corrective_batch_spatial_quotas_are_exact(self):
+        for batch_index in (5, 6, 7):
+            counts = static_base3.PRIMARY_COUNTS_BY_BATCH[batch_index - 1]
+            config = static_base3.build_config(
+                batch_index, "primary", counts, "corrective", 1000
+            )
+            families = {row["name"]: row for row in config["families"]}
+            for family, spatial_counts in (
+                static_base3.CORRECTIVE_SPATIAL_COUNTS_BY_BATCH[batch_index].items()
+            ):
+                schedule = families[family]["global_spatial_stratum_schedule"]
+                self.assertEqual(counts[family], len(schedule))
+                self.assertEqual(
+                    spatial_counts,
+                    {name: schedule.count(name) for name in spatial_counts},
+                )
+
+    def test_pilot_spatial_deck_covers_corrective_topologies(self):
+        for clips in (30, 120):
+            family_counts = static_base3_pilot.balanced_pilot_counts(clips)
+            for family, total in family_counts.items():
+                counts = static_base3_pilot.scaled_spatial_counts(family, total)
+                if family == "standing_pedestrian":
+                    self.assertIsNone(counts)
+                    continue
+                self.assertEqual(total, sum(counts.values()))
+                if family == "stopped_vehicle":
+                    self.assertGreater(counts["highway_exit_split"], 0)
+                    self.assertGreater(
+                        counts["highway_post_taper_two_usable"], 0
+                    )
+                    self.assertGreater(
+                        counts["route_general_two_lane_right"], 0
+                    )
+
+    def test_highway_phase_paths_exclude_restricted_links(self):
+        for variants in generator.HIGHWAY_STATIC_PHASE_VARIANTS.values():
+            for variant in variants:
+                self.assertFalse(
+                    set(variant["route"]) & generator.HIGHWAY_RESTRICTED_LINK_IDS
+                )
+                for side_route in variant.get("side_routes", ()):
+                    self.assertFalse(
+                        set(side_route) & generator.HIGHWAY_RESTRICTED_LINK_IDS
+                    )
+
+    def test_highway_variant_deck_keeps_low_share_exit_branch(self):
+        rows = generator.HIGHWAY_STATIC_PHASE_VARIANTS["highway_exit_split"]
+        schedule = generator.weighted_row_schedule(
+            rows, 8, minimum_each=1
+        )
+        self.assertEqual(8, len(schedule))
+        self.assertEqual(
+            set(row["name"] for row in rows),
+            set(row["name"] for row in schedule),
+        )
+
+    def test_explicit_corrective_routes_are_contiguous(self):
+        links = {
+            row["idx"]: row
+            for row in generator.load_json(generator.DEFAULT_MGEO / "link_set.json")
+        }
+        paths = []
+        for variants in generator.HIGHWAY_STATIC_PHASE_VARIANTS.values():
+            for variant in variants:
+                paths.append(tuple(variant["route"]))
+                paths.extend(tuple(route) for route in variant.get("side_routes", ()))
+        for variant in generator.ROUTE_GENERAL_TWO_LANE_VARIANTS:
+            paths.extend((tuple(variant["left_route"]), tuple(variant["right_route"])))
+        for path in paths:
+            route, _arc = generator.route_from_link_path(links, path)
+            gaps = [
+                math.hypot(after["x"] - before["x"], after["y"] - before["y"])
+                for before, after in zip(route, route[1:])
+            ]
+            self.assertTrue(gaps)
+            self.assertLess(max(gaps), 5.0, path)
+        self.assertEqual(
+            31, sum(static_base3_pilot.balanced_pilot_counts(31).values())
         )
 
 

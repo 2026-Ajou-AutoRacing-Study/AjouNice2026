@@ -37,6 +37,14 @@ class CustomDataset(DatasetTemplate):
         self.min_gt_points = int(self.dataset_cfg.get('MIN_GT_POINTS', 0))
         if self.min_gt_points < 0:
             raise ValueError('MIN_GT_POINTS must be non-negative')
+        # MORAI asset meshes can extend a few centimetres beyond their
+        # annotation box. This tolerance affects only the evidence count
+        # used by MIN_GT_POINTS; regression targets retain the original box.
+        self.gt_point_count_box_tolerance_m = float(
+            self.dataset_cfg.get('GT_POINT_COUNT_BOX_TOLERANCE_M', 0.0)
+        )
+        if self.gt_point_count_box_tolerance_m < 0.0:
+            raise ValueError('GT_POINT_COUNT_BOX_TOLERANCE_M must be non-negative')
 
         split_dir = os.path.join(self.root_path, 'ImageSets', (self.split + '.txt'))
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if os.path.exists(split_dir) else None
@@ -91,15 +99,18 @@ class CustomDataset(DatasetTemplate):
         return filtered
 
     @staticmethod
-    def count_points_in_gt(points, gt_boxes):
+    def count_points_in_gt(points, gt_boxes, tolerance_m=0.0):
         """Count target-sweep points inside oriented 3D boxes."""
 
         if len(gt_boxes) == 0:
             return np.zeros((0,), dtype=np.int32)
         import torch
+        count_boxes = np.asarray(gt_boxes[:, :7], dtype=np.float32).copy()
+        if tolerance_m > 0.0:
+            count_boxes[:, 3:6] += 2.0 * float(tolerance_m)
         inside = roiaware_pool3d_utils.points_in_boxes_cpu(
             torch.from_numpy(np.asarray(points[:, :3], dtype=np.float32)),
-            torch.from_numpy(np.asarray(gt_boxes[:, :7], dtype=np.float32)),
+            torch.from_numpy(count_boxes),
         ).numpy()
         return np.asarray((inside > 0).sum(axis=1), dtype=np.int32)
 
@@ -234,7 +245,9 @@ class CustomDataset(DatasetTemplate):
                 if self.min_gt_points > 0:
                     points = self.get_lidar(sample_idx)
                     annotations['num_points_in_gt'] = self.count_points_in_gt(
-                        points, gt_boxes_lidar
+                        points,
+                        gt_boxes_lidar,
+                        self.gt_point_count_box_tolerance_m,
                     )
                     keep = annotations['num_points_in_gt'] >= self.min_gt_points
                     annotations['sparse_gt_count'] = int((~keep).sum())

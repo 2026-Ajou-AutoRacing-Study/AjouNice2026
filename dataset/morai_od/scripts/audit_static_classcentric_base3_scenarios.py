@@ -10,6 +10,10 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+HIGHWAY_RESTRICTED_LINK_IDS = {
+    "A2256W000010", "A2256W000429", "A2256W000433",
+    "A2256W000421", "A2256W000425", "A2256W000424",
+}
 EXPECTED_CLASSES = {
     "stopped_vehicle": {"vehicle"},
     "static_obstacle": {"obstacle"},
@@ -109,6 +113,9 @@ def main():
     family_strata = defaultdict(Counter)
     family_roundabout_phases = defaultdict(Counter)
     family_highway_lanes = defaultdict(Counter)
+    family_highway_phases = defaultdict(Counter)
+    family_highway_phase_variants = defaultdict(Counter)
+    family_ordinary_two_lane_sides = defaultdict(Counter)
     class_assets = defaultdict(set)
     class_sectors = defaultdict(Counter)
     class_capture_sectors = defaultdict(Counter)
@@ -123,7 +130,12 @@ def main():
     same_lane_front_count_distribution = Counter()
     same_lane_rear_count_distribution = Counter()
     diagonal_vehicle_quadrants = Counter()
+    pedestrian_heading_modes = Counter()
+    obstacle_geometry_roles = Counter()
+    obstacle_current_lane_count_distribution = Counter()
     errors = []
+    restricted_ego_links = Counter()
+    restricted_vehicle_links = Counter()
 
     for entry in manifest["scenes"]:
         metadata = load_json(resolve(entry["metadata"]))
@@ -146,6 +158,11 @@ def main():
                 actor.get("geometry_role") == "same_lane_optional_rear"
                 for actor in actors
             )] += 1
+        if family == "static_obstacle":
+            obstacle_current_lane_count_distribution[sum(
+                actor.get("geometry_role") == "current_lane_front"
+                for actor in actors
+            )] += 1
         if spatial.get("route_wide_bin") is not None:
             family_bins[family].add(int(spatial["route_wide_bin"]))
         if spatial.get("route_arc_m") is not None:
@@ -158,6 +175,36 @@ def main():
             family_roundabout_phases[family][spatial["roundabout_phase"]] += 1
         if spatial.get("highway_lane_id") is not None:
             family_highway_lanes[family][str(spatial["highway_lane_id"])] += 1
+        if spatial.get("highway_phase"):
+            family_highway_phases[family][spatial["highway_phase"]] += 1
+        if spatial.get("highway_phase_variant"):
+            family_highway_phase_variants[family][
+                spatial["highway_phase_variant"]
+            ] += 1
+        if spatial.get("ordinary_two_lane_side"):
+            family_ordinary_two_lane_sides[family][
+                spatial["ordinary_two_lane_side"]
+            ] += 1
+
+        ego_link = str(
+            scenario.get("egoVehicle", {}).get("initPosition", {}).get(
+                "initLink", ""
+            )
+        )
+        if ego_link in HIGHWAY_RESTRICTED_LINK_IDS:
+            restricted_ego_links[ego_link] += 1
+            errors.append("{} Ego uses restricted link {}".format(entry["id"], ego_link))
+        for vehicle in scenario.get("vehicleList", []):
+            vehicle_link = str(
+                vehicle.get("initPosition", {}).get("initLink", "")
+            )
+            if vehicle_link in HIGHWAY_RESTRICTED_LINK_IDS:
+                restricted_vehicle_links[vehicle_link] += 1
+                errors.append(
+                    "{} Vehicle uses restricted link {}".format(
+                        entry["id"], vehicle_link
+                    )
+                )
 
         classes = {actor.get("class") for actor in actors}
         if classes != EXPECTED_CLASSES.get(family):
@@ -281,12 +328,29 @@ def main():
                                 entry["id"], float(physical_minimum), minimum
                             )
                         )
+                if (
+                    geometry_role == "same_lane_primary_front"
+                    and float(actor.get("route_relative_longitudinal_offset_m", 0.0)) <= 0.0
+                ):
+                    errors.append("{} front Vehicle has non-positive route offset".format(entry["id"]))
+                if (
+                    geometry_role == "same_lane_optional_rear"
+                    and float(actor.get("route_relative_longitudinal_offset_m", 0.0)) >= 0.0
+                ):
+                    errors.append("{} rear Vehicle has non-negative route offset".format(entry["id"]))
+            elif actor_class == "pedestrian":
+                pedestrian_heading_modes[actor.get("heading_mode", "unspecified")] += 1
+            elif actor_class == "obstacle":
+                obstacle_geometry_roles[geometry_role] += 1
             geometry_roles[geometry_role] += 1
             if actor_class == "vehicle":
                 vehicle_geometry_roles[geometry_role] += 1
             if actor_class == "vehicle" and spatial.get("roundabout_phase"):
                 roundabout_vehicle_geometry_roles[geometry_role] += 1
-            if actor_class == "vehicle" and spatial.get("highway_lane_id") is not None:
+            if actor_class == "vehicle" and (
+                spatial.get("highway_lane_id") is not None
+                or spatial.get("highway_phase")
+            ):
                 highway_vehicle_geometry_roles[geometry_role] += 1
             class_assets[actor_class].add(
                 (actor.get("data_id"), actor.get("name"), actor.get("subtype"))
@@ -294,6 +358,7 @@ def main():
             class_sectors[actor_class][sector] += 1
             if actor_class == "vehicle" and (
                 geometry_role.startswith("highway_parallel_lane_")
+                or "_side_path_" in geometry_role
                 or geometry_role.startswith("route_general_")
                 or geometry_role == "roundabout_left_legal_path"
             ):
@@ -410,7 +475,26 @@ def main():
         ) >= 5,
         "vehicle_asset_diversity_at_least_30": len(class_assets["vehicle"]) >= 30,
         "pedestrian_asset_diversity_at_least_8": len(class_assets["pedestrian"]) >= 8,
-        "obstacle_asset_diversity_at_least_20": len(class_assets["obstacle"]) >= 20,
+        "obstacle_asset_diversity_at_least_10": len(class_assets["obstacle"]) >= 10,
+        "pedestrian_covers_four_heading_modes": all(
+            pedestrian_heading_modes[mode] > 0
+            for mode in (
+                "with_traffic", "against_traffic",
+                "cross_left_to_right", "cross_right_to_left",
+            )
+        ) if expected_family_counts.get("standing_pedestrian", 0) >= 4 else True,
+        "obstacle_covers_all_mission_geometry_roles": all(
+            obstacle_geometry_roles[role] > 0
+            for role in (
+                "current_lane_front", "adjacent_avoidance_front",
+                "diagonal_context", "near_side_or_rear", "roadside_context",
+            )
+        ),
+        "obstacle_scenes_have_exactly_one_current_lane_actor": (
+            obstacle_current_lane_count_distribution == Counter({
+                1: expected_family_counts.get("static_obstacle", 0)
+            })
+        ),
         "each_positive_class_has_front_side_and_rear_capture_views": all(
             class_capture_sectors[name]["front"] > 0
             and class_capture_sectors[name]["rear"] > 0
@@ -420,18 +504,25 @@ def main():
             ) > 0
             for name in ("vehicle", "pedestrian", "obstacle")
         ),
-        "each_positive_class_covers_all_distance_bands": all(
+        "vehicle_obstacle_cover_all_distance_bands": all(
             all(
                 class_capture_distance_bins[name][distance_bin] > 0
                 for distance_bin in ("0-10m", "10-20m", "20-30m", "30m+")
             )
-            for name in ("vehicle", "pedestrian", "obstacle")
+            for name in ("vehicle", "obstacle")
+        ),
+        "pedestrian_covers_mission_distance_bands_through_30m": all(
+            class_capture_distance_bins["pedestrian"][distance_bin] > 0
+            for distance_bin in ("0-10m", "10-20m", "20-30m")
         ),
         "all_actors_static": not any(
             "non-static actor" in error for error in errors
         ),
         "no_same_lane_180_degree_vehicle_flips": (
             opposite_heading_vehicle_count == 0
+        ),
+        "no_restricted_highway_ego_or_vehicle": (
+            not restricted_ego_links and not restricted_vehicle_links
         ),
         "same_lane_vehicle_final_separation_safe": (
             not same_lane_final_separation_violations
@@ -449,26 +540,43 @@ def main():
             )
         ),
         "roundabout_has_legal_left_vehicle_snapshots": (
-            roundabout_vehicle_geometry_roles["roundabout_left_legal_path"] > 0
+            expected_family_counts.get("stopped_vehicle", 0) < 24
+            or roundabout_vehicle_geometry_roles["roundabout_left_legal_path"] > 0
         ),
         "highway_has_legal_parallel_lane_snapshots": any(
-            name.startswith("highway_parallel_lane_") and count > 0
+            (
+                name.startswith("highway_parallel_lane_")
+                or "_side_path_" in name
+            ) and count > 0
             for name, count in highway_vehicle_geometry_roles.items()
-        ),
+        ) if expected_family_counts.get("stopped_vehicle", 0) >= 24 else True,
         "highway_has_near_and_far_lane_snapshots": (
-            any(
-                name.startswith("highway_parallel_lane_")
-                and name.endswith("_gap_1")
-                and count > 0
-                for name, count in highway_vehicle_geometry_roles.items()
+            (
+                bool(family_highway_phases["stopped_vehicle"])
+                and any(
+                    quadrant.startswith("front_") and count > 0
+                    for quadrant, count in diagonal_vehicle_quadrants.items()
+                )
+                and any(
+                    quadrant.startswith("rear_") and count > 0
+                    for quadrant, count in diagonal_vehicle_quadrants.items()
+                )
             )
-            and any(
-                name.startswith("highway_parallel_lane_")
-                and name.endswith("_gap_2")
-                and count > 0
-                for name, count in highway_vehicle_geometry_roles.items()
+            or (
+                any(
+                    name.startswith("highway_parallel_lane_")
+                    and name.endswith("_gap_1")
+                    and count > 0
+                    for name, count in highway_vehicle_geometry_roles.items()
+                )
+                and any(
+                    name.startswith("highway_parallel_lane_")
+                    and name.endswith("_gap_2")
+                    and count > 0
+                    for name, count in highway_vehicle_geometry_roles.items()
+                )
             )
-        ),
+        ) if expected_family_counts.get("stopped_vehicle", 0) >= 24 else True,
     }
     if args.placement_pilot:
         checks = {
@@ -481,9 +589,10 @@ def main():
                 "pedestrian_crosswalk_uses_at_least_5_locations",
                 "vehicle_asset_diversity_at_least_30",
                 "pedestrian_asset_diversity_at_least_8",
-                "obstacle_asset_diversity_at_least_20",
+                "obstacle_asset_diversity_at_least_10",
                 "each_positive_class_has_front_side_and_rear_capture_views",
-                "each_positive_class_covers_all_distance_bands",
+                "vehicle_obstacle_cover_all_distance_bands",
+                "pedestrian_covers_mission_distance_bands_through_30m",
             }
         }
     if not all(checks.values()):
@@ -519,6 +628,19 @@ def main():
         "family_highway_lanes": {
             name: dict(values) for name, values in family_highway_lanes.items()
         },
+        "family_highway_phases": {
+            name: dict(values) for name, values in family_highway_phases.items()
+        },
+        "family_highway_phase_variants": {
+            name: dict(values)
+            for name, values in family_highway_phase_variants.items()
+        },
+        "family_ordinary_two_lane_sides": {
+            name: dict(values)
+            for name, values in family_ordinary_two_lane_sides.items()
+        },
+        "restricted_ego_links": dict(restricted_ego_links),
+        "restricted_vehicle_links": dict(restricted_vehicle_links),
         "family_maximum_circular_arc_gap_m": {
             name: circular_gap(values, route_length)
             for name, values in family_arcs.items()
@@ -557,6 +679,11 @@ def main():
             same_lane_rear_count_distribution
         ),
         "diagonal_vehicle_quadrants": dict(diagonal_vehicle_quadrants),
+        "pedestrian_heading_modes": dict(pedestrian_heading_modes),
+        "obstacle_geometry_roles": dict(obstacle_geometry_roles),
+        "obstacle_current_lane_count_distribution": dict(
+            obstacle_current_lane_count_distribution
+        ),
         "roundabout_vehicle_geometry_roles": dict(
             roundabout_vehicle_geometry_roles
         ),

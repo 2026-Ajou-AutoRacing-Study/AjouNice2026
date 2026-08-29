@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the five representative Base3-Static live smoke scenes."""
+"""Generate the four representative Base3-Static live smoke scenes."""
 
 import argparse
 from pathlib import Path
@@ -12,14 +12,12 @@ SMOKE_COUNTS = {
     "stopped_vehicle": 1,
     "static_obstacle": 1,
     "standing_pedestrian": 1,
-    "realistic_mixed_static": 1,
     "sparse_background": 1,
 }
 
 SPATIAL_SMOKE_COUNTS = {
     "stopped_vehicle": 7,
     "static_obstacle": 3,
-    "realistic_mixed_static": 1,
     "sparse_background": 1,
 }
 

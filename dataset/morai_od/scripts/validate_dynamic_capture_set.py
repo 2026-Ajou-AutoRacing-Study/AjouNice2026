@@ -381,6 +381,9 @@ def validate_scene(entry):
             "fast_crossing",
             "occluded_runout",
             "partial_visibility_transition",
+            "walking",
+            "running",
+            "activation_transition",
         }:
             errors.append("crosswalk pedestrian has unknown difficulty profile")
         expected_split = pedestrian.get("crosswalk_split")

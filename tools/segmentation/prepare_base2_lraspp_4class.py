@@ -20,8 +20,13 @@ from PIL import Image
 
 TARGET_COLORS = {
     (98, 2, 255): 1,       # Pedestrian.
-    (255, 2, 2): 2,        # Vehicle semantic variant A.
-    (255, 105, 105): 2,    # Vehicle semantic variant B.
+    (255, 2, 2): 2,        # Vehicle (generic).
+    (255, 60, 60): 2,      # Sedan.
+    (255, 75, 75): 2,      # SUV.
+    (255, 90, 90): 2,      # Truck.
+    (255, 105, 105): 2,    # Bus.
+    (255, 135, 135): 2,    # Wagon.
+    (255, 150, 150): 2,    # MPV.
     (236, 255, 2): 3,      # Obstacle.
 }
 PACKED_TARGET_COLORS = {

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "dataset_name": "Base3-Static 10K",
+  "selection_id": "base3_static_lraspp_4class_v1",
+  "runs": [
+    {"name": "batch001_primary"},
+    {"name": "batch002_primary"},
+    {"name": "batch003_primary"},
+    {"name": "batch004_primary"},
+    {"name": "batch005_primary"},
+    {"name": "batch006_primary"},
+    {"name": "batch007_primary"},
+    {
+      "name": "replacement_v1",
+      "exclude_scene_ids": ["b3sfinal10prodb003p_dso106"]
+    },
+    {"name": "replacement_v2"},
+    {"name": "replacement_v3"},
+    {"name": "batch008_dynamic_ped"},
+    {"name": "batch008_dynamic_ped_replacement_v1"},
+    {"name": "batch008_dynamic_ped_replacement_v2"}
+  ],
+  "excluded_runs": [
+    {
+      "name": "batch008_dynamic_ped_rejected_active_at_load",
+      "reason": "superseded actor activation and trigger catch-up experiment"
+    }
+  ],
+  "expected": {
+    "clips": 3634,
+    "frames": 10902,
+    "cameras": 4,
+    "camera_samples": 43608,
+    "split_clips": {"train": 2544, "val": 545, "test": 545}
+  }
+}

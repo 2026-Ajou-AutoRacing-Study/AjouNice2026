@@ -59,6 +59,9 @@ def validate_clip(capture_dir, clip_path):
         errors.append("MORAI timestamp stems are not unique")
 
     dataset_id = str(clip.get("dataset_id", ""))
+    static_classcentric = dataset_id.startswith(
+        "morai_static_classcentric_base3"
+    )
     sequence_contract = clip.get("sequence_contract") or {}
     if dataset_id.startswith("morai_temporal_sequence_v2"):
         if len(frames) != 8:
@@ -216,15 +219,39 @@ def validate_clip(capture_dir, clip_path):
     for frame in frames:
         if not frame.get("verified"):
             errors.append("unverified frame present")
-        if not frame.get("quality", {}).get("actor_present"):
+        if (
+            not static_classcentric
+            and not frame.get("quality", {}).get("actor_present")
+        ):
             warnings.append("frame without primary dynamic actor")
-        files = frame.get("sensor_files", [])
+        # Temporal V2 stored ``sensor_files``. Base3 rolling-grouped uses the
+        # more explicit ``new_files`` plus per-sensor artifact inventories.
+        # Both schemas refer to files copied under the capture directory.
+        files = frame.get("sensor_files") or frame.get("new_files") or []
         if not files:
             errors.append("frame has no sensor_files")
         for relative in files:
             path = capture_dir / relative
             if not path.is_file():
                 errors.append("missing sensor file: {}".format(relative))
+        observed_artifacts = frame.get("observed_artifacts") or {}
+        required_artifacts = frame.get("required_artifacts") or {}
+        missing_artifacts = frame.get("missing_artifacts") or {}
+        if missing_artifacts:
+            errors.append(
+                "frame reports missing required artifacts: {}".format(
+                    missing_artifacts
+                )
+            )
+        for sensor, required_suffixes in required_artifacts.items():
+            observed_suffixes = set(observed_artifacts.get(sensor, []))
+            missing_suffixes = sorted(set(required_suffixes) - observed_suffixes)
+            if missing_suffixes:
+                errors.append(
+                    "frame artifact inventory misses {}: {}".format(
+                        sensor, missing_suffixes
+                    )
+                )
         objects = frame.get("objects") or {}
         for actor in objects.get("actors", []):
             class_counts[actor["class"]] += 1

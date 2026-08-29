@@ -54,7 +54,7 @@ def coarse_class(name):
     return "obstacle"
 
 
-def points_in_box(points, box):
+def points_in_box(points, box, tolerance_m=0.0):
     center = box["center"]
     size = box["size"]
     yaw = float(box["rotation_rpy"][2])
@@ -63,9 +63,9 @@ def points_in_box(points, box):
     local_x = cosine * relative[:, 0] + sine * relative[:, 1]
     local_y = -sine * relative[:, 0] + cosine * relative[:, 1]
     return (
-        (np.abs(local_x) <= size[0] * 0.5)
-        & (np.abs(local_y) <= size[1] * 0.5)
-        & (np.abs(relative[:, 2]) <= size[2] * 0.5)
+        (np.abs(local_x) <= size[0] * 0.5 + tolerance_m)
+        & (np.abs(local_y) <= size[1] * 0.5 + tolerance_m)
+        & (np.abs(relative[:, 2]) <= size[2] * 0.5 + tolerance_m)
     )
 
 
@@ -91,18 +91,23 @@ def main():
     parser.add_argument("--source-metadata-dir", type=Path)
     parser.add_argument("--maximum-center-range-m", type=float, default=30.0)
     parser.add_argument("--minimum-positive-points", type=int, default=5)
+    parser.add_argument("--box-tolerance-m", type=float, default=0.0)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
-    role_by_scene_id = {}
+    actor_by_scene_id = {}
+    spatial_by_scene_id = {}
     if args.source_metadata_dir:
         for path in args.source_metadata_dir.glob("*.metadata.json"):
             metadata = read_json(path)
-            role_by_scene_id[metadata["scene_id"]] = {
-                int(actor["unique_id"]): actor.get("geometry_role", "unspecified")
+            actor_by_scene_id[metadata["scene_id"]] = {
+                int(actor["unique_id"]): actor
                 for actor in metadata.get("runtime_actors", [])
                 if actor.get("unique_id") is not None
             }
+            spatial_by_scene_id[metadata["scene_id"]] = (
+                metadata.get("spatial_sampling") or {}
+            )
 
     records = []
     for frames_path in sorted((args.run_dir / "dynamic_metadata").glob("*.frames.jsonl")):
@@ -118,18 +123,20 @@ def main():
             points = raw.reshape(-1, 4)
             finite = np.isfinite(points).all(axis=1)
             points = points[finite]
-            roles = role_by_scene_id.get(frame["scene_id"], {})
+            actors = actor_by_scene_id.get(frame["scene_id"], {})
+            spatial = spatial_by_scene_id.get(frame["scene_id"], {})
             for box in parse_instances(instance_path):
                 distance = float(np.linalg.norm(box["center"][:2]))
                 if distance > args.maximum_center_range_m:
                     continue
-                count = int(points_in_box(points, box).sum())
+                count = int(points_in_box(points, box, args.box_tolerance_m).sum())
                 if count == 0:
                     disposition = "drop_zero_point"
                 elif count < args.minimum_positive_points:
                     disposition = "exclude_sparse_positive"
                 else:
                     disposition = "normal_positive"
+                actor = actors.get(box["unique_id"], {})
                 records.append({
                     "scene_id": frame["scene_id"],
                     "frame_id": frame["frame_id"],
@@ -139,7 +146,14 @@ def main():
                     "class": coarse_class(box["raw_class"]),
                     "raw_class": box["raw_class"],
                     "unique_id": box["unique_id"],
-                    "geometry_role": roles.get(box["unique_id"], "unmapped"),
+                    "asset_name": actor.get("name") or "unmapped",
+                    "asset_subtype": actor.get("subtype") or "unmapped",
+                    "geometry_role": actor.get("geometry_role") or "unmapped",
+                    "spatial_stratum": spatial.get("spatial_stratum")
+                    or "unspecified",
+                    "highway_phase_variant": spatial.get(
+                        "highway_phase_variant"
+                    ) or "unspecified",
                     "center_range_m": distance,
                     "num_lidar_points_in_gt": count,
                     "point_bin": point_bin(count),
@@ -169,6 +183,7 @@ def main():
         "run_dir": str(args.run_dir.resolve()),
         "maximum_center_range_m": args.maximum_center_range_m,
         "minimum_positive_points": args.minimum_positive_points,
+        "box_tolerance_m": args.box_tolerance_m,
         "box_observations": len(records),
         "point_bins": dict(Counter(row["point_bin"] for row in records)),
         "training_dispositions": dict(Counter(row["training_disposition"] for row in records)),
@@ -180,7 +195,15 @@ def main():
             "p90": percentile(counts, 90),
         },
         "by_class": grouped("class"),
+        "by_asset_name": grouped("asset_name"),
+        "by_asset_subtype": grouped("asset_subtype"),
         "by_geometry_role": grouped("geometry_role"),
+        "by_spatial_stratum": grouped("spatial_stratum"),
+        "by_highway_phase_variant": grouped("highway_phase_variant"),
+        "non_normal_examples": [
+            row for row in records
+            if row["training_disposition"] != "normal_positive"
+        ][:100],
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -60,8 +60,8 @@ while (($#)); do
   esac
 done
 
-if ! [[ "${START_BATCH}" =~ ^[1-7]$ && "${END_BATCH}" =~ ^[1-7]$ ]]; then
-  echo "Batch range must stay within 1..7" >&2
+if ! [[ "${START_BATCH}" =~ ^[1-8]$ && "${END_BATCH}" =~ ^[1-8]$ ]]; then
+  echo "Batch range must stay within 1..8" >&2
   exit 2
 fi
 if ((START_BATCH > END_BATCH)); then
@@ -152,10 +152,17 @@ echo "Resume:       ${RESUME}"
 
 for ((batch_number=START_BATCH; batch_number<=END_BATCH; batch_number++)); do
   batch="$(printf '%03d' "${batch_number}")"
-  source_manifest="${PROJECT_ROOT}/dataset/morai_od/manifests/static_classcentric_base3_batch${batch}_primary.json"
-  runtime_manifest="${PROJECT_ROOT}/dataset/morai_od/manifests/static_classcentric_base3_batch${batch}_primary_runtime.json"
-  plan="${PROJECT_ROOT}/dataset/morai_od/metadata/static_classcentric_base3_batches/batch${batch}/batch_plan.json"
-  run_dir="${SESSION_ROOT}/batch${batch}_primary"
+  if [[ "${batch}" == "008" ]]; then
+    source_manifest="${PROJECT_ROOT}/dataset/morai_od/manifests/static_classcentric_base3_batch008_dynamic_ped.json"
+    runtime_manifest="${PROJECT_ROOT}/dataset/morai_od/manifests/static_classcentric_base3_batch008_dynamic_ped_runtime.json"
+    plan="${PROJECT_ROOT}/dataset/morai_od/configs/generated/base3_static_batch008_dynamic_ped.json"
+    run_dir="${SESSION_ROOT}/batch008_dynamic_ped"
+  else
+    source_manifest="${PROJECT_ROOT}/dataset/morai_od/manifests/static_classcentric_base3_batch${batch}_primary.json"
+    runtime_manifest="${PROJECT_ROOT}/dataset/morai_od/manifests/static_classcentric_base3_batch${batch}_primary_runtime.json"
+    plan="${PROJECT_ROOT}/dataset/morai_od/metadata/static_classcentric_base3_batches/batch${batch}/batch_plan.json"
+    run_dir="${SESSION_ROOT}/batch${batch}_primary"
+  fi
 
   [[ -f "${source_manifest}" ]] || { echo "Missing manifest: ${source_manifest}" >&2; exit 2; }
   [[ -f "${plan}" ]] || { echo "Missing plan: ${plan}" >&2; exit 2; }
@@ -194,7 +201,7 @@ print("1" if json.load(open(sys.argv[1], encoding="utf-8")).get("finished") else
 
   echo
   echo "============================================================"
-  echo "Starting Base3-Static Batch ${batch}/007"
+  echo "Starting Base3-Static Batch ${batch}/008"
   echo "Manifest: ${runtime_manifest}"
   echo "Output:   ${run_dir}"
   echo "============================================================"
@@ -213,7 +220,7 @@ print("1" if json.load(open(sys.argv[1], encoding="utf-8")).get("finished") else
   archive_manifest_scenes "${runtime_manifest}" "${batch}"
 done
 
-if ((END_BATCH == 7)); then
+if ((END_BATCH == 8)); then
   write_state "DONE" "${SESSION_ROOT}" "-"
   echo "All Base3-Static batches finished."
 else

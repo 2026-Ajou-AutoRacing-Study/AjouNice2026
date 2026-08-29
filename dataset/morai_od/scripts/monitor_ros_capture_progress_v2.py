@@ -22,6 +22,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CAPTURE_ROOT = Path.home() / "morai_cap"
 MAX_JSON_BYTES = 1024 * 1024
+MAX_MANIFEST_BYTES = 16 * 1024 * 1024
 MISSION_DYNAMIC = {
     "roundabout_circulation",
     "highway_merge_cruise",
@@ -87,9 +88,9 @@ def newest_run(root, name_contains):
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
-def read_small_json(path):
+def read_small_json(path, max_bytes=MAX_JSON_BYTES):
     try:
-        if path.stat().st_size > MAX_JSON_BYTES:
+        if path.stat().st_size > max_bytes:
             return None
         with path.open("r", encoding="utf-8") as stream:
             return json.load(stream)
@@ -163,7 +164,12 @@ class AppendedLineReader:
 def load_manifest(path, requested):
     if path is None:
         return None
-    document = read_small_json(path.expanduser().resolve())
+    # Production manifests contain hundreds of complete scene contracts and
+    # can legitimately exceed the small 1 MiB limit used for live summaries.
+    # Keep a separate finite ceiling so the read-only monitor remains bounded.
+    document = read_small_json(
+        path.expanduser().resolve(), max_bytes=MAX_MANIFEST_BYTES
+    )
     if not document or "scenes" not in document:
         raise ValueError("invalid or oversized manifest: {}".format(path))
     scenes = document["scenes"]

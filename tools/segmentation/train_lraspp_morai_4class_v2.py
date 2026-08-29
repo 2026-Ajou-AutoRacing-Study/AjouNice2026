@@ -25,6 +25,7 @@ import csv
 import json
 import math
 import random
+import time
 from pathlib import Path
 
 import numpy as np
@@ -53,6 +54,12 @@ def parse_args():
     p.add_argument("--train-csv", required=True, type=Path)
     p.add_argument("--val-csv", required=True, type=Path)
     p.add_argument("--output-dir", required=True, type=Path)
+    p.add_argument(
+        "--resume",
+        type=Path,
+        default=None,
+        help="Resume model/optimizer/scheduler and history from a checkpoint.",
+    )
     p.add_argument("--epochs", type=int, default=5)
     p.add_argument("--batch-size", type=int, default=4)
     p.add_argument("--workers", type=int, default=4)
@@ -65,6 +72,15 @@ def parse_args():
     )
     p.add_argument(
         "--scheduler", choices=("none", "cosine"), default="none"
+    )
+    p.add_argument(
+        "--warmup-epochs",
+        type=int,
+        default=0,
+        help=(
+            "Linear LR warm-up epochs before cosine annealing. "
+            "Only used with --scheduler cosine."
+        ),
     )
     p.add_argument(
         "--sampling-mode",
@@ -90,6 +106,11 @@ def parse_args():
     p.add_argument("--wandb-project", default="")
     p.add_argument("--wandb-entity", default="")
     p.add_argument("--wandb-run-name", default="")
+    p.add_argument(
+        "--wandb-run-id",
+        default="",
+        help="Existing W&B run id to resume, for example 9fdubfb6.",
+    )
     p.add_argument("--wandb-mode", choices=("online", "offline", "disabled"),
                    default="online")
     p.add_argument("--max-train-batches", type=int, default=0,
@@ -402,20 +423,41 @@ def metrics_from_confusion(conf):
     fn = conf.sum(1) - tp
     denom = tp + fp + fn
     iou = torch.where(denom > 0, tp / denom, torch.nan)
+    precision_denom = tp + fp
+    recall_denom = tp + fn
+    dice_denom = 2 * tp + fp + fn
+    precision = torch.where(
+        precision_denom > 0, tp / precision_denom, torch.nan
+    )
+    recall = torch.where(recall_denom > 0, tp / recall_denom, torch.nan)
+    dice = torch.where(dice_denom > 0, 2 * tp / dice_denom, torch.nan)
+    row_sum = conf.sum(1, keepdim=True)
+    normalized_conf = torch.where(row_sum > 0, conf / row_sum, 0.0)
 
     total = conf.sum()
     pixel_acc = (tp.sum() / total).item() if total > 0 else float("nan")
     miou = torch.nanmean(iou).item()
+    foreground_miou = torch.nanmean(iou[1:]).item()
+
+    def class_values(values):
+        return {
+            CLASS_NAMES[i]: (
+                float(values[i].item())
+                if not torch.isnan(values[i]) else None
+            )
+            for i in range(NUM_CLASSES)
+        }
 
     return {
         "pixel_accuracy": pixel_acc,
         "miou_4class": miou,
-        "class_iou": {
-            CLASS_NAMES[i]: (
-                float(iou[i].item()) if not torch.isnan(iou[i]) else None
-            )
-            for i in range(NUM_CLASSES)
-        },
+        "foreground_miou": foreground_miou,
+        "class_iou": class_values(iou),
+        "class_precision": class_values(precision),
+        "class_recall": class_values(recall),
+        "class_dice": class_values(dice),
+        "confusion_matrix": conf.to(torch.int64).tolist(),
+        "confusion_matrix_row_normalized": normalized_conf.tolist(),
     }
 
 
@@ -424,6 +466,9 @@ def train_one_epoch(model, loader, optimizer, scaler, criterion, device,
     model.train()
     total_loss = 0.0
     seen = 0
+    processed_images = 0
+    torch.cuda.synchronize(device)
+    started_at = time.perf_counter()
 
     for batch_idx, (images, masks) in enumerate(loader):
         if max_batches and batch_idx >= max_batches:
@@ -454,6 +499,7 @@ def train_one_epoch(model, loader, optimizer, scaler, criterion, device,
 
         total_loss += float(loss.item())
         seen += 1
+        processed_images += int(images.shape[0])
 
         if batch_idx == 0:
             print(
@@ -464,7 +510,20 @@ def train_one_epoch(model, loader, optimizer, scaler, criterion, device,
                 "loss", f"{loss.item():.6f}",
             )
 
-    return total_loss / max(seen, 1)
+    torch.cuda.synchronize(device)
+    elapsed_sec = time.perf_counter() - started_at
+    print(
+        "  train performance:",
+        f"batches={seen}",
+        f"images={processed_images}",
+        f"elapsed={elapsed_sec:.3f}s",
+        f"images_per_sec={processed_images / max(elapsed_sec, 1e-9):.3f}",
+    )
+    return total_loss / max(seen, 1), {
+        "elapsed_sec": elapsed_sec,
+        "images": processed_images,
+        "images_per_sec": processed_images / max(elapsed_sec, 1e-9),
+    }
 
 
 @torch.no_grad()
@@ -508,8 +567,8 @@ def validate(model, loader, criterion, device, amp, max_batches):
     return metrics
 
 
-def save_checkpoint(path, model, optimizer, scheduler, epoch, metrics, args,
-                    class_weights):
+def save_checkpoint(path, model, optimizer, scheduler, scaler, epoch, metrics,
+                    args, class_weights):
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
@@ -519,6 +578,8 @@ def save_checkpoint(path, model, optimizer, scheduler, epoch, metrics, args,
             "scheduler_state_dict": (
                 scheduler.state_dict() if scheduler is not None else None
             ),
+            "scaler_state_dict": scaler.state_dict(),
+            "scheduler_step_timing": "post_epoch",
             "metrics": metrics,
             "num_classes": NUM_CLASSES,
             "class_names": CLASS_NAMES,
@@ -561,35 +622,87 @@ def define_wandb_metrics(run):
         summary="max",
         overwrite=True,
     )
+    run.define_metric(
+        "val/miou_foreground",
+        step_metric="epoch",
+        summary="max",
+        overwrite=True,
+    )
+    run.define_metric(
+        "train/images_per_sec",
+        step_metric="epoch",
+        summary="last",
+        overwrite=True,
+    )
+    run.define_metric(
+        "performance/peak_cuda_memory_gib",
+        step_metric="epoch",
+        summary="max",
+        overwrite=True,
+    )
     for name in CLASS_NAMES:
-        run.define_metric(
-            f"val/iou/{name}",
-            step_metric="epoch",
-            summary="max",
-            overwrite=True,
-        )
+        for metric in ("iou", "precision", "recall", "dice"):
+            run.define_metric(
+                f"val/{metric}/{name}",
+                step_metric="epoch",
+                summary="max",
+                overwrite=True,
+            )
 
 
-def wandb_epoch_payload(epoch, train_loss, learning_rate, val_metrics):
+def wandb_epoch_payload(epoch, train_loss, learning_rate, train_performance,
+                        peak_cuda_gib, val_metrics):
     """Flatten a completed Train N -> Val N cycle into one W&B record."""
     return {
         "epoch": int(epoch),
         "train/loss": float(train_loss),
         "train/lr": float(learning_rate),
+        "train/images_per_sec": float(train_performance["images_per_sec"]),
+        "performance/peak_cuda_memory_gib": float(peak_cuda_gib),
         "val/loss": float(val_metrics["loss"]),
         "val/pixel_accuracy": float(val_metrics["pixel_accuracy"]),
         "val/miou_4class": float(val_metrics["miou_4class"]),
-        **{
-            f"val/iou/{name}": (
-                float(value) if value is not None else float("nan")
+        "val/miou_foreground": float(val_metrics["foreground_miou"]),
+        **dict(
+            item
+            for metric, values in (
+                ("iou", val_metrics["class_iou"]),
+                ("precision", val_metrics["class_precision"]),
+                ("recall", val_metrics["class_recall"]),
+                ("dice", val_metrics["class_dice"]),
             )
-            for name, value in val_metrics["class_iou"].items()
-        },
+            for name, value in values.items()
+            for item in [(
+                f"val/{metric}/{name}",
+                float(value) if value is not None else float("nan"),
+            )]
+        ),
     }
+
+
+def wandb_confusion_table(wandb, val_metrics):
+    table = wandb.Table(columns=[
+        "true_class", "predicted_class", "pixel_count", "row_fraction"
+    ])
+    counts = val_metrics["confusion_matrix"]
+    fractions = val_metrics["confusion_matrix_row_normalized"]
+    for true_index, true_name in enumerate(CLASS_NAMES):
+        for pred_index, pred_name in enumerate(CLASS_NAMES):
+            table.add_data(
+                true_name,
+                pred_name,
+                int(counts[true_index][pred_index]),
+                float(fractions[true_index][pred_index]),
+            )
+    return table
 
 
 def main():
     args = parse_args()
+    if args.warmup_epochs < 0 or args.warmup_epochs >= args.epochs:
+        raise SystemExit(
+            "--warmup-epochs must satisfy 0 <= warmup_epochs < epochs"
+        )
     seed_everything(args.seed)
 
     if not torch.cuda.is_available():
@@ -681,16 +794,98 @@ def main():
         lr=args.lr,
         weight_decay=args.weight_decay,
     )
-    scheduler = (
-        torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=args.epochs, eta_min=args.lr * 0.01
-        )
-        if args.scheduler == "cosine" else None
-    )
+    scheduler = None
+    if args.scheduler == "cosine":
+        if args.warmup_epochs:
+            cosine_steps = max(1, args.epochs - args.warmup_epochs)
+
+            def warmup_cosine_factor(step):
+                if step <= args.warmup_epochs:
+                    return 0.1 + 0.9 * step / args.warmup_epochs
+                progress = min(
+                    (step - args.warmup_epochs) / cosine_steps,
+                    1.0,
+                )
+                return 0.01 + 0.99 * 0.5 * (
+                    1.0 + math.cos(math.pi * progress)
+                )
+
+            scheduler = torch.optim.lr_scheduler.LambdaLR(
+                optimizer, lr_lambda=warmup_cosine_factor
+            )
+        else:
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer,
+                T_max=args.epochs,
+                eta_min=args.lr * 0.01,
+            )
 
     scaler = torch.amp.GradScaler("cuda", enabled=args.amp)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    history_path = args.output_dir / "history.json"
+    history = []
+    start_epoch = 1
+    best_4class_miou = -1.0
+    best_foreground_miou = -1.0
+
+    if args.resume is not None:
+        if not args.resume.is_file():
+            raise SystemExit(f"Resume checkpoint does not exist: {args.resume}")
+        try:
+            checkpoint = torch.load(
+                args.resume, map_location=device, weights_only=False
+            )
+        except TypeError:
+            checkpoint = torch.load(args.resume, map_location=device)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        if scheduler is not None and checkpoint.get("scheduler_state_dict"):
+            scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            if checkpoint.get("scheduler_step_timing") != "post_epoch":
+                # Checkpoints produced before resume support were saved before
+                # scheduler.step(). Advance once to reconstruct the LR that
+                # would have been used by the following epoch.
+                scheduler.step()
+        if checkpoint.get("scaler_state_dict"):
+            scaler.load_state_dict(checkpoint["scaler_state_dict"])
+
+        completed_epoch = int(checkpoint["epoch"])
+        start_epoch = completed_epoch + 1
+        if history_path.is_file():
+            history = [
+                row for row in json.loads(history_path.read_text(
+                    encoding="utf-8"
+                ))
+                if int(row["epoch"]) <= completed_epoch
+            ]
+        if history:
+            best_4class_miou = max(
+                float(row["miou_4class"]) for row in history
+            )
+            best_foreground_miou = max(
+                float(row["foreground_miou"]) for row in history
+            )
+        else:
+            metrics = checkpoint.get("metrics", {})
+            best_4class_miou = float(metrics.get("miou_4class", -1.0))
+            best_foreground_miou = float(
+                metrics.get("foreground_miou", -1.0)
+            )
+        print(
+            "resumed:", args.resume,
+            f"completed_epoch={completed_epoch}",
+            f"next_epoch={start_epoch}",
+            f"best_4class_miou={best_4class_miou:.6f}",
+            f"best_foreground_miou={best_foreground_miou:.6f}",
+        )
+
+    if start_epoch > args.epochs:
+        raise SystemExit(
+            f"Checkpoint already completed epoch {start_epoch - 1}, "
+            f"but --epochs is {args.epochs}."
+        )
+
     config = vars(args).copy()
     config = {k: str(v) if isinstance(v, Path) else v for k, v in config.items()}
     (args.output_dir / "run_config.json").write_text(
@@ -705,6 +900,8 @@ def main():
             project=args.wandb_project,
             entity=args.wandb_entity or None,
             name=args.wandb_run_name or args.output_dir.name,
+            id=args.wandb_run_id or None,
+            resume="must" if args.wandb_run_id else None,
             mode=args.wandb_mode,
             config={
                 **config,
@@ -721,16 +918,17 @@ def main():
         define_wandb_metrics(wandb_run)
         print("wandb run:", wandb_run.url)
 
-    best_miou = -1.0
-    history = []
-
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(start_epoch, args.epochs + 1):
         print(f"\nEpoch {epoch}/{args.epochs}")
+        epoch_learning_rate = optimizer.param_groups[0]["lr"]
+        print(f"  learning_rate: {epoch_learning_rate:.6e}")
+
+        torch.cuda.reset_peak_memory_stats(device)
 
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
 
-        train_loss = train_one_epoch(
+        train_loss, train_performance = train_one_epoch(
             model, train_loader, optimizer, scaler,
             criterion, device, args.amp, args.max_train_batches
         )
@@ -738,10 +936,14 @@ def main():
             model, val_loader, criterion,
             device, args.amp, args.max_val_batches
         )
+        peak_cuda_gib = torch.cuda.max_memory_allocated(device) / (1024 ** 3)
+        print("  peak CUDA memory:", f"{peak_cuda_gib:.3f} GiB")
 
         row = {
             "epoch": epoch,
             "train_loss": train_loss,
+            "train_performance": train_performance,
+            "peak_cuda_memory_gib": peak_cuda_gib,
             **val_metrics,
         }
         history.append(row)
@@ -749,25 +951,38 @@ def main():
         print(f"  train_loss: {train_loss:.6f}")
         print(f"  val_loss  : {val_metrics['loss']:.6f}")
         print(f"  val_mIoU  : {val_metrics['miou_4class']:.6f}")
+        print(f"  fg_mIoU   : {val_metrics['foreground_miou']:.6f}")
         print(f"  pixel_acc : {val_metrics['pixel_accuracy']:.6f}")
-        for name, value in val_metrics["class_iou"].items():
-            print(f"  IoU {name:10s}: {value}")
+        for name in CLASS_NAMES:
+            print(
+                f"  {name:10s}",
+                f"IoU={val_metrics['class_iou'][name]}",
+                f"P={val_metrics['class_precision'][name]}",
+                f"R={val_metrics['class_recall'][name]}",
+                f"Dice={val_metrics['class_dice'][name]}",
+            )
 
         if wandb_run is not None:
-            wandb_run.log(
-                wandb_epoch_payload(
-                    epoch,
-                    train_loss,
-                    optimizer.param_groups[0]["lr"],
-                    val_metrics,
-                ),
-                commit=True,
+            payload = wandb_epoch_payload(
+                epoch,
+                train_loss,
+                epoch_learning_rate,
+                train_performance,
+                peak_cuda_gib,
+                val_metrics,
             )
+            payload["val/confusion_matrix"] = wandb_confusion_table(
+                wandb, val_metrics
+            )
+            wandb_run.log(payload, commit=True)
+
+        if scheduler is not None:
+            scheduler.step()
 
         save_checkpoint(
             args.output_dir / "last.pth",
-            model, optimizer, scheduler, epoch, val_metrics, args,
-            class_weights,
+            model, optimizer, scheduler, scaler, epoch, val_metrics,
+            args, class_weights,
         )
         if (
             args.checkpoint_interval > 0
@@ -775,31 +990,46 @@ def main():
         ):
             save_checkpoint(
                 args.output_dir / f"checkpoint_epoch_{epoch}.pth",
-                model, optimizer, scheduler, epoch, val_metrics, args,
-                class_weights,
+                model, optimizer, scheduler, scaler, epoch, val_metrics,
+                args, class_weights,
             )
 
-        if val_metrics["miou_4class"] > best_miou:
-            best_miou = val_metrics["miou_4class"]
+        if val_metrics["miou_4class"] > best_4class_miou:
+            best_4class_miou = val_metrics["miou_4class"]
             save_checkpoint(
-                args.output_dir / "best_miou.pth",
-                model, optimizer, scheduler, epoch, val_metrics, args,
-                class_weights,
+                args.output_dir / "best_4class_miou.pth",
+                model, optimizer, scheduler, scaler, epoch, val_metrics,
+                args, class_weights,
             )
-            print("  saved new best_miou.pth")
+            print("  saved new best_4class_miou.pth")
+            if wandb_run is not None:
+                wandb_run.summary["best/4class_epoch"] = epoch
+                wandb_run.summary["best/val_miou_4class"] = (
+                    best_4class_miou
+                )
+
+        if val_metrics["foreground_miou"] > best_foreground_miou:
+            best_foreground_miou = val_metrics["foreground_miou"]
+            save_checkpoint(
+                args.output_dir / "best_foreground_miou.pth",
+                model, optimizer, scheduler, scaler, epoch, val_metrics,
+                args, class_weights,
+            )
+            print("  saved new best_foreground_miou.pth")
             if wandb_run is not None:
                 wandb_run.summary["best/epoch"] = epoch
-                wandb_run.summary["best/val_miou_4class"] = best_miou
+                wandb_run.summary["best/foreground_epoch"] = epoch
+                wandb_run.summary["best/val_miou_foreground"] = (
+                    best_foreground_miou
+                )
 
         (args.output_dir / "history.json").write_text(
             json.dumps(history, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-        if scheduler is not None:
-            scheduler.step()
-
     print("\nTraining finished.")
-    print("best val mIoU:", best_miou)
+    print("best 4-class mIoU:", best_4class_miou)
+    print("best foreground mIoU:", best_foreground_miou)
     print("output:", args.output_dir)
     if wandb_run is not None:
         wandb_run.finish()

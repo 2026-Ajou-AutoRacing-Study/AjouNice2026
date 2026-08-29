@@ -3569,6 +3569,12 @@ class AutoCapture:
         issued = time.monotonic()
         deadline = issued + self.args.motion_timeout_sec
         triggers = []
+        # Anchor every slot to the preceding *actual* trigger, not to the
+        # scene start.  A deferred actor gate can open after several nominal
+        # slots have already passed; keeping the scene-start thresholds in
+        # that case makes the loop fire multiple SaveSensorData requests at
+        # nearly the same position and timestamp.
+        next_capture_distance_m = self.args.capture_spacing_m
 
         try:
             while (
@@ -3661,17 +3667,12 @@ class AutoCapture:
                 command.acceleration = 0.0
                 self.control_pub.publish(command)
 
-                threshold = self.args.capture_spacing_m * (
-                    len(triggers) + 1
-                )
-                if travelled >= threshold:
+                if travelled >= next_capture_distance_m:
                     self.wait_for_connections(
                         context="before rolling-fast trigger"
                     )
                     trigger_unix = time.time()
                     trigger_monotonic = time.monotonic()
-                    self.publish_capture_request()
-                    frame_index = len(triggers)
                     ego_state = serialize_ego(
                         ego,
                         snapshot["ego_unix_time"],
@@ -3682,6 +3683,29 @@ class AutoCapture:
                         snapshot["objects_unix_time"],
                         snapshot["objects_wall_time"],
                     )
+                    actor_gate_ready, actor_gate_observation = (
+                        capture_actor_gate_observation(
+                            ego_state,
+                            objects,
+                            self.scene_capture_actor_gate,
+                        )
+                    )
+                    if self.scene_capture_actor_gate and not actor_gate_ready:
+                        if not triggers:
+                            # A deferred crosswalk actor can start just after
+                            # the nominal first distance slot. Keep driving
+                            # until it is visibly moving instead of recording
+                            # a mislabeled static-pedestrian frame.
+                            time.sleep(0.05)
+                            continue
+                        raise RuntimeError(
+                            "actor left capture gate before rolling-grouped "
+                            "frame {}: {}".format(
+                                len(triggers) + 1, actor_gate_observation
+                            )
+                        )
+                    self.publish_capture_request()
+                    frame_index = len(triggers)
                     trigger = {
                         "schema_version": 1,
                         "dataset_id": self.dataset_id,
@@ -3728,10 +3752,16 @@ class AutoCapture:
                                 0.0,
                                 trigger_unix - snapshot["objects_unix_time"],
                             ),
+                            "actor_gate_ready": actor_gate_ready,
+                            "actor_gate": self.scene_capture_actor_gate,
+                            "actor_gate_observation": actor_gate_observation,
                         },
                         "verified": False,
                     }
                     triggers.append(trigger)
+                    next_capture_distance_m = (
+                        travelled + self.args.capture_spacing_m
+                    )
                     rospy.loginfo(
                         "Rolling-fast trigger %d/%d: distance=%.3fm, "
                         "turn=%.1fdeg, speed=%.2fkm/h, lookahead=%.2fm, "
@@ -4117,18 +4147,34 @@ class AutoCapture:
                         "frames_jsonl[*].transforms"
                     ),
                 },
-                "velocity_label_policy": {
-                    "canonical_static_source": "scenario_static_zero",
-                    "canonical_dynamic_source": (
-                        "fresh_plausible_morai_raw_local_rotated"
-                    ),
-                    "derived_velocity_role": "diagnostic_only",
-                    "derived_velocity_training_loss_weight": 0.0,
-                    "handoff_rule": (
-                        "publish one canonical velocity_target and keep "
-                        "derived motion only in quality/audit fields"
-                    ),
-                },
+                "velocity_label_policy": (
+                    {
+                        "training_enabled": False,
+                        "canonical_source": None,
+                        "morai_raw_velocity_role": "diagnostic_only",
+                        "derived_velocity_role": "diagnostic_only",
+                        "derived_velocity_training_loss_weight": 0.0,
+                        "handoff_rule": (
+                            "Base3 is single-frame OD data; expose no velocity "
+                            "target to the training dataset."
+                        ),
+                    }
+                    if str(self.dataset_id).startswith(
+                        "morai_static_classcentric_base3_10k"
+                    )
+                    else {
+                        "canonical_static_source": "scenario_static_zero",
+                        "canonical_dynamic_source": (
+                            "fresh_plausible_morai_raw_local_rotated"
+                        ),
+                        "derived_velocity_role": "diagnostic_only",
+                        "derived_velocity_training_loss_weight": 0.0,
+                        "handoff_rule": (
+                            "publish one canonical velocity_target and keep "
+                            "derived motion only in quality/audit fields"
+                        ),
+                    }
+                ),
                 "source_scene_metadata": scene.get("metadata"),
                 "source_scene_expected": scene.get("expected"),
             },
