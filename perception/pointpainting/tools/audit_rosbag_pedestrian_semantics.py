@@ -290,7 +290,7 @@ def infer(args):
     model.load_state_dict(state, strict=True)
     device = torch.device(args.device)
     model.to(device).eval()
-    preprocess = transforms.Compose(
+    torchvision_preprocess = transforms.Compose(
         [
             transforms.Resize(args.short_side, antialias=True),
             transforms.ToTensor(),
@@ -299,15 +299,46 @@ def infer(args):
             ),
         ]
     )
+    mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32)[:, None, None]
+    std = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32)[:, None, None]
+
+    def preprocess(image_path):
+        if args.backend == "torchvision":
+            rgb = Image.open(image_path).convert("RGB")
+            width, height = rgb.size
+            return torchvision_preprocess(rgb), width, height
+
+        image_bgr = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+        if image_bgr is None:
+            raise RuntimeError("OpenCV failed to decode {}".format(image_path))
+        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        height, width = image_rgb.shape[:2]
+        if height <= width:
+            output_height = args.short_side
+            output_width = int(args.short_side * width / height)
+        else:
+            output_width = args.short_side
+            output_height = int(args.short_side * height / width)
+        resized = cv2.resize(
+            image_rgb,
+            (output_width, output_height),
+            interpolation=cv2.INTER_LINEAR,
+        )
+        tensor = (
+            torch.from_numpy(resized)
+            .permute(2, 0, 1)
+            .to(dtype=torch.float32)
+            .div_(255.0)
+        )
+        return tensor.sub_(mean).div_(std), width, height
     by_image = {}
     for row in manifest["objects"]:
         by_image.setdefault(row["image"], []).append(row)
     results = []
     for image_name, objects in by_image.items():
         image_path = args.cache / "images" / image_name
-        rgb = Image.open(image_path).convert("RGB")
-        width, height = rgb.size
-        tensor = preprocess(rgb).unsqueeze(0).to(device)
+        tensor, width, height = preprocess(image_path)
+        tensor = tensor.unsqueeze(0).to(device)
         with torch.inference_mode():
             logits = model(tensor)["out"]
             probability = torch.softmax(logits.float(), dim=1)
@@ -403,6 +434,7 @@ def infer(args):
         "checkpoint": str(args.checkpoint),
         "target_class": target_class,
         "short_side": args.short_side,
+        "preprocess_backend": args.backend,
         "object_count": len(results),
         "bbox_target_probability_mean": statistics(
             [row["bbox_target_probability_mean"] for row in results]
@@ -452,6 +484,12 @@ def parser():
     infer_parser.add_argument("output", type=Path)
     infer_parser.add_argument("--checkpoint", type=Path, required=True)
     infer_parser.add_argument("--short-side", type=int, default=384)
+    infer_parser.add_argument(
+        "--backend",
+        choices=("torchvision", "opencv"),
+        default="torchvision",
+        help="Match the selectable online segmentation preprocessing backend.",
+    )
     infer_parser.add_argument("--device", default="cuda")
     infer_parser.set_defaults(function=infer)
     return result

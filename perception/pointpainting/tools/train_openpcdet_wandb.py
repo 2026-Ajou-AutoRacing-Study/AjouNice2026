@@ -144,6 +144,7 @@ def define_canonical_metrics(run):
 
     run.define_metric("epoch", hidden=True)
     run.define_metric("epoch/*", step_metric="epoch")
+    run.define_metric("train/*", step_metric="epoch")
     # Keep every validation scalar available for manually curated panels, but
     # avoid W&B creating dozens of automatic panels for low-level diagnostics.
     run.define_metric("val/*", step_metric="epoch", hidden=True)
@@ -283,6 +284,17 @@ def install_interleaved_validation(openpcdet_root, train_args, wrapper, run):
                 )
 
                 trained_epoch = cur_epoch + 1
+                if rank == 0:
+                    # OpenPCDet already writes the learning rate for every
+                    # optimizer step through TensorBoard.  Keep one explicit
+                    # epoch-end sample as well so it can be plotted against
+                    # the interleaved validation metrics on the same epoch
+                    # axis in W&B.
+                    run.log({
+                        "epoch": trained_epoch,
+                        "train/lr_epoch": float(
+                            optimizer.param_groups[0]["lr"]),
+                    })
                 checkpoint_path = None
                 if trained_epoch % ckpt_save_interval == 0 and rank == 0:
                     checkpoints = glob.glob(

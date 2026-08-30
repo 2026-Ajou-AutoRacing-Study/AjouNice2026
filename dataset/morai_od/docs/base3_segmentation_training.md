@@ -238,3 +238,141 @@ batch 12와 LR `3e-4`를 유지해 비교 가능성과 기존 검증값을 보�
   PointPainting 재학습에 사용하지 않는다.
 - gate 통과 시 동일 checkpoint로 painted Base3 single-frame dataset을 만들고 PointPainting
   S1 계열과 같은 rosbag leaderboard 기준으로 비교한다.
+
+## 다음 segmentation 개선 실험.
+
+현재 Base3 LRASPP natural/ENet/short-side 384 학습은 controlled baseline이므로 중간에
+설정을 바꾸지 않는다. 학습 종료 후 다음 순서로 개선한다.
+
+1. Metric gate.
+   - 일반 pixel metric은 foreground mIoU와 class별 IoU/precision/recall을 모두 저장한다.
+   - PointPainting 채택의 주 semantic 지표는 LiDAR projected-point 기준
+     precision/recall/IoU다.
+   - 높은 pixel recall만으로 채택하지 않는다. 객체 밖 배경을 크게 칠하면 해당 위치의
+     LiDAR point도 foreground semantic feature를 받아 3D false positive와 box 중심·크기
+     오차를 만들 수 있다.
+2. Loss A/B.
+   - A: 현재 ENet-weighted cross entropy.
+   - B: ENet-weighted cross entropy + `0.3 * Dice`.
+   - B가 Pedestrian/Obstacle precision과 projected-point IoU를 개선하면서 recall을
+     과도하게 떨어뜨리지 않는지 확인한다.
+3. Augmentation A/B.
+   - full image sample을 주로 유지한다.
+   - object-aware crop/scale sample을 약 20--30% 섞고 mild color, blur, JPEG 변형을
+     적용한다.
+   - 원거리 객체 분포를 훼손하지 않도록 과도한 object crop은 사용하지 않는다.
+4. Resolution A/B.
+   - short-side `384 / 448 / 512`를 같은 checkpoint selection 기준으로 비교한다.
+   - 4-camera resize/normalize, LRASPP inference, 전체 PointPainting compute의
+     mean/p50/p95/p99, throughput과 peak VRAM을 함께 측정한다.
+   - 기존 production LRASPP 순수 추론 약 9 ms를 latency 기준점으로 사용하되 새 환경에서
+     다시 측정한다.
+5. Architecture gate.
+   - loss, augmentation, resolution 개선 후에도 mission rosbag의 Pedestrian/Obstacle
+     projected-point 성능이 부족할 때만 SegFormer-B0 등 경량 대체 모델을 비교한다.
+   - 정확도 개선량보다 4-camera online latency 증가가 큰 모델은 채택하지 않는다.
+6. End-to-end gate.
+   - segmentation checkpoint만 교체한 semantic rosbag audit과, 그 checkpoint로 Base3를
+     다시 painting하고 PointPainting을 재학습한 end-to-end OD 평가를 구분한다.
+   - 최종 판단은 로터리·고주로·Pedestrian·Obstacle rosbag의 class별 AP, false positive,
+     mATE/mASE/mAOE와 전체 latency로 한다.
+
+## Base3 natural/ENet/384 E30 최종 결과.
+
+- Run: `base3-static-lraspp4class-natural-enet-bs12-e30`.
+- Primary checkpoint: `best_foreground_miou.pth`, Epoch 30.
+- Validation:
+  - 4-class mIoU `0.8315`, foreground mIoU `0.7759`.
+  - Pedestrian/Vehicle/Obstacle IoU `0.7065 / 0.9008 / 0.7203`.
+  - Pedestrian/Vehicle/Obstacle precision `0.7113 / 0.9068 / 0.7578`.
+  - Pedestrian/Vehicle/Obstacle recall `0.9905 / 0.9927 / 0.9357`.
+- Frozen test split:
+  - 4-class mIoU `0.8362`, foreground mIoU `0.7821`.
+  - Pedestrian/Vehicle/Obstacle IoU `0.6978 / 0.8999 / 0.7485`.
+  - Pedestrian/Vehicle/Obstacle precision `0.7023 / 0.9058 / 0.7619`.
+  - Pedestrian/Vehicle/Obstacle recall `0.9908 / 0.9928 / 0.9771`.
+- Validation과 test가 유사하므로 split 과적합 징후는 작다. Vehicle은 강하고,
+  Pedestrian과 Obstacle은 높은 recall 대비 과대 painting precision이 다음 개선 대상이다.
+
+### 15 Hz 상당 4-camera runtime.
+
+입력은 `sensor_cam_raw_roundabout1.bag`을 `1.73x`로 재생했으며 LiDAR 입력은 약
+`15.00 Hz`다. 두 backend 모두 464/464 frame을 발행하고 drop/skip은 0이었다.
+
+| Backend | LRASPP inference p50 / p95 | 전체 compute p50 / p95 / p99 | 입력--발행 p50 / p95 / p99 |
+|---|---:|---:|---:|
+| torchvision, 4 workers | 10.03 / 11.52 ms | 52.21 / 57.59 / 62.56 ms | 55.42 / 68.17 / 72.15 ms |
+| OpenCV, 4 workers | 9.41 / 10.93 ms | 43.46 / 48.31 / 50.96 ms | 44.44 / 50.18 / 54.02 ms |
+
+- 같은 LRASPP-MobileNetV3/384 구조이므로 새 weight로 인한 latency 증가는 없다.
+- OpenCV는 resize/tensor/normalize p50이 `3.28 ms`로 torchvision의 `11.02 ms`보다
+  빠르다. 다만 최종 production backend는 새 LRASPP로 다시 painting한 PointPainting의
+  정확도 A/B까지 확인한 뒤 결정한다.
+
+### 기존 mission rosbag semantic A/B.
+
+동일 rosbag, 동일 GT box와 LiDAR point, 동일 short-side 384에서 기존 production
+LRASPP와 비교했다. `GT-point argmax`는 각 GT 3D box 안에서 카메라로 투영 가능한
+LiDAR point 중 target class가 argmax인 비율의 객체별 평균이다.
+
+| Scene | Class | Production target probability | Base3 target probability | Production GT-point argmax | Base3 GT-point argmax |
+|---|---|---:|---:|---:|---:|
+| 로터리 | Vehicle | 0.421 | **0.743** | 41.9% | **75.5%** |
+| 고주로 | Vehicle | 0.435 | **0.706** | 43.0% | **70.9%** |
+| 횡단 | Pedestrian | 0.539 | **0.886** | 56.4% | **90.3%** |
+| 5--18 m 거리 | Pedestrian | 0.366 | **0.830** | 39.5% | **86.3%** |
+| Obstacle3 | Obstacle | 0.080 | **0.418** | 7.3% | **41.2%** |
+| Ped-negative 장면의 obstacle | Obstacle | 0.006 | **0.988** | 0.0% | **100.0%** |
+
+- Vehicle과 Pedestrian의 기존 online semantic domain gap은 크게 줄었다.
+- Obstacle도 크게 개선됐지만 Obstacle3는 16 m 이상에서 GT-point argmax가 평균
+  `34.4%`이고, 일부 가늘고 긴 size family는 `0--18%`라 아직 production 약점이다.
+- Obstacle3를 Base3 production obstacle allowlist의 실제 BBox size와 일치하는 형상으로
+  다시 자르면 다음과 같다.
+  - 카메라 투영 가능한 196개 중 105개가 CargoBox, drum/barrel 및 Base3 barrier
+    8종의 size와 일치한다. Obstacle3에는 Base3 10종 중 8종이 등장한다.
+  - 전체 거리에서 production/Base3 GT-point argmax는 `10.5% / 56.1%`다.
+  - Base3 수집 정책의 주 거리인 30 m 이내에서는 Base3 GT-point argmax가 `81.3%`다.
+    `0--16 m`는 `79.0%`, `16--30 m`는 `83.7%`다.
+  - 30 m 초과 39개는 `13.3%`로 급락해, 얇은 제외 asset뿐 아니라 극원거리까지 기존
+    Obstacle3 전체 평균을 낮춘다.
+  - 따라서 대회 주 판단은 `Base3 allowlist + 30 m 이내` slice로 하고, Obstacle3
+    global은 out-of-domain/long-range stress 지표로 유지한다.
+- 이 audit은 positive GT point에 대한 recall 성격의 지표다. rosbag 전체 배경 point의
+  정답 semantic label이 없으므로 full precision/IoU를 의미하지 않는다.
+- 현재 PointPillars는 구 LRASPP probability로 painting된 데이터로 학습됐다. 따라서 새
+  LRASPP checkpoint만 끼운 3D AP를 production 성능으로 해석하지 않고, Base3 재painting과
+  PointPainting controlled retraining 후 end-to-end OD를 평가한다.
+
+### Base3 재painting 전 PIL--OpenCV A/B.
+
+동일 Base3 E30 checkpoint, short-side 384, 동일 test/rosbag 표본에서 전처리 backend만
+바꿨다. OpenCV는 online node와 같은 `INTER_LINEAR`, RGB uint8 tensor 변환과 ImageNet
+normalization을 사용한다.
+
+| Frozen test | torchvision/PIL | OpenCV | OpenCV 변화 |
+|---|---:|---:|---:|
+| Foreground mIoU | 0.7821 | 0.7735 | -0.0086 |
+| Pedestrian IoU | 0.6978 | 0.6864 | -0.0114 |
+| Vehicle IoU | 0.8999 | 0.8947 | -0.0052 |
+| Obstacle IoU | 0.7485 | 0.7393 | -0.0093 |
+
+| Rosbag GT-point target argmax | torchvision/PIL | OpenCV | OpenCV 변화 |
+|---|---:|---:|---:|
+| 로터리 Vehicle | 75.5% | 76.5% | +1.0%p |
+| 고주로 Vehicle | 70.9% | 74.0% | +3.1%p |
+| 횡단 Pedestrian | 90.3% | 86.0% | -4.3%p |
+| 5--18 m Pedestrian | 86.3% | 88.1% | +1.8%p |
+| Obstacle3 global | 41.2% | 44.8% | +3.7%p |
+| Base3 allowlist obstacle, 30 m 이내 | 81.3% | 82.1% | +0.8%p |
+| Ped-negative 장면 obstacle | 100.0% | 100.0% | 0.0%p |
+
+- OpenCV의 frozen test foreground mIoU 손실은 `0.86%p`이고 class별 손실도
+  `0.52--1.14%p`다. 횡단 Pedestrian slice만 객체평균 `4.3%p` 하락하지만 기존
+  production `56.4%`보다 여전히 크게 높다.
+- 반면 4-camera preprocess p50은 `11.02 -> 3.28 ms`, 전체 PointPainting compute
+  p50은 `52.21 -> 43.46 ms`, 입력--발행 p50은 `55.42 -> 44.44 ms`로 줄었다.
+- backend 전체에 일관된 online 정확도 하락은 없고 latency 이득이 크므로 Base3
+  재painting과 online production target은 **OpenCV**로 고정한다.
+- PointPillars 학습용 painted feature와 online 추론 backend를 반드시 OpenCV로
+  동일하게 유지한다. PIL은 정확도 상한과 회귀 진단용 A/B로만 보존한다.

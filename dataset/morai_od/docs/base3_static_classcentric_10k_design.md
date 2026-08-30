@@ -888,6 +888,32 @@ R4의 30 m 이내 LiDAR evidence 결과는 다음과 같다. point-count는 원 
   아니다. 이를 모두 없애려고 거리·yaw를 더 제한하면 mission-relevant hard positive를
   제거하므로 추가 축소하지 않는다.
 
+#### `WoodBox` 제외의 정확한 의미.
+
+`WoodBox`는 대회에서 의미가 없는 객체라서 제외한 것이 아니다. 상자형 회피 장애물로서
+충분히 현실적이고, 규정의 "임의 장애물" 범위에 들어갈 가능성도 있다. 제외 사유는
+MORAI가 제공하는 annotation box와 실제 렌더링 mesh/LiDAR point의 계약 불량이다.
+
+- 최초 대표 표본에서는 가장 가까운 WoodBox point가 원 GT box 경계보다 약 2--4 mm
+  밖에 있었다. 단순 수치 경계 문제일 가능성을 고려해 point-count 판정에만 2 cm
+  tolerance를 주는 방안을 검토했다.
+- 서로 다른 seed, 위치와 yaw의 R1/R3 반복 pilot에서는 point가 GT box보다 5--10 cm
+  밖에 있는 사례가 재현됐다. 최종 공통 tolerance 3 cm로도 안정적으로 복구되지 않았다.
+- 원인은 mesh pivot, annotation/collision bound 또는 회전 기준점 차이 중 하나로
+  추정하지만 내부 MORAI asset 정의를 확인하지 못했으므로 확정하지 않는다.
+- 이 상태에서 `MIN_GT_POINTS: 5`를 적용하면 보이는 WoodBox GT가 제거되어 실제 객체를
+  background처럼 학습할 수 있다. 반대로 sparse GT를 유지하면 실제 point와 맞지 않는
+  center/size/yaw 회귀 target을 강제한다.
+- GT box를 임의로 확대하면 raw MORAI GT와 학습·평가 계약이 달라지고, pose마다 필요한
+  보정량도 달라 고정 padding으로 해결하기 어렵다.
+
+따라서 Base3-Static 10K의 깨끗한 baseline에서는 WoodBox를 positive pool에서 제외하고,
+공식 샘플과 같은 `CargoBox`로 box category를 유지했다. 이는 영구적인 ontology 제외가
+아니다. 재도입할 때는 WoodBox 전용 거리·yaw 표본을 수집하고, raw GT를 보존한 별도
+`corrected_gt_box`가 pose 전반에서 안정적인지 검증하는 label-correction add-on으로
+다룬다. 기존 Base3 headline 평가는 WoodBox가 섞인 rosbag을 사용하지 않고, 필요하면
+별도의 out-of-scope stress 결과로 보고한다.
+
 최종 10종 pool의 Batch 001 규모 offline 재생성도 477 clips / 1,431 frames, Vehicle
 43종, Obstacle 10종, Pedestrian 22종으로 audit을 통과했다. 다음 단계는 새 campaign의
 Batch 001--007 생성과 첫 실제 batch capture 후 동일 point audit이다.

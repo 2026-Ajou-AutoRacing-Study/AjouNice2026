@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획.
 
-마지막 갱신: 2026-08-29.
+마지막 갱신: 2026-08-30.
 
 ## 관리 규칙.
 
@@ -57,6 +57,34 @@
      이상이다. Vehicle/Pedestrian/Obstacle 정상 positive 비율은 각각
      `99.89% / 96.84% / 92.65%`다.
 5. Base3 semantic model과 PointPainting controlled baseline을 학습한다.
+   - 진행 중인 Base3 LRASPP natural/ENet/384 baseline은 설정을 바꾸지 않고 끝까지
+     학습한다.
+   - checkpoint 선택은 foreground mIoU를 주 지표로 하되 class별 precision/recall과
+     LiDAR projected-point precision/recall/IoU를 반드시 함께 본다.
+   - PointPainting 관점에서는 semantic recall 단독을 최적화하지 않는다. 과대 painting된
+     배경 LiDAR point가 Pedestrian/Obstacle feature를 받아 3D false positive와 box
+     geometry 오차를 만들 수 있기 때문이다.
+   - 다음 segmentation 개선 실험은 한 번에 한 요인씩 수행한다.
+     1. 현재 weighted CE baseline과 `weighted CE + 0.3 Dice`를 비교한다.
+     2. full image를 유지하면서 object-aware crop/scale 및 mild photometric augmentation을
+        일부 sample에만 적용한다.
+     3. short-side `384 / 448 / 512`의 accuracy--latency를 비교한다.
+     4. 위 실험 후에도 projected-point 및 mission rosbag 병목이 남을 때만 SegFormer-B0
+        같은 경량 대체 architecture를 검토한다.
+   - 해상도와 architecture는 4-camera 기준 전처리, segmentation 순수 추론, 전체
+     PointPainting compute의 mean/p50/p95/p99와 peak VRAM을 측정한 뒤 결정한다.
+   - 각 후보는 offline pixel metric만으로 채택하지 않는다. projected-point semantic
+     audit과 mission rosbag semantic audit을 먼저 통과시키고, 새 checkpoint로 Base3를
+     다시 painting하여 PointPainting을 재학습한 뒤 최종 3D AP와 false positive를 비교한다.
+   - Base3 LRASPP natural/ENet/384 E30 학습과 frozen test 평가를 완료했다.
+     - Test foreground mIoU `0.7821`; Pedestrian/Vehicle/Obstacle IoU는
+       `0.6978 / 0.8999 / 0.7485`다.
+     - 기존 mission rosbag 대비 GT-point target argmax가 Vehicle, Pedestrian,
+       Obstacle에서 모두 크게 개선됐다.
+     - 15 Hz 상당 OpenCV 4-worker runtime은 전체 compute p50/p95
+       `43.46 / 48.31 ms`, drop/skip 0이다.
+     - 다음 P0 작업은 이 checkpoint로 Base3를 재painting하고 PointPainting controlled
+       baseline을 학습하는 것이다.
 6. Obstacle loss 지배 여부를 반드시 확인한다.
    - Batch 001 실제 LiDAR 감사에서 Obstacle GT box는 전체 관측의 `55.5%`다.
    - Class별 detection/regression loss, offline validation, mission rosbag의
@@ -64,6 +92,17 @@
    - Obstacle이 Vehicle/Pedestrian 학습을 실제로 방해한다고 확인될 때만
      class-balanced loss, per-class sampling 또는 loss weight ablation을 수행한다.
    - Box 비율만으로 진행 중인 수집 구성을 변경하지 않는다.
+7. Base3 PointPainting controlled baseline을 완료했다.
+   - `B3S-PP0 E39`, Base3 Test center mAP `0.9799`임.
+   - 신로터리/고주로1 Vehicle center mAP는 `0.715 / 0.765`임.
+   - 고주로 Tracking F1/MOTA는 `0.951 / 0.900`으로 안정적임.
+   - 로터리 Tracking vector AVE `1.086 m/s`와 2/3초 minFDE-K p50
+     `1.172 / 1.660 m`가 production 승격을 막는 주 병목임.
+   - 횡단 Pedestrian은 precision `1.000`, recall `0.399`로 누락 중심 병목임.
+   - CargoBox center mAP는 `0.407`로 개선됐지만 mASE `0.939`이므로 정확한
+     geometry가 해결된 것으로 판단하지 않는다.
+   - 다음 P0 실행은 Base3 GT-velocity oracle과 횡단 Pedestrian oracle-painting
+     원인 분리이며, 그 전에는 S1g 기반 production을 유지한다.
 
 세부 설계와 생성기 근거:
 [`base3_static_classcentric_10k_design.md`](../dataset/morai_od/docs/base3_static_classcentric_10k_design.md).
@@ -124,7 +163,13 @@
 - Epoch 종료 시 W&B에 공통 x축 `epoch`으로 시작·마지막·평균 learning rate를 즉시
   기록한다.
 - Iteration 단위 TensorBoard learning rate는 상세 진단용으로 유지한다.
-- 다음 본 학습 전에 batch size `4/8/12`와 learning-rate scaling을 짧은 smoke로
-  비교한다.
-  - Samples/sec, epoch 시간, peak VRAM, loss 안정성, epoch validation을 함께 본다.
-  - VRAM 사용량만으로 production batch size를 결정하지 않는다.
+- PointPainting batch-size GPU microbenchmark를 완료했다.
+  - 동일 single-frame 9-feature proxy에서 BS `1/2/4/6/8/12/16/24`를 측정했다.
+  - BS4는 `39.99 samples/s`, CUDA peak reserved `2.72 GiB`였다.
+  - BS8/12/16은 `37.10/38.05/37.61 samples/s`로 더 느렸고 BS24는 OOM이었다.
+  - BS1은 `40.32 samples/s`로 0.8% 빠를 뿐이며 optimizer noise와 기존 실험 조건
+    차이가 커 첫 Base3 controlled baseline에서는 사용하지 않는다.
+  - `B3S-PP0`은 BS4, Adam OneCycle, LR `0.003`을 사용한다. Base3 painting 완료 후
+    BS4 peak memory와 throughput만 짧게 재확인한다.
+  - 상세 결과는
+    [`pointpainting_batch_size_benchmark.md`](../perception/pointpainting/docs/pointpainting_batch_size_benchmark.md)에 기록한다.

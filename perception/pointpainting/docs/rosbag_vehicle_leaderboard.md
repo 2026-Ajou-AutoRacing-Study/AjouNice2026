@@ -44,6 +44,7 @@
 | S1b E30 | 우리 학습. S1에서 FB flip만 제거. | `best_center_mAP_epoch_30.pth` | Offline 동률, online 하락으로 기각. |
 | S1g E37 | 우리 학습. S1 + class별 GT database sampling 10개. | `best_center_mAP_epoch_37.pth` | Vehicle score 0.40에서는 최상위 후보지만 전체 3-class production 승격은 calibration 검증 결과 보류함. |
 | S1h E32 | 우리 학습. S1g에서 Obstacle GT sampling만 10개에서 3개로 감소. | `best_center_mAP_epoch_32.pth` | Obstacle FP는 감소했지만 Pedestrian·로터리 Vehicle이 하락해 기각함. |
+| B3S-PP0 E39 | 우리 학습. Base3-Static 10,902-frame, single-frame 9-feature, Base3 LRASPP, 기하 증강, GT sampling 없음. | `best_center_mAP_epoch_39.pth` | Class-centric spatial baseline. 고주로 Tracking은 강하지만 로터리 Prediction과 횡단 Pedestrian이 하락해 production 승격은 보류함. |
 
 ## Offline Base2 Val.
 
@@ -98,6 +99,7 @@ LiDAR frame 수로 나눈 값임.
 | S1g E37 / score0.10 | 94.2% | 0.720 | 0.888 | 0.502 | 0.522 | 97.6% | 0.803 | 0.882 | 0.436 | 0.546 |
 | **S1g E37 / score0.40** | 94.2% | **0.720** | **0.892** | **0.502** | **0.522** | 97.6% | **0.803** | 0.940 | **0.436** | 0.546 |
 | S1h E32 / score0.40 | 93.8% | 0.683 | 0.853 | 0.507 | 0.648 | 97.6% | 0.783 | 0.934 | 0.466 | 0.653 |
+| B3S-PP0 E39 / score0.10 | 94.5% | 0.715 | 0.871 | 0.530 | 0.611 | 97.6% | 0.765 | 0.938 | 0.457 | 0.366 |
 
 ## Tracking.
 
@@ -116,6 +118,7 @@ LiDAR frame 수로 나눈 값임.
 | S1g E37 / score0.10 | 0.943 | 0.885 | 0.531 m | 0.318 m/s | 0.862 | 0.724 | 0.430 m | 0.327 m/s |
 | **S1g E37 / score0.40** | **0.960** | **0.922** | **0.464 m** | **0.312 m/s** | 0.953 | 0.905 | **0.441 m** | **0.325 m/s** |
 | S1h E32 / score0.40 | 0.894 | 0.797 | 0.508 m | **0.307 m/s** | **0.962** | **0.925** | 0.456 m | 0.366 m/s |
+| B3S-PP0 E39 / score0.10 | 0.935 | 0.871 | 0.541 m | 0.435 m/s | 0.951 | 0.900 | 0.433 m | 0.326 m/s |
 
 ## Map-CV Prediction.
 
@@ -134,6 +137,7 @@ LiDAR frame 수로 나눈 값임.
 | S1g E37 / score0.10 | 0.488 / 0.563 / 0.861 m | 1.415 / 2.324 / 3.595 m | 0.421 / 0.580 / 0.761 m | 0.918 / 1.634 / 2.394 m |
 | **S1g E37 / score0.40** | **0.464 / 0.727 / 1.096 m** | **1.344 / 1.930 / 2.875 m** | 0.491 / **0.683 / 0.956 m** | **0.984 / 1.628 / 2.410 m** |
 | S1h E32 / score0.40 | 0.488 / 0.750 / **1.073 m** | **1.315** / 2.081 / 3.054 m | **0.466** / 0.704 / 0.979 m | 1.108 / 1.819 / 2.664 m |
+| B3S-PP0 E39 / score0.10 | 0.614 / 1.172 / 1.660 m | 1.897 / 3.283 / 4.564 m | 0.432 / 0.614 / 0.819 m | 1.007 / 1.669 / 2.221 m |
 
 ## 현재 판정과 미평가 backlog.
 

@@ -88,10 +88,9 @@ class CustomDataset(DatasetTemplate):
             raise ValueError('num_points_in_gt length does not match annotations')
         filtered = copy.deepcopy(info)
         filtered_annos = filtered['annos']
-        filtered_annos.setdefault('sparse_gt_count', int((~keep).sum()))
+        filtered['sparse_gt_count'] = int((~keep).sum())
+        filtered['minimum_gt_points'] = self.min_gt_points
         for key, value in list(filtered_annos.items()):
-            if key == 'sparse_gt_count':
-                continue
             if isinstance(value, np.ndarray) and len(value) == len(keep):
                 filtered_annos[key] = value[keep]
             elif isinstance(value, list) and len(value) == len(keep):
@@ -250,8 +249,15 @@ class CustomDataset(DatasetTemplate):
                         self.gt_point_count_box_tolerance_m,
                     )
                     keep = annotations['num_points_in_gt'] >= self.min_gt_points
-                    annotations['sparse_gt_count'] = int((~keep).sum())
-                    annotations['minimum_gt_points'] = self.min_gt_points
+                    info['sparse_gt_count'] = int((~keep).sum())
+                    info['minimum_gt_points'] = self.min_gt_points
+                    # Keep rejected-label provenance outside annos so audits can
+                    # explain class-wise removals without exposing those boxes
+                    # to training or evaluation.
+                    info['sparse_gt'] = {
+                        'name': annotations['name'][~keep].copy(),
+                        'num_points_in_gt': annotations['num_points_in_gt'][~keep].copy(),
+                    }
                     annotations['name'] = annotations['name'][keep]
                     annotations['gt_boxes_lidar'] = annotations['gt_boxes_lidar'][keep]
                     annotations['num_points_in_gt'] = annotations['num_points_in_gt'][keep]
