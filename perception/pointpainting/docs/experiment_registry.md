@@ -211,6 +211,30 @@
 - S1b가 yaw를 개선하지 못하면 flip보다 anchor/direction head 또는 detector 출력
   orientation 정규화가 병목이라고 판단함.
 
+## 완료된 Base3 후속 계열.
+
+### B3S-PP1-GTDB E34.
+
+- B3S-PP0 이후의 Base3 single-frame class-centric 보강 실험임.
+- 자연 Base3 train split은 유지하고 GT database sampling만 추가함.
+- 목표 개수는 Vehicle/Pedestrian/Obstacle `20/10/4`임.
+- Pedestrian GT DB 후보 풀은 moving/standing `60/40`으로 구성함.
+  - moving은 Batch 008의 walking/running/activation-transition single-frame crop임.
+- 최소 point는 Vehicle/Pedestrian/Obstacle `5/5/8`이고
+  `LIMIT_WHOLE_SCENE=true`를 사용함.
+- B3S-PP0와 모델, anchor, loss, geometric augmentation, batch size 4,
+  OneCycle LR `0.003`, 40 epoch와 seed를 동일하게 유지함.
+- 정식 이름은 `B3S-PP1-GTDB-V20P10O4`임.
+- 주 판단은 Base3 Val/Test뿐 아니라 신로터리·고주로·횡단 Pedestrian·허용
+  Obstacle rosbag의 class별 AP, recall, box quality와 downstream tracking임.
+- E34 Val/Test center mAP는 `0.9786/0.9809`임.
+- PP0 대비 7개 rosbag class mAP는 로터리, 고주로1, Vehicle 30 m, 횡단
+  Pedestrian, 거리별 Pedestrian에서 개선됐고 고주로 합류와 CargoBox에서 하락함.
+- 로터리 Tracking AVE mean은 `1.086 -> 0.809 m/s`, CV-stable 3초 minFDE-K
+  p50/p90은 `1.660/4.564 -> 1.243/3.402 m`로 개선됨.
+- 고주로1 CV-stable prediction은 소폭 하락함.
+- Base3 계열 보존 checkpoint로 채택하되 전체 production은 S1g score `0.40`을 유지함.
+
 ## 보류 중인 후속 계열.
 
 - `T1`은 아직 번호를 확정하지 않음.

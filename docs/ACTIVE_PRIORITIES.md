@@ -93,7 +93,7 @@
      class-balanced loss, per-class sampling 또는 loss weight ablation을 수행한다.
    - Box 비율만으로 진행 중인 수집 구성을 변경하지 않는다.
 7. Base3 PointPainting controlled baseline을 완료했다.
-   - `B3S-PP0 E39`, Base3 Test center mAP `0.9799`임.
+   - `B3S-PP0 E39`, canonical frozen Base3 Test center mAP `0.9744`임.
    - 신로터리/고주로1 Vehicle center mAP는 `0.715 / 0.765`임.
    - 고주로 Tracking F1/MOTA는 `0.951 / 0.900`으로 안정적임.
    - 로터리 Tracking vector AVE `1.086 m/s`와 2/3초 minFDE-K p50
@@ -101,8 +101,20 @@
    - 횡단 Pedestrian은 precision `1.000`, recall `0.399`로 누락 중심 병목임.
    - CargoBox center mAP는 `0.407`로 개선됐지만 mASE `0.939`이므로 정확한
      geometry가 해결된 것으로 판단하지 않는다.
-   - 다음 P0 실행은 Base3 GT-velocity oracle과 횡단 Pedestrian oracle-painting
-     원인 분리이며, 그 전에는 S1g 기반 production을 유지한다.
+   - `B3S-PP1-GTDB-V20P10O4 E34` 학습과 frozen/online/downstream 평가를 완료함.
+     - Val/Test center mAP는 `0.9786/0.9809`임.
+     - PP0 대비 신로터리 Vehicle mAP는 `0.715 -> 0.749`, 횡단 Pedestrian은
+       `0.322 -> 0.634`, 거리별 Pedestrian은 `0.778 -> 1.000`으로 개선됨.
+     - 로터리 Tracking AVE mean은 `1.086 -> 0.809 m/s`, CV-stable 3초
+       minFDE-K p50/p90은 `1.660/4.564 -> 1.243/3.402 m`로 개선됨.
+     - 고주로 합류 F1, CargoBox, 고주로 Map-CV는 개선되지 않음.
+     - PP1은 Base3 계열 보존 checkpoint로 채택하되 전체 production은 S1g
+       score `0.40`을 유지함.
+   - 다음 P0 실행은 PP1 class별 score calibration과 고주로 합류/CargoBox 원인
+     분리이며 재학습은 그 결과 뒤에 결정함.
+   - 이후에도 횡단 누락과 로터리 downstream 병목이 남으면 Base3 GT-velocity
+     oracle과 횡단 Pedestrian oracle-painting으로 원인을 분리함.
+   - 그 전에는 S1g 기반 production을 유지한다.
 
 세부 설계와 생성기 근거:
 [`base3_static_classcentric_10k_design.md`](../dataset/morai_od/docs/base3_static_classcentric_10k_design.md).
