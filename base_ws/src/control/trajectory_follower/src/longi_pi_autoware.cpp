@@ -60,11 +60,11 @@ public:
     private_nh_.param("safety/lateral_valid_timeout_s", lateral_valid_timeout_s_, 0.2);
     private_nh_.param("safety/min_points", min_points_, 3);
     private_nh_.param("safety/stop_brake_cmd", stop_brake_cmd_, 1.0);
-    private_nh_.param("kp", kp_, 0.6);
+    private_nh_.param("kp", kp_, 1.0);
     private_nh_.param("ki", ki_, 0.05);
     private_nh_.param("integral_limit", integral_limit_, 3.0);
-    private_nh_.param("command_deadband", command_deadband_, 0.05);
-    private_nh_.param("speed_preview/enabled", speed_preview_enabled_, true);
+    private_nh_.param("command_deadband", command_deadband_, 0.0);
+    private_nh_.param("speed_preview/enabled", speed_preview_enabled_, false);
     private_nh_.param("speed_preview/time_s", speed_preview_time_s_, 1.5);
     private_nh_.param("speed_preview/min_distance_m", speed_preview_min_distance_m_, 5.0);
     private_nh_.param("speed_preview/max_distance_m", speed_preview_max_distance_m_, 30.0);
@@ -73,6 +73,8 @@ public:
     validateParameters();
 
     command_publisher_ = nh_.advertise<morai_msgs::CtrlCmd>(ctrl_cmd_topic_, 10);
+    target_velocity_publisher_ =
+      private_nh_.advertise<std_msgs::Float64>("debug/target_velocity", 10);
     trajectory_subscriber_ = nh_.subscribe(trajectory_topic_, 2,
       &AutowareLongitudinalPi::trajectoryCallback, this);
     state_subscriber_ = nh_.subscribe(state_topic_, 10, &AutowareLongitudinalPi::stateCallback, this);
@@ -236,6 +238,9 @@ private:
     }
     const double current_velocity = state_.twist.twist.linear.x * velocity_scale_;
     const double target_velocity = previewTargetVelocity(nearest, current_velocity);
+    std_msgs::Float64 target_velocity_debug;
+    target_velocity_debug.data = target_velocity;
+    target_velocity_publisher_.publish(target_velocity_debug);
     if (target_velocity <= stop_velocity_threshold_mps_ &&
         std::abs(current_velocity) <= stop_velocity_threshold_mps_) {
       publishHold(steering_);
@@ -272,6 +277,7 @@ private:
   ros::Subscriber steering_subscriber_;
   ros::Subscriber validity_subscriber_;
   ros::Publisher command_publisher_;
+  ros::Publisher target_velocity_publisher_;
   ros::Timer timer_;
   std::string trajectory_topic_;
   std::string state_topic_;
@@ -289,11 +295,11 @@ private:
   double lateral_valid_timeout_s_{0.2};
   double stop_brake_cmd_{1.0};
   int min_points_{3};
-  double kp_{0.6};
+  double kp_{1.0};
   double ki_{0.05};
   double integral_limit_{3.0};
-  double command_deadband_{0.05};
-  bool speed_preview_enabled_{true};
+  double command_deadband_{0.0};
+  bool speed_preview_enabled_{false};
   double speed_preview_time_s_{1.5};
   double speed_preview_min_distance_m_{5.0};
   double speed_preview_max_distance_m_{30.0};
