@@ -10,7 +10,7 @@
   <arg name="sensor_config"
        default="$(env HOME)/AjouNice2026/configs/sensors/Sensor_6.json"/>
   <arg name="map_file"
-       default="$(env HOME)/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v60.osm"/>
+       default="$(env HOME)/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
   <arg name="projector_file"
        default="$(env HOME)/AjouNice2026/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="use_heading_correction" default="true"/>

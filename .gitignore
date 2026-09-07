@@ -4,6 +4,9 @@
 artifacts/*
 !artifacts/README.md
 
+# Local planning route analysis outputs
+artifacts/planning_route_waypoints_v61/
+
 # python 가상환경 폴더
 .venv/
 
