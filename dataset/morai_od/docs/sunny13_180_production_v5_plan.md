@@ -80,11 +80,13 @@ trigger 처리 중 이동량을 포함하기 위한 값이다. 기존 10.5 m 회
 격리하지 않는다. 대신 곡률 27.4도의 복잡한 교차로 anchor index `154`를 v5
 후보에서 제외하고 다른 intersection anchor로 교체한다.
 
-교체한 anchor index `986`에서도 동일 두 asset만 누락됐다. 따라서 위치와
-anchor 가설을 기각하고, 개인용 런처의 무인 반복 수집에서 두 template가
-조건부로 불안정하다고 최종 판정했다. catalog에는 보존하지만 v5 자동 수집
-풀에서는 Stinger DataID `30100009`와 DEFAULT_MPV DataID `30800004`를
-격리하고 같은 ontology의 안정 차량으로 대체한다.
+교체한 anchor index `986`에서도 동일 두 asset만 누락됐다. 당시에는 위치와
+anchor 가설을 기각하고 두 template를 조건부 불안정으로 판정했다.
+
+2026-08-22에는 알려진 정상 차량 control을 매 probe 직전에 넣고 두 위치에서
+다시 검증했다. Stinger와 DEFAULT_MPV 모두 2/2 생성됐으므로 asset 고유
+quarantine은 해제한다. 다만 과거 장면 실패가 있었던 anchor index `154`와
+기록된 exclusion zone은 위치·장면 위험을 보수적으로 피하기 위해 유지한다.
 
 ## 구현·검증 순서
 

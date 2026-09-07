@@ -1,0 +1,44 @@
+<launch>
+  <arg name="detections"
+       default="/perception/object_recognition/detection/objects"/>
+  <arg name="tracks"
+       default="/perception/object_recognition/tracking/objects"/>
+  <arg name="predictions"
+       default="/perception/object_recognition/objects"/>
+  <arg name="detection_markers"
+       default="/perception/object_recognition/visualization/detections"/>
+  <arg name="tracking_markers"
+       default="/perception/object_recognition/visualization/tracks"/>
+  <arg name="prediction_markers"
+       default="/perception/object_recognition/visualization/predictions"/>
+  <arg name="start_rviz" default="true"/>
+  <arg name="rviz_config"
+       default="$(find perception_object_pipeline)/rviz/object_pipeline_live.rviz"/>
+
+  <node pkg="perception_object_pipeline"
+        type="object_pipeline_visualization_node.py"
+        name="object_pipeline_visualization"
+        output="screen"
+        respawn="false">
+    <param name="input/detections" value="$(arg detections)"/>
+    <param name="input/tracks" value="$(arg tracks)"/>
+    <param name="input/predictions" value="$(arg predictions)"/>
+    <rosparam param="prediction_marker_horizons_sec">[1.0, 2.0, 3.0]</rosparam>
+    <param name="prediction_marker_diameter_m" value="0.45"/>
+    <param name="prediction_marker_diameter_step_m" value="0.08"/>
+    <param name="prediction_line_width_m" value="0.08"/>
+    <rosparam param="prediction_secondary_color_rgba">[1.0, 0.55, 0.0, 0.95]</rosparam>
+    <param name="prediction_show_confidence_labels" value="true"/>
+    <remap from="~output/detections" to="$(arg detection_markers)"/>
+    <remap from="~output/tracks" to="$(arg tracking_markers)"/>
+    <remap from="~output/predictions" to="$(arg prediction_markers)"/>
+  </node>
+
+  <!-- Publish the IONIQ 5 URDF as robot_description and launch RViz.  Keeping
+       this in the visualization launch makes the Ego model available even
+       when bringup/sensing.launch is run with enable_vehicle_model:=false. -->
+  <include file="$(find ioniq5)/launch/display_ioniq5.launch">
+    <arg name="start_rviz" value="$(arg start_rviz)"/>
+    <arg name="rviz_config" value="$(arg rviz_config)"/>
+  </include>
+</launch>

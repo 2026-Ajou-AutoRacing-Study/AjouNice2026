@@ -1,0 +1,195 @@
+<launch>
+  <!--
+    Detector-neutral production path.  The detector itself may run in a
+    different Python/Conda process; ROS messages are the only boundary here.
+  -->
+  <arg name="detector" default="fastbev"/>
+  <arg name="start_detector" default="true"/>
+  <arg name="use_sim_time" default="false"/>
+  <arg name="world_frame_id" default="map"/>
+  <arg name="detection_objects"
+       default="/perception/object_recognition/detection/objects"/>
+  <arg name="tracked_objects"
+       default="/perception/object_recognition/tracking/objects"/>
+  <arg name="predicted_objects"
+       default="/perception/object_recognition/objects"/>
+  <arg name="prediction_time_step" default="0.1"/>
+  <arg name="prediction_horizon" default="3.0"/>
+  <arg name="prediction_model" default="ctrv"/>
+  <arg name="canonicalize_vehicle_orientation_to_motion" default="true"/>
+  <arg name="orientation_canonicalization_min_speed_mps" default="1.0"/>
+  <arg name="orientation_flip_enter_error_deg" default="100.0"/>
+  <arg name="orientation_flip_exit_error_deg" default="80.0"/>
+  <!-- Experimental: A/B evaluation favored measurement-time output. -->
+  <arg name="compensate_tracking_output_to_current_time" default="false"/>
+  <arg name="maximum_tracking_output_compensation_sec" default="0.25"/>
+  <!-- Production: update on detector input and publish predicted EKF state at 30 Hz. -->
+  <arg name="tracking_internal_publish_rate_hz" default="30.0"/>
+  <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
+  <!-- Optional detector velocity fusion: 0 off, 1 init only, 2 every update. -->
+  <arg name="detection_velocity_fusion_mode" default="0"/>
+  <arg name="detection_velocity_noise_std_mps" default="1.0"/>
+  <!-- 0: detector-driven EKF output, >0: causal fixed-rate resampling. -->
+  <arg name="tracking_publish_rate_hz" default="0.0"/>
+  <arg name="maximum_tracking_resample_age_sec" default="0.25"/>
+  <arg name="measurement_tracked_objects"
+       default="/perception/object_recognition/tracking/measurement_objects"/>
+
+  <!-- Detector-specific launch arguments. -->
+  <arg name="python_executable" default=""/>
+  <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
+  <arg name="fastbev_checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/fastbev/releases/fastbev_i3_production.pth"/>
+  <arg name="fastbev_preprocess_backend" default="opencv"/>
+  <arg name="fastbev_pipeline_mode" default="staged"/>
+  <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
+  <arg name="pointpainting_cfg"
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpillar_morai_pointpainting_base2_singleframe9_geom_aug.yaml"/>
+  <arg name="pointpainting_checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpainting_base2_s1_best_epoch38.pth"/>
+  <arg name="pointpainting_segmentation_checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/lraspp_4class_best_miou.pth"/>
+  <arg name="publish_painted_points" default="false"/>
+  <arg name="segmentation_short_side" default="384"/>
+  <arg name="pointpainting_preprocess_backend" default="torchvision"/>
+  <arg name="pointpainting_camera_cpu_workers" default="4"/>
+  <arg name="pointpainting_score_threshold" default="0.10"/>
+  <arg name="pointpainting_foreground_semantic_scale" default="1.0"/>
+  <arg name="warmup_segmentation" default="true"/>
+  <arg name="warmup_full_pipeline" default="true"/>
+  <arg name="warmup_iterations" default="2"/>
+  <arg name="warmup_point_count" default="12000"/>
+  <arg name="real_input_warmup" default="true"/>
+  <arg name="real_input_warmup_iterations" default="2"/>
+  <arg name="pointpainting_benchmark_output_dir" default=""/>
+  <arg name="pointpainting_benchmark_label" default="pointpainting"/>
+  <arg name="pointpainting_benchmark_exclude_frames" default="10"/>
+  <arg name="pointpainting_detailed_timing" default="false"/>
+  <arg name="pointpainting_lidar_measurement_stamp_mode"
+       default="object_points_median"/>
+  <arg name="pointpainting_lidar_deskew_mode" default="off"/>
+  <arg name="pointpainting_lidar_deskew_reference" default="point_median"/>
+  <arg name="pointpainting_lidar_deskew_camera_reference" default="reference"/>
+  <arg name="pointpainting_temporal_num_sweeps" default="0"/>
+  <arg name="pointpainting_temporal_maximum_gap_sec" default="0.75"/>
+  <arg name="pointpainting_temporal_lidar_scan_period_sec"
+       default="0.06666667"/>
+  <arg name="pointpainting_publish_detector_velocity" default="false"/>
+  <arg name="pointpainting_detector_velocity_noise_std_mps" default="1.0"/>
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+
+  <group if="$(eval arg('start_detector') and arg('detector') == 'fastbev')">
+    <include file="$(find morai_fastbev_ros)/launch/fastbev_online.launch">
+      <arg name="python_executable" value="$(arg python_executable)"/>
+      <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="checkpoint" value="$(arg fastbev_checkpoint)"/>
+      <arg name="objects_topic" value="$(arg detection_objects)"/>
+      <arg name="preprocess_backend" value="$(arg fastbev_preprocess_backend)"/>
+      <arg name="pipeline_mode" value="$(arg fastbev_pipeline_mode)"/>
+      <arg name="warmup_iterations" value="$(arg warmup_iterations)"/>
+      <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('start_detector') and arg('detector') == 'pointpainting')">
+    <include file="$(find morai_pointpainting_ros)/launch/pointpainting_online.launch">
+      <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+      <arg name="python_executable" value="$(arg python_executable)"/>
+      <arg name="openpcdet_root" value="$(arg openpcdet_root)"/>
+      <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="cfg_file" value="$(arg pointpainting_cfg)"/>
+      <arg name="checkpoint" value="$(arg pointpainting_checkpoint)"/>
+      <arg name="segmentation_checkpoint" value="$(arg pointpainting_segmentation_checkpoint)"/>
+      <arg name="objects_topic" value="$(arg detection_objects)"/>
+      <arg name="publish_painted_points" value="$(arg publish_painted_points)"/>
+      <arg name="segmentation_short_side" value="$(arg segmentation_short_side)"/>
+      <arg name="segmentation_preprocess_backend"
+           value="$(arg pointpainting_preprocess_backend)"/>
+      <arg name="camera_cpu_workers"
+           value="$(arg pointpainting_camera_cpu_workers)"/>
+      <arg name="score_threshold" value="$(arg pointpainting_score_threshold)"/>
+      <arg name="foreground_semantic_scale"
+           value="$(arg pointpainting_foreground_semantic_scale)"/>
+      <arg name="warmup_segmentation" value="$(arg warmup_segmentation)"/>
+      <arg name="warmup_full_pipeline" value="$(arg warmup_full_pipeline)"/>
+      <arg name="warmup_iterations" value="$(arg warmup_iterations)"/>
+      <arg name="warmup_point_count" value="$(arg warmup_point_count)"/>
+      <arg name="real_input_warmup" value="$(arg real_input_warmup)"/>
+      <arg name="real_input_warmup_iterations" value="$(arg real_input_warmup_iterations)"/>
+      <arg name="benchmark_output_dir" value="$(arg pointpainting_benchmark_output_dir)"/>
+      <arg name="benchmark_label" value="$(arg pointpainting_benchmark_label)"/>
+      <arg name="benchmark_exclude_frames" value="$(arg pointpainting_benchmark_exclude_frames)"/>
+      <arg name="detailed_timing" value="$(arg pointpainting_detailed_timing)"/>
+      <arg name="lidar_measurement_stamp_mode"
+           value="$(arg pointpainting_lidar_measurement_stamp_mode)"/>
+      <arg name="lidar_deskew_mode"
+           value="$(arg pointpainting_lidar_deskew_mode)"/>
+      <arg name="lidar_deskew_reference"
+           value="$(arg pointpainting_lidar_deskew_reference)"/>
+      <arg name="lidar_deskew_camera_reference"
+           value="$(arg pointpainting_lidar_deskew_camera_reference)"/>
+      <arg name="temporal_num_sweeps"
+           value="$(arg pointpainting_temporal_num_sweeps)"/>
+      <arg name="temporal_maximum_gap_sec"
+           value="$(arg pointpainting_temporal_maximum_gap_sec)"/>
+      <arg name="temporal_lidar_scan_period_sec"
+           value="$(arg pointpainting_temporal_lidar_scan_period_sec)"/>
+      <arg name="publish_detector_velocity"
+           value="$(arg pointpainting_publish_detector_velocity)"/>
+      <arg name="detector_velocity_noise_std_mps"
+           value="$(arg pointpainting_detector_velocity_noise_std_mps)"/>
+    </include>
+  </group>
+
+  <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch">
+    <arg name="input_objects" value="$(arg detection_objects)"/>
+    <arg name="output_objects"
+         value="$(eval arg('tracked_objects') if float(arg('tracking_publish_rate_hz')) &lt;= 0.0 else arg('measurement_tracked_objects'))"/>
+    <arg name="world_frame_id" value="$(arg world_frame_id)"/>
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="canonicalize_vehicle_orientation_to_motion"
+         value="$(arg canonicalize_vehicle_orientation_to_motion)"/>
+    <arg name="orientation_canonicalization_min_speed_mps"
+         value="$(arg orientation_canonicalization_min_speed_mps)"/>
+    <arg name="orientation_flip_enter_error_deg"
+         value="$(arg orientation_flip_enter_error_deg)"/>
+    <arg name="orientation_flip_exit_error_deg"
+         value="$(arg orientation_flip_exit_error_deg)"/>
+    <arg name="compensate_output_to_current_time"
+         value="$(arg compensate_tracking_output_to_current_time)"/>
+    <arg name="maximum_output_compensation_sec"
+         value="$(arg maximum_tracking_output_compensation_sec)"/>
+    <arg name="fixed_output_rate_hz"
+         value="$(eval arg('tracking_internal_publish_rate_hz') if float(arg('tracking_publish_rate_hz')) &lt;= 0.0 else '0.0')"/>
+    <arg name="maximum_fixed_output_prediction_age_sec"
+         value="$(arg maximum_tracking_internal_prediction_age_sec)"/>
+    <arg name="detection_velocity_fusion_mode"
+         value="$(arg detection_velocity_fusion_mode)"/>
+    <arg name="detection_velocity_noise_std_mps"
+         value="$(arg detection_velocity_noise_std_mps)"/>
+  </include>
+
+  <group if="$(eval float(arg('tracking_publish_rate_hz')) &gt; 0.0)">
+    <node pkg="perception_object_pipeline"
+          type="tracked_objects_fixed_rate_node.py"
+          name="tracked_objects_fixed_rate"
+          output="screen"
+          respawn="false">
+      <remap from="~input/objects" to="$(arg measurement_tracked_objects)"/>
+      <remap from="~output/objects" to="$(arg tracked_objects)"/>
+      <param name="rate_hz" value="$(arg tracking_publish_rate_hz)"/>
+      <param name="maximum_age_sec"
+             value="$(arg maximum_tracking_resample_age_sec)"/>
+    </node>
+  </group>
+
+  <include file="$(find perception_object_pipeline)/launch/object_prediction.launch">
+    <arg name="input_objects" value="$(arg tracked_objects)"/>
+    <arg name="output_objects" value="$(arg predicted_objects)"/>
+    <arg name="prediction_time_step" value="$(arg prediction_time_step)"/>
+    <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
+    <arg name="prediction_model" value="$(arg prediction_model)"/>
+    <arg name="repo_root" value="$(arg repo_root)"/>
+  </include>
+</launch>

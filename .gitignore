@@ -4,8 +4,9 @@
 porting/runs/
 porting/validation_views/
 
-# 로컬에서 생성되는 검증·시각화·실험 산출물은 Git에 올리지 않는다.
-artifacts/
+# 로컬 실행·학습·평가 산출물. 구조 설명만 Git으로 관리한다.
+artifacts/*
+!artifacts/README.md
 
 # python 가상환경 폴더
 .venv/
@@ -33,7 +34,6 @@ build_external/
 
 docs/external_docs/
 docs/local_notes.md
-artifacts/mvp_validation/
 
 ### 아래는 ros catkin 관련.
 
@@ -304,3 +304,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 *:Zone.Identifier
+/data/morai_4class_v1/
+/outputs/
+/wandb/

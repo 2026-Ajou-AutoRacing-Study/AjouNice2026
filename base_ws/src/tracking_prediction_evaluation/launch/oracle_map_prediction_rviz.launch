@@ -1,0 +1,73 @@
+<launch>
+  <arg name="use_sim_time" default="true"/>
+  <arg name="start_rviz" default="true"/>
+  <arg name="publish_sensor_static_tf" default="true"/>
+  <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
+  <arg name="map_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v60.osm"/>
+  <arg name="projector_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+  <arg name="input_objects" default="/Object_topic"/>
+  <arg name="oracle_tracks" default="/evaluation/oracle/tracking/objects"/>
+  <arg name="oracle_predictions" default="/evaluation/oracle/predicted/objects"/>
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+
+  <!-- Older raw_sensor[_w_cam] bags contain sensor messages but no /tf_static.
+       Publish the Sensor_6 mounting poses so the LiDAR can be transformed into
+       the map-fixed RViz view.  Image displays do not require these TFs, but
+       publishing all four camera frames keeps the sensor tree complete. -->
+  <group if="$(arg publish_sensor_static_tf)">
+    <node pkg="tf2_ros" type="static_transform_publisher"
+          name="oracle_tf_base_to_lidar1"
+          args="0.855 0.0 1.388 0.0 0.0 0.0 base_link lidar1"/>
+    <node pkg="tf2_ros" type="static_transform_publisher"
+          name="oracle_tf_base_to_camera_front"
+          args="1.90 0.0 1.20 0.0 0.0349066 0.0 base_link camera_front"/>
+    <node pkg="tf2_ros" type="static_transform_publisher"
+          name="oracle_tf_base_to_camera_front_left"
+          args="1.15 0.65 1.20 1.2217305 0.1745329 0.0 base_link camera_front_left"/>
+    <node pkg="tf2_ros" type="static_transform_publisher"
+          name="oracle_tf_base_to_camera_front_right"
+          args="1.15 -0.65 1.20 -1.2217305 0.1745329 0.0 base_link camera_front_right"/>
+    <node pkg="tf2_ros" type="static_transform_publisher"
+          name="oracle_tf_base_to_camera_back"
+          args="-0.28 0.0 1.15 3.1415927 0.0 0.0 base_link camera_back"/>
+  </group>
+
+  <include file="$(find bringup)/launch/localization_morai_gt.launch">
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="start_lanelet_map" value="true"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="projector_file" value="$(arg projector_file)"/>
+  </include>
+
+  <node pkg="tracking_prediction_evaluation"
+        type="oracle_gt_tracks_node.py"
+        name="oracle_gt_tracks"
+        output="screen">
+    <param name="input" value="$(arg input_objects)"/>
+    <param name="output" value="$(arg oracle_tracks)"/>
+    <param name="history_sec" value="0.5"/>
+    <param name="morai_static_tf"
+           value="$(arg repo_root)/configs/tf/morai_lanelet_static_tf.yaml"/>
+  </node>
+
+  <include file="$(find perception_object_pipeline)/launch/object_prediction.launch">
+    <arg name="input_objects" value="$(arg oracle_tracks)"/>
+    <arg name="output_objects" value="$(arg oracle_predictions)"/>
+    <arg name="prediction_model" value="map_based"/>
+    <arg name="prediction_time_step" value="0.1"/>
+    <arg name="prediction_horizon" value="3.0"/>
+    <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="projector_file" value="$(arg projector_file)"/>
+  </include>
+
+  <include file="$(find perception_object_pipeline)/launch/object_pipeline_visualization.launch">
+    <arg name="detections" value="/evaluation/oracle/unused_detections"/>
+    <arg name="tracks" value="$(arg oracle_tracks)"/>
+    <arg name="predictions" value="$(arg oracle_predictions)"/>
+    <arg name="start_rviz" value="$(arg start_rviz)"/>
+  </include>
+</launch>

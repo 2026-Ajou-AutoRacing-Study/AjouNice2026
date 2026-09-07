@@ -8,7 +8,7 @@ Data flow:
     -> LRASPP semantic segmentation
 LiDAR PointCloud2
     -> camera projection and semantic painting
-    -> 10-channel painted points
+    -> 9-channel MORAI painted points (or legacy 10-channel points)
     -> OpenPCDet PointPillars
     -> custom 3D detection array + RViz markers
 
@@ -20,16 +20,22 @@ which prevents latency from growing without bound.
 from __future__ import annotations
 
 import copy
+import csv
+import hashlib
+import json
 import math
 import os
 import sys
 import threading
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+import cv2
 import rospy
 import torch
 import torch.nn.functional as F
@@ -44,19 +50,40 @@ from sensor_msgs.msg import (
 )
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker, MarkerArray
+from morai_msgs.msg import EgoVehicleStatus, ObjectStatusList
 
 from morai_pointpainting_ros.msg import (
     PointPaintingDetection,
     PointPaintingDetectionArray,
 )
+from autoware_perception_msgs.msg import DetectedObjects
+from perception_object_pipeline import make_detected_objects
+from perception_object_pipeline.rolling_lidar import (
+    PlanarPoseBuffer,
+    deskew_points_to_reference_pose,
+    representative_detection_time_offset,
+    transform_boxes_between_lidar_times,
+    transform_points_between_lidar_times,
+)
+from morai_pointpainting_ros.oracle_painting import (
+    override_semantics_in_oriented_boxes,
+)
 
 
-SEMANTIC_NAMES = (
+LEGACY_SEMANTIC_NAMES = (
     "background",
     "person",
     "vehicle",
     "two_wheeler",
     "dog",
+    "unknown",
+)
+
+MORAI_4CLASS_SEMANTIC_NAMES = (
+    "background",
+    "pedestrian",
+    "vehicle",
+    "obstacle",
     "unknown",
 )
 
@@ -83,6 +110,28 @@ POINTFIELD_TO_DTYPE = {
 
 def expand_path(value: str) -> Path:
     return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
+
+
+def file_identity(path: Optional[Path]) -> Optional[Dict[str, object]]:
+    """Return a reproducible artifact identity outside measured frame timing."""
+    if path is None:
+        return None
+    identity: Dict[str, object] = {"path": str(path)}
+    try:
+        stat = path.stat()
+        digest = hashlib.sha256()
+        with path.open("rb") as file:
+            for chunk in iter(lambda: file.read(1024 * 1024), b""):
+                digest.update(chunk)
+        identity.update(
+            {
+                "size_bytes": int(stat.st_size),
+                "sha256": digest.hexdigest(),
+            }
+        )
+    except OSError as error:
+        identity["identity_error"] = str(error)
+    return identity
 
 
 def rotation_matrix(roll_deg: float, pitch_deg: float, yaw_deg: float) -> np.ndarray:
@@ -134,7 +183,7 @@ def stamp_to_sec(stamp) -> float:
     return value
 
 
-def cloud_to_xyzi(msg: PointCloud2) -> np.ndarray:
+def cloud_to_xyzi(msg: PointCloud2, include_time: bool = False):
     fields = {field.name: field for field in msg.fields}
 
     for required in ("x", "y", "z"):
@@ -149,6 +198,9 @@ def cloud_to_xyzi(msg: PointCloud2) -> np.ndarray:
     names = ["x", "y", "z"]
     if "intensity" in fields:
         names.append("intensity")
+    has_time = include_time and "time" in fields
+    if has_time:
+        names.append("time")
 
     endian = ">" if msg.is_bigendian else "<"
     dtype_names = []
@@ -179,7 +231,10 @@ def cloud_to_xyzi(msg: PointCloud2) -> np.ndarray:
 
     count = int(msg.width) * int(msg.height)
     if count <= 0:
-        return np.empty((0, 4), dtype=np.float32)
+        empty_points = np.empty((0, 4), dtype=np.float32)
+        if include_time:
+            return empty_points, np.empty((0,), dtype=np.float32)
+        return empty_points
 
     raw = np.frombuffer(msg.data, dtype=dtype, count=count)
     output = np.zeros((count, 4), dtype=np.float32)
@@ -190,25 +245,33 @@ def cloud_to_xyzi(msg: PointCloud2) -> np.ndarray:
     if "intensity" in names:
         output[:, 3] = raw["intensity"].astype(np.float32, copy=False)
 
+    if include_time:
+        offsets = (
+            raw["time"].astype(np.float32, copy=False)
+            if has_time
+            else np.full((count,), np.nan, dtype=np.float32)
+        )
+        return output, offsets
     return output
 
 
-def make_painted_cloud(points: np.ndarray, header: Header) -> PointCloud2:
-    if points.ndim != 2 or points.shape[1] != 10:
-        raise RuntimeError("Painted points must have shape (N, 10), got {}".format(points.shape))
-
+def make_painted_cloud(
+    points: np.ndarray,
+    header: Header,
+    semantic_names: Sequence[str],
+) -> PointCloud2:
     names = [
         "x",
         "y",
         "z",
         "intensity",
-        "background",
-        "person",
-        "vehicle",
-        "two_wheeler",
-        "dog",
-        "unknown",
-    ]
+    ] + list(semantic_names)
+    if points.ndim != 2 or points.shape[1] != len(names):
+        raise RuntimeError(
+            "Painted points must have shape (N, {}), got {}".format(
+                len(names), points.shape
+            )
+        )
 
     output = PointCloud2()
     output.header = copy.copy(header)
@@ -219,7 +282,7 @@ def make_painted_cloud(points: np.ndarray, header: Header) -> PointCloud2:
         for index, name in enumerate(names)
     ]
     output.is_bigendian = False
-    output.point_step = 40
+    output.point_step = 4 * len(names)
     output.row_step = output.point_step * output.width
     output.is_dense = bool(np.isfinite(points).all())
     output.data = np.ascontiguousarray(points, dtype=np.float32).tobytes()
@@ -349,6 +412,24 @@ class PointPaintingOnlineNode:
                 "pointpainting_20epoch/ckpt/checkpoint_epoch_20.pth",
             )
         )
+        segmentation_checkpoint_value = str(
+            rospy.get_param("~segmentation_checkpoint", "")
+        ).strip()
+        self.segmentation_checkpoint = (
+            expand_path(segmentation_checkpoint_value)
+            if segmentation_checkpoint_value
+            else None
+        )
+        self.semantic_profile = str(
+            rospy.get_param(
+                "~semantic_profile",
+                "morai_4class" if self.segmentation_checkpoint else "legacy_voc",
+            )
+        ).strip().lower()
+        if self.semantic_profile not in ("morai_4class", "legacy_voc"):
+            raise ValueError(
+                "semantic_profile must be morai_4class or legacy_voc"
+            )
 
         self.lidar_topic = rospy.get_param("~lidar_topic", "/sensor/lidar1")
         self.detections_topic = rospy.get_param(
@@ -365,10 +446,28 @@ class PointPaintingOnlineNode:
         )
 
         self.score_threshold = float(
-            rospy.get_param("~score_threshold", 0.20)
+            rospy.get_param("~score_threshold", 0.10)
+        )
+        self.foreground_semantic_scale = float(
+            rospy.get_param("~foreground_semantic_scale", 1.0)
         )
         self.max_detection_range = float(
-            rospy.get_param("~max_detection_range", 20.0)
+            rospy.get_param("~max_detection_range", 30.0)
+        )
+        self.publish_detector_velocity = bool(
+            rospy.get_param("~publish_detector_velocity", False)
+        )
+        self.detector_velocity_classes = tuple(
+            str(value).strip().lower()
+            for value in rospy.get_param(
+                "~detector_velocity_classes", ["vehicle"]
+            )
+        )
+        self.detector_velocity_noise_std_mps = float(
+            rospy.get_param("~detector_velocity_noise_std_mps", 1.0)
+        )
+        self.detector_maximum_velocity_mps = float(
+            rospy.get_param("~detector_maximum_velocity_mps", 30.0)
         )
         self.max_camera_age_ms = float(
             rospy.get_param("~max_camera_age_ms", 100.0)
@@ -379,13 +478,74 @@ class PointPaintingOnlineNode:
         self.camera_buffer_size = int(
             rospy.get_param("~camera_buffer_size", 30)
         )
+        self.camera_cpu_workers = int(
+            rospy.get_param("~camera_cpu_workers", 1)
+        )
         self.publish_painted_points = bool(
             rospy.get_param("~publish_painted_points", False)
         )
+        self.lidar_measurement_stamp_mode = str(
+            rospy.get_param(
+                "~lidar_measurement_stamp_mode",
+                "object_points_median",
+            )
+        ).strip().lower()
+        self.lidar_timing_box_extent_scale = float(
+            rospy.get_param("~lidar_timing_box_extent_scale", 0.65)
+        )
+        self.lidar_timing_minimum_points_per_box = int(
+            rospy.get_param("~lidar_timing_minimum_points_per_box", 3)
+        )
+        self.lidar_deskew_mode = str(
+            rospy.get_param("~lidar_deskew_mode", "off")
+        ).strip().lower()
+        self.lidar_deskew_reference = str(
+            rospy.get_param("~lidar_deskew_reference", "point_median")
+        ).strip().lower()
+        self.lidar_deskew_camera_reference = str(
+            rospy.get_param("~lidar_deskew_camera_reference", "reference")
+        ).strip().lower()
+        self.ego_topic = str(rospy.get_param("~ego_topic", "/Ego_topic"))
+        self.oracle_painting_class = str(
+            rospy.get_param("~oracle_painting_class", "")
+        ).strip().lower()
+        self.oracle_object_topic = str(
+            rospy.get_param("~oracle_object_topic", "/Object_topic")
+        )
+        self.oracle_maximum_age_sec = float(
+            rospy.get_param("~oracle_maximum_age_sec", 0.10)
+        )
+        self.oracle_painting_mode = str(
+            rospy.get_param("~oracle_painting_mode", "one_hot")
+        ).strip().lower()
+        self.ego_pose_buffer_duration_sec = float(
+            rospy.get_param("~ego_pose_buffer_duration_sec", 2.0)
+        )
+        self.lidar_deskew_maximum_extrapolation_sec = float(
+            rospy.get_param("~lidar_deskew_maximum_extrapolation_sec", 0.08)
+        )
+        self.requested_temporal_num_sweeps = int(
+            rospy.get_param("~temporal_num_sweeps", 0)
+        )
+        self.temporal_maximum_gap_sec = float(
+            rospy.get_param("~temporal_maximum_gap_sec", 0.75)
+        )
+        self.temporal_lidar_scan_period_sec = float(
+            rospy.get_param("~temporal_lidar_scan_period_sec", 1.0 / 15.0)
+        )
+        self.temporal_time_lag_mode = str(
+            rospy.get_param("~temporal_time_lag_mode", "sweep_constant")
+        ).strip().lower()
         self.use_amp = bool(rospy.get_param("~use_amp", True))
         self.segmentation_short_side = int(
             rospy.get_param("~segmentation_short_side", 520)
         )
+        self.segmentation_preprocess_backend = str(
+            rospy.get_param(
+                "~segmentation_preprocess_backend",
+                "torchvision",
+            )
+        ).strip().lower()
         self.warmup_segmentation = bool(
             rospy.get_param("~warmup_segmentation", True)
         )
@@ -404,9 +564,91 @@ class PointPaintingOnlineNode:
         self.real_input_warmup_iterations = int(
             rospy.get_param("~real_input_warmup_iterations", 2)
         )
+        benchmark_output_value = str(
+            rospy.get_param("~benchmark_output_dir", "")
+        ).strip()
+        self.benchmark_output_dir = (
+            expand_path(benchmark_output_value)
+            if benchmark_output_value
+            else None
+        )
+        self.benchmark_label = str(
+            rospy.get_param("~benchmark_label", "pointpainting")
+        )
+        self.benchmark_exclude_frames = int(
+            rospy.get_param("~benchmark_exclude_frames", 10)
+        )
+        self.detailed_timing = bool(
+            rospy.get_param(
+                "~detailed_timing",
+                self.benchmark_output_dir is not None,
+            )
+        )
         if self.segmentation_short_side < 224:
             raise ValueError(
                 "segmentation_short_side must be >= 224"
+            )
+        if self.segmentation_preprocess_backend not in {
+            "torchvision",
+            "opencv",
+        }:
+            raise ValueError(
+                "segmentation_preprocess_backend must be torchvision or "
+                "opencv"
+            )
+        if self.camera_cpu_workers < 1 or self.camera_cpu_workers > 4:
+            raise ValueError("camera_cpu_workers must be between 1 and 4")
+        if self.detector_velocity_noise_std_mps < 0.0:
+            raise ValueError("detector_velocity_noise_std_mps must be non-negative")
+        if self.detector_maximum_velocity_mps <= 0.0:
+            raise ValueError("detector_maximum_velocity_mps must be positive")
+        if not 0.0 <= self.foreground_semantic_scale <= 1.0:
+            raise ValueError(
+                "foreground_semantic_scale must be between 0.0 and 1.0"
+            )
+        if self.lidar_measurement_stamp_mode not in {
+            "header",
+            "point_median",
+            "object_points_median",
+        }:
+            raise ValueError(
+                "lidar_measurement_stamp_mode must be header, point_median, "
+                "or object_points_median"
+            )
+        if self.lidar_timing_box_extent_scale <= 0.0:
+            raise ValueError("lidar_timing_box_extent_scale must be positive")
+        if self.lidar_timing_minimum_points_per_box < 1:
+            raise ValueError(
+                "lidar_timing_minimum_points_per_box must be >= 1"
+            )
+        if self.lidar_deskew_mode not in {"off", "ego_pose_2d"}:
+            raise ValueError("lidar_deskew_mode must be off or ego_pose_2d")
+        if self.lidar_deskew_reference not in {"header", "point_median"}:
+            raise ValueError(
+                "lidar_deskew_reference must be header or point_median"
+            )
+        if self.lidar_deskew_camera_reference not in {"header", "reference"}:
+            raise ValueError(
+                "lidar_deskew_camera_reference must be header or reference"
+            )
+        if self.ego_pose_buffer_duration_sec < 0.2:
+            raise ValueError("ego_pose_buffer_duration_sec must be >= 0.2")
+        if self.lidar_deskew_maximum_extrapolation_sec < 0.0:
+            raise ValueError(
+                "lidar_deskew_maximum_extrapolation_sec must be non-negative"
+            )
+        if self.requested_temporal_num_sweeps < 0:
+            raise ValueError("temporal_num_sweeps must be >= 0")
+        if self.temporal_maximum_gap_sec <= 0.0:
+            raise ValueError("temporal_maximum_gap_sec must be positive")
+        if self.temporal_lidar_scan_period_sec <= 0.0:
+            raise ValueError("temporal_lidar_scan_period_sec must be positive")
+        if self.temporal_time_lag_mode not in {
+            "sweep_constant",
+            "azimuth_approx",
+        }:
+            raise ValueError(
+                "temporal_time_lag_mode must be sweep_constant or azimuth_approx"
             )
         if self.warmup_iterations < 1:
             raise ValueError("warmup_iterations must be >= 1")
@@ -416,6 +658,8 @@ class PointPaintingOnlineNode:
             raise ValueError(
                 "real_input_warmup_iterations must be >= 1"
             )
+        if self.benchmark_exclude_frames < 0:
+            raise ValueError("benchmark_exclude_frames must be >= 0")
 
         self.normalize_intensity = bool(
             rospy.get_param("~normalize_intensity", True)
@@ -439,6 +683,14 @@ class PointPaintingOnlineNode:
             "front_right",
             "back",
         ]
+        self.camera_executor = (
+            ThreadPoolExecutor(
+                max_workers=self.camera_cpu_workers,
+                thread_name_prefix="pointpainting_camera",
+            )
+            if self.camera_cpu_workers > 1
+            else None
+        )
 
         missing_cameras = [
             name
@@ -457,6 +709,23 @@ class PointPaintingOnlineNode:
         self.r_vehicle_lidar = rotation_matrix(
             *self.lidar_config["rotation"]
         )
+        self.lidar_yaw_rad = math.radians(
+            float(self.lidar_config["rotation"][2])
+        )
+        self.ego_pose_buffer = PlanarPoseBuffer(
+            self.ego_pose_buffer_duration_sec
+        )
+        if self.oracle_painting_class not in ("", "off", "pedestrian", "obstacle"):
+            raise ValueError(
+                "oracle_painting_class must be off, pedestrian, or obstacle"
+            )
+        if self.oracle_painting_mode not in ("one_hot", "swap_background"):
+            raise ValueError(
+                "oracle_painting_mode must be one_hot or swap_background"
+            )
+        self.oracle_state_lock = threading.Lock()
+        self.oracle_ego_messages = deque(maxlen=100)
+        self.oracle_object_messages = deque(maxlen=100)
 
         self.camera_buffers = {
             name: deque(maxlen=self.camera_buffer_size)
@@ -471,6 +740,29 @@ class PointPaintingOnlineNode:
         self.dropped_lidar_frames = 0
         self.skipped_lidar_frames = 0
         self.processed_frames = 0
+        self.lidar_input_frames = 0
+        self.real_input_warmup_frames = 0
+        self.skip_reasons = {
+            "camera_sync": 0,
+            "empty_lidar": 0,
+            "temporal_history": 0,
+            "processing_error": 0,
+        }
+        self.camera_input_frames = {
+            name: 0 for name in self.camera_names
+        }
+        self.camera_first_wall_time = {
+            name: None for name in self.camera_names
+        }
+        self.camera_last_wall_time = {
+            name: None for name in self.camera_names
+        }
+        self.lidar_first_wall_time = None
+        self.lidar_last_wall_time = None
+        self.publish_first_wall_time = None
+        self.publish_last_wall_time = None
+        self.benchmark_rows = []
+        self.benchmark_report_written = False
         self.real_input_warmup_complete = not self.real_input_warmup
         self.online_ready_logged = False
         self.logged_segmentation_shapes = set()
@@ -485,6 +777,11 @@ class PointPaintingOnlineNode:
             PointPaintingDetectionArray,
             queue_size=1,
         )
+        self.objects_pub = rospy.Publisher(
+            "~output/objects",
+            DetectedObjects,
+            queue_size=1,
+        )
         self.markers_pub = rospy.Publisher(
             self.markers_topic,
             MarkerArray,
@@ -497,6 +794,27 @@ class PointPaintingOnlineNode:
         )
 
         self.camera_subscribers = []
+        self.ego_subscriber = rospy.Subscriber(
+            self.ego_topic,
+            EgoVehicleStatus,
+            self._ego_callback,
+            queue_size=100,
+            tcp_nodelay=True,
+        )
+        self.oracle_object_subscriber = None
+        if self.oracle_painting_class not in ("", "off"):
+            self.oracle_object_subscriber = rospy.Subscriber(
+                self.oracle_object_topic,
+                ObjectStatusList,
+                self._oracle_object_callback,
+                queue_size=100,
+                tcp_nodelay=True,
+            )
+            rospy.logwarn(
+                "DIAGNOSTIC ONLY: GT oracle painting enabled for %s from %s",
+                self.oracle_painting_class,
+                self.oracle_object_topic,
+            )
         for camera_name in self.camera_names:
             camera_config = self.camera_configs[camera_name]
             topic = camera_config["topic"]
@@ -540,13 +858,23 @@ class PointPaintingOnlineNode:
             daemon=True,
         )
         self.worker.start()
+        rospy.on_shutdown(self._write_benchmark_report)
+        rospy.on_shutdown(self._shutdown_camera_executor)
 
         rospy.loginfo("LiDAR       <- %s", self.lidar_topic)
+        rospy.loginfo(
+            "Ego pose    <- %s (deskew=%s reference=%s camera=%s)",
+            self.ego_topic,
+            self.lidar_deskew_mode,
+            self.lidar_deskew_reference,
+            self.lidar_deskew_camera_reference,
+        )
         rospy.loginfo("Detections  -> %s", self.detections_topic)
         rospy.loginfo("Markers     -> %s", self.markers_topic)
         rospy.loginfo(
             "score>=%.2f range<=%.1fm camera_age<=%.1fms "
-            "AMP=%s seg_short_side=%d native_semantic_map=True "
+            "AMP=%s seg_short_side=%d preprocess=%s camera_workers=%d "
+            "native_semantic_map=True "
             "full_warmup=%s warmup_iterations=%d "
             "real_input_warmup=%s real_input_warmup_iterations=%d",
             self.score_threshold,
@@ -554,11 +882,20 @@ class PointPaintingOnlineNode:
             self.max_camera_age_ms,
             self.use_amp,
             self.segmentation_short_side,
+            self.segmentation_preprocess_backend,
+            self.camera_cpu_workers,
             self.warmup_full_pipeline,
             self.warmup_iterations,
             self.real_input_warmup,
             self.real_input_warmup_iterations,
         )
+        if self.benchmark_output_dir is not None:
+            rospy.loginfo(
+                "Benchmark metrics -> %s (detailed_timing=%s, exclude=%d)",
+                self.benchmark_output_dir,
+                self.detailed_timing,
+                self.benchmark_exclude_frames,
+            )
         if self.real_input_warmup:
             rospy.loginfo(
                 "Waiting for the first synchronized real sensor set "
@@ -590,23 +927,85 @@ class PointPaintingOnlineNode:
                 "CUDA GPU is required for the competition pipeline."
             )
 
-        if LRASPP_MobileNet_V3_Large_Weights is not None:
-            weights = LRASPP_MobileNet_V3_Large_Weights.DEFAULT
+        # Training and online inference both preserve aspect ratio, resize the
+        # shorter side, convert RGB uint8 to [0, 1], then apply ImageNet
+        # normalization. This preprocessing is shared by every semantic
+        # profile, including the MORAI 4-class checkpoint.
+        self.segmentation_preprocess = transforms.Compose(
+            [
+                transforms.Resize(
+                    self.segmentation_short_side,
+                    antialias=True,
+                ),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225],
+                ),
+            ]
+        )
+        self.segmentation_mean_cpu = torch.tensor(
+            [0.485, 0.456, 0.406], dtype=torch.float32
+        ).reshape(3, 1, 1)
+        self.segmentation_std_cpu = torch.tensor(
+            [0.229, 0.224, 0.225], dtype=torch.float32
+        ).reshape(3, 1, 1)
 
-            # Apply the launch parameter to the actual segmentation input size.
-            self.segmentation_preprocess = transforms.Compose(
-                [
-                    transforms.Resize(
-                        self.segmentation_short_side,
-                        antialias=True,
-                    ),
-                    transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406],
-                        std=[0.229, 0.224, 0.225],
-                    ),
-                ]
+        if self.semantic_profile == "morai_4class":
+            if self.segmentation_checkpoint is None:
+                raise ValueError(
+                    "morai_4class requires segmentation_checkpoint"
+                )
+            if not self.segmentation_checkpoint.exists():
+                raise FileNotFoundError(
+                    "Segmentation checkpoint not found: {}".format(
+                        self.segmentation_checkpoint
+                    )
+                )
+
+            try:
+                self.segmentation_model = lraspp_mobilenet_v3_large(
+                    pretrained=False,
+                    pretrained_backbone=False,
+                    num_classes=4,
+                )
+            except TypeError:
+                self.segmentation_model = lraspp_mobilenet_v3_large(
+                    weights=None,
+                    weights_backbone=None,
+                    num_classes=4,
+                )
+
+            checkpoint = torch.load(
+                str(self.segmentation_checkpoint),
+                map_location="cpu",
             )
+            if not isinstance(checkpoint, dict):
+                raise RuntimeError(
+                    "Unexpected segmentation checkpoint type: {}".format(
+                        type(checkpoint).__name__
+                    )
+                )
+            state_dict = checkpoint.get(
+                "model_state_dict",
+                checkpoint.get("state_dict", checkpoint),
+            )
+            state_dict = {
+                (key[7:] if key.startswith("module.") else key): value
+                for key, value in state_dict.items()
+            }
+            self.segmentation_model.load_state_dict(
+                state_dict,
+                strict=True,
+            )
+            self.segmentation_model = self.segmentation_model.to(
+                self.device
+            ).eval().to(memory_format=torch.channels_last)
+            self.semantic_names = MORAI_4CLASS_SEMANTIC_NAMES
+            self.segmentation_indices = None
+            torchvision_api = "MORAI 4-class checkpoint"
+        elif LRASPP_MobileNet_V3_Large_Weights is not None:
+            weights = LRASPP_MobileNet_V3_Large_Weights.DEFAULT
 
             self.segmentation_model = lraspp_mobilenet_v3_large(
                 weights=weights
@@ -619,16 +1018,6 @@ class PointPaintingOnlineNode:
             ]
             torchvision_api = "weights enum"
         else:
-            self.segmentation_preprocess = transforms.Compose(
-                [
-                    transforms.Resize(self.segmentation_short_side),
-                    transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406],
-                        std=[0.229, 0.224, 0.225],
-                    ),
-                ]
-            )
             self.segmentation_model = lraspp_mobilenet_v3_large(
                 pretrained=True
             ).to(self.device).eval().to(
@@ -660,28 +1049,30 @@ class PointPaintingOnlineNode:
             ]
             torchvision_api = "legacy pretrained=True"
 
-        def category_index(*candidates: str) -> int:
-            for candidate in candidates:
-                if candidate in categories:
-                    return categories.index(candidate)
-            raise RuntimeError(
-                "Segmentation category not found: {} in {}".format(
-                    candidates,
-                    categories,
+        if self.semantic_profile == "legacy_voc":
+            def category_index(*candidates: str) -> int:
+                for candidate in candidates:
+                    if candidate in categories:
+                        return categories.index(candidate)
+                raise RuntimeError(
+                    "Segmentation category not found: {} in {}".format(
+                        candidates,
+                        categories,
+                    )
                 )
-            )
 
-        self.segmentation_indices = {
-            "person": category_index("person"),
-            "car": category_index("car"),
-            "bus": category_index("bus"),
-            "bicycle": category_index("bicycle", "bike"),
-            "motorbike": category_index(
-                "motorbike",
-                "motorcycle",
-            ),
-            "dog": category_index("dog"),
-        }
+            self.segmentation_indices = {
+                "person": category_index("person"),
+                "car": category_index("car"),
+                "bus": category_index("bus"),
+                "bicycle": category_index("bicycle", "bike"),
+                "motorbike": category_index(
+                    "motorbike",
+                    "motorcycle",
+                ),
+                "dog": category_index("dog"),
+            }
+            self.semantic_names = LEGACY_SEMANTIC_NAMES
 
         if self.warmup_segmentation:
             warmup_shapes = [
@@ -713,11 +1104,12 @@ class PointPaintingOnlineNode:
 
         rospy.loginfo(
             "Segmentation model loaded on %s (%s), "
-            "short_side=%d, channels_last=True, warmup=%s",
+            "short_side=%d, channels_last=True, warmup=%s, profile=%s",
             self.device,
             torchvision_api,
             self.segmentation_short_side,
             self.warmup_segmentation,
+            self.semantic_profile,
         )
 
     def _load_detection_model(self) -> None:
@@ -736,9 +1128,16 @@ class PointPaintingOnlineNode:
                 "Checkpoint not found: {}".format(self.checkpoint)
             )
 
+        # OpenPCDet checkpoints contain optimizer/version metadata serialized
+        # before PyTorch 2.6. They are trusted team artifacts, so preserve the
+        # legacy loader behavior required by OpenPCDet's unpatched loader.
+        os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
+
         sys.path.insert(0, str(self.openpcdet_root))
         sys.path.insert(0, str(self.tools_dir))
         os.chdir(str(self.tools_dir))
+
+        import yaml
 
         from pcdet.config import cfg, cfg_from_yaml_file
         from pcdet.datasets import DatasetTemplate
@@ -761,7 +1160,73 @@ class PointPaintingOnlineNode:
             def __getitem__(self, index):
                 raise IndexError(index)
 
-        cfg_from_yaml_file(str(self.cfg_file), cfg)
+        # OpenPCDet의 _BASE_CONFIG_는 현재 작업 디렉터리를
+        # 기준으로 해석된다. 저장소 config와 OpenPCDet config를
+        # 모두 지원하도록 실제 base config가 존재하는 기준 폴더를 찾는다.
+        config_load_dir = self.tools_dir
+
+        with self.cfg_file.open("r", encoding="utf-8") as config_file:
+            raw_config = yaml.safe_load(config_file) or {}
+
+        base_config_value = (
+            raw_config
+            .get("DATA_CONFIG", {})
+            .get("_BASE_CONFIG_")
+        )
+
+        if base_config_value:
+            base_config_path = Path(
+                str(base_config_value)
+            ).expanduser()
+
+            if base_config_path.is_absolute():
+                if not base_config_path.exists():
+                    raise FileNotFoundError(
+                        "Base config not found: {}".format(
+                            base_config_path
+                        )
+                    )
+            else:
+                candidate_directories = (
+                    self.cfg_file.parent,
+                    self.tools_dir,
+                    self.openpcdet_root,
+                )
+
+                resolved_directory = next(
+                    (
+                        directory
+                        for directory in candidate_directories
+                        if (directory / base_config_path).exists()
+                    ),
+                    None,
+                )
+
+                if resolved_directory is None:
+                    searched = [
+                        str(directory / base_config_path)
+                        for directory in candidate_directories
+                    ]
+                    raise FileNotFoundError(
+                        "Base config not found. searched={}".format(
+                            searched
+                        )
+                    )
+
+                config_load_dir = resolved_directory
+
+        rospy.loginfo(
+            "OpenPCDet config load cwd: %s",
+            config_load_dir,
+        )
+
+        try:
+            os.chdir(str(config_load_dir))
+            cfg_from_yaml_file(str(self.cfg_file), cfg)
+        finally:
+            # 이후 OpenPCDet 동작은 기존처럼 tools 기준으로 유지한다.
+            os.chdir(str(self.tools_dir))
+
         self.pcdet_cfg = cfg
         self.pcdet_load_data_to_gpu = None
 
@@ -773,6 +1238,34 @@ class PointPaintingOnlineNode:
             logger=logger,
         )
         self.class_names = list(cfg.CLASS_NAMES)
+        configured_features = list(
+            cfg.DATA_CONFIG.POINT_FEATURE_ENCODING.used_feature_list
+        )
+        single_sweep_features = [
+            "x",
+            "y",
+            "z",
+            "intensity",
+        ] + list(self.semantic_names)
+        if configured_features == single_sweep_features:
+            inferred_temporal_sweeps = 1
+        elif configured_features == single_sweep_features + ["time_lag_sec"]:
+            inferred_temporal_sweeps = 3
+        else:
+            raise RuntimeError(
+                "Point feature contract mismatch: config={} runtime={}".format(
+                    configured_features,
+                    single_sweep_features,
+                )
+            )
+        if self.requested_temporal_num_sweeps:
+            self.temporal_num_sweeps = self.requested_temporal_num_sweeps
+        else:
+            self.temporal_num_sweeps = inferred_temporal_sweeps
+        self.temporal_uses_time_lag_feature = inferred_temporal_sweeps > 1
+        self.temporal_history = deque(
+            maxlen=max(0, self.temporal_num_sweeps - 1)
+        )
         self.point_cloud_range = np.asarray(
             cfg.DATA_CONFIG.POINT_CLOUD_RANGE,
             dtype=np.float32,
@@ -794,8 +1287,124 @@ class PointPaintingOnlineNode:
         self.pcdet_load_data_to_gpu = load_data_to_gpu
 
         rospy.loginfo(
-            "PointPillars loaded: %s",
+            "PointPillars loaded: %s (features=%s temporal_sweeps=%d)",
             self.checkpoint,
+            configured_features,
+            self.temporal_num_sweeps,
+        )
+
+    def _estimated_temporal_point_offsets(self, points: np.ndarray) -> np.ndarray:
+        azimuth = np.mod(
+            np.arctan2(points[:, 1], points[:, 0]), 2.0 * np.pi
+        )
+        clockwise_phase = np.mod(-azimuth, 2.0 * np.pi)
+        return np.asarray(
+            clockwise_phase
+            / (2.0 * np.pi)
+            * self.temporal_lidar_scan_period_sec,
+            dtype=np.float32,
+        )
+
+    def _warmup_temporal_points(self, painted: np.ndarray) -> np.ndarray:
+        if self.temporal_num_sweeps == 1:
+            if not self.temporal_uses_time_lag_feature:
+                return painted
+            return np.ascontiguousarray(
+                np.concatenate(
+                    (painted, np.zeros((len(painted), 1), dtype=np.float32)),
+                    axis=1,
+                ),
+                dtype=np.float32,
+            )
+        sweeps = []
+        for sweep_index in range(self.temporal_num_sweeps):
+            if not self.temporal_uses_time_lag_feature:
+                sweeps.append(painted)
+                continue
+            lag = np.full(
+                len(painted),
+                -self.temporal_lidar_scan_period_sec * float(sweep_index),
+                dtype=np.float32,
+            )
+            sweeps.append(np.concatenate((painted, lag[:, None]), axis=1))
+        return np.ascontiguousarray(np.concatenate(sweeps), dtype=np.float32)
+
+    def _temporal_points(
+        self,
+        painted: np.ndarray,
+        timestamp: float,
+    ) -> Optional[np.ndarray]:
+        if self.temporal_num_sweeps == 1:
+            if not self.temporal_uses_time_lag_feature:
+                return painted
+            return np.ascontiguousarray(
+                np.concatenate(
+                    (painted, np.zeros((len(painted), 1), dtype=np.float32)),
+                    axis=1,
+                ),
+                dtype=np.float32,
+            )
+
+        if self.temporal_history:
+            newest_timestamp = float(self.temporal_history[-1][0])
+            gap = float(timestamp) - newest_timestamp
+            if gap <= 0.0 or gap > self.temporal_maximum_gap_sec:
+                self.temporal_history.clear()
+
+        if len(self.temporal_history) < self.temporal_num_sweeps - 1:
+            self.temporal_history.append(
+                (float(timestamp), np.array(painted, copy=True))
+            )
+            return None
+
+        pose_samples = self.ego_pose_buffer.snapshot()
+        if self.temporal_uses_time_lag_feature:
+            current_lag = np.zeros(len(painted), dtype=np.float32)
+            if self.temporal_time_lag_mode == "azimuth_approx":
+                current_lag += self._estimated_temporal_point_offsets(painted)
+            temporal_sweeps = [
+                np.concatenate((painted, current_lag[:, None]), axis=1)
+            ]
+        else:
+            temporal_sweeps = [painted]
+        history = list(self.temporal_history)[-(self.temporal_num_sweeps - 1):]
+        for source_timestamp, source_points in reversed(history):
+            transformed = transform_points_between_lidar_times(
+                source_points,
+                source_timestamp,
+                timestamp,
+                pose_samples,
+                lidar_position=self.lidar_position,
+                lidar_yaw=self.lidar_yaw_rad,
+                maximum_extrapolation_sec=(
+                    self.lidar_deskew_maximum_extrapolation_sec
+                ),
+            )
+            if transformed is None:
+                self.temporal_history.clear()
+                self.temporal_history.append(
+                    (float(timestamp), np.array(painted, copy=True))
+                )
+                return None
+            if self.temporal_uses_time_lag_feature:
+                lag = np.full(
+                    len(source_points),
+                    float(source_timestamp) - float(timestamp),
+                    dtype=np.float32,
+                )
+                if self.temporal_time_lag_mode == "azimuth_approx":
+                    lag += self._estimated_temporal_point_offsets(source_points)
+                temporal_sweeps.append(
+                    np.concatenate((transformed, lag[:, None]), axis=1)
+                )
+            else:
+                temporal_sweeps.append(transformed)
+
+        self.temporal_history.append(
+            (float(timestamp), np.array(painted, copy=True))
+        )
+        return np.ascontiguousarray(
+            np.concatenate(temporal_sweeps, axis=0), dtype=np.float32
         )
 
     def _warmup_full_pipeline(self) -> None:
@@ -872,7 +1481,7 @@ class PointPaintingOnlineNode:
                     score_maps,
                 )
                 self._detect(
-                    painted,
+                    self._warmup_temporal_points(painted),
                     "warmup_{}".format(iteration),
                 )
 
@@ -919,7 +1528,7 @@ class PointPaintingOnlineNode:
                 score_maps = self._segment_4cam(images_rgb)
                 painted = self._paint_lidar(lidar, score_maps)
                 self._detect(
-                    painted,
+                    self._warmup_temporal_points(painted),
                     "real_warmup_{}".format(iteration),
                 )
 
@@ -940,9 +1549,28 @@ class PointPaintingOnlineNode:
         with self.lidar_lock:
             self.latest_lidar = None
             self.dropped_lidar_frames = 0
+            self.lidar_input_frames = 0
+            self.lidar_first_wall_time = None
+            self.lidar_last_wall_time = None
 
         self.skipped_lidar_frames = 0
         self.processed_frames = 0
+        self.real_input_warmup_frames += 1
+        self.skip_reasons = {
+            "camera_sync": 0,
+            "empty_lidar": 0,
+            "temporal_history": 0,
+            "processing_error": 0,
+        }
+        self.publish_first_wall_time = None
+        self.publish_last_wall_time = None
+        self.benchmark_rows = []
+        self.temporal_history.clear()
+        with self.camera_lock:
+            for camera_name in self.camera_names:
+                self.camera_input_frames[camera_name] = 0
+                self.camera_first_wall_time[camera_name] = None
+                self.camera_last_wall_time[camera_name] = None
         self.real_input_warmup_complete = True
 
         rospy.loginfo(
@@ -952,15 +1580,141 @@ class PointPaintingOnlineNode:
         self._log_online_ready()
 
     def _camera_callback(self, msg: Image, camera_name: str) -> None:
+        wall_time = time.perf_counter()
         timestamp = stamp_to_sec(msg.header.stamp)
         with self.camera_lock:
+            self.camera_input_frames[camera_name] += 1
+            if self.camera_first_wall_time[camera_name] is None:
+                self.camera_first_wall_time[camera_name] = wall_time
+            self.camera_last_wall_time[camera_name] = wall_time
             self.camera_buffers[camera_name].append(
                 (timestamp, msg)
             )
 
+    def _ego_callback(self, msg: EgoVehicleStatus) -> None:
+        timestamp = stamp_to_sec(msg.header.stamp)
+        self.ego_pose_buffer.add(
+            timestamp,
+            msg.position.x,
+            msg.position.y,
+            msg.position.z,
+            math.radians(msg.heading),
+        )
+        if self.oracle_painting_class not in ("", "off"):
+            with self.oracle_state_lock:
+                self.oracle_ego_messages.append((timestamp, msg))
+
+    def _oracle_object_callback(self, msg: ObjectStatusList) -> None:
+        timestamp = stamp_to_sec(msg.header.stamp)
+        with self.oracle_state_lock:
+            self.oracle_object_messages.append((timestamp, msg))
+
+    @staticmethod
+    def _nearest_message(records, timestamp: float):
+        if not records:
+            return None
+        return min(records, key=lambda item: abs(item[0] - timestamp))
+
+    def _oracle_boxes_at(self, timestamp: float) -> Optional[np.ndarray]:
+        if self.oracle_painting_class in ("", "off"):
+            return np.empty((0, 7), dtype=np.float32)
+        with self.oracle_state_lock:
+            ego_record = self._nearest_message(
+                tuple(self.oracle_ego_messages), timestamp
+            )
+            object_record = self._nearest_message(
+                tuple(self.oracle_object_messages), timestamp
+            )
+        if ego_record is None or object_record is None:
+            return None
+        if (
+            abs(ego_record[0] - timestamp) > self.oracle_maximum_age_sec
+            or abs(object_record[0] - timestamp) > self.oracle_maximum_age_sec
+        ):
+            return None
+
+        ego = ego_record[1]
+        objects = object_record[1]
+        source = (
+            objects.pedestrian_list
+            if self.oracle_painting_class == "pedestrian"
+            else objects.obstacle_list
+        )
+        ego_yaw = math.radians(float(ego.heading))
+        cosine = math.cos(ego_yaw)
+        sine = math.sin(ego_yaw)
+        boxes = []
+        for obj in source:
+            dx = float(obj.position.x) - float(ego.position.x)
+            dy = float(obj.position.y) - float(ego.position.y)
+            center_ego = np.asarray(
+                [
+                    cosine * dx + sine * dy,
+                    -sine * dx + cosine * dy,
+                    float(obj.position.z) - float(ego.position.z)
+                    + 0.5 * float(obj.size.z),
+                ],
+                dtype=np.float64,
+            )
+            center_lidar = self.r_vehicle_lidar.T @ (
+                center_ego - self.lidar_position
+            )
+            yaw = (
+                math.radians(float(obj.heading) - float(ego.heading))
+                - self.lidar_yaw_rad
+            )
+            boxes.append(
+                [
+                    center_lidar[0],
+                    center_lidar[1],
+                    center_lidar[2],
+                    float(obj.size.x),
+                    float(obj.size.y),
+                    float(obj.size.z),
+                    yaw,
+                ]
+            )
+        return np.asarray(boxes, dtype=np.float32).reshape(-1, 7)
+
+    def _apply_oracle_painting(
+        self, painted: np.ndarray, timestamp: float
+    ) -> np.ndarray:
+        boxes = self._oracle_boxes_at(timestamp)
+        if boxes is None:
+            rospy.logwarn_throttle(1.0, "Oracle painting skipped: stale GT state")
+            return painted
+        semantic_index = self.semantic_names.index(self.oracle_painting_class)
+        bottom_clearance = (
+            0.15 if self.oracle_painting_class == "pedestrian" else 0.03
+        )
+        painted, count = override_semantics_in_oriented_boxes(
+            painted,
+            boxes,
+            semantic_index,
+            semantic_count=len(self.semantic_names),
+            bottom_clearance_m=bottom_clearance,
+            # Preserve the production camera-visibility boundary. Oracle GT
+            # must not label a return the four-camera painter could never see.
+            eligible_mask=painted[:, 4 + len(self.semantic_names) - 1] < 0.5,
+            mode=self.oracle_painting_mode,
+        )
+        rospy.loginfo_throttle(
+            1.0,
+            "Oracle %s painting (%s): boxes=%d points=%d",
+            self.oracle_painting_class,
+            self.oracle_painting_mode,
+            len(boxes),
+            count,
+        )
+        return painted
+
     def _lidar_callback(self, msg: PointCloud2) -> None:
         enqueue_time = time.perf_counter()
         with self.lidar_lock:
+            self.lidar_input_frames += 1
+            if self.lidar_first_wall_time is None:
+                self.lidar_first_wall_time = enqueue_time
+            self.lidar_last_wall_time = enqueue_time
             if self.latest_lidar is not None:
                 self.dropped_lidar_frames += 1
             self.latest_lidar = (msg, enqueue_time)
@@ -983,6 +1737,7 @@ class PointPaintingOnlineNode:
                 self._process_lidar(msg, enqueue_time)
             except Exception as error:
                 self.skipped_lidar_frames += 1
+                self.skip_reasons["processing_error"] += 1
                 rospy.logerr_throttle(
                     1.0,
                     "PointPainting frame failed: {}".format(error),
@@ -1033,15 +1788,13 @@ class PointPaintingOnlineNode:
         self,
         messages: Dict[str, object],
     ) -> Dict[str, np.ndarray]:
-        images_rgb = {}
-
-        for camera_name in self.camera_names:
+        def decode(camera_name: str) -> Tuple[str, np.ndarray]:
             message = messages[camera_name]
 
             if isinstance(message, CompressedImage):
-                image_bgr = self.bridge.compressed_imgmsg_to_cv2(
-                    message,
-                    desired_encoding="bgr8",
+                image_bgr = cv2.imdecode(
+                    np.frombuffer(message.data, dtype=np.uint8),
+                    cv2.IMREAD_COLOR,
                 )
             elif isinstance(message, Image):
                 image_bgr = self.bridge.imgmsg_to_cv2(
@@ -1062,28 +1815,55 @@ class PointPaintingOnlineNode:
                 )
 
             image_rgb = image_bgr[:, :, ::-1].copy()
-            images_rgb[camera_name] = image_rgb
+            return camera_name, image_rgb
 
-        return images_rgb
+        if self.camera_executor is None:
+            decoded = [decode(name) for name in self.camera_names]
+        else:
+            decoded = list(
+                self.camera_executor.map(decode, self.camera_names)
+            )
+
+        return dict(decoded)
 
     def _selected_score_maps(
         self,
         names: Sequence[str],
         images_rgb: Dict[str, np.ndarray],
     ) -> Dict[str, np.ndarray]:
-        tensors = [
-            self.segmentation_preprocess(
+        preprocess_start = time.perf_counter()
+
+        def preprocess(name: str) -> torch.Tensor:
+            if self.segmentation_preprocess_backend == "opencv":
+                return self._opencv_segmentation_preprocess(
+                    images_rgb[name]
+                )
+            return self.segmentation_preprocess(
                 PILImage.fromarray(images_rgb[name])
             )
-            for name in names
-        ]
 
+        if self.camera_executor is None:
+            tensors = [preprocess(name) for name in names]
+        else:
+            tensors = list(
+                self.camera_executor.map(preprocess, names)
+            )
+        self._segmentation_stage_ms["camera_preprocess_ms"] += (
+            time.perf_counter() - preprocess_start
+        ) * 1000.0
+
+        h2d_start = time.perf_counter()
         batch = torch.stack(tensors, dim=0).to(
             self.device,
             non_blocking=True,
         ).contiguous(
             memory_format=torch.channels_last
         )
+        if self.detailed_timing:
+            torch.cuda.synchronize()
+        self._segmentation_stage_ms["camera_h2d_ms"] += (
+            time.perf_counter() - h2d_start
+        ) * 1000.0
 
         group_name = "+".join(names)
 
@@ -1099,10 +1879,19 @@ class PointPaintingOnlineNode:
             )
             self.logged_segmentation_shapes.add(group_name)
 
+        inference_start = time.perf_counter()
         with torch.inference_mode():
             with torch.cuda.amp.autocast(enabled=self.use_amp):
                 logits = self.segmentation_model(batch)["out"]
 
+        if self.detailed_timing:
+            torch.cuda.synchronize()
+        self._segmentation_stage_ms["segmentation_inference_ms"] += (
+            time.perf_counter() - inference_start
+        ) * 1000.0
+
+        postprocess_start = time.perf_counter()
+        with torch.inference_mode():
             # Keep the semantic score map at the resized inference resolution.
             # _project_to_camera() derives fx, fy, cx and cy from the score-map
             # dimensions, so projecting directly into this map is geometrically
@@ -1113,6 +1902,17 @@ class PointPaintingOnlineNode:
                 logits.float(),
                 dim=1,
             )
+
+        if self.semantic_profile == "morai_4class":
+            scores = probabilities.permute(0, 2, 3, 1).cpu().numpy()
+            result = {
+                name: scores[array_index].astype(np.float32, copy=False)
+                for array_index, name in enumerate(names)
+            }
+            self._segmentation_stage_ms["segmentation_postprocess_ms"] += (
+                time.perf_counter() - postprocess_start
+            ) * 1000.0
+            return result
 
         index = self.segmentation_indices
         person = probabilities[:, index["person"]]
@@ -1142,15 +1942,63 @@ class PointPaintingOnlineNode:
             dim=-1,
         ).cpu().numpy().astype(np.float32)
 
-        return {
+        result = {
             name: scores[array_index]
             for array_index, name in enumerate(names)
         }
+        self._segmentation_stage_ms["segmentation_postprocess_ms"] += (
+            time.perf_counter() - postprocess_start
+        ) * 1000.0
+        return result
+
+    def _opencv_segmentation_preprocess(
+        self,
+        image_rgb: np.ndarray,
+    ) -> torch.Tensor:
+        """Approximate torchvision Resize/ToTensor/Normalize with OpenCV.
+
+        The output geometry and RGB/ImageNet normalization are identical to
+        the training path. Pixel values can still differ slightly because PIL
+        antialiased bilinear resize and OpenCV INTER_LINEAR use different
+        resampling kernels; this backend therefore remains opt-in.
+        """
+        height, width = image_rgb.shape[:2]
+        if height <= width:
+            output_height = self.segmentation_short_side
+            output_width = int(
+                self.segmentation_short_side * width / height
+            )
+        else:
+            output_width = self.segmentation_short_side
+            output_height = int(
+                self.segmentation_short_side * height / width
+            )
+
+        resized = cv2.resize(
+            image_rgb,
+            (output_width, output_height),
+            interpolation=cv2.INTER_LINEAR,
+        )
+        tensor = (
+            torch.from_numpy(resized)
+            .permute(2, 0, 1)
+            .to(dtype=torch.float32)
+            .div_(255.0)
+        )
+        return tensor.sub_(self.segmentation_mean_cpu).div_(
+            self.segmentation_std_cpu
+        )
 
     def _segment_4cam(
         self,
         images_rgb: Dict[str, np.ndarray],
     ) -> Dict[str, np.ndarray]:
+        self._segmentation_stage_ms = {
+            "camera_preprocess_ms": 0.0,
+            "camera_h2d_ms": 0.0,
+            "segmentation_inference_ms": 0.0,
+            "segmentation_postprocess_ms": 0.0,
+        }
         score_maps = {}
         score_maps.update(
             self._selected_score_maps(
@@ -1242,8 +2090,9 @@ class PointPaintingOnlineNode:
             copy=False,
         )
 
+        known_semantic_count = len(self.semantic_names) - 1
         semantic_sum = np.zeros(
-            (len(lidar), 5),
+            (len(lidar), known_semantic_count),
             dtype=np.float32,
         )
         camera_count = np.zeros(
@@ -1263,29 +2112,81 @@ class PointPaintingOnlineNode:
 
         seen = camera_count > 0
         final_semantic = np.zeros(
-            (len(lidar), 6),
+            (len(lidar), len(self.semantic_names)),
             dtype=np.float32,
         )
-        final_semantic[seen, :5] = (
+        final_semantic[seen, :known_semantic_count] = (
             semantic_sum[seen]
             / camera_count[seen, None]
         )
-        final_semantic[~seen, 5] = 1.0
+        if self.foreground_semantic_scale < 1.0:
+            foreground = final_semantic[
+                seen, 1:known_semantic_count
+            ]
+            removed_foreground = (
+                foreground.sum(axis=1)
+                * (1.0 - self.foreground_semantic_scale)
+            )
+            foreground *= self.foreground_semantic_scale
+            final_semantic[seen, 0] += removed_foreground
+        final_semantic[~seen, -1] = 1.0
 
         return np.concatenate(
             [lidar[:, :4], final_semantic],
             axis=1,
         ).astype(np.float32, copy=False)
 
-    def _preprocess_lidar(self, msg: PointCloud2) -> np.ndarray:
-        points = cloud_to_xyzi(msg)
+    def _preprocess_lidar(self, msg: PointCloud2):
+        points, point_time_offsets = cloud_to_xyzi(msg, include_time=True)
+        deskew = {
+            "applied": False,
+            "reference_time_offset_sec": 0.0,
+            "point_displacement_mean_m": 0.0,
+            "point_displacement_p95_m": 0.0,
+            "point_displacement_max_m": 0.0,
+        }
         if len(points) == 0:
-            return points
+            return points, point_time_offsets, deskew
 
         finite = np.isfinite(points).all(axis=1)
         points = points[finite]
+        point_time_offsets = point_time_offsets[finite]
         if len(points) == 0:
-            return points
+            return points, point_time_offsets, deskew
+
+        if self.lidar_deskew_mode == "ego_pose_2d":
+            finite_time = point_time_offsets[np.isfinite(point_time_offsets)]
+            reference_offset = 0.0
+            if self.lidar_deskew_reference == "point_median" and finite_time.size:
+                reference_offset = float(np.median(finite_time))
+            corrected = deskew_points_to_reference_pose(
+                points,
+                point_time_offsets,
+                stamp_to_sec(msg.header.stamp),
+                reference_offset,
+                self.ego_pose_buffer.snapshot(),
+                lidar_position=self.lidar_position,
+                lidar_yaw=self.lidar_yaw_rad,
+                maximum_extrapolation_sec=(
+                    self.lidar_deskew_maximum_extrapolation_sec
+                ),
+            )
+            if corrected is not None:
+                points, displacement, _ = corrected
+                deskew = {
+                    "applied": True,
+                    "reference_time_offset_sec": reference_offset,
+                    "point_displacement_mean_m": float(np.mean(displacement)),
+                    "point_displacement_p95_m": float(
+                        np.percentile(displacement, 95)
+                    ),
+                    "point_displacement_max_m": float(np.max(displacement)),
+                }
+            else:
+                rospy.logwarn_throttle(
+                    2.0,
+                    "LiDAR ego deskew skipped: insufficient timed ego poses.",
+                )
 
         if self.normalize_intensity:
             intensity = points[:, 3]
@@ -1323,16 +2224,25 @@ class PointPaintingOnlineNode:
             )
             inside &= ~in_ego
 
-        return np.ascontiguousarray(
-            points[inside],
-            dtype=np.float32,
+        return (
+            np.ascontiguousarray(points[inside], dtype=np.float32),
+            np.ascontiguousarray(point_time_offsets[inside], dtype=np.float32),
+            deskew,
         )
 
     def _detect(
         self,
         painted: np.ndarray,
         frame_id: str,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict[str, float]]:
+        stage_ms = {
+            "pointpillars_preprocess_ms": 0.0,
+            "pointpillars_h2d_ms": 0.0,
+            "pointpillars_inference_ms": 0.0,
+            "pointpillars_postprocess_ms": 0.0,
+        }
+
+        preprocess_start = time.perf_counter()
         sample = self.detection_dataset.prepare_data(
             data_dict={
                 "points": painted,
@@ -1340,10 +2250,37 @@ class PointPaintingOnlineNode:
             }
         )
         batch = self.detection_dataset.collate_batch([sample])
+        stage_ms["pointpillars_preprocess_ms"] = (
+            time.perf_counter() - preprocess_start
+        ) * 1000.0
+
+        h2d_start = time.perf_counter()
         self.pcdet_load_data_to_gpu(batch)
+        if self.detailed_timing:
+            torch.cuda.synchronize()
+        stage_ms["pointpillars_h2d_ms"] = (
+            time.perf_counter() - h2d_start
+        ) * 1000.0
 
         with torch.no_grad():
-            predictions, _ = self.detection_model(batch)
+            inference_start = time.perf_counter()
+            if self.detailed_timing:
+                for module in self.detection_model.module_list:
+                    batch = module(batch)
+                torch.cuda.synchronize()
+                stage_ms["pointpillars_inference_ms"] = (
+                    time.perf_counter() - inference_start
+                ) * 1000.0
+
+                postprocess_start = time.perf_counter()
+                predictions, _ = self.detection_model.post_processing(batch)
+                torch.cuda.synchronize()
+            else:
+                predictions, _ = self.detection_model(batch)
+                stage_ms["pointpillars_inference_ms"] = (
+                    time.perf_counter() - inference_start
+                ) * 1000.0
+                postprocess_start = time.perf_counter()
 
         prediction = predictions[0]
         boxes = prediction["pred_boxes"].detach().cpu().numpy()
@@ -1356,7 +2293,7 @@ class PointPaintingOnlineNode:
             & (distance <= self.max_detection_range)
         )
 
-        boxes = np.ascontiguousarray(boxes[valid, :7], dtype=np.float32)
+        boxes = np.ascontiguousarray(boxes[valid], dtype=np.float32)
         scores = np.asarray(scores[valid], dtype=np.float32)
         labels = np.asarray(labels[valid], dtype=np.int32)
 
@@ -1366,7 +2303,235 @@ class PointPaintingOnlineNode:
             scores = scores[order]
             labels = labels[order]
 
-        return boxes, scores, labels
+        stage_ms["pointpillars_postprocess_ms"] = (
+            time.perf_counter() - postprocess_start
+        ) * 1000.0
+        return boxes, scores, labels, stage_ms
+
+    @staticmethod
+    def _wall_rate(count: int, first_time, last_time):
+        if count < 2 or first_time is None or last_time is None:
+            return None
+        duration = float(last_time) - float(first_time)
+        if duration <= 0.0:
+            return None
+        return float(count - 1) / duration
+
+    @staticmethod
+    def _distribution(rows, key):
+        values = np.asarray(
+            [float(row[key]) for row in rows if key in row],
+            dtype=np.float64,
+        )
+        values = values[np.isfinite(values)]
+        if not len(values):
+            return None
+        return {
+            "count": int(len(values)),
+            "mean": float(np.mean(values)),
+            "p50": float(np.percentile(values, 50)),
+            "p90": float(np.percentile(values, 90)),
+            "p95": float(np.percentile(values, 95)),
+            "p99": float(np.percentile(values, 99)),
+            "max": float(np.max(values)),
+        }
+
+    def _shutdown_camera_executor(self) -> None:
+        if self.camera_executor is not None:
+            self.camera_executor.shutdown(wait=True)
+            self.camera_executor = None
+
+    def _write_benchmark_report(self) -> None:
+        if (
+            self.benchmark_output_dir is None
+            or self.benchmark_report_written
+        ):
+            return
+        self.benchmark_report_written = True
+
+        try:
+            self.benchmark_output_dir.mkdir(parents=True, exist_ok=True)
+            rows = list(self.benchmark_rows)
+            excluded = min(self.benchmark_exclude_frames, len(rows))
+            analyzed_rows = rows[excluded:]
+
+            csv_path = self.benchmark_output_dir / "frame_metrics.csv"
+            if rows:
+                fieldnames = list(rows[0].keys())
+                with csv_path.open("w", encoding="utf-8", newline="") as file:
+                    writer = csv.DictWriter(file, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(rows)
+
+            timing_keys = (
+                "camera_match_ms",
+                "lidar_preprocess_ms",
+                "camera_decode_ms",
+                "camera_preprocess_ms",
+                "camera_h2d_ms",
+                "segmentation_inference_ms",
+                "segmentation_postprocess_ms",
+                "segmentation_total_ms",
+                "painting_ms",
+                "pointpillars_preprocess_ms",
+                "pointpillars_h2d_ms",
+                "pointpillars_inference_ms",
+                "pointpillars_postprocess_ms",
+                "pointpillars_total_ms",
+                "message_publish_ms",
+                "total_compute_ms",
+                "queue_delay_ms",
+                "arrival_to_publish_ms",
+                "sim_sensor_age_at_publish_ms",
+                "camera_age_max_ms",
+                "camera_span_ms",
+                "measurement_time_offset_ms",
+            )
+            timing_summary = {
+                key: self._distribution(analyzed_rows, key)
+                for key in timing_keys
+            }
+
+            queue_growth_ms = None
+            if len(analyzed_rows) >= 8:
+                quarter = max(1, len(analyzed_rows) // 4)
+                first_queue = [
+                    row["queue_delay_ms"]
+                    for row in analyzed_rows[:quarter]
+                ]
+                last_queue = [
+                    row["queue_delay_ms"]
+                    for row in analyzed_rows[-quarter:]
+                ]
+                queue_growth_ms = float(
+                    np.median(last_queue) - np.median(first_queue)
+                )
+
+            camera_rates = {
+                name: self._wall_rate(
+                    self.camera_input_frames[name],
+                    self.camera_first_wall_time[name],
+                    self.camera_last_wall_time[name],
+                )
+                for name in self.camera_names
+            }
+            lidar_rate = self._wall_rate(
+                self.lidar_input_frames,
+                self.lidar_first_wall_time,
+                self.lidar_last_wall_time,
+            )
+            publish_rate = self._wall_rate(
+                self.processed_frames,
+                self.publish_first_wall_time,
+                self.publish_last_wall_time,
+            )
+            input_count = int(self.lidar_input_frames)
+            publish_count = int(self.processed_frames)
+
+            summary = {
+                "schema_version": 2,
+                "label": self.benchmark_label,
+                "generated_at": datetime.now().astimezone().isoformat(),
+                "artifacts": {
+                    "pointpillars_config": file_identity(self.cfg_file),
+                    "pointpillars_checkpoint": file_identity(
+                        self.checkpoint
+                    ),
+                    "segmentation_checkpoint": file_identity(
+                        self.segmentation_checkpoint
+                    ),
+                },
+                "runtime": {
+                    "semantic_profile": self.semantic_profile,
+                    "segmentation_short_side": self.segmentation_short_side,
+                    "segmentation_preprocess_backend": (
+                        self.segmentation_preprocess_backend
+                    ),
+                    "camera_cpu_workers": self.camera_cpu_workers,
+                    "use_amp": self.use_amp,
+                    "detailed_timing": self.detailed_timing,
+                    "score_threshold": self.score_threshold,
+                    "maximum_detection_range_m": self.max_detection_range,
+                    "lidar_measurement_stamp_mode": (
+                        self.lidar_measurement_stamp_mode
+                    ),
+                    "lidar_deskew_mode": self.lidar_deskew_mode,
+                    "lidar_deskew_reference": self.lidar_deskew_reference,
+                    "lidar_deskew_camera_reference": (
+                        self.lidar_deskew_camera_reference
+                    ),
+                },
+                "lidar_deskew": {
+                    "applied_frames": int(
+                        sum(
+                            int(row.get("lidar_deskew_applied", 0))
+                            for row in analyzed_rows
+                        )
+                    ),
+                    "reference_offset_ms": self._distribution(
+                        analyzed_rows,
+                        "lidar_deskew_reference_offset_ms",
+                    ),
+                    "point_displacement_mean_m": self._distribution(
+                        analyzed_rows,
+                        "lidar_deskew_point_displacement_mean_m",
+                    ),
+                    "point_displacement_p95_m": self._distribution(
+                        analyzed_rows,
+                        "lidar_deskew_point_displacement_p95_m",
+                    ),
+                    "point_displacement_max_m": self._distribution(
+                        analyzed_rows,
+                        "lidar_deskew_point_displacement_max_m",
+                    ),
+                },
+                "counts": {
+                    "camera_input_frames": dict(self.camera_input_frames),
+                    "lidar_input_frames": input_count,
+                    "published_frames": publish_count,
+                    "dropped_lidar_frames": int(self.dropped_lidar_frames),
+                    "skipped_lidar_frames": int(self.skipped_lidar_frames),
+                    "skip_reasons": dict(self.skip_reasons),
+                    "real_input_warmup_frames": int(
+                        self.real_input_warmup_frames
+                    ),
+                    "recorded_rows": len(rows),
+                    "excluded_published_frames": excluded,
+                    "analyzed_published_frames": len(analyzed_rows),
+                },
+                "rates_hz": {
+                    "camera_input": camera_rates,
+                    "lidar_input": lidar_rate,
+                    "detection_publish": publish_rate,
+                },
+                "ratios": {
+                    "publish_per_lidar_input": (
+                        float(publish_count) / input_count
+                        if input_count else None
+                    ),
+                    "drop_per_lidar_input": (
+                        float(self.dropped_lidar_frames) / input_count
+                        if input_count else None
+                    ),
+                    "skip_per_lidar_input": (
+                        float(self.skipped_lidar_frames) / input_count
+                        if input_count else None
+                    ),
+                },
+                "queue_delay_growth_ms": queue_growth_ms,
+                "timing_ms": timing_summary,
+            }
+            summary_path = self.benchmark_output_dir / "summary.json"
+            with summary_path.open("w", encoding="utf-8") as file:
+                json.dump(summary, file, indent=2, sort_keys=True)
+                file.write("\n")
+            rospy.loginfo(
+                "PointPainting benchmark report: %s (%d frames)",
+                summary_path,
+                len(analyzed_rows),
+            )
+        except Exception as error:
+            rospy.logerr("Failed to write benchmark report: %s", error)
 
     def _make_detection_array(
         self,
@@ -1438,13 +2603,41 @@ class PointPaintingOnlineNode:
         enqueue_time: float,
     ) -> None:
         total_start = time.perf_counter()
+        queue_delay_ms = (
+            total_start - enqueue_time
+        ) * 1000.0
         lidar_timestamp = stamp_to_sec(msg.header.stamp)
 
-        camera_messages, camera_ages_ms = (
-            self._select_camera_messages(lidar_timestamp)
+        lidar_preprocess_start = time.perf_counter()
+        lidar, point_time_offsets, deskew = self._preprocess_lidar(msg)
+        lidar_preprocess_ms = (
+            time.perf_counter() - lidar_preprocess_start
+        ) * 1000.0
+        if len(lidar) == 0:
+            self.skipped_lidar_frames += 1
+            self.skip_reasons["empty_lidar"] += 1
+            rospy.logwarn_throttle(
+                1.0,
+                "Skipping empty LiDAR scan.",
+            )
+            return
+
+        camera_reference_timestamp = lidar_timestamp
+        if (
+            deskew["applied"]
+            and self.lidar_deskew_camera_reference == "reference"
+        ):
+            camera_reference_timestamp += deskew["reference_time_offset_sec"]
+        camera_match_start = time.perf_counter()
+        camera_messages, camera_ages_ms = self._select_camera_messages(
+            camera_reference_timestamp
         )
+        camera_match_ms = (
+            time.perf_counter() - camera_match_start
+        ) * 1000.0
         if camera_messages is None:
             self.skipped_lidar_frames += 1
+            self.skip_reasons["camera_sync"] += 1
             rospy.logwarn_throttle(
                 1.0,
                 "Skipping LiDAR: no causal 4-camera set "
@@ -1461,55 +2654,101 @@ class PointPaintingOnlineNode:
             max(camera_timestamps) - min(camera_timestamps)
         ) * 1000.0
 
-        lidar = self._preprocess_lidar(msg)
-        if len(lidar) == 0:
-            self.skipped_lidar_frames += 1
-            rospy.logwarn_throttle(
-                1.0,
-                "Skipping empty LiDAR scan.",
-            )
-            return
-
+        camera_decode_start = time.perf_counter()
         images_rgb = self._decode_images(camera_messages)
+        camera_decode_ms = (
+            time.perf_counter() - camera_decode_start
+        ) * 1000.0
 
         if not self.real_input_warmup_complete:
             self._warmup_real_sensor_input(images_rgb, lidar)
             return
 
-        torch.cuda.synchronize()
-        segmentation_start = time.perf_counter()
         score_maps = self._segment_4cam(images_rgb)
-        torch.cuda.synchronize()
-        segmentation_ms = (
-            time.perf_counter() - segmentation_start
-        ) * 1000.0
+        segmentation_stage_ms = dict(self._segmentation_stage_ms)
+        segmentation_ms = float(sum(segmentation_stage_ms.values()))
 
         painting_start = time.perf_counter()
         painted = self._paint_lidar(lidar, score_maps)
+        if self.oracle_painting_class not in ("", "off"):
+            painted = self._apply_oracle_painting(painted, lidar_timestamp)
         painting_ms = (
             time.perf_counter() - painting_start
         ) * 1000.0
 
-        torch.cuda.synchronize()
-        detection_start = time.perf_counter()
-        boxes, scores, labels = self._detect(
-            painted,
+        temporal_points = self._temporal_points(painted, lidar_timestamp)
+        if temporal_points is None:
+            self.skipped_lidar_frames += 1
+            self.skip_reasons["temporal_history"] += 1
+            rospy.loginfo_throttle(
+                1.0,
+                "Waiting for %d-sweep temporal history (%d/%d past sweeps).",
+                self.temporal_num_sweeps,
+                len(self.temporal_history),
+                self.temporal_num_sweeps - 1,
+            )
+            return
+
+        boxes, scores, labels, detection_stage_ms = self._detect(
+            temporal_points,
             str(msg.header.seq),
         )
-        torch.cuda.synchronize()
-        detection_ms = (
-            time.perf_counter() - detection_start
-        ) * 1000.0
+        detection_ms = float(sum(detection_stage_ms.values()))
 
-        total_ms = (
+        measurement_time_offset_sec = 0.0
+        if self.lidar_measurement_stamp_mode == "point_median":
+            finite_time = point_time_offsets[np.isfinite(point_time_offsets)]
+            if finite_time.size:
+                measurement_time_offset_sec = float(np.median(finite_time))
+        elif self.lidar_measurement_stamp_mode == "object_points_median":
+            measurement_time_offset_sec = representative_detection_time_offset(
+                lidar,
+                point_time_offsets,
+                boxes,
+                extent_scale=self.lidar_timing_box_extent_scale,
+                minimum_points_per_box=(
+                    self.lidar_timing_minimum_points_per_box
+                ),
+            )
+        if deskew["applied"]:
+            source_time = (
+                lidar_timestamp + deskew["reference_time_offset_sec"]
+            )
+            target_time = lidar_timestamp + measurement_time_offset_sec
+            transformed_boxes = transform_boxes_between_lidar_times(
+                boxes,
+                source_time,
+                target_time,
+                self.ego_pose_buffer.snapshot(),
+                lidar_position=self.lidar_position,
+                lidar_yaw=self.lidar_yaw_rad,
+                maximum_extrapolation_sec=(
+                    self.lidar_deskew_maximum_extrapolation_sec
+                ),
+            )
+            if transformed_boxes is None:
+                # Keep the coordinate frame and timestamp coherent when a
+                # late pose sample is unavailable.
+                measurement_time_offset_sec = deskew[
+                    "reference_time_offset_sec"
+                ]
+            else:
+                boxes = np.ascontiguousarray(
+                    transformed_boxes, dtype=np.float32
+                )
+        measurement_header = copy.deepcopy(msg.header)
+        if self.lidar_measurement_stamp_mode != "header":
+            measurement_header.stamp = rospy.Time.from_sec(
+                max(0.0, lidar_timestamp + measurement_time_offset_sec)
+            )
+
+        prepublish_total_ms = (
             time.perf_counter() - total_start
         ) * 1000.0
-        queue_delay_ms = (
-            total_start - enqueue_time
-        ) * 1000.0
 
+        message_publish_start = time.perf_counter()
         output = self._make_detection_array(
-            header=msg.header,
+            header=measurement_header,
             boxes=boxes,
             scores=scores,
             labels=labels,
@@ -1519,31 +2758,145 @@ class PointPaintingOnlineNode:
             segmentation_ms=segmentation_ms,
             painting_ms=painting_ms,
             detection_ms=detection_ms,
-            total_ms=total_ms,
+            total_ms=prepublish_total_ms,
         )
-        self.detections_pub.publish(output)
-
         names = [
-            self.class_names[int(label) - 1]
+            self.class_names[int(label) - 1].lower()
             if 0 < int(label) <= len(self.class_names)
             else "unknown"
             for label in labels
         ]
+        self.objects_pub.publish(
+            make_detected_objects(
+                measurement_header,
+                boxes,
+                scores,
+                names,
+                include_velocity=self.publish_detector_velocity,
+                velocity_classes=self.detector_velocity_classes,
+                velocity_noise_std_mps=self.detector_velocity_noise_std_mps,
+                maximum_velocity_mps=self.detector_maximum_velocity_mps,
+            )
+        )
+        self.detections_pub.publish(output)
+
         self.markers_pub.publish(
             make_markers(
                 boxes,
                 scores,
                 names,
-                msg.header,
+                measurement_header,
             )
         )
 
         if self.publish_painted_points:
+            painted_header = copy.deepcopy(msg.header)
+            if deskew["applied"]:
+                painted_header.stamp = rospy.Time.from_sec(
+                    lidar_timestamp + deskew["reference_time_offset_sec"]
+                )
             self.painted_pub.publish(
-                make_painted_cloud(painted, msg.header)
+                make_painted_cloud(
+                    painted,
+                    painted_header,
+                    self.semantic_names,
+                )
             )
 
+        publish_wall_time = time.perf_counter()
+        message_publish_ms = (
+            publish_wall_time - message_publish_start
+        ) * 1000.0
+        total_compute_ms = (
+            publish_wall_time - total_start
+        ) * 1000.0
+        arrival_to_publish_ms = queue_delay_ms + total_compute_ms
+        ros_now = rospy.Time.now().to_sec()
+        sim_sensor_age_at_publish_ms = (
+            (ros_now - lidar_timestamp) * 1000.0
+            if ros_now > 0.0 and lidar_timestamp > 0.0
+            else float("nan")
+        )
+
         self.processed_frames += 1
+        if self.publish_first_wall_time is None:
+            self.publish_first_wall_time = publish_wall_time
+        self.publish_last_wall_time = publish_wall_time
+
+        pointpillars_total_ms = float(sum(detection_stage_ms.values()))
+        row = {
+            "frame_index": int(self.processed_frames),
+            "source_seq": int(msg.header.seq),
+            "source_stamp_sec": float(lidar_timestamp),
+            "measurement_stamp_sec": float(
+                measurement_header.stamp.to_sec()
+            ),
+            "measurement_time_offset_ms": float(
+                measurement_time_offset_sec * 1000.0
+            ),
+            "lidar_points": int(len(lidar)),
+            "detection_count": int(len(boxes)),
+            "camera_match_ms": float(camera_match_ms),
+            "lidar_preprocess_ms": float(lidar_preprocess_ms),
+            "lidar_deskew_applied": int(deskew["applied"]),
+            "lidar_deskew_reference_offset_ms": float(
+                deskew["reference_time_offset_sec"] * 1000.0
+            ),
+            "lidar_deskew_point_displacement_mean_m": float(
+                deskew["point_displacement_mean_m"]
+            ),
+            "lidar_deskew_point_displacement_p95_m": float(
+                deskew["point_displacement_p95_m"]
+            ),
+            "lidar_deskew_point_displacement_max_m": float(
+                deskew["point_displacement_max_m"]
+            ),
+            "camera_decode_ms": float(camera_decode_ms),
+            "camera_preprocess_ms": float(
+                segmentation_stage_ms["camera_preprocess_ms"]
+            ),
+            "camera_h2d_ms": float(
+                segmentation_stage_ms["camera_h2d_ms"]
+            ),
+            "segmentation_inference_ms": float(
+                segmentation_stage_ms["segmentation_inference_ms"]
+            ),
+            "segmentation_postprocess_ms": float(
+                segmentation_stage_ms["segmentation_postprocess_ms"]
+            ),
+            "segmentation_total_ms": float(segmentation_ms),
+            "painting_ms": float(painting_ms),
+            "pointpillars_preprocess_ms": float(
+                detection_stage_ms["pointpillars_preprocess_ms"]
+            ),
+            "pointpillars_h2d_ms": float(
+                detection_stage_ms["pointpillars_h2d_ms"]
+            ),
+            "pointpillars_inference_ms": float(
+                detection_stage_ms["pointpillars_inference_ms"]
+            ),
+            "pointpillars_postprocess_ms": float(
+                detection_stage_ms["pointpillars_postprocess_ms"]
+            ),
+            "pointpillars_total_ms": pointpillars_total_ms,
+            "message_publish_ms": float(message_publish_ms),
+            "total_compute_ms": float(total_compute_ms),
+            "queue_delay_ms": float(queue_delay_ms),
+            "arrival_to_publish_ms": float(arrival_to_publish_ms),
+            "sim_sensor_age_at_publish_ms": float(
+                sim_sensor_age_at_publish_ms
+            ),
+            "camera_age_max_ms": float(camera_age_max_ms),
+            "camera_span_ms": float(camera_span_ms),
+            "dropped_lidar_frames_cumulative": int(
+                self.dropped_lidar_frames
+            ),
+            "skipped_lidar_frames_cumulative": int(
+                self.skipped_lidar_frames
+            ),
+        }
+        if self.benchmark_output_dir is not None:
+            self.benchmark_rows.append(row)
         if (
             self.processed_frames <= 5
             or self.processed_frames % 10 == 0
@@ -1562,7 +2915,7 @@ class PointPaintingOnlineNode:
                 segmentation_ms,
                 painting_ms,
                 detection_ms,
-                total_ms,
+                total_compute_ms,
                 self.dropped_lidar_frames,
                 self.skipped_lidar_frames,
             )

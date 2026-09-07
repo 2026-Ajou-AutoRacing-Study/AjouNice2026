@@ -1,0 +1,318 @@
+{
+  "dataset_id": "morai_temporal_sequence_v2_pilot304",
+  "seed": 260821,
+  "scenario_prefix": "od_t2",
+  "use_runtime_obstacle_pool": true,
+  "environment": {
+    "weather": "Sunny",
+    "time": "13:00"
+  },
+  "capture": {
+    "format": "morai_save_sensor_data_timed_grouped",
+    "scenario_load_initial_speed_kph": 0.0,
+    "captures_per_scene": 8,
+    "capture_period_sec": 0.08333333333333333,
+    "capture_motion_arm_m": 3.0,
+    "minimum_capture_progress_m": 0.15,
+    "motion_stall_timeout_sec": 8.0,
+    "clip_duration_sec": 0.5833333333333334,
+    "warmup_sec": 0.2,
+    "prime_capture_before_clip": true,
+    "actor_ready_timeout_sec": 15.0,
+    "capture_spacing_m": 1.5,
+    "ego_target_speed_kph": 30.0,
+    "maximum_motion_m": 130.0,
+    "route_deviation_limit_m": 1.5,
+    "heading_error_limit_deg": 50.0,
+    "lookahead_m": 4.0,
+    "maximum_steering_rad": 0.35,
+    "adaptive_curve_control": true,
+    "curve_control_window_m": 8.0,
+    "curve_control_full_turn_deg": 18.0,
+    "minimum_curve_speed_kph": 12.0,
+    "minimum_curve_lookahead_m": 1.2,
+    "curve_maximum_steering_rad": 0.45,
+    "personal_steering_sign": -1.0,
+    "split_unit": "scenario_clip",
+    "required_sensor_dirs": [
+      "CAMERA_1",
+      "CAMERA_2",
+      "CAMERA_3",
+      "CAMERA_4",
+      "LIDAR_5"
+    ]
+  },
+  "families": [
+    {
+      "name": "roundabout_sample_spawn",
+      "count": 1,
+      "source_spawn_ids": [4],
+      "target_speed_kph": [18.0, 22.0],
+      "spawn_period_sec": [5.0, 7.0],
+      "ego_lead_distance_m": [18.0, 24.0],
+      "ego_target_speed_kph": [16.0, 22.0],
+      "ego_initial_speed_kph": [8.0, 12.0],
+      "minimum_ego_speed_ratio": 0.65,
+      "minimum_curve_speed_kph": 16.0,
+      "spawn_velocity_equals_target": false,
+      "motion_phase": "spawn_acceleration",
+      "sampling_role": "hard_transition"
+    },
+    {
+      "name": "roundabout_circulation",
+      "count": 4,
+      "source_spawn_ids": [4],
+      "target_speed_kph": [18.0, 22.0],
+      "spawn_period_sec": [5.0, 7.0],
+      "ego_lead_distance_m": [18.0, 27.0],
+      "ego_target_speed_kph": [18.0, 28.0],
+      "ego_initial_speed_kph": [10.0, 18.0],
+      "minimum_ego_speed_ratio": 0.65,
+      "minimum_curve_speed_kph": 16.0,
+      "spawn_velocity_equals_target": true,
+      "motion_phase": "stable_circulation",
+      "sampling_role": "mission_dynamic_vehicle",
+      "stable_ego_gate": false
+    },
+    {
+      "name": "highway_merge_sample_spawn",
+      "count": 1,
+      "source_spawn_ids": [6, 8, 10],
+      "target_speed_scale": [0.9, 1.1],
+      "spawn_period_sec": [8.0, 12.0],
+      "ego_lead_distance_m": [20.0, 35.0],
+      "ego_target_speed_kph": [25.0, 40.0],
+      "ego_initial_speed_kph": [15.0, 25.0],
+      "minimum_ego_speed_ratio": 0.7,
+      "spawn_velocity_equals_target": false,
+      "motion_phase": "spawn_acceleration",
+      "sampling_role": "hard_transition"
+    },
+    {
+      "name": "highway_merge_cruise",
+      "count": 4,
+      "source_spawn_ids": [6, 8, 10],
+      "target_speed_scale": [0.95, 1.05],
+      "spawn_period_sec": [8.0, 12.0],
+      "ego_lead_distance_m": [20.0, 35.0],
+      "ego_target_speed_kph": [30.0, 45.0],
+      "ego_initial_speed_kph": [20.0, 30.0],
+      "minimum_ego_speed_ratio": 0.85,
+      "spawn_velocity_equals_target": true,
+      "motion_phase": "stable_merge",
+      "sampling_role": "mission_dynamic_vehicle",
+      "stable_ego_gate": true
+    },
+    {
+      "name": "highway_cruise_overtake",
+      "count": 5,
+      "source_spawn_ids": [6, 8, 10],
+      "ego_lane_weights": {"6": 0.625, "8": 0.28125, "10": 0.09375},
+      "ego_lane_speed_kph": {
+        "6": [35.0, 50.0],
+        "8": [45.0, 55.0],
+        "10": [50.0, 60.0]
+      },
+      "npc_target_speed_scale": [0.8, 1.0],
+      "ego_speed_advantage_kph": [8.0, 15.0],
+      "ego_speed_limit_kph": 60.0,
+      "ego_initial_speed_kph": [30.0, 42.0],
+      "ego_start_arc_m": [70.0, 300.0],
+      "spawn_period_sec": [8.0, 12.0],
+      "spawn_velocity_equals_target": true,
+      "minimum_ego_speed_ratio": 0.85,
+      "motion_phase": "steady_cruise_relative_motion",
+      "sampling_role": "mission_dynamic_vehicle",
+      "stable_ego_gate": true
+    },
+    {
+      "name": "highway_lane_change_overtake",
+      "count": 3,
+      "lane_change_pairs": [[6, 8], [8, 10], [10, 8], [8, 6]],
+      "ego_lane_speed_kph": {
+        "6": [35.0, 50.0],
+        "8": [45.0, 55.0],
+        "10": [50.0, 60.0]
+      },
+      "ego_target_speed_kph": [40.0, 55.0],
+      "ego_initial_speed_kph": [30.0, 42.0],
+      "ego_speed_advantage_kph": [8.0, 15.0],
+      "lane_change_start_arc_m": [100.0, 240.0],
+      "pre_length_m": [25.0, 35.0],
+      "post_length_m": [25.0, 40.0],
+      "transition_duration_sec": 4.0,
+      "minimum_transition_length_m": 35.0,
+      "maximum_transition_length_m": 75.0,
+      "minimum_capture_progress_m": 0.3,
+      "minimum_ego_speed_ratio": 0.85,
+      "spawn_period_sec": [8.0, 12.0],
+      "spawn_velocity_equals_target": true,
+      "motion_phase": "lane_change_transition",
+      "sampling_role": "mission_dynamic_vehicle"
+    },
+    {
+      "name": "crosswalk_pedestrian",
+      "count": 6,
+      "speed": [4.0, 6.0, 8.0, 10.0],
+      "active_distance_m": [12.0, 22.0],
+      "activation_margin_m": 5.0,
+      "deferred_activation_preroll_m": 1.5,
+      "reverse_probability": 0.5,
+      "crosswalk_path_margin_m": 4.0,
+      "cover_all_crosswalks_when_possible": true,
+      "crosswalk_locations": [
+        {
+          "crosswalk_id": "CW000000",
+          "weight": 0.25,
+          "role": "official_sample_direct",
+          "split": "train",
+          "use_official_path": true
+        },
+        {
+          "crosswalk_id": "CW000002",
+          "weight": 0.25,
+          "role": "route_direct_train",
+          "split": "train"
+        },
+        {
+          "crosswalk_id": "CW000013",
+          "weight": 0.15,
+          "role": "route_direct_validation",
+          "split": "val"
+        },
+        {
+          "crosswalk_id": "CW000015",
+          "weight": 0.15,
+          "role": "route_direct_test",
+          "split": "test"
+        },
+        {
+          "crosswalk_id": "CW000001",
+          "weight": 0.10,
+          "role": "route_adjacent_side",
+          "split": "train"
+        },
+        {
+          "crosswalk_id": "CW000014",
+          "weight": 0.10,
+          "role": "route_adjacent_side",
+          "split": "train"
+        }
+      ],
+      "motion_profiles": [
+        {
+          "name": "normal_visible",
+          "weight": 0.60,
+          "speed": [4.0, 6.0]
+        },
+        {
+          "name": "fast_crossing",
+          "weight": 0.40,
+          "speed": [8.0, 10.0]
+        },
+        {
+          "name": "occluded_runout",
+          "weight": 0.0,
+          "speed": [8.0, 10.0],
+          "official_occluded_start": true,
+          "visibility_audit_required": true
+        },
+        {
+          "name": "partial_visibility_transition",
+          "weight": 0.0,
+          "speed": [6.0, 8.0],
+          "visibility_audit_required": true
+        }
+      ],
+      "ego_lead_distance_m": [14.0, 24.0],
+      "ego_target_speed_kph": [10.0, 22.0],
+      "ego_initial_speed_kph": [5.0, 12.0],
+      "minimum_ego_speed_ratio": 0.75,
+      "motion_phase": "crosswalk_motion",
+      "sampling_role": "mission_dynamic_pedestrian"
+    },
+    {
+      "name": "static_obstacle",
+      "count": 7,
+      "objects_per_scene": 6,
+      "scale_factor": [0.85, 1.15],
+      "ego_lead_distance_m": [18.0, 28.0],
+      "ego_target_speed_kph": [15.0, 35.0],
+      "ego_initial_speed_kph": [8.0, 20.0],
+      "minimum_ego_speed_ratio": 0.85,
+      "motion_phase": "static_temporal",
+      "sampling_role": "static_obstacle_pilot",
+      "stable_ego_gate": true
+    },
+    {
+      "name": "static_highway_obstacle",
+      "count": 3,
+      "objects_per_scene": 5,
+      "ego_start_arc_m": [60.0, 180.0],
+      "ego_target_speed_kph": [35.0, 50.0],
+      "ego_initial_speed_kph": [25.0, 38.0],
+      "minimum_ego_speed_ratio": 0.85,
+      "capture_motion_arm_m": 10.0,
+      "minimum_capture_progress_m": 0.3,
+      "motion_phase": "static_highway_temporal",
+      "sampling_role": "static_highway_weighted_lane",
+      "stable_ego_gate": true
+    },
+    {
+      "name": "gps_shadow_obstacle",
+      "count": 2,
+      "objects_per_scene": 3,
+      "route_lateral_offset_m": [-1.2, 1.2],
+      "scale_factor": [0.8, 1.15],
+      "ego_lead_distance_m": [18.0, 28.0],
+      "ego_target_speed_kph": [20.0, 35.0],
+      "ego_initial_speed_kph": [10.0, 20.0],
+      "minimum_ego_speed_ratio": 0.8,
+      "motion_phase": "hard_static_visibility",
+      "sampling_role": "hard_temporal",
+      "stable_ego_gate": true
+    },
+    {
+      "name": "gps_shadow_vehicle_interaction",
+      "count": 2,
+      "source_spawn_ids": [4],
+      "target_speed_kph": [15.0, 30.0],
+      "spawn_period_sec": [8.0, 12.0],
+      "spawn_velocity_equals_target": true,
+      "ego_capture_zones": [
+        {
+          "name": "approach_entry",
+          "route_index_range": [3610, 3690],
+          "weight": 0.20
+        },
+        {
+          "name": "early_shadow",
+          "route_index_range": [3691, 3760],
+          "weight": 0.25
+        },
+        {
+          "name": "deep_shadow",
+          "route_index_range": [3761, 3840],
+          "weight": 0.30
+        },
+        {
+          "name": "exit_recovery",
+          "route_index_range": [3841, 3940],
+          "weight": 0.25
+        }
+      ],
+      "capture_preroll_distance_m": [10.0, 18.0],
+      "npc_link_path": ["A2256W000126", "A2256W000128"],
+      "npc_phase_offset_candidates_m": [12.0, 16.0, 20.0, 24.0, 28.0],
+      "npc_relative_distance_m": [12.0, 28.0],
+      "ego_target_speed_kph": [20.0, 35.0],
+      "ego_initial_speed_kph": [12.0, 24.0],
+      "minimum_ego_speed_ratio": 0.75,
+      "maximum_motion_m": 100.0,
+      "motion_stall_timeout_sec": 14.0,
+      "motion_phase": "gps_shadow_same_lane_interaction",
+      "sampling_role": "hard_transition",
+      "stable_ego_gate": false
+    }
+  ]
+}

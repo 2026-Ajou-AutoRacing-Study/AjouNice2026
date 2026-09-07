@@ -1,5 +1,11 @@
 # 대회용·개인용 MORAI asset 호환 정책
 
+## 런처 약칭
+
+- `mrp`: 개인용 런처, 2026년도 버전, `~/MoraiLauncher_Lin_per`.
+- `mr`: 대회용 런처, 2025년도 버전, `~/MoraiLauncher_Lin`.
+- 이후 문서와 작업 대화에서는 위 약칭을 표준으로 사용한다.
+
 ## 1. 목적
 
 최종 학습 대상 domain은 대회용 런처지만 자동 Camera·LiDAR·GT 수집은
@@ -63,32 +69,53 @@ configs/morai_asset_launcher_compatibility_260807.json
 | Pedestrian | 50200003 | Boy2 | 0/27 성공 |
 | Obstacle | 40100062 | Scooter_01 | 0/8 성공 |
 
-세 asset은 개인용 목록 부재와 실제 100% 실패가 일치하므로 개인용 자동
-수집에서 제외한다.
+2026-08-22에 두 위치와 두 번의 독립 실행으로 다시 검증했다. 각 probe
+직전에는 같은 객체 그룹의 정상 control asset만 포함한 장면을 넣었다.
+control은 12/12 성공했지만 아래 세 asset probe는 12회 중 0회 생성됐다.
+실패 장면에는 control actor만 정확히 남았다. 따라서 ROS 연결 불안정이
+아니라 개인용 런처에 해당 asset/template이 없는 실제 호환성 문제로
+확정하고 개인용 자동 수집에서 제외한다.
 
 대회용 전용 세 종류는 최종 competition coverage에서 버리지 않는다.
 별도 scenario를 만든 뒤 대회용 런처에서 수동 배치·수집하고, dataset
 metadata에 `capture_runtime=competition_manual`로 구분한다.
 
-### 3.2 런타임 검증 정책 제외
+### 3.2 과거 런타임 제외 재검증
 
-`50200004 Girl2`는 양쪽 런처 목록에 모두 있고 개인용 animation ID도
-적용했지만, geometry trial v1의 `geo009`에서 다른 actor가 모두 생성된
-상태에서도 유일하게 `/Object_topic`에 나타나지 않았다. 따라서 개인용
-자동 수집의 false case를 막기 위해 자동 배치 대상에서 제외한다. 원본
-카탈로그 기록은 provenance를 위해 유지한다.
+과거 geometry trial에서는 `50100005 Woman2`와 `50200004 Girl2`가
+나타나지 않아 asset 고유 문제로 판단했다. 하지만 당시에는 여러 asset을
+한 장면에 섞었고 MORAI ROS 연결도 불안정해 원인을 분리하지 못했다.
 
-`50100005 Woman2`도 양쪽 런처 목록에는 존재하지만 geometry trial v3의
-`geo3_005`, `geo3_010`, `geo3_016`에 공통으로 포함됐고, 세 장면 모두
-기대값보다 보행자가 정확히 한 명 적게 생성됐다. 다른 공통 보행자는 성공
-장면에서도 관측됐으므로 `Woman2`의 개인용 런처 생성 실패가 원인이라고
-판정한다. 따라서 원본 카탈로그에는 남기되 개인용 런처 자동 시나리오
-생성에서는 제외한다.
+2026-08-22 interleaved control/probe 재검증에서는 두 asset 모두 서로 다른
+두 위치에서 2/2 생성됐다. 직전 control도 모두 성공했다. 따라서 기존
+실패는 asset 고유 문제가 아니라 장면 또는 ROS/MORAI 상태 문제로
+재분류하고 두 asset을 개인용 자동 생성 풀에 복구한다.
 
-| DataID | 이름 | 반복 검증 | 개인용 자동 생성 |
-|---:|---|---|---|
-| 50100005 | Woman2 | 0/3 장면 생성 | 제외 |
-| 50200004 | Girl2 | 0/1 장면 생성 | 제외 |
+| DataID | 이름 | 과거 결과 | 재검증 | 개인용 자동 생성 |
+|---:|---|---:|---:|---|
+| 50100005 | Woman2 | 0/3 | 2/2 | 복구 |
+| 50200004 | Girl2 | 0/1 | 2/2 | 복구 |
+
+같은 방식으로 과거 quarantine 차량 8종도 각각 두 위치에서 2/2 생성됐다.
+따라서 차량 asset quarantine은 전부 해제한다. 재현 가능한 scene generator,
+분석기와 전체 trial 판정은 다음 파일에 둔다.
+
+| 그룹 | 재검증 asset | probe 결과 | 판정 |
+|---|---|---:|---|
+| Vehicle | Grandeur, Porter2, DEFAULT_SUV, DEFAULT_BUS | 각 2/2 | 복구 |
+| Vehicle | Niro EV, Xcient Mixer, Stinger, DEFAULT_MPV | 각 2/2 | 복구 |
+| Pedestrian | Woman2, Girl2 | 각 2/2 | 복구 |
+| Pedestrian | police_f_1, Boy2 | 각 0/4 | 개인 MRP 미지원 유지 |
+| Obstacle | Scooter_01 | 0/4 | 개인 MRP 미지원 유지 |
+
+competition 전용 세 asset의 4회는 두 위치 검증을 독립 실행으로 한 번 더
+반복한 값이다. 각 probe 직전 control은 모두 성공했다.
+
+```text
+scripts/generate_morai_asset_revalidation_set.py
+scripts/analyze_morai_asset_revalidation.py
+configs/morai_asset_revalidation_260822.json
+```
 
 ### 3.3 Tree 계열 정책 제외
 

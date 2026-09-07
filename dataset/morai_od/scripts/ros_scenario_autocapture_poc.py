@@ -9,6 +9,7 @@ time.
 """
 
 import argparse
+import fnmatch
 import ctypes
 import hashlib
 import json
@@ -19,7 +20,23 @@ import shutil
 import socket
 import threading
 import time
+from collections import deque
 from pathlib import Path
+
+from dynamic_capture_metadata import (
+    capture_actor_gate_observation,
+    enrich_frame_transforms,
+    enrich_derived_motion,
+    normalized_sensor_calibration,
+    serialize_ego,
+    serialize_objects,
+)
+from dynamic_timing_sidecar import (
+    bind_trigger_timing,
+    stable_ego_motion,
+    samples_in_window,
+    timing_summary,
+)
 
 import rospy
 from morai_msgs.msg import (
@@ -32,6 +49,8 @@ from morai_msgs.msg import (
     ScenarioLoad,
 )
 from morai_msgs.srv import MoraiEventCmdSrv, MoraiEventCmdSrvRequest
+from rosgraph_msgs.msg import Clock
+from sensor_msgs.msg import CompressedImage, PointCloud2
 
 
 class ScenarioLoadUdpPacket(ctypes.Structure):
@@ -153,12 +172,55 @@ def parse_args():
             "rolling-safe",
             "rolling-fast",
             "rolling-grouped",
+            "timed-grouped",
             "teleport",
         ),
         default="stationary",
     )
     parser.add_argument("--captures-per-scene", type=int, default=None)
     parser.add_argument("--capture-spacing-m", type=float, default=None)
+    parser.add_argument(
+        "--capture-period-sec",
+        type=float,
+        default=None,
+        help=(
+            "Wall-clock interval between SaveSensorData requests in "
+            "timed-grouped mode."
+        ),
+    )
+    parser.add_argument(
+        "--actor-ready-timeout-sec",
+        type=float,
+        default=None,
+        help="Wait for the configured dynamic actor before timed capture.",
+    )
+    parser.add_argument(
+        "--capture-motion-arm-m",
+        type=float,
+        default=None,
+        help=(
+            "Require Ego to move this route distance before the first "
+            "timed-grouped frame."
+        ),
+    )
+    parser.add_argument(
+        "--minimum-capture-progress-m",
+        type=float,
+        default=None,
+        help=(
+            "Minimum Ego route progress between timed-grouped frames in "
+            "addition to the time interval."
+        ),
+    )
+    parser.add_argument(
+        "--motion-stall-timeout-sec",
+        type=float,
+        default=None,
+        help=(
+            "Fail timed-grouped instead of capturing stationary duplicates "
+            "when the next progress gate is not met."
+        ),
+    )
     parser.add_argument("--speed-kph", type=float, default=None)
     parser.add_argument("--maximum-motion-m", type=float, default=None)
     parser.add_argument("--load-timeout-sec", type=float, default=15.0)
@@ -181,6 +243,34 @@ def parse_args():
         ),
     )
     parser.add_argument("--load-settle-sec", type=float, default=2.0)
+    parser.add_argument(
+        "--static-actor-stability-window-sec",
+        type=float,
+        default=0.5,
+        help=(
+            "Observe metadata actors marked motion=static for this long "
+            "after ScenarioLoad and reject actors that fall or drift before "
+            "capture. Set to 0 to disable the gate."
+        ),
+    )
+    parser.add_argument(
+        "--static-actor-max-displacement-m",
+        type=float,
+        default=0.10,
+        help="Maximum 3D displacement allowed during the static actor gate.",
+    )
+    parser.add_argument(
+        "--static-actor-max-spawn-xy-error-m",
+        type=float,
+        default=3.00,
+        help="Maximum horizontal error from a generated static actor pose.",
+    )
+    parser.add_argument(
+        "--static-actor-max-spawn-z-error-m",
+        type=float,
+        default=3.00,
+        help="Maximum vertical error from a generated static actor pose.",
+    )
     parser.add_argument("--capture-timeout-sec", type=float, default=8.0)
     parser.add_argument(
         "--capture-stable-sec",
@@ -286,6 +376,35 @@ def parse_args():
     parser.add_argument("--ego-topic", default="/Ego_topic")
     parser.add_argument("--object-topic", default="/Object_topic")
     parser.add_argument("--collision-topic", default="/CollisionData")
+    parser.add_argument("--clock-topic", default="/clock")
+    parser.add_argument("--lidar-timing-topic", default="/sensor/lidar1")
+    parser.add_argument(
+        "--camera-timing-topic",
+        action="append",
+        default=None,
+        metavar="NAME=TOPIC",
+        help=(
+            "Optional compressed-camera topic whose header timing is stored. "
+            "Repeatable. Defaults to front/front_left/front_right/back."
+        ),
+    )
+    parser.add_argument(
+        "--timing-history-sec",
+        type=float,
+        default=20.0,
+        help="Retention window for lightweight ROS timing/state samples.",
+    )
+    parser.add_argument(
+        "--timing-window-padding-sec",
+        type=float,
+        default=0.25,
+        help="Context retained before and after each timed capture clip.",
+    )
+    parser.add_argument(
+        "--no-timing-sidecar",
+        action="store_true",
+        help="Disable continuous clock/Ego/Object and optional sensor timing metadata.",
+    )
     parser.add_argument(
         "--control-mode-service",
         default="/Service_MoraiEventCmd",
@@ -370,6 +489,35 @@ def timestamped_capture_dir(path, timestamp=None):
     return path.with_name("{}_{}".format(timestamp, path.name))
 
 
+def parse_named_topics(values):
+    """Parse repeatable NAME=TOPIC arguments into stable stream names."""
+
+    if values is None:
+        values = (
+            "camera_front=/sensor/camera/front/compressed",
+            "camera_front_left=/sensor/camera/front_left/compressed",
+            "camera_front_right=/sensor/camera/front_right/compressed",
+            "camera_back=/sensor/camera/back/compressed",
+        )
+    result = {}
+    for value in values:
+        if "=" not in value:
+            raise ValueError(
+                "--camera-timing-topic must use NAME=TOPIC: {}".format(value)
+            )
+        name, topic = value.split("=", 1)
+        name = name.strip()
+        topic = topic.strip()
+        if not name or not topic.startswith("/"):
+            raise ValueError(
+                "invalid --camera-timing-topic NAME=TOPIC: {}".format(value)
+            )
+        if name in result:
+            raise ValueError("duplicate camera timing stream: {}".format(name))
+        result[name] = topic
+    return result
+
+
 def load_json(path):
     with path.open("r", encoding="utf-8") as stream:
         return json.load(stream)
@@ -415,6 +563,10 @@ def compact_scene_result(result):
             "complete_timestamp_group_count",
             "relocated_file_count",
             "quality_verified",
+            "trigger_rate_hz",
+            "capture_period_sec",
+            "frames_metadata",
+            "clip_metadata",
         )
         if key in metrics
     }
@@ -938,37 +1090,151 @@ def validate_installed_scenes(args, manifest, scenes, project_root):
 
 
 class SharedState:
-    def __init__(self):
+    def __init__(self, timing_history_sec=20.0, timing_enabled=True):
         self.lock = threading.Lock()
+        self.timing_history_sec = float(timing_history_sec)
+        self.timing_enabled = bool(timing_enabled)
+        self.histories = {
+            "clock": deque(),
+            "ego": deque(),
+            "objects": deque(),
+        }
+        self.sample_sequences = {}
         self.ego = None
         self.ego_wall_time = 0.0
+        self.ego_unix_time = 0.0
         self.objects = None
         self.objects_wall_time = 0.0
+        self.objects_unix_time = 0.0
         self.collision = None
         self.collision_wall_time = 0.0
 
+    def _append_timing(self, stream, record):
+        if not self.timing_enabled:
+            return
+        sequence = self.sample_sequences.get(stream, 0)
+        self.sample_sequences[stream] = sequence + 1
+        record["sample_id"] = "{}:{:09d}".format(stream, sequence)
+        history = self.histories.setdefault(stream, deque())
+        history.append(record)
+        cutoff = record["callback_monotonic"] - self.timing_history_sec
+        while history and history[0]["callback_monotonic"] < cutoff:
+            history.popleft()
+
     def ego_callback(self, message):
+        callback_monotonic = time.monotonic()
+        callback_unix = time.time()
         with self.lock:
             self.ego = message
-            self.ego_wall_time = time.monotonic()
+            self.ego_wall_time = callback_monotonic
+            self.ego_unix_time = callback_unix
+            state = serialize_ego(message, callback_unix, callback_monotonic)
+            self._append_timing(
+                "ego",
+                {
+                    "stream": "ego",
+                    "callback_monotonic": callback_monotonic,
+                    "callback_unix": callback_unix,
+                    "message_timestamp": state.get("timestamp"),
+                    "state": state,
+                },
+            )
 
     def object_callback(self, message):
+        callback_monotonic = time.monotonic()
+        callback_unix = time.time()
         with self.lock:
             self.objects = message
-            self.objects_wall_time = time.monotonic()
+            self.objects_wall_time = callback_monotonic
+            self.objects_unix_time = callback_unix
+            state = serialize_objects(message, callback_unix, callback_monotonic)
+            self._append_timing(
+                "objects",
+                {
+                    "stream": "objects",
+                    "callback_monotonic": callback_monotonic,
+                    "callback_unix": callback_unix,
+                    "message_timestamp": state.get("timestamp"),
+                    "state": state,
+                },
+            )
 
     def collision_callback(self, message):
         with self.lock:
             self.collision = message
             self.collision_wall_time = time.monotonic()
 
+    def clock_callback(self, message):
+        callback_monotonic = time.monotonic()
+        callback_unix = time.time()
+        with self.lock:
+            self._append_timing(
+                "clock",
+                {
+                    "stream": "clock",
+                    "callback_monotonic": callback_monotonic,
+                    "callback_unix": callback_unix,
+                    "message_timestamp": message.clock.to_sec(),
+                    "simulation_time": message.clock.to_sec(),
+                },
+            )
+
+    def pointcloud_callback(self, message, stream):
+        callback_monotonic = time.monotonic()
+        callback_unix = time.time()
+        with self.lock:
+            self._append_timing(
+                stream,
+                {
+                    "stream": stream,
+                    "callback_monotonic": callback_monotonic,
+                    "callback_unix": callback_unix,
+                    "message_timestamp": message.header.stamp.to_sec(),
+                    "frame_id": message.header.frame_id,
+                    "width": int(message.width),
+                    "height": int(message.height),
+                    "point_step": int(message.point_step),
+                    "row_step": int(message.row_step),
+                    "is_dense": bool(message.is_dense),
+                    "fields": [field.name for field in message.fields],
+                },
+            )
+
+    def camera_callback(self, message, stream):
+        callback_monotonic = time.monotonic()
+        callback_unix = time.time()
+        with self.lock:
+            self._append_timing(
+                stream,
+                {
+                    "stream": stream,
+                    "callback_monotonic": callback_monotonic,
+                    "callback_unix": callback_unix,
+                    "message_timestamp": message.header.stamp.to_sec(),
+                    "frame_id": message.header.frame_id,
+                    "format": str(message.format),
+                    "compressed_size_bytes": len(message.data),
+                },
+            )
+
+    def timing_window(self, start_monotonic, end_monotonic, padding_sec):
+        with self.lock:
+            return {
+                stream: samples_in_window(
+                    list(samples), start_monotonic, end_monotonic, padding_sec
+                )
+                for stream, samples in self.histories.items()
+            }
+
     def snapshot(self):
         with self.lock:
             return {
                 "ego": self.ego,
                 "ego_wall_time": self.ego_wall_time,
+                "ego_unix_time": self.ego_unix_time,
                 "objects": self.objects,
                 "objects_wall_time": self.objects_wall_time,
+                "objects_unix_time": self.objects_unix_time,
                 "collision": self.collision,
                 "collision_wall_time": self.collision_wall_time,
             }
@@ -982,13 +1248,32 @@ class AutoCapture:
         waypoint_path = Path(manifest["waypoints"])
         if not waypoint_path.is_absolute():
             waypoint_path = project_root / waypoint_path
-        self.waypoints = load_waypoints(waypoint_path)
-        self.waypoint_arc_m = [0.0]
-        for before, after in zip(self.waypoints, self.waypoints[1:]):
-            self.waypoint_arc_m.append(
-                self.waypoint_arc_m[-1] + distance_xy(before, after)
+        self.default_waypoint_path = waypoint_path
+        self.waypoints = []
+        self.waypoint_arc_m = []
+        self.load_scene_waypoints(waypoint_path)
+        self.base_motion_args = {
+            key: getattr(args, key)
+            for key in (
+                "speed_kph",
+                "capture_period_sec",
+                "capture_motion_arm_m",
+                "minimum_capture_progress_m",
+                "dynamic_warmup_sec",
+                "prime_capture_before_clip",
+                "maximum_motion_m",
+                "motion_stall_timeout_sec",
+                "route_deviation_limit_m",
+                "lookahead_m",
+                "adaptive_curve_control",
+                "minimum_curve_speed_kph",
             )
-        self.state = SharedState()
+        }
+        self.scene_minimum_ego_speed_kph = 0.0
+        self.state = SharedState(
+            timing_history_sec=args.timing_history_sec,
+            timing_enabled=not args.no_timing_sidecar,
+        )
         self.run_id = time.strftime("r%m%d%H%M%S", time.localtime())
         self.dataset_id = manifest.get("dataset_id")
         self.environment = dict(manifest.get("environment", {}))
@@ -1057,7 +1342,106 @@ class AutoCapture:
                 queue_size=10,
             ),
         ]
+        self.timing_topics = {
+            "clock": args.clock_topic,
+            "ego": args.ego_topic,
+            "objects": args.object_topic,
+            "lidar": args.lidar_timing_topic,
+        }
+        self.timing_topics.update(args.camera_timing_topics)
+        if not args.no_timing_sidecar:
+            self.subscribers.append(
+                rospy.Subscriber(
+                    args.clock_topic,
+                    Clock,
+                    self.state.clock_callback,
+                    queue_size=100,
+                )
+            )
+            self.subscribers.append(
+                rospy.Subscriber(
+                    args.lidar_timing_topic,
+                    PointCloud2,
+                    self.state.pointcloud_callback,
+                    callback_args="lidar",
+                    queue_size=4,
+                )
+            )
+            for stream, topic in sorted(args.camera_timing_topics.items()):
+                self.subscribers.append(
+                    rospy.Subscriber(
+                        topic,
+                        CompressedImage,
+                        self.state.camera_callback,
+                        callback_args=stream,
+                        queue_size=4,
+                    )
+                )
 
+    def load_scene_waypoints(self, waypoint_path):
+        self.waypoints = load_waypoints(waypoint_path)
+        self.waypoint_arc_m = [0.0]
+        for before, after in zip(self.waypoints, self.waypoints[1:]):
+            self.waypoint_arc_m.append(
+                self.waypoint_arc_m[-1] + distance_xy(before, after)
+            )
+
+    def configure_scene_motion(self, scene):
+        for key, value in self.base_motion_args.items():
+            setattr(self.args, key, value)
+        overrides = dict(scene.get("capture_policy_overrides", {}))
+        override_to_arg = {
+            "ego_target_speed_kph": "speed_kph",
+            "warmup_sec": "dynamic_warmup_sec",
+        }
+        for override_key, argument_key in override_to_arg.items():
+            if override_key in overrides:
+                setattr(self.args, argument_key, overrides[override_key])
+        for key in self.base_motion_args:
+            if key in overrides:
+                setattr(self.args, key, overrides[key])
+        if not 0.5 <= float(self.args.speed_kph) <= 80.0:
+            raise ValueError(
+                "scene {} ego_target_speed_kph must be within 0.5..80.0"
+                .format(scene.get("id"))
+            )
+        self.args.minimum_curve_speed_kph = min(
+            float(self.args.minimum_curve_speed_kph),
+            float(self.args.speed_kph),
+        )
+        self.scene_minimum_ego_speed_kph = float(
+            overrides.get("minimum_ego_speed_kph", 0.0)
+        )
+        self.scene_stable_ego_window_sec = float(
+            overrides.get("stable_ego_window_sec", 0.0)
+        )
+        self.scene_maximum_stable_acceleration_mps2 = float(
+            overrides.get("maximum_stable_acceleration_mps2", 0.0)
+        )
+        self.scene_capture_actor_gate = dict(
+            overrides.get("capture_actor_gate", {})
+        )
+        waypoint_path = Path(
+            scene.get("waypoints", self.default_waypoint_path)
+        )
+        if not waypoint_path.is_absolute():
+            waypoint_path = self.project_root / waypoint_path
+        self.load_scene_waypoints(waypoint_path)
+        rospy.loginfo(
+            "Scene motion policy: route=%s, speed=%.1fkm/h, "
+            "capture_period=%.3fs, minimum_capture_speed=%.1fkm/h, "
+            "maximum_motion=%.1fm, actor_gate=%s, "
+            "stall_timeout=%.1fs, stable_window=%.2fs, adaptive_curve=%s",
+            waypoint_path,
+            self.args.speed_kph,
+            self.args.capture_period_sec,
+            self.scene_minimum_ego_speed_kph,
+            self.args.maximum_motion_m,
+            self.scene_capture_actor_gate.get("role", "off"),
+            self.args.motion_stall_timeout_sec,
+            self.scene_stable_ego_window_sec,
+            self.args.adaptive_curve_control,
+        )
     def capture_identifier(self, scene, frame_index):
         if self.dataset_id and self.environment_id:
             return "{}_{}_f{:02d}_{}".format(
@@ -1150,6 +1534,7 @@ class AutoCapture:
             "rolling-safe",
             "rolling-fast",
             "rolling-grouped",
+            "timed-grouped",
         )
 
     def publish_scenario_load(self, scene, file_name):
@@ -1244,7 +1629,22 @@ class AutoCapture:
         ):
             return False, "waiting for fresh Ego/Object messages"
 
-        if self.args.motion_mode != "teleport":
+        if (
+            self.args.motion_mode != "teleport"
+            and scene.get("ego_readiness_policy") == "route_aligned"
+        ):
+            ego = snapshot["ego"]
+            nearest = self.nearest_waypoint_index(
+                (ego.position.x, ego.position.y),
+                hint=scene.get("anchor_index"),
+                heading_deg=ego.heading,
+            )
+            route_error = distance_xy(
+                (ego.position.x, ego.position.y), self.waypoints[nearest]
+            )
+            if route_error > self.args.route_deviation_limit_m:
+                return False, "Ego route error {:.2f} m".format(route_error)
+        elif self.args.motion_mode != "teleport":
             ego = snapshot["ego"]
             expected_ego = scene["expected_ego"]
             ego_error = math.hypot(
@@ -1261,7 +1661,16 @@ class AutoCapture:
             "pedestrian": objects.num_of_pedestrian,
             "obstacle": objects.num_of_obstacle,
         }
-        if actual != expected:
+        dynamic_policy = scene.get("dynamic_actor_policy")
+        if dynamic_policy == "observe_after_warmup":
+            # Spawn-point NPCs may appear before the post-load verification
+            # callback. Their runtime count is intentionally not fixed.
+            comparable = dict(actual)
+            comparable["npc"] = expected["npc"]
+            counts_match = comparable == expected
+        else:
+            counts_match = actual == expected
+        if not counts_match:
             return False, "object counts {} != {}".format(actual, expected)
         return True, "ready"
 
@@ -1290,6 +1699,158 @@ class AutoCapture:
                 reason,
                 self.scene_diagnostics(scene),
             )
+        )
+
+    def expected_static_actors(self, scene):
+        """Return generated actors that must remain fixed before capture."""
+        metadata_path = Path(scene.get("metadata", ""))
+        if not str(metadata_path):
+            return []
+        if not metadata_path.is_absolute():
+            metadata_path = self.project_root / metadata_path
+        if not metadata_path.is_file():
+            rospy.logwarn(
+                "Static actor gate skipped; metadata is missing: %s",
+                metadata_path,
+            )
+            return []
+        metadata = load_json(metadata_path)
+        # Sample-spawn scenes can reuse NPC identifiers after warm-up. Their
+        # metadata vehicles are therefore not stable identities, while their
+        # static pedestrians and obstacles remain safe to validate.
+        allow_static_vehicle = (
+            scene.get("dynamic_actor_policy") != "observe_after_warmup"
+        )
+        actors = []
+        for actor in metadata.get("runtime_actors", []):
+            actor_class = str(actor.get("class", ""))
+            if actor.get("motion") != "static":
+                continue
+            if actor_class == "vehicle" and not allow_static_vehicle:
+                continue
+            if actor_class not in ("vehicle", "pedestrian", "obstacle"):
+                continue
+            position = actor.get("position") or {}
+            if not all(key in position for key in ("x", "y", "z")):
+                continue
+            actors.append(
+                {
+                    "class": actor_class,
+                    "unique_id": int(actor["unique_id"]),
+                    "name": str(actor.get("name", "")),
+                    "position": {
+                        "x": float(position["x"]),
+                        "y": float(position["y"]),
+                        "z": float(position["z"]),
+                    },
+                }
+            )
+        return actors
+
+    @staticmethod
+    def runtime_actor_positions(objects):
+        positions = {}
+        class_lists = {
+            "vehicle": objects.npc_list,
+            "pedestrian": objects.pedestrian_list,
+            "obstacle": objects.obstacle_list,
+        }
+        for actor_class, items in class_lists.items():
+            for item in items:
+                positions[(actor_class, int(item.unique_id))] = {
+                    "name": str(item.name),
+                    "x": float(item.position.x),
+                    "y": float(item.position.y),
+                    "z": float(item.position.z),
+                }
+        return positions
+
+    def wait_for_static_actor_stability(self, scene):
+        expected = self.expected_static_actors(scene)
+        window_sec = self.args.static_actor_stability_window_sec
+        if not expected or window_sec <= 0.0:
+            return
+
+        references = {}
+        observed_messages = 0
+        last_objects_wall_time = -1.0
+        deadline = time.monotonic() + max(2.0, window_sec + 1.0)
+        observation_started = None
+        while not rospy.is_shutdown() and time.monotonic() < deadline:
+            snapshot = self.state.snapshot()
+            objects = snapshot["objects"]
+            objects_wall_time = snapshot["objects_wall_time"]
+            if objects is None or objects_wall_time <= last_objects_wall_time:
+                time.sleep(0.02)
+                continue
+            last_objects_wall_time = objects_wall_time
+            observed_messages += 1
+            if observation_started is None:
+                observation_started = time.monotonic()
+            positions = self.runtime_actor_positions(objects)
+
+            for actor in expected:
+                key = (actor["class"], actor["unique_id"])
+                current = positions.get(key)
+                label = "{}/{}:{}".format(
+                    actor["class"],
+                    actor["unique_id"],
+                    current["name"] if current else actor["name"],
+                )
+                if current is None:
+                    raise RuntimeError(
+                        "static actor stability gate: {} disappeared".format(
+                            label
+                        )
+                    )
+                generated = actor["position"]
+                spawn_xy_error = math.hypot(
+                    current["x"] - generated["x"],
+                    current["y"] - generated["y"],
+                )
+                spawn_z_error = abs(current["z"] - generated["z"])
+                if (
+                    spawn_xy_error
+                    > self.args.static_actor_max_spawn_xy_error_m
+                    or spawn_z_error
+                    > self.args.static_actor_max_spawn_z_error_m
+                ):
+                    raise RuntimeError(
+                        "static actor stability gate: {} spawned away from "
+                        "the generated pose (xy={:.3f}m, z={:.3f}m)".format(
+                            label, spawn_xy_error, spawn_z_error
+                        )
+                    )
+                reference = references.setdefault(key, dict(current))
+                displacement = math.sqrt(
+                    (current["x"] - reference["x"]) ** 2
+                    + (current["y"] - reference["y"]) ** 2
+                    + (current["z"] - reference["z"]) ** 2
+                )
+                if displacement > self.args.static_actor_max_displacement_m:
+                    raise RuntimeError(
+                        "static actor stability gate: {} moved {:.3f}m "
+                        "during {:.2f}s pre-capture validation".format(
+                            label, displacement, window_sec
+                        )
+                    )
+
+            if (
+                observed_messages >= 3
+                and time.monotonic() - observation_started >= window_sec
+            ):
+                rospy.loginfo(
+                    "Static actor stability verified: scene=%s actors=%d "
+                    "window=%.2fs",
+                    scene["id"],
+                    len(expected),
+                    window_sec,
+                )
+                return
+            time.sleep(0.02)
+        raise RuntimeError(
+            "static actor stability gate timed out for {} after {} fresh "
+            "ObjectStatus messages".format(scene["id"], observed_messages)
         )
 
     def scene_diagnostics(self, scene):
@@ -1389,6 +1950,7 @@ class AutoCapture:
                 # service. Immediately after ScenarioLoad, rosbridge may still
                 # expose the old service briefly and return handler=None.
                 self.wait_for_scene(scene, issued)
+                self.wait_for_static_actor_stability(scene)
                 last_error = None
                 break
             except RuntimeError as error:
@@ -1670,6 +2232,51 @@ class AutoCapture:
         message.custom_file_name = ""
         message.file_dir = ""
         self.capture_pub.publish(message)
+
+    def prime_timed_sensor_writers(self, scene):
+        """Discard one warm-up snapshot after ScenarioLoad.
+
+        The personal launcher can create a zero-byte LiDAR Instance label on
+        the first SaveSensorData request of a newly loaded high-speed scene.
+        Keeping that request outside the temporal clip prevents a known
+        writer-initialization artifact without accepting an incomplete GT
+        frame or shifting any frame metadata.
+        """
+
+        source_root = self.args.morai_sensor_data_dir
+        before = recursive_files(source_root)
+        self.wait_for_connections(context="before timed sensor prime")
+        self.publish_capture_request()
+        deadline = time.monotonic() + self.args.capture_timeout_sec
+        last_files = set()
+        stable_since = None
+        new_files = set()
+        while not rospy.is_shutdown() and time.monotonic() < deadline:
+            new_files = recursive_files(source_root) - before
+            if new_files != last_files:
+                last_files = set(new_files)
+                stable_since = time.monotonic()
+            if (
+                new_files
+                and stable_since is not None
+                and time.monotonic() - stable_since
+                >= self.args.capture_stable_sec
+            ):
+                break
+            time.sleep(0.1)
+        if not new_files:
+            raise RuntimeError("timed sensor priming produced no files")
+        prime_root = self.args.capture_dir / "sensor_primes" / scene["id"]
+        for source in sorted(new_files):
+            relative = source.relative_to(source_root)
+            destination = prime_root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(source), str(destination))
+        rospy.loginfo(
+            "Timed sensor writers primed for %s: files=%d",
+            scene["id"],
+            len(new_files),
+        )
 
     def publish_stop(self):
         message = CtrlCmd()
@@ -2133,6 +2740,803 @@ class AutoCapture:
             )
         return captures
 
+    def dynamic_actor_ready(self, scene, objects):
+        if objects is None:
+            return False
+        family = scene.get("mission_family", "")
+        expected = scene.get("expected") or {}
+        if (
+            int(expected.get("spawn_points", 0)) > 0
+            or int(expected.get("static_npc", 0)) > 0
+            or family.endswith("vehicle")
+        ):
+            return objects.num_of_npcs > 0
+        if family == "crosswalk_pedestrian":
+            return objects.num_of_pedestrian > 0
+        if family.endswith("obstacle"):
+            return objects.num_of_obstacle > 0
+        return True
+
+    def wait_for_dynamic_actor(self, scene):
+        deadline = time.monotonic() + self.args.actor_ready_timeout_sec
+        initial_pedestrian_positions = {}
+        require_motion = bool(
+            scene.get("dynamic_actor_ready_requires_motion", True)
+        )
+        while not rospy.is_shutdown() and time.monotonic() < deadline:
+            snapshot = self.state.snapshot()
+            objects = snapshot["objects"]
+            present = self.dynamic_actor_ready(scene, objects)
+            moving = True
+            if (
+                present
+                and require_motion
+                and scene.get("mission_family") == "crosswalk_pedestrian"
+            ):
+                moving = False
+                for actor in objects.pedestrian_list:
+                    key = int(actor.unique_id)
+                    position = (float(actor.position.x), float(actor.position.y))
+                    initial = initial_pedestrian_positions.setdefault(
+                        key, position
+                    )
+                    speed = math.hypot(
+                        float(actor.velocity.x), float(actor.velocity.y)
+                    )
+                    displacement = distance_xy(position, initial)
+                    if speed > 0.05 or displacement > 0.02:
+                        moving = True
+                        break
+            if present and moving:
+                rospy.loginfo(
+                    "Dynamic actor ready for %s (%s)",
+                    scene["id"],
+                    scene.get("mission_family", "unknown"),
+                )
+                return
+            time.sleep(0.05)
+        raise RuntimeError(
+            "dynamic actor did not become ready and moving within {:.1f}s "
+            "for {}".format(
+                self.args.actor_ready_timeout_sec,
+                scene.get("mission_family", "unknown"),
+            )
+        )
+
+    def finalize_timed_grouped_captures(self, scene, before, triggers):
+        """Verify, relocate, and annotate one timed SaveSensorData clip."""
+
+        source_root = self.args.morai_sensor_data_dir
+        # Snapshot trigger-adjacent state before waiting for asynchronous
+        # SaveSensorData writers. Otherwise a slow writer could let the
+        # bounded live-history deque prune the exact clip interval.
+        timing_histories = {}
+        timing_path = None
+        timing_availability = {}
+        if not self.args.no_timing_sidecar:
+            timing_histories = self.state.timing_window(
+                triggers[0]["triggered_monotonic"],
+                triggers[-1]["triggered_monotonic"],
+                self.args.timing_window_padding_sec,
+            )
+            bind_trigger_timing(triggers, timing_histories)
+            timing_availability = timing_summary(
+                timing_histories, self.timing_topics
+            )
+        drain_started = time.monotonic()
+        deadline = drain_started + self.args.capture_timeout_sec
+        last_files = set()
+        stable_since = None
+        new_files = set()
+        while not rospy.is_shutdown() and time.monotonic() < deadline:
+            new_files = recursive_files(source_root) - before
+            if new_files != last_files:
+                last_files = set(new_files)
+                stable_since = time.monotonic()
+            if (
+                new_files
+                and stable_since is not None
+                and time.monotonic() - stable_since
+                >= self.args.capture_stable_sec
+            ):
+                break
+            time.sleep(0.1)
+
+        timestamp_groups, unrecognized = group_capture_files_by_timestamp(
+            new_files
+        )
+        complete_groups = []
+        incomplete_groups = {}
+        # Keep object-label artifacts mandatory, but do not require a row in
+        # the text label. A dynamic actor can legitimately be outside the
+        # LiDAR field of view (or fully occluded) at an individual keyframe.
+        # The fixed-size Instance/Semantic binary payloads remain mandatory,
+        # so a missing sensor write is still rejected.
+        require_object_labels = True
+        for timestamp_stem, group_files in sorted(timestamp_groups.items()):
+            observed, required, missing = capture_artifact_status(
+                source_root,
+                group_files,
+                self.args.required_sensor_dirs,
+                require_object_labels,
+            )
+            observed_sensors = observed_sensor_directories(
+                source_root, group_files
+            )
+            missing_sensors = (
+                set(self.args.required_sensor_dirs) - observed_sensors
+            )
+            if missing_sensors or missing:
+                incomplete_groups[timestamp_stem] = {
+                    "file_count": len(group_files),
+                    "missing_sensor_dirs": sorted(missing_sensors),
+                    "missing_artifacts": missing,
+                }
+                continue
+            complete_groups.append(
+                (
+                    timestamp_stem,
+                    group_files,
+                    observed_sensors,
+                    observed,
+                    required,
+                )
+            )
+
+        if (
+            len(complete_groups) != len(triggers)
+            or incomplete_groups
+            or unrecognized
+        ):
+            rejected_root = (
+                self.args.capture_dir / "timed_grouped_rejected" / scene["id"]
+            )
+            for source in sorted(new_files):
+                relative = source.relative_to(source_root)
+                destination = rejected_root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(source), str(destination))
+            raise RuntimeError(
+                "timed-grouped produced {} complete groups for {} triggers; "
+                "incomplete_groups={}, unrecognized_files={}. Raw files: {}"
+                .format(
+                    len(complete_groups),
+                    len(triggers),
+                    incomplete_groups,
+                    [str(path.relative_to(source_root)) for path in unrecognized],
+                    rejected_root,
+                )
+            )
+
+        completed_unix = time.time()
+        relocated_count = 0
+        for index, group in enumerate(complete_groups):
+            timestamp_stem, group_files, sensors, observed, required = group
+            trigger = triggers[index]
+            destinations = relocate_capture_files(
+                source_root,
+                self.args.capture_dir,
+                trigger["capture_id"],
+                group_files,
+                allow_empty_suffixes=(
+                    "_Instance.txt",
+                    "_Instance_8Points.txt",
+                ),
+            )
+            relocated_count += len(destinations)
+            trigger.update(
+                {
+                    "verified": True,
+                    "completed_unix": completed_unix,
+                    "morai_timestamp_stem": timestamp_stem,
+                    "new_file_count": len(group_files),
+                    "observed_sensor_dirs": sorted(sensors),
+                    "observed_artifacts": {
+                        sensor: sorted(suffixes)
+                        for sensor, suffixes in sorted(observed.items())
+                    },
+                    "required_artifacts": {
+                        sensor: sorted(suffixes)
+                        for sensor, suffixes in sorted(required.items())
+                    },
+                    "sensor_files": sorted(
+                        str(path.relative_to(self.args.capture_dir))
+                        for path in destinations
+                    ),
+                }
+            )
+
+        enrich_derived_motion(triggers)
+        enrich_frame_transforms(triggers)
+        metadata_dir = self.args.capture_dir / "dynamic_metadata"
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+        calibration_path = None
+        sensor_config = self.manifest.get("sensor_config")
+        if sensor_config:
+            sensor_config_path = Path(sensor_config).expanduser()
+            if not sensor_config_path.is_absolute():
+                sensor_config_path = Path(__file__).resolve().parents[3] / sensor_config_path
+            calibration_path = metadata_dir / "calibration.json"
+            if not calibration_path.exists():
+                write_json_atomic(
+                    calibration_path,
+                    normalized_sensor_calibration(sensor_config_path),
+                )
+        if not self.args.no_timing_sidecar:
+            timing_path = metadata_dir / "{}.timing.jsonl".format(scene["id"])
+            timing_path.write_text(
+                "".join(
+                    json.dumps(sample, ensure_ascii=False, separators=(",", ":"))
+                    + "\n"
+                    for stream in sorted(timing_histories)
+                    for sample in timing_histories[stream]
+                ),
+                encoding="utf-8",
+            )
+        frames_path = metadata_dir / "{}.frames.jsonl".format(scene["id"])
+        frames_path.write_text(
+            "".join(
+                json.dumps(frame, ensure_ascii=False, separators=(",", ":"))
+                + "\n"
+                for frame in triggers
+            ),
+            encoding="utf-8",
+        )
+        clip_document = {
+            "schema_version": 3,
+            "dataset_id": self.dataset_id,
+            "clip_id": scene["id"],
+            "scene_id": scene["id"],
+            "scenario_stem": scene["file_name"],
+            "mission_family": scene.get("mission_family"),
+            "motion_phase": scene.get("motion_phase"),
+            "sampling_role": scene.get("sampling_role"),
+            "sequence_contract": scene.get("sequence_contract"),
+            "split": scene.get("split"),
+            "environment": self.environment,
+            "capture_format": "morai_save_sensor_data_timed_grouped",
+            "capture_period_sec": self.args.capture_period_sec,
+            "sequence_time_base": "ego_displacement_over_measured_speed",
+            "wall_time_role": "provenance_and_io_timeout_only",
+            "capture_motion_arm_m": self.args.capture_motion_arm_m,
+            "minimum_capture_progress_m": self.args.minimum_capture_progress_m,
+            "motion_stall_timeout_sec": self.args.motion_stall_timeout_sec,
+            "frame_count": len(triggers),
+            "frames_jsonl": str(frames_path.relative_to(self.args.capture_dir)),
+            "timing_sidecar": (
+                str(timing_path.relative_to(self.args.capture_dir))
+                if timing_path is not None
+                else None
+            ),
+            "timing_streams": timing_availability,
+            "timing_notes": {
+                "sensor_payload_source": "MORAI SaveSensorData files",
+                "sidecar_payload_policy": "headers_and_state_only",
+                "missing_sensor_topics_are_fatal": False,
+                "capture_mode_limitation": (
+                    "MORAI Capture Mode may not publish camera/LiDAR ROS topics; "
+                    "missing streams are recorded as unavailable."
+                ),
+                "save_sensor_data_time_base": (
+                    "SaveSensorData can throttle MORAI wall-clock updates; "
+                    "sequence_time_sec estimates physical simulator progress "
+                    "from Ego displacement and measured speed."
+                ),
+            },
+            "sensor_config": self.manifest.get("sensor_config"),
+            "sensor_config_sha256": self.manifest.get(
+                "sensor_config_sha256"
+            ),
+            "calibration": (
+                str(calibration_path.relative_to(self.args.capture_dir))
+                if calibration_path is not None
+                else None
+            ),
+            "coordinate_frames": {
+                "authoritative_pose": "morai_map",
+                "relative_pose": "ego_at_capture_request",
+                "raw_velocity": "MORAI message axes, unmodified",
+                "derived_velocity": "finite difference in morai_map",
+                "frame_transform_field": "frames_jsonl[*].transforms",
+            },
+            "source_scene_metadata": scene.get("metadata"),
+            "source_scene_expected": scene.get("expected"),
+        }
+        clip_path = metadata_dir / "{}.clip.json".format(scene["id"])
+        write_json_atomic(clip_path, clip_document)
+
+        wall_span = 0.0
+        sequence_span = 0.0
+        rate = 0.0
+        if len(triggers) > 1:
+            wall_span = (
+                triggers[-1]["triggered_unix"]
+                - triggers[0]["triggered_unix"]
+            )
+            sequence_span = (
+                triggers[-1].get("sequence_time_sec", 0.0)
+                - triggers[0].get("sequence_time_sec", 0.0)
+            )
+            if sequence_span > 0.0:
+                rate = (len(triggers) - 1) / sequence_span
+        metrics = {
+            "experimental": False,
+            "quality_verified": True,
+            "trigger_count": len(triggers),
+            "trigger_span_sec": sequence_span,
+            "sequence_span_sec": sequence_span,
+            "wall_trigger_span_sec": wall_span,
+            "trigger_rate_hz": rate,
+            "capture_period_sec": self.args.capture_period_sec,
+            "capture_motion_arm_m": self.args.capture_motion_arm_m,
+            "minimum_capture_progress_m": self.args.minimum_capture_progress_m,
+            "complete_timestamp_group_count": len(complete_groups),
+            "relocated_file_count": relocated_count,
+            "frames_metadata": str(frames_path.relative_to(self.args.capture_dir)),
+            "clip_metadata": str(clip_path.relative_to(self.args.capture_dir)),
+            "timing_metadata": (
+                str(timing_path.relative_to(self.args.capture_dir))
+                if timing_path is not None
+                else None
+            ),
+            "timing_streams": timing_availability,
+            "drain_duration_sec": time.monotonic() - drain_started,
+        }
+        compact = [
+            {
+                "capture_id": item["capture_id"],
+                "frame_index": item["frame_index"],
+                "triggered_unix": item["triggered_unix"],
+                "morai_timestamp_stem": item["morai_timestamp_stem"],
+                "verified": True,
+                "new_file_count": item["new_file_count"],
+                "metadata_jsonl": str(frames_path.relative_to(self.args.capture_dir)),
+            }
+            for item in triggers
+        ]
+        rospy.loginfo(
+            "Timed-grouped complete: triggers=%d, frames=%d, "
+            "sequence_span=%.3fs, wall_span=%.3fs, rate=%.3fHz, files=%d",
+            len(triggers),
+            len(complete_groups),
+            sequence_span,
+            wall_span,
+            rate,
+            relocated_count,
+        )
+        return compact, metrics
+
+    def drive_and_trigger_timed_grouped(self, scene, capture_count):
+        """Drive Ego and issue verified SaveSensorData keyframes by time."""
+
+        self.wait_for_dynamic_actor(scene)
+        if self.args.dynamic_warmup_sec > 0.0:
+            rospy.loginfo(
+                "Dynamic warm-up: %.2fs", self.args.dynamic_warmup_sec
+            )
+            time.sleep(self.args.dynamic_warmup_sec)
+        if self.args.prime_capture_before_clip:
+            # Priming waits for asynchronous writers to settle. Hold Ego in
+            # place during that wait; otherwise a moving scenario can drift
+            # without fresh steering commands before the control loop starts.
+            self.publish_stop()
+            self.prime_timed_sensor_writers(scene)
+        source_root = self.args.morai_sensor_data_dir
+        before = recursive_files(source_root)
+        motion_started = time.monotonic()
+        deadline = motion_started + self.args.motion_timeout_sec
+        clip_started = None
+        next_sequence_time_sec = None
+        trigger_wait_started = None
+        sequence_time_sec = 0.0
+        last_kinematic_position = None
+        last_kinematic_speed_mps = None
+        last_kinematic_ego_wall_time = None
+        last_capture_route_m = None
+        triggers = []
+        snapshot = self.state.snapshot()
+        if snapshot["ego"] is None:
+            raise RuntimeError("Ego telemetry unavailable before timed-grouped")
+        initial_actor_positions = {}
+        if scene.get("capture_arm_requires_actor_motion", False):
+            for actor in snapshot["objects"].pedestrian_list:
+                initial_actor_positions[int(actor.unique_id)] = (
+                    float(actor.position.x),
+                    float(actor.position.y),
+                )
+        position = (snapshot["ego"].position.x, snapshot["ego"].position.y)
+        nearest_hint = self.nearest_waypoint_index(
+            position,
+            hint=scene["anchor_index"],
+            heading_deg=snapshot["ego"].heading,
+        )
+        start_route_m = self.route_coordinate_m(position, nearest_hint)
+
+        try:
+            while (
+                not rospy.is_shutdown()
+                and len(triggers) < capture_count
+                and time.monotonic() < deadline
+            ):
+                snapshot = self.state.snapshot()
+                ego = snapshot["ego"]
+                if ego is None or snapshot["objects"] is None:
+                    raise RuntimeError("Ego/Object telemetry unavailable")
+                collision = self.collision_observations_after(motion_started)
+                if collision:
+                    raise RuntimeError(
+                        "collision reported during timed-grouped: {}".format(collision)
+                    )
+                position = (ego.position.x, ego.position.y)
+                nearest_hint = self.nearest_waypoint_index(
+                    position,
+                    hint=nearest_hint,
+                    heading_deg=ego.heading,
+                )
+                route_position_m = self.route_coordinate_m(position, nearest_hint)
+                travelled = max(0.0, route_position_m - start_route_m)
+                if travelled > self.args.maximum_motion_m:
+                    gate_ego = serialize_ego(
+                        ego,
+                        snapshot["ego_unix_time"],
+                        snapshot["ego_wall_time"],
+                    )
+                    gate_objects = serialize_objects(
+                        snapshot["objects"],
+                        snapshot["objects_unix_time"],
+                        snapshot["objects_wall_time"],
+                    )
+                    _, gate_observation = capture_actor_gate_observation(
+                        gate_ego,
+                        gate_objects,
+                        self.scene_capture_actor_gate,
+                    )
+                    raise RuntimeError(
+                        "maximum route motion reached during timed-grouped: "
+                        "{:.2f} m; actor_gate_observation={}".format(
+                            travelled,
+                            gate_observation,
+                        )
+                    )
+                route_error = distance_xy(position, self.waypoints[nearest_hint])
+                if route_error > self.args.route_deviation_limit_m:
+                    raise RuntimeError(
+                        "route deviation {:.2f} m exceeds safety limit".format(
+                            route_error
+                        )
+                    )
+                speed, lookahead, steering_limit, turn = self.curve_control_limits(
+                    nearest_hint
+                )
+                target = self.waypoints[
+                    self.lookahead_index(nearest_hint, lookahead)
+                ]
+                target_heading = math.atan2(
+                    target[1] - position[1], target[0] - position[0]
+                )
+                heading_error = wrapped_angle(
+                    target_heading - math.radians(ego.heading)
+                )
+                if (
+                    abs(math.degrees(heading_error))
+                    > self.args.heading_error_limit_deg
+                ):
+                    raise RuntimeError(
+                        "heading error {:.1f} deg exceeds safety limit".format(
+                            math.degrees(heading_error)
+                        )
+                    )
+                target_distance = max(0.5, distance_xy(position, target))
+                steering = math.atan(
+                    self.args.wheelbase_m
+                    * 2.0
+                    * math.sin(heading_error)
+                    / target_distance
+                )
+                steering = max(-steering_limit, min(steering_limit, steering))
+                command = CtrlCmd()
+                command.longlCmdType = 2
+                command.velocity = speed
+                set_ctrl_steering(
+                    command,
+                    steering,
+                    self.args.personal_max_steering_angle_deg,
+                    self.args.personal_steering_sign,
+                )
+                command.accel = 0.0
+                command.brake = 0.0
+                command.acceleration = 0.0
+                self.control_pub.publish(command)
+
+                now = time.monotonic()
+                if clip_started is None:
+                    ego_speed_kph = 3.6 * math.sqrt(
+                        ego.velocity.x * ego.velocity.x
+                        + ego.velocity.y * ego.velocity.y
+                        + ego.velocity.z * ego.velocity.z
+                    )
+                    motion_ready = (
+                        travelled >= self.args.capture_motion_arm_m
+                    )
+                    speed_ready = (
+                        ego_speed_kph >= self.scene_minimum_ego_speed_kph
+                    )
+                    stable_ready = True
+                    if self.scene_stable_ego_window_sec > 0.0:
+                        ego_history = self.state.timing_window(
+                            now - self.scene_stable_ego_window_sec,
+                            now,
+                            0.0,
+                        ).get("ego", [])
+                        stable_ready = stable_ego_motion(
+                            ego_history,
+                            self.scene_stable_ego_window_sec * 0.9,
+                            self.scene_maximum_stable_acceleration_mps2,
+                        )
+                    actor_motion_ready = True
+                    if scene.get("capture_arm_requires_actor_motion", False):
+                        actor_motion_ready = False
+                        for actor in snapshot["objects"].pedestrian_list:
+                            initial = initial_actor_positions.get(
+                                int(actor.unique_id)
+                            )
+                            if initial is None:
+                                continue
+                            actor_position = (
+                                float(actor.position.x),
+                                float(actor.position.y),
+                            )
+                            actor_speed = math.hypot(
+                                float(actor.velocity.x),
+                                float(actor.velocity.y),
+                            )
+                            if (
+                                distance_xy(actor_position, initial) > 0.02
+                                and actor_speed > 0.05
+                            ):
+                                actor_motion_ready = True
+                                break
+                    gate_ego = serialize_ego(
+                        ego,
+                        snapshot["ego_unix_time"],
+                        snapshot["ego_wall_time"],
+                    )
+                    gate_objects = serialize_objects(
+                        snapshot["objects"],
+                        snapshot["objects_unix_time"],
+                        snapshot["objects_wall_time"],
+                    )
+                    actor_gate_ready, actor_gate_observation = (
+                        capture_actor_gate_observation(
+                            gate_ego,
+                            gate_objects,
+                            self.scene_capture_actor_gate,
+                        )
+                    )
+                    if (
+                        not motion_ready
+                        or not speed_ready
+                        or not stable_ready
+                        or not actor_motion_ready
+                        or not actor_gate_ready
+                    ):
+                        if (
+                            now - motion_started
+                            > self.args.motion_stall_timeout_sec
+                        ):
+                            raise RuntimeError(
+                                "Ego did not arm timed-grouped capture: "
+                                "progress={:.3f}/{:.3f}m, "
+                                "speed={:.2f}/{:.2f}km/h, stable={}, "
+                                "actor_motion={}, actor_gate={} ({}) in {:.3f}s. "
+                                "CtrlCmd is connected but may not be "
+                                "applied by MORAI.".format(
+                                    travelled,
+                                    self.args.capture_motion_arm_m,
+                                    ego_speed_kph,
+                                    self.scene_minimum_ego_speed_kph,
+                                    stable_ready,
+                                    actor_motion_ready,
+                                    actor_gate_ready,
+                                    actor_gate_observation,
+                                    now - motion_started,
+                                )
+                            )
+                        time.sleep(0.01)
+                        continue
+                    clip_started = now
+                    next_sequence_time_sec = 0.0
+                    trigger_wait_started = now
+                    sequence_time_sec = 0.0
+                    last_kinematic_position = position
+                    last_kinematic_speed_mps = ego_speed_kph / 3.6
+                    last_kinematic_ego_wall_time = snapshot["ego_wall_time"]
+                    rospy.loginfo(
+                        "Timed-grouped motion armed after %.3fm at "
+                        "%.2fkm/h in %.3fs",
+                        travelled,
+                        ego_speed_kph,
+                        now - motion_started,
+                    )
+
+                # SaveSensorData can slow MORAI's wall-clock publication rate
+                # substantially while the simulator advances only a small
+                # physical step.  Integrate physical sequence time from Ego
+                # displacement and measured speed instead of treating host
+                # wall time as simulator time.  This also prevents queued
+                # catch-up requests from being emitted back-to-back.
+                if (
+                    last_kinematic_position is not None
+                    and snapshot["ego_wall_time"]
+                    > last_kinematic_ego_wall_time + 1e-6
+                ):
+                    current_speed_mps = math.sqrt(
+                        ego.velocity.x * ego.velocity.x
+                        + ego.velocity.y * ego.velocity.y
+                        + ego.velocity.z * ego.velocity.z
+                    )
+                    displacement_m = distance_xy(
+                        position, last_kinematic_position
+                    )
+                    average_speed_mps = 0.5 * (
+                        last_kinematic_speed_mps + current_speed_mps
+                    )
+                    if displacement_m > 1e-4 and average_speed_mps > 0.2:
+                        sequence_time_sec += (
+                            displacement_m / average_speed_mps
+                        )
+                    last_kinematic_position = position
+                    last_kinematic_speed_mps = current_speed_mps
+                    last_kinematic_ego_wall_time = snapshot["ego_wall_time"]
+
+                progress_since_capture = (
+                    travelled - last_capture_route_m
+                    if last_capture_route_m is not None
+                    else travelled
+                )
+                time_ready = (
+                    sequence_time_sec + 1e-6 >= next_sequence_time_sec
+                )
+                progress_ready = (
+                    progress_since_capture
+                    >= self.args.minimum_capture_progress_m
+                )
+                if (
+                    time_ready
+                    and not progress_ready
+                    and now - trigger_wait_started
+                    > self.args.motion_stall_timeout_sec
+                ):
+                    raise RuntimeError(
+                        "Ego motion stalled before timed-grouped frame {}: "
+                        "progress={:.3f}m, required={:.3f}m, waited={:.3f}s"
+                        .format(
+                            len(triggers) + 1,
+                            progress_since_capture,
+                            self.args.minimum_capture_progress_m,
+                            now - trigger_wait_started,
+                        )
+                    )
+                if time_ready and progress_ready:
+                    self.wait_for_connections(
+                        context="before timed-grouped trigger"
+                    )
+                    trigger_unix = time.time()
+                    objects = serialize_objects(
+                        snapshot["objects"],
+                        snapshot["objects_unix_time"],
+                        snapshot["objects_wall_time"],
+                    )
+                    ego_state = serialize_ego(
+                        ego,
+                        snapshot["ego_unix_time"],
+                        snapshot["ego_wall_time"],
+                    )
+                    actor_gate_ready, actor_gate_observation = (
+                        capture_actor_gate_observation(
+                            ego_state,
+                            objects,
+                            self.scene_capture_actor_gate,
+                        )
+                    )
+                    if self.scene_capture_actor_gate and not actor_gate_ready:
+                        raise RuntimeError(
+                            "actor left capture gate before timed-grouped "
+                            "frame {}: {}".format(
+                                len(triggers) + 1, actor_gate_observation
+                            )
+                        )
+                    self.publish_capture_request()
+                    frame_index = len(triggers)
+                    triggers.append(
+                        {
+                            "schema_version": 1,
+                            "dataset_id": self.dataset_id,
+                            "clip_id": scene["id"],
+                            "scene_id": scene["id"],
+                            "mission_family": scene.get("mission_family"),
+                            "motion_phase": scene.get("motion_phase"),
+                            "sampling_role": scene.get("sampling_role"),
+                            "sequence_contract": scene.get("sequence_contract"),
+                            "split": scene.get("split"),
+                            "frame_index": frame_index,
+                            "frame_id": "{}_f{:06d}".format(
+                                scene["id"], frame_index
+                            ),
+                            "prev_exists": frame_index > 0,
+                            "prev_frame_id": (
+                                "{}_f{:06d}".format(
+                                    scene["id"], frame_index - 1
+                                )
+                                if frame_index > 0
+                                else None
+                            ),
+                            "capture_id": self.capture_identifier(
+                                scene, frame_index
+                            ),
+                            "triggered_unix": trigger_unix,
+                            "triggered_monotonic": now,
+                            "wall_elapsed_sec": now - clip_started,
+                            "sequence_time_sec": sequence_time_sec,
+                            "scheduled_sequence_time_sec": (
+                                next_sequence_time_sec
+                            ),
+                            "schedule_lateness_sec": (
+                                sequence_time_sec - next_sequence_time_sec
+                            ),
+                            "trigger_distance_m": travelled,
+                            "capture_progress_since_previous_m": (
+                                progress_since_capture
+                            ),
+                            "route_turn_deg": turn,
+                            "command_speed_kph": speed,
+                            "command_lookahead_m": lookahead,
+                            "ego": ego_state,
+                            "objects": objects,
+                            "quality": {
+                                "ego_state_age_sec": max(
+                                    0.0, trigger_unix - snapshot["ego_unix_time"]
+                                ),
+                                "object_state_age_sec": max(
+                                    0.0,
+                                    trigger_unix - snapshot["objects_unix_time"],
+                                ),
+                                "actor_present": self.dynamic_actor_ready(
+                                    scene, snapshot["objects"]
+                                ),
+                                "actor_gate_ready": actor_gate_ready,
+                                "actor_gate": self.scene_capture_actor_gate,
+                                "actor_gate_observation": actor_gate_observation,
+                            },
+                            "verified": False,
+                        }
+                    )
+                    rospy.loginfo(
+                        "Timed-grouped trigger %d/%d: sequence=%.3fs, "
+                        "wall=%.3fs, distance=%.3fm",
+                        len(triggers),
+                        capture_count,
+                        sequence_time_sec,
+                        now - clip_started,
+                        travelled,
+                    )
+                    last_capture_route_m = travelled
+                    next_sequence_time_sec = (
+                        len(triggers) * self.args.capture_period_sec
+                    )
+                    trigger_wait_started = now
+                time.sleep(0.01)
+        finally:
+            self.publish_stop()
+
+        if len(triggers) != capture_count:
+            raise RuntimeError(
+                "timed-grouped ended with {}/{} triggers".format(
+                    len(triggers), capture_count
+                )
+            )
+        return self.finalize_timed_grouped_captures(scene, before, triggers)
+
     def drive_and_trigger_burst(
         self,
         scene,
@@ -2165,6 +3569,12 @@ class AutoCapture:
         issued = time.monotonic()
         deadline = issued + self.args.motion_timeout_sec
         triggers = []
+        # Anchor every slot to the preceding *actual* trigger, not to the
+        # scene start.  A deferred actor gate can open after several nominal
+        # slots have already passed; keeping the scene-start thresholds in
+        # that case makes the loop fire multiple SaveSensorData requests at
+        # nearly the same position and timestamp.
+        next_capture_distance_m = self.args.capture_spacing_m
 
         try:
             while (
@@ -2257,33 +3667,101 @@ class AutoCapture:
                 command.acceleration = 0.0
                 self.control_pub.publish(command)
 
-                threshold = self.args.capture_spacing_m * (
-                    len(triggers) + 1
-                )
-                if travelled >= threshold:
+                if travelled >= next_capture_distance_m:
                     self.wait_for_connections(
                         context="before rolling-fast trigger"
                     )
                     trigger_unix = time.time()
+                    trigger_monotonic = time.monotonic()
+                    ego_state = serialize_ego(
+                        ego,
+                        snapshot["ego_unix_time"],
+                        snapshot["ego_wall_time"],
+                    )
+                    objects = serialize_objects(
+                        snapshot["objects"],
+                        snapshot["objects_unix_time"],
+                        snapshot["objects_wall_time"],
+                    )
+                    actor_gate_ready, actor_gate_observation = (
+                        capture_actor_gate_observation(
+                            ego_state,
+                            objects,
+                            self.scene_capture_actor_gate,
+                        )
+                    )
+                    if self.scene_capture_actor_gate and not actor_gate_ready:
+                        if not triggers:
+                            # A deferred crosswalk actor can start just after
+                            # the nominal first distance slot. Keep driving
+                            # until it is visibly moving instead of recording
+                            # a mislabeled static-pedestrian frame.
+                            time.sleep(0.05)
+                            continue
+                        raise RuntimeError(
+                            "actor left capture gate before rolling-grouped "
+                            "frame {}: {}".format(
+                                len(triggers) + 1, actor_gate_observation
+                            )
+                        )
                     self.publish_capture_request()
+                    frame_index = len(triggers)
                     trigger = {
+                        "schema_version": 1,
+                        "dataset_id": self.dataset_id,
+                        "clip_id": scene["id"],
+                        "scene_id": scene["id"],
+                        "mission_family": scene.get("mission_family"),
+                        "motion_phase": scene.get("motion_phase"),
+                        "sampling_role": scene.get("sampling_role"),
+                        "sequence_contract": scene.get("sequence_contract"),
+                        "split": scene.get("split"),
+                        "frame_index": frame_index,
+                        "frame_id": "{}_f{:06d}".format(
+                            scene["id"], frame_index
+                        ),
+                        "prev_exists": frame_index > 0,
+                        "prev_frame_id": (
+                            "{}_f{:06d}".format(scene["id"], frame_index - 1)
+                            if frame_index > 0
+                            else None
+                        ),
                         "capture_id": self.capture_identifier(
-                            scene, len(triggers)
+                            scene, frame_index
                         ),
                         "triggered_unix": trigger_unix,
+                        "triggered_monotonic": trigger_monotonic,
                         "trigger_distance_m": travelled,
                         "route_turn_deg": route_turn_deg,
                         "command_speed_kph": command_speed_kph,
                         "command_lookahead_m": command_lookahead_m,
                         "command_steering_limit_rad": command_steering_limit,
+                        "ego": ego_state,
+                        "objects": objects,
                         "ego_position": {
                             "x": ego.position.x,
                             "y": ego.position.y,
                             "z": ego.position.z,
                         },
+                        "quality": {
+                            "ego_state_age_sec": max(
+                                0.0,
+                                trigger_unix - snapshot["ego_unix_time"],
+                            ),
+                            "object_state_age_sec": max(
+                                0.0,
+                                trigger_unix - snapshot["objects_unix_time"],
+                            ),
+                            "actor_gate_ready": actor_gate_ready,
+                            "actor_gate": self.scene_capture_actor_gate,
+                            "actor_gate_observation": actor_gate_observation,
+                        },
                         "verified": False,
                     }
                     triggers.append(trigger)
+                    next_capture_distance_m = (
+                        travelled + self.args.capture_spacing_m
+                    )
                     rospy.loginfo(
                         "Rolling-fast trigger %d/%d: distance=%.3fm, "
                         "turn=%.1fdeg, speed=%.2fkm/h, lookahead=%.2fm, "
@@ -2296,6 +3774,11 @@ class AutoCapture:
                         command_lookahead_m,
                         command_steering_limit,
                     )
+                    if len(triggers) >= capture_count:
+                        # Leave the loop immediately so ``finally`` publishes
+                        # the existing stop command without one extra 50 ms
+                        # control interval after the final snapshot.
+                        break
                 time.sleep(0.05)
         finally:
             self.publish_stop()
@@ -2305,6 +3788,19 @@ class AutoCapture:
                 "rolling-fast ended with {}/{} triggers".format(
                     len(triggers), capture_count
                 )
+            )
+
+        timing_histories = {}
+        timing_availability = {}
+        if group_verified_frames and not self.args.no_timing_sidecar:
+            timing_histories = self.state.timing_window(
+                triggers[0]["triggered_monotonic"],
+                triggers[-1]["triggered_monotonic"],
+                self.args.timing_window_padding_sec,
+            )
+            bind_trigger_timing(triggers, timing_histories)
+            timing_availability = timing_summary(
+                timing_histories, self.timing_topics
             )
 
         # Wait only once after the burst. MORAI gives all artifacts belonging
@@ -2507,6 +4003,14 @@ class AutoCapture:
             ),
         }
         if group_verified_frames:
+            metadata = self.write_rolling_grouped_metadata(
+                scene,
+                triggers,
+                timing_histories,
+                timing_availability,
+            )
+            metrics.update(metadata)
+        if group_verified_frames:
             rospy.loginfo(
                 "Rolling-grouped complete: triggers=%d, frames=%d, "
                 "span=%.3fs, rate=%.3fHz, files=%d",
@@ -2527,7 +4031,174 @@ class AutoCapture:
             )
         return triggers, metrics
 
+    def write_rolling_grouped_metadata(
+        self,
+        scene,
+        triggers,
+        timing_histories,
+        timing_availability,
+    ):
+        """Persist live state and timing for distance-triggered clips."""
+
+        enrich_derived_motion(triggers)
+        enrich_frame_transforms(triggers)
+        metadata_dir = self.args.capture_dir / "dynamic_metadata"
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+
+        calibration_path = None
+        sensor_config = self.manifest.get("sensor_config")
+        if sensor_config:
+            sensor_config_path = Path(sensor_config).expanduser()
+            if not sensor_config_path.is_absolute():
+                sensor_config_path = (
+                    Path(__file__).resolve().parents[3]
+                    / sensor_config_path
+                )
+            calibration_path = metadata_dir / "calibration.json"
+            if not calibration_path.exists():
+                write_json_atomic(
+                    calibration_path,
+                    normalized_sensor_calibration(sensor_config_path),
+                )
+
+        timing_path = None
+        if not self.args.no_timing_sidecar:
+            timing_path = metadata_dir / "{}.timing.jsonl".format(
+                scene["id"]
+            )
+            timing_path.write_text(
+                "".join(
+                    json.dumps(
+                        sample,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    )
+                    + "\n"
+                    for stream in sorted(timing_histories)
+                    for sample in timing_histories[stream]
+                ),
+                encoding="utf-8",
+            )
+
+        frames_path = metadata_dir / "{}.frames.jsonl".format(scene["id"])
+        frames_path.write_text(
+            "".join(
+                json.dumps(
+                    frame,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+                + "\n"
+                for frame in triggers
+            ),
+            encoding="utf-8",
+        )
+        clip_path = metadata_dir / "{}.clip.json".format(scene["id"])
+        write_json_atomic(
+            clip_path,
+            {
+                "schema_version": 3,
+                "dataset_id": self.dataset_id,
+                "clip_id": scene["id"],
+                "scene_id": scene["id"],
+                "scenario_stem": scene["file_name"],
+                "mission_family": scene.get("mission_family"),
+                "motion_phase": scene.get("motion_phase"),
+                "sampling_role": scene.get("sampling_role"),
+                "sequence_contract": scene.get("sequence_contract"),
+                "split": scene.get("split"),
+                "environment": self.environment,
+                "capture_format": "morai_save_sensor_data_rolling_grouped",
+                "capture_spacing_m": self.args.capture_spacing_m,
+                "frame_count": len(triggers),
+                "frames_jsonl": str(
+                    frames_path.relative_to(self.args.capture_dir)
+                ),
+                "timing_sidecar": (
+                    str(timing_path.relative_to(self.args.capture_dir))
+                    if timing_path is not None
+                    else None
+                ),
+                "timing_streams": timing_availability,
+                "timing_notes": {
+                    "sensor_payload_source": "MORAI SaveSensorData files",
+                    "sidecar_payload_policy": "headers_and_state_only",
+                    "trigger_policy": "ego route displacement",
+                    "state_binding": (
+                        "nearest ROS callback plus trigger-adjacent snapshot"
+                    ),
+                    "missing_sensor_topics_are_fatal": False,
+                },
+                "sensor_config": self.manifest.get("sensor_config"),
+                "sensor_config_sha256": self.manifest.get(
+                    "sensor_config_sha256"
+                ),
+                "calibration": (
+                    str(calibration_path.relative_to(self.args.capture_dir))
+                    if calibration_path is not None
+                    else None
+                ),
+                "coordinate_frames": {
+                    "authoritative_pose": "morai_map",
+                    "relative_pose": "ego_at_capture_request",
+                    "raw_velocity": "MORAI message axes, unmodified",
+                    "derived_velocity": "finite difference in morai_map",
+                    "frame_transform_field": (
+                        "frames_jsonl[*].transforms"
+                    ),
+                },
+                "velocity_label_policy": (
+                    {
+                        "training_enabled": False,
+                        "canonical_source": None,
+                        "morai_raw_velocity_role": "diagnostic_only",
+                        "derived_velocity_role": "diagnostic_only",
+                        "derived_velocity_training_loss_weight": 0.0,
+                        "handoff_rule": (
+                            "Base3 is single-frame OD data; expose no velocity "
+                            "target to the training dataset."
+                        ),
+                    }
+                    if str(self.dataset_id).startswith(
+                        "morai_static_classcentric_base3_10k"
+                    )
+                    else {
+                        "canonical_static_source": "scenario_static_zero",
+                        "canonical_dynamic_source": (
+                            "fresh_plausible_morai_raw_local_rotated"
+                        ),
+                        "derived_velocity_role": "diagnostic_only",
+                        "derived_velocity_training_loss_weight": 0.0,
+                        "handoff_rule": (
+                            "publish one canonical velocity_target and keep "
+                            "derived motion only in quality/audit fields"
+                        ),
+                    }
+                ),
+                "source_scene_metadata": scene.get("metadata"),
+                "source_scene_expected": scene.get("expected"),
+            },
+        )
+        return {
+            "frames_metadata": str(
+                frames_path.relative_to(self.args.capture_dir)
+            ),
+            "clip_metadata": str(clip_path.relative_to(self.args.capture_dir)),
+            "timing_metadata": (
+                str(timing_path.relative_to(self.args.capture_dir))
+                if timing_path is not None
+                else None
+            ),
+            "timing_streams": timing_availability,
+        }
+
     def run_scene(self, scene):
+        self.configure_scene_motion(scene)
+        scene_capture_count = int(
+            scene.get("capture_policy_overrides", {}).get(
+                "captures_per_scene", self.args.captures_per_scene
+            )
+        )
         scene_started = time.time()
         mode_metrics = {}
         control_prepared = False
@@ -2543,39 +4214,45 @@ class AutoCapture:
         if self.args.motion_mode == "stationary":
             captures = [
                 self.trigger_capture(scene, index)
-                for index in range(self.args.captures_per_scene)
+                for index in range(scene_capture_count)
             ]
         elif self.args.motion_mode == "route-follow":
             if not control_prepared:
                 self.select_external_control_mode()
             captures = self.drive_and_capture(
-                scene, self.args.captures_per_scene
+                scene, scene_capture_count
             )
         elif self.args.motion_mode == "rolling-safe":
             if not control_prepared:
                 self.select_external_control_mode()
             captures = self.drive_and_capture(
                 scene,
-                self.args.captures_per_scene,
+                scene_capture_count,
                 stop_for_capture=False,
             )
         elif self.args.motion_mode == "rolling-fast":
             if not control_prepared:
                 self.select_external_control_mode()
             captures, mode_metrics = self.drive_and_trigger_burst(
-                scene, self.args.captures_per_scene
+                scene, scene_capture_count
             )
         elif self.args.motion_mode == "rolling-grouped":
             if not control_prepared:
                 self.select_external_control_mode()
             captures, mode_metrics = self.drive_and_trigger_burst(
                 scene,
-                self.args.captures_per_scene,
+                scene_capture_count,
                 group_verified_frames=True,
+            )
+        elif self.args.motion_mode == "timed-grouped":
+            if not control_prepared:
+                self.select_external_control_mode()
+            captures, mode_metrics = self.drive_and_trigger_timed_grouped(
+                scene, scene_capture_count
             )
         else:
             captures = self.teleport_and_capture(
-                scene, self.args.captures_per_scene
+                scene, scene_capture_count
             )
         scene_finished = time.time()
         trigger_times = [
@@ -2771,12 +4448,21 @@ def select_scenes(manifest, requested):
     selected = [
         scene
         for scene in scenes
-        if scene["id"] in requested_set
-        or scene["file_name"] in requested_set
+        if any(
+            fnmatch.fnmatchcase(scene["id"], pattern)
+            or fnmatch.fnmatchcase(scene["file_name"], pattern)
+            for pattern in requested_set
+        )
     ]
-    found = {scene["id"] for scene in selected}
-    found.update(scene["file_name"] for scene in selected)
-    missing = requested_set - found
+    missing = {
+        pattern
+        for pattern in requested_set
+        if not any(
+            fnmatch.fnmatchcase(scene["id"], pattern)
+            or fnmatch.fnmatchcase(scene["file_name"], pattern)
+            for scene in selected
+        )
+    }
     if missing:
         raise ValueError("unknown scenario selectors: " + ", ".join(sorted(missing)))
     return selected
@@ -2787,7 +4473,29 @@ def validate_policy(args, manifest):
     if args.captures_per_scene is None:
         args.captures_per_scene = int(policy["captures_per_scene"])
     if args.capture_spacing_m is None:
-        args.capture_spacing_m = float(policy["capture_spacing_m"])
+        args.capture_spacing_m = float(policy.get("capture_spacing_m", 1.5))
+    if args.capture_period_sec is None:
+        args.capture_period_sec = float(policy.get("capture_period_sec", 0.5))
+    if args.capture_motion_arm_m is None:
+        args.capture_motion_arm_m = float(
+            policy.get("capture_motion_arm_m", 0.30)
+        )
+    if args.minimum_capture_progress_m is None:
+        args.minimum_capture_progress_m = float(
+            policy.get("minimum_capture_progress_m", 0.20)
+        )
+    if args.motion_stall_timeout_sec is None:
+        args.motion_stall_timeout_sec = float(
+            policy.get("motion_stall_timeout_sec", 5.0)
+        )
+    if args.actor_ready_timeout_sec is None:
+        args.actor_ready_timeout_sec = float(
+            policy.get("actor_ready_timeout_sec", 15.0)
+        )
+    args.dynamic_warmup_sec = float(policy.get("warmup_sec", 0.0))
+    args.prime_capture_before_clip = bool(
+        policy.get("prime_capture_before_clip", False)
+    )
     if args.speed_kph is None:
         args.speed_kph = float(policy["ego_target_speed_kph"])
     if args.maximum_motion_m is None:
@@ -2843,6 +4551,32 @@ def validate_policy(args, manifest):
         raise ValueError("--scenario-load-udp-port must be within 1..65535")
     if args.capture_stable_sec <= 0.0:
         raise ValueError("--capture-stable-sec must be positive")
+    if args.static_actor_stability_window_sec < 0.0:
+        raise ValueError(
+            "--static-actor-stability-window-sec must be non-negative"
+        )
+    if args.static_actor_max_displacement_m <= 0.0:
+        raise ValueError(
+            "--static-actor-max-displacement-m must be positive"
+        )
+    if args.static_actor_max_spawn_xy_error_m <= 0.0:
+        raise ValueError(
+            "--static-actor-max-spawn-xy-error-m must be positive"
+        )
+    if args.static_actor_max_spawn_z_error_m <= 0.0:
+        raise ValueError(
+            "--static-actor-max-spawn-z-error-m must be positive"
+        )
+    if args.capture_period_sec <= 0.0:
+        raise ValueError("--capture-period-sec must be positive")
+    if args.capture_motion_arm_m <= 0.0:
+        raise ValueError("--capture-motion-arm-m must be positive")
+    if args.minimum_capture_progress_m <= 0.0:
+        raise ValueError("--minimum-capture-progress-m must be positive")
+    if args.motion_stall_timeout_sec <= 0.0:
+        raise ValueError("--motion-stall-timeout-sec must be positive")
+    if args.actor_ready_timeout_sec <= 0.0:
+        raise ValueError("--actor-ready-timeout-sec must be positive")
     if args.teleport_timeout_sec <= 0.0:
         raise ValueError("--teleport-timeout-sec must be positive")
     if args.teleport_position_tolerance_m <= 0.0:
@@ -2857,6 +4591,11 @@ def validate_policy(args, manifest):
         raise ValueError("--control-mode-timeout-sec must be positive")
     if args.ego_heartbeat_timeout_sec <= 0.0:
         raise ValueError("--ego-heartbeat-timeout-sec must be positive")
+    if args.timing_history_sec <= 0.0:
+        raise ValueError("--timing-history-sec must be positive")
+    if args.timing_window_padding_sec < 0.0:
+        raise ValueError("--timing-window-padding-sec must be non-negative")
+    args.camera_timing_topics = parse_named_topics(args.camera_timing_topic)
     if args.required_sensor_dir is None:
         args.required_sensor_dirs = (
             "CAMERA_1",
@@ -2901,14 +4640,24 @@ def validate_policy(args, manifest):
         )
     if args.personal_steering_sign not in (-1.0, 1.0):
         raise ValueError("--personal-steering-sign must be either -1 or +1")
-    if not 0.5 <= args.speed_kph <= 7.2:
-        raise ValueError("--speed-kph must be within the PoC safety range 0.5..7.2")
+    # The original PoC only drove the low-speed static collection route and
+    # therefore rejected anything above 7.2 km/h.  Temporal V2 deliberately
+    # captures the competition highway distribution (up to about 60 km/h),
+    # while route deviation, heading, collision, and motion limits remain
+    # active.  Keep a finite guard instead of silently accepting arbitrary
+    # command speeds.
+    if not 0.5 <= args.speed_kph <= 80.0:
+        raise ValueError(
+            "--speed-kph must be within the capture safety range 0.5..80.0"
+        )
     capture_intervals = max(0, args.captures_per_scene - 1)
     if args.motion_mode in ("rolling-fast", "rolling-grouped"):
         # rolling-fast takes its first frame after one full spacing interval,
         # so every requested frame consumes route distance.
         capture_intervals = args.captures_per_scene
     required_motion = args.capture_spacing_m * capture_intervals
+    if args.motion_mode == "timed-grouped":
+        required_motion = 0.0
     if (
         args.motion_mode
         in (
@@ -2916,6 +4665,7 @@ def validate_policy(args, manifest):
             "rolling-safe",
             "rolling-fast",
             "rolling-grouped",
+            "timed-grouped",
             "teleport",
         )
         and required_motion > args.maximum_motion_m
@@ -3044,7 +4794,13 @@ def main():
     print("motion mode:", args.motion_mode)
     print("scenario load transport:", args.scenario_load_transport)
     print("captures per scene:", args.captures_per_scene)
-    print("capture spacing m:", args.capture_spacing_m)
+    if args.motion_mode == "timed-grouped":
+        print("capture period sec:", args.capture_period_sec)
+        print("capture motion arm m:", args.capture_motion_arm_m)
+        print("minimum capture progress m:", args.minimum_capture_progress_m)
+        print("motion stall timeout sec:", args.motion_stall_timeout_sec)
+    else:
+        print("capture spacing m:", args.capture_spacing_m)
     print("capture dir:", args.capture_dir)
     print("MORAI SensorData dir:", args.morai_sensor_data_dir)
     print("required sensor dirs:", ", ".join(args.required_sensor_dirs))

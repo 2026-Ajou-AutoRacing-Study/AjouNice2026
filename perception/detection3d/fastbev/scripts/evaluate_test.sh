@@ -32,6 +32,16 @@ export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 
 printf 'config: %s\ncheckpoint: %s\nsplit: test\n' "$CONFIG" "$CHECKPOINT"
 
+EVAL_ARGS=()
+if [[ "${FASTBEV_DISABLE_WANDB:-0}" != "1" ]]; then
+  export WANDB_ENTITY="${WANDB_ENTITY:-AjouNice2026}"
+  export WANDB_PROJECT="${WANDB_PROJECT:-morai-fastbev}"
+  export WANDB_RUN_ID="${WANDB_RUN_ID:-$(basename "$WORK_DIR")}"
+  EVAL_ARGS+=(--wandb --wandb-run-id "$WANDB_RUN_ID")
+  printf 'wandb test logging: %s/%s run=%s\n' \
+    "$WANDB_ENTITY" "$WANDB_PROJECT" "$WANDB_RUN_ID"
+fi
+
 python3 perception/detection3d/fastbev/tools/evaluate.py \
   --config "$CONFIG" \
   --checkpoint "$CHECKPOINT" \
@@ -39,4 +49,5 @@ python3 perception/detection3d/fastbev/tools/evaluate.py \
   --cudnn-benchmark \
   --metrics center,tp,iou \
   --output-json "$WORK_DIR/test_metrics.json" \
+  "${EVAL_ARGS[@]}" \
   2>&1 | tee "$WORK_DIR/test_evaluation.log"

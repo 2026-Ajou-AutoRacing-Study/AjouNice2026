@@ -15,18 +15,12 @@ generator.SCENE_ID_PREFIX = "s13p4_"
 generator.SCENARIO_FILE_PREFIX = "od_s13p4_"
 generator.MASTER_SEED = 260808181
 
-# These assets existed in both launchers but repeatedly vanished after scene
-# load across different links in the v3 180-scene run. Keep them in the
-# catalog for manual investigation, but not in unattended production sets.
+# The 2026-08-22 interleaved control/probe revalidation showed that every
+# formerly quarantined common vehicle loaded in both placements. The earlier
+# scene failures were therefore not asset-specific and must not shrink the
+# automatic asset catalog.
 generator.RUNTIME_EXCLUDED_ASSET_IDS = {
-    "vehicle": {
-        30100001,  # 2017_Hyundai_Grandeur
-        30200011,  # DEFAULT_SUV
-        30300003,  # DEFAULT_BUS
-        30400001,  # 2013_Hyundai_Porter2
-        30400005,  # 2014_Hyundai_Xcient(Mixer)
-        30700004,  # 2020_Kia_Niro(EV)
-    },
+    "vehicle": set(),
     "pedestrian": set(),
     "obstacle": set(),
 }

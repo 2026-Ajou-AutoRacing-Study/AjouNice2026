@@ -1,0 +1,52 @@
+<launch>
+  <!--
+    Competition midterm live-demo support stack.
+
+    It deliberately keeps detector/tracker/prediction and RViz in separate
+    launches, while owning every map/base/sensor transform needed to render
+    online LiDAR and objects in the Lanelet map frame.
+  -->
+  <arg name="use_sim_time" default="false"/>
+  <arg name="sensor_config"
+       default="$(env HOME)/AjouNice2026/configs/sensors/Sensor_6.json"/>
+  <arg name="map_file"
+       default="$(env HOME)/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
+  <arg name="projector_file"
+       default="$(env HOME)/AjouNice2026/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+  <arg name="use_heading_correction" default="true"/>
+  <arg name="heading_yaw_offset_deg" default="-1.347"/>
+
+  <!-- Competition Vehicle Status + GPS + IMU -> map/odom/base_link. -->
+  <include file="$(find bringup)/launch/localization_gnss_imu_gt_ctra.launch">
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="gt_source" value="competition"/>
+    <arg name="use_heading_correction" value="$(arg use_heading_correction)"/>
+    <arg name="heading_yaw_offset_deg" value="$(arg heading_yaw_offset_deg)"/>
+    <arg name="sensor_config" value="$(arg sensor_config)"/>
+    <!-- One shared sensor-TF publisher below owns the complete sensor tree. -->
+    <arg name="publish_sensor_tf" value="false"/>
+  </include>
+
+  <!-- Publish the complete sensor tree exactly once. -->
+  <include file="$(find bringup)/launch/sensing.launch">
+    <arg name="sensor_config" value="$(arg sensor_config)"/>
+    <arg name="enable_sensor_tf" value="true"/>
+    <arg name="enable_ego_tf" value="false"/>
+    <arg name="enable_vehicle_model" value="false"/>
+    <arg name="start_rviz" value="false"/>
+    <arg name="publish_lidar_tf" value="true"/>
+    <arg name="publish_camera_tf" value="true"/>
+    <arg name="publish_imu_tf" value="true"/>
+    <arg name="publish_gps_tf" value="true"/>
+  </include>
+
+  <!-- The localization launch does not publish Lanelet markers itself. -->
+  <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="projector_file" value="$(arg projector_file)"/>
+    <arg name="projector_type" value="LocalCartesianUTM"/>
+    <arg name="frame_id" value="map"/>
+    <arg name="output_topic" value="/map/lanelet_map"/>
+    <arg name="publish_lanelet_fill" value="false"/>
+  </include>
+</launch>

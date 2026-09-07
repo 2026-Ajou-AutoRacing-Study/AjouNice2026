@@ -29,6 +29,8 @@ img_norm_cfg = dict(
     std=[58.395, 57.12, 57.375],
     to_rgb=True)
 class_names = ['vehicle', 'pedestrian', 'obstacle']
+image_transform_backend = __import__('os').environ.get(
+    'FASTBEV_IMAGE_BACKEND', 'pil').lower()
 
 train_pipeline = [
     dict(type='MoraiMultiViewPipeline', n_images=4, transforms=[
@@ -37,8 +39,8 @@ train_pipeline = [
          with_bbox=False, with_label=False),
     dict(type='LoadPointsFromFile', dummy=True, coord_type='LIDAR',
          load_dim=5, use_dim=5),
-    dict(type='RandomAugImageMultiViewImage', data_config=data_config,
-         is_train=False),
+    dict(type='MoraiAugImageMultiViewImage', data_config=data_config,
+         backend=image_transform_backend, is_train=False),
     dict(type='ObjectRangeFilter',
          point_cloud_range=[-50, -50, -5, 50, 50, 3]),
     dict(type='KittiSetOrigin',

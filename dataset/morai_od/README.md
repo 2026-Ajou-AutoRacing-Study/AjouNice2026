@@ -62,6 +62,29 @@ dataset/morai_od/
 보행자와 장애물을 배치한다. 날씨와 시간은 MORAI Internal Scenario JSON에
 검증된 필드가 없어 metadata에만 기록한다.
 
+대회 미션 기반 동적 차량·횡단 보행자·정적 장애물의 연속 clip 생성과
+velocity/acceleration/temporal metadata 수집은
+`docs/dynamic_object_capture_v1.md`를 따른다. 동적 수집도 검증된
+`/SaveSensorData`를 사용하되 0.5초 시간 간격과 Ego 진행거리 gate를 함께
+적용해 12개 keyframe을 저장한다. 첫 frame 전 0.30 m, 이후 frame 사이 0.20 m
+이상의 실제 진행을 요구하여 제어가 끊긴 정지 중복 캡처를 차단한다.
+`/Ego_topic`과 `/Object_topic`은 bag으로 기록하지 않고 각 요청
+시점의 상태를 frame metadata에 결합하며 scenario/clip 단위로 split한다.
+
+향후 Dataset V2의 혼합/class-focused 장면 비율, obstacle 형상·거리 quota와
+단계적 수집 계획은 `docs/dataset_v2_scenario_generation_plan.md`를 따른다.
+정적 random 1,998-frame 세트는
+`scripts/generate_static_random_1998_v1_set.py`와
+`configs/od_static_random_1998_v1.yaml`에 정의한다. 서로 다른 666개 scene을
+장면당 3 frame, 3.0 m 간격으로 모두 Sunny 13:00에서 촬영한다.
+
+E65의 높은 객체 관측 밀도 가설을 Base3의 전역 MGeo Ego 분포와 결합한
+`Base3-Static 10K` 통제 실험은
+`docs/base3_static_classcentric_10k_design.md`를 따른다. 정식 ID는
+`morai_static_classcentric_base3_10k`이며 3,334 static-layout clips,
+10,002 frames로 구성한다. 이는 velocity/temporal dataset이 아니라
+single-frame LRASPP·PointPainting 일반화 실험용이다.
+
 ```bash
 # 기본 seed와 anchor로 프로토타입 시나리오 생성
 cd ~/AjouNice2026

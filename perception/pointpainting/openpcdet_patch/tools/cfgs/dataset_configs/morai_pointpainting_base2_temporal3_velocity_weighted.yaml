@@ -1,0 +1,45 @@
+DATASET: CustomDataset
+DATA_PATH: ../data/morai_pointpainting_base2_temporal3_velocity_weighted
+GT_BOX_DIM: 10
+TRAIN_WITH_SPEED: true
+POINT_CLOUD_RANGE: [-30.0, -30.0, -3.0, 30.0, 30.0, 2.0]
+
+MAP_CLASS_TO_KITTI:
+  Pedestrian: Pedestrian
+  Vehicle: Vehicle
+  Obstacle: Obstacle
+
+DATA_SPLIT:
+  train: train
+  test: val
+
+INFO_PATH:
+  train: [custom_infos_train.pkl]
+  test: [custom_infos_val.pkl]
+
+POINT_FEATURE_ENCODING:
+  encoding_type: absolute_coordinates_encoding
+  used_feature_list: [x, y, z, intensity, background, pedestrian, vehicle, obstacle, unknown, time_lag_sec]
+  src_feature_list: [x, y, z, intensity, background, pedestrian, vehicle, obstacle, unknown, time_lag_sec]
+
+DATA_AUGMENTOR:
+  DISABLE_AUG_LIST: [placeholder]
+  # D4 T0 intentionally starts without geometric augmentation. GT sampling
+  # cannot create coherent multi-sweep history, and flips alter road handedness.
+  # Rotation/scale can be added as a separate ablation because the three
+  # sweeps are already fused and therefore receive one shared transform.
+  AUG_CONFIG_LIST: []
+
+DATA_PROCESSOR:
+  - NAME: mask_points_and_boxes_outside_range
+    REMOVE_OUTSIDE_BOXES: true
+  - NAME: shuffle_points
+    SHUFFLE_ENABLED:
+      train: true
+      test: false
+  - NAME: transform_points_to_voxels
+    VOXEL_SIZE: [0.15, 0.15, 5.0]
+    MAX_POINTS_PER_VOXEL: 32
+    MAX_NUMBER_OF_VOXELS:
+      train: 30000
+      test: 40000
