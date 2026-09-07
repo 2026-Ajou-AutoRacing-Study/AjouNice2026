@@ -98,4 +98,3 @@ map_yaw_deg = Ego_topic.heading_deg - 1.347 deg
 다만 공식 계약 확인 전에는 simulator bug fix로 간주하지 않으며, 대회 환경의 datum이나
 map projection이 달라질 경우 고정값 대신 현재 위치의 meridian convergence를 계산해야
 한다고 판단한다.
-
