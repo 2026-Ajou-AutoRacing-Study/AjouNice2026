@@ -11,10 +11,7 @@
       "tree"
     ],
     "runtime_observed_excluded_data_ids": {
-      "pedestrian": [
-        50100005,
-        50200004
-      ],
+      "pedestrian": [],
       "obstacle": [
         40100032
       ]
@@ -118,6 +115,7 @@
       50100002,
       50100003,
       50100004,
+      50100005,
       50100006,
       50100007,
       50100008,
@@ -138,6 +136,7 @@
       50100084,
       50200001,
       50200002,
+      50200004,
       50200005,
       50300001,
       50300002,
@@ -272,22 +271,7 @@
   },
   "policy_excluded": {
     "vehicle": [],
-    "pedestrian": [
-      {
-        "data_id": 50100005,
-        "name": "Woman2",
-        "present_in_competition": true,
-        "present_in_personal": true,
-        "reason": "Woman2 was the only common pedestrian in geometry trial v3 scenes geo3_005, geo3_010, and geo3_016; every scene loaded exactly one fewer pedestrian. Excluded from personal-launcher automatic generation after three deterministic failures."
-      },
-      {
-        "data_id": 50200004,
-        "name": "Girl2",
-        "present_in_competition": true,
-        "present_in_personal": true,
-        "reason": "Girl2 failed to appear from the personal-launcher template in geometry trial geo009."
-      }
-    ],
+    "pedestrian": [],
     "obstacle": [
       {
         "data_id": 40100032,
@@ -2501,6 +2485,19 @@
         ]
       },
       {
+        "data_id": 50100005,
+        "competition_name": "Woman2",
+        "personal_name": "Woman2",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -366962,
+            "personal": -378624
+          }
+        ]
+      },
+      {
         "data_id": 50100006,
         "competition_name": "Woman3",
         "personal_name": "Woman3",
@@ -2744,6 +2741,19 @@
             "change": "value_changed",
             "competition": -332466,
             "personal": -390886
+          }
+        ]
+      },
+      {
+        "data_id": 50200004,
+        "competition_name": "Girl2",
+        "personal_name": "Girl2",
+        "changed_fields": [
+          {
+            "path": "anim.m_FileID",
+            "change": "value_changed",
+            "competition": -334074,
+            "personal": -391812
           }
         ]
       },

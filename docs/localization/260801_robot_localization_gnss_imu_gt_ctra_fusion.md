@@ -996,3 +996,15 @@ TF를 기준으로 다음 A/B 검증을 수행한다.
 수동 `map -> morai_map` TF를 시험할 때는 결과 bag에 저장된
 `/tf_static`을 재생하면 안 된다. recorded TF와 수동 TF가 동시에 같은
 child frame을 발행하여 RViz 결과가 불안정해질 수 있기 때문이다.
+
+### 2026-08-18 v60 정량 재검증 결과
+
+위 A/B 계획을 최신 v60, 현재 competition MGeo, Roundabout 1·Highway 1 NPC
+궤적으로 수행했다. bag 운행 구간의 MGeo centerline을 Lanelet centerline에
+직접 투영했을 때 기존 v23 미세 보정은 p50 `0.0946 m`, 평균 보정 벡터
+`(-0.0856, +0.0005) m`를 남겼다. 미세 보정 전 runtime-origin 변환은 p50
+`0.0025 m`, 평균 보정 벡터 `(+0.0028, -0.0003) m`였다.
+
+따라서 v60에는 옛 v23 refinement가 중복 적용되어 약 `0.1 m` 고정 벡터
+bias를 만들었다고 판정했다. production은 runtime-origin 변환으로 전환하고,
+옛 값은 과거 평가 bag 재현용 legacy YAML로만 보존한다.

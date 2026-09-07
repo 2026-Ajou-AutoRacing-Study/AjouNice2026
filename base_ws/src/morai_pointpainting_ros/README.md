@@ -1,6 +1,7 @@
 # MORAI PointPainting ROS
 
-ROS1 Noetic package that converts four camera images and one LiDAR scan directly into oriented 3D pedestrian boxes.
+ROS1 Noetic package that converts four camera images and one LiDAR scan into
+three-class oriented 3D detections.
 
 ## Why this package exists
 
@@ -15,19 +16,20 @@ The node therefore subscribes to the original sensor topics, performs segmentati
 ## Runtime graph
 
 ```text
-/sensor/cam/front
-/sensor/cam/front_left
-/sensor/cam/front_right
-/sensor/cam/back
+/sensor/camera/front/compressed
+/sensor/camera/front_left/compressed
+/sensor/camera/front_right/compressed
+/sensor/camera/back/compressed
           │
           ├── latest image at or before LiDAR timestamp
-          ├── LRASPP MobileNetV3 semantic segmentation
+          ├── MORAI LRASPP MobileNetV3 4-class segmentation
           │
 /sensor/lidar1
-          ├── projection + semantic painting (10 point features)
-          ├── PointPillars epoch-20 inference
-          └── /pointpainting/detections
-                └── tracking / trajectory prediction / planning
+          ├── projection + camera-probability averaging
+          ├── 9 features: XYZI + bg/ped/veh/obs/unknown
+          ├── PointPillars 3-class inference
+          ├── /perception/object_recognition/detection/objects (official)
+          └── /pointpainting/detections (legacy diagnostics)
 ```
 
 The LiDAR queue is intentionally size 1. When processing is slower than sensor input, stale scans are replaced by the newest scan instead of building latency.
@@ -36,14 +38,15 @@ The LiDAR queue is intentionally size 1. When processing is slower than sensor i
 
 Inputs:
 
-- `/sensor/cam/front`
-- `/sensor/cam/front_left`
-- `/sensor/cam/front_right`
-- `/sensor/cam/back`
+- `/sensor/camera/front/compressed`
+- `/sensor/camera/front_left/compressed`
+- `/sensor/camera/front_right/compressed`
+- `/sensor/camera/back/compressed`
 - `/sensor/lidar1`
 
 Outputs:
 
+- `/perception/object_recognition/detection/objects`
 - `/pointpainting/detections`
 - `/pointpainting/detection_markers`
 - `/pointpainting/painted_points` when debug publishing is enabled
@@ -52,10 +55,12 @@ Outputs:
 
 - Ubuntu 20.04 / ROS Noetic
 - CUDA GPU
-- existing `openpcdet` Conda environment
+- `openpcdet_rtx50` Conda environment
 - OpenPCDet at `~/OpenPCDet`
-- trained checkpoint:
-  `~/OpenPCDet/output/custom_models/pointpillar_morai_pointpainting/pointpainting_20epoch/ckpt/checkpoint_epoch_20.pth`
+- S1 E38 detector release bundle at
+  `artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/`
+- shared LRASPP checkpoint at
+  `artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/lraspp_4class_best_miou.pth`
 
 Install ROS dependencies:
 
@@ -66,12 +71,8 @@ sudo apt install -y \
   ros-noetic-visualization-msgs
 ```
 
-Pre-download segmentation weights before competition day:
-
-```bash
-conda activate openpcdet
-python src/morai_pointpainting_ros/scripts/download_segmentation_weights.py
-```
+The detector and segmentation checkpoints are stored in separate release
+directories. Runtime does not download VOC segmentation weights.
 
 ## Build
 
@@ -89,7 +90,7 @@ The shell must use the OpenPCDet Conda Python. Do not keep a second virtualenv a
 
 ```bash
 deactivate 2>/dev/null || true
-conda activate openpcdet
+conda activate openpcdet_rtx50
 source /opt/ros/noetic/setup.bash
 source ~/catkin_ws/devel/setup.bash
 which python
@@ -113,7 +114,7 @@ Terminal 2:
 
 ```bash
 deactivate 2>/dev/null || true
-conda activate openpcdet
+conda activate openpcdet_rtx50
 source /opt/ros/noetic/setup.bash
 source ~/catkin_ws/devel/setup.bash
 
@@ -168,26 +169,67 @@ Debug cloud publishing should be disabled for the final run to reduce copying an
 
 ## Real-time acceptance checks
 
-The current measured offline budget was approximately:
+The 2026-08-16 runtime benchmark uses four CPU workers for camera decode and
+the training-compatible torchvision/PIL preprocessing path. At a stress input
+of camera 34.6 Hz / LiDAR 15.0 Hz it measured:
 
-- segmentation + painting: 78.5 ms
-- PointPillars: 21.2 ms
-- total compute: about 100 ms
+- detection publish: 14.97 Hz
+- total compute p50/p95: 54.9 / 59.5 ms
+- arrival-to-publish p50/p95: 58.5 / 72.5 ms
+- LiDAR replacement: 1/464 frames (0.22%)
+- continuously growing queue: not observed
 
-The original 8.7 Hz test bag gives about 115 ms per LiDAR scan. During the rosbag and live tests, confirm:
+During rosbag and live tests, confirm:
 
 - `total_ms` usually remains below the LiDAR period.
 - `queue_delay_ms` does not grow continuously.
 - `dropped_lidar_frames` does not increase continuously.
 - `camera_age_max_ms` stays below 100 ms.
-- output `header.stamp` equals the source LiDAR stamp.
+- output `header.stamp` is the representative object-point acquisition time
+  when `lidar_measurement_stamp_mode:=object_points_median` (production
+  default). `header` mode preserves the source LiDAR scan stamp for A/B tests.
 - output `header.frame_id` is `lidar1`.
+
+Run a reproducible benchmark with:
+
+```bash
+perception/pointpainting/tools/run_rosbag_runtime_benchmark.sh \
+  rosbags/raw_sensor_w_cam/sensor_cam_raw_roundabout1.bag \
+  1.73 \
+  artifacts/detection3d/pointpainting/benchmarks/roundabout_x1p73
+```
+
+See
+[`perception/pointpainting/docs/runtime_benchmark_260816.md`](../../../perception/pointpainting/docs/runtime_benchmark_260816.md)
+for stage timings, throughput/latency separation, and the OpenCV comparison.
 
 ## Temporal matching limitation
 
 Version 0.1 uses the newest camera image whose timestamp is not later than the LiDAR timestamp. This is causal and works for both rosbag and live operation.
 
-It does not yet apply ego-motion compensation between the camera and LiDAR timestamps. The recorded bag had camera matching errors in the tens of milliseconds, so the first integration test must inspect box stability while the ego vehicle is moving. Ego-motion compensation should be added only if that test shows a measurable projection error.
+The production rolling-LiDAR correction changes only the detection measurement
+timestamp. The representative timestamp is the median of per-box point-time
+medians, with the scan point median as fallback. This avoids letting one dense
+box dominate the frame timestamp.
+
+An optional `ego_pose_2d` point-coordinate deskew is also implemented, but it
+remains disabled. Highway A/B improved static scan alignment while worsening
+detection precision, tracking and Map-CV prediction with the current checkpoint.
+See
+[`rolling_lidar_ego_deskew_ab_260820.md`](../../../perception/pointpainting/docs/rolling_lidar_ego_deskew_ab_260820.md).
+
+Experimental controls are:
+
+- `lidar_deskew_mode:=off|ego_pose_2d`.
+- `lidar_deskew_reference:=header|point_median`.
+- `lidar_deskew_camera_reference:=header|reference`.
+
+When deskew is enabled, `reference` camera matching keeps point coordinates and
+camera observations at the same time and is the physically consistent default.
+
+The production path does not apply ego-motion compensation between camera and
+LiDAR timestamps. Enabling coordinate deskew without training-time deskew is
+not recommended for the current model.
 
 ## Git repository policy
 

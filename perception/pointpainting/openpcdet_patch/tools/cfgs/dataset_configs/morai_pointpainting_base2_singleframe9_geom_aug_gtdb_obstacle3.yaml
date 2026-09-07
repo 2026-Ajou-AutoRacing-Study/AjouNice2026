@@ -1,0 +1,58 @@
+DATASET: CustomDataset
+DATA_PATH: ../data/morai_pointpainting_base2_singleframe9
+POINT_CLOUD_RANGE: [-30.0, -30.0, -3.0, 30.0, 30.0, 2.0]
+
+MAP_CLASS_TO_KITTI:
+  Pedestrian: Pedestrian
+  Vehicle: Vehicle
+  Obstacle: Obstacle
+
+DATA_SPLIT:
+  train: train
+  test: val
+
+INFO_PATH:
+  train: [custom_infos_train.pkl]
+  test: [custom_infos_val.pkl]
+
+POINT_FEATURE_ENCODING:
+  encoding_type: absolute_coordinates_encoding
+  used_feature_list: [x, y, z, intensity, background, pedestrian, vehicle, obstacle, unknown]
+  src_feature_list: [x, y, z, intensity, background, pedestrian, vehicle, obstacle, unknown]
+
+# S1h keeps the successful S1g Pedestrian/Vehicle sampling while reducing
+# only the over-represented Obstacle copy-paste quota. This is a controlled
+# confidence-calibration and false-positive ablation.
+DATA_AUGMENTOR:
+  DISABLE_AUG_LIST: [placeholder]
+  AUG_CONFIG_LIST:
+    - NAME: gt_sampling
+      USE_ROAD_PLANE: false
+      DB_INFO_PATH: [custom_dbinfos_train.pkl]
+      PREPARE:
+        filter_by_min_points: [Pedestrian:3, Vehicle:5, Obstacle:1]
+      SAMPLE_GROUPS: [Pedestrian:10, Vehicle:10, Obstacle:3]
+      NUM_POINT_FEATURES: 9
+      DATABASE_WITH_FAKELIDAR: false
+      REMOVE_EXTRA_WIDTH: [0.0, 0.0, 0.0]
+      LIMIT_WHOLE_SCENE: true
+    - NAME: random_world_flip
+      ALONG_AXIS_LIST: [x, y]
+    - NAME: random_world_rotation
+      WORLD_ROT_ANGLE: [-0.78539816, 0.78539816]
+    - NAME: random_world_scaling
+      WORLD_SCALE_RANGE: [0.95, 1.05]
+
+DATA_PROCESSOR:
+  - NAME: mask_points_and_boxes_outside_range
+    REMOVE_OUTSIDE_BOXES: true
+  - NAME: shuffle_points
+    SHUFFLE_ENABLED:
+      train: true
+      test: false
+  - NAME: transform_points_to_voxels
+    VOXEL_SIZE: [0.15, 0.15, 5.0]
+    MAX_POINTS_PER_VOXEL: 32
+    MAX_NUMBER_OF_VOXELS:
+      train: 30000
+      test: 40000

@@ -1,0 +1,86 @@
+{
+  "dataset_root": "/home/jeon/ajouNice/AjouNice2026/data/morai_4class_v1",
+  "split_method": "deterministic contiguous split using full MORAI sample key; same-key CAMERA_1~4 samples remain together",
+  "group_identifier": "full filename stem, not fXX token",
+  "target_classes": {
+    "0": "background",
+    "1": "pedestrian",
+    "2": "vehicle",
+    "3": "obstacle"
+  },
+  "cameras": [
+    "CAMERA_1",
+    "CAMERA_2",
+    "CAMERA_3",
+    "CAMERA_4"
+  ],
+  "total_groups": 476,
+  "total_images": 1904,
+  "requested_ratios": {
+    "train": 0.7,
+    "val": 0.15,
+    "test": 0.15
+  },
+  "splits": {
+    "train": {
+      "groups": 333,
+      "images": 1332,
+      "actual_ratio_by_group": 0.6995798319327731,
+      "first_sample_key": "s13_001_sunny_t13_f00_r0807125534",
+      "last_sample_key": "s13_120_sunny_t13_f02_r0807125534",
+      "pixel_counts": {
+        "background": 789172060,
+        "pedestrian": 1358554,
+        "vehicle": 27422424,
+        "obstacle": 427762
+      },
+      "images_containing_class": {
+        "background": 1332,
+        "pedestrian": 589,
+        "vehicle": 846,
+        "obstacle": 360
+      },
+      "invalid_masks": []
+    },
+    "val": {
+      "groups": 71,
+      "images": 284,
+      "actual_ratio_by_group": 0.14915966386554622,
+      "first_sample_key": "s13_120_sunny_t13_f03_r0807125534",
+      "last_sample_key": "s13_145_sunny_t13_f05_r0807125534",
+      "pixel_counts": {
+        "background": 170798604,
+        "pedestrian": 420822,
+        "vehicle": 2364593,
+        "obstacle": 905581
+      },
+      "images_containing_class": {
+        "background": 284,
+        "pedestrian": 134,
+        "vehicle": 118,
+        "obstacle": 92
+      },
+      "invalid_masks": []
+    },
+    "test": {
+      "groups": 72,
+      "images": 288,
+      "actual_ratio_by_group": 0.15126050420168066,
+      "first_sample_key": "s13_148_sunny_t13_f00_r0807125534",
+      "last_sample_key": "s13_179_sunny_t13_f05_r0807125534",
+      "pixel_counts": {
+        "background": 172459440,
+        "pedestrian": 268739,
+        "vehicle": 4104090,
+        "obstacle": 114931
+      },
+      "images_containing_class": {
+        "background": 288,
+        "pedestrian": 104,
+        "vehicle": 158,
+        "obstacle": 107
+      },
+      "invalid_masks": []
+    }
+  }
+}

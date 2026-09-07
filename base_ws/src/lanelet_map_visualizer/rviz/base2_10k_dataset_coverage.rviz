@@ -1,0 +1,85 @@
+Panels:
+  - Class: rviz/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /K-City Lanelet2 v601
+        - /Base2-10K Ego Coverage1
+      Splitter Ratio: 0.55
+    Tree Height: 720
+  - Class: rviz/Views
+    Expanded:
+      - /Current View1
+    Name: Views
+    Splitter Ratio: 0.5
+Preferences:
+  PromptSaveOnExit: true
+Toolbars:
+  toolButtonStyle: 2
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.18
+      Cell Size: 20
+      Class: rviz/Grid
+      Color: 84; 88; 96
+      Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
+      Name: 20 m Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 100
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /map/lanelet_map
+      Name: K-City Lanelet2 v60
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /dataset/base2_10k/ego_coverage
+      Name: Base2-10K Ego Coverage
+      Namespaces:
+        {}
+      Queue Size: 20
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 18; 20; 24
+    Fixed Frame: morai_map
+    Frame Rate: 20
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
+    - Class: rviz/FocusCamera
+    - Class: rviz/Measure
+  Views:
+    Current:
+      Angle: 0
+      Class: rviz/TopDownOrtho
+      Name: Base2-10K Full Route
+      Scale: 1.1
+      Target Frame: <Fixed Frame>
+      X: -15
+      Y: -85
+    Saved: ~
+Window Geometry:
+  Height: 950
+  Hide Left Dock: false
+  Hide Right Dock: true
+  Width: 1550
+  X: 20
+  Y: 30

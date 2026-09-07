@@ -177,16 +177,36 @@ Front/Back은 1280×720, Left/Right는 640×480이므로 단순 강제 resize로
 
 ### 5.1 BEV 좌우 반전 증강 정책
 
-현재 Fast-BEV baseline은 train sample마다 50% 확률로 Ego/LiDAR 좌표계의
-좌우축을 반전하는 `flip_ratio_bev_horizontal=0.5`를 사용한다. 원본 파일을
-변경하는 방식이 아니라 학습 중 3D box의 `y`, yaw와 camera projection을 함께
-변환하는 runtime augmentation이며 validation/test에는 적용하지 않는다. 전후 반전은
-`flip_ratio_bev_vertical=0.0`으로 사용하지 않는다.
+기존 12-epoch PIL baseline은 train sample마다 Ego/LiDAR 좌표계의 좌우축을
+`flip_ratio_bev_horizontal=0.5`로 반전했고, image horizontal flip도 50%로
+사용했다. 원본 파일을 바꾸는 것이 아니라 학습 중 3D box의 `y`, yaw와 camera
+projection을 함께 바꾸는 runtime augmentation이며 validation/test에는 적용하지
+않는다. 전후 반전은 `flip_ratio_bev_vertical=0.0`으로 사용하지 않는다.
 
-1,050-frame train split처럼 데이터가 작은 첫 baseline에서는 과적합 완화를 위해
-`0.5`를 유지한다. 다만 K-City의 우측통행과 좌·우 객체 분포 자체가 유효한 prior일 수
-있으므로, baseline 이후 같은 split과 seed로 `0.0` 또는 `0.2`를 비교하는 ablation을
-수행할 가치가 있다. 이 비교 전에는 좌우 반전 비율을 학습 도중 변경하지 않는다.
+후속 deployment-matched OpenCV 학습은 K-City 우측통행과 고정된 네 camera role을
+유효한 prior로 보존하기 위해 BEV horizontal flip을 10%, image horizontal flip을
+20%로 낮춘다. 같은 1,050/228/222 split, seed와 12-epoch schedule을 유지해 기존
+PIL/50% baseline과 비교한다. 실제 확률은 W&B run config에 남기며 학습 도중에는
+변경하지 않는다.
+
+2026-08-14 결합 실험에서 OpenCV/10%/20% 후보의 test center mAP는 `0.5753`으로
+PIL/50%/50% baseline의 `0.6001`보다 0.0248 낮았다. vehicle mean AP는
+`0.6874 -> 0.6884`로 유지됐지만 obstacle mean AP는 `0.4483 -> 0.3888`로
+낮아졌다. 반면 offline end-to-end FPS는 `10.88 -> 13.56`으로 증가했다. 이 결과는
+backend와 두 flip 확률을 동시에 변경했으므로 단일 요인의 인과 비교는 아니다.
+PIL 모델을 정확도 baseline, OpenCV 모델을 실시간 배포 후보로 각각 보존하고 다음
+ablation에서는 OpenCV를 고정한 채 flip 확률만 비교한다.
+
+후속 OpenCV 50%/50% 통제 실험은 test center mAP `0.5919`를 기록해 10%/20%의
+`0.5753`보다 0.0166 높았고, PIL 50%/50%의 `0.6001`과는 0.0082 차이였다.
+vehicle/pedestrian mean AP는 PIL과 사실상 동등했고 IoU mAP@0.50은
+`0.2654 -> 0.2751`로 높아졌다. obstacle mean AP는 `0.4483 -> 0.4194`로
+여전히 낮았다. 이 결과에 따라 당시 single-frame C0는 OpenCV backend와 50%/50%
+flip을 사용하고, obstacle 데이터 및 annotation 품질을 별도로 개선하기로 했다.
+이 조건은 역사적 C0 재현 config에 보존한다. 이후 공식 nuScenes Fast-BEV 호환
+weight 초기화 실험에서 I3가 두 seed와 held-out test 개선을 재현하여,
+2026-08-15부터 새 실험의 기본은 동일 학습 조건의 I3로 전환했다. 상세 수치와 준비
+방법은 `initialization_ablation_runbook.md`를 따른다.
 
 ### 5.2 작은 객체용 BEV 출력 격자
 
@@ -296,6 +316,29 @@ StreamPETR용 데이터는 다음 조건을 만족해야 한다.
 - scene 경계에서 temporal memory를 초기화할 수 있을 것
 - 이전 Ego 좌표에서 현재 Ego 좌표로의 상대 변환을 계산할 수 있을 것
 - 동적 객체를 포함한다면 객체 velocity와 ID 연속성이 검증될 것
+
+### 6.1 Temporal augmentation 원칙
+
+Fast-BEV single-frame 학습은 각 sample에서 독립적으로 augmentation을 뽑는다.
+StreamPETR처럼 여러 frame을 하나의 학습 sample로 사용하는 모델에서는 한 sequence의
+모든 frame에 동일한 geometry parameter를 적용한다.
+
+```text
+하나의 sequence augmentation 추첨
+  -> t0의 front/left/right/back
+  -> t1의 front/left/right/back
+  -> ...
+  -> tN의 front/left/right/back
+```
+
+공유 대상은 BEV flip, global rotation/scale/translation과 image
+resize/crop/flip/rotation이다. 각 frame에 독립적인 geometry를 적용하면 정적 물체도
+시간축에서 위치·크기·방향이 흔들리는 인공 motion이 생길 수 있다. 모든 frame의 3D
+annotation, Ego pose, sensor projection에는 같은 transform을 일관되게 반영한다.
+
+Photometric augmentation은 여섯 개로 제한된 MORAI 실제 환경 조합을 직접 수집할 수
+있으므로 현재 보류한다. 추후 필요성이 확인되면 view와 temporal frame 사이에서 같은
+밝기·색상 parameter를 공유하는 약한 sequence-level 변환부터 검증한다.
 
 ## 7. 비교 실험의 해석
 
@@ -527,7 +570,7 @@ mean/p50/p95 latency, peak CUDA memory 및 class별 3D AP/Recall이 포함된다
 
 ## BEV 격자 해상도와 ROI 후보
 
-현재 production 설정은 `[-50, 50] m`의 XY 범위를 `200x200` cell로 표현하므로
+현재 C0/I3 공통 설정은 `[-50, 50] m`의 XY 범위를 `200x200` cell로 표현하므로
 native BEV voxel은 `0.5x0.5 m`이다. `neck_3d.stride=1`을 사용해 detection head도
 이 0.5 m grid를 유지한다. 이는 Fast-BEV 구조의 하한이 아니라 현재 속도와 작은 객체
 성능 사이에서 선택한 baseline이다. box center는 anchor에 대한 연속 offset으로

@@ -15,6 +15,16 @@ def _float32(value):
 class MoraiMultiViewDataset(MultiViewMixin, NuScenesDataset):
     """NuScenes-info-compatible dataset without the upstream 6-camera assert."""
 
+    def __init__(self,
+                 *args,
+                 obstacle_shape_merge=False,
+                 merged_obstacle_nms_iou_threshold=0.2,
+                 **kwargs):
+        self.obstacle_shape_merge = bool(obstacle_shape_merge)
+        self.merged_obstacle_nms_iou_threshold = float(
+            merged_obstacle_nms_iou_threshold)
+        super().__init__(*args, **kwargs)
+
     def get_data_info(self, index):
         data_info = NuScenesDataset.get_data_info(self, index)
         camera_count = len(data_info["img_filename"])
@@ -63,6 +73,7 @@ class MoraiMultiViewDataset(MultiViewMixin, NuScenesDataset):
         """
         from mmdet3d.core.evaluation import indoor_eval
         from perception.detection3d.common.evaluation import (
+            merge_obstacle_shape_schema,
             morai_detection_eval,
         )
 
@@ -135,57 +146,104 @@ class MoraiMultiViewDataset(MultiViewMixin, NuScenesDataset):
                 center_metrics = compact_metrics
             metrics.update(center_metrics)
 
-        if 'iou' not in requested:
-            return metrics
+        def evaluate_iou(schema_infos, schema_results, schema_classes):
+            normalized_results = []
+            for result in schema_results:
+                if "pts_bbox" in result:
+                    result = result["pts_bbox"]
+                elif "img_bbox" in result:
+                    result = result["img_bbox"]
+                # Fast-BEV predicts a 9D box including (vx, vy), whereas the
+                # generic 3D IoU evaluator accepts geometric 7D boxes only.
+                boxes_3d = result["boxes_3d"]
+                boxes_3d = type(boxes_3d)(
+                    boxes_3d.tensor[:, :7],
+                    box_dim=7,
+                    with_yaw=boxes_3d.with_yaw).to("cpu")
+                normalized_results.append({
+                    "boxes_3d": boxes_3d,
+                    "scores_3d": result["scores_3d"].detach().cpu(),
+                    "labels_3d": result["labels_3d"].detach().cpu(),
+                })
 
-        normalized_results = []
-        for result in results:
-            if "pts_bbox" in result:
-                result = result["pts_bbox"]
-            elif "img_bbox" in result:
-                result = result["img_bbox"]
-            # Fast-BEV predicts a 9D box including (vx, vy), whereas the
-            # generic 3D IoU evaluator accepts geometric 7D boxes only.
-            boxes_3d = result["boxes_3d"]
-            boxes_3d = type(boxes_3d)(
-                boxes_3d.tensor[:, :7],
-                box_dim=7,
-                with_yaw=boxes_3d.with_yaw).to("cpu")
-            normalized_results.append({
-                "boxes_3d": boxes_3d,
-                "scores_3d": result["scores_3d"].detach().cpu(),
-                "labels_3d": result["labels_3d"].detach().cpu(),
-            })
+            gt_annos = []
+            for info in schema_infos:
+                if self.use_valid_flag:
+                    mask = np.asarray(info["valid_flag"], dtype=bool)
+                else:
+                    mask = np.asarray(info["num_lidar_pts"]) > 0
+                names = np.asarray(info["gt_names"])[mask]
+                labels = np.asarray([
+                    schema_classes.index(name)
+                    if name in schema_classes else -1
+                    for name in names
+                ], dtype=np.int64)
+                known = labels >= 0
+                boxes = np.asarray(
+                    info["gt_boxes"], dtype=np.float32)[mask][known]
+                gt_annos.append({
+                    "gt_num": int(known.sum()),
+                    "gt_boxes_upright_depth": boxes[:, :7],
+                    "class": labels[known],
+                })
+            label2cat = {
+                index: name for index, name in enumerate(schema_classes)}
+            return indoor_eval(
+                gt_annos,
+                normalized_results,
+                tuple(iou_thr),
+                label2cat,
+                logger=logger,
+                box_type_3d=self.box_type_3d,
+                box_mode_3d=self.box_mode_3d)
 
-        gt_annos = []
-        for info in self.data_infos:
-            if self.use_valid_flag:
-                mask = np.asarray(info["valid_flag"], dtype=bool)
-            else:
-                mask = np.asarray(info["num_lidar_pts"]) > 0
+        if 'iou' in requested:
+            iou_metrics = evaluate_iou(
+                self.data_infos, results, list(self.CLASSES))
+            metrics.update({f"iou/{key}": value
+                            for key, value in iou_metrics.items()})
 
-            names = np.asarray(info["gt_names"])[mask]
-            labels = np.asarray([
-                self.CLASSES.index(name) if name in self.CLASSES else -1
-                for name in names
-            ], dtype=np.int64)
-            known = labels >= 0
-            boxes = np.asarray(info["gt_boxes"], dtype=np.float32)[mask][known]
-            gt_annos.append({
-                "gt_num": int(known.sum()),
-                "gt_boxes_upright_depth": boxes[:, :7],
-                "class": labels[known],
-            })
-
-        label2cat = {index: name for index, name in enumerate(self.CLASSES)}
-        iou_metrics = indoor_eval(
-            gt_annos,
-            normalized_results,
-            tuple(iou_thr),
-            label2cat,
-            logger=logger,
-            box_type_3d=self.box_type_3d,
-            box_mode_3d=self.box_mode_3d)
-        metrics.update({f"iou/{key}": value
-                        for key, value in iou_metrics.items()})
+        if self.obstacle_shape_merge:
+            merged_classes = ['vehicle', 'pedestrian', 'obstacle']
+            merged_infos, merged_results = merge_obstacle_shape_schema(
+                self.data_infos,
+                results,
+                self.CLASSES,
+                merged_classes=merged_classes,
+                obstacle_nms_iou_threshold=(
+                    self.merged_obstacle_nms_iou_threshold))
+            if requested & {'center', 'tp'}:
+                merged_metrics = morai_detection_eval(
+                    merged_infos,
+                    merged_results,
+                    merged_classes,
+                    use_valid_flag=self.use_valid_flag,
+                    center_thresholds=center_thresholds,
+                    tp_threshold=tp_threshold,
+                    min_recall=min_recall,
+                    min_precision=min_precision,
+                    distance_bins=(distance_bins
+                                   if 'center' in requested else ()),
+                    include_tp='tp' in requested,
+                    include_operating_points=True)
+                if compact:
+                    merged_metrics = {
+                        key: value for key, value in merged_metrics.items()
+                        if not (key.endswith('_GT') or
+                                key.endswith('_predictions') or
+                                key.startswith('meta/')) and
+                        (not key.startswith('range/') or
+                         key.endswith('_mean_AP') or key.endswith('/mAP')) and
+                        ('_best_' not in key or '_1m_best_' in key)
+                    }
+                metrics.update({f"merged/{key}": value
+                                for key, value in merged_metrics.items()})
+                if 'center/mAP' in merged_metrics:
+                    metrics['merged_center_mAP'] = merged_metrics[
+                        'center/mAP']
+            if 'iou' in requested:
+                merged_iou = evaluate_iou(
+                    merged_infos, merged_results, merged_classes)
+                metrics.update({f"merged/iou/{key}": value
+                                for key, value in merged_iou.items()})
         return metrics

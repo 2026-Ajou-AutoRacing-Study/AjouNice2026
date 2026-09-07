@@ -37,3 +37,6 @@
 [submodule "base_ws/src/ekf-multi-object-tracking"]
 	path = base_ws/src/ekf-multi-object-tracking
 	url = https://github.com/2026-Ajou-AutoRacing-Study/ekf-multi-object-tracking.git
+[submodule "third_party/temporal-bevfusion"]
+	path = third_party/temporal-bevfusion
+	url = https://github.com/2026-Ajou-AutoRacing-Study/temporal-bevfusion.git

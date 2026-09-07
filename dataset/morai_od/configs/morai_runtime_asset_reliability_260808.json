@@ -1,64 +1,27 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "evidence": {
     "dataset_id": "morai_sunny13_180_production_v3",
     "capture_date": "2026-08-08",
     "attempted_scenes": 180,
     "completed_scenes": 127,
     "failed_scenes": 53,
-    "note": "Expected actors from scenario metadata were compared with the actors actually published by MORAI after load. Repeated failures across distinct MGeo links are treated as runtime asset instability, not as a single bad placement."
+    "note": "Historical v3 observation only. The 2026-08-22 interleaved control/probe test supersedes the asset-specific interpretation."
+  },
+  "revalidation": {
+    "date": "2026-08-22",
+    "report": "morai_asset_revalidation_260822.json",
+    "method": "Two placements per candidate with a known-good same-type control scene immediately before every probe.",
+    "result": "All eight formerly quarantined common vehicles loaded 2/2. Adjacent controls also loaded, so the former scene failures were not intrinsic asset incompatibility."
   },
   "automatic_capture_quarantine": {
-    "vehicle": [
-      {
-        "data_id": 30100001,
-        "name": "2017_Hyundai_Grandeur",
-        "expected": 12,
-        "missing": 11,
-        "missing_rate": 0.9167
-      },
-      {
-        "data_id": 30400001,
-        "name": "2013_Hyundai_Porter2",
-        "expected": 12,
-        "missing": 9,
-        "missing_rate": 0.75
-      },
-      {
-        "data_id": 30200011,
-        "name": "DEFAULT_SUV",
-        "expected": 15,
-        "missing": 10,
-        "missing_rate": 0.6667
-      },
-      {
-        "data_id": 30300003,
-        "name": "DEFAULT_BUS",
-        "expected": 13,
-        "missing": 6,
-        "missing_rate": 0.4615
-      },
-      {
-        "data_id": 30700004,
-        "name": "2020_Kia_Niro(EV)",
-        "expected": 12,
-        "missing": 5,
-        "missing_rate": 0.4167
-      },
-      {
-        "data_id": 30400005,
-        "name": "2014_Hyundai_Xcient(Mixer)",
-        "expected": 12,
-        "missing": 2,
-        "missing_rate": 0.1667
-      }
-    ],
+    "vehicle": [],
     "pedestrian": [],
     "obstacle": []
   },
   "policy": {
     "scope": "personal-launcher unattended production capture only",
     "catalog_status": "Assets remain documented in the catalog and may be tested manually.",
-    "reason": "Stable alternatives cover every affected vehicle subtype, so reliability is preferred over repeatedly losing complete scenes."
+    "reason": "Only assets proven missing while adjacent controls remain healthy are quarantined. No common vehicle currently meets that criterion."
   }
 }

@@ -1,0 +1,52 @@
+schema_version: 1
+status: implementation_ready_live_smoke_pending
+
+purpose:
+  immediate: static_random_component_of_dynamic_object_dataset
+  reusable_for: [pointpainting, fast_bev, temporal_od]
+
+capture:
+  total_runs: 666
+  unique_geometry_layouts: 666
+  environment_variants_per_layout: 1
+  frames_per_run: 3
+  total_multisensor_frames: 1998
+  motion_mode: rolling-grouped
+  ego_speed_kph: 5.4
+  spacing_m: 3.0
+  maximum_motion_m: 10.5
+  load_settle_sec: 0.5
+  capture_stable_sec: 0.5
+  continue_on_scene_error: true
+  route_deviation_limit_m: 1.2
+  heading_error_limit_deg: 45.0
+  lookahead_m: 1.8
+  maximum_steering_rad: 0.35
+  personal_steering_sign: -1.0
+  adaptive_curve_control: true
+  curve_control_window_m: 8.0
+  curve_control_full_turn_deg: 18.0
+  minimum_curve_speed_kph: 3.6
+  minimum_curve_lookahead_m: 1.2
+  curve_maximum_steering_rad: 0.45
+
+environment:
+  assignment: fixed
+  variants:
+    - {id: sunny_t13, weather: sunny, time_hour: 13}
+  runs_per_variant: 666
+
+split:
+  unit: scenario
+  train: 466
+  val: 100
+  test: 100
+  ratio: [0.70, 0.15, 0.15]
+  same_scene_frames_stay_together: true
+
+generation:
+  policy_base: sunny13_600_production_v6
+  safe_anchor_pool_size: 180
+  reuse_safe_anchors: true
+  independent_actor_layout_per_scene: true
+  ego_route_ahead_collision_clearance_m: 15.0

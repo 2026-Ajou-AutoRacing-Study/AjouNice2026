@@ -1,0 +1,29 @@
+version: 1
+
+target_classes:
+  background: 0
+  pedestrian: 1
+  vehicle: 2
+  obstacle: 3
+
+# MORAI BBox class names -> task-aligned semantic classes.
+# Add new custom EV names here if they appear as independent BBox classes.
+source_classes:
+  pedestrian:
+    - Pedestrian
+
+  vehicle:
+    - Vehicle
+    - Sedan
+    - SUV
+    - Bus
+    - Wagon
+    - Truck
+    - MPV
+
+  obstacle:
+    - Obstacle
+
+# Put BBox classes here only when they are intentionally NOT part of
+# Pedestrian / Vehicle / Obstacle. Keep this list explicit for reproducibility.
+ignore_bbox_classes: []

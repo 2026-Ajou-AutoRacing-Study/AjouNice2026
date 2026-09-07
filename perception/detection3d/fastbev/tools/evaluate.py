@@ -3,6 +3,8 @@
 
 import argparse
 import json
+import os
+import pickle
 import statistics
 import time
 from pathlib import Path
@@ -53,9 +55,37 @@ def parse_args():
         help="skip the 0-10/10-20/20-30/30-50 m diagnostics",
     )
     parser.add_argument(
+        "--ann-file",
+        help="override cfg.data.test.ann_file (for validation-only sweeps)",
+    )
+    parser.add_argument(
+        "--merged-obstacle-nms-iou-threshold",
+        type=float,
+        help="override the shape-to-obstacle merge NMS IoU threshold",
+    )
+    parser.add_argument(
+        "--nms-iou-threshold",
+        type=float,
+        help="override every detector class NMS IoU threshold",
+    )
+    parser.add_argument(
         "--output-json",
         help="optional path for machine-readable metrics and runtime",
     )
+    parser.add_argument(
+        "--output-predictions",
+        help="optional pickle path for CPU per-frame boxes, scores and labels",
+    )
+    parser.add_argument(
+        "--wandb",
+        action="store_true",
+        help="append test metrics to the selected W&B training run",
+    )
+    parser.add_argument("--wandb-run-id", default=os.getenv("WANDB_RUN_ID"))
+    parser.add_argument(
+        "--wandb-entity", default=os.getenv("WANDB_ENTITY", "AjouNice2026"))
+    parser.add_argument(
+        "--wandb-project", default=os.getenv("WANDB_PROJECT", "morai-fastbev"))
     return parser.parse_args()
 
 
@@ -79,9 +109,26 @@ def main():
 
     cfg = Config.fromfile(args.config)
     import_modules_from_strings(**cfg.custom_imports)
+    if args.nms_iou_threshold is not None:
+        threshold = args.nms_iou_threshold
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError("--nms-iou-threshold must be in [0, 1]")
+        class_count = len(cfg.class_names)
+        cfg.model.test_cfg.nms_thr_list = [threshold] * class_count
+    if args.ann_file:
+        cfg.data.test.ann_file = str(
+            Path(args.ann_file).expanduser().resolve())
     cfg.data.test.test_mode = True
 
     dataset = build_dataset(cfg.data.test)
+    if args.merged_obstacle_nms_iou_threshold is not None:
+        threshold = args.merged_obstacle_nms_iou_threshold
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError(
+                "--merged-obstacle-nms-iou-threshold must be in [0, 1]")
+        if not getattr(dataset, "obstacle_shape_merge", False):
+            raise ValueError("NMS override requires obstacle_shape_merge")
+        dataset.merged_obstacle_nms_iou_threshold = threshold
     if args.warmup >= len(dataset):
         raise ValueError("--warmup must be smaller than the dataset")
     loader = build_dataloader(
@@ -147,31 +194,99 @@ def main():
     print("metrics:")
     for key in sorted(metrics):
         print(f"  {key}: {metrics[key]:.6f}")
+    payload = {
+        "evaluation_protocol": "morai_nuscenes_style_v1",
+        "config": str(Path(args.config).expanduser().resolve()),
+        "checkpoint": str(Path(args.checkpoint).expanduser().resolve()),
+        "dataset_frames": len(dataset),
+        "warmup_frames": args.warmup,
+        "precision": "FP16" if args.fp16 else "FP32",
+        "nms_iou_thresholds": list(cfg.model.test_cfg.nms_thr_list),
+        "merged_obstacle_nms_iou_threshold": getattr(
+            dataset, "merged_obstacle_nms_iou_threshold", None),
+        "runtime": {
+            "inference_fps": 1.0 / statistics.fmean(inference_times),
+            "inference_mean_ms": statistics.fmean(inference_times) * 1000.0,
+            "inference_p50_ms": float(
+                np.percentile(inference_times, 50) * 1000.0),
+            "inference_p95_ms": float(
+                np.percentile(inference_times, 95) * 1000.0),
+            "end_to_end_fps": 1.0 / statistics.fmean(end_to_end_times),
+            "peak_cuda_mib": torch.cuda.max_memory_allocated() / 1024**2,
+        },
+        "metrics": {key: float(value) for key, value in metrics.items()},
+    }
     if args.output_json:
         output_path = Path(args.output_json).expanduser().resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "evaluation_protocol": "morai_nuscenes_style_v1",
-            "config": str(Path(args.config).expanduser().resolve()),
-            "checkpoint": str(Path(args.checkpoint).expanduser().resolve()),
-            "dataset_frames": len(dataset),
-            "warmup_frames": args.warmup,
-            "precision": "FP16" if args.fp16 else "FP32",
-            "runtime": {
-                "inference_fps": 1.0 / statistics.fmean(inference_times),
-                "inference_mean_ms": statistics.fmean(inference_times) * 1000.0,
-                "inference_p50_ms": float(np.percentile(inference_times, 50) * 1000.0),
-                "inference_p95_ms": float(np.percentile(inference_times, 95) * 1000.0),
-                "end_to_end_fps": 1.0 / statistics.fmean(end_to_end_times),
-                "peak_cuda_mib": torch.cuda.max_memory_allocated() / 1024**2,
-            },
-            "metrics": {key: float(value) for key, value in metrics.items()},
-        }
         output_path.write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         print("metrics JSON:", output_path)
+    if args.output_predictions:
+        prediction_path = Path(
+            args.output_predictions).expanduser().resolve()
+        prediction_path.parent.mkdir(parents=True, exist_ok=True)
+        serialized = []
+        for result in results:
+            if "pts_bbox" in result:
+                result = result["pts_bbox"]
+            elif "img_bbox" in result:
+                result = result["img_bbox"]
+            serialized.append({
+                "boxes": result["boxes_3d"].tensor.detach().cpu().numpy(),
+                "scores": result["scores_3d"].detach().cpu().numpy(),
+                "labels": result["labels_3d"].detach().cpu().numpy(),
+            })
+        with prediction_path.open("wb") as stream:
+            pickle.dump(serialized, stream, protocol=pickle.HIGHEST_PROTOCOL)
+        print("predictions pickle:", prediction_path)
+    if args.wandb:
+        if not args.wandb_run_id:
+            raise ValueError("--wandb requires --wandb-run-id or WANDB_RUN_ID")
+        import wandb
+
+        run = wandb.init(
+            entity=args.wandb_entity,
+            project=args.wandb_project,
+            id=args.wandb_run_id,
+            resume="allow",
+            dir=str(Path(args.checkpoint).expanduser().resolve().parent),
+        )
+
+        def wandb_metric(key):
+            normalized = key[len("merged/"):] if key.startswith(
+                "merged/") else key
+            if key == "merged_center_mAP":
+                return True
+            if normalized.startswith("tp/") or normalized.startswith("iou/"):
+                return True
+            if normalized.startswith("center/"):
+                return "_best_" not in normalized and not normalized.endswith((
+                    "_GT", "_predictions", "_ground_truth"))
+            if normalized.startswith("range/"):
+                return normalized.endswith(("_mean_AP", "/mAP"))
+            return False
+
+        # Keep the complete 377-metric report in JSON, but append only the
+        # dashboard-sized final-test subset to W&B. This avoids hundreds of
+        # automatically generated panels while preserving detailed offline
+        # diagnostics.
+        log_values = {
+            f"test/{key}": value
+            for key, value in payload["metrics"].items()
+            if wandb_metric(key)
+        }
+        log_values.update({
+            f"test/runtime/{key}": value
+            for key, value in payload["runtime"].items()
+        })
+        log_values["test/dataset_frames"] = payload["dataset_frames"]
+        run.log(log_values)
+        run.summary["test/checkpoint"] = payload["checkpoint"]
+        run.finish()
+        print("W&B test metrics appended to run:", args.wandb_run_id)
     print("Fast-BEV MORAI evaluation + FPS: OK")
 
 

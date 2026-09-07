@@ -10,6 +10,9 @@ find_package(catkin REQUIRED COMPONENTS
 
 add_message_files(
   FILES
+  DetectedObjectKinematics.msg
+  DetectedObject.msg
+  DetectedObjects.msg
   ObjectClassification.msg
   Shape.msg
   PredictedPath.msg

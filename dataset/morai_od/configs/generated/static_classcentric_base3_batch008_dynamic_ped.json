@@ -1,0 +1,196 @@
+{
+  "dataset_id": "morai_static_classcentric_base3_10k_batch008_dynamic_ped",
+  "seed": 260830801,
+  "scenario_prefix": "od_b3sdp8",
+  "use_runtime_obstacle_pool": true,
+  "environment": {
+    "weather": "Sunny",
+    "time": "13:00"
+  },
+  "capture": {
+    "format": "morai_save_sensor_data_rolling_grouped",
+    "scenario_load_initial_speed_kph": 0.0,
+    "captures_per_scene": 3,
+    "capture_period_sec": 0.35,
+    "capture_motion_arm_m": 3.0,
+    "minimum_capture_progress_m": 0.3,
+    "motion_stall_timeout_sec": 15.0,
+    "clip_duration_sec": 0.0,
+    "warmup_sec": 0.0,
+    "prime_capture_before_clip": false,
+    "actor_ready_timeout_sec": 15.0,
+    "capture_spacing_m": 3.0,
+    "ego_target_speed_kph": 30.0,
+    "maximum_motion_m": 75.0,
+    "route_deviation_limit_m": 1.5,
+    "heading_error_limit_deg": 50.0,
+    "lookahead_m": 4.0,
+    "maximum_steering_rad": 0.35,
+    "adaptive_curve_control": true,
+    "curve_control_window_m": 8.0,
+    "curve_control_full_turn_deg": 18.0,
+    "minimum_curve_speed_kph": 12.0,
+    "minimum_curve_lookahead_m": 1.2,
+    "curve_maximum_steering_rad": 0.45,
+    "personal_steering_sign": -1.0,
+    "split_unit": "static_layout_clip",
+    "required_sensor_dirs": [
+      "CAMERA_1",
+      "CAMERA_2",
+      "CAMERA_3",
+      "CAMERA_4",
+      "LIDAR_5"
+    ]
+  },
+  "families": [
+    {
+      "name": "crosswalk_pedestrian",
+      "count": 300,
+      "speed": [
+        4.0,
+        6.0,
+        8.0,
+        10.0
+      ],
+      "active_distance_m": [
+        12.0,
+        22.0
+      ],
+      "activation_margin_m": 5.0,
+      "deferred_activation_preroll_m": 1.5,
+      "reverse_probability": 0.5,
+      "crosswalk_path_margin_m": 4.5,
+      "cover_all_crosswalks_when_possible": false,
+      "crosswalk_locations": [
+        {
+          "crosswalk_id": "CW000000",
+          "weight": 0.25,
+          "role": "official_sample_direct",
+          "split": "train",
+          "use_official_path": true,
+          "activation_policy": "deferred_ego_approach"
+        },
+        {
+          "crosswalk_id": "CW000002",
+          "weight": 0.2,
+          "role": "route_direct_train",
+          "split": "train",
+          "activation_policy": "deferred_ego_approach"
+        },
+        {
+          "crosswalk_id": "CW000013",
+          "weight": 0.15,
+          "role": "route_direct_validation",
+          "split": "val",
+          "activation_policy": "deferred_ego_approach"
+        },
+        {
+          "crosswalk_id": "CW000015",
+          "weight": 0.15,
+          "role": "route_direct_test",
+          "split": "test",
+          "activation_policy": "deferred_ego_approach"
+        },
+        {
+          "crosswalk_id": "CW000001",
+          "weight": 0.125,
+          "role": "route_adjacent_side",
+          "split": "train",
+          "activation_policy": "deferred_ego_approach"
+        },
+        {
+          "crosswalk_id": "CW000014",
+          "weight": 0.125,
+          "role": "route_adjacent_side",
+          "split": "train",
+          "activation_policy": "deferred_ego_approach"
+        }
+      ],
+      "motion_profiles": [
+        {
+          "name": "walking",
+          "weight": 0.45,
+          "speed": [
+            4.0,
+            6.0
+          ]
+        },
+        {
+          "name": "running",
+          "weight": 0.45,
+          "speed": [
+            8.0,
+            10.0
+          ]
+        },
+        {
+          "name": "activation_transition",
+          "weight": 0.1,
+          "speed": [
+            6.0,
+            8.0
+          ],
+          "visibility_audit_required": true
+        }
+      ],
+      "ego_lead_distance_m": [
+        14.0,
+        24.0
+      ],
+      "ego_target_speed_kph": [
+        10.0,
+        22.0
+      ],
+      "ego_initial_speed_kph": [
+        5.0,
+        12.0
+      ],
+      "minimum_ego_speed_ratio": 0.65,
+      "motion_phase": "moving_pedestrian_singleframe",
+      "sampling_role": "base3_static_dynamic_pedestrian",
+      "balance_reverse_direction": true,
+      "ego_motion_profiles": [
+        {
+          "name": "competition_motion",
+          "weight": 0.75,
+          "target_speed_kph": [
+            15.0,
+            28.0
+          ],
+          "initial_speed_kph": [
+            9.0,
+            18.0
+          ]
+        },
+        {
+          "name": "slow_crosswalk_approach",
+          "weight": 0.25,
+          "target_speed_kph": [
+            8.0,
+            14.0
+          ],
+          "initial_speed_kph": [
+            5.0,
+            10.0
+          ]
+        }
+      ],
+      "dynamic_warmup_sec": 0.0,
+      "prime_capture_before_clip": false,
+      "capture_motion_arm_m": 3.0,
+      "maximum_motion_m": 75.0,
+      "motion_stall_timeout_sec": 15.0,
+      "capture_actor_gate": {
+        "class": "pedestrian",
+        "role": "moving_crosswalk_pedestrian",
+        "minimum_longitudinal_m": -15.0,
+        "maximum_longitudinal_m": 55.0,
+        "maximum_abs_lateral_m": 30.0,
+        "maximum_distance_m": 60.0,
+        "minimum_actor_speed_mps": 0.2
+      }
+    }
+  ],
+  "use_runtime_pedestrian_pool": true,
+  "route_wide_route_source": "mgeo_guided"
+}

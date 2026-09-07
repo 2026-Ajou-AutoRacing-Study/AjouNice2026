@@ -23,7 +23,7 @@
       "initLinkRatio": 0,
       "gear": 1,
       "vehicleSaveData": {
-        "velocity": 3.4280306863365695E-05,
+        "velocity": 0.0,
         "inputData": [
           0,
           0,
@@ -43,9 +43,9 @@
         "vehicle": {
           "time": 9.22002124786377,
           "lastVelocity": {
-            "x": -9.2041477728344034E-07,
-            "y": -1.7371707144775428E-05,
-            "z": 2.5675903998489957E-06
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
           },
           "lastImpactTime": 0.0
         },
@@ -120,10 +120,10 @@
         }
       }
     },
-    "currentVelocity": 3.4280306863365695E-05,
+    "currentVelocity": 0.0,
     "desiredVelocityType": 1,
     "linkValue": 85.0,
-    "customValue": 50.0,
+    "customValue": 0.0,
     "v2vUDPSessionInfo": {
       "isInit": false,
       "v2vConfig": {
@@ -134,8 +134,8 @@
         "surroundVehiclePubTime": 100
       }
     },
-    "beforeControlMode": 2,
-    "currentControlMode": 1
+    "beforeControlMode": 0,
+    "currentControlMode": 0
   },
   "vehicleList": [
     {

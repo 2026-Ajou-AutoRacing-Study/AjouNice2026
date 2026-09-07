@@ -1,0 +1,10 @@
+# Legacy map -> morai_map transform used by historical v23-refinement output bags.
+# New runtime launches must use configs/tf/morai_lanelet_static_tf.yaml instead.
+map_to_morai_map:
+  parent: "map"
+  child: "morai_map"
+  xyz: [131.656525062, 545.893929229, 0.0]
+  rpy: [0.0, 0.0, 0.000146070411]
+  source:
+    status: "legacy-v23-refinement"
+    note: "Retained only to reproduce map-frame coordinates in old evaluation bags."
