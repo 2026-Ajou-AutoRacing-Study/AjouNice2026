@@ -58,6 +58,8 @@ roslaunch ajounice_planning_integration morai_planning_stack.launch \
   start_controller:=false --nodes
 ```
 
+clean 설치본의 24개 필수 노드 생존과 v61 binary map 수신을 격리된 master에서 재검사하려면 `bash scripts/runtime/smoke_planning_stack.sh`를 실행한다. 25초 재검사 결과는 [machine receipt](evidence/clean-install-runtime-smoke-r001.json)에 있다. 이는 외부 입력을 주입하지 않는 기동 검사이므로 trajectory 생성이나 폐루프 합격으로 승격하지 않는다.
+
 FastBEV 또는 PointPainting을 켜려면 checkpoint 파일을 별도로 배포하고 SHA256을 release 문서와 대조한 뒤 `start_detector:=true`와 해당 경로 인자를 넘긴다. 현재 Git clone만으로 detector까지 켤 수 있다고 가정하지 않는다.
 
 planning 입력 topic의 publisher/type만 먼저 보려면 `scripts/runtime/check_topics.sh --types-only`, 실제 메시지 흐름까지 보려면 `scripts/runtime/check_topics.sh`를 실행한다. Route 이후 출력까지는 `--full`을 추가한다. 하나라도 없거나 타입이 다르거나 기본 5초 안에 메시지가 없으면 nonzero로 종료한다. 이 검사는 축·단위·내용 의미까지 승인하지 않으므로 아래 담당별 동적 확인도 계속 필요하다.

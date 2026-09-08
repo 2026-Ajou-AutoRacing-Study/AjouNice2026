@@ -82,6 +82,12 @@ bash scripts/workspace/setup_ws.sh
 source scripts/workspace/source_aw149.sh
 ```
 
+clean 설치본의 통합 entrypoint 생존과 v61 binary map transport는 별도 ROS master를 쓰는 아래 foreground smoke로 재현한다. 스크립트는 controller/requester/detector를 안전 기본값으로 끄고 24개 필수 노드를 정확히 대조하며, 종료 시 자신이 띄운 master와 launch를 정리한다. 25초 실행 결과는 [clean-install-runtime-smoke-r001.json](evidence/clean-install-runtime-smoke-r001.json)에 기록했다.
+
+```bash
+bash scripts/runtime/smoke_planning_stack.sh
+```
+
 운영 환경은 새 planning install 후 `base_ws/install_aw149/setup.bash`를 source하도록 확정한다. 기존 `base_ws/devel`, 다른 Autoware2ros1 install, addon-only install을 뒤섞지 않는다. `rospack find`와 Python module `__file__`, 실제 연결 MD5로 각 프로세스의 경로를 확인한다.
 
 ## 5. P1 — 객체 검출·추적·예측
