@@ -228,7 +228,7 @@ URDF와 sensor TF 모두 `base_link=rear axle center`로 문서화돼 있다. in
 - `scripts/runtime/launch_sensing.sh`, `morai_status.sh`, `morai_reset.sh`는 기존 `base_ws/devel`을 source한다. 새 base install로 운영 경로를 통일하고 reset script의 hard-coded 실행파일 경로도 함께 검토한다.
 - `trajectory_follower/launch/pp_pi_autoware.launch:9`의 `$(find ioniq5)/../../../configs/...`, `bringup/launch/sensing.launch`의 유사 경로는 source tree 배치에 의존한다. install 공간에서는 다른 위치를 가리킬 수 있으므로 `AJOUNICE_ROOT` 또는 명시 launch arg로 전달한다.
 - 여러 launch의 `$(env HOME)/AjouNice2026`는 친구의 checkout 경로와 다를 수 있다. 최상위 repo_root/config 경로를 명시적으로 받아 하위 include로 전달한다.
-- 기존 검증 잔재: `bringup/validation/launch/kcity_mission_bpp_bvp_{crosswalk,stop_line}.launch`는 삭제된 `kcity_mission_bpp_bvp_validation.launch`를 include한다. `mission_bpp_pipeline_minimal_test.launch`는 없는 `bringup/launch/mission_bpp_pipeline.launch`와 구버전 `mission_planner` package를 참조한다. 운영 목록에서 제거/격리하거나 새 stack용 검증으로 다시 작성한다. 현재 완전히 정리됐다고 볼 수 없는 부분이다.
+- 기존 검증 잔재 정리 완료: 존재하지 않는 local runner/package를 참조하던 launch 3개는 제거했다. `bringup/validation`의 v44 수치와 시각화 자료는 historical evidence로만 보존하며 현재 v61 실행 명령이나 승인으로 취급하지 않는다.
 - top-level 통합 launch는 sensing/localization/perception/system/map/planning/requester/controller의 순서·활성화를 한 곳에서 제어하도록 구성한다. 기존 `ajounice_planning_integration/planning.launch`는 map+planning만 구성하고 requester는 기본 false, controller는 포함하지 않는다.
 - Virtual traffic light/V2X, lateral offset, 외부 speed limit 같은 선택 입력은 모든 차로에서 무조건 필요한 주기 입력으로 취급하지 않는다. 사용 지도 regulatory element와 활성 module 요구에 따라 구현·시험한다. 실제 도로 신호 인식 topic과 virtual traffic light state는 별개다.
 - 방향지시등은 사용자 운용 요구에서 제외됐다. 이는 C2의 실제 **조향각** 피드백과 다른 항목이므로 steering report까지 제외하면 안 된다.

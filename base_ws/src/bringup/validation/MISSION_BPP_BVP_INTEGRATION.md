@@ -1,4 +1,10 @@
-# Mission Planner + BPP + BVP Integration Validation
+# Archived Mission Planner + BPP + BVP Integration Validation
+
+This page preserves historical v44 results. The referenced external ROS2
+captures and local runner were never committed, and the obsolete launch
+wrappers have been removed. Do not use these commands as current v61 evidence;
+use `ajounice_planning_integration/morai_planning_stack.launch` and the gates in
+`docs/planning/INTEGRATION-HANDOFF.md`.
 
 ## Scenarios
 
@@ -27,34 +33,7 @@ The ROS2 reference input is not copied into the repository. It remains under
 `local_autoware_planning_sim`, so it is not included in a normal repository
 push.
 
-## Run
-
-```bash
-cd /home/vic/AJOUNICE2026/repo/base_ws
-source /opt/ros/noetic/setup.bash
-source devel/setup.bash
-source /home/vic/AJOUNICE2026/local_ros_deps/source_lanelet2.sh
-
-roslaunch bringup kcity_mission_bpp_bvp_stop_line.launch
-```
-
-Use the dynamic-object crosswalk scenario with:
-
-```bash
-roslaunch bringup kcity_mission_bpp_bvp_crosswalk.launch
-```
-
-For a headless run that exits after PASS/FAIL:
-
-```bash
-roslaunch bringup kcity_mission_bpp_bvp_stop_line.launch \
-  launch_rviz:=false shutdown_on_result:=true
-
-roslaunch bringup kcity_mission_bpp_bvp_crosswalk.launch \
-  launch_rviz:=false shutdown_on_result:=true
-```
-
-The report is written to:
+The historical report locations were:
 
 ```text
 /home/vic/AJOUNICE2026/local_autoware_planning_sim/results/integration/kcity_stop_line.report.json
