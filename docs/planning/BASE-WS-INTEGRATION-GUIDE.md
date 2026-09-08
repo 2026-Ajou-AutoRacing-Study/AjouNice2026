@@ -185,9 +185,9 @@ System은 `/system/operation_mode/state`의 `autoware_adapi_v1_msgs/OperationMod
 
 현재 흐름: `purepursuit_autoware.cpp:166`에서 Float64 steering·validity·debug를 발행하고 `longi_pi_autoware.cpp:256`이 MORAI type-1 CtrlCmd를 만든다. 이름에 autoware가 있어도 위 C2의 정식 control/예측 trajectory/steering report를 모두 제공하는 구현은 아니다.
 
-`purepursuit_autoware.cpp:214`와 `longi_pi_autoware.cpp:220` 주변은 주로 **수신 시각**을 기준으로 timeout을 본다. 기존 0.5s trajectory/state/steering, 0.2s lateral-valid 제한은 유지하며, 다음을 추가 검토한다.
+`purepursuit_autoware`와 `longi_pi_autoware`는 기존 수신 시각 timeout에 더해 trajectory/state의 원본 `header.stamp` age를 검사한다. 0·0.5초 초과·0.1초보다 미래인 stamp를 거부한다. 실제 ROS transport 시험에서 fresh 입력으로 전진 명령, 오래된 trajectory를 30 Hz로 계속 재발행하는 동안에도 `accel=0`, `brake=1`, `steering=0`, 이후 fresh 입력 복구를 확인했다. 이 controller-side 방어는 planner 자체의 cached output 지속을 고친다는 뜻이 아니다.
 
-- `header.stamp`가 가리키는 원본 데이터 age, 0/future stamp, 실제 주기/gap.
+- 실제 주행 clock에서 source-age 임계값 0.5초와 future tolerance 0.1초가 적합한지 확인하고 sim-time pause/reset도 별도 시험한다.
 - `/planning/validation_status`의 20개 `is_valid_*` 및 해당 trajectory와 시간상 대응. status topic은 `autoware_planning_validator/PlanningValidatorStatus`다.
 - perception/localization 끊김 또는 오래된 trajectory 재발행 시 실제 정지 동작.
 - planner 최종 출력이 있다는 이유로 무조건 valid로 보지 않는다. validator가 invalid trajectory를 어떻게 처리하는지도 실로그와 함께 검사한다.

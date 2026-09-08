@@ -19,6 +19,8 @@
 
 실제 객체가 든 `sensor_cam_raw_obstacle1.bag`으로 oracle/evaluation adapter→map-frame tracking→prediction도 실행했다. v61 map-based 경로는 15초 동안 tracking 699 frame/5,396 object, prediction 511 frame/3,733 object를 처리했고 모든 prediction object가 finite 위치와 현재 pose 포함 31-point/3.0초 horizon path를 가졌다. 기본 CTRV도 3,124 object 전부 같은 길이의 path를 생성했다. 다만 이것은 생산 detector/tracker 대신 MORAI GT를 쓴 transport/runtime 증거이며, map-based는 50 Hz 원본의 모든 frame을 보존하지 않았다.
 
+Controller 입력 freshness는 receipt time뿐 아니라 trajectory/state `header.stamp`도 검사하도록 보강했다. ROS transport 시험은 fresh 전진, 과거·미래·0 stamp trajectory의 반복 수신 중 full-brake stop, fresh 입력 복구를 검증한다. 이는 planner 내부가 cached trajectory를 계속 내는 현상을 제거하는 것이 아니라 controller handoff에서 오래된 source를 거부하는 동등 안전 계약이다. 실제 MORAI clock pause/reset과 0.5초 임계값 승인은 여전히 폐루프 gate다.
+
 이 증거는 **실제 입력으로 trajectory가 나온다거나 폐루프 주행이 승인됐다는 뜻은 아니다.** 외부 입력이 없던 기동에서는 route, ego/TF, objects, acceleration, operation mode를 기다리는 것이 정상 상태였다.
 
 ## 새 컴퓨터에서 첫 순서

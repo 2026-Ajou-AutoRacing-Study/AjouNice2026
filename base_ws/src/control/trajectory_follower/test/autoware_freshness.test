@@ -1,0 +1,27 @@
+<launch>
+  <node pkg="trajectory_follower"
+        type="purepursuit_autoware"
+        name="test_purepursuit_autoware"
+        output="screen"
+        required="true">
+    <rosparam command="load" file="$(find trajectory_follower)/config/trajectory_follower_autoware.yaml"/>
+    <rosparam command="load" file="$(find trajectory_follower)/config/purepursuit_autoware.yaml"/>
+    <param name="vehicle/wheelbase_m" value="3.0"/>
+    <param name="vehicle/max_steer_rad" value="0.7"/>
+  </node>
+
+  <node pkg="trajectory_follower"
+        type="longi_pi_autoware"
+        name="test_longi_pi_autoware"
+        output="screen"
+        required="true">
+    <rosparam command="load" file="$(find trajectory_follower)/config/trajectory_follower_autoware.yaml"/>
+    <rosparam command="load" file="$(find trajectory_follower)/config/longi_pi_autoware.yaml"/>
+    <param name="vehicle/max_steer_rad" value="0.7"/>
+  </node>
+
+  <test test-name="autoware_freshness"
+        pkg="trajectory_follower"
+        type="test_autoware_freshness.py"
+        time-limit="30"/>
+</launch>

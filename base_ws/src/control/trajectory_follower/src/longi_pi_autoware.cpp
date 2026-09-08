@@ -30,6 +30,17 @@ bool finiteState(const nav_msgs::Odometry & state)
     std::isfinite(pose.position.y) && std::isfinite(pose.position.z) && std::isfinite(quaternion_norm) &&
     quaternion_norm > 1e-12 && std::isfinite(linear.x) && std::isfinite(linear.y) && std::isfinite(linear.z);
 }
+
+bool sourceStampFresh(
+  const ros::Time & stamp, const ros::Time & now, const double timeout_s,
+  const double future_tolerance_s)
+{
+  if (stamp.isZero()) {
+    return false;
+  }
+  const double age_s = (now - stamp).toSec();
+  return std::isfinite(age_s) && age_s <= timeout_s && age_s >= -future_tolerance_s;
+}
 }  // namespace
 
 // Keeps the existing MORAI type-1 PI longitudinal interface, but treats lateral-controller
@@ -56,6 +67,9 @@ public:
     private_nh_.param("control_limits/max_brake_cmd", max_brake_cmd_, 1.0);
     private_nh_.param("safety/trajectory_timeout_s", trajectory_timeout_s_, 0.5);
     private_nh_.param("safety/state_timeout_s", state_timeout_s_, 0.5);
+    private_nh_.param("safety/trajectory_source_timeout_s", trajectory_source_timeout_s_, 0.5);
+    private_nh_.param("safety/state_source_timeout_s", state_source_timeout_s_, 0.5);
+    private_nh_.param("safety/future_stamp_tolerance_s", future_stamp_tolerance_s_, 0.1);
     private_nh_.param("safety/steering_timeout_s", steering_timeout_s_, 0.5);
     private_nh_.param("safety/lateral_valid_timeout_s", lateral_valid_timeout_s_, 0.2);
     private_nh_.param("safety/min_points", min_points_, 3);
@@ -93,6 +107,9 @@ private:
       stop_brake_cmd_ <= 1.0 && std::isfinite(trajectory_timeout_s_) && trajectory_timeout_s_ > 0.0 &&
       std::isfinite(state_timeout_s_) && state_timeout_s_ > 0.0 && std::isfinite(steering_timeout_s_) &&
       steering_timeout_s_ > 0.0 && std::isfinite(lateral_valid_timeout_s_) && lateral_valid_timeout_s_ > 0.0 &&
+      std::isfinite(trajectory_source_timeout_s_) && trajectory_source_timeout_s_ > 0.0 &&
+      std::isfinite(state_source_timeout_s_) && state_source_timeout_s_ > 0.0 &&
+      std::isfinite(future_stamp_tolerance_s_) && future_stamp_tolerance_s_ >= 0.0 &&
       min_points_ >= 3 && std::isfinite(kp_) && kp_ >= 0.0 && std::isfinite(ki_) && ki_ >= 0.0 &&
       std::isfinite(integral_limit_) && integral_limit_ > 0.0 && std::isfinite(command_deadband_) &&
       command_deadband_ >= 0.0 && std::isfinite(speed_preview_time_s_) && speed_preview_time_s_ >= 0.0 &&
@@ -224,7 +241,10 @@ private:
       (now - trajectory_received_).toSec() <= trajectory_timeout_s_ &&
       (now - state_received_).toSec() <= state_timeout_s_ &&
       (now - steering_received_).toSec() <= steering_timeout_s_ &&
-      (now - lateral_valid_received_).toSec() <= lateral_valid_timeout_s_;
+      (now - lateral_valid_received_).toSec() <= lateral_valid_timeout_s_ &&
+      sourceStampFresh(
+        trajectory_.header.stamp, now, trajectory_source_timeout_s_, future_stamp_tolerance_s_) &&
+      sourceStampFresh(state_.header.stamp, now, state_source_timeout_s_, future_stamp_tolerance_s_);
     if (!fresh || normalizedFrame(trajectory_.header.frame_id) != normalizedFrame(state_.header.frame_id)) {
       publishStop();
       return;
@@ -285,6 +305,9 @@ private:
   double max_brake_cmd_{1.0};
   double trajectory_timeout_s_{0.5};
   double state_timeout_s_{0.5};
+  double trajectory_source_timeout_s_{0.5};
+  double state_source_timeout_s_{0.5};
+  double future_stamp_tolerance_s_{0.1};
   double steering_timeout_s_{0.5};
   double lateral_valid_timeout_s_{0.2};
   double stop_brake_cmd_{1.0};

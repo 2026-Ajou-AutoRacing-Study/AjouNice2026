@@ -19,6 +19,11 @@ control_limits:
 safety:
   trajectory_timeout_s: 0.5
   state_timeout_s: 0.5
+  # Receipt-time checks alone cannot detect a cached trajectory/odometry message
+  # that is repeatedly republished. Reject old, zero, or implausibly future source stamps too.
+  trajectory_source_timeout_s: 0.5
+  state_source_timeout_s: 0.5
+  future_stamp_tolerance_s: 0.1
   steering_timeout_s: 0.5
   lateral_valid_timeout_s: 0.2
   min_points: 3

@@ -30,6 +30,17 @@ bool finitePose(const geometry_msgs::Pose & pose)
          std::isfinite(pose.orientation.z) && std::isfinite(pose.orientation.w);
 }
 
+bool sourceStampFresh(
+  const ros::Time & stamp, const ros::Time & now, const double timeout_s,
+  const double future_tolerance_s)
+{
+  if (stamp.isZero()) {
+    return false;
+  }
+  const double age_s = (now - stamp).toSec();
+  return std::isfinite(age_s) && age_s <= timeout_s && age_s >= -future_tolerance_s;
+}
+
 double yawFromQuaternion(const geometry_msgs::Quaternion & quaternion)
 {
   const double sin_yaw = 2.0 * (quaternion.w * quaternion.z + quaternion.x * quaternion.y);
@@ -56,6 +67,9 @@ public:
     private_nh_.param("kinematic_velocity_scale_to_mps", velocity_scale_, 1.0);
     private_nh_.param("safety/trajectory_timeout_s", trajectory_timeout_s_, 0.5);
     private_nh_.param("safety/state_timeout_s", state_timeout_s_, 0.5);
+    private_nh_.param("safety/trajectory_source_timeout_s", trajectory_source_timeout_s_, 0.5);
+    private_nh_.param("safety/state_source_timeout_s", state_source_timeout_s_, 0.5);
+    private_nh_.param("safety/future_stamp_tolerance_s", future_stamp_tolerance_s_, 0.1);
     private_nh_.param("safety/min_points", min_points_, 3);
 
     private_nh_.param("vehicle/wheelbase_m", params_.wheel_base, 3.0);
@@ -122,7 +136,10 @@ private:
     const bool valid = std::isfinite(control_rate_hz_) && control_rate_hz_ > 0.0 &&
       std::isfinite(velocity_scale_) && velocity_scale_ > 0.0 &&
       std::isfinite(trajectory_timeout_s_) && trajectory_timeout_s_ > 0.0 &&
-      std::isfinite(state_timeout_s_) && state_timeout_s_ > 0.0 && min_points_ >= 3 &&
+      std::isfinite(state_timeout_s_) && state_timeout_s_ > 0.0 &&
+      std::isfinite(trajectory_source_timeout_s_) && trajectory_source_timeout_s_ > 0.0 &&
+      std::isfinite(state_source_timeout_s_) && state_source_timeout_s_ > 0.0 &&
+      std::isfinite(future_stamp_tolerance_s_) && future_stamp_tolerance_s_ >= 0.0 && min_points_ >= 3 &&
       core_->parametersValid(&reason);
     if (!valid) {
       throw std::runtime_error(reason.empty() ? "invalid purepursuit_autoware parameter" : reason);
@@ -216,7 +233,10 @@ private:
     const ros::Time now = ros::Time::now();
     if (!trajectory_valid_ || !state_valid_ ||
         (now - trajectory_received_).toSec() > trajectory_timeout_s_ ||
-        (now - state_received_).toSec() > state_timeout_s_) {
+        (now - state_received_).toSec() > state_timeout_s_ ||
+        !sourceStampFresh(
+          trajectory_.header.stamp, now, trajectory_source_timeout_s_, future_stamp_tolerance_s_) ||
+        !sourceStampFresh(state_.header.stamp, now, state_source_timeout_s_, future_stamp_tolerance_s_)) {
       trajectory_follower::PurePursuitOutput output;
       output.failure_reason = "stale or unavailable trajectory/state";
       publishResult(output, trajectory_.header.frame_id, now);
@@ -274,6 +294,9 @@ private:
   double velocity_scale_{1.0};
   double trajectory_timeout_s_{0.5};
   double state_timeout_s_{0.5};
+  double trajectory_source_timeout_s_{0.5};
+  double state_source_timeout_s_{0.5};
+  double future_stamp_tolerance_s_{0.1};
   int min_points_{3};
   trajectory_follower::PurePursuitParams params_;
   std::unique_ptr<trajectory_follower::AdaptivePurePursuitCore> core_;

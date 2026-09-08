@@ -51,6 +51,8 @@ if(CATKIN_ENABLE_TESTING)
   if(TARGET test_adaptive_pure_pursuit_core)
     target_link_libraries(test_adaptive_pure_pursuit_core adaptive_pure_pursuit_core)
   endif()
+  find_package(rostest REQUIRED)
+  add_rostest(test/autoware_freshness.test)
 endif()
 
 install(TARGETS purepursuit longi_pi purepursuit_autoware longi_pi_autoware adaptive_pure_pursuit_core

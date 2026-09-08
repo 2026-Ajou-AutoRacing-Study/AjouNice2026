@@ -1,0 +1,48 @@
+{
+  "scope": "AJOUNICE_TRAJECTORY_FOLLOWER_SOURCE_FRESHNESS",
+  "status": "PASS",
+  "run_date": "2026-09-08",
+  "build": {
+    "command": "scripts/workspace/build_all.sh",
+    "base_packages": "24/24",
+    "install_asset_audit": "PASS"
+  },
+  "test": {
+    "package": "trajectory_follower",
+    "framework": "rostest",
+    "registered_tests_total": 22,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "ros_transport_cases": [
+      "fresh trajectory and odometry produce a forward command",
+      "five-second-old trajectory republished at 30 Hz remains at accel 0 brake 1 steering 0",
+      "five-second-future trajectory remains at accel 0 brake 1 steering 0",
+      "zero-stamp trajectory remains at accel 0 brake 1 steering 0",
+      "fresh trajectory and odometry restore a forward command"
+    ]
+  },
+  "parameters": {
+    "trajectory_receipt_timeout_s": 0.5,
+    "state_receipt_timeout_s": 0.5,
+    "trajectory_source_timeout_s": 0.5,
+    "state_source_timeout_s": 0.5,
+    "future_stamp_tolerance_s": 0.1,
+    "stop_brake_cmd": 1.0
+  },
+  "source_sha256": {
+    "purepursuit_autoware.cpp": "ed754e89b6ea2de60141739682d722876550a83f512f8a7d3222fe4355963bc1",
+    "longi_pi_autoware.cpp": "a8e0981f64070795b085c978328a7f45799c364f5c0136a07a0efae35d4ee062",
+    "test_autoware_freshness.py": "c2d22c4b9ef69077db98488a243556c9f7e53f8b2caa254dbd5431fa65eb8385"
+  },
+  "claim_boundary": {
+    "proven": "The installed AjouNice follower rejects stale, zero, and implausibly future source stamps even when messages continue arriving, commands a full-brake stop, and recovers on fresh data.",
+    "not_proven": [
+      "MORAI actuator response to brake 1",
+      "closed-loop stopping distance",
+      "planner-side suppression of cached trajectory publication",
+      "real simulator clock pause or reset behavior",
+      "production approval of the configured age thresholds"
+    ]
+  }
+}
