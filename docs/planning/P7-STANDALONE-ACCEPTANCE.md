@@ -94,3 +94,11 @@ closes nine Behavior Velocity scene-module package suites using their committed
 ROS1 parameter files: 124 tests, zero errors, failures, or skips, with a fresh
 master per package. See
 [planning-test-fixture-r006.json](evidence/planning-test-fixture-r006.json).
+
+Checkpoint r009 (`69a2d93ff7a2f3696f8dc72e53ecdc3f36d3c11173bfd1652e81f4ea2a002fa8`)
+closes the costmap generator, freespace planner, and surround-obstacle checker
+package suites by loading their committed ROS1 YAML and test vehicle fixture
+into the exact private namespaces. The isolated result is 30/30 with zero
+errors, failures, or skips. Ten isolated residual package suites remain open,
+so the P7.1 runtime claim is unchanged. See
+[planning-test-fixture-r007.json](evidence/planning-test-fixture-r007.json).

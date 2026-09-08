@@ -19,15 +19,34 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <cstdlib>
+#include <stdexcept>
 #include <thread>
 #include <utility>
 
 namespace autoware::surround_obstacle_checker
 {
+void setTestVehicleInfo(ros::NodeHandle & node)
+{
+  for (const auto & entry : {
+         std::pair{"wheel_radius", 0.39}, {"wheel_width", 0.42}, {"wheel_base", 2.74},
+         {"wheel_tread", 1.63}, {"front_overhang", 1.0}, {"rear_overhang", 1.03},
+         {"left_overhang", 0.1}, {"right_overhang", 0.1}, {"vehicle_height", 2.5},
+         {"max_steer_angle", 0.70}}) {
+    node.setParam(entry.first, entry.second);
+  }
+}
+
 auto generateTestTargetNode() -> std::shared_ptr<SurroundObstacleCheckerNode>
 {
-
-  return std::make_shared<SurroundObstacleCheckerNode>(ros::NodeHandle("/surround_original_state"));
+  if (std::system(
+        "rosparam load \"$(rospack find autoware_surround_obstacle_checker)/config/ros1/"
+        "surround_obstacle_checker.yaml\" /surround_original_state") != 0) {
+    throw std::runtime_error("failed to load surround obstacle checker ROS1 test parameters");
+  }
+  ros::NodeHandle node("/surround_original_state");
+  setTestVehicleInfo(node);
+  return std::make_shared<SurroundObstacleCheckerNode>(node);
 
 }
 

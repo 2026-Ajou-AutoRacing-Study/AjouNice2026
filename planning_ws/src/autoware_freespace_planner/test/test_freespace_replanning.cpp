@@ -1,12 +1,19 @@
 #include <autoware_freespace_planner/freespace_planner_node.hpp>
 #include <gtest/gtest.h>
 
+#include <cstdlib>
+
 // Friend named by the original node, used to exercise the original state
 // transitions with the real Astar collision checker (no planning mock).
 class TestFreespacePlanner : public testing::Test {
 protected:
   void SetUp() override {
     ros::NodeHandle node("/freespace_transport_oracle");
+    ASSERT_EQ(
+      std::system(
+        "rosparam load \"$(rospack find autoware_freespace_planner)/config/"
+        "freespace_planner.ros1.yaml\" /freespace_transport_oracle"),
+      0);
     for (const auto & entry : {std::pair{"wheel_radius", 0.3}, {"wheel_width", 0.2},
          {"wheel_base", 2.7}, {"wheel_tread", 1.5}, {"front_overhang", 0.9},
          {"rear_overhang", 1.0}, {"left_overhang", 0.2}, {"right_overhang", 0.2},

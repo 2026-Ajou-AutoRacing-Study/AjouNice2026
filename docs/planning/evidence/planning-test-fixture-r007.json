@@ -1,0 +1,33 @@
+{
+  "schema": "ajounice.aw149.planning_test_fixture.v1",
+  "recorded_at": "2026-09-08T19:19:26+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "checkpoint": {
+    "name": "checkpoint-r009.json",
+    "sha256": "69a2d93ff7a2f3696f8dc72e53ecdc3f36d3c11173bfd1652e81f4ea2a002fa8",
+    "predecessor": "checkpoint-r008.json"
+  },
+  "source_audit": {
+    "status": "PASS",
+    "source_files_checked": 3998,
+    "changed_or_missing": 0,
+    "provider_source_files_checked": 6589,
+    "provider_changed_or_missing": 0
+  },
+  "isolated_results": {
+    "packages": 3,
+    "tests": 30,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "package_results": {
+      "autoware_costmap_generator": 16,
+      "autoware_freespace_planner": 5,
+      "autoware_surround_obstacle_checker": 9
+    }
+  },
+  "master_policy": "fresh ROS master and ROS_HOME per package",
+  "make_jobs": 1,
+  "fixture_source": "Each suite loads its committed ROS1 module YAML into the exact private namespace; node fixtures additionally supply the committed test vehicle dimensions.",
+  "claim_boundary": "Costmap generation, freespace A-star transport, and surround-obstacle package suites are closed. Ten isolated residual package suites remain open; this does not alter P7.1 runtime acceptance."
+}

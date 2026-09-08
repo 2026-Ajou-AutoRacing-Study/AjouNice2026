@@ -21,6 +21,7 @@
 #include <tf2_ros/static_transform_broadcaster.h>
 
 #include <memory>
+#include <cstdlib>
 #include <thread>
 #include <string>
 #include <utility>
@@ -28,6 +29,17 @@
 
 namespace autoware::surround_obstacle_checker
 {
+
+void setTestVehicleInfo(ros::NodeHandle & node)
+{
+  for (const auto & entry : {
+         std::pair{"wheel_radius", 0.39}, {"wheel_width", 0.42}, {"wheel_base", 2.74},
+         {"wheel_tread", 1.63}, {"front_overhang", 1.0}, {"rear_overhang", 1.03},
+         {"left_overhang", 0.1}, {"right_overhang", 0.1}, {"vehicle_height", 2.5},
+         {"max_steer_angle", 0.70}}) {
+    node.setParam(entry.first, entry.second);
+  }
+}
 
 
 using autoware_internal_planning_msgs::SafetyFactor;
@@ -37,7 +49,13 @@ class SurroundObstacleCheckerPlanningFactorTest : public ::testing::Test
 public:
   void SetUp() override
   {
-  
+    ASSERT_EQ(
+      std::system(
+        "rosparam load \"$(rospack find autoware_surround_obstacle_checker)/config/ros1/"
+        "surround_obstacle_checker.yaml\" /surround_obstacle_checker_node"),
+      0);
+    ros::NodeHandle target_parameters("/surround_obstacle_checker_node");
+    setTestVehicleInfo(target_parameters);
     test_node_ = std::make_shared<ros::NodeHandle>();
     test_target_node_ = generateTestTargetNode();
 

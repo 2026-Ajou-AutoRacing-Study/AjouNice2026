@@ -2,8 +2,15 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
+
 TEST(SurroundObstacleCheckerRos1Parameters, LoadsCompleteSourceConfiguration)
 {
+  ASSERT_EQ(
+    std::system(
+      "rosparam load \"$(rospack find autoware_surround_obstacle_checker)/config/ros1/"
+      "surround_obstacle_checker.yaml\" /aw149_surround_obstacle_checker"),
+    0);
   ros::NodeHandle node("/aw149_surround_obstacle_checker");
   const auto parameters = aw149::surround_obstacle_checker::Parameters::init(node);
   EXPECT_EQ(parameters.obstacle_types.size(), 9U);

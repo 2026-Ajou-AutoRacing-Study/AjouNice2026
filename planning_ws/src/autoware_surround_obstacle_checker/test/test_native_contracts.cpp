@@ -2,12 +2,14 @@
 // Licensed under the Apache License, Version 2.0.
 #include "../src/full_native_support.hpp"
 #include <gtest/gtest.h>
+#include <cstdlib>
 using surround_obstacle_checker_node::ParamListener;
 TEST(SurroundNativeContracts, MissingParametersFailInitialization) {
   ros::NodeHandle node("/surround_missing_parameters");
   EXPECT_THROW(ParamListener{node},std::runtime_error);
 }
 TEST(SurroundNativeContracts, OriginalSchemaDefaultsAndRuntimeUpdate) {
+  ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_surround_obstacle_checker)/config/ros1/surround_obstacle_checker.yaml\" /surround_native_parameters"),0);
   ros::NodeHandle node("/surround_native_parameters");
   ParamListener listener(node);
   const auto initial=listener.get_params();
@@ -19,6 +21,7 @@ TEST(SurroundNativeContracts, OriginalSchemaDefaultsAndRuntimeUpdate) {
   node.setParam("car/enable_check",true);
 }
 TEST(SurroundNativeContracts, RejectInvalidUpdateWithoutReplacingLastValidSnapshot) {
+  ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_surround_obstacle_checker)/config/ros1/surround_obstacle_checker.yaml\" /surround_native_parameters"),0);
   ros::NodeHandle node("/surround_native_parameters");
   ParamListener listener(node);
   node.setParam("state_clear_time",-1.0);

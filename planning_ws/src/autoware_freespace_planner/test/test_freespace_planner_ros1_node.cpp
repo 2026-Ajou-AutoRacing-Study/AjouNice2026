@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <cstdlib>
 
 namespace
 {
@@ -10,6 +11,11 @@ TEST(FreespacePlannerRos1Node, SuppressesOutsideParkingThenPublishesFreeSpacePar
 {
   ros::NodeHandle node;
   ros::NodeHandle planner_node("/freespace_transport_oracle");
+  ASSERT_EQ(
+    std::system(
+      "rosparam load \"$(rospack find autoware_freespace_planner)/config/"
+      "freespace_planner.ros1.yaml\" /freespace_transport_oracle"),
+    0);
   for (const auto & entry : {std::pair{"wheel_radius", 0.3}, {"wheel_width", 0.2},
                             {"wheel_base", 2.7}, {"wheel_tread", 1.5},
                             {"front_overhang", 0.9}, {"rear_overhang", 1.0},

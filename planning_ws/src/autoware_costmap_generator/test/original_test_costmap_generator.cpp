@@ -23,6 +23,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 
 #include <memory>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -34,7 +35,11 @@ class TestCostmapGenerator : public ::testing::Test
 public:
   void SetUp() override
   {
-    
+    ASSERT_EQ(
+      std::system(
+        "rosparam load \"$(rospack find autoware_costmap_generator)/config/"
+        "costmap_generator.ros1.yaml\" /costmap_original_tests"),
+      0);
     set_up_node();
     setup_lanelet_map();
   }
