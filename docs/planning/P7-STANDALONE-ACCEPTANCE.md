@@ -88,3 +88,9 @@ loads the committed vehicle and checker parameter fixtures for the full
 trajectory-checker tests. Its isolated package result is 52/52 passing,
 including the long diagnostics suite. See
 [planning-test-fixture-r005.json](evidence/planning-test-fixture-r005.json).
+
+Checkpoint r008 (`5b5bcf2477d0d53a36fbf5ba006066f5f332dc5dcf6d4899dd08c7331ba9ac7b`)
+closes nine Behavior Velocity scene-module package suites using their committed
+ROS1 parameter files: 124 tests, zero errors, failures, or skips, with a fresh
+master per package. See
+[planning-test-fixture-r006.json](evidence/planning-test-fixture-r006.json).

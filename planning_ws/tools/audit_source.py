@@ -8,7 +8,7 @@ import sys
 from catkin_pkg.packages import find_packages
 
 root = Path(__file__).resolve().parents[1]
-checkpoint_path = root/'provenance/checkpoint-r007.json'
+checkpoint_path = root/'provenance/checkpoint-r008.json'
 manifest = json.loads(checkpoint_path.read_text())
 sources = manifest['source_sha256']
 excluded = [p for p in sources if '__pycache__' in Path(p).parts or p.endswith('.pyc')]

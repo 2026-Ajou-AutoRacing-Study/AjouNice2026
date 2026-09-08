@@ -3,11 +3,18 @@
 #include <autoware/behavior_velocity_planner_common/experimental/plugin_interface.hpp>
 #include <pluginlib/class_loader.hpp>
 #include <gtest/gtest.h>
+#include <cstdlib>
 namespace bvp = autoware::behavior_velocity_planner;
 template<class Interface> void check(const std::string & base, const std::string & prefix,
                                      const std::string & method)
 {
   ros::NodeHandle node("/full_occlusion_spot_test");
+  ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_occlusion_spot_module)/config/ros1/occlusion_spot.yaml\" /full_occlusion_spot_test"), 0);
+  node.setParam("wheel_radius", 0.39); node.setParam("wheel_width", 0.42);
+  node.setParam("wheel_base", 2.74); node.setParam("wheel_tread", 1.63);
+  node.setParam("front_overhang", 1.0); node.setParam("rear_overhang", 1.03);
+  node.setParam("left_overhang", 0.1); node.setParam("right_overhang", 0.1);
+  node.setParam("vehicle_height", 2.5); node.setParam("max_steer_angle", 0.70);
   node.setParam("occlusion_spot/detection_method", method);
   pluginlib::ClassLoader<Interface> loader("autoware_behavior_velocity_planner_common", base);
   auto plugin = loader.createUniqueInstance(prefix + "OcclusionSpotModulePlugin");

@@ -3,11 +3,13 @@
 #include <autoware/behavior_velocity_planner_common/experimental/plugin_interface.hpp>
 #include <pluginlib/class_loader.hpp>
 #include <gtest/gtest.h>
+#include <cstdlib>
 
 namespace bvp = autoware::behavior_velocity_planner;
 template<class Interface> void checkPlugin(const std::string & base, const std::string & name)
 {
   ros::NodeHandle node("/full_crosswalk_test");
+  ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_crosswalk_module)/config/ros1/crosswalk.yaml\" /full_crosswalk_test"), 0);
   pluginlib::ClassLoader<Interface> loader("autoware_behavior_velocity_planner_common", base);
   auto plugin = loader.createUniqueInstance(name);
   ASSERT_TRUE(plugin);

@@ -7,10 +7,12 @@
 #include <pluginlib/class_loader.hpp>
 #include <gtest/gtest.h>
 #include <type_traits>
+#include <cstdlib>
 namespace bvp = autoware::behavior_velocity_planner;
 template<class Interface> void plugin(const std::string & base, const std::string & prefix)
 {
   ros::NodeHandle node("/full_walkway_test");
+  ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_walkway_module)/config/ros1/walkway.yaml\" /full_walkway_test"), 0);
   pluginlib::ClassLoader<Interface> loader("autoware_behavior_velocity_planner_common", base);
   auto instance = loader.createUniqueInstance(prefix + "WalkwayModulePlugin");
   instance->init(node);

@@ -3,10 +3,13 @@
 #include <autoware/behavior_velocity_planner_common/experimental/plugin_interface.hpp>
 #include <pluginlib/class_loader.hpp>
 #include <gtest/gtest.h>
+#include <cstdlib>
 namespace bvp = autoware::behavior_velocity_planner;
 template<class Interface> void checkPlugin(const std::string & base, const std::string & name, bool intersection)
 {
   ros::NodeHandle node("/full_intersection_test");
+  ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_planner)/config/ros1/behavior_velocity_planner.yaml\" /full_intersection_test"), 0);
+  ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_intersection_module)/config/ros1/intersection.yaml\" /full_intersection_test"), 0);
   pluginlib::ClassLoader<Interface> loader("autoware_behavior_velocity_planner_common", base);
   auto plugin = loader.createUniqueInstance(name);
   ASSERT_TRUE(plugin);
