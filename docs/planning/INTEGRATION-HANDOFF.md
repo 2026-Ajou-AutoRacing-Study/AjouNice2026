@@ -17,7 +17,7 @@
 
 같은 checkpoint와 v61 fixture의 최종 P7.1 standalone graph는 11/11을 통과했다. Route A/B, BVP 양 모드, 안전/점유 차선 LC, 교차로, red→green, 정적 장애물 정지, moving ego, 2초 입력 복구, 안전 규약을 유지한 reroute를 Mission→validator 동일 graph에서 검증했다. r002 시점 source·map·projector·route hash 일치도 다시 확인했다. 상세 범위와 제외 항목은 [P7-STANDALONE-ACCEPTANCE.md](P7-STANDALONE-ACCEPTANCE.md)와 [machine receipt](evidence/p7-standalone-reconciliation.json)에 있다.
 
-현재 source audit은 test-only checkpoint r003을 기준으로 한다. r002 이후 바뀐 것은 builtin payload를 native ROS 시간 타입으로 잘못 대입하던 테스트 3파일뿐이며 두 패키지 28 tests를 통과했다. planning 전체 raw `run_tests` 감사의 남은 27개 fixture 실패는 [별도 영수증](evidence/planning-test-audit-r001.json)에 공개하며 runtime/P7 합격으로 숨기지 않는다.
+현재 source audit은 test-only checkpoint r010을 기준으로 한다. planning 154개 `run_tests` 타깃을 패키지별 독립 ROS master/ROS_HOME과 `-j1`에서 전면 재실행해 154/154 완료했으며, 테스트를 선언한 87개 패키지의 실제 JUnit 1,288 testcase가 errors/failures/skips 0으로 통과했다. 테스트가 없는 67개 패키지는 타깃 완료만 증명한다. 상세 범위는 [planning-test-audit-r002.json](evidence/planning-test-audit-r002.json)에 있으며 runtime/P7/폐루프 합격으로 확대하지 않는다.
 
 실제 객체가 든 `sensor_cam_raw_obstacle1.bag`으로 oracle/evaluation adapter→map-frame tracking→prediction도 실행했다. v61 map-based 경로는 15초 동안 tracking 699 frame/5,396 object, prediction 511 frame/3,733 object를 처리했고 모든 prediction object가 finite 위치와 현재 pose 포함 31-point/3.0초 horizon path를 가졌다. 기본 CTRV도 3,124 object 전부 같은 길이의 path를 생성했다. 다만 이것은 생산 detector/tracker 대신 MORAI GT를 쓴 transport/runtime 증거이며, map-based는 50 Hz 원본의 모든 frame을 보존하지 않았다.
 
@@ -97,7 +97,8 @@ planning 입력 topic의 publisher/type만 먼저 보려면 `scripts/runtime/che
 
 현재 인계 상태는 **아주나이스 저장소 내부에서 build/install 및 output-only 통합 시험을 시작할 수 있는 상태**다. 실제 MORAI 입력과 검토 차량값이 필요한 기능·폐루프 gate는 이 컴퓨터에서 임의 fixture로 완료 처리하지 않았다.
 
-추가 raw-test 보강은 `checkpoint-r004.json`에 분리했다. 격리 master에서
-`autoware_behavior_velocity_planner` 76/76이 통과했지만, 이 결과는 P7 런타임
-증거를 확대하지 않으며 나머지 패키지의 fixture/algorithm oracle은 계속 열린
-상태다. 상세 수치는 `docs/planning/evidence/planning-test-fixture-r002.json`에 있다.
+추가 raw-test 보강은 `checkpoint-r010.json`까지 분리했다. 최종 패키지별
+격리 재실행은 154/154 타깃과 실제 JUnit 1,288/1,288 testcase를 통과했다.
+이 결과는 package fixture/algorithm oracle을 닫지만 P7 런타임 증거를
+확대하지 않는다. 상세 수치는
+`docs/planning/evidence/planning-test-audit-r002.json`에 있다.

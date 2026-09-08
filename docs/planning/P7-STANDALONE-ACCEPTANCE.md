@@ -114,3 +114,13 @@ quaternion for the empty occupancy-grid origin instead of the invalid all-zero
 quaternion. This remains package-test evidence and does not relabel the P7.1
 11/11 runtime run. See
 [planning-test-fixture-r008.json](evidence/planning-test-fixture-r008.json).
+
+The checkpoint-r010 all-package reconciliation then executed all 154
+`run_tests` targets with a fresh ROS master and ROS_HOME per package and `-j1`.
+All 154 target commands completed. The 87 packages that declare tests produced
+253 JUnit files and 1,288 unique testcases, with zero errors, failures, skips,
+or malformed reports; 67 packages declare no tests and therefore contribute
+target completion but no testcase coverage. This closes the raw package-test
+audit while leaving the P7.1 runtime and AjouNice closed-loop claim boundaries
+unchanged. See
+[planning-test-audit-r002.json](evidence/planning-test-audit-r002.json).
