@@ -6,14 +6,16 @@ source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh"
 
 check_flow=true
 include_outputs=false
+include_controller_contract=false
 wait_seconds="${AW149_TOPIC_WAIT_SECONDS:-5}"
 
 for argument in "$@"; do
   case "$argument" in
     --types-only) check_flow=false ;;
     --full) include_outputs=true ;;
+    --controller) include_controller_contract=true ;;
     *)
-      echo "usage: $0 [--types-only] [--full]" >&2
+      echo "usage: $0 [--types-only] [--full] [--controller]" >&2
       exit 2
       ;;
   esac
@@ -38,6 +40,14 @@ if $include_outputs; then
     "/planning/route_state|autoware_planning_msgs/RouteState"
     "/planning/trajectory|autoware_planning_msgs/Trajectory"
     "/planning/validation_status|autoware_planning_validator/PlanningValidatorStatus"
+  )
+fi
+
+if $include_controller_contract; then
+  topics+=(
+    "/control/trajectory_follower/lateral/predicted_trajectory|autoware_planning_msgs/Trajectory"
+    "/control/command/control_cmd|autoware_control_msgs/Control"
+    "/vehicle/status/steering_status|autoware_vehicle_msgs/SteeringReport"
   )
 fi
 

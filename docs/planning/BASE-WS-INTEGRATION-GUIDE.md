@@ -163,6 +163,8 @@ GT covariance는 unavailable로 설명돼 있다. 이를 실제 추정 covarianc
 
 합격 기준: 비어 있는 실제 장면과 실제 장애물이 있는 장면, 센서 끊김·TF 누락·stale·unknown 상황을 구분해 동작한다. 더미 empty/free 입력을 production launch에 넣지 않는다.
 
+2026-09-08 clean 통합 graph의 publisher/type 감사에서는 기본 10개 중 localization 2개, objects, traffic signal, map 2개가 광고됐고 occupancy·ground-free cloud·실제 system mode는 공급자가 없었다. `/api` mode도 source가 없어서 lazy relay 출력이 생기지 않았다. C2 3개까지 포함하면 총 13개 중 7개가 `NOPUB`였다. 이는 [integration-topic-contract-r001.json](evidence/integration-topic-contract-r001.json)에 고정했으며, `PASS` 6개도 `--types-only` 판정이라 실제 message flow 합격으로 세지 않는다.
+
 ## 9. S1 및 C2 — operation mode와 제어 피드백: 기존 목록에서 빠진 부분
 
 System은 `/system/operation_mode/state`의 `autoware_adapi_v1_msgs/OperationModeState`를 실제 모드/제어권과 연결해야 한다. 현재 production publisher는 확인되지 않았다. `mode`, `is_autoware_control_enabled`, `is_in_transition`, stamp를 사실대로 갱신한다. requester는 재경로 시 autonomous/control-enabled, 전환 중 아님, 최신 reroute availability의 hold 조건 등을 확인한다.
@@ -293,7 +295,7 @@ URDF와 sensor TF 모두 `base_link=rear axle center`로 문서화돼 있다. in
 
 각 run에 route UUID, 지도/차량 config hash, 시작 준비 시간, 안정 구간 output Hz, 최대 gap, source-age/latency 분포, 전체 validator invalid 건수·연속 지속시간, 경로/장애물/차선변경 판정을 남긴다. 고정 정답 수치를 임의로 정하지 말고 현재 제어 timeout 및 실제 주행 조건으로 합격 임계값을 합의한다. 테스트의 마지막 validator 1개가 true였다는 사실만으로 전체 run을 PASS로 처리하지 않는다.
 
-입력 연결 직후 `scripts/runtime/check_topics.sh`로 10개 planning 입력의 type과 실제 message flow를 선검사한다. `--types-only`는 publisher/type만, `--full`은 route/trajectory/validator 출력까지 포함한다. 이 스크립트의 PASS는 frame·단위·semantic 승인 대신 사용할 수 없다.
+입력 연결 직후 `scripts/runtime/check_topics.sh`로 10개 planning 입력의 type과 실제 message flow를 선검사한다. `--types-only`는 publisher/type만, `--full`은 route/trajectory/validator 출력까지, `--controller`는 C2의 controller rollout·정식 control·steering report 3개를 포함한다. 옵션은 함께 사용할 수 있다. 이 스크립트의 PASS는 frame·단위·semantic 승인 대신 사용할 수 없다.
 
 ## 15. 친구에게 전달할 작업 완료 정의
 

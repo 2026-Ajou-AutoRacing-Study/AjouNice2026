@@ -62,7 +62,9 @@ clean 설치본의 24개 필수 노드 생존과 v61 binary map 수신을 격리
 
 FastBEV 또는 PointPainting을 켜려면 checkpoint 파일을 별도로 배포하고 SHA256을 release 문서와 대조한 뒤 `start_detector:=true`와 해당 경로 인자를 넘긴다. 현재 Git clone만으로 detector까지 켤 수 있다고 가정하지 않는다.
 
-planning 입력 topic의 publisher/type만 먼저 보려면 `scripts/runtime/check_topics.sh --types-only`, 실제 메시지 흐름까지 보려면 `scripts/runtime/check_topics.sh`를 실행한다. Route 이후 출력까지는 `--full`을 추가한다. 하나라도 없거나 타입이 다르거나 기본 5초 안에 메시지가 없으면 nonzero로 종료한다. 이 검사는 축·단위·내용 의미까지 승인하지 않으므로 아래 담당별 동적 확인도 계속 필요하다.
+planning 입력 topic의 publisher/type만 먼저 보려면 `scripts/runtime/check_topics.sh --types-only`, 실제 메시지 흐름까지 보려면 `scripts/runtime/check_topics.sh`를 실행한다. Route 이후 출력까지는 `--full`, BoundaryDeparturePrevention에 필요한 C2 입력까지는 `--controller`를 추가한다. 옵션은 함께 쓸 수 있다. 하나라도 없거나 타입이 다르거나 기본 5초 안에 메시지가 없으면 nonzero로 종료한다. 이 검사는 축·단위·내용 의미까지 승인하지 않으므로 아래 담당별 동적 확인도 계속 필요하다.
+
+현재 clean graph에서 `--types-only --controller`를 실행한 결과는 13개 중 6개 publisher/type 확인, 7개 `NOPUB`다. 빠진 것은 occupancy, ground-free cloud, system mode와 source가 없어 생성되지 않은 API relay 출력, C2 3개다. [machine receipt](evidence/integration-topic-contract-r001.json)의 `PASS` 6개도 메시지 흐름을 확인한 결과가 아님에 주의한다.
 
 ## base_ws 담당자에게 받을 입력
 
