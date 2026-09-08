@@ -11,4 +11,7 @@
   <exec_depend>perception_object_pipeline</exec_depend>
   <exec_depend>traffic_light_detection</exec_depend>
   <exec_depend>trajectory_follower</exec_depend>
+  <exec_depend>topic_tools</exec_depend>
+  <test_depend>autoware_adapi_v1_msgs</test_depend>
+  <test_depend>rostest</test_depend>
 </package>

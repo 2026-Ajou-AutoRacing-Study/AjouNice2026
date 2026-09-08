@@ -5,7 +5,7 @@
 
 ## 1. 현재 무엇이 되고, 무엇을 해야 하는가
 
-포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 24개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 23개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 10개 검사를 통과했다.
+포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 24개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 24개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 10개 검사를 통과했다.
 
 **인지 입력만 연결하면 정상 trajectory가 보장된다는 뜻은 아니다.** 현재 AjouNice localization/perception/control의 실데이터를 함께 연결한 end-to-end 검사는 완료되지 않았다. 새 graph의 기동 검사는 route/ego/TF/objects/acceleration/mode를 공급하지 않았고, 필요한 입력을 기다리는 상태였다. 지금 계속 주행 graph를 켜두었다는 뜻도 아니다.
 
@@ -32,7 +32,7 @@ Scenario Selector에는 parking 분기도 연결돼 있다. lane-driving scenari
 | P2 | 신호 인식 | **완료:** Time 변환, helper/weights 설치, v61 설정, route state 관리 | clean install 기동·계약 검사 통과 |
 | L1 | Localization | **정적 계약 완료:** MORAI acceleration 전달 및 odometry와 동일 stamp ROS transport. 실 MORAI 축·단위·TF/clock 동적 검증은 남음 | BPP/BVP/MVP/validator 필수 입력 |
 | P3 | 인지/LiDAR | 실제 ground-free cloud와 occupancy 공급 | 대상 plugin의 판단 입력, occupancy는 BPP cyclic readiness에도 사용 |
-| S1 | System/차량 인터페이스 | 실제 mode/engage 상태 공급, mode 토픽 두 경로 정합 | 초기 경로/재경로/주행 상태 판단 |
+| S1 | System/차량 인터페이스 | **토픽 정합 완료:** `/system` 단일 원천을 `/api`로 relay. 실제 mode/engage 상태 공급은 남음 | 초기 경로/재경로/주행 상태 판단 |
 | C1 | 제어 | **코드 연결 완료:** follower 입력 `/planning/trajectory`; 실데이터 source age·validator 승인은 남음 | output-only 후 폐루프 순서 유지 |
 | C2 | 제어/차량 | 제어 예측 trajectory·Control·SteeringReport 공급 | MVP 경계 이탈 방지 모듈의 추가 입력 |
 | M1 | Map/bringup | **구성 완료:** 통합 launch에서 binary map 단일 발행, v61/projector 고정 | 실운영 중 publisher 유일성 재확인 |
@@ -158,7 +158,7 @@ GT covariance는 unavailable로 설명돼 있다. 이를 실제 추정 covarianc
 
 System은 `/system/operation_mode/state`의 `autoware_adapi_v1_msgs/OperationModeState`를 실제 모드/제어권과 연결해야 한다. 현재 production publisher는 확인되지 않았다. `mode`, `is_autoware_control_enabled`, `is_in_transition`, stamp를 사실대로 갱신한다. requester는 재경로 시 autonomous/control-enabled, 전환 중 아님, 최신 reroute availability의 hold 조건 등을 확인한다.
 
-**현재 full MVP launch에는 BoundaryDeparturePrevention module이 포함된다.** 이 module은 다른 경로 `/api/operation_mode/state`를 구독한다. 이 topic을 같은 진실 원천의 mode로 연결하거나 integration namespace에서 `/api/operation_mode/state → /system/operation_mode/state` remap을 적용한다. 서로 다른 상시 mode 발행기를 만들지 않는다.
+**현재 full MVP launch에는 BoundaryDeparturePrevention module이 포함된다.** 이 module은 다른 경로 `/api/operation_mode/state`를 구독한다. 통합 launch의 `operation_mode_state_to_api` relay가 `/system/operation_mode/state`를 `/api/operation_mode/state`로 그대로 전달하며 transport 검사를 통과했다. 따라서 실제 상태 발행기는 `/system` 한 곳에만 둔다. 외부 스택이 이미 두 topic을 모두 발행한다면 `relay_operation_mode_to_api:=false`로 중복 발행을 막는다.
 
 추가 피드백 3개:
 
@@ -264,7 +264,7 @@ projector: `kcity_map/lanelet_map/map_projector_info_v1.yaml`.
 | `/map/vector_map` | autoware_map_msgs/LaneletMapBin | full map loader 단일 발행, M1 |
 | `/map/map_projector_info` | autoware_map_msgs/MapProjectorInfo | integration projector, M1 |
 | `/system/operation_mode/state` | autoware_adapi_v1_msgs/OperationModeState | System, S1 |
-| `/api/operation_mode/state` | autoware_adapi_v1_msgs/OperationModeState | 위 mode 원천과 연결/remap, S1/C2 |
+| `/api/operation_mode/state` | autoware_adapi_v1_msgs/OperationModeState | integration relay가 `/system` 원천을 보존해 전달, S1/C2 |
 | `/control/trajectory_follower/lateral/predicted_trajectory` | autoware_planning_msgs/Trajectory | Controller rollout, C2 |
 | `/control/command/control_cmd` | autoware_control_msgs/Control | Controller 정식 명령 출력, C2 |
 | `/vehicle/status/steering_status` | autoware_vehicle_msgs/SteeringReport | 차량 실제 조향 피드백, C2 |

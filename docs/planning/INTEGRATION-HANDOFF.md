@@ -12,7 +12,7 @@
 - `ajounice_planning_integration/morai_planning_stack.launch`가 localization, sensor TF, object tracking/prediction, traffic light, v61 binary map, Mission→BPP→BVP→MVP graph를 묶는다.
 - detector checkpoint는 Git에 없으므로 detector, controller, route requester는 안전상 기본 `false`다.
 
-현재 로컬 증거는 planning source audit PASS, base 24/24 clean install, object pipeline 21 tests, tracker 14 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 10 tests다. MORAI GT localization은 변환 단위검사 1개와 실제 ROS transport 1개를 통과했고, 한 Ego 입력에서 odometry/acceleration이 동일 stamp로 발행됨을 확인했다. v61 통합 graph는 23개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다.
+현재 로컬 증거는 planning source audit PASS, base 24/24 clean install, object pipeline 21 tests, tracker 14 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 10 tests다. MORAI GT localization은 변환 단위검사 1개와 실제 ROS transport 1개를 통과했고, 한 Ego 입력에서 odometry/acceleration이 동일 stamp로 발행됨을 확인했다. operation-mode `/system`→`/api` relay도 ROS transport 검사를 통과했다. v61 통합 graph는 24개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다.
 
 이 증거는 **실제 입력으로 trajectory가 나온다거나 폐루프 주행이 승인됐다는 뜻은 아니다.** 외부 입력이 없던 기동에서는 route, ego/TF, objects, acceleration, operation mode를 기다리는 것이 정상 상태였다.
 
@@ -60,7 +60,7 @@ FastBEV 또는 PointPainting을 켜려면 checkpoint 파일을 별도로 배포�
 | Perception | `/perception/object_recognition/objects` `autoware_perception_msgs/PredictedObjects` | 변환/직렬화는 수정됨. 실제 detector→tracker→predictor frame, age, rate 확인 |
 | Perception | `/perception/obstacle_segmentation/pointcloud` `sensor_msgs/PointCloud2` | production ground-removal 출력 미확인. deskewed cloud 단순 remap 금지 |
 | Perception | `/perception/occupancy_grid_map/map` `nav_msgs/OccupancyGrid` | production publisher 미확인. 빈 free grid로 합격시키지 않음 |
-| System | `/system/operation_mode/state` 및 `/api/operation_mode/state` `autoware_adapi_v1_msgs/OperationModeState` | 실제 제어권 상태와 연결. 상시 autonomous fixture 금지 |
+| System | `/system/operation_mode/state` `autoware_adapi_v1_msgs/OperationModeState` | 실제 제어권 상태와 연결. 통합 relay가 `/api`에도 동일 메시지를 전달. 상시 autonomous fixture 금지 |
 | Vehicle/Control | predicted trajectory, `autoware_control_msgs/Control`, `autoware_vehicle_msgs/SteeringReport` | BoundaryDeparture MVP를 켤 때 실제 controller rollout과 조향 피드백 필요 |
 | Vehicle | flat vehicle-info YAML | 실제 IONIQ5 치수와 base_link 기준점 승인 필요 |
 

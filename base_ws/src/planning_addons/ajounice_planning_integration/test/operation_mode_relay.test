@@ -1,0 +1,10 @@
+<launch>
+  <include file="$(find ajounice_planning_integration)/launch/operation_mode_relay.launch">
+    <arg name="input_topic" value="/test/system/operation_mode/state"/>
+    <arg name="output_topic" value="/test/api/operation_mode/state"/>
+  </include>
+  <test test-name="operation_mode_relay"
+        pkg="ajounice_planning_integration"
+        type="test_operation_mode_relay.py"
+        time-limit="15"/>
+</launch>

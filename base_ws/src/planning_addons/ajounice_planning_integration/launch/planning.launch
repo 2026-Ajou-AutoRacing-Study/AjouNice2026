@@ -4,6 +4,9 @@
   <arg name="vehicle_param_path"/>
   <arg name="start_requester" default="false"/>
   <arg name="is_simulation" default="false"/>
+  <arg name="relay_operation_mode_to_api" default="true"/>
+  <include if="$(arg relay_operation_mode_to_api)"
+           file="$(find ajounice_planning_integration)/launch/operation_mode_relay.launch"/>
   <include file="$(find ajounice_planning_integration)/launch/map.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
   </include>
