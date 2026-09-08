@@ -7,5 +7,6 @@ install(DIRECTORY launch DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 
 if(CATKIN_ENABLE_TESTING)
   find_package(rostest REQUIRED)
+  catkin_add_nosetests(test/test_vehicle_info_contract.py)
   add_rostest(test/operation_mode_relay.test)
 endif()

@@ -4,7 +4,8 @@
     default so the first gate can inspect /planning/trajectory safely.
   -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
-  <arg name="vehicle_param_path"/>
+  <arg name="vehicle_param_path"
+       default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
   <arg name="vehicle_config"
        default="$(arg repo_root)/configs/vehicle/ioniq5.yaml"/>
   <arg name="sensor_config"

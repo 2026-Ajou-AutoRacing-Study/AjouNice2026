@@ -33,7 +33,7 @@ source scripts/workspace/source_aw149.sh
 
 `source_aw149.sh`가 실패하면 낡은 devel로 우회하지 말고 build/install 실패부터 해결한다. `rospack find ajounice_planning_integration`, `rospack find ekf_multi_object_tracking`, Python message `__file__`이 모두 `install_aw149` 또는 planning `install_isolated` 아래를 가리켜야 한다.
 
-차량 치수는 upstream test YAML을 운영값으로 복사하지 않는다. 실제 검토된 flat YAML이 필요하다:
+차량 치수는 upstream test YAML을 운영값으로 복사하지 않는다. 기본값은 `configs/planning/vehicle_info.yaml`이며, 저장소의 IONIQ5 mesh 측정 기록과 controller 설정을 대조한 flat YAML이다:
 
 ```text
 wheel_base, wheel_tread, front_overhang, rear_overhang,
@@ -41,11 +41,12 @@ left_overhang, right_overhang, vehicle_height,
 wheel_radius, wheel_width, max_steer_angle
 ```
 
+rear-axle `base_link`에 맞춰 rear track을 쓰고 body width에서 좌우 overhang을 계산했다. 설정 provenance 단위검사와 실제 launch parameter load는 통과했지만, competition 차량의 track/tire/최대 tire angle은 폐루프 전에 담당자가 재확인한다. 필요하면 `vehicle_param_path:=...`로 승인본을 덮어쓴다.
+
 정적 launch 확인 예:
 
 ```bash
 roslaunch ajounice_planning_integration morai_planning_stack.launch \
-  vehicle_param_path:=/absolute/path/to/reviewed_vehicle_info.yaml \
   start_controller:=false --nodes
 ```
 

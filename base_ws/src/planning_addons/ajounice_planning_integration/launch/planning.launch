@@ -1,7 +1,8 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
-  <!-- Explicit reviewed flat vehicle YAML: base example lacks wheel tread. -->
-  <arg name="vehicle_param_path"/>
+  <!-- Flat rear-axle-frame values, cross-checked against the vehicle mesh record. -->
+  <arg name="vehicle_param_path"
+       default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
   <arg name="start_requester" default="false"/>
   <arg name="is_simulation" default="false"/>
   <arg name="relay_operation_mode_to_api" default="true"/>

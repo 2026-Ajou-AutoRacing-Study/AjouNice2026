@@ -36,7 +36,7 @@ Scenario Selector에는 parking 분기도 연결돼 있다. lane-driving scenari
 | C1 | 제어 | **코드 연결 완료:** follower 입력 `/planning/trajectory`; 실데이터 source age·validator 승인은 남음 | output-only 후 폐루프 순서 유지 |
 | C2 | 제어/차량 | 제어 예측 trajectory·Control·SteeringReport 공급 | MVP 경계 이탈 방지 모듈의 추가 입력 |
 | M1 | Map/bringup | **구성 완료:** 통합 launch에서 binary map 단일 발행, v61/projector 고정 | 실운영 중 publisher 유일성 재확인 |
-| V1 | 차량 설정 | 실차 치수에서 flat planner YAML 생성 | 예시 YAML은 schema도 다르고 tread/wheel width도 없음 |
+| V1 | 차량 설정 | **구성 완료:** mesh 측정 원천 기반 flat YAML과 provenance 검사. 실차 track/tire/steer 재승인은 남음 | 시험차 YAML 혼입 차단 |
 | T1 | 도구/제어 | **완료:** CSV/history native Duration 변환 | base 24/24 빌드 및 단위검사 통과 |
 | R1 | 통합/bringup | **주 경로 완료:** 통합 entrypoint와 runtime source를 install_aw149로 통일 | 과거 실험 launch는 운영 entrypoint가 아님 |
 | A1 | 통합/검증 | 실제 route→trajectory→plugin→폐루프 순서 승인 | 출력 존재만으로 기능을 보장할 수 없음 |
@@ -211,19 +211,17 @@ v61 OSM SHA256: `c8ee07fb70334a13373f8cbd54fabe95980ac1e9589bbc05382337074f089dc
 projector: `kcity_map/lanelet_map/map_projector_info_v1.yaml`.
 기존 map projector addon은 생성 상수 `MapProjectorInfo.LOCAL_CARTESIAN_UTM` / `WGS84`를 사용하도록 수정돼 있다. 이 포팅 메시지는 ROS1에서 문자열 상수에 따옴표가 남으므로 YAML literal과 wire constant를 혼동하지 않는다. map·projector hash를 바꾸면 requester의 frozen route 정의도 다시 검증해야 한다.
 
-`configs/vehicle/ioniq5.yaml`은 파일 자체에 '예시'라고 적혀 있다. nested `vehicle/*` 형식이며 아래 known value도 실제 차량 승인값으로 확정된 것은 아니다.
+planner 기본값은 `configs/planning/vehicle_info.yaml`이다. nested `configs/vehicle/ioniq5.yaml`을 그대로 로드하지 않고, `base_ws/src/vehicle/meshes/ioniq5/ioniq5_mesh_measurements.json`의 target dimension과 controller의 steer 계약을 대조해 flat schema로 만들었다.
 
-| 현재 base key/값 | planner flat key | 처리 |
+| 원천 값 | planner flat key | 처리 |
 |---|---|---|
-| wheelbase_m=3.000 | wheel_base | 실제값 확인 후 변환 |
-| wheel_radius_m=0.3705 | wheel_radius | 실제값 확인 후 변환 |
-| front_overhang_m=0.845 / rear_overhang_m=0.790 | front_overhang / rear_overhang | 기준점과 길이 확인 |
-| height_m=1.600 | vehicle_height | 확인 후 변환 |
-| max_wheel_angle_deg=40 | max_steer_angle | rad로 변환(약 0.698132), tire angle인지 확인 |
-| width_m=1.892 | wheel_tread + left_overhang + right_overhang | width를 wheel_tread로 바로 대입하지 않음 |
-| 미기재 | wheel_tread, wheel_width, left_overhang, right_overhang | 차량 담당자 실측/공식값 필요 |
+| wheelbase=3.000 / radius=0.3705 | wheel_base / wheel_radius | mesh target와 일치 |
+| front=0.845 / rear=0.790 / height=1.600 | 해당 flat key | rear-axle frame 길이 합 4.635 m 검사 |
+| rear_track=1.651 / tire_width=0.235 | wheel_tread / wheel_width | rear-axle `base_link` 기준 |
+| body_width=1.890 | left_overhang=right_overhang=0.1195 | tread와 합해 body width, 미러 폭 2.134는 제외 |
+| max_wheel_angle_deg=40 | max_steer_angle=0.6981317008 | controller 계약과 rad 변환 검사, 실차 tire angle 재확인 |
 
-`base_link`가 planner의 rear-axle 기준과 맞는지 URDF·TF와 확인한다. flat planner YAML은 예를 들어 `configs/planning/vehicle_info.yaml`에 따로 생성하고, follower는 기존 nested YAML을 읽도록 각각 같은 원천 값을 제공한다. full planning launch의 `vehicle_param_path`와 follower의 `vehicle_config`에 명시 경로를 전달한다. 설치본의 시험 vehicle(2.74m wheelbase 등)을 기본으로 쓰면 실제차 치수와 달라진다.
+URDF와 sensor TF 모두 `base_link=rear axle center`로 문서화돼 있다. integration launch는 위 flat YAML을 기본 로드하며 10개 값의 실제 launch parameter 주입과 원천 일치 단위검사를 통과했다. follower는 기존 nested YAML을 쓰되 공통 물리값을 유지한다. competition 차량의 track, tire width, 40도 값이 tire angle인지 여부는 폐루프 승인 전 실물/공식 제원으로 재확인한다.
 
 ## 12. R1 — 실행 entrypoint·설치 경로 정리
 
