@@ -52,6 +52,8 @@ roslaunch ajounice_planning_integration morai_planning_stack.launch \
 
 FastBEV 또는 PointPainting을 켜려면 checkpoint 파일을 별도로 배포하고 SHA256을 release 문서와 대조한 뒤 `start_detector:=true`와 해당 경로 인자를 넘긴다. 현재 Git clone만으로 detector까지 켤 수 있다고 가정하지 않는다.
 
+planning 입력 topic의 publisher/type만 먼저 보려면 `scripts/runtime/check_topics.sh --types-only`, 실제 메시지 흐름까지 보려면 `scripts/runtime/check_topics.sh`를 실행한다. Route 이후 출력까지는 `--full`을 추가한다. 하나라도 없거나 타입이 다르거나 기본 5초 안에 메시지가 없으면 nonzero로 종료한다. 이 검사는 축·단위·내용 의미까지 승인하지 않으므로 아래 담당별 동적 확인도 계속 필요하다.
+
 ## base_ws 담당자에게 받을 입력
 
 | 담당 | topic/type | 현재 판단과 필요한 조치 |

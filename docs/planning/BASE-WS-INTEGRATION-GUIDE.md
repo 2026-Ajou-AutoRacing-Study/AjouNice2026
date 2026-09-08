@@ -283,8 +283,10 @@ URDF와 sensor TF 모두 `base_link=rear axle center`로 문서화돼 있다. in
 
 각 run에 route UUID, 지도/차량 config hash, 시작 준비 시간, 안정 구간 output Hz, 최대 gap, source-age/latency 분포, 전체 validator invalid 건수·연속 지속시간, 경로/장애물/차선변경 판정을 남긴다. 고정 정답 수치를 임의로 정하지 말고 현재 제어 timeout 및 실제 주행 조건으로 합격 임계값을 합의한다. 테스트의 마지막 validator 1개가 true였다는 사실만으로 전체 run을 PASS로 처리하지 않는다.
 
+입력 연결 직후 `scripts/runtime/check_topics.sh`로 10개 planning 입력의 type과 실제 message flow를 선검사한다. `--types-only`는 publisher/type만, `--full`은 route/trajectory/validator 출력까지 포함한다. 이 스크립트의 PASS는 frame·단위·semantic 승인 대신 사용할 수 없다.
+
 ## 15. 친구에게 전달할 작업 완료 정의
 
-“통합 완료”는 compile을 넘어 **실제 AjouNice 입력 → 유효한 route → 실제 필요한 plugin이 적용된 최종 trajectory → follower 폐루프**를 검사한 상태다. 현재는 소스·메시지·설치·통합 graph 기동까지 완료했으며, 실데이터가 필요한 L1/P3/S1/V1/C2/A1은 완료로 세지 않는다.
+“통합 완료”는 compile을 넘어 **실제 AjouNice 입력 → 유효한 route → 실제 필요한 plugin이 적용된 최종 trajectory → follower 폐루프**를 검사한 상태다. 현재는 소스·메시지·설치·통합 graph 기동, L1 가속도 전달, S1 mode topic relay, V1 기본 차량 설정까지 완료했다. 실제 데이터의 축·단위와 P3/S1/V1/C2/A1 동적 승인은 완료로 세지 않는다.
 
 친구 컴퓨터에서는 먼저 `setup_ws.sh`로 같은 install을 재현한다. 그 다음 L1/P3/S1/V1 입력 계약을 맞추고 controller를 끈 output-only로 Route A/B와 trajectory 전체 이력을 승인한 후 C2/폐루프를 켠다. 기존 포팅 알고리즘 오류가 나오면 원본 코드/변환 규약/재현 입력을 함께 기록하고 최소 수정 후 해당 검사와 관련 회귀 검사를 다시 수행한다.
