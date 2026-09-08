@@ -1,0 +1,8 @@
+<library path="libautoware_behavior_velocity_stop_line_module">
+  <class name="autoware::behavior_velocity_planner::StopLineModulePlugin"
+    type="autoware::behavior_velocity_planner::StopLineModulePlugin"
+    base_class_type="autoware::behavior_velocity_planner::PluginInterface" />
+  <class name="autoware::behavior_velocity_planner::experimental::StopLineModulePlugin"
+    type="autoware::behavior_velocity_planner::experimental::StopLineModulePlugin"
+    base_class_type="autoware::behavior_velocity_planner::experimental::PluginInterface" />
+</library>

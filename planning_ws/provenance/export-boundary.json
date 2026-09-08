@@ -1,0 +1,1200 @@
+{
+  "packages": [
+    {
+      "index": "1",
+      "package": "autoware_map_projection_loader",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "map/autoware_map_projection_loader",
+      "destination_relative_path": "autoware_original/autoware_core/map/autoware_map_projection_loader"
+    },
+    {
+      "index": "2",
+      "package": "autoware_map_loader",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "map/autoware_map_loader",
+      "destination_relative_path": "autoware_original/autoware_core/map/autoware_map_loader"
+    },
+    {
+      "index": "3",
+      "package": "autoware_behavior_velocity_planner",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_planner",
+      "destination_relative_path": "autoware_original/autoware_core/planning/behavior_velocity_planner/autoware_behavior_velocity_planner"
+    },
+    {
+      "index": "4",
+      "package": "autoware_behavior_velocity_planner_common",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_planner_common",
+      "destination_relative_path": "autoware_original/autoware_core/planning/behavior_velocity_planner/autoware_behavior_velocity_planner_common"
+    },
+    {
+      "index": "5",
+      "package": "autoware_behavior_velocity_stop_line_module",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_stop_line_module",
+      "destination_relative_path": "autoware_original/autoware_core/planning/behavior_velocity_planner/autoware_behavior_velocity_stop_line_module"
+    },
+    {
+      "index": "6",
+      "package": "autoware_motion_velocity_planner",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "planning/motion_velocity_planner/autoware_motion_velocity_planner",
+      "destination_relative_path": "autoware_original/autoware_core/planning/motion_velocity_planner/autoware_motion_velocity_planner"
+    },
+    {
+      "index": "7",
+      "package": "autoware_motion_velocity_planner_common",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "planning/motion_velocity_planner/autoware_motion_velocity_planner_common",
+      "destination_relative_path": "autoware_original/autoware_core/planning/motion_velocity_planner/autoware_motion_velocity_planner_common"
+    },
+    {
+      "index": "8",
+      "package": "autoware_motion_velocity_obstacle_stop_module",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "planning/motion_velocity_planner/autoware_motion_velocity_obstacle_stop_module",
+      "destination_relative_path": "autoware_original/autoware_core/planning/motion_velocity_planner/autoware_motion_velocity_obstacle_stop_module"
+    },
+    {
+      "index": "9",
+      "package": "autoware_velocity_smoother",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "planning/autoware_velocity_smoother",
+      "destination_relative_path": "autoware_original/autoware_core/planning/autoware_velocity_smoother"
+    },
+    {
+      "index": "10",
+      "package": "autoware_path_generator",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "planning/autoware_path_generator",
+      "destination_relative_path": "autoware_original/autoware_core/planning/autoware_path_generator"
+    },
+    {
+      "index": "11",
+      "package": "autoware_planning_topic_converter",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "planning/autoware_planning_topic_converter",
+      "destination_relative_path": "autoware_original/autoware_core/planning/autoware_planning_topic_converter"
+    },
+    {
+      "index": "12",
+      "package": "autoware_behavior_path_planner",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_path_planner/autoware_behavior_path_planner",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_path_planner/autoware_behavior_path_planner"
+    },
+    {
+      "index": "13",
+      "package": "autoware_behavior_path_planner_common",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_path_planner/autoware_behavior_path_planner_common",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_path_planner/autoware_behavior_path_planner_common"
+    },
+    {
+      "index": "14",
+      "package": "autoware_behavior_path_static_obstacle_avoidance_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_path_planner/autoware_behavior_path_static_obstacle_avoidance_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_path_planner/autoware_behavior_path_static_obstacle_avoidance_module"
+    },
+    {
+      "index": "15",
+      "package": "autoware_behavior_path_avoidance_by_lane_change_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_path_planner/autoware_behavior_path_avoidance_by_lane_change_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_path_planner/autoware_behavior_path_avoidance_by_lane_change_module"
+    },
+    {
+      "index": "16",
+      "package": "autoware_behavior_path_lane_change_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_path_planner/autoware_behavior_path_lane_change_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_path_planner/autoware_behavior_path_lane_change_module"
+    },
+    {
+      "index": "17",
+      "package": "autoware_behavior_path_goal_planner_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_path_planner/autoware_behavior_path_goal_planner_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_path_planner/autoware_behavior_path_goal_planner_module"
+    },
+    {
+      "index": "18",
+      "package": "autoware_behavior_path_start_planner_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_path_planner/autoware_behavior_path_start_planner_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_path_planner/autoware_behavior_path_start_planner_module"
+    },
+    {
+      "index": "19",
+      "package": "autoware_behavior_path_side_shift_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_path_planner/autoware_behavior_path_side_shift_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_path_planner/autoware_behavior_path_side_shift_module"
+    },
+    {
+      "index": "20",
+      "package": "autoware_behavior_path_bidirectional_traffic_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_path_planner/autoware_behavior_path_bidirectional_traffic_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_path_planner/autoware_behavior_path_bidirectional_traffic_module"
+    },
+    {
+      "index": "21",
+      "package": "autoware_behavior_path_dynamic_obstacle_avoidance_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_path_planner/autoware_behavior_path_dynamic_obstacle_avoidance_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_path_planner/autoware_behavior_path_dynamic_obstacle_avoidance_module"
+    },
+    {
+      "index": "22",
+      "package": "autoware_behavior_path_sampling_planner_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_path_planner/autoware_behavior_path_sampling_planner_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_path_planner/autoware_behavior_path_sampling_planner_module"
+    },
+    {
+      "index": "23",
+      "package": "autoware_behavior_path_external_request_lane_change_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_path_planner/autoware_behavior_path_external_request_lane_change_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_path_planner/autoware_behavior_path_external_request_lane_change_module"
+    },
+    {
+      "index": "24",
+      "package": "autoware_behavior_velocity_blind_spot_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_blind_spot_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_blind_spot_module"
+    },
+    {
+      "index": "25",
+      "package": "autoware_behavior_velocity_crosswalk_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_crosswalk_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_crosswalk_module"
+    },
+    {
+      "index": "26",
+      "package": "autoware_behavior_velocity_detection_area_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_detection_area_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_detection_area_module"
+    },
+    {
+      "index": "27",
+      "package": "autoware_behavior_velocity_intersection_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_intersection_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_intersection_module"
+    },
+    {
+      "index": "28",
+      "package": "autoware_behavior_velocity_no_drivable_lane_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_no_drivable_lane_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_no_drivable_lane_module"
+    },
+    {
+      "index": "29",
+      "package": "autoware_behavior_velocity_no_stopping_area_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_no_stopping_area_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_no_stopping_area_module"
+    },
+    {
+      "index": "30",
+      "package": "autoware_behavior_velocity_occlusion_spot_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_occlusion_spot_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_occlusion_spot_module"
+    },
+    {
+      "index": "31",
+      "package": "autoware_behavior_velocity_roundabout_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_roundabout_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_roundabout_module"
+    },
+    {
+      "index": "32",
+      "package": "autoware_behavior_velocity_rtc_interface",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_rtc_interface",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_rtc_interface"
+    },
+    {
+      "index": "33",
+      "package": "autoware_behavior_velocity_speed_bump_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_speed_bump_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_speed_bump_module"
+    },
+    {
+      "index": "34",
+      "package": "autoware_behavior_velocity_template_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_template_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_template_module"
+    },
+    {
+      "index": "35",
+      "package": "autoware_behavior_velocity_traffic_light_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_traffic_light_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_traffic_light_module"
+    },
+    {
+      "index": "36",
+      "package": "autoware_behavior_velocity_virtual_traffic_light_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_virtual_traffic_light_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_virtual_traffic_light_module"
+    },
+    {
+      "index": "37",
+      "package": "autoware_behavior_velocity_walkway_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/behavior_velocity_planner/autoware_behavior_velocity_walkway_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/behavior_velocity_planner/autoware_behavior_velocity_walkway_module"
+    },
+    {
+      "index": "38",
+      "package": "autoware_motion_velocity_boundary_departure_prevention_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/motion_velocity_planner/autoware_motion_velocity_boundary_departure_prevention_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/motion_velocity_planner/autoware_motion_velocity_boundary_departure_prevention_module"
+    },
+    {
+      "index": "39",
+      "package": "autoware_motion_velocity_dynamic_obstacle_stop_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/motion_velocity_planner/autoware_motion_velocity_dynamic_obstacle_stop_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/motion_velocity_planner/autoware_motion_velocity_dynamic_obstacle_stop_module"
+    },
+    {
+      "index": "40",
+      "package": "autoware_motion_velocity_obstacle_cruise_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/motion_velocity_planner/autoware_motion_velocity_obstacle_cruise_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/motion_velocity_planner/autoware_motion_velocity_obstacle_cruise_module"
+    },
+    {
+      "index": "41",
+      "package": "autoware_motion_velocity_obstacle_slow_down_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/motion_velocity_planner/autoware_motion_velocity_obstacle_slow_down_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/motion_velocity_planner/autoware_motion_velocity_obstacle_slow_down_module"
+    },
+    {
+      "index": "42",
+      "package": "autoware_motion_velocity_obstacle_velocity_limiter_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/motion_velocity_planner/autoware_motion_velocity_obstacle_velocity_limiter_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/motion_velocity_planner/autoware_motion_velocity_obstacle_velocity_limiter_module"
+    },
+    {
+      "index": "43",
+      "package": "autoware_motion_velocity_out_of_lane_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/motion_velocity_planner/autoware_motion_velocity_out_of_lane_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/motion_velocity_planner/autoware_motion_velocity_out_of_lane_module"
+    },
+    {
+      "index": "44",
+      "package": "autoware_motion_velocity_road_user_stop_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/motion_velocity_planner/autoware_motion_velocity_road_user_stop_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/motion_velocity_planner/autoware_motion_velocity_road_user_stop_module"
+    },
+    {
+      "index": "45",
+      "package": "autoware_motion_velocity_run_out_module",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/motion_velocity_planner/autoware_motion_velocity_run_out_module",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/motion_velocity_planner/autoware_motion_velocity_run_out_module"
+    },
+    {
+      "index": "46",
+      "package": "autoware_planning_validator",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/planning_validator/autoware_planning_validator",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/planning_validator/autoware_planning_validator"
+    },
+    {
+      "index": "47",
+      "package": "autoware_planning_validator_latency_checker",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/planning_validator/autoware_planning_validator_latency_checker",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/planning_validator/autoware_planning_validator_latency_checker"
+    },
+    {
+      "index": "48",
+      "package": "autoware_planning_validator_trajectory_checker",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/planning_validator/autoware_planning_validator_trajectory_checker",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/planning_validator/autoware_planning_validator_trajectory_checker"
+    },
+    {
+      "index": "49",
+      "package": "autoware_planning_validator_intersection_collision_checker",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/planning_validator/autoware_planning_validator_intersection_collision_checker",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/planning_validator/autoware_planning_validator_intersection_collision_checker"
+    },
+    {
+      "index": "50",
+      "package": "autoware_planning_validator_rear_collision_checker",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/planning_validator/autoware_planning_validator_rear_collision_checker",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/planning_validator/autoware_planning_validator_rear_collision_checker"
+    },
+    {
+      "index": "51",
+      "package": "autoware_planning_validator_test_utils",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/planning_validator/autoware_planning_validator_test_utils",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/planning_validator/autoware_planning_validator_test_utils"
+    },
+    {
+      "index": "52",
+      "package": "autoware_mission_planner_universe",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_mission_planner_universe",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_mission_planner_universe"
+    },
+    {
+      "index": "53",
+      "package": "autoware_manual_lane_change_handler",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_manual_lane_change_handler",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_manual_lane_change_handler"
+    },
+    {
+      "index": "54",
+      "package": "autoware_scenario_selector",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_scenario_selector",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_scenario_selector"
+    },
+    {
+      "index": "55",
+      "package": "autoware_external_velocity_limit_selector",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_external_velocity_limit_selector",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_external_velocity_limit_selector"
+    },
+    {
+      "index": "56",
+      "package": "autoware_hazard_lights_selector",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_hazard_lights_selector",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_hazard_lights_selector"
+    },
+    {
+      "index": "57",
+      "package": "autoware_path_smoother",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_path_smoother",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_path_smoother"
+    },
+    {
+      "index": "58",
+      "package": "autoware_path_optimizer",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_path_optimizer",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_path_optimizer"
+    },
+    {
+      "index": "59",
+      "package": "autoware_costmap_generator",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_costmap_generator",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_costmap_generator"
+    },
+    {
+      "index": "60",
+      "package": "autoware_freespace_planner",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_freespace_planner",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_freespace_planner"
+    },
+    {
+      "index": "61",
+      "package": "autoware_remaining_distance_time_calculator",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_remaining_distance_time_calculator",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_remaining_distance_time_calculator"
+    },
+    {
+      "index": "62",
+      "package": "autoware_surround_obstacle_checker",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_surround_obstacle_checker",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_surround_obstacle_checker"
+    },
+    {
+      "index": "63",
+      "package": "autoware_planning_evaluator",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "evaluator/autoware_planning_evaluator",
+      "destination_relative_path": "autoware_original/autoware_universe/evaluator/autoware_planning_evaluator"
+    },
+    {
+      "index": "64",
+      "package": "autoware_agnocast_wrapper",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_agnocast_wrapper",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_agnocast_wrapper"
+    },
+    {
+      "index": "65",
+      "package": "autoware_component_interface_specs",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_component_interface_specs",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_component_interface_specs"
+    },
+    {
+      "index": "66",
+      "package": "autoware_geography_utils",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_geography_utils",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_geography_utils"
+    },
+    {
+      "index": "67",
+      "package": "autoware_global_parameter_loader",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_global_parameter_loader",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_global_parameter_loader"
+    },
+    {
+      "index": "68",
+      "package": "autoware_interpolation",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_interpolation",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_interpolation"
+    },
+    {
+      "index": "69",
+      "package": "autoware_lanelet2_utils",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_lanelet2_utils",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_lanelet2_utils"
+    },
+    {
+      "index": "70",
+      "package": "autoware_motion_utils",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_motion_utils",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_motion_utils"
+    },
+    {
+      "index": "71",
+      "package": "autoware_object_recognition_utils",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_object_recognition_utils",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_object_recognition_utils"
+    },
+    {
+      "index": "72",
+      "package": "autoware_osqp_interface",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_osqp_interface",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_osqp_interface"
+    },
+    {
+      "index": "73",
+      "package": "autoware_qos_utils",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_qos_utils",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_qos_utils"
+    },
+    {
+      "index": "74",
+      "package": "autoware_qp_interface",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_qp_interface",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_qp_interface"
+    },
+    {
+      "index": "75",
+      "package": "autoware_signal_processing",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_signal_processing",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_signal_processing"
+    },
+    {
+      "index": "76",
+      "package": "autoware_trajectory",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_trajectory",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_trajectory"
+    },
+    {
+      "index": "77",
+      "package": "autoware_vehicle_info_utils",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "common/autoware_vehicle_info_utils",
+      "destination_relative_path": "autoware_original/autoware_core/common/autoware_vehicle_info_utils"
+    },
+    {
+      "index": "78",
+      "package": "autoware_objects_of_interest_marker_interface",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "planning/autoware_objects_of_interest_marker_interface",
+      "destination_relative_path": "autoware_original/autoware_core/planning/autoware_objects_of_interest_marker_interface"
+    },
+    {
+      "index": "79",
+      "package": "autoware_planning_factor_interface",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "planning/autoware_planning_factor_interface",
+      "destination_relative_path": "autoware_original/autoware_core/planning/autoware_planning_factor_interface"
+    },
+    {
+      "index": "80",
+      "package": "autoware_route_handler",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "planning/autoware_route_handler",
+      "destination_relative_path": "autoware_original/autoware_core/planning/autoware_route_handler"
+    },
+    {
+      "index": "81",
+      "package": "autoware_planning_test_manager",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "testing/autoware_planning_test_manager",
+      "destination_relative_path": "autoware_original/autoware_core/testing/autoware_planning_test_manager"
+    },
+    {
+      "index": "82",
+      "package": "autoware_test_utils",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "testing/autoware_test_utils",
+      "destination_relative_path": "autoware_original/autoware_core/testing/autoware_test_utils"
+    },
+    {
+      "index": "83",
+      "package": "autoware_deprecated_boundary_departure_checker",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "common/autoware_deprecated_boundary_departure_checker",
+      "destination_relative_path": "autoware_original/autoware_universe/common/autoware_deprecated_boundary_departure_checker"
+    },
+    {
+      "index": "84",
+      "package": "autoware_grid_map_utils",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "common/autoware_grid_map_utils",
+      "destination_relative_path": "autoware_original/autoware_universe/common/autoware_grid_map_utils"
+    },
+    {
+      "index": "85",
+      "package": "autoware_traffic_light_utils",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "common/autoware_traffic_light_utils",
+      "destination_relative_path": "autoware_original/autoware_universe/common/autoware_traffic_light_utils"
+    },
+    {
+      "index": "86",
+      "package": "autoware_universe_utils",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "common/autoware_universe_utils",
+      "destination_relative_path": "autoware_original/autoware_universe/common/autoware_universe_utils"
+    },
+    {
+      "index": "87",
+      "package": "autoware_freespace_planning_algorithms",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_freespace_planning_algorithms",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_freespace_planning_algorithms"
+    },
+    {
+      "index": "88",
+      "package": "autoware_rtc_interface",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/autoware_rtc_interface",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/autoware_rtc_interface"
+    },
+    {
+      "index": "89",
+      "package": "autoware_bezier_sampler",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/sampling_based_planner/autoware_bezier_sampler",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/sampling_based_planner/autoware_bezier_sampler"
+    },
+    {
+      "index": "90",
+      "package": "autoware_frenet_planner",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/sampling_based_planner/autoware_frenet_planner",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/sampling_based_planner/autoware_frenet_planner"
+    },
+    {
+      "index": "91",
+      "package": "autoware_path_sampler",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/sampling_based_planner/autoware_path_sampler",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/sampling_based_planner/autoware_path_sampler"
+    },
+    {
+      "index": "92",
+      "package": "autoware_sampler_common",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "planning/sampling_based_planner/autoware_sampler_common",
+      "destination_relative_path": "autoware_original/autoware_universe/planning/sampling_based_planner/autoware_sampler_common"
+    },
+    {
+      "index": "93",
+      "package": "autoware_utils",
+      "repository": "autoware_utils",
+      "source_commit": "336c6b6382a98ee891847d5b4c0864a4c722b526",
+      "source_relative_path": "autoware_utils",
+      "destination_relative_path": "autoware_original/autoware_utils/autoware_utils"
+    },
+    {
+      "index": "94",
+      "package": "autoware_utils_debug",
+      "repository": "autoware_utils",
+      "source_commit": "336c6b6382a98ee891847d5b4c0864a4c722b526",
+      "source_relative_path": "autoware_utils_debug",
+      "destination_relative_path": "autoware_original/autoware_utils/autoware_utils_debug"
+    },
+    {
+      "index": "95",
+      "package": "autoware_utils_diagnostics",
+      "repository": "autoware_utils",
+      "source_commit": "336c6b6382a98ee891847d5b4c0864a4c722b526",
+      "source_relative_path": "autoware_utils_diagnostics",
+      "destination_relative_path": "autoware_original/autoware_utils/autoware_utils_diagnostics"
+    },
+    {
+      "index": "96",
+      "package": "autoware_utils_geometry",
+      "repository": "autoware_utils",
+      "source_commit": "336c6b6382a98ee891847d5b4c0864a4c722b526",
+      "source_relative_path": "autoware_utils_geometry",
+      "destination_relative_path": "autoware_original/autoware_utils/autoware_utils_geometry"
+    },
+    {
+      "index": "97",
+      "package": "autoware_utils_logging",
+      "repository": "autoware_utils",
+      "source_commit": "336c6b6382a98ee891847d5b4c0864a4c722b526",
+      "source_relative_path": "autoware_utils_logging",
+      "destination_relative_path": "autoware_original/autoware_utils/autoware_utils_logging"
+    },
+    {
+      "index": "98",
+      "package": "autoware_utils_math",
+      "repository": "autoware_utils",
+      "source_commit": "336c6b6382a98ee891847d5b4c0864a4c722b526",
+      "source_relative_path": "autoware_utils_math",
+      "destination_relative_path": "autoware_original/autoware_utils/autoware_utils_math"
+    },
+    {
+      "index": "99",
+      "package": "autoware_utils_pcl",
+      "repository": "autoware_utils",
+      "source_commit": "336c6b6382a98ee891847d5b4c0864a4c722b526",
+      "source_relative_path": "autoware_utils_pcl",
+      "destination_relative_path": "autoware_original/autoware_utils/autoware_utils_pcl"
+    },
+    {
+      "index": "100",
+      "package": "autoware_utils_rclcpp",
+      "repository": "autoware_utils",
+      "source_commit": "336c6b6382a98ee891847d5b4c0864a4c722b526",
+      "source_relative_path": "autoware_utils_rclcpp",
+      "destination_relative_path": "autoware_original/autoware_utils/autoware_utils_rclcpp"
+    },
+    {
+      "index": "101",
+      "package": "autoware_utils_system",
+      "repository": "autoware_utils",
+      "source_commit": "336c6b6382a98ee891847d5b4c0864a4c722b526",
+      "source_relative_path": "autoware_utils_system",
+      "destination_relative_path": "autoware_original/autoware_utils/autoware_utils_system"
+    },
+    {
+      "index": "102",
+      "package": "autoware_utils_tf",
+      "repository": "autoware_utils",
+      "source_commit": "336c6b6382a98ee891847d5b4c0864a4c722b526",
+      "source_relative_path": "autoware_utils_tf",
+      "destination_relative_path": "autoware_original/autoware_utils/autoware_utils_tf"
+    },
+    {
+      "index": "103",
+      "package": "autoware_utils_uuid",
+      "repository": "autoware_utils",
+      "source_commit": "336c6b6382a98ee891847d5b4c0864a4c722b526",
+      "source_relative_path": "autoware_utils_uuid",
+      "destination_relative_path": "autoware_original/autoware_utils/autoware_utils_uuid"
+    },
+    {
+      "index": "104",
+      "package": "autoware_utils_visualization",
+      "repository": "autoware_utils",
+      "source_commit": "336c6b6382a98ee891847d5b4c0864a4c722b526",
+      "source_relative_path": "autoware_utils_visualization",
+      "destination_relative_path": "autoware_original/autoware_utils/autoware_utils_visualization"
+    },
+    {
+      "index": "105",
+      "package": "autoware_common_msgs",
+      "repository": "autoware_msgs",
+      "source_commit": "bb8e7bf5d97168663e0e7b357929e4fcdbd3a967",
+      "source_relative_path": "autoware_common_msgs",
+      "destination_relative_path": "autoware_original/autoware_msgs/autoware_common_msgs"
+    },
+    {
+      "index": "106",
+      "package": "autoware_control_msgs",
+      "repository": "autoware_msgs",
+      "source_commit": "bb8e7bf5d97168663e0e7b357929e4fcdbd3a967",
+      "source_relative_path": "autoware_control_msgs",
+      "destination_relative_path": "autoware_original/autoware_msgs/autoware_control_msgs"
+    },
+    {
+      "index": "107",
+      "package": "autoware_localization_msgs",
+      "repository": "autoware_msgs",
+      "source_commit": "bb8e7bf5d97168663e0e7b357929e4fcdbd3a967",
+      "source_relative_path": "autoware_localization_msgs",
+      "destination_relative_path": "autoware_original/autoware_msgs/autoware_localization_msgs"
+    },
+    {
+      "index": "108",
+      "package": "autoware_map_msgs",
+      "repository": "autoware_msgs",
+      "source_commit": "bb8e7bf5d97168663e0e7b357929e4fcdbd3a967",
+      "source_relative_path": "autoware_map_msgs",
+      "destination_relative_path": "autoware_original/autoware_msgs/autoware_map_msgs"
+    },
+    {
+      "index": "109",
+      "package": "autoware_perception_msgs",
+      "repository": "autoware_msgs",
+      "source_commit": "bb8e7bf5d97168663e0e7b357929e4fcdbd3a967",
+      "source_relative_path": "autoware_perception_msgs",
+      "destination_relative_path": "autoware_original/autoware_msgs/autoware_perception_msgs"
+    },
+    {
+      "index": "110",
+      "package": "autoware_planning_msgs",
+      "repository": "autoware_msgs",
+      "source_commit": "bb8e7bf5d97168663e0e7b357929e4fcdbd3a967",
+      "source_relative_path": "autoware_planning_msgs",
+      "destination_relative_path": "autoware_original/autoware_msgs/autoware_planning_msgs"
+    },
+    {
+      "index": "111",
+      "package": "autoware_system_msgs",
+      "repository": "autoware_msgs",
+      "source_commit": "bb8e7bf5d97168663e0e7b357929e4fcdbd3a967",
+      "source_relative_path": "autoware_system_msgs",
+      "destination_relative_path": "autoware_original/autoware_msgs/autoware_system_msgs"
+    },
+    {
+      "index": "112",
+      "package": "autoware_vehicle_msgs",
+      "repository": "autoware_msgs",
+      "source_commit": "bb8e7bf5d97168663e0e7b357929e4fcdbd3a967",
+      "source_relative_path": "autoware_vehicle_msgs",
+      "destination_relative_path": "autoware_original/autoware_msgs/autoware_vehicle_msgs"
+    },
+    {
+      "index": "113",
+      "package": "autoware_internal_debug_msgs",
+      "repository": "autoware_internal_msgs",
+      "source_commit": "094122d37e56c7bfd8f3385307d345cfdb2123e6",
+      "source_relative_path": "autoware_internal_debug_msgs",
+      "destination_relative_path": "autoware_original/autoware_internal_msgs/autoware_internal_debug_msgs"
+    },
+    {
+      "index": "114",
+      "package": "autoware_internal_metric_msgs",
+      "repository": "autoware_internal_msgs",
+      "source_commit": "094122d37e56c7bfd8f3385307d345cfdb2123e6",
+      "source_relative_path": "autoware_internal_metric_msgs",
+      "destination_relative_path": "autoware_original/autoware_internal_msgs/autoware_internal_metric_msgs"
+    },
+    {
+      "index": "115",
+      "package": "autoware_internal_msgs",
+      "repository": "autoware_internal_msgs",
+      "source_commit": "094122d37e56c7bfd8f3385307d345cfdb2123e6",
+      "source_relative_path": "autoware_internal_msgs",
+      "destination_relative_path": "autoware_original/autoware_internal_msgs/autoware_internal_msgs"
+    },
+    {
+      "index": "116",
+      "package": "autoware_internal_perception_msgs",
+      "repository": "autoware_internal_msgs",
+      "source_commit": "094122d37e56c7bfd8f3385307d345cfdb2123e6",
+      "source_relative_path": "autoware_internal_perception_msgs",
+      "destination_relative_path": "autoware_original/autoware_internal_msgs/autoware_internal_perception_msgs"
+    },
+    {
+      "index": "117",
+      "package": "autoware_internal_planning_msgs",
+      "repository": "autoware_internal_msgs",
+      "source_commit": "094122d37e56c7bfd8f3385307d345cfdb2123e6",
+      "source_relative_path": "autoware_internal_planning_msgs",
+      "destination_relative_path": "autoware_original/autoware_internal_msgs/autoware_internal_planning_msgs"
+    },
+    {
+      "index": "118",
+      "package": "autoware_adapi_v1_msgs",
+      "repository": "autoware_adapi_msgs",
+      "source_commit": "6c3faf2311db65dbd37a78904c9b96edad4b3bbd",
+      "source_relative_path": "autoware_adapi_v1_msgs",
+      "destination_relative_path": "autoware_original/autoware_adapi_msgs/autoware_adapi_v1_msgs"
+    },
+    {
+      "index": "119",
+      "package": "tier4_debug_msgs",
+      "repository": "tier4_autoware_msgs",
+      "source_commit": "b9c385197baf1a2e77f088bea46e7287cd3ec367",
+      "source_relative_path": "tier4_debug_msgs",
+      "destination_relative_path": "autoware_original/tier4_autoware_msgs/tier4_debug_msgs"
+    },
+    {
+      "index": "120",
+      "package": "tier4_external_api_msgs",
+      "repository": "tier4_autoware_msgs",
+      "source_commit": "b9c385197baf1a2e77f088bea46e7287cd3ec367",
+      "source_relative_path": "tier4_external_api_msgs",
+      "destination_relative_path": "autoware_original/tier4_autoware_msgs/tier4_external_api_msgs"
+    },
+    {
+      "index": "121",
+      "package": "tier4_metric_msgs",
+      "repository": "tier4_autoware_msgs",
+      "source_commit": "b9c385197baf1a2e77f088bea46e7287cd3ec367",
+      "source_relative_path": "tier4_metric_msgs",
+      "destination_relative_path": "autoware_original/tier4_autoware_msgs/tier4_metric_msgs"
+    },
+    {
+      "index": "122",
+      "package": "tier4_perception_msgs",
+      "repository": "tier4_autoware_msgs",
+      "source_commit": "b9c385197baf1a2e77f088bea46e7287cd3ec367",
+      "source_relative_path": "tier4_perception_msgs",
+      "destination_relative_path": "autoware_original/tier4_autoware_msgs/tier4_perception_msgs"
+    },
+    {
+      "index": "123",
+      "package": "tier4_planning_msgs",
+      "repository": "tier4_autoware_msgs",
+      "source_commit": "b9c385197baf1a2e77f088bea46e7287cd3ec367",
+      "source_relative_path": "tier4_planning_msgs",
+      "destination_relative_path": "autoware_original/tier4_autoware_msgs/tier4_planning_msgs"
+    },
+    {
+      "index": "124",
+      "package": "tier4_rtc_msgs",
+      "repository": "tier4_autoware_msgs",
+      "source_commit": "b9c385197baf1a2e77f088bea46e7287cd3ec367",
+      "source_relative_path": "tier4_rtc_msgs",
+      "destination_relative_path": "autoware_original/tier4_autoware_msgs/tier4_rtc_msgs"
+    },
+    {
+      "index": "125",
+      "package": "tier4_v2x_msgs",
+      "repository": "tier4_autoware_msgs",
+      "source_commit": "b9c385197baf1a2e77f088bea46e7287cd3ec367",
+      "source_relative_path": "tier4_v2x_msgs",
+      "destination_relative_path": "autoware_original/tier4_autoware_msgs/tier4_v2x_msgs"
+    },
+    {
+      "index": "126",
+      "package": "autoware_lanelet2_extension",
+      "repository": "autoware_lanelet2_extension",
+      "source_commit": "e00a6372d5395ad4cdeccaaa5fefa0a4b558272c",
+      "source_relative_path": "autoware_lanelet2_extension",
+      "destination_relative_path": "autoware_original/autoware_lanelet2_extension/autoware_lanelet2_extension"
+    },
+    {
+      "index": "127",
+      "package": "autoware_launch",
+      "repository": "autoware_launch",
+      "source_commit": "3ba12ba6a47abca105e755e6d21cf66a0cdf743f",
+      "source_relative_path": "autoware_launch",
+      "destination_relative_path": "autoware_original/autoware_launch/autoware_launch"
+    },
+    {
+      "index": "128",
+      "package": "tier4_planning_launch",
+      "repository": "autoware_launch",
+      "source_commit": "3ba12ba6a47abca105e755e6d21cf66a0cdf743f",
+      "source_relative_path": "tier4_universe_launch/tier4_planning_launch",
+      "destination_relative_path": "autoware_original/autoware_launch/tier4_universe_launch/tier4_planning_launch"
+    },
+    {
+      "index": "1",
+      "package": "autoware_localization_rviz_plugin",
+      "repository": "autoware_rviz_plugins",
+      "source_commit": "2840a458239e0bb598427a0217b9b867d6af39f7",
+      "source_relative_path": "autoware_localization_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_rviz_plugins/autoware_localization_rviz_plugin"
+    },
+    {
+      "index": "2",
+      "package": "autoware_perception_rviz_plugin",
+      "repository": "autoware_rviz_plugins",
+      "source_commit": "2840a458239e0bb598427a0217b9b867d6af39f7",
+      "source_relative_path": "autoware_perception_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_rviz_plugins/autoware_perception_rviz_plugin"
+    },
+    {
+      "index": "3",
+      "package": "autoware_planning_rviz_plugin",
+      "repository": "autoware_rviz_plugins",
+      "source_commit": "2840a458239e0bb598427a0217b9b867d6af39f7",
+      "source_relative_path": "autoware_planning_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_rviz_plugins/autoware_planning_rviz_plugin"
+    },
+    {
+      "index": "4",
+      "package": "autoware_mission_details_overlay_rviz_plugin",
+      "repository": "autoware_rviz_plugins",
+      "source_commit": "2840a458239e0bb598427a0217b9b867d6af39f7",
+      "source_relative_path": "autoware_overlay_rviz_plugin/autoware_mission_details_overlay_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_rviz_plugins/autoware_overlay_rviz_plugin/autoware_mission_details_overlay_rviz_plugin"
+    },
+    {
+      "index": "5",
+      "package": "autoware_overlay_rviz_plugin",
+      "repository": "autoware_rviz_plugins",
+      "source_commit": "2840a458239e0bb598427a0217b9b867d6af39f7",
+      "source_relative_path": "autoware_overlay_rviz_plugin/autoware_overlay_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_rviz_plugins/autoware_overlay_rviz_plugin/autoware_overlay_rviz_plugin"
+    },
+    {
+      "index": "6",
+      "package": "autoware_string_stamped_rviz_plugin",
+      "repository": "autoware_rviz_plugins",
+      "source_commit": "2840a458239e0bb598427a0217b9b867d6af39f7",
+      "source_relative_path": "autoware_overlay_rviz_plugin/autoware_string_stamped_overlay_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_rviz_plugins/autoware_overlay_rviz_plugin/autoware_string_stamped_overlay_rviz_plugin"
+    },
+    {
+      "index": "7",
+      "package": "rviz_2d_overlay_msgs",
+      "repository": "rviz_2d_overlay_plugins",
+      "source_commit": "36b3c86d37afb916aef9585d3c8429bcbeec21b7",
+      "source_relative_path": "rviz_2d_overlay_msgs",
+      "destination_relative_path": "autoware_original/rviz_2d_overlay_plugins/rviz_2d_overlay_msgs"
+    },
+    {
+      "index": "8",
+      "package": "rviz_2d_overlay_plugins",
+      "repository": "rviz_2d_overlay_plugins",
+      "source_commit": "36b3c86d37afb916aef9585d3c8429bcbeec21b7",
+      "source_relative_path": "rviz_2d_overlay_plugins",
+      "destination_relative_path": "autoware_original/rviz_2d_overlay_plugins/rviz_2d_overlay_plugins"
+    },
+    {
+      "index": "9",
+      "package": "autoware_component_interface_utils",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "common/autoware_component_interface_utils",
+      "destination_relative_path": "autoware_original/autoware_universe/common/autoware_component_interface_utils"
+    },
+    {
+      "index": "10",
+      "package": "autoware_polar_grid",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "common/autoware_polar_grid",
+      "destination_relative_path": "autoware_original/autoware_universe/common/autoware_polar_grid"
+    },
+    {
+      "index": "11",
+      "package": "tier4_adapi_rviz_plugin",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "visualization/tier4_adapi_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_universe/visualization/tier4_adapi_rviz_plugin"
+    },
+    {
+      "index": "12",
+      "package": "tier4_control_mode_rviz_plugin",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "visualization/tier4_control_mode_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_universe/visualization/tier4_control_mode_rviz_plugin"
+    },
+    {
+      "index": "13",
+      "package": "tier4_datetime_rviz_plugin",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "visualization/tier4_datetime_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_universe/visualization/tier4_datetime_rviz_plugin"
+    },
+    {
+      "index": "14",
+      "package": "tier4_planning_factor_rviz_plugin",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "visualization/tier4_planning_factor_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_universe/visualization/tier4_planning_factor_rviz_plugin"
+    },
+    {
+      "index": "15",
+      "package": "tier4_state_rviz_plugin",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "visualization/tier4_state_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_universe/visualization/tier4_state_rviz_plugin"
+    },
+    {
+      "index": "16",
+      "package": "tier4_vehicle_rviz_plugin",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "visualization/tier4_vehicle_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_universe/visualization/tier4_vehicle_rviz_plugin"
+    },
+    {
+      "index": "17",
+      "package": "tier4_dummy_object_rviz_plugin",
+      "repository": "autoware_universe",
+      "source_commit": "d4d260983d357e1b2b34291d91933f9f4b53bf94",
+      "source_relative_path": "simulator/tier4_dummy_object_rviz_plugin",
+      "destination_relative_path": "autoware_original/autoware_universe/simulator/tier4_dummy_object_rviz_plugin"
+    },
+    {
+      "index": "18",
+      "package": "autoware_adapi_specs",
+      "repository": "autoware_core",
+      "source_commit": "16045061a9c10da468b60e190b8fab02110fa501",
+      "source_relative_path": "api/autoware_adapi_specs",
+      "destination_relative_path": "autoware_original/autoware_core/api/autoware_adapi_specs"
+    },
+    {
+      "index": "19",
+      "package": "tier4_system_msgs",
+      "repository": "tier4_autoware_msgs",
+      "source_commit": "b9c385197baf1a2e77f088bea46e7287cd3ec367",
+      "source_relative_path": "tier4_system_msgs",
+      "destination_relative_path": "autoware_original/tier4_autoware_msgs/tier4_system_msgs"
+    },
+    {
+      "index": "20",
+      "package": "tier4_control_msgs",
+      "repository": "tier4_autoware_msgs",
+      "source_commit": "b9c385197baf1a2e77f088bea46e7287cd3ec367",
+      "source_relative_path": "tier4_control_msgs",
+      "destination_relative_path": "autoware_original/tier4_autoware_msgs/tier4_control_msgs"
+    },
+    {
+      "index": "21",
+      "package": "tier4_simulation_msgs",
+      "repository": "tier4_autoware_msgs",
+      "source_commit": "b9c385197baf1a2e77f088bea46e7287cd3ec367",
+      "source_relative_path": "tier4_simulation_msgs",
+      "destination_relative_path": "autoware_original/tier4_autoware_msgs/tier4_simulation_msgs"
+    }
+  ],
+  "manifest_sha256": {
+    "package-boundary.tsv": "735ce0bce00bd0814c16d67b8cfcee0f7a1df31fa4e318c618423ef0296533a0",
+    "visualization-boundary.tsv": "e1a8e67ddcd4208ab6913c798eaab89bd34e877a64b5af04b9499dced8944fef"
+  }
+}

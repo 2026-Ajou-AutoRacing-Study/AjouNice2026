@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_planning_factor_interface</name>
+  <version>1.8.0</version>
+  <description>ROS1 interface for publishing Autoware planning factors.</description>
+  <maintainer email="satoshi.ota@tier4.jp">Satoshi Ota</maintainer>
+  <license>Apache License 2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>autoware_internal_planning_msgs</build_depend>
+  <build_depend>autoware_motion_utils</build_depend>
+  <build_depend>autoware_planning_msgs</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_export_depend>autoware_internal_planning_msgs</build_export_depend>
+  <build_export_depend>autoware_motion_utils</build_export_depend>
+  <build_export_depend>autoware_planning_msgs</build_export_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <exec_depend>autoware_internal_planning_msgs</exec_depend>
+  <exec_depend>autoware_motion_utils</exec_depend>
+  <exec_depend>autoware_planning_msgs</exec_depend>
+  <exec_depend>roscpp</exec_depend>
+</package>

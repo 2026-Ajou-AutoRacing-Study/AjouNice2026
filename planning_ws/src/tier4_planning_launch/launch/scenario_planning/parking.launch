@@ -1,0 +1,33 @@
+<launch>
+  <!-- ROS1 process equivalent of the original parking container. Staged until
+       the remaining planning graph and configuration closure are validated. -->
+  <arg name="vehicle_param_path"/>
+  <arg name="costmap_param_path" default="$(find autoware_costmap_generator)/config/costmap_generator.ros1.yaml"/>
+  <arg name="freespace_param_path" default="$(find autoware_freespace_planner)/config/freespace_planner.ros1.yaml"/>
+  <arg name="input_objects" default="/perception/object_recognition/objects"/>
+  <arg name="input_points" default="/perception/obstacle_segmentation/pointcloud"/>
+  <arg name="input_map" default="/map/vector_map"/>
+  <arg name="input_route" default="/planning/mission_planning/route"/>
+  <arg name="input_odometry" default="/localization/kinematic_state"/>
+  <arg name="input_scenario" default="/planning/scenario_planning/scenario"/>
+  <arg name="output_trajectory" default="/planning/scenario_planning/parking/trajectory"/>
+  <arg name="is_completed" default="/planning/scenario_planning/parking/is_completed"/>
+  <group ns="parking">
+    <include file="$(find autoware_costmap_generator)/launch/costmap_generator.launch">
+      <arg name="param_path" value="$(arg costmap_param_path)"/>
+      <arg name="input_objects" value="$(arg input_objects)"/>
+      <arg name="input_points" value="$(arg input_points)"/>
+      <arg name="input_map" value="$(arg input_map)"/>
+      <arg name="input_scenario" value="$(arg input_scenario)"/>
+    </include>
+    <include file="$(find autoware_freespace_planner)/launch/freespace_planner.launch">
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+      <arg name="param_path" value="$(arg freespace_param_path)"/>
+      <arg name="input_route" value="$(arg input_route)"/>
+      <arg name="input_odometry" value="$(arg input_odometry)"/>
+      <arg name="input_scenario" value="$(arg input_scenario)"/>
+      <arg name="output_trajectory" value="$(arg output_trajectory)"/>
+      <arg name="is_completed" value="$(arg is_completed)"/>
+    </include>
+  </group>
+</launch>

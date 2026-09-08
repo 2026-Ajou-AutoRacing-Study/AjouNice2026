@@ -1,0 +1,5 @@
+trajectory_point_fixer/remove_close_points: true
+trajectory_point_fixer/resample_close_points: true
+trajectory_point_fixer/min_dist_to_remove_m: 0.01
+trajectory_point_fixer/min_dist_to_resample_m: 0.05
+trajectory_point_fixer/stop_detection_velocity_threshold_mps: 0.3

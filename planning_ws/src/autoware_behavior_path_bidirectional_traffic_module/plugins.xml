@@ -1,0 +1,7 @@
+<library path="lib/libautoware_behavior_path_bidirectional_traffic_module">
+  <class name="autoware::behavior_path_planner::BidirectionalTrafficModuleManager"
+    type="autoware::behavior_path_planner::BidirectionalTrafficModuleManager"
+    base_class_type="autoware::behavior_path_planner::SceneModuleManagerInterface">
+    <description>ROS1 candidate Bidirectional Traffic scene-module manager.</description>
+  </class>
+</library>

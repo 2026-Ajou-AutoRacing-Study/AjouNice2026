@@ -1,0 +1,7 @@
+<launch>
+  <arg name="vehicle_info_param_file" default="$(find autoware_vehicle_info_utils)/config/vehicle_info.yaml" />
+  <arg name="namespace" default="vehicle_ns" />
+  <group ns="$(arg namespace)">
+    <rosparam command="load" file="$(arg vehicle_info_param_file)" />
+  </group>
+</launch>

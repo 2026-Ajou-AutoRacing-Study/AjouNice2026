@@ -1,0 +1,4 @@
+stop_line/stop_margin: 0.0
+stop_line/required_stop_duration_sec: 1.0
+stop_line/vehicle_stopped_duration_threshold: 0.0
+stop_line/hold_stop_margin_distance: 2.0

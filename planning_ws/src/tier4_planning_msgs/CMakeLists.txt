@@ -1,0 +1,79 @@
+cmake_minimum_required(VERSION 3.0.2)
+project(tier4_planning_msgs)
+
+find_package(catkin REQUIRED COMPONENTS
+  autoware_common_msgs
+  autoware_perception_msgs
+  autoware_planning_msgs
+  builtin_interfaces
+  geometry_msgs
+  nav_msgs
+  std_msgs
+  unique_identifier_msgs
+  message_generation
+)
+
+add_message_files(DIRECTORY msg FILES
+  Approval.msg
+  AvoidanceDebugFactor.msg
+  AvoidanceDebugMsg.msg
+  AvoidanceDebugMsgArray.msg
+  ControlPoint.msg
+  EnableAvoidance.msg
+  ExpandStopRange.msg
+  IsAvoidancePossible.msg
+  LaneChangeCommand.msg
+  LaneChangeDebugMsg.msg
+  LaneChangeDebugMsgArray.msg
+  LaneChangeStatus.msg
+  LateralOffset.msg
+  Path.msg
+  PathChangeModule.msg
+  PathChangeModuleArray.msg
+  PathChangeModuleId.msg
+  PathPoint.msg
+  PathPointWithLaneId.msg
+  PathWithLaneId.msg
+  PlanningFactor.msg
+  PlanningFactorArray.msg
+  RerouteAvailability.msg
+  RouteState.msg
+  SafetyFactor.msg
+  SafetyFactorArray.msg
+  Scenario.msg
+  StopFactor.msg
+  StopReason.msg
+  StopReasonArray.msg
+  StopSpeedExceeded.msg
+  Trajectory.msg
+  TrajectoryPoint.msg
+  VelocityLimit.msg
+  VelocityLimitClearCommand.msg
+  VelocityLimitConstraints.msg
+)
+add_service_files(DIRECTORY srv FILES
+  ClearRoute.srv
+  SetLaneletRoute.srv
+  SetWaypointRoute.srv
+)
+generate_messages(DEPENDENCIES
+  autoware_common_msgs
+  autoware_perception_msgs
+  autoware_planning_msgs
+  builtin_interfaces
+  geometry_msgs
+  nav_msgs
+  std_msgs
+  unique_identifier_msgs
+)
+catkin_package(CATKIN_DEPENDS
+  autoware_common_msgs
+  autoware_perception_msgs
+  autoware_planning_msgs
+  builtin_interfaces
+  geometry_msgs
+  nav_msgs
+  std_msgs
+  unique_identifier_msgs
+  message_runtime
+)

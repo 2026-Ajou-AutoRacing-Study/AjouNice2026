@@ -1,0 +1,18 @@
+<library path="lib/librviz_2d_overlay_plugins">
+    <class name="rviz_2d_overlay_plugins/TextOverlay"
+           type="rviz_2d_overlay_plugins::OverlayTextDisplay"
+           base_class_type="rviz::Display">
+        <description>
+            Text overlay plugin for the 3D view.
+        </description>
+        <message_type>rviz_2d_overlay_msgs/OverlayText</message_type>
+    </class>
+    <class name="rviz_2d_overlay_plugins/PieChartOverlay"
+           type="rviz_2d_overlay_plugins::PieChartDisplay"
+           base_class_type="rviz::Display">
+        <description>
+            Circular gauge overlay plugin for the 3D view.
+        </description>
+        <message_type>std_msgs/Float32</message_type>
+    </class>
+</library>

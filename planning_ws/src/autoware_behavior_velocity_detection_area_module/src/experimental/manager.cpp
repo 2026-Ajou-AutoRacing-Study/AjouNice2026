@@ -1,0 +1,136 @@
+// Copyright 2025 Tier IV, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "manager.hpp"
+
+#include <limits>
+#include <memory>
+#include <set>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+namespace autoware::behavior_velocity_planner::experimental
+{
+using detection_area_ros1::require_parameter;
+using lanelet::autoware::DetectionArea;
+
+DetectionAreaModuleManager::DetectionAreaModuleManager(ros::NodeHandle & node)
+: SceneModuleManagerInterfaceWithRTC(
+    node, getModuleName(), autoware::behavior_velocity_planner::SceneModuleManagerInterfaceWithRTC::getEnableRTC(node, std::string(getModuleName()) + "/enable_rtc"))
+{
+  const std::string ns(DetectionAreaModuleManager::getModuleName());
+  planner_param_.stop_margin = require_parameter<double>(node, ns + ".stop_margin");
+  planner_param_.use_dead_line = require_parameter<bool>(node, ns + ".use_dead_line");
+  planner_param_.dead_line_margin =
+    require_parameter<double>(node, ns + ".dead_line_margin");
+  planner_param_.state_clear_time =
+    require_parameter<double>(node, ns + ".state_clear_time");
+  planner_param_.hold_stop_margin_distance =
+    require_parameter<double>(node, ns + ".hold_stop_margin_distance");
+  planner_param_.distance_to_judge_over_stop_line =
+    require_parameter<double>(node, ns + ".distance_to_judge_over_stop_line");
+  planner_param_.suppress_pass_judge_when_stopping =
+    require_parameter<bool>(node, ns + ".suppress_pass_judge_when_stopping");
+  planner_param_.enable_detected_obstacle_logging =
+    require_parameter<bool>(node, ns + ".enable_detected_obstacle_logging");
+
+  // Target filtering parameters
+  planner_param_.target_filtering.pointcloud =
+    require_parameter<bool>(node, ns + ".target_filtering.pointcloud");
+  planner_param_.target_filtering.unknown =
+    require_parameter<bool>(node, ns + ".target_filtering.unknown");
+  planner_param_.target_filtering.car =
+    require_parameter<bool>(node, ns + ".target_filtering.car");
+  planner_param_.target_filtering.truck =
+    require_parameter<bool>(node, ns + ".target_filtering.truck");
+  planner_param_.target_filtering.bus =
+    require_parameter<bool>(node, ns + ".target_filtering.bus");
+  planner_param_.target_filtering.trailer =
+    require_parameter<bool>(node, ns + ".target_filtering.trailer");
+  planner_param_.target_filtering.motorcycle =
+    require_parameter<bool>(node, ns + ".target_filtering.motorcycle");
+  planner_param_.target_filtering.bicycle =
+    require_parameter<bool>(node, ns + ".target_filtering.bicycle");
+  planner_param_.target_filtering.pedestrian =
+    require_parameter<bool>(node, ns + ".target_filtering.pedestrian");
+  planner_param_.target_filtering.animal =
+    require_parameter<bool>(node, ns + ".target_filtering.animal");
+  planner_param_.target_filtering.hazard =
+    require_parameter<bool>(node, ns + ".target_filtering.hazard");
+  planner_param_.target_filtering.over_drivable =
+    require_parameter<bool>(node, ns + ".target_filtering.over_drivable");
+  planner_param_.target_filtering.under_drivable =
+    require_parameter<bool>(node, ns + ".target_filtering.under_drivable");
+
+  // Unified unstoppable situation handling parameters
+  planner_param_.unstoppable_policy =
+    require_parameter<std::string>(node, ns + ".unstoppable_policy");
+  planner_param_.max_deceleration =
+    require_parameter<double>(node, ns + ".max_deceleration");
+  planner_param_.delay_response_time =
+    require_parameter<double>(node, ns + ".delay_response_time");
+}
+
+void DetectionAreaModuleManager::launchNewModules(
+  const Trajectory & path, const ros::Time & stamp, const PlannerData & planner_data)
+{
+  PathWithLaneId path_msg;
+  path_msg.points = path.restore();
+
+  for (const auto & detection_area_with_lane_id :
+       planning_utils::getRegElemMapOnPath<DetectionArea>(
+         path_msg, planner_data.route_handler_->getLaneletMapPtr(),
+         planner_data.current_odometry->pose)) {
+    // Use lanelet_id to unregister module when the route is changed
+    const auto lane_id = detection_area_with_lane_id.second.id();
+    const auto module_id = detection_area_with_lane_id.first->id();
+    if (!isModuleRegistered(module_id)) {
+      registerModule(
+        std::make_shared<DetectionAreaModule>(
+          module_id, lane_id, *detection_area_with_lane_id.first, planner_param_,
+          node_, (logger_ + ".detection_area_module"), clock_, time_keeper_,
+          planning_factor_interface_),
+        planner_data);
+      generateUUID(module_id);
+      updateRTCStatus(
+        getUUID(module_id), true, State::WAITING_FOR_EXECUTION,
+        std::numeric_limits<double>::lowest(), stamp);
+    }
+  }
+}
+
+std::function<bool(const std::shared_ptr<SceneModuleInterfaceWithRTC> &)>
+DetectionAreaModuleManager::getModuleExpiredFunction(
+  const Trajectory & path, const PlannerData & planner_data)
+{
+  PathWithLaneId path_msg;
+  path_msg.points = path.restore();
+
+  const auto detection_area_id_set = planning_utils::getRegElemIdSetOnPath<DetectionArea>(
+    path_msg, planner_data.route_handler_->getLaneletMapPtr(), planner_data.current_odometry->pose);
+
+  return
+    [detection_area_id_set](const std::shared_ptr<SceneModuleInterfaceWithRTC> & scene_module) {
+      return detection_area_id_set.count(scene_module->getModuleId()) == 0;
+    };
+}
+
+}  // namespace autoware::behavior_velocity_planner::experimental
+
+#include <pluginlib/class_list_macros.h>
+PLUGINLIB_EXPORT_CLASS(
+  autoware::behavior_velocity_planner::experimental::DetectionAreaModulePlugin,
+  autoware::behavior_velocity_planner::experimental::PluginInterface)

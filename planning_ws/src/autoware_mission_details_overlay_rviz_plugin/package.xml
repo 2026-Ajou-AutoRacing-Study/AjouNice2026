@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="2">
+  <name>autoware_mission_details_overlay_rviz_plugin</name>
+  <version>0.5.0</version>
+  <description>ROS1 RViz plugin for mission details overlays.</description>
+  <maintainer email="porting@example.invalid">Autoware2ros1 porting harness</maintainer>
+
+  <license>Apache License 2.0</license>
+
+  <depend>autoware_internal_msgs</depend>
+  <depend>rviz_2d_overlay_msgs</depend>
+  <depend>rviz_2d_overlay_plugins</depend>
+  <depend>pluginlib</depend>
+  <depend>roscpp</depend>
+  <depend>roslib</depend>
+  <depend>rviz</depend>
+  <buildtool_depend>catkin</buildtool_depend>
+  <export><rviz plugin="${prefix}/plugins_description.xml"/></export>
+</package>

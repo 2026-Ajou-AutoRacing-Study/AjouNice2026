@@ -1,0 +1,18 @@
+<launch>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <!-- Explicit reviewed flat vehicle YAML: base example lacks wheel tread. -->
+  <arg name="vehicle_param_path"/>
+  <arg name="start_requester" default="false"/>
+  <arg name="is_simulation" default="false"/>
+  <include file="$(find ajounice_planning_integration)/launch/map.launch">
+    <arg name="repo_root" value="$(arg repo_root)"/>
+  </include>
+  <include file="$(find tier4_planning_launch)/launch/planning.launch">
+    <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    <arg name="is_simulation" value="$(arg is_simulation)"/>
+  </include>
+  <include if="$(arg start_requester)" file="$(find competition_route_requester)/launch/competition_route_requester.launch">
+    <arg name="repo_root" value="$(arg repo_root)"/>
+  </include>
+  <!-- No follower, fake mode, empty objects/grid, TF, or localization publisher. -->
+</launch>

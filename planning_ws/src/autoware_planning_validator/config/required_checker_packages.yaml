@@ -1,0 +1,6 @@
+# Deployment-level requirements, separated from the host/plugin API build DAG.
+required_checker_packages:
+  - autoware_planning_validator_intersection_collision_checker
+  - autoware_planning_validator_latency_checker
+  - autoware_planning_validator_rear_collision_checker
+  - autoware_planning_validator_trajectory_checker

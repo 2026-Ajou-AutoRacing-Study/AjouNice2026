@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_scenario_selector</name><version>0.0.0</version>
+  <description>Staged ROS1 scenario-selector core closure.</description>
+  <maintainer email="noreply@example.com">Autoware2ros1</maintainer><license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>autoware_adapi_v1_msgs</depend>
+  <depend>autoware_internal_debug_msgs</depend>
+  <depend>autoware_internal_planning_msgs</depend>
+  <depend>autoware_lanelet2_extension</depend>
+  <depend>autoware_map_msgs</depend>
+  <depend>autoware_motion_velocity_planner</depend>
+  <depend>autoware_motion_velocity_planner_common</depend>
+  <depend>autoware_object_recognition_utils</depend>
+  <depend>autoware_planning_msgs</depend>
+  <depend>autoware_route_handler</depend>
+  <depend>autoware_velocity_smoother</depend>
+  <depend>autoware_osqp_interface</depend>
+  <depend>autoware_qp_interface</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>autoware_test_utils</depend>
+</package>

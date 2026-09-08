@@ -1,0 +1,13 @@
+<launch>
+  <!-- Equivalent to ROS2 FindPackageShare([vehicle_model, "_description"]). -->
+  <arg name="use_sim_time" default="false" />
+  <arg name="vehicle_model" />
+  <arg name="vehicle_description_pkg" default="$(eval find(arg('vehicle_model') + '_description'))" />
+
+  <!-- ROS1's process-wide simulation clock switch replaces ROS2 SetParameter. -->
+  <param name="/use_sim_time" value="$(arg use_sim_time)" type="bool" />
+
+  <include file="$(find autoware_vehicle_info_utils)/launch/vehicle_info.launch">
+    <arg name="vehicle_info_param_file" value="$(arg vehicle_description_pkg)/config/vehicle_info.param.yaml" />
+  </include>
+</launch>

@@ -1,0 +1,14 @@
+{
+  "candidate_only": true,
+  "formal_promotion_allowed": false,
+  "source_records": {
+    "CMakeLists.txt": "ROS2 ament/plugin export rendered as explicit catkin library, install, and pluginlib test closure.",
+    "package.xml": "ROS2 metadata rendered as catkin metadata with autoware_behavior_path_planner plugin export.",
+    "plugins.xml": "ROS1 pluginlib manifest path rendered as lib/libautoware_behavior_path_external_request_lane_change_module.",
+    "src/manager.cpp": "ROS2 manager field access rendered to staged ROS1 SceneModuleManagerInterface ABI while preserving ExternalRequestLaneChange construction.",
+    "src/manager.hpp": "ROS2 SceneModuleInterface return type rendered to staged ROS1 SceneModuleCore ABI.",
+    "src/scene.cpp": "Source-preserving implementation; compiled in candidate library.",
+    "src/scene.hpp": "Source-preserving declaration; compiled in candidate library.",
+    "test/test_behavior_path_planner_node_interface.cpp": "Not executed: it requires the separate BPP node harness. The candidate adds a narrower ROS1 plugin discovery/load oracle; this is not equivalent runtime coverage."
+  }
+}

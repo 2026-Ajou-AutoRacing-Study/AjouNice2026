@@ -1,0 +1,8 @@
+<launch>
+  <rosparam command="load" file="$(find autoware_behavior_path_static_obstacle_avoidance_module)/static_obstacle_avoidance.ros1.yaml"/>
+  <test
+    test-name="static_obstacle_manager_init"
+    pkg="autoware_behavior_path_static_obstacle_avoidance_module"
+    type="test_static_obstacle_manager_init"
+    time-limit="60"/>
+</launch>

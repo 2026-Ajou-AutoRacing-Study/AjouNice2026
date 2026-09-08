@@ -1,0 +1,5 @@
+// The frozen implementation retains this unused ROS 2 include.
+#ifndef AUTOWARE_FRENET_PLANNER_ROS1__TF2_GEOMETRY_MSGS__TF2_GEOMETRY_MSGS_HPP_
+#define AUTOWARE_FRENET_PLANNER_ROS1__TF2_GEOMETRY_MSGS__TF2_GEOMETRY_MSGS_HPP_
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#endif  // AUTOWARE_FRENET_PLANNER_ROS1__TF2_GEOMETRY_MSGS__TF2_GEOMETRY_MSGS_HPP_

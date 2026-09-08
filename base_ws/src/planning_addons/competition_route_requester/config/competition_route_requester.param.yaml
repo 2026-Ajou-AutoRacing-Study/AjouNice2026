@@ -1,48 +1,30 @@
-# SPEC DRAFT ONLY: ROS1 RouteSelector 포팅 전에는 rosparam으로 로드하지 않는다.
-# 아래 ROS2 파라미터 구조와 인터페이스 이름은 동작 정책을 기록하기 위한 초안이다.
-/**:
-  ros__parameters:
-    # 주행 동작은 독립 boolean 조합이 아니라 아래 5개 case 중 하나로만 선택한다.
-    # route_a_only: Route A만 요청하고 재경로와 fallback은 사용하지 않는다.
-    # route_b_only: 200178의 s=8m 이상인 현재 odometry에서 Route B만 요청한다.
-    # route_a_to_b: Route A로 출발한 뒤 정상 SetWaypointRoute로 Route B를 요청한다.
-    # route_a_to_fallback: 정상 Route B 요청 없이 hard cutoff에서 fallback SetLaneletRoute를 요청한다.
-    # route_a_to_b_with_fallback: 정상 Route B를 시도하고 실패한 경우 fallback SetLaneletRoute를 요청한다.
-    # 문자열은 대소문자를 구분해 정확히 비교한다. 별칭, 빈 문자열, 오탈자는 허용하지 않는다.
-    # 이 목록에 없는 값이면 route 서비스를 한 번도 호출하지 않고 오류를 출력한 뒤 시작을 중단한다.
-    route_operation_case: "route_a_only"
-    route_definition_file: "kcity_v61_competition_route.yaml"  # 상대 경로는 이 파라미터 파일의 디렉터리를 기준으로 찾는다.
-
-    # 정상 Route A/B 요청에 사용할 RouteSelector main waypoint service의 임시 이름이다.
-    set_waypoint_route_service_name: "/planning/set_waypoint_route"
-
-    # fallback 요청에 사용할 RouteSelector main lanelet service의 임시 이름이다.
-    set_lanelet_route_service_name: "/planning/set_lanelet_route"
-    route_topic: "/planning/route"
-    route_state_topic: "/planning/route_state"
-    odometry_topic: "/localization/kinematic_state"
-    operation_mode_topic: "/system/operation_mode/state"
-    trajectory_topic: "/planning/trajectory"
-    reroute_availability_topic: "/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/output/is_reroute_available"
-
-    # true이면 supervisor가 stack과 odometry 준비를 확인한 뒤 선택한 초기 route를 자동 요청한다.
-    auto_request_initial_route: true
-
-    # false로 고정한다. case를 바꾸려면 이 YAML을 수정한 뒤 전체 launch를 다시 시작한다.
-    allow_runtime_case_change: false
-
-    odometry_max_age: 0.5  # 0.5초보다 오래된 Ego 위치는 route 요청에 사용하지 않는다.
-    reroute_availability_max_age: 0.5  # 0.5초보다 오래된 reroute 허용값은 폐기한다.
-    reroute_available_hold_time: 0.5  # reroute 허용이 0.5초 연속 유지될 때만 요청한다.
-
-    service_timeout: 5.0  # route 서비스 응답을 최대 5초 기다린다.
-    route_verification_timeout: 5.0  # 요청 UUID의 LaneletRoute 수신을 최대 5초 기다린다.
-    trajectory_verification_timeout: 5.0  # 새 route 기반 trajectory 수신을 최대 5초 기다린다.
-
-    retry_initial_interval: 2.0  # Route A 실패 후 2초 뒤 다시 요청한다.
-    retry_reroute_interval: 1.0  # Route B 실패 후 조건을 재확인하고 1초 뒤 재시도한다.
-
-    initial_route_max_attempts: 0  # 0이면 Route A를 성공할 때까지 재시도한다.
-    reroute_max_attempts: 0  # 0이면 deadline 전까지 Route B를 재시도한다.
-    require_new_trajectory: true  # route 교체 후 새 trajectory까지 받아야 성공 처리한다.
-    never_clear_route: true  # requester에서는 주행 중 ClearRoute를 절대 호출하지 않는다.
+# Runtime ROS1 configuration. Change the case here and restart all three nodes.
+route_operation_case: route_a_only
+route_definition_file: kcity_v61_competition_route.yaml
+set_waypoint_route_service_name: /planning/set_waypoint_route
+set_lanelet_route_service_name: /planning/set_lanelet_route
+route_topic: /planning/mission_planning/route
+route_state_topic: /planning/route_state
+odometry_topic: /localization/kinematic_state
+operation_mode_topic: /system/operation_mode/state
+map_topic: /map/vector_map
+trajectory_topic: /planning/trajectory
+validation_topic: /planning/validation_status
+reroute_availability_topic: /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/output/is_reroute_available
+auto_request_initial_route: true
+allow_runtime_case_change: false
+odometry_max_age: 0.5
+operation_mode_max_age: 0.5
+reroute_availability_max_age: 0.5
+reroute_available_hold_time: 0.5
+service_timeout: 5.0
+route_verification_timeout: 5.0
+trajectory_verification_timeout: 5.0
+trajectory_max_age: 0.5
+goal_tolerance_m: 0.5
+retry_initial_interval: 2.0
+retry_reroute_interval: 1.0
+initial_route_max_attempts: 0
+reroute_max_attempts: 0
+require_new_trajectory: true
+never_clear_route: true

@@ -1,0 +1,25 @@
+<launch>
+  <!-- Rule-based elastic-band -> MPC path optimizer branch. -->
+  <arg name="config_root" doc="Converted autoware_launch config/ros1/planning directory"/>
+  <arg name="vehicle_param_path"/>
+  <arg name="input_path" default="/planning/scenario_planning/lane_driving/behavior_planning/path"/>
+  <arg name="input_odometry" default="/localization/kinematic_state"/>
+  <arg name="output_trajectory" default="/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory"/>
+  <group ns="motion_planning">
+    <node pkg="autoware_path_smoother" type="elastic_band_smoother_node" name="path_smoother" required="true" output="screen">
+      <rosparam command="load" file="$(arg config_root)/scenario_planning/lane_driving/motion_planning/path_smoother/elastic_band_smoother.param.yaml"/>
+      <param name="enable_debug_info" value="false"/>
+      <remap from="~input/path" to="$(arg input_path)"/>
+      <remap from="~input/odometry" to="$(arg input_odometry)"/>
+      <remap from="~output/path" to="path_smoother/path"/>
+    </node>
+    <node pkg="autoware_path_optimizer" type="path_optimizer_node" name="path_optimizer" required="true" output="screen">
+      <rosparam command="load" file="$(arg vehicle_param_path)"/>
+      <rosparam command="load" file="$(arg config_root)/scenario_planning/common/nearest_search.param.yaml"/>
+      <rosparam command="load" file="$(arg config_root)/scenario_planning/lane_driving/motion_planning/autoware_path_optimizer/path_optimizer.param.yaml"/>
+      <remap from="~input/path" to="path_smoother/path"/>
+      <remap from="~input/odometry" to="$(arg input_odometry)"/>
+      <remap from="~output/path" to="$(arg output_trajectory)"/>
+    </node>
+  </group>
+</launch>

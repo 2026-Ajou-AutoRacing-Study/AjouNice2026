@@ -1,0 +1,14 @@
+<library path="lib/libtrajectory_checker_plugin_ros1">
+  <class name="autoware::planning_validator::TrajectoryChecker"
+         type="autoware::planning_validator::TrajectoryCheckerPlugin"
+         base_class_type="autoware::planning_validator::PluginInterface">
+    <description>R002 ROS1 static trajectory checker candidate.</description>
+  </class>
+</library>
+<library path="lib/liblatency_checker_plugin_ros1">
+  <class name="autoware::planning_validator::LatencyChecker"
+         type="autoware::planning_validator::LatencyCheckerPlugin"
+         base_class_type="autoware::planning_validator::PluginInterface">
+    <description>R002 ROS1 latency checker candidate.</description>
+  </class>
+</library>

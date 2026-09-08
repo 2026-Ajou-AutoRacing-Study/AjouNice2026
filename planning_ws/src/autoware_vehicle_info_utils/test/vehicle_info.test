@@ -1,0 +1,6 @@
+<launch>
+  <arg name="vehicle_info_param_file" default="$(find autoware_vehicle_info_utils)/config/vehicle_info.yaml" />
+  <rosparam command="load" file="$(arg vehicle_info_param_file)" ns="vehicle_ns" />
+  <test test-name="test_vehicle_info_utils" pkg="autoware_vehicle_info_utils"
+        type="test_autoware_vehicle_info_utils" time-limit="60" />
+</launch>

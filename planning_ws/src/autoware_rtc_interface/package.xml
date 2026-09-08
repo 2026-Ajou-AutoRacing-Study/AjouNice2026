@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_rtc_interface</name>
+  <version>0.51.0</version>
+  <description>The autoware_rtc_interface package</description>
+
+  <maintainer email="kyoichi.sugahara@tier4.jp">Kyoichi Sugahara</maintainer>
+  <maintainer email="satoshi.ota@tier4.jp">Satoshi Ota</maintainer>
+  <maintainer email="yukinari.hisaki.2@tier4.jp">Yukinari Hisaki</maintainer>
+
+  <license>Apache License 2.0</license>
+
+  <author email="fumiya.watanabe@tier4.jp">Fumiya Watanabe</author>
+  <author email="taiki.tanaka@tier4.jp">Taiki Tanaka</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>tier4_rtc_msgs</build_depend>
+  <build_depend>unique_identifier_msgs</build_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <build_export_depend>tier4_rtc_msgs</build_export_depend>
+  <build_export_depend>unique_identifier_msgs</build_export_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>tier4_rtc_msgs</exec_depend>
+  <exec_depend>unique_identifier_msgs</exec_depend>
+
+  <!-- Preserved upstream test provenance; supplied by the external test underlay. -->
+  <test_depend>autoware_utils</test_depend>
+  <test_depend>rostest</test_depend>
+
+  <export>
+    <build_type>catkin</build_type>
+  </export>
+  <build_depend>autoware_utils</build_depend>
+</package>

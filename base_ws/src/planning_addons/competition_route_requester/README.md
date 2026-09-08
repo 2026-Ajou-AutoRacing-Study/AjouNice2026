@@ -2,7 +2,7 @@
 
 K-City v61 대회 경로를 요청하기 위한 AjouNice 전용 planning addon이다.
 
-현재 패키지는 **명세와 경로 데이터만 보관한다**. 실행 노드, launch 파일 및 ROS 메시지·서비스 의존성은 아직 포함하지 않는다. `autoware_mission_planner_universe`의 `RouteSelector`와 `MissionPlanner`가 ROS1으로 포팅되고 실제 인터페이스가 고정된 뒤 구현한다.
+ROS1 실행 노드 3개(`route_requester`, `route_supervisor`, `finish_guard`)와 서비스 gateway를 구현했다. **구현·단위검사와 실차/전체 파이프라인 운용 승인은 다르다.** 현재 기본 case는 `route_a_only`이며 실제 이동 중 A→B, fallback 및 폐루프 승인 전에는 자동 주행에 사용하지 않는다. 검증 범위와 미완료 사항은 [통합 인계서](../../../../../docs/planning/INTEGRATION-HANDOFF.md)를 참고한다.
 
 패키지 전체는 competition route input manager를 담지만, 향후 실행 node의 책임은 분리한다. `route_requester`는 RouteSelector main 요청 gateway이고 `route_supervisor`가 Route A/B 정책과 정상 재경로 상태 기계를 소유한다. finish guard와 fallback request builder는 독립 boolean으로 켜지 않고 선택한 operation case에 따라 필요한 경우에만 동작한다.
 
@@ -21,11 +21,13 @@ YAML의 `route_operation_case`는 `route_a_only`, `route_b_only`, `route_a_to_b`
 - [`config/kcity_v61_competition_route.yaml`](config/kcity_v61_competition_route.yaml): K-City v61 Route A/B 정의
 - [`config/competition_route_requester.param.yaml`](config/competition_route_requester.param.yaml): 기존 동작 파라미터 초안
 
-`competition_route_requester.param.yaml`은 ROS2 파라미터 문법과 임시 인터페이스 이름을 포함한다. ROS1 런타임에서 로드하지 않는다.
+`competition_route_requester.param.yaml`은 현재 ROS1 flat YAML이며 `/planning/mission_planning/route`를 사용한다. 잘못된 case/지도 SHA는 구독·서비스 생성 전 거부한다. 서비스 응답 불명확 또는 서비스 성공 후 검증 실패는 `RECONCILIATION_REQUIRED`로 고정하고 자동 재요청하지 않는다. 이 상태에서 Route A가 그대로라고 가정하거나 프로세스 재시작만으로 해결하지 않는다. 운영자가 실제 RouteSelector 상태와 UUID를 먼저 확인해야 한다.
+
+Route B 이동 중 재시도는 `200346` 이전 현재 lanelet부터의 **정확한 canonical suffix**만 수신 경로로 허용한다. 출발 lanelet이 달라졌다는 이유로 경유 구간 누락이나 임의 새 경로를 허용하지 않는다. trajectory에는 route UUID가 없으므로 요청 응답·경로 확인 이후 source timestamp와 20개 validator flag, 3개 새 출력은 시간상 연관 증거이지 완전한 route 인과성/폐루프 증명이 아니다.
 
 ## 디렉터리 소유권
 
-- `base_ws/src/planning`: upstream Autoware Universe ROS1 포팅 코드
+- `planning_ws/src`: upstream Autoware Universe ROS1 포팅 코드(149 + 지원 5개)
 - `base_ws/src/planning_addons`: AjouNice 대회 전용 추가 기능
 
 이 패키지는 upstream 포팅 코드를 수정하지 않고 RouteSelector의 main route 입력을 이용하는 addon으로 구현한다.
@@ -56,7 +58,7 @@ YAML의 `route_operation_case`는 `route_a_only`, `route_b_only`, `route_a_to_b`
 
 ![K-City v61 Route A에서 Route B로의 재경로 절차](docs/assets/kcity_v61_reroute_process.svg)
 
-재경로는 `200178`의 s 8 m 이상에서 준비하고, 최신 odometry와 reroute availability의 age 및 0.5초 hold 조건을 통과한 뒤 요청한다. Route B UUID, goal, 전체 lanelet 순서와 새 trajectory가 검증될 때까지 Route A를 유지하며 `ClearRoute`를 호출하지 않는다. 적용 deadline은 lanelet `200346` 진입 전이고, `wp_200346`의 s 8 m pose는 deadline 감지 anchor이므로 둘을 같은 위치로 해석하지 않는다.
+재경로는 `200178`의 s 8 m 이상에서 준비하고, 최신 odometry와 reroute availability의 age 및 0.5초 hold 조건을 통과한 뒤 요청한다. `ClearRoute`는 호출하지 않는다. 서비스 성공 후 Route B UUID, goal, lanelet 순서와 새 trajectory 검증이 끝나야 전환 완료로 처리한다. 이 사이 실제 경로는 이미 바뀔 수 있으므로 Route A 유지로 단정하지 않는다. 적용 deadline은 lanelet `200346` 진입 전이고, `wp_200346`의 s 8 m pose는 deadline 감지 anchor이므로 둘을 같은 위치로 해석하지 않는다.
 
 OSM과 projector 파일이 있는 저장소 루트에서 다음 명령으로 SVG 5개를 다시 생성하고 입력 hash·경로 연속성·설정 pose·fallback suffix·operation case를 검증할 수 있다.
 

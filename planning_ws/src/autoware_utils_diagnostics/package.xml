@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_utils_diagnostics</name>
+  <version>1.8.0</version>
+  <description>ROS 1 candidate for Autoware diagnostic utility interfaces.</description>
+  <maintainer email="noreply@example.invalid">Autoware ROS1 port candidate</maintainer>
+  <license>Apache License 2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>diagnostic_msgs</build_depend>
+  <build_depend>diagnostic_updater</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_export_depend>diagnostic_msgs</build_export_depend>
+  <build_export_depend>diagnostic_updater</build_export_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <exec_depend>diagnostic_msgs</exec_depend>
+  <exec_depend>diagnostic_updater</exec_depend>
+  <exec_depend>roscpp</exec_depend>
+  <test_depend>gtest</test_depend>
+  <export />
+</package>

@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_behavior_path_lane_change_module</name>
+  <version>0.51.0</version>
+  <description>The autoware_behavior_path_lane_change_module package</description>
+
+  <maintainer email="zulfaqar.azmi@tier4.jp">Zulfaqar Azmi</maintainer>
+  <maintainer email="alqudah.mohammad@tier4.jp">Alqudah Mohammad</maintainer>
+  <maintainer email="maxime.clement@tier4.jp">Maxime Clement</maintainer>
+
+  <license>Apache License 2.0</license>
+
+  <author email="fumiya.watanabe@tier4.jp">Fumiya Watanabe</author>
+  <author email="satoshi.ota@tier4.jp">Satoshi Ota</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>eigen</build_depend>
+  <build_depend>pluginlib</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>visualization_msgs</build_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>eigen</exec_depend>
+  <exec_depend>pluginlib</exec_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+
+  <!-- Host-level tests are run after the host and this plugin are built.
+       Declaring the host here causes a catkin build-order cycle because the
+       ROS1 host links this plugin. Test sources remain in this package. -->
+  <depend>autoware_behavior_path_planner_common</depend>
+  <depend>autoware_frenet_planner</depend>
+  <depend>autoware_lanelet2_utils</depend>
+  <depend>autoware_lanelet2_extension</depend>
+  <depend>autoware_motion_utils</depend>
+  <depend>autoware_object_recognition_utils</depend>
+  <depend>autoware_rtc_interface</depend>
+  <depend>autoware_utils</depend>
+  <depend>fmt</depend>
+  <depend>range-v3</depend>
+
+  <test_depend>gtest</test_depend>
+
+  <export>
+    <build_type>catkin</build_type>
+    <plugin plugin="${prefix}/plugins.xml"/>
+    <autoware_behavior_path_planner_common plugin="${prefix}/plugins.xml"/>
+    <autoware_behavior_path_planner plugin="${prefix}/plugins.xml"/>
+  </export>
+  <depend>autoware_vehicle_info_utils</depend>
+  <depend>autoware_route_handler</depend>
+  <depend>autoware_interpolation</depend>
+  <depend>autoware_planning_factor_interface</depend>
+  <depend>autoware_traffic_light_utils</depend>
+  <depend>autoware_utils_geometry</depend>
+  <depend>autoware_utils_debug</depend>
+  <depend>autoware_test_utils</depend>
+  <depend>autoware_universe_utils</depend>
+  <depend>autoware_sampler_common</depend>
+  <depend>autoware_adapi_v1_msgs</depend>
+  <depend>autoware_internal_planning_msgs</depend>
+  <depend>tier4_planning_msgs</depend>
+  <depend>autoware_objects_of_interest_marker_interface</depend>
+  <depend>autoware_deprecated_boundary_departure_checker</depend>
+  <depend>autoware_utils_rclcpp</depend>
+</package>

@@ -1,0 +1,10 @@
+wheel_radius: 0.39
+wheel_width: 0.42
+wheel_base: 2.74
+wheel_tread: 1.63
+front_overhang: 1.0
+rear_overhang: 1.03
+left_overhang: 0.1
+right_overhang: 0.1
+vehicle_height: 2.5
+max_steer_angle: 0.70

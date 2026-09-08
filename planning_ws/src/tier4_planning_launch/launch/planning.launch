@@ -1,0 +1,49 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="vehicle_param_path"/>
+  <arg name="config_root" default="$(find autoware_launch)/config/ros1/planning"/>
+  <arg name="is_simulation" default="false"/>
+  <arg name="bvp_experimental" default="true"/>
+  <group ns="/planning/mission_planning">
+    <include file="$(find autoware_mission_planner_universe)/launch/mission_planner.launch">
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+      <arg name="route_topic_name" value="/planning/mission_planning/route"/>
+    </include>
+  </group>
+  <group ns="/planning/scenario_planning/lane_driving/behavior_planning">
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/behavior_planning.launch">
+      <arg name="config_root" value="$(arg config_root)"/>
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+      <arg name="is_simulation" value="$(arg is_simulation)"/>
+      <arg name="bvp_experimental" value="$(arg bvp_experimental)"/>
+    </include>
+  </group>
+  <group ns="/planning/scenario_planning/lane_driving">
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/motion_path.launch">
+      <arg name="config_root" value="$(arg config_root)"/>
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    </include>
+  </group>
+  <group ns="/planning/scenario_planning/lane_driving/motion_planning">
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/motion_velocity.launch">
+      <arg name="config_root" value="$(arg config_root)"/>
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    </include>
+  </group>
+  <group ns="/planning/scenario_planning">
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/parking.launch">
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    </include>
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/scenario_common.launch">
+      <arg name="config_root" value="$(arg config_root)"/>
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    </include>
+    <include file="$(find autoware_surround_obstacle_checker)/launch/surround_obstacle_checker.launch">
+      <arg name="vehicle_param_file" value="$(arg vehicle_param_path)"/>
+    </include>
+    <include file="$(find autoware_external_velocity_limit_selector)/launch/external_velocity_limit_selector.launch.xml"/>
+  </group>
+  <include file="$(find tier4_planning_launch)/launch/planning_validation.launch">
+    <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+  </include>
+</launch>

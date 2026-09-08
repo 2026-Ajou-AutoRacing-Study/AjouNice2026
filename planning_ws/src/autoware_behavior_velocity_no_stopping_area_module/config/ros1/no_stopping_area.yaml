@@ -1,0 +1,8 @@
+no_stopping_area/state_clear_time: 2.0
+no_stopping_area/stuck_vehicle_vel_thr: 0.833
+no_stopping_area/stop_margin: 0.0
+no_stopping_area/dead_line_margin: 1.0
+no_stopping_area/stop_line_margin: 1.0
+no_stopping_area/detection_area_length: 200.0
+no_stopping_area/stuck_vehicle_front_margin: 6.0
+no_stopping_area/enable_rtc: false

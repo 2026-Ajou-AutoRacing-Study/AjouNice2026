@@ -1,0 +1,402 @@
+forward_path_length: 1000.0
+backward_path_length: 5.0
+behavior_output_path_interval: 1.0
+planning_factor_console_output:
+  enable: false
+  duration: 1000
+max_accel: -2.8
+max_jerk: -5.0
+system_delay: 0.5
+delay_response_time: 0.5
+is_publish_debug_path: false
+blind_spot:
+  backward_attention_length: 100.0
+  ttc_start_margin: 2.0
+  ttc_end_margin: 1.0
+  minimum_default_velocity: 1.388
+  collision_judge_debounce: 0.5
+  critical_stopline_margin: 1.0
+  detect_non_vru:
+    car: false
+    truck: false
+    bus: false
+    trailer: false
+  brake:
+    critical:
+      deceleration: -6.0
+      jerk: -5.0
+    semi_critical:
+      deceleration: -4.0
+      jerk: -5.0
+  brake_for_ttc:
+    critical_threshold_ub: 3.0
+    semi_critical_threshold_lb: 5.0
+  enable_rtc: false
+crosswalk:
+  common:
+    show_processing_time: false
+    traffic_light_state_timeout: 3.0
+    enable_rtc: false
+    lost_detection_timeout: 1.0
+  stop_position:
+    stop_position_threshold: 1.0
+    stop_distance_from_crosswalk: 3.5
+    stop_distance_from_object_preferred: 3.0
+    stop_distance_from_crosswalk_limit: 3.0
+    min_acc_preferred: -1.2
+    min_jerk_preferred: -1.2
+  slow_down:
+    min_slow_down_velocity: 2.78
+    max_slow_down_jerk: -1.5
+    max_slow_down_accel: -2.5
+    no_relax_velocity: 2.78
+  obstruction_prevention:
+    enable_obstruction_prevention: false
+    target_vehicle_velocity: 1.0
+    required_lateral_clearance: 0.3
+    required_clearance: 6.0
+    min_acc: -1.2
+    min_jerk: -1.2
+    max_jerk: 1.2
+  pass_judge:
+    ego_pass_first_margin_x:
+    - 0.0
+    ego_pass_first_margin_y:
+    - 4.0
+    ego_pass_first_additional_margin: 0.5
+    ego_pass_later_margin_x:
+    - 0.0
+    ego_pass_later_margin_y:
+    - 13.0
+    ego_pass_later_additional_margin: 0.5
+    ego_min_assumed_speed: 2.0
+    consider_obj_on_crosswalk_on_red_light: false
+    no_stop_decision:
+      enable_no_stop_decision: true
+      min_acc: -1.5
+      min_jerk: -1.5
+    stop_object_velocity_threshold: 0.25
+    min_object_velocity: 1.39
+    disable_yield_for_new_stopped_object: true
+    distance_set_for_no_intention_to_walk:
+    - 1.0
+    - 5.0
+    timeout_set_for_no_intention_to_walk:
+    - 1.0
+    - 0.0
+    timeout_ego_stop_for_yield: 1.0
+    min_vru_crossing_width: 0.0
+  restart_suppression:
+    min_distance_to_stop: 0.5
+    max_distance_to_stop: 1.0
+  object_filtering:
+    crosswalk_attention_range: 2.0
+    vehicle_object_cross_angle_threshold: 0.5
+    target_object:
+      unknown: true
+      bicycle: true
+      motorcycle: true
+      pedestrian: true
+  occlusion:
+    enable: false
+    occluded_object_velocity: 2.0
+    slow_down_velocity: 1.0
+    time_buffer: 0.5
+    min_size: 1.0
+    free_space_max: 43
+    occupied_min: 58
+    ignore_with_traffic_light: true
+    ignore_behind_predicted_objects: true
+    ignore_velocity_thresholds:
+      default: 0.5
+      custom_labels:
+      - PEDESTRIAN
+      custom_thresholds:
+      - 0.0
+    extra_predicted_objects_size: 0.5
+  parked_vehicles_stop:
+    enable: false
+    search_distance: 5.0
+    min_ego_stop_duration: 1.0
+    vehicle_permanence_duration: 0.5
+    ego_inside_safe_area_margin: 0.3
+    parked_velocity_threshold: 0.5
+detection_area:
+  stop_margin: 0.0
+  target_filtering:
+    pointcloud: true
+    unknown: false
+    car: false
+    truck: false
+    bus: false
+    trailer: false
+    motorcycle: false
+    bicycle: false
+    pedestrian: false
+    animal: false
+    hazard: false
+    over_drivable: false
+    under_drivable: false
+  use_dead_line: false
+  dead_line_margin: 5.0
+  unstoppable_policy: stop_after_stopline
+  max_deceleration: 2.5
+  delay_response_time: 0.5
+  state_clear_time: 2.0
+  hold_stop_margin_distance: 0.0
+  distance_to_judge_over_stop_line: 0.5
+  enable_rtc: false
+  suppress_pass_judge_when_stopping: false
+  enable_detected_obstacle_logging: false
+intersection:
+  common:
+    attention_area_length: 200.0
+    attention_area_margin: 0.75
+    attention_area_angle_threshold: 0.785
+    use_intersection_area: false
+    default_stopline_margin: 3.0
+    pass_judge_line_margin: 0.0
+    stopline_overshoot_margin: 0.5
+    path_interpolation_ds: 0.1
+    max_accel: -2.8
+    max_jerk: -5.0
+    delay_response_time: 0.0
+    enable_pass_judge_before_default_stopline: false
+  stuck_vehicle:
+    target_type:
+      car: true
+      bus: true
+      truck: true
+      trailer: true
+      motorcycle: false
+      bicycle: false
+      unknown: false
+    turn_direction:
+      left: true
+      right: true
+      straight: true
+    use_stuck_stopline: true
+    stuck_vehicle_detect_dist: 5.0
+    stuck_vehicle_velocity_threshold: 0.833
+    disable_against_private_lane: true
+  yield_stuck:
+    target_type:
+      car: true
+      bus: true
+      truck: true
+      trailer: true
+      motorcycle: false
+      bicycle: false
+      unknown: false
+    turn_direction:
+      left: true
+      right: true
+      straight: false
+    distance_threshold: 5.0
+  collision_detection:
+    consider_wrong_direction_vehicle: false
+    collision_detection_hold_time: 0.5
+    min_predicted_path_confidence: 0.05
+    target_type:
+      car: true
+      bus: true
+      truck: true
+      trailer: true
+      motorcycle: true
+      bicycle: true
+      unknown: false
+    velocity_profile:
+      use_upstream: true
+      minimum_upstream_velocity: 0.01
+      default_velocity: 2.778
+      minimum_default_velocity: 1.388
+    fully_prioritized:
+      collision_start_margin_time: 2.0
+      collision_end_margin_time: 0.0
+    partially_prioritized:
+      collision_start_margin_time: 3.0
+      collision_end_margin_time: 2.0
+    not_prioritized:
+      collision_start_margin_time: 4.0
+      collision_end_margin_time: 3.0
+    yield_on_green_traffic_light:
+      distance_to_assigned_lanelet_start: 10.0
+      duration: 3.0
+      object_dist_to_stopline: 10.0
+    ignore_on_amber_traffic_light:
+      object_expected_deceleration:
+        car: 2.0
+        bike: 5.0
+    ignore_on_red_traffic_light:
+      object_margin_to_path: 2.0
+    avoid_collision_by_acceleration:
+      object_time_margin_to_collision_point: 4.0
+  occlusion:
+    enable: false
+    request_approval_wo_traffic_light: false
+    occlusion_attention_area_length: 70.0
+    free_space_max: 43
+    occupied_min: 58
+    denoise_kernel: 1.0
+    attention_lane_crop_curvature_threshold: 0.25
+    attention_lane_curvature_calculation_ds: 0.6
+    peeking_offset: -0.5
+    occlusion_required_clearance_distance: 55.0
+    possible_object_bbox:
+    - 1.9
+    - 2.5
+    ignore_parked_vehicle_speed_threshold: 0.8333
+    occlusion_detection_hold_time: 1.5
+    temporal_stop_time_before_peeking: 0.1
+    creep_velocity_without_traffic_light: 1.388
+    static_occlusion_with_traffic_light_timeout: 0.5
+  conservative_merging:
+    enable_yield: false
+    minimum_lateral_distance_threshold: 0.2
+    merging_judge_angle_threshold: 0.785
+  debug:
+    ttc:
+    - 0
+  enable_rtc:
+    intersection: false
+    intersection_to_occlusion: false
+merge_from_private:
+  stopline_margin: 3.0
+  stop_duration_sec: 1.0
+  stop_distance_threshold: 1.0
+no_drivable_lane:
+  stop_margin: 1.5
+  print_debug_info: false
+no_stopping_area:
+  state_clear_time: 2.0
+  stuck_vehicle_vel_thr: 0.833
+  stop_margin: 0.0
+  dead_line_margin: 1.0
+  stop_line_margin: 1.0
+  detection_area_length: 200.0
+  stuck_vehicle_front_margin: 6.0
+  enable_rtc: false
+occlusion_spot:
+  detection_method: occupancy_grid
+  pass_judge: smooth_velocity
+  use_object_info: true
+  use_moving_object_ray_cast: true
+  use_partition_lanelet: true
+  pedestrian_vel: 1.5
+  pedestrian_radius: 0.3
+  debug:
+    is_show_occlusion: false
+    is_show_cv_window: false
+    is_show_processing_time: false
+  threshold:
+    detection_area_offset: 30.0
+    detection_area_length: 100.0
+    stuck_vehicle_vel: 1.0
+    lateral_distance: 1.5
+    search_dist: 10.0
+    search_angle: 0.63
+  motion:
+    safety_ratio: 0.8
+    max_slow_down_jerk: -0.3
+    max_slow_down_accel: -1.5
+    non_effective_jerk: -0.3
+    non_effective_acceleration: -1.0
+    min_allowed_velocity: 1.0
+    safe_margin: 2.0
+  detection_area:
+    min_occlusion_spot_size: 1.0
+    slice_length: 10.0
+    min_longitudinal_offset: 1.0
+    max_lateral_distance: 5.0
+  grid:
+    free_space_max: 43
+    occupied_min: 57
+roundabout:
+  common:
+    attention_area_margin: 0.75
+    attention_area_angle_threshold: 0.785
+    default_stopline_margin: 1.5
+    path_interpolation_ds: 0.1
+    enable_pass_judge_before_default_stopline: false
+  collision_detection:
+    collision_detection_hold_time: 0.5
+    min_predicted_path_confidence: 0.05
+    collision_start_margin_time: 3.0
+    collision_end_margin_time: 2.0
+    target_type:
+      car: true
+      bus: true
+      truck: true
+      trailer: true
+      motorcycle: true
+      bicycle: true
+      unknown: false
+    velocity_profile:
+      use_upstream: true
+      minimum_upstream_velocity: 0.01
+      default_velocity: 2.778
+      minimum_default_velocity: 1.388
+    avoid_collision_by_acceleration:
+      object_time_margin_to_collision_point: 4.0
+  debug:
+    ttc:
+    - 0
+  enable_rtc:
+    roundabout: false
+speed_bump:
+  slow_start_margin: 1.0
+  slow_end_margin: 1.0
+  print_debug_info: false
+  speed_calculation:
+    min_height: 0.05
+    max_height: 0.3
+    min_speed: 1.39
+    max_speed: 2.78
+stop_line:
+  stop_margin: 0.0
+  required_stop_duration_sec: 1.0
+  vehicle_stopped_duration_threshold: 0.0
+  hold_stop_margin_distance: 2.0
+traffic_light:
+  stop_margin: 0.0
+  tl_state_timeout: 1.0
+  stop_time_hysteresis: 0.1
+  yellow_lamp_period: 2.75
+  yellow_light_stop_velocity: 1.0
+  enable_pass_judge: true
+  enable_arrow_aware_yellow_passing: false
+  enable_rtc: false
+  restart_suppression:
+    min_behind_distance_to_stop: 0.5
+    max_behind_distance_to_stop: 1.0
+  v2i:
+    use_remaining_time: false
+    last_time_allowed_to_pass: 2.0
+    velocity_threshold: 0.5
+    required_time_to_departure: 3.0
+virtual_traffic_light:
+  max_delay_sec: 3.0
+  near_line_distance: 1.0
+  dead_line_margin: 1.0
+  max_yaw_deviation_deg: 90.0
+  check_timeout_after_stop_line: true
+  hold_stop_margin_distance: 0.0
+walkway:
+  stop_duration: 0.1
+  stop_distance_from_crosswalk: 3.5
+launch_modules:
+- autoware::behavior_velocity_planner::CrosswalkModulePlugin
+- autoware::behavior_velocity_planner::WalkwayModulePlugin
+- autoware::behavior_velocity_planner::TrafficLightModulePlugin
+- autoware::behavior_velocity_planner::IntersectionModulePlugin
+- autoware::behavior_velocity_planner::RoundaboutModulePlugin
+- autoware::behavior_velocity_planner::MergeFromPrivateModulePlugin
+- autoware::behavior_velocity_planner::BlindSpotModulePlugin
+- autoware::behavior_velocity_planner::DetectionAreaModulePlugin
+- autoware::behavior_velocity_planner::VirtualTrafficLightModulePlugin
+- autoware::behavior_velocity_planner::NoStoppingAreaModulePlugin
+- autoware::behavior_velocity_planner::StopLineModulePlugin
+- autoware::behavior_velocity_planner::OcclusionSpotModulePlugin
+- autoware::behavior_velocity_planner::SpeedBumpModulePlugin
+# The upstream NoDrivableLane class is experimental-ABI only and remains
+# enabled in behavior_velocity_modules.yaml.

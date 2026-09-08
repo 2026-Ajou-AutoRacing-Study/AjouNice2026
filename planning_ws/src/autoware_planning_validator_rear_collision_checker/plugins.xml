@@ -1,0 +1,5 @@
+<library path="lib/libautoware_planning_validator_rear_collision_checker">
+  <class name="autoware::planning_validator::RearCollisionCheckerRos1"
+         type="autoware::planning_validator::RearCollisionCheckerRos1"
+         base_class_type="autoware::planning_validator::PluginInterface"/>
+</library>

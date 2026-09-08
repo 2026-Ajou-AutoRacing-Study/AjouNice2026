@@ -1,0 +1,8 @@
+#ifndef AUTOWARE__BEHAVIOR_PATH_PLANNER_COMMON__UTILS__DRIVABLE_AREA_EXPANSION__DRIVABLE_AREA_EXPANSION_HPP_
+#define AUTOWARE__BEHAVIOR_PATH_PLANNER_COMMON__UTILS__DRIVABLE_AREA_EXPANSION__DRIVABLE_AREA_EXPANSION_HPP_
+
+// Source-name ROS1 surface; dynamic_area_core contains the implemented,
+// directly corresponding expansion algorithms.
+#include <autoware/behavior_path_planner_common/utils/drivable_area_expansion/dynamic_area_core.hpp>
+
+#endif

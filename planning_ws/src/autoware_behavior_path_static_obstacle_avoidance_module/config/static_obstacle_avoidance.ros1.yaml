@@ -1,0 +1,282 @@
+avoidance:
+  avoidance:
+    lateral:
+      hard_drivable_bound_margin: 0.3
+      max_deviation_from_lane: 0.2
+      max_left_shift_length: 5.0
+      max_right_shift_length: 5.0
+      ratio_for_return_shift_approval: 0.5
+      soft_drivable_bound_margin: 0.3
+      th_avoid_execution: 0.09
+      th_small_shift_length: 0.101
+    longitudinal:
+      buf_slow_down_speed: 0.56
+      consider_front_overhang: true
+      consider_rear_overhang: true
+      max_prepare_time: 3.0
+      min_prepare_distance: 1.0
+      min_prepare_time: 1.0
+      min_slow_down_speed: 1.38
+      nominal_avoidance_speed: 8.33
+    return_dead_line:
+      goal:
+        buffer: 3.0
+        enable: true
+      traffic_light:
+        buffer: 3.0
+        enable: true
+  cancel:
+    enable: true
+    force:
+      duration_time: 2.0
+  constraints:
+    lateral:
+      max_accel_values:
+      - 0.5
+      - 0.5
+      - 0.5
+      max_jerk_values:
+      - 1.0
+      - 1.0
+      - 1.0
+      min_jerk_values:
+        avoid:
+        - 0.2
+        - 0.2
+        - 0.2
+        return:
+        - 0.2
+        - 0.2
+        - 0.2
+      velocity:
+      - 1.39
+      - 4.17
+      - 11.1
+    longitudinal:
+      max_acceleration: 0.5
+      max_deceleration: -1.5
+      max_jerk: 1.0
+      min_velocity_to_limit_max_acceleration: 2.78
+      nominal_deceleration: -1.0
+      nominal_jerk: 0.5
+  debug:
+    enable_detection_area_marker: false
+    enable_drivable_bound_marker: false
+    enable_lane_marker: false
+    enable_misc_marker: false
+    enable_other_objects_info: true
+    enable_other_objects_marker: true
+    enable_safety_check_marker: false
+    enable_shift_line_marker: false
+  path_generation_method: shift_line_base
+  policy:
+    candidate_path_turn_signal: none
+    deceleration: best_effort
+    detection_reliability: reliable
+    lateral_margin: best_effort
+    make_approval_request: per_shift_line
+    turn_signal_on_approval_hold_duration: 3.0
+    use_shorten_margin_immediately: true
+  resample_interval_for_output: 4.0
+  resample_interval_for_planning: 0.3
+  safety_check:
+    check_all_predicted_path: false
+    check_current_lane: false
+    check_other_object: true
+    check_other_side_lane: false
+    check_shift_side_lane: true
+    check_unavoidable_object: false
+    collision_check_yaw_diff_threshold: 3.1416
+    delay_until_departure: 0.0
+    enable: true
+    expected_front_deceleration: -1.0
+    expected_rear_deceleration: -1.0
+    extended_polygon_policy: along_path
+    hysteresis_factor_expand_rate: 1.5
+    hysteresis_factor_safe_count: 3
+    lateral_distance_max_threshold: 2.0
+    longitudinal_distance_min_threshold: 3.0
+    longitudinal_velocity_delta_time: 0.0
+    max_velocity: 50.0
+    min_velocity: 1.38
+    rear_vehicle_reaction_time: 2.0
+    rear_vehicle_safety_time_margin: 1.0
+    safety_check_backward_distance: 100.0
+    target_type:
+      bicycle: true
+      bus: true
+      car: true
+      motorcycle: true
+      pedestrian: true
+      trailer: true
+      truck: true
+      unknown: false
+    time_horizon_for_front_object: 3.0
+    time_horizon_for_rear_object: 10.0
+    time_resolution: 0.5
+  shift_line_pipeline:
+    trim:
+      quantize_size: 0.1
+      th_similar_grad_1: 0.1
+      th_similar_grad_2: 0.2
+      th_similar_grad_3: 0.5
+  stop:
+    max_distance: 20.0
+    stop_buffer: 1.0
+  target_filtering:
+    avoidance_for_adjacent_lane_stop_vehicle:
+      policy: auto
+    avoidance_for_ambiguous_vehicle:
+      condition:
+        th_moving_distance: 1.0
+        th_stopped_time: 3.0
+      ignore_area:
+        crosswalk:
+          behind_distance: 0.0
+          front_distance: 20.0
+        traffic_light:
+          front_distance: 20.0
+      policy: manual
+      wait_and_see:
+        target_behaviors:
+        - MERGING
+        - DEVIATING
+        th_closest_distance: 10.0
+    avoidance_for_close_vehicle:
+      policy: ignore
+    avoidance_for_parking_violation_vehicle:
+      condition:
+        th_road_border_distance: 0.8
+      policy: ignore
+    detection_area:
+      backward_distance: 10.0
+      max_forward_distance: 150.0
+      min_forward_distance: 50.0
+      static: false
+    freespace:
+      condition:
+        th_stopped_time: 5.0
+    intersection:
+      yaw_deviation: 0.349
+    max_compensation_time: 2.0
+    merging_vehicle:
+      th_overhang_distance: 0.0
+    object_check_goal_distance: 20.0
+    object_check_return_pose_distance: 20.0
+    parked_vehicle:
+      min_road_shoulder_width: 0.5
+      th_offset_from_centerline: 1.0
+      th_shiftable_ratio: 0.8
+    target_type:
+      bicycle: true
+      bus: true
+      car: true
+      motorcycle: true
+      pedestrian: true
+      trailer: true
+      truck: true
+      unknown: true
+    unstable_classification_time: 2.0
+  target_object:
+    bicycle:
+      envelope_buffer_margin: 0.5
+      lateral_margin:
+        hard_margin: 0.5
+        hard_margin_for_parked_vehicle: 0.5
+        soft_margin: 0.7
+      longitudinal_margin: 1.0
+      max_expand_ratio: 0.0
+      th_error_eclipse_long_radius: 0.6
+      th_moving_speed: 0.28
+      th_moving_time: 1.0
+    bus:
+      envelope_buffer_margin: 0.1
+      lateral_margin:
+        hard_margin: 0.2
+        hard_margin_for_parked_vehicle: 0.7
+        soft_margin: 0.7
+      longitudinal_margin: 0.0
+      max_expand_ratio: 0.0
+      th_error_eclipse_long_radius: 0.6
+      th_moving_speed: 1.0
+      th_moving_time: 2.0
+    car:
+      envelope_buffer_margin: 0.1
+      lateral_margin:
+        hard_margin: 0.2
+        hard_margin_for_parked_vehicle: 0.7
+        soft_margin: 0.7
+      longitudinal_margin: 0.0
+      max_expand_ratio: 0.0
+      th_error_eclipse_long_radius: 0.6
+      th_moving_speed: 1.0
+      th_moving_time: 2.0
+    lower_distance_for_polygon_expansion: 30.0
+    motorcycle:
+      envelope_buffer_margin: 0.5
+      lateral_margin:
+        hard_margin: 0.3
+        hard_margin_for_parked_vehicle: 0.3
+        soft_margin: 0.7
+      longitudinal_margin: 1.0
+      max_expand_ratio: 0.0
+      th_error_eclipse_long_radius: 0.6
+      th_moving_speed: 1.0
+      th_moving_time: 1.0
+    pedestrian:
+      envelope_buffer_margin: 0.5
+      lateral_margin:
+        hard_margin: 0.5
+        hard_margin_for_parked_vehicle: 0.5
+        soft_margin: 0.7
+      longitudinal_margin: 1.0
+      max_expand_ratio: 0.0
+      th_error_eclipse_long_radius: 0.6
+      th_moving_speed: 0.28
+      th_moving_time: 1.0
+    trailer:
+      envelope_buffer_margin: 0.1
+      lateral_margin:
+        hard_margin: 0.2
+        hard_margin_for_parked_vehicle: 0.7
+        soft_margin: 0.7
+      longitudinal_margin: 0.0
+      max_expand_ratio: 0.0
+      th_error_eclipse_long_radius: 0.6
+      th_moving_speed: 1.0
+      th_moving_time: 2.0
+    truck:
+      envelope_buffer_margin: 0.1
+      lateral_margin:
+        hard_margin: 0.2
+        hard_margin_for_parked_vehicle: 0.7
+        soft_margin: 0.7
+      longitudinal_margin: 0.0
+      max_expand_ratio: 0.0
+      th_error_eclipse_long_radius: 0.6
+      th_moving_speed: 1.0
+      th_moving_time: 2.0
+    unknown:
+      envelope_buffer_margin: 0.1
+      lateral_margin:
+        hard_margin: -0.2
+        hard_margin_for_parked_vehicle: -0.2
+        soft_margin: 0.7
+      longitudinal_margin: 0.0
+      max_expand_ratio: 0.0
+      th_error_eclipse_long_radius: 0.6
+      th_moving_speed: 0.28
+      th_moving_time: 1.0
+    upper_distance_for_polygon_expansion: 100.0
+  use_freespace_areas: true
+  use_hatched_road_markings: true
+  use_intersection_areas: true
+  use_lane_type: opposite_direction_lane
+  yield:
+    enable: true
+    enable_during_shifting: false
+enable_all_modules_auto_mode: false
+static_obstacle_avoidance:
+  enable_rtc: false
+  enable_simultaneous_execution_as_approved_module: false
+  enable_simultaneous_execution_as_candidate_module: false

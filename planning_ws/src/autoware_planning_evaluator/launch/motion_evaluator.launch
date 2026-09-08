@@ -1,0 +1,12 @@
+<launch>
+  <arg name="vehicle_info_param_path"/>
+  <arg name="metrics_param_path" doc="ROS1 YAML with selected_metrics string list"/>
+  <arg name="output_metrics" default="false"/>
+  <arg name="twist" default="/localization/twist"/>
+  <node name="motion_evaluator" type="motion_evaluator" pkg="autoware_planning_evaluator" output="screen">
+    <rosparam command="load" file="$(arg vehicle_info_param_path)"/>
+    <rosparam command="load" file="$(arg metrics_param_path)"/>
+    <param name="output_metrics" value="$(arg output_metrics)"/>
+    <remap from="~input/twist" to="$(arg twist)"/>
+  </node>
+</launch>

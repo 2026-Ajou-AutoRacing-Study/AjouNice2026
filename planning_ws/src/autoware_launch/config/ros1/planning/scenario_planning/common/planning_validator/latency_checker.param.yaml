@@ -1,0 +1,3 @@
+latency_checker/enable: true
+latency_checker/threshold: 1.0
+latency_checker/is_critical: false

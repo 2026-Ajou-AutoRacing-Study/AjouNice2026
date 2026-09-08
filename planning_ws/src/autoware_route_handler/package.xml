@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_route_handler</name>
+  <version>1.8.0</version>
+  <description>ROS1 Catkin candidate for Autoware route handling.</description>
+  <maintainer email="porting@example.invalid">Autoware2ros1 porting harness</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>autoware_internal_planning_msgs</depend>
+  <depend>autoware_lanelet2_extension</depend>
+  <depend>autoware_lanelet2_utils</depend>
+  <depend>autoware_map_msgs</depend>
+  <depend>autoware_planning_msgs</depend>
+  <depend>autoware_trajectory</depend>
+  <depend>autoware_utils_geometry</depend>
+  <depend>autoware_utils_math</depend>
+  <depend>geometry_msgs</depend>
+  <depend>lanelet2_core</depend>
+  <depend>lanelet2_routing</depend>
+  <depend>lanelet2_traffic_rules</depend>
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2</depend>
+  <depend>unique_identifier_msgs</depend>
+</package>

@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_universe_utils</name>
+  <version>0.51.0</version>
+  <description>ROS1 namespace compatibility facade for the completed Autoware utility providers.</description>
+  <maintainer email="noreply@example.invalid">Autoware ROS1 port candidate</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>autoware_utils</depend>
+  <export>
+    <build_type>catkin</build_type>
+  </export>
+</package>
+

@@ -2,10 +2,22 @@
 
 ## 1. 상태
 
-- 문서 상태: 구현 전 명세
-- 패키지 상태: Catkin 골격과 config만 존재
-- 실행 코드: 없음
-- 구현 차단 조건: ROS1 `RouteSelector`/`MissionPlanner` 인터페이스 미확정
+- 문서 상태: 정책 원본 + 아래 ROS1 구현 계약 revision 1
+- 패키지 상태: gateway/supervisor/finish_guard 실행 코드 및 launch 구현
+- 실제 주행 승인: 미완료. 이동 중 A→B/fallback 및 base 입력 계약 검증 필요
+
+### ROS1 구현 계약 revision 1
+
+이 단락은 아래의 구현 전 임시 인터페이스 표현보다 우선한다.
+
+- gateway: `/planning/set_waypoint_route` (`autoware_internal_planning_msgs/SetWaypointRoute`), `/planning/set_lanelet_route` (`autoware_planning_msgs/SetLaneletRoute`).
+- 출력 관찰: `/planning/mission_planning/route` (`autoware_planning_msgs/LaneletRoute`), `/planning/route_state` (`autoware_planning_msgs/RouteState`).
+- YAML은 ROS1 flat 구조이며 5개 case 중 하나만 startup에 고정한다.
+- 초기 A는 canonical 47개 또는 incoming 200892를 포함한 48개만 허용한다.
+- 이동 중 B 재시도는 200346 이전 현재 시작 lanelet에 해당하는 canonical B의 정확한 suffix를 허용한다. 이미 지난 lanelet을 첫 segment로 강제하지 않으며 중간 생략/순서 변경은 허용하지 않는다.
+- 서비스 거부와 결과 불명확을 구별한다. transport timeout, 응답 성공 후 route/trajectory 검증 실패는 `RECONCILIATION_REQUIRED`. 이때 Route A 유지로 단정하거나 자동 clear/retry하지 않는다.
+- 성공 증거는 route UUID/goal/순서, 응답 및 route 확인 이후 timestamp의 3개 새 trajectory와 validator 20개 flag다. Route UUID가 없는 trajectory의 완전한 인과성 또는 주행 안전 인증은 아니다.
+- 자동 운용 기본값은 A-only. 전체 planning과 실제 입력으로 승인되기 전에는 controller를 연결하지 않는다.
 
 이 명세는 requester의 동작과 안전 조건을 먼저 고정한다. ROS1 서비스명, 메시지 타입, 토픽명 및 launch 구성은 upstream 포팅 결과를 확인한 뒤 확정한다.
 

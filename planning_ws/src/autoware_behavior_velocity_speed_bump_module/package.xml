@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="2"><name>autoware_behavior_velocity_speed_bump_module</name><version>0.51.0</version><description>ROS1 experimental speed-bump behavior-velocity plugin.</description><maintainer email="autoware@example.invalid">Autoware porting</maintainer><license>Apache-2.0</license><buildtool_depend>catkin</buildtool_depend><depend>geometry_msgs</depend><depend>pluginlib</depend><depend>roscpp</depend><depend>visualization_msgs</depend><depend>autoware_behavior_velocity_planner_common</depend><depend>autoware_behavior_velocity_planner</depend><export><build_type>catkin</build_type><autoware_behavior_velocity_planner plugin="${prefix}/plugins.xml"/></export>  <depend>autoware_lanelet2_extension</depend>
+  <depend>autoware_lanelet2_utils</depend>
+  <depend>autoware_map_msgs</depend>
+  <depend>autoware_motion_utils</depend>
+  <depend>autoware_objects_of_interest_marker_interface</depend>
+  <depend>autoware_osqp_interface</depend>
+  <depend>autoware_qp_interface</depend>
+  <depend>autoware_route_handler</depend>
+  <depend>autoware_trajectory</depend>
+  <depend>autoware_universe_utils</depend>
+  <depend>autoware_utils_debug</depend>
+  <depend>autoware_utils_geometry</depend>
+  <depend>autoware_utils_visualization</depend>
+  <depend>autoware_vehicle_info_utils</depend>
+  <depend>autoware_velocity_smoother</depend>
+</package>

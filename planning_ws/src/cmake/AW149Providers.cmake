@@ -1,0 +1,18 @@
+# Resolve a package's actual installed provider in the current catkin overlay.
+# This source-tree helper travels with the complete AW149 export.
+macro(aw149_provider alias provider library)
+  find_package(${provider} REQUIRED CONFIG)
+  get_filename_component(_aw149_prefix "${${provider}_DIR}/../../.." ABSOLUTE)
+  if(NOT ${alias}_INCLUDE_DIR)
+    set(${alias}_INCLUDE_DIR "${_aw149_prefix}/include" CACHE PATH "Selected ROS1 provider include root" FORCE)
+  endif()
+  if(NOT "${library}" STREQUAL "NONE" AND NOT ${alias}_LIBRARY)
+    unset(${alias}_LIBRARY CACHE)
+    find_library(${alias}_LIBRARY NAMES ${library} HINTS "${_aw149_prefix}/lib" PATH_SUFFIXES "${CMAKE_LIBRARY_ARCHITECTURE}" NO_DEFAULT_PATH)
+    if(NOT ${alias}_LIBRARY)
+      message(FATAL_ERROR "Missing library ${library} from selected provider ${provider}: ${_aw149_prefix}")
+    endif()
+  endif()
+  list(APPEND AW149_PROVIDER_LIBRARY_DIRS "${_aw149_prefix}/lib")
+  list(REMOVE_DUPLICATES AW149_PROVIDER_LIBRARY_DIRS)
+endmacro()

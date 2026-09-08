@@ -1,0 +1,11 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="vehicle_param_path"/>
+  <arg name="is_simulation" default="false"/>
+  <arg name="bvp_experimental" default="true"/>
+  <include file="$(find tier4_planning_launch)/launch/planning.launch">
+    <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    <arg name="is_simulation" value="$(arg is_simulation)"/>
+    <arg name="bvp_experimental" value="$(arg bvp_experimental)"/>
+  </include>
+</launch>

@@ -1,0 +1,16 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="config_root"/>
+  <arg name="vehicle_param_path"/>
+  <remap from="motion_velocity_planner/output/velocity_limit" to="/planning/scenario_planning/max_velocity_candidates"/>
+  <remap from="motion_velocity_planner/output/clear_velocity_limit" to="/planning/scenario_planning/clear_velocity_limit"/>
+  <include file="$(find autoware_motion_velocity_planner)/launch/motion_velocity_planner.launch">
+    <arg name="vehicle_param_file" value="$(arg vehicle_param_path)"/>
+    <arg name="nearest_search_param_path" value="$(arg config_root)/scenario_planning/common/nearest_search.param.yaml"/>
+    <arg name="common_param_path" value="$(arg config_root)/scenario_planning/common/common.param.yaml"/>
+    <arg name="module_param_path" value="$(arg config_root)/motion_velocity_modules.yaml"/>
+    <arg name="launch_modules" value="[&quot;autoware::motion_velocity_planner::ObstacleStopModule&quot;, &quot;autoware::motion_velocity_planner::ObstacleSlowDownModule&quot;, &quot;autoware::motion_velocity_planner::ObstacleCruiseModule&quot;, &quot;autoware::motion_velocity_planner::OutOfLaneModule&quot;, &quot;autoware::motion_velocity_planner::ObstacleVelocityLimiterModule&quot;, &quot;autoware::motion_velocity_planner::DynamicObstacleStopModule&quot;, &quot;autoware::motion_velocity_planner::RunOutModule&quot;, &quot;autoware::motion_velocity_planner::experimental::BoundaryDeparturePreventionModule&quot;, &quot;autoware::motion_velocity_planner::RoadUserStopModule&quot;]"/>
+    <arg name="input_trajectory" value="/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory"/>
+    <arg name="output_trajectory" value="/planning/scenario_planning/lane_driving/trajectory"/>
+  </include>
+</launch>

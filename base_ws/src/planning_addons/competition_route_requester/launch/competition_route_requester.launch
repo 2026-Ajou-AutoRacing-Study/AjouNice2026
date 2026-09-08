@@ -1,0 +1,14 @@
+<launch>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="config_file" default="$(find competition_route_requester)/config/competition_route_requester.param.yaml"/>
+  <!-- Operation case comes only from config_file, never a launch override. -->
+  <node pkg="competition_route_requester" type="route_requester" name="route_requester" required="true" output="screen">
+    <param name="repo_root" value="$(arg repo_root)"/><param name="config_file" value="$(arg config_file)"/>
+  </node>
+  <node pkg="competition_route_requester" type="route_supervisor" name="route_supervisor" required="true" output="screen">
+    <param name="repo_root" value="$(arg repo_root)"/><param name="config_file" value="$(arg config_file)"/>
+  </node>
+  <node pkg="competition_route_requester" type="finish_guard" name="finish_guard" required="true" output="screen">
+    <param name="repo_root" value="$(arg repo_root)"/><param name="config_file" value="$(arg config_file)"/>
+  </node>
+</launch>

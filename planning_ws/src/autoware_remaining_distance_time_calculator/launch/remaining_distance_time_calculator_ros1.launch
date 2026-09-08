@@ -1,0 +1,8 @@
+<launch>
+  <node pkg="autoware_remaining_distance_time_calculator" type="autoware_remaining_distance_time_calculator_node" name="remaining_distance_time_calculator" output="screen">
+    <rosparam command="load" file="$(find autoware_remaining_distance_time_calculator)/config/ros1/remaining_distance_time_calculator.yaml"/>
+    <remap from="input/odometry" to="/localization/kinematic_state"/><remap from="input/map" to="/map/vector_map"/>
+    <remap from="input/route" to="/planning/mission_planning/route"/><remap from="input/scenario" to="/planning/scenario_planning/scenario"/>
+    <remap from="input/velocity_limit" to="/planning/scenario_planning/current_max_velocity"/><remap from="output/mission_remaining_distance_time" to="/planning/mission_remaining_distance_time"/>
+  </node>
+</launch>

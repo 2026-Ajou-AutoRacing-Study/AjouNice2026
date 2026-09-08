@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_behavior_path_bidirectional_traffic_module</name>
+  <version>0.51.0</version>
+  <description>The autoware_behavior_path_bidirectional_traffic_module package</description>
+  <maintainer email="yukinari.hisaki.2@tier4.jp">Yukinari Hisaki</maintainer>
+  <maintainer email="mamoru.sobue@tier4.jp">Mamoru Sobue</maintainer>
+  <maintainer email="takayuki.murooka@tier4.jp">Takayuki Murooka</maintainer>
+
+  <license>Apache License 2.0</license>
+  <author email="yukinari.hisaki.2@tier4.jp">Yukinari Hisaki</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>autoware_behavior_path_planner</depend>
+  <depend>autoware_behavior_path_planner_common</depend>
+  <depend>autoware_trajectory</depend>
+  <depend>autoware_utils</depend>
+  <depend>autoware_utils_geometry</depend>
+  <depend>fmt</depend>
+  <depend>geometry_msgs</depend>
+  <depend>lanelet2_core</depend>
+  <depend>pluginlib</depend>
+  <depend>roscpp</depend>
+
+  <test_depend>gtest</test_depend>
+
+  <export>
+    <build_type>catkin</build_type>
+    <!-- ROS1 pluginlib reads provider declarations from the package which
+         owns SceneModuleManagerInterface, not the ROS2 generic export key. -->
+    <autoware_behavior_path_planner plugin="${prefix}/plugins.xml"/>
+    <autoware_behavior_path_planner_common plugin="${prefix}/plugins.xml"/>
+  </export>
+  <depend>autoware_deprecated_boundary_departure_checker</depend>
+  <depend>autoware_lanelet2_extension</depend>
+  <depend>autoware_lanelet2_utils</depend>
+  <depend>autoware_motion_utils</depend>
+  <depend>autoware_object_recognition_utils</depend>
+  <depend>autoware_objects_of_interest_marker_interface</depend>
+  <depend>autoware_planning_factor_interface</depend>
+  <depend>autoware_planning_msgs</depend>
+  <depend>autoware_route_handler</depend>
+  <depend>autoware_rtc_interface</depend>
+  <depend>autoware_traffic_light_utils</depend>
+  <depend>autoware_vehicle_info_utils</depend>
+  <depend>lanelet2_io</depend>
+  <depend>lanelet2_routing</depend>
+  <depend>tier4_planning_msgs</depend>
+  <depend>autoware_utils_rclcpp</depend>
+</package>

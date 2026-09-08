@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_utils_tf</name>
+  <version>1.8.0</version>
+  <description>ROS1 non-template TF listener utility contract.</description>
+  <maintainer email="noreply@example.invalid">Autoware2ros1</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>autoware_utils_geometry</build_depend>
+  <build_depend>eigen</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>tf2_ros</build_depend>
+  <build_export_depend>autoware_utils_geometry</build_export_depend>
+  <build_export_depend>eigen</build_export_depend>
+  <build_export_depend>geometry_msgs</build_export_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <build_export_depend>tf2_ros</build_export_depend>
+  <exec_depend>autoware_utils_geometry</exec_depend>
+  <exec_depend>eigen</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <test_depend>gtest</test_depend>
+</package>

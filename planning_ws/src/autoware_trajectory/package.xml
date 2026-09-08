@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_trajectory</name>
+  <version>1.8.0</version>
+  <description>ROS1 Catkin candidate for Autoware trajectory utilities.</description>
+  <maintainer email="porting@example.invalid">Autoware2ros1 porting harness</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>eigen</build_depend>
+  <build_depend>fmt</build_depend>
+  <build_export_depend>eigen</build_export_depend>
+  <build_export_depend>fmt</build_export_depend>
+  <exec_depend>eigen</exec_depend>
+  <exec_depend>fmt</exec_depend>
+  <depend>autoware_internal_planning_msgs</depend>
+  <depend>autoware_lanelet2_utils</depend>
+  <depend>autoware_planning_msgs</depend>
+  <depend>autoware_utils_geometry</depend>
+  <depend>geometry_msgs</depend>
+  <depend>lanelet2_core</depend>
+  <depend>roscpp</depend>
+  <depend>tf2</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>tl_expected</depend>
+</package>

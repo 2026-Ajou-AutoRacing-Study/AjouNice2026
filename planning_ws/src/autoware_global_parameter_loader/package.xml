@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_global_parameter_loader</name>
+  <version>1.8.0</version>
+  <description>ROS1 port of Autoware global vehicle parameter launch wiring.</description>
+  <maintainer email="porting@example.invalid">AW149 porting</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <exec_depend>autoware_vehicle_info_utils</exec_depend>
+</package>

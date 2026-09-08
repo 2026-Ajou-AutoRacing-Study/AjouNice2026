@@ -1,0 +1,8 @@
+<launch>
+  <arg name="map_projector_info_path" />
+  <arg name="lanelet2_map_path" default="" />
+  <node pkg="autoware_map_projection_loader" type="autoware_map_projection_loader_node" name="map_projection_loader" output="screen">
+    <param name="map_projector_info_path" value="$(arg map_projector_info_path)" />
+    <param name="lanelet2_map_path" value="$(arg lanelet2_map_path)" />
+  </node>
+</launch>

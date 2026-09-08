@@ -1,0 +1,36 @@
+# ROS1 projection of the upstream out_of_lane.param.yaml.
+# Load this beneath the owning Motion Velocity Planner node namespace.
+out_of_lane:
+  mode: ttc
+  skip_if_already_overlapping: false
+  max_arc_length: 100.0
+  threshold:
+    time_threshold: 5.0
+  ttc:
+    threshold: 1.0
+    release_threshold: 3.0
+  objects:
+    minimum_velocity: 0.5
+    predicted_path_min_confidence: 0.1
+    cut_predicted_paths_beyond_red_lights: true
+    ignore_behind_ego: false
+    validate_predicted_paths_on_lanelets: true
+    extra_width: 1.0
+  action:
+    use_map_stop_lines: true
+    precision: 0.1
+    longitudinal_distance_buffer: 1.5
+    lateral_distance_buffer: 1.0
+    min_on_duration: 0.3
+    min_off_duration: 1.0
+    update_distance_th: 5.0
+    slowdown:
+      distance_threshold: 30.0
+      velocity: 2.0
+    stop:
+      distance_threshold: 15.0
+  ego:
+    extra_front_offset: 0.0
+    extra_rear_offset: 0.0
+    extra_right_offset: 0.0
+    extra_left_offset: 0.0

@@ -1,0 +1,5 @@
+jerk_weight: 0.1
+over_v_weight: 10000.0
+over_a_weight: 500.0
+over_j_weight: 200.0
+jerk_filter_ds: 0.1

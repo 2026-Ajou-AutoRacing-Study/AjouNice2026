@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>unique_identifier_msgs</name>
+  <version>2.2.1</version>
+  <description>Build-only fixture for the external ROS1 unique_identifier_msgs dependency.</description>
+  <maintainer email="noreply@example.com">Phase2 fixture</maintainer>
+  <license>Apache License 2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_generation</build_depend>
+  <exec_depend>message_runtime</exec_depend>
+</package>

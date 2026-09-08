@@ -1,0 +1,41 @@
+<launch>
+  <!-- ROS1 process equivalent of the original MissionPlanner/RouteSelector container. -->
+  <arg name="vehicle_param_path" doc="Required ROS1 vehicle parameter YAML"/>
+  <arg name="mission_planner_param_path" default="$(find autoware_mission_planner_universe)/config/mission_planner.ros1.yaml"/>
+  <arg name="modified_goal_topic_name" default="/planning/scenario_planning/modified_goal"/>
+  <arg name="map_topic_name" default="/map/vector_map"/>
+  <arg name="odometry_topic_name" default="/localization/kinematic_state"/>
+  <arg name="operation_mode_topic_name" default="/system/operation_mode/state"/>
+  <arg name="route_topic_name" default="/planning/route"/>
+  <arg name="route_state_topic_name" default="/planning/route_state"/>
+  <arg name="clear_route_service_name" default="/planning/clear_route"/>
+  <arg name="set_lanelet_route_service_name" default="/planning/set_lanelet_route"/>
+  <arg name="set_waypoint_route_service_name" default="/planning/set_waypoint_route"/>
+  <arg name="visualization_topic_name" default="/planning/mission_planning/route_marker"/>
+  <arg name="reroute_availability_topic_name" default="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/output/is_reroute_available"/>
+  <node pkg="autoware_mission_planner_universe" type="mission_planner_initialization_ros1" name="mission_planner" output="screen" required="true">
+    <rosparam command="load" file="$(arg vehicle_param_path)"/>
+    <rosparam command="load" file="$(arg mission_planner_param_path)"/>
+    <remap from="~input/modified_goal" to="$(arg modified_goal_topic_name)"/>
+    <remap from="~input/vector_map" to="$(arg map_topic_name)"/>
+    <remap from="~input/odometry" to="$(arg odometry_topic_name)"/>
+    <remap from="~input/operation_mode_state" to="$(arg operation_mode_topic_name)"/>
+    <remap from="~input/reroute_availability" to="$(arg reroute_availability_topic_name)"/>
+    <remap from="~route" to="mission_planner/route"/>
+    <remap from="~state" to="mission_planner/state"/>
+    <remap from="~debug/route_marker" to="$(arg visualization_topic_name)"/>
+  </node>
+  <!-- The ROS1 selector's ports use its public NodeHandle, unlike MissionPlanner. -->
+  <node pkg="autoware_mission_planner_universe" type="route_selector_ros1" name="route_selector" output="screen" required="true">
+    <remap from="planner/clear_route" to="mission_planner/clear_route"/>
+    <remap from="planner/set_lanelet_route" to="mission_planner/set_lanelet_route"/>
+    <remap from="planner/set_waypoint_route" to="mission_planner/set_waypoint_route"/>
+    <remap from="planner/route" to="mission_planner/route"/>
+    <remap from="planner/state" to="mission_planner/state"/>
+    <remap from="main/clear_route" to="$(arg clear_route_service_name)"/>
+    <remap from="main/set_lanelet_route" to="$(arg set_lanelet_route_service_name)"/>
+    <remap from="main/set_waypoint_route" to="$(arg set_waypoint_route_service_name)"/>
+    <remap from="main/route" to="$(arg route_topic_name)"/>
+    <remap from="main/state" to="$(arg route_state_topic_name)"/>
+  </node>
+</launch>

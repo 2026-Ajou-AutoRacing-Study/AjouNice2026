@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_planning_validator_test_utils</name>
+  <version>0.51.0</version>
+  <description>ROS1 test inputs and parameter defaults for planning validator.</description>
+  <maintainer email="porting@example.invalid">Autoware2ros1</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend><build_depend>geometry_msgs</build_depend><build_depend>nav_msgs</build_depend><build_depend>autoware_planning_msgs</build_depend>
+  <exec_depend>roscpp</exec_depend><exec_depend>geometry_msgs</exec_depend><exec_depend>nav_msgs</exec_depend><exec_depend>autoware_planning_msgs</exec_depend>
+</package>

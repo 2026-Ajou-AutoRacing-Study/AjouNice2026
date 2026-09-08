@@ -1,0 +1,26 @@
+<launch>
+  <!-- Historical bounded probe; production full-source entry is motion_velocity_planner.launch. -->
+  <arg name="input_trajectory" default="/planning/scenario_planning/trajectory"/>
+  <arg name="input_predicted_objects" default="/perception/object_recognition/objects"/>
+  <arg name="output_trajectory" default="/planning/trajectory"/>
+  <arg name="input_odometry" default="/localization/kinematic_state"/>
+  <arg name="input_acceleration" default="/localization/acceleration"/>
+  <arg name="vehicle_info_param_path"/>
+
+  <!-- DynamicObstacleStop constructs the Analytical smoother directly, so its
+       complete ROS1 parameter surface must be loaded in this node namespace. -->
+  <node pkg="autoware_motion_velocity_planner" type="motion_velocity_planner_legacy_node"
+        name="motion_velocity_planner" output="screen">
+    <rosparam command="load" file="$(find autoware_velocity_smoother)/config/ros1/default_common.yaml"/>
+    <rosparam command="load" file="$(find autoware_velocity_smoother)/config/ros1/default_velocity_smoother.yaml"/>
+    <rosparam command="load" file="$(find autoware_velocity_smoother)/config/ros1/Analytical.yaml"/>
+    <rosparam command="load" file="$(arg vehicle_info_param_path)"/>
+    <rosparam command="load" file="$(find autoware_motion_velocity_planner)/config/dynamic_obstacle_stop_ros1.yaml"/>
+    <rosparam param="launch_modules">[autoware::motion_velocity_planner::DynamicObstacleStopModule]</rosparam>
+    <remap from="~input/trajectory" to="$(arg input_trajectory)"/>
+    <remap from="~input/predicted_objects" to="$(arg input_predicted_objects)"/>
+    <remap from="~output/trajectory" to="$(arg output_trajectory)"/>
+    <remap from="~input/odometry" to="$(arg input_odometry)"/>
+    <remap from="~input/acceleration" to="$(arg input_acceleration)"/>
+  </node>
+</launch>

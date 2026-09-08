@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+import rospy
+from competition_route_requester.runtime import Supervisor
+if __name__ == '__main__':
+    rospy.init_node('finish_guard')
+    guard = Supervisor(finish_guard=True)
+    rospy.spin()

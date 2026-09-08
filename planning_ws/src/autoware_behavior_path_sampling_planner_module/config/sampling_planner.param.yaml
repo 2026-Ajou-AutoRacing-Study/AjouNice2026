@@ -1,0 +1,29 @@
+common:
+  output_delta_arc_length: 0.5
+debug:
+  enable_calculation_time_info: false
+  id: 0
+preprocessing:
+  force_zero_initial_deviation: true
+  force_zero_initial_heading: true
+  smooth_reference_trajectory: false
+constraints:
+  hard:
+    max_curvature: 3.0
+    min_curvature: -3.0
+  soft:
+    lateral_deviation_weight: 1.0
+    length_weight: 1.0
+    curvature_weight: 2000.0
+    weights: [0.5, 1.0, 20.0]
+sampling:
+  enable_frenet: true
+  enable_bezier: false
+  resolution: 0.5
+  previous_path_reuse_points_nb: 2
+  target_lengths: [20.0, 40.0]
+  nb_target_lateral_positions: 0
+  target_lateral_positions: [-4.5, -2.5, 0.0, 2.5, 4.5]
+  frenet:
+    target_lateral_velocities: [-0.5, 0.0, 0.5]
+    target_lateral_accelerations: [0.0]

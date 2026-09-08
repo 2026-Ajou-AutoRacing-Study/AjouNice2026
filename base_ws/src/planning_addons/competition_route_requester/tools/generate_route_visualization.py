@@ -614,7 +614,7 @@ def main() -> None:
     workspace_dir = args.workspace.resolve()
     output_path = args.output.resolve()
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    policy = yaml.safe_load(param_config_path.read_text(encoding="utf-8"))["/**"]["ros__parameters"]
+    policy = yaml.safe_load(param_config_path.read_text(encoding="utf-8"))
 
     allowed_operation_cases = {
         "route_a_only",

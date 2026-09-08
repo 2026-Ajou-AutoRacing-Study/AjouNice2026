@@ -1,0 +1,54 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="config_root"/>
+  <arg name="vehicle_param_path"/>
+  <arg name="is_simulation" default="false"/>
+  <arg name="bvp_experimental" default="true"/>
+  <remap from="behavior_path_planner/input/route" to="/planning/mission_planning/route"/>
+  <remap from="behavior_path_planner/input/vector_map" to="/map/vector_map"/>
+  <remap from="behavior_path_planner/input/odometry" to="/localization/kinematic_state"/>
+  <remap from="behavior_path_planner/input/accel" to="/localization/acceleration"/>
+  <remap from="behavior_path_planner/input/scenario" to="/planning/scenario_planning/scenario"/>
+  <remap from="behavior_path_planner/input/perception" to="/perception/object_recognition/objects"/>
+  <remap from="behavior_path_planner/input/occupancy_grid_map" to="/perception/occupancy_grid_map/map"/>
+  <remap from="behavior_path_planner/input/costmap" to="/planning/scenario_planning/parking/costmap_generator/occupancy_grid"/>
+  <remap from="behavior_path_planner/input/traffic_signals" to="/perception/traffic_light_recognition/traffic_signals"/>
+  <remap from="behavior_path_planner/input/lateral_offset" to="/planning/scenario_planning/lateral_offset"/>
+  <remap from="behavior_path_planner/output/path" to="/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id"/>
+  <remap from="behavior_path_planner/output/modified_goal" to="/planning/scenario_planning/modified_goal"/>
+  <remap from="behavior_velocity_planner/input/path_with_lane_id" to="/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id"/>
+  <remap from="behavior_velocity_planner/input/vector_map" to="/map/vector_map"/>
+  <remap from="behavior_velocity_planner/input/vehicle_odometry" to="/localization/kinematic_state"/>
+  <remap from="behavior_velocity_planner/input/accel" to="/localization/acceleration"/>
+  <remap from="behavior_velocity_planner/input/dynamic_objects" to="/perception/object_recognition/objects"/>
+  <remap from="behavior_velocity_planner/input/no_ground_pointcloud" to="/perception/obstacle_segmentation/pointcloud"/>
+  <remap from="behavior_velocity_planner/input/traffic_signals" to="/perception/traffic_light_recognition/traffic_signals"/>
+  <remap from="behavior_velocity_planner/input/occupancy_grid" to="/perception/occupancy_grid_map/map"/>
+  <remap from="behavior_velocity_planner/input/external_velocity_limit_mps" to="/planning/scenario_planning/max_velocity"/>
+  <remap from="behavior_velocity_planner/output/path" to="/planning/scenario_planning/lane_driving/behavior_planning/path"/>
+  <include file="$(find autoware_behavior_path_planner)/launch/behavior_path_planner_full.launch">
+    <arg name="vehicle_param_file" value="$(arg vehicle_param_path)"/>
+    <arg name="common_param_file" value="$(arg config_root)/behavior_common.yaml"/>
+    <arg name="module_config_file" value="$(arg config_root)/behavior_path_modules.yaml"/>
+  </include>
+  <group if="$(arg bvp_experimental)">
+    <include file="$(find autoware_behavior_velocity_planner)/launch/behavior_velocity_planner_full.launch">
+      <arg name="vehicle_param_file" value="$(arg vehicle_param_path)"/>
+      <arg name="common_param_file" value="$(arg config_root)/scenario_planning/common/common.param.yaml"/>
+      <arg name="nearest_search_param_file" value="$(arg config_root)/scenario_planning/common/nearest_search.param.yaml"/>
+      <arg name="module_config_file" value="$(arg config_root)/behavior_velocity_modules.yaml"/>
+      <arg name="experimental" value="true"/>
+      <arg name="is_simulation" value="$(arg is_simulation)"/>
+    </include>
+  </group>
+  <group unless="$(arg bvp_experimental)">
+    <include file="$(find autoware_behavior_velocity_planner)/launch/behavior_velocity_planner_full.launch">
+      <arg name="vehicle_param_file" value="$(arg vehicle_param_path)"/>
+      <arg name="common_param_file" value="$(arg config_root)/scenario_planning/common/common.param.yaml"/>
+      <arg name="nearest_search_param_file" value="$(arg config_root)/scenario_planning/common/nearest_search.param.yaml"/>
+      <arg name="module_config_file" value="$(arg config_root)/behavior_velocity_modules_normal.yaml"/>
+      <arg name="experimental" value="false"/>
+      <arg name="is_simulation" value="$(arg is_simulation)"/>
+    </include>
+  </group>
+</launch>

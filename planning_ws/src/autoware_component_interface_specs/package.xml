@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_component_interface_specs</name>
+  <version>1.8.0</version>
+  <description>ROS1 topic and service interface names with explicit queue and latch policy.</description>
+  <maintainer email="porting@autoware.local">AW149 ROS1 Port</maintainer>
+  <license>Apache License 2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>autoware_adapi_v1_msgs</build_depend><exec_depend>autoware_adapi_v1_msgs</exec_depend>
+  <build_depend>autoware_control_msgs</build_depend><exec_depend>autoware_control_msgs</exec_depend>
+  <build_depend>autoware_localization_msgs</build_depend><exec_depend>autoware_localization_msgs</exec_depend>
+  <build_depend>autoware_map_msgs</build_depend><exec_depend>autoware_map_msgs</exec_depend>
+  <build_depend>autoware_perception_msgs</build_depend><exec_depend>autoware_perception_msgs</exec_depend>
+  <build_depend>autoware_planning_msgs</build_depend><exec_depend>autoware_planning_msgs</exec_depend>
+  <build_depend>autoware_system_msgs</build_depend><exec_depend>autoware_system_msgs</exec_depend>
+  <build_depend>autoware_vehicle_msgs</build_depend><exec_depend>autoware_vehicle_msgs</exec_depend>
+  <depend>geometry_msgs</depend><depend>nav_msgs</depend><depend>roscpp</depend><depend>sensor_msgs</depend>
+  <test_depend>gtest</test_depend>
+  <test_depend>rostest</test_depend>
+</package>

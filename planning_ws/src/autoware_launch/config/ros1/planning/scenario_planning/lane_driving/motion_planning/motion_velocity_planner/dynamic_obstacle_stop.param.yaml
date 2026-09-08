@@ -1,0 +1,9 @@
+dynamic_obstacle_stop/extra_object_width: 1.0
+dynamic_obstacle_stop/minimum_object_velocity: 0.5
+dynamic_obstacle_stop/stop_distance_buffer: 0.5
+dynamic_obstacle_stop/time_horizon: 5.0
+dynamic_obstacle_stop/hysteresis: 1.0
+dynamic_obstacle_stop/add_stop_duration_buffer: 0.5
+dynamic_obstacle_stop/remove_stop_duration_buffer: 1.0
+dynamic_obstacle_stop/minimum_object_distance_from_ego_trajectory: 1.0
+dynamic_obstacle_stop/ignore_unavoidable_collisions: true

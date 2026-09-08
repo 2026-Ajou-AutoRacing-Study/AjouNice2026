@@ -1,0 +1,7 @@
+speed_bump/slow_start_margin: 1.0
+speed_bump/slow_end_margin: 1.0
+speed_bump/print_debug_info: false
+speed_bump/speed_calculation/min_height: 0.05
+speed_bump/speed_calculation/max_height: 0.3
+speed_bump/speed_calculation/min_speed: 1.39
+speed_bump/speed_calculation/max_speed: 2.78

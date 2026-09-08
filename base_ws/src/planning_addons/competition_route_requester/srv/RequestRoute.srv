@@ -1,0 +1,5 @@
+# Keys are exact: route_a, route_b, fallback_route. Gateway serializes requests.
+string route_key
+---
+bool accepted
+string detail

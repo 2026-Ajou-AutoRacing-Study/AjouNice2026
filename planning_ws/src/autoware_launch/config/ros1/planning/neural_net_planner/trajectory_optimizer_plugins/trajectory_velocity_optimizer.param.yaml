@@ -1,0 +1,16 @@
+trajectory_velocity_optimizer/nearest_dist_threshold_m: 1.5
+trajectory_velocity_optimizer/nearest_yaw_threshold_deg: 60.0
+trajectory_velocity_optimizer/target_pull_out_speed_mps: 1.0
+trajectory_velocity_optimizer/target_pull_out_acc_mps2: 1.0
+trajectory_velocity_optimizer/set_engage_speed: false
+trajectory_velocity_optimizer/limit_speed: true
+trajectory_velocity_optimizer/max_lateral_accel_mps2: 2.0
+trajectory_velocity_optimizer/limit_lateral_acceleration: false
+trajectory_velocity_optimizer/min_limited_speed_mps: 3.0
+trajectory_velocity_optimizer/smooth_velocities: false
+trajectory_velocity_optimizer/continuous_jerk_smoother/jerk_weight: 30.0
+trajectory_velocity_optimizer/continuous_jerk_smoother/over_v_weight: 3000.0
+trajectory_velocity_optimizer/continuous_jerk_smoother/over_a_weight: 30.0
+trajectory_velocity_optimizer/continuous_jerk_smoother/over_j_weight: 10.0
+trajectory_velocity_optimizer/continuous_jerk_smoother/velocity_tracking_weight: 1.0
+trajectory_velocity_optimizer/continuous_jerk_smoother/accel_tracking_weight: 300.0

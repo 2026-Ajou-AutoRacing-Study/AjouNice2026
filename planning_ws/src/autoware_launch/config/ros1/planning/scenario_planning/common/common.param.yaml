@@ -1,0 +1,9 @@
+max_vel: 4.17
+normal/min_acc: -1.0
+normal/max_acc: 1.0
+normal/min_jerk: -1.0
+normal/max_jerk: 1.0
+limit/min_acc: -2.5
+limit/max_acc: 1.0
+limit/min_jerk: -1.5
+limit/max_jerk: 1.5

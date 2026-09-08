@@ -1,0 +1,8 @@
+<library path="libautoware_behavior_velocity_no_drivable_lane_module">
+  <class name="autoware::behavior_velocity_planner::NoDrivableLaneModulePlugin"
+    type="autoware::behavior_velocity_planner::NoDrivableLaneModulePlugin"
+    base_class_type="autoware::behavior_velocity_planner::experimental::PluginInterface" />
+  <class name="autoware::behavior_velocity_planner::experimental::NoDrivableLaneModulePlugin"
+    type="autoware::behavior_velocity_planner::experimental::NoDrivableLaneModulePlugin"
+    base_class_type="autoware::behavior_velocity_planner::experimental::PluginInterface" />
+</library>

@@ -1,0 +1,24 @@
+min_ttc: 1.0
+distance_buffer: 0.0
+min_adjusted_velocity: 2.5
+max_deceleration: 2.0
+trajectory_preprocessing/start_distance: 0.0
+trajectory_preprocessing/max_length: 100.0
+trajectory_preprocessing/max_duration: 10.0
+trajectory_preprocessing/downsample_factor: 10
+trajectory_preprocessing/calculate_steering_angles: false
+simulation/model: particle
+simulation/distance_method: exact
+simulation/steering_offset: 0.01
+simulation/nb_points: 5
+obstacles/dynamic_source: static_only
+obstacles/ignore_obstacles_on_path: false
+obstacles/ignore_extra_distance: 1.0
+obstacles/occupancy_grid_threshold: 60
+obstacles/dynamic_obstacles_buffer: 1.5
+obstacles/dynamic_obstacles_min_vel: 0.5
+obstacles/static_map_tags:
+- guard_rail
+obstacles/filter_envelope: false
+obstacles/rtree_min_points: 500
+obstacles/rtree_min_segments: 1600

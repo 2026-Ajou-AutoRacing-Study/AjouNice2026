@@ -1,0 +1,106 @@
+cmake_minimum_required(VERSION 3.0.2)
+project(autoware_mission_planner_universe)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(catkin REQUIRED COMPONENTS
+  autoware_adapi_v1_msgs
+  autoware_common_msgs autoware_lanelet2_extension autoware_lanelet2_utils
+  autoware_internal_debug_msgs
+  autoware_motion_utils autoware_planning_msgs autoware_route_handler
+  autoware_qos_utils
+  autoware_utils autoware_vehicle_info_utils geometry_msgs pluginlib roscpp tf2 visualization_msgs
+  nav_msgs std_msgs tf2_geometry_msgs tf2_ros tier4_planning_msgs
+)
+
+catkin_package(
+  INCLUDE_DIRS include
+  CATKIN_DEPENDS autoware_adapi_v1_msgs autoware_common_msgs autoware_lanelet2_extension autoware_lanelet2_utils
+    autoware_internal_debug_msgs
+    autoware_motion_utils autoware_planning_msgs autoware_route_handler autoware_qos_utils autoware_utils
+    autoware_vehicle_info_utils geometry_msgs nav_msgs pluginlib roscpp std_msgs tf2
+    tf2_geometry_msgs tf2_ros tier4_planning_msgs visualization_msgs
+)
+
+add_library(goal_pose_visualizer_lib src/goal_pose_visualizer/goal_pose_visualizer.cpp)
+target_include_directories(goal_pose_visualizer_lib PUBLIC src/goal_pose_visualizer ${catkin_INCLUDE_DIRS})
+target_link_libraries(goal_pose_visualizer_lib PUBLIC ${catkin_LIBRARIES})
+target_compile_features(goal_pose_visualizer_lib PUBLIC cxx_std_17)
+
+add_executable(goal_pose_visualizer src/goal_pose_visualizer/main.cpp)
+target_link_libraries(goal_pose_visualizer PRIVATE goal_pose_visualizer_lib)
+
+add_library(route_selector_ros1_lib src/mission_planner/route_selector_ros1.cpp)
+target_include_directories(route_selector_ros1_lib PUBLIC src/mission_planner ${catkin_INCLUDE_DIRS})
+target_link_libraries(route_selector_ros1_lib PUBLIC ${catkin_LIBRARIES})
+target_compile_features(route_selector_ros1_lib PUBLIC cxx_std_17)
+
+add_library(lanelet2_plugin_utils_ros1_lib src/lanelet2_plugins/utility_functions.cpp)
+target_include_directories(lanelet2_plugin_utils_ros1_lib PUBLIC src/lanelet2_plugins ${catkin_INCLUDE_DIRS})
+target_link_libraries(lanelet2_plugin_utils_ros1_lib PUBLIC ${catkin_LIBRARIES})
+target_compile_features(lanelet2_plugin_utils_ros1_lib PUBLIC cxx_std_17)
+
+add_library(arrival_checker_ros1_lib src/mission_planner/arrival_checker.cpp)
+target_include_directories(arrival_checker_ros1_lib PUBLIC src/mission_planner ${catkin_INCLUDE_DIRS})
+target_link_libraries(arrival_checker_ros1_lib PUBLIC ${catkin_LIBRARIES})
+target_compile_features(arrival_checker_ros1_lib PUBLIC cxx_std_17)
+
+add_library(mission_planner_service_utils_ros1_lib src/mission_planner/service_utils.cpp)
+target_include_directories(mission_planner_service_utils_ros1_lib PUBLIC include ${catkin_INCLUDE_DIRS})
+target_link_libraries(mission_planner_service_utils_ros1_lib PUBLIC ${catkin_LIBRARIES})
+target_compile_features(mission_planner_service_utils_ros1_lib PUBLIC cxx_std_17)
+
+add_library(mission_planner_initialization_ros1_lib src/mission_planner/mission_planner_initialization_ros1.cpp)
+target_include_directories(mission_planner_initialization_ros1_lib PUBLIC include src/mission_planner ${catkin_INCLUDE_DIRS})
+target_link_libraries(mission_planner_initialization_ros1_lib PUBLIC arrival_checker_ros1_lib ${catkin_LIBRARIES})
+target_compile_features(mission_planner_initialization_ros1_lib PUBLIC cxx_std_17)
+
+add_executable(mission_planner_initialization_ros1 src/mission_planner/mission_planner_initialization_ros1_main.cpp)
+target_link_libraries(mission_planner_initialization_ros1 PRIVATE mission_planner_initialization_ros1_lib)
+
+add_executable(mission_planner_initialization_oracle test/mission_planner_initialization_oracle.cpp)
+target_include_directories(mission_planner_initialization_oracle PRIVATE src/mission_planner ${catkin_INCLUDE_DIRS})
+target_link_libraries(mission_planner_initialization_oracle PRIVATE mission_planner_initialization_ros1_lib ${catkin_LIBRARIES})
+target_compile_features(mission_planner_initialization_oracle PRIVATE cxx_std_17)
+
+add_library(autoware_mission_planner_universe_lanelet2_plugins src/lanelet2_plugins/default_planner.cpp)
+target_include_directories(autoware_mission_planner_universe_lanelet2_plugins PUBLIC include src/lanelet2_plugins ${catkin_INCLUDE_DIRS})
+target_link_libraries(autoware_mission_planner_universe_lanelet2_plugins PUBLIC lanelet2_plugin_utils_ros1_lib ${catkin_LIBRARIES})
+target_compile_features(autoware_mission_planner_universe_lanelet2_plugins PUBLIC cxx_std_17)
+
+add_executable(route_selector_ros1 src/mission_planner/route_selector_ros1_main.cpp)
+target_link_libraries(route_selector_ros1 PRIVATE route_selector_ros1_lib)
+
+add_executable(route_selector_service_proxy_oracle test/route_selector_service_proxy_oracle.cpp)
+target_include_directories(route_selector_service_proxy_oracle PRIVATE src/mission_planner ${catkin_INCLUDE_DIRS})
+target_link_libraries(route_selector_service_proxy_oracle PRIVATE route_selector_ros1_lib ${catkin_LIBRARIES})
+target_compile_features(route_selector_service_proxy_oracle PRIVATE cxx_std_17)
+
+add_executable(default_planner_plugin_oracle test/default_planner_plugin_oracle.cpp)
+target_include_directories(default_planner_plugin_oracle PRIVATE include ${catkin_INCLUDE_DIRS})
+target_link_libraries(default_planner_plugin_oracle PRIVATE ${catkin_LIBRARIES})
+target_compile_features(default_planner_plugin_oracle PRIVATE cxx_std_17)
+
+add_executable(arrival_checker_oracle test/arrival_checker_oracle.cpp)
+target_include_directories(arrival_checker_oracle PRIVATE src/mission_planner ${catkin_INCLUDE_DIRS})
+target_link_libraries(arrival_checker_oracle PRIVATE arrival_checker_ros1_lib ${catkin_LIBRARIES})
+target_compile_features(arrival_checker_oracle PRIVATE cxx_std_17)
+
+install(TARGETS goal_pose_visualizer_lib goal_pose_visualizer route_selector_ros1_lib route_selector_ros1 route_selector_service_proxy_oracle lanelet2_plugin_utils_ros1_lib arrival_checker_ros1_lib mission_planner_service_utils_ros1_lib mission_planner_initialization_ros1_lib mission_planner_initialization_ros1 mission_planner_initialization_oracle autoware_mission_planner_universe_lanelet2_plugins default_planner_plugin_oracle arrival_checker_oracle
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(FILES plugins/plugin_description.xml
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/plugins
+)
+
+install(DIRECTORY config launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+install(DIRECTORY include/ DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION})
+install(FILES src/mission_planner/mission_planner_initialization_ros1.hpp
+              src/mission_planner/arrival_checker.hpp
+  DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}/autoware/mission_planner_universe)

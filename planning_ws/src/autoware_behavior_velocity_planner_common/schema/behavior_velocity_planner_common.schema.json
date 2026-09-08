@@ -1,0 +1,12 @@
+{
+  "artifact_kind": "ROS1_PARAMETER_SCHEMA_PROJECTION",
+  "source_schema": "behavior_velocity_planner_common.schema.json",
+  "load_namespace": "private",
+  "properties": {
+    "max_accel": {"type": "number", "default": -2.8},
+    "max_jerk": {"type": "number", "default": -5.0},
+    "system_delay": {"type": "number", "default": 0.5},
+    "delay_response_time": {"type": "number", "default": 0.5},
+    "is_publish_debug_path": {"type": "boolean", "default": false}
+  }
+}

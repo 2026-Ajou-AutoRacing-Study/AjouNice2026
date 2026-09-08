@@ -1,0 +1,16 @@
+trajectory_qp_smoother/weight_smoothness: 10.0
+trajectory_qp_smoother/weight_fidelity: 1.0
+trajectory_qp_smoother/time_step_s: 0.1
+trajectory_qp_smoother/osqp_eps_abs: 0.0001
+trajectory_qp_smoother/osqp_eps_rel: 0.0001
+trajectory_qp_smoother/osqp_max_iter: 100
+trajectory_qp_smoother/osqp_verbose: false
+trajectory_qp_smoother/preserve_input_trajectory_orientation: false
+trajectory_qp_smoother/max_distance_for_orientation_m: 5.0
+trajectory_qp_smoother/use_velocity_based_fidelity: true
+trajectory_qp_smoother/velocity_threshold_mps: 0.3
+trajectory_qp_smoother/sigmoid_sharpness: 50.0
+trajectory_qp_smoother/min_fidelity_weight: 0.01
+trajectory_qp_smoother/max_fidelity_weight: 1.0
+trajectory_qp_smoother/num_constrained_points_start: 3
+trajectory_qp_smoother/num_constrained_points_end: 0

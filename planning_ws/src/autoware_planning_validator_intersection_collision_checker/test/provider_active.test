@@ -1,0 +1,7 @@
+<launch>
+  <rosparam file="$(find autoware_planning_validator_intersection_collision_checker)/test/complete_params.yaml" ns="icc_r004_provider_active_oracle" />
+  <test test-name="icc_r004_provider_active_oracle"
+        pkg="autoware_planning_validator_intersection_collision_checker"
+        type="intersection_collision_checker_provider_active_oracle"
+        time-limit="30" />
+</launch>

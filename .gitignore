@@ -1,5 +1,15 @@
 ### Custom .gitignore configs는 여기에 추가 ###
 
+# Sibling AW149 workspace: sources/providers tracked, outputs rebuilt locally.
+planning_ws/build_isolated/
+planning_ws/devel_isolated/
+planning_ws/install_isolated/
+planning_ws/logs/
+planning_ws/.catkin_workspace
+planning_ws/external/install/
+planning_ws/external/*/build/
+planning_ws/external/*/install/
+
 # Autoware Planning porting harness runtime artifacts
 porting/runs/
 porting/validation_views/
@@ -307,3 +317,11 @@ __marimo__/
 /data/morai_4class_v1/
 /outputs/
 /wandb/
+
+# Vendored source lib/ directories are source, not generated Python lib output.
+!/planning_ws/src/autoware_lanelet2_extension/lib/
+!/planning_ws/src/autoware_lanelet2_extension/lib/**
+!/planning_ws/external/*/src/
+!/planning_ws/external/*/src/**
+/planning_ws/external/*/src/**/__pycache__/
+/planning_ws/external/*/src/**/*.pyc

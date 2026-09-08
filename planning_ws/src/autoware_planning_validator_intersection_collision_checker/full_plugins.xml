@@ -1,0 +1,3 @@
+<library path="lib/libautoware_planning_validator_intersection_collision_checker_full_source">
+  <class name="autoware::planning_validator::full_source::IntersectionCollisionChecker" type="autoware::planning_validator::full_source::IntersectionCollisionChecker" base_class_type="autoware::planning_validator::full_source::PluginInterface"/>
+</library>

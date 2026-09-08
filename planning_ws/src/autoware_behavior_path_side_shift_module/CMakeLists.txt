@@ -1,0 +1,112 @@
+cmake_minimum_required(VERSION 3.0.2)
+project(autoware_behavior_path_side_shift_module)
+
+find_package(catkin REQUIRED COMPONENTS autoware_adapi_v1_msgs autoware_internal_planning_msgs autoware_perception_msgs autoware_planning_msgs autoware_vehicle_msgs autoware_planning_factor_interface autoware_objects_of_interest_marker_interface autoware_rtc_interface geometry_msgs nav_msgs pluginlib roscpp tf2 tf2_geometry_msgs tier4_planning_msgs unique_identifier_msgs)
+find_library(LANELET2_CORE_LIBRARY NAMES lanelet2_core REQUIRED)
+
+set(BPP_COMMON_INCLUDE_DIR "" CACHE PATH "installed behavior-path-planner-common include directory")
+set(BPP_COMMON_LIBRARY "" CACHE FILEPATH "installed behavior-path-planner-common library")
+set(BPP_COMMON_RUNTIME_LIBRARY_DIRS "" CACHE STRING "semicolon-separated staged runtime-library directories required by the selected BPP Common ABI")
+set(OBJECT_RECOGNITION_UTILS_INCLUDE_DIR "" CACHE PATH "installed object-recognition-utils include directory required by BPP common")
+set(OBJECT_RECOGNITION_UTILS_LIBRARY "" CACHE FILEPATH "installed object-recognition-utils library required by BPP common")
+set(VEHICLE_INFO_UTILS_INCLUDE_DIR "" CACHE PATH "installed vehicle-info-utils include directory")
+set(VEHICLE_INFO_UTILS_LIBRARY "" CACHE FILEPATH "installed vehicle-info-utils library required by BPP common")
+set(ROUTE_HANDLER_INCLUDE_DIR "" CACHE PATH "installed route-handler include directory")
+set(ROUTE_HANDLER_LIBRARY "" CACHE FILEPATH "installed route-handler library")
+set(LANELET2_UTILS_LIBRARY "" CACHE FILEPATH "installed lanelet2-utils library")
+set(LANELET2_UTILS_INCLUDE_DIR "" CACHE PATH "installed lanelet2-utils include directory")
+set(TRAFFIC_LIGHT_UTILS_LIBRARY "" CACHE FILEPATH "installed traffic-light-utils library")
+set(MOTION_UTILS_INCLUDE_DIR "" CACHE PATH "installed motion-utils include directory")
+set(MOTION_UTILS_LIBRARY "" CACHE FILEPATH "installed motion-utils library")
+set(UNIVERSE_UTILS_INCLUDE_DIR "" CACHE PATH "installed universe-utils include directory")
+set(PLANNING_FACTOR_INTERFACE_INCLUDE_DIR "" CACHE PATH "installed planning-factor-interface include directory")
+set(PLANNING_FACTOR_INTERFACE_LIBRARY "" CACHE FILEPATH "installed planning-factor-interface library")
+set(OBJECTS_OF_INTEREST_MARKER_INTERFACE_INCLUDE_DIR "" CACHE PATH "installed objects-of-interest-marker-interface include directory")
+set(OBJECTS_OF_INTEREST_MARKER_INTERFACE_LIBRARY "" CACHE FILEPATH "installed objects-of-interest-marker-interface library")
+set(RTC_INTERFACE_INCLUDE_DIR "" CACHE PATH "installed rtc-interface include directory")
+set(RTC_INTERFACE_LIBRARY "" CACHE FILEPATH "installed rtc-interface library")
+foreach(binding IN ITEMS
+    "BPP_COMMON|autoware_behavior_path_planner_common"
+    "OBJECT_RECOGNITION_UTILS|autoware_object_recognition_utils"
+    "VEHICLE_INFO_UTILS|autoware_vehicle_info_utils"
+    "ROUTE_HANDLER|autoware_route_handler"
+    "LANELET2_UTILS|autoware_lanelet2_utils"
+    "TRAFFIC_LIGHT_UTILS|autoware_traffic_light_utils"
+    "MOTION_UTILS|autoware_motion_utils"
+    "UNIVERSE_UTILS|autoware_universe_utils"
+    "PLANNING_FACTOR_INTERFACE|autoware_planning_factor_interface"
+    "OBJECTS_OF_INTEREST_MARKER_INTERFACE|autoware_objects_of_interest_marker_interface"
+    "RTC_INTERFACE|autoware_rtc_interface")
+  string(REPLACE "|" ";" fields "${binding}")
+  list(GET fields 0 alias)
+  list(GET fields 1 provider)
+  find_package(${provider} REQUIRED CONFIG)
+  get_filename_component(provider_prefix "${${provider}_DIR}/../../.." ABSOLUTE)
+  if(NOT ${alias}_INCLUDE_DIR)
+    set(${alias}_INCLUDE_DIR "${provider_prefix}/include")
+  endif()
+  if(NOT alias STREQUAL "UNIVERSE_UTILS" AND NOT ${alias}_LIBRARY)
+    unset(${alias}_LIBRARY CACHE)
+    set(provider_library_name "${provider}")
+    if(provider STREQUAL "autoware_vehicle_info_utils")
+      set(provider_library_name vehicle_info_utils)
+    endif()
+    find_library(${alias}_LIBRARY NAMES ${provider_library_name} HINTS "${provider_prefix}/lib" REQUIRED)
+  endif()
+  list(APPEND BPP_COMMON_RUNTIME_LIBRARY_DIRS "${provider_prefix}/lib")
+endforeach()
+list(REMOVE_DUPLICATES BPP_COMMON_RUNTIME_LIBRARY_DIRS)
+foreach(path IN ITEMS BPP_COMMON_INCLUDE_DIR BPP_COMMON_LIBRARY OBJECT_RECOGNITION_UTILS_INCLUDE_DIR OBJECT_RECOGNITION_UTILS_LIBRARY VEHICLE_INFO_UTILS_INCLUDE_DIR VEHICLE_INFO_UTILS_LIBRARY ROUTE_HANDLER_INCLUDE_DIR ROUTE_HANDLER_LIBRARY LANELET2_UTILS_INCLUDE_DIR LANELET2_UTILS_LIBRARY TRAFFIC_LIGHT_UTILS_LIBRARY MOTION_UTILS_INCLUDE_DIR MOTION_UTILS_LIBRARY UNIVERSE_UTILS_INCLUDE_DIR PLANNING_FACTOR_INTERFACE_INCLUDE_DIR PLANNING_FACTOR_INTERFACE_LIBRARY OBJECTS_OF_INTEREST_MARKER_INTERFACE_INCLUDE_DIR OBJECTS_OF_INTEREST_MARKER_INTERFACE_LIBRARY RTC_INTERFACE_INCLUDE_DIR RTC_INTERFACE_LIBRARY)
+  if(NOT EXISTS "${${path}}")
+    message(FATAL_ERROR "Set ${path} to its staged ROS1 provider")
+  endif()
+endforeach()
+
+catkin_package(INCLUDE_DIRS include LIBRARIES ${PROJECT_NAME}
+  CATKIN_DEPENDS autoware_adapi_v1_msgs autoware_internal_planning_msgs autoware_perception_msgs autoware_planning_msgs autoware_vehicle_msgs autoware_planning_factor_interface autoware_objects_of_interest_marker_interface autoware_rtc_interface geometry_msgs nav_msgs pluginlib roscpp tf2 tf2_geometry_msgs tier4_planning_msgs unique_identifier_msgs)
+include_directories(include ${catkin_INCLUDE_DIRS} ${BPP_COMMON_INCLUDE_DIR} ${OBJECT_RECOGNITION_UTILS_INCLUDE_DIR} ${VEHICLE_INFO_UTILS_INCLUDE_DIR} ${ROUTE_HANDLER_INCLUDE_DIR} ${LANELET2_UTILS_INCLUDE_DIR} ${MOTION_UTILS_INCLUDE_DIR} ${UNIVERSE_UTILS_INCLUDE_DIR} ${PLANNING_FACTOR_INTERFACE_INCLUDE_DIR} ${OBJECTS_OF_INTEREST_MARKER_INTERFACE_INCLUDE_DIR} ${RTC_INTERFACE_INCLUDE_DIR})
+
+add_library(${PROJECT_NAME} SHARED src/utils.cpp src/scene.cpp src/manager.cpp src/scene_core.cpp src/scene_module.cpp)
+target_link_libraries(${PROJECT_NAME} ${BPP_COMMON_LIBRARY} ${OBJECT_RECOGNITION_UTILS_LIBRARY} ${VEHICLE_INFO_UTILS_LIBRARY} ${MOTION_UTILS_LIBRARY} ${ROUTE_HANDLER_LIBRARY} ${LANELET2_UTILS_LIBRARY} ${TRAFFIC_LIGHT_UTILS_LIBRARY} ${PLANNING_FACTOR_INTERFACE_LIBRARY} ${OBJECTS_OF_INTEREST_MARKER_INTERFACE_LIBRARY} ${RTC_INTERFACE_LIBRARY} ${LANELET2_CORE_LIBRARY} ${catkin_LIBRARIES})
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+target_compile_options(${PROJECT_NAME} PRIVATE -fmax-errors=6)
+target_link_options(${PROJECT_NAME} PRIVATE -Wl,--no-undefined)
+if(NOT BPP_COMMON_RUNTIME_LIBRARY_DIRS)
+  message(FATAL_ERROR "Set BPP_COMMON_RUNTIME_LIBRARY_DIRS to the complete staged BPP Common runtime closure")
+endif()
+foreach(directory IN LISTS BPP_COMMON_RUNTIME_LIBRARY_DIRS)
+  if(NOT IS_DIRECTORY "${directory}")
+    message(FATAL_ERROR "BPP Common runtime library directory does not exist: ${directory}")
+  endif()
+  target_link_options(${PROJECT_NAME} PUBLIC "-Wl,-rpath-link,${directory}")
+endforeach()
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_side_shift_utils test/test_side_shift_utils.cpp)
+  if(TARGET test_side_shift_utils)
+    find_package(autoware_test_utils REQUIRED)
+    get_filename_component(AW149_TEST_UTILS_SHARE "${autoware_test_utils_DIR}/.." ABSOLUTE)
+    target_compile_definitions(test_side_shift_utils PRIVATE AW149_ROUTE_FIXTURE_PATH="${AW149_TEST_UTILS_SHARE}/test_map/overlap_map.osm")
+    target_link_libraries(test_side_shift_utils ${PROJECT_NAME} ${catkin_LIBRARIES})
+  endif()
+endif()
+
+install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION})
+install(DIRECTORY include/ DESTINATION include)
+install(FILES package.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+
+install(FILES plugins.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+install(DIRECTORY config DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+
+if(CATKIN_ENABLE_TESTING)
+  foreach(test_name IN ITEMS test_original_utils test_full_scene)
+    catkin_add_gtest(${test_name} test/${test_name}.cpp)
+    if(TARGET ${test_name})
+      target_compile_definitions(${test_name} PRIVATE AW149_ROUTE_FIXTURE_PATH="${AW149_TEST_UTILS_SHARE}/test_map/overlap_map.osm")
+      target_link_libraries(${test_name} ${PROJECT_NAME} ${catkin_LIBRARIES})
+    endif()
+  endforeach()
+endif()
+
+find_package(autoware_utils_rclcpp REQUIRED)
+include_directories(BEFORE ${autoware_utils_rclcpp_INCLUDE_DIRS})

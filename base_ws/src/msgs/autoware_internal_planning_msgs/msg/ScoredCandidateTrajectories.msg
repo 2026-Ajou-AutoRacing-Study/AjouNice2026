@@ -1,2 +1,0 @@
-ScoredCandidateTrajectory[] scored_candidate_trajectories
-GeneratorInfo[] generator_info

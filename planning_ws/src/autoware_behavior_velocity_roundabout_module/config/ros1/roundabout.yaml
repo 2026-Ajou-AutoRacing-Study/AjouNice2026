@@ -1,0 +1,24 @@
+roundabout/common/attention_area_margin: 0.75
+roundabout/common/attention_area_angle_threshold: 0.785
+roundabout/common/default_stopline_margin: 1.5
+roundabout/common/path_interpolation_ds: 0.1
+roundabout/common/enable_pass_judge_before_default_stopline: false
+roundabout/collision_detection/collision_detection_hold_time: 0.5
+roundabout/collision_detection/min_predicted_path_confidence: 0.05
+roundabout/collision_detection/collision_start_margin_time: 3.0
+roundabout/collision_detection/collision_end_margin_time: 2.0
+roundabout/collision_detection/target_type/car: true
+roundabout/collision_detection/target_type/bus: true
+roundabout/collision_detection/target_type/truck: true
+roundabout/collision_detection/target_type/trailer: true
+roundabout/collision_detection/target_type/motorcycle: true
+roundabout/collision_detection/target_type/bicycle: true
+roundabout/collision_detection/target_type/unknown: false
+roundabout/collision_detection/velocity_profile/use_upstream: true
+roundabout/collision_detection/velocity_profile/minimum_upstream_velocity: 0.01
+roundabout/collision_detection/velocity_profile/default_velocity: 2.778
+roundabout/collision_detection/velocity_profile/minimum_default_velocity: 1.388
+roundabout/collision_detection/avoid_collision_by_acceleration/object_time_margin_to_collision_point: 4.0
+roundabout/debug/ttc:
+- 0
+roundabout/enable_rtc/roundabout: false

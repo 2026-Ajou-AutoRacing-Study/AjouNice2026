@@ -1,0 +1,23 @@
+<launch>
+  <!-- Historical bounded probe; production full-source entry is motion_velocity_planner.launch. -->
+  <arg name="input_trajectory" default="/planning/scenario_planning/trajectory"/>
+  <arg name="input_predicted_objects" default="/perception/object_recognition/objects"/>
+  <arg name="input_no_ground_pointcloud" default="/perception/obstacle_segmentation/pointcloud"/>
+  <arg name="input_odometry" default="/localization/kinematic_state"/>
+  <arg name="input_acceleration" default="/localization/acceleration"/>
+  <arg name="output_trajectory" default="/planning/trajectory"/>
+  <arg name="vehicle_info_param_path"/>
+
+  <node pkg="autoware_motion_velocity_planner" type="motion_velocity_planner_legacy_node"
+        name="motion_velocity_planner" output="screen">
+    <rosparam command="load" file="$(arg vehicle_info_param_path)"/>
+    <rosparam command="load" file="$(find autoware_motion_velocity_obstacle_slow_down_module)/config/obstacle_slow_down_ros1.yaml"/>
+    <rosparam param="launch_modules">[autoware::motion_velocity_planner::ObstacleSlowDownModule]</rosparam>
+    <remap from="~input/trajectory" to="$(arg input_trajectory)"/>
+    <remap from="~input/predicted_objects" to="$(arg input_predicted_objects)"/>
+    <remap from="~input/no_ground_pointcloud" to="$(arg input_no_ground_pointcloud)"/>
+    <remap from="~input/odometry" to="$(arg input_odometry)"/>
+    <remap from="~input/acceleration" to="$(arg input_acceleration)"/>
+    <remap from="~output/trajectory" to="$(arg output_trajectory)"/>
+  </node>
+</launch>
