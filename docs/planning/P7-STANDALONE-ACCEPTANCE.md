@@ -82,3 +82,9 @@ immediate-request test fixture selects the source test value of 0.0 seconds.
 The isolated results are now BPP 58/58 and BVP 76/76. This is still not an
 all-154-package test acceptance. See
 [planning-test-fixture-r004.json](evidence/planning-test-fixture-r004.json).
+
+Checkpoint r007 (`fbccdb518506ceec911210b4479d32207a5e50db15c11164b0a9fd6007fde116`)
+loads the committed vehicle and checker parameter fixtures for the full
+trajectory-checker tests. Its isolated package result is 52/52 passing,
+including the long diagnostics suite. See
+[planning-test-fixture-r005.json](evidence/planning-test-fixture-r005.json).

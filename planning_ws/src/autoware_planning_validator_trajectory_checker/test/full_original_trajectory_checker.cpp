@@ -28,6 +28,7 @@
 #include <gtest/gtest.h>
 
 #include <iostream>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
@@ -48,6 +49,21 @@ protected:
   void SetUp() override
   {
     node_ = std::make_shared<validator_native::Node>(ros::NodeHandle("/full_trajectory_test"));
+    ASSERT_EQ(
+      std::system(
+        "rosparam load \"$(rospack find autoware_planning_validator_trajectory_checker)"
+        "/config/ros1/trajectory_checker.yaml\" /full_trajectory_test"),
+      0);
+    node_->setParam("wheel_radius", 0.39);
+    node_->setParam("wheel_width", 0.42);
+    node_->setParam("wheel_base", 2.74);
+    node_->setParam("wheel_tread", 1.63);
+    node_->setParam("front_overhang", 1.0);
+    node_->setParam("rear_overhang", 1.03);
+    node_->setParam("left_overhang", 0.1);
+    node_->setParam("right_overhang", 0.1);
+    node_->setParam("vehicle_height", 2.5);
+    node_->setParam("max_steer_angle", 0.70);
     node_->setParam("trajectory_checker/interval/threshold", THRESHOLD_INTERVAL);
     node_->setParam("default_handling_type", DEFAULT_HANDLING_TYPE);
     context_ = std::make_shared<PlanningValidatorContext>(node_.get());
