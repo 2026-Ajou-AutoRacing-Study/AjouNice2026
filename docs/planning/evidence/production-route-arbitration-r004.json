@@ -1,0 +1,60 @@
+{
+  "schema": "ajounice.aw149.production_route_arbitration.v1",
+  "recorded_at": "2026-09-08T22:00:00+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "parent_commit": "f29f88ef2ab21ba8a52793f6b99663c1700007a6",
+  "status": "PASS",
+  "operation_case": "route_a_to_b_with_fallback",
+  "runs": [
+    {
+      "branch": "normal_route_b_priority",
+      "master_port": 11589,
+      "forced_fallback_branch": false,
+      "status_sequence": [
+        "READY",
+        "DISPATCHED(route_a)",
+        "VERIFIED(route_a)",
+        "DISPATCHED(route_b)",
+        "VERIFIED(route_b)"
+      ],
+      "fallback_dispatches": 0,
+      "transition_speed_mps": 2.0,
+      "transition_verification_seconds": 0.725228306997451,
+      "route_lanelets": 57,
+      "final_trajectory_points": 161,
+      "validator_flags_true": "20/20",
+      "process_deaths": 0,
+      "raw_result_sha256": "8f1ab1a960c1de108b5fcd5ac373bf717226203ed65ea6f52fad5e0e0a7dd6bb"
+    },
+    {
+      "branch": "fallback_at_cutoff_without_route_b_adoption",
+      "master_port": 11590,
+      "forced_fallback_branch": true,
+      "status_sequence": [
+        "READY",
+        "DISPATCHED(route_a)",
+        "VERIFIED(route_a)",
+        "DISPATCHED(fallback_route)",
+        "VERIFIED(fallback_route)"
+      ],
+      "route_b_dispatches": 0,
+      "transition_speed_mps": 2.0,
+      "transition_verification_seconds": 0.5192601899907459,
+      "route_lanelets": 28,
+      "final_trajectory_points": 151,
+      "validator_flags_true": "20/20",
+      "process_deaths": 0,
+      "raw_result_sha256": "8820a124cbfef297050a3d4346d309f6b75ba0fe3c1456e5adf1f5e78bb6ac20"
+    }
+  ],
+  "harness_sha256": "5763ef7d82929e558a539d3452d9f50e5a31ec0f91bc97956fa7190438d44f6d",
+  "claim_boundary": {
+    "proven": "Within the production operation case, the normal trigger selects Route B without fallback and the cutoff state with no adopted Route B selects fallback without a Route B dispatch. Both branches reach fresh validator-accepted final trajectories.",
+    "not_proven": [
+      "an ambiguous or timed-out Route B RPC followed by fallback recovery",
+      "continuous travel between trigger poses",
+      "live MORAI input semantics",
+      "controller closed-loop driving"
+    ]
+  }
+}

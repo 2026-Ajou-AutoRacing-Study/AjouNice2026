@@ -11,6 +11,8 @@
 
 추가 r011 검사는 Route A 검증 후 합성 odometry를 2 m/s로 바꾸어 production requester→Mission 안전검사→full BPP/BVP/MVP→validator의 A→B와 A→fallback을 현재 artifact에서 각각 2/2 통과했다. Route B는 57 lanelets/161점 trajectory, fallback은 28 lanelets/151점 trajectory였고 모두 validator 20/20 true, process death 0이었다. 순환 Route B 후반의 재방문 lanelet이 현재 공통구간을 가리던 Mission 검색 순서를 target-first로 수정했고 exact primitive·안전거리 검사는 유지했다. 종전 fallback cutoff `200360 s=8 m`는 공통 길이 26.751 m로 30 m 안전기준을 만족할 수 없어 `201446 s=8 m`로 앞당기고 안전기준은 유지했다. 상세는 [integrated-output-probe-r003.json](evidence/integrated-output-probe-r003.json)에 있다. 합성 pose 전환이므로 실제 차가 시작점부터 trigger까지 연속 이동한 결과로 확대하지 않는다.
 
+운영 case `route_a_to_b_with_fallback`에서도 정상 trigger의 B 우선 분기와 B 미채택 cutoff의 fallback 분기를 각각 통과했다. status 이력상 정상 분기는 fallback dispatch 0, cutoff 분기는 Route B dispatch 0이며 두 분기 모두 target route의 fresh trajectory/validator까지 도달했다. [production-route-arbitration-r004.json](evidence/production-route-arbitration-r004.json)은 실제 B RPC timeout 뒤 복구나 연속 주행 증거로 확대하지 않는다.
+
 **인지 입력만 연결하면 정상 trajectory가 보장된다는 뜻은 아니다.** 현재 AjouNice localization/perception/control의 실데이터를 함께 연결한 end-to-end 검사는 완료되지 않았다. 새 graph의 기동 검사는 route/ego/TF/objects/acceleration/mode를 공급하지 않았고, 필요한 입력을 기다리는 상태였다. 지금 계속 주행 graph를 켜두었다는 뜻도 아니다.
 
 동일한 frozen planning source와 v61 fixture를 쓴 최종 P7.1 독립 시험은 Mission→BPP→BVP→MVP→validator graph의 11/11 matrix를 통과했다. Route A/B, normal/experimental BVP, 안전 LC, 점유 차선 geometry, 교차로, red→green, 정적 장애물, moving ego, 입력 복구, 정지 후 reroute가 포함된다. 세부 수치와 해시 계보는 [P7-STANDALONE-ACCEPTANCE.md](P7-STANDALONE-ACCEPTANCE.md)에 있다. 이는 AjouNice 실제 입력, 이동 중 A→B 성공, stale 중 자동 안전 정지, controller 폐루프 승인은 아니다. `149`는 패키지 경계 수이며 동시에 실행할 독립 노드 149개라는 뜻도 아니다.

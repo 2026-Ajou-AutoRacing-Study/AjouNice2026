@@ -37,13 +37,20 @@ use_requester = os.environ.get("AW149_OUTPUT_PROBE_USE_REQUESTER", "0") == "1"
 route_case = os.environ.get("AW149_OUTPUT_PROBE_ROUTE_CASE", "route_a_only")
 transition_speed_mps = float(os.environ.get("AW149_OUTPUT_PROBE_TRANSITION_SPEED_MPS", "2.0"))
 input_period_s = float(os.environ.get("AW149_OUTPUT_PROBE_INPUT_PERIOD_S", "0.1"))
+force_fallback = os.environ.get("AW149_OUTPUT_PROBE_FORCE_FALLBACK", "0") == "1"
 if not math.isfinite(input_period_s) or input_period_s <= 0.0 or input_period_s > 0.25:
     raise ValueError("AW149_OUTPUT_PROBE_INPUT_PERIOD_S must be in (0, 0.25]")
-if route_case not in ("route_a_only", "route_a_to_b", "route_a_to_fallback"):
+if route_case not in (
+        "route_a_only", "route_a_to_b", "route_a_to_fallback", "route_a_to_b_with_fallback"):
     raise ValueError(
-        "AW149_OUTPUT_PROBE_ROUTE_CASE must be route_a_only, route_a_to_b, or route_a_to_fallback")
+        "AW149_OUTPUT_PROBE_ROUTE_CASE must be route_a_only, route_a_to_b, "
+        "route_a_to_fallback, or route_a_to_b_with_fallback")
 if route_case != "route_a_only" and not use_requester:
     raise ValueError("route transition probes require AW149_OUTPUT_PROBE_USE_REQUESTER=1")
+if force_fallback and route_case != "route_a_to_b_with_fallback":
+    raise ValueError("AW149_OUTPUT_PROBE_FORCE_FALLBACK requires route_a_to_b_with_fallback")
+transition_to_b = route_case in ("route_a_to_b", "route_a_to_b_with_fallback") and not force_fallback
+transition_to_fallback = route_case == "route_a_to_fallback" or force_fallback
 
 
 def make_pose(value):
@@ -258,6 +265,7 @@ result = {
     "counts": counts,
     "route_request_mode": "competition_route_requester" if use_requester else "direct_service_probe",
     "route_operation_case": route_case,
+    "forced_fallback_branch": force_fallback,
     "synthetic_input_period_seconds": input_period_s,
     "process_deaths_before_shutdown": deaths,
     "not_proven": [
@@ -321,7 +329,7 @@ try:
             raise RuntimeError("competition_route_requester did not verify Route A: " + str(requester_status))
         result["requester_status"] = requester_status
 
-        if route_case == "route_a_to_b":
+        if transition_to_b:
             route_a_counts = counts.copy()
             route_a_message = latest["route"]
             odom.pose.pose = make_pose(route_config["poses"]["wp_200178"])
@@ -348,7 +356,7 @@ try:
             result["shared_preferred_signature_mismatch_sample"] = mismatches[:10]
             selected = route_config["route_b"]
 
-        if route_case == "route_a_to_fallback":
+        if transition_to_fallback:
             route_a_counts = counts.copy()
             route_a_message = latest["route"]
             cutoff_ref = route_config["fallback_route"]["hard_cutoff_pose_ref"]
