@@ -52,6 +52,6 @@ catkin_install_python(
 )
 
 install(
-  DIRECTORY launch config docs
+  DIRECTORY launch config docs rviz
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

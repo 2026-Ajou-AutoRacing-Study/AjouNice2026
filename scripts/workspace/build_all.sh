@@ -47,5 +47,45 @@ catkin_make_isolated --install \
   -DPYTHON_EXECUTABLE=/usr/bin/python3 \
   --make-args -j4 -l4
 
+# The pinned upstream FAST_LIO revision builds the runtime but declares no
+# catkin install rules. Keep the submodule immutable and complete the supported
+# install overlay from the built artifact and its runtime assets here.
+FAST_LIO_DEVEL="$REPO_ROOT/base_ws/devel_aw149/fast_lio"
+FAST_LIO_SOURCE="$REPO_ROOT/base_ws/src/localization/fast_lio"
+FAST_LIO_INSTALL="$REPO_ROOT/base_ws/install_aw149"
+install -D -m 0755 \
+  "$FAST_LIO_DEVEL/lib/fast_lio/fastlio_mapping" \
+  "$FAST_LIO_INSTALL/lib/fast_lio/fastlio_mapping"
+for asset in launch config rviz_cfg; do
+  cmake -E copy_directory \
+    "$FAST_LIO_SOURCE/$asset" \
+    "$FAST_LIO_INSTALL/share/fast_lio/$asset"
+done
+
+# A build is not portable if launch/config assets exist only in the source
+# tree. Audit every base package after installation so another checkout fails
+# here instead of later at roslaunch time.
+missing_assets=0
+while IFS= read -r package_xml; do
+  package_dir="${package_xml%/package.xml}"
+  package_name="$(sed -n 's:.*<name>\([^<]*\)</name>.*:\1:p' "$package_xml" | head -1)"
+  [[ -n "$package_name" ]] || continue
+  for asset in launch config rviz rviz_cfg; do
+    [[ -d "$package_dir/$asset" ]] || continue
+    while IFS= read -r source_file; do
+      relative_path="${source_file#"$package_dir/"}"
+      installed_file="$FAST_LIO_INSTALL/share/$package_name/$relative_path"
+      if [[ ! -e "$installed_file" ]]; then
+        echo "ERROR: missing installed runtime asset: $source_file" >&2
+        missing_assets=$((missing_assets + 1))
+      fi
+    done < <(find "$package_dir/$asset" -type f | sort)
+  done
+done < <(find "$REPO_ROOT/base_ws/src" -name package.xml -type f | sort)
+if (( missing_assets != 0 )); then
+  echo "ERROR: $missing_assets base runtime assets were not installed." >&2
+  exit 1
+fi
+
 echo "Built planning underlay and base overlay."
 echo "Run: source $REPO_ROOT/base_ws/install_aw149/setup.bash"

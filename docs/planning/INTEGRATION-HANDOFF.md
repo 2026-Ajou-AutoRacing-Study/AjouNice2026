@@ -12,7 +12,9 @@
 - `ajounice_planning_integration/morai_planning_stack.launch`가 localization, sensor TF, object tracking/prediction, traffic light, v61 binary map, Mission→BPP→BVP→MVP graph를 묶는다.
 - detector checkpoint는 Git에 없으므로 detector, controller, route requester는 안전상 기본 `false`다.
 
-현재 로컬 증거는 planning source audit PASS, base 24/24 clean install, object pipeline 21 tests, tracker 14 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 10 tests다. MORAI GT localization은 변환 단위검사 1개와 실제 ROS transport 1개를 통과했고, 한 Ego 입력에서 odometry/acceleration이 동일 stamp로 발행됨을 확인했다. operation-mode `/system`→`/api` relay도 ROS transport 검사를 통과했다. v61 통합 graph는 24개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다.
+현재 로컬 증거는 planning source audit PASS, base 24/24 install, install runtime 자산 전수 감사, object pipeline 21 tests, tracker 14 tests, tracking/prediction evaluation 29 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 10 tests다. MORAI GT localization은 실제 주행 bag의 이동 구간 250개 표본에서 odometry/acceleration 동일 stamp와 acceleration 값 보존을 확인했다. operation-mode `/system`→`/api` relay도 ROS transport 검사를 통과했다. v61 통합 graph는 24개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다.
+
+실제 객체가 든 `sensor_cam_raw_obstacle1.bag`으로 oracle/evaluation adapter→map-frame tracking→prediction도 실행했다. v61 map-based 경로는 15초 동안 tracking 699 frame/5,396 object, prediction 511 frame/3,733 object를 처리했고 모든 prediction object가 finite 위치와 현재 pose 포함 31-point/3.0초 horizon path를 가졌다. 기본 CTRV도 3,124 object 전부 같은 길이의 path를 생성했다. 다만 이것은 생산 detector/tracker 대신 MORAI GT를 쓴 transport/runtime 증거이며, map-based는 50 Hz 원본의 모든 frame을 보존하지 않았다.
 
 이 증거는 **실제 입력으로 trajectory가 나온다거나 폐루프 주행이 승인됐다는 뜻은 아니다.** 외부 입력이 없던 기동에서는 route, ego/TF, objects, acceleration, operation mode를 기다리는 것이 정상 상태였다.
 
@@ -21,7 +23,8 @@
 ```bash
 git checkout planning/autoware-universe-to-ros1
 git submodule update --init --recursive
-sudo apt install ros-noetic-jsk-recognition-msgs ros-noetic-robot-localization
+sudo apt install ros-noetic-jsk-recognition-msgs ros-noetic-robot-localization \
+  python3-nose python3-pytest
 
 # CUDA/CPU에 맞는 PyTorch 2.4.1을 먼저 설치한 뒤
 python3 -m pip install -r \

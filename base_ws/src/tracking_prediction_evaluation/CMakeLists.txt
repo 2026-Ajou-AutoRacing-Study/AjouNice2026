@@ -34,3 +34,14 @@ catkin_install_python(PROGRAMS
   scripts/morai_gt_bbox_visualization_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+
+install(DIRECTORY
+  launch
+  docs
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+if(CATKIN_ENABLE_TESTING)
+  set(NOSETESTS ${CMAKE_CURRENT_SOURCE_DIR}/test/pytest_catkin_wrapper.sh)
+  catkin_add_nosetests(test)
+endif()

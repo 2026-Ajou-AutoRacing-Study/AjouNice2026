@@ -5,7 +5,7 @@
 
 ## 1. 현재 무엇이 되고, 무엇을 해야 하는가
 
-포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 24개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 24개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 10개 검사를 통과했다.
+포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 24개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 24개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 10개 검사를 통과했다. base 설치 뒤 source의 launch/config/RViz 자산이 install에 모두 존재하는지도 빌드 스크립트가 전수 검사한다.
 
 **인지 입력만 연결하면 정상 trajectory가 보장된다는 뜻은 아니다.** 현재 AjouNice localization/perception/control의 실데이터를 함께 연결한 end-to-end 검사는 완료되지 않았다. 새 graph의 기동 검사는 route/ego/TF/objects/acceleration/mode를 공급하지 않았고, 필요한 입력을 기다리는 상태였다. 지금 계속 주행 graph를 켜두었다는 뜻도 아니다.
 
@@ -64,6 +64,7 @@ Git의 `text=auto` 적용으로 CRLF가 변환됐다. 로컬 원본 작업 파�
 
 - `base_ws/src/ekf-multi-object-tracking`은 초기화했고 ROS1 install 규칙을 보완한 revision `94819735`를 사용한다. clean install의 binary/config/launch 및 14개 C++ 검사를 확인했다.
 - `robot_localization`과 `jsk_recognition_msgs`는 Noetic apt 패키지로 설치했다. 친구 컴퓨터에서는 rosdep/apt 단계가 필요하다.
+- tracking/prediction 평가 테스트는 Ubuntu의 일치하는 NumPy/SciPy/Pytest를 사용하도록 user-site를 격리한 catkin wrapper로 29/29를 통과했다. `python3-nose`, `python3-pytest`를 rosdep/apt로 준비한다.
 - Livox SDK는 `third_party2/livox_sdk`의 Gitlink revision `9306596a`를 `build_external`에 먼저 빌드한다. 드라이버 CMake가 최신 upstream HEAD를 임의 clone하지 않도록 `build_all.sh`가 이 정적 라이브러리를 강제한다.
 - traffic light runtime은 package의 `requirements-runtime.txt`에 검증 버전을 기록했다. PyTorch wheel은 대상 CUDA에 맞게 먼저 선택해야 한다.
 - FastBEV/PointPainting checkpoint는 Git에 포함되지 않는다. 통합 launch의 detector 기본값은 비활성이고, 별도 배포한 모델의 SHA256 확인 후 명시적으로 켠다.
@@ -110,21 +111,23 @@ seconds = path.time_step.sec + path.time_step.nanosec * 1e-9
 
 native `header.stamp`는 그대로 유지한다. 음수 duration도 nsec 범위가 정상화되도록 변환한다. 정상 객체 1개·객체 없는 관측·다중 객체를 각각 직렬화해서 받아야 한다. 빈 객체 메시지는 센서가 실제 관측한 empty scene일 때만 의미가 있다.
 
-`object_prediction.launch:10`의 map 기본값은 **v60**이다. `prediction_model=map_based`이면 v61로 명시해야 한다. 상위 `object_pipeline.launch:186`은 하위 launch에 map_file/projector_file을 전달하지 않으므로 상위 arg까지 추가·전달하는 작업이 필요하다. CTRV 기본 운용에는 이 map 기본값이 직접 쓰이지 않는다.
+현재 `object_prediction.launch`의 map 기본값은 v61이며, 상위 `object_pipeline.launch`도 `map_file`과 `projector_file`을 하위 prediction launch로 전달한다. 운영에서는 기본값에 의존하지 말고 통합 entrypoint에서 승인한 v61 경로를 명시적으로 전달한다. CTRV 기본 운용에는 map 파일이 직접 쓰이지 않는다.
 
 기본 prediction horizon은 3.0s, step은 0.1s다. 필요한 lane change·장애물 예측 시간보다 짧은지 검토한다. 무조건 15s로 늘리기보다는 plugin 요구 시간, 예측 신뢰도, stale 제한, 처리 지연을 함께 결정한다. pose/shape/heading/velocity는 map 및 객체 좌표계 정의에 맞고 velocity는 m/s여야 한다. map_based 노드는 `header.frame_id != map` 입력을 버린다.
+
+실제 `sensor_cam_raw_obstacle1.bag` 15초 구간을 oracle/evaluation adapter로 map-frame `TrackedObjects`로 변환해 v61 map-based predictor에 입력했다. tracking 699 frame/5,396 object와 prediction 511 frame/3,733 object를 기록했고, prediction object 전부에 현재 pose를 포함한 31-point/3.0초 horizon path가 있었으며 비정상 위치는 0이었다. 같은 bag의 기본 CTRV 경로도 3,124 prediction object 전부에 같은 길이의 path를 만들었다. map-based 처리 로그는 입력에 따라 약 1.9–37 ms였고 50 Hz 원본의 모든 frame을 보존하지는 않았다. 이는 실제 객체 메시지·좌표계·예측 연결 증거이며 oracle GT 입력이므로 production detector/tracker 정확도 증거는 아니다. `competition_route_full_highspeed.bag`의 `/Object_topic` 7,551 frame은 전부 empty list라 그 bag만으로 장애물 기능을 승인할 수 없다.
 
 ## 6. P2 — 신호 인식은 이름 외에도 수정할 부분이 있다
 
 정식 출력은 `/perception/traffic_light_recognition/traffic_signals`, 타입은 `autoware_perception_msgs/TrafficLightGroupArray`로 이미 맞는다.
 
-1. `base_ws/src/perception/traffic_light_detection/scripts/traffic_light_node.py:264`: native image stamp를 builtin Time payload로 변환한다. 실제 영상 관측 시각을 유지하고, 처리 시각으로 덮어 지연을 감추지 않는다. 0 timestamp fallback 정책도 명시한다.
-2. `launch/traffic_light_node.launch:21` 이후: `lanelet2_map_file`, `lanelet2_projector_file` 기본값이 빈 문자열이다. v61 OSM과 projector를 반드시 전달한다. `route_topic` 기본값 `/planning/mission_planning/route`는 이미 맞다.
-3. `scripts/lanelet_route_matcher.py:88,197`: route receipt가 30초 지나면 무조건 stale로 간주해 거리 fallback으로 바뀐다. Mission의 latched route는 변할 때 발행하므로 정상 장기 경로도 만료될 수 있다. route UUID/route state/clear 또는 변경 이벤트로 유효성을 관리하고, odometry freshness는 계속 검사하도록 바꾼다. 단순히 route를 재발행해 timer를 속이지 않는다.
+1. **완료:** `traffic_light_node.py`는 native image stamp를 builtin Time payload로 변환하고 실제 영상 관측 시각을 보존한다. 0 timestamp fallback은 별도 동적 확인 대상이다.
+2. **완료:** 통합 launch가 v61 OSM/projector와 `/planning/mission_planning/route`, `/planning/route_state`를 명시적으로 전달한다.
+3. **완료:** latched route는 30초 receipt timeout으로 폐기하지 않고 `RouteState.UNSET` 또는 route 변경으로 무효화하며, odometry freshness는 계속 검사한다.
 4. 같은 파일 `get_group_id`: XY 최단거리로 현재 route index를 고른다. 루프·인접 차로에서 방향과 진행 이력이 맞는지 검증하고 필요하면 heading/진행 index 연속성을 사용한다. 신호 table의 regulatory group ID와 v61 실지도 연결을 대조한다. 소스 주석의 특정 map ID 오류 주장은 이번에 지도 결함으로 재확정한 것이 아니므로 맵을 임의 수정하지 않는다.
 5. 거리 fallback은 다른 진입로의 신호 선택 가능성이 있으므로 실제 fallback 발동 이유를 진단에 남긴다. 매칭 불가/unknown/검출 없음의 상태가 BVP에 어떻게 전달되는지 시험한다. 임의 green 또는 group_id 0으로 기능 합격을 만들지 않는다.
-6. **설치 누락:** `CMakeLists.txt`는 `traffic_light_node.py`와 launch만 설치한다. 노드가 import하는 `light_color_utils.py`, `lanelet_route_matcher.py`를 설치하지 않는다. Python package로 묶어 `catkin_python_setup`으로 설치하거나 helper 모듈을 노드의 import 경로에 설치한다. `traffic_light_group_id_table.json`과 weights 경로도 `rospkg`/share 기준 또는 명시적 외부 경로로 연결해야 한다.
-7. `package.xml`은 rospy/sensor_msgs/autoware_perception_msgs만 선언한다. 실제 직접 사용하는 `morai_msgs`, `nav_msgs`, `autoware_planning_msgs`, builtin 인터페이스, 선택한 lanelet Python 모듈/PyYAML 등의 의존성 및 ultralytics 모델 환경을 명시한다.
+6. **완료:** helper scripts, group-ID table, weights 디렉터리, runtime requirements를 install share/bin에 배치하고 clean-install 기동에서 확인했다.
+7. **완료:** 직접 사용하는 MORAI/nav/planning/builtin/Lanelet/PyYAML 의존성을 `package.xml`과 CMake에 선언했다. 실제 모델 실행 환경은 대상 CUDA에 맞는 PyTorch와 별도 checkpoint 검증이 여전히 필요하다.
 
 합격 기준: clean install에서 helper import/weights 로딩 성공, route가 30초 이상 유지돼도 올바른 신호 매칭, 실제 red/green/arrow/unknown·영상 지연 상황에서 올바른 stop line 정지/해제.
 
@@ -228,6 +231,7 @@ URDF와 sensor TF 모두 `base_link=rear axle center`로 문서화돼 있다. in
 - `scripts/runtime/launch_sensing.sh`, `morai_status.sh`, `morai_reset.sh`는 기존 `base_ws/devel`을 source한다. 새 base install로 운영 경로를 통일하고 reset script의 hard-coded 실행파일 경로도 함께 검토한다.
 - `trajectory_follower/launch/pp_pi_autoware.launch:9`의 `$(find ioniq5)/../../../configs/...`, `bringup/launch/sensing.launch`의 유사 경로는 source tree 배치에 의존한다. install 공간에서는 다른 위치를 가리킬 수 있으므로 `AJOUNICE_ROOT` 또는 명시 launch arg로 전달한다.
 - 여러 launch의 `$(env HOME)/AjouNice2026`는 친구의 checkout 경로와 다를 수 있다. 최상위 repo_root/config 경로를 명시적으로 받아 하위 include로 전달한다.
+- 설치 공간에서 실행하던 중 찾은 `tracking_prediction_evaluation`, `lanelet_map_visualizer`, `morai_ros_bridge`, PointPainting RViz, `ros_tutorial`의 launch/config/RViz 누락은 CMake install 규칙으로 수정했다. upstream FAST_LIO submodule은 install 규칙이 없으므로 submodule을 변조하지 않고 `build_all.sh`가 빌드된 binary와 launch/config/RViz 자산을 공식 install overlay에 복사한 뒤 전수 감사를 수행한다.
 - 기존 검증 잔재 정리 완료: 존재하지 않는 local runner/package를 참조하던 launch 3개는 제거했다. `bringup/validation`의 v44 수치와 시각화 자료는 historical evidence로만 보존하며 현재 v61 실행 명령이나 승인으로 취급하지 않는다.
 - top-level 통합 launch는 sensing/localization/perception/system/map/planning/requester/controller의 순서·활성화를 한 곳에서 제어하도록 구성한다. 기존 `ajounice_planning_integration/planning.launch`는 map+planning만 구성하고 requester는 기본 false, controller는 포함하지 않는다.
 - Virtual traffic light/V2X, lateral offset, 외부 speed limit 같은 선택 입력은 모든 차로에서 무조건 필요한 주기 입력으로 취급하지 않는다. 사용 지도 regulatory element와 활성 module 요구에 따라 구현·시험한다. 실제 도로 신호 인식 topic과 virtual traffic light state는 별개다.

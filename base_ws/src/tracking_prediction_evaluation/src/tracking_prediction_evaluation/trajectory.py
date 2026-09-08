@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 import numpy as np
-from scipy.optimize import linear_sum_assignment
 
 
 @dataclass(frozen=True)
@@ -104,6 +103,11 @@ def reconstruct_trajectory_segments(
     from GT position, velocity and heading.  This is input reconstruction for
     the oracle benchmark, not an evaluation of the runtime tracker.
     """
+    # SciPy is needed only by the offline correspondence reconstruction.  Keep
+    # it out of the module import path so the online oracle adapter can reuse
+    # TrajectoryPoint and normalization helpers without loading SciPy.
+    from scipy.optimize import linear_sum_assignment
+
     active: dict[int, _ActiveTrack] = {}
     finished: list[_ActiveTrack] = []
     next_internal_id = 1
