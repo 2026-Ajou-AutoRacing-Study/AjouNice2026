@@ -1,0 +1,35 @@
+{
+  "schema": "ajounice.aw149.planning_test_fixture.v1",
+  "recorded_at": "2026-09-08T19:45:00+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "checkpoint": {
+    "name": "checkpoint-r006.json",
+    "sha256": "b8a0fc246224634cdbedd0cdf9bf38f4b451029039577bdd3c75f7e81d49ada3",
+    "predecessor": "checkpoint-r005.json"
+  },
+  "source_audit": {
+    "status": "PASS",
+    "source_files_checked": 3998,
+    "changed_or_missing": 0,
+    "provider_source_files_checked": 6589,
+    "provider_changed_or_missing": 0
+  },
+  "isolated_package_results": {
+    "autoware_behavior_path_planner": {
+      "tests": 58,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0
+    },
+    "autoware_behavior_velocity_planner": {
+      "tests": 76,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0
+    }
+  },
+  "master_policy": "fresh ROS master and ROS_HOME per package",
+  "make_jobs": 1,
+  "side_shift_oracle_resolution": "The immediate-request oracle explicitly sets the source test value shift_request_time_limit=0.0; production keeps the committed 1.0 second debounce.",
+  "claim_boundary": "BPP and BVP package tests are closed. This is not yet an all-154-package test acceptance and does not alter P7 runtime coverage."
+}

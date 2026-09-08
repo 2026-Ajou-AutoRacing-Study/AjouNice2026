@@ -75,3 +75,10 @@ The isolated BPP package result improved from 14 to 2 catkin-reported failures
 out of 58 tests. Both reports are the single preserved direct-core side-shift
 activation oracle; its expectation was not weakened. See
 [planning-test-fixture-r003.json](evidence/planning-test-fixture-r003.json).
+
+Checkpoint r006 (`b8a0fc246224634cdbedd0cdf9bf38f4b451029039577bdd3c75f7e81d49ada3`)
+closes that final BPP oracle without changing production debounce: only the
+immediate-request test fixture selects the source test value of 0.0 seconds.
+The isolated results are now BPP 58/58 and BVP 76/76. This is still not an
+all-154-package test acceptance. See
+[planning-test-fixture-r004.json](evidence/planning-test-fixture-r004.json).

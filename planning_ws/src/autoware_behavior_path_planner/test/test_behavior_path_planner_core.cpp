@@ -108,6 +108,7 @@ TEST(BehaviorPathPlannerCore, RunsReadyFrozenRouteThroughStaticSideShiftSlot)
   aw149::test::loadSideShiftFixture(private_node);
   private_node.setParam("side_shift/min_distance_to_start_shifting", 1.0);
   private_node.setParam("side_shift/time_to_start_shifting", 0.0);
+  private_node.setParam("side_shift/shift_request_time_limit", 0.0);
   private_node.setParam("side_shift/min_shifting_distance", 2.0);
   private_node.setParam("side_shift/min_shifting_speed", 1.0);
 #ifdef AW149_ENABLE_STATIC_OBSTACLE_AVOIDANCE
@@ -231,6 +232,7 @@ TEST(BehaviorPathPlannerCore, CommittedSourceFixtureDoesNotInventAvoidanceReques
   private_node.setParam("enable_static_obstacle_avoidance_module", true);
   private_node.setParam("side_shift/min_distance_to_start_shifting", 1.0);
   private_node.setParam("side_shift/time_to_start_shifting", 0.0);
+  private_node.setParam("side_shift/shift_request_time_limit", 0.0);
   private_node.setParam("side_shift/min_shifting_distance", 2.0);
   private_node.setParam("side_shift/min_shifting_speed", 1.0);
   autoware::behavior_path_planner::BehaviorPathPlannerCore core(&private_node);
