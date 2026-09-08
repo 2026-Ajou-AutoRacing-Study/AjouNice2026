@@ -1,7 +1,7 @@
 <launch>
   <arg name="use_sim_time" default="false"/>
   <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
-  <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <!--
     An explicit interpreter lets the same catkin wrapper run with either the
     teammate's Python 3.8 Conda environment or the RTX 50 Python 3.11

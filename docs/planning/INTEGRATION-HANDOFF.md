@@ -9,6 +9,7 @@
 - base의 새 메시지 소비 코드(Duration/Time), tracker 설치, traffic-light helper/weights, v61 경로, follower 입력을 수정했다.
 - `scripts/workspace/setup_ws.sh`가 submodule 초기화, planning underlay, pin된 Livox SDK, base 24개를 순서대로 빌드한다.
 - 공식 runtime overlay는 `base_ws/install_aw149` 하나다. `base_ws/devel` 또는 과거 addon install을 source하지 않는다.
+- 저장소 내부 runtime 경로는 `source_aw149.sh`가 설정하는 `AJOUNICE_ROOT`를 기준으로 하므로 checkout이 `$HOME/AjouNice2026`가 아니어도 된다.
 - `ajounice_planning_integration/morai_planning_stack.launch`가 localization, sensor TF, object tracking/prediction, traffic light, v61 binary map, Mission→BPP→BVP→MVP graph를 묶는다.
 - detector checkpoint는 Git에 없으므로 detector, controller, route requester는 안전상 기본 `false`다.
 

@@ -5,8 +5,9 @@
   <arg name="enable_vehicle_model" default="true"/>
   <arg name="start_rviz" default="false"/>
 
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(find ioniq5)/../../../configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
   <arg name="sensor_parent_frame" default="base_link"/>
   <arg name="publish_lidar_tf" default="true"/>
   <arg name="publish_imu_tf" default="true"/>

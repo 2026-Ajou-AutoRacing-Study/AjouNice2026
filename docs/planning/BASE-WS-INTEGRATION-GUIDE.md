@@ -228,9 +228,9 @@ URDF와 sensor TF 모두 `base_link=rear axle center`로 문서화돼 있다. in
 
 ## 12. R1 — 실행 entrypoint·설치 경로 정리
 
-- `scripts/runtime/launch_sensing.sh`, `morai_status.sh`, `morai_reset.sh`는 기존 `base_ws/devel`을 source한다. 새 base install로 운영 경로를 통일하고 reset script의 hard-coded 실행파일 경로도 함께 검토한다.
-- `trajectory_follower/launch/pp_pi_autoware.launch:9`의 `$(find ioniq5)/../../../configs/...`, `bringup/launch/sensing.launch`의 유사 경로는 source tree 배치에 의존한다. install 공간에서는 다른 위치를 가리킬 수 있으므로 `AJOUNICE_ROOT` 또는 명시 launch arg로 전달한다.
-- 여러 launch의 `$(env HOME)/AjouNice2026`는 친구의 checkout 경로와 다를 수 있다. 최상위 repo_root/config 경로를 명시적으로 받아 하위 include로 전달한다.
+- **완료:** `scripts/runtime/launch_sensing.sh`, `morai_status.sh`, `morai_reset.sh`는 모두 `scripts/workspace/source_aw149.sh`를 통해 공식 install overlay만 source하고 reset 대상도 install 경로를 사용한다.
+- **완료:** follower, sensing, sensor TF, MORAI UDP, FastBEV, PointPainting, tracking/prediction evaluation의 저장소 내부 config/map 기본 경로를 `AJOUNICE_ROOT` 또는 상위 `repo_root` 인자로 통일했다. 설치 공간에서 standalone launch 6개를 기본 인자로 파싱하고 실제 저장소 config 경로 주입을 확인했다.
+- 외부 OpenPCDet 위치는 저장소 내부 경로가 아니므로 `openpcdet_root`로 별도 지정한다. 과거 실험용 localization/시각화 launch의 `$HOME/AjouNice2026` 기본값은 운영 entrypoint와 구분하며, 사용할 경우 상위에서 명시 경로를 넘기거나 후속 정리한다.
 - 설치 공간에서 실행하던 중 찾은 `tracking_prediction_evaluation`, `lanelet_map_visualizer`, `morai_ros_bridge`, PointPainting RViz, `ros_tutorial`의 launch/config/RViz 누락은 CMake install 규칙으로 수정했다. upstream FAST_LIO submodule은 install 규칙이 없으므로 submodule을 변조하지 않고 `build_all.sh`가 빌드된 binary와 launch/config/RViz 자산을 공식 install overlay에 복사한 뒤 전수 감사를 수행한다.
 - 기존 검증 잔재 정리 완료: 존재하지 않는 local runner/package를 참조하던 launch 3개는 제거했다. `bringup/validation`의 v44 수치와 시각화 자료는 historical evidence로만 보존하며 현재 v61 실행 명령이나 승인으로 취급하지 않는다.
 - top-level 통합 launch는 sensing/localization/perception/system/map/planning/requester/controller의 순서·활성화를 한 곳에서 제어하도록 구성한다. 기존 `ajounice_planning_integration/planning.launch`는 map+planning만 구성하고 requester는 기본 false, controller는 포함하지 않는다.

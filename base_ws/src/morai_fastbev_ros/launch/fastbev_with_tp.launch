@@ -1,7 +1,7 @@
 <launch>
   <!-- Compatibility entrypoint for the standardized production pipeline. -->
   <arg name="python_executable" default=""/>
-  <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="checkpoint"
        default="$(arg repo_root)/artifacts/detection3d/fastbev/releases/fastbev_i3_production.pth"/>
   <arg name="use_sim_time" default="false"/>

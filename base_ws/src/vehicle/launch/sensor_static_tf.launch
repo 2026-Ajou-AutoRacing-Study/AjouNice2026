@@ -4,8 +4,9 @@
     Keep the numeric sensor extrinsics in configs/sensors/Sensor.json, not in launch.
   -->
 
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(find ioniq5)/../../../configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
   <arg name="parent_frame" default="base_link"/>
   <arg name="publish_lidar" default="true"/>
   <arg name="publish_imu" default="true"/>

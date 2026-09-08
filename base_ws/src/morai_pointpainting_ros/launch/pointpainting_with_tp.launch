@@ -2,7 +2,7 @@
   <!-- Compatibility entrypoint for the standardized production pipeline. -->
   <arg name="python_executable" default=""/>
   <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
-  <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="cfg_file"
        default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpillar_morai_pointpainting_base2_singleframe9_geom_aug.yaml"/>
   <arg name="checkpoint"

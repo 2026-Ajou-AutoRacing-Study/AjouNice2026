@@ -1,6 +1,6 @@
 <launch>
   <arg name="python_executable" default=""/>
-  <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="config"
        default="$(arg repo_root)/perception/detection3d/fastbev/configs/fastbev_m0_morai_4cam_s384x704.py"/>
   <arg name="checkpoint"
