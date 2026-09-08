@@ -1,4 +1,6 @@
 #include <autoware/behavior_path_planner/behavior_path_planner_ros1_node.hpp>
+
+#include "ros1_side_shift_fixture.hpp"
 #include <autoware/behavior_velocity_planner/node.hpp>
 #include <autoware/lanelet2_utils/conversion.hpp>
 #include <autoware/motion_velocity_planner/motion_velocity_planner_ros1_node.hpp>
@@ -38,6 +40,9 @@ TEST(BppBvpMvpPipeline, PreservesBppPathThroughBvpConverterAndMvpTransport)
   setVehicleInfo(node, "/bpp_bvp_mvp_pipeline_test/");
   setVehicleInfo(node, "/bpp_bvp_mvp_pipeline/bpp/");
   ros::NodeHandle bpp_private("/bpp_bvp_mvp_pipeline/bpp");
+  aw149::test::loadSideShiftFixture(bpp_private);
+  ros::NodeHandle bvp_private("/bpp_bvp_mvp_pipeline_test");
+  aw149::test::loadBvpSmootherFixture(bvp_private);
   ros::NodeHandle converter_private("/bpp_bvp_mvp_pipeline/converter");
   ros::NodeHandle mvp_private("/bpp_bvp_mvp_pipeline/mvp");
   converter_private.setParam("input_topic", "/bpp_bvp_mvp_pipeline_test/output/path");

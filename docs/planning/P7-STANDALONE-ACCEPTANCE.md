@@ -68,3 +68,10 @@ adds only BPP/BVP test-fixture compatibility. On a fresh ROS master,
 `autoware_behavior_velocity_planner` passes 76 tests with zero failures or skips.
 BPP direct-core fixture work remains open, and the P7.1 runtime claim is unchanged.
 See [planning-test-fixture-r002.json](evidence/planning-test-fixture-r002.json).
+
+Checkpoint r005 (`e9ab3cbc8976ef541dc48f98ce64a3a32e2495d00a5fd5a098e8a7c0873713af`)
+then closes the BPP transport and Mission to BPP to BVP to MVP fixture gaps.
+The isolated BPP package result improved from 14 to 2 catkin-reported failures
+out of 58 tests. Both reports are the single preserved direct-core side-shift
+activation oracle; its expectation was not weakened. See
+[planning-test-fixture-r003.json](evidence/planning-test-fixture-r003.json).

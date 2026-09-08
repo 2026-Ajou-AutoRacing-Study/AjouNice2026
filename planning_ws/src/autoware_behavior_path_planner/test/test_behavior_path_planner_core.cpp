@@ -3,6 +3,8 @@
 #include <autoware/lanelet2_utils/conversion.hpp>
 #include <autoware/route_handler/route_handler.hpp>
 
+#include "ros1_side_shift_fixture.hpp"
+
 #include <gtest/gtest.h>
 
 #include <cstdlib>
@@ -27,6 +29,7 @@ autoware::behavior_path_planner::BppInputState readyState()
 TEST(BehaviorPathPlannerCore, BlocksMissingInputsAndPropagatesNoRequestOutput)
 {
   ros::NodeHandle private_node("bpp_core_missing_inputs");
+  aw149::test::loadSideShiftFixture(private_node);
   autoware::behavior_path_planner::BehaviorPathPlannerCore core(&private_node);
   ASSERT_TRUE(core.isInitialized());
   auto data = std::make_shared<autoware::behavior_path_planner::PlannerData>();
@@ -102,7 +105,9 @@ TEST(BehaviorPathPlannerCore, RunsReadyFrozenRouteThroughStaticSideShiftSlot)
   ASSERT_EQ(std::system(load.c_str()), 0);
 #endif
   ros::NodeHandle private_node(kNamespace);
+  aw149::test::loadSideShiftFixture(private_node);
   private_node.setParam("side_shift/min_distance_to_start_shifting", 1.0);
+  private_node.setParam("side_shift/time_to_start_shifting", 0.0);
   private_node.setParam("side_shift/min_shifting_distance", 2.0);
   private_node.setParam("side_shift/min_shifting_speed", 1.0);
 #ifdef AW149_ENABLE_STATIC_OBSTACLE_AVOIDANCE
@@ -222,8 +227,10 @@ TEST(BehaviorPathPlannerCore, CommittedSourceFixtureDoesNotInventAvoidanceReques
     std::string("rosparam load ") + STATIC_OBSTACLE_AVOIDANCE_CONFIG + " " + kNamespace;
   ASSERT_EQ(std::system(load.c_str()), 0);
   ros::NodeHandle private_node(kNamespace);
+  aw149::test::loadSideShiftFixture(private_node);
   private_node.setParam("enable_static_obstacle_avoidance_module", true);
   private_node.setParam("side_shift/min_distance_to_start_shifting", 1.0);
+  private_node.setParam("side_shift/time_to_start_shifting", 0.0);
   private_node.setParam("side_shift/min_shifting_distance", 2.0);
   private_node.setParam("side_shift/min_shifting_speed", 1.0);
   autoware::behavior_path_planner::BehaviorPathPlannerCore core(&private_node);

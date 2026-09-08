@@ -1,5 +1,7 @@
 #include <autoware/behavior_path_planner/behavior_path_planner_core.hpp>
 
+#include "ros1_side_shift_fixture.hpp"
+
 #include <gtest/gtest.h>
 #include <ros/ros.h>
 
@@ -48,6 +50,7 @@ TEST(BehaviorPathPlannerCore, RequiresExplicitSlotForRequestedSamplingManager)
     ros::init(argc, argv, "bpp_sampling_plugin_host");
   }
   ros::NodeHandle node("bpp_sampling_plugin_host");
+  aw149::test::loadSideShiftFixture(node);
   setSamplingParameters(node);
   node.setParam("launch_modules", std::vector<std::string>{
     "autoware::behavior_path_planner::SamplingPlannerModuleManager"});

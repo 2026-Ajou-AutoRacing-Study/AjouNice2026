@@ -1,4 +1,6 @@
 #include <autoware/behavior_path_planner/behavior_path_planner_ros1_node.hpp>
+
+#include "ros1_side_shift_fixture.hpp"
 #include <autoware/behavior_velocity_planner/node.hpp>
 #include <autoware/lanelet2_utils/conversion.hpp>
 #include <lanelet2_core/LaneletMap.h>
@@ -25,6 +27,9 @@ TEST(BppBvpPipeline, BridgesReadyBppPathIntoBvpOutput) {
   setVehicleInfo(node, "/bpp_bvp_pipeline_test/");
   setVehicleInfo(node, "/bpp_bvp_pipeline/bpp/");
   ros::NodeHandle bpp_private("/bpp_bvp_pipeline/bpp");
+  aw149::test::loadSideShiftFixture(bpp_private);
+  ros::NodeHandle bvp_private("/bpp_bvp_pipeline_test");
+  aw149::test::loadBvpSmootherFixture(bvp_private);
   autoware::behavior_path_planner::BehaviorPathPlannerRos1Node bpp(node, bpp_private);
   autoware::behavior_velocity_planner::BehaviorVelocityPlannerNode bvp(node);
   const auto bvp_input = node.advertise<autoware_internal_planning_msgs::PathWithLaneId>(

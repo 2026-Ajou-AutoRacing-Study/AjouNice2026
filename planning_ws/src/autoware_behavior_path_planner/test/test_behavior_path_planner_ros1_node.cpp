@@ -1,4 +1,6 @@
 #include <autoware/behavior_path_planner/behavior_path_planner_ros1_node.hpp>
+
+#include "ros1_side_shift_fixture.hpp"
 #include <autoware/lanelet2_utils/conversion.hpp>
 #ifdef AW149_ENABLE_STATIC_OBSTACLE_AVOIDANCE
 #include <autoware_test_utils/mock_data_parser.hpp>
@@ -17,6 +19,7 @@ TEST(BehaviorPathPlannerRos1Node, SuppressesUntilReadyThenPublishesLaneDrivingPa
 {
   ros::NodeHandle node;
   ros::NodeHandle planner_node("/bpp_transport_oracle");
+  aw149::test::loadSideShiftFixture(planner_node);
   // VehicleInfoUtils is part of the node's mandatory ROS1 startup contract.
   // Supply the same bounded geometry used by the pipeline fixtures before
   // constructing the node, rather than allowing a zero-footprint fallback.
@@ -133,6 +136,7 @@ TEST(BehaviorPathPlannerRos1Node, CommittedSourceFixtureDoesNotInventAvoidanceRe
     std::system((std::string("rosparam load ") + STATIC_OBSTACLE_AVOIDANCE_CONFIG + " " + kNamespace).c_str()),
     0);
   ros::NodeHandle planner_node(kNamespace);
+  aw149::test::loadSideShiftFixture(planner_node);
   planner_node.setParam("enable_static_obstacle_avoidance_module", true);
   planner_node.setParam("side_shift/min_distance_to_start_shifting", 1.0);
   planner_node.setParam("side_shift/min_shifting_distance", 2.0);
