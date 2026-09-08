@@ -13,6 +13,8 @@
 
 운영 case `route_a_to_b_with_fallback`에서도 정상 trigger의 B 우선 분기와 B 미채택 cutoff의 fallback 분기를 각각 통과했다. status 이력상 정상 분기는 fallback dispatch 0, cutoff 분기는 Route B dispatch 0이며 두 분기 모두 target route의 fresh trajectory/validator까지 도달했다. [production-route-arbitration-r004.json](evidence/production-route-arbitration-r004.json)은 실제 B RPC timeout 뒤 복구나 연속 주행 증거로 확대하지 않는다.
 
+추가로 B trigger에서 비물리적 1000 m/s fault injection을 사용해 기존 Mission 안전검사에 의한 명시적 B 거절을 만든 뒤 cutoff fallback 복구를 2/2 통과했다. 거절 직후 Route A가 active로 유지되고 uncertainty가 false인 것을 확인한 뒤 fallback route와 151점 trajectory, validator 20/20까지 검증했다. 제품 안전 파라미터는 수정하지 않았다. [production-route-rejection-recovery-r005.json](evidence/production-route-rejection-recovery-r005.json)은 RPC timeout/ambiguous 자동복구 증거가 아니다. 그 경우는 의도적으로 operator reconciliation 대상이다.
+
 **인지 입력만 연결하면 정상 trajectory가 보장된다는 뜻은 아니다.** 현재 AjouNice localization/perception/control의 실데이터를 함께 연결한 end-to-end 검사는 완료되지 않았다. 새 graph의 기동 검사는 route/ego/TF/objects/acceleration/mode를 공급하지 않았고, 필요한 입력을 기다리는 상태였다. 지금 계속 주행 graph를 켜두었다는 뜻도 아니다.
 
 동일한 frozen planning source와 v61 fixture를 쓴 최종 P7.1 독립 시험은 Mission→BPP→BVP→MVP→validator graph의 11/11 matrix를 통과했다. Route A/B, normal/experimental BVP, 안전 LC, 점유 차선 geometry, 교차로, red→green, 정적 장애물, moving ego, 입력 복구, 정지 후 reroute가 포함된다. 세부 수치와 해시 계보는 [P7-STANDALONE-ACCEPTANCE.md](P7-STANDALONE-ACCEPTANCE.md)에 있다. 이는 AjouNice 실제 입력, 이동 중 A→B 성공, stale 중 자동 안전 정지, controller 폐루프 승인은 아니다. `149`는 패키지 경계 수이며 동시에 실행할 독립 노드 149개라는 뜻도 아니다.

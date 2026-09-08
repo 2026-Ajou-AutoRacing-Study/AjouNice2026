@@ -23,6 +23,8 @@
 
 실제 운영 설정 `route_a_to_b_with_fallback`의 중재도 두 갈래로 확인했다. 정상 trigger에서는 status가 A 검증→B dispatch/검증으로만 진행해 fallback 호출이 0이었고, B가 채택되지 않은 채 cutoff에 도달한 상태에서는 A 검증→fallback dispatch/검증으로만 진행해 B 호출이 0이었다. 각각 161점/151점 trajectory와 validator 20/20, process death 0이다. [r004 machine receipt](evidence/production-route-arbitration-r004.json)에 두 상태 이력과 raw SHA를 고정했다. 이는 ambiguous/timeout B RPC 직후 fallback 복구 증거는 아니다.
 
+명시적 B 안전거절 뒤 fallback 복구는 별도 fault injection으로 2/2 통과했다. B trigger에서 기존 Mission 안전 공식을 확실히 발동시키기 위해 합성 속도 1000 m/s를 사용했으며 제품 안전거리·route·requester 설정은 바꾸지 않았다. 두 번 모두 `VERIFIED A → DISPATCHED B → REJECTED B → DISPATCHED fallback → VERIFIED fallback`, 거절 직후 `active=route_a`, `uncertain=false`, 최종 151점과 validator 20/20, process death 0이었다. [r005 machine receipt](evidence/production-route-rejection-recovery-r005.json)는 이 값이 실제 차량 조건이 아니라 분기 fault injection임을 명시한다. RPC timeout/ambiguous 결과는 설계상 자동 fallback하지 않고 operator reconciliation을 요구하므로 이 검사 범위가 아니다.
+
 같은 checkpoint와 v61 fixture의 최종 P7.1 standalone graph는 11/11을 통과했다. Route A/B, BVP 양 모드, 안전/점유 차선 LC, 교차로, red→green, 정적 장애물 정지, moving ego, 2초 입력 복구, 안전 규약을 유지한 reroute를 Mission→validator 동일 graph에서 검증했다. r002 시점 source·map·projector·route hash 일치도 다시 확인했다. 상세 범위와 제외 항목은 [P7-STANDALONE-ACCEPTANCE.md](P7-STANDALONE-ACCEPTANCE.md)와 [machine receipt](evidence/p7-standalone-reconciliation.json)에 있다.
 
 현재 source audit은 loop reroute 수정까지 포함한 checkpoint r011을 기준으로 3,999개 planning source와 6,589개 provider source의 해시·누락·ignore·중복을 통과했다. r010에서 수행한 planning 154개 `run_tests` 전면 재실행은 154/154 타깃과 실제 JUnit 1,288 testcase가 errors/failures/skips 0이었다. r011 delta는 Mission package 재빌드, Mission initialization oracle 1/1, requester private-master transport 11/11, base 24/24·114/114, full graph A→B 2/2와 A→fallback 2/2로 재검증했다. r010 전면 결과를 r011 전체 재실행으로 오표기하지 않는다.
@@ -71,6 +73,8 @@ roslaunch ajounice_planning_integration morai_planning_stack.launch \
 clean 설치본의 24개 필수 노드 생존과 v61 binary map 수신을 격리된 master에서 재검사하려면 `bash scripts/runtime/smoke_planning_stack.sh`를 실행한다. 25초 재검사 결과는 [machine receipt](evidence/clean-install-runtime-smoke-r001.json)에 있다. 이는 외부 입력을 주입하지 않는 기동 검사이므로 trajectory 생성이나 폐루프 합격으로 승격하지 않는다.
 
 설치된 통합 launch에서 합성 입력을 넣고 Route A부터 최종 trajectory와 validator까지 재검사하려면 direct 기준선은 `bash scripts/runtime/verify_integrated_planning_output.sh`, production requester까지 포함한 검사는 `AW149_OUTPUT_PROBE_USE_REQUESTER=1 bash scripts/runtime/verify_integrated_planning_output.sh`를 실행한다. production 정상 B 분기는 `AW149_OUTPUT_PROBE_USE_REQUESTER=1 AW149_OUTPUT_PROBE_ROUTE_CASE=route_a_to_b_with_fallback AW149_OUTPUT_PROBE_TRANSITION_SPEED_MPS=2.0 bash scripts/runtime/verify_integrated_planning_output.sh`, cutoff fallback 분기는 같은 명령에 `AW149_OUTPUT_PROBE_FORCE_FALLBACK=1`을 추가한다. requester 검사는 각 route의 `VERIFIED`와 연속 3개 fresh validated output을 요구한다. 모두 output-only 배선 검사이며 실제 MORAI 센서 의미나 controller를 대신하지 않는다.
+
+명시적 B 거절 뒤 fallback 회귀는 production 명령에 `AW149_OUTPUT_PROBE_FORCE_B_REJECTION=1`을 추가한다. 기본 1000 m/s는 안전거절 분기만 결정적으로 발동시키는 비물리적 테스트 입력이다. 하네스는 B의 `REJECTED`, `active=route_a`, `uncertain=false`를 먼저 확인한 뒤 2 m/s cutoff fallback과 최종 validator를 요구한다.
 
 base 전체 회귀는 `bash scripts/workspace/test_base.sh`로 실행한다. 현재 clean build에서 24/24 package test target, catkin 집계 114 tests가 모두 통과했다. [machine receipt](evidence/base-clean-test-r001.json)는 이 검사가 planning 149 자체의 전체 테스트 수가 아니라 base overlay 회귀임을 구분한다.
 

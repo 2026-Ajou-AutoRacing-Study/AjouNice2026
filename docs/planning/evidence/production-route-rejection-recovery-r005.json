@@ -1,0 +1,66 @@
+{
+  "schema": "ajounice.aw149.production_route_rejection_recovery.v1",
+  "recorded_at": "2026-09-08T22:22:00+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "parent_commit": "1840f940b39a70019724e9f43c3b2a32017288c1",
+  "status": "PASS",
+  "operation_case": "route_a_to_b_with_fallback",
+  "fault_injection": {
+    "location": "wp_200178",
+    "synthetic_speed_mps": 1000.0,
+    "purpose": "Deterministically exceed the unchanged Mission reroute safety length; this is not a physical vehicle scenario.",
+    "production_rules_changed": false
+  },
+  "expected_status_sequence": [
+    "READY",
+    "DISPATCHED(route_a)",
+    "VERIFIED(route_a)",
+    "DISPATCHED(route_b)",
+    "REJECTED(route_b)",
+    "DISPATCHED(fallback_route)",
+    "VERIFIED(fallback_route)"
+  ],
+  "runs": [
+    {
+      "master_port": 11591,
+      "status": "PASS",
+      "route_b_rejection_seconds": 0.2074765680008568,
+      "route_b_rejection_detail": "New route is not safe. Reroute failed.",
+      "active_after_rejection": "route_a",
+      "uncertain_after_rejection": false,
+      "fallback_verification_seconds": 0.4150994410010753,
+      "fallback_transition_speed_mps": 2.0,
+      "final_route_lanelets": 28,
+      "final_trajectory_points": 151,
+      "validator_flags_true": "20/20",
+      "process_deaths": 0,
+      "raw_result_sha256": "2ff1b9ae166361a30ba130b0b5b695c9c5cdd922f3e6b68c76c5cb90307bff6b"
+    },
+    {
+      "master_port": 11592,
+      "status": "PASS",
+      "route_b_rejection_seconds": 0.10339740000199527,
+      "route_b_rejection_detail": "New route is not safe. Reroute failed.",
+      "active_after_rejection": "route_a",
+      "uncertain_after_rejection": false,
+      "fallback_verification_seconds": 0.4157565740024438,
+      "fallback_transition_speed_mps": 2.0,
+      "final_route_lanelets": 28,
+      "final_trajectory_points": 151,
+      "validator_flags_true": "20/20",
+      "process_deaths": 0,
+      "raw_result_sha256": "e08f1678f680a3436a12fd2cc3dda03f96e9aec4e6d0f292c6793d84cf04a3cb"
+    }
+  ],
+  "harness_sha256": "856b31387c8e79af825f328dc398112ca38bbcd332f8bdb0ff7c3550f3f294b6",
+  "claim_boundary": {
+    "proven": "An explicit Route B safety rejection leaves Route A active and uncertainty false, after which the production finish guard dispatches and verifies the fallback route at its cutoff. The full installed planning graph produces a fresh 151-point trajectory accepted by all 20 validator flags in two isolated runs.",
+    "not_proven": [
+      "fallback after an ambiguous or timed-out Route B RPC, which intentionally requires operator reconciliation",
+      "that 1000 m/s is a physical or supported vehicle state",
+      "continuous travel between trigger poses",
+      "live MORAI input semantics",
+      "controller closed-loop driving"
+    ]
+  }
+}

@@ -38,6 +38,8 @@ route_case = os.environ.get("AW149_OUTPUT_PROBE_ROUTE_CASE", "route_a_only")
 transition_speed_mps = float(os.environ.get("AW149_OUTPUT_PROBE_TRANSITION_SPEED_MPS", "2.0"))
 input_period_s = float(os.environ.get("AW149_OUTPUT_PROBE_INPUT_PERIOD_S", "0.1"))
 force_fallback = os.environ.get("AW149_OUTPUT_PROBE_FORCE_FALLBACK", "0") == "1"
+force_b_rejection = os.environ.get("AW149_OUTPUT_PROBE_FORCE_B_REJECTION", "0") == "1"
+b_rejection_speed_mps = float(os.environ.get("AW149_OUTPUT_PROBE_B_REJECTION_SPEED_MPS", "1000.0"))
 if not math.isfinite(input_period_s) or input_period_s <= 0.0 or input_period_s > 0.25:
     raise ValueError("AW149_OUTPUT_PROBE_INPUT_PERIOD_S must be in (0, 0.25]")
 if route_case not in (
@@ -49,8 +51,15 @@ if route_case != "route_a_only" and not use_requester:
     raise ValueError("route transition probes require AW149_OUTPUT_PROBE_USE_REQUESTER=1")
 if force_fallback and route_case != "route_a_to_b_with_fallback":
     raise ValueError("AW149_OUTPUT_PROBE_FORCE_FALLBACK requires route_a_to_b_with_fallback")
-transition_to_b = route_case in ("route_a_to_b", "route_a_to_b_with_fallback") and not force_fallback
-transition_to_fallback = route_case == "route_a_to_fallback" or force_fallback
+if force_b_rejection and route_case != "route_a_to_b_with_fallback":
+    raise ValueError("AW149_OUTPUT_PROBE_FORCE_B_REJECTION requires route_a_to_b_with_fallback")
+if force_fallback and force_b_rejection:
+    raise ValueError("forced fallback and forced B rejection are mutually exclusive")
+if not math.isfinite(b_rejection_speed_mps) or b_rejection_speed_mps <= 0.0:
+    raise ValueError("AW149_OUTPUT_PROBE_B_REJECTION_SPEED_MPS must be positive and finite")
+transition_to_b = (route_case in ("route_a_to_b", "route_a_to_b_with_fallback") and
+                   not force_fallback and not force_b_rejection)
+transition_to_fallback = route_case == "route_a_to_fallback" or force_fallback or force_b_rejection
 
 
 def make_pose(value):
@@ -174,7 +183,8 @@ def receive(message, key):
             status = json.loads(message.data)
         except (TypeError, ValueError):
             return
-        compact = {name: status.get(name) for name in ("phase", "route_key", "verified_active", "generation")}
+        compact = {name: status.get(name) for name in (
+            "phase", "route_key", "detail", "verified_active", "uncertain", "generation")}
         if not request_status_history or compact != request_status_history[-1]:
             request_status_history.append(compact)
 
@@ -266,6 +276,7 @@ result = {
     "route_request_mode": "competition_route_requester" if use_requester else "direct_service_probe",
     "route_operation_case": route_case,
     "forced_fallback_branch": force_fallback,
+    "forced_b_rejection_branch": force_b_rejection,
     "synthetic_input_period_seconds": input_period_s,
     "process_deaths_before_shutdown": deaths,
     "not_proven": [
@@ -328,6 +339,28 @@ try:
         if not requester_verified("route_a"):
             raise RuntimeError("competition_route_requester did not verify Route A: " + str(requester_status))
         result["requester_status"] = requester_status
+
+        if force_b_rejection:
+            odom.pose.pose = make_pose(route_config["poses"]["wp_200178"])
+            odom.twist.twist.linear.x = b_rejection_speed_mps
+            generation_before = requester_status.get("generation", 0)
+            started_rejection = time.monotonic()
+            deadline = started_rejection + 30.0
+            rejected = None
+            while time.monotonic() < deadline:
+                tick()
+                rejected = next((status for status in reversed(request_status_history)
+                    if status.get("phase") == "REJECTED" and status.get("route_key") == "route_b" and
+                    status.get("generation", 0) > generation_before), None)
+                if rejected is not None:
+                    break
+            if rejected is None:
+                raise RuntimeError("Route B did not produce an explicit safety rejection")
+            if rejected.get("uncertain") or rejected.get("verified_active") != "route_a":
+                raise RuntimeError("explicit Route B rejection corrupted requester state: " + str(rejected))
+            result["route_b_explicit_rejection"] = rejected
+            result["route_b_rejection_seconds"] = time.monotonic() - started_rejection
+            result["route_b_rejection_speed_mps"] = b_rejection_speed_mps
 
         if transition_to_b:
             route_a_counts = counts.copy()
