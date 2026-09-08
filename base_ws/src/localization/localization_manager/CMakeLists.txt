@@ -38,3 +38,9 @@ install(DIRECTORY launch/
 install(DIRECTORY rviz/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/rviz
 )
+
+if(CATKIN_ENABLE_TESTING)
+  find_package(rostest REQUIRED)
+  catkin_add_nosetests(test/test_morai_gt_contract.py)
+  add_rostest(test/morai_gt_transport.test)
+endif()

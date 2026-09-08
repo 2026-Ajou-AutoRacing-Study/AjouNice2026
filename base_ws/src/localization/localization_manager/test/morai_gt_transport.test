@@ -1,0 +1,16 @@
+<launch>
+  <node pkg="tf2_ros"
+        type="static_transform_publisher"
+        name="test_map_to_morai_map"
+        args="131.559130220 545.911338186 0 0 0 0 map morai_map"/>
+
+  <include file="$(find localization_manager)/launch/morai_gt.launch">
+    <arg name="config"
+         value="$(find localization_manager)/test/localization_manager_test.yaml"/>
+  </include>
+
+  <test test-name="morai_gt_transport"
+        pkg="localization_manager"
+        type="test_morai_gt_transport.py"
+        time-limit="15"/>
+</launch>

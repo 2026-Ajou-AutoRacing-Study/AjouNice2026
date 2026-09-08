@@ -26,5 +26,8 @@
   <exec_depend>lanelet_map_visualizer</exec_depend>
   <exec_depend>tf_pub</exec_depend>
 
+  <test_depend>python3-nose</test_depend>
+  <test_depend>rostest</test_depend>
+
   <export/>
 </package>

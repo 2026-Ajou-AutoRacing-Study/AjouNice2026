@@ -30,7 +30,7 @@ Scenario Selector에는 parking 분기도 연결돼 있다. lane-driving scenari
 | B1 | 통합/빌드 | **완료:** submodule/고정 Livox SDK 준비, planning→base 24/24 clean install | 낡은 devel 혼입 차단 |
 | P1 | 객체 예측 | **완료:** Duration 필드와 소비자/테스트 변환 | Python 메시지 직렬화 통과 |
 | P2 | 신호 인식 | **완료:** Time 변환, helper/weights 설치, v61 설정, route state 관리 | clean install 기동·계약 검사 통과 |
-| L1 | Localization | 실제 acceleration, 좌표계/속도/TF/clock 계약 | BPP/BVP/MVP/validator 필수 입력 |
+| L1 | Localization | **정적 계약 완료:** MORAI acceleration 전달 및 odometry와 동일 stamp ROS transport. 실 MORAI 축·단위·TF/clock 동적 검증은 남음 | BPP/BVP/MVP/validator 필수 입력 |
 | P3 | 인지/LiDAR | 실제 ground-free cloud와 occupancy 공급 | 대상 plugin의 판단 입력, occupancy는 BPP cyclic readiness에도 사용 |
 | S1 | System/차량 인터페이스 | 실제 mode/engage 상태 공급, mode 토픽 두 경로 정합 | 초기 경로/재경로/주행 상태 판단 |
 | C1 | 제어 | **코드 연결 완료:** follower 입력 `/planning/trajectory`; 실데이터 source age·validator 승인은 남음 | output-only 후 폐루프 순서 유지 |
@@ -133,7 +133,7 @@ native `header.stamp`는 그대로 유지한다. 음수 duration도 nsec 범위�
 | 항목 | 현재 | 필요한 조치 |
 |---|---|---|
 | Odometry | `localization_manager/scripts/morai_gt_kinematic_state_publisher.py:173–183`이 `/localization/kinematic_state` 발행 | topic/type는 유지. map pose, base_link twist, m/s·rad/s, 측정 stamp 확인 |
-| GT acceleration | `localization_manager/launch/morai_gt.launch`에 공급 없음 | Ego acceleration 또는 검증된 estimator를 AccelWithCovarianceStamped로 제공. 축·단위·중력 포함 여부 확인 |
+| GT acceleration | `morai_gt_kinematic_state_publisher.py`가 `/Ego_topic.acceleration`을 `/localization/acceleration`으로 직접 전달 | 동일 stamp/base_link frame의 AccelWithCovarianceStamped. 실 MORAI에서 축·단위·중력 포함 여부 확인 |
 | CTRA acceleration | `localization_manager/launch/gnss_imu_gt_ctra.launch:145`, `configs/localization/robot_localization_gnss_imu_gt_ctra_global.yaml:5`에 설정 존재 | 이 모드의 실제 실행 시 `/localization/acceleration` 발행과 covariance 확인 |
 | 일반 GNSS/IMU | `robot_localization_gnss_imu_{local,global}.yaml`의 publish_acceleration=false | 선택 모드에 맞게 estimator 출력과 remap을 추가 |
 | TF | GT는 `map → morai_map → base_link` | chain 유지 가능. 센서 TF 포함, 같은 edge에 복수 publisher 금지 |
@@ -141,7 +141,7 @@ native `header.stamp`는 그대로 유지한다. 음수 duration도 nsec 범위�
 
 GT 노드는 `EgoVehicleStatus.velocity`를 base_link twist로 복사한다. 해당 MORAI 설정에서 실제 body frame 속도인지 회전 주행으로 확인해야 한다. `sensor_interface/config/lidar_preprocess.yaml`도 `morai_velocity_frame=base_link`를 가정한다. 이름만 맞춰도 두 가정이 틀리면 deskew와 planning 양쪽이 틀어진다.
 
-GT covariance는 unavailable로 설명돼 있다. 이를 실제 추정 covariance 검증까지 완료했다고 취급하지 않는다. acceleration은 `geometry_msgs/AccelWithCovarianceStamped`, `header.frame_id=base_link`로 해당 차량축 성분을 공급하는 설계를 확인한다. 차체 roll/pitch·중력·yaw 회전 때의 부호도 검증한다.
+GT covariance는 unavailable로 설명돼 있다. 이를 실제 추정 covariance 검증까지 완료했다고 취급하지 않는다. acceleration은 `geometry_msgs/AccelWithCovarianceStamped`, `header.frame_id=base_link`로 MORAI Ego 측정값을 보존해 공급한다. 차체 roll/pitch·중력·yaw 회전 때의 축·부호·단위는 실제 입력으로 검증한다.
 
 ## 8. P3 — pointcloud와 occupancy 공급
 

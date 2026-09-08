@@ -12,7 +12,7 @@
 - `ajounice_planning_integration/morai_planning_stack.launch`가 localization, sensor TF, object tracking/prediction, traffic light, v61 binary map, Mission→BPP→BVP→MVP graph를 묶는다.
 - detector checkpoint는 Git에 없으므로 detector, controller, route requester는 안전상 기본 `false`다.
 
-현재 로컬 증거는 planning source audit PASS, base 24/24 clean install, object pipeline 21 tests, tracker 14 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 10 tests다. v61 통합 graph는 23개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다.
+현재 로컬 증거는 planning source audit PASS, base 24/24 clean install, object pipeline 21 tests, tracker 14 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 10 tests다. MORAI GT localization은 변환 단위검사 1개와 실제 ROS transport 1개를 통과했고, 한 Ego 입력에서 odometry/acceleration이 동일 stamp로 발행됨을 확인했다. v61 통합 graph는 23개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다.
 
 이 증거는 **실제 입력으로 trajectory가 나온다거나 폐루프 주행이 승인됐다는 뜻은 아니다.** 외부 입력이 없던 기동에서는 route, ego/TF, objects, acceleration, operation mode를 기다리는 것이 정상 상태였다.
 
@@ -56,7 +56,7 @@ FastBEV 또는 PointPainting을 켜려면 checkpoint 파일을 별도로 배포�
 | 담당 | topic/type | 현재 판단과 필요한 조치 |
 |---|---|---|
 | Localization | `/localization/kinematic_state` `nav_msgs/Odometry` | 이름은 맞음. map pose/base_link twist, stamp, m/s·rad/s 검증 |
-| Localization | `/localization/acceleration` `geometry_msgs/AccelWithCovarianceStamped` | MORAI GT launch에는 production 공급자가 없음. 측정 또는 검증된 estimator 필요 |
+| Localization | `/localization/acceleration` `geometry_msgs/AccelWithCovarianceStamped` | MORAI GT launch가 `/Ego_topic.acceleration`을 동일 stamp/base_link frame으로 직접 공급. 실 MORAI에서 축·단위·중력 포함 여부는 동적 확인 필요 |
 | Perception | `/perception/object_recognition/objects` `autoware_perception_msgs/PredictedObjects` | 변환/직렬화는 수정됨. 실제 detector→tracker→predictor frame, age, rate 확인 |
 | Perception | `/perception/obstacle_segmentation/pointcloud` `sensor_msgs/PointCloud2` | production ground-removal 출력 미확인. deskewed cloud 단순 remap 금지 |
 | Perception | `/perception/occupancy_grid_map/map` `nav_msgs/OccupancyGrid` | production publisher 미확인. 빈 free grid로 합격시키지 않음 |
