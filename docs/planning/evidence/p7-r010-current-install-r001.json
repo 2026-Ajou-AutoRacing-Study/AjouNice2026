@@ -1,6 +1,6 @@
 {
   "schema": "ajounice.aw149.p7_current_install.v1",
-  "recorded_at": "2026-09-08T21:02:00+09:00",
+  "recorded_at": "2026-09-08T20:45:00+09:00",
   "branch": "planning/autoware-universe-to-ros1",
   "commit": "6c2befbe",
   "scope": "CHECKPOINT_R010_CLEAN_INSTALL_ACTUAL_KCITY_V61_STANDALONE_MATRIX",

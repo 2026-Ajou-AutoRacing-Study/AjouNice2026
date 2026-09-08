@@ -15,6 +15,8 @@
 
 현재 로컬 증거는 planning source audit PASS, planning 154/154와 base 24/24 clean install, planning 설치 ELF 230개 링크 감사, install runtime 자산 전수 감사, 현재 지원하는 설치본 launch 19/19 파싱, object pipeline 21 tests, tracker 14 tests, tracking/prediction evaluation 29 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 10 tests다. base clean 결과물의 전체 회귀는 24/24 target, JUnit 114 tests가 오류·실패·스킵 없이 통과했다. MORAI GT localization은 실제 주행 bag의 이동 구간 250개 표본에서 odometry/acceleration 동일 stamp와 acceleration 값 보존을 확인했다. operation-mode `/system`→`/api` relay도 ROS transport 검사를 통과했다. v61 통합 graph는 24개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다. 최신 clean build와 launch 결과는 [machine receipt](evidence/planning-clean-integration-r002.json)에 고정했다.
 
+추가로 설치된 AjouNice `morai_planning_stack.launch`를 대상으로 한 output-only probe가 독립 실행 2/2를 통과했다. 합성 입력과 Route A를 넣었을 때 47개 route lanelet, `/planning/trajectory` 10개와 `/planning/validation_status` 10개가 나왔고 최신 trajectory 111점과 validator 20개 flag가 모두 유효했다. 이는 통합 launch의 입력부터 trajectory까지의 정적 배선을 확인한 결과이며 실제 MORAI 입력 의미나 controller 폐루프 결과는 아니다. [machine receipt](evidence/integrated-output-probe-r001.json)에 두 raw result SHA를 기록했다.
+
 같은 checkpoint와 v61 fixture의 최종 P7.1 standalone graph는 11/11을 통과했다. Route A/B, BVP 양 모드, 안전/점유 차선 LC, 교차로, red→green, 정적 장애물 정지, moving ego, 2초 입력 복구, 안전 규약을 유지한 reroute를 Mission→validator 동일 graph에서 검증했다. r002 시점 source·map·projector·route hash 일치도 다시 확인했다. 상세 범위와 제외 항목은 [P7-STANDALONE-ACCEPTANCE.md](P7-STANDALONE-ACCEPTANCE.md)와 [machine receipt](evidence/p7-standalone-reconciliation.json)에 있다.
 
 현재 source audit은 test-only checkpoint r010을 기준으로 한다. planning 154개 `run_tests` 타깃을 패키지별 독립 ROS master/ROS_HOME과 `-j1`에서 전면 재실행해 154/154 완료했으며, 테스트를 선언한 87개 패키지의 실제 JUnit 1,288 testcase가 errors/failures/skips 0으로 통과했다. 테스트가 없는 67개 패키지는 타깃 완료만 증명한다. 상세 범위는 [planning-test-audit-r002.json](evidence/planning-test-audit-r002.json)에 있으며 runtime/P7/폐루프 합격으로 확대하지 않는다.
@@ -61,6 +63,8 @@ roslaunch ajounice_planning_integration morai_planning_stack.launch \
 ```
 
 clean 설치본의 24개 필수 노드 생존과 v61 binary map 수신을 격리된 master에서 재검사하려면 `bash scripts/runtime/smoke_planning_stack.sh`를 실행한다. 25초 재검사 결과는 [machine receipt](evidence/clean-install-runtime-smoke-r001.json)에 있다. 이는 외부 입력을 주입하지 않는 기동 검사이므로 trajectory 생성이나 폐루프 합격으로 승격하지 않는다.
+
+설치된 통합 launch에서 합성 입력을 넣고 Route A부터 최종 trajectory와 validator까지 재검사하려면 `bash scripts/runtime/verify_integrated_planning_output.sh`를 실행한다. 이 검사는 output-only 배선 검사이며 실제 MORAI 센서 의미나 controller를 대신하지 않는다.
 
 base 전체 회귀는 `bash scripts/workspace/test_base.sh`로 실행한다. 현재 clean build에서 24/24 package test target, catkin 집계 114 tests가 모두 통과했다. [machine receipt](evidence/base-clean-test-r001.json)는 이 검사가 planning 149 자체의 전체 테스트 수가 아니라 base overlay 회귀임을 구분한다.
 
