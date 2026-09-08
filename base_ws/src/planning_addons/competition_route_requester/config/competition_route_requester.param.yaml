@@ -19,7 +19,7 @@ reroute_availability_max_age: 0.5
 reroute_available_hold_time: 0.5
 service_timeout: 5.0
 route_verification_timeout: 5.0
-trajectory_verification_timeout: 5.0
+trajectory_verification_timeout: 30.0
 trajectory_max_age: 0.5
 goal_tolerance_m: 0.5
 retry_initial_interval: 2.0

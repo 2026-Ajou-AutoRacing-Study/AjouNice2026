@@ -24,7 +24,7 @@ from geometry_msgs.msg import AccelWithCovarianceStamped, Pose, TransformStamped
 from nav_msgs.msg import Odometry, OccupancyGrid
 from sensor_msgs import point_cloud2
 from sensor_msgs.msg import PointCloud2
-from std_msgs.msg import Header
+from std_msgs.msg import Header, String
 from tf.transformations import quaternion_from_euler
 
 
@@ -33,6 +33,7 @@ result_path = Path(os.environ["AW149_OUTPUT_PROBE_RESULT"]).resolve()
 route_path = repo / "base_ws/src/planning_addons/competition_route_requester/config/kcity_v61_competition_route.yaml"
 route_config = yaml.safe_load(route_path.read_text())
 selected = route_config["route_a"]
+use_requester = os.environ.get("AW149_OUTPUT_PROBE_USE_REQUESTER", "0") == "1"
 
 
 def make_pose(value):
@@ -57,7 +58,7 @@ parent = roslaunch.parent.ROSLaunchParent(
         "start_object_pipeline:=false",
         "start_detector:=false",
         "start_traffic_light:=false",
-        "start_requester:=false",
+        "start_requester:=" + ("true" if use_requester else "false"),
         "start_controller:=false",
     ])],
 )
@@ -72,12 +73,22 @@ class Monitor(roslaunch.pmon.ProcessListener):
 parent.process_listeners = [Monitor()]
 rospy.init_node("aw149_integrated_output_probe", anonymous=True)
 latest = {}
-counts = {"map": 0, "route": 0, "route_state": 0, "final": 0, "validation": 0}
+counts = {"map": 0, "route": 0, "route_state": 0, "final": 0, "validation": 0, "request_status": 0}
 
 
 def receive(message, key):
     latest[key] = message
     counts[key] += 1
+
+
+def requester_verified():
+    if "request_status" not in latest:
+        return False
+    try:
+        status = json.loads(latest["request_status"].data)
+    except (TypeError, ValueError):
+        return False
+    return status.get("phase") == "VERIFIED" and status.get("verified_active") == "route_a"
 
 
 subscriptions = [
@@ -86,6 +97,7 @@ subscriptions = [
     rospy.Subscriber("/planning/route_state", RouteState, receive, callback_args="route_state", queue_size=2),
     rospy.Subscriber("/planning/trajectory", Trajectory, receive, callback_args="final", queue_size=10),
     rospy.Subscriber("/planning/validation_status", PlanningValidatorStatus, receive, callback_args="validation", queue_size=10),
+    rospy.Subscriber("/competition_route_requester/request_status", String, receive, callback_args="request_status", queue_size=10),
 ]
 
 
@@ -128,11 +140,13 @@ def tick():
     grid_pub.publish(grid)
     far_point = [(odom.pose.pose.position.x + 100.0, odom.pose.pose.position.y + 100.0, 1.0)]
     cloud_pub.publish(point_cloud2.create_cloud_xyz32(Header(frame_id="map", stamp=now), far_point))
-    mode_pub.publish(OperationModeState(
+    mode = OperationModeState(
         mode=OperationModeState.AUTONOMOUS,
         is_autoware_control_enabled=True,
         is_autonomous_mode_available=True,
-    ))
+    )
+    mode.stamp.sec, mode.stamp.nanosec = now.secs, now.nsecs
+    mode_pub.publish(mode)
     transform = TransformStamped(header=Header(frame_id="map", stamp=now), child_frame_id="base_link")
     transform.transform.translation.x = odom.pose.pose.position.x
     transform.transform.translation.y = odom.pose.pose.position.y
@@ -151,6 +165,7 @@ result = {
     "launch": str(launch_file),
     "route_fixture": str(route_path),
     "counts": counts,
+    "route_request_mode": "competition_route_requester" if use_requester else "direct_service_probe",
     "process_deaths_before_shutdown": deaths,
     "not_proven": [
         "live MORAI topic, frame, timestamp, or unit semantics",
@@ -177,25 +192,35 @@ try:
     if "route_state" not in latest or latest["route_state"].state != RouteState.UNSET:
         raise RuntimeError("mission planner did not reach UNSET readiness")
 
-    request = SetWaypointRouteRequest()
-    request.header = Header(frame_id="map", stamp=rospy.Time.now())
-    request.uuid.uuid = list(uuid.UUID(selected["uuid"]).bytes)
-    request.allow_modification = bool(selected["allow_modification"])
-    for reference in selected["waypoint_refs"]:
-        request.waypoints.append(make_pose(route_config["poses"][reference]))
-    request.goal_pose = make_pose(route_config["poses"][selected["goal_ref"]])
-    response = rospy.ServiceProxy("/planning/set_waypoint_route", SetWaypointRoute)(request)
-    if not response.status.success:
-        raise RuntimeError("route rejected: " + str(response))
+    if not use_requester:
+        request = SetWaypointRouteRequest()
+        request.header = Header(frame_id="map", stamp=rospy.Time.now())
+        request.uuid.uuid = list(uuid.UUID(selected["uuid"]).bytes)
+        request.allow_modification = bool(selected["allow_modification"])
+        for reference in selected["waypoint_refs"]:
+            request.waypoints.append(make_pose(route_config["poses"][reference]))
+        request.goal_pose = make_pose(route_config["poses"][selected["goal_ref"]])
+        response = rospy.ServiceProxy("/planning/set_waypoint_route", SetWaypointRoute)(request)
+        if not response.status.success:
+            raise RuntimeError("route rejected: " + str(response))
 
     started = time.monotonic()
     deadline = started + 120.0
     while time.monotonic() < deadline:
         tick()
-        if counts["final"] >= 10 and counts["validation"] >= 10:
+        outputs_ready = counts["final"] >= 10 and counts["validation"] >= 10
+        if outputs_ready and (not use_requester or requester_verified()):
             break
     if counts["final"] < 10 or counts["validation"] < 10:
         raise RuntimeError("insufficient integrated outputs: " + str(counts))
+
+    if use_requester:
+        if "request_status" not in latest:
+            raise RuntimeError("competition_route_requester published no status")
+        requester_status = json.loads(latest["request_status"].data)
+        if not requester_verified():
+            raise RuntimeError("competition_route_requester did not verify Route A: " + str(requester_status))
+        result["requester_status"] = requester_status
 
     expected_lanelets = selected["expected_path_lanelet_ids"]
     observed_lanelets = [segment.preferred_primitive.id for segment in latest["route"].segments]

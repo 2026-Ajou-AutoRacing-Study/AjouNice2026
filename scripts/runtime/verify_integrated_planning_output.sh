@@ -44,9 +44,11 @@ if [[ "$ready" != "true" ]]; then
   exit 1
 fi
 
-if ! timeout "$timeout_s" python3 \
+if timeout "$timeout_s" python3 \
   "$REPO_ROOT/scripts/runtime/verify_integrated_planning_output.py" \
   >"$RUN_DIR/probe.log" 2>&1; then
+  :
+else
   code=$?
   echo "ERROR: integrated output probe failed with code $code. Logs: $RUN_DIR" >&2
   tail -120 "$RUN_DIR/probe.log" >&2
