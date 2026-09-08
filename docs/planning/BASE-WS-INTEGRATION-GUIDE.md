@@ -5,15 +5,17 @@
 
 ## 1. 현재 무엇이 되고, 무엇을 해야 하는가
 
-포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 24개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 24개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 10개 검사를 통과했다. base 설치 뒤 source의 launch/config/RViz 자산이 install에 모두 존재하는지도 빌드 스크립트가 전수 검사한다. 2026-09-08 재감사에서는 삭제된 구형 planning 패키지를 참조하던 `kcity_interactive_trajectory_rviz.launch`와 낡은 안내 문서를 제거했다. 그 뒤 planning 154/154와 base 24/24를 각각 clean build/install하고, 현재 지원하는 설치 launch 19/19를 파싱했다. 최신 상세 영수증은 [planning-clean-integration-r002.json](evidence/planning-clean-integration-r002.json)이다.
+포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 24개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 24개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 11개 검사를 통과했다. base 설치 뒤 source의 launch/config/RViz 자산이 install에 모두 존재하는지도 빌드 스크립트가 전수 검사한다. 2026-09-08 재감사에서는 삭제된 구형 planning 패키지를 참조하던 `kcity_interactive_trajectory_rviz.launch`와 낡은 안내 문서를 제거했다. 그 뒤 planning 154/154와 base 24/24를 각각 clean build/install하고, 현재 지원하는 설치 launch 19/19를 파싱했다. 최신 상세 영수증은 [planning-clean-integration-r002.json](evidence/planning-clean-integration-r002.json)이다.
 
 설치된 `morai_planning_stack.launch` 자체에 정확한 ROS1 타입의 합성 localization, perception, operation-mode, TF를 공급하는 출력 probe도 통과했다. direct Mission service 기준선은 1/1, production `competition_route_requester` 경로는 서로 다른 private master에서 2/2 통과했다. requester 실행 모두 실제 Mission service로 Route A 47 lanelets를 설정하고 연속된 trajectory/validator 증거를 확인해 `VERIFIED(route_a)`로 끝났다. 최신 trajectory 111점, validation flag 20개 true, process death 0이었다. full graph에서 검증 완료까지 약 24.5~25.5초가 필요해 trajectory 관찰 창은 5초에서 30초로 조정했지만 연속 3개 fresh validated output 조건은 낮추지 않았다. 실행 명령과 세 raw result SHA는 [integrated-output-probe-r002.json](evidence/integrated-output-probe-r002.json)에 있다. 이 결과는 base launch 배선과 planning 출력 경로를 증명하지만 실제 MORAI 데이터 의미나 폐루프 제어를 증명하지 않는다.
+
+추가 r011 검사는 Route A 검증 후 합성 odometry를 2 m/s로 바꾸어 production requester→Mission 안전검사→full BPP/BVP/MVP→validator의 A→B와 A→fallback을 현재 artifact에서 각각 2/2 통과했다. Route B는 57 lanelets/161점 trajectory, fallback은 28 lanelets/151점 trajectory였고 모두 validator 20/20 true, process death 0이었다. 순환 Route B 후반의 재방문 lanelet이 현재 공통구간을 가리던 Mission 검색 순서를 target-first로 수정했고 exact primitive·안전거리 검사는 유지했다. 종전 fallback cutoff `200360 s=8 m`는 공통 길이 26.751 m로 30 m 안전기준을 만족할 수 없어 `201446 s=8 m`로 앞당기고 안전기준은 유지했다. 상세는 [integrated-output-probe-r003.json](evidence/integrated-output-probe-r003.json)에 있다. 합성 pose 전환이므로 실제 차가 시작점부터 trigger까지 연속 이동한 결과로 확대하지 않는다.
 
 **인지 입력만 연결하면 정상 trajectory가 보장된다는 뜻은 아니다.** 현재 AjouNice localization/perception/control의 실데이터를 함께 연결한 end-to-end 검사는 완료되지 않았다. 새 graph의 기동 검사는 route/ego/TF/objects/acceleration/mode를 공급하지 않았고, 필요한 입력을 기다리는 상태였다. 지금 계속 주행 graph를 켜두었다는 뜻도 아니다.
 
 동일한 frozen planning source와 v61 fixture를 쓴 최종 P7.1 독립 시험은 Mission→BPP→BVP→MVP→validator graph의 11/11 matrix를 통과했다. Route A/B, normal/experimental BVP, 안전 LC, 점유 차선 geometry, 교차로, red→green, 정적 장애물, moving ego, 입력 복구, 정지 후 reroute가 포함된다. 세부 수치와 해시 계보는 [P7-STANDALONE-ACCEPTANCE.md](P7-STANDALONE-ACCEPTANCE.md)에 있다. 이는 AjouNice 실제 입력, 이동 중 A→B 성공, stale 중 자동 안전 정지, controller 폐루프 승인은 아니다. `149`는 패키지 경계 수이며 동시에 실행할 독립 노드 149개라는 뜻도 아니다.
 
-후속 raw-test 보강은 checkpoint r010까지 별도로 봉인했다. 최신 전면 감사에서는 planning 154개 `run_tests` 타깃을 패키지마다 새 ROS master와 ROS_HOME에서 `-j1`로 실행해 154/154 완료했고, 실제 JUnit 253파일의 1,288 testcase가 errors/failures/skips 0으로 통과했다. 테스트를 선언하지 않은 67개 패키지는 타깃 완료만 증명하며, 이 결과는 P7 11/11이나 실차 폐루프 증거로 승격하지 않는다. 상세 수치는 [planning-test-audit-r002.json](evidence/planning-test-audit-r002.json)에 있다.
+후속 raw-test 전면 보강은 checkpoint r010에 봉인했고, loop reroute delta를 반영한 현재 source audit은 r011이다. r010 전면 감사는 planning 154개 `run_tests` 타깃과 실제 JUnit 1,288 testcase를 통과했다. r011 delta는 Mission 재빌드/oracle, requester transport 11/11, base 24/24·114/114, installed full graph A→B 2/2와 A→fallback 2/2로 검증했으며 아직 r011의 전 154개 테스트를 다시 실행했다는 의미는 아니다.
 
 실제 lane-driving 경로:
 
@@ -258,9 +260,9 @@ URDF와 sensor TF 모두 `base_link=rear axle center`로 문서화돼 있다. in
 
 - 초기에는 YAML case `route_a_only`, 공식 start pose/허용 lanelet을 사용한다. `route_b_only`는 200178 s≥8m 시작 조건이므로 공식 start에서 바로 쓰는 case가 아니다.
 - main 서비스는 `/planning/set_waypoint_route` (`autoware_internal_planning_msgs/SetWaypointRoute`)와 `/planning/set_lanelet_route` (`autoware_planning_msgs/SetLaneletRoute`)다. 직접 LaneletRoute를 발행하거나 Mission 뒤에 route mux를 넣지 않는다.
-- 정상 A→B는 200178 s≥8m부터, 200346 진입 전에 확인돼야 한다. fallback은 200360 s≥8m의 27-lanelet suffix다. 각 case는 SPEC를 따른다.
+- 정상 A→B는 200178 s≥8m부터, 200346 진입 전에 확인돼야 한다. fallback은 Mission의 30 m 안전거리를 보존하도록 201446 s≥8m에서 시작하는 28-lanelet suffix다. 각 case는 SPEC를 따른다.
 - 서비스 timeout·수락 후 UUID/route/trajectory 확인 실패는 `RECONCILIATION_REQUIRED`. 이때 실제 route가 이미 바뀌었을 수 있어 “A 유지”로 가정하거나 맹목적 retry/clear/restart하지 않는다.
-- 현재 trajectory 검증 제한 5s와 실제 전체 pipeline warm-up/latency가 맞는지 확인한다. timeout을 늘려 성공 수를 맞추기 전에 원인과 제어 요구를 측정한다.
+- 현재 trajectory 검증 관찰 창은 60초다. full graph cold-start가 과거 실행에서 30초를 넘긴 부하 편차를 수용하지만, post-route stamp/freshness·finite/shape/frame·validator 20개 flag·연속 3개 출력 조건은 유지한다. requester source-age는 canonical Planning Validator latency checker와 같은 1.0초이고, controller의 0.5초 안전정지는 그대로다. timeout 자체를 성능 승인으로 취급하지 않는다.
 - 새 trajectory에는 route UUID가 없어서 응답·경로 확인 이후 timestamp와 validator 대응은 시간상 연관 증거다. 실제 수락된 경로를 따른 궤적인지 geometry/주행으로 검증해야 한다.
 
 ## 14. 순서대로 확인할 합격 기준
@@ -296,7 +298,7 @@ URDF와 sensor TF 모두 `base_link=rear axle center`로 문서화돼 있다. in
 2. **입력-only**: 실제 sensing/localization/perception/system을 실행. topic 이름·타입·MD5뿐 아니라 frame/단위/원본 timestamp/age/주기/TF 확인. 선택한 모드의 acceleration, occupancy, ground-free cloud 존재 확인. latched map/route와 cyclic 상태 메시지의 유효성 정책을 구분.
 3. **Route A → 최종 trajectory**: controller 송신을 분리한 상태에서 requester A 실행. map, route state, scenario를 거쳐 각 stage의 출력이 연결되는지 확인. `/planning/trajectory`의 finite pose/speed/acceleration·차량 footprint·속도제한·정지점과 `/planning/validation_status` 전체 이력을 기록.
 4. **전체 plugin 적용 여부**: 단순 library load와 실제 기능 개입을 구분. 특히 C2 피드백 없이 BoundaryDeparturePrevention을 완료로 세지 않는다. obstacle stop/slow/cruise, signal stop/release, 관련 intersection/crosswalk 등은 실제 해당 입력으로 확인.
-5. **A/B/fallback 및 LC**: 실제 움직이는 A→B의 deadline, 잘못된/거절된 요청, 안전한 차선변경과 정말 막힌 차선변경 거부, route 변경 뒤 새 trajectory를 검사. 정지시켜서 재경로 성공한 것은 moving 승인과 별도다.
+5. **A/B/fallback 및 LC**: 합성 odometry가 2 m/s인 A→B와 A→fallback, 각 변경 뒤 새 trajectory는 r011에서 통과했다. 실제 연속 이동의 deadline, 잘못된/거절된 요청, 안전한 차선변경과 정말 막힌 차선변경 거부는 실제 입력으로 별도 검사한다. 합성 pose 전환을 폐루프 moving 승인으로 세지 않는다.
 6. **폐루프/복구**: 위 통과 후 follower와 MORAI/차량 연결. 목표 속도 추종·정지·장애물·교차로·신호를 확인하고 input loss/TF loss/stale/clock reset/재경로 실패에서 기대한 정지·복구를 확인한다.
 
 각 run에 route UUID, 지도/차량 config hash, 시작 준비 시간, 안정 구간 output Hz, 최대 gap, source-age/latency 분포, 전체 validator invalid 건수·연속 지속시간, 경로/장애물/차선변경 판정을 남긴다. 고정 정답 수치를 임의로 정하지 말고 현재 제어 timeout 및 실제 주행 조건으로 합격 임계값을 합의한다. 테스트의 마지막 validator 1개가 true였다는 사실만으로 전체 run을 PASS로 처리하지 않는다.

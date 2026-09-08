@@ -99,6 +99,14 @@ poses:
     z: 28.383890000
     yaw_deg: -94.981481
 
+  fallback_cutoff_201446:  # 30 m Mission 안전거리보다 앞에서 fallback을 요청한다.
+    lanelet_id: 201446
+    lanelet_s_m: 8.0
+    x: 204.253201529
+    y: 352.746535896
+    z: 28.383890000
+    yaw_deg: -83.862124
+
   wp_200183:
     lanelet_id: 200183
     lanelet_s_m: 8.0
@@ -274,12 +282,13 @@ route_b:
     - 200210
 
 fallback_route:
-  uuid: "ecb64d95-e029-5f47-94fc-93eee6b2f2a6"  # 정상 Route A/B 요청과 구분되는 fallback UUID다.
+  uuid: "9097215f-7dd7-5adf-8266-556f1857a735"  # 201446 시작 fallback 경로의 고정 UUID다.
   request_type: set_lanelet_route  # waypoint 재탐색 대신 검증된 lanelet segment를 직접 요청한다.
   allow_modification: false
-  hard_cutoff_pose_ref: wp_200360  # 200360의 s=8m에서 결승선 통과 route가 없으면 요청한다.
+  hard_cutoff_pose_ref: fallback_cutoff_201446  # 201446 s=8m에서 안전거리 여유를 두고 요청한다.
   goal_ref: goal_200210
   expected_path_lanelet_ids:  # hard cutoff의 현재 lanelet부터 결승선 이후 goal까지의 비순환 suffix다.
+    - 201446
     - 200360
     - 201454
     - 201447

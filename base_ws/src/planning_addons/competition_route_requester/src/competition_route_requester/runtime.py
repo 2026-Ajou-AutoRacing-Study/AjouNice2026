@@ -8,6 +8,7 @@ import math
 import threading
 import time
 import uuid
+from collections import deque
 from pathlib import Path
 
 import rospy
@@ -140,6 +141,8 @@ class Gateway(Inputs):
         self.generation = 0
         self.trajectory = self.validation = None
         self.traj_count = self.validation_count = 0
+        self.trajectory_samples = deque(maxlen=100)
+        self.validation_samples = deque(maxlen=100)
         self.publisher = rospy.Publisher('/competition_route_requester/request_status', String, queue_size=10, latch=True)
         self.subscribers.extend([
             rospy.Subscriber(self.cfg['trajectory_topic'], Trajectory, self.on_trajectory, queue_size=1),
@@ -150,10 +153,40 @@ class Gateway(Inputs):
     def on_trajectory(self, msg):
         self.trajectory = msg
         self.traj_count += 1
+        self.trajectory_samples.append((self.traj_count, msg))
 
     def on_validation(self, msg):
         self.validation = msg
         self.validation_count += 1
+        self.validation_samples.append((self.validation_count, msg))
+
+    def validated_pairs_after(self, trajectory_count, validation_count):
+        """Pair each buffered trajectory with the first later validation stamp once.
+
+        ROS1 subscriber callbacks are independent.  Looking only at both latest
+        messages can permanently observe trajectory[N+1] beside validation[N]
+        even though every validation is valid.  Bounded queues preserve the
+        frozen post-route stamp and freshness checks without accepting a sample
+        twice or weakening any validator flag.
+        """
+        pairs = []
+        used_trajectory_count = trajectory_count
+        used_validation_count = validation_count
+        trajectories = list(self.trajectory_samples)
+        validations = list(self.validation_samples)
+        for next_trajectory_count, trajectory in trajectories:
+            if next_trajectory_count <= used_trajectory_count:
+                continue
+            trajectory_stamp = stamp(trajectory.header.stamp)
+            match = next((item for item in validations
+                if item[0] > used_validation_count and stamp(item[1].stamp) >= trajectory_stamp), None)
+            if match is None:
+                break
+            next_validation_count, validation = match
+            pairs.append((next_trajectory_count, next_validation_count, trajectory, validation))
+            used_trajectory_count = next_trajectory_count
+            used_validation_count = next_validation_count
+        return pairs
 
     def report(self, phase, key, detail):
         self.last_report = (phase, key, detail)
@@ -262,11 +295,10 @@ class Gateway(Inputs):
                     if progress is None or not policy.in_window(self.routes, key, *progress):
                         self.fault(key, 'verification lost odometry or passed route deadline')
                         return
-                trajectory, status = self.trajectory, self.validation
-                if self.traj_count > tc and self.validation_count > vc and trajectory is not None and status is not None:
+                for next_tc, next_vc, trajectory, status in self.validated_pairs_after(tc, vc):
                     ts, vs = stamp(trajectory.header.stamp), stamp(status.stamp)
+                    tc, vc = next_tc, next_vc
                     if vs >= ts and ts >= fence:
-                        tc, vc = self.traj_count, self.validation_count
                         flags = [getattr(status, field) for field in status.__slots__ if field.startswith('is_valid_')]
                         finite = all(math.isfinite(v) for p in trajectory.points for v in
                             (p.pose.position.x, p.pose.position.y, p.longitudinal_velocity_mps))
@@ -278,6 +310,8 @@ class Gateway(Inputs):
                             self.active = key
                             self.report('VERIFIED', key, 'route identity and three fresh validated outputs; not a closed-loop proof')
                             return
+                    else:
+                        good = 0
                 time.sleep(0.02)
             self.fault(key, 'new trajectory/validator evidence not confirmed before timeout')
         except Exception as error:

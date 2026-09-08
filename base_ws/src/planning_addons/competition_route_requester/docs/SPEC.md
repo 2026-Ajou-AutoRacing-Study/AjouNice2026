@@ -128,9 +128,9 @@ case 변경 절차는 `YAML 수정 -> 전체 launch 재시작`으로 고정한�
 - Route B 최종 goal: `200210`
 - Route B 준비 지점: `200178`, lanelet s 8 m 이상
 - Route B 적용 deadline: `200346` 도달 전
-- fallback UUID: `ecb64d95-e029-5f47-94fc-93eee6b2f2a6`
-- fallback hard cutoff: `200360`, lanelet s 8 m
-- fallback 요청: `SetLaneletRoute`, `200360`부터 goal `200210`까지의 27개 비순환 suffix
+- fallback UUID: `9097215f-7dd7-5adf-8266-556f1857a735`
+- fallback hard cutoff: `201446`, lanelet s 8 m
+- fallback 요청: `SetLaneletRoute`, `201446`부터 goal `200210`까지의 28개 비순환 suffix
 
 start pose는 요청에 넣지 않는다. Mission Planner가 `/localization/kinematic_state`에 대응하는 ROS1 포팅 입력에서 현재 차량 위치를 취득한다.
 
@@ -253,12 +253,14 @@ route_a_to_b_with_fallback:
 
 1. fallback을 포함한 두 case에서만 finish guard를 활성화한다.
 2. 현재 선택 route가 결승선 이후 goal `200210`까지 이어지는지 UUID, goal 및 lanelet suffix로 판정한다.
-3. `route_a_to_fallback`에서는 정상 Route B waypoint 요청을 하지 않고 `wp_200360`의 s 8 m hard cutoff에서 fallback을 시작한다.
-4. `route_a_to_b_with_fallback`에서는 Route B 적용을 먼저 시도하고, `wp_200360`까지 결승선 통과 가능한 Route B가 확인되지 않은 경우에만 fallback으로 승격한다.
-5. fallback builder는 `fallback_route.expected_path_lanelet_ids`의 27개 segment와 goal `200210`을 가진 `SetLaneletRoute` 요청을 만든다.
+3. `route_a_to_fallback`에서는 정상 Route B waypoint 요청을 하지 않고 `201446`의 s 8 m hard cutoff에서 fallback을 시작한다.
+4. `route_a_to_b_with_fallback`에서는 Route B 적용을 먼저 시도하고, `201446` cutoff까지 결승선 통과 가능한 Route B가 확인되지 않은 경우에만 fallback으로 승격한다.
+5. fallback builder는 `fallback_route.expected_path_lanelet_ids`의 28개 segment와 goal `200210`을 가진 `SetLaneletRoute` 요청을 만든다. 기존 `200360` s 8 m 시작은 2 m/s에서도 Mission의 공통 길이 26.751 m가 최소 안전거리 30 m보다 짧아 거절되므로 안전기준을 낮추지 않고 한 lanelet 앞당겼다.
 6. requester는 진행 중인 정상 요청과 fallback 요청을 동시에 보내지 않으며 fallback 요청에 우선권을 준다.
 7. fallback 요청도 RouteSelector main 입력과 Mission Planner의 reroute availability 및 safety 검사를 그대로 통과해야 한다.
 8. Mission Planner가 발행한 새 route와 trajectory가 검증된 뒤에만 `FINISH_ROUTE_ACTIVE`로 판단한다.
+
+requester의 trajectory age 상한은 canonical Planning Validator latency checker와 같은 1.0초다. requester는 validator 20개 flag와 연속 3개 새 출력을 추가로 요구한다. 실제 제어 송신단의 0.5초 source-age 안전정지는 별도이며 완화하지 않는다.
 
 ## 7. 안전 불변 조건
 

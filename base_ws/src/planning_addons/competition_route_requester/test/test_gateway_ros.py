@@ -191,6 +191,23 @@ class GatewayROS(unittest.TestCase):
         self.wait(lambda: self.gateway.uncertain)
         self.assertIsNone(self.gateway.active)
 
+    def test_buffered_trajectory_validation_pairing_is_ordered_and_single_use(self):
+        baseline_trajectory = self.gateway.traj_count
+        baseline_validation = self.gateway.validation_count
+        first_stamp = rospy.Time.now()
+        for offset in (0.0, 0.01, 0.02):
+            trajectory = Trajectory()
+            trajectory.header.stamp = first_stamp + rospy.Duration(offset)
+            status = PlanningValidatorStatus()
+            status.stamp = first_stamp + rospy.Duration(offset + 0.005)
+            self.gateway.on_trajectory(trajectory)
+            self.gateway.on_validation(status)
+        pairs = self.gateway.validated_pairs_after(baseline_trajectory, baseline_validation)
+        self.assertEqual(len(pairs), 3)
+        self.assertEqual([item[0] for item in pairs], list(range(baseline_trajectory + 1, baseline_trajectory + 4)))
+        self.assertEqual([item[1] for item in pairs], list(range(baseline_validation + 1, baseline_validation + 4)))
+        self.assertEqual(self.gateway.validated_pairs_after(pairs[-1][0], pairs[-1][1]), [])
+
     def test_disallowed_case_has_no_rpc(self):
         self.assertFalse(self.client('route_b').accepted)
         self.assertFalse(self.client('fallback_route').accepted)
@@ -199,7 +216,7 @@ class GatewayROS(unittest.TestCase):
     def test_fallback_builder_serialization(self):
         request = self.gateway.build_request('fallback_route')
         request.serialize(io.BytesIO())
-        self.assertEqual(len(request.segments), 27)
+        self.assertEqual(len(request.segments), len(self.routes['fallback_route']['expected_path_lanelet_ids']))
         self.assertEqual([x.preferred_primitive.id for x in request.segments],
                          self.routes['fallback_route']['expected_path_lanelet_ids'])
         self.assertEqual(str(uuid.UUID(bytes=bytes(request.uuid.uuid))), self.routes['fallback_route']['uuid'])
@@ -221,7 +238,7 @@ class GatewayROS(unittest.TestCase):
         self.transition('route_b', 'wp_200178')
 
     def test_fallback_transport(self):
-        self.transition('fallback_route', 'wp_200360')
+        self.transition('fallback_route', self.routes['fallback_route']['hard_cutoff_pose_ref'])
 
 
 if __name__ == '__main__':

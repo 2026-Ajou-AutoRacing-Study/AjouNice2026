@@ -36,7 +36,7 @@ Route B 이동 중 재시도는 `200346` 이전 현재 lanelet부터의 **정확
 
 ![Competition route operation cases](docs/assets/kcity_v61_operation_cases.svg)
 
-다섯 operation case 모두 RouteSelector의 main 입력을 사용한다. 정상 Route A/B는 `SetWaypointRoute`, fallback은 `SetLaneletRoute` 요청이며 Mission Planner 출력 이후에는 별도 mux를 두지 않는다. fallback은 `wp_200360`의 s 8 m에서 시작해 goal `200210`까지 이어지는 27개 lanelet suffix로 고정한다.
+다섯 operation case 모두 RouteSelector의 main 입력을 사용한다. 정상 Route A/B는 `SetWaypointRoute`, fallback은 `SetLaneletRoute` 요청이며 Mission Planner 출력 이후에는 별도 mux를 두지 않는다. fallback은 Mission의 최소 30 m reroute 안전거리를 보존하기 위해 `201446`의 s 8 m에서 시작해 goal `200210`까지 이어지는 28개 lanelet suffix로 고정한다. 종전 `200360` s 8 m는 2 m/s에서도 공통 길이가 26.751 m뿐이라 안전검사에서 거절됐다.
 
 ![K-City v61 Route A/B와 재경로 구간](docs/assets/kcity_v61_route_a_b.svg)
 

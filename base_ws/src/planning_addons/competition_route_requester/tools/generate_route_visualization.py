@@ -497,7 +497,7 @@ def build_reroute_process_svg(config, policy, lanelets, map_path, actual_hash, e
             svg.append(f'<path d="M 650 {y+20} L 650 {y+70}" stroke="#aebbd0" stroke-width="2" stroke-dasharray="5 4"/>')
     svg.append('<rect x="690" y="735" width="830" height="48" rx="10" fill="#fff3f0" stroke="#f3b5ad"/>')
     svg.append(f'<text x="712" y="756" class="label">실패/timeout: Route A 유지 → {policy["retry_reroute_interval"]:.1f}s 후 guard 재확인 → deadline 전 재시도</text>')
-    svg.append('<text x="712" y="776" class="tiny">route_a_to_b는 실패 상태, route_a_to_b_with_fallback은 wp_200360 cutoff에서 fallback 요청으로 승격한다.</text>')
+    svg.append('<text x="712" y="776" class="tiny">route_a_to_b는 실패 상태, route_a_to_b_with_fallback은 201446 cutoff에서 fallback 요청으로 승격한다.</text>')
 
     add_multiline(
         svg,

@@ -216,8 +216,12 @@ bool MissionPlannerInitializationRos1::check_reroute_safety(
     });
   };
   std::optional<std::pair<size_t, size_t>> start;
-  for (size_t i = 0; i < original_route.segments.size() && !start; ++i)
-    for (size_t j = 0; j < target_route.segments.size(); ++j)
+  // The upstream contract says the common interval normally begins at the
+  // target route front.  Search target-first so a divided-loop target that
+  // revisits the original route's first lane cannot shadow the current common
+  // segment with a much later zero-length match.
+  for (size_t j = 0; j < target_route.segments.size() && !start; ++j)
+    for (size_t i = 0; i < original_route.segments.size(); ++i)
       if (same(original_route.segments.at(i).primitives, target_route.segments.at(j).primitives)) { start = {i, j}; break; }
   if (!start) { ROS_ERROR_NAMED("mission_planner", "Check reroute safety failed: no common route segment"); return false; }
   const auto on_first = std::any_of(target_route.segments.front().primitives.begin(), target_route.segments.front().primitives.end(), [&](const auto & p) {

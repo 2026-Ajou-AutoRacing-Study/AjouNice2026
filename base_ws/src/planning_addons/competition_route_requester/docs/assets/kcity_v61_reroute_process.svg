@@ -178,11 +178,11 @@ text { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; fill: #17203
 <text x="712" y="658" class="small">200346 진입 전에 모든 검증이 끝난 경우에만 전환 완료</text>
 <rect x="690" y="735" width="830" height="48" rx="10" fill="#fff3f0" stroke="#f3b5ad"/>
 <text x="712" y="756" class="label">실패/timeout: Route A 유지 → 1.0s 후 guard 재확인 → deadline 전 재시도</text>
-<text x="712" y="776" class="tiny">route_a_to_b는 실패 상태, route_a_to_b_with_fallback은 wp_200360 cutoff에서 fallback 요청으로 승격한다.</text>
+<text x="712" y="776" class="tiny">route_a_to_b는 실패 상태, route_a_to_b_with_fallback은 201446 cutoff에서 fallback 요청으로 승격한다.</text>
 <text x="620" y="900" class="label" text-anchor="start">
 <tspan x="620" dy="0">DEADLINE = lanelet 200346의 진입 경계: 이 선을 넘기기 전에 Route B 적용·검증이 끝나야 한다.</tspan>
 <tspan x="620" dy="34">ANCHOR A = config의 deadline_pose_ref인 wp_200346(s=8 m): deadline 상태를 감지하는 설정 pose다.</tspan>
 <tspan x="620" dy="34">따라서 anchor가 deadline 자체라는 뜻이 아니다. 그림의 빨간 막대와 A 표식을 분리해서 읽는다.</tspan>
 </text>
-<text x="620" y="1013" class="tiny">Policy values are from competition_route_requester.param.yaml draft · request/verify timeouts 5.0s/5.0s/5.0s · runtime ROS1 contract is not defined by this figure</text>
+<text x="620" y="1013" class="tiny">Policy values are from competition_route_requester.param.yaml draft · request/verify timeouts 5.0s/5.0s/60.0s · runtime ROS1 contract is not defined by this figure</text>
 </svg>

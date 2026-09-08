@@ -47,8 +47,9 @@ class PolicyTest(unittest.TestCase):
         self.assertTrue(policy.in_window(r, 'route_b', 200178, 8))
         self.assertTrue(policy.in_window(r, 'route_b', 200348, 1))
         self.assertFalse(policy.in_window(r, 'route_b', 200346, 0))
-        self.assertFalse(policy.in_window(r, 'fallback_route', 200360, 7.9))
-        self.assertTrue(policy.in_window(r, 'fallback_route', 200360, 8))
+        self.assertFalse(policy.in_window(r, 'fallback_route', 201446, 7.9))
+        self.assertTrue(policy.in_window(r, 'fallback_route', 201446, 8))
+        self.assertFalse(policy.in_window(r, 'fallback_route', 200360, 8))
         self.assertFalse(policy.in_window(r, 'fallback_route', 200183, 10))
 
     def test_identity_sequence_goal(self):
@@ -66,7 +67,7 @@ class PolicyTest(unittest.TestCase):
             self.assertFalse(policy.route_matches(*bad))
 
     def test_geometry_and_hash(self):
-        for ref in ('wp_200178', 'wp_200360'):
+        for ref in ('wp_200178', 'wp_200360', 'fallback_cutoff_201446'):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
             self.assertEqual(lane, p['lanelet_id'])
