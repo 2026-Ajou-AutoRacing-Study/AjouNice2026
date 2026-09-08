@@ -1,5 +1,7 @@
 # Sibling planning_ws 통합 검증 기록
 
+아래는 통합 구현 시점의 로컬 빌드/기동 기록이다. 이후 통합 변경을 `3616bfd`로 푸시했다. 후속 Git blob 검사에서 provider BAT 2개가 manifest와 다른 바이트로 저장된 것이 발견됐으므로, 새 clone의 재현성에는 [상세 인계서 B0](BASE-WS-INTEGRATION-GUIDE.md)의 수정이 필요하다. 로컬 소스 해시 PASS를 Git checkout 해시 PASS로 해석하지 않는다.
+
 ## 판정
 
 **물리적 소스 통합 및 새 경로 빌드 PASS. 실제 base 입력과 폐루프 주행은 미승인.**

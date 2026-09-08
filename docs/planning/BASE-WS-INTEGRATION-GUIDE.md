@@ -1,0 +1,309 @@
+# AjouNice AW149 통합 담당자 인계서
+
+검토 기준: `planning/autoware-universe-to-ros1`, `3616bfd349001f169f40de345e5d064b48fc6fd1` (2026-09-08).
+저장소 루트 기준 상대 경로를 사용한다. 본 작업은 소스/launch/설치 규칙과 기존 검사 결과를 재검토한 문서화 작업이다. 아래의 수정안은 아직 구현하지 않았다.
+
+## 1. 현재 무엇이 되고, 무엇을 해야 하는가
+
+포팅본은 **이 컴퓨터의 새 planning_ws에서 경계 149개 + 지원 5개를 빌드·설치했다.** 실제 v61 map을 읽어 full planning graph가 기동하고 binary map을 수신하는 것까지 확인했다. requester는 정책 8개·모의 RouteSelector를 이용한 ROS 통신 10개 검사를 통과했다.
+
+**인지 입력만 연결하면 정상 trajectory가 보장된다는 뜻은 아니다.** 현재 AjouNice localization/perception/control의 실데이터를 함께 연결한 end-to-end 검사는 완료되지 않았다. 새 graph의 기동 검사는 route/ego/TF/objects/acceleration/mode를 공급하지 않았고, 필요한 입력을 기다리는 상태였다. 지금 계속 주행 graph를 켜두었다는 뜻도 아니다.
+
+과거 독립 시험에는 trajectory 출력 증거가 있지만, 전체 시간대 validator PASS, 실주행 중 A→B 성공, 충분히 막힌 목표 차선의 LC 거부, controller 폐루프 전체를 승인한 증거는 아니다. `149`는 패키지 경계 수이며 동시에 실행할 독립 노드 149개라는 뜻도 아니다.
+
+실제 lane-driving 경로:
+
+```text
+competition_route_requester → RouteSelector / MissionPlanner → LaneletRoute
+  → full Behavior Path → full Behavior Velocity → Path Smoother → Path Optimizer
+  → Motion Velocity → Scenario Selector → Velocity Smoother → Planning Validator
+  → /planning/trajectory → AjouNice follower → /ctrl_cmd → MORAI/차량
+```
+
+Scenario Selector에는 parking 분기도 연결돼 있다. lane-driving scenario는 원래 selector가 만들도록 하고, 초기 출력이 없다는 이유로 scenario를 상수로 위조하지 않는다.
+
+## 2. 우선순위와 담당
+
+| ID | 담당 | 작업 | 왜 필요한가 |
+|---|---|---|---|
+| B0 | 통합/저장소 | 푸시본 provider 2개 파일의 줄바꿈·해시 복구 | 새 clone의 provider 빌드 전 검사가 실패함 |
+| B1 | 통합/빌드 | submodule/외부 의존성 준비, planning→base 순서로 새 출력에 빌드 | 기존 base/devel은 교체 전 메시지로 생성됨 |
+| P1 | 객체 예측 | Duration 필드와 소비자/테스트 변환 | Python 메시지 직렬화 실패 |
+| P2 | 신호 인식 | Time 변환, helper 설치, v61 설정, route 유효성 관리 | 발행 실패·모듈 import 실패·잘못된 신호 매칭 |
+| L1 | Localization | 실제 acceleration, 좌표계/속도/TF/clock 계약 | BPP/BVP/MVP/validator 필수 입력 |
+| P3 | 인지/LiDAR | 실제 ground-free cloud와 occupancy 공급 | 대상 plugin의 판단 입력, occupancy는 BPP cyclic readiness에도 사용 |
+| S1 | System/차량 인터페이스 | 실제 mode/engage 상태 공급, mode 토픽 두 경로 정합 | 초기 경로/재경로/주행 상태 판단 |
+| C1 | 제어 | follower 입력을 최종 trajectory로 연결, source age·validator 확인 | 현재 `/control/trajectory`, planning은 `/planning/trajectory` |
+| C2 | 제어/차량 | 제어 예측 trajectory·Control·SteeringReport 공급 | MVP 경계 이탈 방지 모듈의 추가 입력 |
+| M1 | Map/bringup | binary map 발행 단일화, v61/projector 고정 | base visualizer의 raw XML은 planner binary와 다름 |
+| V1 | 차량 설정 | 실차 치수에서 flat planner YAML 생성 | 예시 YAML은 schema도 다르고 tread/wheel width도 없음 |
+| T1 | 도구/제어 | CSV/history native Duration 변환 | 전체 base 빌드 및 recording/replay 도구 호환 |
+| R1 | 통합/bringup | 운영 entrypoint·경로·old launch 정리 | 예전 devel 및 삭제된 패키지를 참조하는 실행 경로 존재 |
+| A1 | 통합/검증 | 실제 route→trajectory→plugin→폐루프 순서 승인 | 출력 존재만으로 기능을 보장할 수 없음 |
+
+## 3. B0 — 새 컴퓨터 빌드 전 반드시 처리할 푸시본 문제
+
+이번에는 로컬 작업 파일뿐 아니라 **HEAD의 Git blob 10,586개를 원본 manifest SHA256와 대조**했다. 10,584개 일치, 아래 2개 불일치다.
+
+- `planning_ws/external/osqp/src/docs/make.bat`
+- `planning_ws/external/acados/src/external/osqp/docs/make.bat`
+
+Git의 `text=auto` 적용으로 CRLF가 변환됐다. 로컬 원본 작업 파일의 해시는 일치해 기존 빌드가 성공했지만, clone으로 받은 내용은 다르다. `planning_ws/tools/prepare_osqp.py`와 `prepare_acados.py`는 provider 전체 파일의 해시를 검사하므로 문서용 BAT 파일이어도 검사를 통과하지 못한다.
+
+수정 방법:
+
+1. 각 파일을 해당 provider manifest의 원본 SHA256에 맞는 바이트로 복원한다. 현재 원본 작업 머신에는 원래 바이트가 남아 있다. manifest 값을 임의로 바꾸거나 검사에서 제외하지 않는다.
+2. 두 파일에 Git text 변환을 적용하지 않도록 설정한다. 하위 vendor `.gitattributes`가 있으므로 저장소 루트 규칙만 넣었다고 가정하면 안 된다. 예: 각 `docs/.gitattributes`의 `make.bat -text`처럼 가장 가까운 규칙을 두고 `git check-attr text -- <파일>`로 확인한다.
+3. 복원 파일과 속성을 함께 커밋한 뒤 **Git에 저장된 blob 또는 새 checkout**에서 SHA를 다시 확인한다. 속성만 바꿔도 이미 LF로 저장된 내용이 자동으로 원래 CRLF가 되지는 않는다.
+4. 그 checkout에서 `planning_ws/tools/audit_source.py` 및 provider 빌드를 실행한다.
+
+따라서 기존 안내의 “clone하고 build.sh만 실행하면 된다”에는 이 선행 수정이 빠져 있었다. 본 문서 작성 시점에는 아직 복구 커밋을 만들지 않았다.
+
+## 4. B1 — 메시지 소유권·의존성·빌드 순서
+
+### 메시지는 planning_ws가 소유한다
+
+기존 base 중복 메시지 14개를 이미 제거했다. 새 `autoware_*_msgs`, `tier4_*_msgs`, `builtin_interfaces`, `unique_identifier_msgs`는 planning install에서 찾도록 한다. 이름이 같아도 이전 base 생성물과 MD5가 다를 수 있으므로 C++ 노드와 별도 Python/Conda 프로세스까지 모두 같은 메시지를 로드해야 한다.
+
+헤더 `std_msgs/Header.stamp`는 native ROS1 Time이다. 반면 `PredictedPath.time_step`, `TrajectoryPoint.time_from_start`, `TrafficLightGroupArray.stamp`, mode/control/steering payload stamp는 동결된 `builtin_interfaces` 타입이다. 모든 stamp를 일괄 치환하지 않는다.
+
+### 아직 준비되지 않은 외부 코드
+
+- `git submodule status`에서 `base_ws/src/ekf-multi-object-tracking`은 미초기화(`-47098728…`)다. `object_pipeline.launch:145`가 `ekf_multi_object_tracking` launch를 include한다. 깨끗한 planning 환경의 `rospack find ekf_multi_object_tracking`도 실패했다. 기록된 submodule revision을 가져와 새 메시지에 맞춰 재빌드해야 한다.
+- 현재 선택된 환경에서 `robot_localization`도 검색되지 않았다. GNSS/IMU EKF·CTRA 모드를 쓸 때 설치/overlay 경로를 준비해야 한다. 이것이 GT-only 모드까지 반드시 필요하다는 뜻은 아니다.
+- 선택한 detector의 submodule/모델 weights/Conda 환경은 planning 소스에 모두 포함된 것이 아니다. `object_pipeline.launch`의 detector, checkpoint, `repo_root`, Python 실행 경로를 인지 담당자와 확정한다.
+- 미초기화 tracker 내부 코드와 선택하지 않은 외부 detector의 소스 호환성은 이번 검사에서 확인하지 못했다. 이를 “검사 완료”로 넘기지 말고 submodule 확보 후 duplicate message와 직렬화를 추가 확인한다.
+
+당시 catkin 검색 결과 planning 154 + base 23은 **현재 초기화된 checkout 기준**이다. submodule 초기화 후 base 패키지 수와 중복을 다시 세어야 한다.
+
+### 빌드 경로
+
+기존 `scripts/workspace/build_all.sh`, `setup_ws.sh`는 Noetic만 source하고 기존 base에 `catkin_make`를 호출한다. 새 underlay와 새 출력 경로를 사용하도록 바꿔야 한다.
+
+순서: Noetic → planning_ws install → base_ws 새 install. planning_ws가 base_ws를 underlay로 사용하면 순환 의존이 된다. `build_addons.sh`는 addon 2개만 빌드하므로 전체 base 빌드 완료 명령이 아니다.
+
+아래는 **B0 및 base 코드 수정·의존성 준비 후 실행할 예시**다. 전체 base로 실제 실행해 합격시킨 명령은 아직 아니다.
+
+```bash
+# repository root에서, 기존 ROS/Conda overlay가 섞이지 않은 새 셸
+export AJOUNICE_ROOT="$PWD"
+bash planning_ws/tools/build.sh --providers
+source planning_ws/install_isolated/setup.bash
+cd base_ws
+catkin_make_isolated --source "$AJOUNICE_ROOT/base_ws/src" \
+  --build "$AJOUNICE_ROOT/base_ws/build_aw149" \
+  --devel "$AJOUNICE_ROOT/base_ws/devel_aw149" \
+  --install-space "$AJOUNICE_ROOT/base_ws/install_aw149" \
+  --install -j4 --cmake-args -DCMAKE_BUILD_TYPE=Release \
+  -DPYTHON_EXECUTABLE=/usr/bin/python3
+```
+
+운영 환경은 새 planning install 후 `base_ws/install_aw149/setup.bash`를 source하도록 확정한다. 기존 `base_ws/devel`, 다른 Autoware2ros1 install, addon-only install을 뒤섞지 않는다. `rospack find`와 Python module `__file__`, 실제 연결 MD5로 각 프로세스의 경로를 확인한다.
+
+## 5. P1 — 객체 검출·추적·예측
+
+입력 흐름은 `DetectedObjects → tracker의 TrackedObjects → PredictedObjects`다. planning 최종 인지 입력은 `/perception/object_recognition/objects`의 `autoware_perception_msgs/PredictedObjects`이며, boxes/MarkerArray나 DetectedObjects를 직접 remap하지 않는다.
+
+| 실제 수정 파일 | 현재 문제 | 변경 |
+|---|---|---|
+| `base_ws/src/perception_object_pipeline/scripts/object_prediction_node.py:51` | `path.time_step = rospy.Duration(horizons[0])` | builtin Duration 생성/대입 |
+| 같은 scripts의 `map_based_prediction_node.py:55,95` | 동일한 native Duration 대입 2곳 | 동일 helper 적용 |
+| 같은 scripts의 `object_pipeline_visualization_node.py:265` | `time_step.to_sec()` | `sec + nanosec * 1e-9` 사용 |
+| `base_ws/src/perception_object_pipeline/test/test_object_prediction.py:45` | native `.to_sec()` 가정 | 새 payload 타입으로 기대값 및 serialize 검사 |
+| 같은 test의 `test_standard_pipeline.py:118` | 동일 | 실제 ROS transport 포함해 확인 |
+| `package.xml`, helper를 공유할 경우 CMake/setup.py | builtin 타입 직접 사용 의존성 | `builtin_interfaces` 직접 의존성 및 helper 설치 명시 |
+
+Python 변환 형태(구현 지침):
+
+```python
+from builtin_interfaces.msg import Duration as BuiltinDuration
+from builtin_interfaces.msg import Time as BuiltinTime
+
+d = rospy.Duration.from_sec(seconds)
+path.time_step = BuiltinDuration(sec=d.secs, nanosec=d.nsecs)
+group_array.stamp = BuiltinTime(sec=source_stamp.secs, nanosec=source_stamp.nsecs)
+seconds = path.time_step.sec + path.time_step.nanosec * 1e-9
+```
+
+native `header.stamp`는 그대로 유지한다. 음수 duration도 nsec 범위가 정상화되도록 변환한다. 정상 객체 1개·객체 없는 관측·다중 객체를 각각 직렬화해서 받아야 한다. 빈 객체 메시지는 센서가 실제 관측한 empty scene일 때만 의미가 있다.
+
+`object_prediction.launch:10`의 map 기본값은 **v60**이다. `prediction_model=map_based`이면 v61로 명시해야 한다. 상위 `object_pipeline.launch:186`은 하위 launch에 map_file/projector_file을 전달하지 않으므로 상위 arg까지 추가·전달하는 작업이 필요하다. CTRV 기본 운용에는 이 map 기본값이 직접 쓰이지 않는다.
+
+기본 prediction horizon은 3.0s, step은 0.1s다. 필요한 lane change·장애물 예측 시간보다 짧은지 검토한다. 무조건 15s로 늘리기보다는 plugin 요구 시간, 예측 신뢰도, stale 제한, 처리 지연을 함께 결정한다. pose/shape/heading/velocity는 map 및 객체 좌표계 정의에 맞고 velocity는 m/s여야 한다. map_based 노드는 `header.frame_id != map` 입력을 버린다.
+
+## 6. P2 — 신호 인식은 이름 외에도 수정할 부분이 있다
+
+정식 출력은 `/perception/traffic_light_recognition/traffic_signals`, 타입은 `autoware_perception_msgs/TrafficLightGroupArray`로 이미 맞는다.
+
+1. `base_ws/src/perception/traffic_light_detection/scripts/traffic_light_node.py:264`: native image stamp를 builtin Time payload로 변환한다. 실제 영상 관측 시각을 유지하고, 처리 시각으로 덮어 지연을 감추지 않는다. 0 timestamp fallback 정책도 명시한다.
+2. `launch/traffic_light_node.launch:21` 이후: `lanelet2_map_file`, `lanelet2_projector_file` 기본값이 빈 문자열이다. v61 OSM과 projector를 반드시 전달한다. `route_topic` 기본값 `/planning/mission_planning/route`는 이미 맞다.
+3. `scripts/lanelet_route_matcher.py:88,197`: route receipt가 30초 지나면 무조건 stale로 간주해 거리 fallback으로 바뀐다. Mission의 latched route는 변할 때 발행하므로 정상 장기 경로도 만료될 수 있다. route UUID/route state/clear 또는 변경 이벤트로 유효성을 관리하고, odometry freshness는 계속 검사하도록 바꾼다. 단순히 route를 재발행해 timer를 속이지 않는다.
+4. 같은 파일 `get_group_id`: XY 최단거리로 현재 route index를 고른다. 루프·인접 차로에서 방향과 진행 이력이 맞는지 검증하고 필요하면 heading/진행 index 연속성을 사용한다. 신호 table의 regulatory group ID와 v61 실지도 연결을 대조한다. 소스 주석의 특정 map ID 오류 주장은 이번에 지도 결함으로 재확정한 것이 아니므로 맵을 임의 수정하지 않는다.
+5. 거리 fallback은 다른 진입로의 신호 선택 가능성이 있으므로 실제 fallback 발동 이유를 진단에 남긴다. 매칭 불가/unknown/검출 없음의 상태가 BVP에 어떻게 전달되는지 시험한다. 임의 green 또는 group_id 0으로 기능 합격을 만들지 않는다.
+6. **설치 누락:** `CMakeLists.txt`는 `traffic_light_node.py`와 launch만 설치한다. 노드가 import하는 `light_color_utils.py`, `lanelet_route_matcher.py`를 설치하지 않는다. Python package로 묶어 `catkin_python_setup`으로 설치하거나 helper 모듈을 노드의 import 경로에 설치한다. `traffic_light_group_id_table.json`과 weights 경로도 `rospkg`/share 기준 또는 명시적 외부 경로로 연결해야 한다.
+7. `package.xml`은 rospy/sensor_msgs/autoware_perception_msgs만 선언한다. 실제 직접 사용하는 `morai_msgs`, `nav_msgs`, `autoware_planning_msgs`, builtin 인터페이스, 선택한 lanelet Python 모듈/PyYAML 등의 의존성 및 ultralytics 모델 환경을 명시한다.
+
+합격 기준: clean install에서 helper import/weights 로딩 성공, route가 30초 이상 유지돼도 올바른 신호 매칭, 실제 red/green/arrow/unknown·영상 지연 상황에서 올바른 stop line 정지/해제.
+
+## 7. L1 — Localization, TF, clock
+
+| 항목 | 현재 | 필요한 조치 |
+|---|---|---|
+| Odometry | `localization_manager/scripts/morai_gt_kinematic_state_publisher.py:173–183`이 `/localization/kinematic_state` 발행 | topic/type는 유지. map pose, base_link twist, m/s·rad/s, 측정 stamp 확인 |
+| GT acceleration | `localization_manager/launch/morai_gt.launch`에 공급 없음 | Ego acceleration 또는 검증된 estimator를 AccelWithCovarianceStamped로 제공. 축·단위·중력 포함 여부 확인 |
+| CTRA acceleration | `localization_manager/launch/gnss_imu_gt_ctra.launch:145`, `configs/localization/robot_localization_gnss_imu_gt_ctra_global.yaml:5`에 설정 존재 | 이 모드의 실제 실행 시 `/localization/acceleration` 발행과 covariance 확인 |
+| 일반 GNSS/IMU | `robot_localization_gnss_imu_{local,global}.yaml`의 publish_acceleration=false | 선택 모드에 맞게 estimator 출력과 remap을 추가 |
+| TF | GT는 `map → morai_map → base_link` | chain 유지 가능. 센서 TF 포함, 같은 edge에 복수 publisher 금지 |
+| 시간 | 여러 bringup launch가 `/use_sim_time`을 설정 | 하나의 운영 clock 정책. true이면 실제 `/clock` 필요, 여러 launch가 서로 덮지 않도록 통일 |
+
+GT 노드는 `EgoVehicleStatus.velocity`를 base_link twist로 복사한다. 해당 MORAI 설정에서 실제 body frame 속도인지 회전 주행으로 확인해야 한다. `sensor_interface/config/lidar_preprocess.yaml`도 `morai_velocity_frame=base_link`를 가정한다. 이름만 맞춰도 두 가정이 틀리면 deskew와 planning 양쪽이 틀어진다.
+
+GT covariance는 unavailable로 설명돼 있다. 이를 실제 추정 covariance 검증까지 완료했다고 취급하지 않는다. acceleration은 `geometry_msgs/AccelWithCovarianceStamped`, `header.frame_id=base_link`로 해당 차량축 성분을 공급하는 설계를 확인한다. 차체 roll/pitch·중력·yaw 회전 때의 부호도 검증한다.
+
+## 8. P3 — pointcloud와 occupancy 공급
+
+현재 `sensor_interface/launch/lidar_preprocess.launch`는 `/sensor/lidar1 → /sensor/lidar1/deskewed`를 만든다. 지면제거/occupancy production 공급은 검토한 코드에서 확인되지 않았다.
+
+- ground-free: `/perception/obstacle_segmentation/pointcloud`, `sensor_msgs/PointCloud2`. 실제 ground segmentation을 적용하고 stamp 시점 TF, finite xyz, frame, point field를 확인한다. deskew만 된 cloud나 object marker를 이름만 바꿔 넣지 않는다.
+- occupancy: `/perception/occupancy_grid_map/map`, `nav_msgs/OccupancyGrid`. resolution·width/height·origin pose·frame·data 길이와 unknown(-1)/free/occupied 의미를 정의한다. 살아 있는 관측에서 갱신되는지, 지도 밖 및 관측 불가 영역을 free로 잘못 처리하지 않는지 확인한다.
+- BPP full node `behavior_path_planner_node.cpp:281`의 `isDataReady`는 objects/odom/occupancy cyclic 수신을 검사한다. occupancy가 없으면 인지 객체를 공급해도 경로 출력이 막힐 수 있다.
+- BVP/MVP/parking/validator도 cloud·grid를 각 기능에서 사용한다. MVP는 활성 module의 required subscription을 기준으로 입력 준비를 검사하므로 실제 선택한 plugin 구성을 기준으로 확인한다.
+
+합격 기준: 비어 있는 실제 장면과 실제 장애물이 있는 장면, 센서 끊김·TF 누락·stale·unknown 상황을 구분해 동작한다. 더미 empty/free 입력을 production launch에 넣지 않는다.
+
+## 9. S1 및 C2 — operation mode와 제어 피드백: 기존 목록에서 빠진 부분
+
+System은 `/system/operation_mode/state`의 `autoware_adapi_v1_msgs/OperationModeState`를 실제 모드/제어권과 연결해야 한다. 현재 production publisher는 확인되지 않았다. `mode`, `is_autoware_control_enabled`, `is_in_transition`, stamp를 사실대로 갱신한다. requester는 재경로 시 autonomous/control-enabled, 전환 중 아님, 최신 reroute availability의 hold 조건 등을 확인한다.
+
+**현재 full MVP launch에는 BoundaryDeparturePrevention module이 포함된다.** 이 module은 다른 경로 `/api/operation_mode/state`를 구독한다. 이 topic을 같은 진실 원천의 mode로 연결하거나 integration namespace에서 `/api/operation_mode/state → /system/operation_mode/state` remap을 적용한다. 서로 다른 상시 mode 발행기를 만들지 않는다.
+
+추가 피드백 3개:
+
+| planner가 요구하는 topic/type | 현재 base 제공 | 변경 설계 |
+|---|---|---|
+| `/control/trajectory_follower/lateral/predicted_trajectory` — `autoware_planning_msgs/Trajectory` | 없음 | 실제 controller 모델이 예측한 ego rollout을 map pose·시간·속도로 발행. planner 참조 trajectory를 그대로 복사하는 것은 다른 의미 |
+| `/control/command/control_cmd` — `autoware_control_msgs/Control` | `/control/command/steering` Float64와 `/ctrl_cmd` morai_msgs/CtrlCmd | controller의 실제 결정에서 lateral/longitudinal command를 정식 물리 단위로 발행하는 adapter/출력 확장 |
+| `/vehicle/status/steering_status` — `autoware_vehicle_msgs/SteeringReport` | 정식 topic 공급 미확인; EgoVehicleStatus에 wheel_angle 필드는 있음 | wheel_angle 단위·부호·tire/steering-wheel 의미를 확인 후 실제 조향 피드백으로 변환 |
+
+`Control.lateral.steering_tire_angle`는 rad, longitudinal velocity는 m/s, acceleration은 m/s²다. `morai_msgs/CtrlCmd.accel/brake`의 0..1 pedal 값을 acceleration에 그대로 넣으면 안 된다. `SteeringReport`는 명령 복사값을 실제 측정값처럼 발행하지 않는다. native ROS1 header와 달리 여기 payload stamp들은 builtin Time이다.
+
+근거: `planning_ws/src/autoware_motion_velocity_boundary_departure_prevention_module/src/boundary_departure_prevention_module.cpp:308`의 구독, `:424`의 `is_data_invalid`, `:457`의 timeout. 입력이 없으면 `plan()`이 오류 설명과 빈 planning result를 반환해 해당 module의 velocity 개입이 없을 수 있다. **다른 모듈이 trajectory를 계속 내보내도 이 기능까지 실행됐다고 판정하면 안 된다.** timeout은 odom/예측 trajectory/control/steering에 1s 기준을 적용한다.
+
+이 피드백을 아직 제공할 수 없으면 기능 제한을 명시하고 해당 plugin의 검증을 미완료로 둔다. 통과 수를 맞추기 위한 더미 피드백이나 무기록 plugin 해제는 통합 완료가 아니다. controller가 첫 trajectory를 받기 전/받은 후의 startup 순환 의존도 실제 graph에서 시험한다.
+
+## 10. C1 및 T1 — follower와 기존 trajectory 도구
+
+### Follower
+
+`base_ws/src/control/trajectory_follower/config/trajectory_follower_autoware.yaml:2`의 `topics/trajectory`를 최종 `/planning/trajectory`로 바꾼다. 선택 launch는 `pp_pi_autoware.launch`. 다른 `pp_pi.launch`나 CSV trajectory source와 중복 실행하지 않는다.
+
+현재 흐름: `purepursuit_autoware.cpp:166`에서 Float64 steering·validity·debug를 발행하고 `longi_pi_autoware.cpp:256`이 MORAI type-1 CtrlCmd를 만든다. 이름에 autoware가 있어도 위 C2의 정식 control/예측 trajectory/steering report를 모두 제공하는 구현은 아니다.
+
+`purepursuit_autoware.cpp:214`와 `longi_pi_autoware.cpp:220` 주변은 주로 **수신 시각**을 기준으로 timeout을 본다. 기존 0.5s trajectory/state/steering, 0.2s lateral-valid 제한은 유지하며, 다음을 추가 검토한다.
+
+- `header.stamp`가 가리키는 원본 데이터 age, 0/future stamp, 실제 주기/gap.
+- `/planning/validation_status`의 20개 `is_valid_*` 및 해당 trajectory와 시간상 대응. status topic은 `autoware_planning_validator/PlanningValidatorStatus`다.
+- perception/localization 끊김 또는 오래된 trajectory 재발행 시 실제 정지 동작.
+- planner 최종 출력이 있다는 이유로 무조건 valid로 보지 않는다. validator가 invalid trajectory를 어떻게 처리하는지도 실로그와 함께 검사한다.
+
+`/ctrl_cmd` 발행과 simulator command 송신을 분리해 최초 output-only 검사를 한다. 실제 MORAI 연결 시 `sensor_interface`의 sender/bridge와 제어권 계약을 정하고 동시에 두 송신 경로를 켜지 않는다.
+
+### 도구의 컴파일/직렬화 수정
+
+| 파일 | 위치/내용 | 변경 |
+|---|---|---|
+| `base_ws/src/control/trajectory_generator/src/trajectory_publisher_node.cpp` | 251, `ros::Duration`을 time_from_start에 대입 | builtin Duration 필드에 sec/nanosec 변환 |
+| `base_ws/src/control/trajectory_validator/src/trajectory_validator/history_publisher.py` | 57, 204, native Duration 대입 | P1과 같은 helper |
+| 같은 디렉터리 `recorder.py` | 630, native Duration 대입 | 동일 |
+
+C++ 예시: `ros::Duration d(seconds); point.time_from_start.sec = d.sec; point.time_from_start.nanosec = d.nsec;`. 필요 dependency/header를 추가하고 전체 base를 재컴파일한다. CSV/history 도구를 운영 launch에서 빼더라도 source를 전체 빌드하면 generator의 컴파일 문제는 남는다.
+
+## 11. M1 및 V1 — 지도·차량 설정
+
+binary 지도는 `ajounice_planning_integration/launch/map.launch`가 실행하는 full loader 한 곳이 `/map/vector_map`을 발행한다. `lanelet_map_visualizer/scripts/lanelet2_osm_marker_publisher.py:736`은 raw OSM을 LaneletMapBin에 넣으므로 함께 발행하면 안 된다. 타입/MD5가 같아도 payload가 다르다.
+
+`bringup/launch/localization_morai_gt.launch`는 `start_lanelet_map=true`가 기본이며 visualizer에 `publish_vector_map=false`를 전달하지 않는다. 통합 launch에서 `start_lanelet_map=false`로 시작하고 필요하면 별도로 visualizer를 `publish_vector_map=false`로 실행하거나, 해당 arg를 상위 launch까지 전달하도록 수정한다. 다른 localization launch도 visualizer include를 확인한다.
+
+v61 OSM SHA256: `c8ee07fb70334a13373f8cbd54fabe95980ac1e9589bbc05382337074f089dc2`.
+projector: `kcity_map/lanelet_map/map_projector_info_v1.yaml`.
+기존 map projector addon은 생성 상수 `MapProjectorInfo.LOCAL_CARTESIAN_UTM` / `WGS84`를 사용하도록 수정돼 있다. 이 포팅 메시지는 ROS1에서 문자열 상수에 따옴표가 남으므로 YAML literal과 wire constant를 혼동하지 않는다. map·projector hash를 바꾸면 requester의 frozen route 정의도 다시 검증해야 한다.
+
+`configs/vehicle/ioniq5.yaml`은 파일 자체에 '예시'라고 적혀 있다. nested `vehicle/*` 형식이며 아래 known value도 실제 차량 승인값으로 확정된 것은 아니다.
+
+| 현재 base key/값 | planner flat key | 처리 |
+|---|---|---|
+| wheelbase_m=3.000 | wheel_base | 실제값 확인 후 변환 |
+| wheel_radius_m=0.3705 | wheel_radius | 실제값 확인 후 변환 |
+| front_overhang_m=0.845 / rear_overhang_m=0.790 | front_overhang / rear_overhang | 기준점과 길이 확인 |
+| height_m=1.600 | vehicle_height | 확인 후 변환 |
+| max_wheel_angle_deg=40 | max_steer_angle | rad로 변환(약 0.698132), tire angle인지 확인 |
+| width_m=1.892 | wheel_tread + left_overhang + right_overhang | width를 wheel_tread로 바로 대입하지 않음 |
+| 미기재 | wheel_tread, wheel_width, left_overhang, right_overhang | 차량 담당자 실측/공식값 필요 |
+
+`base_link`가 planner의 rear-axle 기준과 맞는지 URDF·TF와 확인한다. flat planner YAML은 예를 들어 `configs/planning/vehicle_info.yaml`에 따로 생성하고, follower는 기존 nested YAML을 읽도록 각각 같은 원천 값을 제공한다. full planning launch의 `vehicle_param_path`와 follower의 `vehicle_config`에 명시 경로를 전달한다. 설치본의 시험 vehicle(2.74m wheelbase 등)을 기본으로 쓰면 실제차 치수와 달라진다.
+
+## 12. R1 — 실행 entrypoint·설치 경로 정리
+
+- `scripts/runtime/launch_sensing.sh`, `morai_status.sh`, `morai_reset.sh`는 기존 `base_ws/devel`을 source한다. 새 base install로 운영 경로를 통일하고 reset script의 hard-coded 실행파일 경로도 함께 검토한다.
+- `trajectory_follower/launch/pp_pi_autoware.launch:9`의 `$(find ioniq5)/../../../configs/...`, `bringup/launch/sensing.launch`의 유사 경로는 source tree 배치에 의존한다. install 공간에서는 다른 위치를 가리킬 수 있으므로 `AJOUNICE_ROOT` 또는 명시 launch arg로 전달한다.
+- 여러 launch의 `$(env HOME)/AjouNice2026`는 친구의 checkout 경로와 다를 수 있다. 최상위 repo_root/config 경로를 명시적으로 받아 하위 include로 전달한다.
+- 기존 검증 잔재: `bringup/validation/launch/kcity_mission_bpp_bvp_{crosswalk,stop_line}.launch`는 삭제된 `kcity_mission_bpp_bvp_validation.launch`를 include한다. `mission_bpp_pipeline_minimal_test.launch`는 없는 `bringup/launch/mission_bpp_pipeline.launch`와 구버전 `mission_planner` package를 참조한다. 운영 목록에서 제거/격리하거나 새 stack용 검증으로 다시 작성한다. 현재 완전히 정리됐다고 볼 수 없는 부분이다.
+- top-level 통합 launch는 sensing/localization/perception/system/map/planning/requester/controller의 순서·활성화를 한 곳에서 제어하도록 구성한다. 기존 `ajounice_planning_integration/planning.launch`는 map+planning만 구성하고 requester는 기본 false, controller는 포함하지 않는다.
+- Virtual traffic light/V2X, lateral offset, 외부 speed limit 같은 선택 입력은 모든 차로에서 무조건 필요한 주기 입력으로 취급하지 않는다. 사용 지도 regulatory element와 활성 module 요구에 따라 구현·시험한다. 실제 도로 신호 인식 topic과 virtual traffic light state는 별개다.
+- 방향지시등은 사용자 운용 요구에서 제외됐다. 이는 C2의 실제 **조향각** 피드백과 다른 항목이므로 steering report까지 제외하면 안 된다.
+
+## 13. Requester 설정과 승인
+
+코드: `base_ws/src/planning_addons/competition_route_requester`.
+설정: `config/competition_route_requester.param.yaml`, 경로: `config/kcity_v61_competition_route.yaml`.
+
+- 초기에는 YAML case `route_a_only`, 공식 start pose/허용 lanelet을 사용한다. `route_b_only`는 200178 s≥8m 시작 조건이므로 공식 start에서 바로 쓰는 case가 아니다.
+- main 서비스는 `/planning/set_waypoint_route` (`autoware_internal_planning_msgs/SetWaypointRoute`)와 `/planning/set_lanelet_route` (`autoware_planning_msgs/SetLaneletRoute`)다. 직접 LaneletRoute를 발행하거나 Mission 뒤에 route mux를 넣지 않는다.
+- 정상 A→B는 200178 s≥8m부터, 200346 진입 전에 확인돼야 한다. fallback은 200360 s≥8m의 27-lanelet suffix다. 각 case는 SPEC를 따른다.
+- 서비스 timeout·수락 후 UUID/route/trajectory 확인 실패는 `RECONCILIATION_REQUIRED`. 이때 실제 route가 이미 바뀌었을 수 있어 “A 유지”로 가정하거나 맹목적 retry/clear/restart하지 않는다.
+- 현재 trajectory 검증 제한 5s와 실제 전체 pipeline warm-up/latency가 맞는지 확인한다. timeout을 늘려 성공 수를 맞추기 전에 원인과 제어 요구를 측정한다.
+- 새 trajectory에는 route UUID가 없어서 응답·경로 확인 이후 timestamp와 validator 대응은 시간상 연관 증거다. 실제 수락된 경로를 따른 궤적인지 geometry/주행으로 검증해야 한다.
+
+## 14. 순서대로 확인할 합격 기준
+
+### 운영 토픽 대조표
+
+아래는 base와 planning 사이의 계약이다. module 선택에 따라 필요 여부가 다른 피드백/선택 입력은 본문의 해당 항목을 따른다.
+
+| topic | ROS1 type | 소유/작업 |
+|---|---|---|
+| `/localization/kinematic_state` | nav_msgs/Odometry | Localization, L1 |
+| `/localization/acceleration` | geometry_msgs/AccelWithCovarianceStamped | Localization, L1 |
+| `/perception/object_recognition/objects` | autoware_perception_msgs/PredictedObjects | Prediction, P1 |
+| `/perception/traffic_light_recognition/traffic_signals` | autoware_perception_msgs/TrafficLightGroupArray | Traffic light, P2 |
+| `/perception/occupancy_grid_map/map` | nav_msgs/OccupancyGrid | Occupancy, P3 |
+| `/perception/obstacle_segmentation/pointcloud` | sensor_msgs/PointCloud2 | Ground removal, P3 |
+| `/map/vector_map` | autoware_map_msgs/LaneletMapBin | full map loader 단일 발행, M1 |
+| `/map/map_projector_info` | autoware_map_msgs/MapProjectorInfo | integration projector, M1 |
+| `/system/operation_mode/state` | autoware_adapi_v1_msgs/OperationModeState | System, S1 |
+| `/api/operation_mode/state` | autoware_adapi_v1_msgs/OperationModeState | 위 mode 원천과 연결/remap, S1/C2 |
+| `/control/trajectory_follower/lateral/predicted_trajectory` | autoware_planning_msgs/Trajectory | Controller rollout, C2 |
+| `/control/command/control_cmd` | autoware_control_msgs/Control | Controller 정식 명령 출력, C2 |
+| `/vehicle/status/steering_status` | autoware_vehicle_msgs/SteeringReport | 차량 실제 조향 피드백, C2 |
+| `/planning/mission_planning/route` | autoware_planning_msgs/LaneletRoute | RouteSelector 출력; requester/신호 인식 구독 |
+| `/planning/route_state` | autoware_planning_msgs/RouteState | RouteSelector 출력 |
+| `/planning/trajectory` | autoware_planning_msgs/Trajectory | 최종 planning 출력, follower 구독 C1 |
+| `/planning/validation_status` | autoware_planning_validator/PlanningValidatorStatus | Planning validator 출력, C1/A1 |
+| `/ctrl_cmd` | morai_msgs/CtrlCmd | AjouNice longitudinal/follower 출력, simulator interface 구독 |
+
+### 단계별 검사
+
+1. **Git checkout/빌드**: B0 수정 후 Git blob 해시 일치. 필요한 submodule 확보. planning 154 빌드 및 base 전체 빌드 성공. 새 환경에서 import·package 경로가 올바르고 같은 이름의 중복 메시지 없음.
+2. **입력-only**: 실제 sensing/localization/perception/system을 실행. topic 이름·타입·MD5뿐 아니라 frame/단위/원본 timestamp/age/주기/TF 확인. 선택한 모드의 acceleration, occupancy, ground-free cloud 존재 확인. latched map/route와 cyclic 상태 메시지의 유효성 정책을 구분.
+3. **Route A → 최종 trajectory**: controller 송신을 분리한 상태에서 requester A 실행. map, route state, scenario를 거쳐 각 stage의 출력이 연결되는지 확인. `/planning/trajectory`의 finite pose/speed/acceleration·차량 footprint·속도제한·정지점과 `/planning/validation_status` 전체 이력을 기록.
+4. **전체 plugin 적용 여부**: 단순 library load와 실제 기능 개입을 구분. 특히 C2 피드백 없이 BoundaryDeparturePrevention을 완료로 세지 않는다. obstacle stop/slow/cruise, signal stop/release, 관련 intersection/crosswalk 등은 실제 해당 입력으로 확인.
+5. **A/B/fallback 및 LC**: 실제 움직이는 A→B의 deadline, 잘못된/거절된 요청, 안전한 차선변경과 정말 막힌 차선변경 거부, route 변경 뒤 새 trajectory를 검사. 정지시켜서 재경로 성공한 것은 moving 승인과 별도다.
+6. **폐루프/복구**: 위 통과 후 follower와 MORAI/차량 연결. 목표 속도 추종·정지·장애물·교차로·신호를 확인하고 input loss/TF loss/stale/clock reset/재경로 실패에서 기대한 정지·복구를 확인한다.
+
+각 run에 route UUID, 지도/차량 config hash, 시작 준비 시간, 안정 구간 output Hz, 최대 gap, source-age/latency 분포, 전체 validator invalid 건수·연속 지속시간, 경로/장애물/차선변경 판정을 남긴다. 고정 정답 수치를 임의로 정하지 말고 현재 제어 timeout 및 실제 주행 조건으로 합격 임계값을 합의한다. 테스트의 마지막 validator 1개가 true였다는 사실만으로 전체 run을 PASS로 처리하지 않는다.
+
+## 15. 친구에게 전달할 작업 완료 정의
+
+“통합 완료”는 위 파일을 수정해 compile한 상태를 넘어, **실제 AjouNice 입력 → 유효한 route → 실제 필요한 plugin이 적용된 최종 trajectory → follower 폐루프**를 검사한 상태다. 이번 인계서 기준으로 아직 그 단계까지 완료하지 않았다.
+
+우선 B0/B1과 P1/P2/T1을 처리하면 새 환경 빌드·메시지 교환을 시작할 수 있다. L1/P3/S1/M1/V1을 맞춰 output-only를 확인하고, C1/C2를 구현·검증한 뒤 A1의 주행 gate를 진행한다. 기존 포팅 알고리즘을 고쳐야 하는 오류가 나오면 원본 코드/변환 규약/재현 입력을 함께 기록하고 최소 수정 후 해당 검사와 관련 회귀 검사를 다시 수행한다.

@@ -1,9 +1,11 @@
 # AW149 통합 인계 — 개발자 확인 전 주행 연결 금지
 
+후속 상세 재검토: [BASE-WS-INTEGRATION-GUIDE.md](BASE-WS-INTEGRATION-GUIDE.md). 파일별 수정법, 제어 피드백 누락, 신호 helper 설치/route 만료, 미초기화 tracker, 푸시본 provider 줄바꿈 문제를 포함한다. 실제 통합 작업은 이 상세 인계서를 함께 따른다.
+
 ## 이번 변경 범위
 
 작업 브랜치: `planning/autoware-universe-to-ros1`, 시작 HEAD `db16770`.
-`develop` 및 다른 브랜치는 변경하지 않았다. 커밋/푸시는 아직 하지 않았다.
+`develop` 및 다른 브랜치는 변경하지 않았다. 아래 통합 변경은 이후 `3616bfd`로 해당 planning 브랜치에 커밋·푸시했으며 후속 상세 인계서도 이 문서와 함께 관리한다.
 
 - `planning_ws/src`: r003-source-002의 149개 경계 패키지 + 지원 5개.
 - provider 소스/lock/renderer와 라이선스 포함, 새 경로에서 재빌드. 이전 install 복사 아님.
