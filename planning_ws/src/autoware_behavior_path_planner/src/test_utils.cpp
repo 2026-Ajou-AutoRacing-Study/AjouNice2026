@@ -22,6 +22,9 @@
 #include <tier4_planning_msgs/LateralOffset.h>
 
 #include <memory>
+#include <cerrno>
+#include <cstdlib>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -36,11 +39,20 @@ XmlRpc::XmlRpcValue fixture_value(const YAML::Node & node) {
   }
   if(!node.IsScalar())throw std::invalid_argument("BPP fixture requires scalar or array leaf");
   if(node.Tag()=="!" || node.Tag()=="tag:yaml.org,2002:str")return XmlRpc::XmlRpcValue(node.as<std::string>());
-  bool boolean;int integer;double number;
-  if(YAML::convert<bool>::decode(node,boolean))return XmlRpc::XmlRpcValue(boolean);
-  if(YAML::convert<int>::decode(node,integer))return XmlRpc::XmlRpcValue(integer);
-  if(YAML::convert<double>::decode(node,number))return XmlRpc::XmlRpcValue(number);
-  return XmlRpc::XmlRpcValue(node.as<std::string>());
+  const auto text=node.as<std::string>();
+  if(text=="true" || text=="True" || text=="TRUE")return XmlRpc::XmlRpcValue(true);
+  if(text=="false" || text=="False" || text=="FALSE")return XmlRpc::XmlRpcValue(false);
+  char * end=nullptr;
+  errno=0;
+  const long integer=std::strtol(text.c_str(),&end,10);
+  if(errno==0 && end!=text.c_str() && *end=='\0' &&
+     integer>=std::numeric_limits<int>::min() && integer<=std::numeric_limits<int>::max()) {
+    return XmlRpc::XmlRpcValue(static_cast<int>(integer));
+  }
+  errno=0;
+  const double number=std::strtod(text.c_str(),&end);
+  if(errno==0 && end!=text.c_str() && *end=='\0')return XmlRpc::XmlRpcValue(number);
+  return XmlRpc::XmlRpcValue(text);
 }
 void load_fixture_parameters(ros::NodeHandle & target,const std::string & prefix,const YAML::Node & node) {
   if(node.IsMap()) {

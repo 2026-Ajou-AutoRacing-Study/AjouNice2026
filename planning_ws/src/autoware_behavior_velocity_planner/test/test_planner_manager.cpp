@@ -2,8 +2,22 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
+#include <stdexcept>
+
 namespace autoware::behavior_velocity_planner
 {
+namespace
+{
+void loadModuleParameters(const char * file)
+{
+  const std::string command = std::string("rosparam load ") + file + " /";
+  if (std::system(command.c_str()) != 0) {
+    throw std::runtime_error("failed to load authoritative BVP module parameters: " + std::string(file));
+  }
+}
+}  // namespace
+
 TEST(BehaviorVelocityPlannerManager, EmptyPluginSetPreservesInputPathAndRequirements)
 {
   BehaviorVelocityPlannerManager manager;
@@ -58,6 +72,7 @@ TEST(BehaviorVelocityPlannerManager, LoadsStandardNoStoppingAreaPluginAndPropaga
   node.setParam("vehicle_height", 2.5); node.setParam("max_steer_angle", 0.70);
   node.setParam("enable_all_modules_auto_mode", false);
   node.setParam("no_stopping_area/enable_rtc", true);
+  loadModuleParameters(AW149_BVP_NO_STOPPING_AREA_CONFIG);
   BehaviorVelocityPlannerManager manager;
   manager.launchScenePlugin(
     node, "autoware::behavior_velocity_planner::NoStoppingAreaModulePlugin");

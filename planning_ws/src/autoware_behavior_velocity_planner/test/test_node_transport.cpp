@@ -16,6 +16,8 @@
 #include <tf2_ros/static_transform_broadcaster.h>
 
 #include <cmath>
+#include <cstdlib>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -31,6 +33,20 @@ public:
 void setVehicleInfoParameters(ros::NodeHandle & node)
 {
   const std::string prefix = "/test_behavior_velocity_planner_node/";
+  const auto load = [&prefix](const char * file) {
+    const std::string command = std::string("rosparam load ") + file + " " + prefix;
+    if (std::system(command.c_str()) != 0) {
+      throw std::runtime_error("failed to load authoritative BVP test parameters: " + std::string(file));
+    }
+  };
+  load(AW149_BVP_SMOOTHER_COMMON_CONFIG);
+  load(AW149_BVP_SMOOTHER_ANALYTICAL_CONFIG);
+  load(AW149_BVP_DETECTION_AREA_CONFIG);
+  load(AW149_BVP_NO_STOPPING_AREA_CONFIG);
+  node.setParam(prefix + "normal/max_acc", 1.0);
+  node.setParam(prefix + "normal/min_acc", -1.0);
+  node.setParam(prefix + "normal/max_jerk", 1.0);
+  node.setParam(prefix + "normal/min_jerk", -1.0);
   node.setParam(prefix + "wheel_radius", 0.5);
   node.setParam(prefix + "wheel_width", 0.3);
   node.setParam(prefix + "wheel_base", 2.7);

@@ -99,6 +99,8 @@ target_link_libraries(behavior_velocity_planner_experimental_node
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_behavior_velocity_planner_manager test/test_planner_manager.cpp)
   if(TARGET test_behavior_velocity_planner_manager)
+    target_compile_definitions(test_behavior_velocity_planner_manager PRIVATE
+      AW149_BVP_NO_STOPPING_AREA_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_no_stopping_area_module/config/ros1/no_stopping_area.yaml")
     target_link_libraries(test_behavior_velocity_planner_manager
       gtest_main autoware_behavior_velocity_planner_manager ${catkin_LIBRARIES})
   endif()
@@ -106,6 +108,17 @@ if(CATKIN_ENABLE_TESTING)
     test_behavior_velocity_planner_experimental_manager
     test/test_experimental_planner_manager.cpp)
   if(TARGET test_behavior_velocity_planner_experimental_manager)
+    target_compile_definitions(test_behavior_velocity_planner_experimental_manager PRIVATE
+      AW149_BVP_NO_STOPPING_AREA_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_no_stopping_area_module/config/ros1/no_stopping_area.yaml"
+      AW149_BVP_COMMON_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/ros1/behavior_velocity_planner.yaml"
+      AW149_BVP_INTERSECTION_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_intersection_module/config/ros1/intersection.yaml"
+      AW149_BVP_CROSSWALK_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_crosswalk_module/config/ros1/crosswalk.yaml"
+      AW149_BVP_DETECTION_AREA_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_detection_area_module/config/ros1/detection_area.yaml"
+      AW149_BVP_TRAFFIC_LIGHT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_traffic_light_module/config/ros1/traffic_light.yaml"
+      AW149_BVP_BLIND_SPOT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_blind_spot_module/config/ros1/blind_spot.yaml"
+      AW149_BVP_ROUNDABOUT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_roundabout_module/config/ros1/roundabout.yaml"
+      AW149_BVP_WALKWAY_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_walkway_module/config/ros1/walkway.yaml"
+      AW149_BVP_OCCLUSION_SPOT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_occlusion_spot_module/config/ros1/occlusion_spot.yaml")
     target_link_libraries(test_behavior_velocity_planner_experimental_manager
       autoware_behavior_velocity_planner_manager ${catkin_LIBRARIES})
   endif()
@@ -114,7 +127,12 @@ endif()
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_behavior_velocity_planner_node test/test_node_transport.cpp)
   if(TARGET test_behavior_velocity_planner_node)
-    target_compile_definitions(test_behavior_velocity_planner_node PRIVATE AW149_BVP_TRANSPORT_TEST_MAP="${CMAKE_CURRENT_SOURCE_DIR}/test_map/lanelet2_map.osm")
+    target_compile_definitions(test_behavior_velocity_planner_node PRIVATE
+      AW149_BVP_TRANSPORT_TEST_MAP="${CMAKE_CURRENT_SOURCE_DIR}/test_map/lanelet2_map.osm"
+      AW149_BVP_SMOOTHER_COMMON_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_velocity_smoother/config/ros1/default_velocity_smoother.yaml"
+      AW149_BVP_SMOOTHER_ANALYTICAL_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_velocity_smoother/config/ros1/Analytical.yaml"
+      AW149_BVP_DETECTION_AREA_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_detection_area_module/config/ros1/detection_area.yaml"
+      AW149_BVP_NO_STOPPING_AREA_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_no_stopping_area_module/config/ros1/no_stopping_area.yaml")
     if(NOT EXISTS "${LANELET2_UTILS_INCLUDE_DIR}/autoware/lanelet2_utils/conversion.hpp" OR
        NOT EXISTS "${LANELET2_UTILS_LIBRARY}")
       message(FATAL_ERROR "Set LANELET2_UTILS_INCLUDE_DIR and LANELET2_UTILS_LIBRARY for planner map tests")

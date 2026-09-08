@@ -62,3 +62,9 @@ The next acceptance gate is therefore the AjouNice output-only integration follo
 ## Post-P7 test-only checkpoint
 
 The P7.1 runtime acceptance remains tied to checkpoint r002 above. A later all-package `run_tests` audit found three ROS1 test sources that still assigned native `ros::Duration` or `ros::Time` directly to frozen builtin-interface payloads. Checkpoint r003 (`ef390e4751e938612c241d0eb129acd500015929555bf776d273cbde8709d28a`) changes only those test sources; the two affected packages now pass 12/12 and 16/16 tests. No runtime source or P7 fixture changed, so this delta does not silently relabel the old 11/11 run as a new runtime run. See [planning-test-audit-r001.json](evidence/planning-test-audit-r001.json).
+
+Checkpoint r004 (`ed8f8e71a5dd91f0fc2152c0fdc5c5036bd1a8a749a707e0679ab007f8fc63b9`)
+adds only BPP/BVP test-fixture compatibility. On a fresh ROS master,
+`autoware_behavior_velocity_planner` passes 76 tests with zero failures or skips.
+BPP direct-core fixture work remains open, and the P7.1 runtime claim is unchanged.
+See [planning-test-fixture-r002.json](evidence/planning-test-fixture-r002.json).

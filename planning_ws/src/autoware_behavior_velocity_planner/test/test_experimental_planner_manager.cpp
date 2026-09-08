@@ -2,8 +2,23 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
+#include <stdexcept>
+#include <string>
+
 namespace autoware::behavior_velocity_planner::experimental
 {
+namespace
+{
+void loadModuleParameters(const char * file)
+{
+  const std::string command = std::string("rosparam load ") + file + " /";
+  if (std::system(command.c_str()) != 0) {
+    throw std::runtime_error("failed to load authoritative BVP module parameters: " + std::string(file));
+  }
+}
+}  // namespace
+
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsNoDrivableLanePluginThroughRos1ExperimentalExport)
 {
   ros::NodeHandle node;
@@ -19,6 +34,7 @@ TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsNoDrivableLanePluginThroug
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsNoStoppingAreaRtcPluginAndPropagatesObjectInput)
 {
   ros::NodeHandle node;
+  loadModuleParameters(AW149_BVP_NO_STOPPING_AREA_CONFIG);
   node.setParam("wheel_radius", 0.39);
   node.setParam("wheel_width", 0.42);
   node.setParam("wheel_base", 2.74);
@@ -50,6 +66,8 @@ TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsDefaultLaunchStopLineThrou
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsDefaultLaunchMergeFromPrivatePlugin)
 {
   ros::NodeHandle node;
+  loadModuleParameters(AW149_BVP_COMMON_CONFIG);
+  loadModuleParameters(AW149_BVP_INTERSECTION_CONFIG);
   BehaviorVelocityPlannerManager manager;
   ASSERT_TRUE(manager.launchScenePlugin(
     node, "autoware::behavior_velocity_planner::experimental::MergeFromPrivateModulePlugin"));
@@ -62,6 +80,7 @@ TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsDefaultLaunchMergeFromPriv
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsCrosswalkAndPropagatesItsInputContract)
 {
   ros::NodeHandle node;
+  loadModuleParameters(AW149_BVP_CROSSWALK_CONFIG);
   BehaviorVelocityPlannerManager manager;
   ASSERT_TRUE(manager.launchScenePlugin(
     node, "autoware::behavior_velocity_planner::experimental::CrosswalkModulePlugin"));
@@ -74,6 +93,7 @@ TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsCrosswalkAndPropagatesItsI
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsDetectionAreaAndPropagatesItsInputContract)
 {
   ros::NodeHandle node;
+  loadModuleParameters(AW149_BVP_DETECTION_AREA_CONFIG);
   BehaviorVelocityPlannerManager manager;
   ASSERT_TRUE(manager.launchScenePlugin(
     node, "autoware::behavior_velocity_planner::experimental::DetectionAreaModulePlugin"));
@@ -85,6 +105,7 @@ TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsDetectionAreaAndPropagates
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsTrafficLightAndPropagatesItsInputContract)
 {
   ros::NodeHandle node;
+  loadModuleParameters(AW149_BVP_TRAFFIC_LIGHT_CONFIG);
   BehaviorVelocityPlannerManager manager;
   ASSERT_TRUE(manager.launchScenePlugin(
     node, "autoware::behavior_velocity_planner::experimental::TrafficLightModulePlugin"));
@@ -105,6 +126,7 @@ TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsVirtualTrafficLightRos1V2x
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsBlindSpotAndPropagatesItsInputContract)
 {
   ros::NodeHandle node;
+  loadModuleParameters(AW149_BVP_BLIND_SPOT_CONFIG);
   BehaviorVelocityPlannerManager manager;
   ASSERT_TRUE(manager.launchScenePlugin(
     node, "autoware::behavior_velocity_planner::experimental::BlindSpotModulePlugin"));
@@ -114,6 +136,8 @@ TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsBlindSpotAndPropagatesItsI
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsIntersectionAndPropagatesItsSafetyInputs)
 {
   ros::NodeHandle node;
+  loadModuleParameters(AW149_BVP_COMMON_CONFIG);
+  loadModuleParameters(AW149_BVP_INTERSECTION_CONFIG);
   BehaviorVelocityPlannerManager manager;
   ASSERT_TRUE(manager.launchScenePlugin(
     node, "autoware::behavior_velocity_planner::experimental::IntersectionModulePlugin"));
@@ -126,6 +150,7 @@ TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsIntersectionAndPropagatesI
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsRoundaboutAndPropagatesItsInputContract)
 {
   ros::NodeHandle node;
+  loadModuleParameters(AW149_BVP_ROUNDABOUT_CONFIG);
   BehaviorVelocityPlannerManager manager;
   ASSERT_TRUE(manager.launchScenePlugin(
     node, "autoware::behavior_velocity_planner::experimental::RoundaboutModulePlugin"));
@@ -147,6 +172,7 @@ TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsSpeedBumpWithoutAdditional
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsWalkwayWithoutAdditionalInputs)
 {
   ros::NodeHandle node;
+  loadModuleParameters(AW149_BVP_WALKWAY_CONFIG);
   BehaviorVelocityPlannerManager manager;
   ASSERT_TRUE(manager.launchScenePlugin(
     node, "autoware::behavior_velocity_planner::experimental::WalkwayModulePlugin"));
@@ -159,6 +185,7 @@ TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsWalkwayWithoutAdditionalIn
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsOcclusionSpotAndPropagatesItsInputContract)
 {
   ros::NodeHandle node;
+  loadModuleParameters(AW149_BVP_OCCLUSION_SPOT_CONFIG);
   BehaviorVelocityPlannerManager manager;
   ASSERT_TRUE(manager.launchScenePlugin(
     node, "autoware::behavior_velocity_planner::experimental::OcclusionSpotModulePlugin"));

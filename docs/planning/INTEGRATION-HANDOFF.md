@@ -96,3 +96,8 @@ planning 입력 topic의 publisher/type만 먼저 보려면 `scripts/runtime/che
 각 run에는 route UUID, map/vehicle-config hash, 준비 시간, trajectory Hz와 최대 gap, source age/latency, validator invalid 전 구간을 남긴다. 마지막 한 sample이 valid이거나 노드가 살아 있다는 사실만으로 PASS 처리하지 않는다.
 
 현재 인계 상태는 **아주나이스 저장소 내부에서 build/install 및 output-only 통합 시험을 시작할 수 있는 상태**다. 실제 MORAI 입력과 검토 차량값이 필요한 기능·폐루프 gate는 이 컴퓨터에서 임의 fixture로 완료 처리하지 않았다.
+
+추가 raw-test 보강은 `checkpoint-r004.json`에 분리했다. 격리 master에서
+`autoware_behavior_velocity_planner` 76/76이 통과했지만, 이 결과는 P7 런타임
+증거를 확대하지 않으며 나머지 패키지의 fixture/algorithm oracle은 계속 열린
+상태다. 상세 수치는 `docs/planning/evidence/planning-test-fixture-r002.json`에 있다.
