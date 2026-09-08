@@ -25,6 +25,8 @@
 
 명시적 B 안전거절 뒤 fallback 복구는 별도 fault injection으로 2/2 통과했다. B trigger에서 기존 Mission 안전 공식을 확실히 발동시키기 위해 합성 속도 1000 m/s를 사용했으며 제품 안전거리·route·requester 설정은 바꾸지 않았다. 두 번 모두 `VERIFIED A → DISPATCHED B → REJECTED B → DISPATCHED fallback → VERIFIED fallback`, 거절 직후 `active=route_a`, `uncertain=false`, 최종 151점과 validator 20/20, process death 0이었다. [r005 machine receipt](evidence/production-route-rejection-recovery-r005.json)는 이 값이 실제 차량 조건이 아니라 분기 fault injection임을 명시한다. RPC timeout/ambiguous 결과는 설계상 자동 fallback하지 않고 operator reconciliation을 요구하므로 이 검사 범위가 아니다.
 
+최신 하네스 SHA 하나로 정상 B, B 미채택 cutoff fallback, B 명시적 안전거절 후 fallback의 운영 3분기를 다시 묶은 최종 로컬 output-only 결과는 [r006 release matrix](evidence/production-route-release-matrix-r006.json)다. 모든 분기에서 target route와 fresh trajectory, validator 20/20, process death 0을 확인했다. 이 matrix가 친구 컴퓨터의 실제 MORAI 입력·차량 설정·controller 폐루프 승인 단계를 대신하지는 않는다.
+
 같은 checkpoint와 v61 fixture의 최종 P7.1 standalone graph는 11/11을 통과했다. Route A/B, BVP 양 모드, 안전/점유 차선 LC, 교차로, red→green, 정적 장애물 정지, moving ego, 2초 입력 복구, 안전 규약을 유지한 reroute를 Mission→validator 동일 graph에서 검증했다. r002 시점 source·map·projector·route hash 일치도 다시 확인했다. 상세 범위와 제외 항목은 [P7-STANDALONE-ACCEPTANCE.md](P7-STANDALONE-ACCEPTANCE.md)와 [machine receipt](evidence/p7-standalone-reconciliation.json)에 있다.
 
 현재 source audit은 loop reroute 수정까지 포함한 checkpoint r011을 기준으로 3,999개 planning source와 6,589개 provider source의 해시·누락·ignore·중복을 통과했다. 이어 r011 현재 소스에서 planning 154개 `run_tests`를 패키지별 fresh ROS master/ROS_HOME과 `-j1`로 전면 재실행했다. 154/154 타깃과 실제 JUnit 253개·1,288 testcase가 errors/failures/skips/malformed 0이었다. [r003 all-package receipt](evidence/planning-test-audit-r003.json)에 현재 checkpoint와 재현 스크립트 SHA를 고정했다. packages without declared tests 67개는 타깃 완료일 뿐 testcase coverage로 확대하지 않는다.
