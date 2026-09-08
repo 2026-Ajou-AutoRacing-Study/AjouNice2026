@@ -2,15 +2,15 @@
 
 Status: **PASS 11/11 within the frozen standalone boundary. AjouNice real-input integration remains the next gate.**
 
-This page carries the final P7.1 evidence into the integration branch. It is not a new MORAI closed-loop run. The original immutable report and receipt remain under the Autoware2ros1 harness; their SHA-256 values are recorded in `evidence/p7-standalone-reconciliation.json`.
+This page carries the original P7.1 evidence into the integration branch and records a fresh execution against the checkpoint-r010 clean install. It is not a MORAI closed-loop run. The original immutable report remains under the Autoware2ros1 harness, while the current-run summary and raw result hashes are recorded in `evidence/p7-r010-current-install-r001.json`.
 
 ## Why the evidence applies to this checkout
 
-On 2026-09-08, `planning_ws/tools/audit_source.py` checked the imported planning source against the frozen r003 manifest:
+On 2026-09-08, `planning_ws/tools/audit_source.py` checked the imported planning source against checkpoint r010:
 
-- checkpoint SHA-256: `12a4c54eaf1847f1bb54fdc4a627fe2291729869e6d287ea4edb7c0c4159989b`
-- manifest entries: 4,001
-- checked source files: 3,997; the four omitted entries are generated Python bytecode
+- checkpoint SHA-256: `323e9d8f4c6348910772c5ca3d8e864d00590e0ece2ff56778c51ef8e3c7e781`
+- manifest entries: 4,003
+- checked source files: 3,999; the four omitted entries are generated Python bytecode
 - changed or missing source: 0
 - planning packages: 149 frozen packages plus 5 named support packages
 - duplicate packages: 0
@@ -24,7 +24,7 @@ The live fixture hashes also match the P7.1 receipt exactly:
 | `kcity_map/lanelet_map/map_projector_info_v1.yaml` | `ccb5a8199afd7e64b04b6ac8637419ec4c9cd5ab16bac68a229971a7f7c7859c` |
 | `base_ws/src/planning_addons/competition_route_requester/config/kcity_v61_competition_route.yaml` | `0798028dacd508a735d77585a841dc156bff6a9022480d1644b3651a3596fa30` |
 
-Therefore, the standalone algorithm and fixture result can be carried forward to this branch. Current base integration code, external sensor data, controller behavior, or MORAI transport are not covered by that lineage proof.
+The fixture hashes still match the original P7 run, and the 11 cases were executed again from the current `planning_ws/install_isolated` rather than inferred from lineage. Current external sensor data, controller behavior, and MORAI transport remain outside this standalone proof.
 
 ## Final same-graph v61 matrix
 
@@ -38,15 +38,15 @@ Every case used an isolated ROS master and the same 14-process Mission Planner t
 | Safe left lane change | PASS | lane sequence progressed through the expected source and target lanes |
 | Occupied target lane | PASS | collision-free merge; minimum lateral separation 3.607 m exceeded the 3.25 m envelope |
 | v61 merge/intersection moving conflict | PASS | original intersection logic stopped 1.3 m upstream |
-| RED to GREEN | PASS | 8 red-stop outputs; velocity recovered to 16.667 m/s after green |
+| RED to GREEN | PASS | 6 red-stop outputs; velocity recovered to 16.667 m/s after green |
 | Static obstacle | PASS | MVP stopped 9.914 m before the published object |
-| Moving ego | PASS | ego moved 5 m; BPP 304 and MVP 9 new outputs; validator 20/20 |
-| 2 s input loss and recovery | PASS | after recovery, BPP 152 and MVP 38 outputs; cached output during loss means this is not a stale-data safe-stop proof |
+| Moving ego | PASS | ego moved 5 m; BPP 304 and MVP 8 outputs; all observed validator flags true |
+| 2 s input loss and recovery | PASS | after recovery, BPP +20, MVP +6, and final +6 outputs; cached output during loss means this is not a stale-data safe-stop proof |
 | Route A to B reroute | PASS | moving disjoint request rejected with original code 60001; standstill request accepted; route +1 and final trajectory +30 |
 
 ## Exact claim boundary
 
-This proves that the frozen planning source coherently executes the required Mission to BPP to BVP to optimizer to MVP to smoother to validator graph on the actual v61 fixtures for the matrix above. It also proves Route A/B generation, selected lane-change, intersection, signal, obstacle, reroute, moving-ego, and recovery behavior inside that harness.
+This proves that the checkpoint-r010 clean install coherently executes the required Mission to BPP to BVP to optimizer to MVP to smoother to validator graph on the actual v61 fixtures for the matrix above. It also proves Route A/B generation, selected lane-change, intersection, signal, obstacle, reroute, moving-ego, and recovery behavior inside that harness.
 
 It does **not** prove:
 
@@ -111,8 +111,8 @@ namespaces; lane-change retains the original source YAML through the installed
 adapter, and goal-planner retains its real BPP child process and blocked-object
 PlanningFactor scenario. The latter fixture now supplies a valid identity
 quaternion for the empty occupancy-grid origin instead of the invalid all-zero
-quaternion. This remains package-test evidence and does not relabel the P7.1
-11/11 runtime run. See
+quaternion. After the clean 154-package install, the full P7.1 runtime matrix
+was executed again from r010 and passed 11/11. See
 [planning-test-fixture-r008.json](evidence/planning-test-fixture-r008.json).
 
 The checkpoint-r010 all-package reconciliation then executed all 154
@@ -124,3 +124,6 @@ target completion but no testcase coverage. This closes the raw package-test
 audit while leaving the P7.1 runtime and AjouNice closed-loop claim boundaries
 unchanged. See
 [planning-test-audit-r002.json](evidence/planning-test-audit-r002.json).
+
+The current-install runtime receipt, including independent raw result hashes,
+is [p7-r010-current-install-r001.json](evidence/p7-r010-current-install-r001.json).

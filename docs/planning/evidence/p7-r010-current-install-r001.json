@@ -1,0 +1,135 @@
+{
+  "schema": "ajounice.aw149.p7_current_install.v1",
+  "recorded_at": "2026-09-08T21:02:00+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "commit": "6c2befbe",
+  "scope": "CHECKPOINT_R010_CLEAN_INSTALL_ACTUAL_KCITY_V61_STANDALONE_MATRIX",
+  "status": "PASS",
+  "matrix": "11/11",
+  "execution": {
+    "planning_install": "/home/jihun/AjouNice2026/planning_ws/install_isolated",
+    "isolation": "fresh ROS master and ROS_HOME per case",
+    "graph": "Mission Planner -> full BPP -> full BVP -> Path Optimizer -> full MVP -> Velocity Smoother -> Planning Validator",
+    "processes": 14,
+    "unexpected_process_deaths": 0
+  },
+  "source": {
+    "checkpoint": "planning_ws/provenance/checkpoint-r010.json",
+    "checkpoint_sha256": "323e9d8f4c6348910772c5ca3d8e864d00590e0ece2ff56778c51ef8e3c7e781",
+    "source_files_checked": 3999,
+    "source_mismatches": 0,
+    "provider_source_files_checked": 6589,
+    "provider_mismatches": 0,
+    "packages": 154
+  },
+  "fixtures": {
+    "lanelet2_map_v61_sha256": "c8ee07fb70334a13373f8cbd54fabe95980ac1e9589bbc05382337074f089dc2",
+    "map_projector_info_v1_sha256": "ccb5a8199afd7e64b04b6ac8637419ec4c9cd5ab16bac68a229971a7f7c7859c",
+    "competition_route_yaml_sha256": "0798028dacd508a735d77585a841dc156bff6a9022480d1644b3651a3596fa30"
+  },
+  "cases": [
+    {
+      "name": "route_a_experimental",
+      "pass": true,
+      "lanelets": 47,
+      "counts": {"bpp": 829, "bvp": 27, "optimizer": 27, "mvp": 24, "smoother": 23, "final": 20, "validation": 20},
+      "all_20_validator_flags_true": true,
+      "raw_result_sha256": "3ab409eb23ff4b198a198155ab40b8b9fb6cd04598af8bd89054f3e61daea01b"
+    },
+    {
+      "name": "route_b_experimental",
+      "pass": true,
+      "lanelets": 57,
+      "counts": {"bpp": 132, "bvp": 52, "optimizer": 52, "mvp": 36, "smoother": 35, "final": 20, "validation": 20},
+      "all_20_validator_flags_true": true,
+      "raw_result_sha256": "b8312dabb2a6801a11ac0da5eb410b5549ccd049a209139dcc85f815c24f198c"
+    },
+    {
+      "name": "route_a_normal_bvp",
+      "pass": true,
+      "lanelets": 47,
+      "counts": {"bpp": 816, "bvp": 28, "optimizer": 28, "mvp": 25, "smoother": 24, "final": 20, "validation": 20},
+      "all_20_validator_flags_true": true,
+      "raw_result_sha256": "066c5b6bf03c7b7827bd9fa06ca48f3bf77fb080392cb1cdbdf59e0a13490139"
+    },
+    {
+      "name": "lane_change_safe",
+      "pass": true,
+      "observed_lane_sequences": [[200128, 200102], [200128, 200102, 200187, 201443], [200102, 200187, 201443], [200187, 201443], [201443]],
+      "all_observed_validator_flags_true": true,
+      "raw_result_sha256": "f0fd3b68c0aba8bd4e8398db3e078cf23cdc329f9671a76daeb389ba943231b5"
+    },
+    {
+      "name": "lane_change_occupied",
+      "pass": true,
+      "resolution": "collision_free_merge",
+      "minimum_lateral_separation_m": 3.6069444902113785,
+      "required_separation_m": 3.25,
+      "upstream_stop": false,
+      "all_observed_validator_flags_true": true,
+      "raw_result_sha256": "0212fb8fcebcf40ef66fb4f907ac72a109a7b0cd8465e922ad37629bdde3daa9"
+    },
+    {
+      "name": "intersection_merge_conflict",
+      "pass": true,
+      "nearest_stop_distance_m": 1.300000000000028,
+      "all_observed_validator_flags_true": true,
+      "raw_result_sha256": "cb0c42da75e3f7f0730e46f3f038933ba37ad17d26c187f32ee117b2807957fa"
+    },
+    {
+      "name": "red_to_green",
+      "pass": true,
+      "red_stop_outputs": 6,
+      "green_max_velocity_mps": 16.66666603088379,
+      "all_observed_validator_flags_true": true,
+      "raw_result_sha256": "66d4f6ccac42841c78aa10039ab8c85fefa2c8fe40fae54a3eac262afcc0a1e4"
+    },
+    {
+      "name": "mvp_obstacle_stop",
+      "pass": true,
+      "stop_distance_to_object_m": 9.913804600488342,
+      "all_observed_validator_flags_true": true,
+      "raw_result_sha256": "eeb188edc455f5e799e865ac95f230d5458b305531759f89fa2bb731120473e3"
+    },
+    {
+      "name": "moving_ego",
+      "pass": true,
+      "ego_distance_m": 5.000000000000003,
+      "bpp_outputs": 304,
+      "mvp_outputs": 8,
+      "final_outputs": 4,
+      "all_observed_validator_flags_true": true,
+      "raw_result_sha256": "c7986018e705a854bf01aee30697e3ccd8584c72cacb8d2bbde759f1ee6006a0"
+    },
+    {
+      "name": "input_loss_recovery",
+      "pass": true,
+      "loss_seconds": 2,
+      "post_recovery_output_increments": {"bpp": 20, "mvp": 6, "final": 6, "validation": 6},
+      "safe_stop_during_loss_proven": false,
+      "all_observed_validator_flags_true": true,
+      "raw_result_sha256": "d26f51ea50f9795359767b687bf6bcbdebb9bc461e8d8c38b0dddb388ec48f8b"
+    },
+    {
+      "name": "route_a_to_b_reroute",
+      "pass": true,
+      "moving_disjoint_request": "REJECTED_CODE_60001_AS_DESIGNED",
+      "standstill_request": "ACCEPTED",
+      "route_output_increment": 1,
+      "final_output_increment": 30,
+      "all_20_validator_flags_true": true,
+      "raw_result_sha256": "7cb2ec42927ca14eb2536040eb09f391351b0d63b29f91b2c239ae2c754b6647"
+    }
+  ],
+  "claim_boundary": {
+    "proven": "The checkpoint-r010 clean planning install coherently executes the listed Mission-to-validator v61 fixture matrix.",
+    "not_proven": [
+      "live AjouNice or MORAI topic, timestamp, frame, and unit semantics",
+      "MORAI closed-loop driving",
+      "vehicle controller handoff",
+      "production detector or tracker accuracy",
+      "automatic safe stop during stale input",
+      "every package as a simultaneous runtime node"
+    ]
+  }
+}
