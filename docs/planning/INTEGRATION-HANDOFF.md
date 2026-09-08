@@ -27,7 +27,7 @@
 
 같은 checkpoint와 v61 fixture의 최종 P7.1 standalone graph는 11/11을 통과했다. Route A/B, BVP 양 모드, 안전/점유 차선 LC, 교차로, red→green, 정적 장애물 정지, moving ego, 2초 입력 복구, 안전 규약을 유지한 reroute를 Mission→validator 동일 graph에서 검증했다. r002 시점 source·map·projector·route hash 일치도 다시 확인했다. 상세 범위와 제외 항목은 [P7-STANDALONE-ACCEPTANCE.md](P7-STANDALONE-ACCEPTANCE.md)와 [machine receipt](evidence/p7-standalone-reconciliation.json)에 있다.
 
-현재 source audit은 loop reroute 수정까지 포함한 checkpoint r011을 기준으로 3,999개 planning source와 6,589개 provider source의 해시·누락·ignore·중복을 통과했다. r010에서 수행한 planning 154개 `run_tests` 전면 재실행은 154/154 타깃과 실제 JUnit 1,288 testcase가 errors/failures/skips 0이었다. r011 delta는 Mission package 재빌드, Mission initialization oracle 1/1, requester private-master transport 11/11, base 24/24·114/114, full graph A→B 2/2와 A→fallback 2/2로 재검증했다. r010 전면 결과를 r011 전체 재실행으로 오표기하지 않는다.
+현재 source audit은 loop reroute 수정까지 포함한 checkpoint r011을 기준으로 3,999개 planning source와 6,589개 provider source의 해시·누락·ignore·중복을 통과했다. 이어 r011 현재 소스에서 planning 154개 `run_tests`를 패키지별 fresh ROS master/ROS_HOME과 `-j1`로 전면 재실행했다. 154/154 타깃과 실제 JUnit 253개·1,288 testcase가 errors/failures/skips/malformed 0이었다. [r003 all-package receipt](evidence/planning-test-audit-r003.json)에 현재 checkpoint와 재현 스크립트 SHA를 고정했다. packages without declared tests 67개는 타깃 완료일 뿐 testcase coverage로 확대하지 않는다.
 
 실제 객체가 든 `sensor_cam_raw_obstacle1.bag`으로 oracle/evaluation adapter→map-frame tracking→prediction도 실행했다. v61 map-based 경로는 15초 동안 tracking 699 frame/5,396 object, prediction 511 frame/3,733 object를 처리했고 모든 prediction object가 finite 위치와 현재 pose 포함 31-point/3.0초 horizon path를 가졌다. 기본 CTRV도 3,124 object 전부 같은 길이의 path를 생성했다. 다만 이것은 생산 detector/tracker 대신 MORAI GT를 쓴 transport/runtime 증거이며, map-based는 50 Hz 원본의 모든 frame을 보존하지 않았다.
 
@@ -111,8 +111,9 @@ planning 입력 topic의 publisher/type만 먼저 보려면 `scripts/runtime/che
 
 현재 인계 상태는 **아주나이스 저장소 내부에서 build/install 및 output-only 통합 시험을 시작할 수 있는 상태**다. 실제 MORAI 입력과 검토 차량값이 필요한 기능·폐루프 gate는 이 컴퓨터에서 임의 fixture로 완료 처리하지 않았다.
 
-추가 raw-test 전면 보강은 `checkpoint-r010.json`, loop reroute delta는 `checkpoint-r011.json`으로 분리했다. 최종 패키지별
+추가 raw-test 전면 보강은 `checkpoint-r010.json`, loop reroute 수정 포함 현재 경계는 `checkpoint-r011.json`으로 분리했다. r011 최종 패키지별
 격리 재실행은 154/154 타깃과 실제 JUnit 1,288/1,288 testcase를 통과했다.
 이 결과는 package fixture/algorithm oracle을 닫지만 P7 런타임 증거를
 확대하지 않는다. 상세 수치는
-`docs/planning/evidence/planning-test-audit-r002.json`에 있다.
+`docs/planning/evidence/planning-test-audit-r003.json`에 있다. 재현 명령은
+`AW149_PACKAGE_TEST_TIMEOUT_S=600 scripts/workspace/test_planning.sh`다.

@@ -125,5 +125,12 @@ audit while leaving the P7.1 runtime and AjouNice closed-loop claim boundaries
 unchanged. See
 [planning-test-audit-r002.json](evidence/planning-test-audit-r002.json).
 
+After the checkpoint-r011 loop-reroute correction, the same all-package gate
+was executed again through `scripts/workspace/test_planning.sh`: 154/154 target
+commands and 1,288/1,288 JUnit testcases passed with zero errors, failures,
+skips, or malformed reports. The current receipt is
+[planning-test-audit-r003.json](evidence/planning-test-audit-r003.json); runtime
+and closed-loop claim boundaries remain unchanged.
+
 The current-install runtime receipt, including independent raw result hashes,
 is [p7-r010-current-install-r001.json](evidence/p7-r010-current-install-r001.json).

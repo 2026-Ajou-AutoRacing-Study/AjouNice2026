@@ -19,7 +19,7 @@
 
 동일한 frozen planning source와 v61 fixture를 쓴 최종 P7.1 독립 시험은 Mission→BPP→BVP→MVP→validator graph의 11/11 matrix를 통과했다. Route A/B, normal/experimental BVP, 안전 LC, 점유 차선 geometry, 교차로, red→green, 정적 장애물, moving ego, 입력 복구, 정지 후 reroute가 포함된다. 세부 수치와 해시 계보는 [P7-STANDALONE-ACCEPTANCE.md](P7-STANDALONE-ACCEPTANCE.md)에 있다. 이는 AjouNice 실제 입력, 이동 중 A→B 성공, stale 중 자동 안전 정지, controller 폐루프 승인은 아니다. `149`는 패키지 경계 수이며 동시에 실행할 독립 노드 149개라는 뜻도 아니다.
 
-후속 raw-test 전면 보강은 checkpoint r010에 봉인했고, loop reroute delta를 반영한 현재 source audit은 r011이다. r010 전면 감사는 planning 154개 `run_tests` 타깃과 실제 JUnit 1,288 testcase를 통과했다. r011 delta는 Mission 재빌드/oracle, requester transport 11/11, base 24/24·114/114, installed full graph A→B 2/2와 A→fallback 2/2로 검증했으며 아직 r011의 전 154개 테스트를 다시 실행했다는 의미는 아니다.
+후속 raw-test 전면 보강은 checkpoint r010에 봉인했고, loop reroute 수정을 반영한 현재 source 경계는 r011이다. r011 현재 소스에서도 planning 154개 `run_tests`를 fresh master/ROS_HOME의 패키지별 격리로 전면 재실행해 154/154 타깃, JUnit 253개·1,288 testcase, errors/failures/skips/malformed 0을 확인했다. 재현 스크립트는 `scripts/workspace/test_planning.sh`, 상세는 [planning-test-audit-r003.json](evidence/planning-test-audit-r003.json)이다. 테스트가 없는 67개 패키지는 빌드된 target 완료만 증명한다.
 
 실제 lane-driving 경로:
 
