@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${AJOUNICE_ROOT:-$HOME/AjouNice2026}"
-
-source /opt/ros/noetic/setup.bash
-if [[ -f "$ROOT/base_ws/devel/setup.bash" ]]; then
-  source "$ROOT/base_ws/devel/setup.bash"
-fi
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$ROOT/scripts/workspace/source_aw149.sh"
 
 kill_by_pattern() {
   local signal="$1"
@@ -31,20 +27,20 @@ kill_by_pattern TERM \
   '[/]opt/ros/noetic/lib/nodelet/nodelet' \
   '[/]opt/ros/noetic/lib/rviz/rviz' \
   '[/]opt/ros/noetic/lib/tf2_ros/static_transform_publisher' \
-  "$ROOT/base_ws/devel/lib/tf_pub/ego_tf_broadcaster" \
-  "$ROOT/base_ws/devel/lib/sensor_interface/lidar_distortion_corrector" \
-  "$ROOT/base_ws/devel/lib/sensor_interface/morai_sensor_udp_receiver" \
-  "$ROOT/base_ws/devel/lib/sensor_interface/morai_ego_udp_receiver" \
-  "$ROOT/base_ws/devel/lib/sensor_interface/morai_ctrl_cmd_udp_sender" \
-  "$ROOT/base_ws/devel/lib/ioniq5/morai_sensor_static_tf.py" \
-  "$ROOT/base_ws/devel/lib/lanelet_map_visualizer/"
+  "$ROOT/base_ws/install_aw149/lib/tf_pub/ego_tf_broadcaster" \
+  "$ROOT/base_ws/install_aw149/lib/sensor_interface/lidar_distortion_corrector" \
+  "$ROOT/base_ws/install_aw149/lib/sensor_interface/morai_sensor_udp_receiver" \
+  "$ROOT/base_ws/install_aw149/lib/sensor_interface/morai_ego_udp_receiver" \
+  "$ROOT/base_ws/install_aw149/lib/sensor_interface/morai_ctrl_cmd_udp_sender" \
+  "$ROOT/base_ws/install_aw149/lib/ioniq5/morai_sensor_static_tf.py" \
+  "$ROOT/base_ws/install_aw149/lib/lanelet_map_visualizer/"
 
 sleep 1
 
 kill_by_pattern KILL \
-  "$ROOT/base_ws/devel/lib/sensor_interface/morai_sensor_udp_receiver" \
-  "$ROOT/base_ws/devel/lib/sensor_interface/morai_ego_udp_receiver" \
-  "$ROOT/base_ws/devel/lib/sensor_interface/morai_ctrl_cmd_udp_sender"
+  "$ROOT/base_ws/install_aw149/lib/sensor_interface/morai_sensor_udp_receiver" \
+  "$ROOT/base_ws/install_aw149/lib/sensor_interface/morai_ego_udp_receiver" \
+  "$ROOT/base_ws/install_aw149/lib/sensor_interface/morai_ctrl_cmd_udp_sender"
 
 echo "remaining ROS/UDP listeners:"
 ss -ltnp | grep -E ':(11311)' || true

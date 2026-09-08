@@ -14,6 +14,7 @@ from autoware_perception_msgs.msg import (
 )
 
 from object_prediction_node import make_predicted_objects, yaw_to_quaternion
+from perception_object_pipeline.time_conversion import duration_to_seconds
 
 
 class ObjectPredictionTest(unittest.TestCase):
@@ -42,7 +43,7 @@ class ObjectPredictionTest(unittest.TestCase):
         self.assertEqual(output.objects[0].object_id.uuid[15], 7)
         path = output.objects[0].kinematics.predicted_paths[0]
         self.assertEqual(len(path.path), 4)
-        self.assertAlmostEqual(path.time_step.to_sec(), 0.5)
+        self.assertAlmostEqual(duration_to_seconds(path.time_step), 0.5)
         self.assertAlmostEqual(path.path[0].position.x, 1.0)
         self.assertGreater(path.path[-1].position.x, path.path[0].position.x)
         self.assertGreater(path.path[-1].position.y, path.path[0].position.y)

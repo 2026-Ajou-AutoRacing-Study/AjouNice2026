@@ -1,4 +1,5 @@
 <launch>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="common_config"
        default="$(find trajectory_follower)/config/trajectory_follower_autoware.yaml"/>
   <arg name="pp_config"
@@ -6,7 +7,7 @@
   <arg name="pi_config"
        default="$(find trajectory_follower)/config/longi_pi_autoware.yaml"/>
   <arg name="vehicle_config"
-       default="$(find ioniq5)/../../../configs/vehicle/ioniq5.yaml"/>
+       default="$(arg repo_root)/configs/vehicle/ioniq5.yaml"/>
 
   <!-- This launch owns /control/command/steering and /ctrl_cmd. Do not run pp_pi.launch too. -->
   <node pkg="trajectory_follower"

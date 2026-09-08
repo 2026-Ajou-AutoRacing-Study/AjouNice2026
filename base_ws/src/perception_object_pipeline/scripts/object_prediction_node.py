@@ -21,6 +21,7 @@ from perception_object_pipeline.kinematic_prediction import (
     predict_pose,
     yaw_to_quaternion,
 )
+from perception_object_pipeline.time_conversion import builtin_duration_from_seconds
 
 
 def make_predicted_objects(message: TrackedObjects, horizons) -> PredictedObjects:
@@ -48,7 +49,7 @@ def make_predicted_objects(message: TrackedObjects, horizons) -> PredictedObject
         path.path = [
             copy.deepcopy(tracked.kinematics.pose_with_covariance.pose)
         ] + [predict_pose(tracked, horizon) for horizon in horizons]
-        path.time_step = rospy.Duration(horizons[0])
+        path.time_step = builtin_duration_from_seconds(horizons[0])
         path.confidence = 1.0
         predicted.kinematics.predicted_paths = [path]
         output.objects.append(predicted)

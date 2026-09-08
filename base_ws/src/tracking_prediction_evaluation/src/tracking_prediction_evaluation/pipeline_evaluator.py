@@ -129,6 +129,10 @@ def quaternion_yaw(quaternion) -> float:
     )
 
 
+def duration_seconds(duration) -> float:
+    return float(duration.sec) + float(duration.nanosec) * 1.0e-9
+
+
 def _predicted_paths(obj):
     paths = obj.kinematics.predicted_paths
     if not paths:
@@ -139,7 +143,7 @@ def _predicted_paths(obj):
                 (float(pose.position.x), float(pose.position.y))
                 for pose in path.path
             ),
-            step_sec=float(path.time_step.to_sec()),
+            step_sec=duration_seconds(path.time_step),
             confidence=float(path.confidence),
         )
         for path in paths

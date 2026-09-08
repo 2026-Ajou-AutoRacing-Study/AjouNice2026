@@ -6,6 +6,7 @@ find_package(catkin REQUIRED COMPONENTS
   rosbag
   morai_msgs
   autoware_perception_msgs
+  builtin_interfaces
   geometry_msgs
   visualization_msgs
   std_msgs

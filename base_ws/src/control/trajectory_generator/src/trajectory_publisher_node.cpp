@@ -248,7 +248,9 @@ private:
                         static_cast<double>(previous.longitudinal_velocity_mps)));
         accumulated_time += distance / average_speed;
       }
-      point.time_from_start = ros::Duration(accumulated_time);
+      const ros::Duration time_from_start(accumulated_time);
+      point.time_from_start.sec = time_from_start.sec;
+      point.time_from_start.nanosec = time_from_start.nsec;
       point.lateral_velocity_mps = 0.0F;
       point.heading_rate_rps = 0.0F;
       point.front_wheel_angle_rad = 0.0F;

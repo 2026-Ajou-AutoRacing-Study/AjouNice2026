@@ -1,11 +1,11 @@
 # AjouNice AW149 통합 담당자 인계서
 
-검토 기준: `planning/autoware-universe-to-ros1`, `3616bfd349001f169f40de345e5d064b48fc6fd1` (2026-09-08).
-저장소 루트 기준 상대 경로를 사용한다. 본 작업은 소스/launch/설치 규칙과 기존 검사 결과를 재검토한 문서화 작업이다. 아래의 수정안은 아직 구현하지 않았다.
+검토 기준: `planning/autoware-universe-to-ros1`의 AW149 통합 작업 트리 (2026-09-08).
+저장소 루트 기준 상대 경로를 사용한다. 이 문서는 구현과 clean install 검증을 반영한 현재 인계 기준이다.
 
 ## 1. 현재 무엇이 되고, 무엇을 해야 하는가
 
-포팅본은 **이 컴퓨터의 새 planning_ws에서 경계 149개 + 지원 5개를 빌드·설치했다.** 실제 v61 map을 읽어 full planning graph가 기동하고 binary map을 수신하는 것까지 확인했다. requester는 정책 8개·모의 RouteSelector를 이용한 ROS 통신 10개 검사를 통과했다.
+포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 24개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 23개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 10개 검사를 통과했다.
 
 **인지 입력만 연결하면 정상 trajectory가 보장된다는 뜻은 아니다.** 현재 AjouNice localization/perception/control의 실데이터를 함께 연결한 end-to-end 검사는 완료되지 않았다. 새 graph의 기동 검사는 route/ego/TF/objects/acceleration/mode를 공급하지 않았고, 필요한 입력을 기다리는 상태였다. 지금 계속 주행 graph를 켜두었다는 뜻도 아니다.
 
@@ -26,38 +26,31 @@ Scenario Selector에는 parking 분기도 연결돼 있다. lane-driving scenari
 
 | ID | 담당 | 작업 | 왜 필요한가 |
 |---|---|---|---|
-| B0 | 통합/저장소 | 푸시본 provider 2개 파일의 줄바꿈·해시 복구 | 새 clone의 provider 빌드 전 검사가 실패함 |
-| B1 | 통합/빌드 | submodule/외부 의존성 준비, planning→base 순서로 새 출력에 빌드 | 기존 base/devel은 교체 전 메시지로 생성됨 |
-| P1 | 객체 예측 | Duration 필드와 소비자/테스트 변환 | Python 메시지 직렬화 실패 |
-| P2 | 신호 인식 | Time 변환, helper 설치, v61 설정, route 유효성 관리 | 발행 실패·모듈 import 실패·잘못된 신호 매칭 |
+| B0 | 통합/저장소 | **완료:** provider 2개 CRLF blob 및 `.gitattributes` 복구 | 새 clone의 provider 해시 보존 |
+| B1 | 통합/빌드 | **완료:** submodule/고정 Livox SDK 준비, planning→base 24/24 clean install | 낡은 devel 혼입 차단 |
+| P1 | 객체 예측 | **완료:** Duration 필드와 소비자/테스트 변환 | Python 메시지 직렬화 통과 |
+| P2 | 신호 인식 | **완료:** Time 변환, helper/weights 설치, v61 설정, route state 관리 | clean install 기동·계약 검사 통과 |
 | L1 | Localization | 실제 acceleration, 좌표계/속도/TF/clock 계약 | BPP/BVP/MVP/validator 필수 입력 |
 | P3 | 인지/LiDAR | 실제 ground-free cloud와 occupancy 공급 | 대상 plugin의 판단 입력, occupancy는 BPP cyclic readiness에도 사용 |
 | S1 | System/차량 인터페이스 | 실제 mode/engage 상태 공급, mode 토픽 두 경로 정합 | 초기 경로/재경로/주행 상태 판단 |
-| C1 | 제어 | follower 입력을 최종 trajectory로 연결, source age·validator 확인 | 현재 `/control/trajectory`, planning은 `/planning/trajectory` |
+| C1 | 제어 | **코드 연결 완료:** follower 입력 `/planning/trajectory`; 실데이터 source age·validator 승인은 남음 | output-only 후 폐루프 순서 유지 |
 | C2 | 제어/차량 | 제어 예측 trajectory·Control·SteeringReport 공급 | MVP 경계 이탈 방지 모듈의 추가 입력 |
-| M1 | Map/bringup | binary map 발행 단일화, v61/projector 고정 | base visualizer의 raw XML은 planner binary와 다름 |
+| M1 | Map/bringup | **구성 완료:** 통합 launch에서 binary map 단일 발행, v61/projector 고정 | 실운영 중 publisher 유일성 재확인 |
 | V1 | 차량 설정 | 실차 치수에서 flat planner YAML 생성 | 예시 YAML은 schema도 다르고 tread/wheel width도 없음 |
-| T1 | 도구/제어 | CSV/history native Duration 변환 | 전체 base 빌드 및 recording/replay 도구 호환 |
-| R1 | 통합/bringup | 운영 entrypoint·경로·old launch 정리 | 예전 devel 및 삭제된 패키지를 참조하는 실행 경로 존재 |
+| T1 | 도구/제어 | **완료:** CSV/history native Duration 변환 | base 24/24 빌드 및 단위검사 통과 |
+| R1 | 통합/bringup | **주 경로 완료:** 통합 entrypoint와 runtime source를 install_aw149로 통일 | 과거 실험 launch는 운영 entrypoint가 아님 |
 | A1 | 통합/검증 | 실제 route→trajectory→plugin→폐루프 순서 승인 | 출력 존재만으로 기능을 보장할 수 없음 |
 
 ## 3. B0 — 새 컴퓨터 빌드 전 반드시 처리할 푸시본 문제
 
-이번에는 로컬 작업 파일뿐 아니라 **HEAD의 Git blob 10,586개를 원본 manifest SHA256와 대조**했다. 10,584개 일치, 아래 2개 불일치다.
+로컬 작업 파일뿐 아니라 Git blob을 원본 manifest SHA256와 대조해 아래 2개의 CRLF 변환 문제를 찾았고 원본 바이트로 복구했다.
 
 - `planning_ws/external/osqp/src/docs/make.bat`
 - `planning_ws/external/acados/src/external/osqp/docs/make.bat`
 
 Git의 `text=auto` 적용으로 CRLF가 변환됐다. 로컬 원본 작업 파일의 해시는 일치해 기존 빌드가 성공했지만, clone으로 받은 내용은 다르다. `planning_ws/tools/prepare_osqp.py`와 `prepare_acados.py`는 provider 전체 파일의 해시를 검사하므로 문서용 BAT 파일이어도 검사를 통과하지 못한다.
 
-수정 방법:
-
-1. 각 파일을 해당 provider manifest의 원본 SHA256에 맞는 바이트로 복원한다. 현재 원본 작업 머신에는 원래 바이트가 남아 있다. manifest 값을 임의로 바꾸거나 검사에서 제외하지 않는다.
-2. 두 파일에 Git text 변환을 적용하지 않도록 설정한다. 하위 vendor `.gitattributes`가 있으므로 저장소 루트 규칙만 넣었다고 가정하면 안 된다. 예: 각 `docs/.gitattributes`의 `make.bat -text`처럼 가장 가까운 규칙을 두고 `git check-attr text -- <파일>`로 확인한다.
-3. 복원 파일과 속성을 함께 커밋한 뒤 **Git에 저장된 blob 또는 새 checkout**에서 SHA를 다시 확인한다. 속성만 바꿔도 이미 LF로 저장된 내용이 자동으로 원래 CRLF가 되지는 않는다.
-4. 그 checkout에서 `planning_ws/tools/audit_source.py` 및 provider 빌드를 실행한다.
-
-따라서 기존 안내의 “clone하고 build.sh만 실행하면 된다”에는 이 선행 수정이 빠져 있었다. 본 문서 작성 시점에는 아직 복구 커밋을 만들지 않았다.
+두 provider의 가장 가까운 `docs/.gitattributes`에 `make.bat -text`를 추가하고 파일 blob을 원본 SHA256에 맞췄다. manifest를 완화하거나 파일을 검사에서 제외하지 않았다. 최종 커밋 뒤 Git blob 기준 전수 대조를 다시 실행해야 한다.
 
 ## 4. B1 — 메시지 소유권·의존성·빌드 순서
 
@@ -67,35 +60,25 @@ Git의 `text=auto` 적용으로 CRLF가 변환됐다. 로컬 원본 작업 파�
 
 헤더 `std_msgs/Header.stamp`는 native ROS1 Time이다. 반면 `PredictedPath.time_step`, `TrajectoryPoint.time_from_start`, `TrafficLightGroupArray.stamp`, mode/control/steering payload stamp는 동결된 `builtin_interfaces` 타입이다. 모든 stamp를 일괄 치환하지 않는다.
 
-### 아직 준비되지 않은 외부 코드
+### 외부 코드와 런타임
 
-- `git submodule status`에서 `base_ws/src/ekf-multi-object-tracking`은 미초기화(`-47098728…`)다. `object_pipeline.launch:145`가 `ekf_multi_object_tracking` launch를 include한다. 깨끗한 planning 환경의 `rospack find ekf_multi_object_tracking`도 실패했다. 기록된 submodule revision을 가져와 새 메시지에 맞춰 재빌드해야 한다.
-- 현재 선택된 환경에서 `robot_localization`도 검색되지 않았다. GNSS/IMU EKF·CTRA 모드를 쓸 때 설치/overlay 경로를 준비해야 한다. 이것이 GT-only 모드까지 반드시 필요하다는 뜻은 아니다.
-- 선택한 detector의 submodule/모델 weights/Conda 환경은 planning 소스에 모두 포함된 것이 아니다. `object_pipeline.launch`의 detector, checkpoint, `repo_root`, Python 실행 경로를 인지 담당자와 확정한다.
-- 미초기화 tracker 내부 코드와 선택하지 않은 외부 detector의 소스 호환성은 이번 검사에서 확인하지 못했다. 이를 “검사 완료”로 넘기지 말고 submodule 확보 후 duplicate message와 직렬화를 추가 확인한다.
-
-당시 catkin 검색 결과 planning 154 + base 23은 **현재 초기화된 checkout 기준**이다. submodule 초기화 후 base 패키지 수와 중복을 다시 세어야 한다.
+- `base_ws/src/ekf-multi-object-tracking`은 초기화했고 ROS1 install 규칙을 보완한 revision `94819735`를 사용한다. clean install의 binary/config/launch 및 14개 C++ 검사를 확인했다.
+- `robot_localization`과 `jsk_recognition_msgs`는 Noetic apt 패키지로 설치했다. 친구 컴퓨터에서는 rosdep/apt 단계가 필요하다.
+- Livox SDK는 `third_party2/livox_sdk`의 Gitlink revision `9306596a`를 `build_external`에 먼저 빌드한다. 드라이버 CMake가 최신 upstream HEAD를 임의 clone하지 않도록 `build_all.sh`가 이 정적 라이브러리를 강제한다.
+- traffic light runtime은 package의 `requirements-runtime.txt`에 검증 버전을 기록했다. PyTorch wheel은 대상 CUDA에 맞게 먼저 선택해야 한다.
+- FastBEV/PointPainting checkpoint는 Git에 포함되지 않는다. 통합 launch의 detector 기본값은 비활성이고, 별도 배포한 모델의 SHA256 확인 후 명시적으로 켠다.
+- 전체 catkin 검색 결과는 planning 154(경계 149 + 지원 5), base 24이며 중복 package name은 0이다.
 
 ### 빌드 경로
 
-기존 `scripts/workspace/build_all.sh`, `setup_ws.sh`는 Noetic만 source하고 기존 base에 `catkin_make`를 호출한다. 새 underlay와 새 출력 경로를 사용하도록 바꿔야 한다.
+`setup_ws.sh`는 submodule을 재귀 초기화한 뒤 `build_all.sh`를 호출한다. 빌드 순서는 Noetic → planning provider/154 package install → pinned Livox SDK → base 24 package install이다. planning이 base를 underlay로 사용하지 않으므로 순환 의존이 없다.
 
-순서: Noetic → planning_ws install → base_ws 새 install. planning_ws가 base_ws를 underlay로 사용하면 순환 의존이 된다. `build_addons.sh`는 addon 2개만 빌드하므로 전체 base 빌드 완료 명령이 아니다.
-
-아래는 **B0 및 base 코드 수정·의존성 준비 후 실행할 예시**다. 전체 base로 실제 실행해 합격시킨 명령은 아직 아니다.
+아래 명령을 실제로 실행해 base 24/24 install 성공을 확인했다.
 
 ```bash
 # repository root에서, 기존 ROS/Conda overlay가 섞이지 않은 새 셸
-export AJOUNICE_ROOT="$PWD"
-bash planning_ws/tools/build.sh --providers
-source planning_ws/install_isolated/setup.bash
-cd base_ws
-catkin_make_isolated --source "$AJOUNICE_ROOT/base_ws/src" \
-  --build "$AJOUNICE_ROOT/base_ws/build_aw149" \
-  --devel "$AJOUNICE_ROOT/base_ws/devel_aw149" \
-  --install-space "$AJOUNICE_ROOT/base_ws/install_aw149" \
-  --install -j4 --cmake-args -DCMAKE_BUILD_TYPE=Release \
-  -DPYTHON_EXECUTABLE=/usr/bin/python3
+bash scripts/workspace/setup_ws.sh
+source scripts/workspace/source_aw149.sh
 ```
 
 운영 환경은 새 planning install 후 `base_ws/install_aw149/setup.bash`를 source하도록 확정한다. 기존 `base_ws/devel`, 다른 Autoware2ros1 install, addon-only install을 뒤섞지 않는다. `rospack find`와 Python module `__file__`, 실제 연결 MD5로 각 프로세스의 경로를 확인한다.
@@ -304,6 +287,6 @@ projector: `kcity_map/lanelet_map/map_projector_info_v1.yaml`.
 
 ## 15. 친구에게 전달할 작업 완료 정의
 
-“통합 완료”는 위 파일을 수정해 compile한 상태를 넘어, **실제 AjouNice 입력 → 유효한 route → 실제 필요한 plugin이 적용된 최종 trajectory → follower 폐루프**를 검사한 상태다. 이번 인계서 기준으로 아직 그 단계까지 완료하지 않았다.
+“통합 완료”는 compile을 넘어 **실제 AjouNice 입력 → 유효한 route → 실제 필요한 plugin이 적용된 최종 trajectory → follower 폐루프**를 검사한 상태다. 현재는 소스·메시지·설치·통합 graph 기동까지 완료했으며, 실데이터가 필요한 L1/P3/S1/V1/C2/A1은 완료로 세지 않는다.
 
-우선 B0/B1과 P1/P2/T1을 처리하면 새 환경 빌드·메시지 교환을 시작할 수 있다. L1/P3/S1/M1/V1을 맞춰 output-only를 확인하고, C1/C2를 구현·검증한 뒤 A1의 주행 gate를 진행한다. 기존 포팅 알고리즘을 고쳐야 하는 오류가 나오면 원본 코드/변환 규약/재현 입력을 함께 기록하고 최소 수정 후 해당 검사와 관련 회귀 검사를 다시 수행한다.
+친구 컴퓨터에서는 먼저 `setup_ws.sh`로 같은 install을 재현한다. 그 다음 L1/P3/S1/V1 입력 계약을 맞추고 controller를 끈 output-only로 Route A/B와 trajectory 전체 이력을 승인한 후 C2/폐루프를 켠다. 기존 포팅 알고리즘 오류가 나오면 원본 코드/변환 규약/재현 입력을 함께 기록하고 최소 수정 후 해당 검사와 관련 회귀 검사를 다시 수행한다.

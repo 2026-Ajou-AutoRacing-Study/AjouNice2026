@@ -3,6 +3,7 @@ project(perception_object_pipeline)
 
 find_package(catkin REQUIRED COMPONENTS
   autoware_perception_msgs
+  builtin_interfaces
   geometry_msgs
   rospy
   std_msgs
@@ -14,6 +15,7 @@ catkin_python_setup()
 catkin_package(
   CATKIN_DEPENDS
     autoware_perception_msgs
+    builtin_interfaces
     geometry_msgs
     rospy
     std_msgs

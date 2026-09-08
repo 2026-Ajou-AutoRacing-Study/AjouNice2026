@@ -37,12 +37,17 @@
 
   <!-- Detector-specific launch arguments. -->
   <arg name="python_executable" default=""/>
-  <arg name="repo_root" default="$(env HOME)/AjouNice2026"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="map_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
+  <arg name="projector_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="fastbev_checkpoint"
        default="$(arg repo_root)/artifacts/detection3d/fastbev/releases/fastbev_i3_production.pth"/>
   <arg name="fastbev_preprocess_backend" default="opencv"/>
   <arg name="fastbev_pipeline_mode" default="staged"/>
-  <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
+  <!-- Required explicitly when detector:=pointpainting. -->
+  <arg name="openpcdet_root" default=""/>
   <arg name="pointpainting_cfg"
        default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpillar_morai_pointpainting_base2_singleframe9_geom_aug.yaml"/>
   <arg name="pointpainting_checkpoint"
@@ -191,5 +196,7 @@
     <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
     <arg name="prediction_model" value="$(arg prediction_model)"/>
     <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="projector_file" value="$(arg projector_file)"/>
   </include>
 </launch>

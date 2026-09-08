@@ -1,5 +1,5 @@
 topics:
-  trajectory: /control/trajectory
+  trajectory: /planning/trajectory
   kinematic_state: /localization/kinematic_state
   steering_cmd: /control/command/steering
   controller_valid: /control/autoware/controller_valid

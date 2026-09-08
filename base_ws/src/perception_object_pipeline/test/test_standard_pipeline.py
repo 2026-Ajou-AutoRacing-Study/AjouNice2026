@@ -15,6 +15,7 @@ from autoware_perception_msgs.msg import (
     TrackedObjects,
 )
 from visualization_msgs.msg import MarkerArray
+from perception_object_pipeline.time_conversion import duration_to_seconds
 
 
 class StandardPipelineTest(unittest.TestCase):
@@ -115,7 +116,7 @@ class StandardPipelineTest(unittest.TestCase):
 
         path = predicted.kinematics.predicted_paths[0]
         self.assertEqual(len(path.path), 31)
-        self.assertAlmostEqual(path.time_step.to_sec(), 0.1)
+        self.assertAlmostEqual(duration_to_seconds(path.time_step), 0.1)
         self.assertAlmostEqual(
             path.path[0].position.x,
             predicted.kinematics.initial_pose_with_covariance.pose.position.x,

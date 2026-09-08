@@ -27,6 +27,7 @@ from perception_object_pipeline.map_based_prediction import (
     LaneletNetwork,
     MapPredictionConfig,
 )
+from perception_object_pipeline.time_conversion import builtin_duration_from_seconds
 
 
 def _copy_common_fields(tracked) -> PredictedObject:
@@ -52,7 +53,7 @@ def _kinematic_path(tracked, horizons) -> PredictedPath:
     path.path = [
         copy.deepcopy(tracked.kinematics.pose_with_covariance.pose)
     ] + [predict_pose(tracked, horizon) for horizon in horizons]
-    path.time_step = rospy.Duration(horizons[0])
+    path.time_step = builtin_duration_from_seconds(horizons[0])
     path.confidence = 1.0
     return path
 
@@ -92,7 +93,7 @@ def make_map_based_predicted_objects(message, horizons, network):
                     pose.position.z = z
                     pose.orientation = yaw_to_quaternion(yaw)
                     path.path.append(pose)
-                path.time_step = rospy.Duration(horizons[0])
+                path.time_step = builtin_duration_from_seconds(horizons[0])
                 path.confidence = trajectory.confidence
                 predicted.kinematics.predicted_paths.append(path)
             path_count += len(trajectories)

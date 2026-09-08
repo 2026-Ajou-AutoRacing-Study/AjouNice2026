@@ -17,10 +17,14 @@
 
   <!-- ===== group_id 매칭: route 기반(1순위, v3, 정석 Autoware 방식) ===== -->
   <arg name="enable_route_matching" default="true" />
-  <arg name="lanelet2_map_file" default="" />
-  <arg name="lanelet2_projector_file" default="" />
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)" />
+  <arg name="lanelet2_map_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v61.osm" />
+  <arg name="lanelet2_projector_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
   <arg name="lanelet2_projector_type" default="LocalCartesianUTM" />
   <arg name="route_topic" default="/planning/mission_planning/route" />
+  <arg name="route_state_topic" default="/planning/route_state" />
   <arg name="odometry_topic" default="/localization/kinematic_state" />
 
   <node pkg="traffic_light_detection" type="traffic_light_node.py" name="traffic_light_node" output="screen">
@@ -41,6 +45,7 @@
     <param name="lanelet2_projector_file" value="$(arg lanelet2_projector_file)" />
     <param name="lanelet2_projector_type" value="$(arg lanelet2_projector_type)" />
     <param name="route_topic" value="$(arg route_topic)" />
+    <param name="route_state_topic" value="$(arg route_state_topic)" />
     <param name="odometry_topic" value="$(arg odometry_topic)" />
   </node>
 </launch>

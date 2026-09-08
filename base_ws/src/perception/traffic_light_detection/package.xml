@@ -11,4 +11,14 @@
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
   <depend>autoware_perception_msgs</depend>
+  <depend>autoware_planning_msgs</depend>
+  <depend>builtin_interfaces</depend>
+  <depend>morai_msgs</depend>
+  <depend>nav_msgs</depend>
+  <exec_depend>lanelet2_core</exec_depend>
+  <exec_depend>lanelet2_io</exec_depend>
+  <exec_depend>lanelet2_projection</exec_depend>
+  <exec_depend>lanelet2_python</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <test_depend>python3-nose</test_depend>
 </package>

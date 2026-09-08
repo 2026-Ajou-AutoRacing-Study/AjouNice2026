@@ -63,6 +63,7 @@ from autoware_perception_msgs.msg import (
 
 from light_color_utils import classify_crop, pick_ego_lane_box
 from lanelet_route_matcher import LaneletRouteGroupIdMatcher
+from ros_time import builtin_time_from_ros
 
 COLOR_MAP = {
     "red": TrafficLightElement.RED,
@@ -146,6 +147,7 @@ class TrafficLightNode:
         lanelet2_projector_file = rospy.get_param("~lanelet2_projector_file", "")
         lanelet2_projector_type = rospy.get_param("~lanelet2_projector_type", "LocalCartesianUTM")
         route_topic = rospy.get_param("~route_topic", "/planning/mission_planning/route")
+        route_state_topic = rospy.get_param("~route_state_topic", "/planning/route_state")
         odom_topic = rospy.get_param("~odometry_topic", "/localization/kinematic_state")
 
         if not os.path.exists(weights_path):
@@ -173,7 +175,9 @@ class TrafficLightNode:
                     projector_file=lanelet2_projector_file,
                     valid_group_ids=self.fallback_matcher.valid_group_ids(),
                 )
-                self.route_matcher.start_subscribers(route_topic, odom_topic)
+                self.route_matcher.start_subscribers(
+                    route_topic, odom_topic, route_state_topic
+                )
 
         self.pub = rospy.Publisher(
             "/perception/traffic_light_recognition/traffic_signals",
@@ -261,7 +265,8 @@ class TrafficLightNode:
             boxes.append((cx, cy, bw, bh, (x1, y1, x2, y2, det_conf)))
 
         group_array = TrafficLightGroupArray()
-        group_array.stamp = msg.header.stamp if msg.header.stamp.to_sec() > 0 else now
+        source_stamp = msg.header.stamp if msg.header.stamp.to_sec() > 0 else now
+        group_array.stamp = builtin_time_from_ros(source_stamp)
 
         debug_img = img if self.publish_debug_image else None
 

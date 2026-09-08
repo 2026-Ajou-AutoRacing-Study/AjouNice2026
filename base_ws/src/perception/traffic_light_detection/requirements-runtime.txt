@@ -1,0 +1,5 @@
+# Runtime versions exercised by the AW149 integration gate on Ubuntu 20.04.
+# Install a platform-appropriate PyTorch build before this file when CUDA differs.
+ultralytics==8.4.143
+torch==2.4.1
+torchvision==0.19.1

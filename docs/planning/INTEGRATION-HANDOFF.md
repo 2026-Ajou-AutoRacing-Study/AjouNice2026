@@ -1,67 +1,79 @@
-# AW149 통합 인계 — 개발자 확인 전 주행 연결 금지
+# AW149 아주나이스 통합 인계서
 
-후속 상세 재검토: [BASE-WS-INTEGRATION-GUIDE.md](BASE-WS-INTEGRATION-GUIDE.md). 파일별 수정법, 제어 피드백 누락, 신호 helper 설치/route 만료, 미초기화 tracker, 푸시본 provider 줄바꿈 문제를 포함한다. 실제 통합 작업은 이 상세 인계서를 함께 따른다.
+대상 브랜치: `planning/autoware-universe-to-ros1`. `develop`과 다른 브랜치는 건드리지 않는다. 상세 topic·frame·기능 gate는 [BASE-WS-INTEGRATION-GUIDE.md](BASE-WS-INTEGRATION-GUIDE.md)를 함께 따른다.
 
-## 이번 변경 범위
+## 지금 바로 가능한 것
 
-작업 브랜치: `planning/autoware-universe-to-ros1`, 시작 HEAD `db16770`.
-`develop` 및 다른 브랜치는 변경하지 않았다. 아래 통합 변경은 이후 `3616bfd`로 해당 planning 브랜치에 커밋·푸시했으며 후속 상세 인계서도 이 문서와 함께 관리한다.
+- `planning_ws/src`에는 ROS1 포팅 경계 149개와 지원 5개가 있으며 provider 소스도 저장소 안에 있다.
+- 중복 Autoware 메시지 14개는 base에서 제거했고 planning install을 단일 메시지 소유자로 쓴다.
+- base의 새 메시지 소비 코드(Duration/Time), tracker 설치, traffic-light helper/weights, v61 경로, follower 입력을 수정했다.
+- `scripts/workspace/setup_ws.sh`가 submodule 초기화, planning underlay, pin된 Livox SDK, base 24개를 순서대로 빌드한다.
+- 공식 runtime overlay는 `base_ws/install_aw149` 하나다. `base_ws/devel` 또는 과거 addon install을 source하지 않는다.
+- `ajounice_planning_integration/morai_planning_stack.launch`가 localization, sensor TF, object tracking/prediction, traffic light, v61 binary map, Mission→BPP→BVP→MVP graph를 묶는다.
+- detector checkpoint는 Git에 없으므로 detector, controller, route requester는 안전상 기본 `false`다.
 
-- `planning_ws/src`: r003-source-002의 149개 경계 패키지 + 지원 5개.
-- provider 소스/lock/renderer와 라이선스 포함, 새 경로에서 재빌드. 이전 install 복사 아님.
-- `base_ws/src/msgs`의 중복 14개 제거. planning_ws 메시지만 사용.
-- 빈 `base_ws/src/planning`, 기존 competition/planning validation launch 8개와 legacy fixture script 4개 정리.
-- 위 제거물은 `/home/jihun/Autoware2ros1/porting/backups/ajounice-pre-aw149-db16770/`에 복구 가능하게 보관했다. Git 추적 파일은 시작 HEAD에도 남아 있다.
-- requester 3개 노드 + map/projector/full planning launch addon 추가.
-- 다른 스택 개발자의 localization/perception/control 구현은 수정하지 않았다.
+현재 로컬 증거는 planning source audit PASS, base 24/24 clean install, object pipeline 21 tests, tracker 14 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 10 tests다. v61 통합 graph는 23개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다.
 
-**현재 base_ws의 기존 devel/install을 사용하면 안 된다.** 소스 메시지를 통합했지만 해당 메시지를 사용하는 base 코드의 아래 변경은 의도적으로 보류했다. 전체 base 재빌드/주행 승인이 아니다.
+이 증거는 **실제 입력으로 trajectory가 나온다거나 폐루프 주행이 승인됐다는 뜻은 아니다.** 외부 입력이 없던 기동에서는 route, ego/TF, objects, acceleration, operation mode를 기다리는 것이 정상 상태였다.
 
-## 개발자별 전달 사항
+## 새 컴퓨터에서 첫 순서
 
-| 담당 스택 | 현재 코드/형식 | 필요한 변경 및 확인 | 완료 기준 |
-|---|---|---|---|
-| 객체 예측 | `perception_object_pipeline/scripts/object_prediction_node.py:51`, `map_based_prediction_node.py:55,95`: `PredictedPath.time_step = rospy.Duration(...)` | `builtin_interfaces/Duration`의 `sec/nanosec`로 생성. `object_pipeline_visualization_node.py:265`의 `.to_sec()`도 필드 기반 변환 | 실제 PredictedObjects serialize/deserialize + planning 연결, prediction horizon/shape/좌표계 검증 |
-| 신호 인식 | `perception/traffic_light_detection/scripts/traffic_light_node.py`: TrafficLightGroupArray payload stamp에 native rospy.Time | payload만 builtin Time으로 변환. `/perception/traffic_light_recognition/traffic_signals` 이름은 유지, v61 regulatory group ID 매칭 | 실제 신호 입력에 따른 BVP stop/release, stale/unknown 정책 확인 |
-| 제어/trajectory 도구 | trajectory_generator C++의 `ros::Duration` 대입, trajectory_validator Python의 native Duration 대입 | `TrajectoryPoint.time_from_start.sec/nanosec`로 변환. 기존 CSV trajectory publisher와 planner 동시 발행 금지 | 새 메시지로 compile + 실제 serialization, 단일 trajectory 공급 |
-| Follower/제어 | 입력 `/control/trajectory`; planner 출력 `/planning/trajectory` | 검토 후 follower 입력 설정 변경. 기존 receive-time timeout 외 원본 입력/trajectory freshness 확인 | input loss/stale/invalid 시 안전 정지. controller 연결 전 output-only 시험 |
-| Localization | `/localization/kinematic_state` nav_msgs/Odometry 일치. CTRA acceleration 있음, MORAI GT launch에는 없음 | 사용 모드에서 실제 `/localization/acceleration` AccelWithCovarianceStamped 제공. pose map/twist base_link, covariance/단위/시간 검증 | 연속 fresh ego+accel, TF 단일 소유자 |
-| 지면제거/LiDAR | deskewed cloud는 있으나 canonical ground-free cloud 없음 | `/perception/obstacle_segmentation/pointcloud` sensor_msgs/PointCloud2 제공. deskewed→ground-free 단순 remap 금지 | 실제 지면제거 결과와 frame/stamp 검증 |
-| Occupancy | `/perception/occupancy_grid_map/map` production publisher 미발견 | 실제 nav_msgs/OccupancyGrid 제공. origin/resolution/frame/unknown 의미 합의 | 지도 밖/unknown을 안전하게 처리. 빈 free grid를 production 대체로 넣지 않음 |
-| System/engage | operation mode 발행은 fixture에서만 확인 | `/system/operation_mode/state` autoware_adapi_v1_msgs/OperationModeState를 실제 제어권/모드에 연결 | 실제 engagement/transition 반영, 가짜 autonomous 상시 발행 금지 |
-| Map/bringup | base visualizer가 LaneletMapBin.data에 raw OSM 넣음 | 기존 visualizer 실행 시 `publish_vector_map=false`; 새 binary loader만 `/map/vector_map` 소유 | 동일 타입/MD5 외 Boost binary payload 및 유일 publisher 확인 |
-| 차량 설정 담당 | `configs/vehicle/ioniq5.yaml`은 예시 nested YAML, tread 없음 | 검토한 flat planner YAML: wheel_base/wheel_tread/front_overhang/rear_overhang/left_overhang/right_overhang/vehicle_height/wheel_radius/wheel_width/max_steer_angle 제공 | 실제 차량 치수와 기준점 합의. test fixture 치수 자동 채택 금지 |
-| Map-based prediction | standalone launch 일부 v60 기본값 | v61 map/projector 명시, 현재 기본 horizon 약3s의 LC 충분성 검토 | 충분한 예측 범위로 주요 plugin 재시험 |
+```bash
+git checkout planning/autoware-universe-to-ros1
+git submodule update --init --recursive
+sudo apt install ros-noetic-jsk-recognition-msgs ros-noetic-robot-localization
 
-`std_msgs/Header.stamp`는 여전히 native ROS1 time이다. 모든 stamp를 일괄 변환하면 오히려 잘못된다. `builtin_interfaces` payload만 규약대로 변환하고 음수 duration 정규화도 지켜야 한다.
+# CUDA/CPU에 맞는 PyTorch 2.4.1을 먼저 설치한 뒤
+python3 -m pip install -r \
+  base_ws/src/perception/traffic_light_detection/requirements-runtime.txt
 
-## 확인된 메시지 차이
+bash scripts/workspace/setup_ws.sh
+source scripts/workspace/source_aw149.sh
+```
 
-| 타입 | 이전 base MD5 | planning MD5 |
+`source_aw149.sh`가 실패하면 낡은 devel로 우회하지 말고 build/install 실패부터 해결한다. `rospack find ajounice_planning_integration`, `rospack find ekf_multi_object_tracking`, Python message `__file__`이 모두 `install_aw149` 또는 planning `install_isolated` 아래를 가리켜야 한다.
+
+차량 치수는 upstream test YAML을 운영값으로 복사하지 않는다. 실제 검토된 flat YAML이 필요하다:
+
+```text
+wheel_base, wheel_tread, front_overhang, rear_overhang,
+left_overhang, right_overhang, vehicle_height,
+wheel_radius, wheel_width, max_steer_angle
+```
+
+정적 launch 확인 예:
+
+```bash
+roslaunch ajounice_planning_integration morai_planning_stack.launch \
+  vehicle_param_path:=/absolute/path/to/reviewed_vehicle_info.yaml \
+  start_controller:=false --nodes
+```
+
+FastBEV 또는 PointPainting을 켜려면 checkpoint 파일을 별도로 배포하고 SHA256을 release 문서와 대조한 뒤 `start_detector:=true`와 해당 경로 인자를 넘긴다. 현재 Git clone만으로 detector까지 켤 수 있다고 가정하지 않는다.
+
+## base_ws 담당자에게 받을 입력
+
+| 담당 | topic/type | 현재 판단과 필요한 조치 |
 |---|---|---|
-| Trajectory | f564849920833d9ceb52033399660bfb | cfd4a446faa4bee5ac422db560c39c52 |
-| PredictedObjects | 3919d7e4660f8152a1e9c2bc1bf49976 | 6102a226bd69cc37071944272eaba096 |
-| TrafficLightGroupArray | 163f5b4abaacf767c5397c9a4ba18a8e | f4f413546ec069fbb4dae90ca5482b60 |
+| Localization | `/localization/kinematic_state` `nav_msgs/Odometry` | 이름은 맞음. map pose/base_link twist, stamp, m/s·rad/s 검증 |
+| Localization | `/localization/acceleration` `geometry_msgs/AccelWithCovarianceStamped` | MORAI GT launch에는 production 공급자가 없음. 측정 또는 검증된 estimator 필요 |
+| Perception | `/perception/object_recognition/objects` `autoware_perception_msgs/PredictedObjects` | 변환/직렬화는 수정됨. 실제 detector→tracker→predictor frame, age, rate 확인 |
+| Perception | `/perception/obstacle_segmentation/pointcloud` `sensor_msgs/PointCloud2` | production ground-removal 출력 미확인. deskewed cloud 단순 remap 금지 |
+| Perception | `/perception/occupancy_grid_map/map` `nav_msgs/OccupancyGrid` | production publisher 미확인. 빈 free grid로 합격시키지 않음 |
+| System | `/system/operation_mode/state` 및 `/api/operation_mode/state` `autoware_adapi_v1_msgs/OperationModeState` | 실제 제어권 상태와 연결. 상시 autonomous fixture 금지 |
+| Vehicle/Control | predicted trajectory, `autoware_control_msgs/Control`, `autoware_vehicle_msgs/SteeringReport` | BoundaryDeparture MVP를 켤 때 실제 controller rollout과 조향 피드백 필요 |
+| Vehicle | flat vehicle-info YAML | 실제 IONIQ5 치수와 base_link 기준점 승인 필요 |
 
-LaneletMapBin MD5는 같아도 raw XML과 binary payload는 호환되지 않는다.
+신호 출력은 `/perception/traffic_light_recognition/traffic_signals`, 최종 planning 출력은 `/planning/trajectory`, follower 입력도 `/planning/trajectory`, MORAI 명령은 `/ctrl_cmd`다. Lanelet map은 integration binary loader만 `/map/vector_map`을 발행해야 하며 base visualizer의 raw OSM payload와 동시에 켜지 않는다.
 
-MapProjectorInfo는 r003에 동결된 ROS2-origin string 상수를 ROS1 genmsg가 따옴표 포함 문자열로 생성한다. 새 projector publisher는 YAML 문자열을 그대로 대입하지 않고 `MapProjectorInfo.LOCAL_CARTESIAN_UTM`, `MapProjectorInfo.WGS84` 생성 상수를 사용한다. C++ loader도 이 상수와 비교한다. 이 통합 단계에서 메시지 정의/MD5를 임의로 변경하지 않았다.
+## 실행 승인 순서
 
-## 빌드·실행 순서
+1. Controller와 requester를 끈 상태에서 actual sensing/localization/perception/system topic의 type, MD5, frame, timestamp, age, rate, TF를 기록한다.
+2. requester를 켜 Route A를 요청하고 Mission→BPP→BVP→MVP 각 stage와 `/planning/trajectory`, `/planning/validation_status` 전체 이력을 기록한다.
+3. 신호 red/green/unknown, obstacle stop/slow/cruise, 안전한 LC와 막힌 LC 거부, 실제 이동 중 A→B 및 fallback을 개별 검증한다.
+4. 위 단계가 통과한 뒤에만 controller를 켜 `/ctrl_cmd` 폐루프를 검증한다.
+5. input loss, TF loss, stale data, clock reset, route rejection에서 안전 정지와 복구를 확인한다.
 
-1. `planning_ws/tools/build.sh --providers` — Noetic만 들어간 깨끗한 환경에서 154개 설치.
-2. `planning_ws/tools/build_addons.sh` — 지금은 planning addon 2개만 별도 출력에 빌드. 다른 base 코드는 수정 대기.
-3. 위 담당자 수정 완료 후 planning install을 underlay로 전체 base_ws를 **새 build/devel/install 공간**에 빌드. 오래된 base_ws/devel source 금지.
-4. `planning_ws/tools/env.sh`는 새 planning + addon 설치만 source한다. 실제 base 전체 설치 검증 후 운영 환경 순서를 확정한다.
-5. `ajounice_planning_integration/planning.launch`: reviewed `vehicle_param_path` 필수, requester 기본 비활성, controller 없음. 실제 필요한 입력이 없으면 기다리는 것이 정상이며 빈 메시지로 통과시키지 않는다.
-6. output-only로 입력/TF/MD5/semantic 검사 → trajectory 품질·age·연속성 → requester A/B/fallback → controller 연결 후 폐루프.
+각 run에는 route UUID, map/vehicle-config hash, 준비 시간, trajectory Hz와 최대 gap, source age/latency, validator invalid 전 구간을 남긴다. 마지막 한 sample이 valid이거나 노드가 살아 있다는 사실만으로 PASS 처리하지 않는다.
 
-## 아직 주행 승인을 막는 planning 자체 검증
-
-- 기존 P7.1 PASS는 전 시간대 전 sample validator PASS가 아니다. Route A rosout에 invalid trajectory/latency warning이 있다.
-- 실제 이동 중 A→B 완료는 미검증. 이전 시험의 standstill 성공을 moving 성공으로 대체하지 않는다.
-- 새 route 수락 이후 trajectory의 시간상 연관과 안정 출력, 전체 sample latency/gap/invalid 기록이 필요하다.
-- occupied-target 시험은 separated merge를 보였지만 진짜 collision-blocked LC rejection 전체 oracle은 남아 있다.
-- requester의 서비스 mock/정책 검사는 Mission/BPP/BVP/MVP 및 MORAI 폐루프 검사의 대체가 아니다.
-
-따라서 이번 단계의 목표는 **코드 물리 통합·새 경로 빌드·요청기 구현·인계 계약 명확화**다. 다른 스택을 수정하지 않기로 한 범위 때문에 실제 AjouNice input→trajectory 및 주행 통합 완료로 보고하지 않는다.
+현재 인계 상태는 **아주나이스 저장소 내부에서 build/install 및 output-only 통합 시험을 시작할 수 있는 상태**다. 실제 MORAI 입력과 검토 차량값이 필요한 기능·폐루프 gate는 이 컴퓨터에서 임의 fixture로 완료 처리하지 않았다.

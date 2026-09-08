@@ -86,20 +86,20 @@ class LaneletRouteGroupIdMatcher:
     """
 
     def __init__(self, map_file, projector_type, projector_file, valid_group_ids,
-                 projector_type_default="LocalCartesianUTM", pose_stale_sec=2.0, route_stale_sec=30.0):
+                 projector_type_default="LocalCartesianUTM", pose_stale_sec=2.0):
         self.available = False
         self.map = None
         self.lanelet_group_id = {}
         self.valid_group_ids = set(int(g) for g in valid_group_ids)
         self.pose_stale_sec = pose_stale_sec
-        self.route_stale_sec = route_stale_sec
 
         self._route_segments = None  # list[list[int]] (각 segment의 primitive id들, [0]이 preferred)
-        self._route_stamp = None
+        self._route_active = False
         self._ego_xy = None
         self._ego_stamp = None
 
         self._sub_route = None
+        self._sub_route_state = None
         self._sub_odom = None
 
         if not LANELET2_AVAILABLE:
@@ -134,15 +134,20 @@ class LaneletRouteGroupIdMatcher:
                     self.lanelet_group_id[int(lanelet.id)] = rid
                     break  # 신호등 하나 찾으면 이 lanelet은 됐음
 
-    def start_subscribers(self, route_topic, odom_topic):
+    def start_subscribers(self, route_topic, odom_topic, route_state_topic="/planning/route_state"):
         if not self.available:
             return
-        from autoware_planning_msgs.msg import LaneletRoute
+        from autoware_planning_msgs.msg import LaneletRoute, RouteState
         from nav_msgs.msg import Odometry
 
         self._sub_route = rospy.Subscriber(route_topic, LaneletRoute, self._route_callback, queue_size=1)
+        self._sub_route_state = rospy.Subscriber(
+            route_state_topic, RouteState, self._route_state_callback, queue_size=1
+        )
         self._sub_odom = rospy.Subscriber(odom_topic, Odometry, self._odom_callback, queue_size=1)
-        rospy.loginfo(f"[lanelet_route_matcher] 구독 시작: {route_topic}, {odom_topic}")
+        rospy.loginfo(
+            f"[lanelet_route_matcher] 구독 시작: {route_topic}, {route_state_topic}, {odom_topic}"
+        )
 
     def _route_callback(self, msg):
         segments = []
@@ -152,8 +157,14 @@ class LaneletRouteGroupIdMatcher:
             ]
             segments.append(ids)
         self._route_segments = segments
-        self._route_stamp = rospy.Time.now()
         rospy.loginfo(f"[lanelet_route_matcher] 새 route 수신: {len(segments)}개 구간")
+
+    def _route_state_callback(self, msg):
+        from autoware_planning_msgs.msg import RouteState
+
+        self._route_active = msg.state in (RouteState.SET, RouteState.REROUTING)
+        if not self._route_active:
+            self._route_segments = None
 
     def _odom_callback(self, msg):
         self._ego_xy = (msg.pose.pose.position.x, msg.pose.pose.position.y)
@@ -192,9 +203,7 @@ class LaneletRouteGroupIdMatcher:
         """route를 앞으로 탐색해서 처음 만나는 신호등 group_id. 못 구하면 None (호출자가 폴백)."""
         if not self.available:
             return None
-        if not self._route_segments:
-            return None
-        if not self._is_fresh(self._route_stamp, self.route_stale_sec):
+        if not self._route_active or not self._route_segments:
             return None
         if self._ego_xy is None or not self._is_fresh(self._ego_stamp, self.pose_stale_sec):
             return None

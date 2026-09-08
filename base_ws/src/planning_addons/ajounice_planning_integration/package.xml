@@ -7,4 +7,8 @@
   <exec_depend>rospy</exec_depend><exec_depend>python3-yaml</exec_depend>
   <exec_depend>autoware_map_msgs</exec_depend><exec_depend>autoware_map_loader</exec_depend>
   <exec_depend>tier4_planning_launch</exec_depend><exec_depend>competition_route_requester</exec_depend>
+  <exec_depend>bringup</exec_depend>
+  <exec_depend>perception_object_pipeline</exec_depend>
+  <exec_depend>traffic_light_detection</exec_depend>
+  <exec_depend>trajectory_follower</exec_depend>
 </package>

@@ -14,6 +14,7 @@ from autoware_perception_msgs.msg import (
 )
 from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
+from perception_object_pipeline.time_conversion import duration_to_seconds
 
 
 CLASS_NAMES = {
@@ -262,7 +263,7 @@ class ObjectPipelineVisualization:
                 line.lifetime = self.lifetime
                 markers.markers.append(line)
 
-                time_step = path.time_step.to_sec()
+                time_step = duration_to_seconds(path.time_step)
                 if time_step > 1.0e-6:
                     for horizon_index, horizon in enumerate(
                         self.prediction_marker_horizons

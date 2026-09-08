@@ -1,4 +1,5 @@
 <launch>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <!--
     Complete the MORAI ground-truth branch of the localization TF tree:
       map -> morai_map -> base_link
@@ -7,7 +8,7 @@
     map -> base_link and publishes the Planning Odometry contract.
   -->
   <arg name="config"
-       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+       default="$(arg repo_root)/configs/localization/localization_manager.yaml"/>
   <arg name="ego_topic" default="/Ego_topic"/>
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
