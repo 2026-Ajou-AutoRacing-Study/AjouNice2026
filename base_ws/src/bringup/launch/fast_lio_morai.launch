@@ -1,10 +1,11 @@
 <launch>
   <!-- Real-time MORAI uses wall time; enable this explicitly for rosbag/simulation time. -->
   <arg name="use_sim_time" default="false"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
 
   <arg name="config"
-       default="$(env HOME)/AjouNice2026/configs/localization/fast_lio_morai_sensor4_vlp16.yaml"/>
+       default="$(arg repo_root)/configs/localization/fast_lio_morai_sensor4_vlp16.yaml"/>
 
   <rosparam command="load" file="$(arg config)"/>
 

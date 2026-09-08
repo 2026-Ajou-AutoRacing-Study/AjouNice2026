@@ -1,7 +1,8 @@
 <launch>
-  <arg name="global_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/mgeo_map/global_info.json"/>
-  <arg name="node_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/mgeo_map/node_set.json"/>
-  <arg name="link_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/mgeo_map/link_set.json"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="global_file" default="$(arg repo_root)/kcity_map/mgeo_map/global_info.json"/>
+  <arg name="node_file" default="$(arg repo_root)/kcity_map/mgeo_map/node_set.json"/>
+  <arg name="link_file" default="$(arg repo_root)/kcity_map/mgeo_map/link_set.json"/>
   <arg name="frame_id" default="morai_map"/>
   <arg name="output_topic" default="/map/morai_map"/>
   <arg name="publish_rate" default="0.0"/>

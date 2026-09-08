@@ -6,8 +6,9 @@
     FAST-LIO owns camera_init -> body. This launch owns body -> base_link and
     starts the node that initializes morai_map -> camera_init from Ego GT.
   -->
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="config"
-       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+       default="$(arg repo_root)/configs/localization/localization_manager.yaml"/>
 
   <rosparam command="load" file="$(arg config)" ns="localization_manager"/>
 

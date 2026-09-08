@@ -1,0 +1,60 @@
+{
+  "schema": "ajounice.aw149.clean_base_install.v1",
+  "recorded_at": "2026-09-08T17:48:07+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "parent_commit": "4e256c5e97e5f0659eb818a69985a4ca72f14cba",
+  "command": "./scripts/workspace/build_all.sh --clean",
+  "result": "PASS",
+  "planning_packages": {
+    "boundary": 149,
+    "support": 5,
+    "total": 154
+  },
+  "base_packages": {
+    "built_and_installed": 24,
+    "expected": 24
+  },
+  "clean_scope": [
+    "base_ws/build_aw149",
+    "base_ws/devel_aw149",
+    "base_ws/install_aw149"
+  ],
+  "first_clean_attempt": {
+    "result": "FAIL",
+    "failure": "fast_lio/Pose6D.h: No such file or directory",
+    "classification": "pinned upstream FAST_LIO omits the fastlio_mapping dependency on its generated C++ message header; an incremental build had hidden the clean parallel-build race",
+    "resolution": "keep the upstream submodule immutable; build the other 23 packages, configure FAST_LIO, build fast_lio_generate_messages_cpp explicitly, then build and install the full FAST_LIO package"
+  },
+  "install_asset_audit": {
+    "result": "PASS",
+    "missing_assets": 0,
+    "ambiguous_legacy_flat_assets": 0,
+    "asset_classes": ["launch", "config", "rviz", "rviz_cfg"]
+  },
+  "installed_launch_parse": {
+    "result": "PASS",
+    "passed": 20,
+    "expected": 20,
+    "environment": "scripts/workspace/source_aw149.sh",
+    "path_contract": "repository-owned defaults resolve through AJOUNICE_ROOT; package-owned assets resolve from install_aw149"
+  },
+  "clean_result_tests": {
+    "trajectory_follower": {"tests": 22, "errors": 0, "failures": 0, "skipped": 0},
+    "ajounice_planning_integration": {"tests": 3, "errors": 0, "failures": 0, "skipped": 0},
+    "localization_manager": {"tests": 3, "errors": 0, "failures": 0, "skipped": 0}
+  },
+  "source_audit": {
+    "result": "PASS",
+    "planning_source_files_checked": 3997,
+    "planning_changed_or_missing": 0,
+    "provider_source_files_checked": 6589,
+    "provider_changed_or_missing": 0,
+    "duplicate_package_names": 0,
+    "checkpoint_sha256": "12a4c54eaf1847f1bb54fdc4a627fe2291729869e6d287ea4edb7c0c4159989b"
+  },
+  "harness_sha256": {
+    "scripts/workspace/build_all.sh": "0307027501c22da8d65022ac75950655cad918b89e993c6c65a56c1b55cbf647",
+    "scripts/workspace/setup_ws.sh": "fae293dcb26b40c161a00c83c051109b7552ab44548002d2791aad0dd39a59a4"
+  },
+  "claim_boundary": "This proves reproducible local build/install, asset uniqueness, installed launch parsing, selected transport and safety tests, and frozen planning source integrity. It does not prove production detector checkpoints, real MORAI topic semantics, real-time full-pipeline output, or closed-loop driving."
+}

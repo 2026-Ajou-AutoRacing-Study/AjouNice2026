@@ -7,12 +7,13 @@
     online LiDAR and objects in the Lanelet map frame.
   -->
   <arg name="use_sim_time" default="false"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(env HOME)/AjouNice2026/configs/sensors/Sensor_6.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_6.json"/>
   <arg name="map_file"
-       default="$(env HOME)/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
   <arg name="projector_file"
-       default="$(env HOME)/AjouNice2026/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="use_heading_correction" default="true"/>
   <arg name="heading_yaw_offset_deg" default="-1.347"/>
 

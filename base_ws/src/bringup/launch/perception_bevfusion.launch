@@ -1,9 +1,10 @@
 <launch>
   <!-- Top-level host launch for MORAI four-camera BEVFusion visualization. -->
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(find bringup)/../../../configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
   <arg name="config"
-       default="$(find bringup)/../../../configs/perception/bevfusion_sensor4.yaml"/>
+       default="$(arg repo_root)/configs/perception/bevfusion_sensor4.yaml"/>
   <arg name="projection_only" default="false"/>
   <arg name="start_rviz" default="true"/>
 
@@ -22,4 +23,3 @@
     </include>
   </group>
 </launch>
-

@@ -9,16 +9,17 @@
       global EKF: map -> odom
       this package's kinematic-state publisher emits no TF.
   -->
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(env HOME)/AjouNice2026/configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
   <arg name="config"
-       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+       default="$(arg repo_root)/configs/localization/localization_manager.yaml"/>
   <arg name="measurement_noise_config"
-       default="$(env HOME)/AjouNice2026/configs/localization/gnss_imu_noise_sensor6_ideal.yaml"/>
+       default="$(arg repo_root)/configs/localization/gnss_imu_noise_sensor6_ideal.yaml"/>
   <arg name="local_ekf_config"
-       default="$(env HOME)/AjouNice2026/configs/localization/robot_localization_gnss_imu_local.yaml"/>
+       default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_local.yaml"/>
   <arg name="global_ekf_config"
-       default="$(env HOME)/AjouNice2026/configs/localization/robot_localization_gnss_imu_global.yaml"/>
+       default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_global.yaml"/>
 
   <arg name="imu_topic" default="/sensor/imu"/>
   <arg name="gps_topic" default="/sensor/gps"/>

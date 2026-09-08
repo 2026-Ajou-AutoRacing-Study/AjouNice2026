@@ -4,6 +4,16 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export AJOUNICE_ROOT="$REPO_ROOT"
 
+clean_base=false
+if [[ "${1:-}" == "--clean" ]]; then
+  clean_base=true
+  shift
+fi
+if (( $# != 0 )); then
+  echo "Usage: $0 [--clean]" >&2
+  exit 2
+fi
+
 source /opt/ros/noetic/setup.bash
 
 if [[ ! -f "$REPO_ROOT/planning_ws/install_isolated/setup.bash" ]]; then
@@ -11,6 +21,23 @@ if [[ ! -f "$REPO_ROOT/planning_ws/install_isolated/setup.bash" ]]; then
 fi
 
 source "$REPO_ROOT/planning_ws/install_isolated/setup.bash"
+
+if [[ "$clean_base" == "true" ]]; then
+  for generated_dir in \
+    "$REPO_ROOT/base_ws/build_aw149" \
+    "$REPO_ROOT/base_ws/devel_aw149" \
+    "$REPO_ROOT/base_ws/install_aw149"; do
+    case "$generated_dir" in
+      "$REPO_ROOT"/base_ws/build_aw149|"$REPO_ROOT"/base_ws/devel_aw149|"$REPO_ROOT"/base_ws/install_aw149)
+        cmake -E remove_directory "$generated_dir"
+        ;;
+      *)
+        echo "ERROR: refusing to clean unexpected path: $generated_dir" >&2
+        exit 1
+        ;;
+    esac
+  done
+fi
 
 for required_submodule in \
   "$REPO_ROOT/base_ws/src/ekf-multi-object-tracking" \
@@ -37,22 +64,51 @@ export CPATH="$LIVOX_SDK_INSTALL/include${CPATH:+:$CPATH}"
 export LIBRARY_PATH="$LIVOX_SDK_INSTALL/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
 
 cd "$REPO_ROOT/base_ws"
+# The pinned FAST_LIO CMakeLists does not declare that fastlio_mapping depends
+# on its generated Pose6D header. A clean parallel default build can therefore
+# compile laserMapping.cpp before Pose6D.h exists. Keep the upstream submodule
+# immutable: build the other packages first, configure FAST_LIO, explicitly
+# generate its C++ message header, then let catkin build the complete package.
 catkin_make_isolated --install \
   --source "$REPO_ROOT/base_ws/src" \
   --build "$REPO_ROOT/base_ws/build_aw149" \
   --devel "$REPO_ROOT/base_ws/devel_aw149" \
   --install-space "$REPO_ROOT/base_ws/install_aw149" \
+  --ignore-pkg fast_lio \
+  -DLIVOX_SDK_LIBRARY="$LIVOX_SDK_LIBRARY" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DPYTHON_EXECUTABLE=/usr/bin/python3 \
+  --make-args -j4 -l4
+
+FAST_LIO_DEVEL="$REPO_ROOT/base_ws/devel_aw149/fast_lio"
+FAST_LIO_SOURCE="$REPO_ROOT/base_ws/src/localization/fast_lio"
+FAST_LIO_BUILD="$REPO_ROOT/base_ws/build_aw149/fast_lio"
+FAST_LIO_INSTALL="$REPO_ROOT/base_ws/install_aw149"
+mkdir -p "$FAST_LIO_BUILD"
+"$FAST_LIO_INSTALL/env.sh" cmake \
+  -S "$FAST_LIO_SOURCE" \
+  -B "$FAST_LIO_BUILD" \
+  -DCATKIN_DEVEL_PREFIX="$FAST_LIO_DEVEL" \
+  -DCMAKE_INSTALL_PREFIX="$FAST_LIO_INSTALL" \
+  -DLIVOX_SDK_LIBRARY="$LIVOX_SDK_LIBRARY" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DPYTHON_EXECUTABLE=/usr/bin/python3
+"$FAST_LIO_INSTALL/env.sh" cmake --build "$FAST_LIO_BUILD" \
+  --target fast_lio_generate_messages_cpp -- -j4 -l4
+catkin_make_isolated --install \
+  --source "$REPO_ROOT/base_ws/src" \
+  --build "$REPO_ROOT/base_ws/build_aw149" \
+  --devel "$REPO_ROOT/base_ws/devel_aw149" \
+  --install-space "$REPO_ROOT/base_ws/install_aw149" \
+  --pkg fast_lio \
   -DLIVOX_SDK_LIBRARY="$LIVOX_SDK_LIBRARY" \
   -DCMAKE_BUILD_TYPE=Release \
   -DPYTHON_EXECUTABLE=/usr/bin/python3 \
   --make-args -j4 -l4
 
 # The pinned upstream FAST_LIO revision builds the runtime but declares no
-# catkin install rules. Keep the submodule immutable and complete the supported
-# install overlay from the built artifact and its runtime assets here.
-FAST_LIO_DEVEL="$REPO_ROOT/base_ws/devel_aw149/fast_lio"
-FAST_LIO_SOURCE="$REPO_ROOT/base_ws/src/localization/fast_lio"
-FAST_LIO_INSTALL="$REPO_ROOT/base_ws/install_aw149"
+# catkin install rules. Complete the supported install overlay from the built
+# artifact and its runtime assets without changing the submodule checkout.
 install -D -m 0755 \
   "$FAST_LIO_DEVEL/lib/fast_lio/fastlio_mapping" \
   "$FAST_LIO_INSTALL/lib/fast_lio/fastlio_mapping"
@@ -79,11 +135,17 @@ while IFS= read -r package_xml; do
         echo "ERROR: missing installed runtime asset: $source_file" >&2
         missing_assets=$((missing_assets + 1))
       fi
+      legacy_flat_file="$FAST_LIO_INSTALL/share/$package_name/$(basename "$source_file")"
+      if [[ "$legacy_flat_file" != "$installed_file" && -e "$legacy_flat_file" ]]; then
+        echo "ERROR: ambiguous legacy flat install asset: $legacy_flat_file" >&2
+        missing_assets=$((missing_assets + 1))
+      fi
     done < <(find "$package_dir/$asset" -type f | sort)
   done
 done < <(find "$REPO_ROOT/base_ws/src" -name package.xml -type f | sort)
 if (( missing_assets != 0 )); then
-  echo "ERROR: $missing_assets base runtime assets were not installed." >&2
+  echo "ERROR: $missing_assets base runtime install asset errors." >&2
+  echo "Retry with: $0 --clean" >&2
   exit 1
 fi
 

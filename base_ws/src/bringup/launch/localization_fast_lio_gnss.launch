@@ -9,17 +9,18 @@
     simultaneously: each provider owns the same localization TF branch/topics.
   -->
   <arg name="use_sim_time" default="false"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="fast_lio_msf_config"
-       default="$(env HOME)/AjouNice2026/configs/localization/fast_lio_msf_morai_sensor4_vlp16.yaml"/>
+       default="$(arg repo_root)/configs/localization/fast_lio_msf_morai_sensor4_vlp16.yaml"/>
   <arg name="localization_manager_config"
-       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+       default="$(arg repo_root)/configs/localization/localization_manager.yaml"/>
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
   <arg name="start_lanelet_map" default="true"/>
   <arg name="map_file"
-       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
   <arg name="projector_file"
-       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="map_projector_type" default="LocalCartesianUTM"/>
 
   <include file="$(find tf_pub)/launch/map_tf.launch">

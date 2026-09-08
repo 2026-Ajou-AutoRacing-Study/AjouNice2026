@@ -1,8 +1,9 @@
 <launch>
   <!-- Complete the GNSS-corrected branch:
        morai_map -> camera_init -> body -> base_link, plus Planning state. -->
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="config"
-       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+       default="$(arg repo_root)/configs/localization/localization_manager.yaml"/>
 
   <rosparam command="load" file="$(arg config)" ns="localization_manager"/>
 

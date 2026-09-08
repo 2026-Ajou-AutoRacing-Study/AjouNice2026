@@ -5,7 +5,7 @@
 
 ## 1. 현재 무엇이 되고, 무엇을 해야 하는가
 
-포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 24개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 24개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 10개 검사를 통과했다. base 설치 뒤 source의 launch/config/RViz 자산이 install에 모두 존재하는지도 빌드 스크립트가 전수 검사한다.
+포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 24개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 24개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 10개 검사를 통과했다. base 설치 뒤 source의 launch/config/RViz 자산이 install에 모두 존재하는지도 빌드 스크립트가 전수 검사한다. 2026-09-08에는 기존 base build/devel/install을 제거한 재현용 clean build를 통과했고, 설치본만 source해 checkout 경로를 쓰는 launch 20/20을 파싱했다. 상세 영수증은 [clean-base-install-r001.json](evidence/clean-base-install-r001.json)이다.
 
 **인지 입력만 연결하면 정상 trajectory가 보장된다는 뜻은 아니다.** 현재 AjouNice localization/perception/control의 실데이터를 함께 연결한 end-to-end 검사는 완료되지 않았다. 새 graph의 기동 검사는 route/ego/TF/objects/acceleration/mode를 공급하지 않았고, 필요한 입력을 기다리는 상태였다. 지금 계속 주행 graph를 켜두었다는 뜻도 아니다.
 
@@ -72,7 +72,7 @@ Git의 `text=auto` 적용으로 CRLF가 변환됐다. 로컬 원본 작업 파�
 
 ### 빌드 경로
 
-`setup_ws.sh`는 submodule을 재귀 초기화한 뒤 `build_all.sh`를 호출한다. 빌드 순서는 Noetic → planning provider/154 package install → pinned Livox SDK → base 24 package install이다. planning이 base를 underlay로 사용하지 않으므로 순환 의존이 없다.
+`setup_ws.sh`는 submodule을 재귀 초기화한 뒤 `build_all.sh --clean`을 호출한다. 빌드 순서는 Noetic → planning provider/154 package install → pinned Livox SDK → fast_lio 이외 base 23개 → fast_lio 메시지 선생성/본체 install이다. pin된 FAST_LIO는 실행 파일이 생성 메시지 헤더에 의존한다는 선언이 없어 clean 병렬 빌드에서 `Pose6D.h`보다 먼저 컴파일될 수 있다. 하네스가 upstream submodule을 수정하지 않고 이 순서를 명시한다. `--clean`은 생성된 `base_ws/{build,devel,install}_aw149`만 지우고 다시 만들어 과거 install 잔재가 launch 탐색을 오염시키지 않게 한다. planning이 base를 underlay로 사용하지 않으므로 순환 의존이 없다. 개발 중 증분 빌드는 인자 없는 `build_all.sh`를 쓸 수 있으며, 자산 감사에서 legacy flat-install 중복을 발견하면 clean 재빌드를 요구한다.
 
 아래 명령을 실제로 실행해 base 24/24 install 성공을 확인했다.
 
