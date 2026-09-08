@@ -1,0 +1,13 @@
+{
+  "schema": "ajounice.aw149.base_clean_test.v1",
+  "recorded_at": "2026-09-08T17:58:09+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "commit": "5dbd6f1aae5456231c7a17a1fbe65261926ee7f8",
+  "build_basis": "base_ws clean build produced by scripts/workspace/build_all.sh --clean",
+  "command": "AW149_PACKAGE_TEST_TIMEOUT_S=600 scripts/workspace/test_base.sh",
+  "result": "PASS",
+  "package_test_targets": {"passed": 24, "expected": 24, "failed": 0},
+  "catkin_test_results": {"tests": 114, "errors": 0, "failures": 0, "skipped": 0},
+  "test_script_sha256": "c7928aee3d60f7741ff7acd8eb3f5cac4012cee91c92503b56b5cab64d782a35",
+  "claim_boundary": "This is the complete base_ws overlay test-target regression. It is not a count of tests across all 149 planning-boundary packages and does not replace real MORAI end-to-end validation."
+}

@@ -88,6 +88,8 @@ clean 설치본의 통합 entrypoint 생존과 v61 binary map transport는 별�
 bash scripts/runtime/smoke_planning_stack.sh
 ```
 
+base 24개 전체 catkin test target은 `bash scripts/workspace/test_base.sh`로 실행한다. clean 결과물 기준 24/24 target과 catkin 집계 114 tests가 오류·실패·skip 없이 통과했으며 [base-clean-test-r001.json](evidence/base-clean-test-r001.json)에 기록했다.
+
 운영 환경은 새 planning install 후 `base_ws/install_aw149/setup.bash`를 source하도록 확정한다. 기존 `base_ws/devel`, 다른 Autoware2ros1 install, addon-only install을 뒤섞지 않는다. `rospack find`와 Python module `__file__`, 실제 연결 MD5로 각 프로세스의 경로를 확인한다.
 
 ## 5. P1 — 객체 검출·추적·예측
