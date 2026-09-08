@@ -82,7 +82,8 @@ TEST(OutOfLaneCollisionDecision, MarksTtcConflictForAvoidance)
   data.outside_points.push_back(point);
 
   autoware_planning_msgs::TrajectoryPoint trajectory_point;
-  trajectory_point.time_from_start = ros::Duration(1.0);
+  trajectory_point.time_from_start.sec = 1;
+  trajectory_point.time_from_start.nanosec = 0;
   const std::vector<autoware_planning_msgs::TrajectoryPoint> trajectory{trajectory_point};
   PlannerParam params;
   params.mode = "ttc";
@@ -124,7 +125,8 @@ TEST(OutOfLaneCollisionDecision, ConvertsObjectOverlapIntoTtcAvoidance)
   object.shape.dimensions.y = 1.0;
   object.shape.dimensions.z = 1.0;
   autoware_perception_msgs::PredictedPath path;
-  path.time_step = ros::Duration(1.0);
+  path.time_step.sec = 1;
+  path.time_step.nanosec = 0;
   geometry_msgs::Pose pose;
   pose.position.x = 20.0;
   pose.position.y = 2.0;
@@ -138,7 +140,8 @@ TEST(OutOfLaneCollisionDecision, ConvertsObjectOverlapIntoTtcAvoidance)
   EXPECT_DOUBLE_EQ(data.outside_points.front().collision_times.begin()->collision_time, 0.0);
 
   autoware_planning_msgs::TrajectoryPoint trajectory_point;
-  trajectory_point.time_from_start = ros::Duration(0.0);
+  trajectory_point.time_from_start.sec = 0;
+  trajectory_point.time_from_start.nanosec = 0;
   PlannerParam params;
   params.mode = "ttc";
   params.ttc_threshold = 1.0;

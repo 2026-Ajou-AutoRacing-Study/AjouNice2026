@@ -141,7 +141,8 @@ TEST_F(RTCInterfaceTest, rtc_service_ignores_stamp_and_preserves_response_order_
   registerStatus(first);
   registerStatus(second, State::FAILED);
   CooperateCommands::Request request;
-  request.stamp = ros::Time(999, 123);
+  request.stamp.sec = 999;
+  request.stamp.nanosec = 123;
   request.commands = {command(second, Command::ACTIVATE), command(first, Command::DEACTIVATE)};
   CooperateCommands::Response response;
 

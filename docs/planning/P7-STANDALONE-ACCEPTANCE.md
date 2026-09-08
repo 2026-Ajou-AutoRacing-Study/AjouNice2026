@@ -58,3 +58,7 @@ It does **not** prove:
 - all 149 packages running as 149 simultaneous nodes; 149 is the installed package boundary
 
 The next acceptance gate is therefore the AjouNice output-only integration followed by controller closed-loop testing. The detailed input and approval sequence is in `BASE-WS-INTEGRATION-GUIDE.md`.
+
+## Post-P7 test-only checkpoint
+
+The P7.1 runtime acceptance remains tied to checkpoint r002 above. A later all-package `run_tests` audit found three ROS1 test sources that still assigned native `ros::Duration` or `ros::Time` directly to frozen builtin-interface payloads. Checkpoint r003 (`ef390e4751e938612c241d0eb129acd500015929555bf776d273cbde8709d28a`) changes only those test sources; the two affected packages now pass 12/12 and 16/16 tests. No runtime source or P7 fixture changed, so this delta does not silently relabel the old 11/11 run as a new runtime run. See [planning-test-audit-r001.json](evidence/planning-test-audit-r001.json).

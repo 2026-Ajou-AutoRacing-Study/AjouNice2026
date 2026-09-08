@@ -11,6 +11,8 @@
 
 동일한 frozen planning source와 v61 fixture를 쓴 최종 P7.1 독립 시험은 Mission→BPP→BVP→MVP→validator graph의 11/11 matrix를 통과했다. Route A/B, normal/experimental BVP, 안전 LC, 점유 차선 geometry, 교차로, red→green, 정적 장애물, moving ego, 입력 복구, 정지 후 reroute가 포함된다. 세부 수치와 해시 계보는 [P7-STANDALONE-ACCEPTANCE.md](P7-STANDALONE-ACCEPTANCE.md)에 있다. 이는 AjouNice 실제 입력, 이동 중 A→B 성공, stale 중 자동 안전 정지, controller 폐루프 승인은 아니다. `149`는 패키지 경계 수이며 동시에 실행할 독립 노드 149개라는 뜻도 아니다.
 
+후속 planning 154개 `run_tests` 감사에서 r002의 test payload 변환 누락 3파일을 발견해 runtime 파일을 건드리지 않는 checkpoint r003으로 분리했다. 두 컴파일 차단 패키지는 각각 12/12, 16/16을 통과했다. 반면 전체 raw package tests는 아직 27개 패키지의 fixture parameter 공급 문제로 합격하지 않았으므로 P7 11/11과 별도 gate로 유지한다. 상세 수치는 [planning-test-audit-r001.json](evidence/planning-test-audit-r001.json)에 있다.
+
 실제 lane-driving 경로:
 
 ```text

@@ -1,0 +1,39 @@
+{
+  "schema": "ajounice.aw149.planning_all_package_test_audit.v1",
+  "recorded_at": "2026-09-08T18:40:00+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "checkpoint": {
+    "name": "checkpoint-r003.json",
+    "sha256": "ef390e4751e938612c241d0eb129acd500015929555bf776d273cbde8709d28a",
+    "predecessor": "checkpoint-r002.json",
+    "delta_scope": "three ROS1 test sources only"
+  },
+  "initial_all_package_run": {
+    "package_targets_started": 154,
+    "target_commands_completed": 152,
+    "test_compile_failures": 2,
+    "catkin_reported": {"tests": 2545, "errors": 0, "failures": 292, "skipped": 20},
+    "harness_issue": "one shared ROS master and -j2 allowed node-name and parameter-server interference; these totals are discovery evidence, not final isolated acceptance"
+  },
+  "isolated_failure_set_rerun": {
+    "packages": 29,
+    "master_policy": "fresh ROS master and ROS_HOME per package",
+    "make_jobs": 1,
+    "actual_junit_testcases": 487,
+    "actual_failures": 138,
+    "actual_errors": 0,
+    "actual_skipped": 8,
+    "packages_with_remaining_fixture_failures": 27
+  },
+  "fixed_test_payload_contracts": [
+    "autoware_motion_velocity_out_of_lane_module/test/test_out_lanelet_selection.cpp",
+    "autoware_motion_velocity_out_of_lane_module/test/test_out_of_lane_plan.cpp",
+    "autoware_rtc_interface/test/test_rtc_interface.cpp"
+  ],
+  "fixed_package_results": {
+    "autoware_motion_velocity_out_of_lane_module": {"tests": 12, "errors": 0, "failures": 0, "skipped": 0},
+    "autoware_rtc_interface": {"tests": 16, "errors": 0, "failures": 0, "skipped": 0}
+  },
+  "remaining_failure_class": "Raw catkin gtests construct strict ROS1 nodes without loading the complete original ROS2 parameter fixture, or upload a parameter under an incompatible ROS1 type. These are not counted as runtime algorithm failures until each test is rerun with an owned parameter contract.",
+  "claim_boundary": "P7.1 remains an r002 runtime result. r003 closes only test compilation/serialization compatibility and does not claim all planning package tests pass."
+}

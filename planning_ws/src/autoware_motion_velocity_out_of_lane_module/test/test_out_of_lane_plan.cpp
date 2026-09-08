@@ -86,7 +86,9 @@ autoware_planning_msgs::TrajectoryPoint trajectory_point(double x, double y)
   point.pose.position.y = y;
   point.pose.orientation.w = 1.0;
   point.longitudinal_velocity_mps = 8.0;
-  point.time_from_start = ros::Duration(x / 8.0);
+  const ros::Duration time_from_start(x / 8.0);
+  point.time_from_start.sec = time_from_start.sec;
+  point.time_from_start.nanosec = time_from_start.nsec;
   return point;
 }
 }  // namespace
@@ -132,7 +134,9 @@ TEST(OutOfLanePlan, ConflictObjectProducesSlowdownOrStopOutput)
   object.kinematics.initial_pose_with_covariance.pose.position.y = 4.0;
   object.kinematics.initial_pose_with_covariance.pose.orientation.w = 1.0;
   autoware_perception_msgs::PredictedPath path;
-  path.time_step = ros::Duration(2.5);
+  const ros::Duration time_step(2.5);
+  path.time_step.sec = time_step.sec;
+  path.time_step.nanosec = time_step.nsec;
   path.confidence = 1.0;
   geometry_msgs::Pose first = object.kinematics.initial_pose_with_covariance.pose;
   geometry_msgs::Pose second = first;

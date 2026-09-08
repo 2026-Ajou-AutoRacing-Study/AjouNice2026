@@ -8,7 +8,8 @@ import sys
 from catkin_pkg.packages import find_packages
 
 root = Path(__file__).resolve().parents[1]
-manifest = json.loads((root/'provenance/checkpoint-r002.json').read_text())
+checkpoint_path = root/'provenance/checkpoint-r003.json'
+manifest = json.loads(checkpoint_path.read_text())
 sources = manifest['source_sha256']
 excluded = [p for p in sources if '__pycache__' in Path(p).parts or p.endswith('.pyc')]
 bad = []
@@ -47,7 +48,7 @@ unlisted_provider_ignores = sorted(provider_ignored-force_add)
 result = dict(manifest_entries=len(sources), source_files_checked=len(required),
     excluded_generated_bytecode=excluded, changed_or_missing=bad, ignored_required_source=ignored,
     planning_packages=len(planning), base_packages=len(base), duplicate_packages=duplicates,
-    checkpoint_sha256=hashlib.sha256((root/'provenance/checkpoint-r002.json').read_bytes()).hexdigest(),
+    checkpoint_sha256=hashlib.sha256(checkpoint_path.read_bytes()).hexdigest(),
     provider_source_files_checked=len(provider_required), provider_changed_or_missing=provider_bad,
     provider_metadata_or_cache_excluded=len(provider_excluded), provider_force_add_count=len(force_add),
     unlisted_provider_ignores=unlisted_provider_ignores)
