@@ -3,12 +3,20 @@
 #include <gtest/gtest.h>
 #include <ros/ros.h>
 
+#include <cstdlib>
+
 TEST(StaticObstacleManagerInit, CompleteRos1ParameterSurfaceCreatesIdleScene)
 {
   ros::NodeHandle node;
-  // The manager reads the rendered ROS1 tree directly.  This fixture is not a
-  // roslaunch process, so provide the required policy leaves from the staged
-  // static_obstacle_avoidance.ros1.yaml explicitly.
+  ASSERT_EQ(
+    std::system(
+      "rosparam load \"$(rospack find "
+      "autoware_behavior_path_static_obstacle_avoidance_module)/config/"
+      "static_obstacle_avoidance.ros1.yaml\" /"),
+    0)
+    << "static-obstacle ROS1 parameter fixture failed to load";
+  // Preserve the explicit policy oracle while sourcing the remaining surface
+  // from the same installed YAML used by roslaunch.
   node.setParam("avoidance/policy/make_approval_request", "per_shift_line");
   node.setParam("avoidance/policy/deceleration", "best_effort");
   node.setParam("avoidance/policy/lateral_margin", "best_effort");

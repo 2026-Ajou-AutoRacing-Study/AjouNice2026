@@ -25,6 +25,7 @@
 #include <gtest/gtest.h>
 #include <yaml-cpp/yaml.h>
 
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
@@ -379,6 +380,10 @@ TEST_F(TestUtilWithMap, isLateralAccelerationAcceptableNearStart_SharpCurvature)
 
 int main(int argc, char ** argv) {
   ros::init(argc, argv, "full_goal_util_test", ros::init_options::AnonymousName);
+  const int load_result = std::system(
+    "rosparam load \"$(rospack find autoware_vehicle_info_utils)/config/"
+    "vehicle_info.yaml\" /full_goal_test");
+  if (load_result != 0) return load_result;
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

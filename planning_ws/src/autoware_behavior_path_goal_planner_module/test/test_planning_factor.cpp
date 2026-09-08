@@ -23,6 +23,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
@@ -214,6 +215,20 @@ TEST_F(PlanningFactorTest, GoalPlannerBlocked)
 
 int main(int argc, char ** argv) {
   ros::init(argc, argv, "goal_planning_factor_test", ros::init_options::AnonymousName);
+  const int load_result = std::system(
+    "rosparam load \"$(rospack find autoware_launch)/config/ros1/planning/"
+    "behavior_common.yaml\" /full_goal_test && "
+    "rosparam load \"$(rospack find autoware_vehicle_info_utils)/config/"
+    "vehicle_info.yaml\" /full_goal_test && "
+    "rosparam load \"$(rospack find autoware_behavior_path_planner)/config/ros1/"
+    "behavior_path_planner.yaml\" /full_goal_test && "
+    "rosparam load \"$(rospack find autoware_behavior_path_planner)/config/ros1/"
+    "drivable_area_expansion.yaml\" /full_goal_test && "
+    "rosparam load \"$(rospack find autoware_behavior_path_planner)/config/ros1/"
+    "scene_module_manager.yaml\" /full_goal_test && "
+    "rosparam load \"$(rospack find autoware_behavior_path_goal_planner_module)/config/"
+    "goal_planner.ros1.param.yaml\" /full_goal_test");
+  if (load_result != 0) return load_result;
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

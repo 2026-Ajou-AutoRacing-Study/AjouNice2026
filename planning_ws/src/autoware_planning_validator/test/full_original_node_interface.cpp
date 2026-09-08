@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <cstdlib>
 
 using autoware::planning_test_manager::PlanningInterfaceTestManager;
 using autoware::planning_validator::full_source::PlanningValidatorNode;
@@ -106,6 +107,24 @@ TEST(PlanningModuleInterfaceTest, NodeTestWithOffTrackEgoPose)
 
 int main(int argc,char ** argv) {
   ros::init(argc,argv,"full_validator_original_host_tests");
+  const std::string ns=" /planning_validator_node";
+  const std::vector<std::string> configs{
+    "$(rospack find autoware_planning_validator)/config/ros1/planning_validator.yaml",
+    "$(rospack find autoware_planning_validator_latency_checker)/config/ros1/latency_checker.yaml",
+    "$(rospack find autoware_planning_validator_trajectory_checker)/config/ros1/trajectory_checker.yaml",
+    "$(rospack find autoware_planning_validator_intersection_collision_checker)/config/ros1/intersection_collision_checker.yaml",
+    "$(rospack find autoware_planning_validator_rear_collision_checker)/config/ros1/rear_collision_checker.yaml"};
+  for (const auto & config : configs) {
+    if (std::system(("rosparam load \""+config+"\""+ns).c_str()) != 0) return 1;
+  }
+  ros::NodeHandle node("/planning_validator_node");
+  for (const auto & entry : {
+         std::pair{"wheel_radius", 0.383}, {"wheel_width", 0.235}, {"wheel_base", 2.79},
+         {"wheel_tread", 1.64}, {"front_overhang", 1.0}, {"rear_overhang", 1.1},
+         {"left_overhang", 0.128}, {"right_overhang", 0.128}, {"vehicle_height", 2.5},
+         {"max_steer_angle", 0.70}}) {
+    node.setParam(entry.first, entry.second);
+  }
   testing::InitGoogleTest(&argc,argv);
   return RUN_ALL_TESTS();
 }

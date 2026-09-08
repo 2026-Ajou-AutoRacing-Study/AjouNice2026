@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
+
 TEST(MotionVelocityPlannerManager, UnavailablePluginIsRejectedWithoutAnEmptyRegistration)
 {
   ros::NodeHandle node("/mvp_plugin_manager_oracle");
@@ -18,6 +20,21 @@ TEST(MotionVelocityPlannerManager, UnavailablePluginIsRejectedWithoutAnEmptyRegi
 TEST(MotionVelocityPlannerManager, LoadsObstacleStopPluginAndPropagatesObjectRequirement)
 {
   ros::NodeHandle node("/mvp_obstacle_stop_plugin_oracle");
+  ASSERT_EQ(
+    std::system(
+      "rosparam load \"$(rospack find autoware_motion_velocity_planner)/config/ros1/"
+      "obstacle_stop_default.yaml\" /mvp_obstacle_stop_plugin_oracle"),
+    0);
+  ASSERT_EQ(
+    std::system(
+      "rosparam load \"$(rospack find autoware_velocity_smoother)/config/ros1/"
+      "default_common.yaml\" /mvp_obstacle_stop_plugin_oracle"),
+    0);
+  ASSERT_EQ(
+    std::system(
+      "rosparam load \"$(rospack find autoware_velocity_smoother)/config/ros1/"
+      "Analytical.yaml\" /mvp_obstacle_stop_plugin_oracle"),
+    0);
   autoware::motion_velocity_planner::MotionVelocityPlannerManager manager;
   EXPECT_TRUE(manager.launchModule(
     node, "autoware::motion_velocity_planner::ObstacleStopModule"));

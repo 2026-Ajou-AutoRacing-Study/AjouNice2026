@@ -2,6 +2,7 @@
 #include <autoware/behavior_path_goal_planner_module/goal_planner_module.hpp>
 #include <gtest/gtest.h>
 #include <chrono>
+#include <cstdlib>
 #include <thread>
 
 namespace bpp = autoware::behavior_path_planner;
@@ -44,6 +45,14 @@ TEST(FullGoalManager, RequiredParameterMissingOrWrongTypeIsRejected)
 int main(int argc, char ** argv)
 {
   ros::init(argc, argv, "full_goal_manager_test", ros::init_options::AnonymousName);
+  const int load_result = std::system(
+    "rosparam load \"$(rospack find autoware_launch)/config/ros1/planning/"
+    "behavior_common.yaml\" /full_goal_test && "
+    "rosparam load \"$(rospack find autoware_vehicle_info_utils)/config/"
+    "vehicle_info.yaml\" /full_goal_test && "
+    "rosparam load \"$(rospack find autoware_behavior_path_goal_planner_module)/config/"
+    "goal_planner.ros1.param.yaml\" /full_goal_test");
+  if (load_result != 0) return load_result;
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

@@ -1,6 +1,7 @@
 #include <autoware/planning_validator_intersection_collision_checker/full_source/intersection_collision_checker_node_parameters.hpp>
 #include <autoware/planning_validator_rear_collision_checker/full_source/rear_collision_checker_node_parameters.hpp>
 #include <gtest/gtest.h>
+#include <cstdlib>
 #include <limits>
 namespace full=autoware::planning_validator::full_source;
 TEST(FullValidatorParameters,intersectionAllRequiredTypesAndRanges) {
@@ -514,4 +515,9 @@ TEST(FullValidatorParameters,rearAllRequiredTypesAndRanges) {
   EXPECT_DOUBLE_EQ(listener.get_params().common.on_time_buffer,initial.common.on_time_buffer+1.0);
   node.setParam("common/on_time_buffer",initial.common.on_time_buffer);
 }
-int main(int argc,char **argv){ros::init(argc,argv,"full_validator_parameter_tests");testing::InitGoogleTest(&argc,argv);return RUN_ALL_TESTS();}
+int main(int argc,char **argv){
+  ros::init(argc,argv,"full_validator_parameter_tests");
+  if(std::system("rosparam load \"$(rospack find autoware_planning_validator_intersection_collision_checker)/config/ros1/intersection_collision_checker.yaml\" /full_intersection_parameters")!=0)return 1;
+  if(std::system("rosparam load \"$(rospack find autoware_planning_validator_rear_collision_checker)/config/ros1/rear_collision_checker.yaml\" /full_rear_parameters")!=0)return 1;
+  testing::InitGoogleTest(&argc,argv);return RUN_ALL_TESTS();
+}

@@ -5,6 +5,7 @@
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <gtest/gtest.h>
+#include <cstdlib>
 #include <future>
 
 namespace {
@@ -19,6 +20,43 @@ protected:
   size_t count=0;
   std::unique_ptr<tf2_ros::StaticTransformBroadcaster> tf;
   void SetUp() override {
+    ASSERT_EQ(
+      std::system(
+        "rosparam load \"$(rospack find autoware_motion_velocity_planner)/config/ros1/"
+        "motion_velocity_planner.yaml\" /full_mvp_node_test"),
+      0);
+    ASSERT_EQ(
+      std::system(
+        "rosparam load \"$(rospack find autoware_motion_velocity_planner)/config/ros1/"
+        "obstacle_stop_default.yaml\" /full_mvp_node_test"),
+      0);
+    ASSERT_EQ(
+      std::system(
+        "rosparam load \"$(rospack find autoware_velocity_smoother)/config/ros1/"
+        "default_common.yaml\" /full_mvp_node_test"),
+      0);
+    ASSERT_EQ(
+      std::system(
+        "rosparam load \"$(rospack find autoware_velocity_smoother)/config/ros1/"
+        "default_velocity_smoother.yaml\" /full_mvp_node_test"),
+      0);
+    ASSERT_EQ(
+      std::system(
+        "rosparam load \"$(rospack find autoware_velocity_smoother)/config/ros1/"
+        "Analytical.yaml\" /full_mvp_node_test"),
+      0);
+    ASSERT_EQ(
+      std::system(
+        "rosparam load \"$(rospack find autoware_launch)/config/ros1/planning/"
+        "scenario_planning/common/nearest_search.param.yaml\" /full_mvp_node_test"),
+      0);
+    for (const auto & entry : {
+           std::pair{"wheel_radius", 0.39}, {"wheel_width", 0.42}, {"wheel_base", 2.74},
+           {"wheel_tread", 1.63}, {"front_overhang", 1.0}, {"rear_overhang", 1.03},
+           {"left_overhang", 0.1}, {"right_overhang", 0.1}, {"vehicle_height", 2.5},
+           {"max_steer_angle", 0.70}}) {
+      handle.setParam(entry.first, entry.second);
+    }
     handle.setParam("smooth_velocity_before_planning",true);
     handle.setParam("launch_modules",std::vector<std::string>{"autoware::motion_velocity_planner::ObstacleStopModule"});
     node=std::make_unique<MotionVelocityPlannerNode>(handle);

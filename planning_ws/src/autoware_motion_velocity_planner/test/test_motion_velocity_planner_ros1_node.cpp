@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <cstdlib>
 #include <pcl_conversions/pcl_conversions.h>
 
 namespace
@@ -82,6 +83,21 @@ TEST(MotionVelocityPlannerRos1Node, WaitsForRequiredObjectsThenAppliesObstacleSt
 {
   ros::NodeHandle node;
   ros::NodeHandle planner_node("/mvp_obstacle_stop_oracle");
+  ASSERT_EQ(
+    std::system(
+      "rosparam load \"$(rospack find autoware_motion_velocity_planner)/config/ros1/"
+      "obstacle_stop_default.yaml\" /mvp_obstacle_stop_oracle"),
+    0);
+  ASSERT_EQ(
+    std::system(
+      "rosparam load \"$(rospack find autoware_velocity_smoother)/config/ros1/"
+      "default_common.yaml\" /mvp_obstacle_stop_oracle"),
+    0);
+  ASSERT_EQ(
+    std::system(
+      "rosparam load \"$(rospack find autoware_velocity_smoother)/config/ros1/"
+      "Analytical.yaml\" /mvp_obstacle_stop_oracle"),
+    0);
   XmlRpc::XmlRpcValue modules;
   modules.setSize(1);
   modules[0] = "autoware::motion_velocity_planner::ObstacleStopModule";

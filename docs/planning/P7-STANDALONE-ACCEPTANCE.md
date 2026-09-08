@@ -102,3 +102,15 @@ into the exact private namespaces. The isolated result is 30/30 with zero
 errors, failures, or skips. Ten isolated residual package suites remain open,
 so the P7.1 runtime claim is unchanged. See
 [planning-test-fixture-r007.json](evidence/planning-test-fixture-r007.json).
+
+Checkpoint r010 (`323e9d8f4c6348910772c5ca3d8e864d00590e0ece2ff56778c51ef8e3c7e781`)
+closes the final ten residual package suites identified by the raw planning
+test audit. Their isolated result is 263/263 with zero errors, failures, or
+skips. The tests load the committed ROS1 projections into the exact private
+namespaces; lane-change retains the original source YAML through the installed
+adapter, and goal-planner retains its real BPP child process and blocked-object
+PlanningFactor scenario. The latter fixture now supplies a valid identity
+quaternion for the empty occupancy-grid origin instead of the invalid all-zero
+quaternion. This remains package-test evidence and does not relabel the P7.1
+11/11 runtime run. See
+[planning-test-fixture-r008.json](evidence/planning-test-fixture-r008.json).

@@ -123,14 +123,19 @@ inline std::shared_ptr<BehaviorPathPlannerNode> generateNode(
 inline void publishMandatoryTopics(const std::shared_ptr<PlanningInterfaceTestManager> & manager,
   const std::shared_ptr<BehaviorPathPlannerNode> & target)
 {
+  auto costmap = autoware::test_utils::makeCostMapMsg();
+  // A geometry pose with an all-zero quaternion is invalid and makes the
+  // occupancy-grid transform yield NaN yaw.  Keep the source empty grid while
+  // supplying the identity orientation required by the message contract.
+  costmap.info.origin.orientation.w = 1.0;
   manager->publishInput(target, "behavior_path_planner/input/odometry", autoware::test_utils::makeInitialPose());
   manager->publishInput(target, "behavior_path_planner/input/accel", geometry_msgs::AccelWithCovarianceStamped{});
   manager->publishInput(target, "behavior_path_planner/input/perception", autoware_perception_msgs::PredictedObjects{});
-  manager->publishInput(target, "behavior_path_planner/input/occupancy_grid_map", autoware::test_utils::makeCostMapMsg());
+  manager->publishInput(target, "behavior_path_planner/input/occupancy_grid_map", costmap);
   manager->publishInput(target, "behavior_path_planner/input/scenario",
     autoware::test_utils::makeScenarioMsg(autoware_internal_planning_msgs::Scenario::LANEDRIVING));
   manager->publishInput(target, "behavior_path_planner/input/vector_map", autoware::test_utils::makeMapBinMsg());
-  manager->publishInput(target, "behavior_path_planner/input/costmap", autoware::test_utils::makeCostMapMsg());
+  manager->publishInput(target, "behavior_path_planner/input/costmap", costmap);
   manager->publishInput(target, "system/operation_mode/state", autoware_adapi_v1_msgs::OperationModeState{});
   manager->publishInput(target, "behavior_path_planner/input/lateral_offset", tier4_planning_msgs::LateralOffset{});
 }

@@ -6,6 +6,7 @@
 #include <autoware/lanelet2_utils/conversion.hpp>
 #include <pluginlib/class_loader.hpp>
 #include <gtest/gtest.h>
+#include <cstdlib>
 using namespace autoware::behavior_path_planner;
 TEST(FullSideShift, NativePluginAndRequestThrottle) {
   ros::NodeHandle node("/full_side_shift_test");
@@ -91,4 +92,13 @@ TEST_P(FullSideShiftDirection, NativeManagerRunsOriginalSceneThroughBppSlot) {
   EXPECT_GT(max_signed,0.1);
 }
 INSTANTIATE_TEST_SUITE_P(LeftAndRight,FullSideShiftDirection,testing::Values(0.5,-0.5));
-int main(int argc,char ** argv) {ros::init(argc,argv,"full_side_shift_tests");ros::NodeHandle owner;testing::InitGoogleTest(&argc,argv);return RUN_ALL_TESTS();}
+int main(int argc,char ** argv) {
+  ros::init(argc,argv,"full_side_shift_tests");
+  ros::NodeHandle owner;
+  const int load_result = std::system(
+    "rosparam load \"$(rospack find autoware_behavior_path_side_shift_module)/"
+    "config/ros1/side_shift.yaml\" /full_side_shift_test");
+  if (load_result != 0) return load_result;
+  testing::InitGoogleTest(&argc,argv);
+  return RUN_ALL_TESTS();
+}

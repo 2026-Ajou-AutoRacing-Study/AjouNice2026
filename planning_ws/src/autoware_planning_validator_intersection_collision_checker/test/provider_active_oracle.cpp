@@ -9,6 +9,8 @@
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <tf2_ros/buffer.h>
 
+#include <cstdlib>
+
 namespace
 {
 autoware_planning_msgs::LaneletRoute route_for(const lanelet::ConstLanelet & lane)
@@ -229,6 +231,11 @@ TEST(IntersectionCollisionCheckerProviderActive, DebouncesAClusterInsideAnActive
 int main(int argc, char ** argv)
 {
   ros::init(argc, argv, "icc_r004_provider_active_oracle");
+  if (std::system(
+        "rosparam load \"$(rospack find autoware_planning_validator_intersection_collision_checker)/"
+        "config/ros1/intersection_collision_checker.yaml\" /icc_r004_provider_active_oracle") != 0) {
+    return 1;
+  }
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

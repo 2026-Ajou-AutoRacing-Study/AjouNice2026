@@ -25,6 +25,7 @@
 #include <gtest/gtest.h>
 
 #include <limits>
+#include <cstdlib>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -173,6 +174,21 @@ public:
 int main(int argc, char ** argv)
 {
   ros::init(argc, argv, "lane_change_scene_ros1_oracle");
+  const int load_result = std::system(
+    "python3 \"$(rospack find autoware_behavior_path_lane_change_module)/scripts/"
+    "load_ros1_parameters.py\" /test_lane_change_scene "
+    "--source \"$(rospack find autoware_behavior_path_lane_change_module)/config/"
+    "lane_change.param.yaml\" "
+    "--source \"$(rospack find autoware_test_utils)/config/test_common.param.yaml\" "
+    "--source \"$(rospack find autoware_test_utils)/config/test_nearest_search.param.yaml\" "
+    "--source \"$(rospack find autoware_test_utils)/config/test_vehicle_info.param.yaml\" "
+    "--source \"$(rospack find autoware_behavior_path_planner)/config/"
+    "behavior_path_planner.param.yaml\" "
+    "--source \"$(rospack find autoware_behavior_path_planner)/config/"
+    "drivable_area_expansion.param.yaml\" "
+    "--source \"$(rospack find autoware_behavior_path_planner)/config/"
+    "scene_module_manager.param.yaml\"");
+  if (load_result != 0) return load_result;
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
