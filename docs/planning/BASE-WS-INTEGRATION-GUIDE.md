@@ -9,7 +9,7 @@
 
 **인지 입력만 연결하면 정상 trajectory가 보장된다는 뜻은 아니다.** 현재 AjouNice localization/perception/control의 실데이터를 함께 연결한 end-to-end 검사는 완료되지 않았다. 새 graph의 기동 검사는 route/ego/TF/objects/acceleration/mode를 공급하지 않았고, 필요한 입력을 기다리는 상태였다. 지금 계속 주행 graph를 켜두었다는 뜻도 아니다.
 
-과거 독립 시험에는 trajectory 출력 증거가 있지만, 전체 시간대 validator PASS, 실주행 중 A→B 성공, 충분히 막힌 목표 차선의 LC 거부, controller 폐루프 전체를 승인한 증거는 아니다. `149`는 패키지 경계 수이며 동시에 실행할 독립 노드 149개라는 뜻도 아니다.
+동일한 frozen planning source와 v61 fixture를 쓴 최종 P7.1 독립 시험은 Mission→BPP→BVP→MVP→validator graph의 11/11 matrix를 통과했다. Route A/B, normal/experimental BVP, 안전 LC, 점유 차선 geometry, 교차로, red→green, 정적 장애물, moving ego, 입력 복구, 정지 후 reroute가 포함된다. 세부 수치와 해시 계보는 [P7-STANDALONE-ACCEPTANCE.md](P7-STANDALONE-ACCEPTANCE.md)에 있다. 이는 AjouNice 실제 입력, 이동 중 A→B 성공, stale 중 자동 안전 정지, controller 폐루프 승인은 아니다. `149`는 패키지 경계 수이며 동시에 실행할 독립 노드 149개라는 뜻도 아니다.
 
 실제 lane-driving 경로:
 
@@ -39,7 +39,7 @@ Scenario Selector에는 parking 분기도 연결돼 있다. lane-driving scenari
 | V1 | 차량 설정 | **구성 완료:** mesh 측정 원천 기반 flat YAML과 provenance 검사. 실차 track/tire/steer 재승인은 남음 | 시험차 YAML 혼입 차단 |
 | T1 | 도구/제어 | **완료:** CSV/history native Duration 변환 | base 24/24 빌드 및 단위검사 통과 |
 | R1 | 통합/bringup | **주 경로 완료:** 통합 entrypoint와 runtime source를 install_aw149로 통일 | 과거 실험 launch는 운영 entrypoint가 아님 |
-| A1 | 통합/검증 | 실제 route→trajectory→plugin→폐루프 순서 승인 | 출력 존재만으로 기능을 보장할 수 없음 |
+| A1 | 통합/검증 | **standalone P7.1 11/11 완료:** 동일 소스·v61 fixture graph 승인. 실제 AjouNice route→trajectory→plugin→폐루프 승인은 남음 | fixture PASS를 production E2E PASS로 승격하지 않음 |
 
 ## 3. B0 — 새 컴퓨터 빌드 전 반드시 처리할 푸시본 문제
 

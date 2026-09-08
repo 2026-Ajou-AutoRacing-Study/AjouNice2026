@@ -15,6 +15,8 @@
 
 현재 로컬 증거는 planning source audit PASS, base 24/24 install, install runtime 자산 전수 감사, object pipeline 21 tests, tracker 14 tests, tracking/prediction evaluation 29 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 10 tests다. MORAI GT localization은 실제 주행 bag의 이동 구간 250개 표본에서 odometry/acceleration 동일 stamp와 acceleration 값 보존을 확인했다. operation-mode `/system`→`/api` relay도 ROS transport 검사를 통과했다. v61 통합 graph는 24개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다.
 
+같은 checkpoint와 v61 fixture의 최종 P7.1 standalone graph는 11/11을 통과했다. Route A/B, BVP 양 모드, 안전/점유 차선 LC, 교차로, red→green, 정적 장애물 정지, moving ego, 2초 입력 복구, 안전 규약을 유지한 reroute를 Mission→validator 동일 graph에서 검증했다. 현재 checkout의 source·map·projector·route hash 일치도 다시 확인했다. 상세 범위와 제외 항목은 [P7-STANDALONE-ACCEPTANCE.md](P7-STANDALONE-ACCEPTANCE.md)와 [machine receipt](evidence/p7-standalone-reconciliation.json)에 있다.
+
 실제 객체가 든 `sensor_cam_raw_obstacle1.bag`으로 oracle/evaluation adapter→map-frame tracking→prediction도 실행했다. v61 map-based 경로는 15초 동안 tracking 699 frame/5,396 object, prediction 511 frame/3,733 object를 처리했고 모든 prediction object가 finite 위치와 현재 pose 포함 31-point/3.0초 horizon path를 가졌다. 기본 CTRV도 3,124 object 전부 같은 길이의 path를 생성했다. 다만 이것은 생산 detector/tracker 대신 MORAI GT를 쓴 transport/runtime 증거이며, map-based는 50 Hz 원본의 모든 frame을 보존하지 않았다.
 
 이 증거는 **실제 입력으로 trajectory가 나온다거나 폐루프 주행이 승인됐다는 뜻은 아니다.** 외부 입력이 없던 기동에서는 route, ego/TF, objects, acceleration, operation mode를 기다리는 것이 정상 상태였다.
