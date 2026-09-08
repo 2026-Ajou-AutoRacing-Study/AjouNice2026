@@ -5,7 +5,7 @@
 
 ## 1. 현재 무엇이 되고, 무엇을 해야 하는가
 
-포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 24개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 24개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 10개 검사를 통과했다. base 설치 뒤 source의 launch/config/RViz 자산이 install에 모두 존재하는지도 빌드 스크립트가 전수 검사한다. 2026-09-08에는 기존 base build/devel/install을 제거한 재현용 clean build를 통과했고, 설치본만 source해 checkout 경로를 쓰는 launch 20/20을 파싱했다. 상세 영수증은 [clean-base-install-r001.json](evidence/clean-base-install-r001.json)이다.
+포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 24개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 24개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 10개 검사를 통과했다. base 설치 뒤 source의 launch/config/RViz 자산이 install에 모두 존재하는지도 빌드 스크립트가 전수 검사한다. 2026-09-08 재감사에서는 삭제된 구형 planning 패키지를 참조하던 `kcity_interactive_trajectory_rviz.launch`와 낡은 안내 문서를 제거했다. 그 뒤 planning 154/154와 base 24/24를 각각 clean build/install하고, 현재 지원하는 설치 launch 19/19를 파싱했다. 최신 상세 영수증은 [planning-clean-integration-r002.json](evidence/planning-clean-integration-r002.json)이다.
 
 **인지 입력만 연결하면 정상 trajectory가 보장된다는 뜻은 아니다.** 현재 AjouNice localization/perception/control의 실데이터를 함께 연결한 end-to-end 검사는 완료되지 않았다. 새 graph의 기동 검사는 route/ego/TF/objects/acceleration/mode를 공급하지 않았고, 필요한 입력을 기다리는 상태였다. 지금 계속 주행 graph를 켜두었다는 뜻도 아니다.
 

@@ -1,0 +1,90 @@
+{
+  "schema": "ajounice.aw149.planning_clean_integration.v2",
+  "recorded_at": "2026-09-08T20:29:40+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "parent_commit": "1f90dc02270d91119c20b675a0c545246a5d9f3d",
+  "result": "PASS",
+  "planning_clean_build": {
+    "command": "bash planning_ws/tools/build.sh --providers",
+    "cleaned_generated_roots": [
+      "planning_ws/build_isolated",
+      "planning_ws/devel_isolated",
+      "planning_ws/install_isolated"
+    ],
+    "packages_built_and_installed": 154,
+    "expected": 154,
+    "exit_code": 0
+  },
+  "planning_install_audit": {
+    "source_packages": 154,
+    "missing_install_share": 0,
+    "elf_files_checked": 230,
+    "unresolved_libraries": 0,
+    "old_autoware2ros1_prefix_in_elf": 0,
+    "old_autoware2ros1_prefix_in_cmake": 0,
+    "environment_leaks": 0,
+    "path_generator_ros1_yaml_installed": true
+  },
+  "source_audit": {
+    "planning_source_files_checked": 3999,
+    "planning_changed_or_missing": 0,
+    "provider_source_files_checked": 6589,
+    "provider_changed_or_missing": 0,
+    "planning_packages": 154,
+    "base_packages": 24,
+    "duplicate_package_names": 0,
+    "checkpoint": "planning_ws/provenance/checkpoint-r010.json",
+    "checkpoint_sha256": "323e9d8f4c6348910772c5ca3d8e864d00590e0ece2ff56778c51ef8e3c7e781"
+  },
+  "legacy_planning_cleanup": {
+    "removed": [
+      "base_ws/src/bringup/launch/kcity_interactive_trajectory_rviz.launch",
+      "base_ws/src/bringup/KCITY_INTERACTIVE_PLANNING.md"
+    ],
+    "reason": "The launcher referenced deleted pre-AW149 mission_planner and motion_velocity_planner launch packages and could not parse from the supported install overlay.",
+    "stale_launcher_in_clean_install": false
+  },
+  "base_clean_build": {
+    "command": "bash scripts/workspace/build_all.sh --clean",
+    "packages_built_and_installed": 24,
+    "expected": 24,
+    "exit_code": 0
+  },
+  "installed_launch_parse": {
+    "result": "PASS",
+    "passed": 19,
+    "expected": 19,
+    "required_arguments_supplied": {
+      "maptf_morai_deg_correction.launch": ["map_file", "projector_file"]
+    }
+  },
+  "runtime_smoke": {
+    "command": "AW149_SMOKE_DURATION_S=25 AW149_SMOKE_MASTER_PORT=11554 bash scripts/runtime/smoke_planning_stack.sh",
+    "duration_s": 25,
+    "expected_nodes": 24,
+    "observed_nodes": 24,
+    "map_type": "autoware_map_msgs/LaneletMapBin",
+    "map_received": true,
+    "unexpected_fatal_lines": 0,
+    "log_directory": "/tmp/aw149-planning-smoke.fEUyB5"
+  },
+  "base_regression": {
+    "command": "bash scripts/workspace/test_base.sh",
+    "package_test_targets": "24/24",
+    "tests": 114,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "log_directory": "/tmp/aw149-base-tests.lajJ6z"
+  },
+  "harness_sha256": {
+    "scripts/runtime/smoke_planning_stack.sh": "f9df60a9983acb5d81dc722fa91bf2fb3860c37d419d8ac21ac8e7cfd3953cd2",
+    "scripts/workspace/build_all.sh": "0307027501c22da8d65022ac75950655cad918b89e993c6c65a56c1b55cbf647"
+  },
+  "warnings": [
+    "PCL reported optional VTK command targets missing; all affected packages compiled and linked.",
+    "OGRE emitted C++17 register deprecation warnings; RViz plugin libraries linked.",
+    "The no-external-input smoke logs expected transient map-to-base_link TF lookup errors and does not classify them as trajectory-runtime success."
+  ],
+  "claim_boundary": "This proves clean local build/install and linkage for all 154 planning packages, clean base build/install for 24 packages, installed launch parsing, frozen source integrity, base regression, and 24-node startup with v61 map transport. It does not prove live MORAI input semantics, trajectory production under real perception/localization streams, real-time deadlines, or closed-loop driving."
+}
