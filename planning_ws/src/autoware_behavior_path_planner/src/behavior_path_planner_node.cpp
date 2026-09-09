@@ -150,6 +150,7 @@ BehaviorPathPlannerNode::BehaviorPathPlannerNode(ros::NodeHandle private_node)
   {
     cyclic_message_timeout_ = declare_parameter<double>("cyclic_timeout");
     enable_traffic_signal_timeout_ = declare_parameter<bool>("enable_traffic_signal_timeout");
+    use_occupancy_grid_ = declare_parameter<bool>("use_occupancy_grid", true);
     diagnostics_message_timeout_ =
       std::make_unique<autoware_utils_diagnostics::DiagnosticsInterface>(
         this, "incoming_message_timeout");
@@ -234,7 +235,7 @@ void BehaviorPathPlannerNode::takeData()
     }
   }
   // occupancy_grid
-  {
+  if (use_occupancy_grid_) {
     const auto msg = occupancy_grid_subscriber_.take_data();
     if (msg) {
       planner_data_->occupancy_grid = msg;
@@ -330,9 +331,11 @@ BehaviorPathPlannerNode::DataReadyStatus BehaviorPathPlannerNode::isDataReady(
       "perception_objects");
     update_timeout_diagnostics(
       velocity_subscriber_.last_taken_data_timestamp(), cyclic_message_timeout_, "odometry");
-    update_timeout_diagnostics(
-      occupancy_grid_subscriber_.last_taken_data_timestamp(), cyclic_message_timeout_,
-      "occupancy_grid_map");
+    if (use_occupancy_grid_) {
+      update_timeout_diagnostics(
+        occupancy_grid_subscriber_.last_taken_data_timestamp(), cyclic_message_timeout_,
+        "occupancy_grid_map");
+    }
     if (enable_traffic_signal_timeout_) {
       update_timeout_diagnostics(
         traffic_signals_subscriber_.last_taken_data_timestamp(), cyclic_message_timeout_,

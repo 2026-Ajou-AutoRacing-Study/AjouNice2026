@@ -141,7 +141,7 @@ void DefaultParameters::apply(const ros::NodeHandle & node) const {
 DefaultParameters getDefaultParameters() {
   DefaultParameters p;
   p.integers = {{"default_handling_type", DEFAULT_HANDLING_TYPE},{"diag_error_count_threshold",0}};
-  p.booleans = {{"publish_diag",true},{"display_on_terminal",true},{"enable_soft_stop_on_prev_traj",false},
+  p.booleans = {{"publish_diag",true},{"display_on_terminal",true},{"require_obstacle_pointcloud",true},{"enable_soft_stop_on_prev_traj",false},
     {"latency_checker.enable",true},{"latency_checker.is_critical",false},{"trajectory_checker.interval.enable",true},{"trajectory_checker.interval.is_critical",false},
     {"trajectory_checker.relative_angle.enable",true},{"trajectory_checker.relative_angle.is_critical",false},{"trajectory_checker.curvature.enable",true},{"trajectory_checker.curvature.is_critical",false},
     {"trajectory_checker.lateral_accel.enable",true},{"trajectory_checker.lateral_accel.is_critical",false},{"trajectory_checker.max_lon_accel.enable",true},{"trajectory_checker.max_lon_accel.is_critical",false},

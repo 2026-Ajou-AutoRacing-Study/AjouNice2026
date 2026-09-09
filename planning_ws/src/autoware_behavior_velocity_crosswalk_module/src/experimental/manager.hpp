@@ -37,7 +37,7 @@ public:
     RequiredSubscriptionInfo required_subscription_info;
     required_subscription_info.traffic_signals = true;
     required_subscription_info.predicted_objects = true;
-    required_subscription_info.occupancy_grid_map = true;
+    required_subscription_info.occupancy_grid_map = crosswalk_planner_param_.occlusion_enable;
     return required_subscription_info;
   }
 

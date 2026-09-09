@@ -118,6 +118,7 @@ private:
   double forward_path_length_;
   double backward_path_length_;
   double behavior_output_path_interval_;
+  bool use_occupancy_grid_{true};
 
   // member
   PlannerData planner_data_;

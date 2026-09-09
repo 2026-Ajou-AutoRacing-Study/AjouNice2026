@@ -1,4 +1,4 @@
-#include <autoware/behavior_velocity_crosswalk_module/util.hpp>
+#include <autoware/behavior_velocity_crosswalk_util/util.hpp>
 #include <gtest/gtest.h>
 
 namespace autoware::behavior_velocity_planner

@@ -38,7 +38,13 @@ void PlanningValidatorManager::load_plugin(
     return;
   }
   if (plugin_loader_.isClassAvailable(name)) {
-    const auto plugin = std::shared_ptr<PluginInterface>(plugin_loader_.createUniqueInstance(name));
+    // Noetic's class_loader can deadlock while constructing the managed deleter
+    // for these ROS2-source-compatible providers.  Keep ownership in this
+    // manager, but deliberately disable on-demand unloading: loaded_plugins_ is
+    // destroyed before plugin_loader_, so the provider objects are still
+    // released in a deterministic order.
+    const auto plugin =
+      std::shared_ptr<PluginInterface>(plugin_loader_.createUnmanagedInstance(name));
     plugin->init(node, name, context);
 
     // register

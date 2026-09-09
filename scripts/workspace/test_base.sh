@@ -16,8 +16,8 @@ fi
 
 source "$REPO_ROOT/scripts/workspace/source_aw149.sh"
 mapfile -t packages < <(catkin_topological_order --only-names "$REPO_ROOT/base_ws/src")
-if (( ${#packages[@]} != 24 )); then
-  echo "ERROR: expected 24 base packages, found ${#packages[@]}." >&2
+if (( ${#packages[@]} != 25 )); then
+  echo "ERROR: expected 25 base packages, found ${#packages[@]}." >&2
   printf '  %s\n' "${packages[@]}" >&2
   exit 1
 fi

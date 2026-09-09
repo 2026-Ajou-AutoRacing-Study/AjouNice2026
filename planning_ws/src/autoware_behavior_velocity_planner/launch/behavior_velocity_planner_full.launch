@@ -6,6 +6,8 @@
   <arg name="common_param_file"/>
   <arg name="nearest_search_param_file"/>
   <arg name="module_config_file"/>
+  <arg name="use_occupancy_grid" default="true"/>
+  <arg name="launch_modules" default=""/>
   <!-- All arguments are native ROS1 YAML. Module configuration explicitly owns
        launch_modules and the requested plugins' complete parameter trees. -->
   <group ns="$(arg node_name)">
@@ -18,6 +20,9 @@
     <rosparam command="load" file="$(find autoware_behavior_velocity_planner)/config/ros1/behavior_velocity_planner.yaml"/>
     <rosparam command="load" file="$(arg module_config_file)"/>
     <param name="is_simulation" value="$(arg is_simulation)"/>
+    <param name="use_occupancy_grid" value="$(arg use_occupancy_grid)"/>
+    <rosparam if="$(eval arg('launch_modules') != '')" param="launch_modules"
+              subst_value="true">$(arg launch_modules)</rosparam>
   </group>
   <node unless="$(arg experimental)" pkg="autoware_behavior_velocity_planner"
         type="behavior_velocity_planner_full_node" name="$(arg node_name)" output="screen" required="true"/>

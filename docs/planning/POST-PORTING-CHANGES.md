@@ -1,0 +1,100 @@
+# 포팅 후 변경사항
+
+이 문서는 ROS1 포팅 이후 실제로 변경한 항목과 변경 이유만 기록한다. Autoware 원본이 있는 `planning_ws`는 수정하지 않고 `base_ws`의 통합 launch와 보조 노드에서 적용했다.
+
+## 1. Ground pointcloud 및 occupancy grid 비활성화
+
+변경 내용:
+
+- `use_ground_pointcloud=false`
+- `use_occupancy_grid=false`
+- `start_parking=false`
+- ground pointcloud, occupancy grid, freespace parking 입력에 의존하는 모듈을 활성 모듈 목록에서 제외
+- 사용하지 않는 입력을 가짜 빈 메시지로 발행하지 않도록 구성
+
+변경 이유:
+
+- 대회 구성에서 ground removal과 occupancy grid map을 사용하지 않기로 결정했다.
+- 존재하지 않는 입력을 기다리거나 빈 입력으로 정상 동작처럼 보이게 하지 않고, 사용하지 않는 기능을 명시적으로 끄기 위해 변경했다.
+
+적용 파일:
+
+- `base_ws/src/planning_addons/ajounice_planning_integration/launch/planning.launch`
+- `base_ws/src/planning_addons/ajounice_planning_integration/launch/morai_planning_stack.launch`
+
+## 2. 자율주행 모드 상태 고정 publisher 추가
+
+변경 내용:
+
+- `/system/operation_mode/state`에 `autoware_adapi_v1_msgs/OperationModeState`를 10 Hz로 발행하는 노드 추가
+- 발행값을 `mode=AUTONOMOUS`, `is_autoware_control_enabled=true`, `is_in_transition=false`로 고정
+- `planning.launch`와 `morai_planning_stack.launch`에 `publish_fixed_autonomous_mode` 인자 추가
+- 기본값을 `true`로 설정하고, 실제 controller 상태를 사용할 때 `false`로 끌 수 있도록 구성
+
+변경 이유:
+
+- 현재 운용 방침은 stack 실행 시 항상 자율주행 모드로 사용하는 것이며, 실제 controller 연결 전에도 route/planning의 operation-mode gate를 통과시킬 필요가 있었다.
+- 실제 제어권과 controller 상태를 확인하지 않고 고정값을 발행하는 계약 위반 사항은 `FIXED-AUTONOMOUS-MODE-CONTRACT-DEVIATION.md`에 별도로 기록했다.
+
+적용 파일:
+
+- `base_ws/src/planning_addons/ajounice_planning_integration/scripts/fixed_autonomous_operation_mode_publisher`
+- `base_ws/src/planning_addons/ajounice_planning_integration/launch/fixed_autonomous_operation_mode.launch`
+- `base_ws/src/planning_addons/ajounice_planning_integration/launch/planning.launch`
+- `base_ws/src/planning_addons/ajounice_planning_integration/launch/morai_planning_stack.launch`
+- `base_ws/src/planning_addons/ajounice_planning_integration/CMakeLists.txt`
+- `base_ws/src/planning_addons/ajounice_planning_integration/package.xml`
+
+## 3. Behavior Path Planner 전방 경로 길이 축소
+
+변경 내용:
+
+- BPP `forward_path_length`를 300 m에서 150 m로 변경
+- `behavior_path_forward_length` launch 인자를 추가하고 기본값을 `150.0`으로 설정
+- Autoware 원본 설정을 수정하지 않고 통합 launch에서 절대 ROS parameter로 덮어쓰도록 구성
+
+변경 이유:
+
+- BPP가 만든 긴 경로 전체가 BVP 입력으로 전달되어 BVP 플러그인의 처리량과 최종 trajectory latency가 증가했다.
+- 실제 운용에 필요한 전방 범위는 유지하면서 BVP에 전달되는 point 수와 계산량을 줄이기 위해 변경했다.
+
+적용 파일:
+
+- `base_ws/src/planning_addons/ajounice_planning_integration/launch/planning.launch`
+- `base_ws/src/planning_addons/ajounice_planning_integration/launch/morai_planning_stack.launch`
+
+## 4. Intersection attention area 길이 축소
+
+변경 내용:
+
+- Intersection `common.attention_area_length`를 200 m에서 100 m로 변경
+- `intersection_attention_area_length` launch 인자를 추가하고 기본값을 `100.0`으로 설정
+- Autoware 원본 설정을 수정하지 않고 통합 launch에서 절대 ROS parameter로 덮어쓰도록 구성
+
+변경 이유:
+
+- v61 지도에서 200 m 범위로 충돌 차선과 선행 차선을 탐색할 때 특정 구간의 Intersection 계산량이 크게 증가했다.
+- 현재 150 m planning horizon 안에서 교차로 탐색 범위를 100 m로 제한하여 불필요한 선행 차선 탐색과 BVP 병목을 줄이기 위해 변경했다.
+
+적용 파일:
+
+- `base_ws/src/planning_addons/ajounice_planning_integration/launch/planning.launch`
+- `base_ws/src/planning_addons/ajounice_planning_integration/launch/morai_planning_stack.launch`
+
+## 5. Planning RViz 설정 추가
+
+변경 내용:
+
+- 기존 base planning 시각화 구성을 바탕으로 AW149 planning용 RViz 설정과 launch 추가
+- v61 lanelet map, mission route, 최종 trajectory, 현재 차량 위치, Route A 시작점을 표시하도록 topic 구성
+- Fixed Frame을 `map`, TopDownOrtho Target Frame을 `base_link`로 설정
+
+변경 이유:
+
+- 현재 차량 위치와 Route A, 최종 trajectory를 한 화면에서 확인하고 RViz 화면이 이동 차량을 따라가도록 하기 위해 변경했다.
+- planning 계산 코드와 `planning_ws`를 수정하지 않고 시각화만 추가하기 위해 `base_ws`에 분리했다.
+
+적용 파일:
+
+- `base_ws/src/bringup/launch/aw149_planning_rviz.launch`
+- `base_ws/src/bringup/rviz/kcity_aw149_planning.rviz`

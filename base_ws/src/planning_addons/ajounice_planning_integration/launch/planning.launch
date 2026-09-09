@@ -5,18 +5,42 @@
        default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
   <arg name="start_requester" default="false"/>
   <arg name="is_simulation" default="false"/>
+  <arg name="behavior_path_forward_length" default="150.0"/>
+  <arg name="intersection_attention_area_length" default="100.0"/>
+  <arg name="publish_fixed_autonomous_mode" default="true"/>
   <arg name="relay_operation_mode_to_api" default="true"/>
+  <arg name="use_ground_pointcloud" default="false"/>
+  <arg name="use_occupancy_grid" default="false"/>
   <include if="$(arg relay_operation_mode_to_api)"
            file="$(find ajounice_planning_integration)/launch/operation_mode_relay.launch"/>
+  <include if="$(arg publish_fixed_autonomous_mode)"
+           file="$(find ajounice_planning_integration)/launch/fixed_autonomous_operation_mode.launch"/>
   <include file="$(find ajounice_planning_integration)/launch/map.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
   </include>
   <include file="$(find tier4_planning_launch)/launch/planning.launch">
     <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
     <arg name="is_simulation" value="$(arg is_simulation)"/>
+    <arg name="use_ground_pointcloud" value="$(arg use_ground_pointcloud)"/>
+    <arg name="use_occupancy_grid" value="$(arg use_occupancy_grid)"/>
+    <arg name="start_parking" value="false"/>
+    <!-- Keep object/map based modules; remove cloud/grid consumers. -->
+    <arg name="behavior_path_launch_modules"
+         value="[autoware::behavior_path_planner::StaticObstacleAvoidanceModuleManager, autoware::behavior_path_planner::DynamicObstacleAvoidanceModuleManager, autoware::behavior_path_planner::SideShiftModuleManager, autoware::behavior_path_planner::BidirectionalTrafficModuleManager, autoware::behavior_path_planner::SamplingPlannerModuleManager, autoware::behavior_path_planner::LaneChangeRightModuleManager, autoware::behavior_path_planner::LaneChangeLeftModuleManager, autoware::behavior_path_planner::ExternalRequestLaneChangeRightModuleManager, autoware::behavior_path_planner::ExternalRequestLaneChangeLeftModuleManager, autoware::behavior_path_planner::AvoidanceByLaneChangeModuleManager]"/>
+    <arg name="behavior_velocity_launch_modules"
+         value="[autoware::behavior_velocity_planner::experimental::CrosswalkModulePlugin, autoware::behavior_velocity_planner::experimental::WalkwayModulePlugin, autoware::behavior_velocity_planner::experimental::TrafficLightModulePlugin, autoware::behavior_velocity_planner::experimental::IntersectionModulePlugin, autoware::behavior_velocity_planner::experimental::RoundaboutModulePlugin, autoware::behavior_velocity_planner::experimental::MergeFromPrivateModulePlugin, autoware::behavior_velocity_planner::experimental::BlindSpotModulePlugin, autoware::behavior_velocity_planner::experimental::VirtualTrafficLightModulePlugin, autoware::behavior_velocity_planner::experimental::NoStoppingAreaModulePlugin, autoware::behavior_velocity_planner::experimental::StopLineModulePlugin, autoware::behavior_velocity_planner::experimental::SpeedBumpModulePlugin, autoware::behavior_velocity_planner::experimental::NoDrivableLaneModulePlugin]"/>
+    <arg name="motion_velocity_launch_modules"
+         value="[autoware::motion_velocity_planner::ObstacleCruiseModule, autoware::motion_velocity_planner::OutOfLaneModule, autoware::motion_velocity_planner::DynamicObstacleStopModule, autoware::motion_velocity_planner::RunOutModule, autoware::motion_velocity_planner::experimental::BoundaryDeparturePreventionModule, autoware::motion_velocity_planner::RoadUserStopModule]"/>
+    <arg name="validator_launch_modules"
+         value="[autoware::planning_validator::full_source::TrajectoryChecker, autoware::planning_validator::full_source::LatencyChecker]"/>
   </include>
+  <!-- Base-owned runtime override; keep the ported Autoware source/config unchanged. -->
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/forward_path_length"
+         value="$(arg behavior_path_forward_length)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/intersection/common/attention_area_length"
+         value="$(arg intersection_attention_area_length)"/>
   <include if="$(arg start_requester)" file="$(find competition_route_requester)/launch/competition_route_requester.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
   </include>
-  <!-- No follower, fake mode, empty objects/grid, TF, or localization publisher. -->
+  <!-- No follower, empty objects/grid/cloud, TF, or localization publisher. -->
 </launch>

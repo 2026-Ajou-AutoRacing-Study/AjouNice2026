@@ -16,11 +16,18 @@ fi
 
 source /opt/ros/noetic/setup.bash
 
-if [[ ! -f "$REPO_ROOT/planning_ws/install_isolated/setup.bash" ]]; then
+PLANNING_INSTALL="$REPO_ROOT/planning_ws/install_isolated"
+PLANNING_COMPLETE_MARKER="$PLANNING_INSTALL/.aw149_planning_build_complete"
+if [[ ! -f "$PLANNING_INSTALL/setup.bash" || ! -f "$PLANNING_COMPLETE_MARKER" ]]; then
+  # catkin_make_isolated writes setup.bash after its first package.  Do not
+  # mistake that partial install for a usable planning underlay after a failed
+  # build; only this wrapper records a successful full build.
+  rm -f "$PLANNING_COMPLETE_MARKER"
   "$REPO_ROOT/planning_ws/tools/build.sh" --providers
+  touch "$PLANNING_COMPLETE_MARKER"
 fi
 
-source "$REPO_ROOT/planning_ws/install_isolated/setup.bash"
+source "$PLANNING_INSTALL/setup.bash"
 
 if [[ "$clean_base" == "true" ]]; then
   for generated_dir in \
@@ -64,17 +71,17 @@ export CPATH="$LIVOX_SDK_INSTALL/include${CPATH:+:$CPATH}"
 export LIBRARY_PATH="$LIVOX_SDK_INSTALL/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
 
 cd "$REPO_ROOT/base_ws"
-# The pinned FAST_LIO CMakeLists does not declare that fastlio_mapping depends
-# on its generated Pose6D header. A clean parallel default build can therefore
-# compile laserMapping.cpp before Pose6D.h exists. Keep the upstream submodule
-# immutable: build the other packages first, configure FAST_LIO, explicitly
+# The pinned FAST_LIO packages do not declare that their mapping targets depend
+# on the generated Pose6D header. A clean parallel default build can therefore
+# compile laserMapping.cpp before Pose6D.h exists. Keep the upstream submodules
+# immutable: build the other packages first, configure each package, explicitly
 # generate its C++ message header, then let catkin build the complete package.
 catkin_make_isolated --install \
   --source "$REPO_ROOT/base_ws/src" \
   --build "$REPO_ROOT/base_ws/build_aw149" \
   --devel "$REPO_ROOT/base_ws/devel_aw149" \
   --install-space "$REPO_ROOT/base_ws/install_aw149" \
-  --ignore-pkg fast_lio \
+  --ignore-pkg fast_lio fast_lio_msf \
   -DLIVOX_SDK_LIBRARY="$LIVOX_SDK_LIBRARY" \
   -DCMAKE_BUILD_TYPE=Release \
   -DPYTHON_EXECUTABLE=/usr/bin/python3 \
@@ -116,6 +123,42 @@ for asset in launch config rviz_cfg; do
   cmake -E copy_directory \
     "$FAST_LIO_SOURCE/$asset" \
     "$FAST_LIO_INSTALL/share/fast_lio/$asset"
+done
+
+# fast_lio_msf has the same generated-header ordering flaw and no install
+# rules. Build it after generating Pose6D.h, then complete the install overlay
+# from its runtime artifact and assets without modifying the upstream submodule.
+FAST_LIO_MSF_SOURCE="$REPO_ROOT/base_ws/src/localization/fast_lio_multi_sensor_fusion"
+FAST_LIO_MSF_DEVEL="$REPO_ROOT/base_ws/devel_aw149/fast_lio_msf"
+FAST_LIO_MSF_BUILD="$REPO_ROOT/base_ws/build_aw149/fast_lio_msf"
+mkdir -p "$FAST_LIO_MSF_BUILD"
+"$FAST_LIO_INSTALL/env.sh" cmake \
+  -S "$FAST_LIO_MSF_SOURCE" \
+  -B "$FAST_LIO_MSF_BUILD" \
+  -DCATKIN_DEVEL_PREFIX="$FAST_LIO_MSF_DEVEL" \
+  -DCMAKE_INSTALL_PREFIX="$FAST_LIO_INSTALL" \
+  -DLIVOX_SDK_LIBRARY="$LIVOX_SDK_LIBRARY" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DPYTHON_EXECUTABLE=/usr/bin/python3
+"$FAST_LIO_INSTALL/env.sh" cmake --build "$FAST_LIO_MSF_BUILD" \
+  --target fast_lio_msf_generate_messages_cpp -- -j4 -l4
+catkin_make_isolated --install \
+  --source "$REPO_ROOT/base_ws/src" \
+  --build "$REPO_ROOT/base_ws/build_aw149" \
+  --devel "$REPO_ROOT/base_ws/devel_aw149" \
+  --install-space "$REPO_ROOT/base_ws/install_aw149" \
+  --pkg fast_lio_msf \
+  -DLIVOX_SDK_LIBRARY="$LIVOX_SDK_LIBRARY" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DPYTHON_EXECUTABLE=/usr/bin/python3 \
+  --make-args -j4 -l4
+install -D -m 0755 \
+  "$FAST_LIO_MSF_DEVEL/lib/fast_lio_msf/fastlio_msf_mapping" \
+  "$FAST_LIO_INSTALL/lib/fast_lio_msf/fastlio_msf_mapping"
+for asset in launch config rviz_cfg; do
+  cmake -E copy_directory \
+    "$FAST_LIO_MSF_SOURCE/$asset" \
+    "$FAST_LIO_INSTALL/share/fast_lio_msf/$asset"
 done
 
 # A build is not portable if launch/config assets exist only in the source

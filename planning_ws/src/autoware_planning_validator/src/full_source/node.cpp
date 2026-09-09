@@ -77,6 +77,8 @@ void PlanningValidatorNode::setupParameters()
   p.soft_stop_deceleration = declare_parameter<double>("soft_stop_deceleration");
   p.soft_stop_jerk_lim = declare_parameter<double>("soft_stop_jerk_lim");
   p.th_traffic_light_timeout = declare_parameter<double>("th_traffic_light_timeout");
+  p.require_obstacle_pointcloud = declare_parameter<bool>("require_obstacle_pointcloud");
+  context_->data->require_obstacle_pointcloud = p.require_obstacle_pointcloud;
 }
 
 bool PlanningValidatorNode::isDataReady()
@@ -300,4 +302,3 @@ bool PlanningValidatorNode::infer_autonomous_control_state(
 }
 
 }  // namespace autoware::planning_validator::full_source
-

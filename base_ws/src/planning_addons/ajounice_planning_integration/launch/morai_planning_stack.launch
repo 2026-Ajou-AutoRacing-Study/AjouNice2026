@@ -11,6 +11,8 @@
   <arg name="sensor_config"
        default="$(arg repo_root)/configs/sensors/Sensor.json"/>
   <arg name="use_sim_time" default="false"/>
+  <arg name="behavior_path_forward_length" default="150.0"/>
+  <arg name="intersection_attention_area_length" default="100.0"/>
 
   <arg name="start_localization" default="true"/>
   <arg name="start_sensor_tf" default="true"/>
@@ -31,6 +33,11 @@
   <arg name="start_traffic_light" default="true"/>
   <arg name="start_requester" default="false"/>
   <arg name="start_controller" default="false"/>
+  <!-- Competition operation policy: the stack is always reported as engaged autonomous. -->
+  <arg name="publish_fixed_autonomous_mode" default="true"/>
+  <!-- AjouNice does not deploy ground removal or an occupancy-grid producer. -->
+  <arg name="use_ground_pointcloud" default="false"/>
+  <arg name="use_occupancy_grid" default="false"/>
 
   <group if="$(arg start_localization)">
     <include file="$(find bringup)/launch/localization_morai_gt.launch">
@@ -82,7 +89,12 @@
     <arg name="repo_root" value="$(arg repo_root)"/>
     <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
     <arg name="start_requester" value="$(arg start_requester)"/>
+    <arg name="behavior_path_forward_length" value="$(arg behavior_path_forward_length)"/>
+    <arg name="intersection_attention_area_length" value="$(arg intersection_attention_area_length)"/>
+    <arg name="publish_fixed_autonomous_mode" value="$(arg publish_fixed_autonomous_mode)"/>
     <arg name="is_simulation" value="$(arg use_sim_time)"/>
+    <arg name="use_ground_pointcloud" value="$(arg use_ground_pointcloud)"/>
+    <arg name="use_occupancy_grid" value="$(arg use_occupancy_grid)"/>
   </include>
 
   <group if="$(arg start_controller)">

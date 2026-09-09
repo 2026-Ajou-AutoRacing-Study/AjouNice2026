@@ -81,8 +81,6 @@ expected_nodes=(
   /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner
   /planning/scenario_planning/lane_driving/motion_planning/path_optimizer
   /planning/scenario_planning/lane_driving/motion_planning/path_smoother
-  /planning/scenario_planning/parking/costmap_generator
-  /planning/scenario_planning/parking/freespace_planner
   /planning/scenario_planning/scenario_selector
   /planning/scenario_planning/surround_obstacle_checker
   /planning/scenario_planning/velocity_smoother
@@ -110,8 +108,14 @@ map_received=false
 if timeout 8 rostopic echo -n 1 /map/vector_map --noarr >"$RUN_DIR/vector_map.txt" 2>&1; then
   map_received=true
 fi
-fatal_lines="$(rg -i -c 'process has died|\[FATAL\]|RLException|Traceback' "$RUN_DIR/planning.log" || true)"
+if command -v rg >/dev/null 2>&1; then
+  fatal_lines="$(rg -i -c 'process has died|\[FATAL\]|RLException|Traceback' "$RUN_DIR/planning.log" || true)"
+else
+  fatal_lines="$(grep -Eic 'process has died|\[FATAL\]|RLException|Traceback' "$RUN_DIR/planning.log" || true)"
+fi
 fatal_lines="${fatal_lines:-0}"
+occupancy_grid_enabled="$(rosparam get /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/use_occupancy_grid 2>/dev/null || true)"
+validator_pointcloud_required="$(rosparam get /planning_validator/require_obstacle_pointcloud 2>/dev/null || true)"
 
 printf 'AW149_CLEAN_INSTALL_SMOKE\n'
 printf '  duration_s: %s\n' "$duration_s"
@@ -119,6 +123,8 @@ printf '  expected_nodes: %d/%d\n' "$(( ${#expected_nodes[@]} - ${#missing_nodes
 printf '  map_type: %s\n' "${map_type:-MISSING}"
 printf '  map_received: %s\n' "$map_received"
 printf '  unexpected_fatal_lines: %s\n' "$fatal_lines"
+printf '  occupancy_grid_enabled: %s\n' "${occupancy_grid_enabled:-MISSING}"
+printf '  validator_pointcloud_required: %s\n' "${validator_pointcloud_required:-MISSING}"
 printf '  logs: %s\n' "$RUN_DIR"
 
 if (( ${#missing_nodes[@]} != 0 )); then
@@ -131,5 +137,9 @@ if [[ "$map_type" != "autoware_map_msgs/LaneletMapBin" || "$map_received" != "tr
 fi
 if (( fatal_lines != 0 )); then
   echo "ERROR: unexpected fatal signatures in planning.log." >&2
+  exit 1
+fi
+if [[ "$occupancy_grid_enabled" != "false" || "$validator_pointcloud_required" != "false" ]]; then
+  echo "ERROR: limited-perception launch policy was not applied." >&2
   exit 1
 fi

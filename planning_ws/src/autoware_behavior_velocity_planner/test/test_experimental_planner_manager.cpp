@@ -90,6 +90,17 @@ TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsCrosswalkAndPropagatesItsI
   EXPECT_TRUE(requirements.occupancy_grid_map);
 }
 
+TEST(ExperimentalBehaviorVelocityPlannerManager, CrosswalkWithoutOcclusionDoesNotRequireOccupancy)
+{
+  ros::NodeHandle node;
+  loadModuleParameters(AW149_BVP_CROSSWALK_CONFIG);
+  node.setParam("crosswalk/occlusion/enable", false);
+  BehaviorVelocityPlannerManager manager;
+  ASSERT_TRUE(manager.launchScenePlugin(
+    node, "autoware::behavior_velocity_planner::experimental::CrosswalkModulePlugin"));
+  EXPECT_FALSE(manager.getRequiredSubscriptions().occupancy_grid_map);
+}
+
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsDetectionAreaAndPropagatesItsInputContract)
 {
   ros::NodeHandle node;
@@ -145,6 +156,18 @@ TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsIntersectionAndPropagatesI
   EXPECT_TRUE(requirements.predicted_objects);
   EXPECT_TRUE(requirements.traffic_signals);
   EXPECT_TRUE(requirements.occupancy_grid_map);
+}
+
+TEST(ExperimentalBehaviorVelocityPlannerManager, IntersectionWithoutOcclusionDoesNotRequireOccupancy)
+{
+  ros::NodeHandle node;
+  loadModuleParameters(AW149_BVP_COMMON_CONFIG);
+  loadModuleParameters(AW149_BVP_INTERSECTION_CONFIG);
+  node.setParam("intersection/occlusion/enable", false);
+  BehaviorVelocityPlannerManager manager;
+  ASSERT_TRUE(manager.launchScenePlugin(
+    node, "autoware::behavior_velocity_planner::experimental::IntersectionModulePlugin"));
+  EXPECT_FALSE(manager.getRequiredSubscriptions().occupancy_grid_map);
 }
 
 TEST(ExperimentalBehaviorVelocityPlannerManager, LoadsRoundaboutAndPropagatesItsInputContract)

@@ -7,6 +7,7 @@ source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh"
 check_flow=true
 include_outputs=false
 include_controller_contract=false
+limited_perception=false
 wait_seconds="${AW149_TOPIC_WAIT_SECONDS:-5}"
 
 for argument in "$@"; do
@@ -14,8 +15,9 @@ for argument in "$@"; do
     --types-only) check_flow=false ;;
     --full) include_outputs=true ;;
     --controller) include_controller_contract=true ;;
+    --limited-perception) limited_perception=true ;;
     *)
-      echo "usage: $0 [--types-only] [--full] [--controller]" >&2
+      echo "usage: $0 [--types-only] [--full] [--controller] [--limited-perception]" >&2
       exit 2
       ;;
   esac
@@ -26,13 +28,18 @@ topics=(
   "/localization/acceleration|geometry_msgs/AccelWithCovarianceStamped"
   "/perception/object_recognition/objects|autoware_perception_msgs/PredictedObjects"
   "/perception/traffic_light_recognition/traffic_signals|autoware_perception_msgs/TrafficLightGroupArray"
-  "/perception/occupancy_grid_map/map|nav_msgs/OccupancyGrid"
-  "/perception/obstacle_segmentation/pointcloud|sensor_msgs/PointCloud2"
   "/map/vector_map|autoware_map_msgs/LaneletMapBin"
   "/map/map_projector_info|autoware_map_msgs/MapProjectorInfo"
   "/system/operation_mode/state|autoware_adapi_v1_msgs/OperationModeState"
   "/api/operation_mode/state|autoware_adapi_v1_msgs/OperationModeState"
 )
+
+if ! $limited_perception; then
+  topics+=(
+    "/perception/occupancy_grid_map/map|nav_msgs/OccupancyGrid"
+    "/perception/obstacle_segmentation/pointcloud|sensor_msgs/PointCloud2"
+  )
+fi
 
 if $include_outputs; then
   topics+=(

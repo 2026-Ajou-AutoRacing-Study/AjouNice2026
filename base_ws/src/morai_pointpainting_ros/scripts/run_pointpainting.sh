@@ -70,17 +70,24 @@ set +u
 conda activate "$CONDA_ENV"
 set -u
 
-source /opt/ros/noetic/setup.bash
-
-if [[ ! -f "$CATKIN_WS/devel/setup.bash" ]]; then
-    echo "[ERROR] Catkin workspace가 빌드되지 않았습니다."
-    echo "실행:"
-    echo "  cd $CATKIN_WS"
-    echo '  catkin_make -DPYTHON_EXECUTABLE="$CONDA_PREFIX/bin/python"'
+AW149_SETUP="$REPO_ROOT/scripts/workspace/source_aw149.sh"
+if [[ ! -f "$AW149_SETUP" ]]; then
+    echo "[ERROR] AW149 runtime setup을 찾을 수 없습니다:"
+    echo "  $AW149_SETUP"
     exit 1
 fi
 
-source "$CATKIN_WS/devel/setup.bash"
+export AJOUNICE_ROOT="$REPO_ROOT"
+source "$AW149_SETUP"
+
+# ROS Noetic's Debian Python modules (for example rospkg) live outside the
+# Conda environment. Add the Conda site-packages explicitly before Debian's
+# directory: PYTHONPATH entries otherwise precede normal site initialization,
+# causing the system NumPy to shadow the model environment's ABI-compatible
+# NumPy/OpenCV/SharedArray stack.
+CONDA_SITE_PACKAGES="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$CONDA_SITE_PACKAGES:/usr/lib/python3/dist-packages"
+unset CONDA_SITE_PACKAGES
 
 # PyTorch 2.6+ defaults torch.load() to weights_only=True, while the trusted
 # team OpenPCDet checkpoint contains legacy NumPy metadata.

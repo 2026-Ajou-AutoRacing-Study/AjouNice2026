@@ -1,0 +1,43 @@
+<launch>
+  <!-- Visualization only: it does not launch or modify any planning node. -->
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="map_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
+  <arg name="projector_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+  <arg name="trajectory_topic" default="/planning/trajectory"/>
+  <arg name="start_rviz" default="true"/>
+  <!-- Frozen Route A start from kcity_v61_competition_route.yaml. -->
+  <arg name="route_a_start_x" default="-0.130667330614472"/>
+  <arg name="route_a_start_y" default="117.580315248218"/>
+  <arg name="route_a_start_z" default="28.543960281954277"/>
+  <arg name="route_a_start_yaw" default="1.0698541278595193"/>
+
+  <node pkg="tf" type="static_transform_publisher" name="route_a_start_tf"
+        args="$(arg route_a_start_x) $(arg route_a_start_y) $(arg route_a_start_z)
+              $(arg route_a_start_yaw) 0 0 map route_a_start 100"/>
+
+  <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+    <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="projector_file" value="$(arg projector_file)"/>
+    <arg name="projector_type" value="LocalCartesianUTM"/>
+    <arg name="frame_id" value="map"/>
+    <arg name="output_topic" value="/map/lanelet_map"/>
+    <!-- The integration binary loader remains the sole /map/vector_map owner. -->
+    <arg name="publish_vector_map" value="false"/>
+    <arg name="publish_lanelet_fill" value="false"/>
+  </include>
+
+  <node pkg="bringup" type="planning_trajectory_visualizer.py"
+        name="planning_trajectory_visualizer" output="screen">
+    <param name="input_topic" value="$(arg trajectory_topic)"/>
+    <param name="path_topic" value="/planning/debug/final_trajectory/path"/>
+    <param name="marker_topic" value="/planning/debug/final_trajectory/markers"/>
+  </node>
+
+  <node if="$(arg start_rviz)" pkg="rviz" type="rviz"
+        name="aw149_planning_rviz"
+        args="-d $(find bringup)/rviz/kcity_aw149_planning.rviz"
+        output="screen"/>
+</launch>

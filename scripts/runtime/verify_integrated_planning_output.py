@@ -15,10 +15,11 @@ import rospy
 import tf2_ros
 import yaml
 from autoware_adapi_v1_msgs.msg import OperationModeState
+from autoware_internal_planning_msgs.msg import PathWithLaneId
 from autoware_internal_planning_msgs.srv import SetWaypointRoute, SetWaypointRouteRequest
 from autoware_map_msgs.msg import LaneletMapBin
 from autoware_perception_msgs.msg import PredictedObjects, TrafficLightGroupArray
-from autoware_planning_msgs.msg import LaneletRoute, RouteState, Trajectory
+from autoware_planning_msgs.msg import LaneletRoute, Path as PlanningPath, RouteState, Trajectory
 from autoware_planning_validator.msg import PlanningValidatorStatus
 from geometry_msgs.msg import AccelWithCovarianceStamped, Pose, TransformStamped
 from nav_msgs.msg import Odometry, OccupancyGrid
@@ -39,6 +40,7 @@ transition_speed_mps = float(os.environ.get("AW149_OUTPUT_PROBE_TRANSITION_SPEED
 input_period_s = float(os.environ.get("AW149_OUTPUT_PROBE_INPUT_PERIOD_S", "0.1"))
 force_fallback = os.environ.get("AW149_OUTPUT_PROBE_FORCE_FALLBACK", "0") == "1"
 force_b_rejection = os.environ.get("AW149_OUTPUT_PROBE_FORCE_B_REJECTION", "0") == "1"
+limited_perception = os.environ.get("AW149_OUTPUT_PROBE_LIMITED_PERCEPTION", "0") == "1"
 b_rejection_speed_mps = float(os.environ.get("AW149_OUTPUT_PROBE_B_REJECTION_SPEED_MPS", "1000.0"))
 if not math.isfinite(input_period_s) or input_period_s <= 0.0 or input_period_s > 0.25:
     raise ValueError("AW149_OUTPUT_PROBE_INPUT_PERIOD_S must be in (0, 0.25]")
@@ -144,6 +146,8 @@ launch_specs = [(str(launch_file), [
     "start_traffic_light:=false",
     "start_requester:=" + ("true" if launch_requester_in_stack else "false"),
     "start_controller:=false",
+    "use_ground_pointcloud:=" + ("false" if limited_perception else "true"),
+    "use_occupancy_grid:=" + ("false" if limited_perception else "true"),
 ])]
 if use_requester and not launch_requester_in_stack:
     requester_config = yaml.safe_load(
@@ -171,7 +175,21 @@ class Monitor(roslaunch.pmon.ProcessListener):
 parent.process_listeners = [Monitor()]
 rospy.init_node("aw149_integrated_output_probe", anonymous=True)
 latest = {}
-counts = {"map": 0, "route": 0, "route_state": 0, "final": 0, "validation": 0, "request_status": 0}
+counts = {
+    "map": 0,
+    "route": 0,
+    "route_state": 0,
+    "behavior_path": 0,
+    "behavior_velocity": 0,
+    "path_smoothed": 0,
+    "path_optimized": 0,
+    "motion_velocity": 0,
+    "scenario_selected": 0,
+    "velocity_smoothed": 0,
+    "final": 0,
+    "validation": 0,
+    "request_status": 0,
+}
 request_status_history = []
 
 
@@ -203,6 +221,20 @@ subscriptions = [
     rospy.Subscriber("/map/vector_map", LaneletMapBin, receive, callback_args="map", queue_size=2),
     rospy.Subscriber("/planning/mission_planning/route", LaneletRoute, receive, callback_args="route", queue_size=2),
     rospy.Subscriber("/planning/route_state", RouteState, receive, callback_args="route_state", queue_size=2),
+    rospy.Subscriber("/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id",
+                     PathWithLaneId, receive, callback_args="behavior_path", queue_size=10),
+    rospy.Subscriber("/planning/scenario_planning/lane_driving/behavior_planning/path",
+                     PlanningPath, receive, callback_args="behavior_velocity", queue_size=10),
+    rospy.Subscriber("/planning/scenario_planning/lane_driving/motion_planning/path_smoother/path",
+                     PlanningPath, receive, callback_args="path_smoothed", queue_size=10),
+    rospy.Subscriber("/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory",
+                     Trajectory, receive, callback_args="path_optimized", queue_size=10),
+    rospy.Subscriber("/planning/scenario_planning/lane_driving/trajectory",
+                     Trajectory, receive, callback_args="motion_velocity", queue_size=10),
+    rospy.Subscriber("/planning/scenario_planning/scenario_selector/trajectory",
+                     Trajectory, receive, callback_args="scenario_selected", queue_size=10),
+    rospy.Subscriber("/planning/scenario_planning/velocity_smoother/trajectory",
+                     Trajectory, receive, callback_args="velocity_smoothed", queue_size=10),
     rospy.Subscriber("/planning/trajectory", Trajectory, receive, callback_args="final", queue_size=10),
     rospy.Subscriber("/planning/validation_status", PlanningValidatorStatus, receive, callback_args="validation", queue_size=10),
     rospy.Subscriber("/competition_route_requester/request_status", String, receive, callback_args="request_status", queue_size=10),
@@ -217,8 +249,10 @@ odom_pub = publisher("/localization/kinematic_state", Odometry)
 accel_pub = publisher("/localization/acceleration", AccelWithCovarianceStamped)
 objects_pub = publisher("/perception/object_recognition/objects", PredictedObjects)
 signals_pub = publisher("/perception/traffic_light_recognition/traffic_signals", TrafficLightGroupArray)
-grid_pub = publisher("/perception/occupancy_grid_map/map", OccupancyGrid)
-cloud_pub = publisher("/perception/obstacle_segmentation/pointcloud", PointCloud2)
+grid_pub = None if limited_perception else publisher(
+    "/perception/occupancy_grid_map/map", OccupancyGrid)
+cloud_pub = None if limited_perception else publisher(
+    "/perception/obstacle_segmentation/pointcloud", PointCloud2)
 mode_pub = publisher("/system/operation_mode/state", OperationModeState)
 broadcaster = tf2_ros.TransformBroadcaster()
 
@@ -244,10 +278,12 @@ def tick():
     signals = TrafficLightGroupArray()
     signals.stamp.sec, signals.stamp.nanosec = now.secs, now.nsecs
     signals_pub.publish(signals)
-    grid.header.stamp = now
-    grid_pub.publish(grid)
-    far_point = [(odom.pose.pose.position.x + 100.0, odom.pose.pose.position.y + 100.0, 1.0)]
-    cloud_pub.publish(point_cloud2.create_cloud_xyz32(Header(frame_id="map", stamp=now), far_point))
+    if not limited_perception:
+        grid.header.stamp = now
+        grid_pub.publish(grid)
+        far_point = [(odom.pose.pose.position.x + 100.0, odom.pose.pose.position.y + 100.0, 1.0)]
+        cloud_pub.publish(point_cloud2.create_cloud_xyz32(
+            Header(frame_id="map", stamp=now), far_point))
     mode = OperationModeState(
         mode=OperationModeState.AUTONOMOUS,
         is_autoware_control_enabled=True,
@@ -278,6 +314,7 @@ result = {
     "forced_fallback_branch": force_fallback,
     "forced_b_rejection_branch": force_b_rejection,
     "synthetic_input_period_seconds": input_period_s,
+    "limited_perception": limited_perception,
     "process_deaths_before_shutdown": deaths,
     "not_proven": [
         "live MORAI topic, frame, timestamp, or unit semantics",

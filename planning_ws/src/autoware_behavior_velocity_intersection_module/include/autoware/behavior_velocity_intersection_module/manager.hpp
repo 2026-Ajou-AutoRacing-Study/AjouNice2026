@@ -46,7 +46,7 @@ public:
     RequiredSubscriptionInfo required_subscription_info;
     required_subscription_info.traffic_signals = true;
     required_subscription_info.predicted_objects = true;
-    required_subscription_info.occupancy_grid_map = true;
+    required_subscription_info.occupancy_grid_map = intersection_param_.occlusion.enable;
     return required_subscription_info;
   }
 

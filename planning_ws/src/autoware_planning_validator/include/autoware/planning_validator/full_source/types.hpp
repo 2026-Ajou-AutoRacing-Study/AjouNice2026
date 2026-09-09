@@ -82,6 +82,7 @@ struct PlanningValidatorParams
   double soft_stop_deceleration{};
   double soft_stop_jerk_lim{};
   double th_traffic_light_timeout{0.5};
+  bool require_obstacle_pointcloud{true};
   int diag_error_count_threshold{};
   InvalidTrajectoryHandlingType default_handling_type{};
 };
@@ -99,6 +100,7 @@ struct PlanningValidatorData
   AccelWithCovarianceStamped::ConstPtr current_acceleration;
   PointCloud2::ConstPtr obstacle_pointcloud;
   TrafficLightGroupArray::ConstPtr traffic_signals;
+  bool require_obstacle_pointcloud{true};
 
   std::shared_ptr<RouteHandler> route_handler{std::make_shared<RouteHandler>()};
 
@@ -116,7 +118,7 @@ struct PlanningValidatorData
       msg = "current_acceleration";
       return false;
     }
-    if (!obstacle_pointcloud) {
+    if (require_obstacle_pointcloud && !obstacle_pointcloud) {
       msg = "obstacle_pointcloud";
       return false;
     }

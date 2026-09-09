@@ -149,7 +149,7 @@ Result<IntersectionModule::BasicData, InternalError> IntersectionModule::prepare
   }
   const auto & path_lanelets = path_lanelets_opt.value();
 
-  if (!occlusion_attention_divisions_) {
+  if (planner_param_.occlusion.enable && !occlusion_attention_divisions_) {
     occlusion_attention_divisions_ = generateDetectionLaneDivisions(
       intersection_lanelets.occlusion_attention(), intersection_lanelets.attention_non_preceding(),
       routing_graph_ptr, planner_data_->occupancy_grid->info.resolution);

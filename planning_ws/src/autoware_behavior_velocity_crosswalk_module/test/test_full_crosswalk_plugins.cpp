@@ -20,6 +20,21 @@ template<class Interface> void checkPlugin(const std::string & base, const std::
   EXPECT_TRUE(subscriptions.traffic_signals);
   EXPECT_TRUE(subscriptions.occupancy_grid_map);
 }
+template<class Interface> void checkPluginWithoutOcclusion(
+  const std::string & base, const std::string & name)
+{
+  ros::NodeHandle node("/full_crosswalk_test_without_occlusion");
+  ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_crosswalk_module)/config/ros1/crosswalk.yaml\" /full_crosswalk_test_without_occlusion"), 0);
+  node.setParam("crosswalk/occlusion/enable", false);
+  pluginlib::ClassLoader<Interface> loader("autoware_behavior_velocity_planner_common", base);
+  auto plugin = loader.createUniqueInstance(name);
+  ASSERT_TRUE(plugin);
+  plugin->init(node);
+  const auto subscriptions = plugin->getRequiredSubscriptions();
+  EXPECT_TRUE(subscriptions.predicted_objects);
+  EXPECT_TRUE(subscriptions.traffic_signals);
+  EXPECT_FALSE(subscriptions.occupancy_grid_map);
+}
 TEST(FullCrosswalk, NormalPlugin)
 {
   checkPlugin<bvp::PluginInterface>("autoware::behavior_velocity_planner::PluginInterface",
@@ -28,6 +43,18 @@ TEST(FullCrosswalk, NormalPlugin)
 TEST(FullCrosswalk, ExperimentalPlugin)
 {
   checkPlugin<bvp::experimental::PluginInterface>(
+    "autoware::behavior_velocity_planner::experimental::PluginInterface",
+    "autoware::behavior_velocity_planner::experimental::CrosswalkModulePlugin");
+}
+TEST(FullCrosswalk, NormalPluginDoesNotRequireOccupancyWhenOcclusionIsDisabled)
+{
+  checkPluginWithoutOcclusion<bvp::PluginInterface>(
+    "autoware::behavior_velocity_planner::PluginInterface",
+    "autoware::behavior_velocity_planner::CrosswalkModulePlugin");
+}
+TEST(FullCrosswalk, ExperimentalPluginDoesNotRequireOccupancyWhenOcclusionIsDisabled)
+{
+  checkPluginWithoutOcclusion<bvp::experimental::PluginInterface>(
     "autoware::behavior_velocity_planner::experimental::PluginInterface",
     "autoware::behavior_velocity_planner::experimental::CrosswalkModulePlugin");
 }

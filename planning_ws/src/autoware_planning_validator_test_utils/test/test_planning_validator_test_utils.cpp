@@ -43,11 +43,12 @@ TEST(PlanningValidatorTestUtils, GeneratesAllTrajectoryFamilies) {
 TEST(PlanningValidatorTestUtils, ProvidesAndAppliesCompleteDefaultParameterSet) {
   const auto p = u::getDefaultParameters();
   EXPECT_EQ(p.integers.size(), 2U);
-  EXPECT_EQ(p.booleans.size(), 35U);
+  EXPECT_EQ(p.booleans.size(), 36U);
   EXPECT_EQ(p.doubles.size(), 34U);
   EXPECT_DOUBLE_EQ(p.doubles.at("planning_hz"), u::PLANNING_HZ);
   EXPECT_DOUBLE_EQ(p.doubles.at("wheel_base"), u::WHEELBASE);
   EXPECT_TRUE(p.booleans.at("trajectory_checker.trajectory_shift.is_critical"));
+  EXPECT_TRUE(p.booleans.at("require_obstacle_pointcloud"));
   ros::NodeHandle nh("planning_validator_test_utils_oracle");
   p.apply(nh);
   double planning_hz = 0.0, wheel_base = 0.0;

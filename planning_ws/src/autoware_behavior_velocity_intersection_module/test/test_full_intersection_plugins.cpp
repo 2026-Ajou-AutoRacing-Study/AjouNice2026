@@ -20,6 +20,22 @@ template<class Interface> void checkPlugin(const std::string & base, const std::
   EXPECT_EQ(required.traffic_signals, intersection);
   EXPECT_EQ(required.occupancy_grid_map, intersection);
 }
+template<class Interface> void checkIntersectionPluginWithoutOcclusion(
+  const std::string & base, const std::string & name)
+{
+  ros::NodeHandle node("/full_intersection_test_without_occlusion");
+  ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_planner)/config/ros1/behavior_velocity_planner.yaml\" /full_intersection_test_without_occlusion"), 0);
+  ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_intersection_module)/config/ros1/intersection.yaml\" /full_intersection_test_without_occlusion"), 0);
+  node.setParam("intersection/occlusion/enable", false);
+  pluginlib::ClassLoader<Interface> loader("autoware_behavior_velocity_planner_common", base);
+  auto plugin = loader.createUniqueInstance(name);
+  ASSERT_TRUE(plugin);
+  plugin->init(node);
+  const auto required = plugin->getRequiredSubscriptions();
+  EXPECT_TRUE(required.predicted_objects);
+  EXPECT_TRUE(required.traffic_signals);
+  EXPECT_FALSE(required.occupancy_grid_map);
+}
 TEST(FullIntersection, NormalPlugin)
 {
   checkPlugin<bvp::PluginInterface>("autoware::behavior_velocity_planner::PluginInterface",
@@ -29,6 +45,18 @@ TEST(FullIntersection, ExperimentalPlugin)
 {
   checkPlugin<bvp::experimental::PluginInterface>("autoware::behavior_velocity_planner::experimental::PluginInterface",
     "autoware::behavior_velocity_planner::experimental::IntersectionModulePlugin", true);
+}
+TEST(FullIntersection, NormalPluginDoesNotRequireOccupancyWhenOcclusionIsDisabled)
+{
+  checkIntersectionPluginWithoutOcclusion<bvp::PluginInterface>(
+    "autoware::behavior_velocity_planner::PluginInterface",
+    "autoware::behavior_velocity_planner::IntersectionModulePlugin");
+}
+TEST(FullIntersection, ExperimentalPluginDoesNotRequireOccupancyWhenOcclusionIsDisabled)
+{
+  checkIntersectionPluginWithoutOcclusion<bvp::experimental::PluginInterface>(
+    "autoware::behavior_velocity_planner::experimental::PluginInterface",
+    "autoware::behavior_velocity_planner::experimental::IntersectionModulePlugin");
 }
 TEST(FullIntersection, NormalPrivateRoadPlugin)
 {

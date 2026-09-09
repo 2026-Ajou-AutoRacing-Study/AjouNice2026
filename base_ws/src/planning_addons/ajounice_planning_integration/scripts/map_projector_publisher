@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish only the frozen map projector, never fabricated localization or mode."""
+"""Publish only the frozen map projector, never fabricated localization."""
 from pathlib import Path
 import hashlib
 import rospy

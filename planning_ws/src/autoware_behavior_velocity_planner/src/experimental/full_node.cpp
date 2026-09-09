@@ -79,6 +79,7 @@ FullBehaviorVelocityPlannerNode::FullBehaviorVelocityPlannerNode(ros::NodeHandle
   forward_path_length_ = declare_parameter<double>("forward_path_length");
   backward_path_length_ = declare_parameter<double>("backward_path_length");
   behavior_output_path_interval_ = declare_parameter<double>("behavior_output_path_interval");
+  use_occupancy_grid_ = declare_parameter<bool>("use_occupancy_grid", true);
 
   // nearest search
   planner_data_.ego_nearest_dist_threshold =
@@ -255,7 +256,7 @@ bool FullBehaviorVelocityPlannerNode::processData(bvp_full_native::Clock clock)
     required_subscriptions.predicted_objects);
   is_ready &= getData(
     planner_data_.occupancy_grid, sub_occupancy_grid_, "occupancy_grid",
-    required_subscriptions.occupancy_grid_map);
+    use_occupancy_grid_ && required_subscriptions.occupancy_grid_map);
 
   nav_msgs::Odometry::ConstPtr odometry;
   is_ready &= getData(odometry, sub_vehicle_odometry_, "odometry");

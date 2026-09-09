@@ -5,7 +5,7 @@
 
 ## 1. 현재 무엇이 되고, 무엇을 해야 하는가
 
-포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 24개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 24개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 11개 검사를 통과했다. base 설치 뒤 source의 launch/config/RViz 자산이 install에 모두 존재하는지도 빌드 스크립트가 전수 검사한다. 2026-09-08 재감사에서는 삭제된 구형 planning 패키지를 참조하던 `kcity_interactive_trajectory_rviz.launch`와 낡은 안내 문서를 제거했다. 그 뒤 planning 154/154와 base 24/24를 각각 clean build/install하고, 현재 지원하는 설치 launch 19/19를 파싱했다. 최신 상세 영수증은 [planning-clean-integration-r002.json](evidence/planning-clean-integration-r002.json)이다.
+포팅본은 **planning_ws 경계 149개 + 지원 5개와 base_ws 25개를 분리된 install 공간에 빌드·설치했다.** 공식 base 설치 경로는 `base_ws/install_aw149`다. 실제 v61 map을 읽는 full planning graph 24개 노드가 외부 MORAI 입력 없이 25초 동안 process death/FATAL 없이 기동했고 binary map을 수신했다. requester는 정책 8개·모의 RouteSelector ROS 통신 11개 검사를 통과했다. base 설치 뒤 source의 launch/config/RViz 자산이 install에 모두 존재하는지도 빌드 스크립트가 전수 검사한다. 2026-09-08 재감사에서는 삭제된 구형 planning 패키지를 참조하던 `kcity_interactive_trajectory_rviz.launch`와 낡은 안내 문서를 제거했다. 그 뒤 planning 154/154와 base 25/25를 각각 clean build/install하고, 현재 지원하는 설치 launch 19/19를 파싱했다. 최신 상세 영수증은 [planning-clean-integration-r002.json](evidence/planning-clean-integration-r002.json)이다.
 
 설치된 `morai_planning_stack.launch` 자체에 정확한 ROS1 타입의 합성 localization, perception, operation-mode, TF를 공급하는 출력 probe도 통과했다. direct Mission service 기준선은 1/1, production `competition_route_requester` 경로는 서로 다른 private master에서 2/2 통과했다. requester 실행 모두 실제 Mission service로 Route A 47 lanelets를 설정하고 연속된 trajectory/validator 증거를 확인해 `VERIFIED(route_a)`로 끝났다. 최신 trajectory 111점, validation flag 20개 true, process death 0이었다. full graph에서 검증 완료까지 약 24.5~25.5초가 필요해 trajectory 관찰 창은 5초에서 30초로 조정했지만 연속 3개 fresh validated output 조건은 낮추지 않았다. 실행 명령과 세 raw result SHA는 [integrated-output-probe-r002.json](evidence/integrated-output-probe-r002.json)에 있다. 이 결과는 base launch 배선과 planning 출력 경로를 증명하지만 실제 MORAI 데이터 의미나 폐루프 제어를 증명하지 않는다.
 
@@ -39,17 +39,17 @@ Scenario Selector에는 parking 분기도 연결돼 있다. lane-driving scenari
 | ID | 담당 | 작업 | 왜 필요한가 |
 |---|---|---|---|
 | B0 | 통합/저장소 | **완료:** provider 2개 CRLF blob 및 `.gitattributes` 복구 | 새 clone의 provider 해시 보존 |
-| B1 | 통합/빌드 | **완료:** submodule/고정 Livox SDK 준비, planning→base 24/24 clean install | 낡은 devel 혼입 차단 |
+| B1 | 통합/빌드 | **완료:** submodule/고정 Livox SDK 준비, planning→base 25/25 clean install | 낡은 devel 혼입 차단 |
 | P1 | 객체 예측 | **완료:** Duration 필드와 소비자/테스트 변환 | Python 메시지 직렬화 통과 |
 | P2 | 신호 인식 | **완료:** Time 변환, helper/weights 설치, v61 설정, route state 관리 | clean install 기동·계약 검사 통과 |
 | L1 | Localization | **정적 계약 완료:** MORAI acceleration 전달 및 odometry와 동일 stamp ROS transport. 실 MORAI 축·단위·TF/clock 동적 검증은 남음 | BPP/BVP/MVP/validator 필수 입력 |
-| P3 | 인지/LiDAR | 실제 ground-free cloud와 occupancy 공급 | 대상 plugin의 판단 입력, occupancy는 BPP cyclic readiness에도 사용 |
+| P3 | 인지/LiDAR | **제한 프로파일 결정 완료:** ground-free cloud와 occupancy를 공급하지 않고 의존 모듈을 명시적으로 제외 | 더미 empty/free 토픽 금지, 제외된 안전 기능을 승인 범위에 포함하지 않음 |
 | S1 | System/차량 인터페이스 | **토픽 정합 완료:** `/system` 단일 원천을 `/api`로 relay. 실제 mode/engage 상태 공급은 남음 | 초기 경로/재경로/주행 상태 판단 |
 | C1 | 제어 | **코드 연결 완료:** follower 입력 `/planning/trajectory`; 실데이터 source age·validator 승인은 남음 | output-only 후 폐루프 순서 유지 |
 | C2 | 제어/차량 | 제어 예측 trajectory·Control·SteeringReport 공급 | MVP 경계 이탈 방지 모듈의 추가 입력 |
 | M1 | Map/bringup | **구성 완료:** 통합 launch에서 binary map 단일 발행, v61/projector 고정 | 실운영 중 publisher 유일성 재확인 |
 | V1 | 차량 설정 | **구성 완료:** mesh 측정 원천 기반 flat YAML과 provenance 검사. 실차 track/tire/steer 재승인은 남음 | 시험차 YAML 혼입 차단 |
-| T1 | 도구/제어 | **완료:** CSV/history native Duration 변환 | base 24/24 빌드 및 단위검사 통과 |
+| T1 | 도구/제어 | **완료:** CSV/history native Duration 변환 | base 25/25 빌드 및 단위검사 통과 |
 | R1 | 통합/bringup | **주 경로 완료:** 통합 entrypoint와 runtime source를 install_aw149로 통일 | 과거 실험 launch는 운영 entrypoint가 아님 |
 | A1 | 통합/검증 | **standalone P7.1 11/11 완료:** 동일 소스·v61 fixture graph 승인. 실제 AjouNice route→trajectory→plugin→폐루프 승인은 남음 | fixture PASS를 production E2E PASS로 승격하지 않음 |
 
@@ -80,13 +80,13 @@ Git의 `text=auto` 적용으로 CRLF가 변환됐다. 로컬 원본 작업 파�
 - Livox SDK는 `third_party2/livox_sdk`의 Gitlink revision `9306596a`를 `build_external`에 먼저 빌드한다. 드라이버 CMake가 최신 upstream HEAD를 임의 clone하지 않도록 `build_all.sh`가 이 정적 라이브러리를 강제한다.
 - traffic light runtime은 package의 `requirements-runtime.txt`에 검증 버전을 기록했다. PyTorch wheel은 대상 CUDA에 맞게 먼저 선택해야 한다.
 - FastBEV/PointPainting checkpoint는 Git에 포함되지 않는다. 통합 launch의 detector 기본값은 비활성이고, 별도 배포한 모델의 SHA256 확인 후 명시적으로 켠다.
-- 전체 catkin 검색 결과는 planning 154(경계 149 + 지원 5), base 24이며 중복 package name은 0이다.
+- 전체 catkin 검색 결과는 planning 154(경계 149 + 지원 5), base 25이며 중복 package name은 0이다.
 
 ### 빌드 경로
 
-`setup_ws.sh`는 submodule을 재귀 초기화한 뒤 `build_all.sh --clean`을 호출한다. 빌드 순서는 Noetic → planning provider/154 package install → pinned Livox SDK → fast_lio 이외 base 23개 → fast_lio 메시지 선생성/본체 install이다. pin된 FAST_LIO는 실행 파일이 생성 메시지 헤더에 의존한다는 선언이 없어 clean 병렬 빌드에서 `Pose6D.h`보다 먼저 컴파일될 수 있다. 하네스가 upstream submodule을 수정하지 않고 이 순서를 명시한다. `--clean`은 생성된 `base_ws/{build,devel,install}_aw149`만 지우고 다시 만들어 과거 install 잔재가 launch 탐색을 오염시키지 않게 한다. planning이 base를 underlay로 사용하지 않으므로 순환 의존이 없다. 개발 중 증분 빌드는 인자 없는 `build_all.sh`를 쓸 수 있으며, 자산 감사에서 legacy flat-install 중복을 발견하면 clean 재빌드를 요구한다.
+`setup_ws.sh`는 submodule을 재귀 초기화한 뒤 `build_all.sh --clean`을 호출한다. 빌드 순서는 Noetic → planning provider/154 package install → pinned Livox SDK → fast_lio·fast_lio_msf 이외 base 23개 → 각 FAST_LIO의 메시지 선생성/본체 install이다. pin된 FAST_LIO 계열은 실행 파일이 생성 메시지 헤더에 의존한다는 선언이 없어 clean 병렬 빌드에서 `Pose6D.h`보다 먼저 컴파일될 수 있다. 하네스가 upstream submodule을 수정하지 않고 이 순서를 명시한다. `--clean`은 생성된 `base_ws/{build,devel,install}_aw149`만 지우고 다시 만들어 과거 install 잔재가 launch 탐색을 오염시키지 않게 한다. planning이 base를 underlay로 사용하지 않으므로 순환 의존이 없다. 개발 중 증분 빌드는 인자 없는 `build_all.sh`를 쓸 수 있으며, 자산 감사에서 legacy flat-install 중복을 발견하면 clean 재빌드를 요구한다.
 
-아래 명령을 실제로 실행해 base 24/24 install 성공을 확인했다.
+아래 명령을 실제로 실행해 base 25/25 install 성공을 확인했다.
 
 ```bash
 # repository root에서, 기존 ROS/Conda overlay가 섞이지 않은 새 셸
@@ -100,7 +100,7 @@ clean 설치본의 통합 entrypoint 생존과 v61 binary map transport는 별�
 bash scripts/runtime/smoke_planning_stack.sh
 ```
 
-base 24개 전체 catkin test target은 `bash scripts/workspace/test_base.sh`로 실행한다. clean 결과물 기준 24/24 target과 catkin 집계 114 tests가 오류·실패·skip 없이 통과했으며 [base-clean-test-r001.json](evidence/base-clean-test-r001.json)에 기록했다.
+base 25개 전체 catkin test target은 `bash scripts/workspace/test_base.sh`로 실행한다. clean 결과물 기준 25/25 target과 catkin 집계 114 tests가 오류·실패·skip 없이 통과했으며 [base-clean-test-r001.json](evidence/base-clean-test-r001.json)에 기록했다.
 
 운영 환경은 새 planning install 후 `base_ws/install_aw149/setup.bash`를 source하도록 확정한다. 기존 `base_ws/devel`, 다른 Autoware2ros1 install, addon-only install을 뒤섞지 않는다. `rospack find`와 Python module `__file__`, 실제 연결 MD5로 각 프로세스의 경로를 확인한다.
 
@@ -166,16 +166,19 @@ GT 노드는 `EgoVehicleStatus.velocity`를 base_link twist로 복사한다. 해
 
 GT covariance는 unavailable로 설명돼 있다. 이를 실제 추정 covariance 검증까지 완료했다고 취급하지 않는다. acceleration은 `geometry_msgs/AccelWithCovarianceStamped`, `header.frame_id=base_link`로 MORAI Ego 측정값을 보존해 공급한다. 차체 roll/pitch·중력·yaw 회전 때의 축·부호·단위는 실제 입력으로 검증한다.
 
-## 8. P3 — pointcloud와 occupancy 공급
+## 8. P3 — pointcloud와 occupancy: AjouNice 제한 프로파일에서 미사용
 
-현재 `sensor_interface/launch/lidar_preprocess.launch`는 `/sensor/lidar1 → /sensor/lidar1/deskewed`를 만든다. 지면제거/occupancy production 공급은 검토한 코드에서 확인되지 않았다.
+현재 `sensor_interface/launch/lidar_preprocess.launch`는 `/sensor/lidar1 → /sensor/lidar1/deskewed`를 만든다. 지면제거/occupancy production 공급은 검토한 코드에서 확인되지 않았고, 2026-09-09 프로젝트 결정으로 AjouNice MORAI 제한 프로파일에서는 두 입력을 사용하지 않는다.
 
 - ground-free: `/perception/obstacle_segmentation/pointcloud`, `sensor_msgs/PointCloud2`. 실제 ground segmentation을 적용하고 stamp 시점 TF, finite xyz, frame, point field를 확인한다. deskew만 된 cloud나 object marker를 이름만 바꿔 넣지 않는다.
 - occupancy: `/perception/occupancy_grid_map/map`, `nav_msgs/OccupancyGrid`. resolution·width/height·origin pose·frame·data 길이와 unknown(-1)/free/occupied 의미를 정의한다. 살아 있는 관측에서 갱신되는지, 지도 밖 및 관측 불가 영역을 free로 잘못 처리하지 않는지 확인한다.
-- BPP full node `behavior_path_planner_node.cpp:281`의 `isDataReady`는 objects/odom/occupancy cyclic 수신을 검사한다. occupancy가 없으면 인지 객체를 공급해도 경로 출력이 막힐 수 있다.
-- BVP/MVP/parking/validator도 cloud·grid를 각 기능에서 사용한다. MVP는 활성 module의 required subscription을 기준으로 입력 준비를 검사하므로 실제 선택한 plugin 구성을 기준으로 확인한다.
+- production launch 기본값은 `use_ground_pointcloud:=false`, `use_occupancy_grid:=false`다. BPP/BVP/validator는 이 값을 준비 조건에 반영한다.
+- parking/freespace는 시작하지 않는다. BVP DetectionArea/OcclusionSpot, MVP의 cloud/grid 의존 obstacle stop·slowdown·velocity limiter, validator의 intersection/rear collision checker를 launch module 목록에서 제외한다.
+- Crosswalk/Intersection은 occupancy occlusion 설정을 끈 상태로 객체·신호 기반 기능만 유지한다. surround obstacle checker는 기존 `pointcloud.enable_check: false`를 유지하고 PredictedObjects만 사용한다.
 
-합격 기준: 비어 있는 실제 장면과 실제 장애물이 있는 장면, 센서 끊김·TF 누락·stale·unknown 상황을 구분해 동작한다. 더미 empty/free 입력을 production launch에 넣지 않는다.
+이 제한 프로파일의 합격 기준은 cloud/grid 토픽이 없어도 선택한 모듈이 이를 기다리지 않고 trajectory를 생성하는 것이다. 더미 empty/free 입력은 production launch에 넣지 않는다. LiDAR 기반 장애물 안전, occupancy occlusion, parking/freespace, pointcloud 기반 validator collision은 검증·안전 보장 범위에서 명시적으로 제외한다.
+
+2026-09-09 설치본 Route A probe는 `AW149_OUTPUT_PROBE_LIMITED_PERCEPTION=1`에서 cloud/grid publisher를 만들지 않고 최종 trajectory 10개와 validation status 10개를 받았다. 최신 trajectory는 111점, 최대 속도 4.17 m/s였고 활성화한 trajectory/latency 검사와 status의 전체 flag가 true, process death는 0이었다. 30초 smoke도 현재 제한 구성의 22/22 노드, v61 binary map 수신, FATAL 0, `use_occupancy_grid=false`, `require_obstacle_pointcloud=false`를 확인했다. 이는 합성 Route A output-only 결과이며 실제 MORAI 장애물 인지나 폐루프 승인이 아니다.
 
 2026-09-08 clean 통합 graph의 publisher/type 감사에서는 기본 10개 중 localization 2개, objects, traffic signal, map 2개가 광고됐고 occupancy·ground-free cloud·실제 system mode는 공급자가 없었다. `/api` mode도 source가 없어서 lazy relay 출력이 생기지 않았다. C2 3개까지 포함하면 총 13개 중 7개가 `NOPUB`였다. 이는 [integration-topic-contract-r001.json](evidence/integration-topic-contract-r001.json)에 고정했으며, `PASS` 6개도 `--types-only` 판정이라 실제 message flow 합격으로 세지 않는다.
 
@@ -283,8 +286,8 @@ URDF와 sensor TF 모두 `base_link=rear axle center`로 문서화돼 있다. in
 | `/localization/acceleration` | geometry_msgs/AccelWithCovarianceStamped | Localization, L1 |
 | `/perception/object_recognition/objects` | autoware_perception_msgs/PredictedObjects | Prediction, P1 |
 | `/perception/traffic_light_recognition/traffic_signals` | autoware_perception_msgs/TrafficLightGroupArray | Traffic light, P2 |
-| `/perception/occupancy_grid_map/map` | nav_msgs/OccupancyGrid | Occupancy, P3 |
-| `/perception/obstacle_segmentation/pointcloud` | sensor_msgs/PointCloud2 | Ground removal, P3 |
+| `/perception/occupancy_grid_map/map` | nav_msgs/OccupancyGrid | 제한 프로파일 미사용, publisher 없음, P3 |
+| `/perception/obstacle_segmentation/pointcloud` | sensor_msgs/PointCloud2 | 제한 프로파일 미사용, publisher 없음, P3 |
 | `/map/vector_map` | autoware_map_msgs/LaneletMapBin | full map loader 단일 발행, M1 |
 | `/map/map_projector_info` | autoware_map_msgs/MapProjectorInfo | integration projector, M1 |
 | `/system/operation_mode/state` | autoware_adapi_v1_msgs/OperationModeState | System, S1 |
@@ -301,7 +304,7 @@ URDF와 sensor TF 모두 `base_link=rear axle center`로 문서화돼 있다. in
 ### 단계별 검사
 
 1. **Git checkout/빌드**: B0 수정 후 Git blob 해시 일치. 필요한 submodule 확보. planning 154 빌드 및 base 전체 빌드 성공. 새 환경에서 import·package 경로가 올바르고 같은 이름의 중복 메시지 없음.
-2. **입력-only**: 실제 sensing/localization/perception/system을 실행. topic 이름·타입·MD5뿐 아니라 frame/단위/원본 timestamp/age/주기/TF 확인. 선택한 모드의 acceleration, occupancy, ground-free cloud 존재 확인. latched map/route와 cyclic 상태 메시지의 유효성 정책을 구분.
+2. **입력-only**: 실제 sensing/localization/perception/system을 실행. topic 이름·타입·MD5뿐 아니라 frame/단위/원본 timestamp/age/주기/TF 확인. acceleration과 선택한 프로파일에서 사용하는 입력의 존재를 확인한다. 제한 프로파일에서는 occupancy/ground-free cloud를 요구하거나 더미로 발행하지 않는다. latched map/route와 cyclic 상태 메시지의 유효성 정책을 구분.
 3. **Route A → 최종 trajectory**: controller 송신을 분리한 상태에서 requester A 실행. map, route state, scenario를 거쳐 각 stage의 출력이 연결되는지 확인. `/planning/trajectory`의 finite pose/speed/acceleration·차량 footprint·속도제한·정지점과 `/planning/validation_status` 전체 이력을 기록.
 4. **전체 plugin 적용 여부**: 단순 library load와 실제 기능 개입을 구분. 특히 C2 피드백 없이 BoundaryDeparturePrevention을 완료로 세지 않는다. obstacle stop/slow/cruise, signal stop/release, 관련 intersection/crosswalk 등은 실제 해당 입력으로 확인.
 5. **A/B/fallback 및 LC**: 합성 odometry가 2 m/s인 A→B와 A→fallback, 각 변경 뒤 새 trajectory는 r011에서 통과했다. 실제 연속 이동의 deadline, 잘못된/거절된 요청, 안전한 차선변경과 정말 막힌 차선변경 거부는 실제 입력으로 별도 검사한다. 합성 pose 전환을 폐루프 moving 승인으로 세지 않는다.
@@ -315,4 +318,4 @@ URDF와 sensor TF 모두 `base_link=rear axle center`로 문서화돼 있다. in
 
 “통합 완료”는 compile을 넘어 **실제 AjouNice 입력 → 유효한 route → 실제 필요한 plugin이 적용된 최종 trajectory → follower 폐루프**를 검사한 상태다. 현재는 소스·메시지·설치·통합 graph 기동, L1 가속도 전달, S1 mode topic relay, V1 기본 차량 설정까지 완료했다. 실제 데이터의 축·단위와 P3/S1/V1/C2/A1 동적 승인은 완료로 세지 않는다.
 
-친구 컴퓨터에서는 먼저 `setup_ws.sh`로 같은 install을 재현한다. 그 다음 L1/P3/S1/V1 입력 계약을 맞추고 controller를 끈 output-only로 Route A/B와 trajectory 전체 이력을 승인한 후 C2/폐루프를 켠다. 기존 포팅 알고리즘 오류가 나오면 원본 코드/변환 규약/재현 입력을 함께 기록하고 최소 수정 후 해당 검사와 관련 회귀 검사를 다시 수행한다.
+친구 컴퓨터에서는 먼저 `setup_ws.sh`로 같은 install을 재현한다. 그 다음 L1/S1/V1과 제한 P3 입력 계약을 맞추고 controller를 끈 output-only로 Route A/B와 trajectory 전체 이력을 승인한 후 C2/폐루프를 켠다. 기존 포팅 알고리즘 오류가 나오면 원본 코드/변환 규약/재현 입력을 함께 기록하고 최소 수정 후 해당 검사와 관련 회귀 검사를 다시 수행한다.

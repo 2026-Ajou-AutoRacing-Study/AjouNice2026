@@ -212,7 +212,7 @@ install(DIRECTORY launch rviz
 )
 
 install(
-  DIRECTORY validation/launch validation/rviz
+  DIRECTORY validation/rviz
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/validation
 )
 

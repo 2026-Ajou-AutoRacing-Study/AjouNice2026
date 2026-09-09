@@ -7,13 +7,13 @@
 - `planning_ws/src`에는 ROS1 포팅 경계 149개와 지원 5개가 있으며 provider 소스도 저장소 안에 있다.
 - 중복 Autoware 메시지 14개는 base에서 제거했고 planning install을 단일 메시지 소유자로 쓴다.
 - base의 새 메시지 소비 코드(Duration/Time), tracker 설치, traffic-light helper/weights, v61 경로, follower 입력을 수정했다.
-- `scripts/workspace/setup_ws.sh`가 submodule 초기화 후 base의 과거 build/devel/install을 정리하고, planning underlay, pin된 Livox SDK, base 24개를 순서대로 빌드한다. 증분 빌드는 `build_all.sh`, 재현용 clean 빌드는 `build_all.sh --clean`이다.
+- `scripts/workspace/setup_ws.sh`가 submodule 초기화 후 base의 과거 build/devel/install을 정리하고, planning underlay, pin된 Livox SDK, base 25개를 순서대로 빌드한다. 증분 빌드는 `build_all.sh`, 재현용 clean 빌드는 `build_all.sh --clean`이다.
 - 공식 runtime overlay는 `base_ws/install_aw149` 하나다. `base_ws/devel` 또는 과거 addon install을 source하지 않는다.
 - 저장소 내부 runtime 경로는 `source_aw149.sh`가 설정하는 `AJOUNICE_ROOT`를 기준으로 하므로 checkout이 `$HOME/AjouNice2026`가 아니어도 된다.
 - `ajounice_planning_integration/morai_planning_stack.launch`가 localization, sensor TF, object tracking/prediction, traffic light, v61 binary map, Mission→BPP→BVP→MVP graph를 묶는다.
 - detector checkpoint는 Git에 없으므로 detector, controller, route requester는 안전상 기본 `false`다.
 
-현재 로컬 증거는 planning source audit PASS, planning 154/154와 base 24/24 clean install, planning 설치 ELF 230개 링크 감사, install runtime 자산 전수 감사, 현재 지원하는 설치본 launch 19/19 파싱, object pipeline 21 tests, tracker 14 tests, tracking/prediction evaluation 29 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 11 tests다. base clean 결과물의 전체 회귀는 24/24 target, JUnit 114 tests가 오류·실패·스킵 없이 통과했다. MORAI GT localization은 실제 주행 bag의 이동 구간 250개 표본에서 odometry/acceleration 동일 stamp와 acceleration 값 보존을 확인했다. operation-mode `/system`→`/api` relay도 ROS transport 검사를 통과했다. v61 통합 graph는 24개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다. 최신 clean build와 launch 결과는 [machine receipt](evidence/planning-clean-integration-r002.json)에 고정했다.
+현재 로컬 증거는 planning source audit PASS, planning 154/154와 base 25/25 clean install, planning 설치 ELF 230개 링크 감사, install runtime 자산 전수 감사, 현재 지원하는 설치본 launch 19/19 파싱, object pipeline 21 tests, tracker 14 tests, tracking/prediction evaluation 29 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 11 tests다. base clean 결과물의 전체 회귀는 25/25 target, JUnit 114 tests가 오류·실패·스킵 없이 통과했다. MORAI GT localization은 실제 주행 bag의 이동 구간 250개 표본에서 odometry/acceleration 동일 stamp와 acceleration 값 보존을 확인했다. operation-mode `/system`→`/api` relay도 ROS transport 검사를 통과했다. v61 통합 graph는 24개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다. 최신 clean build와 launch 결과는 [machine receipt](evidence/planning-clean-integration-r002.json)에 고정했다.
 
 추가로 설치된 AjouNice `morai_planning_stack.launch`를 대상으로 한 output-only probe가 direct service 1/1과 production `competition_route_requester` 2/2를 통과했다. requester가 실제 Mission service로 Route A를 설정하고 47개 route lanelet과 연속된 최종 trajectory/validator 출력을 확인해 `VERIFIED(route_a)`로 전이했다. 각 실행의 최신 trajectory는 111점이고 validator 20개 flag가 모두 유효했으며 process death는 0이었다. full graph 기동부터 requester 검증까지 약 24.5~25.5초가 걸려 기존 5초 trajectory 관찰 창을 30초로 조정했으며, 연속 3개 fresh validated output 조건은 그대로 유지했다. 이는 통합 launch와 운영 requester의 입력부터 trajectory까지 배선을 확인한 결과이며 실제 MORAI 입력 의미나 controller 폐루프 결과는 아니다. [machine receipt](evidence/integrated-output-probe-r002.json)에 세 raw result SHA와 판정 경계를 기록했다.
 
@@ -74,11 +74,11 @@ roslaunch ajounice_planning_integration morai_planning_stack.launch \
 
 clean 설치본의 24개 필수 노드 생존과 v61 binary map 수신을 격리된 master에서 재검사하려면 `bash scripts/runtime/smoke_planning_stack.sh`를 실행한다. 25초 재검사 결과는 [machine receipt](evidence/clean-install-runtime-smoke-r001.json)에 있다. 이는 외부 입력을 주입하지 않는 기동 검사이므로 trajectory 생성이나 폐루프 합격으로 승격하지 않는다.
 
-설치된 통합 launch에서 합성 입력을 넣고 Route A부터 최종 trajectory와 validator까지 재검사하려면 direct 기준선은 `bash scripts/runtime/verify_integrated_planning_output.sh`, production requester까지 포함한 검사는 `AW149_OUTPUT_PROBE_USE_REQUESTER=1 bash scripts/runtime/verify_integrated_planning_output.sh`를 실행한다. production 정상 B 분기는 `AW149_OUTPUT_PROBE_USE_REQUESTER=1 AW149_OUTPUT_PROBE_ROUTE_CASE=route_a_to_b_with_fallback AW149_OUTPUT_PROBE_TRANSITION_SPEED_MPS=2.0 bash scripts/runtime/verify_integrated_planning_output.sh`, cutoff fallback 분기는 같은 명령에 `AW149_OUTPUT_PROBE_FORCE_FALLBACK=1`을 추가한다. requester 검사는 각 route의 `VERIFIED`와 연속 3개 fresh validated output을 요구한다. 모두 output-only 배선 검사이며 실제 MORAI 센서 의미나 controller를 대신하지 않는다.
+설치된 통합 launch에서 합성 입력을 넣고 Route A부터 최종 trajectory와 validator까지 재검사하려면 direct 기준선은 `bash scripts/runtime/verify_integrated_planning_output.sh`, 현재 제한 인지 기준선은 `AW149_OUTPUT_PROBE_LIMITED_PERCEPTION=1 bash scripts/runtime/verify_integrated_planning_output.sh`, production requester까지 포함한 검사는 `AW149_OUTPUT_PROBE_USE_REQUESTER=1 bash scripts/runtime/verify_integrated_planning_output.sh`를 실행한다. production 정상 B 분기는 `AW149_OUTPUT_PROBE_USE_REQUESTER=1 AW149_OUTPUT_PROBE_ROUTE_CASE=route_a_to_b_with_fallback AW149_OUTPUT_PROBE_TRANSITION_SPEED_MPS=2.0 bash scripts/runtime/verify_integrated_planning_output.sh`, cutoff fallback 분기는 같은 명령에 `AW149_OUTPUT_PROBE_FORCE_FALLBACK=1`을 추가한다. requester 검사는 각 route의 `VERIFIED`와 연속 3개 fresh validated output을 요구한다. 모두 output-only 배선 검사이며 실제 MORAI 센서 의미나 controller를 대신하지 않는다.
 
 명시적 B 거절 뒤 fallback 회귀는 production 명령에 `AW149_OUTPUT_PROBE_FORCE_B_REJECTION=1`을 추가한다. 기본 1000 m/s는 안전거절 분기만 결정적으로 발동시키는 비물리적 테스트 입력이다. 하네스는 B의 `REJECTED`, `active=route_a`, `uncertain=false`를 먼저 확인한 뒤 2 m/s cutoff fallback과 최종 validator를 요구한다.
 
-base 전체 회귀는 `bash scripts/workspace/test_base.sh`로 실행한다. 현재 clean build에서 24/24 package test target, catkin 집계 114 tests가 모두 통과했다. [machine receipt](evidence/base-clean-test-r001.json)는 이 검사가 planning 149 자체의 전체 테스트 수가 아니라 base overlay 회귀임을 구분한다.
+base 전체 회귀는 `bash scripts/workspace/test_base.sh`로 실행한다. 현재 clean build에서 25/25 package test target, catkin 집계 114 tests가 모두 통과했다. [machine receipt](evidence/base-clean-test-r001.json)는 이 검사가 planning 149 자체의 전체 테스트 수가 아니라 base overlay 회귀임을 구분한다.
 
 FastBEV 또는 PointPainting을 켜려면 checkpoint 파일을 별도로 배포하고 SHA256을 release 문서와 대조한 뒤 `start_detector:=true`와 해당 경로 인자를 넘긴다. 현재 Git clone만으로 detector까지 켤 수 있다고 가정하지 않는다.
 
@@ -93,8 +93,8 @@ planning 입력 topic의 publisher/type만 먼저 보려면 `scripts/runtime/che
 | Localization | `/localization/kinematic_state` `nav_msgs/Odometry` | 이름은 맞음. map pose/base_link twist, stamp, m/s·rad/s 검증 |
 | Localization | `/localization/acceleration` `geometry_msgs/AccelWithCovarianceStamped` | MORAI GT launch가 `/Ego_topic.acceleration`을 동일 stamp/base_link frame으로 직접 공급. 실 MORAI에서 축·단위·중력 포함 여부는 동적 확인 필요 |
 | Perception | `/perception/object_recognition/objects` `autoware_perception_msgs/PredictedObjects` | 변환/직렬화는 수정됨. 실제 detector→tracker→predictor frame, age, rate 확인 |
-| Perception | `/perception/obstacle_segmentation/pointcloud` `sensor_msgs/PointCloud2` | production ground-removal 출력 미확인. deskewed cloud 단순 remap 금지 |
-| Perception | `/perception/occupancy_grid_map/map` `nav_msgs/OccupancyGrid` | production publisher 미확인. 빈 free grid로 합격시키지 않음 |
+| Perception | `/perception/obstacle_segmentation/pointcloud` `sensor_msgs/PointCloud2` | **AjouNice 제한 프로파일에서 명시적 미사용.** empty cloud를 발행하지 않으며 cloud 기반 DetectionArea/MVP obstacle stop·slowdown·limiter와 validator collision checker를 실행하지 않음 |
+| Perception | `/perception/occupancy_grid_map/map` `nav_msgs/OccupancyGrid` | **AjouNice 제한 프로파일에서 명시적 미사용.** empty/free grid를 발행하지 않으며 parking/freespace와 occupancy occlusion module을 실행하지 않음 |
 | System | `/system/operation_mode/state` `autoware_adapi_v1_msgs/OperationModeState` | 실제 제어권 상태와 연결. 통합 relay가 `/api`에도 동일 메시지를 전달. 상시 autonomous fixture 금지 |
 | Vehicle/Control | predicted trajectory, `autoware_control_msgs/Control`, `autoware_vehicle_msgs/SteeringReport` | BoundaryDeparture MVP를 켤 때 실제 controller rollout과 조향 피드백 필요 |
 | Vehicle | flat vehicle-info YAML | 실제 IONIQ5 치수와 base_link 기준점 승인 필요 |
@@ -105,7 +105,7 @@ planning 입력 topic의 publisher/type만 먼저 보려면 `scripts/runtime/che
 
 1. Controller와 requester를 끈 상태에서 actual sensing/localization/perception/system topic의 type, MD5, frame, timestamp, age, rate, TF를 기록한다.
 2. requester를 켜 Route A를 요청하고 Mission→BPP→BVP→MVP 각 stage와 `/planning/trajectory`, `/planning/validation_status` 전체 이력을 기록한다.
-3. 신호 red/green/unknown, obstacle stop/slow/cruise, 안전한 LC와 막힌 LC 거부, 실제 이동 중 A→B 및 fallback을 개별 검증한다.
+3. 신호 red/green/unknown, **FastBEV PredictedObjects 기반** obstacle stop/cruise, 안전한 LC와 막힌 LC 거부, 실제 이동 중 A→B 및 fallback을 개별 검증한다. LiDAR pointcloud 기반 stop/slowdown과 occupancy 기반 occlusion·parking/freespace는 이 프로파일의 합격 범위가 아니다.
 4. 위 단계가 통과한 뒤에만 controller를 켜 `/ctrl_cmd` 폐루프를 검증한다.
 5. input loss, TF loss, stale data, clock reset, route rejection에서 안전 정지와 복구를 확인한다.
 

@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""Publish the competition deployment's deliberately fixed operation mode."""
+
+import rospy
+
+from autoware_adapi_v1_msgs.msg import OperationModeState
+
+
+def builtin_time_now():
+    now = rospy.Time.now()
+    stamp = OperationModeState().stamp
+    stamp.sec = now.secs
+    stamp.nanosec = now.nsecs
+    return stamp
+
+
+def main():
+    rospy.init_node("fixed_autonomous_operation_mode_publisher")
+    topic = rospy.get_param("~output_topic", "/system/operation_mode/state")
+    publish_rate = float(rospy.get_param("~publish_rate", 10.0))
+    if publish_rate <= 0.0:
+        raise ValueError("~publish_rate must be positive")
+
+    publisher = rospy.Publisher(topic, OperationModeState, queue_size=1, latch=True)
+    rospy.logwarn(
+        "Publishing fixed AUTONOMOUS/control-enabled operation mode on %s; "
+        "controller health and control ownership are not observed",
+        topic,
+    )
+    rate = rospy.Rate(publish_rate)
+    while not rospy.is_shutdown():
+        message = OperationModeState()
+        message.stamp = builtin_time_now()
+        message.mode = OperationModeState.AUTONOMOUS
+        message.is_autoware_control_enabled = True
+        message.is_in_transition = False
+        message.is_stop_mode_available = False
+        message.is_autonomous_mode_available = True
+        message.is_local_mode_available = False
+        message.is_remote_mode_available = False
+        publisher.publish(message)
+        rate.sleep()
+
+
+if __name__ == "__main__":
+    main()

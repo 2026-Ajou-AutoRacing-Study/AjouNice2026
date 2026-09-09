@@ -1,10 +1,11 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>ajounice_planning_integration</name><version>0.1.0</version>
-  <description>AjouNice production planning composition, without synthetic driving inputs.</description>
+  <description>AjouNice MORAI competition planning composition.</description>
   <maintainer email="ajounice@todo.todo">AjouNice Team</maintainer><license>Apache-2.0</license>
   <buildtool_depend>catkin</buildtool_depend>
   <exec_depend>rospy</exec_depend><exec_depend>python3-yaml</exec_depend>
+  <exec_depend>autoware_adapi_v1_msgs</exec_depend>
   <exec_depend>autoware_map_msgs</exec_depend><exec_depend>autoware_map_loader</exec_depend>
   <exec_depend>tier4_planning_launch</exec_depend><exec_depend>competition_route_requester</exec_depend>
   <exec_depend>bringup</exec_depend>

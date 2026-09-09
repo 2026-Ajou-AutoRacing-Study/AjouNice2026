@@ -6,3 +6,4 @@ display_on_terminal: true
 soft_stop_deceleration: -1.0
 soft_stop_jerk_lim: 0.3
 th_traffic_light_timeout: 0.5
+require_obstacle_pointcloud: true
