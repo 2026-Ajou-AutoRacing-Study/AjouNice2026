@@ -21,6 +21,7 @@ from autoware_map_msgs.msg import LaneletMapBin
 from autoware_perception_msgs.msg import PredictedObjects, TrafficLightGroupArray
 from autoware_planning_msgs.msg import LaneletRoute, Path as PlanningPath, RouteState, Trajectory
 from autoware_planning_validator.msg import PlanningValidatorStatus
+from competition_route_requester.srv import RequestRoute
 from geometry_msgs.msg import AccelWithCovarianceStamped, Pose, TransformStamped
 from nav_msgs.msg import Odometry, OccupancyGrid
 from sensor_msgs import point_cloud2
@@ -41,6 +42,7 @@ input_period_s = float(os.environ.get("AW149_OUTPUT_PROBE_INPUT_PERIOD_S", "0.1"
 force_fallback = os.environ.get("AW149_OUTPUT_PROBE_FORCE_FALLBACK", "0") == "1"
 force_b_rejection = os.environ.get("AW149_OUTPUT_PROBE_FORCE_B_REJECTION", "0") == "1"
 limited_perception = os.environ.get("AW149_OUTPUT_PROBE_LIMITED_PERCEPTION", "0") == "1"
+refresh_route_a = os.environ.get("AW149_OUTPUT_PROBE_REFRESH_ROUTE_A", "0") == "1"
 b_rejection_speed_mps = float(os.environ.get("AW149_OUTPUT_PROBE_B_REJECTION_SPEED_MPS", "1000.0"))
 if not math.isfinite(input_period_s) or input_period_s <= 0.0 or input_period_s > 0.25:
     raise ValueError("AW149_OUTPUT_PROBE_INPUT_PERIOD_S must be in (0, 0.25]")
@@ -51,6 +53,8 @@ if route_case not in (
         "route_a_to_fallback, or route_a_to_b_with_fallback")
 if route_case != "route_a_only" and not use_requester:
     raise ValueError("route transition probes require AW149_OUTPUT_PROBE_USE_REQUESTER=1")
+if refresh_route_a and (not use_requester or route_case != "route_a_only"):
+    raise ValueError("AW149_OUTPUT_PROBE_REFRESH_ROUTE_A requires requester route_a_only")
 if force_fallback and route_case != "route_a_to_b_with_fallback":
     raise ValueError("AW149_OUTPUT_PROBE_FORCE_FALLBACK requires route_a_to_b_with_fallback")
 if force_b_rejection and route_case != "route_a_to_b_with_fallback":
@@ -137,7 +141,9 @@ def preferred_signature_mismatches(original, target):
 packages = rospkg.RosPack()
 launch_file = Path(packages.get_path("ajounice_planning_integration")) / "launch/morai_planning_stack.launch"
 requester_launch = Path(packages.get_path("competition_route_requester")) / "launch/competition_route_requester.launch"
-launch_requester_in_stack = use_requester and route_case == "route_a_only"
+# Production waits for an explicit RViz request. Requester probes use a private
+# config with automatic initial dispatch so they remain non-interactive.
+launch_requester_in_stack = False
 launch_specs = [(str(launch_file), [
     "start_localization:=false",
     "start_sensor_tf:=false",
@@ -154,6 +160,9 @@ if use_requester and not launch_requester_in_stack:
         (Path(packages.get_path("competition_route_requester")) / "config/competition_route_requester.param.yaml").read_text()
     )
     requester_config["route_operation_case"] = route_case
+    # Production uses an explicit RViz command. The automated output-only
+    # probe deliberately enables the initial request in its private config.
+    requester_config["auto_request_initial_route"] = True
     requester_config["route_definition_file"] = str(route_path)
     requester_config_path = result_path.parent / "competition_route_requester.param.yaml"
     requester_config_path.write_text(yaml.safe_dump(requester_config, sort_keys=False))
@@ -315,6 +324,7 @@ result = {
     "forced_b_rejection_branch": force_b_rejection,
     "synthetic_input_period_seconds": input_period_s,
     "limited_perception": limited_perception,
+    "refresh_route_a": refresh_route_a,
     "process_deaths_before_shutdown": deaths,
     "not_proven": [
         "live MORAI topic, frame, timestamp, or unit semantics",
@@ -376,6 +386,52 @@ try:
         if not requester_verified("route_a"):
             raise RuntimeError("competition_route_requester did not verify Route A: " + str(requester_status))
         result["requester_status"] = requester_status
+
+        if refresh_route_a:
+            previous_generation = requester_status.get("generation", 0)
+            previous_route_stamp = latest["route"].header.stamp.to_sec()
+            previous_route_count = counts["route"]
+            previous_final_count = counts["final"]
+            odom.pose.pose = make_pose(route_config["start"]["map_pose"])
+            odom.twist.twist.linear.x = 0.0
+            for _ in range(5):
+                tick()
+            requested_at = rospy.Time.now().to_sec()
+            response = rospy.ServiceProxy(
+                "/competition_route_requester/request", RequestRoute)("route_a")
+            if not response.accepted:
+                raise RuntimeError("Route A refresh request rejected: " + response.detail)
+            started_refresh = time.monotonic()
+            deadline = started_refresh + 120.0
+            refreshed_status = None
+            while time.monotonic() < deadline:
+                tick()
+                status = json.loads(latest["request_status"].data)
+                if (status.get("phase") == "VERIFIED" and
+                        status.get("verified_active") == "route_a" and
+                        status.get("generation", 0) > previous_generation):
+                    refreshed_status = status
+                    break
+            if refreshed_status is None:
+                raise RuntimeError("competition_route_requester did not verify refreshed Route A")
+            refreshed_route_stamp = latest["route"].header.stamp.to_sec()
+            if (counts["route"] <= previous_route_count or
+                    refreshed_route_stamp <= previous_route_stamp or
+                    refreshed_route_stamp < requested_at):
+                raise RuntimeError("Route A refresh did not publish a newly stamped route")
+            if counts["final"] <= previous_final_count:
+                raise RuntimeError("Route A refresh did not produce a new final trajectory")
+            result["route_a_refresh"] = {
+                "accepted": True,
+                "previous_generation": previous_generation,
+                "verified_generation": refreshed_status["generation"],
+                "previous_route_stamp": previous_route_stamp,
+                "refreshed_route_stamp": refreshed_route_stamp,
+                "route_messages_after_request": counts["route"] - previous_route_count,
+                "final_messages_after_request": counts["final"] - previous_final_count,
+                "verification_seconds": time.monotonic() - started_refresh,
+            }
+            result["requester_status"] = refreshed_status
 
         if force_b_rejection:
             odom.pose.pose = make_pose(route_config["poses"]["wp_200178"])

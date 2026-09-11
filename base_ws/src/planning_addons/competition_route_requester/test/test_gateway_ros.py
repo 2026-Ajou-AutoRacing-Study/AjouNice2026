@@ -34,7 +34,9 @@ class GatewayROS(unittest.TestCase):
         self.routes = yaml.safe_load((PACKAGE/'config/kcity_v61_competition_route.yaml').read_text())
         self.cfg.update(route_definition_file=str(PACKAGE/'config/kcity_v61_competition_route.yaml'),
                         service_timeout=.2, route_verification_timeout=.4, trajectory_verification_timeout=.5)
-        if self._testMethodName in ('test_b_trigger_transport', 'test_fallback_transport'):
+        if self._testMethodName in ('test_b_trigger_transport', 'test_fallback_transport',
+                                    'test_manual_a_restart_from_b',
+                                    'test_manual_a_restart_from_fallback'):
             self.cfg['route_operation_case'] = 'route_a_to_b_with_fallback'
         self.tmp = tempfile.TemporaryDirectory(prefix='requester-config-')
         path = Path(self.tmp.name)/'config.yaml'
@@ -44,6 +46,7 @@ class GatewayROS(unittest.TestCase):
         self.gateway = Gateway()
         self.route = None
         self.ego_pose = self.routes['start']['map_pose']
+        self.ego_speed = 0.0
         self.behavior = 'good'
         self.calls = 0
         self.response_done = threading.Event()
@@ -91,6 +94,7 @@ class GatewayROS(unittest.TestCase):
         odom.header.frame_id, odom.child_frame_id = 'map', 'base_link'
         odom.header.stamp = now
         odom.pose.pose = pose(self.ego_pose)
+        odom.twist.twist.linear.x = self.ego_speed
         mode = OperationModeState()
         mode.stamp.sec, mode.stamp.nanosec = now.secs, now.nsecs
         mode.mode = mode.AUTONOMOUS
@@ -153,6 +157,27 @@ class GatewayROS(unittest.TestCase):
         self.wait(lambda: not self.gateway.busy)
         self.assertEqual(self.gateway.active, 'route_a')
         self.assertFalse(self.gateway.uncertain)
+        self.assertTrue(self.client('route_a').accepted)
+        self.wait(lambda: not self.gateway.busy)
+        self.assertEqual(self.gateway.active, 'route_a')
+        self.assertEqual(self.gateway.generation, 2)
+        self.assertEqual(self.calls, 2)
+
+    def test_a_refresh_rejected_while_moving(self):
+        self.assertTrue(self.client('route_a').accepted)
+        self.wait(lambda: not self.gateway.busy)
+        self.ego_speed = self.cfg['route_a_refresh_max_speed_mps'] + 0.01
+        self.wait(lambda: not self.gateway.guard('route_a')[0])
+        response = self.client('route_a')
+        self.assertFalse(response.accepted)
+        self.assertIn('stopped vehicle', response.detail)
+        self.assertEqual(self.calls, 1)
+
+    def test_a_refresh_rejected_outside_official_start(self):
+        self.assertTrue(self.client('route_a').accepted)
+        self.wait(lambda: not self.gateway.busy)
+        self.ego_pose = self.routes['poses']['wp_200178']
+        self.wait(lambda: not self.gateway.guard('route_a')[0])
         self.assertFalse(self.client('route_a').accepted)
         self.assertEqual(self.calls, 1)
 
@@ -239,6 +264,26 @@ class GatewayROS(unittest.TestCase):
 
     def test_fallback_transport(self):
         self.transition('fallback_route', self.routes['fallback_route']['hard_cutoff_pose_ref'])
+
+    def restart_a_from(self, key, ref):
+        self.transition(key, ref)
+        self.ego_pose = self.routes['start']['map_pose']
+        self.ego_speed = 0.0
+        self.gateway.pending_fallback = True
+        self.wait(lambda: self.gateway.guard('route_a')[0])
+        self.assertTrue(self.client('route_a').accepted)
+        self.wait(lambda: not self.gateway.busy)
+        self.assertEqual(self.gateway.active, 'route_a')
+        self.assertFalse(self.gateway.pending_fallback)
+        self.assertFalse(self.gateway.uncertain)
+        self.assertEqual(self.gateway.generation, 3)
+        self.assertEqual(self.calls, 3)
+
+    def test_manual_a_restart_from_b(self):
+        self.restart_a_from('route_b', 'wp_200178')
+
+    def test_manual_a_restart_from_fallback(self):
+        self.restart_a_from('fallback_route', self.routes['fallback_route']['hard_cutoff_pose_ref'])
 
 
 if __name__ == '__main__':

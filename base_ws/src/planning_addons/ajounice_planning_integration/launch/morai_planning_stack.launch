@@ -31,7 +31,8 @@
        default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/lraspp_4class_best_miou.pth"/>
   <arg name="prediction_model" default="ctrv"/>
   <arg name="start_traffic_light" default="true"/>
-  <arg name="start_requester" default="false"/>
+  <!-- Passive until the RViz Route A button calls the gateway service. -->
+  <arg name="start_requester" default="true"/>
   <arg name="start_controller" default="false"/>
   <!-- Competition operation policy: the stack is always reported as engaged autonomous. -->
   <arg name="publish_fixed_autonomous_mode" default="true"/>

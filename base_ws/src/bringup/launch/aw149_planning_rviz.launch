@@ -7,6 +7,12 @@
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="trajectory_topic" default="/planning/trajectory"/>
   <arg name="start_rviz" default="true"/>
+  <arg name="rosbag_output_directory"
+       default="$(arg repo_root)/planner_logs/bags"/>
+  <arg name="route_request_service"
+       default="/competition_route_requester/request"/>
+  <arg name="route_request_status_topic"
+       default="/competition_route_requester/request_status"/>
   <!-- Frozen Route A start from kcity_v61_competition_route.yaml. -->
   <arg name="route_a_start_x" default="-0.130667330614472"/>
   <arg name="route_a_start_y" default="117.580315248218"/>
@@ -16,6 +22,10 @@
   <node pkg="tf" type="static_transform_publisher" name="route_a_start_tf"
         args="$(arg route_a_start_x) $(arg route_a_start_y) $(arg route_a_start_z)
               $(arg route_a_start_yaw) 0 0 map route_a_start 100"/>
+
+  <!-- Visualization only: reuse the existing IONIQ 5 mesh on the live base_link TF. -->
+  <param name="robot_description"
+         command="$(find xacro)/xacro '$(find ioniq5)/urdf/ioniq5.urdf.xacro'"/>
 
   <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
@@ -39,5 +49,11 @@
   <node if="$(arg start_rviz)" pkg="rviz" type="rviz"
         name="aw149_planning_rviz"
         args="-d $(find bringup)/rviz/kcity_aw149_planning.rviz"
-        output="screen"/>
+        output="screen">
+    <param name="rosbag_output_directory" value="$(arg rosbag_output_directory)"/>
+    <param name="route_request_service" value="$(arg route_request_service)"/>
+    <param name="route_request_status_topic" value="$(arg route_request_status_topic)"/>
+    <param name="rosbag_topics"
+           value="/tf /tf_static /clock /Ego_topic /sensor/lidar1 /sensor/camera/front/compressed /sensor/camera/front_left/compressed /sensor/camera/front_right/compressed /sensor/camera/back/compressed /localization/kinematic_state /localization/acceleration /perception/object_recognition/detection/objects /perception/object_recognition/tracking/objects /perception/object_recognition/objects /planning/mission_planning/route /planning/mission_planning/route_marker /planning/route_state /planning/scenario_planning/lane_driving/behavior_planning/path /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory /planning/trajectory /planning/validation_status"/>
+  </node>
 </launch>

@@ -26,13 +26,21 @@ class PolicyTest(unittest.TestCase):
             self.assertEqual(tuple(policy.allowed(case, key) for key in
                 ('route_a', 'route_b', 'fallback_route')), row)
 
+    def test_operating_default_is_manual_a_with_automatic_b_and_fallback(self):
+        self.assertEqual(self.cfg['route_operation_case'], 'route_a_to_b_with_fallback')
+        self.assertFalse(self.cfg['auto_request_initial_route'])
+        self.assertTrue(policy.allowed(self.cfg['route_operation_case'], 'route_a'))
+        self.assertTrue(policy.allowed(self.cfg['route_operation_case'], 'route_b'))
+        self.assertTrue(policy.allowed(self.cfg['route_operation_case'], 'fallback_route'))
+
     def test_fail_closed_config(self):
         for case in ('', 'ROUTE_A_ONLY', 'route_a', None, False):
             with self.assertRaises(ValueError):
                 policy.validate(dict(self.cfg, route_operation_case=case), self.routes)
         for field, value in [('service_timeout', -1), ('odometry_max_age', float('nan')),
                              ('require_new_trajectory', False), ('never_clear_route', False),
-                             ('allow_runtime_case_change', True), ('reroute_max_attempts', -1)]:
+                             ('allow_runtime_case_change', True), ('reroute_max_attempts', -1),
+                             ('route_a_refresh_max_speed_mps', 0)]:
             with self.assertRaises(ValueError):
                 policy.validate(dict(self.cfg, **{field: value}), self.routes)
 

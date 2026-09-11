@@ -11,7 +11,7 @@
 - 공식 runtime overlay는 `base_ws/install_aw149` 하나다. `base_ws/devel` 또는 과거 addon install을 source하지 않는다.
 - 저장소 내부 runtime 경로는 `source_aw149.sh`가 설정하는 `AJOUNICE_ROOT`를 기준으로 하므로 checkout이 `$HOME/AjouNice2026`가 아니어도 된다.
 - `ajounice_planning_integration/morai_planning_stack.launch`가 localization, sensor TF, object tracking/prediction, traffic light, v61 binary map, Mission→BPP→BVP→MVP graph를 묶는다.
-- detector checkpoint는 Git에 없으므로 detector, controller, route requester는 안전상 기본 `false`다.
+- detector checkpoint는 Git에 없으므로 detector와 controller는 안전상 기본 `false`다. route requester 노드는 기본 기동하지만 `auto_request_initial_route=false`라 RViz의 명시적 Route A 요청 전에는 route 서비스를 호출하지 않는다.
 
 현재 로컬 증거는 planning source audit PASS, planning 154/154와 base 25/25 clean install, planning 설치 ELF 230개 링크 감사, install runtime 자산 전수 감사, 현재 지원하는 설치본 launch 19/19 파싱, object pipeline 21 tests, tracker 14 tests, tracking/prediction evaluation 29 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 11 tests다. base clean 결과물의 전체 회귀는 25/25 target, JUnit 114 tests가 오류·실패·스킵 없이 통과했다. MORAI GT localization은 실제 주행 bag의 이동 구간 250개 표본에서 odometry/acceleration 동일 stamp와 acceleration 값 보존을 확인했다. operation-mode `/system`→`/api` relay도 ROS transport 검사를 통과했다. v61 통합 graph는 24개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다. 최신 clean build와 launch 결과는 [machine receipt](evidence/planning-clean-integration-r002.json)에 고정했다.
 
@@ -104,7 +104,7 @@ planning 입력 topic의 publisher/type만 먼저 보려면 `scripts/runtime/che
 ## 실행 승인 순서
 
 1. Controller와 requester를 끈 상태에서 actual sensing/localization/perception/system topic의 type, MD5, frame, timestamp, age, rate, TF를 기록한다.
-2. requester를 켜 Route A를 요청하고 Mission→BPP→BVP→MVP 각 stage와 `/planning/trajectory`, `/planning/validation_status` 전체 이력을 기록한다.
+2. requester를 켜고 차량을 공식 시작 구간에 배치한 뒤 RViz `Route Control` 버튼으로 Route A를 요청한다. 기존 VERIFIED A를 갱신할 때도 공식 start pose 3 m 이내, 속도 0.1 m/s 이하 조건을 지키고 새 route stamp와 trajectory/validator 검증 완료를 확인한다. Route A 검증 뒤 Route B/fallback은 자동 전환되며 Mission→BPP→BVP→MVP 각 stage와 `/planning/trajectory`, `/planning/validation_status` 전체 이력을 기록한다.
 3. 신호 red/green/unknown, **FastBEV PredictedObjects 기반** obstacle stop/cruise, 안전한 LC와 막힌 LC 거부, 실제 이동 중 A→B 및 fallback을 개별 검증한다. LiDAR pointcloud 기반 stop/slowdown과 occupancy 기반 occlusion·parking/freespace는 이 프로파일의 합격 범위가 아니다.
 4. 위 단계가 통과한 뒤에만 controller를 켜 `/ctrl_cmd` 폐루프를 검증한다.
 5. input loss, TF loss, stale data, clock reset, route rejection에서 안전 정지와 복구를 확인한다.
