@@ -2234,7 +2234,13 @@ class PointPaintingOnlineNode:
         self,
         painted: np.ndarray,
         frame_id: str,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict[str, float]]:
+    ) -> Tuple[
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        Optional[np.ndarray],
+        Dict[str, float],
+    ]:
         stage_ms = {
             "pointpillars_preprocess_ms": 0.0,
             "pointpillars_h2d_ms": 0.0,
@@ -2287,15 +2293,53 @@ class PointPaintingOnlineNode:
         scores = prediction["pred_scores"].detach().cpu().numpy()
         labels = prediction["pred_labels"].detach().cpu().numpy()
 
+        velocities = None
+
+        if "pred_velocities" in prediction:
+            velocities = (
+                prediction["pred_velocities"]
+                .detach()
+                .cpu()
+                .numpy()
+            )
+
+            if (
+                velocities.ndim != 2
+                or velocities.shape[1] != 2
+                or len(velocities) != len(boxes)
+            ):
+                raise RuntimeError(
+                    "Invalid MATP velocity output: "
+                    f"boxes={boxes.shape}, "
+                    f"velocities={velocities.shape}"
+                )
+
         distance = np.linalg.norm(boxes[:, :2], axis=1)
         valid = (
             (scores >= self.score_threshold)
             & (distance <= self.max_detection_range)
         )
 
-        boxes = np.ascontiguousarray(boxes[valid], dtype=np.float32)
-        scores = np.asarray(scores[valid], dtype=np.float32)
-        labels = np.asarray(labels[valid], dtype=np.int32)
+        boxes = np.ascontiguousarray(
+            boxes[valid],
+            dtype=np.float32,
+        )
+
+        scores = np.asarray(
+            scores[valid],
+            dtype=np.float32,
+        )
+
+        labels = np.asarray(
+            labels[valid],
+            dtype=np.int32,
+        )
+
+        if velocities is not None:
+            velocities = np.ascontiguousarray(
+                velocities[valid],
+                dtype=np.float32,
+            )
 
         if len(scores):
             order = np.argsort(-scores)
@@ -2303,10 +2347,13 @@ class PointPaintingOnlineNode:
             scores = scores[order]
             labels = labels[order]
 
+            if velocities is not None:
+                velocities = velocities[order]
+
         stage_ms["pointpillars_postprocess_ms"] = (
             time.perf_counter() - postprocess_start
         ) * 1000.0
-        return boxes, scores, labels, stage_ms
+        return boxes, scores, labels, velocities, stage_ms
 
     @staticmethod
     def _wall_rate(count: int, first_time, last_time):
@@ -2689,7 +2736,13 @@ class PointPaintingOnlineNode:
             )
             return
 
-        boxes, scores, labels, detection_stage_ms = self._detect(
+        (
+            boxes,
+            scores,
+            labels,
+            velocities,
+            detection_stage_ms,
+        ) = self._detect(
             temporal_points,
             str(msg.header.seq),
         )
@@ -2766,10 +2819,21 @@ class PointPaintingOnlineNode:
             else "unknown"
             for label in labels
         ]
+        object_boxes = boxes
+
+        if velocities is not None:
+            object_boxes = np.ascontiguousarray(
+                np.concatenate(
+                    (boxes, velocities),
+                    axis=1,
+                ),
+                dtype=np.float32,
+            )
+
         self.objects_pub.publish(
             make_detected_objects(
                 measurement_header,
-                boxes,
+                object_boxes,
                 scores,
                 names,
                 include_velocity=self.publish_detector_velocity,

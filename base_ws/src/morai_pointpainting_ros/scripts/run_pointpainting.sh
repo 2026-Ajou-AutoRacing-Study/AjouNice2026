@@ -9,6 +9,10 @@ CATKIN_WS="$(cd "$PACKAGE_DIR/../.." && pwd)"
 
 CONDA_ENV="${CONDA_ENV:-openpcdet_team}"
 OPENPCDET_ROOT="${OPENPCDET_ROOT:-$HOME/OpenPCDet}"
+
+POINTPAINTING_PYTHON="${POINTPAINTING_PYTHON:-$HOME/miniconda3/envs/openpcdet/bin/python}"
+POINTPAINTING_ENV_BIN="$(dirname "$POINTPAINTING_PYTHON")"
+POINTPAINTING_ENV_ROOT="$(dirname "$POINTPAINTING_ENV_BIN")"
 REPO_ROOT="$(cd "$CATKIN_WS/.." && pwd)"
 
 POINTPAINTING_RELEASE="${POINTPAINTING_RELEASE:-$REPO_ROOT/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e}"
@@ -35,6 +39,9 @@ POINTPAINTING_TEMPORAL_NUM_SWEEPS="${POINTPAINTING_TEMPORAL_NUM_SWEEPS:-0}"
 POINTPAINTING_TEMPORAL_MAXIMUM_GAP_SEC="${POINTPAINTING_TEMPORAL_MAXIMUM_GAP_SEC:-0.75}"
 POINTPAINTING_TEMPORAL_LIDAR_SCAN_PERIOD_SEC="${POINTPAINTING_TEMPORAL_LIDAR_SCAN_PERIOD_SEC:-0.06666667}"
 POINTPAINTING_TEMPORAL_TIME_LAG_MODE="${POINTPAINTING_TEMPORAL_TIME_LAG_MODE:-sweep_constant}"
+POINTPAINTING_PUBLISH_DETECTOR_VELOCITY="${POINTPAINTING_PUBLISH_DETECTOR_VELOCITY:-false}"
+POINTPAINTING_DETECTOR_VELOCITY_NOISE_STD_MPS="${POINTPAINTING_DETECTOR_VELOCITY_NOISE_STD_MPS:-1.0}"
+POINTPAINTING_DETECTOR_MAXIMUM_VELOCITY_MPS="${POINTPAINTING_DETECTOR_MAXIMUM_VELOCITY_MPS:-30.0}"
 POINTPAINTING_ORACLE_PAINTING_CLASS="${POINTPAINTING_ORACLE_PAINTING_CLASS:-}"
 POINTPAINTING_ORACLE_PAINTING_MODE="${POINTPAINTING_ORACLE_PAINTING_MODE:-one_hot}"
 
@@ -51,24 +58,23 @@ case "$MODE" in
         ;;
 esac
 
-# Conda 초기화
-if [[ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]]; then
-    source "$HOME/miniconda3/etc/profile.d/conda.sh"
-elif [[ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]]; then
-    source "$HOME/anaconda3/etc/profile.d/conda.sh"
-elif command -v conda >/dev/null 2>&1; then
-    eval "$(conda shell.bash hook)"
-else
-    echo "[ERROR] Conda를 찾을 수 없습니다."
+# Use the known OpenPCDet Python environment directly.
+#
+# This avoids depending on the shell-level conda command and keeps the
+# runtime reproducible in environments where the conda launcher itself is
+# unavailable or broken.
+if [[ ! -x "$POINTPAINTING_PYTHON" ]]; then
+    echo "[ERROR] OpenPCDet Python executable not found:"
+    echo "  $POINTPAINTING_PYTHON"
     exit 1
 fi
 
-# CUDA Toolkit Conda activation hooks may read optional variables such as
-# NVCC_PREPEND_FLAGS before defining them. Temporarily disable nounset while
-# Conda runs its activation hooks, then restore the script's strict mode.
-set +u
-conda activate "$CONDA_ENV"
-set -u
+export PATH="$POINTPAINTING_ENV_BIN:$PATH"
+export CONDA_PREFIX="$POINTPAINTING_ENV_ROOT"
+
+if [[ -d "$POINTPAINTING_ENV_ROOT/lib" ]]; then
+    export LD_LIBRARY_PATH="$POINTPAINTING_ENV_ROOT/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
 
 source /opt/ros/noetic/setup.bash
 
@@ -131,8 +137,8 @@ echo "PointPainting ROS"
 echo "=============================================="
 echo "Mode              : $MODE"
 echo "Catkin workspace  : $CATKIN_WS"
-echo "Conda environment : $CONDA_ENV"
-echo "Python            : $(which python)"
+echo "Runtime environment: $POINTPAINTING_ENV_ROOT"
+echo "Python             : $POINTPAINTING_PYTHON"
 echo "OpenPCDet         : $OPENPCDET_ROOT"
 echo "Config            : $POINTPAINTING_CFG"
 echo "Checkpoint        : $POINTPAINTING_CKPT"
@@ -148,6 +154,7 @@ echo "Camera CPU workers: $POINTPAINTING_CAMERA_CPU_WORKERS"
 echo "LiDAR stamp mode  : $POINTPAINTING_LIDAR_MEASUREMENT_STAMP_MODE"
 echo "LiDAR deskew      : $POINTPAINTING_LIDAR_DESKEW_MODE ($POINTPAINTING_LIDAR_DESKEW_REFERENCE, camera=$POINTPAINTING_LIDAR_DESKEW_CAMERA_REFERENCE)"
 echo "Temporal sweeps   : $POINTPAINTING_TEMPORAL_NUM_SWEEPS (max_gap=$POINTPAINTING_TEMPORAL_MAXIMUM_GAP_SEC, lag=$POINTPAINTING_TEMPORAL_TIME_LAG_MODE)"
+echo "Detector velocity : $POINTPAINTING_PUBLISH_DETECTOR_VELOCITY"
 echo "Oracle painting   : ${POINTPAINTING_ORACLE_PAINTING_CLASS:-disabled} ($POINTPAINTING_ORACLE_PAINTING_MODE, diagnostic only)"
 echo "use_sim_time      : $USE_SIM_TIME"
 echo "=============================================="
@@ -168,7 +175,7 @@ fi
 exec roslaunch morai_pointpainting_ros \
     "$LAUNCH_FILE" \
     use_sim_time:="$USE_SIM_TIME" \
-    python_executable:="$(command -v python)" \
+    python_executable:="$POINTPAINTING_PYTHON" \
     openpcdet_root:="$OPENPCDET_ROOT" \
     repo_root:="$REPO_ROOT" \
     cfg_file:="$POINTPAINTING_CFG" \
@@ -179,6 +186,9 @@ exec roslaunch morai_pointpainting_ros \
     segmentation_preprocess_backend:="$POINTPAINTING_PREPROCESS_BACKEND" \
     camera_cpu_workers:="$POINTPAINTING_CAMERA_CPU_WORKERS" \
     score_threshold:="$POINTPAINTING_SCORE_THRESHOLD" \
+    publish_detector_velocity:="$POINTPAINTING_PUBLISH_DETECTOR_VELOCITY" \
+    detector_velocity_noise_std_mps:="$POINTPAINTING_DETECTOR_VELOCITY_NOISE_STD_MPS" \
+    detector_maximum_velocity_mps:="$POINTPAINTING_DETECTOR_MAXIMUM_VELOCITY_MPS" \
     warmup_segmentation:=true \
     warmup_full_pipeline:=true \
     warmup_iterations:=2 \
