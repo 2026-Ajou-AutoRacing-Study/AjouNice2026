@@ -7,6 +7,14 @@
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="trajectory_topic" default="/planning/trajectory"/>
   <arg name="start_rviz" default="true"/>
+  <!--
+    The GNSS+IMU production localization intentionally remains planar
+    (base_link z=0).  Keep the binary map used by planning untouched, and
+    flatten only this launch's MarkerArray onto the IONIQ 5 ground plane.
+  -->
+  <arg name="flatten_visualization_map" default="true"/>
+  <arg name="visualization_map_frame" default="lanelet_ground"/>
+  <arg name="visualization_map_z_offset" default="-0.3705"/>
   <arg name="rosbag_output_directory"
        default="$(arg repo_root)/planner_logs/bags"/>
   <arg name="route_request_service"
@@ -27,17 +35,41 @@
   <param name="robot_description"
          command="$(find xacro)/xacro '$(find ioniq5)/urdf/ioniq5.urdf.xacro'"/>
 
-  <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
-    <arg name="repo_root" value="$(arg repo_root)"/>
-    <arg name="map_file" value="$(arg map_file)"/>
-    <arg name="projector_file" value="$(arg projector_file)"/>
-    <arg name="projector_type" value="LocalCartesianUTM"/>
-    <arg name="frame_id" value="map"/>
-    <arg name="output_topic" value="/map/lanelet_map"/>
-    <!-- The integration binary loader remains the sole /map/vector_map owner. -->
-    <arg name="publish_vector_map" value="false"/>
-    <arg name="publish_lanelet_fill" value="false"/>
-  </include>
+  <group if="$(arg flatten_visualization_map)">
+    <node pkg="tf2_ros"
+          type="static_transform_publisher"
+          name="tf_map_to_planning_lanelet_ground"
+          args="0 0 $(arg visualization_map_z_offset) 0 0 0 map $(arg visualization_map_frame)"
+          output="screen"/>
+
+    <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+      <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="map_file" value="$(arg map_file)"/>
+      <arg name="projector_file" value="$(arg projector_file)"/>
+      <arg name="projector_type" value="LocalCartesianUTM"/>
+      <arg name="frame_id" value="$(arg visualization_map_frame)"/>
+      <arg name="output_topic" value="/map/lanelet_map"/>
+      <arg name="flatten_z" value="true"/>
+      <!-- The integration binary loader remains the sole /map/vector_map owner. -->
+      <arg name="publish_vector_map" value="false"/>
+      <arg name="publish_lanelet_fill" value="false"/>
+    </include>
+  </group>
+
+  <group unless="$(arg flatten_visualization_map)">
+    <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+      <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="map_file" value="$(arg map_file)"/>
+      <arg name="projector_file" value="$(arg projector_file)"/>
+      <arg name="projector_type" value="LocalCartesianUTM"/>
+      <arg name="frame_id" value="map"/>
+      <arg name="output_topic" value="/map/lanelet_map"/>
+      <arg name="flatten_z" value="false"/>
+      <!-- The integration binary loader remains the sole /map/vector_map owner. -->
+      <arg name="publish_vector_map" value="false"/>
+      <arg name="publish_lanelet_fill" value="false"/>
+    </include>
+  </group>
 
   <node pkg="bringup" type="planning_trajectory_visualizer.py"
         name="planning_trajectory_visualizer" output="screen">

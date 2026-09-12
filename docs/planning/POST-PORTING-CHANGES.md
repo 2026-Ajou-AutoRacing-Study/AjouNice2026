@@ -99,6 +99,21 @@
 - `base_ws/src/bringup/launch/aw149_planning_rviz.launch`
 - `base_ws/src/bringup/rviz/kcity_aw149_planning.rviz`
 
+### GNSS+IMU 2D localization용 지도 높이 표시
+
+- production localization의 `two_d_mode: true`와 `map -> base_link z=0`은 그대로 유지한다.
+- planning이 사용하는 `/map/vector_map` 원본과 `map -> morai_map` TF도 변경하지 않는다.
+- AW149 planning RViz launch가 발행하는 `/map/lanelet_map` MarkerArray만
+  `lanelet_ground` 프레임에서 평탄화한다.
+- `map -> lanelet_ground`의 기본 z는 IONIQ 5 wheel radius와 같은
+  `-0.3705 m`다. 따라서 `base_link`가 rear axle 중심에 있어도 차량 바퀴와
+  시각화용 노면이 자연스럽게 맞는다.
+- launch 인자 `flatten_visualization_map:=false`로 원본 고도 표시를 복원할
+  수 있으며, `visualization_map_z_offset`으로 표시 높이만 조정할 수 있다.
+
+이 변경은 RViz 전용이다. localization pose, planning trajectory, binary map
+payload 및 주행 계산 결과에는 영향을 주지 않는다.
+
 ## 6. 초기 Route A 자동 요청을 RViz 수동 요청으로 변경
 
 변경 내용:
