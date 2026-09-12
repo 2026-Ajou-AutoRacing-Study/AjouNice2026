@@ -24,6 +24,8 @@
   <arg name="painted_points_topic" default="/pointpainting/painted_points"/>
 
   <arg name="score_threshold" default="0.10"/>
+  <!-- Negative keeps OpenPCDet MODEL.POST_PROCESSING.SCORE_THRESH unchanged. -->
+  <arg name="model_score_threshold" default="-1.0"/>
   <arg name="vehicle_score_threshold" default="0.40"/>
   <arg name="pedestrian_score_threshold" default="0.15"/>
   <arg name="obstacle_score_threshold" default="0.10"/>
@@ -89,6 +91,7 @@
     <param name="painted_points_topic" value="$(arg painted_points_topic)"/>
 
     <param name="score_threshold" value="$(arg score_threshold)"/>
+    <param name="model_score_threshold" value="$(arg model_score_threshold)"/>
     <param name="vehicle_score_threshold" value="$(arg vehicle_score_threshold)"/>
     <param name="pedestrian_score_threshold" value="$(arg pedestrian_score_threshold)"/>
     <param name="obstacle_score_threshold" value="$(arg obstacle_score_threshold)"/>

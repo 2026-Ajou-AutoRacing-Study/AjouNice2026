@@ -11,6 +11,7 @@ CONDA_ENV="${CONDA_ENV:-openpcdet_team}"
 POINTPAINTING_ACTIVATE_CONDA="${POINTPAINTING_ACTIVATE_CONDA:-true}"
 OPENPCDET_ROOT="${OPENPCDET_ROOT:-$HOME/OpenPCDet}"
 REPO_ROOT="$(cd "$CATKIN_WS/.." && pwd)"
+POINTPAINTING_RUNTIME_SETUP="${POINTPAINTING_RUNTIME_SETUP:-$REPO_ROOT/scripts/workspace/source_aw149.sh}"
 
 POINTPAINTING_RELEASE="${POINTPAINTING_RELEASE:-$REPO_ROOT/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e}"
 POINTPAINTING_CFG="${POINTPAINTING_CFG:-$REPO_ROOT/perception/pointpainting/openpcdet_patch/tools/cfgs/custom_models/pointpillar_morai_pointpainting_sunny13_1500_9feat.yaml}"
@@ -28,6 +29,7 @@ POINTPAINTING_DETAILED_TIMING="${POINTPAINTING_DETAILED_TIMING:-false}"
 POINTPAINTING_PREPROCESS_BACKEND="${POINTPAINTING_PREPROCESS_BACKEND:-torchvision}"
 POINTPAINTING_CAMERA_CPU_WORKERS="${POINTPAINTING_CAMERA_CPU_WORKERS:-4}"
 POINTPAINTING_SCORE_THRESHOLD="${POINTPAINTING_SCORE_THRESHOLD:-0.10}"
+POINTPAINTING_MODEL_SCORE_THRESHOLD="${POINTPAINTING_MODEL_SCORE_THRESHOLD:--1.0}"
 POINTPAINTING_VEHICLE_SCORE_THRESHOLD="${POINTPAINTING_VEHICLE_SCORE_THRESHOLD:-0.40}"
 POINTPAINTING_PEDESTRIAN_SCORE_THRESHOLD="${POINTPAINTING_PEDESTRIAN_SCORE_THRESHOLD:-0.15}"
 POINTPAINTING_OBSTACLE_SCORE_THRESHOLD="${POINTPAINTING_OBSTACLE_SCORE_THRESHOLD:-0.10}"
@@ -82,15 +84,14 @@ else
     CONDA_ENV="$CONDA_DEFAULT_ENV"
 fi
 
-AW149_SETUP="$REPO_ROOT/scripts/workspace/source_aw149.sh"
-if [[ ! -f "$AW149_SETUP" ]]; then
-    echo "[ERROR] AW149 runtime setup을 찾을 수 없습니다:"
-    echo "  $AW149_SETUP"
+if [[ ! -f "$POINTPAINTING_RUNTIME_SETUP" ]]; then
+    echo "[ERROR] PointPainting runtime setup을 찾을 수 없습니다:"
+    echo "  $POINTPAINTING_RUNTIME_SETUP"
     exit 1
 fi
 
 export AJOUNICE_ROOT="$REPO_ROOT"
-source "$AW149_SETUP"
+source "$POINTPAINTING_RUNTIME_SETUP"
 
 # ROS Noetic's Debian Python modules (for example rospkg) live outside the
 # Conda environment. Add the Conda site-packages explicitly before Debian's
@@ -154,6 +155,7 @@ echo "Conda environment : $CONDA_ENV"
 echo "Conda auto-activate: $POINTPAINTING_ACTIVATE_CONDA"
 echo "Python            : $(which python)"
 echo "OpenPCDet         : $OPENPCDET_ROOT"
+echo "Runtime setup     : $POINTPAINTING_RUNTIME_SETUP"
 echo "Config            : $POINTPAINTING_CFG"
 echo "Checkpoint        : $POINTPAINTING_CKPT"
 echo "Seg checkpoint    : $POINTPAINTING_SEG_CKPT"
@@ -165,6 +167,7 @@ echo "Benchmark dir     : ${POINTPAINTING_BENCHMARK_DIR:-disabled}"
 echo "Detailed timing   : $POINTPAINTING_DETAILED_TIMING"
 echo "Preprocess backend: $POINTPAINTING_PREPROCESS_BACKEND"
 echo "Camera CPU workers: $POINTPAINTING_CAMERA_CPU_WORKERS"
+echo "Model score floor : $POINTPAINTING_MODEL_SCORE_THRESHOLD (-1 keeps config)"
 echo "LiDAR stamp mode  : $POINTPAINTING_LIDAR_MEASUREMENT_STAMP_MODE"
 echo "LiDAR deskew      : $POINTPAINTING_LIDAR_DESKEW_MODE ($POINTPAINTING_LIDAR_DESKEW_REFERENCE, camera=$POINTPAINTING_LIDAR_DESKEW_CAMERA_REFERENCE)"
 echo "Temporal sweeps   : $POINTPAINTING_TEMPORAL_NUM_SWEEPS (max_gap=$POINTPAINTING_TEMPORAL_MAXIMUM_GAP_SEC, lag=$POINTPAINTING_TEMPORAL_TIME_LAG_MODE)"
@@ -202,6 +205,7 @@ exec "$(command -v python)" "$(command -v roslaunch)" morai_pointpainting_ros \
     segmentation_preprocess_backend:="$POINTPAINTING_PREPROCESS_BACKEND" \
     camera_cpu_workers:="$POINTPAINTING_CAMERA_CPU_WORKERS" \
     score_threshold:="$POINTPAINTING_SCORE_THRESHOLD" \
+    model_score_threshold:="$POINTPAINTING_MODEL_SCORE_THRESHOLD" \
     vehicle_score_threshold:="$POINTPAINTING_VEHICLE_SCORE_THRESHOLD" \
     pedestrian_score_threshold:="$POINTPAINTING_PEDESTRIAN_SCORE_THRESHOLD" \
     obstacle_score_threshold:="$POINTPAINTING_OBSTACLE_SCORE_THRESHOLD" \
