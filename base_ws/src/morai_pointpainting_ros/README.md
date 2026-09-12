@@ -128,7 +128,7 @@ roslaunch morai_pointpainting_ros pointpainting_production.launch \
   openpcdet_root:=/path/to/OpenPCDet \
   bundle_root:=/path/to/260909_pointpainting_production_3model
 
-# Terminal 3: EKF -> UNKNOWN stationary policy -> v61 Map-CV
+# Terminal 3: EKF -> UNKNOWN stationary policy -> v62 Map-CV
 roslaunch perception_object_pipeline tracking_prediction.launch
 ```
 

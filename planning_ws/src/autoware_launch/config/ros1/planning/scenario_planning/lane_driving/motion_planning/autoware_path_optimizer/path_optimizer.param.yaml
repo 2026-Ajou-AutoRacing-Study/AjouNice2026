@@ -48,7 +48,7 @@ mpt/avoidance/weight/yaw_error_weight: 10.0
 mpt/avoidance/weight/steer_input_weight: 100.0
 mpt/collision_free_constraints/option/l_inf_norm: true
 mpt/collision_free_constraints/option/soft_constraint: true
-mpt/collision_free_constraints/option/hard_constraint: false
+mpt/collision_free_constraints/option/hard_constraint: true
 mpt/collision_free_constraints/vehicle_circles/method: fitting_uniform_circle
 mpt/collision_free_constraints/vehicle_circles/bicycle_model/num_for_calculation: 3
 mpt/collision_free_constraints/vehicle_circles/bicycle_model/front_radius_ratio: 1.0

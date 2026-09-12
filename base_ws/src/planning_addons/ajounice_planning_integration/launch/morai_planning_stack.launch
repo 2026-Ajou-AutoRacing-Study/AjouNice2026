@@ -16,12 +16,8 @@
 
   <arg name="start_localization" default="true"/>
   <arg name="start_sensor_tf" default="true"/>
-  <!--
-    The official split PP1 procedure owns this graph through the separate
-    `tracking` command. The old integrated-stack ownership remains an explicit
-    compatibility opt-in; never combine it with `tracking`.
-  -->
-  <arg name="start_object_pipeline" default="false"/>
+  <!-- Planning owns EKF -> UNKNOWN stationary policy -> Map-CV. -->
+  <arg name="start_object_pipeline" default="true"/>
   <!-- Model checkpoints are not stored in Git; enable only after provisioning. -->
   <arg name="start_detector" default="false"/>
   <arg name="detector" default="fastbev"/>
@@ -105,7 +101,7 @@
       <arg name="prediction_time_step" value="0.1"/>
       <arg name="prediction_horizon" value="3.0"/>
       <arg name="map_file"
-           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
+           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v62.osm"/>
       <arg name="projector_file"
            value="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
     </include>

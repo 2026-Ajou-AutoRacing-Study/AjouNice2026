@@ -10,6 +10,7 @@
 #include <autoware/route_handler/route_handler.hpp>
 
 #include <boost/geometry/algorithms/intersects.hpp>
+#include <autoware_utils_geometry/geometry.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -233,11 +234,23 @@ void expand_bound(std::vector<geometry_msgs::Point> & bound, const std::vector<g
     if (reprojected.distance > 0.0 && reprojected.distance < projection.distance) expanded=lerp_point(reprojected.projected_point,expanded,projection.distance/reprojected.distance);
     bound[i].x=expanded.x(); bound[i].y=expanded.y();
   }
-  const auto cross = [](const geometry_msgs::Point & a, const geometry_msgs::Point & b, const geometry_msgs::Point & p) { return (b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x); };
-  const auto intersects = [&](const auto & a, const auto & b, const auto & c, const auto & d) { const double c1=cross(a,b,c),c2=cross(a,b,d),c3=cross(c,d,a),c4=cross(c,d,b); return ((c1>0.)!=(c2>0.))&&((c3>0.)!=(c4>0.)); };
-  std::vector<geometry_msgs::Point> pruned{bound.front()};
-  for (size_t i=1;i<bound.size();++i) { bool loop=false; for(size_t successor=i+1;successor<bound.size();++successor) if(intersects(bound[i-1],bound[i],bound[successor-1],bound[successor])) { i=successor; loop=true; break; } if(!loop)pruned.push_back(bound[i]); }
-  bound=std::move(pruned);
+  // Preserve the ROS2 loop-removal semantics: a shared endpoint is not a loop.
+  std::vector<geometry_msgs::Point> no_loop_bound{bound.front()};
+  for (size_t idx = 1; idx < bound.size(); ++idx) {
+    bool is_intersecting = false;
+    for (size_t succ_idx = idx + 1; succ_idx < bound.size(); ++succ_idx) {
+      const auto intersection = autoware_utils_geometry::intersect(
+        bound[idx - 1], bound[idx], bound[succ_idx - 1], bound[succ_idx]);
+      if (intersection &&
+          autoware_utils_geometry::calc_distance2d(*intersection, bound[idx - 1]) > 1e-3 &&
+          autoware_utils_geometry::calc_distance2d(*intersection, bound[idx]) > 1e-3) {
+        idx = succ_idx;
+        is_intersecting = true;
+      }
+    }
+    if (!is_intersecting) no_loop_bound.push_back(bound[idx]);
+  }
+  bound = std::move(no_loop_bound);
 }
 std::vector<double> calculate_maximum_distance_from_segments(const std::vector<geometry_msgs::Point> & bound, const SegmentRtree & segments, const DrivableAreaExpansionParameters & params, const Side side)
 {

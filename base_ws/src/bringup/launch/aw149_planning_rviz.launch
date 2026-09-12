@@ -2,7 +2,7 @@
   <!-- Visualization only: it does not launch or modify any planning node. -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v62.osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="trajectory_topic" default="/planning/trajectory"/>
@@ -21,7 +21,7 @@
        default="/competition_route_requester/request"/>
   <arg name="route_request_status_topic"
        default="/competition_route_requester/request_status"/>
-  <!-- Frozen Route A start from kcity_v61_competition_route.yaml. -->
+  <!-- Frozen Route A start from kcity_v62_competition_route.yaml. -->
   <arg name="route_a_start_x" default="-0.130667330614472"/>
   <arg name="route_a_start_y" default="117.580315248218"/>
   <arg name="route_a_start_z" default="28.543960281954277"/>
@@ -76,6 +76,36 @@
     <param name="input_topic" value="$(arg trajectory_topic)"/>
     <param name="path_topic" value="/planning/debug/final_trajectory/path"/>
     <param name="marker_topic" value="/planning/debug/final_trajectory/markers"/>
+  </node>
+
+  <!--
+    Use the production perception pipeline's ROS1 MarkerArray converter.
+    The native Autoware PredictedObjects RViz display segfaults on the live
+    perception stream, while these standard RViz markers keep the planning
+    debug view independent of that plugin.
+  -->
+  <node pkg="perception_object_pipeline"
+        type="object_pipeline_visualization_node.py"
+        name="planning_perception_visualization"
+        output="screen" respawn="false">
+    <param name="input/detections"
+           value="/perception/object_recognition/detection/objects"/>
+    <param name="input/tracks"
+           value="/perception/object_recognition/tracking/objects"/>
+    <param name="input/predictions"
+           value="/perception/object_recognition/objects"/>
+    <rosparam param="prediction_marker_horizons_sec">[1.0, 2.0, 3.0]</rosparam>
+    <param name="prediction_marker_diameter_m" value="0.45"/>
+    <param name="prediction_marker_diameter_step_m" value="0.08"/>
+    <param name="prediction_line_width_m" value="0.08"/>
+    <rosparam param="prediction_secondary_color_rgba">[1.0, 0.55, 0.0, 0.95]</rosparam>
+    <param name="prediction_show_confidence_labels" value="true"/>
+    <remap from="~output/detections"
+           to="/perception/object_recognition/visualization/detections"/>
+    <remap from="~output/tracks"
+           to="/perception/object_recognition/visualization/tracks"/>
+    <remap from="~output/predictions"
+           to="/perception/object_recognition/visualization/predictions"/>
   </node>
 
   <node if="$(arg start_rviz)" pkg="rviz" type="rviz"

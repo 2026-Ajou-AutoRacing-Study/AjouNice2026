@@ -14,7 +14,7 @@
 - Tracking: EKF measurement update와 내부 30 Hz prediction publish.
 - Detector velocity fusion: `off`.
 - UNKNOWN/Obstacle motion policy: stationary 강제.
-- Prediction: Lanelet2 v61 Map-CV, 0.1초 간격, 3초 horizon, 최대 6 paths.
+- Prediction: Lanelet2 v62 Map-CV, 0.1초 간격, 3초 horizon, 최대 6 paths.
 
 `S1g E37`은 역사적 fallback/comparator로 보존한다. 같은 7-bag detector
 평가에서 PP1의 macro center mAP가 `0.7073`, S1g가 `0.5574`였고 PP1이 7개
@@ -115,9 +115,9 @@ roslaunch perception_object_pipeline tracking_prediction.launch
 Conda 환경명, checkout 위치와 GPU는 저장소가 강제하지 않는다. Detector와
 downstream을 별도 터미널로 분리해 Python 환경이 전파되지 않게 한다.
 분리 실행과 함께 Planning을 켤 때는 `competition_planning.launch`를 사용한다.
-`morai_planning_stack.launch`도 중복 실행을 막기 위해
-`start_object_pipeline:=false`가 기본이다. 과거 일체형 호환 실행에서 이를
-명시적으로 켰다면 `tracking_prediction.launch`를 동시에 실행하면 안 된다.
+`morai_planning_stack.launch`가 downstream object pipeline을 기본 소유한다.
+따라서 full-stack 실행과 standalone `tracking_prediction.launch`를 동시에
+실행하면 안 된다.
 
 현재 PC는 planning AW149 전체 install이 완료되지 않았으므로 perception runtime은
 `base_ws/devel/setup.bash`를 사용한다. 이는 AW149 planning build의 성공 여부와
@@ -196,7 +196,7 @@ MORAI GT box, matched GT future path를 포함한다.
 현재 runtime을 판단할 때 이 문서와 실제 production launch를 우선한다.
 
 - `map_cv_production_handoff_260820.md`의 알고리즘·tracker 계약은 유효하다.
-- 그 문서의 v60 경로는 historical이다. 통합 runtime map은 v61이다.
+- 그 문서의 v60 경로는 historical이다. 통합 runtime map은 v62이다.
 - `base3_static_pointpainting_training.md`, `rosbag_vehicle_leaderboard.md`의
   PP0/PP1 결과는 후보 비교 근거이며 production 기본값을 뜻하지 않는다.
 - `artifacts/.../production_3model/README.md`의 S1g 기본 선택은 bundle 제작 당시의

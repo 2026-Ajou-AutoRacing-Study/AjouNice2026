@@ -20,7 +20,7 @@ UNKNOWN/Obstacle stationary policy
   /perception/object_recognition/tracking/objects
                          |
                          v
-Lanelet2 v61 Map-CV predictor
+Lanelet2 v62 Map-CV predictor
   /perception/object_recognition/objects
 ```
 
@@ -69,10 +69,9 @@ driving, the following inputs and TF must also exist:
 Localization, sensing, traffic-light perception, planning and control remain
 separate processes. When this split production procedure is used, start
 planning with `competition_planning.launch`.
-`morai_planning_stack.launch` now defaults `start_object_pipeline:=false` for
-the same reason. Its old integrated ownership is compatibility-only and must
-be enabled explicitly; doing so together with `tracking_prediction.launch`
-would create a second EKF and predictor on the same topics.
+`morai_planning_stack.launch` owns this downstream graph by default. Do not
+also run standalone `tracking_prediction.launch` with that full-stack launch;
+doing so would create a second EKF and predictor on the same topics.
 
 ## Pinned production contract
 
@@ -87,7 +86,7 @@ would create a second EKF and predictor on the same topics.
 - Current-time compensation: disabled; stale age cap `0.25 s`.
 - Obstacle representation: Autoware `UNKNOWN`, velocity/acceleration forced to
   zero after tracking while pose updates remain live.
-- Predictor: Lanelet2 v61 Map-CV, `0.1 s` step, `3.0 s` horizon, up to six
+- Predictor: Lanelet2 v62 Map-CV, `0.1 s` step, `3.0 s` horizon, up to six
   vehicle hypotheses. Non-vehicle/off-lane cases use kinematic fallback.
 
 `pointpainting_production.launch` and `tracking_prediction.launch` explicitly

@@ -32,6 +32,8 @@ def test_pp1_production_contract_is_explicit():
         "lidar_measurement_stamp_mode": "object_points_median",
         "lidar_deskew_mode": "off",
         "temporal_num_sweeps": "0",
+        "warmup_segmentation": "$(arg warmup_segmentation)",
+        "warmup_full_pipeline": "$(arg warmup_full_pipeline)",
     }
     for name, value in expected.items():
         assert values.get(name) == value, (name, values.get(name))

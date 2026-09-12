@@ -1,7 +1,7 @@
 # Map-CV production handoff
 
 > Historical handoff: 이 문서의 알고리즘·토픽 계약은 유효하지만 E65 성능값과
-> v60 runtime 경로는 과거 기준이다. 현재 PP1/v61 production 실행과 운영값은
+> v60 runtime 경로는 과거 기준이다. 현재 PP1/v62 production 실행과 운영값은
 > `perception/pointpainting/docs/production_runtime_contract_260913.md` 및
 > `docs/runbooks/morai_pointpainting_object_pipeline_live.md`를 우선한다.
 

@@ -76,7 +76,7 @@ dynamic_avoidance:
 avoidance:
   resample_interval_for_planning: 0.3
   resample_interval_for_output: 4.0
-  use_lane_type: opposite_direction_lane
+  use_lane_type: current_lane
   use_intersection_areas: true
   use_hatched_road_markings: true
   use_freespace_areas: true

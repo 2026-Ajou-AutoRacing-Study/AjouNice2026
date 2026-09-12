@@ -1,6 +1,6 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
-  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
+  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v62.osm"/>
   <arg name="projector_file" default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="projector_type" default="LocalCartesianUTM"/>
   <arg name="frame_id" default="map"/>

@@ -21,6 +21,9 @@
        default="$(arg bundle_root)/models/b3s_pp1_e34/detector.pth"/>
   <arg name="segmentation_checkpoint"
        default="$(arg bundle_root)/segmentation/base3_lraspp_e30/segmentation.pth"/>
+  <!-- Keep both enabled in production; expose them for fast launch-contract smoke tests. -->
+  <arg name="warmup_segmentation" default="true"/>
+  <arg name="warmup_full_pipeline" default="true"/>
 
   <include file="$(find morai_pointpainting_ros)/launch/pointpainting_online.launch">
     <arg name="use_sim_time" value="$(arg use_sim_time)"/>
@@ -44,6 +47,8 @@
     <arg name="lidar_measurement_stamp_mode" value="object_points_median"/>
     <arg name="lidar_deskew_mode" value="off"/>
     <arg name="temporal_num_sweeps" value="0"/>
+    <arg name="warmup_segmentation" value="$(arg warmup_segmentation)"/>
+    <arg name="warmup_full_pipeline" value="$(arg warmup_full_pipeline)"/>
     <arg name="real_input_warmup" value="true"/>
     <arg name="real_input_warmup_iterations" value="2"/>
   </include>

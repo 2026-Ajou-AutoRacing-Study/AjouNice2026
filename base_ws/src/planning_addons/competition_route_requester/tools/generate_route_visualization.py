@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        default=package_dir / "config/kcity_v61_competition_route.yaml",
+        default=package_dir / "config/kcity_v62_competition_route.yaml",
     )
     parser.add_argument(
         "--workspace",
@@ -46,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=package_dir / "docs/assets/kcity_v61_route_a_b.svg",
+        default=package_dir / "docs/assets/kcity_v62_route_a_b.svg",
         help="Overview SVG path; the three detail SVGs are written beside it.",
     )
     return parser.parse_args()
@@ -905,16 +905,16 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(svg) + "\n", encoding="utf-8")
     detail_outputs = {
-        output_path.parent / "kcity_v61_route_a_detail.svg": build_route_detail_svg(
+        output_path.parent / "kcity_v62_route_a_detail.svg": build_route_detail_svg(
             config, lanelets, map_path, actual_hash, epsg, origin, "route_a"
         ),
-        output_path.parent / "kcity_v61_route_b_detail.svg": build_route_detail_svg(
+        output_path.parent / "kcity_v62_route_b_detail.svg": build_route_detail_svg(
             config, lanelets, map_path, actual_hash, epsg, origin, "route_b"
         ),
-        output_path.parent / "kcity_v61_reroute_process.svg": build_reroute_process_svg(
+        output_path.parent / "kcity_v62_reroute_process.svg": build_reroute_process_svg(
             config, policy, lanelets, map_path, actual_hash, epsg
         ),
-        output_path.parent / "kcity_v61_operation_cases.svg": build_operation_cases_svg(
+        output_path.parent / "kcity_v62_operation_cases.svg": build_operation_cases_svg(
             config, policy, map_path, actual_hash
         ),
     }

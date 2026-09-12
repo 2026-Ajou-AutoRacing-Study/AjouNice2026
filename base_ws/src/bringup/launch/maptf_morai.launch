@@ -12,7 +12,7 @@
   <arg name="heading_in_degrees" default="true"/>
   <arg name="start_lanelet_map" default="true"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v62.osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="map_projector_type" default="LocalCartesianUTM"/>
