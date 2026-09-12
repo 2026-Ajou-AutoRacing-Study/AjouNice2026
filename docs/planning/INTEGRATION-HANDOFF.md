@@ -2,6 +2,12 @@
 
 대상 브랜치: `planning/autoware-universe-to-ros1`. `develop`과 다른 브랜치는 건드리지 않는다. 상세 topic·frame·기능 gate는 [BASE-WS-INTEGRATION-GUIDE.md](BASE-WS-INTEGRATION-GUIDE.md)를 함께 따른다.
 
+PointPainting PP1을 planning과 함께 실행하거나 통합 문제를 진단할 때는
+[POINTPAINTING-PLANNING-CODEX-HANDOFF.md](POINTPAINTING-PLANNING-CODEX-HANDOFF.md)를
+먼저 읽는다. 이 문서에는 detector/downstream Python 환경 분리, production launch,
+v62 지도·모델 bundle·AW149 install 결과물의 구분과 중복 실행 방지 계약이 정리되어
+있다.
+
 ## 지금 바로 가능한 것
 
 - `planning_ws/src`에는 ROS1 포팅 경계 149개와 지원 5개가 있으며 provider 소스도 저장소 안에 있다.
