@@ -1,3 +1,5 @@
+export AJOUNICE_ROOT="${AJOUNICE_ROOT:-$HOME/AjouNice2026}"
+
 #-----------------------------------------------------
 alias ck="catkin_make"
 alias cm="catkin_make"
@@ -5,7 +7,7 @@ alias cb="code ~/.bashrc"
 
 alias rt="rostopic list"
 alias so="source /opt/ros/noetic/setup.bash"
-alias sd="source ~/AjouNice2026/base_ws/devel/setup.bash"
+alias sd='source "$AJOUNICE_ROOT/base_ws/devel/setup.bash"'
 alias sb="source ~/.bashrc"
 
 #-----------------------------------------------------
@@ -18,20 +20,25 @@ alias tf="rosrun rqt_tf_tree rqt_tf_tree"
 
 #rosbag-----------------------------------------------
 
-alias rosbag_raw="bash ~/AjouNice2026/scripts/rosbag/record/rosbag_raw.sh"
-alias rosbag_cam_raw="bash ~/AjouNice2026/scripts/rosbag/record/rosbag_cam_raw.sh"
+alias rosbag_raw='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_raw.sh"'
+alias rosbag_cam_raw='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_cam_raw.sh"'
 
 # 260705 rosbag for eval 녹화 요청 스크립트
-alias rosbag_lio_eval="bash ~/AjouNice2026/scripts/rosbag/record/rosbag_for_eval.sh"
+alias rosbag_lio_eval='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_for_eval.sh"'
 
 #-----------------------------------------------------
 alias udp="roslaunch sensor_interface morai_udp_interface.launch"
+alias udp22="roslaunch sensor_interface morai_udp_interface_22.launch"
 alias sensing="roslaunch bringup sensing.launch"
+alias pointpainting='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && CONDA_ENV=pp rosrun morai_pointpainting_ros run_pointpainting.sh live'
+alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline tracking_prediction.launch'
+alias traffic='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch traffic_light_detection traffic_light_node.launch'
 
 # control----------------------------------------------
 alias traj_gen="roslaunch trajectory_generator trajectory_publisher.launch"
 alias traj_fol="roslaunch trajectory_follower pp_pi.launch"
-alias traj_val="roslaunch trajectory_validator record.launch"
+alias traj_fol_a="roslaunch trajectory_follower pp_pi_autoware.launch"
+alias traj_val="roslaunch trajectory_validator trajectory_validator.launch"
 alias traj_val_replay="roslaunch trajectory_validator history.launch mode:=replay"
 alias traj_val_final="roslaunch trajectory_validator history.launch mode:=final"
 alias traj_val_compare="roslaunch trajectory_validator history.launch mode:=compare"
@@ -46,11 +53,14 @@ alias viewer_plot="roslaunch viewer viewer_plotjuggler.launch"
 alias localization_morai_gt="roslaunch bringup localization_morai_gt.launch"
 alias localization_fast_lio="roslaunch bringup localization_fast_lio.launch"
 alias maptf_morai="roslaunch bringup localization_morai_gt.launch" # deprecated alias name
+alias maptf_morai22="roslaunch bringup maptf_morai22.launch"
+alias maptf_morai_cor="roslaunch bringup maptf_morai_deg_correction.launch"
 alias maptf="roslaunch bringup maptf.launch"
 alias lanelet="roslaunch lanelet_map_visualizer kcity_lanelet_map.launch"   
-alias morai_status="bash ~/AjouNice2026/scripts/runtime/morai_status.sh"
-alias morai_reset="bash ~/AjouNice2026/scripts/runtime/morai_reset.sh stack"
+alias morai_status='bash "$AJOUNICE_ROOT/scripts/runtime/morai_status.sh"'
+alias morai_reset='bash "$AJOUNICE_ROOT/scripts/runtime/morai_reset.sh" stack'
 
 # planning-----------------------------------------------
+alias planning='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch ajounice_planning_integration competition_planning.launch'
 alias planner='roslaunch bringup kcity_morai_competition_planner_rviz.launch'
 alias kroute='roslaunch bringup kcity_competition_route.launch'
