@@ -4,8 +4,8 @@ This package defines the production ROS1 object boundary shared by
 PointPainting, Fast-BEV, EKF tracking, prediction and the Autoware-derived
 planning stack.
 
-MORAI live 환경을 처음부터 실행하는 터미널별 명령은
-[`docs/runbooks/morai_fastbev_object_pipeline_live.md`](../../../docs/runbooks/morai_fastbev_object_pipeline_live.md)에
+현재 PP1 production을 실행하는 터미널별 명령은
+[`docs/runbooks/morai_pointpainting_object_pipeline_live.md`](../../../docs/runbooks/morai_pointpainting_object_pipeline_live.md)에
 정리되어 있다.
 
 ```text
@@ -15,6 +15,11 @@ PointPainting or Fast-BEV
                          |
                          v
 EKF tracker
+  autoware_perception_msgs/TrackedObjects
+  /perception/object_recognition/tracking/measurement_objects
+                         |
+                         v
+UNKNOWN/Obstacle stationary motion policy
   autoware_perception_msgs/TrackedObjects
   /perception/object_recognition/tracking/objects
                          |
@@ -27,7 +32,36 @@ CTRV/CV or Lanelet2 map-based predictor
 Planning (unchanged)
 ```
 
-## Runtime selection
+## Production runtime
+
+Production is the split three-terminal path below. Detector and downstream
+must not share one Conda/roslaunch process tree.
+
+```bash
+# Terminal 1
+roscore
+
+# Terminal 2: B3S-PP1 E34 detector, from its Conda environment
+roslaunch morai_pointpainting_ros pointpainting_production.launch \
+  python_executable:="$(command -v python)" \
+  openpcdet_root:=/path/to/OpenPCDet \
+  bundle_root:=/path/to/260909_pointpainting_production_3model
+
+# Terminal 3: EKF 30 Hz -> UNKNOWN stationary -> v62 Map-CV
+roslaunch perception_object_pipeline tracking_prediction.launch
+```
+
+The detector runs in the machine's compatible Conda environment; tracking and
+prediction run with ROS system Python 3.8. ROS messages are the only boundary
+between them. Environment names, checkout paths and GPU models are not encoded
+as repository aliases.
+
+Production values are pinned by `pointpainting_production.launch` and
+`tracking_prediction.launch`. The final
+`/perception/object_recognition/objects` topic is the only object input
+intended for Planning.
+
+## Generic and research runtime selection
 
 Nodes use private `~input/objects` and `~output/objects` interfaces. Launch
 remaps select the global topic, so model names are not hard-coded downstream.
@@ -44,15 +78,11 @@ roslaunch perception_object_pipeline object_pipeline.launch \
   python_executable:="$HOME/miniconda3/envs/openpcdet_rtx50/bin/python"
 ```
 
-The PointPainting default profile is the 2026-08-16 Sunny13 release:
-
-- LRASPP: `background/pedestrian/vehicle/obstacle`
-- painted point contract: 9 features including `unknown`
-- PointPillars: `Pedestrian/Vehicle/Obstacle`, with six obstacle anchor sizes
-- online output range: 30 m, score threshold: 0.10
-
-The checkpoints stay under ignored `artifacts/`; launch files point to the
-stable release directory name rather than an external teammate workspace.
+These generic examples retain compatibility defaults and are not the current
+competition profile. Current PointPainting production is B3S-PP1 E34 with
+Base3 LRASPP E30 and class thresholds Vehicle 0.40, Pedestrian 0.15 and
+Obstacle 0.10. The exact ignored artifact paths are pinned by the production
+wrapper.
 
 If a detector is already running in another environment, launch only the
 standard tracker and predictor:
@@ -190,8 +220,8 @@ The legacy evaluation numbers are motion-model studies based mainly on MORAI
 GT state; they are not treated as end-to-end accuracy measurements of the
 current standardized pipeline.
 
-The first ROS1 map-based vehicle predictor is available behind an explicit
-launch switch. It uses the K-City v60 Lanelet2 map, publishes the same
+The ROS1 map-based vehicle predictor is available behind an explicit launch
+switch. Current production uses the K-City v62 Lanelet2 map and publishes the same
 `PredictedObjects` contract, and falls back to CTRV/CV for low-speed, off-lane,
 wrong-direction and non-vehicle objects.
 
@@ -224,8 +254,8 @@ because a hypothesis could gain confidence only by being enumerated through
 more duplicate start Lanelets. A later improvement should normalize
 `P(start lane | observation)` and `P(branch | start lane)` separately and then
 marginalize probability mass into each geometric hypothesis. The generic
-launch default remains CTRV for compatibility; the PointPainting competition
-run explicitly selects `prediction_model=map_based`.
+launch default remains CTRV for compatibility; `tracking_prediction.launch`
+explicitly selects `prediction_model=map_based` and v62.
 
 The complete 2026-08-20 production contract, evaluated metrics, rejected
 ablations and restart order are documented in

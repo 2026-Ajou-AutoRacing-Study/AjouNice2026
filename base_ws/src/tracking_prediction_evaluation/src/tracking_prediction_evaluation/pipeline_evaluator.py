@@ -130,7 +130,12 @@ def quaternion_yaw(quaternion) -> float:
 
 
 def duration_seconds(duration) -> float:
-    return float(duration.sec) + float(duration.nanosec) * 1.0e-9
+    """Return seconds for either ROS1 or ROS2 Duration message layouts."""
+    if hasattr(duration, "to_sec"):
+        return float(duration.to_sec())
+    seconds = getattr(duration, "sec", getattr(duration, "secs", 0))
+    nanoseconds = getattr(duration, "nanosec", getattr(duration, "nsecs", 0))
+    return float(seconds) + float(nanoseconds) * 1.0e-9
 
 
 def _predicted_paths(obj):

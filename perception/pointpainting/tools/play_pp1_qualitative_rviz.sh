@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -lt 1 || $# -gt 2 ]]; then
-    echo "Usage: $0 {obstacle|roundabout|highway_merge|highway1} [RATE]"
+    echo "Usage: $0 {obstacle|roundabout|highway_merge|highway1|pedestrian_crossing|pedestrian_distance} [RATE]"
     exit 2
 fi
 
@@ -27,9 +27,17 @@ case "$CASE" in
     highway1)
         RAW_BAG="$ROOT/rosbags/raw_sensor_w_cam/sensor_cam_raw_highway1.bag"
         ;;
+    pedestrian_crossing|ped_crossing)
+        CASE="pedestrian_crossing"
+        RAW_BAG="$ROOT/rosbags/raw_sensor_w_cam/pointpainting_eval_260730/pointpainting_pedestrian_crossing_raw.bag"
+        ;;
+    pedestrian_distance|ped_distance)
+        CASE="pedestrian_distance"
+        RAW_BAG="$ROOT/rosbags/raw_sensor_w_cam/pointpainting_eval_260730/pointpainting_pedestrian_distance_5_10_15_18m_raw.bag"
+        ;;
     *)
         echo "Unknown case: $CASE"
-        echo "Choose obstacle, roundabout, highway_merge, or highway1."
+        echo "Choose obstacle, roundabout, highway_merge, highway1, pedestrian_crossing, or pedestrian_distance."
         exit 2
         ;;
 esac
