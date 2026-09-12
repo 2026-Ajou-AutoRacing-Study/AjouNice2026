@@ -804,7 +804,56 @@ TEST(DynamicAreaCore, RemovesSelfIntersectingBoundLoop)
   std::vector<geometry_msgs::Pose> poses(2); poses[1].position.x = 1.0;
   std::vector<geometry_msgs::Point> bound(4); bound[1].x=2.0; bound[1].y=2.0; bound[2].y=2.0; bound[3].x=2.0;
   expansion::expand_bound(bound, poses, {0.0,0.0,0.0,0.0});
-  EXPECT_EQ(bound.size(), 2U);
+  EXPECT_EQ(bound.size(), 1U);  // ROS2 removes the loop including its last segment endpoint.
+}
+
+TEST(DynamicAreaCore, PreservesAdjacentCurveSegmentsWithoutExpansion)
+{
+  namespace expansion = autoware::behavior_path_planner::drivable_area_expansion;
+  std::vector<geometry_msgs::Pose> poses(2);
+  poses[1].position.x = 10.0;
+  // Both turning directions must retain shared endpoints (not self intersections).
+  for (const double direction : {-1.0, 1.0}) {
+    std::vector<geometry_msgs::Point> bound(13);
+    for (size_t i = 0; i < bound.size(); ++i) {
+      bound[i].x = 12.0 * std::sin(0.1 * i);
+      bound[i].y = direction * 12.0 * (1.0 - std::cos(0.1 * i));
+    }
+    const auto original = bound;
+    expansion::expand_bound(bound, poses, std::vector<double>(bound.size(), 0.0));
+    ASSERT_EQ(bound.size(), original.size());
+    for (size_t i = 0; i < bound.size(); ++i) {
+      EXPECT_DOUBLE_EQ(bound[i].x, original[i].x);
+      EXPECT_DOUBLE_EQ(bound[i].y, original[i].y);
+    }
+  }
+}
+
+TEST(DynamicAreaCore, PreservesV61Lanelet200392LeftBoundary)
+{
+  namespace expansion = autoware::behavior_path_planner::drivable_area_expansion;
+  // v61 way 100323, local UTM coordinates. This previously collapsed to 3 points.
+  const std::vector<std::pair<double, double>> xy = {
+    {33.565799,181.961885}, {34.044499,183.470884}, {34.492199,184.616585},
+    {34.897399,186.367584}, {35.014599,188.177985}, {34.834899,189.983284},
+    {34.363198,191.734985}, {33.612099,193.386485}, {32.601699,194.893185},
+    {31.359099,196.215084}, {29.929899,197.302784}, {29.282099,197.681784},
+    {28.613799,198.449484}};
+  std::vector<geometry_msgs::Point> bound;
+  for (const auto & p : xy) {
+    geometry_msgs::Point point; point.x = p.first; point.y = p.second;
+    bound.push_back(point);
+  }
+  std::vector<geometry_msgs::Pose> poses(2);
+  poses.front().position = bound.front(); poses.back().position = bound.back();
+  for (size_t repeat = 0; repeat < 3; ++repeat) {
+    expansion::expand_bound(bound, poses, std::vector<double>(bound.size(), 0.0));
+    ASSERT_EQ(bound.size(), xy.size());
+    for (size_t i = 0; i < xy.size(); ++i) {
+      EXPECT_DOUBLE_EQ(bound[i].x, xy[i].first);
+      EXPECT_DOUBLE_EQ(bound[i].y, xy[i].second);
+    }
+  }
 }
 
 TEST(BppRouteUtils, FailsClosedWithoutReadyRouteMapAndPlannerInputs)

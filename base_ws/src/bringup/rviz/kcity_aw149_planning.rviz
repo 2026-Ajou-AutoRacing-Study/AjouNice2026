@@ -8,7 +8,7 @@ Panels:
         - /Mission Route1
         - /Final Trajectory1
         - /Ego Vehicle1
-        - /Perception Objects1
+        - /Predicted Objects1
         - /Route A Start1
       Splitter Ratio: 0.5
     Tree Height: 690
@@ -83,34 +83,24 @@ Visualization Manager:
       Update Interval: 0
       Value: true
       Visual Enabled: true
-    - Class: autoware_perception_rviz_plugin/PredictedObjects
-      Confidence Interval: 95%
-      Display Acceleration: false
-      Display Existence Probability: false
-      Display Indicator: false
-      Display Label: true
-      Display Mesh: false
-      Display Offset: 0
-      Display Pose Covariance: false
-      Display Predicted Path Confidence: false
-      Display Predicted Paths: true
-      Display Twist: false
-      Display Twist Covariance: false
-      Display UUID: false
-      Display Velocity: true
-      Display Yaw Covariance: false
-      Display Yaw Rate: false
-      Display Yaw Rate Covariance: false
-      Enabled: true
-      Line Width: 0.08
-      Name: Perception Objects
-      Object Fill Type: skeleton
-      Polygon Type: 3d
+    - Class: rviz/MarkerArray
+      Enabled: false
+      Marker Topic: /perception/object_recognition/visualization/detections
+      Name: Detected Objects
       Queue Size: 10
-      Topic: /perception/object_recognition/objects
-      Unreliable: false
+      Value: false
+    - Class: rviz/MarkerArray
+      Enabled: false
+      Marker Topic: /perception/object_recognition/visualization/tracks
+      Name: Tracked Objects
+      Queue Size: 10
+      Value: false
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /perception/object_recognition/visualization/predictions
+      Name: Predicted Objects
+      Queue Size: 10
       Value: true
-      Visualization Type: Normal
     - Class: rviz/Axes
       Enabled: true
       Length: 10
