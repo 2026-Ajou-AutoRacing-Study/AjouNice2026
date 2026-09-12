@@ -7,10 +7,15 @@ Panels:
         - /K-City v611
         - /Mission Route1
         - /Final Trajectory1
-        - /Current Vehicle1
+        - /Ego Vehicle1
+        - /Perception Objects1
         - /Route A Start1
       Splitter Ratio: 0.5
     Tree Height: 690
+  - Class: bringup/RosbagRecorder
+    Name: Rosbag Recorder
+  - Class: bringup/RouteControl
+    Name: Route Control
 Visualization Manager:
   Class: ""
   Displays:
@@ -58,26 +63,54 @@ Visualization Manager:
       Queue Size: 10
       Value: true
     - Alpha: 1
-      Class: rviz/Odometry
-      Color: 255; 213; 0
+      Class: rviz/RobotModel
+      Collision Enabled: false
       Enabled: true
-      Keep: 1
-      Name: Current Vehicle
-      Position Tolerance: 0.01
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+      Name: Ego Vehicle (IONIQ 5)
+      Robot Description: robot_description
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Class: autoware_perception_rviz_plugin/PredictedObjects
+      Confidence Interval: 95%
+      Display Acceleration: false
+      Display Existence Probability: false
+      Display Indicator: false
+      Display Label: true
+      Display Mesh: false
+      Display Offset: 0
+      Display Pose Covariance: false
+      Display Predicted Path Confidence: false
+      Display Predicted Paths: true
+      Display Twist: false
+      Display Twist Covariance: false
+      Display UUID: false
+      Display Velocity: true
+      Display Yaw Covariance: false
+      Display Yaw Rate: false
+      Display Yaw Rate Covariance: false
+      Enabled: true
+      Line Width: 0.08
+      Name: Perception Objects
+      Object Fill Type: skeleton
+      Polygon Type: 3d
       Queue Size: 10
-      Shape:
-        Alpha: 1
-        Axes Length: 3
-        Axes Radius: 0.2
-        Color: 255; 213; 0
-        Head Length: 1.2
-        Head Radius: 0.6
-        Shaft Length: 3
-        Shaft Radius: 0.3
-        Value: Arrow
-      Topic: /localization/kinematic_state
+      Topic: /perception/object_recognition/objects
       Unreliable: false
       Value: true
+      Visualization Type: Normal
     - Class: rviz/Axes
       Enabled: true
       Length: 10

@@ -55,18 +55,30 @@ void PredictedObjectsDisplay::workerThread()
 
 void PredictedObjectsDisplay::messageProcessorThreadJob()
 {
-  // Receiving
-  std::unique_lock<std::mutex> lock(mutex);
-  auto tmp_msg = this->msg;
-  this->msg.reset();
-  lock.unlock();
+  while (true) {
+    PredictedObjects::ConstPtr tmp_msg;
+    {
+      std::unique_lock<std::mutex> lock(mutex);
+      tmp_msg = msg;
+      msg.reset();
+      if (!tmp_msg) {
+        job_queued = false;
+        return;
+      }
+    }
 
-  auto tmp_markers = createMarkers(tmp_msg);
+    auto tmp_markers = createMarkers(tmp_msg);
 
-  lock.lock();
-  markers = tmp_markers;
-
-  consumed = true;
+    std::unique_lock<std::mutex> lock(mutex);
+    markers = std::move(tmp_markers);
+    if (!msg) {
+      job_queued = false;
+      return;
+    }
+    // A newer message arrived while markers were being generated. Process
+    // only that latest message in this worker instead of growing a stale job
+    // queue with callbacks that no longer own a message.
+  }
 }
 
 std::vector<visualization_msgs::Marker::Ptr> PredictedObjectsDisplay::createMarkers(
@@ -286,9 +298,14 @@ std::vector<visualization_msgs::Marker::Ptr> PredictedObjectsDisplay::createMark
 
 void PredictedObjectsDisplay::processMessage(const PredictedObjects::ConstPtr & msg)
 {
-  std::unique_lock<std::mutex> lock(mutex);
-
-  this->msg = msg;
+  {
+    std::unique_lock<std::mutex> lock(mutex);
+    this->msg = msg;
+    if (job_queued) {
+      return;
+    }
+    job_queued = true;
+  }
   queueJob(std::bind(&PredictedObjectsDisplay::messageProcessorThreadJob, this));
 }
 

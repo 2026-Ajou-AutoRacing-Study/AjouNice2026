@@ -1,5 +1,5 @@
 # Runtime ROS1 configuration. Change the case here and restart all three nodes.
-route_operation_case: route_a_only
+route_operation_case: route_a_to_b_with_fallback
 route_definition_file: kcity_v61_competition_route.yaml
 set_waypoint_route_service_name: /planning/set_waypoint_route
 set_lanelet_route_service_name: /planning/set_lanelet_route
@@ -11,7 +11,7 @@ map_topic: /map/vector_map
 trajectory_topic: /planning/trajectory
 validation_topic: /planning/validation_status
 reroute_availability_topic: /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/output/is_reroute_available
-auto_request_initial_route: true
+auto_request_initial_route: false
 allow_runtime_case_change: false
 odometry_max_age: 0.5
 operation_mode_max_age: 0.5
@@ -22,6 +22,7 @@ route_verification_timeout: 5.0
 trajectory_verification_timeout: 60.0
 trajectory_max_age: 1.0  # canonical Planning Validator latency threshold와 동일; controller freshness 0.5s는 별도다.
 goal_tolerance_m: 0.5
+route_a_refresh_max_speed_mps: 0.1
 retry_initial_interval: 2.0
 retry_reroute_interval: 1.0
 initial_route_max_attempts: 0

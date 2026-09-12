@@ -33,7 +33,8 @@
   <!-- PointPainting Obstacle is UNKNOWN; prevent tracker jitter becoming motion. -->
   <arg name="force_unknown_stationary" default="true"/>
   <arg name="start_traffic_light" default="true"/>
-  <arg name="start_requester" default="false"/>
+  <!-- Passive until the RViz Route A button calls the gateway service. -->
+  <arg name="start_requester" default="true"/>
   <arg name="start_controller" default="false"/>
   <!-- Competition operation policy: the stack is always reported as engaged autonomous. -->
   <arg name="publish_fixed_autonomous_mode" default="true"/>

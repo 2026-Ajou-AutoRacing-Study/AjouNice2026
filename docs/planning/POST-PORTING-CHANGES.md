@@ -98,3 +98,43 @@
 
 - `base_ws/src/bringup/launch/aw149_planning_rviz.launch`
 - `base_ws/src/bringup/rviz/kcity_aw149_planning.rviz`
+
+## 6. 초기 Route A 자동 요청을 RViz 수동 요청으로 변경
+
+변경 내용:
+
+- `auto_request_initial_route`를 `true`에서 `false`로 변경하여 planner 시작 직후의 Route A 자동 요청을 비활성화
+- RViz에 `REQUEST ROUTE A` 버튼과 requester 상태 표시를 추가
+- 버튼을 누르면 기존 `/competition_route_requester/request` 서비스에 `route_key=route_a`를 전달하도록 연결
+- 실제 `/planning/mission_planning/route` 발행은 새 수동 publisher를 만들지 않고 기존 RouteSelector와 Mission Planner가 담당하도록 유지
+- 운영 case를 `route_a_to_b_with_fallback`으로 변경
+- Route A 검증 이후 Route B와 fallback 자동 전환은 유지
+- planner 기동 시 requester 노드는 기본 실행하되 버튼 입력 전에는 route 요청을 하지 않도록 구성
+- 비대화형 통합 probe는 private 설정에서만 초기 Route A 자동 요청을 켜도록 분리
+- 이미 검증된 Route A뿐 아니라 Route B 또는 fallback이 활성화된 상태에서도 공식 start pose 3 m 이내이고 차량 속도가 0.1 m/s 이하일 때 같은 버튼으로 Route A를 다시 요청하도록 변경
+- Route A 재요청 시 기존 route를 먼저 지우지 않고 요청 시각 이후의 route와 새 trajectory/validator를 검증하도록 변경
+- Route B 또는 fallback에서 Route A로 돌아가는 동작은 자동화하지 않고 RViz 버튼 요청에만 허용
+- 새 Route A 요청을 수락할 때 이전 주행에서 대기 중이던 fallback 요청을 폐기하도록 변경
+
+변경 이유:
+
+- planner 기동 시점과 MORAI 차량 배치 완료 시점이 달라, 준비되지 않은 차량 위치를 기준으로 Route A가 자동 생성되는 것을 막기 위해 변경했다.
+- 운전자가 차량을 원하는 공식 시작 위치에 배치하고 정차를 확인한 뒤 Route A 생성 시점을 직접 결정하기 위해 RViz 수동 요청으로 변경했다.
+- MORAI에서 차량을 공식 시작점으로 다시 옮겼는데 Route B/fallback 상태와 이전 궤적이 유지되는 문제를 해결하고, 운전자가 정차 후 버튼을 눌러 새 Route A 주행을 명시적으로 시작할 수 있도록 변경했다.
+- 주행 중 오조작은 공식 시작점과 정차 조건으로 차단하고, Route A를 수락하면 이전 세션의 fallback이 새 경로를 덮어쓰지 못하도록 변경했다.
+
+적용 파일:
+
+- `base_ws/src/bringup/include/bringup/route_control_panel.hpp`
+- `base_ws/src/bringup/src/route_control_panel.cpp`
+- `base_ws/src/bringup/plugin_description.xml`
+- `base_ws/src/bringup/rviz/kcity_aw149_planning.rviz`
+- `base_ws/src/bringup/launch/aw149_planning_rviz.launch`
+- `base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester.param.yaml`
+- `base_ws/src/planning_addons/competition_route_requester/src/competition_route_requester/runtime.py`
+- `base_ws/src/planning_addons/competition_route_requester/src/competition_route_requester/policy.py`
+- `base_ws/src/planning_addons/competition_route_requester/test/test_gateway_ros.py`
+- `base_ws/src/planning_addons/competition_route_requester/test/test_policy.py`
+- `base_ws/src/planning_addons/ajounice_planning_integration/launch/planning.launch`
+- `base_ws/src/planning_addons/ajounice_planning_integration/launch/morai_planning_stack.launch`
+- `scripts/runtime/verify_integrated_planning_output.py`

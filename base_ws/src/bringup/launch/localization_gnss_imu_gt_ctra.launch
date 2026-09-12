@@ -19,7 +19,8 @@
        default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_gt_ctra_local.yaml"/>
   <arg name="global_ekf_gt_config"
        default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_gt_ctra_global.yaml"/>
-  <arg name="publish_sensor_tf" default="true"/>
+  <!-- sensing.launch owns the shared sensor static TFs in the competition stack. -->
+  <arg name="publish_sensor_tf" default="false"/>
 
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>

@@ -93,6 +93,15 @@ class Inputs:
         yaw = math.atan2(2*(q.w*q.z + q.x*q.y), 1-2*(q.y*q.y + q.z*q.z))
         return self.geometry.locate(p.x, p.y, yaw)
 
+    def ego_speed(self):
+        if self.odom is None:
+            return None
+        velocity = self.odom.twist.twist.linear
+        values = (velocity.x, velocity.y, velocity.z)
+        if not all(math.isfinite(value) for value in values):
+            return None
+        return math.sqrt(sum(value * value for value in values))
+
     def guard(self, key):
         progress = self.progress()
         if not policy.allowed(self.case, key) or progress is None or not policy.in_window(self.routes, key, *progress):
@@ -113,7 +122,19 @@ class Inputs:
             elif key != 'route_b' or self.case != 'route_b_only' or progress[0] != 200178:
                 return False, 'invalid initial route'
             return True, 'initial route ready'
-        if key == 'route_a' or self.state.state != RouteState.SET or not self.matches('route_a'):
+        if key == 'route_a':
+            if (self.active not in ('route_a', 'route_b', 'fallback_route') or
+                    self.state.state != RouteState.SET or not self.matches(self.active)):
+                return False, 'only a route verified by this gateway can be replaced with Route A'
+            start = self.routes['start']
+            p = self.odom.pose.pose.position
+            if math.hypot(p.x-start['map_pose']['x'], p.y-start['map_pose']['y']) > start['expected_pose_tolerance_m']:
+                return False, 'Route A restart requires the official start tolerance'
+            speed = self.ego_speed()
+            if speed is None or speed > self.cfg['route_a_refresh_max_speed_mps']:
+                return False, 'Route A restart requires a stopped vehicle'
+            return True, 'Route A restart ready at the stopped official start'
+        if self.state.state != RouteState.SET or not self.matches('route_a'):
             return False, 'current route is not verified Route A; reconcile before rerouting'
         a = self.availability
         ready = (self.mode.mode == OperationModeState.AUTONOMOUS and self.mode.is_autoware_control_enabled and
@@ -206,13 +227,19 @@ class Gateway(Inputs):
                 if key == 'fallback_route':
                     self.pending_fallback = True
                 return RequestRouteResponse(False, 'request already in flight')
-            if self.active in ('route_b', 'fallback_route') or key == self.active:
+            restart_a = key == 'route_a' and self.active in ('route_a', 'route_b', 'fallback_route')
+            if ((self.active in ('route_b', 'fallback_route') and not restart_a) or
+                    (key == self.active and not restart_a)):
                 return RequestRouteResponse(False, 'already verified; do not overwrite')
-            if self.pending_fallback and key != 'fallback_route':
+            if self.pending_fallback and key != 'fallback_route' and not restart_a:
                 return RequestRouteResponse(False, 'fallback has priority')
             ready, reason = self.guard(key)
             if not ready:
                 return RequestRouteResponse(False, reason)
+            if restart_a:
+                # A deliberate stopped-at-start Route A request starts a new run.
+                # Do not let a fallback queued by the previous run overwrite it.
+                self.pending_fallback = False
             self.busy = True
             self.generation += 1
             threading.Thread(target=self.run_request, args=(key,), daemon=True).start()
@@ -273,7 +300,9 @@ class Gateway(Inputs):
                 return
             deadline = time.monotonic() + self.cfg['route_verification_timeout']
             while not rospy.is_shutdown() and time.monotonic() < deadline:
-                if self.route_count > baseline and self.matches(key):
+                route_is_new = (self.route is not None and
+                                stamp(self.route.header.stamp) >= stamp(request.header.stamp))
+                if self.route_count > baseline and route_is_new and self.matches(key):
                     break
                 time.sleep(0.02)
             else:

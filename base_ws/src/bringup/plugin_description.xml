@@ -1,0 +1,16 @@
+<library path="lib/libbringup_rviz_plugins">
+  <class name="bringup/RosbagRecorder"
+         type="bringup::RosbagRecorderPanel"
+         base_class_type="rviz::Panel">
+    <description>
+      Start and stop a timestamped planning/perception rosbag from RViz.
+    </description>
+  </class>
+  <class name="bringup/RouteControl"
+         type="bringup::RouteControlPanel"
+         base_class_type="rviz::Panel">
+    <description>
+      Request Route A once and monitor competition route verification from RViz.
+    </description>
+  </class>
+</library>
