@@ -1,4 +1,7 @@
 export AJOUNICE_ROOT="${AJOUNICE_ROOT:-$HOME/AjouNice2026}"
+if [ -f "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" ]; then
+  source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh"
+fi
 
 #-----------------------------------------------------
 alias ck="catkin_make"
@@ -7,7 +10,7 @@ alias cb="code ~/.bashrc"
 
 alias rt="rostopic list"
 alias so="source /opt/ros/noetic/setup.bash"
-alias sd='source "$AJOUNICE_ROOT/base_ws/devel/setup.bash"'
+alias sd='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh"'
 alias sb="source ~/.bashrc"
 
 #-----------------------------------------------------
@@ -52,6 +55,7 @@ alias viewer_plot="roslaunch viewer viewer_plotjuggler.launch"
 
 alias localization_morai_gt="roslaunch bringup localization_morai_gt.launch"
 alias localization_fast_lio="roslaunch bringup localization_fast_lio.launch"
+alias localization='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch'
 alias maptf_morai="roslaunch bringup localization_morai_gt.launch" # deprecated alias name
 alias maptf_morai22="roslaunch bringup maptf_morai22.launch"
 alias maptf_morai_cor="roslaunch bringup maptf_morai_deg_correction.launch"
