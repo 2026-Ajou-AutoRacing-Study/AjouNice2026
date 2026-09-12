@@ -1,0 +1,19 @@
+<launch>
+  <!--
+    AjouNice PointPainting downstream pipeline.
+
+    PointPainting detection, localization/map TF, sensing, and RViz are owned
+    by separate terminals.  This launch owns only the canonical
+    DetectedObjects -> EKF TrackedObjects -> Map-CV PredictedObjects chain.
+    Operational values are fixed here so the shell alias needs no arguments.
+  -->
+  <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+    <arg name="repo_root" value="$(env AJOUNICE_ROOT)"/>
+    <arg name="use_sim_time" value="false"/>
+    <arg name="start_detector" value="false"/>
+    <arg name="world_frame_id" value="map"/>
+    <arg name="prediction_model" value="map_based"/>
+    <arg name="prediction_time_step" value="0.1"/>
+    <arg name="prediction_horizon" value="3.0"/>
+  </include>
+</launch>
