@@ -41,7 +41,8 @@
 
   <!-- Detector-specific launch arguments. -->
   <arg name="python_executable" default=""/>
-  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="repo_root"
+       default="$(eval find('perception_object_pipeline') + '/../../..')"/>
   <arg name="map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
   <arg name="projector_file"

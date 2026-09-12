@@ -2,7 +2,8 @@
   <!-- Compatibility entrypoint for the standardized production pipeline. -->
   <arg name="python_executable" default=""/>
   <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
-  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="repo_root"
+       default="$(eval find('morai_pointpainting_ros') + '/../../..')"/>
   <arg name="cfg_file"
        default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpillar_morai_pointpainting_base2_singleframe9_geom_aug.yaml"/>
   <arg name="checkpoint"
@@ -23,6 +24,7 @@
   <arg name="vehicle_score_threshold" default="0.40"/>
   <arg name="pedestrian_score_threshold" default="0.15"/>
   <arg name="obstacle_score_threshold" default="0.10"/>
+  <arg name="publish_detector_velocity" default="false"/>
   <arg name="warmup_segmentation" default="true"/>
   <arg name="warmup_full_pipeline" default="true"/>
   <arg name="warmup_iterations" default="2"/>
@@ -64,6 +66,8 @@
          value="$(arg pedestrian_score_threshold)"/>
     <arg name="pointpainting_obstacle_score_threshold"
          value="$(arg obstacle_score_threshold)"/>
+    <arg name="pointpainting_publish_detector_velocity"
+         value="$(arg publish_detector_velocity)"/>
     <arg name="warmup_segmentation" value="$(arg warmup_segmentation)"/>
     <arg name="warmup_full_pipeline" value="$(arg warmup_full_pipeline)"/>
     <arg name="warmup_iterations" value="$(arg warmup_iterations)"/>

@@ -1,5 +1,10 @@
 # Map-CV production handoff
 
+> Historical handoff: 이 문서의 알고리즘·토픽 계약은 유효하지만 E65 성능값과
+> v60 runtime 경로는 과거 기준이다. 현재 PP1/v61 production 실행과 운영값은
+> `perception/pointpainting/docs/production_runtime_contract_260913.md` 및
+> `docs/runbooks/morai_pointpainting_object_pipeline_live.md`를 우선한다.
+
 이 문서는 2026-08-20 기준 객체 Detection → Tracking → Prediction 파이프라인의
 production 설정, 검증 근거, 기각한 실험, 알려진 한계와 재개 순서를 한 곳에 정리한다.
 한동안 Prediction 작업을 중단한 뒤 다시 시작할 때 이 문서를 먼저 읽는다.

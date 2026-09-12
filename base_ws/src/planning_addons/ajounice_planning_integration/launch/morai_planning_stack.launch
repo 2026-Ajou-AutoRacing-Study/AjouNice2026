@@ -16,7 +16,12 @@
 
   <arg name="start_localization" default="true"/>
   <arg name="start_sensor_tf" default="true"/>
-  <arg name="start_object_pipeline" default="true"/>
+  <!--
+    The official split PP1 procedure owns this graph through the separate
+    `tracking` command. The old integrated-stack ownership remains an explicit
+    compatibility opt-in; never combine it with `tracking`.
+  -->
+  <arg name="start_object_pipeline" default="false"/>
   <!-- Model checkpoints are not stored in Git; enable only after provisioning. -->
   <arg name="start_detector" default="false"/>
   <arg name="detector" default="fastbev"/>
@@ -24,12 +29,15 @@
        default="$(arg repo_root)/artifacts/detection3d/fastbev/releases/fastbev_i3_production.pth"/>
   <arg name="openpcdet_root" default=""/>
   <arg name="pointpainting_cfg"
-       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpillar_morai_pointpainting_base2_singleframe9_geom_aug.yaml"/>
+       default="$(arg repo_root)/artifacts/team_handoffs/260909_pointpainting_production_3model/models/b3s_pp1_e34/model.yaml"/>
   <arg name="pointpainting_checkpoint"
-       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpainting_base2_s1_best_epoch38.pth"/>
+       default="$(arg repo_root)/artifacts/team_handoffs/260909_pointpainting_production_3model/models/b3s_pp1_e34/detector.pth"/>
   <arg name="pointpainting_segmentation_checkpoint"
-       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/lraspp_4class_best_miou.pth"/>
-  <arg name="prediction_model" default="ctrv"/>
+       default="$(arg repo_root)/artifacts/team_handoffs/260909_pointpainting_production_3model/segmentation/base3_lraspp_e30/segmentation.pth"/>
+  <arg name="pointpainting_vehicle_score_threshold" default="0.40"/>
+  <arg name="pointpainting_pedestrian_score_threshold" default="0.15"/>
+  <arg name="pointpainting_obstacle_score_threshold" default="0.10"/>
+  <arg name="prediction_model" default="map_based"/>
   <!-- PointPainting Obstacle is UNKNOWN; prevent tracker jitter becoming motion. -->
   <arg name="force_unknown_stationary" default="true"/>
   <arg name="start_traffic_light" default="true"/>
@@ -74,9 +82,28 @@
            value="$(arg pointpainting_checkpoint)"/>
       <arg name="pointpainting_segmentation_checkpoint"
            value="$(arg pointpainting_segmentation_checkpoint)"/>
+      <arg name="pointpainting_vehicle_score_threshold"
+           value="$(arg pointpainting_vehicle_score_threshold)"/>
+      <arg name="pointpainting_pedestrian_score_threshold"
+           value="$(arg pointpainting_pedestrian_score_threshold)"/>
+      <arg name="pointpainting_obstacle_score_threshold"
+           value="$(arg pointpainting_obstacle_score_threshold)"/>
       <arg name="prediction_model" value="$(arg prediction_model)"/>
       <arg name="force_unknown_stationary"
            value="$(arg force_unknown_stationary)"/>
+      <!-- Keep the integrated compatibility path equivalent to `tracking`. -->
+      <arg name="canonicalize_vehicle_orientation_to_motion" value="true"/>
+      <arg name="orientation_canonicalization_min_speed_mps" value="1.0"/>
+      <arg name="orientation_flip_enter_error_deg" value="100.0"/>
+      <arg name="orientation_flip_exit_error_deg" value="80.0"/>
+      <arg name="compensate_tracking_output_to_current_time" value="false"/>
+      <arg name="maximum_tracking_output_compensation_sec" value="0.25"/>
+      <arg name="tracking_internal_publish_rate_hz" value="30.0"/>
+      <arg name="maximum_tracking_internal_prediction_age_sec" value="0.25"/>
+      <arg name="detection_velocity_fusion_mode" value="0"/>
+      <arg name="tracking_publish_rate_hz" value="0.0"/>
+      <arg name="prediction_time_step" value="0.1"/>
+      <arg name="prediction_horizon" value="3.0"/>
       <arg name="map_file"
            value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
       <arg name="projector_file"

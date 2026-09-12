@@ -1,10 +1,12 @@
 import math
+from types import SimpleNamespace
 
 from tracking_prediction_evaluation.pipeline_evaluator import (
     EgoPoint,
     ObjectEstimate,
     PredictedPathEstimate,
     _path_position,
+    duration_seconds,
     evaluate_detection_tracking_yaw_flow,
     evaluate_pipeline,
     is_cv_stable_horizon,
@@ -45,6 +47,13 @@ def test_assignment_uses_global_minimum_and_distance_gate():
     assert [round(item[2], 6) for item in matches] == [0.2, 0.3]
     assert matched_gt == {0, 1}
     assert matched_estimates == {0, 1}
+
+
+def test_duration_seconds_accepts_ros1_and_ros2_layouts():
+    ros1 = SimpleNamespace(secs=1, nsecs=250_000_000)
+    ros2 = SimpleNamespace(sec=2, nanosec=500_000_000)
+    assert math.isclose(duration_seconds(ros1), 1.25)
+    assert math.isclose(duration_seconds(ros2), 2.5)
 
 
 def test_detection_tracking_flow_reports_signed_stage_errors():

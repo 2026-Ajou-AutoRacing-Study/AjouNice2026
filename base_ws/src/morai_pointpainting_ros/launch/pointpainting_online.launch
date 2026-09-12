@@ -1,7 +1,8 @@
 <launch>
   <arg name="use_sim_time" default="false"/>
   <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
-  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="repo_root"
+       default="$(eval find('morai_pointpainting_ros') + '/../../..')"/>
   <!--
     An explicit interpreter lets the same catkin wrapper run with either the
     teammate's Python 3.8 Conda environment or the RTX 50 Python 3.11
