@@ -7,8 +7,7 @@
     DetectedObjects -> EKF TrackedObjects -> Map-CV PredictedObjects chain.
     Operational values are fixed here and are visible at the roslaunch entrypoint.
   -->
-  <arg name="repo_root"
-       default="$(eval find('perception_object_pipeline') + '/../../..')"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="use_sim_time" default="false"/>
   <arg name="map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v62.osm"/>

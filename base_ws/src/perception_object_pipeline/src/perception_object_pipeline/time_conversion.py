@@ -1,11 +1,13 @@
 """Conversions for duration fields in the ROS 1-ported Autoware messages."""
 
-import rospy
+from builtin_interfaces.msg import Duration
 
 
 def builtin_duration_from_seconds(seconds):
-    """Return the ROS 1 representation of a ported ROS 2 Duration field."""
-    return rospy.Duration.from_sec(float(seconds))
+    """Return the generated message used by ported ROS 2 Duration fields."""
+    total_nanoseconds = int(round(float(seconds) * 1_000_000_000))
+    sec, nanosec = divmod(total_nanoseconds, 1_000_000_000)
+    return Duration(sec=sec, nanosec=nanosec)
 
 
 def duration_to_seconds(value):

@@ -1,6 +1,8 @@
 <launch>
   <!-- Visualization only: it does not launch or modify any planning node. -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="planning_python_path"
+       default="$(arg repo_root)/planning_ws/install_isolated/lib/python3/dist-packages:$(optenv PYTHONPATH)"/>
   <arg name="map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v62.osm"/>
   <arg name="projector_file"
@@ -33,7 +35,7 @@
 
   <!-- Visualization only: reuse the existing IONIQ 5 mesh on the live base_link TF. -->
   <param name="robot_description"
-         command="$(find xacro)/xacro '$(find ioniq5)/urdf/ioniq5.urdf.xacro'"/>
+         command="xacro '$(find ioniq5)/urdf/ioniq5.urdf.xacro'"/>
 
   <group if="$(arg flatten_visualization_map)">
     <node pkg="tf2_ros"
@@ -44,6 +46,7 @@
 
     <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
       <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="python_path" value="$(arg planning_python_path)"/>
       <arg name="map_file" value="$(arg map_file)"/>
       <arg name="projector_file" value="$(arg projector_file)"/>
       <arg name="projector_type" value="LocalCartesianUTM"/>
@@ -59,6 +62,7 @@
   <group unless="$(arg flatten_visualization_map)">
     <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
       <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="python_path" value="$(arg planning_python_path)"/>
       <arg name="map_file" value="$(arg map_file)"/>
       <arg name="projector_file" value="$(arg projector_file)"/>
       <arg name="projector_type" value="LocalCartesianUTM"/>
@@ -73,6 +77,7 @@
 
   <node pkg="bringup" type="planning_trajectory_visualizer.py"
         name="planning_trajectory_visualizer" output="screen">
+    <env name="PYTHONPATH" value="$(arg planning_python_path)"/>
     <param name="input_topic" value="$(arg trajectory_topic)"/>
     <param name="path_topic" value="/planning/debug/final_trajectory/path"/>
     <param name="marker_topic" value="/planning/debug/final_trajectory/markers"/>
@@ -88,6 +93,7 @@
         type="object_pipeline_visualization_node.py"
         name="planning_perception_visualization"
         output="screen" respawn="false">
+    <env name="PYTHONPATH" value="$(arg planning_python_path)"/>
     <param name="input/detections"
            value="/perception/object_recognition/detection/objects"/>
     <param name="input/tracks"
