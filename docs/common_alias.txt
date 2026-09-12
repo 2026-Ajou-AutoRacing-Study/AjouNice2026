@@ -72,5 +72,6 @@ alias morai_reset='bash "$AJOUNICE_ROOT/scripts/runtime/morai_reset.sh" stack'
 
 # planning-----------------------------------------------
 alias planning='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch ajounice_planning_integration competition_planning.launch'
+alias planviz="roslaunch bringup aw149_planning_rviz.launch"
 alias planner='roslaunch bringup kcity_morai_competition_planner_rviz.launch'
 alias kroute='roslaunch bringup kcity_competition_route.launch'
