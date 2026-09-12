@@ -3,7 +3,8 @@
   <!-- Flat rear-axle-frame values, cross-checked against the vehicle mesh record. -->
   <arg name="vehicle_param_path"
        default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
-  <arg name="start_requester" default="false"/>
+  <!-- Passive until the RViz Route A button calls the gateway service. -->
+  <arg name="start_requester" default="true"/>
   <arg name="is_simulation" default="false"/>
   <arg name="behavior_path_forward_length" default="150.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>

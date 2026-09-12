@@ -15,7 +15,7 @@ def validate(config, routes):
                  'reroute_available_hold_time', 'service_timeout',
                  'route_verification_timeout', 'trajectory_verification_timeout',
                  'retry_initial_interval', 'retry_reroute_interval', 'trajectory_max_age',
-                 'operation_mode_max_age', 'goal_tolerance_m'):
+                 'operation_mode_max_age', 'goal_tolerance_m', 'route_a_refresh_max_speed_mps'):
         value = config.get(name)
         if not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
             raise ValueError('invalid positive parameter: ' + name)

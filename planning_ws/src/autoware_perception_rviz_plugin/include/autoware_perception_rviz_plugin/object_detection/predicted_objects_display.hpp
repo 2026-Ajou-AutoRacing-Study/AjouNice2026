@@ -147,7 +147,7 @@ private:
   std::queue<std::function<void()>> jobs;
 
   PredictedObjects::ConstPtr msg;
-  bool consumed{false};
+  bool job_queued{false};
   std::mutex mutex;
   std::condition_variable condition;
   std::vector<visualization_msgs::Marker::Ptr> markers;
