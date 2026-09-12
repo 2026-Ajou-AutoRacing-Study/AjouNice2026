@@ -72,10 +72,9 @@ ROS output threshold.
 - CUDA GPU
 - `openpcdet_rtx50` Conda environment
 - OpenPCDet at `~/OpenPCDet`
-- S1 E38 detector release bundle at
-  `artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/`
-- shared LRASPP checkpoint at
-  `artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/lraspp_4class_best_miou.pth`
+- PP1 production bundle at
+  `artifacts/team_handoffs/260909_pointpainting_production_3model/`
+- B3S-PP1 E34 detector and Base3 LRASPP E30 files from that bundle
 
 Install ROS dependencies:
 
@@ -86,18 +85,15 @@ sudo apt install -y \
   ros-noetic-visualization-msgs
 ```
 
-The detector and segmentation checkpoints are stored in separate release
-directories. Runtime does not download VOC segmentation weights.
+Runtime does not download model weights. Provision the bundle locally and pass
+its path explicitly to the production launch.
 
-## Build
+## Workspace build
 
 ```bash
-mkdir -p ~/catkin_ws/src
-cp -r morai_pointpainting_ros ~/catkin_ws/src/
-
-cd ~/catkin_ws
+cd ~/AjouNice2026/base_ws
 source /opt/ros/noetic/setup.bash
-catkin_make
+catkin build morai_pointpainting_ros perception_object_pipeline
 source devel/setup.bash
 ```
 
@@ -107,7 +103,7 @@ The shell must use the OpenPCDet Conda Python. Do not keep a second virtualenv a
 deactivate 2>/dev/null || true
 conda activate openpcdet_rtx50
 source /opt/ros/noetic/setup.bash
-source ~/catkin_ws/devel/setup.bash
+source ~/AjouNice2026/base_ws/devel/setup.bash
 which python
 ```
 
@@ -117,82 +113,64 @@ Expected Python:
 $CONDA_PREFIX/bin/python
 ```
 
-## Test with the recorded rosbag
+## Production execution
 
-Terminal 1:
+Do not launch detector, tracker and predictor together from the detector Conda
+environment. Use the explicit ROS launch entrypoints in separate terminals:
 
 ```bash
+# Terminal 1
 roscore
+
+# Terminal 2: activate this machine's detector environment first
+roslaunch morai_pointpainting_ros pointpainting_production.launch \
+  python_executable:="$(command -v python)" \
+  openpcdet_root:=/path/to/OpenPCDet \
+  bundle_root:=/path/to/260909_pointpainting_production_3model
+
+# Terminal 3: EKF -> UNKNOWN stationary policy -> v62 Map-CV
+roslaunch perception_object_pipeline tracking_prediction.launch
 ```
 
-Terminal 2:
+The authoritative runbook is
+`docs/runbooks/morai_pointpainting_object_pipeline_live.md`. The generic
+`pointpainting_online.launch`, `pointpainting_with_tp.launch`, and
+`object_pipeline.launch` entrypoints remain available for controlled research
+and compatibility, but their defaults do not define production.
 
-```bash
-deactivate 2>/dev/null || true
-conda activate openpcdet_rtx50
-source /opt/ros/noetic/setup.bash
-source ~/catkin_ws/devel/setup.bash
-
-rosparam set use_sim_time true
-
-roslaunch morai_pointpainting_ros pointpainting_online.launch \
-  publish_painted_points:=true
-```
-
-Terminal 3:
-
-```bash
-source /opt/ros/noetic/setup.bash
-rosbag play --clock \
-  ~/rosbags/sensor_cam_raw_ped1.bag
-```
-
-Terminal 4:
-
-```bash
-deactivate 2>/dev/null || true
-conda activate openpcdet
-source /opt/ros/noetic/setup.bash
-source ~/catkin_ws/devel/setup.bash
-
-rosrun morai_pointpainting_ros check_pointpainting_output.py
-```
+For recorded data use
+`perception/pointpainting/tools/run_rosbag_pipeline_evaluation.sh`; it owns an
+isolated ROS master and enforces simulated time across localization, EKF and
+prediction.
 
 ## RViz
 
 ```bash
-rviz
+roslaunch perception_object_pipeline object_pipeline_visualization.launch
 ```
 
-Set Fixed Frame to `lidar1`, then add:
+The production view uses fixed frame `map` and the canonical detection,
+tracking and prediction messages. Legacy detector-only debugging may instead
+use fixed frame `lidar1` with:
 
 - `MarkerArray`: `/pointpainting/detection_markers`
 - `PointCloud2`: `/pointpainting/painted_points` when enabled
 
-## Live MORAI run
-
-The node command is unchanged because the live simulator uses the same topics:
-
-```bash
-rosparam set use_sim_time false
-
-roslaunch morai_pointpainting_ros pointpainting_online.launch \
-  publish_painted_points:=false
-```
-
-Debug cloud publishing should be disabled for the final run to reduce copying and bandwidth.
+Debug cloud publishing is disabled by the production launch to reduce copying
+and bandwidth.
 
 ## Real-time acceptance checks
 
-The 2026-08-16 runtime benchmark uses four CPU workers for camera decode and
-the training-compatible torchvision/PIL preprocessing path. At a stress input
-of camera 34.6 Hz / LiDAR 15.0 Hz it measured:
+Production uses OpenCV preprocessing and four CPU camera workers. In the
+2026-08-16 backend A/B at camera 34.6 Hz / LiDAR 15.0 Hz, that path measured:
 
 - detection publish: 14.97 Hz
-- total compute p50/p95: 54.9 / 59.5 ms
-- arrival-to-publish p50/p95: 58.5 / 72.5 ms
-- LiDAR replacement: 1/464 frames (0.22%)
+- total compute p50/p95: 45.2 / 48.9 ms
+- arrival-to-publish p50/p95: 46.0 / 53.0 ms
 - continuously growing queue: not observed
+
+The historical PIL path measured 54.9 / 59.5 ms compute p50/p95 and one LiDAR
+replacement in 464 frames. It is retained only as an A/B reference.
 
 During rosbag and live tests, confirm:
 

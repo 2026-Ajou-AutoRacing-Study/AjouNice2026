@@ -6,11 +6,14 @@
 
 - `planning_ws/src`에는 ROS1 포팅 경계 149개와 지원 5개가 있으며 provider 소스도 저장소 안에 있다.
 - 중복 Autoware 메시지 14개는 base에서 제거했고 planning install을 단일 메시지 소유자로 쓴다.
-- base의 새 메시지 소비 코드(Duration/Time), tracker 설치, traffic-light helper/weights, v61 경로, follower 입력을 수정했다.
+- base의 새 메시지 소비 코드(Duration/Time), tracker 설치, traffic-light helper/weights, v62 경로, follower 입력을 수정했다.
 - `scripts/workspace/setup_ws.sh`가 submodule 초기화 후 base의 과거 build/devel/install을 정리하고, planning underlay, pin된 Livox SDK, base 25개를 순서대로 빌드한다. 증분 빌드는 `build_all.sh`, 재현용 clean 빌드는 `build_all.sh --clean`이다.
 - 공식 runtime overlay는 `base_ws/install_aw149` 하나다. `base_ws/devel` 또는 과거 addon install을 source하지 않는다.
 - 저장소 내부 runtime 경로는 `source_aw149.sh`가 설정하는 `AJOUNICE_ROOT`를 기준으로 하므로 checkout이 `$HOME/AjouNice2026`가 아니어도 된다.
-- `ajounice_planning_integration/morai_planning_stack.launch`가 localization, sensor TF, object tracking/prediction, traffic light, v61 binary map, Mission→BPP→BVP→MVP graph를 묶는다.
+- `ajounice_planning_integration/morai_planning_stack.launch`가 localization,
+  sensor TF, traffic light, v62 binary map, Mission→BPP→BVP→MVP graph를 묶는다.
+  이 full-stack launch가 object tracking/prediction을 기본 소유한다.
+  `tracking_prediction.launch`는 standalone 진단용이며 동시에 실행하지 않는다.
 - detector checkpoint는 Git에 없으므로 detector와 controller는 안전상 기본 `false`다. route requester 노드는 기본 기동하지만 `auto_request_initial_route=false`라 RViz의 명시적 Route A 요청 전에는 route 서비스를 호출하지 않는다.
 
 현재 로컬 증거는 planning source audit PASS, planning 154/154와 base 25/25 clean install, planning 설치 ELF 230개 링크 감사, install runtime 자산 전수 감사, 현재 지원하는 설치본 launch 19/19 파싱, object pipeline 21 tests, tracker 14 tests, tracking/prediction evaluation 29 tests, trajectory-validator 9 tests, traffic contract 2 tests, requester policy 8 tests와 ROS transport 11 tests다. base clean 결과물의 전체 회귀는 25/25 target, JUnit 114 tests가 오류·실패·스킵 없이 통과했다. MORAI GT localization은 실제 주행 bag의 이동 구간 250개 표본에서 odometry/acceleration 동일 stamp와 acceleration 값 보존을 확인했다. operation-mode `/system`→`/api` relay도 ROS transport 검사를 통과했다. v61 통합 graph는 24개 노드가 외부 입력 없이 25초 동안 process death/FATAL 없이 기동했고 map loader와 traffic model load까지 통과했다. 최신 clean build와 launch 결과는 [machine receipt](evidence/planning-clean-integration-r002.json)에 고정했다.

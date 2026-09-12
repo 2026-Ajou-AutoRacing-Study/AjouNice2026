@@ -51,15 +51,15 @@ Type:
 
 ## Current validated operating point
 
-- Model: PointPainting PointPillars, epoch 20.
-- Score threshold: 0.20.
-- Validated detection output range: up to 20 m.
-- Validation TP BEV centre error:
-  - mean 0.145 m
-  - p90 0.225 m
-  - maximum 0.296 m
-- Current validation precision/recall:
-  - precision 0.227
-  - recall 0.423
+- Detector: Base3-Static `B3S-PP1 E34`.
+- Semantic model: Base3 LRASPP E30.
+- Range: 30 m.
+- Thresholds: Vehicle `0.40`, Pedestrian `0.15`, Obstacle `0.10`.
+- Input: single-frame 9-feature PointPainting.
+- Detector velocity: disabled.
+- Intra-scan coordinate deskew: disabled.
 
-These numbers came from one MORAI rosbag and are pipeline-validation results, not final generalisation claims.
+The previous epoch-20/threshold-0.20 figures were an early single-bag pipeline
+smoke test and are no longer the production operating point. Current model
+selection and rosbag metrics are recorded in
+`perception/pointpainting/docs/production_runtime_contract_260913.md`.

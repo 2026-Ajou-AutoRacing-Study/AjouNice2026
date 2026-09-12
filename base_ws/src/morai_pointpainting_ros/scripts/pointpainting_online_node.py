@@ -449,6 +449,9 @@ class PointPaintingOnlineNode:
         self.score_threshold = float(
             rospy.get_param("~score_threshold", 0.10)
         )
+        self.model_score_threshold = float(
+            rospy.get_param("~model_score_threshold", -1.0)
+        )
         self.class_score_thresholds = {
             "vehicle": float(
                 rospy.get_param("~vehicle_score_threshold", 0.40)
@@ -467,6 +470,18 @@ class PointPaintingOnlineNode:
                         class_name, threshold
                     )
                 )
+        if (
+            self.model_score_threshold > 1.0
+            or (
+                self.model_score_threshold < 0.0
+                and self.model_score_threshold != -1.0
+            )
+        ):
+            raise ValueError(
+                "model_score_threshold must be -1 or in [0, 1], got {}".format(
+                    self.model_score_threshold
+                )
+            )
         self.foreground_semantic_scale = float(
             rospy.get_param("~foreground_semantic_scale", 1.0)
         )
@@ -1249,6 +1264,16 @@ class PointPaintingOnlineNode:
             os.chdir(str(self.tools_dir))
 
         self.pcdet_cfg = cfg
+        if self.model_score_threshold >= 0.0:
+            configured_threshold = float(
+                cfg.MODEL.POST_PROCESSING.SCORE_THRESH
+            )
+            cfg.MODEL.POST_PROCESSING.SCORE_THRESH = self.model_score_threshold
+            rospy.logwarn(
+                "Diagnostic model score-floor override: %.4f -> %.4f",
+                configured_threshold,
+                self.model_score_threshold,
+            )
         self.pcdet_load_data_to_gpu = None
 
         logger = common_utils.create_logger()
