@@ -27,7 +27,7 @@ mpt/common/delta_arc_length: 1.0
 mpt/clearance/hard_clearance_from_road: 0.0
 mpt/clearance/soft_clearance_from_road: 0.1
 mpt/weight/soft_collision_free_weight: 1.0
-mpt/weight/lat_error_weight: 1.0
+mpt/weight/lat_error_weight: 30.0
 mpt/weight/yaw_error_weight: 0.0
 mpt/weight/yaw_error_rate_weight: 0.0
 mpt/weight/steer_input_weight: 1.0
