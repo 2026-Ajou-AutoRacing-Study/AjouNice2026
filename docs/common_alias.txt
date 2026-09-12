@@ -1,3 +1,8 @@
+# Full stack terminals: rc -> udp -> sensing -> localization -> pointpainting
+#                      -> tracking -> traffic -> planning -> traj_fol_a
+# pointpainting: run `conda activate pp` yourself first; no automatic activation.
+# localization owns map/odom/base_link TF: do not also launch maptf_morai.
+# Start traj_fol_a only after checking planning inputs and the output trajectory.
 export AJOUNICE_ROOT="${AJOUNICE_ROOT:-$HOME/AjouNice2026}"
 export POINTPAINTING_BUNDLE_ROOT="${POINTPAINTING_BUNDLE_ROOT:-$HOME/Downloads/260909_pointpainting_production_3model}"
 if [ -f "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" ]; then
@@ -35,7 +40,7 @@ alias udp="roslaunch sensor_interface morai_udp_interface.launch"
 alias udp22="roslaunch sensor_interface morai_udp_interface_22.launch"
 alias sensing="roslaunch bringup sensing.launch"
 alias pointpainting='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && POINTPAINTING_ACTIVATE_CONDA=false POINTPAINTING_WITH_TP=false POINTPAINTING_CFG="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/model.yaml" POINTPAINTING_CKPT="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/detector.pth" POINTPAINTING_SEG_CKPT="$POINTPAINTING_BUNDLE_ROOT/segmentation/base3_lraspp_e30/segmentation.pth" rosrun morai_pointpainting_ros run_pointpainting.sh live'
-alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline tracking_prediction.launch'
+alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline object_pipeline.launch start_detector:=false prediction_model:=map_based'
 alias traffic='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch traffic_light_detection traffic_light_node.launch'
 
 # control----------------------------------------------
