@@ -166,6 +166,10 @@ install(DIRECTORY config test_data DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATIO
 
 find_package(autoware_utils_rclcpp REQUIRED)
 include_directories(BEFORE ${autoware_utils_rclcpp_INCLUDE_DIRS})
+# This package is also present in install_isolated while being rebuilt. Keep its current source
+# headers ahead of that installed copy so incremental builds cannot compile new sources against a
+# stale self-header.
+include_directories(BEFORE include src)
 
 # Installed test executables require their catkin-built GoogleTest library.
 # This changes only installation closure, not planner or test behavior.

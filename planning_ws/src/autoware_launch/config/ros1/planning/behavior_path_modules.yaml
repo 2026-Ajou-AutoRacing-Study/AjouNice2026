@@ -76,7 +76,7 @@ dynamic_avoidance:
 avoidance:
   resample_interval_for_planning: 0.3
   resample_interval_for_output: 4.0
-  use_lane_type: current_lane
+  use_lane_type: opposite_direction_lane
   use_intersection_areas: true
   use_hatched_road_markings: true
   use_freespace_areas: true
@@ -213,8 +213,10 @@ avoidance:
         - DEVIATING
         th_closest_distance: 10.0
     avoidance_for_parking_violation_vehicle:
-      policy: ignore
+      policy: auto
+      force_avoid_stopped_vehicle_in_intersection: true
       condition:
+        th_stopped_time: 3.0
         th_road_border_distance: 0.8
     avoidance_for_adjacent_lane_stop_vehicle:
       policy: auto

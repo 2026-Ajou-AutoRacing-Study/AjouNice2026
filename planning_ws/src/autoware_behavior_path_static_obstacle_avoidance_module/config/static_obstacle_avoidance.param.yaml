@@ -172,7 +172,12 @@
           # "manual" : generate candidate path and wait operator approval even if RTC is running as AUTO mode.
           # "ignore" : never avoid it.
           policy: "ignore"                              # [-]
+          # If true, a parallel vehicle stopped in an intersection longer than
+          # condition.th_stopped_time is promoted to a parking-violation target.
+          # Feasibility, RTC, and safety checks are still applied.
+          force_avoid_stopped_vehicle_in_intersection: false
           condition:
+            th_stopped_time: 3.0                        # [s]
             th_road_border_distance: 0.8                  # [m]
 
         avoidance_for_adjacent_lane_stop_vehicle:

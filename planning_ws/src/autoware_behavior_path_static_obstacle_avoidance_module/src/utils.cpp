@@ -746,6 +746,23 @@ bool isNeverAvoidanceTarget(
       if (object.is_parking_violation) {
         return false;
       }
+
+      const bool force_avoid_stopped_parallel_vehicle =
+        parameters->force_avoid_stopped_vehicle_in_intersection &&
+        object.behavior == ObjectData::Behavior::NONE &&
+        object.stop_time > parameters->force_avoid_stopped_vehicle_in_intersection_time;
+      if (force_avoid_stopped_parallel_vehicle) {
+        // Reuse the parking-violation policy/approval flow after deliberately promoting this
+        // intersection blocker to an avoidance target. Downstream feasibility and safety checks
+        // remain enabled and may still reject the maneuver.
+        object.is_parking_violation = true;
+        object.info = ObjectInfo::PARKING_VIOLATION_VEHICLE;
+        RCLCPP_INFO_THROTTLE(
+          rclcpp::get_logger(logger_namespace), rclcpp::Clock{}, 3000,
+          "force avoidance target: parallel vehicle stopped in intersection for %.1f s",
+          object.stop_time);
+        return false;
+      }
     }
 
     if (object.behavior == ObjectData::Behavior::NONE) {

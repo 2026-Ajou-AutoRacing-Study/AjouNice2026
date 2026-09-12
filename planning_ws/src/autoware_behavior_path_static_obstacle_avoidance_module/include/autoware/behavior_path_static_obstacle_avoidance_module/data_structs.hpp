@@ -119,6 +119,11 @@ struct AvoidanceParameters
   // enable avoidance for parking violation vehicle
   std::string policy_parking_violation_vehicle{"ignore"};
 
+  // Treat a sufficiently long-stopped parallel vehicle in an intersection as a parking violation
+  // avoidance target, even when it is not close enough to the road border.
+  bool force_avoid_stopped_vehicle_in_intersection{false};
+  double force_avoid_stopped_vehicle_in_intersection_time{3.0};
+
   // threshold distance to road border for parking violation detection
   double th_road_border_distance{0.0};
 

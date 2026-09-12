@@ -863,9 +863,20 @@
                   "description": "Ego behavior policy for parking violation vehicle.",
                   "default": "ignore"
                 },
+                "force_avoid_stopped_vehicle_in_intersection": {
+                  "type": "boolean",
+                  "description": "Promote a sufficiently long-stopped parallel vehicle in an intersection to a parking-violation avoidance target. Feasibility and safety checks still apply.",
+                  "default": false
+                },
                 "condition": {
                   "type": "object",
                   "properties": {
+                    "th_stopped_time": {
+                      "type": "number",
+                      "description": "Stopped-time threshold for forced intersection avoidance.",
+                      "default": 3.0,
+                      "minimum": 0.0
+                    },
                     "th_road_border_distance": {
                       "type": "number",
                       "description": "Distance threshold from road border to determine parking violation.",
@@ -873,11 +884,11 @@
                       "minimum": 0.0
                     }
                   },
-                  "required": ["th_road_border_distance"],
+                  "required": ["th_stopped_time", "th_road_border_distance"],
                   "additionalProperties": false
                 }
               },
-              "required": ["policy", "condition"],
+              "required": ["policy", "force_avoid_stopped_vehicle_in_intersection", "condition"],
               "additionalProperties": false
             },
             "avoidance_for_adjacent_lane_stop_vehicle": {

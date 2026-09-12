@@ -1586,4 +1586,32 @@ TEST(TestUtils, calcErrorEclipseLongRadius)
 
   EXPECT_DOUBLE_EQ(calcErrorEclipseLongRadius(pose_with_covariance), 3.0);
 }
+
+TEST(TestUtils, forceAvoidStoppedParallelVehicleInIntersection)
+{
+  AvoidancePlanningData data;
+  auto parameters = std::make_shared<AvoidanceParameters>();
+  parameters->policy_parking_violation_vehicle = "auto";
+  parameters->force_avoid_stopped_vehicle_in_intersection = true;
+  parameters->force_avoid_stopped_vehicle_in_intersection_time = 3.0;
+
+  ObjectData object;
+  object.is_within_intersection = true;
+  object.behavior = ObjectData::Behavior::NONE;
+  object.stop_time = 3.1;
+
+  EXPECT_FALSE(filtering_utils::isNeverAvoidanceTarget(object, data, nullptr, parameters));
+  EXPECT_TRUE(object.is_parking_violation);
+  EXPECT_EQ(object.info, ObjectInfo::PARKING_VIOLATION_VEHICLE);
+
+  ObjectData not_stopped_long_enough;
+  not_stopped_long_enough.is_within_intersection = true;
+  not_stopped_long_enough.behavior = ObjectData::Behavior::NONE;
+  not_stopped_long_enough.stop_time = 3.0;
+
+  EXPECT_TRUE(
+    filtering_utils::isNeverAvoidanceTarget(not_stopped_long_enough, data, nullptr, parameters));
+  EXPECT_FALSE(not_stopped_long_enough.is_parking_violation);
+  EXPECT_EQ(not_stopped_long_enough.info, ObjectInfo::PARALLEL_TO_EGO_LANE);
+}
 }  // namespace autoware::behavior_path_planner::utils::static_obstacle_avoidance

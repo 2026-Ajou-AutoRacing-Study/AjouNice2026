@@ -174,6 +174,20 @@ void StaticObstacleAvoidanceModuleManager::updateModuleParams(
   }
 
   {
+    const std::string ns =
+      "avoidance.target_filtering.avoidance_for_parking_violation_vehicle.";
+    update_param<std::string>(parameters, ns + "policy", p->policy_parking_violation_vehicle);
+    update_param<bool>(
+      parameters, ns + "force_avoid_stopped_vehicle_in_intersection",
+      p->force_avoid_stopped_vehicle_in_intersection);
+    update_param<double>(
+      parameters, ns + "condition.th_stopped_time",
+      p->force_avoid_stopped_vehicle_in_intersection_time);
+    update_param<double>(
+      parameters, ns + "condition.th_road_border_distance", p->th_road_border_distance);
+  }
+
+  {
     const std::string ns = "avoidance.target_filtering.freespace.";
     update_param<double>(
       parameters, ns + "condition.th_stopped_time", p->freespace_condition_th_stopped_time);

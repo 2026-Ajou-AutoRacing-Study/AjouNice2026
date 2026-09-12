@@ -146,7 +146,9 @@ avoidance:
       policy: ignore
     avoidance_for_parking_violation_vehicle:
       condition:
+        th_stopped_time: 3.0
         th_road_border_distance: 0.8
+      force_avoid_stopped_vehicle_in_intersection: false
       policy: ignore
     detection_area:
       backward_distance: 10.0

@@ -164,6 +164,10 @@ AvoidanceParameters getParameter(ros::NodeHandle * node)
     const std::string ns = "avoidance.target_filtering.avoidance_for_parking_violation_vehicle.";
     p.policy_parking_violation_vehicle =
       get_or_declare_parameter<std::string>(*node, ns + "policy");
+    p.force_avoid_stopped_vehicle_in_intersection = get_or_declare_parameter<bool>(
+      *node, ns + "force_avoid_stopped_vehicle_in_intersection");
+    p.force_avoid_stopped_vehicle_in_intersection_time =
+      get_or_declare_parameter<double>(*node, ns + "condition.th_stopped_time");
     p.th_road_border_distance =
       get_or_declare_parameter<double>(*node, ns + "condition.th_road_border_distance");
   }
