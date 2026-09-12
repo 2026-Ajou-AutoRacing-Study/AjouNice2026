@@ -1,4 +1,5 @@
 export AJOUNICE_ROOT="${AJOUNICE_ROOT:-$HOME/AjouNice2026}"
+export POINTPAINTING_BUNDLE_ROOT="${POINTPAINTING_BUNDLE_ROOT:-$HOME/Downloads/260909_pointpainting_production_3model}"
 if [ -f "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" ]; then
   source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh"
 fi
@@ -33,7 +34,7 @@ alias rosbag_lio_eval='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_for_eva
 alias udp="roslaunch sensor_interface morai_udp_interface.launch"
 alias udp22="roslaunch sensor_interface morai_udp_interface_22.launch"
 alias sensing="roslaunch bringup sensing.launch"
-alias pointpainting='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && CONDA_ENV=pp POINTPAINTING_WITH_TP=false rosrun morai_pointpainting_ros run_pointpainting.sh live'
+alias pointpainting='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && POINTPAINTING_ACTIVATE_CONDA=false POINTPAINTING_WITH_TP=false POINTPAINTING_CFG="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/model.yaml" POINTPAINTING_CKPT="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/detector.pth" POINTPAINTING_SEG_CKPT="$POINTPAINTING_BUNDLE_ROOT/segmentation/base3_lraspp_e30/segmentation.pth" rosrun morai_pointpainting_ros run_pointpainting.sh live'
 alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline tracking_prediction.launch'
 alias traffic='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch traffic_light_detection traffic_light_node.launch'
 
