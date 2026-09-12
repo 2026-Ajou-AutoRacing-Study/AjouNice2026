@@ -3,7 +3,6 @@ project(perception_object_pipeline)
 
 find_package(catkin REQUIRED COMPONENTS
   autoware_perception_msgs
-  builtin_interfaces
   geometry_msgs
   rospy
   std_msgs
@@ -15,7 +14,6 @@ catkin_python_setup()
 catkin_package(
   CATKIN_DEPENDS
     autoware_perception_msgs
-    builtin_interfaces
     geometry_msgs
     rospy
     std_msgs
@@ -27,6 +25,7 @@ catkin_install_python(
     scripts/object_prediction_node.py
     scripts/map_based_prediction_node.py
     scripts/object_pipeline_visualization_node.py
+    scripts/tracked_object_motion_policy_node.py
     scripts/tracked_objects_fixed_rate_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

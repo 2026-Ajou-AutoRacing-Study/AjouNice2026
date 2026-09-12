@@ -24,6 +24,9 @@
   <arg name="painted_points_topic" default="/pointpainting/painted_points"/>
 
   <arg name="score_threshold" default="0.10"/>
+  <arg name="vehicle_score_threshold" default="0.40"/>
+  <arg name="pedestrian_score_threshold" default="0.15"/>
+  <arg name="obstacle_score_threshold" default="0.10"/>
   <arg name="foreground_semantic_scale" default="1.0"/>
   <arg name="max_detection_range" default="30.0"/>
   <!-- S1 E38 is a 7D detector; enable only with a validated 9D checkpoint. -->
@@ -86,6 +89,9 @@
     <param name="painted_points_topic" value="$(arg painted_points_topic)"/>
 
     <param name="score_threshold" value="$(arg score_threshold)"/>
+    <param name="vehicle_score_threshold" value="$(arg vehicle_score_threshold)"/>
+    <param name="pedestrian_score_threshold" value="$(arg pedestrian_score_threshold)"/>
+    <param name="obstacle_score_threshold" value="$(arg obstacle_score_threshold)"/>
     <param name="foreground_semantic_scale"
            value="$(arg foreground_semantic_scale)"/>
     <param name="max_detection_range" value="$(arg max_detection_range)"/>

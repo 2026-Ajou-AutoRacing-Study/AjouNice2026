@@ -11,8 +11,12 @@
        default="/perception/object_recognition/detection/objects"/>
   <arg name="tracked_objects"
        default="/perception/object_recognition/tracking/objects"/>
+  <arg name="motion_policy_objects"
+       default="/perception/object_recognition/tracking/motion_policy_objects"/>
   <arg name="predicted_objects"
        default="/perception/object_recognition/objects"/>
+  <!-- PointPainting Obstacle maps to UNKNOWN. Suppress fake motion by default. -->
+  <arg name="force_unknown_stationary" default="true"/>
   <arg name="prediction_time_step" default="0.1"/>
   <arg name="prediction_horizon" default="3.0"/>
   <arg name="prediction_model" default="ctrv"/>
@@ -59,6 +63,9 @@
   <arg name="pointpainting_preprocess_backend" default="torchvision"/>
   <arg name="pointpainting_camera_cpu_workers" default="4"/>
   <arg name="pointpainting_score_threshold" default="0.10"/>
+  <arg name="pointpainting_vehicle_score_threshold" default="0.40"/>
+  <arg name="pointpainting_pedestrian_score_threshold" default="0.15"/>
+  <arg name="pointpainting_obstacle_score_threshold" default="0.10"/>
   <arg name="pointpainting_foreground_semantic_scale" default="1.0"/>
   <arg name="warmup_segmentation" default="true"/>
   <arg name="warmup_full_pipeline" default="true"/>
@@ -114,6 +121,12 @@
       <arg name="camera_cpu_workers"
            value="$(arg pointpainting_camera_cpu_workers)"/>
       <arg name="score_threshold" value="$(arg pointpainting_score_threshold)"/>
+      <arg name="vehicle_score_threshold"
+           value="$(arg pointpainting_vehicle_score_threshold)"/>
+      <arg name="pedestrian_score_threshold"
+           value="$(arg pointpainting_pedestrian_score_threshold)"/>
+      <arg name="obstacle_score_threshold"
+           value="$(arg pointpainting_obstacle_score_threshold)"/>
       <arg name="foreground_semantic_scale"
            value="$(arg pointpainting_foreground_semantic_scale)"/>
       <arg name="warmup_segmentation" value="$(arg warmup_segmentation)"/>
@@ -149,8 +162,7 @@
 
   <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch">
     <arg name="input_objects" value="$(arg detection_objects)"/>
-    <arg name="output_objects"
-         value="$(eval arg('tracked_objects') if float(arg('tracking_publish_rate_hz')) &lt;= 0.0 else arg('measurement_tracked_objects'))"/>
+    <arg name="output_objects" value="$(arg measurement_tracked_objects)"/>
     <arg name="world_frame_id" value="$(arg world_frame_id)"/>
     <arg name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="canonicalize_vehicle_orientation_to_motion"
@@ -175,13 +187,25 @@
          value="$(arg detection_velocity_noise_std_mps)"/>
   </include>
 
+  <node pkg="perception_object_pipeline"
+        type="tracked_object_motion_policy_node.py"
+        name="tracked_object_motion_policy"
+        output="screen"
+        respawn="false">
+    <remap from="~input/objects" to="$(arg measurement_tracked_objects)"/>
+    <remap from="~output/objects"
+           to="$(eval arg('tracked_objects') if float(arg('tracking_publish_rate_hz')) &lt;= 0.0 else arg('motion_policy_objects'))"/>
+    <param name="force_unknown_stationary"
+           value="$(arg force_unknown_stationary)"/>
+  </node>
+
   <group if="$(eval float(arg('tracking_publish_rate_hz')) &gt; 0.0)">
     <node pkg="perception_object_pipeline"
           type="tracked_objects_fixed_rate_node.py"
           name="tracked_objects_fixed_rate"
           output="screen"
           respawn="false">
-      <remap from="~input/objects" to="$(arg measurement_tracked_objects)"/>
+      <remap from="~input/objects" to="$(arg motion_policy_objects)"/>
       <remap from="~output/objects" to="$(arg tracked_objects)"/>
       <param name="rate_hz" value="$(arg tracking_publish_rate_hz)"/>
       <param name="maximum_age_sec"

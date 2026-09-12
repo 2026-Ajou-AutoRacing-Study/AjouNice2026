@@ -68,6 +68,7 @@ from perception_object_pipeline.rolling_lidar import (
 from morai_pointpainting_ros.oracle_painting import (
     override_semantics_in_oriented_boxes,
 )
+from morai_pointpainting_ros.score_thresholds import build_score_thresholds
 
 
 LEGACY_SEMANTIC_NAMES = (
@@ -448,6 +449,24 @@ class PointPaintingOnlineNode:
         self.score_threshold = float(
             rospy.get_param("~score_threshold", 0.10)
         )
+        self.class_score_thresholds = {
+            "vehicle": float(
+                rospy.get_param("~vehicle_score_threshold", 0.40)
+            ),
+            "pedestrian": float(
+                rospy.get_param("~pedestrian_score_threshold", 0.15)
+            ),
+            "obstacle": float(
+                rospy.get_param("~obstacle_score_threshold", 0.10)
+            ),
+        }
+        for class_name, threshold in self.class_score_thresholds.items():
+            if not 0.0 <= threshold <= 1.0:
+                raise ValueError(
+                    "{} score threshold must be in [0, 1], got {}".format(
+                        class_name, threshold
+                    )
+                )
         self.foreground_semantic_scale = float(
             rospy.get_param("~foreground_semantic_scale", 1.0)
         )
@@ -872,12 +891,14 @@ class PointPaintingOnlineNode:
         rospy.loginfo("Detections  -> %s", self.detections_topic)
         rospy.loginfo("Markers     -> %s", self.markers_topic)
         rospy.loginfo(
-            "score>=%.2f range<=%.1fm camera_age<=%.1fms "
+            "score fallback>=%.2f class_thresholds=%s "
+            "range<=%.1fm camera_age<=%.1fms "
             "AMP=%s seg_short_side=%d preprocess=%s camera_workers=%d "
             "native_semantic_map=True "
             "full_warmup=%s warmup_iterations=%d "
             "real_input_warmup=%s real_input_warmup_iterations=%d",
             self.score_threshold,
+            self.class_score_thresholds,
             self.max_detection_range,
             self.max_camera_age_ms,
             self.use_amp,
@@ -2288,8 +2309,14 @@ class PointPaintingOnlineNode:
         labels = prediction["pred_labels"].detach().cpu().numpy()
 
         distance = np.linalg.norm(boxes[:, :2], axis=1)
+        score_thresholds = build_score_thresholds(
+            labels,
+            self.class_names,
+            self.score_threshold,
+            self.class_score_thresholds,
+        )
         valid = (
-            (scores >= self.score_threshold)
+            (scores >= score_thresholds)
             & (distance <= self.max_detection_range)
         )
 
@@ -2451,6 +2478,7 @@ class PointPaintingOnlineNode:
                     "use_amp": self.use_amp,
                     "detailed_timing": self.detailed_timing,
                     "score_threshold": self.score_threshold,
+                    "class_score_thresholds": self.class_score_thresholds,
                     "maximum_detection_range_m": self.max_detection_range,
                     "lidar_measurement_stamp_mode": (
                         self.lidar_measurement_stamp_mode

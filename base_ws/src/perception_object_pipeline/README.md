@@ -138,6 +138,25 @@ but the EKF-internal 30 Hz scheduler was selected for production to provide a
 regular, current-timestamp Tracking/Prediction interface to Planning. The
 generic EKF package itself still defaults to detector-driven output; the 30 Hz
 choice is made by this competition production launch.
+
+### UNKNOWN obstacle motion policy
+
+PointPainting publishes its third `Obstacle` class as Autoware `UNKNOWN`.
+`object_pipeline.launch` applies a post-tracking motion policy before
+prediction and optional downstream fixed-rate resampling:
+
+```text
+force_unknown_stationary:=true
+```
+
+The default policy preserves the latest tracked pose, dimensions,
+classification and covariance, but sets UNKNOWN linear velocity, angular
+velocity and acceleration to zero and marks the object stationary. This stops
+frame-to-frame obstacle box jitter from becoming a moving CTRV/CV path while
+still allowing every new detector observation to update the obstacle pose.
+Vehicle and pedestrian tracks are unchanged. Set
+`force_unknown_stationary:=false` only for a controlled A/B comparison.
+
 - `TrackedObjects` and `PredictedObjects` remain in `map`.
 - The predictor emits the current pose followed by 30 uniformly spaced future
   poses from 0.1 through 3.0 seconds (`time_step=0.1s`, 31 path poses total),

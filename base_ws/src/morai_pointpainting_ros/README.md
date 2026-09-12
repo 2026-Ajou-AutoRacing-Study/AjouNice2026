@@ -51,6 +51,21 @@ Outputs:
 - `/pointpainting/detection_markers`
 - `/pointpainting/painted_points` when debug publishing is enabled
 
+## Class-aware score thresholds
+
+The online output applies the class-specific operating points selected from
+the PP1 MORAI rosbag evaluation:
+
+- Vehicle: `0.40`
+- Pedestrian: `0.15`
+- Obstacle/Unknown: `0.10`
+
+They are exposed as the launch arguments `vehicle_score_threshold`,
+`pedestrian_score_threshold`, and `obstacle_score_threshold`. The legacy
+`score_threshold` remains the fallback for an unrecognized detector class.
+OpenPCDet's internal post-processing floor must be no higher than the desired
+ROS output threshold.
+
 ## Prerequisites
 
 - Ubuntu 20.04 / ROS Noetic
