@@ -30,7 +30,7 @@ alias rosbag_lio_eval='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_for_eva
 alias udp="roslaunch sensor_interface morai_udp_interface.launch"
 alias udp22="roslaunch sensor_interface morai_udp_interface_22.launch"
 alias sensing="roslaunch bringup sensing.launch"
-alias pointpainting='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && CONDA_ENV=pp rosrun morai_pointpainting_ros run_pointpainting.sh live'
+alias pointpainting='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && CONDA_ENV=pp POINTPAINTING_WITH_TP=false rosrun morai_pointpainting_ros run_pointpainting.sh live'
 alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline tracking_prediction.launch'
 alias traffic='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch traffic_light_detection traffic_light_node.launch'
 
