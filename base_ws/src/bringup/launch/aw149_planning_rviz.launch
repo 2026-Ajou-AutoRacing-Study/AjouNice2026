@@ -2,7 +2,7 @@
   <!-- Visualization only: it does not launch or modify any planning node. -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v61.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v62.osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="trajectory_topic" default="/planning/trajectory"/>
@@ -21,7 +21,7 @@
        default="/competition_route_requester/request"/>
   <arg name="route_request_status_topic"
        default="/competition_route_requester/request_status"/>
-  <!-- Frozen Route A start from kcity_v61_competition_route.yaml. -->
+  <!-- Frozen Route A start from kcity_v62_competition_route.yaml. -->
   <arg name="route_a_start_x" default="-0.130667330614472"/>
   <arg name="route_a_start_y" default="117.580315248218"/>
   <arg name="route_a_start_z" default="28.543960281954277"/>

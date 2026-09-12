@@ -33,7 +33,7 @@ import xml.etree.ElementTree as ET
 from pyproj import Transformer
 
 ORIGIN_LAT, ORIGIN_LON = 37.2380038082, 126.7730819386
-LANELET_OSM = "lanelet_map/lanelet2_map_v60.osm"
+LANELET_OSM = "lanelet_map/lanelet2_map_v62.osm"
 MGEO_GLOBAL_INFO = "mgeo_map/global_info.json"
 OUTPUT_JSON = "traffic_light_group_id_table.json"
 
