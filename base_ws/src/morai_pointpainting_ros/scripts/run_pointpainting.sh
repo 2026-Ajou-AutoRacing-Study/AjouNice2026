@@ -8,6 +8,7 @@ PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CATKIN_WS="$(cd "$PACKAGE_DIR/../.." && pwd)"
 
 CONDA_ENV="${CONDA_ENV:-openpcdet_team}"
+POINTPAINTING_ACTIVATE_CONDA="${POINTPAINTING_ACTIVATE_CONDA:-true}"
 OPENPCDET_ROOT="${OPENPCDET_ROOT:-$HOME/OpenPCDet}"
 REPO_ROOT="$(cd "$CATKIN_WS/.." && pwd)"
 
@@ -51,24 +52,32 @@ case "$MODE" in
         ;;
 esac
 
-# Conda 초기화
-if [[ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]]; then
-    source "$HOME/miniconda3/etc/profile.d/conda.sh"
-elif [[ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]]; then
-    source "$HOME/anaconda3/etc/profile.d/conda.sh"
-elif command -v conda >/dev/null 2>&1; then
-    eval "$(conda shell.bash hook)"
-else
-    echo "[ERROR] Conda를 찾을 수 없습니다."
-    exit 1
-fi
+if [[ "$POINTPAINTING_ACTIVATE_CONDA" == "true" ]]; then
+    # Conda 초기화
+    if [[ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]]; then
+        source "$HOME/miniconda3/etc/profile.d/conda.sh"
+    elif [[ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]]; then
+        source "$HOME/anaconda3/etc/profile.d/conda.sh"
+    elif command -v conda >/dev/null 2>&1; then
+        eval "$(conda shell.bash hook)"
+    else
+        echo "[ERROR] Conda를 찾을 수 없습니다."
+        exit 1
+    fi
 
-# CUDA Toolkit Conda activation hooks may read optional variables such as
-# NVCC_PREPEND_FLAGS before defining them. Temporarily disable nounset while
-# Conda runs its activation hooks, then restore the script's strict mode.
-set +u
-conda activate "$CONDA_ENV"
-set -u
+    # CUDA Toolkit Conda activation hooks may read optional variables such as
+    # NVCC_PREPEND_FLAGS before defining them. Temporarily disable nounset while
+    # Conda runs its activation hooks, then restore the script's strict mode.
+    set +u
+    conda activate "$CONDA_ENV"
+    set -u
+elif [[ -z "${CONDA_PREFIX:-}" || -z "${CONDA_DEFAULT_ENV:-}" ]]; then
+    echo "[ERROR] PointPainting Conda 환경을 먼저 활성화하세요:"
+    echo "  conda activate pp"
+    exit 1
+else
+    CONDA_ENV="$CONDA_DEFAULT_ENV"
+fi
 
 AW149_SETUP="$REPO_ROOT/scripts/workspace/source_aw149.sh"
 if [[ ! -f "$AW149_SETUP" ]]; then
@@ -139,6 +148,7 @@ echo "=============================================="
 echo "Mode              : $MODE"
 echo "Catkin workspace  : $CATKIN_WS"
 echo "Conda environment : $CONDA_ENV"
+echo "Conda auto-activate: $POINTPAINTING_ACTIVATE_CONDA"
 echo "Python            : $(which python)"
 echo "OpenPCDet         : $OPENPCDET_ROOT"
 echo "Config            : $POINTPAINTING_CFG"
@@ -172,7 +182,10 @@ else
     )
 fi
 
-exec roslaunch morai_pointpainting_ros \
+# Run roslaunch with the same Conda interpreter.  Invoking the Noetic script
+# through its Python 3.8 shebang would make it import Python 3.11 packages from
+# the PointPainting PYTHONPATH and fail before the detector starts.
+exec "$(command -v python)" "$(command -v roslaunch)" morai_pointpainting_ros \
     "$LAUNCH_FILE" \
     use_sim_time:="$USE_SIM_TIME" \
     python_executable:="$(command -v python)" \
