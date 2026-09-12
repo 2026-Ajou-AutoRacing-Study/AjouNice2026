@@ -23,7 +23,7 @@ YAML의 `route_operation_case`는 `route_a_only`, `route_b_only`, `route_a_to_b`
 
 `competition_route_requester.param.yaml`은 현재 ROS1 flat YAML이며 `/planning/mission_planning/route`를 사용한다. 잘못된 case/지도 SHA는 구독·서비스 생성 전 거부한다. 서비스 응답 불명확 또는 서비스 성공 후 검증 실패는 `RECONCILIATION_REQUIRED`로 고정하고 자동 재요청하지 않는다. 이 상태에서 Route A가 그대로라고 가정하거나 프로세스 재시작만으로 해결하지 않는다. 운영자가 실제 RouteSelector 상태와 UUID를 먼저 확인해야 한다.
 
-운영 RViz의 `Route Control` 패널은 `/competition_route_requester/request`에 `route_key=route_a`를 호출한다. 이는 LaneletRoute 직접 publisher가 아니며 기존 gateway의 map, localization, 공식 시작 구간, RouteSelector 응답 및 trajectory/validator 검증을 그대로 거친다. 최초 요청과 gateway가 검증한 Route A/B/fallback의 재시작은 모두 공식 start pose 3 m 이내에서만 허용되며, 재시작은 속도 0.1 m/s 이하 정차를 추가로 요구한다. 기존 route를 먼저 지우지 않고 새 route stamp와 새 trajectory/validator 증거가 확인된 뒤 Route A의 새 generation으로 검증한다. Route B 또는 fallback 활성화 뒤 Route A 복귀는 자동 전환이 아니라 운전자가 버튼을 누른 경우에만 허용하며, 이전 주행에서 대기 중이던 fallback 요청은 폐기한다.
+운영 RViz의 `Route Control` 패널은 `/competition_route_requester/request`에 `route_key=route_a`를 호출한다. 이는 LaneletRoute 직접 publisher가 아니며 기존 gateway의 map, localization, 공식 시작 구간, RouteSelector 응답 및 trajectory/validator 검증을 그대로 거친다. 최초 요청과 gateway가 검증한 Route A/B/fallback의 재시작은 모두 공식 start pose 6 m 이내에서만 허용되며, 재시작은 속도 0.1 m/s 이하 정차를 추가로 요구한다. 기존 route를 먼저 지우지 않고 새 route stamp와 새 trajectory/validator 증거가 확인된 뒤 Route A의 새 generation으로 검증한다. Route B 또는 fallback 활성화 뒤 Route A 복귀는 자동 전환이 아니라 운전자가 버튼을 누른 경우에만 허용하며, 이전 주행에서 대기 중이던 fallback 요청은 폐기한다.
 
 Route B 이동 중 재시도는 `200346` 이전 현재 lanelet부터의 **정확한 canonical suffix**만 수신 경로로 허용한다. 출발 lanelet이 달라졌다는 이유로 경유 구간 누락이나 임의 새 경로를 허용하지 않는다. trajectory에는 route UUID가 없으므로 요청 응답·경로 확인 이후 source timestamp와 20개 validator flag, 3개 새 출력은 시간상 연관 증거이지 완전한 route 인과성/폐루프 증명이 아니다.
 

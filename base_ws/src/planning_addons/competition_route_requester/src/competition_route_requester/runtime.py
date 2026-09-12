@@ -308,17 +308,39 @@ class Gateway(Inputs):
             else:
                 self.fault(key, 'service accepted but route UUID/goal/sequence not confirmed')
                 return
+            # The RouteSelector service can hold Python's GIL while the route
+            # is calculated and deserialized.  That temporarily delays this
+            # process's odometry callback, so wait for a genuinely fresh
+            # sample instead of faulting on the pre-service sample.  This does
+            # not accept stale odometry: progress() must pass every original
+            # frame, timestamp, pose and map-location check.
+            recovery_deadline = time.monotonic() + max(1.0, 4 * self.cfg['odometry_max_age'])
+            while not rospy.is_shutdown() and time.monotonic() < recovery_deadline:
+                if self.progress() is not None:
+                    break
+                time.sleep(0.02)
+            else:
+                self.fault(key, 'fresh valid odometry did not recover after route service response')
+                return
             # Only outputs after the confirmed route/response fence count.
             fence = rospy.Time.now().to_sec()
             tc, vc, good = self.traj_count, self.validation_count, 0
+            odometry_missing_since = None
             deadline = time.monotonic() + self.cfg['trajectory_verification_timeout']
             while not rospy.is_shutdown() and time.monotonic() < deadline:
                 if not self.matches(key):
                     self.fault(key, 'route changed during verification')
                     return
                 if self.progress() is None:
-                    self.fault(key, 'fresh valid odometry lost during verification')
-                    return
+                    odometry_missing_since = odometry_missing_since or time.monotonic()
+                    good = 0
+                    if time.monotonic() - odometry_missing_since >= max(
+                            1.0, 4 * self.cfg['odometry_max_age']):
+                        self.fault(key, 'fresh valid odometry lost during verification')
+                        return
+                    time.sleep(0.02)
+                    continue
+                odometry_missing_since = None
                 if key != 'route_a':
                     progress = self.progress()
                     if progress is None or not policy.in_window(self.routes, key, *progress):

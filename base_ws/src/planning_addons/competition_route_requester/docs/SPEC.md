@@ -93,7 +93,7 @@ RouteSelector는 main/MRM 요청을 하나의 Mission Planner로 전달하고 Mi
 
 case 변경 절차는 `YAML 수정 -> 전체 launch 재시작`으로 고정한다. 주행 중 rosparam 변경이나 별도 launch argument로 case를 바꾸지 않는다.
 
-운영 기본 case는 `route_a_to_b_with_fallback`이고 `auto_request_initial_route=false`다. 운전자가 차량을 공식 Route A 시작 구간에 배치한 뒤 RViz `Route Control` 패널에서 요청한다. 패널은 별도 route publisher를 만들지 않고 기존 `/competition_route_requester/request` gateway service에 `route_a`를 전달한다. gateway가 검증한 Route A, Route B 또는 fallback이 활성화된 뒤에도 차량을 공식 start pose 3 m 이내에 0.1 m/s 이하로 정차시키면 같은 버튼으로 Route A를 새 주행 세션으로 다시 계산할 수 있다. 기존 route는 먼저 지우지 않으며 새 route stamp와 새 trajectory/validator를 확인해야 새 generation이 검증된다. B/fallback에서 A로의 복귀는 자동으로 실행하지 않고 운전자의 버튼 요청에만 허용하며, 수락 시 이전 세션의 pending fallback은 폐기한다. 새 Route A가 검증된 뒤에는 기존 supervisor와 finish guard가 Route B 및 fallback 전환을 다시 자동 수행한다.
+운영 기본 case는 `route_a_to_b_with_fallback`이고 `auto_request_initial_route=false`다. 운전자가 차량을 공식 Route A 시작 구간에 배치한 뒤 RViz `Route Control` 패널에서 요청한다. 패널은 별도 route publisher를 만들지 않고 기존 `/competition_route_requester/request` gateway service에 `route_a`를 전달한다. gateway가 검증한 Route A, Route B 또는 fallback이 활성화된 뒤에도 차량을 공식 start pose 6 m 이내에 0.1 m/s 이하로 정차시키면 같은 버튼으로 Route A를 새 주행 세션으로 다시 계산할 수 있다. 기존 route는 먼저 지우지 않으며 새 route stamp와 새 trajectory/validator를 확인해야 새 generation이 검증된다. B/fallback에서 A로의 복귀는 자동으로 실행하지 않고 운전자의 버튼 요청에만 허용하며, 수락 시 이전 세션의 pending fallback은 폐기한다. 새 Route A가 검증된 뒤에는 기존 supervisor와 finish guard가 Route B 및 fallback 전환을 다시 자동 수행한다.
 
 독립적인 `enable_*` boolean은 두지 않는다. 기능 간 의존성이 있는데 boolean을 독립적으로 두면 32개 조합이 생기고 의미 없거나 안전하지 않은 조합을 모두 검증해야 하기 때문이다. 허용되는 동작은 아래 5개 case로 제한한다.
 
@@ -241,7 +241,7 @@ route_a_to_b_with_fallback:
 4. 서비스 응답만으로 성공 처리하지 않는다.
 5. 요청 UUID를 가진 route publication과 새 trajectory 생성을 확인한 뒤 `ROUTE_A_ACTIVE`로 전환한다.
 6. 실패하면 기존 route를 지우지 않고 설정된 간격으로 재시도한다.
-7. 이미 이 gateway가 Route A를 검증한 상태의 수동 재요청은 공식 start pose 3 m 이내, 최신 odometry, 속도 0.1 m/s 이하에서만 허용한다.
+7. 이미 이 gateway가 Route A를 검증한 상태의 수동 재요청은 공식 start pose 6 m 이내, 최신 odometry, 속도 0.1 m/s 이하에서만 허용한다.
 8. 재요청은 기존 route를 clear하지 않으며 요청 시각 이후의 route stamp와 새 trajectory/validator 연속 3개를 확인해 generation을 갱신한다.
 
 ### 6.2 Route B
@@ -269,7 +269,7 @@ requester의 trajectory age 상한은 canonical Planning Validator latency check
 ## 7. 안전 불변 조건
 
 - requester는 `ClearRoute`를 호출하지 않는다.
-- 같은 Route A의 수동 갱신은 현재 gateway의 VERIFIED A, 공식 start 3 m 이내 및 정차 조건에서만 허용한다.
+- 같은 Route A의 수동 갱신은 현재 gateway의 VERIFIED A, 공식 start 6 m 이내 및 정차 조건에서만 허용한다.
 - Route B의 요청과 검증이 성공하기 전에는 Route A를 유지한다.
 - Route A는 공식 start lanelet인 `200892`로 재진입하지 않고 `200181`에서 끝나야 한다.
 - 오래된 odometry 또는 오래된 reroute availability로 요청하지 않는다.

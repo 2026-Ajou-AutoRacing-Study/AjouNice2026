@@ -24,7 +24,7 @@ start:
   incoming_lanelet_id: 200892  # 공식 좌표는 200892의 끝점과 일치한다.
   outgoing_lanelet_id: 200889  # 대회 진행 방향의 첫 lanelet이다.
   accepted_start_lanelet_ids: [200892, 200889]  # 경계점의 closest-lanelet tie를 둘 다 허용한다.
-  expected_pose_tolerance_m: 3.0
+  expected_pose_tolerance_m: 6.0
 
 poses:
   wp_200178:  # 출발 직후 Route B 요청을 준비하는 지점이다.

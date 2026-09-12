@@ -33,6 +33,9 @@ class PolicyTest(unittest.TestCase):
         self.assertTrue(policy.allowed(self.cfg['route_operation_case'], 'route_b'))
         self.assertTrue(policy.allowed(self.cfg['route_operation_case'], 'fallback_route'))
 
+    def test_route_a_start_tolerance_is_six_metres(self):
+        self.assertEqual(self.routes['start']['expected_pose_tolerance_m'], 6.0)
+
     def test_fail_closed_config(self):
         for case in ('', 'ROUTE_A_ONLY', 'route_a', None, False):
             with self.assertRaises(ValueError):

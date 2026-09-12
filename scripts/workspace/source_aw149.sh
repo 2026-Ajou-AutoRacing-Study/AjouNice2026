@@ -16,6 +16,14 @@ fi
 
 source /opt/ros/noetic/setup.bash
 
+# This vehicle computer uses ROS only between local processes.  Advertise a
+# loopback address so ROS master callbacks never follow a hostname to one of
+# the machine's unrelated LAN/VPN interfaces.  MORAI communication remains
+# on its separately configured UDP addresses.
+export ROS_MASTER_URI="http://127.0.0.1:11311"
+export ROS_IP="127.0.0.1"
+unset ROS_HOSTNAME
+
 _aw149_planning_setup="$AJOUNICE_ROOT/planning_ws/install_isolated/setup.bash"
 if [[ ! -f "$_aw149_planning_setup" ]]; then
   echo "ERROR: AW149 planning underlay is not installed: $_aw149_planning_setup" >&2

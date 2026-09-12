@@ -60,6 +60,12 @@ using autoware_map_msgs::MapProjectorInfo;
 Lanelet2MapLoaderNode::Lanelet2MapLoaderNode(ros::NodeHandle private_node)
 : map_native::Node(std::move(private_node))
 {
+  // Advertise the latched map topic before loading starts.  Some ROS1
+  // consumers are already subscribed by the time the projector message
+  // arrives and must be able to establish their TCPROS connection up front.
+  pub_map_bin_ =
+    create_publisher<autoware_map_msgs::LaneletMapBin>("/map/vector_map", 1, true);
+
   // subscription
   sub_map_projector_info_ = subscribe<autoware_map_msgs::MapProjectorInfo>(
     "/map/map_projector_info", 1,
@@ -125,9 +131,7 @@ void Lanelet2MapLoaderNode::on_map_projector_info(
   // create map bin msg
   const auto map_bin_msg = create_map_bin_msg(map, lanelet2_filename, now());
 
-  // create publisher and publish
-  pub_map_bin_ =
-    create_publisher<autoware_map_msgs::LaneletMapBin>("/map/vector_map", 1, true);
+  // publish the loaded map through the latched publisher advertised at startup
   pub_map_bin_->publish(map_bin_msg);
   RCLCPP_INFO(get_logger(), "Succeeded to load lanelet2_map. Map is published.");
 }
@@ -199,4 +203,3 @@ LaneletMapBin Lanelet2MapLoaderNode::create_map_bin_msg(
   return map_bin_msg;
 }
 }  // namespace autoware::map_loader
-

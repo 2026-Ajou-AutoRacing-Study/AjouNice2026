@@ -622,7 +622,7 @@ text { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; fill: #17203
 <text x="90" y="1285" class="tiny">숫자 표식 = waypoint_refs 순번 · S = 현재 pose · G = goal pose</text>
 <text x="575" y="145" class="panel-title">① 실제 SetWaypointRoute 요청 구성</text>
 <rect x="575" y="165" width="960" height="60" rx="12" fill="#eaf1ff" stroke="#b7cdfd"/>
-<text x="595" y="190" class="label">START = 현재 odometry · 공식 200892→200889 경계 (허용 반경 3 m)</text>
+<text x="595" y="190" class="label">START = 현재 odometry · 공식 200892→200889 경계 (허용 반경 6 m)</text>
 <text x="595" y="213" class="small">start_pose를 요청에 넣지 않는다. 지도 S는 공식 START/END 좌표이며 두 lanelet 판정을 허용한다.</text>
 <text x="590" y="258" class="small">순서</text>
 <text x="670" y="258" class="small">waypoint_ref</text>

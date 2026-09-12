@@ -250,7 +250,7 @@ def add_waypoint_table(svg, config, route_key, y_start):
     svg.append('<text x="575" y="145" class="panel-title">① 실제 SetWaypointRoute 요청 구성</text>')
     if route_key == "route_a":
         svg.append('<rect x="575" y="165" width="960" height="60" rx="12" fill="#eaf1ff" stroke="#b7cdfd"/>')
-        svg.append('<text x="595" y="190" class="label">START = 현재 odometry · 공식 200892→200889 경계 (허용 반경 3 m)</text>')
+        svg.append('<text x="595" y="190" class="label">START = 현재 odometry · 공식 200892→200889 경계 (허용 반경 6 m)</text>')
         svg.append('<text x="595" y="213" class="small">start_pose를 요청에 넣지 않는다. 지도 S는 공식 START/END 좌표이며 두 lanelet 판정을 허용한다.</text>')
     else:
         svg.append('<rect x="575" y="165" width="960" height="60" rx="12" fill="#e6f7f4" stroke="#8ad7cd"/>')

@@ -126,7 +126,7 @@ payload 및 주행 계산 결과에는 영향을 주지 않는다.
 - Route A 검증 이후 Route B와 fallback 자동 전환은 유지
 - planner 기동 시 requester 노드는 기본 실행하되 버튼 입력 전에는 route 요청을 하지 않도록 구성
 - 비대화형 통합 probe는 private 설정에서만 초기 Route A 자동 요청을 켜도록 분리
-- 이미 검증된 Route A뿐 아니라 Route B 또는 fallback이 활성화된 상태에서도 공식 start pose 3 m 이내이고 차량 속도가 0.1 m/s 이하일 때 같은 버튼으로 Route A를 다시 요청하도록 변경
+- 이미 검증된 Route A뿐 아니라 Route B 또는 fallback이 활성화된 상태에서도 공식 start pose 6 m 이내이고 차량 속도가 0.1 m/s 이하일 때 같은 버튼으로 Route A를 다시 요청하도록 변경
 - Route A 재요청 시 기존 route를 먼저 지우지 않고 요청 시각 이후의 route와 새 trajectory/validator를 검증하도록 변경
 - Route B 또는 fallback에서 Route A로 돌아가는 동작은 자동화하지 않고 RViz 버튼 요청에만 허용
 - 새 Route A 요청을 수락할 때 이전 주행에서 대기 중이던 fallback 요청을 폐기하도록 변경

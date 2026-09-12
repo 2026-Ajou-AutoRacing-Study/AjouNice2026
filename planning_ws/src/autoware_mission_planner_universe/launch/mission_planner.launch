@@ -26,7 +26,9 @@
     <remap from="~debug/route_marker" to="$(arg visualization_topic_name)"/>
   </node>
   <!-- The ROS1 selector's ports use its public NodeHandle, unlike MissionPlanner. -->
-  <node pkg="autoware_mission_planner_universe" type="route_selector_ros1" name="route_selector" output="screen" required="true">
+  <node pkg="autoware_mission_planner_universe" type="route_selector_ros1" name="route_selector"
+        launch-prefix="bash -c 'sleep 10; exec &quot;$@&quot;' --"
+        output="screen" required="true">
     <remap from="planner/clear_route" to="mission_planner/clear_route"/>
     <remap from="planner/set_lanelet_route" to="mission_planner/set_lanelet_route"/>
     <remap from="planner/set_waypoint_route" to="mission_planner/set_waypoint_route"/>

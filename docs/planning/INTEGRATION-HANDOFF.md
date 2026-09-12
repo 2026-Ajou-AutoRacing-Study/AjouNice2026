@@ -104,7 +104,7 @@ planning 입력 topic의 publisher/type만 먼저 보려면 `scripts/runtime/che
 ## 실행 승인 순서
 
 1. Controller와 requester를 끈 상태에서 actual sensing/localization/perception/system topic의 type, MD5, frame, timestamp, age, rate, TF를 기록한다.
-2. requester를 켜고 차량을 공식 시작 구간에 배치한 뒤 RViz `Route Control` 버튼으로 Route A를 요청한다. 기존 VERIFIED A를 갱신할 때도 공식 start pose 3 m 이내, 속도 0.1 m/s 이하 조건을 지키고 새 route stamp와 trajectory/validator 검증 완료를 확인한다. Route A 검증 뒤 Route B/fallback은 자동 전환되며 Mission→BPP→BVP→MVP 각 stage와 `/planning/trajectory`, `/planning/validation_status` 전체 이력을 기록한다.
+2. requester를 켜고 차량을 공식 시작 구간에 배치한 뒤 RViz `Route Control` 버튼으로 Route A를 요청한다. 기존 VERIFIED A를 갱신할 때도 공식 start pose 6 m 이내, 속도 0.1 m/s 이하 조건을 지키고 새 route stamp와 trajectory/validator 검증 완료를 확인한다. Route A 검증 뒤 Route B/fallback은 자동 전환되며 Mission→BPP→BVP→MVP 각 stage와 `/planning/trajectory`, `/planning/validation_status` 전체 이력을 기록한다.
 3. 신호 red/green/unknown, **FastBEV PredictedObjects 기반** obstacle stop/cruise, 안전한 LC와 막힌 LC 거부, 실제 이동 중 A→B 및 fallback을 개별 검증한다. LiDAR pointcloud 기반 stop/slowdown과 occupancy 기반 occlusion·parking/freespace는 이 프로파일의 합격 범위가 아니다.
 4. 위 단계가 통과한 뒤에만 controller를 켜 `/ctrl_cmd` 폐루프를 검증한다.
 5. input loss, TF loss, stale data, clock reset, route rejection에서 안전 정지와 복구를 확인한다.
