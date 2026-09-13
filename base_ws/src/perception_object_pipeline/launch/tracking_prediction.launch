@@ -1,0 +1,52 @@
+<launch>
+  <!--
+    AjouNice PointPainting downstream pipeline.
+
+    PointPainting detection, localization/map TF, sensing, and RViz are owned
+    by separate terminals. This launch owns only the canonical
+    DetectedObjects -> EKF TrackedObjects -> Map-CV PredictedObjects chain.
+  -->
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="use_sim_time" default="false"/>
+  <arg name="map_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v62.osm"/>
+  <arg name="projector_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+
+  <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+    <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="start_detector" value="false"/>
+    <arg name="world_frame_id" value="map"/>
+    <arg name="detection_objects"
+         value="/perception/object_recognition/detection/objects"/>
+    <arg name="measurement_tracked_objects"
+         value="/perception/object_recognition/tracking/measurement_objects"/>
+    <arg name="tracked_objects"
+         value="/perception/object_recognition/tracking/objects"/>
+    <arg name="predicted_objects"
+         value="/perception/object_recognition/objects"/>
+
+    <arg name="canonicalize_vehicle_orientation_to_motion" value="true"/>
+    <arg name="orientation_canonicalization_min_speed_mps" value="1.0"/>
+    <arg name="orientation_flip_enter_error_deg" value="100.0"/>
+    <arg name="orientation_flip_exit_error_deg" value="80.0"/>
+    <arg name="compensate_tracking_output_to_current_time" value="false"/>
+    <arg name="maximum_tracking_output_compensation_sec" value="0.25"/>
+    <arg name="tracking_internal_publish_rate_hz" value="30.0"/>
+    <arg name="maximum_tracking_internal_prediction_age_sec" value="0.25"/>
+    <arg name="detection_velocity_fusion_mode" value="0"/>
+    <arg name="detection_velocity_noise_std_mps" value="1.0"/>
+    <arg name="tracking_publish_rate_hz" value="0.0"/>
+    <arg name="maximum_tracking_resample_age_sec" value="0.25"/>
+
+    <!-- PointPainting Obstacle is UNKNOWN; suppress jitter-derived motion. -->
+    <arg name="force_unknown_stationary" value="true"/>
+
+    <arg name="prediction_model" value="map_based"/>
+    <arg name="prediction_time_step" value="0.1"/>
+    <arg name="prediction_horizon" value="3.0"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="projector_file" value="$(arg projector_file)"/>
+  </include>
+</launch>
