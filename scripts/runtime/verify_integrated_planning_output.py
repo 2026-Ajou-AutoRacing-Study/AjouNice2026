@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Drive the installed AjouNice planning launch with conservative synthetic inputs."""
 
+import csv
 import json
 import math
 import os
@@ -22,7 +23,7 @@ from autoware_perception_msgs.msg import PredictedObjects, TrafficLightGroupArra
 from autoware_planning_msgs.msg import LaneletRoute, Path as PlanningPath, RouteState, Trajectory
 from autoware_planning_validator.msg import PlanningValidatorStatus
 from competition_route_requester.srv import RequestRoute
-from geometry_msgs.msg import AccelWithCovarianceStamped, Pose, TransformStamped
+from geometry_msgs.msg import AccelWithCovarianceStamped, Point, Pose, TransformStamped
 from nav_msgs.msg import Odometry, OccupancyGrid
 from sensor_msgs import point_cloud2
 from sensor_msgs.msg import PointCloud2
@@ -32,7 +33,7 @@ from tf.transformations import quaternion_from_euler
 
 repo = Path(os.environ["AJOUNICE_ROOT"]).resolve()
 result_path = Path(os.environ["AW149_OUTPUT_PROBE_RESULT"]).resolve()
-route_path = repo / "base_ws/src/planning_addons/competition_route_requester/config/kcity_v61_competition_route.yaml"
+route_path = repo / "base_ws/src/planning_addons/competition_route_requester/config/kcity_v62_competition_route.yaml"
 route_config = yaml.safe_load(route_path.read_text())
 selected = route_config["route_a"]
 use_requester = os.environ.get("AW149_OUTPUT_PROBE_USE_REQUESTER", "0") == "1"
@@ -43,6 +44,8 @@ force_fallback = os.environ.get("AW149_OUTPUT_PROBE_FORCE_FALLBACK", "0") == "1"
 force_b_rejection = os.environ.get("AW149_OUTPUT_PROBE_FORCE_B_REJECTION", "0") == "1"
 limited_perception = os.environ.get("AW149_OUTPUT_PROBE_LIMITED_PERCEPTION", "0") == "1"
 refresh_route_a = os.environ.get("AW149_OUTPUT_PROBE_REFRESH_ROUTE_A", "0") == "1"
+full_lap = os.environ.get("AW149_OUTPUT_PROBE_FULL_LAP", "0") == "1"
+full_lap_step_m = float(os.environ.get("AW149_OUTPUT_PROBE_FULL_LAP_STEP_M", "5.0"))
 b_rejection_speed_mps = float(os.environ.get("AW149_OUTPUT_PROBE_B_REJECTION_SPEED_MPS", "1000.0"))
 if not math.isfinite(input_period_s) or input_period_s <= 0.0 or input_period_s > 0.25:
     raise ValueError("AW149_OUTPUT_PROBE_INPUT_PERIOD_S must be in (0, 0.25]")
@@ -55,6 +58,10 @@ if route_case != "route_a_only" and not use_requester:
     raise ValueError("route transition probes require AW149_OUTPUT_PROBE_USE_REQUESTER=1")
 if refresh_route_a and (not use_requester or route_case != "route_a_only"):
     raise ValueError("AW149_OUTPUT_PROBE_REFRESH_ROUTE_A requires requester route_a_only")
+if full_lap and route_case != "route_a_only":
+    raise ValueError("AW149_OUTPUT_PROBE_FULL_LAP requires route_a_only")
+if not math.isfinite(full_lap_step_m) or full_lap_step_m < 0.25:
+    raise ValueError("AW149_OUTPUT_PROBE_FULL_LAP_STEP_M must be at least 0.25")
 if force_fallback and route_case != "route_a_to_b_with_fallback":
     raise ValueError("AW149_OUTPUT_PROBE_FORCE_FALLBACK requires route_a_to_b_with_fallback")
 if force_b_rejection and route_case != "route_a_to_b_with_fallback":
@@ -80,6 +87,24 @@ def make_pose(value):
 
 def message_stamp(value):
     return value.to_sec() if hasattr(value, "to_sec") else value.sec + value.nanosec * 1e-9
+
+
+def positions_in_box(message, x_min, x_max, y_min, y_max):
+    return [
+        point.pose.position
+        for point in message.points
+        if x_min <= point.pose.position.x <= x_max
+        and y_min <= point.pose.position.y <= y_max
+    ]
+
+
+def maximum_nearest_distance(source, target):
+    if not source or not target:
+        return None
+    return max(
+        min(math.hypot(point.x - other.x, point.y - other.y) for other in target)
+        for point in source
+    )
 
 
 def primitive_signature(route):
@@ -312,6 +337,202 @@ def tick():
     time.sleep(input_period_s)
 
 
+def run_full_lap():
+    course_path = (
+        repo
+        / "base_ws/src/control/trajectory_generator/traj_sample/competition_route/"
+        "200889_200889_v.csv"
+    )
+    with course_path.open(newline="") as stream:
+        course = list(csv.DictReader(stream))
+    if len(course) < 2:
+        raise RuntimeError("competition course is empty: " + str(course_path))
+
+    goal = route_config["poses"][selected["goal_ref"]]
+    goal_index = min(
+        range(len(course)),
+        key=lambda index: (
+            (float(course[index]["x"]) - float(goal["x"])) ** 2
+            + (float(course[index]["y"]) - float(goal["y"])) ** 2
+        ),
+    )
+    goal_error = math.hypot(
+        float(course[goal_index]["x"]) - float(goal["x"]),
+        float(course[goal_index]["y"]) - float(goal["y"]),
+    )
+    if goal_error > 0.25:
+        raise RuntimeError("competition course misses Route A goal by {:.3f} m".format(goal_error))
+
+    spacing = math.hypot(
+        float(course[1]["x"]) - float(course[0]["x"]),
+        float(course[1]["y"]) - float(course[0]["y"]),
+    )
+    if spacing <= 0.0:
+        raise RuntimeError("competition course has invalid point spacing")
+    stride = max(1, int(round(full_lap_step_m / spacing)))
+    sample_indices = list(range(0, goal_index + 1, stride))
+    if sample_indices[-1] != goal_index:
+        sample_indices.append(goal_index)
+
+    expected_sections = {
+        lane_id: index for index, lane_id in enumerate(selected["expected_path_lanelet_ids"])
+    }
+    maximum_route_section = -1
+    route_section_regressions = []
+    worst_course_error = {"value_m": 0.0, "sample_index": 0, "course_row": 0}
+    worst_optimizer_shift = {"value_m": 0.0, "sample_index": 0, "course_row": 0}
+    maximum_first_point_error = 0.0
+    samples = 0
+
+    for sample_index, course_index in enumerate(sample_indices):
+        row = course[course_index]
+        pose = Pose()
+        pose.position.x = float(row["x"])
+        pose.position.y = float(row["y"])
+        pose.position.z = float(row["z"])
+        quaternion = quaternion_from_euler(0.0, 0.0, float(row["yaw"]))
+        pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = quaternion
+        odom.pose.pose = pose
+        odom.twist.twist.linear.x = 0.0 if course_index == goal_index else 5.0
+
+        previous = {name: counts[name] for name in (
+            "behavior_path", "path_smoothed", "path_optimized", "final", "validation")}
+        requested_stamp = rospy.Time.now().to_sec()
+        deadline = time.monotonic() + 15.0
+        while time.monotonic() < deadline:
+            tick()
+            fresh = all(counts[name] > previous[name] for name in previous)
+            if not fresh:
+                continue
+            if latest["final"].header.stamp.to_sec() < requested_stamp:
+                continue
+            if message_stamp(latest["validation"].stamp) < requested_stamp:
+                continue
+            break
+        else:
+            raise RuntimeError(
+                "full-lap sample {} at course row {} timed out: {}".format(
+                    sample_index, course_index, counts
+                )
+            )
+
+        flags = {
+            name: getattr(latest["validation"], name)
+            for name in latest["validation"].__slots__
+            if name.startswith("is_valid_")
+        }
+        remaining_distance = (goal_index - course_index) * spacing
+        required_flags = dict(flags)
+        if remaining_distance <= 25.0:
+            # A route-ending trajectory is expected to be shorter than the
+            # normal forward-horizon requirement.
+            required_flags.pop("is_valid_forward_trajectory_length", None)
+        if not required_flags or not all(required_flags.values()):
+            raise RuntimeError(
+                "full-lap validator rejected sample {}: {}".format(sample_index, flags)
+            )
+
+        local_start = max(0, course_index - int(round(10.0 / spacing)))
+        local_end = min(goal_index + 1, course_index + int(round(220.0 / spacing)))
+        local_course = [
+            Point(x=float(course[index]["x"]), y=float(course[index]["y"]))
+            for index in range(local_start, local_end, max(1, int(round(0.5 / spacing))))
+        ]
+        final_positions = [point.pose.position for point in latest["final"].points]
+        course_error = maximum_nearest_distance(final_positions, local_course)
+        if course_error is None or course_error > 3.0:
+            raise RuntimeError(
+                "full-lap trajectory is {:.3f} m from course at sample {}".format(
+                    float("nan") if course_error is None else course_error, sample_index
+                )
+            )
+        if course_error > worst_course_error["value_m"]:
+            worst_course_error = {
+                "value_m": course_error,
+                "sample_index": sample_index,
+                "course_row": course_index,
+            }
+
+        first_error = math.hypot(
+            final_positions[0].x - pose.position.x,
+            final_positions[0].y - pose.position.y,
+        )
+        maximum_first_point_error = max(maximum_first_point_error, first_error)
+        if first_error > 10.0:
+            raise RuntimeError(
+                "full-lap trajectory starts {:.3f} m from ego at sample {}".format(
+                    first_error, sample_index
+                )
+            )
+
+        smoothed_positions = [point.pose.position for point in latest["path_smoothed"].points]
+        optimized_positions = [point.pose.position for point in latest["path_optimized"].points]
+        optimizer_shift = maximum_nearest_distance(optimized_positions, smoothed_positions)
+        if optimizer_shift is None or optimizer_shift > 3.0:
+            raise RuntimeError(
+                "full-lap PO shift is {:.3f} m at sample {}".format(
+                    float("nan") if optimizer_shift is None else optimizer_shift, sample_index
+                )
+            )
+        if optimizer_shift > worst_optimizer_shift["value_m"]:
+            worst_optimizer_shift = {
+                "value_m": optimizer_shift,
+                "sample_index": sample_index,
+                "course_row": course_index,
+            }
+
+        lane_ids = set()
+        for point in latest["behavior_path"].points[:5]:
+            lane_ids.update(int(lane_id) for lane_id in point.lane_ids)
+        sections = [expected_sections[lane_id] for lane_id in lane_ids if lane_id in expected_sections]
+        if sections:
+            current_section = max(sections)
+            if current_section + 1 < maximum_route_section:
+                route_section_regressions.append({
+                    "sample_index": sample_index,
+                    "course_row": course_index,
+                    "previous_section": maximum_route_section,
+                    "current_section": current_section,
+                })
+            maximum_route_section = max(maximum_route_section, current_section)
+        samples += 1
+        progress_interval = max(1, len(sample_indices) // 10)
+        if sample_index % progress_interval == 0 or sample_index + 1 == len(sample_indices):
+            rospy.loginfo(
+                "AW149 full-lap %.1f%% | %.1f/%.1f m | course_error=%.3f m "
+                "PO_shift=%.3f m | route_section=%d",
+                100.0 * course_index / goal_index,
+                course_index * spacing,
+                goal_index * spacing,
+                course_error,
+                optimizer_shift,
+                maximum_route_section,
+            )
+
+    if route_section_regressions:
+        raise RuntimeError("BPP route section regressed: " + str(route_section_regressions[:3]))
+    if maximum_route_section < len(expected_sections) - 2:
+        raise RuntimeError(
+            "BPP did not reach final route sections: {} / {}".format(
+                maximum_route_section, len(expected_sections) - 1
+            )
+        )
+    return {
+        "course_file": str(course_path),
+        "course_length_to_goal_m": goal_index * spacing,
+        "route_goal_course_error_m": goal_error,
+        "step_m": stride * spacing,
+        "validated_samples": samples,
+        "completion_ratio": 1.0,
+        "maximum_final_to_course_error": worst_course_error,
+        "maximum_po_to_smoother_shift": worst_optimizer_shift,
+        "maximum_final_first_point_to_ego_m": maximum_first_point_error,
+        "maximum_bpp_route_section": maximum_route_section,
+        "expected_final_route_section": len(expected_sections) - 1,
+        "route_section_regressions": route_section_regressions,
+    }
+
+
 result = {
     "scope": "AJOUNICE_INSTALLED_LAUNCH_SYNTHETIC_INPUT_OUTPUT_ONLY",
     "pass": False,
@@ -511,6 +732,9 @@ try:
             result["shared_preferred_signature_mismatch_sample"] = mismatches[:10]
             selected = route_config["fallback_route"]
 
+    if full_lap:
+        result["full_lap"] = run_full_lap()
+
     expected_lanelets = selected["expected_path_lanelet_ids"]
     observed_lanelets = [segment.preferred_primitive.id for segment in latest["route"].segments]
     if observed_lanelets != expected_lanelets:
@@ -543,6 +767,33 @@ try:
         "duration_seconds": time.monotonic() - started,
         "request_status_history": request_status_history,
     })
+    if "path_smoothed" in latest and "path_optimized" in latest:
+        # lanelet 200392 left-turn window used by the boundary-fix regression.
+        corner = (25.0, 42.0, 180.0, 200.0)
+        smoothed = positions_in_box(latest["path_smoothed"], *corner)
+        optimized = positions_in_box(latest["path_optimized"], *corner)
+        result["lanelet_200392_corner_geometry"] = {
+            "window_xy": {"x": list(corner[:2]), "y": list(corner[2:])},
+            "smoothed_points": len(smoothed),
+            "optimized_points": len(optimized),
+            "optimized_to_smoothed_max_nearest_m": maximum_nearest_distance(
+                optimized, latest["path_smoothed"].points and [
+                    point.pose.position for point in latest["path_smoothed"].points
+                ]),
+            "smoothed_to_optimized_max_nearest_m": maximum_nearest_distance(
+                smoothed, latest["path_optimized"].points and [
+                    point.pose.position for point in latest["path_optimized"].points
+                ]),
+            "message_stamp_delta_seconds": abs(
+                latest["path_smoothed"].header.stamp.to_sec()
+                - latest["path_optimized"].header.stamp.to_sec()
+            ),
+        }
+        result["path_optimizer_lat_error_weight"] = rospy.get_param(
+            "/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/"
+            "mpt/weight/lat_error_weight",
+            None,
+        )
 finally:
     result["counts"] = counts.copy()
     result["process_deaths_before_shutdown"] = deaths[:]
