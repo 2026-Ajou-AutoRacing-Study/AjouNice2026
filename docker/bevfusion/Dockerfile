@@ -64,6 +64,12 @@ RUN cd /opt/mmdetection3d \
     && FORCE_CUDA=1 \
         python projects/BEVFusion/setup.py develop
 
+# Training-only observability is kept in a final layer so changing W&B does
+# not invalidate the expensive MMCV/BEVFusion CUDA-extension build cache.
+COPY docker/bevfusion/requirements/training.txt \
+    /opt/requirements/training.txt
+RUN python -m pip install -r /opt/requirements/training.txt
+
 WORKDIR /opt/mmdetection3d
 
 CMD ["bash"]
