@@ -19,6 +19,9 @@ def test_integrated_stack_owns_downstream_pipeline_but_not_detector_by_default()
 
 
 def test_integrated_downstream_contract_matches_standalone_production_launch():
+    top_level = {
+        item.attrib["name"]: item.attrib for item in _launch().findall("arg")
+    }
     include = next(
         item
         for item in _launch().findall(".//include")
@@ -33,7 +36,7 @@ def test_integrated_downstream_contract_matches_standalone_production_launch():
     expected = {
         "canonicalize_vehicle_orientation_to_motion": "true",
         "tracking_internal_publish_rate_hz": "30.0",
-        "maximum_tracking_internal_prediction_age_sec": "0.25",
+        "maximum_tracking_internal_prediction_age_sec": "$(arg maximum_tracking_internal_prediction_age_sec)",
         "detection_velocity_fusion_mode": "0",
         "tracking_publish_rate_hz": "0.0",
         "prediction_model": "$(arg prediction_model)",
@@ -43,5 +46,6 @@ def test_integrated_downstream_contract_matches_standalone_production_launch():
     }
     for name, value in expected.items():
         assert values.get(name) == value, (name, values.get(name))
+    assert top_level["maximum_tracking_internal_prediction_age_sec"]["default"] == "0.25"
     assert values["map_file"].endswith("/lanelet2_map_v62.osm")
     assert values["projector_file"].endswith("/map_projector_info_v1.yaml")

@@ -146,12 +146,17 @@ source /opt/ros/noetic/setup.bash
 source "$AJOUNICE_ROOT/base_ws/install_aw149/setup.bash"
 
 roslaunch ajounice_planning_integration morai_planning_stack.launch \
-  start_detector:=false
+  start_detector:=false \
+  maximum_tracking_internal_prediction_age_sec:=0.5
 ```
 
 `start_detector:=false`는 detector를 끄겠다는 뜻이 아니라 planning launch가
 FastBEV/PointPainting을 하나 더 띄우지 않게 한다는 뜻이다. BEVFusion bridge가
 동일한 canonical topic을 공급한다.
+
+공용 planning 기본값은 `0.25 s`로 유지한다. 위 `0.5 s` override는 RTX 5060 Ti에서
+측정된 BEVFusion sensor-stamp age 약 `0.33--0.36 s`를 수용하기 위한 BEVFusion 전용
+설정이다. PointPainting/FastBEV 실행에 전역 적용하지 않는다.
 
 ### 5. 공용 planning RViz (`planviz`)
 
