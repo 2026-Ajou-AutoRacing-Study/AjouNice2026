@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   rospy
   sensor_msgs
+  std_msgs
   autoware_perception_msgs
 )
 
@@ -19,6 +20,7 @@ catkin_package(CATKIN_DEPENDS
   nav_msgs
   rospy
   sensor_msgs
+  std_msgs
 )
 
 catkin_install_python(PROGRAMS
@@ -27,6 +29,7 @@ catkin_install_python(PROGRAMS
   scripts/measure_recognition_distance.py
   scripts/ros_time.py
   scripts/traffic_light_node.py
+  scripts/traffic_light_route_group_id_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

@@ -30,7 +30,12 @@ try:
 
     LANELET2_AVAILABLE = True
     LANELET2_IMPORT_ERROR = None
-except ImportError as exc:  # pragma: no cover
+except Exception as exc:  # pragma: no cover
+    # A Python/lanelet2 ABI mismatch can raise SystemError rather than
+    # ImportError (for example the Noetic Python 3.8 binding under Python
+    # 3.11).  Treat every import-time failure as an unavailable optional
+    # binding so the image inference process can still use the external
+    # route-group-id provider.
     core = geometry = io = projection = traffic_rules = None
     LANELET2_AVAILABLE = False
     LANELET2_IMPORT_ERROR = exc

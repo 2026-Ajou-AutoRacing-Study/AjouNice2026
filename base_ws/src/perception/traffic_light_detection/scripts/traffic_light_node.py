@@ -52,6 +52,7 @@ import cv2
 import numpy as np
 import rospy
 from sensor_msgs.msg import CompressedImage
+from std_msgs.msg import UInt64
 from morai_msgs.msg import EgoVehicleStatus
 from ultralytics import YOLO
 
@@ -72,6 +73,7 @@ COLOR_MAP = {
 }
 
 HZ_LOG_INTERVAL = 30
+INVALID_EXTERNAL_GROUP_ID = 0
 
 
 class TrafficLightGroupIdMatcher:
@@ -129,6 +131,10 @@ class TrafficLightNode:
         image_topic = rospy.get_param("~image_topic", "/sensor/camera/front/compressed")
         ego_topic = rospy.get_param("~ego_topic", "/Ego_topic")
         self.conf_threshold = rospy.get_param("~conf", 0.25)
+        # Keep traffic-light inference independent from the detector runtime.
+        # A GPU-capable Python can be selected by launch argument on hosts whose
+        # system PyTorch does not support the installed GPU architecture.
+        self.inference_device = rospy.get_param("~device", "cpu")
         self.center_tolerance_ratio = rospy.get_param("~center_tolerance_ratio", 0.20)
         self.y_weight = rospy.get_param("~y_weight", 0.6)
         self.fallback_group_id = rospy.get_param("~fallback_group_id", 0)
@@ -149,11 +155,23 @@ class TrafficLightNode:
         route_topic = rospy.get_param("~route_topic", "/planning/mission_planning/route")
         route_state_topic = rospy.get_param("~route_state_topic", "/planning/route_state")
         odom_topic = rospy.get_param("~odometry_topic", "/localization/kinematic_state")
+        self.route_group_id_topic = rospy.get_param(
+            "~route_group_id_topic",
+            "/perception/traffic_light_recognition/route_group_id",
+        )
+        self.route_group_id_stale_sec = float(
+            rospy.get_param("~route_group_id_stale_sec", 2.0)
+        )
+        self._external_route_group_id = None
+        self._external_route_group_id_stamp = None
 
         if not os.path.exists(weights_path):
             rospy.logerr(f"[traffic_light_node] 가중치 파일 없음: {weights_path}")
 
-        rospy.loginfo(f"[traffic_light_node] YOLO 가중치 로드: {weights_path}")
+        rospy.loginfo(
+            f"[traffic_light_node] YOLO 가중치 로드: {weights_path} "
+            f"(device={self.inference_device})"
+        )
         self.model = YOLO(weights_path)
 
         # 폴백 매처 먼저 생성 (route 매처의 valid_group_ids 계산에도 재사용)
@@ -184,6 +202,12 @@ class TrafficLightNode:
             TrafficLightGroupArray,
             queue_size=1,
         )
+        self.sub_route_group_id = rospy.Subscriber(
+            self.route_group_id_topic,
+            UInt64,
+            self.route_group_id_callback,
+            queue_size=1,
+        )
         self.debug_pub = None
         if self.publish_debug_image:
             self.debug_pub = rospy.Publisher(
@@ -209,8 +233,22 @@ class TrafficLightNode:
     def ego_callback(self, msg):
         self.fallback_matcher.update_ego_position(msg.position.x, msg.position.y)
 
+    def route_group_id_callback(self, msg):
+        group_id = int(msg.data)
+        self._external_route_group_id = (
+            None if group_id == INVALID_EXTERNAL_GROUP_ID else group_id
+        )
+        self._external_route_group_id_stamp = rospy.Time.now()
+
     def _resolve_group_id(self):
         """1순위 route 기반, 실패 시 2순위 유클리드 폴백. (group_id, method) 반환."""
+        if (
+            self._external_route_group_id is not None
+            and self._external_route_group_id_stamp is not None
+        ):
+            age = (rospy.Time.now() - self._external_route_group_id_stamp).to_sec()
+            if age <= self.route_group_id_stale_sec:
+                return self._external_route_group_id, "route-external"
         if self.route_matcher is not None:
             gid = self.route_matcher.get_group_id()
             if gid is not None:
@@ -251,7 +289,12 @@ class TrafficLightNode:
 
         h, w = img.shape[:2]
 
-        results = self.model.predict(source=img, conf=self.conf_threshold, verbose=False)
+        results = self.model.predict(
+            source=img,
+            conf=self.conf_threshold,
+            device=self.inference_device,
+            verbose=False,
+        )
         r = results[0]
 
         boxes = []
