@@ -1,0 +1,57 @@
+{
+  "schema": "ajounice.aw149.competition_full_lap.v1",
+  "recorded_at": "2026-09-14T02:12:16+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "parent_commit": "b84264d9",
+  "status": "PASS_WITH_DIAGNOSTIC_WARNINGS",
+  "command": "AW149_OUTPUT_PROBE_FULL_LAP=1 AW149_OUTPUT_PROBE_FULL_LAP_STEP_M=0.5 AW149_OUTPUT_PROBE_INPUT_PERIOD_S=0.1 AW149_OUTPUT_PROBE_MASTER_PORT=11645 AW149_OUTPUT_PROBE_TIMEOUT_S=1200 bash scripts/runtime/verify_integrated_planning_output.sh",
+  "configuration": {
+    "map_and_route": "K-City v62 Route A",
+    "path_optimizer_lat_error_weight": 1.0,
+    "ego_motion": "synthetic 0.5 m steps at a published 5.0 m/s",
+    "perception": "empty objects and traffic signals, free occupancy grid, one far pointcloud point",
+    "controller_enabled": false
+  },
+  "observed": {
+    "course_length_to_goal_m": 2157.4993690159354,
+    "route_goal_course_error_m": 0.007751479714700136,
+    "validated_samples": 4316,
+    "completion_ratio": 1.0,
+    "route_lanelet_count": 47,
+    "maximum_bpp_route_section": 46,
+    "expected_final_route_section": 46,
+    "route_section_regressions": 0,
+    "final_trajectory_messages": 7084,
+    "validation_messages": 7084,
+    "path_optimizer_messages": 7118,
+    "unexpected_process_deaths": 0,
+    "maximum_final_to_course_error_m": 0.455623453347683,
+    "maximum_po_to_smoother_shift_m": 1.5023311895995473,
+    "maximum_final_first_point_to_ego_m": 4.999994379007218
+  },
+  "diagnostic_warnings": {
+    "mpt_primal_infeasible_count": 19,
+    "mpt_primal_infeasible_fraction_of_po_messages": 0.0026692891261590335,
+    "effect": "PO output and final validated trajectory continued; no sample or process loss",
+    "invalid_trajectory_warning_count": 2,
+    "invalid_trajectory_context": [
+      "one transient before the route and full-lap validation started",
+      "one forward-horizon warning within 2.5 m of the route goal"
+    ]
+  },
+  "raw_runtime": {
+    "temporary_result": "/tmp/aw149-integrated-output.CTXcJD/result.json",
+    "temporary_log": "/tmp/aw149-integrated-output.CTXcJD/probe.log",
+    "result_sha256": "21344f275072d53be9ee913ff3f59d18d80a058e3165478b33c487fea609ff2e",
+    "log_sha256": "4c513b8888576d3b7a22fd4412612a06c336f180379962873e2435601a52d21d"
+  },
+  "claim_boundary": {
+    "proven": "The installed Mission-BPP-BVP-Smoother-PO-MVP-Scenario-Validator graph generated fresh, bounded, validator-accepted trajectories throughout the full Route A course under deterministic synthetic inputs.",
+    "not_proven": [
+      "MORAI sensor, localization, perception, and traffic-light semantics",
+      "object avoidance or interaction with other vehicles",
+      "controller closed-loop tracking",
+      "absence of every possible corner-cutting issue outside Route A and this input condition"
+    ]
+  }
+}
