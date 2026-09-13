@@ -9,6 +9,9 @@
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="trajectory_topic" default="/planning/trajectory"/>
   <arg name="start_rviz" default="true"/>
+  <!-- Simulator-only visual reference. This never feeds perception/planning. -->
+  <arg name="show_morai_gt" default="true"/>
+  <arg name="morai_gt_objects" default="/Object_topic"/>
   <!--
     The GNSS+IMU production localization intentionally remains planar
     (base_link z=0).  Keep the binary map used by planning untouched, and
@@ -114,6 +117,27 @@
            to="/perception/object_recognition/visualization/predictions"/>
   </node>
 
+  <!--
+    Magenta MORAI truth is an operator/debug overlay only. The planning stack
+    continues to consume /perception/object_recognition/objects. Since the
+    production localization is planar, flatten the visualization boxes onto
+    the same ground plane without altering /Object_topic or any planning TF.
+  -->
+  <node if="$(arg show_morai_gt)"
+        pkg="tracking_prediction_evaluation"
+        type="morai_gt_bbox_visualization_node.py"
+        name="planning_morai_gt_bbox_visualization"
+        output="screen">
+    <param name="input" value="$(arg morai_gt_objects)"/>
+    <param name="output" value="/evaluation/visualization/gt_boxes"/>
+    <param name="morai_static_tf"
+           value="$(arg repo_root)/configs/tf/morai_lanelet_static_tf.yaml"/>
+    <param name="line_width_m" value="0.09"/>
+    <param name="flatten_z" value="true"/>
+    <param name="ground_z" value="0.0"/>
+    <rosparam param="color_rgba">[1.0, 0.0, 0.85, 1.0]</rosparam>
+  </node>
+
   <node if="$(arg start_rviz)" pkg="rviz" type="rviz"
         name="aw149_planning_rviz"
         args="-d $(find bringup)/rviz/kcity_aw149_planning.rviz"
@@ -122,6 +146,6 @@
     <param name="route_request_service" value="$(arg route_request_service)"/>
     <param name="route_request_status_topic" value="$(arg route_request_status_topic)"/>
     <param name="rosbag_topics"
-           value="/tf /tf_static /clock /Ego_topic /sensor/lidar1 /sensor/camera/front/compressed /sensor/camera/front_left/compressed /sensor/camera/front_right/compressed /sensor/camera/back/compressed /localization/kinematic_state /localization/acceleration /perception/object_recognition/detection/objects /perception/object_recognition/tracking/objects /perception/object_recognition/objects /planning/mission_planning/route /planning/mission_planning/route_marker /planning/route_state /planning/scenario_planning/lane_driving/behavior_planning/path /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory /planning/trajectory /planning/validation_status"/>
+           value="/tf /tf_static /clock /Ego_topic /Object_topic /sensor/lidar1 /sensor/camera/front/compressed /sensor/camera/front_left/compressed /sensor/camera/front_right/compressed /sensor/camera/back/compressed /localization/kinematic_state /localization/acceleration /perception/object_recognition/detection/objects /perception/object_recognition/tracking/objects /perception/object_recognition/objects /planning/mission_planning/route /planning/mission_planning/route_marker /planning/route_state /planning/scenario_planning/lane_driving/behavior_planning/path /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory /planning/trajectory /planning/validation_status"/>
   </node>
 </launch>

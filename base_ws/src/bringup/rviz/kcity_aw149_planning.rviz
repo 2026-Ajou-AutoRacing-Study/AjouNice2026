@@ -8,7 +8,7 @@ Panels:
         - /Mission Route1
         - /Final Trajectory1
         - /Ego Vehicle1
-        - /Predicted Objects1
+        - /Perception Pipeline1
         - /Route A Start1
       Splitter Ratio: 0.5
     Tree Height: 690
@@ -83,24 +83,74 @@ Visualization Manager:
       Update Interval: 0
       Value: true
       Visual Enabled: true
-    - Class: rviz/MarkerArray
-      Enabled: false
-      Marker Topic: /perception/object_recognition/visualization/detections
-      Name: Detected Objects
-      Queue Size: 10
-      Value: false
-    - Class: rviz/MarkerArray
-      Enabled: false
-      Marker Topic: /perception/object_recognition/visualization/tracks
-      Name: Tracked Objects
-      Queue Size: 10
-      Value: false
-    - Class: rviz/MarkerArray
+    - Class: rviz/Group
+      Displays:
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0.20000000298023224
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Min Color: 0; 0; 0
+          Name: LiDAR
+          Position Transformer: XYZ
+          Queue Size: 3
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.03999999910593033
+          Style: Flat Squares
+          Topic: /sensor/lidar1
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+        - Class: rviz/MarkerArray
+          Enabled: false
+          Marker Topic: /perception/object_recognition/visualization/detections
+          Name: Detections (green, raw detector)
+          Namespaces:
+            detected_boxes: true
+          Queue Size: 5
+          Value: false
+        - Class: rviz/MarkerArray
+          Enabled: true
+          Marker Topic: /perception/object_recognition/visualization/tracks
+          Name: Tracks (class and UNKNOWN labels)
+          Namespaces:
+            tracked_boxes: true
+            tracked_labels: true
+          Queue Size: 5
+          Value: true
+        - Class: rviz/MarkerArray
+          Enabled: true
+          Marker Topic: /perception/object_recognition/visualization/predictions
+          Name: Map-CV Predictions (0-3 s)
+          Namespaces:
+            predicted_horizon_1_sec: true
+            predicted_horizon_2_sec: true
+            predicted_horizon_3_sec: true
+            predicted_paths: true
+          Queue Size: 5
+          Value: true
+        - Class: rviz/MarkerArray
+          Enabled: true
+          Marker Topic: /evaluation/visualization/gt_boxes
+          Name: MORAI GT BBoxes (magenta, debug only)
+          Namespaces:
+            morai_gt_boxes: true
+          Queue Size: 5
+          Value: true
       Enabled: true
-      Marker Topic: /perception/object_recognition/visualization/predictions
-      Name: Predicted Objects
-      Queue Size: 10
-      Value: true
+      Name: Perception Pipeline
     - Class: rviz/Axes
       Enabled: true
       Length: 10

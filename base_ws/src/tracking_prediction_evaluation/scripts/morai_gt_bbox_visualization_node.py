@@ -85,6 +85,8 @@ class MoraiGtBboxVisualization:
             raise ValueError("GT BBox visualizer supports a yaw-only transform")
         self.transform_yaw = rpy[2]
         self.line_width = float(rospy.get_param("~line_width_m", 0.09))
+        self.flatten_z = bool(rospy.get_param("~flatten_z", False))
+        self.ground_z = float(rospy.get_param("~ground_z", 0.0))
         self.lifetime = rospy.Duration(
             float(rospy.get_param("~marker_lifetime_sec", 0.5))
         )
@@ -113,6 +115,12 @@ class MoraiGtBboxVisualization:
         x = cosine * status.position.x - sine * status.position.y + self.translation[0]
         y = sine * status.position.x + cosine * status.position.y + self.translation[1]
         z = status.position.z + self.translation[2]
+        if self.flatten_z:
+            # ObjectStatus z is an altitude-like MORAI map coordinate, whereas
+            # the production planning visualization intentionally keeps its
+            # planar localization at z=0. Place only this debug wireframe on
+            # that plane; do not change the source message or planning TF.
+            z = self.ground_z + 0.5 * max(0.01, float(status.size.z))
         yaw = quaternion_yaw(status.heading, self.transform_yaw)
         if class_name == "vehicle":
             offset = vehicle_bbox_offset(
