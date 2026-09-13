@@ -13,6 +13,8 @@ import time
 import cv2
 import numpy as np
 import rospy
+from autoware_perception_msgs.msg import DetectedObjects
+from perception_object_pipeline import make_detected_objects
 from sensor_msgs.msg import CompressedImage, PointCloud2, PointField
 from std_msgs.msg import Float32, String
 from visualization_msgs.msg import Marker, MarkerArray
@@ -82,6 +84,14 @@ class BevFusionRosBridge:
 
         self.marker_pub = rospy.Publisher(
             "/perception/bevfusion/markers", MarkerArray, queue_size=1
+        )
+        self.objects_pub = rospy.Publisher(
+            rospy.get_param(
+                "~output_objects",
+                "/perception/object_recognition/detection/objects",
+            ),
+            DetectedObjects,
+            queue_size=1,
         )
         self.latency_pub = rospy.Publisher(
             "/perception/bevfusion/latency_ms", Float32, queue_size=1
@@ -333,7 +343,7 @@ class BevFusionRosBridge:
         if response.get("operation") == "projection":
             self._publish_projection(response, response_blobs)
         else:
-            self._publish_markers(response, stamp)
+            self._publish_detections(response, stamp)
         self._publish_status(
             "ok operation={} sequence={} latency_ms={:.1f} host_preprocess_ms={:.1f} "
             "pointcloud_ms={:.1f} server_preprocess_ms={:.1f} "
@@ -365,15 +375,30 @@ class BevFusionRosBridge:
             message.data = blobs[name]
             publisher.publish(message)
 
-    def _publish_markers(self, response, stamp):
+    def _publish_detections(self, response, stamp):
         markers = []
         frame_id = response.get("frame_id", "lidar1")
+        detections = response.get("detections", [])
         delete_all = Marker()
         delete_all.header.frame_id = frame_id
         delete_all.header.stamp = stamp
+        header = delete_all.header
         delete_all.action = Marker.DELETEALL
         markers.append(delete_all)
-        detections = response.get("detections", [])
+        boxes = [
+            list(detection["center"])
+            + list(detection["size"])
+            + [float(detection["yaw"])]
+            for detection in detections
+        ]
+        self.objects_pub.publish(
+            make_detected_objects(
+                header,
+                boxes,
+                [float(detection.get("score", 0.0)) for detection in detections],
+                [str(detection.get("class_name", "unknown")) for detection in detections],
+            )
+        )
         for index, detection in enumerate(detections):
             box = Marker()
             box.header.frame_id = frame_id

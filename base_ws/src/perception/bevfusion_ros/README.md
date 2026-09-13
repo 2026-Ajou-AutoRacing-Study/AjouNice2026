@@ -10,8 +10,9 @@ Host-side ROS1 bridge for the Dockerized Base3 four-camera BEVFusion runtime.
 - PointCloud2 conversion is vectorized and the runtime contract is exactly
   `float32 [x, y, z, intensity]`.
 - The Docker connection is restricted to `127.0.0.1` TCP.
-- Output `MarkerArray` is an RViz debugging contract, not the final Planning
-  perception message.
+- Output is published both as RViz-only `MarkerArray` and the canonical
+  `autoware_perception_msgs/DetectedObjects` detector contract. The latter is
+  consumed by the common rosbag evaluator and downstream tracking pipeline.
 
 Run calibration projection first:
 

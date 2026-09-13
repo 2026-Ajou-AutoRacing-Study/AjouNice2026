@@ -14,8 +14,18 @@ MORAI rosbag input? It is not a production replacement yet.
   points are removed from training and evaluation using a 3 cm counting
   tolerance, matching the Base3 PointPainting contract.
 - No semantic images, velocity labels, temporal sweeps, or GT sampling.
-- Validation runs every epoch and logs stable `val/center/*`, `val/tp/*`, and
-  `val/range/*` keys to the `morai-3d-object-detection` W&B project.
+- Validation runs every epoch and uses the same epoch-axis W&B contract as
+  PointPainting: `val/center/*`, `val/tp/*`, `val/operating/*`,
+  `val/range/*`, and oriented-BEV `val/iou/*`. Both `val/center_mAP` and
+  `val/center/mAP` are retained so existing panels work unchanged. The
+  single-frame head has no velocity output, so fake `val/velocity/*` values
+  are deliberately not emitted.
+- Training scalars, including `train/loss`, component losses, `train/lr`, and
+  the epoch-end `train/lr_epoch`, also use `epoch` as their W&B x-axis. The
+  PointPainting aliases `epoch/train_loss_mean` and
+  `epoch/learning_rate_last` are emitted once per epoch; BEVFusion-specific
+  heatmap, classification, and box-loss epoch means remain available beside
+  them.
 - W&B source snapshots are disabled because generated catkin devel trees can
   contain stale symlinks; the resolved config and all scalar metrics are still
   logged.
@@ -95,8 +105,9 @@ WANDB_MODE=online \
 ```
 
 Do not run that command until the experiment is explicitly approved. Batch 4
-uses about 10.6 GB reported model memory on the 16 GB RTX 5060 Ti. The smoke
-timing was about 8.7 seconds per optimizer step, implying roughly 4.6 hours per
-training epoch plus about eight minutes of validation, or approximately 56
-hours for all 12 epochs. Treat this as a conservative estimate and reassess
-after the first full epoch.
+uses about 10.6 GB reported model memory on the 16 GB RTX 5060 Ti. After the
+runtime optimization, a full-run step is about 0.55 seconds: one 1,908-step
+training epoch is roughly 17.5 minutes. A 1,635-frame validation is expected to
+take about 11--12 minutes. Validating after every epoch therefore puts the
+12-epoch wall-clock estimate near 5 hours 50 minutes, with roughly 20 minutes
+of environment/checkpoint variance.

@@ -7,6 +7,8 @@ from perception.detection3d.common.evaluation.morai_detection import (
     _orientation_error,
     _scale_error,
     accumulate,
+    accumulate_iou,
+    bev_iou,
     calculate_ap,
     calculate_tp,
 )
@@ -80,6 +82,24 @@ class MoraiDetectionEvalTest(unittest.TestCase):
         self.assertIn("center/vehicle_mean_AP", metrics)
         self.assertNotIn("center/vehicle_mAP", metrics)
         self.assertAlmostEqual(metrics["center/vehicle_mean_AP"], 1.0)
+
+    def test_oriented_bev_iou(self):
+        self.assertAlmostEqual(bev_iou(BOX, BOX), 1.0)
+        shifted = BOX.copy()
+        shifted[0] = 10.0
+        self.assertAlmostEqual(bev_iou(BOX, shifted), 0.0)
+        rotated = BOX.copy()
+        rotated[6] = np.pi / 2.0
+        self.assertAlmostEqual(bev_iou(BOX, rotated), 1.0 / 3.0)
+
+    def test_iou_ap_uses_score_ranked_one_to_one_matching(self):
+        duplicate = BOX.copy()
+        duplicate[0] = 0.1
+        ap, recall = accumulate_iou(
+            [sample([BOX], [0], [BOX, duplicate], [0, 0], [0.9, 0.8])],
+            0, 0.5)
+        self.assertAlmostEqual(recall, 1.0)
+        self.assertAlmostEqual(ap, 1.0)
 
 
 if __name__ == "__main__":

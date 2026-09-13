@@ -1,13 +1,18 @@
 """Conversions for duration fields in the ROS 1-ported Autoware messages."""
 
-from builtin_interfaces.msg import Duration
+import rospy
 
 
 def builtin_duration_from_seconds(seconds):
-    """Return the generated message used by ported ROS 2 Duration fields."""
-    total_nanoseconds = int(round(float(seconds) * 1_000_000_000))
-    sec, nanosec = divmod(total_nanoseconds, 1_000_000_000)
-    return Duration(sec=sec, nanosec=nanosec)
+    """Return the ROS 1 duration used by generated ``duration`` fields.
+
+    The upstream Autoware definition calls this field a builtin duration, but
+    the messages generated in this ROS 1 workspace expose it as
+    ``genpy.Duration``.  Importing ROS 2's ``builtin_interfaces`` here makes
+    otherwise unrelated consumers (notably the RViz marker node) fail before
+    a bag can start playing.
+    """
+    return rospy.Duration.from_sec(float(seconds))
 
 
 def duration_to_seconds(value):
