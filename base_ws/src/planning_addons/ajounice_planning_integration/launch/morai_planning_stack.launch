@@ -36,7 +36,13 @@
   <arg name="prediction_model" default="map_based"/>
   <!-- PointPainting Obstacle is UNKNOWN; prevent tracker jitter becoming motion. -->
   <arg name="force_unknown_stationary" default="true"/>
+  <!-- Preserve the planning baseline. BEVFusion hosts may explicitly override
+       this to 0.5 s when measured detector age exceeds 0.25 s. -->
+  <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
   <arg name="start_traffic_light" default="true"/>
+  <arg name="traffic_light_inference_python"
+       default="/usr/bin/python3"/>
+  <arg name="traffic_light_device" default="0"/>
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
   <arg name="start_controller" default="false"/>
@@ -95,7 +101,8 @@
       <arg name="compensate_tracking_output_to_current_time" value="false"/>
       <arg name="maximum_tracking_output_compensation_sec" value="0.25"/>
       <arg name="tracking_internal_publish_rate_hz" value="30.0"/>
-      <arg name="maximum_tracking_internal_prediction_age_sec" value="0.25"/>
+      <arg name="maximum_tracking_internal_prediction_age_sec"
+           value="$(arg maximum_tracking_internal_prediction_age_sec)"/>
       <arg name="detection_velocity_fusion_mode" value="0"/>
       <arg name="tracking_publish_rate_hz" value="0.0"/>
       <arg name="prediction_time_step" value="0.1"/>
@@ -110,6 +117,8 @@
   <group if="$(arg start_traffic_light)">
     <include file="$(find traffic_light_detection)/launch/traffic_light_node.launch">
       <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="inference_python" value="$(arg traffic_light_inference_python)"/>
+      <arg name="device" value="$(arg traffic_light_device)"/>
     </include>
   </group>
 

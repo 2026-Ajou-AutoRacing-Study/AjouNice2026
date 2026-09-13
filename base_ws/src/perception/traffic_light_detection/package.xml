@@ -10,6 +10,7 @@
 
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
   <depend>autoware_perception_msgs</depend>
   <depend>autoware_planning_msgs</depend>
   <depend>builtin_interfaces</depend>

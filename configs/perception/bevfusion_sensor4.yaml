@@ -17,6 +17,11 @@ sync_tolerance_sec: 0.10
 latest_frame_only: true
 drop_incomplete_frame: true
 
+# Base3 is trained on exactly [x, y, z, intensity]. The ROS bridge enforces
+# this contract and intentionally drops MORAI's optional per-point time field.
+point_feature_contract: xyzi
+preprocess_workers: 4
+
 intrinsic_source: horizontal_fov
 score_threshold: 0.20
 max_detections: 100

@@ -1,5 +1,6 @@
-# Runtime versions exercised by the AW149 integration gate on Ubuntu 20.04.
-# Install a platform-appropriate PyTorch build before this file when CUDA differs.
+# Install a GPU-architecture-appropriate PyTorch/Torchvision pair first.
+# The RTX 5060 Ti integration gate uses torch 2.7.1+cu128 and
+# torchvision 0.22.1+cu128; do not replace it with an older CUDA wheel.
 ultralytics==8.4.143
-torch==2.4.1
-torchvision==0.19.1
+numpy==1.26.4
+opencv-python==4.8.1.78

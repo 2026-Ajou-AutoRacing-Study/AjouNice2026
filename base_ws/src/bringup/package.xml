@@ -105,6 +105,7 @@
   <exec_depend>fast_lio</exec_depend>
   <exec_depend>ioniq5</exec_depend>
   <exec_depend>perception_object_pipeline</exec_depend>
+  <exec_depend>tracking_prediction_evaluation</exec_depend>
   <exec_depend>lanelet_map_visualizer</exec_depend>
   <exec_depend>behavior_path_planner</exec_depend>
   <exec_depend>behavior_velocity_planner</exec_depend>

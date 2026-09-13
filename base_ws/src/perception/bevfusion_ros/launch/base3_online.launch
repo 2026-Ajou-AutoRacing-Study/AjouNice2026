@@ -1,0 +1,36 @@
+<launch>
+  <!-- Base3-trained four-camera + LiDAR BEVFusion online inference. -->
+  <arg name="sensor_config"
+       default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor.json"/>
+  <arg name="config"
+       default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_sensor4.yaml"/>
+  <arg name="start_rviz" default="true"/>
+  <!-- Validated B3-BF0 E10 production operating point. score_threshold is
+       only the fallback for an unknown detector class. -->
+  <arg name="score_threshold" default="0.10"/>
+  <arg name="vehicle_score_threshold" default="0.40"/>
+  <arg name="pedestrian_score_threshold" default="0.15"/>
+  <arg name="obstacle_score_threshold" default="0.10"/>
+  <arg name="output_objects"
+       default="/perception/object_recognition/detection/objects"/>
+
+  <node pkg="bevfusion_ros"
+        type="bevfusion_ros_bridge.py"
+        name="bevfusion_ros_bridge"
+        output="screen">
+    <rosparam command="load" file="$(arg config)"/>
+    <param name="sensor_config" value="$(arg sensor_config)"/>
+    <param name="operation" value="inference"/>
+    <param name="score_threshold" value="$(arg score_threshold)"/>
+    <param name="vehicle_score_threshold" value="$(arg vehicle_score_threshold)"/>
+    <param name="pedestrian_score_threshold" value="$(arg pedestrian_score_threshold)"/>
+    <param name="obstacle_score_threshold" value="$(arg obstacle_score_threshold)"/>
+    <param name="output_objects" value="$(arg output_objects)"/>
+  </node>
+
+  <node if="$(arg start_rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="bevfusion_rviz"
+        args="-d $(find bevfusion_ros)/rviz/bevfusion_zero_shot.rviz"/>
+</launch>

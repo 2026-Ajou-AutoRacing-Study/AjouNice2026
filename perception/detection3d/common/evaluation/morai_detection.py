@@ -15,6 +15,7 @@ import numpy as np
 DEFAULT_CENTER_THRESHOLDS = (0.5, 1.0, 2.0, 4.0)
 DEFAULT_DISTANCE_BINS = ((0.0, 10.0), (10.0, 20.0),
                          (20.0, 30.0), (30.0, 50.0))
+DEFAULT_IOU_THRESHOLDS = (0.25, 0.30, 0.50)
 
 
 @dataclass
@@ -229,6 +230,165 @@ def best_f1_operating_point(metric_data):
             float(metric_data.confidence[index]))
 
 
+def _rectangle_corners(box):
+    """Return one LiDAR box's four counter-clockwise BEV corners."""
+    x, y, length, width, yaw = (
+        float(box[0]), float(box[1]), float(box[3]),
+        float(box[4]), float(box[6]))
+    local = np.asarray([
+        [length / 2.0, width / 2.0],
+        [-length / 2.0, width / 2.0],
+        [-length / 2.0, -width / 2.0],
+        [length / 2.0, -width / 2.0],
+    ], dtype=np.float64)
+    cosine, sine = np.cos(yaw), np.sin(yaw)
+    rotation = np.asarray([[cosine, -sine], [sine, cosine]])
+    return local @ rotation.T + np.asarray([x, y])
+
+
+def _polygon_area(polygon):
+    if len(polygon) < 3:
+        return 0.0
+    values = np.asarray(polygon, dtype=np.float64)
+    return float(abs(np.dot(values[:, 0], np.roll(values[:, 1], -1)) -
+                     np.dot(values[:, 1], np.roll(values[:, 0], -1))) * 0.5)
+
+
+def _clip_polygon(subject, clip):
+    """Sutherland-Hodgman clipping for two convex CCW polygons."""
+    output = [np.asarray(point, dtype=np.float64) for point in subject]
+    epsilon = 1.0e-10
+
+    def inside(point, edge_start, edge_end):
+        edge = edge_end - edge_start
+        relative = point - edge_start
+        return edge[0] * relative[1] - edge[1] * relative[0] >= -epsilon
+
+    def intersection(first, second, edge_start, edge_end):
+        direction = second - first
+        edge = edge_end - edge_start
+        denominator = direction[0] * edge[1] - direction[1] * edge[0]
+        if abs(denominator) <= epsilon:
+            return second
+        offset = edge_start - first
+        scale = (offset[0] * edge[1] - offset[1] * edge[0]) / denominator
+        return first + scale * direction
+
+    for index, edge_start in enumerate(clip):
+        edge_start = np.asarray(edge_start, dtype=np.float64)
+        edge_end = np.asarray(clip[(index + 1) % len(clip)], dtype=np.float64)
+        input_polygon, output = output, []
+        if not input_polygon:
+            break
+        previous = input_polygon[-1]
+        for current in input_polygon:
+            current_inside = inside(current, edge_start, edge_end)
+            previous_inside = inside(previous, edge_start, edge_end)
+            if current_inside:
+                if not previous_inside:
+                    output.append(intersection(
+                        previous, current, edge_start, edge_end))
+                output.append(current)
+            elif previous_inside:
+                output.append(intersection(
+                    previous, current, edge_start, edge_end))
+            previous = current
+    return output
+
+
+def bev_iou(first, second):
+    """Oriented BEV IoU used by the PointPainting-compatible panels."""
+    if min(float(first[3]), float(first[4]),
+           float(second[3]), float(second[4])) <= 0.0:
+        return 0.0
+    first_corners = _rectangle_corners(first)
+    second_corners = _rectangle_corners(second)
+    # Almost all dense head proposals are nowhere near a given GT box.  This
+    # inexpensive rejection keeps the pure-NumPy metric practical on the full
+    # 1,635-frame validation split.
+    if (np.max(first_corners[:, 0]) < np.min(second_corners[:, 0]) or
+            np.max(second_corners[:, 0]) < np.min(first_corners[:, 0]) or
+            np.max(first_corners[:, 1]) < np.min(second_corners[:, 1]) or
+            np.max(second_corners[:, 1]) < np.min(first_corners[:, 1])):
+        return 0.0
+    intersection = _polygon_area(
+        _clip_polygon(first_corners, second_corners))
+    first_area = float(first[3]) * float(first[4])
+    second_area = float(second[3]) * float(second[4])
+    union = first_area + second_area - intersection
+    return float(intersection / union) if union > 0.0 else 0.0
+
+
+def _precision_envelope_ap(recall, precision):
+    if len(recall) == 0:
+        return 0.0
+    mrec = np.concatenate(([0.0], recall, [1.0]))
+    mpre = np.concatenate(([0.0], precision, [0.0]))
+    for index in range(len(mpre) - 2, -1, -1):
+        mpre[index] = max(mpre[index], mpre[index + 1])
+    changed = np.nonzero(mrec[1:] != mrec[:-1])[0]
+    return float(np.sum(
+        (mrec[changed + 1] - mrec[changed]) * mpre[changed + 1]))
+
+
+def _prepare_iou_matching(samples, class_index):
+    """Cache pairwise overlaps shared by all configured IoU thresholds."""
+    positives = sum(int(np.count_nonzero(sample["gt_labels"] == class_index))
+                    for sample in samples)
+    ranked = []
+    overlaps = {}
+    candidates = {}
+    for sample_index, sample in enumerate(samples):
+        gt_indices = np.nonzero(sample["gt_labels"] == class_index)[0]
+        pred_indices = np.nonzero(sample["pred_labels"] == class_index)[0]
+        candidates[sample_index] = gt_indices
+        for pred_index in pred_indices:
+            pred_index = int(pred_index)
+            ranked.append((float(sample["pred_scores"][pred_index]),
+                           sample_index, pred_index))
+            for gt_index in gt_indices:
+                gt_index = int(gt_index)
+                overlaps[(sample_index, pred_index, gt_index)] = bev_iou(
+                    sample["pred_boxes"][pred_index],
+                    sample["gt_boxes"][gt_index])
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return positives, ranked, candidates, overlaps
+
+
+def accumulate_iou(samples, class_index, iou_threshold, prepared=None):
+    """PointPainting-compatible global-score, one-to-one BEV-IoU AP."""
+    if prepared is None:
+        prepared = _prepare_iou_matching(samples, class_index)
+    positives, ranked, candidates_by_sample, overlaps = prepared
+    if positives == 0 or not ranked:
+        return 0.0, 0.0
+
+    taken = set()
+    tp = np.zeros(len(ranked), dtype=np.float64)
+    fp = np.zeros(len(ranked), dtype=np.float64)
+    for rank, (_score, sample_index, pred_index) in enumerate(ranked):
+        candidates = candidates_by_sample[sample_index]
+        best_iou, best_gt = -1.0, None
+        for gt_index in candidates:
+            key = (sample_index, int(gt_index))
+            if key in taken:
+                continue
+            overlap = overlaps[(sample_index, pred_index, int(gt_index))]
+            if overlap > best_iou:
+                best_iou, best_gt = overlap, int(gt_index)
+        if best_gt is not None and best_iou >= float(iou_threshold):
+            taken.add((sample_index, best_gt))
+            tp[rank] = 1.0
+        else:
+            fp[rank] = 1.0
+
+    cumulative_tp = np.cumsum(tp)
+    cumulative_fp = np.cumsum(fp)
+    recall = cumulative_tp / float(positives)
+    precision = cumulative_tp / np.maximum(cumulative_tp + cumulative_fp, 1e-12)
+    return _precision_envelope_ap(recall, precision), float(recall[-1])
+
+
 def _evaluate_center(samples, class_names, center_thresholds,
                      tp_threshold, min_recall, min_precision, prefix,
                      include_tp=True, include_operating_points=True):
@@ -280,6 +440,7 @@ def morai_detection_eval(data_infos,
                          min_recall=0.1,
                          min_precision=0.1,
                          distance_bins=DEFAULT_DISTANCE_BINS,
+                         iou_thresholds=DEFAULT_IOU_THRESHOLDS,
                          include_tp=True,
                          include_operating_points=True):
     """Evaluate MORAI predictions and return flat scalar metric keys."""
@@ -296,6 +457,15 @@ def morai_detection_eval(data_infos,
         float(min_recall), float(min_precision), "center",
         include_tp=include_tp,
         include_operating_points=include_operating_points)
+    # Preserve both spellings because older PointPainting panels used the
+    # underscore alias while newer model-neutral panels use center/mAP.
+    metrics["center_mAP"] = metrics["center/mAP"]
+    if 1.0 in center_thresholds:
+        for class_name in class_names:
+            source = f"center/{class_name}_1m_best_"
+            target = f"operating/{class_name}_1m_"
+            for suffix in ("F1", "precision", "recall", "score"):
+                metrics[target + suffix] = metrics[source + suffix]
     for lower, upper in distance_bins or ():
         ranged = _filter_range(samples, (float(lower), float(upper)))
         ranged_metrics = _evaluate_center(
@@ -308,5 +478,22 @@ def morai_detection_eval(data_infos,
         # the complete evaluation range.
         metrics.update({key: value for key, value in ranged_metrics.items()
                         if key.startswith("range/")})
+    iou_aps = {float(threshold): [] for threshold in iou_thresholds}
+    iou_recalls = {float(threshold): [] for threshold in iou_thresholds}
+    for class_index, class_name in enumerate(class_names):
+        prepared = _prepare_iou_matching(samples, class_index)
+        for threshold in iou_thresholds:
+            ap, recall = accumulate_iou(
+                samples, class_index, float(threshold), prepared=prepared)
+            key = f"{float(threshold):.2f}"
+            metrics[f"iou/{class_name}_AP_{key}"] = ap
+            metrics[f"iou/{class_name}_rec_{key}"] = recall
+            iou_aps[float(threshold)].append(ap)
+            iou_recalls[float(threshold)].append(recall)
+    for threshold in iou_thresholds:
+        key = f"{float(threshold):.2f}"
+        metrics[f"iou/mAP_{key}"] = float(np.mean(iou_aps[float(threshold)]))
+        metrics[f"iou/mAR_{key}"] = float(
+            np.mean(iou_recalls[float(threshold)]))
     metrics["meta/official_NDS_available"] = 0.0
     return metrics
