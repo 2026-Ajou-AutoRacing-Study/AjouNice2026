@@ -1,5 +1,6 @@
 """Camera-shape-aware image augmentation for MORAI's mixed resolutions."""
 
+import cv2
 import numpy as np
 import torch
 from mmdet3d.registry import TRANSFORMS
@@ -21,6 +22,54 @@ class MoraiImageAug3D(ImageAug3D):
     def __init__(self, *args, reference_width=1280, **kwargs):
         super().__init__(*args, **kwargs)
         self.reference_width = reference_width
+
+    def img_transform(self, img, rotation, translation, resize, resize_dims,
+                      crop, flip, rotate):
+        """Apply the same OpenCV cubic path used by the online ROS runtime."""
+        # The upstream PIL implementation quantizes the loader's float32
+        # array back to uint8 before resizing. Preserve that contract so the
+        # online RGB8 path is pixel-identical while transferring 4x less data.
+        img = img.astype(np.uint8, copy=False)
+        img = cv2.resize(img, resize_dims, interpolation=cv2.INTER_CUBIC)
+        left, top, right, bottom = crop
+        img = img[top:bottom, left:right]
+        if flip:
+            img = cv2.flip(img, 1)
+        if rotate:
+            height, width = img.shape[:2]
+            affine = cv2.getRotationMatrix2D(
+                (width * 0.5, height * 0.5), rotate, 1.0)
+            img = cv2.warpAffine(
+                img,
+                affine,
+                (width, height),
+                flags=cv2.INTER_CUBIC,
+                borderMode=cv2.BORDER_CONSTANT,
+            )
+
+        rotation *= resize
+        translation -= torch.tensor(crop[:2], dtype=translation.dtype)
+        if flip:
+            matrix = torch.tensor(
+                [[-1, 0], [0, 1]], dtype=rotation.dtype)
+            offset = torch.tensor(
+                [crop[2] - crop[0], 0], dtype=translation.dtype)
+            rotation = matrix.matmul(rotation)
+            translation = matrix.matmul(translation) + offset
+        theta = rotate / 180.0 * np.pi
+        matrix = torch.tensor(
+            [[np.cos(theta), np.sin(theta)],
+             [-np.sin(theta), np.cos(theta)]],
+            dtype=rotation.dtype,
+        )
+        center = torch.tensor(
+            [crop[2] - crop[0], crop[3] - crop[1]],
+            dtype=translation.dtype,
+        ) / 2.0
+        offset = matrix.matmul(-center) + center
+        rotation = matrix.matmul(rotation)
+        translation = matrix.matmul(translation) + offset
+        return np.ascontiguousarray(img), rotation, translation
 
     def transform(self, data):
         images_meta = list(data['images'].values())

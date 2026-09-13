@@ -19,7 +19,6 @@ from app.protocol import (
     recv_message,
     send_message,
 )
-from app.runtime_sample import RuntimeSampleWriter
 from app.sensor4_calibration import load_sensor4_calibration, serializable_calibration
 
 
@@ -32,13 +31,20 @@ class InferenceServer:
         self.calibration = load_sensor4_calibration(
             args.sensor_config, args.camera_order, args.intrinsic_source
         )
-        self.writer = RuntimeSampleWriter(args.runtime_dir, self.calibration)
         self.model = None
         if not args.projection_only:
             from app.bevfusion_model import BevFusionModel
 
             LOGGER.info("Loading BEVFusion model from %s", args.checkpoint)
-            self.model = BevFusionModel(args.config, args.checkpoint, args.device)
+            self.model = BevFusionModel(
+                args.config,
+                args.checkpoint,
+                self.calibration,
+                args.device,
+                use_amp=args.amp,
+                preprocess_workers=args.preprocess_workers,
+                warmup_iterations=args.warmup_iterations,
+            )
             LOGGER.info("BEVFusion model is ready")
 
     def serve_forever(self):
@@ -93,7 +99,7 @@ class InferenceServer:
             raise ValueError("ROS and Docker camera order differs")
         if metadata.get("intrinsic_source") != self.calibration["intrinsic_source"]:
             raise ValueError("ROS and Docker intrinsic_source differs")
-        points_path, image_dir, info_path, points = self.writer.write(metadata, blobs)
+        points = parse_points(metadata, blobs)
         operation = metadata.get("operation", "inference")
         if operation == "projection":
             projection_blobs = self._project(points, blobs)
@@ -114,12 +120,18 @@ class InferenceServer:
             raise ValueError("unsupported operation {!r}".format(operation))
         if self.model is None:
             raise RuntimeError("server was started in projection-only mode")
-        detections, inference_ms = self.model.infer(
-            points_path,
-            image_dir,
-            info_path,
+        image_encoding = metadata.get("image_encoding", "compressed")
+        if image_encoding not in ("compressed", "rgb8"):
+            raise ValueError(
+                "unsupported image_encoding {!r}".format(image_encoding)
+            )
+        detections, preprocess_ms, inference_ms = self.model.infer(
+            points,
+            blobs,
+            metadata.get("sequence", 0),
             metadata.get("score_threshold", 0.2),
             metadata.get("max_detections", 100),
+            images_preprocessed=(image_encoding == "rgb8"),
         )
         send_message(
             connection,
@@ -130,6 +142,7 @@ class InferenceServer:
                 "sequence": metadata.get("sequence", 0),
                 "frame_id": self.calibration["lidar_frame"],
                 "detections": detections,
+                "preprocess_ms": preprocess_ms,
                 "inference_ms": inference_ms,
                 "server_ms": (time.monotonic() - request_start) * 1000.0,
             },
@@ -184,14 +197,41 @@ def parse_args():
     parser.add_argument("--sensor-config", required=True)
     parser.add_argument("--config", required=True)
     parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--runtime-dir", default="/dev/shm/bevfusion_runtime")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--intrinsic-source", default="horizontal_fov")
     parser.add_argument("--camera-order", nargs=4, default=None)
     parser.add_argument("--projection-only", action="store_true")
     parser.add_argument("--projection-stride", type=int, default=4)
+    parser.add_argument("--amp", action="store_true")
+    parser.add_argument("--preprocess-workers", type=int, default=4)
+    parser.add_argument("--warmup-iterations", type=int, default=2)
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args()
+
+
+def parse_points(metadata, blobs):
+    blob_name = metadata.get("points_blob", "points")
+    if blob_name not in blobs:
+        raise ValueError("request is missing point cloud blob")
+    point_dim = int(metadata.get("point_dim", 4))
+    if point_dim != 4:
+        raise ValueError(
+            "Base3 runtime expects four float32 point fields, got {}".format(
+                point_dim
+            )
+        )
+    values = np.frombuffer(blobs[blob_name], dtype="<f4")
+    if values.size % point_dim:
+        raise ValueError("point cloud payload does not align to point_dim")
+    points = values.reshape((-1, point_dim))
+    expected_count = metadata.get("point_count")
+    if expected_count is not None and len(points) != int(expected_count):
+        raise ValueError(
+            "point_count {} differs from payload {}".format(
+                expected_count, len(points)
+            )
+        )
+    return points
 
 
 def main():

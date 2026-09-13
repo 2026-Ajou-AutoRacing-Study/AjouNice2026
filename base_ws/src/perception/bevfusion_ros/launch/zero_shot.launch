@@ -1,24 +1,13 @@
 <launch>
-  <!-- Run four-camera MORAI zero-shot BEVFusion and optional RViz. -->
+  <!-- Compatibility alias. New deployments should use base3_online.launch. -->
   <arg name="sensor_config"
        default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor.json"/>
   <arg name="config"
        default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_sensor4.yaml"/>
   <arg name="start_rviz" default="true"/>
-
-  <node pkg="bevfusion_ros"
-        type="bevfusion_ros_bridge.py"
-        name="bevfusion_ros_bridge"
-        output="screen">
-    <rosparam command="load" file="$(arg config)"/>
-    <param name="sensor_config" value="$(arg sensor_config)"/>
-    <param name="operation" value="inference"/>
-  </node>
-
-  <node if="$(arg start_rviz)"
-        pkg="rviz"
-        type="rviz"
-        name="bevfusion_rviz"
-        args="-d $(find bevfusion_ros)/rviz/bevfusion_zero_shot.rviz"/>
+  <include file="$(find bevfusion_ros)/launch/base3_online.launch">
+    <arg name="sensor_config" value="$(arg sensor_config)"/>
+    <arg name="config" value="$(arg config)"/>
+    <arg name="start_rviz" value="$(arg start_rviz)"/>
+  </include>
 </launch>
-

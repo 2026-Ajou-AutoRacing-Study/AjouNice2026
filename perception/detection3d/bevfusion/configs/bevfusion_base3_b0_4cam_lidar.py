@@ -14,6 +14,7 @@ custom_imports = dict(
 )
 
 classes = ('vehicle', 'pedestrian', 'obstacle')
+class_names = classes
 metainfo = dict(classes=classes)
 dataset_type = 'MoraiBase3Dataset'
 point_cloud_range = [-30.0, -30.0, -3.0, 30.0, 30.0, 2.0]

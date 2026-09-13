@@ -6,13 +6,18 @@ services:
       BEVFUSION_PORT: ${BEVFUSION_PORT:-29500}
       PROJECTION_ONLY: ${PROJECTION_ONLY:-false}
       INTRINSIC_SOURCE: ${INTRINSIC_SOURCE:-horizontal_fov}
+      MODEL_CONFIG: ${BEVFUSION_MODEL_CONFIG:-/workspace/AjouNice2026/perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py}
+      USE_AMP: ${BEVFUSION_USE_AMP:-true}
+      PREPROCESS_WORKERS: ${BEVFUSION_PREPROCESS_WORKERS:-4}
+      WARMUP_ITERATIONS: ${BEVFUSION_WARMUP_ITERATIONS:-2}
     ports:
       - "127.0.0.1:${BEVFUSION_PORT:-29500}:${BEVFUSION_PORT:-29500}"
     volumes:
       - ./app:/opt/ajounice/app:ro
       - ./scripts:/opt/ajounice/scripts:ro
+      - ${AJOUNICE_ROOT}:/workspace/AjouNice2026:ro
       - ${AJOUNICE_ROOT}/configs/sensors/Sensor.json:/config/Sensor.json:ro
-      - ${BEVFUSION_CHECKPOINT}:/opt/checkpoints/bevfusion_lidar_cam_nuscenes.pth:ro
+      - ${BEVFUSION_CHECKPOINT}:/opt/checkpoints/bevfusion_base3.pth:ro
     shm_size: "4gb"
     gpus: all
     restart: unless-stopped

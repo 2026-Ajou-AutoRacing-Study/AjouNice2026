@@ -65,6 +65,10 @@ def main():
             'source': str(args.input),
             'class_mapping': [list(group) for group in GROUPS],
             'lidar_features': ['x', 'y', 'z', 'intensity'],
+            'dataset_meta': {
+                'classes': ['vehicle', 'pedestrian', 'obstacle'],
+                'palette': 'random',
+            },
         },
     }, args.output)
     print(f'wrote {len(adapted)} tensors to {args.output}')

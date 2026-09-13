@@ -1,0 +1,204 @@
+"""In-memory OpenCV preprocessing matching the Base3 BEVFusion test pipeline."""
+
+from concurrent.futures import ThreadPoolExecutor
+
+import cv2
+import numpy as np
+import torch
+from mmdet3d.structures import Det3DDataSample, LiDARInstance3DBoxes
+
+
+class Base3OnlinePreprocessor:
+    """Build MMDetection3D inputs without temporary image or point files."""
+
+    def __init__(
+        self,
+        calibration,
+        camera_workers=4,
+        final_dim=(256, 704),
+        resize=0.55,
+        reference_width=1280,
+        point_cloud_range=(-30.0, -30.0, -3.0, 30.0, 30.0, 2.0),
+    ):
+        self.calibration = calibration
+        self.final_dim = tuple(int(value) for value in final_dim)
+        self.resize = float(resize)
+        self.reference_width = float(reference_width)
+        self.point_cloud_range = np.asarray(point_cloud_range, dtype=np.float32)
+        self.camera_workers = max(1, int(camera_workers))
+        self.executor = (
+            ThreadPoolExecutor(
+                max_workers=self.camera_workers,
+                thread_name_prefix="bevfusion_camera",
+            )
+            if self.camera_workers > 1
+            else None
+        )
+
+        self.camera_intrinsics = []
+        self.lidar2cam = []
+        self.cam2lidar = []
+        self.lidar2img = []
+        self.img_aug_matrix = []
+        for camera in calibration["cameras"]:
+            cam2img = np.eye(4, dtype=np.float32)
+            cam2img[:3, :3] = np.asarray(camera["cam2img"], dtype=np.float32)
+            lidar2cam = np.asarray(camera["lidar2cam"], dtype=np.float32)
+            self.camera_intrinsics.append(cam2img)
+            self.lidar2cam.append(lidar2cam)
+            self.cam2lidar.append(
+                np.asarray(camera["cam2lidar"], dtype=np.float32)
+            )
+            self.lidar2img.append(cam2img @ lidar2cam)
+            self.img_aug_matrix.append(self._augmentation_matrix(camera))
+
+        self.camera_intrinsics = np.stack(self.camera_intrinsics)
+        self.lidar2cam = np.stack(self.lidar2cam)
+        self.cam2lidar = np.stack(self.cam2lidar)
+        self.lidar2img = np.stack(self.lidar2img)
+        self.img_aug_matrix = np.stack(self.img_aug_matrix)
+
+    def prepare(
+        self, points, image_blobs, sample_idx=0, images_preprocessed=False
+    ):
+        """Return a pseudo-collated batch accepted directly by model.test_step."""
+        cameras = self.calibration["cameras"]
+        if images_preprocessed:
+            images = [
+                self._load_preprocessed(camera, image_blobs)
+                for camera in cameras
+            ]
+        else:
+            arguments = [(camera, image_blobs) for camera in cameras]
+            if self.executor is None:
+                images = [self._decode_resize(argument) for argument in arguments]
+            else:
+                images = list(self.executor.map(self._decode_resize, arguments))
+
+        image_tensor = torch.from_numpy(
+            np.ascontiguousarray(np.stack(images).transpose(0, 3, 1, 2))
+        )
+        points = self._filter_points(points)
+        point_tensor = torch.from_numpy(points)
+
+        data_sample = Det3DDataSample()
+        data_sample.set_metainfo({
+            "sample_idx": str(sample_idx),
+            "num_pts_feats": 4,
+            "num_views": len(cameras),
+            "box_type_3d": LiDARInstance3DBoxes,
+            "cam2img": self.camera_intrinsics,
+            "ori_cam2img": self.camera_intrinsics,
+            "lidar2cam": self.lidar2cam,
+            "cam2lidar": self.cam2lidar,
+            "lidar2img": self.lidar2img,
+            "img_aug_matrix": self.img_aug_matrix,
+            "lidar_aug_matrix": np.eye(4, dtype=np.float32),
+        })
+        return {
+            "inputs": {"points": [point_tensor], "img": [image_tensor]},
+            "data_samples": [data_sample],
+        }
+
+    def close(self):
+        if self.executor is not None:
+            self.executor.shutdown(wait=True)
+
+    def _decode_resize(self, argument):
+        camera, image_blobs = argument
+        frame_id = camera["frame_id"]
+        blob_name = "image/{}".format(frame_id)
+        if blob_name not in image_blobs:
+            raise ValueError("request is missing {}".format(blob_name))
+        image = cv2.imdecode(
+            np.frombuffer(image_blobs[blob_name], dtype=np.uint8),
+            cv2.IMREAD_COLOR,
+        )
+        if image is None:
+            raise ValueError("could not decode image for {}".format(frame_id))
+        expected_shape = (int(camera["height"]), int(camera["width"]))
+        if image.shape[:2] != expected_shape:
+            raise ValueError(
+                "{} image shape {} differs from Sensor.json {}".format(
+                    frame_id, image.shape[:2], expected_shape
+                )
+            )
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        resize_dims, crop = self._resize_crop(camera)
+        image = cv2.resize(image, resize_dims, interpolation=cv2.INTER_CUBIC)
+        left, top, right, bottom = crop
+        image = image[top:bottom, left:right]
+        if image.shape[:2] != self.final_dim:
+            raise ValueError(
+                "{} preprocessed shape {} differs from {}".format(
+                    frame_id, image.shape[:2], self.final_dim
+                )
+            )
+        # Keep RGB pixels uint8 across CPU and PCIe. MMDetection3D casts to
+        # float and applies the configured mean/std on GPU.
+        return np.ascontiguousarray(image)
+
+    def _load_preprocessed(self, camera, image_blobs):
+        blob_name = "image/{}".format(camera["frame_id"])
+        if blob_name not in image_blobs:
+            raise ValueError("request is missing {}".format(blob_name))
+        final_height, final_width = self.final_dim
+        expected = final_height * final_width * 3
+        values = np.frombuffer(image_blobs[blob_name], dtype=np.uint8)
+        if values.size != expected:
+            raise ValueError(
+                "{} RGB8 payload has {} bytes, expected {}".format(
+                    camera["frame_id"], values.size, expected
+                )
+            )
+        return values.reshape(final_height, final_width, 3)
+
+    def _resize_crop(self, camera):
+        width = int(camera["width"])
+        height = int(camera["height"])
+        final_height, final_width = self.final_dim
+        scale = self.resize * self.reference_width / width
+        new_width, new_height = int(width * scale), int(height * scale)
+        crop_top = new_height - final_height
+        crop_left = max(0, new_width - final_width) // 2
+        crop = (
+            crop_left,
+            crop_top,
+            crop_left + final_width,
+            crop_top + final_height,
+        )
+        if crop_top < 0 or crop[2] > new_width:
+            raise ValueError(
+                "camera {} cannot produce final size {} after resize {}".format(
+                    camera["frame_id"], self.final_dim, (new_height, new_width)
+                )
+            )
+        return (new_width, new_height), crop
+
+    def _augmentation_matrix(self, camera):
+        width = int(camera["width"])
+        scale = self.resize * self.reference_width / width
+        _resize_dims, crop = self._resize_crop(camera)
+        matrix = np.eye(4, dtype=np.float32)
+        matrix[0, 0] = scale
+        matrix[1, 1] = scale
+        matrix[0, 3] = -float(crop[0])
+        matrix[1, 3] = -float(crop[1])
+        return matrix
+
+    def _filter_points(self, points):
+        points = np.asarray(points, dtype=np.float32)
+        if points.ndim != 2 or points.shape[1] != 4:
+            raise ValueError(
+                "Base3 BEVFusion expects Nx4 [x,y,z,intensity], got {}".format(
+                    points.shape
+                )
+            )
+        lower, upper = self.point_cloud_range[:3], self.point_cloud_range[3:]
+        keep = np.isfinite(points).all(axis=1)
+        keep &= (points[:, :3] >= lower).all(axis=1)
+        keep &= (points[:, :3] <= upper).all(axis=1)
+        filtered = np.ascontiguousarray(points[keep])
+        if not len(filtered):
+            raise ValueError("no finite LiDAR points remain inside the Base3 range")
+        return filtered
