@@ -47,6 +47,9 @@ rosparam set /use_sim_time true
 roslaunch bevfusion_ros base3_online.launch \
   start_rviz:=false \
   score_threshold:=0.01 \
+  vehicle_score_threshold:=0.01 \
+  pedestrian_score_threshold:=0.01 \
+  obstacle_score_threshold:=0.01 \
   >"$output_dir/bevfusion_bridge.log" 2>&1 &
 bridge_pid=$!
 

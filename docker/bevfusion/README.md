@@ -8,9 +8,9 @@ Algorithm runtime policy comes from
 `configs/perception/bevfusion_sensor4.yaml`.
 
 The ROS host connects to a port published only on `127.0.0.1`. The simulator
-boundary remains the competition-provided UDP interface. See
-`docs/bevfusion/260720_morai_four_camera_zero_shot_full.md` for the protocol,
-competition-rule caveat, and the Unix-domain-socket fallback.
+boundary remains the competition-provided UDP interface. Production deployment
+is documented in `docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`. The
+older `260720_*zero_shot*` documents are experiment history only.
 
 ```bash
 # Create the local Compose environment file once.
@@ -25,9 +25,10 @@ docker compose logs -f inference
 PYTHONPATH=. python3 scripts/healthcheck.py
 ```
 
-Before production use, set `BEVFUSION_CHECKPOINT` to the best Base3 training
-checkpoint. The checkpoint in `.env.example` is only the architecture-adapted
-nuScenes initialization and is not a trained MORAI detector.
+`.env.example` expects the verified inference-only B3-BF0 E10 checkpoint at
+`$HOME/bevfusion_artifacts/checkpoints/base3_bf0_e10_inference.pth`. A local
+`.env` is optional and ignored by Git. For a portable command that does not
+depend on `.env`, use the production handoff document.
 
 Set `PROJECTION_ONLY=true` in `.env` to validate calibration without loading
 the model checkpoint.
@@ -48,7 +49,7 @@ matrix inverse differences were below `1e-6`).
 
 ## RTX 5060 Ti feasibility result
 
-Measured with 20 real Base3 samples and the compatible BEVFusion checkpoint:
+The initial 20-sample compatible-checkpoint benchmark was:
 
 | Segment | Mean | p95 | Interpretation |
 |---|---:|---:|---|
@@ -61,8 +62,10 @@ The staged steady-state capacity is governed by the slower stage, currently
 the 72.3 ms server round trip, rather than by adding 19.1 ms serially. This is
 enough to consume a nominal 12 Hz LiDAR stream with modest margin. Individual
 sensor-to-result latency remains roughly 90 ms plus ROS scheduling jitter.
-Final measurements must be repeated with the trained Base3 checkpoint and live
-MORAI topics; monitor `dropped_raw` and `dropped_prepared` in the status topic.
+The trained B3-BF0 E10 rosbag runtime subsequently measured roughly
+`78–84 ms` p50/p95 end-to-end latency and `12.5–12.8 Hz` processing capacity.
+RTX 4090 measurements must still be repeated on the target PC. Monitor
+`dropped_raw` and `dropped_prepared` in the status topic.
 
 With the server running, the real-data TCP benchmark is reproducible with:
 

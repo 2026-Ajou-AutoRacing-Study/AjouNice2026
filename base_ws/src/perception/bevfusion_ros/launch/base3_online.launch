@@ -5,7 +5,12 @@
   <arg name="config"
        default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_sensor4.yaml"/>
   <arg name="start_rviz" default="true"/>
-  <arg name="score_threshold" default="0.20"/>
+  <!-- Validated B3-BF0 E10 production operating point. score_threshold is
+       only the fallback for an unknown detector class. -->
+  <arg name="score_threshold" default="0.10"/>
+  <arg name="vehicle_score_threshold" default="0.40"/>
+  <arg name="pedestrian_score_threshold" default="0.15"/>
+  <arg name="obstacle_score_threshold" default="0.10"/>
   <arg name="output_objects"
        default="/perception/object_recognition/detection/objects"/>
 
@@ -17,6 +22,9 @@
     <param name="sensor_config" value="$(arg sensor_config)"/>
     <param name="operation" value="inference"/>
     <param name="score_threshold" value="$(arg score_threshold)"/>
+    <param name="vehicle_score_threshold" value="$(arg vehicle_score_threshold)"/>
+    <param name="pedestrian_score_threshold" value="$(arg pedestrian_score_threshold)"/>
+    <param name="obstacle_score_threshold" value="$(arg obstacle_score_threshold)"/>
     <param name="output_objects" value="$(arg output_objects)"/>
   </node>
 

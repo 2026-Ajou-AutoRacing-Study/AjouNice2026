@@ -2,7 +2,10 @@
 set -euo pipefail
 
 if [[ $# -lt 2 || $# -gt 3 ]]; then
-  echo "Usage: $0 {pp1|e10} {multiasset|backforth} [RATE]" >&2
+  echo "Usage: $0 {pp1|e10} SCENE [RATE]" >&2
+  echo "Scenes: roundabout highway_merge highway1 vehicle30" >&2
+  echo "        pedestrian_crossing pedestrian_distance" >&2
+  echo "        multiasset backforth" >&2
   exit 2
 fi
 
@@ -10,9 +13,42 @@ model="$1"
 scene="$2"
 rate="${3:-1.0}"
 root="${AJOUNICE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
+pp1_root="$root/artifacts/evaluation/pointpainting/base3_b3s_pp1_gtdb_e34_rosbag_260830"
+e10_root="$root/artifacts/evaluation/bevfusion/base3_b0_e10_class_thresholds_040_015_010_260913"
 
 case "$scene" in
+  roundabout)
+    label="Vehicle / new roundabout"
+    raw="$root/rosbags/raw_sensor_w_cam/perception_benchmark/260821_235243_roundabout_dynamic_competition_raw.bag"
+    result_key="vehicle_roundabout_new"
+    ;;
+  highway_merge)
+    label="Vehicle / highway merge"
+    raw="$root/rosbags/raw_sensor_w_cam/perception_benchmark/260821_235409_highway_merge_dynamic_competition_raw.bag"
+    result_key="vehicle_highway_merge"
+    ;;
+  highway1)
+    label="Vehicle / highway 1"
+    raw="$root/rosbags/raw_sensor_w_cam/sensor_cam_raw_highway1.bag"
+    result_key="vehicle_highway1"
+    ;;
+  vehicle30)
+    label="Vehicle / within 30 m"
+    raw="$root/rosbags/raw_sensor_w_cam/pointpainting_vehicle_eval_260731/pointpainting_vehicle_static_moving_within30m_raw.bag"
+    result_key="vehicle_30m"
+    ;;
+  pedestrian_crossing)
+    label="Pedestrian / crossing"
+    raw="$root/rosbags/raw_sensor_w_cam/pointpainting_eval_260730/pointpainting_pedestrian_crossing_raw.bag"
+    result_key="pedestrian_crossing"
+    ;;
+  pedestrian_distance)
+    label="Pedestrian / distance"
+    raw="$root/rosbags/raw_sensor_w_cam/pointpainting_eval_260730/pointpainting_pedestrian_distance_5_10_15_18m_raw.bag"
+    result_key="pedestrian_distance"
+    ;;
   multiasset)
+    label="Obstacle / Base3 multi-asset"
     raw="$root/artifacts/evaluation/pointpainting/260912_base3_obstacle_benchmark/input_trim6s.bag"
     case "$model" in
       pp1)
@@ -25,6 +61,7 @@ case "$scene" in
     esac
     ;;
   backforth)
+    label="Obstacle / back-and-forth"
     raw="$root/rosbags/raw_sensor_w_cam/perception_benchmark/260912_165936_obstacle_backforth_mr.bag"
     case "$model" in
       pp1)
@@ -38,6 +75,14 @@ case "$scene" in
     ;;
   *) echo "Unknown scene: $scene" >&2; exit 2 ;;
 esac
+
+if [[ -n "${result_key:-}" ]]; then
+  case "$model" in
+    pp1) detections="$pp1_root/$result_key/detections.bag" ;;
+    e10) detections="$e10_root/$result_key/detections.bag" ;;
+    *) echo "Unknown model: $model" >&2; exit 2 ;;
+  esac
+fi
 
 for path in "$raw" "$detections"; do
   [[ -f "$path" ]] || { echo "Missing required bag: $path" >&2; exit 1; }
@@ -107,7 +152,7 @@ for _ in $(seq 1 300); do
 done
 
 echo "============================================================"
-echo "Obstacle detector comparison: model=$model scene=$scene"
+echo "Detector comparison: model=$model scene=$scene ($label)"
 echo "Thresholds: Vehicle=0.40 Pedestrian=0.15 Obstacle=0.10"
 echo "Detector -> production EKF tracking -> UNKNOWN stationary -> Map-CV"
 echo "Green translucent boxes: detector output; tracked UNKNOWN is stationary"

@@ -28,9 +28,16 @@ Then run Base3 detection:
 roslaunch bevfusion_ros base3_online.launch
 ```
 
+The default production operating point is class-aware: Vehicle `0.40`,
+Pedestrian `0.15`, and Obstacle `0.10`. The bridge asks the Docker model for
+all boxes down to `0.10` and applies the class thresholds before publishing the
+canonical object topic. Override the corresponding `*_score_threshold` launch
+arguments only for a controlled evaluation.
+
 `zero_shot.launch` remains only as a compatibility alias. Runtime timing and
 drop counters are published in `/perception/bevfusion/status`; total sensor to
 result latency is published in `/perception/bevfusion/latency_ms`.
 
-See `docs/bevfusion/260720_morai_four_camera_zero_shot_short.md` for the full
-terminal-by-terminal MORAI procedure.
+See `docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md` for the production
+deployment procedure. The older zero-shot documents are retained only as
+experiment history and use the untrained nuScenes initialization.

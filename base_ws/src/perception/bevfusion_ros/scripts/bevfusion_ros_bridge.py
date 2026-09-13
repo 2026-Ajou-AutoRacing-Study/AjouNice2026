@@ -19,6 +19,11 @@ from sensor_msgs.msg import CompressedImage, PointCloud2, PointField
 from std_msgs.msg import Float32, String
 from visualization_msgs.msg import Marker, MarkerArray
 
+from bevfusion_ros.score_thresholds import (
+    build_score_thresholds,
+    filter_detections,
+    server_score_floor,
+)
 from bevfusion_ros.transport import TcpTransport
 
 
@@ -54,7 +59,15 @@ class BevFusionRosBridge:
         self.preprocess_workers = max(
             1, int(rospy.get_param("~preprocess_workers", 4))
         )
-        self.score_threshold = float(rospy.get_param("~score_threshold", 0.2))
+        self.score_threshold, self.class_score_thresholds = build_score_thresholds(
+            rospy.get_param("~score_threshold", 0.10),
+            rospy.get_param("~vehicle_score_threshold", 0.40),
+            rospy.get_param("~pedestrian_score_threshold", 0.15),
+            rospy.get_param("~obstacle_score_threshold", 0.10),
+        )
+        self.model_score_threshold = server_score_floor(
+            self.score_threshold, self.class_score_thresholds
+        )
         self.max_detections = int(rospy.get_param("~max_detections", 100))
         self.marker_lifetime = float(rospy.get_param("~marker_lifetime_sec", 0.5))
         self.transport = TcpTransport(
@@ -274,7 +287,7 @@ class BevFusionRosBridge:
             "points_blob": "points",
             "point_dim": 4,
             "point_count": int(points.shape[0]),
-            "score_threshold": self.score_threshold,
+            "score_threshold": self.model_score_threshold,
             "max_detections": self.max_detections,
         }
         blobs = {"points": points.astype("<f4", copy=False).tobytes()}
@@ -378,7 +391,11 @@ class BevFusionRosBridge:
     def _publish_detections(self, response, stamp):
         markers = []
         frame_id = response.get("frame_id", "lidar1")
-        detections = response.get("detections", [])
+        detections = filter_detections(
+            response.get("detections", []),
+            self.score_threshold,
+            self.class_score_thresholds,
+        )
         delete_all = Marker()
         delete_all.header.frame_id = frame_id
         delete_all.header.stamp = stamp
