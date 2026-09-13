@@ -51,10 +51,9 @@ docker build \
 MMDetection3D submodule 기준은 `19422fb451504c6c8ff8dbab0fd48f3e4d73a113`이다.
 이미지를 다른 PC에서 복사하지 않고 각 GPU PC에서 위 Dockerfile로 빌드한다.
 
-branch pull 후 `bevfusion_ros`의 Python module과 launch 변경이 설치 공간에
-반영돼야 한다. 기존 AW149 overlay가 있는 팀 PC에서는 아래 증분 빌드만 하면
-된다. 실제 검증 PC에서는 약 2초가 걸렸으며 다른 planning package를 다시
-빌드하지 않았다.
+branch pull 후 BEVFusion bridge와 공용 `planviz` 변경이 설치 공간에 반영돼야
+한다. 기존 AW149 overlay가 있는 팀 PC에서는 아래 관련 package만 증분 빌드하면
+된다. 전체 planning workspace를 다시 빌드할 필요는 없다.
 
 ```bash
 cd "$HOME/AjouNice2026"
@@ -67,7 +66,8 @@ catkin_make_isolated --install \
   --build "$PWD/base_ws/build_aw149" \
   --devel "$PWD/base_ws/devel_aw149" \
   --install-space "$PWD/base_ws/install_aw149" \
-  --pkg bevfusion_ros \
+  --pkg bevfusion_ros tracking_prediction_evaluation \
+        lanelet_map_visualizer bringup \
   -DCMAKE_BUILD_TYPE=Release \
   -DPYTHON_EXECUTABLE=/usr/bin/python3 \
   --make-args -j4 -l4
@@ -153,6 +153,40 @@ roslaunch ajounice_planning_integration morai_planning_stack.launch \
 FastBEV/PointPainting을 하나 더 띄우지 않게 한다는 뜻이다. BEVFusion bridge가
 동일한 canonical topic을 공급한다.
 
+### 5. 공용 planning RViz (`planviz`)
+
+repository 공용 alias를 불러온 뒤 `planviz`를 실행한다.
+
+```bash
+cd "$HOME/AjouNice2026"
+source docs/common_alias.txt
+planviz
+```
+
+기본 화면의 `Perception Pipeline` group에는 다음 항목이 포함된다.
+
+- MORAI LiDAR point cloud
+- tracker 결과 BBox와 class/`UNKNOWN` label
+- Map-CV predicted path의 1/2/3초 horizon
+- MORAI GT BBox(분홍색, simulator debug 전용)
+- 기존 Lanelet map, planning route/trajectory, Ego vehicle
+
+raw detector BBox는 tracker BBox와 겹쳐 화면이 복잡해지는 것을 막기 위해 기본
+OFF이며 RViz Displays에서 필요할 때 켠다. 분홍색 GT는 `/Object_topic`을 Marker로
+바꾸는 시각화 reference일 뿐 perception, tracking, prediction, planning 입력에는
+절대 사용되지 않는다.
+
+대회 현장처럼 GT를 사용할 수 없거나 숨겨야 할 때는 alias 대신 다음과 같이
+실행한다.
+
+```bash
+source "$HOME/AjouNice2026/scripts/workspace/source_aw149.sh"
+roslaunch bringup aw149_planning_rviz.launch show_morai_gt:=false
+```
+
+`planviz`는 detector를 실행하지 않는다. 앞 단계의 BEVFusion bridge와 planning
+stack이 실행 중이어야 detector → tracker → Map-CV 결과가 차례로 표시된다.
+
 ## 운영 확인
 
 ```bash
@@ -186,6 +220,9 @@ docker compose -f docker/bevfusion/compose.yaml down
 - sensor topic이 없으면 모델 문제가 아니라 MORAI UDP bridge 입력 문제다.
 - ROS bridge는 latest-only queue를 사용한다. GPU가 느리면 지연을 누적하지 않고
   frame을 drop하며 그 수가 status에 표시된다.
+- `planviz`에서 지도만 보이면 canonical detection topic publisher, tracker,
+  prediction topic을 차례로 확인한다. RViz 자체가 perception node를 대신 실행하지
+  않는다.
 
 ## Release receipt
 
