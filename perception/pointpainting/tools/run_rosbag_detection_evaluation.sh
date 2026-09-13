@@ -11,6 +11,10 @@ OUTPUT_DIR="$(realpath -m "$2")"
 LABEL="$3"
 PLAYBACK_RATE="${4:-1.0}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+BUNDLE_ROOT="${POINTPAINTING_BUNDLE_ROOT:-$HOME/Downloads/260909_pointpainting_production_3model}"
+MODEL="${POINTPAINTING_EVAL_MODEL:-s1g}"
+CONDA_ENV="${CONDA_ENV:-pp}"
+OPENPCDET_ROOT="${OPENPCDET_ROOT:-$HOME/OpenPCDet}"
 ROS_PORT="${POINTPAINTING_EVAL_ROS_PORT:-11332}"
 export ROS_MASTER_URI="http://127.0.0.1:${ROS_PORT}"
 export ROS_IP=127.0.0.1
@@ -34,8 +38,13 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 cd "$REPO_ROOT"
-source /opt/ros/noetic/setup.bash
-source base_ws/devel/setup.bash
+export AJOUNICE_ROOT="$REPO_ROOT"
+source scripts/workspace/source_aw149.sh
+
+[[ -x "$BUNDLE_ROOT/scripts/run_model.sh" ]] || {
+    echo "[ERROR] PointPainting bundle entrypoint not found: $BUNDLE_ROOT/scripts/run_model.sh" >&2
+    exit 1
+}
 
 roscore -p "$ROS_PORT" >"$OUTPUT_DIR/roscore.log" 2>&1 &
 ROSCORE_PID=$!
@@ -45,16 +54,17 @@ for _ in $(seq 1 100); do
 done
 rosparam set /use_sim_time true
 
-CONDA_ENV=openpcdet_rtx50 \
+CONDA_ENV="$CONDA_ENV" \
+OPENPCDET_ROOT="$OPENPCDET_ROOT" \
+AJOUNICE_ROOT="$REPO_ROOT" \
 POINTPAINTING_WITH_TP=false \
-POINTPAINTING_SCORE_THRESHOLD=0.01 \
 POINTPAINTING_PREPROCESS_BACKEND=opencv \
 POINTPAINTING_CAMERA_CPU_WORKERS=4 \
 POINTPAINTING_DETAILED_TIMING=true \
 POINTPAINTING_BENCHMARK_DIR="$OUTPUT_DIR/runtime" \
 POINTPAINTING_BENCHMARK_LABEL="$LABEL" \
 POINTPAINTING_BENCHMARK_EXCLUDE_FRAMES=3 \
-base_ws/src/morai_pointpainting_ros/scripts/run_pointpainting.sh bag \
+"$BUNDLE_ROOT/scripts/run_model.sh" "$MODEL" bag \
     >"$OUTPUT_DIR/pointpainting.log" 2>&1 &
 NODE_PID=$!
 
@@ -89,7 +99,7 @@ kill -INT "$NODE_PID"
 wait "$NODE_PID" || true
 NODE_PID=""
 
-/usr/bin/python3 \
+/usr/bin/python3 -s \
     base_ws/src/tracking_prediction_evaluation/scripts/evaluate_rosbag_detection.py \
     "$RAW_BAG" "$OUTPUT_DIR/detections.bag" \
     --output "$OUTPUT_DIR/summary.json"
