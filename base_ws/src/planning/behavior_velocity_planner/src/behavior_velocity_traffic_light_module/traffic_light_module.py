@@ -30,6 +30,16 @@ NOT_YELLOW = "NOT_YELLOW"
 YELLOW_FROM_GREEN = "YELLOW_FROM_GREEN"
 YELLOW_FROM_NON_GREEN = "YELLOW_FROM_NON_GREEN"
 
+# D-2: 화살표(좌회전) 전용으로 확인된 신호등. 이 gid는 turn_direction과 무관하게
+# CIRCLE+GREEN(직진 초록)을 무시하고, 방향에 맞는 화살표만 통과 조건으로 인정함.
+# (2026-08-25 확인, D-2 신호등이 원형 초록에 반응해 오통과하던 문제 수정)
+ARROW_ONLY_REGULATORY_IDS = {201326}
+
+# D-1: 신호 상태와 무관하게 정지선에서 UNCONDITIONAL_STOP_DURATION초 정지 후 통과.
+# (2026-08-25 확인, 한국 도로교통법상 신호 없는 우회전 처리와 동일한 방식)
+UNCONDITIONAL_STOP_REGULATORY_IDS = {201397}
+UNCONDITIONAL_STOP_DURATION = 3.0
+
 
 @dataclass
 class TrafficLightParameters:
@@ -205,6 +215,7 @@ class TrafficLightModuleManager(SceneModuleManagerInterface):
                     traffic_light.turn_direction(lane_id),
                     distance_to_stop,
                     planner_data,
+                    traffic_light.regulatory_id,
                 )
 
             stop_pose = None
@@ -279,6 +290,15 @@ class TrafficLightModuleManager(SceneModuleManagerInterface):
     def _signal_requires_stop(
         self, traffic_light, lane_id, state, message, current_time
     ):
+        if traffic_light.regulatory_id in UNCONDITIONAL_STOP_REGULATORY_IDS:
+            # D-1: 신호 상태와 무관하게 정지선에서 일정 시간 정지 후 통과
+            # (한국 도로교통법상 신호 없는 우회전과 동일하게 처리)
+            if state.stop_signal_since is None:
+                state.stop_signal_since = current_time
+            stop_duration = max(current_time - state.stop_signal_since, 0.0)
+            should_stop = stop_duration < UNCONDITIONAL_STOP_DURATION
+            return should_stop, "UNCONDITIONAL_STOP", None
+
         signal = self._find_signal(message, traffic_light.regulatory_id)
         if signal is None:
             should_stop = state.has_received_signal or not self.parameters.is_simulation
@@ -320,7 +340,7 @@ class TrafficLightModuleManager(SceneModuleManagerInterface):
             return False, "AMBER_ARROW_PASS", signal
 
         should_stop = self.is_traffic_signal_stop(
-            traffic_light.turn_direction(lane_id), signal.elements
+            traffic_light.turn_direction(lane_id), signal.elements, traffic_light.regulatory_id
         )
         label = self._signal_label(signal.elements)
         state.previous_elements = current_elements
@@ -360,8 +380,11 @@ class TrafficLightModuleManager(SceneModuleManagerInterface):
         )
 
     @classmethod
-    def is_traffic_signal_stop(cls, turn_direction, elements):
-        if cls._contains(elements, TrafficLightElement.CIRCLE, TrafficLightElement.GREEN):
+    def is_traffic_signal_stop(cls, turn_direction, elements, regulatory_id=None):
+        ignore_circle_green = regulatory_id in ARROW_ONLY_REGULATORY_IDS
+        if not ignore_circle_green and cls._contains(
+            elements, TrafficLightElement.CIRCLE, TrafficLightElement.GREEN
+        ):
             return False
         arrow_by_direction = {
             "right": TrafficLightElement.RIGHT_ARROW,
@@ -388,7 +411,7 @@ class TrafficLightModuleManager(SceneModuleManagerInterface):
         return "+".join(colors) if colors else "EMPTY"
 
     def _v2i_requires_stop(
-        self, signal, turn_direction, distance_to_stop, planner_data
+        self, signal, turn_direction, distance_to_stop, planner_data, regulatory_id=None
     ):
         velocity = ego_speed(planner_data.odometry)
         passing_time = (
@@ -399,7 +422,7 @@ class TrafficLightModuleManager(SceneModuleManagerInterface):
         threshold = passing_time + self.parameters.v2i_last_time_allowed_to_pass
         for prediction in signal.predictions:
             if not self._is_red_stop(
-                turn_direction, prediction.simultaneous_elements
+                turn_direction, prediction.simultaneous_elements, regulatory_id
             ):
                 continue
             remaining = self._stamp_to_sec(prediction.predicted_stamp) - float(
@@ -410,10 +433,10 @@ class TrafficLightModuleManager(SceneModuleManagerInterface):
         return False
 
     @classmethod
-    def _is_red_stop(cls, turn_direction, elements):
+    def _is_red_stop(cls, turn_direction, elements, regulatory_id=None):
         if not cls._contains(elements, TrafficLightElement.CIRCLE, TrafficLightElement.RED):
             return False
-        return cls.is_traffic_signal_stop(turn_direction, elements)
+        return cls.is_traffic_signal_stop(turn_direction, elements, regulatory_id)
 
     def _is_passthrough(self, distance_to_stop, state, planner_data):
         velocity = ego_speed(planner_data.odometry)
