@@ -1,7 +1,7 @@
 intersection/common/attention_area_length: 200.0
 intersection/common/attention_area_margin: 0.75
 intersection/common/attention_area_angle_threshold: 0.785
-intersection/common/use_intersection_area: false
+intersection/common/use_intersection_area: true
 intersection/common/default_stopline_margin: 3.0
 intersection/common/pass_judge_line_margin: 0.0
 intersection/common/stopline_overshoot_margin: 0.5

@@ -34,7 +34,7 @@ def test_production_tracking_and_prediction_values_are_explicit():
         assert arguments.get(name) == value, (name, arguments.get(name))
 
 
-def test_production_topics_and_v64_map_are_explicit():
+def test_production_topics_and_v65_map_are_explicit():
     root = ET.parse(PACKAGE_ROOT / "launch" / "tracking_prediction.launch").getroot()
     top_level = {item.attrib["name"]: item.attrib for item in root.findall("arg")}
     arguments = _included_arguments()
@@ -42,7 +42,7 @@ def test_production_topics_and_v64_map_are_explicit():
     assert arguments["measurement_tracked_objects"] == "/perception/object_recognition/tracking/measurement_objects"
     assert arguments["tracked_objects"] == "/perception/object_recognition/tracking/objects"
     assert arguments["predicted_objects"] == "/perception/object_recognition/objects"
-    assert top_level["map_file"]["default"].endswith("/lanelet2_map_v64.osm")
+    assert top_level["map_file"]["default"].endswith("/lanelet2_map_v65.osm")
     assert top_level["projector_file"]["default"].endswith("/map_projector_info_v1.yaml")
     assert arguments["map_file"] == "$(arg map_file)"
     assert arguments["projector_file"] == "$(arg projector_file)"

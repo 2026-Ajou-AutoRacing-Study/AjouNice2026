@@ -153,7 +153,7 @@ intersection:
     attention_area_length: 200.0
     attention_area_margin: 0.75
     attention_area_angle_threshold: 0.785
-    use_intersection_area: false
+    use_intersection_area: true
     default_stopline_margin: 3.0
     pass_judge_line_margin: 0.0
     stopline_overshoot_margin: 0.5

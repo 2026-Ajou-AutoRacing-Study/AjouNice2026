@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" role="img" aria-labelledby="title desc">
-<title id="title">K-City v64 reroute trigger and process</title>
+<title id="title">K-City v65 reroute trigger and process</title>
 <desc id="desc">Reroute trigger, freshness and hold checks, request and verification while Route A remains active, and deadline before lanelet 200346.</desc>
-<!-- source_map=lanelet2_map_v64.osm sha256=89b76a829e058e5daa3238894c640d5892c05b100dc0b0666028ee79685002de projection=EPSG:32652 -->
+<!-- source_map=lanelet2_map_v65.osm sha256=c6dff2aa5143656d4c8bbd1cc7c97a7a4712720a04627e84af88b9ed0469185d projection=EPSG:32652 -->
 <defs>
 <clipPath id="reroute-map-clip"><rect x="50" y="170" width="500" height="820" rx="18"/></clipPath>
 <style>
@@ -13,7 +13,7 @@ text { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; fill: #17203
 .road { fill: none; stroke: #d7dde5; stroke-width: 1.2; stroke-linecap: round; }
 </style></defs>
 <rect width="1600" height="1100" fill="#f4f7fb"/>
-<text x="42" y="54" class="title">K-City v64 · 정상 Route A → Route B 재경로 절차</text>
+<text x="42" y="54" class="title">K-City v65 · 정상 Route A → Route B 재경로 절차</text>
 <text x="42" y="84" class="subtitle">route_a_to_b 계열의 trigger·deadline + Route A를 유지한 채 수행하는 요청·검증 순서</text>
 <rect x="30" y="110" width="540" height="930" rx="22" class="card"/>
 <text x="50" y="145" class="panel-title">공간 경계</text>
