@@ -1,4 +1,4 @@
-# RouteSelector/MissionPlanner의 ROS1 인터페이스와 무관한 K-City v67 경로 정의다.
+# Archived v67 route definition; runtime uses config/kcity_v68_competition_route.yaml.
 schema_version: 1
 frame_id: map
 
