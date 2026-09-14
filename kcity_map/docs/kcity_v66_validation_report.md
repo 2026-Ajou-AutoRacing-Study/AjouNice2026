@@ -24,7 +24,7 @@ sequence:
 
 | Reported category | v65 | v66 | Repair |
 | --- | ---: | ---: | --- |
-| Stop line does not intersect lanelet | 15 lines / 34 relations | 0 | Removed 39 traffic-light regulatory references added to non-intersecting internal lanelets; stop-line geometry was preserved |
+| Stop line does not intersect lanelet | 15 lines / 34 relations | 0 | Removed 39 traffic-light regulatory references added to internal lanelets, including all 34 non-intersecting relations; stop-line geometry was preserved |
 | Adjacent points at the same position | 2 pairs | 0 | Removed the duplicate steep point in `200309`; regenerated the invalid `200668` centerline |
 | Centerline not connected to next | 1,133 lanelets | 0 | Reused one common centerline endpoint node for each shared boundary cross-section |
 | Speed above 100 km/h threshold | 38 lanelets | 0 | Capped the former 150 km/h lanelets at 100 km/h |
