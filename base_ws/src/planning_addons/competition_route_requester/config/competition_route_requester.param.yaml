@@ -3,6 +3,7 @@ route_operation_case: route_a_to_b_with_fallback
 route_definition_file: kcity_v65_competition_route.yaml
 set_waypoint_route_service_name: /planning/set_waypoint_route
 set_lanelet_route_service_name: /planning/set_lanelet_route
+set_preferred_primitive_service_name: /planning/mission_planning/mission_planner/set_preferred_primitive
 route_topic: /planning/mission_planning/route
 route_state_topic: /planning/route_state
 odometry_topic: /localization/kinematic_state

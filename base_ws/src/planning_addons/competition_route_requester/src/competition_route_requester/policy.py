@@ -36,6 +36,11 @@ def validate(config, routes):
         sequence = r['expected_path_lanelet_ids']
         if not sequence or len(set(sequence)) != len(sequence):
             raise ValueError('empty or looping route: ' + key)
+        if key != 'fallback_route':
+            waypoint_sequence = r.get('waypoint_path_lanelet_ids')
+            if (not waypoint_sequence or len(waypoint_sequence) != len(sequence) or
+                    len(set(waypoint_sequence)) != len(waypoint_sequence)):
+                raise ValueError('invalid waypoint-planner route: ' + key)
         for ref in r.get('waypoint_refs', []) + [r['goal_ref']]:
             pose = routes['poses'][ref]
             if not all(math.isfinite(float(pose[k])) for k in ('x', 'y', 'yaw_deg')):
@@ -54,9 +59,9 @@ def allowed(case, key):
             key == 'fallback_route' and case in FALLBACK)
 
 
-def route_matches(routes, key, identity, sequence, goal, tolerance):
+def accepted_sequences(routes, key, field='expected_path_lanelet_ids'):
     definition = routes[key]
-    expected = definition['expected_path_lanelet_ids']
+    expected = definition[field]
     valid_sequences = [expected]
     if key == 'route_a':
         valid_sequences.append([routes['start']['incoming_lanelet_id']] + expected)
@@ -67,9 +72,33 @@ def route_matches(routes, key, identity, sequence, goal, tolerance):
             if lane == 200346:
                 break
             valid_sequences.append(expected[index:])
+    return valid_sequences
+
+
+def route_matches(routes, key, identity, sequence, goal, tolerance,
+                  field='expected_path_lanelet_ids'):
+    definition = routes[key]
+    valid_sequences = accepted_sequences(routes, key, field)
     target = routes['poses'][definition['goal_ref']]
     return (identity == str(uuid.UUID(definition['uuid'])) and sequence in valid_sequences and
             math.hypot(goal[0] - target['x'], goal[1] - target['y']) <= tolerance)
+
+
+def preferred_sequence(routes, key, waypoint_sequence):
+    """Map an accepted waypoint-planner sequence to its final preferred lanes."""
+    if key == 'fallback_route':
+        return list(waypoint_sequence)
+    initial = routes[key]['waypoint_path_lanelet_ids']
+    final = routes[key]['expected_path_lanelet_ids']
+    if key == 'route_a':
+        incoming = routes['start']['incoming_lanelet_id']
+        if waypoint_sequence == [incoming] + initial:
+            return [incoming] + final
+    for candidate in accepted_sequences(routes, key, 'waypoint_path_lanelet_ids'):
+        if waypoint_sequence == candidate:
+            offset = len(initial) - len(candidate)
+            return final[offset:]
+    return None
 
 
 def in_window(routes, key, lane, arc):

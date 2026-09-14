@@ -10,7 +10,7 @@
 
 이 단락은 아래의 구현 전 임시 인터페이스 표현보다 우선한다.
 
-- gateway: `/planning/set_waypoint_route` (`autoware_internal_planning_msgs/SetWaypointRoute`), `/planning/set_lanelet_route` (`autoware_planning_msgs/SetLaneletRoute`).
+- gateway: `/planning/set_waypoint_route` (`autoware_internal_planning_msgs/SetWaypointRoute`), `/planning/mission_planning/mission_planner/set_preferred_primitive` (`autoware_planning_msgs/SetPreferredPrimitive`), `/planning/set_lanelet_route` (`autoware_planning_msgs/SetLaneletRoute`).
 - 출력 관찰: `/planning/mission_planning/route` (`autoware_planning_msgs/LaneletRoute`), `/planning/route_state` (`autoware_planning_msgs/RouteState`).
 - YAML은 ROS1 flat 구조이며 5개 case 중 하나만 startup에 고정한다.
 - 초기 A는 canonical 47개 또는 incoming 200892를 포함한 48개만 허용한다.
@@ -124,15 +124,15 @@ case 변경 절차는 `YAML 수정 -> 전체 launch 재시작`으로 고정한�
 - map version: 63
 - map SHA-256: `c8ee07fb70334a13373f8cbd54fabe95980ac1e9589bbc05382337074f089dc2`
 - 공식 START/END: `200892` 끝과 `200889` 시작의 경계
-- Route A UUID: `0d1cf5e0-1e6c-5705-8f69-1f39dd27db13`
+- Route A UUID: `8bffaaf1-ee38-5d04-9c1c-4353813c9dc6`
 - Route A 임시 goal: `200181` 길이의 0.75 지점
-- Route B UUID: `2021f042-0112-5658-a8c0-b29b04788809`
+- Route B UUID: `cc8b8479-d75e-567e-ba1e-7b530a6a2673`
 - Route B 최종 goal: `200210`
 - Route B 준비 지점: `200178`, lanelet s 8 m 이상
 - Route B 적용 deadline: `200346` 도달 전
-- fallback UUID: `9097215f-7dd7-5adf-8266-556f1857a735`
-- fallback hard cutoff: `201446`, lanelet s 8 m
-- fallback 요청: `SetLaneletRoute`, `201446`부터 goal `200210`까지의 28개 비순환 suffix
+- fallback UUID: `de578eb1-e9f4-5cb4-b934-9020f0c4a661`
+- fallback hard cutoff: `201441`, lanelet s 8 m
+- fallback 요청: `SetLaneletRoute`, `201441`부터 goal `200210`까지의 28개 비순환 suffix
 
 start pose는 요청에 넣지 않는다. Mission Planner가 `/localization/kinematic_state`에 대응하는 ROS1 포팅 입력에서 현재 차량 위치를 취득한다.
 
@@ -165,15 +165,17 @@ Route B 요청 시 차량은 이미 `200178`의 s 8 m 이상에 있어야 하므
 
 #### Route A 요청과 검증 경로
 
+고주로에서는 waypoint planner가 병렬 lanelet을 포함한 segment를 만든 뒤 `SetPreferredPrimitive`로 최종 선호 lanelet을 지정한다. 첫 고주로 segment의 현재 차선 `200101`과 목표 `201434`는 같은 종방향 segment이므로 순차 ID로 취급하지 않는다. 최종 선호 순서는 `201434 → 201435 → 200137 → 200187 → 201443 → 200130 → 201441 → 200360`이다.
+
 ![K-City v65 Route A 상세](assets/kcity_v65_route_a_detail.svg)
 
 - 지도 숫자 `1`–`11`: `route_a.waypoint_refs`의 실제 요청 순서
 - `S`: 공식 `200892`→`200889` 경계의 현재 odometry이며 별도 start pose를 요청에 넣지 않음
 - `G`: `goal_route_a_200181`, lanelet `200181` 길이의 0.75 지점
 - 오른쪽 위 표: 요청 payload를 구성하는 11개 waypoint와 goal
-- 오른쪽 아래 표: 수신 경로 순서를 검증하는 47개 canonical `expected_path_lanelet_ids`
+- 오른쪽 아래 표: 선호 차선 적용 뒤 수신 경로 순서를 검증하는 47개 canonical `expected_path_lanelet_ids`
 
-검증용 47개 lanelet ID는 sparse waypoint 요청 목록이 아니다. Mission Planner가 계산한 결과의 전체 순서가 예상 경로와 같은지 판정하기 위한 기준이다. 공식 start가 정확한 lanelet 경계이므로 planner가 incoming `200892`를 첫 lanelet으로 포함하면 `[200892] + canonical 47개 경로`도 허용한다.
+검증용 47개 lanelet ID는 sparse waypoint 요청 목록이 아니다. Mission Planner가 계산한 병렬 route segment에 `SetPreferredPrimitive`를 적용한 뒤 전체 선호 lanelet 순서가 예상 경로와 같은지 판정하기 위한 기준이다. 공식 start가 정확한 lanelet 경계이므로 planner가 incoming `200892`를 첫 lanelet으로 포함하면 `[200892] + canonical 47개 경로`도 허용한다.
 
 #### Route B 재경로 요청과 검증 경로
 
@@ -194,8 +196,9 @@ Route B 요청 시 차량은 이미 `200178`의 s 8 m 이상에 있어야 하므
 2. lanelet `200178`에서 s 8 m 이상 진입했는지 확인한다.
 3. odometry와 reroute availability가 각각 0.5초 이내 최신 값이고, availability가 0.5초 연속 true인지 확인한다.
 4. 현재 pose를 start로 사용해 Route B를 요청한다.
-5. Route B UUID, goal `200210`, 전체 lanelet 순서 및 새 trajectory를 검증한다.
-6. lanelet `200346` 진입 전 검증이 끝난 경우에만 Route B 적용 완료로 판단한다.
+5. waypoint 결과의 UUID, goal, 병렬 segment 구성을 확인한 뒤 `SetPreferredPrimitive`로 고주로 선호 차선을 적용한다.
+6. Route B UUID, goal `200210`, 최종 선호 lanelet 순서 및 새 trajectory를 검증한다.
+7. lanelet `200346` 진입 전 검증이 끝난 경우에만 Route B 적용 완료로 판단한다.
 
 실패나 timeout에서는 Route A를 유지하고 1초 뒤 guard부터 재확인한다. `deadline_pose_ref`인 `wp_200346`은 lanelet `200346`의 s 8 m 감지 anchor다. 실제 적용 deadline은 `200346` 진입 전이므로 도식에서 진입 막대와 s 8 m anchor를 분리했다.
 
@@ -249,17 +252,18 @@ route_a_to_b_with_fallback:
 1. 차량이 `200178`에 진입하고 lanelet s가 8 m 이상이면 Route B를 준비한다.
 2. 최신 reroute availability가 연속 hold time 동안 true인지 확인한다.
 3. 현재 pose를 start로 사용해 Route B를 요청한다.
-4. Route B UUID, goal, lanelet 순서 및 새 trajectory를 검증한다.
-5. 검증이 끝난 경우에만 Route B가 활성화됐다고 판단한다.
-6. 실패하면 Route A를 유지한 채 조건을 다시 확인하고 deadline 전까지 재시도한다.
+4. waypoint 결과의 UUID, goal, 병렬 segment 구성을 확인한 뒤 `SetPreferredPrimitive`로 고주로 선호 차선을 적용한다.
+5. Route B UUID, goal, 최종 선호 lanelet 순서 및 새 trajectory를 검증한다.
+6. 검증이 끝난 경우에만 Route B가 활성화됐다고 판단한다.
+7. 실패하면 Route A를 유지한 채 조건을 다시 확인하고 deadline 전까지 재시도한다.
 
 ### 6.3 결승선 fallback
 
 1. fallback을 포함한 두 case에서만 finish guard를 활성화한다.
 2. 현재 선택 route가 결승선 이후 goal `200210`까지 이어지는지 UUID, goal 및 lanelet suffix로 판정한다.
-3. `route_a_to_fallback`에서는 정상 Route B waypoint 요청을 하지 않고 `201446`의 s 8 m hard cutoff에서 fallback을 시작한다.
-4. `route_a_to_b_with_fallback`에서는 Route B 적용을 먼저 시도하고, `201446` cutoff까지 결승선 통과 가능한 Route B가 확인되지 않은 경우에만 fallback으로 승격한다.
-5. fallback builder는 `fallback_route.expected_path_lanelet_ids`의 28개 segment와 goal `200210`을 가진 `SetLaneletRoute` 요청을 만든다. 기존 `200360` s 8 m 시작은 2 m/s에서도 Mission의 공통 길이 26.751 m가 최소 안전거리 30 m보다 짧아 거절되므로 안전기준을 낮추지 않고 한 lanelet 앞당겼다.
+3. `route_a_to_fallback`에서는 정상 Route B waypoint 요청을 하지 않고 `201441`의 s 8 m hard cutoff에서 fallback을 시작한다.
+4. `route_a_to_b_with_fallback`에서는 Route B 적용을 먼저 시도하고, `201441` cutoff까지 결승선 통과 가능한 Route B가 확인되지 않은 경우에만 fallback으로 승격한다.
+5. fallback builder는 `fallback_route.expected_path_lanelet_ids`의 28개 segment와 goal `200210`을 가진 `SetLaneletRoute` 요청을 만든다. `200360` s 8 m 시작은 2 m/s에서도 공통 길이가 26.751 m뿐이라 Mission의 최소 안전거리 30 m보다 짧으므로, 변경된 경로에서 한 lanelet 앞선 `201441`을 사용한다.
 6. requester는 진행 중인 정상 요청과 fallback 요청을 동시에 보내지 않으며 fallback 요청에 우선권을 준다.
 7. fallback 요청도 RouteSelector main 입력과 Mission Planner의 reroute availability 및 safety 검사를 그대로 통과해야 한다.
 8. Mission Planner가 발행한 새 route와 trajectory가 검증된 뒤에만 `FINISH_ROUTE_ACTIVE`로 판단한다.
