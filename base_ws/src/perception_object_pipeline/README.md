@@ -47,7 +47,7 @@ roslaunch morai_pointpainting_ros pointpainting_production.launch \
   openpcdet_root:=/path/to/OpenPCDet \
   bundle_root:=/path/to/260909_pointpainting_production_3model
 
-# Terminal 3: EKF 30 Hz -> UNKNOWN stationary -> v64 Map-CV
+# Terminal 3: EKF 30 Hz -> UNKNOWN stationary -> v65 Map-CV
 roslaunch perception_object_pipeline tracking_prediction.launch
 ```
 
@@ -221,7 +221,7 @@ GT state; they are not treated as end-to-end accuracy measurements of the
 current standardized pipeline.
 
 The ROS1 map-based vehicle predictor is available behind an explicit launch
-switch. Current production uses the K-City v64 Lanelet2 map and publishes the same
+switch. Current production uses the K-City v65 Lanelet2 map and publishes the same
 `PredictedObjects` contract, and falls back to CTRV/CV for low-speed, off-lane,
 wrong-direction and non-vehicle objects.
 
@@ -255,7 +255,7 @@ more duplicate start Lanelets. A later improvement should normalize
 `P(start lane | observation)` and `P(branch | start lane)` separately and then
 marginalize probability mass into each geometric hypothesis. The generic
 launch default remains CTRV for compatibility; `tracking_prediction.launch`
-explicitly selects `prediction_model=map_based` and v64.
+explicitly selects `prediction_model=map_based` and v65.
 
 The complete 2026-08-20 production contract, evaluated metrics, rejected
 ablations and restart order are documented in
