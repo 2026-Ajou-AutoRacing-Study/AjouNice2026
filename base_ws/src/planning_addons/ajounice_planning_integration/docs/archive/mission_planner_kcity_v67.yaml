@@ -1,4 +1,4 @@
-# K-City v67 Mission Planner parameters and competition route-section policy.
+# Archived v67 Mission Planner policy; runtime uses config/mission_planner_kcity_v68.yaml.
 map_frame: map
 arrival_check_angle_deg: 45.0
 arrival_check_lateral_distance: 1.0
