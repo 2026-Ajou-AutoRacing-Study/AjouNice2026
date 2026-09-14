@@ -3,7 +3,7 @@
 from .morai_base3_dataset import MoraiBase3Dataset
 from .morai_assigner import MoraiHungarianAssigner3D
 from .morai_metric import MoraiCenterMetric
-from .morai_image_aug import MoraiImageAug3D
+from .morai_image_aug import MoraiImageAug3D, MoraiOnlineImageDomainAug3D
 from .morai_transfusion_head import MoraiTransFusionHead
 from .morai_wandb import MoraiEpochLrHook, MoraiWandbVisBackend
 
@@ -13,6 +13,7 @@ __all__ = [
     "MoraiEpochLrHook",
     "MoraiHungarianAssigner3D",
     "MoraiImageAug3D",
+    "MoraiOnlineImageDomainAug3D",
     "MoraiTransFusionHead",
     "MoraiWandbVisBackend",
 ]

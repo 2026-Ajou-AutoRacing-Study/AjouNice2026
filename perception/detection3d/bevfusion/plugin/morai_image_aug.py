@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 import torch
+from mmcv.transforms import BaseTransform
 from mmdet3d.registry import TRANSFORMS
 from projects.BEVFusion.bevfusion.transforms_3d import ImageAug3D
 
@@ -108,4 +109,68 @@ class MoraiImageAug3D(ImageAug3D):
             transforms.append(transform.numpy())
         data['img'] = new_imgs
         data['img_aug_matrix'] = transforms
+        return data
+
+
+@TRANSFORMS.register_module()
+class MoraiOnlineImageDomainAug3D(BaseTransform):
+    """Mild camera-domain augmentation for MORAI online JPEG input.
+
+    Base3 is captured as lossless PNG while the live ROS camera topics are
+    JPEG-compressed.  This transform changes pixels only; calibration and box
+    geometry remain untouched.  One exposure/noise draw is shared by all
+    views in a sample, while JPEG quality and blur are sampled per camera.
+    """
+
+    def __init__(self,
+                 jpeg_prob=0.8,
+                 jpeg_quality=(72, 96),
+                 blur_prob=0.12,
+                 exposure_prob=0.5,
+                 gain=(0.92, 1.08),
+                 bias=(-6.0, 6.0),
+                 noise_prob=0.2,
+                 noise_std=(0.0, 1.5)):
+        self.jpeg_prob = float(jpeg_prob)
+        self.jpeg_quality = tuple(int(v) for v in jpeg_quality)
+        self.blur_prob = float(blur_prob)
+        self.exposure_prob = float(exposure_prob)
+        self.gain = tuple(float(v) for v in gain)
+        self.bias = tuple(float(v) for v in bias)
+        self.noise_prob = float(noise_prob)
+        self.noise_std = tuple(float(v) for v in noise_std)
+
+    def transform(self, data):
+        images = data['img']
+        apply_exposure = np.random.random() < self.exposure_prob
+        gain = np.random.uniform(*self.gain) if apply_exposure else 1.0
+        bias = np.random.uniform(*self.bias) if apply_exposure else 0.0
+        apply_noise = np.random.random() < self.noise_prob
+        noise_std = np.random.uniform(*self.noise_std) if apply_noise else 0.0
+
+        augmented = []
+        for image in images:
+            image = np.asarray(image, dtype=np.float32)
+            if apply_exposure:
+                image = image * gain + bias
+            if noise_std > 0.0:
+                image = image + np.random.normal(
+                    0.0, noise_std, image.shape).astype(np.float32)
+            image = np.clip(image, 0.0, 255.0).astype(np.uint8)
+
+            if np.random.random() < self.blur_prob:
+                image = cv2.GaussianBlur(image, (3, 3), 0.0)
+            if np.random.random() < self.jpeg_prob:
+                quality = int(np.random.randint(
+                    self.jpeg_quality[0], self.jpeg_quality[1] + 1))
+                ok, encoded = cv2.imencode(
+                    '.jpg', image,
+                    [cv2.IMWRITE_JPEG_QUALITY, quality])
+                if ok:
+                    decoded = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+                    if decoded is not None:
+                        image = decoded
+            augmented.append(np.ascontiguousarray(image, dtype=np.float32))
+
+        data['img'] = augmented
         return data

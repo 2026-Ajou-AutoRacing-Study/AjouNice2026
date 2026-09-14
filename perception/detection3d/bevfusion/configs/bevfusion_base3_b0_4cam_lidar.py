@@ -96,6 +96,10 @@ train_pipeline = [
         rot_lim=[0.0, 0.0],
         rand_flip=False,
         is_train=True),
+    # Kept disabled in B0. Online-domain experiments enable it through their
+    # runner without changing the reproduced baseline contract.
+    dict(type='MoraiOnlineImageDomainAug3D', jpeg_prob=0.0,
+         blur_prob=0.0, exposure_prob=0.0, noise_prob=0.0),
     dict(
         type='BEVFusionGlobalRotScaleTrans',
         scale_ratio_range=[0.95, 1.05],
