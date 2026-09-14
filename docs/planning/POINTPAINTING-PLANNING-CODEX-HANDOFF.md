@@ -21,13 +21,13 @@ Autoware planning에 연결하기 위한 **최신 실행 계약**이다. 과거 
 되돌리지 않는다. 변경이 필요하면 현재 기준선을 먼저 재현하고 동일 rosbag/실주행
 조건으로 A/B한 뒤 결정한다.
 
-이 문서의 수신자는 v65 지도 관리자이며 AW149 planning 개발자다. 따라서 다음은
+이 문서의 수신자는 v66 지도 관리자이며 AW149 planning 개발자다. 따라서 다음은
 이미 갖춰진 전제로 취급한다.
 
-- 최신 v65 OSM과 projector 설정을 보유하고 있다.
+- 최신 v66 OSM과 projector 설정을 보유하고 있다.
 - 본인 PC에서 AW149 underlay/overlay를 빌드하고 관리할 수 있다.
 
-v65 지도 전달이나 AW149 개념 설명을 통합 장애물로 취급하지 않는다. 이 인계에서
+v66 지도 전달이나 AW149 개념 설명을 통합 장애물로 취급하지 않는다. 이 인계에서
 새롭게 확인할 핵심은 PointPainting 전용 Python/OpenPCDet/model bundle과 ROS object
 topic 경계다.
 
@@ -52,7 +52,7 @@ UNKNOWN/Obstacle stationary policy
   /perception/object_recognition/tracking/objects
           |
           v
-Lanelet2 v65 Map-CV predictor
+Lanelet2 v66 Map-CV predictor
   PredictedObjects, map frame, 0.1 s x 3.0 s
   /perception/object_recognition/objects
           |
@@ -90,7 +90,7 @@ autoware_perception_msgs/PredictedObjects
 | stale limit | `0.25 s` |
 | Obstacle 표현 | Autoware `UNKNOWN` |
 | UNKNOWN motion policy | velocity/acceleration 0 강제, 관측 pose는 계속 갱신 |
-| predictor | Lanelet2 v65 Map-CV |
+| predictor | Lanelet2 v66 Map-CV |
 | prediction | `0.1 s` 간격, `3.0 s`, 최대 6 hypotheses |
 
 PointPainting의 세 번째 class는 Autoware 메시지에서 `UNKNOWN`으로 전달된다. 이는
@@ -126,8 +126,8 @@ S1g는 비교/fallback checkpoint이지 최신 production 기본값이 아니다
 1. Git 소스
    - `base_ws/src`, `planning_ws/src`, launch와 문서.
    - planning 브랜치를 pull하면 받는다.
-2. v65 지도
-   - `kcity_map/lanelet_map/lanelet2_map_v65.osm`.
+2. v66 지도
+   - `kcity_map/lanelet_map/lanelet2_map_v66.osm`.
    - 수신자가 직접 관리하는 기존 자산이다. 새로 전달하거나 다운로드할 대상으로
      간주하지 않는다.
    - production launch가 기대하는 경로와 파일명이 일치하는지만 확인한다.
@@ -276,9 +276,9 @@ roslaunch ajounice_planning_integration morai_planning_stack.launch \
 - sensor static TF.
 - EKF tracker.
 - UNKNOWN stationary policy.
-- v65 Map-CV predictor.
+- v66 Map-CV predictor.
 - traffic-light detector.
-- v65 map loader와 planning graph.
+- v66 map loader와 planning graph.
 - route requester.
 
 `start_controller=false`가 안전한 초기값이다. trajectory, validator, object topic과
@@ -323,7 +323,7 @@ roslaunch ajounice_planning_integration competition_planning.launch
 - `pointpainting_production.launch`
   - 현재 PP1 detector-only production entrypoint.
 - `tracking_prediction.launch`
-  - detector 없이 EKF → UNKNOWN policy → v65 Map-CV만 실행.
+  - detector 없이 EKF → UNKNOWN policy → v66 Map-CV만 실행.
 - `competition_planning.launch`
   - localization/perception을 소유하지 않는 순수 planning entrypoint.
 - `morai_planning_stack.launch`
@@ -396,7 +396,7 @@ RViz fixed frame은 `map`이다.
 2. detection header stamp와 현재 ROS time의 차이 확인.
 3. live 실행에서는 `/use_sim_time=false` 확인.
 4. full-stack과 standalone `tracking_prediction.launch`가 중복인지 확인.
-5. v65 OSM과 projector 파일 존재 확인.
+5. v66 OSM과 projector 파일 존재 확인.
 
 ### Python import, torch, spconv, checkpoint shape 오류
 
@@ -443,7 +443,7 @@ perception/pointpainting/tools/run_rosbag_pipeline_evaluation.sh \
 - 표준 object pipeline rostest 통과.
 - EKF → UNKNOWN policy → Map-CV 세 노드 실제 기동 확인.
 - PointPainting launch가 Base3 LRASPP와 PP1 checkpoint `127/127` 로드하는 것 확인.
-- AW149 overlay 생성 후 v65를 사용하는 `morai_planning_stack.launch` 정적 파싱 확인.
+- AW149 overlay 생성 후 v66를 사용하는 `morai_planning_stack.launch` 정적 파싱 확인.
 
 이 결과가 실제 MORAI 폐루프 주행 승인까지 뜻하지는 않는다. 팀원 PC에서는 실제
 sensor rate, TF, detection/tracking/prediction topic, planning trajectory와 validator를

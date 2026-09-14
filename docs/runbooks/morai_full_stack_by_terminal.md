@@ -40,12 +40,12 @@ cd "$HOME/AjouNice2026"
 test -f scripts/workspace/source_aw149.sh
 test -f base_ws/install_aw149/setup.bash
 test -f planning_ws/install_isolated/setup.bash
-test -f kcity_map/lanelet_map/lanelet2_map_v65.osm
+test -f kcity_map/lanelet_map/lanelet2_map_v66.osm
 ```
 
 MORAI에서는 다음을 확인한다.
 
-1. v65 map과 원하는 competition scenario를 연다.
+1. v66 map과 원하는 competition scenario를 연다.
 2. Sensor Network와 Ego Network를 현재 PC 설정에 맞게 연결한다.
 3. 실제 제어 전에 Ego control mode를 `AV-ExternalCtrl`로 둔다.
 4. 차량은 Route A 공식 시작 위치에서 정지 상태로 둔다.
