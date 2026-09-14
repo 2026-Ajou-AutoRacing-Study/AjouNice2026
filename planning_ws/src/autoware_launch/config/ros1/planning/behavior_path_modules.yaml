@@ -18,7 +18,7 @@ dynamic_avoidance:
     truck: true
     bus: true
     trailer: true
-    unknown: false
+    unknown: true
     bicycle: true
     motorcycle: true
     pedestrian: true
@@ -233,7 +233,7 @@ avoidance:
       truck: true
       bus: true
       trailer: true
-      unknown: false
+      unknown: true
       bicycle: true
       motorcycle: true
       pedestrian: true
@@ -331,11 +331,11 @@ avoidance:
       - 3.0
       - 3.0
     longitudinal:
-      nominal_deceleration: -1.0
-      nominal_jerk: 0.5
+      nominal_deceleration: -1.5
+      nominal_jerk: 0.8
       max_deceleration: -3.0
-      max_jerk: 1.0
-      max_acceleration: 1.0
+      max_jerk: 1.5
+      max_acceleration: 1.5
       min_velocity_to_limit_max_acceleration: 2.78
   path_generation_method: shift_line_base
   shift_line_pipeline:

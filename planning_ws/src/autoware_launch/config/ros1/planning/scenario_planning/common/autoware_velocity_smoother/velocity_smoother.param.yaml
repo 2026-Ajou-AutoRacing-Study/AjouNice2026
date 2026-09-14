@@ -26,7 +26,7 @@ resample_ds: 0.1
 curvature_threshold: 0.02
 replan_vel_deviation: 5.53
 engage_velocity: 0.25
-engage_acceleration: 0.5
+engage_acceleration: 1.0
 engage_exit_ratio: 0.5
 stop_dist_to_prohibit_engage: 0.5
 stopping_velocity: 2.778

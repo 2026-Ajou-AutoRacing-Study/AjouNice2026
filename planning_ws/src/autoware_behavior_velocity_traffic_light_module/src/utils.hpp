@@ -106,6 +106,25 @@ bool isTrafficSignalRedStop(
   const lanelet::ConstLanelet & lanelet,
   const std::vector<autoware_perception_msgs::TrafficLightElement> & elements);
 
+/**
+ * @brief Select the route movement lane used to interpret directional traffic signals.
+ *
+ * The behavior velocity planner owns a map-backed RouteHandler, but does not own the
+ * mission route.  Therefore the selected movement is derived from the ordered lane IDs
+ * already carried by the BPP output path and restricted to routing-graph successors of
+ * the signal lane.
+ *
+ * @param signal_lane lanelet carrying the traffic-light regulatory element.
+ * @param path current BPP output path.
+ * @param following_lanes direct routing-graph successors of signal_lane.
+ * @return selected straight/left/right successor, or signal_lane when no unambiguous
+ *         path successor with a turn_direction attribute is available.
+ */
+lanelet::ConstLanelet selectTrafficSignalDecisionLane(
+  const lanelet::ConstLanelet & signal_lane,
+  const autoware_internal_planning_msgs::PathWithLaneId & path,
+  const lanelet::ConstLanelets & following_lanes);
+
 }  // namespace autoware::behavior_velocity_planner
 
 #endif  // UTILS_HPP_

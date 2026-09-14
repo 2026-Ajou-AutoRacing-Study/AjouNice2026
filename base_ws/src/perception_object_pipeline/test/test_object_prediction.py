@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import io
 import math
 import sys
 import unittest
@@ -58,6 +59,18 @@ class ObjectPredictionTest(unittest.TestCase):
         self.assertAlmostEqual(pose.position.x, 1.0)
         self.assertAlmostEqual(pose.position.y, 3.0)
         self.assertAlmostEqual(pose.orientation.z, math.sqrt(0.5), places=6)
+
+    def test_nonempty_prediction_is_ros_serializable(self):
+        message = TrackedObjects()
+        message.header.frame_id = "map"
+        message.objects = [self._track(ObjectClassification.UNKNOWN, vx=0.0)]
+
+        output = make_predicted_objects(message, [0.1, 0.2, 0.3])
+        path = output.objects[0].kinematics.predicted_paths[0]
+
+        self.assertEqual(path.time_step.sec, 0)
+        self.assertEqual(path.time_step.nanosec, 100_000_000)
+        output.serialize(io.BytesIO())
 
 
 if __name__ == "__main__":

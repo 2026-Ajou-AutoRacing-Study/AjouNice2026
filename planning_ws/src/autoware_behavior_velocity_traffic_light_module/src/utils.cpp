@@ -22,6 +22,8 @@
 #include <boost/geometry/algorithms/distance.hpp>
 #include <boost/geometry/algorithms/intersection.hpp>
 
+#include <algorithm>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -209,6 +211,35 @@ bool isTrafficSignalRedStop(
   }
 
   return true;
+}
+
+lanelet::ConstLanelet selectTrafficSignalDecisionLane(
+  const lanelet::ConstLanelet & signal_lane,
+  const autoware_internal_planning_msgs::PathWithLaneId & path,
+  const lanelet::ConstLanelets & following_lanes)
+{
+  const auto subsequent_lane_ids =
+    planning_utils::getSubsequentLaneIdsSetOnPath(path, signal_lane.id());
+  if (subsequent_lane_ids.size() < 2) {
+    return signal_lane;
+  }
+
+  for (auto lane_id_it = std::next(subsequent_lane_ids.begin());
+       lane_id_it != subsequent_lane_ids.end(); ++lane_id_it) {
+    const auto following_lane_it = std::find_if(
+      following_lanes.begin(), following_lanes.end(),
+      [lane_id = *lane_id_it](const auto & lane) { return lane.id() == lane_id; });
+    if (following_lane_it == following_lanes.end()) {
+      continue;
+    }
+
+    const std::string direction = following_lane_it->attributeOr("turn_direction", "else");
+    if (direction == "straight" || direction == "left" || direction == "right") {
+      return *following_lane_it;
+    }
+  }
+
+  return signal_lane;
 }
 
 }  // namespace autoware::behavior_velocity_planner

@@ -168,9 +168,9 @@ intersection:
       bus: true
       truck: true
       trailer: true
-      motorcycle: false
-      bicycle: false
-      unknown: false
+      motorcycle: true
+      bicycle: true
+      unknown: true
     turn_direction:
       left: true
       right: true
@@ -185,9 +185,9 @@ intersection:
       bus: true
       truck: true
       trailer: true
-      motorcycle: false
-      bicycle: false
-      unknown: false
+      motorcycle: true
+      bicycle: true
+      unknown: true
     turn_direction:
       left: true
       right: true
@@ -204,7 +204,7 @@ intersection:
       trailer: true
       motorcycle: true
       bicycle: true
-      unknown: false
+      unknown: true
     velocity_profile:
       use_upstream: true
       minimum_upstream_velocity: 0.01
@@ -330,7 +330,7 @@ roundabout:
       trailer: true
       motorcycle: true
       bicycle: true
-      unknown: false
+      unknown: true
     velocity_profile:
       use_upstream: true
       minimum_upstream_velocity: 0.01

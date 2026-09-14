@@ -179,4 +179,73 @@ TEST(BehaviorTrafficLightModuleUtilsTest, calcStopPointAndInsertIndex)
   }
 }
 
+namespace
+{
+lanelet::ConstLanelet makeLanelet(const lanelet::Id id, const std::string & direction = "")
+{
+  lanelet::LineString3d left(
+    id * 10 + 1,
+    {lanelet::Point3d(id * 100 + 1, 0.0, 1.0, 0.0),
+     lanelet::Point3d(id * 100 + 2, 1.0, 1.0, 0.0)});
+  lanelet::LineString3d right(
+    id * 10 + 2,
+    {lanelet::Point3d(id * 100 + 3, 0.0, -1.0, 0.0),
+     lanelet::Point3d(id * 100 + 4, 1.0, -1.0, 0.0)});
+  lanelet::Lanelet lane(id, left, right);
+  if (!direction.empty()) {
+    lane.attributes()["turn_direction"] = direction;
+  }
+  return lane;
+}
+
+PathWithLaneId pathWithLaneIds(const std::vector<std::vector<int64_t>> & lane_ids)
+{
+  PathWithLaneId path;
+  for (const auto & ids : lane_ids) {
+    PathPointWithLaneId point;
+    point.lane_ids = ids;
+    path.points.push_back(point);
+  }
+  return path;
+}
+}  // namespace
+
+TEST(BehaviorTrafficLightModuleUtilsTest, SelectTrafficSignalDecisionLaneFromPath)
+{
+  const auto signal_lane = makeLanelet(10);
+  const auto straight_lane = makeLanelet(20, "straight");
+  const auto left_lane = makeLanelet(30, "left");
+  const auto right_lane = makeLanelet(40, "right");
+  const lanelet::ConstLanelets following_lanes{straight_lane, left_lane, right_lane};
+
+  const auto left_path = pathWithLaneIds({{10}, {10, 30}, {30}});
+  EXPECT_EQ(
+    30, selectTrafficSignalDecisionLane(signal_lane, left_path, following_lanes).id());
+
+  const auto straight_path = pathWithLaneIds({{10}, {20}});
+  EXPECT_EQ(
+    20, selectTrafficSignalDecisionLane(signal_lane, straight_path, following_lanes).id());
+}
+
+TEST(BehaviorTrafficLightModuleUtilsTest, SelectTrafficSignalDecisionLaneFallsBackSafely)
+{
+  const auto signal_lane = makeLanelet(10);
+  const auto left_lane = makeLanelet(30, "left");
+  const auto missing_direction_lane = makeLanelet(50);
+
+  EXPECT_EQ(
+    10, selectTrafficSignalDecisionLane(
+          signal_lane, pathWithLaneIds({{10}, {30}}), lanelet::ConstLanelets{})
+          .id());
+  EXPECT_EQ(
+    10, selectTrafficSignalDecisionLane(
+          signal_lane, pathWithLaneIds({{10}, {50}}),
+          lanelet::ConstLanelets{missing_direction_lane})
+          .id());
+  EXPECT_EQ(
+    10, selectTrafficSignalDecisionLane(
+          signal_lane, pathWithLaneIds({{99}, {30}}), lanelet::ConstLanelets{left_lane})
+          .id());
+}
+
 }  // namespace autoware::behavior_velocity_planner

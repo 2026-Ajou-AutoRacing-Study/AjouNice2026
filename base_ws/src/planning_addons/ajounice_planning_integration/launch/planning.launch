@@ -8,6 +8,10 @@
   <arg name="is_simulation" default="false"/>
   <arg name="behavior_path_forward_length" default="150.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>
+  <!-- The competition perception stack intentionally publishes unresolved
+       detections as UNKNOWN. Do not suppress a newly observed UNKNOWN object
+       for the upstream two-second classification-stability grace period. -->
+  <arg name="static_avoidance_unknown_stability_time" default="0.0"/>
   <arg name="publish_fixed_autonomous_mode" default="true"/>
   <arg name="relay_operation_mode_to_api" default="true"/>
   <arg name="use_ground_pointcloud" default="false"/>
@@ -40,6 +44,8 @@
          value="$(arg behavior_path_forward_length)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/intersection/common/attention_area_length"
          value="$(arg intersection_attention_area_length)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/avoidance/target_filtering/unstable_classification_time"
+         value="$(arg static_avoidance_unknown_stability_time)"/>
   <include if="$(arg start_requester)" file="$(find competition_route_requester)/launch/competition_route_requester.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
   </include>

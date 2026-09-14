@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "manager.hpp"
+#include "../utils.hpp"
 
 #include <autoware/lanelet2_utils/intersection.hpp>
 #include <autoware/route_handler/route_handler.hpp>
@@ -28,22 +29,6 @@ namespace autoware::behavior_velocity_planner::experimental
 {
 using traffic_light_ros1::require_parameter;
 using lanelet::TrafficLight;
-
-namespace
-{
-lanelet::ConstLanelet signalDecisionLane(
-  const lanelet::ConstLanelet & signal_lane,
-  const std::shared_ptr<autoware::route_handler::RouteHandler> & route_handler)
-{
-  lanelet::ConstLanelet next_lane;
-  if (!route_handler->getNextLaneletWithinRoute(signal_lane, &next_lane)) {
-    return signal_lane;
-  }
-  const auto direction = next_lane.attributeOr("turn_direction", "else");
-  return direction == "straight" || direction == "left" || direction == "right" ? next_lane
-                                                                                  : signal_lane;
-}
-}  // namespace
 
 TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
 : SceneModuleManagerInterfaceWithRTC(
@@ -145,7 +130,13 @@ void TrafficLightModuleManager::launchNewModules(
     }
 
     const auto & lane = traffic_light_reg_elem.second;
-    const auto decision_lane = signalDecisionLane(lane, planner_data.route_handler_);
+    lanelet::ConstLanelets following_lanes;
+    const auto routing_graph = planner_data.route_handler_->getRoutingGraphPtr();
+    if (routing_graph) {
+      following_lanes = routing_graph->following(lane);
+    }
+    const auto decision_lane =
+      selectTrafficSignalDecisionLane(lane, path_msg, following_lanes);
     const bool is_turn_lane =
       autoware::experimental::lanelet2_utils::is_left_direction(decision_lane) ||
       autoware::experimental::lanelet2_utils::is_right_direction(decision_lane);

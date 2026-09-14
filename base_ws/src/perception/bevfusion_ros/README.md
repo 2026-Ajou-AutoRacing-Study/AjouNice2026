@@ -24,9 +24,14 @@ roslaunch bevfusion_ros projection_check.launch
 Then run Base3 detection:
 
 ```bash
-# Publish BEVFusion 3D boxes and labels for RViz.
+# Publish BEVFusion 3D boxes and labels. Use planviz in a separate terminal.
 roslaunch bevfusion_ros base3_online.launch
 ```
+
+On the deployed AjouNice workstation, the `bevfusion` alias starts the Docker
+inference server, waits for checkpoint readiness, launches this ROS bridge,
+and stops the server when the bridge exits. It refuses to start while another
+detector already publishes the canonical detection topic.
 
 The default production operating point is class-aware: Vehicle `0.40`,
 Pedestrian `0.15`, and Obstacle `0.10`. The bridge asks the Docker model for
