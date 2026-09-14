@@ -416,7 +416,7 @@ road_user_stop/obstacle_filtering/object_type/pedestrian: true
 road_user_stop/obstacle_filtering/object_type/bicycle: true
 road_user_stop/obstacle_filtering/object_type/motorcycle: true
 road_user_stop/obstacle_filtering/object_type/unknown: true
-road_user_stop/obstacle_filtering/trajectory_lateral_margin: 1.0
+road_user_stop/obstacle_filtering/trajectory_lateral_margin: 0.0
 road_user_stop/obstacle_filtering/opposing_traffic_detection/enable: true
 road_user_stop/obstacle_filtering/opposing_traffic_detection/angle_threshold: 150.0
 road_user_stop/obstacle_filtering/opposing_traffic_detection/min_speed_threshold: 0.5

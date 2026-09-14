@@ -61,6 +61,23 @@ Production values are pinned by `pointpainting_production.launch` and
 `/perception/object_recognition/objects` topic is the only object input
 intended for Planning.
 
+### MORAI GT detection replacement
+
+To replace only PointPainting object detection with MORAI ground truth while
+keeping the production EKF tracker and map-based predictor unchanged, do not
+start PointPainting and run:
+
+```bash
+roslaunch perception_object_pipeline tracking_prediction.launch \
+  use_morai_gt_detection:=true
+```
+
+The adapter converts `/Object_topic` (`morai_msgs/ObjectStatusList`) to the
+canonical `/perception/object_recognition/detection/objects` topic in the
+`morai_map` frame. It intentionally omits GT velocity so that downstream
+tracking still estimates object motion. Passenger vehicle actor reference
+positions are shifted by the audited 1.34 m longitudinal bbox-center offset.
+
 ## Generic and research runtime selection
 
 Nodes use private `~input/objects` and `~output/objects` interfaces. Launch

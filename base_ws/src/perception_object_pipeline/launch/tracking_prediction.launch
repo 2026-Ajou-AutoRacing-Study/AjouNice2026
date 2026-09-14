@@ -12,6 +12,17 @@
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v67.osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+  <!-- Enable this to replace PointPainting detection only with MORAI GT. -->
+  <arg name="use_morai_gt_detection" default="false"/>
+  <arg name="morai_gt_objects" default="/Object_topic"/>
+
+  <group if="$(arg use_morai_gt_detection)">
+    <include file="$(find perception_object_pipeline)/launch/morai_gt_detection.launch">
+      <arg name="input_objects" value="$(arg morai_gt_objects)"/>
+      <arg name="output_objects"
+           value="/perception/object_recognition/detection/objects"/>
+    </include>
+  </group>
 
   <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
