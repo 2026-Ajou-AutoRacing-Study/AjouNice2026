@@ -41,7 +41,7 @@ from autoware_perception_msgs.msg import (
 from light_color_utils import classify_crop, pick_ego_lane_box
 from ros_time import builtin_time_from_ros
 from signal_smoother import SignalSmoother
-from signal_conflict_resolver import has_impossible_conflict, resolve_conflict
+from signal_phase_policy import SignalPhasePolicy
 
 COLOR_MAP = {
     "red": TrafficLightElement.RED,
@@ -128,8 +128,12 @@ class TrafficLightNode:
         self.route_group_id_stale_sec = float(
             rospy.get_param("~route_group_id_stale_sec", 2.0)
         )
+        signal_profile_path = rospy.get_param("~signal_profile_path")
+        self.signal_phase_policy = SignalPhasePolicy.from_yaml(signal_profile_path)
         self._external_route_group_id = None
         self._external_route_group_id_stamp = None
+        self._last_policy_group_id = None
+        rospy.loginfo(f"[traffic_light_node] 신호 phase 프로파일: {signal_profile_path}")
 
         if not os.path.exists(weights_path):
             rospy.logerr(f"[traffic_light_node] 가중치 파일 없음: {weights_path}")
@@ -158,6 +162,7 @@ class TrafficLightNode:
             )
 
         self.raw_debug_pub = rospy.Publisher("~debug_raw_label", String, queue_size=10)
+        self.policy_debug_pub = rospy.Publisher("~debug_policy_reason", String, queue_size=10)
 
         self._last_stamp = rospy.Time(0)
         self._min_period = rospy.Duration(1.0 / self.publish_rate_limit_hz) if self.publish_rate_limit_hz > 0 else rospy.Duration(0)
@@ -262,6 +267,9 @@ class TrafficLightNode:
 
         group = TrafficLightGroup()
         group.traffic_light_group_id = self._resolve_group_id()
+        if group.traffic_light_group_id != self._last_policy_group_id:
+            self.signal_smoother.reset()
+            self._last_policy_group_id = group.traffic_light_group_id
 
         best = pick_ego_lane_box(boxes, self.center_tolerance_ratio, self.y_weight)
         label_text = "off"
@@ -285,18 +293,21 @@ class TrafficLightNode:
 
                 self._maybe_save_conflict_crop(crop, raw_color_results)
 
-        if has_impossible_conflict(raw_color_results, gid=group.traffic_light_group_id):
-            fixed = resolve_conflict(raw_color_results, gid=group.traffic_light_group_id)
-            if fixed != raw_color_results:
-                self._n_conflict_fixed += 1
-                rospy.logwarn_throttle(
-                    2.0,
-                    f"[traffic_light_node] 물리적으로 불가능한 신호 조합 보정(누적 {self._n_conflict_fixed}회): "
-                    f"{raw_color_results} -> {fixed}",
-                )
-            raw_color_results = fixed
+        fixed, policy_reason = self.signal_phase_policy.apply(
+            raw_color_results, group.traffic_light_group_id
+        )
+        if fixed != raw_color_results:
+            self._n_conflict_fixed += 1
+            rospy.logwarn_throttle(
+                2.0,
+                f"[traffic_light_node] 신호 phase 보정(누적 {self._n_conflict_fixed}회, "
+                f"gid={group.traffic_light_group_id}, reason={policy_reason}): "
+                f"{raw_color_results} -> {fixed}",
+            )
+        raw_color_results = fixed
 
         self.raw_debug_pub.publish(String(data=_raw_label_for(raw_color_results)))
+        self.policy_debug_pub.publish(String(data=policy_reason))
 
         smoothed = self.signal_smoother.update(
             raw_color_results, payload=(raw_color_results, raw_det_conf)

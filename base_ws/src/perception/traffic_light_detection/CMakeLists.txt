@@ -27,7 +27,7 @@ catkin_install_python(PROGRAMS
   scripts/lanelet_route_matcher.py
   scripts/light_color_utils.py
   scripts/measure_recognition_distance.py
-  scripts/signal_conflict_resolver.py
+  scripts/signal_phase_policy.py
   scripts/signal_smoother.py
   scripts/ros_time.py
   scripts/traffic_light_node.py
@@ -35,7 +35,7 @@ catkin_install_python(PROGRAMS
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-install(DIRECTORY launch weights
+install(DIRECTORY config launch weights
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 

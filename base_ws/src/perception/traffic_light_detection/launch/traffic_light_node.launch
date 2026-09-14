@@ -27,6 +27,8 @@
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)" />
   <arg name="group_id_table_path"
        default="$(find traffic_light_detection)/traffic_light_group_id_table.json" />
+  <arg name="signal_profile_path"
+       default="$(find traffic_light_detection)/config/traffic_signal_profiles.yaml" />
   <arg name="fallback_group_id" default="0" />
   <arg name="lanelet2_map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v63.osm" />
@@ -93,5 +95,6 @@
     <param name="odometry_topic" value="$(arg odometry_topic)" />
     <param name="route_group_id_topic" value="$(arg route_group_id_topic)" />
     <param name="route_group_id_stale_sec" value="$(arg route_group_id_stale_sec)" />
+    <param name="signal_profile_path" value="$(arg signal_profile_path)" />
   </node>
 </launch>

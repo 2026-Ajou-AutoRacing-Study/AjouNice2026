@@ -144,6 +144,11 @@ protected:
 
   bool callIsStopSignal() { return module_->isStopSignal(); }
 
+  void setCompetitionFailOpen(const bool enabled)
+  {
+    module_->planner_param_.competition_fail_open = enabled;
+  }
+
   void verifyTransition(
     const autoware_perception_msgs::TrafficLightGroup & first_signal,
     const autoware_perception_msgs::TrafficLightGroup & second_signal,
@@ -385,6 +390,26 @@ TEST_F(TrafficLightModuleTest, FeatureDisabled)
 
   // But should STOP because the feature is disabled
   EXPECT_TRUE(stop);
+}
+
+TEST_F(TrafficLightModuleTest, CompetitionFailOpenOnMissingSignal)
+{
+  EXPECT_TRUE(callIsStopSignal());
+  setCompetitionFailOpen(true);
+  EXPECT_FALSE(callIsStopSignal());
+}
+
+TEST_F(TrafficLightModuleTest, CompetitionFailOpenOnUnknownSignal)
+{
+  using Element = autoware_perception_msgs::TrafficLightElement;
+  autoware_perception_msgs::TrafficLightGroup unknown_signal;
+  unknown_signal.elements.push_back(
+    createElement(Element::UNKNOWN, Element::UNKNOWN, Element::UNKNOWN));
+  setTrafficSignal(unknown_signal);
+
+  EXPECT_TRUE(callIsStopSignal());
+  setCompetitionFailOpen(true);
+  EXPECT_FALSE(callIsStopSignal());
 }
 
 }  // namespace autoware::behavior_velocity_planner

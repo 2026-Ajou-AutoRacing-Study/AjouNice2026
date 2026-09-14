@@ -1,0 +1,56 @@
+default_profile: simple_3color
+
+signal_assignments:
+  # Competition course A, B, C, D-2 and D-1 regulatory-element IDs.
+  201351: simple_3color
+  201365: simple_3color
+  201290: straight_left_combined
+  201326: straight_or_protected_left
+  201397: ignored_right_turn
+
+profiles:
+  simple_3color:
+    supported_lamps: [RED_CIRCLE, YELLOW_CIRCLE, GREEN_CIRCLE]
+    valid_phases:
+      - [RED_CIRCLE]
+      - [YELLOW_CIRCLE]
+      - [GREEN_CIRCLE]
+    corrections:
+      RED_CIRCLE+GREEN_CIRCLE: [GREEN_CIRCLE]
+      RED_CIRCLE+YELLOW_CIRCLE: [YELLOW_CIRCLE]
+    fallback_phase: [GREEN_CIRCLE]
+
+  straight_left_combined:
+    supported_lamps: [RED_CIRCLE, YELLOW_CIRCLE, GREEN_CIRCLE, GREEN_LEFT_ARROW]
+    valid_phases:
+      - [RED_CIRCLE]
+      - [YELLOW_CIRCLE]
+      - [GREEN_CIRCLE, GREEN_LEFT_ARROW]
+    corrections:
+      GREEN_CIRCLE: [GREEN_CIRCLE, GREEN_LEFT_ARROW]
+      GREEN_LEFT_ARROW: [GREEN_CIRCLE, GREEN_LEFT_ARROW]
+      RED_CIRCLE+GREEN_CIRCLE: [GREEN_CIRCLE, GREEN_LEFT_ARROW]
+      RED_CIRCLE+GREEN_LEFT_ARROW: [GREEN_CIRCLE, GREEN_LEFT_ARROW]
+      RED_CIRCLE+YELLOW_CIRCLE: [YELLOW_CIRCLE]
+    fallback_phase: [GREEN_CIRCLE, GREEN_LEFT_ARROW]
+
+  straight_or_protected_left:
+    supported_lamps: [RED_CIRCLE, YELLOW_CIRCLE, GREEN_CIRCLE, GREEN_LEFT_ARROW]
+    valid_phases:
+      - [RED_CIRCLE]
+      - [YELLOW_CIRCLE]
+      - [GREEN_CIRCLE]
+      - [RED_CIRCLE, GREEN_LEFT_ARROW]
+    corrections:
+      GREEN_LEFT_ARROW: [RED_CIRCLE, GREEN_LEFT_ARROW]
+      RED_CIRCLE+GREEN_CIRCLE: [RED_CIRCLE, GREEN_LEFT_ARROW]
+      GREEN_CIRCLE+GREEN_LEFT_ARROW: [RED_CIRCLE, GREEN_LEFT_ARROW]
+      RED_CIRCLE+YELLOW_CIRCLE: [YELLOW_CIRCLE]
+    fallback_phase: [RED_CIRCLE, GREEN_LEFT_ARROW]
+
+  ignored_right_turn:
+    passthrough: true
+    supported_lamps: [RED_CIRCLE, YELLOW_CIRCLE, GREEN_CIRCLE, GREEN_LEFT_ARROW]
+    valid_phases: []
+    corrections: {}
+    fallback_phase: [GREEN_CIRCLE]

@@ -184,12 +184,28 @@ bool TrafficLightModule::isStopSignal(const PlannerData & planner_data)
   //   REAL ENVIRONMENT: it will STOP for safety in cases such that traffic light
   //   recognition is not working properly or the map is incorrect.
   if (!traffic_signal_stamp_) {
+    if (planner_param_.competition_fail_open) {
+      RCLCPP_WARN_THROTTLE(
+        logger_, *clock_, 5000, "[traffic_light] missing signal: competition fail-open GO");
+      return false;
+    }
     return !planner_data.is_simulation;
   }
 
   // Stop if the traffic signal information has timed out
   if (isTrafficSignalTimedOut()) {
-    return true;
+    return !planner_param_.competition_fail_open;
+  }
+
+  const bool has_known_lamp = std::any_of(
+    looking_tl_state_.elements.begin(), looking_tl_state_.elements.end(), [](const auto & element) {
+      return element.color != TrafficSignalElement::UNKNOWN &&
+             element.shape != TrafficSignalElement::UNKNOWN;
+    });
+  if (planner_param_.competition_fail_open && !has_known_lamp) {
+    RCLCPP_WARN_THROTTLE(
+      logger_, *clock_, 5000, "[traffic_light] unknown signal: competition fail-open GO");
+    return false;
   }
 
   // Check if current state is yellow

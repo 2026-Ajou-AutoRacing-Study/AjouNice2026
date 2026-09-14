@@ -76,3 +76,20 @@ A clean install must load `weights/best.pt` on CUDA before enabling
 parent launch. `morai_planning_stack.launch` keeps `use_sim_time:=false` for the
 UDP clock and therefore preserves the planning team's existing
 `is_simulation:=false` behavior.
+
+## Competition signal phase profiles
+
+`config/traffic_signal_profiles.yaml` maps the Lanelet traffic-light regulatory
+element ID selected by the route matcher to a reusable signal-program profile.
+Each profile declares supported lamps, valid Autoware element combinations,
+detector corrections, and a route-compatible fail-open phase. This keeps the
+published message as standard `TrafficLightGroup.elements[]` while allowing
+competition-specific A/B/C/D behavior to be changed without editing detector
+code. The policy is intentionally fail-open for simulation competition use and
+must not be reused as a real-vehicle safety policy.
+
+The planning traffic-light module also enables `competition_fail_open`. Missing,
+stale, or entirely unknown signal input therefore permits motion instead of
+creating a permanent stop. Both controls are competition-only availability
+choices; the raw correction reason remains observable on
+`/traffic_light_node/debug_policy_reason`.
