@@ -18,7 +18,8 @@ from autoware_adapi_v1_msgs.msg import OperationModeState
 from autoware_map_msgs.msg import LaneletMapBin
 from autoware_planning_msgs.msg import LaneletRoute, LaneletSegment, LaneletPrimitive, RouteState, Trajectory, TrajectoryPoint
 from autoware_internal_planning_msgs.srv import SetWaypointRoute, SetWaypointRouteResponse
-from autoware_planning_msgs.srv import SetLaneletRoute, SetLaneletRouteResponse
+from autoware_planning_msgs.srv import (SetLaneletRoute, SetLaneletRouteResponse,
+                                        SetPreferredPrimitive, SetPreferredPrimitiveResponse)
 from tier4_planning_msgs.msg import RerouteAvailability
 from autoware_planning_validator.msg import PlanningValidatorStatus
 from competition_route_requester.srv import RequestRoute
@@ -49,10 +50,13 @@ class GatewayROS(unittest.TestCase):
         self.ego_speed = 0.0
         self.behavior = 'good'
         self.calls = 0
+        self.preferred_calls = 0
         self.response_done = threading.Event()
         self.service = rospy.Service(self.cfg['set_waypoint_route_service_name'], SetWaypointRoute, self.serve)
         self.lane_service = rospy.Service(self.cfg['set_lanelet_route_service_name'], SetLaneletRoute,
                                          lambda req: self.serve(req, True))
+        self.preferred_service = rospy.Service(self.cfg['set_preferred_primitive_service_name'],
+                                               SetPreferredPrimitive, self.serve_preferred)
         self.pubs = {}
         for field, cls in [('odometry_topic', Odometry), ('operation_mode_topic', OperationModeState),
                            ('map_topic', LaneletMapBin), ('route_state_topic', RouteState),
@@ -72,6 +76,7 @@ class GatewayROS(unittest.TestCase):
         self.timer.shutdown()
         self.service.shutdown()
         self.lane_service.shutdown()
+        self.preferred_service.shutdown()
         self.gateway.service.shutdown()
         for sub in self.gateway.subscribers:
             sub.unregister()
@@ -144,12 +149,40 @@ class GatewayROS(unittest.TestCase):
             if self.behavior == 'wrong_uuid':
                 route.uuid.uuid = [0]*16
             route.goal_pose = req.goal_pose
-            route.segments = [LaneletSegment(preferred_primitive=LaneletPrimitive(id=x, primitive_type='lane'),
-                primitives=[LaneletPrimitive(id=x, primitive_type='lane')])
-                for x in self.routes[key]['expected_path_lanelet_ids']]
+            final = self.routes[key]['expected_path_lanelet_ids']
+            initial = self.routes[key].get('waypoint_path_lanelet_ids', final)
+            route.segments = []
+            for source, target in zip(initial, final):
+                preferred = LaneletPrimitive(id=source, primitive_type='lane')
+                primitives = [preferred]
+                if target != source:
+                    primitives.append(LaneletPrimitive(id=target, primitive_type='lane'))
+                route.segments.append(LaneletSegment(preferred_primitive=preferred, primitives=primitives))
             self.route = route
             response.status.success = True
         self.response_done.set()
+        return response
+
+    def serve_preferred(self, req):
+        self.preferred_calls += 1
+        req.serialize(io.BytesIO())
+        response = SetPreferredPrimitiveResponse()
+        if self.route is None or req.uuid != self.route.uuid:
+            response.status.success = False
+            response.status.message = 'mock route mismatch'
+            return response
+        if len(req.preferred_primitives) != len(self.route.segments):
+            response.status.success = False
+            response.status.message = 'mock segment count mismatch'
+            return response
+        for segment, preferred in zip(self.route.segments, req.preferred_primitives):
+            if preferred.id not in [primitive.id for primitive in segment.primitives]:
+                response.status.success = False
+                response.status.message = 'mock primitive mismatch'
+                return response
+            segment.preferred_primitive = preferred
+        self.route.header.stamp = rospy.Time.now()
+        response.status.success = True
         return response
 
     def test_a_service_and_fresh_output(self):
@@ -162,6 +195,9 @@ class GatewayROS(unittest.TestCase):
         self.assertEqual(self.gateway.active, 'route_a')
         self.assertEqual(self.gateway.generation, 2)
         self.assertEqual(self.calls, 2)
+        self.assertEqual(self.preferred_calls, 2)
+        self.assertEqual([segment.preferred_primitive.id for segment in self.route.segments],
+                         self.routes['route_a']['expected_path_lanelet_ids'])
 
     def test_a_refresh_rejected_while_moving(self):
         self.assertTrue(self.client('route_a').accepted)
