@@ -10,7 +10,7 @@ import generate_trajectory as base
 import numpy as np
 
 
-MAP_PATH = "kcity_map/lanelet_map/lanelet2_map_v63.osm"
+MAP_PATH = "kcity_map/lanelet_map/lanelet2_map_v64.osm"
 PROJECTOR_PATH = "kcity_map/lanelet_map/map_projector_info_v1.yaml"
 SAMPLE_ROOT = "base_ws/src/control/trajectory_generator/traj_sample"
 
