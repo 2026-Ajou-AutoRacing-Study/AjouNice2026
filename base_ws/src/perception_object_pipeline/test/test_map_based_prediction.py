@@ -2,6 +2,9 @@
 
 import math
 import unittest
+from unittest import mock
+
+import perception_object_pipeline.map_based_prediction as map_prediction
 
 from perception_object_pipeline.map_based_prediction import (
     LaneletNetwork,
@@ -13,6 +16,25 @@ from perception_object_pipeline.map_based_prediction import (
 
 
 class MapBasedPredictionCoreTest(unittest.TestCase):
+    def test_autoware_lanelet2_extension_is_loaded_once_and_globally(self):
+        previous = map_prediction._AUTOWARE_LANELET2_EXTENSION_HANDLE
+        map_prediction._AUTOWARE_LANELET2_EXTENSION_HANDLE = None
+        try:
+            with mock.patch.object(map_prediction.ctypes, "CDLL") as load_library:
+                handle = object()
+                load_library.return_value = handle
+                map_prediction._load_autoware_lanelet2_extension()
+                map_prediction._load_autoware_lanelet2_extension()
+                load_library.assert_called_once_with(
+                    "libautoware_lanelet2_extension_lib.so",
+                    mode=map_prediction.ctypes.RTLD_GLOBAL,
+                )
+                self.assertIs(
+                    map_prediction._AUTOWARE_LANELET2_EXTENSION_HANDLE, handle
+                )
+        finally:
+            map_prediction._AUTOWARE_LANELET2_EXTENSION_HANDLE = previous
+
     def _network(self):
         records = [
             LaneletRecord(1, ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0)), (2, 3)),

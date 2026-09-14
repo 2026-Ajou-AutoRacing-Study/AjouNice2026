@@ -11,6 +11,7 @@ if SCRIPTS not in sys.path:
     sys.path.insert(0, SCRIPTS)
 
 from signal_phase_policy import RESULT_TO_TOKEN, SignalPhasePolicy
+from signal_smoother import SignalSmoother
 
 
 POLICY = SignalPhasePolicy.from_yaml(
@@ -20,6 +21,35 @@ POLICY = SignalPhasePolicy.from_yaml(
 
 def _tokens(results):
     return {RESULT_TO_TOKEN[result] for result in results}
+
+
+def test_observation_guard_d2_missing_red_and_yellow_lifetime():
+    from signal_phase_policy import TOKEN_TO_RESULT
+    p = SignalPhasePolicy.from_yaml(os.path.join(PACKAGE, "config", "traffic_signal_profiles.yaml"))
+    smoother = SignalSmoother(window_size=1)
+    def step(tokens, time, missing=False):
+        lamps = [TOKEN_TO_RESULT[t] for t in tokens]
+        result, _, _ = p.process_normalized(lamps, "p:fail_open" if missing else "p:valid",
+                                           201326, time, 1.0, smoother)
+        return _tokens(result)
+    left = ["RED_CIRCLE", "GREEN_LEFT_ARROW"]
+    assert step(left, 0) == set(left)
+    assert step(["YELLOW_CIRCLE"], .1) == {"YELLOW_CIRCLE"}
+    assert step(["RED_CIRCLE"], .5, True) == {"YELLOW_CIRCLE"}
+    assert step(["YELLOW_CIRCLE"], .8) == {"YELLOW_CIRCLE"}
+    assert step(["RED_CIRCLE"], .9) == {"RED_CIRCLE"}
+    assert step(["YELLOW_CIRCLE"], 1) == {"RED_CIRCLE"}
+    step(left, 2)
+    assert step(["RED_CIRCLE"], 3.3, True) == {"RED_CIRCLE"}
+    assert step(["YELLOW_CIRCLE"], 3.4) == {"RED_CIRCLE"}
+    step(left, 4)
+    for t in [4.1, 5, 6, 7, 8]:
+        assert step(["YELLOW_CIRCLE"], t) == {"YELLOW_CIRCLE"}
+    assert step(["YELLOW_CIRCLE"], 8.2) == {"RED_CIRCLE"}
+    p.reset_transition()
+    assert step(["YELLOW_CIRCLE"], 9) == {"RED_CIRCLE"}
+    step(left, 10)
+    assert step(["YELLOW_CIRCLE"], 1) == {"RED_CIRCLE"}
 
 
 def test_assignments_are_course_profiles():
@@ -53,6 +83,16 @@ def test_c_partial_green_is_completed_as_straight_left():
         assert _tokens(normalized) == {"GREEN_CIRCLE", "GREEN_LEFT_ARROW"}
 
 
+def test_c_impossible_red_green_prefers_red_and_missing_is_red():
+    for observed in (
+        [("red", "circle", None), ("green", "circle", None)],
+        [("red", "circle", None), ("green", "arrow", True)],
+        [],
+    ):
+        normalized, _reason = POLICY.apply(observed, 201290)
+        assert _tokens(normalized) == {"RED_CIRCLE"}
+
+
 def test_d2_red_green_circle_becomes_protected_left():
     observed = [("red", "circle", None), ("green", "circle", None)]
     normalized, _reason = POLICY.apply(observed, 201326)
@@ -61,14 +101,8 @@ def test_d2_red_green_circle_becomes_protected_left():
 
 def test_profiles_fail_open_with_route_compatible_phase():
     assert _tokens(POLICY.apply([], 201351)[0]) == {"GREEN_CIRCLE"}
-    assert _tokens(POLICY.apply([], 201290)[0]) == {
-        "GREEN_CIRCLE",
-        "GREEN_LEFT_ARROW",
-    }
-    assert _tokens(POLICY.apply([], 201326)[0]) == {
-        "RED_CIRCLE",
-        "GREEN_LEFT_ARROW",
-    }
+    assert _tokens(POLICY.apply([], 201290)[0]) == {"RED_CIRCLE"}
+    assert _tokens(POLICY.apply([], 201326)[0]) == {"RED_CIRCLE"}
     unsupported = [("green", "arrow", True)]
     assert _tokens(POLICY.apply(unsupported, 201351)[0]) == {"GREEN_CIRCLE"}
 
@@ -85,3 +119,58 @@ def test_unsupported_arrow_does_not_override_valid_ab_red():
     normalized, reason = POLICY.apply(observed, 201351)
     assert _tokens(normalized) == {"RED_CIRCLE"}
     assert reason.endswith(":filtered")
+
+
+def test_d2_yellow_permission_depends_on_previous_stable_phase():
+    green = [("green", "circle", None)]
+    yellow = [("yellow", "circle", None)]
+    protected_left = [("red", "circle", None), ("green", "arrow", True)]
+
+    POLICY.reset_transition()
+    normalized, _ = POLICY.apply_transition(green, 201326)
+    assert _tokens(normalized) == {"GREEN_CIRCLE"}
+    normalized, reason = POLICY.apply_transition(yellow, 201326)
+    assert _tokens(normalized) == {"RED_CIRCLE"}
+    assert reason.endswith(":yellow_stop_after_disallowed_phase")
+
+    POLICY.reset_transition()
+    normalized, _ = POLICY.apply_transition(protected_left, 201326)
+    assert _tokens(normalized) == {"RED_CIRCLE", "GREEN_LEFT_ARROW"}
+    normalized, reason = POLICY.apply_transition(yellow, 201326)
+    assert _tokens(normalized) == {"YELLOW_CIRCLE"}
+    assert reason.endswith(":yellow_go_after_allowed_phase")
+
+
+def test_b_and_c_yellow_remain_go_phases_without_conditional_rewrite():
+    yellow = [("yellow", "circle", None)]
+    for group_id in (201351, 201365, 201290):
+        POLICY.reset_transition()
+        normalized, _ = POLICY.apply_transition(yellow, group_id)
+        assert _tokens(normalized) == {"YELLOW_CIRCLE"}
+
+
+def test_d2_full_sequence_with_smoothing_has_only_protected_left_yellow_as_go():
+    green = [("green", "circle", None)]
+    yellow = [("yellow", "circle", None)]
+    protected_left = [("red", "circle", None), ("green", "arrow", True)]
+    red = [("red", "circle", None)]
+    smoother = SignalSmoother(window_size=7, majority_count=4)
+    POLICY.reset_transition()
+
+    stable_outputs = []
+    for phase in (green, yellow, protected_left, yellow, red, green):
+        output = None
+        for _ in range(7):
+            normalized, _ = POLICY.apply(phase, 201326)
+            smoothed = smoother.update(normalized)
+            output, _ = POLICY.apply_transition(smoothed or [], 201326)
+        stable_outputs.append(_tokens(output))
+
+    assert stable_outputs == [
+        {"GREEN_CIRCLE"},
+        {"RED_CIRCLE"},
+        {"RED_CIRCLE", "GREEN_LEFT_ARROW"},
+        {"YELLOW_CIRCLE"},
+        {"RED_CIRCLE"},
+        {"GREEN_CIRCLE"},
+    ]

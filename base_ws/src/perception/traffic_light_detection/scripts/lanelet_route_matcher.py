@@ -131,6 +131,55 @@ def _parse_reference_latlon(map_file, member_role):
     return result
 
 
+def _parse_roundabout_regulatory_ids(map_file):
+    """Return roundabout regulatory-element IDs declared by the source OSM.
+
+    The Noetic system-Python Lanelet2 binding does not register Autoware's
+    roundabout regulatory-element implementation.  The traffic-light matcher
+    does not consume roundabout rules, but it must not hide unrelated map
+    parser failures either.
+    """
+    tree = ET.parse(map_file)
+    result = set()
+    for rel in tree.getroot().findall("relation"):
+        tags = {t.get("k"): t.get("v") for t in rel.findall("tag")}
+        if tags.get("type") == "regulatory_element" and tags.get("subtype") == "roundabout":
+            result.add(int(rel.get("id")))
+    return result
+
+
+def _load_lanelet_map_for_traffic_matching(map_file, projector):
+    """Load a map while tolerating only known roundabout binding errors."""
+    lanelet_map, errors = io.loadRobust(map_file, projector)
+    details = [str(error).strip() for error in errors if "Errors ocurred" not in str(error)]
+    if not details:
+        return lanelet_map
+
+    roundabout_ids = _parse_roundabout_regulatory_ids(map_file)
+    tolerated = []
+    unexpected = []
+    for error in details:
+        if any(str(reg_id) in error for reg_id in roundabout_ids):
+            tolerated.append(error)
+        else:
+            unexpected.append(error)
+
+    if unexpected:
+        raise RuntimeError("Lanelet map parser errors:\n" + "\n".join(unexpected))
+    if not roundabout_ids or not tolerated:
+        raise RuntimeError("Lanelet map parser errors:\n" + "\n".join(details))
+
+    rospy.logwarn(
+        "[lanelet_route_matcher] Python Lanelet2가 roundabout regulatory element %s를 "
+        "지원하지 않아 해당 규칙만 제외하고 신호등 route 매칭을 계속합니다 "
+        "(lanelet=%d, 허용된 파싱 경고=%d)",
+        sorted(roundabout_ids),
+        len(lanelet_map.laneletLayer),
+        len(tolerated),
+    )
+    return lanelet_map
+
+
 def _local_tangent_direction(centerline_points, ref_x, ref_y):
     """centerline_points 중 ref 지점에 가장 가까운 구간(두 점 사이)을 찾아서,
     그 구간의 방향 벡터(정규화)를 반환. 곡선 lanelet에서도 국소적으로는 직선에
@@ -206,7 +255,7 @@ class LaneletRouteGroupIdMatcher:
 
         try:
             self.projector = _load_projector(map_file, projector_type or projector_type_default, projector_file)
-            self.map = io.load(map_file, self.projector)
+            self.map = _load_lanelet_map_for_traffic_matching(map_file, self.projector)
             self._build_lanelet_group_id_map()
             self._build_crossing_info(map_file)
             self.available = True

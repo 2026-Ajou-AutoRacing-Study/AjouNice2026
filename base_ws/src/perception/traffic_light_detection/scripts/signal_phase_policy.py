@@ -35,6 +35,8 @@ class SignalPhasePolicy:
             for group_id, profile in config.get("signal_assignments", {}).items()
         }
         self.profiles = config.get("profiles", {})
+        self._last_non_yellow_phase = {}
+        self._observation_state = {}
         self._validate()
 
     @classmethod
@@ -74,6 +76,25 @@ class SignalPhasePolicy:
                 self._validate_phase(target, f"{profile_name}.corrections[{source}]")
                 if not set(target).issubset(supported_set):
                     raise ValueError(f"{profile_name}.corrections[{source}] uses unsupported lamps")
+            conditional_yellow = profile.get("conditional_yellow")
+            if conditional_yellow is not None:
+                for index, phase in enumerate(conditional_yellow.get("go_after_phases", [])):
+                    self._validate_phase(
+                        phase, f"{profile_name}.conditional_yellow.go_after_phases[{index}]"
+                    )
+                    if not set(phase).issubset(supported_set):
+                        raise ValueError(
+                            f"{profile_name}.conditional_yellow.go_after_phases[{index}] "
+                            "uses unsupported lamps"
+                        )
+                stop_phase = conditional_yellow.get("stop_phase", [])
+                self._validate_phase(
+                    stop_phase, f"{profile_name}.conditional_yellow.stop_phase"
+                )
+                if not set(stop_phase).issubset(supported_set):
+                    raise ValueError(
+                        f"{profile_name}.conditional_yellow.stop_phase uses unsupported lamps"
+                    )
 
     def profile_name(self, group_id):
         return self.assignments.get(int(group_id), self.default_profile)
@@ -114,6 +135,111 @@ class SignalPhasePolicy:
         # profile chooses a route-compatible GO phase rather than publishing a
         # generic green that could authorize the wrong movement.
         return self._results(profile.get("fallback_phase", [])), f"{profile_name}:fail_open"
+
+    def apply_transition(self, color_results, group_id):
+        """Resolve phases whose permission depends on the preceding stable phase.
+
+        This is intentionally called after temporal smoothing. In particular,
+        D-2 has both straight-green -> yellow (STOP for our left-turn route) and
+        protected-left -> yellow (GO), which cannot be distinguished from the
+        current yellow lamps alone.
+        """
+        profile_name = self.profile_name(group_id)
+        profile = self.profiles[profile_name]
+        if profile.get("passthrough", False):
+            return list(color_results), f"{profile_name}:transition_passthrough"
+
+        observed_tokens = [
+            RESULT_TO_TOKEN[result] for result in color_results if result in RESULT_TO_TOKEN
+        ]
+        observed_key = _phase_key(observed_tokens)
+        yellow_key = _phase_key(["YELLOW_CIRCLE"])
+        conditional_yellow = profile.get("conditional_yellow")
+
+        # A split vote from the smoother must not leak an empty phase to BVP,
+        # where competition fail-open would authorize motion. Use the
+        # profile's explicit fallback; C and D-2 configure this as red.
+        if not observed_key:
+            return (
+                self._results(profile.get("fallback_phase", [])),
+                f"{profile_name}:transition_fallback",
+            )
+
+        if conditional_yellow is not None and observed_key == yellow_key:
+            allowed_predecessors = {
+                _phase_key(phase)
+                for phase in conditional_yellow.get("go_after_phases", [])
+            }
+            if self._last_non_yellow_phase.get(int(group_id)) in allowed_predecessors:
+                return list(color_results), f"{profile_name}:yellow_go_after_allowed_phase"
+            return (
+                self._results(conditional_yellow.get("stop_phase", [])),
+                f"{profile_name}:yellow_stop_after_disallowed_phase",
+            )
+
+        if observed_key and observed_key != yellow_key:
+            self._last_non_yellow_phase[int(group_id)] = observed_key
+        return list(color_results), f"{profile_name}:transition_valid"
+
+    def reset_transition(self, group_id=None):
+        if group_id is None:
+            self._last_non_yellow_phase.clear()
+            self._observation_state.clear()
+        else:
+            self._last_non_yellow_phase.pop(int(group_id), None)
+            self._observation_state.pop(int(group_id), None)
+
+    def process_normalized(self, normalized, reason, group_id, stamp, confidence, smoother):
+        """Keep missing observations out of the phase vote and history (D-2).
+
+        Payload timestamps are observation times, not repeated winner times.
+        This prevents a stale smoothing winner from refreshing a GO lease.
+        """
+        profile = self.profiles[self.profile_name(group_id)]
+        limits = profile.get("observation_guard")
+        if not limits:
+            result = smoother.update(normalized, payload=(normalized, confidence))
+            lamps, conf = result if result is not None else ([], 0.0)
+            lamps, transition = self.apply_transition(lamps, group_id)
+            return lamps, conf, transition
+        state = self._observation_state.setdefault(group_id, {})
+        if stamp < state.get("clock", stamp):
+            self.reset_transition(group_id)
+            smoother.reset()
+            state = self._observation_state.setdefault(group_id, {})
+        state["clock"] = stamp
+        valid = not reason.endswith(":fail_open")
+        gap = float(limits["max_observation_gap_sec"])
+        if stamp - state.get("input_at", stamp) > gap:
+            self._last_non_yellow_phase.pop(group_id, None)
+            state.pop("output", None)
+            state.pop("yellow_since", None)
+            smoother.reset()
+        if valid:
+            state["input_at"] = stamp
+        # Abstain on missing observations, rather than giving synthetic red
+        # (or UNKNOWN) a vote against the genuinely observed yellow phase.
+        result = smoother.update(normalized, payload=(normalized, confidence, stamp)) if valid else None
+        if result and result[0] and stamp - result[2] <= gap:
+            lamps, conf, observed_at = result
+            if observed_at > state.get("observed_at", float("-inf")):
+                state["observed_at"] = observed_at
+                is_yellow = set(lamps) == {TOKEN_TO_RESULT["YELLOW_CIRCLE"]}
+                if is_yellow:
+                    state.setdefault("yellow_since", observed_at)
+                else:
+                    state.pop("yellow_since", None)
+                output, transition = self.apply_transition(lamps, group_id)
+                state.update(output=output, confidence=conf, reason=transition)
+        yellow_expired = (
+            "yellow_since" in state and
+            stamp - state["yellow_since"] >= float(limits["max_yellow_sec"])
+        )
+        if yellow_expired:
+            self._last_non_yellow_phase.pop(group_id, None)
+        if "output" in state and stamp - state["input_at"] <= gap and not yellow_expired:
+            return state["output"], state["confidence"], state["reason"] + ":bounded_observation"
+        return self._results(profile["fallback_phase"]), 0.0, "observation_guard:expired_or_unconfirmed"
 
     @staticmethod
     def _results(tokens):
