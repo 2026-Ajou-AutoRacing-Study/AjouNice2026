@@ -265,7 +265,7 @@ URDF와 sensor TF 모두 `base_link=rear axle center`로 문서화돼 있다. in
 ## 13. Requester 설정과 승인
 
 코드: `base_ws/src/planning_addons/competition_route_requester`.
-설정: `config/competition_route_requester.param.yaml`, 경로: `config/kcity_v61_competition_route.yaml`.
+설정: `config/competition_route_requester.param.yaml`, 경로: `config/kcity_v67_competition_route.yaml`.
 
 - 운영 기본값은 YAML case `route_a_to_b_with_fallback`, `auto_request_initial_route=false`다. 차량을 공식 start pose/허용 lanelet에 정지시킨 뒤 RViz `Route Control` 패널이 기존 gateway service에 Route A를 요청한다. 이미 VERIFIED A가 있더라도 공식 start pose 6 m 이내, 속도 0.1 m/s 이하이면 버튼으로 다시 요청할 수 있다. 이때 기존 route를 clear하지 않고 요청 시각 이후 route stamp와 새 trajectory/validator를 검증한다. Route B 또는 fallback 활성화 뒤 A 복귀는 막는다. Route A 검증 뒤 Route B와 fallback 전환은 기존 supervisor/finish_guard가 자동 수행한다. 비대화형 probe는 private config에서만 초기 자동 요청을 켠다. `route_b_only`는 200178 s≥8m 시작 조건이므로 공식 start에서 바로 쓰는 case가 아니다.
 - main 서비스는 `/planning/set_waypoint_route` (`autoware_internal_planning_msgs/SetWaypointRoute`)와 `/planning/set_lanelet_route` (`autoware_planning_msgs/SetLaneletRoute`)다. 직접 LaneletRoute를 발행하거나 Mission 뒤에 route mux를 넣지 않는다.

@@ -58,7 +58,7 @@ env PYTHONPATH="$SYSTEM_PYTHONPATH" PYTHONNOUSERSITE=1 \
     use_sim_time:=true \
     start_rviz:=true \
     show_gt_boxes:=true \
-    map_file:="$ROOT/kcity_map/lanelet_map/lanelet2_map_v66.osm" \
+    map_file:="$ROOT/kcity_map/lanelet_map/lanelet2_map_v67.osm" \
     projector_file:="$ROOT/kcity_map/lanelet_map/map_projector_info_v1.yaml" \
     >"$CASE_DIR/rviz_launch.log" 2>&1 &
 RVIZ_PID=$!

@@ -127,7 +127,7 @@ S1g는 비교/fallback checkpoint이지 최신 production 기본값이 아니다
    - `base_ws/src`, `planning_ws/src`, launch와 문서.
    - planning 브랜치를 pull하면 받는다.
 2. v66 지도
-   - `kcity_map/lanelet_map/lanelet2_map_v66.osm`.
+   - `kcity_map/lanelet_map/lanelet2_map_v67.osm`.
    - 수신자가 직접 관리하는 기존 자산이다. 새로 전달하거나 다운로드할 대상으로
      간주하지 않는다.
    - production launch가 기대하는 경로와 파일명이 일치하는지만 확인한다.
@@ -278,7 +278,7 @@ roslaunch ajounice_planning_integration morai_planning_stack.launch \
 - UNKNOWN stationary policy.
 - v66 Map-CV predictor.
 - traffic-light detector.
-- v66 map loader와 planning graph.
+- v67 map loader와 planning graph.
 - route requester.
 
 `start_controller=false`가 안전한 초기값이다. trajectory, validator, object topic과
