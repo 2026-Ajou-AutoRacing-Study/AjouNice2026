@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1500" height="980" viewBox="0 0 1500 980" role="img" aria-labelledby="title desc">
 <title id="title">Competition route operation cases and input-manager architecture</title>
 <desc id="desc">Five allowed YAML operation cases and the addon request path into RouteSelector main and MissionPlanner, without an output route mux.</desc>
-<!-- source_map=lanelet2_map_v64.osm sha256=89b76a829e058e5daa3238894c640d5892c05b100dc0b0666028ee79685002de selected_case=route_a_to_b_with_fallback -->
+<!-- source_map=lanelet2_map_v65.osm sha256=c6dff2aa5143656d4c8bbd1cc7c97a7a4712720a04627e84af88b9ed0469185d selected_case=route_a_to_b_with_fallback -->
 <defs><style>
 text { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; fill: #172033; }
 .title { font-size: 34px; font-weight: 700; } .subtitle { font-size: 16px; fill: #526079; }
