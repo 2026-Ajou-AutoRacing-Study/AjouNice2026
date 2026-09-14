@@ -59,7 +59,7 @@ source base_ws/devel/setup.bash
 roslaunch bringup localization_morai_gt.launch \
   use_sim_time:=false \
   start_lanelet_map:=true \
-  map_file:="$HOME/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v60.osm" \
+  map_file:="$HOME/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v67.osm" \
   projector_file:="$HOME/AjouNice2026/kcity_map/lanelet_map/map_projector_info_v1.yaml"
 ```
 

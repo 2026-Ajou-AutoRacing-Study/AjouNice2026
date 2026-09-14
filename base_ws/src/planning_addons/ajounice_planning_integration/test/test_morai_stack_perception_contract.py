@@ -52,16 +52,16 @@ def test_integrated_downstream_contract_matches_standalone_production_launch():
     for name, value in expected.items():
         assert values.get(name) == value, (name, values.get(name))
     assert top_level["maximum_tracking_internal_prediction_age_sec"]["default"] == "0.25"
-    assert values["map_file"].endswith("/lanelet2_map_v66.osm")
+    assert values["map_file"].endswith("/lanelet2_map_v67.osm")
     assert values["projector_file"].endswith("/map_projector_info_v1.yaml")
 
 
-def test_v66_map_sha_is_identical_across_runtime_contracts():
-    map_path = REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v66.osm"
+def test_v67_map_sha_is_identical_across_runtime_contracts():
+    map_path = REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v67.osm"
     route_path = (
         REPO_ROOT
         / "base_ws/src/planning_addons/competition_route_requester/config"
-        / "kcity_v66_competition_route.yaml"
+        / "kcity_v67_competition_route.yaml"
     )
     publisher_path = PACKAGE_ROOT / "scripts/map_projector_publisher"
 
