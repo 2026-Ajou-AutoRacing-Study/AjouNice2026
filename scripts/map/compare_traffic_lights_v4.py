@@ -22,7 +22,7 @@ from pyproj import Transformer
 from scipy.optimize import linear_sum_assignment
 
 ORIGIN_LAT, ORIGIN_LON = 37.2380038082, 126.7730819386
-LANELET_OSM = "lanelet_map/lanelet2_map_v62.osm"
+LANELET_OSM = "lanelet_map/lanelet2_map_v63.osm"
 MGEO_NODE_SET = "mgeo_map/node_set.json"
 MGEO_GLOBAL_INFO = "mgeo_map/global_info.json"
 

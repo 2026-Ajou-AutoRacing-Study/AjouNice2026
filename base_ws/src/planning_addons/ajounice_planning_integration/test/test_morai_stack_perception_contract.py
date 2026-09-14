@@ -47,5 +47,5 @@ def test_integrated_downstream_contract_matches_standalone_production_launch():
     for name, value in expected.items():
         assert values.get(name) == value, (name, values.get(name))
     assert top_level["maximum_tracking_internal_prediction_age_sec"]["default"] == "0.25"
-    assert values["map_file"].endswith("/lanelet2_map_v62.osm")
+    assert values["map_file"].endswith("/lanelet2_map_v63.osm")
     assert values["projector_file"].endswith("/map_projector_info_v1.yaml")

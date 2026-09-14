@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the K-City v61 competition route documentation SVG set.
+"""Generate the K-City v63 competition route documentation SVG set.
 
 The overview, Route A detail, Route B detail, and reroute-process figures are
 derived from the package YAML files and Lanelet2 centerlines.  This is a
@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        default=package_dir / "config/kcity_v62_competition_route.yaml",
+        default=package_dir / "config/kcity_v63_competition_route.yaml",
     )
     parser.add_argument(
         "--workspace",
@@ -46,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=package_dir / "docs/assets/kcity_v62_route_a_b.svg",
+        default=package_dir / "docs/assets/kcity_v63_route_a_b.svg",
         help="Overview SVG path; the three detail SVGs are written beside it.",
     )
     return parser.parse_args()
@@ -335,7 +335,7 @@ def build_route_detail_svg(config, lanelets, map_path, actual_hash, epsg, origin
     svg = detail_svg_start(
         1600,
         1400,
-        f"K-City v61 · {route_name} 상세",
+        f"K-City v63 · {route_name} 상세",
         f"{subtitle} · 요청 데이터와 검증용 lanelet 순서를 분리 표시",
         f"Detailed {route_name} request waypoints and expected verification lanelets.",
         f"source_map={map_path.name} sha256={actual_hash} projection=EPSG:{epsg} route={route_key}",
@@ -416,7 +416,7 @@ def build_reroute_process_svg(config, policy, lanelets, map_path, actual_hash, e
     viewport = Viewport(inset_bounds, (50, 170, 500, 820), padding=20)
     svg = [
         '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" role="img" aria-labelledby="title desc">',
-        '<title id="title">K-City v61 reroute trigger and process</title>',
+        '<title id="title">K-City v63 reroute trigger and process</title>',
         '<desc id="desc">Reroute trigger, freshness and hold checks, request and verification while Route A remains active, and deadline before lanelet 200346.</desc>',
         f'<!-- source_map={map_path.name} sha256={actual_hash} projection=EPSG:{epsg} -->',
         "<defs>",
@@ -430,7 +430,7 @@ def build_reroute_process_svg(config, policy, lanelets, map_path, actual_hash, e
         ".road { fill: none; stroke: #d7dde5; stroke-width: 1.2; stroke-linecap: round; }",
         "</style></defs>",
         '<rect width="1600" height="1100" fill="#f4f7fb"/>',
-        '<text x="42" y="54" class="title">K-City v61 · 정상 Route A → Route B 재경로 절차</text>',
+        '<text x="42" y="54" class="title">K-City v63 · 정상 Route A → Route B 재경로 절차</text>',
         '<text x="42" y="84" class="subtitle">route_a_to_b 계열의 trigger·deadline + Route A를 유지한 채 수행하는 요청·검증 순서</text>',
         '<rect x="30" y="110" width="540" height="930" rx="22" class="card"/>',
         '<text x="50" y="145" class="panel-title">공간 경계</text>',
@@ -730,7 +730,7 @@ def main() -> None:
 
     svg = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{SVG_WIDTH}" height="{SVG_HEIGHT}" viewBox="0 0 {SVG_WIDTH} {SVG_HEIGHT}" role="img" aria-labelledby="title desc">',
-        '<title id="title">K-City v61 competition Route A and Route B</title>',
+        '<title id="title">K-City v63 competition Route A and Route B</title>',
         '<desc id="desc">North-up map of Route A ending on lanelet 200181 before the start boundary, Route B continuation through the start boundary, reroute trigger at lanelet 200178 s 8 metres, deadline before lanelet 200346, and final goal 200210.</desc>',
         f'<!-- source_map={map_path.name} sha256={actual_hash} projection=EPSG:{epsg} -->',
         "<defs>",
@@ -750,7 +750,7 @@ def main() -> None:
         "</style>",
         "</defs>",
         '<rect width="1400" height="1200" fill="#f4f7fb"/>',
-        '<text x="42" y="54" class="title">K-City v61 경쟁 경로 · Route A → Route B</text>',
+        '<text x="42" y="54" class="title">K-City v63 경쟁 경로 · Route A → Route B</text>',
         '<text x="42" y="84" class="subtitle">Lanelet2 중심선 기반 · 북쪽이 위 · 좌표 단위 m · 설정된 경로 순서 그대로 표시</text>',
         '<rect x="35" y="110" width="405" height="1045" rx="22" class="card"/>',
         '<text x="55" y="140" class="panel-title">전체 경로</text>',
@@ -905,16 +905,16 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(svg) + "\n", encoding="utf-8")
     detail_outputs = {
-        output_path.parent / "kcity_v62_route_a_detail.svg": build_route_detail_svg(
+        output_path.parent / "kcity_v63_route_a_detail.svg": build_route_detail_svg(
             config, lanelets, map_path, actual_hash, epsg, origin, "route_a"
         ),
-        output_path.parent / "kcity_v62_route_b_detail.svg": build_route_detail_svg(
+        output_path.parent / "kcity_v63_route_b_detail.svg": build_route_detail_svg(
             config, lanelets, map_path, actual_hash, epsg, origin, "route_b"
         ),
-        output_path.parent / "kcity_v62_reroute_process.svg": build_reroute_process_svg(
+        output_path.parent / "kcity_v63_reroute_process.svg": build_reroute_process_svg(
             config, policy, lanelets, map_path, actual_hash, epsg
         ),
-        output_path.parent / "kcity_v62_operation_cases.svg": build_operation_cases_svg(
+        output_path.parent / "kcity_v63_operation_cases.svg": build_operation_cases_svg(
             config, policy, map_path, actual_hash
         ),
     }
