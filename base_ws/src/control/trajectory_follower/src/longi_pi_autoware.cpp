@@ -181,7 +181,10 @@ private:
   double previewTargetVelocity(const std::size_t nearest, const double current_velocity) const
   {
     const double initial_target = trajectory_.points[nearest].longitudinal_velocity_mps;
-    if (!speed_preview_enabled_ || initial_target < 0.0 || current_velocity < 0.0) {
+    // Treat small negative velocities inside the stop threshold as standstill noise.
+    // Only a velocity below -0.1 m/s with the production parameter is considered reverse.
+    if (!speed_preview_enabled_ || initial_target < 0.0 ||
+        current_velocity < -stop_velocity_threshold_mps_) {
       return initial_target;
     }
 

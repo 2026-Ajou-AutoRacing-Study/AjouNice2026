@@ -41,7 +41,18 @@ constexpr const char * kDefaultTopics =
   "/planning/scenario_planning/lane_driving/behavior_planning/path "
   "/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id "
   "/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory "
-  "/planning/trajectory /planning/validation_status";
+  "/planning/trajectory /planning/validation_status "
+  "/ctrl_cmd /control/command/control_cmd /control/command/steering "
+  "/control/autoware/controller_valid /control/autoware/failure_reason "
+  "/control/autoware/target_point "
+  "/control/trajectory_follower/lateral/predicted_trajectory "
+  "/purepursuit_autoware/debug/controller_state "
+  "/purepursuit_autoware/debug/lookahead_distance "
+  "/purepursuit_autoware/debug/lateral_error "
+  "/purepursuit_autoware/debug/path_curvature "
+  "/purepursuit_autoware/debug/target_curvature "
+  "/purepursuit_autoware/debug/limited_steering_angle "
+  "/vehicle/status/steering_status";
 
 QString defaultOutputDirectory()
 {
