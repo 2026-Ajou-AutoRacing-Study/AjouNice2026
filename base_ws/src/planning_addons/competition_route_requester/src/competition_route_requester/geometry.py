@@ -1,4 +1,4 @@
-"""Frozen v65 geometry for progress guards, not for route generation."""
+"""Frozen v66 geometry for progress guards, not for route generation."""
 import hashlib
 import math
 from pathlib import Path
@@ -35,10 +35,10 @@ class Geometry:
     def __init__(self, repo, config):
         path = Path(repo) / config['map']['file']
         if hashlib.sha256(path.read_bytes()).hexdigest() != config['map']['sha256']:
-            raise ValueError('v65 map SHA mismatch; no route requests permitted')
+            raise ValueError('v66 map SHA mismatch; no route requests permitted')
         projector_path = Path(repo) / config['map']['projector_file']
         if hashlib.sha256(projector_path.read_bytes()).hexdigest() != 'ccb5a8199afd7e64b04b6ac8637419ec4c9cd5ab16bac68a229971a7f7c7859c':
-            raise ValueError('v65 projector SHA mismatch')
+            raise ValueError('v66 projector SHA mismatch')
         cfg = yaml.safe_load(projector_path.read_text())
         if cfg['projector_type'] != 'LocalCartesianUTM':
             raise ValueError('unsupported projector')

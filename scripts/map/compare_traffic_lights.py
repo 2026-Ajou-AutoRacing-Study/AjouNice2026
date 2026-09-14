@@ -19,7 +19,7 @@ from pyproj import Transformer
 
 # map_projector_info_v1.yaml 기준
 ORIGIN_LAT, ORIGIN_LON = 37.2380038082, 126.7730819386
-LANELET_OSM = "lanelet_map/lanelet2_map_v65.osm"
+LANELET_OSM = "lanelet_map/lanelet2_map_v66.osm"
 MGEO_NODE_SET = "mgeo_map/node_set.json"
 
 

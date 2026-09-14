@@ -1,12 +1,12 @@
-# RouteSelector/MissionPlanner의 ROS1 인터페이스와 무관한 K-City v65 경로 정의다.
+# RouteSelector/MissionPlanner의 ROS1 인터페이스와 무관한 K-City v66 경로 정의다.
 schema_version: 1
 frame_id: map
 
 map:
-  version: 65
-  file: "kcity_map/lanelet_map/lanelet2_map_v65.osm"
+  version: 66
+  file: "kcity_map/lanelet_map/lanelet2_map_v66.osm"
   projector_file: "kcity_map/lanelet_map/map_projector_info_v1.yaml"
-  sha256: "c6dff2aa5143656d4c8bbd1cc7c97a7a4712720a04627e84af88b9ed0469185d"  # 다른 맵에서 잘못 요청하지 않도록 v65를 고정한다.
+  sha256: "aa6650f1b1c054b51c0a4dee6732e98fb5eea7bf63ff7e056acb15301ab7ce3a"  # 다른 맵에서 잘못 요청하지 않도록 v66를 고정한다.
 
 start:
   source: "2026 competition official START / END"
@@ -30,9 +30,9 @@ poses:
   wp_200178:  # 출발 직후 Route B 요청을 준비하는 지점이다.
     lanelet_id: 200178
     lanelet_s_m: 8.0
-    x: 22.403179284
-    y: 203.754548892
-    z: 28.426544568
+    x: 22.403230951
+    y: 203.754521585
+    z: 28.426545152
     yaw_deg: 152.142116
 
   wp_200346:
@@ -224,7 +224,7 @@ route_a:
     - 200182
     - 200361
     - 200181
-  expected_path_lanelet_ids:  # v65에서 검증한 Route A 전체 경로다.
+  expected_path_lanelet_ids:  # v66에서 검증한 Route A 전체 경로다.
     - 200889
     - 200392
     - 200178
@@ -348,7 +348,7 @@ route_b:
     - 200207
     - 200249
     - 200210
-  expected_path_lanelet_ids:  # v65에서 검증한 Route B 전체 경로다.
+  expected_path_lanelet_ids:  # v66에서 검증한 Route B 전체 경로다.
     - 200178
     - 200337
     - 200287
