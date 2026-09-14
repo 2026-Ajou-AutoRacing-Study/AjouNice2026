@@ -16,6 +16,7 @@ from behavior_velocity_planner_common.interfaces import (
     SceneModuleResult,
 )
 from behavior_velocity_planner_common.path_utils import (
+    downstream_turn_direction,
     ego_speed,
     insert_path_point,
     path_with_lane_id_positions,
@@ -30,15 +31,11 @@ NOT_YELLOW = "NOT_YELLOW"
 YELLOW_FROM_GREEN = "YELLOW_FROM_GREEN"
 YELLOW_FROM_NON_GREEN = "YELLOW_FROM_NON_GREEN"
 
-# D-2: 화살표(좌회전) 전용으로 확인된 신호등. 이 gid는 turn_direction과 무관하게
-# CIRCLE+GREEN(직진 초록)을 무시하고, 방향에 맞는 화살표만 통과 조건으로 인정함.
-# (2026-08-25 확인, D-2 신호등이 원형 초록에 반응해 오통과하던 문제 수정)
-ARROW_ONLY_REGULATORY_IDS = {201326}
-
-# D-1: 신호 상태와 무관하게 정지선에서 UNCONDITIONAL_STOP_DURATION초 정지 후 통과.
-# (2026-08-25 확인, 한국 도로교통법상 신호 없는 우회전 처리와 동일한 방식)
-UNCONDITIONAL_STOP_REGULATORY_IDS = {201397}
-UNCONDITIONAL_STOP_DURATION = 3.0
+# 우회전으로 이어지는 경로: 한국 도로교통법상 신호 없이도 우회전 가능하므로
+# 신호 인식 자체를 하지 않는 무정차 우회전으로 처리함(3초 정지 없음, 2026-09-14
+# 팀 논의로 확정). 신호등이 걸린 lanelet 자체가 직/좌/우 방향이 섞여있을 수
+# 있어서(예: D-1), 그 lanelet의 turn_direction이 아니라 경로(route)상 바로
+# 다음에 실제로 이어지는 lanelet의 turn_direction으로 판단함. gid 하드코딩 없음.
 
 
 @dataclass
@@ -127,12 +124,7 @@ class TrafficLightModuleManager(SceneModuleManagerInterface):
             return result
 
         path_xyz = path_with_lane_id_positions(path_with_lane_id)
-        ordered_lane_ids = []
-        for path_point in path_with_lane_id.points:
-            for lane_id in path_point.lane_ids:
-                lane_id = int(lane_id)
-                if lane_id not in ordered_lane_ids:
-                    ordered_lane_ids.append(lane_id)
+        ordered_lane_ids = ordered_lane_ids_from_path(path_with_lane_id)
         ego_station = self._ego_station(output_path, planner_data.odometry)
         candidates = []
         seen_lane_lines = set()
@@ -191,6 +183,8 @@ class TrafficLightModuleManager(SceneModuleManagerInterface):
                 state,
                 planner_data.traffic_signals,
                 float(planner_data.current_time),
+                lanelet_map,
+                ordered_lane_ids,
             )
             if result.traffic_signal is None and signal is not None:
                 result.traffic_signal = deepcopy(signal)
@@ -288,16 +282,18 @@ class TrafficLightModuleManager(SceneModuleManagerInterface):
         return result
 
     def _signal_requires_stop(
-        self, traffic_light, lane_id, state, message, current_time
+        self, traffic_light, lane_id, state, message, current_time,
+        lanelet_map=None, ordered_lane_ids=None
     ):
-        if traffic_light.regulatory_id in UNCONDITIONAL_STOP_REGULATORY_IDS:
-            # D-1: 신호 상태와 무관하게 정지선에서 일정 시간 정지 후 통과
-            # (한국 도로교통법상 신호 없는 우회전과 동일하게 처리)
-            if state.stop_signal_since is None:
-                state.stop_signal_since = current_time
-            stop_duration = max(current_time - state.stop_signal_since, 0.0)
-            should_stop = stop_duration < UNCONDITIONAL_STOP_DURATION
-            return should_stop, "UNCONDITIONAL_STOP", None
+        downstream_direction = None
+        if lanelet_map is not None and ordered_lane_ids is not None:
+            downstream_direction = downstream_turn_direction(
+                lanelet_map, lane_id, ordered_lane_ids
+            )
+        if downstream_direction == "right":
+            # 경로가 실제로 우회전으로 이어지는 경우: 신호 인식 자체를 하지 않는
+            # 무정차 우회전으로 처리(3초 정지 없음, 정지 판단 자체를 안 함)
+            return False, "NO_STOP_RIGHT_TURN", None
 
         signal = self._find_signal(message, traffic_light.regulatory_id)
         if signal is None:
@@ -381,14 +377,22 @@ class TrafficLightModuleManager(SceneModuleManagerInterface):
 
     @classmethod
     def is_traffic_signal_stop(cls, turn_direction, elements, regulatory_id=None):
-        ignore_circle_green = regulatory_id in ARROW_ONLY_REGULATORY_IDS
-        if not ignore_circle_green and cls._contains(
-            elements, TrafficLightElement.CIRCLE, TrafficLightElement.GREEN
-        ):
+        # 좌회전 차로: 좌회전 화살표+초록만 통과 조건으로 인정, 원형 초록은 무시
+        # (직진 차로가 초록이어도 좌회전 차로는 별도로 화살표를 기다려야 함)
+        if turn_direction == "left":
+            return not cls._contains(
+                elements, TrafficLightElement.LEFT_ARROW, TrafficLightElement.GREEN
+            )
+
+        # 우회전 차로: 신호 자체를 안 보고 항상 통과 취급
+        # (정지선에서의 3초 대기는 _signal_requires_stop에서 별도 처리)
+        if turn_direction == "right":
+            return False
+
+        # 직진(또는 그 외/불명): 원형 초록만 통과 조건
+        if cls._contains(elements, TrafficLightElement.CIRCLE, TrafficLightElement.GREEN):
             return False
         arrow_by_direction = {
-            "right": TrafficLightElement.RIGHT_ARROW,
-            "left": TrafficLightElement.LEFT_ARROW,
             "straight": TrafficLightElement.UP_ARROW,
         }
         arrow = arrow_by_direction.get(str(turn_direction))

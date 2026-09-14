@@ -1,6 +1,6 @@
 import math
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as dataclass_replace
 
 import rospy
 from geometry_msgs.msg import Point
@@ -26,8 +26,10 @@ from behavior_velocity_planner_common.interfaces import (
     SceneModuleResult,
 )
 from behavior_velocity_planner_common.path_utils import (
+    downstream_turn_direction,
     ego_speed,
     insert_path_point,
+    ordered_lane_ids_from_path,
     path_with_lane_id_positions,
     project_pose_to_path,
     set_velocity_from_index,
@@ -115,13 +117,30 @@ class BlindSpotModuleManager(SceneModuleManagerInterface):
             result.status = "blind_spot: waiting for map/path"
             return result
 
-        route_lane_ids = {
-            int(lane_id)
-            for path_point in path_with_lane_id.points
-            for lane_id in path_point.lane_ids
-        }
+        ordered_lane_ids = ordered_lane_ids_from_path(path_with_lane_id)
+        route_lane_ids = set(ordered_lane_ids)
         targets = lanelet_map.road_lanelet_candidates(("left", "right"))
         targets = [item for item in targets if item.lanelet_id in route_lane_ids]
+
+        # D-1처럼 신호등이 걸린 lanelet 자체가 직/좌/우로 갈라지는 구조라
+        # turn_direction 태그를 직접 못 채우는 lanelet들을, 경로가 실제로
+        # 이어지는 다음 lanelet의 turn_direction으로 판단해서 대상에 추가.
+        # (2026-09-14, 신호등 모듈과 공통 문제로 확인되어 같은 방식 적용)
+        directly_covered_ids = {item.lanelet_id for item in targets}
+        for lane_id in ordered_lane_ids:
+            if lane_id in directly_covered_ids:
+                continue
+            lanelet = lanelet_map.road_lanelet_by_id(lane_id)
+            if lanelet is None or lanelet.turn_direction in ("left", "right"):
+                continue
+            resolved_direction = downstream_turn_direction(
+                lanelet_map, lane_id, ordered_lane_ids
+            )
+            if resolved_direction not in ("left", "right"):
+                continue
+            resolved_tags = dict(lanelet.tags)
+            resolved_tags["turn_direction"] = resolved_direction
+            targets.append(dataclass_replace(lanelet, tags=resolved_tags))
         statuses = []
         for target in targets:
             if self._has_neighboring_turn_lanelet(target, lanelet_map):

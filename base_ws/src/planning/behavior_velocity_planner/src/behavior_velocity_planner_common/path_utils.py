@@ -167,6 +167,34 @@ def project_pose_to_path(path, pose):
     return projection
 
 
+def ordered_lane_ids_from_path(path_with_lane_id):
+    """경로(path_with_lane_id)를 따라 처음 등장하는 순서대로 lane_id 목록을 만듦.
+    D-1처럼 lanelet 자체가 직/좌/우로 갈라지는 구조에서, "경로가 실제로 다음에
+    어느 lanelet으로 이어지는지"를 판단하는 데 사용됨(신호등/blind_spot 모듈 공용)."""
+    ordered = []
+    for path_point in path_with_lane_id.points:
+        for lane_id in path_point.lane_ids:
+            lane_id = int(lane_id)
+            if lane_id not in ordered:
+                ordered.append(lane_id)
+    return ordered
+
+
+def downstream_turn_direction(lanelet_map, lane_id, ordered_lane_ids):
+    """경로(route)상 이 lane_id 바로 다음에 오는 lanelet의 turn_direction을
+    반환. lane_id 자체의 turn_direction 태그가 비어있거나(직/좌/우가 섞인 lanelet),
+    경로가 실제로 어느 방향으로 이어지는지 알아야 할 때 사용. 정보가 없으면 None.
+    (2026-09-14, D-1 신호등/blind_spot 모듈 공통 문제 해결을 위해 도입)"""
+    lane_id = int(lane_id)
+    if lane_id not in ordered_lane_ids:
+        return None
+    idx = ordered_lane_ids.index(lane_id)
+    if idx + 1 >= len(ordered_lane_ids):
+        return None
+    next_lanelet = lanelet_map.road_lanelet_by_id(ordered_lane_ids[idx + 1])
+    return next_lanelet.turn_direction if next_lanelet else None
+
+
 def ego_speed(odometry):
     if odometry is None:
         return 0.0

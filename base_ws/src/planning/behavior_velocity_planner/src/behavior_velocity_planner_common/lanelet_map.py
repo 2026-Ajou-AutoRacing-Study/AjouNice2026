@@ -1024,6 +1024,9 @@ class BehaviorVelocityMap:
     def road_lanelet_count(self):
         return len(self.road_lanelets)
 
+    def road_lanelet_by_id(self, lanelet_id):
+        return self.road_lanelets.get(int(lanelet_id))
+
     def intersection_lanelet_candidates(self, route_lane_ids=None):
         candidates = self.road_lanelet_candidates(("straight", "left", "right"))
         if route_lane_ids is not None:
