@@ -4,6 +4,12 @@
 운영 계약이다. 과거 `260720_*zero_shot*` 문서는 MORAI 학습 전 nuScenes
 checkpoint 실험 기록이며 production 실행법이 아니다.
 
+터미널별 전체 실행 순서는
+[`morai_full_stack_by_terminal.md`](../runbooks/morai_full_stack_by_terminal.md)를
+따른다. BF1 camera-domain fine-tuning 실험과 production 보류 근거는
+[`BASE3_BF1_ONLINE_DOMAIN_FINETUNE.md`](BASE3_BF1_ONLINE_DOMAIN_FINETUNE.md)에
+분리해 기록한다.
+
 ## 고정된 production 구성
 
 | 항목 | 값 |
