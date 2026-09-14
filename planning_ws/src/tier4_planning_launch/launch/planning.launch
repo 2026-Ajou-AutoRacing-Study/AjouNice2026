@@ -1,6 +1,7 @@
 <?xml version="1.0" ?>
 <launch>
   <arg name="vehicle_param_path"/>
+  <arg name="mission_planner_param_path" default="$(find autoware_mission_planner_universe)/config/mission_planner.ros1.yaml"/>
   <arg name="config_root" default="$(find autoware_launch)/config/ros1/planning"/>
   <arg name="is_simulation" default="false"/>
   <arg name="bvp_experimental" default="true"/>
@@ -14,6 +15,7 @@
   <group ns="/planning/mission_planning">
     <include file="$(find autoware_mission_planner_universe)/launch/mission_planner.launch">
       <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+      <arg name="mission_planner_param_path" value="$(arg mission_planner_param_path)"/>
       <arg name="route_topic_name" value="/planning/mission_planning/route"/>
     </include>
   </group>

@@ -167,6 +167,8 @@ Route B 요청 시 차량은 이미 `200178`의 s 8 m 이상에 있어야 하므
 
 고주로에서는 waypoint planner가 병렬 lanelet을 포함한 segment를 만든 뒤 `SetPreferredPrimitive`로 최종 선호 lanelet을 지정한다. 첫 고주로 segment의 현재 차선 `200101`과 목표 `201434`는 같은 종방향 segment이므로 순차 ID로 취급하지 않는다. 최종 선호 순서는 `201434 → 201435 → 200137 → 200187 → 201443 → 200130 → 201441 → 200360`이다.
 
+Mission Planner가 발행하는 route segment의 `primitives`는 `/planning/mission_planning/route_marker`에 표시되는 주행 가능 후보이며 BPP가 사용하는 실제 route 정보다. K-City v67에서는 선호 `200130`의 후보를 `[200127, 200130, 200134]`로 확장하고, 선호 `201447`과 `201401`의 후보를 각각 `[201447]`, `[201401]`로 제한한다. 이 보정은 marker 표시만 후처리하지 않고 route 발행 전에 적용하며 선호 lanelet 순서는 바꾸지 않는다.
+
 ![K-City v67 Route A 상세](assets/kcity_v67_route_a_detail.svg)
 
 - 지도 숫자 `1`–`11`: `route_a.waypoint_refs`의 실제 요청 순서
