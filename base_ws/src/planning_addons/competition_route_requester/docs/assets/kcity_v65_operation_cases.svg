@@ -79,6 +79,6 @@ text { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; fill: #17203
 <text x="830" y="807" class="small">B 미확인 시 사용</text>
 <text x="1080" y="807" class="small">Waypoint A/B → Lanelet fallback</text>
 <rect x="30" y="905" width="1440" height="50" rx="16" fill="#fff6dc" stroke="#e5bc54"/>
-<text x="55" y="936" class="label">fallback cutoff = fallback_cutoff_201446 · lanelet 201446 · s=8.0m · goal=goal_200210 · UUID=9097215f-7dd7-5adf-8266-556f1857a735</text>
+<text x="55" y="936" class="label">fallback cutoff = fallback_cutoff_201441 · lanelet 201441 · s=8.0m · goal=goal_200210 · UUID=de578eb1-e9f4-5cb4-b934-9020f0c4a661</text>
 <text x="1445" y="936" class="tiny" text-anchor="end">잘못된 case는 route service 호출 전에 시작 거부</text>
 </svg>

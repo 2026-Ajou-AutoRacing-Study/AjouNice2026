@@ -19,7 +19,8 @@ from nav_msgs.msg import Odometry
 from autoware_adapi_v1_msgs.msg import OperationModeState
 from autoware_map_msgs.msg import LaneletMapBin
 from autoware_planning_msgs.msg import LaneletRoute, LaneletSegment, LaneletPrimitive, RouteState, Trajectory
-from autoware_planning_msgs.srv import SetLaneletRoute, SetLaneletRouteRequest
+from autoware_planning_msgs.srv import (SetLaneletRoute, SetLaneletRouteRequest,
+                                        SetPreferredPrimitive, SetPreferredPrimitiveRequest)
 from autoware_internal_planning_msgs.srv import SetWaypointRoute, SetWaypointRouteRequest
 from autoware_planning_validator.msg import PlanningValidatorStatus
 from tier4_planning_msgs.msg import RerouteAvailability
@@ -144,13 +145,13 @@ class Inputs:
                  self.held_since is not None and now-self.held_since >= self.cfg['reroute_available_hold_time'])
         return bool(ready), 'autonomous mode and held reroute availability required'
 
-    def matches(self, key):
+    def matches(self, key, field='expected_path_lanelet_ids'):
         r = self.route
         if r is None or r.header.frame_id != 'map':
             return False
         return policy.route_matches(self.routes, key, str(uuid.UUID(bytes=bytes(r.uuid.uuid))),
             [s.preferred_primitive.id for s in r.segments],
-            (r.goal_pose.position.x, r.goal_pose.position.y), self.cfg['goal_tolerance_m'])
+            (r.goal_pose.position.x, r.goal_pose.position.y), self.cfg['goal_tolerance_m'], field)
 
 
 class Gateway(Inputs):
@@ -265,6 +266,47 @@ class Gateway(Inputs):
         self.uncertain = True
         self.report('RECONCILIATION_REQUIRED', key, reason)
 
+    def apply_preferred_route(self, key):
+        """Replace the DefaultPlanner choice with the configured lane per segment."""
+        route = self.route
+        observed = [segment.preferred_primitive.id for segment in route.segments]
+        target = policy.preferred_sequence(self.routes, key, observed)
+        if target is None or len(target) != len(route.segments):
+            raise RuntimeError('waypoint route cannot be mapped to preferred lane sequence')
+        request = SetPreferredPrimitiveRequest()
+        request.uuid = route.uuid
+        request.reset = False
+        for segment, lane_id in zip(route.segments, target):
+            candidate = next((primitive for primitive in segment.primitives if primitive.id == lane_id), None)
+            if candidate is None:
+                raise RuntimeError('preferred lanelet %d is absent from its route segment' % lane_id)
+            request.preferred_primitives.append(candidate)
+        name = self.cfg['set_preferred_primitive_service_name']
+        rospy.wait_for_service(name, timeout=self.cfg['service_timeout'])
+        baseline = self.route_count
+        result, done = {}, threading.Event()
+        def invoke():
+            try:
+                result['response'] = rospy.ServiceProxy(name, SetPreferredPrimitive)(request)
+            except Exception as error:
+                result['error'] = str(error)
+            finally:
+                done.set()
+        self.report('DISPATCHED', key, 'setting configured preferred lane per route segment')
+        threading.Thread(target=invoke, daemon=True).start()
+        if not done.wait(self.cfg['service_timeout']):
+            raise TimeoutError('preferred-primitive RPC timeout: server may still finish')
+        if 'error' in result:
+            raise RuntimeError('preferred-primitive RPC transport failure: ' + result['error'])
+        if not result['response'].status.success:
+            raise RuntimeError('preferred-primitive rejected: ' + str(result['response'].status.message))
+        deadline = time.monotonic() + self.cfg['route_verification_timeout']
+        while not rospy.is_shutdown() and time.monotonic() < deadline:
+            if self.route_count > baseline and self.matches(key):
+                return
+            time.sleep(0.02)
+        raise RuntimeError('preferred route accepted but final sequence not confirmed')
+
     def run_request(self, key):
         dispatched = False
         try:
@@ -302,12 +344,20 @@ class Gateway(Inputs):
             while not rospy.is_shutdown() and time.monotonic() < deadline:
                 route_is_new = (self.route is not None and
                                 stamp(self.route.header.stamp) >= stamp(request.header.stamp))
-                if self.route_count > baseline and route_is_new and self.matches(key):
+                field = ('expected_path_lanelet_ids' if key == 'fallback_route' else
+                         'waypoint_path_lanelet_ids')
+                if self.route_count > baseline and route_is_new and self.matches(key, field):
                     break
                 time.sleep(0.02)
             else:
                 self.fault(key, 'service accepted but route UUID/goal/sequence not confirmed')
                 return
+            if key != 'fallback_route':
+                try:
+                    self.apply_preferred_route(key)
+                except Exception as error:
+                    self.fault(key, str(error))
+                    return
             # The RouteSelector service can hold Python's GIL while the route
             # is calculated and deserialized.  That temporarily delays this
             # process's odometry callback, so wait for a genuinely fresh
