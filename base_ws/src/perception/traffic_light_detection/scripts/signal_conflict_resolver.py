@@ -3,8 +3,8 @@
 
 The detector currently distinguishes only left/right arrow direction.  A red
 circle and a green circle cannot be simultaneously lit by the competition
-signals, so that observation is treated as a missed green left-arrow shape at
-every intersection rather than as a D-2-only exception.
+signals, so that observation is treated as a missed green left-arrow shape.
+Completing an orphan green arrow as straight+left is limited to signal C.
 """
 
 
