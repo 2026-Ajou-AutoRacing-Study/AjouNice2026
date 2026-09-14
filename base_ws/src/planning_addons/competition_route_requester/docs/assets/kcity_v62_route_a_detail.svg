@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1400" viewBox="0 0 1600 1400" role="img" aria-labelledby="title desc">
 <title id="title">K-City v61 · Route A 상세</title>
 <desc id="desc">Detailed Route A request waypoints and expected verification lanelets.</desc>
-<!-- source_map=lanelet2_map_v62.osm sha256=417817aef18cb318b40405808e3b99e63c2e259b7e72a590b712770d84b6c4ee projection=EPSG:32652 route=route_a -->
+<!-- source_map=lanelet2_map_v62.osm sha256=bfb2c9ecba072e58091dfac315ac4fb74e55d66bd9dd696007c0ee758179d8fc projection=EPSG:32652 route=route_a -->
 <defs>
 <clipPath id="map-clip"><rect x="50" y="155" width="455" height="1170" rx="18"/></clipPath>
 <style>
@@ -622,7 +622,7 @@ text { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; fill: #17203
 <text x="90" y="1285" class="tiny">숫자 표식 = waypoint_refs 순번 · S = 현재 pose · G = goal pose</text>
 <text x="575" y="145" class="panel-title">① 실제 SetWaypointRoute 요청 구성</text>
 <rect x="575" y="165" width="960" height="60" rx="12" fill="#eaf1ff" stroke="#b7cdfd"/>
-<text x="595" y="190" class="label">START = 현재 odometry · 공식 200892→200889 경계 (허용 반경 3 m)</text>
+<text x="595" y="190" class="label">START = 현재 odometry · 공식 200892→200889 경계 (허용 반경 6 m)</text>
 <text x="595" y="213" class="small">start_pose를 요청에 넣지 않는다. 지도 S는 공식 START/END 좌표이며 두 lanelet 판정을 허용한다.</text>
 <text x="590" y="258" class="small">순서</text>
 <text x="670" y="258" class="small">waypoint_ref</text>
@@ -858,5 +858,5 @@ text { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; fill: #17203
 <tspan x="575" dy="0">Route A 요청: start는 공식 경계의 최신 odometry이며 200892/200889 판정을 모두 허용한다.</tspan>
 <tspan x="575" dy="28">11개 waypoint와 goal_route_a_200181만 요청 pose다. 47개 canonical ID는 결과 검증 기준이다.</tspan>
 </text>
-<text x="575" y="1345" class="tiny">Map lanelet2_map_v62.osm · SHA-256 417817aef18cb318… · LocalCartesianUTM EPSG:32652 · origin (37.2380038082, 126.7730819386)</text>
+<text x="575" y="1345" class="tiny">Map lanelet2_map_v62.osm · SHA-256 bfb2c9ecba072e58… · LocalCartesianUTM EPSG:32652 · origin (37.2380038082, 126.7730819386)</text>
 </svg>

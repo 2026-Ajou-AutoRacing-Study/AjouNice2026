@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" role="img" aria-labelledby="title desc">
 <title id="title">K-City v61 reroute trigger and process</title>
 <desc id="desc">Reroute trigger, freshness and hold checks, request and verification while Route A remains active, and deadline before lanelet 200346.</desc>
-<!-- source_map=lanelet2_map_v62.osm sha256=417817aef18cb318b40405808e3b99e63c2e259b7e72a590b712770d84b6c4ee projection=EPSG:32652 -->
+<!-- source_map=lanelet2_map_v62.osm sha256=bfb2c9ecba072e58091dfac315ac4fb74e55d66bd9dd696007c0ee758179d8fc projection=EPSG:32652 -->
 <defs>
 <clipPath id="reroute-map-clip"><rect x="50" y="170" width="500" height="820" rx="18"/></clipPath>
 <style>
