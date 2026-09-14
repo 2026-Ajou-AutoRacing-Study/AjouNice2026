@@ -30,7 +30,13 @@ def test_green_circle_and_left_arrow_remain_straight_left():
     assert resolve_conflict(observed) == observed
 
 
-def test_orphan_green_arrow_is_completed_as_straight_left():
-    normalized = resolve_conflict([("green", "arrow", True)])
+def test_c_orphan_green_arrow_is_completed_as_straight_left():
+    normalized = resolve_conflict([("green", "arrow", True)], gid=201290)
     assert _has(normalized, "green", "circle")
     assert _has(normalized, "green", "arrow")
+
+
+def test_orphan_green_arrow_is_not_globally_promoted_to_straight():
+    observed = [("green", "arrow", True)]
+    assert resolve_conflict(observed, gid=201326) == observed
+    assert resolve_conflict(observed, gid=999999) == observed

@@ -12,7 +12,10 @@ def _has(color_results, color, shape):
     return any(c == color and s == shape for c, s, _ in color_results)
 
 
-def has_impossible_conflict(color_results):
+STRAIGHT_LEFT_GROUP_IDS = {201290}
+
+
+def has_impossible_conflict(color_results, gid=None):
     has_red_circle = _has(color_results, "red", "circle")
     has_green_circle = _has(color_results, "green", "circle")
     has_yellow_circle = _has(color_results, "yellow", "circle")
@@ -20,13 +23,20 @@ def has_impossible_conflict(color_results):
 
     red_green_collision = has_red_circle and has_green_circle
     red_yellow_collision = has_red_circle and has_yellow_circle
-    fully_orphan_arrow = has_green_arrow and not has_red_circle and not has_green_circle
+    # A green arrow by itself is a valid movement signal.  Only C is known to
+    # have a physical straight+left phase whose circle can be missed by vision.
+    fully_orphan_arrow = (
+        gid in STRAIGHT_LEFT_GROUP_IDS
+        and has_green_arrow
+        and not has_red_circle
+        and not has_green_circle
+    )
     return red_green_collision or red_yellow_collision or fully_orphan_arrow
 
 
 def resolve_conflict(color_results, gid=None):
-    """Return a physically valid combination; ``gid`` is kept for API compatibility."""
-    if not has_impossible_conflict(color_results):
+    """Return a physically valid combination for the competition signal program."""
+    if not has_impossible_conflict(color_results, gid=gid):
         return color_results
 
     fixed = list(color_results)
@@ -45,7 +55,12 @@ def resolve_conflict(color_results, gid=None):
         fixed = [(c, s, l) for c, s, l in fixed if not (c == "yellow" and s == "circle")]
 
     has_green_arrow = _has(fixed, "green", "arrow")
-    if has_green_arrow and not has_red_circle and not has_green_circle:
+    if (
+        gid in STRAIGHT_LEFT_GROUP_IDS
+        and has_green_arrow
+        and not has_red_circle
+        and not has_green_circle
+    ):
         fixed.append(("green", "circle", None))
 
     return fixed
