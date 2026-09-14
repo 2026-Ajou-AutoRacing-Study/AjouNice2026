@@ -3,6 +3,8 @@
   <!-- Flat rear-axle-frame values, cross-checked against the vehicle mesh record. -->
   <arg name="vehicle_param_path"
        default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
+  <arg name="mission_planner_param_path"
+       default="$(find ajounice_planning_integration)/config/mission_planner_kcity_v67.yaml"/>
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
   <arg name="is_simulation" default="false"/>
@@ -25,6 +27,7 @@
   </include>
   <include file="$(find tier4_planning_launch)/launch/planning.launch">
     <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    <arg name="mission_planner_param_path" value="$(arg mission_planner_param_path)"/>
     <arg name="is_simulation" value="$(arg is_simulation)"/>
     <arg name="use_ground_pointcloud" value="$(arg use_ground_pointcloud)"/>
     <arg name="use_occupancy_grid" value="$(arg use_occupancy_grid)"/>

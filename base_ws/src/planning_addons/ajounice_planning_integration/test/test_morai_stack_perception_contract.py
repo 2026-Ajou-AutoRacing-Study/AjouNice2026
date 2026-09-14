@@ -73,3 +73,45 @@ def test_v67_map_sha_is_identical_across_runtime_contracts():
 
     assert publisher_match is not None
     assert actual_sha == route_sha == publisher_match.group(1)
+
+
+def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
+    config_path = PACKAGE_ROOT / "config/mission_planner_kcity_v67.yaml"
+    config = yaml.safe_load(config_path.read_text())
+    assert config["route_section_primitive_overrides"] == {
+        "200130": [200127, 200130, 200134],
+        "201447": [201447],
+        "201401": [201401],
+    }
+
+    integration_launch = ET.parse(PACKAGE_ROOT / "launch/planning.launch").getroot()
+    integration_args = {
+        item.attrib["name"]: item.attrib for item in integration_launch.findall("arg")
+    }
+    assert integration_args["mission_planner_param_path"]["default"].endswith(
+        "/config/mission_planner_kcity_v67.yaml"
+    )
+    tier4_include = next(
+        item
+        for item in integration_launch.findall("include")
+        if item.attrib["file"].endswith("tier4_planning_launch)/launch/planning.launch")
+    )
+    passed_args = {
+        item.attrib["name"]: item.attrib["value"] for item in tier4_include.findall("arg")
+    }
+    assert passed_args["mission_planner_param_path"] == "$(arg mission_planner_param_path)"
+
+    tier4_launch = ET.parse(
+        REPO_ROOT / "planning_ws/src/tier4_planning_launch/launch/planning.launch"
+    ).getroot()
+    mission_include = next(
+        item
+        for item in tier4_launch.findall(".//include")
+        if item.attrib["file"].endswith(
+            "autoware_mission_planner_universe)/launch/mission_planner.launch"
+        )
+    )
+    mission_args = {
+        item.attrib["name"]: item.attrib["value"] for item in mission_include.findall("arg")
+    }
+    assert mission_args["mission_planner_param_path"] == "$(arg mission_planner_param_path)"

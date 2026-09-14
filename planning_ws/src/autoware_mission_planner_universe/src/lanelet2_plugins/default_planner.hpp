@@ -28,6 +28,7 @@
 #include <lanelet2_routing/RoutingGraph.h>
 #include <lanelet2_traffic_rules/TrafficRulesFactory.h>
 
+#include <map>
 #include <vector>
 
 namespace autoware::mission_planner_universe::lanelet2
@@ -39,6 +40,7 @@ struct DefaultPlannerParameters
   bool enable_correct_goal_pose;
   bool consider_no_drivable_lanes;
   bool check_footprint_inside_lanes;
+  std::map<lanelet::Id, std::vector<lanelet::Id>> route_section_primitive_overrides;
 };
 
 class DefaultPlanner : public mission_planner_universe::PlannerPlugin
