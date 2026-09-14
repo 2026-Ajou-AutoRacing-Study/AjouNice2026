@@ -40,8 +40,8 @@ def test_observation_guard_d2_missing_red_and_yellow_lifetime():
     assert step(["RED_CIRCLE"], .9) == {"RED_CIRCLE"}
     assert step(["YELLOW_CIRCLE"], 1) == {"RED_CIRCLE"}
     step(left, 2)
-    assert step(["RED_CIRCLE"], 3.3, True) == {"RED_CIRCLE"}
-    assert step(["YELLOW_CIRCLE"], 3.4) == {"RED_CIRCLE"}
+    assert step(["RED_CIRCLE"], 3.6, True) == {"RED_CIRCLE"}
+    assert step(["YELLOW_CIRCLE"], 3.7) == {"RED_CIRCLE"}
     step(left, 4)
     for t in [4.1, 5, 6, 7, 8]:
         assert step(["YELLOW_CIRCLE"], t) == {"YELLOW_CIRCLE"}
@@ -50,6 +50,26 @@ def test_observation_guard_d2_missing_red_and_yellow_lifetime():
     assert step(["YELLOW_CIRCLE"], 9) == {"RED_CIRCLE"}
     step(left, 10)
     assert step(["YELLOW_CIRCLE"], 1) == {"RED_CIRCLE"}
+
+
+def test_guard_seven_frame_vote_abstains_on_missing_observations():
+    p = SignalPhasePolicy.from_yaml(os.path.join(PACKAGE, "config", "traffic_signal_profiles.yaml"))
+    sm = SignalSmoother(7, 4)
+    left = [("red", "circle", None), ("green", "arrow", True)]
+    yellow = [("yellow", "circle", None)]
+    red = [("red", "circle", None)]
+    for i in range(7):
+        p.process_normalized(left, "p:valid", 201326, i * .1, 1, sm)
+    # Four genuine yellows, interrupted by failures, must not vote as red.
+    for i, lamps in enumerate([yellow, red, red, yellow, red, red, yellow, red, yellow]):
+        out, _, _ = p.process_normalized(lamps, "p:fail_open" if lamps == red else "p:valid",
+                                         201326, .7 + i * .1, 1, sm)
+        assert _tokens(out) != {"RED_CIRCLE"}
+    assert out == yellow
+    # A real red still wins the normal four-of-seven confirmation vote.
+    for i in range(4):
+        out, _, _ = p.process_normalized(red, "p:valid", 201326, 1.6 + i * .1, 1, sm)
+    assert out == red
 
 
 def test_assignments_are_course_profiles():

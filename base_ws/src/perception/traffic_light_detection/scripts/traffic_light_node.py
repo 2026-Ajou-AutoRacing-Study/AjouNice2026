@@ -162,6 +162,7 @@ class TrafficLightNode:
             )
 
         self.raw_debug_pub = rospy.Publisher("~debug_raw_label", String, queue_size=10)
+        self.observed_debug_pub = rospy.Publisher("~debug_observed_label", String, queue_size=10)
         self.policy_debug_pub = rospy.Publisher("~debug_policy_reason", String, queue_size=10)
 
         self._last_stamp = rospy.Time(0)
@@ -294,6 +295,7 @@ class TrafficLightNode:
 
                 self._maybe_save_conflict_crop(crop, raw_color_results)
 
+        self.observed_debug_pub.publish(String(data=_raw_label_for(raw_color_results)))
         fixed, policy_reason = self.signal_phase_policy.apply(
             raw_color_results, group.traffic_light_group_id
         )

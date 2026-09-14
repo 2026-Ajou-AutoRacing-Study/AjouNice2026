@@ -56,7 +56,7 @@ profiles:
       stop_phase: [RED_CIRCLE]
     # Simulation-only bounded hold; never interpret fallback red as observation.
     observation_guard:
-      max_observation_gap_sec: 1.2
+      max_observation_gap_sec: 1.5
       max_yellow_sec: 4.0
     fallback_phase: [RED_CIRCLE]
 

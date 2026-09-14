@@ -237,8 +237,9 @@ class SignalPhasePolicy:
         )
         if yellow_expired:
             self._last_non_yellow_phase.pop(group_id, None)
-        if "output" in state and stamp - state["input_at"] <= gap and not yellow_expired:
+        if "output" in state and stamp - state["observed_at"] <= gap and not yellow_expired:
             return state["output"], state["confidence"], state["reason"] + ":bounded_observation"
+        self._last_non_yellow_phase.pop(group_id, None)
         return self._results(profile["fallback_phase"]), 0.0, "observation_guard:expired_or_unconfirmed"
 
     @staticmethod
