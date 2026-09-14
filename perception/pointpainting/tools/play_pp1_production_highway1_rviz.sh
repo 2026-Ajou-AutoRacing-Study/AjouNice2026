@@ -58,7 +58,7 @@ env PYTHONPATH="$SYSTEM_PYTHONPATH" PYTHONNOUSERSITE=1 \
     use_sim_time:=true \
     start_rviz:=true \
     show_gt_boxes:=true \
-    map_file:="$ROOT/kcity_map/lanelet_map/lanelet2_map_v65.osm" \
+    map_file:="$ROOT/kcity_map/lanelet_map/lanelet2_map_v66.osm" \
     projector_file:="$ROOT/kcity_map/lanelet_map/map_projector_info_v1.yaml" \
     >"$CASE_DIR/rviz_launch.log" 2>&1 &
 RVIZ_PID=$!
@@ -77,7 +77,7 @@ echo "============================================================"
 echo "B3S-PP1 E34 production contract / Highway 1"
 echo "Detector: PP1 + Base3 LRASPP, single-frame, no OD velocity"
 echo "Scores: Vehicle=0.40 Pedestrian=0.15 Obstacle=0.10"
-echo "Pipeline: EKF internal 30 Hz + unknown stationary + v65 Map-CV"
+echo "Pipeline: EKF internal 30 Hz + unknown stationary + v66 Map-CV"
 echo "Colors: detection green, tracks class color, prediction paths,"
 echo "        GT boxes magenta, matched GT future paths purple"
 echo "Playback: ${RATE}x. Press SPACE to play/pause; Ctrl-C to close."

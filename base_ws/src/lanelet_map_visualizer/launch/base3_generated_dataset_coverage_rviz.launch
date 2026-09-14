@@ -1,7 +1,7 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v65.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v66.osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="rviz_config"
