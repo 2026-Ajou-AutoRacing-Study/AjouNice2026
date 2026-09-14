@@ -68,40 +68,35 @@ bool isTrafficSignalStop(
   const autoware_perception_msgs::TrafficLightGroup & tl_state)
 {
   const auto & elements = tl_state.elements;
-  if (hasTrafficLightShapeAndColor(
-        elements, autoware_perception_msgs::TrafficLightElement::CIRCLE,
-        autoware_perception_msgs::TrafficLightElement::GREEN)) {
-    return false;
-  }
-
   const std::string turn_direction = lanelet.attributeOr("turn_direction", "else");
+  const bool has_green_circle = hasTrafficLightShapeAndColor(
+    elements, autoware_perception_msgs::TrafficLightElement::CIRCLE,
+    autoware_perception_msgs::TrafficLightElement::GREEN);
 
-  if (turn_direction == "else") {
-    return true;
-  }
-  if (
-    turn_direction == "right" &&
-    hasTrafficLightShapeAndColor(
-      elements, autoware_perception_msgs::TrafficLightElement::RIGHT_ARROW,
-      autoware_perception_msgs::TrafficLightElement::GREEN)) {
-    return false;
-  }
-  if (
-    turn_direction == "left" &&
-    hasTrafficLightShapeAndColor(
+  // A protected left turn requires a green left arrow.  A circular green is a
+  // straight phase in the competition signal program and must not release a
+  // route that turns left.
+  if (turn_direction == "left") {
+    return !hasTrafficLightShapeAndColor(
       elements, autoware_perception_msgs::TrafficLightElement::LEFT_ARROW,
-      autoware_perception_msgs::TrafficLightElement::GREEN)) {
-    return false;
-  }
-  if (
-    turn_direction == "straight" &&
-    hasTrafficLightShapeAndColor(
-      elements, autoware_perception_msgs::TrafficLightElement::UP_ARROW,
-      autoware_perception_msgs::TrafficLightElement::GREEN)) {
-    return false;
+      autoware_perception_msgs::TrafficLightElement::GREEN);
   }
 
-  return true;
+  if (turn_direction == "right") {
+    return !(has_green_circle || hasTrafficLightShapeAndColor(
+      elements, autoware_perception_msgs::TrafficLightElement::RIGHT_ARROW,
+      autoware_perception_msgs::TrafficLightElement::GREEN));
+  }
+
+  if (turn_direction == "straight") {
+    return !(has_green_circle || hasTrafficLightShapeAndColor(
+      elements, autoware_perception_msgs::TrafficLightElement::UP_ARROW,
+      autoware_perception_msgs::TrafficLightElement::GREEN));
+  }
+
+  // Preserve the standard behavior for ordinary lanes without a route turn
+  // annotation.  Directional arrows alone never authorize an unknown movement.
+  return !has_green_circle;
 }
 
 tf2::Vector3 getTrafficLightTopLeft(const lanelet::ConstLineString3d & traffic_light)

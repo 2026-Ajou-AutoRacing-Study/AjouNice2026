@@ -28,6 +28,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 
 namespace autoware::behavior_velocity_planner
 {
@@ -49,6 +50,7 @@ private:
   std::string logger_;
   std::shared_ptr<TrafficLightRos1Clock> clock_{std::make_shared<TrafficLightRos1Clock>()};
   TrafficLightModule::PlannerParam planner_param_;
+  std::set<lanelet::Id> ignored_regulatory_ids_;
 
   void launchNewModules(const autoware_internal_planning_msgs::PathWithLaneId & path) override;
 

@@ -194,6 +194,9 @@ bool TrafficLightModule::isStopSignal(const PlannerData & planner_data)
 
   // Check if current state is yellow
   const bool is_yellow_now = isTrafficSignalYellow();
+  if (is_yellow_now && planner_param_.yellow_light_is_go) {
+    return false;
+  }
 
   // Override for yellow light on turn lanes with static arrows
   if (planner_param_.enable_arrow_aware_yellow_passing) {

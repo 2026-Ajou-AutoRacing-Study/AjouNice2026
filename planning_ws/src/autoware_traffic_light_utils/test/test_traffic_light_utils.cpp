@@ -53,4 +53,43 @@ TEST(getTrafficLightCenter, get_signal)
   EXPECT_FLOAT_EQ(getTrafficLightCenter(test_light).z(), (float)1.5);
 }
 
+namespace
+{
+autoware_perception_msgs::TrafficLightElement element(const uint8_t color, const uint8_t shape)
+{
+  autoware_perception_msgs::TrafficLightElement value;
+  value.color = color;
+  value.shape = shape;
+  value.status = autoware_perception_msgs::TrafficLightElement::SOLID_ON;
+  return value;
+}
+
+lanelet::ConstLanelet laneWithTurnDirection(const std::string & direction)
+{
+  lanelet::LineString3d left(
+    101, {lanelet::Point3d(102, 0.0, 0.0, 0.0), lanelet::Point3d(103, 1.0, 0.0, 0.0)});
+  lanelet::LineString3d right(
+    104, {lanelet::Point3d(105, 0.0, 1.0, 0.0), lanelet::Point3d(106, 1.0, 1.0, 0.0)});
+  lanelet::Lanelet lane(107, left, right);
+  lane.attributes()["turn_direction"] = direction;
+  return lane;
+}
+}  // namespace
+
+TEST(isTrafficSignalStop, route_maneuver_controls_green_permission)
+{
+  using Element = autoware_perception_msgs::TrafficLightElement;
+  autoware_perception_msgs::TrafficLightGroup green_circle;
+  green_circle.elements.push_back(element(Element::GREEN, Element::CIRCLE));
+
+  autoware_perception_msgs::TrafficLightGroup protected_left;
+  protected_left.elements.push_back(element(Element::RED, Element::CIRCLE));
+  protected_left.elements.push_back(element(Element::GREEN, Element::LEFT_ARROW));
+
+  EXPECT_FALSE(isTrafficSignalStop(laneWithTurnDirection("straight"), green_circle));
+  EXPECT_TRUE(isTrafficSignalStop(laneWithTurnDirection("left"), green_circle));
+  EXPECT_FALSE(isTrafficSignalStop(laneWithTurnDirection("left"), protected_left));
+  EXPECT_TRUE(isTrafficSignalStop(laneWithTurnDirection("straight"), protected_left));
+}
+
 }  // namespace autoware::traffic_light_utils

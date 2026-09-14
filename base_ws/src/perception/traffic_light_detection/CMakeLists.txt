@@ -27,6 +27,8 @@ catkin_install_python(PROGRAMS
   scripts/lanelet_route_matcher.py
   scripts/light_color_utils.py
   scripts/measure_recognition_distance.py
+  scripts/signal_conflict_resolver.py
+  scripts/signal_smoother.py
   scripts/ros_time.py
   scripts/traffic_light_node.py
   scripts/traffic_light_route_group_id_node.py

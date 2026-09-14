@@ -7,7 +7,6 @@ small node deliberately stays on /usr/bin/python3 and isolates map/route
 matching from GPU inference.
 """
 
-import json
 import os
 
 import rospy
@@ -22,10 +21,7 @@ from lanelet_route_matcher import LaneletRouteGroupIdMatcher
 INVALID_GROUP_ID = 0
 
 
-def _valid_group_ids(table_path):
-    with open(table_path, "r", encoding="utf-8") as stream:
-        data = json.load(stream)
-    return [int(entry["group_id"]) for entry in data.get("traffic_lights", [])]
+EXCLUDED_MAP_ERROR_IDS = {201395, 201396}
 
 
 class TrafficLightRouteGroupIdNode:
@@ -50,7 +46,7 @@ class TrafficLightRouteGroupIdNode:
             map_file=map_file,
             projector_type=projector_type,
             projector_file=projector_file,
-            valid_group_ids=_valid_group_ids(table_path),
+            excluded_group_ids=EXCLUDED_MAP_ERROR_IDS,
         )
         if not self._matcher.available:
             raise RuntimeError("Lanelet route matcher is unavailable in the ROS runtime")

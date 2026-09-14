@@ -19,6 +19,7 @@
 #include <autoware/behavior_velocity_planner_common/utilization/util.hpp>
 #include <autoware/lanelet2_utils/intersection.hpp>
 #include <autoware/motion_utils/trajectory/trajectory.hpp>
+#include <autoware/route_handler/route_handler.hpp>
 #include <autoware_utils/ros/parameter.hpp>
 #include <tf2/utils.h>
 
@@ -32,6 +33,23 @@ namespace autoware::behavior_velocity_planner
 using traffic_light_ros1::require_parameter;
 using lanelet::TrafficLight;
 
+namespace
+{
+lanelet::ConstLanelet signalDecisionLane(
+  const lanelet::ConstLanelet & signal_lane,
+  const std::shared_ptr<autoware::route_handler::RouteHandler> & route_handler)
+{
+  lanelet::ConstLanelet next_lane;
+  if (!route_handler->getNextLaneletWithinRoute(signal_lane, &next_lane)) {
+    return signal_lane;
+  }
+
+  const auto direction = next_lane.attributeOr("turn_direction", "else");
+  return direction == "straight" || direction == "left" || direction == "right" ? next_lane
+                                                                                  : signal_lane;
+}
+}  // namespace
+
 TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
 : SceneModuleManagerInterfaceWithRTC(
     node, getModuleName(), getEnableRTC(node, std::string(getModuleName()) + "/enable_rtc"))
@@ -44,6 +62,7 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
     require_parameter<double>(node, ns + ".stop_time_hysteresis");
   planner_param_.enable_pass_judge =
     require_parameter<bool>(node, ns + ".enable_pass_judge");
+  node.param<bool>(ns + "/yellow_light_is_go", planner_param_.yellow_light_is_go, false);
   planner_param_.yellow_lamp_period =
     require_parameter<double>(node, ns + ".yellow_lamp_period");
   planner_param_.yellow_light_stop_velocity =
@@ -62,6 +81,9 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
     require_parameter<double>(node, ns + ".v2i.velocity_threshold");
   planner_param_.v2i_required_time_to_departure =
     require_parameter<double>(node, ns + ".v2i.required_time_to_departure");
+  std::vector<int> ignored_regulatory_ids;
+  node.getParam(ns + "/ignored_regulatory_ids", ignored_regulatory_ids);
+  ignored_regulatory_ids_.insert(ignored_regulatory_ids.begin(), ignored_regulatory_ids.end());
   pub_tl_state_ = node.advertise<autoware_perception_msgs::TrafficLightGroup>(
     "output/traffic_signal", 1);
 }
@@ -111,6 +133,9 @@ void TrafficLightModuleManager::launchNewModules(
        planning_utils::getRegElemMapOnPath<lanelet::autoware::AutowareTrafficLight>(
          path, planner_data_->route_handler_->getLaneletMapPtr(),
          planner_data_->current_odometry->pose)) {
+    if (ignored_regulatory_ids_.count(traffic_light_reg_elem.first->id()) != 0U) {
+      continue;
+    }
     const auto stop_line = traffic_light_reg_elem.first->stopLine();
 
     if (!stop_line) {
@@ -121,8 +146,10 @@ void TrafficLightModuleManager::launchNewModules(
     }
 
     const auto & lane = traffic_light_reg_elem.second;
-    const bool is_turn_lane = autoware::experimental::lanelet2_utils::is_left_direction(lane) ||
-                              autoware::experimental::lanelet2_utils::is_right_direction(lane);
+    const auto decision_lane = signalDecisionLane(lane, planner_data_->route_handler_);
+    const bool is_turn_lane =
+      autoware::experimental::lanelet2_utils::is_left_direction(decision_lane) ||
+      autoware::experimental::lanelet2_utils::is_right_direction(decision_lane);
 
     const bool has_static_arrow = hasStaticArrow(traffic_light_reg_elem.first);
 
@@ -131,7 +158,7 @@ void TrafficLightModuleManager::launchNewModules(
     if (!existing_module) {
       registerModule(
         std::make_shared<TrafficLightModule>(
-          lane_id, *(traffic_light_reg_elem.first), traffic_light_reg_elem.second, *stop_line,
+          lane_id, *(traffic_light_reg_elem.first), decision_lane, *stop_line,
           is_turn_lane, has_static_arrow, planner_param_, *node_, (logger_ + ".traffic_light_module"),
           clock_, time_keeper_, planning_factor_interface_));
       generateUUID(lane_id);
