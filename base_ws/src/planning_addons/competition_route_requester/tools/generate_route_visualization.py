@@ -121,17 +121,97 @@ def polyline_length(points) -> float:
     return sum(math.dist(a, b) for a, b in zip(points, points[1:]))
 
 
-def joined_centerlines(lanelets, lanelet_ids):
+def joined_centerlines(lanelets, lanelet_ids, lateral_tolerance=0.10):
     points = []
     for lanelet_id in lanelet_ids:
         centerline = lanelets[lanelet_id]["centerline"]
-        if points and math.dist(points[-1], centerline[0]) > 0.10:
+        if points and math.dist(points[-1], centerline[0]) > lateral_tolerance:
             raise ValueError(
                 f"Disconnected route: {lanelet_ids[lanelet_ids.index(lanelet_id)-1]}"
                 f" -> {lanelet_id}"
             )
         points.extend(centerline if not points else centerline[1:])
     return points
+
+
+def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, epsg):
+    """Show the v65 highway lane groups without treating lane changes as serial links."""
+    current = [200101, 201438, 200128, 200102, 201442, 200134, 201446, 200360]
+    selected = [201434, 201435, 200137, 200187, 201443, 200130, 201441, 200360]
+    upper = [200142, 201436, 200138, 201444, 200188, 200127, 201439, 200360]
+    highway_ids = list(dict.fromkeys(current + selected + upper + [200152, 200099]))
+    missing = [lanelet_id for lanelet_id in highway_ids if lanelet_id not in lanelets]
+    if missing:
+        raise ValueError(f"Highway visualization lanelets missing from map: {missing}")
+    source_points = [point for lanelet_id in highway_ids for point in lanelets[lanelet_id]["centerline"]]
+    center_x = sum(point[0] for point in source_points) / len(source_points)
+    display_lines = {
+        lanelet_id: [(center_x + (x - center_x) * 20.0, y)
+                     for x, y in lanelets[lanelet_id]['centerline']]
+        for lanelet_id in highway_ids
+    }
+    points = [point for lanelet_id in highway_ids for point in display_lines[lanelet_id]]
+    view = Viewport(bounds_for(points, 10.0), (45, 125, 830, 720), padding=18)
+    svg = [
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">',
+        '<title id="title">K-City v65 highway preferred-lane strategy</title>',
+        '<desc id="desc">Former right lane, selected middle lane, and upper lane alternatives using actual v65 lanelet centerlines.</desc>',
+        f'<!-- source_map={map_path.name} sha256={actual_hash} projection=EPSG:{epsg} -->',
+        '<defs><style>',
+        "text { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; fill: #172033; }",
+        '.title { font-size: 32px; font-weight: 700; }.subtitle { font-size: 16px; fill: #526079; }',
+        '.panel { fill: #fff; stroke: #dce3ed; stroke-width: 1.5; }.label { font-size: 14px; font-weight: 700; }',
+        '.small { font-size: 13px; fill: #526079; }.lane-id { font-size: 12px; font-weight: 700; paint-order: stroke; stroke: white; stroke-width: 4px; }',
+        '</style><marker id="lc-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#d33682"/></marker></defs>',
+        '<rect width="1400" height="900" fill="#f4f7fb"/>',
+        '<text x="42" y="52" class="title">K-City v65 고주로 선호 차선 검토</text>',
+        '<text x="42" y="82" class="subtitle">실제 Lanelet2 중심선 · 진행 방향은 위에서 아래 · 차선 간격은 가독성을 위해 가로 20배 확대</text>',
+        '<rect x="25" y="105" width="875" height="760" rx="22" class="panel"/>',
+        '<rect x="925" y="105" width="450" height="760" rx="22" class="panel"/>',
+        '<text x="955" y="150" style="font-size:21px;font-weight:700">판단 결과</text>',
+    ]
+    for lanelet_id in highway_ids:
+        svg.append(f'<path d="{view.path(display_lines[lanelet_id])}" fill="none" stroke="#d7dde5" stroke-width="2"/>')
+    for route, color, width, dash in ((current, '#7a879b', 5, '8 7'),
+                                      (upper, '#e59a23', 5, '4 7'),
+                                      (selected, '#2563eb', 9, None)):
+        for lanelet_id in route:
+            line = display_lines[lanelet_id]
+            dash_attr = f' stroke-dasharray="{dash}"' if dash else ''
+            svg.append(f'<path d="{view.path(line)}" fill="none" stroke="{color}" stroke-width="{width}" stroke-linecap="round"{dash_attr}/>')
+    for lanelet_id in highway_ids:
+        line = display_lines[lanelet_id]
+        point = points_at_distance(line, polyline_length(line) * 0.5)
+        x, y = view.point(point)
+        color = '#174ea6' if lanelet_id in selected else '#56657a'
+        svg.append(f'<text x="{x+5:.1f}" y="{y-4:.1f}" class="lane-id" fill="{color}">{lanelet_id}</text>')
+    a = points_at_distance(display_lines[200101], 16.0)
+    b = points_at_distance(display_lines[201434], 16.0)
+    ax, ay = view.point(a); bx, by = view.point(b)
+    svg.extend([
+        f'<path d="M {ax:.1f},{ay:.1f} L {bx:.1f},{by:.1f}" stroke="#d33682" stroke-width="4" marker-end="url(#lc-arrow)"/>',
+        f'<text x="{(ax+bx)/2+8:.1f}" y="{(ay+by)/2-10:.1f}" class="label" fill="#b42367">진입 직후 LC</text>',
+    ])
+    y = 205
+    for heading, color, route in (('기존 우측', '#7a879b', current),
+                                  ('적용 중간', '#2563eb', selected),
+                                  ('최상위 비교', '#e59a23', upper)):
+        svg.append(f'<path d="M 955 {y-6} L 1010 {y-6}" stroke="{color}" stroke-width="7" stroke-linecap="round"/>')
+        svg.append(f'<text x="1025" y="{y}" class="label">{heading}</text>')
+        for start in range(0, len(route), 4):
+            value = ' → '.join(str(item) for item in route[start:start+4])
+            svg.append(f'<text x="955" y="{y+32+(start//4)*24}" class="small">{value}</text>')
+        y += 118
+    add_multiline(svg, 955, 585, [
+        '• 200137은 200128과 나란한 상위 차선이며 누락 구간이 아니다.',
+        '• 201443은 중간 차선이다. 같은 위치의 최상위는 200188이다.',
+        '• waypoint 경로는 첫 세그먼트를 200152로 계산하므로,',
+        '  SetPreferredPrimitive로 같은 세그먼트의 201434를 선택한다.',
+        '• 이후 201435→200137→200187→201443 중간 차선을 유지한다.',
+    ], 'small', 29)
+    svg.append(f'<text x="955" y="812" class="small">v{config["map"]["version"]} · SHA-256 {actual_hash[:16]}…</text>')
+    svg.append('</svg>')
+    return '\n'.join(svg) + '\n'
 
 
 class Viewport:
@@ -325,7 +405,7 @@ def add_lanelet_verification_grid(svg, route_ids, waypoint_ids, start_id, goal_i
 def build_route_detail_svg(config, lanelets, map_path, actual_hash, epsg, origin, route_key):
     route = config[route_key]
     route_ids = route["expected_path_lanelet_ids"]
-    route_points = joined_centerlines(lanelets, route_ids)
+    route_points = joined_centerlines(lanelets, route_ids, lateral_tolerance=5.0)
     route_name = "Route A" if route_key == "route_a" else "Route B 재경로"
     subtitle = (
         "공식 START/END 경계 → 11개 sparse waypoint → 비순환 임시 goal 200181"
@@ -360,8 +440,8 @@ def build_route_detail_svg(config, lanelets, map_path, actual_hash, epsg, origin
         trigger_id = config["poses"][config["reroute_trigger"]["pose_ref"]]["lanelet_id"]
         a_ids = config["route_a"]["expected_path_lanelet_ids"]
         shared = a_ids[a_ids.index(trigger_id) :]
-        shared_points = joined_centerlines(lanelets, shared)
-        continuation_points = joined_centerlines(lanelets, route_ids[len(shared) :])
+        shared_points = joined_centerlines(lanelets, shared, lateral_tolerance=5.0)
+        continuation_points = joined_centerlines(lanelets, route_ids[len(shared) :], lateral_tolerance=5.0)
         svg.append(f'<path d="{viewport.path(shared_points)}" fill="none" stroke="#0f9f8f" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>')
         svg.append(f'<path d="{viewport.path(continuation_points)}" fill="none" stroke="#f28c28" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>')
     svg.append("</g>")
@@ -685,9 +765,9 @@ def main() -> None:
     if missing_ids:
         raise ValueError(f"Route lanelets missing from map: {missing_ids}")
 
-    approach = joined_centerlines(lanelets, approach_ids)
-    shared = joined_centerlines(lanelets, shared_ids)
-    continuation = joined_centerlines(lanelets, continuation_ids)
+    approach = joined_centerlines(lanelets, approach_ids, lateral_tolerance=5.0)
+    shared = joined_centerlines(lanelets, shared_ids, lateral_tolerance=5.0)
+    continuation = joined_centerlines(lanelets, continuation_ids, lateral_tolerance=5.0)
     full_route_points = [point for lanelet_id in all_route_ids for point in lanelets[lanelet_id]["centerline"]]
 
     pose_values = config["poses"]
@@ -916,6 +996,9 @@ def main() -> None:
         ),
         output_path.parent / "kcity_v65_operation_cases.svg": build_operation_cases_svg(
             config, policy, map_path, actual_hash
+        ),
+        output_path.parent / "kcity_v65_highway_lane_strategy.svg": build_highway_lane_strategy_svg(
+            config, lanelets, map_path, actual_hash, epsg
         ),
     }
     for detail_path, content in detail_outputs.items():

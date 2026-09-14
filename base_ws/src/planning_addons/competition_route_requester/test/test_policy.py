@@ -58,8 +58,8 @@ class PolicyTest(unittest.TestCase):
         self.assertTrue(policy.in_window(r, 'route_b', 200178, 8))
         self.assertTrue(policy.in_window(r, 'route_b', 200348, 1))
         self.assertFalse(policy.in_window(r, 'route_b', 200346, 0))
-        self.assertFalse(policy.in_window(r, 'fallback_route', 201446, 7.9))
-        self.assertTrue(policy.in_window(r, 'fallback_route', 201446, 8))
+        self.assertFalse(policy.in_window(r, 'fallback_route', 201441, 7.9))
+        self.assertTrue(policy.in_window(r, 'fallback_route', 201441, 8))
         self.assertFalse(policy.in_window(r, 'fallback_route', 200360, 8))
         self.assertFalse(policy.in_window(r, 'fallback_route', 200183, 10))
 
@@ -77,8 +77,28 @@ class PolicyTest(unittest.TestCase):
             bad = list(args); bad[4] = (goal['x']+1, goal['y'])
             self.assertFalse(policy.route_matches(*bad))
 
+    def test_waypoint_route_maps_to_configured_preferred_lanes(self):
+        for key in ('route_a', 'route_b'):
+            initial = self.routes[key]['waypoint_path_lanelet_ids']
+            final = self.routes[key]['expected_path_lanelet_ids']
+            self.assertEqual(policy.preferred_sequence(self.routes, key, initial), final)
+            self.assertEqual(len(initial), len(final))
+            self.assertIn(200152, initial)
+            self.assertNotIn(200152, final)
+            self.assertIn(201434, final)
+            self.assertIn(200137, final)
+        incoming = self.routes['start']['incoming_lanelet_id']
+        initial_a = self.routes['route_a']['waypoint_path_lanelet_ids']
+        final_a = self.routes['route_a']['expected_path_lanelet_ids']
+        self.assertEqual(policy.preferred_sequence(self.routes, 'route_a', [incoming] + initial_a),
+                         [incoming] + final_a)
+        initial = self.routes['route_b']['waypoint_path_lanelet_ids']
+        final = self.routes['route_b']['expected_path_lanelet_ids']
+        self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[1:]), final[1:])
+        self.assertIsNone(policy.preferred_sequence(self.routes, 'route_b', initial[4:]))
+
     def test_geometry_and_hash(self):
-        for ref in ('wp_200178', 'wp_200360', 'fallback_cutoff_201446'):
+        for ref in ('wp_200178', 'wp_200360', 'fallback_cutoff_201441'):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
             self.assertEqual(lane, p['lanelet_id'])
