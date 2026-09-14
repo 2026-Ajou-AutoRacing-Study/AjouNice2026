@@ -165,11 +165,11 @@ launch below instead of displaying the unmodified 3D Lanelet map:
 
 ```bash
 roslaunch localization_manager gnss_imu_lanelet_rviz.launch \
-  lanelet_map_file:=$HOME/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v60.osm \
+  lanelet_map_file:=$HOME/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v67.osm \
   show_minimap:=true
 ```
 
-The map path is explicit because `lanelet2_map_v60.osm` may be delivered
+The map path is explicit because `lanelet2_map_v67.osm` may be delivered
 separately from the tracked repository. It uses the existing
 `map_projector_info_v1.yaml`; no additional JSON metadata is required.
 

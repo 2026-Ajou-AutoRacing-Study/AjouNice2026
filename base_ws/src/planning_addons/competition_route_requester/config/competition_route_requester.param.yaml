@@ -1,6 +1,6 @@
 # Runtime ROS1 configuration. Change the case here and restart all three nodes.
 route_operation_case: route_a_to_b_with_fallback
-route_definition_file: kcity_v66_competition_route.yaml
+route_definition_file: kcity_v67_competition_route.yaml
 set_waypoint_route_service_name: /planning/set_waypoint_route
 set_lanelet_route_service_name: /planning/set_lanelet_route
 set_preferred_primitive_service_name: /planning/mission_planning/mission_planner/set_preferred_primitive
