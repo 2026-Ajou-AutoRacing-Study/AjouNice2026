@@ -80,6 +80,7 @@ def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
     config = yaml.safe_load(config_path.read_text())
     assert config["route_section_primitive_overrides"] == {
         "200130": [200127, 200130, 200134],
+        "201441": [201439, 201441, 201446],
         "201447": [201447],
         "201401": [201401],
     }

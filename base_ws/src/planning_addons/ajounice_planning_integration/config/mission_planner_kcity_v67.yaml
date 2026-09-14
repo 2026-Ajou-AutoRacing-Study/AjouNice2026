@@ -19,5 +19,6 @@ goal_lanelet_transparency: 0.05
 # Handler and /planning/mission_planning/route_marker may treat as drivable.
 route_section_primitive_overrides:
   "200130": [200127, 200130, 200134]
+  "201441": [201439, 201441, 201446]
   "201447": [201447]
   "201401": [201401]
