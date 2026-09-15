@@ -76,6 +76,21 @@ provider는 `/Competition_topic + GPS + IMU` 기반
 두 localization을 동시에 켜서 같은 TF와 `/localization/kinematic_state`를 중복
 발행하면 안 된다.
 
+### LAN `/Ego_topic` timestamp fallback
+
+현장 LAN에서 `/Ego_topic` payload는 갱신되지만 header timestamp가 고정되거나
+역행해 `morai_map -> base_link` TF와 `/localization/kinematic_state`가 멈추면,
+MORAI GT localization을 다음과 같이 실행한다.
+
+```bash
+maptf_morai retime_ego_to_arrival:=true
+```
+
+이 옵션은 원본 `/Ego_topic`을 수정하지 않고 복사본
+`/localization/morai_gt/ego_retimed`에 ROS 수신 시각을 부여한다. 기본값은
+`false`이며, source timestamp가 정상인 로컬 실행과 rosbag 평가에서는 켜지
+않는다. GNSS+IMU localization과 동시에 실행해서는 안 된다.
+
 ## 1. Network와 sensing
 
 ### 연결

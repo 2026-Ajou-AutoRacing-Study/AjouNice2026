@@ -6,6 +6,9 @@
   <arg name="use_sim_time" default="false"/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="ego_topic" default="/Ego_topic"/>
+  <arg name="retime_ego_to_arrival" default="false"/>
+  <arg name="retimed_ego_topic"
+       default="/localization/morai_gt/ego_retimed"/>
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
   <arg name="base_frame" default="base_link"/>
@@ -20,6 +23,8 @@
   <include file="$(find bringup)/launch/localization_morai_gt.launch">
     <arg name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="ego_topic" value="$(arg ego_topic)"/>
+    <arg name="retime_ego_to_arrival" value="$(arg retime_ego_to_arrival)"/>
+    <arg name="retimed_ego_topic" value="$(arg retimed_ego_topic)"/>
     <arg name="map_frame" value="$(arg map_frame)"/>
     <arg name="morai_map_frame" value="$(arg morai_map_frame)"/>
     <arg name="base_frame" value="$(arg base_frame)"/>
