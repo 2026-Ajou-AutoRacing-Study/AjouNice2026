@@ -530,9 +530,9 @@
         "fireDistance": 100.0,
         "noiseRatio": 0.0,
         "intensityType": 0,
-        "isVizPointCloud": true,
+        "isVizPointCloud": false,
         "velodyneUnit": 0.5,
-        "frequencyIndex": 1,
+        "frequencyIndex": 2,
         "optEq": 0,
         "gamma": 1.5,
         "reflecity": 0.0

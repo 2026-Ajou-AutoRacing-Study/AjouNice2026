@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that local and competition MORAI UDP profiles differ only by IP."""
+"""Validate local, field-LAN adapter, and field MORAI UDP contracts."""
 
 import json
 from pathlib import Path
@@ -7,6 +7,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
+FIELD_REFERENCE_ROOT = ROOT / "configs/morai_field_reference"
 PAIRS = (
     (
         ROOT / "configs/sensors/Sensor.json",
@@ -17,10 +18,21 @@ PAIRS = (
         ROOT / "configs/network/ego_network_competition_lan.json",
     ),
 )
+FIELD_SENSOR = FIELD_REFERENCE_ROOT / "AjouNice_sensor.json"
+FIELD_NETWORK = FIELD_REFERENCE_ROOT / "2026_molit_comp_network.json"
 
 LOCAL_IP = "127.0.0.1"
 COMPETITION_HOST_IP = "192.168.0.1"
 COMPETITION_DESTINATION_IP = "192.168.0.10"
+
+REQUIRED_RECEIVE_CHANNELS = {
+    261: "/CollisionData",
+    295: "/Competition_topic",
+    770: "/Ego_topic",
+    772: "/Object_topic",
+}
+CONTROL_CHANNEL_TYPE = 771
+UDP_ENDPOINT_FIELDS = ("hostIP", "hostPort", "destinationIP", "destinationPort")
 
 
 def normalize_and_check(value, profile, path=()):
@@ -59,6 +71,93 @@ def load(path):
         return json.load(stream)
 
 
+def assert_approximately_equal(left, right, path=()):
+    """Compare JSON trees while tolerating float32 serialization noise."""
+    if (
+        isinstance(left, (int, float))
+        and not isinstance(left, bool)
+        and isinstance(right, (int, float))
+        and not isinstance(right, bool)
+    ):
+        if abs(float(left) - float(right)) > 1e-7:
+            raise ValueError(
+                f"field sensor differs at {'/'.join(path)}: {left!r} != {right!r}"
+            )
+        return
+    if type(left) is not type(right):
+        raise ValueError(
+            f"field sensor type differs at {'/'.join(path)}: "
+            f"{type(left).__name__} != {type(right).__name__}"
+        )
+    if isinstance(left, dict):
+        if set(left) != set(right):
+            raise ValueError(f"field sensor keys differ at {'/'.join(path)}")
+        for key in left:
+            assert_approximately_equal(left[key], right[key], path + (str(key),))
+        return
+    if isinstance(left, list):
+        if len(left) != len(right):
+            raise ValueError(f"field sensor length differs at {'/'.join(path)}")
+        for index, (left_item, right_item) in enumerate(zip(left, right)):
+            assert_approximately_equal(
+                left_item, right_item, path + (str(index),)
+            )
+        return
+    if left != right:
+        raise ValueError(
+            f"field sensor differs at {'/'.join(path)}: {left!r} != {right!r}"
+        )
+
+
+def network_entries_by_type(network):
+    entries = {}
+    for group in network["egoNetworkData"]:
+        for entry in group.get("listEgoNetworkInfo", []):
+            channel_type = int(entry["PUBSUB_TYPE"])
+            if channel_type in entries:
+                raise ValueError(f"duplicate PUBSUB_TYPE {channel_type}")
+            entries[channel_type] = entry
+    return entries
+
+
+def endpoint(config):
+    udp = config["udpConfig"]
+    return tuple(udp[field] for field in UDP_ENDPOINT_FIELDS)
+
+
+def validate_field_network_contract(field_network, adapter_network):
+    field_entries = network_entries_by_type(field_network)
+    adapter_entries = network_entries_by_type(adapter_network)
+
+    for channel_type, expected_topic in REQUIRED_RECEIVE_CHANNELS.items():
+        if channel_type not in field_entries or channel_type not in adapter_entries:
+            raise ValueError(f"required UDP channel {channel_type} is missing")
+        field_config = field_entries[channel_type]["config"]
+        adapter_config = adapter_entries[channel_type]["config"]
+        if int(field_config["commType"]) != 1 or int(adapter_config["commType"]) != 1:
+            raise ValueError(f"required channel {channel_type} is not UDP")
+        if endpoint(field_config) != endpoint(adapter_config):
+            raise ValueError(
+                f"channel {channel_type} endpoint differs: "
+                f"field={endpoint(field_config)}, adapter={endpoint(adapter_config)}"
+            )
+        topic = adapter_config["rosConfig"]["Topic"]
+        if topic != expected_topic:
+            raise ValueError(
+                f"channel {channel_type} ROS topic: expected {expected_topic}, got {topic}"
+            )
+
+    field_control = field_entries[CONTROL_CHANNEL_TYPE]["EgoCtrlConfig"]
+    adapter_control = adapter_entries[CONTROL_CHANNEL_TYPE]["EgoCtrlConfig"]
+    if int(field_control["commType"]) != 1 or int(adapter_control["commType"]) != 1:
+        raise ValueError("Ego control channel 771 is not UDP")
+    if endpoint(field_control) != endpoint(adapter_control):
+        raise ValueError(
+            f"control endpoint differs: field={endpoint(field_control)}, "
+            f"adapter={endpoint(adapter_control)}"
+        )
+
+
 def main():
     for local_path, competition_path in PAIRS:
         local = normalize_and_check(load(local_path), "local")
@@ -68,7 +167,10 @@ def main():
                 f"profiles differ outside hostIP/destinationIP: "
                 f"{local_path} vs {competition_path}"
             )
-        print(f"PASS: {local_path.name} <-> {competition_path.name}")
+        print(
+            f"PASS: algorithm local {local_path.name} <-> "
+            f"algorithm LAN {competition_path.name} (IP-only difference)"
+        )
 
     sensor = load(PAIRS[0][0])
     periods = [camera["cc"]["sensorPeriod"] for camera in sensor["cameraList"]]
@@ -76,6 +178,17 @@ def main():
     if any(abs(period - expected_period) > 1e-8 for period in periods):
         raise ValueError(f"camera sensorPeriod is not uniformly 30 Hz: {periods}")
     print("PASS: all camera sensorPeriod values are 30 Hz")
+
+    field_sensor = load(FIELD_SENSOR)
+    competition_sensor = load(PAIRS[0][1])
+    assert_approximately_equal(field_sensor, competition_sensor)
+    print("PASS: field MORAI sensor <-> algorithm LAN sensor contract")
+
+    validate_field_network_contract(load(FIELD_NETWORK), load(PAIRS[1][1]))
+    print(
+        "PASS: field MORAI network <-> algorithm LAN required UDP channels "
+        "(261, 295, 770, 772, 771)"
+    )
     return 0
 
 
