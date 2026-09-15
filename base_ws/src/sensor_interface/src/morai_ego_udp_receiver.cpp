@@ -128,13 +128,6 @@ struct NetworkChannel {
   int port = 0;
 };
 
-ros::Time packetTime(int32_t sec, int32_t nsec) {
-  if (sec > 0 && nsec >= 0 && nsec < 1000000000) {
-    return ros::Time(static_cast<uint32_t>(sec), static_cast<uint32_t>(nsec));
-  }
-  return ros::Time::now();
-}
-
 std::string fixedString(const char* data, std::size_t length) {
   const auto* end = static_cast<const char*>(std::memchr(data, '\0', length));
   return std::string(data, end ? static_cast<std::size_t>(end - data) : length);
@@ -164,9 +157,10 @@ morai_msgs::ObjectStatus objectMessage(const ObjectPacketData& object) {
 }
 
 template <typename Packet>
-morai_msgs::EgoVehicleStatus egoMessage(const Packet& packet, const std::string& frame_id) {
+morai_msgs::EgoVehicleStatus egoMessage(const Packet& packet, const std::string& frame_id,
+                                     const ros::Time& received_at) {
   morai_msgs::EgoVehicleStatus message;
-  message.header.stamp = packetTime(packet.sec, packet.nsec);
+  message.header.stamp = received_at;
   message.header.frame_id = frame_id;
   message.unique_id = packet.aux_data[0];
   message.position.x = packet.pos_x;
@@ -260,14 +254,16 @@ class MoraiEgoUdpReceiver {
     while (true) {
       const ssize_t length = ::recv(channel.fd, buffer.data(), buffer.size(), 0);
       if (length < 0) return;
-      if (channel.type == 770) parseEgo(buffer.data(), length);
-      if (channel.type == 295) parseCompetition(buffer.data(), length);
-      if (channel.type == 772) parseObjects(buffer.data(), length);
-      if (channel.type == 261) parseCollision(buffer.data(), length);
+      // One ROS-host receipt timestamp per datagram, before parsing.
+      const ros::Time received_at = ros::Time::now();
+      if (channel.type == 770) parseEgo(buffer.data(), length, received_at);
+      if (channel.type == 295) parseCompetition(buffer.data(), length, received_at);
+      if (channel.type == 772) parseObjects(buffer.data(), length, received_at);
+      if (channel.type == 261) parseCollision(buffer.data(), length, received_at);
     }
   }
 
-  void parseEgo(const uint8_t* bytes, ssize_t length) {
+  void parseEgo(const uint8_t* bytes, ssize_t length, const ros::Time& received_at) {
     if (length != static_cast<ssize_t>(sizeof(EgoVehiclePacket))) {
       ROS_WARN_THROTTLE(1.0, "Ego packet size %zd, expected %zu", length,
                         sizeof(EgoVehiclePacket));
@@ -276,7 +272,7 @@ class MoraiEgoUdpReceiver {
     EgoVehiclePacket packet{};
     std::memcpy(&packet, bytes, sizeof(packet));
     if (packet.tail[0] != '\r' || packet.tail[1] != '\n') return;
-    auto message = egoMessage(packet, frame_id_);
+    auto message = egoMessage(packet, frame_id_, received_at);
     message.tire_lateral_force_fl = packet.tire_lateral_force_fl;
     message.tire_lateral_force_fr = packet.tire_lateral_force_fr;
     message.tire_lateral_force_rl = packet.tire_lateral_force_rl;
@@ -292,7 +288,7 @@ class MoraiEgoUdpReceiver {
     ego_publisher_.publish(message);
   }
 
-  void parseCompetition(const uint8_t* bytes, ssize_t length) {
+  void parseCompetition(const uint8_t* bytes, ssize_t length, const ros::Time& received_at) {
     if (length != static_cast<ssize_t>(sizeof(CompetitionVehiclePacket))) {
       ROS_WARN_THROTTLE(1.0, "Competition Vehicle Status packet size %zd, expected %zu",
                         length, sizeof(CompetitionVehiclePacket));
@@ -301,10 +297,10 @@ class MoraiEgoUdpReceiver {
     CompetitionVehiclePacket packet{};
     std::memcpy(&packet, bytes, sizeof(packet));
     if (packet.tail[0] != '\r' || packet.tail[1] != '\n') return;
-    competition_publisher_.publish(egoMessage(packet, frame_id_));
+    competition_publisher_.publish(egoMessage(packet, frame_id_, received_at));
   }
 
-  void parseObjects(const uint8_t* bytes, ssize_t length) {
+  void parseObjects(const uint8_t* bytes, ssize_t length, const ros::Time& received_at) {
     if (length != static_cast<ssize_t>(sizeof(ObjectPacket))) {
       ROS_WARN_THROTTLE(1.0, "Object packet size %zd, expected %zu", length,
                         sizeof(ObjectPacket));
@@ -314,7 +310,7 @@ class MoraiEgoUdpReceiver {
     std::memcpy(&packet, bytes, sizeof(packet));
     if (packet.tail[0] != '\r' || packet.tail[1] != '\n') return;
     morai_msgs::ObjectStatusList message;
-    message.header.stamp = packetTime(packet.sec, packet.nsec);
+    message.header.stamp = received_at;
     message.header.frame_id = frame_id_;
     for (const auto& object : packet.data) {
       if (object.obj_id == 0 && object.obj_type == 0) continue;
@@ -329,7 +325,7 @@ class MoraiEgoUdpReceiver {
     object_publisher_.publish(message);
   }
 
-  void parseCollision(const uint8_t* bytes, ssize_t length) {
+  void parseCollision(const uint8_t* bytes, ssize_t length, const ros::Time& received_at) {
     if (length != static_cast<ssize_t>(sizeof(CollisionPacket))) {
       ROS_WARN_THROTTLE(1.0, "Collision packet size %zd, expected %zu", length,
                         sizeof(CollisionPacket));
@@ -339,7 +335,7 @@ class MoraiEgoUdpReceiver {
     std::memcpy(&packet, bytes, sizeof(packet));
     if (packet.tail[0] != '\r' || packet.tail[1] != '\n') return;
     morai_msgs::CollisionData message;
-    message.header.stamp = packetTime(packet.sec, packet.nsec);
+    message.header.stamp = received_at;
     message.header.frame_id = frame_id_;
     bool have_offset = false;
     for (const auto& collision : packet.data) {
