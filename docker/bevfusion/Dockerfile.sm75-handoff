@@ -1,0 +1,23 @@
+# Rebuild only CUDA extension layers from the already validated local image.
+# The exported result still contains all parent layers and can be docker-loaded
+# on a teammate machine without the parent image being installed separately.
+ARG BASE_IMAGE=ajounice/bevfusion:dev-cu128
+FROM ${BASE_IMAGE}
+
+ARG MAX_JOBS=8
+ENV MAX_JOBS=${MAX_JOBS} \
+    TORCH_CUDA_ARCH_LIST="7.5"
+
+RUN find /opt/mmcv/mmcv -name '*.so' -delete \
+    && rm -rf /opt/mmcv/build \
+    && cd /opt/mmcv \
+    && FORCE_CUDA=1 MMCV_WITH_OPS=1 python setup.py build_ext --inplace
+
+RUN find /opt/mmdetection3d -name '*.so' -delete \
+    && rm -rf /opt/mmdetection3d/build \
+    && cd /opt/mmdetection3d \
+    && FORCE_CUDA=1 python setup.py build_ext --inplace \
+    && FORCE_CUDA=1 python projects/BEVFusion/setup.py build_ext --inplace
+
+WORKDIR /opt/mmdetection3d
+CMD ["bash"]

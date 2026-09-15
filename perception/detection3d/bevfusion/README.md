@@ -40,6 +40,10 @@ MORAI rosbag input? It is not a production replacement yet.
 The modern MMDetection3D BEVFusion project is used. The legacy MIT submodule
 requires a PyTorch/CUDA stack unsuitable for the RTX 5060 Ti.
 
+RTX 2080 Ti에서 학습을 넘겨받는 절차와 portable Base3 경로 계약은
+[`BASE3_BEVFUSION_2080TI_TRAINING_HANDOFF.md`](../../../docs/bevfusion/BASE3_BEVFUSION_2080TI_TRAINING_HANDOFF.md)에
+정리되어 있다. 기존 5060 Ti image/tag와 학습 결과를 덮어쓰지 않는다.
+
 ## Preparation and smoke test
 
 Build the CUDA 12.8 image if it is absent:

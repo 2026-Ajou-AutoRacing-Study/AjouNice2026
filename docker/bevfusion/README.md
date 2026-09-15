@@ -11,6 +11,8 @@ The ROS host connects to a port published only on `127.0.0.1`. The simulator
 boundary remains the competition-provided UDP interface. Production deployment
 is documented in `docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`. The
 older `260720_*zero_shot*` documents are experiment history only.
+RTX 2080 Ti(`sm_75`) 학습 전달은 별도 image와
+`docs/bevfusion/BASE3_BEVFUSION_2080TI_TRAINING_HANDOFF.md`를 사용한다.
 
 ```bash
 # Create the local Compose environment file once.

@@ -3,11 +3,15 @@ FROM pytorch/pytorch:2.7.1-cuda12.8-cudnn9-devel
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAX_JOBS=8
 ARG MMCV_REF=v2.1.0
+# Keep the locally validated RTX 30/40/50 build as the default.  A handoff
+# image for Turing GPUs is built with 7.5 added through --build-arg, without
+# invalidating or replacing the local image tag.
+ARG BEVFUSION_CUDA_ARCH_LIST="8.6;8.9;12.0+PTX"
 
 ENV PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 \
     MAX_JOBS=${MAX_JOBS} \
-    TORCH_CUDA_ARCH_LIST="8.6;8.9;12.0+PTX"
+    TORCH_CUDA_ARCH_LIST=${BEVFUSION_CUDA_ARCH_LIST}
 
 # CUDA extension 빌드와 OpenCV 실행에 필요한 OS 패키지 설치
 RUN apt-get update \
