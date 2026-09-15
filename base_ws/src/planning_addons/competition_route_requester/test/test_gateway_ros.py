@@ -10,6 +10,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 import uuid
 import yaml
 import rospy
@@ -223,6 +224,39 @@ class GatewayROS(unittest.TestCase):
         self.wait(lambda: not self.gateway.busy)
         self.assertIsNone(self.gateway.active)
         self.assertFalse(self.gateway.uncertain)
+
+    def test_startup_replaces_an_existing_unverified_route(self):
+        old = LaneletRoute()
+        old.header.frame_id = 'map'
+        old.header.stamp = rospy.Time.now()
+        old.uuid.uuid = [0] * 16
+        self.route = old
+        self.wait(lambda: self.gateway.state is not None and
+                  self.gateway.state.state == RouteState.SET)
+        self.assertIsNone(self.gateway.active)
+        response = self.client('route_a')
+        self.assertTrue(response.accepted, response.detail)
+        self.wait(lambda: not self.gateway.busy)
+        self.assertEqual(self.gateway.active, 'route_a')
+        self.assertEqual(self.calls, 1)
+
+    def test_startup_selects_route_b_after_first_trigger(self):
+        self.ego_pose = self.routes['poses']['wp_200178']
+        self.wait(lambda: self.gateway.guard('route_b')[0])
+        response = self.client('route_b')
+        self.assertTrue(response.accepted, response.detail)
+        self.wait(lambda: not self.gateway.busy)
+        self.assertEqual(self.gateway.active, 'route_b')
+
+    def test_dispatch_guard_recovers_transient_input_gap(self):
+        checks = iter([
+            (False, 'fresh valid odometry unavailable'),
+            (False, 'stale operation mode'),
+            (True, 'startup route_a ready'),
+        ])
+        with mock.patch.object(self.gateway, 'guard', side_effect=lambda _key: next(checks)):
+            self.assertEqual(self.gateway.wait_for_dispatch_guard('route_a'),
+                             (True, 'startup route_a ready'))
 
     def test_timeout_disables_retry_and_concurrency(self):
         self.behavior = 'timeout'

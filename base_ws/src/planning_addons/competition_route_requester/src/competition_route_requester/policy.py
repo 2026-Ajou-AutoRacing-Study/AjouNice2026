@@ -65,6 +65,12 @@ def accepted_sequences(routes, key, field='expected_path_lanelet_ids'):
     valid_sequences = [expected]
     if key == 'route_a':
         valid_sequences.append([routes['start']['incoming_lanelet_id']] + expected)
+        # A planner session may start anywhere between the official start and
+        # the first Route B trigger.  The waypoint planner then publishes the
+        # exact Route A suffix beginning at the current lanelet.
+        trigger_lane = routes['poses']['wp_200178']['lanelet_id']
+        for index in range(1, expected.index(trigger_lane) + 1):
+            valid_sequences.append(expected[index:])
     elif key == 'route_b':
         # A moving retry starts at the current lane, not the departed trigger.
         # Accept only the exact frozen suffix, and only starts before the deadline.
@@ -102,6 +108,17 @@ def preferred_sequence(routes, key, waypoint_sequence):
 
 
 def in_window(routes, key, lane, arc):
+    if key == 'route_a':
+        sequence = routes['route_a']['expected_path_lanelet_ids']
+        trigger = routes['poses']['wp_200178']
+        if lane == routes['start']['incoming_lanelet_id']:
+            return True
+        if lane not in sequence:
+            return False
+        index = sequence.index(lane)
+        trigger_index = sequence.index(trigger['lanelet_id'])
+        return (index < trigger_index or
+                index == trigger_index and arc + 1e-6 < trigger['lanelet_s_m'])
     if key == 'route_b':
         sequence = routes['route_a']['expected_path_lanelet_ids']
         trigger = routes['poses']['wp_200178']
@@ -113,15 +130,16 @@ def in_window(routes, key, lane, arc):
     if key == 'fallback_route':
         cutoff = routes['poses'][routes['fallback_route']['hard_cutoff_pose_ref']]
         return lane == cutoff['lanelet_id'] and arc + 1e-6 >= cutoff['lanelet_s_m']
-    return lane in routes['start']['accepted_start_lanelet_ids']
+    return False
 
 
 def next_normal(case, active, lane, arc, routes):
     if not active:
-        if case == 'route_b_only':
-            # Standalone B has one exact start segment, not the later retry window.
-            return 'route_b' if lane == 200178 and arc + 1e-6 >= 8 else None
-        return 'route_a' if in_window(routes, 'route_a', lane, arc) else None
+        if allowed(case, 'route_a') and in_window(routes, 'route_a', lane, arc):
+            return 'route_a'
+        if allowed(case, 'route_b') and in_window(routes, 'route_b', lane, arc):
+            return 'route_b'
+        return None
     if active == 'route_a' and case in NORMAL and in_window(routes, 'route_b', lane, arc):
         return 'route_b'
     return None

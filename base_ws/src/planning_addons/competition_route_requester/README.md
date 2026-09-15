@@ -2,7 +2,7 @@
 
 K-City v68 대회 경로를 요청하기 위한 AjouNice 전용 planning addon이다.
 
-ROS1 실행 노드 3개(`route_requester`, `route_supervisor`, `finish_guard`)와 서비스 gateway를 구현했다. **구현·단위검사와 실차/전체 파이프라인 운용 승인은 다르다.** 현재 운용 기본값은 `route_a_to_b_with_fallback`이며 초기 Route A는 자동 요청하지 않고 RViz의 명시적 요청을 사용한다. Route A 검증 뒤 Route B/fallback 상태 기계는 자동으로 동작한다. 검증 범위와 미완료 사항은 [통합 인계서](../../../../../docs/planning/INTEGRATION-HANDOFF.md)를 참고한다.
+ROS1 실행 노드 3개(`route_requester`, `route_supervisor`, `finish_guard`)와 서비스 gateway를 구현했다. **구현·단위검사와 실차/전체 파이프라인 운용 승인은 다르다.** 현재 운용 기본값은 `route_a_to_b_with_fallback`이다. planner 시작 위치가 공식 S부터 `200178` s 8 m 전이면 Route A, 그 이후부터 `200346` 진입 전이면 Route B를 자동 요청하고 남아 있는 기존 route를 새 계산 결과로 교체한다. Route A 검증 뒤 Route B/fallback 상태 기계도 자동으로 동작한다. 검증 범위와 미완료 사항은 [통합 인계서](../../../../../docs/planning/INTEGRATION-HANDOFF.md)를 참고한다.
 
 패키지 전체는 competition route input manager를 담지만, 향후 실행 node의 책임은 분리한다. `route_requester`는 RouteSelector main 요청 gateway이고 `route_supervisor`가 Route A/B 정책과 정상 재경로 상태 기계를 소유한다. finish guard와 fallback request builder는 독립 boolean으로 켜지 않고 선택한 operation case에 따라 필요한 경우에만 동작한다.
 
@@ -27,7 +27,7 @@ YAML의 `route_operation_case`는 `route_a_only`, `route_b_only`, `route_a_to_b`
 
 `/planning/mission_planning/route_marker`는 선호 lanelet만이 아니라 각 route segment의 주행 가능 후보인 `primitives` 전체를 표시한다. K-City v68 Mission Planner 설정은 `200130` segment를 `[200127, 200130, 200134]`로 구성하고, 다음 합류 segment를 `[201439, 201441, 201446]`으로 이어 세 차선이 끊기지 않고 한 차선으로 모이게 한다. `201447`과 `201401` segment에서는 각각 `[201447]`, `[201401]`만 남긴다. 이는 marker만 거르는 설정이 아니라 발행되는 실제 route를 수정하며 선호 lanelet 순서는 유지한다.
 
-운영 RViz의 `Route Control` 패널은 `/competition_route_requester/request`에 `route_key=route_a`를 호출한다. 이는 LaneletRoute 직접 publisher가 아니며 기존 gateway의 map, localization, 공식 시작 구간, RouteSelector 응답 및 trajectory/validator 검증을 그대로 거친다. 최초 요청과 gateway가 검증한 Route A/B/fallback의 재시작은 모두 공식 start pose 6 m 이내에서만 허용되며, 재시작은 속도 0.1 m/s 이하 정차를 추가로 요구한다. 기존 route를 먼저 지우지 않고 새 route stamp와 새 trajectory/validator 증거가 확인된 뒤 Route A의 새 generation으로 검증한다. Route B 또는 fallback 활성화 뒤 Route A 복귀는 자동 전환이 아니라 운전자가 버튼을 누른 경우에만 허용하며, 이전 주행에서 대기 중이던 fallback 요청은 폐기한다.
+운영 RViz의 `Route Status` 패널은 gateway 상태의 `verified_active`를 읽어 현재 검증된 Route A 또는 Route B를 점등한다. fallback이 활성화됐거나 새 route를 아직 검증 중이면 두 표시등 모두 꺼진다. planner startup의 첫 요청은 S–1 구간의 Route A 또는 1–deadline 구간의 Route B를 자동 선택하고 기존 route가 있어도 새 요청으로 교체한다. route를 먼저 clear하지 않고 새 route stamp와 새 trajectory/validator 증거가 확인된 뒤 새 generation으로 검증한다.
 
 Route B 이동 중 재시도는 `200346` 이전 현재 lanelet부터의 **정확한 canonical suffix**만 수신 경로로 허용한다. 출발 lanelet이 달라졌다는 이유로 경유 구간 누락이나 임의 새 경로를 허용하지 않는다. trajectory에는 route UUID가 없으므로 요청 응답·경로 확인 이후 source timestamp와 20개 validator flag, 3개 새 출력은 시간상 연관 증거이지 완전한 route 인과성/폐루프 증명이 아니다.
 

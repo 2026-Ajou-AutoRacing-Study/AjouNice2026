@@ -8,10 +8,7 @@
 
 #include <QString>
 
-#include <string>
-
 class QLabel;
-class QPushButton;
 
 namespace bringup
 {
@@ -27,18 +24,17 @@ Q_SIGNALS:
   void statusReceived(const QString & status);
 
 private Q_SLOTS:
-  void requestRouteA();
   void applyStatus(const QString & status);
 
 private:
   void onStatus(const std_msgs::String::ConstPtr & message);
+  void setActiveRoute(const QString & route_key);
 
   ros::NodeHandle node_handle_;
-  ros::ServiceClient request_client_;
   ros::Subscriber status_subscriber_;
+  QLabel * route_a_indicator_;
+  QLabel * route_b_indicator_;
   QLabel * status_label_;
-  QPushButton * request_button_;
-  std::string request_service_name_;
 };
 
 }  // namespace bringup

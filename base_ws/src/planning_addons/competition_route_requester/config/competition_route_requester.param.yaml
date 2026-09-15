@@ -12,7 +12,7 @@ map_topic: /map/vector_map
 trajectory_topic: /planning/trajectory
 validation_topic: /planning/validation_status
 reroute_availability_topic: /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/output/is_reroute_available
-auto_request_initial_route: false
+auto_request_initial_route: true
 allow_runtime_case_change: false
 odometry_max_age: 0.5
 operation_mode_max_age: 0.5

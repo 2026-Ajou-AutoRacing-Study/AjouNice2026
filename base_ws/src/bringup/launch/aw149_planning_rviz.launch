@@ -22,8 +22,6 @@
   <arg name="visualization_map_z_offset" default="-0.3705"/>
   <arg name="rosbag_output_directory"
        default="$(arg repo_root)/planner_logs/bags"/>
-  <arg name="route_request_service"
-       default="/competition_route_requester/request"/>
   <arg name="route_request_status_topic"
        default="/competition_route_requester/request_status"/>
   <!-- Frozen Route A start from kcity_v68_competition_route.yaml. -->
@@ -143,7 +141,6 @@
         args="-d $(find bringup)/rviz/kcity_aw149_planning.rviz"
         output="screen">
     <param name="rosbag_output_directory" value="$(arg rosbag_output_directory)"/>
-    <param name="route_request_service" value="$(arg route_request_service)"/>
     <param name="route_request_status_topic" value="$(arg route_request_status_topic)"/>
     <param name="rosbag_topics"
            value="/tf /tf_static /clock /Ego_topic /Object_topic /sensor/lidar1 /sensor/camera/front/compressed /sensor/camera/front_left/compressed /sensor/camera/front_right/compressed /sensor/camera/back/compressed /localization/kinematic_state /localization/acceleration /perception/object_recognition/detection/objects /perception/object_recognition/tracking/objects /perception/object_recognition/objects /map/vector_map /planning/mission_planning/route /planning/mission_planning/route_marker /planning/route_state /planning/scenario_planning/lane_driving/behavior_planning/path /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout/decision_state /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/virtual_wall/roundabout /planning/planning_factors/roundabout /planning/cooperate_status/roundabout /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory /planning/trajectory /planning/validation_status /ctrl_cmd /control/command/control_cmd /control/command/steering /control/autoware/controller_valid /control/autoware/failure_reason /control/autoware/target_point /control/trajectory_follower/lateral/predicted_trajectory /purepursuit_autoware/debug/controller_state /purepursuit_autoware/debug/lookahead_distance /purepursuit_autoware/debug/lateral_error /purepursuit_autoware/debug/path_curvature /purepursuit_autoware/debug/target_curvature /purepursuit_autoware/debug/limited_steering_angle /vehicle/status/steering_status"/>

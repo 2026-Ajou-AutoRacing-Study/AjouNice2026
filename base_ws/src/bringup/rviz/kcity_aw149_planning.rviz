@@ -15,7 +15,7 @@ Panels:
   - Class: bringup/RosbagRecorder
     Name: Rosbag Recorder
   - Class: bringup/RouteControl
-    Name: Route Control
+    Name: Route Status
 Visualization Manager:
   Class: ""
   Displays:

@@ -93,17 +93,19 @@ RouteSelector는 main/MRM 요청을 하나의 Mission Planner로 전달하고 Mi
 
 case 변경 절차는 `YAML 수정 -> 전체 launch 재시작`으로 고정한다. 주행 중 rosparam 변경이나 별도 launch argument로 case를 바꾸지 않는다.
 
-운영 기본 case는 `route_a_to_b_with_fallback`이고 `auto_request_initial_route=false`다. 운전자가 차량을 공식 Route A 시작 구간에 배치한 뒤 RViz `Route Control` 패널에서 요청한다. 패널은 별도 route publisher를 만들지 않고 기존 `/competition_route_requester/request` gateway service에 `route_a`를 전달한다. gateway가 검증한 Route A, Route B 또는 fallback이 활성화된 뒤에도 차량을 공식 start pose 6 m 이내에 0.1 m/s 이하로 정차시키면 같은 버튼으로 Route A를 새 주행 세션으로 다시 계산할 수 있다. 기존 route는 먼저 지우지 않으며 새 route stamp와 새 trajectory/validator를 확인해야 새 generation이 검증된다. B/fallback에서 A로의 복귀는 자동으로 실행하지 않고 운전자의 버튼 요청에만 허용하며, 수락 시 이전 세션의 pending fallback은 폐기한다. 새 Route A가 검증된 뒤에는 기존 supervisor와 finish guard가 Route B 및 fallback 전환을 다시 자동 수행한다.
+운영 기본 case는 `route_a_to_b_with_fallback`이고 `auto_request_initial_route=true`다. planner session이 시작되면 map, route state, operation mode와 최신 odometry를 기다린 뒤 현재 lanelet/arc로 초기 요청을 선택한다. 공식 S부터 `200178` s 8 m 전까지는 Route A, `200178` s 8 m부터 `200346` 진입 전까지는 Route B를 요청한다. 허용 구간 밖에서는 route를 요청하지 않는다. 이전 session의 route가 RouteSelector에 남아 있어도 이를 채택하지 않고 새 `SetWaypointRoute` 요청으로 교체하며 `ClearRoute`는 호출하지 않는다. 새 route stamp와 새 trajectory/validator를 확인해야 startup generation이 검증된다.
+
+RViz `Route Status` 패널은 gateway 상태의 `verified_active`를 읽는 전용 표시기다. Route A 또는 Route B가 검증되면 해당 표시등만 켜지고, fallback이 활성화됐거나 새 route를 아직 검증 중이면 두 표시등 모두 꺼진다. RViz에서는 route 요청을 보내지 않는다.
 
 독립적인 `enable_*` boolean은 두지 않는다. 기능 간 의존성이 있는데 boolean을 독립적으로 두면 32개 조합이 생기고 의미 없거나 안전하지 않은 조합을 모두 검증해야 하기 때문이다. 허용되는 동작은 아래 5개 case로 제한한다.
 
 | `route_operation_case` | 초기 route | 정상 A→B | 결승선 fallback | 시험 목적 |
 |---|---|---:|---:|---|
-| `route_a_only` | A | off | off | Route A 단독 요청·주행 검증 |
-| `route_b_only` | B | off | off | `200178` s≥8m의 현재 odometry에서 Route B 단독 검증 |
-| `route_a_to_b` | A | on | off | 정상 A→B 재경로만 검증 |
-| `route_a_to_fallback` | A | off | on | 정상 Route B 요청 없이 fallback만 검증 |
-| `route_a_to_b_with_fallback` | A | on | on | 정상 A→B를 시도하고 실패 시 fallback 인계 검증 |
+| `route_a_only` | S–1 구간 A | off | off | Route A 단독 요청·주행 검증 |
+| `route_b_only` | 1–deadline 구간 B | off | off | `200178` s≥8m 이후 Route B 단독 검증 |
+| `route_a_to_b` | 위치 기반 A/B | on | off | 정상 A→B 재경로만 검증 |
+| `route_a_to_fallback` | S–1 구간 A | off | on | 정상 Route B 요청 없이 fallback만 검증 |
+| `route_a_to_b_with_fallback` | 위치 기반 A/B | on | on | 정상 A→B를 시도하고 실패 시 fallback 인계 검증 |
 
 `route_a_to_fallback`에서는 hard cutoff 전까지 Route A를 유지하고, cutoff에서 명시적 lanelet segment를 담은 fallback `SetLaneletRoute`를 RouteSelector main 입력으로 보낸다. `route_a_to_b_with_fallback`에서는 먼저 정상 Route B `SetWaypointRoute`를 시도하며, 결승선 통과 가능한 Route B가 확인되지 않은 경우에만 같은 fallback 요청으로 승격한다.
 
@@ -121,8 +123,8 @@ case 변경 절차는 `YAML 수정 -> 전체 launch 재시작`으로 고정한�
 
 경로 데이터의 단일 기준은 `config/kcity_v68_competition_route.yaml`이다.
 
-- map version: 67
-- map SHA-256: `86736354e4bc0ba52eee72a847ad08f0dd61555efa8a905bd5853f040a02bb9a`
+- map version: 68
+- map SHA-256: `2d4146537f6fb9c4587d9e5c21de82c36d8b9af330035f7f070622a04b3267dd`
 - 공식 START/END: `200892` 끝과 `200889` 시작의 경계
 - Route A UUID: `8bffaaf1-ee38-5d04-9c1c-4353813c9dc6`
 - Route A 임시 goal: `200181` 길이의 0.75 지점
@@ -241,17 +243,17 @@ route_a_to_b_with_fallback:
 ### 6.1 Route A
 
 1. map, localization, RouteSelector 및 Mission Planner 준비를 확인한다.
-2. 최신 odometry가 공식 START/END 좌표 주변이고 start 판정이 `200892` 또는 `200889`인지 확인한다.
+2. 최신 odometry가 공식 S부터 `200178` s 8 m 전까지의 시작 구간인지 확인한다.
 3. 현재 pose를 start로 사용해 Route A를 요청한다.
 4. 서비스 응답만으로 성공 처리하지 않는다.
 5. 요청 UUID를 가진 route publication과 새 trajectory 생성을 확인한 뒤 `ROUTE_A_ACTIVE`로 전환한다.
-6. 실패하면 기존 route를 지우지 않고 설정된 간격으로 재시도한다.
+6. planner startup에서는 기존 route를 채택하지 않고 새 요청으로 교체하며, 실패하면 설정된 간격으로 재시도한다.
 7. 이미 이 gateway가 Route A를 검증한 상태의 수동 재요청은 공식 start pose 6 m 이내, 최신 odometry, 속도 0.1 m/s 이하에서만 허용한다.
 8. 재요청은 기존 route를 clear하지 않으며 요청 시각 이후의 route stamp와 새 trajectory/validator 연속 3개를 확인해 generation을 갱신한다.
 
 ### 6.2 Route B
 
-1. 차량이 `200178`에 진입하고 lanelet s가 8 m 이상이면 Route B를 준비한다.
+1. planner startup이 `200178` s 8 m 이후부터 `200346` 진입 전이면 Route B를 초기 route로 요청한다. Route A 주행 중에도 같은 구간에서 Route B를 준비한다.
 2. 최신 reroute availability가 연속 hold time 동안 true인지 확인한다.
 3. 현재 pose를 start로 사용해 Route B를 요청한다.
 4. waypoint 결과의 UUID, goal, 병렬 segment 구성을 확인한 뒤 `SetPreferredPrimitive`로 고주로 선호 차선을 적용한다.

@@ -10,7 +10,7 @@
          type="bringup::RouteControlPanel"
          base_class_type="rviz::Panel">
     <description>
-      Request Route A once and monitor competition route verification from RViz.
+      Show the currently verified competition route in RViz.
     </description>
   </class>
 </library>
