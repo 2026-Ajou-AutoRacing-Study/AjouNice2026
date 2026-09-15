@@ -17,7 +17,7 @@
       "cc": {
         "sensorName": "Camera_front",
         "sensorType": 1,
-        "sensorPeriod": 0.02,
+        "sensorPeriod": 0.03333333333333333,
         "commType": 1,
         "udpConfig": {
           "hostIP": "192.168.0.1",
