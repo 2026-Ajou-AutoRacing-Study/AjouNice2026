@@ -12,7 +12,7 @@ use the ROS host clock. No fixed 110/122 ms correction is applied.
 | GPS NMEA UDP | Capture time immediately after `recv`, before NMEA parsing. Previously already host time, but stamped after parsing. |
 | Camera UDP | First received fragment of assembled frame supplies its timestamp. JPEG assembly and publication do not replace it. Remote fragment timestamps are not used. |
 | LiDAR | Existing Velodyne host-time mode: `gps_time=false`, `pcap_time=false`, `time_offset=0`; scan header uses first packet. Scan accumulation still adds real latency. |
-| `maptf_morai` / direct GT localization | Launch forwards to `localization_morai_gt`. Ego TF broadcasters preserve Ego stamp. Optional `retime_ego_to_arrival` stays false: upstream already stamps receipt. Direct GT publisher queries TF at Ego stamp and preserves it. |
+| `maptf_morai` / direct GT localization | Launch forwards to `localization_morai_gt`. Ego TF broadcasters preserve the upstream receipt-time stamp. Direct GT publisher queries TF at that Ego stamp and preserves it; no downstream restamping is applied. |
 | `localization` / GNSS IMU GT CTRA | GPS odometry, IMU covariance adapter and GT motion adapter preserve input stamps. Local/global EKF consume inputs in one ROS clock domain. Kinematic publisher preserves EKF output header. |
 | BEVFusion | Camera/LiDAR matching uses their headers. Detection publication keeps the input LiDAR stamp across asynchronous inference; never relabel detections with inference completion time. |
 | Tracking / prediction | Measurement TF lookup and prediction remain in the input ROS clock domain. Intentional state extrapolation to a later timestamp is distinct from blind restamping. Map prediction preserves track header. |
