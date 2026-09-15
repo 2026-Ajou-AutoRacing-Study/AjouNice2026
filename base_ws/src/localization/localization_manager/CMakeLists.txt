@@ -20,6 +20,7 @@ catkin_install_python(PROGRAMS
   scripts/morai_map_camera_init_broadcaster.py
   scripts/fast_lio_kinematic_state_publisher.py
   scripts/morai_gt_kinematic_state_publisher.py
+  scripts/morai_ego_arrival_time_adapter.py
   scripts/morai_gps_to_navsatfix.py
   scripts/imu_covariance_adapter.py
   scripts/morai_gps_to_local_odometry.py

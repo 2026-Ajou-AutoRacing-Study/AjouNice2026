@@ -76,6 +76,21 @@ provider는 `/Competition_topic + GPS + IMU` 기반
 두 localization을 동시에 켜서 같은 TF와 `/localization/kinematic_state`를 중복
 발행하면 안 된다.
 
+### LAN `/Ego_topic` timestamp fallback
+
+현장 LAN에서 `/Ego_topic` payload는 갱신되지만 header timestamp가 고정되거나
+역행해 `morai_map -> base_link` TF와 `/localization/kinematic_state`가 멈추면,
+MORAI GT localization을 다음과 같이 실행한다.
+
+```bash
+maptf_morai retime_ego_to_arrival:=true
+```
+
+이 옵션은 원본 `/Ego_topic`을 수정하지 않고 복사본
+`/localization/morai_gt/ego_retimed`에 ROS 수신 시각을 부여한다. 기본값은
+`false`이며, source timestamp가 정상인 로컬 실행과 rosbag 평가에서는 켜지
+않는다. GNSS+IMU localization과 동시에 실행해서는 안 된다.
+
 ## 1. Network와 sensing
 
 ### 연결
@@ -263,6 +278,29 @@ rate에서 5분 시험을 먼저 기록해 분당 용량을 다시 계산한다.
 rate, max gap, detector latency/drop이 눈에 띄게 나빠지면 full profile을 고집하지
 않고 raw sensor 중심 기록과 downstream/status 중심 기록을 서로 다른 짧은 run으로
 나눈다. 기록 때문에 production pipeline이 느려지는 구성을 합격으로 간주하면 안 된다.
+
+### Topic Hz 일괄 snapshot
+
+센서·측위·인지·신호등·planning·control의 streaming topic을 같은 20초 구간에서
+측정하려면 다음을 실행한다.
+
+```bash
+cd "$HOME/AjouNice2026"
+bash scripts/runtime/record_field_topic_rates.sh
+```
+
+측정 시간을 바꾸거나 결과 루트를 지정할 수도 있다.
+
+```bash
+bash scripts/runtime/record_field_topic_rates.sh 30 \
+  "$HOME/field_inspection/topic_hz"
+```
+
+기본 결과는 `artifacts/field_checks/topic_hz/<YYMMDD_HHMMSS>/`에 저장된다.
+`summary.tsv`는 각 topic을 `OK`, `NO_PUBLISHER`, `NO_MESSAGES`로 구분하고 마지막
+평균 Hz를 기록한다. `rates/`와 `info/`에는 `/`를 `__`로 치환한 topic 이름별 원본
+측정 로그와 publisher/subscriber 정보가 남는다. 실행 당시 Git SHA, NIC 주소,
+ROS node/topic 목록도 같은 폴더에 보존한다.
 
 ### Secondary: rosbag 실패 대비
 

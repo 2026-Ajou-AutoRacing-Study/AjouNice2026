@@ -19,6 +19,9 @@
        default="$(arg repo_root)/configs/localization/localization_manager.yaml"/>
 
   <arg name="ego_topic" default="/Ego_topic"/>
+  <arg name="retime_ego_to_arrival" default="false"/>
+  <arg name="retimed_ego_topic"
+       default="/localization/morai_gt/ego_retimed"/>
   <arg name="acceleration_topic" default="/localization/acceleration"/>
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
@@ -35,6 +38,17 @@
 
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
 
+  <group if="$(arg retime_ego_to_arrival)">
+    <node pkg="localization_manager"
+          type="morai_ego_arrival_time_adapter.py"
+          name="morai_ego_arrival_time_adapter"
+          output="screen">
+      <param name="input_topic" value="$(arg ego_topic)"/>
+      <param name="output_topic" value="$(arg retimed_ego_topic)"/>
+      <param name="fallback_frame_id" value="$(arg morai_map_frame)"/>
+    </node>
+  </group>
+
   <include file="$(find tf_pub)/launch/map_tf.launch">
     <arg name="parent_frame" value="$(arg map_frame)"/>
     <arg name="child_frame" value="$(arg morai_map_frame)"/>
@@ -42,7 +56,8 @@
 
   <include file="$(find localization_manager)/launch/morai_gt.launch">
     <arg name="config" value="$(arg localization_manager_config)"/>
-    <arg name="ego_topic" value="$(arg ego_topic)"/>
+    <arg name="ego_topic"
+         value="$(eval arg('retimed_ego_topic') if arg('retime_ego_to_arrival') else arg('ego_topic'))"/>
     <arg name="acceleration_topic" value="$(arg acceleration_topic)"/>
     <arg name="map_frame" value="$(arg map_frame)"/>
     <arg name="morai_map_frame" value="$(arg morai_map_frame)"/>
