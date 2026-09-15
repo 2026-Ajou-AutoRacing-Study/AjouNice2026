@@ -264,6 +264,29 @@ rate, max gap, detector latency/drop이 눈에 띄게 나빠지면 full profile�
 않고 raw sensor 중심 기록과 downstream/status 중심 기록을 서로 다른 짧은 run으로
 나눈다. 기록 때문에 production pipeline이 느려지는 구성을 합격으로 간주하면 안 된다.
 
+### Topic Hz 일괄 snapshot
+
+센서·측위·인지·신호등·planning·control의 streaming topic을 같은 20초 구간에서
+측정하려면 다음을 실행한다.
+
+```bash
+cd "$HOME/AjouNice2026"
+bash scripts/runtime/record_field_topic_rates.sh
+```
+
+측정 시간을 바꾸거나 결과 루트를 지정할 수도 있다.
+
+```bash
+bash scripts/runtime/record_field_topic_rates.sh 30 \
+  "$HOME/field_inspection/topic_hz"
+```
+
+기본 결과는 `artifacts/field_checks/topic_hz/<YYMMDD_HHMMSS>/`에 저장된다.
+`summary.tsv`는 각 topic을 `OK`, `NO_PUBLISHER`, `NO_MESSAGES`로 구분하고 마지막
+평균 Hz를 기록한다. `rates/`와 `info/`에는 `/`를 `__`로 치환한 topic 이름별 원본
+측정 로그와 publisher/subscriber 정보가 남는다. 실행 당시 Git SHA, NIC 주소,
+ROS node/topic 목록도 같은 폴더에 보존한다.
+
 ### Secondary: rosbag 실패 대비
 
 새로운 full sensor recorder를 현장에서 즉석 구현하는 것은 피한다. 같은 ROS I/O와
