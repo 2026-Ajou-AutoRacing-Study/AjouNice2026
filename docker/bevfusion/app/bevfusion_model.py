@@ -2,6 +2,7 @@
 
 import time
 
+import numpy as np
 import torch
 from mmengine.config import Config
 
@@ -52,6 +53,7 @@ class BevFusionModel:
         if torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
             torch.backends.cuda.matmul.allow_tf32 = True
+        self._warm_up_before_ready()
 
     def infer(
         self,
@@ -72,9 +74,7 @@ class BevFusionModel:
         preprocess_ms = (time.perf_counter() - preprocess_start) * 1000.0
 
         if not self.warmed_up:
-            for _ in range(self.warmup_iterations):
-                self._forward(batch)
-            self.warmed_up = True
+            self._warm_up(batch)
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         start = time.perf_counter()
@@ -107,6 +107,44 @@ class BevFusionModel:
                 }
             )
         return detections, preprocess_ms, inference_ms
+
+    def _warm_up_before_ready(self):
+        """Materialize CUDA kernels before the server advertises readiness.
+
+        Deferring this work to the first live sensor request drops several
+        seconds of LiDAR frames on a cold container. The synthetic request has
+        the same tensor shapes and a representative voxel count, but carries no
+        scene data and is never published.
+        """
+        if self.warmup_iterations <= 0:
+            self.warmed_up = True
+            return
+        generator = np.random.default_rng(260916)
+        points = np.empty((8192, 4), dtype=np.float32)
+        points[:, 0] = generator.uniform(-29.5, 29.5, len(points))
+        points[:, 1] = generator.uniform(-29.5, 29.5, len(points))
+        points[:, 2] = generator.uniform(-2.5, 1.5, len(points))
+        points[:, 3] = generator.uniform(0.0, 1.0, len(points))
+        final_height, final_width = self.preprocessor.final_dim
+        empty_image = bytes(final_height * final_width * 3)
+        images = {
+            "image/{}".format(camera["frame_id"]): empty_image
+            for camera in self.preprocessor.calibration["cameras"]
+        }
+        batch = self.preprocessor.prepare(
+            points,
+            images,
+            sample_idx="startup_warmup",
+            images_preprocessed=True,
+        )
+        self._warm_up(batch)
+
+    def _warm_up(self, batch):
+        for _ in range(self.warmup_iterations):
+            self._forward(batch)
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        self.warmed_up = True
 
     def _forward(self, batch):
         with torch.inference_mode():

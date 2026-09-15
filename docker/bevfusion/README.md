@@ -1,7 +1,9 @@
 # AjouNice BEVFusion runtime
 
-This directory builds and runs the Base3 four-camera MORAI BEVFusion inference
-process. Sensor geometry comes only from `configs/sensors/Sensor.json` and the
+This directory builds and runs the Base3 four-camera MORAI BEVFusion training
+and inference environment. The team image supports RTX 2080 Ti, 3090, 4090,
+and 5060 Ti with one CUDA 12.8 artifact. Sensor geometry comes only from
+`configs/sensors/Sensor.json` and the
 model contract comes from
 `perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py`.
 Algorithm runtime policy comes from
@@ -11,6 +13,14 @@ The ROS host connects to a port published only on `127.0.0.1`. The simulator
 boundary remains the competition-provided UDP interface. Production deployment
 is documented in `docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`. The
 older `260720_*zero_shot*` documents are experiment history only.
+
+Team training and artifact installation are documented in
+`docs/bevfusion/TEAM_DOCKER_TRAINING_HANDOFF.md`.
+
+```bash
+bash docker/bevfusion/scripts/build_team_image.sh
+bash docker/bevfusion/scripts/verify_team_image.sh
+```
 
 ```bash
 # Create the local Compose environment file once.

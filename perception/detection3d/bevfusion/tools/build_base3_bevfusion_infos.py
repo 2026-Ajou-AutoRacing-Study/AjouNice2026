@@ -23,6 +23,12 @@ def arguments():
     parser.add_argument("--minimum-gt-points", type=int, default=5)
     parser.add_argument("--box-tolerance-m", type=float, default=0.03)
     parser.add_argument("--max-frames-per-split", type=int, default=0)
+    parser.add_argument(
+        "--capture-root", type=Path,
+        help="actual Base3 capture root used while reading files")
+    parser.add_argument(
+        "--serialized-capture-root", type=Path,
+        help="portable capture root written into generated info PKLs")
     return parser.parse_args()
 
 
@@ -82,6 +88,17 @@ def select_smoke_frames(frames, annotations, limit):
     return selected[:limit]
 
 
+def remap_capture_path(path, recorded_root, actual_root, serialized_root):
+    """Return the read path and path stored in an info file."""
+    original = Path(path).expanduser()
+    try:
+        relative = original.relative_to(recorded_root)
+    except ValueError as exc:
+        raise ValueError(
+            f"capture payload is outside metadata capture_root: {original}") from exc
+    return actual_root / relative, serialized_root / relative
+
+
 def main():
     args = arguments()
     root = args.dataset_root.expanduser().resolve()
@@ -96,6 +113,18 @@ def main():
     }
     calibration = json.loads(
         (root / "metadata/calibrations/sensor6_v1.json").read_text(encoding="utf-8")
+    )
+    dataset_metadata = json.loads(
+        (root / "metadata/dataset.json").read_text(encoding="utf-8")
+    )
+    recorded_capture_root = Path(dataset_metadata["capture_root"]).expanduser()
+    actual_capture_root = (
+        args.capture_root.expanduser().resolve()
+        if args.capture_root else recorded_capture_root
+    )
+    serialized_capture_root = (
+        args.serialized_capture_root.expanduser()
+        if args.serialized_capture_root else actual_capture_root
     )
     label_index = {name: index for index, name in enumerate(CLASSES)}
     split_frames = {name: [] for name in ("train", "val", "test")}
@@ -113,7 +142,9 @@ def main():
 
     for frame in frames:
         split = frame["split"]
-        lidar_path = Path(frame["lidar"]["intensity_bin"])
+        lidar_path, serialized_lidar_path = remap_capture_path(
+            frame["lidar"]["intensity_bin"], recorded_capture_root,
+            actual_capture_root, serialized_capture_root)
         values = np.fromfile(lidar_path, dtype=np.float32)
         if values.size % 4:
             raise ValueError(f"{lidar_path}: point payload is not Nx4 float32")
@@ -142,7 +173,10 @@ def main():
             lidar2cam = np.asarray(camera["lidar_to_camera_optical"], dtype=np.float64)
             intrinsic = np.asarray(camera["intrinsic"], dtype=np.float64)
             images[camera_name] = {
-                "img_path": frame["cameras"][camera_name]["intensity"],
+                "img_path": str(remap_capture_path(
+                    frame["cameras"][camera_name]["intensity"],
+                    recorded_capture_root, actual_capture_root,
+                    serialized_capture_root)[1]),
                 "height": int(camera["resolution"][1]),
                 "width": int(camera["resolution"][0]),
                 "cam2img": intrinsic.tolist(),
@@ -157,7 +191,7 @@ def main():
             "scene_id": frame["scene_id"],
             "timestamp": float(frame.get("triggered_unix") or 0.0),
             "lidar_points": {
-                "lidar_path": str(lidar_path),
+                "lidar_path": str(serialized_lidar_path),
                 "num_pts_feats": 4,
                 "lidar2ego": calibration["lidar_to_ego"],
             },
@@ -175,6 +209,11 @@ def main():
         "splits": {},
         "kept_gt": dict(kept),
         "rejected_sparse_gt": dict(rejected),
+        "path_mapping": {
+            "recorded_capture_root": str(recorded_capture_root),
+            "actual_capture_root": str(actual_capture_root),
+            "serialized_capture_root": str(serialized_capture_root),
+        },
     }
     for split, rows in split_rows.items():
         target = output / f"morai_base3_infos_{split}.pkl"
