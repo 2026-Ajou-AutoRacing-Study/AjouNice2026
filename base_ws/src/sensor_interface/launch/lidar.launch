@@ -23,6 +23,8 @@
       <param name="rpm" value="$(arg rpm)"/>
       <param name="gps_time" value="false"/>
       <param name="pcap_time" value="false"/>
+      <!-- Live packets use host time; never add a MORAI/PC clock offset. -->
+      <param name="time_offset" value="0.0"/>
       <param name="cut_angle" value="-0.01"/>
       <param name="timestamp_first_packet" value="$(arg timestamp_first_packet)"/>
       <remap from="velodyne_packets" to="/sensor/lidar1/packets"/>

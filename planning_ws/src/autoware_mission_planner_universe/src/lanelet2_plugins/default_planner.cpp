@@ -38,8 +38,10 @@
 #include <lanelet2_core/LaneletMap.h>
 #include <lanelet2_core/geometry/BoundingBox.h>
 #include <lanelet2_core/geometry/Lanelet.h>
+#include <xmlrpcpp/XmlRpcValue.h>
 
 #include <limits>
+#include <set>
 #include <vector>
 
 namespace autoware::mission_planner_universe::lanelet2
@@ -87,6 +89,36 @@ void DefaultPlanner::initialize_common(ros::NodeHandle * node)
   node_->param("enable_correct_goal_pose", param_.enable_correct_goal_pose, false);
   node_->param("consider_no_drivable_lanes", param_.consider_no_drivable_lanes, false);
   node_->param("check_footprint_inside_lanes", param_.check_footprint_inside_lanes, true);
+
+  XmlRpc::XmlRpcValue overrides;
+  if (node_->getParam("route_section_primitive_overrides", overrides)) {
+    if (overrides.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
+      throw std::runtime_error("route_section_primitive_overrides must be a mapping");
+    }
+    for (auto item = overrides.begin(); item != overrides.end(); ++item) {
+      const lanelet::Id preferred_id = std::stoll(item->first);
+      const auto & primitive_ids = item->second;
+      if (primitive_ids.getType() != XmlRpc::XmlRpcValue::TypeArray || primitive_ids.size() == 0) {
+        throw std::runtime_error("route section primitive override must be a non-empty array");
+      }
+      std::vector<lanelet::Id> values;
+      std::set<lanelet::Id> unique;
+      for (int index = 0; index < primitive_ids.size(); ++index) {
+        if (primitive_ids[index].getType() != XmlRpc::XmlRpcValue::TypeInt) {
+          throw std::runtime_error("route section primitive IDs must be integers");
+        }
+        const lanelet::Id primitive_id = static_cast<int>(primitive_ids[index]);
+        if (!unique.insert(primitive_id).second) {
+          throw std::runtime_error("route section primitive override contains a duplicate ID");
+        }
+        values.push_back(primitive_id);
+      }
+      if (unique.count(preferred_id) == 0) {
+        throw std::runtime_error("route section primitive override must contain its preferred ID");
+      }
+      param_.route_section_primitive_overrides.emplace(preferred_id, std::move(values));
+    }
+  }
 }
 
 void DefaultPlanner::initialize(ros::NodeHandle * node)
@@ -359,6 +391,23 @@ PlannerPlugin::LaneletRoute DefaultPlanner::plan(const RoutePoints & points)
   }
   route_handler_.setRouteLanelets(all_route_lanelets);
   route_sections = route_handler_.createMapSegments(all_route_lanelets);
+  for (auto & route_section : route_sections) {
+    const auto override =
+      param_.route_section_primitive_overrides.find(route_section.preferred_primitive.id);
+    if (override == param_.route_section_primitive_overrides.end()) {
+      continue;
+    }
+    route_section.primitives.clear();
+    for (const auto primitive_id : override->second) {
+      if (!route_handler_.getLaneletMapPtr()->laneletLayer.exists(primitive_id)) {
+        throw std::runtime_error("route section primitive override references a missing lanelet");
+      }
+      autoware_planning_msgs::LaneletPrimitive primitive;
+      primitive.id = primitive_id;
+      primitive.primitive_type = "lane";
+      route_section.primitives.push_back(primitive);
+    }
+  }
 
   auto goal_pose = points.back();
   if (param_.enable_correct_goal_pose) {

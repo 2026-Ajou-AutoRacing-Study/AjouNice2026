@@ -42,6 +42,7 @@ alias rosbag_lio_eval='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_for_eva
 
 #-----------------------------------------------------
 alias udp="roslaunch sensor_interface morai_udp_interface.launch"
+alias udp_lan='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_lan.json"'
 alias udp22="roslaunch sensor_interface morai_udp_interface_22.launch"
 alias sensing="roslaunch bringup sensing.launch"
 alias pointpainting='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && POINTPAINTING_ACTIVATE_CONDA=false POINTPAINTING_WITH_TP=false POINTPAINTING_CFG="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/model.yaml" POINTPAINTING_CKPT="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/detector.pth" POINTPAINTING_SEG_CKPT="$POINTPAINTING_BUNDLE_ROOT/segmentation/base3_lraspp_e30/segmentation.pth" rosrun morai_pointpainting_ros run_pointpainting.sh live'
