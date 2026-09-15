@@ -194,6 +194,7 @@ class MoraiEgoUdpReceiver {
   MoraiEgoUdpReceiver() : private_nh_("~") {
     private_nh_.param<std::string>("network_config", network_config_, std::string());
     private_nh_.param<std::string>("frame_id", frame_id_, "morai_map");
+    private_nh_.param<bool>("enable_ego_vehicle_status", enable_ego_vehicle_status_, true);
     if (network_config_.empty()) throw std::runtime_error("~network_config is required");
 
     const auto root = morai_udp::readJson(network_config_);
@@ -202,6 +203,10 @@ class MoraiEgoUdpReceiver {
       const auto& entry = item.second;
       const int type = entry.get<int>("PUBSUB_TYPE");
       if (type != 770 && type != 772 && type != 261 && type != 295) continue;
+      if (type == 770 && !enable_ego_vehicle_status_) {
+        ROS_WARN("Skipping Ego Vehicle Status UDP receiver (type 770) by configuration");
+        continue;
+      }
       const auto& config = entry.get_child("config");
       if (config.get<int>("commType", 0) != 1) continue;
       const auto endpoint = morai_udp::udpEndpoint(config, "destinationIP", "destinationPort");
@@ -221,8 +226,12 @@ class MoraiEgoUdpReceiver {
       ROS_INFO("Ego network type %d UDP %s:%d -> %s", type, endpoint.ip.c_str(),
                endpoint.port, topic.c_str());
     }
-    if (channels_.size() != 4) {
-      throw std::runtime_error("expected UDP entries 770, 772, 261 and 295 in " + network_config_);
+    const std::size_t expected_channels = enable_ego_vehicle_status_ ? 4U : 3U;
+    if (channels_.size() != expected_channels) {
+      const std::string expected = enable_ego_vehicle_status_
+                                       ? "770, 772, 261 and 295"
+                                       : "772, 261 and 295";
+      throw std::runtime_error("expected UDP entries " + expected + " in " + network_config_);
     }
   }
 
@@ -359,6 +368,7 @@ class MoraiEgoUdpReceiver {
   ros::NodeHandle private_nh_;
   std::string network_config_;
   std::string frame_id_;
+  bool enable_ego_vehicle_status_ = true;
   std::vector<NetworkChannel> channels_;
   ros::Publisher ego_publisher_;
   ros::Publisher competition_publisher_;
