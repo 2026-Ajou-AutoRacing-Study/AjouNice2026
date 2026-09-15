@@ -112,6 +112,8 @@ Sparse tail은 주로 Steel_Barricade, CargoBox, PE Firewall과 작은 Pedestria
 - Vehicle asset 43종.
 - Pedestrian asset 22종.
 - Obstacle asset 10종.
+- 정확한 Asset name, DataID, subtype과 시나리오 작성 규칙은
+  `base3_static_asset_catalog.md`를 따른다.
 
 `/Object_topic` actor-frame을 Ego 기준 방위로 나누면 다음과 같다. 이는 30 m LiDAR
 positive만이 아니라 scene의 전체 actor observation이므로 학습 GT 분포와 완전히 같지는
