@@ -2,9 +2,9 @@
   <!-- External MORAI UDP <-> internal ROS topic gateway. -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json"/>
   <arg name="network_config"
-       default="$(arg repo_root)/configs/network/ego_network_1.json"/>
+       default="$(arg repo_root)/configs/network/ego_network_competition_local.json"/>
   <arg name="vehicle_config"
        default="$(arg repo_root)/configs/vehicle/ioniq5.yaml"/>
   <arg name="enable_sensors" default="true"/>

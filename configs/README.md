@@ -13,6 +13,9 @@
 - `morai_field_reference/`: 현장 MORAI PC에 실제 로드해 풀주행을 검증한
   Sensor/Network 원본. 알고리즘 PC의 `udp_lan` 입력과 역할이 다르므로 해당
   디렉터리의 README를 먼저 확인함.
+- 개인 PC 단독 실행은 `sensors/Sensor_competition_local.json`과
+  `network/ego_network_competition_local.json`, 대회 알고리즘 PC는 대응하는
+  `*_competition_lan.json` profile을 사용함.
 - 
 ## Notes
 - 현재(260511) 있는 `vehicle/ioniq5.yaml`, `sensors/sensor_layout.yaml`, `tf/static_tf.yaml`은 **예시 파일들임.**

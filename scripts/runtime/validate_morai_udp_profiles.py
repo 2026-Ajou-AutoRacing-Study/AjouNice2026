@@ -10,13 +10,17 @@ ROOT = Path(__file__).resolve().parents[2]
 FIELD_REFERENCE_ROOT = ROOT / "configs/morai_field_reference"
 PAIRS = (
     (
-        ROOT / "configs/sensors/Sensor.json",
+        ROOT / "configs/sensors/Sensor_competition_local.json",
         ROOT / "configs/sensors/Sensor_competition_lan.json",
     ),
     (
-        ROOT / "configs/network/ego_network_1.json",
+        ROOT / "configs/network/ego_network_competition_local.json",
         ROOT / "configs/network/ego_network_competition_lan.json",
     ),
+)
+LEGACY_LOCAL_MIRRORS = (
+    (ROOT / "configs/sensors/Sensor.json", PAIRS[0][0]),
+    (ROOT / "configs/network/ego_network_1.json", PAIRS[1][0]),
 )
 FIELD_SENSOR = FIELD_REFERENCE_ROOT / "AjouNice_sensor.json"
 FIELD_NETWORK = FIELD_REFERENCE_ROOT / "2026_molit_comp_network.json"
@@ -159,6 +163,17 @@ def validate_field_network_contract(field_network, adapter_network):
 
 
 def main():
+    for legacy_path, canonical_path in LEGACY_LOCAL_MIRRORS:
+        if load(legacy_path) != load(canonical_path):
+            raise ValueError(
+                f"legacy local mirror differs from canonical profile: "
+                f"{legacy_path} vs {canonical_path}"
+            )
+        print(
+            f"PASS: legacy local mirror {legacy_path.name} == "
+            f"{canonical_path.name}"
+        )
+
     for local_path, competition_path in PAIRS:
         local = normalize_and_check(load(local_path), "local")
         competition = normalize_and_check(load(competition_path), "competition")

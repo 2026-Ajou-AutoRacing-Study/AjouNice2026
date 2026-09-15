@@ -44,7 +44,7 @@ sd
 | --- | --- | --- | --- |
 | 1 | `rc` | `roscore` | ROS Master를 실행한다. 계속 켜 둔다. |
 | 2 | `morai` | `bash ~/MORAI/MoraiLauncher_Lin/MORAISim.sh` | MORAI 시뮬레이터를 실행하고 사용할 시나리오를 연다. |
-| 3 | MORAI에서 `F4` | `ego_network_1.json` 로드 | `configs/network`의 Ego UDP 네트워크 설정을 불러온다. |
+| 3 | MORAI에서 `F4` | `ego_network_competition_local.json` 로드 | `configs/network`의 개인 PC용 Ego UDP 네트워크 설정을 불러온다. |
 | 4 | MORAI에서 `F4` | Ego Network의 UDP `Connect` | 차량 상태 수신과 제어 명령 송신용 Ego 네트워크를 연결한다. |
 | 5 | MORAI에서 `F3` | `configs/sensors/Sensor_3.json` 로드 및 Connect | Camera, LiDAR, IMU, GPS 센서와 센서 네트워크를 활성화한다. |
 | 6 | `udp` | `roslaunch sensor_interface morai_udp_interface.launch` | MORAI UDP 패킷과 ROS topic 사이의 변환 노드를 실행한다. |
@@ -251,7 +251,7 @@ Replay/Final용 `history_run.yaml`과 Compare용 `compare_run.yaml`은 서로 �
 | --- | --- | --- | --- | --- |
 | 1 | 터미널 1 | `rc` | `roscore` | ROS Master |
 | 2 | 터미널 또는 MORAI | `morai` | `bash ~/MORAI/MoraiLauncher_Lin/MORAISim.sh` 실행 후 시나리오 로드 | 차량 초기 위치 |
-| 3 | MORAI | `F4` | `configs/network/ego_network_1.json` 로드 후 UDP Connect | Ego 통신 |
+| 3 | MORAI | `F4` | `configs/network/ego_network_competition_local.json` 로드 후 UDP Connect | Ego 통신 |
 | 4 | MORAI | `F3` | `configs/sensors/Sensor_3.json` 로드 후 Connect | 센서 통신 |
 | 5 | 터미널 2 | `udp` | `roslaunch sensor_interface morai_udp_interface.launch` | `/Ego_topic`, 센서 topic |
 | 6 | 터미널 3 | `localization_morai_gt` | `roslaunch bringup localization_morai_gt.launch` | kinematic state와 TF |

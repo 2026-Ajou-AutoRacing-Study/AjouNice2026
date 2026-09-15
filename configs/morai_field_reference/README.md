@@ -20,6 +20,12 @@ Git 보관본은 리뷰와 `git diff --check`를 위해 CRLF를 LF로만 정규�
 - `configs/sensors/Sensor_competition_lan.json`
 - `configs/network/ego_network_competition_lan.json`
 
+개인 PC 단독 실행에서는 아래 loopback profile을 MORAI와 알고리즘 양쪽의
+기준으로 사용한다.
+
+- `configs/sensors/Sensor_competition_local.json`
+- `configs/network/ego_network_competition_local.json`
+
 현장 Network 원본은 활성 채널에 UDP(`commType=1`)를 사용하지만, 비활성
 `rosConfig.Topic` 필드에는 `/dafault_topic`이 남아 있다. 우리 UDP-to-ROS
 브리지는 이 필드를 출력 ROS 토픽 이름으로도 사용하므로 현장 원본 Network
