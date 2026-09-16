@@ -6,8 +6,8 @@ import re
 import hashlib
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = 74
-SHA = 'd423825a61a9c03d2d96e2821fceb0ed890e15e2daeb50a96c8f08b17030c4b7'
+VERSION = 75
+SHA = 'dfc4b3278d819aa7e7da6b93d66d60ca84e853122dbfa9b34e46a9dacb860e51'
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--installed', action='store_true')
 args = parser.parse_args()

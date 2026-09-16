@@ -1,12 +1,12 @@
-# RouteSelector/MissionPlanner의 ROS1 인터페이스와 무관한 K-City v74 경로 정의다.
+# RouteSelector/MissionPlanner의 ROS1 인터페이스와 무관한 K-City v75 경로 정의다.
 schema_version: 1
 frame_id: map
 
 map:
-  version: 74
-  file: "kcity_map/lanelet_map/lanelet2_map_v74.osm"
+  version: 75
+  file: "kcity_map/lanelet_map/lanelet2_map_v75.osm"
   projector_file: "kcity_map/lanelet_map/map_projector_info_v1.yaml"
-  sha256: "d423825a61a9c03d2d96e2821fceb0ed890e15e2daeb50a96c8f08b17030c4b7"  # 다른 맵에서 잘못 요청하지 않도록 v74을 고정한다.
+  sha256: "dfc4b3278d819aa7e7da6b93d66d60ca84e853122dbfa9b34e46a9dacb860e51"  # 다른 맵에서 잘못 요청하지 않도록 v75을 고정한다.
 
 start:
   source: "2026 competition official START / END"
@@ -118,10 +118,10 @@ poses:
   fallback_cutoff_201441:  # 병합된 중간 차선에서 30 m Mission 안전거리를 확보한다.
     lanelet_id: 201441
     lanelet_s_m: 9.142493
-    x: 204.820012479
-    y: 352.681732797
+    x: 204.823229732
+    y: 352.651614289
     z: 28.372544903
-    yaw_deg: -84.841649702
+    yaw_deg: -84.843673366
 
   wp_200183:
     lanelet_id: 200183
@@ -156,7 +156,7 @@ poses:
     yaw_deg: 89.559814
 
 route_a:
-  uuid: "8f666446-15db-5bd2-b924-91857811aedd"  # 고속주로 중간 차선 선호 경로의 고정 UUID다.
+  uuid: "601b3b1b-b88a-592e-8d25-3798679839fe"  # 고속주로 중간 차선 선호 경로의 고정 UUID다.
   allow_modification: false
   waypoint_refs:
     - wp_200178
@@ -222,7 +222,7 @@ route_a:
     - 200182
     - 200361
     - 200181
-  expected_path_lanelet_ids:  # v74에서 검증한 Route A 전체 경로다.
+  expected_path_lanelet_ids:  # v75에서 검증한 Route A 전체 경로다.
     - 200889
     - 200392
     - 200178
@@ -270,7 +270,7 @@ route_a:
     - 200181
 
 route_b:
-  uuid: "7e7949cd-3c8e-5649-8abe-cc3cb6e7545f"  # 고속주로 중간 차선 선호 경로의 고정 UUID다.
+  uuid: "c6206c94-0e2c-5d46-b967-3b1c7de24a5a"  # 고속주로 중간 차선 선호 경로의 고정 UUID다.
   allow_modification: false
   waypoint_refs:  # 200178은 요청 시점의 현재 lanelet이므로 제외한다.
     - wp_200346
@@ -342,7 +342,7 @@ route_b:
     - 200207
     - 200249
     - 200210
-  expected_path_lanelet_ids:  # v74에서 검증한 Route B 전체 경로다.
+  expected_path_lanelet_ids:  # v75에서 검증한 Route B 전체 경로다.
     - 200178
     - 200337
     - 200287
@@ -400,7 +400,7 @@ route_b:
     - 200210
 
 fallback_route:
-  uuid: "c4fde5bd-c6a7-5915-9f94-b224d76fc12f"  # 병합된 200130 시작 fallback 경로의 고정 UUID다.
+  uuid: "ad3dc3ce-7824-5034-bed6-666b504cc504"  # 병합된 200130 시작 fallback 경로의 고정 UUID다.
   request_type: set_lanelet_route  # waypoint 재탐색 대신 검증된 lanelet segment를 직접 요청한다.
   allow_modification: false
   hard_cutoff_pose_ref: fallback_cutoff_201441  # 복원된 201441 s=8m에서 기존 물리 좌표와 안전거리 여유를 유지한다.

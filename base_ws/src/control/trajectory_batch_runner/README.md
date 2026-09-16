@@ -101,9 +101,9 @@ include 경로는 진입점이 있는 `config/` 폴더 기준이다. 로더는 �
 병합하며, 두 파일이 같은 최종 키를 정의하면 덮어쓰지 않고 설정 오류로 처리한다.
 실행 명령과 `config_file` 값은 분리 전과 동일하다.
 
-`map/kcity.yaml`은 `kcity_map/lanelet_map/lanelet2_map_v74.osm`만 선택하고,
+`map/kcity.yaml`은 `kcity_map/lanelet_map/lanelet2_map_v75.osm`만 선택하고,
 map과 projector 경로를 `maptf_morai_cor`에 명시적으로 전달한다.
-v74 파일이 없으면 오류로 종료하며 구버전 지도로 대체하지 않는다.
+v75 파일이 없으면 오류로 종료하며 구버전 지도로 대체하지 않는다.
 
 ## 5. Manifest
 

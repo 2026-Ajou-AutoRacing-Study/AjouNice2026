@@ -11,8 +11,8 @@ lane_change/terminal_path/stop_at_boundary: false
 lane_change/trajectory/max_prepare_duration: 4.0
 lane_change/trajectory/min_prepare_duration: 2.0
 lane_change/trajectory/lateral_jerk: 5.0
-lane_change/trajectory/min_longitudinal_acc: -1.0
-lane_change/trajectory/max_longitudinal_acc: 1.0
+lane_change/trajectory/min_longitudinal_acc: -8.0
+lane_change/trajectory/max_longitudinal_acc: 3.7
 lane_change/trajectory/th_prepare_length_diff: 1.0
 lane_change/trajectory/th_lane_changing_length_diff: 1.0
 lane_change/trajectory/min_lane_changing_velocity: 2.78
@@ -83,9 +83,9 @@ lane_change/lateral_acceleration/min_values:
 - 0.4
 - 0.4
 lane_change/lateral_acceleration/max_values:
-- 2.5
-- 2.5
-- 2.5
+- 5.8
+- 5.8
+- 5.8
 lane_change/target_object/car: true
 lane_change/target_object/truck: true
 lane_change/target_object/bus: true
