@@ -1,0 +1,3 @@
+# Diagnostic run: retain existing default levels; enable only LC candidate reasons.
+# Recorded via /rosout in the planviz planning rosbag.
+log4j.logger.ros.autoware_behavior_path_lane_change_module=DEBUG

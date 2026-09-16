@@ -89,6 +89,7 @@ void DefaultPlanner::initialize_common(ros::NodeHandle * node)
   node_->param("enable_correct_goal_pose", param_.enable_correct_goal_pose, false);
   node_->param("consider_no_drivable_lanes", param_.consider_no_drivable_lanes, false);
   node_->param("check_footprint_inside_lanes", param_.check_footprint_inside_lanes, true);
+  node_->getParam("route_section_excluded_lanelet_ids", param_.route_section_excluded_lanelet_ids);
 
   XmlRpc::XmlRpcValue overrides;
   if (node_->getParam("route_section_primitive_overrides", overrides)) {
@@ -407,6 +408,25 @@ PlannerPlugin::LaneletRoute DefaultPlanner::plan(const RoutePoints & points)
       primitive.primitive_type = "lane";
       route_section.primitives.push_back(primitive);
     }
+  }
+
+  // Apply exclusions after overrides, so every emitted section obeys the policy.
+  const std::set<lanelet::Id> excluded(
+    param_.route_section_excluded_lanelet_ids.begin(),
+    param_.route_section_excluded_lanelet_ids.end());
+  for (auto & section : route_sections) {
+    if (excluded.count(section.preferred_primitive.id)) {
+      ROS_ERROR_STREAM_NAMED(
+        "default_planner", "Route uses an excluded preferred lanelet: "
+                           << section.preferred_primitive.id);
+      return route_msg;
+    }
+    auto & primitives = section.primitives;
+    primitives.erase(
+      std::remove_if(primitives.begin(), primitives.end(), [&](const auto & primitive) {
+        return excluded.count(primitive.id) != 0;
+      }),
+      primitives.end());
   }
 
   auto goal_pose = points.back();

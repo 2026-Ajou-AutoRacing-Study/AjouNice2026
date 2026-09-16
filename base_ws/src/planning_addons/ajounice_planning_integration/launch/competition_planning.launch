@@ -4,7 +4,7 @@
 
     Localization/map TF, sensing, detection, tracking/prediction, traffic-light
     detection, RViz, and control are launched separately.  This launch owns
-    the v62 binary map, operation mode, route requester, and the complete
+    the v74 binary map, operation mode, route requester, and the complete
     Mission -> BPP -> BVP -> path optimization -> MVP -> velocity smoother ->
     Planning Validator graph.
   -->
@@ -12,7 +12,7 @@
     <arg name="repo_root" value="$(env AJOUNICE_ROOT)"/>
     <arg name="start_requester" value="true"/>
     <arg name="is_simulation" value="false"/>
-    <arg name="behavior_path_forward_length" value="150.0"/>
+    <arg name="behavior_path_forward_length" value="400.0"/>
     <arg name="intersection_attention_area_length" value="100.0"/>
     <arg name="publish_fixed_autonomous_mode" value="true"/>
     <arg name="use_ground_pointcloud" value="false"/>

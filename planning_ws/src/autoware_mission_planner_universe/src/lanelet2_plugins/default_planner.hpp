@@ -41,6 +41,7 @@ struct DefaultPlannerParameters
   bool consider_no_drivable_lanes;
   bool check_footprint_inside_lanes;
   std::map<lanelet::Id, std::vector<lanelet::Id>> route_section_primitive_overrides;
+  std::vector<int> route_section_excluded_lanelet_ids;
 };
 
 class DefaultPlanner : public mission_planner_universe::PlannerPlugin

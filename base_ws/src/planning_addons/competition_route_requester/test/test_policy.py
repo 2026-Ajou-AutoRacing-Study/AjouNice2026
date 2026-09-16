@@ -14,7 +14,7 @@ class PolicyTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.cfg = yaml.safe_load((PACKAGE/'config/competition_route_requester.param.yaml').read_text())
-        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v72_competition_route.yaml').read_text())
+        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v74_competition_route.yaml').read_text())
         cls.geometry = Geometry(REPO, cls.routes)
 
     def test_all_five_cases(self):
@@ -58,8 +58,8 @@ class PolicyTest(unittest.TestCase):
         self.assertTrue(policy.in_window(r, 'route_b', 200178, 8))
         self.assertTrue(policy.in_window(r, 'route_b', 200348, 1))
         self.assertFalse(policy.in_window(r, 'route_b', 200346, 0))
-        self.assertFalse(policy.in_window(r, 'fallback_route', 200130, 50.3))
-        self.assertTrue(policy.in_window(r, 'fallback_route', 200130, 50.376946))
+        self.assertFalse(policy.in_window(r, 'fallback_route', 201441, 9.1))
+        self.assertTrue(policy.in_window(r, 'fallback_route', 201441, 9.142493))
         self.assertFalse(policy.in_window(r, 'fallback_route', 200360, 8))
         self.assertFalse(policy.in_window(r, 'fallback_route', 200183, 10))
 
@@ -107,7 +107,7 @@ class PolicyTest(unittest.TestCase):
                              final[index:])
 
     def test_geometry_and_hash(self):
-        for ref in ('wp_200178', 'wp_200360', 'fallback_cutoff_200130'):
+        for ref in ('wp_200178', 'wp_200360', 'fallback_cutoff_201441'):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
             self.assertEqual(lane, p['lanelet_id'])

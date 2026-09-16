@@ -716,7 +716,7 @@ lane_change:
   trajectory:
     max_prepare_duration: 4.0
     min_prepare_duration: 2.0
-    lateral_jerk: 3.0
+    lateral_jerk: 5.0
     min_longitudinal_acc: -1.0
     max_longitudinal_acc: 1.0
     th_prepare_length_diff: 1.0
@@ -799,9 +799,9 @@ lane_change:
     - 0.4
     - 0.4
     max_values:
-    - 0.65
-    - 0.65
-    - 0.65
+    - 2.5
+    - 2.5
+    - 2.5
   target_object:
     car: true
     truck: true

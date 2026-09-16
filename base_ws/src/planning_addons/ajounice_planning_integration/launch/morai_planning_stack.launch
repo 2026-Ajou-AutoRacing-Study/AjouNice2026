@@ -11,7 +11,7 @@
   <arg name="sensor_config"
        default="$(arg repo_root)/configs/sensors/Sensor.json"/>
   <arg name="use_sim_time" default="false"/>
-  <arg name="behavior_path_forward_length" default="150.0"/>
+  <arg name="behavior_path_forward_length" default="400.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>
 
   <!-- Competition localization is owned by the separate `localization` alias.
@@ -111,7 +111,7 @@
       <arg name="prediction_time_step" value="0.1"/>
       <arg name="prediction_horizon" value="3.0"/>
       <arg name="map_file"
-           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v72.osm"/>
+           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v74.osm"/>
       <arg name="projector_file"
            value="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
     </include>

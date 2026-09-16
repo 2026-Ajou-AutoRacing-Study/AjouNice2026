@@ -1,0 +1,25 @@
+{
+  "source_sha256": "0efa7cb3dfd249d5eb78c2e2552590037eb3b8725c58ebd433656e2d53a34610",
+  "output_sha256": "d423825a61a9c03d2d96e2821fceb0ed890e15e2daeb50a96c8f08b17030c4b7",
+  "removed_lanelets": [
+    200141,
+    200148,
+    200186,
+    201400,
+    201437,
+    201440,
+    201445,
+    201463
+  ],
+  "restored_solid_boundaries": [
+    101992,
+    102237,
+    102241,
+    105462
+  ],
+  "preserved_merge_chain": [
+    201456,
+    201438,
+    200128
+  ]
+}
