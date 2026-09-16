@@ -4,7 +4,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /K-City v711
+        - /K-City v721
         - /Mission Route1
         - /Final Trajectory1
         - /Ego Vehicle1
@@ -32,7 +32,7 @@ Visualization Manager:
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /map/lanelet_map
-      Name: K-City v71
+      Name: K-City v72
       Queue Size: 10
       Value: true
     - Class: rviz/MarkerArray
