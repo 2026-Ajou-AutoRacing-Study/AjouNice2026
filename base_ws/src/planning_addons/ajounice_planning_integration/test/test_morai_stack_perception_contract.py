@@ -18,6 +18,7 @@ def _launch():
 
 def test_integrated_stack_owns_downstream_pipeline_but_not_detector_by_default():
     args = {item.attrib["name"]: item.attrib for item in _launch().findall("arg")}
+    assert args["start_localization"]["default"] == "false"
     assert args["start_object_pipeline"]["default"] == "true"
     assert args["start_detector"]["default"] == "false"
     assert args["detector"]["default"] == "fastbev"

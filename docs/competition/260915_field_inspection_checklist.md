@@ -39,7 +39,7 @@ perception, planning, control의 **실제 입출력 계약**을 확인한다. �
 ### 현장 rollback 준비
 
 - [ ] production 명령과 실험 명령을 섞지 않는다.
-- [ ] heading correction ON/OFF 명령을 둘 다 준비했다.
+- [ ] production heading correction `-1.347 deg`와 rollback commit을 확인했다.
 - [ ] controller OFF launch를 가장 먼저 실행할 수 있다.
 - [ ] 모든 ROS 및 Docker process를 종료하는 순서를 알고 있다.
 - [ ] 검증된 이전 commit SHA와 weight SHA를 기록했다.
@@ -55,26 +55,21 @@ perception, planning, control의 **실제 입출력 계약**을 확인한다. �
 | LiDAR | topic, PointCloud2 fields, frame, rate, point time | BEVFusion 불가 |
 | GPS/IMU | topic, frame, unit, timestamp | GNSS+IMU localization 불가 |
 | `/Competition_topic` | type, heading 단위·북 기준, velocity/acceleration | 대회 CTRA 계약 확인 필요 |
-| `/Ego_topic` | 제공 여부와 공식 사용 허용 여부 | 현재 통합 기본 localization에 영향 |
+| `/Ego_topic` | production에서 사용하지 않음 | 대회 CTRA에는 영향 없음 |
 | `/Object_topic` | 제공 여부 | production에는 영향 없음 |
 | control | destination IP/port, mode, gear enum, watchdog | 폐루프 제어 불가 |
 | clock | wall time인지 simulation time인지, pause/reset 가능성 | freshness 판단에 영향 |
 
-### 반드시 해결해야 하는 localization 분기
+### 확정된 production localization 계약
 
-현재 `morai_planning_stack.launch`의 기본 `start_localization=true`는
-`localization_morai_gt.launch`, 즉 `/Ego_topic`을 사용한다. 대회용으로 별도 준비한
-provider는 `/Competition_topic + GPS + IMU` 기반
-`localization_gnss_imu_gt_ctra.launch`다.
+대회에서는 `/Competition_topic + GPS + IMU` 기반 CTRA localization만 사용한다.
+`/Ego_topic` 직접 GT provider는 대회 fallback이 아니다.
 
-따라서 현장에서는 다음 중 실제 공식 계약 하나를 명시적으로 선택한다.
-
-- `/Ego_topic`이 공식 제공되고 사용 허용: 통합 기본 localization을 사용한다.
-- `/Competition_topic`이 공식 입력: 통합 launch는 `start_localization:=false`로
-  실행하고 CTRA localization을 별도 터미널에서 정확히 한 개만 실행한다.
-
-두 localization을 동시에 켜서 같은 TF와 `/localization/kinematic_state`를 중복
-발행하면 안 된다.
+- 별도 터미널에서 `localization` alias를 정확히 한 번 실행한다.
+- Planning은 `start_localization:=false`로 실행한다.
+- heading correction `-1.347 deg`를 유지한다.
+- 다른 localization 또는 `maptf_*`를 동시에 실행하지 않는다.
+- `/Competition_topic` 상실 시 `/Ego_topic`으로 자동 fallback하지 않고 안전 정지한다.
 
 ## 1. Network와 sensing
 
@@ -145,31 +140,17 @@ RViz는 simulator debug에서는 GT를 켤 수 있지만, production 확인에�
 - [ ] GNSS/IMU/Competition input을 일시 차단했을 때 안전 정지와 복구를 확인한다.
 - [ ] Z 차이는 planning geometry가 아니라 RViz-only flatten 결과인지 구분한다.
 
-### Heading correction A/B
+### Heading correction 확인
 
-대회용 CTRA provider를 사용할 때 먼저 현재 기준인 보정 ON을 시험한다.
-
-```bash
-roslaunch bringup localization_gnss_imu_gt_ctra.launch \
-  gt_source:=competition \
-  use_heading_correction:=true \
-  heading_yaw_offset_deg:=-1.347 \
-  publish_sensor_tf:=false
-```
-
-실제 client에서 raw heading이 이미 수정되어 방향이 틀어지면 **동시에 켜지 않고**
-위 process를 종료한 뒤 보정 OFF로 A/B한다.
+대회 production은 보정 ON `-1.347 deg`로 확정한다.
 
 ```bash
-roslaunch bringup localization_gnss_imu_gt_ctra.launch \
-  gt_source:=competition \
-  use_heading_correction:=false \
-  publish_sensor_tf:=false
+localization
 ```
 
-선택 기준은 눈대중 한 frame이 아니라 시작점, 직선, 회전 구간에서 lane tangent 대비
-yaw 오차와 TF 연속성이다. 결과가 같지 않으면 어느 쪽을 선택했는지 rosbag과
-issue log에 반드시 남긴다.
+시작점, 직선, 회전 구간에서 lane tangent 대비 yaw와 TF 연속성을 확인한다. 현장에서
+임의로 correction을 끄지 않는다. 변경이 필요하다는 증거가 생기면 별도 bag으로
+재현한 뒤 rollback 가능한 변경으로 처리한다.
 
 ## 4. 출발, 판단과 재배치
 

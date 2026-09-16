@@ -1,5 +1,10 @@
 # MORAI Control Pipeline 실행 방법
 
+> **Legacy:** 이 문서는 `/Ego_topic` 직접 GT localization과 구형 workspace 경로를
+> 사용하는 과거 실행 기록이다. 현재 full stack은
+> [`morai_full_stack_by_terminal.md`](../../runbooks/morai_full_stack_by_terminal.md)를
+> 따른다.
+
 이 문서는 MORAI 시뮬레이터에서 차량을 연결하고 trajectory 생성·추종·기록·시각화하는 전체
 실행 순서를 설명한다. ROS 명령은 특별히 표시하지 않는 한 **각각 별도 터미널**에서 실행한다.
 
@@ -67,7 +72,7 @@ rostopic list | grep -E 'lidar|camera|image'
 ## 2. Localization과 Viewer 실행
 
 Viewer를 처음 사용하는 경우 화면별 의미와 상황별 명령은
-[`control/view/README.md`](../base_ws/src/control/view/README.md)의 빠른 시작 안내를 먼저 본다.
+[`control/view/README.md`](../../../base_ws/src/control/view/README.md)의 빠른 시작 안내를 먼저 본다.
 
 | 실행 순서 | 단축어 | alias 없는 실제 명령어 | 설명 |
 | --- | --- | --- | --- |
@@ -134,7 +139,7 @@ rostopic echo -n 1 /ctrl_cmd
 `traj_gen`은 trajectory를 새로 계산하는 명령이 아니라 **기존 CSV를 publish하는 명령**이다.
 새 경로 또는 새 목표 속도를 만들려면 먼저 다음 YAML을 수정한다.
 
-[trajectory_generator.yaml](../base_ws/src/control/trajectory_generator/config/trajectory_generator.yaml)
+[trajectory_generator.yaml](../../../base_ws/src/control/trajectory_generator/config/trajectory_generator.yaml)
 
 주요 설정:
 
@@ -174,7 +179,7 @@ velocity_mps = min(desired_velocity_kph, speed_limit_kph) / 3.6
 ```
 
 속도 단위에 대한 자세한 내용은
-[Control 속도 단위 규약](control_velocity_units.md)을 참고한다.
+[Control 속도 단위 규약](../../control_velocity_units.md)을 참고한다.
 
 ## 5. 기록 종료와 저장 위치
 
@@ -209,7 +214,7 @@ find base_ws/src/control/trajectory_validator/history \
 
 ### Replay와 Final 기록 선택
 
-[history_run.yaml](../base_ws/src/control/trajectory_validator/config/history_run.yaml)을 수정한다.
+[history_run.yaml](../../../base_ws/src/control/trajectory_validator/config/history_run.yaml)을 수정한다.
 
 ```yaml
 traj_sample: "200889_200258"
@@ -231,7 +236,7 @@ roslaunch viewer viewer_plotjuggler.launch \
 
 ### Compare 기록 선택
 
-[compare_run.yaml](../base_ws/src/control/trajectory_validator/config/compare_run.yaml)을 수정한다.
+[compare_run.yaml](../../../base_ws/src/control/trajectory_validator/config/compare_run.yaml)을 수정한다.
 
 ```yaml
 traj_sample: "200889_200258"

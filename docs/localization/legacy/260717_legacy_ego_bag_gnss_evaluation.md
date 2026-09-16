@@ -58,7 +58,7 @@ LiDAR와 IMU를 포함한 나머지 토픽도 bag timestamp를 유지해 그대�
 
 - 없음
 
-기존 `docs/localization/260716_fast_lio_gnss_fusion.md`와 localization runtime
+기존 `260716_fast_lio_gnss_fusion.md`와 localization runtime
 launch/config는 수정하지 않았다.
 
 ## 4. 사전 빌드

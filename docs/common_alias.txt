@@ -70,13 +70,12 @@ alias viewer_rviz="roslaunch viewer viewer_rviz.launch"
 alias viewer_rqt="roslaunch viewer viewer_rqt.launch"
 alias viewer_plot="roslaunch viewer viewer_plotjuggler.launch"
 
-alias localization_morai_gt="roslaunch bringup localization_morai_gt.launch"
-alias localization_fast_lio="roslaunch bringup localization_fast_lio.launch"
-alias localization='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch'
-alias maptf_morai="roslaunch bringup localization_morai_gt.launch" # deprecated alias name
-alias maptf_morai22="roslaunch bringup maptf_morai22.launch"
-alias maptf_morai_cor="roslaunch bringup maptf_morai_deg_correction.launch"
-alias maptf="roslaunch bringup maptf.launch"
+# Production competition localization. The event does not provide /Ego_topic.
+alias localization='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false'
+# Personal MORAI development only. Keep the same estimator and heading contract.
+alias localization_local='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=ego use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false'
+# Historical localization aliases are intentionally excluded from this common file.
+# See docs/localization/legacy/common_aliases.txt when reproducing an old experiment.
 alias lanelet="roslaunch lanelet_map_visualizer kcity_lanelet_map.launch"   
 alias morai_status='bash "$AJOUNICE_ROOT/scripts/runtime/morai_status.sh"'
 alias morai_reset='bash "$AJOUNICE_ROOT/scripts/runtime/morai_reset.sh" stack'

@@ -1,7 +1,7 @@
 # Control 속도 단위 규약: km/h와 m/s
 
-전체 MORAI 제어 실행 순서는 [MORAI Control Pipeline 실행 방법](how_to_launch_control_pipeline.md)을
-참고한다.
+전체 MORAI 제어 실행 순서는
+[MORAI full stack 터미널별 실행법](runbooks/morai_full_stack_by_terminal.md)을 참고한다.
 
 ## 1. 결론
 

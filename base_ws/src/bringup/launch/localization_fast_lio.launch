@@ -1,6 +1,9 @@
 <launch>
   <!--
-    FAST-LIO localization stack for MORAI.
+    Legacy/research FAST-LIO localization stack for MORAI.
+
+    This is retained for experiment reproduction and is not the competition
+    production provider.
 
     TF output:
       map -> morai_map -> camera_init -> body -> base_link

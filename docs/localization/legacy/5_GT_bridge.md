@@ -77,7 +77,7 @@ rviz
 # Fixed Frame: 3D LiDAR-1
 # TF, lidar3D
 ```
-![alt text](attachments/image-10.png)
+![alt text](../../attachments/image-10.png)
 - TF 기준으로 차량 방향이 제대로 나와줬음.
 
 ### bringup에 통합

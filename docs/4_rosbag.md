@@ -1,4 +1,8 @@
 # morai - rosbag 만들기
+
+> **범위:** 아래 `localization_morai_gt.launch` 절차는 `/Ego_topic`이 들어 있는 과거
+> bag을 재현하기 위한 개발용 절차다. 대회 production localization 또는 fallback이
+> 아니다. 현재 live 실행은 `docs/localization/README.md`를 따른다.
 ## 계획
 - 무상실에 매번 morai를 키는 게 어려움
 - rosbag으로 morai 센서만 담아놓고 배포하면, 그걸 local에서 ros만 구동시켜서 테스트 및 개발이 가능할지도?

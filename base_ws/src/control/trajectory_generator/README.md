@@ -330,4 +330,5 @@ rostopic echo -n 1 /control/trajectory/header
 
 내부 생성 알고리즘, CSV 및 ROS interface 계약은 [trajectory_gen.md](trajectory_gen.md)를
 참고한다. 전체 제어 파이프라인 실행 순서는
-[제어 파이프라인 실행 가이드](../../../../docs/how_to_launch_control_pipeline.md)를 참고한다.
+[MORAI full stack 터미널별 실행법](../../../../docs/runbooks/morai_full_stack_by_terminal.md)을
+참고한다.
