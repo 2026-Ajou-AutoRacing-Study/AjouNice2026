@@ -9,9 +9,9 @@ from autoware_map_msgs.msg import MapProjectorInfo
 if __name__ == '__main__':
     rospy.init_node('map_projector_publisher')
     root = Path(rospy.get_param('~repo_root'))
-    map_path = root/'kcity_map/lanelet_map/lanelet2_map_v69.osm'
+    map_path = root/'kcity_map/lanelet_map/lanelet2_map_v70.osm'
     path = root/'kcity_map/lanelet_map/map_projector_info_v1.yaml'
-    if hashlib.sha256(map_path.read_bytes()).hexdigest() != '415b29e60c4eb4b07de6fe2bc19575a498810d6f2f6a34e61fd603a9581baa39':
+    if hashlib.sha256(map_path.read_bytes()).hexdigest() != '086e0caaa22a6fac08dbd30365d3e666908d099da7a669cf601f39a6638b99ad':
         raise ValueError('unreviewed map SHA; update the route/map contract first')
     if hashlib.sha256(path.read_bytes()).hexdigest() != 'ccb5a8199afd7e64b04b6ac8637419ec4c9cd5ab16bac68a229971a7f7c7859c':
         raise ValueError('unreviewed projector SHA')

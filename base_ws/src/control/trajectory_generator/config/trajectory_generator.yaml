@@ -1,5 +1,5 @@
 map:
-  lanelet_map_file: kcity_map/lanelet_map/lanelet2_map_v69.osm
+  lanelet_map_file: kcity_map/lanelet_map/lanelet2_map_v70.osm
   projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
   route_lanelets_file: kcity_map/competition_route/v61/drive_course_v61_lanelets.csv
 

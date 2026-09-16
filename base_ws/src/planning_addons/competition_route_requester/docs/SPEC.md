@@ -23,7 +23,7 @@
 
 ## 2. 목적과 범위
 
-`competition_route_requester`는 K-City v69 대회 주행을 위해 Route A/B 요청, 정상 전환 정책, 독립 감시 및 결승선 fallback을 단계적으로 검증하는 AjouNice 전용 addon이다.
+`competition_route_requester`는 K-City v70 대회 주행을 위해 Route A/B 요청, 정상 전환 정책, 독립 감시 및 결승선 fallback을 단계적으로 검증하는 AjouNice 전용 addon이다.
 
 패키지 이름은 requester이지만 실행 책임은 하나의 거대한 requester node에 모으지 않는다. `route_requester`는 현재 차량 위치와 sparse waypoint, goal을 `SetWaypointRoute` 요청으로 전달하는 저수준 실행기이고, `route_supervisor`가 Route A/B 상태와 정상 전환 정책을 소유한다. fallback component는 별도로 격리한다.
 
@@ -121,24 +121,24 @@ RViz `Route Status` 패널은 gateway 상태의 `verified_active`를 읽는 전�
 
 ## 5. 경로 정의
 
-경로 데이터의 단일 기준은 `config/kcity_v69_competition_route.yaml`이다.
+경로 데이터의 단일 기준은 `config/kcity_v70_competition_route.yaml`이다.
 
-- map version: 68
-- map SHA-256: `415b29e60c4eb4b07de6fe2bc19575a498810d6f2f6a34e61fd603a9581baa39`
+- map version: 70
+- map SHA-256: `086e0caaa22a6fac08dbd30365d3e666908d099da7a669cf601f39a6638b99ad`
 - 공식 START/END: `200892` 끝과 `200889` 시작의 경계
-- Route A UUID: `8bffaaf1-ee38-5d04-9c1c-4353813c9dc6`
+- Route A UUID: `809cec17-340e-508b-8a9d-524d41221732`
 - Route A 임시 goal: `200181` 길이의 0.75 지점
-- Route B UUID: `cc8b8479-d75e-567e-ba1e-7b530a6a2673`
+- Route B UUID: `587675c1-e55f-5b19-a24c-c01d26de2b10`
 - Route B 최종 goal: `200210`
 - Route B 준비 지점: `200178`, lanelet s 8 m 이상
 - Route B 적용 deadline: `200346` 도달 전
-- fallback UUID: `de578eb1-e9f4-5cb4-b934-9020f0c4a661`
+- fallback UUID: `527be025-9a3c-5095-a3ea-4666192a868e`
 - fallback hard cutoff: `201441`, lanelet s 8 m
-- fallback 요청: `SetLaneletRoute`, `201441`부터 goal `200210`까지의 28개 비순환 suffix
+- fallback 요청: `SetLaneletRoute`, `201441`부터 goal `200210`까지의 29개 비순환 suffix
 
 start pose는 요청에 넣지 않는다. Mission Planner가 `/localization/kinematic_state`에 대응하는 ROS1 포팅 입력에서 현재 차량 위치를 취득한다.
 
-공식 START/END의 MORAI 좌표 `(-131.689797551, -428.331022938, 28.543960282)`를 고정 TF로 변환하면 map 좌표 `(-0.130667331, 117.580315248, 28.543960282)`가 된다. 이 점은 v69에서 `200892` 중심선 끝과 `200889` 중심선 시작에 1 cm 이내로 동시에 일치한다. 따라서 requester의 start 검증은 `200892`와 `200889`를 모두 허용하되, 대회 진행 방향의 canonical 첫 lanelet은 `200889`로 둔다.
+공식 START/END의 MORAI 좌표 `(-131.689797551, -428.331022938, 28.543960282)`를 고정 TF로 변환하면 map 좌표 `(-0.130667331, 117.580315248, 28.543960282)`가 된다. 이 점은 v70에서 `200892` 중심선 끝과 `200889` 중심선 시작에 1 cm 이내로 동시에 일치한다. 따라서 requester의 start 검증은 `200892`와 `200889`를 모두 허용하되, 대회 진행 방향의 canonical 첫 lanelet은 `200889`로 둔다.
 
 MORAI sample scene JSON의 Ego pose는 공식 좌표와 동일하지 않다. sample pose는 공식점보다 수평으로 약 0.422 m 진행한 `200889` 내부에 있고, 높이는 약 0.339 m 높으며 yaw는 약 1.217도 크다.
 
@@ -146,15 +146,15 @@ Route B 요청 시 차량은 이미 `200178`의 s 8 m 이상에 있어야 하므
 
 #### Operation case와 RouteSelector 입력 구조
 
-![Competition route operation cases](assets/kcity_v69_operation_cases.svg)
+![Competition route operation cases](assets/kcity_v70_operation_cases.svg)
 
 이 그림은 다섯 operation case와 addon의 위치를 나타낸다. addon은 Mission Planner 출력 뒤에 route mux를 추가하지 않으며, 정상 A/B는 `SetWaypointRoute`, fallback은 `SetLaneletRoute`로 RouteSelector main 입력에 전달한다.
 
 ### 5.1 경로 및 재경로 구간 도식
 
-![K-City v69 Route A/B와 재경로 구간](assets/kcity_v69_route_a_b.svg)
+![K-City v70 Route A/B와 재경로 구간](assets/kcity_v70_route_a_b.svg)
 
-도식의 선은 `config/kcity_v69_competition_route.yaml`에 기록된 lanelet 순서를 v69 OSM 중심선에 그대로 대응한 결과다.
+도식의 선은 `config/kcity_v70_competition_route.yaml`에 기록된 lanelet 순서를 v70 OSM 중심선에 그대로 대응한 결과다.
 
 - 파란색: 공식 START/END 경계에서 trigger 전까지의 Route A 전용 구간
 - 청록색: `200178`부터 Route A 임시 goal이 있는 `200181`까지 Route A/B 공통 구간
@@ -169,9 +169,9 @@ Route B 요청 시 차량은 이미 `200178`의 s 8 m 이상에 있어야 하므
 
 고주로에서는 waypoint planner가 병렬 lanelet을 포함한 segment를 만든 뒤 `SetPreferredPrimitive`로 최종 선호 lanelet을 지정한다. 첫 고주로 segment의 현재 차선 `200101`과 목표 `201434`는 같은 종방향 segment이므로 순차 ID로 취급하지 않는다. 최종 선호 순서는 `201434 → 201435 → 200137 → 200187 → 201443 → 200130 → 201441 → 200360`이다.
 
-Mission Planner가 발행하는 route segment의 `primitives`는 `/planning/mission_planning/route_marker`에 표시되는 주행 가능 후보이며 BPP가 사용하는 실제 route 정보다. K-City v69에서는 선호 `200130`의 후보를 `[200127, 200130, 200134]`로 확장하고, 바로 다음 선호 `201441`의 합류 후보를 `[201439, 201441, 201446]`으로 구성한다. 세 평행 차로가 각자의 합류 lanelet을 거쳐 공통 후속 lanelet `200360`으로 이어지므로 route 면이 중간에서 끊기지 않는다. 선호 `201447`과 `201401`의 후보는 각각 `[201447]`, `[201401]`로 제한한다. 이 보정은 marker 표시만 후처리하지 않고 route 발행 전에 적용하며 선호 lanelet 순서는 바꾸지 않는다.
+Mission Planner가 발행하는 route segment의 `primitives`는 `/planning/mission_planning/route_marker`에 표시되는 주행 가능 후보이며 BPP가 사용하는 실제 route 정보다. K-City v70에서는 선호 `200130`의 후보를 `[200127, 200130, 200134]`로 확장하고, 바로 다음 선호 `201441`의 합류 후보를 `[201439, 201441, 201446]`으로 구성한다. 세 평행 차로가 각자의 합류 lanelet을 거쳐 공통 후속 lanelet `200360`으로 이어지므로 route 면이 중간에서 끊기지 않는다. 선호 `201447`과 `201401`의 후보는 각각 `[201447]`, `[201401]`로 제한한다. 이 보정은 marker 표시만 후처리하지 않고 route 발행 전에 적용하며 선호 lanelet 순서는 바꾸지 않는다.
 
-![K-City v69 Route A 상세](assets/kcity_v69_route_a_detail.svg)
+![K-City v70 Route A 상세](assets/kcity_v70_route_a_detail.svg)
 
 - 지도 숫자 `1`–`11`: `route_a.waypoint_refs`의 실제 요청 순서
 - `S`: 공식 `200892`→`200889` 경계의 현재 odometry이며 별도 start pose를 요청에 넣지 않음
@@ -183,7 +183,7 @@ Mission Planner가 발행하는 route segment의 `primitives`는 `/planning/miss
 
 #### Route B 재경로 요청과 검증 경로
 
-![K-City v69 Route B 재경로 상세](assets/kcity_v69_route_b_detail.svg)
+![K-City v70 Route B 재경로 상세](assets/kcity_v70_route_b_detail.svg)
 
 - `S`: 요청 시점의 현재 pose, lanelet `200178`의 s 8 m 이상
 - 지도 숫자 `1`–`10`: `route_b.waypoint_refs`의 실제 요청 순서
@@ -194,7 +194,7 @@ Mission Planner가 발행하는 route segment의 `primitives`는 `/planning/miss
 
 #### 재경로 trigger와 적용 절차
 
-![K-City v69 Route A에서 Route B로의 재경로 절차](assets/kcity_v69_reroute_process.svg)
+![K-City v70 Route A에서 Route B로의 재경로 절차](assets/kcity_v70_reroute_process.svg)
 
 1. Route A를 활성 상태로 유지하고 기존 route를 지우지 않는다.
 2. lanelet `200178`에서 s 8 m 이상 진입했는지 확인한다.
