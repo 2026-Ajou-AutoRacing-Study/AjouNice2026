@@ -4,7 +4,7 @@
   <arg name="publish_sensor_static_tf" default="true"/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v70.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v71.osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="input_objects" default="/Object_topic"/>
