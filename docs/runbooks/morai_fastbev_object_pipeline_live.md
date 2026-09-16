@@ -1,5 +1,9 @@
 # MORAI Fast-BEV object pipeline live runbook
 
+> **Legacy/local-demo 범위:** 이 문서의 `localization_morai_gt.launch`는 개인 MORAI의
+> `/Ego_topic`을 사용하는 과거 FastBEV demo 절차다. 대회 production에서는
+> `docs/localization/README.md`의 `localization` alias를 사용한다.
+
 MORAI에서 `configs/sensors/Sensor_6.json`과
 `configs/network/ego_network_1.json`을 로드하고 UDP 연결을 활성화한 뒤 아래
 터미널을 순서대로 실행한다. 이 절차에는 신호등 인식과 Planning stack이

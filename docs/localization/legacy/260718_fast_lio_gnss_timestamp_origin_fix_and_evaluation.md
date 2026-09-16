@@ -107,7 +107,7 @@ camera_from_external_gnss_rotation
 
 - `docs/localization/260718_fast_lio_gnss_timestamp_origin_fix_and_evaluation.md`
   - 현재 문서
-- `docs/localization/260718_fast_lio_gnss_reproducibility_summary.md`
+- `260718_fast_lio_gnss_reproducibility_summary.md`
   - 팀원 공유용 원인·해결 요약
 
 제거된 파일은 없다.

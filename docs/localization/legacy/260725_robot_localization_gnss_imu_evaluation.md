@@ -123,7 +123,7 @@ position의 상태 전이를 통해 간접 추정하므로 성능이 낮다. 특
 - `rosbags/eval/localization/260725_gnss_imu_kcity_eval_v1_run01.txt`
 
 상세 실행 명령은
-`docs/localization/260725_robot_localization_gnss_imu_implementation.md`에
+`260725_robot_localization_gnss_imu_implementation.md`에
 정리했다.
 
 ## 260728 초기 pose 정책 추가 검증

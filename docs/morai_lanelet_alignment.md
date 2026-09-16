@@ -1,5 +1,9 @@
 # MORAI k-city to Lanelet Map Alignment
 
+> 이 문서의 `localization_morai_gt.launch` 예시는 `/Ego_topic`을 이용한 지도 정합
+> 개발 절차다. 대회 production fallback이 아니다. 현재 실행 계약은
+> `docs/localization/README.md`를 따른다.
+
 This alignment fixes the relationship between the Autoware/Lanelet `map`
 frame and the MORAI `morai_map` frame. It is a static map-to-map transform,
 not a runtime GPS conversion.

@@ -1,6 +1,10 @@
 <launch>
   <!--
-    MORAI ground-truth localization stack.
+    Legacy/local-development MORAI ground-truth localization stack.
+
+    This requires /Ego_topic and is not a competition fallback. Competition
+    operation uses localization_gnss_imu_gt_ctra.launch with
+    gt_source:=competition.
 
     TF output:
       map -> morai_map -> base_link

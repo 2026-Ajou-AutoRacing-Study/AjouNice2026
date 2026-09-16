@@ -14,7 +14,9 @@
   <arg name="behavior_path_forward_length" default="150.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>
 
-  <arg name="start_localization" default="true"/>
+  <!-- Competition localization is owned by the separate `localization` alias.
+       The legacy /Ego_topic provider must never start implicitly. -->
+  <arg name="start_localization" default="false"/>
   <arg name="start_sensor_tf" default="true"/>
   <!-- Planning owns EKF -> UNKNOWN stationary policy -> Map-CV. -->
   <arg name="start_object_pipeline" default="true"/>
@@ -53,6 +55,7 @@
   <arg name="use_occupancy_grid" default="false"/>
 
   <group if="$(arg start_localization)">
+    <!-- Legacy/local MORAI compatibility only; not a competition fallback. -->
     <include file="$(find bringup)/launch/localization_morai_gt.launch">
       <arg name="repo_root" value="$(arg repo_root)"/>
       <arg name="use_sim_time" value="$(arg use_sim_time)"/>

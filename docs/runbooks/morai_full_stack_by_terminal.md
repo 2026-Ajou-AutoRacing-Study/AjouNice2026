@@ -152,29 +152,27 @@ publisher는 `/bevfusion_ros_bridge` 하나여야 한다. FastBEV나 PointPainti
 
 ## Terminal 8: planning, tracking, Map-CV
 
-### Localization 입력을 먼저 선택
+### Localization을 별도 터미널에서 먼저 실행
 
-현재 통합 launch의 기본 localization은 `/Ego_topic` 기반이다. MRP/MR 개발에서
-`/Ego_topic`을 공식적으로 사용할 때는 아래 명령을 그대로 쓴다.
-
-대회 client가 `/Competition_topic + GPS + IMU`를 제공하는 계약이면 별도 터미널에서
-다음을 먼저 실행한다.
+대회 client는 `/Competition_topic + GPS + IMU`를 제공하며 `/Ego_topic`을 production
+입력으로 사용하지 않는다. `docs/common_alias.txt`를 source한 뒤 대회용 alias를 실행한다.
 
 ```bash
 cd "$HOME/AjouNice2026"
 export AJOUNICE_ROOT="$PWD"
 source scripts/workspace/source_aw149.sh
+source docs/common_alias.txt
 
-roslaunch bringup localization_gnss_imu_gt_ctra.launch \
-  gt_source:=competition \
-  use_heading_correction:=true \
-  heading_yaw_offset_deg:=-1.347 \
-  publish_sensor_tf:=false
+localization
 ```
 
-이 경우 아래 planning 명령에는 반드시 `start_localization:=false`를 추가한다. 두
-localization provider를 동시에 실행하면 안 된다. 실제 client heading이 이미
-보정된 경우의 OFF A/B 절차는 현장점검 체크리스트를 따른다.
+alias는 `gt_source=competition`, heading correction `-1.347 deg`,
+`publish_sensor_tf=false`를 명시한다. 아래 planning 명령에는 반드시
+`start_localization:=false`를 추가한다. 다른 localization provider를 동시에 실행하면
+안 된다.
+
+개인 MORAI에서 같은 estimator를 `/Ego_topic`으로 시험할 때만 `localization_local`을
+사용한다. `localization_morai_gt`와 구형 `maptf_*`는 대회 fallback이 아니다.
 
 ### 안전한 첫 확인: controller OFF
 

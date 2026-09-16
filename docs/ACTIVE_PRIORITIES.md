@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획.
 
-마지막 갱신: 2026-08-30.
+마지막 갱신: 2026-09-16.
 
 ## 관리 규칙.
 
@@ -9,6 +9,29 @@
 - 완료됐거나 더 이상 최우선이 아닌 항목은 이 문서에서 제거하고 해당 실험·설계
   문서에 결과를 남긴다.
 - 세부 근거와 과거 시행착오는 이 문서에 복제하지 않고 관련 문서로 연결한다.
+
+## 현재 최우선. 대회 측위 횡방향 안정화.
+
+- 현장점검에서 관측한 횡방향 pose 흔들림과 좌우 조향 채터링의 발생 단계를
+  raw GNSS, GNSS odometry, local/global EKF, planning trajectory, controller로 분리한다.
+- 첫 controlled experiment는 GNSS horizontal stddev
+  `0.05 / 0.10 / 0.20 / 0.30 m` covariance A/B다.
+- 최종 pose LPF나 controller gain 변경으로 먼저 가리지 않는다. 동일 bag에서
+  Localization 원인을 분리한 뒤 outlier gate와 controller tuning 순으로 진행한다.
+- 대회 production alias를 `localization`=`competition`,
+  `localization_local`=`ego`로 분리했으며 heading correction `-1.347 deg`를 유지한다.
+- 상세 문제 정의와 검증 계약:
+  [`260916_competition_lateral_jitter_stabilization_plan.md`](localization/260916_competition_lateral_jitter_stabilization_plan.md).
+
+## Localization 안정화 직후 재개할 항목.
+
+- Prediction horizon을 기본 5초로 확장하되 로터리에서는 3~4초로 줄이는
+  map-zone-aware 정책을 검토한다.
+- 고주로 추월을 방해하는 다중 후보 궤적 문제는 단순 `top_k=1` 전환이 아니라,
+  tracker history와 lanelet 연결성·차선 변경 가능성을 결합한 temporal lane
+  association으로 실제 진행 차선의 Top-1 정확도를 먼저 높인다.
+- 위 Prediction/Map-CV 변경은 현재 Localization covariance·jitter 실험과 섞지 않고,
+  Localization 안정화 및 동일 rosbag 회귀 검증이 끝난 뒤 별도 단계에서 수행한다.
 
 ## P0. Base3-Static 10K 수집·정제·학습.
 
