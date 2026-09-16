@@ -4,7 +4,7 @@
   <arg name="vehicle_param_path"
        default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
   <arg name="mission_planner_param_path"
-       default="$(find ajounice_planning_integration)/config/mission_planner_kcity_v68.yaml"/>
+       default="$(find ajounice_planning_integration)/config/mission_planner_kcity_v69.yaml"/>
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
   <arg name="is_simulation" default="false"/>

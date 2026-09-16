@@ -676,7 +676,7 @@ def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
     result.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
-    result.add_argument("--map", type=Path, default=REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v68.osm")
+    result.add_argument("--map", type=Path, default=REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v69.osm")
     result.add_argument("--projector", type=Path, default=REPO_ROOT / "kcity_map/lanelet_map/map_projector_info_v1.yaml")
     result.add_argument("--route", type=Path, default=REPO_ROOT / "configs/global_path/2026_molit_comp_global_path.txt")
     result.add_argument("--route-bin-m", type=float, default=20.0)
