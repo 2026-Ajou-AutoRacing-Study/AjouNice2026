@@ -1,5 +1,18 @@
 # Base3 BEVFusion experiment
 
+The shared multi-GPU training entry point is:
+
+```bash
+bash perception/detection3d/bevfusion/scripts/configure_team_machine.sh --operator sw
+bash perception/detection3d/bevfusion/scripts/run_team_training.sh fresh-e12 --dry-run
+bash perception/detection3d/bevfusion/scripts/run_team_training.sh fresh-e12
+```
+
+See `docs/bevfusion/TEAM_DOCKER_TRAINING_HANDOFF.md`. Existing Base3 train,
+smoke, rosbag evaluation, and online scripts remain reproducibility tools; the
+team runner reuses the same MMEngine config and plugin rather than defining a
+second model pipeline.
+
 This experiment asks one narrow question: does native camera–LiDAR feature
 fusion retain Base3 offline accuracy better than PointPainting on asynchronous
 MORAI rosbag input? It is not a production replacement yet.

@@ -1,0 +1,7 @@
+id: rtx5060ti
+match: "RTX 5060 Ti"
+cuda_arch: "12.0"
+physical_batch_size: 4
+gradient_accumulation: 1
+workers: 4
+shm_size: 12g

@@ -1,0 +1,28 @@
+version: 1
+name: fresh-e12
+mode: fresh
+epochs: 12
+learning_rate: 1.0e-4
+base_config: perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py
+
+dataset:
+  # Empty means BASE3_INFO_ROOT from .env.bevfusion.local.
+  info_root: ""
+
+gpu:
+  profile: auto
+  physical_batch_size: auto
+  gradient_accumulation: auto
+  workers: auto
+  shm_size: auto
+
+wandb:
+  enabled: true
+  entity: AjouNice2026
+  project: morai-3d-object-detection
+  group: bevfusion-base3-team
+  tags: [base3, four-camera, lidar, fresh]
+
+output:
+  # Empty means BEVFUSION_OUTPUT_ROOT from .env.bevfusion.local.
+  root: ""

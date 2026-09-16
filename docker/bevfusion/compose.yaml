@@ -1,6 +1,6 @@
 services:
   inference:
-    image: ${BEVFUSION_IMAGE:-ajounice/bevfusion:dev-cu128}
+    image: ${BEVFUSION_IMAGE:-ajounice/bevfusion:team-cu128-v1}
     command: ["/opt/ajounice/scripts/run_inference_server.sh"]
     environment:
       BEVFUSION_PORT: ${BEVFUSION_PORT:-29500}
