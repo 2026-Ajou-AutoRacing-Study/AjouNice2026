@@ -111,7 +111,7 @@
       <arg name="prediction_time_step" value="0.1"/>
       <arg name="prediction_horizon" value="3.0"/>
       <arg name="map_file"
-           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v70.osm"/>
+           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v71.osm"/>
       <arg name="projector_file"
            value="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
     </include>
