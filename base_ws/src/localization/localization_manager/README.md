@@ -24,8 +24,8 @@ Source `docs/common_alias.txt` and use exactly one of these entrypoints:
 # Competition: /Competition_topic + GPS + IMU
 localization
 
-# Personal MORAI development only: /Ego_topic + GPS + IMU
-localization_local
+# MRP (2026 personal launcher) only: /Ego_topic + GPS + IMU
+localization_mrp
 ```
 
 Both aliases enable the `-1.347 deg` heading correction and disable duplicate
@@ -283,7 +283,7 @@ For existing bags or personal MORAI that contain `/Ego_topic` but not
 `/Competition_topic`, use:
 
 ```bash
-localization_local
+localization_mrp
 ```
 
 The aliases expand to explicit source and heading arguments. When debugging

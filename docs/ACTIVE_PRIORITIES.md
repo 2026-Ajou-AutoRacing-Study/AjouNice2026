@@ -18,8 +18,8 @@
   `0.05 / 0.10 / 0.20 / 0.30 m` covariance A/B다.
 - 최종 pose LPF나 controller gain 변경으로 먼저 가리지 않는다. 동일 bag에서
   Localization 원인을 분리한 뒤 outlier gate와 controller tuning 순으로 진행한다.
-- 대회 production alias를 `localization`=`competition`,
-  `localization_local`=`ego`로 분리했으며 heading correction `-1.347 deg`를 유지한다.
+- MR/대회 production alias를 `localization`=`competition`, MRP alias를
+  `localization_mrp`=`ego`로 분리했으며 heading correction `-1.347 deg`를 유지한다.
 - 상세 문제 정의와 검증 계약:
   [`260916_competition_lateral_jitter_stabilization_plan.md`](localization/260916_competition_lateral_jitter_stabilization_plan.md).
 

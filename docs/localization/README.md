@@ -26,12 +26,15 @@
 `docs/common_alias.txt`를 source한 터미널에서 다음만 production 진입점으로 사용한다.
 
 ```bash
-# 대회: /Competition_topic, heading -1.347 deg correction
+# MR 및 실대회: /Competition_topic, heading -1.347 deg correction
 localization
 
-# 개인 MORAI: /Ego_topic, 나머지 estimator 계약은 동일
-localization_local
+# MRP: /Ego_topic, 나머지 estimator 계약은 동일
+localization_mrp
 ```
+
+여기서 `MR`은 2025 대회용 launcher, `MRP`는 2026 개인용 launcher다. 실행하는
+컴퓨터가 로컬인지 여부가 아니라 launcher가 제공하는 topic 계약으로 alias를 고른다.
 
 대회 client에서는 `/Ego_topic`을 기대하지 않는다. 따라서
 `localization_morai_gt`는 대회 fallback이 아니다. 대회에서는 `localization` 하나를

@@ -40,7 +40,7 @@
 명령으로 사용하지 않는다.
 
 - `localization`: 대회 production, `gt_source=competition`을 명시적으로 고정.
-- `localization_local`: 개인 MORAI, `gt_source=ego`를 명시적으로 고정.
+- `localization_mrp`: MRP(2026 개인용 launcher), `gt_source=ego`를 명시적으로 고정.
 
 두 alias 모두 heading `-1.347 deg`와 `publish_sensor_tf=false`를 명시한다. 하나의
 provider만 실행한다. `/Ego_topic` 직접 GT provider는 대회 fallback이 아니다.
