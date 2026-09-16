@@ -171,8 +171,9 @@ alias는 `gt_source=competition`, heading correction `-1.347 deg`,
 `start_localization:=false`를 추가한다. 다른 localization provider를 동시에 실행하면
 안 된다.
 
-개인 MORAI에서 같은 estimator를 `/Ego_topic`으로 시험할 때만 `localization_local`을
-사용한다. `localization_morai_gt`와 구형 `maptf_*`는 대회 fallback이 아니다.
+MRP에서 같은 estimator를 `/Ego_topic`으로 시험할 때만 `localization_mrp`를
+사용한다. 로컬 PC에서 MR을 실행할 때는 `localization`이 맞다.
+`localization_morai_gt`와 구형 `maptf_*`는 대회 fallback이 아니다.
 
 ### 안전한 첫 확인: controller OFF
 
