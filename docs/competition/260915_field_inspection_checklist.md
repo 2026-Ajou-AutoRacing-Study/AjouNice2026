@@ -28,7 +28,7 @@ perception, planning, control의 **실제 입출력 계약**을 확인한다. �
 - [ ] 작업트리에 의도하지 않은 수정이 없다. 수정이 있다면 diff를 별도로 보관했다.
 - [ ] `planning_ws/install_isolated`와 `base_ws/install_aw149`가 현재 source에서
       빌드된 결과인지 확인했다.
-- [ ] v62 OSM, projector, route config의 파일명과 SHA-256을 기록했다.
+- [ ] v68 OSM, projector, route config의 파일명과 SHA-256을 기록했다.
 - [ ] BEVFusion production weight는 `B3-BF0 E10`이며 SHA-256을 확인했다.
 - [ ] Docker image가 인터넷 없이 기동하고 healthcheck를 통과한다.
 - [ ] traffic-light weight와 실행 Python이 인터넷 없이 import 및 CUDA load된다.
@@ -83,8 +83,10 @@ perception, planning, control의 **실제 입출력 계약**을 확인한다. �
 
 ### Rate와 timestamp
 
-repository 설정상 기대치는 camera 4개 각각 30 Hz, LiDAR 15 Hz, Ego network
-50 Hz다. 이것은 합격값이 아니라 **비교 기준**이며 실제 client 값을 기록한다.
+현재 competition LAN sensor JSON 기준 기대치는 front camera 50 Hz, front-left/
+front-right/back camera 각각 30 Hz, LiDAR 15 Hz, GPS 30 Hz, IMU 50 Hz다. Ego
+network는 별도 network 설정 기준 50 Hz다. 이것은 합격값이 아니라 **비교 기준**이며
+실제 client 값을 기록한다.
 
 - [ ] 각 camera의 평균/p05 rate와 장시간 max gap을 기록했다.
 - [ ] LiDAR 평균/p05 rate와 point count 분포를 기록했다.
@@ -127,7 +129,7 @@ RViz는 simulator debug에서는 GT를 켤 수 있지만, production 확인에�
 - [ ] client map/scene 이름과 version을 촬영하고 기록한다.
 - [ ] 시작 위치, 도로 형상, lane 수, 합류부, 로터리와 GPS 음영 구간을 샘플과
       대조한다.
-- [ ] v62에서 수정된 B, D-1, D-2 stop line이 실제 simulator 신호등 시야와 맞는다.
+- [ ] v68의 B, D-1, D-2 stop line이 실제 simulator 신호등 시야와 맞는다.
 - [ ] binary planning map과 RViz marker map의 source OSM이 같다.
 - [ ] map/TF publisher가 중복되지 않는다.
 

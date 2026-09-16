@@ -62,7 +62,7 @@ dynamic_avoidance:
     max_time_for_object_lat_shift: 0.0
     lpf_gain_for_lat_avoid_to_offset: 0.9
     max_ego_lat_acc: 0.3
-    max_ego_lat_jerk: 0.3
+    max_ego_lat_jerk: 3.0
     delay_time_ego_shift: 1.0
     overtaking_object:
       max_time_to_collision: 40.0
@@ -314,9 +314,9 @@ avoidance:
       - 4.1667
       - 38.8889
       max_accel_values:
-      - 4.5
-      - 4.5
-      - 4.5
+      - 5.5
+      - 5.5
+      - 5.5
       min_jerk_values:
         avoid:
         - 0.2
@@ -327,9 +327,9 @@ avoidance:
         - 0.8
         - 0.8
       max_jerk_values:
-      - 3.0
-      - 3.0
-      - 3.0
+      - 5.0
+      - 5.0
+      - 5.0
     longitudinal:
       nominal_deceleration: -1.5
       nominal_jerk: 0.8
@@ -716,7 +716,7 @@ lane_change:
   trajectory:
     max_prepare_duration: 4.0
     min_prepare_duration: 2.0
-    lateral_jerk: 0.5
+    lateral_jerk: 3.0
     min_longitudinal_acc: -1.0
     max_longitudinal_acc: 1.0
     th_prepare_length_diff: 1.0
