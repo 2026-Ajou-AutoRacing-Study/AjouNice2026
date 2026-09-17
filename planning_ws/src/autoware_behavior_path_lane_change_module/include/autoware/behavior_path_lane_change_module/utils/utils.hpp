@@ -42,6 +42,12 @@
 
 namespace autoware::behavior_path_planner::utils::lane_change
 {
+bool contains_lane_change_maneuver(
+  const LaneChangePath & candidate, const double tolerance = 1.0);
+
+autoware_internal_planning_msgs::PathWithLaneId get_maneuver_check_path(
+  const LaneChangePath & candidate, const double settling_length);
+
 using autoware::behavior_path_planner::lane_change::PhaseInfo;
 using autoware::behavior_path_planner::utils::path_safety_checker::ExtendedPredictedObject;
 using autoware::behavior_path_planner::utils::path_safety_checker::

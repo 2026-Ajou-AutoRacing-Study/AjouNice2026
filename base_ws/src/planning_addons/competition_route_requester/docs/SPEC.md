@@ -13,7 +13,7 @@
 - gateway: `/planning/set_waypoint_route` (`autoware_internal_planning_msgs/SetWaypointRoute`), `/planning/mission_planning/mission_planner/set_preferred_primitive` (`autoware_planning_msgs/SetPreferredPrimitive`), `/planning/set_lanelet_route` (`autoware_planning_msgs/SetLaneletRoute`).
 - 출력 관찰: `/planning/mission_planning/route` (`autoware_planning_msgs/LaneletRoute`), `/planning/route_state` (`autoware_planning_msgs/RouteState`).
 - YAML은 ROS1 flat 구조이며 5개 case 중 하나만 startup에 고정한다.
-- 초기 A는 canonical 45개 또는 incoming 200892를 포함한 46개만 허용한다.
+- 초기 A는 canonical 51개 또는 incoming 200892를 포함한 52개만 허용한다.
 - 이동 중 B 재시도는 200346 이전 현재 시작 lanelet에 해당하는 canonical B의 정확한 suffix를 허용한다. 이미 지난 lanelet을 첫 segment로 강제하지 않으며 중간 생략/순서 변경은 허용하지 않는다.
 - 서비스 거부와 결과 불명확을 구별한다. transport timeout, 응답 성공 후 route/trajectory 검증 실패는 `RECONCILIATION_REQUIRED`. 이때 Route A 유지로 단정하거나 자동 clear/retry하지 않는다.
 - 성공 증거는 route UUID/goal/순서, 응답 및 route 확인 이후 timestamp의 3개 새 trajectory와 validator 20개 flag다. Route UUID가 없는 trajectory의 완전한 인과성 또는 주행 안전 인증은 아니다.
@@ -23,7 +23,7 @@
 
 ## 2. 목적과 범위
 
-`competition_route_requester`는 K-City v75 대회 주행을 위해 Route A/B 요청, 정상 전환 정책, 독립 감시 및 결승선 fallback을 단계적으로 검증하는 AjouNice 전용 addon이다.
+`competition_route_requester`는 K-City v81 대회 주행을 위해 Route A/B 요청, 정상 전환 정책, 독립 감시 및 결승선 fallback을 단계적으로 검증하는 AjouNice 전용 addon이다.
 
 패키지 이름은 requester이지만 실행 책임은 하나의 거대한 requester node에 모으지 않는다. `route_requester`는 현재 차량 위치와 sparse waypoint, goal을 `SetWaypointRoute` 요청으로 전달하는 저수준 실행기이고, `route_supervisor`가 Route A/B 상태와 정상 전환 정책을 소유한다. fallback component는 별도로 격리한다.
 
@@ -121,7 +121,7 @@ RViz `Route Status` 패널은 gateway 상태의 `verified_active`를 읽는 전�
 
 ## 5. 경로 정의
 
-경로 데이터의 단일 기준은 `config/kcity_v75_competition_route.yaml`이다.
+경로 데이터의 단일 기준은 `config/kcity_v81_competition_route.yaml`이다.
 
 - map version: 73
 - map SHA-256: `0efa7cb3dfd249d5eb78c2e2552590037eb3b8725c58ebd433656e2d53a34610`
@@ -133,12 +133,12 @@ RViz `Route Status` 패널은 gateway 상태의 `verified_active`를 읽는 전�
 - Route B 준비 지점: `200178`, lanelet s 8 m 이상
 - Route B 적용 deadline: `200346` 도달 전
 - fallback UUID: `515dba0f-59b6-5ca9-9ce5-e09a3fef6900`
-- fallback hard cutoff: 합류 lanelet `201441`, lanelet s 9.142493 m
+- fallback hard cutoff: 합류 lanelet `201439`, lanelet s 2.0 m
 - fallback 요청: `SetLaneletRoute`, `201441`부터 goal `200210`까지의 27개 비순환 suffix
 
 start pose는 요청에 넣지 않는다. Mission Planner가 `/localization/kinematic_state`에 대응하는 ROS1 포팅 입력에서 현재 차량 위치를 취득한다.
 
-공식 START/END의 MORAI 좌표 `(-131.689797551, -428.331022938, 28.543960282)`를 고정 TF로 변환하면 map 좌표 `(-0.130667331, 117.580315248, 28.543960282)`가 된다. 이 점은 v75에서 `200892` 중심선 끝과 `200889` 중심선 시작에 1 cm 이내로 동시에 일치한다. 따라서 requester의 start 검증은 `200892`와 `200889`를 모두 허용하되, 대회 진행 방향의 canonical 첫 lanelet은 `200889`로 둔다.
+공식 START/END의 MORAI 좌표 `(-131.689797551, -428.331022938, 28.543960282)`를 고정 TF로 변환하면 map 좌표 `(-0.130667331, 117.580315248, 28.543960282)`가 된다. 이 점은 v81에서 `200892` 중심선 끝과 `200889` 중심선 시작에 1 cm 이내로 동시에 일치한다. 따라서 requester의 start 검증은 `200892`와 `200889`를 모두 허용하되, 대회 진행 방향의 canonical 첫 lanelet은 `200889`로 둔다.
 
 MORAI sample scene JSON의 Ego pose는 공식 좌표와 동일하지 않다. sample pose는 공식점보다 수평으로 약 0.422 m 진행한 `200889` 내부에 있고, 높이는 약 0.339 m 높으며 yaw는 약 1.217도 크다.
 
@@ -146,15 +146,15 @@ Route B 요청 시 차량은 이미 `200178`의 s 8 m 이상에 있어야 하므
 
 #### Operation case와 RouteSelector 입력 구조
 
-![Competition route operation cases](assets/kcity_v75_operation_cases.svg)
+![Competition route operation cases](assets/kcity_v81_operation_cases.svg)
 
 이 그림은 다섯 operation case와 addon의 위치를 나타낸다. addon은 Mission Planner 출력 뒤에 route mux를 추가하지 않으며, 정상 A/B는 `SetWaypointRoute`, fallback은 `SetLaneletRoute`로 RouteSelector main 입력에 전달한다.
 
 ### 5.1 경로 및 재경로 구간 도식
 
-![K-City v75 Route A/B와 재경로 구간](assets/kcity_v75_route_a_b.svg)
+![K-City v81 Route A/B와 재경로 구간](assets/kcity_v81_route_a_b.svg)
 
-도식의 선은 `config/kcity_v75_competition_route.yaml`에 기록된 lanelet 순서를 v75 OSM 중심선에 그대로 대응한 결과다.
+도식의 선은 `config/kcity_v81_competition_route.yaml`에 기록된 lanelet 순서를 v81 OSM 중심선에 그대로 대응한 결과다.
 
 - 파란색: 공식 START/END 경계에서 trigger 전까지의 Route A 전용 구간
 - 청록색: `200178`부터 Route A 임시 goal이 있는 `200181`까지 Route A/B 공통 구간
@@ -167,34 +167,34 @@ Route B 요청 시 차량은 이미 `200178`의 s 8 m 이상에 있어야 하므
 
 #### Route A 요청과 검증 경로
 
-고주로에서는 waypoint planner가 병렬 lanelet을 포함한 segment를 만든 뒤 `SetPreferredPrimitive`로 최종 선호 lanelet을 지정한다. v75은 평행 구간의 공유 점선 경계를 복구하고 톨게이트 합류 구간을 다시 분리한다. 최종 선호 순서는 `201457 → 201435 → 200137 → 200187 → 200130 → 201441 → 200360`이다.
+고주로에서는 waypoint planner가 병렬 lanelet을 포함한 segment를 만든 뒤 `SetPreferredPrimitive`로 최종 선호 lanelet을 지정한다. v81의 최종 선호 순서는 `201457 → 201435 → 201466 → 200137 → 201444 → 201469 → 200127 → 201473 → 201439 → 200185 → 201453 → 201476 → 201448 → 201447 → 201399`이다.
 
-Mission Planner가 발행하는 route segment의 `primitives`는 `/planning/mission_planning/route_marker`에 표시되는 주행 가능 후보이며 BPP가 사용하는 실제 route 정보다. K-City v75에서는 평행 구간 `200127`, `200130`, `200134`를 하나의 횡단면 후보로 구성하고, 합류 구간 `201439`, `201441`, `201446`은 각각의 종방향 후속 lanelet으로 분리한다. 선호 `201447`과 `201401`의 후보는 각각 `[201447]`, `[201401]`로 제한한다. 이 보정은 marker 표시만 후처리하지 않고 route 발행 전에 적용하며 선호 lanelet 순서는 바꾸지 않는다.
+Mission Planner가 발행하는 route segment의 `primitives`는 `/planning/mission_planning/route_marker`에 표시되는 주행 가능 후보이며 BPP가 사용하는 실제 route 정보다. K-City v81에서는 평행 구간 `200127/200130/200134`와 `201473/201474/201475`를 LC 후보로 구성한다. 병목에서는 `[200185,200360]`, `[201476,201477]`을 후보로 유지한다. 중앙 분할 전 segment `[201448,201479]`은 `201448`, 분할 후 segment `[201478,201447]`은 `201447`을 선호해 중앙 부근의 오른쪽 LC를 표현한다.
 
-![K-City v75 Route A 상세](assets/kcity_v75_route_a_detail.svg)
+![K-City v81 Route A 상세](assets/kcity_v81_route_a_detail.svg)
 
 - 지도 숫자 `1`–`11`: `route_a.waypoint_refs`의 실제 요청 순서
 - `S`: 공식 `200892`→`200889` 경계의 현재 odometry이며 별도 start pose를 요청에 넣지 않음
 - `G`: `goal_route_a_200181`, lanelet `200181` 길이의 0.75 지점
-- 오른쪽 위 표: 요청 payload를 구성하는 11개 waypoint와 goal
-- 오른쪽 아래 표: 선호 차선 적용 뒤 수신 경로 순서를 검증하는 45개 canonical `expected_path_lanelet_ids`
+- 오른쪽 위 표: 요청 payload를 구성하는 16개 waypoint와 goal
+- 오른쪽 아래 표: 선호 차선 적용 뒤 수신 경로 순서를 검증하는 51개 canonical `expected_path_lanelet_ids`
 
-검증용 45개 lanelet ID는 sparse waypoint 요청 목록이 아니다. Mission Planner가 계산한 병렬 route segment에 `SetPreferredPrimitive`를 적용한 뒤 전체 선호 lanelet 순서가 예상 경로와 같은지 판정하기 위한 기준이다. 공식 start가 정확한 lanelet 경계이므로 planner가 incoming `200892`를 첫 lanelet으로 포함하면 `[200892] + canonical 45개 경로`도 허용한다.
+검증용 51개 lanelet ID는 sparse waypoint 요청 목록이 아니다. Mission Planner가 계산한 병렬 route segment에 `SetPreferredPrimitive`를 적용한 뒤 전체 선호 lanelet 순서가 예상 경로와 같은지 판정하기 위한 기준이다. 공식 start가 정확한 lanelet 경계이므로 planner가 incoming `200892`를 첫 lanelet으로 포함하면 `[200892] + canonical 51개 경로`도 허용한다.
 
 #### Route B 재경로 요청과 검증 경로
 
-![K-City v75 Route B 재경로 상세](assets/kcity_v75_route_b_detail.svg)
+![K-City v81 Route B 재경로 상세](assets/kcity_v81_route_b_detail.svg)
 
 - `S`: 요청 시점의 현재 pose, lanelet `200178`의 s 8 m 이상
 - 지도 숫자 `1`–`10`: `route_b.waypoint_refs`의 실제 요청 순서
 - `wp_200178`: 차량의 현재 start이므로 waypoint 요청에서 의도적으로 제외
 - `G`: `goal_200210`, lanelet `200210` 길이의 0.75 지점
-- 오른쪽 아래 표: 현재 start `200178`부터 goal `200210`까지 수신 경로를 검증하는 55개 lanelet 순서
+- 오른쪽 아래 표: 현재 start `200178`부터 goal `200210`까지 수신 경로를 검증하는 61개 lanelet 순서
 - `route_b_only`도 동일한 시작 조건과 요청·검증 데이터를 사용한다.
 
 #### 재경로 trigger와 적용 절차
 
-![K-City v75 Route A에서 Route B로의 재경로 절차](assets/kcity_v75_reroute_process.svg)
+![K-City v81 Route A에서 Route B로의 재경로 절차](assets/kcity_v81_reroute_process.svg)
 
 1. Route A를 활성 상태로 유지하고 기존 route를 지우지 않는다.
 2. lanelet `200178`에서 s 8 m 이상 진입했는지 확인한다.
@@ -265,7 +265,7 @@ route_a_to_b_with_fallback:
 
 1. fallback을 포함한 두 case에서만 finish guard를 활성화한다.
 2. 현재 선택 route가 결승선 이후 goal `200210`까지 이어지는지 UUID, goal 및 lanelet suffix로 판정한다.
-3. `route_a_to_fallback`에서는 정상 Route B waypoint 요청을 하지 않고 합류 lanelet `201441`의 s 9.142493 m hard cutoff에서 fallback을 시작한다.
+3. `route_a_to_fallback`에서는 정상 Route B waypoint 요청을 하지 않고 합류 lanelet `201439`의 s 2.0 m hard cutoff에서 fallback을 시작한다.
 4. `route_a_to_b_with_fallback`에서는 Route B 적용을 먼저 시도하고, `200130` cutoff까지 결승선 통과 가능한 Route B가 확인되지 않은 경우에만 fallback으로 승격한다.
 5. fallback builder는 `fallback_route.expected_path_lanelet_ids`의 27개 segment와 goal `200210`을 가진 `SetLaneletRoute` 요청을 만든다. `201441` s 9.142493 m는 v72의 `200130` s 50.376946 m와 같은 물리 좌표로, Mission의 최소 안전거리 30 m를 유지한다.
 6. requester는 진행 중인 정상 요청과 fallback 요청을 동시에 보내지 않으며 fallback 요청에 우선권을 준다.

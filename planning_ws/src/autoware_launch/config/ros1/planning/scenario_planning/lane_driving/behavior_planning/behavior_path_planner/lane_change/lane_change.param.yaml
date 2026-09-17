@@ -79,13 +79,13 @@ lane_change/lateral_acceleration/velocity:
 - 4.0
 - 10.0
 lane_change/lateral_acceleration/min_values:
-- 0.4
-- 0.4
-- 0.4
+- 2.5
+- 2.5
+- 2.5
 lane_change/lateral_acceleration/max_values:
-- 5.8
-- 5.8
-- 5.8
+- 8.0
+- 8.0
+- 8.0
 lane_change/target_object/car: true
 lane_change/target_object/truck: true
 lane_change/target_object/bus: true

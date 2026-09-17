@@ -110,6 +110,10 @@ void NormalLaneChange::update_lanes(const bool is_approved)
     return;
   }
 
+  // A cached terminal maneuver belongs to the old lane sequence, not to the
+  // next left/right request or a different successor at a merge.
+  terminal_lane_change_path_.reset();
+
   common_data_ptr_->lanes_ptr->current = current_lanes;
   common_data_ptr_->lanes_ptr->target = target_lanes;
 
@@ -176,12 +180,21 @@ void NormalLaneChange::update_transient_data(const bool is_approved)
                 : calculation::calc_actual_prepare_duration(
                     common_data_ptr_, common_data_ptr_->get_ego_speed(), active_signal_duration);
 
-  std::tie(transient_data.lane_changing_length, transient_data.current_dist_buffer) =
+  const auto lc_distance =
     calculation::calc_lc_length_and_dist_buffer(common_data_ptr_, get_current_lanes());
+  transient_data.has_valid_lc_distance = lc_distance.has_value();
+  if (lc_distance) {
+    std::tie(transient_data.lane_changing_length, transient_data.current_dist_buffer) = *lc_distance;
+  } else {
+    transient_data.lane_changing_length = lane_change::MinMaxValue{0.0, 0.0};
+    transient_data.current_dist_buffer = lane_change::MinMaxValue{0.0, 0.0};
+    RCLCPP_DEBUG(
+      logger_, "No contiguous lateral connection from the ego lane. Skip LC distance update.");
+  }
 
   transient_data.next_dist_buffer.min =
-    transient_data.current_dist_buffer.min - transient_data.lane_changing_length.min -
-    common_data_ptr_->lc_param_ptr->lane_change_finish_judge_buffer;
+    std::max(0.0, transient_data.current_dist_buffer.min - transient_data.lane_changing_length.min -
+    common_data_ptr_->lc_param_ptr->lane_change_finish_judge_buffer);
 
   transient_data.dist_to_terminal_end = calculation::calc_dist_from_pose_to_terminal_end(
     common_data_ptr_, common_data_ptr_->lanes_ptr->current, common_data_ptr_->get_ego_pose());
@@ -260,7 +273,16 @@ void NormalLaneChange::updateLaneChangeStatus()
   // Update status
   status_.is_valid_path = found_valid_path;
   status_.is_safe = found_safe_path;
+  if (!found_valid_path) {
+    status_.lane_change_path = LaneChangePath{};
+  }
   status_.lane_change_path.path.header = getRouteHeader();
+  RCLCPP_DEBUG(
+    logger_, "LC decision side=%s valid=%d safe=%d points=%zu prepare=%.2f shift=%.2f end_v=%.2f",
+    direction_ == Direction::LEFT ? "left" : "right", found_valid_path, found_safe_path,
+    status_.lane_change_path.path.points.size(), status_.lane_change_path.info.length.prepare,
+    status_.lane_change_path.info.length.lane_changing,
+    status_.lane_change_path.info.terminal_lane_changing_velocity);
 }
 
 std::pair<bool, bool> NormalLaneChange::getSafePath(LaneChangePath & safe_path) const
@@ -291,6 +313,36 @@ std::pair<bool, bool> NormalLaneChange::getSafePath(LaneChangePath & safe_path) 
   } else {
     // force candidate
     safe_path = valid_paths.front();
+  }
+
+  if (!utils::lane_change::contains_lane_change_maneuver(safe_path)) {
+    RCLCPP_WARN(logger_, "Reject LC candidate: published path does not contain the full maneuver.");
+    return {false, false};
+  }
+
+  if (found_safe_path) {
+    // Validate the same extended, overlap-processed geometry before approval,
+    // rather than discovering a missing maneuver after switching to RUNNING.
+    if (const auto extension = extendPath(safe_path.path)) {
+      safe_path.path = utils::combinePath(safe_path.path, *extension);
+    }
+    const auto drivable_lanes = utils::lane_change::generateDrivableLanes(
+      *getRouteHandler(), get_current_lanes(), get_target_lanes());
+    utils::cutOverlappedLanes(safe_path.path, drivable_lanes);
+    if (!utils::lane_change::contains_lane_change_maneuver(safe_path)) {
+      RCLCPP_ERROR(logger_, "Reject LC approval: overlap processing removed the maneuver.");
+      return {false, false};
+    }
+    const double remaining = calcSignedArcLength(
+      safe_path.path.points, getEgoPosition(), safe_path.path.points.back().point.pose.position);
+    const double available = calculation::calc_dist_from_pose_to_terminal_end(
+      common_data_ptr_, get_target_lanes(), getEgoPose());
+    const double required = std::min(getCommonParam().forward_path_length, std::max(0.0, available));
+    if (remaining + 1.0 < required) {
+      RCLCPP_ERROR(logger_, "Reject LC approval: output %.2f m shorter than available %.2f m.",
+        remaining, required);
+      return {false, false};
+    }
   }
 
   return {true, found_safe_path};
@@ -379,6 +431,10 @@ TurnSignalInfo NormalLaneChange::get_current_turn_signal_info() const
   }
 
   if (!status_.is_valid_path) {
+    // The request already publishes the LC indicator even without a feasible
+    // candidate. Count that preparation time instead of waiting for a candidate
+    // whose preparation distance may itself be the reason generation fails.
+    set_signal_activation_time();
     return get_turn_signal(getEgoPose(), prev_path.back().point.pose);
   }
 
@@ -459,6 +515,9 @@ BehaviorModuleOutput NormalLaneChange::getTerminalLaneChangePath() const
   auto output = prev_module_output_;
 
   output.path = *terminal_lc_path;
+  if (const auto extension = extendPath(output.path)) {
+    output.path = utils::combinePath(output.path, *extension);
+  }
   output.turn_signal_info = get_current_turn_signal_info();
 
   extendOutputDrivableArea(output);
@@ -480,13 +539,37 @@ BehaviorModuleOutput NormalLaneChange::generateOutput()
     output.path = abort_path_->path;
     insert_stop_point(get_current_lanes(), output.path);
   } else {
+    bool rejected_shortened_lc_output = false;
     output.path = status_.lane_change_path.path;
 
     const auto found_extended_path = extendPath();
     if (found_extended_path) {
       output.path = utils::combinePath(output.path, *found_extended_path);
     }
-    output.reference_path = getReferencePath();
+
+    const auto remaining_length = [&](const PathWithLaneId & candidate) {
+      if (candidate.points.empty()) return 0.0;
+      return std::max(
+        0.0, calcSignedArcLength(
+               candidate.points, getEgoPosition(), candidate.points.back().point.pose.position));
+    };
+    const auto output_remaining = remaining_length(output.path);
+    const auto available_remaining = calculation::calc_dist_from_pose_to_terminal_end(
+      common_data_ptr_, get_target_lanes(), getEgoPose());
+    const auto required_remaining = std::min(
+      getCommonParam().forward_path_length, std::max(0.0, available_remaining));
+    constexpr double path_length_tolerance = 1.0;
+    if (output_remaining + path_length_tolerance < required_remaining) {
+      RCLCPP_ERROR(
+        logger_,
+        "Reject shortened LC output: remaining %.2f m, required %.2f m. Retaining the previous "
+        "module path.",
+        output_remaining, required_remaining);
+      output.path = prev_module_output_.path;
+      rejected_shortened_lc_output = true;
+    }
+    output.reference_path = rejected_shortened_lc_output ? prev_module_output_.reference_path
+                                                         : getReferencePath();
 
     if (isStopState()) {
       const auto current_velocity = getEgoVelocity();
@@ -495,7 +578,7 @@ BehaviorModuleOutput NormalLaneChange::generateOutput()
       const auto stop_dist =
         -(current_velocity * current_velocity / (2.0 * planner_data_->parameters.min_acc));
       set_stop_pose(stop_dist + current_dist, output.path, "incoming rear object");
-    } else {
+    } else if (!rejected_shortened_lc_output) {
       insert_stop_point(get_target_lanes(), output.path);
     }
   }
@@ -523,7 +606,19 @@ void NormalLaneChange::extendOutputDrivableArea(BehaviorModuleOutput & output) c
 
   const auto drivable_lanes = utils::lane_change::generateDrivableLanes(
     *getRouteHandler(), get_current_lanes(), get_target_lanes());
+  const auto length_before_drivable_area = autoware::motion_utils::calcArcLength(output.path.points);
   const auto shorten_lanes = utils::cutOverlappedLanes(output.path, drivable_lanes);
+  const auto length_after_drivable_area = autoware::motion_utils::calcArcLength(output.path.points);
+  if (length_after_drivable_area + 1.0 < length_before_drivable_area) {
+    std::ostringstream groups;
+    for (const auto & lanes : drivable_lanes) {
+      groups << '[' << lanes.left_lane.id() << ',' << lanes.right_lane.id();
+      for (const auto & lane : lanes.middle_lanes) groups << ',' << lane.id();
+      groups << ']';
+    }
+    RCLCPP_ERROR(logger_, "LC drivable-area path truncation: %.2f -> %.2f m; groups=%s",
+      length_before_drivable_area, length_after_drivable_area, groups.str().c_str());
+  }
   const auto expanded_lanes = utils::expandLanelets(
     shorten_lanes, dp.drivable_area_left_bound_offset, dp.drivable_area_right_bound_offset,
     dp.drivable_area_types_to_skip);
@@ -679,58 +774,85 @@ PathWithLaneId NormalLaneChange::getReferencePath() const
 
 std::optional<PathWithLaneId> NormalLaneChange::extendPath()
 {
+  return extendPath(status_.lane_change_path.path);
+}
+
+std::optional<PathWithLaneId> NormalLaneChange::extendPath(const PathWithLaneId & path) const
+{
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
-  const auto path = status_.lane_change_path.path;
 
-  auto & target_lanes = common_data_ptr_->lanes_ptr->target;
-  const auto & transient_data = common_data_ptr_->transient_data;
-
-  const auto forward_path_length = getCommonParam().forward_path_length;
-
-  if (
-    (transient_data.target_lane_length - transient_data.target_lanes_ego_arc.length) >
-    forward_path_length) {
+  if (path.points.empty()) {
     return std::nullopt;
   }
+
+  auto & target_lanes = common_data_ptr_->lanes_ptr->target;
+  if (target_lanes.empty()) {
+    return std::nullopt;
+  }
+
+  const auto forward_path_length = getCommonParam().forward_path_length;
+  const auto remaining_path_length = std::max(
+    0.0, calcSignedArcLength(
+           path.points, getEgoPosition(), path.points.back().point.pose.position));
+  const auto required_extension = forward_path_length - remaining_path_length;
+  if (required_extension <= calculation::eps) {
+    return std::nullopt;
+  }
+
   const auto dist_to_end_of_path = autoware::experimental::lanelet2_utils::get_arc_coordinates(
                                      target_lanes, path.points.back().point.pose)
                                      .length;
 
-  if (common_data_ptr_->lanes_ptr->target_lane_in_goal_section) {
-    const auto goal_pose = getRouteHandler()->getGoalPose();
+  auto terminal_arc = [&]() {
+    if (getRouteHandler()->isInGoalRouteSection(target_lanes.back())) {
+      return autoware::experimental::lanelet2_utils::get_arc_coordinates(
+               target_lanes, getRouteHandler()->getGoalPose())
+        .length;
+    }
+    return lanelet::geometry::length3d(lanelet::LaneletSequence(target_lanes));
+  };
 
-    const auto dist_to_goal =
-      autoware::experimental::lanelet2_utils::get_arc_coordinates(target_lanes, goal_pose).length;
-
-    return getRouteHandler()->getCenterLinePath(target_lanes, dist_to_end_of_path, dist_to_goal);
-  }
-
-  lanelet::ConstLanelet next_lane;
-  if (!getRouteHandler()->getNextLaneletWithinRoute(target_lanes.back(), &next_lane)) {
-    return getRouteHandler()->getCenterLinePath(
-      target_lanes, dist_to_end_of_path, transient_data.target_lane_length);
-  }
-
-  target_lanes.push_back(next_lane);
-
-  const auto target_pose = std::invoke([&]() {
-    const auto is_goal_in_next_lane = getRouteHandler()->isInGoalRouteSection(next_lane);
-    if (is_goal_in_next_lane) {
-      return getRouteHandler()->getGoalPose();
+  auto dist_to_terminal = terminal_arc();
+  std::unordered_set<lanelet::Id> visited_lane_ids;
+  ranges::for_each(target_lanes, [&](const auto & lane) { visited_lane_ids.insert(lane.id()); });
+  while (dist_to_terminal - dist_to_end_of_path + calculation::eps < required_extension) {
+    if (getRouteHandler()->isInGoalRouteSection(target_lanes.back())) {
+      break;
     }
 
-    return utils::to_geom_msg_pose(next_lane.centerline2d().back(), next_lane);
-  });
+    lanelet::ConstLanelets successors;
+    if (!getRouteHandler()->getNextLaneletsWithinRoute(target_lanes.back(), &successors)) {
+      break;
+    }
+    // Only choose among real longitudinal successors, never jump laterally
+    // to a preferred lane. Keep route preference deterministic at a split.
+    const auto preferred = getRouteHandler()->getPreferredLanelets();
+    const auto preferred_next = std::find_if(successors.begin(), successors.end(), [&](const auto & s) {
+      return std::any_of(preferred.begin(), preferred.end(), [&](const auto & p) {
+        return p.id() == s.id();
+      });
+    });
+    const auto next_lane = preferred_next == successors.end() ? successors.front() : *preferred_next;
+    if (!visited_lane_ids.insert(next_lane.id()).second) {
+      RCLCPP_ERROR(logger_, "Detected a route loop while extending an LC output path.");
+      break;
+    }
+    target_lanes.push_back(next_lane);
+    dist_to_terminal = terminal_arc();
+  }
 
-  const auto dist_to_target_pose =
-    autoware::experimental::lanelet2_utils::get_arc_coordinates(target_lanes, target_pose).length;
+  const auto extension_end =
+    std::min(dist_to_end_of_path + required_extension, dist_to_terminal);
+  if (extension_end <= dist_to_end_of_path + calculation::eps) {
+    return std::nullopt;
+  }
 
-  return getRouteHandler()->getCenterLinePath(
-    target_lanes, dist_to_end_of_path, dist_to_target_pose);
+  return getRouteHandler()->getCenterLinePath(target_lanes, dist_to_end_of_path, extension_end);
 }
 
 void NormalLaneChange::resetParameters()
 {
+  terminal_lane_change_path_.reset();
   is_abort_path_approved_ = false;
   is_abort_approval_requested_ = false;
   current_lane_change_state_ = LaneChangeStates::Normal;
@@ -1148,6 +1270,11 @@ bool NormalLaneChange::get_lane_change_paths(LaneChangePaths & candidate_paths) 
     return false;
   }
 
+  if (!common_data_ptr_->transient_data.has_valid_lc_distance) {
+    RCLCPP_DEBUG(logger_, "LC distance is unavailable. Skip candidate generation.");
+    return false;
+  }
+
   if (common_data_ptr_->lanes_polygon_ptr->target_neighbor.empty()) {
     RCLCPP_WARN(logger_, "target_lane_neighbors_polygon_2d is empty. Not expected.");
     return false;
@@ -1345,7 +1472,10 @@ bool NormalLaneChange::get_path_using_path_shifter(
         }
       } catch (const std::exception & e) {
         debug_print_lat(std::string("Reject: ") + e.what());
-        return false;
+        // A footprint/boundary rejection belongs to this sample, not to the
+        // entire search. Tighter lateral or different longitudinal samples can
+        // still be feasible at the current speed (as in the Frenet branch).
+        continue;
       }
 
       debug_print_lat("Reject: sampled path is not safe.");
@@ -1376,12 +1506,18 @@ bool NormalLaneChange::check_candidate_path_safety(
   const auto lc_start_velocity = candidate_path.info.velocity.prepare;
   const auto min_lc_velocity = lane_change_parameters_->trajectory.min_lane_changing_velocity;
   constexpr double margin = 0.1;
-  // path is unsafe if it exceeds target lane boundary with a high velocity
+  // Check the lateral maneuver and one vehicle length of settling, not an
+  // unchanged 400 m continuation. A distant reference-centerline corner is
+  // handled by motion planning; it must not veto every local LC candidate.
+  // The full output path and its downstream validation remain unchanged.
   if (
     lane_change_parameters_->safety.enable_target_lane_bound_check &&
     lc_start_velocity > min_lc_velocity + margin &&
     utils::lane_change::path_footprint_exceeds_target_lane_bound(
-      common_data_ptr_, candidate_path.shifted_path.path, planner_data_->parameters.vehicle_info)) {
+      common_data_ptr_,
+      utils::lane_change::get_maneuver_check_path(
+        candidate_path, planner_data_->parameters.vehicle_length),
+      planner_data_->parameters.vehicle_info)) {
     throw std::logic_error("Path footprint exceeds target lane boundary. Skip lane change.");
   }
 

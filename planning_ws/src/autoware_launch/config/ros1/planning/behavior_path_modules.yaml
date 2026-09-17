@@ -795,13 +795,13 @@ lane_change:
     - 4.0
     - 10.0
     min_values:
-    - 0.4
-    - 0.4
-    - 0.4
+    - 2.5
+    - 2.5
+    - 2.5
     max_values:
-    - 5.8
-    - 5.8
-    - 5.8
+    - 8.0
+    - 8.0
+    - 8.0
   target_object:
     car: true
     truck: true

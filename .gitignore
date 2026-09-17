@@ -64,6 +64,11 @@ base_ws/.catkin_workspace
 .ros/
 *.bag
 *.bag.active
+/planner_logs/
+/.catkin_workspace
+
+# Reproducible map comparison renders stay local; scripts and text reports are tracked.
+/kcity_map/docs/*comparison.png
 
 
 

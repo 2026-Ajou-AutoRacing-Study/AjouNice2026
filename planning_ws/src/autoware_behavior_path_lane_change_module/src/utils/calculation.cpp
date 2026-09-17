@@ -286,7 +286,7 @@ std::vector<double> calc_max_lane_change_lengths(
 double calc_distance_buffer(const LCParamPtr & lc_param_ptr, const std::vector<double> & lc_lengths)
 {
   if (lc_lengths.empty()) {
-    return std::numeric_limits<double>::max();
+    return 0.0;
   }
 
   const auto finish_judge_buffer = lc_param_ptr->lane_change_finish_judge_buffer;
@@ -307,31 +307,64 @@ std::vector<double> calc_shift_intervals(
   const auto & route_handler_ptr = common_data_ptr->route_handler_ptr;
   const auto direction = common_data_ptr->direction;
 
-  return route_handler_ptr->getLateralIntervalsToPreferredLane(lanes.back(), direction);
+  // A BPP reference path can extend beyond a parallel lane-change section and into a merge
+  // corridor.  The merge corridor correctly has no left/right relation, but using lanes.back()
+  // there makes an otherwise valid upstream lane change look impossible.  Start at the ego lane
+  // and retain the last interval set in the contiguous, laterally connected section instead.
+  const auto & ego_lane = common_data_ptr->lanes_ptr->ego_lane;
+  auto lane_it = std::find_if(
+    lanes.begin(), lanes.end(),
+    [&](const auto & lane) { return lane.id() == ego_lane.id(); });
+  if (lane_it == lanes.end()) {
+    lane_it = lanes.begin();
+  }
+
+  std::vector<double> last_valid_intervals;
+  for (; lane_it != lanes.end(); ++lane_it) {
+    const auto intervals =
+      route_handler_ptr->getLateralIntervalsToPreferredLane(*lane_it, direction);
+    if (intervals.empty()) {
+      break;
+    }
+    // Do not forget an outstanding multi-lane movement just because the
+    // downstream preferred lane becomes closer before the merge.
+    if (intervals.size() >= last_valid_intervals.size()) {
+      last_valid_intervals = intervals;
+    }
+  }
+  return last_valid_intervals;
 }
 
-std::pair<MinMaxValue, MinMaxValue> calc_lc_length_and_dist_buffer(
+std::optional<std::pair<MinMaxValue, MinMaxValue>> calc_lc_length_and_dist_buffer(
   const CommonDataPtr & common_data_ptr, const lanelet::ConstLanelets & lanes)
 {
   if (!common_data_ptr || !common_data_ptr->is_data_available() || lanes.empty()) {
-    return {};
+    return std::nullopt;
   }
   const auto shift_intervals = calculation::calc_shift_intervals(common_data_ptr, lanes);
+  if (shift_intervals.empty()) {
+    return std::nullopt;
+  }
   const auto min_lc_lengths =
     calculation::calc_min_lane_change_lengths(common_data_ptr->lc_param_ptr, shift_intervals);
-  const auto min_lc_length =
-    !min_lc_lengths.empty() ? min_lc_lengths.front() : std::numeric_limits<double>::max();
+  const auto min_lc_length = min_lc_lengths.front();
   const auto min_dist_buffer =
     calculation::calc_distance_buffer(common_data_ptr->lc_param_ptr, min_lc_lengths);
 
   const auto max_lc_lengths =
     calculation::calc_max_lane_change_lengths(common_data_ptr, shift_intervals);
-  const auto max_lc_length =
-    !max_lc_lengths.empty() ? max_lc_lengths.front() : std::numeric_limits<double>::max();
+  const auto max_lc_length = max_lc_lengths.front();
   const auto max_dist_buffer =
     calculation::calc_distance_buffer(common_data_ptr->lc_param_ptr, max_lc_lengths);
 
-  return {{min_lc_length, max_lc_length}, {min_dist_buffer, max_dist_buffer}};
+  for (const auto value : {min_lc_length, max_lc_length, min_dist_buffer, max_dist_buffer}) {
+    if (!std::isfinite(value) || value < 0.0) {
+      return std::nullopt;
+    }
+  }
+
+  return std::make_pair(
+    MinMaxValue{min_lc_length, max_lc_length}, MinMaxValue{min_dist_buffer, max_dist_buffer});
 }
 
 double calc_phase_length(

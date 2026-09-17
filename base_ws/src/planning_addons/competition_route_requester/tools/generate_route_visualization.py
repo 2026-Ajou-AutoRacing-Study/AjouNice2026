@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the K-City v75 competition route documentation SVG set.
+"""Generate the K-City v81 competition route documentation SVG set.
 
 The overview, Route A detail, Route B detail, and reroute-process figures are
 derived from the package YAML files and Lanelet2 centerlines.  This is a
@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        default=package_dir / "config/kcity_v75_competition_route.yaml",
+        default=package_dir / "config/kcity_v81_competition_route.yaml",
     )
     parser.add_argument(
         "--workspace",
@@ -46,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=package_dir / "docs/assets/kcity_v75_route_a_b.svg",
+        default=package_dir / "docs/assets/kcity_v81_route_a_b.svg",
         help="Overview SVG path; the three detail SVGs are written beside it.",
     )
     return parser.parse_args()
@@ -135,10 +135,23 @@ def joined_centerlines(lanelets, lanelet_ids, lateral_tolerance=0.10):
 
 
 def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, epsg):
-    """Show the v75 highway lane groups without treating lane changes as serial links."""
+    """Show the v81 highway lane groups and the requested bottleneck LC."""
     current = [201456, 201438, 200128, 200102, 200134, 201446, 200360]
-    selected = [201457, 201435, 200137, 200187, 200130, 201441, 200360]
-    upper = [201459, 201436, 200138, 201444, 200127, 201439, 200360]
+    selected = [201457, 201435, 200137, 201444, 200127, 201439, 200185]
+    upper = [201459, 201436, 200138, 201444, 200127, 201439, 200185]
+    # v77 transverse splits preserve the physical corridors; v81 additionally
+    # splits 201448/201447 at the requested LC cross-section.
+    splits = {201437: 201464, 201436: 201465, 201435: 201466, 200099: 201467,
+              201438: 201468, 201444: 201469, 200187: 201470, 200102: 201471,
+              200148: 201472, 200127: 201473, 200130: 201474, 200134: 201475,
+              201453: 201476, 200360: 201477, 201448: 201478,
+              201479: 201447}
+    def expand(ids):
+        return [j for i in ids for j in ([i, splits[i]] if i in splits else [i])]
+    current, selected, upper = map(expand, (current, selected, upper))
+    current += [201477, 201479, 201447]
+    selected += [201453, 201476, 201448, 201447]
+    upper += [201453, 201476, 201448, 201478]
     highway_ids = list(dict.fromkeys(current + selected + upper + [201458, 200099]))
     missing = [lanelet_id for lanelet_id in highway_ids if lanelet_id not in lanelets]
     if missing:
@@ -154,8 +167,8 @@ def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, eps
     view = Viewport(bounds_for(points, 10.0), (45, 125, 830, 720), padding=18)
     svg = [
         '<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">',
-        '<title id="title">K-City v75 highway preferred-lane strategy</title>',
-        '<desc id="desc">Former right lane, selected middle lane, and upper lane alternatives using actual v75 lanelet centerlines.</desc>',
+        '<title id="title">K-City v81 highway preferred-lane strategy</title>',
+        '<desc id="desc">Highway alternatives and the v81 midpoint lane change using actual lanelet centerlines.</desc>',
         f'<!-- source_map={map_path.name} sha256={actual_hash} projection=EPSG:{epsg} -->',
         '<defs><style>',
         "text { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; fill: #172033; }",
@@ -164,7 +177,7 @@ def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, eps
         '.small { font-size: 13px; fill: #526079; }.lane-id { font-size: 12px; font-weight: 700; paint-order: stroke; stroke: white; stroke-width: 4px; }',
         '</style><marker id="lc-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#d33682"/></marker></defs>',
         '<rect width="1400" height="900" fill="#f4f7fb"/>',
-        '<text x="42" y="52" class="title">K-City v75 고주로 선호 차선 검토</text>',
+        '<text x="42" y="52" class="title">K-City v81 고주로 선호 차선 검토</text>',
         '<text x="42" y="82" class="subtitle">실제 Lanelet2 중심선 · 진행 방향은 위에서 아래 · 차선 간격은 가독성을 위해 가로 20배 확대</text>',
         '<rect x="25" y="105" width="875" height="760" rx="22" class="panel"/>',
         '<rect x="925" y="105" width="450" height="760" rx="22" class="panel"/>',
@@ -207,7 +220,8 @@ def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, eps
         '• 병합된 200187은 중간 차선이다. 같은 위치의 최상위는 201444이다.',
         '• 진입 직후 평행 후보 201456~201459 중에서',
         '  SetPreferredPrimitive로 중간 차선 201457을 선택한다.',
-        '• 이후 201435→200137→200187 중간 차선을 유지한다.',
+        '• 병목은 200185→201453→201476→201448로 진입한다.',
+        '• 중앙 분할 뒤 201447을 선호해 오른쪽 LC를 요청한다.',
     ], 'small', 29)
     svg.append(f'<text x="955" y="812" class="small">v{config["map"]["version"]} · SHA-256 {actual_hash[:16]}…</text>')
     svg.append('</svg>')
@@ -408,14 +422,14 @@ def build_route_detail_svg(config, lanelets, map_path, actual_hash, epsg, origin
     route_points = joined_centerlines(lanelets, route_ids, lateral_tolerance=5.0)
     route_name = "Route A" if route_key == "route_a" else "Route B 재경로"
     subtitle = (
-        "공식 START/END 경계 → 11개 sparse waypoint → 비순환 임시 goal 200181"
+        f"공식 START/END 경계 → {len(route['waypoint_refs'])}개 sparse waypoint → 비순환 임시 goal 200181"
         if route_key == "route_a"
         else "A→B 전환 시 200178의 현재 pose → 10개 sparse waypoint → 최종 goal 200210"
     )
     svg = detail_svg_start(
         1600,
         1400,
-        f"K-City v75 · {route_name} 상세",
+        f"K-City v81 · {route_name} 상세",
         f"{subtitle} · 요청 데이터와 검증용 lanelet 순서를 분리 표시",
         f"Detailed {route_name} request waypoints and expected verification lanelets.",
         f"source_map={map_path.name} sha256={actual_hash} projection=EPSG:{epsg} route={route_key}",
@@ -472,7 +486,7 @@ def build_route_detail_svg(config, lanelets, map_path, actual_hash, epsg, origin
     if route_key == "route_a":
         lines = [
             "Route A 요청: start는 공식 경계의 최신 odometry이며 200892/200889 판정을 모두 허용한다.",
-            f"11개 waypoint와 goal_route_a_200181만 요청 pose다. {len(route_ids)}개 canonical ID는 결과 검증 기준이다.",
+            f"{len(route['waypoint_refs'])}개 waypoint와 goal_route_a_200181만 요청 pose다. {len(route_ids)}개 canonical ID는 결과 검증 기준이다.",
         ]
     else:
         lines = [
@@ -496,7 +510,7 @@ def build_reroute_process_svg(config, policy, lanelets, map_path, actual_hash, e
     viewport = Viewport(inset_bounds, (50, 170, 500, 820), padding=20)
     svg = [
         '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" role="img" aria-labelledby="title desc">',
-        '<title id="title">K-City v75 reroute trigger and process</title>',
+        '<title id="title">K-City v81 reroute trigger and process</title>',
         '<desc id="desc">Reroute trigger, freshness and hold checks, request and verification while Route A remains active, and deadline before lanelet 200346.</desc>',
         f'<!-- source_map={map_path.name} sha256={actual_hash} projection=EPSG:{epsg} -->',
         "<defs>",
@@ -510,7 +524,7 @@ def build_reroute_process_svg(config, policy, lanelets, map_path, actual_hash, e
         ".road { fill: none; stroke: #d7dde5; stroke-width: 1.2; stroke-linecap: round; }",
         "</style></defs>",
         '<rect width="1600" height="1100" fill="#f4f7fb"/>',
-        '<text x="42" y="54" class="title">K-City v75 · 정상 Route A → Route B 재경로 절차</text>',
+        '<text x="42" y="54" class="title">K-City v81 · 정상 Route A → Route B 재경로 절차</text>',
         '<text x="42" y="84" class="subtitle">route_a_to_b 계열의 trigger·deadline + Route A를 유지한 채 수행하는 요청·검증 순서</text>',
         '<rect x="30" y="110" width="540" height="930" rx="22" class="card"/>',
         '<text x="50" y="145" class="panel-title">공간 경계</text>',
@@ -577,7 +591,7 @@ def build_reroute_process_svg(config, policy, lanelets, map_path, actual_hash, e
             svg.append(f'<path d="M 650 {y+20} L 650 {y+70}" stroke="#aebbd0" stroke-width="2" stroke-dasharray="5 4"/>')
     svg.append('<rect x="690" y="735" width="830" height="48" rx="10" fill="#fff3f0" stroke="#f3b5ad"/>')
     svg.append(f'<text x="712" y="756" class="label">실패/timeout: Route A 유지 → {policy["retry_reroute_interval"]:.1f}s 후 guard 재확인 → deadline 전 재시도</text>')
-    svg.append('<text x="712" y="776" class="tiny">route_a_to_b는 실패 상태, route_a_to_b_with_fallback은 병합된 200130 cutoff에서 fallback 요청으로 승격한다.</text>')
+    svg.append('<text x="712" y="776" class="tiny">route_a_to_b는 실패 상태, route_a_to_b_with_fallback은 201439 cutoff에서 fallback 요청으로 승격한다.</text>')
 
     add_multiline(
         svg,
@@ -810,7 +824,7 @@ def main() -> None:
 
     svg = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{SVG_WIDTH}" height="{SVG_HEIGHT}" viewBox="0 0 {SVG_WIDTH} {SVG_HEIGHT}" role="img" aria-labelledby="title desc">',
-        '<title id="title">K-City v75 competition Route A and Route B</title>',
+        '<title id="title">K-City v81 competition Route A and Route B</title>',
         '<desc id="desc">North-up map of Route A ending on lanelet 200181 before the start boundary, Route B continuation through the start boundary, reroute trigger at lanelet 200178 s 8 metres, deadline before lanelet 200346, and final goal 200210.</desc>',
         f'<!-- source_map={map_path.name} sha256={actual_hash} projection=EPSG:{epsg} -->',
         "<defs>",
@@ -830,7 +844,7 @@ def main() -> None:
         "</style>",
         "</defs>",
         '<rect width="1400" height="1200" fill="#f4f7fb"/>',
-        '<text x="42" y="54" class="title">K-City v75 경쟁 경로 · Route A → Route B</text>',
+        '<text x="42" y="54" class="title">K-City v81 경쟁 경로 · Route A → Route B</text>',
         '<text x="42" y="84" class="subtitle">Lanelet2 중심선 기반 · 북쪽이 위 · 좌표 단위 m · 설정된 경로 순서 그대로 표시</text>',
         '<rect x="35" y="110" width="405" height="1045" rx="22" class="card"/>',
         '<text x="55" y="140" class="panel-title">전체 경로</text>',
@@ -985,19 +999,19 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(svg) + "\n", encoding="utf-8")
     detail_outputs = {
-        output_path.parent / "kcity_v75_route_a_detail.svg": build_route_detail_svg(
+        output_path.parent / "kcity_v81_route_a_detail.svg": build_route_detail_svg(
             config, lanelets, map_path, actual_hash, epsg, origin, "route_a"
         ),
-        output_path.parent / "kcity_v75_route_b_detail.svg": build_route_detail_svg(
+        output_path.parent / "kcity_v81_route_b_detail.svg": build_route_detail_svg(
             config, lanelets, map_path, actual_hash, epsg, origin, "route_b"
         ),
-        output_path.parent / "kcity_v75_reroute_process.svg": build_reroute_process_svg(
+        output_path.parent / "kcity_v81_reroute_process.svg": build_reroute_process_svg(
             config, policy, lanelets, map_path, actual_hash, epsg
         ),
-        output_path.parent / "kcity_v75_operation_cases.svg": build_operation_cases_svg(
+        output_path.parent / "kcity_v81_operation_cases.svg": build_operation_cases_svg(
             config, policy, map_path, actual_hash
         ),
-        output_path.parent / "kcity_v75_highway_lane_strategy.svg": build_highway_lane_strategy_svg(
+        output_path.parent / "kcity_v81_highway_lane_strategy.svg": build_highway_lane_strategy_svg(
             config, lanelets, map_path, actual_hash, epsg
         ),
     }

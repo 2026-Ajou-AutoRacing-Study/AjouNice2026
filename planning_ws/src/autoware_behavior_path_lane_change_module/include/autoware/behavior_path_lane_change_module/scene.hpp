@@ -83,6 +83,9 @@ public:
 
   std::optional<PathWithLaneId> extendPath() override;
 
+  // Extend the path that will actually be published, including terminal candidates.
+  std::optional<PathWithLaneId> extendPath(const PathWithLaneId & path) const;
+
   void resetParameters() override;
 
   TurnSignalInfo updateOutputTurnSignal() const override;

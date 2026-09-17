@@ -52,7 +52,7 @@ def parse_args():
     parser.add_argument(
         "--map-file",
         type=Path,
-        default=Path("kcity_map/lanelet_map/lanelet2_map_v75.osm"),
+        default=Path("kcity_map/lanelet_map/lanelet2_map_v81.osm"),
     )
     parser.add_argument(
         "--projector-file",

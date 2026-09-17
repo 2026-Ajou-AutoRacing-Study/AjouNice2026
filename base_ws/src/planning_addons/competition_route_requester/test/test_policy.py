@@ -14,7 +14,7 @@ class PolicyTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.cfg = yaml.safe_load((PACKAGE/'config/competition_route_requester.param.yaml').read_text())
-        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v75_competition_route.yaml').read_text())
+        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v81_competition_route.yaml').read_text())
         cls.geometry = Geometry(REPO, cls.routes)
 
     def test_all_five_cases(self):
@@ -58,8 +58,8 @@ class PolicyTest(unittest.TestCase):
         self.assertTrue(policy.in_window(r, 'route_b', 200178, 8))
         self.assertTrue(policy.in_window(r, 'route_b', 200348, 1))
         self.assertFalse(policy.in_window(r, 'route_b', 200346, 0))
-        self.assertFalse(policy.in_window(r, 'fallback_route', 201441, 9.1))
-        self.assertTrue(policy.in_window(r, 'fallback_route', 201441, 9.142493))
+        self.assertFalse(policy.in_window(r, 'fallback_route', 201439, 1.9))
+        self.assertTrue(policy.in_window(r, 'fallback_route', 201439, 2.0))
         self.assertFalse(policy.in_window(r, 'fallback_route', 200360, 8))
         self.assertFalse(policy.in_window(r, 'fallback_route', 200183, 10))
 
@@ -83,8 +83,8 @@ class PolicyTest(unittest.TestCase):
             final = self.routes[key]['expected_path_lanelet_ids']
             self.assertEqual(policy.preferred_sequence(self.routes, key, initial), final)
             self.assertEqual(len(initial), len(final))
-            self.assertIn(201458, initial)
-            self.assertNotIn(201458, final)
+            self.assertIn(201459, initial)
+            self.assertNotIn(201459, final)
             self.assertIn(201457, final)
             self.assertIn(200137, final)
         incoming = self.routes['start']['incoming_lanelet_id']
@@ -97,6 +97,37 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[1:]), final[1:])
         self.assertIsNone(policy.preferred_sequence(self.routes, 'route_b', initial[4:]))
 
+    def test_v81_highway_lane_change_contract(self):
+        """Keep both requested highway lane changes in Route A/B."""
+        for key in ('route_a', 'route_b'):
+            initial = self.routes[key]['waypoint_path_lanelet_ids']
+            preferred = self.routes[key]['expected_path_lanelet_ids']
+
+            # The route contains a waypoint on 200187 before its waypoint on
+            # 201444. In the emitted route, 200187 remains an alternative of
+            # the 201444-preferred segment, causing BPP to request a left LC.
+            initial_window = initial[initial.index(200138):initial.index(201439) + 1]
+            self.assertEqual(
+                initial_window,
+                [200138, 201444, 201469, 200127, 201473, 201439],
+            )
+            preferred_window = preferred[preferred.index(200137):preferred.index(201399) + 1]
+            self.assertEqual(
+                preferred_window,
+                [200137, 201444, 201469, 200127, 201473, 201439, 200360,
+                 201477, 201479, 201447, 201399],
+            )
+
+            # Stay on the lower branch after the bottleneck and through the
+            # split pair, avoiding the late 201448 -> 201447 lane change.
+            initial_split = initial[initial.index(201477):initial.index(201399) + 1]
+            self.assertEqual(initial_split, [201477, 201479, 201447, 201399])
+
+            refs = self.routes[key]['waypoint_refs']
+            self.assertLess(refs.index('wp_200187_merged'), refs.index('wp_201444_mid'))
+            self.assertEqual(self.routes['poses']['wp_200187_merged']['lanelet_id'], 200187)
+            self.assertEqual(self.routes['poses']['wp_201444_mid']['lanelet_id'], 201444)
+
     def test_route_a_accepts_start_to_trigger_suffixes(self):
         initial = self.routes['route_a']['waypoint_path_lanelet_ids']
         final = self.routes['route_a']['expected_path_lanelet_ids']
@@ -107,7 +138,8 @@ class PolicyTest(unittest.TestCase):
                              final[index:])
 
     def test_geometry_and_hash(self):
-        for ref in ('wp_200178', 'wp_200360', 'fallback_cutoff_201441'):
+        for ref in ('wp_200178', 'wp_200137', 'wp_201473', 'wp_200360',
+                    'wp_201447_after_lc', 'fallback_cutoff_201439'):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
             self.assertEqual(lane, p['lanelet_id'])

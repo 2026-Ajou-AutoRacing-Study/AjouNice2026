@@ -1,0 +1,352 @@
+{
+  "map": "lanelet_map/lanelet2_map_v77.osm",
+  "map_sha256": "3783ddd90d5c14f7cb42781efead28519fc5a8b082ebbe4671f57542ce0750be",
+  "rule": {
+    "normal_limit_kph": 60,
+    "exception_start_link": "A2256W000411",
+    "exception_end_link": "A2256W000153",
+    "conservative_buffer_m": 1.0
+  },
+  "mgeo_coordinates": {
+    "exception_start": [
+      62.073913682601415,
+      256.4949275725521
+    ],
+    "safe_start": [
+      62.08907517562653,
+      255.49504251459334
+    ],
+    "safe_end": [
+      70.2148488455301,
+      -364.748476802907
+    ],
+    "exception_end": [
+      70.21414883446414,
+      -365.74847655789927
+    ]
+  },
+  "map_coordinates": {
+    "exception_start": [
+      193.63304390280973,
+      802.4062657584436
+    ],
+    "safe_start": [
+      193.64820539583485,
+      801.4063807004849
+    ],
+    "safe_end": [
+      201.77397906573842,
+      181.16286138298446
+    ],
+    "exception_end": [
+      201.77327905467246,
+      180.16286162799224
+    ]
+  },
+  "road_speed_limit_counts": {
+    "150": 49,
+    "59": 1127,
+    "45": 34,
+    "30": 14
+  },
+  "over_60_lanelet_count": 49,
+  "minimum_start_margin_m": 1.0589016348889495,
+  "minimum_end_margin_m": 1.023539717872992,
+  "over_60_lanelets": [
+    {
+      "lanelet": 200099,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 108.77818981256395,
+      "distance_before_exception_end_m": 506.33353373394846
+    },
+    {
+      "lanelet": 200102,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 249.84952328951456,
+      "distance_before_exception_end_m": 267.73403007264744
+    },
+    {
+      "lanelet": 200127,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 399.51935614724187,
+      "distance_before_exception_end_m": 210.339332145164
+    },
+    {
+      "lanelet": 200128,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 167.34115489625887,
+      "distance_before_exception_end_m": 372.33009146944414
+    },
+    {
+      "lanelet": 200130,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 399.4070506838464,
+      "distance_before_exception_end_m": 210.33714498910862
+    },
+    {
+      "lanelet": 200134,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 399.4070506838464,
+      "distance_before_exception_end_m": 210.33493605970216
+    },
+    {
+      "lanelet": 200137,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 167.34115489625887,
+      "distance_before_exception_end_m": 372.33009146944414
+    },
+    {
+      "lanelet": 200138,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 167.422810067767,
+      "distance_before_exception_end_m": 372.37360212359556
+    },
+    {
+      "lanelet": 200141,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 250.05689312867256,
+      "distance_before_exception_end_m": 267.7049885031168
+    },
+    {
+      "lanelet": 200147,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 474.5132119775087,
+      "distance_before_exception_end_m": 121.73249231230503
+    },
+    {
+      "lanelet": 200148,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 399.5891157201957,
+      "distance_before_exception_end_m": 210.34177439356324
+    },
+    {
+      "lanelet": 200185,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 474.4837534639783,
+      "distance_before_exception_end_m": 121.73249231230503
+    },
+    {
+      "lanelet": 200186,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 167.47061677370255,
+      "distance_before_exception_end_m": 372.3745509779796
+    },
+    {
+      "lanelet": 200187,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 249.9912502333316,
+      "distance_before_exception_end_m": 267.7366289089364
+    },
+    {
+      "lanelet": 200360,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 474.4837534639783,
+      "distance_before_exception_end_m": 119.83770576702487
+    },
+    {
+      "lanelet": 201399,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 589.1355255252579,
+      "distance_before_exception_end_m": 26.103418952701734
+    },
+    {
+      "lanelet": 201400,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 589.1845161034051,
+      "distance_before_exception_end_m": 26.103418952701734
+    },
+    {
+      "lanelet": 201435,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 108.77818981256395,
+      "distance_before_exception_end_m": 506.3357515034093
+    },
+    {
+      "lanelet": 201436,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 108.84166314739319,
+      "distance_before_exception_end_m": 506.33820315624826
+    },
+    {
+      "lanelet": 201438,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 108.7803595412223,
+      "distance_before_exception_end_m": 506.3313261918545
+    },
+    {
+      "lanelet": 201439,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 440.7001370404398,
+      "distance_before_exception_end_m": 147.88485342560594
+    },
+    {
+      "lanelet": 201440,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 440.7904713868735,
+      "distance_before_exception_end_m": 147.91053825520842
+    },
+    {
+      "lanelet": 201441,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 440.7001370404398,
+      "distance_before_exception_end_m": 147.88485342560594
+    },
+    {
+      "lanelet": 201444,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 250.00237606674654,
+      "distance_before_exception_end_m": 267.70913776349533
+    },
+    {
+      "lanelet": 201445,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 354.7184585198735,
+      "distance_before_exception_end_m": 222.8373235978509
+    },
+    {
+      "lanelet": 201446,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 440.54923240647275,
+      "distance_before_exception_end_m": 147.88485342560594
+    },
+    {
+      "lanelet": 201447,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 508.8425942132176,
+      "distance_before_exception_end_m": 33.1364120899948
+    },
+    {
+      "lanelet": 201448,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 509.2111817032856,
+      "distance_before_exception_end_m": 33.148461908799554
+    },
+    {
+      "lanelet": 201449,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 500.69047908384186,
+      "distance_before_exception_end_m": 1.023539717872992
+    },
+    {
+      "lanelet": 201451,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 596.1307470370225,
+      "distance_before_exception_end_m": 1.0235397179746066
+    },
+    {
+      "lanelet": 201452,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 596.1859095674324,
+      "distance_before_exception_end_m": 1.0235397184166275
+    },
+    {
+      "lanelet": 201453,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 500.54707333591335,
+      "distance_before_exception_end_m": 119.83971668211241
+    },
+    {
+      "lanelet": 201456,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 1.0589016348889495,
+      "distance_before_exception_end_m": 513.4029470368869
+    },
+    {
+      "lanelet": 201457,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 1.0589016348889495,
+      "distance_before_exception_end_m": 513.4849605213744
+    },
+    {
+      "lanelet": 201458,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 1.0589016354978722,
+      "distance_before_exception_end_m": 513.539049322842
+    },
+    {
+      "lanelet": 201459,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 1.0589016354978722,
+      "distance_before_exception_end_m": 513.539049322842
+    },
+    {
+      "lanelet": 201465,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 116.04211040785161,
+      "distance_before_exception_end_m": 454.9557799865537
+    },
+    {
+      "lanelet": 201466,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 115.98901022240449,
+      "distance_before_exception_end_m": 454.9557799865537
+    },
+    {
+      "lanelet": 201467,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 115.94097570145523,
+      "distance_before_exception_end_m": 454.9040821732966
+    },
+    {
+      "lanelet": 201468,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 115.8931626943645,
+      "distance_before_exception_end_m": 454.9040821732966
+    },
+    {
+      "lanelet": 201469,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 354.63272767255063,
+      "distance_before_exception_end_m": 222.8373235978509
+    },
+    {
+      "lanelet": 201470,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 354.57932255431257,
+      "distance_before_exception_end_m": 222.85125889397906
+    },
+    {
+      "lanelet": 201471,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 354.5230345217797,
+      "distance_before_exception_end_m": 222.80923687332412
+    },
+    {
+      "lanelet": 201472,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 412.08386600950195,
+      "distance_before_exception_end_m": 181.63341111393717
+    },
+    {
+      "lanelet": 201473,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 412.03096951418763,
+      "distance_before_exception_end_m": 181.63341111393717
+    },
+    {
+      "lanelet": 201474,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 411.98359798364055,
+      "distance_before_exception_end_m": 181.51871914338338
+    },
+    {
+      "lanelet": 201475,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 411.93575496049385,
+      "distance_before_exception_end_m": 181.50815507992928
+    },
+    {
+      "lanelet": 201476,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 502.5284156399993,
+      "distance_before_exception_end_m": 113.04060159761559
+    },
+    {
+      "lanelet": 201477,
+      "speed_limit_kph": 150.0,
+      "distance_after_exception_start_m": 502.4848613957905,
+      "distance_before_exception_end_m": 113.15143024890779
+    }
+  ],
+  "violations": []
+}

@@ -53,16 +53,16 @@ def test_integrated_downstream_contract_matches_standalone_production_launch():
     for name, value in expected.items():
         assert values.get(name) == value, (name, values.get(name))
     assert top_level["maximum_tracking_internal_prediction_age_sec"]["default"] == "0.25"
-    assert values["map_file"].endswith("/lanelet2_map_v75.osm")
+    assert values["map_file"].endswith("/lanelet2_map_v81.osm")
     assert values["projector_file"].endswith("/map_projector_info_v1.yaml")
 
 
-def test_v75_map_sha_is_identical_across_runtime_contracts():
-    map_path = REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v75.osm"
+def test_v81_map_sha_is_identical_across_runtime_contracts():
+    map_path = REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v81.osm"
     route_path = (
         REPO_ROOT
         / "base_ws/src/planning_addons/competition_route_requester/config"
-        / "kcity_v75_competition_route.yaml"
+        / "kcity_v81_competition_route.yaml"
     )
     publisher_path = PACKAGE_ROOT / "scripts/map_projector_publisher"
 
@@ -77,17 +77,23 @@ def test_v75_map_sha_is_identical_across_runtime_contracts():
 
 
 def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
-    config_path = PACKAGE_ROOT / "config/mission_planner_kcity_v75.yaml"
+    config_path = PACKAGE_ROOT / "config/mission_planner_kcity_v81.yaml"
     config = yaml.safe_load(config_path.read_text())
     assert config["route_section_primitive_overrides"] == {
-        "201435": [201436, 201435, 200099, 201438],
-        "200130": [200127, 200130, 200134],
-        "201441": [201439, 201441, 201446],
-        "201447": [201447],
+        "201436": [201436, 201435, 200099, 201438],
+        "200127": [200127, 200130, 200134],
+        "201439": [201439, 201441, 201446],
+        "200185": [200185, 200360],
+        "201476": [201476, 201477],
+        "201448": [201448, 201479],
+        "201447": [201478, 201447],
         "201401": [201401],
+        "201465": [201465, 201466, 201467, 201468],
+        "201473": [201473, 201474, 201475],
     }
     assert set(config["route_section_excluded_lanelet_ids"]) == {
         201400, 201440, 200148, 201445, 200141, 200186, 201437, 201463,
+        201472, 201464,
     }
 
     integration_launch = ET.parse(PACKAGE_ROOT / "launch/planning.launch").getroot()
@@ -95,7 +101,7 @@ def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
         item.attrib["name"]: item.attrib for item in integration_launch.findall("arg")
     }
     assert integration_args["mission_planner_param_path"]["default"].endswith(
-        "/config/mission_planner_kcity_v75.yaml"
+        "/config/mission_planner_kcity_v81.yaml"
     )
     tier4_include = next(
         item

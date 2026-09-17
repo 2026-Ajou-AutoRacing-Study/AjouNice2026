@@ -92,6 +92,58 @@ double calc_arc_length(
 
 namespace autoware::behavior_path_planner::utils::lane_change
 {
+PathWithLaneId get_maneuver_check_path(
+  const LaneChangePath & candidate, const double settling_length)
+{
+  auto path = candidate.shifted_path.path;
+  const auto end_idx = autoware::motion_utils::findNearestIndex(
+    path.points, candidate.info.lane_changing_end);
+  if (!end_idx) throw std::logic_error("LC end missing from boundary-check path");
+  size_t check_end = *end_idx;
+  double length = 0.0;
+  while (check_end + 1 < path.points.size() && length < settling_length) {
+    length += autoware_utils::calc_distance2d(
+      path.points[check_end].point.pose, path.points[check_end + 1].point.pose);
+    ++check_end;
+  }
+  path.points.resize(check_end + 1);
+  return path;
+}
+
+bool contains_lane_change_maneuver(const LaneChangePath & candidate, const double tolerance)
+{
+  const auto & points = candidate.path.points;
+  if (points.size() < 2 || !std::isfinite(tolerance) || tolerance < 0.0) return false;
+  // Project onto finite segments, not their infinite supporting lines: a
+  // truncated path must not "contain" an end pose beyond its last point.
+  const auto project = [&](const geometry_msgs::Point & p) {
+    double best_distance = std::numeric_limits<double>::infinity();
+    double best_arc = 0.0;
+    double arc = 0.0;
+    for (size_t i = 1; i < points.size(); ++i) {
+      const auto & a = points[i - 1].point.pose.position;
+      const auto & b = points[i].point.pose.position;
+      const double dx = b.x - a.x, dy = b.y - a.y;
+      const double length = std::hypot(dx, dy);
+      if (!std::isfinite(length)) return std::make_pair(best_distance, -1.0);
+      if (length < 1e-6) continue;
+      const double u = std::clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) /
+        (length * length), 0.0, 1.0);
+      const double distance = std::hypot(p.x - a.x - u * dx, p.y - a.y - u * dy);
+      if (distance < best_distance) {
+        best_distance = distance;
+        best_arc = arc + u * length;
+      }
+      arc += length;
+    }
+    return std::make_pair(best_distance, best_arc);
+  };
+  const auto start = project(candidate.info.lane_changing_start.position);
+  const auto end = project(candidate.info.lane_changing_end.position);
+  return start.first <= tolerance && end.first <= tolerance && start.second >= 0.0 &&
+         end.second > start.second;
+}
+
 using autoware::route_handler::RouteHandler;
 using autoware_internal_planning_msgs::PathWithLaneId;
 using autoware_perception_msgs::ObjectClassification;
@@ -183,7 +235,12 @@ bool path_footprint_exceeds_target_lane_bound(
       sign * utils::getSignedDistanceFromLaneBoundary(combined_target_lane, front_vertex, is_left);
 
     if (dist_to_boundary < margin) {
-      RCLCPP_DEBUG(get_logger(), "Path footprint exceeds target lane boundary");
+      RCLCPP_DEBUG(get_logger(),
+        "Path footprint exceeds target lane boundary: side=%s pose=(%.3f,%.3f) "
+        "vertex=(%.3f,%.3f) clearance=%.3f target=%ld..%ld",
+        is_left ? "left" : "right", pose.position.x, pose.position.y,
+        front_vertex.x, front_vertex.y, dist_to_boundary,
+        target_lanes.front().id(), target_lanes.back().id());
       return true;
     }
   }
@@ -195,7 +252,10 @@ std::vector<DrivableLanes> generateDrivableLanes(
   const RouteHandler & route_handler, const lanelet::ConstLanelets & current_lanes,
   const lanelet::ConstLanelets & lane_change_lanes)
 {
+  // Number of target lanes already represented. Shared successors are part of
+  // both sequences, not a second tail to append behind the current sequence.
   size_t current_lc_idx = 0;
+  std::optional<bool> target_is_left;
   std::vector<DrivableLanes> drivable_lanes(current_lanes.size());
   for (size_t i = 0; i < current_lanes.size(); ++i) {
     const auto & current_lane = current_lanes.at(i);
@@ -204,27 +264,64 @@ std::vector<DrivableLanes> generateDrivableLanes(
 
     const auto left_lane = route_handler.getLeftLanelet(current_lane, false, false);
     const auto right_lane = route_handler.getRightLanelet(current_lane, false, false);
-    if (!left_lane && !right_lane) {
-      continue;
-    }
-
-    for (size_t lc_idx = current_lc_idx; lc_idx < lane_change_lanes.size(); ++lc_idx) {
+    // A long target lane may run alongside more than one current lane.
+    const auto search_begin = current_lc_idx == 0 ? 0 : current_lc_idx - 1;
+    for (size_t lc_idx = search_begin; lc_idx < lane_change_lanes.size(); ++lc_idx) {
       const auto & lc_lane = lane_change_lanes.at(lc_idx);
+      if (lc_lane.id() == current_lane.id()) {
+        current_lc_idx = lc_idx + 1;
+        break;
+      }
       if (left_lane && lc_lane.id() == left_lane->id()) {
         drivable_lanes.at(i).left_lane = lc_lane;
-        current_lc_idx = lc_idx;
+        target_is_left = true;
+        current_lc_idx = lc_idx + 1;
         break;
       }
 
       if (right_lane && lc_lane.id() == right_lane->id()) {
         drivable_lanes.at(i).right_lane = lc_lane;
-        current_lc_idx = lc_idx;
+        target_is_left = false;
+        current_lc_idx = lc_idx + 1;
+        break;
+      }
+
+      // A merge can span several lanelets and its common successor can lie
+      // beyond the current-lane horizon. Match overlapping merge branches in
+      // longitudinal order, not by a nonexistent lateral lane-change edge.
+      // This is drivable-area grouping only; it does not authorize an LC.
+      bool converges = false;
+      if (target_is_left && boost::geometry::intersects(
+          utils::toPolygon2d(current_lane), utils::toPolygon2d(lc_lane))) {
+        auto successor = current_lane;
+        for (size_t step = 1; lc_idx + step < lane_change_lanes.size(); ++step) {
+          if (i + step < current_lanes.size()) {
+            successor = current_lanes.at(i + step);
+          } else {
+            if (!route_handler.isHandlerReady()) break;
+            lanelet::ConstLanelet next;
+            if (!route_handler.getNextLaneletWithinRoute(successor, &next)) break;
+            successor = next;
+          }
+          if (successor.id() == lane_change_lanes.at(lc_idx + step).id()) {
+            converges = true;
+            break;
+          }
+        }
+      }
+      if (converges) {
+        if (*target_is_left) {
+          drivable_lanes.at(i).left_lane = lc_lane;
+        } else {
+          drivable_lanes.at(i).right_lane = lc_lane;
+        }
+        current_lc_idx = lc_idx + 1;
         break;
       }
     }
   }
 
-  for (size_t i = current_lc_idx + 1; i < lane_change_lanes.size(); ++i) {
+  for (size_t i = current_lc_idx; i < lane_change_lanes.size(); ++i) {
     const auto & lc_lane = lane_change_lanes.at(i);
     DrivableLanes drivable_lane;
     drivable_lane.left_lane = lc_lane;
@@ -795,13 +892,11 @@ bool is_same_lane_with_prev_iteration(
     return false;
   }
 
-  if (
-    (prev_current_lanes.front().id() != current_lanes.front().id()) ||
-    (prev_current_lanes.back().id() != prev_current_lanes.back().id())) {
-    return false;
-  }
-  return (prev_target_lanes.front().id() == target_lanes.front().id()) &&
-         (prev_target_lanes.back().id() == prev_target_lanes.back().id());
+  const auto same_ids = [](const auto & a, const auto & b) {
+    return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(),
+      [](const auto & first, const auto & second) { return first.id() == second.id(); });
+  };
+  return same_ids(prev_current_lanes, current_lanes) && same_ids(prev_target_lanes, target_lanes);
 }
 
 MinMaxValue calc_polygon_dist_range_from_terminal_end(

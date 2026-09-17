@@ -19,10 +19,10 @@ goal_lanelet_transparency: 0.05
 # Handler and /planning/mission_planning/route_marker may treat as drivable.
 route_section_primitive_overrides:
   # 201438 is a separate merging approach to 200128, not an LC edge to 200099.
-  "201435": [201436, 201435, 200099, 201438]
+  "201436": [201436, 201435, 200099, 201438]
   # Independent overlapping merge paths, connected longitudinally on both sides.
-  "200130": [200127, 200130, 200134]
-  "201441": [201439, 201441, 201446]
+  "200127": [200127, 200130, 200134]
+  "201439": [201439, 201441, 201446]
   "201447": [201447]
   "201401": [201401]
 

@@ -15,6 +15,7 @@
 #include "autoware/behavior_path_lane_change_module/manager.hpp"
 #include "autoware/behavior_path_lane_change_module/scene.hpp"
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/utils.hpp"
 #include "autoware/behavior_path_planner_common/data_manager.hpp"
 #include "autoware_test_utils/autoware_test_utils.hpp"
 #include "autoware_test_utils/mock_data_parser.hpp"
@@ -188,7 +189,7 @@ int main(int argc, char ** argv)
     "drivable_area_expansion.param.yaml\" "
     "--source \"$(rospack find autoware_behavior_path_planner)/config/"
     "scene_module_manager.param.yaml\"");
-  if (load_result != 0) return load_result;
+  if (load_result != 0) return EXIT_FAILURE;
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
@@ -311,4 +312,71 @@ TEST_F(TestNormalLaneChange, testGetPathWhenValid)
   const auto & lc_status = normal_lane_change_->getLaneChangeStatus();
 
   ASSERT_TRUE(lc_status.is_valid_path);
+}
+
+TEST_F(TestNormalLaneChange, ExtendActualOutputRatherThanStoredCandidate)
+{
+  normal_lane_change_->update_lanes(false);
+  const auto & data = get_common_data_ptr();
+  ASSERT_FALSE(data->lanes_ptr->target.empty());
+  const auto output = data->route_handler_ptr->getCenterLinePath(
+    data->lanes_ptr->target, 0.0, 15.0);
+  ASSERT_GT(output.points.size(), 1U);
+  // No selected candidate exists: terminal/waiting output must still extend.
+  ASSERT_TRUE(normal_lane_change_->getLaneChangePath().path.points.empty());
+  EXPECT_FALSE(normal_lane_change_->extendPath());
+  const auto extension = normal_lane_change_->extendPath(output);
+  ASSERT_TRUE(extension);
+  ASSERT_GT(extension->points.size(), 1U);
+  const auto & join = output.points.back().point.pose.position;
+  const auto & start = extension->points.front().point.pose.position;
+  EXPECT_NEAR(join.x, start.x, 0.1);
+  EXPECT_NEAR(join.y, start.y, 0.1);
+  EXPECT_FALSE(normal_lane_change_->extendPath(PathWithLaneId{}));
+}
+
+TEST_F(TestNormalLaneChange, LeftLaneChangeAlsoContainsFullManeuver)
+{
+  const auto file = ros::package::getPath("autoware_behavior_path_lane_change_module") +
+    "/test_data/lane_change_test_route.yaml";
+  const auto parsed = autoware::test_utils::parse<std::optional<LaneletRoute>>(file);
+  ASSERT_TRUE(parsed);
+  auto route = *parsed;
+  for (auto & section : route.segments) {
+    section.preferred_primitive = section.primitives.front();
+  }
+  route.goal_pose.position.y = 1.75;
+  planner_data_->route_handler->setRoute(route);
+  ego_pose_ = autoware::test_utils::createPose(1.0, -1.75, 0.0, 0.0, 0.0, 0.0);
+  planner_data_->self_odometry = set_odometry(ego_pose_);
+  lc_direction_ = Direction::LEFT;
+  init_module();
+  normal_lane_change_->update_lanes(false);
+  normal_lane_change_->update_filtered_objects();
+  normal_lane_change_->update_transient_data(false);
+  const auto required_error = normal_lane_change_->isLaneChangeRequired();
+  ASSERT_FALSE(required_error) << required_error.value_or("");
+  normal_lane_change_->updateLaneChangeStatus();
+  const auto & status = normal_lane_change_->getLaneChangeStatus();
+  ASSERT_TRUE(status.is_valid_path);
+  EXPECT_TRUE(autoware::behavior_path_planner::utils::lane_change::contains_lane_change_maneuver(
+    status.lane_change_path));
+}
+
+TEST_F(TestNormalLaneChange, PendingSignalTimeCountsWithoutAValidCandidate)
+{
+  lc_param_ptr_->trajectory.max_prepare_duration = 4.0;
+  lc_param_ptr_->trajectory.min_prepare_duration = 2.0;
+  auto odom = set_odometry(ego_pose_);
+  odom->twist.twist.linear.x = 10.0;
+  planner_data_->self_odometry = odom;
+  normal_lane_change_->setData(planner_data_);
+  normal_lane_change_->update_lanes(false);
+  ASSERT_FALSE(normal_lane_change_->getLaneChangeStatus().is_valid_path);
+  ros::Time::setNow(ros::Time(100));
+  normal_lane_change_->get_current_turn_signal_info();
+  ros::Time::setNow(ros::Time(103));
+  normal_lane_change_->update_transient_data(false);
+  EXPECT_DOUBLE_EQ(get_common_data_ptr()->transient_data.lane_change_prepare_duration, 2.0);
+  ros::Time::init();
 }
