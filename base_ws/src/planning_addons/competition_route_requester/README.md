@@ -25,7 +25,7 @@ YAML의 `route_operation_case`는 `route_a_only`, `route_b_only`, `route_a_to_b`
 
 `competition_route_requester.param.yaml`은 현재 ROS1 flat YAML이며 `/planning/mission_planning/route`를 사용한다. 잘못된 case/지도 SHA는 구독·서비스 생성 전 거부한다. 서비스 응답 불명확 또는 서비스 성공 후 검증 실패는 `RECONCILIATION_REQUIRED`로 고정하고 자동 재요청하지 않는다. 이 상태에서 Route A가 그대로라고 가정하거나 프로세스 재시작만으로 해결하지 않는다. 운영자가 실제 RouteSelector 상태와 UUID를 먼저 확인해야 한다.
 
-`/planning/mission_planning/route_marker`는 선호 lanelet만이 아니라 각 route segment의 주행 가능 후보인 `primitives` 전체를 표시한다. K-City v81은 평행 구간의 `200127/200130/200134`와 `201473/201474/201475`를 LC 후보로 유지한다. 병목 진입 뒤에는 `[200185,200360]`, `[201476,201477]`을 후보로 두고 왼쪽 통로 `200185→201453→201476`을 선호한다. 기존 `201448/201447` 평행 구간은 중앙에서 함께 분할했으며, 전반 segment `[201448,201479]`에서는 `201448`, 후반 segment `[201478,201447]`에서는 `201447`을 선택한다. 따라서 BPP는 중앙 분할점 부근에서 오른쪽 LC를 계획할 수 있다.
+`/planning/mission_planning/route_marker`는 선호 lanelet만이 아니라 각 route segment의 주행 가능 후보인 `primitives` 전체를 표시한다. K-City v81은 평행 구간의 `200127/200130/200134`와 `201473/201474/201475`를 LC 후보로 유지한다. 병목 진입 뒤에는 `[200185,200360]`, 단독 `201453`, `[201476,201477]` segment를 차례로 만들고 `200185 → 201453 → 201477`을 선호한다. 이후 `[201448,201479]`에서는 `201479`, `[201478,201447]`에서는 `201447`을 선택해 하위 차선을 유지한다.
 
 운영 RViz의 `Route Status` 패널은 gateway 상태의 `verified_active`를 읽어 현재 검증된 Route A 또는 Route B를 점등한다. fallback이 활성화됐거나 새 route를 아직 검증 중이면 두 표시등 모두 꺼진다. planner startup의 첫 요청은 S–1 구간의 Route A 또는 1–deadline 구간의 Route B를 자동 선택하고 기존 route가 있어도 새 요청으로 교체한다. route를 먼저 clear하지 않고 새 route stamp와 새 trajectory/validator 증거가 확인된 뒤 새 generation으로 검증한다.
 
@@ -44,7 +44,7 @@ Route B 이동 중 재시도는 `200346` 이전 현재 lanelet부터의 **정확
 
 ![K-City v81 고주로 선호 차선](docs/assets/kcity_v81_highway_lane_strategy.svg)
 
-고주로 선호 경로는 `201457 → 201435 → 201466 → 200137 → 201444 → 201469 → 200127 → 201473 → 201439 → 200185 → 201453 → 201476 → 201448 → 201447 → 201399`이다. `200187`에서 `201444`로 한 번 왼쪽 LC하고, 병목에서는 왼쪽 통로를 따라 `201448`에 진입한다. v81이 만든 공통 중앙 단면 뒤에는 선호 차선을 `201447`로 바꿔 오른쪽 LC를 요청한다. waypoint는 경로와 LC 구간을 지정하며 실제 LC 시작점과 상대 차량 안전 판단은 BPP가 결정한다.
+고주로 선호 경로는 `201457 → 201435 → 201466 → 200137 → 200187 → 201469 → 200127 → 201473 → 201439 → 200185 → 201453 → 201477 → 201479 → 201447 → 201399`이다. 병합된 중간 차선 `200187`을 선호한 뒤 다음 `201469` 구간으로 이동하고, 병목에서는 완만한 왼쪽 통로 `200185 → 201453`을 탄다. 이후 하위 분할 차선 `201477 → 201479 → 201447`을 유지해 톨게이트 접근 구간의 늦은 LC를 피한다. waypoint는 경로와 LC 구간을 지정하며 실제 LC 시작점과 상대 차량 안전 판단은 BPP가 결정한다.
 
 ![Competition route operation cases](docs/assets/kcity_v81_operation_cases.svg)
 

@@ -137,7 +137,8 @@ def joined_centerlines(lanelets, lanelet_ids, lateral_tolerance=0.10):
 def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, epsg):
     """Show the v81 highway lane groups and the requested bottleneck LC."""
     current = [201456, 201438, 200128, 200102, 200134, 201446, 200360]
-    selected = [201457, 201435, 200137, 201444, 200127, 201439, 200185]
+    selected = [201457, 201435, 201466, 200137, 200187, 201469, 200127,
+                201473, 201439, 200185, 201453, 201477, 201479, 201447]
     upper = [201459, 201436, 200138, 201444, 200127, 201439, 200185]
     # v77 transverse splits preserve the physical corridors; v81 additionally
     # splits 201448/201447 at the requested LC cross-section.
@@ -148,9 +149,8 @@ def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, eps
               201479: 201447}
     def expand(ids):
         return [j for i in ids for j in ([i, splits[i]] if i in splits else [i])]
-    current, selected, upper = map(expand, (current, selected, upper))
+    current, upper = map(expand, (current, upper))
     current += [201477, 201479, 201447]
-    selected += [201453, 201476, 201448, 201447]
     upper += [201453, 201476, 201448, 201478]
     highway_ids = list(dict.fromkeys(current + selected + upper + [201458, 200099]))
     missing = [lanelet_id for lanelet_id in highway_ids if lanelet_id not in lanelets]
@@ -220,8 +220,8 @@ def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, eps
         '• 병합된 200187은 중간 차선이다. 같은 위치의 최상위는 201444이다.',
         '• 진입 직후 평행 후보 201456~201459 중에서',
         '  SetPreferredPrimitive로 중간 차선 201457을 선택한다.',
-        '• 병목은 200185→201453→201476→201448로 진입한다.',
-        '• 중앙 분할 뒤 201447을 선호해 오른쪽 LC를 요청한다.',
+        '• 병목은 200185→201453을 지나 201477로 이동한다.',
+        '• 이후 201479→201447 하위 차선을 유지한다.',
     ], 'small', 29)
     svg.append(f'<text x="955" y="812" class="small">v{config["map"]["version"]} · SHA-256 {actual_hash[:16]}…</text>')
     svg.append('</svg>')

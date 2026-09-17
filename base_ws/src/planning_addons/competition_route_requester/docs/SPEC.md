@@ -167,9 +167,9 @@ Route B 요청 시 차량은 이미 `200178`의 s 8 m 이상에 있어야 하므
 
 #### Route A 요청과 검증 경로
 
-고주로에서는 waypoint planner가 병렬 lanelet을 포함한 segment를 만든 뒤 `SetPreferredPrimitive`로 최종 선호 lanelet을 지정한다. v81의 최종 선호 순서는 `201457 → 201435 → 201466 → 200137 → 201444 → 201469 → 200127 → 201473 → 201439 → 200185 → 201453 → 201476 → 201448 → 201447 → 201399`이다.
+고주로에서는 waypoint planner가 병렬 lanelet을 포함한 segment를 만든 뒤 `SetPreferredPrimitive`로 최종 선호 lanelet을 지정한다. v81의 최종 선호 순서는 `201457 → 201435 → 201466 → 200137 → 200187 → 201469 → 200127 → 201473 → 201439 → 200185 → 201453 → 201477 → 201479 → 201447 → 201399`이다.
 
-Mission Planner가 발행하는 route segment의 `primitives`는 `/planning/mission_planning/route_marker`에 표시되는 주행 가능 후보이며 BPP가 사용하는 실제 route 정보다. K-City v81에서는 평행 구간 `200127/200130/200134`와 `201473/201474/201475`를 LC 후보로 구성한다. 병목에서는 `[200185,200360]`, `[201476,201477]`을 후보로 유지한다. 중앙 분할 전 segment `[201448,201479]`은 `201448`, 분할 후 segment `[201478,201447]`은 `201447`을 선호해 중앙 부근의 오른쪽 LC를 표현한다.
+Mission Planner가 발행하는 route segment의 `primitives`는 `/planning/mission_planning/route_marker`에 표시되는 주행 가능 후보이며 BPP가 사용하는 실제 route 정보다. K-City v81에서는 평행 구간 `200127/200130/200134`와 `201473/201474/201475`를 LC 후보로 구성한다. 병목 뒤에는 `[200185,200360]`, 단독 `201453`, `[201476,201477]` segment를 만들고 각각 `200185`, `201453`, `201477`을 선호한다. 이후 `[201448,201479]`에서는 `201479`, `[201478,201447]`에서는 `201447`을 선호해 톨게이트 접근까지 하위 차선을 유지한다.
 
 ![K-City v81 Route A 상세](assets/kcity_v81_route_a_detail.svg)
 
@@ -267,7 +267,7 @@ route_a_to_b_with_fallback:
 2. 현재 선택 route가 결승선 이후 goal `200210`까지 이어지는지 UUID, goal 및 lanelet suffix로 판정한다.
 3. `route_a_to_fallback`에서는 정상 Route B waypoint 요청을 하지 않고 합류 lanelet `201439`의 s 2.0 m hard cutoff에서 fallback을 시작한다.
 4. `route_a_to_b_with_fallback`에서는 Route B 적용을 먼저 시도하고, `200130` cutoff까지 결승선 통과 가능한 Route B가 확인되지 않은 경우에만 fallback으로 승격한다.
-5. fallback builder는 `fallback_route.expected_path_lanelet_ids`의 27개 segment와 goal `200210`을 가진 `SetLaneletRoute` 요청을 만든다. `201441` s 9.142493 m는 v72의 `200130` s 50.376946 m와 같은 물리 좌표로, Mission의 최소 안전거리 30 m를 유지한다.
+5. fallback builder는 `fallback_route.expected_path_lanelet_ids`의 30개 segment와 goal `200210`을 가진 `SetLaneletRoute` 요청을 만든다. `201439` s 2 m에서 요청해 병목 통로 끝까지 Mission의 최소 안전거리 30 m 이상을 유지한다.
 6. requester는 진행 중인 정상 요청과 fallback 요청을 동시에 보내지 않으며 fallback 요청에 우선권을 준다.
 7. fallback 요청도 RouteSelector main 입력과 Mission Planner의 reroute availability 및 safety 검사를 그대로 통과해야 한다.
 8. Mission Planner가 발행한 새 route와 trajectory가 검증된 뒤에만 `FINISH_ROUTE_ACTIVE`로 판단한다.

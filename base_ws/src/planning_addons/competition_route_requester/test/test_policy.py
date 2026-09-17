@@ -103,30 +103,36 @@ class PolicyTest(unittest.TestCase):
             initial = self.routes[key]['waypoint_path_lanelet_ids']
             preferred = self.routes[key]['expected_path_lanelet_ids']
 
-            # The route contains a waypoint on 200187 before its waypoint on
-            # 201444. In the emitted route, 200187 remains an alternative of
-            # the 201444-preferred segment, causing BPP to request a left LC.
+            # The real v81 DefaultPlanner route keeps 200187 and the following
+            # 201469 branch in separate segments. The preferred sequence asks
+            # BPP to complete that transition before the next segment.
             initial_window = initial[initial.index(200138):initial.index(201439) + 1]
             self.assertEqual(
                 initial_window,
                 [200138, 201444, 201469, 200127, 201473, 201439],
             )
-            preferred_window = preferred[preferred.index(200137):preferred.index(201399) + 1]
+            preferred_window = preferred[preferred.index(201457):preferred.index(201399) + 1]
             self.assertEqual(
                 preferred_window,
-                [200137, 201444, 201469, 200127, 201473, 201439, 200360,
-                 201477, 201479, 201447, 201399],
+                [201457, 201435, 201466, 200137, 200187, 201469, 200127,
+                 201473, 201439, 200185, 201453, 201477, 201479, 201447,
+                 201399],
             )
 
-            # Stay on the lower branch after the bottleneck and through the
-            # split pair, avoiding the late 201448 -> 201447 lane change.
+            # Use the smoother 200185 -> 201453 branch after the bottleneck,
+            # then stay on the lower split pair through the tollgate approach.
+            initial_bottleneck = initial[initial.index(201439):initial.index(201477)]
+            self.assertEqual(initial_bottleneck, [201439, 200185, 201453])
             initial_split = initial[initial.index(201477):initial.index(201399) + 1]
             self.assertEqual(initial_split, [201477, 201479, 201447, 201399])
 
             refs = self.routes[key]['waypoint_refs']
-            self.assertLess(refs.index('wp_200187_merged'), refs.index('wp_201444_mid'))
+            self.assertLess(refs.index('wp_200187_merged'), refs.index('wp_201473'))
+            self.assertLess(refs.index('wp_201473'), refs.index('wp_200185'))
+            self.assertNotIn('wp_201444_mid', refs)
+            self.assertNotIn('wp_200360', refs)
             self.assertEqual(self.routes['poses']['wp_200187_merged']['lanelet_id'], 200187)
-            self.assertEqual(self.routes['poses']['wp_201444_mid']['lanelet_id'], 201444)
+            self.assertEqual(self.routes['poses']['wp_200185']['lanelet_id'], 200185)
 
     def test_route_a_accepts_start_to_trigger_suffixes(self):
         initial = self.routes['route_a']['waypoint_path_lanelet_ids']
@@ -138,7 +144,7 @@ class PolicyTest(unittest.TestCase):
                              final[index:])
 
     def test_geometry_and_hash(self):
-        for ref in ('wp_200178', 'wp_200137', 'wp_201473', 'wp_200360',
+        for ref in ('wp_200178', 'wp_200137', 'wp_201473', 'wp_200185',
                     'wp_201447_after_lc', 'fallback_cutoff_201439'):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
