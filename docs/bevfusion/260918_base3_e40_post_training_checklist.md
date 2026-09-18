@@ -1,5 +1,8 @@
 # Base3 BEVFusion Fresh E40 학습 종료 후 체크리스트
 
+> 2026-09-18 완료. 결과와 production 판단은
+> [`260918_base3_e40_corrected_evaluation_results.md`](260918_base3_e40_corrected_evaluation_results.md)에 기록했다.
+
 ## 대상 run
 
 - Run: `bf-sw-fresh-e40-rtx5060ti-260918-005536`
@@ -29,9 +32,13 @@
 - GT와 prediction에 같은 축 정렬 사각 범위를 적용한다.
 - 기존 학습 W&B history는 수정하거나 삭제하지 않는다.
 
-E1--E40 전체 checkpoint를 evaluation batch `4`로 순차 평가한다. OOM 또는 metric
-회귀가 확인될 때만 `--batch-size`로 낮춘다. 기존 Vehicle AP가 범위 오류 ceiling에
-눌려 있어 구버전 지표만으로 후보를 과도하게 줄이면 진짜 best를 놓칠 수 있다.
+E1--E40 전체 checkpoint를 RTX 5060 Ti 기준 evaluation batch `4`로 순차
+평가한다. 이는 팀 전체의 고정값이 아니다. RTX 2080 Ti는 `2`로 시작해 OOM이면
+`1`로 낮추고, RTX 3090/4090은 `4`로 시작한다. 24 GB GPU에서 `8`을 쓰려면
+E1 단일 checkpoint로 metric 동일성과 peak VRAM 여유를 먼저 확인한다. 평가
+batch는 속도·메모리용 설정일 뿐 best 선정 기준이나 학습 effective batch를
+바꾸지 않는다. 기존 Vehicle AP가 범위 오류 ceiling에 눌려 있어 구버전 지표만으로
+후보를 과도하게 줄이면 진짜 best를 놓칠 수 있다.
 예상 소요 시간은 checkpoint당 약 3분, 전체 약 2시간이다. 전 결과는 별도 corrected
 W&B run 하나에 기존 `val/*` key와 `epoch=1..40` 축으로 기록한다.
 
