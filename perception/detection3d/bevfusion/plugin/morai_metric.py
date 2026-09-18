@@ -24,6 +24,10 @@ class MoraiCenterMetric(BaseMetric):
 
     default_prefix = None
 
+    def __init__(self, point_cloud_range=None, **kwargs):
+        super().__init__(**kwargs)
+        self.point_cloud_range = point_cloud_range
+
     def process(self, data_batch: dict, data_samples: Sequence[dict]) -> None:
         for sample in data_samples:
             pred = sample["pred_instances_3d"]
@@ -56,4 +60,5 @@ class MoraiCenterMetric(BaseMetric):
             predictions,
             list(self.dataset_meta["classes"]),
             use_valid_flag=True,
+            point_cloud_range=self.point_cloud_range,
         )
