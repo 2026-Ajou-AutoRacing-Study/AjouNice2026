@@ -52,12 +52,28 @@ class PolicyTest(unittest.TestCase):
         for value in (0, 9, 10.1, float('nan'), float('inf')):
             self.assertFalse(policy.fresh(10, value, .5))
 
-    def test_deadline(self):
+    def test_route_b_startup_after_trigger(self):
         r = self.routes
-        self.assertFalse(policy.in_window(r, 'route_b', 200178, 7.9))
-        self.assertTrue(policy.in_window(r, 'route_b', 200178, 8))
-        self.assertTrue(policy.in_window(r, 'route_b', 200348, 1))
-        self.assertFalse(policy.in_window(r, 'route_b', 200346, 0))
+        self.assertFalse(policy.in_window(r, 'route_b', 200178, 8, initial=True))
+        self.assertFalse(policy.in_window(r, 'route_b', 200348, 8, initial=True))
+        self.assertTrue(policy.in_window(r, 'route_b', 200258, 0, initial=True))
+        self.assertTrue(policy.in_window(r, 'route_b', 200261, 0, initial=True))
+        self.assertTrue(policy.in_window(r, 'route_b', 200181, 0, initial=True))
+        self.assertTrue(policy.in_window(r, 'route_b', 200892, 0, initial=True))
+        self.assertFalse(policy.in_window(r, 'route_b', 200892, 18.858427, initial=True))
+        self.assertFalse(policy.in_window(r, 'route_b', 200220, 0, initial=True))
+        self.assertFalse(policy.in_window(r, 'route_b', 200210, 0, initial=True))
+        # 200889 is physically reused immediately after the 200892 endpoint.
+        self.assertFalse(policy.in_window(r, 'route_b', 200889, 8, initial=True))
+
+    def test_route_a_to_b_reroute_trigger(self):
+        r = self.routes
+        self.assertFalse(policy.in_window(r, 'route_b', 200258, 7.9))
+        self.assertTrue(policy.in_window(r, 'route_b', 200258, 8))
+        self.assertFalse(policy.in_window(r, 'route_b', 200348, 1))
+        self.assertFalse(policy.in_window(r, 'route_b', 200346, 8))
+        self.assertTrue(policy.in_window(r, 'route_b', 200261, 0))
+        self.assertTrue(policy.in_window(r, 'route_b', 200311, 0))
         self.assertFalse(policy.in_window(r, 'fallback_route', 201439, 1.9))
         self.assertTrue(policy.in_window(r, 'fallback_route', 201439, 2.0))
         self.assertFalse(policy.in_window(r, 'fallback_route', 200360, 8))
@@ -73,9 +89,21 @@ class PolicyTest(unittest.TestCase):
             bad = list(args); bad[2] = '00000000-0000-0000-0000-000000000000'
             self.assertFalse(policy.route_matches(*bad))
             bad = list(args); bad[3] = seq[::-1]
+            self.assertEqual(policy.route_matches(*bad), key == 'route_b')
+            bad = list(args); bad[3] = []
             self.assertFalse(policy.route_matches(*bad))
             bad = list(args); bad[4] = (goal['x']+1, goal['y'])
             self.assertFalse(policy.route_matches(*bad))
+
+    def test_route_b_accepts_selector_branch_when_uuid_and_goal_match(self):
+        definition = self.routes['route_b']
+        goal = self.routes['poses'][definition['goal_ref']]
+        observed = [200311, 200968, 201095, 201098, 201096, 201087,
+                    201086, 201456, 201438, 201468, 200138, 201444]
+        self.assertTrue(policy.route_matches(
+            self.routes, 'route_b', definition['uuid'], observed,
+            (goal['x'], goal['y']), .5, 'waypoint_path_lanelet_ids'))
+        self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', observed), observed)
 
     def test_waypoint_route_maps_to_configured_preferred_lanes(self):
         for key in ('route_a', 'route_b'):
@@ -95,7 +123,7 @@ class PolicyTest(unittest.TestCase):
         initial = self.routes['route_b']['waypoint_path_lanelet_ids']
         final = self.routes['route_b']['expected_path_lanelet_ids']
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[1:]), final[1:])
-        self.assertIsNone(policy.preferred_sequence(self.routes, 'route_b', initial[4:]))
+        self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[4:]), final[4:])
 
     def test_v81_highway_lane_change_contract(self):
         """Keep both requested highway lane changes in Route A/B."""
@@ -137,14 +165,15 @@ class PolicyTest(unittest.TestCase):
     def test_route_a_accepts_start_to_trigger_suffixes(self):
         initial = self.routes['route_a']['waypoint_path_lanelet_ids']
         final = self.routes['route_a']['expected_path_lanelet_ids']
-        for index in (1, 2):
+        trigger_index = initial.index(200258)
+        for index in (1, 2, trigger_index):
             self.assertIn(initial[index:], policy.accepted_sequences(
                 self.routes, 'route_a', 'waypoint_path_lanelet_ids'))
             self.assertEqual(policy.preferred_sequence(self.routes, 'route_a', initial[index:]),
                              final[index:])
 
     def test_geometry_and_hash(self):
-        for ref in ('wp_200178', 'wp_200137', 'wp_201473', 'wp_200360',
+        for ref in ('wp_200178', 'wp_200258', 'wp_200137', 'wp_201473', 'wp_200360',
                     'wp_201447_after_lc', 'fallback_cutoff_201439'):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
@@ -158,16 +187,23 @@ class PolicyTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             Geometry(REPO, bad)
 
-    def test_moving_retry_exact_suffix_only(self):
+    def test_moving_route_b_keeps_identity_and_goal_checks(self):
         definition = self.routes['route_b']
         seq = definition['expected_path_lanelet_ids']
         goal = self.routes['poses'][definition['goal_ref']]
         args = [self.routes, 'route_b', definition['uuid'], seq[1:], (goal['x'], goal['y']), .5]
         self.assertTrue(policy.route_matches(*args))
         args[3] = seq[seq.index(200346):]
-        self.assertFalse(policy.route_matches(*args))
+        self.assertTrue(policy.route_matches(*args))
         args[3] = seq[1:4] + seq[5:]
-        self.assertFalse(policy.route_matches(*args))
+        self.assertTrue(policy.route_matches(*args))
+
+    def test_route_b_drops_waypoints_behind_startup_pose(self):
+        refs = policy.remaining_waypoint_refs(self.routes, 'route_b', 200311)
+        self.assertNotIn('wp_200346', refs)
+        self.assertNotIn('wp_200315', refs)
+        self.assertNotIn('wp_200311', refs)
+        self.assertEqual(refs[0], 'wp_201095')
 
     def test_policy_transitions(self):
         for case in policy.CASES:
@@ -176,12 +212,24 @@ class PolicyTest(unittest.TestCase):
             self.assertEqual(policy.next_normal(case, None, 200178, 7.9, self.routes),
                              None if case == 'route_b_only' else 'route_a')
             self.assertEqual(policy.next_normal(case, None, 200178, 8, self.routes),
+                             None if case == 'route_b_only' else 'route_a')
+            for lane in (200337, 200287, 200348, 200346, 200291, 200292,
+                         200305, 200841, 200950, 200310, 200308):
+                self.assertEqual(policy.next_normal(case, None, lane, 100, self.routes),
+                                 None if case == 'route_b_only' else 'route_a')
+            self.assertEqual(policy.next_normal(case, None, 200258, 0, self.routes),
                              'route_b' if policy.allowed(case, 'route_b') else None)
-            self.assertEqual(policy.next_normal(case, None, 200348, 1, self.routes),
+            self.assertEqual(policy.next_normal(case, None, 200258, 8, self.routes),
                              'route_b' if policy.allowed(case, 'route_b') else None)
-            self.assertIsNone(policy.next_normal(case, None, 200346, 0, self.routes))
-            self.assertEqual(policy.next_normal(case, 'route_a', 200178, 8, self.routes),
+            self.assertEqual(policy.next_normal(case, None, 200892, 0, self.routes),
+                             'route_b' if policy.allowed(case, 'route_b') else None)
+            self.assertEqual(policy.next_normal(case, None, 200892, 18.858427, self.routes),
+                             None if case == 'route_b_only' else 'route_a')
+            self.assertIsNone(policy.next_normal(case, None, 200220, 0, self.routes))
+            self.assertEqual(policy.next_normal(case, 'route_a', 200258, 8, self.routes),
                              'route_b' if case in policy.NORMAL else None)
+            self.assertIsNone(policy.next_normal(case, 'route_a', 200889, 8, self.routes))
+            self.assertIsNone(policy.next_normal(case, 'route_a', 200311, 8, self.routes))
             self.assertIsNone(policy.next_normal(case, 'route_b', 200360, 8, self.routes))
 
 

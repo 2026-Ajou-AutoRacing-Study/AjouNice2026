@@ -109,7 +109,7 @@ class Inputs:
         progress = self.progress()
         if progress is None:
             return False, 'fresh valid odometry unavailable'
-        if not policy.in_window(self.routes, key, *progress):
+        if not policy.in_window(self.routes, key, *progress, initial=self.active is None):
             return False, 'outside %s request window' % key
         now = rospy.Time.now().to_sec()
         if self.map is None or not self.map.data or self.state is None or self.mode is None:
@@ -264,7 +264,10 @@ class Gateway(Inputs):
                 primitive = LaneletPrimitive(id=lane, primitive_type='lane')
                 request.segments.append(LaneletSegment(preferred_primitive=primitive, primitives=[primitive]))
         else:
-            request.waypoints = [pose(self.routes['poses'][ref]) for ref in definition['waypoint_refs']]
+            progress = self.progress()
+            current_lane = progress[0] if progress is not None else None
+            refs = policy.remaining_waypoint_refs(self.routes, key, current_lane)
+            request.waypoints = [pose(self.routes['poses'][ref]) for ref in refs]
         return request
 
     def fault(self, key, reason):
@@ -477,6 +480,8 @@ class Supervisor(Inputs):
         if key is None:
             return
         initial = self.active is None
+        if initial and key == 'route_b' and self.attempts.get(key, 0) >= 1:
+            return
         limit = self.cfg['initial_route_max_attempts' if initial else 'reroute_max_attempts']
         interval = self.cfg['retry_initial_interval' if initial else 'retry_reroute_interval']
         if limit and self.attempts.get(key, 0) >= limit or time.monotonic()-self.last_attempt < interval:

@@ -22,6 +22,7 @@ start:
     yaw_deg: 61.298126221
   location: lanelet_boundary
   incoming_lanelet_id: 200892  # 공식 좌표는 200892의 끝점과 일치한다.
+  incoming_lanelet_end_s_m: 18.858427  # 200892 내부(B)와 공식 출발 경계(A)를 구분한다.
   outgoing_lanelet_id: 200889  # 대회 진행 방향의 첫 lanelet이다.
   accepted_start_lanelet_ids: [200892, 200889]  # 경계점의 closest-lanelet tie를 둘 다 허용한다.
   expected_pose_tolerance_m: 6.0
@@ -34,6 +35,14 @@ poses:
     y: 203.754521585
     z: 28.426545152
     yaw_deg: 152.142116
+
+  wp_200258:  # Route A가 활성화된 상태에서 Route B로 전환하는 지점이다.
+    lanelet_id: 200258
+    lanelet_s_m: 8.0
+    x: 71.117209049
+    y: 565.421965596
+    z: 28.392022
+    yaw_deg: 90.205013
 
   wp_200346:
     lanelet_id: 200346
@@ -317,7 +326,7 @@ route_a:
 route_b:
   uuid: "532d0a63-426a-59aa-bfdf-ac4aa566c177"  # v81 중앙 병목 LC 경로의 고정 UUID다.
   allow_modification: false
-  waypoint_refs:  # 200178은 요청 시점의 현재 lanelet이므로 제외한다.
+  waypoint_refs:  # 요청 시점보다 뒤에 있는 waypoint만 runtime에서 골라 사용한다.
     - wp_200346
     - wp_200315
     - wp_200311
@@ -494,10 +503,15 @@ fallback_route:
     - 200249
     - 200210
 
+startup_route_b_trigger:
+  pose_ref: wp_200258
+  minimum_lanelet_s_m: 0.0  # route가 없으면 200258 진입부터 200892 끝점 전까지 Route B를 요청한다.
+  end_lanelet_id: 200892
+
 reroute_trigger:
-  pose_ref: wp_200178
-  minimum_lanelet_s_m: 8.0  # 200178에 8m 이상 진입한 뒤 Route B를 준비한다.
-  deadline_pose_ref: wp_200346  # 200346 도달 전 Route B 적용을 끝내야 한다.
+  pose_ref: wp_200258
+  minimum_lanelet_s_m: 8.0  # Route A 활성 상태에서 200258에 8m 이상 진입한 뒤 B로 전환한다.
+  deadline_pose_ref: wp_200315  # 트리거 이후 200315 도달 전 Route B 적용을 끝내야 한다.
 
 validation:
   checkpoint_radius_m: 3.0  # 대회 체크포인트는 중심에서 반경 3m 이내로 통과해야 한다.

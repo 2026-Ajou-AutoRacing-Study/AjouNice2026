@@ -241,7 +241,7 @@ class GatewayROS(unittest.TestCase):
         self.assertEqual(self.calls, 1)
 
     def test_startup_selects_route_b_after_first_trigger(self):
-        self.ego_pose = self.routes['poses']['wp_200178']
+        self.ego_pose = self.routes['poses']['wp_200258']
         self.wait(lambda: self.gateway.guard('route_b')[0])
         response = self.client('route_b')
         self.assertTrue(response.accepted, response.detail)
@@ -330,7 +330,7 @@ class GatewayROS(unittest.TestCase):
 
     def test_b_trigger_transport(self):
         # Pose advances to trigger. This checks policy/transport, not Mission safety.
-        self.transition('route_b', 'wp_200178')
+        self.transition('route_b', 'wp_200258')
 
     def test_fallback_transport(self):
         self.transition('fallback_route', self.routes['fallback_route']['hard_cutoff_pose_ref'])
@@ -350,7 +350,7 @@ class GatewayROS(unittest.TestCase):
         self.assertEqual(self.calls, 3)
 
     def test_manual_a_restart_from_b(self):
-        self.restart_a_from('route_b', 'wp_200178')
+        self.restart_a_from('route_b', 'wp_200258')
 
     def test_manual_a_restart_from_fallback(self):
         self.restart_a_from('fallback_route', self.routes['fallback_route']['hard_cutoff_pose_ref'])
