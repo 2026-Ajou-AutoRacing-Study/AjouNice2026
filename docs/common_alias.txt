@@ -50,7 +50,10 @@ alias udp22="roslaunch sensor_interface morai_udp_interface_22.launch"
 alias sensing="roslaunch bringup sensing.launch"
 alias pointpainting='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && POINTPAINTING_ACTIVATE_CONDA=false POINTPAINTING_WITH_TP=false POINTPAINTING_CFG="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/model.yaml" POINTPAINTING_CKPT="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/detector.pth" POINTPAINTING_SEG_CKPT="$POINTPAINTING_BUNDLE_ROOT/segmentation/base3_lraspp_e30/segmentation.pth" rosrun morai_pointpainting_ros run_pointpainting.sh live'
 alias bevfusion='bash "$AJOUNICE_ROOT/scripts/runtime/run_bevfusion.sh"'
-alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline object_pipeline.launch start_detector:=false prediction_model:=map_based'
+# BEVFusion detections are measurement-stamped and arrive at roughly
+# 0.27-0.39 s age on the RTX 5060 Ti live pipeline.  Keep the fixed-rate EKF
+# output alive without changing measurement time semantics.
+alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline object_pipeline.launch start_detector:=false prediction_model:=map_based maximum_tracking_internal_prediction_age_sec:=0.5'
 alias od_gt='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline morai_gt_detection.launch'
 alias traffic='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch traffic_light_detection traffic_light_node.launch'
 

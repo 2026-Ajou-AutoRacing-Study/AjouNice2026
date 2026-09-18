@@ -25,3 +25,6 @@ allowed:
     tags: list_of_strings
   output:
     root: path_or_empty
+  checkpointing:
+    interval: positive_integer
+    max_keep_ckpts: positive_integer

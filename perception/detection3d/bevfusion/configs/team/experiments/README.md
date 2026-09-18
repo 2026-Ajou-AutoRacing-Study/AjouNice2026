@@ -17,3 +17,8 @@ MMEngine command, source snapshot, Git state, and runtime manifest are copied
 into the output directory and logged to W&B.
 
 Do not put API keys in YAML or `.env.bevfusion.local`.
+
+`checkpointing.max_keep_ckpts` defaults to `3`. Increase it for a long sweep
+when intermediate epochs must be compared on rosbag evaluation; for example,
+use `40` for a 40-epoch run. Checkpoints are written under the immutable run
+output directory, so changing branches does not affect a running experiment.

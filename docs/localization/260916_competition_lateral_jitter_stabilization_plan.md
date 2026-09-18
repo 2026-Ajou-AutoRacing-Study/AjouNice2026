@@ -138,8 +138,8 @@ Heading `-1.347 deg`는 고정 편향 보정이다. 값이 틀리면 한쪽으�
 ```
 
 횡방향 채터링만 줄고 장기 절대 위치, 곡선 추종 및 GNSS 음영 복구가 손상되지 않는
-값을 선택한다. 현재 첫 후보는 `0.20 m`지만 실험 전에 production 기본값으로 바꾸지
-않는다.
+값을 선택한다. 아래 2026-09-16 replay 결과의 첫 production 후보는 `0.10 m`이며,
+live 검증 전에는 production 기본값을 바꾸지 않는다.
 
 ### L2. GNSS innovation/outlier gate
 
@@ -210,3 +210,42 @@ Localization과 trajectory가 충분히 안정적인 것이 확인된 뒤에만 
 - control 입력을 local odometry로 분리할 가치가 있는지.
 
 위 항목은 진단 bag과 동일 조건 A/B 전에는 사실로 표현하지 않는다.
+
+## 9. 2026-09-16 full-route baseline과 L1 결과
+
+입력 bag은 `260916_150411_full_route_mr_baseline.bag`이다. 약 522초이며 정상 종료된
+LZ4 bag이다. MORAI, BEVFusion, planning, control을 한 PC에서 함께 실행해 센서 주기가
+낮아졌지만, 현장 sensor-local bag과 다음 핵심 특성이 거의 같아 localization A/B에
+사용할 수 있다.
+
+- 정상 GNSS 구간 lateral error p95: local `7.46 cm`, 현장 `8.01 cm`.
+- lateral frame jump p95: local `5.40 cm`, 현장 `5.24 cm`.
+- steering-rate abs p95: local `1.60 rad/s`, 현장 `1.59 rad/s`.
+- 현장 GT localization의 steering-rate abs p95는 `0.34 rad/s`였다.
+
+따라서 문제의 주성분은 큰 지속 편향보다는 GNSS update를 강하게 따라가는 고주파
+global correction이다. 공분산 sweep은 perception/planning/controller를 제외하고 동일
+GPS·IMU·GT 입력으로 localization만 실제 시간 1배속 재계산했다. `0.05 m` replay가 live
+결과를 1 mm 이내 수준으로 재현한 것을 확인한 뒤 비교했다.
+
+| GNSS horizontal sigma | lateral error p95 | lateral jump p95 | longitudinal error p95 | longitudinal jump p95 |
+|---:|---:|---:|---:|---:|
+| `0.05 m` | `7.48 cm` | `5.46 cm` | `34.14 cm` | `17.68 cm` |
+| `0.10 m` | `6.77 cm` | `3.49 cm` | `55.08 cm` | `16.33 cm` |
+| `0.20 m` | `7.03 cm` | `2.26 cm` | `108.37 cm` | `15.59 cm` |
+| `0.30 m` | `8.96 cm` | `1.76 cm` | `163.75 cm` | `15.18 cm` |
+
+판정은 다음과 같다.
+
+- `0.10 m`는 lateral jump p95를 약 36% 낮추면서 lateral error도 개선한 유일한 균형점이다.
+- `0.20 m` 이상은 횡점프는 더 낮지만 종방향 lag가 1 m 이상이어서 탈락한다.
+- production 기본값은 아직 `0.05 m`로 유지한다. 다음 단계는 `0.05 vs 0.10 m` live
+  직선·곡선·정지/출발 A/B와 controller 지표 비교다.
+- GPS 음영에서 `/localization/gnss/odom`이 약 `8.17 s` 끊겼고 복귀 순간 baseline은
+  longitudinal 약 `9.62 m`, lateral 약 `0.53 m`를 한 frame에 보정했다. `0.10 m`도 각각
+  약 `9.51 m`, `0.65 m`로 근본 해결되지 않는다. 정상구간 covariance와 음영 복귀
+  재정합 정책은 별도 문제로 유지한다.
+
+초기 sweep 두 번은 고정 ROS master port 재사용으로 orphan process의 `/clock`이 섞여
+폐기했다. sweep script는 실행마다 고유 port를 사용하고, 새 roscore가 실제로 시작되지
+않으면 즉시 실패하도록 수정했다.

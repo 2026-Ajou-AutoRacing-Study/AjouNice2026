@@ -26,3 +26,8 @@ wandb:
 output:
   # Empty means BEVFUSION_OUTPUT_ROOT from .env.bevfusion.local.
   root: ""
+
+checkpointing:
+  # Keep this small for ordinary trials; retain every epoch for long sweeps.
+  interval: 1
+  max_keep_ckpts: 3
