@@ -136,8 +136,9 @@
   `4.7168 -> 4.4912 m`로 개선되지만 center p50은 `0.5403 -> 0.5457 m`로
   약간 나빠진다. 상세 결과:
   [`260918_base3_e40_production_evaluation_results.md`](bevfusion/260918_base3_e40_production_evaluation_results.md).
-- E25를 MORAI interactive/planviz로 짧게 확인하기 전에는 production 기본
-  checkpoint를 자동 교체하지 않는다. 확인 후 path와 SHA를 한 커밋에서 바꾼다.
+- 최종 목표를 per-frame OD AP보다 tracker/Map-CV의 안정적인 속도와 미래경로로
+  두므로 production 표준은 `B3-BF0-F40 E25`로 정한다. E10은 rollback baseline,
+  E26은 offline best로 보존한다.
 - 다음 재학습은 단순 epoch 연장이 아니라 기존 시나리오 생성기를 production
   UDP/ROS 입력 경로와 결합한 `Base3-Online` pilot을 우선한다.
   - 여러 scene을 rosbag에 연속 기록하되 scene marker로 유효 구간을 명시한다.

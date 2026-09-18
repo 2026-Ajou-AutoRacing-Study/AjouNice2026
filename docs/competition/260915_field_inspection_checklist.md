@@ -29,7 +29,8 @@ perception, planning, control의 **실제 입출력 계약**을 확인한다. �
 - [ ] `planning_ws/install_isolated`와 `base_ws/install_aw149`가 현재 source에서
       빌드된 결과인지 확인했다.
 - [ ] v62 OSM, projector, route config의 파일명과 SHA-256을 기록했다.
-- [ ] BEVFusion production weight는 `B3-BF0 E10`이며 SHA-256을 확인했다.
+- [ ] BEVFusion production weight는 `B3-BF0-F40 E25`이며 SHA-256
+      `36816cf769c87d49483d002111abfad8e1afd043afd74a0b9fc54aac82133011`을 확인했다.
 - [ ] Docker image가 인터넷 없이 기동하고 healthcheck를 통과한다.
 - [ ] traffic-light weight와 실행 Python이 인터넷 없이 import 및 CUDA load된다.
 - [ ] launch에 필요한 모든 checkpoint가 로컬에 있다.

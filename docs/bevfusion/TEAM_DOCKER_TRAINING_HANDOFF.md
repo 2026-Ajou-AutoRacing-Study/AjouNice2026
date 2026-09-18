@@ -9,9 +9,9 @@
 2026-09-18 Base3 Fresh E40 corrected validation·test·mission rosbag 결과와
 checkpoint 선택 근거는
 [`260918_base3_e40_production_evaluation_results.md`](260918_base3_e40_production_evaluation_results.md)를
-참고한다. Offline best는 E26이다. 실제 경로 7-bag detection은 기존 E10이
-근소하게 높고 E25는 tracker/Map-CV에서 우세하므로, production 기본값은 아직
-E10을 유지하고 E25를 interactive A/B 후보로만 보존한다.
+참고한다. Offline best는 E26이다. 실제 경로 7-bag detection은 E10이 근소하게
+높지만, 최종 시스템 목표인 tracker/Map-CV의 AVE와 FDE는 E25가 우세하므로
+production 표준은 E25로 정한다. E10은 rollback baseline으로 보존한다.
 
 | GPU | CUDA arch | physical batch | accumulation | effective batch |
 |---|---:|---:|---:|---:|
@@ -122,7 +122,7 @@ bash perception/detection3d/bevfusion/scripts/configure_team_machine.sh \
   --info-root "$HOME/ajounice_bevfusion_artifacts/base3-static-10k-v1/infos" \
   --nuscenes-checkpoint "$HOME/ajounice_bevfusion_artifacts/bevfusion-team-checkpoints-v1/checkpoints/bevfusion_nuscenes_morai3_compatible.pth" \
   --e10-full-checkpoint "$HOME/ajounice_bevfusion_artifacts/bevfusion-team-checkpoints-v1/checkpoints/base3_bf0_epoch10_full.pth" \
-  --inference-checkpoint "$HOME/ajounice_bevfusion_artifacts/bevfusion-team-checkpoints-v1/checkpoints/base3_bf0_e10_inference.pth"
+  --inference-checkpoint "$HOME/ajounice_bevfusion_artifacts/bevfusion-team-checkpoints-v1/checkpoints/base3_bf0_f40_e25_inference.pth"
 ```
 
 이 명령은 Git에 올라가지 않는 `.env.bevfusion.local`과
@@ -255,8 +255,8 @@ count를 다시 측정해 15 Hz 운용을 승인한다.
   cubin 및 `sm_120` PTX 확인.
 - RTX 5060 Ti: fresh initialization과 기존 Base3 E10 full checkpoint 모두
   physical batch 4로 1 epoch train + validation + W&B sync 완료.
-- 기존 production E10 inference checkpoint SHA-256:
-  `b2d3f65befaa16382cdd189f9c8ac1aff2d2176e6c48e19a17ab329947eff419`.
+- production E25 inference checkpoint SHA-256:
+  `36816cf769c87d49483d002111abfad8e1afd043afd74a0b9fc54aac82133011`.
 - Base3 multi-asset obstacle rosbag: cold-ready 직후 frame coverage `1.000`,
   obstacle center-distance mAP `0.6067`, 1 m F1 `0.7923`.
 - 고주로 합류 rosbag: frame coverage `1.000`, vehicle center-distance mAP
