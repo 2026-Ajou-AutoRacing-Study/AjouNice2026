@@ -87,7 +87,9 @@ class Window(QtWidgets.QWidget):
     def add_event(self, data):
         display = data.get("display")
         if display:
-            self.log.append("[{:.3f}] {}".format(float(data.get("elapsed_sec", 0.0)), display))
+            # Fixed-width elapsed time keeps every event message aligned even
+            # when the run crosses from tens into hundreds of seconds.
+            self.log.append("[{:7.3f}] {}".format(float(data.get("elapsed_sec", 0.0)), display))
 
 
 def main():

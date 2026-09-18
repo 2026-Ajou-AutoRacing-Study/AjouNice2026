@@ -62,6 +62,7 @@ class CompetitionRuleMonitor:
         self.points_ready = False
         self.morai_to_map = None
         self.finish_point = None
+        self.finish_zone_departed = False
         self.checkpoint_points = []
         self.current_lanelets = []
         self.in_blackout = False
@@ -344,6 +345,7 @@ class CompetitionRuleMonitor:
         self.state = "RUNNING"
         self.error = ""
         self.checkpoints.reset()
+        self.finish_zone_departed = False
         self.penalties = {"lane": 0, "speed": 0, "collision": 0}
         self.penalty_counts = {"lane": 0, "speed": 0, "collision": 0}
         self.active_collision_ids.clear()
@@ -357,6 +359,7 @@ class CompetitionRuleMonitor:
         self.state = "READY"
         self.error = ""
         self.checkpoints.reset()
+        self.finish_zone_departed = False
         self.run_started_ros = None
         self.run_dir = None
         self.speed_rule.end(rospy.Time.now().to_sec())
@@ -433,6 +436,17 @@ class CompetitionRuleMonitor:
             )
         return result
 
+    def _checkpoint_distance(self, point):
+        # The official checkpoint is a circular area.  Judge entry using the
+        # vehicle wheels, not only base_link (rear-axle center), so a vehicle
+        # that physically enters the area is not rejected by its reference
+        # point remaining just outside the radius.
+        wheel_center_distance = min(
+            math.hypot(x - point[0], y - point[1])
+            for x, y in self._wheel_points().values()
+        )
+        return max(0.0, wheel_center_distance - self.tire_width / 2.0)
+
     def _lane_contacts(self, wheels):
         contacts = []
         threshold = self.tire_width / 2.0
@@ -454,7 +468,18 @@ class CompetitionRuleMonitor:
             "lanelet_ids": sorted(self.lane_contact_lanelets),
             "line_ids": sorted(self.lane_contact_lines),
         }
-        self._record_event("LANE_CONTACT_END", payload)
+        payload["display"] = (
+            "LANE CONTACT END | duration={:.2f}s | penalty={} | lanelets={} | wheels={} | lines={}"
+        ).format(
+            total["duration"],
+            "+{}s".format(total["penalty_seconds"]) if total["penalties"] else "none",
+            ",".join(map(str, payload["lanelet_ids"])) or "unknown",
+            ",".join(payload["wheels"]) or "unknown",
+            ",".join(map(str, payload["line_ids"])) or "unknown",
+        )
+        # A sub-threshold contact is still essential debugging evidence.  It
+        # must reach the GUI/event topic even when it earns no penalty.
+        self._record_event("LANE_CONTACT_END", payload, gui=True)
         if total["penalties"] > 0:
             payload["display"] = (
                 "LANE TOTAL | lanelets={} | duration={:.2f}s | penalties={} | total=+{}s"
@@ -484,22 +509,31 @@ class CompetitionRuleMonitor:
         self.in_blackout = bool(self.blackout_ids.intersection(self.current_lanelets))
         self.in_speed_exception = bool(self.exception_lanelets.intersection(self.current_lanelets))
 
+        finish_distance = math.hypot(x - self.finish_point[0], y - self.finish_point[1])
+        if finish_distance > self.radius:
+            self.finish_zone_departed = True
+
         next_number = self.checkpoints.next_number
         if next_number is not None:
             point = self.checkpoint_points[next_number - 1][1]
-            if math.hypot(x - point[0], y - point[1]) <= self.radius:
+            checkpoint_distance = self._checkpoint_distance(point)
+            if checkpoint_distance <= self.radius:
                 if self.checkpoints.observe(next_number, True):
                     self._record_event(
                         "CHECKPOINT",
                         {
                             "checkpoint": next_number,
-                            "distance_m": math.hypot(x - point[0], y - point[1]),
+                            "distance_m": checkpoint_distance,
                             "display": "CP{} PASSED".format(next_number),
                         },
                     )
                     self._publish_markers()
-        elif math.hypot(x - self.finish_point[0], y - self.finish_point[1]) <= self.radius:
-            self._finish_run(now)
+        if self.finish_zone_departed and finish_distance <= self.radius:
+            if self.checkpoints.next_number is None:
+                self._finish_run(now)
+            else:
+                missing = list(range(self.checkpoints.next_number, self.checkpoints.count + 1))
+                self._fail_run("finish crossed with missing checkpoints: {}".format(missing))
             return
 
         speeding = is_speeding(self.speed_kph, self.speed_limit, self.in_speed_exception)
@@ -523,7 +557,13 @@ class CompetitionRuleMonitor:
                     "wheels": sorted({item[0] for item in contacts}),
                     "lanelet_ids": self.current_lanelets,
                     "line_ids": sorted({item[1] for item in contacts}),
+                    "display": "LANE CONTACT BEGIN | lanelets={} | wheels={} | lines={}".format(
+                        ",".join(map(str, self.current_lanelets)) or "unknown",
+                        ",".join(sorted({item[0] for item in contacts})) or "unknown",
+                        ",".join(map(str, sorted({item[1] for item in contacts}))) or "unknown",
+                    ),
                 },
+                gui=True,
             )
         if contacts:
             self.lane_contact_wheels.update(item[0] for item in contacts)
