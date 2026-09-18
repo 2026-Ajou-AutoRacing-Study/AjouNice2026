@@ -83,7 +83,7 @@ env PYTHONPATH="$SYSTEM_PYTHONPATH" PYTHONNOUSERSITE=1 \
     force_unknown_stationary:=true \
     tracking_internal_publish_rate_hz:="$TRACKING_INTERNAL_PUBLISH_RATE_HZ" \
     repo_root:="$REPO_ROOT" \
-    map_file:="$REPO_ROOT/kcity_map/lanelet_map/lanelet2_map_v68.osm" \
+    map_file:="$REPO_ROOT/kcity_map/lanelet_map/lanelet2_map_v81.osm" \
     projector_file:="$REPO_ROOT/kcity_map/lanelet_map/map_projector_info_v1.yaml" \
     >"$OUTPUT_DIR/tracking_map_cv.log" 2>&1 &
 TRACKING_PID=$!

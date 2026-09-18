@@ -40,15 +40,225 @@ cd "$HOME/AjouNice2026"
 test -f scripts/workspace/source_aw149.sh
 test -f base_ws/install_aw149/setup.bash
 test -f planning_ws/install_isolated/setup.bash
-test -f kcity_map/lanelet_map/lanelet2_map_v67.osm
+test -f kcity_map/lanelet_map/lanelet2_map_v68.osm
 ```
 
 MORAI에서는 다음을 확인한다.
 
-1. v67 map과 원하는 competition scenario를 연다.
+1. v68 map과 원하는 competition scenario를 연다.
 2. Sensor Network와 Ego Network를 현재 PC 설정에 맞게 연결한다.
 3. 실제 제어 전에 Ego control mode를 `AV-ExternalCtrl`로 둔다.
 4. 차량은 Route A 공식 시작 위치에서 정지 상태로 둔다.
+
+## 대회 현장 권장: alias + `tee` 로그 세션
+
+`tee`를 사용하면 화면 출력과 파일 저장이 동시에 이루어진다. 모든 터미널은 같은
+로그 세션을 사용해야 하므로 Terminal 1에서 반드시 `field_log_new`를 먼저 실행한다.
+그 외 터미널에서 세션이 없거나 다른 로그 경로가 잡히면 `field_log_tee`가 오류를 내고
+pipeline을 실패 처리하므로 로그 누락을 바로 확인할 수 있다.
+
+로그 파일명은
+`<세션시각>_<구성요소>_<해당명령시작시각>.log` 형식이다. `field_log_tee`는
+`tee -a`를 사용하지 않으며 호출할 때마다 새 파일을 만든다. 같은 구성요소를 같은 초에
+다시 실행해도 `_01`, `_02`가 붙으므로 기존 로그를 덮어쓰거나 이어붙이지 않는다.
+
+각 터미널의 공통 준비는 다음 네 줄이다. `AJOUNICE_ROOT`를 현재 checkout으로 명시해
+이전에 열었던 shell의 환경변수가 섞이지 않게 한다.
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+set -o pipefail
+```
+
+### Terminal 1: 로그 세션 생성 + ROS master
+
+반드시 가장 먼저 실행하고 전체 실행이 끝날 때까지 유지한다.
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+set -o pipefail
+
+field_log_new
+rc 2>&1 | field_log_tee roscore
+```
+
+`field_log_new`는 `artifacts/field_logs/<YYMMDD_HHMMSS>_session.txt`에 Git SHA,
+host, ROS 환경을 기록하고 `/tmp/ajounice_field_log_prefix`를 원자적으로 갱신한다.
+같은 초에 세션을 다시 만들어도 기존 로그를 덮어쓰지 않는다.
+
+### Terminal 2: 현장 LAN UDP gateway
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+set -o pipefail
+
+udp_lan 2>&1 | field_log_tee udp_lan
+```
+
+camera/IMU/GPS 수신, Velodyne LiDAR 변환, `/Ego_topic` 수신과 `/ctrl_cmd` UDP
+송신을 담당한다.
+
+### Terminal 3: sensing static TF + 차량 모델
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+set -o pipefail
+
+sensing_lan 2>&1 | field_log_tee sensing
+```
+
+`udp_lan`에는 sensor static TF가 포함되지 않으므로 생략하면 안 된다. 이 launch의
+`enable_ego_tf` 기본값은 `false`라서 Terminal 4의 localization TF와 중복되지 않는다.
+`sensing_lan`은 UDP gateway와 같은 competition sensor JSON에서 TF 위치를 읽는다.
+
+### Terminal 4: localization + TF
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+set -o pipefail
+
+localization 2>&1 | field_log_tee localization
+```
+
+이 alias는 `localization_gnss_imu_gt_ctra.launch`를 실행한다. `sensing_lan`이 sensor
+static TF를 담당하므로 localization의 `publish_sensor_tf` 기본값은 `false`로 유지한다.
+
+### Terminal 5: BEVFusion detection
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+set -o pipefail
+
+bevfusion 2>&1 | field_log_tee bevfusion
+```
+
+이 alias는 Docker inference server와 ROS bridge의 생명주기를 함께 관리한다. canonical
+detection topic에 PointPainting/FastBEV/다른 bridge publisher가 있으면 안전하게
+거부한다. 다만 Docker container 내부의 상세 stdout 전체는 이 파일에 계속 복제되지
+않으므로 필요할 때만 별도 터미널에서 아래 진단 로그를 추가한다.
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+set -o pipefail
+
+docker compose -f docker/bevfusion/compose.yaml logs --follow --tail=100 inference \
+  2>&1 | field_log_tee bevfusion_inference
+```
+
+### Terminal 6: tracking + map-based prediction
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+set -o pipefail
+
+tracking 2>&1 | field_log_tee tracking
+```
+
+### Terminal 7: traffic-light recognition
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+set -o pipefail
+
+traffic 2>&1 | field_log_tee traffic
+```
+
+### Terminal 8: planning
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+set -o pipefail
+
+planning 2>&1 | field_log_tee planning
+```
+
+`planning`은 map, route requester와 planning graph만 실행한다. 이름과 달리 trajectory
+follower/control은 포함하지 않는다.
+
+### Terminal 9: 공용 Planning RViz
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+set -o pipefail
+
+planviz show_morai_gt:=false 2>&1 | field_log_tee planviz
+```
+
+실대회 production에서는 GT overlay를 끈다. MORAI 개발 중 `/Object_topic` 비교가
+필요할 때만 `show_morai_gt:=true`로 바꾼다.
+
+### Terminal 10: control — 안전 확인 후에만 실행
+
+처음에는 이 터미널을 실행하지 않고 `/planning/trajectory`와 validation 상태까지
+확인한다. 차량 제어권과 비상정지 담당을 확인한 뒤에만 실행한다.
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+set -o pipefail
+
+traj_fol_a 2>&1 | field_log_tee control
+```
+
+`traj_fol_a`만 `/planning/trajectory`를 받아 `/ctrl_cmd`를 만드는 현재 Autoware용
+controller다. `traj_fol`이나 다른 `/ctrl_cmd` publisher를 동시에 실행하면 안 된다.
+
+### 로그 확인과 topic-rate snapshot
+
+별도 터미널에서 현재 세션 파일을 확인한다.
+
+```bash
+cd "$HOME/AjouNice2026"
+export AJOUNICE_ROOT="$PWD"
+source docs/common_alias.txt
+
+field_log_list
+```
+
+전체 stack이 올라온 뒤 topic rate를 같은 30초 구간에서 확인하고 화면과 세션 로그에
+동시에 남기려면 다음을 실행한다.
+
+```bash
+set -o pipefail
+bash scripts/runtime/record_field_topic_rates.sh 30 \
+  2>&1 | field_log_tee topic_rates
+```
+
+`tee` 로그는 terminal stdout/stderr만 보존한다. ROS 메시지 자체, 센서 원본, `/tf`,
+`/rosout`의 완전한 사후 재생을 보장하지 않으므로 rosbag을 대체하지 않는다. 실제
+주행 데이터 기록은 현장점검 체크리스트의 `모든 로그 저장` 절차를 별도로 따른다.
+
+종료는 control(Terminal 10)을 가장 먼저 끄고, planning/perception/localization,
+sensing/UDP 순서로 내린 뒤 roscore를 마지막에 종료한다.
+
+## 수동 통합 launch 참고
+
+아래 절차는 alias별 분리 실행 대신 통합 launch를 사용할 때의 참고 절차다. 위 현장
+절차와 섞으면 localization, detector, tracking, traffic-light 또는 control publisher가
+중복될 수 있으므로 둘 중 하나만 사용한다.
 
 ## Terminal 1: ROS master
 

@@ -4,11 +4,11 @@
   <arg name="vehicle_param_path"
        default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
   <arg name="mission_planner_param_path"
-       default="$(find ajounice_planning_integration)/config/mission_planner_kcity_v68.yaml"/>
+       default="$(find ajounice_planning_integration)/config/mission_planner_kcity_v81.yaml"/>
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
   <arg name="is_simulation" default="false"/>
-  <arg name="behavior_path_forward_length" default="150.0"/>
+  <arg name="behavior_path_forward_length" default="400.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>
   <!-- The competition perception stack intentionally publishes unresolved
        detections as UNKNOWN. Do not suppress a newly observed UNKNOWN object
@@ -26,6 +26,9 @@
     <arg name="repo_root" value="$(arg repo_root)"/>
   </include>
   <include file="$(find tier4_planning_launch)/launch/planning.launch">
+    <!-- LC-only candidate rejection logs; no planning behavior change. -->
+    <env name="ROSCONSOLE_CONFIG_FILE"
+         value="$(find ajounice_planning_integration)/config/lane_change_diagnostics.rosconsole"/>
     <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
     <arg name="mission_planner_param_path" value="$(arg mission_planner_param_path)"/>
     <arg name="is_simulation" value="$(arg is_simulation)"/>

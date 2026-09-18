@@ -2,7 +2,10 @@
 frequency: 50
 predict_to_current_time: true
 sensor_timeout: 0.2
-two_d_mode: true
+# Preserve the map-frame base_link height already computed from GNSS altitude.
+# The local EKF remains planar; this global EKF owns map -> odom and carries
+# the surveyed road elevation without enabling roll/pitch measurements.
+two_d_mode: false
 transform_time_offset: 0.0
 # The local EKF publishes odom -> base_link independently. Use its latest
 # available sample instead of blocking every global filter cycle.
@@ -32,7 +35,7 @@ imu0_relative: false
 imu0_remove_gravitational_acceleration: true
 
 odom0: /localization/gnss/odom
-odom0_config: [true,  true,  false,
+odom0_config: [true,  true,  true,
                false, false, false,
                false, false, false,
                false, false, false,

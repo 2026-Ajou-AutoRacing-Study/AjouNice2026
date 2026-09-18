@@ -19,6 +19,8 @@
 #include <autoware/route_handler/route_handler.hpp>
 #include <geometry_msgs/Pose.h>
 
+#include <optional>
+
 namespace autoware::behavior_path_planner::utils::lane_change::calculation
 {
 using autoware::route_handler::Direction;
@@ -139,6 +141,8 @@ std::vector<double> calc_lon_acceleration_samples(
   const CommonDataPtr & common_data_ptr, const double max_path_velocity,
   const double prepare_duration);
 
+std::vector<double> calc_prepare_durations(const CommonDataPtr & common_data_ptr);
+
 /**
  * @brief calculates the actual prepare duration that will be used for path generation
  *
@@ -191,10 +195,9 @@ std::vector<PhaseMetrics> calc_shift_phase_metrics(
  * @return A pair of `MinMaxValue` structures where:
  *  - The first element contains the minimum and maximum lane changing lengths in meters.
  *  - The second element contains the minimum and maximum distance buffers in meters.
- * If the lanes or necessary data are unavailable, returns `std::numeric_limits<double>::max()` for
- * both values.
+ * If the lanes, lateral connection, or necessary data are unavailable, returns `std::nullopt`.
  */
-std::pair<MinMaxValue, MinMaxValue> calc_lc_length_and_dist_buffer(
+std::optional<std::pair<MinMaxValue, MinMaxValue>> calc_lc_length_and_dist_buffer(
   const CommonDataPtr & common_data_ptr, const lanelet::ConstLanelets & lanes);
 }  // namespace autoware::behavior_path_planner::utils::lane_change::calculation
 

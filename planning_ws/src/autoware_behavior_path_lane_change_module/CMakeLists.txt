@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(autoware_behavior_path_lane_change_module)
 
-find_package(catkin REQUIRED COMPONENTS geometry_msgs pluginlib roscpp visualization_msgs)
+find_package(catkin REQUIRED COMPONENTS geometry_msgs pluginlib roscpp std_msgs visualization_msgs)
 find_package(Eigen3 REQUIRED)
 find_package(fmt REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(lanelet2_routing REQUIRED)
+find_package(lanelet2_core REQUIRED)
 set(BPP_COMMON_INCLUDE_DIR "" CACHE PATH "staged BPP common include")
 set(BPP_COMMON_LIBRARY "" CACHE FILEPATH "staged BPP common library")
 set(FRENET_PLANNER_INCLUDE_DIR "" CACHE PATH "staged Frenet planner include")
@@ -71,7 +72,7 @@ endforeach()
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS geometry_msgs pluginlib roscpp visualization_msgs
+  CATKIN_DEPENDS geometry_msgs pluginlib roscpp std_msgs visualization_msgs
 )
 include_directories(include src ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${BPP_COMMON_INCLUDE_DIR} ${FRENET_PLANNER_INCLUDE_DIR} ${LANELET2_UTILS_INCLUDE_DIR} ${LANELET2_EXTENSION_INCLUDE_DIR} ${MOTION_UTILS_INCLUDE_DIR} ${TEST_UTILS_INCLUDE_DIR} ${RTC_INTERFACE_INCLUDE_DIR} ${UNIVERSE_UTILS_INCLUDE_DIR} ${VEHICLE_INFO_UTILS_INCLUDE_DIR} ${ROUTE_HANDLER_INCLUDE_DIR} ${SAMPLER_COMMON_INCLUDE_DIR} ${ADAPI_V1_MSGS_INCLUDE_DIR} ${INTERNAL_PLANNING_MSGS_INCLUDE_DIR} ${TIER4_PLANNING_MSGS_INCLUDE_DIR} ${OBJECTS_OF_INTEREST_INCLUDE_DIR} ${OBJECT_RECOGNITION_UTILS_INCLUDE_DIR})
 add_library(${PROJECT_NAME} SHARED
@@ -113,7 +114,7 @@ if(CATKIN_ENABLE_TESTING)
   if(TARGET test_lane_change_utils_ros1_oracle)
     target_include_directories(test_lane_change_utils_ros1_oracle PRIVATE
       src /usr/src/googletest/googlemock/include)
-    target_link_libraries(test_lane_change_utils_ros1_oracle ${PROJECT_NAME} gmock_main)
+    target_link_libraries(test_lane_change_utils_ros1_oracle ${PROJECT_NAME} ${ROUTE_HANDLER_LIBRARY} ${BPP_COMMON_LIBRARY} ${lanelet2_core_LIBRARIES} ${catkin_LIBRARIES} gmock_main)
   endif()
   catkin_add_gtest(test_${PROJECT_NAME}
     test/test_behavior_path_planner_node_interface.cpp
@@ -150,6 +151,7 @@ install(DIRECTORY config test_data DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATIO
 
 find_package(autoware_utils_rclcpp REQUIRED)
 include_directories(BEFORE ${autoware_utils_rclcpp_INCLUDE_DIRS})
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_native_parameter_events test/test_native_parameter_events.cpp)
   if(TARGET test_native_parameter_events)

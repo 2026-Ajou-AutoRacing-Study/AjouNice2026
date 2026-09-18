@@ -4,27 +4,30 @@
   <arg name="planning_python_path"
        default="$(arg repo_root)/planning_ws/install_isolated/lib/python3/dist-packages:$(optenv PYTHONPATH)"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v68.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v81.osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="trajectory_topic" default="/planning/trajectory"/>
   <arg name="start_rviz" default="true"/>
+  <!-- Load the tracked source config so Ctrl+S persists operator RViz edits. -->
+  <arg name="rviz_config"
+       default="$(arg repo_root)/base_ws/src/bringup/rviz/kcity_aw149_planning.rviz"/>
   <!-- Simulator-only visual reference. This never feeds perception/planning. -->
   <arg name="show_morai_gt" default="true"/>
   <arg name="morai_gt_objects" default="/Object_topic"/>
   <!--
-    The GNSS+IMU production localization intentionally remains planar
-    (base_link z=0).  Keep the binary map used by planning untouched, and
-    flatten only this launch's MarkerArray onto the IONIQ 5 ground plane.
+    Keep the visualization map on the same surveyed map-height datum used by
+    the planning map, routes, trajectories, MORAI GT, and GNSS localization.
+    The legacy flattened view remains opt-in for old planar bags only.
   -->
-  <arg name="flatten_visualization_map" default="true"/>
+  <arg name="flatten_visualization_map" default="false"/>
   <arg name="visualization_map_frame" default="lanelet_ground"/>
   <arg name="visualization_map_z_offset" default="-0.3705"/>
   <arg name="rosbag_output_directory"
        default="$(arg repo_root)/planner_logs/bags"/>
   <arg name="route_request_status_topic"
        default="/competition_route_requester/request_status"/>
-  <!-- Frozen Route A start from kcity_v68_competition_route.yaml. -->
+  <!-- Frozen Route A start from kcity_v81_competition_route.yaml. -->
   <arg name="route_a_start_x" default="-0.130667330614472"/>
   <arg name="route_a_start_y" default="117.580315248218"/>
   <arg name="route_a_start_z" default="28.543960281954277"/>
@@ -138,11 +141,11 @@
 
   <node if="$(arg start_rviz)" pkg="rviz" type="rviz"
         name="aw149_planning_rviz"
-        args="-d $(find bringup)/rviz/kcity_aw149_planning.rviz"
+        args="-d $(arg rviz_config)"
         output="screen">
     <param name="rosbag_output_directory" value="$(arg rosbag_output_directory)"/>
     <param name="route_request_status_topic" value="$(arg route_request_status_topic)"/>
     <param name="rosbag_topics"
-           value="/tf /tf_static /clock /Ego_topic /Object_topic /sensor/lidar1 /sensor/camera/front/compressed /sensor/camera/front_left/compressed /sensor/camera/front_right/compressed /sensor/camera/back/compressed /localization/kinematic_state /localization/acceleration /perception/object_recognition/detection/objects /perception/object_recognition/tracking/objects /perception/object_recognition/objects /map/vector_map /planning/mission_planning/route /planning/mission_planning/route_marker /planning/route_state /planning/scenario_planning/lane_driving/behavior_planning/path /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout/decision_state /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/virtual_wall/roundabout /planning/planning_factors/roundabout /planning/cooperate_status/roundabout /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory /planning/trajectory /planning/validation_status /ctrl_cmd /control/command/control_cmd /control/command/steering /control/autoware/controller_valid /control/autoware/failure_reason /control/autoware/target_point /control/trajectory_follower/lateral/predicted_trajectory /purepursuit_autoware/debug/controller_state /purepursuit_autoware/debug/lookahead_distance /purepursuit_autoware/debug/lateral_error /purepursuit_autoware/debug/path_curvature /purepursuit_autoware/debug/target_curvature /purepursuit_autoware/debug/limited_steering_angle /vehicle/status/steering_status"/>
+           value="/tf /tf_static /clock /Ego_topic /Object_topic /CollisionData /sensor/lidar1 /sensor/camera/front/compressed /sensor/camera/front_left/compressed /sensor/camera/front_right/compressed /sensor/camera/back/compressed /localization/kinematic_state /localization/acceleration /perception/object_recognition/detection/objects /perception/object_recognition/tracking/objects /perception/object_recognition/objects /map/vector_map /planning/mission_planning/route /planning/mission_planning/route_marker /planning/route_state /planning/scenario_planning/lane_driving/behavior_planning/path /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout/decision_state /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/virtual_wall/roundabout /planning/planning_factors/roundabout /planning/cooperate_status/roundabout /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory /planning/scenario_planning/lane_driving/trajectory /planning/scenario_planning/scenario_selector/trajectory /planning/scenario_planning/velocity_smoother/trajectory /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/obstacle_cruise/trajectory /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/out_of_lane/trajectory /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/dynamic_obstacle_stop/trajectory /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/run_out/trajectory /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/boundary_departure_prevention/trajectory /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/road_user_stop/trajectory /planning/planning_factors/obstacle_cruise /planning/planning_factors/out_of_lane /planning/planning_factors/dynamic_obstacle_stop /planning/planning_factors/run_out /planning/planning_factors/boundary_departure_prevention /planning/planning_factors/road_user_stop /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/road_user_stop/debug_markers /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/road_user_stop/virtual_walls /planning/scenario_planning/max_velocity_candidates /planning/scenario_planning/clear_velocity_limit /planning/scenario_planning/max_velocity /planning/scenario_planning/current_max_velocity /planning/trajectory /planning/validation_status /ctrl_cmd /control/command/control_cmd /control/command/steering /control/autoware/controller_valid /control/autoware/failure_reason /control/autoware/target_point /control/trajectory_follower/lateral/predicted_trajectory /purepursuit_autoware/debug/controller_state /purepursuit_autoware/debug/lookahead_distance /purepursuit_autoware/debug/lateral_error /purepursuit_autoware/debug/path_curvature /purepursuit_autoware/debug/target_curvature /purepursuit_autoware/debug/limited_steering_angle /vehicle/status/steering_status /vehicle/status/gear /vehicle/status/control_mode /competition/rule_monitor/status /competition/rule_monitor/event /competition/rule_monitor/checkpoints /competition/rule_monitor/wheels /planning/cooperate_status/lane_change_left /planning/cooperate_status/lane_change_right /planning/planning_factors/lane_change_left /planning/planning_factors/lane_change_right /planning/path_candidate/lane_change_left /planning/path_candidate/lane_change_right /planning/path_candidate/static_obstacle_avoidance /planning/path_reference/static_obstacle_avoidance /planning/planning_factors/static_obstacle_avoidance /planning/cooperate_status/static_obstacle_avoidance_left /planning/cooperate_status/static_obstacle_avoidance_right /planning/auto_mode_status/static_obstacle_avoidance_left /planning/auto_mode_status/static_obstacle_avoidance_right /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/static_obstacle_avoidance /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/info/static_obstacle_avoidance /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/virtual_wall/static_obstacle_avoidance /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/avoidance_debug_message_array /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/drivable_lanes/static_obstacle_avoidance /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/info/lane_change_left /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/info/lane_change_right /rosout /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/lane_change_left /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/lane_change_right /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/processing_time_detail_ms/lane_change_left /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/processing_time_detail_ms/lane_change_right /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/lane_change_geometry /planning/scenario_planning/scenario /system/operation_mode/state"/>
   </node>
 </launch>

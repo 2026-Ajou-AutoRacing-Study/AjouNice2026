@@ -131,8 +131,8 @@ dynamic_obstacle_stop/ignore_unavoidable_collisions: true
 smooth_velocity_before_planning: true
 trajectory_polygon_collision_check/decimate_trajectory_step_length: 2.0
 trajectory_polygon_collision_check/goal_extended_trajectory_length: 6.0
-trajectory_polygon_collision_check/consider_current_pose/enable_to_consider_current_pose: true
-trajectory_polygon_collision_check/consider_current_pose/time_to_convergence: 1.5
+trajectory_polygon_collision_check/consider_current_pose/enable_to_consider_current_pose: false
+trajectory_polygon_collision_check/consider_current_pose/time_to_convergence: 0.5
 pointcloud_preprocessing/filter_by_trajectory_polygon/enable_monolithic_crop_box: true
 pointcloud_preprocessing/filter_by_trajectory_polygon/enable_multi_polygon_filtering: false
 pointcloud_preprocessing/filter_by_trajectory_polygon/min_trajectory_length: 30.0
@@ -408,14 +408,14 @@ road_user_stop/stop_planning/hold_stop_distance_threshold: 0.3
 road_user_stop/stop_planning/stop_on_curve/enable_approaching: false
 road_user_stop/stop_planning/stop_on_curve/additional_stop_margin: 3.0
 road_user_stop/stop_planning/stop_on_curve/min_stop_margin: 6.0
-road_user_stop/stop_planning/limit_min_acc: -2.5
-road_user_stop/stop_planning/sudden_object_acc_threshold: -1.0
+road_user_stop/stop_planning/limit_min_acc: -6.0
+road_user_stop/stop_planning/sudden_object_acc_threshold: -5.0
 road_user_stop/stop_planning/sudden_object_dist_threshold: 1000.0
 road_user_stop/stop_planning/abandon_to_stop: false
 road_user_stop/obstacle_filtering/object_type/pedestrian: true
 road_user_stop/obstacle_filtering/object_type/bicycle: true
 road_user_stop/obstacle_filtering/object_type/motorcycle: true
-road_user_stop/obstacle_filtering/object_type/unknown: true
+road_user_stop/obstacle_filtering/object_type/unknown: false
 road_user_stop/obstacle_filtering/trajectory_lateral_margin: 0.0
 road_user_stop/obstacle_filtering/opposing_traffic_detection/enable: true
 road_user_stop/obstacle_filtering/opposing_traffic_detection/angle_threshold: 150.0
@@ -425,7 +425,7 @@ road_user_stop/obstacle_filtering/crosswalk/exclude: true
 road_user_stop/obstacle_filtering/crosswalk/margin: 1.0
 road_user_stop/obstacle_filtering/min_detection_duration: 0.1
 road_user_stop/obstacle_filtering/lost_object_retention_duration: 2.0
-road_user_stop/obstacle_filtering/polygon_expansion_length: 0.5
+road_user_stop/obstacle_filtering/polygon_expansion_length: 0.0
 road_user_stop/stopped_object_tracking/stopped_velocity_threshold: 0.5
 road_user_stop/stopped_object_tracking/stopped_position_tolerance: 0.3
 road_user_stop/stopped_object_tracking/ego_reached_wall_distance_threshold: 0.5

@@ -12,6 +12,7 @@
 #include <morai_msgs/ObjectStatus.h>
 #include <morai_msgs/ObjectStatusList.h>
 #include <ros/ros.h>
+#include <std_msgs/Int8.h>
 
 #include "sensor_interface/morai_udp_common.hpp"
 
@@ -189,6 +190,9 @@ class MoraiEgoUdpReceiver {
     private_nh_.param<std::string>("network_config", network_config_, std::string());
     private_nh_.param<std::string>("frame_id", frame_id_, "morai_map");
     private_nh_.param<bool>("enable_ego_vehicle_status", enable_ego_vehicle_status_, true);
+    private_nh_.param<std::string>("gear_topic", gear_topic_, "/vehicle/status/gear");
+    private_nh_.param<std::string>("control_mode_topic", control_mode_topic_,
+                                   "/vehicle/status/control_mode");
     if (network_config_.empty()) throw std::runtime_error("~network_config is required");
 
     const auto root = morai_udp::readJson(network_config_);
@@ -227,6 +231,8 @@ class MoraiEgoUdpReceiver {
                                        : "772, 261 and 295";
       throw std::runtime_error("expected UDP entries " + expected + " in " + network_config_);
     }
+    gear_publisher_ = nh_.advertise<std_msgs::Int8>(gear_topic_, 20);
+    control_mode_publisher_ = nh_.advertise<std_msgs::Int8>(control_mode_topic_, 20);
   }
 
   ~MoraiEgoUdpReceiver() {
@@ -286,6 +292,7 @@ class MoraiEgoUdpReceiver {
     message.tire_cornering_stiffness_rl = packet.tire_cornering_stiffness_rl;
     message.tire_cornering_stiffness_rr = packet.tire_cornering_stiffness_rr;
     ego_publisher_.publish(message);
+    publishDriveState(packet.ctrl_mode, packet.gear);
   }
 
   void parseCompetition(const uint8_t* bytes, ssize_t length, const ros::Time& received_at) {
@@ -298,6 +305,16 @@ class MoraiEgoUdpReceiver {
     std::memcpy(&packet, bytes, sizeof(packet));
     if (packet.tail[0] != '\r' || packet.tail[1] != '\n') return;
     competition_publisher_.publish(egoMessage(packet, frame_id_, received_at));
+    publishDriveState(packet.ctrl_mode, packet.gear);
+  }
+
+  void publishDriveState(const int8_t control_mode, const int8_t gear) {
+    std_msgs::Int8 gear_message;
+    gear_message.data = gear;
+    gear_publisher_.publish(gear_message);
+    std_msgs::Int8 control_mode_message;
+    control_mode_message.data = control_mode;
+    control_mode_publisher_.publish(control_mode_message);
   }
 
   void parseObjects(const uint8_t* bytes, ssize_t length, const ros::Time& received_at) {
@@ -364,12 +381,16 @@ class MoraiEgoUdpReceiver {
   ros::NodeHandle private_nh_;
   std::string network_config_;
   std::string frame_id_;
+  std::string gear_topic_;
+  std::string control_mode_topic_;
   bool enable_ego_vehicle_status_ = true;
   std::vector<NetworkChannel> channels_;
   ros::Publisher ego_publisher_;
   ros::Publisher competition_publisher_;
   ros::Publisher object_publisher_;
   ros::Publisher collision_publisher_;
+  ros::Publisher gear_publisher_;
+  ros::Publisher control_mode_publisher_;
 };
 
 int main(int argc, char** argv) {

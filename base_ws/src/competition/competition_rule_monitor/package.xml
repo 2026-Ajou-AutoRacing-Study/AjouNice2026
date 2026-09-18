@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>competition_rule_monitor</name>
+  <version>0.1.0</version>
+  <description>Development-time K-City competition rule monitor and run logger.</description>
+  <maintainer email="ajounice@todo.todo">AjouNice Team</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>geometry_msgs</depend>
+  <depend>morai_msgs</depend>
+  <depend>rospy</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>visualization_msgs</depend>
+  <exec_depend>python3-pyqt5</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <test_depend>python3-nose</test_depend>
+  <export/>
+</package>

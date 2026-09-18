@@ -220,6 +220,7 @@ struct TransientData
 {
   Polygon2d current_footprint;  // ego's polygon at current pose
 
+  bool has_valid_lc_distance{false};
   MinMaxValue lane_changing_length;  // lane changing length for a single lane change
   MinMaxValue
     current_dist_buffer;  // distance buffer computed backward from current lanes' terminal end
