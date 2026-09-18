@@ -1,4 +1,5 @@
-# Globally corrected branch. This node alone owns map -> odom.
+# Globally corrected planar branch. The final-state publisher adds GNSS z and
+# owns map -> odom so the 2D EKF never has to estimate roll, pitch, or height.
 frequency: 50
 predict_to_current_time: true
 sensor_timeout: 0.2
@@ -11,7 +12,7 @@ print_diagnostics: true
 # map -> odom intentionally falls back to the latest local EKF transform.
 silent_tf_failure: true
 debug: false
-publish_tf: true
+publish_tf: false
 publish_acceleration: false
 
 map_frame: map
