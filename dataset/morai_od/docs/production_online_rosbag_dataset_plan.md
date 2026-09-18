@@ -175,4 +175,3 @@ mission rosbag에서 다음을 본다.
   문제가 있으므로 본 수집의 기본 경로로 확정하지 않는다.
 - LiDAR scan 내부 Ego/Object motion distortion는 timestamp 보간만으로 완전히 해결되지
   않는다. 필요하면 별도 deskew/rolling-scan 연구로 분리한다.
-

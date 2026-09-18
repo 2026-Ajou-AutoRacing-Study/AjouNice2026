@@ -52,4 +52,3 @@ if [[ -n "$playback_rate_override" ]]; then
 fi
 bash "$repo_root/perception/detection3d/bevfusion/scripts/run_base3_rosbag_suite.sh" \
   "${args[@]}"
-
