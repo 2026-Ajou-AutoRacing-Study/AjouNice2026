@@ -161,6 +161,21 @@ source_snapshot/
 train.log
 ```
 
+## 학습·평가 공간 범위 계약
+
+Base3 B0의 학습 GT, detector 출력과 val/test 평가는 모두 같은
+`[-30, -30, -3, 30, 30, 2] m` 중심점 범위를 사용한다. 평가기는 이
+축 정렬 사각 범위로 GT와 prediction을 모두 거른 뒤 center-distance와 IoU
+지표를 계산한다. 중심거리 30 m를 넘더라도 사각 범위의 대각선 안에 있는
+box는 평가에 남는다는 점에 유의한다.
+
+2026-09-18 이전 evaluator는 학습 범위 밖 GT를 val/test 분모에 포함하는
+계약 누락이 있었다. 이전 run의 자동 validation history는 재현 기록으로만
+보존하고, checkpoint 비교와 best 선정은 수정 evaluator로 만든 별도
+`corrected-range30` W&B evaluation run을 기준으로 한다. 이 문제는 학습
+loss에는 영향을 주지 않으므로 기존 checkpoint를 폐기하거나 재학습할
+사유는 아니다.
+
 ## Online inference
 
 추론은 GPU preset과 무관하게 batch 1이다. ROS master와 UDP gateway 실행 후:
