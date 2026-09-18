@@ -130,9 +130,9 @@ avoidance:
       th_moving_time: 1.0
       longitudinal_margin: 0.0
       lateral_margin:
-        soft_margin: 0.3
-        hard_margin: 0.2
-        hard_margin_for_parked_vehicle: 0.2
+        soft_margin: 0.4
+        hard_margin: 0.1
+        hard_margin_for_parked_vehicle: 0.1
       max_expand_ratio: 0.0
       envelope_buffer_margin: 0.1
       th_error_eclipse_long_radius: 0.6
@@ -266,16 +266,16 @@ avoidance:
     lateral:
       th_avoid_execution: 0.09
       th_small_shift_length: 0.101
-      soft_drivable_bound_margin: 0.3
-      hard_drivable_bound_margin: 0.3
+      soft_drivable_bound_margin: 0.1
+      hard_drivable_bound_margin: 0.0
       max_right_shift_length: 5.0
       max_left_shift_length: 5.0
       max_deviation_from_lane: 0.2
       ratio_for_return_shift_approval: 0.5
     longitudinal:
-      min_prepare_time: 1.0
-      max_prepare_time: 2.0
-      min_prepare_distance: 1.0
+      min_prepare_time: 0.0
+      max_prepare_time: 0.0
+      min_prepare_distance: 0.0
       min_slow_down_speed: 4.1667
       buf_slow_down_speed: 0.56
       nominal_avoidance_speed: 8.33
