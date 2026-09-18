@@ -248,6 +248,36 @@ class GatewayROS(unittest.TestCase):
         self.wait(lambda: not self.gateway.busy)
         self.assertEqual(self.gateway.active, 'route_b')
 
+    def test_startup_route_b_before_a_to_b_reroute_threshold_is_verified(self):
+        target_arc = 6.0
+        points = self.gateway.geometry.lanes[200258][0]
+        traversed = 0.0
+        for first, second in zip(points, points[1:]):
+            dx, dy = second[0] - first[0], second[1] - first[1]
+            segment_length = math.hypot(dx, dy)
+            if traversed + segment_length >= target_arc:
+                ratio = (target_arc - traversed) / segment_length
+                self.ego_pose = dict(
+                    x=first[0] + ratio * dx, y=first[1] + ratio * dy,
+                    z=0.0, yaw_deg=math.degrees(math.atan2(dy, dx)))
+                break
+            traversed += segment_length
+        else:
+            self.fail('lanelet 200258 centerline is shorter than the test arc')
+        self.wait(lambda: self.gateway.progress() is not None and
+                  self.gateway.progress()[0] == 200258)
+        lane, arc = self.gateway.progress()
+        self.assertEqual(lane, 200258)
+        self.assertLess(arc, self.routes['reroute_trigger']['minimum_lanelet_s_m'])
+        self.assertTrue(self.gateway.guard('route_b')[0])
+
+        response = self.client('route_b')
+        self.assertTrue(response.accepted, response.detail)
+        self.wait(lambda: not self.gateway.busy)
+
+        self.assertEqual(self.gateway.active, 'route_b')
+        self.assertFalse(self.gateway.uncertain)
+
     def test_dispatch_guard_recovers_transient_input_gap(self):
         checks = iter([
             (False, 'fresh valid odometry unavailable'),

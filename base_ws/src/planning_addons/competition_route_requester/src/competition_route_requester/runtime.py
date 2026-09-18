@@ -333,6 +333,12 @@ class Gateway(Inputs):
 
     def run_request(self, key):
         dispatched = False
+        # Keep the request mode fixed for the whole transaction.  In particular, a startup
+        # Route B request uses the startup window (200258 s >= 0), while an A-to-B reroute uses
+        # the later reroute trigger (200258 s >= 8).  self.active is intentionally updated only
+        # after trajectory verification, so inferring the mode differently during verification
+        # would reject a valid startup request before the reroute trigger.
+        initial_request = self.active is None
         try:
             srv_type = SetLaneletRoute if key == 'fallback_route' else SetWaypointRoute
             name = self.cfg['set_lanelet_route_service_name' if key == 'fallback_route' else 'set_waypoint_route_service_name']
@@ -417,7 +423,8 @@ class Gateway(Inputs):
                 odometry_missing_since = None
                 if key != 'route_a':
                     progress = self.progress()
-                    if progress is None or not policy.in_window(self.routes, key, *progress):
+                    if progress is None or not policy.in_window(
+                            self.routes, key, *progress, initial=initial_request):
                         self.fault(key, 'verification lost odometry or passed route deadline')
                         return
                 for next_tc, next_vc, trajectory, status in self.validated_pairs_after(tc, vc):
