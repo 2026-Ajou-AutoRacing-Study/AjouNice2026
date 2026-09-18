@@ -16,6 +16,7 @@
 
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
 #include "autoware/behavior_path_lane_change_module/structs/path.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/speed_profile.hpp"
 #include "autoware/behavior_path_planner_common/parameters.hpp"
 #include "autoware/behavior_path_planner_common/utils/path_safety_checker/safety_check.hpp"
 #include "autoware/behavior_path_planner_common/utils/path_shifter/path_shifter.hpp"
@@ -1402,6 +1403,47 @@ std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
   const CommonDataPtr & common_data_ptr, const LaneChangePath & lane_change_path,
   const size_t deceleration_sampling_num, const bool is_approved)
 {
+  if (lane_change_path.type == PathType::SpatialSpeedProfile) {
+    const auto & points = lane_change_path.path.points;
+    if (points.size() < 2) return {};
+    const auto & bpp = *common_data_ptr->bpp_param_ptr;
+    const double start = calc_arc_length(points, common_data_ptr->get_ego_pose(), bpp);
+    const double end = calc_arc_length(points, lane_change_path.info.lane_changing_end, bpp);
+    std::vector<double> s, v;
+    double arc = 0.0;
+    for (size_t i = 1; i < points.size(); ++i) {
+      const double next = arc + autoware_utils::calc_distance2d(points[i - 1], points[i]);
+      if (next > start && arc < end && next - arc > 1e-8) {
+        const double v0 = points[i - 1].point.longitudinal_velocity_mps;
+        const double v1 = points[i].point.longitudinal_velocity_mps;
+        const auto add = [&](double at) {
+          const double ratio = std::clamp((at - arc) / (next - arc), 0.0, 1.0);
+          s.push_back(at);
+          v.push_back(std::sqrt(std::max(0.0, v0 * v0 + ratio * (v1 * v1 - v0 * v0))));
+        };
+        if (s.empty()) add(std::max(start, arc));
+        add(std::min(end, next));
+      }
+      arc = next;
+    }
+    if (s.size() < 2) return {};
+    const double duration = speed_profile_duration(s, v);
+    const double resolution = common_data_ptr->lc_param_ptr->safety.collision_check.prediction_time_resolution;
+    std::vector<PoseWithVelocityStamped> prediction;
+    for (double t = 0; t < duration; t += resolution) {
+      const auto state = sample_speed_profile(s, v, t);
+      prediction.emplace_back(t, autoware::motion_utils::calcInterpolatedPose(points, state.first), state.second);
+    }
+    prediction.emplace_back(duration,
+      autoware::motion_utils::calcInterpolatedPose(points, s.back()), v.back());
+    std::vector<std::vector<PoseWithVelocityStamped>> result{prediction};
+    if (is_approved) {
+      // Check actual-motion extrapolation as well as the planned acceleration;
+      // a lagging controller must not silently replace the planned hypothesis.
+      result.push_back(convert_to_predicted_path(common_data_ptr, lane_change_path));
+    }
+    return result;
+  }
   static constexpr double floating_err_th{1e-3};
   const auto bpp_param = *common_data_ptr->bpp_param_ptr;
   const auto global_min_acc = bpp_param.min_acc;

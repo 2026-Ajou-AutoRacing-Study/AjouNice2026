@@ -16,6 +16,7 @@
 
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/calculation.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/speed_profile.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/utils.hpp"
 #include "autoware/behavior_path_planner_common/utils/path_utils.hpp"
 #include "autoware/behavior_path_planner_common/utils/utils.hpp"
@@ -521,6 +522,8 @@ LaneChangePath construct_candidate_path(
   std::vector<int64_t> prev_ids;
   std::vector<int64_t> prev_sorted_ids;
   const bool competition = common_data_ptr->lc_param_ptr->trajectory.min_prepare_duration <= 1e-6;
+  const bool spatial_speed = competition &&
+    lane_change_info.longitudinal_acceleration.lane_changing > 1e-6;
   double reference_distance = 0.0;
   for (size_t i = 0; i < shifted_path.path.points.size(); ++i) {
     auto & point = shifted_path.path.points.at(i);
@@ -528,7 +531,7 @@ LaneChangePath construct_candidate_path(
       reference_distance += autoware_utils::calc_distance2d(
         target_lane_reference_path.points.at(i - 1), target_lane_reference_path.points.at(i));
     }
-    if (competition && i <= *lc_end_idx_opt) {
+    if (competition && !spatial_speed && i <= *lc_end_idx_opt) {
       const double v0 = lane_change_info.velocity.lane_changing;
       const double acceleration = lane_change_info.longitudinal_acceleration.lane_changing;
       const double velocity = std::sqrt(std::max(0.0, v0 * v0 + 2.0 * acceleration * reference_distance));
@@ -570,6 +573,51 @@ LaneChangePath construct_candidate_path(
   candidate_path.shifted_path = shifted_path;
   candidate_path.info = lane_change_info;
   candidate_path.type = PathType::ConstantJerk;
+
+  if (spatial_speed) {
+    const auto & bpp = *common_data_ptr->bpp_param_ptr;
+    const auto & params = common_data_ptr->lc_param_ptr->trajectory;
+    const auto & current_ref = common_data_ptr->current_lanes_path;
+    const auto & target_ref = common_data_ptr->target_lanes_path;
+    if (current_ref.points.size() < 2 || target_ref.points.size() < 2) {
+      throw std::logic_error("Missing road speed reference for LC");
+    }
+    // Use both endpoints of the containing road segment. This deliberately
+    // delays an increase by at most one map segment; it never anticipates it.
+    const auto road_limit = [](const auto & ref, const auto & pose) {
+      const auto idx = autoware::motion_utils::findNearestSegmentIndex(ref.points, pose.position);
+      return std::min(ref.points.at(idx).point.longitudinal_velocity_mps,
+                      ref.points.at(idx + 1).point.longitudinal_velocity_mps);
+    };
+    std::vector<double> distances{0.0}, limits;
+    const size_t begin = shift_line.start_idx;
+    const size_t end = *lc_end_idx_opt;
+    for (size_t i = begin; i <= end; ++i) {
+      const auto & point = shifted_path.path.points.at(i);
+      if (i > begin) distances.push_back(distances.back() + autoware_utils::calc_distance2d(
+        shifted_path.path.points.at(i - 1), point));
+      limits.push_back(std::min({bpp.max_vel,
+        static_cast<double>(point.point.longitudinal_velocity_mps),
+        static_cast<double>(road_limit(current_ref, point.point.pose)),
+        static_cast<double>(road_limit(target_ref, point.point.pose))}));
+    }
+    const auto velocities = make_speed_profile(
+      distances, limits, lane_change_info.velocity.lane_changing,
+      std::min({bpp.max_acc, params.max_longitudinal_acc,
+                lane_change_info.longitudinal_acceleration.lane_changing}),
+      -std::max(bpp.min_acc, params.min_longitudinal_acc));
+    if (*std::min_element(velocities.begin(), velocities.end()) < params.min_lane_changing_velocity) {
+      throw std::logic_error("Spatial speed profile falls below minimum LC velocity");
+    }
+    for (size_t i = begin; i <= end; ++i) {
+      shifted_path.path.points.at(i).point.longitudinal_velocity_mps = velocities.at(i - begin);
+    }
+    candidate_path.path = utils::combinePath(prepare_segment, shifted_path.path);
+    candidate_path.shifted_path = shifted_path;
+    candidate_path.info.duration.lane_changing = speed_profile_duration(distances, velocities);
+    candidate_path.info.terminal_lane_changing_velocity = velocities.back();
+    candidate_path.type = PathType::SpatialSpeedProfile;
+  }
 
   return candidate_path;
 }
