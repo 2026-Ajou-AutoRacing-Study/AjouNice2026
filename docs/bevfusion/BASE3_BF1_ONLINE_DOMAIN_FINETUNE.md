@@ -9,6 +9,11 @@ augmentation을 적용한 저학습률 fine-tuning을 수행했다.
 이 문서는 2026-09-14 기준 학습 결과, checkpoint 선택, rosbag 평가와 실험 과정에서
 발견한 비교 조건 오류를 함께 기록한다. 이 실험은 production 확정 기록이 아니다.
 
+> 후속 production 계약에서는 2026-07-31 PointPainting 통제 평가인
+> `Vehicle 30 m` bag을 평균에서 제외한다. 아래 8-bag 수치는 당시 실험 기록으로만
+> 보존하며 현재 production 모델 선택에 사용하지 않는다. 현재 기준은
+> [`260918_base3_e40_production_evaluation_results.md`](260918_base3_e40_production_evaluation_results.md)다.
+
 ## 실험 구성
 
 | 항목 | 값 |
@@ -144,4 +149,3 @@ gap을 모두 해결할 수 있다고 가정하지 않는다.
   `artifacts/evaluation/bevfusion/base3_b0_e6_class_thresholds_040_015_010_260914`
 - BF0 E10 production 비교:
   `artifacts/evaluation/bevfusion/base3_b0_e10_class_thresholds_040_015_010_260913`
-

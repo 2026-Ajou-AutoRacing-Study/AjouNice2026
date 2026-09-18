@@ -16,7 +16,6 @@ specs=(
   "vehicle_roundabout_new|rosbags/raw_sensor_w_cam/perception_benchmark/260821_235243_roundabout_dynamic_competition_raw.bag|1.0"
   "vehicle_highway_merge|rosbags/raw_sensor_w_cam/perception_benchmark/260821_235409_highway_merge_dynamic_competition_raw.bag|1.0"
   "vehicle_highway1|rosbags/raw_sensor_w_cam/sensor_cam_raw_highway1.bag|0.5"
-  "vehicle_30m|rosbags/raw_sensor_w_cam/pointpainting_vehicle_eval_260731/pointpainting_vehicle_static_moving_within30m_raw.bag|1.0"
 )
 
 mkdir -p "$output_root"

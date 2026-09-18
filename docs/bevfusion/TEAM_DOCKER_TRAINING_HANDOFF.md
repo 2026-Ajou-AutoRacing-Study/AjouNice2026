@@ -8,9 +8,10 @@
 
 2026-09-18 Base3 Fresh E40 corrected validation·test·mission rosbag 결과와
 checkpoint 선택 근거는
-[`260918_base3_e40_corrected_evaluation_results.md`](260918_base3_e40_corrected_evaluation_results.md)를
-참고한다. Offline best는 E26, production 교체 후보는 E25이며 두 의미를 섞지
-않는다.
+[`260918_base3_e40_production_evaluation_results.md`](260918_base3_e40_production_evaluation_results.md)를
+참고한다. Offline best는 E26이다. 실제 경로 7-bag detection은 기존 E10이
+근소하게 높고 E25는 tracker/Map-CV에서 우세하므로, production 기본값은 아직
+E10을 유지하고 E25를 interactive A/B 후보로만 보존한다.
 
 | GPU | CUDA arch | physical batch | accumulation | effective batch |
 |---|---:|---:|---:|---:|

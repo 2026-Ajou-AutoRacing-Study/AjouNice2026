@@ -151,12 +151,14 @@
   성능 저하가 시작되는 단계를 분리한다.
 - Mission rosbag Vehicle geometry가 production 기준에 도달하기 전에는 velocity
   head를 tracker production 입력으로 확정하지 않는다.
-- Base3 corrected 평가는 완료했다. Offline best는 `B3-BF0-F40 E26`, 동일
-  production tracker/Map-CV까지 포함한 교체 후보는 `B3-BF0-F40 E25`다.
-  E25는 기존 E10 대비 8-bag detection macro AP `0.7555 -> 0.7722`, Vehicle
-  tracking AVE `0.6326 -> 0.5768 m/s`, 3초 FDE `3.7685 -> 3.5781 m`로
-  개선됐다. 상세 결과:
-  [`260918_base3_e40_corrected_evaluation_results.md`](bevfusion/260918_base3_e40_corrected_evaluation_results.md).
+- Base3 corrected 평가는 완료했다. Offline best는 `B3-BF0-F40 E26`이다.
+  초기 PointPainting 통제 실험인 `Vehicle 30 m` bag은 production 평균에서
+  제외했다. 실제 경로·미션 7-bag detection macro AP는 E10/E25/E26
+  `0.7645/0.7620/0.7625`로 E10이 근소하게 높다. 실제 경로 Vehicle 3-bag에서
+  E25는 tracking AVE `0.7887 -> 0.7252 m/s`, 3초 FDE
+  `4.7168 -> 4.4912 m`로 개선되지만 center p50은 `0.5403 -> 0.5457 m`로
+  약간 나빠진다. 상세 결과:
+  [`260918_base3_e40_production_evaluation_results.md`](bevfusion/260918_base3_e40_production_evaluation_results.md).
 - E25를 MORAI interactive/planviz로 짧게 확인하기 전에는 production 기본
   checkpoint를 자동 교체하지 않는다. 확인 후 path와 SHA를 한 커밋에서 바꾼다.
 - 다음 재학습은 단순 epoch 연장이 아니라 기존 시나리오 생성기를 production

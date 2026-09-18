@@ -1,7 +1,7 @@
 # Base3 BEVFusion Fresh E40 학습 종료 후 체크리스트
 
 > 2026-09-18 완료. 결과와 production 판단은
-> [`260918_base3_e40_corrected_evaluation_results.md`](260918_base3_e40_corrected_evaluation_results.md)에 기록했다.
+> [`260918_base3_e40_production_evaluation_results.md`](260918_base3_e40_production_evaluation_results.md)에 기록했다.
 
 ## 대상 run
 
@@ -109,12 +109,11 @@ Corrected test best와 runner-up을 기존 production과 동일한 조건으로 
 
 - Threshold: Vehicle/Pedestrian/Obstacle `0.40/0.15/0.10`.
 - 동일 raw bag, 동일 평가 구간, 동일 GT alignment, 동일 point/visibility 정책.
-- 기본 8 bags:
+- Production 판단용 7 bags:
   - 정적 Obstacle 왕복.
   - Base3 multi-asset Obstacle.
   - Pedestrian 횡단.
   - Pedestrian 거리별.
-  - Vehicle 30m.
   - 고주로1.
   - 고주로 합류.
   - 신로터리.
@@ -127,7 +126,7 @@ production을 교체하지 않는다.
 
 1. corrected val 전 epoch 표와 W&B link.
 2. frozen test 비교표.
-3. 8-bag 비교표와 slice 분석.
+3. 7-bag 비교표와 slice 분석.
 4. 최종 best/runner-up checkpoint 경로와 SHA-256.
 5. production 교체 여부와 근거.
 6. 필요하면 최종 best를 inference checkpoint 형식으로 export.
