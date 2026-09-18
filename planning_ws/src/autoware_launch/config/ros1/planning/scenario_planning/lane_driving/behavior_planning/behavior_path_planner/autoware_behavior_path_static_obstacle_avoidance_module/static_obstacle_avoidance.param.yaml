@@ -43,9 +43,9 @@ avoidance/target_object/trailer/th_error_eclipse_long_radius: 0.6
 avoidance/target_object/unknown/th_moving_speed: 0.28
 avoidance/target_object/unknown/th_moving_time: 1.0
 avoidance/target_object/unknown/longitudinal_margin: 0.0
-avoidance/target_object/unknown/lateral_margin/soft_margin: 0.5
-avoidance/target_object/unknown/lateral_margin/hard_margin: -0.2
-avoidance/target_object/unknown/lateral_margin/hard_margin_for_parked_vehicle: -0.2
+avoidance/target_object/unknown/lateral_margin/soft_margin: 0.3
+avoidance/target_object/unknown/lateral_margin/hard_margin: 0.2
+avoidance/target_object/unknown/lateral_margin/hard_margin_for_parked_vehicle: 0.2
 avoidance/target_object/unknown/max_expand_ratio: 0.0
 avoidance/target_object/unknown/envelope_buffer_margin: 0.1
 avoidance/target_object/unknown/th_error_eclipse_long_radius: 0.6

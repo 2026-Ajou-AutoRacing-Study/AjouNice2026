@@ -298,14 +298,19 @@ void NormalLaneChange::updateLaneChangeStatus()
   status_.lane_change_path.path.header = getRouteHeader();
   RCLCPP_DEBUG(
     logger_, "LC decision side=%s valid=%d safe=%d points=%zu prepare=%.2f shift=%.2f end_v=%.2f "
-    "ego_lane=%ld current=%zu target=%zu neighbor=%zu distance_valid=%d",
+    "ego_lane=%ld current=%zu target=%zu neighbor=%zu distance_valid=%d "
+    "prepare_t=%.2f lc_t=%.2f prepare_a=%.3f lc_a=%.3f",
     direction_ == Direction::LEFT ? "left" : "right", found_valid_path, found_safe_path,
     status_.lane_change_path.path.points.size(), status_.lane_change_path.info.length.prepare,
     status_.lane_change_path.info.length.lane_changing,
     status_.lane_change_path.info.terminal_lane_changing_velocity,
     common_data_ptr_->lanes_ptr->ego_lane.id(), get_current_lanes().size(),
     get_target_lanes().size(), common_data_ptr_->lanes_ptr->target_neighbor.size(),
-    common_data_ptr_->transient_data.has_valid_lc_distance);
+    common_data_ptr_->transient_data.has_valid_lc_distance,
+    status_.lane_change_path.info.duration.prepare,
+    status_.lane_change_path.info.duration.lane_changing,
+    status_.lane_change_path.info.longitudinal_acceleration.prepare,
+    status_.lane_change_path.info.longitudinal_acceleration.lane_changing);
 }
 
 std::pair<bool, bool> NormalLaneChange::getSafePath(LaneChangePath & safe_path) const
@@ -1337,58 +1342,71 @@ bool NormalLaneChange::get_path_using_frenet(
 {
   stop_watch_.tic(__func__);
   constexpr auto found_safe_path = true;
-  const auto frenet_candidates = utils::lane_change::generate_frenet_candidates(
-    common_data_ptr_, prev_module_output_.path, prepare_metrics);
-  RCLCPP_DEBUG(
-    logger_, "Generated %lu candidate paths in %2.2f[us]", frenet_candidates.size(),
-    stop_watch_.toc(__func__));
-
-  candidate_paths.reserve(frenet_candidates.size());
   lane_change_debug_.frenet_states.clear();
-  lane_change_debug_.frenet_states.reserve(frenet_candidates.size());
-  for (const auto & frenet_candidate : frenet_candidates) {
-    if (stop_watch_.toc(__func__) >= lane_change_parameters_->time_limit) {
-      break;
-    }
+  size_t generated_count = 0;
+  // Do not generate hundreds of late-start alternatives before checking the
+  // immediate ones. Bound each batch and stop as soon as a safe path is found.
+  std::vector<std::vector<LaneChangePhaseMetrics>> batches;
+  if (lane_change_parameters_->trajectory.min_prepare_duration <= 1e-6) {
+    for (const auto & metric : prepare_metrics) batches.push_back({metric});
+  } else {
+    batches.push_back(prepare_metrics);
+  }
+  for (const auto & batch : batches) {
+    if (stop_watch_.toc(__func__) >= lane_change_parameters_->time_limit) break;
+    const auto frenet_candidates = utils::lane_change::generate_frenet_candidates(
+      common_data_ptr_, prev_module_output_.path, batch);
+    generated_count += frenet_candidates.size();
+    RCLCPP_DEBUG(
+      logger_, "Generated %lu candidate paths in %2.2f[ms]", frenet_candidates.size(),
+      stop_watch_.toc(__func__));
 
-    lane_change_debug_.frenet_states.emplace_back(
-      frenet_candidate.prepare_metric, frenet_candidate.lane_changing.sampling_parameter,
-      frenet_candidate.lc_average_curvature, frenet_candidate.max_lane_changing_length);
-
-    std::optional<LaneChangePath> candidate_path_opt;
-    try {
-      candidate_path_opt =
-        utils::lane_change::get_candidate_path(frenet_candidate, common_data_ptr_, sorted_lane_ids);
-    } catch (const std::exception & e) {
-      RCLCPP_DEBUG(logger_, "%s", e.what());
-    }
-
-    if (!candidate_path_opt) {
-      continue;
-    }
-
-    try {
-      if (check_candidate_path_safety(*candidate_path_opt, target_objects)) {
-        RCLCPP_DEBUG(
-          logger_, "Found safe path after %lu candidate(s). Total time: %2.2f[us]",
-          frenet_candidates.size(), stop_watch_.toc(__func__));
-        utils::lane_change::append_target_ref_to_candidate(
-          *candidate_path_opt, common_data_ptr_->lc_param_ptr->frenet.th_curvature_smoothing);
-        candidate_paths.push_back(*candidate_path_opt);
-        return found_safe_path;
+    candidate_paths.reserve(frenet_candidates.size());
+    lane_change_debug_.frenet_states.reserve(generated_count);
+    for (const auto & frenet_candidate : frenet_candidates) {
+      if (stop_watch_.toc(__func__) >= lane_change_parameters_->time_limit) {
+        break;
       }
-    } catch (const std::exception & e) {
-      RCLCPP_DEBUG(logger_, "%s", e.what());
-    }
 
-    // appending all paths affect performance
-    if (candidate_paths.empty()) {
-      candidate_paths.push_back(*candidate_path_opt);
+      lane_change_debug_.frenet_states.emplace_back(
+        frenet_candidate.prepare_metric, frenet_candidate.lane_changing.sampling_parameter,
+        frenet_candidate.lc_average_curvature, frenet_candidate.max_lane_changing_length);
+
+      std::optional<LaneChangePath> candidate_path_opt;
+      try {
+        candidate_path_opt =
+          utils::lane_change::get_candidate_path(frenet_candidate, common_data_ptr_, sorted_lane_ids);
+      } catch (const std::exception & e) {
+        RCLCPP_DEBUG(logger_, "%s", e.what());
+      }
+
+      if (!candidate_path_opt) {
+        continue;
+      }
+
+      try {
+        if (check_candidate_path_safety(*candidate_path_opt, target_objects)) {
+          RCLCPP_DEBUG(
+            logger_, "Found safe path after %lu candidate(s). Total time: %2.2f[ms]",
+            frenet_candidates.size(), stop_watch_.toc(__func__));
+          utils::lane_change::append_target_ref_to_candidate(
+            *candidate_path_opt, common_data_ptr_->lc_param_ptr->frenet.th_curvature_smoothing);
+          candidate_paths.push_back(*candidate_path_opt);
+          return found_safe_path;
+        }
+      } catch (const std::exception & e) {
+        RCLCPP_DEBUG(logger_, "%s", e.what());
+      }
+
+      // appending all paths affect performance
+      if (candidate_paths.empty()) {
+        candidate_paths.push_back(*candidate_path_opt);
+      }
     }
   }
 
   RCLCPP_DEBUG(
-    logger_, "No safe path after %lu candidate(s). Total time: %2.2f[us]", frenet_candidates.size(),
+    logger_, "No safe path after %lu candidate(s). Total time: %2.2f[ms]", generated_count,
     stop_watch_.toc(__func__));
   return !found_safe_path;
 }
@@ -1428,10 +1446,9 @@ bool NormalLaneChange::get_path_using_path_shifter(
         prep_metric.duration, prep_metric.actual_lon_accel, prep_metric.length);
     };
 
-    if (!check_length_diff(prep_metric.length, 0.0, false)) {
-      RCLCPP_DEBUG(logger_, "Skip: Change in prepare length is less than threshold.");
-      continue;
-    }
+    // Equal preparation lengths (especially zero) do not imply equal LC
+    // maneuvers: longitudinal samples can change the execution phase. Apply
+    // the full prepare+LC length check below instead of dropping them here.
 
     PathWithLaneId prepare_segment;
     try {
@@ -1479,7 +1496,12 @@ bool NormalLaneChange::get_path_using_path_shifter(
           lc_metric.duration, lc_metric.actual_lon_accel, lc_metric.lat_accel, lc_metric.length);
       };
 
-      if (!check_length_diff(prep_metric.length, lc_metric.length, true)) {
+      const bool different_dynamics = !candidate_paths.empty() &&
+        lane_change_parameters_->trajectory.min_prepare_duration <= 1e-6 &&
+        (std::abs(candidate_paths.back().info.longitudinal_acceleration.lane_changing -
+                  lc_metric.actual_lon_accel) > 1e-6 ||
+         std::abs(candidate_paths.back().info.duration.lane_changing - lc_metric.duration) > 1e-6);
+      if (!different_dynamics && !check_length_diff(prep_metric.length, lc_metric.length, true)) {
         RCLCPP_DEBUG(logger_, "Skip: Change in lane changing length is less than threshold.");
         continue;
       }

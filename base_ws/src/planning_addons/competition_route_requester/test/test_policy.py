@@ -114,12 +114,12 @@ class PolicyTest(unittest.TestCase):
             preferred_window = preferred[preferred.index(201457):preferred.index(201399) + 1]
             self.assertEqual(
                 preferred_window,
-                [201457, 201435, 201466, 200137, 200187, 201470, 200130,
+                [201457, 201435, 201466, 200137, 200187, 201469, 200127,
                  201473, 201439, 200360, 201477, 201479, 201447,
                  201399],
             )
 
-            # Prefer the middle highway lane, then enter 200360 immediately
+            # Move to the left bottleneck approach early, then enter 200360 immediately
             # after the bottleneck and stay on the lower split pair.
             initial_bottleneck = initial[initial.index(201439):initial.index(201477)]
             self.assertEqual(initial_bottleneck, [201439, 200360])

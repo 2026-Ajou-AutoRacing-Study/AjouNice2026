@@ -9,15 +9,17 @@ lane_change/terminal_path/enable: true
 lane_change/terminal_path/disable_near_goal: true
 lane_change/terminal_path/stop_at_boundary: false
 lane_change/trajectory/max_prepare_duration: 4.0
-lane_change/trajectory/min_prepare_duration: 2.0
+# Zero opts into signal-free, earliest-feasible-first preparation sampling.
+lane_change/trajectory/min_prepare_duration: 0.0
 lane_change/trajectory/lateral_jerk: 5.0
 lane_change/trajectory/min_longitudinal_acc: -8.0
 lane_change/trajectory/max_longitudinal_acc: 3.7
 lane_change/trajectory/th_prepare_length_diff: 1.0
 lane_change/trajectory/th_lane_changing_length_diff: 1.0
 lane_change/trajectory/min_lane_changing_velocity: 2.78
-lane_change/trajectory/lon_acc_sampling_num: 5
-lane_change/trajectory/lat_acc_sampling_num: 3
+# Intervals; both effective limits and zero are included (up to 22 values).
+lane_change/trajectory/lon_acc_sampling_num: 20
+lane_change/trajectory/lat_acc_sampling_num: 11
 lane_change/trajectory/lane_changing_decel_factor: 0.5
 lane_change/trajectory/th_prepare_curvature: 0.03
 lane_change/delay_lane_change/enable: true
@@ -79,9 +81,9 @@ lane_change/lateral_acceleration/velocity:
 - 4.0
 - 10.0
 lane_change/lateral_acceleration/min_values:
-- 2.5
-- 2.5
-- 2.5
+- 1.0
+- 1.0
+- 1.0
 lane_change/lateral_acceleration/max_values:
 - 6.5
 - 6.5

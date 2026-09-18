@@ -1239,6 +1239,24 @@ bool object_path_overlaps_lanes(
   });
 }
 
+// Integrate a bounded constant-acceleration segment without moving backwards
+// after stopping or reporting a speed inconsistent with its travelled distance.
+static std::pair<double, double> integrate_longitudinal_motion(
+  const double initial_velocity, const double acceleration, const double duration,
+  const double maximum_velocity)
+{
+  const double v0 = std::max(0.0, initial_velocity);
+  const double cap = std::max(v0, maximum_velocity);
+  double accelerating_time = duration;
+  if (acceleration < -1e-6) accelerating_time = std::min(duration, -v0 / acceleration);
+  if (acceleration > 1e-6) accelerating_time = std::min(duration, (cap - v0) / acceleration);
+  const double velocity = std::clamp(v0 + acceleration * accelerating_time, 0.0, cap);
+  const double distance = v0 * accelerating_time +
+    0.5 * acceleration * accelerating_time * accelerating_time +
+    velocity * (duration - accelerating_time);
+  return {distance, velocity};
+}
+
 std::vector<PoseWithVelocityStamped> convert_to_predicted_path(
   const CommonDataPtr & common_data_ptr, const LaneChangePath & lane_change_path,
   const double lane_changing_acceleration)
@@ -1260,6 +1278,22 @@ std::vector<PoseWithVelocityStamped> convert_to_predicted_path(
   const auto resolution = lc_param_ptr->safety.collision_check.prediction_time_resolution;
   std::vector<PoseWithVelocityStamped> predicted_path;
   predicted_path.reserve(static_cast<size_t>(std::ceil(duration / resolution)));
+
+  if (lc_param_ptr->trajectory.min_prepare_duration <= 1e-6) {
+    const double speed_cap = std::min(bpp_param_ptr->max_vel,
+      std::max(lane_change_path.info.velocity.prepare,
+               lane_change_path.info.terminal_lane_changing_velocity));
+    const auto prepared = integrate_longitudinal_motion(initial_velocity, prepare_acc, prepare_time, speed_cap);
+    for (double t = 0.0; t < duration; t += resolution) {
+      auto state = t < prepare_time
+        ? integrate_longitudinal_motion(initial_velocity, prepare_acc, t, speed_cap)
+        : integrate_longitudinal_motion(prepared.second, lane_changing_acceleration, t - prepare_time, speed_cap);
+      if (t >= prepare_time) state.first += prepared.first;
+      const auto pose = autoware::motion_utils::calcInterpolatedPose(path.points, ego_arc_length + state.first);
+      predicted_path.emplace_back(t, pose, state.second);
+    }
+    return predicted_path;
+  }
 
   // prepare segment
   for (double t = 0.0; t < prepare_time; t += resolution) {
@@ -1317,7 +1351,23 @@ std::vector<PoseWithVelocityStamped> convert_to_predicted_path(
   const auto resolution = lc_param_ptr->safety.collision_check.prediction_time_resolution;
   std::vector<PoseWithVelocityStamped> predicted_path;
   predicted_path.reserve(static_cast<size_t>(std::ceil(duration / resolution)));
-  const auto curr_acc = std::max(common_data_ptr->get_current_accel(), 0.0);
+  const bool competition = lc_param_ptr->trajectory.min_prepare_duration <= 1e-6;
+  const auto curr_acc = competition
+    ? std::clamp(common_data_ptr->get_current_accel(), bpp_param_ptr->min_acc, bpp_param_ptr->max_acc)
+    : std::max(common_data_ptr->get_current_accel(), 0.0);
+  if (competition) {
+    const double speed_cap = std::min(bpp_param_ptr->max_vel,
+      std::max(lane_change_path.info.velocity.prepare,
+               lane_change_path.info.terminal_lane_changing_velocity));
+    for (double t = 0.0; t < duration; t += resolution) {
+      const auto [distance, velocity] = integrate_longitudinal_motion(initial_velocity, curr_acc, t, speed_cap);
+      const double offset = std::min(ego_arc_length + distance, lc_end_arc_length);
+      const auto pose = autoware::motion_utils::calcInterpolatedPose(path.points, offset);
+      predicted_path.emplace_back(t, pose, velocity);
+      if (offset >= lc_end_arc_length) break;
+    }
+    return predicted_path;
+  }
 
   auto prev_vel = initial_velocity;
   const auto calc_velocity = [&](const auto dt) {
@@ -1386,7 +1436,9 @@ std::vector<PoseWithVelocityStamped> convert_to_predicted_path(
   const auto prepare_time = frenet_candidate.prepare_metric.duration;
   const auto resolution =
     common_data_ptr->lc_param_ptr->safety.collision_check.prediction_time_resolution;
-  const auto prepare_acc = frenet_candidate.prepare_metric.sampled_lon_accel;
+  const auto prepare_acc = common_data_ptr->lc_param_ptr->trajectory.min_prepare_duration <= 1e-6
+    ? frenet_candidate.prepare_metric.actual_lon_accel
+    : frenet_candidate.prepare_metric.sampled_lon_accel;
   std::vector<PoseWithVelocityStamped> predicted_path;
   const auto & path = frenet_candidate.prepare.points;
   const auto & vehicle_pose = common_data_ptr->get_ego_pose();
@@ -1395,6 +1447,13 @@ std::vector<PoseWithVelocityStamped> convert_to_predicted_path(
   const auto ego_arc_length = calc_arc_length(path, vehicle_pose, *bpp_param_ptr);
 
   for (double t = 0.0; t < prepare_time; t += resolution) {
+    if (common_data_ptr->lc_param_ptr->trajectory.min_prepare_duration <= 1e-6) {
+      const auto [length, velocity] = integrate_longitudinal_motion(
+        initial_velocity, prepare_acc, t, frenet_candidate.prepare_metric.velocity);
+      const auto pose = autoware::motion_utils::calcInterpolatedPose(path, ego_arc_length + length);
+      predicted_path.emplace_back(t, pose, velocity);
+      continue;
+    }
     const auto velocity =
       std::clamp(initial_velocity + prepare_acc * t, 0.0, frenet_candidate.prepare_metric.velocity);
     const auto length = initial_velocity * t + 0.5 * prepare_acc * t * t;

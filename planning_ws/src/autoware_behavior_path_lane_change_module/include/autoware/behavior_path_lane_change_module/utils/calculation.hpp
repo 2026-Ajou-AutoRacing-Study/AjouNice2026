@@ -141,6 +141,8 @@ std::vector<double> calc_lon_acceleration_samples(
   const CommonDataPtr & common_data_ptr, const double max_path_velocity,
   const double prepare_duration);
 
+std::vector<double> calc_prepare_durations(const CommonDataPtr & common_data_ptr);
+
 /**
  * @brief calculates the actual prepare duration that will be used for path generation
  *

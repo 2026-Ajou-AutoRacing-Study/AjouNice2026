@@ -11,8 +11,8 @@ road_user_stop/stop_planning/hold_stop_distance_threshold: 0.3
 road_user_stop/stop_planning/stop_on_curve/enable_approaching: false
 road_user_stop/stop_planning/stop_on_curve/additional_stop_margin: 3.0
 road_user_stop/stop_planning/stop_on_curve/min_stop_margin: 6.0
-road_user_stop/stop_planning/limit_min_acc: -2.5
-road_user_stop/stop_planning/sudden_object_acc_threshold: -1.0
+road_user_stop/stop_planning/limit_min_acc: -6.0
+road_user_stop/stop_planning/sudden_object_acc_threshold: -5.0
 road_user_stop/stop_planning/sudden_object_dist_threshold: 1000.0
 road_user_stop/stop_planning/abandon_to_stop: false
 road_user_stop/obstacle_filtering/object_type/pedestrian: true
@@ -28,7 +28,7 @@ road_user_stop/obstacle_filtering/crosswalk/exclude: true
 road_user_stop/obstacle_filtering/crosswalk/margin: 1.0
 road_user_stop/obstacle_filtering/min_detection_duration: 0.1
 road_user_stop/obstacle_filtering/lost_object_retention_duration: 2.0
-road_user_stop/obstacle_filtering/polygon_expansion_length: 0.5
+road_user_stop/obstacle_filtering/polygon_expansion_length: 0.0
 road_user_stop/stopped_object_tracking/stopped_velocity_threshold: 0.5
 road_user_stop/stopped_object_tracking/stopped_position_tolerance: 0.3
 road_user_stop/stopped_object_tracking/ego_reached_wall_distance_threshold: 0.5
