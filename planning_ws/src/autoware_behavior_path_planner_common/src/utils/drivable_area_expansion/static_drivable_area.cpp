@@ -791,7 +791,51 @@ std::vector<lanelet::ConstPoint3d> getBoundWithIntersectionAreas(
 
     const auto polygon_it = route_handler->getLaneletMapPtr()->polygonLayer.find(id);
     if (polygon_it == route_handler->getLaneletMapPtr()->polygonLayer.end()) continue;
-    const auto & polygon = *polygon_it;
+    // Buffered intersection polygons can have independent point IDs. Match only
+    // nearby endpoints geometrically, on a private copy (never mutate the map).
+    lanelet::Points3d polygon_points;
+    for (const auto & p : *polygon_it) {
+      polygon_points.emplace_back(p.id(), p.x(), p.y(), p.z());
+    }
+    if (polygon_points.size() > 1 &&
+        (polygon_points.front().basicPoint2d() - polygon_points.back().basicPoint2d()).norm() < 1e-8) {
+      polygon_points.pop_back();
+    }
+    if (polygon_points.size() < 3) continue;
+    const auto attach_endpoint = [&](const lanelet::ConstPoint3d & endpoint) {
+      if (std::any_of(polygon_points.begin(), polygon_points.end(), [&](const auto & p) {
+            return p.id() == endpoint.id();
+          })) return true;
+      // Accommodate the map's 5 cm buffer, without joining unrelated areas.
+      constexpr double max_endpoint_distance = 0.10;
+      double best_distance = max_endpoint_distance;
+      size_t best_segment = polygon_points.size();
+      double best_ratio = 0.0;
+      for (size_t i = 0; i < polygon_points.size(); ++i) {
+        const auto a = polygon_points[i].basicPoint2d();
+        const auto delta = (polygon_points[(i + 1) % polygon_points.size()].basicPoint2d() - a).eval();
+        if (delta.squaredNorm() < 1e-12) continue;
+        const double ratio = std::clamp((endpoint.basicPoint2d() - a).dot(delta) / delta.squaredNorm(), 0.0, 1.0);
+        const double distance = (endpoint.basicPoint2d() - (a + ratio * delta)).norm();
+        if (distance <= best_distance) {
+          best_distance = distance;
+          best_segment = i;
+          best_ratio = ratio;
+        }
+      }
+      if (best_segment == polygon_points.size()) return false;
+      const auto a = polygon_points[best_segment];
+      const auto b = polygon_points[(best_segment + 1) % polygon_points.size()];
+      lanelet::Point3d projected(endpoint.id(),
+        a.x() + best_ratio * (b.x() - a.x()), a.y() + best_ratio * (b.y() - a.y()),
+        a.z() + best_ratio * (b.z() - a.z()));
+      if (best_ratio < 1e-8) polygon_points[best_segment] = projected;
+      else if (best_ratio > 1.0 - 1e-8) polygon_points[(best_segment + 1) % polygon_points.size()] = projected;
+      else polygon_points.insert(polygon_points.begin() + best_segment + 1, projected);
+      return true;
+    };
+    if (!attach_endpoint(edge_bound.front()) || !attach_endpoint(edge_bound.back())) continue;
+    const lanelet::ConstPolygon3d polygon(lanelet::Polygon3d(polygon_it->id(), polygon_points));
     const auto first = std::find_if(polygon.begin(), polygon.end(), [&](const auto & point) {
       return point.id() == edge_bound.front().id();
     });
@@ -800,8 +844,13 @@ std::vector<lanelet::ConstPoint3d> getBoundWithIntersectionAreas(
     });
     if (first == polygon.end() || last == polygon.end()) continue;
 
-    const bool clockwise_polygon =
-      boost::geometry::is_valid(lanelet::utils::to2D(polygon.basicPolygon()));
+    double signed_area = 0.0;
+    for (size_t i = 0; i < polygon.size(); ++i) {
+      const auto & a = polygon[i];
+      const auto & b = polygon[(i + 1) % polygon.size()];
+      signed_area += a.x() * b.y() - b.x() * a.y();
+    }
+    const bool clockwise_polygon = signed_area < 0.0;
     const auto intersection_bound = extractBoundFromPolygon(
       polygon, std::distance(polygon.begin(), first), std::distance(polygon.begin(), last),
       clockwise_polygon ? is_left : !is_left);
@@ -830,7 +879,7 @@ std::vector<lanelet::ConstPoint3d> getBoundWithIntersectionAreas(
     std::vector<lanelet::ConstPoint3d> updated;
     updated.insert(updated.end(), expanded.begin(), shared_first);
     updated.insert(updated.end(), replacement_first, std::next(replacement_last));
-    updated.insert(updated.end(), std::next(shared_last).base(), expanded.end());
+    updated.insert(updated.end(), shared_last.base(), expanded.end());
     expanded = std::move(updated);
   }
   return expanded;

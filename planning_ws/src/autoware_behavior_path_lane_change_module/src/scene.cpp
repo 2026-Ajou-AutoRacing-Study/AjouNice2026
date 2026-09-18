@@ -1290,7 +1290,28 @@ std::vector<LaneChangePhaseMetrics> NormalLaneChange::get_lane_changing_metrics(
   });
 
   debug_metrics.max_lane_changing_length = max_lane_changing_length;
-  const auto max_path_velocity = prep_segment.points.back().point.longitudinal_velocity_mps;
+  // A preparation endpoint is not a speed limit for the whole maneuver. In
+  // immediate-LC mode construct_candidate_path applies the spatial road limits
+  // and acceleration envelope, then predicts collisions using that same profile.
+  const auto max_path_velocity =
+    common_data_ptr_->lc_param_ptr->trajectory.min_prepare_duration <= 1e-6
+      ? common_data_ptr_->bpp_param_ptr->max_vel
+      : prep_segment.points.back().point.longitudinal_velocity_mps;
+  if (common_data_ptr_->lc_param_ptr->trajectory.min_prepare_duration <= 1e-6 &&
+      prep_metric.duration > 1e-6) {
+    // Preparation can be speed-limited while the execution road permits
+    // acceleration. Do not reuse the preparation's (often zero) acceleration
+    // as the only execution sample.
+    std::vector<LaneChangePhaseMetrics> metrics;
+    for (const double acceleration : calculation::calc_lon_acceleration_samples(
+           common_data_ptr_, max_path_velocity, 0.0)) {
+      const auto samples = calculation::calc_shift_phase_metrics(
+        common_data_ptr_, shift_length, prep_metric.velocity, max_path_velocity,
+        acceleration, max_lane_changing_length);
+      metrics.insert(metrics.end(), samples.begin(), samples.end());
+    }
+    return metrics;
+  }
   return calculation::calc_shift_phase_metrics(
     common_data_ptr_, shift_length, prep_metric.velocity, max_path_velocity,
     prep_metric.sampled_lon_accel, max_lane_changing_length);
@@ -1477,8 +1498,7 @@ bool NormalLaneChange::get_path_using_path_shifter(
     const auto lane_changing_metrics = get_lane_changing_metrics(
       prepare_segment, prep_metric, shift_length, dist_to_next_regulatory_element, debug_metrics);
 
-    // set_prepare_velocity must only be called after computing lane change metrics, as lane change
-    // metrics rely on the prepare segment's original velocity as max_path_velocity.
+    // Keep preparation speeds independent from the execution speed samples.
     utils::lane_change::set_prepare_velocity(
       prepare_segment, common_data_ptr_->get_ego_speed(), prep_metric.velocity);
 
@@ -2004,6 +2024,9 @@ PathSafetyStatus NormalLaneChange::isLaneChangePathSafe(
   constexpr auto is_safe = true;
   constexpr auto is_moving_object_behind_ego = true;
   if (ego_predicted_paths.empty()) {
+    if (lane_change_path.type == lane_change::PathType::SpatialSpeedProfile) {
+      return {!is_safe, !is_moving_object_behind_ego};
+    }
     return {is_safe, !is_moving_object_behind_ego};
   }
 
@@ -2016,6 +2039,22 @@ PathSafetyStatus NormalLaneChange::isLaneChangePathSafe(
   const auto check_for_moving_objects = [this](const auto & object) {
     return utils::lane_change::is_moving_object(common_data_ptr_, object);
   };
+
+  if (lane_change_path.type == lane_change::PathType::SpatialSpeedProfile) {
+    // These are simultaneous planned/actual-motion hypotheses, not alternative
+    // deceleration maneuvers. EVERY hypothesis must pass for both front/rear gaps.
+    for (const auto & prediction : ego_predicted_paths) {
+      if (prediction.empty()) return {!is_safe, !is_moving_object_behind_ego};
+      if (const auto collision = check_for_colliding_objects(
+            {prediction}, collision_check_objects.trailing)) {
+        return {!is_safe, ranges::any_of(*collision, check_for_moving_objects)};
+      }
+      if (check_for_colliding_objects({prediction}, collision_check_objects.leading)) {
+        return {!is_safe, !is_moving_object_behind_ego};
+      }
+    }
+    return {is_safe, !is_moving_object_behind_ego};
+  }
 
   if (
     const auto found_colliding_objects_opt = check_for_colliding_objects(

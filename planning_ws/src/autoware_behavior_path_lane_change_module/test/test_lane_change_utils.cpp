@@ -14,6 +14,7 @@
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/calculation.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/utils.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/speed_profile.hpp"
 #include "autoware/behavior_path_planner_common/utils/drivable_area_expansion/static_drivable_area.hpp"
 
 #include <autoware_utils/geometry/geometry.hpp>
@@ -23,6 +24,74 @@
 #include <gtest/gtest.h>
 
 constexpr double epsilon = 1e-6;
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, SpatialSpeedProfileRespectsTransitionsAndDynamics)
+{
+  using namespace autoware::behavior_path_planner::utils::lane_change;
+  const double entry = 59.0 / 3.6, highway = 150.0 / 3.6;
+  std::vector<double> s, caps;
+  for (int i = 0; i <= 150; ++i) {
+    s.push_back(i);
+    caps.push_back(i <= 30 || i >= 120 ? entry : highway);
+  }
+  const auto v = make_speed_profile(s, caps, entry, 3.7, 6.0);
+  EXPECT_GT(v[70], entry + 5);
+  for (size_t i = 0; i < v.size(); ++i) {
+    EXPECT_LE(v[i], caps[i] + epsilon);
+    if (i) {
+      const double a = (v[i] * v[i] - v[i - 1] * v[i - 1]) / 2;
+      EXPECT_LE(a, 3.7 + epsilon);
+      EXPECT_GE(a, -6.0 - epsilon);
+    }
+  }
+  EXPECT_NEAR(sample_speed_profile(s, v, 1).first, entry, epsilon);
+  EXPECT_NEAR(sample_speed_profile(s, v, 1).second, entry, epsilon);
+  const auto end = sample_speed_profile(s, v, speed_profile_duration(s, v));
+  EXPECT_NEAR(end.first, s.back(), epsilon);
+  EXPECT_NEAR(end.second, v.back(), epsilon);
+  EXPECT_THROW(make_speed_profile({0, 1}, {40, 1}, 30, 3.7, 6), std::logic_error);
+  const auto constant = make_speed_profile(s, std::vector<double>(s.size(), entry), entry, 3.7, 6);
+  for (const auto speed : constant) EXPECT_NEAR(speed, entry, epsilon);
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, SpatialCollisionPredictionUsesOutputSpeedAndFullDuration)
+{
+  using namespace autoware::behavior_path_planner;
+  auto data = std::make_shared<lane_change::CommonData>();
+  data->lc_param_ptr = std::make_shared<lane_change::Parameters>();
+  data->bpp_param_ptr = std::make_shared<BehaviorPathPlannerParameters>();
+  data->lc_param_ptr->safety.collision_check.prediction_time_resolution = 0.5;
+  data->bpp_param_ptr->ego_nearest_dist_threshold = 3;
+  data->bpp_param_ptr->ego_nearest_yaw_threshold = 1;
+  auto odometry = boost::make_shared<nav_msgs::Odometry>();
+  odometry->pose.pose.orientation.w = 1;
+  odometry->twist.twist.linear.x = 10;
+  data->self_odometry_ptr = odometry;
+  LaneChangePath path;
+  path.type = lane_change::PathType::SpatialSpeedProfile;
+  std::vector<double> s, caps;
+  for (int i = 0; i <= 100; ++i) {s.push_back(i); caps.push_back(i <= 20 ? 10 : 40);}
+  const auto speeds = utils::lane_change::make_speed_profile(s, caps, 10, 3.7, 6);
+  for (int i = 0; i <= 100; ++i) {
+    PathPointWithLaneId p;
+    p.point.pose.position.x = i;
+    p.point.pose.orientation.w = 1;
+    p.point.longitudinal_velocity_mps = speeds[i];
+    path.path.points.push_back(p);
+  }
+  path.info.lane_changing_end = path.path.points.back().point.pose;
+  // Deliberately stale nominal duration must not truncate the spatial prediction.
+  path.info.duration = {0, 1};
+  const auto predictions = utils::lane_change::convert_to_predicted_paths(data, path, 1, false);
+  ASSERT_EQ(predictions.size(), 1U);
+  EXPECT_NEAR(predictions[0].back().pose.position.x, 100, 1e-5);
+  EXPECT_GT(predictions[0].back().time, 2);
+  for (const auto & state : predictions[0]) {
+    const auto expected = utils::lane_change::sample_speed_profile(s, speeds, state.time);
+    EXPECT_NEAR(state.pose.position.x, expected.first, 1e-4);
+    EXPECT_NEAR(state.velocity, expected.second, 1e-4);
+  }
+}
 
 TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionLongitudinalGridAndExecutionLimits)
 {

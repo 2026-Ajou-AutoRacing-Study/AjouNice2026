@@ -112,9 +112,10 @@ class PolicyTest(unittest.TestCase):
             self.assertEqual(policy.preferred_sequence(self.routes, key, initial), final)
             self.assertEqual(len(initial), len(final))
             self.assertIn(201459, initial)
-            self.assertNotIn(201459, final)
-            self.assertIn(201457, final)
-            self.assertIn(200137, final)
+            self.assertIn(201459, final)
+            self.assertIn(200138, final)
+            self.assertIn(201444, final)
+            self.assertNotIn(200187, final)
         incoming = self.routes['start']['incoming_lanelet_id']
         initial_a = self.routes['route_a']['waypoint_path_lanelet_ids']
         final_a = self.routes['route_a']['expected_path_lanelet_ids']
@@ -126,23 +127,22 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[4:]), final[4:])
 
     def test_v81_highway_lane_change_contract(self):
-        """Keep both requested highway lane changes in Route A/B."""
+        """Prefer the leftmost highway corridor through the mandatory bottleneck."""
         for key in ('route_a', 'route_b'):
             initial = self.routes[key]['waypoint_path_lanelet_ids']
             preferred = self.routes[key]['expected_path_lanelet_ids']
 
-            # The real v81 DefaultPlanner route keeps 200187 and the following
-            # 201469 branch in separate segments. The preferred sequence asks
-            # BPP to complete that transition before the next segment.
+            # Keep the same leftmost corridor before and after 201444, so
+            # entering it early cannot demand a return to the middle 200187.
             initial_window = initial[initial.index(200138):initial.index(201439) + 1]
             self.assertEqual(
                 initial_window,
                 [200138, 201444, 201469, 200127, 201473, 201439],
             )
-            preferred_window = preferred[preferred.index(201457):preferred.index(201399) + 1]
+            preferred_window = preferred[preferred.index(201459):preferred.index(201399) + 1]
             self.assertEqual(
                 preferred_window,
-                [201457, 201435, 201466, 200137, 200187, 201469, 200127,
+                [201459, 201436, 201465, 200138, 201444, 201469, 200127,
                  201473, 201439, 200360, 201477, 201479, 201447,
                  201399],
             )
@@ -173,12 +173,15 @@ class PolicyTest(unittest.TestCase):
                              final[index:])
 
     def test_geometry_and_hash(self):
-        for ref in ('wp_200178', 'wp_200258', 'wp_200137', 'wp_201473', 'wp_200360',
+        for ref in ('wp_200178', 'wp_200258', 'wp_201473', 'wp_200360',
                     'wp_201447_after_lc', 'fallback_cutoff_201439'):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
             self.assertEqual(lane, p['lanelet_id'])
             self.assertAlmostEqual(arc, p['lanelet_s_m'], places=4)
+        # Progress guards locate preferred lanes, not intermediate waypoint lanes.
+        p = self.routes['poses']['wp_200137']
+        self.assertIsNone(self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg'])))
         p = self.routes['start']['map_pose']
         location = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
         self.assertIn(location[0], self.routes['start']['accepted_start_lanelet_ids'])
