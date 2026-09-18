@@ -151,8 +151,16 @@
   성능 저하가 시작되는 단계를 분리한다.
 - Mission rosbag Vehicle geometry가 production 기준에 도달하기 전에는 velocity
   head를 tracker production 입력으로 확정하지 않는다.
-- Base3 corrected best와 기존 8-bag baseline을 고정한 뒤, 기존 시나리오 생성기를
-  production UDP/ROS 입력 경로와 결합한 `Base3-Online` pilot을 반드시 수행한다.
+- Base3 corrected 평가는 완료했다. Offline best는 `B3-BF0-F40 E26`, 동일
+  production tracker/Map-CV까지 포함한 교체 후보는 `B3-BF0-F40 E25`다.
+  E25는 기존 E10 대비 8-bag detection macro AP `0.7555 -> 0.7722`, Vehicle
+  tracking AVE `0.6326 -> 0.5768 m/s`, 3초 FDE `3.7685 -> 3.5781 m`로
+  개선됐다. 상세 결과:
+  [`260918_base3_e40_corrected_evaluation_results.md`](bevfusion/260918_base3_e40_corrected_evaluation_results.md).
+- E25를 MORAI interactive/planviz로 짧게 확인하기 전에는 production 기본
+  checkpoint를 자동 교체하지 않는다. 확인 후 path와 SHA를 한 커밋에서 바꾼다.
+- 다음 재학습은 단순 epoch 연장이 아니라 기존 시나리오 생성기를 production
+  UDP/ROS 입력 경로와 결합한 `Base3-Online` pilot을 우선한다.
   - 여러 scene을 rosbag에 연속 기록하되 scene marker로 유효 구간을 명시한다.
   - LiDAR timestamp 기준 production camera synchronization과 Ego/Object 보간을 쓴다.
   - 첫 실험은 30--50 scene 수집 검증 후 1,000--2,000 independent frame controlled

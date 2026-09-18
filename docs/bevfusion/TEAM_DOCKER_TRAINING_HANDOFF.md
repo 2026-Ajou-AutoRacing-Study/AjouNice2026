@@ -6,12 +6,32 @@
 독립적으로 학습하고 동일 checkpoint를 ROS online inference에 사용하는
 팀 표준이다.
 
+2026-09-18 Base3 Fresh E40 corrected validation·test·mission rosbag 결과와
+checkpoint 선택 근거는
+[`260918_base3_e40_corrected_evaluation_results.md`](260918_base3_e40_corrected_evaluation_results.md)를
+참고한다. Offline best는 E26, production 교체 후보는 E25이며 두 의미를 섞지
+않는다.
+
 | GPU | CUDA arch | physical batch | accumulation | effective batch |
 |---|---:|---:|---:|---:|
 | RTX 2080 Ti | 7.5 | 2 | 2 | 4 |
 | RTX 3090 | 8.6 | 4 | 1 | 4 |
 | RTX 4090 | 8.9 | 4 | 1 | 4 |
 | RTX 5060 Ti | 12.0 | 4 | 1 | 4 |
+
+위 표는 **학습용 시작 preset**이다. 모든 GPU에서 물리 batch를 동일하게
+고정한다는 뜻이 아니다. RTX 5060 Ti의 physical batch 4만 실제 full
+train/validation으로 확인했고, 2080 Ti·3090·4090 값은 각 VRAM에 맞춘 팀
+시작값이므로 각 PC에서 smoke test와 peak VRAM을 반드시 확인한다.
+
+- RTX 2080 Ti 11 GB: `2 x accumulation 2`로 시작하고 CUDA OOM이면
+  `1 x accumulation 4`로 낮춘다.
+- RTX 3090/4090 24 GB: 우선 `4 x accumulation 1`을 사용한다. batch를
+  키우는 실험은 별도 실험 YAML에서만 수행한다.
+- RTX 5060 Ti 16 GB: 검증된 기준인 `4 x accumulation 1`을 사용한다.
+- 학습 physical batch를 바꿀 때는 effective batch가 4로 유지되도록
+  gradient accumulation을 함께 조정한다. effective batch나 learning rate까지
+  바꾸면 동일 실험의 단순 GPU 이식이 아니라 별도 하이퍼파라미터 실험이다.
 
 공용 image는 CUDA 12.8, PyTorch 2.7.1과
 `7.5;8.6;8.9;12.0+PTX` CUDA extension을 포함한다. GTX 1060은
@@ -175,6 +195,32 @@ box는 평가에 남는다는 점에 유의한다.
 `corrected-range30` W&B evaluation run을 기준으로 한다. 이 문제는 학습
 loss에는 영향을 주지 않으므로 기존 checkpoint를 폐기하거나 재학습할
 사유는 아니다.
+
+### Corrected validation batch 크기
+
+평가 batch는 gradient가 없는 **validation 전용 값**이며 위 학습 physical
+batch와 별개다. corrected checkpoint sweep의 기본값 `4`는 RTX 5060 Ti
+기준이다. 다른 PC에서는 먼저 E1 checkpoint 하나로 실행하고 다음 시작값을
+사용한다.
+
+| GPU | validation 시작값 | 조정 기준 |
+|---|---:|---|
+| RTX 2080 Ti 11 GB | 2 | OOM이면 1 |
+| RTX 3090 24 GB | 4 | 여유가 충분하면 별도 timing에서 8 시험 가능 |
+| RTX 4090 24 GB | 4 | 여유가 충분하면 별도 timing에서 8 시험 가능 |
+| RTX 5060 Ti 16 GB | 4 | OOM이면 2 |
+
+```bash
+python3 perception/detection3d/bevfusion/tools/evaluate_corrected_checkpoint_sweep.py \
+  ... \
+  --batch-size 2
+```
+
+batch를 키우는 목적은 평가 시간 단축뿐이며 모델 성능을 높이지 않는다.
+E1에서 batch 1 기준 metric과 동일한지, peak VRAM에 최소 1--2 GB 여유가
+있는지 확인한 뒤 전체 E1--E40 sweep을 시작한다. CUDA OOM, dataloader 종료,
+metric 불일치가 있으면 `8 -> 4 -> 2 -> 1` 순으로 낮춘다. 한 W&B sweep
+도중 batch를 바꾸지 말고, 바꿨다면 새 run으로 다시 기록해 재현성을 지킨다.
 
 ## Online inference
 
