@@ -3,9 +3,10 @@
 ## 결론
 
 - Corrected offline validation best는 `B3-BF0-F40 E26`이다.
-- Production detection 기준은 기존 `B3-BF0 E10`을 유지한다.
-- `B3-BF0-F40 E25`는 실제 경로 Vehicle tracking AVE와 Map-CV FDE가
-  개선된 interactive A/B 후보다. 아직 production 기본값은 아니다.
+- Production 표준은 `B3-BF0-F40 E25`로 정한다.
+- 실제 경로 detection AP는 E10이 근소하게 높지만, 최종 시스템 목표인 Vehicle
+  tracking AVE와 Map-CV FDE가 E25에서 일관되게 개선됐다.
+- 기존 `B3-BF0 E10`은 rollback baseline으로 보존한다.
 - 초기 PointPainting 통제 실험인 `Vehicle 30 m` bag은 대회 경로 분포를
   대표하지 않으므로 production 평균과 모델 선택에서 제외했다.
 - 다음 재학습은 epoch 연장보다 계획된 `Base3-Online` sensor-domain pilot을
@@ -93,7 +94,7 @@ AVE는 velocity vector L2 error다.
 CV-stable macro FDE@1/2/3s도 E10 `0.874/1.592/2.748 m`에서 E25
 `0.846/1.503/2.561 m`로 개선됐다. 반면 E25 center p50은 E10보다 `5.4 mm`
 나쁘고 3초 coverage도 `0.0016` 낮다. E25는 속도·prediction 개선 후보이지
-전 지표에서 우월한 교체 모델은 아니다.
+전 지표에서 우월한 모델은 아니지만 최종 planning 입력 품질 기준으로 선택한다.
 
 E25의 구간별 center p50 / top-1 FDE@3s 변화:
 
@@ -104,7 +105,8 @@ E25의 구간별 center p50 / top-1 FDE@3s 변화:
 | 고주로1 | 0.472 m | **0.470 m** | 3.695 m | **3.623 m** |
 
 합류 위치 오차는 나빠졌고, 로터리·고주로1의 velocity/prediction은 개선됐다.
-판단·추월까지 포함한 MORAI interactive A/B가 필요한 이유다.
+합류 위치 오차 퇴행이 판단·추월에 영향을 주지 않는지는 MORAI interactive와
+현장 로그에서 계속 감시한다.
 
 ## Artifact
 
@@ -125,9 +127,9 @@ Inference artifact는 team CUDA 12.8 image에서 server load와 healthcheck
 ## 최종 판단
 
 1. Offline 기록은 E26 best, E25 runner-up으로 남긴다.
-2. Production detection 기본값은 E10을 유지한다.
-3. E25는 실제 경로 tracking AVE와 Map-CV FDE 개선 여부를 확인할 interactive
-   A/B 후보로 보존한다.
-4. E25가 판단·제어까지 실제 이득을 보일 때만 checkpoint path와 SHA를 한
-   커밋에서 교체한다.
+2. 최종 시스템 목표를 tracker/Map-CV의 속도와 미래경로 품질로 두고 production
+   표준은 E25로 정한다.
+3. E10은 per-frame mission detection이 더 중요한 상황의 rollback baseline으로
+   보존한다.
+4. E25 checkpoint path와 SHA를 production 실행 계약에 고정한다.
 5. 다음 데이터 실험은 `Base3-Online` sensor-domain pilot을 우선한다.

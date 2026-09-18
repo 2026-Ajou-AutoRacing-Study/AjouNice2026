@@ -12,7 +12,7 @@ Options:
   --output-root PATH   Training output root
   --nuscenes-checkpoint PATH  MORAI-adapted nuScenes initialization
   --e10-full-checkpoint PATH  Full Base3 E10 checkpoint
-  --inference-checkpoint PATH Inference-only Base3 E10 checkpoint
+  --inference-checkpoint PATH Production inference-only E25 checkpoint
 EOF
 }
 
@@ -24,7 +24,7 @@ image="${BEVFUSION_IMAGE:-ajounice/bevfusion:team-cu128-v1}"
 output_root="${BEVFUSION_OUTPUT_ROOT:-$repo_root/artifacts/detection3d/bevfusion/team_training}"
 nuscenes_checkpoint="${BEVFUSION_NUSCENES_ADAPTED_CHECKPOINT:-$repo_root/artifacts/detection3d/bevfusion/pretrained/bevfusion_nuscenes_morai3_compatible.pth}"
 e10_full_checkpoint="${BEVFUSION_BASE3_E10_FULL_CHECKPOINT:-$repo_root/artifacts/detection3d/bevfusion/training/base3_b0_4cam_lidar_e12/epoch_10.pth}"
-inference_checkpoint="${BEVFUSION_INFERENCE_CHECKPOINT:-$repo_root/artifacts/detection3d/bevfusion/releases/base3_bf0_e10/base3_bf0_e10_inference.pth}"
+inference_checkpoint="${BEVFUSION_INFERENCE_CHECKPOINT:-$repo_root/artifacts/detection3d/bevfusion/releases/base3_bf0_f40_e25/base3_bf0_f40_e25_inference.pth}"
 
 while (($#)); do
   case "$1" in

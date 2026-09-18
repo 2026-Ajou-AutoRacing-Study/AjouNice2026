@@ -10,7 +10,7 @@
 ```text
 MORAI sensors/Ego
   -> UDP bridge
-  -> B3-BF0 E10 BEVFusion
+  -> B3-BF0-F40 E25 BEVFusion
   -> EKF multi-object tracking
   -> UNKNOWN stationary policy
   -> Map-CV prediction
@@ -23,9 +23,9 @@ MORAI sensors/Ego
 [`260915_field_inspection_checklist.md`](../competition/260915_field_inspection_checklist.md)를
 함께 사용한다.
 
-현재 production detector는 `B3-BF0 E10`, class threshold는
-Vehicle/Pedestrian/Obstacle `0.40/0.15/0.10`이다. BF1은 실험 모델이며 이
-runbook의 기본 모델이 아니다.
+현재 production detector는 `B3-BF0-F40 E25`, class threshold는
+Vehicle/Pedestrian/Obstacle `0.40/0.15/0.10`이다. E10은 rollback
+baseline이며 BF1은 실험 모델로 이 runbook의 기본 모델이 아니다.
 
 프로젝트 용어에서 `MRP`는 2026 개인용 launcher, `MR`은 2025 대회용 launcher를
 뜻한다. 개인 개발은 MRP, 대회 환경 재현과 현장 실행은 MR을 기준으로 하되,
@@ -101,7 +101,7 @@ rostopic info /ctrl_cmd
 cd "$HOME/AjouNice2026"
 
 AJOUNICE_ROOT="$PWD" \
-BEVFUSION_CHECKPOINT="$HOME/bevfusion_artifacts/checkpoints/base3_bf0_e10_inference.pth" \
+BEVFUSION_CHECKPOINT="$HOME/bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth" \
 docker compose -f docker/bevfusion/compose.yaml up -d --force-recreate inference
 
 docker compose -f docker/bevfusion/compose.yaml logs -f inference

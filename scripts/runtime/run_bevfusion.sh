@@ -9,9 +9,9 @@ if [[ -f "$ROOT/.env.bevfusion.local" ]]; then
   set +a
 fi
 COMPOSE_FILE="$ROOT/docker/bevfusion/compose.yaml"
-CHECKPOINT="${BEVFUSION_CHECKPOINT:-${BEVFUSION_INFERENCE_CHECKPOINT:-$HOME/bevfusion_artifacts/checkpoints/base3_bf0_e10_inference.pth}}"
+CHECKPOINT="${BEVFUSION_CHECKPOINT:-${BEVFUSION_INFERENCE_CHECKPOINT:-$HOME/bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth}}"
 IMAGE="${BEVFUSION_IMAGE:-ajounice/bevfusion:team-cu128-v1}"
-EXPECTED_SHA256="b2d3f65befaa16382cdd189f9c8ac1aff2d2176e6c48e19a17ab329947eff419"
+EXPECTED_SHA256="36816cf769c87d49483d002111abfad8e1afd043afd74a0b9fc54aac82133011"
 DETECTION_TOPIC="/perception/object_recognition/detection/objects"
 
 export AJOUNICE_ROOT="$ROOT"
