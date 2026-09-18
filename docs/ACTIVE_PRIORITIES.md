@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획.
 
-마지막 갱신: 2026-08-30.
+마지막 갱신: 2026-09-18.
 
 ## 관리 규칙.
 
@@ -128,6 +128,14 @@
   성능 저하가 시작되는 단계를 분리한다.
 - Mission rosbag Vehicle geometry가 production 기준에 도달하기 전에는 velocity
   head를 tracker production 입력으로 확정하지 않는다.
+- Base3 corrected best와 기존 8-bag baseline을 고정한 뒤, 기존 시나리오 생성기를
+  production UDP/ROS 입력 경로와 결합한 `Base3-Online` pilot을 반드시 수행한다.
+  - 여러 scene을 rosbag에 연속 기록하되 scene marker로 유효 구간을 명시한다.
+  - LiDAR timestamp 기준 production camera synchronization과 Ego/Object 보간을 쓴다.
+  - 첫 실험은 30--50 scene 수집 검증 후 1,000--2,000 independent frame controlled
+    fine-tuning이며 해상도·GT sampling·temporal 변경을 동시에 섞지 않는다.
+  - 상세 계획:
+    [`production_online_rosbag_dataset_plan.md`](../dataset/morai_od/docs/production_online_rosbag_dataset_plan.md).
 
 과거 Base2 근거:
 [`base2_temporal3_velocity_d4_readiness.md`](../perception/pointpainting/docs/base2_temporal3_velocity_d4_readiness.md),
