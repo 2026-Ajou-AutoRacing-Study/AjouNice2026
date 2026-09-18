@@ -10,18 +10,28 @@
   문서에 결과를 남긴다.
 - 세부 근거와 과거 시행착오는 이 문서에 복제하지 않고 관련 문서로 연결한다.
 
-## 현재 최우선. 대회 측위 횡방향 안정화.
+## 현재 최우선. 대회 측위 종·횡 안정화와 제어 채터링 제거.
 
-- 현장점검에서 관측한 횡방향 pose 흔들림과 좌우 조향 채터링의 발생 단계를
-  raw GNSS, GNSS odometry, local/global EKF, planning trajectory, controller로 분리한다.
-- 첫 controlled experiment는 GNSS horizontal stddev
-  `0.05 / 0.10 / 0.20 / 0.30 m` covariance A/B다.
+- 현장점검에서 fusion localization의 steering-rate absolute p95가 약 `1.59 rad/s`,
+  GT localization은 약 `0.34 rad/s`였다. 이는 시각화가 아니라 제어 안정성 P0다.
+- 정상 구간 횡 채터링은 약 `14.8 / 18.5 cm`로 양자화된 GNSS update를 Global EKF가
+  강하게 따라가고, controller가 Global state를 직접 소비하는 구조가 주원인임을
+  same-bag 분석으로 확인했다.
+- 로컬 full-stack bag의 `velocity.x` 21.9% 과적분은 production 속도 bias가 아니다.
+  현장 4개 bag의 위치 이동거리/속도 적분 비율은 `0.9998~1.0000`이며, 로컬 한-PC
+  MORAI 실시간율 저하와 receipt-time의 시간축 artifact로 판정한다.
+- 첫 다음 실험은 BEVFusion 대신 `od_gt`를 사용한 GT-object full stack으로 MORAI
+  실시간율을 정상화하고, 이동거리/속도 적분 비율 `0.98~1.02`를 통과하는 test bed를
+  확보하는 것이다. 그 후 `0.05 / 0.10 m`와 quantization-aware GNSS update를 A/B한다.
 - 최종 pose LPF나 controller gain 변경으로 먼저 가리지 않는다. 동일 bag에서
-  Localization 원인을 분리한 뒤 outlier gate와 controller tuning 순으로 진행한다.
+  quantization-aware update, GPS 음영 복귀 정책, global/local control state 분리,
+  controller tuning 순으로 진행한다.
 - MR/대회 production alias를 `localization`=`competition`, MRP alias를
   `localization_mrp`=`ego`로 분리했으며 heading correction `-1.347 deg`를 유지한다.
-- 상세 문제 정의와 검증 계약:
-  [`260916_competition_lateral_jitter_stabilization_plan.md`](localization/260916_competition_lateral_jitter_stabilization_plan.md).
+- 대회 GNSS와 IMU에는 인위적인 랜덤 노이즈가 없다는 운영진 답변을 확인했다.
+  양자화와 GPS 음영은 별도 문제로 계속 처리한다.
+- 최신 문제 정의와 검증 계약:
+  [`260918_competition_localization_critical_issue_status.md`](localization/260918_competition_localization_critical_issue_status.md).
 
 ## Localization 안정화 직후 재개할 항목.
 

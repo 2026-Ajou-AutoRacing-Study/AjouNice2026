@@ -12,13 +12,15 @@
 
 ## 현재 읽어야 하는 문서
 
-1. [`260916_competition_lateral_jitter_stabilization_plan.md`](260916_competition_lateral_jitter_stabilization_plan.md)
+1. [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)
+   - 현재 중대 이슈, 확정 원인, `velocity.x bias` 정정, 로컬 시간축과 해결 순서.
+2. [`260916_competition_lateral_jitter_stabilization_plan.md`](260916_competition_lateral_jitter_stabilization_plan.md)
    - 현장 횡방향 흔들림, 조향 채터링, covariance A/B와 채택 기준.
-2. [`260801_robot_localization_gnss_imu_gt_ctra_fusion.md`](260801_robot_localization_gnss_imu_gt_ctra_fusion.md)
+3. [`260801_robot_localization_gnss_imu_gt_ctra_fusion.md`](260801_robot_localization_gnss_imu_gt_ctra_fusion.md)
    - 현재 estimator의 센서 역할, frame, timestamp, covariance와 검증 근거.
-3. [`morai_udp_receipt_time.md`](morai_udp_receipt_time.md)
+4. [`morai_udp_receipt_time.md`](morai_udp_receipt_time.md)
    - 현장 UDP receipt-time 정책.
-4. [`260804_localization_state_input_architecture_plan.md`](260804_localization_state_input_architecture_plan.md)
+5. [`260804_localization_state_input_architecture_plan.md`](260804_localization_state_input_architecture_plan.md)
    - 현재 구현 이후의 장기 구조 검토. 대회 production 실행법은 아님.
 
 ## 공식 실행 계약

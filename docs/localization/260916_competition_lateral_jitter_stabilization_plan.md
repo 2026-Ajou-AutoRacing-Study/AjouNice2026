@@ -2,6 +2,12 @@
 
 마지막 갱신: 2026-09-16
 
+> **최신 판정:** 이 문서 이후 GNSS 양자화, 현장 `velocity.x`, 로컬 MORAI
+> 실시간율을 추가 검증했다. 현재 원인과 실행 우선순위는
+> [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)를
+> 우선한다. 특히 로컬 full-stack bag의 종방향 과적분을 production
+> `velocity.x` bias로 해석하지 않는다.
+
 ## 1. 목적
 
 현장점검에서 관측한 다음 현상을 대회 전에 분리하고 해결한다.
