@@ -259,6 +259,35 @@ TEST_F(TestNormalLaneChange, testUpdateLanes)
   ASSERT_TRUE(get_common_data_ptr()->is_lanes_available());
 }
 
+TEST_F(TestNormalLaneChange, PendingGeometryClearsWhenCurrentPathDisappears)
+{
+  normal_lane_change_->update_lanes(false);
+  ASSERT_TRUE(get_common_data_ptr()->is_lanes_available());
+  normal_lane_change_->setPreviousModuleOutput(autoware::behavior_path_planner::BehaviorModuleOutput{});
+  // An approved maneuver retains its original lane geometry.
+  normal_lane_change_->update_lanes(true);
+  EXPECT_TRUE(get_common_data_ptr()->is_lanes_available());
+  normal_lane_change_->update_lanes(false);
+  EXPECT_FALSE(get_common_data_ptr()->is_lanes_available());
+  EXPECT_TRUE(get_common_data_ptr()->lanes_ptr->current.empty());
+  EXPECT_TRUE(get_common_data_ptr()->lanes_ptr->target.empty());
+  EXPECT_FALSE(get_common_data_ptr()->transient_data.has_valid_lc_distance);
+  EXPECT_EQ(normal_lane_change_->isLaneChangeRequired(),
+    std::optional<std::string>("LC unavailable: current lane sequence empty."));
+}
+
+TEST_F(TestNormalLaneChange, PendingGeometryClearsWhenTargetDisappears)
+{
+  normal_lane_change_->update_lanes(false);
+  ASSERT_TRUE(get_common_data_ptr()->is_lanes_available());
+  // The fixture requires RIGHT; there is no preferred target to its LEFT.
+  get_common_data_ptr()->direction = Direction::LEFT;
+  normal_lane_change_->update_lanes(false);
+  EXPECT_FALSE(get_common_data_ptr()->is_lanes_available());
+  EXPECT_TRUE(get_common_data_ptr()->lanes_ptr->target.empty());
+  EXPECT_TRUE(get_common_data_ptr()->target_lanes_path.points.empty());
+}
+
 TEST_F(TestNormalLaneChange, testGetPathWhenInvalid)
 {
   constexpr auto is_approved = true;

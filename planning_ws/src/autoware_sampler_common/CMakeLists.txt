@@ -56,6 +56,7 @@ install(DIRECTORY include/ DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION})
 
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_sampler_common
+    test/test_spline_endpoint.cpp
     "${SAMPLER_COMMON_ROS2_SOURCE}/test/test_transform.cpp"
     "${SAMPLER_COMMON_ROS2_SOURCE}/test/test_structures.cpp"
   )

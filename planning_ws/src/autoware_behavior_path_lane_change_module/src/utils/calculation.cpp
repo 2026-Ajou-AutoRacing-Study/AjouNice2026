@@ -307,10 +307,10 @@ std::vector<double> calc_shift_intervals(
   const auto & route_handler_ptr = common_data_ptr->route_handler_ptr;
   const auto direction = common_data_ptr->direction;
 
-  // A BPP reference path can extend beyond a parallel lane-change section and into a merge
-  // corridor.  The merge corridor correctly has no left/right relation, but using lanes.back()
-  // there makes an otherwise valid upstream lane change look impossible.  Start at the ego lane
-  // and retain the last interval set in the contiguous, laterally connected section instead.
+  // Look ahead through a preferred prefix, just as target-lane discovery does.
+  // An empty lateral interval on that prefix means "already preferred", not
+  // "no future maneuver". Once a lateral maneuver is found, retain its distance
+  // through the contiguous lateral section, stopping at a merge or preference change.
   const auto & ego_lane = common_data_ptr->lanes_ptr->ego_lane;
   auto lane_it = std::find_if(
     lanes.begin(), lanes.end(),
@@ -320,10 +320,28 @@ std::vector<double> calc_shift_intervals(
   }
 
   std::vector<double> last_valid_intervals;
+  const auto preferred = route_handler_ptr->getPreferredLanelets();
+  const auto graph = route_handler_ptr->getRoutingGraphPtr();
+  if (!graph) return {};
+  const auto first_lane_it = lane_it;
   for (; lane_it != lanes.end(); ++lane_it) {
+    if (lane_it != first_lane_it) {
+      const auto successors = graph->following(*std::prev(lane_it));
+      if (std::none_of(successors.begin(), successors.end(), [&](const auto & next) {
+            return next.id() == lane_it->id();
+          })) {
+        break;
+      }
+    }
     const auto intervals =
       route_handler_ptr->getLateralIntervalsToPreferredLane(*lane_it, direction);
     if (intervals.empty()) {
+      const bool already_preferred = std::any_of(
+        preferred.begin(), preferred.end(),
+        [&](const auto & lane) { return lane.id() == lane_it->id(); });
+      if (last_valid_intervals.empty() && already_preferred) {
+        continue;
+      }
       break;
     }
     // Do not forget an outstanding multi-lane movement just because the

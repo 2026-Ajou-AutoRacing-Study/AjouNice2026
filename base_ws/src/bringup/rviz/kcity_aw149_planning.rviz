@@ -1,5 +1,6 @@
 Panels:
   - Class: rviz/Displays
+    Help Height: 0
     Name: Displays
     Property Tree Widget:
       Expanded:
@@ -7,24 +8,39 @@ Panels:
         - /K-City v811
         - /Mission Route1
         - /Final Trajectory1
-        - /Ego Vehicle1
         - /Perception Pipeline1
-        - /Route A Start1
       Splitter Ratio: 0.5
-    Tree Height: 690
+    Tree Height: 221
   - Class: bringup/RosbagRecorder
     Name: Rosbag Recorder
   - Class: bringup/RouteControl
     Name: Route Status
+  - Class: rviz/Views
+    Expanded:
+      - /Current View1
+    Name: Views
+    Splitter Ratio: 0.5
+Preferences:
+  PromptSaveOnExit: true
+Toolbars:
+  toolButtonStyle: 2
 Visualization Manager:
   Class: ""
   Displays:
-    - Alpha: 0.2
+    - Alpha: 0.20000000298023224
       Cell Size: 20
       Class: rviz/Grid
       Color: 84; 88; 96
       Enabled: false
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
       Name: Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
       Plane: XY
       Plane Cell Count: 100
       Reference Frame: <Fixed Frame>
@@ -33,33 +49,62 @@ Visualization Manager:
       Enabled: true
       Marker Topic: /map/lanelet_map
       Name: K-City v81
+      Namespaces:
+        features/lane_markings: true
+        features/road_borders: true
+        features/stop_lines: true
+        features/traffic_lights: true
+        lanelet/centerlines: true
+        lanelet/left_boundaries: true
+        lanelet/right_boundaries: true
       Queue Size: 10
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /planning/mission_planning/route_marker
       Name: Mission Route
+      Namespaces:
+        end_lanelets: true
+        goal_lanelets: true
+        lane_start_bound: true
+        left_lane_bound: true
+        right_lane_bound: true
+        route_lanelets: true
       Queue Size: 10
       Value: true
-    - Alpha: 0.65
+    - Alpha: 0.6499999761581421
       Buffer Length: 1
       Class: rviz/Path
       Color: 240; 240; 245
       Enabled: true
+      Head Diameter: 0.30000001192092896
+      Head Length: 0.20000000298023224
+      Length: 0.30000001192092896
       Line Style: Lines
-      Line Width: 0.04
+      Line Width: 0.03999999910593033
       Name: Final Trajectory Path
       Offset:
         X: 0
         Y: 0
         Z: 0.5
+      Pose Color: 255; 85; 255
       Pose Style: None
+      Queue Size: 10
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.10000000149011612
+      Shaft Length: 0.10000000149011612
       Topic: /planning/debug/final_trajectory/path
+      Unreliable: false
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /planning/debug/final_trajectory/markers
       Name: Final Trajectory
+      Namespaces:
+        final_trajectory_ends: true
+        final_trajectory_horizon: true
+        final_trajectory_line: true
+        final_trajectory_points: true
       Queue Size: 10
       Value: true
     - Alpha: 1
@@ -85,42 +130,14 @@ Visualization Manager:
       Visual Enabled: true
     - Class: rviz/Group
       Displays:
-        - Alpha: 1
-          Autocompute Intensity Bounds: true
-          Autocompute Value Bounds:
-            Max Value: 10
-            Min Value: -10
-            Value: true
-          Axis: Z
-          Channel Name: intensity
-          Class: rviz/PointCloud2
-          Color: 255; 255; 255
-          Color Transformer: Intensity
-          Decay Time: 0.20000000298023224
-          Enabled: true
-          Invert Rainbow: false
-          Max Color: 255; 255; 255
-          Min Color: 0; 0; 0
-          Name: LiDAR
-          Position Transformer: XYZ
-          Queue Size: 3
-          Selectable: true
-          Size (Pixels): 3
-          Size (m): 0.03999999910593033
-          Style: Flat Squares
-          Topic: /sensor/lidar1
-          Unreliable: false
-          Use Fixed Frame: true
-          Use rainbow: true
-          Value: true
         - Class: rviz/MarkerArray
-          Enabled: false
+          Enabled: true
           Marker Topic: /perception/object_recognition/visualization/detections
           Name: Detections (green, raw detector)
           Namespaces:
             detected_boxes: true
           Queue Size: 5
-          Value: false
+          Value: true
         - Class: rviz/MarkerArray
           Enabled: true
           Marker Topic: /perception/object_recognition/visualization/tracks
@@ -135,10 +152,11 @@ Visualization Manager:
           Marker Topic: /perception/object_recognition/visualization/predictions
           Name: Map-CV Predictions (0-3 s)
           Namespaces:
-            predicted_horizon_1_sec: true
-            predicted_horizon_2_sec: true
-            predicted_horizon_3_sec: true
-            predicted_paths: true
+            predicted_confidence/top_1: true
+            predicted_horizon_1_sec/top_1: true
+            predicted_horizon_2_sec/top_1: true
+            predicted_horizon_3_sec/top_1: true
+            predicted_paths/top_1: true
           Queue Size: 5
           Value: true
         - Class: rviz/MarkerArray
@@ -146,59 +164,185 @@ Visualization Manager:
           Marker Topic: /evaluation/visualization/gt_boxes
           Name: MORAI GT BBoxes (magenta, debug only)
           Namespaces:
-            morai_gt_boxes: true
+            {}
           Queue Size: 5
           Value: true
       Enabled: true
       Name: Perception Pipeline
-    - Class: rviz/Axes
+    - Alpha: 1
+      Class: rviz/Axes
       Enabled: true
       Length: 10
       Name: Route A Start (A)
-      Radius: 0.65
+      Radius: 0.6499999761581421
       Reference Frame: route_a_start
+      Show Trail: false
       Value: true
     - Class: rviz/TF
       Enabled: true
+      Filter (blacklist): ""
+      Filter (whitelist): ""
       Frame Timeout: 15
-      Marker Alpha: 0.6
-      Marker Scale: 0.7
+      Frames:
+        All Enabled: true
+        base_link:
+          Value: true
+        camera_back:
+          Value: true
+        camera_front:
+          Value: true
+        camera_front_left:
+          Value: true
+        camera_front_right:
+          Value: true
+        gps:
+          Value: true
+        imu:
+          Value: true
+        lidar1:
+          Value: true
+        map:
+          Value: true
+        morai_map:
+          Value: true
+        route_a_start:
+          Value: true
+      Marker Alpha: 0.6000000238418579
+      Marker Scale: 0.699999988079071
       Name: Vehicle TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
+      Tree:
+        map:
+          morai_map:
+            base_link:
+              camera_back:
+                {}
+              camera_front:
+                {}
+              camera_front_left:
+                {}
+              camera_front_right:
+                {}
+              gps:
+                {}
+              imu:
+                {}
+              lidar1:
+                {}
+          route_a_start:
+            {}
       Update Interval: 0
+      Value: true
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /sensor/camera/front
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Image
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: compressed
+      Unreliable: false
+      Value: true
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /sensor/camera/front_left
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Image
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: compressed
+      Unreliable: false
+      Value: true
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /sensor/camera/front_right
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Image
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: compressed
+      Unreliable: false
+      Value: true
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /sensor/camera/back
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Image
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: compressed
+      Unreliable: false
       Value: true
   Enabled: true
   Global Options:
     Background Color: 18; 20; 24
+    Default Light: true
     Fixed Frame: map
     Frame Rate: 30
   Name: root
   Tools:
     - Class: rviz/Interact
+      Hide Inactive Objects: true
     - Class: rviz/MoveCamera
     - Class: rviz/Select
     - Class: rviz/SetInitialPose
+      Theta std deviation: 0.2617993950843811
       Topic: /initialpose
+      X std deviation: 0.5
+      Y std deviation: 0.5
     - Class: rviz/SetGoal
       Topic: /move_base_simple/goal
     - Class: rviz/FocusCamera
     - Class: rviz/Measure
+  Value: true
   Views:
     Current:
-      Angle: 0
-      Class: rviz/TopDownOrtho
-      Name: K-City AW149 Planning
-      Scale: 1.1
+      Class: rviz/ThirdPersonFollower
+      Distance: 48.87112045288086
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Field of View: 0.7853981852531433
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Focal Shape Fixed Size: false
+      Focal Shape Size: 0.05000000074505806
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 1.5697963237762451
       Target Frame: base_link
-      X: 0
-      Y: 0
+      Yaw: 3.1603987216949463
     Saved: ~
 Window Geometry:
-  Height: 900
+  Displays:
+    collapsed: false
+  Height: 1016
   Hide Left Dock: false
   Hide Right Dock: true
-  Width: 1500
-  X: 20
-  Y: 30
+  Image:
+    collapsed: false
+  QMainWindow State: 000000ff00000000fd00000002000000000000016f00000292fc0200000004fb000000100044006900730070006c00610079007301000001490000011a000000c900fffffffb0000001e0052006f00730062006100670020005200650063006f00720064006500720100000269000000be0000008800fffffffb000000180052006f0075007400650020005300740061007400750073010000032d000000ae0000007c00fffffffb0000000a005600690065007700730000000328000000b3000000a400ffffff00000002000004e300000106fc0100000004fb0000000a0049006d0061006700650100000000000001fb0000007600fffffffb0000000a0049006d0061006700650100000201000001260000007600fffffffb0000000a0049006d006100670065010000032d000000dd0000007600fffffffb0000000a0049006d0061006700650100000410000000d30000007600ffffff0000036e0000029200000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Rosbag Recorder:
+    collapsed: false
+  Route Status:
+    collapsed: false
+  Views:
+    collapsed: false
+  Width: 1251
+  X: 0
+  Y: 27

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(autoware_behavior_path_lane_change_module)
 
-find_package(catkin REQUIRED COMPONENTS geometry_msgs pluginlib roscpp visualization_msgs)
+find_package(catkin REQUIRED COMPONENTS geometry_msgs pluginlib roscpp std_msgs visualization_msgs)
 find_package(Eigen3 REQUIRED)
 find_package(fmt REQUIRED)
 find_package(yaml-cpp REQUIRED)
@@ -72,7 +72,7 @@ endforeach()
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS geometry_msgs pluginlib roscpp visualization_msgs
+  CATKIN_DEPENDS geometry_msgs pluginlib roscpp std_msgs visualization_msgs
 )
 include_directories(include src ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${BPP_COMMON_INCLUDE_DIR} ${FRENET_PLANNER_INCLUDE_DIR} ${LANELET2_UTILS_INCLUDE_DIR} ${LANELET2_EXTENSION_INCLUDE_DIR} ${MOTION_UTILS_INCLUDE_DIR} ${TEST_UTILS_INCLUDE_DIR} ${RTC_INTERFACE_INCLUDE_DIR} ${UNIVERSE_UTILS_INCLUDE_DIR} ${VEHICLE_INFO_UTILS_INCLUDE_DIR} ${ROUTE_HANDLER_INCLUDE_DIR} ${SAMPLER_COMMON_INCLUDE_DIR} ${ADAPI_V1_MSGS_INCLUDE_DIR} ${INTERNAL_PLANNING_MSGS_INCLUDE_DIR} ${TIER4_PLANNING_MSGS_INCLUDE_DIR} ${OBJECTS_OF_INTEREST_INCLUDE_DIR} ${OBJECT_RECOGNITION_UTILS_INCLUDE_DIR})
 add_library(${PROJECT_NAME} SHARED

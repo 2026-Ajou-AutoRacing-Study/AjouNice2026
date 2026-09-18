@@ -31,8 +31,12 @@
 #include <range/v3/view.hpp>
 
 #include <fmt/format.h>
+#include <std_msgs/String.h>
 
 #include <algorithm>
+#include <cstdlib>
+#include <iomanip>
+#include <sstream>
 #include <limits>
 #include <vector>
 
@@ -322,7 +326,7 @@ Point2d shift_point(const Point2d & p1, const Point2d & p2, const double offset)
 
 bool check_out_of_bound_paths(
   const CommonDataPtr & common_data_ptr, const std::vector<Pose> & lane_changing_poses,
-  const LineString2d & lane_boundary, const Direction direction)
+  const LineString2d & lane_boundary, const Direction direction, LineString2d & path_ls)
 {
   const auto distance = (0.5 * common_data_ptr->bpp_param_ptr->vehicle_width + 0.1);
   const auto offset = sign<double>(direction) * distance;  // invert direction
@@ -330,7 +334,6 @@ bool check_out_of_bound_paths(
     return true;  // Remove candidates with insufficient poses
   }
 
-  LineString2d path_ls;
   path_ls.reserve(lane_changing_poses.size());
 
   const auto segments = lane_changing_poses | ranges::views::sliding(2);
@@ -543,6 +546,18 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
   const auto & target_lanes = common_data_ptr->lanes_ptr->target;
   const auto direction = common_data_ptr->direction;
   const auto current_lane_boundary = get_linestring_bound(current_lanes, direction);
+  // Record rejected geometry only when a diagnostic consumer (e.g. rosbag) subscribes.
+  static ros::Publisher geometry_publisher;
+  if (ros::isInitialized() && !geometry_publisher) {
+    geometry_publisher = ros::NodeHandle("~").advertise<std_msgs::String>(
+      "debug/lane_change_geometry", 10);
+  }
+  const bool audit_to_log = std::getenv("AUTOWARE_LC_GEOMETRY_AUDIT") != nullptr;
+  const bool audit_geometry =
+    audit_to_log || (geometry_publisher && geometry_publisher.getNumSubscribers() > 0);
+
+  size_t rejected_prepare = 0, empty_reference = 0, rejected_sampling = 0;
+  size_t generated = 0, duplicate = 0, rejected_boundary = 0;
 
   for (const auto & metric : prep_metrics) {
     PathWithLaneId prepare_segment;
@@ -550,9 +565,11 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
       if (!utils::lane_change::get_prepare_segment(
             common_data_ptr, prev_module_path, metric.length, prepare_segment)) {
         RCLCPP_DEBUG(get_logger(), "Reject: failed to get valid prepare segment!");
+        ++rejected_prepare;
         continue;
       }
     } catch (const std::exception & e) {
+      ++rejected_prepare;
       RCLCPP_WARN(get_logger(), "%s", e.what());
       break;
     }
@@ -569,6 +586,7 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
     const auto target_lane_reference_path = get_reference_path_from_target_lane(
       common_data_ptr, lc_start_pose, max_lane_changing_length, resample_interval);
     if (target_lane_reference_path.points.empty()) {
+      ++empty_reference;
       continue;
     }
 
@@ -596,11 +614,13 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
       init_sampling_parameters(common_data_ptr, metric, initial_state, reference_spline);
 
     if (!sampling_parameters_opt) {
+      ++rejected_sampling;
       continue;
     }
 
     auto frenet_trajectories = frenet_planner::generateTrajectories(
       reference_spline, initial_state, *sampling_parameters_opt);
+    generated += frenet_trajectories.size();
 
     trajectory_groups.reserve(trajectory_groups.size() + frenet_trajectories.size());
     for (const auto & traj : frenet_trajectories) {
@@ -609,14 +629,95 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
           traj.frenet_points.back().s -
           trajectory_groups.back().lane_changing.frenet_points.back().s);
         if (diff < common_data_ptr->lc_param_ptr->trajectory.th_lane_changing_length_diff) {
+          ++duplicate;
           continue;
         }
       }
 
-      const auto out_of_bound =
-        check_out_of_bound_paths(common_data_ptr, traj.poses, current_lane_boundary, direction);
+      LineString2d tested_edge;
+      const auto out_of_bound = check_out_of_bound_paths(
+        common_data_ptr, traj.poses, current_lane_boundary, direction, tested_edge);
+
+      // Opt-in geometry audit: keep the exact input to the crossing check, including
+      // rejected candidates (which never reach the normal candidate-path publisher).
+      if (audit_geometry) {
+        std::ostringstream audit;
+        audit << std::setprecision(12) << "LC_GEOMETRY {\"side\":\""
+              << (direction == Direction::LEFT ? "left" : "right")
+              << "\",\"stamp\":" << ros::Time::now().toSec()
+              << ",\"frame_id\":\"map\",\"rejected\":" << (out_of_bound ? "true" : "false")
+              << ",\"reason\":\""
+              << (traj.poses.size() <= 2 ? "insufficient_poses" :
+                  (tested_edge.size() < 2 ? "insufficient_edge_points" :
+                   (out_of_bound ? "disjoint" : "crosses")))
+              << "\",\"prepare_length\":" << metric.length
+              << ",\"prepare_duration\":" << metric.duration
+              << ",\"initial_d\":" << initial_state.position.d
+              << ",\"initial_s\":" << initial_state.position.s
+              << ",\"reference_yaw\":" << reference_spline.yaw(initial_state.position.s)
+              << ",\"initial_v\":" << initial_state.longitudinal_velocity
+              << ",\"width\":" << common_data_ptr->bpp_param_ptr->vehicle_width
+              << ",\"prepare_end\":[" << lc_start_pose.position.x << ','
+              << lc_start_pose.position.y << "],\"current_ids\":[";
+        bool first = true;
+        for (const auto & lane : current_lanes) {
+          if (!first) audit << ',';
+          first = false;
+          audit << lane.id();
+        }
+        audit << "],\"target_ids\":[";
+        first = true;
+        for (const auto & lane : target_lanes) {
+          if (!first) audit << ',';
+          first = false;
+          audit << lane.id();
+        }
+        audit << "],\"boundary_ids\":[";
+        first = true;
+        for (const auto & lane : current_lanes) {
+          if (!first) audit << ',';
+          first = false;
+          audit << (direction == Direction::LEFT ? lane.leftBound().id() : lane.rightBound().id());
+        }
+        audit << "],\"tested_edge\":[";
+        first = true;
+        for (const auto & point : tested_edge) {
+          if (!first) audit << ',';
+          first = false;
+          audit << '[' << point.x() << ',' << point.y() << ']';
+        }
+        audit << "],\"boundary\":[";
+        first = true;
+        for (const auto & point : current_lane_boundary) {
+          if (!first) audit << ',';
+          first = false;
+          audit << '[' << point.x() << ',' << point.y() << ']';
+        }
+        audit << "],\"reference\":[";
+        first = true;
+        for (const auto & point : target_lane_reference_path.points) {
+          if (!first) audit << ',';
+          first = false;
+          audit << '[' << point.point.pose.position.x << ',' << point.point.pose.position.y << ']';
+        }
+        audit << "],\"poses\":[";
+        first = true;
+        for (const auto & pose : traj.poses) {
+          if (!first) audit << ',';
+          first = false;
+          audit << '[' << pose.position.x << ',' << pose.position.y << ']';
+        }
+        audit << "]}";
+        if (geometry_publisher && geometry_publisher.getNumSubscribers() > 0) {
+          std_msgs::String message;
+          message.data = audit.str().substr(std::string("LC_GEOMETRY ").size());
+          geometry_publisher.publish(message);
+        }
+        if (audit_to_log) RCLCPP_INFO(get_logger(), "%s", audit.str().c_str());
+      }
 
       if (out_of_bound) {
+        ++rejected_boundary;
         continue;
       }
 
@@ -626,6 +727,14 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
         initial_state, lane_changing_average_curvature, max_lane_changing_length);
     }
   }
+
+  RCLCPP_DEBUG(
+    get_logger(),
+    "LC Frenet side=%s prepare_samples=%zu prepare_rejected=%zu empty_reference=%zu "
+    "sampling_rejected=%zu generated=%zu duplicate=%zu boundary_rejected=%zu retained=%zu",
+    direction == Direction::LEFT ? "left" : "right", prep_metrics.size(), rejected_prepare,
+    empty_reference, rejected_sampling, generated, duplicate, rejected_boundary,
+    trajectory_groups.size());
 
   const auto limit_vel = [&](TrajectoryGroup & group) {
     const auto max_vel = calc_limit(common_data_ptr, group.lane_changing.poses.back());

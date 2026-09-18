@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/calculation.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/utils.hpp"
 #include "autoware/behavior_path_planner_common/utils/drivable_area_expansion/static_drivable_area.hpp"
 
@@ -22,6 +23,104 @@
 #include <gtest/gtest.h>
 
 constexpr double epsilon = 1e-6;
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, FuturePreferredTransitionHasDistanceBeforeEgoLeavesPreferred)
+{
+  using namespace autoware::behavior_path_planner;
+  using autoware::route_handler::Direction;
+  using utils::lane_change::calculation::calc_lc_length_and_dist_buffer;
+  // Three longitudinal sections, each containing three lanes. No course IDs.
+  for (const auto direction : {Direction::LEFT, Direction::RIGHT}) {
+    for (const bool blocked : {false, true}) {
+      auto map = std::make_shared<lanelet::LaneletMap>();
+      lanelet::Id id = 100;
+      std::vector<std::vector<lanelet::Point3d>> points(4);
+      for (int s = 0; s < 4; ++s) {
+        for (int b = 0; b < 4; ++b) {
+          points[s].emplace_back(++id, 20.0 * s, 6.0 - 4.0 * b, 0.0);
+        }
+      }
+      std::vector<lanelet::ConstLanelets> sections;
+      for (int s = 0; s < 3; ++s) {
+        std::vector<lanelet::LineString3d> bounds;
+        for (int b = 0; b < 4; ++b) {
+          lanelet::LineString3d bound(++id, {points[s][b], points[s + 1][b]});
+          bound.attributes()["type"] = "line_thin";
+          bound.attributes()["subtype"] = "dashed";
+          bounds.push_back(bound);
+        }
+        lanelet::ConstLanelets section;
+        for (int l = 0; l < 3; ++l) {
+          auto left = bounds[l];
+          auto right = bounds[l + 1];
+          if (blocked && s == 1 && l == 1) {
+            // A real break in the lateral corridor, not merely a solid marking:
+            // lateral distance queries intentionally include adjacent solid lanes.
+            const auto detached = [&](const lanelet::LineString3d & original, double dy) {
+              lanelet::LineString3d line(++id, {
+                lanelet::Point3d(++id, original.front().x(), original.front().y() + dy, 0),
+                lanelet::Point3d(++id, original.back().x(), original.back().y() + dy, 0)});
+              line.attributes() = original.attributes();
+              return line;
+            };
+            left = detached(left, -0.1);
+            right = detached(right, 0.1);
+          }
+          lanelet::Lanelet lane(++id, left, right);
+          lane.attributes()["subtype"] = "road";
+          lane.attributes()["location"] = "urban";
+          lane.attributes()["one_way"] = "yes";
+          map->add(lane);
+          section.push_back(lane);
+        }
+        sections.push_back(section);
+      }
+      auto data = std::make_shared<lane_change::CommonData>();
+      data->route_handler_ptr = std::make_shared<RouteHandler>();
+      data->route_handler_ptr->setMap(map);
+      data->self_odometry_ptr.reset(new nav_msgs::Odometry());
+      data->bpp_param_ptr = std::make_shared<BehaviorPathPlannerParameters>();
+      data->lc_param_ptr = std::make_shared<lane_change::Parameters>();
+      data->lc_param_ptr->trajectory.lat_acc_map.add(0.0, 0.5, 2.0);
+      data->lc_param_ptr->trajectory.lat_acc_map.add(40.0, 0.5, 2.0);
+      data->lanes_ptr = std::make_shared<lane_change::Lanes>();
+      data->lanes_polygon_ptr = std::make_shared<lane_change::LanesPolygon>();
+      data->direction = direction;
+      data->lc_type = LaneChangeModuleType::NORMAL;
+      data->lanes_ptr->ego_lane = sections[0][1];
+      const lanelet::ConstLanelets current{sections[0][1], sections[1][1], sections[2][1]};
+      autoware_planning_msgs::LaneletRoute route;
+      const int target = direction == Direction::LEFT ? 0 : 2;
+      for (int s = 0; s < 3; ++s) {
+        autoware_planning_msgs::LaneletSegment segment;
+        for (const auto & lane : sections[s]) {
+          autoware_planning_msgs::LaneletPrimitive p;
+          p.id = lane.id(); p.primitive_type = "lane";
+          segment.primitives.push_back(p);
+        }
+        segment.preferred_primitive = segment.primitives[s == 0 ? 1 : target];
+        route.segments.push_back(segment);
+      }
+      route.start_pose.orientation.w = route.goal_pose.orientation.w = 1.0;
+      route.goal_pose.position.x = 59.0;
+      route.goal_pose.position.y = direction == Direction::LEFT ? 4.0 : -4.0;
+      data->route_handler_ptr->setRoute(route);
+      const auto distance = calc_lc_length_and_dist_buffer(data, current);
+      SCOPED_TRACE(blocked ? "disconnected corridor before future LC" : "legal future LC");
+      EXPECT_EQ(distance.has_value(), !blocked);
+      if (distance) {
+        EXPECT_GT(distance->first.min, 0.0);
+        EXPECT_TRUE(std::isfinite(distance->first.max));
+      }
+      // Do not bridge a missing longitudinal section to a distant target.
+      EXPECT_FALSE(calc_lc_length_and_dist_buffer(data, {current[0], current[2]}));
+      // Staying in the preferred chain requires no LC.
+      for (auto & segment : route.segments) segment.preferred_primitive = segment.primitives[1];
+      data->route_handler_ptr->setRoute(route);
+      EXPECT_FALSE(calc_lc_length_and_dist_buffer(data, current));
+    }
+  }
+}
 
 TEST(BehaviorPathPlanningLaneChangeUtilsTest, RejectTruncatedOrReversedManeuver)
 {

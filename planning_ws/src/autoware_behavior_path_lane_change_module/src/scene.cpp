@@ -82,22 +82,41 @@ void NormalLaneChange::update_lanes(const bool is_approved)
     return;
   }
 
+  const auto invalidate_pending_lanes = [&](const char * reason) {
+    // A pending candidate must not keep geometry from a previous route section
+    // when current/target discovery fails. Approved maneuvers return above.
+    *common_data_ptr_->lanes_ptr = lane_change::Lanes();
+    *common_data_ptr_->lanes_polygon_ptr = lane_change::LanesPolygon{};
+    common_data_ptr_->current_lanes_path = PathWithLaneId{};
+    common_data_ptr_->target_lanes_path = PathWithLaneId{};
+    common_data_ptr_->no_lane_change_lines.clear();
+    common_data_ptr_->transient_data = lane_change::TransientData{};
+    terminal_lane_change_path_.reset();
+    status_ = LaneChangeStatus{};
+    lane_change_debug_.reset();
+    RCLCPP_DEBUG(logger_, "LC lane refresh invalid side=%s reason=%s",
+      direction_ == Direction::LEFT ? "left" : "right", reason);
+  };
+
   auto current_lanes = utils::getCurrentLanesFromPath(prev_module_output_.path, planner_data_);
   utils::lane_change::trim_preferred_after_alternative(
     current_lanes, common_data_ptr_->route_handler_ptr->getPreferredLanelets());
 
   if (current_lanes.empty()) {
+    invalidate_pending_lanes("current_sequence_empty");
     return;
   }
 
   const auto target_lanes = get_lane_change_lanes(current_lanes);
   if (target_lanes.empty()) {
+    invalidate_pending_lanes("target_sequence_empty");
     return;
   }
 
   lanelet::ConstLanelet current_lane;
   if (!common_data_ptr_->route_handler_ptr->getClosestLaneletWithinRoute(
         common_data_ptr_->get_ego_pose(), &current_lane)) {
+    invalidate_pending_lanes("closest_route_lane_unavailable");
     return;
   }
 
@@ -278,11 +297,15 @@ void NormalLaneChange::updateLaneChangeStatus()
   }
   status_.lane_change_path.path.header = getRouteHeader();
   RCLCPP_DEBUG(
-    logger_, "LC decision side=%s valid=%d safe=%d points=%zu prepare=%.2f shift=%.2f end_v=%.2f",
+    logger_, "LC decision side=%s valid=%d safe=%d points=%zu prepare=%.2f shift=%.2f end_v=%.2f "
+    "ego_lane=%ld current=%zu target=%zu neighbor=%zu distance_valid=%d",
     direction_ == Direction::LEFT ? "left" : "right", found_valid_path, found_safe_path,
     status_.lane_change_path.path.points.size(), status_.lane_change_path.info.length.prepare,
     status_.lane_change_path.info.length.lane_changing,
-    status_.lane_change_path.info.terminal_lane_changing_velocity);
+    status_.lane_change_path.info.terminal_lane_changing_velocity,
+    common_data_ptr_->lanes_ptr->ego_lane.id(), get_current_lanes().size(),
+    get_target_lanes().size(), common_data_ptr_->lanes_ptr->target_neighbor.size(),
+    common_data_ptr_->transient_data.has_valid_lc_distance);
 }
 
 std::pair<bool, bool> NormalLaneChange::getSafePath(LaneChangePath & safe_path) const
@@ -352,10 +375,18 @@ std::optional<std::string> NormalLaneChange::isLaneChangeRequired()
 {
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
 
-  if (
-    !common_data_ptr_ || !common_data_ptr_->is_data_available() ||
-    !common_data_ptr_->is_lanes_available()) {
-    return {"Insufficient data for lane change decision."};
+  if (!common_data_ptr_) return {"LC unavailable: common data missing."};
+  if (!common_data_ptr_->is_data_available()) {
+    return {"LC unavailable: planner data pointers missing."};
+  }
+  if (common_data_ptr_->lanes_ptr->current.empty()) {
+    return {"LC unavailable: current lane sequence empty."};
+  }
+  if (common_data_ptr_->lanes_ptr->target.empty()) {
+    return {"LC unavailable: target lane sequence empty."};
+  }
+  if (common_data_ptr_->lanes_ptr->target_neighbor.empty()) {
+    return {"LC unavailable: target-neighbor lane sequence empty."};
   }
 
   const auto & current_lanes = common_data_ptr_->lanes_ptr->current;

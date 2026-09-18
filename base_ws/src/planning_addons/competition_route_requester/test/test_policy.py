@@ -114,25 +114,25 @@ class PolicyTest(unittest.TestCase):
             preferred_window = preferred[preferred.index(201457):preferred.index(201399) + 1]
             self.assertEqual(
                 preferred_window,
-                [201457, 201435, 201466, 200137, 200187, 201469, 200127,
-                 201473, 201439, 200185, 201453, 201477, 201479, 201447,
+                [201457, 201435, 201466, 200137, 200187, 201470, 200130,
+                 201473, 201439, 200360, 201477, 201479, 201447,
                  201399],
             )
 
-            # Use the smoother 200185 -> 201453 branch after the bottleneck,
-            # then stay on the lower split pair through the tollgate approach.
+            # Prefer the middle highway lane, then enter 200360 immediately
+            # after the bottleneck and stay on the lower split pair.
             initial_bottleneck = initial[initial.index(201439):initial.index(201477)]
-            self.assertEqual(initial_bottleneck, [201439, 200185, 201453])
+            self.assertEqual(initial_bottleneck, [201439, 200360])
             initial_split = initial[initial.index(201477):initial.index(201399) + 1]
             self.assertEqual(initial_split, [201477, 201479, 201447, 201399])
 
             refs = self.routes[key]['waypoint_refs']
             self.assertLess(refs.index('wp_200187_merged'), refs.index('wp_201473'))
-            self.assertLess(refs.index('wp_201473'), refs.index('wp_200185'))
+            self.assertLess(refs.index('wp_201473'), refs.index('wp_200360'))
             self.assertNotIn('wp_201444_mid', refs)
-            self.assertNotIn('wp_200360', refs)
+            self.assertNotIn('wp_200185', refs)
             self.assertEqual(self.routes['poses']['wp_200187_merged']['lanelet_id'], 200187)
-            self.assertEqual(self.routes['poses']['wp_200185']['lanelet_id'], 200185)
+            self.assertEqual(self.routes['poses']['wp_200360']['lanelet_id'], 200360)
 
     def test_route_a_accepts_start_to_trigger_suffixes(self):
         initial = self.routes['route_a']['waypoint_path_lanelet_ids']
@@ -144,7 +144,7 @@ class PolicyTest(unittest.TestCase):
                              final[index:])
 
     def test_geometry_and_hash(self):
-        for ref in ('wp_200178', 'wp_200137', 'wp_201473', 'wp_200185',
+        for ref in ('wp_200178', 'wp_200137', 'wp_201473', 'wp_200360',
                     'wp_201447_after_lc', 'fallback_cutoff_201439'):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
