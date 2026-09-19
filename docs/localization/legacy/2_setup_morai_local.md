@@ -36,13 +36,13 @@
 - vehicle: `2023_Hyundai_ioniq`
     - 우리 대회 사용 차량
 
-![alt text](attachments/image.png)
+![alt text](../../attachments/image.png)
 
-![alt text](attachments/image-1.png)
+![alt text](../../attachments/image-1.png)
 
 - start를 누르면, 위 사진처럼 map과 차량이 로딩됨.
 
-![alt text](attachments/image-2.png)
+![alt text](../../attachments/image-2.png)
 - 조작법
 - w: 직진
 - a, d: 왼쪽, 오른쪽 스티어링(조향)
@@ -123,13 +123,13 @@ $ rostopic list
 - Edit > Network Settings > Ego Network
 - 목표: /Ego_topic, /Object_topic, /ctrl_cmd 키기
 
-![alt text](attachments/image-3.png)
+![alt text](../../attachments/image-3.png)
 - 이미 toggle이 on되어 있으므로, cmd control만 MoraiCmdController로 변경 후, ROS로 변경
 - 후 connect 하면 됨.
 - 이 때, bridge ip를 내 wsl2 hostname으로 하니까 안 나오고, 기본값인 `127.0.0.1`로 하니까 cmd topic이 제대로 나왔음.
 - 왜 그런지는 모르겠음. 왜 자기 자신 ip를 입력하니 저렇게 되지? 일단 잘 되니까 넘어가자.
 
-![alt text](attachments/image-4.png)
+![alt text](../../attachments/image-4.png)
 ```bash
 $ rostopic list
 /CollisionData
@@ -209,7 +209,7 @@ velocity: 10.0
 acceleration: 0.0" -r 10
 ```
 
-![alt text](attachments/image-5.png)
+![alt text](../../attachments/image-5.png)
 
 ## MORAI에서 센서 배치
 ```bash
@@ -239,11 +239,11 @@ GPS
 - 센서 위치/pose는 일단 기본으로 두고, 나중에 BEVFusion, FAST-LIO2 실제로 붙일 때 정확한 extrinsic 맞추기!
 - 센서 config들은 config/sensor_layout.yaml 에 임시로 작성
 
-![](attachments/image-6.png)
+![](../../attachments/image-6.png)
 
 - 센서들이 잘 추가된 모습
 
-![](attachments/image-7.png)
+![](../../attachments/image-7.png)
 - camera 2d image 센싱된 사진w
 
 ## 센서들 ROS에서 연결 확인
@@ -266,7 +266,7 @@ GNSS    target 20 Hz → actual TBD (`rostopic hz /sensor/gps`로 재측정)
 - morai_fps는 최대 60을 기점으로 55~60 사이 값이 매우 빠르게 진동했음. (settings > show performance로 볼 수 있다)
 
 ## rviz 켜서 ROS 상에서 시각화해보기
-![](attachments/image-8.png)
+![](../../attachments/image-8.png)
 - 오른쪽 벽으로 막힌 부분이 LiDAR로 장애물로 잘 센싱되고 있다.
 - rviz에서 제대로 보려면,
     - map을 LiDAR-1(우리 frame에 맞게)로 바꾸고,

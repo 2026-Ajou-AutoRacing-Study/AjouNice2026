@@ -20,8 +20,6 @@
    - 현재 estimator의 센서 역할, frame, timestamp, covariance와 검증 근거.
 4. [`morai_udp_receipt_time.md`](morai_udp_receipt_time.md)
    - 현장 UDP receipt-time 정책.
-5. [`260804_localization_state_input_architecture_plan.md`](260804_localization_state_input_architecture_plan.md)
-   - 현재 구현 이후의 장기 구조 검토. 대회 production 실행법은 아님.
 
 ## 공식 실행 계약
 
@@ -47,6 +45,7 @@ localization_mrp
 
 ## Legacy
 
-[`legacy/`](legacy/)는 과거 FAST-LIO, 구형 GNSS+IMU baseline, `/Ego_topic` 직접 GT와
-구형 control 실행 기록이다. 현재 대회 명령이나 기본값을 결정할 때 검색 결과만 보고
-재사용하지 않는다. 과거 실험 재현이 필요한 경우에만 읽는다.
+[`legacy/`](legacy/)는 과거 1~7 설치·MORAI·rosbag·FAST-LIO 문서, 구형 GNSS+IMU
+baseline, `/Ego_topic` 직접 GT, 과거 localization 구조 계획과 control 실행 기록이다.
+현재 대회 명령이나 기본값을 결정할 때 검색 결과만 보고 재사용하지 않는다. 과거 실험
+재현이 필요한 경우에만 읽는다.

@@ -24,8 +24,8 @@ mission rosbag에서 비교한다.
 
 ## HISTORICAL
 
-- `BASE3_BF1_ONLINE_DOMAIN_FINETUNE.md`: 이전 BF1 image-domain augmentation 실험.
-- `260720_morai_four_camera_zero_shot_*`: 초기 zero-shot feasibility 기록.
+- [`legacy/BASE3_BF1_ONLINE_DOMAIN_FINETUNE.md`](legacy/BASE3_BF1_ONLINE_DOMAIN_FINETUNE.md): 이전 BF1 image-domain augmentation 실험.
+- `legacy/260720_morai_four_camera_zero_shot_*`: 초기 zero-shot feasibility 기록.
 
 HISTORICAL 문서의 checkpoint, image tag, dataset root, threshold를 현재 기본값으로
 사용하지 않는다.

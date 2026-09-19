@@ -15,7 +15,7 @@ augmentation을 적용한 저학습률 fine-tuning을 수행했다.
 > 후속 production 계약에서는 2026-07-31 PointPainting 통제 평가인
 > `Vehicle 30 m` bag을 평균에서 제외한다. 아래 8-bag 수치는 당시 실험 기록으로만
 > 보존하며 현재 production 모델 선택에 사용하지 않는다. 현재 기준은
-> [`260918_base3_e40_production_evaluation_results.md`](260918_base3_e40_production_evaluation_results.md)다.
+> [`260918_base3_e40_production_evaluation_results.md`](../260918_base3_e40_production_evaluation_results.md)다.
 
 ## 실험 구성
 

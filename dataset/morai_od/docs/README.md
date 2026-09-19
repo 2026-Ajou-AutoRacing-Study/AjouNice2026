@@ -40,11 +40,11 @@ Base3-Static은 폐기된 데이터가 아니다. Production E25를 만든 gener
 
 ## HISTORICAL
 
-다음 문서는 연구 이력 또는 이전 dataset 세대다.
+다음 문서는 `legacy/`로 이동한 연구 이력 또는 이전 dataset 세대다.
 
-- `base2_*`, `dataset_v2_*`, `temporal_sequence_*`: Base2/temporal 연구.
-- `sunny13_*`, `od180_*`: 이전 정적 생성기 세대.
-- `rosbag_replay_dataset_migration_plan.md`: ReplayInfo 중심의 이전 migration 계획.
-- `geometry_trial_20.md`, `scenario_runner_*`: 초기 geometry/runner 검증.
+- `legacy/base2_*`, `legacy/dataset_v2_*`, `legacy/temporal_sequence_*`: Base2/temporal 연구.
+- `legacy/sunny13_*`, `legacy/od180_*`: 이전 정적 생성기 세대.
+- `legacy/rosbag_replay_dataset_migration_plan.md`: ReplayInfo 중심의 이전 migration 계획.
+- `legacy/geometry_trial_20.md`, `legacy/scenario_runner_*`: 초기 geometry/runner 검증.
 
 이 문서들의 명령·경로·class 정책을 Base3-Online에 자동 적용하지 않는다.

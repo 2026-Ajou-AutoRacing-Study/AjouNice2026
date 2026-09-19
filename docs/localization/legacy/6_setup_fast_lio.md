@@ -214,6 +214,6 @@ average rate: 7.701
 - `rviz`
 - By topic에서 /Odometry, /path, /cloud_registered 토픽 키기
 
-![alt text](attachments/image-11.png)
-![alt text](attachments/image-12.png)
+![alt text](../../attachments/image-11.png)
+![alt text](../../attachments/image-12.png)
 - rviz에 loc 결과 및 path, pcd가 출력됨
