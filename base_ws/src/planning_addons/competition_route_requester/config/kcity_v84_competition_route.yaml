@@ -86,6 +86,7 @@ poses:
 
   wp_201456:
     lanelet_id: 201456
+    progress_lanelet_id: 201459  # canonical 진행축에서 같은 횡단 segment로 취급한다.
     lanelet_s_m: 6.941124
     x: 193.719537498018
     y: 794.406736074068
@@ -94,6 +95,7 @@ poses:
 
   wp_201457:  # route corridor 생성용 중간 waypoint. 실제 preferred는 아래 최상위 열이다.
     lanelet_id: 201457
+    progress_lanelet_id: 201459  # 진행 중 Route B suffix에서도 횡방향 waypoint를 보존한다.
     lanelet_s_m: 6.962072
     x: 197.514181666943
     y: 794.443555153763
@@ -102,6 +104,7 @@ poses:
 
   wp_201435:  # 기존 route segment/primitive 생성을 유지하는 waypoint이며 preferred 지정이 아니다.
     lanelet_id: 201466
+    progress_lanelet_id: 201465  # 201465/201466/201467/201468 후보 segment를 유지한다.
     lanelet_s_m: 0.793986533
     x: 201.724681319660
     y: 685.706024773819
@@ -110,6 +113,7 @@ poses:
 
   wp_200137:  # corridor 생성용. 이 구간의 실제 preferred는 200138이다.
     lanelet_id: 200137
+    progress_lanelet_id: 200138
     lanelet_s_m: 8.0
     x: 202.038190605702
     y: 627.131948773689
@@ -118,6 +122,7 @@ poses:
 
   wp_200187_merged:  # corridor 생성용. 실제 preferred는 201444 -> 201469로 이어진다.
     lanelet_id: 200187
+    progress_lanelet_id: 201444
     lanelet_s_m: 8
     x: 202.479680196914
     y: 544.514405404006

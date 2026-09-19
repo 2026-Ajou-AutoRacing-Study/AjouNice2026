@@ -198,4 +198,7 @@ def remaining_waypoint_refs(routes, key, current_lane):
     current_index = sequence.index(current_lane)
     lane_indexes = {lane: index for index, lane in enumerate(sequence)}
     return [ref for ref in refs
-            if lane_indexes.get(routes['poses'][ref]['lanelet_id'], -1) > current_index]
+            if lane_indexes.get(
+                routes['poses'][ref].get(
+                    'progress_lanelet_id', routes['poses'][ref]['lanelet_id']), -1
+            ) > current_index]

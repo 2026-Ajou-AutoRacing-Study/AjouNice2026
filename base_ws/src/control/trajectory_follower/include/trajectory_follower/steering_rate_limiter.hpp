@@ -1,9 +1,16 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 
 namespace trajectory_follower
 {
+
+inline double applySteeringDeadband(
+  const double target, const double previous, const double deadband_rad)
+{
+  return std::abs(target - previous) < deadband_rad ? previous : target;
+}
 
 inline double limitSteeringRate(
   const double target, const double previous, const double maximum_rate_rad_s,

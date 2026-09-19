@@ -50,6 +50,7 @@ text { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; fill: #17203
 <path d="M 583.7,770.8 L 583.7,771.0 L 583.7,771.6 L 583.8,772.1 L 583.8,772.7 L 583.9,773.3 L 583.9,773.8 L 584.0,774.4 L 584.0,775.0 L 584.1,775.5 L 584.2,776.1 L 584.2,776.6 L 584.2,777.2 L 584.3,777.8 L 584.3,778.3 L 584.3,778.9 L 584.4,779.4 L 584.4,780.0 L 584.4,780.6 L 584.5,781.1 L 584.6,781.7 L 584.7,782.3 L 584.8,782.8 L 584.8,783.4 L 584.9,783.9 L 585.0,784.5 L 585.1,785.1 L 585.2,785.6 L 585.3,786.2 L 585.4,786.8 L 585.5,787.3 L 585.5,787.9 L 585.6,788.4 L 585.7,789.0 L 585.7,789.6 L 585.8,790.1 L 585.9,790.7 L 585.9,791.3 L 586.0,791.8 L 586.1,792.4 L 586.1,792.9 L 586.2,793.5 L 586.2,794.1 L 586.3,794.6 L 586.4,795.2 L 586.4,795.8 L 586.5,796.3 L 586.6,796.9 L 586.6,797.4 L 586.6,798.0 L 586.7,798.6 L 586.7,799.1 L 586.7,799.7 L 586.8,800.3 L 586.8,800.8 L 586.8,801.4 L 586.8,801.9 L 586.9,802.5 L 586.9,803.1 L 587.0,803.6 L 587.1,804.2 L 587.2,804.8 L 587.2,805.3 L 587.3,805.9 L 587.4,806.4 L 587.5,807.0 L 587.5,807.6 L 587.6,808.1 L 587.7,808.7 L 587.7,809.3 L 587.8,809.8 L 587.8,810.4 L 587.9,810.9 L 587.9,811.5 L 588.0,812.1 L 588.1,812.6 L 588.2,813.2 L 588.3,813.7 L 588.4,814.3 L 588.4,814.9 L 588.5,815.4 L 588.6,815.7" fill="none" stroke="#d7dde5" stroke-width="2"/>
 <path d="M 476.8,154.3 L 488.3,275.5" fill="none" stroke="#d7dde5" stroke-width="2"/>
 <path d="M 406.5,275.5 L 413.9,283.6" fill="none" stroke="#d7dde5" stroke-width="2"/>
+<path d="M 413.9,283.6 L 414.8,341.4" fill="none" stroke="#d7dde5" stroke-width="2"/>
 <path d="M 307.5,154.4 L 331.0,275.6" fill="none" stroke="#7a879b" stroke-width="5" stroke-linecap="round" stroke-dasharray="8 7"/>
 <path d="M 331.0,275.6 L 342.8,283.6" fill="none" stroke="#7a879b" stroke-width="5" stroke-linecap="round" stroke-dasharray="8 7"/>
 <path d="M 342.8,283.6 L 414.8,341.4" fill="none" stroke="#7a879b" stroke-width="5" stroke-linecap="round" stroke-dasharray="8 7"/>
@@ -127,6 +128,7 @@ text { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; fill: #17203
 <text x="591.2" y="789.2" class="lane-id" fill="#56657a">201478</text>
 <text x="487.6" y="210.9" class="lane-id" fill="#56657a">201458</text>
 <text x="415.2" y="275.6" class="lane-id" fill="#56657a">200099</text>
+<text x="419.4" y="308.5" class="lane-id" fill="#56657a">201467</text>
 <path d="M 310.9,172.1 L 395.4,172.3" stroke="#d33682" stroke-width="4" marker-end="url(#lc-arrow)"/>
 <text x="361.2" y="162.2" class="label" fill="#b42367">진입 직후 LC</text>
 <path d="M 955 199 L 1010 199" stroke="#7a879b" stroke-width="7" stroke-linecap="round"/>

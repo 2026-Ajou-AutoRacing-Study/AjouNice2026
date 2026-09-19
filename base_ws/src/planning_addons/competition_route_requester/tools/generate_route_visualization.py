@@ -152,7 +152,10 @@ def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, eps
     current, upper = map(expand, (current, upper))
     current += [201477, 201479, 201447]
     upper += [201453, 201476, 201448, 201478]
-    highway_ids = list(dict.fromkeys(current + selected + upper + [201458, 200099]))
+    # Include every primitive of the four-wide transverse split.  The selected,
+    # upper, and current paths cover 201465/201466/201468 respectively; 201467
+    # is a route candidate too and must not disappear from the audit graphic.
+    highway_ids = list(dict.fromkeys(current + selected + upper + [201458, 200099, 201467]))
     missing = [lanelet_id for lanelet_id in highway_ids if lanelet_id not in lanelets]
     if missing:
         raise ValueError(f"Highway visualization lanelets missing from map: {missing}")

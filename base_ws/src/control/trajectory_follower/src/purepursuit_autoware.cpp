@@ -105,6 +105,9 @@ public:
     private_nh_.param(
       "adaptive/max_steering_rate_deg_s", max_steering_rate_deg_s_, 60.0);
     max_steering_rate_rad_s_ = max_steering_rate_deg_s_ * M_PI / 180.0;
+    private_nh_.param(
+      "adaptive/steering_deadband_deg", steering_deadband_deg_, 0.3);
+    steering_deadband_rad_ = steering_deadband_deg_ * M_PI / 180.0;
     private_nh_.param("adaptive/reverse_min_lookahead_distance",
                       params_.reverse_min_lookahead_distance, 7.0);
 
@@ -133,7 +136,8 @@ public:
     ROS_INFO_STREAM(
       "purepursuit_autoware: " << trajectory_topic_ << " + " << state_topic_ << " -> "
                                 << steering_topic_ << ", steering rate limit="
-                                << max_steering_rate_deg_s_ << " deg/s");
+                                << max_steering_rate_deg_s_ << " deg/s, steering deadband="
+                                << steering_deadband_deg_ << " deg");
   }
 
 private:
@@ -149,6 +153,8 @@ private:
       std::isfinite(future_stamp_tolerance_s_) && future_stamp_tolerance_s_ >= 0.0 && min_points_ >= 3 &&
       std::isfinite(max_steering_rate_deg_s_) && max_steering_rate_deg_s_ > 0.0 &&
       std::isfinite(max_steering_rate_rad_s_) && max_steering_rate_rad_s_ > 0.0 &&
+      std::isfinite(steering_deadband_deg_) && steering_deadband_deg_ >= 0.0 &&
+      std::isfinite(steering_deadband_rad_) && steering_deadband_rad_ >= 0.0 &&
       core_->parametersValid(&reason);
     if (!valid) {
       throw std::runtime_error(reason.empty() ? "invalid purepursuit_autoware parameter" : reason);
@@ -282,8 +288,10 @@ private:
       if (!std::isfinite(dt) || dt <= 0.0 || dt > 1.0) {
         dt = 1.0 / control_rate_hz_;
       }
+      const double deadbanded_steering = trajectory_follower::applySteeringDeadband(
+        output.steering_tire_angle_rad, previous_steering_command_, steering_deadband_rad_);
       output.steering_tire_angle_rad = trajectory_follower::limitSteeringRate(
-        output.steering_tire_angle_rad, previous_steering_command_, max_steering_rate_rad_s_, dt);
+        deadbanded_steering, previous_steering_command_, max_steering_rate_rad_s_, dt);
       previous_steering_command_ = output.steering_tire_angle_rad;
     } else {
       previous_steering_command_ = 0.0;
@@ -321,6 +329,8 @@ private:
   double future_stamp_tolerance_s_{0.1};
   double max_steering_rate_deg_s_{60.0};
   double max_steering_rate_rad_s_{M_PI / 3.0};
+  double steering_deadband_deg_{0.3};
+  double steering_deadband_rad_{0.3 * M_PI / 180.0};
   double previous_steering_command_{0.0};
   int min_points_{3};
   trajectory_follower::PurePursuitParams params_;

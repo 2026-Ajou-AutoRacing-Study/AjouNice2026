@@ -208,6 +208,18 @@ class PolicyTest(unittest.TestCase):
         self.assertNotIn('wp_200311', refs)
         self.assertEqual(refs[0], 'wp_201095')
 
+    def test_route_b_keeps_lateral_corridor_waypoints_ahead(self):
+        refs = policy.remaining_waypoint_refs(self.routes, 'route_b', 200258)
+        self.assertNotIn('wp_200346', refs)
+        for ref in ('wp_201456', 'wp_201457', 'wp_201435',
+                    'wp_200137', 'wp_200187_merged'):
+            self.assertIn(ref, refs)
+
+        after_split = policy.remaining_waypoint_refs(self.routes, 'route_b', 201465)
+        for ref in ('wp_201456', 'wp_201457', 'wp_201435'):
+            self.assertNotIn(ref, after_split)
+        self.assertIn('wp_200137', after_split)
+
     def test_policy_transitions(self):
         for case in policy.CASES:
             self.assertEqual(policy.next_normal(case, None, 200889, 0, self.routes),

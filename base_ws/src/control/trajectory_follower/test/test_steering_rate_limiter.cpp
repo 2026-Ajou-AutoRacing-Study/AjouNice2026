@@ -29,6 +29,31 @@ TEST(SteeringRateLimiter, PassesTargetsInsideThePerTickLimit)
     trajectory_follower::limitSteeringRate(target, previous, maximum_rate, dt), target);
 }
 
+TEST(SteeringDeadband, HoldsChangesSmallerThanPointThreeDegrees)
+{
+  const double deadband = 0.3 * M_PI / 180.0;
+  const double previous = 5.0 * M_PI / 180.0;
+
+  EXPECT_DOUBLE_EQ(
+    trajectory_follower::applySteeringDeadband(
+      5.2 * M_PI / 180.0, previous, deadband),
+    previous);
+  EXPECT_DOUBLE_EQ(
+    trajectory_follower::applySteeringDeadband(
+      4.8 * M_PI / 180.0, previous, deadband),
+    previous);
+}
+
+TEST(SteeringDeadband, PassesChangesOutsidePointThreeDegrees)
+{
+  const double deadband = 0.3 * M_PI / 180.0;
+  const double previous = 5.0 * M_PI / 180.0;
+  const double target = 5.4 * M_PI / 180.0;
+
+  EXPECT_DOUBLE_EQ(
+    trajectory_follower::applySteeringDeadband(target, previous, deadband), target);
+}
+
 int main(int argc, char ** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);
