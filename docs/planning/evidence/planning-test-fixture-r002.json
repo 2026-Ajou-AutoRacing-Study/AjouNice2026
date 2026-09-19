@@ -1,0 +1,40 @@
+{
+  "schema": "ajounice.aw149.planning_test_fixture.v1",
+  "recorded_at": "2026-09-08T19:20:00+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "checkpoint": {
+    "name": "checkpoint-r004.json",
+    "sha256": "ed8f8e71a5dd91f0fc2152c0fdc5c5036bd1a8a749a707e0679ab007f8fc63b9",
+    "predecessor": "checkpoint-r003.json"
+  },
+  "source_audit": {
+    "status": "PASS",
+    "source_files_checked": 3997,
+    "changed_or_missing": 0,
+    "planning_packages": 154,
+    "provider_source_files_checked": 6589,
+    "provider_changed_or_missing": 0
+  },
+  "isolated_package_results": {
+    "autoware_behavior_velocity_planner": {
+      "tests": 76,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "master_policy": "fresh ROS master and ROS_HOME",
+      "make_jobs": 1
+    },
+    "autoware_behavior_path_planner": {
+      "tests": 58,
+      "errors": 0,
+      "failures": 14,
+      "skipped": 0,
+      "remaining_class": "direct core tests still omit the authoritative side-shift parameter fixture"
+    }
+  },
+  "change_scope": [
+    "YAML scalar conversion follows true/false, integer, double, string lexical order",
+    "BVP direct tests load committed ROS1 smoother and scene-module parameter files into the tested node namespace"
+  ],
+  "claim_boundary": "This closes the BVP package test suite only. It does not expand P7 runtime coverage or claim that all 154 planning package tests pass."
+}

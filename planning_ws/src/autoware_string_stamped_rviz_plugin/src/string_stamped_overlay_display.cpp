@@ -1,0 +1,14 @@
+#include "string_stamped_overlay_display.hpp"
+#include <pluginlib/class_list_macros.h>
+#include <rviz/ogre_helpers/render_system.h>
+#include <QPainter>
+namespace autoware::string_stamped_rviz_plugin {
+StringStampedOverlayDisplay::StringStampedOverlayDisplay(){color_=new rviz::ColorProperty("Text Color",QColor(25,255,240),"",this,SLOT(updateVisualization()));left_=new rviz::IntProperty("Left",1024,"",this,SLOT(updateVisualization()));top_=new rviz::IntProperty("Top",128,"",this,SLOT(updateVisualization()));font_=new rviz::IntProperty("Font Size",15,"",this,SLOT(updateVisualization()));maximum_=new rviz::IntProperty("Max Letter Num",100,"",this,SLOT(updateVisualization()));keep_=new rviz::FloatProperty("Time To Keep Last Diag",1.0,"",this,SLOT(updateVisualization()));erase_=new rviz::FloatProperty("Time To Erase Last Diag",2.0,"",this,SLOT(updateVisualization()));}
+StringStampedOverlayDisplay::~StringStampedOverlayDisplay(){if(overlay_)overlay_->hide();}
+void StringStampedOverlayDisplay::onInitialize(){UnfilteredTopicDisplay::onInitialize();rviz::RenderSystem::get()->prepareOverlays(scene_manager_);overlay_=std::make_shared<rviz_2d_overlay_plugins::OverlayObject>("StringStampedOverlay");updateVisualization();}
+void StringStampedOverlayDisplay::onEnable(){if(overlay_)overlay_->show();subscribe();} void StringStampedOverlayDisplay::onDisable(){unsubscribe();if(overlay_)overlay_->hide();}
+void StringStampedOverlayDisplay::updateVisualization(){if(!overlay_)return;int s=font_->getInt()*maximum_->getInt();overlay_->updateTextureSize(s,s);overlay_->setPosition(left_->getInt(),top_->getInt());overlay_->setDimensions(overlay_->getTextureWidth(),overlay_->getTextureHeight());queueRender();}
+void StringStampedOverlayDisplay::processMessage(const autoware_internal_debug_msgs::StringStamped::ConstPtr m){std::lock_guard<std::mutex> l(mutex_);text_=m->data;if(!m->data.empty()){last_=m->data;last_stamp_=ros::Time(m->stamp.sec,m->stamp.nanosec);}queueRender();}
+void StringStampedOverlayDisplay::update(float,float){std::lock_guard<std::mutex>l(mutex_);if(!overlay_||!isEnabled())return;std::string shown=text_;int alpha=255;if(shown.empty()&&!last_.empty()){double d=(ros::Time::now()-last_stamp_).toSec();if(d<keep_->getFloat()+erase_->getFloat()&&d>0){shown=last_;alpha=int(255*std::max(0.,1.-std::max(0.,d-keep_->getFloat())/erase_->getFloat()));}}auto b=overlay_->getBuffer();QImage im=b.getQImage(*overlay_);im.fill(Qt::transparent);QPainter p(&im);QColor c=color_->getColor();c.setAlpha(alpha);p.setPen(c);QFont f=p.font();f.setPixelSize(font_->getInt());f.setBold(true);p.setFont(f);p.drawText(0,0,overlay_->getTextureWidth(),overlay_->getTextureHeight(),Qt::AlignLeft|Qt::AlignTop,QString::fromStdString(shown));}
+}
+PLUGINLIB_EXPORT_CLASS(autoware::string_stamped_rviz_plugin::StringStampedOverlayDisplay,rviz::Display)

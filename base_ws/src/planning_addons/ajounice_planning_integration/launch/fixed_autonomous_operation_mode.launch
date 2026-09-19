@@ -1,0 +1,12 @@
+<launch>
+  <arg name="output_topic" default="/system/operation_mode/state"/>
+  <arg name="publish_rate" default="10.0"/>
+  <node pkg="ajounice_planning_integration"
+        type="fixed_autonomous_operation_mode_publisher"
+        name="fixed_autonomous_operation_mode_publisher"
+        output="screen"
+        respawn="false">
+    <param name="output_topic" value="$(arg output_topic)"/>
+    <param name="publish_rate" value="$(arg publish_rate)"/>
+  </node>
+</launch>

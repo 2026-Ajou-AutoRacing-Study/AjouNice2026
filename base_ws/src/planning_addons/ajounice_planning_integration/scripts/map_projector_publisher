@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""Publish only the frozen map projector, never fabricated localization."""
+from pathlib import Path
+import hashlib
+import rospy
+import yaml
+from autoware_map_msgs.msg import MapProjectorInfo
+
+if __name__ == '__main__':
+    rospy.init_node('map_projector_publisher')
+    root = Path(rospy.get_param('~repo_root'))
+    map_path = root/'kcity_map/lanelet_map/lanelet2_map_v84.osm'
+    path = root/'kcity_map/lanelet_map/map_projector_info_v1.yaml'
+    if hashlib.sha256(map_path.read_bytes()).hexdigest() != '36369766a0fade01cbd64a49d4d9c33248b15770eb1433ce334d6becaddf3e4d':
+        raise ValueError('unreviewed map SHA; update the route/map contract first')
+    if hashlib.sha256(path.read_bytes()).hexdigest() != 'ccb5a8199afd7e64b04b6ac8637419ec4c9cd5ab16bac68a229971a7f7c7859c':
+        raise ValueError('unreviewed projector SHA')
+    cfg = yaml.safe_load(path.read_text())
+    msg = MapProjectorInfo()
+    if cfg['projector_type'] != 'LocalCartesianUTM' or cfg['vertical_datum'] != 'WGS84':
+        raise ValueError('unsupported frozen projector configuration')
+    # Use the generated wire constants, exactly as the ported C++ loader does.
+    # ROS1 genmsg retains quotes in these frozen ROS2-origin string constants.
+    msg.projector_type = MapProjectorInfo.LOCAL_CARTESIAN_UTM
+    msg.vertical_datum = MapProjectorInfo.WGS84
+    msg.map_origin.latitude = cfg['map_origin']['latitude']
+    msg.map_origin.longitude = cfg['map_origin']['longitude']
+    msg.map_origin.altitude = 0.0
+    msg.scale_factor = 0.9996
+    pub = rospy.Publisher('/map/map_projector_info', MapProjectorInfo, queue_size=1, latch=True)
+    pub.publish(msg)
+    rospy.spin()

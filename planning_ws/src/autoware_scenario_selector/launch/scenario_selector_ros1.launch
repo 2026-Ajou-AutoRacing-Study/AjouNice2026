@@ -1,0 +1,25 @@
+<launch>
+  <arg name="input_lane_driving_trajectory" default="/planning/scenario_planning/lane_driving/trajectory"/>
+  <arg name="input_parking_trajectory" default="/planning/scenario_planning/parking/trajectory"/>
+  <arg name="input_lanelet_map" default="/map/vector_map"/>
+  <arg name="input_route" default="/planning/mission_planning/route"/>
+  <arg name="input_odometry" default="/localization/kinematic_state"/>
+  <arg name="input_operation_mode_state" default="/system/operation_mode/state"/>
+  <arg name="is_parking_completed" default="/planning/scenario_planning/is_parking_completed"/>
+  <arg name="output_scenario" default="/planning/scenario_planning/scenario_selector/scenario"/>
+  <arg name="output_trajectory" default="/planning/scenario_planning/scenario_selector/trajectory"/>
+
+  <node pkg="autoware_scenario_selector" type="autoware_scenario_selector_node"
+        name="scenario_selector" output="screen">
+    <rosparam command="load" file="$(find autoware_scenario_selector)/config/ros1/scenario_selector.yaml"/>
+    <remap from="input/lane_driving/trajectory" to="$(arg input_lane_driving_trajectory)"/>
+    <remap from="input/parking/trajectory" to="$(arg input_parking_trajectory)"/>
+    <remap from="input/lanelet_map" to="$(arg input_lanelet_map)"/>
+    <remap from="input/route" to="$(arg input_route)"/>
+    <remap from="input/odometry" to="$(arg input_odometry)"/>
+    <remap from="input/operation_mode_state" to="$(arg input_operation_mode_state)"/>
+    <remap from="is_parking_completed" to="$(arg is_parking_completed)"/>
+    <remap from="output/scenario" to="$(arg output_scenario)"/>
+    <remap from="output/trajectory" to="$(arg output_trajectory)"/>
+  </node>
+</launch>

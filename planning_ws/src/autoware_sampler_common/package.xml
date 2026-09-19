@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_sampler_common</name>
+  <version>0.51.0</version>
+  <description>ROS 1 build projection of the frozen Autoware sampler common library.</description>
+  <maintainer email="maxime.clement@tier4.jp">Maxime CLEMENT</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>autoware_interpolation</depend>
+  <depend>autoware_utils_geometry</depend>
+  <depend>geometry_msgs</depend>
+  <build_depend>eigen</build_depend>
+  <build_depend>boost</build_depend>
+  <test_depend>gtest</test_depend>
+
+  <export><build_type>catkin</build_type></export>
+</package>

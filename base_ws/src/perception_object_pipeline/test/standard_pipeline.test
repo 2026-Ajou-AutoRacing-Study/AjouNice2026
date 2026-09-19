@@ -1,0 +1,24 @@
+<launch>
+  <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+    <arg name="start_detector" value="false"/>
+    <arg name="use_sim_time" value="false"/>
+    <arg name="detection_objects" value="/test/detections"/>
+    <arg name="tracked_objects" value="/test/tracks"/>
+    <arg name="predicted_objects" value="/test/predictions"/>
+  </include>
+
+  <include file="$(find perception_object_pipeline)/launch/object_pipeline_visualization.launch">
+    <arg name="detections" value="/test/detections"/>
+    <arg name="tracks" value="/test/tracks"/>
+    <arg name="predictions" value="/test/predictions"/>
+    <arg name="detection_markers" value="/test/markers/detections"/>
+    <arg name="tracking_markers" value="/test/markers/tracks"/>
+    <arg name="prediction_markers" value="/test/markers/predictions"/>
+    <arg name="start_rviz" value="false"/>
+  </include>
+
+  <test test-name="standard_object_pipeline"
+        pkg="perception_object_pipeline"
+        type="test_standard_pipeline.py"
+        time-limit="15"/>
+</launch>

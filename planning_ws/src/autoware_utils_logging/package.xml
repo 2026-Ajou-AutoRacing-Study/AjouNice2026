@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_utils_logging</name>
+  <version>1.8.0</version>
+  <description>ROS 1 candidate for Autoware logger-level configuration.</description>
+  <maintainer email="noreply@example.invalid">Autoware ROS1 port candidate</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>logging_demo</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_export_depend>logging_demo</build_export_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <exec_depend>logging_demo</exec_depend>
+  <exec_depend>roscpp</exec_depend>
+  <test_depend>gtest</test_depend>
+  <export />
+</package>

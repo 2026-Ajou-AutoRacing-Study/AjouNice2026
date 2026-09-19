@@ -21,6 +21,7 @@ from trajectory_validator.csv_io import (
     load_tracking_csv,
 )
 from trajectory_validator.metrics import quaternion_from_yaw, yaw_from_quaternion
+from trajectory_validator.ros_time import builtin_duration_from_seconds
 from trajectory_validator.msg import TrajectoryDebug
 from trajectory_validator.visualization import (
     make_ego_pose,
@@ -54,7 +55,7 @@ def gt_trajectory_from_rows(rows, frame_id):
         if as_int(row, "gt_index") != expected_index:
             raise ValueError("GT indices are not contiguous from zero")
         point = TrajectoryPoint()
-        point.time_from_start = rospy.Duration.from_sec(
+        point.time_from_start = builtin_duration_from_seconds(
             as_float(row, "gt_time_from_start_s")
         )
         point.pose.position.x = as_float(row, "gt_x_m")
@@ -201,7 +202,9 @@ def load_history_artifacts(root, run_directory, metadata):
 
 def append_ego_point(trajectory, row):
     point = TrajectoryPoint()
-    point.time_from_start = rospy.Duration.from_sec(as_float(row, "elapsed_time_s"))
+    point.time_from_start = builtin_duration_from_seconds(
+        as_float(row, "elapsed_time_s")
+    )
     point.pose.position.x = as_float(row, "ego_x_m")
     point.pose.position.y = as_float(row, "ego_y_m")
     point.pose.position.z = as_float(row, "ego_z_m")

@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>trajectory_batch_runner</name>
+  <version>0.1.0</version>
+  <description>Plan and orchestrate repeatable MORAI trajectory-following batch validation.</description>
+
+  <maintainer email="ajounice@example.com">AjouNice2026</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>morai_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>autoware_planning_msgs</exec_depend>
+  <exec_depend>sensor_interface</exec_depend>
+  <exec_depend>bringup</exec_depend>
+  <exec_depend>trajectory_generator</exec_depend>
+  <exec_depend>trajectory_validator</exec_depend>
+  <exec_depend>trajectory_follower</exec_depend>
+
+  <export/>
+</package>

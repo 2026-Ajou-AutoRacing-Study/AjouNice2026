@@ -1,0 +1,18 @@
+<launch>
+  <arg name="common_param_path" default="$(find autoware_external_velocity_limit_selector)/config/default_common.param.yaml"/>
+  <arg name="param_path" default="$(find autoware_external_velocity_limit_selector)/config/default.param.yaml"/>
+  <arg name="input_velocity_limit_from_api" default="/planning/scenario_planning/max_velocity_default"/>
+  <arg name="input_velocity_limit_from_internal" default="/planning/scenario_planning/max_velocity_candidates"/>
+  <arg name="input_velocity_limit_clear_command_from_internal" default="/planning/scenario_planning/clear_velocity_limit"/>
+  <arg name="output_velocity_limit_from_selector" default="/planning/scenario_planning/max_velocity"/>
+  <arg name="output_debug_string" default="/planning/scenario_planning/external_velocity_limit_selector/debug"/>
+  <node pkg="autoware_external_velocity_limit_selector" type="external_velocity_limit_selector" name="external_velocity_limit_selector" output="screen">
+    <rosparam command="load" file="$(arg common_param_path)"/>
+    <rosparam command="load" file="$(arg param_path)"/>
+    <remap from="input/velocity_limit_from_api" to="$(arg input_velocity_limit_from_api)"/>
+    <remap from="input/velocity_limit_from_internal" to="$(arg input_velocity_limit_from_internal)"/>
+    <remap from="input/velocity_limit_clear_command_from_internal" to="$(arg input_velocity_limit_clear_command_from_internal)"/>
+    <remap from="output/external_velocity_limit" to="$(arg output_velocity_limit_from_selector)"/>
+    <remap from="output/debug" to="$(arg output_debug_string)"/>
+  </node>
+</launch>

@@ -1,0 +1,6 @@
+<library path="lib/libtier4_adapi_rviz_plugin">
+  <class name="tier4_adapi_rviz_plugin/RouteTool" type="tier4_adapi_rviz_plugins::RouteTool" base_class_type="rviz::Tool"/>
+  <class name="tier4_adapi_rviz_plugin/RoutePanel" type="tier4_adapi_rviz_plugins::RoutePanel" base_class_type="rviz::Panel"/>
+  <class name="tier4_adapi_rviz_plugin/OperationModeDebugPanel" type="tier4_adapi_rviz_plugins::OperationModeDebugPanel" base_class_type="rviz::Panel"/>
+  <class name="tier4_adapi_rviz_plugin/DoorPanel" type="tier4_adapi_rviz_plugins::DoorPanel" base_class_type="rviz::Panel"/>
+</library>

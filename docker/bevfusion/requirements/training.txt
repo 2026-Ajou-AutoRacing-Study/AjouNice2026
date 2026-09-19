@@ -1,0 +1,4 @@
+wandb==0.19.11
+trimesh==4.6.13
+lyft-dataset-sdk==0.0.8
+nuscenes-devkit==1.1.11

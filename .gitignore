@@ -1,7 +1,28 @@
 ### Custom .gitignore configs는 여기에 추가 ###
 
+# Sibling AW149 workspace: sources/providers tracked, outputs rebuilt locally.
+planning_ws/build_isolated/
+planning_ws/devel_isolated/
+planning_ws/install_isolated/
+planning_ws/logs/
+planning_ws/.catkin_workspace
+planning_ws/external/install/
+planning_ws/external/*/build/
+planning_ws/external/*/install/
+
+# Autoware Planning porting harness runtime artifacts
+porting/runs/
+porting/validation_views/
+
+# 로컬 실행·학습·평가 산출물. 구조 설명만 Git으로 관리한다.
+artifacts/*
+!artifacts/README.md
+
 # python 가상환경 폴더
 .venv/
+
+# Codex 에이전트 로컬 상태
+.codex/
 
 # Local VS Code settings
 .vscode/settings.json
@@ -23,7 +44,6 @@ build_external/
 
 docs/external_docs/
 docs/local_notes.md
-artifacts/mvp_validation/
 
 ### 아래는 ros catkin 관련.
 
@@ -44,15 +64,24 @@ base_ws/.catkin_workspace
 .ros/
 *.bag
 *.bag.active
+/rosbags/datasets/base3_online/
+/planner_logs/
+/.catkin_workspace
+
+# Reproducible map comparison renders stay local; scripts and text reports are tracked.
+/kcity_map/docs/*comparison.png
 
 
 
-# Trajectory generator: keep the shared default, ignore local experiments.
+# Trajectory generator: sample CSV는 batch 재현을 위해 Git으로 관리한다.
+# 로컬 generator config와 CSV 옆의 생성 metadata JSON만 ignore한다.
 base_ws/src/control/trajectory_generator/config/trajectory_generator.local.yaml
-base_ws/src/control/trajectory_generator/traj_sample/*.csv
+base_ws/src/control/trajectory_generator/traj_sample/*.json
+base_ws/src/control/trajectory_generator/traj_sample/**/*.json
 !base_ws/src/bringup/rviz/kcity_mission_bpp.rviz
 !base_ws/src/bringup/rviz/kcity_interactive_trajectory.rviz
 !base_ws/src/bringup/rviz/kcity_competition_static_path.rviz
+!base_ws/src/localization/localization_manager/rviz/gnss_imu_evaluation.rviz
 !base_ws/src/planning/mission_planner/rviz/mission_route_comparison.rviz
 !base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_lane_following_comparison.rviz
 !base_ws/src/planning/behavior_path_planner/validation/rviz/bpp_lane_change_comparison.rviz
@@ -68,6 +97,7 @@ base_ws/src/control/trajectory_generator/traj_sample/*.csv
 
 # Local machine-specific files
 .env.local
+.env.bevfusion.local
 docs/local_notes.md
 
 ### 아래는 Github initial python .gitignore configs임. 수정 x ###
@@ -290,3 +320,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+*:Zone.Identifier
+/data/morai_4class_v1/
+/outputs/
+/wandb/
+
+# Vendored source lib/ directories are source, not generated Python lib output.
+!/planning_ws/src/autoware_lanelet2_extension/lib/
+!/planning_ws/src/autoware_lanelet2_extension/lib/**
+!/planning_ws/external/*/src/
+!/planning_ws/external/*/src/**
+/planning_ws/external/*/src/**/__pycache__/
+/planning_ws/external/*/src/**/*.pyc

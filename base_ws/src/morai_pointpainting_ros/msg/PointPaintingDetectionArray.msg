@@ -1,0 +1,13 @@
+std_msgs/Header header
+PointPaintingDetection[] detections
+
+float32 camera_age_max_ms
+float32 camera_span_ms
+float32 queue_delay_ms
+float32 segmentation_ms
+float32 painting_ms
+float32 detection_ms
+float32 total_ms
+
+uint32 dropped_lidar_frames
+uint32 skipped_lidar_frames

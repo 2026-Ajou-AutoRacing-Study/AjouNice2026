@@ -6,6 +6,7 @@ import threading
 import numpy as np
 import rospy
 import tf2_ros
+from geometry_msgs.msg import AccelWithCovarianceStamped
 from morai_msgs.msg import EgoVehicleStatus
 from nav_msgs.msg import Odometry
 
@@ -21,12 +22,25 @@ def normalized_frame(frame):
     return frame.lstrip("/")
 
 
+def acceleration_message(ego, base_link_frame):
+    """Convert MORAI's measured vehicle-frame acceleration to Planning input."""
+    output = AccelWithCovarianceStamped()
+    output.header.seq = ego.header.seq
+    output.header.stamp = ego.header.stamp
+    output.header.frame_id = base_link_frame
+    output.accel.accel.linear.x = ego.acceleration.x
+    output.accel.accel.linear.y = ego.acceleration.y
+    output.accel.accel.linear.z = ego.acceleration.z
+    output.accel.covariance = [0.0] * 36
+    return output
+
+
 class MoraiGtKinematicStatePublisher:
-    """Publish the Planning odometry contract from MORAI ground truth.
+    """Publish Planning odometry and acceleration from MORAI ground truth.
 
     ego_tf_broadcaster owns morai_map -> base_link. This node waits until that
     transform is available at the Ego message timestamp, then snapshots the
-    composed map -> base_link pose and copies MORAI's base-link-frame twist.
+    composed map -> base_link pose and copies MORAI's vehicle-frame motion.
     """
 
     def __init__(self):
@@ -38,6 +52,9 @@ class MoraiGtKinematicStatePublisher:
         self.output_topic = param(
             "topics/kinematic_state", "/localization/kinematic_state"
         )
+        self.acceleration_topic = param(
+            "topics/acceleration", "/localization/acceleration"
+        )
         self.tf_timeout = float(param("runtime/tf_lookup_timeout_sec", 0.05))
         self.retry_period = float(
             param("runtime/morai_gt_retry_period_sec", 0.01)
@@ -47,6 +64,11 @@ class MoraiGtKinematicStatePublisher:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.publisher = rospy.Publisher(
             self.output_topic, Odometry, queue_size=50
+        )
+        self.acceleration_publisher = rospy.Publisher(
+            self.acceleration_topic,
+            AccelWithCovarianceStamped,
+            queue_size=50,
         )
 
         self.pending_lock = threading.Lock()
@@ -66,10 +88,12 @@ class MoraiGtKinematicStatePublisher:
         )
 
         rospy.loginfo(
-            "morai_gt_kinematic_state_publisher: %s -> %s; "
-            "pose=%s->%s, twist=base_link frame, covariance is unavailable",
+            "morai_gt_kinematic_state_publisher: %s -> %s, %s; "
+            "pose=%s->%s, twist/acceleration=base_link frame, "
+            "covariance is unavailable",
             self.ego_topic,
             self.output_topic,
+            self.acceleration_topic,
             self.map_frame,
             self.base_link_frame,
         )
@@ -91,6 +115,9 @@ class MoraiGtKinematicStatePublisher:
                 ego.velocity.x,
                 ego.velocity.y,
                 ego.velocity.z,
+                ego.acceleration.x,
+                ego.acceleration.y,
+                ego.acceleration.z,
             ],
             dtype=float,
         )
@@ -184,6 +211,9 @@ class MoraiGtKinematicStatePublisher:
         output.pose.covariance = [0.0] * 36
         output.twist.covariance = [0.0] * 36
         self.publisher.publish(output)
+        self.acceleration_publisher.publish(
+            acceleration_message(ego, self.base_link_frame)
+        )
 
         self.last_published_stamp = stamp
         self.clear_pending_if_same(ego)

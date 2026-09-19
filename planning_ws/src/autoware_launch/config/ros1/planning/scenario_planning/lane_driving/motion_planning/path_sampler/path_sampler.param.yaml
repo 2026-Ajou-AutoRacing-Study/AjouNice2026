@@ -1,0 +1,45 @@
+common/output_delta_arc_length: 0.5
+debug/enable_calculation_time_info: false
+debug/id: 0
+preprocessing/force_zero_initial_deviation: false
+preprocessing/force_zero_initial_heading: false
+preprocessing/smooth_reference_trajectory: false
+constraints/hard/max_curvature: 0.1
+constraints/hard/min_curvature: -0.1
+constraints/hard/min_distance_from_obstacles: 0.5
+constraints/hard/limit_footprint_inside_drivable_area: false
+constraints/soft/lateral_deviation_weight: 1.0
+constraints/soft/length_weight: 1.0
+constraints/soft/curvature_weight: 1.0
+path_reuse/maximum_lateral_deviation: 1.0
+path_reuse/direct_reuse_distance: 2.0
+sampling/enable_frenet: true
+sampling/enable_bezier: true
+sampling/resolution: 0.5
+sampling/previous_path_reuse_points_nb: 2
+sampling/target_lengths:
+- 10.0
+- 20.0
+sampling/nb_target_lateral_positions: 0
+sampling/target_lateral_positions:
+- -2.0
+- -1.5
+- -1.0
+- -0.5
+- 0.0
+- 0.5
+- 1.0
+- 1.5
+- 2.0
+sampling/frenet/target_lateral_velocities:
+- -0.1
+- 0.0
+- 0.1
+sampling/frenet/target_lateral_accelerations:
+- 0.0
+sampling/bezier/nb_k: 3
+sampling/bezier/mk_min: 0.0
+sampling/bezier/mk_max: 10.0
+sampling/bezier/nb_t: 5
+sampling/bezier/mt_min: 0.3
+sampling/bezier/mt_max: 1.7

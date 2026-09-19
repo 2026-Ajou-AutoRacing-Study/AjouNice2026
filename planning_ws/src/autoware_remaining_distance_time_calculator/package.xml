@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_remaining_distance_time_calculator</name><version>0.0.0</version>
+  <description>Candidate ROS1 mission remaining-distance/time calculator.</description>
+  <maintainer email="noreply@example.com">Autoware2ros1</maintainer><license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>autoware_internal_msgs</depend><depend>autoware_internal_planning_msgs</depend>
+  <depend>autoware_lanelet2_utils</depend><depend>autoware_map_msgs</depend>
+  <depend>autoware_planning_msgs</depend><depend>autoware_route_handler</depend>
+  <depend>geometry_msgs</depend><depend>nav_msgs</depend><depend>roscpp</depend>
+  <build_depend>autoware_test_utils</build_depend>
+</package>

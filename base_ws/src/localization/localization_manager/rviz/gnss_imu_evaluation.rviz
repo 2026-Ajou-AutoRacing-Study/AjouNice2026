@@ -1,0 +1,369 @@
+Panels:
+  - Class: rviz/Displays
+    Help Height: 70
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Threshold violations1
+      Splitter Ratio: 0.5
+    Tree Height: 559
+  - Class: rviz/Views
+    Expanded:
+      - /Current View1
+    Name: Views
+    Splitter Ratio: 0.5
+Preferences:
+  PromptSaveOnExit: true
+Toolbars:
+  toolButtonStyle: 2
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.5
+      Cell Size: 10
+      Class: rviz/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
+      Name: Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 100
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Alpha: 0.800000011920929
+      Class: rviz/RobotModel
+      Collision Enabled: true
+      Enabled: true
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+      Name: Vehicle
+      Robot Description: robot_description
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Class: rviz/TF
+      Enabled: true
+      Filter (blacklist): ""
+      Filter (whitelist): ""
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+        base_link:
+          Value: true
+        camera_back:
+          Value: true
+        camera_front:
+          Value: true
+        camera_front_left:
+          Value: true
+        camera_front_right:
+          Value: true
+        lanelet_ground:
+          Value: true
+        lidar1:
+          Value: true
+        map:
+          Value: true
+      Marker Alpha: 1
+      Marker Scale: 1
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Tree:
+        base_link:
+          camera_back:
+            {}
+          camera_front:
+            {}
+          camera_front_left:
+            {}
+          camera_front_right:
+            {}
+          lidar1:
+            {}
+        map:
+          lanelet_ground:
+            {}
+      Update Interval: 0
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: Intensity
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: LiDAR1
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.10000000149011612
+      Style: Flat Squares
+      Topic: /sensor/lidar1
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /map/lanelet_map
+      Name: Lanelet Map
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: false
+      Marker Topic: /map/morai_map
+      Name: MGeo Overlay
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: false
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /localization/debug/state_markers
+      Name: Vehicle Speed and Twist
+      Namespaces:
+        {}
+      Queue Size: 10
+      Value: true
+    - Angle Tolerance: 0.10000000149011612
+      Class: rviz/Odometry
+      Covariance:
+        Orientation:
+          Alpha: 0.3499999940395355
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: false
+        Position:
+          Alpha: 0.25
+          Color: 204; 51; 204
+          Scale: 1
+          Value: false
+        Value: false
+      Enabled: false
+      Keep: 2000
+      Name: Localization Odometry
+      Position Tolerance: 0.5
+      Queue Size: 20
+      Shape:
+        Alpha: 0.800000011920929
+        Axes Length: 0.800000011920929
+        Axes Radius: 0.07999999821186066
+        Color: 255; 170; 0
+        Head Length: 0.25
+        Head Radius: 0.07999999821186066
+        Shaft Length: 0.800000011920929
+        Shaft Radius: 0.03999999910593033
+        Value: Arrow
+      Topic: /localization/kinematic_state
+      Unreliable: false
+      Value: false
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 0; 255; 0
+      Enabled: true
+      Head Diameter: 0.30000001192092896
+      Head Length: 0.20000000298023224
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.07999999821186066
+      Name: MORAI GT path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Queue Size: 10
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.10000000149011612
+      Shaft Length: 0.10000000149011612
+      Topic: /localization_state_eval/ego_path
+      Unreliable: false
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 0; 118; 201
+      Enabled: true
+      Head Diameter: 0.30000001192092896
+      Head Length: 0.20000000298023224
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.07999999821186066
+      Name: GNSS IMU estimated path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Queue Size: 10
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.10000000149011612
+      Shaft Length: 0.10000000149011612
+      Topic: /localization_state_eval/state_aligned_path
+      Unreliable: false
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: false
+      Marker Topic: /localization_state_eval/error_markers
+      Name: Threshold violations
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: false
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /localization/minimap/image
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Global Minimap
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: true
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /sensor/camera/front
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Front Camera
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: compressed
+      Unreliable: false
+      Value: true
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /sensor/camera/front_left
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Front Left Camera
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: compressed
+      Unreliable: false
+      Value: true
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /sensor/camera/front_right
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Front Right Camera
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: compressed
+      Unreliable: false
+      Value: true
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /sensor/camera/back
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Rear Camera
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: compressed
+      Unreliable: false
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Default Light: true
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+      Hide Inactive Objects: true
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
+    - Class: rviz/FocusCamera
+    - Class: rviz/Measure
+  Value: true
+  Views:
+    Current:
+      Class: rviz/Orbit
+      Distance: 44.33283233642578
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Field of View: 0.7853981852531433
+      Focal Point:
+        X: 0.1707950234413147
+        Y: -0.6993982195854187
+        Z: 3.009549856185913
+      Focal Shape Fixed Size: false
+      Focal Shape Size: 0.05000000074505806
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 0.565399169921875
+      Target Frame: base_link
+      Yaw: 6.210415840148926
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Front Camera:
+    collapsed: false
+  Front Left Camera:
+    collapsed: false
+  Front Right Camera:
+    collapsed: false
+  Global Minimap:
+    collapsed: false
+  Height: 1016
+  Hide Left Dock: false
+  Hide Right Dock: false
+  QMainWindow State: 000000ff00000000fd000000020000000000000156000002b2fc0200000001fb000000100044006900730070006c0061007900730100000129000002b2000000c900ffffff0000000200000738000000e6fc0100000006fb0000000a0056006900650077007301000000000000016a0000010000fffffffb0000001c0047006c006f00620061006c0020004d0069006e0069006d0061007001000001700000011c000000b700fffffffb0000002200460072006f006e00740020004c006500660074002000430061006d00650072006101000002920000011f000000c800fffffffb0000001800460072006f006e0074002000430061006d00650072006101000003b700000128000000a900fffffffb0000002400460072006f006e0074002000520069006700680074002000430061006d00650072006101000004e500000126000000d100fffffffb000000160052006500610072002000430061006d006500720061010000061100000127000000a300ffffff000005dc000002b200000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Rear Camera:
+    collapsed: false
+  Views:
+    collapsed: false
+  Width: 1848
+  X: 72
+  Y: 27

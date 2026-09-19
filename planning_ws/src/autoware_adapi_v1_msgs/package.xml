@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_adapi_v1_msgs</name>
+  <version>1.8.0</version>
+  <description>ROS1 render of Autoware ADAPI v1 interfaces with Option A boundary validator API.</description>
+  <maintainer email="porting@example.com">AW149 porting</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_generation</build_depend>
+  <exec_depend>message_runtime</exec_depend>
+  <build_depend>builtin_interfaces</build_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+  <build_depend>geographic_msgs</build_depend>
+  <exec_depend>geographic_msgs</exec_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <build_depend>shape_msgs</build_depend>
+  <exec_depend>shape_msgs</exec_depend>
+  <build_depend>std_msgs</build_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <build_depend>unique_identifier_msgs</build_depend>
+  <exec_depend>unique_identifier_msgs</exec_depend>
+  <test_depend>gtest</test_depend>
+</package>

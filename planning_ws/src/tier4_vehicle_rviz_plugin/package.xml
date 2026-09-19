@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>tier4_vehicle_rviz_plugin</name>
+  <version>0.51.0</version>
+  <description>ROS1 candidate for the Tier IV vehicle RViz displays.</description>
+  <maintainer email="porting@example.invalid">Autoware2ros1 porting</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>autoware_utils</build_depend>
+  <build_depend>autoware_vehicle_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>pluginlib</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>rviz</build_depend>
+  <build_export_depend>autoware_vehicle_msgs</build_export_depend>
+  <build_export_depend>autoware_utils</build_export_depend>
+  <build_export_depend>geometry_msgs</build_export_depend>
+  <build_export_depend>pluginlib</build_export_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <build_export_depend>rviz</build_export_depend>
+  <exec_depend>autoware_vehicle_msgs</exec_depend>
+  <exec_depend>autoware_utils</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>pluginlib</exec_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>rviz</exec_depend>
+  <export>
+    <rviz plugin="${prefix}/plugins/plugin_description.xml"/>
+  </export>
+</package>

@@ -1,0 +1,20 @@
+# Runtime sensor config: configs/sensors/Sensor.json
+# 260801 기준 최신 원본: configs/sensors/Sensor_6.json
+# GT-assisted CTRA-like measurement uncertainty for noise-disabled MORAI.
+# Values are standard deviations; adapter nodes publish their squares.
+profile_name: sensor6_gt_ideal
+source_sensor_config: Sensor.json
+
+imu:
+  # IMU orientation is normalized but not fused by the GT CTRA EKF.
+  orientation_stddev_rad: 0.001745329252
+  angular_velocity_stddev_radps: 0.001
+  linear_acceleration_stddev_mps2: 0.05
+
+gnss:
+  horizontal_stddev_m: 0.10
+  vertical_stddev_m: 1.0
+
+gt:
+  heading_stddev_rad: 0.001745329252
+  longitudinal_velocity_stddev_mps: 0.01

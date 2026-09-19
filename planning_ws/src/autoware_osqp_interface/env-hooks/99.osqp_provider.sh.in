@@ -1,0 +1,4 @@
+# Generated from the provider location resolved by CMake.  This is deliberately
+# package-scoped: it makes the v17 OSQP runtime dependency explicit for every
+# shell that sources this package's install space.
+export LD_LIBRARY_PATH="@OSQP_LIBRARY_DIR@${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"

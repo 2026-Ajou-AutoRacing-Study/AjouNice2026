@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_vehicle_info_utils</name>
+  <version>1.8.0</version>
+  <description>ROS1 port candidate for Autoware vehicle geometry and strict parameter loading.</description>
+  <maintainer email="porting@example.invalid">AW149 porting</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>autoware_utils_geometry</build_depend>
+  <build_depend>eigen</build_depend>
+  <build_depend>rostest</build_depend>
+  <build_export_depend>eigen</build_export_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>autoware_utils_geometry</exec_depend>
+  <exec_depend>eigen</exec_depend>
+  <test_depend>rostest</test_depend>
+</package>

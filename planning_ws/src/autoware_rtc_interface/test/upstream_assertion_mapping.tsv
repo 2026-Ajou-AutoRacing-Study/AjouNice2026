@@ -1,0 +1,13 @@
+source_assertion_range	candidate_test	mechanical_ros1_spelling
+57-68	uuid_to_string:no_registered_uuid	rclcpp::Time/Node replaced by ros::Time/ros::NodeHandle; query EXPECTs retained
+70-78	uuid_to_string:waiting_registration	State and query EXPECTs retained
+80-82	uuid_to_string:remove_registered	remove/query EXPECT retained
+84-91	uuid_to_string:invalid_initial_failed	update/query EXPECTs retained
+93-106	uuid_to_string:force_activated	msg namespace spelling and friend accessor replaced; EXPECTs retained
+108-115	uuid_to_string:succeeded	State/query EXPECTs retained
+117-120	uuid_to_string:clear	clear/query EXPECTs retained
+122-133	uuid_to_string:force_deactivated	msg namespace spelling and friend accessor replaced; EXPECTs retained
+135-142	uuid_to_string:aborting	State/query EXPECTs retained
+144-151	uuid_to_string:failed	State/query EXPECTs retained
+155-165	uuid_to_string:requested_running	State/query EXPECTs retained
+167-175	uuid_to_string:requested_command_activate	msg namespace spelling and friend accessor replaced; EXPECTs retained

@@ -1,0 +1,34 @@
+# Load after robot_localization_gnss_imu_global.yaml.
+# Global EKF retains GNSS x/y and adds the same GT-assisted motion inputs.
+# Publish the final filtered acceleration on accel/filtered. The launch file
+# remaps it to /localization/acceleration.
+publish_acceleration: true
+
+imu0_config: [false, false, false,
+              false, false, false,
+              false, false, false,
+              false, false, true,
+              true,  false, false]
+
+imu1: /localization/gt/orientation
+imu1_config: [false, false, false,
+              false, false, true,
+              false, false, false,
+              false, false, false,
+              false, false, false]
+imu1_queue_size: 100
+imu1_nodelay: true
+imu1_differential: false
+imu1_relative: false
+imu1_remove_gravitational_acceleration: false
+
+twist0: /localization/gt/twist
+twist0_config: [false, false, false,
+                false, false, false,
+                true,  false, false,
+                false, false, false,
+                false, false, false]
+twist0_queue_size: 100
+twist0_nodelay: true
+twist0_differential: false
+twist0_relative: false

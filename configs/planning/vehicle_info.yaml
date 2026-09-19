@@ -1,0 +1,18 @@
+# IONIQ 5 Planning footprint in the rear-axle-center base_link convention.
+# Longitudinal/body values: base_ws/src/vehicle/meshes/ioniq5/
+#   ioniq5_mesh_measurements.json target_dimensions_m.
+# wheel_tread uses the rear track because base_link is the rear axle center.
+# left/right overhang split the 1.890 m body width symmetrically; mirrors are
+# intentionally excluded. max_steer_angle preserves the controller's current
+# 40 degree tire-angle contract. Confirm track, tire width, and steer limit on
+# the competition vehicle before closed-loop approval.
+wheel_radius: 0.3705
+wheel_width: 0.235
+wheel_base: 3.000
+wheel_tread: 1.651
+front_overhang: 0.845
+rear_overhang: 0.790
+left_overhang: 0.1195
+right_overhang: 0.1195
+vehicle_height: 1.600
+max_steer_angle: 0.6981317007977318

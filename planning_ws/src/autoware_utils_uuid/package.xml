@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_utils_uuid</name>
+  <version>1.8.0</version>
+  <description>The autoware_utils_uuid package</description>
+  <maintainer email="egon.kang@autocore.ai">Jian Kang</maintainer>
+  <maintainer email="ryohsuke.mitsudome@tier4.jp">Ryohsuke Mitsudome</maintainer>
+  <maintainer email="esteve.fernandez@tier4.jp">Esteve Fernandez</maintainer>
+  <maintainer email="yutaka.kondo@tier4.jp">Yutaka Kondo</maintainer>
+  <maintainer email="isamu.takagi@tier4.jp">Takagi, Isamu</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>libboost-system-dev</depend>
+  <depend>unique_identifier_msgs</depend>
+
+  <export>
+    <build_type>catkin</build_type>
+  </export>
+</package>

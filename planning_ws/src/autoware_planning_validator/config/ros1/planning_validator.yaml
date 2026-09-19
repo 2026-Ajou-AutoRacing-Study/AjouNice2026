@@ -1,0 +1,9 @@
+planning_hz: 10.0
+default_handling_type: 0
+publish_diag: true
+diag_error_count_threshold: 0
+display_on_terminal: true
+soft_stop_deceleration: -1.0
+soft_stop_jerk_lim: 0.3
+th_traffic_light_timeout: 0.5
+require_obstacle_pointcloud: true

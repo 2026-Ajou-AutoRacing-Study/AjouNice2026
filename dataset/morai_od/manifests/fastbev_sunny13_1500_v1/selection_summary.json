@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "dataset_id": "fastbev_sunny13_1500_v1",
+  "source_capture_root": "/home/luv/morai_cap/sunny13_600_production_v6_260809_063924",
+  "source_completed_scenes": 286,
+  "quality_candidates": 255,
+  "quality_rejected_scenes": 31,
+  "selected_scenes": 250,
+  "selected_frames": 1500,
+  "split_scenes": {
+    "train": 175,
+    "val": 38,
+    "test": 37
+  },
+  "split_frames": {
+    "train": 1050,
+    "val": 228,
+    "test": 222
+  },
+  "class_instances": {
+    "pedestrian": 5302,
+    "obstacle": 2323,
+    "vehicle": 3299
+  },
+  "selection_seed": 260811,
+  "selected_strata": {
+    "camera_seam_occlusion::curve": 24,
+    "mixed_vehicle_pedestrian::intersection": 53,
+    "obstacle_context::roadside_parking_clutter": 45,
+    "pedestrian_centric::crosswalk": 97,
+    "vehicle_centric::straight": 31
+  },
+  "calibration_validation": {
+    "bbox_corner_reprojection_px": {
+      "count": 122853,
+      "mean": 0.0005635996750463439,
+      "p95": 0.001880464904210964,
+      "p99": 0.004413567523883591,
+      "max": 0.48006592074091003
+    },
+    "camera_to_lidar_matched_center_m": {
+      "count": 15370,
+      "mean": 0.00030660910272603,
+      "p95": 0.0016110670872372945,
+      "max": 0.0040814993315714055
+    },
+    "pass": true
+  }
+}

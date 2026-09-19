@@ -1,0 +1,12 @@
+<class_libraries>
+  <library path="libautoware_behavior_velocity_speed_bump_module_normal">
+    <class name="autoware::behavior_velocity_planner::SpeedBumpModulePlugin"
+      type="autoware::behavior_velocity_planner::SpeedBumpModulePlugin"
+      base_class_type="autoware::behavior_velocity_planner::PluginInterface" />
+  </library>
+  <library path="libautoware_behavior_velocity_speed_bump_module">
+    <class name="autoware::behavior_velocity_planner::experimental::SpeedBumpModulePlugin"
+      type="autoware::behavior_velocity_planner::experimental::SpeedBumpModulePlugin"
+      base_class_type="autoware::behavior_velocity_planner::experimental::PluginInterface" />
+  </library>
+</class_libraries>

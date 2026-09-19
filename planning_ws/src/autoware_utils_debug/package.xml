@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_utils_debug</name>
+  <version>1.8.0</version>
+  <description>ROS1 implementation candidate for Autoware debug utilities.</description>
+  <maintainer email="egon.kang@autocore.ai">Jian Kang</maintainer>
+  <license>Apache License 2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>autoware_internal_debug_msgs</depend>
+  <depend>autoware_internal_msgs</depend>
+  <depend>autoware_utils_system</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <test_depend>gtest</test_depend>
+  <export><build_type>catkin</build_type></export>
+</package>

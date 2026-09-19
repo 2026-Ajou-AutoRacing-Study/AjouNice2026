@@ -1,17 +1,26 @@
 <launch>
   <!-- Top-level host launch for MORAI four-camera BEVFusion visualization. -->
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(find bringup)/../../../configs/sensors/Sensor_4.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
   <arg name="config"
-       default="$(find bringup)/../../../configs/perception/bevfusion_sensor4.yaml"/>
+       default="$(arg repo_root)/configs/perception/bevfusion_sensor4.yaml"/>
   <arg name="projection_only" default="false"/>
   <arg name="start_rviz" default="true"/>
+  <arg name="score_threshold" default="0.10"/>
+  <arg name="vehicle_score_threshold" default="0.40"/>
+  <arg name="pedestrian_score_threshold" default="0.15"/>
+  <arg name="obstacle_score_threshold" default="0.10"/>
 
   <group if="$(arg projection_only)">
     <include file="$(find bevfusion_ros)/launch/projection_check.launch">
       <arg name="sensor_config" value="$(arg sensor_config)"/>
       <arg name="config" value="$(arg config)"/>
       <arg name="start_rviz" value="$(arg start_rviz)"/>
+      <arg name="score_threshold" value="$(arg score_threshold)"/>
+      <arg name="vehicle_score_threshold" value="$(arg vehicle_score_threshold)"/>
+      <arg name="pedestrian_score_threshold" value="$(arg pedestrian_score_threshold)"/>
+      <arg name="obstacle_score_threshold" value="$(arg obstacle_score_threshold)"/>
     </include>
   </group>
   <group unless="$(arg projection_only)">
@@ -22,4 +31,3 @@
     </include>
   </group>
 </launch>
-

@@ -1,0 +1,40 @@
+cmake_minimum_required(VERSION 3.14)
+project(autoware_behavior_velocity_no_stopping_area_module)
+set(CMAKE_CXX_STANDARD 17)
+find_package(catkin REQUIRED COMPONENTS autoware_route_handler autoware_behavior_velocity_planner_common autoware_behavior_velocity_rtc_interface autoware_internal_planning_msgs autoware_interpolation autoware_lanelet2_extension autoware_motion_utils autoware_objects_of_interest_marker_interface autoware_perception_msgs autoware_planning_msgs autoware_rtc_interface autoware_test_utils autoware_trajectory autoware_utils autoware_utils_rclcpp autoware_vehicle_info_utils geometry_msgs pluginlib roscpp tier4_planning_msgs visualization_msgs)
+find_package(fmt REQUIRED)
+catkin_package(INCLUDE_DIRS include LIBRARIES ${PROJECT_NAME} CATKIN_DEPENDS autoware_route_handler autoware_behavior_velocity_planner_common autoware_behavior_velocity_rtc_interface autoware_internal_planning_msgs autoware_interpolation autoware_lanelet2_extension autoware_motion_utils autoware_objects_of_interest_marker_interface autoware_perception_msgs autoware_planning_msgs autoware_rtc_interface autoware_test_utils autoware_trajectory autoware_utils autoware_utils_rclcpp autoware_vehicle_info_utils geometry_msgs pluginlib roscpp tier4_planning_msgs visualization_msgs)
+add_library(${PROJECT_NAME} SHARED
+  src/debug.cpp
+  src/experimental/manager.cpp
+  src/experimental/scene_no_stopping_area.cpp
+  src/manager.cpp
+  src/scene_no_stopping_area.cpp
+  src/utils.cpp)
+target_include_directories(${PROJECT_NAME} BEFORE PUBLIC include src ${catkin_INCLUDE_DIRS})
+target_compile_options(${PROJECT_NAME} PRIVATE -fmax-errors=5 -include ${CMAKE_CURRENT_SOURCE_DIR}/include/autoware/behavior_velocity_no_stopping_area_module/ros1_support.hpp)
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} fmt::fmt)
+target_link_options(${PROJECT_NAME} PRIVATE -Wl,--no-undefined)
+install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION})
+install(DIRECTORY include/ DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION})
+install(DIRECTORY config DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+install(FILES plugins.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_original_utils test/test_original_utils.cpp)
+  if(TARGET test_original_utils)
+    target_include_directories(test_original_utils BEFORE PRIVATE include src ${catkin_INCLUDE_DIRS})
+    target_compile_options(test_original_utils PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/include/autoware/behavior_velocity_no_stopping_area_module/ros1_support.hpp)
+    target_link_libraries(test_original_utils ${PROJECT_NAME} ${catkin_LIBRARIES} fmt::fmt)
+  endif()
+endif()
+
+if(CATKIN_ENABLE_TESTING)
+  foreach(test test_full_scene test_full_plugins)
+    catkin_add_gtest(${test} test/${test}.cpp)
+    if(TARGET ${test})
+      target_include_directories(${test} BEFORE PRIVATE include src ${catkin_INCLUDE_DIRS})
+      target_compile_options(${test} PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/include/autoware/behavior_velocity_no_stopping_area_module/ros1_support.hpp)
+      target_link_libraries(${test} ${PROJECT_NAME} ${catkin_LIBRARIES} fmt::fmt)
+    endif()
+  endforeach()
+endif()

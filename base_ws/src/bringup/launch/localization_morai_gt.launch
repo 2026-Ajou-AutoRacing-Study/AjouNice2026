@@ -1,33 +1,40 @@
 <launch>
   <!--
-    MORAI ground-truth localization stack.
+    Legacy/local-development MORAI ground-truth localization stack.
+
+    This requires /Ego_topic and is not a competition fallback. Competition
+    operation uses localization_gnss_imu_gt_ctra.launch with
+    gt_source:=competition.
 
     TF output:
       map -> morai_map -> base_link
 
     Planning output:
       /localization/kinematic_state (map -> base_link pose, base_link twist)
+      /localization/acceleration (base_link linear acceleration)
 
     Do not run localization_fast_lio.launch, maptf.launch, or
     maptf_morai_deg_correction.launch at the same time. MORAI bridge and
     sensing are intentionally launched separately.
   -->
   <arg name="use_sim_time" default="false"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="localization_manager_config"
-       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+       default="$(arg repo_root)/configs/localization/localization_manager.yaml"/>
 
   <arg name="ego_topic" default="/Ego_topic"/>
+  <arg name="acceleration_topic" default="/localization/acceleration"/>
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
   <arg name="base_frame" default="base_link"/>
   <arg name="heading_in_degrees" default="true"/>
   <arg name="use_heading_correction" default="false"/>
-  <arg name="heading_yaw_offset_deg" default="-1.37"/>
-  <arg name="start_lanelet_map" default="true"/>
+  <arg name="heading_yaw_offset_deg" default="-1.347"/>
+  <arg name="start_lanelet_map" default="false"/>
   <arg name="map_file"
-       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/lanelet2_map_v45.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v84.osm"/>
   <arg name="projector_file"
-       default="$(find lanelet_map_visualizer)/../../../kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="map_projector_type" default="LocalCartesianUTM"/>
 
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
@@ -40,6 +47,7 @@
   <include file="$(find localization_manager)/launch/morai_gt.launch">
     <arg name="config" value="$(arg localization_manager_config)"/>
     <arg name="ego_topic" value="$(arg ego_topic)"/>
+    <arg name="acceleration_topic" value="$(arg acceleration_topic)"/>
     <arg name="map_frame" value="$(arg map_frame)"/>
     <arg name="morai_map_frame" value="$(arg morai_map_frame)"/>
     <arg name="base_frame" value="$(arg base_frame)"/>

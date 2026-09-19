@@ -75,8 +75,9 @@ def point_from_xyz(x, y, z):
     return p
 
 
-def point_from_list(values, z_offset=0.0):
-    return point_from_xyz(values[0], values[1], values[2] + z_offset)
+def point_from_list(values, z_offset=0.0, flatten_z=False):
+    source_z = 0.0 if flatten_z else values[2]
+    return point_from_xyz(values[0], values[1], source_z + z_offset)
 
 
 def marker_base(frame_id, namespace, marker_id, marker_type, scale, marker_color):
@@ -143,7 +144,7 @@ def endpoint_direction(points, distance):
     return None
 
 
-def append_width_edges(marker, points, width_start, width_end, z_offset):
+def append_width_edges(marker, points, width_start, width_end, z_offset, flatten_z=False):
     if len(points) < 2:
         return 0
     count = 0
@@ -164,10 +165,20 @@ def append_width_edges(marker, points, width_start, width_end, z_offset):
         t1 = (i + 1) / denom
         w0 = width_start + (width_end - width_start) * t0
         w1 = width_start + (width_end - width_start) * t1
-        left_a = point_from_xyz(a[0] + nx * w0 * 0.5, a[1] + ny * w0 * 0.5, a[2] + z_offset)
-        left_b = point_from_xyz(b[0] + nx * w1 * 0.5, b[1] + ny * w1 * 0.5, b[2] + z_offset)
-        right_a = point_from_xyz(a[0] - nx * w0 * 0.5, a[1] - ny * w0 * 0.5, a[2] + z_offset)
-        right_b = point_from_xyz(b[0] - nx * w1 * 0.5, b[1] - ny * w1 * 0.5, b[2] + z_offset)
+        source_z_a = 0.0 if flatten_z else a[2]
+        source_z_b = 0.0 if flatten_z else b[2]
+        left_a = point_from_xyz(
+            a[0] + nx * w0 * 0.5, a[1] + ny * w0 * 0.5, source_z_a + z_offset
+        )
+        left_b = point_from_xyz(
+            b[0] + nx * w1 * 0.5, b[1] + ny * w1 * 0.5, source_z_b + z_offset
+        )
+        right_a = point_from_xyz(
+            a[0] - nx * w0 * 0.5, a[1] - ny * w0 * 0.5, source_z_a + z_offset
+        )
+        right_b = point_from_xyz(
+            b[0] - nx * w1 * 0.5, b[1] - ny * w1 * 0.5, source_z_b + z_offset
+        )
         marker.points.extend([left_a, left_b, right_a, right_b])
         count += 2
     return count
@@ -211,6 +222,7 @@ def make_mgeo_markers(global_info, nodes, links, params, paths):
     alpha = clamp(float(params["alpha"]), 0.0, 1.0)
     frame_id = params["frame_id"]
     z_offset = float(params["z_offset"])
+    flatten_z = bool(params["flatten_z"])
     line_width = float(params["line_width"])
     width_line_width = float(params["width_line_width"])
     node_scale = float(params["node_scale"])
@@ -312,7 +324,7 @@ def make_mgeo_markers(global_info, nodes, links, params, paths):
     )
 
     for node in nodes:
-        point = point_from_list(node["point"], z_offset)
+        point = point_from_list(node["point"], z_offset, flatten_z)
         if params["show_nodes"]:
             all_nodes.points.append(point)
         if params["show_stop_nodes"] and node.get("on_stop_line"):
@@ -346,7 +358,9 @@ def make_mgeo_markers(global_info, nodes, links, params, paths):
         if link.get("to_node_idx") not in node_by_id:
             stats["dangling_to_nodes"] += 1
 
-        marker_points = [point_from_list(point, z_offset) for point in points]
+        marker_points = [
+            point_from_list(point, z_offset, flatten_z) for point in points
+        ]
         stats["link_segments"] += append_line_segments(centerlines, marker_points)
         if params["show_width_edges"] and points:
             stats["inferred_width_edge_segments"] += append_width_edges(
@@ -355,6 +369,7 @@ def make_mgeo_markers(global_info, nodes, links, params, paths):
                 link.get("width_start", 0.0),
                 link.get("width_end", 0.0),
                 z_offset + 0.04,
+                flatten_z,
             )
 
         lane_change_path = normalize_path_points(link.get("lane_ch_link_path"))
@@ -370,7 +385,10 @@ def make_mgeo_markers(global_info, nodes, links, params, paths):
                 if right_id not in link_by_id:
                     stats["dangling_lane_change_targets"] += 1
             if lane_change_path:
-                marker_points = [point_from_list(point, z_offset + 0.08) for point in lane_change_path]
+                marker_points = [
+                    point_from_list(point, z_offset + 0.08, flatten_z)
+                    for point in lane_change_path
+                ]
                 if left_id:
                     stats["lane_change_path_segments"] += append_line_segments(lane_change_left, marker_points)
                 elif right_id:
@@ -389,8 +407,8 @@ def make_mgeo_markers(global_info, nodes, links, params, paths):
                         frame_id,
                         "mgeo_signal_%s" % signal,
                         marker_id,
-                        point_from_list(start_raw, z_offset + 0.16),
-                        point_from_list(points[-1], z_offset + 0.16),
+                        point_from_list(start_raw, z_offset + 0.16, flatten_z),
+                        point_from_list(points[-1], z_offset + 0.16, flatten_z),
                         line_width * 1.8,
                         line_width * 4.0,
                         line_width * 6.0,
@@ -600,6 +618,7 @@ def main():
         "frame_id": rospy.get_param("~frame_id", "morai_map"),
         "output_topic": rospy.get_param("~output_topic", "/map/morai_map"),
         "publish_rate": float(rospy.get_param("~publish_rate", 0.0)),
+        "flatten_z": as_bool(rospy.get_param("~flatten_z", False)),
         "alpha": float(rospy.get_param("~alpha", 0.85)),
         "z_offset": float(rospy.get_param("~z_offset", 0.08)),
         "line_width": float(rospy.get_param("~line_width", 0.16)),

@@ -1,0 +1,198 @@
+// Copyright 2020-2024 Tier IV, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/*
+ *  Copyright (c) 2018, Nagoya University
+ *  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions are met:
+ *
+ *  * Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ *
+ *  * Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ *  * Neither the name of Autoware nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ *  FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ *  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ *  SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ *  OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ ********************/
+
+#ifndef AUTOWARE__COSTMAP_GENERATOR__COSTMAP_GENERATOR_HPP_
+#define AUTOWARE__COSTMAP_GENERATOR__COSTMAP_GENERATOR_HPP_
+
+#include "autoware/costmap_generator/utils/objects_to_costmap.hpp"
+#include "autoware/costmap_generator/utils/points_to_costmap.hpp"
+#include "costmap_generator_node_parameters.hpp"
+
+#include <mutex>
+#include <stdexcept>
+#include <autoware_utils/ros/processing_time_publisher.hpp>
+#include <autoware_utils/system/stop_watch.hpp>
+#include <autoware_utils/system/time_keeper.hpp>
+#include <grid_map_ros/GridMapRosConverter.hpp>
+#include <grid_map_ros/grid_map_ros.hpp>
+#include <ros/ros.h>
+
+#include <autoware_internal_debug_msgs/Float64Stamped.h>
+#include <autoware_internal_planning_msgs/Scenario.h>
+#include <autoware_map_msgs/LaneletMapBin.h>
+#include <autoware_perception_msgs/PredictedObjects.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
+#include <grid_map_msgs/GridMap.h>
+#include <lanelet2_core/LaneletMap.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+
+#include <memory>
+#include <vector>
+
+class TestCostmapGenerator;
+
+namespace autoware::costmap_generator
+{
+using autoware_perception_msgs::PredictedObjects;
+
+class CostmapGenerator
+{
+public:
+  explicit CostmapGenerator(const ros::NodeHandle & private_node);
+
+private:
+  std::shared_ptr<::costmap_generator_node::Params> param_;
+  geometry_msgs::PoseStamped::ConstPtr current_pose_;
+
+  lanelet::LaneletMapPtr lanelet_map_;
+  PredictedObjects::ConstPtr objects_;
+  sensor_msgs::PointCloud2::ConstPtr points_;
+
+  grid_map::GridMap costmap_;
+  std::shared_ptr<autoware_utils::TimeKeeper> time_keeper_;
+
+  ros::Publisher pub_costmap_;
+  ros::Publisher pub_occupancy_grid_;
+  ros::Publisher pub_processing_time_;
+  ros::Publisher pub_processing_time_ms_;
+
+  ros::Subscriber sub_lanelet_bin_map_;
+  ros::NodeHandle pnh_;
+  ros::Subscriber sub_points_, sub_objects_, sub_scenario_;
+  sensor_msgs::PointCloud2::ConstPtr pending_points_;
+  PredictedObjects::ConstPtr pending_objects_;
+  autoware_internal_planning_msgs::Scenario::ConstPtr pending_scenario_;
+  ros::Timer timer_;
+  std::recursive_mutex callback_mutex_;
+
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_;
+
+  std::vector<geometry_msgs::Polygon> primitives_polygons_;
+
+  PointsToCostmap points2costmap_{};
+  ObjectsToCostmap objects2costmap_;
+
+  autoware_internal_planning_msgs::Scenario::ConstPtr scenario_;
+
+  struct LayerName
+  {
+    static constexpr const char * objects = "objects";
+    static constexpr const char * points = "points";
+    static constexpr const char * primitives = "primitives";
+    static constexpr const char * combined = "combined";
+  };
+
+  /// \brief wait for lanelet2 map to load and build routing graph
+  void initLaneletMap();
+
+  /// \brief callback for loading lanelet2 map
+  void onLaneletMapBin(const autoware_map_msgs::LaneletMapBin::ConstPtr msg);
+
+  void update_data();
+
+  void set_current_pose();
+
+  /// \brief set position of grid center
+  /// \details computes relative position of ego from current grid center,
+  /// if offset is larger than grid resolution, grid center will be updated
+  /// by a multiple of the grid resolution
+  /// \param[in] tf costmap frame to vehicle frame transform
+  void set_grid_center(const geometry_msgs::TransformStamped & tf);
+
+  void onTimer();
+
+  bool isActive();
+
+  /// \brief initialize gridmap parameters based on rosparam
+  void initGridmap();
+
+  /// \brief publish ros msg: grid_map::GridMap, and nav_msgs::OccupancyGrid
+  /// \param[in] gridmap with calculated cost
+  /// \param[in] tf costmap frame to vehicle frame transform
+  void publishCostmap(
+    const grid_map::GridMap & costmap, const geometry_msgs::TransformStamped & tf);
+
+  /// \brief fill a vector with road area polygons
+  /// \param [in] lanelet_map input lanelet map
+  /// \param [out] area_polygons polygon vector to fill
+  static void loadRoadAreasFromLaneletMap(
+    const lanelet::LaneletMapPtr lanelet_map,
+    std::vector<geometry_msgs::Polygon> & area_polygons);
+
+  /// \brief fill a vector with parking-area polygons
+  /// \param [in] lanelet_map input lanelet map
+  /// \param [out] area_polygons polygon vector to fill
+  static void loadParkingAreasFromLaneletMap(
+    const lanelet::LaneletMapPtr lanelet_map,
+    std::vector<geometry_msgs::Polygon> & area_polygons);
+
+  /// \brief calculate cost from pointcloud data
+  /// \param[in] in_points: subscribed pointcloud data
+  /// \param[in] vehicle_to_map_z: z value of the ego vehicle in the costmap frame
+  grid_map::Matrix generatePointsCostmap(
+    const sensor_msgs::PointCloud2::ConstPtr & in_points, const double vehicle_to_map_z);
+
+  /// \brief calculate cost from DynamicObjectArray
+  /// \param[in] in_objects: subscribed DynamicObjectArray
+  grid_map::Matrix generateObjectsCostmap(const PredictedObjects::ConstPtr in_objects);
+
+  /// \brief calculate cost from lanelet2 map
+  grid_map::Matrix generatePrimitivesCostmap();
+
+  /// \brief calculate cost for final output
+  grid_map::Matrix generateCombinedCostmap();
+
+  /// \brief measure processing time
+  autoware_utils::StopWatch<std::chrono::milliseconds> stop_watch;
+
+  friend class ::TestCostmapGenerator;
+};
+}  // namespace autoware::costmap_generator
+
+#endif  // AUTOWARE__COSTMAP_GENERATOR__COSTMAP_GENERATOR_HPP_

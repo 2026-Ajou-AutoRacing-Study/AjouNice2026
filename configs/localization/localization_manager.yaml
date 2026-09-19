@@ -7,8 +7,11 @@ frames:
 
 topics:
   ego: /Ego_topic
+  competition: /Competition_topic
   gps: /sensor/gps
   gnss_fix: /localization/gnss/fix
+  gt_orientation: /localization/gt/orientation
+  gt_twist: /localization/gt/twist
   initial_pose: /localization/initialpose
   fast_lio_odom: /localization/odom
   kinematic_state: /localization/kinematic_state
@@ -37,6 +40,27 @@ providers:
       reject_duplicate_stamps: true
       require_valid_status: true
       max_position_variance_m2: 200.0
+  gnss_imu:
+    initialization:
+      # Development proxy for the competition-provided starting pose.
+      # Switch to manual when the official start-pose interface is available.
+      source: ego  # ego | manual
+      heading_unit: degrees
+      position_stddev_m: 0.1
+      yaw_stddev_rad: 0.017453292519943295
+      manual:
+        frame_id: morai_map
+        position: [0.0, 0.0, 0.0]
+        rpy_degrees: [0.0, 0.0, 0.0]
+  gnss_imu_gt:
+    # Use ego for existing bags. Switch explicitly to competition for the event.
+    source: ego  # ego | competition
+    heading_unit: degrees
+    reject_duplicate_stamps: true
+    # MORAI sample scenario yaw=62.515 deg while the stationary Ego heading at
+    # the exact start pose is 63.862 deg. Disable this if the simulator is fixed.
+    use_heading_correction: true
+    heading_yaw_offset_deg: -1.347
 
 runtime:
   tf_lookup_timeout_sec: 0.05

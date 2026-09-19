@@ -1,0 +1,26 @@
+{
+  "schema": "ajounice.aw149.clean_install_runtime_smoke.v1",
+  "recorded_at": "2026-09-08T17:52:13+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "commit": "0f8753ec3aa471d3d8cefbc0f8fd42111dcc9bdc",
+  "command": "AW149_SMOKE_DURATION_S=25 AW149_SMOKE_MASTER_PORT=11552 scripts/runtime/smoke_planning_stack.sh",
+  "environment": {
+    "planning_underlay": "planning_ws/install_isolated",
+    "base_overlay": "base_ws/install_aw149",
+    "ros_master": "isolated private master",
+    "controller": false,
+    "route_requester": false,
+    "detector": false
+  },
+  "result": "PASS",
+  "duration_s": 25,
+  "required_nodes": {"alive": 24, "expected": 24},
+  "vector_map": {
+    "topic": "/map/vector_map",
+    "type": "autoware_map_msgs/LaneletMapBin",
+    "message_received": true
+  },
+  "unexpected_fatal_lines": 0,
+  "script_sha256": "f9df60a9983acb5d81dc722fa91bf2fb3860c37d419d8ac21ac8e7cfd3953cd2",
+  "claim_boundary": "This proves installed-node startup and v61 binary-map transport without unexpected process death or fatal signatures. No route, ego motion, production perception, occupancy, control feedback, trajectory output, or closed-loop behavior was asserted."
+}

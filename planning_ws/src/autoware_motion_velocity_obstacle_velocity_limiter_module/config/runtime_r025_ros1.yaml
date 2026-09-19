@@ -1,0 +1,36 @@
+min_ttc: 1.0
+distance_buffer: 0.0
+min_adjusted_velocity: 2.5
+max_deceleration: 2.0
+trajectory_preprocessing:
+  start_distance: 0.0
+  max_length: 100.0
+  max_duration: 10.0
+  downsample_factor: 10
+  calculate_steering_angles: false
+simulation:
+  model: particle
+  distance_method: exact
+  steering_offset: 0.01
+  nb_points: 5
+obstacles:
+  dynamic_source: static_only
+  ignore_obstacles_on_path: false
+  ignore_extra_distance: 1.0
+  occupancy_grid_threshold: 60
+  dynamic_obstacles_buffer: 1.5
+  dynamic_obstacles_min_vel: 0.5
+  static_map_tags: [guard_rail]
+  filter_envelope: false
+  rtree_min_points: 500
+  rtree_min_segments: 1600
+wheel_radius: 0.39
+wheel_width: 0.42
+wheel_base: 2.74
+wheel_tread: 1.63
+front_overhang: 1.0
+rear_overhang: 1.03
+left_overhang: 0.1
+right_overhang: 0.1
+vehicle_height: 2.5
+max_steer_angle: 0.70

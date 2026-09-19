@@ -1,0 +1,89 @@
+<launch>
+  <!-- Compatibility entrypoint for the standardized production pipeline. -->
+  <arg name="python_executable" default=""/>
+  <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
+  <arg name="repo_root"
+       default="$(eval find('morai_pointpainting_ros') + '/../../..')"/>
+  <arg name="cfg_file"
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpillar_morai_pointpainting_base2_singleframe9_geom_aug.yaml"/>
+  <arg name="checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpainting_base2_s1_best_epoch38.pth"/>
+  <arg name="segmentation_checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/lraspp_4class_best_miou.pth"/>
+  <arg name="use_sim_time" default="false"/>
+  <arg name="planning_output_topic"
+       default="/perception/object_recognition/objects"/>
+  <arg name="prediction_time_step" default="0.1"/>
+  <arg name="prediction_horizon" default="3.0"/>
+  <arg name="prediction_model" default="ctrv"/>
+  <arg name="publish_painted_points" default="false"/>
+  <arg name="segmentation_short_side" default="384"/>
+  <arg name="segmentation_preprocess_backend" default="torchvision"/>
+  <arg name="camera_cpu_workers" default="4"/>
+  <arg name="score_threshold" default="0.10"/>
+  <arg name="vehicle_score_threshold" default="0.40"/>
+  <arg name="pedestrian_score_threshold" default="0.15"/>
+  <arg name="obstacle_score_threshold" default="0.10"/>
+  <arg name="publish_detector_velocity" default="false"/>
+  <arg name="warmup_segmentation" default="true"/>
+  <arg name="warmup_full_pipeline" default="true"/>
+  <arg name="warmup_iterations" default="2"/>
+  <arg name="warmup_point_count" default="12000"/>
+  <arg name="real_input_warmup" default="true"/>
+  <arg name="real_input_warmup_iterations" default="2"/>
+  <arg name="benchmark_output_dir" default=""/>
+  <arg name="benchmark_label" default="pointpainting"/>
+  <arg name="benchmark_exclude_frames" default="10"/>
+  <arg name="detailed_timing" default="false"/>
+  <arg name="lidar_measurement_stamp_mode" default="object_points_median"/>
+  <arg name="lidar_deskew_mode" default="off"/>
+  <arg name="lidar_deskew_reference" default="point_median"/>
+  <arg name="lidar_deskew_camera_reference" default="reference"/>
+
+  <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+    <arg name="detector" value="pointpainting"/>
+    <arg name="python_executable" value="$(arg python_executable)"/>
+    <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="openpcdet_root" value="$(arg openpcdet_root)"/>
+    <arg name="pointpainting_cfg" value="$(arg cfg_file)"/>
+    <arg name="pointpainting_checkpoint" value="$(arg checkpoint)"/>
+    <arg name="pointpainting_segmentation_checkpoint" value="$(arg segmentation_checkpoint)"/>
+    <arg name="predicted_objects" value="$(arg planning_output_topic)"/>
+    <arg name="prediction_time_step" value="$(arg prediction_time_step)"/>
+    <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
+    <arg name="prediction_model" value="$(arg prediction_model)"/>
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="publish_painted_points" value="$(arg publish_painted_points)"/>
+    <arg name="segmentation_short_side" value="$(arg segmentation_short_side)"/>
+    <arg name="pointpainting_preprocess_backend"
+         value="$(arg segmentation_preprocess_backend)"/>
+    <arg name="pointpainting_camera_cpu_workers"
+         value="$(arg camera_cpu_workers)"/>
+    <arg name="pointpainting_score_threshold" value="$(arg score_threshold)"/>
+    <arg name="pointpainting_vehicle_score_threshold"
+         value="$(arg vehicle_score_threshold)"/>
+    <arg name="pointpainting_pedestrian_score_threshold"
+         value="$(arg pedestrian_score_threshold)"/>
+    <arg name="pointpainting_obstacle_score_threshold"
+         value="$(arg obstacle_score_threshold)"/>
+    <arg name="pointpainting_publish_detector_velocity"
+         value="$(arg publish_detector_velocity)"/>
+    <arg name="warmup_segmentation" value="$(arg warmup_segmentation)"/>
+    <arg name="warmup_full_pipeline" value="$(arg warmup_full_pipeline)"/>
+    <arg name="warmup_iterations" value="$(arg warmup_iterations)"/>
+    <arg name="warmup_point_count" value="$(arg warmup_point_count)"/>
+    <arg name="real_input_warmup" value="$(arg real_input_warmup)"/>
+    <arg name="real_input_warmup_iterations" value="$(arg real_input_warmup_iterations)"/>
+    <arg name="pointpainting_benchmark_output_dir" value="$(arg benchmark_output_dir)"/>
+    <arg name="pointpainting_benchmark_label" value="$(arg benchmark_label)"/>
+    <arg name="pointpainting_benchmark_exclude_frames" value="$(arg benchmark_exclude_frames)"/>
+    <arg name="pointpainting_detailed_timing" value="$(arg detailed_timing)"/>
+    <arg name="pointpainting_lidar_measurement_stamp_mode"
+         value="$(arg lidar_measurement_stamp_mode)"/>
+    <arg name="pointpainting_lidar_deskew_mode" value="$(arg lidar_deskew_mode)"/>
+    <arg name="pointpainting_lidar_deskew_reference"
+         value="$(arg lidar_deskew_reference)"/>
+    <arg name="pointpainting_lidar_deskew_camera_reference"
+         value="$(arg lidar_deskew_camera_reference)"/>
+  </include>
+</launch>

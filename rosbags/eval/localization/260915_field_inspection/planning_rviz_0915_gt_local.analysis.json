@@ -1,0 +1,171 @@
+{
+  "bag": "/home/luv/AjouNice2026/rosbags/eval/localization/260915_field_inspection/planning_rviz_0915_gt_local.bag",
+  "configuration": {
+    "ego_heading_offset_deg": -1.347,
+    "moving_speed_threshold_mps": 1.0
+  },
+  "control_moving_valid": {
+    "available": true,
+    "controller_lateral_error_m": {
+      "count": 10938,
+      "max": 0.2986940540239126,
+      "mean": -0.07504240825874414,
+      "p50": 0.076989143389752,
+      "p95": 0.1761452800875177,
+      "p99": 0.23826036284448163,
+      "rmse": 0.099543703626794,
+      "std": 0.06540325599285536
+    },
+    "steering_rad": {
+      "count": 10938,
+      "max": 0.48817113971672,
+      "mean": -0.010705567752658504,
+      "p50": 0.00566687902108875,
+      "p95": 0.20278436984348025,
+      "p99": 0.351358300713785,
+      "rmse": 0.08203545905907726,
+      "std": 0.08133392503824453
+    },
+    "steering_rate_radps": {
+      "count": 10931,
+      "max": 5.327700772263597,
+      "mean": 0.00011481541758764645,
+      "p50": 0.009622070657522507,
+      "p95": 0.34039437657563076,
+      "p99": 0.7990101054004217,
+      "rmse": 0.21381897008232767,
+      "std": 0.2138189392558274
+    },
+    "steering_sign_flip_count": 42,
+    "steering_sign_flips_per_sec": 0.17407158898855676,
+    "steering_sign_flips_threshold_rad": 0.01,
+    "valid_moving_samples": 10938
+  },
+  "duration_sec": 251.05025434494019,
+  "localization_moving": {
+    "lateral_error_m": {
+      "count": 8816,
+      "max": 0.0,
+      "mean": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "p99": 0.0,
+      "rmse": 0.0,
+      "std": 0.0
+    },
+    "lateral_frame_jump_m": {
+      "count": 8795,
+      "max": 0.0,
+      "mean": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "p99": 0.0,
+      "rmse": 0.0,
+      "std": 0.0
+    },
+    "longitudinal_error_m": {
+      "count": 8816,
+      "max": 0.0,
+      "mean": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "p99": 0.0,
+      "rmse": 0.0,
+      "std": 0.0
+    },
+    "longitudinal_frame_jump_m": {
+      "count": 8795,
+      "max": 0.0,
+      "mean": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "p99": 0.0,
+      "rmse": 0.0,
+      "std": 0.0
+    },
+    "sample_count": 8816,
+    "yaw_error_deg": {
+      "count": 8816,
+      "max": 1.3470000000000637,
+      "mean": 1.3470000000000033,
+      "p50": 1.3470000000000129,
+      "p95": 1.3470000000000129,
+      "p99": 1.3470000000000129,
+      "rmse": 1.3470000000000035,
+      "std": 1.4048752996480385e-14
+    }
+  },
+  "map_from_morai": {
+    "x": 131.55913022,
+    "y": 545.911338186,
+    "yaw_rad": 0.0
+  },
+  "motion": {
+    "moving_duration_sec": 218.70259833335876,
+    "moving_interval_count": 6,
+    "moving_intervals_bag_time": [
+      [
+        1789446030.1709232,
+        1789446053.4817972
+      ],
+      [
+        1789446058.087365,
+        1789446074.9958951
+      ],
+      [
+        1789446076.8528419,
+        1789446097.827185
+      ],
+      [
+        1789446099.4673765,
+        1789446121.3882654
+      ],
+      [
+        1789446145.1573684,
+        1789446225.9776564
+      ],
+      [
+        1789446226.4444065,
+        1789446281.2120807
+      ]
+    ]
+  },
+  "rates": {
+    "/Competition_topic": {
+      "count": 0
+    },
+    "/Ego_topic": {
+      "count": 12076,
+      "duration_sec": 251.04115748405457,
+      "gap_max_sec": 0.07712125778198242,
+      "gap_p50_sec": 0.022253751754760742,
+      "gap_p95_sec": 0.03718287944793701,
+      "mean_hz": 48.099682621830524
+    },
+    "/localization/gnss/odom": {
+      "count": 0
+    },
+    "/localization/kinematic_state": {
+      "count": 10054,
+      "duration_sec": 250.99980974197388,
+      "gap_max_sec": 0.08024430274963379,
+      "gap_p50_sec": 0.020231008529663086,
+      "gap_p95_sec": 0.0400545597076416,
+      "mean_hz": 40.0518231879714
+    },
+    "/planning/trajectory": {
+      "count": 2510,
+      "duration_sec": 250.91208481788635,
+      "gap_max_sec": 0.15998363494873047,
+      "gap_p50_sec": 0.09995698928833008,
+      "gap_p95_sec": 0.10899105072021484,
+      "mean_hz": 9.99951836445442
+    },
+    "/sensor/gps": {
+      "count": 0
+    },
+    "/sensor/imu": {
+      "count": 0
+    }
+  }
+}

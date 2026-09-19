@@ -1,0 +1,26 @@
+<launch>
+  <!-- Replace only the detector with MORAI GT. Tracking/prediction stay unchanged. -->
+  <arg name="input_objects" default="/Object_topic"/>
+  <arg name="output_objects"
+       default="/perception/object_recognition/detection/objects"/>
+  <arg name="frame_id" default="morai_map"/>
+  <arg name="correct_vehicle_bbox_center" default="true"/>
+  <arg name="passenger_maximum_length_m" default="5.5"/>
+  <arg name="passenger_longitudinal_offset_m" default="1.34"/>
+
+  <node pkg="perception_object_pipeline"
+        type="morai_gt_detection_node.py"
+        name="morai_gt_detection"
+        output="screen"
+        respawn="false">
+    <param name="input/objects" value="$(arg input_objects)"/>
+    <param name="output/objects" value="$(arg output_objects)"/>
+    <param name="frame_id" value="$(arg frame_id)"/>
+    <param name="correct_vehicle_bbox_center"
+           value="$(arg correct_vehicle_bbox_center)"/>
+    <param name="passenger_maximum_length_m"
+           value="$(arg passenger_maximum_length_m)"/>
+    <param name="passenger_longitudinal_offset_m"
+           value="$(arg passenger_longitudinal_offset_m)"/>
+  </node>
+</launch>

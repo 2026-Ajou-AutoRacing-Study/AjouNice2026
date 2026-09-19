@@ -1,0 +1,57 @@
+{
+  "scope": "P7_1_R003_ACTUAL_KCITY_V61_EVIDENCE_RECONCILED_TO_AJOUNICE_BRANCH",
+  "status": "PASS",
+  "matrix": "11/11",
+  "reconciled_at": "2026-09-08",
+  "upstream_evidence": {
+    "report": "Autoware2ros1/porting/runs/aw149-p7-standalone-v1/P7.1-FULL-V61-PREINTEGRATION.md",
+    "report_sha256": "cb98ade346b4e31243dd41e48ec437b3a54719bd5a24da46536f82569b3a74aa",
+    "receipt": "Autoware2ros1/porting/runs/aw149-p7-standalone-v1/receipts/p7-full-v61-preintegration-r001.json",
+    "receipt_sha256": "ac6b4ba12e08d1a3db654c996222056123ec252ed42910fd1643821bdd3d2094",
+    "evidence_bundle_sha256": "b1ea76caddbfea82f7c64196e7df82af2b26980680c9bee1ae0aeb27d12299ec"
+  },
+  "current_checkout": {
+    "source_audit": "planning_ws/tools/audit_source.py",
+    "checkpoint_sha256": "12a4c54eaf1847f1bb54fdc4a627fe2291729869e6d287ea4edb7c0c4159989b",
+    "manifest_entries": 4001,
+    "source_files_checked": 3997,
+    "excluded_generated_bytecode": 4,
+    "changed_or_missing": 0,
+    "planning_packages": 154,
+    "frozen_packages": 149,
+    "support_packages": 5,
+    "base_packages": 24,
+    "duplicate_packages": 0,
+    "provider_source_files_checked": 6589,
+    "provider_changed_or_missing": 0
+  },
+  "fixtures": {
+    "lanelet2_map_v61_sha256": "c8ee07fb70334a13373f8cbd54fabe95980ac1e9589bbc05382337074f089dc2",
+    "map_projector_info_v1_sha256": "ccb5a8199afd7e64b04b6ac8637419ec4c9cd5ab16bac68a229971a7f7c7859c",
+    "competition_route_yaml_sha256": "0798028dacd508a735d77585a841dc156bff6a9022480d1644b3651a3596fa30"
+  },
+  "cases": [
+    {"name": "route_a_experimental", "pass": true, "expected_lanelets": 47, "observed_lanelets": 47, "final_outputs": 20, "validator": "20/20"},
+    {"name": "route_b_experimental", "pass": true, "expected_lanelets": 57, "observed_lanelets": 57, "final_outputs": 20, "validator": "20/20"},
+    {"name": "route_a_normal_bvp", "pass": true, "expected_lanelets": 47, "observed_lanelets": 47, "final_outputs": 20, "validator": "20/20"},
+    {"name": "lane_change_safe", "pass": true, "validator": "20/20"},
+    {"name": "lane_change_occupied", "pass": true, "resolution": "collision_free_merge", "minimum_lateral_separation_m": 3.6069444902113785, "required_separation_m": 3.25, "validator": "20/20"},
+    {"name": "intersection_merge_conflict", "pass": true, "nearest_stop_distance_m": 1.300000000000028, "validator": "20/20"},
+    {"name": "red_to_green", "pass": true, "red_stop_outputs": 8, "green_max_velocity_mps": 16.66666603088379, "validator": "20/20"},
+    {"name": "mvp_obstacle_stop", "pass": true, "stop_distance_to_object_m": 9.913804600488342, "validator": "20/20"},
+    {"name": "moving_ego", "pass": true, "ego_distance_m": 5.000000000000003, "bpp_outputs": 304, "mvp_outputs": 9, "validator": "20/20"},
+    {"name": "input_loss_recovery", "pass": true, "loss_seconds": 2, "bpp_outputs_after_recovery": 152, "mvp_outputs_after_recovery": 38, "validator": "20/20", "safe_stop_during_loss_proven": false},
+    {"name": "route_a_to_b_reroute", "pass": true, "moving_disjoint_reroute": "REJECTED_CODE_60001_AS_DESIGNED", "standstill_reroute": "ACCEPTED", "route_output_increment": 1, "final_output_increment": 30}
+  ],
+  "claim_boundary": {
+    "proven": "The hash-identical frozen planning source coherently executes the listed Mission-to-validator v61 fixture matrix.",
+    "not_proven": [
+      "AjouNice production topic and TF integration",
+      "MORAI closed loop",
+      "vehicle controller handoff",
+      "production detector or tracker accuracy",
+      "automatic safe stop during stale input",
+      "every package as a simultaneous runtime node"
+    ]
+  }
+}

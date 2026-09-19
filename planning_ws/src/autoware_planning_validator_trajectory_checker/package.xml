@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_planning_validator_trajectory_checker</name>
+  <version>0.51.0</version>
+  <description>Candidate ROS1 provider for Planning Validator trajectory checks.</description>
+  <maintainer email="autoware@example.invalid">Autoware porting</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>autoware_planning_validator</depend>
+  <build_depend>pluginlib</build_depend>
+  <build_depend>roscpp</build_depend>
+  <exec_depend>pluginlib</exec_depend>
+  <exec_depend>roscpp</exec_depend>
+  <export>
+    <build_type>catkin</build_type>
+    <autoware_planning_validator plugin="${prefix}/plugins.xml"/>
+    <autoware_planning_validator plugin="${prefix}/full_plugins.xml"/>
+  </export>
+  <build_depend>autoware_map_msgs</build_depend>
+  <build_depend>autoware_perception_msgs</build_depend>
+  <build_depend>autoware_planning_msgs</build_depend>
+  <build_depend>autoware_vehicle_info_utils</build_depend>
+  <depend>autoware_utils</depend>
+  <depend>autoware_utils_debug</depend>
+  <depend>autoware_utils_rclcpp</depend>
+  <depend>autoware_utils_logging</depend>
+  <depend>autoware_planning_factor_interface</depend>
+  <depend>diagnostic_updater</depend>
+</package>

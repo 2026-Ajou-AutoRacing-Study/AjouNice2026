@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>competition_route_requester</name>
+  <version>0.0.0</version>
+  <description>
+    Specification and route configuration for the K-City competition route requester.
+  </description>
+
+  <maintainer email="ajounice@todo.todo">AjouNice Team</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_generation</build_depend>
+  <exec_depend>message_runtime</exec_depend>
+  <depend>rospy</depend>
+  <depend>std_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>autoware_adapi_v1_msgs</depend>
+  <depend>autoware_internal_planning_msgs</depend>
+  <depend>autoware_map_msgs</depend>
+  <depend>autoware_planning_msgs</depend>
+  <depend>autoware_planning_validator</depend>
+  <depend>tier4_planning_msgs</depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-pyproj</exec_depend>
+  <test_depend>python3-nose</test_depend>
+
+  <export/>
+</package>

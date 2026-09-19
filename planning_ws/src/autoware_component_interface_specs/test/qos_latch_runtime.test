@@ -1,0 +1,4 @@
+<launch>
+  <test test-name="qos_latch_runtime" pkg="autoware_component_interface_specs"
+        type="test_qos_contract" time-limit="30.0" />
+</launch>

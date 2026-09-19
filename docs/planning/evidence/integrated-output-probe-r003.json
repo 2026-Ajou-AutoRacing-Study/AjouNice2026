@@ -1,0 +1,148 @@
+{
+  "schema": "ajounice.aw149.integrated_output_probe.v4",
+  "recorded_at": "2026-09-08T21:52:00+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "parent_commit": "f4e651a2",
+  "status": "PASS",
+  "runs": {
+    "moving_route_a_to_b_current_artifact": "2/2",
+    "moving_route_a_to_fallback_current_artifact": "2/2",
+    "requester_private_master_transport": "11/11",
+    "base_package_test_targets": "24/24",
+    "base_junit": "114/114",
+    "mission_initialization_oracle": "1/1",
+    "source_audit": "PASS"
+  },
+  "commands": {
+    "route_a_to_b": "AW149_OUTPUT_PROBE_USE_REQUESTER=1 AW149_OUTPUT_PROBE_ROUTE_CASE=route_a_to_b AW149_OUTPUT_PROBE_TRANSITION_SPEED_MPS=2.0 AW149_OUTPUT_PROBE_MASTER_PORT=<private-port> bash scripts/runtime/verify_integrated_planning_output.sh",
+    "route_a_to_fallback": "AW149_OUTPUT_PROBE_USE_REQUESTER=1 AW149_OUTPUT_PROBE_ROUTE_CASE=route_a_to_fallback AW149_OUTPUT_PROBE_TRANSITION_SPEED_MPS=2.0 AW149_OUTPUT_PROBE_MASTER_PORT=<private-port> bash scripts/runtime/verify_integrated_planning_output.sh"
+  },
+  "launch": "base_ws/install_aw149/share/ajounice_planning_integration/launch/morai_planning_stack.launch",
+  "route_a_to_b": {
+    "trigger": "wp_200178",
+    "longitudinal_velocity_mps": 2.0,
+    "route_lanelets": 57,
+    "final_trajectory_points": 161,
+    "validator_flags_checked": 20,
+    "all_validator_flags_true": true,
+    "unexpected_process_deaths": 0,
+    "pre_fix_original_first_selection": {
+      "original_start_index": 0,
+      "target_start_index": 46,
+      "contiguous_segment_count": 1,
+      "observed_common_length_m": 0.0,
+      "required_safety_length_m": 30.0
+    },
+    "target_first_selection": {
+      "original_start_index": 2,
+      "target_start_index": 0,
+      "contiguous_segment_count": 45
+    },
+    "shared_preferred_signature_mismatch_count": 0
+  },
+  "route_a_to_fallback": {
+    "rejected_old_cutoff": {
+      "cutoff": "wp_200360 at lanelet s 8 m",
+      "longitudinal_velocity_mps": 2.0,
+      "observed_common_length_m": 26.751,
+      "required_safety_length_m": 30.0,
+      "classification": "ROUTE_POLICY_CONFLICT",
+      "raw_result_sha256": "e76d4187de2ab055a35b13aab779d30371e1e8d72b7b74b2fcc240f9bb91029f"
+    },
+    "validated_cutoff": "fallback_cutoff_201446 at lanelet s 8 m",
+    "resolution": "Move the hard cutoff one Route A lanelet earlier and prepend 201446 to the explicit fallback route. Mission minimum reroute length remains 30 m.",
+    "route_uuid": "9097215f-7dd7-5adf-8266-556f1857a735",
+    "longitudinal_velocity_mps": 2.0,
+    "route_lanelets": 28,
+    "final_trajectory_points": 151,
+    "validator_flags_checked": 20,
+    "all_validator_flags_true": true,
+    "unexpected_process_deaths": 0,
+    "target_first_common_span": {
+      "original_start_index": 31,
+      "target_start_index": 0,
+      "contiguous_segment_count": 3,
+      "first_lanelet": 201446,
+      "last_lanelet": 201454
+    }
+  },
+  "requester_resolution": {
+    "callback_problem": "Independent ROS1 callbacks could make latest-only comparison observe trajectory N+1 beside validation N indefinitely.",
+    "callback_change": "Bounded queues pair each trajectory once with the first validation whose stamp is not earlier. The post-route fence, finite data, shape, frame, all validator flags, and three consecutive valid outputs remain mandatory.",
+    "trajectory_verification_timeout_seconds": 60.0,
+    "trajectory_max_age_seconds": 1.0,
+    "age_rationale": "The requester now matches the canonical Planning Validator latency checker threshold of 1.0 s. Under concurrent MATLAB load, valid trajectories were observed at 0.65 to 0.68 s and passed is_valid_latency; the separate controller source-age stop remains 0.5 s.",
+    "synthetic_input_period_seconds": 0.1
+  },
+  "runs_detail": [
+    {
+      "case": "route_a_to_fallback",
+      "master_port": 11585,
+      "duration_seconds": 21.068178745001205,
+      "transition_verification_seconds": 0.6198714490019483,
+      "latest_final_age_seconds": 0.09344053268432617,
+      "final_trajectory_messages": 14,
+      "validation_messages": 14,
+      "raw_result_sha256": "0a72dece88befff3fbd156d7f01c200e05098302628b9a091e68b0e321ae1a05"
+    },
+    {
+      "case": "route_a_to_fallback",
+      "master_port": 11586,
+      "duration_seconds": 21.0850543169945,
+      "transition_verification_seconds": 0.5196236030024011,
+      "latest_final_age_seconds": 0.11490869522094727,
+      "final_trajectory_messages": 14,
+      "validation_messages": 14,
+      "raw_result_sha256": "92368f3db57841d36b5afbde820a11327d66d1d6d1e7506262539d4fc402e86c"
+    },
+    {
+      "case": "route_a_to_b",
+      "master_port": 11587,
+      "duration_seconds": 20.323304827004904,
+      "transition_verification_seconds": 0.7265503570088185,
+      "latest_final_age_seconds": 0.20485901832580566,
+      "final_trajectory_messages": 14,
+      "validation_messages": 14,
+      "raw_result_sha256": "720fdc8fcb2f50510ccbbb2e5bb96b6598ce8540c2dd66480202eadf4f702380"
+    },
+    {
+      "case": "route_a_to_b",
+      "master_port": 11588,
+      "duration_seconds": 20.425152356998296,
+      "transition_verification_seconds": 0.7271843930066098,
+      "latest_final_age_seconds": 0.15191435813903809,
+      "final_trajectory_messages": 15,
+      "validation_messages": 15,
+      "raw_result_sha256": "c31fec39e093268e861ba8d6d80fe150cb0c4a69fd7aa64c84fc8caf2ed8431f"
+    }
+  ],
+  "source_audit": {
+    "checkpoint": "planning_ws/provenance/checkpoint-r011.json",
+    "checkpoint_sha256": "6d722f590ce94f41ae664e7ac5c7c5ace6e7c671bbb7a54c3422273f18824ef5",
+    "manifest_entries": 4003,
+    "source_files_checked": 3999,
+    "provider_source_files_checked": 6589,
+    "changed_or_missing": 0,
+    "ignored_required_source": 0,
+    "duplicate_packages": 0
+  },
+  "sha256": {
+    "scripts/runtime/verify_integrated_planning_output.py": "14b81d2c7e76eca25d8fba39803822af208d472ff98140b10d27112da30a39d5",
+    "scripts/runtime/verify_integrated_planning_output.sh": "7e8bf3df0a202eb0e84bdac566e6d7bfc015a1da45db9cab9348e5b2df07273b",
+    "base_ws/src/planning_addons/competition_route_requester/src/competition_route_requester/runtime.py": "6952fee8663c8edcb9797f4788b5ba903d2df8eb8bf804f5e2586efb250096ae",
+    "base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester.param.yaml": "b17176c40a65c3fc1b6503100d3f89dfbf2b2969d98377327fd4d1812a090b4b",
+    "base_ws/src/planning_addons/competition_route_requester/config/kcity_v61_competition_route.yaml": "0f1aa6be827995395c46c9359e06477ffb089210de87fb2365a8afaa2d0b80df",
+    "planning_ws/src/autoware_mission_planner_universe/src/mission_planner/mission_planner_initialization_ros1.cpp": "f84c9d0b346c690f03d18780a32db8bfd562154fc25444588558a395a42083a5"
+  },
+  "claim_boundary": {
+    "proven": "The installed full planning graph and production requester verify Route A and accept both v61 Route A to B and Route A to fallback reroutes while supplied odometry reports 2 m/s, then emit repeated validator-accepted target-route final trajectories.",
+    "not_proven": [
+      "continuous physical travel from Route A start to either trigger",
+      "live MORAI topic, frame, timestamp, or unit semantics",
+      "production perception accuracy",
+      "real-time deadline compliance under the target computer load",
+      "vehicle controller handoff",
+      "closed-loop driving"
+    ]
+  }
+}

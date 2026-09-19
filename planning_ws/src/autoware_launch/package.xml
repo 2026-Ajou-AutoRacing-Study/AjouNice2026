@@ -1,0 +1,38 @@
+<?xml version="1.0" ?>
+<package format="2">
+  
+  
+  <name>autoware_launch</name>
+  
+  
+  <version>0.51.0</version>
+  
+  
+  <description>Native ROS1 AW149 planning pipeline composition.</description>
+  
+  
+  <license>Apache-2.0</license>
+  
+  
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  
+  <exec_depend>roslaunch</exec_depend>
+  
+  
+  <exec_depend>tier4_planning_launch</exec_depend>
+  
+  
+  <exec_depend>autoware_map_loader</exec_depend>
+  
+
+  <maintainer email="yukihiro.saito@tier4.jp">Yukihiro Saito</maintainer>
+  
+  
+  <maintainer email="ryohsuke.mitsudome@tier4.jp">Ryohsuke Mitsudome</maintainer>
+  
+  
+  <maintainer email="mfc@leodrive.ai">M. Fatih Cırıt</maintainer>
+  
+  
+</package>

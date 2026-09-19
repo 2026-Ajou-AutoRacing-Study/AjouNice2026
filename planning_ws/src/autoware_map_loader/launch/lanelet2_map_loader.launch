@@ -1,0 +1,12 @@
+<launch>
+  <arg name="lanelet2_map_path" />
+  <arg name="center_line_resolution" default="5.0" />
+  <arg name="use_waypoints" default="true" />
+  <arg name="allow_unsupported_version" default="true" />
+  <node pkg="autoware_map_loader" type="autoware_lanelet2_map_loader" name="lanelet2_map_loader" output="screen">
+    <param name="lanelet2_map_path" value="$(arg lanelet2_map_path)" />
+    <param name="center_line_resolution" value="$(arg center_line_resolution)" />
+    <param name="use_waypoints" value="$(arg use_waypoints)" />
+    <param name="allow_unsupported_version" value="$(arg allow_unsupported_version)" />
+  </node>
+</launch>

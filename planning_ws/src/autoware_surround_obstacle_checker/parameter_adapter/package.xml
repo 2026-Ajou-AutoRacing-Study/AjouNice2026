@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>aw149_surround_obstacle_checker_parameter_adapter</name>
+  <version>0.0.1</version>
+  <description>Candidate-only ROS1 parameter boundary for AW149 surround obstacle checker.</description>
+  <maintainer email="noreply@example.invalid">AW149 harness</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <test_depend>gtest</test_depend>
+</package>

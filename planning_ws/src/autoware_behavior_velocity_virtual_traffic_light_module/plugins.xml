@@ -1,0 +1,8 @@
+<library path="libautoware_behavior_velocity_virtual_traffic_light_module">
+  <class name="autoware::behavior_velocity_planner::VirtualTrafficLightModulePlugin"
+    type="autoware::behavior_velocity_planner::VirtualTrafficLightModulePlugin"
+    base_class_type="autoware::behavior_velocity_planner::PluginInterface" />
+  <class name="autoware::behavior_velocity_planner::experimental::VirtualTrafficLightModulePlugin"
+    type="autoware::behavior_velocity_planner::experimental::VirtualTrafficLightModulePlugin"
+    base_class_type="autoware::behavior_velocity_planner::experimental::PluginInterface" />
+</library>

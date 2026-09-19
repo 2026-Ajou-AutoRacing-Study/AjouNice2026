@@ -1,0 +1,3 @@
+<launch>
+  <test test-name="autoware_utils_rclcpp" pkg="autoware_utils_rclcpp" type="test_autoware_utils_rclcpp" time-limit="90"/>
+</launch>

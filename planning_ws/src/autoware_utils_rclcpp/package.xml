@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_utils_rclcpp</name>
+  <version>1.8.0</version>
+  <description>ROS1 polling and parameter compatibility utilities.</description>
+  <maintainer email="jihun@example.invalid">Autoware ROS1 Port</maintainer>
+  <license>Apache License 2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <test_depend>rostest</test_depend>
+  <test_depend>gtest</test_depend>
+</package>

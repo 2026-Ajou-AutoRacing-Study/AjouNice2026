@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_planning_validator</name>
+  <version>0.51.0</version>
+  <description>Candidate ROS1 render of Planning Validator interfaces.</description>
+  <maintainer email="autoware@example.invalid">Autoware porting</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_generation</build_depend>
+  <build_depend>autoware_lanelet2_utils</build_depend>
+  <test_depend>autoware_lanelet2_extension</test_depend>
+  <test_depend>autoware_test_utils</test_depend>
+  <build_depend>autoware_planning_msgs</build_depend>
+  <build_depend>autoware_route_handler</build_depend>
+  <build_depend>autoware_map_msgs</build_depend>
+  <build_depend>autoware_motion_utils</build_depend>
+  <build_depend>autoware_vehicle_info_utils</build_depend>
+  <build_depend>autoware_perception_msgs</build_depend>
+  <build_depend>diagnostic_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>pluginlib</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>tf2_ros</build_depend>
+  <build_depend>tf2_eigen</build_depend>
+  <build_depend>visualization_msgs</build_depend>
+  <exec_depend>autoware_planning_msgs</exec_depend>
+  <exec_depend>autoware_lanelet2_utils</exec_depend>
+  <exec_depend>autoware_route_handler</exec_depend>
+  <exec_depend>autoware_map_msgs</exec_depend>
+  <exec_depend>autoware_motion_utils</exec_depend>
+  <exec_depend>autoware_vehicle_info_utils</exec_depend>
+  <exec_depend>autoware_perception_msgs</exec_depend>
+  <exec_depend>diagnostic_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
+  <exec_depend>pluginlib</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf2_eigen</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <!-- The AW149 deployment installs all four checker packages. They depend
+       on this package's plugin API, so reverse dependencies here produce a
+       catkin ordering cycle. Required deployment plugins are recorded below
+       in config/required_checker_packages.yaml; none is optional for AW149. -->
+  <export>
+    <build_type>catkin</build_type>
+    <autoware_planning_validator plugin="${prefix}/trajectory_checker_plugins.xml"/>
+  </export>
+  <build_depend>autoware_lanelet2_extension</build_depend>
+  <build_depend>autoware_test_utils</build_depend>
+  <depend>autoware_utils</depend>
+  <depend>autoware_utils_debug</depend>
+  <depend>autoware_utils_rclcpp</depend>
+  <depend>autoware_utils_logging</depend>
+  <depend>autoware_planning_factor_interface</depend>
+  <depend>diagnostic_updater</depend>
+</package>

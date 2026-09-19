@@ -1,0 +1,117 @@
+cmake_minimum_required(VERSION 3.0.2)
+project(tier4_external_api_msgs)
+
+find_package(catkin REQUIRED COMPONENTS
+  autoware_common_msgs
+  builtin_interfaces
+  diagnostic_msgs
+  geometry_msgs
+  message_generation
+  std_msgs
+  unique_identifier_msgs
+)
+
+add_message_files(FILES
+  CalibrationStatus.msg
+  CalibrationStatusArray.msg
+  ClassifiedDiagnostics.msg
+  ControlCommand.msg
+  ControlCommandStamped.msg
+  CpuStatus.msg
+  CpuTemperature.msg
+  CpuUsage.msg
+  DecisionFactorObject.msg
+  DecisionFactorPointCloud.msg
+  DoorStatus.msg
+  ElectionStatus.msg
+  Emergency.msg
+  EngageStatus.msg
+  FailSafeState.msg
+  FailSafeStateStamped.msg
+  GearShift.msg
+  GearShiftStamped.msg
+  GpuStatus.msg
+  GpuUnitStatus.msg
+  HddDeviceStatus.msg
+  HddPartitionStatus.msg
+  HddStatus.msg
+  Heartbeat.msg
+  LocalizationScore.msg
+  LocalizationScoreArray.msg
+  MapHash.msg
+  MemoryStatus.msg
+  MetadataPackages.msg
+  NetworkInterfaceStatus.msg
+  NetworkStatus.msg
+  Observer.msg
+  Operator.msg
+  PlanningFactor.msg
+  PlanningFactorArray.msg
+  PlanningFactorControlPoint.msg
+  ResponseStatus.msg
+  RosbagCopyStatus.msg
+  RosbagLoggingMode.msg
+  RosbagRecordStatus.msg
+  RosbagRollbackStatus.msg
+  Route.msg
+  RouteDistance.msg
+  RouteSection.msg
+  Service.msg
+  Steering.msg
+  SystemMonitor.msg
+  TextFile.msg
+  TrafficLightElement.msg
+  TrafficLightGroup.msg
+  TurnSignal.msg
+  TurnSignalStamped.msg
+  VehicleCommand.msg
+  VehicleCommandStamped.msg
+  VehicleStatus.msg
+  VehicleStatusStamped.msg
+  VelocityLimit.msg
+)
+
+add_service_files(FILES
+  ClearRoute.srv
+  Engage.srv
+  GetAccelBrakeMapCalibrationData.srv
+  GetMetadataPackages.srv
+  GetRosbagCopyList.srv
+  GetTextFile.srv
+  InitializePose.srv
+  InitializePoseAuto.srv
+  PauseDriving.srv
+  ResetRedundancySwitcher.srv
+  SetDoor.srv
+  SetEmergency.srv
+  SetObserver.srv
+  SetOperator.srv
+  SetPose.srv
+  SetPreferredLane.srv
+  SetRosbagLoggingMode.srv
+  SetRosbagRecord.srv
+  SetRosbagRollback.srv
+  SetRoute.srv
+  SetService.srv
+  SetVelocityLimit.srv
+  StartRosbagCopy.srv
+)
+
+generate_messages(DEPENDENCIES
+  autoware_common_msgs
+  builtin_interfaces
+  diagnostic_msgs
+  geometry_msgs
+  std_msgs
+  unique_identifier_msgs
+)
+
+catkin_package(CATKIN_DEPENDS
+  autoware_common_msgs
+  builtin_interfaces
+  diagnostic_msgs
+  geometry_msgs
+  message_runtime
+  std_msgs
+  unique_identifier_msgs
+)

@@ -1,0 +1,8 @@
+<launch>
+  <arg name="input_trajectory" default="/planning/scenario_planning/velocity_smoother/trajectory"/>
+  <arg name="output_trajectory" default="/planning/scenario_planning/velocity_smoother/trajectory"/>
+  <node pkg="autoware_planning_validator" type="invalid_trajectory_publisher" name="invalid_trajectory_publisher" output="screen">
+    <remap from="~input/trajectory" to="$(arg input_trajectory)"/>
+    <remap from="~output/trajectory" to="$(arg output_trajectory)"/>
+  </node>
+</launch>

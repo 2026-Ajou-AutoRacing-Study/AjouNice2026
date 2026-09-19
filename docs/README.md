@@ -1,14 +1,17 @@
-# docs
-- 협업을 위한 문서들
+# AjouNice2026 문서 진입점
 
-## docs list
-- `ai_context_260511.md`: 260511에 연구계획서를 기반으로 작성한 ai context용 파일
-- `setup_ubuntu20_ros1.md`: local PC의 ubuntu20.04에 ros1 setup하는 법
-- `setup_morai.md`: local PC의 ubuntu20.04에 MORAI setup하는 법
-- `topic_interface.md`: 토픽들 인터페이스를 정리한 파일. **현재는 예시 상태.**
+현재 작업은 아래 router만 우선한다.
 
-## Notes
+1. [`ACTIVE_PRIORITIES.md`](ACTIVE_PRIORITIES.md): 실제 미완료 작업.
+2. [`bevfusion/README.md`](bevfusion/README.md): production perception과 다음 실험.
+3. [`localization/README.md`](localization/README.md): production localization.
+4. [`../dataset/morai_od/docs/README.md`](../dataset/morai_od/docs/README.md): 현재 dataset.
+5. [`../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md`](../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md):
+   production Tracking·Map-CV 계약.
+6. [`runbooks/morai_full_stack_by_terminal.md`](runbooks/morai_full_stack_by_terminal.md):
+   full-stack 실행 순서.
 
-## TODO
-- [ ] `topic_interface.md` 생성
-- [ ] 추후(먼 미래) `architecture.md` 만들어서 아키텍쳐 거기에 넣기
+`legacy/`가 붙은 문서, `docs/jsw/`, `external_docs/`, 과거 detector 폴더는 재현·참고
+기록이다. 날짜가 최신이거나 내용이 자세하다는 이유만으로 CURRENT 실행값을 덮어쓰지
+않는다. `topic_interface.md`와 `topic_interface_example.md`는 설계 참고이며 실제 launch와
+`rostopic info`를 우선한다.

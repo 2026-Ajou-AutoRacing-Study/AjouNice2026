@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>tier4_adapi_rviz_plugin</name><version>0.51.0</version>
+  <description>ROS1 RViz ADAPI panels and route tool.</description>
+  <maintainer email="porting@example.com">Autoware ROS1 port</maintainer><license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>autoware_adapi_specs</depend><depend>autoware_component_interface_utils</depend><depend>autoware_vehicle_msgs</depend><depend>geometry_msgs</depend><depend>pluginlib</depend><depend>roscpp</depend><depend>rviz</depend><depend>tier4_external_api_msgs</depend><depend>tier4_planning_msgs</depend>
+  <export><rviz plugin="${prefix}/plugins/plugin_description.xml"/></export>
+</package>

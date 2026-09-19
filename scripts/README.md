@@ -13,7 +13,6 @@
 | `rosbag/repair/` | bag timestamp와 LiDAR point time 보정 | `fix_bag_header_stamp.py`, `convert_lidar_for_fastlio.py` |
 | `rosbag/inspect/` | rosbag/PointCloud 입력 상태 확인 | `check_cloud_points.py` |
 | `evaluation/fast_lio/` | FAST-LIO와 MORAI Ego GT 비교 | `eval_fast_lio_*.py` |
-| `map/kcity/` | K-City Lanelet과 MGeo 정합/생성 | `kcity_map_align.py` |
 | `experiments/rosbag_legacy/` | 초기 rosbag 검증 실험 보존용 | 고정 경로 기반 legacy 스크립트 |
 
 ## 기본 실행 흐름
@@ -23,7 +22,9 @@
 3. rosbag 녹화
    - raw 센서: `bash scripts/rosbag/record/rosbag_raw.sh`
    - raw 센서 + 6개 카메라: `bash scripts/rosbag/record/rosbag_cam_raw.sh`
-4. FAST-LIO offline 입력 보정: [runbook](../docs/runbooks/fast_lio_rosbag_repair.md)을 따른다.
+   - MR 전체 경로 localization·control 안정성 평가:
+     `bash scripts/rosbag/record/rosbag_for_localization_stability_eval.sh full_route`
+4. FAST-LIO offline 입력 보정: [runbook](../docs/runbooks/legacy/fast_lio_rosbag_repair.md)을 따른다.
 
 `launch_sensing.sh`는 이전 `run_full_stack.sh`의 이름을 바로잡은 것이다. 현재는
 `bringup sensing.launch`만 실행하며, bridge나 map TF까지 함께 기동하지 않는다.

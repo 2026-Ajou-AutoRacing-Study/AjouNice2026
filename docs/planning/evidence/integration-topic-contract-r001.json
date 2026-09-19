@@ -1,0 +1,38 @@
+{
+  "schema": "ajounice.aw149.integration_topic_contract.v1",
+  "recorded_at": "2026-09-08T17:55:17+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "commit": "8ca3eff9e79775c5b92f97104fda89554efc21b9",
+  "command": "scripts/runtime/check_topics.sh --types-only --controller",
+  "graph": "ajounice_planning_integration/morai_planning_stack.launch with controller, requester, and detector disabled",
+  "result": "EXPECTED_INCOMPLETE",
+  "contracts": {"checked": 13, "publisher_and_type_present": 6, "no_publisher": 7, "type_mismatch": 0},
+  "publisher_and_type_present": [
+    "/localization/kinematic_state|nav_msgs/Odometry",
+    "/localization/acceleration|geometry_msgs/AccelWithCovarianceStamped",
+    "/perception/object_recognition/objects|autoware_perception_msgs/PredictedObjects",
+    "/perception/traffic_light_recognition/traffic_signals|autoware_perception_msgs/TrafficLightGroupArray",
+    "/map/vector_map|autoware_map_msgs/LaneletMapBin",
+    "/map/map_projector_info|autoware_map_msgs/MapProjectorInfo"
+  ],
+  "no_publisher": [
+    "/perception/occupancy_grid_map/map|nav_msgs/OccupancyGrid",
+    "/perception/obstacle_segmentation/pointcloud|sensor_msgs/PointCloud2",
+    "/system/operation_mode/state|autoware_adapi_v1_msgs/OperationModeState",
+    "/api/operation_mode/state|autoware_adapi_v1_msgs/OperationModeState",
+    "/control/trajectory_follower/lateral/predicted_trajectory|autoware_planning_msgs/Trajectory",
+    "/control/command/control_cmd|autoware_control_msgs/Control",
+    "/vehicle/status/steering_status|autoware_vehicle_msgs/SteeringReport"
+  ],
+  "root_supplier_gaps": [
+    "production ground segmentation",
+    "production occupancy grid generation",
+    "authoritative system operation mode",
+    "controller model ego rollout",
+    "physical-unit Autoware control command",
+    "measured steering tire angle"
+  ],
+  "relay_note": "/api/operation_mode/state is derived by a lazy topic_tools relay and has no publisher until the missing /system source exists",
+  "check_script_sha256": "759a3bcb5400a5bbef5cf6647fea9a9162f9fe858b8da6194d51e9fbb2648ca1",
+  "claim_boundary": "The six PASS entries only prove an advertised publisher and exact ROS type. This --types-only run did not prove message flow, freshness, frame, units, or semantic correctness."
+}

@@ -1,0 +1,90 @@
+{
+  "schema": "ajounice.aw149.integrated_output_probe.v2",
+  "recorded_at": "2026-09-08T20:56:05+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "parent_commit": "e5423b26",
+  "status": "PASS",
+  "runs": {
+    "competition_route_requester": "2/2",
+    "direct_service_regression": "1/1"
+  },
+  "commands": {
+    "requester": "AW149_OUTPUT_PROBE_USE_REQUESTER=1 AW149_OUTPUT_PROBE_MASTER_PORT=<private-port> bash scripts/runtime/verify_integrated_planning_output.sh",
+    "direct": "AW149_OUTPUT_PROBE_USE_REQUESTER=0 AW149_OUTPUT_PROBE_MASTER_PORT=<private-port> bash scripts/runtime/verify_integrated_planning_output.sh"
+  },
+  "launch": "base_ws/install_aw149/share/ajounice_planning_integration/launch/morai_planning_stack.launch",
+  "input_fixture": {
+    "route": "route_a",
+    "route_lanelets_expected": 47,
+    "localization": "synthetic nav_msgs/Odometry and geometry_msgs/AccelWithCovarianceStamped",
+    "perception": "empty PredictedObjects, empty TrafficLightGroupArray, free OccupancyGrid, one far PointCloud2 point",
+    "operation_mode": "synthetic AUTONOMOUS available and enabled with a current payload stamp",
+    "tf": "synthetic map to base_link"
+  },
+  "requester_contract": {
+    "required_terminal_phase": "VERIFIED",
+    "required_verified_active": "route_a",
+    "required_detail": "route identity and three fresh validated outputs; not a closed-loop proof",
+    "trajectory_verification_timeout_seconds": 30.0,
+    "timeout_rationale": "The full installed graph needed about 19 seconds for the first output set and about 25 seconds for requester verification. The former 5 second window rejected valid startup before evidence could arrive; validator conditions were not reduced."
+  },
+  "observed_common": {
+    "route_lanelets": 47,
+    "latest_trajectory_points": 111,
+    "latest_max_velocity_mps": 4.170000076293945,
+    "validator_flags_checked": 20,
+    "all_validator_flags_true": true,
+    "unexpected_process_deaths": 0
+  },
+  "runs_detail": [
+    {
+      "mode": "competition_route_requester",
+      "master_port": 11560,
+      "duration_seconds": 25.523138981996453,
+      "final_trajectory_messages": 26,
+      "validation_messages": 26,
+      "request_status_messages": 4,
+      "terminal_phase": "VERIFIED",
+      "raw_result_sha256": "0f4dffeda4798d9f6bcdba7de2c8dbe285ea52defc0f3505372060e94751aa07"
+    },
+    {
+      "mode": "competition_route_requester",
+      "master_port": 11562,
+      "duration_seconds": 24.540985586005263,
+      "final_trajectory_messages": 23,
+      "validation_messages": 23,
+      "request_status_messages": 4,
+      "terminal_phase": "VERIFIED",
+      "raw_result_sha256": "54a30954bb40e16b61417c4717430c7a3028739840d4615bb2d22b6d519beba3"
+    },
+    {
+      "mode": "direct_service_probe",
+      "master_port": 11561,
+      "duration_seconds": 19.07219914101006,
+      "final_trajectory_messages": 10,
+      "validation_messages": 10,
+      "request_status_messages": 0,
+      "raw_result_sha256": "6aa5b6fded25bb0b4ad811666943a852f3c6a302be61e5f8669d8617459af911"
+    }
+  ],
+  "diagnostic_rejected_run": {
+    "classification": "HARNESS_EARLY_EXIT_RACE",
+    "observed": "The probe stopped as soon as ten outputs arrived and inspected DISPATCHED before the requester could publish VERIFIED.",
+    "resolution": "Requester mode now waits for both output counts and the VERIFIED route_a status."
+  },
+  "harness_sha256": {
+    "scripts/runtime/verify_integrated_planning_output.py": "2f3e577877865934cc38691613f82bd6c60dcde92c3873f95695a62ff33743e2",
+    "scripts/runtime/verify_integrated_planning_output.sh": "7e8bf3df0a202eb0e84bdac566e6d7bfc015a1da45db9cab9348e5b2df07273b",
+    "base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester.param.yaml": "340853ca93bc8768572647ef071db0d6f9e0f82916ee02a5c9e68bdb2436612f"
+  },
+  "claim_boundary": {
+    "proven": "The installed AjouNice integration launch and production competition_route_requester select Route A through the real Mission service and produce repeated validator-accepted final trajectories from correctly typed synthetic inputs.",
+    "not_proven": [
+      "live MORAI topic, frame, timestamp, and unit semantics",
+      "production perception accuracy",
+      "real-time deadlines",
+      "vehicle controller handoff",
+      "closed-loop driving"
+    ]
+  }
+}

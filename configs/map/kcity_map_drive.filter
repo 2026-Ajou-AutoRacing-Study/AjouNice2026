@@ -1,0 +1,25 @@
+# K-City map assets managed by Google Drive.
+#
+# This file is used by both upload_kcity_map_assets.sh and
+# download_kcity_map_assets.sh. Paths are relative to kcity_map/.
+
++ /lanelet_map/
++ /lanelet_map/*.osm
++ /lanelet_map/*.pcd
+- /lanelet_map/**
+
++ /competition_route/
++ /competition_route/v*/
++ /competition_route/v*/**
+- /competition_route/**
+
++ /example_map/
++ /example_map/**
++ /gis_map/
++ /gis_map/**
++ /mgeo_map/
++ /mgeo_map/**
++ /mgeo_map_scenario_runner_2025/
++ /mgeo_map/**
+
+- **

@@ -1,0 +1,21 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="vehicle_param_path"/>
+  <arg name="use_obstacle_pointcloud" default="true"/>
+  <arg name="launch_modules" default=""/>
+  <remap from="planning_validator/input/trajectory" to="/planning/scenario_planning/velocity_smoother/trajectory"/>
+  <remap from="planning_validator/input/kinematics" to="/localization/kinematic_state"/>
+  <remap from="planning_validator/input/acceleration" to="/localization/acceleration"/>
+  <remap from="planning_validator/input/pointcloud" to="/perception/obstacle_segmentation/pointcloud"/>
+  <remap from="planning_validator/input/route" to="/planning/mission_planning/route"/>
+  <remap from="planning_validator/input/lanelet_map_bin" to="/map/vector_map"/>
+  <remap from="planning_validator/input/traffic_signals" to="/perception/traffic_light_recognition/traffic_signals"/>
+  <remap from="planning_validator/input/operational_mode_state" to="/system/operation_mode/state"/>
+  <remap from="planning_validator/output/trajectory" to="/planning/trajectory"/>
+  <remap from="planning_validator/output/validation_status" to="/planning/validation_status"/>
+  <include file="$(find autoware_planning_validator)/launch/planning_validator_full.launch">
+    <arg name="vehicle_param_file" value="$(arg vehicle_param_path)"/>
+    <arg name="use_obstacle_pointcloud" value="$(arg use_obstacle_pointcloud)"/>
+    <arg name="launch_modules" value="$(arg launch_modules)"/>
+  </include>
+</launch>

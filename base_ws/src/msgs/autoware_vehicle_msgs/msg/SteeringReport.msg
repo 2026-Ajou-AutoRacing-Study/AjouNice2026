@@ -1,2 +1,0 @@
-time stamp
-float32 steering_tire_angle

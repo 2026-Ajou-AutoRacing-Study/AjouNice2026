@@ -1,0 +1,32 @@
+version: 1
+name: online-highway-fresh-e40
+mode: fresh
+epochs: 40
+learning_rate: 1.0e-4
+base_config: perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py
+
+dataset:
+  capture_root: ${BASE3_ONLINE_HIGHWAY_ROOT}
+  info_root: ${BASE3_ONLINE_HIGHWAY_ROOT}
+  container_root: /datasets/base3_online_highway_motion_v2
+
+gpu:
+  profile: auto
+  physical_batch_size: auto
+  gradient_accumulation: auto
+  workers: auto
+  shm_size: auto
+
+wandb:
+  enabled: true
+  entity: AjouNice2026
+  project: morai-3d-object-detection
+  group: bevfusion-base3-online-highway
+  tags: [base3-online, highway, rosbag-only, fresh, four-camera, lidar]
+
+output:
+  root: ""
+
+checkpointing:
+  interval: 1
+  max_keep_ckpts: 40

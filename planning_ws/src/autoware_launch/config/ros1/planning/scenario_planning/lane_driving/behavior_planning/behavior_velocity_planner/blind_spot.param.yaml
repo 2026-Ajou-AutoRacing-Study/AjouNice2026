@@ -1,0 +1,17 @@
+blind_spot/backward_attention_length: 100.0
+blind_spot/ttc_start_margin: 2.0
+blind_spot/ttc_end_margin: 1.0
+blind_spot/minimum_default_velocity: 1.388
+blind_spot/collision_judge_debounce: 0.5
+blind_spot/critical_stopline_margin: 1.0
+blind_spot/detect_non_vru/car: false
+blind_spot/detect_non_vru/truck: false
+blind_spot/detect_non_vru/bus: false
+blind_spot/detect_non_vru/trailer: false
+blind_spot/brake/critical/deceleration: -6.0
+blind_spot/brake/critical/jerk: -5.0
+blind_spot/brake/semi_critical/deceleration: -4.0
+blind_spot/brake/semi_critical/jerk: -5.0
+blind_spot/brake_for_ttc/critical_threshold_ub: 3.0
+blind_spot/brake_for_ttc/semi_critical_threshold_lb: 5.0
+blind_spot/enable_rtc: false

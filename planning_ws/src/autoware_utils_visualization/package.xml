@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_utils_visualization</name>
+  <version>1.8.0</version>
+  <description>ROS 1 marker helper utilities ported from Autoware.</description>
+  <maintainer email="porting@local.invalid">Autoware ROS1 Porting</maintainer>
+  <license>Apache License 2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>visualization_msgs</build_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <build_export_depend>visualization_msgs</build_export_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <test_depend>gtest</test_depend>
+</package>

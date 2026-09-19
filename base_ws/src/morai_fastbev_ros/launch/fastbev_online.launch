@@ -1,0 +1,61 @@
+<launch>
+  <arg name="python_executable" default=""/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="config"
+       default="$(arg repo_root)/perception/detection3d/fastbev/configs/fastbev_m0_morai_4cam_s384x704.py"/>
+  <arg name="checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/fastbev/releases/fastbev_i3_production.pth"/>
+  <arg name="sensor_config"
+       default="$(arg repo_root)/configs/sensors/Sensor_6.json"/>
+
+  <arg name="diagnostics_topic" default="/fastbev/diagnostics"/>
+  <arg name="objects_topic"
+       default="/perception/object_recognition/detection/objects"/>
+  <arg name="jsk_boxes_topic" default="/hmi/perc/jsk_pillar_objects"/>
+  <arg name="markers_topic" default="/fastbev/detection_markers"/>
+  <arg name="output_frame_id" default="lidar1"/>
+  <arg name="fp16" default="true"/>
+  <arg name="cudnn_benchmark" default="true"/>
+  <arg name="sync_queue_size" default="12"/>
+  <arg name="sync_slop_sec" default="0.015"/>
+  <arg name="warmup_iterations" default="2"/>
+  <arg name="preprocess_backend" default="opencv"/>
+  <arg name="pipeline_mode" default="staged"/>
+  <arg name="pin_memory" default="true"/>
+  <arg name="metrics_window" default="100"/>
+  <arg name="log_interval" default="20"/>
+  <arg name="preprocess_workers" default="4"/>
+  <arg name="use_sim_time" default="false"/>
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+
+  <node pkg="morai_fastbev_ros"
+        type="fastbev_online_node.py"
+        name="fastbev_online"
+        launch-prefix="$(arg python_executable)"
+        output="screen"
+        respawn="false">
+    <remap from="~output/objects" to="$(arg objects_topic)"/>
+    <rosparam command="load"
+              file="$(find morai_fastbev_ros)/config/morai_4cam.yaml"/>
+    <param name="repo_root" value="$(arg repo_root)"/>
+    <param name="config" value="$(arg config)"/>
+    <param name="checkpoint" value="$(arg checkpoint)"/>
+    <param name="sensor_config" value="$(arg sensor_config)"/>
+    <param name="diagnostics_topic" value="$(arg diagnostics_topic)"/>
+    <param name="jsk_boxes_topic" value="$(arg jsk_boxes_topic)"/>
+    <param name="markers_topic" value="$(arg markers_topic)"/>
+    <param name="output_frame_id" value="$(arg output_frame_id)"/>
+    <param name="fp16" value="$(arg fp16)"/>
+    <param name="cudnn_benchmark" value="$(arg cudnn_benchmark)"/>
+    <param name="sync_queue_size" value="$(arg sync_queue_size)"/>
+    <param name="sync_slop_sec" value="$(arg sync_slop_sec)"/>
+    <param name="warmup_iterations" value="$(arg warmup_iterations)"/>
+    <param name="preprocess_backend" value="$(arg preprocess_backend)"/>
+    <param name="pipeline_mode" value="$(arg pipeline_mode)"/>
+    <param name="pin_memory" value="$(arg pin_memory)"/>
+    <param name="metrics_window" value="$(arg metrics_window)"/>
+    <param name="log_interval" value="$(arg log_interval)"/>
+    <param name="preprocess_workers" value="$(arg preprocess_workers)"/>
+  </node>
+</launch>

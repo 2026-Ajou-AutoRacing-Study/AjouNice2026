@@ -50,19 +50,13 @@ struct CameraChannel {
   ros::Publisher publisher;
   std::vector<uint8_t> jpeg;
   int32_t next_index = 0;
+  ros::Time received_at;
 };
 
 struct SensorSocket {
   int fd = -1;
   int port = 0;
 };
-
-ros::Time packetTime(int32_t sec, int32_t nsec) {
-  if (sec > 0 && nsec >= 0 && nsec < 1000000000) {
-    return ros::Time(static_cast<uint32_t>(sec), static_cast<uint32_t>(nsec));
-  }
-  return ros::Time::now();
-}
 
 std::vector<std::string> splitCsv(const std::string& sentence) {
   std::vector<std::string> fields;
@@ -220,13 +214,18 @@ class MoraiSensorUdpReceiver {
         }
         return;
       }
+      const ros::Time received_at = ros::Time::now();
       if (length < 21 || std::memcmp(buffer.data(), "MOR", 3) != 0) continue;
 
       int32_t sec = 0, nsec = 0, index = 0;
       std::memcpy(&sec, buffer.data() + 3, sizeof(sec));
       std::memcpy(&nsec, buffer.data() + 7, sizeof(nsec));
       std::memcpy(&index, buffer.data() + 11, sizeof(index));
-      if (index == 0 || index != camera.next_index) camera.jpeg.clear();
+      if (index == 0 || index != camera.next_index || camera.jpeg.empty()) {
+        camera.jpeg.clear();
+        // Frame timestamp is the first fragment's ROS-host receipt time.
+        camera.received_at = received_at;
+      }
       camera.next_index = index + 1;
 
       const std::size_t payload_begin = 19;
@@ -248,7 +247,7 @@ class MoraiSensorUdpReceiver {
         }
         if (camera.jpeg.size() >= 4 && camera.jpeg[0] == 0xff && camera.jpeg[1] == 0xd8) {
           sensor_msgs::CompressedImage message;
-          message.header.stamp = packetTime(sec, nsec);
+          message.header.stamp = camera.received_at;
           message.header.frame_id = camera.frame_id;
           message.format = "jpeg";
           message.data.swap(camera.jpeg);
@@ -266,6 +265,7 @@ class MoraiSensorUdpReceiver {
     while (true) {
       const ssize_t length = ::recv(gps_.fd, buffer.data(), buffer.size() - 1, 0);
       if (length < 0) return;
+      const ros::Time received_at = ros::Time::now();
       buffer[length] = 0;
       std::string sentence(reinterpret_cast<char*>(buffer.data()), static_cast<std::size_t>(length));
       const auto nul = sentence.find('\0');
@@ -277,7 +277,7 @@ class MoraiSensorUdpReceiver {
         const auto fields = splitCsv(sentence);
         if (fields.size() < 10) continue;
         morai_msgs::GPSMessage message;
-        message.header.stamp = ros::Time::now();
+        message.header.stamp = received_at;
         message.header.frame_id = gps_frame_;
         message.latitude = nmeaDegrees(fields[2], fields[3]);
         message.longitude = nmeaDegrees(fields[4], fields[5]);
@@ -296,6 +296,7 @@ class MoraiSensorUdpReceiver {
     while (true) {
       const ssize_t length = ::recv(imu_.fd, buffer.data(), buffer.size(), 0);
       if (length < 0) return;
+      const ros::Time received_at = ros::Time::now();
       if (length != static_cast<ssize_t>(sizeof(MoraiImuPacket))) {
         ROS_WARN_THROTTLE(1.0, "IMU packet size %zd, expected %zu", length,
                           sizeof(MoraiImuPacket));
@@ -305,7 +306,7 @@ class MoraiSensorUdpReceiver {
       std::memcpy(&packet, buffer.data(), sizeof(packet));
       if (packet.tail[0] != '\r' || packet.tail[1] != '\n') continue;
       sensor_msgs::Imu message;
-      message.header.stamp = packetTime(packet.sec, packet.nsec);
+      message.header.stamp = received_at;
       message.header.frame_id = imu_frame_;
       message.orientation.w = packet.ori_w;
       message.orientation.x = packet.ori_x;

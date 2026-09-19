@@ -1,0 +1,1 @@
+<library path="lib/libtier4_planning_factor_rviz_plugin"><class name="tier4_planning_factor_rviz_plugin/PlanningFactorRvizPlugin" type="autoware::rviz_plugins::PlanningFactorRvizPlugin" base_class_type="rviz::Display"><description>PlanningFactorArray display</description><message_type>autoware_internal_planning_msgs/PlanningFactorArray</message_type></class></library>

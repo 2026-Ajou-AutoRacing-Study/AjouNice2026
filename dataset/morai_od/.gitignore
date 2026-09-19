@@ -1,0 +1,67 @@
+# Python/runtime artifacts
+__pycache__/
+*.py[cod]
+*.log
+tmp/
+temp/
+local_reference/
+
+# Large sensor and training artifacts must live under AJOUNICE_DATA_ROOT.
+raw/
+captures/
+rosbags/
+processed/
+checkpoints/
+
+# Prevent accidental addition if binary data is placed elsewhere below here.
+*.bag
+*.bag.active
+*.pcd
+*.bin
+*.pth
+*.pt
+*.onnx
+*.engine
+*.tar
+*.tar.gz
+*.zip
+
+# Sensor images are external data. Small documentation images should go in
+# the repository's existing docs directories instead.
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.tiff
+
+# Reproducible MORAI generator outputs
+#
+# Keep generators, configs, asset policies, docs, tests, and small reviewed
+# fixtures in Git. Scenario JSON, per-scene metadata, generated manifests,
+# routes, and machine reports are local build products. They must be recreated
+# from the tracked config and seed before capture.
+scenarios/*/
+!scenarios/prototypes/
+!scenarios/prototypes/**
+!scenarios/ros_capture_poc/
+!scenarios/ros_capture_poc/**
+
+metadata/*/
+!metadata/prototypes/
+!metadata/prototypes/**
+!metadata/ros_capture_poc/
+!metadata/ros_capture_poc/**
+
+# Root manifests are generator outputs unless explicitly allowlisted. The
+# Fast-BEV directory is a frozen dataset release split, not a scenario build.
+manifests/*
+!manifests/README.md
+!manifests/ros_capture_poc.json
+!manifests/fastbev_sunny13_1500_v1/
+!manifests/fastbev_sunny13_1500_v1/**
+
+# Machine-readable reports may contain local absolute paths and are always
+# regenerated. Distilled conclusions belong in docs/*.md. Ignore nested audit
+# directories as well as root-level JSON reports.
+reports/*
+!reports/README.md

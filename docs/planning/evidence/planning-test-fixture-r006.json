@@ -1,0 +1,39 @@
+{
+  "schema": "ajounice.aw149.planning_test_fixture.v1",
+  "recorded_at": "2026-09-08T20:25:00+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "checkpoint": {
+    "name": "checkpoint-r008.json",
+    "sha256": "5b5bcf2477d0d53a36fbf5ba006066f5f332dc5dcf6d4899dd08c7331ba9ac7b",
+    "predecessor": "checkpoint-r007.json"
+  },
+  "source_audit": {
+    "status": "PASS",
+    "source_files_checked": 3998,
+    "changed_or_missing": 0,
+    "provider_source_files_checked": 6589,
+    "provider_changed_or_missing": 0
+  },
+  "isolated_results": {
+    "packages": 9,
+    "tests": 124,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "package_names": [
+      "autoware_behavior_velocity_blind_spot_module",
+      "autoware_behavior_velocity_crosswalk_module",
+      "autoware_behavior_velocity_detection_area_module",
+      "autoware_behavior_velocity_intersection_module",
+      "autoware_behavior_velocity_no_stopping_area_module",
+      "autoware_behavior_velocity_occlusion_spot_module",
+      "autoware_behavior_velocity_roundabout_module",
+      "autoware_behavior_velocity_traffic_light_module",
+      "autoware_behavior_velocity_walkway_module"
+    ]
+  },
+  "master_policy": "fresh ROS master and ROS_HOME per package",
+  "make_jobs": 1,
+  "fixture_source": "Each plugin test loads its committed config/ros1 module YAML; vehicle-consuming plugins also load the committed test vehicle dimensions.",
+  "claim_boundary": "These nine package suites are closed. Remaining planning package suites are not covered by this receipt."
+}

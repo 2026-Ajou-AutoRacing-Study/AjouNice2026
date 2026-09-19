@@ -3,6 +3,7 @@ project(trajectory_validator)
 
 find_package(catkin REQUIRED COMPONENTS
   autoware_planning_msgs
+  builtin_interfaces
   geometry_msgs
   message_generation
   morai_msgs
@@ -33,6 +34,7 @@ catkin_package(
   LIBRARIES trajectory_validator_rviz_panel
   CATKIN_DEPENDS
     autoware_planning_msgs
+    builtin_interfaces
     geometry_msgs
     message_runtime
     morai_msgs

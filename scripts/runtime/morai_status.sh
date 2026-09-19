@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT="${AJOUNICE_ROOT:-$HOME/AjouNice2026}"
-source /opt/ros/noetic/setup.bash
-if [[ -f "$ROOT/base_ws/devel/setup.bash" ]]; then
-  source "$ROOT/base_ws/devel/setup.bash"
-fi
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$ROOT/scripts/workspace/source_aw149.sh"
 
 section() { printf '\n== %s ==\n' "$1"; }
 

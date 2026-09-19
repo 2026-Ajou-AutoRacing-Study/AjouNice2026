@@ -1,4 +1,0 @@
-<launch>
-  <!-- Compatibility alias. The Trajectory-native MVP must follow Path Optimizer. -->
-  <include file="$(find bringup)/launch/mission_bpp_bvp_path_smoother_path_optimizer_mvp_pipeline.launch" />
-</launch>

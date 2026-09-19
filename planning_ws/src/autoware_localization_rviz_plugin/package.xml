@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_localization_rviz_plugin</name>
+  <version>0.5.0</version>
+  <description>ROS1 RViz display adapters for Autoware localization history.</description>
+  <maintainer email="jihun@example.invalid">AW149 porter</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>autoware_internal_debug_msgs</depend>
+  <depend>autoware_vehicle_info_utils</depend>
+  <depend>geometry_msgs</depend>
+  <depend>pluginlib</depend>
+  <depend>rviz</depend>
+  <depend>tf2_ros</depend>
+  <build_depend>qtbase5-dev</build_depend>
+  <exec_depend>qtbase5-dev</exec_depend>
+  <test_depend>gtest</test_depend>
+  <export><rviz plugin="${prefix}/plugins/plugin_description.xml"/></export>
+</package>

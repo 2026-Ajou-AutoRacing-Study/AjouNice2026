@@ -1,5 +1,0 @@
-time stamp
-time control_time
-float32 steering_tire_angle
-float32 steering_tire_rotation_rate
-bool is_defined_steering_tire_rotation_rate

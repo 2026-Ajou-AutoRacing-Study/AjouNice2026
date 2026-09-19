@@ -1,0 +1,24 @@
+#pragma once
+#include <string>
+namespace costmap_generator_node { struct Params {
+  double update_rate{};
+  bool activate_by_scenario{};
+  bool use_objects{};
+  bool use_points{};
+  bool use_wayarea{};
+  bool use_parkinglot{};
+  std::string costmap_frame{};
+  std::string vehicle_frame{};
+  std::string map_frame{};
+  double grid_min_value{};
+  double grid_max_value{};
+  double grid_resolution{};
+  double grid_length_x{};
+  double grid_length_y{};
+  double grid_position_x{};
+  double grid_position_y{};
+  double maximum_lidar_height_thres{};
+  double minimum_lidar_height_thres{};
+  double expand_polygon_size{};
+  int size_of_expansion_kernel{};
+}; }

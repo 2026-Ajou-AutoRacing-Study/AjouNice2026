@@ -1,5 +1,9 @@
 # MORAI k-city to Lanelet Map Alignment
 
+> 이 문서의 `localization_morai_gt.launch` 예시는 `/Ego_topic`을 이용한 지도 정합
+> 개발 절차다. 대회 production fallback이 아니다. 현재 실행 계약은
+> `docs/localization/README.md`를 따른다.
+
 This alignment fixes the relationship between the Autoware/Lanelet `map`
 frame and the MORAI `morai_map` frame. It is a static map-to-map transform,
 not a runtime GPS conversion.
@@ -53,17 +57,18 @@ lanelet map origin UTM52:
 ```text
 map -> morai_map
 translation:
-  x: 131.656525062
-  y: 545.893929229
+  x: 131.559130220
+  y: 545.911338186
   z: 0.0
 rotation:
   roll:  0.0
   pitch: 0.0
-  yaw:   0.000146070411 rad
-         0.008369218 deg
+  yaw:   0.0 rad
+         0.0 deg
 ```
 
-The unrefined translation from runtime GPS origin to Lanelet map origin is:
+This is the direct origin delta from the runtime MORAI GPS origin to the
+Lanelet projector origin:
 
 ```text
 morai_origin_utm - lanelet_origin_utm
@@ -72,7 +77,15 @@ morai_origin_utm - lanelet_origin_utm
   z: 0.0
 ```
 
-## Runtime Validation
+Lanelet v61 uses the current source-map geometry directly. The canonical
+runtime transform therefore applies no additional geometry-fit translation or
+yaw refinement.
+
+## Historical Alignment Experiments (Not Applied)
+
+The following bag and geometry fits were diagnostic experiments against older
+Lanelet versions. They are retained for traceability but are not runtime v61
+configuration values.
 
 The previous GPS/Ego yaw refinement was calculated from
 `rosbags/raw/raw_sensor_0629_1718.bag`, which uses the same runtime GPS offsets:
@@ -99,10 +112,10 @@ The fitted translation differs from the raw GPS-origin delta by
 small yaw correction centered on the live trajectory instead of rotating around
 the raw origin.
 
-The current applied transform uses the MGeo geometry fit. A later raw-LiDAR
-intensity refinement from `rosbags/raw/raw_sensor_0701_0100.bag` was tested and
-rejected after RViz inspection because the high-intensity ground set was not
-lane-only.
+A historical MGeo geometry fit produced the values below. It was retired for
+v61. A later raw-LiDAR intensity refinement from
+`rosbags/raw/raw_sensor_0701_0100.bag` was also tested and rejected after RViz
+inspection because the high-intensity ground set was not lane-only.
 
 ```text
 source:
@@ -117,12 +130,12 @@ balanced robust fit:
        0.008369218 deg
   translation: [131.656525062, 545.893929229, 0.0]
 
-current config residuals:
+raw-delta baseline residuals:
   link -> centerline rms:         0.9679 m
   lane boundary -> boundary rms:  0.8775 m
   lane nonstop -> boundary rms:   0.8757 m
 
-refined config residuals:
+historical MGeo-fit residuals:
   link -> centerline rms:         0.9661 m
   lane boundary -> boundary rms:  0.8668 m
   lane nonstop -> boundary rms:   0.8650 m

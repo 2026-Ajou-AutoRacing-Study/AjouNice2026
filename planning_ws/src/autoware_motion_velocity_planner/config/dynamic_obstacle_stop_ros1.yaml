@@ -1,0 +1,13 @@
+# ROS1 projection of the candidate Dynamic Obstacle Stop parameters.
+# This is intentionally flat: ROS1 rosparam must not ingest the ROS2
+# `/**: ros__parameters` wrapper used by the upstream YAML.
+dynamic_obstacle_stop:
+  extra_object_width: 1.0
+  minimum_object_velocity: 0.5
+  stop_distance_buffer: 0.5
+  time_horizon: 5.0
+  hysteresis: 1.0
+  add_stop_duration_buffer: 0.5
+  remove_stop_duration_buffer: 1.0
+  minimum_object_distance_from_ego_trajectory: 1.0
+  ignore_unavoidable_collisions: true

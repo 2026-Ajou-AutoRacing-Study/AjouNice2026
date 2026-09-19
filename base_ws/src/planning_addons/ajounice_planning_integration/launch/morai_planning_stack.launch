@@ -1,0 +1,151 @@
+<launch>
+  <!--
+    AjouNice MORAI integration entrypoint.  Controller output is disabled by
+    default so the first gate can inspect /planning/trajectory safely.
+  -->
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="vehicle_param_path"
+       default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
+  <arg name="vehicle_config"
+       default="$(arg repo_root)/configs/vehicle/ioniq5.yaml"/>
+  <arg name="sensor_config"
+       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
+  <arg name="use_sim_time" default="false"/>
+  <arg name="behavior_path_forward_length" default="400.0"/>
+  <arg name="intersection_attention_area_length" default="100.0"/>
+
+  <!-- Competition localization is owned by the separate `localization` alias.
+       The legacy /Ego_topic provider must never start implicitly. -->
+  <arg name="start_localization" default="false"/>
+  <arg name="start_sensor_tf" default="true"/>
+  <!-- Planning owns EKF -> UNKNOWN stationary policy -> Map-CV. -->
+  <arg name="start_object_pipeline" default="true"/>
+  <!-- Model checkpoints are not stored in Git; enable only after provisioning. -->
+  <arg name="start_detector" default="false"/>
+  <arg name="detector" default="fastbev"/>
+  <arg name="fastbev_checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/fastbev/releases/fastbev_i3_production.pth"/>
+  <arg name="openpcdet_root" default=""/>
+  <arg name="pointpainting_cfg"
+       default="$(arg repo_root)/artifacts/team_handoffs/260909_pointpainting_production_3model/models/b3s_pp1_e34/model.yaml"/>
+  <arg name="pointpainting_checkpoint"
+       default="$(arg repo_root)/artifacts/team_handoffs/260909_pointpainting_production_3model/models/b3s_pp1_e34/detector.pth"/>
+  <arg name="pointpainting_segmentation_checkpoint"
+       default="$(arg repo_root)/artifacts/team_handoffs/260909_pointpainting_production_3model/segmentation/base3_lraspp_e30/segmentation.pth"/>
+  <arg name="pointpainting_vehicle_score_threshold" default="0.40"/>
+  <arg name="pointpainting_pedestrian_score_threshold" default="0.15"/>
+  <arg name="pointpainting_obstacle_score_threshold" default="0.10"/>
+  <arg name="prediction_model" default="map_based"/>
+  <!-- PointPainting Obstacle is UNKNOWN; prevent tracker jitter becoming motion. -->
+  <arg name="force_unknown_stationary" default="true"/>
+  <!-- Preserve the planning baseline. BEVFusion hosts may explicitly override
+       this to 0.5 s when measured detector age exceeds 0.25 s. -->
+  <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
+  <arg name="start_traffic_light" default="true"/>
+  <!-- Independent from start_traffic_light: the former owns inference, this
+       controls the planner plugin consuming traffic-light observations. -->
+  <arg name="enable_traffic_light_planner" default="true"/>
+  <arg name="traffic_light_inference_python"
+       default="/usr/bin/python3"/>
+  <arg name="traffic_light_device" default="0"/>
+  <!-- Passive until the RViz Route A button calls the gateway service. -->
+  <arg name="start_requester" default="true"/>
+  <arg name="start_controller" default="false"/>
+  <!-- Competition operation policy: the stack is always reported as engaged autonomous. -->
+  <arg name="publish_fixed_autonomous_mode" default="true"/>
+  <!-- AjouNice does not deploy ground removal or an occupancy-grid producer. -->
+  <arg name="use_ground_pointcloud" default="false"/>
+  <arg name="use_occupancy_grid" default="false"/>
+
+  <group if="$(arg start_localization)">
+    <!-- Legacy/local MORAI compatibility only; not a competition fallback. -->
+    <include file="$(find bringup)/launch/localization_morai_gt.launch">
+      <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+      <!-- ajounice_planning_integration/map.launch is the sole binary-map owner. -->
+      <arg name="start_lanelet_map" value="false"/>
+    </include>
+  </group>
+
+  <group if="$(arg start_sensor_tf)">
+    <include file="$(find bringup)/launch/sensing.launch">
+      <arg name="sensor_config" value="$(arg sensor_config)"/>
+      <arg name="enable_sensor_tf" value="true"/>
+      <arg name="enable_ego_tf" value="false"/>
+      <arg name="enable_vehicle_model" value="false"/>
+      <arg name="start_rviz" value="false"/>
+    </include>
+  </group>
+
+  <group if="$(arg start_object_pipeline)">
+    <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+      <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+      <arg name="start_detector" value="$(arg start_detector)"/>
+      <arg name="detector" value="$(arg detector)"/>
+      <arg name="fastbev_checkpoint" value="$(arg fastbev_checkpoint)"/>
+      <arg name="openpcdet_root" value="$(arg openpcdet_root)"/>
+      <arg name="pointpainting_cfg" value="$(arg pointpainting_cfg)"/>
+      <arg name="pointpainting_checkpoint"
+           value="$(arg pointpainting_checkpoint)"/>
+      <arg name="pointpainting_segmentation_checkpoint"
+           value="$(arg pointpainting_segmentation_checkpoint)"/>
+      <arg name="pointpainting_vehicle_score_threshold"
+           value="$(arg pointpainting_vehicle_score_threshold)"/>
+      <arg name="pointpainting_pedestrian_score_threshold"
+           value="$(arg pointpainting_pedestrian_score_threshold)"/>
+      <arg name="pointpainting_obstacle_score_threshold"
+           value="$(arg pointpainting_obstacle_score_threshold)"/>
+      <arg name="prediction_model" value="$(arg prediction_model)"/>
+      <arg name="force_unknown_stationary"
+           value="$(arg force_unknown_stationary)"/>
+      <!-- Keep the integrated compatibility path equivalent to `tracking`. -->
+      <arg name="canonicalize_vehicle_orientation_to_motion" value="true"/>
+      <arg name="orientation_canonicalization_min_speed_mps" value="1.0"/>
+      <arg name="orientation_flip_enter_error_deg" value="100.0"/>
+      <arg name="orientation_flip_exit_error_deg" value="80.0"/>
+      <arg name="compensate_tracking_output_to_current_time" value="false"/>
+      <arg name="maximum_tracking_output_compensation_sec" value="0.25"/>
+      <arg name="tracking_internal_publish_rate_hz" value="30.0"/>
+      <arg name="maximum_tracking_internal_prediction_age_sec"
+           value="$(arg maximum_tracking_internal_prediction_age_sec)"/>
+      <arg name="detection_velocity_fusion_mode" value="0"/>
+      <arg name="tracking_publish_rate_hz" value="0.0"/>
+      <arg name="prediction_time_step" value="0.1"/>
+      <arg name="prediction_horizon" value="3.0"/>
+      <arg name="map_file"
+           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v84.osm"/>
+      <arg name="projector_file"
+           value="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+    </include>
+  </group>
+
+  <group if="$(arg start_traffic_light)">
+    <include file="$(find traffic_light_detection)/launch/traffic_light_node.launch">
+      <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="inference_python" value="$(arg traffic_light_inference_python)"/>
+      <arg name="device" value="$(arg traffic_light_device)"/>
+    </include>
+  </group>
+
+  <include file="$(find ajounice_planning_integration)/launch/planning.launch">
+    <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    <arg name="start_requester" value="$(arg start_requester)"/>
+    <arg name="behavior_path_forward_length" value="$(arg behavior_path_forward_length)"/>
+    <arg name="intersection_attention_area_length" value="$(arg intersection_attention_area_length)"/>
+    <arg name="enable_traffic_light_planner"
+         value="$(arg enable_traffic_light_planner)"/>
+    <arg name="publish_fixed_autonomous_mode" value="$(arg publish_fixed_autonomous_mode)"/>
+    <arg name="is_simulation" value="$(arg use_sim_time)"/>
+    <arg name="use_ground_pointcloud" value="$(arg use_ground_pointcloud)"/>
+    <arg name="use_occupancy_grid" value="$(arg use_occupancy_grid)"/>
+  </include>
+
+  <group if="$(arg start_controller)">
+    <include file="$(find trajectory_follower)/launch/pp_pi_autoware.launch">
+      <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="vehicle_config" value="$(arg vehicle_config)"/>
+    </include>
+  </group>
+</launch>

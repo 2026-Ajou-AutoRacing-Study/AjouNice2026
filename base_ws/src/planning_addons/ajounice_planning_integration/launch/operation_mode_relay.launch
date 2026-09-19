@@ -1,0 +1,11 @@
+<launch>
+  <!-- Keep one authoritative mode source; BoundaryDeparture consumes the API alias. -->
+  <arg name="input_topic" default="/system/operation_mode/state"/>
+  <arg name="output_topic" default="/api/operation_mode/state"/>
+  <node pkg="topic_tools"
+        type="relay"
+        name="operation_mode_state_to_api"
+        args="$(arg input_topic) $(arg output_topic)"
+        output="screen"
+        respawn="false"/>
+</launch>

@@ -1,23 +1,27 @@
 <launch>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <!--
     Complete the MORAI ground-truth branch of the localization TF tree:
       map -> morai_map -> base_link
 
     ego_tf_broadcaster owns morai_map -> base_link. The Python node snapshots
-    map -> base_link and publishes the Planning Odometry contract.
+    map -> base_link and publishes the Planning Odometry and acceleration
+    contracts.
   -->
   <arg name="config"
-       default="$(env HOME)/AjouNice2026/configs/localization/localization_manager.yaml"/>
+       default="$(arg repo_root)/configs/localization/localization_manager.yaml"/>
   <arg name="ego_topic" default="/Ego_topic"/>
+  <arg name="acceleration_topic" default="/localization/acceleration"/>
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
   <arg name="base_frame" default="base_link"/>
   <arg name="heading_in_degrees" default="true"/>
   <arg name="use_heading_correction" default="false"/>
-  <arg name="heading_yaw_offset_deg" default="-1.37"/>
+  <arg name="heading_yaw_offset_deg" default="-1.347"/>
 
   <rosparam command="load" file="$(arg config)" ns="localization_manager"/>
   <param name="/localization_manager/topics/ego" value="$(arg ego_topic)"/>
+  <param name="/localization_manager/topics/acceleration" value="$(arg acceleration_topic)"/>
   <param name="/localization_manager/frames/map" value="$(arg map_frame)"/>
   <param name="/localization_manager/frames/morai_map" value="$(arg morai_map_frame)"/>
   <param name="/localization_manager/frames/base_link" value="$(arg base_frame)"/>

@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_grid_map_utils</name>
+  <version>0.51.0</version>
+  <description>Utilities for the grid_map library.</description>
+  <maintainer email="maxime.clement@tier4.jp">Maxime CLEMENT</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>grid_map_core</build_depend>
+  <build_export_depend>grid_map_core</build_export_depend>
+  <exec_depend>grid_map_core</exec_depend>
+
+  <test_depend>gtest</test_depend>
+</package>

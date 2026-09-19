@@ -1,0 +1,50 @@
+<launch>
+  <arg name="vehicle_param_path" doc="ROS1 vehicle parameters shared with the upstream planning nodes"/>
+  <!-- R003 composition candidate: all source inputs are required before output. -->
+  <arg name="publish_diag" default="true"/>
+  <arg name="diag_error_count_threshold" default="0"/>
+  <!-- Source default: 0=PublishAsIs. Test or deployment profiles may select
+       1=UsePreviousResult or 2=UsePreviousResultWithSoftStop explicitly. -->
+  <arg name="default_handling_type" default="0"/>
+  <!-- Defaults preserve the standalone node-interface oracle.  A pipeline
+       owner must remap every ingress explicitly; this launch never invents a
+       perception producer or silently substitutes a missing safety input. -->
+  <arg name="input_trajectory" default="/planning_validator_candidate/input/trajectory"/>
+  <arg name="input_kinematics" default="/planning_validator_candidate/input/kinematics"/>
+  <arg name="input_acceleration" default="/planning_validator_candidate/input/acceleration"/>
+  <arg name="input_pointcloud" default="/planning_validator_candidate/input/pointcloud"/>
+  <arg name="input_route" default="/planning_validator_candidate/input/route"/>
+  <arg name="input_lanelet_map_bin" default="/planning_validator_candidate/input/lanelet_map_bin"/>
+  <arg name="input_traffic_signals" default="/planning_validator_candidate/input/traffic_signals"/>
+  <arg name="output_trajectory" default="/planning_validator_candidate/output/trajectory"/>
+  <arg name="output_validation_status" default="/planning_validator_candidate/output/validation_status"/>
+  <arg name="output_diagnostics" default="/planning_validator_candidate/diagnostics"/>
+  <node pkg="autoware_planning_validator"
+        type="planning_validator_candidate_node"
+        name="planning_validator_candidate"
+        output="screen">
+    <rosparam file="$(find autoware_planning_validator)/config/planning_validator.ros1.yaml"/>
+    <!-- Keep the source switch testable without changing validation/output. -->
+    <param name="publish_diag" value="$(arg publish_diag)" type="bool"/>
+    <param name="diag_error_count_threshold" value="$(arg diag_error_count_threshold)" type="int"/>
+    <param name="default_handling_type" value="$(arg default_handling_type)" type="int"/>
+    <rosparam file="$(find autoware_planning_validator_trajectory_checker)/config/trajectory_checker.ros1.yaml"/>
+    <!-- ICC has no behavior defaults: retain its complete source-shaped tree. -->
+    <rosparam file="$(find autoware_planning_validator_intersection_collision_checker)/config/intersection_collision_checker.ros1.yaml"/>
+    <rosparam command="load" file="$(arg vehicle_param_path)"/>
+    <param name="trajectory_checker_plugin" value="autoware::planning_validator::TrajectoryCheckerRos1"/>
+    <param name="latency_checker_plugin" value="autoware::planning_validator::LatencyCheckerRos1"/>
+    <param name="intersection_collision_checker_plugin" value="autoware::planning_validator::IntersectionCollisionCheckerRos1"/>
+    <param name="rear_collision_checker_plugin" value="autoware::planning_validator::RearCollisionCheckerRos1"/>
+    <remap from="~input/trajectory" to="$(arg input_trajectory)"/>
+    <remap from="~input/kinematics" to="$(arg input_kinematics)"/>
+    <remap from="~input/acceleration" to="$(arg input_acceleration)"/>
+    <remap from="~input/pointcloud" to="$(arg input_pointcloud)"/>
+    <remap from="~input/route" to="$(arg input_route)"/>
+    <remap from="~input/lanelet_map_bin" to="$(arg input_lanelet_map_bin)"/>
+    <remap from="~input/traffic_signals" to="$(arg input_traffic_signals)"/>
+    <remap from="~output/trajectory" to="$(arg output_trajectory)"/>
+    <remap from="~output/validation_status" to="$(arg output_validation_status)"/>
+    <remap from="~diagnostics" to="$(arg output_diagnostics)"/>
+  </node>
+</launch>

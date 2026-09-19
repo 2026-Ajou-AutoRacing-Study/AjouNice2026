@@ -1,8 +1,9 @@
 <launch>
   <!-- Algorithm-only wrapper. MORAI bridge/sensing and global TF are separate. -->
   <arg name="use_sim_time" default="false"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="config"
-       default="$(env HOME)/AjouNice2026/configs/localization/fast_lio_msf_morai_sensor4_vlp16.yaml"/>
+       default="$(arg repo_root)/configs/localization/fast_lio_msf_morai_sensor4_vlp16.yaml"/>
 
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
   <rosparam command="load" file="$(arg config)"/>

@@ -1,0 +1,6 @@
+<package format="2">
+  <name>builtin_interfaces</name><version>2.0.4</version>
+  <description>ROS1 message provider preserving ROS2 builtin interface field shape.</description>
+  <maintainer email="noreply@example.com">Porting provider</maintainer><license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend><build_depend>message_generation</build_depend><exec_depend>message_runtime</exec_depend>
+</package>

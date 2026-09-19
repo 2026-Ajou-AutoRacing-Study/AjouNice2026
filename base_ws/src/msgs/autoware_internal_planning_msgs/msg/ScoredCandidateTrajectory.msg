@@ -1,2 +1,0 @@
-CandidateTrajectory candidate_trajectory
-float32 score

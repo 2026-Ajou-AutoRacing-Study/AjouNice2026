@@ -1,0 +1,130 @@
+// Copyright 2024 TIER IV, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef UTILS_HPP_
+#define UTILS_HPP_
+
+#define EIGEN_MPL2_ONLY
+
+#include <autoware/behavior_velocity_planner_common/utilization/boost_geometry_helper.hpp>
+#include <autoware/motion_utils/trajectory/path_with_lane_id.hpp>
+#include <autoware/trajectory/path_point_with_lane_id.hpp>
+
+#include <autoware_perception_msgs/TrafficLightElement.h>
+
+#include <lanelet2_core/primitives/Lanelet.h>
+#include <lanelet2_core/primitives/LineString.h>
+
+#include <optional>
+#include <utility>
+#include <vector>
+
+namespace autoware::behavior_velocity_planner
+{
+
+using Trajectory = autoware::experimental::trajectory::Trajectory<
+  autoware_internal_planning_msgs::PathPointWithLaneId>;
+
+/**
+ * @brief create offset point.
+ * @param src point of vector. this point is a base point for offset point.
+ * @param dst point of vector.
+ * @param offset length.
+ * @return offset point.
+ */
+auto getOffsetPoint(const Eigen::Vector2d & src, const Eigen::Vector2d & dst, const double length)
+  -> Eigen::Vector2d;
+
+/**
+ * @brief find intersection point between a path segment and stop line and return the point.
+ * @param path segment.
+ * @param stop line.
+ * @param base point to find nearest intersection point.
+ * @return intersection point. if there is no intersection point, return std::nullopt.
+ */
+auto findNearestCollisionPoint(
+  const LineString2d & line1, const LineString2d & line2, const Point2d & origin)
+  -> std::optional<Point2d>;
+
+/**
+ * @brief find intersection point between path and stop line and return the point.
+ * @param input path.
+ * @param stop line.
+ * @param longitudinal offset.
+ * @return first: insert point index, second: insert point position. if there is no intersection
+ * point, return std::nullopt.
+ */
+auto createTargetPoint(
+  const autoware_internal_planning_msgs::PathWithLaneId & input,
+  const LineString2d & stop_line, const double offset)
+  -> std::optional<std::pair<size_t, Eigen::Vector2d>>;
+
+/**
+ * @brief find intersection point between path and stop line and return the point.
+ * @param input path.
+ * @param stop line.
+ * @param longitudinal offset.
+ * @return first: insert point index, second: insert point position. if there is no intersection
+ * point, return std::nullopt.
+ */
+auto calcStopPointAndInsertIndex(
+  const autoware_internal_planning_msgs::PathWithLaneId & input_path,
+  const lanelet::ConstLineString3d & lanelet_stop_lines, const double & offset)
+  -> std::optional<std::pair<size_t, Eigen::Vector2d>>;
+
+/**
+ * @brief find intersection point between path and stop line and return arc length.
+ * @param path input path.
+ * @param left_bound left bound.
+ * @param right_bound right bound.
+ * @param lanelet_stop_lines stop lines.
+ * @return arc length of stop point. if there is no intersection point, return std::nullopt.
+ */
+std::optional<double> calcStopPoint(
+  const Trajectory & path, const std::vector<geometry_msgs::Point> & left_bound,
+  const std::vector<geometry_msgs::Point> & right_bound,
+  const lanelet::ConstLineString3d & lanelet_stop_lines, const double & offset);
+
+/**
+ * @brief check if the traffic signal is red stop.
+ * @param lanelet
+ * @param elements
+ * @return true if the traffic signal is red stop, false otherwise.
+ */
+bool isTrafficSignalRedStop(
+  const lanelet::ConstLanelet & lanelet,
+  const std::vector<autoware_perception_msgs::TrafficLightElement> & elements);
+
+/**
+ * @brief Select the route movement lane used to interpret directional traffic signals.
+ *
+ * The behavior velocity planner owns a map-backed RouteHandler, but does not own the
+ * mission route.  Therefore the selected movement is derived from the ordered lane IDs
+ * already carried by the BPP output path and restricted to routing-graph successors of
+ * the signal lane.
+ *
+ * @param signal_lane lanelet carrying the traffic-light regulatory element.
+ * @param path current BPP output path.
+ * @param following_lanes direct routing-graph successors of signal_lane.
+ * @return selected straight/left/right successor, or signal_lane when no unambiguous
+ *         path successor with a turn_direction attribute is available.
+ */
+lanelet::ConstLanelet selectTrafficSignalDecisionLane(
+  const lanelet::ConstLanelet & signal_lane,
+  const autoware_internal_planning_msgs::PathWithLaneId & path,
+  const lanelet::ConstLanelets & following_lanes);
+
+}  // namespace autoware::behavior_velocity_planner
+
+#endif  // UTILS_HPP_

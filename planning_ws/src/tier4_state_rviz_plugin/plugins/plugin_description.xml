@@ -1,0 +1,17 @@
+<library path="lib/libtier4_state_rviz_plugin">
+
+  <class
+    name="rviz_plugins/AutowareStatePanel"
+    type="rviz_plugins::AutowareStatePanel"
+    base_class_type="rviz::Panel">
+    <description>AutowareStatePanel</description>
+  </class>
+
+  <class
+    name="rviz_plugins/VelocitySteeringFactorsPanel"
+    type="rviz_plugins::VelocitySteeringFactorsPanel"
+    base_class_type="rviz::Panel">
+    <description>VelocitySteeringFactorsPanel</description>
+  </class>
+
+</library>

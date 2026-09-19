@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.0.2)
+project(autoware_launch)
+find_package(catkin REQUIRED)
+catkin_package()
+install(FILES ROS1_PLANNING_SCOPE.md DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+install(DIRECTORY launch/ DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch)
+install(DIRECTORY config/ DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config)

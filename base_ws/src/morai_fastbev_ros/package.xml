@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>morai_fastbev_ros</name>
+  <version>0.1.0</version>
+  <description>MORAI four-camera Fast-BEV online inference for ROS1 Noetic.</description>
+
+  <maintainer email="team@ajounice2026.example">AjouNice Team</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>autoware_perception_msgs</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>jsk_recognition_msgs</depend>
+  <depend>message_filters</depend>
+  <depend>perception_object_pipeline</depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>visualization_msgs</depend>
+
+  <!-- Launch-only dependency used by fastbev_with_tp.launch. -->
+  <exec_depend>ekf_multi_object_tracking</exec_depend>
+
+  <export/>
+</package>

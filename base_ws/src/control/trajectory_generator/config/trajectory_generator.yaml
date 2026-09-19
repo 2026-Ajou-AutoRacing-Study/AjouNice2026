@@ -1,7 +1,7 @@
 map:
-  lanelet_map_file: kcity_map/lanelet_map/lanelet2_map_v44.osm
+  lanelet_map_file: kcity_map/lanelet_map/lanelet2_map_v84.osm
   projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
-  route_lanelets_file: kcity_map/competition_route/v44/drive_course_v44_lanelets.csv
+  route_lanelets_file: kcity_map/competition_route/v61/drive_course_v61_lanelets.csv
 
 reference:
   global_path_file: configs/global_path/2026_molit_comp_global_path.txt

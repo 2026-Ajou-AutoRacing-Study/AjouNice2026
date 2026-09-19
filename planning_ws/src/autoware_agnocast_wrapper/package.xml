@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_agnocast_wrapper</name>
+  <version>1.8.0</version>
+  <description>ROS1 disabled-profile message_filters bindings for autoware_agnocast_wrapper.</description>
+  <maintainer email="autoware@tier4.jp">Autoware ROS1 porting</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_filters</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_export_depend>message_filters</build_export_depend>
+  <build_export_depend>roscpp</build_export_depend>
+  <exec_depend>message_filters</exec_depend>
+  <exec_depend>roscpp</exec_depend>
+  <export/>
+</package>

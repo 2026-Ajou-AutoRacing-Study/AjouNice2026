@@ -1,0 +1,13 @@
+<launch>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <node pkg="ajounice_planning_integration" type="map_projector_publisher" name="map_projector_publisher" required="true" output="screen">
+    <param name="repo_root" value="$(arg repo_root)"/>
+  </node>
+  <node pkg="autoware_map_loader" type="autoware_lanelet2_map_loader_full" name="lanelet2_map_loader" required="true" output="screen">
+    <param name="lanelet2_map_path" value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v84.osm"/>
+    <param name="center_line_resolution" value="5.0" type="double"/>
+    <param name="use_waypoints" value="true"/>
+    <param name="allow_unsupported_version" value="true"/>
+    <remap from="~output/lanelet2_map" to="/map/vector_map"/>
+  </node>
+</launch>

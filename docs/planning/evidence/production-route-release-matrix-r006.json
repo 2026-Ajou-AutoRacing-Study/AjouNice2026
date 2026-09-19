@@ -1,0 +1,70 @@
+{
+  "schema": "ajounice.aw149.production_route_release_matrix.v1",
+  "recorded_at": "2026-09-08T22:42:18+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "parent_commit": "59f590b4d2d41e3711da40817e61b15ddacddd9a",
+  "status": "PASS",
+  "planning_checkpoint": {
+    "name": "checkpoint-r011.json",
+    "sha256": "6d722f590ce94f41ae664e7ac5c7c5ace6e7c671bbb7a54c3422273f18824ef5",
+    "source_audit": "PASS",
+    "all_package_tests": "154/154 targets; 1288/1288 JUnit tests"
+  },
+  "harness_sha256": "856b31387c8e79af825f328dc398112ca38bbcd332f8bdb0ff7c3550f3f294b6",
+  "operation_case": "route_a_to_b_with_fallback",
+  "matrix": [
+    {
+      "case": "normal_route_b_priority",
+      "master_port": 11593,
+      "status_sequence": "VERIFIED(route_a) -> DISPATCHED(route_b) -> VERIFIED(route_b)",
+      "transition_speed_mps": 2.0,
+      "transition_verification_seconds": 0.7277529709972441,
+      "final_route_lanelets": 57,
+      "final_trajectory_points": 161,
+      "validator_flags_true": "20/20",
+      "process_deaths": 0,
+      "raw_result_sha256": "22944c4354d537b8cd1934b8f1a329470d58cba5778a13befd042e81a89f2d33"
+    },
+    {
+      "case": "fallback_without_route_b_adoption",
+      "master_port": 11594,
+      "status_sequence": "VERIFIED(route_a) -> DISPATCHED(fallback_route) -> VERIFIED(fallback_route)",
+      "route_b_dispatches": 0,
+      "transition_speed_mps": 2.0,
+      "transition_verification_seconds": 0.5204584740131395,
+      "final_route_lanelets": 28,
+      "final_trajectory_points": 151,
+      "validator_flags_true": "20/20",
+      "process_deaths": 0,
+      "raw_result_sha256": "d6ca614f057e198adb51a4e13e955bec0ed7fada99fcf3993a821383440a1b18"
+    },
+    {
+      "case": "fallback_after_explicit_route_b_safety_rejection",
+      "runs": 2,
+      "master_ports": [11591, 11592],
+      "status_sequence": "VERIFIED(route_a) -> DISPATCHED(route_b) -> REJECTED(route_b) -> DISPATCHED(fallback_route) -> VERIFIED(fallback_route)",
+      "fault_injection_speed_mps": 1000.0,
+      "active_after_rejection": "route_a",
+      "uncertain_after_rejection": false,
+      "fallback_transition_speed_mps": 2.0,
+      "final_route_lanelets": 28,
+      "final_trajectory_points": 151,
+      "validator_flags_true": "20/20",
+      "process_deaths": 0,
+      "raw_result_sha256": [
+        "2ff1b9ae166361a30ba130b0b5b695c9c5cdd922f3e6b68c76c5cb90307bff6b",
+        "e08f1678f680a3436a12fd2cc3dda03f96e9aec4e6d0f292c6793d84cf04a3cb"
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "proven": "The current installed full planning graph and production requester satisfy all three locally exercisable route-arbitration branches and produce fresh validator-accepted target-route trajectories without process death.",
+    "not_proven": [
+      "continuous vehicle motion between trigger poses",
+      "live MORAI topic, timestamp, frame, axis, or unit semantics",
+      "production detector and tracker accuracy",
+      "controller handoff or closed-loop driving",
+      "automatic recovery from ambiguous or timed-out Route B RPC; this intentionally requires operator reconciliation"
+    ]
+  }
+}

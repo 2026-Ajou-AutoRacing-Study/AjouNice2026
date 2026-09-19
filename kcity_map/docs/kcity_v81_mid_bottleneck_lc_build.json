@@ -1,0 +1,85 @@
+{
+  "input": "lanelet_map/lanelet2_map_v80.osm",
+  "input_sha256": "1f3ff082de3dde845f59c50abbdf07418a196fc07a9c965029e3b46005649174",
+  "output": "lanelet_map/lanelet2_map_v81.osm",
+  "output_sha256": "4ece7b1b549cd6920018195f8f3ec8ff6c4925ee3e290ca92d86ae17a2cac892",
+  "split_ratio": 0.5,
+  "lanelets": {
+    "left_upstream_retained": 201448,
+    "left_downstream_new": 201478,
+    "right_upstream_new": 201479,
+    "right_downstream_retained": 201447
+  },
+  "ways": [
+    {
+      "source_way": 105458,
+      "downstream_way": 105619,
+      "split_node": 233909,
+      "source_point_count": 25,
+      "upstream_point_count": 16,
+      "downstream_point_count": 11,
+      "source_length_m": 79.84538120551758,
+      "upstream_length_m": 39.92269060275879,
+      "downstream_length_m": 39.92269060275879,
+      "split_lat": 37.24032929241087,
+      "split_lon": 126.7753601811517,
+      "split_ele": 28.40499459106283
+    },
+    {
+      "source_way": 105461,
+      "downstream_way": 105620,
+      "split_node": 233910,
+      "source_point_count": 9,
+      "upstream_point_count": 5,
+      "downstream_point_count": 6,
+      "source_length_m": 80.0646332922422,
+      "upstream_length_m": 40.0323166461211,
+      "downstream_length_m": 40.0323166461211,
+      "split_lat": 37.240328867295375,
+      "split_lon": 126.77530945913107,
+      "split_ele": 28.390892564406055
+    },
+    {
+      "source_way": 105453,
+      "downstream_way": 105621,
+      "split_node": 233911,
+      "source_point_count": 28,
+      "upstream_point_count": 15,
+      "downstream_point_count": 15,
+      "source_length_m": 80.4231888799557,
+      "upstream_length_m": 40.21159443997785,
+      "downstream_length_m": 40.21159443997785,
+      "split_lat": 37.24032963113891,
+      "split_lon": 126.7752686144733,
+      "split_ele": 28.325300444575994
+    },
+    {
+      "source_way": 105491,
+      "downstream_way": 105622,
+      "split_node": 233912,
+      "source_point_count": 162,
+      "upstream_point_count": 82,
+      "downstream_point_count": 82,
+      "source_length_m": 79.96113452931094,
+      "upstream_length_m": 39.98056726465547,
+      "downstream_length_m": 39.98056726465547,
+      "split_lat": 37.2403290400471,
+      "split_lon": 126.77533480698118,
+      "split_ele": 28.398260769850992
+    },
+    {
+      "source_way": 105486,
+      "downstream_way": 105623,
+      "split_node": 233913,
+      "source_point_count": 162,
+      "upstream_point_count": 82,
+      "downstream_point_count": 82,
+      "source_length_m": 80.25833892427214,
+      "upstream_length_m": 40.12916946213607,
+      "downstream_length_m": 40.12916946213607,
+      "split_lat": 37.24032931846936,
+      "split_lon": 126.77528899031658,
+      "split_ele": 28.358838459000527
+    }
+  ]
+}

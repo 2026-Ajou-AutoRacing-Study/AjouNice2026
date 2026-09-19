@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_behavior_velocity_template_module</name>
+  <version>0.51.0</version>
+  <description>ROS1 experimental behavior velocity planner template module.</description>
+  <maintainer email="maintainer@example.invalid">Autoware2ros1</maintainer>
+  <license>Apache License 2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>pluginlib</build_depend><build_depend>roscpp</build_depend><build_depend>visualization_msgs</build_depend>
+  <build_export_depend>pluginlib</build_export_depend><build_export_depend>roscpp</build_export_depend><build_export_depend>visualization_msgs</build_export_depend>
+  <exec_depend>pluginlib</exec_depend><exec_depend>roscpp</exec_depend><exec_depend>visualization_msgs</exec_depend>
+  <depend>autoware_behavior_velocity_planner_common</depend>
+  <exec_depend>autoware_behavior_velocity_planner</exec_depend>
+  <export>
+    <build_type>catkin</build_type>
+    <autoware_behavior_velocity_planner plugin="${prefix}/plugins.xml"/>
+  </export>
+  <depend>autoware_lanelet2_utils</depend>
+  <depend>autoware_map_msgs</depend>
+  <depend>autoware_motion_utils</depend>
+  <depend>autoware_objects_of_interest_marker_interface</depend>
+  <depend>autoware_planning_factor_interface</depend>
+  <depend>autoware_trajectory</depend>
+  <depend>autoware_universe_utils</depend>
+  <depend>autoware_utils_debug</depend>
+  <depend>autoware_vehicle_info_utils</depend>
+</package>

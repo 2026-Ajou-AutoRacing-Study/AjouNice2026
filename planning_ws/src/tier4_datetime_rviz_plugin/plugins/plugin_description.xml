@@ -1,0 +1,5 @@
+<library path="lib/libtier4_datetime_rviz_plugin">
+  <class name="tier4_datetime_rviz_plugin/AutowareDateTimePanel" type="AutowareDateTimePanel" base_class_type="rviz::Panel">
+    <description>AutowareDateTimePanel</description>
+  </class>
+</library>

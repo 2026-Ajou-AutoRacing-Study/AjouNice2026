@@ -1,0 +1,65 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="vehicle_param_path"/>
+  <arg name="mission_planner_param_path" default="$(find autoware_mission_planner_universe)/config/mission_planner.ros1.yaml"/>
+  <arg name="config_root" default="$(find autoware_launch)/config/ros1/planning"/>
+  <arg name="is_simulation" default="false"/>
+  <arg name="bvp_experimental" default="true"/>
+  <arg name="use_ground_pointcloud" default="true"/>
+  <arg name="use_occupancy_grid" default="true"/>
+  <arg name="start_parking" default="true"/>
+  <arg name="behavior_path_launch_modules" default=""/>
+  <arg name="behavior_velocity_launch_modules" default=""/>
+  <arg name="motion_velocity_launch_modules" default="[autoware::motion_velocity_planner::ObstacleStopModule, autoware::motion_velocity_planner::ObstacleSlowDownModule, autoware::motion_velocity_planner::ObstacleCruiseModule, autoware::motion_velocity_planner::OutOfLaneModule, autoware::motion_velocity_planner::ObstacleVelocityLimiterModule, autoware::motion_velocity_planner::DynamicObstacleStopModule, autoware::motion_velocity_planner::RunOutModule, autoware::motion_velocity_planner::experimental::BoundaryDeparturePreventionModule, autoware::motion_velocity_planner::RoadUserStopModule]"/>
+  <arg name="validator_launch_modules" default=""/>
+  <group ns="/planning/mission_planning">
+    <include file="$(find autoware_mission_planner_universe)/launch/mission_planner.launch">
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+      <arg name="mission_planner_param_path" value="$(arg mission_planner_param_path)"/>
+      <arg name="route_topic_name" value="/planning/mission_planning/route"/>
+    </include>
+  </group>
+  <group ns="/planning/scenario_planning/lane_driving/behavior_planning">
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/behavior_planning.launch">
+      <arg name="config_root" value="$(arg config_root)"/>
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+      <arg name="is_simulation" value="$(arg is_simulation)"/>
+      <arg name="bvp_experimental" value="$(arg bvp_experimental)"/>
+      <arg name="use_ground_pointcloud" value="$(arg use_ground_pointcloud)"/>
+      <arg name="use_occupancy_grid" value="$(arg use_occupancy_grid)"/>
+      <arg name="behavior_path_launch_modules" value="$(arg behavior_path_launch_modules)"/>
+      <arg name="behavior_velocity_launch_modules" value="$(arg behavior_velocity_launch_modules)"/>
+    </include>
+  </group>
+  <group ns="/planning/scenario_planning/lane_driving">
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/motion_path.launch">
+      <arg name="config_root" value="$(arg config_root)"/>
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    </include>
+  </group>
+  <group ns="/planning/scenario_planning/lane_driving/motion_planning">
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/motion_velocity.launch">
+      <arg name="config_root" value="$(arg config_root)"/>
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+      <arg name="launch_modules" value="$(arg motion_velocity_launch_modules)"/>
+    </include>
+  </group>
+  <group ns="/planning/scenario_planning">
+    <include if="$(arg start_parking)" file="$(find tier4_planning_launch)/launch/scenario_planning/parking.launch">
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    </include>
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/scenario_common.launch">
+      <arg name="config_root" value="$(arg config_root)"/>
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    </include>
+    <include file="$(find autoware_surround_obstacle_checker)/launch/surround_obstacle_checker.launch">
+      <arg name="vehicle_param_file" value="$(arg vehicle_param_path)"/>
+    </include>
+    <include file="$(find autoware_external_velocity_limit_selector)/launch/external_velocity_limit_selector.launch.xml"/>
+  </group>
+  <include file="$(find tier4_planning_launch)/launch/planning_validation.launch">
+    <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    <arg name="use_obstacle_pointcloud" value="$(arg use_ground_pointcloud)"/>
+    <arg name="launch_modules" value="$(arg validator_launch_modules)"/>
+  </include>
+</launch>

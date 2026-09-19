@@ -1,0 +1,39 @@
+{
+  "schema": "ajounice.aw149.planning_test_fixture.v1",
+  "recorded_at": "2026-09-08T19:42:08+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "checkpoint": {
+    "name": "checkpoint-r010.json",
+    "sha256": "323e9d8f4c6348910772c5ca3d8e864d00590e0ece2ff56778c51ef8e3c7e781",
+    "predecessor": "checkpoint-r009.json"
+  },
+  "source_audit": {
+    "status": "PASS",
+    "source_files_checked": 3999,
+    "changed_or_missing": 0,
+    "provider_source_files_checked": 6589,
+    "provider_changed_or_missing": 0
+  },
+  "isolated_results": {
+    "packages": 10,
+    "tests": 263,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "package_results": {
+      "autoware_path_generator": 42,
+      "autoware_motion_velocity_planner": 17,
+      "autoware_planning_validator": 51,
+      "autoware_planning_validator_intersection_collision_checker": 6,
+      "autoware_motion_velocity_obstacle_stop_module": 20,
+      "autoware_behavior_path_static_obstacle_avoidance_module": 20,
+      "autoware_behavior_path_avoidance_by_lane_change_module": 2,
+      "autoware_behavior_path_side_shift_module": 14,
+      "autoware_behavior_path_lane_change_module": 31,
+      "autoware_behavior_path_goal_planner_module": 60
+    }
+  },
+  "master_policy": "fresh ROS master and ROS_HOME per package; serial -j1 execution",
+  "fixture_source": "Tests load committed ROS1 projections of the source launch parameters into their exact private namespaces. Lane-change uses the installed ROS2-to-ROS1 parameter adapter with original YAML files. Goal-planner keeps the original blocked-object process test and repairs only its invalid all-zero occupancy-grid origin quaternion.",
+  "claim_boundary": "The final ten residual package suites from the raw planning test audit are closed. This is package-test evidence, not a rerun or expansion of P7.1 runtime acceptance; an all-154-package reconciliation remains a separate gate."
+}

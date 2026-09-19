@@ -1,0 +1,29 @@
+{
+  "prototype_version": 0,
+  "scenario_file": "morai_od_prototype_a2516_sunny_t13_seed260806.json",
+  "template": "configs/scenario/2026_molit_comp_sample_scene.json",
+  "waypoints": "configs/global_path/2026_molit_comp_global_path.txt",
+  "mgeo_dir": "kcity_map/mgeo_map",
+  "seed": 260806,
+  "anchor_index": 2516,
+  "ego": {
+    "x": 67.07312095126154,
+    "y": 64.69883346904518,
+    "z": 28.670298968153524,
+    "yaw": -89.63127724475983,
+    "link_idx": "A2256W000420",
+    "point_idx": 49
+  },
+  "radius_m": 20.0,
+  "weather": "sunny",
+  "time_hour": 13,
+  "environment_note": "Internal Scenario JSON does not set weather/time. Apply these values in MORAI UI or a validated Scenario Runner.",
+  "foggy_density": null,
+  "foggy_distance": null,
+  "counts": {
+    "vehicleList": 4,
+    "pedestrianList": 3,
+    "objectList": 2
+  },
+  "pedestrian_placement": "Prototype road-edge placement. GIS/Lanelet crosswalk constraints will be added before bulk generation."
+}

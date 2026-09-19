@@ -1,0 +1,27 @@
+{
+  "schema_version": 2,
+  "evidence": {
+    "dataset_id": "morai_sunny13_180_production_v3",
+    "capture_date": "2026-08-08",
+    "attempted_scenes": 180,
+    "completed_scenes": 127,
+    "failed_scenes": 53,
+    "note": "Historical v3 observation only. The 2026-08-22 interleaved control/probe test supersedes the asset-specific interpretation."
+  },
+  "revalidation": {
+    "date": "2026-08-22",
+    "report": "morai_asset_revalidation_260822.json",
+    "method": "Two placements per candidate with a known-good same-type control scene immediately before every probe.",
+    "result": "All eight formerly quarantined common vehicles loaded 2/2. Adjacent controls also loaded, so the former scene failures were not intrinsic asset incompatibility."
+  },
+  "automatic_capture_quarantine": {
+    "vehicle": [],
+    "pedestrian": [],
+    "obstacle": []
+  },
+  "policy": {
+    "scope": "personal-launcher unattended production capture only",
+    "catalog_status": "Assets remain documented in the catalog and may be tested manually.",
+    "reason": "Only assets proven missing while adjacent controls remain healthy are quarantined. No common vehicle currently meets that criterion."
+  }
+}

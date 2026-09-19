@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="autoware-map-loader-test">
+  <MetaInfo format_version="1" map_version="2"/>
+  <node id="1" lat="35.62554985786315" lon="139.78246505089274"><tag k="mgrs_code" v="54SUE897431"/><tag k="local_x" v="89747.3"/><tag k="local_y" v="43100.1"/></node>
+  <node id="2" lat="35.625753282567665" lon="139.78285100261152"><tag k="mgrs_code" v="54SUE897431"/><tag k="local_x" v="89782.6"/><tag k="local_y" v="43122.2"/></node>
+  <node id="3" lat="35.625587319824625" lon="139.78243545848844"><tag k="mgrs_code" v="54SUE897431"/><tag k="local_x" v="89744.7"/><tag k="local_y" v="43104.3"/></node>
+  <node id="4" lat="35.625789398053385" lon="139.78281921887913"><tag k="mgrs_code" v="54SUE897431"/><tag k="local_x" v="89779.7"/><tag k="local_y" v="43126.3"/></node>
+  <way id="10"><nd ref="1"/><nd ref="2"/><tag k="type" v="line_thin"/><tag k="subtype" v="solid"/></way>
+  <way id="11"><nd ref="3"/><nd ref="4"/><tag k="type" v="line_thin"/><tag k="subtype" v="solid"/></way>
+  <relation id="20"><member type="way" ref="10" role="left"/><member type="way" ref="11" role="right"/><tag k="type" v="lanelet"/><tag k="subtype" v="road"/></relation>
+</osm>

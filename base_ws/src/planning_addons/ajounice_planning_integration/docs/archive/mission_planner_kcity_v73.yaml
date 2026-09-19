@@ -1,0 +1,30 @@
+# K-City v73 Mission Planner parameters and compacted competition route-section policy.
+map_frame: map
+arrival_check_angle_deg: 45.0
+arrival_check_lateral_distance: 1.0
+arrival_check_longitudinal_undershoot_distance: 1.0
+arrival_check_longitudinal_overshoot_distance: 2.0
+arrival_check_duration: 1.0
+goal_angle_threshold_deg: 45.0
+enable_correct_goal_pose: false
+reroute_time_threshold: 10.0
+minimum_reroute_length: 30.0
+consider_no_drivable_lanes: false
+check_footprint_inside_lanes: true
+allow_reroute_in_autonomous_mode: true
+goal_lanelet_transparency: 0.05
+
+# The key is the segment's planner-selected lanelet before the requester calls
+# SetPreferredPrimitive. The value is the complete set of lanelets that Route
+# Handler and /planning/mission_planning/route_marker may treat as drivable.
+route_section_primitive_overrides:
+  # 201438 is a separate merging approach to 200128, not an LC edge to 200099.
+  "201435": [201436, 201435, 200099, 201438]
+  "200130": [200127, 200130, 200134]
+  "201447": [201447]
+  "201401": [201401]
+
+# Exclude these from every route segment, including automatically collected ones.
+# Keep the physical lanelets in the released v73 map.
+route_section_excluded_lanelet_ids:
+  [201400, 201440, 200148, 201445, 200141, 200186, 201437, 201463]

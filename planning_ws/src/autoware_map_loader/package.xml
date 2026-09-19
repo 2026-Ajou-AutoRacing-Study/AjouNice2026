@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_map_loader</name>
+  <version>1.8.0</version>
+  <description>ROS1 port candidate for Autoware map loader.</description>
+  <maintainer email="porting@example.invalid">Autoware2ros1 porting</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend>autoware_map_msgs</depend>
+  <depend>autoware_geography_utils</depend>
+  <depend>autoware_lanelet2_extension</depend>
+  <depend>autoware_lanelet2_utils</depend>
+  <depend>sensor_msgs</depend>
+  <depend>pcl_conversions</depend>
+  <test_depend>rostest</test_depend>
+<depend>autoware_utils_rclcpp</depend><depend>fmt</depend>
+</package>

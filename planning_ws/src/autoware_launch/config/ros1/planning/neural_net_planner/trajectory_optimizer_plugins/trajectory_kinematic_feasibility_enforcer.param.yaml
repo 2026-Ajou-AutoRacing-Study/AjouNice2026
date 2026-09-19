@@ -1,0 +1,2 @@
+trajectory_kinematic_feasibility/max_yaw_rate_rad_s: 0.7
+trajectory_kinematic_feasibility/time_step_s: 0.1

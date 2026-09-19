@@ -8,76 +8,32 @@
 # morai_map:
 #   MORAI k-city MGeo local frame from the current live simulator account.
 #
-# The final transform uses the live competition runtime GPS east/north offsets
-# as the MORAI local-frame origin, then applies the small geometry refinement
-# recorded below. The previous extracted scene origin is kept because the
-# available K-City MGeo JSON uses that origin.
+# The transform uses the difference between the Lanelet projector origin and
+# the current MORAI MGeo origin. lanelet2_map_v84 centerlines are stored in the
+# current MGeo/GIS source coordinates, so no empirical rigid refinement is
+# applied.
 map_to_morai_map:
   parent: "map"
   child: "morai_map"
-  xyz: [131.656525062, 545.893929229, 0.0]
-  rpy: [0.0, 0.0, 0.000146070411]
+  xyz: [131.559130220, 545.911338186, 0.0]
+  rpy: [0.0, 0.0, 0.0]
 
   source:
     morai_scene: "k-city competition runtime"
     morai_mgeo_global_coordinate_system: "+proj=utm +zone=52 +ellps=WGS84 +units=m +no_defs"
     morai_runtime_gps_east_north_offset: [302595.0, 4124145.0]
     morai_runtime_origin_delta_xyz: [131.559130220, 545.911338186, 0.0]
-    morai_previous_scene_origin_in_global: [302459.942, 4122635.537, 28.991]
     morai_runtime_z_is_altitude_like: true
 
-    lanelet_map: "kcity_map/lanelet_map/lanelet2_map_v23.osm"
+    lanelet_map: "kcity_map/lanelet_map/lanelet2_map_v84.osm"
     lanelet_projector: "kcity_map/lanelet_map/map_projector_info_v1.yaml"
     lanelet_projector_type: "LocalCartesianUTM"
     lanelet_map_origin_lat_lon_alt: [37.2380038082, 126.7730819386, 0.0]
     lanelet_map_origin_utm52: [302463.440869780, 4123599.088661814, 0.0]
 
     alignment_refinement:
-      method: "Reverted raw-LiDAR intensity fit; current transform follows MGeo-vs-Lanelet geometry fit"
-      yaw_rad: 0.000146070411
-      yaw_deg: 0.008369218
-      translation_delta_from_runtime_origin_m: [0.097394842, -0.017408957, 0.0]
-      applied_for: "RViz LiDAR intensity lane alignment check"
-      residuals:
-        rejected_raw_lidar_lane_component:
-          source_bag: "rosbags/raw/raw_sensor_0701_0100.bag"
-          filter: "raw lidar1/lidar2 -> base_link ground ROI z=[-0.46,-0.17]m, range=[1.7,34]m, intensity>=112"
-          thresholded_voxel_points: 471
-          selected_component_points: 205
-          selected_component_lidar1_points: 93
-          selected_component_lidar2_points: 112
-          target: "Lanelet non-virtual relation left/right boundaries"
-          current_fixed_rms_m: 0.3783
-          current_fixed_p50_m: 0.2232
-          current_fixed_p75_m: 0.2975
-          refined_fixed_rms_m: 0.3024
-          refined_fixed_p50_m: 0.0689
-          refined_fixed_p75_m: 0.1546
-          correction_from_mgeo_geometry_dx_dy_dyaw_deg: [0.2300, -0.2400, -0.0120]
-          note: "Rejected after RViz check: high-intensity ground points were not lane-only and likely included arrows, stop lines, road markings, or scan-band artifacts."
-
-    mgeo_geometry_reference:
-      source_mgeo_dir: "/home/jihun/catkin_ws/src/MORAI-DriveExample_ROS/morai_standard/scripts/autonomous_driving/mgeo/lib/mgeo_data/R_KR_PG_K-City"
-      method: "Balanced robust 2D rigid fit of MGeo link_set to Lanelet centerlines and MGeo lane_boundary_set to Lanelet relation boundaries"
-      yaw_rad: 0.000146070411
-      yaw_deg: 0.008369218
-      translation_delta_from_runtime_origin_m: [0.097394842, -0.017408957, 0.0]
-      residuals:
-        current_config:
-          link_to_centerline_rms_m: 0.9679
-          lane_boundary_to_relation_boundary_rms_m: 0.8775
-          lane_nonstop_to_relation_boundary_rms_m: 0.8757
-        refined_config:
-          link_to_centerline_rms_m: 0.9661
-          lane_boundary_to_relation_boundary_rms_m: 0.8668
-          lane_nonstop_to_relation_boundary_rms_m: 0.8650
-
-    gps_ego_alignment_reference:
-      source_bag: "rosbags/raw/raw_sensor_0629_1718.bag"
-      matched_samples: 1188
-      method: "2D Procrustes fit of interpolated /Ego_topic.position to /sensor/gps projected into Lanelet map"
-      yaw_rad: 0.000326632868
-      yaw_deg: 0.018714685
-      xyz: [131.534421814, 545.922194568, 0.0]
-      before_rms_error_m: 0.103772
-      after_rms_error_m: 0.100785
+      method: "none; v61 uses current MGeo/GIS source coordinates"
+      yaw_rad: 0.0
+      yaw_deg: 0.0
+      translation_delta_from_runtime_origin_m: [0.0, 0.0, 0.0]
+      applied_for: "lanelet2_map_v84 source-coordinate alignment"

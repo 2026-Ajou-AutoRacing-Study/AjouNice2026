@@ -5,6 +5,7 @@ add_compile_options(-std=c++14 -Wall -Wextra -Wpedantic)
 
 find_package(catkin REQUIRED COMPONENTS
   autoware_planning_msgs
+  builtin_interfaces
   geometry_msgs
   nav_msgs
   roscpp
@@ -17,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   CATKIN_DEPENDS
     autoware_planning_msgs
+    builtin_interfaces
     geometry_msgs
     nav_msgs
     roscpp
@@ -33,6 +35,8 @@ add_dependencies(trajectory_publisher_node ${catkin_EXPORTED_TARGETS})
 target_link_libraries(trajectory_publisher_node ${catkin_LIBRARIES})
 
 catkin_install_python(PROGRAMS
+  scripts/generate_constant_curvature_lc.py
+  scripts/generate_constant_curvature_return.py
   scripts/generate_trajectory.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

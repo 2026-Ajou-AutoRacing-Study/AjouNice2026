@@ -1,0 +1,100 @@
+<launch>
+  <!-- configs/sensors/Sensor_*.json 기준 확인된 실제 토픽 (CompressedImage) -->
+  <arg name="image_topic" default="/sensor/camera/front/compressed" />
+  <arg name="weights_path" default="$(find traffic_light_detection)/weights/best.pt" />
+  <!-- Keep the threshold validated by the traffic-light team. -->
+  <arg name="conf" default="0.25" />
+  <!-- Only the inference node uses this Python. Lanelet map matching remains
+       on ROS Noetic's /usr/bin/python3 in a sibling process. -->
+  <arg name="inference_python" default="/usr/bin/python3" />
+  <arg name="device" default="0" />
+  <!-- Preserve the traffic-light team's validated decision cadence. GPU
+       execution reduces compute load; it must not silently retune semantics. -->
+  <arg name="max_rate_hz" default="10.0" />
+
+  <arg name="publish_debug_image" default="true" />
+  <arg name="debug_jpeg_quality" default="60" />
+
+  <!-- ===== 화살표 템플릿 수집용 (임시 디버그 기능, 비어있으면 비활성) ===== -->
+  <arg name="debug_save_crop_dir" default="" />
+
+  <!-- ===== 단발성 오검출/미검출 스무딩 (큐 기반 과반수 투표) ===== -->
+  <arg name="smoothing_window_size" default="7" />
+  <arg name="smoothing_majority_count" default="4" />
+
+  <!-- ===== group_id 매칭: route 기반(1순위, v3, 정석 Autoware 방식) ===== -->
+  <arg name="enable_route_matching" default="true" />
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)" />
+  <arg name="group_id_table_path"
+       default="$(find traffic_light_detection)/traffic_light_group_id_table.json" />
+  <arg name="signal_profile_path"
+       default="$(find traffic_light_detection)/config/traffic_signal_profiles.yaml" />
+  <arg name="fallback_group_id" default="0" />
+  <arg name="lanelet2_map_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v84.osm" />
+  <arg name="lanelet2_projector_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
+  <arg name="lanelet2_projector_type" default="LocalCartesianUTM" />
+  <arg name="route_topic" default="/planning/mission_planning/route" />
+  <arg name="route_state_topic" default="/planning/route_state" />
+  <arg name="odometry_topic" default="/localization/kinematic_state" />
+  <arg name="route_group_id_topic"
+       default="/perception/traffic_light_recognition/route_group_id" />
+  <arg name="route_group_id_stale_sec" default="2.0" />
+
+  <!-- lanelet2 is a ROS Noetic/Python 3.8 binding. Keep it outside the GPU
+       Python 3.11 process and publish only the selected group ID. -->
+  <group if="$(arg enable_route_matching)">
+    <node pkg="traffic_light_detection"
+          type="traffic_light_route_group_id_node.py"
+          name="traffic_light_route_group_id"
+          launch-prefix="/usr/bin/python3"
+          output="screen">
+      <param name="lanelet2_map_file" value="$(arg lanelet2_map_file)" />
+      <param name="lanelet2_projector_file" value="$(arg lanelet2_projector_file)" />
+      <param name="lanelet2_projector_type" value="$(arg lanelet2_projector_type)" />
+      <param name="group_id_table_path" value="$(arg group_id_table_path)" />
+      <param name="route_topic" value="$(arg route_topic)" />
+      <param name="route_state_topic" value="$(arg route_state_topic)" />
+      <param name="odometry_topic" value="$(arg odometry_topic)" />
+      <param name="output_topic" value="$(arg route_group_id_topic)" />
+    </node>
+  </group>
+
+  <node pkg="traffic_light_detection"
+        type="traffic_light_node.py"
+        name="traffic_light_node"
+        launch-prefix="$(arg inference_python)"
+        output="screen">
+    <!-- Runtime uses a provisioned local checkpoint; never block startup on
+         Ultralytics' Cloudflare/Google DNS connectivity probe. -->
+    <env name="YOLO_OFFLINE" value="true" />
+    <env name="MPLCONFIGDIR" value="/tmp/matplotlib-traffic-light-gpu" />
+    <env name="YOLO_CONFIG_DIR" value="/tmp" />
+    <param name="image_topic" value="$(arg image_topic)" />
+    <param name="weights_path" value="$(arg weights_path)" />
+    <param name="conf" value="$(arg conf)" />
+    <param name="device" value="$(arg device)" />
+    <param name="max_rate_hz" value="$(arg max_rate_hz)" />
+    <param name="publish_debug_image" value="$(arg publish_debug_image)" />
+    <param name="debug_jpeg_quality" value="$(arg debug_jpeg_quality)" />
+
+    <param name="debug_save_crop_dir" value="$(arg debug_save_crop_dir)" />
+
+    <param name="smoothing_window_size" value="$(arg smoothing_window_size)" />
+    <param name="smoothing_majority_count" value="$(arg smoothing_majority_count)" />
+
+    <!-- Route matching is supplied by the system-Python sibling above. -->
+    <param name="enable_route_matching" value="false" />
+    <param name="fallback_group_id" value="$(arg fallback_group_id)" />
+    <param name="lanelet2_map_file" value="$(arg lanelet2_map_file)" />
+    <param name="lanelet2_projector_file" value="$(arg lanelet2_projector_file)" />
+    <param name="lanelet2_projector_type" value="$(arg lanelet2_projector_type)" />
+    <param name="route_topic" value="$(arg route_topic)" />
+    <param name="route_state_topic" value="$(arg route_state_topic)" />
+    <param name="odometry_topic" value="$(arg odometry_topic)" />
+    <param name="route_group_id_topic" value="$(arg route_group_id_topic)" />
+    <param name="route_group_id_stale_sec" value="$(arg route_group_id_stale_sec)" />
+    <param name="signal_profile_path" value="$(arg signal_profile_path)" />
+  </node>
+</launch>

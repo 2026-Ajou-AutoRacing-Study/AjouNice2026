@@ -1,0 +1,6 @@
+_BASE_CONFIG_: cfgs/custom_models/pointpillar_morai_pointpainting_base2_singleframe9_geom_aug_gtdb.yaml
+
+# S1h changes only the nested dataset augmentor. Model, optimizer, anchors,
+# post-processing, batch size, and epoch count inherit from S1g.
+DATA_CONFIG:
+  _BASE_CONFIG_: cfgs/dataset_configs/morai_pointpainting_base2_singleframe9_geom_aug_gtdb_obstacle3.yaml

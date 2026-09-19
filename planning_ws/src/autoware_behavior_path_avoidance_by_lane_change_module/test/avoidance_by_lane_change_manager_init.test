@@ -1,0 +1,9 @@
+<launch>
+  <rosparam command="load" file="$(find autoware_behavior_path_static_obstacle_avoidance_module)/static_obstacle_avoidance.ros1.yaml"/>
+  <rosparam command="load" file="$(find autoware_behavior_path_avoidance_by_lane_change_module)/config/avoidance_by_lane_change.param.yaml"/>
+  <test
+    test-name="avoidance_by_lane_change_manager_init"
+    pkg="autoware_behavior_path_avoidance_by_lane_change_module"
+    type="test_avoidance_by_lane_change_manager_init"
+    time-limit="60"/>
+</launch>

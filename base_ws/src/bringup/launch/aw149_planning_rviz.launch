@@ -1,0 +1,151 @@
+<launch>
+  <!-- Visualization only: it does not launch or modify any planning node. -->
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="planning_python_path"
+       default="$(arg repo_root)/planning_ws/install_isolated/lib/python3/dist-packages:$(optenv PYTHONPATH)"/>
+  <arg name="map_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v84.osm"/>
+  <arg name="projector_file"
+       default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+  <arg name="trajectory_topic" default="/planning/trajectory"/>
+  <arg name="start_rviz" default="true"/>
+  <!-- Load the tracked source config so Ctrl+S persists operator RViz edits. -->
+  <arg name="rviz_config"
+       default="$(arg repo_root)/base_ws/src/bringup/rviz/kcity_aw149_planning.rviz"/>
+  <!-- Simulator-only visual reference. This never feeds perception/planning. -->
+  <arg name="show_morai_gt" default="true"/>
+  <arg name="morai_gt_objects" default="/Object_topic"/>
+  <!--
+    Keep the visualization map on the same surveyed map-height datum used by
+    the planning map, routes, trajectories, MORAI GT, and GNSS localization.
+    The legacy flattened view remains opt-in for old planar bags only.
+  -->
+  <arg name="flatten_visualization_map" default="false"/>
+  <arg name="visualization_map_frame" default="lanelet_ground"/>
+  <arg name="visualization_map_z_offset" default="-0.3705"/>
+  <arg name="rosbag_output_directory"
+       default="$(arg repo_root)/planner_logs/bags"/>
+  <arg name="route_request_status_topic"
+       default="/competition_route_requester/request_status"/>
+  <!-- Frozen Route A start from kcity_v84_competition_route.yaml. -->
+  <arg name="route_a_start_x" default="-0.130667330614472"/>
+  <arg name="route_a_start_y" default="117.580315248218"/>
+  <arg name="route_a_start_z" default="28.543960281954277"/>
+  <arg name="route_a_start_yaw" default="1.0698541278595193"/>
+
+  <node pkg="tf" type="static_transform_publisher" name="route_a_start_tf"
+        args="$(arg route_a_start_x) $(arg route_a_start_y) $(arg route_a_start_z)
+              $(arg route_a_start_yaw) 0 0 map route_a_start 100"/>
+
+  <!-- Visualization only: reuse the existing IONIQ 5 mesh on the live base_link TF. -->
+  <param name="robot_description"
+         command="xacro '$(find ioniq5)/urdf/ioniq5.urdf.xacro'"/>
+
+  <group if="$(arg flatten_visualization_map)">
+    <node pkg="tf2_ros"
+          type="static_transform_publisher"
+          name="tf_map_to_planning_lanelet_ground"
+          args="0 0 $(arg visualization_map_z_offset) 0 0 0 map $(arg visualization_map_frame)"
+          output="screen"/>
+
+    <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+      <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="python_path" value="$(arg planning_python_path)"/>
+      <arg name="map_file" value="$(arg map_file)"/>
+      <arg name="projector_file" value="$(arg projector_file)"/>
+      <arg name="projector_type" value="LocalCartesianUTM"/>
+      <arg name="frame_id" value="$(arg visualization_map_frame)"/>
+      <arg name="output_topic" value="/map/lanelet_map"/>
+      <arg name="flatten_z" value="true"/>
+      <!-- The integration binary loader remains the sole /map/vector_map owner. -->
+      <arg name="publish_vector_map" value="false"/>
+      <arg name="publish_lanelet_fill" value="false"/>
+    </include>
+  </group>
+
+  <group unless="$(arg flatten_visualization_map)">
+    <include file="$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch">
+      <arg name="repo_root" value="$(arg repo_root)"/>
+      <arg name="python_path" value="$(arg planning_python_path)"/>
+      <arg name="map_file" value="$(arg map_file)"/>
+      <arg name="projector_file" value="$(arg projector_file)"/>
+      <arg name="projector_type" value="LocalCartesianUTM"/>
+      <arg name="frame_id" value="map"/>
+      <arg name="output_topic" value="/map/lanelet_map"/>
+      <arg name="flatten_z" value="false"/>
+      <!-- The integration binary loader remains the sole /map/vector_map owner. -->
+      <arg name="publish_vector_map" value="false"/>
+      <arg name="publish_lanelet_fill" value="false"/>
+    </include>
+  </group>
+
+  <node pkg="bringup" type="planning_trajectory_visualizer.py"
+        name="planning_trajectory_visualizer" output="screen">
+    <env name="PYTHONPATH" value="$(arg planning_python_path)"/>
+    <param name="input_topic" value="$(arg trajectory_topic)"/>
+    <param name="path_topic" value="/planning/debug/final_trajectory/path"/>
+    <param name="marker_topic" value="/planning/debug/final_trajectory/markers"/>
+  </node>
+
+  <!--
+    Use the production perception pipeline's ROS1 MarkerArray converter.
+    The native Autoware PredictedObjects RViz display segfaults on the live
+    perception stream, while these standard RViz markers keep the planning
+    debug view independent of that plugin.
+  -->
+  <node pkg="perception_object_pipeline"
+        type="object_pipeline_visualization_node.py"
+        name="planning_perception_visualization"
+        output="screen" respawn="false">
+    <env name="PYTHONPATH" value="$(arg planning_python_path)"/>
+    <param name="input/detections"
+           value="/perception/object_recognition/detection/objects"/>
+    <param name="input/tracks"
+           value="/perception/object_recognition/tracking/objects"/>
+    <param name="input/predictions"
+           value="/perception/object_recognition/objects"/>
+    <rosparam param="prediction_marker_horizons_sec">[1.0, 2.0, 3.0]</rosparam>
+    <param name="prediction_marker_diameter_m" value="0.45"/>
+    <param name="prediction_marker_diameter_step_m" value="0.08"/>
+    <param name="prediction_line_width_m" value="0.08"/>
+    <rosparam param="prediction_secondary_color_rgba">[1.0, 0.55, 0.0, 0.95]</rosparam>
+    <param name="prediction_show_confidence_labels" value="true"/>
+    <remap from="~output/detections"
+           to="/perception/object_recognition/visualization/detections"/>
+    <remap from="~output/tracks"
+           to="/perception/object_recognition/visualization/tracks"/>
+    <remap from="~output/predictions"
+           to="/perception/object_recognition/visualization/predictions"/>
+  </node>
+
+  <!--
+    Magenta MORAI truth is an operator/debug overlay only. The planning stack
+    continues to consume /perception/object_recognition/objects. Since the
+    production localization is planar, flatten the visualization boxes onto
+    the same ground plane without altering /Object_topic or any planning TF.
+  -->
+  <node if="$(arg show_morai_gt)"
+        pkg="tracking_prediction_evaluation"
+        type="morai_gt_bbox_visualization_node.py"
+        name="planning_morai_gt_bbox_visualization"
+        output="screen">
+    <param name="input" value="$(arg morai_gt_objects)"/>
+    <param name="output" value="/evaluation/visualization/gt_boxes"/>
+    <param name="morai_static_tf"
+           value="$(arg repo_root)/configs/tf/morai_lanelet_static_tf.yaml"/>
+    <param name="line_width_m" value="0.09"/>
+    <param name="flatten_z" value="true"/>
+    <param name="ground_z" value="0.0"/>
+    <rosparam param="color_rgba">[1.0, 0.0, 0.85, 1.0]</rosparam>
+  </node>
+
+  <node if="$(arg start_rviz)" pkg="rviz" type="rviz"
+        name="aw149_planning_rviz"
+        args="-d $(arg rviz_config)"
+        output="screen">
+    <param name="rosbag_output_directory" value="$(arg rosbag_output_directory)"/>
+    <param name="route_request_status_topic" value="$(arg route_request_status_topic)"/>
+    <param name="rosbag_topics"
+           value="/tf /tf_static /clock /Ego_topic /Object_topic /CollisionData /sensor/lidar1 /sensor/camera/front/compressed /sensor/camera/front_left/compressed /sensor/camera/front_right/compressed /sensor/camera/back/compressed /localization/kinematic_state /localization/acceleration /perception/object_recognition/detection/objects /perception/object_recognition/tracking/objects /perception/object_recognition/objects /map/vector_map /planning/mission_planning/route /planning/mission_planning/route_marker /planning/route_state /planning/scenario_planning/lane_driving/behavior_planning/path /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/intersection/decision_state /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/intersection /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/virtual_wall/intersection /planning/planning_factors/intersection /planning/planning_factors/intersection_occlusion /planning/cooperate_status/intersection /planning/cooperate_status/intersection_occlusion /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout/decision_state /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout /planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/virtual_wall/roundabout /planning/planning_factors/roundabout /planning/cooperate_status/roundabout /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/debug/extended_traj /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/debug/mpt_fixed_traj /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/debug/mpt_ref_traj /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/debug/mpt_traj /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/debug/optimised_steering /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/debug/optimised_states /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/debug/ref_steering /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/debug/marker /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/debug/calculation_time /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/debug/processing_time_ms /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/debug/processing_time_detail_ms /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/virtual_wall /planning/scenario_planning/lane_driving/trajectory /planning/scenario_planning/scenario_selector/trajectory /planning/scenario_planning/velocity_smoother/trajectory /planning/scenario_planning/velocity_smoother/debug/trajectory_raw /planning/scenario_planning/velocity_smoother/debug/trajectory_external_velocity_limited /planning/scenario_planning/velocity_smoother/debug/trajectory_lateral_acc_filtered /planning/scenario_planning/velocity_smoother/debug/trajectory_steering_rate_limited /planning/scenario_planning/velocity_smoother/debug/trajectory_time_resampled /planning/scenario_planning/velocity_smoother/debug/forward_filtered_trajectory /planning/scenario_planning/velocity_smoother/debug/backward_filtered_trajectory /planning/scenario_planning/velocity_smoother/debug/merged_filtered_trajectory /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/obstacle_cruise/trajectory /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/out_of_lane/trajectory /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/dynamic_obstacle_stop/trajectory /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/run_out/trajectory /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/boundary_departure_prevention/trajectory /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/road_user_stop/trajectory /planning/planning_factors/obstacle_cruise /planning/planning_factors/out_of_lane /planning/planning_factors/dynamic_obstacle_stop /planning/planning_factors/run_out /planning/planning_factors/boundary_departure_prevention /planning/planning_factors/road_user_stop /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/road_user_stop/debug_markers /planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/road_user_stop/virtual_walls /planning/scenario_planning/max_velocity_candidates /planning/scenario_planning/clear_velocity_limit /planning/scenario_planning/max_velocity /planning/scenario_planning/current_max_velocity /planning/trajectory /planning/validation_status /ctrl_cmd /control/command/control_cmd /control/command/steering /control/autoware/controller_valid /control/autoware/failure_reason /control/autoware/target_point /control/trajectory_follower/lateral/predicted_trajectory /purepursuit_autoware/debug/controller_state /purepursuit_autoware/debug/lookahead_distance /purepursuit_autoware/debug/lateral_error /purepursuit_autoware/debug/path_curvature /purepursuit_autoware/debug/target_curvature /purepursuit_autoware/debug/limited_steering_angle /vehicle/status/steering_status /vehicle/status/gear /vehicle/status/control_mode /competition/rule_monitor/status /competition/rule_monitor/event /competition/rule_monitor/checkpoints /competition/rule_monitor/wheels /planning/cooperate_status/lane_change_left /planning/cooperate_status/lane_change_right /planning/planning_factors/lane_change_left /planning/planning_factors/lane_change_right /planning/path_candidate/lane_change_left /planning/path_candidate/lane_change_right /planning/path_candidate/static_obstacle_avoidance /planning/path_reference/static_obstacle_avoidance /planning/planning_factors/static_obstacle_avoidance /planning/cooperate_status/static_obstacle_avoidance_left /planning/cooperate_status/static_obstacle_avoidance_right /planning/auto_mode_status/static_obstacle_avoidance_left /planning/auto_mode_status/static_obstacle_avoidance_right /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/static_obstacle_avoidance /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/info/static_obstacle_avoidance /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/virtual_wall/static_obstacle_avoidance /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/avoidance_debug_message_array /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/drivable_lanes/static_obstacle_avoidance /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/info/lane_change_left /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/info/lane_change_right /rosout /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/lane_change_left /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/lane_change_right /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/processing_time_detail_ms/lane_change_left /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/processing_time_detail_ms/lane_change_right /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/lane_change_geometry /planning/scenario_planning/scenario /system/operation_mode/state"/>
+  </node>
+</launch>

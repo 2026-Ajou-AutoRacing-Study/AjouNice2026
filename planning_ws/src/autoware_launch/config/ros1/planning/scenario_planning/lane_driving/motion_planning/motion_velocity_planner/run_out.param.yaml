@@ -1,0 +1,87 @@
+run_out/collision/time_margin: 0.5
+run_out/collision/time_overlap_tolerance: 0.1
+run_out/collision/same_direction_angle_threshold: 0.5
+run_out/collision/opposite_direction_angle_threshold: 0.5
+run_out/collision/ignore_conditions/if_ego_arrives_first/enable: true
+run_out/collision/ignore_conditions/if_ego_arrives_first/margin/ego_enter_times:
+- 0.0
+- 3.0
+run_out/collision/ignore_conditions/if_ego_arrives_first/margin/time_margins:
+- 0.0
+- 6.0
+run_out/collision/ignore_conditions/if_ego_arrives_first/max_overlap_duration: 2.0
+run_out/collision/ignore_conditions/if_ego_arrives_first_and_cannot_stop/enable: true
+run_out/collision/ignore_conditions/if_ego_arrives_first_and_cannot_stop/deceleration_limit: 4.0
+run_out/slowdown/on_time_buffer: 0.1
+run_out/slowdown/off_time_buffer: 0.5
+run_out/slowdown/distance_buffer: 2.0
+run_out/slowdown/deceleration_limit: 4.0
+run_out/stop/on_time_buffer: 0.3
+run_out/stop/off_time_buffer: 1.0
+run_out/stop/distance_buffer: 2.5
+run_out/stop/deceleration_limit: 5.0
+run_out/stop/keep_condition/time: 5.0
+run_out/stop/keep_condition/distance: 10.0
+run_out/stop/reuse_margin: 5.0
+run_out/ego/lateral_margin: 0.0
+run_out/ego/longitudinal_margin: 0.0
+run_out/objects/target_labels:
+- PEDESTRIAN
+- BICYCLE
+- MOTORCYCLE
+run_out/objects/DEFAULT/ignore/if_stopped: true
+run_out/objects/DEFAULT/ignore/stopped_velocity_threshold: 0.25
+run_out/objects/DEFAULT/ignore/if_on_ego_trajectory: true
+run_out/objects/DEFAULT/ignore/if_behind_ego: true
+run_out/objects/DEFAULT/ignore/polygon_types:
+- NONE
+run_out/objects/DEFAULT/ignore/lanelet_subtypes:
+- NONE
+run_out/objects/DEFAULT/ignore_collisions/polygon_types:
+- NONE
+run_out/objects/DEFAULT/ignore_collisions/lanelet_subtypes:
+- NONE
+run_out/objects/DEFAULT/ignore_collisions/start_ignore_time: 0.0
+run_out/objects/DEFAULT/ignore_collisions/start_ignore_distance: 0.0
+run_out/objects/DEFAULT/confidence_filtering/threshold: 0.0
+run_out/objects/DEFAULT/confidence_filtering/only_use_highest: true
+run_out/objects/DEFAULT/cut_predicted_paths/if_crossing_ego_from_behind: true
+run_out/objects/DEFAULT/cut_predicted_paths/polygon_types:
+- NONE
+run_out/objects/DEFAULT/cut_predicted_paths/linestring_types:
+- NONE
+run_out/objects/DEFAULT/cut_predicted_paths/lanelet_subtypes:
+- NONE
+run_out/objects/DEFAULT/cut_predicted_paths/strict_polygon_types:
+- area.vegetation
+run_out/objects/DEFAULT/cut_predicted_paths/strict_linestring_types:
+- guard_rail
+- fence
+run_out/objects/DEFAULT/cut_predicted_paths/strict_lanelet_subtypes:
+- NONE
+run_out/objects/DEFAULT/preserved_duration: 0.0
+run_out/objects/DEFAULT/preserved_distance: 0.0
+run_out/objects/DEFAULT/standstill_duration_after_cut: 2.0
+run_out/objects/PEDESTRIAN/ignore/lanelet_subtypes:
+- crosswalk
+- walkway
+run_out/objects/PEDESTRIAN/cut_predicted_paths/lanelet_subtypes:
+- crosswalk
+- walkway
+run_out/objects/PEDESTRIAN/preserved_duration: 2.5
+run_out/objects/PEDESTRIAN/preserved_distance: 2.0
+run_out/objects/BICYCLE/ignore_collisions/polygon_types:
+- intersection_area
+run_out/objects/BICYCLE/ignore_collisions/lanelet_subtypes:
+- crosswalk
+- walkway
+run_out/objects/BICYCLE/preserved_duration: 2.0
+run_out/objects/MOTORCYCLE/ignore_collisions/polygon_types:
+- intersection_area
+run_out/objects/MOTORCYCLE/preserved_duration: 2.0
+run_out/debug/object_label: PEDESTRIAN
+run_out/debug/enabled_markers/ego_footprint: true
+run_out/debug/enabled_markers/objects: true
+run_out/debug/enabled_markers/collisions: true
+run_out/debug/enabled_markers/decisions: true
+run_out/debug/enabled_markers/filtering_data: false

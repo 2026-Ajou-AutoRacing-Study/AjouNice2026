@@ -1,0 +1,25 @@
+<package format="2">
+  <name>autoware_internal_msgs</name>
+  <version>1.12.1</version>
+  <description>Autoware internal messages package.</description>
+  <maintainer email="berkay@leodrive.ai">Berkay Karaman</maintainer>
+  <maintainer email="mfc@autoware.org">M. Fatih Cırıt</maintainer>
+  <maintainer email="ryohsuke.mitsudome@tier4.jp">Ryohsuke Mitsudome</maintainer>
+  <maintainer email="yukihiro.saito@tier4.jp">Yukihiro Saito</maintainer>
+  <maintainer email="yutaka.kondo@tier4.jp">Yutaka Kondo</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_generation</build_depend>
+  <build_depend>builtin_interfaces</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_export_depend>builtin_interfaces</build_export_depend>
+  <build_export_depend>std_msgs</build_export_depend>
+  <exec_depend>message_runtime</exec_depend>
+  <exec_depend>autoware_internal_debug_msgs</exec_depend>
+  <exec_depend>autoware_internal_metric_msgs</exec_depend>
+  <exec_depend>autoware_internal_perception_msgs</exec_depend>
+  <exec_depend>autoware_internal_planning_msgs</exec_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+</package>

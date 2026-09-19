@@ -13,13 +13,21 @@ find_package(catkin REQUIRED COMPONENTS
   autoware_map_msgs
   autoware_perception_msgs
   autoware_planning_msgs
+  competition_route_requester
   geometry_msgs
   nav_msgs
+  pluginlib
+  roscpp
   rospy
+  roslib
+  rviz
   std_msgs
   tier4_planning_msgs
   visualization_msgs
 )
+
+find_package(Qt5 REQUIRED COMPONENTS Widgets)
+set(CMAKE_AUTOMOC ON)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -111,15 +119,21 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
+  LIBRARIES bringup_rviz_plugins
   CATKIN_DEPENDS
   autoware_adapi_v1_msgs
   autoware_internal_planning_msgs
   autoware_map_msgs
   autoware_perception_msgs
   autoware_planning_msgs
+  competition_route_requester
   geometry_msgs
   nav_msgs
+  pluginlib
+  roscpp
   rospy
+  roslib
+  rviz
   std_msgs
   tier4_planning_msgs
   visualization_msgs
@@ -132,8 +146,20 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+  include
   ${catkin_INCLUDE_DIRS}
+)
+
+add_library(bringup_rviz_plugins SHARED
+  src/rosbag_recorder_panel.cpp
+  src/route_control_panel.cpp
+  include/bringup/rosbag_recorder_panel.hpp
+  include/bringup/route_control_panel.hpp
+)
+target_compile_features(bringup_rviz_plugins PRIVATE cxx_std_14)
+target_link_libraries(bringup_rviz_plugins
+  ${catkin_LIBRARIES}
+  Qt5::Widgets
 )
 
 ## Declare a C++ library
@@ -180,12 +206,8 @@ catkin_install_python(
   validation/scripts/mission_bpp_pipeline_validator.py
   validation/scripts/mission_bpp_bvp_pipeline_validator.py
   validation/scripts/mission_bpp_bvp_live_visualizer.py
-  validation/scripts/kcity_competition_route_publisher.py
-  validation/scripts/kcity_competition_live_route_publisher.py
   validation/scripts/kcity_dynamic_ego_validator.py
-  validation/scripts/planning_pipeline_reference_input.py
   validation/scripts/planning_trajectory_visualizer.py
-  validation/scripts/planning_velocity_scenario_atlas.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -194,6 +216,15 @@ catkin_install_python(
 # install(TARGETS ${PROJECT_NAME}_node
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
+install(TARGETS bringup_rviz_plugins
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+)
 
 ## Mark libraries for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
@@ -215,8 +246,12 @@ install(DIRECTORY launch rviz
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
+install(FILES plugin_description.xml
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
 install(
-  DIRECTORY validation/launch validation/rviz
+  DIRECTORY validation/rviz
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/validation
 )
 

@@ -17,8 +17,12 @@ adaptive:
   ld_lateral_error_ratio: 0.0
   ld_curvature_ratio: 0.0
   long_ld_lateral_error_threshold: 0.5
-  min_lookahead_distance: 2.6
+  min_lookahead_distance: 3.5
   max_lookahead_distance: 15.0
+  # At 50 Hz, 60 deg/s permits at most 1.2 degrees per control tick.
+  max_steering_rate_deg_s: 40.0
+  # Hold the previous command when the requested steering change is smaller than this.
+  steering_deadband_deg: 0.2
 
   reverse_min_lookahead_distance: 7.0
 

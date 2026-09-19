@@ -50,7 +50,11 @@
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>rospy</build_depend>
+  <build_depend>roscpp</build_depend>
   <build_depend>roslib</build_depend>
+  <build_depend>pluginlib</build_depend>
+  <build_depend>rviz</build_depend>
+  <build_depend>qtbase5-dev</build_depend>
   <build_depend>rospkg</build_depend>
   <build_depend>std_msgs</build_depend>
   <build_depend>autoware_adapi_v1_msgs</build_depend>
@@ -58,12 +62,16 @@
   <build_depend>autoware_map_msgs</build_depend>
   <build_depend>autoware_perception_msgs</build_depend>
   <build_depend>autoware_planning_msgs</build_depend>
+  <build_depend>competition_route_requester</build_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>nav_msgs</build_depend>
   <build_depend>tier4_planning_msgs</build_depend>
   <build_depend>visualization_msgs</build_depend>
   <build_export_depend>rospy</build_export_depend>
+  <build_export_depend>roscpp</build_export_depend>
   <build_export_depend>roslib</build_export_depend>
+  <build_export_depend>pluginlib</build_export_depend>
+  <build_export_depend>rviz</build_export_depend>
   <build_export_depend>rospkg</build_export_depend>
   <build_export_depend>std_msgs</build_export_depend>
   <build_export_depend>autoware_adapi_v1_msgs</build_export_depend>
@@ -71,12 +79,17 @@
   <build_export_depend>autoware_map_msgs</build_export_depend>
   <build_export_depend>autoware_perception_msgs</build_export_depend>
   <build_export_depend>autoware_planning_msgs</build_export_depend>
+  <build_export_depend>competition_route_requester</build_export_depend>
   <build_export_depend>geometry_msgs</build_export_depend>
   <build_export_depend>nav_msgs</build_export_depend>
   <build_export_depend>tier4_planning_msgs</build_export_depend>
   <build_export_depend>visualization_msgs</build_export_depend>
   <exec_depend>rospy</exec_depend>
+  <exec_depend>roscpp</exec_depend>
   <exec_depend>roslib</exec_depend>
+  <exec_depend>pluginlib</exec_depend>
+  <exec_depend>rviz</exec_depend>
+  <exec_depend>libqt5-widgets</exec_depend>
   <exec_depend>rospkg</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>autoware_adapi_v1_msgs</exec_depend>
@@ -84,12 +97,15 @@
   <exec_depend>autoware_map_msgs</exec_depend>
   <exec_depend>autoware_perception_msgs</exec_depend>
   <exec_depend>autoware_planning_msgs</exec_depend>
+  <exec_depend>competition_route_requester</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>tier4_planning_msgs</exec_depend>
   <exec_depend>visualization_msgs</exec_depend>
   <exec_depend>fast_lio</exec_depend>
   <exec_depend>ioniq5</exec_depend>
+  <exec_depend>perception_object_pipeline</exec_depend>
+  <exec_depend>tracking_prediction_evaluation</exec_depend>
   <exec_depend>lanelet_map_visualizer</exec_depend>
   <exec_depend>behavior_path_planner</exec_depend>
   <exec_depend>behavior_velocity_planner</exec_depend>
@@ -97,11 +113,13 @@
   <exec_depend>autoware_path_optimizer</exec_depend>
   <exec_depend>mission_planner</exec_depend>
   <exec_depend>motion_velocity_planner</exec_depend>
-  <exec_depend>rviz</exec_depend>
+  <exec_depend>xacro</exec_depend>
   <exec_depend>localization_manager</exec_depend>
+  <exec_depend>robot_localization</exec_depend>
   <exec_depend>morai_ros_bridge</exec_depend>
   <exec_depend>sensor_interface</exec_depend>
   <exec_depend>tf_pub</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
   <exec_depend>bevfusion_ros</exec_depend>
   <test_depend>autoware_internal_planning_msgs</test_depend>
   <test_depend>autoware_planning_msgs</test_depend>
@@ -112,5 +130,6 @@
   <export>
     <!-- Other tools can request additional information be placed here -->
 
+    <rviz plugin="${prefix}/plugin_description.xml"/>
   </export>
 </package>

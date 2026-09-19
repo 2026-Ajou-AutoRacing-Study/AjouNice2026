@@ -1,0 +1,45 @@
+{
+  "schema": "ajounice.aw149.planning_all_package_test_audit.v2",
+  "recorded_at": "2026-09-08T22:40:04+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "parent_commit": "1c957be6a888c6633da3709e1b139db41bc89547",
+  "checkpoint": {
+    "name": "checkpoint-r011.json",
+    "sha256": "6d722f590ce94f41ae664e7ac5c7c5ace6e7c671bbb7a54c3422273f18824ef5",
+    "includes": "target-first loop reroute correction"
+  },
+  "command": "AW149_PACKAGE_TEST_TIMEOUT_S=600 scripts/workspace/test_planning.sh",
+  "execution": {
+    "package_targets_started": 154,
+    "target_commands_completed": 154,
+    "execution_order": "alphabetical package name",
+    "master_policy": "fresh ROS master, ROS_HOME, and ROS_LOG_DIR per package",
+    "test_result_policy": "remove only that package build test_results before execution",
+    "make_jobs": 1,
+    "per_package_timeout_seconds": 600,
+    "ephemeral_run_directory": "/tmp/aw149-planning-tests.CjffY2"
+  },
+  "junit_reconciliation": {
+    "packages_with_declared_tests": 87,
+    "packages_without_declared_tests": 67,
+    "junit_files": 253,
+    "tests": 1288,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "malformed_junit_files": 0
+  },
+  "source_audit": {
+    "status": "PASS",
+    "manifest_entries": 4003,
+    "source_files_checked": 3999,
+    "provider_source_files_checked": 6589,
+    "changed_or_missing": 0,
+    "ignored_required_source": 0,
+    "duplicate_packages": 0,
+    "unlisted_provider_ignores": 0
+  },
+  "test_harness_sha256": "3d2b1c6b6fd35cd7503c8e6cf69e2f7625105bd9f5ec68af0eb72d5ae2141df4",
+  "counting_policy": "Count each testcase once from build_isolated/<package>/test_results/<package>. Aggregate parent result roots are not reused.",
+  "claim_boundary": "All 154 package run_tests targets complete against checkpoint r011 and every declared JUnit testcase passes. Packages without declared tests prove only target completion. This does not prove 154 simultaneous runtime nodes, live MORAI compatibility, controller handoff, or closed-loop acceptance."
+}

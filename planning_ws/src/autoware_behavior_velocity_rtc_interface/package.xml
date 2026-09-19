@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="3"><name>autoware_behavior_velocity_rtc_interface</name><version>0.51.0</version><description>ROS1 experimental behavior-velocity RTC interface.</description><maintainer email="maintainer@example.invalid">Autoware2ros1</maintainer><license>Apache License 2.0</license><buildtool_depend>catkin</buildtool_depend><depend>roscpp</depend><depend>tier4_rtc_msgs</depend><depend>unique_identifier_msgs</depend><export><build_type>catkin</build_type></export>  <depend>autoware_behavior_velocity_planner_common</depend>
+  <depend>autoware_map_msgs</depend>
+  <depend>autoware_motion_utils</depend>
+  <depend>autoware_objects_of_interest_marker_interface</depend>
+  <depend>autoware_planning_factor_interface</depend>
+  <depend>autoware_route_handler</depend>
+  <depend>autoware_rtc_interface</depend>
+  <depend>autoware_trajectory</depend>
+  <depend>autoware_universe_utils</depend>
+  <depend>autoware_utils_debug</depend>
+  <depend>autoware_vehicle_info_utils</depend>
+  <depend>autoware_velocity_smoother</depend>
+</package>

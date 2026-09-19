@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>tl_expected</name>
+  <version>1.1.0</version>
+  <description>Catkin header-only compatibility provider for TartanLlama expected v1.1.0.</description>
+  <maintainer email="porting@example.invalid">Autoware2ros1 porting harness</maintainer>
+  <license>CC0-1.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+</package>

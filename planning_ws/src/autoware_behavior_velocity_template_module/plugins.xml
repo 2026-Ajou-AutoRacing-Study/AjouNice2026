@@ -1,0 +1,5 @@
+<library path="libautoware_behavior_velocity_template_module">
+  <class name="autoware::behavior_velocity_planner::TemplateModulePlugin"
+    type="autoware::behavior_velocity_planner::TemplateModulePlugin"
+    base_class_type="autoware::behavior_velocity_planner::experimental::PluginInterface" />
+</library>

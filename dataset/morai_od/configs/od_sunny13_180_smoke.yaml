@@ -1,0 +1,37 @@
+schema_version: 1
+status: ready_for_sunny_13_capture
+
+purpose:
+  immediate: pointpainting_finetune_improvement_smoke_test
+  reusable_for:
+    - multiclass_pointpillars
+    - bevfusion
+    - camera_bev_representation
+
+capture:
+  total_runs: 180
+  unique_geometry_layouts: 180
+  environment_variants_per_layout: 1
+  frames_per_run: 6
+  total_multisensor_frames: 1080
+  motion_mode: rolling-grouped
+  ego_speed_kph: 3.6
+  spacing_m: 0.6
+  maximum_motion_m: 4.0
+  load_settle_sec: 0.5
+  capture_stable_sec: 0.5
+  continue_on_scene_error: true
+
+environment:
+  id: sunny_t13
+  weather: sunny
+  time_hour: 13
+  apply_environment_once_per_batch: true
+
+split:
+  unit: scenario
+  train: 126
+  val: 27
+  test: 27
+  ratio: [0.70, 0.15, 0.15]
+

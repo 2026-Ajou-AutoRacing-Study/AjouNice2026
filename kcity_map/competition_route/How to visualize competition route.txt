@@ -1,0 +1,5 @@
+python3 scripts/kcity_map_workflow/generate_drive_course_from_map.py \
+  --map lanelet_map/lanelet2_map_v68.osm \
+  --reference-csv competition_route/v41/drive_course_v41_lanelets.csv \
+  --out-dir competition_route/v68 \
+  --output-prefix drive_course_v68

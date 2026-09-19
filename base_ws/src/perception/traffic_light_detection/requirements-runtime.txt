@@ -1,0 +1,6 @@
+# Install a GPU-architecture-appropriate PyTorch/Torchvision pair first.
+# The RTX 5060 Ti integration gate uses torch 2.7.1+cu128 and
+# torchvision 0.22.1+cu128; do not replace it with an older CUDA wheel.
+ultralytics==8.4.143
+numpy==1.26.4
+opencv-python==4.8.1.78

@@ -1,0 +1,63 @@
+{
+  "schema": "ajounice.aw149.integrated_output_probe.v1",
+  "recorded_at": "2026-09-08T20:50:06+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "parent_commit": "ce2e0f53",
+  "status": "PASS",
+  "runs": "2/2",
+  "command": "bash scripts/runtime/verify_integrated_planning_output.sh",
+  "launch": "base_ws/install_aw149/share/ajounice_planning_integration/launch/morai_planning_stack.launch",
+  "launch_arguments": {
+    "start_localization": false,
+    "start_sensor_tf": false,
+    "start_object_pipeline": false,
+    "start_detector": false,
+    "start_traffic_light": false,
+    "start_requester": false,
+    "start_controller": false
+  },
+  "input_fixture": {
+    "route": "route_a",
+    "route_lanelets_expected": 47,
+    "localization": "synthetic nav_msgs/Odometry and geometry_msgs/AccelWithCovarianceStamped",
+    "perception": "empty PredictedObjects, empty TrafficLightGroupArray, free OccupancyGrid, one far PointCloud2 point",
+    "operation_mode": "synthetic AUTONOMOUS available and enabled",
+    "tf": "synthetic map to base_link"
+  },
+  "observed_each_run": {
+    "route_lanelets": 47,
+    "final_trajectory_messages": 10,
+    "validation_messages": 10,
+    "latest_trajectory_points": 111,
+    "latest_max_velocity_mps": 4.170000076293945,
+    "validator_flags_checked": 20,
+    "all_validator_flags_true": true,
+    "unexpected_process_deaths": 0
+  },
+  "runs_detail": [
+    {
+      "master_port": 11556,
+      "duration_seconds": 19.36840497799858,
+      "raw_result_sha256": "d8a99103e8dcd383deaa8ca3d516878309d2bb633de06e0f01bb7c19ec7a8233"
+    },
+    {
+      "master_port": 11557,
+      "duration_seconds": 19.11922181599948,
+      "raw_result_sha256": "f9018203e8eff23d6524859c3c0e1e238833c19f611226dbaab5842923301345"
+    }
+  ],
+  "harness_sha256": {
+    "scripts/runtime/verify_integrated_planning_output.py": "af0ae9fea585bf30bfa523c280514fecffa883dd63df05abe676a956cd7c7916",
+    "scripts/runtime/verify_integrated_planning_output.sh": "e10c8d0bf1c9e83af7b48f2e43beae3b901539980a41ce3c6662593a2e882fb2"
+  },
+  "claim_boundary": {
+    "proven": "The installed AjouNice integration launch accepts correctly typed synthetic inputs and a Route A request and produces validator-accepted final trajectories.",
+    "not_proven": [
+      "live MORAI topic, frame, timestamp, and unit semantics",
+      "production perception accuracy",
+      "real-time deadlines",
+      "vehicle controller handoff",
+      "closed-loop driving"
+    ]
+  }
+}

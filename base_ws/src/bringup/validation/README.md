@@ -1,7 +1,11 @@
-# Mission Planner + BPP Validation
+# Archived Mission Planner + BPP Validation Evidence
 
-The production launch is `launch/mission_bpp_pipeline.launch`. It connects the
-Mission Planner route output directly to the integrated Behavior Path Planner.
+This directory records historical v44 validation evidence. Its former launch
+wrappers depended on local files and packages that are not in this repository,
+so they were removed instead of being exposed as runnable integration tests.
+The production entrypoint is now
+`ajounice_planning_integration/morai_planning_stack.launch`; follow
+`docs/planning/INTEGRATION-HANDOFF.md` for current gates.
 
 The validation launch creates a synthetic waypoint-route request and checks:
 
@@ -10,14 +14,6 @@ The validation launch creates a synthetic waypoint-route request and checks:
 - BPP publishes at least two finite path points
 - the path ends at the requested goal with zero terminal velocity
 - Goal Planner and Side Shift remain disabled in the competition profile
-
-Run it with:
-
-```bash
-roslaunch bringup mission_bpp_pipeline_minimal_test.launch
-```
-
-The validator exits with code `0` on success and stops the test launch.
 
 The checked baseline currently produces one route segment and a 31-point BPP
 path from `(0, 0)` to `(60, 0)`, with a zero terminal velocity.
@@ -56,28 +52,10 @@ stop-sign capture. Unlike the isolated BVP replay, it sends only the captured
 ego pose, goal, and environment inputs. ROS1 Mission Planner creates the route,
 BPP creates `PathWithLaneId`, and the production BVP modifies that live path.
 
-Headless automatic validation for both a map-regulation case and a
-dynamic-object case:
-
-```bash
-roslaunch bringup kcity_mission_bpp_bvp_stop_line.launch \
-  launch_rviz:=false shutdown_on_result:=true
-
-roslaunch bringup kcity_mission_bpp_bvp_crosswalk.launch \
-  launch_rviz:=false shutdown_on_result:=true
-```
-
-RViz validation:
-
-```bash
-roslaunch bringup kcity_mission_bpp_bvp_stop_line.launch
-
-roslaunch bringup kcity_mission_bpp_bvp_crosswalk.launch
-```
-
 The validator checks the route sequence, finite BPP/BVP paths, path-geometry
 preservation, the expected planning factor and stop reason, and the stop
 pose/station against the ROS2 reference. The current stop-line and crosswalk
-scenarios both pass. In RViz, the ROS2 speed path is offset `+1.2 m`, the live
+historical records both passed; this is not a currently runnable test or v61
+approval. In RViz, the ROS2 speed path is offset `+1.2 m`, the live
 ROS1 full-pipeline path is offset `-1.2 m`, and speed is colored red through
 yellow to cyan.

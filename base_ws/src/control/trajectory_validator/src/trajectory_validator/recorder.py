@@ -27,6 +27,7 @@ from trajectory_validator.metrics import (
     plausible_ego_travel_step_m,
     yaw_from_quaternion,
 )
+from trajectory_validator.ros_time import builtin_duration_from_seconds
 from trajectory_validator.msg import TrajectoryDebug
 from trajectory_validator.visualization import (
     make_ego_pose,
@@ -627,7 +628,7 @@ class TrajectoryRecorder:
         linear = kinematic.twist.twist.linear
         yaw = yaw_from_quaternion(pose.orientation)
         point = TrajectoryPoint()
-        point.time_from_start = rospy.Duration(elapsed)
+        point.time_from_start = builtin_duration_from_seconds(elapsed)
         point.pose = copy.deepcopy(pose)
         # This is the same signed base-link longitudinal velocity used by the
         # Pure Pursuit LD scheduler, so the recorded v can reproduce its input.

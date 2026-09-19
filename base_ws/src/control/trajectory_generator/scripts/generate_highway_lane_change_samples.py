@@ -10,7 +10,7 @@ import generate_trajectory as base
 import numpy as np
 
 
-MAP_PATH = "kcity_map/lanelet_map/lanelet2_map_v44.osm"
+MAP_PATH = "kcity_map/lanelet_map/lanelet2_map_v84.osm"
 PROJECTOR_PATH = "kcity_map/lanelet_map/map_projector_info_v1.yaml"
 SAMPLE_ROOT = "base_ws/src/control/trajectory_generator/traj_sample"
 
@@ -19,10 +19,10 @@ VARIANTS = {
         "start_lanelet_id": 200101,
         "end_lanelet_id": 200130,
         "lane_sequences": (
-            (200101, 200128, 200102, 200134),
-            (200099, 200137, 200187, 200130),
+            (200101, 201438, 200128, 200102, 201442, 200134, 201446),
+            (201434, 200099, 200137, 200187, 201443, 200130, 201441),
         ),
-        "route_orders": (26, 27, 28, 29),
+        "route_orders": (26, 26, 27, 28, 28, 29, 29),
         "transitions": ((175.0, 275.0, 1.0),),
     },
     "lc2": {
@@ -30,9 +30,21 @@ VARIANTS = {
         "end_lanelet_id": 201401,
         "label_source_lane_only": True,
         "lane_sequences": (
-            (200102, 200134, 200360, 201399, 200088, 201401),
+            (
+                200102,
+                201442,
+                200134,
+                201446,
+                200360,
+                201454,
+                201447,
+                201399,
+                201451,
+                200088,
+                201401,
+            ),
         ),
-        "route_orders": (28, 29, 30, 31, 32, 33),
+        "route_orders": (28, 28, 29, 29, 30, 30, 30, 31, 31, 32, 33),
         "transitions": (),
     },
 }

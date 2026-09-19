@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_qp_interface</name>
+  <version>1.8.0</version>
+  <description>Interface for the QP solvers</description>
+  <maintainer email="takayuki.murooka@tier4.jp">Takayuki Murooka</maintainer>
+  <maintainer email="fumiya.watanabe@tier4.jp">Fumiya Watanabe</maintainer>
+  <maintainer email="maxime.clement@tier4.jp">Maxime Clement</maintainer>
+  <maintainer email="satoshi.ota@tier4.jp">Satoshi Ota</maintainer>
+  <license>Apache 2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>eigen</depend>
+  <depend>osqp</depend>
+  <depend>proxsuite</depend>
+  <test_depend>rostest</test_depend>
+  <export><build_type>catkin</build_type></export>
+</package>

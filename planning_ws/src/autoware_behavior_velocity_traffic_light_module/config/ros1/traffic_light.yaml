@@ -1,0 +1,14 @@
+traffic_light/stop_margin: 0.0
+traffic_light/tl_state_timeout: 1.0
+traffic_light/stop_time_hysteresis: 0.1
+traffic_light/yellow_lamp_period: 2.75
+traffic_light/yellow_light_stop_velocity: 1.0
+traffic_light/enable_pass_judge: true
+traffic_light/enable_arrow_aware_yellow_passing: false
+traffic_light/enable_rtc: false
+traffic_light/restart_suppression/min_behind_distance_to_stop: 0.5
+traffic_light/restart_suppression/max_behind_distance_to_stop: 1.0
+traffic_light/v2i/use_remaining_time: false
+traffic_light/v2i/last_time_allowed_to_pass: 2.0
+traffic_light/v2i/velocity_threshold: 0.5
+traffic_light/v2i/required_time_to_departure: 3.0

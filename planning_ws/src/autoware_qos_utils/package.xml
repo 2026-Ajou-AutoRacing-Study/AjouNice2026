@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoware_qos_utils</name>
+  <version>0.0.0</version>
+  <description>Bounded ROS1 endpoint adapters for Autoware QoS call sites.</description>
+  <maintainer email="autoware@autoware.org">Autoware Foundation</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <export/>
+</package>

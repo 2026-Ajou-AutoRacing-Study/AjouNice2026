@@ -1,0 +1,154 @@
+<launch>
+  <arg name="use_sim_time" default="false"/>
+  <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
+  <arg name="repo_root"
+       default="$(eval find('morai_pointpainting_ros') + '/../../..')"/>
+  <!--
+    An explicit interpreter lets the same catkin wrapper run with either the
+    teammate's Python 3.8 Conda environment or the RTX 50 Python 3.11
+    environment. An empty value preserves normal roslaunch/shebang behavior.
+  -->
+  <arg name="python_executable" default=""/>
+  <arg name="cfg_file"
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpillar_morai_pointpainting_base2_singleframe9_geom_aug.yaml"/>
+  <arg name="checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260825_base2_s1_singleframe9_geom_aug_e38/pointpainting_base2_s1_best_epoch38.pth"/>
+  <arg name="segmentation_checkpoint"
+       default="$(arg repo_root)/artifacts/detection3d/pointpainting/releases/260817_sunny13_1500_9feat_80e/lraspp_4class_best_miou.pth"/>
+  <arg name="semantic_profile" default="morai_4class"/>
+
+  <arg name="lidar_topic" default="/sensor/lidar1"/>
+  <arg name="detections_topic" default="/pointpainting/detections"/>
+  <arg name="objects_topic"
+       default="/perception/object_recognition/detection/objects"/>
+  <arg name="markers_topic" default="/pointpainting/detection_markers"/>
+  <arg name="painted_points_topic" default="/pointpainting/painted_points"/>
+
+  <arg name="score_threshold" default="0.10"/>
+  <!-- Negative keeps OpenPCDet MODEL.POST_PROCESSING.SCORE_THRESH unchanged. -->
+  <arg name="model_score_threshold" default="-1.0"/>
+  <arg name="vehicle_score_threshold" default="0.40"/>
+  <arg name="pedestrian_score_threshold" default="0.15"/>
+  <arg name="obstacle_score_threshold" default="0.10"/>
+  <arg name="foreground_semantic_scale" default="1.0"/>
+  <arg name="max_detection_range" default="30.0"/>
+  <!-- S1 E38 is a 7D detector; enable only with a validated 9D checkpoint. -->
+  <arg name="publish_detector_velocity" default="false"/>
+  <arg name="detector_velocity_noise_std_mps" default="1.0"/>
+  <arg name="detector_maximum_velocity_mps" default="30.0"/>
+  <arg name="publish_painted_points" default="false"/>
+  <arg name="use_amp" default="true"/>
+  <arg name="segmentation_short_side" default="384"/>
+  <arg name="segmentation_preprocess_backend" default="torchvision"/>
+  <arg name="camera_cpu_workers" default="4"/>
+  <arg name="warmup_segmentation" default="true"/>
+
+  <arg name="warmup_full_pipeline" default="true"/>
+  <arg name="warmup_iterations" default="2"/>
+  <arg name="warmup_point_count" default="12000"/>
+  <arg name="real_input_warmup" default="true"/>
+  <arg name="real_input_warmup_iterations" default="2"/>
+  <arg name="benchmark_output_dir" default=""/>
+  <arg name="benchmark_label" default="pointpainting"/>
+  <arg name="benchmark_exclude_frames" default="10"/>
+  <arg name="detailed_timing" default="false"/>
+  <arg name="lidar_measurement_stamp_mode" default="object_points_median"/>
+  <arg name="lidar_deskew_mode" default="off"/>
+  <arg name="lidar_deskew_reference" default="point_median"/>
+  <arg name="lidar_deskew_camera_reference" default="reference"/>
+  <!-- 0 infers one sweep or temporal3 from the PointPillars feature config. -->
+  <arg name="temporal_num_sweeps" default="0"/>
+  <arg name="temporal_maximum_gap_sec" default="0.75"/>
+  <arg name="temporal_lidar_scan_period_sec" default="0.06666667"/>
+  <!-- Base2 D3 uses one measured lag per sweep; azimuth_approx is research-only. -->
+  <arg name="temporal_time_lag_mode" default="sweep_constant"/>
+  <arg name="ego_topic" default="/Ego_topic"/>
+  <!-- Diagnostic-only GT semantic painting ablation. Empty means disabled. -->
+  <arg name="oracle_painting_class" default=""/>
+  <arg name="oracle_object_topic" default="/Object_topic"/>
+  <arg name="oracle_maximum_age_sec" default="0.10"/>
+  <arg name="oracle_painting_mode" default="one_hot"/>
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+  <node pkg="morai_pointpainting_ros"
+        type="pointpainting_online_node.py"
+        name="pointpainting_online"
+        launch-prefix="$(arg python_executable)"
+        output="screen"
+        respawn="false">
+    <remap from="~output/objects" to="$(arg objects_topic)"/>
+
+    <rosparam command="load"
+              file="$(find morai_pointpainting_ros)/config/morai_4cam.yaml"/>
+
+    <param name="openpcdet_root" value="$(arg openpcdet_root)"/>
+    <param name="cfg_file" value="$(arg cfg_file)"/>
+    <param name="checkpoint" value="$(arg checkpoint)"/>
+    <param name="segmentation_checkpoint" value="$(arg segmentation_checkpoint)"/>
+    <param name="semantic_profile" value="$(arg semantic_profile)"/>
+
+    <param name="lidar_topic" value="$(arg lidar_topic)"/>
+    <param name="detections_topic" value="$(arg detections_topic)"/>
+    <param name="markers_topic" value="$(arg markers_topic)"/>
+    <param name="painted_points_topic" value="$(arg painted_points_topic)"/>
+
+    <param name="score_threshold" value="$(arg score_threshold)"/>
+    <param name="model_score_threshold" value="$(arg model_score_threshold)"/>
+    <param name="vehicle_score_threshold" value="$(arg vehicle_score_threshold)"/>
+    <param name="pedestrian_score_threshold" value="$(arg pedestrian_score_threshold)"/>
+    <param name="obstacle_score_threshold" value="$(arg obstacle_score_threshold)"/>
+    <param name="foreground_semantic_scale"
+           value="$(arg foreground_semantic_scale)"/>
+    <param name="max_detection_range" value="$(arg max_detection_range)"/>
+    <param name="publish_detector_velocity" value="$(arg publish_detector_velocity)"/>
+    <rosparam param="detector_velocity_classes">[vehicle]</rosparam>
+    <param name="detector_velocity_noise_std_mps"
+           value="$(arg detector_velocity_noise_std_mps)"/>
+    <param name="detector_maximum_velocity_mps"
+           value="$(arg detector_maximum_velocity_mps)"/>
+    <param name="publish_painted_points" value="$(arg publish_painted_points)"/>
+    <param name="use_amp" value="$(arg use_amp)"/>
+    <param name="segmentation_short_side" value="$(arg segmentation_short_side)"/>
+    <param name="segmentation_preprocess_backend"
+           value="$(arg segmentation_preprocess_backend)"/>
+    <param name="camera_cpu_workers" value="$(arg camera_cpu_workers)"/>
+    <param name="warmup_segmentation" value="$(arg warmup_segmentation)"/>
+
+    <param name="warmup_full_pipeline" value="$(arg warmup_full_pipeline)"/>
+    <param name="warmup_iterations" value="$(arg warmup_iterations)"/>
+    <param name="warmup_point_count" value="$(arg warmup_point_count)"/>
+    <param name="real_input_warmup" value="$(arg real_input_warmup)"/>
+    <param name="real_input_warmup_iterations"
+           value="$(arg real_input_warmup_iterations)"/>
+    <param name="benchmark_output_dir" value="$(arg benchmark_output_dir)"/>
+    <param name="benchmark_label" value="$(arg benchmark_label)"/>
+    <param name="benchmark_exclude_frames" value="$(arg benchmark_exclude_frames)"/>
+    <param name="detailed_timing" value="$(arg detailed_timing)"/>
+    <param name="lidar_measurement_stamp_mode"
+           value="$(arg lidar_measurement_stamp_mode)"/>
+    <param name="lidar_deskew_mode" value="$(arg lidar_deskew_mode)"/>
+    <param name="lidar_deskew_reference" value="$(arg lidar_deskew_reference)"/>
+    <param name="lidar_deskew_camera_reference"
+           value="$(arg lidar_deskew_camera_reference)"/>
+    <param name="temporal_num_sweeps" value="$(arg temporal_num_sweeps)"/>
+    <param name="temporal_maximum_gap_sec"
+           value="$(arg temporal_maximum_gap_sec)"/>
+    <param name="temporal_lidar_scan_period_sec"
+           value="$(arg temporal_lidar_scan_period_sec)"/>
+    <param name="temporal_time_lag_mode"
+           value="$(arg temporal_time_lag_mode)"/>
+    <param name="ego_topic" value="$(arg ego_topic)"/>
+    <param name="oracle_painting_class" value="$(arg oracle_painting_class)"/>
+    <param name="oracle_object_topic" value="$(arg oracle_object_topic)"/>
+    <param name="oracle_maximum_age_sec" value="$(arg oracle_maximum_age_sec)"/>
+    <param name="oracle_painting_mode" value="$(arg oracle_painting_mode)"/>
+    <!-- Causal real-time matching: newest camera image at or before LiDAR stamp. -->
+    <param name="max_camera_age_ms" value="100.0"/>
+    <param name="max_camera_span_ms" value="80.0"/>
+    <param name="camera_buffer_size" value="30"/>
+
+    <!-- queue_size=1 behavior: process the newest LiDAR scan and drop stale scans. -->
+    <param name="normalize_intensity" value="true"/>
+    <param name="remove_ego_points" value="true"/>
+    <rosparam param="ego_box">[-1.5, 3.5, -1.25, 1.25, -1.0, 2.2]</rosparam>
+  </node>
+</launch>

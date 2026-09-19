@@ -1,10 +1,12 @@
 <launch>
-  <arg name="global_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/mgeo_map/global_info.json"/>
-  <arg name="node_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/mgeo_map/node_set.json"/>
-  <arg name="link_file" default="$(find lanelet_map_visualizer)/../../../kcity_map/mgeo_map/link_set.json"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="global_file" default="$(arg repo_root)/kcity_map/mgeo_map/global_info.json"/>
+  <arg name="node_file" default="$(arg repo_root)/kcity_map/mgeo_map/node_set.json"/>
+  <arg name="link_file" default="$(arg repo_root)/kcity_map/mgeo_map/link_set.json"/>
   <arg name="frame_id" default="morai_map"/>
   <arg name="output_topic" default="/map/morai_map"/>
   <arg name="publish_rate" default="0.0"/>
+  <arg name="flatten_z" default="false"/>
 
   <arg name="alpha" default="0.85"/>
   <arg name="z_offset" default="0.08"/>
@@ -40,6 +42,7 @@
     <param name="frame_id" value="$(arg frame_id)"/>
     <param name="output_topic" value="$(arg output_topic)"/>
     <param name="publish_rate" value="$(arg publish_rate)"/>
+    <param name="flatten_z" value="$(arg flatten_z)"/>
     <param name="alpha" value="$(arg alpha)"/>
     <param name="z_offset" value="$(arg z_offset)"/>
     <param name="line_width" value="$(arg line_width)"/>

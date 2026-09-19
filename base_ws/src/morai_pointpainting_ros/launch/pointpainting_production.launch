@@ -1,0 +1,55 @@
+<launch>
+  <!--
+    B3S-PP1 production detector profile.
+
+    Environment ownership deliberately remains outside roslaunch: activate the
+    machine's own compatible Conda environment before launching and pass its
+    interpreter through python_executable. No Conda environment name or GPU is
+    encoded here.
+  -->
+  <arg name="use_sim_time" default="false"/>
+  <arg name="repo_root"
+       default="$(eval find('morai_pointpainting_ros') + '/../../..')"/>
+  <arg name="bundle_root"
+       default="$(arg repo_root)/artifacts/team_handoffs/260909_pointpainting_production_3model"/>
+  <arg name="openpcdet_root" default="$(env HOME)/OpenPCDet"/>
+  <arg name="python_executable"/>
+
+  <arg name="cfg_file"
+       default="$(arg bundle_root)/models/b3s_pp1_e34/model.yaml"/>
+  <arg name="checkpoint"
+       default="$(arg bundle_root)/models/b3s_pp1_e34/detector.pth"/>
+  <arg name="segmentation_checkpoint"
+       default="$(arg bundle_root)/segmentation/base3_lraspp_e30/segmentation.pth"/>
+  <!-- Keep both enabled in production; expose them for fast launch-contract smoke tests. -->
+  <arg name="warmup_segmentation" default="true"/>
+  <arg name="warmup_full_pipeline" default="true"/>
+
+  <include file="$(find morai_pointpainting_ros)/launch/pointpainting_online.launch">
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="openpcdet_root" value="$(arg openpcdet_root)"/>
+    <arg name="python_executable" value="$(arg python_executable)"/>
+    <arg name="cfg_file" value="$(arg cfg_file)"/>
+    <arg name="checkpoint" value="$(arg checkpoint)"/>
+    <arg name="segmentation_checkpoint" value="$(arg segmentation_checkpoint)"/>
+
+    <arg name="publish_painted_points" value="false"/>
+    <arg name="segmentation_short_side" value="384"/>
+    <arg name="segmentation_preprocess_backend" value="opencv"/>
+    <arg name="camera_cpu_workers" value="4"/>
+    <arg name="score_threshold" value="0.10"/>
+    <arg name="model_score_threshold" value="0.10"/>
+    <arg name="vehicle_score_threshold" value="0.40"/>
+    <arg name="pedestrian_score_threshold" value="0.15"/>
+    <arg name="obstacle_score_threshold" value="0.10"/>
+    <arg name="publish_detector_velocity" value="false"/>
+    <arg name="lidar_measurement_stamp_mode" value="object_points_median"/>
+    <arg name="lidar_deskew_mode" value="off"/>
+    <arg name="temporal_num_sweeps" value="0"/>
+    <arg name="warmup_segmentation" value="$(arg warmup_segmentation)"/>
+    <arg name="warmup_full_pipeline" value="$(arg warmup_full_pipeline)"/>
+    <arg name="real_input_warmup" value="true"/>
+    <arg name="real_input_warmup_iterations" value="2"/>
+  </include>
+</launch>

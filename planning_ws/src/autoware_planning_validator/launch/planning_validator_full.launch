@@ -1,0 +1,24 @@
+<launch>
+  <arg name="node_name" default="planning_validator"/>
+  <arg name="vehicle_param_file"/>
+  <arg name="use_obstacle_pointcloud" default="true"/>
+  <arg name="launch_modules" default=""/>
+  <node pkg="autoware_planning_validator" type="planning_validator_full_node"
+        name="$(arg node_name)" output="screen" required="true">
+    <rosparam command="load" file="$(arg vehicle_param_file)"/>
+    <rosparam command="load" file="$(find autoware_planning_validator)/config/ros1/planning_validator.yaml"/>
+    <rosparam command="load" file="$(find autoware_planning_validator_latency_checker)/config/ros1/latency_checker.yaml"/>
+    <rosparam command="load" file="$(find autoware_planning_validator_trajectory_checker)/config/ros1/trajectory_checker.yaml"/>
+    <rosparam command="load" file="$(find autoware_planning_validator_intersection_collision_checker)/config/ros1/intersection_collision_checker.yaml"/>
+    <rosparam command="load" file="$(find autoware_planning_validator_rear_collision_checker)/config/ros1/rear_collision_checker.yaml"/>
+    <param name="require_obstacle_pointcloud" value="$(arg use_obstacle_pointcloud)"/>
+    <rosparam unless="$(eval arg('launch_modules') != '')" param="launch_modules">
+      - autoware::planning_validator::full_source::TrajectoryChecker
+      - autoware::planning_validator::full_source::LatencyChecker
+      - autoware::planning_validator::full_source::IntersectionCollisionChecker
+      - autoware::planning_validator::full_source::RearCollisionChecker
+    </rosparam>
+    <rosparam if="$(eval arg('launch_modules') != '')" param="launch_modules"
+              subst_value="true">$(arg launch_modules)</rosparam>
+  </node>
+</launch>

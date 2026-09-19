@@ -3,11 +3,12 @@ FROM pytorch/pytorch:2.7.1-cuda12.8-cudnn9-devel
 ARG DEBIAN_FRONTEND=noninteractive
 ARG MAX_JOBS=8
 ARG MMCV_REF=v2.1.0
+ARG TORCH_CUDA_ARCH_LIST="7.5;8.6;8.9;12.0+PTX"
 
 ENV PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 \
     MAX_JOBS=${MAX_JOBS} \
-    TORCH_CUDA_ARCH_LIST="8.6;8.9;12.0+PTX"
+    TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST}
 
 # CUDA extension 빌드와 OpenCV 실행에 필요한 OS 패키지 설치
 RUN apt-get update \
@@ -36,7 +37,7 @@ RUN python -m pip install --upgrade \
         -r /opt/requirements/base.txt \
         -r /opt/requirements/inference.txt
 
-# MMCV 2.1.0을 RTX 30·40·50용 CUDA ops와 함께 소스 빌드
+# MMCV 2.1.0을 팀 공용 RTX 20·30·40·50용 CUDA ops와 함께 소스 빌드
 RUN git clone \
         --branch "${MMCV_REF}" \
         --depth 1 \
@@ -63,6 +64,12 @@ RUN rm -f /opt/mmdetection3d/.git \
 RUN cd /opt/mmdetection3d \
     && FORCE_CUDA=1 \
         python projects/BEVFusion/setup.py develop
+
+# Training-only observability is kept in a final layer so changing W&B does
+# not invalidate the expensive MMCV/BEVFusion CUDA-extension build cache.
+COPY docker/bevfusion/requirements/training.txt \
+    /opt/requirements/training.txt
+RUN python -m pip install -r /opt/requirements/training.txt
 
 WORKDIR /opt/mmdetection3d
 

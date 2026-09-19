@@ -1,0 +1,20 @@
+<launch>
+  <arg name="vehicle_param_path"/>
+  <arg name="param_path" default="$(find autoware_freespace_planner)/config/freespace_planner.ros1.yaml"/>
+  <arg name="input_route" default="/planning/mission_planning/route"/>
+  <arg name="input_odometry" default="/localization/kinematic_state"/>
+  <arg name="input_occupancy_grid" default="/planning/scenario_planning/parking/costmap_generator/occupancy_grid"/>
+  <arg name="input_scenario" default="/planning/scenario_planning/scenario"/>
+  <arg name="output_trajectory" default="/planning/scenario_planning/parking/trajectory"/>
+  <arg name="is_completed" default="/planning/scenario_planning/parking/is_completed"/>
+  <node pkg="autoware_freespace_planner" type="freespace_planner_node" name="freespace_planner" required="true" output="screen">
+    <rosparam command="load" file="$(arg vehicle_param_path)"/>
+    <rosparam command="load" file="$(arg param_path)"/>
+    <remap from="~input/route" to="$(arg input_route)"/>
+    <remap from="~input/odometry" to="$(arg input_odometry)"/>
+    <remap from="~input/occupancy_grid" to="$(arg input_occupancy_grid)"/>
+    <remap from="~input/scenario" to="$(arg input_scenario)"/>
+    <remap from="~output/trajectory" to="$(arg output_trajectory)"/>
+    <remap from="is_completed" to="$(arg is_completed)"/>
+  </node>
+</launch>

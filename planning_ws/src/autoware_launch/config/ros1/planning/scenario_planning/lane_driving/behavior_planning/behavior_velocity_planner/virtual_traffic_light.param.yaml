@@ -1,0 +1,6 @@
+virtual_traffic_light/max_delay_sec: 3.0
+virtual_traffic_light/near_line_distance: 1.0
+virtual_traffic_light/dead_line_margin: 1.0
+virtual_traffic_light/max_yaw_deviation_deg: 90.0
+virtual_traffic_light/check_timeout_after_stop_line: true
+virtual_traffic_light/hold_stop_margin_distance: 0.0

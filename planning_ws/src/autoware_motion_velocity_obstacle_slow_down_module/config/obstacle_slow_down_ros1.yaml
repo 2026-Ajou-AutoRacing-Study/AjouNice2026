@@ -1,0 +1,49 @@
+# ROS1 projection of obstacle_slow_down.param.yaml.  Do not load the ROS2
+# /**/ros__parameters wrapper into rosparam; the ROS1 parameter facade maps
+# dotted source keys to this slash hierarchy.
+normal:
+  min_acc: -0.5
+  max_acc: 1.0
+  min_jerk: -0.5
+  max_jerk: 1.0
+limit:
+  min_acc: -2.5
+  max_acc: 1.0
+  min_jerk: -1.5
+  max_jerk: 1.5
+obstacle_slow_down:
+  slow_down_planning:
+    slow_down_min_acc: -1.0
+    slow_down_min_jerk: -1.0
+    lpf_gain_slow_down_vel: 0.9
+    lpf_gain_lateral_distance: 0.7
+    lpf_gain_dist_to_slow_down: 0.7
+    time_margin_on_target_velocity: 1.5
+    moving_object_speed_threshold: 0.5
+    moving_object_hysteresis_range: 0.1
+    object_type_specified_params:
+      default:
+        left:
+          moving: {min_lat_margin: 0.2, max_lat_margin: 1.0, min_ego_velocity: 2.0, max_ego_velocity: 8.0}
+          static: {min_lat_margin: 0.2, max_lat_margin: 1.0, min_ego_velocity: 4.0, max_ego_velocity: 8.0}
+        right:
+          moving: {min_lat_margin: 0.2, max_lat_margin: 1.0, min_ego_velocity: 2.0, max_ego_velocity: 8.0}
+          static: {min_lat_margin: 0.2, max_lat_margin: 1.0, min_ego_velocity: 4.0, max_ego_velocity: 8.0}
+        wheel_off_track_scale: 0.0
+  obstacle_filtering:
+    object_type:
+      unknown: false
+      car: true
+      truck: true
+      bus: true
+      trailer: true
+      motorcycle: true
+      bicycle: true
+      pedestrian: true
+      pointcloud: false
+    min_lat_margin: -10.0
+    max_lat_margin: 1.1
+    lat_hysteresis_margin: 0.2
+    max_lat_velocity: 3.0
+    successive_num_to_entry_slow_down_condition: 5
+    successive_num_to_exit_slow_down_condition: 5
