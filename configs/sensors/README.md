@@ -20,3 +20,10 @@
   렌더링 부하를 줄이는 설정임.
 - ROS UDP launch의 개인 PC 기본값은 `Sensor_competition_local.json`을 사용함.
   일부 기존 localization/perception 도구는 호환 mirror인 `Sensor.json`을 계속 참조함.
+- `Sensor_localization_gt_lightweight.json`은 한 PC에서 MR 또는 MRP와
+  localization/planning/control의 시간축을 검증하기 위한 로컬 전용 profile임.
+  GPS 30 Hz와 IMU 50 Hz만 유지하고 Camera와 LiDAR를 MORAI sensor 구성에서 제거함.
+  `/Ego_topic`, `/Competition_topic`, `/Object_topic`, `/ctrl_cmd`는 Sensor JSON이
+  아니라 기존 Ego Network JSON을 사용하므로 그대로 유지됨.
+- 위 경량 profile은 대회 sensor 구성을 대체하지 않으며 `udp_localization_light`와
+  `sensing_localization_light`를 명시적으로 실행할 때만 사용함.

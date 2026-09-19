@@ -22,6 +22,44 @@ def test_integrated_stack_owns_downstream_pipeline_but_not_detector_by_default()
     assert args["start_object_pipeline"]["default"] == "true"
     assert args["start_detector"]["default"] == "false"
     assert args["detector"]["default"] == "fastbev"
+    assert args["start_traffic_light"]["default"] == "true"
+    assert args["enable_traffic_light_planner"]["default"] == "true"
+
+
+def test_local_load_test_can_disable_only_the_traffic_light_planner_plugin():
+    planning_launch = ET.parse(
+        PACKAGE_ROOT / "launch" / "planning.launch"
+    ).getroot()
+    args = {
+        item.attrib["name"]: item.attrib for item in planning_launch.findall("arg")
+    }
+    assert args["enable_traffic_light_planner"]["default"] == "true"
+
+    with_traffic = args[
+        "behavior_velocity_launch_modules_with_traffic_light"
+    ]["default"]
+    without_traffic = args[
+        "behavior_velocity_launch_modules_without_traffic_light"
+    ]["default"]
+    traffic_light_plugin = (
+        "autoware::behavior_velocity_planner::experimental::"
+        "TrafficLightModulePlugin"
+    )
+    assert traffic_light_plugin in with_traffic
+    assert traffic_light_plugin not in without_traffic
+
+    tier4_include = next(
+        item
+        for item in planning_launch.findall("include")
+        if item.attrib["file"].endswith(
+            "tier4_planning_launch)/launch/planning.launch"
+        )
+    )
+    values = {
+        item.attrib["name"]: item.attrib["value"]
+        for item in tier4_include.findall("arg")
+    }
+    assert values["behavior_velocity_launch_modules"] == "$(arg behavior_velocity_launch_modules)"
 
 
 def test_integrated_downstream_contract_matches_standalone_production_launch():

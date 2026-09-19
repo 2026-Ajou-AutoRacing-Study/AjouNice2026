@@ -50,6 +50,21 @@ x/y process-noise diagonal `0.0005`다. `predict_to_current_time=true`를 유지
 개발 단계의 최초 start pose는 `/Ego_topic`을 사용하며, 대회 전 공식 start-pose
 interface로 교체한다.
 
+폐루프 A/B에서만 다음 명시적 preset을 사용할 수 있다. 둘 다 `/Competition_topic`,
+heading correction `-1.347°` 등 production 입출력 계약은 유지하지만 Global Qxy를
+`0.05`로 높인다. 기본 `localization` alias와 production YAML은 변경하지 않는다.
+
+```bash
+# GNSS sigma 0.10 m, Global Qxy 0.05
+localization_sigma_0p10_qxy_0p05
+
+# GNSS sigma 0.05 m, Global Qxy 0.05
+localization_sigma_0p05_qxy_0p05
+```
+
+두 preset은 동시에 실행하지 않으며, 매 주행마다 사용한 alias를 rosbag run tag에
+기록한다. 현장 결과가 좋았다는 정성 관측만으로 production 기본값을 변경하지 않는다.
+
 ## Legacy
 
 [`legacy/`](legacy/)는 과거 1~7 설치·MORAI·rosbag·FAST-LIO 문서, 구형 GNSS+IMU

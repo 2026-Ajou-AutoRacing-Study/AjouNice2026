@@ -43,11 +43,15 @@ alias rosbag_lio_eval='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_for_eva
 #-----------------------------------------------------
 # Personal-PC loopback profile. Ports match the competition profile; only IP differs.
 alias udp='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_local.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json"'
+# Local MR/MRP localization load test: GPS+IMU only. MORAI must load the same
+# lightweight sensor JSON; Ego/Competition/Object/control stay on Ego Network.
+alias udp_localization_light='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_localization_gt_lightweight.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json" enable_lidar:=false'
 # Algorithm-PC adapter profile. On the field MORAI PC, load the original files
 # preserved under configs/morai_field_reference instead.
 alias udp_lan='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_lan.json"'
 alias udp22="roslaunch sensor_interface morai_udp_interface_22.launch"
 alias sensing="roslaunch bringup sensing.launch"
+alias sensing_localization_light='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_localization_gt_lightweight.json" publish_lidar_tf:=false publish_camera_tf:=false'
 alias sensing_lan='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json"'
 alias pointpainting='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && POINTPAINTING_ACTIVATE_CONDA=false POINTPAINTING_WITH_TP=false POINTPAINTING_CFG="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/model.yaml" POINTPAINTING_CKPT="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/detector.pth" POINTPAINTING_SEG_CKPT="$POINTPAINTING_BUNDLE_ROOT/segmentation/base3_lraspp_e30/segmentation.pth" rosrun morai_pointpainting_ros run_pointpainting.sh live'
 alias bevfusion='bash "$AJOUNICE_ROOT/scripts/runtime/run_bevfusion.sh"'
@@ -77,6 +81,10 @@ alias viewer_plot="roslaunch viewer viewer_plotjuggler.launch"
 # MR (2025 competition launcher) and field competition localization.
 # The competition contract does not provide /Ego_topic.
 alias localization='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false'
+# Closed-loop experiment presets. These intentionally do not change the
+# production `localization` alias (sigma=0.10 m, Global Qxy=0.0005).
+alias localization_sigma_0p10_qxy_0p05='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false measurement_noise_config:="$AJOUNICE_ROOT/configs/localization/gnss_imu_gt_noise_sensor6_ideal.yaml" global_ekf_base_config:="$AJOUNICE_ROOT/configs/localization/robot_localization_gnss_imu_global_qxy_0p05.yaml"'
+alias localization_sigma_0p05_qxy_0p05='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false measurement_noise_config:="$AJOUNICE_ROOT/configs/localization/gnss_imu_gt_noise_sensor6_sigma_0p05.yaml" global_ekf_base_config:="$AJOUNICE_ROOT/configs/localization/robot_localization_gnss_imu_global_qxy_0p05.yaml"'
 # MRP (2026 personal launcher) only. Keep the same estimator and heading contract.
 alias localization_mrp='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=ego use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false'
 # Historical localization aliases are intentionally excluded from this common file.
