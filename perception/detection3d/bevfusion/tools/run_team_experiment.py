@@ -26,7 +26,7 @@ ROOT_KEYS = {
     "base_config", "dataset", "gpu", "wandb", "output", "checkpointing",
 }
 NESTED_KEYS = {
-    "dataset": {"info_root"},
+    "dataset": {"capture_root", "info_root", "container_root"},
     "gpu": {
         "profile", "physical_batch_size", "gradient_accumulation", "workers",
         "shm_size",
@@ -193,9 +193,17 @@ def main() -> None:
 
     dataset_cfg = raw.get("dataset", {}) or {}
     info_value = str(dataset_cfg.get("info_root") or os.environ.get("BASE3_INFO_ROOT", ""))
-    capture_value = os.environ.get("BASE3_CAPTURE_ROOT", "")
+    capture_value = str(
+        dataset_cfg.get("capture_root") or os.environ.get("BASE3_CAPTURE_ROOT", "")
+    )
+    container_root = str(dataset_cfg.get("container_root") or "/datasets/base3")
     if not info_value or not capture_value:
-        fail("BASE3_INFO_ROOT and BASE3_CAPTURE_ROOT must be configured")
+        fail(
+            "dataset.info_root/capture_root or BASE3_INFO_ROOT/"
+            "BASE3_CAPTURE_ROOT must be configured"
+        )
+    if not container_root.startswith("/datasets/") or container_root in {"/datasets", "/datasets/"}:
+        fail("dataset.container_root must be an absolute child of /datasets")
     info_root = resolve_path(info_value, repo_root).resolve()
     capture_root = resolve_path(capture_value, repo_root).resolve()
     for split in ("train", "val", "test"):
@@ -310,7 +318,7 @@ def main() -> None:
         "docker", "run", "--rm", "--gpus", "all", "--shm-size={}".format(shm_size),
         "--name", "ajounice-{}".format(run_name), "--user", "{}:{}".format(uid, gid),
         "-v", "{}:/workspace/AjouNice2026:ro".format(source_snapshot),
-        "-v", "{}:/datasets/base3:ro".format(capture_root),
+        "-v", "{}:{}:ro".format(capture_root, container_root),
         "-v", "{}:/datasets/infos:ro".format(info_root),
         "-v", "{}:/outputs".format(work_dir),
         "-w", "/workspace/AjouNice2026/perception/detection3d/bevfusion",
@@ -356,6 +364,7 @@ def main() -> None:
         "gpu_profile": profile["id"], "physical_batch_size": batch,
         "gradient_accumulation": accumulation, "effective_batch_size": effective_batch,
         "workers": workers, "shm_size": shm_size, "capture_root": str(capture_root),
+        "dataset_container_root": container_root,
         "info_root": str(info_root), "checkpoint": str(checkpoint) if checkpoint else None,
         "checkpointing": {
             "interval": 1 if args.smoke else checkpoint_interval,

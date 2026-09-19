@@ -8,11 +8,13 @@ Usage: configure_team_machine.sh --operator {sw|yj|jh} [options]
 Options:
   --capture-root PATH  Extracted Base3 capture root
   --info-root PATH     Portable Base3 BEVFusion metadata root
+  --online-highway-root PATH  Parsed online-highway dataset root
   --image IMAGE        Team Docker image tag
   --output-root PATH   Training output root
   --nuscenes-checkpoint PATH  MORAI-adapted nuScenes initialization
   --e10-full-checkpoint PATH  Full Base3 E10 checkpoint
   --inference-checkpoint PATH Production inference-only E25 checkpoint
+  --e25-finetune-checkpoint PATH  E25 model weights used with a fresh optimizer
 EOF
 }
 
@@ -25,21 +27,29 @@ output_root="${BEVFUSION_OUTPUT_ROOT:-$repo_root/artifacts/detection3d/bevfusion
 nuscenes_checkpoint="${BEVFUSION_NUSCENES_ADAPTED_CHECKPOINT:-$repo_root/artifacts/detection3d/bevfusion/pretrained/bevfusion_nuscenes_morai3_compatible.pth}"
 e10_full_checkpoint="${BEVFUSION_BASE3_E10_FULL_CHECKPOINT:-$repo_root/artifacts/detection3d/bevfusion/training/base3_b0_4cam_lidar_e12/epoch_10.pth}"
 inference_checkpoint="${BEVFUSION_INFERENCE_CHECKPOINT:-$repo_root/artifacts/detection3d/bevfusion/releases/base3_bf0_f40_e25/base3_bf0_f40_e25_inference.pth}"
+online_highway_root="${BASE3_ONLINE_HIGHWAY_ROOT:-}"
+e25_finetune_checkpoint="${BEVFUSION_BASE3_E25_FINETUNE_CHECKPOINT:-}"
 
 while (($#)); do
   case "$1" in
     --operator) operator="${2:?missing operator}"; shift 2 ;;
     --capture-root) capture_root="${2:?missing capture root}"; shift 2 ;;
     --info-root) info_root="${2:?missing info root}"; shift 2 ;;
+    --online-highway-root) online_highway_root="${2:?missing online highway root}"; shift 2 ;;
     --image) image="${2:?missing image}"; shift 2 ;;
     --output-root) output_root="${2:?missing output root}"; shift 2 ;;
     --nuscenes-checkpoint) nuscenes_checkpoint="${2:?missing checkpoint}"; shift 2 ;;
     --e10-full-checkpoint) e10_full_checkpoint="${2:?missing checkpoint}"; shift 2 ;;
     --inference-checkpoint) inference_checkpoint="${2:?missing checkpoint}"; shift 2 ;;
+    --e25-finetune-checkpoint) e25_finetune_checkpoint="${2:?missing checkpoint}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+
+if [[ -z "$e25_finetune_checkpoint" ]]; then
+  e25_finetune_checkpoint="$inference_checkpoint"
+fi
 
 case "$operator" in sw|yj|jh) ;; *) echo "--operator must be sw, yj, or jh" >&2; exit 2 ;; esac
 
@@ -62,6 +72,8 @@ env_file="$repo_root/.env.bevfusion.local"
   printf 'BEVFUSION_NUSCENES_ADAPTED_CHECKPOINT=%q\n' "$nuscenes_checkpoint"
   printf 'BEVFUSION_BASE3_E10_FULL_CHECKPOINT=%q\n' "$e10_full_checkpoint"
   printf 'BEVFUSION_INFERENCE_CHECKPOINT=%q\n' "$inference_checkpoint"
+  printf 'BASE3_ONLINE_HIGHWAY_ROOT=%q\n' "$online_highway_root"
+  printf 'BEVFUSION_BASE3_E25_FINETUNE_CHECKPOINT=%q\n' "$e25_finetune_checkpoint"
   printf 'WANDB_ENTITY=%q\n' "AjouNice2026"
   printf 'WANDB_PROJECT=%q\n' "morai-3d-object-detection"
 } >"$env_file"

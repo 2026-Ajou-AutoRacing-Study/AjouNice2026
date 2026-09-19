@@ -3,6 +3,11 @@
 Only the schema and this example are tracked. Real experiment files are local
 and ignored so a long-running container is not coupled to Git branch changes.
 
+Reviewed team recipes that must be identical across operators are tracked under
+`../recipes/`. In particular, the Base3-Online highway fresh and E25 fine-tune
+recipes live there; pass their repository-relative YAML path to
+`run_team_training.sh`.
+
 Create the local templates once:
 
 ```bash

@@ -10,7 +10,9 @@ allowed:
   checkpoint: path_or_empty
   base_config: repository_relative_python_config
   dataset:
+    capture_root: path_or_empty
     info_root: path_or_empty
+    container_root: absolute_container_path
   gpu:
     profile: [auto, rtx2080ti, rtx3090, rtx4090, rtx5060ti]
     physical_batch_size: positive_integer_or_auto
