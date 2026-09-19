@@ -55,6 +55,13 @@ ajounice2026/model/bevfusion/base3_online_highway_260919/
 | fallback extrapolation | bracket가 없을 때만, 최대 0.05 s |
 | 학습·평가 범위 | `[-30,-30,-3,30,30,2] m` box range |
 
+이 corpus에는 Vehicle만 있으므로 online val의 3-class `val/center/mAP`는
+Pedestrian/Obstacle 0을 포함해 Vehicle metric의 약 1/3로 보인다. 실패가 아니다.
+checkpoint 추세는 `val/center/vehicle_mean_AP`, `vehicle_mATE`를 우선 보고, 최종
+선정은 production 7-bag으로 한다. 특히 E25 fine-tuning은 Vehicle을 개선하면서
+Pedestrian/Obstacle을 망각할 수 있으므로 고주로 두 bag만 보고 production으로
+교체하면 안 된다.
+
 ## 팀원 PC 최초 준비
 
 저장소와 기존 팀 Docker/E25 전달물을 먼저 준비한다. Ubuntu 20.04/22.04 차이는
