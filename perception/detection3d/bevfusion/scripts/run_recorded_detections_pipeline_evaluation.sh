@@ -16,6 +16,8 @@ tracker_system_noise_std_vx_vy_ms="${TRACKER_SYSTEM_NOISE_STD_VX_VY_MS:-1.0}"
 tracker_meas_noise_std_xy_m="${TRACKER_MEAS_NOISE_STD_XY_M:-0.3}"
 tracker_meas_noise_std_yaw_deg="${TRACKER_MEAS_NOISE_STD_YAW_DEG:-10.0}"
 tracker_use_kinematic_model="${TRACKER_USE_KINEMATIC_MODEL:-false}"
+tracker_detection_velocity_fusion_mode="${TRACKER_DETECTION_VELOCITY_FUSION_MODE:-0}"
+tracker_detection_velocity_noise_std_mps="${TRACKER_DETECTION_VELOCITY_NOISE_STD_MPS:-1.0}"
 repo_root="${AJOUNICE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
 ros_port="${BEVFUSION_PIPELINE_EVAL_ROS_PORT:-$((15000 + ($$ % 15000)))}"
 export ROS_MASTER_URI="http://127.0.0.1:${ros_port}"
@@ -79,6 +81,8 @@ env PYTHONPATH="$system_pythonpath" PYTHONNOUSERSITE=1 \
   tracker_meas_noise_std_xy_m:="$tracker_meas_noise_std_xy_m" \
   tracker_meas_noise_std_yaw_deg:="$tracker_meas_noise_std_yaw_deg" \
   tracker_use_kinematic_model:="$tracker_use_kinematic_model" \
+  tracker_detection_velocity_fusion_mode:="$tracker_detection_velocity_fusion_mode" \
+  tracker_detection_velocity_noise_std_mps:="$tracker_detection_velocity_noise_std_mps" \
   >"$output_dir/tracking_map_cv.log" 2>&1 &
 pipeline_pid=$!
 
@@ -125,7 +129,9 @@ cat >"$output_dir/tracker_config.json" <<EOF
   "system_noise_std_vx_vy_ms": $tracker_system_noise_std_vx_vy_ms,
   "meas_noise_std_xy_m": $tracker_meas_noise_std_xy_m,
   "meas_noise_std_yaw_deg": $tracker_meas_noise_std_yaw_deg,
-  "use_kinematic_model": $tracker_use_kinematic_model
+  "use_kinematic_model": $tracker_use_kinematic_model,
+  "detection_velocity_fusion_mode": $tracker_detection_velocity_fusion_mode,
+  "detection_velocity_noise_std_mps": $tracker_detection_velocity_noise_std_mps
 }
 EOF
 
