@@ -1,6 +1,15 @@
 # 대회 측위 횡방향 흔들림과 제어 채터링 안정화 계획
 
-마지막 갱신: 2026-09-16
+마지막 갱신: 2026-09-19
+
+> **최신 판정:** 이 문서 이후 GNSS 양자화, 현장 `velocity.x`, 로컬 MORAI
+> 실시간율을 추가 검증했다. 현재 원인과 실행 우선순위는
+> [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)를
+> 우선한다. 특히 로컬 full-stack bag의 종방향 과적분을 production
+> `velocity.x` bias로 해석하지 않는다. 2026-09-19에 GNSS sigma `0.10 m`와
+> Global Qxy `0.0005` 조합을 production 기본값으로 채택했다. 정량 근거는
+> [`260919_quantized_gnss_qr_tuning_evidence.md`](260919_quantized_gnss_qr_tuning_evidence.md)를
+> 따른다.
 
 ## 1. 목적
 
@@ -49,7 +58,8 @@ duplicate timestamp 차단은 여러 localization provider의 동시 발행을 �
 
 ## 3. 현재 설정에서 가장 유력한 원인
 
-현재 noise-off profile은 GNSS 수평 표준편차를 `0.05 m`로 둔다.
+이 계획을 작성했을 때의 noise-off profile은 GNSS 수평 표준편차를 `0.05 m`로
+두었다. 2026-09-19 Q/R 재평가 후 현재 production은 `0.10 m`를 사용한다.
 
 ```yaml
 gnss:
@@ -119,27 +129,27 @@ Heading `-1.347 deg`는 고정 편향 보정이다. 값이 틀리면 한쪽으�
 
 ## 5. 수정 실험 우선순위
 
-### L0. 현재 설정 재현
+### L0. 과거 baseline 재현 — 완료
 
-- GNSS horizontal stddev `0.05 m`.
+- GNSS horizontal stddev `0.05 m`인 과거 baseline.
 - 현장과 같은 UDP timestamp 경로.
 - 현재 controller 설정.
 - 같은 bag 또는 반복 가능한 같은 주행을 모든 A/B에 사용한다.
 
-### L1. GNSS measurement covariance sweep
+### L1. GNSS measurement covariance 및 Global Qxy sweep — 완료
 
 첫 수정 실험이며 다른 파라미터는 고정한다.
 
 ```text
-0.05 m  current baseline
+0.05 m  historical baseline
 0.10 m
 0.20 m  first candidate
 0.30 m
 ```
 
 횡방향 채터링만 줄고 장기 절대 위치, 곡선 추종 및 GNSS 음영 복구가 손상되지 않는
-값을 선택한다. 현재 첫 후보는 `0.20 m`지만 실험 전에 production 기본값으로 바꾸지
-않는다.
+값을 선택한다. 2026-09-19 정상 시간축 replay까지 마친 결과 `0.10 m`와 Global
+Qxy `0.0005`를 production 기본값으로 채택했다. 현장 closed-loop 검증은 남아 있다.
 
 ### L2. GNSS innovation/outlier gate
 
@@ -205,8 +215,48 @@ Localization과 trajectory가 충분히 안정적인 것이 확인된 뒤에만 
 
 - 현장 GPS가 실제로 몇 cm 단위로 양자화되는지.
 - 채터링의 주성분이 GPS jump인지 Planning trajectory 변화인지.
-- 최적 GNSS covariance가 `0.10`, `0.20`, `0.30 m` 중 어느 것인지.
+- 채택 Q/R이 실제 LAN-to-LAN closed-loop에서 조향 채터링을 얼마나 낮추는지.
 - outlier gate가 필요한지.
 - control 입력을 local odometry로 분리할 가치가 있는지.
 
 위 항목은 진단 bag과 동일 조건 A/B 전에는 사실로 표현하지 않는다.
+
+## 9. 2026-09-16 full-route baseline과 L1 결과
+
+입력 bag은 `260916_150411_full_route_mr_baseline.bag`이다. 약 522초이며 정상 종료된
+LZ4 bag이다. MORAI, BEVFusion, planning, control을 한 PC에서 함께 실행해 센서 주기가
+낮아졌지만, 현장 sensor-local bag과 다음 핵심 특성이 거의 같아 localization A/B에
+사용할 수 있다.
+
+- 정상 GNSS 구간 lateral error p95: local `7.46 cm`, 현장 `8.01 cm`.
+- lateral frame jump p95: local `5.40 cm`, 현장 `5.24 cm`.
+- steering-rate abs p95: local `1.60 rad/s`, 현장 `1.59 rad/s`.
+- 현장 GT localization의 steering-rate abs p95는 `0.34 rad/s`였다.
+
+따라서 문제의 주성분은 큰 지속 편향보다는 GNSS update를 강하게 따라가는 고주파
+global correction이다. 공분산 sweep은 perception/planning/controller를 제외하고 동일
+GPS·IMU·GT 입력으로 localization만 실제 시간 1배속 재계산했다. `0.05 m` replay가 live
+결과를 1 mm 이내 수준으로 재현한 것을 확인한 뒤 비교했다.
+
+| GNSS horizontal sigma | lateral error p95 | lateral jump p95 | longitudinal error p95 | longitudinal jump p95 |
+|---:|---:|---:|---:|---:|
+| `0.05 m` | `7.48 cm` | `5.46 cm` | `34.14 cm` | `17.68 cm` |
+| `0.10 m` | `6.77 cm` | `3.49 cm` | `55.08 cm` | `16.33 cm` |
+| `0.20 m` | `7.03 cm` | `2.26 cm` | `108.37 cm` | `15.59 cm` |
+| `0.30 m` | `8.96 cm` | `1.76 cm` | `163.75 cm` | `15.18 cm` |
+
+판정은 다음과 같다.
+
+- `0.10 m`는 lateral jump p95를 약 36% 낮추면서 lateral error도 개선한 유일한 균형점이다.
+- `0.20 m` 이상은 횡점프는 더 낮지만 종방향 lag가 1 m 이상이어서 탈락한다.
+- 이 초기 sweep 이후 정상 시간축 `/Competition_topic` bag에서 Global Qxy까지 함께
+  재탐색했고, sigma `0.10 m` + Qxy `0.0005`를 production 기본값으로 채택했다.
+  다음 단계는 live 직선·곡선·정지/출발과 controller 지표 확인이다.
+- GPS 음영에서 `/localization/gnss/odom`이 약 `8.17 s` 끊겼고 복귀 순간 baseline은
+  longitudinal 약 `9.62 m`, lateral 약 `0.53 m`를 한 frame에 보정했다. `0.10 m`도 각각
+  약 `9.51 m`, `0.65 m`로 근본 해결되지 않는다. 정상구간 covariance와 음영 복귀
+  재정합 정책은 별도 문제로 유지한다.
+
+초기 sweep 두 번은 고정 ROS master port 재사용으로 orphan process의 `/clock`이 섞여
+폐기했다. sweep script는 실행마다 고유 port를 사용하고, 새 roscore가 실제로 시작되지
+않으면 즉시 실패하도록 수정했다.

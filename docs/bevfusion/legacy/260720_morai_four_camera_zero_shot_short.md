@@ -1,5 +1,7 @@
 # MORAI 4-camera BEVFusion zero-shot 빠른 실행
 
+> **문서 상태: HISTORICAL.** 명령·checkpoint·경로를 현재 production에 복사하지 않는다.
+
 이 문서는 `Sensor.json`의 전방·전방 좌·전방 우·후방 카메라와
 `lidar1`을 Docker BEVFusion에 전달하고, 결과를 RViz에서 실시간 확인하는
 최소 실행 절차다. 처음에는 반드시 projection을 확인한 뒤 zero-shot 추론으로

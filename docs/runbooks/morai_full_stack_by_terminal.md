@@ -10,7 +10,7 @@
 ```text
 MORAI sensors/Ego
   -> UDP bridge
-  -> B3-BF0 E10 BEVFusion
+  -> B3-BF0-F40 E25 BEVFusion
   -> EKF multi-object tracking
   -> UNKNOWN stationary policy
   -> Map-CV prediction
@@ -23,9 +23,9 @@ MORAI sensors/Ego
 [`260915_field_inspection_checklist.md`](../competition/260915_field_inspection_checklist.md)를
 함께 사용한다.
 
-현재 production detector는 `B3-BF0 E10`, class threshold는
-Vehicle/Pedestrian/Obstacle `0.40/0.15/0.10`이다. BF1은 실험 모델이며 이
-runbook의 기본 모델이 아니다.
+현재 production detector는 `B3-BF0-F40 E25`, class threshold는
+Vehicle/Pedestrian/Obstacle `0.40/0.15/0.10`이다. E10은 rollback
+baseline이며 BF1은 실험 모델로 이 runbook의 기본 모델이 아니다.
 
 프로젝트 용어에서 `MRP`는 2026 개인용 launcher, `MR`은 2025 대회용 launcher를
 뜻한다. 개인 개발은 MRP, 대회 환경 재현과 현장 실행은 MR을 기준으로 하되,
@@ -40,12 +40,12 @@ cd "$HOME/AjouNice2026"
 test -f scripts/workspace/source_aw149.sh
 test -f base_ws/install_aw149/setup.bash
 test -f planning_ws/install_isolated/setup.bash
-test -f kcity_map/lanelet_map/lanelet2_map_v68.osm
+test -f kcity_map/lanelet_map/lanelet2_map_v84.osm
 ```
 
 MORAI에서는 다음을 확인한다.
 
-1. v68 map과 원하는 competition scenario를 연다.
+1. v84 map과 원하는 competition scenario를 연다.
 2. Sensor Network와 Ego Network를 현재 PC 설정에 맞게 연결한다.
 3. 실제 제어 전에 Ego control mode를 `AV-ExternalCtrl`로 둔다.
 4. 차량은 Route A 공식 시작 위치에서 정지 상태로 둔다.
@@ -62,14 +62,24 @@ pipeline을 실패 처리하므로 로그 누락을 바로 확인할 수 있다.
 `tee -a`를 사용하지 않으며 호출할 때마다 새 파일을 만든다. 같은 구성요소를 같은 초에
 다시 실행해도 `_01`, `_02`가 붙으므로 기존 로그를 덮어쓰거나 이어붙이지 않는다.
 
-각 터미널의 공통 준비는 다음 네 줄이다. `AJOUNICE_ROOT`를 현재 checkout으로 명시해
-이전에 열었던 shell의 환경변수가 섞이지 않게 한다.
+각 터미널은 `~/.bashrc`에 등록한 `ajou` 함수로 준비한다. 이 함수는
+repository root로 이동하고 `AJOUNICE_ROOT`를 설정한 뒤 AW149 overlay와
+`docs/common_alias.txt`를 로드한다. 새 shell에서 `type ajou`로 먼저 확인한다.
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 set -o pipefail
+```
+
+`ajou` `command not found`가 나오는 PC에서만 다음을 `~/.bashrc`에 한 번
+등록하고 새 터미널을 연다.
+
+```bash
+ajou() {
+    cd "$HOME/AjouNice2026" || return
+    export AJOUNICE_ROOT="$HOME/AjouNice2026"
+    source "$AJOUNICE_ROOT/docs/common_alias.txt"
+}
 ```
 
 ### Terminal 1: 로그 세션 생성 + ROS master
@@ -77,9 +87,7 @@ set -o pipefail
 반드시 가장 먼저 실행하고 전체 실행이 끝날 때까지 유지한다.
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 set -o pipefail
 
 field_log_new
@@ -93,9 +101,7 @@ host, ROS 환경을 기록하고 `/tmp/ajounice_field_log_prefix`를 원자적�
 ### Terminal 2: 현장 LAN UDP gateway
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 set -o pipefail
 
 udp_lan 2>&1 | field_log_tee udp_lan
@@ -107,9 +113,7 @@ camera/IMU/GPS 수신, Velodyne LiDAR 변환, `/Ego_topic` 수신과 `/ctrl_cmd`
 ### Terminal 3: sensing static TF + 차량 모델
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 set -o pipefail
 
 sensing_lan 2>&1 | field_log_tee sensing
@@ -122,9 +126,7 @@ sensing_lan 2>&1 | field_log_tee sensing
 ### Terminal 4: localization + TF
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 set -o pipefail
 
 localization 2>&1 | field_log_tee localization
@@ -136,9 +138,7 @@ static TF를 담당하므로 localization의 `publish_sensor_tf` 기본값은 `f
 ### Terminal 5: BEVFusion detection
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 set -o pipefail
 
 bevfusion 2>&1 | field_log_tee bevfusion
@@ -150,9 +150,7 @@ detection topic에 PointPainting/FastBEV/다른 bridge publisher가 있으면 �
 않으므로 필요할 때만 별도 터미널에서 아래 진단 로그를 추가한다.
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 set -o pipefail
 
 docker compose -f docker/bevfusion/compose.yaml logs --follow --tail=100 inference \
@@ -162,9 +160,7 @@ docker compose -f docker/bevfusion/compose.yaml logs --follow --tail=100 inferen
 ### Terminal 6: tracking + map-based prediction
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 set -o pipefail
 
 tracking 2>&1 | field_log_tee tracking
@@ -173,9 +169,7 @@ tracking 2>&1 | field_log_tee tracking
 ### Terminal 7: traffic-light recognition
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 set -o pipefail
 
 traffic 2>&1 | field_log_tee traffic
@@ -184,9 +178,7 @@ traffic 2>&1 | field_log_tee traffic
 ### Terminal 8: planning
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 set -o pipefail
 
 planning 2>&1 | field_log_tee planning
@@ -198,9 +190,7 @@ follower/control은 포함하지 않는다.
 ### Terminal 9: 공용 Planning RViz
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 set -o pipefail
 
 planviz show_morai_gt:=false 2>&1 | field_log_tee planviz
@@ -215,9 +205,7 @@ planviz show_morai_gt:=false 2>&1 | field_log_tee planviz
 확인한다. 차량 제어권과 비상정지 담당을 확인한 뒤에만 실행한다.
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 set -o pipefail
 
 traj_fol_a 2>&1 | field_log_tee control
@@ -231,9 +219,7 @@ controller다. `traj_fol`이나 다른 `/ctrl_cmd` publisher를 동시에 실행
 별도 터미널에서 현재 세션 파일을 확인한다.
 
 ```bash
-cd "$HOME/AjouNice2026"
-export AJOUNICE_ROOT="$PWD"
-source docs/common_alias.txt
+ajou
 
 field_log_list
 ```
@@ -311,7 +297,7 @@ rostopic info /ctrl_cmd
 cd "$HOME/AjouNice2026"
 
 AJOUNICE_ROOT="$PWD" \
-BEVFUSION_CHECKPOINT="$HOME/bevfusion_artifacts/checkpoints/base3_bf0_e10_inference.pth" \
+BEVFUSION_CHECKPOINT="$HOME/bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth" \
 docker compose -f docker/bevfusion/compose.yaml up -d --force-recreate inference
 
 docker compose -f docker/bevfusion/compose.yaml logs -f inference

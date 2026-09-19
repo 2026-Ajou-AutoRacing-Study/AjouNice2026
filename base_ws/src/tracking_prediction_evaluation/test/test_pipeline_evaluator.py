@@ -241,6 +241,49 @@ def test_bbox_center_reference_exposes_absolute_tracking_metric():
     assert summary["tracking"]["object_status_reference_distance_m"]["count"] == 0
 
 
+def test_tracking_ave_uses_lateral_twist_while_speed_mae_stays_longitudinal():
+    points = tuple(
+        TrajectoryPoint(
+            timestamp=float(timestamp),
+            x=float(timestamp),
+            y=0.0,
+            z=0.0,
+            yaw=0.0,
+            longitudinal_velocity=1.0,
+            lateral_velocity=0.0,
+            longitudinal_acceleration=0.0,
+            lateral_acceleration=0.0,
+            class_name="vehicle",
+            object_id=1,
+            asset_name="test",
+        )
+        for timestamp in (1.5, 1.75, 2.0)
+    )
+    segment = TrajectorySegment("vehicle", "vehicle", 1, "test", points)
+    estimate = ObjectEstimate(
+        b"track", 2.0, 0.0, yaw=0.0, speed=1.0, lateral_speed=1.0
+    )
+    summary = evaluate_pipeline(
+        (segment,),
+        (),
+        tracking_frames={2.0: (estimate,)},
+        prediction_frames={},
+    )["tracking"]
+
+    assert math.isclose(
+        summary["absolute_speed_error_mps"]["mean"], 0.0, abs_tol=1.0e-9
+    )
+    assert math.isclose(summary["velocity_l2_error_mps"]["mean"], 1.0)
+    assert math.isclose(
+        summary["absolute_longitudinal_velocity_error_mps"]["mean"],
+        0.0,
+        abs_tol=1.0e-9,
+    )
+    assert math.isclose(
+        summary["absolute_lateral_velocity_error_mps"]["mean"], 1.0
+    )
+
+
 def test_sensor_estimate_transform_preserves_pi_yaw_sign():
     ego = EgoPoint(1.0, 10.0, 20.0, math.pi / 2.0)
     estimate = ObjectEstimate(b"", 2.0, 0.0, yaw=math.pi)

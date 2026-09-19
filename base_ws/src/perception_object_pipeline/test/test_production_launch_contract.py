@@ -23,7 +23,7 @@ def test_production_tracking_and_prediction_values_are_explicit():
         "compensate_tracking_output_to_current_time": "false",
         "tracking_internal_publish_rate_hz": "30.0",
         "maximum_tracking_internal_prediction_age_sec": "0.25",
-        "detection_velocity_fusion_mode": "0",
+        "detection_velocity_fusion_mode": "$(arg tracker_detection_velocity_fusion_mode)",
         "tracking_publish_rate_hz": "0.0",
         "force_unknown_stationary": "true",
         "prediction_model": "map_based",
@@ -32,6 +32,38 @@ def test_production_tracking_and_prediction_values_are_explicit():
     }
     for name, value in expected.items():
         assert arguments.get(name) == value, (name, arguments.get(name))
+
+
+def test_tracker_ablation_defaults_preserve_production_contract():
+    root = ET.parse(PACKAGE_ROOT / "launch" / "tracking_prediction.launch").getroot()
+    defaults = {item.attrib["name"]: item.attrib.get("default") for item in root.findall("arg")}
+    expected = {
+        "tracker_prediction_model": "1",
+        "tracker_system_noise_std_vx_vy_ms": "1.0",
+        "tracker_meas_noise_std_xy_m": "0.4",
+        "tracker_meas_noise_std_yaw_deg": "10.0",
+        "tracker_use_kinematic_model": "false",
+        "tracker_detection_velocity_fusion_mode": "0",
+        "tracker_detection_velocity_noise_std_mps": "1.0",
+    }
+    for name, value in expected.items():
+        assert defaults.get(name) == value, (name, defaults.get(name))
+
+    arguments = _included_arguments()
+    for name in (
+        "tracker_prediction_model",
+        "tracker_system_noise_std_vx_vy_ms",
+        "tracker_meas_noise_std_xy_m",
+        "tracker_meas_noise_std_yaw_deg",
+        "tracker_use_kinematic_model",
+    ):
+        assert arguments.get(name) == "$(arg {})".format(name)
+    assert arguments["detection_velocity_fusion_mode"] == (
+        "$(arg tracker_detection_velocity_fusion_mode)"
+    )
+    assert arguments["detection_velocity_noise_std_mps"] == (
+        "$(arg tracker_detection_velocity_noise_std_mps)"
+    )
 
 
 def test_production_topics_and_v76_map_are_explicit():

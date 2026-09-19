@@ -25,4 +25,4 @@ actor velocity는 MORAI 원시 message 값을 단위 변환 없이 보존하고,
 중앙차분으로 계산한 `derived_velocity_mps`를 함께 둔다. actor acceleration,
 yaw rate와 motion phase도 기록한다. 같은 `clip_id`의 모든 frame은 반드시 같은
 split에 속해야 한다. 자세한 생성·검증 절차는
-`../docs/dynamic_object_capture_v1.md`를 따른다.
+과거 temporal capture 계약은 `../docs/legacy/dynamic_object_capture_v1.md`에 보존한다.

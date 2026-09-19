@@ -6,8 +6,12 @@ learning_rate: 1.0e-4
 base_config: perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py
 
 dataset:
-  # Empty means BASE3_INFO_ROOT from .env.bevfusion.local.
+  # Empty values mean BASE3_CAPTURE_ROOT / BASE3_INFO_ROOT from
+  # .env.bevfusion.local. container_root must match the absolute prefix stored
+  # in the MMDetection3D PKL files.
+  capture_root: ""
   info_root: ""
+  container_root: /datasets/base3
 
 gpu:
   profile: auto
@@ -26,3 +30,8 @@ wandb:
 output:
   # Empty means BEVFUSION_OUTPUT_ROOT from .env.bevfusion.local.
   root: ""
+
+checkpointing:
+  # Keep this small for ordinary trials; retain every epoch for long sweeps.
+  interval: 1
+  max_keep_ckpts: 3

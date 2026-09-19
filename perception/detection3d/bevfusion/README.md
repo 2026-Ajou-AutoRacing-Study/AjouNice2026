@@ -1,5 +1,10 @@
 # Base3 BEVFusion experiment
 
+> **문서 상태: IMPLEMENTATION REFERENCE + HISTORICAL EXPERIMENT LOG.** 아래 초기
+> feasibility 서술의 “production replacement가 아님”은 현재 결론이 아니다. 현재
+> production/학습 문서는 `docs/bevfusion/README.md`에서 선택한다. Base3-Online은
+> `dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md`가 canonical이다.
+
 The shared multi-GPU training entry point is:
 
 ```bash

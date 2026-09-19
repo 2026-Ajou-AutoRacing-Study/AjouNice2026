@@ -12,14 +12,16 @@
 
 ## 현재 읽어야 하는 문서
 
-1. [`260916_competition_lateral_jitter_stabilization_plan.md`](260916_competition_lateral_jitter_stabilization_plan.md)
+1. [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)
+   - 현재 중대 이슈, 확정 원인, `velocity.x bias` 정정, 로컬 시간축과 해결 순서.
+2. [`260916_competition_lateral_jitter_stabilization_plan.md`](260916_competition_lateral_jitter_stabilization_plan.md)
    - 현장 횡방향 흔들림, 조향 채터링, covariance A/B와 채택 기준.
-2. [`260801_robot_localization_gnss_imu_gt_ctra_fusion.md`](260801_robot_localization_gnss_imu_gt_ctra_fusion.md)
+3. [`260801_robot_localization_gnss_imu_gt_ctra_fusion.md`](260801_robot_localization_gnss_imu_gt_ctra_fusion.md)
    - 현재 estimator의 센서 역할, frame, timestamp, covariance와 검증 근거.
-3. [`morai_udp_receipt_time.md`](morai_udp_receipt_time.md)
+4. [`morai_udp_receipt_time.md`](morai_udp_receipt_time.md)
    - 현장 UDP receipt-time 정책.
-4. [`260804_localization_state_input_architecture_plan.md`](260804_localization_state_input_architecture_plan.md)
-   - 현재 구현 이후의 장기 구조 검토. 대회 production 실행법은 아님.
+5. [`260919_quantized_gnss_qr_tuning_evidence.md`](260919_quantized_gnss_qr_tuning_evidence.md)
+   - GNSS 양자화 원인과 production Q/R 채택 근거.
 
 ## 공식 실행 계약
 
@@ -43,8 +45,14 @@ localization_mrp
 동시에 두 localization provider를 실행하지 않는다. duplicate timestamp 거부는 서로
 다른 provider가 같은 TF와 topic을 중복 발행하는 것을 방지하지 못한다.
 
+현재 production estimator tuning은 GNSS horizontal sigma `0.10 m`, Global EKF
+x/y process-noise diagonal `0.0005`다. `predict_to_current_time=true`를 유지한다.
+개발 단계의 최초 start pose는 `/Ego_topic`을 사용하며, 대회 전 공식 start-pose
+interface로 교체한다.
+
 ## Legacy
 
-[`legacy/`](legacy/)는 과거 FAST-LIO, 구형 GNSS+IMU baseline, `/Ego_topic` 직접 GT와
-구형 control 실행 기록이다. 현재 대회 명령이나 기본값을 결정할 때 검색 결과만 보고
-재사용하지 않는다. 과거 실험 재현이 필요한 경우에만 읽는다.
+[`legacy/`](legacy/)는 과거 1~7 설치·MORAI·rosbag·FAST-LIO 문서, 구형 GNSS+IMU
+baseline, `/Ego_topic` 직접 GT, 과거 localization 구조 계획과 control 실행 기록이다.
+현재 대회 명령이나 기본값을 결정할 때 검색 결과만 보고 재사용하지 않는다. 과거 실험
+재현이 필요한 경우에만 읽는다.

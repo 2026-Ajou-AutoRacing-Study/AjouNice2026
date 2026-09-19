@@ -35,8 +35,8 @@ docker compose logs -f inference
 PYTHONPATH=. python3 scripts/healthcheck.py
 ```
 
-`.env.example` expects the verified inference-only B3-BF0 E10 checkpoint at
-`$HOME/bevfusion_artifacts/checkpoints/base3_bf0_e10_inference.pth`. A local
+`.env.example` expects the verified inference-only B3-BF0-F40 E25 checkpoint at
+`$HOME/bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth`. A local
 `.env` is optional and ignored by Git. For a portable command that does not
 depend on `.env`, use the production handoff document.
 
@@ -72,7 +72,7 @@ The staged steady-state capacity is governed by the slower stage, currently
 the 72.3 ms server round trip, rather than by adding 19.1 ms serially. This is
 enough to consume a nominal 12 Hz LiDAR stream with modest margin. Individual
 sensor-to-result latency remains roughly 90 ms plus ROS scheduling jitter.
-The trained B3-BF0 E10 rosbag runtime subsequently measured roughly
+The earlier B3-BF0 E10 rosbag runtime measured roughly
 `78–84 ms` p50/p95 end-to-end latency and `12.5–12.8 Hz` processing capacity.
 RTX 4090 measurements must still be repeated on the target PC. Monitor
 `dropped_raw` and `dropped_prepared` in the status topic.

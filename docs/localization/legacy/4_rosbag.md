@@ -79,6 +79,6 @@ roslaunch bringup localization_morai_gt.launch use_sim_time:=true
 `map -> morai_map` static TF와 `/localization/kinematic_state`까지 publish한다.
 `/localization/odom`은 만들지 않는다. GPS-only bag은 `maptf.launch`를 사용한다.
 
-![alt text](attachments/image-9.png)
+![alt text](../../attachments/image-9.png)
 - rviz에서도 잘 재생됨
 - 일단 내 local에서는 bag 끄고 morai 기반으로 하자(topic 겹치니까)

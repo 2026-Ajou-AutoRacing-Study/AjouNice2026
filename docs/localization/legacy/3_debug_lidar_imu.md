@@ -56,7 +56,7 @@ source ~/AjouNice2026/base_ws/devel/setup.bash # sd
 ### LiDAR 분석
 - 공식 repo config 설명:
 
-![alt text](attachments/image-9.png)
+![alt text](../../attachments/image-9.png)
 
 - 우리는 velodyne LiDAR 쓰니까,
     - `config/velodyne.yaml`에다가 `lid_topic`, `imu_topic` 같은 게 어떻게 들어오는지 적어줘야 함.

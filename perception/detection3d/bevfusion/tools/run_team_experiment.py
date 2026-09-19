@@ -23,16 +23,17 @@ VALID_OPERATORS = {"sw", "yj", "jh"}
 VALID_MODES = {"fresh", "finetune", "resume", "random"}
 ROOT_KEYS = {
     "version", "name", "mode", "epochs", "learning_rate", "checkpoint",
-    "base_config", "dataset", "gpu", "wandb", "output",
+    "base_config", "dataset", "gpu", "wandb", "output", "checkpointing",
 }
 NESTED_KEYS = {
-    "dataset": {"info_root"},
+    "dataset": {"capture_root", "info_root", "container_root"},
     "gpu": {
         "profile", "physical_batch_size", "gradient_accumulation", "workers",
         "shm_size",
     },
     "wandb": {"enabled", "entity", "project", "group", "tags"},
     "output": {"root"},
+    "checkpointing": {"interval", "max_keep_ckpts"},
 }
 
 
@@ -177,6 +178,12 @@ def main() -> None:
     if epochs <= 0 or lr <= 0:
         fail("epochs and learning_rate must be positive")
 
+    checkpointing_cfg = raw.get("checkpointing", {}) or {}
+    checkpoint_interval = int(checkpointing_cfg.get("interval", 1))
+    max_keep_ckpts = int(checkpointing_cfg.get("max_keep_ckpts", 3))
+    if checkpoint_interval <= 0 or max_keep_ckpts <= 0:
+        fail("checkpointing.interval and checkpointing.max_keep_ckpts must be positive")
+
     base_config = resolve_path(
         str(raw.get("base_config", "perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py")),
         repo_root,
@@ -186,9 +193,17 @@ def main() -> None:
 
     dataset_cfg = raw.get("dataset", {}) or {}
     info_value = str(dataset_cfg.get("info_root") or os.environ.get("BASE3_INFO_ROOT", ""))
-    capture_value = os.environ.get("BASE3_CAPTURE_ROOT", "")
+    capture_value = str(
+        dataset_cfg.get("capture_root") or os.environ.get("BASE3_CAPTURE_ROOT", "")
+    )
+    container_root = str(dataset_cfg.get("container_root") or "/datasets/base3")
     if not info_value or not capture_value:
-        fail("BASE3_INFO_ROOT and BASE3_CAPTURE_ROOT must be configured")
+        fail(
+            "dataset.info_root/capture_root or BASE3_INFO_ROOT/"
+            "BASE3_CAPTURE_ROOT must be configured"
+        )
+    if not container_root.startswith("/datasets/") or container_root in {"/datasets", "/datasets/"}:
+        fail("dataset.container_root must be an absolute child of /datasets")
     info_root = resolve_path(info_value, repo_root).resolve()
     capture_root = resolve_path(capture_value, repo_root).resolve()
     for split in ("train", "val", "test"):
@@ -270,6 +285,8 @@ def main() -> None:
         "train_cfg.max_epochs={}".format(epochs),
         "param_scheduler.1.end={}".format(epochs),
         "param_scheduler.1.T_max={}".format(epochs),
+        "default_hooks.checkpoint.interval={}".format(checkpoint_interval),
+        "default_hooks.checkpoint.max_keep_ckpts={}".format(max_keep_ckpts),
         "train_dataloader.dataset.ann_file=/datasets/infos/morai_base3_infos_train.pkl",
         "val_dataloader.dataset.ann_file=/datasets/infos/morai_base3_infos_val.pkl",
         "test_dataloader.dataset.ann_file=/datasets/infos/morai_base3_infos_test.pkl",
@@ -301,7 +318,7 @@ def main() -> None:
         "docker", "run", "--rm", "--gpus", "all", "--shm-size={}".format(shm_size),
         "--name", "ajounice-{}".format(run_name), "--user", "{}:{}".format(uid, gid),
         "-v", "{}:/workspace/AjouNice2026:ro".format(source_snapshot),
-        "-v", "{}:/datasets/base3:ro".format(capture_root),
+        "-v", "{}:{}:ro".format(capture_root, container_root),
         "-v", "{}:/datasets/infos:ro".format(info_root),
         "-v", "{}:/outputs".format(work_dir),
         "-w", "/workspace/AjouNice2026/perception/detection3d/bevfusion",
@@ -347,7 +364,12 @@ def main() -> None:
         "gpu_profile": profile["id"], "physical_batch_size": batch,
         "gradient_accumulation": accumulation, "effective_batch_size": effective_batch,
         "workers": workers, "shm_size": shm_size, "capture_root": str(capture_root),
+        "dataset_container_root": container_root,
         "info_root": str(info_root), "checkpoint": str(checkpoint) if checkpoint else None,
+        "checkpointing": {
+            "interval": 1 if args.smoke else checkpoint_interval,
+            "max_keep_ckpts": 1 if args.smoke else max_keep_ckpts,
+        },
         "base_config": str(base_config.relative_to(repo_root)), "wandb": {
             "enabled": wandb_enabled, "entity": wandb_entity, "project": wandb_project,
             "group": wandb_group, "tags": tags,

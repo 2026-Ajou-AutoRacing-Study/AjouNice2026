@@ -72,7 +72,8 @@ rostopic list | grep -E 'lidar|camera|image'
 ## 2. Localization과 Viewer 실행
 
 Viewer를 처음 사용하는 경우 화면별 의미와 상황별 명령은
-[`control/view/README.md`](../../../base_ws/src/control/view/README.md)의 빠른 시작 안내를 먼저 본다.
+당시 사용한 `base_ws/src/control/view/README.md`는 현재 저장소에 남아 있지 않다.
+현재 control 실행법으로 해석하지 말고 과거 재현 기록으로만 사용한다.
 
 | 실행 순서 | 단축어 | alias 없는 실제 명령어 | 설명 |
 | --- | --- | --- | --- |

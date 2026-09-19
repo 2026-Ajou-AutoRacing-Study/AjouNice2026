@@ -43,11 +43,14 @@ odom0_nodelay: true
 odom0_differential: false
 odom0_relative: false
 
-# Keep the first implementation explicit and identical to the local model.
 # These are estimator model parameters, not MORAI message covariance values.
+# The global x/y process noise is deliberately lower than the local model: GT
+# heading/vx and IMU predict short-term motion, while quantized GNSS should
+# correct long-term map position without injecting each NMEA cell transition
+# into the controller-facing state.
 process_noise_covariance: [
-  0.05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0.05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0.0005, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0.0005, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0.06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0.03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0.03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

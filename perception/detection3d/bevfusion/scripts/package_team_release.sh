@@ -51,9 +51,9 @@ info_root="${BASE3_INFO_ROOT:?BASE3_INFO_ROOT is required}"
 image="${BEVFUSION_IMAGE:-ajounice/bevfusion:team-cu128-v1}"
 nuscenes="${BEVFUSION_NUSCENES_ADAPTED_CHECKPOINT:?missing adapted checkpoint path}"
 e10_full="${BEVFUSION_BASE3_E10_FULL_CHECKPOINT:?missing E10 full checkpoint path}"
-e10_inference="${BEVFUSION_INFERENCE_CHECKPOINT:?missing E10 inference checkpoint path}"
+production_inference="${BEVFUSION_INFERENCE_CHECKPOINT:?missing production inference checkpoint path}"
 
-for path in "$capture_root" "$info_root" "$nuscenes" "$e10_full" "$e10_inference"; do
+for path in "$capture_root" "$info_root" "$nuscenes" "$e10_full" "$production_inference"; do
   [[ -e "$path" ]] || { echo "Missing release input: $path" >&2; exit 2; }
 done
 
@@ -61,11 +61,11 @@ checkpoint_stage="$staging/bevfusion-team-checkpoints-v1"
 mkdir -p "$checkpoint_stage/checkpoints"
 cp --reflink=auto "$nuscenes" "$checkpoint_stage/checkpoints/bevfusion_nuscenes_morai3_compatible.pth"
 cp --reflink=auto "$e10_full" "$checkpoint_stage/checkpoints/base3_bf0_epoch10_full.pth"
-cp --reflink=auto "$e10_inference" "$checkpoint_stage/checkpoints/base3_bf0_e10_inference.pth"
+cp --reflink=auto "$production_inference" "$checkpoint_stage/checkpoints/base3_bf0_f40_e25_inference.pth"
 cat >"$checkpoint_stage/README.txt" <<'EOF'
 bevfusion_nuscenes_morai3_compatible.pth: fresh Base3 initialization
 base3_bf0_epoch10_full.pth: finetune or exact compatible resume checkpoint
-base3_bf0_e10_inference.pth: production inference-only checkpoint
+base3_bf0_f40_e25_inference.pth: production inference-only checkpoint
 EOF
 (
   cd "$checkpoint_stage"

@@ -22,6 +22,8 @@
 3. rosbag 녹화
    - raw 센서: `bash scripts/rosbag/record/rosbag_raw.sh`
    - raw 센서 + 6개 카메라: `bash scripts/rosbag/record/rosbag_cam_raw.sh`
+   - MR 전체 경로 localization·control 안정성 평가:
+     `bash scripts/rosbag/record/rosbag_for_localization_stability_eval.sh full_route`
 4. FAST-LIO offline 입력 보정: [runbook](../docs/runbooks/fast_lio_rosbag_repair.md)을 따른다.
 
 `launch_sensing.sh`는 이전 `run_full_stack.sh`의 이름을 바로잡은 것이다. 현재는

@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획.
 
-마지막 갱신: 2026-09-16.
+마지막 갱신: 2026-09-19.
 
 ## 관리 규칙.
 
@@ -10,18 +10,33 @@
   문서에 결과를 남긴다.
 - 세부 근거와 과거 시행착오는 이 문서에 복제하지 않고 관련 문서로 연결한다.
 
-## 현재 최우선. 대회 측위 횡방향 안정화.
+## 현재 최우선. 대회 측위 종·횡 안정화와 제어 채터링 제거.
 
-- 현장점검에서 관측한 횡방향 pose 흔들림과 좌우 조향 채터링의 발생 단계를
-  raw GNSS, GNSS odometry, local/global EKF, planning trajectory, controller로 분리한다.
-- 첫 controlled experiment는 GNSS horizontal stddev
-  `0.05 / 0.10 / 0.20 / 0.30 m` covariance A/B다.
+- 현장점검에서 fusion localization의 steering-rate absolute p95가 약 `1.59 rad/s`,
+  GT localization은 약 `0.34 rad/s`였다. 이는 시각화가 아니라 제어 안정성 P0다.
+- 정상 구간 횡 채터링은 약 `14.8 / 18.5 cm`로 양자화된 GNSS update를 Global EKF가
+  강하게 따라가고, controller가 Global state를 직접 소비하는 구조가 주원인임을
+  same-bag 분석으로 확인했다.
+- 로컬 full-stack bag의 `velocity.x` 21.9% 과적분은 production 속도 bias가 아니다.
+  현장 4개 bag의 위치 이동거리/속도 적분 비율은 `0.9998~1.0000`이며, 로컬 한-PC
+  MORAI 실시간율 저하와 receipt-time의 시간축 artifact로 판정한다.
+- 정상 시간축 `/Competition_topic` raw bag의 1x A/B를 통해 GNSS sigma `0.10 m`,
+  Global EKF Qxy `0.0005`를 production 기본값으로 채택했다. 기존 대비 횡 jump
+  p95는 `5.43 -> 1.44 cm`, 종 jump는 `7.23 -> 2.42 cm`로 감소했다.
+- 첫 다음 실험은 BEVFusion 대신 `od_gt`를 사용한 GT-object full stack으로 MORAI
+  실시간율을 정상화하고, 이동거리/속도 적분 비율 `0.98~1.02`를 통과한 상태에서
+  채택 Q/R의 실제 조향 채터링 감소를 closed-loop로 확인하는 것이다.
 - 최종 pose LPF나 controller gain 변경으로 먼저 가리지 않는다. 동일 bag에서
-  Localization 원인을 분리한 뒤 outlier gate와 controller tuning 순으로 진행한다.
+  quantization-aware update, GPS 음영 복귀 정책, global/local control state 분리,
+  controller tuning 순으로 진행한다.
 - MR/대회 production alias를 `localization`=`competition`, MRP alias를
   `localization_mrp`=`ego`로 분리했으며 heading correction `-1.347 deg`를 유지한다.
-- 상세 문제 정의와 검증 계약:
-  [`260916_competition_lateral_jitter_stabilization_plan.md`](localization/260916_competition_lateral_jitter_stabilization_plan.md).
+- 대회 GNSS와 IMU에는 인위적인 랜덤 노이즈가 없다는 운영진 답변을 확인했다.
+  양자화와 GPS 음영은 별도 문제로 계속 처리한다.
+- 최신 문제 정의와 검증 계약:
+  [`260918_competition_localization_critical_issue_status.md`](localization/260918_competition_localization_critical_issue_status.md).
+- Q/R 채택 정량 근거:
+  [`260919_quantized_gnss_qr_tuning_evidence.md`](localization/260919_quantized_gnss_qr_tuning_evidence.md).
 
 ## Localization 안정화 직후 재개할 항목.
 
@@ -151,6 +166,58 @@
   성능 저하가 시작되는 단계를 분리한다.
 - Mission rosbag Vehicle geometry가 production 기준에 도달하기 전에는 velocity
   head를 tracker production 입력으로 확정하지 않는다.
+- Base3 corrected 평가는 완료했다. Offline best는 `B3-BF0-F40 E26`이다.
+  초기 PointPainting 통제 실험인 `Vehicle 30 m` bag은 production 평균에서
+  제외했다. 실제 경로·미션 7-bag detection macro AP는 E10/E25/E26
+  `0.7645/0.7620/0.7625`로 E10이 근소하게 높다. 실제 경로 Vehicle 3-bag에서
+  E25는 tracking AVE `0.7887 -> 0.7252 m/s`, 3초 FDE
+  `4.7168 -> 4.4912 m`로 개선되지만 center p50은 `0.5403 -> 0.5457 m`로
+  약간 나빠진다. 상세 결과:
+  [`260918_base3_e40_production_evaluation_results.md`](bevfusion/260918_base3_e40_production_evaluation_results.md).
+- 최종 목표를 per-frame OD AP보다 tracker/Map-CV의 안정적인 속도와 미래경로로
+  두므로 production 표준은 `B3-BF0-F40 E25`로 정한다. E10은 rollback baseline,
+  E26은 offline best로 보존한다.
+- Tracker A/B를 완료했다. 실제 2D twist를 반영하도록 AVE evaluator를 수정했고,
+  sensor topic을 제외한 결정론적 playback 계약을 확정했다. CTRV는 유지하고 position
+  measurement noise를 `0.30 -> 0.40 m`로 변경한다. E25 고주로에서 F1
+  `0.9324 -> 0.9341`, speed MAE `0.655 -> 0.645 m/s`, stable 3초 FDE
+  `1.766 -> 1.696 m`로 개선됐으며 center p50 `+1.6 cm`는 허용한다.
+- GT-velocity oracle에서 매 update velocity fusion은 2D AVE를 `0.852 -> 0.259 m/s`,
+  stable 3초 FDE를 `1.617 -> 0.594 m`로 낮췄다. Tracker parameter 추가 sweep보다
+  **BEVFusion velocity head 또는 temporal detector의 실제 velocity observation 확보**를
+  다음 motion P0 후보로 둔다. 실제 head가 생기기 전 fusion 기본값은 `off`로 유지한다.
+  근거: [`260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`](bevfusion/260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md).
+- 다음 재학습은 단순 epoch 연장이 아니라 기존 시나리오 생성기를 production
+  UDP/ROS 입력 경로와 결합한 `Base3-Online`을 사용한다.
+  - 2026-09-19 mixed30 pilot은 30/30 scene, 90 frame 변환, train/val/test
+    BEVFusion Docker dataloader까지 통과했다.
+  - mixed30의 5-point GT 유지율은 Vehicle 97.4%, Pedestrian 51.5%, Obstacle 57.5%라서
+    본 수집량은 scene 수가 아닌 필터 후 class별 positive 수로 산정한다.
+  - 첫 확장은 고주로 Vehicle-positive 전용 334 scene으로 수행했다.
+    Pedestrian/Obstacle/empty는 섞지 않는다. 2026-09-19 수집은 334/334 scene,
+    실패 0으로 완료했다. LiDAR timestamp 기준 Ego/Object pose interpolation과
+    5-point positive gate를 적용한 최종 train/val/test는 692/147/144, 총 983 frame,
+    Vehicle GT 1,814개다. portable root는
+    `/datasets/base3_online_highway_motion_v2`이며 팀 Docker dataloader까지 통과했다.
+    production E25-init E12 fine-tuning을 완료했다. 실험 범위와 같은 고주로
+    합류·고주로1 기준 Online val best E7은 Vehicle AP를 `0.6708 -> 0.7187`,
+    center p50을 `0.5993 -> 0.4771 m`, 올바른 2D tracking AVE를
+    `0.9685 -> 0.8906 m/s`로 개선했다. 전체 운동 구간 3초 Top-1 FDE는 양쪽 모두
+    `4.6948 m`로 같고 CV-stable 3초 minFDE-K mean은
+    `1.7659 -> 1.7882 m`로 2.2 cm 악화됐다. 과거 AVE 악화 결론은 tracker body-y
+    twist를 버린 evaluator와 불필요한 sensor topic playback의 timer miss가 만든
+    측정 오류였으며 수정했다. 고주로 specialization은 성공이지만 Obstacle 회귀
+    때문에 전역 Production은 E25를 유지한다. 다음 비교는
+    동일 Vehicle-only fine-tuning 반복이 아니라 general-domain rehearsal 또는 더
+    짧고 작은-LR인 통제 실험과 fresh E40이다.
+  - 여러 scene을 한 rosbag에 기록하되 marker window만 사용하고, LiDAR timestamp
+    기준 camera synchronization과 Ego/Object pose interpolation을 적용한다.
+  - 현재 canonical 상태와 경로:
+    [`BASE3_ONLINE_CURRENT_STATE.md`](../dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md).
+  - 실행 런북:
+    [`base3_online_rosbag_collection_runbook.md`](../dataset/morai_od/docs/base3_online_rosbag_collection_runbook.md).
+  - 설계·pilot 이력:
+    [`production_online_rosbag_dataset_plan.md`](../dataset/morai_od/docs/production_online_rosbag_dataset_plan.md).
 
 과거 Base2 근거:
 [`base2_temporal3_velocity_d4_readiness.md`](../perception/pointpainting/docs/base2_temporal3_velocity_d4_readiness.md),

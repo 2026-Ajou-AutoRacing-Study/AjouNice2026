@@ -39,7 +39,11 @@ class ObjectEstimate:
     x: float
     y: float
     yaw: float = 0.0
+    # Twist is expressed in the object/body frame by the standardized
+    # Autoware messages. ``speed`` preserves the historical longitudinal
+    # component name; lateral_speed is required for a true 2-D AVE.
     speed: float = 0.0
+    lateral_speed: float = 0.0
     predicted_path: tuple[tuple[float, float], ...] = ()
     path_step_sec: float = 0.0
     predicted_paths: tuple[PredictedPathEstimate, ...] = ()
@@ -180,6 +184,9 @@ def read_output_frames(bag_path, tracking_topic, prediction_topic):
                             speed=float(
                                 obj.kinematics.twist_with_covariance.twist.linear.x
                             ),
+                            lateral_speed=float(
+                                obj.kinematics.twist_with_covariance.twist.linear.y
+                            ),
                         )
                     )
                 else:
@@ -198,6 +205,9 @@ def read_output_frames(bag_path, tracking_topic, prediction_topic):
                             yaw=quaternion_yaw(pose.orientation),
                             speed=float(
                                 obj.kinematics.initial_twist_with_covariance.twist.linear.x
+                            ),
+                            lateral_speed=float(
+                                obj.kinematics.initial_twist_with_covariance.twist.linear.y
                             ),
                             predicted_path=top_path.points,
                             path_step_sec=top_path.step_sec,
@@ -760,6 +770,8 @@ def evaluate_pipeline(
     tracking_errors = []
     tracking_speed_errors = []
     tracking_velocity_l2_errors = []
+    tracking_longitudinal_velocity_errors = []
+    tracking_lateral_velocity_errors = []
     tracking_yaw_errors = []
     tracking_longitudinal_speeds = []
     previous_track_by_gt = {}
@@ -805,12 +817,28 @@ def evaluate_pipeline(
             state = estimate_motion_state(history)
             if state is not None:
                 tracking_speed_errors.append(abs(estimate.speed - state.speed))
-                estimate_vx = estimate.speed * math.cos(estimate.yaw)
-                estimate_vy = estimate.speed * math.sin(estimate.yaw)
+                estimate_vx = (
+                    estimate.speed * math.cos(estimate.yaw)
+                    - estimate.lateral_speed * math.sin(estimate.yaw)
+                )
+                estimate_vy = (
+                    estimate.speed * math.sin(estimate.yaw)
+                    + estimate.lateral_speed * math.cos(estimate.yaw)
+                )
                 state_vx = state.speed * math.cos(state.yaw)
                 state_vy = state.speed * math.sin(state.yaw)
+                error_vx = estimate_vx - state_vx
+                error_vy = estimate_vy - state_vy
                 tracking_velocity_l2_errors.append(
-                    math.hypot(estimate_vx - state_vx, estimate_vy - state_vy)
+                    math.hypot(error_vx, error_vy)
+                )
+                state_cosine = math.cos(state.yaw)
+                state_sine = math.sin(state.yaw)
+                tracking_longitudinal_velocity_errors.append(
+                    abs(state_cosine * error_vx + state_sine * error_vy)
+                )
+                tracking_lateral_velocity_errors.append(
+                    abs(-state_sine * error_vx + state_cosine * error_vy)
                 )
                 yaw_delta = (estimate.yaw - state.yaw + math.pi) % (2.0 * math.pi) - math.pi
                 tracking_yaw_errors.append(abs(math.degrees(yaw_delta)))
@@ -1177,6 +1205,17 @@ def evaluate_pipeline(
             ),
             "absolute_speed_error_mps": statistics(tracking_speed_errors),
             "velocity_l2_error_mps": statistics(tracking_velocity_l2_errors),
+            "absolute_longitudinal_velocity_error_mps": statistics(
+                tracking_longitudinal_velocity_errors
+            ),
+            "absolute_lateral_velocity_error_mps": statistics(
+                tracking_lateral_velocity_errors
+            ),
+            "velocity_metric_contract": (
+                "absolute_speed_error_mps preserves signed body-x speed MAE; "
+                "velocity_l2_error_mps is true 2-D map-frame AVE using both "
+                "body-x and body-y twist components"
+            ),
             "absolute_yaw_error_deg": statistics(tracking_yaw_errors),
             "yaw_flip_rate_over_90deg": (
                 float(np.mean(np.asarray(tracking_yaw_errors) > 90.0))

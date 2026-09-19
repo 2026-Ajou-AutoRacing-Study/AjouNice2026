@@ -1,10 +1,20 @@
 # BEVFusion 팀 공용 Docker 학습·추론 handoff
 
+> **문서 상태: CURRENT.** 공용 Docker와 일반 Base3 학습 계약이다. Base3-Online
+> 실험은 `260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md`의 추가 경로 계약을 따른다.
+
 ## 목적과 기준
 
 이 구성은 Base3-Static 10K로 MORAI 3-class BEVFusion을 여러 PC에서
 독립적으로 학습하고 동일 checkpoint를 ROS online inference에 사용하는
 팀 표준이다.
+
+2026-09-18 Base3 Fresh E40 corrected validation·test·mission rosbag 결과와
+checkpoint 선택 근거는
+[`260918_base3_e40_production_evaluation_results.md`](260918_base3_e40_production_evaluation_results.md)를
+참고한다. Offline best는 E26이다. 실제 경로 7-bag detection은 E10이 근소하게
+높지만, 최종 시스템 목표인 tracker/Map-CV의 AVE와 FDE는 E25가 우세하므로
+production 표준은 E25로 정한다. E10은 rollback baseline으로 보존한다.
 
 | GPU | CUDA arch | physical batch | accumulation | effective batch |
 |---|---:|---:|---:|---:|
@@ -12,6 +22,20 @@
 | RTX 3090 | 8.6 | 4 | 1 | 4 |
 | RTX 4090 | 8.9 | 4 | 1 | 4 |
 | RTX 5060 Ti | 12.0 | 4 | 1 | 4 |
+
+위 표는 **학습용 시작 preset**이다. 모든 GPU에서 물리 batch를 동일하게
+고정한다는 뜻이 아니다. RTX 5060 Ti의 physical batch 4만 실제 full
+train/validation으로 확인했고, 2080 Ti·3090·4090 값은 각 VRAM에 맞춘 팀
+시작값이므로 각 PC에서 smoke test와 peak VRAM을 반드시 확인한다.
+
+- RTX 2080 Ti 11 GB: `2 x accumulation 2`로 시작하고 CUDA OOM이면
+  `1 x accumulation 4`로 낮춘다.
+- RTX 3090/4090 24 GB: 우선 `4 x accumulation 1`을 사용한다. batch를
+  키우는 실험은 별도 실험 YAML에서만 수행한다.
+- RTX 5060 Ti 16 GB: 검증된 기준인 `4 x accumulation 1`을 사용한다.
+- 학습 physical batch를 바꿀 때는 effective batch가 4로 유지되도록
+  gradient accumulation을 함께 조정한다. effective batch나 learning rate까지
+  바꾸면 동일 실험의 단순 GPU 이식이 아니라 별도 하이퍼파라미터 실험이다.
 
 공용 image는 CUDA 12.8, PyTorch 2.7.1과
 `7.5;8.6;8.9;12.0+PTX` CUDA extension을 포함한다. GTX 1060은
@@ -101,7 +125,7 @@ bash perception/detection3d/bevfusion/scripts/configure_team_machine.sh \
   --info-root "$HOME/ajounice_bevfusion_artifacts/base3-static-10k-v1/infos" \
   --nuscenes-checkpoint "$HOME/ajounice_bevfusion_artifacts/bevfusion-team-checkpoints-v1/checkpoints/bevfusion_nuscenes_morai3_compatible.pth" \
   --e10-full-checkpoint "$HOME/ajounice_bevfusion_artifacts/bevfusion-team-checkpoints-v1/checkpoints/base3_bf0_epoch10_full.pth" \
-  --inference-checkpoint "$HOME/ajounice_bevfusion_artifacts/bevfusion-team-checkpoints-v1/checkpoints/base3_bf0_e10_inference.pth"
+  --inference-checkpoint "$HOME/ajounice_bevfusion_artifacts/bevfusion-team-checkpoints-v1/checkpoints/base3_bf0_f40_e25_inference.pth"
 ```
 
 이 명령은 Git에 올라가지 않는 `.env.bevfusion.local`과
@@ -161,6 +185,47 @@ source_snapshot/
 train.log
 ```
 
+## 학습·평가 공간 범위 계약
+
+Base3 B0의 학습 GT, detector 출력과 val/test 평가는 모두 같은
+`[-30, -30, -3, 30, 30, 2] m` 중심점 범위를 사용한다. 평가기는 이
+축 정렬 사각 범위로 GT와 prediction을 모두 거른 뒤 center-distance와 IoU
+지표를 계산한다. 중심거리 30 m를 넘더라도 사각 범위의 대각선 안에 있는
+box는 평가에 남는다는 점에 유의한다.
+
+2026-09-18 이전 evaluator는 학습 범위 밖 GT를 val/test 분모에 포함하는
+계약 누락이 있었다. 이전 run의 자동 validation history는 재현 기록으로만
+보존하고, checkpoint 비교와 best 선정은 수정 evaluator로 만든 별도
+`corrected-range30` W&B evaluation run을 기준으로 한다. 이 문제는 학습
+loss에는 영향을 주지 않으므로 기존 checkpoint를 폐기하거나 재학습할
+사유는 아니다.
+
+### Corrected validation batch 크기
+
+평가 batch는 gradient가 없는 **validation 전용 값**이며 위 학습 physical
+batch와 별개다. corrected checkpoint sweep의 기본값 `4`는 RTX 5060 Ti
+기준이다. 다른 PC에서는 먼저 E1 checkpoint 하나로 실행하고 다음 시작값을
+사용한다.
+
+| GPU | validation 시작값 | 조정 기준 |
+|---|---:|---|
+| RTX 2080 Ti 11 GB | 2 | OOM이면 1 |
+| RTX 3090 24 GB | 4 | 여유가 충분하면 별도 timing에서 8 시험 가능 |
+| RTX 4090 24 GB | 4 | 여유가 충분하면 별도 timing에서 8 시험 가능 |
+| RTX 5060 Ti 16 GB | 4 | OOM이면 2 |
+
+```bash
+python3 perception/detection3d/bevfusion/tools/evaluate_corrected_checkpoint_sweep.py \
+  ... \
+  --batch-size 2
+```
+
+batch를 키우는 목적은 평가 시간 단축뿐이며 모델 성능을 높이지 않는다.
+E1에서 batch 1 기준 metric과 동일한지, peak VRAM에 최소 1--2 GB 여유가
+있는지 확인한 뒤 전체 E1--E40 sweep을 시작한다. CUDA OOM, dataloader 종료,
+metric 불일치가 있으면 `8 -> 4 -> 2 -> 1` 순으로 낮춘다. 한 W&B sweep
+도중 batch를 바꾸지 말고, 바꿨다면 새 run으로 다시 기록해 재현성을 지킨다.
+
 ## Online inference
 
 추론은 GPU preset과 무관하게 batch 1이다. ROS master와 UDP gateway 실행 후:
@@ -193,8 +258,8 @@ count를 다시 측정해 15 Hz 운용을 승인한다.
   cubin 및 `sm_120` PTX 확인.
 - RTX 5060 Ti: fresh initialization과 기존 Base3 E10 full checkpoint 모두
   physical batch 4로 1 epoch train + validation + W&B sync 완료.
-- 기존 production E10 inference checkpoint SHA-256:
-  `b2d3f65befaa16382cdd189f9c8ac1aff2d2176e6c48e19a17ab329947eff419`.
+- production E25 inference checkpoint SHA-256:
+  `36816cf769c87d49483d002111abfad8e1afd043afd74a0b9fc54aac82133011`.
 - Base3 multi-asset obstacle rosbag: cold-ready 직후 frame coverage `1.000`,
   obstacle center-distance mAP `0.6067`, 1 m F1 `0.7923`.
 - 고주로 합류 rosbag: frame coverage `1.000`, vehicle center-distance mAP

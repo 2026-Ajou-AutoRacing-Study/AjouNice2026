@@ -7,7 +7,7 @@
   <!-- Production uses the shared planviz terminal; keep detector-only launch
        argument-free and avoid opening a second RViz instance. -->
   <arg name="start_rviz" default="false"/>
-  <!-- Validated B3-BF0 E10 production operating point. score_threshold is
+  <!-- Validated B3-BF0-F40 E25 production operating point. score_threshold is
        only the fallback for an unknown detector class. -->
   <arg name="score_threshold" default="0.10"/>
   <arg name="vehicle_score_threshold" default="0.40"/>
