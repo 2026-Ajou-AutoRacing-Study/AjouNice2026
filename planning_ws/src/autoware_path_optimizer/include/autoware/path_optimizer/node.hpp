@@ -20,7 +20,6 @@
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
 #include "autoware/path_optimizer/replan_checker.hpp"
 #include "autoware/path_optimizer/type_alias.hpp"
-#include "autoware/path_optimizer/utils/conditional_timer.hpp"
 #include "autoware_utils/ros/logger_level_configure.hpp"
 #include "autoware_utils/ros/polling_subscriber.hpp"
 #include "autoware_utils_system/stop_watch.hpp"
@@ -70,7 +69,6 @@ protected:  // for the static_centerline_generator package
   autoware::vehicle_info_utils::VehicleInfo vehicle_info_{};
   mutable std::shared_ptr<DebugData> debug_data_ptr_{nullptr};
   mutable std::shared_ptr<autoware_utils::TimeKeeper> time_keeper_{nullptr};
-  mutable std::shared_ptr<ConditionalTimer> conditional_timer_{nullptr};
 
   // flags for some functions
   bool enable_pub_debug_marker_;

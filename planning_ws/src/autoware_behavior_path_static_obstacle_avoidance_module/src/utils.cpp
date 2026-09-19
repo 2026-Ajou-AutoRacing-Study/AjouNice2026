@@ -1561,6 +1561,15 @@ void fillLongitudinalAndLengthByClosestEnvelopeFootprint(
   obj.length = max_distance - min_distance;
 }
 
+bool isClipObjectPassed(
+  const ObjectData & object, const double base_link2rear, const double release_margin)
+{
+  const auto object_front_from_ego = object.longitudinal + object.length;
+  const auto ego_rear_with_margin =
+    std::max(0.0, base_link2rear) + std::max(0.0, release_margin);
+  return object_front_from_ego < -ego_rear_with_margin;
+}
+
 double calc_lateral_distance(const PathWithLaneId & path, const Point & point)
 {
   const auto idx = autoware::motion_utils::findNearestIndex(path.points, point);
@@ -2241,7 +2250,7 @@ void updateRoadShoulderDistance(
     o.avoid_margin = lateral_hard_margin + 0.5 * vehicle_width;
   }
   const auto extract_obstacles = generateObstaclePolygonsForDrivableArea(
-    clip_objects, parameters, planner_data->parameters.vehicle_width / 2.0);
+    clip_objects, parameters, planner_data->parameters.vehicle_width);
 
   auto tmp_path = data.reference_path;
   tmp_path.left_bound = data.left_bound;

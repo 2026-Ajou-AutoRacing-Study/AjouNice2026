@@ -144,6 +144,7 @@ struct AvoidanceParameters
 
   // use intersection area for avoidance
   bool use_intersection_areas{false};
+  double intersection_area_lanelet_overlap_ratio_threshold{0.9};
 
   // use freespace area for avoidance
   bool use_freespace_areas{false};

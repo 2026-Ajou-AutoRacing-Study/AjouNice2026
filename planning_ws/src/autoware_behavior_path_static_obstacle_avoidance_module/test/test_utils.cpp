@@ -45,6 +45,22 @@ using autoware_utils::generate_uuid;
 
 constexpr double epsilon = 1e-6;
 
+TEST(StaticObstacleAvoidanceUtils, ClipObjectIsReleasedOnlyAfterEgoRearPassesObjectFront)
+{
+  ObjectData object;
+  object.longitudinal = -2.0;
+  object.length = 1.0;
+
+  EXPECT_FALSE(isClipObjectPassed(object, 1.0, 0.0));
+
+  object.longitudinal = -2.01;
+  EXPECT_TRUE(isClipObjectPassed(object, 1.0, 0.0));
+
+  EXPECT_FALSE(isClipObjectPassed(object, 1.0, 0.5));
+  object.longitudinal = -2.51;
+  EXPECT_TRUE(isClipObjectPassed(object, 1.0, 0.5));
+}
+
 ObjectData create_test_object(
   const Pose & pose, const Vector3 & velocity, const Shape & shape, const uint8_t type)
 {

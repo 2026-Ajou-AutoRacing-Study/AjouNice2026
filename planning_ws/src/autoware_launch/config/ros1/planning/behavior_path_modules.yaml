@@ -74,21 +74,22 @@ dynamic_avoidance:
       start_duration_to_avoid: 1.0
       end_duration_to_avoid: 0.0
 avoidance:
-  resample_interval_for_planning: 0.3
+  resample_interval_for_planning: 0.1
   resample_interval_for_output: 4.0
   use_lane_type: opposite_direction_lane
   use_intersection_areas: true
+  intersection_area_lanelet_overlap_ratio_threshold: 0.90
   use_hatched_road_markings: true
   use_freespace_areas: true
   target_object:
     car:
-      th_moving_speed: 1.0
-      th_moving_time: 2.0
+      th_moving_speed: 2.0
+      th_moving_time: 0.5
       longitudinal_margin: 0.0
       lateral_margin:
         soft_margin: 0.5
-        hard_margin: 0.2
-        hard_margin_for_parked_vehicle: 0.2
+        hard_margin: 0.4
+        hard_margin_for_parked_vehicle: 0.4
       max_expand_ratio: 0.0
       envelope_buffer_margin: 0.1
       th_error_eclipse_long_radius: 0.6
@@ -161,7 +162,7 @@ avoidance:
     pedestrian:
       th_moving_speed: 0.28
       th_moving_time: 1.0
-      longitudinal_margin: 0.6
+      longitudinal_margin: 0.0
       lateral_margin:
         soft_margin: 0.7
         hard_margin: 0.5
@@ -183,7 +184,7 @@ avoidance:
       pedestrian: true
     object_check_goal_distance: 20.0
     object_check_return_pose_distance: 20.0
-    max_compensation_time: 2.0
+    max_compensation_time: 5.0
     detection_area:
       static: false
       min_forward_distance: 50.0
@@ -197,9 +198,9 @@ avoidance:
       th_overhang_distance: 0.0
     unstable_classification_time: 2.0
     avoidance_for_ambiguous_vehicle:
-      policy: manual
+      policy: auto
       condition:
-        th_stopped_time: 3.0
+        th_stopped_time: 0.1
         th_moving_distance: 1.0
       ignore_area:
         traffic_light:
@@ -216,7 +217,7 @@ avoidance:
       policy: auto
       force_avoid_stopped_vehicle_in_intersection: true
       condition:
-        th_stopped_time: 3.0
+        th_stopped_time: 0.1
         th_road_border_distance: 0.8
     avoidance_for_adjacent_lane_stop_vehicle:
       policy: auto
@@ -244,7 +245,7 @@ avoidance:
     check_unavoidable_object: false
     check_other_object: true
     check_all_predicted_path: false
-    safety_check_backward_distance: 100.0
+    safety_check_backward_distance: 20.0
     hysteresis_factor_expand_rate: 1.5
     hysteresis_factor_safe_count: 3
     collision_check_yaw_diff_threshold: 3.1416
@@ -276,7 +277,7 @@ avoidance:
       min_prepare_time: 0.0
       max_prepare_time: 0.0
       min_prepare_distance: 0.0
-      min_slow_down_speed: 4.1667
+      min_slow_down_speed: 2.777777778
       buf_slow_down_speed: 0.56
       nominal_avoidance_speed: 8.33
       consider_front_overhang: true
@@ -289,11 +290,11 @@ avoidance:
         enable: true
         buffer: 3.0
   cancel:
-    enable: true
+    enable: false
     force:
       duration_time: 2.0
   yield:
-    enable: true
+    enable: false
     enable_during_shifting: false
     enable_signalling_during_yield: false
   stop:
@@ -301,43 +302,70 @@ avoidance:
     stop_buffer: 1.0
   policy:
     detection_reliability: reliable
-    make_approval_request: per_shift_line
+    make_approval_request: per_avoidance_maneuver
     deceleration: best_effort
     lateral_margin: best_effort
     use_shorten_margin_immediately: true
     candidate_path_turn_signal: none
-    turn_signal_on_approval_hold_duration: 3.0
+    turn_signal_on_approval_hold_duration: 0.0
   constraints:
     lateral:
+      # Lower edges in m/s: first row also covers standstill; retain the
+      # existing nonzero low-speed calculation floor (~5 km/h).
+      # Rows: <10, 10-20, 20-30, 30-60, 60-100, 100-140, >=140 km/h.
       velocity:
       - 1.39
-      - 4.1667
+      - 2.777777778
+      - 5.555555556
+      - 8.333333333
+      - 16.666666667
+      - 27.777777778
       - 38.8889
       max_accel_values:
-      - 5.5
-      - 5.5
-      - 5.5
+      - 5.0
+      - 5.0
+      - 6.0
+      - 4.0
+      - 2.5
+      - 1.5
+      - 1.5
       min_jerk_values:
         avoid:
-        - 0.2
-        - 0.2
-        - 0.2
+        # Shift-line fallback/both-mode values: allow a later nominal entry
+        # while keeping headroom up to max_jerk_values for sharp candidates.
+        - 3.0
+        - 3.0
+        - 4.0
+        - 3.0
+        - 1.5
+        - 0.8
+        - 0.5
         return:
+        - 3.0
+        - 3.0
+        - 4.0
         - 0.8
-        - 0.8
-        - 0.8
+        - 0.5
+        - 0.3
+        - 0.3
       max_jerk_values:
+      # Simulator trial: retain gentle nominal shifts, allow sharper fallback.
+      # Tracking feasibility must be checked in a fresh closed-loop run.
+      - 10.0
+      - 10.0
+      - 12.0
       - 5.0
-      - 5.0
-      - 5.0
+      - 2.0
+      - 1.0
+      - 1.0
     longitudinal:
-      nominal_deceleration: -1.5
-      nominal_jerk: 0.8
-      max_deceleration: -3.0
-      max_jerk: 1.5
+      nominal_deceleration: -3.5
+      nominal_jerk: 2.0
+      max_deceleration: -6.0
+      max_jerk: 4.0
       max_acceleration: 1.5
       min_velocity_to_limit_max_acceleration: 2.78
-  path_generation_method: shift_line_base
+  path_generation_method: optimization_base
   shift_line_pipeline:
     trim:
       quantize_size: 0.1

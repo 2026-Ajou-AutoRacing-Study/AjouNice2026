@@ -148,6 +148,8 @@ private:
   double cyclic_message_timeout_;  // seconds
   bool enable_traffic_signal_timeout_;
   bool use_occupancy_grid_{true};
+  bool enable_turn_signal_output_{true};
+  bool enable_hazard_signal_output_{true};
   std::unique_ptr<autoware_utils_diagnostics::DiagnosticsInterface> diagnostics_message_timeout_;
   enum class DataReadyStatus {
     SUCCESS,

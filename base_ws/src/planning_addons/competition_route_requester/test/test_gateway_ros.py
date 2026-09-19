@@ -33,8 +33,8 @@ REPO = PACKAGE.parents[3]
 class GatewayROS(unittest.TestCase):
     def setUp(self):
         self.cfg = yaml.safe_load((PACKAGE/'config/competition_route_requester.param.yaml').read_text())
-        self.routes = yaml.safe_load((PACKAGE/'config/kcity_v81_competition_route.yaml').read_text())
-        self.cfg.update(route_definition_file=str(PACKAGE/'config/kcity_v81_competition_route.yaml'),
+        self.routes = yaml.safe_load((PACKAGE/'config/kcity_v84_competition_route.yaml').read_text())
+        self.cfg.update(route_definition_file=str(PACKAGE/'config/kcity_v84_competition_route.yaml'),
                         service_timeout=.2, route_verification_timeout=.4, trajectory_verification_timeout=.5)
         if self._testMethodName in ('test_b_trigger_transport', 'test_fallback_transport',
                                     'test_manual_a_restart_from_b',
@@ -241,12 +241,42 @@ class GatewayROS(unittest.TestCase):
         self.assertEqual(self.calls, 1)
 
     def test_startup_selects_route_b_after_first_trigger(self):
-        self.ego_pose = self.routes['poses']['wp_200178']
+        self.ego_pose = self.routes['poses']['wp_200258']
         self.wait(lambda: self.gateway.guard('route_b')[0])
         response = self.client('route_b')
         self.assertTrue(response.accepted, response.detail)
         self.wait(lambda: not self.gateway.busy)
         self.assertEqual(self.gateway.active, 'route_b')
+
+    def test_startup_route_b_before_a_to_b_reroute_threshold_is_verified(self):
+        target_arc = 6.0
+        points = self.gateway.geometry.lanes[200258][0]
+        traversed = 0.0
+        for first, second in zip(points, points[1:]):
+            dx, dy = second[0] - first[0], second[1] - first[1]
+            segment_length = math.hypot(dx, dy)
+            if traversed + segment_length >= target_arc:
+                ratio = (target_arc - traversed) / segment_length
+                self.ego_pose = dict(
+                    x=first[0] + ratio * dx, y=first[1] + ratio * dy,
+                    z=0.0, yaw_deg=math.degrees(math.atan2(dy, dx)))
+                break
+            traversed += segment_length
+        else:
+            self.fail('lanelet 200258 centerline is shorter than the test arc')
+        self.wait(lambda: self.gateway.progress() is not None and
+                  self.gateway.progress()[0] == 200258)
+        lane, arc = self.gateway.progress()
+        self.assertEqual(lane, 200258)
+        self.assertLess(arc, self.routes['reroute_trigger']['minimum_lanelet_s_m'])
+        self.assertTrue(self.gateway.guard('route_b')[0])
+
+        response = self.client('route_b')
+        self.assertTrue(response.accepted, response.detail)
+        self.wait(lambda: not self.gateway.busy)
+
+        self.assertEqual(self.gateway.active, 'route_b')
+        self.assertFalse(self.gateway.uncertain)
 
     def test_dispatch_guard_recovers_transient_input_gap(self):
         checks = iter([
@@ -330,7 +360,7 @@ class GatewayROS(unittest.TestCase):
 
     def test_b_trigger_transport(self):
         # Pose advances to trigger. This checks policy/transport, not Mission safety.
-        self.transition('route_b', 'wp_200178')
+        self.transition('route_b', 'wp_200258')
 
     def test_fallback_transport(self):
         self.transition('fallback_route', self.routes['fallback_route']['hard_cutoff_pose_ref'])
@@ -350,7 +380,7 @@ class GatewayROS(unittest.TestCase):
         self.assertEqual(self.calls, 3)
 
     def test_manual_a_restart_from_b(self):
-        self.restart_a_from('route_b', 'wp_200178')
+        self.restart_a_from('route_b', 'wp_200258')
 
     def test_manual_a_restart_from_fallback(self):
         self.restart_a_from('fallback_route', self.routes['fallback_route']['hard_cutoff_pose_ref'])

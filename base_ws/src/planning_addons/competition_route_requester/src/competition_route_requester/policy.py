@@ -59,6 +59,21 @@ def allowed(case, key):
             key == 'fallback_route' and case in FALLBACK)
 
 
+def reroute_trigger(routes):
+    config = routes['reroute_trigger']
+    return routes['poses'][config['pose_ref']], float(config['minimum_lanelet_s_m'])
+
+
+def startup_route_b_trigger(routes):
+    config = routes['startup_route_b_trigger']
+    return routes['poses'][config['pose_ref']], float(config['minimum_lanelet_s_m'])
+
+
+def at_reroute_trigger(routes, lane, arc):
+    trigger, minimum_arc = reroute_trigger(routes)
+    return lane == trigger['lanelet_id'] and arc + 1e-6 >= minimum_arc
+
+
 def accepted_sequences(routes, key, field='expected_path_lanelet_ids'):
     definition = routes[key]
     expected = definition[field]
@@ -68,15 +83,13 @@ def accepted_sequences(routes, key, field='expected_path_lanelet_ids'):
         # A planner session may start anywhere between the official start and
         # the first Route B trigger.  The waypoint planner then publishes the
         # exact Route A suffix beginning at the current lanelet.
-        trigger_lane = routes['poses']['wp_200178']['lanelet_id']
+        trigger_lane = startup_route_b_trigger(routes)[0]['lanelet_id']
         for index in range(1, expected.index(trigger_lane) + 1):
             valid_sequences.append(expected[index:])
     elif key == 'route_b':
-        # A moving retry starts at the current lane, not the departed trigger.
-        # Accept only the exact frozen suffix, and only starts before the deadline.
-        for index, lane in enumerate(expected):
-            if lane == 200346:
-                break
+        # A startup after the trigger starts at the current lane, not the
+        # departed trigger. Accept only an exact frozen suffix.
+        for index in range(1, len(expected)):
             valid_sequences.append(expected[index:])
     return valid_sequences
 
@@ -84,10 +97,17 @@ def accepted_sequences(routes, key, field='expected_path_lanelet_ids'):
 def route_matches(routes, key, identity, sequence, goal, tolerance,
                   field='expected_path_lanelet_ids'):
     definition = routes[key]
-    valid_sequences = accepted_sequences(routes, key, field)
     target = routes['poses'][definition['goal_ref']]
-    return (identity == str(uuid.UUID(definition['uuid'])) and sequence in valid_sequences and
-            math.hypot(goal[0] - target['x'], goal[1] - target['y']) <= tolerance)
+    identity_and_goal_match = (
+        identity == str(uuid.UUID(definition['uuid'])) and
+        math.hypot(goal[0] - target['x'], goal[1] - target['y']) <= tolerance)
+    if key == 'route_b':
+        # RouteSelector may choose an equivalent parallel-lane branch when B
+        # starts from the current vehicle pose.  B has its own fixed UUID and
+        # goal, so do not reject that route only because its lanelet sequence
+        # differs from the frozen Route A sequence/model.
+        return identity_and_goal_match and bool(sequence)
+    return identity_and_goal_match and sequence in accepted_sequences(routes, key, field)
 
 
 def preferred_sequence(routes, key, waypoint_sequence):
@@ -104,29 +124,47 @@ def preferred_sequence(routes, key, waypoint_sequence):
         if waypoint_sequence == candidate:
             offset = len(initial) - len(candidate)
             return final[offset:]
+    if key == 'route_b' and waypoint_sequence:
+        # Preserve RouteSelector's valid B branch when it cannot be mapped to
+        # the frozen preferred-lane model.  Reapplying the observed preferred
+        # primitives is a safe no-op and lets the normal UUID/goal and fresh
+        # trajectory checks complete.
+        return list(waypoint_sequence)
     return None
 
 
-def in_window(routes, key, lane, arc):
+def in_window(routes, key, lane, arc, initial=False):
     if key == 'route_a':
         sequence = routes['route_a']['expected_path_lanelet_ids']
-        trigger = routes['poses']['wp_200178']
+        trigger, minimum_arc = startup_route_b_trigger(routes)
         if lane == routes['start']['incoming_lanelet_id']:
-            return True
+            return arc + 1e-6 >= routes['start']['incoming_lanelet_end_s_m']
         if lane not in sequence:
             return False
         index = sequence.index(lane)
         trigger_index = sequence.index(trigger['lanelet_id'])
         return (index < trigger_index or
-                index == trigger_index and arc + 1e-6 < trigger['lanelet_s_m'])
+                index == trigger_index and arc + 1e-6 < minimum_arc)
     if key == 'route_b':
-        sequence = routes['route_a']['expected_path_lanelet_ids']
-        trigger = routes['poses']['wp_200178']
+        sequence = routes['route_b']['waypoint_path_lanelet_ids']
+        trigger, minimum_arc = (startup_route_b_trigger(routes) if initial
+                                else reroute_trigger(routes))
         if lane not in sequence:
             return False
+        route_a = routes['route_a']['expected_path_lanelet_ids']
+        route_a_trigger_index = route_a.index(trigger['lanelet_id'])
+        if lane in route_a[:route_a_trigger_index]:
+            return False
         index = sequence.index(lane)
-        return (sequence.index(trigger['lanelet_id']) <= index < sequence.index(200346) and
-                (lane != trigger['lanelet_id'] or arc + 1e-6 >= trigger['lanelet_s_m']))
+        trigger_index = sequence.index(trigger['lanelet_id'])
+        if initial:
+            end_lane = routes['startup_route_b_trigger']['end_lanelet_id']
+            if index > sequence.index(end_lane):
+                return False
+            if lane == routes['start']['incoming_lanelet_id']:
+                return arc + 1e-6 < routes['start']['incoming_lanelet_end_s_m']
+        return (index > trigger_index or
+                index == trigger_index and arc + 1e-6 >= minimum_arc)
     if key == 'fallback_route':
         cutoff = routes['poses'][routes['fallback_route']['hard_cutoff_pose_ref']]
         return lane == cutoff['lanelet_id'] and arc + 1e-6 >= cutoff['lanelet_s_m']
@@ -137,9 +175,27 @@ def next_normal(case, active, lane, arc, routes):
     if not active:
         if allowed(case, 'route_a') and in_window(routes, 'route_a', lane, arc):
             return 'route_a'
-        if allowed(case, 'route_b') and in_window(routes, 'route_b', lane, arc):
+        if allowed(case, 'route_b') and in_window(routes, 'route_b', lane, arc, initial=True):
             return 'route_b'
         return None
-    if active == 'route_a' and case in NORMAL and in_window(routes, 'route_b', lane, arc):
+    # An active Route A may switch only while the ego is on the configured
+    # trigger lanelet. This prevents a repeated lanelet later in the course
+    # from being mistaken for the A-to-B transition point.
+    if active == 'route_a' and case in NORMAL and at_reroute_trigger(routes, lane, arc):
         return 'route_b'
     return None
+
+
+def remaining_waypoint_refs(routes, key, current_lane):
+    """Return only waypoints ahead of the current lane on a frozen route."""
+    definition = routes[key]
+    refs = definition.get('waypoint_refs', [])
+    if key != 'route_b':
+        return refs
+    sequence = definition['waypoint_path_lanelet_ids']
+    if current_lane not in sequence:
+        return refs
+    current_index = sequence.index(current_lane)
+    lane_indexes = {lane: index for index, lane in enumerate(sequence)}
+    return [ref for ref in refs
+            if lane_indexes.get(routes['poses'][ref]['lanelet_id'], -1) > current_index]

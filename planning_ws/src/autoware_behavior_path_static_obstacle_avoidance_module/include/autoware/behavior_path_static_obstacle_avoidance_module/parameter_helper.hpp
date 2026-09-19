@@ -48,6 +48,8 @@ AvoidanceParameters getParameter(ros::NodeHandle * node)
     const std::string ns = "avoidance.";
     p.use_lane_type = get_or_declare_parameter<std::string>(*node, ns + "use_lane_type");
     p.use_intersection_areas = get_or_declare_parameter<bool>(*node, ns + "use_intersection_areas");
+    p.intersection_area_lanelet_overlap_ratio_threshold = get_or_declare_parameter<double>(
+      *node, ns + "intersection_area_lanelet_overlap_ratio_threshold");
     p.use_hatched_road_markings =
       get_or_declare_parameter<bool>(*node, ns + "use_hatched_road_markings");
     p.use_freespace_areas = get_or_declare_parameter<bool>(*node, ns + "use_freespace_areas");

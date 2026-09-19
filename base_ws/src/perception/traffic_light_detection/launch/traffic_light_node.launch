@@ -31,7 +31,7 @@
        default="$(find traffic_light_detection)/config/traffic_signal_profiles.yaml" />
   <arg name="fallback_group_id" default="0" />
   <arg name="lanelet2_map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v81.osm" />
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v84.osm" />
   <arg name="lanelet2_projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
   <arg name="lanelet2_projector_type" default="LocalCartesianUTM" />

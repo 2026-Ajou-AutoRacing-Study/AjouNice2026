@@ -43,6 +43,13 @@
 
 namespace autoware::path_optimizer
 {
+namespace detail
+{
+void assignHardConstraintStateBlock(
+  Eigen::MatrixXd & destination, const Eigen::SparseMatrix<double> & source,
+  size_t reference_count, size_t state_count);
+}  // namespace detail
+
 struct Bounds
 {
   double lower_bound;
