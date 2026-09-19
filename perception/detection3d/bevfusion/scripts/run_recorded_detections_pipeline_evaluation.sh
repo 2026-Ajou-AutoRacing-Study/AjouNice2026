@@ -11,6 +11,11 @@ detections_bag="$(realpath "$2")"
 output_dir="$(realpath -m "$3")"
 label="$4"
 playback_rate="$5"
+tracker_prediction_model="${TRACKER_PREDICTION_MODEL:-1}"
+tracker_system_noise_std_vx_vy_ms="${TRACKER_SYSTEM_NOISE_STD_VX_VY_MS:-1.0}"
+tracker_meas_noise_std_xy_m="${TRACKER_MEAS_NOISE_STD_XY_M:-0.3}"
+tracker_meas_noise_std_yaw_deg="${TRACKER_MEAS_NOISE_STD_YAW_DEG:-10.0}"
+tracker_use_kinematic_model="${TRACKER_USE_KINEMATIC_MODEL:-false}"
 repo_root="${AJOUNICE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
 ros_port="${BEVFUSION_PIPELINE_EVAL_ROS_PORT:-$((15000 + ($$ % 15000)))}"
 export ROS_MASTER_URI="http://127.0.0.1:${ros_port}"
@@ -69,6 +74,11 @@ sensor_tf_pid=$!
 env PYTHONPATH="$system_pythonpath" PYTHONNOUSERSITE=1 \
   /usr/bin/python3 /opt/ros/noetic/bin/roslaunch \
   perception_object_pipeline tracking_prediction.launch use_sim_time:=true \
+  tracker_prediction_model:="$tracker_prediction_model" \
+  tracker_system_noise_std_vx_vy_ms:="$tracker_system_noise_std_vx_vy_ms" \
+  tracker_meas_noise_std_xy_m:="$tracker_meas_noise_std_xy_m" \
+  tracker_meas_noise_std_yaw_deg:="$tracker_meas_noise_std_yaw_deg" \
+  tracker_use_kinematic_model:="$tracker_use_kinematic_model" \
   >"$output_dir/tracking_map_cv.log" 2>&1 &
 pipeline_pid=$!
 
@@ -109,7 +119,17 @@ rosbag record --lz4 --buffsize=1024 \
 record_pid=$!
 sleep 0.5
 
-echo "[play] $label rate=$playback_rate"
+cat >"$output_dir/tracker_config.json" <<EOF
+{
+  "prediction_model": $tracker_prediction_model,
+  "system_noise_std_vx_vy_ms": $tracker_system_noise_std_vx_vy_ms,
+  "meas_noise_std_xy_m": $tracker_meas_noise_std_xy_m,
+  "meas_noise_std_yaw_deg": $tracker_meas_noise_std_yaw_deg,
+  "use_kinematic_model": $tracker_use_kinematic_model
+}
+EOF
+
+echo "[play] $label rate=$playback_rate tracker=$(tr -d '\n ' < "$output_dir/tracker_config.json")"
 rosbag play --quiet --clock --rate="$playback_rate" \
   "$raw_bag" "$detections_bag" >"$output_dir/rosbag.log" 2>&1
 sleep 2

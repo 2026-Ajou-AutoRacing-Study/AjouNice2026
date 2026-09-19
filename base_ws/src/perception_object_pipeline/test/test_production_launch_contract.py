@@ -34,6 +34,24 @@ def test_production_tracking_and_prediction_values_are_explicit():
         assert arguments.get(name) == value, (name, arguments.get(name))
 
 
+def test_tracker_ablation_defaults_preserve_production_contract():
+    root = ET.parse(PACKAGE_ROOT / "launch" / "tracking_prediction.launch").getroot()
+    defaults = {item.attrib["name"]: item.attrib.get("default") for item in root.findall("arg")}
+    expected = {
+        "tracker_prediction_model": "1",
+        "tracker_system_noise_std_vx_vy_ms": "1.0",
+        "tracker_meas_noise_std_xy_m": "0.3",
+        "tracker_meas_noise_std_yaw_deg": "10.0",
+        "tracker_use_kinematic_model": "false",
+    }
+    for name, value in expected.items():
+        assert defaults.get(name) == value, (name, defaults.get(name))
+
+    arguments = _included_arguments()
+    for name in expected:
+        assert arguments.get(name) == "$(arg {})".format(name)
+
+
 def test_production_topics_and_v76_map_are_explicit():
     root = ET.parse(PACKAGE_ROOT / "launch" / "tracking_prediction.launch").getroot()
     top_level = {item.attrib["name"]: item.attrib for item in root.findall("arg")}
