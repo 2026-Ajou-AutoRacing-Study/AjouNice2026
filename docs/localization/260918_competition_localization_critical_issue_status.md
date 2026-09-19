@@ -213,8 +213,8 @@ BEVFusion을 끄고 MORAI GT detection adapter를 사용한다.
 ```
 
 GT adapter는 detector velocity를 전달하지 않으므로 tracker와 prediction은 production과
-동일한 동작을 유지한다. `planning`이 tracker와 Map-CV를 소유하므로 `od_gt`와
-`planning`을 사용하고 별도 `tracking` alias는 동시에 실행하지 않는다.
+동일한 동작을 유지한다. 현재 분리 실행 계약에서 `planning`은 planning node만
+소유하므로 `od_gt`, `tracking`, `planning`을 각각 한 번씩 실행한다.
 
 테스트 bed 승인 조건:
 
@@ -222,6 +222,40 @@ GT adapter는 detector velocity를 전달하지 않으므로 tracker와 predicti
 - localization, planning, control topic rate가 유지됨.
 - detection publisher가 `morai_gt_detection` 하나임.
 - `/Object_topic`은 이 로컬 실험에서만 사용하며 대회 fallback으로 취급하지 않음.
+
+한 PC 로컬 test bed에서는 다음 경량 계약을 사용한다.
+
+```text
+MORAI Sensor_localization_gt_lightweight.json
+  -> GPS + IMU only (Camera/LiDAR 생성 안 함)
+Ego Network
+  -> Ego + Competition + Object + control 유지
+od_gt -> tracker/Map-CV -> planner -> controller
+Traffic-light inference OFF
+TrafficLightModulePlugin OFF
+RViz ON
+```
+
+실행 진입점은 `udp_localization_light`, `sensing_localization_light`, `localization`,
+`od_gt`, `tracking`, `planning enable_traffic_light_planner:=false`, `planviz`,
+`traj_fol_a`다. `enable_traffic_light_planner`의 기본값은 계속 `true`이므로 대회
+production 판단 동작은 바뀌지 않는다. 이 구성은 신호를 의도적으로 무시하므로
+localization/control 부하 실험에서만 사용한다.
+
+### Closed-loop localization preset
+
+기본 `localization`은 sigma `0.10 m`, Global Qxy `0.0005`를 계속 사용한다. 과거
+폐루프에서 상대적으로 양호했던 두 조합은 다음 별도 alias로만 재현한다.
+
+| alias | GNSS horizontal sigma | Global Qxy | 상태 |
+|---|---:|---:|---|
+| `localization` | 0.10 m | 0.0005 | production 기본값 |
+| `localization_sigma_0p10_qxy_0p05` | 0.10 m | 0.05 | closed-loop 실험 |
+| `localization_sigma_0p05_qxy_0p05` | 0.05 m | 0.05 | closed-loop 실험 |
+
+실험 alias는 estimator 구조, `/Competition_topic`, heading correction `-1.347°`를
+바꾸지 않는다. 한 주행에는 하나의 provider만 실행하고 동일 route·controller·MORAI
+실시간율 조건으로 비교한다.
 
 ### P1. 채택 Q/R의 현장 closed-loop 확인
 

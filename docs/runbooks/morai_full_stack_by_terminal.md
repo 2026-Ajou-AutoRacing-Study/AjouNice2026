@@ -240,6 +240,41 @@ bash scripts/runtime/record_field_topic_rates.sh 30 \
 종료는 control(Terminal 10)을 가장 먼저 끄고, planning/perception/localization,
 sensing/UDP 순서로 내린 뒤 roscore를 마지막에 종료한다.
 
+## 로컬 localization 실시간율 경량 검증
+
+한 PC에서 MORAI와 폐루프 localization/control을 함께 실행할 때만 사용하는
+비-production 구성이다. MORAI에는
+`Sensor_localization_gt_lightweight.json`을 로드한다. 이 파일은 MR과 MRP의
+`SaveFile/Sensor` 양쪽에 둘 수 있으며 GPS와 IMU만 생성한다.
+
+```text
+udp_localization_light
+sensing_localization_light
+localization                 # MR: Competition_topic
+od_gt
+tracking
+planning enable_traffic_light_planner:=false
+planviz show_morai_gt:=true
+traj_fol_a
+```
+
+기본값 대신 과거 closed-loop 후보를 재검증할 때는 위 `localization` 한 줄만 다음 중
+하나로 교체한다. 다른 터미널 구성은 동일하게 유지한다.
+
+```text
+localization_sigma_0p10_qxy_0p05  # sigma=0.10 m, Global Qxy=0.05
+localization_sigma_0p05_qxy_0p05  # sigma=0.05 m, Global Qxy=0.05
+```
+
+`traffic`과 detector는 실행하지 않는다. Planner의 TrafficLight plugin도 명시적으로
+빠지므로 모든 교통신호를 무시한다. `enable_traffic_light_planner`의 기본값은
+`true`이며 인자를 생략한 production `planning`은 기존과 동일하다. 이 구성에서도
+Sunshine과 RViz는 유지할 수 있다.
+
+Bag은 `rosbag_for_localization_stability_eval.sh`로 기록하며 Camera, LiDAR,
+PointCloud topic을 포함하지 않는다. 주행 후
+`Ego position distance / integral(velocity.x dt)`가 `0.98~1.02`인지 먼저 확인한다.
+
 ## 수동 통합 launch 참고
 
 아래 절차는 alias별 분리 실행 대신 통합 launch를 사용할 때의 참고 절차다. 위 현장
