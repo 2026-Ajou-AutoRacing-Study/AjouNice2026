@@ -171,11 +171,13 @@ tracked recipe 두 개를 사용한다.
 
 2026-09-19 `online_highway_e25_finetune_e12`를 완료했다. 학습 범위와 같은 고주로
 합류·고주로1만 primary로 평가하면 Online val best E7은 Vehicle AP를
-`0.6708 -> 0.7187`, center p50을 `0.6102 -> 0.4763 m`, CV-stable 3초
-minFDE-K mean을 `1.8124 -> 1.7724 m`로 개선했다. 반면 tracking AVE는
-`0.7371 -> 0.9490 m/s`, 전체 운동 구간 3초 Top-1 FDE는
-`4.6209 -> 4.7324 m`로 악화됐다. 고주로 specialization 실험은 성공이지만,
-Obstacle 회귀와 motion-state 악화 때문에 단일 전역 production은 E25를 유지한다.
+`0.6708 -> 0.7187`, center p50을 `0.5993 -> 0.4771 m`, 올바른 2D tracking
+AVE를 `0.9685 -> 0.8906 m/s`로 개선했다. 전체 운동 구간 3초 Top-1 FDE는
+양쪽 모두 `4.6948 m`이고 CV-stable 3초 minFDE-K mean은
+`1.7659 -> 1.7882 m`로 2.2 cm 악화됐다. 과거 motion-state 악화 결론은
+body-y twist를 버린 evaluator와 sensor playback timer miss를 수정한 뒤 철회했다.
+고주로 specialization 실험은 성공이지만 Obstacle 회귀 때문에 단일 전역
+production은 E25를 유지한다.
 상세 근거는
 [`../../../docs/bevfusion/260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md`](../../../docs/bevfusion/260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md)를 따른다.
 

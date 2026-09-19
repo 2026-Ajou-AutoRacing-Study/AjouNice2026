@@ -19,7 +19,9 @@ mission rosbag에서 비교한다.
 
 - [`260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md`](260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md)
   - Base3-Online Vehicle-only E25 fine-tuning의 7-bag 및 tracking/Map-CV 결과.
-  - Vehicle detection은 개선됐지만 Obstacle과 downstream velocity/prediction이 악화돼 E25 유지.
+  - Vehicle detection·center·2D AVE는 개선됐지만 Obstacle 망각 때문에 E25 유지.
+- [`260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`](260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md)
+  - Tracker motion model/noise, 올바른 2D AVE 계약, GT-velocity oracle 근거.
 - [`260918_base3_e40_production_evaluation_results.md`](260918_base3_e40_production_evaluation_results.md)
   - E25를 production으로 선택한 offline/rosbag/tracking/Map-CV 근거.
 - [`260918_base3_e40_post_training_checklist.md`](260918_base3_e40_post_training_checklist.md)

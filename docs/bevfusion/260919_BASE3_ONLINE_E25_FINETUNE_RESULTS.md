@@ -63,35 +63,43 @@ Obstacle이 더 나빠져 후보에서 제외한다.
 학습 범위와 같은 `고주로 합류 + 고주로1`만 production EKF tracker와 Map-CV에
 재생해 bag별 지표를 같은 가중치로 평균했다.
 
-| 모델 | Tracking F1 ↑ | Center p50 m ↓ | Speed MAE m/s ↓ | AVE m/s ↓ | FDE@1s m ↓ | FDE@2s m ↓ | FDE@3s m ↓ | 3s coverage ↑ |
+2026-09-19 tracker 감사에서 기존 evaluator가 body-frame `linear.y`를 버리고
+`linear.x`와 box yaw만으로 AVE를 재구성하던 오류를 수정했다. 또한 raw bag의
+카메라·LiDAR 전체를 재생해 30 Hz tracker timer가 누락되던 조건을 제거하고
+`/Ego_topic + detections`만 1.0x로 재생했다. 아래 표가 수정된 canonical 결과다.
+
+| 모델 | Tracking F1 ↑ | Center p50 m ↓ | Speed MAE m/s ↓ | 2D AVE m/s ↓ | Long/Lat MAE m/s ↓ | FDE@1s m ↓ | FDE@2s m ↓ | FDE@3s m ↓ |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| **E25** | **0.9358** | 0.6102 | **0.6514** | **0.7371** | **1.2040** | **2.6110** | **4.6209** | **0.9139** |
-| FT-E7 | 0.9302 | **0.4763** | 0.6710 | 0.9490 | 1.2201 | 2.6773 | 4.7324 | 0.9086 |
+| E25 | 0.9324 | 0.5993 | **0.6551** | 0.9685 | **0.6546**/0.5696 | **1.2110** | **2.6471** | 4.6948 |
+| **FT-E7** | **0.9330** | **0.4771** | 0.6681 | **0.8906** | 0.6592/**0.4449** | 1.2149 | 2.6561 | **4.6948** |
 
 위 FDE는 급가감속·spawn 구간까지 포함한 Top-1 mean이다. Production 모델 선택의
 주 지표인 **CV-stable minFDE-K mean**은 반대로 FT-E7이 모두 개선됐다.
 
 | 모델 | CV-stable minFDE-K@1s ↓ | @2s ↓ | @3s ↓ |
 |---|---:|---:|---:|
-| E25 | 0.8521 | 1.2962 | 1.8124 |
-| **FT-E7** | **0.8249** | **1.2759** | **1.7724** |
+| **E25** | **0.8288** | **1.2611** | **1.7659** |
+| FT-E7 | 0.8358 | 1.2887 | 1.7882 |
 
-FT-E7은 center p50을 `13.4 cm` 개선하고 안정 순항 Map-CV도 소폭 개선했다. 반면
-tracking AVE는 `0.7371 -> 0.9490 m/s`, yaw mean은 `1.28 -> 2.86 deg`로 악화됐고,
-전체 운동 구간 3초 Top-1 FDE도 `+0.112 m` 나빠졌다. 즉 detector geometry 이득은
-실재하지만 급가감속 및 tracker motion-state 품질은 아직 해결되지 않았다.
+FT-E7은 center p50을 `12.2 cm`, 올바른 2D AVE를 `0.078 m/s` 개선했다. Speed MAE는
+`0.013 m/s`, CV-stable 3초 minFDE-K는 `0.022 m` 나빠졌지만 전체 운동 구간 3초
+Top-1 FDE는 소수 넷째 자리까지 같다. 따라서 detector geometry 이득은 실재하며,
+기존에 보고한 큰 tracking motion regression은 재현되지 않는다.
 
 ## 결론
 
 1. 고주로 전용 실험은 성공이다. FT-E7은 고주로 OD와 CV-stable Map-CV를 모두
    개선한 specialization 후보로 보존한다.
 2. 다만 단일 전역 production은 `B3-BF0-F40 E25`를 유지한다. FT-E7은 Obstacle
-   망각과 tracking AVE·급가감속 FDE 악화가 남아 있다.
+   망각이 남아 있고, 고주로 외 일반화까지 검증한 전역 대체 모델이 아니다.
 3. E12 연장은 채택하지 않는다.
-4. 다음 실험은 Vehicle-only fine-tuning 반복이 아니라 Base3 general-domain rehearsal을
-   섞거나, 더 작은 LR/짧은 epoch로 Obstacle 망각과 tracker velocity 악화를 제한한다.
+4. 다음 detector 실험은 Vehicle-only fine-tuning 반복이 아니라 Base3 general-domain
+   rehearsal을 섞거나, 더 작은 LR/짧은 epoch로 Obstacle 망각을 제한한다.
 5. 고주로 실험의 primary 평가는 고주로 두 bag으로 제한한다. 7-bag은 전역 production
    승격 시의 regression guard로만 사용한다.
+6. Tracker position measurement noise는 별도 3-bag A/B에서 `0.30 -> 0.40 m`가
+   speed/2D AVE와 Map-CV FDE를 개선해 새 production 기본값으로 채택했다. 상세 근거는
+   [`260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`](260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md)에 남긴다.
 
 ## Artifact
 

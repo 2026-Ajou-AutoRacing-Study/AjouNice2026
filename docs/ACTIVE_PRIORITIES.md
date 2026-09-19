@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획.
 
-마지막 갱신: 2026-09-18.
+마지막 갱신: 2026-09-19.
 
 ## 관리 규칙.
 
@@ -172,6 +172,16 @@
 - 최종 목표를 per-frame OD AP보다 tracker/Map-CV의 안정적인 속도와 미래경로로
   두므로 production 표준은 `B3-BF0-F40 E25`로 정한다. E10은 rollback baseline,
   E26은 offline best로 보존한다.
+- Tracker A/B를 완료했다. 실제 2D twist를 반영하도록 AVE evaluator를 수정했고,
+  sensor topic을 제외한 결정론적 playback 계약을 확정했다. CTRV는 유지하고 position
+  measurement noise를 `0.30 -> 0.40 m`로 변경한다. E25 고주로에서 F1
+  `0.9324 -> 0.9341`, speed MAE `0.655 -> 0.645 m/s`, stable 3초 FDE
+  `1.766 -> 1.696 m`로 개선됐으며 center p50 `+1.6 cm`는 허용한다.
+- GT-velocity oracle에서 매 update velocity fusion은 2D AVE를 `0.852 -> 0.259 m/s`,
+  stable 3초 FDE를 `1.617 -> 0.594 m`로 낮췄다. Tracker parameter 추가 sweep보다
+  **BEVFusion velocity head 또는 temporal detector의 실제 velocity observation 확보**를
+  다음 motion P0 후보로 둔다. 실제 head가 생기기 전 fusion 기본값은 `off`로 유지한다.
+  근거: [`260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`](bevfusion/260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md).
 - 다음 재학습은 단순 epoch 연장이 아니라 기존 시나리오 생성기를 production
   UDP/ROS 입력 경로와 결합한 `Base3-Online`을 사용한다.
   - 2026-09-19 mixed30 pilot은 30/30 scene, 90 frame 변환, train/val/test
@@ -186,11 +196,13 @@
     `/datasets/base3_online_highway_motion_v2`이며 팀 Docker dataloader까지 통과했다.
     production E25-init E12 fine-tuning을 완료했다. 실험 범위와 같은 고주로
     합류·고주로1 기준 Online val best E7은 Vehicle AP를 `0.6708 -> 0.7187`,
-    center p50을 `0.6102 -> 0.4763 m`, CV-stable 3초 minFDE-K mean을
-    `1.8124 -> 1.7724 m`로 개선했다. 반면 tracking AVE는
-    `0.7371 -> 0.9490 m/s`, 전체 운동 구간 3초 Top-1 FDE는
-    `4.6209 -> 4.7324 m`로 악화됐다. 고주로 specialization은 성공이지만
-    Obstacle 회귀 때문에 전역 Production은 E25를 유지한다. 다음 비교는
+    center p50을 `0.5993 -> 0.4771 m`, 올바른 2D tracking AVE를
+    `0.9685 -> 0.8906 m/s`로 개선했다. 전체 운동 구간 3초 Top-1 FDE는 양쪽 모두
+    `4.6948 m`로 같고 CV-stable 3초 minFDE-K mean은
+    `1.7659 -> 1.7882 m`로 2.2 cm 악화됐다. 과거 AVE 악화 결론은 tracker body-y
+    twist를 버린 evaluator와 불필요한 sensor topic playback의 timer miss가 만든
+    측정 오류였으며 수정했다. 고주로 specialization은 성공이지만 Obstacle 회귀
+    때문에 전역 Production은 E25를 유지한다. 다음 비교는
     동일 Vehicle-only fine-tuning 반복이 아니라 general-domain rehearsal 또는 더
     짧고 작은-LR인 통제 실험과 fresh E40이다.
   - 여러 scene을 한 rosbag에 기록하되 marker window만 사용하고, LiDAR timestamp
