@@ -233,6 +233,14 @@ grep -E '^(BASE3_ONLINE_HIGHWAY_ROOT|BEVFUSION_BASE3_E25_FINETUNE_CHECKPOINT)=' 
 3. 해당 run의 `resolved_experiment.yaml`
 4. `train.log` 마지막 200줄
 
+## 첫 E25 fine-tuning 결과
+
+RTX 5060 Ti에서 E12를 완료했으며 E7이 online val AP best였다. E7은 E25 대비 Vehicle
+3-bag AP를 개선했지만 Obstacle AP와 tracking AVE, Map-CV FDE를 악화시켜 production으로
+승격하지 않았다. 동일 recipe를 반복하기 전에
+[`260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md`](260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md)를
+읽고 general-domain rehearsal 또는 더 짧고 작은-LR인 다음 통제 실험을 설계한다.
+
 W&B API key와 `$HOME/.netrc`는 전달하지 않는다.
 
 ## 전달 전 검증 기록

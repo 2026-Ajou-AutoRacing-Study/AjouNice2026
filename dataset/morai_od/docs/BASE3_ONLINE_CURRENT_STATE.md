@@ -167,6 +167,15 @@ tracked recipe 두 개를 사용한다.
 아니다. 2080 Ti는 `batch 2 x accumulation 2`, 3090은 `4 x 1`로 effective batch 4를
 유지한다.
 
+### E25 fine-tuning 완료 결과
+
+2026-09-19 `online_highway_e25_finetune_e12`를 완료했다. Online val 자동 best E7은
+production E25 대비 실제 경로 Vehicle 3-bag AP를 `0.6994 -> 0.7427`로 개선했지만,
+Obstacle 2-bag AP는 `0.6237 -> 0.5859`, tracking AVE는
+`0.7252 -> 0.8843 m/s`, Map-CV 3초 FDE는 `4.4912 -> 4.7680 m`로 악화됐다.
+따라서 production은 E25를 유지한다. 상세 근거는
+[`../../../docs/bevfusion/260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md`](../../../docs/bevfusion/260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md)를 따른다.
+
 Vehicle-only corpus라서 3-class `val/center/mAP`는 Pedestrian/Obstacle 0을 포함한다.
 `vehicle_mean_AP`, `vehicle_mATE`로 epoch 후보를 좁히되 production 교체는 기존 7-bag의
 Vehicle/Pedestrian/Obstacle과 tracker/Map-CV까지 확인한 뒤 결정한다.
