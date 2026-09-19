@@ -4,8 +4,8 @@ behavior_output_path_interval: 1.0
 planning_factor_console_output:
   enable: false
   duration: 1000
-max_accel: -2.8
-max_jerk: -5.0
+max_accel: -6.0
+max_jerk: -10.0
 system_delay: 0.5
 delay_response_time: 0.5
 is_publish_debug_path: false
@@ -158,8 +158,8 @@ intersection:
     pass_judge_line_margin: 0.0
     stopline_overshoot_margin: 0.5
     path_interpolation_ds: 0.1
-    max_accel: -2.8
-    max_jerk: -5.0
+    max_accel: -6.0
+    max_jerk: -10.0
     delay_response_time: 0.0
     enable_pass_judge_before_default_stopline: false
   stuck_vehicle:

@@ -1,15 +1,20 @@
 # Perception object pipeline
 
-This package defines the production ROS1 object boundary shared by
-PointPainting, Fast-BEV, EKF tracking, prediction and the Autoware-derived
-planning stack.
+This package defines the detector-neutral ROS1 object boundary shared by
+BEVFusion, the legacy PointPainting/Fast-BEV adapters, EKF tracking, prediction
+and the Autoware-derived planning stack.
 
-현재 PP1 production을 실행하는 터미널별 명령은
-[`docs/runbooks/morai_pointpainting_object_pipeline_live.md`](../../../docs/runbooks/morai_pointpainting_object_pipeline_live.md)에
-정리되어 있다.
+현재 production detector는 BEVFusion `B3-BF0-F40 E25`다. 실행 계약은
+[`docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`](../../../docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md),
+터미널 순서는
+[`docs/runbooks/morai_full_stack_by_terminal.md`](../../../docs/runbooks/morai_full_stack_by_terminal.md)를
+따른다.
+Tracker와 Prediction의 현재 설정은
+[`docs/TRACKING_PREDICTION_CURRENT.md`](docs/TRACKING_PREDICTION_CURRENT.md)를 단일
+기준으로 사용한다.
 
 ```text
-PointPainting or Fast-BEV
+BEVFusion or a legacy detector adapter
   autoware_perception_msgs/DetectedObjects
   /perception/object_recognition/detection/objects
                          |
@@ -34,32 +39,10 @@ Planning (unchanged)
 
 ## Production runtime
 
-Production is the split three-terminal path below. Detector and downstream
-must not share one Conda/roslaunch process tree.
-
-```bash
-# Terminal 1
-roscore
-
-# Terminal 2: B3S-PP1 E34 detector, from its Conda environment
-roslaunch morai_pointpainting_ros pointpainting_production.launch \
-  python_executable:="$(command -v python)" \
-  openpcdet_root:=/path/to/OpenPCDet \
-  bundle_root:=/path/to/260909_pointpainting_production_3model
-
-# Terminal 3: EKF 30 Hz -> UNKNOWN stationary -> v67 Map-CV
-roslaunch perception_object_pipeline tracking_prediction.launch
-```
-
-The detector runs in the machine's compatible Conda environment; tracking and
-prediction run with ROS system Python 3.8. ROS messages are the only boundary
-between them. Environment names, checkout paths and GPU models are not encoded
-as repository aliases.
-
-Production values are pinned by `pointpainting_production.launch` and
-`tracking_prediction.launch`. The final
-`/perception/object_recognition/objects` topic is the only object input
-intended for Planning.
+BEVFusion inference server, host ROS bridge and planning/tracking process는 서로 분리한다.
+Detector 종류와 무관하게 최종 `/perception/object_recognition/objects`만 Planning의
+object input으로 사용한다. 이 README에 checkpoint 경로나 전체 실행 명령을 복제하지
+않고 위 CURRENT handoff를 단일 기준으로 사용한다.
 
 ### MORAI GT detection replacement
 
@@ -96,10 +79,7 @@ roslaunch perception_object_pipeline object_pipeline.launch \
 ```
 
 These generic examples retain compatibility defaults and are not the current
-competition profile. Current PointPainting production is B3S-PP1 E34 with
-Base3 LRASPP E30 and class thresholds Vehicle 0.40, Pedestrian 0.15 and
-Obstacle 0.10. The exact ignored artifact paths are pinned by the production
-wrapper.
+competition profile. PointPainting and Fast-BEV are rollback/research paths.
 
 If a detector is already running in another environment, launch only the
 standard tracker and predictor:
@@ -150,15 +130,16 @@ requires the sensor static TF and the `map -> morai_map -> base_link` chain.
 ```bash
 tracking_internal_publish_rate_hz:=30.0
 tracking_publish_rate_hz:=0.0
-maximum_tracking_internal_prediction_age_sec:=0.25
+maximum_tracking_internal_prediction_age_sec:=0.50  # production alias override
 compensate_tracking_output_to_current_time:=false
 ```
 
-The detector updates the EKF only when a new measurement arrives (for example,
-about 12--15 Hz from PointPainting/LiDAR). Between measurements, the scheduler
+The detector updates the EKF only when a new measurement arrives. Between measurements, the scheduler
 asks the EKF motion model for a predicted output copy at each 30 Hz ROS-time
 slot; it does not invent measurements or mutate the measurement-time filter
-state. It stops publishing when the latest measurement is older than 0.25 s.
+state. Production `tracking` stops publishing when the latest measurement is older than 0.50 s.
+Generic launch defaults remain 0.25 s for compatibility, so operators use the alias rather than
+assuming direct launch defaults are production.
 
 Set `tracking_internal_publish_rate_hz:=0.0` only for the detector-driven A/B
 baseline. `tracking_publish_rate_hz` is the downstream adapter retained for
@@ -188,7 +169,7 @@ choice is made by this competition production launch.
 
 ### UNKNOWN obstacle motion policy
 
-PointPainting publishes its third `Obstacle` class as Autoware `UNKNOWN`.
+The production detector's third `Obstacle` class is represented as Autoware `UNKNOWN`.
 `object_pipeline.launch` applies a post-tracking motion policy before
 prediction and optional downstream fixed-rate resampling:
 
@@ -229,16 +210,14 @@ roslaunch perception_object_pipeline object_pipeline.launch \
   canonicalize_vehicle_orientation_to_motion:=false
 ```
 
-The audit of the legacy CTRV/CTRA evaluation, the replacement benchmark
-design, and the staged ROS1 port of Autoware map-based prediction are recorded
-in
-[`docs/tracking_prediction_evaluation_map_prediction_plan.md`](docs/tracking_prediction_evaluation_map_prediction_plan.md).
+The audit of the legacy CTRV/CTRA evaluation and the staged Map-CV introduction are preserved in
+[`docs/legacy/`](docs/legacy/).
 The legacy evaluation numbers are motion-model studies based mainly on MORAI
 GT state; they are not treated as end-to-end accuracy measurements of the
 current standardized pipeline.
 
 The ROS1 map-based vehicle predictor is available behind an explicit launch
-switch. Current production uses the K-City v67 Lanelet2 map and publishes the same
+switch. Current production uses the K-City v84 Lanelet2 map and publishes the same
 `PredictedObjects` contract, and falls back to CTRV/CV for low-speed, off-lane,
 wrong-direction and non-vehicle objects.
 
@@ -272,11 +251,11 @@ more duplicate start Lanelets. A later improvement should normalize
 `P(start lane | observation)` and `P(branch | start lane)` separately and then
 marginalize probability mass into each geometric hypothesis. The generic
 launch default remains CTRV for compatibility; `tracking_prediction.launch`
-explicitly selects `prediction_model=map_based` and v67.
+explicitly selects `prediction_model=map_based` and v84.
 
-The complete 2026-08-20 production contract, evaluated metrics, rejected
-ablations and restart order are documented in
-[`map_cv_production_handoff_260820.md`](docs/map_cv_production_handoff_260820.md).
+The current production contract is documented in
+[`TRACKING_PREDICTION_CURRENT.md`](docs/TRACKING_PREDICTION_CURRENT.md). The 2026-08-20
+PointPainting/v60 handoff is historical and lives under [`docs/legacy/`](docs/legacy/).
 
 ## Debug A/B topics
 

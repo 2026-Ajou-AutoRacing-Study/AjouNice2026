@@ -1,7 +1,9 @@
 # AjouNice BEVFusion runtime
 
-This directory builds and runs the Base3 four-camera MORAI BEVFusion inference
-process. Sensor geometry comes only from `configs/sensors/Sensor.json` and the
+This directory builds and runs the Base3 four-camera MORAI BEVFusion training
+and inference environment. The team image supports RTX 2080 Ti, 3090, 4090,
+and 5060 Ti with one CUDA 12.8 artifact. Sensor geometry comes only from
+`configs/sensors/Sensor.json` and the
 model contract comes from
 `perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py`.
 Algorithm runtime policy comes from
@@ -11,6 +13,14 @@ The ROS host connects to a port published only on `127.0.0.1`. The simulator
 boundary remains the competition-provided UDP interface. Production deployment
 is documented in `docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`. The
 older `260720_*zero_shot*` documents are experiment history only.
+
+Team training and artifact installation are documented in
+`docs/bevfusion/TEAM_DOCKER_TRAINING_HANDOFF.md`.
+
+```bash
+bash docker/bevfusion/scripts/build_team_image.sh
+bash docker/bevfusion/scripts/verify_team_image.sh
+```
 
 ```bash
 # Create the local Compose environment file once.
@@ -25,8 +35,8 @@ docker compose logs -f inference
 PYTHONPATH=. python3 scripts/healthcheck.py
 ```
 
-`.env.example` expects the verified inference-only B3-BF0 E10 checkpoint at
-`$HOME/bevfusion_artifacts/checkpoints/base3_bf0_e10_inference.pth`. A local
+`.env.example` expects the verified inference-only B3-BF0-F40 E25 checkpoint at
+`$HOME/bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth`. A local
 `.env` is optional and ignored by Git. For a portable command that does not
 depend on `.env`, use the production handoff document.
 
@@ -62,7 +72,7 @@ The staged steady-state capacity is governed by the slower stage, currently
 the 72.3 ms server round trip, rather than by adding 19.1 ms serially. This is
 enough to consume a nominal 12 Hz LiDAR stream with modest margin. Individual
 sensor-to-result latency remains roughly 90 ms plus ROS scheduling jitter.
-The trained B3-BF0 E10 rosbag runtime subsequently measured roughly
+The earlier B3-BF0 E10 rosbag runtime measured roughly
 `78–84 ms` p50/p95 end-to-end latency and `12.5–12.8 Hz` processing capacity.
 RTX 4090 measurements must still be repeated on the target PC. Monitor
 `dropped_raw` and `dropped_prepared` in the status topic.

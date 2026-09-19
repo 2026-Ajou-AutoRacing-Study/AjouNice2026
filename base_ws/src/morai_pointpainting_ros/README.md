@@ -1,5 +1,9 @@
 # MORAI PointPainting ROS
 
+> **Status: LEGACY/ROLLBACK.** The package remains buildable for historical
+> reproduction, but current production uses BEVFusion. See
+> `docs/bevfusion/README.md` before using this runtime.
+
 ROS1 Noetic package that converts four camera images and one LiDAR scan into
 three-class oriented 3D detections.
 
@@ -133,7 +137,7 @@ roslaunch perception_object_pipeline tracking_prediction.launch
 ```
 
 The authoritative runbook is
-`docs/runbooks/morai_pointpainting_object_pipeline_live.md`. The generic
+`docs/runbooks/legacy/morai_pointpainting_object_pipeline_live.md`. The generic
 `pointpainting_online.launch`, `pointpainting_with_tp.launch`, and
 `object_pipeline.launch` entrypoints remain available for controlled research
 and compatibility, but their defaults do not define production.
@@ -193,7 +197,7 @@ perception/pointpainting/tools/run_rosbag_runtime_benchmark.sh \
 ```
 
 See
-[`perception/pointpainting/docs/runtime_benchmark_260816.md`](../../../perception/pointpainting/docs/runtime_benchmark_260816.md)
+[`perception/pointpainting/docs/legacy/runtime_benchmark_260816.md`](../../../perception/pointpainting/docs/legacy/runtime_benchmark_260816.md)
 for stage timings, throughput/latency separation, and the OpenCV comparison.
 
 ## Temporal matching limitation
@@ -209,7 +213,7 @@ An optional `ego_pose_2d` point-coordinate deskew is also implemented, but it
 remains disabled. Highway A/B improved static scan alignment while worsening
 detection precision, tracking and Map-CV prediction with the current checkpoint.
 See
-[`rolling_lidar_ego_deskew_ab_260820.md`](../../../perception/pointpainting/docs/rolling_lidar_ego_deskew_ab_260820.md).
+[`rolling_lidar_ego_deskew_ab_260820.md`](../../../perception/pointpainting/docs/legacy/rolling_lidar_ego_deskew_ab_260820.md).
 
 Experimental controls are:
 

@@ -3,10 +3,112 @@
 #include <autoware/behavior_path_planner_common/utils/utils.hpp>
 
 #include <cmath>
+#include <autoware/route_handler/route_handler.hpp>
+#include <lanelet2_core/LaneletMap.h>
+#include <lanelet2_io/Io.h>
+#include <lanelet2_projection/UTM.h>
+#include <cstdlib>
 #include <lanelet2_core/primitives/Lanelet.h>
 
 namespace utils = autoware::behavior_path_planner::utils;
 namespace bpp = autoware::behavior_path_planner;
+
+TEST(IntersectionExpansion, KCityBufferedIntersection)
+{
+  const auto map_path = std::getenv("SOA_REGRESSION_MAP");
+  if (!map_path) GTEST_SKIP() << "Set SOA_REGRESSION_MAP to the v81 OSM";
+  const lanelet::projection::UtmProjector projector(lanelet::Origin({37.2380038082, 126.7730819386}));
+  lanelet::ErrorMessages errors;
+  auto loaded = lanelet::load(map_path, projector, &errors);
+  ASSERT_TRUE(errors.empty());
+  const lanelet::LaneletMapPtr map(loaded.release());
+  auto rh = std::make_shared<autoware::route_handler::RouteHandler>(map);
+  const auto lane = map->laneletLayer.get(200291);
+  for (const bool left : {true, false}) {
+    const auto bound = left ? lane.leftBound() : lane.rightBound();
+    const std::vector<lanelet::ConstPoint3d> original(bound.begin(), bound.end());
+    const auto expanded = utils::getBoundWithIntersectionAreas(original, rh, {{lane, lane, {}}}, left);
+    EXPECT_NEAR(expanded.front().x(), original.front().x(), 1e-8);
+    EXPECT_NEAR(expanded.front().y(), original.front().y(), 1e-8);
+    EXPECT_NEAR(expanded.back().x(), original.back().x(), 1e-8);
+    EXPECT_NEAR(expanded.back().y(), original.back().y(), 1e-8);
+    bool crossed = false;
+    for (size_t i = 1; i < expanded.size(); ++i) {
+      const auto & a = expanded[i - 1];
+      const auto & b = expanded[i];
+      constexpr double obstacle_y = 401.57;
+      if ((a.y() - obstacle_y) * (b.y() - obstacle_y) > 0 || std::abs(b.y() - a.y()) < 1e-9) continue;
+      const double x = a.x() + (obstacle_y - a.y()) / (b.y() - a.y()) * (b.x() - a.x());
+      if (left) EXPECT_LT(x, 66.1);
+      else EXPECT_GT(x, 83.0);
+      crossed = true;
+    }
+    EXPECT_TRUE(crossed);
+  }
+}
+
+TEST(IntersectionExpansion, IndependentBufferedIdsBothSidesAndWinding)
+{
+  for (const double buffer : {0.0, 0.05, 0.5}) {
+    for (const bool reverse : {false, true}) {
+      lanelet::LineString3d left(11, {lanelet::Point3d(1, 0, 1, 0), lanelet::Point3d(2, 10, 1, 0)});
+      lanelet::LineString3d right(12, {lanelet::Point3d(3, 0, -1, 0), lanelet::Point3d(4, 10, -1, 0)});
+      lanelet::Lanelet lane(20, left, right);
+      lane.attributes()["subtype"] = "road";
+      lane.attributes()["location"] = "urban";
+      lane.attributes()["intersection_area"] = "30";
+      lanelet::Points3d points{lanelet::Point3d(101, -buffer, -4, 0),
+        lanelet::Point3d(102, -buffer, 4, 0), lanelet::Point3d(103, 10 + buffer, 4, 0),
+        lanelet::Point3d(104, 10 + buffer, -4, 0)};
+      if (reverse) std::reverse(points.begin(), points.end());
+      points.push_back(points.front());
+      auto map = std::make_shared<lanelet::LaneletMap>();
+      map->add(lane);
+      map->add(lanelet::Polygon3d(30, points));
+      auto rh = std::make_shared<autoware::route_handler::RouteHandler>(map);
+      for (const bool is_left : {true, false}) {
+        const auto bound = is_left ? left : right;
+        const std::vector<lanelet::ConstPoint3d> original{bound.front(), bound.back()};
+        const auto expanded = utils::getBoundWithIntersectionAreas(original, rh, {{lane, lane, {}}}, is_left);
+        ASSERT_GE(expanded.size(), 4U);
+        EXPECT_NEAR(expanded.front().x(), bound.front().x(), 1e-8);
+        EXPECT_NEAR(expanded.front().y(), bound.front().y(), 1e-8);
+        EXPECT_NEAR(expanded.back().x(), bound.back().x(), 1e-8);
+        EXPECT_NEAR(expanded.back().y(), bound.back().y(), 1e-8);
+        EXPECT_TRUE(std::any_of(expanded.begin(), expanded.end(), [&](const auto & p) {
+          return std::abs(p.y() - (is_left ? 4.0 : -4.0)) < 1e-8;
+        }));
+      }
+      EXPECT_DOUBLE_EQ(map->pointLayer.get(1).x(), 0.0);
+      EXPECT_EQ(map->polygonLayer.get(30).front().id(), points.front().id());
+    }
+  }
+}
+
+TEST(IntersectionExpansion, RequiresNinetyPercentLaneletAreaOverlap)
+{
+  lanelet::Point3d a(1, 0, 1, 0), b(2, 10, 1, 0);
+  lanelet::LineString3d left(11, {a, b});
+  lanelet::LineString3d right(12, {lanelet::Point3d(3, 0, -1, 0), lanelet::Point3d(4, 10, -1, 0)});
+  lanelet::Lanelet lane(20, left, right);
+  lane.attributes()["subtype"] = "road";
+  lane.attributes()["location"] = "urban";
+  lane.attributes()["intersection_area"] = "30";
+  auto map = std::make_shared<lanelet::LaneletMap>();
+  map->add(lane);
+  map->add(lanelet::Polygon3d(30, {lanelet::Point3d(101, 0, -4, 0),
+    lanelet::Point3d(102, 0, 4, 0), lanelet::Point3d(103, 8.9, 4, 0),
+    lanelet::Point3d(104, 8.9, -4, 0)}));
+  auto rh = std::make_shared<autoware::route_handler::RouteHandler>(map);
+  const std::vector<lanelet::ConstPoint3d> original{lanelet::Point3d(5, -2, 1, 0), a, b,
+    lanelet::Point3d(6, 12, 1, 0)};
+  const auto result = utils::getBoundWithIntersectionAreas(original, rh, {{lane, lane, {}}}, true);
+  ASSERT_EQ(result.size(), original.size());
+  for (size_t i = 0; i < original.size(); ++i) {
+    EXPECT_DOUBLE_EQ(result[i].x(), original[i].x());
+    EXPECT_DOUBLE_EQ(result[i].y(), original[i].y());
+  }
+}
 
 namespace {
 lanelet::ConstLanelet combinationLane(const lanelet::Id id, const double y)

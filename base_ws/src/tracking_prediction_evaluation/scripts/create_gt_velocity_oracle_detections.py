@@ -165,7 +165,7 @@ def main():
         "supported_gt_segments": calibration["supported_segment_count"],
         "counters": counters,
         "notes": (
-            "Oracle only: PointPainting boxes are unchanged. GT velocity is "
+            "Oracle only: detector boxes are unchanged. GT velocity is "
             "causally reconstructed from past bbox-center positions and "
             "expressed in each detected box body frame."
         ),

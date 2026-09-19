@@ -454,6 +454,24 @@ def main():
             if lanes and max(lanes.values()) - min(lanes.values()) > 1:
                 errors.append("{} highway lane counts are not balanced: {}".format(family, dict(lanes)))
 
+    obstacle_strata = family_strata["static_obstacle"]
+    obstacle_is_highway_only = bool(obstacle_strata) and all(
+        name.startswith("highway_") for name in obstacle_strata
+    )
+    has_obstacle_scenes = expected_family_counts.get("static_obstacle", 0) > 0
+    obstacle_required_roles = (
+        ("current_lane_front", "adjacent_avoidance_front", "diagonal_context")
+        if obstacle_is_highway_only
+        else (
+            "current_lane_front", "adjacent_avoidance_front",
+            "diagonal_context", "near_side_or_rear", "roadside_context",
+        )
+    )
+    vehicle_has_roundabout_scenes = (
+        family_strata["stopped_vehicle"].get("roundabout", 0) > 0
+    )
+    has_pedestrian_scenes = expected_family_counts.get("standing_pedestrian", 0) > 0
+
     checks = {
         "family_counts_match_config": dict(family_counts) == expected_family_counts,
         "three_frames_per_clip": int(policy.get("captures_per_scene", 0)) == 3,
@@ -467,15 +485,21 @@ def main():
             and expected_family_counts.get(name, 0) >= 24
             and not config_family_rows[name].get("spatial_strata")
         ),
-        "pedestrian_general_route_uses_at_least_18_bins": len(
-            family_bins["standing_pedestrian"]
-        ) >= 18,
-        "pedestrian_crosswalk_uses_at_least_5_locations": len(
-            family_crosswalks["standing_pedestrian"]
-        ) >= 5,
+        "pedestrian_general_route_uses_at_least_18_bins": (
+            len(family_bins["standing_pedestrian"]) >= 18
+            if has_pedestrian_scenes else True
+        ),
+        "pedestrian_crosswalk_uses_at_least_5_locations": (
+            len(family_crosswalks["standing_pedestrian"]) >= 5
+            if has_pedestrian_scenes else True
+        ),
         "vehicle_asset_diversity_at_least_30": len(class_assets["vehicle"]) >= 30,
-        "pedestrian_asset_diversity_at_least_8": len(class_assets["pedestrian"]) >= 8,
-        "obstacle_asset_diversity_at_least_10": len(class_assets["obstacle"]) >= 10,
+        "pedestrian_asset_diversity_at_least_8": (
+            len(class_assets["pedestrian"]) >= 8 if has_pedestrian_scenes else True
+        ),
+        "obstacle_asset_diversity_at_least_10": (
+            len(class_assets["obstacle"]) >= 10 if has_obstacle_scenes else True
+        ),
         "pedestrian_covers_four_heading_modes": all(
             pedestrian_heading_modes[mode] > 0
             for mode in (
@@ -483,37 +507,79 @@ def main():
                 "cross_left_to_right", "cross_right_to_left",
             )
         ) if expected_family_counts.get("standing_pedestrian", 0) >= 4 else True,
-        "obstacle_covers_all_mission_geometry_roles": all(
-            obstacle_geometry_roles[role] > 0
-            for role in (
-                "current_lane_front", "adjacent_avoidance_front",
-                "diagonal_context", "near_side_or_rear", "roadside_context",
-            )
+        "obstacle_covers_required_geometry_roles": (
+            all(
+                obstacle_geometry_roles[role] > 0
+                for role in obstacle_required_roles
+            ) if has_obstacle_scenes else True
         ),
         "obstacle_scenes_have_exactly_one_current_lane_actor": (
             obstacle_current_lane_count_distribution == Counter({
                 1: expected_family_counts.get("static_obstacle", 0)
             })
-        ),
-        "each_positive_class_has_front_side_and_rear_capture_views": all(
-            class_capture_sectors[name]["front"] > 0
-            and class_capture_sectors[name]["rear"] > 0
+        ) if has_obstacle_scenes else True,
+        "each_positive_class_has_front_side_and_rear_capture_views": (
+            class_capture_sectors["vehicle"]["front"] > 0
+            and class_capture_sectors["vehicle"]["rear"] > 0
             and (
-                class_capture_sectors[name]["left"]
-                + class_capture_sectors[name]["right"]
+                class_capture_sectors["vehicle"]["left"]
+                + class_capture_sectors["vehicle"]["right"]
             ) > 0
-            for name in ("vehicle", "pedestrian", "obstacle")
+            and (
+                not has_pedestrian_scenes
+                or (
+                    class_capture_sectors["pedestrian"]["front"] > 0
+                    and class_capture_sectors["pedestrian"]["rear"] > 0
+                    and (
+                        class_capture_sectors["pedestrian"]["left"]
+                        + class_capture_sectors["pedestrian"]["right"]
+                    ) > 0
+                )
+            )
+            and (
+                not has_obstacle_scenes
+                or (
+                (
+                    class_capture_sectors["obstacle"]["front"] > 0
+                    and (
+                        class_capture_sectors["obstacle"]["left"]
+                        + class_capture_sectors["obstacle"]["right"]
+                    ) > 0
+                )
+                if obstacle_is_highway_only
+                else (
+                    class_capture_sectors["obstacle"]["front"] > 0
+                    and class_capture_sectors["obstacle"]["rear"] > 0
+                    and (
+                        class_capture_sectors["obstacle"]["left"]
+                        + class_capture_sectors["obstacle"]["right"]
+                    ) > 0
+                )
+                )
+            )
         ),
-        "vehicle_obstacle_cover_all_distance_bands": all(
+        "vehicle_obstacle_cover_required_distance_bands": (
             all(
-                class_capture_distance_bins[name][distance_bin] > 0
+                class_capture_distance_bins["vehicle"][distance_bin] > 0
                 for distance_bin in ("0-10m", "10-20m", "20-30m", "30m+")
             )
-            for name in ("vehicle", "obstacle")
+            and (
+                not has_obstacle_scenes
+                or all(
+                    class_capture_distance_bins["obstacle"][distance_bin] > 0
+                    for distance_bin in (
+                        ("0-10m", "10-20m", "20-30m")
+                        if obstacle_is_highway_only
+                        else ("0-10m", "10-20m", "20-30m", "30m+")
+                    )
+                )
+            )
         ),
-        "pedestrian_covers_mission_distance_bands_through_30m": all(
-            class_capture_distance_bins["pedestrian"][distance_bin] > 0
-            for distance_bin in ("0-10m", "10-20m", "20-30m")
+        "pedestrian_covers_mission_distance_bands_through_30m": (
+            all(
+                class_capture_distance_bins["pedestrian"][distance_bin] > 0
+                for distance_bin in ("0-10m", "10-20m", "20-30m")
+            ) if has_pedestrian_scenes else True
         ),
         "all_actors_static": not any(
             "non-static actor" in error for error in errors
@@ -540,7 +606,8 @@ def main():
             )
         ),
         "roundabout_has_legal_left_vehicle_snapshots": (
-            expected_family_counts.get("stopped_vehicle", 0) < 24
+            not vehicle_has_roundabout_scenes
+            or expected_family_counts.get("stopped_vehicle", 0) < 24
             or roundabout_vehicle_geometry_roles["roundabout_left_legal_path"] > 0
         ),
         "highway_has_legal_parallel_lane_snapshots": any(

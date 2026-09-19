@@ -1,0 +1,10 @@
+id: rtx2080ti
+match: "RTX 2080 Ti"
+cuda_arch: "7.5"
+physical_batch_size: 2
+gradient_accumulation: 2
+workers: 2
+shm_size: 10g
+oom_fallback:
+  physical_batch_size: 1
+  gradient_accumulation: 4

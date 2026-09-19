@@ -11,10 +11,12 @@
   <arg name="sensor_config"
        default="$(arg repo_root)/configs/sensors/Sensor.json"/>
   <arg name="use_sim_time" default="false"/>
-  <arg name="behavior_path_forward_length" default="150.0"/>
+  <arg name="behavior_path_forward_length" default="400.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>
 
-  <arg name="start_localization" default="true"/>
+  <!-- Competition localization is owned by the separate `localization` alias.
+       The legacy /Ego_topic provider must never start implicitly. -->
+  <arg name="start_localization" default="false"/>
   <arg name="start_sensor_tf" default="true"/>
   <!-- Planning owns EKF -> UNKNOWN stationary policy -> Map-CV. -->
   <arg name="start_object_pipeline" default="true"/>
@@ -40,6 +42,9 @@
        this to 0.5 s when measured detector age exceeds 0.25 s. -->
   <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
   <arg name="start_traffic_light" default="true"/>
+  <!-- Independent from start_traffic_light: the former owns inference, this
+       controls the planner plugin consuming traffic-light observations. -->
+  <arg name="enable_traffic_light_planner" default="true"/>
   <arg name="traffic_light_inference_python"
        default="/usr/bin/python3"/>
   <arg name="traffic_light_device" default="0"/>
@@ -53,6 +58,7 @@
   <arg name="use_occupancy_grid" default="false"/>
 
   <group if="$(arg start_localization)">
+    <!-- Legacy/local MORAI compatibility only; not a competition fallback. -->
     <include file="$(find bringup)/launch/localization_morai_gt.launch">
       <arg name="repo_root" value="$(arg repo_root)"/>
       <arg name="use_sim_time" value="$(arg use_sim_time)"/>
@@ -108,7 +114,7 @@
       <arg name="prediction_time_step" value="0.1"/>
       <arg name="prediction_horizon" value="3.0"/>
       <arg name="map_file"
-           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v72.osm"/>
+           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v84.osm"/>
       <arg name="projector_file"
            value="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
     </include>
@@ -128,6 +134,8 @@
     <arg name="start_requester" value="$(arg start_requester)"/>
     <arg name="behavior_path_forward_length" value="$(arg behavior_path_forward_length)"/>
     <arg name="intersection_attention_area_length" value="$(arg intersection_attention_area_length)"/>
+    <arg name="enable_traffic_light_planner"
+         value="$(arg enable_traffic_light_planner)"/>
     <arg name="publish_fixed_autonomous_mode" value="$(arg publish_fixed_autonomous_mode)"/>
     <arg name="is_simulation" value="$(arg use_sim_time)"/>
     <arg name="use_ground_pointcloud" value="$(arg use_ground_pointcloud)"/>

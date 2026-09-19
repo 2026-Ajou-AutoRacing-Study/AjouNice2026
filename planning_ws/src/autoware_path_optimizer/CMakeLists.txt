@@ -48,6 +48,13 @@ add_executable(path_optimizer_node src/main.cpp)
 target_compile_features(path_optimizer_node PRIVATE cxx_std_17)
 target_link_libraries(path_optimizer_node PRIVATE ${PROJECT_NAME})
 
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_mpt_constraint_matrix test/test_mpt_constraint_matrix.cpp)
+  if(TARGET test_mpt_constraint_matrix)
+    target_link_libraries(test_mpt_constraint_matrix ${PROJECT_NAME})
+  endif()
+endif()
+
 install(TARGETS ${PROJECT_NAME} acados_interface path_optimizer_node
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}

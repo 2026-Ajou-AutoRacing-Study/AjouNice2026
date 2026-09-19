@@ -10,7 +10,7 @@
 ```text
 MORAI sensors/Ego
   -> UDP bridge
-  -> B3-BF0 E10 BEVFusion
+  -> B3-BF0-F40 E25 BEVFusion
   -> EKF multi-object tracking
   -> UNKNOWN stationary policy
   -> Map-CV prediction
@@ -23,9 +23,9 @@ MORAI sensors/Ego
 [`260915_field_inspection_checklist.md`](../competition/260915_field_inspection_checklist.md)를
 함께 사용한다.
 
-현재 production detector는 `B3-BF0 E10`, class threshold는
-Vehicle/Pedestrian/Obstacle `0.40/0.15/0.10`이다. BF1은 실험 모델이며 이
-runbook의 기본 모델이 아니다.
+현재 production detector는 `B3-BF0-F40 E25`, class threshold는
+Vehicle/Pedestrian/Obstacle `0.40/0.15/0.10`이다. E10은 rollback
+baseline이며 BF1은 실험 모델로 이 runbook의 기본 모델이 아니다.
 
 프로젝트 용어에서 `MRP`는 2026 개인용 launcher, `MR`은 2025 대회용 launcher를
 뜻한다. 개인 개발은 MRP, 대회 환경 재현과 현장 실행은 MR을 기준으로 하되,
@@ -40,15 +40,246 @@ cd "$HOME/AjouNice2026"
 test -f scripts/workspace/source_aw149.sh
 test -f base_ws/install_aw149/setup.bash
 test -f planning_ws/install_isolated/setup.bash
-test -f kcity_map/lanelet_map/lanelet2_map_v67.osm
+test -f kcity_map/lanelet_map/lanelet2_map_v84.osm
 ```
 
 MORAI에서는 다음을 확인한다.
 
-1. v67 map과 원하는 competition scenario를 연다.
+1. v84 map과 원하는 competition scenario를 연다.
 2. Sensor Network와 Ego Network를 현재 PC 설정에 맞게 연결한다.
 3. 실제 제어 전에 Ego control mode를 `AV-ExternalCtrl`로 둔다.
 4. 차량은 Route A 공식 시작 위치에서 정지 상태로 둔다.
+
+## 대회 현장 권장: alias + `tee` 로그 세션
+
+`tee`를 사용하면 화면 출력과 파일 저장이 동시에 이루어진다. 모든 터미널은 같은
+로그 세션을 사용해야 하므로 Terminal 1에서 반드시 `field_log_new`를 먼저 실행한다.
+그 외 터미널에서 세션이 없거나 다른 로그 경로가 잡히면 `field_log_tee`가 오류를 내고
+pipeline을 실패 처리하므로 로그 누락을 바로 확인할 수 있다.
+
+로그 파일명은
+`<세션시각>_<구성요소>_<해당명령시작시각>.log` 형식이다. `field_log_tee`는
+`tee -a`를 사용하지 않으며 호출할 때마다 새 파일을 만든다. 같은 구성요소를 같은 초에
+다시 실행해도 `_01`, `_02`가 붙으므로 기존 로그를 덮어쓰거나 이어붙이지 않는다.
+
+각 터미널은 `~/.bashrc`에 등록한 `ajou` 함수로 준비한다. 이 함수는
+repository root로 이동하고 `AJOUNICE_ROOT`를 설정한 뒤 AW149 overlay와
+`docs/common_alias.txt`를 로드한다. 새 shell에서 `type ajou`로 먼저 확인한다.
+
+```bash
+ajou
+set -o pipefail
+```
+
+`ajou` `command not found`가 나오는 PC에서만 다음을 `~/.bashrc`에 한 번
+등록하고 새 터미널을 연다.
+
+```bash
+ajou() {
+    cd "$HOME/AjouNice2026" || return
+    export AJOUNICE_ROOT="$HOME/AjouNice2026"
+    source "$AJOUNICE_ROOT/docs/common_alias.txt"
+}
+```
+
+### Terminal 1: 로그 세션 생성 + ROS master
+
+반드시 가장 먼저 실행하고 전체 실행이 끝날 때까지 유지한다.
+
+```bash
+ajou
+set -o pipefail
+
+field_log_new
+rc 2>&1 | field_log_tee roscore
+```
+
+`field_log_new`는 `artifacts/field_logs/<YYMMDD_HHMMSS>_session.txt`에 Git SHA,
+host, ROS 환경을 기록하고 `/tmp/ajounice_field_log_prefix`를 원자적으로 갱신한다.
+같은 초에 세션을 다시 만들어도 기존 로그를 덮어쓰지 않는다.
+
+### Terminal 2: 현장 LAN UDP gateway
+
+```bash
+ajou
+set -o pipefail
+
+udp_lan 2>&1 | field_log_tee udp_lan
+```
+
+camera/IMU/GPS 수신, Velodyne LiDAR 변환, `/Ego_topic` 수신과 `/ctrl_cmd` UDP
+송신을 담당한다.
+
+### Terminal 3: sensing static TF + 차량 모델
+
+```bash
+ajou
+set -o pipefail
+
+sensing_lan 2>&1 | field_log_tee sensing
+```
+
+`udp_lan`에는 sensor static TF가 포함되지 않으므로 생략하면 안 된다. 이 launch의
+`enable_ego_tf` 기본값은 `false`라서 Terminal 4의 localization TF와 중복되지 않는다.
+`sensing_lan`은 UDP gateway와 같은 competition sensor JSON에서 TF 위치를 읽는다.
+
+### Terminal 4: localization + TF
+
+```bash
+ajou
+set -o pipefail
+
+localization 2>&1 | field_log_tee localization
+```
+
+이 alias는 `localization_gnss_imu_gt_ctra.launch`를 실행한다. `sensing_lan`이 sensor
+static TF를 담당하므로 localization의 `publish_sensor_tf` 기본값은 `false`로 유지한다.
+
+### Terminal 5: BEVFusion detection
+
+```bash
+ajou
+set -o pipefail
+
+bevfusion 2>&1 | field_log_tee bevfusion
+```
+
+이 alias는 Docker inference server와 ROS bridge의 생명주기를 함께 관리한다. canonical
+detection topic에 PointPainting/FastBEV/다른 bridge publisher가 있으면 안전하게
+거부한다. 다만 Docker container 내부의 상세 stdout 전체는 이 파일에 계속 복제되지
+않으므로 필요할 때만 별도 터미널에서 아래 진단 로그를 추가한다.
+
+```bash
+ajou
+set -o pipefail
+
+docker compose -f docker/bevfusion/compose.yaml logs --follow --tail=100 inference \
+  2>&1 | field_log_tee bevfusion_inference
+```
+
+### Terminal 6: tracking + map-based prediction
+
+```bash
+ajou
+set -o pipefail
+
+tracking 2>&1 | field_log_tee tracking
+```
+
+### Terminal 7: traffic-light recognition
+
+```bash
+ajou
+set -o pipefail
+
+traffic 2>&1 | field_log_tee traffic
+```
+
+### Terminal 8: planning
+
+```bash
+ajou
+set -o pipefail
+
+planning 2>&1 | field_log_tee planning
+```
+
+`planning`은 map, route requester와 planning graph만 실행한다. 이름과 달리 trajectory
+follower/control은 포함하지 않는다.
+
+### Terminal 9: 공용 Planning RViz
+
+```bash
+ajou
+set -o pipefail
+
+planviz show_morai_gt:=false 2>&1 | field_log_tee planviz
+```
+
+실대회 production에서는 GT overlay를 끈다. MORAI 개발 중 `/Object_topic` 비교가
+필요할 때만 `show_morai_gt:=true`로 바꾼다.
+
+### Terminal 10: control — 안전 확인 후에만 실행
+
+처음에는 이 터미널을 실행하지 않고 `/planning/trajectory`와 validation 상태까지
+확인한다. 차량 제어권과 비상정지 담당을 확인한 뒤에만 실행한다.
+
+```bash
+ajou
+set -o pipefail
+
+traj_fol_a 2>&1 | field_log_tee control
+```
+
+`traj_fol_a`만 `/planning/trajectory`를 받아 `/ctrl_cmd`를 만드는 현재 Autoware용
+controller다. `traj_fol`이나 다른 `/ctrl_cmd` publisher를 동시에 실행하면 안 된다.
+
+### 로그 확인과 topic-rate snapshot
+
+별도 터미널에서 현재 세션 파일을 확인한다.
+
+```bash
+ajou
+
+field_log_list
+```
+
+전체 stack이 올라온 뒤 topic rate를 같은 30초 구간에서 확인하고 화면과 세션 로그에
+동시에 남기려면 다음을 실행한다.
+
+```bash
+set -o pipefail
+bash scripts/runtime/record_field_topic_rates.sh 30 \
+  2>&1 | field_log_tee topic_rates
+```
+
+`tee` 로그는 terminal stdout/stderr만 보존한다. ROS 메시지 자체, 센서 원본, `/tf`,
+`/rosout`의 완전한 사후 재생을 보장하지 않으므로 rosbag을 대체하지 않는다. 실제
+주행 데이터 기록은 현장점검 체크리스트의 `모든 로그 저장` 절차를 별도로 따른다.
+
+종료는 control(Terminal 10)을 가장 먼저 끄고, planning/perception/localization,
+sensing/UDP 순서로 내린 뒤 roscore를 마지막에 종료한다.
+
+## 로컬 localization 실시간율 경량 검증
+
+한 PC에서 MORAI와 폐루프 localization/control을 함께 실행할 때만 사용하는
+비-production 구성이다. MORAI에는
+`Sensor_localization_gt_lightweight.json`을 로드한다. 이 파일은 MR과 MRP의
+`SaveFile/Sensor` 양쪽에 둘 수 있으며 GPS와 IMU만 생성한다.
+
+```text
+udp_localization_light
+sensing_localization_light
+localization                 # MR: Competition_topic
+od_gt
+tracking
+planning enable_traffic_light_planner:=false
+planviz show_morai_gt:=true
+traj_fol_a
+```
+
+기본값 대신 과거 closed-loop 후보를 재검증할 때는 위 `localization` 한 줄만 다음 중
+하나로 교체한다. 다른 터미널 구성은 동일하게 유지한다.
+
+```text
+localization_sigma_0p10_qxy_0p05  # sigma=0.10 m, Global Qxy=0.05
+localization_sigma_0p05_qxy_0p05  # sigma=0.05 m, Global Qxy=0.05
+```
+
+`traffic`과 detector는 실행하지 않는다. Planner의 TrafficLight plugin도 명시적으로
+빠지므로 모든 교통신호를 무시한다. `enable_traffic_light_planner`의 기본값은
+`true`이며 인자를 생략한 production `planning`은 기존과 동일하다. 이 구성에서도
+Sunshine과 RViz는 유지할 수 있다.
+
+Bag은 `rosbag_for_localization_stability_eval.sh`로 기록하며 Camera, LiDAR,
+PointCloud topic을 포함하지 않는다. 주행 후
+`Ego position distance / integral(velocity.x dt)`가 `0.98~1.02`인지 먼저 확인한다.
+
+## 수동 통합 launch 참고
+
+아래 절차는 alias별 분리 실행 대신 통합 launch를 사용할 때의 참고 절차다. 위 현장
+절차와 섞으면 localization, detector, tracking, traffic-light 또는 control publisher가
+중복될 수 있으므로 둘 중 하나만 사용한다.
 
 ## Terminal 1: ROS master
 
@@ -101,7 +332,7 @@ rostopic info /ctrl_cmd
 cd "$HOME/AjouNice2026"
 
 AJOUNICE_ROOT="$PWD" \
-BEVFUSION_CHECKPOINT="$HOME/bevfusion_artifacts/checkpoints/base3_bf0_e10_inference.pth" \
+BEVFUSION_CHECKPOINT="$HOME/bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth" \
 docker compose -f docker/bevfusion/compose.yaml up -d --force-recreate inference
 
 docker compose -f docker/bevfusion/compose.yaml logs -f inference
@@ -152,29 +383,28 @@ publisher는 `/bevfusion_ros_bridge` 하나여야 한다. FastBEV나 PointPainti
 
 ## Terminal 8: planning, tracking, Map-CV
 
-### Localization 입력을 먼저 선택
+### Localization을 별도 터미널에서 먼저 실행
 
-현재 통합 launch의 기본 localization은 `/Ego_topic` 기반이다. MRP/MR 개발에서
-`/Ego_topic`을 공식적으로 사용할 때는 아래 명령을 그대로 쓴다.
-
-대회 client가 `/Competition_topic + GPS + IMU`를 제공하는 계약이면 별도 터미널에서
-다음을 먼저 실행한다.
+대회 client는 `/Competition_topic + GPS + IMU`를 제공하며 `/Ego_topic`을 production
+입력으로 사용하지 않는다. `docs/common_alias.txt`를 source한 뒤 대회용 alias를 실행한다.
 
 ```bash
 cd "$HOME/AjouNice2026"
 export AJOUNICE_ROOT="$PWD"
 source scripts/workspace/source_aw149.sh
+source docs/common_alias.txt
 
-roslaunch bringup localization_gnss_imu_gt_ctra.launch \
-  gt_source:=competition \
-  use_heading_correction:=true \
-  heading_yaw_offset_deg:=-1.347 \
-  publish_sensor_tf:=false
+localization
 ```
 
-이 경우 아래 planning 명령에는 반드시 `start_localization:=false`를 추가한다. 두
-localization provider를 동시에 실행하면 안 된다. 실제 client heading이 이미
-보정된 경우의 OFF A/B 절차는 현장점검 체크리스트를 따른다.
+alias는 `gt_source=competition`, heading correction `-1.347 deg`,
+`publish_sensor_tf=false`를 명시한다. 아래 planning 명령에는 반드시
+`start_localization:=false`를 추가한다. 다른 localization provider를 동시에 실행하면
+안 된다.
+
+MRP에서 같은 estimator를 `/Ego_topic`으로 시험할 때만 `localization_mrp`를
+사용한다. 로컬 PC에서 MR을 실행할 때는 `localization`이 맞다.
+`localization_morai_gt`와 구형 `maptf_*`는 대회 fallback이 아니다.
 
 ### 안전한 첫 확인: controller OFF
 

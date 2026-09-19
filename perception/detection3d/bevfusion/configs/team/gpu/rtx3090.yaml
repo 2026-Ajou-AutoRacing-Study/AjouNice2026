@@ -1,0 +1,7 @@
+id: rtx3090
+match: "RTX 3090"
+cuda_arch: "8.6"
+physical_batch_size: 4
+gradient_accumulation: 1
+workers: 4
+shm_size: 12g

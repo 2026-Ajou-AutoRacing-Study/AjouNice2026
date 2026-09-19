@@ -64,6 +64,12 @@ base_ws/.catkin_workspace
 .ros/
 *.bag
 *.bag.active
+/rosbags/datasets/base3_online/
+/planner_logs/
+/.catkin_workspace
+
+# Reproducible map comparison renders stay local; scripts and text reports are tracked.
+/kcity_map/docs/*comparison.png
 
 
 
@@ -91,6 +97,7 @@ base_ws/src/control/trajectory_generator/traj_sample/**/*.json
 
 # Local machine-specific files
 .env.local
+.env.bevfusion.local
 docs/local_notes.md
 
 ### 아래는 Github initial python .gitignore configs임. 수정 x ###

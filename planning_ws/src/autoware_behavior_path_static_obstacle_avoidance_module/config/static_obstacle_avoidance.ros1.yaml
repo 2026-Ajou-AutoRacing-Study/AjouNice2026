@@ -160,7 +160,7 @@ avoidance:
         th_stopped_time: 5.0
     intersection:
       yaw_deviation: 0.349
-    max_compensation_time: 2.0
+    max_compensation_time: 5.0
     merging_vehicle:
       th_overhang_distance: 0.0
     object_check_goal_distance: 20.0

@@ -241,7 +241,13 @@ void FullSourcePlannerManager::generateCombinedDrivableArea(
     utils::generateDrivableArea(
       output.path, di.drivable_lanes, false, false, false, data, is_driving_forward);
   } else {
+    const auto length_before_overlap = autoware::motion_utils::calcArcLength(output.path.points);
     const auto shorten_lanes = utils::cutOverlappedLanes(output.path, di.drivable_lanes);
+    const auto length_after_overlap = autoware::motion_utils::calcArcLength(output.path.points);
+    if (length_after_overlap + 1.0 < length_before_overlap) {
+      RCLCPP_ERROR_STREAM(logger_, "[generateCombinedDrivableArea] overlap shortened final path: "
+        << length_before_overlap << " -> " << length_after_overlap << " m");
+    }
 
     const auto & dp = data->drivable_area_expansion_parameters;
     const auto expanded_lanes = utils::expandLanelets(
@@ -345,7 +351,7 @@ bool FullSourcePlannerManager::hasPossibleRerouteApprovedModules(
 {
   const auto & approved_module = approved_modules();
   const auto not_possible_reroute_module = [&](const SceneModulePtr m) {
-    if (m->name() == "dynamic_avoidance") {
+    if (m->name() == "dynamic_obstacle_avoidance") {
       return false;
     }
     if (m->name() == "goal_planner" && !utils::isAllowedGoalModification(data->route_handler)) {

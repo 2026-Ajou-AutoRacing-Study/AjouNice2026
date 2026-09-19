@@ -29,10 +29,12 @@ profiles:
     corrections:
       GREEN_CIRCLE: [GREEN_CIRCLE, GREEN_LEFT_ARROW]
       GREEN_LEFT_ARROW: [GREEN_CIRCLE, GREEN_LEFT_ARROW]
-      RED_CIRCLE+GREEN_CIRCLE: [GREEN_CIRCLE, GREEN_LEFT_ARROW]
-      RED_CIRCLE+GREEN_LEFT_ARROW: [GREEN_CIRCLE, GREEN_LEFT_ARROW]
+      # C never has a red lamp illuminated together with either green lamp.
+      # Prefer the observed red over an impossible green false positive.
+      RED_CIRCLE+GREEN_CIRCLE: [RED_CIRCLE]
+      RED_CIRCLE+GREEN_LEFT_ARROW: [RED_CIRCLE]
       RED_CIRCLE+YELLOW_CIRCLE: [YELLOW_CIRCLE]
-    fallback_phase: [GREEN_CIRCLE, GREEN_LEFT_ARROW]
+    fallback_phase: [RED_CIRCLE]
 
   straight_or_protected_left:
     supported_lamps: [RED_CIRCLE, YELLOW_CIRCLE, GREEN_CIRCLE, GREEN_LEFT_ARROW]
@@ -46,7 +48,17 @@ profiles:
       RED_CIRCLE+GREEN_CIRCLE: [RED_CIRCLE, GREEN_LEFT_ARROW]
       GREEN_CIRCLE+GREEN_LEFT_ARROW: [RED_CIRCLE, GREEN_LEFT_ARROW]
       RED_CIRCLE+YELLOW_CIRCLE: [YELLOW_CIRCLE]
-    fallback_phase: [RED_CIRCLE, GREEN_LEFT_ARROW]
+    # D-2 has two yellow phases. Yellow is GO only after the protected-left
+    # phase; yellow after straight green is represented as red (STOP).
+    conditional_yellow:
+      go_after_phases:
+        - [RED_CIRCLE, GREEN_LEFT_ARROW]
+      stop_phase: [RED_CIRCLE]
+    # Simulation-only bounded hold; never interpret fallback red as observation.
+    observation_guard:
+      max_observation_gap_sec: 1.5
+      max_yellow_sec: 4.0
+    fallback_phase: [RED_CIRCLE]
 
   ignored_right_turn:
     passthrough: true

@@ -6,8 +6,8 @@ import re
 import hashlib
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = 72
-SHA = 'f0e4fcecdce112579e6cec9c902025c92448f48f4c770178f7be586ea11badc6'
+VERSION = 84
+SHA = '36369766a0fade01cbd64a49d4d9c33248b15770eb1433ce334d6becaddf3e4d'
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--installed', action='store_true')
 args = parser.parse_args()
@@ -19,6 +19,11 @@ count = 0
 for directory in roots:
     for path in (ROOT/directory).rglob('*'):
         if not path.is_file() or 'docs' in path.parts:
+            continue
+        # Released versioned configs remain available for rollback, but are not
+        # runtime consumers unless a non-versioned launch/config points to them.
+        historical_config = re.search(r'kcity_v(\d+)', path.name)
+        if historical_config and int(historical_config[1]) != VERSION:
             continue
         if path.suffix not in {'.py', '.yaml', '.yml', '.launch', '.sh', '.rviz', '.cpp', '.hpp', ''}:
             continue

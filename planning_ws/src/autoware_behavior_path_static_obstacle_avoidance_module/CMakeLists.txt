@@ -31,6 +31,8 @@ aw149_provider(TIER4_PLANNING_MSGS tier4_planning_msgs NONE)
 aw149_provider(TRAFFIC_LIGHT_UTILS autoware_traffic_light_utils autoware_traffic_light_utils)
 aw149_provider(UNIVERSE_UTILS autoware_universe_utils NONE)
 aw149_provider(VEHICLE_INFO_UTILS autoware_vehicle_info_utils vehicle_info_utils)
+aw149_provider(BOUNDARY_GEOMETRY autoware_utils_geometry autoware_utils_geometry)
+aw149_provider(BOUNDARY_SYSTEM autoware_utils_system autoware_utils_system)
 foreach(provider IN ITEMS
   BPP_COMMON_INCLUDE_DIR BPP_COMMON_LIBRARY
   BOUNDARY_DEPARTURE_CHECKER_INCLUDE_DIR
@@ -95,6 +97,12 @@ target_link_libraries(${PROJECT_NAME}
   ${lanelet2_core_LIBRARIES} ${lanelet2_routing_LIBRARIES} ${catkin_LIBRARIES})
 
 if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_boundary_candidates test/test_boundary_candidates.cpp test/ros1_gtest_main.cpp)
+  if(TARGET test_boundary_candidates)
+    target_compile_definitions(test_boundary_candidates PRIVATE AW149_BPP_HOST_ABI=1)
+    target_link_libraries(test_boundary_candidates ${PROJECT_NAME} ${VEHICLE_INFO_UTILS_LIBRARY}
+      ${BOUNDARY_GEOMETRY_LIBRARY} ${BOUNDARY_SYSTEM_LIBRARY} ${catkin_LIBRARIES})
+  endif()
   find_package(autoware_test_utils REQUIRED)
   # The pure algorithm suite is independently runnable with the staged BPP
   # ABI.  The two node-ingress sources below require the separate

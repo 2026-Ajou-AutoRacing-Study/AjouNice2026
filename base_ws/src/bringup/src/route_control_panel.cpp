@@ -1,29 +1,29 @@
 #include "bringup/route_control_panel.hpp"
 
-#include <competition_route_requester/RequestRoute.h>
 #include <pluginlib/class_list_macros.h>
 
+#include <QHBoxLayout>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
 #include <QLabel>
-#include <QPushButton>
 #include <QVBoxLayout>
 
 namespace bringup
 {
 
 RouteControlPanel::RouteControlPanel(QWidget * parent)
-: rviz::Panel(parent), status_label_(nullptr), request_button_(nullptr)
+: rviz::Panel(parent),
+  route_a_indicator_(nullptr),
+  route_b_indicator_(nullptr),
+  status_label_(nullptr)
 {
   ros::NodeHandle private_node_handle("~");
-  private_node_handle.param<std::string>(
-    "route_request_service", request_service_name_,
-    "/competition_route_requester/request");
   std::string status_topic;
   private_node_handle.param<std::string>(
     "route_request_status_topic", status_topic,
     "/competition_route_requester/request_status");
 
-  request_client_ = node_handle_.serviceClient<competition_route_requester::RequestRoute>(
-    request_service_name_, false);
   status_subscriber_ = node_handle_.subscribe(
     status_topic, 10, &RouteControlPanel::onStatus, this);
 
@@ -34,55 +34,24 @@ RouteControlPanel::RouteControlPanel(QWidget * parent)
   title->setFont(title_font);
   layout->addWidget(title);
 
-  auto * instruction = new QLabel(
-    "Place and stop the vehicle at the official start, then request Route A. "
-    "Press again there to refresh it; Route B/fallback remains automatic.", this);
-  instruction->setWordWrap(true);
-  layout->addWidget(instruction);
+  auto * indicators = new QHBoxLayout;
+  route_a_indicator_ = new QLabel("ROUTE A", this);
+  route_b_indicator_ = new QLabel("ROUTE B", this);
+  route_a_indicator_->setAlignment(Qt::AlignCenter);
+  route_b_indicator_->setAlignment(Qt::AlignCenter);
+  route_a_indicator_->setMinimumHeight(38);
+  route_b_indicator_->setMinimumHeight(38);
+  indicators->addWidget(route_a_indicator_);
+  indicators->addWidget(route_b_indicator_);
+  layout->addLayout(indicators);
 
-  request_button_ = new QPushButton("REQUEST ROUTE A", this);
-  request_button_->setStyleSheet(
-    "QPushButton { background-color: #2563a8; color: white; font-weight: bold; "
-    "padding: 8px; }");
-  layout->addWidget(request_button_);
-
-  status_label_ = new QLabel("Ready for manual Route A request", this);
+  status_label_ = new QLabel("Waiting for verified route status...", this);
   status_label_->setWordWrap(true);
   layout->addWidget(status_label_);
   setLayout(layout);
 
-  connect(request_button_, &QPushButton::clicked, this, &RouteControlPanel::requestRouteA);
   connect(this, &RouteControlPanel::statusReceived, this, &RouteControlPanel::applyStatus);
-}
-
-void RouteControlPanel::requestRouteA()
-{
-  request_button_->setEnabled(false);
-  status_label_->setText("Requesting Route A...");
-
-  if (!request_client_.waitForExistence(ros::Duration(0.5))) {
-    status_label_->setText(
-      "ERROR: route requester service is unavailable. Start planning with requester enabled.");
-    request_button_->setEnabled(true);
-    return;
-  }
-
-  competition_route_requester::RequestRoute request;
-  request.request.route_key = "route_a";
-  if (!request_client_.call(request)) {
-    status_label_->setText("ERROR: Route A request transport failed");
-    request_button_->setEnabled(true);
-    return;
-  }
-
-  if (!request.response.accepted) {
-    status_label_->setText(
-      "REJECTED: " + QString::fromStdString(request.response.detail));
-    request_button_->setEnabled(true);
-    return;
-  }
-
-  status_label_->setText("Route A queued; waiting for route and trajectory verification...");
+  setActiveRoute(QString());
 }
 
 void RouteControlPanel::onStatus(const std_msgs::String::ConstPtr & message)
@@ -92,8 +61,34 @@ void RouteControlPanel::onStatus(const std_msgs::String::ConstPtr & message)
 
 void RouteControlPanel::applyStatus(const QString & status)
 {
-  status_label_->setText(status);
-  request_button_->setEnabled(!status.contains("\"busy\": true"));
+  QJsonParseError parse_error;
+  const QJsonDocument document = QJsonDocument::fromJson(status.toUtf8(), &parse_error);
+  if (parse_error.error != QJsonParseError::NoError || !document.isObject()) {
+    setActiveRoute(QString());
+    status_label_->setText("Invalid route status: " + status);
+    return;
+  }
+
+  const QJsonObject object = document.object();
+  const QString active_route = object.value("verified_active").toString();
+  const QString phase = object.value("phase").toString("UNKNOWN");
+  const QString detail = object.value("detail").toString();
+
+  setActiveRoute(active_route);
+  status_label_->setText(detail.isEmpty() ? phase : phase + ": " + detail);
+}
+
+void RouteControlPanel::setActiveRoute(const QString & route_key)
+{
+  const QString active_style =
+    "QLabel { background-color: #22c55e; color: #07130b; border: 2px solid #86efac; "
+    "border-radius: 5px; font-weight: bold; padding: 7px; }";
+  const QString inactive_style =
+    "QLabel { background-color: #30343b; color: #8b929c; border: 2px solid #4b515b; "
+    "border-radius: 5px; font-weight: bold; padding: 7px; }";
+
+  route_a_indicator_->setStyleSheet(route_key == "route_a" ? active_style : inactive_style);
+  route_b_indicator_->setStyleSheet(route_key == "route_b" ? active_style : inactive_style);
 }
 
 }  // namespace bringup

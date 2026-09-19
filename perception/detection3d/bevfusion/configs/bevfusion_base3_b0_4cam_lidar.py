@@ -209,8 +209,16 @@ test_dataloader = dict(
         load_eval_anns=True,
         box_type_3d='LiDAR'))
 
-val_evaluator = dict(_delete_=True, type='MoraiCenterMetric', prefix='val')
-test_evaluator = dict(_delete_=True, type='MoraiCenterMetric', prefix='test')
+val_evaluator = dict(
+    _delete_=True,
+    type='MoraiCenterMetric',
+    prefix='val',
+    point_cloud_range=point_cloud_range)
+test_evaluator = dict(
+    _delete_=True,
+    type='MoraiCenterMetric',
+    prefix='test',
+    point_cloud_range=point_cloud_range)
 
 train_cfg = dict(by_epoch=True, max_epochs=12, val_interval=1)
 val_cfg = dict()

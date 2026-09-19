@@ -51,6 +51,7 @@ from morai_msgs.msg import (
 from morai_msgs.srv import MoraiEventCmdSrv, MoraiEventCmdSrvRequest
 from rosgraph_msgs.msg import Clock
 from sensor_msgs.msg import CompressedImage, PointCloud2
+from std_msgs.msg import String
 
 
 class ScenarioLoadUdpPacket(ctypes.Structure):
@@ -371,11 +372,28 @@ def parse_args():
     )
     parser.add_argument("--scenario-load-udp-host", default="127.0.0.1")
     parser.add_argument("--scenario-load-udp-port", type=int, default=9095)
+    parser.add_argument(
+        "--online-bag-only",
+        action="store_true",
+        help=(
+            "Collect continuous online ROS topics and distance-trigger metadata "
+            "without publishing SaveSensorData requests or validating MORAI "
+            "sensor files. Intended for an external rosbag recorder."
+        ),
+    )
     parser.add_argument("--capture-topic", default="/SaveSensorData")
     parser.add_argument("--control-topic", default="/ctrl_cmd")
     parser.add_argument("--ego-topic", default="/Ego_topic")
     parser.add_argument("--object-topic", default="/Object_topic")
     parser.add_argument("--collision-topic", default="/CollisionData")
+    parser.add_argument(
+        "--scenario-marker-topic",
+        default="/dataset/scenario_marker",
+        help=(
+            "JSON scene-boundary events recorded alongside online sensor "
+            "topics. Set to an empty string to disable publishing."
+        ),
+    )
     parser.add_argument("--clock-topic", default="/clock")
     parser.add_argument("--lidar-timing-topic", default="/sensor/lidar1")
     parser.add_argument(
@@ -1226,6 +1244,13 @@ class SharedState:
                 for stream, samples in self.histories.items()
             }
 
+    def latest_timing_monotonic(self):
+        with self.lock:
+            return {
+                stream: (samples[-1]["callback_monotonic"] if samples else None)
+                for stream, samples in self.histories.items()
+            }
+
     def snapshot(self):
         with self.lock:
             return {
@@ -1278,6 +1303,7 @@ class AutoCapture:
         self.dataset_id = manifest.get("dataset_id")
         self.environment = dict(manifest.get("environment", {}))
         self.environment_id = self.environment.get("id")
+        self.last_scene_load_issued = None
 
         rospy.init_node("morai_ros_scenario_autocapture_poc", anonymous=False)
         self.scenario_pub = rospy.Publisher(
@@ -1285,6 +1311,11 @@ class AutoCapture:
         )
         self.capture_pub = rospy.Publisher(
             args.capture_topic, SaveSensorData, queue_size=10
+        )
+        self.marker_pub = (
+            rospy.Publisher(args.scenario_marker_topic, String, queue_size=20)
+            if args.scenario_marker_topic
+            else None
         )
         self.control_pub = rospy.Publisher(
             args.control_topic, CtrlCmd, queue_size=10
@@ -1378,6 +1409,64 @@ class AutoCapture:
                     )
                 )
 
+    def emit_scenario_marker(self, event, scene, **extra):
+        """Publish and persist one machine-readable online capture boundary."""
+        ros_stamp = rospy.Time.now()
+        payload = {
+            "schema_version": 1,
+            "event": str(event),
+            "run_id": self.run_id,
+            "dataset_id": self.dataset_id,
+            "environment_id": self.environment_id,
+            "scene_id": scene["id"],
+            "file_name": scene["file_name"],
+            "mission_family": scene.get("mission_family"),
+            "motion_phase": scene.get("motion_phase"),
+            "sampling_role": scene.get("sampling_role"),
+            "split": scene.get("split"),
+            "ros_time_sec": ros_stamp.to_sec(),
+            "wall_time_sec": time.time(),
+            "monotonic_time_sec": time.monotonic(),
+            "expected_counts": dict(scene.get("expected_counts", {})),
+        }
+        payload.update(extra)
+        append_jsonl(
+            self.args.capture_dir / "scenario_markers.jsonl", payload
+        )
+        if self.marker_pub is not None:
+            self.marker_pub.publish(
+                String(data=json.dumps(payload, sort_keys=True))
+            )
+        rospy.loginfo(
+            "Dataset marker: event=%s scene=%s ros_time=%.9f",
+            event,
+            scene["id"],
+            payload["ros_time_sec"],
+        )
+        return payload
+
+    def wait_for_online_sensor_freshness(self, issued, timeout_sec=5.0):
+        """Require one post-load LiDAR and one frame from every camera."""
+        if self.args.no_timing_sidecar:
+            return
+        required = ["lidar"] + sorted(self.args.camera_timing_topics)
+        deadline = time.monotonic() + timeout_sec
+        missing = required
+        while not rospy.is_shutdown() and time.monotonic() < deadline:
+            latest = self.state.latest_timing_monotonic()
+            missing = [
+                stream
+                for stream in required
+                if latest.get(stream) is None or latest[stream] <= issued
+            ]
+            if not missing:
+                return
+            time.sleep(0.02)
+        raise RuntimeError(
+            "online sensor freshness gate timed out; no post-load sample: {}"
+            .format(", ".join(missing))
+        )
+
     def load_scene_waypoints(self, waypoint_path):
         self.waypoints = load_waypoints(waypoint_path)
         self.waypoint_arc_m = [0.0]
@@ -1460,7 +1549,9 @@ class AutoCapture:
         context="startup",
         include_motion_interface=True,
     ):
-        required = (("SaveSensorData", self.capture_pub),)
+        required = ()
+        if not self.args.online_bag_only:
+            required += (("SaveSensorData", self.capture_pub),)
         if self.args.scenario_load_transport == "ros":
             required = (("ScenarioLoad", self.scenario_pub),) + required
         if include_motion_interface:
@@ -1544,9 +1635,9 @@ class AutoCapture:
         # when delete_all is false. With true, the observed result is that Ego
         # is restored but surrounding actors are removed.
         message.delete_all = False
-        preserve_ego_and_network = self.args.motion_mode == "teleport"
-        message.load_network_connection_data = not preserve_ego_and_network
-        message.load_ego_vehicle_data = not preserve_ego_and_network
+        preserve_ego = self.args.motion_mode == "teleport"
+        message.load_network_connection_data = not preserve_ego
+        message.load_ego_vehicle_data = not preserve_ego
         message.load_surrounding_vehicle_data = True
         message.load_pedestrian_data = True
         if hasattr(message, "load_obstacle_data"):
@@ -1890,6 +1981,23 @@ class AutoCapture:
         parts.append("expected objects={}".format(scene["expected_counts"]))
         return "; ".join(parts)
 
+    def expected_ego_yaw_deg(self, scene):
+        """Return the generated Ego yaw, with a route-heading fallback."""
+        metadata_path = Path(scene.get("metadata", ""))
+        if str(metadata_path):
+            if not metadata_path.is_absolute():
+                metadata_path = self.project_root / metadata_path
+            if metadata_path.is_file():
+                metadata = load_json(metadata_path)
+                pose = (metadata.get("ego") or {}).get("pose") or {}
+                if "yaw" in pose:
+                    return float(pose["yaw"])
+
+        _position, yaw_deg, _segment_index = route_pose_at_distance(
+            self.waypoints, int(scene["anchor_index"]), 0.0
+        )
+        return yaw_deg
+
     @staticmethod
     def object_observation(objects):
         if objects is None:
@@ -1951,6 +2059,7 @@ class AutoCapture:
                 # expose the old service briefly and return handler=None.
                 self.wait_for_scene(scene, issued)
                 self.wait_for_static_actor_stability(scene)
+                self.last_scene_load_issued = issued
                 last_error = None
                 break
             except RuntimeError as error:
@@ -2432,7 +2541,7 @@ class AutoCapture:
         )
         return speed, lookahead, steering_limit, turn_deg
 
-    def teleport_ego(self, scene, target_position, target_yaw_deg):
+    def publish_ego_teleport(self, target_position, target_yaw_deg):
         snapshot = self.state.snapshot()
         if snapshot["ego"] is None:
             raise RuntimeError("Ego telemetry unavailable before teleport")
@@ -2451,6 +2560,11 @@ class AutoCapture:
             target_position[2],
             target_yaw_deg,
         )
+        return issued
+
+    def wait_for_ego_teleport(
+        self, scene, target_position, target_yaw_deg, issued
+    ):
 
         # Some MORAI versions rebuild Ego ROS clients when applying
         # MultiEgoSetting. Wait for both publisher reconnection and fresh Ego
@@ -2526,6 +2640,14 @@ class AutoCapture:
             )
         )
 
+    def teleport_ego(self, scene, target_position, target_yaw_deg):
+        issued = self.publish_ego_teleport(
+            target_position, target_yaw_deg
+        )
+        self.wait_for_ego_teleport(
+            scene, target_position, target_yaw_deg, issued
+        )
+
     def teleport_and_capture(self, scene, capture_count):
         expected = scene["expected_ego"]
         initial_position = (
@@ -2533,7 +2655,9 @@ class AutoCapture:
             expected["y"],
             expected["z"],
         )
-        self.teleport_ego(scene, initial_position, expected["yaw"])
+        self.teleport_ego(
+            scene, initial_position, self.expected_ego_yaw_deg(scene)
+        )
         captures = [self.trigger_capture(scene, 0)]
         if capture_count == 1:
             return captures
@@ -3704,7 +3828,8 @@ class AutoCapture:
                                 len(triggers) + 1, actor_gate_observation
                             )
                         )
-                    self.publish_capture_request()
+                    if not self.args.online_bag_only:
+                        self.publish_capture_request()
                     frame_index = len(triggers)
                     trigger = {
                         "schema_version": 1,
@@ -3802,6 +3927,64 @@ class AutoCapture:
             timing_availability = timing_summary(
                 timing_histories, self.timing_topics
             )
+
+        if self.args.online_bag_only:
+            completed_unix = time.time()
+            for trigger in triggers:
+                trigger.update(
+                    {
+                        "verified": True,
+                        "online_bag_only": True,
+                        "completed_unix": completed_unix,
+                        "duration_sec": (
+                            completed_unix - trigger["triggered_unix"]
+                        ),
+                        "new_file_count": 0,
+                        "observed_sensor_dirs": [],
+                        "missing_sensor_dirs": [],
+                        "morai_source_files": [],
+                        "new_files": [],
+                    }
+                )
+            trigger_span = 0.0
+            trigger_hz = 0.0
+            if len(triggers) > 1:
+                trigger_span = (
+                    triggers[-1]["triggered_unix"]
+                    - triggers[0]["triggered_unix"]
+                )
+                if trigger_span > 0.0:
+                    trigger_hz = (len(triggers) - 1) / trigger_span
+            metrics = {
+                "experimental": False,
+                "quality_verified": True,
+                "online_bag_only": True,
+                "trigger_count": len(triggers),
+                "trigger_span_sec": trigger_span,
+                "trigger_rate_hz": trigger_hz,
+                "observed_file_count": 0,
+                "relocated_file_count": 0,
+                "timestamp_group_count": 0,
+                "complete_timestamp_group_count": 0,
+                "incomplete_timestamp_groups": {},
+                "raw_output_dir": None,
+            }
+            metrics.update(
+                self.write_rolling_grouped_metadata(
+                    scene,
+                    triggers,
+                    timing_histories,
+                    timing_availability,
+                )
+            )
+            rospy.loginfo(
+                "Online-bag capture complete: triggers=%d, span=%.3fs, "
+                "rate=%.3fHz (SaveSensorData disabled)",
+                len(triggers),
+                trigger_span,
+                trigger_hz,
+            )
+            return triggers, metrics
 
         # Wait only once after the burst. MORAI gives all artifacts belonging
         # to one SaveSensorData snapshot the same timestamp stem, so the
@@ -4209,8 +4392,18 @@ class AutoCapture:
                 scene["file_name"],
             )
             self.wait_for_scene(scene, issued)
+            sensor_freshness_threshold = issued
         else:
             control_prepared = self.load_and_verify_scene(scene)
+            sensor_freshness_threshold = self.last_scene_load_issued
+        self.wait_for_online_sensor_freshness(sensor_freshness_threshold)
+        snapshot = self.state.snapshot()
+        self.emit_scenario_marker(
+            "capture_start",
+            scene,
+            actual_objects=self.object_observation(snapshot["objects"]),
+            ego=serialize_ego(snapshot["ego"]),
+        )
         if self.args.motion_mode == "stationary":
             captures = [
                 self.trigger_capture(scene, index)
@@ -4390,18 +4583,43 @@ class AutoCapture:
                 rospy.logwarn("ROS shutdown requested; capture batch paused")
                 break
             scene_started = time.time()
+            self.emit_scenario_marker("scene_loading", scene)
             try:
                 result = self.run_scene(scene)
+                self.emit_scenario_marker(
+                    "capture_end",
+                    scene,
+                    status="completed",
+                    capture_count=len(result.get("captures", [])),
+                )
             except Exception as error:
                 if rospy.is_shutdown() or isinstance(error, InterruptedError):
                     interrupted = True
+                    self.emit_scenario_marker(
+                        "scene_interrupted",
+                        scene,
+                        status="interrupted",
+                        error="{}: {}".format(type(error).__name__, error),
+                    )
                     rospy.logwarn(
                         "ROS shutdown requested during %s; scene left pending",
                         scene["id"],
                     )
                     break
                 if not self.args.continue_on_scene_error:
+                    self.emit_scenario_marker(
+                        "scene_failed",
+                        scene,
+                        status="failed",
+                        error="{}: {}".format(type(error).__name__, error),
+                    )
                     raise
+                self.emit_scenario_marker(
+                    "scene_failed",
+                    scene,
+                    status="failed",
+                    error="{}: {}".format(type(error).__name__, error),
+                )
                 result = {
                     "id": scene["id"],
                     "base_scenario_id": scene.get(
@@ -4545,6 +4763,10 @@ def validate_policy(args, manifest):
 
     if args.captures_per_scene < 1:
         raise ValueError("--captures-per-scene must be >= 1")
+    if args.online_bag_only and args.motion_mode != "rolling-grouped":
+        raise ValueError(
+            "--online-bag-only currently requires --motion-mode rolling-grouped"
+        )
     if args.scenario_load_attempts < 1:
         raise ValueError("--scenario-load-attempts must be >= 1")
     if not 1 <= args.scenario_load_udp_port <= 65535:

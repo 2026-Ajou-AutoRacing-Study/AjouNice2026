@@ -83,6 +83,8 @@ private:
    */
   AvoidanceState getCurrentModuleState(const AvoidancePlanningData & data) const;
 
+  void updateOptimizationClipObjects(AvoidancePlanningData & data);
+
   bool canTransitSuccessState() override;
 
   bool canTransitFailureState() override { return false; }

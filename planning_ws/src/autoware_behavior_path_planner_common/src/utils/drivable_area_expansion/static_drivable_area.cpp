@@ -51,6 +51,7 @@ namespace
 {
 using BoostPoint = boost::geometry::model::d2::point_xy<double>;
 using Polygon2d = boost::geometry::model::polygon<BoostPoint>;
+using LineString2d = boost::geometry::model::linestring<BoostPoint>;
 
 lanelet::ConstLanelets transformToLanelets(const DrivableLanes & drivable_lanes)
 {
@@ -86,6 +87,21 @@ Polygon2d toPolygon2d(const lanelet::ConstLanelet & lanelet)
     polygon.outer().emplace_back(point.x(), point.y());
   }
   if (!polygon.outer().empty()) polygon.outer().push_back(polygon.outer().front());
+  boost::geometry::correct(polygon);
+  return polygon;
+}
+
+Polygon2d toPolygon2d(const lanelet::ConstPolygon3d & lanelet_polygon)
+{
+  Polygon2d polygon;
+  for (const auto & point : lanelet_polygon) {
+    polygon.outer().emplace_back(point.x(), point.y());
+  }
+  if (
+    !polygon.outer().empty() &&
+    !boost::geometry::equals(polygon.outer().front(), polygon.outer().back())) {
+    polygon.outer().push_back(polygon.outer().front());
+  }
   boost::geometry::correct(polygon);
   return polygon;
 }
@@ -777,60 +793,183 @@ std::vector<lanelet::ConstPoint3d> getBoundWithHatchedRoadMarkings(
 std::vector<lanelet::ConstPoint3d> getBoundWithIntersectionAreas(
   const std::vector<lanelet::ConstPoint3d> & original_bound,
   const std::shared_ptr<autoware::route_handler::RouteHandler> & route_handler,
-  const std::vector<DrivableLanes> & drivable_lanes, const bool is_left)
+  const std::vector<DrivableLanes> & drivable_lanes, const bool is_left,
+  const double lanelet_overlap_ratio_threshold)
 {
-  if (!route_handler || !route_handler->getLaneletMapPtr()) return original_bound;
+  if (!route_handler || !route_handler->getLaneletMapPtr() || original_bound.size() < 2) {
+    return original_bound;
+  }
+
+  struct BoundLocation
+  {
+    size_t segment{0};
+    double arc_length{0.0};
+    lanelet::ConstPoint3d point;
+  };
+
+  const auto locate_on_bound = [](const std::vector<lanelet::ConstPoint3d> & bound,
+                                  const BoostPoint & target) {
+    BoundLocation best;
+    double best_distance = std::numeric_limits<double>::max();
+    double accumulated_length = 0.0;
+    for (size_t i = 0; i + 1 < bound.size(); ++i) {
+      const double dx = bound[i + 1].x() - bound[i].x();
+      const double dy = bound[i + 1].y() - bound[i].y();
+      const double squared_length = dx * dx + dy * dy;
+      if (squared_length < 1e-12) continue;
+      const double ratio = std::clamp(
+        ((target.x() - bound[i].x()) * dx + (target.y() - bound[i].y()) * dy) /
+          squared_length,
+        0.0, 1.0);
+      const double x = bound[i].x() + ratio * dx;
+      const double y = bound[i].y() + ratio * dy;
+      const double distance = std::hypot(target.x() - x, target.y() - y);
+      if (distance < best_distance) {
+        best_distance = distance;
+        best.segment = i;
+        best.arc_length = accumulated_length + ratio * std::sqrt(squared_length);
+        best.point = lanelet::Point3d(lanelet::InvalId, x, y, bound[i].z());
+      }
+      accumulated_length += std::sqrt(squared_length);
+    }
+    return best;
+  };
+
+  const auto polygon_arc = [](const lanelet::ConstPolygon3d & polygon,
+                              const lanelet::ConstPoint3d & start,
+                              const lanelet::ConstPoint3d & end, const bool forward) {
+    struct PolygonLocation
+    {
+      size_t segment{0};
+      double ratio{0.0};
+    };
+    const auto locate = [&polygon](const lanelet::ConstPoint3d & target) {
+      PolygonLocation best;
+      double best_distance = std::numeric_limits<double>::max();
+      for (size_t i = 0; i < polygon.size(); ++i) {
+        const auto & a = polygon[i];
+        const auto & b = polygon[(i + 1) % polygon.size()];
+        const double dx = b.x() - a.x();
+        const double dy = b.y() - a.y();
+        const double squared_length = dx * dx + dy * dy;
+        if (squared_length < 1e-12) continue;
+        const double ratio = std::clamp(
+          ((target.x() - a.x()) * dx + (target.y() - a.y()) * dy) / squared_length,
+          0.0, 1.0);
+        const double x = a.x() + ratio * dx;
+        const double y = a.y() + ratio * dy;
+        const double distance = std::hypot(target.x() - x, target.y() - y);
+        if (distance < best_distance) {
+          best_distance = distance;
+          best = {i, ratio};
+        }
+      }
+      return best;
+    };
+
+    const auto start_location = locate(start);
+    const auto end_location = locate(end);
+    std::vector<lanelet::ConstPoint3d> arc{start};
+    if (forward) {
+      if (
+        start_location.segment != end_location.segment ||
+        start_location.ratio > end_location.ratio) {
+        size_t segment = start_location.segment;
+        do {
+          arc.push_back(polygon[(segment + 1) % polygon.size()]);
+          segment = (segment + 1) % polygon.size();
+        } while (segment != end_location.segment);
+      }
+    } else if (
+      start_location.segment != end_location.segment ||
+      start_location.ratio < end_location.ratio) {
+      size_t segment = start_location.segment;
+      do {
+        arc.push_back(polygon[segment]);
+        segment = (segment + polygon.size() - 1) % polygon.size();
+      } while (segment != end_location.segment);
+    }
+    arc.push_back(end);
+    return arc;
+  };
+
+  const auto append_without_duplicate = [](std::vector<lanelet::ConstPoint3d> & destination,
+                                           const lanelet::ConstPoint3d & point) {
+    if (
+      destination.empty() ||
+      std::hypot(destination.back().x() - point.x(), destination.back().y() - point.y()) > 1e-6) {
+      destination.push_back(point);
+    }
+  };
+
   std::vector<lanelet::ConstPoint3d> expanded = original_bound;
+  std::set<lanelet::Id> processed_polygon_ids;
   for (const auto & drivable_lane : drivable_lanes) {
     const auto edge_lane = is_left ? drivable_lane.left_lane : drivable_lane.right_lane;
-    const auto edge_bound = is_left ? edge_lane.leftBound3d() : edge_lane.rightBound3d();
-    if (edge_bound.size() < 2) continue;
     const std::string area_id = edge_lane.attributeOr("intersection_area", "else");
     const long id = std::strtol(area_id.c_str(), nullptr, 10);
-    if (area_id == "else" || id == 0) continue;
+    if (area_id == "else" || id == 0 || processed_polygon_ids.count(id) != 0) continue;
 
     const auto polygon_it = route_handler->getLaneletMapPtr()->polygonLayer.find(id);
     if (polygon_it == route_handler->getLaneletMapPtr()->polygonLayer.end()) continue;
-    const auto & polygon = *polygon_it;
-    const auto first = std::find_if(polygon.begin(), polygon.end(), [&](const auto & point) {
-      return point.id() == edge_bound.front().id();
-    });
-    const auto last = std::find_if(polygon.begin(), polygon.end(), [&](const auto & point) {
-      return point.id() == edge_bound.back().id();
-    });
-    if (first == polygon.end() || last == polygon.end()) continue;
 
-    const bool clockwise_polygon =
-      boost::geometry::is_valid(lanelet::utils::to2D(polygon.basicPolygon()));
-    const auto intersection_bound = extractBoundFromPolygon(
-      polygon, std::distance(polygon.begin(), first), std::distance(polygon.begin(), last),
-      clockwise_polygon ? is_left : !is_left);
-    const auto shared_first = std::find_if(expanded.begin(), expanded.end(), [&](const auto & point) {
-      return std::any_of(intersection_bound.begin(), intersection_bound.end(), [&](const auto & candidate) {
-        return candidate.id() == point.id();
+    const auto lane_polygon = toPolygon2d(edge_lane);
+    const auto intersection_polygon = toPolygon2d(*polygon_it);
+    const double lane_area = std::abs(boost::geometry::area(lane_polygon));
+    if (lane_area < 1e-6) continue;
+    std::vector<Polygon2d> overlap_polygons;
+    boost::geometry::intersection(lane_polygon, intersection_polygon, overlap_polygons);
+    const double overlap_area = std::accumulate(
+      overlap_polygons.begin(), overlap_polygons.end(), 0.0,
+      [](const double sum, const auto & polygon) {
+        return sum + std::abs(boost::geometry::area(polygon));
       });
+    if (overlap_area / lane_area < lanelet_overlap_ratio_threshold) continue;
+    processed_polygon_ids.insert(id);
+
+    LineString2d bound_line;
+    for (const auto & point : expanded) bound_line.emplace_back(point.x(), point.y());
+    std::vector<LineString2d> inside_segments;
+    boost::geometry::intersection(bound_line, intersection_polygon, inside_segments);
+    std::vector<BoundLocation> locations;
+    for (const auto & segment : inside_segments) {
+      if (segment.empty()) continue;
+      locations.push_back(locate_on_bound(expanded, segment.front()));
+      locations.push_back(locate_on_bound(expanded, segment.back()));
+    }
+    if (locations.size() < 2) continue;
+    std::sort(locations.begin(), locations.end(), [](const auto & a, const auto & b) {
+      return a.arc_length < b.arc_length;
     });
-    const auto shared_last = std::find_if(expanded.rbegin(), expanded.rend(), [&](const auto & point) {
-      return std::any_of(intersection_bound.rbegin(), intersection_bound.rend(), [&](const auto & candidate) {
-        return candidate.id() == point.id();
-      });
-    });
-    if (shared_first == expanded.end() || shared_last == expanded.rend()) continue;
-    const auto replacement_first = std::find_if(
-      intersection_bound.begin(), intersection_bound.end(), [&](const auto & point) {
-        return point.id() == shared_first->id();
-      });
-    const auto replacement_last = std::find_if(
-      intersection_bound.begin(), intersection_bound.end(), [&](const auto & point) {
-        return point.id() == shared_last->id();
-      });
-    if (replacement_first == intersection_bound.end() || replacement_last == intersection_bound.end() ||
-        replacement_last < replacement_first) continue;
+    const auto & entry = locations.front();
+    const auto & exit = locations.back();
+    if (exit.arc_length - entry.arc_length < 1e-3) continue;
+
+    const lanelet::ConstPolygon3d polygon(*polygon_it);
+    const auto forward_arc = polygon_arc(polygon, entry.point, exit.point, true);
+    const auto reverse_arc = polygon_arc(polygon, entry.point, exit.point, false);
+    const double direction_x = exit.point.x() - entry.point.x();
+    const double direction_y = exit.point.y() - entry.point.y();
+    const auto lateral_score = [&](const auto & arc) {
+      return std::accumulate(
+               arc.begin(), arc.end(), 0.0,
+               [&](const double sum, const auto & point) {
+                 return sum + direction_x * (point.y() - entry.point.y()) -
+                                direction_y * (point.x() - entry.point.x());
+               }) /
+             std::max<size_t>(arc.size(), 1);
+    };
+    const double forward_score = lateral_score(forward_arc);
+    const double reverse_score = lateral_score(reverse_arc);
+    const auto & selected_arc =
+      is_left == (forward_score > reverse_score) ? forward_arc : reverse_arc;
 
     std::vector<lanelet::ConstPoint3d> updated;
-    updated.insert(updated.end(), expanded.begin(), shared_first);
-    updated.insert(updated.end(), replacement_first, std::next(replacement_last));
-    updated.insert(updated.end(), std::next(shared_last).base(), expanded.end());
+    for (size_t i = 0; i <= entry.segment; ++i) append_without_duplicate(updated, expanded[i]);
+    for (const auto & point : selected_arc) append_without_duplicate(updated, point);
+    for (size_t i = exit.segment + 1; i < expanded.size(); ++i) {
+      append_without_duplicate(updated, expanded[i]);
+    }
     expanded = std::move(updated);
   }
   return expanded;
@@ -1098,7 +1237,8 @@ std::vector<geometry_msgs::Point> calcBound(
   const bool enable_expanding_hatched_road_markings,
   const bool enable_expanding_intersection_areas,
   const bool enable_expanding_freespace_areas, const bool is_left,
-  const bool is_driving_forward)
+  const bool is_driving_forward,
+  const double intersection_area_lanelet_overlap_ratio_threshold)
 {
   using autoware::motion_utils::removeOverlapPoints;
   const auto & route_handler = planner_data->route_handler;
@@ -1136,7 +1276,8 @@ std::vector<geometry_msgs::Point> calcBound(
   }
   if (enable_expanding_intersection_areas) {
     bound_points = getBoundWithIntersectionAreas(
-      bound_points, route_handler, drivable_lanes, is_left);
+      bound_points, route_handler, drivable_lanes, is_left,
+      intersection_area_lanelet_overlap_ratio_threshold);
   }
   const auto bound = removeOverlapPoints(to_ros_point(bound_points));
   return skip_post_process ? bound :

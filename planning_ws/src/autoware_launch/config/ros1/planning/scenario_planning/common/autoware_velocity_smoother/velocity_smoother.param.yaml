@@ -3,10 +3,10 @@ margin_to_insert_external_velocity_limit: 0.3
 curvature_calculation_distance: 5.0
 enable_lateral_acc_limit: true
 lateral_acceleration_limits:
-- 4.5
-- 4.5
-- 4.5
-- 4.5
+- 5.8
+- 5.8
+- 5.8
+- 5.8
 min_curve_velocity: 4.1667
 decel_distance_before_curve: 2.0
 decel_distance_after_curve: 0.5
@@ -31,17 +31,17 @@ engage_exit_ratio: 0.5
 stop_dist_to_prohibit_engage: 0.5
 stopping_velocity: 2.778
 stopping_distance: 0.0
-extract_ahead_dist: 200.0
+extract_ahead_dist: 350.0
 extract_behind_dist: 5.0
 delta_yaw_threshold: 1.0472
-max_trajectory_length: 200.0
-min_trajectory_length: 180.0
+max_trajectory_length: 350.0
+min_trajectory_length: 350.0
 resample_time: 2.0
 dense_resample_dt: 0.2
 dense_min_interval_distance: 0.1
 sparse_resample_dt: 0.5
 sparse_min_interval_distance: 4.0
-post_max_trajectory_length: 300.0
+post_max_trajectory_length: 350.0
 post_min_trajectory_length: 30.0
 post_resample_time: 10.0
 post_dense_resample_dt: 0.1

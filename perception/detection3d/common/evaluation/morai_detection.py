@@ -123,6 +123,44 @@ def _filter_range(samples, distance_range):
     return filtered
 
 
+def _filter_center_box_range(samples, point_cloud_range):
+    """Keep GT and predictions whose centers lie in the model box range.
+
+    ``ObjectRangeFilter`` removes out-of-range GT during training, while the
+    detector head applies the same contract to predictions.  Evaluation must
+    therefore filter both sides with the identical axis-aligned range; a
+    radial distance cut is not equivalent near the corners of the BEV grid.
+    """
+    if point_cloud_range is None:
+        return samples
+
+    point_cloud_range = np.asarray(
+        point_cloud_range, dtype=np.float64).reshape(-1)
+    if point_cloud_range.size != 6:
+        raise ValueError(
+            "point_cloud_range must contain [xmin, ymin, zmin, xmax, ymax, zmax]"
+        )
+    minimum = point_cloud_range[:3]
+    maximum = point_cloud_range[3:]
+
+    filtered = []
+    for sample in samples:
+        gt_centers = sample["gt_boxes"][:, :3]
+        pred_centers = sample["pred_boxes"][:, :3]
+        gt_mask = np.all(
+            (gt_centers >= minimum) & (gt_centers <= maximum), axis=1)
+        pred_mask = np.all(
+            (pred_centers >= minimum) & (pred_centers <= maximum), axis=1)
+        filtered.append({
+            "gt_boxes": sample["gt_boxes"][gt_mask],
+            "gt_labels": sample["gt_labels"][gt_mask],
+            "pred_boxes": sample["pred_boxes"][pred_mask],
+            "pred_labels": sample["pred_labels"][pred_mask],
+            "pred_scores": sample["pred_scores"][pred_mask],
+        })
+    return filtered
+
+
 def accumulate(samples, class_index, distance_threshold):
     """Score-ranked, per-sample, one-to-one center-distance matching."""
     positives = sum(int(np.count_nonzero(sample["gt_labels"] == class_index))
@@ -442,7 +480,8 @@ def morai_detection_eval(data_infos,
                          distance_bins=DEFAULT_DISTANCE_BINS,
                          iou_thresholds=DEFAULT_IOU_THRESHOLDS,
                          include_tp=True,
-                         include_operating_points=True):
+                         include_operating_points=True,
+                         point_cloud_range=None):
     """Evaluate MORAI predictions and return flat scalar metric keys."""
     if len(data_infos) != len(results):
         raise AssertionError(
@@ -452,6 +491,7 @@ def morai_detection_eval(data_infos,
         raise ValueError("tp_threshold must be included in center_thresholds")
     samples = _extract_samples(
         data_infos, results, list(class_names), use_valid_flag)
+    samples = _filter_center_box_range(samples, point_cloud_range)
     metrics = _evaluate_center(
         samples, list(class_names), center_thresholds, float(tp_threshold),
         float(min_recall), float(min_precision), "center",

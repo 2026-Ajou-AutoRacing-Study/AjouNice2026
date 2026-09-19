@@ -187,7 +187,8 @@ BehaviorModuleOutput LaneChangeInterface::planWaitingApproval()
     updateRTCStatus(
       std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), false,
       State::WAITING_FOR_EXECUTION);
-    module_type_->resetParameters();
+    // Keep the pending request's signal/preparation clock. updateLaneChangeStatus
+    // clears invalid geometry; a full reset here restarts preparation every cycle.
     return out;
   }
 
@@ -238,9 +239,10 @@ bool LaneChangeInterface::canTransitSuccessState()
   };
   updateDebugMarker();
 
-  if (module_type_->specialExpiredCheck() && isWaitingApproval()) {
-    log_debug_throttled("Run specialExpiredCheck.");
-    return true;
+  // A pending candidate can expire or become unnecessary at a merge, but it
+  // has never executed. Do not report it as a successfully executed maneuver.
+  if (isWaitingApproval()) {
+    return false;
   }
 
   if (module_type_->hasFinishedLaneChange()) {
@@ -355,6 +357,12 @@ std::pair<LaneChangeStates, std::string_view> LaneChangeInterface::check_transit
   }
 
   if (isWaitingApproval()) {
+    if (module_type_->specialExpiredCheck()) {
+      return {LaneChangeStates::Cancel, "PendingCandidateExpired"};
+    }
+    if (module_type_->isValidPath() && module_type_->hasFinishedLaneChange()) {
+      return {LaneChangeStates::Cancel, "PendingCandidateAlreadyPassed"};
+    }
     if (module_type_->is_near_regulatory_element()) {
       return {LaneChangeStates::Cancel, "CloseToRegElement"};
     }

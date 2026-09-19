@@ -28,8 +28,10 @@ perception, planning, control의 **실제 입출력 계약**을 확인한다. �
 - [ ] 작업트리에 의도하지 않은 수정이 없다. 수정이 있다면 diff를 별도로 보관했다.
 - [ ] `planning_ws/install_isolated`와 `base_ws/install_aw149`가 현재 source에서
       빌드된 결과인지 확인했다.
-- [ ] v62 OSM, projector, route config의 파일명과 SHA-256을 기록했다.
-- [ ] BEVFusion production weight는 `B3-BF0 E10`이며 SHA-256을 확인했다.
+- [ ] 최신 production map인 v81 OSM, projector, route config의 파일명과
+      SHA-256을 기록했다.
+- [ ] BEVFusion production weight는 `B3-BF0-F40 E25`이며 SHA-256
+      `36816cf769c87d49483d002111abfad8e1afd043afd74a0b9fc54aac82133011`을 확인했다.
 - [ ] Docker image가 인터넷 없이 기동하고 healthcheck를 통과한다.
 - [ ] traffic-light weight와 실행 Python이 인터넷 없이 import 및 CUDA load된다.
 - [ ] launch에 필요한 모든 checkpoint가 로컬에 있다.
@@ -39,7 +41,7 @@ perception, planning, control의 **실제 입출력 계약**을 확인한다. �
 ### 현장 rollback 준비
 
 - [ ] production 명령과 실험 명령을 섞지 않는다.
-- [ ] heading correction ON/OFF 명령을 둘 다 준비했다.
+- [ ] production heading correction `-1.347 deg`와 rollback commit을 확인했다.
 - [ ] controller OFF launch를 가장 먼저 실행할 수 있다.
 - [ ] 모든 ROS 및 Docker process를 종료하는 순서를 알고 있다.
 - [ ] 검증된 이전 commit SHA와 weight SHA를 기록했다.
@@ -55,26 +57,21 @@ perception, planning, control의 **실제 입출력 계약**을 확인한다. �
 | LiDAR | topic, PointCloud2 fields, frame, rate, point time | BEVFusion 불가 |
 | GPS/IMU | topic, frame, unit, timestamp | GNSS+IMU localization 불가 |
 | `/Competition_topic` | type, heading 단위·북 기준, velocity/acceleration | 대회 CTRA 계약 확인 필요 |
-| `/Ego_topic` | 제공 여부와 공식 사용 허용 여부 | 현재 통합 기본 localization에 영향 |
+| `/Ego_topic` | production에서 사용하지 않음 | 대회 CTRA에는 영향 없음 |
 | `/Object_topic` | 제공 여부 | production에는 영향 없음 |
 | control | destination IP/port, mode, gear enum, watchdog | 폐루프 제어 불가 |
 | clock | wall time인지 simulation time인지, pause/reset 가능성 | freshness 판단에 영향 |
 
-### 반드시 해결해야 하는 localization 분기
+### 확정된 production localization 계약
 
-현재 `morai_planning_stack.launch`의 기본 `start_localization=true`는
-`localization_morai_gt.launch`, 즉 `/Ego_topic`을 사용한다. 대회용으로 별도 준비한
-provider는 `/Competition_topic + GPS + IMU` 기반
-`localization_gnss_imu_gt_ctra.launch`다.
+대회에서는 `/Competition_topic + GPS + IMU` 기반 CTRA localization만 사용한다.
+`/Ego_topic` 직접 GT provider는 대회 fallback이 아니다.
 
-따라서 현장에서는 다음 중 실제 공식 계약 하나를 명시적으로 선택한다.
-
-- `/Ego_topic`이 공식 제공되고 사용 허용: 통합 기본 localization을 사용한다.
-- `/Competition_topic`이 공식 입력: 통합 launch는 `start_localization:=false`로
-  실행하고 CTRA localization을 별도 터미널에서 정확히 한 개만 실행한다.
-
-두 localization을 동시에 켜서 같은 TF와 `/localization/kinematic_state`를 중복
-발행하면 안 된다.
+- 별도 터미널에서 `localization` alias를 정확히 한 번 실행한다.
+- Planning은 `start_localization:=false`로 실행한다.
+- heading correction `-1.347 deg`를 유지한다.
+- 다른 localization 또는 `maptf_*`를 동시에 실행하지 않는다.
+- `/Competition_topic` 상실 시 `/Ego_topic`으로 자동 fallback하지 않고 안전 정지한다.
 
 ## 1. Network와 sensing
 
@@ -88,8 +85,10 @@ provider는 `/Competition_topic + GPS + IMU` 기반
 
 ### Rate와 timestamp
 
-repository 설정상 기대치는 camera 4개 각각 30 Hz, LiDAR 15 Hz, Ego network
-50 Hz다. 이것은 합격값이 아니라 **비교 기준**이며 실제 client 값을 기록한다.
+현재 competition LAN sensor JSON 기준 기대치는 front camera 50 Hz, front-left/
+front-right/back camera 각각 30 Hz, LiDAR 15 Hz, GPS 30 Hz, IMU 50 Hz다. Ego
+network는 별도 network 설정 기준 50 Hz다. 이것은 합격값이 아니라 **비교 기준**이며
+실제 client 값을 기록한다.
 
 - [ ] 각 camera의 평균/p05 rate와 장시간 max gap을 기록했다.
 - [ ] LiDAR 평균/p05 rate와 point count 분포를 기록했다.
@@ -132,7 +131,7 @@ RViz는 simulator debug에서는 GT를 켤 수 있지만, production 확인에�
 - [ ] client map/scene 이름과 version을 촬영하고 기록한다.
 - [ ] 시작 위치, 도로 형상, lane 수, 합류부, 로터리와 GPS 음영 구간을 샘플과
       대조한다.
-- [ ] v62에서 수정된 B, D-1, D-2 stop line이 실제 simulator 신호등 시야와 맞는다.
+- [ ] v68의 B, D-1, D-2 stop line이 실제 simulator 신호등 시야와 맞는다.
 - [ ] binary planning map과 RViz marker map의 source OSM이 같다.
 - [ ] map/TF publisher가 중복되지 않는다.
 
@@ -145,31 +144,17 @@ RViz는 simulator debug에서는 GT를 켤 수 있지만, production 확인에�
 - [ ] GNSS/IMU/Competition input을 일시 차단했을 때 안전 정지와 복구를 확인한다.
 - [ ] Z 차이는 planning geometry가 아니라 RViz-only flatten 결과인지 구분한다.
 
-### Heading correction A/B
+### Heading correction 확인
 
-대회용 CTRA provider를 사용할 때 먼저 현재 기준인 보정 ON을 시험한다.
-
-```bash
-roslaunch bringup localization_gnss_imu_gt_ctra.launch \
-  gt_source:=competition \
-  use_heading_correction:=true \
-  heading_yaw_offset_deg:=-1.347 \
-  publish_sensor_tf:=false
-```
-
-실제 client에서 raw heading이 이미 수정되어 방향이 틀어지면 **동시에 켜지 않고**
-위 process를 종료한 뒤 보정 OFF로 A/B한다.
+대회 production은 보정 ON `-1.347 deg`로 확정한다.
 
 ```bash
-roslaunch bringup localization_gnss_imu_gt_ctra.launch \
-  gt_source:=competition \
-  use_heading_correction:=false \
-  publish_sensor_tf:=false
+localization
 ```
 
-선택 기준은 눈대중 한 frame이 아니라 시작점, 직선, 회전 구간에서 lane tangent 대비
-yaw 오차와 TF 연속성이다. 결과가 같지 않으면 어느 쪽을 선택했는지 rosbag과
-issue log에 반드시 남긴다.
+시작점, 직선, 회전 구간에서 lane tangent 대비 yaw와 TF 연속성을 확인한다. 현장에서
+임의로 correction을 끄지 않는다. 변경이 필요하다는 증거가 생기면 별도 bag으로
+재현한 뒤 rollback 가능한 변경으로 처리한다.
 
 ## 4. 출발, 판단과 재배치
 
@@ -263,6 +248,29 @@ rate에서 5분 시험을 먼저 기록해 분당 용량을 다시 계산한다.
 rate, max gap, detector latency/drop이 눈에 띄게 나빠지면 full profile을 고집하지
 않고 raw sensor 중심 기록과 downstream/status 중심 기록을 서로 다른 짧은 run으로
 나눈다. 기록 때문에 production pipeline이 느려지는 구성을 합격으로 간주하면 안 된다.
+
+### Topic Hz 일괄 snapshot
+
+센서·측위·인지·신호등·planning·control의 streaming topic을 같은 20초 구간에서
+측정하려면 다음을 실행한다.
+
+```bash
+cd "$HOME/AjouNice2026"
+bash scripts/runtime/record_field_topic_rates.sh
+```
+
+측정 시간을 바꾸거나 결과 루트를 지정할 수도 있다.
+
+```bash
+bash scripts/runtime/record_field_topic_rates.sh 30 \
+  "$HOME/field_inspection/topic_hz"
+```
+
+기본 결과는 `artifacts/field_checks/topic_hz/<YYMMDD_HHMMSS>/`에 저장된다.
+`summary.tsv`는 각 topic을 `OK`, `NO_PUBLISHER`, `NO_MESSAGES`로 구분하고 마지막
+평균 Hz를 기록한다. `rates/`와 `info/`에는 `/`를 `__`로 치환한 topic 이름별 원본
+측정 로그와 publisher/subscriber 정보가 남는다. 실행 당시 Git SHA, NIC 주소,
+ROS node/topic 목록도 같은 폴더에 보존한다.
 
 ### Secondary: rosbag 실패 대비
 

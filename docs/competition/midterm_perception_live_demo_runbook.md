@@ -42,7 +42,7 @@
 6. Viewport에서 `Show Performance`, `Show Vehicle Cluster and Map Info`를 켠다.
 7. Scenario load 후 `P`로 Parking 상태를 확인한다.
 
-저장소의 `ego_network_1.json`은 UDP receiver가 packet layout과 port를 읽는 내부
+저장소의 `ego_network_competition_local.json`은 UDP receiver가 packet layout과 port를 읽는 내부
 설정으로 사용할 수 있지만, MORAI GUI에서는 대회에서 허용되지 않은 Ego/Object/Service
 연결을 활성화하면 안 된다.
 
@@ -68,7 +68,7 @@ rosparam set /use_sim_time false
 
 roslaunch sensor_interface morai_udp_interface.launch \
   sensor_config:="$HOME/AjouNice2026/configs/sensors/Sensor_6.json" \
-  network_config:="$HOME/AjouNice2026/configs/network/ego_network_1.json" \
+  network_config:="$HOME/AjouNice2026/configs/network/ego_network_competition_local.json" \
   enable_control:=false \
   lidar_rpm:=900.0
 ```

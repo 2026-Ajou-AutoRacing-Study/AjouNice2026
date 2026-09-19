@@ -1,0 +1,37 @@
+{
+  "input": "lanelet_map/lanelet2_map_v72.osm",
+  "input_sha256": "f0e4fcecdce112579e6cec9c902025c92448f48f4c770178f7be586ea11badc6",
+  "split_reference": "lanelet_map/lanelet2_map_v60.osm",
+  "split_reference_sha256": "476c09476df1c84565b62d1713afa6a27683d01dd4e6cfb8456c0f54c4eabcb0",
+  "output": "lanelet_map/lanelet2_map_v73.osm",
+  "output_sha256": "0efa7cb3dfd249d5eb78c2e2552590037eb3b8725c58ebd433656e2d53a34610",
+  "restored_lanelets": [
+    200148,
+    200127,
+    200130,
+    200134,
+    201440,
+    201439,
+    201441,
+    201446
+  ],
+  "copied_way_count": 20,
+  "copied_node_count": 148,
+  "passable_boundaries": [
+    102241,
+    102237,
+    101992,
+    101993,
+    101991,
+    105456,
+    105462
+  ],
+  "removed_superseded_ways": [
+    105443,
+    105442,
+    105444,
+    105434,
+    105440,
+    105438
+  ]
+}

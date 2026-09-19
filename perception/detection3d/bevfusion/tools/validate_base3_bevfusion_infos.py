@@ -13,7 +13,23 @@ import numpy as np
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--info-dir', type=Path, required=True)
+    parser.add_argument(
+        '--capture-root', type=Path,
+        help='host capture root used to validate portable /datasets/base3 paths')
+    parser.add_argument(
+        '--serialized-capture-root', type=Path, default=Path('/datasets/base3'))
     args = parser.parse_args()
+
+    def host_path(value):
+        path = Path(value)
+        if args.capture_root is None:
+            return path
+        try:
+            relative = path.relative_to(args.serialized_capture_root)
+        except ValueError as exc:
+            raise AssertionError(
+                f'{path} is outside {args.serialized_capture_root}') from exc
+        return args.capture_root.expanduser().resolve() / relative
     seen, class_counts, split_counts = set(), Counter(), {}
     for split in ('train', 'val', 'test'):
         path = args.info_dir / f'morai_base3_infos_{split}.pkl'
@@ -26,12 +42,12 @@ def main():
             sample = row['sample_idx']
             assert sample not in seen, f'duplicate sample: {sample}'
             seen.add(sample)
-            lidar = Path(row['lidar_points']['lidar_path'])
+            lidar = host_path(row['lidar_points']['lidar_path'])
             assert lidar.is_file() and lidar.stat().st_size % 16 == 0, lidar
             assert list(row['images']) == [
                 'front', 'front_left', 'front_right', 'back']
             for camera in row['images'].values():
-                assert Path(camera['img_path']).is_file(), camera['img_path']
+                assert host_path(camera['img_path']).is_file(), camera['img_path']
                 assert np.asarray(camera['cam2img']).shape == (3, 3)
                 assert np.asarray(camera['lidar2cam']).shape == (4, 4)
                 assert np.asarray(camera['lidar2img']).shape == (3, 4)

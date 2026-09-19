@@ -13,14 +13,15 @@
       use_lane_type: "opposite_direction_lane"
       # drivable area setting
       use_intersection_areas: true
+      intersection_area_lanelet_overlap_ratio_threshold: 0.90
       use_hatched_road_markings: true
       use_freespace_areas: true
 
       # avoidance is performed for the object type with true
       target_object:
         car:
-          th_moving_speed: 1.0                          # [m/s]
-          th_moving_time: 2.0                           # [s]
+          th_moving_speed: 2.0                          # [m/s]
+          th_moving_time: 0.5                           # [s]
           longitudinal_margin: 0.0                      # [m]
           lateral_margin:
             soft_margin: 0.7                            # [m]
@@ -125,7 +126,7 @@
         object_check_goal_distance: 20.0                # [m]
         object_check_return_pose_distance: 20.0         # [m]
         # lost object compensation
-        max_compensation_time: 2.0
+        max_compensation_time: 5.0
 
         # detection area generation parameters
         detection_area:

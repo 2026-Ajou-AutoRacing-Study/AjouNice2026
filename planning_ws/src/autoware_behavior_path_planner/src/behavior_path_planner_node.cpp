@@ -151,6 +151,8 @@ BehaviorPathPlannerNode::BehaviorPathPlannerNode(ros::NodeHandle private_node)
     cyclic_message_timeout_ = declare_parameter<double>("cyclic_timeout");
     enable_traffic_signal_timeout_ = declare_parameter<bool>("enable_traffic_signal_timeout");
     use_occupancy_grid_ = declare_parameter<bool>("use_occupancy_grid", true);
+    enable_turn_signal_output_ = declare_parameter<bool>("enable_turn_signal_output", true);
+    enable_hazard_signal_output_ = declare_parameter<bool>("enable_hazard_signal_output", true);
     diagnostics_message_timeout_ =
       std::make_unique<autoware_utils_diagnostics::DiagnosticsInterface>(
         this, "incoming_message_timeout");
@@ -523,7 +525,14 @@ void BehaviorPathPlannerNode::computeTurnSignal(
   }
   turn_signal.stamp = bpp_full_native::stamp(get_clock()->now());
   hazard_signal.stamp = bpp_full_native::stamp(get_clock()->now());
-  turn_signal_publisher_->publish(turn_signal);
+  auto published_turn_signal = turn_signal;
+  if (!enable_turn_signal_output_) {
+    published_turn_signal.command = TurnIndicatorsCommand::DISABLE;
+  }
+  turn_signal_publisher_->publish(published_turn_signal);
+  if (!enable_hazard_signal_output_) {
+    hazard_signal.command = HazardLightsCommand::DISABLE;
+  }
   hazard_signal_publisher_->publish(hazard_signal);
 
   publish_turn_signal_debug_data(debug_data);

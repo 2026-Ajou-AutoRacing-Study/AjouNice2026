@@ -1195,6 +1195,22 @@ bool RouteHandler::getClosestRouteLaneletFromLanelet(
   auto opt = autoware::experimental::lanelet2_utils::get_closest_lanelet_within_constraint(
     lanelet_sequence, search_pose, dist_threshold, yaw_threshold);
   if (opt.has_value()) {
+    // In a shared merge area two successors may both contain ego. Geometric
+    // nearest/yaw ordering must not undo the successor chosen by the route.
+    // Restrict this tie-break to direct successors that actually contain ego;
+    // it must never snap the vehicle into a separate preferred parallel lane.
+    if (exists(next_lanelets, *opt) && !exists(preferred_lanelets_, *opt)) {
+      for (const auto & next : next_lanelets) {
+        if (!exists(preferred_lanelets_, next)) continue;
+        const auto inside_preferred =
+          autoware::experimental::lanelet2_utils::get_closest_lanelet_within_constraint(
+            {next}, search_pose, 1e-6, yaw_threshold);
+        if (inside_preferred) {
+          opt = inside_preferred;
+          break;
+        }
+      }
+    }
     *closest_lanelet = *opt;
     return true;
   }
@@ -1226,7 +1242,13 @@ bool RouteHandler::getNextLaneletWithinRoute(
 {
   lanelet::ConstLanelets next_lanelets{};
   if (getNextLaneletsWithinRoute(lanelet, &next_lanelets)) {
-    *next_lanelet = next_lanelets.front();
+    // Following edges can fork inside a route section (e.g. after a merge).
+    // Graph iteration order is not a route decision: taking an alternative
+    // here can lead to a short dead-end reference path and an unnecessary LC.
+    // Prefer only a *direct longitudinal successor*, never a lateral shortcut.
+    const auto preferred = std::find_if(next_lanelets.begin(), next_lanelets.end(),
+      [&](const auto & next) { return exists(preferred_lanelets_, next); });
+    *next_lanelet = preferred != next_lanelets.end() ? *preferred : next_lanelets.front();
     return true;
   }
   return false;

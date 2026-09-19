@@ -2,7 +2,10 @@
 # 260801 기준 최신 원본: configs/sensors/Sensor_6.json
 # GT-assisted CTRA-like measurement uncertainty for noise-disabled MORAI.
 # Values are standard deviations; adapter nodes publish their squares.
-profile_name: sensor6_gt_ideal
+# MORAI GPS is noise-free but quantized by its NMEA representation. 0.10 m is
+# the replay-validated production model for that quantization; 0.05 m made the
+# global EKF follow cell transitions too aggressively.
+profile_name: sensor6_gt_quantization_aware_0p10
 source_sensor_config: Sensor.json
 
 imu:
@@ -12,7 +15,7 @@ imu:
   linear_acceleration_stddev_mps2: 0.05
 
 gnss:
-  horizontal_stddev_m: 0.05
+  horizontal_stddev_m: 0.10
   vertical_stddev_m: 1.0
 
 gt:

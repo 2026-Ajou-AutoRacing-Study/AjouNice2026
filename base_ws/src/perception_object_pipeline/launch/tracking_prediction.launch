@@ -9,12 +9,20 @@
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="use_sim_time" default="false"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v72.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v84.osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <!-- Enable this to replace PointPainting detection only with MORAI GT. -->
   <arg name="use_morai_gt_detection" default="false"/>
   <arg name="morai_gt_objects" default="/Object_topic"/>
+  <!-- Offline A/B overrides; production defaults match config.yaml. -->
+  <arg name="tracker_prediction_model" default="1"/>
+  <arg name="tracker_system_noise_std_vx_vy_ms" default="1.0"/>
+  <arg name="tracker_meas_noise_std_xy_m" default="0.4"/>
+  <arg name="tracker_meas_noise_std_yaw_deg" default="10.0"/>
+  <arg name="tracker_use_kinematic_model" default="false"/>
+  <arg name="tracker_detection_velocity_fusion_mode" default="0"/>
+  <arg name="tracker_detection_velocity_noise_std_mps" default="1.0"/>
 
   <group if="$(arg use_morai_gt_detection)">
     <include file="$(find perception_object_pipeline)/launch/morai_gt_detection.launch">
@@ -46,8 +54,19 @@
     <arg name="maximum_tracking_output_compensation_sec" value="0.25"/>
     <arg name="tracking_internal_publish_rate_hz" value="30.0"/>
     <arg name="maximum_tracking_internal_prediction_age_sec" value="0.25"/>
-    <arg name="detection_velocity_fusion_mode" value="0"/>
-    <arg name="detection_velocity_noise_std_mps" value="1.0"/>
+    <arg name="detection_velocity_fusion_mode"
+         value="$(arg tracker_detection_velocity_fusion_mode)"/>
+    <arg name="detection_velocity_noise_std_mps"
+         value="$(arg tracker_detection_velocity_noise_std_mps)"/>
+    <arg name="tracker_prediction_model" value="$(arg tracker_prediction_model)"/>
+    <arg name="tracker_system_noise_std_vx_vy_ms"
+         value="$(arg tracker_system_noise_std_vx_vy_ms)"/>
+    <arg name="tracker_meas_noise_std_xy_m"
+         value="$(arg tracker_meas_noise_std_xy_m)"/>
+    <arg name="tracker_meas_noise_std_yaw_deg"
+         value="$(arg tracker_meas_noise_std_yaw_deg)"/>
+    <arg name="tracker_use_kinematic_model"
+         value="$(arg tracker_use_kinematic_model)"/>
     <arg name="tracking_publish_rate_hz" value="0.0"/>
     <arg name="maximum_tracking_resample_age_sec" value="0.25"/>
 

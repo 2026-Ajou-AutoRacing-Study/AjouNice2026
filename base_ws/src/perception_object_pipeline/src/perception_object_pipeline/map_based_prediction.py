@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import ctypes
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Sequence, Tuple
@@ -17,6 +18,31 @@ import yaml
 
 
 Point3 = Tuple[float, float, float]
+
+
+_AUTOWARE_LANELET2_EXTENSION_HANDLE = None
+
+
+def _load_autoware_lanelet2_extension() -> None:
+    """Register Autoware-specific Lanelet2 regulatory elements.
+
+    The Python Lanelet2 bindings only know the upstream regulatory elements.
+    Loading the ported extension library registers additional map primitives,
+    including ``roundabout``, in Lanelet2's process-global factory.
+    """
+
+    global _AUTOWARE_LANELET2_EXTENSION_HANDLE
+    if _AUTOWARE_LANELET2_EXTENSION_HANDLE is not None:
+        return
+    try:
+        _AUTOWARE_LANELET2_EXTENSION_HANDLE = ctypes.CDLL(
+            "libautoware_lanelet2_extension_lib.so", mode=ctypes.RTLD_GLOBAL
+        )
+    except OSError as exc:
+        raise RuntimeError(
+            "Autoware Lanelet2 extension library is unavailable. Source the "
+            "AW149 runtime overlay before starting map-based prediction."
+        ) from exc
 
 
 def normalize_angle(angle: float) -> float:
@@ -202,6 +228,7 @@ class LaneletNetwork:
         config: MapPredictionConfig | None = None,
     ) -> "LaneletNetwork":
         # Import lazily so pure geometry tests do not require a sourced ROS setup.
+        _load_autoware_lanelet2_extension()
         import lanelet2
 
         map_path = Path(map_file).expanduser().resolve()

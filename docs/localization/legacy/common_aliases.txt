@@ -1,0 +1,9 @@
+# Historical aliases for reproducing legacy localization experiments only.
+# Do not source this file in the competition runtime shell.
+
+alias localization_morai_gt="roslaunch bringup localization_morai_gt.launch"
+alias localization_fast_lio="roslaunch bringup localization_fast_lio.launch"
+alias maptf_morai="roslaunch bringup localization_morai_gt.launch"
+alias maptf_morai22="roslaunch bringup maptf_morai22.launch"
+alias maptf_morai_cor="roslaunch bringup maptf_morai_deg_correction.launch"
+alias maptf="roslaunch bringup maptf.launch"

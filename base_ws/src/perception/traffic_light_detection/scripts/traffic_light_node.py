@@ -162,6 +162,7 @@ class TrafficLightNode:
             )
 
         self.raw_debug_pub = rospy.Publisher("~debug_raw_label", String, queue_size=10)
+        self.observed_debug_pub = rospy.Publisher("~debug_observed_label", String, queue_size=10)
         self.policy_debug_pub = rospy.Publisher("~debug_policy_reason", String, queue_size=10)
 
         self._last_stamp = rospy.Time(0)
@@ -269,6 +270,7 @@ class TrafficLightNode:
         group.traffic_light_group_id = self._resolve_group_id()
         if group.traffic_light_group_id != self._last_policy_group_id:
             self.signal_smoother.reset()
+            self.signal_phase_policy.reset_transition()
             self._last_policy_group_id = group.traffic_light_group_id
 
         best = pick_ego_lane_box(boxes, self.center_tolerance_ratio, self.y_weight)
@@ -293,6 +295,7 @@ class TrafficLightNode:
 
                 self._maybe_save_conflict_crop(crop, raw_color_results)
 
+        self.observed_debug_pub.publish(String(data=_raw_label_for(raw_color_results)))
         fixed, policy_reason = self.signal_phase_policy.apply(
             raw_color_results, group.traffic_light_group_id
         )
@@ -307,12 +310,18 @@ class TrafficLightNode:
         raw_color_results = fixed
 
         self.raw_debug_pub.publish(String(data=_raw_label_for(raw_color_results)))
-        self.policy_debug_pub.publish(String(data=policy_reason))
 
-        smoothed = self.signal_smoother.update(
-            raw_color_results, payload=(raw_color_results, raw_det_conf)
+        color_results, det_conf, transition_reason = self.signal_phase_policy.process_normalized(
+            raw_color_results, policy_reason, group.traffic_light_group_id,
+            now.to_sec(), raw_det_conf, self.signal_smoother,
         )
-        color_results, det_conf = smoothed if smoothed is not None else ([], 0.0)
+        if transition_reason.endswith("yellow_stop_after_disallowed_phase"):
+            rospy.logwarn_throttle(
+                2.0,
+                f"[traffic_light_node] 조건부 노랑 STOP "
+                f"(gid={group.traffic_light_group_id}, reason={transition_reason})",
+            )
+        self.policy_debug_pub.publish(String(data=f"{policy_reason}|{transition_reason}"))
 
         labels_for_debug = []
         for color, shape, is_left in color_results:

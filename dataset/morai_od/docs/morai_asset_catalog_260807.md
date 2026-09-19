@@ -1,5 +1,53 @@
 # MORAI K-City 객체 자산 카탈로그와 학습 정책
 
+## 팀원용 빠른 가이드: 실제 Asset Name 찾기
+
+MORAI Scenario Edit에 입력할 실제 `Asset Name`과 `DataID`는 아래 JSON을
+기준으로 확인한다. 화면에서 보이는 이름을 추측해서 입력하지 말고, 같은
+행의 `data_id`와 `name`을 함께 사용해야 한다.
+
+| 목적 | 기준 파일 | 설명 |
+|---|---|---|
+| 대회 런처에 존재하는 전체 확인 자산 | `dataset/morai_od/configs/morai_asset_catalog_260807.json` | Vehicle 43종, 보행자 컨테이너 33종, curated obstacle 33종의 실제 `name`과 `data_id` |
+| 개인용 MORAI 런처 자산 | `dataset/morai_od/configs/morai_asset_catalog_personal_260807.json` | 현재 개인용 런처에서 추출한 이름과 시나리오 템플릿 정보 |
+| 양쪽 런처 공통 자동생성 가능 여부 | `dataset/morai_od/configs/morai_asset_launcher_compatibility_260807.json` | 대회·개인 런처 교집합, 한쪽에만 존재하는 자산, 정책상 제외 자산 구분 |
+| Base3-Static obstacle 실사용 목록 | `dataset/morai_od/scripts/generate_static_classcentric_base3_batch.py`의 `BASE3_OBSTACLE_ASSET_WEIGHTS` | 전체 obstacle catalog 중 대회 미션과 LiDAR 가시성 기준으로 최종 허용한 10종 |
+
+각 catalog의 배열 이름은 다음과 같다.
+
+- `vehicles`: 차량
+- `pedestrians_and_related`: 보행자, 동물, 탑승자 결합 자산
+- `obstacles_and_related`: 장애물과 도로 시설물
+
+저장소 루트에서 실제 이름을 한 번에 출력하려면 다음 명령을 사용한다.
+별도 Python 패키지는 필요하지 않다.
+
+```bash
+python3 dataset/morai_od/scripts/list_morai_assets.py
+```
+
+특정 이름을 찾는 예시는 다음과 같다.
+
+```bash
+python3 dataset/morai_od/scripts/list_morai_assets.py \
+  --query '^(CargoBox|WoodBox|Man1)$'
+```
+
+개인용 런처 또는 catalog 정책상 허용된 행만 보고 싶다면 다음처럼 쓴다.
+
+```bash
+python3 dataset/morai_od/scripts/list_morai_assets.py \
+  --catalog personal \
+  --enabled-only
+```
+
+여기서 `generation_policy=enabled`는 카탈로그 차원의 사용 가능 판정이다.
+그 자산이 Base3 학습에 실제 포함됐다는 뜻은 아니다. 실제 데이터셋 투입
+여부는 생성기의 allowlist/weight와 최종 capture audit를 함께 확인한다.
+또한 `pedestrianList`나 `objectList`라는 MORAI 저장 컨테이너 이름만으로
+학습 class를 판단하면 안 된다. 예를 들어 보행자 컨테이너에도 동물과
+자전거 탑승자가 포함된다.
+
 ## 1. 목적
 
 MORAI Scenario Edit에서 배치 가능한 자산을 시나리오 파일에 한 번씩 넣어

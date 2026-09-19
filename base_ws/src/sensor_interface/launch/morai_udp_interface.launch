@@ -2,14 +2,15 @@
   <!-- External MORAI UDP <-> internal ROS topic gateway. -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json"/>
   <arg name="network_config"
-       default="$(arg repo_root)/configs/network/ego_network_1.json"/>
+       default="$(arg repo_root)/configs/network/ego_network_competition_local.json"/>
   <arg name="vehicle_config"
        default="$(arg repo_root)/configs/vehicle/ioniq5.yaml"/>
   <arg name="enable_sensors" default="true"/>
   <arg name="enable_lidar" default="true"/>
   <arg name="enable_ego_network" default="true"/>
+  <arg name="enable_ego_vehicle_status" default="true"/>
   <arg name="enable_control" default="true"/>
   <arg name="lidar_port" default="2368"/>
   <arg name="lidar_frame" default="lidar1"/>
@@ -39,6 +40,7 @@
         type="morai_ego_udp_receiver" name="morai_ego_udp_receiver"
         output="screen" required="true">
     <param name="network_config" value="$(arg network_config)"/>
+    <param name="enable_ego_vehicle_status" value="$(arg enable_ego_vehicle_status)"/>
     <!-- MORAI Ego packet position/yaw are local-map coordinates, not Lanelet map. -->
     <param name="frame_id" value="morai_map"/>
   </node>

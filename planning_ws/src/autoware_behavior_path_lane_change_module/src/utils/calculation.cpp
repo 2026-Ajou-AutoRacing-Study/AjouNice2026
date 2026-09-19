@@ -286,7 +286,7 @@ std::vector<double> calc_max_lane_change_lengths(
 double calc_distance_buffer(const LCParamPtr & lc_param_ptr, const std::vector<double> & lc_lengths)
 {
   if (lc_lengths.empty()) {
-    return std::numeric_limits<double>::max();
+    return 0.0;
   }
 
   const auto finish_judge_buffer = lc_param_ptr->lane_change_finish_judge_buffer;
@@ -307,31 +307,82 @@ std::vector<double> calc_shift_intervals(
   const auto & route_handler_ptr = common_data_ptr->route_handler_ptr;
   const auto direction = common_data_ptr->direction;
 
-  return route_handler_ptr->getLateralIntervalsToPreferredLane(lanes.back(), direction);
+  // Look ahead through a preferred prefix, just as target-lane discovery does.
+  // An empty lateral interval on that prefix means "already preferred", not
+  // "no future maneuver". Once a lateral maneuver is found, retain its distance
+  // through the contiguous lateral section, stopping at a merge or preference change.
+  const auto & ego_lane = common_data_ptr->lanes_ptr->ego_lane;
+  auto lane_it = std::find_if(
+    lanes.begin(), lanes.end(),
+    [&](const auto & lane) { return lane.id() == ego_lane.id(); });
+  if (lane_it == lanes.end()) {
+    lane_it = lanes.begin();
+  }
+
+  std::vector<double> last_valid_intervals;
+  const auto preferred = route_handler_ptr->getPreferredLanelets();
+  const auto graph = route_handler_ptr->getRoutingGraphPtr();
+  if (!graph) return {};
+  const auto first_lane_it = lane_it;
+  for (; lane_it != lanes.end(); ++lane_it) {
+    if (lane_it != first_lane_it) {
+      const auto successors = graph->following(*std::prev(lane_it));
+      if (std::none_of(successors.begin(), successors.end(), [&](const auto & next) {
+            return next.id() == lane_it->id();
+          })) {
+        break;
+      }
+    }
+    const auto intervals =
+      route_handler_ptr->getLateralIntervalsToPreferredLane(*lane_it, direction);
+    if (intervals.empty()) {
+      const bool already_preferred = std::any_of(
+        preferred.begin(), preferred.end(),
+        [&](const auto & lane) { return lane.id() == lane_it->id(); });
+      if (last_valid_intervals.empty() && already_preferred) {
+        continue;
+      }
+      break;
+    }
+    // Do not forget an outstanding multi-lane movement just because the
+    // downstream preferred lane becomes closer before the merge.
+    if (intervals.size() >= last_valid_intervals.size()) {
+      last_valid_intervals = intervals;
+    }
+  }
+  return last_valid_intervals;
 }
 
-std::pair<MinMaxValue, MinMaxValue> calc_lc_length_and_dist_buffer(
+std::optional<std::pair<MinMaxValue, MinMaxValue>> calc_lc_length_and_dist_buffer(
   const CommonDataPtr & common_data_ptr, const lanelet::ConstLanelets & lanes)
 {
   if (!common_data_ptr || !common_data_ptr->is_data_available() || lanes.empty()) {
-    return {};
+    return std::nullopt;
   }
   const auto shift_intervals = calculation::calc_shift_intervals(common_data_ptr, lanes);
+  if (shift_intervals.empty()) {
+    return std::nullopt;
+  }
   const auto min_lc_lengths =
     calculation::calc_min_lane_change_lengths(common_data_ptr->lc_param_ptr, shift_intervals);
-  const auto min_lc_length =
-    !min_lc_lengths.empty() ? min_lc_lengths.front() : std::numeric_limits<double>::max();
+  const auto min_lc_length = min_lc_lengths.front();
   const auto min_dist_buffer =
     calculation::calc_distance_buffer(common_data_ptr->lc_param_ptr, min_lc_lengths);
 
   const auto max_lc_lengths =
     calculation::calc_max_lane_change_lengths(common_data_ptr, shift_intervals);
-  const auto max_lc_length =
-    !max_lc_lengths.empty() ? max_lc_lengths.front() : std::numeric_limits<double>::max();
+  const auto max_lc_length = max_lc_lengths.front();
   const auto max_dist_buffer =
     calculation::calc_distance_buffer(common_data_ptr->lc_param_ptr, max_lc_lengths);
 
-  return {{min_lc_length, max_lc_length}, {min_dist_buffer, max_dist_buffer}};
+  for (const auto value : {min_lc_length, max_lc_length, min_dist_buffer, max_dist_buffer}) {
+    if (!std::isfinite(value) || value < 0.0) {
+      return std::nullopt;
+    }
+  }
+
+  return std::make_pair(
+    MinMaxValue{min_lc_length, max_lc_length}, MinMaxValue{min_dist_buffer, max_dist_buffer});
 }
 
 double calc_phase_length(
@@ -369,16 +420,19 @@ std::pair<double, double> calc_min_max_acceleration(
 std::vector<double> calc_acceleration_values(
   const double min_accel, const double max_accel, const double sampling_num)
 {
-  if (min_accel > max_accel) return {};
+  if (!std::isfinite(min_accel) || !std::isfinite(max_accel) ||
+      !std::isfinite(sampling_num) || sampling_num < 1.0 || min_accel > max_accel) return {};
 
   if (max_accel - min_accel < eps) {
     return {min_accel};
   }
 
-  const auto resolution = std::abs(max_accel - min_accel) / sampling_num;
+  const auto intervals = static_cast<size_t>(sampling_num);
+  const auto resolution = (max_accel - min_accel) / intervals;
 
   std::vector<double> sampled_values{min_accel};
-  for (double accel = min_accel + resolution; accel < max_accel + eps; accel += resolution) {
+  for (size_t i = 1; i <= intervals; ++i) {
+    const double accel = i == intervals ? max_accel : min_accel + resolution * i;
     // check whether if we need to add 0.0
     if (sampled_values.back() < -eps && accel > eps) {
       sampled_values.push_back(0.0);
@@ -396,15 +450,28 @@ std::vector<double> calc_lon_acceleration_samples(
   const double prepare_duration)
 {
   const auto & transient_data = common_data_ptr->transient_data;
-  const auto & current_pose = common_data_ptr->get_ego_pose();
-  const auto & target_lanes = common_data_ptr->lanes_ptr->target;
-  const auto goal_pose = common_data_ptr->route_handler_ptr->getGoalPose();
   const auto sampling_num = common_data_ptr->lc_param_ptr->trajectory.lon_acc_sampling_num;
 
   const auto min_max_accel =
     calc_min_max_acceleration(common_data_ptr, max_path_velocity, prepare_duration);
   const auto & min_accel = min_max_accel.first;
   const auto & max_accel = min_max_accel.second;
+
+  // Competition mode explores front and rear gaps even far from a lane end.
+  if (common_data_ptr->lc_param_ptr->trajectory.min_prepare_duration <= eps) {
+    const auto values = calc_acceleration_values(min_accel, max_accel, sampling_num);
+    std::vector<double> ordered;
+    // Cover both extremes before refining, so a time budget does not spend all
+    // its work on the accelerating half of the grid.
+    for (size_t i = 0; i < (values.size() + 1) / 2; ++i) {
+      ordered.push_back(values[i]);
+      if (values.size() - 1 - i != i) ordered.push_back(values[values.size() - 1 - i]);
+    }
+    return ordered;
+  }
+  const auto & current_pose = common_data_ptr->get_ego_pose();
+  const auto & target_lanes = common_data_ptr->lanes_ptr->target;
+  const auto goal_pose = common_data_ptr->route_handler_ptr->getGoalPose();
 
   const auto is_sampling_required = std::invoke([&]() -> bool {
     if (max_accel < 0.0 || transient_data.is_ego_stuck) return true;
@@ -432,6 +499,19 @@ double calc_lane_changing_acceleration(
   const double max_path_velocity, const double lane_changing_time,
   const double prepare_longitudinal_acc)
 {
+  const auto & params = common_data_ptr->lc_param_ptr->trajectory;
+  if (params.min_prepare_duration <= eps) {
+    if (!std::isfinite(lane_changing_time) || lane_changing_time <= eps) {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+    const auto & bpp = *common_data_ptr->bpp_param_ptr;
+    const double lower = std::max({bpp.min_acc, params.min_longitudinal_acc,
+      (params.min_lane_changing_velocity - initial_lane_changing_velocity) / lane_changing_time});
+    const double upper = std::min({bpp.max_acc, params.max_longitudinal_acc,
+      (std::min(max_path_velocity, bpp.max_vel) - initial_lane_changing_velocity) / lane_changing_time});
+    if (lower > upper) return std::numeric_limits<double>::quiet_NaN();
+    return std::clamp(prepare_longitudinal_acc, lower, upper);
+  }
   if (prepare_longitudinal_acc <= 0.0) {
     const auto & params = common_data_ptr->lc_param_ptr->trajectory;
     const auto lane_changing_acc =
@@ -461,17 +541,36 @@ double calc_actual_prepare_duration(
     const auto max_acc =
       std::min(common_data_ptr->bpp_param_ptr->max_acc, params.max_longitudinal_acc);
     if (max_acc < eps) {
+      if (params.min_prepare_duration <= eps) {
+        return std::numeric_limits<double>::infinity();
+      }
       return params.max_prepare_duration;
     }
     return std::max((min_lc_velocity - current_velocity) / max_acc, params.min_prepare_duration);
   });
 
+  // Zero minimum is the signal-free competition policy: wait only for
+  // physical speed readiness, never for turn-signal elapsed time.
+  if (params.min_prepare_duration <= eps) return min_prepare_duration;
   return std::max(params.max_prepare_duration - active_signal_duration, min_prepare_duration);
 }
 
 std::vector<double> calc_prepare_durations(const CommonDataPtr & common_data_ptr)
 {
   const auto & lc_param_ptr = common_data_ptr->lc_param_ptr;
+  if (lc_param_ptr->trajectory.min_prepare_duration <= eps) {
+    const double earliest = common_data_ptr->transient_data.lane_change_prepare_duration;
+    const double latest = lc_param_ptr->trajectory.max_prepare_duration;
+    std::vector<double> durations;
+    if (!std::isfinite(earliest) || earliest < 0.0 || earliest > latest) return durations;
+    // Try an immediate safe maneuver first, then delayed alternatives if the
+    // target lane has not started yet or current traffic prevents starting now.
+    for (double duration = earliest; duration < latest - eps; duration += 0.5) {
+      durations.push_back(duration);
+    }
+    durations.push_back(latest);
+    return durations;
+  }
   const auto threshold = common_data_ptr->bpp_param_ptr->base_link2front +
                          lc_param_ptr->min_length_for_turn_signal_activation;
 
@@ -574,6 +673,7 @@ std::vector<PhaseMetrics> calc_shift_phase_metrics(
 
     const double lane_changing_accel = calc_lane_changing_acceleration(
       common_data_ptr, initial_velocity, max_path_velocity, lane_changing_duration, lon_accel);
+    if (!std::isfinite(lane_changing_accel)) continue;
 
     const auto lane_changing_length = calculation::calc_phase_length(
       initial_velocity, max_vel, lane_changing_accel, lane_changing_duration);

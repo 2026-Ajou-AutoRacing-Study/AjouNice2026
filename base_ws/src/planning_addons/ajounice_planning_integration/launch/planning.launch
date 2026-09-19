@@ -4,12 +4,22 @@
   <arg name="vehicle_param_path"
        default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
   <arg name="mission_planner_param_path"
-       default="$(find ajounice_planning_integration)/config/mission_planner_kcity_v72.yaml"/>
+       default="$(find ajounice_planning_integration)/config/mission_planner_kcity_v84.yaml"/>
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
   <arg name="is_simulation" default="false"/>
-  <arg name="behavior_path_forward_length" default="150.0"/>
+  <arg name="behavior_path_forward_length" default="400.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>
+  <!-- Keep the competition behavior by default. Local localization/control
+       load tests may explicitly bypass traffic lights without launching a
+       fake signal publisher. -->
+  <arg name="enable_traffic_light_planner" default="true"/>
+  <arg name="behavior_velocity_launch_modules_with_traffic_light"
+       default="[autoware::behavior_velocity_planner::experimental::CrosswalkModulePlugin, autoware::behavior_velocity_planner::experimental::WalkwayModulePlugin, autoware::behavior_velocity_planner::experimental::TrafficLightModulePlugin, autoware::behavior_velocity_planner::experimental::RoundaboutModulePlugin, autoware::behavior_velocity_planner::experimental::MergeFromPrivateModulePlugin, autoware::behavior_velocity_planner::experimental::BlindSpotModulePlugin, autoware::behavior_velocity_planner::experimental::VirtualTrafficLightModulePlugin, autoware::behavior_velocity_planner::experimental::NoStoppingAreaModulePlugin, autoware::behavior_velocity_planner::experimental::StopLineModulePlugin, autoware::behavior_velocity_planner::experimental::SpeedBumpModulePlugin, autoware::behavior_velocity_planner::experimental::NoDrivableLaneModulePlugin]"/>
+  <arg name="behavior_velocity_launch_modules_without_traffic_light"
+       default="[autoware::behavior_velocity_planner::experimental::CrosswalkModulePlugin, autoware::behavior_velocity_planner::experimental::WalkwayModulePlugin, autoware::behavior_velocity_planner::experimental::RoundaboutModulePlugin, autoware::behavior_velocity_planner::experimental::MergeFromPrivateModulePlugin, autoware::behavior_velocity_planner::experimental::BlindSpotModulePlugin, autoware::behavior_velocity_planner::experimental::VirtualTrafficLightModulePlugin, autoware::behavior_velocity_planner::experimental::NoStoppingAreaModulePlugin, autoware::behavior_velocity_planner::experimental::StopLineModulePlugin, autoware::behavior_velocity_planner::experimental::SpeedBumpModulePlugin, autoware::behavior_velocity_planner::experimental::NoDrivableLaneModulePlugin]"/>
+  <arg name="behavior_velocity_launch_modules"
+       default="$(eval arg('behavior_velocity_launch_modules_with_traffic_light') if arg('enable_traffic_light_planner') else arg('behavior_velocity_launch_modules_without_traffic_light'))"/>
   <!-- The competition perception stack intentionally publishes unresolved
        detections as UNKNOWN. Do not suppress a newly observed UNKNOWN object
        for the upstream two-second classification-stability grace period. -->
@@ -26,6 +36,9 @@
     <arg name="repo_root" value="$(arg repo_root)"/>
   </include>
   <include file="$(find tier4_planning_launch)/launch/planning.launch">
+    <!-- LC-only candidate rejection logs; no planning behavior change. -->
+    <env name="ROSCONSOLE_CONFIG_FILE"
+         value="$(find ajounice_planning_integration)/config/lane_change_diagnostics.rosconsole"/>
     <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
     <arg name="mission_planner_param_path" value="$(arg mission_planner_param_path)"/>
     <arg name="is_simulation" value="$(arg is_simulation)"/>
@@ -36,7 +49,7 @@
     <arg name="behavior_path_launch_modules"
          value="[autoware::behavior_path_planner::StaticObstacleAvoidanceModuleManager, autoware::behavior_path_planner::DynamicObstacleAvoidanceModuleManager, autoware::behavior_path_planner::SideShiftModuleManager, autoware::behavior_path_planner::BidirectionalTrafficModuleManager, autoware::behavior_path_planner::SamplingPlannerModuleManager, autoware::behavior_path_planner::LaneChangeRightModuleManager, autoware::behavior_path_planner::LaneChangeLeftModuleManager, autoware::behavior_path_planner::ExternalRequestLaneChangeRightModuleManager, autoware::behavior_path_planner::ExternalRequestLaneChangeLeftModuleManager, autoware::behavior_path_planner::AvoidanceByLaneChangeModuleManager]"/>
     <arg name="behavior_velocity_launch_modules"
-         value="[autoware::behavior_velocity_planner::experimental::CrosswalkModulePlugin, autoware::behavior_velocity_planner::experimental::WalkwayModulePlugin, autoware::behavior_velocity_planner::experimental::TrafficLightModulePlugin, autoware::behavior_velocity_planner::experimental::IntersectionModulePlugin, autoware::behavior_velocity_planner::experimental::RoundaboutModulePlugin, autoware::behavior_velocity_planner::experimental::MergeFromPrivateModulePlugin, autoware::behavior_velocity_planner::experimental::BlindSpotModulePlugin, autoware::behavior_velocity_planner::experimental::VirtualTrafficLightModulePlugin, autoware::behavior_velocity_planner::experimental::NoStoppingAreaModulePlugin, autoware::behavior_velocity_planner::experimental::StopLineModulePlugin, autoware::behavior_velocity_planner::experimental::SpeedBumpModulePlugin, autoware::behavior_velocity_planner::experimental::NoDrivableLaneModulePlugin]"/>
+         value="$(arg behavior_velocity_launch_modules)"/>
     <arg name="motion_velocity_launch_modules"
          value="[autoware::motion_velocity_planner::ObstacleCruiseModule, autoware::motion_velocity_planner::OutOfLaneModule, autoware::motion_velocity_planner::DynamicObstacleStopModule, autoware::motion_velocity_planner::RunOutModule, autoware::motion_velocity_planner::experimental::BoundaryDeparturePreventionModule, autoware::motion_velocity_planner::RoadUserStopModule]"/>
     <arg name="validator_launch_modules"

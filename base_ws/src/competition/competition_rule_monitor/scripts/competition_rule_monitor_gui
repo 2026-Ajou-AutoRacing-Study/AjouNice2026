@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+from competition_rule_monitor.gui import main
+
+if __name__ == "__main__":
+    main()

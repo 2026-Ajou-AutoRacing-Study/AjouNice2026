@@ -107,7 +107,6 @@ std::tuple<std::vector<double>, std::vector<double>> calcVehicleCirclesByFitting
   std::vector<double> longitudinal_offsets;
   for (size_t i = 0; i < circle_num; ++i) {
     longitudinal_offsets.push_back(unit_lon_length * i - vehicle_info.rear_overhang_m);
-    radiuses.push_back(radius);
   }
 
   return {radiuses, longitudinal_offsets};
@@ -175,6 +174,24 @@ double calcLateralDistToBounds(
   return closest_dist_to_bound;
 }
 }  // namespace
+
+namespace detail
+{
+void assignHardConstraintStateBlock(
+  Eigen::MatrixXd & destination, const Eigen::SparseMatrix<double> & source,
+  const size_t reference_count, const size_t state_count)
+{
+  if (
+    source.rows() != static_cast<Eigen::Index>(reference_count) ||
+    source.cols() != static_cast<Eigen::Index>(state_count) ||
+    destination.rows() < static_cast<Eigen::Index>(reference_count) ||
+    destination.cols() < static_cast<Eigen::Index>(state_count)) {
+    throw std::invalid_argument("invalid hard-constraint state block dimensions");
+  }
+
+  destination.block(0, 0, reference_count, state_count) = source;
+}
+}  // namespace detail
 
 MPTOptimizer::MPTParam::MPTParam(
   rclcpp::Node * node, const autoware::vehicle_info_utils::VehicleInfo & vehicle_info)
@@ -1899,7 +1916,10 @@ MPTOptimizer::ConstraintMatrix MPTOptimizer::calcConstraintMatrix(
       const size_t A_blk_rows = N_ref;
 
       Eigen::MatrixXd A_blk = Eigen::MatrixXd::Zero(A_blk_rows, N_v);
-      A_blk.block(0, 0, N_ref, N_ref) = C_sparse_mat;
+      // C maps every reference point to its full kinematic state block.  Restricting this copy to
+      // N_ref columns silently drops state columns when D_x > 1, so the supposed hard road-bound
+      // constraint can accept a trajectory that the downstream rectangle-footprint check rejects.
+      detail::assignHardConstraintStateBlock(A_blk, C_sparse_mat, N_ref, N_x);
 
       A.block(A_rows_end, 0, A_blk_rows, N_v) = A_blk;
       lb.segment(A_rows_end, A_blk_rows) = part_lb - C_vec;

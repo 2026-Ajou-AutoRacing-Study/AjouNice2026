@@ -1,0 +1,7 @@
+id: rtx4090
+match: "RTX 4090"
+cuda_arch: "8.9"
+physical_batch_size: 4
+gradient_accumulation: 1
+workers: 6
+shm_size: 12g

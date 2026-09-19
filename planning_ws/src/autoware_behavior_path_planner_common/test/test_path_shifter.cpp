@@ -90,6 +90,32 @@ TEST(PathShifter, RejectsMissingAndTooShortReference)
   EXPECT_FALSE(shifter.generate(&output));
 }
 
+TEST(PathShifter, SignedBrakingChangesSplineAndRejectsStoppingBeforeEnd)
+{
+  using namespace autoware::behavior_path_planner;
+  auto path = makePath();
+  for (auto & point : path.points) point.point.pose.position.x *= 5;
+  PathShifter shifter;
+  shifter.setPath(path);
+  ShiftLine line;
+  line.start = path.points.front().point.pose;
+  line.end = path.points.back().point.pose;
+  line.end_shift_length = 3.5;
+  shifter.setShiftLines({line});
+  shifter.setVelocity(20);
+  shifter.setLateralAccelerationLimit(6.5);
+  ShiftedPath coasting, braking;
+  shifter.setLongitudinalAcceleration(0);
+  ASSERT_TRUE(shifter.generate(&coasting));
+  shifter.setLongitudinalAcceleration(-3);
+  ASSERT_TRUE(shifter.generate(&braking));
+  EXPECT_GT(std::abs(braking.path.points.at(3).point.pose.position.y -
+                     coasting.path.points.at(3).point.pose.position.y), 0.01);
+  EXPECT_NEAR(braking.path.points.back().point.pose.position.y, 3.5, 1e-6);
+  shifter.setLongitudinalAcceleration(-6);
+  EXPECT_THROW(shifter.generate(&braking), std::logic_error);
+}
+
 TEST(StartCommonUtilities, PreservesVectorNormAndStopLaneIdIntersection)
 {
   namespace utils = autoware::behavior_path_planner::utils;

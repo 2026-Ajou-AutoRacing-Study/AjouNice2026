@@ -104,9 +104,13 @@ class Inputs:
         return math.sqrt(sum(value * value for value in values))
 
     def guard(self, key):
+        if not policy.allowed(self.case, key):
+            return False, 'route not allowed by frozen case'
         progress = self.progress()
-        if not policy.allowed(self.case, key) or progress is None or not policy.in_window(self.routes, key, *progress):
-            return False, 'case, fresh odometry, or request window not satisfied'
+        if progress is None:
+            return False, 'fresh valid odometry unavailable'
+        if not policy.in_window(self.routes, key, *progress, initial=self.active is None):
+            return False, 'outside %s request window' % key
         now = rospy.Time.now().to_sec()
         if self.map is None or not self.map.data or self.state is None or self.mode is None:
             return False, 'map, route state, or operation mode unavailable'
@@ -114,15 +118,16 @@ class Inputs:
             return False, 'raw OSM payload is not the planning binary map contract'
         if not policy.fresh(now, stamp(self.mode.stamp), self.cfg['operation_mode_max_age']):
             return False, 'stale operation mode'
-        if self.state.state == RouteState.UNSET:
-            if key == 'route_a':
-                start = self.routes['start']
-                p = self.odom.pose.pose.position
-                if math.hypot(p.x-start['map_pose']['x'], p.y-start['map_pose']['y']) > start['expected_pose_tolerance_m']:
-                    return False, 'outside official start tolerance'
-            elif key != 'route_b' or self.case != 'route_b_only' or progress[0] != 200178:
-                return False, 'invalid initial route'
-            return True, 'initial route ready'
+        if self.active is None:
+            if key not in ('route_a', 'route_b'):
+                return False, 'only Route A or B can initialize a planner session'
+            stable_states = (RouteState.UNSET, RouteState.SET, RouteState.ARRIVED,
+                             RouteState.ABORTED, RouteState.INTERRUPTED)
+            if self.state.state not in stable_states:
+                return False, 'route state transition in progress'
+            detail = ('startup %s ready; replacing existing route' % key
+                      if self.state.state != RouteState.UNSET else 'startup %s ready' % key)
+            return True, detail
         if key == 'route_a':
             if (self.active not in ('route_a', 'route_b', 'fallback_route') or
                     self.state.state != RouteState.SET or not self.matches(self.active)):
@@ -259,7 +264,10 @@ class Gateway(Inputs):
                 primitive = LaneletPrimitive(id=lane, primitive_type='lane')
                 request.segments.append(LaneletSegment(preferred_primitive=primitive, primitives=[primitive]))
         else:
-            request.waypoints = [pose(self.routes['poses'][ref]) for ref in definition['waypoint_refs']]
+            progress = self.progress()
+            current_lane = progress[0] if progress is not None else None
+            refs = policy.remaining_waypoint_refs(self.routes, key, current_lane)
+            request.waypoints = [pose(self.routes['poses'][ref]) for ref in refs]
         return request
 
     def fault(self, key, reason):
@@ -307,13 +315,35 @@ class Gateway(Inputs):
             time.sleep(0.02)
         raise RuntimeError('preferred route accepted but final sequence not confirmed')
 
+    def wait_for_dispatch_guard(self, key):
+        """Bridge a short subscriber handoff without weakening route windows."""
+        transient = {
+            'fresh valid odometry unavailable',
+            'map, route state, or operation mode unavailable',
+            'stale operation mode',
+            'route state transition in progress',
+        }
+        deadline = time.monotonic() + max(1.0, 4 * max(
+            self.cfg['odometry_max_age'], self.cfg['operation_mode_max_age']))
+        while not rospy.is_shutdown():
+            ready, reason = self.guard(key)
+            if ready or reason not in transient or time.monotonic() >= deadline:
+                return ready, reason
+            time.sleep(0.02)
+
     def run_request(self, key):
         dispatched = False
+        # Keep the request mode fixed for the whole transaction.  In particular, a startup
+        # Route B request uses the startup window (200258 s >= 0), while an A-to-B reroute uses
+        # the later reroute trigger (200258 s >= 8).  self.active is intentionally updated only
+        # after trajectory verification, so inferring the mode differently during verification
+        # would reject a valid startup request before the reroute trigger.
+        initial_request = self.active is None
         try:
             srv_type = SetLaneletRoute if key == 'fallback_route' else SetWaypointRoute
             name = self.cfg['set_lanelet_route_service_name' if key == 'fallback_route' else 'set_waypoint_route_service_name']
             rospy.wait_for_service(name, timeout=self.cfg['service_timeout'])
-            ready, reason = self.guard(key)
+            ready, reason = self.wait_for_dispatch_guard(key)
             if not ready:
                 self.report('REJECTED', key, reason)
                 return
@@ -393,7 +423,8 @@ class Gateway(Inputs):
                 odometry_missing_since = None
                 if key != 'route_a':
                     progress = self.progress()
-                    if progress is None or not policy.in_window(self.routes, key, *progress):
+                    if progress is None or not policy.in_window(
+                            self.routes, key, *progress, initial=initial_request):
                         self.fault(key, 'verification lost odometry or passed route deadline')
                         return
                 for next_tc, next_vc, trajectory, status in self.validated_pairs_after(tc, vc):
@@ -456,6 +487,8 @@ class Supervisor(Inputs):
         if key is None:
             return
         initial = self.active is None
+        if initial and key == 'route_b' and self.attempts.get(key, 0) >= 1:
+            return
         limit = self.cfg['initial_route_max_attempts' if initial else 'reroute_max_attempts']
         interval = self.cfg['retry_initial_interval' if initial else 'retry_reroute_interval']
         if limit and self.attempts.get(key, 0) >= limit or time.monotonic()-self.last_attempt < interval:

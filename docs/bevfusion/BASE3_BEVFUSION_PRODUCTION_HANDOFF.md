@@ -1,35 +1,39 @@
 # Base3 BEVFusion production handoff
 
-이 문서는 판단·플래닝 PC에서 `B3-BF0 E10`을 동일 조건으로 실행하기 위한
+> **문서 상태: CURRENT.** Production E25 online inference 기준이다.
+
+이 문서는 판단·플래닝 PC에서 `B3-BF0-F40 E25`를 동일 조건으로 실행하기 위한
 운영 계약이다. 과거 `260720_*zero_shot*` 문서는 MORAI 학습 전 nuScenes
 checkpoint 실험 기록이며 production 실행법이 아니다.
 
 터미널별 전체 실행 순서는
 [`morai_full_stack_by_terminal.md`](../runbooks/morai_full_stack_by_terminal.md)를
 따른다. BF1 camera-domain fine-tuning 실험과 production 보류 근거는
-[`BASE3_BF1_ONLINE_DOMAIN_FINETUNE.md`](BASE3_BF1_ONLINE_DOMAIN_FINETUNE.md)에
+[`legacy/BASE3_BF1_ONLINE_DOMAIN_FINETUNE.md`](legacy/BASE3_BF1_ONLINE_DOMAIN_FINETUNE.md)에
 분리해 기록한다.
 
 ## 고정된 production 구성
 
 | 항목 | 값 |
 |---|---|
-| 모델 | `B3-BF0 E10`, Base3 4-camera + LiDAR BEVFusion |
+| 모델 | `B3-BF0-F40 E25`, Base3 4-camera + LiDAR BEVFusion |
 | 모델 입력 | front/front-left/front-right/back JPEG + LiDAR XYZI |
 | 출력 | `/perception/object_recognition/detection/objects` |
 | confidence | Vehicle `0.40`, Pedestrian `0.15`, Obstacle `0.10` |
 | 후단 | EKF tracking → UNKNOWN stationary policy → Map-CV prediction |
+| Tracker | CTRV, position measurement noise `0.40 m` |
+| Detector velocity | E25는 7D이므로 fusion 기본 `off` |
 | Docker base | PyTorch 2.7.1, CUDA 12.8, cuDNN 9 |
 | GPU | RTX 4090의 compute capability 8.9가 이미지 빌드 대상에 포함됨 |
 
 학습 checkpoint와 별도로 전달되는 배포 파일 이름은
-`base3_bf0_e10_inference.pth`이다. 파일을 아래 위치에 둔다.
+`base3_bf0_f40_e25_inference.pth`이다. 파일을 아래 위치에 둔다.
 
 ```bash
 mkdir -p "$HOME/bevfusion_artifacts/checkpoints"
-cp /전달받은/경로/base3_bf0_e10_inference.pth \
+cp /전달받은/경로/base3_bf0_f40_e25_inference.pth \
   "$HOME/bevfusion_artifacts/checkpoints/"
-sha256sum "$HOME/bevfusion_artifacts/checkpoints/base3_bf0_e10_inference.pth"
+sha256sum "$HOME/bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth"
 ```
 
 기대 SHA-256은 이 파일을 생성·검증한 뒤 본 문서의 `Release receipt`에
@@ -115,7 +119,7 @@ rostopic hz /sensor/camera/back/compressed
 ```bash
 cd "$HOME/AjouNice2026"
 AJOUNICE_ROOT="$PWD" \
-BEVFUSION_CHECKPOINT="$HOME/bevfusion_artifacts/checkpoints/base3_bf0_e10_inference.pth" \
+BEVFUSION_CHECKPOINT="$HOME/bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth" \
 docker compose -f docker/bevfusion/compose.yaml up -d inference
 
 docker compose -f docker/bevfusion/compose.yaml logs -f inference
@@ -159,6 +163,13 @@ roslaunch ajounice_planning_integration morai_planning_stack.launch \
 `start_detector:=false`는 detector를 끄겠다는 뜻이 아니라 planning launch가
 FastBEV/PointPainting을 하나 더 띄우지 않게 한다는 뜻이다. BEVFusion bridge가
 동일한 canonical topic을 공급한다.
+
+2026-09-19 tracker A/B에서 CTRV는 유지하고 position measurement noise 기본값을
+`0.30 -> 0.40 m`로 조정했다. E25는 velocity를 출력하지 않으므로 detector velocity
+fusion은 꺼져 있다. 향후 9D velocity 모델도 검증 없이 자동으로 fusion을 켜지 않으며,
+첫 A/B covariance는 `0.5 m/s`를 사용한다. 근거는
+[`260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`](260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md)를
+따른다.
 
 공용 planning 기본값은 `0.25 s`로 유지한다. 위 `0.5 s` override는 RTX 5060 Ti에서
 측정된 BEVFusion sensor-stamp age 약 `0.33--0.36 s`를 수용하기 위한 BEVFusion 전용
@@ -210,8 +221,9 @@ rosnode info /bevfusion_ros_bridge
 
 정상 상태는 detector publisher가 정확히 하나이고, status가 `ok`이며,
 `dropped_raw`와 `dropped_prepared`가 지속적으로 증가하지 않는 상태다. RTX 5060
-Ti에서 E10은 약 12.5–12.8 Hz 처리 용량과 약 78–84 ms p50/p95 end-to-end
-latency를 보였다. RTX 4090 수치는 현장에서 다시 측정한다.
+Ti에서 기존 E10은 약 12.5–12.8 Hz 처리 용량과 약 78–84 ms p50/p95
+end-to-end latency를 보였다. E25는 같은 architecture와 입력 계약을 사용하며,
+RTX 4090 수치는 현장에서 다시 측정한다.
 
 종료는 다음과 같다.
 
@@ -243,8 +255,8 @@ docker compose -f docker/bevfusion/compose.yaml down
 |---|---|
 | Git branch | `perception/bevfusion-base3-domain-generalization` |
 | Git commit | 이 문서를 포함한 전달 commit (`git rev-parse HEAD`로 확인) |
-| checkpoint | `base3_bf0_e10_inference.pth` |
-| checkpoint SHA-256 | `b2d3f65befaa16382cdd189f9c8ac1aff2d2176e6c48e19a17ab329947eff419` |
-| checkpoint size | `163,667,267 bytes` (약 156 MiB) |
+| checkpoint | `base3_bf0_f40_e25_inference.pth` |
+| checkpoint SHA-256 | `36816cf769c87d49483d002111abfad8e1afd043afd74a0b9fc54aac82133011` |
+| checkpoint size | `163,669,971 bytes` (약 156 MiB) |
 | Docker image | `ajounice/bevfusion:dev-cu128` |
 | MMDetection3D | `19422fb451504c6c8ff8dbab0fd48f3e4d73a113` |

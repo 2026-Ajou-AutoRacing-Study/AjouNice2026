@@ -18,9 +18,48 @@ def _launch():
 
 def test_integrated_stack_owns_downstream_pipeline_but_not_detector_by_default():
     args = {item.attrib["name"]: item.attrib for item in _launch().findall("arg")}
+    assert args["start_localization"]["default"] == "false"
     assert args["start_object_pipeline"]["default"] == "true"
     assert args["start_detector"]["default"] == "false"
     assert args["detector"]["default"] == "fastbev"
+    assert args["start_traffic_light"]["default"] == "true"
+    assert args["enable_traffic_light_planner"]["default"] == "true"
+
+
+def test_local_load_test_can_disable_only_the_traffic_light_planner_plugin():
+    planning_launch = ET.parse(
+        PACKAGE_ROOT / "launch" / "planning.launch"
+    ).getroot()
+    args = {
+        item.attrib["name"]: item.attrib for item in planning_launch.findall("arg")
+    }
+    assert args["enable_traffic_light_planner"]["default"] == "true"
+
+    with_traffic = args[
+        "behavior_velocity_launch_modules_with_traffic_light"
+    ]["default"]
+    without_traffic = args[
+        "behavior_velocity_launch_modules_without_traffic_light"
+    ]["default"]
+    traffic_light_plugin = (
+        "autoware::behavior_velocity_planner::experimental::"
+        "TrafficLightModulePlugin"
+    )
+    assert traffic_light_plugin in with_traffic
+    assert traffic_light_plugin not in without_traffic
+
+    tier4_include = next(
+        item
+        for item in planning_launch.findall("include")
+        if item.attrib["file"].endswith(
+            "tier4_planning_launch)/launch/planning.launch"
+        )
+    )
+    values = {
+        item.attrib["name"]: item.attrib["value"]
+        for item in tier4_include.findall("arg")
+    }
+    assert values["behavior_velocity_launch_modules"] == "$(arg behavior_velocity_launch_modules)"
 
 
 def test_integrated_downstream_contract_matches_standalone_production_launch():
@@ -52,16 +91,16 @@ def test_integrated_downstream_contract_matches_standalone_production_launch():
     for name, value in expected.items():
         assert values.get(name) == value, (name, values.get(name))
     assert top_level["maximum_tracking_internal_prediction_age_sec"]["default"] == "0.25"
-    assert values["map_file"].endswith("/lanelet2_map_v72.osm")
+    assert values["map_file"].endswith("/lanelet2_map_v84.osm")
     assert values["projector_file"].endswith("/map_projector_info_v1.yaml")
 
 
-def test_v72_map_sha_is_identical_across_runtime_contracts():
-    map_path = REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v72.osm"
+def test_v83_map_sha_is_identical_across_runtime_contracts():
+    map_path = REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v84.osm"
     route_path = (
         REPO_ROOT
         / "base_ws/src/planning_addons/competition_route_requester/config"
-        / "kcity_v72_competition_route.yaml"
+        / "kcity_v84_competition_route.yaml"
     )
     publisher_path = PACKAGE_ROOT / "scripts/map_projector_publisher"
 
@@ -76,12 +115,23 @@ def test_v72_map_sha_is_identical_across_runtime_contracts():
 
 
 def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
-    config_path = PACKAGE_ROOT / "config/mission_planner_kcity_v72.yaml"
+    config_path = PACKAGE_ROOT / "config/mission_planner_kcity_v84.yaml"
     config = yaml.safe_load(config_path.read_text())
     assert config["route_section_primitive_overrides"] == {
-        "200130": [200127, 200130, 200134],
-        "201447": [201447],
+        "201436": [201436, 201435, 200099, 201438],
+        "200127": [200127, 200130, 200134],
+        "201439": [201439, 201441, 201446],
+        "200185": [200185, 200360],
+        "201476": [201476, 201477],
+        "201448": [201448, 201479],
+        "201447": [201478, 201447],
         "201401": [201401],
+        "201465": [201465, 201466, 201467, 201468],
+        "201473": [201473, 201474, 201475],
+    }
+    assert set(config["route_section_excluded_lanelet_ids"]) == {
+        201400, 201440, 200148, 201445, 200141, 200186, 201437, 201463,
+        201472, 201464,
     }
 
     integration_launch = ET.parse(PACKAGE_ROOT / "launch/planning.launch").getroot()
@@ -89,7 +139,7 @@ def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
         item.attrib["name"]: item.attrib for item in integration_launch.findall("arg")
     }
     assert integration_args["mission_planner_param_path"]["default"].endswith(
-        "/config/mission_planner_kcity_v72.yaml"
+        "/config/mission_planner_kcity_v84.yaml"
     )
     tier4_include = next(
         item

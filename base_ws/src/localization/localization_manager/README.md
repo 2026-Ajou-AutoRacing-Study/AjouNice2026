@@ -15,7 +15,25 @@ Provider-specific covariance handling is described below. FAST-LIO providers
 currently leave it unavailable; the GNSS+IMU provider preserves the EKF
 covariance.
 
-## FAST-LIO provider
+## Production competition provider
+
+The competition runtime uses GNSS+IMU+Competition GT CTRA-like localization.
+Source `docs/common_alias.txt` and use exactly one of these entrypoints:
+
+```bash
+# Competition: /Competition_topic + GPS + IMU
+localization
+
+# MRP (2026 personal launcher) only: /Ego_topic + GPS + IMU
+localization_mrp
+```
+
+Both aliases enable the `-1.347 deg` heading correction and disable duplicate
+sensor static TF publication. `/Ego_topic` direct GT localization is not a
+competition fallback. See `docs/localization/README.md` for the canonical
+document index.
+
+## Legacy/research FAST-LIO provider
 
 Run:
 
@@ -44,13 +62,16 @@ map -> morai_map -> camera_init -> body -> base_link
 base-link origin using the lever arm, snapshots `map -> base_link`, and
 publishes the common output topic.
 
-## MORAI ground-truth provider
+## Legacy/local MORAI ground-truth provider
 
 Run:
 
 ```bash
 roslaunch bringup localization_morai_gt.launch
 ```
+
+This provider requires `/Ego_topic`. It is retained for old bag reproduction
+and local visualization, not competition operation.
 
 Input:
 
@@ -74,7 +95,7 @@ for `bringup/localization_morai_gt.launch`.
 common Odometry output while applying the scenario-calibrated `-1.347 deg` yaw offset to
 `morai_map -> base_link`. The raw `/Ego_topic` remains in `morai_map`.
 
-## FAST-LIO + GNSS provider (experimental)
+## Legacy FAST-LIO + GNSS provider (experimental)
 
 Run:
 
@@ -94,7 +115,7 @@ rotation, so GNSS correction does not rotate the existing TF tree mid-run.
 Wheel input is disabled. The current GNSS covariance is a configurable test
 model, not a calibrated competition value.
 
-## GNSS + IMU provider (experimental baseline)
+## Legacy GNSS + IMU provider (experimental baseline)
 
 Run the noise-disabled Sensor_4 baseline:
 
@@ -250,19 +271,30 @@ state path, and horizontal speed. The image is regenerated from the existing
 map and state during replay, so it does not need to be recorded in the bag.
 Disable it with `show_minimap:=false`.
 
-## GNSS + IMU + GT CTRA-like provider (experimental)
+## GNSS + IMU + GT CTRA-like provider (production)
 
-Run existing bags, which contain `/Ego_topic` but not `/Competition_topic`:
+Run production through the common alias:
 
 ```bash
-roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=ego
+localization
 ```
 
-Switch the same implementation to the competition status topic explicitly:
+For existing bags or personal MORAI that contain `/Ego_topic` but not
+`/Competition_topic`, use:
+
+```bash
+localization_mrp
+```
+
+The aliases expand to explicit source and heading arguments. When debugging
+without aliases, the competition equivalent is:
 
 ```bash
 roslaunch bringup localization_gnss_imu_gt_ctra.launch \
-  gt_source:=competition
+  gt_source:=competition \
+  use_heading_correction:=true \
+  heading_yaw_offset_deg:=-1.347 \
+  publish_sensor_tf:=false
 ```
 
 The provider adds `morai_gt_motion_adapter.py` without replacing the existing
@@ -291,8 +323,11 @@ input. Selecting `gt_source:=competition` changes only the continuous yaw and
 velocity source. Replace the initial Ego pose with the provided manual start
 pose before competition use.
 
-The full design, terminal procedures, and validation scope are documented in
-`docs/localization/260801_robot_localization_gnss_imu_gt_ctra_fusion.md`.
+The current production contract and validation scope are documented in
+`docs/localization/README.md` and
+`docs/localization/260918_competition_localization_critical_issue_status.md`.
+The initial implementation record is preserved under
+`docs/localization/legacy/260801_robot_localization_gnss_imu_gt_ctra_fusion.md`.
 
 ## TF ownership and exclusivity
 
