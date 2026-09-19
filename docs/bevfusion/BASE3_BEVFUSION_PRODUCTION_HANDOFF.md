@@ -21,6 +21,8 @@ checkpoint 실험 기록이며 production 실행법이 아니다.
 | 출력 | `/perception/object_recognition/detection/objects` |
 | confidence | Vehicle `0.40`, Pedestrian `0.15`, Obstacle `0.10` |
 | 후단 | EKF tracking → UNKNOWN stationary policy → Map-CV prediction |
+| Tracker | CTRV, position measurement noise `0.40 m` |
+| Detector velocity | E25는 7D이므로 fusion 기본 `off` |
 | Docker base | PyTorch 2.7.1, CUDA 12.8, cuDNN 9 |
 | GPU | RTX 4090의 compute capability 8.9가 이미지 빌드 대상에 포함됨 |
 
@@ -161,6 +163,13 @@ roslaunch ajounice_planning_integration morai_planning_stack.launch \
 `start_detector:=false`는 detector를 끄겠다는 뜻이 아니라 planning launch가
 FastBEV/PointPainting을 하나 더 띄우지 않게 한다는 뜻이다. BEVFusion bridge가
 동일한 canonical topic을 공급한다.
+
+2026-09-19 tracker A/B에서 CTRV는 유지하고 position measurement noise 기본값을
+`0.30 -> 0.40 m`로 조정했다. E25는 velocity를 출력하지 않으므로 detector velocity
+fusion은 꺼져 있다. 향후 9D velocity 모델도 검증 없이 자동으로 fusion을 켜지 않으며,
+첫 A/B covariance는 `0.5 m/s`를 사용한다. 근거는
+[`260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`](260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md)를
+따른다.
 
 공용 planning 기본값은 `0.25 s`로 유지한다. 위 `0.5 s` override는 RTX 5060 Ti에서
 측정된 BEVFusion sensor-stamp age 약 `0.33--0.36 s`를 수용하기 위한 BEVFusion 전용

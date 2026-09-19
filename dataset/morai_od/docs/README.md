@@ -1,6 +1,6 @@
 # MORAI OD dataset 문서 index
 
-마지막 정리: 2026-09-19.
+마지막 정리: 2026-09-20.
 
 ## Base3-Online — CURRENT
 
@@ -16,6 +16,8 @@
    - 설계 배경과 pilot에서 본 수집까지의 결정 이력. 일부 Phase 문장은 역사적 계획임.
 5. [`../../../docs/bevfusion/260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md`](../../../docs/bevfusion/260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md)
    - 팀원 PC에서 fresh/E25-init 학습하고 고주로 rosbag을 평가하는 CURRENT handoff.
+6. [`../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)
+   - 다음 고주로 Vehicle velocity head/causal 3-sweep 수집·학습·평가 PLAN.
 
 ### 현재 사용 경로
 

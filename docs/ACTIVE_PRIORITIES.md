@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획.
 
-마지막 갱신: 2026-09-19.
+마지막 갱신: 2026-09-20.
 
 ## 관리 규칙.
 
@@ -223,22 +223,30 @@
 [`base2_temporal3_velocity_d4_readiness.md`](../perception/pointpainting/docs/base2_temporal3_velocity_d4_readiness.md),
 [`semantic_oracle_painting_ablation.md`](../perception/pointpainting/docs/semantic_oracle_painting_ablation.md).
 
-## P2. Vehicle velocity supervision과 temporal modeling 재개 조건.
+## P2. Base4-Temporal 고주로 Velocity Pilot.
 
-- P0와 P1에서 single-frame detection geometry를 먼저 안정화한다.
-- 이후 한 번에 한 요인만 바꾸는 velocity ablation을 수행한다.
-  - V0: velocity channel weight `0.2` baseline.
-  - V1: Vehicle velocity channel weight `0.5`.
-  - V2: `0.2`와 class-balanced/moving-balanced velocity loss.
-  - V3: V1과 V2가 각각 유효할 때만 결합.
+- Single-frame detection geometry와 tracker A/B를 완료했다. Position-only tracker의
+  고주로 2D AVE는 약 `0.96 m/s`이고, GT velocity oracle은 `0.259 m/s`와 stable
+  3초 FDE `0.594 m`를 보여 velocity observation의 개선 여지가 충분하다.
+- 다음 P0 motion 실험은 전체 Base4가 아니라 `Base4-Temporal-Highway-Pilot`,
+  `B4T-HWY-P0`다. E25 spatial weights에서 시작해 한 번에 한 요인을 비교한다.
+  - E25-7D: 현 production single-frame, velocity 없음.
+  - B4H-V1: single-frame 9D `vx,vy` head.
+  - B4H-T1: causal 3-sweep 9D `vx,vy` head.
+- B4H-V1을 먼저 학습해 velocity GT/head 효과를 확인한 뒤 B4H-T1으로 넘어간다.
+  첫 실험부터 3-sweep만 사용해 supervision과 temporal 이득을 혼합하지 않는다.
+- loss weight와 moving-balanced velocity loss는 B4H-V1 baseline이 정상 수렴한 다음
+  한 요인씩 비교한다. 처음부터 여러 loss 변경을 결합하지 않는다.
 - 판단 지표는 Vehicle AVE, speed MAE, 종·횡방향 MAE와 detection geometry 손상,
   rosbag tracking AVE 및 Map-CV 1/2/3초 FDE다.
 - 3-sweep production 후보는 학습과 online 추론에서 동일한 causal sweep 정합 계약을
-  만족해야 한다.
-- Base3-Static 학습 후 BBox-only tracker의 velocity와 Map-CV prediction을 먼저 평가한다.
-  이 결과가 부족할 때만 Base4-Temporal을 시작한다.
-- Base4는 Base3 spatial checkpoint로 초기화하되 첫 baseline은 Base4-only full
-  fine-tuning으로 수행한다. Base3 single-frame을 연속 3-sweep loader에 직접 섞지 않는다.
+  만족해야 한다. 과거 sweep은 Ego pose로 현재 LiDAR frame에 정합하되 GT Object
+  motion compensation은 input에 사용하지 않는다.
+- BBox-only tracker와 Map-CV 평가는 완료됐으며 production 고속 추월 목표에는 부족하다.
+  따라서 Base4 velocity pilot 시작 조건은 충족됐다.
+- Base4는 Base3 spatial checkpoint로 초기화한다. 각 B4H baseline에서는 head만 고정해
+  학습하지 않고 전체 detector를 작은 LR로 fine-tuning하되, Base3 single-frame을 연속
+  3-sweep loader에 가짜 sequence로 직접 섞지 않는다.
 - Base4 수집기·label builder 구현을 시작할 때 velocity metadata 계약을 다시 검토한다.
   - `velocity_target_ego_mps`만 학습 GT로 노출한다.
   - Base3 capture archive의 `derived_velocity_mps`는 학습 GT가 아니다.
@@ -248,6 +256,11 @@
 - Static 성능 망각이 확인될 때는 우선 Base4의 static·empty sequence 비중과 learning rate를
   조정한다. 그래도 필요할 때만 shared spatial encoder를 쓰는 별도 single-frame auxiliary
   branch·dual-loader를 구현한다.
+- Pilot split은 train/val만 sequence 단위로 만들고 내부 test는 생략한다. 기존 고주로
+  합류·고주로1 bag은 반복 사용된 dev rosbag이며 최종 test가 아니다. 최종 후보는 다른
+  seed·속도·spawn timing의 새 held-out 고주로 bag 최소 2개에서 한 번 평가한다.
+- 상세 수집·학습·평가 계약:
+  [`260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md).
 
 ### Base3 Dynamic-Ped Add-on v1 완료.
 

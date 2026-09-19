@@ -1,7 +1,7 @@
 # Base3-Online rosbag dataset — CURRENT STATE
 
 - 상태: **CURRENT**
-- 마지막 검증: 2026-09-19
+- 마지막 검증: 2026-09-20
 - 기준 branch: `perception/base3-online-rosbag-dataset`
 - 최소 구현 commit: `b1a341c9`
 
@@ -180,6 +180,26 @@ body-y twist를 버린 evaluator와 sensor playback timer miss를 수정한 뒤 
 production은 E25를 유지한다.
 상세 근거는
 [`../../../docs/bevfusion/260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md`](../../../docs/bevfusion/260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md)를 따른다.
+
+### 다음 세대: Base4-Temporal-Highway-Pilot
+
+현재 983-frame V2는 Base3-Online single-frame sensor-domain 실험의 최종본이다. 이를
+그대로 전체 Base4라고 이름 바꾸거나, 독립 frame을 가짜 sequence로 묶지 않는다.
+
+다음 수집은 `B4T-HWY-P0`라는 별도 pilot으로 진행한다.
+
+- 실제 LiDAR cadence의 연속 sequence를 수집한다.
+- LiDAR 시각 pose interpolation과 단일 `velocity_target_ego_mps=[vx,vy]` 계약을 쓴다.
+- 과거 sweep은 Ego motion만 현재 frame에 정합하고 GT Object motion compensation은
+  input에 적용하지 않는다.
+- train/val은 sequence 단위로 나누며 작은 pilot에는 dataset test split을 만들지 않는다.
+- 기존 고주로 합류·고주로1 bag은 반복 사용된 dev 평가이고, 최종 test는 새 held-out
+  고주로 bag 최소 2개로 수행한다.
+- E25 7D, single-frame 9D velocity, causal 3-sweep 9D를 비교하고 tracker velocity
+  off/on까지 분리한다.
+
+전체 계약과 채택 gate는
+[`../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)를 따른다.
 
 Vehicle-only corpus라서 3-class `val/center/mAP`는 Pedestrian/Obstacle 0을 포함한다.
 `vehicle_mean_AP`, `vehicle_mATE`로 epoch 후보를 좁히되 production 교체는 기존 7-bag의

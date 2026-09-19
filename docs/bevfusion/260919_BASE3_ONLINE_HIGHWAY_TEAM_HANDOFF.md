@@ -214,8 +214,10 @@ subdirectory의 `summary.json`에 저장된다. Detection만 높고 tracker/Map-
 3. Map-CV top-1 FDE@1/2/3s와 coverage.
 4. 기존 production E25와 동일 bag·동일 threshold로 비교.
 
-원본 학습용 paired bag을 평가에 재사용하지 않는다. 학습·평가 누수를 피하기 위해
-위 두 production benchmark bag을 유지한다.
+원본 학습용 paired bag을 평가에 재사용하지 않는다. 위 두 bag은 반복적으로 모델과
+tracker 파라미터를 고르는 데 사용했으므로 이제 production **development evaluation**으로
+분류한다. 최종 일반화 성능은 다른 NPC seed·속도·spawn timing으로 새로 취득한 held-out
+고주로 bag에서 확인한다.
 
 ## 확인 및 문제 보고
 
@@ -235,11 +237,15 @@ grep -E '^(BASE3_ONLINE_HIGHWAY_ROOT|BEVFUSION_BASE3_E25_FINETUNE_CHECKPOINT)=' 
 
 ## 첫 E25 fine-tuning 결과
 
-RTX 5060 Ti에서 E12를 완료했으며 E7이 online val AP best였다. E7은 E25 대비 Vehicle
-3-bag AP를 개선했지만 Obstacle AP와 tracking AVE, Map-CV FDE를 악화시켜 production으로
-승격하지 않았다. 동일 recipe를 반복하기 전에
+RTX 5060 Ti에서 E12를 완료했으며 E7이 online val AP best였다. E7은 E25 대비 고주로
+Vehicle AP, center p50과 올바른 2D tracking AVE를 개선했다. 기존에 보고한 큰 AVE/FDE
+악화는 body-y twist를 누락한 evaluator와 sensor-topic playback의 timer miss를 수정한
+뒤 재현되지 않았다. 다만 Obstacle 망각 때문에 전역 production으로 승격하지 않는다.
+동일 recipe를 반복하기 전에
 [`260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md`](260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md)를
-읽고 general-domain rehearsal 또는 더 짧고 작은-LR인 다음 통제 실험을 설계한다.
+읽는다. 다음 motion 통제 실험은
+[`260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)를
+따른다.
 
 W&B API key와 `$HOME/.netrc`는 전달하지 않는다.
 
