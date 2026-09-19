@@ -138,7 +138,7 @@ def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, eps
     """Show the v84 highway lane groups and the requested bottleneck LC."""
     current = [201456, 201438, 200128, 200102, 200134, 201446, 200360]
     selected = [201457, 201435, 201466, 200137, 200187, 201470, 200130,
-                201473, 201439, 200360, 201477, 201479, 201447]
+                201473, 201439, 200185, 201453, 201477, 201479, 201447]
     upper = [201459, 201436, 200138, 201444, 200127, 201439, 200185]
     # v77 transverse splits preserve the physical corridors; v84 additionally
     # splits 201448/201447 at the requested LC cross-section.
@@ -223,7 +223,7 @@ def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, eps
         '• 병합된 200187은 중간 차선이다. 같은 위치의 최상위는 201444이다.',
         '• 진입 직후 평행 후보 201456~201459 중에서',
         '  SetPreferredPrimitive로 중간 차선 201457을 선택한다.',
-        '• 병목 직후 200360→201477로 이동한다.',
+        '• 병목 직후 200185→201453을 거쳐 201477로 이동한다.',
         '• 이후 201479→201447 하위 차선을 유지한다.',
     ], 'small', 29)
     svg.append(f'<text x="955" y="812" class="small">v{config["map"]["version"]} · SHA-256 {actual_hash[:16]}…</text>')

@@ -143,24 +143,23 @@ class PolicyTest(unittest.TestCase):
             self.assertEqual(
                 preferred_window,
                 [201459, 201436, 201465, 200138, 201444, 201469, 200127,
-                 201473, 201439, 200360, 201477, 201479, 201447,
+                 201473, 201439, 200185, 201453, 201477, 201479, 201447,
                  201399],
             )
 
-            # Move to the left bottleneck approach early, then enter 200360 immediately
-            # after the bottleneck and stay on the lower split pair.
+            # Preserve both bottleneck exits in the route corridor by following the
+            # connected 200185 -> 201453 branch before selecting 201477.
             initial_bottleneck = initial[initial.index(201439):initial.index(201477)]
-            self.assertEqual(initial_bottleneck, [201439, 200360])
+            self.assertEqual(initial_bottleneck, [201439, 200185, 201453])
             initial_split = initial[initial.index(201477):initial.index(201399) + 1]
             self.assertEqual(initial_split, [201477, 201479, 201447, 201399])
 
             refs = self.routes[key]['waypoint_refs']
             self.assertLess(refs.index('wp_200187_merged'), refs.index('wp_201473'))
-            self.assertLess(refs.index('wp_201473'), refs.index('wp_200360'))
+            self.assertLess(refs.index('wp_201473'), refs.index('wp_200185'))
             self.assertNotIn('wp_201444_mid', refs)
-            self.assertNotIn('wp_200185', refs)
             self.assertEqual(self.routes['poses']['wp_200187_merged']['lanelet_id'], 200187)
-            self.assertEqual(self.routes['poses']['wp_200360']['lanelet_id'], 200360)
+            self.assertEqual(self.routes['poses']['wp_200185']['lanelet_id'], 200185)
 
     def test_route_a_accepts_start_to_trigger_suffixes(self):
         initial = self.routes['route_a']['waypoint_path_lanelet_ids']
@@ -173,7 +172,7 @@ class PolicyTest(unittest.TestCase):
                              final[index:])
 
     def test_geometry_and_hash(self):
-        for ref in ('wp_200178', 'wp_200258', 'wp_201473', 'wp_200360',
+        for ref in ('wp_200178', 'wp_200258', 'wp_201473', 'wp_200185',
                     'wp_201447_after_lc', 'fallback_cutoff_201439'):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
