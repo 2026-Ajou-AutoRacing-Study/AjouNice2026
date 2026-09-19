@@ -23,6 +23,8 @@ def extract(case_dir: Path):
             "center_p50_m",
             "speed_mae_mps",
             "ave_mps",
+            "longitudinal_velocity_mae_mps",
+            "lateral_velocity_mae_mps",
             "yaw_mae_deg",
             "all_top1_fde_1s_m",
             "all_top1_fde_2s_m",
@@ -56,6 +58,12 @@ def extract(case_dir: Path):
             "center_p50_m": tracking["bbox_center_absolute_distance_m"]["p50"],
             "speed_mae_mps": tracking["absolute_speed_error_mps"]["mean"],
             "ave_mps": tracking["velocity_l2_error_mps"]["mean"],
+            "longitudinal_velocity_mae_mps": tracking[
+                "absolute_longitudinal_velocity_error_mps"
+            ]["mean"],
+            "lateral_velocity_mae_mps": tracking[
+                "absolute_lateral_velocity_error_mps"
+            ]["mean"],
             "yaw_mae_deg": tracking["absolute_yaw_error_deg"]["mean"],
             "all_top1_fde_1s_m": all_h["1"]["top1_fde_m"]["mean"],
             "all_top1_fde_2s_m": all_h["2"]["top1_fde_m"]["mean"],
@@ -85,9 +93,9 @@ def markdown(results):
         "Equal-weight macro of `vehicle_highway_merge` and `vehicle_highway1`.",
         "Playback must be 1.0x for the internal 30 Hz scheduler.",
         "",
-        "| Case | F1 ↑ | Center p50 ↓ | Speed MAE ↓ | AVE ↓ | Yaw MAE ↓ | "
+        "| Case | F1 ↑ | Center p50 ↓ | Speed MAE ↓ | AVE ↓ | Long/Lat MAE ↓ | Yaw MAE ↓ | "
         "stable minFDE-K 1/2/3s ↓ | all Top-1 FDE 1/2/3s ↓ |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for name, result in results.items():
         row = result["macro"]
@@ -96,6 +104,8 @@ def markdown(results):
         lines.append(
             f"| {name} | {row['tracking_f1']:.4f} | {row['center_p50_m']:.3f} | "
             f"{row['speed_mae_mps']:.3f} | {row['ave_mps']:.3f} | "
+            f"{row['longitudinal_velocity_mae_mps']:.3f}/"
+            f"{row['lateral_velocity_mae_mps']:.3f} | "
             f"{row['yaw_mae_deg']:.2f} | {stable} | {all_fde} |"
         )
     lines.append("")

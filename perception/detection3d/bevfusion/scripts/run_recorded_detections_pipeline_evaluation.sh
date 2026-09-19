@@ -136,8 +136,13 @@ cat >"$output_dir/tracker_config.json" <<EOF
 EOF
 
 echo "[play] $label rate=$playback_rate tracker=$(tr -d '\n ' < "$output_dir/tracker_config.json")"
+# The pipeline needs only ego pose and recorded detections. Re-publishing the
+# large camera/LiDAR payloads from the raw bag can starve the tracker's 30 Hz
+# ROS-time scheduler and make identical runs produce different frame counts.
 rosbag play --quiet --clock --rate="$playback_rate" \
-  "$raw_bag" "$detections_bag" >"$output_dir/rosbag.log" 2>&1
+  "$raw_bag" "$detections_bag" \
+  --topics /Ego_topic /perception/object_recognition/detection/objects \
+  >"$output_dir/rosbag.log" 2>&1
 sleep 2
 
 kill -INT "$record_pid" 2>/dev/null || true
