@@ -184,10 +184,13 @@
     5-point positive gate를 적용한 최종 train/val/test는 692/147/144, 총 983 frame,
     Vehicle GT 1,814개다. portable root는
     `/datasets/base3_online_highway_motion_v2`이며 팀 Docker dataloader까지 통과했다.
-    production E25-init E12 fine-tuning을 완료했다. Online val best E7은 Vehicle
-    3-bag AP를 `0.6994 -> 0.7427`로 개선했지만 Obstacle 2-bag AP는
-    `0.6237 -> 0.5859`, tracking AVE는 `0.7252 -> 0.8843 m/s`, Map-CV 3초 FDE는
-    `4.4912 -> 4.7680 m`로 악화됐다. Production은 E25를 유지한다. 다음 비교는
+    production E25-init E12 fine-tuning을 완료했다. 실험 범위와 같은 고주로
+    합류·고주로1 기준 Online val best E7은 Vehicle AP를 `0.6708 -> 0.7187`,
+    center p50을 `0.6102 -> 0.4763 m`, CV-stable 3초 minFDE-K mean을
+    `1.8124 -> 1.7724 m`로 개선했다. 반면 tracking AVE는
+    `0.7371 -> 0.9490 m/s`, 전체 운동 구간 3초 Top-1 FDE는
+    `4.6209 -> 4.7324 m`로 악화됐다. 고주로 specialization은 성공이지만
+    Obstacle 회귀 때문에 전역 Production은 E25를 유지한다. 다음 비교는
     동일 Vehicle-only fine-tuning 반복이 아니라 general-domain rehearsal 또는 더
     짧고 작은-LR인 통제 실험과 fresh E40이다.
   - 여러 scene을 한 rosbag에 기록하되 marker window만 사용하고, LiDAR timestamp
