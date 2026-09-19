@@ -15,6 +15,8 @@
 #include <std_msgs/String.h>
 #include <trajectory_follower/PurePursuitDebug.h>
 
+#include "trajectory_follower/steering_rate_limiter.hpp"
+
 namespace
 {
 std::string normalizedFrame(const std::string & frame)
@@ -100,6 +102,9 @@ public:
                       params_.long_ld_lateral_error_threshold, 0.5);
     private_nh_.param("adaptive/min_lookahead_distance", params_.min_lookahead_distance, 4.35);
     private_nh_.param("adaptive/max_lookahead_distance", params_.max_lookahead_distance, 15.0);
+    private_nh_.param(
+      "adaptive/max_steering_rate_deg_s", max_steering_rate_deg_s_, 60.0);
+    max_steering_rate_rad_s_ = max_steering_rate_deg_s_ * M_PI / 180.0;
     private_nh_.param("adaptive/reverse_min_lookahead_distance",
                       params_.reverse_min_lookahead_distance, 7.0);
 
@@ -125,8 +130,10 @@ public:
     state_subscriber_ = nh_.subscribe(state_topic_, 10, &AutowarePurePursuitNode::stateCallback, this);
     timer_ = nh_.createTimer(ros::Duration(1.0 / control_rate_hz_),
       &AutowarePurePursuitNode::timerCallback, this);
-    ROS_INFO_STREAM("purepursuit_autoware: " << trajectory_topic_ << " + " << state_topic_ << " -> "
-                    << steering_topic_);
+    ROS_INFO_STREAM(
+      "purepursuit_autoware: " << trajectory_topic_ << " + " << state_topic_ << " -> "
+                                << steering_topic_ << ", steering rate limit="
+                                << max_steering_rate_deg_s_ << " deg/s");
   }
 
 private:
@@ -140,6 +147,8 @@ private:
       std::isfinite(trajectory_source_timeout_s_) && trajectory_source_timeout_s_ > 0.0 &&
       std::isfinite(state_source_timeout_s_) && state_source_timeout_s_ > 0.0 &&
       std::isfinite(future_stamp_tolerance_s_) && future_stamp_tolerance_s_ >= 0.0 && min_points_ >= 3 &&
+      std::isfinite(max_steering_rate_deg_s_) && max_steering_rate_deg_s_ > 0.0 &&
+      std::isfinite(max_steering_rate_rad_s_) && max_steering_rate_rad_s_ > 0.0 &&
       core_->parametersValid(&reason);
     if (!valid) {
       throw std::runtime_error(reason.empty() ? "invalid purepursuit_autoware parameter" : reason);
@@ -228,7 +237,7 @@ private:
     }
   }
 
-  void timerCallback(const ros::TimerEvent &)
+  void timerCallback(const ros::TimerEvent & event)
   {
     const ros::Time now = ros::Time::now();
     if (!trajectory_valid_ || !state_valid_ ||
@@ -239,12 +248,14 @@ private:
         !sourceStampFresh(state_.header.stamp, now, state_source_timeout_s_, future_stamp_tolerance_s_)) {
       trajectory_follower::PurePursuitOutput output;
       output.failure_reason = "stale or unavailable trajectory/state";
+      previous_steering_command_ = 0.0;
       publishResult(output, trajectory_.header.frame_id, now);
       return;
     }
     if (normalizedFrame(trajectory_.header.frame_id) != normalizedFrame(state_.header.frame_id)) {
       trajectory_follower::PurePursuitOutput output;
       output.failure_reason = "trajectory and state frame mismatch";
+      previous_steering_command_ = 0.0;
       publishResult(output, trajectory_.header.frame_id, now);
       return;
     }
@@ -265,7 +276,18 @@ private:
     vehicle.pose.yaw = yawFromQuaternion(state_.pose.pose.orientation);
     // Universe uses the signed base-link longitudinal velocity for control LD.
     vehicle.velocity_mps = state_.twist.twist.linear.x * velocity_scale_;
-    const auto output = core_->run(path, vehicle);
+    auto output = core_->run(path, vehicle);
+    if (output.valid) {
+      double dt = (event.current_real - event.last_real).toSec();
+      if (!std::isfinite(dt) || dt <= 0.0 || dt > 1.0) {
+        dt = 1.0 / control_rate_hz_;
+      }
+      output.steering_tire_angle_rad = trajectory_follower::limitSteeringRate(
+        output.steering_tire_angle_rad, previous_steering_command_, max_steering_rate_rad_s_, dt);
+      previous_steering_command_ = output.steering_tire_angle_rad;
+    } else {
+      previous_steering_command_ = 0.0;
+    }
     publishResult(output, trajectory_.header.frame_id, now);
   }
 
@@ -297,6 +319,9 @@ private:
   double trajectory_source_timeout_s_{0.5};
   double state_source_timeout_s_{0.5};
   double future_stamp_tolerance_s_{0.1};
+  double max_steering_rate_deg_s_{60.0};
+  double max_steering_rate_rad_s_{M_PI / 3.0};
+  double previous_steering_command_{0.0};
   int min_points_{3};
   trajectory_follower::PurePursuitParams params_;
   std::unique_ptr<trajectory_follower::AdaptivePurePursuitCore> core_;
