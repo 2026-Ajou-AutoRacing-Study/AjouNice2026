@@ -1,5 +1,8 @@
 # morai_fastbev_ros
 
+> **상태: LEGACY/RESEARCH.** 패키지는 재현용으로 보존하지만 현재 production detector는
+> BEVFusion이다. 현재 실행법은 `docs/bevfusion/README.md`를 따른다.
+
 MORAI `Sensor_6.json`의 네 압축 카메라 영상을 동기화하여 Fast-BEV를 온라인
 추론하고, 기존 Tracking & Prediction 파이프라인에 연결하는 ROS1 Noetic
 패키지다.
@@ -20,7 +23,7 @@ MORAI `Sensor_6.json`의 네 압축 카메라 영상을 동기화하여 Fast-BEV
 - `/hmi/perc/jsk_pillar_objects`: `jsk_recognition_msgs/BoundingBoxArray`
 - `/fastbev/detection_markers`: `visualization_msgs/MarkerArray`
 
-첫 출력이 production tracker의 정식 입력이다. diagnostics는 Fast-BEV의 처리 시간과
+첫 출력은 detector-neutral tracker의 표준 입력이다. diagnostics는 Fast-BEV의 처리 시간과
 drop 상태 전용이고, JSK/Marker는 RViz 전용이다. 이 package는 PointPainting custom
 message에 의존하지 않는다.
 
@@ -74,13 +77,13 @@ base_ws/src/morai_fastbev_ros/scripts/run_fastbev.sh bag
 export FASTBEV_CHECKPOINT=/absolute/path/to/checkpoint.pth
 ```
 
-세부 계약과 검증 순서는 [docs/ONLINE_INTEGRATION.md](docs/ONLINE_INTEGRATION.md)에
+세부 계약과 검증 순서는 [docs/legacy/ONLINE_INTEGRATION.md](docs/legacy/ONLINE_INTEGRATION.md)에
 정리한다.
 
 runtime 구현·동등성·23/30/35 Hz 결과는
-[docs/RUNTIME_OPTIMIZATION.md](docs/RUNTIME_OPTIMIZATION.md)에 정리한다.
+[docs/legacy/RUNTIME_OPTIMIZATION.md](docs/legacy/RUNTIME_OPTIMIZATION.md)에 정리한다.
 
 MORAI Sensor/Ego 연결부터 Fast-BEV, T&P, RViz와 topic 모니터링까지의 전체
 터미널 순서는
-[`docs/runbooks/morai_fastbev_object_pipeline_live.md`](../../../docs/runbooks/morai_fastbev_object_pipeline_live.md)를
+[`docs/runbooks/legacy/morai_fastbev_object_pipeline_live.md`](../../../docs/runbooks/legacy/morai_fastbev_object_pipeline_live.md)를
 따른다.

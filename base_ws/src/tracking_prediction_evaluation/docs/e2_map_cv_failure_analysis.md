@@ -720,4 +720,4 @@ scan 간 nearest-neighbor p50은 `0.498 -> 0.449 m`로 좋아져 변환 방향�
 따라서 production은 기존 `object_points_median` timestamp만 유지하고 좌표
 deskew는 `off`로 둔다. 재검토하려면 학습 데이터와 online inference에 동일한
 deskew 및 camera-time 정책을 적용해야 한다. 상세 결과는
-`perception/pointpainting/docs/rolling_lidar_ego_deskew_ab_260820.md`에 기록한다.
+`perception/pointpainting/docs/legacy/rolling_lidar_ego_deskew_ab_260820.md`에 기록한다.

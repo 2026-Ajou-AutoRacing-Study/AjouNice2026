@@ -105,6 +105,6 @@
 ## 근거
 
 - 상세 정책과 subtype: `dataset/morai_od/docs/base3_static_asset_catalog.md`
-- 최종 capture 감사: `dataset/morai_od/docs/base3_static_10k_final_capture_audit.md`
+- 최종 capture 감사: `dataset/morai_od/docs/legacy/base3_static_10k_final_capture_audit.md`
 - 생성기: `dataset/morai_od/scripts/generate_static_classcentric_base3_batch.py`
 - Batch 008 walking/running Pedestrian도 위와 동일한 22종을 사용했다.

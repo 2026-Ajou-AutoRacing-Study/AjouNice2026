@@ -1,15 +1,17 @@
 # Perception object pipeline
 
-This package defines the production ROS1 object boundary shared by
-PointPainting, Fast-BEV, EKF tracking, prediction and the Autoware-derived
-planning stack.
+This package defines the detector-neutral ROS1 object boundary shared by
+BEVFusion, the legacy PointPainting/Fast-BEV adapters, EKF tracking, prediction
+and the Autoware-derived planning stack.
 
-현재 PP1 production을 실행하는 터미널별 명령은
-[`docs/runbooks/morai_pointpainting_object_pipeline_live.md`](../../../docs/runbooks/morai_pointpainting_object_pipeline_live.md)에
-정리되어 있다.
+현재 production detector는 BEVFusion `B3-BF0-F40 E25`다. 실행 계약은
+[`docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`](../../../docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md),
+터미널 순서는
+[`docs/runbooks/morai_full_stack_by_terminal.md`](../../../docs/runbooks/morai_full_stack_by_terminal.md)를
+따른다.
 
 ```text
-PointPainting or Fast-BEV
+BEVFusion or a legacy detector adapter
   autoware_perception_msgs/DetectedObjects
   /perception/object_recognition/detection/objects
                          |
@@ -34,32 +36,10 @@ Planning (unchanged)
 
 ## Production runtime
 
-Production is the split three-terminal path below. Detector and downstream
-must not share one Conda/roslaunch process tree.
-
-```bash
-# Terminal 1
-roscore
-
-# Terminal 2: B3S-PP1 E34 detector, from its Conda environment
-roslaunch morai_pointpainting_ros pointpainting_production.launch \
-  python_executable:="$(command -v python)" \
-  openpcdet_root:=/path/to/OpenPCDet \
-  bundle_root:=/path/to/260909_pointpainting_production_3model
-
-# Terminal 3: EKF 30 Hz -> UNKNOWN stationary -> v67 Map-CV
-roslaunch perception_object_pipeline tracking_prediction.launch
-```
-
-The detector runs in the machine's compatible Conda environment; tracking and
-prediction run with ROS system Python 3.8. ROS messages are the only boundary
-between them. Environment names, checkout paths and GPU models are not encoded
-as repository aliases.
-
-Production values are pinned by `pointpainting_production.launch` and
-`tracking_prediction.launch`. The final
-`/perception/object_recognition/objects` topic is the only object input
-intended for Planning.
+BEVFusion inference server, host ROS bridge and planning/tracking process는 서로 분리한다.
+Detector 종류와 무관하게 최종 `/perception/object_recognition/objects`만 Planning의
+object input으로 사용한다. 이 README에 checkpoint 경로나 전체 실행 명령을 복제하지
+않고 위 CURRENT handoff를 단일 기준으로 사용한다.
 
 ### MORAI GT detection replacement
 
@@ -96,10 +76,7 @@ roslaunch perception_object_pipeline object_pipeline.launch \
 ```
 
 These generic examples retain compatibility defaults and are not the current
-competition profile. Current PointPainting production is B3S-PP1 E34 with
-Base3 LRASPP E30 and class thresholds Vehicle 0.40, Pedestrian 0.15 and
-Obstacle 0.10. The exact ignored artifact paths are pinned by the production
-wrapper.
+competition profile. PointPainting and Fast-BEV are rollback/research paths.
 
 If a detector is already running in another environment, launch only the
 standard tracker and predictor:

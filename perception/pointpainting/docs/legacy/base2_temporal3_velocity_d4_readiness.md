@@ -488,5 +488,5 @@ python perception/pointpainting/tools/train_openpcdet_wandb.py \
 ## 활성 계획 문서 이동.
 
 - 프로젝트 전체의 현재 최우선 작업은
-  [`docs/ACTIVE_PRIORITIES.md`](../../../docs/ACTIVE_PRIORITIES.md)에서 관리한다.
+  [`docs/ACTIVE_PRIORITIES.md`](../../../../docs/ACTIVE_PRIORITIES.md)에서 관리한다.
 - 이 문서는 Base2 temporal/velocity D4의 실험 근거와 완료된 판단 기록으로 보존한다.

@@ -1,7 +1,7 @@
 # Base3 BEVFusion Fresh E40 학습 종료 후 체크리스트
 
 > 2026-09-18 완료. 결과와 production 판단은
-> [`260918_base3_e40_production_evaluation_results.md`](260918_base3_e40_production_evaluation_results.md)에 기록했다.
+> [`260918_base3_e40_production_evaluation_results.md`](../260918_base3_e40_production_evaluation_results.md)에 기록했다.
 
 ## 대상 run
 

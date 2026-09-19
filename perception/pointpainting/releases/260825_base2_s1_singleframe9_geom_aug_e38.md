@@ -31,4 +31,4 @@ Runtime path:
 - New roundabout Vehicle center mAP: `0.6878`.
 - Highway1 Vehicle center mAP: `0.7717`.
 - Full OD, Tracking and Map-CV results are in
-  `perception/pointpainting/docs/rosbag_vehicle_leaderboard.md`.
+  `perception/pointpainting/docs/legacy/rosbag_vehicle_leaderboard.md`.

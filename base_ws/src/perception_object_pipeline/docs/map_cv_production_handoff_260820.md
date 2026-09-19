@@ -2,8 +2,8 @@
 
 > Historical handoff: 이 문서의 알고리즘·토픽 계약은 유효하지만 E65 성능값과
 > v60 runtime 경로는 과거 기준이다. 현재 PP1/v62 production 실행과 운영값은
-> `perception/pointpainting/docs/production_runtime_contract_260913.md` 및
-> `docs/runbooks/morai_pointpainting_object_pipeline_live.md`를 우선한다.
+> `perception/pointpainting/docs/legacy/production_runtime_contract_260913.md` 및
+> `docs/runbooks/legacy/morai_pointpainting_object_pipeline_live.md`를 우선한다.
 
 이 문서는 2026-08-20 기준 객체 Detection → Tracking → Prediction 파이프라인의
 production 설정, 검증 근거, 기각한 실험, 알려진 한계와 재개 순서를 한 곳에 정리한다.
@@ -177,7 +177,7 @@ Map-CV, CV-stable 기준이다.
   `1.448 → 1.705 m`로 악화했다.
 - 따라서 coordinate deskew는 `off`이다.
 - 상세 내용은
-  `perception/pointpainting/docs/rolling_lidar_ego_deskew_ab_260820.md`를 참고한다.
+  `perception/pointpainting/docs/legacy/rolling_lidar_ego_deskew_ab_260820.md`를 참고한다.
 
 ## 6. 알려진 한계
 

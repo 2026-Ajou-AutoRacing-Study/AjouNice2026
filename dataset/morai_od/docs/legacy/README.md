@@ -6,6 +6,8 @@
 - Sunny13/OD180 정적 생성기 세대
 - 초기 geometry, Scenario Runner, ReplayInfo migration 검토
 - 당시 capture logging/autocapture 절차
+- 완료된 Base3-Static 10K 설계·감사·segmentation 및 Dynamic-Ped add-on
+- 완료된 Base3-Online 수집 설계와 pilot 계획
 
 현재 데이터 경로와 변환 옵션은 상위 [`README.md`](../README.md)와
 [`BASE3_ONLINE_CURRENT_STATE.md`](../BASE3_ONLINE_CURRENT_STATE.md)를 따른다. 이곳의

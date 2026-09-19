@@ -205,9 +205,11 @@ Vehicle-only corpus라서 3-class `val/center/mAP`는 Pedestrian/Obstacle 0을 �
 `vehicle_mean_AP`, `vehicle_mATE`로 epoch 후보를 좁히되 production 교체는 기존 7-bag의
 Vehicle/Pedestrian/Obstacle과 tracker/Map-CV까지 확인한 뒤 결정한다.
 
-실행은 다음 CURRENT handoff만 따른다.
-
-[`../../../docs/bevfusion/260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md`](../../../docs/bevfusion/260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md)
+완료된 fresh/E25-init 학습 재현은
+[`../../../docs/bevfusion/legacy/260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md`](../../../docs/bevfusion/legacy/260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md),
+다음 실험은
+[`../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)를
+따른다.
 
 ## 관련 코드
 

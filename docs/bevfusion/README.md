@@ -8,7 +8,6 @@
 |---|---|
 | Production E25 실행·판단팀 전달 | [`BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
 | 팀 공용 Docker 학습 | [`TEAM_DOCKER_TRAINING_HANDOFF.md`](TEAM_DOCKER_TRAINING_HANDOFF.md) |
-| Base3-Online fresh/E25-init 학습 | [`260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md`](260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md) |
 | Base3-Online dataset 현재 상태 | [`../../dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md`](../../dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md) |
 | 다음 velocity/temporal 통제 실험 | [`260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md) |
 
@@ -25,12 +24,11 @@ mission rosbag에서 비교한다.
   - Tracker motion model/noise, 올바른 2D AVE 계약, GT-velocity oracle 근거.
 - [`260918_base3_e40_production_evaluation_results.md`](260918_base3_e40_production_evaluation_results.md)
   - E25를 production으로 선택한 offline/rosbag/tracking/Map-CV 근거.
-- [`260918_base3_e40_post_training_checklist.md`](260918_base3_e40_post_training_checklist.md)
-  - corrected validation과 checkpoint sweep 절차.
-
 ## HISTORICAL
 
 - [`legacy/BASE3_BF1_ONLINE_DOMAIN_FINETUNE.md`](legacy/BASE3_BF1_ONLINE_DOMAIN_FINETUNE.md): 이전 BF1 image-domain augmentation 실험.
+- [`legacy/260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md`](legacy/260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md): 완료된 fresh/E25-init 팀 학습 절차.
+- [`legacy/260918_base3_e40_post_training_checklist.md`](legacy/260918_base3_e40_post_training_checklist.md): 완료된 E40 사후평가 절차.
 - `legacy/260720_morai_four_camera_zero_shot_*`: 초기 zero-shot feasibility 기록.
 
 HISTORICAL 문서의 checkpoint, image tag, dataset root, threshold를 현재 기본값으로

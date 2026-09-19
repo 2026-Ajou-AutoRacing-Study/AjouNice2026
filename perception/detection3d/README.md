@@ -7,11 +7,11 @@
 
 ```text
 detection3d/
+├── bevfusion/    # 현재 production 학습·평가·배포 코드
 ├── common/       # 모델 중립 평가·좌표계·시각화 코드
-├── fastbev/      # Fast-BEV adapter, config, 실행 도구와 문서
+├── fastbev/      # legacy Fast-BEV 재현 코드
 └── tests/        # 공통 3DOD 단위 테스트
 ```
 
-현재 공통 MORAI evaluator는 center-distance AP, TP error 및 3D IoU AP를 제공한다.
-향후 StreamPETR도 예측 결과를 같은 ego-frame box 형식으로 변환해 동일 evaluator를
-사용한다.
+현재 문서 진입점은 [`../../docs/bevfusion/README.md`](../../docs/bevfusion/README.md)다.
+Fast-BEV와 PointPainting의 과거 결과를 production 기본값으로 사용하지 않는다.

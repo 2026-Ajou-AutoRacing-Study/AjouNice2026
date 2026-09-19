@@ -245,7 +245,7 @@ occlusion 2 scene, sparse hard-negative 1 scene으로 구성한다. 예비 stati
 물리 속도를 축소한다. 학습 변환 단계에서는 Ego/actor 위치 차이와 MORAI raw
 physical speed로 scene simulator time을 복원한다. 기존 원본 metadata는 감사
 가능성을 위해 그대로 보존한다. 구현과 A/B 결과는
-`../../../perception/pointpainting/docs/temporal_sweep_alignment_azimuth_deskew_ab.md`
+`../../../perception/pointpainting/docs/legacy/temporal_sweep_alignment_azimuth_deskew_ab.md`
 를 따른다.
 
 ## 생성·검증·설치
@@ -446,7 +446,7 @@ point별 Ego-motion deskew 학습에는 정보가 부족하다.
 이 sidecar는 rosbag 기반 수집으로 회귀하는 것이 아니다. Camera 4대·LiDAR·GT의
 canonical frame은 계속 SaveSensorData가 담당하고, ROS는 SaveSensorData가 버리는
 rolling-scan timing 정보만 보완한다. 구현과 검증 근거는
-`perception/pointpainting/docs/rolling_lidar_ego_deskew_ab_260820.md`를 따른다.
+`perception/pointpainting/docs/legacy/rolling_lidar_ego_deskew_ab_260820.md`를 따른다.
 
 Deskew를 production에 적용하려면 학습과 online inference가 같은 reference time,
 LiDAR extrinsic, camera matching 정책을 사용해야 한다. 현재 raw-scan Epoch 65

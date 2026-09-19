@@ -62,4 +62,4 @@ Type:
 The previous epoch-20/threshold-0.20 figures were an early single-bag pipeline
 smoke test and are no longer the production operating point. Current model
 selection and rosbag metrics are recorded in
-`perception/pointpainting/docs/production_runtime_contract_260913.md`.
+`perception/pointpainting/docs/legacy/production_runtime_contract_260913.md`.

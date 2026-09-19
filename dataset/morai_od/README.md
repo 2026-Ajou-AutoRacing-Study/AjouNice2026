@@ -10,7 +10,7 @@
 - Base3-Online 현재 상태: [`docs/BASE3_ONLINE_CURRENT_STATE.md`](docs/BASE3_ONLINE_CURRENT_STATE.md)
 - rosbag 수집·변환 실행법: [`docs/base3_online_rosbag_collection_runbook.md`](docs/base3_online_rosbag_collection_runbook.md)
 - 최신 고주로 Vehicle 수집 결과: [`docs/260919_base3_online_highway_vehicle_1k_results.md`](docs/260919_base3_online_highway_vehicle_1k_results.md)
-- Base3-Static production baseline 근거: [`docs/base3_static_10k_final_capture_audit.md`](docs/base3_static_10k_final_capture_audit.md)
+- Base3-Static production baseline 근거: [`docs/legacy/base3_static_10k_final_capture_audit.md`](docs/legacy/base3_static_10k_final_capture_audit.md)
 
 ## 디렉터리 역할
 

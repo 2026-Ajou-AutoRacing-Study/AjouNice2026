@@ -164,4 +164,4 @@ bash perception/pointpainting/tools/play_pp1_production_highway1_rviz.sh
 ```
 
 The detailed model choice, metrics and rejected alternatives are in
-`perception/pointpainting/docs/production_runtime_contract_260913.md`.
+`perception/pointpainting/docs/legacy/production_runtime_contract_260913.md`.

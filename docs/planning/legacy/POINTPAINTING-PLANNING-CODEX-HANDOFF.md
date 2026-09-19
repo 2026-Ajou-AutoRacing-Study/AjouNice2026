@@ -451,12 +451,12 @@ sensor rate, TF, detection/tracking/prediction topic, planning trajectory와 val
 
 ## 추가로 읽을 문서
 
-- `docs/runbooks/morai_pointpainting_object_pipeline_live.md`
-- `perception/pointpainting/docs/production_runtime_contract_260913.md`
+- `docs/runbooks/legacy/morai_pointpainting_object_pipeline_live.md`
+- `perception/pointpainting/docs/legacy/production_runtime_contract_260913.md`
 - `base_ws/src/perception_object_pipeline/README.md`
 - `base_ws/src/perception_object_pipeline/docs/map_cv_production_handoff_260820.md`
 - `docs/planning/INTEGRATION-HANDOFF.md`
 
 모델 실험의 세부 metric과 역사적 후보 비교는 production runtime contract와
-`perception/pointpainting/docs/rosbag_vehicle_leaderboard.md`를 참고한다. 역사적
+`perception/pointpainting/docs/legacy/rosbag_vehicle_leaderboard.md`를 참고한다. 역사적
 문서의 과거 기본값을 현재 launch보다 우선하지 않는다.

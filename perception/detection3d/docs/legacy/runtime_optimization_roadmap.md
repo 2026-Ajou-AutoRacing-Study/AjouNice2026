@@ -132,6 +132,6 @@ followed the input at about 34.2 Hz.
 
 ## Related evidence
 
-- `perception/detection3d/docs/runtime_comparison_260816.md`
-- `perception/pointpainting/docs/runtime_benchmark_260816.md`
-- `perception/detection3d/fastbev/docs/obstacle_regression_roadmap.md`
+- `perception/detection3d/docs/legacy/runtime_comparison_260816.md`
+- `perception/pointpainting/docs/legacy/runtime_benchmark_260816.md`
+- `perception/detection3d/fastbev/docs/legacy/obstacle_regression_roadmap.md`
