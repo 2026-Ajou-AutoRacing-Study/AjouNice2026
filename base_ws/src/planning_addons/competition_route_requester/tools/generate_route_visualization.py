@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the K-City v81 competition route documentation SVG set.
+"""Generate the K-City v84 competition route documentation SVG set.
 
 The overview, Route A detail, Route B detail, and reroute-process figures are
 derived from the package YAML files and Lanelet2 centerlines.  This is a
@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        default=package_dir / "config/kcity_v81_competition_route.yaml",
+        default=package_dir / "config/kcity_v84_competition_route.yaml",
     )
     parser.add_argument(
         "--workspace",
@@ -46,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=package_dir / "docs/assets/kcity_v81_route_a_b.svg",
+        default=package_dir / "docs/assets/kcity_v84_route_a_b.svg",
         help="Overview SVG path; the three detail SVGs are written beside it.",
     )
     return parser.parse_args()
@@ -135,12 +135,12 @@ def joined_centerlines(lanelets, lanelet_ids, lateral_tolerance=0.10):
 
 
 def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, epsg):
-    """Show the v81 highway lane groups and the requested bottleneck LC."""
+    """Show the v84 highway lane groups and the requested bottleneck LC."""
     current = [201456, 201438, 200128, 200102, 200134, 201446, 200360]
     selected = [201457, 201435, 201466, 200137, 200187, 201470, 200130,
                 201473, 201439, 200360, 201477, 201479, 201447]
     upper = [201459, 201436, 200138, 201444, 200127, 201439, 200185]
-    # v77 transverse splits preserve the physical corridors; v81 additionally
+    # v77 transverse splits preserve the physical corridors; v84 additionally
     # splits 201448/201447 at the requested LC cross-section.
     splits = {201437: 201464, 201436: 201465, 201435: 201466, 200099: 201467,
               201438: 201468, 201444: 201469, 200187: 201470, 200102: 201471,
@@ -167,8 +167,8 @@ def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, eps
     view = Viewport(bounds_for(points, 10.0), (45, 125, 830, 720), padding=18)
     svg = [
         '<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">',
-        '<title id="title">K-City v81 highway preferred-lane strategy</title>',
-        '<desc id="desc">Highway alternatives and the v81 midpoint lane change using actual lanelet centerlines.</desc>',
+        '<title id="title">K-City v84 highway preferred-lane strategy</title>',
+        '<desc id="desc">Highway alternatives and the v84 midpoint lane change using actual lanelet centerlines.</desc>',
         f'<!-- source_map={map_path.name} sha256={actual_hash} projection=EPSG:{epsg} -->',
         '<defs><style>',
         "text { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; fill: #172033; }",
@@ -177,7 +177,7 @@ def build_highway_lane_strategy_svg(config, lanelets, map_path, actual_hash, eps
         '.small { font-size: 13px; fill: #526079; }.lane-id { font-size: 12px; font-weight: 700; paint-order: stroke; stroke: white; stroke-width: 4px; }',
         '</style><marker id="lc-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#d33682"/></marker></defs>',
         '<rect width="1400" height="900" fill="#f4f7fb"/>',
-        '<text x="42" y="52" class="title">K-City v81 고주로 선호 차선 검토</text>',
+        '<text x="42" y="52" class="title">K-City v84 고주로 선호 차선 검토</text>',
         '<text x="42" y="82" class="subtitle">실제 Lanelet2 중심선 · 진행 방향은 위에서 아래 · 차선 간격은 가독성을 위해 가로 20배 확대</text>',
         '<rect x="25" y="105" width="875" height="760" rx="22" class="panel"/>',
         '<rect x="925" y="105" width="450" height="760" rx="22" class="panel"/>',
@@ -419,17 +419,17 @@ def add_lanelet_verification_grid(svg, route_ids, waypoint_ids, start_id, goal_i
 def build_route_detail_svg(config, lanelets, map_path, actual_hash, epsg, origin, route_key):
     route = config[route_key]
     route_ids = route["expected_path_lanelet_ids"]
-    route_points = joined_centerlines(lanelets, route_ids, lateral_tolerance=5.0)
+    route_points = joined_centerlines(lanelets, route_ids, lateral_tolerance=12.0)
     route_name = "Route A" if route_key == "route_a" else "Route B 재경로"
     subtitle = (
         f"공식 START/END 경계 → {len(route['waypoint_refs'])}개 sparse waypoint → 비순환 임시 goal 200181"
         if route_key == "route_a"
-        else "A→B 전환 시 200178의 현재 pose → 10개 sparse waypoint → 최종 goal 200210"
+        else "A→B 전환 시 200258의 현재 pose → 10개 sparse waypoint → 최종 goal 200210"
     )
     svg = detail_svg_start(
         1600,
         1400,
-        f"K-City v81 · {route_name} 상세",
+        f"K-City v84 · {route_name} 상세",
         f"{subtitle} · 요청 데이터와 검증용 lanelet 순서를 분리 표시",
         f"Detailed {route_name} request waypoints and expected verification lanelets.",
         f"source_map={map_path.name} sha256={actual_hash} projection=EPSG:{epsg} route={route_key}",
@@ -454,8 +454,11 @@ def build_route_detail_svg(config, lanelets, map_path, actual_hash, epsg, origin
         trigger_id = config["poses"][config["reroute_trigger"]["pose_ref"]]["lanelet_id"]
         a_ids = config["route_a"]["expected_path_lanelet_ids"]
         shared = a_ids[a_ids.index(trigger_id) :]
-        shared_points = joined_centerlines(lanelets, shared, lateral_tolerance=5.0)
-        continuation_points = joined_centerlines(lanelets, route_ids[len(shared) :], lateral_tolerance=5.0)
+        trigger_index_b = route_ids.index(trigger_id)
+        shared_points = joined_centerlines(lanelets, shared, lateral_tolerance=12.0)
+        continuation_points = joined_centerlines(
+            lanelets, route_ids[trigger_index_b + len(shared) :], lateral_tolerance=5.0
+        )
         svg.append(f'<path d="{viewport.path(shared_points)}" fill="none" stroke="#0f9f8f" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>')
         svg.append(f'<path d="{viewport.path(continuation_points)}" fill="none" stroke="#f28c28" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>')
     svg.append("</g>")
@@ -510,7 +513,7 @@ def build_reroute_process_svg(config, policy, lanelets, map_path, actual_hash, e
     viewport = Viewport(inset_bounds, (50, 170, 500, 820), padding=20)
     svg = [
         '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" role="img" aria-labelledby="title desc">',
-        '<title id="title">K-City v81 reroute trigger and process</title>',
+        '<title id="title">K-City v84 reroute trigger and process</title>',
         '<desc id="desc">Reroute trigger, freshness and hold checks, request and verification while Route A remains active, and deadline before lanelet 200346.</desc>',
         f'<!-- source_map={map_path.name} sha256={actual_hash} projection=EPSG:{epsg} -->',
         "<defs>",
@@ -524,7 +527,7 @@ def build_reroute_process_svg(config, policy, lanelets, map_path, actual_hash, e
         ".road { fill: none; stroke: #d7dde5; stroke-width: 1.2; stroke-linecap: round; }",
         "</style></defs>",
         '<rect width="1600" height="1100" fill="#f4f7fb"/>',
-        '<text x="42" y="54" class="title">K-City v81 · 정상 Route A → Route B 재경로 절차</text>',
+        '<text x="42" y="54" class="title">K-City v84 · 정상 Route A → Route B 재경로 절차</text>',
         '<text x="42" y="84" class="subtitle">route_a_to_b 계열의 trigger·deadline + Route A를 유지한 채 수행하는 요청·검증 순서</text>',
         '<rect x="30" y="110" width="540" height="930" rx="22" class="card"/>',
         '<text x="50" y="145" class="panel-title">공간 경계</text>',
@@ -754,9 +757,10 @@ def main() -> None:
         raise ValueError("Route A must end before re-entering the incoming START/END lanelet")
     trigger_id = config["poses"][config["reroute_trigger"]["pose_ref"]]["lanelet_id"]
     trigger_index_a = route_a_ids.index(trigger_id)
+    trigger_index_b = route_b_ids.index(trigger_id)
     shared_ids = route_a_ids[trigger_index_a:]
-    if route_b_ids[: len(shared_ids)] != shared_ids:
-        raise ValueError("Route B prefix is not the Route A suffix beginning at the trigger lanelet")
+    if route_b_ids[trigger_index_b : trigger_index_b + len(shared_ids)] != shared_ids:
+        raise ValueError("Route B does not preserve the Route A suffix beginning at the trigger lanelet")
 
     fallback = config["fallback_route"]
     if fallback["request_type"] != "set_lanelet_route":
@@ -773,14 +777,16 @@ def main() -> None:
         raise ValueError("Fallback path must not contain a lanelet loop")
 
     approach_ids = route_a_ids[:trigger_index_a]
-    continuation_ids = route_b_ids[len(shared_ids) :]
+    continuation_ids = route_b_ids[trigger_index_b + len(shared_ids) :]
     all_route_ids = list(dict.fromkeys(route_a_ids + route_b_ids))
     missing_ids = [lanelet_id for lanelet_id in all_route_ids if lanelet_id not in lanelets]
     if missing_ids:
         raise ValueError(f"Route lanelets missing from map: {missing_ids}")
 
     approach = joined_centerlines(lanelets, approach_ids, lateral_tolerance=5.0)
-    shared = joined_centerlines(lanelets, shared_ids, lateral_tolerance=5.0)
+    # The curated route contains one known 11.03 m centerline gap between
+    # 201086 and 201459; routing continuity is validated separately.
+    shared = joined_centerlines(lanelets, shared_ids, lateral_tolerance=12.0)
     continuation = joined_centerlines(lanelets, continuation_ids, lateral_tolerance=5.0)
     full_route_points = [point for lanelet_id in all_route_ids for point in lanelets[lanelet_id]["centerline"]]
 
@@ -824,8 +830,8 @@ def main() -> None:
 
     svg = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{SVG_WIDTH}" height="{SVG_HEIGHT}" viewBox="0 0 {SVG_WIDTH} {SVG_HEIGHT}" role="img" aria-labelledby="title desc">',
-        '<title id="title">K-City v81 competition Route A and Route B</title>',
-        '<desc id="desc">North-up map of Route A ending on lanelet 200181 before the start boundary, Route B continuation through the start boundary, reroute trigger at lanelet 200178 s 8 metres, deadline before lanelet 200346, and final goal 200210.</desc>',
+        '<title id="title">K-City v84 competition Route A and Route B</title>',
+        '<desc id="desc">North-up map of Route A ending on lanelet 200181 before the start boundary, Route B continuation through the start boundary, reroute trigger at lanelet 200258 s 8 metres, deadline before lanelet 200315, and final goal 200210.</desc>',
         f'<!-- source_map={map_path.name} sha256={actual_hash} projection=EPSG:{epsg} -->',
         "<defs>",
         '<clipPath id="main-clip"><rect x="55" y="145" width="370" height="990" rx="18"/></clipPath>',
@@ -844,7 +850,7 @@ def main() -> None:
         "</style>",
         "</defs>",
         '<rect width="1400" height="1200" fill="#f4f7fb"/>',
-        '<text x="42" y="54" class="title">K-City v81 경쟁 경로 · Route A → Route B</text>',
+        '<text x="42" y="54" class="title">K-City v84 경쟁 경로 · Route A → Route B</text>',
         '<text x="42" y="84" class="subtitle">Lanelet2 중심선 기반 · 북쪽이 위 · 좌표 단위 m · 설정된 경로 순서 그대로 표시</text>',
         '<rect x="35" y="110" width="405" height="1045" rx="22" class="card"/>',
         '<text x="55" y="140" class="panel-title">전체 경로</text>',
@@ -999,19 +1005,19 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(svg) + "\n", encoding="utf-8")
     detail_outputs = {
-        output_path.parent / "kcity_v81_route_a_detail.svg": build_route_detail_svg(
+        output_path.parent / "kcity_v84_route_a_detail.svg": build_route_detail_svg(
             config, lanelets, map_path, actual_hash, epsg, origin, "route_a"
         ),
-        output_path.parent / "kcity_v81_route_b_detail.svg": build_route_detail_svg(
+        output_path.parent / "kcity_v84_route_b_detail.svg": build_route_detail_svg(
             config, lanelets, map_path, actual_hash, epsg, origin, "route_b"
         ),
-        output_path.parent / "kcity_v81_reroute_process.svg": build_reroute_process_svg(
+        output_path.parent / "kcity_v84_reroute_process.svg": build_reroute_process_svg(
             config, policy, lanelets, map_path, actual_hash, epsg
         ),
-        output_path.parent / "kcity_v81_operation_cases.svg": build_operation_cases_svg(
+        output_path.parent / "kcity_v84_operation_cases.svg": build_operation_cases_svg(
             config, policy, map_path, actual_hash
         ),
-        output_path.parent / "kcity_v81_highway_lane_strategy.svg": build_highway_lane_strategy_svg(
+        output_path.parent / "kcity_v84_highway_lane_strategy.svg": build_highway_lane_strategy_svg(
             config, lanelets, map_path, actual_hash, epsg
         ),
     }

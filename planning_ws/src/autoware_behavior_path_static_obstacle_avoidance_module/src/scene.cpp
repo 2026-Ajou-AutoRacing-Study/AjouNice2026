@@ -23,6 +23,8 @@
 #include "autoware/behavior_path_planner_common/utils/utils.hpp"
 #include "autoware/behavior_path_static_obstacle_avoidance_module/debug.hpp"
 #include "autoware/behavior_path_static_obstacle_avoidance_module/utils.hpp"
+#include "autoware/behavior_path_static_obstacle_avoidance_module/candidate_sampling.hpp"
+#include "autoware/motion_utils/trajectory/drivable_area_footprint.hpp"
 
 #include <autoware/lanelet2_utils/nn_search.hpp>
 #include <autoware_utils/geometry/geometry.hpp>
@@ -36,6 +38,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <tuple>
 #include <optional>
 #include <set>
 #include <string>
@@ -133,6 +136,13 @@ bool StaticObstacleAvoidanceModule::isExecutionReady() const
 AvoidanceState StaticObstacleAvoidanceModule::getCurrentModuleState(
   const AvoidancePlanningData & data) const
 {
+  // Path Optimizer owns the maneuver geometry in optimization-base mode.  BPP has no registered
+  // shift line in this mode, so keep the module alive using the latched clipping objects instead
+  // of the shift-line feasibility flags.
+  if (parameters_->path_generation_method == "optimization_base") {
+    return clip_objects_.empty() ? AvoidanceState::SUCCEEDED : AvoidanceState::RUNNING;
+  }
+
   const bool has_avoidance_target = std::any_of(
     data.target_objects.begin(), data.target_objects.end(),
     [this](const auto & o) { return !helper_->isAbsolutelyNotAvoidable(o); });
@@ -187,6 +197,53 @@ AvoidanceState StaticObstacleAvoidanceModule::getCurrentModuleState(
   }
 
   return AvoidanceState::RUNNING;
+}
+
+void StaticObstacleAvoidanceModule::updateOptimizationClipObjects(AvoidancePlanningData & data)
+{
+  const auto same_id = [](const ObjectData & object, const UUID & id) {
+    return object.object.object_id == id;
+  };
+
+  // Latch the geometry used to start the maneuver.  Perception jitter or a temporary loss must not
+  // pull the obstacle polygon out from under an optimization that is already being followed.
+  for (const auto & target : data.target_objects) {
+    const auto id = target.object.object_id;
+    const auto found = std::find_if(
+      clip_objects_.begin(), clip_objects_.end(),
+      [&](const auto & object) { return same_id(object, id); });
+    if (found == clip_objects_.end()) {
+      auto latched = target;
+      latched.is_clip_target = true;
+      clip_objects_.push_back(latched);
+      RCLCPP_INFO(
+        getLogger(), "SOA optimization latch added object=%s",
+        to_hex_string(latched.object.object_id).c_str());
+    }
+  }
+
+  const auto & ego_position = planner_data_->self_odometry->pose.pose.position;
+  for (auto & object : clip_objects_) {
+    utils::static_obstacle_avoidance::fillLongitudinalAndLengthByClosestEnvelopeFootprint(
+      data.reference_path_rough, ego_position, object);
+  }
+
+  const auto base_link2rear = planner_data_->parameters.base_link2rear;
+  const auto passed = [&](const auto & object) {
+    const auto type = autoware::object_recognition_utils::getHighestProbLabel(
+      object.object.classification);
+    const auto release_margin = parameters_->object_parameters.at(type).longitudinal_margin;
+    const bool has_passed = utils::static_obstacle_avoidance::isClipObjectPassed(
+      object, base_link2rear, release_margin);
+    if (has_passed) {
+      RCLCPP_INFO(
+        getLogger(), "SOA optimization latch released object=%s front_from_ego=%.2f",
+        to_hex_string(object.object.object_id).c_str(), object.longitudinal + object.length);
+    }
+    return has_passed;
+  };
+  clip_objects_.erase(
+    std::remove_if(clip_objects_.begin(), clip_objects_.end(), passed), clip_objects_.end());
 }
 
 bool StaticObstacleAvoidanceModule::canTransitSuccessState()
@@ -305,11 +362,13 @@ void StaticObstacleAvoidanceModule::fillFundamentalData(
     data.left_bound = utils::calcBound(
       getPreviousModuleOutput().path, planner_data_, shorten_lanes,
       use_left_side_hatched_road_marking_area, parameters_->use_intersection_areas,
-      parameters_->use_freespace_areas, true);
+      parameters_->use_freespace_areas, true, true,
+      parameters_->intersection_area_lanelet_overlap_ratio_threshold);
     data.right_bound = utils::calcBound(
       getPreviousModuleOutput().path, planner_data_, shorten_lanes,
       use_right_side_hatched_road_marking_area, parameters_->use_intersection_areas,
-      parameters_->use_freespace_areas, false);
+      parameters_->use_freespace_areas, false, true,
+      parameters_->intersection_area_lanelet_overlap_ratio_threshold);
   }
 
   if (parameters_->policy_detection_reliability == "not_enough") {
@@ -319,11 +378,13 @@ void StaticObstacleAvoidanceModule::fillFundamentalData(
     data.left_bound_same_direction = utils::calcBound(
       getPreviousModuleOutput().path, planner_data_, shorten_lanes,
       use_left_side_hatched_road_marking_area, parameters_->use_intersection_areas,
-      parameters_->use_freespace_areas, true);
+      parameters_->use_freespace_areas, true, true,
+      parameters_->intersection_area_lanelet_overlap_ratio_threshold);
     data.right_bound_same_direction = utils::calcBound(
       getPreviousModuleOutput().path, planner_data_, shorten_lanes,
       use_right_side_hatched_road_marking_area, parameters_->use_intersection_areas,
-      parameters_->use_freespace_areas, false);
+      parameters_->use_freespace_areas, false, true,
+      parameters_->intersection_area_lanelet_overlap_ratio_threshold);
   }
 
   // reference path
@@ -371,13 +432,17 @@ void StaticObstacleAvoidanceModule::fillFundamentalData(
   utils::static_obstacle_avoidance::compensateLostTargetObjects(
     data, stored_objects_, planner_data_);
 
-  // once an object filtered for boundary clipping, this module keeps the information until the end
-  // of execution.
-  utils::static_obstacle_avoidance::updateClipObject(clip_objects_, data);
-
   // calculate various data for each target objects.
   fillAvoidanceTargetData(data.target_objects);
   fillAvoidanceTargetData(current_target_objects_snapshot);
+
+  // In optimization-base mode, keep the exact obstacle geometry until the ego rear has passed it.
+  // Other modes retain the original shift-line-owned clipping lifecycle.
+  if (parameters_->path_generation_method == "optimization_base") {
+    updateOptimizationClipObjects(data);
+  } else {
+    utils::static_obstacle_avoidance::updateClipObject(clip_objects_, data);
+  }
 
   utils::static_obstacle_avoidance::updateStoredObjects(
     stored_objects_, current_target_objects_snapshot, clock_->now(), parameters_);
@@ -575,18 +640,249 @@ void StaticObstacleAvoidanceModule::fillShiftLine(
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
   auto path_shifter = path_shifter_;
 
+  // In optimization-base mode this module only supplies the drivable corridor and obstacle
+  // polygons to Path Optimizer.  A BPP shift-line is neither executed nor registered in this
+  // mode, so generating and validating one must not gate the module or remove the corridor.
+  if (parameters_->path_generation_method == "optimization_base") {
+    data.new_shift_line.clear();
+    data.safe_shift_line.clear();
+    data.candidate_path = utils::static_obstacle_avoidance::toShiftedPath(data.reference_path);
+    data.valid = true;
+    data.safe = true;
+    data.comfortable = true;
+    data.ready = true;
+    data.request_operator = false;
+    data.found_avoidance_path = false;
+    return;
+  }
+
   /**
    * STEP1: Create candidate shift lines.
    * Merge rough shift lines, and extract new shift lines.
    */
   data.new_shift_line = generator_.generate(data, debug);
 
+  // Keep the maneuver end at the obstacle; sample lateral depth as well as
+  // later/shorter entries and earlier returns. Never reshape an active shift.
+  // Lexicographic ranking: own lane, same-direction lanes, then permitted
+  // opposite-direction lanes. All tiers must fit the full exported corridor.
+  if (!data.new_shift_line.empty()) {
+    const auto original = data.new_shift_line;
+    using Bounds = std::pair<std::vector<Point>, std::vector<Point>>;
+    const auto make_bounds = [&](const std::string & lane_type) -> Bounds {
+      std::vector<DrivableLanes> lanes;
+      for (const auto & lane : data.current_lanelets) {
+        lanes.push_back(utils::static_obstacle_avoidance::generateExpandedDrivableLanes(
+          lane, planner_data_, lane_type));
+      }
+      auto path = getPreviousModuleOutput().path;
+      const auto shortened = utils::cutOverlappedLanes(path, lanes);
+      return {
+        utils::calcBound(path, planner_data_, shortened, parameters_->use_hatched_road_markings,
+          parameters_->use_intersection_areas, parameters_->use_freespace_areas, true, true,
+          parameters_->intersection_area_lanelet_overlap_ratio_threshold),
+        utils::calcBound(path, planner_data_, shortened, parameters_->use_hatched_road_markings,
+          parameters_->use_intersection_areas, parameters_->use_freespace_areas, false, true,
+          parameters_->intersection_area_lanelet_overlap_ratio_threshold)};
+    };
+    const auto own = make_bounds("current_lane");
+    const auto same = make_bounds("same_direction_lane");
+    const auto own_polygon = own.first.size() >= 2 && own.second.size() >= 2
+      ? autoware::motion_utils::drivable_area::detail::createDrivablePolygon(own.first, own.second)
+      : autoware_utils::Polygon2d{};
+    autoware_utils::LineString2d own_left, own_right;
+    for (const auto & p : own.first) own_left.emplace_back(p.x, p.y);
+    for (const auto & p : own.second) own_right.emplace_back(p.x, p.y);
+    const auto & vehicle = planner_data_->parameters.vehicle_info;
+    const auto outside = [&](const Pose & pose, const Bounds & bounds) {
+      return bounds.first.size() < 2 || bounds.second.size() < 2 ||
+        autoware::motion_utils::drivable_area::isOutsideDrivableAreaFromRectangleFootprint(
+          pose, bounds.first, bounds.second, vehicle, false);
+    };
+    const auto initial_safe_count = safe_count_;
+    struct StaticTarget
+    {
+      autoware_utils::Polygon2d polygon;
+      double hard_margin;
+    };
+    std::vector<StaticTarget> static_targets;
+    for (const auto & object : data.target_objects) {
+      const auto & twist = object.object.kinematics.initial_twist_with_covariance.twist;
+      if (std::hypot(twist.linear.x, twist.linear.y) > 0.5) continue;
+      const auto type = autoware::object_recognition_utils::getHighestProbLabel(
+        object.object.classification);
+      const auto & object_parameter = parameters_->object_parameters.at(type);
+      const auto hard_margin = object.is_parked
+        ? object_parameter.lateral_hard_margin_for_parked_vehicle
+        : object_parameter.lateral_hard_margin;
+      static_targets.push_back(
+        {autoware_utils::to_polygon2d(object.object), std::max(0.0, hard_margin)});
+    }
+    std::optional<std::tuple<int, double, double, double, double, double, double, double>>
+      best_score;
+    AvoidLineArray best_lines;
+    double best_lateral_ratio = 0.0, best_entry_ratio = 0.0, best_return_ratio = 0.0;
+    size_t tested = 0, geometry_rejected = 0, collision_rejected = 0;
+    for (const double lateral_ratio : {1.0, 0.85, 0.7, 0.55}) {
+      for (const double entry_ratio : {1.0, 0.75, 0.5, 0.35}) {
+        for (const double return_ratio : {1.0, 0.75, 0.5, 0.35}) {
+          ++tested;
+          auto lines = original;
+          const bool lateral_valid =
+            boundary_sampling::scaleLateralExcursion(lines, lateral_ratio);
+          const bool interval_valid = lateral_valid && boundary_sampling::shorten(
+            lines, data.reference_path, data.arclength_from_ego, entry_ratio, return_ratio);
+          if (!interval_valid || !helper_->isComfortable(lines) ||
+              !isValidShiftLine(lines, path_shifter_)) {
+            ++geometry_rejected;
+            continue;
+          }
+          auto trial_shifter = path_shifter_;
+          addNewShiftLines(trial_shifter, lines);
+          ShiftedPath trial;
+          if (!trial_shifter.generate(&trial, true, SHIFT_TYPE::SPLINE) ||
+              trial.path.points.size() < 3) {
+            ++geometry_rejected;
+            continue;
+          }
+          const auto begin = planner_data_->findEgoIndex(trial.path.points);
+          size_t end = begin;
+          for (const auto & line : trial_shifter.getShiftLines()) {
+            end = std::max(end, line.end_idx);
+          }
+          end = std::min(end + 1, trial.path.points.size() - 1);
+          const auto curvatures = autoware::motion_utils::calcCurvature(trial.path.points);
+          const auto curvature_limit = std::tan(vehicle.max_steer_angle_rad) / vehicle.wheel_base_m;
+          bool kinematically_valid =
+            vehicle.wheel_base_m > 0.0 && vehicle.max_steer_angle_rad > 0.0;
+          for (size_t i = begin; i <= end; ++i) {
+            const auto curvature = std::abs(curvatures.at(i));
+            const auto lateral_acc = curvature * std::pow(helper_->getAvoidanceEgoSpeed(), 2);
+            if (!std::isfinite(curvature) || curvature > curvature_limit ||
+                lateral_acc > helper_->getLateralMaxAccelLimit() + 0.1) {
+              kinematically_valid = false;
+              break;
+            }
+          }
+          if (!kinematically_valid) {
+            ++geometry_rejected;
+            continue;
+          }
+          int tier = 0;
+          double opposite_length = 0.0, outside_own_length = 0.0;
+          double intrusion_depth = 0.0, opposite_time = 0.0;
+          bool collision = false;
+          bool forbidden_boundary = false;
+          for (size_t i = begin; i <= end && !collision; ++i) {
+            const auto & pose = trial.path.points.at(i).point.pose;
+            const auto & prev = trial.path.points.at(i == begin ? i : i - 1).point.pose;
+            const auto distance = std::hypot(
+              pose.position.x - prev.position.x, pose.position.y - prev.position.y);
+            const auto samples = std::max(1, static_cast<int>(std::ceil(distance / 0.1)));
+            for (int k = 1; k <= samples; ++k) {
+              const auto sample = autoware_utils::calc_interpolated_pose(
+                prev, pose, static_cast<double>(k) / samples, false);
+              const bool outside_own = outside(sample, own);
+              const bool outside_same = outside(sample, same);
+              tier = std::max(tier, outside_same ? 2 : (outside_own ? 1 : 0));
+              outside_own_length += outside_own ? distance / samples : 0.0;
+              opposite_length += outside_same ? distance / samples : 0.0;
+              opposite_time += outside_same
+                ? distance / samples / std::max(helper_->getAvoidanceEgoSpeed(), 0.1) : 0.0;
+              autoware_utils::Polygon2d footprint;
+              footprint.outer() = autoware_utils::transform_vector(
+                vehicle.createFootprint(), autoware_utils::pose2transform(sample));
+              boost::geometry::correct(footprint);
+              if (outside_own && own_left.size() >= 2 && own_right.size() >= 2) {
+                for (const auto & corner : footprint.outer()) {
+                  if (!boost::geometry::within(corner, own_polygon)) {
+                    intrusion_depth = std::max(intrusion_depth, std::min(
+                      boost::geometry::distance(corner, own_left),
+                      boost::geometry::distance(corner, own_right)));
+                  }
+                }
+              }
+              // Only relax marked/virtual lane separators. A road_border or an
+              // unclassified line must not silently become permission to cross a curb.
+              if (outside_own) {
+                for (const auto & lane : data.current_lanelets) {
+                  for (const auto & bound : {lane.leftBound(), lane.rightBound()}) {
+                    if (boundary_sampling::mayCrossBoundary(
+                          bound.attributeOr("type", std::string{}),
+                          bound.attributeOr("subtype", std::string{}))) {
+                      continue;
+                    }
+                    autoware_utils::LineString2d boundary;
+                    for (const auto & p : bound) boundary.emplace_back(p.x(), p.y());
+                    if (boost::geometry::intersects(footprint, boundary)) {
+                      forbidden_boundary = true;
+                      break;
+                    }
+                  }
+                  if (forbidden_boundary) break;
+                }
+                if (forbidden_boundary) break;
+              }
+              for (const auto & target : static_targets) {
+                if (!boundary_sampling::hasHardClearance(
+                      footprint, target.polygon, target.hard_margin)) {
+                  collision = true;
+                  break;
+                }
+              }
+              if (collision) break;
+            }
+            if (forbidden_boundary) break;
+          }
+          if (forbidden_boundary) {
+            ++geometry_rejected;
+            continue;
+          }
+          // Trial checks must not advance hysteresis 64 times in one planning cycle.
+          DebugData trial_debug = debug;
+          safe_count_ = initial_safe_count;
+          const bool safe_now = !collision && isSafePath(trial, trial_debug);
+          const bool waiting_for_hysteresis = !collision && safe_count_ > initial_safe_count;
+          safe_count_ = initial_safe_count;
+          if (!safe_now && !waiting_for_hysteresis) {
+            ++collision_rejected;
+            continue;
+          }
+          // Among equally safe corridor tiers, use only as much lateral excursion as
+          // necessary and prefer the latest feasible entry / earliest feasible return.
+          // Comfort and vehicle limits have already been checked above, so a shorter
+          // candidate is selected only when it remains dynamically feasible.
+          const auto score = std::make_tuple(
+            tier, intrusion_depth, opposite_time, opposite_length, outside_own_length,
+            lateral_ratio, entry_ratio, return_ratio);
+          if (!best_score || score < *best_score) {
+            best_score = score;
+            best_lines = lines;
+            best_lateral_ratio = lateral_ratio;
+            best_entry_ratio = entry_ratio;
+            best_return_ratio = return_ratio;
+          }
+        }
+      }
+    }
+    safe_count_ = initial_safe_count;
+    if (best_score) data.new_shift_line = best_lines;
+    // Retain rejected lines for diagnostics, but the validity gate below blocks execution.
+    data.valid = best_score.has_value();
+    RCLCPP_INFO_THROTTLE(getLogger(), *clock_, 1000,
+      "SOA boundary candidates tested=%zu geometry_rejected=%zu collision_rejected=%zu selected_tier=%d lateral_ratio=%.2f entry_ratio=%.2f return_ratio=%.2f",
+      tested, geometry_rejected, collision_rejected, best_score ? std::get<0>(*best_score) : -1,
+      best_lateral_ratio, best_entry_ratio, best_return_ratio);
+  } else {
+    data.valid = true;
+  }
+
   /**
    * Step2: Validate new shift lines.
    * Output new shift lines only when the avoidance path which is generated from them doesn't have
    * huge offset from ego.
    */
-  data.valid = isValidShiftLine(data.new_shift_line, path_shifter);
+  data.valid = data.valid && isValidShiftLine(data.new_shift_line, path_shifter);
   const auto found_new_sl = data.new_shift_line.size() > 0;
   const auto registered = path_shifter.getShiftLines().size() > 0;
   data.found_avoidance_path = found_new_sl || registered;
@@ -640,7 +936,7 @@ void StaticObstacleAvoidanceModule::fillEgoStatus(
    * is_avoidable is FALSE. So, the module inserts stop point for such a object.
    */
   for (const auto & o : data.target_objects) {
-    if (o.avoid_required && !helper_->isAbsolutelyNotAvoidable(o)) {
+    if (o.avoid_required && o.longitudinal >= 0.0) {
       data.avoid_required = true;
       data.stop_target_object = o;
       data.to_stop_line = o.to_stop_line;
@@ -829,6 +1125,17 @@ void StaticObstacleAvoidanceModule::updateEgoBehavior(
   insertAvoidanceVelocity(path);
 
   const auto insert_velocity = [this, &data, &path]() {
+    // Candidate existence is not execution permission. Do not leave a colliding
+    // reference path at cruise speed while waiting for a valid/safe maneuver.
+    if (data.avoid_required && data.stop_target_object &&
+        (!data.valid || !data.safe || !data.comfortable || !data.ready || data.request_operator)) {
+      const auto distance = std::max(0.0, data.to_stop_line);
+      RCLCPP_WARN_THROTTLE(getLogger(), *clock_, 1000,
+        "SOA rejected maneuver: stop fallback valid=%d safe=%d comfortable=%d ready=%d approval=%d distance=%.2f",
+        data.valid, data.safe, data.comfortable, data.ready, data.request_operator, distance);
+      return utils::static_obstacle_avoidance::insertDecelPoint(
+        getEgoPosition(), distance, 0.0, path.path, stop_pose_);
+    }
     if (data.yield_required) {
       return insertWaitPoint(isBestEffort(parameters_->policy_deceleration), path);
     }
@@ -1300,7 +1607,7 @@ BehaviorModuleOutput StaticObstacleAvoidanceModule::plan()
       parameters_->path_generation_method == "both") {
       current_drivable_area_info.obstacles =
         utils::static_obstacle_avoidance::generateObstaclePolygonsForDrivableArea(
-          clip_objects_, parameters_, planner_data_->parameters.vehicle_width / 2.0);
+          clip_objects_, parameters_, planner_data_->parameters.vehicle_width);
     }
 
     output.drivable_area_info = utils::combineDrivableAreaInfo(
@@ -1424,6 +1731,11 @@ void StaticObstacleAvoidanceModule::updatePathShifter(const AvoidLineArray & shi
     return;
   }
 
+  // Activation of a previous maneuver is not approval of newly rejected lines.
+  if (!isExecutionReady()) {
+    return;
+  }
+
   addNewShiftLines(path_shifter_, shift_lines);
 
   generator_.setRawRegisteredShiftLine(shift_lines, avoid_data_);
@@ -1526,16 +1838,20 @@ bool StaticObstacleAvoidanceModule::isValidShiftLine(
   const AvoidLineArray & shift_lines, const PathShifter & shifter) const
 {
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
-  if (shift_lines.empty()) {
+  if (shift_lines.empty() && shifter.getShiftLines().empty()) {
     return true;
   }
 
   auto shifter_for_validate = shifter;
 
-  addNewShiftLines(shifter_for_validate, shift_lines);
+  if (!shift_lines.empty()) addNewShiftLines(shifter_for_validate, shift_lines);
 
   ShiftedPath proposed_shift_path;
-  shifter_for_validate.generate(&proposed_shift_path);
+  if (!shifter_for_validate.generate(&proposed_shift_path) ||
+      proposed_shift_path.path.points.size() < 2 ||
+      proposed_shift_path.shift_length.size() != proposed_shift_path.path.points.size()) {
+    return false;
+  }
 
   debug_data_.proposed_spline_shift = proposed_shift_path.shift_length;
 
@@ -1547,55 +1863,40 @@ bool StaticObstacleAvoidanceModule::isValidShiftLine(
     constexpr double THRESHOLD = 0.1;
     const auto offset = std::abs(new_shift_length - helper_->getEgoShift());
     if (offset > THRESHOLD) {
-      RCLCPP_DEBUG_THROTTLE(
-        getLogger(), *clock_, 1000, "new shift line is invalid. [HUGE OFFSET (%.2f)]", offset);
+      RCLCPP_WARN_THROTTLE(
+        getLogger(), *clock_, 1000, "SOA candidate rejected: ego continuity offset=%.3f limit=0.100", offset);
       return false;
     }
   }
 
-  const auto is_return_shift =
-    [](const double start_shift_length, const double end_shift_length, const double threshold) {
-      return std::abs(start_shift_length) > threshold && std::abs(end_shift_length) < threshold;
-    };
-
-  // check if the vehicle is in road. (yaw angle is not considered)
-  {
-    const auto minimum_distance = 0.5 * planner_data_->parameters.vehicle_width +
-                                  parameters_->hard_drivable_bound_margin -
-                                  parameters_->max_deviation_from_lane;
-
-    for (const auto & shift_line : shift_lines) {
-      const size_t start_idx = shift_line.start_idx;
-      const size_t end_idx = shift_line.end_idx;
-
-      if (is_return_shift(
-            shift_line.start_shift_length, shift_line.end_shift_length,
-            parameters_->lateral_small_shift_threshold)) {
-        continue;
-      }
-
-      const auto path = shifter_for_validate.getReferencePath();
-      const auto left_bound = lanelet::utils::to2D(toLineString3d(avoid_data_.left_bound));
-      const auto right_bound = lanelet::utils::to2D(toLineString3d(avoid_data_.right_bound));
-      for (size_t i = start_idx; i <= end_idx; ++i) {
-        const auto p = get_point(path.points.at(i));
-        lanelet::BasicPoint2d basic_point{p.x, p.y};
-
-        const auto shift_length = proposed_shift_path.shift_length.at(i);
-        const auto THRESHOLD = minimum_distance + std::abs(shift_length);
-
-        if (std::abs(shift_length) < 1e-3) {
-          continue;
-        }
-
-        if (
-          boost::geometry::distance(basic_point, (shift_length > 0.0 ? left_bound : right_bound)) <
-          THRESHOLD) {
-          RCLCPP_DEBUG_THROTTLE(
-            getLogger(), *clock_, 1000,
-            "following latest new shift line may cause deviation from drivable area.");
-          return false;
-        }
+  // Use the same yaw-aware corner/polygon test as PO, including return shifts.
+  // No half-width approximation or max_deviation_from_lane relaxation here.
+  if (avoid_data_.left_bound.size() < 2 || avoid_data_.right_bound.size() < 2) {
+    return false;
+  }
+  const auto & points = proposed_shift_path.path.points;
+  const auto first = planner_data_->findEgoIndex(points);
+  size_t last = first;
+  for (const auto & line : shifter_for_validate.getShiftLines()) {
+    last = std::max(last, line.end_idx);
+  }
+  last = std::min(last + 1, points.size() - 1);
+  for (size_t i = first; i <= last; ++i) {
+    const auto & pose = points.at(i).point.pose;
+    const auto & prev = points.at(i == first ? i : i - 1).point.pose;
+    const auto distance = std::hypot(
+      pose.position.x - prev.position.x, pose.position.y - prev.position.y);
+    const auto samples = std::max(1, static_cast<int>(std::ceil(distance / 0.1)));
+    for (int k = 1; k <= samples; ++k) {
+      const auto sample = autoware_utils::calc_interpolated_pose(
+        prev, pose, static_cast<double>(k) / samples, false);
+      if (autoware::motion_utils::drivable_area::isOutsideDrivableAreaFromRectangleFootprint(
+            sample, avoid_data_.left_bound, avoid_data_.right_bound,
+            planner_data_->parameters.vehicle_info, false)) {
+        RCLCPP_WARN_THROTTLE(getLogger(), *clock_, 1000,
+          "SOA candidate rejected: footprint outside corridor index=%zu x=%.3f y=%.3f",
+          i, sample.position.x, sample.position.y);
+        return false;
       }
     }
   }
@@ -1730,11 +2031,14 @@ void StaticObstacleAvoidanceModule::updateData()
     return;
   }
 
-  // update shift line generator.
-  generator_.setData(planner_data_);
-  generator_.setPathShifter(path_shifter_);
-  generator_.setHelper(helper_);
-  generator_.update(avoid_data_, debug_data_);
+  // Path Optimizer owns the trajectory in optimization-base mode.  Do not let BPP longitudinal or
+  // lateral-jerk feasibility mutate target state and terminate an active optimized maneuver.
+  if (parameters_->path_generation_method != "optimization_base") {
+    generator_.setData(planner_data_);
+    generator_.setPathShifter(path_shifter_);
+    generator_.setHelper(helper_);
+    generator_.update(avoid_data_, debug_data_);
+  }
 
   // update shift line and check path safety.
   fillShiftLine(avoid_data_, debug_data_);
@@ -2026,11 +2330,6 @@ bool StaticObstacleAvoidanceModule::insertWaitPoint(
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
   const auto & data = avoid_data_;
 
-  // If avoidance path is NOT valid, don't insert any stop points.
-  if (!data.valid) {
-    return false;
-  }
-
   if (!data.stop_target_object) {
     return false;
   }
@@ -2061,8 +2360,10 @@ bool StaticObstacleAvoidanceModule::insertWaitPoint(
   const auto is_comfortable_stop = helper_->getFeasibleDecelDistance(0.0) < data.to_stop_line;
   const auto is_slow_speed = getEgoSpeed() < parameters_->min_slow_down_speed;
   if (!is_comfortable_stop && !is_slow_speed) {
-    RCLCPP_WARN_THROTTLE(getLogger(), *clock_, 3000, "not execute uncomfortable deceleration.");
-    return false;
+    RCLCPP_WARN_THROTTLE(getLogger(), *clock_, 3000,
+      "SOA stopping distance insufficient: retain stop target for downstream emergency deceleration");
+    return utils::static_obstacle_avoidance::insertDecelPoint(
+      getEgoPosition(), std::max(0.0, data.to_stop_line), 0.0, shifted_path.path, stop_pose_);
   }
 
   // If target object can be stopped for, insert a deceleration point and return

@@ -14,7 +14,7 @@ class PolicyTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.cfg = yaml.safe_load((PACKAGE/'config/competition_route_requester.param.yaml').read_text())
-        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v81_competition_route.yaml').read_text())
+        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v84_competition_route.yaml').read_text())
         cls.geometry = Geometry(REPO, cls.routes)
 
     def test_all_five_cases(self):
@@ -126,7 +126,7 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[1:]), final[1:])
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[4:]), final[4:])
 
-    def test_v81_highway_lane_change_contract(self):
+    def test_v83_highway_lane_change_contract(self):
         """Prefer the leftmost highway corridor through the mandatory bottleneck."""
         for key in ('route_a', 'route_b'):
             initial = self.routes[key]['waypoint_path_lanelet_ids']

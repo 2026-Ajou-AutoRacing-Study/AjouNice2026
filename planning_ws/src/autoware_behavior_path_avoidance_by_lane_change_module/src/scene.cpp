@@ -124,15 +124,19 @@ bool AvoidanceByLaneChange::specialRequiredCheck() const
   const auto & nearest_object = data.target_objects.front();
   const auto minimum_avoid_length = calcMinAvoidanceLength(nearest_object);
   const auto minimum_lane_change_length = calc_minimum_dist_buffer();
+  if (!minimum_lane_change_length) {
+    RCLCPP_DEBUG(logger_, "No valid lane-change distance is available for obstacle avoidance.");
+    return false;
+  }
 
   lane_change_debug_.execution_area = create_execution_area(
     getCommonParam().vehicle_info, getEgoPose(),
-    std::max(minimum_lane_change_length, minimum_avoid_length), calcLateralOffset());
+    std::max(*minimum_lane_change_length, minimum_avoid_length), calcLateralOffset());
 
   RCLCPP_DEBUG(
-    logger_, "Conditions ? %f, %f, %f", nearest_object.longitudinal, minimum_lane_change_length,
+    logger_, "Conditions ? %f, %f, %f", nearest_object.longitudinal, *minimum_lane_change_length,
     minimum_avoid_length);
-  return nearest_object.longitudinal > std::max(minimum_lane_change_length, minimum_avoid_length);
+  return nearest_object.longitudinal > std::max(*minimum_lane_change_length, minimum_avoid_length);
 }
 
 bool AvoidanceByLaneChange::specialExpiredCheck() const
@@ -322,11 +326,14 @@ double AvoidanceByLaneChange::calcMinAvoidanceLength(const ObjectData & nearest_
   return avoidance_helper_->getMinAvoidanceDistance(shift_length);
 }
 
-double AvoidanceByLaneChange::calc_minimum_dist_buffer() const
+std::optional<double> AvoidanceByLaneChange::calc_minimum_dist_buffer() const
 {
-  const auto [_, dist_buffer] = utils::lane_change::calculation::calc_lc_length_and_dist_buffer(
+  const auto lc_distance = utils::lane_change::calculation::calc_lc_length_and_dist_buffer(
     common_data_ptr_, get_current_lanes());
-  return dist_buffer.min;
+  if (!lc_distance) {
+    return std::nullopt;
+  }
+  return lc_distance->second.min;
 }
 
 double AvoidanceByLaneChange::calcLateralOffset() const

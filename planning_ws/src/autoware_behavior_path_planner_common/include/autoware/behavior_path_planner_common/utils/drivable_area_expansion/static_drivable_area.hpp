@@ -32,7 +32,8 @@ std::vector<lanelet::ConstPoint3d> getBoundWithHatchedRoadMarkings(
 std::vector<lanelet::ConstPoint3d> getBoundWithIntersectionAreas(
   const std::vector<lanelet::ConstPoint3d> & original_bound,
   const std::shared_ptr<autoware::route_handler::RouteHandler> & route_handler,
-  const std::vector<DrivableLanes> & drivable_lanes, bool is_left);
+  const std::vector<DrivableLanes> & drivable_lanes, bool is_left,
+  double lanelet_overlap_ratio_threshold = 0.9);
 
 std::pair<std::vector<lanelet::ConstPoint3d>, bool> getBoundWithFreeSpaceAreas(
   const std::vector<lanelet::ConstPoint3d> & original_bound,
@@ -51,7 +52,8 @@ std::vector<geometry_msgs::Point> calcBound(
   const std::shared_ptr<const PlannerData> planner_data,
   const std::vector<DrivableLanes> & drivable_lanes,
   bool enable_expanding_hatched_road_markings, bool enable_expanding_intersection_areas,
-  bool enable_expanding_freespace_areas, bool is_left, bool is_driving_forward = true);
+  bool enable_expanding_freespace_areas, bool is_left, bool is_driving_forward = true,
+  double intersection_area_lanelet_overlap_ratio_threshold = 0.9);
 
 void extractObstaclesFromDrivableArea(
   autoware_internal_planning_msgs::PathWithLaneId & path,

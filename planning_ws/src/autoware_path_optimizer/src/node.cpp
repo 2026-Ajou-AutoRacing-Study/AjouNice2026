@@ -93,7 +93,6 @@ PathOptimizer::PathOptimizer(
 : Node(node_handle, private_node),
   vehicle_info_(autoware::vehicle_info_utils::VehicleInfoUtils(private_node).getVehicleInfo()),
   debug_data_ptr_(std::make_shared<DebugData>()),
-  conditional_timer_(std::make_shared<ConditionalTimer>()),
   updater_(node_handle)
 {
   // interface publisher
@@ -308,7 +307,7 @@ void PathOptimizer::onCheckPathOptimizationValid(diagnostic_updater::DiagnosticS
 {
   if (is_optimization_failed_) {
     const std::string error_msg =
-      "[Path Optimizer]: Emergency Brake due to prolonged MPT Optimizer failure";
+      "[Path Optimizer]: MPT failed; using current input path without optimization";
     const auto diag_level = diagnostic_msgs::DiagnosticStatus::ERROR;
     stat.summary(diag_level, error_msg);
   } else {
@@ -356,7 +355,6 @@ std::vector<TrajectoryPoint> PathOptimizer::generateOptimizedTrajectory(
 std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData & planner_data)
 {
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
-  is_optimization_failed_ = false;
   const auto & p = planner_data;
 
   // 1. check if replan (= optimization) is required
@@ -368,7 +366,8 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
       return true;
     }
     // check replan when not resetting previous optimization
-    return replan_checker_ptr_->isReplanRequired(planner_data, now());
+    // Retry after fallback; do not resurrect an older optimized path on the next cycle.
+    return is_optimization_failed_ || replan_checker_ptr_->isReplanRequired(planner_data, now());
   }();
   replan_checker_ptr_->updateData(planner_data, is_replan_required, now());
   if (!is_replan_required) {
@@ -376,6 +375,7 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
   }
 
   if (enable_skip_optimization_) {
+    is_optimization_failed_ = false;
     return p.traj_points;
   }
 
@@ -383,22 +383,15 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
   //    with model predictive trajectory
   const auto mpt_traj = mpt_optimizer_ptr_->optimizeTrajectory(planner_data);
 
-  const double elapsed_time = conditional_timer_->getElapsedTime().count();
-  const bool elapsed_time_over_three_seconds = (elapsed_time > 3.0);
-
-  auto optimized_traj_points = [&]() {
-    if (mpt_traj) {
-      return *mpt_traj;
-    }
-    if (elapsed_time_over_three_seconds) {
-      return p.traj_points;
-    }
-    return getPrevOptimizedTrajectory(p.traj_points);
-  }();
-
-  const bool optimized_traj_failed = !static_cast<bool>(mpt_traj);
-  conditional_timer_->update(optimized_traj_failed);
-  is_optimization_failed_ = optimized_traj_failed && elapsed_time_over_three_seconds;
+  // Never hold a stale pre-avoidance path while BPP is executing a new maneuver.
+  // This fallback has not passed MPT constraints; downstream checks remain active.
+  is_optimization_failed_ = !static_cast<bool>(mpt_traj);
+  auto optimized_traj_points = mpt_traj ? *mpt_traj : p.traj_points;
+  if (is_optimization_failed_) {
+    RCLCPP_WARN_THROTTLE(
+      get_logger(), *get_clock(), 1000,
+      "[MPT] Immediate input-path fallback; optimization constraints not verified");
+  }
 
   // 3. update velocity
   //    NOTE: When optimization failed or is skipped, velocity in trajectory points must

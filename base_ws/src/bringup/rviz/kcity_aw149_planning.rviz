@@ -5,7 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /K-City v811
+        - /K-City v821
         - /Mission Route1
         - /Competition Checkpoints1
         - /Final Trajectory1
@@ -49,7 +49,7 @@ Visualization Manager:
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /map/lanelet_map
-      Name: K-City v81
+      Name: K-City v82
       Namespaces:
         features/lane_markings: true
         features/road_borders: true

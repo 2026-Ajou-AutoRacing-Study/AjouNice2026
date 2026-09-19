@@ -228,6 +228,12 @@ void fillObjectAvoidableByDesiredShiftLength(
 void updateClipObject(ObjectDataArray & clip_objects, AvoidancePlanningData & data);
 
 /**
+ * @brief return true once the whole object is behind the ego rear edge and release margin.
+ */
+bool isClipObjectPassed(
+  const ObjectData & object, const double base_link2rear, const double release_margin);
+
+/**
  * @brief compensate lost objects until a certain time elapses.
  * @param avoidance planning data.
  * @param previous stopped object.
