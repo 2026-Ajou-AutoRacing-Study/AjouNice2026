@@ -8,6 +8,10 @@
 - 예전 control pipeline 문서.
 - 루트 `docs/`에 있던 번호형 1~7 초기 설치·MORAI·rosbag·FAST-LIO 문서.
 - `260804_localization_state_input_architecture_plan.md`: 채택 전 구조 검토 기록.
+- `260801_robot_localization_gnss_imu_gt_ctra_fusion.md`: 초기 estimator 구현과
+  v60/v61 시점 검증·실행 기록. 현재 명령은 상위 README와 launch를 따른다.
+- `260916_competition_lateral_jitter_stabilization_plan.md`: GNSS Q/R 채택 전 계획과
+  초기 covariance sweep 기록. 최신 판정은 CURRENT/EVIDENCE 문서를 따른다.
 
 번호형 문서는 다음과 같이 모두 이 디렉터리에 보존한다.
 
@@ -20,7 +24,7 @@
 7. `7_fast_lio_bridge.md`
 
 현재 production은 상위 [`README.md`](../README.md)와
-[`260916_competition_lateral_jitter_stabilization_plan.md`](../260916_competition_lateral_jitter_stabilization_plan.md)를 따른다.
+[`260918_competition_localization_critical_issue_status.md`](../260918_competition_localization_critical_issue_status.md)를 따른다.
 
 이 기록은 재현 근거를 보존하기 위해 삭제하지 않았다. 여기의 alias와 launch 명령을
 현재 full stack에 동시에 섞지 않는다.

@@ -9,6 +9,9 @@ and the Autoware-derived planning stack.
 터미널 순서는
 [`docs/runbooks/morai_full_stack_by_terminal.md`](../../../docs/runbooks/morai_full_stack_by_terminal.md)를
 따른다.
+Tracker와 Prediction의 현재 설정은
+[`docs/TRACKING_PREDICTION_CURRENT.md`](docs/TRACKING_PREDICTION_CURRENT.md)를 단일
+기준으로 사용한다.
 
 ```text
 BEVFusion or a legacy detector adapter
@@ -127,15 +130,16 @@ requires the sensor static TF and the `map -> morai_map -> base_link` chain.
 ```bash
 tracking_internal_publish_rate_hz:=30.0
 tracking_publish_rate_hz:=0.0
-maximum_tracking_internal_prediction_age_sec:=0.25
+maximum_tracking_internal_prediction_age_sec:=0.50  # production alias override
 compensate_tracking_output_to_current_time:=false
 ```
 
-The detector updates the EKF only when a new measurement arrives (for example,
-about 12--15 Hz from PointPainting/LiDAR). Between measurements, the scheduler
+The detector updates the EKF only when a new measurement arrives. Between measurements, the scheduler
 asks the EKF motion model for a predicted output copy at each 30 Hz ROS-time
 slot; it does not invent measurements or mutate the measurement-time filter
-state. It stops publishing when the latest measurement is older than 0.25 s.
+state. Production `tracking` stops publishing when the latest measurement is older than 0.50 s.
+Generic launch defaults remain 0.25 s for compatibility, so operators use the alias rather than
+assuming direct launch defaults are production.
 
 Set `tracking_internal_publish_rate_hz:=0.0` only for the detector-driven A/B
 baseline. `tracking_publish_rate_hz` is the downstream adapter retained for
@@ -165,7 +169,7 @@ choice is made by this competition production launch.
 
 ### UNKNOWN obstacle motion policy
 
-PointPainting publishes its third `Obstacle` class as Autoware `UNKNOWN`.
+The production detector's third `Obstacle` class is represented as Autoware `UNKNOWN`.
 `object_pipeline.launch` applies a post-tracking motion policy before
 prediction and optional downstream fixed-rate resampling:
 
@@ -206,16 +210,14 @@ roslaunch perception_object_pipeline object_pipeline.launch \
   canonicalize_vehicle_orientation_to_motion:=false
 ```
 
-The audit of the legacy CTRV/CTRA evaluation, the replacement benchmark
-design, and the staged ROS1 port of Autoware map-based prediction are recorded
-in
-[`docs/tracking_prediction_evaluation_map_prediction_plan.md`](docs/tracking_prediction_evaluation_map_prediction_plan.md).
+The audit of the legacy CTRV/CTRA evaluation and the staged Map-CV introduction are preserved in
+[`docs/legacy/`](docs/legacy/).
 The legacy evaluation numbers are motion-model studies based mainly on MORAI
 GT state; they are not treated as end-to-end accuracy measurements of the
 current standardized pipeline.
 
 The ROS1 map-based vehicle predictor is available behind an explicit launch
-switch. Current production uses the K-City v67 Lanelet2 map and publishes the same
+switch. Current production uses the K-City v84 Lanelet2 map and publishes the same
 `PredictedObjects` contract, and falls back to CTRV/CV for low-speed, off-lane,
 wrong-direction and non-vehicle objects.
 
@@ -249,11 +251,11 @@ more duplicate start Lanelets. A later improvement should normalize
 `P(start lane | observation)` and `P(branch | start lane)` separately and then
 marginalize probability mass into each geometric hypothesis. The generic
 launch default remains CTRV for compatibility; `tracking_prediction.launch`
-explicitly selects `prediction_model=map_based` and v67.
+explicitly selects `prediction_model=map_based` and v84.
 
-The complete 2026-08-20 production contract, evaluated metrics, rejected
-ablations and restart order are documented in
-[`map_cv_production_handoff_260820.md`](docs/map_cv_production_handoff_260820.md).
+The current production contract is documented in
+[`TRACKING_PREDICTION_CURRENT.md`](docs/TRACKING_PREDICTION_CURRENT.md). The 2026-08-20
+PointPainting/v60 handoff is historical and lives under [`docs/legacy/`](docs/legacy/).
 
 ## Debug A/B topics
 

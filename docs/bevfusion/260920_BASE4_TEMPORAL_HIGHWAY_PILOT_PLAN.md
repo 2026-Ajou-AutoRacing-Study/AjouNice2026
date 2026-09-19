@@ -103,6 +103,113 @@ checkpoint를 고르고 rosbag에서 downstream을 검증한다.
 처음부터 3-sweep 하나만 학습하지 않는다. B4H-V1이 있어야 velocity GT 자체의 품질과
 temporal 입력의 추가 이득을 분리할 수 있다.
 
+## Temporal architecture 판단과 확장 순서
+
+### 결론
+
+현재 코드에서 **최소 수정으로 최대 실험 효율**을 노리는 첫 temporal 방식은
+StreamPETR query memory가 아니라 원본 BEVFusion의 causal multi-sweep 입력을 복구하는
+것이다. StreamPETR는 유력한 후속 후보지만, B4H-T1보다 먼저 구현하지 않는다.
+
+권장 확장 순서는 다음과 같다.
+
+| 단계 | ID | 방식 | 역할 |
+|---|---|---|---|
+| 0 | E25-7D | 현재 single-frame 7D | 고정 production 기준선 |
+| 1 | B4H-V1 | single-frame 9D velocity head | velocity label·head 자체의 효과 분리 |
+| 2 | B4H-T1 | Ego 정합 3-sweep + point `dt` | 가장 작은 temporal baseline |
+| 3 | B4H-T2 | 직전 fused-BEV ego warp + gated fusion | raw point ghosting을 피하는 feature temporal |
+| 4 | B4H-Q1 | StreamPETR-inspired sparse query memory | 긴 객체 이력과 object-centric motion |
+
+앞 단계가 채택 gate를 넘지 못했다고 무조건 다음 단계를 구현하지 않는다. 특히 V1만으로
+tracker AVE와 Map-CV FDE가 충분히 개선되면 temporal 구조의 production 복잡도를 추가할
+이유가 없다.
+
+### B4H-T1이 첫 temporal baseline인 이유
+
+현재 MORAI Base3 config는 single-frame 실험을 위해 원본 MMDetection3D BEVFusion에서
+다음 기능을 의도적으로 제거한 상태다.
+
+- `LoadPointsFromMultiSweeps`와 여러 과거 sweep.
+- 다섯 번째 point feature인 time lag.
+- TransFusion의 `vel=[2,2]` head와 10D box coder.
+
+반대로 upstream BEVFusion config는 이미 9개 과거 sweep, 5-feature LiDAR와 velocity
+head를 지원한다. 따라서 B4H-T1은 새 detector를 이식하는 작업이 아니라 기존 경로를
+MORAI의 실제 연속 sequence와 3-sweep 계약에 맞게 복구하는 작업에 가깝다. 현재
+`adapt_nuscenes_checkpoint.py`에서 제거하는 fifth-channel sparse-conv weight와 velocity
+head도 이 단계에서 다시 사용할 수 있다.
+
+과거 sweep은 Ego motion만 현재 LiDAR frame으로 정합하고 point마다 실제 `dt`를 둔다.
+GT Object pose를 이용한 object compensation은 online 추론에서 재현할 수 없고 velocity
+단서를 지우므로 계속 금지한다.
+
+### B4H-T2: lightweight temporal BEV
+
+B4H-T1에서 동적 객체 trail 때문에 center/AP가 나빠지거나 velocity 개선이 작으면 다음
+후보는 직전 fused-BEV 한 장을 쓰는 경량 recurrent fusion이다.
+
+1. 직전 fused-BEV와 그 시각의 Ego pose를 cache한다.
+2. 현재 Ego frame으로 과거 BEV를 warp한다.
+3. current/previous feature를 concatenate한다.
+4. 작은 `1x1 convolution` 또는 learned gate로 다시 기존 head channel에 투영한다.
+
+온라인에서는 직전 BEV를 재사용하므로 매 frame 과거 encoder를 다시 돌리지 않는다.
+다만 학습 loader는 순서가 보장된 clip, 동일 clip augmentation, scene reset과 frame-drop
+정책을 제공해야 한다. 이 방식도 단순 config 변경은 아니지만 현재 BEVFusion encoder와
+TransFusion head를 유지하므로 query-memory 이식보다 변경 범위가 작다.
+
+### StreamPETR를 그대로 첫 선택으로 삼지 않는 이유
+
+StreamPETR의 핵심은 이전 BEV feature의 `grid_sample` cache가 아니라 **object-query
+memory**다. 과거 frame의 Top-K query feature, reference point, confidence, timestamp와
+Ego pose를 FIFO memory에 보관하고, 현재 query가 propagation transformer로 과거 query와
+상호작용한다. 따라서 단순히 `extract_feat` 뒤에 BEV warp 하나를 붙이는 방식과 다르다.
+
+우리 TransFusion head도 query를 사용하므로 개념적으로는 결합 가능하지만 현재 query는
+매 frame dense heatmap에서 새로 생성된다. B4H-Q1에는 최소한 다음 변경이 필요하다.
+
+- 최종 Top-K query feature·center·score·velocity의 외부 노출과 저장.
+- timestamp/Ego pose 기반 reference point 변환.
+- current query와 memory query 사이 temporal attention.
+- batch sample별 sequence ID, memory validity와 scene/teleport reset.
+- ordered streaming 또는 clip 학습, augmentation 일관성, memory detach/BPTT 정책.
+- 초기 miss와 오검출 query가 memory에 누적되는 경우의 age/confidence gate.
+- runtime frame drop과 비정상 `dt` 처리.
+
+따라서 sparse memory의 online 계산량은 매력적이지만 구현·학습 위험은 B4H-T1/T2보다
+높다. T1 또는 T2로 temporal 정보의 실효성이 확인되고 dense feature memory의 지연이나
+velocity 한계가 남을 때 `B4H-Q1`로 통제 실험한다. StreamPETR 전체를 포팅하지 않고
+Vehicle Top-K query만 보존하는 작은 memory bank부터 시작한다.
+
+공식 StreamPETR는 camera-only PETR 계열이며 논문 결과는 8-frame sliding-window 학습을
+사용했다. 공식 저장소의 streaming-video 학습은 메모리·시간을 줄이지만 더 늦게
+수렴한다고 명시한다. 또한 공식 환경은 PyTorch 1.9와 MMDetection3D 1.0.0rc6 계열이라
+현재 팀 Docker/MMDetection3D에 파일을 그대로 복사하지 않는다.
+
+- Paper: <https://arxiv.org/abs/2303.11926>
+- Official repository: <https://github.com/exiawsh/StreamPETR>
+- Official training notes: <https://github.com/exiawsh/StreamPETR/blob/main/docs/training_inference.md>
+
+### SOLOFusion과의 관계
+
+SOLOFusion은 camera-only BEV 계열에서 긴 image history의 coarse cost volume과 짧은
+history의 fine-grained stereo를 결합한다. 긴 history와 2-stage training/data sampler가
+필요하여 현재 LiDAR-camera BEVFusion velocity pilot의 최소 변경 목표와 맞지 않는다.
+아이디어 비교 대상으로는 유지하지만 B4T-HWY-P0 구현 후보에서는 제외한다.
+
+- Paper/repository: <https://github.com/Divadi/SOLOFusion>
+
+### T1 이후 선택 gate
+
+- T1이 V1 대비 velocity와 downstream FDE를 개선하고 geometry gate도 통과하면 T1을
+  우선 채택하고 구조 확장을 멈춘다.
+- T1 velocity는 좋아지지만 center/AP가 ghosting으로 퇴행하면 T2를 수행한다.
+- T2가 정확하지만 latency/VRAM이 production 범위를 넘거나 장기 객체 motion이 여전히
+  부족하면 Q1을 수행한다.
+- T1과 T2 모두 V1보다 유의미하지 않으면 temporal architecture보다 velocity label,
+  motion-family coverage와 loss/covariance 계약을 먼저 재감사한다.
+
 ## Tracker A/B
 
 각 velocity 모델을 동일 detection threshold에서 두 번 평가한다.

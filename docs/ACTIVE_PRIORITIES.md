@@ -29,14 +29,17 @@
 - 로컬 한-PC full-stack의 velocity 과적분은 production 속도 bias로 취급하지 않는다.
   현장 bag의 이동거리/속도 적분 비율은 정상이며, 로컬 MORAI 실시간율과 receipt-time
   artifact를 분리해야 한다.
-- 다음 검증은 GT-object full stack으로 MORAI 실시간율을 정상화한 test bed에서
-  quantization-aware GNSS update를 A/B하는 것이다.
-- 최종 pose LPF나 controller gain으로 먼저 가리지 않는다. 동일 입력에서
-  GNSS covariance/update gate, GPS 음영 복귀, global/local control state 분리,
-  controller tuning 순으로 진행한다.
+- 경량 GT-object 폐루프에서 production Q/R은 localization `50 Hz`, 횡 frame-jump
+  p95 약 `1.31 cm`, steering-rate p95 약 `0.54 rad/s`를 유지했다. 이 test bed 확보는
+  완료됐고 `sigma=0.05, Qxy=0.05` preset은 기각한다.
+- 다음 gate는 최신 Pure Pursuit limiter를 포함한 LAN-to-LAN closed-loop와 GPS 음영
+  복귀 검증이다. 그 전에는 quantization-aware update나 global/local 제어 상태 분리를
+  추가하지 않는다.
 
 최신 문제 정의와 검증 계약:
 [`localization/260918_competition_localization_critical_issue_status.md`](localization/260918_competition_localization_critical_issue_status.md).
+최신 폐루프 근거:
+[`localization/260920_lightweight_closed_loop_evidence.md`](localization/260920_lightweight_closed_loop_evidence.md).
 
 ## P1. Base4-Temporal 고주로 Velocity Pilot
 
@@ -54,6 +57,9 @@
   `velocity_target_ego_mps=[vx,vy]` 하나만 노출한다.
 - 과거 sweep은 Ego motion만 현재 frame에 정합한다. 추론에 존재하지 않는 GT Object
   motion compensation은 input에 사용하지 않는다.
+- Architecture 순서는 single-frame 9D -> native 3-sweep -> 필요 시 lightweight
+  temporal BEV -> 마지막에 StreamPETR-inspired query memory다. StreamPETR를 첫 구현으로
+  바로 포팅하지 않는다.
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.
@@ -64,6 +70,10 @@
 [`bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md).
 
 ## P2. Localization과 velocity pilot 이후 Prediction 개선
+
+현재 구현값과 미구현 경계는
+[`../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md`](../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)를
+따른다.
 
 - 기본 prediction horizon을 5초로 확장하되 로터리에서는 3--4초로 줄이는
   map-zone-aware 정책을 검토한다.

@@ -195,7 +195,8 @@ MORAI GT box, matched GT future path를 포함한다.
 
 현재 runtime을 판단할 때 이 문서와 실제 production launch를 우선한다.
 
-- `map_cv_production_handoff_260820.md`의 알고리즘·tracker 계약은 유효하다.
+- `base_ws/src/perception_object_pipeline/docs/legacy/map_cv_production_handoff_260820.md`는
+  당시 알고리즘·tracker 계약의 역사 기록이다.
 - 그 문서의 v60 경로는 historical이다. 통합 runtime map은 v62이다.
 - `base3_static_pointpainting_training.md`, `rosbag_vehicle_leaderboard.md`의
   PP0/PP1 결과는 후보 비교 근거이며 production 기본값을 뜻하지 않는다.

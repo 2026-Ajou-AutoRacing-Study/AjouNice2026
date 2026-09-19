@@ -4,11 +4,11 @@
 
 > **최신 판정:** 이 문서 이후 GNSS 양자화, 현장 `velocity.x`, 로컬 MORAI
 > 실시간율을 추가 검증했다. 현재 원인과 실행 우선순위는
-> [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)를
+> [`260918_competition_localization_critical_issue_status.md`](../260918_competition_localization_critical_issue_status.md)를
 > 우선한다. 특히 로컬 full-stack bag의 종방향 과적분을 production
 > `velocity.x` bias로 해석하지 않는다. 2026-09-19에 GNSS sigma `0.10 m`와
 > Global Qxy `0.0005` 조합을 production 기본값으로 채택했다. 정량 근거는
-> [`260919_quantized_gnss_qr_tuning_evidence.md`](260919_quantized_gnss_qr_tuning_evidence.md)를
+> [`260919_quantized_gnss_qr_tuning_evidence.md`](../260919_quantized_gnss_qr_tuning_evidence.md)를
 > 따른다.
 
 ## 1. 목적

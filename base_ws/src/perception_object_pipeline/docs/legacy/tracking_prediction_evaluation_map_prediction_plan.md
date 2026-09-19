@@ -195,7 +195,7 @@ segment 경계로 자동 분리하고, 경계 주변 미래 horizon을 정상 pr
 독립 ROS package `tracking_prediction_evaluation`에 causal CTRV/CTRA E0 평가기를
 구축했다. 합성 단위 테스트와 roundabout/highway 원시 bag 검증을 통과했으며,
 상세 기준선은
-[`tracking_prediction_evaluation/docs/e0_oracle_baseline.md`](../../tracking_prediction_evaluation/docs/e0_oracle_baseline.md)에
+[`tracking_prediction_evaluation/docs/e0_oracle_baseline.md`](../../../tracking_prediction_evaluation/docs/e0_oracle_baseline.md)에
 기록한다. E1은 P1 이후로 연기한다.
 
 ### P1: 차량 lane-constrained predictor

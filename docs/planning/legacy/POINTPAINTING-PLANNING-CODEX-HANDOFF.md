@@ -454,7 +454,7 @@ sensor rate, TF, detection/tracking/prediction topic, planning trajectory와 val
 - `docs/runbooks/legacy/morai_pointpainting_object_pipeline_live.md`
 - `perception/pointpainting/docs/legacy/production_runtime_contract_260913.md`
 - `base_ws/src/perception_object_pipeline/README.md`
-- `base_ws/src/perception_object_pipeline/docs/map_cv_production_handoff_260820.md`
+- `base_ws/src/perception_object_pipeline/docs/legacy/map_cv_production_handoff_260820.md`
 - `docs/planning/INTEGRATION-HANDOFF.md`
 
 모델 실험의 세부 metric과 역사적 후보 비교는 production runtime contract와

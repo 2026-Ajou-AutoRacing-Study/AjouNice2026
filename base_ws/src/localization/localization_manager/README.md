@@ -323,8 +323,11 @@ input. Selecting `gt_source:=competition` changes only the continuous yaw and
 velocity source. Replace the initial Ego pose with the provided manual start
 pose before competition use.
 
-The full design, terminal procedures, and validation scope are documented in
-`docs/localization/260801_robot_localization_gnss_imu_gt_ctra_fusion.md`.
+The current production contract and validation scope are documented in
+`docs/localization/README.md` and
+`docs/localization/260918_competition_localization_critical_issue_status.md`.
+The initial implementation record is preserved under
+`docs/localization/legacy/260801_robot_localization_gnss_imu_gt_ctra_fusion.md`.
 
 ## TF ownership and exclusivity
 

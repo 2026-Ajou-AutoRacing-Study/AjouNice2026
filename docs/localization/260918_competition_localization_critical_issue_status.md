@@ -1,6 +1,6 @@
 # 대회 Localization 중대 이슈 현황과 해결 기준
 
-마지막 갱신: 2026-09-19
+마지막 갱신: 2026-09-20
 
 이 문서는 대회용 GNSS+IMU+GT motion localization에서 관측한 위치 흔들림과
 제어 채터링의 최신 사실, 반증된 가설, 남은 위험 및 다음 실험 계약을 한곳에
@@ -198,7 +198,7 @@ production 크기 근거로 사용하지 않는다. GPS 음영 정책은 real-ti
 
 ## 7. 현재 해결 우선순위
 
-### P0. 시간축이 정상인 localization test bed 확보
+### P0. 시간축이 정상인 localization test bed 확보 — 완료
 
 BEVFusion을 끄고 MORAI GT detection adapter를 사용한다.
 
@@ -222,6 +222,14 @@ GT adapter는 detector velocity를 전달하지 않으므로 tracker와 predicti
 - localization, planning, control topic rate가 유지됨.
 - detection publisher가 `morai_gt_detection` 하나임.
 - `/Object_topic`은 이 로컬 실험에서만 사용하며 대회 fallback으로 취급하지 않음.
+
+2026-09-20 경량 폐루프에서 production Q/R 장주행은 localization `50.00 Hz`, 횡/종
+위치 오차 p95 `5.56/6.28 cm`, 횡/종 frame jump p95 `1.31/7.53 cm`, 조향률 p95
+`0.541 rad/s`를 기록했다. `sigma=0.05 m`, `Qxy=0.05` preset은 횡 frame jump
+`5.15 cm`, 조향률 `1.248 rad/s`로 악화했다. production Q/R을 유지한다. 상세 근거와
+비교 한계는
+[`260920_lightweight_closed_loop_evidence.md`](260920_lightweight_closed_loop_evidence.md)를
+따른다.
 
 한 PC 로컬 test bed에서는 다음 경량 계약을 사용한다.
 
@@ -259,10 +267,11 @@ localization/control 부하 실험에서만 사용한다.
 
 ### P1. 채택 Q/R의 현장 closed-loop 확인
 
-정상 시간축 offline A/B는 완료했으며 Q/R을 production 기본값으로 반영했다. 다음
-LAN-to-LAN 주행에서 controller 설정을 고정하고 baseline 현장 bag의 steering-rate
-absolute p95 `1.59 rad/s`보다 감소하는지 확인한다. 새 bag에는 raw Competition,
-GPS, IMU와 EKF 중간 토픽을 반드시 함께 기록한다.
+정상 시간축 offline A/B와 로컬 경량 폐루프는 완료했으며 Q/R을 production 기본값으로
+유지한다. 다음 LAN-to-LAN 주행에서는 새 Pure Pursuit limiter까지 포함한 controller
+설정을 고정하고 baseline 현장 bag의 steering-rate absolute p95 `1.59 rad/s`보다
+감소하는지 확인한다. 새 bag에는 raw Competition, GPS, IMU와 EKF 중간 토픽을 반드시
+함께 기록한다.
 
 ### P2. 필요할 때만 explicit quantization-aware GNSS update
 
@@ -340,7 +349,9 @@ gain을 조정한다. localization jump를 controller gain으로 덮지 않는�
 ## 10. 증거 위치
 
 - 현황 이전 계획:
-  `docs/localization/260916_competition_lateral_jitter_stabilization_plan.md`
+  `docs/localization/legacy/260916_competition_lateral_jitter_stabilization_plan.md`
+- 최신 경량 폐루프 근거:
+  `docs/localization/260920_lightweight_closed_loop_evidence.md`
 - UDP timestamp 계약:
   `docs/localization/morai_udp_receipt_time.md`
 - 현장 bag과 분석:
@@ -357,5 +368,6 @@ gain을 조정한다. localization jump를 controller gain으로 덮지 않는�
 정상 구간 채터링의 확정 원인은 무잡음이지만 약 15~19 cm로 양자화된 GNSS를 Global
 EKF가 강하게 따라가고 그 correction을 controller가 직접 소비하는 구조다. 로컬에서
 관측한 21.9% `velocity.x` 과적분은 production velocity bias가 아니라 한-PC 과부하와
-receipt-time이 결합된 시간축 artifact다. 먼저 GT object로 MORAI 실시간율을 복구한
-test bed를 만든 뒤 quantization-aware update를 검증한다.
+receipt-time이 결합된 시간축 artifact다. 경량 GT-object test bed에서는 production
+Q/R이 안정적으로 동작했으며, 다음 gate는 최신 controller를 포함한 LAN-to-LAN
+closed-loop와 GPS 음영 복귀 검증이다.

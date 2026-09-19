@@ -9,7 +9,7 @@
 | Production E25 실행·판단팀 전달 | [`BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
 | 팀 공용 Docker 학습 | [`TEAM_DOCKER_TRAINING_HANDOFF.md`](TEAM_DOCKER_TRAINING_HANDOFF.md) |
 | Base3-Online dataset 현재 상태 | [`../../dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md`](../../dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md) |
-| 다음 velocity/temporal 통제 실험 | [`260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md) |
+| 다음 velocity/temporal 통제 실험과 architecture ladder | [`260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md) |
 
 Production 표준은 `B3-BF0-F40 E25`, class threshold는 `0.40/0.15/0.10`이다.
 Offline 최고 epoch만으로 production을 바꾸지 않고 detection, tracking, Map-CV를 같은

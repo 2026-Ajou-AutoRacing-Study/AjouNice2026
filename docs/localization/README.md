@@ -13,15 +13,13 @@
 ## 현재 읽어야 하는 문서
 
 1. [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)
-   - 현재 중대 이슈, 확정 원인, `velocity.x bias` 정정, 로컬 시간축과 해결 순서.
-2. [`260916_competition_lateral_jitter_stabilization_plan.md`](260916_competition_lateral_jitter_stabilization_plan.md)
-   - 현장 횡방향 흔들림, 조향 채터링, covariance A/B와 채택 기준.
-3. [`260801_robot_localization_gnss_imu_gt_ctra_fusion.md`](260801_robot_localization_gnss_imu_gt_ctra_fusion.md)
-   - 현재 estimator의 센서 역할, frame, timestamp, covariance와 검증 근거.
+   - 현재 중대 이슈, 확정 원인, production 계약과 남은 현장 검증.
+2. [`260920_lightweight_closed_loop_evidence.md`](260920_lightweight_closed_loop_evidence.md)
+   - 경량 GT-object 폐루프에서 production Q/R과 실험 preset을 비교한 최신 근거.
+3. [`260919_quantized_gnss_qr_tuning_evidence.md`](260919_quantized_gnss_qr_tuning_evidence.md)
+   - GNSS 양자화 원인과 production Q/R 채택 근거.
 4. [`morai_udp_receipt_time.md`](morai_udp_receipt_time.md)
    - 현장 UDP receipt-time 정책.
-5. [`260919_quantized_gnss_qr_tuning_evidence.md`](260919_quantized_gnss_qr_tuning_evidence.md)
-   - GNSS 양자화 원인과 production Q/R 채택 근거.
 
 ## 공식 실행 계약
 
@@ -68,6 +66,7 @@ localization_sigma_0p05_qxy_0p05
 ## Legacy
 
 [`legacy/`](legacy/)는 과거 1~7 설치·MORAI·rosbag·FAST-LIO 문서, 구형 GNSS+IMU
-baseline, `/Ego_topic` 직접 GT, 과거 localization 구조 계획과 control 실행 기록이다.
+baseline, `/Ego_topic` 직접 GT, 8월 estimator 구현 기록, 완료된 9월 16일 안정화 계획과
+과거 control 실행 기록이다.
 현재 대회 명령이나 기본값을 결정할 때 검색 결과만 보고 재사용하지 않는다. 과거 실험
 재현이 필요한 경우에만 읽는다.
