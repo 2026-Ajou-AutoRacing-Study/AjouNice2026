@@ -180,6 +180,34 @@ epoch checkpoint를 보존하므로 offline best뿐 아니라 고주로 rosbag�
 tracking, Map-CV를 동일 threshold `0.40/0.15/0.10`으로 비교해 production 후보를
 선정한다. online-only val 하나로 production 교체를 결정하지 않는다.
 
+### 고주로 rosbag 평가
+
+우선 offline val로 후보 epoch를 줄인 뒤 각 후보 checkpoint에 표준 7-bag suite를
+실행한다. 이 suite 안의 `vehicle_highway_merge`와 `vehicle_highway1`이 이번 실험의
+1차 비교 대상이다. 서버 시작·healthcheck·종료까지 wrapper가 처리한다.
+
+```bash
+cd "$HOME/AjouNice2026"
+CKPT="/학습/output/epoch_N.pth"
+LABEL="online-highway-$(basename "$CKPT" .pth)"
+
+bash perception/detection3d/bevfusion/scripts/run_checkpoint_rosbag_suite.sh \
+  "$CKPT" \
+  "artifacts/evaluation/bevfusion/$LABEL"
+```
+
+고주로 합류는 1.0x, 고주로1은 기존 검증 계약대로 0.5x 재생된다. 결과는 각
+subdirectory의 `summary.json`에 저장된다. Detection만 높고 tracker/Map-CV가
+퇴행할 수 있으므로 최종 비교는 다음 순서를 지킨다.
+
+1. `vehicle_highway_merge`, `vehicle_highway1`의 center-distance AP/precision/recall.
+2. 같은 detection bag을 tracker에 넣은 speed MAE와 AVE.
+3. Map-CV top-1 FDE@1/2/3s와 coverage.
+4. 기존 production E25와 동일 bag·동일 threshold로 비교.
+
+원본 학습용 paired bag을 평가에 재사용하지 않는다. 학습·평가 누수를 피하기 위해
+위 두 production benchmark bag을 유지한다.
+
 ## 확인 및 문제 보고
 
 ```bash
@@ -197,3 +225,14 @@ grep -E '^(BASE3_ONLINE_HIGHWAY_ROOT|BEVFUSION_BASE3_E25_FINETUNE_CHECKPOINT)=' 
 4. `train.log` 마지막 200줄
 
 W&B API key와 `$HOME/.netrc`는 전달하지 않는다.
+
+## 전달 전 검증 기록
+
+2026-09-19 RTX 5060 Ti에서 다음을 확인했다.
+
+- 두 tracked recipe의 dry-run PASS.
+- online dataset의 custom container mount PASS.
+- 이미 공유한 inference-only production E25를 `load_from`으로 사용한 16-sample
+  AMP train + validation + checkpoint smoke PASS.
+- Python/shell/YAML 검사와 Base3-Online alignment/audit 테스트 `10/10` PASS.
+- dataset/raw 두 archive의 SHA-256 재검증 PASS.
