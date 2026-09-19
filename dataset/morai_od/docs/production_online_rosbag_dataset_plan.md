@@ -1,5 +1,9 @@
 # Production-Online ROS Bag Dataset 계획
 
+> **문서 상태: PLAN + DECISION HISTORY.** 설계 배경과 단계별 결정 기록이다. 완료된
+> 결과와 현재 경로는
+> [`BASE3_ONLINE_CURRENT_STATE.md`](BASE3_ONLINE_CURRENT_STATE.md)가 우선한다.
+
 마지막 갱신: 2026-09-19.
 
 ## 목적

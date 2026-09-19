@@ -1,5 +1,7 @@
 # MORAI Sensor_4 기반 4-camera BEVFusion zero-shot 연동
 
+> **문서 상태: HISTORICAL.** 초기 feasibility 기록이며 현재 E25 실행 계약이 아니다.
+
 ## 1. 목표와 범위
 
 이번 작업의 목표는 MORAI `Sensor_4.json`의 카메라 4개와 VLP-16 LiDAR를

@@ -1,5 +1,8 @@
 # Base3 BEVFusion Fresh E40 production 평가 결과
 
+> **문서 상태: EVIDENCE.** Production E25 선정 근거다. 현재 실행법은
+> `BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`를 따른다.
+
 ## 결론
 
 - Corrected offline validation best는 `B3-BF0-F40 E26`이다.

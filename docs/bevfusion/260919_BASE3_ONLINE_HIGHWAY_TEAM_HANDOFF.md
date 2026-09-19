@@ -1,5 +1,7 @@
 # Base3-Online 고주로 Vehicle 팀 학습 handoff
 
+> **문서 상태: CURRENT.** Base3-Online 팀 학습과 고주로 평가의 실행 기준이다.
+
 ## 목표
 
 동일한 rosbag-derived 고주로 Vehicle 데이터만 사용해 다음 두 실험을 비교한다.

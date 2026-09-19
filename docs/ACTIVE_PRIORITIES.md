@@ -173,11 +173,9 @@
   두므로 production 표준은 `B3-BF0-F40 E25`로 정한다. E10은 rollback baseline,
   E26은 offline best로 보존한다.
 - 다음 재학습은 단순 epoch 연장이 아니라 기존 시나리오 생성기를 production
-  UDP/ROS 입력 경로와 결합한 `Base3-Online` pilot을 우선한다.
+  UDP/ROS 입력 경로와 결합한 `Base3-Online`을 사용한다.
   - 2026-09-19 mixed30 pilot은 30/30 scene, 90 frame 변환, train/val/test
     BEVFusion Docker dataloader까지 통과했다.
-  - 다음 단계는 동일 계약의 1,000--2,000 independent-frame 수집과 E25 controlled
-    fine-tuning이며, 동적 actor/velocity/deskew는 첫 실험에 섞지 않는다.
   - mixed30의 5-point GT 유지율은 Vehicle 97.4%, Pedestrian 51.5%, Obstacle 57.5%라서
     본 수집량은 scene 수가 아닌 필터 후 class별 positive 수로 산정한다.
   - 첫 확장은 고주로 Vehicle-positive 전용 334 scene으로 수행했다.
@@ -187,19 +185,14 @@
     Vehicle GT 1,814개다. portable root는
     `/datasets/base3_online_highway_motion_v2`이며 팀 Docker dataloader까지 통과했다.
     다음 비교는 이 데이터만 쓰는 fresh E40과 production E25-init E12 fine-tuning이다.
-  - 여러 scene을 rosbag에 연속 기록하되 scene marker로 유효 구간을 명시한다.
-  - LiDAR timestamp 기준 production camera synchronization과 Ego/Object 보간을 쓴다.
-  - 첫 실험은 30--50 scene 수집 검증 후 1,000--2,000 independent frame controlled
-    fine-tuning이며 해상도·GT sampling·temporal 변경을 동시에 섞지 않는다.
-  - 상세 계획:
+  - 여러 scene을 한 rosbag에 기록하되 marker window만 사용하고, LiDAR timestamp
+    기준 camera synchronization과 Ego/Object pose interpolation을 적용한다.
+  - 현재 canonical 상태와 경로:
+    [`BASE3_ONLINE_CURRENT_STATE.md`](../dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md).
+  - 실행 런북:
+    [`base3_online_rosbag_collection_runbook.md`](../dataset/morai_od/docs/base3_online_rosbag_collection_runbook.md).
+  - 설계·pilot 이력:
     [`production_online_rosbag_dataset_plan.md`](../dataset/morai_od/docs/production_online_rosbag_dataset_plan.md).
-  - 2026-09-19 clean 2-scene bag의 marker/timestamp 감사와 BEVFusion 변환기 oracle
-    검증을 완료했다. `/Object_topic.position`이 BBox center가 아닌 asset pivot임을
-    확인하고 Base3 75개 asset의 pivot-to-center catalog를 복원했다. 6개 online frame은
-    LiDAR/camera overlay, MMDetection3D info validator, 실제 Docker dataloader를 모두
-    통과했다. Vehicle/Pedestrian/Obstacle/empty 30-scene mixed pilot도 30/30 scene,
-    90 frame과 Docker dataloader까지 통과했다. 본 확장은 그 후속인 고주로
-    Vehicle-positive 334-scene campaign이다.
 
 과거 Base2 근거:
 [`base2_temporal3_velocity_d4_readiness.md`](../perception/pointpainting/docs/base2_temporal3_velocity_d4_readiness.md),

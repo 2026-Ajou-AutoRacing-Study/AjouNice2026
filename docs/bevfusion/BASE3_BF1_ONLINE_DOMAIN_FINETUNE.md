@@ -1,5 +1,8 @@
 # Base3 BF1 online-domain fine-tuning
 
+> **문서 상태: HISTORICAL.** 현재 Base3-Online rosbag-derived dataset 실험이 아니다.
+> 최신 실험은 `260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md`를 따른다.
+
 ## 목적
 
 `B3-BF0`의 MORAI SaveSensorData validation 성능과 실제 비동기 ROS sensor

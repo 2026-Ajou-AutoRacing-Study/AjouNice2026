@@ -1,5 +1,8 @@
 # Base3-Online Highway Vehicle 1K 수집 결과
 
+> **문서 상태: EVIDENCE.** 수집 당시의 수치와 검증 근거다. 현재 실행 경로와 학습
+> 선택은 [`BASE3_ONLINE_CURRENT_STATE.md`](BASE3_ONLINE_CURRENT_STATE.md)를 따른다.
+
 ## 결론
 
 2026-09-19에 고주로 Vehicle-positive sensor-domain specialization dataset을

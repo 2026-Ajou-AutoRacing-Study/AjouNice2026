@@ -1,5 +1,7 @@
 # Base3 BEVFusion production handoff
 
+> **문서 상태: CURRENT.** Production E25 online inference 기준이다.
+
 이 문서는 판단·플래닝 PC에서 `B3-BF0-F40 E25`를 동일 조건으로 실행하기 위한
 운영 계약이다. 과거 `260720_*zero_shot*` 문서는 MORAI 학습 전 nuScenes
 checkpoint 실험 기록이며 production 실행법이 아니다.

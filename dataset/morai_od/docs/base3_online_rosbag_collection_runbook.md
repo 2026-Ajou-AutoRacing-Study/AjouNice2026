@@ -1,5 +1,8 @@
 # Base3-Online ROS bag 수집·변환 런북
 
+> **문서 상태: CURRENT.** 최신 상태와 canonical 경로는
+> [`BASE3_ONLINE_CURRENT_STATE.md`](BASE3_ONLINE_CURRENT_STATE.md)를 먼저 확인한다.
+
 마지막 검증: 2026-09-19. 대상 모델은 raw 4-camera + LiDAR BEVFusion이다.
 PointPainting용 semantic image는 이 경로에서 만들지 않는다.
 

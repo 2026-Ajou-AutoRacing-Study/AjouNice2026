@@ -1,5 +1,8 @@
 # BEVFusion 팀 공용 Docker 학습·추론 handoff
 
+> **문서 상태: CURRENT.** 공용 Docker와 일반 Base3 학습 계약이다. Base3-Online
+> 실험은 `260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md`의 추가 경로 계약을 따른다.
+
 ## 목적과 기준
 
 이 구성은 Base3-Static 10K로 MORAI 3-class BEVFusion을 여러 PC에서
