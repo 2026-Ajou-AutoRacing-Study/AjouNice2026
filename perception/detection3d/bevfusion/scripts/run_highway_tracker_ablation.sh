@@ -18,8 +18,11 @@ fi
 
 # label|prediction_model|q_vx_vy|r_xy|r_yaw_deg|kinematic_projection
 cases=(
-  "baseline|1|1.0|0.3|10.0|false"
-  "cv_baseline|0|1.0|0.3|10.0|false"
+  "legacy_rxy030|1|1.0|0.3|10.0|false"
+  "baseline|1|1.0|0.4|10.0|false"
+  "cv_baseline|0|1.0|0.4|10.0|false"
+  "ca_baseline|2|1.0|0.4|10.0|false"
+  "ctra_baseline|3|1.0|0.4|10.0|false"
   "ctrv_rxy045|1|1.0|0.45|10.0|false"
   "ctrv_rxy060|1|1.0|0.6|10.0|false"
   "ctrv_qv060_rxy045|1|0.6|0.45|10.0|false"

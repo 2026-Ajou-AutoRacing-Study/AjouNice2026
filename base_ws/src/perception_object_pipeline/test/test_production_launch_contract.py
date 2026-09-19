@@ -40,7 +40,7 @@ def test_tracker_ablation_defaults_preserve_production_contract():
     expected = {
         "tracker_prediction_model": "1",
         "tracker_system_noise_std_vx_vy_ms": "1.0",
-        "tracker_meas_noise_std_xy_m": "0.3",
+        "tracker_meas_noise_std_xy_m": "0.4",
         "tracker_meas_noise_std_yaw_deg": "10.0",
         "tracker_use_kinematic_model": "false",
         "tracker_detection_velocity_fusion_mode": "0",
