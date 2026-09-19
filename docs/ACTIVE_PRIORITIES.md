@@ -20,9 +20,12 @@
 - 로컬 full-stack bag의 `velocity.x` 21.9% 과적분은 production 속도 bias가 아니다.
   현장 4개 bag의 위치 이동거리/속도 적분 비율은 `0.9998~1.0000`이며, 로컬 한-PC
   MORAI 실시간율 저하와 receipt-time의 시간축 artifact로 판정한다.
+- 정상 시간축 `/Competition_topic` raw bag의 1x A/B를 통해 GNSS sigma `0.10 m`,
+  Global EKF Qxy `0.0005`를 production 기본값으로 채택했다. 기존 대비 횡 jump
+  p95는 `5.43 -> 1.44 cm`, 종 jump는 `7.23 -> 2.42 cm`로 감소했다.
 - 첫 다음 실험은 BEVFusion 대신 `od_gt`를 사용한 GT-object full stack으로 MORAI
-  실시간율을 정상화하고, 이동거리/속도 적분 비율 `0.98~1.02`를 통과하는 test bed를
-  확보하는 것이다. 그 후 `0.05 / 0.10 m`와 quantization-aware GNSS update를 A/B한다.
+  실시간율을 정상화하고, 이동거리/속도 적분 비율 `0.98~1.02`를 통과한 상태에서
+  채택 Q/R의 실제 조향 채터링 감소를 closed-loop로 확인하는 것이다.
 - 최종 pose LPF나 controller gain 변경으로 먼저 가리지 않는다. 동일 bag에서
   quantization-aware update, GPS 음영 복귀 정책, global/local control state 분리,
   controller tuning 순으로 진행한다.
@@ -32,6 +35,8 @@
   양자화와 GPS 음영은 별도 문제로 계속 처리한다.
 - 최신 문제 정의와 검증 계약:
   [`260918_competition_localization_critical_issue_status.md`](localization/260918_competition_localization_critical_issue_status.md).
+- Q/R 채택 정량 근거:
+  [`260919_quantized_gnss_qr_tuning_evidence.md`](localization/260919_quantized_gnss_qr_tuning_evidence.md).
 
 ## Localization 안정화 직후 재개할 항목.
 

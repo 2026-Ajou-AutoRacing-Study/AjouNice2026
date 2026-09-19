@@ -20,6 +20,8 @@
    - 현재 estimator의 센서 역할, frame, timestamp, covariance와 검증 근거.
 4. [`morai_udp_receipt_time.md`](morai_udp_receipt_time.md)
    - 현장 UDP receipt-time 정책.
+5. [`260919_quantized_gnss_qr_tuning_evidence.md`](260919_quantized_gnss_qr_tuning_evidence.md)
+   - GNSS 양자화 원인과 production Q/R 채택 근거.
 
 ## 공식 실행 계약
 
@@ -42,6 +44,11 @@ localization_mrp
 
 동시에 두 localization provider를 실행하지 않는다. duplicate timestamp 거부는 서로
 다른 provider가 같은 TF와 topic을 중복 발행하는 것을 방지하지 못한다.
+
+현재 production estimator tuning은 GNSS horizontal sigma `0.10 m`, Global EKF
+x/y process-noise diagonal `0.0005`다. `predict_to_current_time=true`를 유지한다.
+개발 단계의 최초 start pose는 `/Ego_topic`을 사용하며, 대회 전 공식 start-pose
+interface로 교체한다.
 
 ## Legacy
 

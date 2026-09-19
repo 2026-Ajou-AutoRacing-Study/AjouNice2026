@@ -1,6 +1,6 @@
 # 대회 Localization 중대 이슈 현황과 해결 기준
 
-마지막 갱신: 2026-09-18
+마지막 갱신: 2026-09-19
 
 이 문서는 대회용 GNSS+IMU+GT motion localization에서 관측한 위치 흔들림과
 제어 채터링의 최신 사실, 반증된 가설, 남은 위험 및 다음 실험 계약을 한곳에
@@ -41,6 +41,11 @@ GNSS update가 만드는 고주파 pose correction이 조향 명령으로 전달
 - 대회 UDP: `/use_sim_time=false`, ROS host receipt-time policy 유지.
 - 대회에서는 `/Ego_topic`과 `/Object_topic`을 기대하지 않는다.
 - 대회 운영자는 localization provider를 정확히 하나만 실행한다.
+- GNSS horizontal sigma: `0.10 m`.
+- Global EKF x/y process-noise diagonal: `0.0005`.
+- `predict_to_current_time=true`.
+- 개발 중 최초 start pose는 `/Ego_topic`을 사용하고 대회 전 공식 interface로
+  교체한다.
 
 대회 운영진에게 GNSS와 IMU 모두 인위적인 랜덤 노이즈를 넣지 않는다는 답변을
 확인했다. 그러나 GNSS의 좌표 양자화와 GPS 음영은 랜덤 노이즈와 별개로 남는다.
@@ -64,7 +69,7 @@ MORAI NMEA GNSS의 위도·경도 격자는 약 `1.6667e-6 deg`다. K-City 위�
 
 ### 3.2 Global EKF가 계단 입력을 강하게 따라감
 
-현재 baseline은 GNSS horizontal sigma를 `0.05 m`로 사용한다. 정상 구간에서 EKF
+과거 baseline은 GNSS horizontal sigma를 `0.05 m`로 사용했다. 정상 구간에서 EKF
 50 Hz 출력 interval을 GNSS update 유무로 나눈 결과는 다음과 같다.
 
 | 횡방향 error jump | `0.05 m` | `0.10 m` |
@@ -85,6 +90,13 @@ GNSS innovation이 다음 EKF correction에 반영되는 경험적 비율과 상
 따라서 정상 GNSS 구간의 횡방향 채터링 주원인은 IMU나 motion prediction 자체의
 랜덤 흔들림이 아니라, 시간 상관된 양자화 GNSS를 반복해서 강하게 반영하는 Global
 EKF correction이다.
+
+2026-09-19에는 GNSS sigma `0.10 m`와 Global EKF x/y process noise `0.0005`를
+결합한 Q/R 후보를 정상 시간축 `/Competition_topic` bag에서 1x 재검증했다. 횡 jump
+p95는 `5.432 -> 1.444 cm`, 종 jump p95는 `7.234 -> 2.416 cm`로 감소했고 종·횡
+위치 오차도 함께 개선되어 production 기본값으로 채택했다. 상세 표와 한계는
+[`260919_quantized_gnss_qr_tuning_evidence.md`](260919_quantized_gnss_qr_tuning_evidence.md)를
+따른다.
 
 ### 3.3 Controller가 Global correction을 직접 봄
 
@@ -211,15 +223,17 @@ GT adapter는 detector velocity를 전달하지 않으므로 tracker와 predicti
 - detection publisher가 `morai_gt_detection` 하나임.
 - `/Object_topic`은 이 로컬 실험에서만 사용하며 대회 fallback으로 취급하지 않음.
 
-### P1. Baseline과 `0.10 m` 재확인
+### P1. 채택 Q/R의 현장 closed-loop 확인
 
-time-normal bag에서 `0.05 m`와 `0.10 m`를 동일 입력 replay로 비교한다. 기존 sweep에서
-`0.10 m`는 lateral jump p95를 `5.46 -> 3.49 cm`로 약 36% 낮췄지만, 과부하 bag의
-종방향 결과는 production 판단에서 분리한다.
+정상 시간축 offline A/B는 완료했으며 Q/R을 production 기본값으로 반영했다. 다음
+LAN-to-LAN 주행에서 controller 설정을 고정하고 baseline 현장 bag의 steering-rate
+absolute p95 `1.59 rad/s`보다 감소하는지 확인한다. 새 bag에는 raw Competition,
+GPS, IMU와 EKF 중간 토픽을 반드시 함께 기록한다.
 
-### P2. Quantization-aware GNSS update
+### P2. 필요할 때만 explicit quantization-aware GNSS update
 
-GNSS random denoising이 아니라 양자화 계약을 모델링한다.
+채택 Q/R 후에도 현장 채터링이 남을 때만 GNSS random denoising이 아니라 양자화
+계약을 명시적으로 모델링한다.
 
 - 동일 cell의 반복 관측을 독립적인 새 정보로 계속 누적하지 않는다.
 - 예측 위치가 현재 GNSS cell 범위 안이면 correction을 생략하거나 최소화한다.
