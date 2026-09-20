@@ -15,6 +15,13 @@ import numpy as np
 import rospy
 from autoware_perception_msgs.msg import DetectedObjects
 from perception_object_pipeline import make_detected_objects
+from perception_object_pipeline.rolling_lidar import (
+    PlanarPoseBuffer,
+    deskew_points_to_reference_pose,
+    scan_time_contract,
+)
+from nav_msgs.msg import Odometry
+from morai_msgs.msg import EgoVehicleStatus
 from sensor_msgs.msg import CompressedImage, PointCloud2, PointField
 from std_msgs.msg import Float32, String
 from visualization_msgs.msg import Marker, MarkerArray
@@ -59,6 +66,32 @@ class BevFusionRosBridge:
         self.preprocess_workers = max(
             1, int(rospy.get_param("~preprocess_workers", 4))
         )
+        self.lidar_deskew_mode = str(
+            rospy.get_param("~lidar_deskew_mode", "off")
+        ).strip().lower()
+        self.lidar_deskew_reference = str(
+            rospy.get_param("~lidar_deskew_reference", "end")
+        ).strip().lower()
+        self.lidar_deskew_max_point_time_span_sec = float(
+            rospy.get_param("~lidar_deskew_max_point_time_span_sec", 0.15)
+        )
+        self.lidar_deskew_maximum_extrapolation_sec = float(
+            rospy.get_param("~lidar_deskew_maximum_extrapolation_sec", 0.05)
+        )
+        self.lidar_deskew_pose_topic = str(
+            rospy.get_param(
+                "~lidar_deskew_pose_topic", "/localization/kinematic_state"
+            )
+        )
+        self.lidar_deskew_pose_type = str(
+            rospy.get_param("~lidar_deskew_pose_type", "odometry")
+        ).strip().lower()
+        if self.lidar_deskew_mode not in ("off", "ego_pose_2d"):
+            raise ValueError("lidar_deskew_mode must be off or ego_pose_2d")
+        if self.lidar_deskew_reference not in ("end", "median", "header"):
+            raise ValueError("lidar_deskew_reference must be end, median, or header")
+        if self.lidar_deskew_pose_type not in ("odometry", "ego_status"):
+            raise ValueError("lidar_deskew_pose_type must be odometry or ego_status")
         self.score_threshold, self.class_score_thresholds = build_score_thresholds(
             rospy.get_param("~score_threshold", 0.10),
             rospy.get_param("~vehicle_score_threshold", 0.40),
@@ -80,7 +113,10 @@ class BevFusionRosBridge:
             self.camera_topics,
             self.camera_shapes,
             self.lidar_topic,
+            self.lidar_position,
+            self.lidar_yaw,
         ) = self._load_topics()
+        self.ego_pose_buffer = PlanarPoseBuffer(duration_sec=2.0)
         self.camera_buffers = {
             frame: collections.deque(maxlen=self.camera_buffer_size)
             for frame in self.camera_order
@@ -92,6 +128,8 @@ class BevFusionRosBridge:
         self.sequence = 0
         self.dropped_raw = 0
         self.dropped_prepared = 0
+        self.dropped_deskew_timing = 0
+        self.dropped_deskew_pose = 0
         self.last_marker_count = 0
         self.shutting_down = False
 
@@ -141,6 +179,20 @@ class BevFusionRosBridge:
                 buff_size=32 * 1024 * 1024,
             )
         )
+        if self.lidar_deskew_mode == "ego_pose_2d":
+            pose_message_type = (
+                Odometry
+                if self.lidar_deskew_pose_type == "odometry"
+                else EgoVehicleStatus
+            )
+            self.subscribers.append(
+                rospy.Subscriber(
+                    self.lidar_deskew_pose_topic,
+                    pose_message_type,
+                    self._pose_callback,
+                    queue_size=100,
+                )
+            )
         self.camera_executor = ThreadPoolExecutor(
             max_workers=self.preprocess_workers,
             thread_name_prefix="bevfusion_camera",
@@ -188,10 +240,35 @@ class BevFusionRosBridge:
         lidar_topic = lidars[0].get("lc", {}).get("rosConfig", {}).get("Topic", "")
         if not lidar_topic:
             raise RuntimeError("LiDAR topic is missing from sensor config")
+        lidar_position = tuple(
+            float(lidars[0].get("pos", {}).get(axis, 0.0))
+            for axis in ("x", "y", "z")
+        )
+        lidar_yaw = math.radians(
+            float(lidars[0].get("rot", {}).get("yaw", 0.0))
+        )
         return (
             {frame: cameras[frame] for frame in self.camera_order},
             {frame: shapes[frame] for frame in self.camera_order},
             lidar_topic,
+            lidar_position,
+            lidar_yaw,
+        )
+
+    def _pose_callback(self, message):
+        stamp = stamp_seconds(message)
+        if self.lidar_deskew_pose_type == "odometry":
+            position = message.pose.pose.position
+            orientation = message.pose.pose.orientation
+            yaw = math.atan2(
+                2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
+                1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z),
+            )
+        else:
+            position = message.position
+            yaw = math.radians(float(message.heading))
+        self.ego_pose_buffer.add(
+            stamp, position.x, position.y, position.z, yaw
         )
 
     def _camera_callback(self, message, frame):
@@ -200,14 +277,38 @@ class BevFusionRosBridge:
 
     def _lidar_callback(self, message):
         lidar_stamp = stamp_seconds(message)
+        timing = None
+        reference_stamp = lidar_stamp
+        if self.lidar_deskew_mode == "ego_pose_2d":
+            try:
+                offsets = pointcloud_field_array(message, "time", np.float64)
+            except ValueError as error:
+                self.dropped_deskew_timing += 1
+                rospy.logwarn_throttle(2.0, "BEVFusion deskew rejected: %s", error)
+                return
+            timing = scan_time_contract(
+                offsets,
+                self.lidar_deskew_max_point_time_span_sec,
+                self.lidar_deskew_reference,
+            )
+            if timing is None:
+                self.dropped_deskew_timing += 1
+                rospy.logwarn_throttle(
+                    2.0, "BEVFusion deskew rejected invalid point-time span"
+                )
+                return
+            reference_stamp += timing["reference_offset_sec"]
         selected = {}
         differences = {}
         with self.buffer_lock:
             for frame, buffer in self.camera_buffers.items():
                 if not buffer:
                     return
-                nearest = min(buffer, key=lambda item: abs(stamp_seconds(item) - lidar_stamp))
-                difference = abs(stamp_seconds(nearest) - lidar_stamp)
+                nearest = min(
+                    buffer,
+                    key=lambda item: abs(stamp_seconds(item) - reference_stamp),
+                )
+                difference = abs(stamp_seconds(nearest) - reference_stamp)
                 if difference > self.sync_tolerance:
                     rospy.logwarn_throttle(
                         2.0,
@@ -225,6 +326,8 @@ class BevFusionRosBridge:
                 message,
                 selected,
                 differences,
+                timing,
+                reference_stamp,
                 time.monotonic(),
             )
             self.pipeline_condition.notify_all()
@@ -268,17 +371,38 @@ class BevFusionRosBridge:
                 time.sleep(0.2)
 
     def _prepare_frame(
-        self, lidar_message, images, differences, received_at
+        self, lidar_message, images, differences, timing, reference_stamp, received_at
     ):
         start = time.monotonic()
         conversion_start = time.monotonic()
-        points = pointcloud_to_xyzi(lidar_message)
+        points, point_time_offsets = pointcloud_to_xyzi_time(lidar_message)
         conversion_ms = (time.monotonic() - conversion_start) * 1000.0
+        deskew_ms = 0.0
+        deskew_displacement = np.empty(0, dtype=np.float64)
+        if self.lidar_deskew_mode == "ego_pose_2d":
+            deskew_start = time.monotonic()
+            deskewed = deskew_points_to_reference_pose(
+                points,
+                point_time_offsets,
+                stamp_seconds(lidar_message),
+                timing["reference_offset_sec"],
+                self.ego_pose_buffer.snapshot(),
+                lidar_position=self.lidar_position,
+                lidar_yaw=self.lidar_yaw,
+                maximum_extrapolation_sec=(
+                    self.lidar_deskew_maximum_extrapolation_sec
+                ),
+            )
+            if deskewed is None:
+                self.dropped_deskew_pose += 1
+                raise ValueError("deskew pose coverage is insufficient")
+            points, deskew_displacement, _reference_pose = deskewed
+            deskew_ms = (time.monotonic() - deskew_start) * 1000.0
         self.sequence += 1
         metadata = {
             "operation": self.operation,
             "sequence": self.sequence,
-            "stamp": stamp_seconds(lidar_message),
+            "stamp": reference_stamp,
             "lidar_frame": lidar_message.header.frame_id,
             "camera_order": self.camera_order,
             "sensor_config_sha256": self.sensor_config_sha256,
@@ -289,6 +413,14 @@ class BevFusionRosBridge:
             "point_count": int(points.shape[0]),
             "score_threshold": self.model_score_threshold,
             "max_detections": self.max_detections,
+            "lidar_deskew_mode": self.lidar_deskew_mode,
+            "lidar_deskew_ms": deskew_ms,
+            "lidar_deskew_span_sec": 0.0 if timing is None else timing["span_sec"],
+            "lidar_deskew_displacement_p95_m": (
+                0.0
+                if deskew_displacement.size == 0
+                else float(np.percentile(deskew_displacement, 95.0))
+            ),
         }
         blobs = {"points": points.astype("<f4", copy=False).tobytes()}
         if self.operation == "inference":
@@ -312,7 +444,7 @@ class BevFusionRosBridge:
         metadata["host_preprocess_ms"] = (
             time.monotonic() - start
         ) * 1000.0
-        return metadata, blobs, lidar_message.header.stamp, received_at
+        return metadata, blobs, rospy.Time.from_sec(reference_stamp), received_at
 
     def _preprocess_camera(self, argument):
         frame, message = argument
@@ -361,7 +493,9 @@ class BevFusionRosBridge:
             "ok operation={} sequence={} latency_ms={:.1f} host_preprocess_ms={:.1f} "
             "pointcloud_ms={:.1f} server_preprocess_ms={:.1f} "
             "inference_ms={:.1f} request_ms={:.1f} dropped_raw={} "
-            "dropped_prepared={}".format(
+            "dropped_prepared={} deskew_mode={} deskew_ms={:.2f} "
+            "deskew_span_ms={:.2f} deskew_displacement_p95_m={:.3f} "
+            "dropped_deskew_timing={} dropped_deskew_pose={}".format(
                 response.get("operation"),
                 metadata.get("sequence", 0),
                 latency_ms,
@@ -372,6 +506,12 @@ class BevFusionRosBridge:
                 transport_ms,
                 self.dropped_raw,
                 self.dropped_prepared,
+                metadata.get("lidar_deskew_mode", "off"),
+                float(metadata.get("lidar_deskew_ms", 0.0)),
+                float(metadata.get("lidar_deskew_span_sec", 0.0)) * 1000.0,
+                float(metadata.get("lidar_deskew_displacement_p95_m", 0.0)),
+                self.dropped_deskew_timing,
+                self.dropped_deskew_pose,
             )
         )
 
@@ -472,48 +612,60 @@ def stamp_seconds(message):
     return stamp.to_sec()
 
 
-def pointcloud_to_xyzi(message):
-    """Vectorize PointCloud2 into Base3's Nx4 feature contract."""
+def pointcloud_field_array(message, name, output_dtype=None):
+    """Return one PointCloud2 field as a strided vector without Python loops."""
     fields = {field.name: field for field in message.fields}
-    for required in ("x", "y", "z"):
-        if required not in fields:
-            raise ValueError(
-                "PointCloud2 field {} is missing; fields={}".format(
-                    required, sorted(fields)
-                )
+    if name not in fields:
+        raise ValueError(
+            "PointCloud2 field {} is missing; fields={}".format(
+                name, sorted(fields)
             )
-    names = ["x", "y", "z"]
-    if "intensity" in fields:
-        names.append("intensity")
+        )
+    field = fields[name]
+    if field.datatype not in POINTFIELD_TO_DTYPE or int(field.count) != 1:
+        raise ValueError(
+            "unsupported PointField datatype/count for {}: {}/{}".format(
+                name, field.datatype, field.count
+            )
+        )
     endian = ">" if message.is_bigendian else "<"
-    formats, offsets = [], []
-    for name in names:
-        field = fields[name]
-        if field.datatype not in POINTFIELD_TO_DTYPE:
-            raise ValueError(
-                "unsupported PointField datatype for {}: {}".format(
-                    name, field.datatype
-                )
-            )
-        formats.append(endian + POINTFIELD_TO_DTYPE[field.datatype])
-        offsets.append(int(field.offset))
-    dtype = np.dtype({
-        "names": names,
-        "formats": formats,
-        "offsets": offsets,
-        "itemsize": int(message.point_step),
-    })
     count = int(message.width) * int(message.height)
     if count <= 0:
-        return np.empty((0, 4), dtype=np.float32)
-    raw = np.frombuffer(message.data, dtype=dtype, count=count)
+        return np.empty(0, dtype=output_dtype or np.float32)
+    values = np.ndarray(
+        shape=(count,),
+        dtype=np.dtype(endian + POINTFIELD_TO_DTYPE[field.datatype]),
+        buffer=message.data,
+        offset=int(field.offset),
+        strides=(int(message.point_step),),
+    )
+    if output_dtype is not None:
+        return values.astype(output_dtype, copy=False)
+    return values
+
+
+def pointcloud_to_xyzi_time(message):
+    """Vectorize PointCloud2 into model XYZI and optional timing arrays."""
+    fields = {field.name for field in message.fields}
+    for required in ("x", "y", "z"):
+        if required not in fields:
+            raise ValueError("PointCloud2 field {} is missing".format(required))
+    count = int(message.width) * int(message.height)
     points = np.zeros((count, 4), dtype=np.float32)
-    points[:, 0] = raw["x"]
-    points[:, 1] = raw["y"]
-    points[:, 2] = raw["z"]
-    if "intensity" in names:
-        points[:, 3] = raw["intensity"].astype(np.float32, copy=False)
-    return points
+    for index, name in enumerate(("x", "y", "z")):
+        points[:, index] = pointcloud_field_array(message, name, np.float32)
+    if "intensity" in fields:
+        points[:, 3] = pointcloud_field_array(message, "intensity", np.float32)
+    offsets = (
+        pointcloud_field_array(message, "time", np.float64)
+        if "time" in fields
+        else np.full(count, np.nan, dtype=np.float64)
+    )
+    return points, offsets
+
+
+def pointcloud_to_xyzi(message):
+    return pointcloud_to_xyzi_time(message)[0]
 
 
 def class_color(label):

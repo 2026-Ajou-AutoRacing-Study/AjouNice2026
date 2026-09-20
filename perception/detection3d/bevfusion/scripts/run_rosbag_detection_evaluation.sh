@@ -14,6 +14,10 @@ score_threshold="${BEVFUSION_EVAL_SCORE_THRESHOLD:-0.10}"
 vehicle_score_threshold="${BEVFUSION_EVAL_VEHICLE_THRESHOLD:-0.40}"
 pedestrian_score_threshold="${BEVFUSION_EVAL_PEDESTRIAN_THRESHOLD:-0.15}"
 obstacle_score_threshold="${BEVFUSION_EVAL_OBSTACLE_THRESHOLD:-0.10}"
+lidar_deskew_mode="${BEVFUSION_EVAL_LIDAR_DESKEW_MODE:-off}"
+lidar_deskew_reference="${BEVFUSION_EVAL_LIDAR_DESKEW_REFERENCE:-end}"
+lidar_deskew_pose_topic="${BEVFUSION_EVAL_LIDAR_DESKEW_POSE_TOPIC:-/Ego_topic}"
+lidar_deskew_pose_type="${BEVFUSION_EVAL_LIDAR_DESKEW_POSE_TYPE:-ego_status}"
 repo_root="${AJOUNICE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
 ros_port="${BEVFUSION_EVAL_ROS_PORT:-$((14000 + ($$ % 18000)))}"
 export ROS_MASTER_URI="http://127.0.0.1:${ros_port}"
@@ -54,6 +58,10 @@ roslaunch bevfusion_ros base3_online.launch \
   vehicle_score_threshold:="$vehicle_score_threshold" \
   pedestrian_score_threshold:="$pedestrian_score_threshold" \
   obstacle_score_threshold:="$obstacle_score_threshold" \
+  lidar_deskew_mode:="$lidar_deskew_mode" \
+  lidar_deskew_reference:="$lidar_deskew_reference" \
+  lidar_deskew_pose_topic:="$lidar_deskew_pose_topic" \
+  lidar_deskew_pose_type:="$lidar_deskew_pose_type" \
   >"$output_dir/bevfusion_bridge.log" 2>&1 &
 bridge_pid=$!
 
@@ -104,7 +112,9 @@ bridge_pid=""
 
 /usr/bin/python3 - "$output_dir/summary.json" \
   "$score_threshold" "$vehicle_score_threshold" \
-  "$pedestrian_score_threshold" "$obstacle_score_threshold" <<'PY'
+  "$pedestrian_score_threshold" "$obstacle_score_threshold" \
+  "$lidar_deskew_mode" "$lidar_deskew_reference" \
+  "$lidar_deskew_pose_topic" "$lidar_deskew_pose_type" <<'PY'
 import json
 import sys
 
@@ -116,6 +126,12 @@ report["runtime_class_score_thresholds"] = {
     "vehicle": float(sys.argv[3]),
     "pedestrian": float(sys.argv[4]),
     "obstacle": float(sys.argv[5]),
+}
+report["lidar_deskew"] = {
+    "mode": sys.argv[6],
+    "reference": sys.argv[7],
+    "pose_topic": sys.argv[8],
+    "pose_type": sys.argv[9],
 }
 with open(path, "w", encoding="utf-8") as handle:
     json.dump(report, handle, indent=2, sort_keys=True)

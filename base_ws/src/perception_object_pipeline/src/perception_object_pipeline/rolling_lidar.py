@@ -7,6 +7,40 @@ from collections import deque
 import numpy as np
 
 
+def scan_time_contract(point_time_offsets, max_span_sec=0.15, reference="end"):
+    """Validate one rolling-scan timing vector.
+
+    Returns a small dictionary that can be serialized into dataset/runtime
+    audits, or ``None`` when deskew must not be applied.  Keeping this gate in
+    the shared math module prevents offline conversion and online inference
+    from silently accepting different scans.
+    """
+    offsets = np.asarray(point_time_offsets, dtype=np.float64).reshape(-1)
+    if offsets.size == 0 or not np.isfinite(offsets).all():
+        return None
+    minimum = float(offsets.min())
+    maximum = float(offsets.max())
+    span = maximum - minimum
+    if span <= 1.0e-9 or span > max(0.0, float(max_span_sec)):
+        return None
+    if reference == "end":
+        reference_offset = maximum
+    elif reference == "median":
+        reference_offset = float(np.median(offsets))
+    elif reference == "header":
+        reference_offset = 0.0
+    else:
+        raise ValueError("reference must be end, median, or header")
+    return {
+        "minimum_offset_sec": minimum,
+        "maximum_offset_sec": maximum,
+        "span_sec": span,
+        "reference": reference,
+        "reference_offset_sec": reference_offset,
+        "point_count": int(offsets.size),
+    }
+
+
 def normalize_angle(value):
     return np.arctan2(np.sin(value), np.cos(value))
 

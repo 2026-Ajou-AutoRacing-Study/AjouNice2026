@@ -15,6 +15,16 @@
   <arg name="obstacle_score_threshold" default="0.10"/>
   <arg name="output_objects"
        default="/perception/object_recognition/detection/objects"/>
+  <!-- Keep the E25 production input unchanged unless an A/B explicitly
+       enables the verified rolling-scan correction. Competition uses fused
+       odometry; rosbag/MORAI GT experiments can select ego_status. -->
+  <arg name="lidar_deskew_mode" default="off"/>
+  <arg name="lidar_deskew_reference" default="end"/>
+  <arg name="lidar_deskew_pose_topic"
+       default="/localization/kinematic_state"/>
+  <arg name="lidar_deskew_pose_type" default="odometry"/>
+  <arg name="lidar_deskew_max_point_time_span_sec" default="0.15"/>
+  <arg name="lidar_deskew_maximum_extrapolation_sec" default="0.05"/>
 
   <node pkg="bevfusion_ros"
         type="bevfusion_ros_bridge.py"
@@ -28,6 +38,14 @@
     <param name="pedestrian_score_threshold" value="$(arg pedestrian_score_threshold)"/>
     <param name="obstacle_score_threshold" value="$(arg obstacle_score_threshold)"/>
     <param name="output_objects" value="$(arg output_objects)"/>
+    <param name="lidar_deskew_mode" value="$(arg lidar_deskew_mode)"/>
+    <param name="lidar_deskew_reference" value="$(arg lidar_deskew_reference)"/>
+    <param name="lidar_deskew_pose_topic" value="$(arg lidar_deskew_pose_topic)"/>
+    <param name="lidar_deskew_pose_type" value="$(arg lidar_deskew_pose_type)"/>
+    <param name="lidar_deskew_max_point_time_span_sec"
+           value="$(arg lidar_deskew_max_point_time_span_sec)"/>
+    <param name="lidar_deskew_maximum_extrapolation_sec"
+           value="$(arg lidar_deskew_maximum_extrapolation_sec)"/>
   </node>
 
   <node if="$(arg start_rviz)"

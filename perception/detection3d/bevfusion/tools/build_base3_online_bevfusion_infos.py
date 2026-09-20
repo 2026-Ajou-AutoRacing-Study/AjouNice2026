@@ -8,6 +8,7 @@ import json
 import math
 import pickle
 import sys
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -17,7 +18,9 @@ import rosbag
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SCRIPTS = REPO_ROOT / "dataset/morai_od/scripts"
+PIPELINE_SRC = REPO_ROOT / "base_ws/src/perception_object_pipeline/src"
 sys.path.insert(0, str(SCRIPTS))
+sys.path.insert(0, str(PIPELINE_SRC))
 
 from audit_base3_online_bag import build_capture_windows, message_stamp  # noqa: E402
 from audit_base3_online_gt_alignment import (  # noqa: E402
@@ -35,6 +38,11 @@ from audit_base3_online_gt_alignment import (  # noqa: E402
     nearest,
     points_in_box,
     selected_indices,
+)
+from analyze_morai_lidar_deskew import point_field_array  # noqa: E402
+from perception_object_pipeline.rolling_lidar import (  # noqa: E402
+    deskew_points_to_reference_pose,
+    scan_time_contract,
 )
 
 
@@ -61,6 +69,21 @@ def arguments():
         help="maximum velocity-based fallback when a timestamp is not bracketed",
     )
     parser.add_argument("--max-camera-age-sec", type=float, default=0.10)
+    parser.add_argument(
+        "--lidar-deskew", choices=("off", "ego-pose-2d"), default="off",
+        help="cache scan-reference Ego-motion-corrected XYZI files",
+    )
+    parser.add_argument(
+        "--lidar-deskew-reference", choices=("end", "median", "header"),
+        default="end",
+    )
+    parser.add_argument(
+        "--deskew-max-point-time-span-sec", type=float, default=0.15,
+    )
+    parser.add_argument(
+        "--deskew-invalid-policy", choices=("drop", "error"), default="drop",
+        help="never mix invalid raw scans into a deskewed dataset",
+    )
     parser.add_argument(
         "--require-positive-class", choices=CLASSES,
         help=(
@@ -150,6 +173,9 @@ def main():
     scene_count = Counter()
     synchronization = []
     unknown_assets = set()
+    deskew_rejected = Counter()
+    deskew_displacement_p95 = []
+    deskew_runtime_ms = []
 
     # Pass 1 keeps only tiny scene markers.  Sensor payloads are streamed one
     # capture window at a time in pass 2 so 20+ GiB split bags do not exhaust
@@ -204,29 +230,104 @@ def main():
             topic: sorted(topics[topic], key=lambda row: row[0])
             for topic in (EGO_TOPIC, OBJECT_TOPIC, *CAMERAS.values())
         }
+        ego_pose_samples = np.asarray(
+            [
+                (
+                    row[0],
+                    float(row[2].position.x),
+                    float(row[2].position.y),
+                    float(row[2].position.z),
+                    math.radians(float(row[2].heading)),
+                )
+                for row in aligned[EGO_TOPIC]
+            ],
+            dtype=np.float64,
+        )
+        ego_pose_samples[:, 4] = np.unwrap(ego_pose_samples[:, 4])
+        lidar_to_ego = np.asarray(
+            calibration["lidar"]["lidar_to_ego"], dtype=np.float64
+        )
+        lidar_position = tuple(lidar_to_ego[:3, 3])
+        lidar_yaw = math.atan2(lidar_to_ego[1, 0], lidar_to_ego[0, 0])
         for ordinal, lidar_index in enumerate(
             selected_indices(len(lidar_rows), args.samples_per_scene)
         ):
             lidar_stamp, _record_time, lidar_message = lidar_rows[lidar_index]
-            ego_row = nearest(lidar_stamp, aligned[EGO_TOPIC])
-            object_row = nearest(lidar_stamp, aligned[OBJECT_TOPIC])
-            ego_age = abs(ego_row[0] - lidar_stamp)
-            object_age = abs(object_row[0] - lidar_stamp)
+            points = cloud_xyz_i(lidar_message)
+            target_stamp = lidar_stamp
+            deskew = {
+                "mode": args.lidar_deskew,
+                "reference": "header",
+                "reference_offset_sec": 0.0,
+                "span_sec": 0.0,
+                "displacement_p95_m": 0.0,
+            }
+            if args.lidar_deskew == "ego-pose-2d":
+                try:
+                    offsets = point_field_array(lidar_message, "time")
+                except ValueError:
+                    offsets = np.empty(0, dtype=np.float64)
+                contract = scan_time_contract(
+                    offsets,
+                    args.deskew_max_point_time_span_sec,
+                    args.lidar_deskew_reference,
+                )
+                if contract is None:
+                    deskew_rejected["invalid_point_time"] += 1
+                    if args.deskew_invalid_policy == "error":
+                        raise ValueError(
+                            "invalid point time at {}".format(lidar_stamp)
+                        )
+                    continue
+                started = time.perf_counter()
+                corrected = deskew_points_to_reference_pose(
+                    points,
+                    offsets,
+                    lidar_stamp,
+                    contract["reference_offset_sec"],
+                    ego_pose_samples,
+                    lidar_position=lidar_position,
+                    lidar_yaw=lidar_yaw,
+                    maximum_extrapolation_sec=args.max_extrapolation_sec,
+                )
+                deskew_runtime_ms.append((time.perf_counter() - started) * 1000.0)
+                if corrected is None:
+                    deskew_rejected["pose_coverage"] += 1
+                    if args.deskew_invalid_policy == "error":
+                        raise ValueError(
+                            "deskew pose coverage failed at {}".format(lidar_stamp)
+                        )
+                    continue
+                points, displacement, _reference_pose = corrected
+                target_stamp = lidar_stamp + contract["reference_offset_sec"]
+                displacement_p95 = float(np.percentile(displacement, 95.0))
+                deskew_displacement_p95.append(displacement_p95)
+                deskew = {
+                    "mode": args.lidar_deskew,
+                    "reference": contract["reference"],
+                    "reference_offset_sec": contract["reference_offset_sec"],
+                    "span_sec": contract["span_sec"],
+                    "displacement_p95_m": displacement_p95,
+                }
+
+            ego_row = nearest(target_stamp, aligned[EGO_TOPIC])
+            object_row = nearest(target_stamp, aligned[OBJECT_TOPIC])
+            ego_age = abs(ego_row[0] - target_stamp)
+            object_age = abs(object_row[0] - target_stamp)
             if max(ego_age, object_age) > args.max_state_age_sec:
-                raise ValueError("state age limit exceeded at {}".format(lidar_stamp))
+                raise ValueError("state age limit exceeded at {}".format(target_stamp))
             ego_state, ego_alignment = align_ego_state(
-                lidar_stamp, aligned[EGO_TOPIC], args.state_alignment,
+                target_stamp, aligned[EGO_TOPIC], args.state_alignment,
                 args.max_extrapolation_sec,
             )
             object_state, object_alignment = align_object_state(
-                lidar_stamp, aligned[OBJECT_TOPIC], args.state_alignment,
+                target_stamp, aligned[OBJECT_TOPIC], args.state_alignment,
                 args.max_extrapolation_sec,
             )
 
             sample_id = "{}_f{:03d}".format(window["scene_id"], ordinal)
             sample_dir = output / "samples" / window["scene_id"] / sample_id
             sample_dir.mkdir(parents=True, exist_ok=True)
-            points = cloud_xyz_i(lidar_message)
             lidar_path = sample_dir / "lidar.bin"
 
             instances = []
@@ -276,17 +377,14 @@ def main():
 
             images = {}
             camera_ages = {}
-            lidar_to_ego = np.asarray(
-                calibration["lidar"]["lidar_to_ego"], dtype=np.float64
-            )
             for camera_name in CAMERA_ORDER:
                 topic = CAMERAS[camera_name]
-                camera_row = nearest(lidar_stamp, aligned[topic])
-                age = abs(camera_row[0] - lidar_stamp)
+                camera_row = nearest(target_stamp, aligned[topic])
+                age = abs(camera_row[0] - target_stamp)
                 if age > args.max_camera_age_sec:
                     raise ValueError(
                         "camera age limit exceeded at {} {}".format(
-                            lidar_stamp, camera_name
+                            target_stamp, camera_name
                         )
                     )
                 camera_ages[camera_name] = age
@@ -312,7 +410,9 @@ def main():
                     "sample_idx": sample_id,
                     "token": sample_id,
                     "scene_id": window["scene_id"],
-                    "timestamp": lidar_stamp,
+                    "timestamp": target_stamp,
+                    "source_lidar_header_timestamp": lidar_stamp,
+                    "lidar_deskew": deskew,
                     "lidar_points": {
                         "lidar_path": str(
                             serialized_path(lidar_path, output, stored_root)
@@ -334,6 +434,7 @@ def main():
                     "camera_age_ms": {
                         key: value * 1000.0 for key, value in camera_ages.items()
                     },
+                    "lidar_deskew": deskew,
                 }
             )
 
@@ -380,6 +481,10 @@ def main():
         "distance_threshold_m": args.distance_threshold_m,
         "point_cloud_range": list(args.point_cloud_range),
         "drop_scene_assets": sorted(set(args.drop_scene_asset)),
+        "lidar_deskew": args.lidar_deskew,
+        "lidar_deskew_reference": args.lidar_deskew_reference,
+        "deskew_max_point_time_span_sec": args.deskew_max_point_time_span_sec,
+        "deskew_invalid_policy": args.deskew_invalid_policy,
     }
     for split, rows in split_rows.items():
         with (output / "morai_base3_infos_{}.pkl".format(split)).open("wb") as stream:
@@ -397,6 +502,18 @@ def main():
         "dropped_scene_assets": dict(dropped_scene_assets),
         "dropped_scenes": dropped_scenes,
         "unknown_assets": sorted(unknown_assets),
+        "deskew_rejected": dict(deskew_rejected),
+        "deskew_displacement_p95_m": {
+            "mean": float(np.mean(deskew_displacement_p95))
+            if deskew_displacement_p95 else None,
+            "p95": float(np.percentile(deskew_displacement_p95, 95.0))
+            if deskew_displacement_p95 else None,
+        },
+        "deskew_runtime_ms": {
+            "mean": float(np.mean(deskew_runtime_ms)) if deskew_runtime_ms else None,
+            "p95": float(np.percentile(deskew_runtime_ms, 95.0))
+            if deskew_runtime_ms else None,
+        },
         "synchronization": synchronization,
         "host_output_root": str(output),
         "serialized_root": str(stored_root),

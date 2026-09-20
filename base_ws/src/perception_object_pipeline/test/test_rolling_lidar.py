@@ -6,12 +6,28 @@ from perception_object_pipeline.rolling_lidar import (
     PlanarPoseBuffer,
     deskew_points_to_reference_pose,
     representative_detection_time_offset,
+    scan_time_contract,
     transform_boxes_between_lidar_times,
     transform_points_between_lidar_times,
 )
 
 
 class RollingLidarTimingTest(unittest.TestCase):
+    def test_scan_time_contract_uses_scan_end(self):
+        contract = scan_time_contract(
+            np.asarray([0.001, 0.050, 0.099], dtype=np.float32),
+            max_span_sec=0.15,
+            reference="end",
+        )
+        self.assertIsNotNone(contract)
+        self.assertAlmostEqual(contract["span_sec"], 0.098, places=6)
+        self.assertAlmostEqual(contract["reference_offset_sec"], 0.099, places=6)
+
+    def test_scan_time_contract_rejects_invalid_scans(self):
+        self.assertIsNone(scan_time_contract([0.0, 0.0]))
+        self.assertIsNone(scan_time_contract([0.0, float("nan")]))
+        self.assertIsNone(scan_time_contract([0.0, 0.16], max_span_sec=0.15))
+
     def test_uses_median_of_per_box_medians(self):
         points = np.asarray(
             [

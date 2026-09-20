@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.0.2)
 project(bevfusion_ros)
 
 find_package(catkin REQUIRED COMPONENTS
+  autoware_perception_msgs
+  morai_msgs
+  nav_msgs
+  perception_object_pipeline
   rospy
   sensor_msgs
   std_msgs
@@ -11,7 +15,9 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_python_setup()
 
 catkin_package(
-  CATKIN_DEPENDS rospy sensor_msgs std_msgs visualization_msgs
+  CATKIN_DEPENDS autoware_perception_msgs morai_msgs nav_msgs
+                 perception_object_pipeline rospy sensor_msgs std_msgs
+                 visualization_msgs
 )
 
 if(CATKIN_ENABLE_TESTING)
