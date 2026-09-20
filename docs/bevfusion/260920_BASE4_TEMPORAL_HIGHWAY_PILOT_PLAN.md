@@ -131,6 +131,10 @@ campaign에서 제어권 인수 전 차선 이탈이 발견되어 그 결과만�
 - Ego/Object pose는 LiDAR 시각 앞뒤 상태로 보간한다.
 - 학습 label은 LiDAR/Ego 축의 절대 planar vector
   `velocity_target_ego_mps=[vx, vy]` 하나만 노출한다.
+- 이 velocity는 catalog 보정 후 geometric BBox center 기준이다. `/Object_topic`의 asset
+  pivot velocity에 전후 heading으로 계산한 yaw rate와 pivot-to-center offset의
+  `omega x r` 항을 더한다. 짧고 정상적인 bracket가 없으면 pivot velocity로 fallback하고
+  instance metadata에 그 이유를 남긴다.
 - 위치 미분값은 필요할 때 `diagnostics` namespace에서 GT sanity check에만 사용하며,
   학습 target 이름으로 노출하지 않는다.
 - runtime `DetectedObject`에서는 detector/LiDAR `vx, vy`를 box yaw로 회전해 object-body

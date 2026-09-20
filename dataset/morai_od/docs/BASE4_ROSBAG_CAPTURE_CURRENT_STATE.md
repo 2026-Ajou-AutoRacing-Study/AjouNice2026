@@ -336,6 +336,13 @@ asset을 옵션 없이 만나면 변환기는 계속 fail-fast한다.
 Raw info에는 LiDAR 시각의 9D box `[x,y,z,l,w,h,yaw,vx,vy]`, Ego pose,
 현재 frame과 직전 두 frame의 `sweep2lidar`, 양수 time lag가 들어간다. Object topic의
 body-frame `km/h` velocity는 world frame을 거쳐 target Ego frame의 `m/s`로 변환한다.
+Velocity target의 기준점은 `/Object_topic.position` asset pivot이 아니라 catalog로
+보정한 geometric BBox center다. 같은 unique ID의 LiDAR 시각 전후 Object state에서
+yaw rate를 구하고, catalog의 pivot-to-center offset에 `omega x r`을 더한다. 전후 state가
+없거나 support span이 `0.10 s`를 넘거나 yaw rate가 `2 rad/s`를 넘으면 해당 instance만
+pivot velocity로 안전하게 fallback하며 source와 보정량을 metadata/audit에 기록한다.
+현재 고주로 Base4 scenario scale은 모두 `1`이고, 임의 scenario scale 보정은 MORAI의
+공식 계약이 확정되기 전까지 이 경로에 넣지 않는다.
 학습 loader는 과거 point를 Ego 정합한 뒤 다섯 번째 channel에 `dt`를 넣는다. GT Object
 motion으로 과거 point를 현재 위치로 옮기지는 않는다. Positive GT가 없는 중간 frame도
 causal sweep 후보로 보존해 history가 인위적으로 건너뛰지 않게 한다. 수정 후 raw의

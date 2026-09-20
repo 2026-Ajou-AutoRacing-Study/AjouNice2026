@@ -88,6 +88,33 @@ def test_object_alignment_preserves_nearest_membership_and_interpolates_pose():
     assert audit["interpolated_actors"] == 1
 
 
+def test_actor_yaw_rate_uses_short_arc_across_heading_wrap():
+    target = actor(7, "car", heading=0.0)
+    samples = [
+        (1.0, 1.0, objects([actor(7, "car", heading=359.0)])),
+        (1.1, 1.1, objects([actor(7, "car", heading=1.0)])),
+    ]
+    yaw_rate, audit = MODULE.actor_yaw_rate_at(1.05, samples, target)
+    assert audit["valid"]
+    assert math.isclose(yaw_rate, math.radians(20.0), rel_tol=1e-9)
+
+
+def test_bbox_center_velocity_adds_rotational_offset_term():
+    from perception.detection3d.bevfusion.tools import (
+        build_base3_online_bevfusion_infos as builder,
+    )
+
+    value, correction = builder.actor_center_velocity_in_ego_mps(
+        actor(7, "car", heading=0.0, vx=0.0),
+        ego(heading=0.0),
+        {"pivot_to_bbox_center_local_m": [1.0, 0.0, 0.0]},
+        yaw_rate_radps=1.0,
+    )
+    assert value[0] == pytest.approx(0.0)
+    assert value[1] == pytest.approx(1.0)
+    assert correction.tolist() == pytest.approx([0.0, 1.0])
+
+
 def test_distance_filter_contracts_are_disjoint():
     from perception.detection3d.bevfusion.tools import build_base3_online_bevfusion_infos as builder
 

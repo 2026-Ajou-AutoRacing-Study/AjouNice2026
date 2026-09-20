@@ -216,6 +216,75 @@ def actor_lists(message):
     )
 
 
+def actor_with_key(message, key):
+    """Return one actor from an ObjectStatusList by stable (id, name)."""
+    for field, _class_name in actor_lists(message):
+        for actor in getattr(message, field):
+            if actor_key(actor) == key:
+                return actor
+    return None
+
+
+def actor_yaw_rate_at(
+    stamp,
+    samples,
+    actor,
+    max_support_span_sec=0.10,
+    max_abs_yaw_rate_radps=2.0,
+):
+    """Estimate causal-neutral actor yaw rate from bracketing ObjectStatus rows.
+
+    A strict sample on each side of the LiDAR timestamp is required.  This
+    keeps spawn/despawn boundaries and long communication gaps from injecting
+    a synthetic rotational velocity into the BBox-centre target.
+    """
+    stamps = [row[0] for row in samples]
+    right = bisect.bisect_right(stamps, stamp)
+    left = bisect.bisect_left(stamps, stamp) - 1
+    if left < 0 or right >= len(samples):
+        return None, {"valid": False, "reason": "unbracketed"}
+
+    before = samples[left]
+    after = samples[right]
+    span = float(after[0] - before[0])
+    # Decimal ROS periods such as 0.1 s are not exactly representable as a
+    # binary float, so keep a tiny numerical tolerance at the validity gate.
+    if span <= 0.0 or span > float(max_support_span_sec) + 1e-9:
+        return None, {
+            "valid": False,
+            "reason": "support_span",
+            "support_span_sec": span,
+        }
+
+    key = actor_key(actor)
+    before_actor = actor_with_key(before[2], key)
+    after_actor = actor_with_key(after[2], key)
+    if before_actor is None or after_actor is None:
+        return None, {
+            "valid": False,
+            "reason": "actor_not_bracketed",
+            "support_span_sec": span,
+        }
+
+    delta_deg = (
+        float(after_actor.heading) - float(before_actor.heading) + 180.0
+    ) % 360.0 - 180.0
+    yaw_rate = math.radians(delta_deg) / span
+    if abs(yaw_rate) > float(max_abs_yaw_rate_radps):
+        return None, {
+            "valid": False,
+            "reason": "yaw_rate_limit",
+            "support_span_sec": span,
+            "yaw_rate_radps": yaw_rate,
+        }
+    return yaw_rate, {
+        "valid": True,
+        "reason": "bracketed_heading",
+        "support_span_sec": span,
+        "yaw_rate_radps": yaw_rate,
+    }
+
+
 def align_object_state(
     stamp, samples, mode="interpolate", max_extrapolation_sec=0.05
 ):

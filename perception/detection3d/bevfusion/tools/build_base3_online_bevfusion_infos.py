@@ -31,6 +31,7 @@ from audit_base3_online_gt_alignment import (  # noqa: E402
     MARKER_TOPIC,
     OBJECT_TOPIC,
     actors,
+    actor_yaw_rate_at,
     align_ego_state,
     align_object_state,
     cloud_xyz_i,
@@ -69,6 +70,14 @@ def arguments():
     parser.add_argument(
         "--with-velocity-targets", action="store_true",
         help="append MORAI object GT vx/vy in the target Ego/LiDAR frame",
+    )
+    parser.add_argument(
+        "--max-yaw-rate-support-sec", type=float, default=0.10,
+        help="maximum ObjectStatus bracket used for BBox-centre velocity",
+    )
+    parser.add_argument(
+        "--max-abs-yaw-rate-radps", type=float, default=2.0,
+        help="reject larger inferred actor yaw rates and keep pivot velocity",
     )
     parser.add_argument(
         "--causal-sweep-count", type=int, default=1,
@@ -208,6 +217,40 @@ def actor_velocity_in_ego_mps(actor, ego):
     )
 
 
+def actor_center_velocity_in_ego_mps(actor, ego, asset, yaw_rate_radps):
+    """Convert MORAI pivot velocity to geometric BBox-centre velocity."""
+    pivot_velocity = actor_velocity_in_ego_mps(actor, ego)
+    if yaw_rate_radps is None:
+        return pivot_velocity, np.zeros(2, dtype=np.float64)
+
+    offset = np.asarray(
+        asset["pivot_to_bbox_center_local_m"], dtype=np.float64
+    )
+    actor_yaw = math.radians(float(actor.heading))
+    cosine, sine = math.cos(actor_yaw), math.sin(actor_yaw)
+    offset_world = np.asarray(
+        [
+            cosine * offset[0] - sine * offset[1],
+            sine * offset[0] + cosine * offset[1],
+        ],
+        dtype=np.float64,
+    )
+    correction_world = float(yaw_rate_radps) * np.asarray(
+        [-offset_world[1], offset_world[0]], dtype=np.float64
+    )
+    ego_yaw = math.radians(float(ego.heading))
+    correction_ego = np.asarray(
+        [
+            math.cos(ego_yaw) * correction_world[0]
+            + math.sin(ego_yaw) * correction_world[1],
+            -math.sin(ego_yaw) * correction_world[0]
+            + math.cos(ego_yaw) * correction_world[1],
+        ],
+        dtype=np.float64,
+    )
+    return pivot_velocity + correction_ego, correction_ego
+
+
 def main():
     args = arguments()
     if args.samples_per_scene < 0:
@@ -238,6 +281,7 @@ def main():
     deskew_displacement_p95 = []
     deskew_runtime_ms = []
     state_rejected = Counter()
+    center_velocity_sources = Counter()
 
     # Pass 1 keeps only tiny scene markers.  Sensor payloads are streamed one
     # capture window at a time in pass 2 so 20+ GiB split bags do not exhaust
@@ -438,7 +482,25 @@ def main():
                     rejected[class_name] += 1
                     continue
                 kept[class_name] += 1
-                velocity_ego = actor_velocity_in_ego_mps(actor, ego_state)
+                asset = catalog[str(actor.name)]
+                yaw_rate, yaw_rate_audit = actor_yaw_rate_at(
+                    target_stamp,
+                    aligned[OBJECT_TOPIC],
+                    actor,
+                    max_support_span_sec=args.max_yaw_rate_support_sec,
+                    max_abs_yaw_rate_radps=args.max_abs_yaw_rate_radps,
+                )
+                velocity_ego, velocity_correction = (
+                    actor_center_velocity_in_ego_mps(
+                        actor, ego_state, asset, yaw_rate
+                    )
+                )
+                velocity_source = (
+                    "morai_object_body_kph_plus_yaw_rate_cross_offset"
+                    if yaw_rate is not None
+                    else "morai_object_body_kph_pivot_fallback"
+                )
+                center_velocity_sources[velocity_source] += 1
                 training_box = (
                     np.r_[box, velocity_ego]
                     if args.with_velocity_targets
@@ -453,7 +515,14 @@ def main():
                         "instance_id": int(actor.unique_id),
                         "asset_name": str(actor.name),
                         "velocity_target_ego_mps": velocity_ego.tolist(),
-                        "velocity_source": "morai_object_body_kph_rotated",
+                        "velocity_pivot_ego_mps": actor_velocity_in_ego_mps(
+                            actor, ego_state
+                        ).tolist(),
+                        "velocity_center_correction_ego_mps": (
+                            velocity_correction.tolist()
+                        ),
+                        "velocity_source": velocity_source,
+                        "yaw_rate_audit": yaw_rate_audit,
                     }
                 )
 
@@ -627,10 +696,24 @@ def main():
     if unknown_assets:
         raise ValueError("missing asset offsets: {}".format(sorted(unknown_assets)))
     final_kept = Counter()
+    final_center_velocity_sources = Counter()
+    final_center_velocity_correction_mps = []
+    final_yaw_rate_fallback_reasons = Counter()
     for rows in split_rows.values():
         for row in rows:
             for instance in row["instances"]:
                 final_kept[CLASSES[int(instance["bbox_label_3d"])]] += 1
+                final_center_velocity_sources[instance["velocity_source"]] += 1
+                final_center_velocity_correction_mps.append(
+                    float(np.linalg.norm(
+                        instance["velocity_center_correction_ego_mps"]
+                    ))
+                )
+                yaw_rate_audit = instance["yaw_rate_audit"]
+                if not yaw_rate_audit["valid"]:
+                    final_yaw_rate_fallback_reasons[
+                        yaw_rate_audit["reason"]
+                    ] += 1
     metainfo = {
         "dataset": "morai_base3_online",
         "classes": CLASSES,
@@ -650,6 +733,9 @@ def main():
         "state_invalid_policy": args.state_invalid_policy,
         "window_start_event": args.window_start_event,
         "with_velocity_targets": args.with_velocity_targets,
+        "velocity_reference": "geometric_bbox_center",
+        "max_yaw_rate_support_sec": args.max_yaw_rate_support_sec,
+        "max_abs_yaw_rate_radps": args.max_abs_yaw_rate_radps,
         "causal_sweep_count": args.causal_sweep_count,
     }
     for split, rows in split_rows.items():
@@ -671,6 +757,27 @@ def main():
         "unknown_assets": sorted(unknown_assets),
         "deskew_rejected": dict(deskew_rejected),
         "state_rejected": dict(state_rejected),
+        "center_velocity_sources": dict(final_center_velocity_sources),
+        "center_velocity_yaw_rate_fallback_reasons": dict(
+            final_yaw_rate_fallback_reasons
+        ),
+        "pre_temporal_center_velocity_sources": dict(center_velocity_sources),
+        "center_velocity_correction_mps": {
+            "mean": (
+                float(np.mean(final_center_velocity_correction_mps))
+                if final_center_velocity_correction_mps else None
+            ),
+            "p95": (
+                float(np.percentile(
+                    final_center_velocity_correction_mps, 95.0
+                ))
+                if final_center_velocity_correction_mps else None
+            ),
+            "max": (
+                max(final_center_velocity_correction_mps)
+                if final_center_velocity_correction_mps else None
+            ),
+        },
         "temporal_prefix_dropped": dict(temporal_prefix_dropped),
         "deskew_displacement_p95_m": {
             "mean": float(np.mean(deskew_displacement_p95))
