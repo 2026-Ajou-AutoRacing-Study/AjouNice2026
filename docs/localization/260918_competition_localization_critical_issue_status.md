@@ -296,7 +296,11 @@ P0~P2 정상 구간을 해결한 뒤 음영 복귀를 분리한다. 큰 innovati
 
 위 조치 후에도 correction이 제어기를 흔들면 planning에는 global map pose를 유지하고
 빠른 제어 feedback에는 smooth local state를 사용하는 구조를 검토한다. 이는 frame과
-trajectory 변환 계약 변경이 크므로 마지막 구조 변경이다.
+trajectory 변환 계약 변경이 크므로 마지막 구조 변경이다. Competition Vehicle Status의
+확장된 motion 정보가 이 방향을 강화하지만, 현재도 heading과 `velocity.x`는 이미 사용
+중이므로 production을 즉시 바꾸지는 않는다. 구체적인 frame 계약과 A/B는
+[`260920_competition_status_and_local_control_frame_plan.md`](260920_competition_status_and_local_control_frame_plan.md)를
+따른다.
 
 ### P5. Controller tuning
 
