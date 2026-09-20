@@ -68,6 +68,11 @@ def build_config(scene_count, seed, campaign_tag):
             "heading_error_limit_deg": 35.0,
             "lookahead_m": 8.0,
             "maximum_steering_rad": 0.22,
+            # A loaded scenario must remain parked until MORAI has restored
+            # the network and external-control mode. A non-zero saved speed
+            # previously let Ego travel straight through the curved merge
+            # lane before the first steering command was published.
+            "maximum_precontrol_drift_m": 0.75,
             "adaptive_curve_control": False,
             "minimum_curve_speed_kph": 45.0,
             "minimum_curve_lookahead_m": 4.0,
@@ -82,7 +87,7 @@ def build_config(scene_count, seed, campaign_tag):
             # Competition rule: the ramp/merge approach must remain strictly
             # below 59 km/h. These are choices, not a continuous range.
             "ego_target_speed_kph": [50.0, 54.0, 58.0],
-            "ego_initial_speed_kph": [45.0, 50.0, 54.0],
+            "ego_initial_speed_kph": 0.0,
             "start_ego_at_target_speed": False,
             "minimum_ego_speed_ratio": 0.88,
             "source_spawn_ids": [6, 8, 10],
@@ -112,12 +117,8 @@ def build_config(scene_count, seed, campaign_tag):
             "motion_stall_timeout_sec": 15.0,
             "lookahead_m": 7.0,
             "load_settle_sec": 0.20,
-            # The sparse competition global route follows one reference line;
-            # a valid ramp lane centre is about 4.3 m away.  Keep this relaxed
-            # only for merge scenes so readiness passes before a moving Ego
-            # can run away during the rosbridge reconnect check.
-            "route_deviation_limit_m": 6.5,
-            "heading_error_limit_deg": 75.0,
+            "route_deviation_limit_m": 2.0,
+            "heading_error_limit_deg": 40.0,
             "interaction_roles": [
                 {
                     "name": "merge_interacting_traffic",
@@ -144,12 +145,11 @@ def build_config(scene_count, seed, campaign_tag):
             "ego_lane_weights": {"6": 0.25, "8": 0.40, "10": 0.35},
             "ego_lane_speed_kph": {
                 "6": [70.0, 100.0],
-                "8": [70.0, 120.0],
-                "10": [85.0, 120.0],
+                "8": [70.0, 100.0],
+                "10": [85.0, 100.0],
             },
-            # Deterministic repeating deck: 100 km/h dominates, while 115/120
-            # are deliberate minority stress cases rather than the dataset's
-            # only geometry.
+            # Prove the zero-speed control handoff at competition-relevant
+            # speeds before restoring 115/120 km/h stress cases.
             "ego_speed_schedule_kph": [
                 70.0,
                 85.0,
@@ -157,8 +157,8 @@ def build_config(scene_count, seed, campaign_tag):
                 100.0,
                 100.0,
                 100.0,
-                115.0,
-                120.0,
+                85.0,
+                100.0,
             ],
             "npc_target_speed_scale": [1.0, 1.0],
             "preserve_template_npc_target_speed": True,
@@ -168,18 +168,23 @@ def build_config(scene_count, seed, campaign_tag):
             # two periodic schedules bind every lane-6 slot to front_overtake,
             # whose collision guard moves Ego to lane 8.
             "interaction_role_schedule_offset": 1,
-            "start_ego_at_target_speed": True,
-            "minimum_ego_speed_ratio": 0.92,
+            "ego_initial_speed_kph": 0.0,
+            "start_ego_at_target_speed": False,
+            "minimum_ego_speed_ratio": 0.85,
             "stable_ego_gate": True,
             "maximum_stable_acceleration_mps2": 1.5,
+            "expected_ego_acceleration_mps2": 1.8,
+            "compensate_npc_motion_until_capture_gate": True,
             "ego_start_arc_m": [70.0, 285.0],
             "ego_speed_advantage_kph": [20.0, 65.0],
-            "ego_speed_limit_kph": 120.0,
+            "ego_speed_limit_kph": 100.0,
             "captures_per_scene": 16,
             "desired_clip_duration_sec": 1.4,
-            "maximum_motion_m": 190.0,
+            # At 100 km/h the stable-speed gate opens around 175 m. Leave
+            # enough route for all 16 LiDAR-paced triggers after that point.
+            "maximum_motion_m": 260.0,
             "motion_stall_timeout_sec": 14.0,
-            "capture_motion_arm_m": 3.0,
+            "capture_motion_arm_m": 80.0,
             "load_settle_sec": 0.10,
             "interaction_roles": [
                 {
@@ -220,7 +225,7 @@ def build_config(scene_count, seed, campaign_tag):
             "post_merge_scene_count": cruise_count,
             "npc_goal_speed_contract_kph": [40.0, 50.0, 60.0],
             "premerge_ego_speed_contract_kph": [50.0, 54.0, 58.0],
-            "postmerge_ego_speed_contract_kph": [70.0, 85.0, 100.0, 115.0, 120.0],
+            "postmerge_ego_speed_contract_kph": [70.0, 85.0, 100.0],
             "internal_test_split": False,
         },
     }

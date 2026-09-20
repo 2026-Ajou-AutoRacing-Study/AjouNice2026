@@ -2484,17 +2484,50 @@ def build_highway_cruise_scene(
         spawn["maxSpawnPeriod"] = 5.0
     set_ego_pose(scenario["egoVehicle"], ego_sample, initial_speed)
     capture_arm_m = float(family.get("capture_motion_arm_m", 3.0))
+    # NPC motion begins at ScenarioLoad, while Ego deliberately starts from
+    # rest so external control can take over safely. Back-project the NPC by
+    # its expected pre-gate travel; otherwise it is already 100+ m too far
+    # ahead when a zero-speed Ego finally reaches the capture gate.
+    compensate_npc_motion = bool(
+        family.get("compensate_npc_motion_until_capture_gate", False)
+    )
+    if compensate_npc_motion:
+        expected_accel = max(
+            0.5, float(family.get("expected_ego_acceleration_mps2", 1.8))
+        )
+        minimum_capture_speed_mps = (
+            ego_speed * float(family["minimum_ego_speed_ratio"]) / 3.6
+        )
+        acceleration_time_sec = minimum_capture_speed_mps / expected_accel
+        acceleration_distance_m = (
+            0.5 * expected_accel * acceleration_time_sec * acceleration_time_sec
+        )
+        expected_gate_distance_m = max(capture_arm_m, acceleration_distance_m)
+        stable_gate_sec = (
+            float(family.get("stable_ego_window_sec", 0.5))
+            if family.get("stable_ego_gate", False)
+            else 0.0
+        )
+        expected_gate_time_sec = max(
+            math.sqrt(2.0 * capture_arm_m / expected_accel),
+            acceleration_time_sec,
+        ) + stable_gate_sec
+    else:
+        expected_gate_distance_m = capture_arm_m
+        expected_gate_time_sec = 0.0
     capture_anchor = sample_route_at_arc(
-        ego_route, ego_route_arc, start_arc + capture_arm_m
+        ego_route, ego_route_arc, start_arc + expected_gate_distance_m
     )
     offset_range = role.get("npc_longitudinal_offset_m", [15.0, 30.0])
     offset_m = rng.uniform(float(offset_range[0]), float(offset_range[1]))
+    npc_pre_gate_motion_m = target / 3.6 * expected_gate_time_sec
+    load_time_offset_m = offset_m - npc_pre_gate_motion_m
     npc_pose = reposition_spawn_on_link_path(
         spawn,
         links_by_id,
         HIGHWAY_LANE_LINK_PATHS[npc_spawn_id],
         capture_anchor,
-        offset_m,
+        load_time_offset_m,
     )
     scenario["spawnPointList"] = [spawn]
     gate_range = role.get("gate_longitudinal_m", [-40.0, 40.0])
@@ -2530,6 +2563,11 @@ def build_highway_cruise_scene(
             "relative_lane_intent": relative_lane_intent,
             "interaction_role": role_name,
             "planned_longitudinal_offset_m": offset_m,
+            "load_time_longitudinal_offset_m": load_time_offset_m,
+            "expected_capture_gate_distance_m": expected_gate_distance_m,
+            "expected_capture_gate_time_sec": expected_gate_time_sec,
+            "npc_pre_gate_motion_compensation_m": npc_pre_gate_motion_m,
+            "npc_motion_compensation_enabled": compensate_npc_motion,
             "spawn_position": {
                 axis: float(npc_pose[axis]) for axis in ("x", "y", "z")
             },
@@ -2540,8 +2578,10 @@ def build_highway_cruise_scene(
         "minimum_ego_speed_kph": (
             ego_speed * float(family["minimum_ego_speed_ratio"])
         ),
-        "maximum_motion_m": 130.0,
-        "motion_stall_timeout_sec": 12.0,
+        "maximum_motion_m": float(family.get("maximum_motion_m", 130.0)),
+        "motion_stall_timeout_sec": float(
+            family.get("motion_stall_timeout_sec", 12.0)
+        ),
         "lookahead_m": 6.0,
         "adaptive_curve_control": False,
         "capture_motion_arm_m": capture_arm_m,

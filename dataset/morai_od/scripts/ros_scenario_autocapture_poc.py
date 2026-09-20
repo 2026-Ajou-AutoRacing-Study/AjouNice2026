@@ -294,6 +294,16 @@ def parse_args():
         ),
     )
     parser.add_argument("--ego-position-tolerance-m", type=float, default=5.0)
+    parser.add_argument(
+        "--maximum-precontrol-drift-m",
+        type=float,
+        default=None,
+        help=(
+            "fail before releasing external control when Ego moved farther "
+            "than this from the generated start pose during scenario load; "
+            "zero disables the gate"
+        ),
+    )
     parser.add_argument("--route-deviation-limit-m", type=float, default=None)
     parser.add_argument("--heading-error-limit-deg", type=float, default=None)
     parser.add_argument("--lookahead-m", type=float, default=None)
@@ -1296,6 +1306,7 @@ class AutoCapture:
                 "adaptive_curve_control",
                 "minimum_curve_speed_kph",
                 "load_settle_sec",
+                "maximum_precontrol_drift_m",
             )
         }
         self.scene_minimum_ego_speed_kph = 0.0
@@ -2066,6 +2077,27 @@ class AutoCapture:
                 # expose the old service briefly and return handler=None.
                 self.wait_for_scene(scene, issued)
                 self.wait_for_static_actor_stability(scene)
+                if self.args.maximum_precontrol_drift_m > 0.0:
+                    snapshot = self.state.snapshot()
+                    if snapshot["ego"] is None:
+                        raise RuntimeError(
+                            "Ego telemetry unavailable before control handoff"
+                        )
+                    expected = scene["expected_ego"]
+                    precontrol_drift = math.hypot(
+                        float(snapshot["ego"].position.x)
+                        - float(expected["x"]),
+                        float(snapshot["ego"].position.y)
+                        - float(expected["y"]),
+                    )
+                    if precontrol_drift > self.args.maximum_precontrol_drift_m:
+                        raise RuntimeError(
+                            "Ego moved {:.2f} m before external control; limit "
+                            "is {:.2f} m. Retrying ScenarioLoad from rest.".format(
+                                precontrol_drift,
+                                self.args.maximum_precontrol_drift_m,
+                            )
+                        )
                 self.last_scene_load_issued = issued
                 last_error = None
                 break
@@ -2089,8 +2121,8 @@ class AutoCapture:
             # Do not publish the brake command after this service call: the
             # personal MORAI launcher can retain that brake state even after
             # velocity-mode CtrlCmd messages begin, leaving Ego stationary.
-            # The loaded scenario already starts at zero velocity and the
-            # motion routine immediately starts publishing its drive command.
+            # The loaded scenario starts at zero velocity and the motion
+            # routine immediately starts publishing its drive command.
             control_error = None
             for attempt in range(1, 4):
                 try:
@@ -3798,7 +3830,29 @@ class AutoCapture:
                 command.acceleration = 0.0
                 self.control_pub.publish(command)
 
-                if travelled >= next_capture_distance_m:
+                ego_speed_kph = 3.6 * math.sqrt(
+                    ego.velocity.x * ego.velocity.x
+                    + ego.velocity.y * ego.velocity.y
+                    + ego.velocity.z * ego.velocity.z
+                )
+                stable_ready = True
+                if self.scene_stable_ego_window_sec > 0.0:
+                    ego_history = self.state.timing_window(
+                        time.monotonic() - self.scene_stable_ego_window_sec,
+                        time.monotonic(),
+                        0.0,
+                    ).get("ego", [])
+                    stable_ready = stable_ego_motion(
+                        ego_history,
+                        self.scene_stable_ego_window_sec * 0.9,
+                        self.scene_maximum_stable_acceleration_mps2,
+                    )
+                kinematics_ready = (
+                    travelled >= self.args.capture_motion_arm_m
+                    and ego_speed_kph >= self.scene_minimum_ego_speed_kph
+                    and stable_ready
+                )
+                if travelled >= next_capture_distance_m and kinematics_ready:
                     self.wait_for_connections(
                         context="before rolling-fast trigger"
                     )
@@ -3827,6 +3881,13 @@ class AutoCapture:
                             # the nominal first distance slot. Keep driving
                             # until it is visibly moving instead of recording
                             # a mislabeled static-pedestrian frame.
+                            rospy.loginfo_throttle(
+                                1.0,
+                                "Actor gate pending at %.1fm, ego=%.1fkm/h: %s",
+                                travelled,
+                                ego_speed_kph,
+                                actor_gate_observation,
+                            )
                             time.sleep(0.05)
                             continue
                         raise RuntimeError(
@@ -4751,6 +4812,10 @@ def validate_policy(args, manifest):
         args.maximum_steering_rad = float(
             policy.get("maximum_steering_rad", 0.20)
         )
+    if args.maximum_precontrol_drift_m is None:
+        args.maximum_precontrol_drift_m = float(
+            policy.get("maximum_precontrol_drift_m", 0.0)
+        )
     if args.adaptive_curve_control is None:
         args.adaptive_curve_control = bool(
             policy.get("adaptive_curve_control", False)
@@ -4862,6 +4927,8 @@ def validate_policy(args, manifest):
         raise ValueError("--lookahead-m must be positive")
     if args.maximum_steering_rad <= 0.0:
         raise ValueError("--maximum-steering-rad must be positive")
+    if args.maximum_precontrol_drift_m < 0.0:
+        raise ValueError("--maximum-precontrol-drift-m must be non-negative")
     if args.curve_control_window_m <= 0.0:
         raise ValueError("--curve-control-window-m must be positive")
     if args.curve_control_full_turn_deg <= 0.0:

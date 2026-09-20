@@ -473,9 +473,14 @@ class DynamicCaptureToolsTest(unittest.TestCase):
             ["merge_conflict"],
         )
         self.assertEqual(cruise["npc_target_speed_scale"], [1.0, 1.0])
-        self.assertEqual(max(cruise["ego_speed_schedule_kph"]), 120.0)
+        self.assertEqual(max(cruise["ego_speed_schedule_kph"]), 100.0)
         self.assertEqual(cruise["interaction_role_schedule_offset"], 1)
-        self.assertTrue(cruise["start_ego_at_target_speed"])
+        self.assertFalse(cruise["start_ego_at_target_speed"])
+        self.assertTrue(cruise["compensate_npc_motion_until_capture_gate"])
+        self.assertEqual(cruise["maximum_motion_m"], 260.0)
+        self.assertEqual(merge["ego_initial_speed_kph"], 0.0)
+        self.assertEqual(cruise["ego_initial_speed_kph"], 0.0)
+        self.assertEqual(config["capture"]["maximum_precontrol_drift_m"], 0.75)
         self.assertEqual(merge["count"] + cruise["count"], 30)
 
     def test_actor_relative_pose_and_velocity_are_ego_aligned(self):
