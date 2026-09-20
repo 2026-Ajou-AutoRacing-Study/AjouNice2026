@@ -1,6 +1,6 @@
 # Base4-Temporal 고주로 Velocity Pilot 계획
 
-> **문서 상태: PLAN.** 전체 Base4 데이터셋을 확정하는 문서가 아니라, 고주로에서
+> **문서 상태: PILOT VALIDATED / PRODUCTION CAPTURE READY.** 전체 Base4 데이터셋을 확정하는 문서가 아니라, 고주로에서
 > BEVFusion velocity observation의 실효성을 가장 작게 검증하기 위한 통제 실험이다.
 
 ## 한 줄 결론
@@ -49,16 +49,20 @@ pilot은 합류 이후의 실제 추월·상대속도 분포에 집중한다.
 
 | 구간 | 목표 비율 | Ego 속도 | NPC 상태 |
 |---|---:|---|---|
-| ramp 초기 접근 | 5% | 50/55/60 km/h | 0에서 40/50/60으로 가속 |
-| 실제 merge/conflict | 20% | 50/60/70 km/h | 가능하면 30--60 km/h에 도달한 뒤 capture |
-| post-merge 순항·추월 | 55% | 70/85/100 km/h | 사전 warm-up한 40/50/60 km/h 순항 |
-| taper/highway tail | 20% | 70/85/100 km/h | 사전 warm-up한 40/50/60 km/h 순항 |
+| ramp 초기 접근 | 0% | - | live pilot에서 제어권 전환 전 actor 이탈로 제외 |
+| 실제 merge/conflict | 25% | 50/54/58 km/h | 59 km/h 미만, 40/50/60 NPC 순항 |
+| post-merge 순항·추월 | 75% | 70/85/100/115/120 km/h | 시작속도=목표속도인 40/50/60 NPC 순항 |
 
-합치면 접근·합류 25%, 합류 이후 75%다. `105 km/h` 부근은 소수 hard case로만 둔다.
+합치면 실제 합류 25%, 합류 이후 75%다. `115/120 km/h`는 소수 hard case로만 둔다.
 고속 Ego는 capture 시작 전에 충분히 상류에서 출발해 목표속도에 도달시킨다. 같은 차선의
 큰 상대속도는 충돌 위험 때문에 짧은 window로 제한하고, 큰 closing/opening speed는 주로
 인접 차선에서 만든다. 첫 pilot에는 실제 lane-change controller를 넣지 않으며, 이후
-lateral-motion addon으로 분리한다.
+lateral-motion addon으로 분리한다. 큰 상대속도는 인접 차선에만 배정하고
+restricted solid-separated lane은 계속 제외한다.
+
+2026-09-20 MR live pilot에서 merge conflict `2/2`, post-merge `9/9`가 완료됐고
+`120 km/h` command scene도 16 trigger를 완주했다. 성공 window는 LiDAR `23--35 frame`을
+보존했다. 이 결과를 본 campaign 진입 gate로 사용한다.
 
 ### sequence 단위
 

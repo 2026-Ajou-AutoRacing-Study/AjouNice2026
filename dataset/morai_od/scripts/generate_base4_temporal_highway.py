@@ -12,6 +12,10 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATASET_ROOT = PROJECT_ROOT / "dataset/morai_od"
 GENERATOR = DATASET_ROOT / "scripts/generate_dynamic_object_capture_set.py"
+INSTALLER = DATASET_ROOT / "scripts/install_dynamic_capture_set.py"
+DEFAULT_NETWORK_TEMPLATE = (
+    PROJECT_ROOT / "configs/network/ego_network_mr_minimal_hybrid.json"
+)
 
 sys.path.insert(0, str(DATASET_ROOT / "scripts"))
 from generate_temporal_sequence_v2_batch import family_defaults  # noqa: E402
@@ -24,6 +28,9 @@ def parse_args():
     parser.add_argument("--campaign-tag", default="pilot30")
     parser.add_argument("--output-root", type=Path, default=DATASET_ROOT)
     parser.add_argument("--install-dir", type=Path)
+    parser.add_argument(
+        "--network-template", type=Path, default=DEFAULT_NETWORK_TEMPLATE
+    )
     return parser.parse_args()
 
 
@@ -87,14 +94,10 @@ def build_config(scene_count, seed, campaign_tag):
             "spawn_period_sec": [10.0, 12.0],
             "ego_capture_zones": [
                 {
-                    "name": "ramp_approach",
-                    "route_index_range": [1960, 1995],
-                    "weight": 0.20,
-                },
-                {
                     "name": "merge_conflict",
                     "route_index_range": [1996, 2060],
-                    "weight": 0.80,
+                    "capture_preroll_distance_m": [14.0, 24.0],
+                    "weight": 1.0,
                 },
             ],
             "capture_preroll_distance_m": [14.0, 24.0],
@@ -103,6 +106,24 @@ def build_config(scene_count, seed, campaign_tag):
             "maximum_motion_m": 180.0,
             "motion_stall_timeout_sec": 15.0,
             "lookahead_m": 7.0,
+            "load_settle_sec": 0.20,
+            # The sparse competition global route follows one reference line;
+            # a valid ramp lane centre is about 4.3 m away.  Keep this relaxed
+            # only for merge scenes so readiness passes before a moving Ego
+            # can run away during the rosbridge reconnect check.
+            "route_deviation_limit_m": 6.5,
+            "heading_error_limit_deg": 75.0,
+            "interaction_roles": [
+                {
+                    "name": "merge_interacting_traffic",
+                    "weight": 1.0,
+                    "npc_longitudinal_offset_m": [-50.0, -35.0],
+                    "gate_longitudinal_m": [-40.0, 65.0],
+                    "maximum_abs_lateral_m": 22.0,
+                    "minimum_distance_m": 5.0,
+                    "maximum_distance_m": 72.0,
+                }
+            ],
             "motion_phase": "highway_merge_below_59kph",
             "sampling_role": "base4_merge_dynamic_vehicle",
         }
@@ -150,6 +171,7 @@ def build_config(scene_count, seed, campaign_tag):
             "maximum_motion_m": 190.0,
             "motion_stall_timeout_sec": 14.0,
             "capture_motion_arm_m": 3.0,
+            "load_settle_sec": 0.10,
             "interaction_roles": [
                 {
                     "name": "front_overtake",
@@ -219,9 +241,31 @@ def main():
         "--stem-prefix",
         "b4{}_".format(tag),
     ]
-    if args.install_dir is not None:
-        command.extend(["--install-dir", str(args.install_dir)])
     subprocess.run(command, check=True)
+    manifest_path = (
+        args.output_root
+        / "manifests/base4_temporal_highway_{}.json".format(tag)
+    )
+    if args.install_dir is not None:
+        runtime_manifest = manifest_path.with_name(
+            manifest_path.stem + "_runtime.json"
+        )
+        subprocess.run(
+            [
+                sys.executable,
+                str(INSTALLER),
+                str(manifest_path),
+                "--network-template",
+                str(args.network_template),
+                "--install-dir",
+                str(args.install_dir),
+                "--runtime-manifest",
+                str(runtime_manifest),
+                "--online-bag-only",
+            ],
+            check=True,
+        )
+        print("runtime manifest: {}".format(runtime_manifest))
     print("config: {}".format(config_path))
 
 

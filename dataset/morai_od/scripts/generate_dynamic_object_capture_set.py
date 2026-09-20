@@ -1838,7 +1838,15 @@ def build_route_anchored_vehicle_scene(
         raise ValueError("capture zone is outside the competition route")
     capture_index = rng.randint(lower, upper)
     capture_anchor = route_pose_at_index(route, capture_index)
-    preroll = float(uniform_or_choice(rng, family["capture_preroll_distance_m"]))
+    preroll = float(
+        uniform_or_choice(
+            rng,
+            zone.get(
+                "capture_preroll_distance_m",
+                family["capture_preroll_distance_m"],
+            ),
+        )
+    )
     start_arc = max(0.0, route_arc[capture_index] - preroll)
     start_index = route_index_at_arc(route_arc, start_arc)
     route_pose = route_pose_at_index(route, start_index)
@@ -2083,10 +2091,15 @@ def build_route_anchored_vehicle_scene(
                 "desired_clip_duration_sec": desired_duration_sec,
             }
         )
-    if "minimum_curve_speed_kph" in family:
-        capture_overrides["minimum_curve_speed_kph"] = float(
-            family["minimum_curve_speed_kph"]
-        )
+    for policy_key in (
+        "minimum_curve_speed_kph",
+        "route_deviation_limit_m",
+        "heading_error_limit_deg",
+        "maximum_steering_rad",
+        "load_settle_sec",
+    ):
+        if policy_key in family:
+            capture_overrides[policy_key] = float(family[policy_key])
     return ego_sample, runtime, capture_overrides, capture_anchor
 
 
@@ -2553,6 +2566,10 @@ def build_highway_cruise_scene(
         )
     if ego_speed > 80.0:
         capture_overrides["allow_high_speed_capture"] = True
+    if "load_settle_sec" in family:
+        capture_overrides["load_settle_sec"] = float(
+            family["load_settle_sec"]
+        )
     return ego_route, ego_sample, runtime, capture_overrides
 
 

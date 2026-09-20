@@ -1282,6 +1282,7 @@ class AutoCapture:
             for key in (
                 "speed_kph",
                 "capture_period_sec",
+                "capture_spacing_m",
                 "capture_motion_arm_m",
                 "minimum_capture_progress_m",
                 "dynamic_warmup_sec",
@@ -1289,9 +1290,12 @@ class AutoCapture:
                 "maximum_motion_m",
                 "motion_stall_timeout_sec",
                 "route_deviation_limit_m",
+                "heading_error_limit_deg",
                 "lookahead_m",
+                "maximum_steering_rad",
                 "adaptive_curve_control",
                 "minimum_curve_speed_kph",
+                "load_settle_sec",
             )
         }
         self.scene_minimum_ego_speed_kph = 0.0

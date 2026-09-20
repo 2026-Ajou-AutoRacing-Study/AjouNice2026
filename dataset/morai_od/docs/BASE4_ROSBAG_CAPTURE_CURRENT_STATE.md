@@ -1,6 +1,6 @@
 # Base4 rosbag 수집 — CURRENT STATE
 
-- 상태: **CURRENT / GATED INFRASTRUCTURE VALIDATED**
+- 상태: **CURRENT / HIGH-SPEED HIGHWAY PILOT VALIDATED**
 - 마지막 검증: 2026-09-20
 - 대상: raw 4-camera + LiDAR BEVFusion, 이후 Base4-Temporal
 
@@ -18,11 +18,13 @@ source of truth             <- continuous stream -> gated scene rosbag
 
 원본 전송 계약은 연속 stream이지만 디스크 기록은 이제 **48 MiB snapshot ring buffer를
 scene별로 flush하는 gated recorder**를 기본으로 한다. 센서 stream은 끊지 않으며,
-`capture_end`가 정상 완료된 scene만 bag 하나로 저장한다. load/reconnect 대기 구간을
+`capture_end`가 정상 완료된 scene만 bag 하나로 저장한다. 실제 첫 유효 frame의
+`sequence_start`가 snapshot window를 다시 열어 고속 warm-up 중 오래된
+`capture_start`가 밀려나도 유효 구간을 보존한다. load/reconnect 대기 구간을
 디스크에 계속 쓰는 기존 continuous recorder는 진단 fallback으로만 유지한다.
 
 `SaveSensorData`, semantic/depth image, ReplayInfo는 사용하지 않는다. 현재 검증된 변환
-결과는 **single-frame BEVFusion smoke dataset**이다. 12--24 frame causal sequence index와
+결과는 **연속 23--35 LiDAR frame raw window와 16-frame BEVFusion smoke dataset**이다. causal sequence index와
 velocity target을 만드는 Base4-Temporal converter는 다음 구현 단계이며, 이번 PASS를 곧
 temporal dataset 완성으로 해석하면 안 된다.
 
@@ -112,7 +114,7 @@ dataset/morai_od/scripts/record_base4_temporal_gated_bag.sh \
 
 `48 MiB`는 시간 길이가 아니라 serialized byte 크기다. 카메라 bitrate가 바뀌면 보존
 시간도 바뀐다. 모든 campaign은 첫 20--30 scene에서 marker 양끝이 bag에 남는지 audit한
-뒤 계속한다. `capture_start`가 잘리거나 window가 `3.40 s`를 넘으면 buffer 또는 capture
+뒤 계속한다. `sequence_start`가 잘리거나 window가 `3.40 s`를 넘으면 buffer 또는 capture
 window를 조정한다.
 
 연속 recorder A/B가 필요할 때만 다음 fallback을 쓴다.
@@ -210,9 +212,26 @@ asset을 옵션 없이 만나면 변환기는 계속 fail-fast한다.
 현재 실측 용량이면 1,200 scene은 약 `61 GB`, 1,500 scene은 약 `76 GB`다.
 연속 녹화 실측 약 `38 GiB/h`와 달리 scene load 대기시간에는 디스크가 증가하지 않는다.
 
+### 6.2 Base4 고속 고주로 live pilot
+
+- generator: `generate_base4_temporal_highway.py`
+- runtime: `/home/luv/morai_cap/260920_213125_base4_highway_live12_retry2`
+- raw bags: `rosbags/datasets/base4_temporal/highway_live12/`
+- 성공: 실제 merge conflict `2/2`, post-merge cruise/overtake `9/9`.
+- 검증 Ego command: `50`, `70`, `85`, `100`, `115`, `120 km/h`.
+- NPC 시작/목표속도는 sample spawn 계약의 `40/50/60` 세 값만 사용했다.
+- 유효 window: `1.91--2.76 s`, LiDAR `23--35 frame`, 약 `11.59--12.75 Hz`.
+- 11 scene을 16 frame씩 변환해 train `144`, val `32`, test `0`을 생성했다.
+- ramp 초기 접근 1 scene은 actor가 제어권 전환 전에 interaction 구간을 벗어나 반복
+  실패했다. planning 반응 우선순위도 낮으므로 production generator에서는 제거하고 실제
+  merge conflict와 post-merge 추월에 quota를 집중한다.
+- raw audit의 316 LiDAR sample 중 camera nearest age가 100 ms를 약간 넘은 frame이
+  camera별 3개(`0.949%`, max `112.4 ms`) 있었다. raw는 보존하고 converter에서
+  tolerance를 넘는 candidate를 선택하지 않는다.
+
 ## 7. 다음 구현 gate
 
-1. Base4 고주로 motion family와 clip 길이를 manifest에 고정한다.
+1. Base4 고주로 본 campaign을 gated recorder로 수집한다.
 2. scene 단위 train/val split만 사용하고 작은 pilot에는 dataset test split을 만들지 않는다.
 3. LiDAR timestamp 기준 Ego/Object pose interpolation은 유지한다.
 4. 연속 frame의 실제 `dt`, track identity, current-frame target과 causal sweep index를 만든다.

@@ -468,6 +468,10 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         merge, cruise = config["families"]
         self.assertLess(max(merge["ego_target_speed_kph"]), 59.0)
         self.assertEqual(merge["target_speed_scale"], [1.0, 1.0])
+        self.assertEqual(
+            [zone["name"] for zone in merge["ego_capture_zones"]],
+            ["merge_conflict"],
+        )
         self.assertEqual(cruise["npc_target_speed_scale"], [1.0, 1.0])
         self.assertEqual(max(cruise["ego_speed_schedule_kph"]), 120.0)
         self.assertTrue(cruise["start_ego_at_target_speed"])
