@@ -229,6 +229,28 @@ asset을 옵션 없이 만나면 변환기는 계속 fail-fast한다.
   camera별 3개(`0.949%`, max `112.4 ms`) 있었다. raw는 보존하고 converter에서
   tolerance를 넘는 candidate를 선택하지 않는다.
 
+### 6.3 고주로 production campaign
+
+- 최종 campaign tag: `p12v3`, 총 `1,200 scene`.
+- manifest: `dataset/morai_od/manifests/base4_temporal_highway_p12v3_runtime.json`.
+- raw output: `rosbags/datasets/base4_temporal/highway_p12v3/`.
+- runtime output: `/home/luv/morai_cap/260920_215947_b4h_p12v3/`.
+- split: train `960 scene`, val `240 scene`, dataset test 없음.
+- 구성: 실제 merge conflict `300 scene`, post-merge cruise/overtake `900 scene`.
+- merge Ego는 `50/54/58 km/h`만 사용하며 모든 값이 59 km/h 미만이다.
+- post-merge Ego는 `70/85/100/115/120 km/h`, NPC는 sample 계약의
+  `40/50/60 km/h`이고 모든 NPC가 시작속도=목표속도다.
+- post-merge 유효 Ego lane은 세 개를 `20/40/40%`로 구성했다. 차로와 interaction
+  role의 주기 상관으로 한 차로가 사라지던 문제는 schedule offset으로 제거했다.
+- merge의 `2030--2060` route index만 사용한다. 그보다 이른 지점은 live test에서
+  actor가 실제 interaction gate에 들어오지 않는 경우가 반복되어 ramp 접근 표본으로
+  오인될 수 있으므로 제외했다.
+- 31-scene 초기 production audit는 `28 completed / 3 failed`(`9.7%`)였다. 실패는
+  MORAI spawn이 gate에 나타나지 않은 경우이며 gated recorder가 bag을 저장하지 않는다.
+  본 run 종료 후 실패 scene 수만큼 별도 seed로 보충한다.
+- 이전 pilot recorder 프로세스는 모두 종료했고 production recorder와 runner 각 하나만
+  유지한다.
+
 ## 7. 다음 구현 gate
 
 1. Base4 고주로 본 campaign을 gated recorder로 수집한다.
