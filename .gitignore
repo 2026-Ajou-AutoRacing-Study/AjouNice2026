@@ -65,6 +65,7 @@ base_ws/.catkin_workspace
 *.bag
 *.bag.active
 /rosbags/datasets/base3_online/
+/rosbags/datasets/base4_temporal/
 /planner_logs/
 /.catkin_workspace
 
