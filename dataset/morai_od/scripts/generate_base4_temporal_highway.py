@@ -95,12 +95,12 @@ def build_config(scene_count, seed, campaign_tag):
             "ego_capture_zones": [
                 {
                     "name": "merge_conflict",
-                    # Indices below 2020 are still on the unstable approach
+                    # Indices below 2030 are still on the unstable approach
                     # geometry: live runs either never brought the spawned
                     # mainline actor into the gate or stopped Ego midway.
                     # Start at the actual conflict region instead of turning
                     # those pre-merge failures into a biased temporal clip.
-                    "route_index_range": [2020, 2060],
+                    "route_index_range": [2030, 2060],
                     "capture_preroll_distance_m": [14.0, 24.0],
                     "weight": 1.0,
                 },
