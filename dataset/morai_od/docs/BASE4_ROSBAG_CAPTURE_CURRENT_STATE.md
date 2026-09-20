@@ -146,6 +146,25 @@ python3 -u dataset/morai_od/scripts/ros_scenario_autocapture_poc.py \
 
 마지막 `capture_end` 뒤 recorder를 `Ctrl-C`로 종료한다.
 
+### 4.4 Passive progress monitor
+
+모니터는 `summary.json`과 append-only JSONL만 읽으며 ROS topic을 구독하거나 recorder,
+runner, sensor stream에 개입하지 않는다. 전체 manifest ETA와 별도로 중간 감사 지점을
+표시하려면 `--milestone-scenes`를 사용한다.
+
+```bash
+cd ~/AjouNice2026
+
+python3 dataset/morai_od/scripts/monitor_ros_capture_progress_v2.py \
+  --run-dir /home/luv/morai_cap/<runtime-dir> \
+  --manifest dataset/morai_od/manifests/<runtime-manifest.json> \
+  --milestone-scenes 500
+```
+
+화면에는 attempted/completed/failed scene, family별 완료량, p50/p95 scene duration,
+sequence rate, disk, checkpoint age, 전체 ETA와 500-scene 감사 checkpoint ETA가 표시된다.
+이 모니터의 경고는 runner를 자동 중단하지 않는다.
+
 ## 5. 감사와 임시 single-frame 변환
 
 ```bash
