@@ -4,16 +4,17 @@
 
 - **내부적으로 확정:** 개인용 MRP의 거리/yaw grid에서 WoodBox mesh/LiDAR return과
   raw size-derived GT 경계의 pose-dependent 차이가 반복 재현됐다.
-- **대회 MR에서 부분 재현:** 정상 센서 주기의 10 m/yaw 45도 한 pose에서도 GT 경계
-  밖 return은 확인됐다.
-- **아직 확정하지 않음:** 대회 MR의 공식 WoodBox GT가 잘못됐다는 결론, 고정 box
-  offset 값, MR/MRP asset·annotation 버전 차이. MR 정상 주기의 multi-pose grid 또는
-  MORAI 담당자 답변이 필요하다.
+- **대회 MR에서도 다각도 재현:** 정상 센서 주기에서 좌·우 oblique, yaw
+  `0/30/60/90 deg`의 CargoBox/WoodBox 4개 exact-pose pair를 다시 기록했고,
+  WoodBox의 pose-dependent GT 경계 밖 return을 재현했다.
+- **아직 확정하지 않음:** 대회 MR의 공식 WoodBox GT가 잘못됐다는 최종 원인 판정,
+  고정 box offset 값, MR/MRP asset·annotation 버전 차이. MORAI 담당자 답변이 필요하다.
 - **현재 dataset 정책:** WoodBox는 positive pool에 넣지 않고 scene 전체를 명시적으로
   제외한다. 임의의 `+3/+5/+10 cm` 확대 GT는 학습 label로 채택하지 않는다.
 - **외부 답변 대기:** WoodBox의 실제 대회 출제 가능성과 공식 3D GT 사용 계약.
 
-따라서 이 문서의 결론은 "현상은 확인됐지만 공식 원인과 correction은 미확정"이다.
+따라서 이 문서의 결론은 "MR/MRP 양쪽에서 현상은 확인됐지만 공식 원인과 correction은
+미확정"이다.
 MORAI 문의는 닫지 않는다.
 
 - 상태: **LIVE EVIDENCE**
@@ -142,6 +143,48 @@ capture window LiDAR는 `11.90/12.63 Hz`, camera는 약 `29.6--29.9 Hz`였으므
 
 - bag: `rosbags/datasets/base4_temporal/mr_minimal_hybrid_pilot/260920_202943_mr_minimal_hybrid_2scene_0.bag`
 - audit: `artifacts/datasets/woodbox_alignment_260920/mr_minimal_hybrid_2scene/woodbox_alignment_audit.json`
+
+### 2.2 대회 MR 정상 주기 다각도 재검증
+
+MR minimal five-interface profile로 다음 네 geometry의 CargoBox/WoodBox exact-pose pair,
+총 8 scene을 다시 기록했다. Ego는 `5 km/h`로 약 `3.0--3.2 m` 이동했고 scene마다
+3개 trigger를 남겼다.
+
+| 종/횡 위치 | 상대 yaw | CargoBox raw/+10 cm | WoodBox raw/+10 cm |
+|---|---:|---:|---:|
+| `+14/+3.0 m` | 0° | `12/30` | `12/93` |
+| `+14/-3.0 m` | 30° | `6/7` | `34/43` |
+| `+18/+3.5 m` | 60° | `7/8` | `16/25` |
+| `+18/-3.5 m` | 90° | `4/7` | `0/28` |
+
+전체 합산은 다음과 같다.
+
+| Asset | Raw GT | +3 cm | +5 cm | +10 cm | raw 밖, +10 cm 안 비율 |
+|---|---:|---:|---:|---:|---:|
+| CargoBox | 29 | 44 | 48 | 52 | 44.2% |
+| WoodBox | 62 | 79 | 120 | 189 | 67.2% |
+
+특히 WoodBox yaw 90° scene은 raw GT 내부 point가 `0`이지만 `+5 cm`에서 `24`,
+`+10 cm`에서 `28` point가 잡혔다. 이 결과는 WoodBox의 pose-dependent
+mesh/LiDAR--size-derived GT 경계 차이가 개인용 MRP만의 현상이 아니라 대회 계열 MR에서도
+재현됨을 뒷받침한다. 다만 audit는 semantic instance segmentation이 아니라 box 주변
+support를 세므로, 위 숫자를 곧바로 정답 offset으로 사용하지 않는다.
+
+모든 capture window는 정상 센서 조건을 통과했다.
+
+- LiDAR: `11.08--12.83 Hz`.
+- camera: `29.38--30.12 Hz`.
+- Ego/Object: 약 `45.75--48.36 Hz`.
+- camera--LiDAR nearest age 100 ms 초과: `0`.
+- marker/audit: `8/8 completed`, error `0`, PASS.
+
+근거:
+
+```text
+rosbags/datasets/woodbox_alignment_mr/normalhz_oblique_grid_final/
+artifacts/datasets/woodbox_alignment_260921/mr_normalhz_oblique_grid/
+/home/luv/morai_cap/260921_012213_woodbox_mr_oblique_normalhz_final/
+```
 
 ## 3. 고주로 Random Spawn 장기 관측
 

@@ -21,7 +21,12 @@ from audit_base3_online_gt_alignment import cloud_xyz_i, ego_relative_position, 
 
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("bag", type=Path)
+    parser.add_argument(
+        "bags",
+        type=Path,
+        nargs="+",
+        help="One continuous bag or multiple gated scene bags in time order.",
+    )
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--calibration", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -104,24 +109,29 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     markers = []
-    with rosbag.Bag(str(args.bag), "r") as bag:
-        for _, message, stamp in bag.read_messages(topics=["/dataset/scenario_marker"]):
-            markers.append((stamp.to_sec(), json.loads(message.data)))
+    for bag_path in args.bags:
+        with rosbag.Bag(str(bag_path), "r") as bag:
+            for _, message, stamp in bag.read_messages(
+                topics=["/dataset/scenario_marker"]
+            ):
+                markers.append((stamp.to_sec(), json.loads(message.data)))
+    markers.sort(key=lambda row: row[0])
     windows, errors = build_capture_windows(markers)
     if errors:
         raise SystemExit("marker errors: {}".format(errors))
 
     samples = defaultdict(lambda: defaultdict(list))
     topics = ("/sensor/lidar1", "/Ego_topic", "/Object_topic")
-    with rosbag.Bag(str(args.bag), "r") as bag:
-        for topic, message, record_stamp in bag.read_messages(topics=topics):
-            record = record_stamp.to_sec()
-            for window in windows:
-                if window["start"] <= record <= window["end"]:
-                    samples[window["scene_id"]][topic].append(
-                        (message_stamp(message, record_stamp), message)
-                    )
-                    break
+    for bag_path in args.bags:
+        with rosbag.Bag(str(bag_path), "r") as bag:
+            for topic, message, record_stamp in bag.read_messages(topics=topics):
+                record = record_stamp.to_sec()
+                for window in windows:
+                    if window["start"] <= record <= window["end"]:
+                        samples[window["scene_id"]][topic].append(
+                            (message_stamp(message, record_stamp), message)
+                        )
+                        break
 
     rows = []
     for window in windows:
@@ -181,7 +191,8 @@ def main():
         }
     report = {
         "schema_version": 1,
-        "bag": str(args.bag.resolve()),
+        "bag": str(args.bags[0].resolve()) if len(args.bags) == 1 else None,
+        "bags": [str(path.resolve()) for path in args.bags],
         "manifest": str(args.manifest.resolve()),
         "summary": grouped,
         "samples": rows,

@@ -447,6 +447,33 @@ MRP에서 direct ScenarioLoad가 실패했던 네 candidate를 같은 class cont
 문제이며 대회 계열 MR에서는 생성 후보로 복구할 수 있다. 다만 실제 Base4 positive
 pool 편입은 sensor visibility와 GT 정합 audit를 별도로 통과해야 한다.
 
+### 4.6 MR minimal profile 다각도 WoodBox 최종 재검증
+
+full 23-interface sidecar가 남아 있던 clean 8-scene 설치본을 공식 installer의
+`--online-bag-only` 옵션으로 five-interface minimal profile에 다시 설치한 뒤 전 scene을
+재수집했다.
+
+```bash
+python3 dataset/morai_od/scripts/install_dynamic_capture_set.py \
+  dataset/morai_od/manifests/woodbox_alignment_mr_rolling_oblique_clean_260920.json \
+  --network-template configs/network/ego_network_mr_minimal_hybrid.json \
+  --install-dir ~/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025 \
+  --online-bag-only \
+  --runtime-manifest dataset/morai_od/manifests/woodbox_alignment_mr_rolling_oblique_clean_260920_minimal_runtime.json
+```
+
+결과는 `8/8 completed`, snapshot `8/8`, bag audit PASS다. capture-window LiDAR는
+`11.08--12.83 Hz`, camera는 `29.38--30.12 Hz`, Ego/Object는 약
+`45.75--48.36 Hz`였고 camera age 100 ms 초과는 없었다. WoodBox 합산 raw/+10 cm
+support는 `62/189`, CargoBox는 `29/52`였으며 WoodBox yaw 90° pair는 raw `0`,
+`+5 cm=24`, `+10 cm=28`을 기록했다.
+
+```text
+rosbags/datasets/woodbox_alignment_mr/normalhz_oblique_grid_final/
+artifacts/datasets/woodbox_alignment_260921/mr_normalhz_oblique_grid/
+/home/luv/morai_cap/260921_012213_woodbox_mr_oblique_normalhz_final/
+```
+
 ```text
 /home/luv/morai_cap/260920_asset_revalidation_mr_minimal/
 ```

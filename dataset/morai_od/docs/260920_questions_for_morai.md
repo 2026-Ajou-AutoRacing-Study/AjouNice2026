@@ -29,8 +29,10 @@
 4. **WoodBox 3D GT 정합**
    - 개인용 MRP에서 `WoodBox(40100002)`를 거리와 yaw를 바꾸어 배치했을 때,
      CargoBox보다 LiDAR mesh return과 size-derived 3D GT 경계의 차이가 크게
-     관측됐습니다. 대회 계열 MR에서도 정상 sensor 주기의 10 m/yaw 45도 pair에서
-     GT 경계 밖 return이 재현됐지만, 아직 여러 거리/yaw grid까지 반복하지는 않았습니다.
+     관측됐습니다. 대회 계열 MR에서도 정상 sensor 주기로 좌·우 위치와 yaw
+     `0/30/60/90°`의 CargoBox/WoodBox 동일-pose pair를 반복했으며, WoodBox의
+     pose-dependent GT 경계 밖 return이 재현됐습니다. 대표적으로 yaw 90° WoodBox는
+     raw GT 내부 point가 0개였지만 box를 5 cm 확장하면 24개가 포함됐습니다.
    - 두 런처의 WoodBox asset/annotation 버전 차이가 있는지, 대회 MR에서 제공되는
      공식 3D GT 크기를 그대로 사용해도 되는지 확인 부탁드립니다.
    - `WoodBox`가 실제 대회 장애물 후보로 출제될 가능성이 있는지도 확인 가능할까요?
@@ -49,6 +51,26 @@
 담당자에게 질문이 너무 많아 보이면 후속 문의로 분리한다.
 
 ## WoodBox 첨부 근거
+
+대회 MR 정상 주기 최신 근거를 우선 첨부한다.
+
+1. `wbmrc001_bev.png`: CargoBox, `+14/+3 m`, yaw 0°.
+2. `wbmrc002_bev.png`: WoodBox, 같은 pose.
+3. `wbmrc007_bev.png`: CargoBox, `+18/-3.5 m`, yaw 90°.
+4. `wbmrc008_bev.png`: WoodBox, 같은 pose.
+
+로컬 경로:
+
+`artifacts/datasets/woodbox_alignment_260921/mr_normalhz_oblique_grid/`
+
+전달 archive:
+
+`artifacts/handoff/woodbox_mr_normalhz_260921/woodbox_mr_normalhz_evidence_260921.tar.zst`
+
+- 크기: 약 `236 MiB`.
+- SHA-256: `edb3fc5dd85177aef0e3b7e2d9bab66e1d50d386ee9a79429a17f73c6cd927e9`.
+
+아래 MRP 그림은 launcher 간 비교가 필요할 때 추가한다.
 
 우선 첨부할 그림:
 
