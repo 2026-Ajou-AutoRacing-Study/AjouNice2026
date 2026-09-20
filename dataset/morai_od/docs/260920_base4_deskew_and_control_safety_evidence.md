@@ -95,3 +95,50 @@ maximum route motion을 `260 m`로 둔다.
 
 실제 cut-in을 첫 수집에 섞으면 controller 실패와 velocity supervision 실패를 구분하기
 어려우므로 별도 campaign으로 유지한다.
+
+## 구현 계약과 무재학습 E25 A/B
+
+공통 벡터 연산은
+`base_ws/src/perception_object_pipeline/src/perception_object_pipeline/rolling_lidar.py`에
+둔다. offline 변환기와 BEVFusion ROS bridge가 같은 point-time gate, pose 보간,
+LiDAR extrinsic, scan reference 수식을 호출한다.
+
+- 유효 scan: 모든 point time이 finite이고 `0 < max(time)-min(time) <= 0.15 s`.
+- 기준시각: 기본 `header + max(point time)`, 즉 scan end.
+- 보정: point별 Ego pose만 보간한다. GT object motion은 online에서 알 수 없으므로
+  학습 데이터에도 적용하지 않는다.
+- invalid time 또는 pose coverage 실패: raw와 섞지 않고 frame을 drop한다.
+- E25 production 기본값: `lidar_deskew_mode=off` 유지.
+
+학습 데이터는 원본 bag을 바꾸거나 dataloader에서 매 epoch 계산하지 않는다. 변환 시 한
+번 deskew한 `lidar.bin`을 별도 derived dataset에 저장하며, PKL sample과
+`conversion_audit.json`에 source header stamp, reference offset, span, displacement,
+reject count를 기록한다. 실제 1-scene/3-frame 변환 smoke에서 3/3 frame이 생성됐고,
+벡터화 deskew CPU 비용은 mean `1.90 ms`, p95 `2.13 ms`였다.
+
+기존 E25 weight를 재학습하지 않고 3개 고주로 clip에서 raw/scan-end deskew를 비교했다.
+class threshold는 모두 `0.40/0.15/0.10`이다.
+
+| clip | raw AP / F1@1m / mATE | deskew AP / F1@1m / mATE |
+|---|---:|---:|
+| merge A | `0.6805 / 0.5397 / 0.796 m` | `0.8223 / 0.9552 / 0.439 m` |
+| merge B | `0.4632 / 0.0000 / 1.588 m` | `0.7054 / 0.7742 / 0.655 m` |
+| cruise | `0.8223 / 0.9851 / 0.520 m` | `0.6888 / 0.9118 / 0.735 m` |
+| equal-clip macro | `0.6553 / 0.5083 / -` | `0.7389 / 0.8804 / -` |
+
+runtime coverage macro는 raw `0.8802`, deskew `0.8828`로 유사했다. Deskew 자체의
+online CPU 비용은 p50 약 `1.94--2.00 ms`, p95 `2.24--2.41 ms`였으며 end-to-end
+latency를 증가시키지 않았다.
+
+결론은 **기하학적으로 유효하지만 무조건적인 production 개선은 아니다**. Ego deskew는
+정적 배경과 merge 두 clip을 크게 개선했으나, 움직이는 NPC의 scan 내부 motion은 남기
+때문에 cruise 한 clip을 악화시켰다. GT object motion을 offline에서만 보정하면 online
+입력과 계약이 달라지므로 금지한다. Base4에서는 raw와 ego-deskew derived dataset을 같은
+split로 만들어 학습 A/B하고, 동적 객체의 최종 해결은 causal temporal fusion/tracker
+memory에서 검증한다.
+
+평가 산출물:
+
+```text
+artifacts/evaluation/bevfusion/deskew_e25_ab_260920/
+```

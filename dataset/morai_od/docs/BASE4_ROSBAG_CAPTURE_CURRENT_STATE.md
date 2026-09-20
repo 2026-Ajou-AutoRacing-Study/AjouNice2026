@@ -186,6 +186,20 @@ python3 perception/detection3d/bevfusion/tools/build_base3_online_bevfusion_info
   --distance-filter box-range
 ```
 
+검증된 scan-end Ego deskew derived dataset을 만들 때만 다음을 추가한다. 원본 bag은
+보존되며, 보정은 dataloader가 아니라 이 변환 단계에서 한 번 수행된다.
+
+```bash
+  --lidar-deskew ego-pose-2d \
+  --lidar-deskew-reference end \
+  --deskew-max-point-time-span-sec 0.15 \
+  --deskew-invalid-policy drop
+```
+
+E25 production과 기존 Base3 재현은 계속 `--lidar-deskew off`가 기준이다. 채택 근거와
+무재학습 A/B는
+[`260920_base4_deskew_and_control_safety_evidence.md`](260920_base4_deskew_and_control_safety_evidence.md)에 있다.
+
 검증되지 않은 visible asset을 GT에서만 제거하면 false-negative supervision이 된다.
 그 asset의 scene 전체를 제외해야 할 때만 다음을 명시한다.
 

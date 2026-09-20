@@ -38,6 +38,12 @@ point time을 보존하고 outlier rejection을 포함한 converter/online 동�
 상세 근거는
 [`260920_base4_deskew_and_control_safety_evidence.md`](../../dataset/morai_od/docs/260920_base4_deskew_and_control_safety_evidence.md)에 있다.
 
+이후 공통 벡터화 deskew를 offline converter와 online BEVFusion bridge에 옵션으로
+구현했다. 연산비는 약 `2 ms/scan`으로 충분히 작았지만, E25 무재학습 3-clip A/B에서
+merge는 개선되고 cruise는 악화됐다. 따라서 production 기본값은 `off`를 유지하며,
+Base4 raw/ego-deskew 학습 A/B에서만 최종 채택한다. Offline에서만 가능한 GT object
+motion 보정은 online 계약과 달라지므로 사용하지 않는다.
+
 ## 왜 지금 이 실험인가
 
 - Production E25 + EKF position-only tracking의 고주로 2D AVE는 약 `0.96 m/s`, 전체
