@@ -107,6 +107,64 @@ restricted solid-separated lane은 계속 제외한다.
   velocity head를 먼저 검증한 뒤 temporal feature fusion으로 넘어간다.
 - Object pose/velocity는 input 보정이 아니라 label 생성과 감사에 사용한다.
 
+### 센서 시간 정합과 deskew 계약
+
+모든 입력과 label의 canonical timestamp는 현재 LiDAR header 시각 `t0`다. 여기서 서로
+다른 세 가지 보정을 혼동하지 않는다.
+
+| 구분 | 의미 | Base4 첫 계약 |
+|---|---|---|
+| scan 내부 deskew | 한 PointCloud2 안에서 point별 취득시각 차이 보정 | 기본 `off`, 별도 A/B |
+| camera--LiDAR 정합 | nearest camera 시각과 `t0` 사이의 Ego pose 차이 보정 | nearest+fixed extrinsic 기준선, 동적 transform A/B |
+| sweep 간 정합 | 과거 LiDAR frame을 현재 `t0` Ego frame으로 이동 | `on` |
+
+현재 production bridge는 LiDAR callback마다 camera buffer에서 가장 가까운 frame을 고르고
+고정 extrinsic을 사용한다. 허용차 기본값은 `0.10 s`이며 Ego pose를 이용한 camera 시각
+보정은 아직 없다. Base4 raw/index에는 실제 camera timestamp와 `camera_age`, LiDAR
+timestamp, Ego pose history를 보존해 나중에 정합 방식을 바꿔도 재취득하지 않도록 한다.
+
+MORAI cloud에는 `ring`과 point `time` field가 있지만, 이것만으로 simulator가 실제로
+ray를 시간 순서대로 렌더링했다고 결론 내릴 수 없다. 특히 `12 Hz` message rate의 역수
+`83 ms`를 곧바로 physical scan duration으로 간주하거나, `100 km/h`에서 `2.3 m`의 scan
+왜곡이 있다고 단정하지 않는다. 순간 snapshot에 Velodyne 형식의 synthetic point time이
+붙는 경우라면 deskew가 오히려 가짜 왜곡을 만든다. 과거 production에서 deskew를 끈
+이유도 distortion이 없다고 증명했기 때문이 아니라, moving high-speed static-structure
+A/B와 velocity/timestamp frame 계약이 충분히 검증되지 않았기 때문이다.
+
+따라서 deskew는 고속 직진·회전 중 정적 벽/기둥을 대상으로 다음을 비교한 뒤에만
+채택한다.
+
+1. raw cloud.
+2. point `time`을 사용한 Ego-motion deskew.
+3. 모든 point가 동시 취득됐다고 가정한 cloud.
+
+deskew 전후 정적 구조물의 두께·직선성·frame 간 안정성을 비교하며, 단순 RViz 인상만으로
+결정하지 않는다. 이 A/B가 끝나기 전 B4H-V1/T1의 기본 입력은 raw cloud다.
+
+Camera 시간 보정도 독립된 실험 축이다. nearest frame에서 Ego가 이동한 거리는 그대로
+3D center 오차와 같지 않고, 실제 효과는 camera age, 회전, 물체 거리·방향, localization
+jitter에 달려 있다. 네 camera가 서로 다른 timestamp를 가질 수 있으므로 LiDAR를 각
+camera 시각으로 각각 옮기지 않는다. 필요할 경우 camera별 pose 차이를 반영한 동적
+`camera2lidar`를 만들어 모두 현재 LiDAR `t0` frame으로 올린다.
+
+### Object motion을 보정하지 않는 이유
+
+센서 입력에서는 Ego motion만 보정한다. Object pose는 GT box를 LiDAR `t0`에 맞추는
+label interpolation에는 사용하지만, 과거 object point를 현재 위치로 이동시키는 데에는
+사용하지 않는다.
+
+- online inference에는 GT instance association과 object velocity가 없다.
+- 학습 때만 GT object compensation을 쓰면 train--runtime mismatch와 label leakage가
+  생긴다.
+- 현재 위치에 과거 object point를 완전히 중첩하면 velocity를 학습할 displacement 단서가
+  사라진다.
+- Ego 정합 후 남는 moving-object trail은 point `dt`와 함께 temporal cue로 사용한다.
+
+T1에서 trail이 box geometry를 훼손하면 raw point를 GT로 보정하는 대신 T2의 fused-BEV
+memory 또는 이후 Q1의 object query memory로 이동한다. Q1에서는 detector가 예측한
+velocity로 query reference point를 propagate할 수 있지만, 이것은 GT object motion
+compensation과 다른 online-reproducible 연산이다.
+
 ## 학습·평가 split
 
 Pilot dataset은 다음 두 split만 만든다.
@@ -155,6 +213,68 @@ StreamPETR query memory가 아니라 원본 BEVFusion의 causal multi-sweep 입�
 | 2 | B4H-T1 | Ego 정합 3-sweep + point `dt` | 가장 작은 temporal baseline |
 | 3 | B4H-T2 | 직전 fused-BEV ego warp + gated fusion | raw point ghosting을 피하는 feature temporal |
 | 4 | B4H-Q1 | StreamPETR-inspired sparse query memory | 긴 객체 이력과 object-centric motion |
+
+### 관련 연구에서 직접 가져올 원칙과 가져오지 않을 주장
+
+다음 연구들은 temporal 정보가 velocity와 detection에 유효하다는 근거지만 센서 modality와
+head가 서로 다르므로 논문 수치를 MORAI 성능 예상치로 사용하지 않는다.
+
+| 연구 | 실제 핵심 | Base4에 적용하는 범위 |
+|---|---|---|
+| nuScenes multi-sweep | 과거 cloud를 keyframe Ego 좌표로 이동하고 point에 time lag 추가 | T1의 Ego 정합+`dt`; scan 내부 deskew 근거로는 사용하지 않음 |
+| BEVFusion/CenterPoint | multi-sweep 입력과 velocity regression | V1/T1의 가장 가까운 baseline |
+| BEVDet4D | 이전 camera BEV를 현재 frame과 결합해 motion cue 사용 | T2의 저비용 recurrent fusion 참고 |
+| BEVFormer | recurrent history BEV와 temporal deformable attention | T2-D의 원리 참고; camera-only 전체 구조는 이식하지 않음 |
+| BEVFusion4D | multimodal BEV의 temporal deformable alignment | T2 이후 geometry 퇴행 시 참고 |
+| StreamPETR | object-query memory와 motion-aware propagation | Q1에서 Vehicle Top-K memory만 단계적으로 참고 |
+| SOLOFusion | short/long-term camera temporal stereo | 현재 LiDAR-camera velocity pilot에는 직접 적용하지 않음 |
+
+nuScenes의 sweep accumulation은 **서로 다른 sweep 전체를 keyframe으로 옮기는 것**이며,
+MORAI 한 scan 내부의 per-point ray acquisition을 증명하지 않는다. BEVFormer,
+BEVDet4D와 StreamPETR는 주로 camera-only 결과이므로 temporal modeling의 유효성 근거로는
+쓰되 LiDAR-camera BEVFusion의 구현 정답으로 취급하지 않는다. 현재 문제와 가장 가까운
+multimodal 확장은 BEVFusion4D지만, deformable alignment부터 시작하면 label, dataset,
+velocity head 문제와 architecture 효과를 분리할 수 없으므로 V1/T1/T2 뒤에 둔다.
+
+- nuScenes: <https://openaccess.thecvf.com/content_CVPR_2020/papers/Caesar_nuScenes_A_Multimodal_Dataset_for_Autonomous_Driving_CVPR_2020_paper.pdf>
+- BEVFusion converter: <https://github.com/mit-han-lab/bevfusion/blob/main/tools/data_converter/nuscenes_converter.py>
+- CenterPoint: <https://arxiv.org/abs/2006.11275>
+- BEVDet4D: <https://arxiv.org/abs/2203.17054>
+- BEVFormer: <https://arxiv.org/abs/2203.17270>
+- BEVFusion4D: <https://arxiv.org/abs/2303.17099>
+- StreamPETR: <https://arxiv.org/abs/2303.11926>
+
+### 과거 PointPainting 3-sweep 결과의 해석
+
+과거 PointPainting temporal 모델의 velocity가 충분히 좋지 않았다는 사실은 temporal
+입력이 production 개선을 보장하지 않는다는 중요한 경고다. 하지만 다음 요인들이 함께
+바뀌었기 때문에 `3-sweep이 무효`라는 결론으로 사용하지 않는다.
+
+- Base2에는 고속 Ego, 큰 상대속도, 합류·인접차선 추월 motion family가 부족했다.
+- `derived_velocity_mps`와 확정 target의 역할이 전달 과정에서 혼동됐다.
+- PointPainting의 raw point concatenation에서는 moving-object trail이 painted geometry를
+  흐릴 수 있다.
+- velocity head/supervision 효과와 temporal input 효과를 독립적으로 측정하지 않았다.
+- SaveSensorData 학습 domain과 실제 asynchronous ROS/UDP rosbag domain 차이가 있었다.
+
+이번에는 V1로 label/head만 먼저 검증하고 T1로 multi-sweep의 추가 이득을 측정한다. T1의
+speed MAE/2D AVE가 좋아져도 center/AP와 downstream Map-CV FDE가 나빠지면 채택하지
+않으며, 그런 경우에만 T2로 point trail을 feature memory로 대체한다.
+
+### 독립 실험 축
+
+한 run에서 deskew, camera time alignment와 temporal architecture를 동시에 바꾸지 않는다.
+
+| 축 | 기준선 | 후보 |
+|---|---|---|
+| scan | raw/deskew-off | verified per-point Ego deskew |
+| camera sync | nearest + fixed extrinsic | nearest + camera별 Ego-time dynamic transform |
+| temporal | V1 single-frame 9D | T1 multi-sweep, 이후 T2 BEV memory |
+
+분석 slice는 Ego speed만으로 제한하지 않는다. Ego speed, object speed, 종·횡 상대속도,
+same/adjacent lane, merge 여부, object distance, camera age와 track age를 함께 본다. 최종
+판정은 OD center AP/mATE, speed MAE와 실제 2D AVE, tracking AVE, Map-CV FDE@1/2/3s,
+latency·VRAM·frame drop을 같은 checkpoint에서 묶어 수행한다.
 
 앞 단계가 채택 gate를 넘지 못했다고 무조건 다음 단계를 구현하지 않는다. 특히 V1만으로
 tracker AVE와 Map-CV FDE가 충분히 개선되면 temporal 구조의 production 복잡도를 추가할
