@@ -2,7 +2,16 @@
 
 마지막 정리: 2026-09-20.
 
-## Base3-Online — CURRENT
+## Base4 rosbag capture — CURRENT
+
+1. [`BASE4_ROSBAG_CAPTURE_CURRENT_STATE.md`](BASE4_ROSBAG_CAPTURE_CURRENT_STATE.md)
+   - MR/MRP minimal hybrid 계약, 녹화 topic, 실행·audit·임시 변환, 다음 temporal gate.
+2. [`morai_mr_mrp_hybrid_scenario_capture_runbook.md`](morai_mr_mrp_hybrid_scenario_capture_runbook.md)
+   - launcher별 전체 터미널 순서와 live 검증 근거.
+3. [`../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)
+   - 고주로 Vehicle velocity head/causal 3-sweep 수집·학습·평가 PLAN.
+
+## Base3-Online — CURRENT BASELINE / EVIDENCE
 
 다음 순서로 읽는다.
 
@@ -12,8 +21,13 @@
    - 실제 MORAI/ROS 연결, 녹화, audit, 변환 명령.
 3. [`260919_base3_online_highway_vehicle_1k_results.md`](260919_base3_online_highway_vehicle_1k_results.md)
    - 수집·정합·visibility·Docker 검증 수치가 있는 EVIDENCE.
-4. [`../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)
-   - 다음 고주로 Vehicle velocity head/causal 3-sweep 수집·학습·평가 PLAN.
+4. [`260920_base3_online_highway_static_v2_collection_plan.md`](260920_base3_online_highway_static_v2_collection_plan.md)
+   - Base4 전 controlled experiment용 1,000-scene 정적 Vehicle 추가 수집 PREPARED.
+5. [`260920_morai_spawn_asset_and_multimodal_gt_plan.md`](260920_morai_spawn_asset_and_multimodal_gt_plan.md)
+   - MR/MRP asset 호환성, 고주로 Random Spawn 분포 가설, WoodBox와 BEVFusion
+     camera-visible sparse GT 후속 실험 EVIDENCE/PLAN.
+6. [`260920_questions_for_morai.md`](260920_questions_for_morai.md)
+   - MORAI 담당자에게 전달할 핵심 질문 네 가지와 WoodBox 첨부 근거.
 
 ### 현재 사용 경로
 
