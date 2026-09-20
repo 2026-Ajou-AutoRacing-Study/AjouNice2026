@@ -20,6 +20,8 @@
    - GNSS 양자화 원인과 production Q/R 채택 근거.
 4. [`morai_udp_receipt_time.md`](morai_udp_receipt_time.md)
    - 현장 UDP receipt-time 정책.
+5. [`260920_competition_status_and_local_control_frame_plan.md`](260920_competition_status_and_local_control_frame_plan.md)
+   - Competition Status 확장 영향과 controller용 local-frame 구조 검토.
 
 ## 공식 실행 계약
 
