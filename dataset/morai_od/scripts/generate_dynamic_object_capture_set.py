@@ -2339,9 +2339,16 @@ def build_highway_cruise_scene(
         str(item["name"]): item
         for item in family.get("interaction_roles", [])
     }
-    role_name = weighted_zone_schedule(
+    role_schedule = weighted_zone_schedule(
         family, key="interaction_roles"
-    )[variant_index]
+    )
+    role_name = role_schedule[
+        (
+            variant_index
+            + int(family.get("interaction_role_schedule_offset", 0))
+        )
+        % len(role_schedule)
+    ]
     role = roles[role_name]
     if role_name == "front_overtake" and ego_lane_id == min(source_ids):
         # The rightmost Ego lane has no slower lane on its right.  Keeping the

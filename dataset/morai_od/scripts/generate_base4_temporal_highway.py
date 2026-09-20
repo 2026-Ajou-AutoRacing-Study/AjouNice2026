@@ -159,6 +159,10 @@ def build_config(scene_count, seed, campaign_tag):
             "preserve_template_npc_target_speed": True,
             "spawn_velocity_equals_target": True,
             "maximum_spawn_vehicles": 1,
+            # Decouple the exact lane and role decks. Without this offset the
+            # two periodic schedules bind every lane-6 slot to front_overtake,
+            # whose collision guard moves Ego to lane 8.
+            "interaction_role_schedule_offset": 1,
             "start_ego_at_target_speed": True,
             "minimum_ego_speed_ratio": 0.92,
             "stable_ego_gate": True,
