@@ -1,6 +1,6 @@
 # Base4 rosbag 수집 — CURRENT STATE
 
-- 상태: **CURRENT / INFRASTRUCTURE VALIDATED**
+- 상태: **CURRENT / GATED INFRASTRUCTURE VALIDATED**
 - 마지막 검증: 2026-09-20
 - 대상: raw 4-camera + LiDAR BEVFusion, 이후 Base4-Temporal
 
@@ -13,8 +13,13 @@ MR에서 다음 hybrid 계약이 실제 2-scene 자동 수집과 BEVFusion datas
 Camera/LiDAR/GPS/IMU          <- UDP sensor-only gateway
 Ego/Object/ScenarioLoad/Ctrl <- rosbridge minimal Ego Network
 scene boundary              <- /dataset/scenario_marker
-source of truth             <- continuous rosbag
+source of truth             <- continuous stream -> gated scene rosbag
 ```
+
+원본 전송 계약은 연속 stream이지만 디스크 기록은 이제 **48 MiB snapshot ring buffer를
+scene별로 flush하는 gated recorder**를 기본으로 한다. 센서 stream은 끊지 않으며,
+`capture_end`가 정상 완료된 scene만 bag 하나로 저장한다. load/reconnect 대기 구간을
+디스크에 계속 쓰는 기존 continuous recorder는 진단 fallback으로만 유지한다.
 
 `SaveSensorData`, semantic/depth image, ReplayInfo는 사용하지 않는다. 현재 검증된 변환
 결과는 **single-frame BEVFusion smoke dataset**이다. 12--24 frame causal sequence index와
@@ -83,7 +88,7 @@ Runner가 `<runtime-metadata-dir>/dynamic_metadata/calibration.json`을 만들�
 `Sensor_competition_local.json`으로 취득한 기존 Base3-Online calibration(hash
 `84f171a6...`)을 smoke 변환에 재사용했다. 본 수집에서는 이 fallback을 허용하지 않는다.
 
-### 4.2 Recorder
+### 4.2 Gated recorder — 기본값
 
 Runner보다 먼저 시작한다.
 
@@ -93,8 +98,29 @@ source /opt/ros/noetic/setup.bash
 source base_ws/install_aw149/setup.bash
 
 RUN_TAG="$(date +%y%m%d_%H%M%S)_base4_pilot" \
-dataset/morai_od/scripts/record_base4_temporal_bag.sh \
+dataset/morai_od/scripts/record_base4_temporal_gated_bag.sh \
   "$PWD/rosbags/datasets/base4_temporal/pilot"
+```
+
+- 기본 ring buffer: `48 MiB`.
+- 기본 post-roll: `0.25 s`.
+- 기본 안전 marker window: `3.40 s`.
+- 최소 잔여 공간: `35 GiB`.
+- 성공 scene마다 약 `50.5 MB` bag 하나와
+  `*_snapshot_events.jsonl`의 scene-to-bag 절대 경로 대응을 남긴다.
+- 실패/interrupted scene은 기본적으로 flush하지 않는다.
+
+`48 MiB`는 시간 길이가 아니라 serialized byte 크기다. 카메라 bitrate가 바뀌면 보존
+시간도 바뀐다. 모든 campaign은 첫 20--30 scene에서 marker 양끝이 bag에 남는지 audit한
+뒤 계속한다. `capture_start`가 잘리거나 window가 `3.40 s`를 넘으면 buffer 또는 capture
+window를 조정한다.
+
+연속 recorder A/B가 필요할 때만 다음 fallback을 쓴다.
+
+```bash
+RUN_TAG="$(date +%y%m%d_%H%M%S)_base4_continuous" \
+dataset/morai_od/scripts/record_base4_temporal_bag.sh \
+  "$PWD/rosbags/datasets/base4_temporal/continuous_probe"
 ```
 
 ### 4.3 Runner
@@ -164,6 +190,25 @@ asset을 옵션 없이 만나면 변환기는 계속 fail-fast한다.
 - raw audit: PASS, error 0
 - smoke conversion: WoodBox scene 명시 제외 후 CargoBox 1 scene, 3 frame,
   Obstacle GT 3개, MMDetection3D info validator PASS
+
+### 6.1 48 MiB gated recorder A/B
+
+- 유효 raw bag:
+  `rosbags/datasets/base4_temporal/gated48_2scene_pilot/`
+- runtime:
+  `/home/luv/morai_cap/260920_210739_base4_gated48_2scene/`
+- 32 MiB A/B: 약 `2.59 s`만 보존해 `2.76--2.80 s` marker window의
+  `capture_start`가 잘림. **기각**.
+- 48 MiB A/B: CargoBox/WoodBox 모두 start/end marker 보존, scene당 약
+  `50.5 MB`.
+- window LiDAR: `11.45 / 13.06 Hz`; camera: `29.74--29.92 Hz`.
+- camera--LiDAR max age: `< 88 ms`, 100 ms 초과 0.
+- raw audit: error 0, PASS.
+- CargoBox 3-frame single-frame 변환 및 info validator PASS.
+- scene-to-bag 파일 대응 sidecar의 synthetic write-completion test PASS.
+
+현재 실측 용량이면 1,200 scene은 약 `61 GB`, 1,500 scene은 약 `76 GB`다.
+연속 녹화 실측 약 `38 GiB/h`와 달리 scene load 대기시간에는 디스크가 증가하지 않는다.
 
 ## 7. 다음 구현 gate
 

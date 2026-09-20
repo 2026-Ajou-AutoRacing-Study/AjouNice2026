@@ -42,6 +42,24 @@ Oracle 수치는 production 예상치가 아니라 **velocity 정보가 충분�
 - 합류·차선 변경으로 횡속도가 생기는 차량.
 - 주 평가 거리 `10--30 m`; 가까운 차량과 30 m 경계 표본도 유지.
 
+### 첫 고주로 campaign의 구간·속도 배분
+
+조기 ramp 가속 상태는 어렵지만 planning이 아직 즉시 반응할 필요가 작다. 따라서 첫
+pilot은 합류 이후의 실제 추월·상대속도 분포에 집중한다.
+
+| 구간 | 목표 비율 | Ego 속도 | NPC 상태 |
+|---|---:|---|---|
+| ramp 초기 접근 | 5% | 50/55/60 km/h | 0에서 40/50/60으로 가속 |
+| 실제 merge/conflict | 20% | 50/60/70 km/h | 가능하면 30--60 km/h에 도달한 뒤 capture |
+| post-merge 순항·추월 | 55% | 70/85/100 km/h | 사전 warm-up한 40/50/60 km/h 순항 |
+| taper/highway tail | 20% | 70/85/100 km/h | 사전 warm-up한 40/50/60 km/h 순항 |
+
+합치면 접근·합류 25%, 합류 이후 75%다. `105 km/h` 부근은 소수 hard case로만 둔다.
+고속 Ego는 capture 시작 전에 충분히 상류에서 출발해 목표속도에 도달시킨다. 같은 차선의
+큰 상대속도는 충돌 위험 때문에 짧은 window로 제한하고, 큰 closing/opening speed는 주로
+인접 차선에서 만든다. 첫 pilot에는 실제 lane-change controller를 넣지 않으며, 이후
+lateral-motion addon으로 분리한다.
+
 ### sequence 단위
 
 - 독립 snapshot이 아니라 실제 LiDAR cadence의 연속 frame을 저장한다.
@@ -50,6 +68,19 @@ Oracle 수치는 production 예상치가 아니라 **velocity 정보가 충분�
   coverage로 결정한다.
 - `/dataset/scenario_marker` 밖의 load/teleport 구간은 제거한다.
 - scene/sequence를 split 단위로 사용하고 인접 frame을 train/val에 나누지 않는다.
+
+### Gated raw 기록과 저장 용량
+
+- 센서는 끊지 않고 계속 수신하되 ROS snapshot ring buffer를 사용한다.
+- 정상 `capture_end`에서만 scene bag을 저장하며 scene-load/reconnect 대기는 버린다.
+- 2026-09-20 MR 실측에서 32 MiB는 start marker가 잘려 기각했고, 48 MiB는
+  `2.71--2.76 s` window를 완전히 보존했다.
+- 현재 48 MiB 설정의 실제 파일은 scene당 약 `50.5 MB`다.
+- 1,200 scene 약 `61 GB`, 1,500 scene 약 `76 GB`를 예상한다.
+- 첫 20--30 scene에서 marker, sensor rate, camera age와 scene-to-bag sidecar를 audit한
+  뒤 unattended campaign으로 넘어간다.
+- continuous recorder는 진단 fallback이며, raw bag을 녹화 중 삭제하면서 converter를
+  병렬 실행하는 방식은 crash 시 source/metadata가 어긋나므로 기본 경로로 쓰지 않는다.
 
 ### timestamp와 좌표
 

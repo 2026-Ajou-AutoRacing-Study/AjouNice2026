@@ -19,8 +19,8 @@
 | `/dataset/scenario_marker` | ROS 내부 | scenario runner |
 
 따라서 UDP gateway는 반드시 sensor-only로 실행한다. `/SaveSensorData`는 이 계약에
-포함하지 않는다. 원본은 continuous rosbag이며 필요한 LiDAR frame을 marker window
-안에서 나중에 고른다.
+포함하지 않는다. 센서 stream은 연속으로 유지하되 원본은 marker window를 포함한
+scene별 gated rosbag이며, 필요한 LiDAR frame은 marker window 안에서 나중에 고른다.
 
 ```bash
 roslaunch sensor_interface morai_udp_interface.launch \
@@ -165,7 +165,7 @@ rostopic info /ctrl_cmd
 - Ego/Object publisher: rosbridge 하나.
 - ScenarioLoad/ctrl_cmd: MORAI rosbridge client subscriber 존재.
 
-### Terminal 6 — rosbag recorder
+### Terminal 6 — gated rosbag recorder
 
 Runner보다 먼저 시작한다. MR에서도 `morai_personal_ws`가 암묵적으로 source되지 않도록
 공통 런북에서는 명시적인 recorder를 사용한다.
@@ -176,13 +176,29 @@ source /opt/ros/noetic/setup.bash
 source base_ws/install_aw149/setup.bash
 
 RUN_TAG="$(date +%y%m%d_%H%M%S)_<campaign>" \
-dataset/morai_od/scripts/record_base4_temporal_bag.sh \
+dataset/morai_od/scripts/record_base4_temporal_gated_bag.sh \
   "$PWD/rosbags/datasets/base4_temporal/<campaign>"
 ```
 
 이 recorder는 필수 11개 topic과 진단용 optional topic을 구분하고 sensor/network
-config SHA-256, Git SHA, 실행 시각을 `*_recording_contract.txt`에 남긴다. optional topic이
-advertise되지 않아도 rosbag은 계속 기록한다.
+config SHA-256, Git SHA, 실행 시각을 `*_recording_contract.txt`에 남긴다. 48 MiB ROS
+snapshot ring buffer를 계속 갱신하되 성공한 `capture_end`에서만 scene별 bag을 flush한다.
+`*_snapshot_events.jsonl`은 scene ID, terminal marker, 실제 bag 절대 경로와 byte 수를
+연결한다. optional topic이 advertise되지 않아도 녹화는 계속된다.
+
+기본 `MAX_WINDOW_SEC=3.40`보다 긴 clip을 설계했다면 단순히 경고를 무시하지 않는다.
+pilot에서 실제 stream byte rate를 재고 `BUFFER_MB`를 늘린 뒤 marker audit을 다시 한다.
+예를 들어 다음은 64 MiB A/B이지 곧바로 production 값이 아니다.
+
+```bash
+BUFFER_MB=64 MAX_WINDOW_SEC=4.6 \
+RUN_TAG="$(date +%y%m%d_%H%M%S)_<campaign>" \
+dataset/morai_od/scripts/record_base4_temporal_gated_bag.sh \
+  "$PWD/rosbags/datasets/base4_temporal/<campaign>"
+```
+
+연속 녹화가 필요한 진단 A/B에서만
+`record_base4_temporal_bag.sh`를 사용한다.
 
 ### Terminal 7 — scenario runner
 

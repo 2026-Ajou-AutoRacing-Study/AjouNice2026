@@ -144,20 +144,22 @@ V1의 1,000 frame/Vehicle GT 2,049개는 distance filter 전 nearest-state 비�
 
 ## 전달 압축
 
-로컬 업로드 준비 폴더:
+전달 archive를 만들었던 로컬 준비 폴더:
 
 ```text
 /home/luv/AjouNice2026/artifacts/handoff/base3_online_highway_260919/
 ```
 
-| 파일 | 용도 | 크기 |
-|---|---|---:|
-| `base3_online_highway_motion_v2_dataset_260919.tar.zst` | 팀 학습 필수 | 409,013,730 B |
-| `base3_online_highway_raw_rosbag_260919.tar.zst` | 재파싱·감사 선택 | 24,775,718,506 B |
-| `README_FIRST.md` | 압축 해제 위치 | - |
-| `SHA256SUMS` | 무결성 검증 | - |
+| 파일 | 용도 | 크기 | 현재 로컬 상태 |
+|---|---|---:|---|
+| `base3_online_highway_motion_v2_dataset_260919.tar.zst` | 팀 학습 필수 | 409,013,730 B | 유지 |
+| `base3_online_highway_raw_rosbag_260919.tar.zst` | 재파싱·감사 선택 | 24,775,718,506 B | Drive 업로드 확인 후 2026-09-20 삭제 |
+| `README_FIRST.md` | 압축 해제 위치 | - | 유지 |
+| `SHA256SUMS` | 전달 당시 무결성 기록 | - | 유지 |
 
-두 archive 모두 생성 후 `sha256sum -c SHA256SUMS`를 통과했다. Base3-Static 10K,
+두 archive 모두 전달 전에 `sha256sum -c SHA256SUMS`를 통과했다. 아래 raw SHA는 Drive
+전달본 확인용 이력이며 현재 로컬 handoff 폴더에는 raw archive가 없다. 재생성이 필요하면
+canonical `rosbags/datasets/base3_online/highway_1k/`에서 다시 묶는다. Base3-Static 10K,
 nuScenes 호환 초기 weight, E25 weight, 팀 Docker image는 기존 공유본을 재사용하며 위
 묶음에 중복 포함하지 않는다.
 
