@@ -9,11 +9,18 @@
 
 MORAI scenario 생성기의 다양성은 유지하되 production과 같은 UDP 카메라/LiDAR ROS
 stream을 rosbag으로 기록하고, LiDAR timestamp에 Ego/Object pose를 보간해 만든 고주로
-Vehicle 전용 983-frame BEVFusion dataset이 현재 최종본이다.
+Vehicle 전용 dataset을 사용한다. 검증 기준 dataset은 983-frame Motion V2이며,
+2026-09-20에는 같은 계약의 Static V2 2,907장을 추가해 총 3,890장 결합 학습 deck까지
+검증했다.
 
 학습에는 `morai_base3_online_highway_motion_v2`만 사용한다.
 `morai_base3_online_highway_v1`은 nearest-state A/B 근거이며 production 학습 전달본이
 아니다.
+
+고주로 Vehicle specialization을 새로 학습할 때는 기존 V2와 Static V2를 결합한
+`morai_base3_online_highway_combined_v3` 및 tracked
+`online_highway_combined_fresh_e40.yaml`을 사용한다. 이는 전역 3-class production을
+자동 교체하는 dataset이 아니다.
 
 ## 무엇을 왜 바꿨나
 
@@ -37,6 +44,11 @@ val은 매우 높았지만 실제 rosbag에서는 특히 Obstacle과 일부 도�
 
 Ego/Object는 모델 입력이 아니라 GT 좌표 계산용 oracle이므로 rosbridge 사용이 sensor
 input domain을 offline으로 되돌리는 것은 아니다.
+
+MR과 MRP의 launcher별 Network file, workspace source, sensor-only UDP 및 자동
+ScenarioLoad 실행 순서는
+[`morai_mr_mrp_hybrid_scenario_capture_runbook.md`](morai_mr_mrp_hybrid_scenario_capture_runbook.md)를
+단일 기준으로 사용한다.
 
 ## 수집 진행과 정리 결과
 
