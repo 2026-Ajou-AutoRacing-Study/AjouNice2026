@@ -278,16 +278,19 @@ class BevFusionRosBridge:
     def _lidar_callback(self, message):
         lidar_stamp = stamp_seconds(message)
         timing = None
+        point_time_offsets = None
         reference_stamp = lidar_stamp
         if self.lidar_deskew_mode == "ego_pose_2d":
             try:
-                offsets = pointcloud_field_array(message, "time", np.float64)
+                point_time_offsets = pointcloud_field_array(
+                    message, "time", np.float64
+                )
             except ValueError as error:
                 self.dropped_deskew_timing += 1
                 rospy.logwarn_throttle(2.0, "BEVFusion deskew rejected: %s", error)
                 return
             timing = scan_time_contract(
-                offsets,
+                point_time_offsets,
                 self.lidar_deskew_max_point_time_span_sec,
                 self.lidar_deskew_reference,
             )
@@ -327,6 +330,7 @@ class BevFusionRosBridge:
                 selected,
                 differences,
                 timing,
+                point_time_offsets,
                 reference_stamp,
                 time.monotonic(),
             )
@@ -371,11 +375,12 @@ class BevFusionRosBridge:
                 time.sleep(0.2)
 
     def _prepare_frame(
-        self, lidar_message, images, differences, timing, reference_stamp, received_at
+        self, lidar_message, images, differences, timing, point_time_offsets,
+        reference_stamp, received_at
     ):
         start = time.monotonic()
         conversion_start = time.monotonic()
-        points, point_time_offsets = pointcloud_to_xyzi_time(lidar_message)
+        points = pointcloud_to_xyzi(lidar_message)
         conversion_ms = (time.monotonic() - conversion_start) * 1000.0
         deskew_ms = 0.0
         deskew_displacement = np.empty(0, dtype=np.float64)
@@ -646,6 +651,18 @@ def pointcloud_field_array(message, name, output_dtype=None):
 
 def pointcloud_to_xyzi_time(message):
     """Vectorize PointCloud2 into model XYZI and optional timing arrays."""
+    points = pointcloud_to_xyzi(message)
+    fields = {field.name for field in message.fields}
+    count = len(points)
+    offsets = (
+        pointcloud_field_array(message, "time", np.float64)
+        if "time" in fields
+        else np.full(count, np.nan, dtype=np.float64)
+    )
+    return points, offsets
+
+
+def pointcloud_to_xyzi(message):
     fields = {field.name for field in message.fields}
     for required in ("x", "y", "z"):
         if required not in fields:
@@ -656,16 +673,7 @@ def pointcloud_to_xyzi_time(message):
         points[:, index] = pointcloud_field_array(message, name, np.float32)
     if "intensity" in fields:
         points[:, 3] = pointcloud_field_array(message, "intensity", np.float32)
-    offsets = (
-        pointcloud_field_array(message, "time", np.float64)
-        if "time" in fields
-        else np.full(count, np.nan, dtype=np.float64)
-    )
-    return points, offsets
-
-
-def pointcloud_to_xyzi(message):
-    return pointcloud_to_xyzi_time(message)[0]
+    return points
 
 
 def class_color(label):
