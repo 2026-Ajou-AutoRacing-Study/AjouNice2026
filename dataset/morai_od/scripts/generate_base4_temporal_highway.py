@@ -51,6 +51,7 @@ def build_config(scene_count, seed, campaign_tag):
             "capture_period_sec": 1.0 / 12.0,
             "capture_spacing_m": 1.5,
             "clip_duration_sec": 1.4,
+            "ego_target_speed_kph": 58.0,
             "warmup_sec": 0.0,
             "prime_capture_before_clip": False,
             "maximum_motion_m": 180.0,
