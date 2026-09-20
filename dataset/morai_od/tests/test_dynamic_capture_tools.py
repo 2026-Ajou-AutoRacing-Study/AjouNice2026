@@ -40,6 +40,10 @@ v2_batch = load_module(
     "temporal_v2_batch",
     "dataset/morai_od/scripts/generate_temporal_sequence_v2_batch.py",
 )
+base4_highway = load_module(
+    "base4_temporal_highway",
+    "dataset/morai_od/scripts/generate_base4_temporal_highway.py",
+)
 benchmark_builder = load_module(
     "benchmark_scenario_builder",
     "dataset/morai_od/scripts/build_raw_benchmark_scenarios.py",
@@ -446,6 +450,28 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertEqual(values.count("train"), 4)
         self.assertEqual(values.count("val"), 1)
         self.assertEqual(values.count("test"), 1)
+
+    def test_base4_split_can_omit_internal_test_set(self):
+        values = [
+            generator.split_for_variant(
+                index, 10, {"train": 0.8, "val": 0.2, "test": 0.0}
+            )
+            for index in range(10)
+        ]
+        self.assertEqual(values.count("train"), 8)
+        self.assertEqual(values.count("val"), 2)
+        self.assertNotIn("test", values)
+
+    def test_base4_highway_speed_and_split_contract(self):
+        config = base4_highway.build_config(30, 260920401, "pilot30")
+        self.assertEqual(config["split_ratios"]["test"], 0.0)
+        merge, cruise = config["families"]
+        self.assertLess(max(merge["ego_target_speed_kph"]), 59.0)
+        self.assertEqual(merge["target_speed_scale"], [1.0, 1.0])
+        self.assertEqual(cruise["npc_target_speed_scale"], [1.0, 1.0])
+        self.assertEqual(max(cruise["ego_speed_schedule_kph"]), 120.0)
+        self.assertTrue(cruise["start_ego_at_target_speed"])
+        self.assertEqual(merge["count"] + cruise["count"], 30)
 
     def test_actor_relative_pose_and_velocity_are_ego_aligned(self):
         frames = [

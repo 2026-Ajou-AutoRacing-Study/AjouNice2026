@@ -1489,10 +1489,13 @@ class AutoCapture:
         for key in self.base_motion_args:
             if key in overrides:
                 setattr(self.args, key, overrides[key])
-        if not 0.5 <= float(self.args.speed_kph) <= 80.0:
+        allow_high_speed = bool(overrides.get("allow_high_speed_capture", False))
+        maximum_speed_kph = 130.0 if allow_high_speed else 80.0
+        if not 0.5 <= float(self.args.speed_kph) <= maximum_speed_kph:
             raise ValueError(
-                "scene {} ego_target_speed_kph must be within 0.5..80.0"
-                .format(scene.get("id"))
+                "scene {} ego_target_speed_kph must be within 0.5..{:.1f}; "
+                "speeds above 80 require allow_high_speed_capture=true"
+                .format(scene.get("id"), maximum_speed_kph)
             )
         self.args.minimum_curve_speed_kph = min(
             float(self.args.minimum_curve_speed_kph),
@@ -3827,6 +3830,18 @@ class AutoCapture:
                             "frame {}: {}".format(
                                 len(triggers) + 1, actor_gate_observation
                             )
+                        )
+                    if not triggers:
+                        self.emit_scenario_marker(
+                            "sequence_start",
+                            scene,
+                            frame_index=0,
+                            actual_objects=self.object_observation(
+                                snapshot["objects"]
+                            ),
+                            ego=ego_state,
+                            actor_gate=self.scene_capture_actor_gate,
+                            actor_gate_observation=actor_gate_observation,
                         )
                     if not self.args.online_bag_only:
                         self.publish_capture_request()

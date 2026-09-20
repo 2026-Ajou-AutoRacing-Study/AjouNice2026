@@ -1873,11 +1873,14 @@ def build_route_anchored_vehicle_scene(
             for item in family.get("interaction_roles", [])
         }
         role = roles[role_name]
-        if role_name == "side_merge_traffic":
+        if family.get("preserve_template_npc_target_speed", False):
+            npc_target_speed = float(runtime[0]["target_speed_kph"])
+        elif role_name == "side_merge_traffic":
             npc_speed_factor = rng.uniform(0.90, 1.05)
+            npc_target_speed = max(10.0, ego_speed * npc_speed_factor)
         else:
             npc_speed_factor = rng.uniform(0.75, 0.95)
-        npc_target_speed = max(10.0, ego_speed * npc_speed_factor)
+            npc_target_speed = max(10.0, ego_speed * npc_speed_factor)
         spawn = scenario["spawnPointList"][0]
         set_spawn_target_speed(
             spawn, npc_target_speed, match_spawn_velocity=True
@@ -2060,6 +2063,26 @@ def build_route_anchored_vehicle_scene(
         ),
         "lookahead_m": float(family.get("lookahead_m", 4.0)),
     })
+    temporal_capture_count = int(
+        family.get("captures_per_scene", 0)
+    )
+    desired_duration_sec = float(
+        family.get("desired_clip_duration_sec", 0.0)
+    )
+    if temporal_capture_count > 1 and desired_duration_sec > 0.0:
+        capture_overrides.update(
+            {
+                "captures_per_scene": temporal_capture_count,
+                "capture_spacing_m": max(
+                    0.5,
+                    ego_speed
+                    / 3.6
+                    * desired_duration_sec
+                    / (temporal_capture_count - 1),
+                ),
+                "desired_clip_duration_sec": desired_duration_sec,
+            }
+        )
     if "minimum_curve_speed_kph" in family:
         capture_overrides["minimum_curve_speed_kph"] = float(
             family["minimum_curve_speed_kph"]
@@ -2376,11 +2399,14 @@ def build_highway_cruise_scene(
             ego_speed = rng.uniform(*lane_speed_range)
         else:
             ego_speed = target
-        target = max(
-            10.0,
-            ego_speed
-            + rng.uniform(*role.get("npc_speed_delta_kph", [-5.0, 5.0])),
-        )
+        if family.get("preserve_template_npc_target_speed", False):
+            target = base_target
+        else:
+            target = max(
+                10.0,
+                ego_speed
+                + rng.uniform(*role.get("npc_speed_delta_kph", [-5.0, 5.0])),
+            )
         set_spawn_target_speed(spawn, target, match_spawn_velocity=True)
         relative_lane_intent = "side_parallel"
     elif same_lane:
@@ -2416,6 +2442,9 @@ def build_highway_cruise_scene(
         else:
             ego_speed = min(float(family["ego_speed_limit_kph"]), target)
         relative_lane_intent = "right_side_parallel_or_following"
+    speed_schedule = family.get("ego_speed_schedule_kph")
+    if speed_schedule:
+        ego_speed = float(speed_schedule[variant_index % len(speed_schedule)])
     if family.get("start_ego_at_target_speed", False):
         initial_speed = ego_speed
     else:
@@ -2502,6 +2531,28 @@ def build_highway_cruise_scene(
         ),
         "capture_actor_gate": actor_gate,
     }
+    temporal_capture_count = int(
+        family.get("captures_per_scene", 0)
+    )
+    desired_duration_sec = float(
+        family.get("desired_clip_duration_sec", 0.0)
+    )
+    if temporal_capture_count > 1 and desired_duration_sec > 0.0:
+        capture_overrides.update(
+            {
+                "captures_per_scene": temporal_capture_count,
+                "capture_spacing_m": max(
+                    0.5,
+                    ego_speed
+                    / 3.6
+                    * desired_duration_sec
+                    / (temporal_capture_count - 1),
+                ),
+                "desired_clip_duration_sec": desired_duration_sec,
+            }
+        )
+    if ego_speed > 80.0:
+        capture_overrides["allow_high_speed_capture"] = True
     return ego_route, ego_sample, runtime, capture_overrides
 
 
@@ -5157,7 +5208,28 @@ def validate_scene(scenario, family, links_by_id, route, expected_runtime):
     return {"ego_route_distance_m": route_distance, "unique_id_count": len(identifiers)}
 
 
-def split_for_variant(index, family_count):
+def split_for_variant(index, family_count, split_ratios=None):
+    if split_ratios is not None:
+        ratios = {
+            name: float(split_ratios.get(name, 0.0))
+            for name in ("train", "val", "test")
+        }
+        if any(value < 0.0 for value in ratios.values()):
+            raise ValueError("split ratios must be non-negative")
+        total = sum(ratios.values())
+        if total <= 0.0:
+            raise ValueError("at least one split ratio must be positive")
+        normalized = {name: value / total for name, value in ratios.items()}
+        val_count = int(round(family_count * normalized["val"]))
+        test_count = int(round(family_count * normalized["test"]))
+        train_count = family_count - val_count - test_count
+        if train_count < 0:
+            raise ValueError("rounded split counts exceed family count")
+        if index < train_count:
+            return "train"
+        if index < train_count + val_count:
+            return "val"
+        return "test"
     if family_count < 3:
         return "train"
     validation_count = max(1, int(round(family_count * 0.15)))
@@ -5874,7 +5946,9 @@ def main():
                 "clip_motion_phase", family.get("motion_phase")
             )
             scene_split = split_for_variant(
-                variant_index, int(family["count"])
+                variant_index,
+                int(family["count"]),
+                config.get("split_ratios"),
             )
             if name == "crosswalk_pedestrian":
                 scene_split = runtime[0].get("crosswalk_split") or scene_split

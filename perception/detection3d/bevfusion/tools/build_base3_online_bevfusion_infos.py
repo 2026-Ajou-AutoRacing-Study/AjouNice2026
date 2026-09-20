@@ -162,11 +162,13 @@ def main():
     windows, marker_errors = build_capture_windows(markers)
     if marker_errors:
         raise ValueError("invalid capture markers: {}".format(marker_errors))
-    starts = {
-        payload["scene_id"]: payload
-        for _stamp, payload in markers
-        if payload.get("event") == "capture_start"
-    }
+    starts = {}
+    for _stamp, payload in sorted(markers, key=lambda item: item[0]):
+        if payload.get("event") in ("capture_start", "sequence_start"):
+            # Prefer the later sequence_start: it contains the actor state at
+            # the first valid frame rather than the pre-warmup ScenarioLoad
+            # state.
+            starts[payload["scene_id"]] = payload
 
     sensor_topics = (LIDAR_TOPIC, EGO_TOPIC, OBJECT_TOPIC, *CAMERAS.values())
 

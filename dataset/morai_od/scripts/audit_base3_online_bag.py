@@ -59,6 +59,21 @@ def build_capture_windows(markers):
             if scene in active:
                 errors.append("duplicate capture_start for {}".format(scene))
             active[scene] = (stamp, payload)
+        elif event == "sequence_start":
+            # ``capture_start`` is emitted immediately after ScenarioLoad so
+            # legacy bags retain their original contract.  Dynamic/high-speed
+            # scenes can spend several seconds in an actor/ego readiness gate,
+            # however, which is longer than the bounded snapshot ring buffer.
+            # Rebase the useful window at the first valid sequence frame.  A
+            # standalone sequence_start is also accepted so a snapshot remains
+            # self-describing even when the outer marker has rolled out.
+            if active and scene not in active:
+                errors.append(
+                    "sequence_start overlaps active scenes {}".format(
+                        sorted(active)
+                    )
+                )
+            active[scene] = (stamp, payload)
         elif event in ("capture_end", "scene_failed", "scene_interrupted"):
             if scene not in active:
                 if event == "capture_end":
@@ -76,13 +91,14 @@ def build_capture_windows(markers):
                         "start": start,
                         "end": stamp,
                         "mission_family": start_payload.get("mission_family"),
+                        "start_event": start_payload.get("event"),
                         "terminal_event": event,
                         "terminal_status": payload.get("status"),
                         "terminal_error": payload.get("error"),
                     }
                 )
     for scene in sorted(active):
-        errors.append("capture_start without terminal marker for {}".format(scene))
+        errors.append("capture/sequence start without terminal marker for {}".format(scene))
     windows.sort(key=lambda item: item["start"])
     for previous, current in zip(windows, windows[1:]):
         if current["start"] < previous["end"]:

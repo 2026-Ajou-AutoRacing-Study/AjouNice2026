@@ -94,6 +94,23 @@ class SnapshotGate:
             )
             return
 
+        if event == "sequence_start":
+            with self.lock:
+                previous = self.active.get(scene_id)
+                self.active[scene_id] = payload
+            self.append_event(
+                {
+                    "event": "gate_rebased",
+                    "scene_id": scene_id,
+                    "previous_source_marker": previous,
+                    "source_marker": payload,
+                }
+            )
+            rospy.loginfo(
+                "Rebased snapshot gate at valid sequence start: %s", scene_id
+            )
+            return
+
         if event not in ("capture_end", "scene_failed", "scene_interrupted"):
             return
 
