@@ -1,7 +1,7 @@
 # Base4 rosbag 수집 — CURRENT STATE
 
-- 상태: **CURRENT / CONTROL-SAFETY REVALIDATED**
-- 마지막 검증: 2026-09-20
+- 상태: **CURRENT / 24-SCENE TEMPORAL PIPELINE SMOKE PASSED**
+- 마지막 검증: 2026-09-21
 - 대상: raw 4-camera + LiDAR BEVFusion, 이후 Base4-Temporal
 
 ## 1. 현재 결론
@@ -24,9 +24,11 @@ scene별로 flush하는 gated recorder**를 기본으로 한다. 센서 stream�
 디스크에 계속 쓰는 기존 continuous recorder는 진단 fallback으로만 유지한다.
 
 `SaveSensorData`, semantic/depth image, ReplayInfo는 사용하지 않는다. 현재 검증된 변환
-결과는 **연속 23--35 LiDAR frame raw window와 16-frame BEVFusion smoke dataset**이다. causal sequence index와
-velocity target을 만드는 Base4-Temporal converter는 다음 구현 단계이며, 이번 PASS를 곧
-temporal dataset 완성으로 해석하면 안 된다.
+결과는 scene당 연속 LiDAR window, LiDAR 시각의 Ego/Object 보간, 9D box의
+`vx, vy`, Ego 정합 causal 3-sweep과 point `dt`까지 포함한다. 24-scene 제한 파일럿에서
+raw 485 frame과 deskew 467 frame을 만들고 V1/T1 dataloader 및 1-epoch smoke를
+통과했다. 다만 이 수량은 **파이프라인 검증용**이며 성능이나 분포 완성을 주장하는
+dataset이 아니다.
 
 ## 2. launcher별 파일
 
@@ -303,14 +305,58 @@ asset을 옵션 없이 만나면 변환기는 계속 fail-fast한다.
 - 상세 수치와 deskew 결과:
   [`260920_base4_deskew_and_control_safety_evidence.md`](260920_base4_deskew_and_control_safety_evidence.md).
 
+### 6.5 24-scene 제한 파일럿 `p24v1`
+
+- seed: `260921101`, 목표 구성: merge `6`, post-merge `18`.
+- runtime: `/home/luv/morai_cap/260921_b4_p24v1`.
+- raw bag: `rosbags/datasets/base4_temporal/p24v1/`.
+- 결과: `24 attempted / 23 completed / 1 failed`, bag `23`개. 실패한
+  `b4p24v1ddmc006`은 frame 14에서 actor가 interaction gate를 이탈했다.
+- 유효 capture window의 LiDAR는 약 `11.2--12.6 Hz`, camera는
+  `28.2--30.3 Hz`, Ego/Object는 약 `44--49 Hz`였다.
+- camera--LiDAR nearest age는 p50 `1.67--3.29 ms`, p95 약 `27--28 ms`다.
+- 전체 `736` LiDAR candidate 중 bag edge의 `2` frame만 camera age가
+  `100 ms`를 넘었다(`0.272%`, max 약 `113 ms`). Raw audit에는 엄격한 error로
+  남지만 converter가 해당 frame을 제외하므로 dataset 오염은 없다.
+- Ego header stamp가 `1 ms` 역행한 state 한 건은 converter의 timestamp sort 후
+  interpolation하며 audit에 기록한다.
+
+변환 결과는 다음과 같다.
+
+| 파생 dataset | scene train/val | frame train/val | Vehicle GT | 용도 |
+|---|---:|---:|---:|---|
+| `morai_base4_temporal_highway_p24v1_raw` | `19/4` | `395/90` | `485` | V1/T1 기준 입력 |
+| `morai_base4_temporal_highway_p24v1_ego_deskew` | `19/4` | `383/84` | `467` | deskew 독립 A/B |
+
+두 dataset 모두 info validator를 통과했다. Sparse GT는 raw `39`, deskew `57`,
+30 m box-range 밖 GT는 raw `177`, deskew `170`개가 제외됐다. positive Vehicle이
+남지 않은 frame도 학습에서 제외하지만 raw bag은 그대로 보존한다. Split은 scene
+단위이며 test split은 만들지 않았다.
+
+Raw info에는 LiDAR 시각의 9D box `[x,y,z,l,w,h,yaw,vx,vy]`, Ego pose,
+현재 frame과 직전 두 frame의 `sweep2lidar`, 양수 time lag가 들어간다. Object topic의
+body-frame `km/h` velocity는 world frame을 거쳐 target Ego frame의 `m/s`로 변환한다.
+학습 loader는 과거 point를 Ego 정합한 뒤 다섯 번째 channel에 `dt`를 넣는다. GT Object
+motion으로 과거 point를 현재 위치로 옮기지는 않는다. Positive GT가 없는 중간 frame도
+causal sweep 후보로 보존해 history가 인위적으로 건너뛰지 않게 한다. 수정 후 raw의
+sweep lag는 p50 `0.129 s`, p95 `0.181 s`, max `0.246 s`이며 `0.25 s` 초과가 없다.
+
+자세한 학습 smoke와 기존 평가 bag 분류는
+[`../../../docs/bevfusion/260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md`](../../../docs/bevfusion/260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md)에 있다.
+
 ## 7. 다음 구현 gate
 
-1. 새 seed의 20--30 scene limited pilot에서 70/85/100 km/h와 세 lane을 먼저 감사한다.
-2. failure, collision, pre-control drift, steering saturation이 모두 기준 안이면 본
-   campaign을 새 tag로 생성한다. 중단된 `p12v3`는 재사용하지 않는다.
+1. `p24v1`은 파이프라인 smoke 전용으로 동결한다. 이 dataset의 val이나 1-epoch 결과로
+   모델 성능을 주장하지 않는다.
+2. V1 single-frame velocity head와 T1 causal 3-sweep의 4-epoch 개발 실험으로 label,
+   loss, runtime contract만 먼저 비교한다.
 3. scene 단위 train/val split만 사용하고 작은 pilot에는 dataset test split을 만들지 않는다.
 4. LiDAR timestamp 기준 Ego/Object pose interpolation은 유지한다.
-5. 연속 frame의 실제 `dt`, track identity, current-frame target과 causal sweep index를 만든다.
-6. teleport/load 구간은 marker 밖이므로 sequence에 포함하지 않는다.
-7. raw bag과 runtime metadata는 보존하고 거리/visibility 정책은 파생 info에서 선택한다.
-8. temporal info validator와 Docker dataloader smoke를 통과한 뒤 본 수집으로 간다.
+   학습용 Ego trajectory와 scan 내부 deskew는 rosbag의 `/Ego_topic` GT pose를 source of
+   truth로 사용한다. GNSS-quantized `/localization/kinematic_state`로 학습 geometry를
+   만들지 않는다.
+5. 기존 merge/highway1 bag은 반복 사용된 development 평가로만 쓰고, 현장점검 full-stack
+   bag은 closed-loop 회귀 근거로만 쓴다. 100 km/h급 최종 비교에는 새 held-out 주행이
+   필요하다.
+6. 다음 수집 분포는 V1/T1의 실패 slice를 보고 수정한다. 중단된 `p12v3`를 이어 쓰거나
+   곧바로 대규모 campaign을 시작하지 않는다.

@@ -454,6 +454,25 @@ production fusion을 켜지 않는다.
 - 전역 production 후보가 되려면 새 held-out 고주로와 기존 Vehicle/Pedestrian/
   Obstacle regression suite를 추가 통과.
 
+## 2026-09-21 구현 상태
+
+실행 순서 1--6의 파이프라인 gate를 24-scene 제한 파일럿에서 통과했다.
+
+- 24 attempted, 23 completed, raw scene bag 23개.
+- scene split train 19 / val 4 / test 없음.
+- raw 485 frame, Ego-deskew A/B 467 frame.
+- LiDAR 시각 Ego/Object interpolation과 9D `[... yaw,vx,vy]` GT 구현.
+- current + past 2 Ego-aligned sweep과 positive `dt` loader 구현.
+- V1 single-frame velocity head와 T1 3-sweep velocity head가 각각 1-epoch Docker
+  smoke 및 validation을 완료.
+- matched Vehicle mAVE와 speed MAE를 기존 center metric에 추가하되 공식 NDS로
+  오인하지 않도록 분리.
+
+이 PASS는 정확도 결론이 아니다. 구현 결과와 실행법은
+[`260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md`](260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md)에
+고정한다. 이후 단계는 제한 4-epoch V1/T1 비교와 기존 dev/현장 regression이며,
+production 판단 전 새 80--120 km/h held-out controller bag이 필요하다.
+
 ## 실행 순서
 
 1. P0 LiDAR raw/deskew/zero-time 고속 정적 구조물 A/B로 scan 내부 deskew 계약을

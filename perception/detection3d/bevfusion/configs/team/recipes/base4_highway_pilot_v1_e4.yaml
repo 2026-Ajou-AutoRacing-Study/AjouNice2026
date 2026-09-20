@@ -1,0 +1,33 @@
+version: 1
+name: base4-highway-pilot-v1-e4
+mode: finetune
+epochs: 4
+learning_rate: 2.0e-5
+checkpoint: ${BEVFUSION_BASE3_E25_FINETUNE_CHECKPOINT}
+base_config: perception/detection3d/bevfusion/configs/bevfusion_base4_v1_4cam_lidar_velocity.py
+
+dataset:
+  capture_root: ${BASE4_P24_RAW_ROOT}
+  info_root: ${BASE4_P24_RAW_ROOT}
+  container_root: /datasets/base4_p24v1_raw
+
+gpu:
+  profile: auto
+  physical_batch_size: auto
+  gradient_accumulation: auto
+  workers: auto
+  shm_size: auto
+
+wandb:
+  enabled: true
+  entity: AjouNice2026
+  project: morai-3d-object-detection
+  group: bevfusion-base4-highway-pilot
+  tags: [base4, highway, pilot, single-frame, velocity, e25-finetune]
+
+output:
+  root: ""
+
+checkpointing:
+  interval: 1
+  max_keep_ckpts: 4
