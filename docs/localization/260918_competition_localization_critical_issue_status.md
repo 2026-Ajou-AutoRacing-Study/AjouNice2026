@@ -360,6 +360,14 @@ gain을 조정한다. localization jump를 controller gain으로 덮지 않는�
   `docs/localization/morai_udp_receipt_time.md`
 - 현장 bag과 분석:
   `rosbags/eval/localization/260915_field_inspection/`
+  - `planning_rviz_0915_sensor_local_1.bag`: UDP timestamp 보정 전 최초 run이므로
+    향후 정량 회귀 평가에서 제외한다.
+  - `planning_rviz_0915_gt_local.bag`, `sensor_local_2.bag`, `sensor_local_3.bag`:
+    timestamp 보정 후 현장 회귀 평가군으로 유지한다. `_3`은 기존 localization
+    채터링 기준 run이다.
+  - 이 분류는 bag 지표의 사후 threshold가 아니라 현장 실행 순서와 설정 provenance에
+    따른다. 네 bag 모두 raw GPS/IMU와 `/Competition_topic`이 없어 timestamp 설정을
+    bag만으로 완전히 재구성할 수 없다.
 - 로컬 baseline 및 `0.10 m` bag:
   `rosbags/eval/localization/local_mr_stability/`
 - covariance replay:

@@ -1,5 +1,21 @@
 # MORAI Asset 재검증·WoodBox 실측 결과
 
+## 현재 판정
+
+- **내부적으로 확정:** 개인용 MRP의 거리/yaw grid에서 WoodBox mesh/LiDAR return과
+  raw size-derived GT 경계의 pose-dependent 차이가 반복 재현됐다.
+- **대회 MR에서 부분 재현:** 정상 센서 주기의 10 m/yaw 45도 한 pose에서도 GT 경계
+  밖 return은 확인됐다.
+- **아직 확정하지 않음:** 대회 MR의 공식 WoodBox GT가 잘못됐다는 결론, 고정 box
+  offset 값, MR/MRP asset·annotation 버전 차이. MR 정상 주기의 multi-pose grid 또는
+  MORAI 담당자 답변이 필요하다.
+- **현재 dataset 정책:** WoodBox는 positive pool에 넣지 않고 scene 전체를 명시적으로
+  제외한다. 임의의 `+3/+5/+10 cm` 확대 GT는 학습 label로 채택하지 않는다.
+- **외부 답변 대기:** WoodBox의 실제 대회 출제 가능성과 공식 3D GT 사용 계약.
+
+따라서 이 문서의 결론은 "현상은 확인됐지만 공식 원인과 correction은 미확정"이다.
+MORAI 문의는 닫지 않는다.
+
 - 상태: **LIVE EVIDENCE**
 - 실측일: 2026-09-20
 - 런처: 개인용 MRP `R1.260701.H3`

@@ -154,12 +154,20 @@ recipe에서 physical batch를 낮춘다.
 | `260821_235409_highway_merge_dynamic_competition_raw.bag` | 118.1 | 100% | 62.7% | 56.7% | 반복 사용된 merge dev |
 | `sensor_cam_raw_highway1.bag` | 252.6 | 100% | 88.8% | 67.2% | 비현실적 최고속 포함 legacy stress/dev |
 | `planning_rviz_0915_gt_local.bag` | 67.3 | 24.9% | 27.0% | 76.6% | 현장 GT closed-loop 회귀 |
-| `planning_rviz_0915_sensor_local_1.bag` | 67.6 | 18.9% | 40.3% | 70.3% | 현장 localization 회귀 |
-| `planning_rviz_0915_sensor_local_2.bag` | 67.5 | 18.4% | 36.4% | 55.7% | 현장 localization 회귀 |
-| `planning_rviz_0915_sensor_local_3.bag` | 67.5 | 19.2% | 39.0% | 65.6% | 현장 localization 회귀 |
+| `planning_rviz_0915_sensor_local_1.bag` | 67.6 | 18.9% | 40.3% | 70.3% | **평가 제외**: 현장 최초 UDP timestamp 보정 전 run |
+| `planning_rviz_0915_sensor_local_2.bag` | 67.5 | 18.4% | 36.4% | 55.7% | 현장 timestamp 보정 후 localization 회귀 |
+| `planning_rviz_0915_sensor_local_3.bag` | 67.5 | 19.2% | 39.0% | 65.6% | 현장 timestamp 보정 후 localization 채터링 기준 run |
 
-현장점검 네 bag은 실제 LAN/full-stack/control domain이라는 가치가 크지만 약 67 km/h가
-상한이므로 100 km/h 추월 성능 test가 아니다. 기존 merge bag은 118 km/h를 포함하지만
+현장점검 중 `sensor_local_1`은 UDP와 ROS timestamp 계약을 현장에서 보정하기 전의
+최초 run이므로 향후 OD/tracking/Map-CV 및 localization 성능 비교에서 제외한다. 이 bag의
+조향률 p95만으로 버그 여부를 판별한 것은 아니다. 같은 분석기로 얻은 `_1/_2/_3`의
+moving steering-rate absolute p95는 각각 약 `1.556/1.607/1.589 rad/s`로 비슷하다.
+구분 근거는 당시 실행 순서와 timestamp 설정 provenance이며, raw GPS/IMU와
+`/Competition_topic`이 없어 bag만으로 설정을 사후 복원할 수 없기 때문이다.
+
+나머지 `gt_local`, `sensor_local_2`, `sensor_local_3`은 실제 LAN/full-stack/control
+domain 회귀 평가군으로 유지한다. 단, 약 67 km/h가 상한이므로 100 km/h 추월 성능
+test가 아니다. 기존 merge bag은 118 km/h를 포함하지만
 이미 반복적으로 epoch와 parameter 선택에 사용했다. `highway1`의 252.6 km/h는 대회
 분포 대표값이 아니다. 따라서 당장 V1/T1 비교에는 기존 두 고주로 bag과 현장 bag을
 development/regression으로 쓰되, 최종 후보에는 다른 seed와 실제 controller로 주행한
