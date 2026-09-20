@@ -165,9 +165,14 @@ base4_<campaign>_ego_deskew_scan_end/
 roslaunch bevfusion_ros base3_online.launch \
   lidar_deskew_mode:=ego_pose_2d \
   lidar_deskew_reference:=end \
-  lidar_deskew_pose_topic:=/localization/kinematic_state \
+  lidar_deskew_pose_topic:=/localization/odometry/local \
   lidar_deskew_pose_type:=odometry
 ```
+
+`/localization/odometry/local`은 GNSS x/y를 직접 fuse하지 않고 Competition yaw/vx와
+IMU로 scan 구간의 smooth relative motion을 제공한다. Global map pose인
+`/localization/kinematic_state`는 planning/perception 좌표 기준으로 유지하되, GNSS
+quantization jump가 scan 내부 보정에 들어가지 않도록 deskew 입력에서는 분리한다.
 
 반대로 raw dataset checkpoint는 `lidar_deskew_mode:=off`로 추론한다. Base4 A/B가 끝나기
 전에는 raw/deskew 중 하나를 이름 없는 공통 package로 배포하거나 production 기본값을
@@ -209,7 +214,7 @@ time field가 단순 장식이 아니라는 것까지 확인했다.
 gate다. 현재 구현은 K-City 평면 주행에 맞춘 SE(2) pose 보정이라 roll/pitch가 큰 노면은
 별도의 3D deskew 대상이다.
 
-학습 변환은 `/Ego_topic` GT pose, 대회 추론은
-`/localization/kinematic_state`를 사용한다. 수식은 같지만 localization delay/jitter가
-크면 deskew도 흔들리므로 최종 승격 전 production localization 입력으로 end-to-end
-검증해야 한다.
+학습 변환은 `/Ego_topic` GT pose를 사용한다. 대회 추론은
+`/localization/odometry/local`을 우선 후보로 사용한다. 수식은 같지만 online local
+odometry의 timestamp, velocity/yaw 오차와 delay가 크면 deskew도 흔들리므로 최종 승격 전
+동일 checkpoint로 GT-offline/local-odom-online end-to-end A/B를 통과해야 한다.
