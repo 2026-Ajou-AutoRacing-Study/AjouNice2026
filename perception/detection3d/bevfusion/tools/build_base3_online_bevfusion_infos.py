@@ -69,6 +69,16 @@ def arguments():
         ),
     )
     parser.add_argument(
+        "--drop-scene-asset",
+        action="append",
+        default=[],
+        help=(
+            "drop a complete marker window when capture_start reports this "
+            "asset name; repeatable and safer than leaving an unsupported "
+            "visible asset as unlabeled background"
+        ),
+    )
+    parser.add_argument(
         "--distance-filter",
         choices=("box-range", "radial-0-30", "radial-30-plus", "all"),
         default="box-range",
@@ -135,6 +145,8 @@ def main():
     rejected = Counter()
     rejected_distance = Counter()
     rejected_empty_positive = Counter()
+    dropped_scene_assets = Counter()
+    dropped_scenes = []
     scene_count = Counter()
     synchronization = []
     unknown_assets = set()
@@ -160,6 +172,20 @@ def main():
 
     def convert_window(window, topics):
         marker = starts[window["scene_id"]]
+        present_assets = {
+            str(actor.get("name"))
+            for rows in marker.get("actual_objects", {}).get("identities", {}).values()
+            for actor in rows
+            if actor.get("name") is not None
+        }
+        blocked_assets = sorted(present_assets.intersection(args.drop_scene_asset))
+        if blocked_assets:
+            dropped_scenes.append({
+                "scene_id": window["scene_id"],
+                "assets": blocked_assets,
+            })
+            dropped_scene_assets.update(blocked_assets)
+            return
         split = str(marker.get("split") or "train")
         if split not in split_rows:
             raise ValueError("unknown split {} for {}".format(split, window["scene_id"]))
@@ -351,6 +377,7 @@ def main():
         "distance_filter": args.distance_filter,
         "distance_threshold_m": args.distance_threshold_m,
         "point_cloud_range": list(args.point_cloud_range),
+        "drop_scene_assets": sorted(set(args.drop_scene_asset)),
     }
     for split, rows in split_rows.items():
         with (output / "morai_base3_infos_{}.pkl".format(split)).open("wb") as stream:
@@ -365,6 +392,8 @@ def main():
         "rejected_distance_gt": dict(rejected_distance),
         "rejected_empty_positive_frames": dict(rejected_empty_positive),
         "required_positive_class": args.require_positive_class,
+        "dropped_scene_assets": dict(dropped_scene_assets),
+        "dropped_scenes": dropped_scenes,
         "unknown_assets": sorted(unknown_assets),
         "synchronization": synchronization,
         "host_output_root": str(output),
@@ -379,7 +408,7 @@ def main():
             "scenes", "frames", "kept_gt", "rejected_sparse_gt",
             "rejected_distance_gt",
             "rejected_empty_positive_frames", "required_positive_class",
-            "unknown_assets",
+            "dropped_scene_assets", "dropped_scenes", "unknown_assets",
         )
     }, indent=2))
 
