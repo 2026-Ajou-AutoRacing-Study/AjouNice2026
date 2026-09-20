@@ -1,6 +1,6 @@
 # Base4-Temporal 고주로 Velocity Pilot 계획
 
-> **문서 상태: PILOT VALIDATED / PRODUCTION CAPTURE READY.** 전체 Base4 데이터셋을 확정하는 문서가 아니라, 고주로에서
+> **문서 상태: CONTROL-SAFETY REVALIDATED / LIMITED CAMPAIGN READY.** 전체 Base4 데이터셋을 확정하는 문서가 아니라, 고주로에서
 > BEVFusion velocity observation의 실효성을 가장 작게 검증하기 위한 통제 실험이다.
 
 ## 한 줄 결론
@@ -30,8 +30,13 @@ velocity/yaw-rate frame을 재검증한 뒤에만 켠다. 판정 전 기본값�
 - 한 scan **내부** per-point deskew: `off`.
 - 학습용 raw point와 point `time`: 손실 없이 보존.
 
-이 gate 결과와 재현 명령, bag, 수치는 본 문서 또는 별도 EVIDENCE 문서에 남긴다. 결과
-없이 LiDAR message rate의 역수를 scan acquisition duration으로 간주하지 않는다.
+이 gate는 2026-09-20에 완료됐다. 40 bag / 1,911 cloud에서 point-time deskew가 정적
+alignment p50을 `0.22819 -> 0.20640 m`로 약 `9.5%` 개선했다. 반대 방향 보정은
+`0.25280 m`로 악화됐다. 따라서 point time은 유효하다고 판단한다. 단, 42개 scan에서
+span이 `0.15 s`를 넘고 최대 `1.392 s`였으므로 production 기본값은 계속 off다. raw와
+point time을 보존하고 outlier rejection을 포함한 converter/online 동일 A/B 후 켠다.
+상세 근거는
+[`260920_base4_deskew_and_control_safety_evidence.md`](../../dataset/morai_od/docs/260920_base4_deskew_and_control_safety_evidence.md)에 있다.
 
 ## 왜 지금 이 실험인가
 
@@ -75,18 +80,21 @@ pilot은 합류 이후의 실제 추월·상대속도 분포에 집중한다.
 |---|---:|---|---|
 | ramp 초기 접근 | 0% | - | live pilot에서 제어권 전환 전 actor 이탈로 제외 |
 | 실제 merge/conflict | 25% | 50/54/58 km/h | 59 km/h 미만, 40/50/60 NPC 순항 |
-| post-merge 순항·추월 | 75% | 70/85/100/115/120 km/h | 시작속도=목표속도인 40/50/60 NPC 순항 |
+| post-merge 순항·추월 | 75% | 70/85/100 km/h | 시작속도=목표속도인 40/50/60 NPC 순항 |
 
-합치면 실제 합류 25%, 합류 이후 75%다. `115/120 km/h`는 소수 hard case로만 둔다.
+합치면 실제 합류 25%, 합류 이후 75%다. `115/120 km/h`는 제어 안전성 기준선에서
+제외하고, 100 km/h campaign이 안정된 뒤 별도 stress addon에서만 재검토한다.
 고속 Ego는 capture 시작 전에 충분히 상류에서 출발해 목표속도에 도달시킨다. 같은 차선의
 큰 상대속도는 충돌 위험 때문에 짧은 window로 제한하고, 큰 closing/opening speed는 주로
 인접 차선에서 만든다. 첫 pilot에는 실제 lane-change controller를 넣지 않으며, 이후
 lateral-motion addon으로 분리한다. 큰 상대속도는 인접 차선에만 배정하고
 restricted solid-separated lane은 계속 제외한다.
 
-2026-09-20 MR live pilot에서 merge conflict `2/2`, post-merge `9/9`가 완료됐고
-`120 km/h` command scene도 16 trigger를 완주했다. 성공 window는 LiDAR `23--35 frame`을
-보존했다. 이 결과를 본 campaign 진입 gate로 사용한다.
+초기 live pilot 자체는 merge conflict `2/2`, post-merge `9/9`를 완료했지만 이후 본
+campaign에서 제어권 인수 전 차선 이탈이 발견되어 그 결과만을 production gate로 쓰지
+않는다. zero-speed load와 drift/speed/stability gate를 적용한 `r9`에서 merge/cruise
+각 16/16 frame을 통과했고, 추가 100 km/h smoke까지 합쳐 `48/48 frame`, 실패 0,
+조향 abs max `0.284°`를 재확인했다.
 
 ### sequence 단위
 

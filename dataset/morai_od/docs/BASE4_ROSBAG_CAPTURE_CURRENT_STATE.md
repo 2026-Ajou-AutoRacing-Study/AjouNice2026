@@ -1,6 +1,6 @@
 # Base4 rosbag 수집 — CURRENT STATE
 
-- 상태: **CURRENT / HIGH-SPEED HIGHWAY PILOT VALIDATED**
+- 상태: **CURRENT / CONTROL-SAFETY REVALIDATED**
 - 마지막 검증: 2026-09-20
 - 대상: raw 4-camera + LiDAR BEVFusion, 이후 Base4-Temporal
 
@@ -248,7 +248,7 @@ asset을 옵션 없이 만나면 변환기는 계속 fail-fast한다.
   camera별 3개(`0.949%`, max `112.4 ms`) 있었다. raw는 보존하고 converter에서
   tolerance를 넘는 candidate를 선택하지 않는다.
 
-### 6.3 고주로 production campaign
+### 6.3 중단·격리된 최초 고주로 production campaign
 
 - 최종 campaign tag: `p12v3`, 총 `1,200 scene`.
 - manifest: `dataset/morai_od/manifests/base4_temporal_highway_p12v3_runtime.json`.
@@ -267,15 +267,31 @@ asset을 옵션 없이 만나면 변환기는 계속 fail-fast한다.
 - 31-scene 초기 production audit는 `28 completed / 3 failed`(`9.7%`)였다. 실패는
   MORAI spawn이 gate에 나타나지 않은 경우이며 gated recorder가 bag을 저장하지 않는다.
   본 run 종료 후 실패 scene 수만큼 별도 seed로 보충한다.
-- 이전 pilot recorder 프로세스는 모두 종료했고 production recorder와 runner 각 하나만
-  유지한다.
+- 이 campaign은 **중단됐으며 학습에 사용하지 않는다.** 저장된 초기속도로 Ego가
+  external-control 준비 전에 ramp 곡선을 직진 통과한 것이 확인됐다.
+- runtime과 raw는 원인 근거 보존을 위해 격리했으며 자동 재개하지 않는다.
+
+### 6.4 제어 안전성 수정과 r9 smoke
+
+- Ego load speed를 `0 km/h`로 고정했다.
+- control handoff 전 drift가 `0.75 m`를 넘으면 같은 scene을 다시 load한다.
+- rolling capture도 motion arm, 최소 Ego speed, stable-speed gate를 적용한다.
+- Ego 가속 중 NPC가 먼저 전진하는 거리를 역산해 spawn 위치를 보정한다.
+- post-merge 기준 속도는 `70/85/100 km/h`로 축소했다.
+- `/home/luv/morai_cap/260920_b4_r9_smoke`와
+  `/home/luv/morai_cap/260920_b4_r10_100k_smoke`에서 merge 및 70/100 km/h cruise
+  `3/3 scene`, `48/48 frame`, failure 0으로 통과했다.
+- 상세 수치와 deskew 결과:
+  [`260920_base4_deskew_and_control_safety_evidence.md`](260920_base4_deskew_and_control_safety_evidence.md).
 
 ## 7. 다음 구현 gate
 
-1. Base4 고주로 본 campaign을 gated recorder로 수집한다.
-2. scene 단위 train/val split만 사용하고 작은 pilot에는 dataset test split을 만들지 않는다.
-3. LiDAR timestamp 기준 Ego/Object pose interpolation은 유지한다.
-4. 연속 frame의 실제 `dt`, track identity, current-frame target과 causal sweep index를 만든다.
-5. teleport/load 구간은 marker 밖이므로 sequence에 포함하지 않는다.
-6. raw bag과 runtime metadata는 보존하고 거리/visibility 정책은 파생 info에서 선택한다.
-7. temporal info validator와 Docker dataloader smoke를 통과한 뒤 본 수집으로 간다.
+1. 새 seed의 20--30 scene limited pilot에서 70/85/100 km/h와 세 lane을 먼저 감사한다.
+2. failure, collision, pre-control drift, steering saturation이 모두 기준 안이면 본
+   campaign을 새 tag로 생성한다. 중단된 `p12v3`는 재사용하지 않는다.
+3. scene 단위 train/val split만 사용하고 작은 pilot에는 dataset test split을 만들지 않는다.
+4. LiDAR timestamp 기준 Ego/Object pose interpolation은 유지한다.
+5. 연속 frame의 실제 `dt`, track identity, current-frame target과 causal sweep index를 만든다.
+6. teleport/load 구간은 marker 밖이므로 sequence에 포함하지 않는다.
+7. raw bag과 runtime metadata는 보존하고 거리/visibility 정책은 파생 info에서 선택한다.
+8. temporal info validator와 Docker dataloader smoke를 통과한 뒤 본 수집으로 간다.
