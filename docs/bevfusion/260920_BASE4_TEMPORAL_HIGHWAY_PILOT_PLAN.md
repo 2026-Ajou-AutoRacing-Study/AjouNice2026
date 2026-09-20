@@ -9,6 +9,30 @@ Production E25의 공간 인식 능력을 초기값으로 사용하고, 새 고�
 Vehicle `vx, vy`를 학습한다. 기존 고주로 두 rosbag은 반복 사용된 **development
 evaluation**으로만 쓰고, 최종 성능 주장은 새 held-out 고주로 rosbag으로 확인한다.
 
+## P0 선행 gate: MORAI LiDAR scan 생성 방식 판별
+
+Base4 temporal 입력을 최종 확정하기 전에 scan 내부 motion distortion의 존재 여부를
+반드시 실험으로 판별한다. 이 항목은 선택적인 성능 개선이 아니라 잘못된 deskew로 전체
+데이터를 훼손하지 않기 위한 **최우선 선행 gate**다.
+
+고속 직진과 회전 중 정적 기둥·벽을 같은 구간에서 다음 세 입력으로 비교한다.
+
+1. raw cloud.
+2. point `time` 기반 Ego-motion deskew cloud.
+3. 모든 point time을 `0`으로 가정한 cloud.
+
+정적 구조물의 두께, 직선성, 이중상·끌림, frame 간 center/edge 분산을 정량화한다. raw가
+가장 곧고 deskew 후 휘면 MORAI snapshot/synthetic-time 가능성이 높으므로 scan deskew를
+계속 끈다. deskew 후 구조물이 유의하게 선명하고 안정되면 point-time 계약과 Ego
+velocity/yaw-rate frame을 재검증한 뒤에만 켠다. 판정 전 기본값은 다음과 같다.
+
+- 과거 **sweep 간** Ego-motion compensation: `on`.
+- 한 scan **내부** per-point deskew: `off`.
+- 학습용 raw point와 point `time`: 손실 없이 보존.
+
+이 gate 결과와 재현 명령, bag, 수치는 본 문서 또는 별도 EVIDENCE 문서에 남긴다. 결과
+없이 LiDAR message rate의 역수를 scan acquisition duration으로 간주하지 않는다.
+
 ## 왜 지금 이 실험인가
 
 - Production E25 + EKF position-only tracking의 고주로 2D AVE는 약 `0.96 m/s`, 전체
@@ -411,16 +435,18 @@ production fusion을 켜지 않는다.
 
 ## 실행 순서
 
-1. 현재 Base3-Online raw bag/index가 true consecutive temporal sample을 보존하는지
+1. P0 LiDAR raw/deskew/zero-time 고속 정적 구조물 A/B로 scan 내부 deskew 계약을
+   확정한다. 단, 결과와 무관하게 원본 point/time은 보존한다.
+2. 현재 Base3-Online raw bag/index가 true consecutive temporal sample을 보존하는지
    감사하고, single-frame velocity-head smoke에 재사용 가능한 범위를 확정한다.
-2. 새 B4T-HWY-P0 연속 수집기의 marker/timestamp/velocity schema를 2-scene pilot로
+3. 새 B4T-HWY-P0 연속 수집기의 marker/timestamp/velocity schema를 2-scene pilot로
    검증한다.
-3. 20--30 sequence pilot을 수집해 track continuity, velocity target, camera age,
+4. 20--30 sequence pilot을 수집해 track continuity, velocity target, camera age,
    point count를 검사한다.
-4. B4H-V1 single-frame 9D smoke와 짧은 학습을 먼저 수행한다.
-5. B4H-T1 causal 3-sweep을 같은 split과 loss 계약으로 학습한다.
-6. 기존 고주로 두 dev bag에서 OD -> tracker off/on -> Map-CV를 순서대로 평가한다.
-7. 명확한 후보만 새 held-out bag에서 한 번 평가한다.
+5. B4H-V1 single-frame 9D smoke와 짧은 학습을 먼저 수행한다.
+6. B4H-T1 causal 3-sweep을 같은 split과 loss 계약으로 학습한다.
+7. 기존 고주로 두 dev bag에서 OD -> tracker off/on -> Map-CV를 순서대로 평가한다.
+8. 명확한 후보만 새 held-out bag에서 한 번 평가한다.
 
 ## 명시적 비목표
 

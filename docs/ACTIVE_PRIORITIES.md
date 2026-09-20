@@ -45,6 +45,10 @@
 
 - 목적은 100 km/h 고주로 추월에 필요한 Vehicle velocity와 1/2/3초 미래경로를
   개선하는 것이다.
+- **최우선 선행 gate:** 고속 직진·회전 중 정적 기둥/벽을 대상으로 raw cloud,
+  point-time Ego deskew cloud, 모든 point time을 0으로 본 cloud를 비교해 MORAI scan
+  내부 distortion 존재 여부를 판별한다. 판정 전에는 sweep 간 Ego 정합은 켜되 scan 내부
+  deskew는 끈다. `12 Hz`의 역수를 물리적 scan duration으로 단정하지 않는다.
 - Position-only tracker의 고주로 2D AVE는 약 `0.96 m/s`다. GT velocity oracle은
   `0.259 m/s`, stable 3초 FDE `0.594 m`를 보여 실제 velocity observation의 가치가
   충분하다.
