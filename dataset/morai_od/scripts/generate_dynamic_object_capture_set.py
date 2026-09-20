@@ -6039,6 +6039,9 @@ def main():
             is_singleframe_static = str(config["dataset_id"]).startswith(
                 "morai_static_classcentric_base3_10k"
             )
+            exact_point_time_available = str(
+                config["capture"].get("format", "")
+            ).startswith("morai_online_rosbag")
             metadata = {
                 "schema_version": 1,
                 "dataset_id": config["dataset_id"],
@@ -6182,7 +6185,7 @@ def main():
                             "temporal_training": False,
                             "pointpainting_sweep_count": 1,
                             "pointpainting_target_lags_sec": [0.0],
-                            "exact_point_time_available": False,
+                            "exact_point_time_available": exact_point_time_available,
                         }
                         if is_singleframe_static
                         else {
@@ -6197,7 +6200,7 @@ def main():
                                 * float(config["capture"]["capture_period_sec"])
                                 for index in range(3)
                             ],
-                            "exact_point_time_available": False,
+                            "exact_point_time_available": exact_point_time_available,
                         }
                     ),
                     "split": metadata["split"],

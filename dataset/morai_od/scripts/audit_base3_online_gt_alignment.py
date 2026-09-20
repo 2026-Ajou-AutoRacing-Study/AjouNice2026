@@ -125,19 +125,21 @@ def interpolate_vector(target, first, second, alpha):
         )
 
 
-def extrapolate_pose_with_body_velocity(message, delta_sec):
+def extrapolate_pose_with_body_velocity(message, delta_sec, velocity_scale=1.0):
     """Move a MORAI pose using its body-frame velocity for a short interval."""
     result = copy.deepcopy(message)
     heading = math.radians(float(message.heading))
-    forward = float(message.velocity.x)
-    lateral = float(message.velocity.y)
+    forward = float(message.velocity.x) * float(velocity_scale)
+    lateral = float(message.velocity.y) * float(velocity_scale)
     result.position.x += delta_sec * (
         math.cos(heading) * forward - math.sin(heading) * lateral
     )
     result.position.y += delta_sec * (
         math.sin(heading) * forward + math.cos(heading) * lateral
     )
-    result.position.z += delta_sec * float(message.velocity.z)
+    result.position.z += delta_sec * float(message.velocity.z) * float(
+        velocity_scale
+    )
     return result
 
 
@@ -241,7 +243,11 @@ def align_object_state(
         for field, _class_name in actor_lists(result):
             values = []
             for actor in getattr(result, field):
-                aligned = extrapolate_pose_with_body_velocity(actor, delta)
+                # MORAI ObjectStatus velocity is km/h, whereas EgoVehicleStatus
+                # velocity is m/s. Keep extrapolation in physical SI units.
+                aligned = extrapolate_pose_with_body_velocity(
+                    actor, delta, velocity_scale=1.0 / 3.6
+                )
                 motions.append(math.hypot(
                     float(aligned.position.x) - float(actor.position.x),
                     float(aligned.position.y) - float(actor.position.y),
