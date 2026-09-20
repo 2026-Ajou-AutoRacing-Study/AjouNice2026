@@ -142,3 +142,74 @@ memory에서 검증한다.
 ```text
 artifacts/evaluation/bevfusion/deskew_e25_ab_260920/
 ```
+
+## 팀 전달·학습·추론 계약
+
+현재 이미 공유한 Base3-Static, Base3-Online package와 아직 원본 형태인 Base4 bag에는
+deskew가 자동 적용되지 않는다. converter 기본값도 `--lidar-deskew off`다. 현재 생성된
+deskew dataset은 3-frame smoke뿐이며 팀 학습용 전체 package는 아직 만들지 않았다.
+
+팀 전달 시에는 파일명과 PKL metainfo에 입력 계약을 명시한 별도 package로 만든다.
+
+```text
+base4_<campaign>_raw/
+base4_<campaign>_ego_deskew_scan_end/
+```
+
+`ego_deskew_scan_end` package는 변환 때 보정된 `lidar.bin`을 이미 저장하므로 팀원은
+별도 deskew 코드 없이 평소처럼 학습하면 된다. 그러나 그 checkpoint의 online 추론은
+반드시 같은 scan-end Ego deskew를 사용해야 한다. 기존 bridge를 그대로 기본 인자로
+실행하면 `off`이므로 계약이 맞지 않는다.
+
+```bash
+roslaunch bevfusion_ros base3_online.launch \
+  lidar_deskew_mode:=ego_pose_2d \
+  lidar_deskew_reference:=end \
+  lidar_deskew_pose_topic:=/localization/kinematic_state \
+  lidar_deskew_pose_type:=odometry
+```
+
+반대로 raw dataset checkpoint는 `lidar_deskew_mode:=off`로 추론한다. Base4 A/B가 끝나기
+전에는 raw/deskew 중 하나를 이름 없는 공통 package로 배포하거나 production 기본값을
+변경하지 않는다.
+
+## 과거에는 왜 exact deskew가 불가능했나
+
+Base2/Base3의 SaveSensorData `*_Intensity.bin`은 point당 `x,y,z,intensity` 네 값만
+저장했다. scan 내부 point acquisition time과 scan 구간 Ego pose trajectory가 없어
+다음 둘은 구분해야 했다.
+
+- 과거 sweep 전체를 현재 frame으로 옮기는 sweep-to-sweep Ego 보정: frame별 Ego pose가
+  있어 가능했다.
+- 한 sweep 내부의 point별 Ego deskew: exact point time이 없어 불가능했다.
+
+당시 실험은 `1,200 azimuth x 16 channel`, 고정 LiDAR period, Ego physical velocity와
+simulator/wall-time 비율을 이용해 point time을 **근사 역산**했다. 좌표 변환 자체는
+구현했지만 exact timing 계약이 아니었고, raw로 학습된 PointPainting에 추론 때만 적용해
+성능도 악화됐으므로 production에서 껐다.
+
+현재 MR/MRP hybrid rosbag의 PointCloud2에는 point별 `time`과 `ring`이 있으며,
+`/Ego_topic` pose가 약 40--50 Hz로 함께 기록된다. 따라서 방위각 역산 없이 point time에
+Ego pose를 직접 보간할 수 있다. 또한 정방향/reverse/zero-time 정적 구조물 A/B로 MORAI
+time field가 단순 장식이 아니라는 것까지 확인했다.
+
+## Deskew에서 틀릴 수 있는 값
+
+임의의 보정 gain `10`을 넣고 실제 정답이 `11`인 형태는 아니다. 각 point 좌표는 다음
+측정값에서 결정되는 강체변환으로 계산한다.
+
+1. point `time`의 단위·부호와 LiDAR header가 가리키는 시각.
+2. 같은 clock에 놓인 Ego pose timestamp와 보간 결과.
+3. LiDAR-to-Ego extrinsic translation/yaw.
+4. start/mid/end 중 선택한 공통 reference time.
+5. pose coverage와 허용 extrapolation.
+
+따라서 튜닝 gain보다 timestamp bias, clock 불일치, extrinsic 오차, 잘못된 time 방향이
+실제 위험이다. `0.15 s`는 보정량을 키우는 계수가 아니라 비정상 scan을 버리는 validity
+gate다. 현재 구현은 K-City 평면 주행에 맞춘 SE(2) pose 보정이라 roll/pitch가 큰 노면은
+별도의 3D deskew 대상이다.
+
+학습 변환은 `/Ego_topic` GT pose, 대회 추론은
+`/localization/kinematic_state`를 사용한다. 수식은 같지만 localization delay/jitter가
+크면 deskew도 흔들리므로 최종 승격 전 production localization 입력으로 end-to-end
+검증해야 한다.

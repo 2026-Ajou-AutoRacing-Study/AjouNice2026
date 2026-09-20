@@ -200,6 +200,11 @@ E25 production과 기존 Base3 재현은 계속 `--lidar-deskew off`가 기준�
 무재학습 A/B는
 [`260920_base4_deskew_and_control_safety_evidence.md`](260920_base4_deskew_and_control_safety_evidence.md)에 있다.
 
+팀 전달 package도 raw와 `ego_deskew_scan_end`를 별도 이름으로 만든다. Deskew package는
+이미 보정된 `lidar.bin`을 포함하므로 dataloader는 그대로 읽지만, 해당 checkpoint의
+online bridge에는 동일한 `ego_pose_2d/end` 입력 계약이 필수다. 현재 전체 Base4 deskew
+package는 아직 생성하지 않았으며, 기존 공유 데이터가 자동으로 deskew된 것도 아니다.
+
 검증되지 않은 visible asset을 GT에서만 제거하면 false-negative supervision이 된다.
 그 asset의 scene 전체를 제외해야 할 때만 다음을 명시한다.
 

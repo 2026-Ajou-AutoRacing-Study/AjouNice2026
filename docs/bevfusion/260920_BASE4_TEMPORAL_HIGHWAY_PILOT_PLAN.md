@@ -147,14 +147,16 @@ campaign에서 제어권 인수 전 차선 이탈이 발견되어 그 결과만�
 
 ### 센서 시간 정합과 deskew 계약
 
-모든 입력과 label의 canonical timestamp는 현재 LiDAR header 시각 `t0`다. 여기서 서로
-다른 세 가지 보정을 혼동하지 않는다.
+Raw baseline의 canonical timestamp는 LiDAR header 시각 `t0`다. Deskew A/B의
+canonical timestamp는 `t_ref = t0 + max(point time)`, 즉 scan end다. 해당 조건에서는
+LiDAR point, camera 선택, Ego/Object GT와 detector output stamp를 모두 `t_ref`에 맞춘다.
+서로 다른 세 가지 보정을 혼동하지 않는다.
 
 | 구분 | 의미 | Base4 첫 계약 |
 |---|---|---|
-| scan 내부 deskew | 한 PointCloud2 안에서 point별 취득시각 차이 보정 | 기본 `off`, 별도 A/B |
-| camera--LiDAR 정합 | nearest camera 시각과 `t0` 사이의 Ego pose 차이 보정 | nearest+fixed extrinsic 기준선, 동적 transform A/B |
-| sweep 간 정합 | 과거 LiDAR frame을 현재 `t0` Ego frame으로 이동 | `on` |
+| scan 내부 deskew | 한 PointCloud2 안에서 point별 취득시각 차이 보정 | 기본 `off`; A/B는 scan end |
+| camera--LiDAR 정합 | nearest camera 시각과 canonical time 사이의 정합 | raw=`t0`, deskew=`t_ref`; fixed extrinsic |
+| sweep 간 정합 | 과거 LiDAR frame을 현재 canonical Ego frame으로 이동 | `on` |
 
 현재 production bridge는 LiDAR callback마다 camera buffer에서 가장 가까운 frame을 고르고
 고정 extrinsic을 사용한다. 허용차 기본값은 `0.10 s`이며 Ego pose를 이용한 camera 시각
@@ -178,6 +180,11 @@ A/B와 velocity/timestamp frame 계약이 충분히 검증되지 않았기 때�
 
 deskew 전후 정적 구조물의 두께·직선성·frame 간 안정성을 비교하며, 단순 RViz 인상만으로
 결정하지 않는다. 이 A/B가 끝나기 전 B4H-V1/T1의 기본 입력은 raw cloud다.
+
+기존 Base2/Base3 SaveSensorData XYZI에는 exact point time이 없었다. 당시 azimuth, 고정
+scan period와 Ego velocity로 시간을 근사했던 것은 현재 rosbag의 실제 PointCloud2
+`time` 기반 방식과 다른 계약이다. 현재 shared Base3 package도 자동으로 deskew되지
+않으며, 향후 팀 전달은 raw와 `ego_deskew_scan_end` package를 명시적으로 분리한다.
 
 Camera 시간 보정도 독립된 실험 축이다. nearest frame에서 Ego가 이동한 거리는 그대로
 3D center 오차와 같지 않고, 실제 효과는 camera age, 회전, 물체 거리·방향, localization
