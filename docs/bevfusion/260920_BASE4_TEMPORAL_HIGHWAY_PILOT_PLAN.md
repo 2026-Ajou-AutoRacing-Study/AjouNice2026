@@ -85,8 +85,8 @@ pilot은 합류 이후의 실제 추월·상대속도 분포에 집중한다.
 | 구간 | 목표 비율 | Ego 속도 | NPC 상태 |
 |---|---:|---|---|
 | ramp 초기 접근 | 0% | - | live pilot에서 제어권 전환 전 actor 이탈로 제외 |
-| 실제 merge/conflict | 25% | 50/54/58 km/h | 59 km/h 미만, 40/50/60 NPC 순항 |
-| post-merge 순항·추월 | 75% | 70/85/100 km/h | 시작속도=목표속도인 40/50/60 NPC 순항 |
+| 실제 merge/conflict | 25% | 50/54/58 km/h | pilot은 40/50/60 anchor, production은 더 넓은 연속 범위 |
+| post-merge 순항·추월 | 75% | 70/85/100 km/h | pilot은 40/50/60 anchor, production은 더 넓은 연속 범위 |
 
 합치면 실제 합류 25%, 합류 이후 75%다. `115/120 km/h`는 제어 안전성 기준선에서
 제외하고, 100 km/h campaign이 안정된 뒤 별도 stress addon에서만 재검토한다.
@@ -95,6 +95,15 @@ pilot은 합류 이후의 실제 추월·상대속도 분포에 집중한다.
 인접 차선에서 만든다. 첫 pilot에는 실제 lane-change controller를 넣지 않으며, 이후
 lateral-motion addon으로 분리한다. 큰 상대속도는 인접 차선에만 배정하고
 restricted solid-separated lane은 계속 제외한다.
+
+2026-09-21 MORAI 공식 답변에서 본선 고주로·로터리 NPC 속도가 샘플과 동일하지 않다고
+확인됐다. 따라서 위 `40/50/60 km/h`는 현재 temporal pipeline A/B를 통제하기 위한
+anchor일 뿐 최종 본선 prior가 아니다. 다음 production manifest는 안전하게 관측 가능한
+범위 안에서 NPC 속도를 연속 구간으로 jitter하고, closing/opening/parallel 상대속도 bin이
+고르게 채워지도록 구성한다. 또한 본선 고주로 RandomMode 사용 시 `MiddleSize`만 쓸
+예정이므로 main vehicle quota는 MiddleSize 중심으로 바꾸고 다른 차종은 robustness
+coverage로만 제한한다. 로터리는 고정 차종이지만 비공개이므로 K5 단일 overfit은 하지
+않는다.
 
 초기 live pilot 자체는 merge conflict `2/2`, post-merge `9/9`를 완료했지만 이후 본
 campaign에서 제어권 인수 전 차선 이탈이 발견되어 그 결과만을 production gate로 쓰지
@@ -413,6 +422,41 @@ history의 fine-grained stereo를 결합한다. 긴 history와 2-stage training/
   부족하면 Q1을 수행한다.
 - T1과 T2 모두 V1보다 유의미하지 않으면 temporal architecture보다 velocity label,
   motion-family coverage와 loss/covariance 계약을 먼저 재감사한다.
+
+### 팀원 독립 3-sweep 구현 통합 판정 (2026-09-21)
+
+`perception/base4-temporal-3sweep`의 `46d4e175`는 현재 브랜치와 독립적으로
+offline 3-sweep builder, dataset/config, validator와 quality audit를 구현했다. 다만
+공통 조상 이후 현재 Base4 브랜치가 65개 커밋 앞서 있고, 독립 구현은 다음 현재 계약과
+호환되지 않는다.
+
+- 과거 point time을 음수 lag로 저장하지만 현재 runtime은 양수 age를 사용한다.
+- 세 sweep을 Nx5 파일로 미리 합치지만 현재 pipeline은 raw XYZI와 causal reference를
+  보존하여 loader/runtime가 동일 변환을 재현한다.
+- `ObjectStatus.velocity`를 km/h에서 m/s로 바꾸지 않는 경로가 있어 velocity target이
+  3.6배가 될 수 있다.
+- geometric-BBox-center 회전 속도 보정, scan 내부 deskew 옵션, online sweep buffer,
+  ROS velocity 발행과 rosbag downstream 평가는 없다.
+
+따라서 두 dataset/config/runtime를 병렬 유지하거나 전체 commit을 merge하지 않는다.
+팀원은 현재 Base4 브랜치를 기준으로 합류한다. 독립 구현에서 가치가 확인된 scene-level
+split leakage, sweep SE(3), timestamp gap, 동기 age, BBox-center trajectory/velocity
+일관성 검사는 현재 schema용
+`tools/audit_base4_temporal_quality.py`로 선별 이식한다. 원격 팀원 브랜치는 구현 근거로
+보존한다.
+
+Quality audit의 현재 고정 계약은 다음과 같다.
+
+- separate raw XYZI sweep reference
+- past `time_lag_sec > 0`
+- velocity unit `m/s`
+- velocity reference `geometric_bbox_center`
+- scene 단위 split isolation
+
+```bash
+python3 perception/detection3d/bevfusion/tools/audit_base4_temporal_quality.py \
+  --info-dir artifacts/datasets/morai_base4_temporal_highway_hwy3h1_raw
+```
 
 ## Tracker A/B
 

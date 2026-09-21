@@ -31,6 +31,7 @@ def main():
                 f'{path} is outside {args.serialized_capture_root}') from exc
         return args.capture_root.expanduser().resolve() / relative
     seen, class_counts, split_counts = set(), Counter(), {}
+    scene_splits = {}
     for split in ('train', 'val', 'test'):
         path = args.info_dir / f'morai_base3_infos_{split}.pkl'
         payload = pickle.loads(path.read_bytes())
@@ -45,6 +46,10 @@ def main():
             sample = row['sample_idx']
             assert sample not in seen, f'duplicate sample: {sample}'
             seen.add(sample)
+            scene = str(row['scene_id'])
+            previous_split = scene_splits.setdefault(scene, split)
+            assert previous_split == split, (
+                f'scene leakage: {scene} is in {previous_split} and {split}')
             lidar = host_path(row['lidar_points']['lidar_path'])
             assert lidar.is_file() and lidar.stat().st_size % 16 == 0, lidar
             sweeps = row.get('lidar_sweeps', [])
@@ -60,6 +65,12 @@ def main():
                 transform = np.asarray(
                     sweep['lidar_points']['sweep2lidar'], dtype=np.float64)
                 assert transform.shape == (4, 4) and np.isfinite(transform).all()
+                rotation = transform[:3, :3]
+                assert np.allclose(
+                    rotation.T @ rotation, np.eye(3), atol=1.0e-5)
+                assert np.isclose(np.linalg.det(rotation), 1.0, atol=1.0e-5)
+                assert np.allclose(
+                    transform[3], [0.0, 0.0, 0.0, 1.0], atol=1.0e-8)
                 assert float(sweep['timestamp']) < float(row['timestamp'])
                 assert np.isclose(
                     float(row['timestamp']) - float(sweep['timestamp']),
@@ -89,6 +100,7 @@ def main():
     report = {
         'valid': True,
         'frames': len(seen),
+        'scenes': len(scene_splits),
         'splits': split_counts,
         'kept_gt': dict(class_counts),
     }

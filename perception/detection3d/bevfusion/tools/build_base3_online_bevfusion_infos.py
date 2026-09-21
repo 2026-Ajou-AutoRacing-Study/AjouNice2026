@@ -442,7 +442,12 @@ def main():
             ego_age = abs(ego_row[0] - target_stamp)
             object_age = abs(object_row[0] - target_stamp)
             if max(ego_age, object_age) > args.max_state_age_sec:
-                raise ValueError("state age limit exceeded at {}".format(target_stamp))
+                state_rejected["age_limit"] += 1
+                if args.state_invalid_policy == "error":
+                    raise ValueError(
+                        "state age limit exceeded at {}".format(target_stamp)
+                    )
+                continue
             try:
                 ego_state, ego_alignment = align_ego_state(
                     target_stamp, aligned[EGO_TOPIC], args.state_alignment,
@@ -721,6 +726,8 @@ def main():
         "minimum_gt_points": args.minimum_gt_points,
         "coordinate_frame": "lidar",
         "state_alignment": args.state_alignment,
+        "max_state_age_sec": args.max_state_age_sec,
+        "max_camera_age_sec": args.max_camera_age_sec,
         "max_extrapolation_sec": args.max_extrapolation_sec,
         "distance_filter": args.distance_filter,
         "distance_threshold_m": args.distance_threshold_m,
@@ -733,6 +740,7 @@ def main():
         "state_invalid_policy": args.state_invalid_policy,
         "window_start_event": args.window_start_event,
         "with_velocity_targets": args.with_velocity_targets,
+        "velocity_unit": "m/s",
         "velocity_reference": "geometric_bbox_center",
         "max_yaw_rate_support_sec": args.max_yaw_rate_support_sec,
         "max_abs_yaw_rate_radps": args.max_abs_yaw_rate_radps,

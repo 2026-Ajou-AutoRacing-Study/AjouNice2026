@@ -188,6 +188,24 @@ python3 perception/detection3d/bevfusion/tools/build_base3_online_bevfusion_info
   --distance-filter box-range
 ```
 
+3-sweep/velocity dataset을 만든 뒤에는 구조 validator와 별도로 temporal quality audit를
+실행한다. 이 검사는 scene split leakage, 양수 sweep age, SE(3), Ego/Object/camera 동기
+age, m/s 속도 범위와 BBox-center 궤적의 finite-difference velocity 일관성을 확인한다.
+
+```bash
+python3 perception/detection3d/bevfusion/tools/validate_base3_bevfusion_infos.py \
+  --info-dir artifacts/datasets/<dataset> \
+  --capture-root artifacts/datasets/<dataset> \
+  --serialized-capture-root /datasets/<portable-name>
+
+python3 perception/detection3d/bevfusion/tools/audit_base4_temporal_quality.py \
+  --info-dir artifacts/datasets/<dataset>
+```
+
+`temporal_quality_audit.json`이 `valid: true`가 아니면 학습하지 않는다. 특히
+`ObjectStatus.velocity`의 km/h 값을 m/s로 오인하는 3.6배 label 오류는 speed ceiling과
+BBox-center trajectory 일관성 검사가 함께 차단한다.
+
 검증된 scan-end Ego deskew derived dataset을 만들 때만 다음을 추가한다. 원본 bag은
 보존되며, 보정은 dataloader가 아니라 이 변환 단계에서 한 번 수행된다.
 
@@ -259,7 +277,7 @@ asset을 옵션 없이 만나면 변환기는 계속 fail-fast한다.
 - raw bags: `rosbags/datasets/base4_temporal/highway_live12/`
 - 성공: 실제 merge conflict `2/2`, post-merge cruise/overtake `9/9`.
 - 검증 Ego command: `50`, `70`, `85`, `100`, `115`, `120 km/h`.
-- NPC 시작/목표속도는 sample spawn 계약의 `40/50/60` 세 값만 사용했다.
+- NPC 시작/목표속도는 pipeline 통제용 anchor인 `40/50/60` 세 값만 사용했다.
 - 유효 window: `1.91--2.76 s`, LiDAR `23--35 frame`, 약 `11.59--12.75 Hz`.
 - 11 scene을 16 frame씩 변환해 train `144`, val `32`, test `0`을 생성했다.
 - ramp 초기 접근 1 scene은 actor가 제어권 전환 전에 interaction 구간을 벗어나 반복
@@ -278,7 +296,7 @@ asset을 옵션 없이 만나면 변환기는 계속 fail-fast한다.
 - split: train `960 scene`, val `240 scene`, dataset test 없음.
 - 구성: 실제 merge conflict `300 scene`, post-merge cruise/overtake `900 scene`.
 - merge Ego는 `50/54/58 km/h`만 사용하며 모든 값이 59 km/h 미만이다.
-- post-merge Ego는 `70/85/100/115/120 km/h`, NPC는 sample 계약의
+- post-merge Ego는 `70/85/100/115/120 km/h`, NPC는 pilot anchor인
   `40/50/60 km/h`이고 모든 NPC가 시작속도=목표속도다.
 - post-merge 유효 Ego lane은 세 개를 `20/40/40%`로 구성했다. 차로와 interaction
   role의 주기 상관으로 한 차로가 사라지던 문제는 schedule offset으로 제거했다.
@@ -367,3 +385,13 @@ sweep lag는 p50 `0.129 s`, p95 `0.181 s`, max `0.246 s`이며 `0.25 s` 초과�
    필요하다.
 6. 다음 수집 분포는 V1/T1의 실패 slice를 보고 수정한다. 중단된 `p12v3`를 이어 쓰거나
    곧바로 대규모 campaign을 시작하지 않는다.
+7. MORAI 공식 답변상 본선 고주로·로터리 NPC 속도는 샘플과 동일하지 않다. 따라서 현재
+   `40/50/60 km/h` dataset은 temporal mechanism 검증에는 계속 사용하지만 production
+   prior로 확대하지 않는다. 다음 campaign은 연속 속도 jitter와 상대속도 bin coverage를
+   사용한다.
+8. 본선 고주로 RandomMode 사용 시 `MiddleSize`만 사용할 예정이고 사용 여부 자체는
+   아직 미정이다. 다음 main quota는 MiddleSize 중심으로 좁히되 비공개 로터리 차종과
+   결정 변경에 대비한 작은 multi-model coverage를 유지한다.
+9. 학습·평가 GT는 MORAI 권고에 따라 sensor-capture geometric BBox 기준으로 통일한다.
+   현재 Base4 converter의 asset별 center/size catalog 보정과 회전 center velocity를
+   유지하며, raw `/Object_topic` box 기반 평가는 production 지표로 사용하지 않는다.
