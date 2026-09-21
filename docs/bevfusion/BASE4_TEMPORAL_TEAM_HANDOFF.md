@@ -18,6 +18,10 @@
 - 팀원의 `perception/base4-temporal-3sweep` 브랜치는 전체 merge하지 않는다. 해당 구현에서
   유효했던 scene leakage, sweep transform, velocity consistency 검사는 현재 audit 도구에
   선별 이식됐다.
+- `2026-09-22` 고속 연속속도 파일럿은 `48/48 scene` 수집과 raw/scan-end Ego-deskew
+  dataset 검증까지 완료했다. 아직 팀 공용 package나 production checkpoint는 아니며,
+  다음 실험은 동일 조건 V1/T1 A/B다. 상세 결과는
+  [`../../dataset/morai_od/docs/260922_base4_highspeed_jitter_pilot_results.md`](../../dataset/morai_od/docs/260922_base4_highspeed_jitter_pilot_results.md)를 따른다.
 
 정량 결과와 판정은
 [`260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md`](260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md)를

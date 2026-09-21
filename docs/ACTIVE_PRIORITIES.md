@@ -45,17 +45,18 @@
 
 - 목적은 100 km/h 고주로 추월에 필요한 Vehicle velocity와 1/2/3초 미래경로를
   개선하는 것이다.
-- **최우선 선행 gate:** 고속 직진·회전 중 정적 기둥/벽을 대상으로 raw cloud,
-  point-time Ego deskew cloud, 모든 point time을 0으로 본 cloud를 비교해 MORAI scan
-  내부 distortion 존재 여부를 판별한다. 판정 전에는 sweep 간 Ego 정합은 켜되 scan 내부
-  deskew는 끈다. `12 Hz`의 역수를 물리적 scan duration으로 단정하지 않는다.
+- Point-time Ego deskew의 geometry/latency P0는 완료했다. 48-scene 고속 연속속도
+  파일럿도 raw와 scan-end deskew 두 파생 dataset으로 변환·검증했다. Deskew는 merge
+  clip을 개선했지만 cruise 한 clip을 악화한 근거가 있으므로, 동일 학습 조건 A/B 전에는
+  production 기본값을 `off`로 유지한다.
 - Position-only tracker의 고주로 2D AVE는 약 `0.96 m/s`다. GT velocity oracle은
   `0.259 m/s`, stable 3초 FDE `0.594 m`를 보여 실제 velocity observation의 가치가
   충분하다.
-- 전체 Base4를 바로 만들지 않고 `B4T-HWY-P0` 통제 실험부터 수행한다.
+- `B4T-HWY-P0` 48-scene 수집은 완료됐다. 다음 통제 실험은 아래 네 조합이다.
   1. E25-7D production 기준선.
-  2. B4H-V1 single-frame 9D `vx,vy` head.
-  3. B4H-T1 causal 3-sweep 9D `vx,vy` head.
+  2. raw B4H-V1 single-frame 9D `vx,vy` head.
+  3. raw B4H-T1 causal 3-sweep 9D `vx,vy` head.
+  4. scan-end Ego-deskew V1/T1 입력 계약 A/B.
 - 새 데이터는 실제 LiDAR cadence의 연속 sequence로 수집한다. LiDAR timestamp에
   Ego/Object pose를 보간하고 학습 GT는
   `velocity_target_ego_mps=[vx,vy]` 하나만 노출한다.
@@ -72,6 +73,8 @@
 
 상세 실행 계획:
 [`bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md).
+최신 수집 결과:
+[`../dataset/morai_od/docs/260922_base4_highspeed_jitter_pilot_results.md`](../dataset/morai_od/docs/260922_base4_highspeed_jitter_pilot_results.md).
 
 ## P2. Localization과 velocity pilot 이후 Prediction 개선
 

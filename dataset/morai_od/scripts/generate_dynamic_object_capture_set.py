@@ -2374,7 +2374,10 @@ def build_highway_cruise_scene(
         # these overtaking clips to the middle lane instead.
         overtaking_lanes = sorted(source_ids)[1:]
         ego_lane_id = overtaking_lanes[variant_index % len(overtaking_lanes)]
-    if role_name == "side_parallel":
+    if role_name in {"side_parallel", "side_passby"} or (
+        role_name in {"rear_approach", "rear_receding"}
+        and role.get("adjacent_lane", False)
+    ):
         adjacent = [lane for lane in source_ids if abs(lane - ego_lane_id) == 2]
         npc_spawn_id = adjacent[variant_index % len(adjacent)]
     elif role_name == "front_overtake":
@@ -2438,12 +2441,14 @@ def build_highway_cruise_scene(
         else:
             ego_speed = max(10.0, target - 7.0)
         relative_lane_intent = "rear_approach"
-    elif role_name == "side_parallel":
+    elif role_name in {"side_parallel", "side_passby"}:
         if lane_speed_range is not None:
             ego_speed = rng.uniform(*lane_speed_range)
         else:
             ego_speed = target
-        if family.get("preserve_template_npc_target_speed", False):
+        if speed_schedule:
+            target = requested_target
+        elif family.get("preserve_template_npc_target_speed", False):
             target = base_target
         else:
             target = max(
@@ -2452,7 +2457,7 @@ def build_highway_cruise_scene(
                 + rng.uniform(*role.get("npc_speed_delta_kph", [-5.0, 5.0])),
             )
         set_spawn_target_speed(spawn, target, match_spawn_velocity=True)
-        relative_lane_intent = "side_parallel"
+        relative_lane_intent = role_name
     elif same_lane:
         if lane_speed_range is not None:
             target = max(
@@ -2519,23 +2524,54 @@ def build_highway_cruise_scene(
         expected_accel = max(
             0.5, float(family.get("expected_ego_acceleration_mps2", 1.8))
         )
+        initial_speed_mps = max(0.0, initial_speed / 3.6)
         minimum_capture_speed_mps = (
             ego_speed * float(family["minimum_ego_speed_ratio"]) / 3.6
         )
-        acceleration_time_sec = minimum_capture_speed_mps / expected_accel
-        acceleration_distance_m = (
-            0.5 * expected_accel * acceleration_time_sec * acceleration_time_sec
+        acceleration_time_sec = max(
+            0.0,
+            (minimum_capture_speed_mps - initial_speed_mps) / expected_accel,
         )
-        expected_gate_distance_m = max(capture_arm_m, acceleration_distance_m)
+        acceleration_distance_m = (
+            initial_speed_mps * acceleration_time_sec
+            + 0.5
+            * expected_accel
+            * acceleration_time_sec
+            * acceleration_time_sec
+        )
         stable_gate_sec = (
             float(family.get("stable_ego_window_sec", 0.5))
             if family.get("stable_ego_gate", False)
             else 0.0
         )
+        if initial_speed_mps > 0.0:
+            distance_gate_time_sec = capture_arm_m / initial_speed_mps
+        else:
+            distance_gate_time_sec = math.sqrt(
+                2.0 * capture_arm_m / expected_accel
+            )
         expected_gate_time_sec = max(
-            math.sqrt(2.0 * capture_arm_m / expected_accel),
-            acceleration_time_sec,
-        ) + stable_gate_sec
+            distance_gate_time_sec,
+            acceleration_time_sec + stable_gate_sec,
+        )
+        gate_accel_time_sec = min(
+            expected_gate_time_sec, acceleration_time_sec
+        )
+        speed_after_acceleration_mps = (
+            initial_speed_mps + expected_accel * gate_accel_time_sec
+        )
+        distance_at_gate_m = (
+            initial_speed_mps * gate_accel_time_sec
+            + 0.5
+            * expected_accel
+            * gate_accel_time_sec
+            * gate_accel_time_sec
+            + speed_after_acceleration_mps
+            * (expected_gate_time_sec - gate_accel_time_sec)
+        )
+        expected_gate_distance_m = max(
+            capture_arm_m, distance_at_gate_m, acceleration_distance_m
+        )
     else:
         expected_gate_distance_m = capture_arm_m
         expected_gate_time_sec = 0.0
@@ -2544,6 +2580,24 @@ def build_highway_cruise_scene(
     )
     offset_range = role.get("npc_longitudinal_offset_m", [15.0, 30.0])
     offset_m = rng.uniform(float(offset_range[0]), float(offset_range[1]))
+    clip_centering_shift_m = 0.0
+    if family.get("center_actor_during_clip", False):
+        effective_clip_duration_sec = float(
+            family.get(
+                "effective_clip_duration_sec",
+                family.get("desired_clip_duration_sec", 0.0),
+            )
+        )
+        relative_speed_mps = (ego_speed - target) / 3.6
+        clip_centering_shift_m = (
+            relative_speed_mps * effective_clip_duration_sec * 0.5
+        )
+        offset_m += clip_centering_shift_m
+        gate_limits = family.get("actor_gate_longitudinal_m", [-65.0, 65.0])
+        offset_m = max(
+            float(gate_limits[0]) + 1.0,
+            min(float(gate_limits[1]) - 1.0, offset_m),
+        )
     npc_pre_gate_motion_m = target / 3.6 * expected_gate_time_sec
     load_time_offset_m = offset_m - npc_pre_gate_motion_m
     npc_pose = reposition_spawn_on_link_path(
@@ -2554,7 +2608,10 @@ def build_highway_cruise_scene(
         load_time_offset_m,
     )
     scenario["spawnPointList"] = [spawn]
-    gate_range = role.get("gate_longitudinal_m", [-40.0, 40.0])
+    gate_range = family.get(
+        "actor_gate_longitudinal_m",
+        role.get("gate_longitudinal_m", [-65.0, 65.0]),
+    )
     actor_gate = {
         "class": "vehicle",
         # The exact planned relative role remains metadata.  MORAI can advance
@@ -2563,14 +2620,26 @@ def build_highway_cruise_scene(
         # exact sign/range that may no longer exist.
         "role": "any_moving_vehicle",
         "planned_role": role_name,
-        "minimum_longitudinal_m": -65.0,
-        "maximum_longitudinal_m": 65.0,
+        "minimum_longitudinal_m": float(gate_range[0]),
+        "maximum_longitudinal_m": float(gate_range[1]),
         "maximum_abs_lateral_m": float(
-            max(8.0, role.get("maximum_abs_lateral_m", 6.5))
+            family.get(
+                "actor_gate_maximum_abs_lateral_m",
+                max(8.0, role.get("maximum_abs_lateral_m", 6.5)),
+            )
         ),
-        "maximum_distance_m": 65.0,
+        "minimum_distance_m": float(
+            family.get("actor_gate_minimum_distance_m", 0.0)
+        ),
+        "maximum_distance_m": float(
+            family.get("actor_gate_maximum_distance_m", 65.0)
+        ),
         "minimum_actor_speed_mps": 0.5,
     }
+    if "actor_gate_minimum_in_gate_frames" in family:
+        actor_gate["minimum_in_gate_frames"] = int(
+            family["actor_gate_minimum_in_gate_frames"]
+        )
     runtime = [
         {
             "spawn_unique_id": npc_spawn_id,
@@ -2587,6 +2656,7 @@ def build_highway_cruise_scene(
             "relative_lane_intent": relative_lane_intent,
             "interaction_role": role_name,
             "planned_longitudinal_offset_m": offset_m,
+            "clip_centering_shift_m": clip_centering_shift_m,
             "load_time_longitudinal_offset_m": load_time_offset_m,
             "expected_capture_gate_distance_m": expected_gate_distance_m,
             "expected_capture_gate_time_sec": expected_gate_time_sec,
@@ -2615,6 +2685,10 @@ def build_highway_cruise_scene(
         ),
         "capture_actor_gate": actor_gate,
     }
+    if "maximum_precontrol_drift_m" in family:
+        capture_overrides["maximum_precontrol_drift_m"] = float(
+            family["maximum_precontrol_drift_m"]
+        )
     temporal_capture_count = int(
         family.get("captures_per_scene", 0)
     )

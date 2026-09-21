@@ -511,6 +511,37 @@ class DynamicCaptureToolsTest(unittest.TestCase):
             ["front_overtake"],
         )
 
+    def test_base4_highway_high_speed_pilot_is_continuous_and_strict(self):
+        config = base4_highway.build_config(
+            48, 260922301, "hs48", profile="high-speed-pilot"
+        )
+        self.assertEqual(config["base4_design"]["profile"], "high-speed-pilot")
+        self.assertEqual(config["base4_design"]["merge_scene_count"], 0)
+        self.assertEqual(len(config["families"]), 1)
+        cruise = config["families"][0]
+        ego = cruise["ego_speed_schedule_kph"]
+        npc = cruise["npc_target_speed_schedule_kph"]
+        self.assertEqual(len(ego), 48)
+        self.assertEqual(len(npc), 48)
+        self.assertGreaterEqual(min(ego), 80.0)
+        self.assertLessEqual(max(ego), 120.0)
+        self.assertGreaterEqual(min(npc), 25.0)
+        self.assertLessEqual(max(npc), 80.0)
+        self.assertGreater(len(set(ego)), 40)
+        self.assertGreater(len(set(npc)), 40)
+        self.assertEqual(cruise["actor_gate_longitudinal_m"], [-30.0, 30.0])
+        self.assertEqual(cruise["actor_gate_maximum_distance_m"], 32.0)
+        self.assertEqual(cruise["actor_gate_minimum_distance_m"], 3.0)
+        self.assertEqual(cruise["actor_gate_minimum_in_gate_frames"], 6)
+        self.assertTrue(cruise["start_ego_at_target_speed"])
+        self.assertEqual(cruise["ego_start_arc_m"], [50.0, 100.0])
+        self.assertEqual(cruise["maximum_precontrol_drift_m"], 0.0)
+        self.assertTrue(cruise["center_actor_during_clip"])
+        self.assertEqual(
+            [role["name"] for role in cruise["interaction_roles"]],
+            ["front_overtake", "side_passby", "rear_receding"],
+        )
+
     def test_actor_relative_pose_and_velocity_are_ego_aligned(self):
         frames = [
             {

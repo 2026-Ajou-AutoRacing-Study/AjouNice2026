@@ -402,6 +402,25 @@ sweep lag는 p50 `0.129 s`, p95 `0.181 s`, max `0.246 s`이며 `0.25 s` 초과�
 자세한 학습 smoke와 기존 평가 bag 분류는
 [`../../../docs/bevfusion/260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md`](../../../docs/bevfusion/260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md)에 있다.
 
+### 6.6 고속 연속속도 48-scene 파일럿
+
+`high-speed-pilot` profile을 추가해 post-merge 직선에서 Ego `80--120 km/h`, NPC
+`25--80 km/h`를 연속 stratified schedule로 수집했다. 전방 추월, 측방 통과, 추월 후
+후방 이탈 역할을 `2:1:1`로 배정했다.
+
+- 최종 수집: `48/48 scene`, `768/768 trigger frame`.
+- raw bag: r4 34개 + r5 retry 11개 + r5 retry2 3개, 총 약 `2.3 GiB`.
+- 실제 Ego/NPC 속도 범위: `77.96--120.45 / 25.61--79.23 km/h`.
+- raw dataset: train/val `471/106 frame`, Vehicle GT `577`.
+- Ego deskew dataset: train/val `463/103 frame`, Vehicle GT `566`.
+- 두 dataset 모두 info/temporal validator PASS, scene leakage와 unknown asset `0`.
+- 원본 audit의 camera age 100 ms 초과는 bag edge 후보 camera별 2개뿐이며 converter가
+  선택한 최종 frame의 max는 raw `34.01 ms`, deskew `36.80 ms`다.
+
+구현·재시도 원인·경로·수치는
+[`260922_base4_highspeed_jitter_pilot_results.md`](260922_base4_highspeed_jitter_pilot_results.md)에
+고정한다.
+
 ## 7. 다음 구현 gate
 
 1. `p24v1`은 파이프라인 smoke 전용으로 동결한다. 이 dataset의 val이나 1-epoch 결과로
@@ -420,10 +439,9 @@ sweep lag는 p50 `0.129 s`, p95 `0.181 s`, max `0.246 s`이며 `0.25 s` 초과�
    7 scene과 post-merge 순항 21 scene이며, 10--70 km/h 합류 bin을 각각 확보했다.
    3-sweep velocity dataset의 구조/시간/속도 audit와 T1 smoke도 통과했다. 이 작은
    dataset은 mechanism 진단용으로만 유지하고 중단된 `p12v3`는 재개하지 않는다.
-7. MORAI 공식 답변상 본선 고주로·로터리 NPC 속도는 샘플과 동일하지 않다. 따라서 현재
-   `40/50/60 km/h` dataset은 temporal mechanism 검증에는 계속 사용하지만 production
-   prior로 확대하지 않는다. 다음 campaign은 연속 속도 jitter와 상대속도 bin coverage를
-   사용한다.
+7. MORAI 공식 답변상 본선 고주로·로터리 NPC 속도는 샘플과 동일하지 않다. 이에 따라
+   `40/50/60 km/h` 고정 prior 대신 연속 속도 jitter를 쓰는 48-scene 고속 파일럿을
+   완료했다. 다음 gate는 raw/deskew V1/T1 mechanism A/B와 held-out 고속 bag 평가다.
 8. 본선 고주로 RandomMode 사용 시 `MiddleSize`만 사용할 예정이고 사용 여부 자체는
    아직 미정이다. 다음 main quota는 MiddleSize 중심으로 좁히되 비공개 로터리 차종과
    결정 변경에 대비한 작은 multi-model coverage를 유지한다.

@@ -4,6 +4,7 @@
 import argparse
 import copy
 import json
+import random
 import subprocess
 import sys
 from pathlib import Path
@@ -28,12 +29,14 @@ def parse_args():
     parser.add_argument("--campaign-tag", default="pilot30")
     parser.add_argument(
         "--profile",
-        choices=("mission", "velocity-diagnostic"),
+        choices=("mission", "velocity-diagnostic", "high-speed-pilot"),
         default="mission",
         help=(
             "mission preserves the existing highway pilot distribution; "
             "velocity-diagnostic cycles explicit NPC speed anchors for a "
-            "small velocity-head sanity dataset"
+            "small velocity-head sanity dataset; high-speed-pilot samples "
+            "post-merge Ego/NPC speeds continuously for 80--120 km/h "
+            "relative-motion coverage"
         ),
     )
     parser.add_argument("--output-root", type=Path, default=DATASET_ROOT)
@@ -52,11 +55,29 @@ def write_json(path, document):
     )
 
 
+def stratified_speed_schedule(count, lower, upper, seed):
+    """Return deterministic continuous speed coverage without endpoint piles."""
+
+    if count <= 0 or upper <= lower:
+        raise ValueError("invalid stratified speed schedule")
+    width = (float(upper) - float(lower)) / count
+    values = [
+        round(float(lower) + (index + 0.5) * width, 1)
+        for index in range(count)
+    ]
+    random.Random(int(seed)).shuffle(values)
+    return values
+
+
 def build_config(scene_count, seed, campaign_tag, profile="mission"):
     if scene_count < 8:
         raise ValueError("Base4 highway pilot needs at least 8 scenes")
     base, defaults = family_defaults()
-    merge_count = max(2, int(round(scene_count * 0.25)))
+    merge_count = (
+        0
+        if profile == "high-speed-pilot"
+        else max(2, int(round(scene_count * 0.25)))
+    )
     cruise_count = scene_count - merge_count
 
     capture = copy.deepcopy(base["capture"])
@@ -283,6 +304,86 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
             }
         )
 
+    if profile == "high-speed-pilot":
+        ego_speed_schedule = stratified_speed_schedule(
+            cruise_count, 80.0, 120.0, seed + 80120
+        )
+        npc_speed_schedule = stratified_speed_schedule(
+            cruise_count, 25.0, 80.0, seed + 25080
+        )
+        cruise.update(
+            {
+                "ego_lane_speed_kph": {
+                    "6": [80.0, 120.0],
+                    "8": [80.0, 120.0],
+                    "10": [80.0, 120.0],
+                },
+                "ego_speed_schedule_kph": ego_speed_schedule,
+                "ego_speed_limit_kph": 120.0,
+                "npc_target_speed_schedule_kph": npc_speed_schedule,
+                "preserve_template_npc_target_speed": False,
+                "spawn_velocity_equals_target": True,
+                # High-speed clips are not acceleration tests.  Loading Ego
+                # at its requested cruise speed both matches the post-merge
+                # mission and avoids spending most of the straight route
+                # accelerating from rest before the temporal gate opens.
+                "start_ego_at_target_speed": True,
+                "ego_start_arc_m": [50.0, 100.0],
+                # ScenarioLoad recreates rosbridge subscribers while the
+                # saved-speed Ego is already moving.  This profile starts on
+                # a verified straight highway segment, so permit that short
+                # handoff drift here only.  Merge/curve profiles retain the
+                # global 0.75 m fail-safe.
+                "maximum_precontrol_drift_m": 0.0,
+                "maximum_motion_m": 230.0,
+                "capture_motion_arm_m": 80.0,
+                # Place the NPC for the middle of the measured ~2.1 s clip,
+                # not merely for its first frame.  This keeps large relative
+                # velocities inside the strict +/-30 m training contract.
+                "center_actor_during_clip": True,
+                "effective_clip_duration_sec": 2.1,
+                "interaction_roles": [
+                    {
+                        "name": "front_overtake",
+                        "weight": 2.0,
+                        "npc_longitudinal_offset_m": [8.0, 15.0],
+                        "gate_longitudinal_m": [4.0, 30.0],
+                        "maximum_abs_lateral_m": 8.0,
+                    },
+                    {
+                        "name": "side_passby",
+                        "weight": 1.0,
+                        "npc_longitudinal_offset_m": [-2.0, 2.0],
+                        "gate_longitudinal_m": [-15.0, 18.0],
+                        "maximum_abs_lateral_m": 8.0,
+                    },
+                    {
+                        "name": "rear_receding",
+                        "weight": 1.0,
+                        "adjacent_lane": True,
+                        "npc_longitudinal_offset_m": [-12.0, -6.0],
+                        "gate_longitudinal_m": [-30.0, -4.0],
+                        "maximum_abs_lateral_m": 8.0,
+                    },
+                ],
+                "interaction_role_schedule_offset": 0,
+                "actor_gate_longitudinal_m": [-30.0, 30.0],
+                "actor_gate_maximum_abs_lateral_m": 8.0,
+                # Adjacent highway lane centers are about 3.3 m apart.  A
+                # 3.5 m center-distance floor incorrectly rejects safe,
+                # exactly side-by-side cars; 3.0 m still leaves separation
+                # between typical ~2.1 m-wide vehicle boxes.
+                "actor_gate_minimum_distance_m": 3.0,
+                "actor_gate_maximum_distance_m": 32.0,
+                # Require a useful observed prefix, then retain the natural
+                # disappearance as Ego passes the NPC.  Rejecting the whole
+                # clip when a fast relative-motion target exits after frame
+                # 6 discards exactly the temporal transition we need.
+                "actor_gate_minimum_in_gate_frames": 6,
+                "sampling_role": "base4_high_speed_continuous_relative_vehicle",
+            }
+        )
+
     clean_tag = "".join(ch for ch in campaign_tag.lower() if ch.isalnum())
     if not clean_tag:
         raise ValueError("campaign tag must contain an alphanumeric character")
@@ -294,7 +395,9 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
         "split_ratios": {"train": 0.8, "val": 0.2, "test": 0.0},
         "environment": copy.deepcopy(base["environment"]),
         "capture": capture,
-        "families": [merge, cruise],
+        "families": (
+            [cruise] if profile == "high-speed-pilot" else [merge, cruise]
+        ),
         "base4_design": {
             "profile": profile,
             "scene_count": scene_count,
@@ -308,6 +411,12 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
                 [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0]
                 if profile == "velocity-diagnostic"
                 else None
+            ),
+            "high_speed_pilot_ego_range_kph": (
+                [80.0, 120.0] if profile == "high-speed-pilot" else None
+            ),
+            "high_speed_pilot_npc_range_kph": (
+                [25.0, 80.0] if profile == "high-speed-pilot" else None
             ),
         },
     }

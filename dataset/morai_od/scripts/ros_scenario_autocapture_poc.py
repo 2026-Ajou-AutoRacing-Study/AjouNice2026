@@ -3934,11 +3934,25 @@ class AutoCapture:
                             )
                             time.sleep(0.05)
                             continue
-                        raise RuntimeError(
-                            "actor left capture gate before rolling-grouped "
-                            "frame {}: {}".format(
-                                len(triggers) + 1, actor_gate_observation
+                        minimum_in_gate_frames = int(
+                            self.scene_capture_actor_gate.get(
+                                "minimum_in_gate_frames", capture_count
                             )
+                        )
+                        if len(triggers) < minimum_in_gate_frames:
+                            raise RuntimeError(
+                                "actor left capture gate before rolling-grouped "
+                                "frame {}: {}".format(
+                                    len(triggers) + 1,
+                                    actor_gate_observation,
+                                )
+                            )
+                        rospy.loginfo_throttle(
+                            1.0,
+                            "Actor exited gate after %d verified frames; "
+                            "retaining temporal disappearance: %s",
+                            len(triggers),
+                            actor_gate_observation,
                         )
                     if not triggers:
                         self.emit_scenario_marker(
@@ -4002,6 +4016,17 @@ class AutoCapture:
                                 trigger_unix - snapshot["objects_unix_time"],
                             ),
                             "actor_gate_ready": actor_gate_ready,
+                            "actor_gate_exit_allowed": bool(
+                                self.scene_capture_actor_gate
+                                and not actor_gate_ready
+                                and len(triggers)
+                                >= int(
+                                    self.scene_capture_actor_gate.get(
+                                        "minimum_in_gate_frames",
+                                        capture_count,
+                                    )
+                                )
+                            ),
                             "actor_gate": self.scene_capture_actor_gate,
                             "actor_gate_observation": actor_gate_observation,
                         },
