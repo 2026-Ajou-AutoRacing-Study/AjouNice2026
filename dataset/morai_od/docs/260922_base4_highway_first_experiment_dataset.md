@@ -11,7 +11,7 @@
 - 두 dataset 모두 info validator와 temporal quality audit를 통과했다.
 - raw와 deskew는 같은 `161`개 입력 bag과 같은 변환 계약에서 만들었다. Deskew 때문에
   5-point Vehicle-positive 조건을 잃은 frame만 deskew 쪽에서 추가로 제외됐다.
-- 학습 기본 비교는 `raw V1`, `raw T1`, `deskew T1` 세 개다. Deskew 결과가 실제 고주로
+- 학습 기본 비교는 `raw V1`, `raw T1`, `deskew V1`, `deskew T1`의 2x2다. Deskew 결과가 실제 고주로
   rosbag의 velocity/tracking/Map-CV까지 개선하기 전에는 production 기본값으로 올리지 않는다.
 
 ## 최종 경로
@@ -109,9 +109,12 @@ bash perception/detection3d/bevfusion/scripts/run_team_training.sh \
   perception/detection3d/bevfusion/configs/team/recipes/base4_highway_first_exp_t1_raw_e4.yaml
 
 bash perception/detection3d/bevfusion/scripts/run_team_training.sh \
+  perception/detection3d/bevfusion/configs/team/recipes/base4_highway_first_exp_v1_deskew_e4.yaml
+
+bash perception/detection3d/bevfusion/scripts/run_team_training.sh \
   perception/detection3d/bevfusion/configs/team/recipes/base4_highway_first_exp_t1_deskew_e4.yaml
 ```
 
-세 학습은 동시에 실행하지 않는다. 생성기 내부 val은 mechanism 확인용이고, 모델 선택은
+네 학습은 동시에 실행하지 않는다. 생성기 내부 val은 mechanism 확인용이고, 모델 선택은
 기존 고주로 개발 bag과 새 controller 주행 held-out bag의 OD velocity, tracker AVE,
 Map-CV FDE를 함께 사용한다.
