@@ -77,6 +77,41 @@ def test_extrapolation_beyond_limit_is_rejected():
         )
 
 
+def test_ego_heading_correction_rotates_map_delta_into_ego_frame():
+    value = MODULE.ego_relative_position(
+        ego(heading=91.347), actor(x=0.0, y=10.0),
+        ego_heading_correction_deg=-1.347,
+    )
+    assert value[0] == pytest.approx(10.0, abs=1e-9)
+    assert value[1] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_online_pose_matrix_records_corrected_mr_heading():
+    from perception.detection3d.bevfusion.tools import (
+        build_base3_online_bevfusion_infos as builder,
+    )
+
+    pose = builder.planar_pose_matrix(
+        ego(x=3.0, y=4.0, heading=91.347),
+        ego_heading_correction_deg=-1.347,
+    )
+    assert pose[0, 0] == pytest.approx(0.0, abs=1e-9)
+    assert pose[1, 0] == pytest.approx(1.0, abs=1e-9)
+    assert pose[:2, 3].tolist() == pytest.approx([3.0, 4.0])
+
+
+def test_catalog_heading_correction_rotates_existing_relative_vector():
+    from dataset.morai_od.scripts import build_morai_asset_bbox_offset_catalog as catalog
+
+    value = catalog.corrected_relative_position(
+        {"x": math.cos(math.radians(1.347)) * 10.0,
+         "y": -math.sin(math.radians(1.347)) * 10.0,
+         "z": 2.0},
+        -1.347,
+    )
+    assert value == pytest.approx([10.0, 0.0, 2.0], abs=1e-9)
+
+
 def test_object_alignment_preserves_nearest_membership_and_interpolates_pose():
     first = objects([actor(7, "car", x=0.0)])
     second = objects([actor(7, "car", x=10.0), actor(8, "new", x=20.0)])

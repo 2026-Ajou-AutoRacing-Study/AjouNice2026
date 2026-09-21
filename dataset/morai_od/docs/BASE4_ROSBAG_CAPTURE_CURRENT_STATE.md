@@ -1,6 +1,6 @@
 # Base4 rosbag 수집 — CURRENT STATE
 
-- 상태: **CURRENT / 24-SCENE TEMPORAL PIPELINE SMOKE PASSED**
+- 상태: **CURRENT / MR HEADING CALIBRATION REQUIRED**
 - 마지막 검증: 2026-09-21
 - 대상: raw 4-camera + LiDAR BEVFusion, 이후 Base4-Temporal
 
@@ -29,6 +29,17 @@ scene별로 flush하는 gated recorder**를 기본으로 한다. 센서 stream�
 raw 485 frame과 deskew 467 frame을 만들고 V1/T1 dataloader 및 1-epoch smoke를
 통과했다. 다만 이 수량은 **파이프라인 검증용**이며 성능이나 분포 완성을 주장하는
 dataset이 아니다.
+
+2026-09-21 MR 동기 annotation 교차검증에서 MR의 raw `/Ego_topic.heading`이 scenario
+좌표계보다 약 `+1.35 deg` 회전되어 있음이 확인됐다. Competition localization과 같은
+`-1.347 deg`를 적용하면 동일 asset의 두 관측 간 box-center 잔차가
+`p50 0.192 -> 0.046 m`, `p95 0.228 -> 0.081 m`로 감소했다. 따라서 **MR에서 녹화한
+bag의 GT, ego2global, causal sweep pose, ego deskew pose에는 반드시**
+`--ego-heading-correction-deg -1.347`을 사용한다. MRP는 `0.0`이다.
+
+이 발견 전에 변환한 `p24v1` 및 `hwy3h1` info와 그 학습 checkpoint는 파이프라인
+EVIDENCE로만 보존한다. 다음 성능 실험 전 raw bag에서 heading-corrected info를 다시
+만들어야 한다. 원본 rosbag을 재취득할 필요는 없다.
 
 ## 2. launcher별 파일
 
@@ -185,8 +196,12 @@ python3 perception/detection3d/bevfusion/tools/build_base3_online_bevfusion_info
   --samples-per-scene 3 \
   --minimum-gt-points 5 \
   --state-alignment interpolate \
+  --ego-heading-correction-deg -1.347 \
   --distance-filter box-range
 ```
+
+위 값은 **MR 전용**이다. MRP bag은 옵션을 생략해 기본 `0.0`을 유지한다. 변환 결과의
+`conversion_audit.json`과 PKL `metainfo`에 실제 사용값이 기록된다.
 
 3-sweep/velocity dataset을 만든 뒤에는 구조 validator와 별도로 temporal quality audit를
 실행한다. 이 검사는 scene split leakage, 양수 sweep age, SE(3), Ego/Object/camera 동기

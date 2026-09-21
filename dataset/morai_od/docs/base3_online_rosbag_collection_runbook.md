@@ -147,8 +147,22 @@ python3 dataset/morai_od/scripts/audit_base3_online_gt_alignment.py \
   --output-dir artifacts/datasets/base3_online_mixed30_alignment_motion_v2 \
   --samples-per-scene 3 \
   --state-alignment interpolate \
+  --ego-heading-correction-deg "$EGO_HEADING_CORRECTION_DEG" \
   --max-extrapolation-sec 0.05
 ```
+
+Launcher별로 먼저 다음 중 하나를 명시한다.
+
+```bash
+# Competition MR
+EGO_HEADING_CORRECTION_DEG=-1.347
+
+# Personal MRP
+EGO_HEADING_CORRECTION_DEG=0.0
+```
+
+MR 값은 동기 LiDAR Instance annotation과 `/Ego_topic`을 교차검증해 얻은 값이다. MRP
+Base3 캡처에는 같은 편향이 관측되지 않았으므로 MR 보정을 MRP에 적용하면 안 된다.
 
 `unknown_assets`는 반드시 빈 배열이어야 한다. 생성된 `*_bev.png`와 4-camera JPG를
 Vehicle/Pedestrian/Obstacle에서 각각 눈으로 확인한다.
@@ -165,6 +179,7 @@ python3 perception/detection3d/bevfusion/tools/build_base3_online_bevfusion_info
   --samples-per-scene 3 \
   --minimum-gt-points 5 \
   --state-alignment interpolate \
+  --ego-heading-correction-deg "$EGO_HEADING_CORRECTION_DEG" \
   --max-extrapolation-sec 0.05 \
   --distance-filter box-range
 

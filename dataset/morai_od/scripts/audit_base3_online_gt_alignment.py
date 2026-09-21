@@ -74,6 +74,16 @@ def arguments():
         default="interpolate",
     )
     parser.add_argument("--max-extrapolation-sec", type=float, default=0.05)
+    parser.add_argument(
+        "--ego-heading-correction-deg",
+        type=float,
+        default=0.0,
+        help=(
+            "additive correction applied only when rotating MORAI map "
+            "coordinates into the Ego frame; competition MR is calibrated "
+            "at -1.347 deg, while MRP remains 0 deg"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -389,8 +399,10 @@ def cloud_xyz_i(message):
     return np.asarray(rows, dtype=np.float32).reshape(-1, 4)
 
 
-def ego_relative_position(ego, actor):
-    heading = math.radians(float(ego.heading))
+def ego_relative_position(ego, actor, ego_heading_correction_deg=0.0):
+    heading = math.radians(
+        float(ego.heading) + float(ego_heading_correction_deg)
+    )
     cosine, sine = math.cos(heading), math.sin(heading)
     dx = float(actor.position.x) - float(ego.position.x)
     dy = float(actor.position.y) - float(ego.position.y)
@@ -415,8 +427,13 @@ def actors(message):
             yield class_name, actor
 
 
-def corrected_box(ego, class_name, actor, calibration, catalog):
-    pivot_ego = ego_relative_position(ego, actor)
+def corrected_box(
+    ego, class_name, actor, calibration, catalog,
+    ego_heading_correction_deg=0.0,
+):
+    pivot_ego = ego_relative_position(
+        ego, actor, ego_heading_correction_deg=ego_heading_correction_deg
+    )
     ego_to_lidar = np.asarray(calibration["lidar"]["ego_to_lidar"], dtype=np.float64)
     pivot_lidar = (ego_to_lidar @ pivot_ego)[:3]
     yaw = wrapped_radians(math.radians(float(actor.heading) - float(ego.heading)))
@@ -574,7 +591,8 @@ def render_window(window, messages, args, calibration, catalog, unknown_assets):
         }
         for class_name, actor in actors(object_state):
             naive, corrected = corrected_box(
-                ego_state, class_name, actor, calibration, catalog
+                ego_state, class_name, actor, calibration, catalog,
+                ego_heading_correction_deg=args.ego_heading_correction_deg,
             )
             if corrected is None:
                 unknown_assets.add(str(actor.name))
@@ -584,7 +602,8 @@ def render_window(window, messages, args, calibration, catalog, unknown_assets):
             nearest_corrected_count = None
             if nearest_actor is not None:
                 _nearest_naive, nearest_corrected = corrected_box(
-                    ego_row[2], class_name, nearest_actor, calibration, catalog
+                    ego_row[2], class_name, nearest_actor, calibration, catalog,
+                    ego_heading_correction_deg=args.ego_heading_correction_deg,
                 )
                 if nearest_corrected is not None:
                     nearest_corrected_count, _ = points_in_box(
@@ -724,6 +743,7 @@ def main():
         "asset_offsets": str(args.asset_offsets.resolve()),
         "state_alignment": args.state_alignment,
         "max_extrapolation_sec": args.max_extrapolation_sec,
+        "ego_heading_correction_deg": args.ego_heading_correction_deg,
         "summary": {
             "scenes": len(windows),
             "sampled_frames": len(report_rows),

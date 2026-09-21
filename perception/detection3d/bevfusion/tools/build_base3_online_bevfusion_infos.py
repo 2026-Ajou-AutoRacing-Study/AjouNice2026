@@ -95,6 +95,15 @@ def arguments():
         help="maximum velocity-based fallback when a timestamp is not bracketed",
     )
     parser.add_argument(
+        "--ego-heading-correction-deg",
+        type=float,
+        default=0.0,
+        help=(
+            "additive MORAI Ego heading correction used for map/Ego geometry "
+            "and sweep poses; pass -1.347 for competition MR, 0 for MRP"
+        ),
+    )
+    parser.add_argument(
         "--state-invalid-policy", choices=("drop", "error"), default="error",
         help="Base4 uses drop for isolated sequence-edge state gaps",
     )
@@ -185,8 +194,10 @@ def keep_box_for_distance(box, mode, threshold_m, point_cloud_range):
     raise ValueError("unknown distance filter {}".format(mode))
 
 
-def planar_pose_matrix(message):
-    yaw = math.radians(float(message.heading))
+def planar_pose_matrix(message, ego_heading_correction_deg=0.0):
+    yaw = math.radians(
+        float(message.heading) + float(ego_heading_correction_deg)
+    )
     cosine, sine = math.cos(yaw), math.sin(yaw)
     return np.asarray(
         [
@@ -361,7 +372,10 @@ def main():
                     float(row[2].position.x),
                     float(row[2].position.y),
                     float(row[2].position.z),
-                    math.radians(float(row[2].heading)),
+                    math.radians(
+                        float(row[2].heading)
+                        + float(args.ego_heading_correction_deg)
+                    ),
                 )
                 for row in aligned[EGO_TOPIC]
             ],
@@ -471,7 +485,8 @@ def main():
             instances = []
             for class_name, actor in actors(object_state):
                 _naive, box = corrected_box(
-                    ego_state, class_name, actor, calibration, catalog
+                    ego_state, class_name, actor, calibration, catalog,
+                    ego_heading_correction_deg=args.ego_heading_correction_deg,
                 )
                 if box is None:
                     unknown_assets.add(str(actor.name))
@@ -532,7 +547,9 @@ def main():
                 )
 
             points.astype(np.float32).tofile(str(lidar_path))
-            ego2global = planar_pose_matrix(ego_state)
+            ego2global = planar_pose_matrix(
+                ego_state, args.ego_heading_correction_deg
+            )
             lidar2global = ego2global @ lidar_to_ego
             sweep_rows[split].append(
                 {
@@ -729,6 +746,7 @@ def main():
         "max_state_age_sec": args.max_state_age_sec,
         "max_camera_age_sec": args.max_camera_age_sec,
         "max_extrapolation_sec": args.max_extrapolation_sec,
+        "ego_heading_correction_deg": args.ego_heading_correction_deg,
         "distance_filter": args.distance_filter,
         "distance_threshold_m": args.distance_threshold_m,
         "point_cloud_range": list(args.point_cloud_range),
@@ -752,6 +770,7 @@ def main():
     report = {
         "schema_version": 2,
         "bags": [str(path.resolve()) for path in args.bags],
+        "ego_heading_correction_deg": args.ego_heading_correction_deg,
         "scenes": dict(scene_count),
         "frames": {key: len(value) for key, value in split_rows.items()},
         "kept_gt": dict(final_kept),

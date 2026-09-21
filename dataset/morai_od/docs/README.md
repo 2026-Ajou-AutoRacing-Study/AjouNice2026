@@ -10,6 +10,8 @@
    - launcher별 전체 터미널 순서와 live 검증 근거.
 3. [`../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)
    - 고주로 Vehicle velocity head/causal 3-sweep 수집·학습·평가 PLAN.
+4. [`260921_mr_heading_and_sync_annotation_calibration.md`](260921_mr_heading_and_sync_annotation_calibration.md)
+   - MR `/Ego_topic.heading`의 `-1.347 deg` 보정과 동기 annotation 교차검증 EVIDENCE.
 
 ## Base3-Online — CURRENT BASELINE / EVIDENCE
 

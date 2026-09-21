@@ -2247,6 +2247,32 @@ class AutoCapture:
         before = recursive_files(source_root)
         triggered_unix = time.time()
         started = time.monotonic()
+        # Preserve the exact online actor reference used when requesting the
+        # synchronous MORAI snapshot.  Stationary captures previously kept
+        # only the emitted sensor filenames, which made an authoritative
+        # ObjectStatus-pivot versus LiDAR Instance-box calibration impossible
+        # without a separate rosbag.  SharedState is updated even when timing
+        # history is disabled, so this remains available while MORAI Capture
+        # Mode suppresses the live camera/LiDAR ROS streams.
+        trigger_snapshot = self.state.snapshot()
+        trigger_ego = (
+            serialize_ego(
+                trigger_snapshot["ego"],
+                trigger_snapshot["ego_unix_time"],
+                trigger_snapshot["ego_wall_time"],
+            )
+            if trigger_snapshot["ego"] is not None
+            else None
+        )
+        trigger_objects = (
+            serialize_objects(
+                trigger_snapshot["objects"],
+                trigger_snapshot["objects_unix_time"],
+                trigger_snapshot["objects_wall_time"],
+            )
+            if trigger_snapshot["objects"] is not None
+            else None
+        )
         self.publish_capture_request()
 
         deadline = time.monotonic() + self.args.capture_timeout_sec
@@ -2351,6 +2377,24 @@ class AutoCapture:
             "triggered_unix": triggered_unix,
             "completed_unix": completed_unix,
             "duration_sec": duration_sec,
+            "ego": trigger_ego,
+            "objects": trigger_objects,
+            "quality": {
+                "ego_state_age_sec": (
+                    max(0.0, triggered_unix - trigger_snapshot["ego_unix_time"])
+                    if trigger_ego is not None
+                    else None
+                ),
+                "object_state_age_sec": (
+                    max(
+                        0.0,
+                        triggered_unix
+                        - trigger_snapshot["objects_unix_time"],
+                    )
+                    if trigger_objects is not None
+                    else None
+                ),
+            },
             "new_file_count": len(new_files),
             "observed_sensor_dirs": sorted(observed_sensors),
             "missing_sensor_dirs": sorted(missing_sensors),
@@ -4582,10 +4626,12 @@ class AutoCapture:
             include_motion_interface=self.args.motion_mode == "teleport"
         )
         scenes_path = self.args.capture_dir / "scenes.jsonl"
+        captures_path = self.args.capture_dir / "captures.jsonl"
         failures_path = self.args.capture_dir / "failures.jsonl"
         summary_path = self.args.capture_dir / "summary.json"
         if original_started_unix is None:
             scenes_path.write_text("", encoding="utf-8")
+            captures_path.write_text("", encoding="utf-8")
             failures_path.write_text("", encoding="utf-8")
         report = {
             "schema_version": 2,
@@ -4645,6 +4691,7 @@ class AutoCapture:
                 ),
                 "files": {
                     "scene_records": "scenes.jsonl",
+                    "capture_records": "captures.jsonl",
                     "failure_details": "failures.jsonl",
                 },
             }
@@ -4723,6 +4770,16 @@ class AutoCapture:
                     scene["id"],
                     error,
                 )
+            for capture in result.get("captures", []):
+                capture_record = dict(capture)
+                capture_record.update(
+                    {
+                        "scene_id": scene["id"],
+                        "file_name": scene["file_name"],
+                        "split": scene.get("split"),
+                    }
+                )
+                append_jsonl(captures_path, capture_record)
             compact = compact_scene_result(result)
             report["scenes"].append(compact)
             append_jsonl(scenes_path, compact)
