@@ -305,3 +305,41 @@ du -sh \
 수집 직후 판단할 항목은 성공 scene 수, scene-marker와 bag의 1:1 대응, 실제 NPC 속도
 bin, 연속 16-frame 간격, collision/stall 여부다. 이를 통과하기 전에는 학습 dataset으로
 변환하거나 기존 Base4와 합치지 않는다.
+
+## 2026-09-22 실제 수집 결과
+
+이번 pilot은 MR의 ROS Ego Network와 UDP Sensor Network를 함께 사용해 자동 수행했다.
+
+- 요청: 28 scene, scene당 16 trigger frame
+- 유효 완료: 25 scene / 400 trigger frame
+- 자동 폐기: 합류 3 scene
+  - `b4vd28ddmc001`: 10 km/h NPC가 capture gate 뒤로 이탈
+  - `b4vd28ddmc002`: 20 km/h NPC가 11번째 frame 전에 longitudinal -40 m gate 이탈
+  - `b4vd28ddmc007`: 70 km/h NPC가 capture gate 앞으로 이탈
+- gated bag: 25개, 총 1,261,160,416 bytes
+- bag 경로:
+  `rosbags/datasets/base4_temporal/260922_velocity_diagnostic_pilot`
+- runtime 결과:
+  `/home/luv/morai_cap/experiments/260922_base4_velocity_diagnostic/runtime`
+- bag audit:
+  `/home/luv/morai_cap/experiments/260922_base4_velocity_diagnostic/audit_bags.json`
+
+`audit_base3_online_bag.py`의 topic/marker/timestamp 검사는 오류와 경고 없이 통과했다.
+유효 capture window의 센서 범위는 다음과 같았다.
+
+- LiDAR: 약 11.4--13.0 Hz, 총 793 frame
+- 카메라 4대: 약 30 Hz
+- Ego/Object: 약 47--50 Hz
+- camera-to-LiDAR nearest age: p50 약 1--3 ms, p95 약 26--27 ms
+- 25개 bag 모두 vehicle NPC 존재 확인
+- 실제 NPC 속도 bin: 10/20/70 km/h 각 3 scene, 30/40/50/60 km/h 각 4 scene
+
+400개 metadata frame 중 vehicle이 Ego 반경 30 m 안에 있는 frame은 326개(81.5%)였다.
+순항 scene은 대체로 유효했지만 합류 성공 scene 중 50/60 km/h NPC는 capture 동안
+longitudinal 44--57 m에 있어 현재 `+-30 m` 학습 범위 밖이었다. 따라서 실패 scene을
+단순히 actor gate만 넓혀 채우지 않는다. 다음 합류 수집에서는 NPC spawn 위치/지연을
+상대속도별로 다시 계산하고, **capture gate 자체를 학습 유효 범위와 일치**시킨 뒤
+10/20/50/60/70 km/h 조합을 재검증한다.
+
+이 결과는 temporal 수집 파이프라인과 순항 속도 bin 검증용 pilot으로는 유효하지만,
+그 자체를 완성된 Base4 학습 corpus 또는 독립 test set으로 간주하지 않는다.
