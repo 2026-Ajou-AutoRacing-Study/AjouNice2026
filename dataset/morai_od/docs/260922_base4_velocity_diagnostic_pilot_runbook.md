@@ -343,3 +343,62 @@ longitudinal 44--57 m에 있어 현재 `+-30 m` 학습 범위 밖이었다. 따�
 
 이 결과는 temporal 수집 파이프라인과 순항 속도 bin 검증용 pilot으로는 유효하지만,
 그 자체를 완성된 Base4 학습 corpus 또는 독립 test set으로 간주하지 않는다.
+
+## 합류 재보정과 최종 진단 dataset
+
+최초 pilot의 합류 실패 및 30 m 밖 표본을 그대로 학습에 넣지 않고 NPC 속도별 spawn
+위상을 MR live run으로 다시 보정했다. 학습 범위에 맞춰 actor gate는 longitudinal
+`[-30, 30] m`, radial 최대 `32 m`로 고정했으며, 먼 표본을 살리기 위해 gate를 넓히지
+않았다.
+
+- 10 km/h: route offset `+90 m`
+- 20 km/h: route offset `+20 m`
+- 50 km/h: spawn delay `3 s`
+- 60 km/h: spawn delay `2 s`
+- 70 km/h: spawn delay `4 s`
+- 최소 중심거리: `4 m`. 인접 차선에서 box가 분리된 채 나란히 지나는 10 km/h 표본의
+  실제 최소 중심거리 `4.23 m`를 보존하기 위한 값이다.
+
+재수집 결과 10/20/30/40/50/60/70 km/h 합류 scene이 각각 16 trigger frame을 완주했다.
+모든 최종 합류 frame의 NPC 중심은 30 m 이내였다. 보정 run의 raw bag은 다음 세 폴더에
+나뉘어 있다.
+
+- `rosbags/datasets/base4_temporal/260922_velocity_diagnostic_merge_r2`: 20/30/40/60/70 km/h
+- `rosbags/datasets/base4_temporal/260922_velocity_diagnostic_merge_r3`: 50 km/h
+- `rosbags/datasets/base4_temporal/260922_velocity_diagnostic_merge_r4`: 10 km/h
+
+최종 진단 dataset은 최초 pilot에서 post-merge 순항 21 scene만 유지하고, 위의 보정 합류
+7 scene으로 최초 합류 scene을 교체했다. `samples-per-scene=16`, `with-velocity-targets`,
+`causal-sweep-count=3`, MR heading correction `-1.347 deg`, `minimum-gt-points=5`,
+`distance-filter=box-range` 계약으로 변환했다.
+
+- derived dataset:
+  `artifacts/datasets/morai_base4_velocity_diagnostic_v1_raw16`
+- scene: train 23 / val 5 / test 0
+- 유효 frame/Vehicle GT: train 299 / val 66, 합계 365
+- 30 m box-range 밖 GT: 36개 제외
+- positive Vehicle이 남지 않은 후보 frame: train 30 / val 6 제외
+- scene 시작부에서 causal past 2 sweep이 아직 없는 prefix: train 39 / val 8 제외
+- unknown asset: 0, scene leakage: 0
+- camera age p50/p95/max: `2.20/26.24/30.69 ms`
+- Ego age p50/p95/max: `8.72/11.75/19.33 ms`
+- Object age p50/p95/max: `8.87/11.91/19.73 ms`
+- BBox-center finite-difference velocity 차이 p50/p95/max:
+  `0.040/0.231/0.476 m/s`
+- temporal quality audit: PASS, warning/error 0
+
+이 dataset은 속도 bin과 temporal pipeline 진단용이며 production corpus나 독립 test가
+아니다. 1-epoch 16 train/16 val T1 smoke는 Docker forward/backward, validation,
+checkpoint와 W&B sync까지 통과했다. 초기 velocity head의 val Vehicle speed MAE
+`12.30 m/s`, mAVE `12.80 m/s`는 16-frame random-head smoke 값이므로 정확도 비교에
+사용하지 않는다.
+
+- recipe:
+  `perception/detection3d/bevfusion/configs/team/recipes/base4_velocity_diagnostic_t1_3sweep_e4.yaml`
+- smoke run:
+  `bf-sw-base4-velocity-diagnostic-t1-3sweep-e4-rtx5060ti-260922-032031-smoke`
+- local output:
+  `artifacts/detection3d/bevfusion/team_training/sw/bf-sw-base4-velocity-diagnostic-t1-3sweep-e4-rtx5060ti-260922-032031-smoke`
+
+다음 정확도 실험은 이 작은 dataset을 오래 학습하는 것이 아니라, 동일 수집 계약에
+연속 NPC 속도 jitter와 새 held-out controller 주행을 추가한 뒤 수행한다.

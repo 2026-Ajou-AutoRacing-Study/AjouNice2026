@@ -229,6 +229,35 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
                 "preserve_template_npc_target_speed": False,
                 "npc_target_speed_schedule_kph": speed_schedule,
                 "spawn_velocity_equals_target": True,
+                # Live MR evidence from vd28 showed that one fixed spawn
+                # phase cannot keep 10--70 km/h traffic in the detector's
+                # +-30 m range while Ego accelerates from rest.  Low-speed
+                # actors need to start farther along their legal lane; fast
+                # actors need a delayed release so they do not run 90+ m
+                # ahead before the capture gate opens.
+                "npc_spawn_offset_correction_by_speed_kph": {
+                    "10": 90.0,
+                    "20": 20.0,
+                },
+                "npc_spawn_delay_by_speed_kph": {
+                    "50": 3.0,
+                    "60": 2.0,
+                    "70": 4.0,
+                },
+                "interaction_roles": [
+                    {
+                        "name": "merge_interacting_traffic",
+                        "weight": 1.0,
+                        "npc_longitudinal_offset_m": [-50.0, -35.0],
+                        "gate_longitudinal_m": [-30.0, 30.0],
+                        "maximum_abs_lateral_m": 22.0,
+                        # Adjacent-lane vehicle centres can legitimately pass
+                        # at about 4.5 m while their boxes remain separated.
+                        # Keep that useful side-by-side velocity evidence.
+                        "minimum_distance_m": 4.0,
+                        "maximum_distance_m": 32.0,
+                    }
+                ],
             }
         )
         cruise.update(

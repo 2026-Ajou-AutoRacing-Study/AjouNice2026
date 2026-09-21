@@ -1907,6 +1907,17 @@ def build_route_anchored_vehicle_scene(
         selected_offset = rng.uniform(
             float(offset_range[0]), float(offset_range[1])
         )
+        offset_corrections = family.get(
+            "npc_spawn_offset_correction_by_speed_kph", {}
+        )
+        selected_offset += float(
+            offset_corrections.get(str(int(round(npc_target_speed))), 0.0)
+        )
+        spawn_delays = family.get("npc_spawn_delay_by_speed_kph", {})
+        spawn_delay_sec = float(
+            spawn_delays.get(str(int(round(npc_target_speed))), 0.0)
+        )
+        spawn["waitSpawnTime"] = spawn_delay_sec
         npc_pose = reposition_spawn_on_link_path(
             spawn,
             links_by_id,
@@ -1929,6 +1940,7 @@ def build_route_anchored_vehicle_scene(
                 "interaction_role": role_name,
                 "planned_spawn_distance_m": float(npc_distance),
                 "planned_spawn_offset_m": float(selected_offset),
+                "spawn_delay_sec": spawn_delay_sec,
             }
         )
         gate_range = role["gate_longitudinal_m"]

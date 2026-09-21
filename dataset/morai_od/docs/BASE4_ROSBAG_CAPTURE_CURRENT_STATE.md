@@ -416,9 +416,10 @@ sweep lag는 p50 `0.129 s`, p95 `0.181 s`, max `0.246 s`이며 `0.25 s` 초과�
 5. 기존 merge/highway1 bag은 반복 사용된 development 평가로만 쓰고, 현장점검 full-stack
    bag은 closed-loop 회귀 근거로만 쓴다. 100 km/h급 최종 비교에는 새 held-out 주행이
    필요하다.
-6. 다음 수집은 준비된 28-scene velocity diagnostic부터 수행한다. 성공 scene의 실제
-   속도 bin과 marker window를 감사하기 전 중단된 `p12v3`를 이어 쓰거나 대규모
-   campaign을 시작하지 않는다.
+6. 28-scene velocity diagnostic 수집과 합류 재보정은 완료했다. 최종 구성은 보정 합류
+   7 scene과 post-merge 순항 21 scene이며, 10--70 km/h 합류 bin을 각각 확보했다.
+   3-sweep velocity dataset의 구조/시간/속도 audit와 T1 smoke도 통과했다. 이 작은
+   dataset은 mechanism 진단용으로만 유지하고 중단된 `p12v3`는 재개하지 않는다.
 7. MORAI 공식 답변상 본선 고주로·로터리 NPC 속도는 샘플과 동일하지 않다. 따라서 현재
    `40/50/60 km/h` dataset은 temporal mechanism 검증에는 계속 사용하지만 production
    prior로 확대하지 않는다. 다음 campaign은 연속 속도 jitter와 상대속도 bin coverage를
@@ -429,3 +430,6 @@ sweep lag는 p50 `0.129 s`, p95 `0.181 s`, max `0.246 s`이며 `0.25 s` 초과�
 9. 학습·평가 GT는 MORAI 권고에 따라 sensor-capture geometric BBox 기준으로 통일한다.
    현재 Base4 converter의 asset별 center/size catalog 보정과 회전 center velocity를
    유지하며, raw `/Object_topic` box 기반 평가는 production 지표로 사용하지 않는다.
+10. 다음 production 수집은 현재 속도별 spawn 위상 보정을 시작점으로 삼되, MORAI가
+    본선 속도 구성을 비공개로 유지하므로 40/50/60 고정 prior 대신 연속 속도 jitter를
+    사용한다. 모델 선택은 별도 seed의 80--120 km/h controller 주행 bag에서 한다.

@@ -495,6 +495,18 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertFalse(merge["preserve_template_npc_target_speed"])
         self.assertFalse(cruise["preserve_template_npc_target_speed"])
         self.assertEqual(
+            merge["npc_spawn_offset_correction_by_speed_kph"],
+            {"10": 90.0, "20": 20.0},
+        )
+        self.assertEqual(
+            merge["npc_spawn_delay_by_speed_kph"],
+            {"50": 3.0, "60": 2.0, "70": 4.0},
+        )
+        self.assertEqual(
+            merge["interaction_roles"][0]["gate_longitudinal_m"],
+            [-30.0, 30.0],
+        )
+        self.assertEqual(
             [role["name"] for role in cruise["interaction_roles"]],
             ["front_overtake"],
         )

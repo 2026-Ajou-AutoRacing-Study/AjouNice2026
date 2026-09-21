@@ -549,6 +549,19 @@ Label과 BBox-center 미분 속도의 차이는 p50 `0.075 m/s`, p95 `0.379 m/s`
   결정한다.
 - production 판단 전 새 80--120 km/h held-out controller bag은 여전히 필요하다.
 
+### 2026-09-22 velocity-diagnostic 후속 결과
+
+최초 28-scene run의 순항 21 scene은 유지하고, 속도별 spawn offset/delay를 live MR에서
+재보정한 합류 7 scene으로 교체했다. 10/20/30/40/50/60/70 km/h 합류 bin이 모두
+16-frame gate를 완주했으며 최종 합류 GT는 전부 30 m 안에 있다.
+
+최종 raw 3-sweep derived dataset은 train 299 / val 66 frame, 28 scene이며 구조 validator와
+temporal quality audit를 통과했다. BBox-center 궤적 대비 velocity target 차이는 p50
+`0.040 m/s`, p95 `0.231 m/s`여서 label 좌표계와 단위 계약은 다시 확인됐다. T1 1-epoch
+smoke도 Docker/W&B/checkpoint까지 완료했다. 이 결과는 velocity head 정확도 결론이 아니라
+다음 규모 수집 전에 end-to-end 학습 경로가 살아 있음을 확인한 것이다. 세부 수치와 raw
+경로는 dataset runbook의 `합류 재보정과 최종 진단 dataset` 절을 기준으로 한다.
+
 ## 실행 순서
 
 1. P0 LiDAR raw/deskew/zero-time 고속 정적 구조물 A/B로 scan 내부 deskew 계약을
