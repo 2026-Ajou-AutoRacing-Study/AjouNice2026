@@ -26,6 +26,16 @@ def parse_args():
     parser.add_argument("--scene-count", type=int, default=30)
     parser.add_argument("--seed", type=int, default=260920401)
     parser.add_argument("--campaign-tag", default="pilot30")
+    parser.add_argument(
+        "--profile",
+        choices=("mission", "velocity-diagnostic"),
+        default="mission",
+        help=(
+            "mission preserves the existing highway pilot distribution; "
+            "velocity-diagnostic cycles explicit NPC speed anchors for a "
+            "small velocity-head sanity dataset"
+        ),
+    )
     parser.add_argument("--output-root", type=Path, default=DATASET_ROOT)
     parser.add_argument("--install-dir", type=Path)
     parser.add_argument(
@@ -42,7 +52,7 @@ def write_json(path, document):
     )
 
 
-def build_config(scene_count, seed, campaign_tag):
+def build_config(scene_count, seed, campaign_tag, profile="mission"):
     if scene_count < 8:
         raise ValueError("Base4 highway pilot needs at least 8 scenes")
     base, defaults = family_defaults()
@@ -207,6 +217,43 @@ def build_config(scene_count, seed, campaign_tag):
         }
     )
 
+    if profile == "velocity-diagnostic":
+        # This is deliberately a small diagnostic distribution, not the
+        # competition prior.  Explicit anchors prevent a repeat of the first
+        # Base4 pilot, whose completed frames were dominated by 40/50 km/h.
+        # The runtime/audit must still use achieved ObjectStatus motion rather
+        # than trusting these requested values.
+        speed_schedule = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0]
+        merge.update(
+            {
+                "preserve_template_npc_target_speed": False,
+                "npc_target_speed_schedule_kph": speed_schedule,
+                "spawn_velocity_equals_target": True,
+            }
+        )
+        cruise.update(
+            {
+                "preserve_template_npc_target_speed": False,
+                "npc_target_speed_schedule_kph": speed_schedule,
+                "spawn_velocity_equals_target": True,
+                # Keep the first diagnostic easy to interpret and collision
+                # safe: the NPC is in the adjacent right lane while Ego
+                # passes it.  Lateral/parallel diversity belongs to the next
+                # campaign after the speed head proves it can separate bins.
+                "interaction_roles": [
+                    {
+                        "name": "front_overtake",
+                        "weight": 1.0,
+                        "npc_longitudinal_offset_m": [20.0, 42.0],
+                        "gate_longitudinal_m": [5.0, 50.0],
+                        "maximum_abs_lateral_m": 6.5,
+                    }
+                ],
+                "interaction_role_schedule_offset": 0,
+                "sampling_role": "base4_velocity_diagnostic_vehicle",
+            }
+        )
+
     clean_tag = "".join(ch for ch in campaign_tag.lower() if ch.isalnum())
     if not clean_tag:
         raise ValueError("campaign tag must contain an alphanumeric character")
@@ -220,6 +267,7 @@ def build_config(scene_count, seed, campaign_tag):
         "capture": capture,
         "families": [merge, cruise],
         "base4_design": {
+            "profile": profile,
             "scene_count": scene_count,
             "merge_scene_count": merge_count,
             "post_merge_scene_count": cruise_count,
@@ -227,13 +275,20 @@ def build_config(scene_count, seed, campaign_tag):
             "premerge_ego_speed_contract_kph": [50.0, 54.0, 58.0],
             "postmerge_ego_speed_contract_kph": [70.0, 85.0, 100.0],
             "internal_test_split": False,
+            "diagnostic_requested_npc_speeds_kph": (
+                [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0]
+                if profile == "velocity-diagnostic"
+                else None
+            ),
         },
     }
 
 
 def main():
     args = parse_args()
-    config = build_config(args.scene_count, args.seed, args.campaign_tag)
+    config = build_config(
+        args.scene_count, args.seed, args.campaign_tag, profile=args.profile
+    )
     tag = "".join(ch for ch in args.campaign_tag.lower() if ch.isalnum())
     config_path = (
         args.output_root

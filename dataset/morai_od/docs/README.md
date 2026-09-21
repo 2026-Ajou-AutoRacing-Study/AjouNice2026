@@ -12,6 +12,8 @@
    - 고주로 Vehicle velocity head/causal 3-sweep 수집·학습·평가 PLAN.
 4. [`260921_mr_heading_and_sync_annotation_calibration.md`](260921_mr_heading_and_sync_annotation_calibration.md)
    - MR `/Ego_topic.heading`의 `-1.347 deg` 보정과 동기 annotation 교차검증 EVIDENCE.
+5. [`260922_base4_velocity_diagnostic_pilot_runbook.md`](260922_base4_velocity_diagnostic_pilot_runbook.md)
+   - 속도 head 원인 분리를 위한 28-scene MR 진단 수집의 준비 경로와 터미널별 실행 명령.
 
 ## Base3-Online — CURRENT BASELINE / EVIDENCE
 

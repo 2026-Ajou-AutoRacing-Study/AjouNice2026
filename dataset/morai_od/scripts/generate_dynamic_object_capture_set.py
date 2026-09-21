@@ -1881,7 +1881,12 @@ def build_route_anchored_vehicle_scene(
             for item in family.get("interaction_roles", [])
         }
         role = roles[role_name]
-        if family.get("preserve_template_npc_target_speed", False):
+        speed_schedule = family.get("npc_target_speed_schedule_kph")
+        if speed_schedule:
+            npc_target_speed = float(
+                speed_schedule[variant_index % len(speed_schedule)]
+            )
+        elif family.get("preserve_template_npc_target_speed", False):
             npc_target_speed = float(runtime[0]["target_speed_kph"])
         elif role_name == "side_merge_traffic":
             npc_speed_factor = rng.uniform(0.90, 1.05)
@@ -2373,11 +2378,18 @@ def build_highway_cruise_scene(
         )
     )
     base_target = float(spawn["MinDesiredVelocity_Custom"])
-    scale = rng.uniform(*family["npc_target_speed_scale"])
+    speed_schedule = family.get("npc_target_speed_schedule_kph")
+    if speed_schedule:
+        requested_target = float(
+            speed_schedule[variant_index % len(speed_schedule)]
+        )
+    else:
+        scale = rng.uniform(*family["npc_target_speed_scale"])
+        requested_target = base_target * scale
     target, period = configure_spawn(
         spawn,
         rng,
-        {**family, "target_speed_kph": base_target * scale},
+        {**family, "target_speed_kph": requested_target},
         base_target,
     )
     route_link_ids = HIGHWAY_LANE_LINK_PATHS[ego_lane_id]

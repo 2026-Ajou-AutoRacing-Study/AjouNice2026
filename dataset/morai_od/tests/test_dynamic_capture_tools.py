@@ -483,6 +483,22 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertEqual(config["capture"]["maximum_precontrol_drift_m"], 0.75)
         self.assertEqual(merge["count"] + cruise["count"], 30)
 
+    def test_base4_highway_velocity_diagnostic_cycles_explicit_npc_speeds(self):
+        config = base4_highway.build_config(
+            28, 260922101, "veldiag28", profile="velocity-diagnostic"
+        )
+        self.assertEqual(config["base4_design"]["profile"], "velocity-diagnostic")
+        merge, cruise = config["families"]
+        expected = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0]
+        self.assertEqual(merge["npc_target_speed_schedule_kph"], expected)
+        self.assertEqual(cruise["npc_target_speed_schedule_kph"], expected)
+        self.assertFalse(merge["preserve_template_npc_target_speed"])
+        self.assertFalse(cruise["preserve_template_npc_target_speed"])
+        self.assertEqual(
+            [role["name"] for role in cruise["interaction_roles"]],
+            ["front_overtake"],
+        )
+
     def test_actor_relative_pose_and_velocity_are_ego_aligned(self):
         frames = [
             {

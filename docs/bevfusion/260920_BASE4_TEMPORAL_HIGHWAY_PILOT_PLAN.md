@@ -512,9 +512,10 @@ production fusion을 켜지 않는다.
 - 전역 production 후보가 되려면 새 held-out 고주로와 기존 Vehicle/Pedestrian/
   Obstacle regression suite를 추가 통과.
 
-## 2026-09-21 구현 상태
+## 2026-09-22 구현·판정 상태
 
-실행 순서 1--6의 파이프라인 gate를 24-scene 제한 파일럿에서 통과했다.
+실행 순서 1--6의 파이프라인 gate를 24-scene 제한 파일럿에서 통과했고, MR heading
+보정 V2를 사용한 V1/T1 E4 학습과 고주로 rosbag 평가까지 완료했다.
 
 - 24 attempted, 23 completed, raw scene bag 23개.
 - scene split train 19 / val 4 / test 없음.
@@ -528,8 +529,25 @@ production fusion을 켜지 않는다.
 
 이 PASS는 정확도 결론이 아니다. 구현 결과와 실행법은
 [`260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md`](260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md)에
-고정한다. 이후 단계는 제한 4-epoch V1/T1 비교와 기존 dev/현장 regression이며,
-production 판단 전 새 80--120 km/h held-out controller bag이 필요하다.
+고정한다. E4 결과에서는 V1이 단순 3-sweep T1보다 detection recall, tracker와 Map-CV,
+latency에서 나았지만 둘 다 rosbag detector velocity AVE가 약 `3.8--4.0 m/s`였다.
+상세 결과는
+[`260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md`](260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md)에
+고정한다.
+
+Label과 BBox-center 미분 속도의 차이는 p50 `0.075 m/s`, p95 `0.379 m/s`여서 단위나
+좌표계가 주원인이라는 증거는 없다. 반면 학습 속도 분포가 사실상 40/50 km/h 중심으로
+좁았고 두 모델 모두 rosbag에서 12--13 m/s 부근 출력으로 수렴했다. 따라서 다음 단계는
+더 복잡한 temporal 구조가 아니라 10--70 km/h 속도를 명시적으로 순환하는 28-scene
+진단 수집이다. 이 pilot은 속도 bin 분리 가능성만 보고 production 분포로 합치지 않는다.
+
+- dataset runbook:
+  [`../../dataset/morai_od/docs/260922_base4_velocity_diagnostic_pilot_runbook.md`](../../dataset/morai_od/docs/260922_base4_velocity_diagnostic_pilot_runbook.md)
+- 사용자는 Ego를 직접 운전하지 않는다. Runner가 시작 pose, lane waypoint, 목표속도,
+  capture/종료 gate를 자동 적용한다.
+- 성공 scene의 실제 NPC 속도와 16-frame 연속성을 audit한 뒤에만 작은 V1 재학습 여부를
+  결정한다.
+- production 판단 전 새 80--120 km/h held-out controller bag은 여전히 필요하다.
 
 ## 실행 순서
 

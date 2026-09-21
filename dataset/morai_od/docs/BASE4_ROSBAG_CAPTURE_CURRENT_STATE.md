@@ -1,7 +1,7 @@
 # Base4 rosbag 수집 — CURRENT STATE
 
-- 상태: **CURRENT / MR HEADING CALIBRATION REQUIRED**
-- 마지막 검증: 2026-09-21
+- 상태: **CURRENT / VELOCITY-DISTRIBUTION DIAGNOSTIC PREPARED**
+- 마지막 검증: 2026-09-22
 - 대상: raw 4-camera + LiDAR BEVFusion, 이후 Base4-Temporal
 
 ## 1. 현재 결론
@@ -43,6 +43,21 @@ center residual p50 `0.126 m`와 `0.319 m`가 나온 것으로 확정했다.
 EVIDENCE로만 보존한다. 원본 rosbag 재취득 없이 전체 hwy3h1을
 `morai_base4_temporal_highway_hwy3h1_mrhc_v2`로 재변환했고, 13,749 frame의 구조 및
 temporal audit가 통과했다. 다음 V1/T1 학습은 이 corrected V2만 사용한다.
+
+Corrected V2의 V1/T1 E4까지 학습·고주로 rosbag 평가한 결과, detector velocity는
+실주행에서 약 `3.8--4.0 m/s` AVE로 일반화에 실패했다. label 자체는 연속 BBox-center
+미분과 p50 `0.075 m/s`, p95 `0.379 m/s` 수준으로 일치했지만, 완료된 학습 frame의
+차량 속도는 주로 40/50 km/h에 몰렸다. V1/T1 모두 rosbag에서 12--13 m/s 부근으로
+출력이 수렴한 현상을 temporal 구조 문제와 속도 분포 문제로 분리해야 한다.
+
+이를 위해 기존 mission profile은 그대로 둔 채 `velocity-diagnostic` opt-in profile과
+28-scene MR pilot을 준비했다. 합류 7개와 합류 후 순항 21개에서 NPC 요청 속도
+10/20/30/40/50/60/70 km/h를 자동 순환한다. Ego는 runner가 정지 상태부터 waypoint를
+따라 자동 운전하며 사용자가 직접 throttle/steering을 넣지 않는다. 실제 달성 속도는
+요청값이 아니라 수집 후 `/Object_topic`과 BBox-center trajectory로 감사한다. 상세 경로,
+scene별 속도와 실행법은
+[`260922_base4_velocity_diagnostic_pilot_runbook.md`](260922_base4_velocity_diagnostic_pilot_runbook.md)에
+고정한다.
 
 ## 2. launcher별 파일
 
@@ -391,8 +406,8 @@ sweep lag는 p50 `0.129 s`, p95 `0.181 s`, max `0.246 s`이며 `0.25 s` 초과�
 
 1. `p24v1`은 파이프라인 smoke 전용으로 동결한다. 이 dataset의 val이나 1-epoch 결과로
    모델 성능을 주장하지 않는다.
-2. V1 single-frame velocity head와 T1 causal 3-sweep의 4-epoch 개발 실험으로 label,
-   loss, runtime contract만 먼저 비교한다.
+2. Corrected V2 V1/T1 E4 비교는 완료됐다. 단순 causal 3-sweep T1은 V1보다 recall,
+   downstream tracking/prediction과 latency가 나빠 현재 형태로 채택하지 않는다.
 3. scene 단위 train/val split만 사용하고 작은 pilot에는 dataset test split을 만들지 않는다.
 4. LiDAR timestamp 기준 Ego/Object pose interpolation은 유지한다.
    학습용 Ego trajectory와 scan 내부 deskew는 rosbag의 `/Ego_topic` GT pose를 source of
@@ -401,8 +416,9 @@ sweep lag는 p50 `0.129 s`, p95 `0.181 s`, max `0.246 s`이며 `0.25 s` 초과�
 5. 기존 merge/highway1 bag은 반복 사용된 development 평가로만 쓰고, 현장점검 full-stack
    bag은 closed-loop 회귀 근거로만 쓴다. 100 km/h급 최종 비교에는 새 held-out 주행이
    필요하다.
-6. 다음 수집 분포는 V1/T1의 실패 slice를 보고 수정한다. 중단된 `p12v3`를 이어 쓰거나
-   곧바로 대규모 campaign을 시작하지 않는다.
+6. 다음 수집은 준비된 28-scene velocity diagnostic부터 수행한다. 성공 scene의 실제
+   속도 bin과 marker window를 감사하기 전 중단된 `p12v3`를 이어 쓰거나 대규모
+   campaign을 시작하지 않는다.
 7. MORAI 공식 답변상 본선 고주로·로터리 NPC 속도는 샘플과 동일하지 않다. 따라서 현재
    `40/50/60 km/h` dataset은 temporal mechanism 검증에는 계속 사용하지만 production
    prior로 확대하지 않는다. 다음 campaign은 연속 속도 jitter와 상대속도 bin coverage를
