@@ -85,6 +85,9 @@ class MoraiGtBboxVisualization:
         if abs(rpy[0]) > 1.0e-9 or abs(rpy[1]) > 1.0e-9:
             raise ValueError("GT BBox visualizer supports a yaw-only transform")
         self.transform_yaw = rpy[2]
+        self.heading_correction_yaw = math.radians(
+            float(rospy.get_param("~morai_heading_correction_deg", 0.0))
+        )
         self.line_width = float(rospy.get_param("~line_width_m", 0.09))
         self.flatten_z = bool(rospy.get_param("~flatten_z", False))
         self.ground_z = float(rospy.get_param("~ground_z", 0.0))
@@ -108,6 +111,18 @@ class MoraiGtBboxVisualization:
         )
         catalog_path = str(rospy.get_param("~asset_bbox_catalog", "")).strip()
         self.asset_catalog = {}
+        self.vehicle_size_match_max_error_m = float(
+            rospy.get_param(
+                "~vehicle_size_match_max_error_m",
+                0.12,
+            )
+        )
+        self.vehicle_size_match_min_margin_m = float(
+            rospy.get_param(
+                "~vehicle_size_match_min_margin_m",
+                0.02,
+            )
+        )
         if catalog_path:
             catalog_file = Path(catalog_path).expanduser()
             catalog = json.loads(catalog_file.read_text(encoding="utf-8"))
@@ -124,12 +139,46 @@ class MoraiGtBboxVisualization:
             input_topic, ObjectStatusList, self.callback, queue_size=1
         )
         rospy.loginfo(
-            "[morai_gt_bbox_visualization] %s -> %s, frame=map, catalog_assets=%d, raw_comparison=%s",
+            "[morai_gt_bbox_visualization] %s -> %s, frame=map, catalog_assets=%d, heading_correction_deg=%.3f, raw_comparison=%s",
             input_topic,
             output_topic,
             len(self.asset_catalog),
+            math.degrees(self.heading_correction_yaw),
             self.show_raw_comparison,
         )
+
+    def resolve_catalog_asset(self, status, class_name):
+        """Resolve the same audited asset geometry used by rosbag evaluation."""
+        exact = self.asset_catalog.get(str(status.name))
+        if exact is not None and exact.get("class") == class_name:
+            return exact
+        if class_name != "vehicle":
+            return None
+
+        dimensions = (
+            float(status.size.x), float(status.size.y), float(status.size.z)
+        )
+        if min(dimensions) <= 0.0:
+            return None
+        candidates = []
+        for name, asset in self.asset_catalog.items():
+            if asset.get("class") != "vehicle":
+                continue
+            expected = tuple(float(value) for value in asset["bbox_size_m"])
+            error = math.sqrt(
+                sum(
+                    (actual - target) ** 2
+                    for actual, target in zip(dimensions, expected)
+                )
+            )
+            candidates.append((error, name, asset))
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        if not candidates or candidates[0][0] > self.vehicle_size_match_max_error_m:
+            return None
+        second_error = candidates[1][0] if len(candidates) > 1 else math.inf
+        if second_error - candidates[0][0] < self.vehicle_size_match_min_margin_m:
+            return None
+        return candidates[0][2]
 
     def transform_geometry(self, status, class_name, apply_catalog=True):
         cosine = math.cos(self.transform_yaw)
@@ -137,11 +186,18 @@ class MoraiGtBboxVisualization:
         x = cosine * status.position.x - sine * status.position.y + self.translation[0]
         y = sine * status.position.x + cosine * status.position.y + self.translation[1]
         z = status.position.z + self.translation[2]
-        yaw = quaternion_yaw(status.heading, self.transform_yaw)
+        yaw = quaternion_yaw(
+            status.heading,
+            self.transform_yaw + self.heading_correction_yaw,
+        )
         dimensions = (
             float(status.size.x), float(status.size.y), float(status.size.z)
         )
-        asset = self.asset_catalog.get(str(status.name)) if apply_catalog else None
+        asset = (
+            self.resolve_catalog_asset(status, class_name)
+            if apply_catalog
+            else None
+        )
         if asset is not None:
             offset = tuple(
                 float(value) for value in asset["pivot_to_bbox_center_local_m"]
