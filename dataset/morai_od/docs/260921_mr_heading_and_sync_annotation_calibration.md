@@ -100,6 +100,11 @@ val   acc729f1054cb3d37b8a596b70897c92df9dc1de629546f5de17154f7f952dbb
 test  39e794985ab316598b8d9a0329771abe067b1581c3fdbacb73e4a89d26016dda
 ```
 
+Corrected V2를 대상으로 V1 single-frame과 T1 causal 3-sweep의 16-sample 1-epoch smoke를
+각각 실행했다. 두 경로 모두 dataset load, 학습, validation, checkpoint와 W&B sync가
+정상 종료했다. 따라서 다음 미완료 항목은 데이터 재취득이나 loader 수정이 아니라 동일
+E4 조건의 V1/T1 본 학습과 고주로 rosbag downstream 재평가다.
+
 MR 동기 calibration 산출물:
 
 ```text

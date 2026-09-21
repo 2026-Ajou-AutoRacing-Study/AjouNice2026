@@ -116,6 +116,11 @@ python3 perception/detection3d/bevfusion/tools/audit_base4_temporal_quality.py \
 
 ## Dry-run과 smoke test
 
+2026-09-21 RTX 5060 Ti에서 corrected V2의 V1과 T1 모두 `16 train + 16 val`,
+1-epoch smoke를 완료했다. Dataset load, V1 4-channel/T1 5-channel causal sweep,
+forward/backward, validation, checkpoint 저장과 W&B sync가 모두 통과했다. Smoke metric은
+표본 16개의 초기 velocity head 값이므로 모델 선택에는 사용하지 않는다.
+
 ```bash
 cd ~/AjouNice2026
 
