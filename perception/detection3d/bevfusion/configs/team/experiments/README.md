@@ -5,7 +5,7 @@ and ignored so a long-running container is not coupled to Git branch changes.
 
 Reviewed team recipes that must be identical across operators are tracked under
 `../recipes/`. In particular, the Base3-Online highway fresh and E25 fine-tune
-recipes live there; pass their repository-relative YAML path to
+recipes and the Base4 highway V1/T1 reproduction recipes live there; pass their repository-relative YAML path to
 `run_team_training.sh`.
 
 Create the local templates once:
