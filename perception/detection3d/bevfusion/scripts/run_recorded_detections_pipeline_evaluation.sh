@@ -20,6 +20,11 @@ tracker_detection_velocity_fusion_mode="${TRACKER_DETECTION_VELOCITY_FUSION_MODE
 tracker_detection_velocity_noise_std_mps="${TRACKER_DETECTION_VELOCITY_NOISE_STD_MPS:-1.0}"
 gt_reference="${BEVFUSION_EVAL_GT_REFERENCE:-bbox-center-calibrated-v1}"
 asset_bbox_catalog="${BEVFUSION_EVAL_ASSET_BBOX_CATALOG:-dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json}"
+morai_heading_correction_deg="${BEVFUSION_EVAL_MORAI_HEADING_CORRECTION_DEG:-0.0}"
+heading_correction_enabled=true
+if [[ "$morai_heading_correction_deg" == "0" || "$morai_heading_correction_deg" == "0.0" ]]; then
+  heading_correction_enabled=false
+fi
 repo_root="${AJOUNICE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
 ros_port="${BEVFUSION_PIPELINE_EVAL_ROS_PORT:-$((15000 + ($$ % 15000)))}"
 export ROS_MASTER_URI="http://127.0.0.1:${ros_port}"
@@ -67,6 +72,8 @@ rosparam set /use_sim_time true
 env PYTHONPATH="$system_pythonpath" PYTHONNOUSERSITE=1 \
   /usr/bin/python3 /opt/ros/noetic/bin/roslaunch \
   bringup localization_morai_gt.launch use_sim_time:=true \
+  use_heading_correction:="$heading_correction_enabled" \
+  heading_yaw_offset_deg:="$morai_heading_correction_deg" \
   >"$output_dir/localization.log" 2>&1 &
 localization_pid=$!
 
@@ -160,7 +167,8 @@ env PYTHONPATH="$evaluation_pythonpath" PYTHONNOUSERSITE=1 /usr/bin/python3 \
   "$raw_bag" "$output_dir/pipeline_outputs.bag" \
   --output "$output_dir/summary.json" \
   --gt-reference "$gt_reference" \
-  --asset-bbox-catalog "$asset_bbox_catalog"
+  --asset-bbox-catalog "$asset_bbox_catalog" \
+  --morai-heading-correction-deg "$morai_heading_correction_deg"
 
 env PYTHONPATH="$evaluation_pythonpath" PYTHONNOUSERSITE=1 /usr/bin/python3 \
   base_ws/src/tracking_prediction_evaluation/scripts/evaluate_pipeline_prediction.py \
@@ -168,6 +176,7 @@ env PYTHONPATH="$evaluation_pythonpath" PYTHONNOUSERSITE=1 /usr/bin/python3 \
   --output "$output_dir/summary_cv_stable.json" \
   --gt-reference "$gt_reference" \
   --asset-bbox-catalog "$asset_bbox_catalog" \
+  --morai-heading-correction-deg "$morai_heading_correction_deg" \
   --prediction-motion-slice cv-stable \
   --maximum-longitudinal-acceleration-mps2 0.5
 

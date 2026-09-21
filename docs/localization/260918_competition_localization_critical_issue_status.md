@@ -35,7 +35,7 @@ GNSS update가 만드는 고주파 pose correction이 조향 명령으로 전달
 
 - 대회 alias: `localization`, `gt_source=competition`.
 - MRP alias: `localization_mrp`, `gt_source=ego`.
-- heading correction: `-1.347 deg`.
+- heading correction: MR/competition `-1.347 deg`; audited MRP `0 deg`.
 - local/global EKF: `two_d_mode=true`.
 - `publish_sensor_tf=false`.
 - 대회 UDP: `/use_sim_time=false`, ROS host receipt-time policy 유지.

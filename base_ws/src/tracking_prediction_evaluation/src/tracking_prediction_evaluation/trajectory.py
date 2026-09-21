@@ -50,6 +50,18 @@ def normalize_angle(angle: float) -> float:
     return (angle + math.pi) % (2.0 * math.pi) - math.pi
 
 
+def morai_heading_radians(
+    heading_deg: float, heading_correction_deg: float = 0.0
+) -> float:
+    """Convert a MORAI heading after applying its launcher convention.
+
+    The correction belongs to the recorded launcher/interface contract, not
+    to ROS versus UDP transport. MR recordings currently require -1.347 deg;
+    audited MRP synchronized captures require 0 deg.
+    """
+    return normalize_angle(math.radians(heading_deg + heading_correction_deg))
+
+
 def unwrap_angles(angles: Sequence[float]) -> list[float]:
     if not angles:
         return []
@@ -206,6 +218,7 @@ def read_morai_trajectories(
     maximum_assignment_distance_m: float = 2.0,
     maximum_gap_sec: float = 0.5,
     minimum_points: int = 8,
+    heading_correction_deg: float = 0.0,
 ) -> list[TrajectorySegment]:
     """Read MORAI GT frames and reconstruct persistent actor trajectories."""
     try:
@@ -242,7 +255,9 @@ def read_morai_trajectories(
                             x=float(obj.position.x),
                             y=float(obj.position.y),
                             z=float(obj.position.z),
-                            yaw=math.radians(float(obj.heading)),
+                            yaw=morai_heading_radians(
+                                float(obj.heading), heading_correction_deg
+                            ),
                             # Retained for diagnostics only. Existing MORAI
                             # bags disagree on m/s versus km/h, so E0 state
                             # estimation uses causal GT position history.

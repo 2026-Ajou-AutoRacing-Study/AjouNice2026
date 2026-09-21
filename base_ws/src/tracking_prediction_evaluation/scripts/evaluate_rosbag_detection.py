@@ -54,6 +54,16 @@ def parse_args():
     parser.add_argument("--sensor-to-ego-y-m", type=float, default=0.0)
     parser.add_argument("--sensor-to-ego-z-m", type=float, default=1.388)
     parser.add_argument(
+        "--morai-heading-correction-deg",
+        type=float,
+        default=0.0,
+        help=(
+            "heading correction for both Ego and Object status. Use -1.347 "
+            "for audited MR bags and 0 for audited MRP captures; this is "
+            "independent of ROS versus UDP transport"
+        ),
+    )
+    parser.add_argument(
         "--morai-static-tf",
         type=Path,
         default=Path("configs/tf/morai_lanelet_static_tf.yaml"),
@@ -153,6 +163,7 @@ def main():
         args.raw_bag,
         topic=args.object_topic,
         include_classes=tuple(args.classes),
+        heading_correction_deg=args.morai_heading_correction_deg,
     )
     if (
         args.gt_reference == "asset-catalog-bbox-center-v1"
@@ -185,7 +196,11 @@ def main():
         calibrated_segments, translation_xyz, transform_yaw
     )
     ego_points = read_ego_points(
-        args.raw_bag, args.ego_topic, translation_xyz, transform_yaw
+        args.raw_bag,
+        args.ego_topic,
+        translation_xyz,
+        transform_yaw,
+        args.morai_heading_correction_deg,
     )
     source_frames = read_detection_frames(args.detection_bag, args.detection_topic)
     frames, frame_counts = build_evaluation_frames(
@@ -215,6 +230,7 @@ def main():
             "distance_bins_m": [[0.0, 10.0], [10.0, 20.0], [20.0, 30.0]],
             "maximum_range_m": args.maximum_range_m,
             "production_score_threshold": args.production_score_threshold,
+            "morai_heading_correction_deg": args.morai_heading_correction_deg,
             "ap_min_recall": 0.1,
             "ap_min_precision": 0.1,
             "gt_reference": args.gt_reference,
@@ -243,6 +259,7 @@ def main():
             "detection_frame_count": len(source_frames),
             "evaluated_frame_count": len(frames),
             "morai_static_tf": str(args.morai_static_tf.resolve()),
+            "morai_heading_correction_deg": args.morai_heading_correction_deg,
             "asset_bbox_catalog": (
                 str(args.asset_bbox_catalog.resolve())
                 if args.gt_reference == "asset-catalog-bbox-center-v1"

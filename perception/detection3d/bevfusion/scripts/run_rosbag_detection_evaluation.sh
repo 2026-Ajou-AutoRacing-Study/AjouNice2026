@@ -24,6 +24,7 @@ publish_detector_velocity="${BEVFUSION_EVAL_PUBLISH_DETECTOR_VELOCITY:-false}"
 detector_velocity_noise_std_mps="${BEVFUSION_EVAL_DETECTOR_VELOCITY_NOISE_STD_MPS:-1.0}"
 gt_reference="${BEVFUSION_EVAL_GT_REFERENCE:-bbox-center-calibrated-v1}"
 asset_bbox_catalog="${BEVFUSION_EVAL_ASSET_BBOX_CATALOG:-dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json}"
+morai_heading_correction_deg="${BEVFUSION_EVAL_MORAI_HEADING_CORRECTION_DEG:-0.0}"
 repo_root="${AJOUNICE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
 ros_port="${BEVFUSION_EVAL_ROS_PORT:-$((14000 + ($$ % 18000)))}"
 export ROS_MASTER_URI="http://127.0.0.1:${ros_port}"
@@ -120,7 +121,8 @@ bridge_pid=""
   "$raw_bag" "$output_dir/detections.bag" \
   --output "$output_dir/summary.json" \
   --gt-reference "$gt_reference" \
-  --asset-bbox-catalog "$asset_bbox_catalog"
+  --asset-bbox-catalog "$asset_bbox_catalog" \
+  --morai-heading-correction-deg "$morai_heading_correction_deg"
 
 /usr/bin/python3 - "$output_dir/summary.json" \
   "$score_threshold" "$vehicle_score_threshold" \

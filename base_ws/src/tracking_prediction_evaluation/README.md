@@ -191,11 +191,18 @@ not hidden by the AP calculation.
 Record the detector with a low `0.01` evaluation confidence floor so the AP
 curve is not truncated. The JSON also evaluates the deployed `0.10` threshold.
 
+MORAI heading correction follows the launcher that produced the recording, not
+ROS versus UDP transport. Audited MR bags use
+`--morai-heading-correction-deg -1.347`; audited MRP synchronized captures use
+`0` (the default). Apply the same correction to Ego and Object status. Never
+infer it merely from the bag containing an UDP-origin topic.
+
 ```bash
 /usr/bin/python3 \
   base_ws/src/tracking_prediction_evaluation/scripts/evaluate_rosbag_detection.py \
   RAW_INPUT.bag DETECTION_OUTPUT.bag \
-  --output artifacts/detection3d/online_rosbag/SCENE/summary.json
+  --output artifacts/detection3d/online_rosbag/SCENE/summary.json \
+  --morai-heading-correction-deg -1.347  # MR example
 ```
 
 The evaluator uses the independently audited vehicle actor-origin to BBox-center

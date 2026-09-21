@@ -12,7 +12,12 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from .evaluator import estimate_motion_state
-from .trajectory import TrajectoryPoint, TrajectorySegment, interpolate_point
+from .trajectory import (
+    TrajectoryPoint,
+    TrajectorySegment,
+    interpolate_point,
+    morai_heading_radians,
+)
 
 
 VEHICLE_LABELS = frozenset((1, 2, 3, 4, 5, 6))
@@ -65,7 +70,13 @@ def transform_xy(x: float, y: float, translation_xyz, yaw: float):
     )
 
 
-def read_ego_points(bag_path, topic, translation_xyz, transform_yaw):
+def read_ego_points(
+    bag_path,
+    topic,
+    translation_xyz,
+    transform_yaw,
+    heading_correction_deg=0.0,
+):
     import rosbag
 
     points = []
@@ -83,7 +94,13 @@ def read_ego_points(bag_path, topic, translation_xyz, transform_yaw):
                     timestamp,
                     x,
                     y,
-                    (math.radians(float(message.heading)) + transform_yaw + math.pi)
+                    (
+                        morai_heading_radians(
+                            float(message.heading), heading_correction_deg
+                        )
+                        + transform_yaw
+                        + math.pi
+                    )
                     % (2.0 * math.pi)
                     - math.pi,
                 )

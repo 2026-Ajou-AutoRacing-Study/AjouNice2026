@@ -54,6 +54,15 @@ def parse_args():
     )
     parser.add_argument("--sensor-to-ego-x-m", type=float, default=0.855)
     parser.add_argument("--sensor-to-ego-y-m", type=float, default=0.0)
+    parser.add_argument(
+        "--morai-heading-correction-deg",
+        type=float,
+        default=0.0,
+        help=(
+            "heading correction for both Ego and Object status. Use -1.347 "
+            "for audited MR bags and 0 for audited MRP captures"
+        ),
+    )
     parser.add_argument("--maximum-interpolation-bracket-sec", type=float, default=0.15)
     parser.add_argument(
         "--gt-reference",
@@ -117,6 +126,7 @@ def main():
         args.raw_bag,
         topic=args.object_topic,
         include_classes=("vehicle",),
+        heading_correction_deg=args.morai_heading_correction_deg,
     )
     reference_calibration = None
     if args.gt_reference == "asset-catalog-bbox-center-v1":
@@ -150,6 +160,7 @@ def main():
         args.ego_topic,
         translation_xyz,
         transform_yaw,
+        args.morai_heading_correction_deg,
     )
     tracking_frames, prediction_frames = read_output_frames(
         args.output_bag,
@@ -261,6 +272,7 @@ def main():
         "morai_static_tf": str(args.morai_static_tf.resolve()),
         "map_file": str(args.map_file.resolve()),
         "projector_file": str(args.projector_file.resolve()),
+        "morai_heading_correction_deg": args.morai_heading_correction_deg,
         "asset_bbox_catalog": (
             str(args.asset_bbox_catalog.resolve())
             if args.gt_reference == "asset-catalog-bbox-center-v1"

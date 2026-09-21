@@ -43,6 +43,10 @@ MRP 전체 동기 캡처에서는 반대로 잘못된 `-1.347 deg`를 넣으면 
 따라서 launcher 계약은 확정적으로 `MR=-1.347 deg`, `MRP=0.0 deg`다. 두 launcher의
 raw bag이나 info를 이름만 보고 섞지 않는다.
 
+이 계약은 ROS/UDP transport와 무관하다. MR UDP receiver와 rosbridge 모두 simulator의
+heading을 별도 yaw correction 없이 전달하므로, MR에서 어느 transport로 녹화했든 같은
+`-1.347 deg`가 필요하다. 반대로 MRP에 잘못 적용하면 정합이 악화된다.
+
 별도 시나리오 비교에서 scenario Ego yaw `60.306 deg`에 대해 MR Ego heading은 약
 `61.651 deg`였고, 16개 scene의 필요한 보정 중앙값은 `-1.350 deg`였다. 기존 competition
 localization의 `-1.347 deg`와 일치하므로 새 상수를 만들지 않고 같은 값을 사용한다.
@@ -57,6 +61,8 @@ localization의 `-1.347 deg`와 일치하므로 새 상수를 만들지 않고 �
 - `ego2global`, `lidar2global`
 - causal sweep의 `sweep2lidar`
 - Ego-pose 기반 scan deskew pose history
+- rosbag detection 평가의 sensor-to-map 변환
+- tracking/Map-CV replay에서 사용하는 MORAI GT localization
 
 추가 보정하지 않는 값:
 
@@ -71,6 +77,17 @@ localization의 `-1.347 deg`와 일치하므로 새 상수를 만들지 않고 �
 - 기존 `p24v1`, `hwy3h1` info/checkpoint: 보정 발견 전 EVIDENCE
 - 다음 학습: raw bag에서 corrected info를 재생성한 뒤 수행
 - Base3-Static/MRP 및 기존 MRP-derived catalog: 변경하지 않음
+
+기존 mission bag의 Ego heading과 실제 이동 접선을 비교한 결과 신로터리, 고주로 합류,
+고주로1, obstacle 왕복, obstacle multiasset은 residual 중앙값이 각각 약
+`+1.373/+1.353/+1.357/+1.362/+1.371 deg`로 MR 계약에 해당했다. 정지 Ego만 있는
+pedestrian crossing/distance bag은 이 방법으로 launcher를 판별할 수 없으므로 출처가
+복구될 때까지 역사적 `0 deg` 계약을 명시적으로 유지한다.
+
+평가기에는 `--morai-heading-correction-deg`를 추가했고, suite가 bag별 계약을 넘긴다.
+고주로1의 저장된 detection을 재추론 없이 A/B한 smoke에서 Vehicle mean AP는
+`0.7667 -> 0.8274`로 변했다. 따라서 기존 MR bag 수치는 heading-corrected 재평가 전에는
+최종 비교표로 사용하지 않는다.
 
 기존 MR `hwy3h1` raw bag 전체를 다음 corrected dataset으로 재변환했다.
 

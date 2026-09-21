@@ -31,12 +31,15 @@
 # MR 및 실대회: /Competition_topic, heading -1.347 deg correction
 localization
 
-# MRP: /Ego_topic, 나머지 estimator 계약은 동일
+# MRP: /Ego_topic, audited launcher heading은 별도 correction 없음
 localization_mrp
 ```
 
 여기서 `MR`은 2025 대회용 launcher, `MRP`는 2026 개인용 launcher다. 실행하는
 컴퓨터가 로컬인지 여부가 아니라 launcher가 제공하는 topic 계약으로 alias를 고른다.
+`-1.347 deg`는 ROS/UDP transport 보정이 아니라 MR heading convention 보정이다.
+UDP receiver도 packet yaw를 그대로 전달한다. 전체 동기 캡처 audit에서 MRP는 `0 deg`가
+맞았으므로 `localization_mrp`에는 heading correction을 적용하지 않는다.
 
 대회 client에서는 `/Ego_topic`을 기대하지 않는다. 따라서
 `localization_morai_gt`는 대회 fallback이 아니다. 대회에서는 `localization` 하나를
