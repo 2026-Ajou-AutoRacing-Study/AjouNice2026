@@ -1,6 +1,6 @@
 # MORAI OD dataset 문서 index
 
-마지막 정리: 2026-09-21.
+마지막 정리: 2026-09-22.
 
 ## Base4 rosbag capture — CURRENT
 
@@ -16,6 +16,8 @@
    - 속도 head 원인 분리를 위한 28-scene MR 진단 수집의 준비 경로와 터미널별 실행 명령.
 6. [`260922_base4_velocity_hardcase_v2_results.md`](260922_base4_velocity_hardcase_v2_results.md)
    - 속도 진단 + 병목 + 일반 고속 횡 offset을 합친 51-scene V1/T1 학습 준비 결과.
+7. [`260922_base4_highway_first_experiment_dataset.md`](260922_base4_highway_first_experiment_dataset.md)
+   - 159-scene raw와 157-scene Ego-deskew twin으로 완성한 고주로 1차 실험 dataset.
 
 ## Base3-Online — CURRENT BASELINE / EVIDENCE
 

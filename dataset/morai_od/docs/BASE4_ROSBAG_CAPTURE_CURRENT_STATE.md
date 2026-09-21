@@ -457,3 +457,8 @@ sweep lag는 p50 `0.129 s`, p95 `0.181 s`, max `0.246 s`이며 `0.25 s` 초과�
     symmetric 횡 offset을 적용하며 세부 근거와 실행법은
     [`260922_base4_velocity_hardcase_v2_results.md`](260922_base4_velocity_hardcase_v2_results.md)를
     따른다.
+12. 고주로 1차 실험 dataset은 hard-case `51`, 고속 연속속도 `48`, 새 균형 보강 `60`
+    scene을 합쳤다. 최종 raw는 `159 scene / 2,028 frame`, scan-end Ego deskew twin은
+    `157 scene / 1,887 frame`이며 두 temporal audit 모두 PASS다. 세부 분포와 학습 recipe는
+    [`260922_base4_highway_first_experiment_dataset.md`](260922_base4_highway_first_experiment_dataset.md)를
+    따른다.

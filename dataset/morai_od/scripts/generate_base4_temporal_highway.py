@@ -34,6 +34,7 @@ def parse_args():
             "velocity-diagnostic",
             "high-speed-pilot",
             "bottleneck-pilot",
+            "competition-balanced-pilot",
         ),
         default="mission",
         help=(
@@ -42,7 +43,9 @@ def parse_args():
             "small velocity-head sanity dataset; high-speed-pilot samples "
             "post-merge Ego/NPC speeds continuously for 80--120 km/h "
             "relative-motion coverage; bottleneck-pilot targets the lane "
-            "convergence and narrow production corridor"
+            "convergence and narrow production corridor; competition-"
+            "balanced-pilot fills merge, speed, relative-position and "
+            "left/right adjacent-lane coverage for the first training set"
         ),
     )
     parser.add_argument("--output-root", type=Path, default=DATASET_ROOT)
@@ -71,6 +74,23 @@ def stratified_speed_schedule(count, lower, upper, seed):
         round(float(lower) + (index + 0.5) * width, 1)
         for index in range(count)
     ]
+    random.Random(int(seed)).shuffle(values)
+    return values
+
+
+def shuffled_lane_schedule(count, lane_weights, seed):
+    """Return exact weighted lane quotas without periodic role correlation."""
+
+    weights = {int(lane): float(weight) for lane, weight in lane_weights.items()}
+    total_weight = sum(weights.values())
+    exact = {lane: count * weight / total_weight for lane, weight in weights.items()}
+    quotas = {lane: int(value) for lane, value in exact.items()}
+    remainder = count - sum(quotas.values())
+    for lane in sorted(
+        weights, key=lambda item: (-(exact[item] - quotas[item]), item)
+    )[:remainder]:
+        quotas[lane] += 1
+    values = [lane for lane in sorted(quotas) for _ in range(quotas[lane])]
     random.Random(int(seed)).shuffle(values)
     return values
 
@@ -330,6 +350,123 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
                 ],
                 "interaction_role_schedule_offset": 0,
                 "sampling_role": "base4_velocity_diagnostic_vehicle",
+            }
+        )
+
+    if profile == "competition-balanced-pilot":
+        # This is the first training-set completion profile, not a claim about
+        # the hidden competition distribution.  It deliberately crosses
+        # speed, relative-pose and lane-side axes that were correlated in the
+        # earlier small pilots while retaining the mission's legal speed
+        # envelope and sample-scenario road topology.
+        merge_speed_schedule = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0]
+        merge.update(
+            {
+                "preserve_template_npc_target_speed": False,
+                "npc_target_speed_schedule_kph": merge_speed_schedule,
+                "spawn_velocity_equals_target": True,
+                "npc_spawn_offset_correction_by_speed_kph": {
+                    "10": 90.0,
+                    "20": 20.0,
+                },
+                "npc_spawn_delay_by_speed_kph": {
+                    "50": 3.0,
+                    "60": 2.0,
+                    "70": 4.0,
+                },
+                "interaction_roles": [
+                    {
+                        "name": "merge_interacting_traffic",
+                        "weight": 1.0,
+                        "npc_longitudinal_offset_m": [-50.0, -35.0],
+                        "gate_longitudinal_m": [-30.0, 30.0],
+                        "maximum_abs_lateral_m": 22.0,
+                        "minimum_distance_m": 4.0,
+                        "maximum_distance_m": 32.0,
+                    }
+                ],
+                "sampling_role": "base4_balanced_merge_vehicle",
+            }
+        )
+
+        ego_speed_schedule = stratified_speed_schedule(
+            cruise_count, 60.0, 120.0, seed + 60120
+        )
+        npc_speed_schedule = stratified_speed_schedule(
+            cruise_count, 20.0, 80.0, seed + 20080
+        )
+        lane_weights = {"6": 0.25, "8": 0.50, "10": 0.25}
+        cruise.update(
+            {
+                "ego_lane_weights": lane_weights,
+                "ego_lane_schedule": shuffled_lane_schedule(
+                    cruise_count, lane_weights, seed + 6810
+                ),
+                "ego_lane_speed_kph": {
+                    "6": [60.0, 120.0],
+                    "8": [60.0, 120.0],
+                    "10": [60.0, 120.0],
+                },
+                "ego_speed_schedule_kph": ego_speed_schedule,
+                "ego_speed_limit_kph": 120.0,
+                "npc_target_speed_schedule_kph": npc_speed_schedule,
+                "preserve_template_npc_target_speed": False,
+                "spawn_velocity_equals_target": True,
+                "start_ego_at_target_speed": True,
+                "ego_start_arc_m": [50.0, 120.0],
+                "maximum_precontrol_drift_m": 0.0,
+                "maximum_motion_m": 230.0,
+                "capture_motion_arm_m": 80.0,
+                "center_actor_during_clip": True,
+                "effective_clip_duration_sec": 2.1,
+                # The chosen adjacent side is alternated independently of
+                # speed, role and shuffled Ego-lane schedules.  Edge-lane
+                # conflicts move only that scene to the middle legal lane.
+                "adjacent_lane_side_schedule": [
+                    "left",
+                    "right",
+                    "right",
+                    "left",
+                ],
+                "interaction_roles": [
+                    {
+                        "name": "front_overtake",
+                        "weight": 1.0,
+                        "npc_longitudinal_offset_m": [8.0, 16.0],
+                        "gate_longitudinal_m": [3.0, 30.0],
+                        "maximum_abs_lateral_m": 8.0,
+                    },
+                    {
+                        "name": "side_passby",
+                        "weight": 1.0,
+                        "npc_longitudinal_offset_m": [-3.0, 3.0],
+                        "gate_longitudinal_m": [-18.0, 20.0],
+                        "maximum_abs_lateral_m": 8.0,
+                    },
+                    {
+                        "name": "rear_receding",
+                        "weight": 1.0,
+                        "adjacent_lane": True,
+                        "npc_longitudinal_offset_m": [-14.0, -6.0],
+                        "gate_longitudinal_m": [-30.0, -3.0],
+                        "maximum_abs_lateral_m": 8.0,
+                    },
+                    {
+                        "name": "front_following",
+                        "weight": 1.0,
+                        "npc_longitudinal_offset_m": [10.0, 22.0],
+                        "gate_longitudinal_m": [4.0, 30.0],
+                        "maximum_abs_lateral_m": 8.0,
+                        "ego_speed_delta_kph": [-3.0, 3.0],
+                    },
+                ],
+                "interaction_role_schedule_offset": 0,
+                "actor_gate_longitudinal_m": [-30.0, 30.0],
+                "actor_gate_maximum_abs_lateral_m": 8.0,
+                "actor_gate_minimum_distance_m": 3.0,
+                "actor_gate_maximum_distance_m": 32.0,
+                "actor_gate_minimum_in_gate_frames": 6,
+                "sampling_role": "base4_competition_balanced_vehicle",
             }
         )
 
@@ -629,6 +766,9 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
                 [25.0, 80.0] if profile == "high-speed-pilot" else None
             ),
             "bottleneck_pilot": profile == "bottleneck-pilot",
+            "competition_balanced_pilot": (
+                profile == "competition-balanced-pilot"
+            ),
         },
     }
 

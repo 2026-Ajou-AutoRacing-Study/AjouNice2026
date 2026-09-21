@@ -2475,7 +2475,15 @@ def build_highway_cruise_scene(
     scenario, template, family, rng, variant_index, links_by_id
 ):
     source_ids = list(family["source_spawn_ids"])
-    ego_lane_id = weighted_lane_schedule(family)[variant_index]
+    explicit_lane_schedule = family.get("ego_lane_schedule")
+    if explicit_lane_schedule:
+        if len(explicit_lane_schedule) != int(family.get("count", 1)):
+            raise ValueError("ego_lane_schedule length must match family count")
+        ego_lane_id = int(explicit_lane_schedule[variant_index])
+        if ego_lane_id not in source_ids:
+            raise ValueError("ego_lane_schedule contains an illegal lane")
+    else:
+        ego_lane_id = weighted_lane_schedule(family)[variant_index]
     route_profile = str(family.get("highway_route_profile", "cruise"))
     if route_profile == "cruise":
         route_paths = HIGHWAY_LANE_LINK_PATHS
@@ -2516,6 +2524,56 @@ def build_highway_cruise_scene(
             % len(role_schedule)
         ]
     role = roles[role_name]
+    adjacent_role = role_name in {"side_parallel", "side_passby"} or (
+        role_name in {"rear_approach", "rear_receding"}
+        and role.get("adjacent_lane", False)
+    )
+    adjacent_side = None
+    adjacent_side_schedule = family.get("adjacent_lane_side_schedule")
+    if adjacent_role and adjacent_side_schedule:
+        adjacent_side = str(
+            adjacent_side_schedule[variant_index % len(adjacent_side_schedule)]
+        ).lower()
+        if adjacent_side not in {"left", "right"}:
+            raise ValueError(
+                "adjacent lane side must be left or right: {}".format(
+                    adjacent_side
+                )
+            )
+        if family.get("force_middle_lane_for_adjacent_side", False):
+            middle_lanes = [
+                lane
+                for lane in sorted(source_ids)
+                if any(other < lane for other in source_ids)
+                and any(other > lane for other in source_ids)
+            ]
+            if not middle_lanes:
+                raise ValueError("no legal middle lane for adjacent-side schedule")
+            ego_lane_id = middle_lanes[variant_index % len(middle_lanes)]
+        else:
+            desired_adjacent = [
+                lane
+                for lane in source_ids
+                if abs(lane - ego_lane_id) == 2
+                and (
+                    (adjacent_side == "left" and lane > ego_lane_id)
+                    or (adjacent_side == "right" and lane < ego_lane_id)
+                )
+            ]
+            if not desired_adjacent:
+                middle_lanes = [
+                    lane
+                    for lane in sorted(source_ids)
+                    if any(other < lane for other in source_ids)
+                    and any(other > lane for other in source_ids)
+                ]
+                if not middle_lanes:
+                    raise ValueError(
+                        "no legal lane supports requested adjacent side"
+                    )
+                ego_lane_id = middle_lanes[
+                    variant_index % len(middle_lanes)
+                ]
     if role_name == "front_overtake" and ego_lane_id == min(source_ids):
         # The rightmost Ego lane has no slower lane on its right.  Keeping the
         # NPC in the same lane while Ego is deliberately faster turns the
@@ -2523,11 +2581,18 @@ def build_highway_cruise_scene(
         # these overtaking clips to the middle lane instead.
         overtaking_lanes = sorted(source_ids)[1:]
         ego_lane_id = overtaking_lanes[variant_index % len(overtaking_lanes)]
-    if role_name in {"side_parallel", "side_passby"} or (
-        role_name in {"rear_approach", "rear_receding"}
-        and role.get("adjacent_lane", False)
-    ):
+    if adjacent_role:
         adjacent = [lane for lane in source_ids if abs(lane - ego_lane_id) == 2]
+        if adjacent_side == "left":
+            adjacent = [lane for lane in adjacent if lane > ego_lane_id]
+        elif adjacent_side == "right":
+            adjacent = [lane for lane in adjacent if lane < ego_lane_id]
+        if not adjacent:
+            raise ValueError(
+                "no {} adjacent lane for Ego lane {}".format(
+                    adjacent_side or "legal", ego_lane_id
+                )
+            )
         npc_spawn_id = adjacent[variant_index % len(adjacent)]
     elif role_name == "front_overtake":
         right_lanes = [lane for lane in source_ids if lane < ego_lane_id]
@@ -2918,6 +2983,7 @@ def build_highway_cruise_scene(
             "same_lane": same_lane,
             "relative_lane_intent": relative_lane_intent,
             "interaction_role": role_name,
+            "adjacent_lane_side": adjacent_side,
             "planned_longitudinal_offset_m": offset_m,
             "clip_centering_shift_m": clip_centering_shift_m,
             "load_time_longitudinal_offset_m": load_time_offset_m,

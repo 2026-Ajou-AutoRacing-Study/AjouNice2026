@@ -294,17 +294,52 @@ def main():
     state_rejected = Counter()
     center_velocity_sources = Counter()
 
+    # A composed dataset can interleave campaigns whose directory names do
+    # not sort chronologically.  Pass 2 is a streaming merge over globally
+    # sorted capture windows, so processing bags in CLI order can otherwise
+    # advance past an earlier campaign and create a false empty window.
+    bag_paths_with_start = []
+    for bag_path in args.bags:
+        with rosbag.Bag(str(bag_path), "r") as bag:
+            bag_paths_with_start.append((bag.get_start_time(), bag_path))
+    bag_paths = [
+        path for _start, path in sorted(
+            bag_paths_with_start, key=lambda item: (item[0], str(item[1]))
+        )
+    ]
+
     # Pass 1 keeps only tiny scene markers.  Sensor payloads are streamed one
     # capture window at a time in pass 2 so 20+ GiB split bags do not exhaust
     # host memory.
     markers = []
-    for bag_path in args.bags:
+    for bag_path in bag_paths:
         with rosbag.Bag(str(bag_path), "r") as bag:
             for _topic, message, bag_time in bag.read_messages(topics=[MARKER_TOPIC]):
                 markers.append((bag_time.to_sec(), json.loads(message.data)))
     windows, marker_errors = build_capture_windows(markers)
     if marker_errors:
         raise ValueError("invalid capture markers: {}".format(marker_errors))
+    # Snapshot bags can legitimately contain a complete ``scene_failed``
+    # marker window (or the tail of one) next to the accepted capture that
+    # triggered the snapshot.  Such windows are useful to the bag auditor but
+    # must never become training scenes.  Combining multiple campaigns makes
+    # these rejected windows visible even when each campaign was converted
+    # separately, so filter by the terminal contract rather than relying on
+    # bag ordering or the presence of sensor payloads.
+    ignored_noncompleted_windows = [
+        {
+            "scene_id": window["scene_id"],
+            "terminal_event": window["terminal_event"],
+            "terminal_status": window["terminal_status"],
+            "terminal_error": window["terminal_error"],
+        }
+        for window in windows
+        if window["terminal_event"] != "capture_end"
+    ]
+    windows = [
+        window for window in windows
+        if window["terminal_event"] == "capture_end"
+    ]
     starts = {}
     sequence_start_times = {}
     for marker_stamp, payload in sorted(markers, key=lambda item: item[0]):
@@ -646,7 +681,7 @@ def main():
         topic_rows = {topic: [] for topic in sensor_topics}
         window_index += 1
 
-    for bag_path in args.bags:
+    for bag_path in bag_paths:
         with rosbag.Bag(str(bag_path), "r") as bag:
             for topic, message, bag_time in bag.read_messages(topics=sensor_topics):
                 if window_index >= len(windows):
@@ -769,7 +804,8 @@ def main():
             pickle.dump({"metainfo": metainfo, "data_list": rows}, stream, protocol=4)
     report = {
         "schema_version": 2,
-        "bags": [str(path.resolve()) for path in args.bags],
+        "bags": [str(path.resolve()) for path in bag_paths],
+        "ignored_noncompleted_windows": ignored_noncompleted_windows,
         "ego_heading_correction_deg": args.ego_heading_correction_deg,
         "scenes": dict(scene_count),
         "frames": {key: len(value) for key, value in split_rows.items()},

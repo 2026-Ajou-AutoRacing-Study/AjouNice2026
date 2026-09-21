@@ -22,6 +22,10 @@
   dataset 검증까지 완료했다. 아직 팀 공용 package나 production checkpoint는 아니며,
   다음 실험은 동일 조건 V1/T1 A/B다. 상세 결과는
   [`../../dataset/morai_od/docs/260922_base4_highspeed_jitter_pilot_results.md`](../../dataset/morai_od/docs/260922_base4_highspeed_jitter_pilot_results.md)를 따른다.
+- 첫 통합 실험 deck은 raw `159 scene / 2,028 frame`, scan-end Ego deskew
+  `157 scene / 1,887 frame`으로 완성됐고 둘 다 temporal audit PASS다. raw V1/raw T1/
+  deskew T1 E4 recipe와 입력 계약은
+  [`../../dataset/morai_od/docs/260922_base4_highway_first_experiment_dataset.md`](../../dataset/morai_od/docs/260922_base4_highway_first_experiment_dataset.md)를 따른다.
 
 정량 결과와 판정은
 [`260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md`](260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md)를
