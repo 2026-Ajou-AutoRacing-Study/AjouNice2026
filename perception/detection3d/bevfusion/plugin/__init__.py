@@ -17,3 +17,5 @@ __all__ = [
     "MoraiTransFusionHead",
     "MoraiWandbVisBackend",
 ]
+
+from .morai_base4_temporal_3sweep_dataset import MoraiBase4Temporal3SweepDataset
