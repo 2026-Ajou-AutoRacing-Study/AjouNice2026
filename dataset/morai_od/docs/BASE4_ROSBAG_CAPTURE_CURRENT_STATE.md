@@ -35,11 +35,14 @@ dataset이 아니다.
 `-1.347 deg`를 적용하면 동일 asset의 두 관측 간 box-center 잔차가
 `p50 0.192 -> 0.046 m`, `p95 0.228 -> 0.081 m`로 감소했다. 따라서 **MR에서 녹화한
 bag의 GT, ego2global, causal sweep pose, ego deskew pose에는 반드시**
-`--ego-heading-correction-deg -1.347`을 사용한다. MRP는 `0.0`이다.
+`--ego-heading-correction-deg -1.347`을 사용한다. MRP는 `0.0`이다. MRP 결론은 기존
+동기 캡처 `31,644` observation 전체에서 0도와 잘못된 -1.347도를 비교해 각각
+center residual p50 `0.126 m`와 `0.319 m`가 나온 것으로 확정했다.
 
 이 발견 전에 변환한 `p24v1` 및 `hwy3h1` info와 그 학습 checkpoint는 파이프라인
-EVIDENCE로만 보존한다. 다음 성능 실험 전 raw bag에서 heading-corrected info를 다시
-만들어야 한다. 원본 rosbag을 재취득할 필요는 없다.
+EVIDENCE로만 보존한다. 원본 rosbag 재취득 없이 전체 hwy3h1을
+`morai_base4_temporal_highway_hwy3h1_mrhc_v2`로 재변환했고, 13,749 frame의 구조 및
+temporal audit가 통과했다. 다음 V1/T1 학습은 이 corrected V2만 사용한다.
 
 ## 2. launcher별 파일
 

@@ -455,8 +455,18 @@ Quality audit의 현재 고정 계약은 다음과 같다.
 
 ```bash
 python3 perception/detection3d/bevfusion/tools/audit_base4_temporal_quality.py \
-  --info-dir artifacts/datasets/morai_base4_temporal_highway_hwy3h1_raw
+  --info-dir artifacts/datasets/morai_base4_temporal_highway_hwy3h1_mrhc_v2
 ```
+
+MR heading calibration 발견 전 `hwy3h1_raw`로 학습한 V1/T1 E4는 architecture와
+runtime pipeline EVIDENCE로만 유지한다. 다음 동일조건 A/B는 MR `-1.347 deg`가 적용된
+13,749-frame `hwy3h1_mrhc_v2`와 다음 tracked recipe를 사용한다.
+
+- `base4_hwy3h1_mrhc_v2_v1_e4.yaml`
+- `base4_hwy3h1_mrhc_v2_t1_3sweep_e4.yaml`
+
+보정 전후 공통 13,232 frame의 GT center shift는 p50 `0.283 m`, p95 `0.634 m`이므로
+예전 checkpoint와 새 dataset 성능을 동일 GT 실험으로 취급하지 않는다.
 
 ## Tracker A/B
 

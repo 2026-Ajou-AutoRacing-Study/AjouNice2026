@@ -10,9 +10,11 @@
 - 작업 기준 브랜치는 `dataset/base4-temporal`이다.
 - 기존 production은 계속 `B3-BF0-F40 E25` 7D이며 detector velocity 발행은 `off`다.
 - Base4 V1은 single-frame 9D `vx, vy`, T1은 causal 3-sweep 9D control이다.
-- 현재 4-epoch 결과에서는 V1이 T1보다 고주로 tracking/prediction 일반화가 낫다.
+- 보정 전 4-epoch 결과에서는 V1이 T1보다 고주로 tracking/prediction 일반화가 나았다.
 - 두 모델 모두 detector velocity를 tracker에 넣으면 기존 E25보다 악화했으므로 production이
   아니다. 다음 우선순위는 V1 velocity label/loss와 실제 주행형 속도 분포 개선이다.
+- MR rosbag의 heading 보정이 확정돼 다음 학습은 `hwy3h1_mrhc_v2`로 V1/T1을 다시
+  비교한다. 기존 `hwy3h1_raw` checkpoint는 파이프라인 EVIDENCE다.
 - 팀원의 `perception/base4-temporal-3sweep` 브랜치는 전체 merge하지 않는다. 해당 구현에서
   유효했던 scene leakage, sweep transform, velocity consistency 검사는 현재 audit 도구에
   선별 이식됐다.
@@ -40,7 +42,7 @@ dataset을 커밋하지 않는다.
 | 항목 | 팀원 PC 권장 위치 | 비고 |
 |---|---|---|
 | 공용 Docker image | Docker image `ajounice/bevfusion:team-cu128-v1` | 2080 Ti/3090/4090/5060 Ti 공용 |
-| Base4 parsed dataset | `$HOME/ajounice_bevfusion_artifacts/datasets/base4_temporal_highway_hwy3h1_raw/` | 약 7.1 GiB |
+| Base4 corrected parsed dataset | `$HOME/ajounice_bevfusion_artifacts/datasets/base4_temporal_highway_hwy3h1_mrhc_v2/` | 약 7.3 GiB, MR heading-corrected CURRENT |
 | Base3 E25 inference checkpoint | `$HOME/ajounice_bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth` | V1 초기값 |
 | Base4 T1 adapted checkpoint | `$HOME/ajounice_bevfusion_artifacts/checkpoints/base3_e25_to_base4_t1.pth` | T1의 5-channel 초기값 |
 | V1/T1 E4 checkpoint | 선택 | 기존 결과 재평가에만 필요 |
@@ -52,9 +54,9 @@ Dataset root에는 `morai_base3_infos_{train,val,test}.pkl`, scene data,
 현재 기준 fingerprint:
 
 ```text
-train info sha256 7550c1b3d6861ffdf8d2877fee987a218aef55bd96f6fabe26709c94b6751303
-val info sha256   0a629066bc3c0e4cb4792f249cdeb3dc7a229af3a86cf8d3a4b0fd81b5571f59
-test info sha256  e3fd76c95b5fd72bc5c0a5d58b8eb41c07c163a00a4de45bea12f18534ec6e53
+train info sha256 159cf1740c5cb85214dc17bc7e6105bb0629632a084e8eaee8d688d6ddfd57af
+val info sha256   acc729f1054cb3d37b8a596b70897c92df9dc1de629546f5de17154f7f952dbb
+test info sha256  39e794985ab316598b8d9a0329771abe067b1581c3fdbacb73e4a89d26016dda
 T1 init sha256    971aaa551e10855e27d1d18eb4dcea746ef13530ede0cc1b224087cccb4655d0
 ```
 
@@ -80,7 +82,7 @@ bash perception/detection3d/bevfusion/scripts/configure_team_machine.sh \
 Base4 전용 경로는 현재 shell에 추가한다.
 
 ```bash
-export BASE4_HWY3H1_RAW_ROOT="$HOME/ajounice_bevfusion_artifacts/datasets/base4_temporal_highway_hwy3h1_raw"
+export BASE4_HWY3H1_MRHC_V2_ROOT="$HOME/ajounice_bevfusion_artifacts/datasets/base4_temporal_highway_hwy3h1_mrhc_v2"
 export BEVFUSION_BASE3_E25_FINETUNE_CHECKPOINT="$HOME/ajounice_bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth"
 export BEVFUSION_BASE4_T1_INIT_CHECKPOINT="$HOME/ajounice_bevfusion_artifacts/checkpoints/base3_e25_to_base4_t1.pth"
 ```
@@ -94,12 +96,12 @@ export BEVFUSION_BASE4_T1_INIT_CHECKPOINT="$HOME/ajounice_bevfusion_artifacts/ch
 cd ~/AjouNice2026
 
 python3 perception/detection3d/bevfusion/tools/validate_base3_bevfusion_infos.py \
-  --info-dir "$BASE4_HWY3H1_RAW_ROOT" \
-  --capture-root "$BASE4_HWY3H1_RAW_ROOT" \
-  --serialized-capture-root /datasets/base4_hwy3h1_raw
+  --info-dir "$BASE4_HWY3H1_MRHC_V2_ROOT" \
+  --capture-root "$BASE4_HWY3H1_MRHC_V2_ROOT" \
+  --serialized-capture-root /datasets/base4_hwy3h1_mrhc_v2
 
 python3 perception/detection3d/bevfusion/tools/audit_base4_temporal_quality.py \
-  --info-dir "$BASE4_HWY3H1_RAW_ROOT"
+  --info-dir "$BASE4_HWY3H1_MRHC_V2_ROOT"
 ```
 
 두 명령이 모두 성공하고 `temporal_quality_audit.json`의 `valid`가 `true`일 때만
@@ -118,11 +120,11 @@ python3 perception/detection3d/bevfusion/tools/audit_base4_temporal_quality.py \
 cd ~/AjouNice2026
 
 bash perception/detection3d/bevfusion/scripts/run_team_training.sh \
-  perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_v1_e4.yaml \
+  perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_mrhc_v2_v1_e4.yaml \
   --dry-run
 
 bash perception/detection3d/bevfusion/scripts/run_team_training.sh \
-  perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_t1_3sweep_e4.yaml \
+  perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_mrhc_v2_t1_3sweep_e4.yaml \
   --dry-run
 ```
 
@@ -131,11 +133,11 @@ Dry-run의 dataset root, checkpoint, GPU profile과 effective batch가 의도대
 
 ```bash
 bash perception/detection3d/bevfusion/scripts/run_team_training.sh \
-  perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_v1_e4.yaml \
+  perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_mrhc_v2_v1_e4.yaml \
   --smoke
 
 bash perception/detection3d/bevfusion/scripts/run_team_training.sh \
-  perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_t1_3sweep_e4.yaml \
+  perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_mrhc_v2_t1_3sweep_e4.yaml \
   --smoke
 ```
 
@@ -147,10 +149,10 @@ accumulation 1이 시작값이다. OOM이면 effective batch 4를 유지하면�
 
 ```bash
 bash perception/detection3d/bevfusion/scripts/run_team_training.sh \
-  perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_v1_e4.yaml
+  perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_mrhc_v2_v1_e4.yaml
 
 bash perception/detection3d/bevfusion/scripts/run_team_training.sh \
-  perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_t1_3sweep_e4.yaml
+  perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_mrhc_v2_t1_3sweep_e4.yaml
 ```
 
 두 모델을 동시에 실행하지 않는다. 팀 runner는 resolved YAML, Git SHA/diff, dataset info
