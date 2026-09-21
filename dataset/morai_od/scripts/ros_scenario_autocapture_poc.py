@@ -3891,10 +3891,17 @@ class AutoCapture:
                         self.scene_stable_ego_window_sec * 0.9,
                         self.scene_maximum_stable_acceleration_mps2,
                     )
+                # Acceleration/stability gates only arm the clip. Once frame
+                # zero exists, keep the temporal sequence contiguous through
+                # real bottleneck deceleration instead of pausing until Ego
+                # becomes steady again.
                 kinematics_ready = (
-                    travelled >= self.args.capture_motion_arm_m
-                    and ego_speed_kph >= self.scene_minimum_ego_speed_kph
-                    and stable_ready
+                    bool(triggers)
+                    or (
+                        travelled >= self.args.capture_motion_arm_m
+                        and ego_speed_kph >= self.scene_minimum_ego_speed_kph
+                        and stable_ready
+                    )
                 )
                 if travelled >= next_capture_distance_m and kinematics_ready:
                     self.wait_for_connections(

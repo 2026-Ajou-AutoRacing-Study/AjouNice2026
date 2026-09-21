@@ -167,6 +167,24 @@ bash perception/detection3d/bevfusion/scripts/run_team_training.sh \
 두 모델을 동시에 실행하지 않는다. 팀 runner는 resolved YAML, Git SHA/diff, dataset info
 hash, Docker image, GPU, W&B run name과 source snapshot을 output에 남긴다.
 
+### 2026-09-22 hard-case 보강판
+
+속도 진단에 병목 협로와 일반 고속 횡 offset을 추가한 현재 짧은 A/B 입력은 다음과 같다.
+
+```bash
+export BASE4_VELOCITY_HARDCASE_V2_ROOT="$PWD/artifacts/datasets/morai_base4_velocity_hardcase_v2_raw16"
+
+bash perception/detection3d/bevfusion/scripts/run_team_training.sh \
+  perception/detection3d/bevfusion/configs/team/recipes/base4_velocity_hardcase_v2_v1_e4.yaml
+
+bash perception/detection3d/bevfusion/scripts/run_team_training.sh \
+  perception/detection3d/bevfusion/configs/team/recipes/base4_velocity_hardcase_v2_t1_3sweep_e4.yaml
+```
+
+두 recipe는 같은 `43 train / 8 val scene`, `543 / 108 frame` split을 사용한다. Dataset
+구성과 품질 수치는
+[`../../dataset/morai_od/docs/260922_base4_velocity_hardcase_v2_results.md`](../../dataset/morai_od/docs/260922_base4_velocity_hardcase_v2_results.md)를 기준으로 한다.
+
 ## T1 초기 checkpoint를 다시 만들어야 할 때
 
 T1은 sparse-conv 입력을 XYZI 4채널에서 `XYZI + positive past age` 5채널로 확장한다.

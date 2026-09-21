@@ -29,14 +29,20 @@ def parse_args():
     parser.add_argument("--campaign-tag", default="pilot30")
     parser.add_argument(
         "--profile",
-        choices=("mission", "velocity-diagnostic", "high-speed-pilot"),
+        choices=(
+            "mission",
+            "velocity-diagnostic",
+            "high-speed-pilot",
+            "bottleneck-pilot",
+        ),
         default="mission",
         help=(
             "mission preserves the existing highway pilot distribution; "
             "velocity-diagnostic cycles explicit NPC speed anchors for a "
             "small velocity-head sanity dataset; high-speed-pilot samples "
             "post-merge Ego/NPC speeds continuously for 80--120 km/h "
-            "relative-motion coverage"
+            "relative-motion coverage; bottleneck-pilot targets the lane "
+            "convergence and narrow production corridor"
         ),
     )
     parser.add_argument("--output-root", type=Path, default=DATASET_ROOT)
@@ -75,7 +81,7 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
     base, defaults = family_defaults()
     merge_count = (
         0
-        if profile == "high-speed-pilot"
+        if profile in {"high-speed-pilot", "bottleneck-pilot"}
         else max(2, int(round(scene_count * 0.25)))
     )
     cruise_count = scene_count - merge_count
@@ -142,6 +148,18 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
                 },
             ],
             "capture_preroll_distance_m": [14.0, 24.0],
+            # A real Ego does not remain mathematically centred even when it
+            # follows the ramp correctly.  Use one constant in-lane offset
+            # for the whole temporal clip so this adds pose diversity without
+            # inventing frame-to-frame lateral velocity.
+            "ego_lateral_offset_schedule_m": [
+                0.0,
+                -0.10,
+                0.10,
+                0.0,
+                -0.20,
+                0.20,
+            ],
             "captures_per_scene": 16,
             "desired_clip_duration_sec": 1.4,
             "maximum_motion_m": 180.0,
@@ -217,6 +235,17 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
             "motion_stall_timeout_sec": 14.0,
             "capture_motion_arm_m": 80.0,
             "load_settle_sec": 0.10,
+            # Mainline tracking and overtaking also happen off the exact
+            # centreline.  The larger straight-road envelope remains well
+            # inside a normal highway lane and is symmetric around zero.
+            "ego_lateral_offset_schedule_m": [
+                0.0,
+                -0.15,
+                0.15,
+                0.0,
+                -0.30,
+                0.30,
+            ],
             "interaction_roles": [
                 {
                     "name": "front_overtake",
@@ -308,6 +337,185 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
         ego_speed_schedule = stratified_speed_schedule(
             cruise_count, 80.0, 120.0, seed + 80120
         )
+
+    if profile == "bottleneck-pilot":
+        npc_speed_schedule = stratified_speed_schedule(
+            cruise_count, 25.0, 80.0, seed + 25080
+        )
+        cruise.update(
+            {
+                "highway_route_profile": "bottleneck_preferred",
+                "ego_lane_weights": {"6": 0.34, "8": 0.33, "10": 0.33},
+                "ego_lane_speed_kph": {
+                    "6": [45.0, 100.0],
+                    "8": [45.0, 100.0],
+                    "10": [45.0, 100.0],
+                },
+                "npc_target_speed_schedule_kph": npc_speed_schedule,
+                "preserve_template_npc_target_speed": False,
+                "spawn_velocity_equals_target": True,
+                # SpawnPoint's period is also the delay before its first
+                # vehicle appears.  The generic 8--12 s value made the
+                # relative pose depend more on scene-load latency than on
+                # the planned interaction.  One deterministic early spawn
+                # keeps the moving actor reproducible without creating a
+                # stream of replacement vehicles.
+                "spawn_period_sec": [2.0, 2.0],
+                "maximum_spawn_vehicles": 1,
+                # Keep MORAI's native SpawnPoint traffic controller here.
+                # Directly restoring a saved vehicle is deterministic at load
+                # time, but its effective speed changes with road AI braking
+                # around the convergence.  A single fixed pre-roll model then
+                # places the actor tens of metres away from the requested
+                # interaction.  SpawnPoint plus the live actor gate gives a
+                # lower raw yield but preserves genuine road behaviour and
+                # only accepts spatially useful temporal clips.
+                "use_direct_vehicle_actor": False,
+                "npc_motion_compensation_speed_ratio": 1.0,
+                # Load parked.  The capture position is back-solved from the
+                # expected acceleration/stability gate, preventing rosbridge
+                # reconnect time from changing the intended road slice.
+                "start_ego_at_target_speed": False,
+                "ego_initial_speed_kph": 0.0,
+                "minimum_ego_speed_ratio": 0.82,
+                "stable_ego_gate": True,
+                "maximum_stable_acceleration_mps2": 1.8,
+                "expected_ego_acceleration_mps2": 1.8,
+                "compensate_npc_motion_until_capture_gate": True,
+                "ego_start_arc_m": [470.0, 500.0],
+                "capture_motion_arm_m": 3.0,
+                # A parked vehicle can roll about a metre on this grade
+                # before AV-ExternalCtrl is restored.  Larger stale-command
+                # motion is still rejected by the fixed-pose readiness gate.
+                "maximum_precontrol_drift_m": 1.5,
+                "maximum_motion_m": 240.0,
+                "motion_stall_timeout_sec": 18.0,
+                "center_actor_during_clip": True,
+                "effective_clip_duration_sec": 1.8,
+                # One constant path offset per scene.  Zero remains the
+                # plurality baseline; non-zero cases are symmetric and stay
+                # well inside the narrow corridor.
+                "ego_lateral_offset_schedule_m": [
+                    0.0,
+                    -0.10,
+                    0.10,
+                    0.0,
+                    -0.25,
+                    0.25,
+                ],
+                "ego_capture_arc_zones": [
+                    {
+                        "name": "pre_convergence",
+                        "weight": 0.30,
+                        "capture_offset_from_convergence_m": [-70.0, -25.0],
+                        "ego_speed_kph": [70.0, 100.0],
+                        "interaction_role_schedule": [
+                            "side_passby",
+                            "front_following",
+                            "front_overtake",
+                            "rear_receding",
+                        ],
+                    },
+                    {
+                        "name": "convergence_throat",
+                        "weight": 0.30,
+                        "capture_offset_from_convergence_m": [-20.0, 30.0],
+                        "ego_speed_kph": [55.0, 85.0],
+                        "interaction_role_schedule": [
+                            "side_passby",
+                            "front_following",
+                            "front_overtake",
+                            "rear_receding",
+                        ],
+                    },
+                    {
+                        "name": "narrow_corridor",
+                        "weight": 0.30,
+                        "capture_offset_from_convergence_m": [35.0, 115.0],
+                        "ego_speed_kph": [45.0, 70.0],
+                        # SpawnPoint activation became position-dependent
+                        # after all highway lanes had converged and produced
+                        # 0/7 valid clips in the live r7 campaign.  A single
+                        # restored moving actor produced valid narrow-corridor
+                        # front-following/overtake clips in r5.  Restrict that
+                        # deterministic source to this zone; open-road zones
+                        # keep native SpawnPoint traffic.
+                        "use_direct_vehicle_actor": True,
+                        "npc_motion_compensation_speed_ratio": 1.0,
+                        "interaction_role_schedule": [
+                            "front_following",
+                            "front_overtake",
+                            "rear_receding",
+                        ],
+                    },
+                    {
+                        "name": "bottleneck_exit",
+                        "weight": 0.10,
+                        "capture_offset_from_convergence_m": [120.0, 180.0],
+                        "ego_speed_kph": [45.0, 70.0],
+                        "interaction_role_schedule": [
+                            "front_following",
+                            "front_overtake",
+                            "rear_receding",
+                        ],
+                    },
+                ],
+                "interaction_roles": [
+                    {
+                        "name": "side_passby",
+                        "weight": 1.0,
+                        "npc_longitudinal_offset_m": [-3.0, 4.0],
+                        "gate_longitudinal_m": [-18.0, 22.0],
+                        "maximum_abs_lateral_m": 8.0,
+                    },
+                    {
+                        "name": "front_following",
+                        "weight": 2.0,
+                        "npc_longitudinal_offset_m": [10.0, 24.0],
+                        "gate_longitudinal_m": [4.0, 30.0],
+                        "maximum_abs_lateral_m": 8.0,
+                        "ego_speed_delta_kph": [-3.0, 3.0],
+                        # Live calibration: 1.0 keeps capture in the intended
+                        # narrow road slice but can leave the actor just over
+                        # 30 m behind; 0.57 delays the encounter until after
+                        # the bottleneck.  The conservative 0.90 midpoint
+                        # preserves spatial coverage and the strict live gate.
+                        "direct_npc_motion_compensation_speed_ratio": 0.90,
+                    },
+                    {
+                        "name": "front_overtake",
+                        "weight": 2.0,
+                        "npc_longitudinal_offset_m": [8.0, 20.0],
+                        "gate_longitudinal_m": [3.0, 30.0],
+                        "maximum_abs_lateral_m": 8.0,
+                        "direct_npc_motion_compensation_speed_ratio": 0.90,
+                    },
+                    {
+                        "name": "rear_receding",
+                        "weight": 1.0,
+                        "adjacent_lane": True,
+                        "npc_longitudinal_offset_m": [-16.0, -7.0],
+                        "gate_longitudinal_m": [-30.0, -3.0],
+                        "maximum_abs_lateral_m": 8.0,
+                        "direct_npc_motion_compensation_speed_ratio": 0.90,
+                    },
+                ],
+                # Match the gate to the current BEVFusion +/-30 m box range.
+                # Clips outside this range cannot train the active model.
+                "actor_gate_longitudinal_m": [-30.0, 30.0],
+                "actor_gate_maximum_abs_lateral_m": 8.0,
+                "actor_gate_minimum_distance_m": 3.0,
+                "actor_gate_maximum_distance_m": 32.0,
+                # Four frames at the measured 7--8 Hz provide more than the
+                # three sweeps consumed by the first temporal baseline while
+                # preserving genuine high-relative-speed disappearances.
+                "actor_gate_minimum_in_gate_frames": 4,
+                "sampling_role": "base4_highway_bottleneck_vehicle",
+                "motion_phase": "highway_bottleneck_convergence",
+            }
+        )
+
+    if profile == "high-speed-pilot":
         npc_speed_schedule = stratified_speed_schedule(
             cruise_count, 25.0, 80.0, seed + 25080
         )
@@ -396,7 +604,9 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
         "environment": copy.deepcopy(base["environment"]),
         "capture": capture,
         "families": (
-            [cruise] if profile == "high-speed-pilot" else [merge, cruise]
+            [cruise]
+            if profile in {"high-speed-pilot", "bottleneck-pilot"}
+            else [merge, cruise]
         ),
         "base4_design": {
             "profile": profile,
@@ -418,6 +628,7 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
             "high_speed_pilot_npc_range_kph": (
                 [25.0, 80.0] if profile == "high-speed-pilot" else None
             ),
+            "bottleneck_pilot": profile == "bottleneck-pilot",
         },
     }
 

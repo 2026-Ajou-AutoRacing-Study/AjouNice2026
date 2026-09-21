@@ -577,6 +577,12 @@ smoke도 Docker/W&B/checkpoint까지 완료했다. 이 결과는 velocity head �
 7. 기존 고주로 두 dev bag에서 OD -> tracker off/on -> Map-CV를 순서대로 평가한다.
 8. 명확한 후보만 새 held-out bag에서 한 번 평가한다.
 
+2026-09-22 짧은 V1/T1 직전 입력은 기존 28-scene 진단셋 대신
+`morai_base4_velocity_hardcase_v2_raw16`을 사용한다. 이 보강판은 병목 협로와 일반 고속
+횡 offset을 추가한 `51 scene / 651 frame`이며 구조·temporal audit를 통과했다. 상세
+구성과 recipe는
+[`../../dataset/morai_od/docs/260922_base4_velocity_hardcase_v2_results.md`](../../dataset/morai_od/docs/260922_base4_velocity_hardcase_v2_results.md)에 고정한다.
+
 ## 명시적 비목표
 
 - Base2-Temporal을 최종 production dataset으로 복구하지 않는다.

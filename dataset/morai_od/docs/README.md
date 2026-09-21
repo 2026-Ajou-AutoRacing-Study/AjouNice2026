@@ -14,6 +14,8 @@
    - MR `/Ego_topic.heading`의 `-1.347 deg` 보정과 동기 annotation 교차검증 EVIDENCE.
 5. [`260922_base4_velocity_diagnostic_pilot_runbook.md`](260922_base4_velocity_diagnostic_pilot_runbook.md)
    - 속도 head 원인 분리를 위한 28-scene MR 진단 수집의 준비 경로와 터미널별 실행 명령.
+6. [`260922_base4_velocity_hardcase_v2_results.md`](260922_base4_velocity_hardcase_v2_results.md)
+   - 속도 진단 + 병목 + 일반 고속 횡 offset을 합친 51-scene V1/T1 학습 준비 결과.
 
 ## Base3-Online — CURRENT BASELINE / EVIDENCE
 

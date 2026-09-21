@@ -451,3 +451,9 @@ sweep lag는 p50 `0.129 s`, p95 `0.181 s`, max `0.246 s`이며 `0.25 s` 초과�
 10. 다음 production 수집은 현재 속도별 spawn 위상 보정을 시작점으로 삼되, MORAI가
     본선 속도 구성을 비공개로 유지하므로 40/50/60 고정 prior 대신 연속 속도 jitter를
     사용한다. 모델 선택은 별도 seed의 80--120 km/h controller 주행 bag에서 한다.
+11. V1/T1 직전 hard-case 보강판은 velocity diagnostic 28 scene, 병목 선별 14 scene,
+    일반 고속 횡 offset 11 scene을 입력으로 만들었다. 최종 Vehicle-positive 결과는
+    `51 scene / 651 frame`, temporal audit PASS다. 일반 합류와 순항에도 scene-constant
+    symmetric 횡 offset을 적용하며 세부 근거와 실행법은
+    [`260922_base4_velocity_hardcase_v2_results.md`](260922_base4_velocity_hardcase_v2_results.md)를
+    따른다.

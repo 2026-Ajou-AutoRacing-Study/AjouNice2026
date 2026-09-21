@@ -542,6 +542,120 @@ class DynamicCaptureToolsTest(unittest.TestCase):
             ["front_overtake", "side_passby", "rear_receding"],
         )
 
+    def test_base4_highway_bottleneck_pilot_covers_hard_case_zones(self):
+        config = base4_highway.build_config(
+            48, 260922401, "bn48", profile="bottleneck-pilot"
+        )
+        self.assertEqual(config["base4_design"]["merge_scene_count"], 0)
+        self.assertTrue(config["base4_design"]["bottleneck_pilot"])
+        self.assertEqual(len(config["families"]), 1)
+        family = config["families"][0]
+        self.assertEqual(
+            family["highway_route_profile"], "bottleneck_preferred"
+        )
+        self.assertFalse(family["start_ego_at_target_speed"])
+        self.assertEqual(family["ego_initial_speed_kph"], 0.0)
+        self.assertFalse(family["use_direct_vehicle_actor"])
+        self.assertEqual(family["spawn_period_sec"], [2.0, 2.0])
+        self.assertEqual(family["maximum_spawn_vehicles"], 1)
+        self.assertEqual(family["actor_gate_longitudinal_m"], [-30.0, 30.0])
+        self.assertEqual(family["actor_gate_maximum_distance_m"], 32.0)
+        zones = generator.weighted_zone_schedule(
+            family, key="ego_capture_arc_zones"
+        )
+        self.assertEqual(zones.count("pre_convergence"), 14)
+        self.assertEqual(zones.count("convergence_throat"), 15)
+        self.assertEqual(zones.count("narrow_corridor"), 14)
+        self.assertEqual(zones.count("bottleneck_exit"), 5)
+        zone_defs = {
+            zone["name"]: zone for zone in family["ego_capture_arc_zones"]
+        }
+        self.assertTrue(
+            zone_defs["narrow_corridor"]["use_direct_vehicle_actor"]
+        )
+        self.assertNotIn(
+            "use_direct_vehicle_actor", zone_defs["pre_convergence"]
+        )
+        role_defs = {
+            role["name"]: role for role in family["interaction_roles"]
+        }
+        self.assertEqual(
+            role_defs["front_following"][
+                "direct_npc_motion_compensation_speed_ratio"
+            ],
+            0.90,
+        )
+        self.assertEqual(
+            role_defs["rear_receding"][
+                "direct_npc_motion_compensation_speed_ratio"
+            ],
+            0.90,
+        )
+        offsets = family["ego_lateral_offset_schedule_m"]
+        self.assertEqual(offsets.count(-0.25), offsets.count(0.25))
+        self.assertGreater(offsets.count(0.0), offsets.count(0.25))
+        self.assertTrue(all(abs(value) <= 0.25 for value in offsets))
+
+    def test_base4_all_highway_profiles_include_symmetric_ego_offsets(self):
+        for profile in (
+            "mission",
+            "velocity-diagnostic",
+            "high-speed-pilot",
+            "bottleneck-pilot",
+        ):
+            config = base4_highway.build_config(
+                28, 260922401, "lateralcheck", profile
+            )
+            families = {
+                family["name"]: family for family in config["families"]
+            }
+            if profile not in {"high-speed-pilot", "bottleneck-pilot"}:
+                merge_offsets = families["highway_merge_cruise"][
+                    "ego_lateral_offset_schedule_m"
+                ]
+                self.assertEqual(
+                    sorted(merge_offsets),
+                    sorted([-0.20, -0.10, 0.0, 0.0, 0.10, 0.20]),
+                )
+            cruise_offsets = families["highway_cruise_overtake"][
+                "ego_lateral_offset_schedule_m"
+            ]
+            if profile == "bottleneck-pilot":
+                self.assertLessEqual(max(map(abs, cruise_offsets)), 0.25)
+            else:
+                self.assertEqual(
+                    sorted(cruise_offsets),
+                    sorted([-0.30, -0.15, 0.0, 0.0, 0.15, 0.30]),
+                )
+
+    def test_bottleneck_routes_continue_beyond_three_lane_convergence(self):
+        links = generator.load_json(
+            ROOT / "kcity_map/mgeo_map_scenario_runner_2025/link_set.json"
+        )
+        links_by_id = {item["idx"]: item for item in links}
+        for lane_id, link_ids in (
+            generator.HIGHWAY_BOTTLENECK_LANE_LINK_PATHS.items()
+        ):
+            self.assertEqual(link_ids[-3:], (
+                "A2256W000432", "A2256W000427", "A2256W000444"
+            ))
+            route, arc = generator.route_from_link_path(links_by_id, link_ids)
+            self.assertGreater(arc[-1], 800.0)
+            pose = generator.route_pose_at(
+                route, arc, arc[-1] - 20.0, link_ids[0], links_by_id
+            )
+            self.assertEqual(pose["link_idx"], "A2256W000444")
+
+    def test_scene_constant_lateral_route_offset_preserves_spacing(self):
+        route = [
+            {"x": 0.0, "y": 0.0, "z": 0.0},
+            {"x": 0.0, "y": 5.0, "z": 0.0},
+            {"x": 0.0, "y": 10.0, "z": 0.0},
+        ]
+        shifted = generator.laterally_shift_route(route, 0.25)
+        self.assertTrue(all(abs(point["x"] + 0.25) < 1e-9 for point in shifted))
+        self.assertEqual([point["y"] for point in shifted], [0.0, 5.0, 10.0])
+
     def test_actor_relative_pose_and_velocity_are_ego_aligned(self):
         frames = [
             {
