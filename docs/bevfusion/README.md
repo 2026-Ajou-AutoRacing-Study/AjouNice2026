@@ -11,6 +11,7 @@
 | Base3-Online dataset 현재 상태 | [`../../dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md`](../../dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md) |
 | 다음 velocity/temporal 통제 실험과 architecture ladder | [`260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md) |
 | Base4 24-scene 수집·9D/3-sweep·학습 smoke 결과 | [`260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md`](260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md) |
+| Base4 V1/T1 E4 고주로 detection·tracking·prediction 판정 | [`260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md`](260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md) |
 
 Production 표준은 `B3-BF0-F40 E25`, class threshold는 `0.40/0.15/0.10`이다.
 Offline 최고 epoch만으로 production을 바꾸지 않고 detection, tracking, Map-CV를 같은
@@ -23,6 +24,8 @@ mission rosbag에서 비교한다.
   - Vehicle detection·center·2D AVE는 개선됐지만 Obstacle 망각 때문에 E25 유지.
 - [`260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`](260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md)
   - Tracker motion model/noise, 올바른 2D AVE 계약, GT-velocity oracle 근거.
+- [`260921_ROSBAG_ASSET_CATALOG_GT_REEVALUATION.md`](260921_ROSBAG_ASSET_CATALOG_GT_REEVALUATION.md)
+  - 학습 변환기와 rosbag 평가기의 asset별 BBox center/size 계약 통합 및 기존 고주로 A/B.
 - [`260918_base3_e40_production_evaluation_results.md`](260918_base3_e40_production_evaluation_results.md)
   - E25를 production으로 선택한 offline/rosbag/tracking/Map-CV 근거.
 ## HISTORICAL

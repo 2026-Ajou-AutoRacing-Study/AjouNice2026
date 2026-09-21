@@ -10,11 +10,12 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Optional, Sequence
 
 import numpy as np
 
 from .pipeline_evaluator import (
+    _causal_motion_state,
     EgoPoint,
     active_gt,
     interpolate_ego,
@@ -42,6 +43,8 @@ class DetectionEstimate:
     width: float
     height: float
     yaw: float
+    velocity_x: Optional[float] = None
+    velocity_y: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -85,6 +88,17 @@ def read_detection_frames(bag_path, detection_topic):
                     continue
                 pose = obj.kinematics.pose_with_covariance.pose
                 dimensions = obj.shape.dimensions
+                velocity_x = None
+                velocity_y = None
+                if obj.kinematics.has_twist:
+                    twist = obj.kinematics.twist_with_covariance.twist.linear
+                    body_x = float(twist.x)
+                    body_y = float(twist.y)
+                    local_yaw = quaternion_yaw(pose.orientation)
+                    cosine = math.cos(local_yaw)
+                    sine = math.sin(local_yaw)
+                    velocity_x = cosine * body_x - sine * body_y
+                    velocity_y = sine * body_x + cosine * body_y
                 predictions.append(
                     DetectionEstimate(
                         class_name=class_name,
@@ -101,6 +115,8 @@ def read_detection_frames(bag_path, detection_topic):
                         width=float(dimensions.y),
                         height=float(dimensions.z),
                         yaw=quaternion_yaw(pose.orientation),
+                        velocity_x=velocity_x,
+                        velocity_y=velocity_y,
                     )
                 )
             # Duplicate header stamps are possible after replay. Keep the most
@@ -135,6 +151,16 @@ def transform_detections_to_map(
                 width=item.width,
                 height=item.height,
                 yaw=(item.yaw + ego.yaw + math.pi) % (2.0 * math.pi) - math.pi,
+                velocity_x=(
+                    cosine * item.velocity_x - sine * item.velocity_y
+                    if item.velocity_x is not None and item.velocity_y is not None
+                    else None
+                ),
+                velocity_y=(
+                    sine * item.velocity_x + cosine * item.velocity_y
+                    if item.velocity_x is not None and item.velocity_y is not None
+                    else None
+                ),
             )
         )
     return tuple(output)
@@ -243,6 +269,39 @@ def _ranked_matches(frames, class_name, distance_threshold_m):
         if matched:
             taken.add((frame_index, best_gt_index))
             gt = frame.gt[best_gt_index][1]
+        velocity_quality = {}
+        if (
+            matched
+            and prediction.velocity_x is not None
+            and prediction.velocity_y is not None
+        ):
+            motion_state = _causal_motion_state(
+                frame.gt[best_gt_index][0], frame.timestamp
+            )
+            if motion_state is not None:
+                gt_cosine = math.cos(motion_state.yaw)
+                gt_sine = math.sin(motion_state.yaw)
+                gt_velocity_x = motion_state.speed * gt_cosine
+                gt_velocity_y = motion_state.speed * gt_sine
+                error_x = prediction.velocity_x - gt_velocity_x
+                error_y = prediction.velocity_y - gt_velocity_y
+                velocity_quality = {
+                    "predicted_speed_mps": math.hypot(
+                        prediction.velocity_x, prediction.velocity_y
+                    ),
+                    "gt_speed_mps": abs(motion_state.speed),
+                    "velocity_l2_error_mps": math.hypot(error_x, error_y),
+                    "speed_error_mps": abs(
+                        math.hypot(prediction.velocity_x, prediction.velocity_y)
+                        - abs(motion_state.speed)
+                    ),
+                    "longitudinal_velocity_error_mps": abs(
+                        gt_cosine * error_x + gt_sine * error_y
+                    ),
+                    "lateral_velocity_error_mps": abs(
+                        -gt_sine * error_x + gt_cosine * error_y
+                    ),
+                }
         rows.append(
             {
                 "score": float(score),
@@ -254,6 +313,7 @@ def _ranked_matches(frames, class_name, distance_threshold_m):
                 "orientation_error_rad": (
                     _orientation_error(gt, prediction) if matched else None
                 ),
+                **velocity_quality,
             }
         )
     return positives, rows
@@ -506,6 +566,48 @@ def evaluate_detection_frames(
                     ),
                     "center_error_m": statistics(
                         [row["distance_m"] for row in matched]
+                    ),
+                    "velocity_l2_error_mps": statistics(
+                        [
+                            row["velocity_l2_error_mps"]
+                            for row in matched
+                            if "velocity_l2_error_mps" in row
+                        ]
+                    ),
+                    "predicted_speed_mps": statistics(
+                        [
+                            row["predicted_speed_mps"]
+                            for row in matched
+                            if "predicted_speed_mps" in row
+                        ]
+                    ),
+                    "gt_speed_mps": statistics(
+                        [
+                            row["gt_speed_mps"]
+                            for row in matched
+                            if "gt_speed_mps" in row
+                        ]
+                    ),
+                    "speed_error_mps": statistics(
+                        [
+                            row["speed_error_mps"]
+                            for row in matched
+                            if "speed_error_mps" in row
+                        ]
+                    ),
+                    "longitudinal_velocity_error_mps": statistics(
+                        [
+                            row["longitudinal_velocity_error_mps"]
+                            for row in matched
+                            if "longitudinal_velocity_error_mps" in row
+                        ]
+                    ),
+                    "lateral_velocity_error_mps": statistics(
+                        [
+                            row["lateral_velocity_error_mps"]
+                            for row in matched
+                            if "lateral_velocity_error_mps" in row
+                        ]
                     ),
                     "gt": int(quality_positives),
                 }

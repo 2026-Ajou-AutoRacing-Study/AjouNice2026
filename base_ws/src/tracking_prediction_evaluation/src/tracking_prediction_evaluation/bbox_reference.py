@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import bisect
+import hashlib
 import json
 import math
 from dataclasses import replace
@@ -26,6 +27,16 @@ PASSENGER_BBOX_REFERENCE_V1 = {
     "source_scenes": 190,
     "source_longitudinal_p95_m": 1.48,
     "source_lateral_p50_m": -0.009,
+}
+ASSET_CATALOG_BBOX_REFERENCE_V1 = {
+    "policy": "asset-catalog-bbox-center-v1",
+    "vehicle_size_match_max_error_m": 0.12,
+    "vehicle_size_match_min_margin_m": 0.02,
+    "description": (
+        "Use the audited per-asset geometric box and pivot offset. Older "
+        "RandomMode vehicle bags whose ObjectStatus.name is an MGeo link are "
+        "resolved from their stable ObjectStatus.size profile."
+    ),
 }
 EXPLICIT_VEHICLE_REFERENCE_PROFILES_V1 = (
     {
@@ -82,6 +93,185 @@ def _segment_dimensions(segment):
     if not dimensions:
         return 0.0, 0.0, 0.0
     return tuple(float(value) for value in np.median(dimensions, axis=0))
+
+
+def load_asset_bbox_catalog(path):
+    path = Path(path).expanduser().resolve()
+    payload = path.read_bytes()
+    document = json.loads(payload.decode("utf-8"))
+    assets = document.get("assets")
+    if not isinstance(assets, dict) or not assets:
+        raise ValueError("asset bbox catalog must contain a non-empty assets object")
+    normalized = {}
+    for name, value in assets.items():
+        class_name = str(value.get("class", "")).strip().lower()
+        offset = tuple(float(item) for item in value["pivot_to_bbox_center_local_m"])
+        size = tuple(float(item) for item in value["bbox_size_m"])
+        if class_name not in ("vehicle", "pedestrian", "obstacle"):
+            raise ValueError("invalid asset class for {}: {}".format(name, class_name))
+        if len(offset) != 3 or len(size) != 3 or any(item <= 0.0 for item in size):
+            raise ValueError("invalid bbox geometry for asset {}".format(name))
+        normalized[str(name)] = {
+            "class": class_name,
+            "pivot_to_bbox_center_local_m": offset,
+            "bbox_size_m": size,
+        }
+    return normalized, {
+        "path": str(path),
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "schema_version": document.get("schema_version"),
+        "asset_count": len(normalized),
+    }
+
+
+def _resolve_segment_asset(
+    segment,
+    assets,
+    *,
+    vehicle_size_match_max_error_m,
+    vehicle_size_match_min_margin_m,
+):
+    names = [segment.asset_name]
+    names.extend(point.asset_name for point in segment.points)
+    exact_names = sorted(
+        {
+            str(name)
+            for name in names
+            if str(name) in assets
+            and assets[str(name)]["class"] == segment.class_name
+        }
+    )
+    if len(exact_names) == 1:
+        name = exact_names[0]
+        return name, assets[name], "exact-name", 0.0, None
+    if len(exact_names) > 1:
+        return None, None, None, None, "multiple-asset-names"
+
+    # Old MORAI RandomMode bags put the current MGeo link in ``name``. Vehicle
+    # ObjectStatus dimensions are nevertheless stable and agree closely with
+    # the audited asset catalog, so resolve only this measured legacy case.
+    # Pedestrian/obstacle size inference is intentionally forbidden: several
+    # assets have similar pivots/sizes and guessing would corrupt the GT.
+    if segment.class_name != "vehicle":
+        return None, None, None, None, "asset-name-not-in-catalog"
+    dimensions = _segment_dimensions(segment)
+    if min(dimensions) <= 0.0:
+        return None, None, None, None, "missing-object-status-size"
+    candidates = []
+    for name, asset in assets.items():
+        if asset["class"] != segment.class_name:
+            continue
+        error = math.sqrt(
+            sum(
+                (actual - expected) ** 2
+                for actual, expected in zip(dimensions, asset["bbox_size_m"])
+            )
+        )
+        candidates.append((error, name, asset))
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    if not candidates or candidates[0][0] > vehicle_size_match_max_error_m:
+        return None, None, None, None, "vehicle-size-no-match"
+    second_error = candidates[1][0] if len(candidates) > 1 else math.inf
+    margin = second_error - candidates[0][0]
+    if margin < vehicle_size_match_min_margin_m:
+        return None, None, None, None, "vehicle-size-ambiguous"
+    error, name, asset = candidates[0]
+    return name, asset, "vehicle-size", float(error), None
+
+
+def transform_segments_to_asset_catalog_bbox_center(
+    segments,
+    catalog_path,
+    *,
+    vehicle_size_match_max_error_m=(
+        ASSET_CATALOG_BBOX_REFERENCE_V1["vehicle_size_match_max_error_m"]
+    ),
+    vehicle_size_match_min_margin_m=(
+        ASSET_CATALOG_BBOX_REFERENCE_V1["vehicle_size_match_min_margin_m"]
+    ),
+    exclude_unresolved=True,
+):
+    """Transform MORAI actor pivots using audited per-asset box geometry.
+
+    New generated bags carry an exact asset name. Older highway RandomMode
+    bags carry a link ID instead, so their vehicle asset is inferred from the
+    stable 3-D size profile under strict error and ambiguity gates. Unknown
+    assets are excluded from the primary metric rather than receiving the old
+    one-size-fits-all longitudinal offset.
+
+    Updating every point position also gives downstream finite-difference
+    velocity metrics the correct rotating BBox-center trajectory without
+    trusting the historically ambiguous ObjectStatus velocity units.
+    """
+    assets, catalog_report = load_asset_bbox_catalog(catalog_path)
+    transformed = []
+    supported_segment_count = 0
+    resolution_counts = defaultdict(int)
+    asset_counts = defaultdict(int)
+    unresolved_reasons = defaultdict(int)
+    unresolved_keys = defaultdict(list)
+    size_match_errors = []
+    for segment in segments:
+        name, asset, method, error, unresolved_reason = _resolve_segment_asset(
+            segment,
+            assets,
+            vehicle_size_match_max_error_m=float(vehicle_size_match_max_error_m),
+            vehicle_size_match_min_margin_m=float(vehicle_size_match_min_margin_m),
+        )
+        if asset is None:
+            unresolved_reasons[unresolved_reason] += 1
+            unresolved_keys[unresolved_reason].append(segment.key)
+            if not exclude_unresolved:
+                transformed.append(segment)
+            continue
+        offset = asset["pivot_to_bbox_center_local_m"]
+        size = asset["bbox_size_m"]
+        corrected_points = []
+        for point in segment.points:
+            cosine = math.cos(point.yaw)
+            sine = math.sin(point.yaw)
+            corrected_points.append(
+                replace(
+                    point,
+                    x=point.x + cosine * offset[0] - sine * offset[1],
+                    y=point.y + sine * offset[0] + cosine * offset[1],
+                    z=point.z + offset[2],
+                    asset_name=name,
+                    length=size[0],
+                    width=size[1],
+                    height=size[2],
+                )
+            )
+        transformed.append(
+            replace(segment, asset_name=name, points=tuple(corrected_points))
+        )
+        supported_segment_count += 1
+        resolution_counts[method] += 1
+        asset_counts[name] += 1
+        if error is not None:
+            size_match_errors.append(error)
+
+    report = {
+        **ASSET_CATALOG_BBOX_REFERENCE_V1,
+        **catalog_report,
+        "vehicle_size_match_max_error_m": float(vehicle_size_match_max_error_m),
+        "vehicle_size_match_min_margin_m": float(vehicle_size_match_min_margin_m),
+        "input_segment_count": len(segments),
+        "supported_segment_count": supported_segment_count,
+        "unresolved_segment_count": sum(unresolved_reasons.values()),
+        "exclude_unresolved": bool(exclude_unresolved),
+        "resolution_counts": dict(sorted(resolution_counts.items())),
+        "resolved_asset_counts": dict(sorted(asset_counts.items())),
+        "vehicle_size_match_error_m": statistics(size_match_errors),
+        "unresolved_reasons": dict(sorted(unresolved_reasons.items())),
+        "unresolved_segment_keys": {
+            reason: keys for reason, keys in sorted(unresolved_keys.items())
+        },
+        "velocity_reference": (
+            "finite differences of the corrected geometric BBox-center trajectory"
+        ),
+    }
+    return tuple(transformed), report
 
 
 def _reference_profile(length, width, height, maximum_passenger_length_m):

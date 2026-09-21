@@ -1,6 +1,6 @@
 # MORAI OD dataset 문서 index
 
-마지막 정리: 2026-09-20.
+마지막 정리: 2026-09-21.
 
 ## Base4 rosbag capture — CURRENT
 
@@ -27,7 +27,7 @@
    - MR/MRP asset 호환성, 고주로 Random Spawn 분포 가설, WoodBox와 BEVFusion
      camera-visible sparse GT 후속 실험 EVIDENCE/PLAN.
 6. [`260920_questions_for_morai.md`](260920_questions_for_morai.md)
-   - MORAI 담당자에게 전달할 핵심 질문 네 가지와 WoodBox 첨부 근거.
+   - MORAI 담당자에게 전달할 핵심 질문 다섯 가지와 multi-asset GT 정합 첨부 근거.
 
 ### 현재 사용 경로
 

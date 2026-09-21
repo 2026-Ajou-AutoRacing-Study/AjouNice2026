@@ -18,6 +18,8 @@ tracker_meas_noise_std_yaw_deg="${TRACKER_MEAS_NOISE_STD_YAW_DEG:-10.0}"
 tracker_use_kinematic_model="${TRACKER_USE_KINEMATIC_MODEL:-false}"
 tracker_detection_velocity_fusion_mode="${TRACKER_DETECTION_VELOCITY_FUSION_MODE:-0}"
 tracker_detection_velocity_noise_std_mps="${TRACKER_DETECTION_VELOCITY_NOISE_STD_MPS:-1.0}"
+gt_reference="${BEVFUSION_EVAL_GT_REFERENCE:-bbox-center-calibrated-v1}"
+asset_bbox_catalog="${BEVFUSION_EVAL_ASSET_BBOX_CATALOG:-dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json}"
 repo_root="${AJOUNICE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
 ros_port="${BEVFUSION_PIPELINE_EVAL_ROS_PORT:-$((15000 + ($$ % 15000)))}"
 export ROS_MASTER_URI="http://127.0.0.1:${ros_port}"
@@ -52,6 +54,7 @@ source scripts/workspace/source_aw149.sh
 export ROS_MASTER_URI="http://127.0.0.1:${ros_port}"
 export ROS_IP=127.0.0.1
 system_pythonpath="${PYTHONPATH:-$repo_root/base_ws/install_aw149/lib/python3/dist-packages:/opt/ros/noetic/lib/python3/dist-packages}"
+evaluation_pythonpath="$repo_root/base_ws/src/tracking_prediction_evaluation/src:$system_pythonpath"
 
 roscore -p "$ros_port" >"$output_dir/roscore.log" 2>&1 &
 roscore_pid=$!
@@ -152,15 +155,19 @@ kill -INT "$pipeline_pid" 2>/dev/null || true
 wait "$pipeline_pid" || true
 pipeline_pid=""
 
-/usr/bin/python3 \
+env PYTHONPATH="$evaluation_pythonpath" PYTHONNOUSERSITE=1 /usr/bin/python3 \
   base_ws/src/tracking_prediction_evaluation/scripts/evaluate_pipeline_prediction.py \
   "$raw_bag" "$output_dir/pipeline_outputs.bag" \
-  --output "$output_dir/summary.json"
+  --output "$output_dir/summary.json" \
+  --gt-reference "$gt_reference" \
+  --asset-bbox-catalog "$asset_bbox_catalog"
 
-/usr/bin/python3 \
+env PYTHONPATH="$evaluation_pythonpath" PYTHONNOUSERSITE=1 /usr/bin/python3 \
   base_ws/src/tracking_prediction_evaluation/scripts/evaluate_pipeline_prediction.py \
   "$raw_bag" "$output_dir/pipeline_outputs.bag" \
   --output "$output_dir/summary_cv_stable.json" \
+  --gt-reference "$gt_reference" \
+  --asset-bbox-catalog "$asset_bbox_catalog" \
   --prediction-motion-slice cv-stable \
   --maximum-longitudinal-acceleration-mps2 0.5
 

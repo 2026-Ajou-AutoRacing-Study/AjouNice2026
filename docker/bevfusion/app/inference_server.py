@@ -214,11 +214,10 @@ def parse_points(metadata, blobs):
     if blob_name not in blobs:
         raise ValueError("request is missing point cloud blob")
     point_dim = int(metadata.get("point_dim", 4))
-    if point_dim != 4:
+    if point_dim not in (4, 5):
         raise ValueError(
-            "Base3 runtime expects four float32 point fields, got {}".format(
-                point_dim
-            )
+            "BEVFusion runtime expects 4 or 5 float32 point fields, got {}".format(
+                point_dim)
         )
     values = np.frombuffer(blobs[blob_name], dtype="<f4")
     if values.size % point_dim:

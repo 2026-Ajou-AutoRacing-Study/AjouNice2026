@@ -1,21 +1,24 @@
 # MORAI 랜덤 스폰·Asset 호환성과 BEVFusion 멀티모달 GT 계획
 
 - 문서 상태: **EVIDENCE + PLAN**
-- 마지막 갱신: 2026-09-20
+- 마지막 갱신: 2026-09-21
 - 적용 범위: MORAI `mr`/`mrp` asset, 고주로 Random Spawn, Base3/Base4
   BEVFusion dataset 변환
 
 ## 1. 결론
 
-1. 현재 61개 고주로 spawn 관측은 대회용 MR Vehicle 43종을 개별 모델 단위로
-   거의 균등 추출한다는 가설과 충돌하지 않는다. Wagon을 승용 계열로 합치면
-   관측 family 비율은 카탈로그 구성비와 특히 가깝다.
+1. 482개 고주로 spawn 관측은 **샘플 시나리오의** RandomMode pool을 설명하는
+   evidence다. MORAI 공식 답변상 본선 RandomMode 사용 여부는 미정이며, 사용 시
+   `MiddleSize`만 사용할 예정이므로 이 관측 분포를 본선 정답으로 사용하지 않는다.
 2. Base3에서 대회용 Vehicle을 임의로 많이 제거한 것은 아니다. MR Vehicle 43종은
    모두 MRP와 공통이며 Base3 생성 deck에도 전부 복구되어 있다.
 3. `MIN_GT_POINTS=5`는 LiDAR-only 모델에는 보수적인 quality gate지만, Camera+LiDAR
    BEVFusion에서는 카메라에 보이는 sparse/zero-point GT를 false negative로 만들 수
    있다. 다음 변환 A/B는 LiDAR point 수와 camera visibility를 함께 사용해야 한다.
-4. `WoodBox`는 load 실패가 아니라 mesh/LiDAR point와 MORAI GT box의 정합 문제다.
+4. MORAI는 센서 캡처 LiDAR Instance BBox를 detection 학습·평가 GT로 권장했다.
+   `/Object_topic`은 차량 후륜 차축과 기본 asset 제원을 제공하므로 rosbag GT에는
+   asset별 center/size 보정이 필요하다. `WoodBox`는 load 실패가 아니라
+   mesh/LiDAR point와 센서 캡처 GT box의 별도 정합 문제다.
    대회 출제 가능성이 있으면 제외를 유지하기보다 전용 시각화·label A/B 후 제한적으로
    재도입한다.
 
@@ -145,8 +148,11 @@ eligible pool은 MORAI 답변 전까지 확정하지 않는다.
 - 과거 bag처럼 link ID가 오면 size signature를 fallback으로 사용한다.
 - first appearance 시점에는 이미 합류한 뒤여서 source spawn 6/8/10은 추정하지 않는다.
 
-Base4 Vehicle asset 정책은 coverage baseline으로 MR 43종 deck을 유지할 수 있으나,
-RandomMode 모사 실험에서는 MORAI가 확인한 competition eligible pool을 별도 사용한다.
+Base4 Vehicle asset 정책은 전체 43종을 주력 균등 deck으로 사용하지 않는다. 본선
+RandomMode 사용 시 `MiddleSize`만 쓴다는 공식 답변에 따라 main quota는 MR에서 확인한
+MiddleSize-compatible 차량으로 좁히고, RandomMode가 아직 미정이고 로터리 차종도
+비공개라는 불확실성에 대비해 나머지 차량은 작은 coverage addon으로 남긴다. 정확한
+pool mapping은 MORAI asset category 정의를 확인한 뒤 manifest에 고정한다.
 
 실측 분석기는 `scripts/analyze_morai_highway_random_spawn.py`다. 최신 동적 spawn NPC의
 `ObjectStatus.name`에는 실제 asset명이 발행됐다. 과거 bag의 link ID에는 통제된 Base3
@@ -260,13 +266,18 @@ MORAI가 수정하지 않지만 대회 출제가 가능하다면:
 5. 대회 목표가 bbox 정량평가가 아니라 안전 회피라면 실제 mesh footprint와 planning
    safety inflation 결과를 우선한다.
 
-## 6. MORAI 문의 항목
+## 6. MORAI 답변 반영 상태
 
-1. 로터리·고주로 NPC의 초기/목표 속도 범위가 샘플 시나리오와 동일한가.
-2. 고주로 RandomMode가 어떤 vehicle model/filter와 확률을 사용하는가. 개별 model
-   균등 추출인지 family별 가중치가 있는지도 확인한다.
-3. `WoodBox(40100002)`의 mesh/LiDAR point와 제공 GT 3D box 불일치가 알려진 문제인지,
-   대회 버전에서도 동일하고 실제 장애물 후보가 될 수 있는지 확인한다.
+1. 로터리·고주로 속도는 샘플과 동일하지 않다. `40/50/60 km/h`는 production prior가
+   아니라 pipeline 검증용 discrete anchor로만 사용한다.
+2. 고주로 RandomMode는 미정이며, 사용 시 `MiddleSize`만 사용한다. 샘플에서 실측한
+   38종 균등 결과는 본선 분포가 아니라 sample evidence로 강등한다.
+3. 로터리는 고정 차종이지만 종류는 비공개다. K5 단일 overfit 대신 MiddleSize 중심
+   후보와 제한적인 외형 다양성을 유지한다.
+4. `/Object_topic`과 센서 캡처 GT 정의는 공식 확인됐다. 학습·평가는 센서 캡처
+   geometric BBox 기준으로 통일한다.
+5. `WoodBox(40100002)`의 mesh/LiDAR point와 센서 캡처 GT box 정합 및 출제 여부는
+   아직 별도 확인이 필요하다.
 
 ## 7. 관련 근거
 

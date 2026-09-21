@@ -19,6 +19,7 @@ from perception_object_pipeline.rolling_lidar import (
     PlanarPoseBuffer,
     deskew_points_to_reference_pose,
     scan_time_contract,
+    transform_points_between_lidar_times,
 )
 from nav_msgs.msg import Odometry
 from morai_msgs.msg import EgoVehicleStatus
@@ -86,6 +87,10 @@ class BevFusionRosBridge:
         self.lidar_deskew_pose_type = str(
             rospy.get_param("~lidar_deskew_pose_type", "odometry")
         ).strip().lower()
+        self.temporal_sweeps = max(
+            0, int(rospy.get_param("~temporal_sweeps", 0)))
+        self.temporal_maximum_age_sec = float(
+            rospy.get_param("~temporal_maximum_age_sec", 0.30))
         if self.lidar_deskew_mode not in ("off", "ego_pose_2d"):
             raise ValueError("lidar_deskew_mode must be off or ego_pose_2d")
         if self.lidar_deskew_reference not in ("end", "median", "header"):
@@ -102,6 +107,15 @@ class BevFusionRosBridge:
             self.score_threshold, self.class_score_thresholds
         )
         self.max_detections = int(rospy.get_param("~max_detections", 100))
+        self.publish_detector_velocity = bool(
+            rospy.get_param("~publish_detector_velocity", False)
+        )
+        self.detector_velocity_noise_std_mps = float(
+            rospy.get_param("~detector_velocity_noise_std_mps", 1.0)
+        )
+        self.detector_maximum_velocity_mps = float(
+            rospy.get_param("~detector_maximum_velocity_mps", 60.0)
+        )
         self.marker_lifetime = float(rospy.get_param("~marker_lifetime_sec", 0.5))
         self.transport = TcpTransport(
             rospy.get_param("~server_host", "127.0.0.1"),
@@ -117,6 +131,8 @@ class BevFusionRosBridge:
             self.lidar_yaw,
         ) = self._load_topics()
         self.ego_pose_buffer = PlanarPoseBuffer(duration_sec=2.0)
+        self.temporal_sweep_buffer = collections.deque(
+            maxlen=max(1, self.temporal_sweeps))
         self.camera_buffers = {
             frame: collections.deque(maxlen=self.camera_buffer_size)
             for frame in self.camera_order
@@ -179,7 +195,7 @@ class BevFusionRosBridge:
                 buff_size=32 * 1024 * 1024,
             )
         )
-        if self.lidar_deskew_mode == "ego_pose_2d":
+        if self.lidar_deskew_mode == "ego_pose_2d" or self.temporal_sweeps > 0:
             pose_message_type = (
                 Odometry
                 if self.lidar_deskew_pose_type == "odometry"
@@ -208,10 +224,11 @@ class BevFusionRosBridge:
         rospy.on_shutdown(self.shutdown)
         self._publish_status("waiting_for_synchronized_sensor_frame")
         rospy.loginfo(
-            "BEVFusion bridge: operation=%s, lidar=%s, cameras=%s",
+            "BEVFusion bridge: operation=%s, lidar=%s, cameras=%s, temporal_sweeps=%d",
             self.operation,
             self.lidar_topic,
             self.camera_topics,
+            self.temporal_sweeps,
         )
 
     def _load_topics(self):
@@ -403,6 +420,42 @@ class BevFusionRosBridge:
                 raise ValueError("deskew pose coverage is insufficient")
             points, deskew_displacement, _reference_pose = deskewed
             deskew_ms = (time.monotonic() - deskew_start) * 1000.0
+        points_for_history = np.asarray(points, dtype=np.float32)
+        if self.temporal_sweeps > 0:
+            point_sets = [np.concatenate(
+                [points_for_history, np.zeros((len(points_for_history), 1), np.float32)],
+                axis=1,
+            )]
+            pose_samples = self.ego_pose_buffer.snapshot()
+            for source_stamp, source_points in reversed(self.temporal_sweep_buffer):
+                age = float(reference_stamp) - float(source_stamp)
+                if age <= 1.0e-6 or age > self.temporal_maximum_age_sec:
+                    continue
+                aligned = transform_points_between_lidar_times(
+                    source_points,
+                    source_stamp,
+                    reference_stamp,
+                    pose_samples,
+                    lidar_position=self.lidar_position,
+                    lidar_yaw=self.lidar_yaw,
+                    maximum_extrapolation_sec=(
+                        self.lidar_deskew_maximum_extrapolation_sec),
+                )
+                if aligned is None:
+                    continue
+                point_sets.append(np.concatenate(
+                    [aligned.astype(np.float32, copy=False),
+                     np.full((len(aligned), 1), age, np.float32)],
+                    axis=1,
+                ))
+                if len(point_sets) >= self.temporal_sweeps + 1:
+                    break
+            points = np.concatenate(point_sets, axis=0)
+            if (self.temporal_sweep_buffer and
+                    reference_stamp <= self.temporal_sweep_buffer[-1][0]):
+                self.temporal_sweep_buffer.clear()
+            self.temporal_sweep_buffer.append(
+                (float(reference_stamp), points_for_history.copy()))
         self.sequence += 1
         metadata = {
             "operation": self.operation,
@@ -414,7 +467,7 @@ class BevFusionRosBridge:
             "intrinsic_source": self.intrinsic_source,
             "sync_difference_sec": differences,
             "points_blob": "points",
-            "point_dim": 4,
+            "point_dim": int(points.shape[1]),
             "point_count": int(points.shape[0]),
             "score_threshold": self.model_score_threshold,
             "max_detections": self.max_detections,
@@ -547,18 +600,27 @@ class BevFusionRosBridge:
         header = delete_all.header
         delete_all.action = Marker.DELETEALL
         markers.append(delete_all)
-        boxes = [
-            list(detection["center"])
-            + list(detection["size"])
-            + [float(detection["yaw"])]
-            for detection in detections
-        ]
+        boxes = []
+        for detection in detections:
+            box_values = (
+                list(detection["center"])
+                + list(detection["size"])
+                + [float(detection["yaw"])]
+            )
+            velocity = detection.get("velocity")
+            if velocity is not None and len(velocity) >= 2:
+                box_values.extend([float(velocity[0]), float(velocity[1])])
+            boxes.append(box_values)
         self.objects_pub.publish(
             make_detected_objects(
                 header,
                 boxes,
                 [float(detection.get("score", 0.0)) for detection in detections],
                 [str(detection.get("class_name", "unknown")) for detection in detections],
+                include_velocity=self.publish_detector_velocity,
+                velocity_classes=("vehicle",),
+                velocity_noise_std_mps=self.detector_velocity_noise_std_mps,
+                maximum_velocity_mps=self.detector_maximum_velocity_mps,
             )
         )
         for index, detection in enumerate(detections):

@@ -15,6 +15,7 @@ class Base3OnlinePreprocessor:
         self,
         calibration,
         camera_workers=4,
+        point_dim=4,
         final_dim=(256, 704),
         resize=0.55,
         reference_width=1280,
@@ -26,6 +27,9 @@ class Base3OnlinePreprocessor:
         self.reference_width = float(reference_width)
         self.point_cloud_range = np.asarray(point_cloud_range, dtype=np.float32)
         self.camera_workers = max(1, int(camera_workers))
+        self.point_dim = int(point_dim)
+        if self.point_dim not in (4, 5):
+            raise ValueError("BEVFusion runtime point_dim must be 4 or 5")
         self.executor = (
             ThreadPoolExecutor(
                 max_workers=self.camera_workers,
@@ -84,7 +88,7 @@ class Base3OnlinePreprocessor:
         data_sample = Det3DDataSample()
         data_sample.set_metainfo({
             "sample_idx": str(sample_idx),
-            "num_pts_feats": 4,
+            "num_pts_feats": self.point_dim,
             "num_views": len(cameras),
             "box_type_3d": LiDARInstance3DBoxes,
             "cam2img": self.camera_intrinsics,
@@ -188,11 +192,10 @@ class Base3OnlinePreprocessor:
 
     def _filter_points(self, points):
         points = np.asarray(points, dtype=np.float32)
-        if points.ndim != 2 or points.shape[1] != 4:
+        if points.ndim != 2 or points.shape[1] != self.point_dim:
             raise ValueError(
-                "Base3 BEVFusion expects Nx4 [x,y,z,intensity], got {}".format(
-                    points.shape
-                )
+                "BEVFusion expects Nx{} points, got {}".format(
+                    self.point_dim, points.shape)
             )
         lower, upper = self.point_cloud_range[:3], self.point_cloud_range[3:]
         keep = np.isfinite(points).all(axis=1)

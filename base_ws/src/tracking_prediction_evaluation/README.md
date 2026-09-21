@@ -96,6 +96,16 @@ Profiles are matched by the reported 3D dimensions rather than
 `ObjectStatus.name`: the recorded highway bag reuses the same name for
 different dimensions, so that field is not a stable asset identifier.
 
+For dataset-aligned re-evaluation, select
+`--gt-reference asset-catalog-bbox-center-v1`. This mode uses the same audited
+per-asset pivot-to-geometric-center offset and BBox size as the Base3-Online and
+Base4 converters. New generated bags resolve the exact asset name. Older
+RandomMode highway bags store an MGeo link in `ObjectStatus.name`, so vehicle
+assets are resolved from the stable 3-D size profile with a `0.12 m` maximum
+error and `0.02 m` ambiguity margin. Pedestrian and obstacle assets are never
+guessed from size; unresolved assets are excluded and reported. The default is
+kept unchanged so previously published metrics remain reproducible.
+
 The same report retains the uncorrected legacy result under
 `object_status_reference_evaluation`. To reproduce the historical primary
 layout explicitly, pass `--gt-reference object-status`.
@@ -192,6 +202,25 @@ The evaluator uses the independently audited vehicle actor-origin to BBox-center
 calibration. Unsupported large vehicle profiles are excluded and counted in
 `gt_reference_calibration`; pedestrian and obstacle actor pivots are currently
 left unchanged.
+
+To evaluate against the dataset-aligned per-asset reference without rerunning
+the detector:
+
+```bash
+/usr/bin/python3 \
+  base_ws/src/tracking_prediction_evaluation/scripts/evaluate_rosbag_detection.py \
+  RAW_INPUT.bag DETECTION_OUTPUT.bag \
+  --output artifacts/detection3d/online_rosbag/SCENE/catalog_summary.json \
+  --classes vehicle \
+  --production-score-threshold 0.40 \
+  --gt-reference asset-catalog-bbox-center-v1
+```
+
+Use the same `--gt-reference` argument with
+`evaluate_pipeline_prediction.py` for tracking and Map-CV. Correcting every GT
+position before finite differencing means its speed/2-D AVE reference follows
+the rotating geometric BBox center. It does not trust the inconsistent velocity
+units found in historical MORAI bags.
 
 For reproducible bag evaluation, let the node complete one short real-input
 prewarm before recording the measured replay. The synthetic startup warmup does

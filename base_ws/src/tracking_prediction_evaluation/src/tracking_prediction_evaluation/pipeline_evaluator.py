@@ -1192,7 +1192,10 @@ def evaluate_pipeline(
             "motp_center_error_caveat": (
                 "Validated bbox-center distance for the supported calibrated "
                 "vehicle subset"
-                if gt_reference == "bbox-center-calibrated-v1"
+                if gt_reference in (
+                    "bbox-center-calibrated-v1",
+                    "asset-catalog-bbox-center-v1",
+                )
                 else "Compatibility alias only: MORAI ObjectStatus.position "
                 "and detector bbox center have different empirical "
                 "longitudinal reference points, so this is not validated "
@@ -1200,7 +1203,10 @@ def evaluate_pipeline(
             ),
             "bbox_center_absolute_distance_m": (
                 statistics(tracking_errors)
-                if gt_reference == "bbox-center-calibrated-v1"
+                if gt_reference in (
+                    "bbox-center-calibrated-v1",
+                    "asset-catalog-bbox-center-v1",
+                )
                 else {"count": 0, "reason": "bbox-center GT not selected"}
             ),
             "absolute_speed_error_mps": statistics(tracking_speed_errors),

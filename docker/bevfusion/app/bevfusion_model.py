@@ -43,10 +43,14 @@ class BevFusionModel:
         # config is the authoritative label contract.
         self.model.dataset_meta = dict(self.model.dataset_meta or {})
         self.model.dataset_meta["classes"] = self.classes
+        self.point_dim = int(config.model.pts_voxel_encoder.get(
+            "num_features", 4))
         self.use_amp = bool(use_amp)
         self.device_type = torch.device(device).type
         self.preprocessor = Base3OnlinePreprocessor(
-            calibration, camera_workers=preprocess_workers
+            calibration,
+            camera_workers=preprocess_workers,
+            point_dim=self.point_dim,
         )
         self.warmup_iterations = max(0, int(warmup_iterations))
         self.warmed_up = False
@@ -120,7 +124,7 @@ class BevFusionModel:
             self.warmed_up = True
             return
         generator = np.random.default_rng(260916)
-        points = np.empty((8192, 4), dtype=np.float32)
+        points = np.zeros((8192, self.point_dim), dtype=np.float32)
         points[:, 0] = generator.uniform(-29.5, 29.5, len(points))
         points[:, 1] = generator.uniform(-29.5, 29.5, len(points))
         points[:, 2] = generator.uniform(-2.5, 1.5, len(points))

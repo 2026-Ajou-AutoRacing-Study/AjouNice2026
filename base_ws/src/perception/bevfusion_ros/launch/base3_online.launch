@@ -25,6 +25,15 @@
   <arg name="lidar_deskew_pose_type" default="odometry"/>
   <arg name="lidar_deskew_max_point_time_span_sec" default="0.15"/>
   <arg name="lidar_deskew_maximum_extrapolation_sec" default="0.05"/>
+  <!-- Base4 T1 uses two causal past sweeps. Zero preserves the production
+       Base3/V1 single-frame contract. -->
+  <arg name="temporal_sweeps" default="0"/>
+  <arg name="temporal_maximum_age_sec" default="0.30"/>
+  <!-- Base3 E25 is 7D, so velocity remains opt-in. Base4 9D experiments
+       explicitly enable this contract. -->
+  <arg name="publish_detector_velocity" default="false"/>
+  <arg name="detector_velocity_noise_std_mps" default="1.0"/>
+  <arg name="detector_maximum_velocity_mps" default="60.0"/>
 
   <node pkg="bevfusion_ros"
         type="bevfusion_ros_bridge.py"
@@ -46,6 +55,15 @@
            value="$(arg lidar_deskew_max_point_time_span_sec)"/>
     <param name="lidar_deskew_maximum_extrapolation_sec"
            value="$(arg lidar_deskew_maximum_extrapolation_sec)"/>
+    <param name="temporal_sweeps" value="$(arg temporal_sweeps)"/>
+    <param name="temporal_maximum_age_sec"
+           value="$(arg temporal_maximum_age_sec)"/>
+    <param name="publish_detector_velocity"
+           value="$(arg publish_detector_velocity)"/>
+    <param name="detector_velocity_noise_std_mps"
+           value="$(arg detector_velocity_noise_std_mps)"/>
+    <param name="detector_maximum_velocity_mps"
+           value="$(arg detector_maximum_velocity_mps)"/>
   </node>
 
   <node if="$(arg start_rviz)"
