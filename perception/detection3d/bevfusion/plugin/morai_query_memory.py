@@ -78,6 +78,7 @@ class MoraiQueryMemoryAttention(nn.Module):
         maximum_memory_age_sec: float = 0.60,
         maximum_association_distance_m: float = 6.0,
         initial_residual_logit: float = -4.0,
+        use_motion_value: bool = False,
     ) -> None:
         super().__init__()
         if channels % num_heads != 0:
@@ -90,6 +91,7 @@ class MoraiQueryMemoryAttention(nn.Module):
         self.maximum_memory_age_sec = float(maximum_memory_age_sec)
         self.maximum_association_distance_m = float(
             maximum_association_distance_m)
+        self.use_motion_value = bool(use_motion_value)
 
         self.query_projection = nn.Linear(self.channels, self.channels)
         self.key_projection = nn.Linear(self.channels, self.channels)
@@ -97,10 +99,18 @@ class MoraiQueryMemoryAttention(nn.Module):
         self.output_projection = nn.Linear(self.channels, self.channels)
         self.motion_bias = nn.Sequential(
             nn.Linear(3, 32), nn.SiLU(), nn.Linear(32, self.num_heads))
+        if self.use_motion_value:
+            self.motion_value = nn.Sequential(
+                nn.Linear(3, self.channels), nn.SiLU(),
+                nn.Linear(self.channels, self.channels))
+        else:
+            self.motion_value = None
         self.residual_logit = nn.Parameter(torch.tensor(
             float(initial_residual_logit), dtype=torch.float32))
         self.last_active_query_fraction: Optional[Tensor] = None
         self.last_mean_attention_age_sec: Optional[Tensor] = None
+        self.last_active_query_mask: Optional[Tensor] = None
+        self.last_motion_context: Optional[Tensor] = None
 
     def forward(
         self,
@@ -127,6 +137,10 @@ class MoraiQueryMemoryAttention(nn.Module):
         if memory_count == 0:
             self.last_active_query_fraction = current_features.new_tensor(0.0)
             self.last_mean_attention_age_sec = current_features.new_tensor(0.0)
+            self.last_active_query_mask = torch.zeros(
+                batch, current_count, dtype=torch.bool,
+                device=current_features.device)
+            self.last_motion_context = torch.zeros_like(current_features)
             return current_features
 
         current = current_features.transpose(1, 2)
@@ -144,7 +158,8 @@ class MoraiQueryMemoryAttention(nn.Module):
             memory_centers_xy[:, None, :, :]
         ages = memory_ages_sec[:, None, :, None].expand(
             -1, current_count, -1, -1)
-        motion = torch.cat([delta, ages], dim=-1)
+        velocity = delta / ages.clamp_min(1.0e-3)
+        motion = torch.cat([velocity, ages], dim=-1)
         logits = logits + self.motion_bias(motion).permute(0, 3, 1, 2)
 
         distance = torch.linalg.vector_norm(delta, dim=-1)
@@ -164,13 +179,24 @@ class MoraiQueryMemoryAttention(nn.Module):
         masked_logits = logits.masked_fill(~expanded_valid, -1.0e4)
         weights = torch.softmax(masked_logits, dim=-1) * expanded_valid
         weights = weights / weights.sum(dim=-1, keepdim=True).clamp_min(1.0e-8)
-        context = torch.einsum("bhnm,bmhd->bnhd", weights, value)
+        pair_value = value[:, None, :, :, :].expand(
+            -1, current_count, -1, -1, -1)
+        if self.motion_value is not None:
+            encoded_motion = self.motion_value(motion).reshape(
+                batch, current_count, memory_count,
+                self.num_heads, self.head_channels)
+            pair_value = pair_value + encoded_motion
+        context = torch.einsum("bhnm,bnmhd->bnhd", weights, pair_value)
         context = context.reshape(batch, current_count, channels)
         residual = self.output_projection(context)
         active = valid_pairs.any(dim=-1)
         residual = residual * active[:, :, None]
+        motion_context = context * active[:, :, None]
         scale = torch.sigmoid(self.residual_logit)
         output = current + scale * residual
+
+        self.last_active_query_mask = active
+        self.last_motion_context = motion_context.transpose(1, 2)
 
         with torch.no_grad():
             self.last_active_query_fraction = active.float().mean()

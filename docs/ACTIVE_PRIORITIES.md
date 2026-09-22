@@ -104,8 +104,11 @@
 - `B4H-Q1-P0` sparse Vehicle query-memory는 tensor/metadata/full pipeline smoke와
   matched A/B를 통과했다. Hardcase V2 scene-disjoint best speed MAE는 memory-off
   `4.075` 대비 memory-on `3.854 m/s`로 `5.4%` 개선됐지만 `<1.0 m/s` gate에는
-  실패했다. Production 적용 없이 P1 displacement auxiliary supervision을 다음 구현
-  gate로 둔다.
+  실패했다. 이어서 P1은 motion을 attention logit뿐 아니라 value에 직접 넣고 temporal
+  velocity auxiliary head를 추가해 best speed MAE를 `3.133 m/s`까지 낮췄다. P0
+  memory-on 대비 `18.7%` 개선이고 공간 mAP은 보존됐지만 절대 gate에는 여전히
+  실패했다. Production 적용 없이 GT identity displacement-consistency와
+  counterfactual mini split을 다음 gate로 둔다.
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.

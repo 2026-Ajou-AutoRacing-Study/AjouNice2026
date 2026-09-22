@@ -1,7 +1,7 @@
 # Base4 Q1 실행 로드맵
 
 > 날짜: 2026-09-23.
-> 상태: Q1-P0 구현 및 단계별 gate 진행 중인 CURRENT 계획.
+> 상태: Q1-P1 motion-value gate까지 완료한 CURRENT 계획.
 > 목표: 고주로 Vehicle velocity와 downstream 추월 판단을 개선하되 E25 production을
 > 흔들지 않는다.
 
@@ -104,11 +104,19 @@ Q1과 tracker/prediction 변경을 한 실험에서 동시에 튜닝하지 않�
   `4.075 → 3.854 m/s`로 `5.4%` 개선됐고 공간 mAP은 보존됐다.
 - query memory 신호는 확인했지만 `<1.0 m/s` 절대 gate에는 실패했다. P0 checkpoint는
   rosbag/production 후보가 아니며 P1 displacement auxiliary supervision으로 진행한다.
+- P1에서 `(delta center / delta-time, age)`를 memory value에 명시적으로 넣고 temporal
+  velocity auxiliary head를 추가했다. Hardcase V2 scene-disjoint best speed MAE는
+  `3.854 → 3.133 m/s`로 P0보다 `18.7%` 개선됐고 공간 mAP도 보존됐다.
+- 다만 `<1.0 m/s` gate에는 여전히 실패했다. P1 checkpoint도 rosbag/production 후보가
+  아니며, 다음은 GT identity를 학습/진단에만 사용하는 실제 displacement-consistency
+  target과 counterfactual mini split이다.
 
 구현 및 결과 문서는
 [`260923_BASE4_Q1_P0_QUERY_MEMORY_RESULTS.md`](260923_BASE4_Q1_P0_QUERY_MEMORY_RESULTS.md)를
-따른다. Displacement consistency auxiliary loss는 아직 구현하지 않았으며 memory-only P0의
-학습 가능성을 먼저 판정한 뒤 P1에서 추가한다.
+따른다. P1 구현 및 결과는
+[`260923_BASE4_Q1_P1_MOTION_VALUE_RESULTS.md`](260923_BASE4_Q1_P1_MOTION_VALUE_RESULTS.md)를
+따른다. P1의 auxiliary target은 기존 velocity annotation이며 GT identity 기반
+displacement-consistency loss는 아직 구현하지 않았다.
 
 ## 중단·전환 기준
 

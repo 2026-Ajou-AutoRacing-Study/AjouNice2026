@@ -44,6 +44,21 @@ def main():
     assert memory.grad is not None and float(memory.grad.abs().sum()) > 0.0
     assert module.residual_logit.grad is not None
 
+    motion_module = MoraiQueryMemoryAttention(
+        channels=8, num_heads=2, maximum_association_distance_m=30.0,
+        use_motion_value=True)
+    motion_output = motion_module(
+        current.detach().clone().requires_grad_(True),
+        torch.tensor([[[2.0, 0.0], [10.0, 0.0], [1.0, 0.0]]]),
+        torch.tensor([[0, 0, 1]]), memory.detach(),
+        torch.tensor([[[0.0, 0.0], [8.0, 0.0], [1.5, 0.0], [0.0, 0.0]]]),
+        torch.tensor([[0.9, 0.9, 0.1, 0.9]]),
+        torch.tensor([[0, 0, 0, 1]]),
+        torch.tensor([[0.2, 0.2, 0.2, 0.2]]))
+    motion_output.square().mean().backward()
+    assert motion_module.last_motion_context.shape == current.shape
+    assert float(motion_module.motion_value[0].weight.grad.abs().sum()) > 0.0
+
     bank = CausalQueryMemoryBank(
         max_frames=2, max_queries_per_frame=2, maximum_age_sec=0.6,
         reset_gap_sec=0.3)

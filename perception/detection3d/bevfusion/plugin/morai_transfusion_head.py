@@ -48,6 +48,8 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
         memory_max_frames=4,
         memory_max_queries_per_frame=64,
         memory_reset_gap_sec=0.30,
+        temporal_velocity_aux_weight=0.0,
+        initial_velocity_fusion_logit=-2.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -62,6 +64,24 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
             reset_gap_sec=float(memory_reset_gap_sec),
             vehicle_label=int(query_memory.get("vehicle_label", 0)),
         )
+        self.temporal_velocity_aux_weight = float(
+            temporal_velocity_aux_weight)
+        if self.temporal_velocity_aux_weight > 0.0:
+            channels = int(query_memory["channels"])
+            self.query_memory_velocity_head = nn.Sequential(
+                nn.Conv1d(channels, channels, kernel_size=1),
+                nn.SiLU(),
+                nn.Conv1d(channels, 2, kernel_size=1),
+            )
+            nn.init.zeros_(self.query_memory_velocity_head[-1].weight)
+            nn.init.zeros_(self.query_memory_velocity_head[-1].bias)
+            self.query_memory_velocity_fusion_logit = nn.Parameter(
+                torch.tensor(float(initial_velocity_fusion_logit)))
+        else:
+            self.query_memory_velocity_head = None
+            self.register_parameter(
+                "query_memory_velocity_fusion_logit", None)
+        self.last_temporal_velocity_pair_fraction = None
 
     @staticmethod
     def _pose_from_lidar2global(matrix):
@@ -173,6 +193,16 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
             memory["labels"],
             memory["ages_sec"],
         )
+        temporal_velocity = None
+        temporal_velocity_active = None
+        if self.query_memory_velocity_head is not None:
+            temporal_velocity = self.query_memory_velocity_head(
+                self.query_memory.last_motion_context)
+            temporal_velocity_active = (
+                self.query_memory.last_active_query_mask[:, None, :]
+                .to(dtype=temporal_velocity.dtype))
+        self._last_temporal_velocity = temporal_velocity
+        self._last_temporal_velocity_active = temporal_velocity_active
 
         ret_dicts = []
         for layer_index in range(self.num_decoder_layers):
@@ -184,6 +214,11 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
             )
             result = self.prediction_heads[layer_index](query_feat)
             result['center'] = result['center'] + query_pos.permute(0, 2, 1)
+            if temporal_velocity is not None and 'vel' in result:
+                fusion = torch.sigmoid(
+                    self.query_memory_velocity_fusion_logit)
+                result['vel'] = result['vel'] + temporal_velocity_active * (
+                    fusion * (temporal_velocity - result['vel']))
             ret_dicts.append(result)
             query_pos = result['center'].detach().clone().permute(0, 2, 1)
 
@@ -218,3 +253,42 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
             else:
                 combined[key] = ret_dicts[0][key]
         return [combined]
+
+    def get_targets(self, batch_gt_instances_3d, preds_dict):
+        targets = super().get_targets(batch_gt_instances_3d, preds_dict)
+        self._last_q1_labels = targets[0]
+        self._last_q1_bbox_targets = targets[2]
+        return targets
+
+    def loss_by_feat(self, preds_dicts, batch_gt_instances_3d, *args,
+                     **kwargs):
+        losses = super().loss_by_feat(
+            preds_dicts, batch_gt_instances_3d, *args, **kwargs)
+        if self.query_memory_velocity_head is None:
+            return losses
+
+        count = self.num_proposals
+        labels = self._last_q1_labels[..., -count:]
+        velocity_targets = self._last_q1_bbox_targets[
+            ..., -count:, 8:10]
+        active = self._last_temporal_velocity_active[:, 0, :].bool()
+        positive_vehicle = (
+            (labels == self.query_memory.vehicle_label) & active)
+        pair_fraction = positive_vehicle.float().mean()
+        self.last_temporal_velocity_pair_fraction = pair_fraction.detach()
+
+        if positive_vehicle.any():
+            prediction = self._last_temporal_velocity.permute(0, 2, 1)
+            aux_loss = F.smooth_l1_loss(
+                prediction[positive_vehicle].float(),
+                velocity_targets[positive_vehicle].float(),
+                beta=1.0,
+                reduction='mean')
+        else:
+            aux_loss = self._last_temporal_velocity.sum() * 0.0
+        losses['loss_query_memory_velocity_aux'] = (
+            aux_loss * self.temporal_velocity_aux_weight)
+        losses['query_memory_velocity_fusion_gate'] = torch.sigmoid(
+            self.query_memory_velocity_fusion_logit).detach()
+        losses['query_memory_velocity_pair_fraction'] = pair_fraction.detach()
+        return losses
