@@ -12,3 +12,10 @@ optim_wrapper = dict(
             # spatial-backbone fine-tuning LR.
             'pts_middle_encoder.conv_input.0': dict(lr_mult=5.0),
         }))
+
+# Keep the best geometry and best velocity checkpoints independently.  Final
+# promotion still requires the same-bag temporal/tracker evaluation.
+default_hooks = dict(
+    checkpoint=dict(
+        save_best=['val/center/mAP', 'val/tp/vehicle_speed_MAE'],
+        rule=['greater', 'less']))

@@ -54,9 +54,9 @@
   충분하다.
 - `B4T-HWY-P0` 수집, learnability gate, 수정 LR full train과 두 고주로 rosbag 평가는
   완료됐다. T1 E6는 V1의 큰 velocity bias를 줄였지만 인접 frame error-step p95가
-  `3.81--4.22 m/s`로 커서 매 detection velocity EKF update는 실패했다. 추가 동일분포
-  수집보다 짧은 low-LR continuation으로 under-training을 분리한 뒤 temporal stability
-  구조를 바꾼다.
+  `3.81--4.22 m/s`로 커서 매 detection velocity EKF update는 실패했다. Low-LR
+  continuation은 평균 speed MAE만 소폭 개선하고 jitter를 악화시켜 추가 epoch도 기각했다.
+  다음은 동일분포 수집 증량이 아니라 temporal stability 구조 변경이다.
 - 다음 통제 실험은 아래 네 조합이다.
   1. E25-7D production 기준선.
   2. raw B4H-V1 single-frame 9D `vx,vy` head.

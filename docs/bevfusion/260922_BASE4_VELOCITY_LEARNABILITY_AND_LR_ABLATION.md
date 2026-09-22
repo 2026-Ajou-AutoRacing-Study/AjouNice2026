@@ -189,7 +189,38 @@ Mode 1은 두 bag에서 소폭 또는 중간 수준의 이득이 있지만, mode
 
 1. 더 많은 동일 분포 raw scene 수집은 당장 우선하지 않는다.
 2. E6에서 val velocity가 계속 개선됐으므로 낮은 LR의 짧은 continuation을 한 번만 수행해
-   under-training 여부를 분리한다.
-3. 이후에도 rosbag jitter가 유지되면 early concatenation 추가 epoch를 중단하고,
-   object-aware temporal aggregation 또는 temporal consistency 학습으로 넘어간다.
+   under-training 여부를 분리한다. 이 실험은 아래와 같이 완료됐다.
+3. Rosbag jitter가 유지됐으므로 early concatenation 추가 epoch를 중단하고, object-aware
+   temporal aggregation 또는 temporal consistency 학습으로 넘어간다.
 4. production detector와 tracker 기본값은 이 gate만으로 변경하지 않는다.
+
+## Low-LR continuation 결과
+
+T1 E6에서 base LR `1e-5`, velocity/time branch `5e-5`로 4 epoch를 더 학습했다. 별도
+optimizer/scheduler로 시작한 fine-tuning run이므로 아래 epoch 1--4는 누적 E7--E10에
+해당하는 비교로만 해석한다.
+
+| continuation epoch | center mAP | speed MAE | mAVE | mATE |
+|---:|---:|---:|---:|---:|
+| 1 | 0.3010 | 2.2923 | 2.3185 | 0.2251 |
+| 2 | 0.3033 | 2.2632 | 2.2947 | **0.2170** |
+| 3 | 0.3040 | **2.2441** | **2.2732** | 0.2203 |
+| 4 | **0.3040** | 2.2770 | 2.3065 | 0.2212 |
+
+Epoch 3를 같은 rosbag에 재평가했다.
+
+| 모델 | bag | AP | mATE | speed MAE | mAVE | signed bias | error-step p95 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| T1 E6 | merge | 0.7503 | 0.3632 | 3.4847 | 3.5380 | -0.291 | **4.220** |
+| T1 cont E3 | merge | **0.7639** | **0.3545** | **3.4422** | **3.4913** | **-0.180** | 4.299 |
+| T1 E6 | highway1 | 0.7742 | 0.3963 | 2.8077 | 2.8509 | -0.265 | **3.810** |
+| T1 cont E3 | highway1 | **0.7787** | **0.3948** | **2.6612** | **2.7014** | **-0.216** | 3.956 |
+
+평균 detection 지표는 조금 좋아졌지만 temporal jitter는 두 bag 모두 악화됐다. Tracker
+mode 1의 두-bag macro stable minFDE-K 3초는 `2.161 -> 2.074 m`로 개선됐으나, V1 E2
+position-only의 `1.646 m`에는 여전히 크게 못 미친다. Mode 0은 오히려 `2.499 ->
+2.524 m`로 나빠졌다.
+
+따라서 추가 epoch는 본질적 해결이 아니다. 다음 실험은 dataset 증량이나 E12 연장이 아니라
+시간적으로 일관된 velocity를 직접 학습·집계하는 구조여야 한다. W&B run:
+<https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/bf-sw-base4-highway-t1-continue-e6-newheads5x-e4-rtx5060ti-260922-161431>.

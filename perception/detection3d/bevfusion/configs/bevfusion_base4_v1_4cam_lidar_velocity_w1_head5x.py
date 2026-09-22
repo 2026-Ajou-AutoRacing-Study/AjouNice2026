@@ -10,3 +10,10 @@ optim_wrapper = dict(
         custom_keys={
             'bbox_head.prediction_heads.0.vel': dict(lr_mult=5.0),
         }))
+
+# Spatial mAP alone can select a checkpoint whose velocity has already
+# regressed.  Preserve both operating points for the rosbag gate.
+default_hooks = dict(
+    checkpoint=dict(
+        save_best=['val/center/mAP', 'val/tp/vehicle_speed_MAE'],
+        rule=['greater', 'less']))
