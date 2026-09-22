@@ -90,6 +90,14 @@
   불능은 아니지만, 현재 overfit은 temporal motion보다 scene prior 암기를 포함한다.
   따라서 다음은 동일 외형·위치의 속도만 바꾸는 counterfactual 수집과
   `0.3--0.6 s` object/query memory + displacement consistency를 같이 검증한다.
+- 기존 detection bag의 predicted center를 0.45초 causal association한 probe에서 speed
+  MAE는 Production E25 `0.29/0.64 m/s`, V1 `0.38/0.67 m/s`, T1
+  `0.52/0.71 m/s`(고주로1/합류)였다.
+  같은 pair의 velocity head `2.53--4.23 m/s`보다 크게 낮고, GT-ID 대비
+  causal association 추가 손실도 `0.00--0.09 m/s`였다. 따라서 learned Q1 전에
+  track-age 기반 0.45/0.65/0.90초 center-motion `B4H-Q0`를 tracker 앞단에서
+  구현·downstream 검증한다. 단, 현재 bag의 identity switch 0건은 쉽게 분리된
+  차량 분포의 결과이므로 새 다중차량 held-out gate가 필수다.
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.

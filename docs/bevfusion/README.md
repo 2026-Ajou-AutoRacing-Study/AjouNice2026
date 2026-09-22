@@ -1,6 +1,6 @@
 # BEVFusion 문서 index
 
-마지막 정리: 2026-09-22.
+마지막 정리: 2026-09-23.
 
 ## CURRENT
 
@@ -14,6 +14,7 @@
 | Base4 24-scene 수집·9D/3-sweep·학습 smoke 결과 | [`260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md`](260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md) |
 | Base4 V1/T1 E4 고주로 detection·tracking·prediction 판정 | [`260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md`](260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md) |
 | Base4 velocity head learnability·LR 진단 | [`260922_BASE4_VELOCITY_LEARNABILITY_AND_LR_ABLATION.md`](260922_BASE4_VELOCITY_LEARNABILITY_AND_LR_ABLATION.md) |
+| Base4 center-motion/association 오차 분해 | [`260923_BASE4_CENTER_MOTION_PROBE.md`](260923_BASE4_CENTER_MOTION_PROBE.md) |
 | Base4 T2 sweep-separated temporal BEV 구현·smoke | [`260922_BASE4_T2_TEMPORAL_BEV_P0.md`](260922_BASE4_T2_TEMPORAL_BEV_P0.md) |
 
 Production 표준은 `B3-BF0-F40 E25`, class threshold는 `0.40/0.15/0.10`이다.
