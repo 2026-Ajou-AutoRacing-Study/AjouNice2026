@@ -45,8 +45,8 @@ profiles:
       - [RED_CIRCLE, GREEN_LEFT_ARROW]
     corrections:
       GREEN_LEFT_ARROW: [RED_CIRCLE, GREEN_LEFT_ARROW]
-      RED_CIRCLE+GREEN_CIRCLE: [RED_CIRCLE, GREEN_LEFT_ARROW]
-      GREEN_CIRCLE+GREEN_LEFT_ARROW: [RED_CIRCLE, GREEN_LEFT_ARROW]
+      RED_CIRCLE+GREEN_CIRCLE: [RED_CIRCLE]
+      GREEN_CIRCLE+GREEN_LEFT_ARROW: [GREEN_CIRCLE]
       RED_CIRCLE+YELLOW_CIRCLE: [YELLOW_CIRCLE]
     # D-2 has two yellow phases. Yellow is GO only after the protected-left
     # phase; yellow after straight green is represented as red (STOP).
