@@ -224,3 +224,115 @@ position-only의 `1.646 m`에는 여전히 크게 못 미친다. Mode 0은 오�
 따라서 추가 epoch는 본질적 해결이 아니다. 다음 실험은 dataset 증량이나 E12 연장이 아니라
 시간적으로 일관된 velocity를 직접 학습·집계하는 구조여야 한다. W&B run:
 <https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/bf-sw-base4-highway-t1-continue-e6-newheads5x-e4-rtx5060ti-260922-161431>.
+
+## 근본 원인 분해: label, 관측 가능성, 암기와 일반화
+
+기존 결과만으로는 `velocity head가 학습 불가능한가`, `sequence에 속도 단서가 없는가`,
+`데이터가 부족한가`를 분리할 수 없었다. 이를 위해 annotation oracle과 공격적인
+exact-sample overfit을 추가했다. 이 절의 overfit 결과는 production 후보가 아니라
+학습 경로의 고장 여부만 판별하는 진단이다.
+
+### Label과 시간축은 주원인이 아니다
+
+전체 raw dataset의 velocity target과 geometric BBox center 미분 속도 차이는 평균
+`0.086 m/s`, p50 `0.046 m/s`, p95 `0.275 m/s`다. Camera sync age p95도 약
+`26.7 ms`다. 단위, heading, timestamp 또는 BBox-center velocity 변환이 수 m/s 오차의
+주원인이라는 증거는 없다.
+
+같은 instance의 GT center를 frame 간 직접 대응해 속도를 계산한 oracle은 다음과 같다.
+
+| 간격 | 평균 dt | val speed MAE | val p95 |
+|---|---:|---:|---:|
+| 1 frame | 0.141 s | 0.087 m/s | 0.243 m/s |
+| 2 frame | 0.283 s | 0.044 m/s | 0.124 m/s |
+| 3 frame | 0.424 s | 0.033 m/s | 0.097 m/s |
+
+이는 올바른 association과 center가 주어지면 현재 sequence만으로도 매우 정확한 속도를
+복원할 수 있음을 뜻한다. 따라서 문제 자체가 물리적으로 불가능한 것은 아니다. 반대로 이
+수치는 GT association/localization oracle이므로 현재 detector가 달성한 성능으로
+해석하지 않는다.
+
+### Frame 수에 비해 독립 motion diversity가 작다
+
+Dataset은 train `1,688 frame / 132 scene`, val `340 frame / 27 scene`이지만 한 scene
+안에서 속도가 거의 고정돼 있다.
+
+| split | scene | scene 내부 speed span > 0.5 m/s | > 1.0 m/s | scene-median oracle MAE |
+|---|---:|---:|---:|---:|
+| train | 132 | 9 | 7 | 0.051 m/s |
+| val | 27 | 2 | 2 | 0.072 m/s |
+
+전역 train median 하나만 예측하면 val MAE가 `3.727 m/s`이고, train에서 학습한
+asset별 median도 val MAE가 `4.695 m/s`다. 따라서 단순한 전역/차종 prior만으로 val을
+풀 수는 없지만, 각 짧은 sequence 안에서는 장면 ID에 가까운 조건부 prior가 정답을 거의
+결정한다. 현재 frame 수는 실제 독립 motion case 수를 크게 과장하며 가감속과 동일 외형의
+counterfactual speed를 거의 가르치지 않는다.
+
+### Aggressive exact-sample overfit
+
+동일한 첫 64개 train sample을 train/val/test에 모두 넣고 velocity loss weight `5`,
+새 velocity/temporal parameter LR multiplier `5`, base LR `1e-4`, 60 epoch로 학습했다.
+공간 augmentation은 그대로 유지했다.
+
+| 모델 | E10 | E20 | E30 | E40 | E50 | E60 |
+|---|---:|---:|---:|---:|---:|---:|
+| T1 3-sweep speed MAE | 1.633 | 0.925 | 0.436 | 0.284 | **0.266** | 0.284 |
+| V1 single-frame speed MAE | 1.752 | 0.943 | 0.365 | 0.437 | 0.368 | **0.338** |
+
+T1은 seen sample에서 `0.5 m/s` 아래로 충분히 내려간다. Velocity head, target 연결,
+loss와 optimizer 경로에 근본적인 표현 불능 버그는 없다. 그러나 V1도 E30에
+`0.365 m/s`, E60에 `0.338 m/s`까지 내려갔다. T1의 최저값이 더 낮지만
+(`0.266 vs 0.338 m/s`) 단일 frame은 절대속도를 직접 관측할 수 없으므로,
+이 간격을 temporal motion 추정 성공으로 해석할 수 없다. Exact-sample gate에서는
+두 모델 모두 장면·외형·위치와 결합된 속도 target을 외울 수 있다.
+
+### 현재 근본 원인의 우선순위
+
+1. **Object identity를 보존하지 않는 temporal 구조**: T1은 과거 point를 current Ego
+   frame에 합쳐 moving-object trail을 만들 뿐, 같은 객체의 두 center와 dt를 명시적으로
+   연결하지 않는다. T2 dense BEV fusion도 같은 한계를 해소하지 못했다.
+2. **짧은 baseline에서 center noise 증폭**: rosbag mATE가 약 `0.3--0.4 m`인데
+   `0.14 s` 차분은 독립 center 오차를 수 m/s로 증폭할 수 있다. GT oracle도 1 frame보다
+   3 frame 간격에서 훨씬 안정적이다.
+3. **Motion diversity 부족**: 159 scene 중 11개만 speed span이 `0.5 m/s`를 넘는다.
+   같은 asset, 거리, 차선과 유사한 current appearance에 서로 다른 속도를 배정하는
+   counterfactual case와 실제 가감속 구간이 부족하다.
+4. **Optimization 계약**: random-init velocity head에 spatial fine-tuning LR과 낮은 loss
+   weight를 쓴 초기 실험은 under-training이었다. 다만 이를 강화해도 full held-out와
+   rosbag 일반화가 자동으로 해결되지는 않는다.
+
+## 다음 architecture/data gate
+
+다음 구현은 전체 StreamPETR 포팅이 아니라 현재 TransFusion query에 최소 memory를 붙이는
+`B4H-Q1`이다.
+
+- Vehicle Top-K query feature, center, score와 timestamp를 3--4 frame 보존한다.
+- Ego pose로 과거 reference point를 current frame에 정합한다.
+- current query와 gated memory query의 object-centric association/attention을 수행한다.
+- `0.3--0.6 s` center displacement와 velocity 사이 consistency loss를 둔다.
+- scene/teleport/frame-gap에서 memory를 즉시 reset한다.
+- 학습에서는 같은 clip의 augmentation을 일관되게 적용하고, 첫 구현은 memory detach로
+  긴 BPTT를 피한다.
+
+데이터는 단순 frame 증량이 아니라 다음 counterfactual matrix를 우선한다.
+
+- 같은 asset/거리/차선/current pose에서 NPC speed만 변경.
+- 일정 속도뿐 아니라 실제 acceleration/deceleration이 한 sequence 안에 존재.
+- Ego speed와 NPC speed를 독립적으로 교차하고 인접·후측방 추월 차량 포함.
+- speed bin과 scenario family를 scene 단위로 분리한 held-out 및 새 실주행 bag 유지.
+
+첫 현실적 gate는 새 held-out에서 speed MAE `1.0 m/s` 이하와 error-step p95의 명확한
+감소다. 독립 rosbag raw detector `0.5 m/s` 이하는 여전히 공격적인 최종 목표지만,
+GT oracle 근거상 불가능한 목표는 아니다. 이 gate 전에는 detector velocity를 tracker의
+매 frame update에 사용하지 않는다.
+
+재현 도구:
+
+- `tools/diagnose_base4_velocity_learnability.py`
+- `configs/team/recipes/base4_highway_t1_raw_overfit64_velw5_head5x_e60.yaml`
+- `configs/team/recipes/base4_highway_v1_raw_overfit64_velw5_head5x_e60.yaml`
+
+W&B:
+
+- T1: <https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/bf-sw-base4-highway-t1-raw-overfit64-velw5-head5x-e60-rtx5060ti-260922-232118>
+- V1: <https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/bf-sw-base4-highway-v1-raw-overfit64-velw5-head5x-e60-rtx5060ti-260922-233327>

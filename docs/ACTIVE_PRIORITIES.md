@@ -82,6 +82,14 @@
   `3.627 m/s`, error-step p95 `4.599 m/s`로 T2R보다 나빠 기각했다. Cache/Ego-warp
   인프라는 보존하되 다음 architecture gate는 object/query memory와 명시적
   delta-time·displacement supervision이다. 최종 후보 판정에는 새 고주로 bag이 필요하다.
+- Annotation learnability audit에서 GT center 3-frame (`~0.42 s`) displacement oracle의
+  val speed MAE는 `0.033 m/s`로, sequence 자체에 속도 정보가 있고 label/time
+  계약도 정상임을 확인했다. 반면 159 scene 중 scene 내 speed span이
+  `0.5 m/s`를 넘는 것은 11개뿐이다. 64-sample aggressive overfit에서 T1과
+  single-frame V1이 모두 `0.5 m/s` 아래로 내려가므로 head/loss의 표현
+  불능은 아니지만, 현재 overfit은 temporal motion보다 scene prior 암기를 포함한다.
+  따라서 다음은 동일 외형·위치의 속도만 바꾸는 counterfactual 수집과
+  `0.3--0.6 s` object/query memory + displacement consistency를 같이 검증한다.
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.
