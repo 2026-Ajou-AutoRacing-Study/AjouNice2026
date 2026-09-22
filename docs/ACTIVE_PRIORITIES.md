@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획
 
-마지막 갱신: 2026-09-20.
+마지막 갱신: 2026-09-22.
 
 이 문서는 **아직 끝나지 않았고 다음 작업에서 반드시 다시 확인할 항목만** 둔다.
 완료된 수집·학습·실험 수치는 각 CURRENT/EVIDENCE 문서에 보존하며 여기로 다시
@@ -52,7 +52,12 @@
 - Position-only tracker의 고주로 2D AVE는 약 `0.96 m/s`다. GT velocity oracle은
   `0.259 m/s`, stable 3초 FDE `0.594 m`를 보여 실제 velocity observation의 가치가
   충분하다.
-- `B4T-HWY-P0` 48-scene 수집은 완료됐다. 다음 통제 실험은 아래 네 조합이다.
+- `B4T-HWY-P0` 수집, learnability gate, 수정 LR full train과 두 고주로 rosbag 평가는
+  완료됐다. T1 E6는 V1의 큰 velocity bias를 줄였지만 인접 frame error-step p95가
+  `3.81--4.22 m/s`로 커서 매 detection velocity EKF update는 실패했다. 추가 동일분포
+  수집보다 짧은 low-LR continuation으로 under-training을 분리한 뒤 temporal stability
+  구조를 바꾼다.
+- 다음 통제 실험은 아래 네 조합이다.
   1. E25-7D production 기준선.
   2. raw B4H-V1 single-frame 9D `vx,vy` head.
   3. raw B4H-T1 causal 3-sweep 9D `vx,vy` head.
@@ -68,8 +73,9 @@
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.
-- 각 모델은 tracker velocity `off/on`을 모두 평가한다. 첫 velocity covariance는
-  `0.5 m/s`이며 geometry, association, 2D AVE와 Map-CV FDE를 함께 본다.
+- Tracker velocity mode 2는 noise `1.0`과 `4.0 m/s` 모두 기각했다. Mode 1
+  (track 초기화만)은 두 bag에서 소폭 이득이 있었지만 production 기본은 계속 mode 0이다.
+  geometry, association, temporal velocity jitter, 2D AVE와 Map-CV FDE를 함께 본다.
 
 상세 실행 계획:
 [`bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md).

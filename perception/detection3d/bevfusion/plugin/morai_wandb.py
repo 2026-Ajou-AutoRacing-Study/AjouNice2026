@@ -124,6 +124,32 @@ class MoraiEpochLrHook(Hook):
             # These two spellings match the PointPainting epoch summary.
             'epoch/learning_rate_last': float(learning_rate),
         }
+        # Param-wise LR experiments keep the spatial backbone conservative
+        # while training newly initialized branches faster.  MMEngine's
+        # default scalar exposes only the first group, so publish the effective
+        # LR of the two Base4-specific groups explicitly when present.
+        optimizer = runner.optim_wrapper.optimizer
+        parameter_names = {
+            id(parameter): name
+            for name, parameter in runner.model.named_parameters()
+        }
+        named_groups = {
+            'train/lr_velocity_head_epoch':
+                'bbox_head.prediction_heads.0.vel',
+            'train/lr_temporal_input_epoch':
+                'pts_middle_encoder.conv_input.0',
+        }
+        for metric_name, name_fragment in named_groups.items():
+            matched_lrs = []
+            for group in optimizer.param_groups:
+                names = [
+                    parameter_names.get(id(parameter), '')
+                    for parameter in group['params']
+                ]
+                if any(name_fragment in name for name in names):
+                    matched_lrs.append(float(group['lr']))
+            if matched_lrs:
+                payload[metric_name] = max(matched_lrs)
         window_size = len(runner.train_dataloader)
         aliases = {
             'loss': 'epoch/train_loss_mean',

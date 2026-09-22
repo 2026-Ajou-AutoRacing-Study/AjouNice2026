@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Expand Base3's sparse-conv input from XYZI to XYZI+time.
+"""Expand a V1 checkpoint's sparse-conv input from XYZI to XYZI+time.
 
 The first four channels are copied exactly and the new time channel starts at
-zero.  Velocity-head parameters intentionally remain absent so MMEngine
-initializes that new head from the model config.
+zero.  If the source is a Base4 V1 checkpoint, its learned velocity head is
+preserved.  If the source is Base3, velocity-head parameters remain absent and
+MMEngine initializes that new head from the model config.
 """
 
 from __future__ import annotations
