@@ -56,12 +56,14 @@ class Observation:
     x: float
     y: float
     gt_key: str | None = None
+    yaw: float = 0.0
 
 
 @dataclass
 class DetectionTrack:
     track_id: int
     observations: list[Observation] = field(default_factory=list)
+    last_velocity: tuple[float, float] | None = None
 
 
 def parse_args():
@@ -157,7 +159,35 @@ def pair_error(previous, current, target_previous, target_current):
         "speed_error": abs(float(np.linalg.norm(estimate) - np.linalg.norm(target))),
         "estimate_speed": float(np.linalg.norm(estimate)),
         "target_speed": float(np.linalg.norm(target)),
+        "estimate_vx": float(estimate[0]),
+        "estimate_vy": float(estimate[1]),
     }
+
+
+def axial_heading_error_deg(velocity_x, velocity_y, yaw):
+    if math.hypot(velocity_x, velocity_y) <= 1.0e-6:
+        return 90.0
+    error = abs(math.atan2(velocity_y, velocity_x) - yaw)
+    error = error % math.pi
+    error = min(error, math.pi - error)
+    return math.degrees(error)
+
+
+def linear_fit_residual_m(observations):
+    """2D RMS residual from a constant-velocity fit over causal centers."""
+    if len(observations) < 3:
+        return None
+    timestamps = np.asarray(
+        [item.timestamp - observations[-1].timestamp for item in observations],
+        dtype=np.float64,
+    )
+    design = np.column_stack((timestamps, np.ones_like(timestamps)))
+    x = np.asarray([item.x for item in observations], dtype=np.float64)
+    y = np.asarray([item.y for item in observations], dtype=np.float64)
+    fit_x = design @ np.linalg.lstsq(design, x, rcond=None)[0]
+    fit_y = design @ np.linalg.lstsq(design, y, rcond=None)[0]
+    residual = np.hypot(x - fit_x, y - fit_y)
+    return float(np.sqrt(np.mean(np.square(residual))))
 
 
 def velocity_error(velocity_x, velocity_y, target_previous, target_current, dt):
@@ -186,6 +216,59 @@ def summarize_pair_rows(rows):
         "speed_mae_mps": statistics(row["speed_error"] for row in rows),
         "estimated_speed_mps": statistics(row["estimate_speed"] for row in rows),
         "target_speed_mps": statistics(row["target_speed"] for row in rows),
+    }
+
+
+def summarize_quality_gates(rows):
+    def report(selected):
+        result = summarize_pair_rows(selected)
+        result["coverage"] = len(selected) / len(rows) if rows else 0.0
+        result["fit_residual_m"] = statistics(
+            row["fit_residual_m"]
+            for row in selected
+            if row.get("fit_residual_m") is not None
+        )
+        result["heading_error_deg"] = statistics(
+            row["heading_error_deg"] for row in selected
+        )
+        result["velocity_change_mps"] = statistics(
+            row["velocity_change_mps"]
+            for row in selected
+            if row.get("velocity_change_mps") is not None
+        )
+        return result
+
+    definitions = {
+        "all": lambda row: True,
+        "fit_residual_le_0p10m": lambda row: (
+            row.get("fit_residual_m") is not None
+            and row["fit_residual_m"] <= 0.10
+        ),
+        "fit_residual_le_0p20m": lambda row: (
+            row.get("fit_residual_m") is not None
+            and row["fit_residual_m"] <= 0.20
+        ),
+        "heading_le_15deg": lambda row: row["heading_error_deg"] <= 15.0,
+        "heading_le_30deg": lambda row: row["heading_error_deg"] <= 30.0,
+        "velocity_change_le_1mps": lambda row: (
+            row.get("velocity_change_mps") is not None
+            and row["velocity_change_mps"] <= 1.0
+        ),
+        "velocity_change_le_2mps": lambda row: (
+            row.get("velocity_change_mps") is not None
+            and row["velocity_change_mps"] <= 2.0
+        ),
+        "combined_loose": lambda row: (
+            row.get("fit_residual_m") is not None
+            and row["fit_residual_m"] <= 0.20
+            and row["heading_error_deg"] <= 30.0
+            and row.get("velocity_change_mps") is not None
+            and row["velocity_change_mps"] <= 2.0
+        ),
+    }
+    return {
+        name: report([row for row in rows if predicate(row)])
+        for name, predicate in definitions.items()
     }
 
 
@@ -235,7 +318,7 @@ def analyze_frames(
 
             detection = detections[detection_index]
             current = Observation(
-                frame.timestamp, detection.x, detection.y, segment.key
+                frame.timestamp, detection.x, detection.y, segment.key, detection.yaw
             )
             previous = choose_past(
                 gt_history[segment.key],
@@ -295,7 +378,7 @@ def analyze_frames(
             detection = detections[detection_index]
             gt_key = detection_gt.get(detection_index)
             current = Observation(
-                frame.timestamp, detection.x, detection.y, gt_key
+                frame.timestamp, detection.x, detection.y, gt_key, detection.yaw
             )
             previous = choose_past(
                 track.observations,
@@ -311,10 +394,27 @@ def analyze_frames(
                 )
                 target_current = point_by_key[gt_key]
                 if target_previous is not None:
-                    association_pair_rows.append(
-                        pair_error(
-                            previous, current, target_previous, target_current
+                    row = pair_error(
+                        previous, current, target_previous, target_current
+                    )
+                    causal_window = [
+                        item for item in track.observations
+                        if frame.timestamp - item.timestamp <= maximum_baseline_sec
+                    ] + [current]
+                    row["fit_residual_m"] = linear_fit_residual_m(causal_window)
+                    row["heading_error_deg"] = axial_heading_error_deg(
+                        row["estimate_vx"], row["estimate_vy"], detection.yaw
+                    )
+                    row["velocity_change_mps"] = (
+                        math.hypot(
+                            row["estimate_vx"] - track.last_velocity[0],
+                            row["estimate_vy"] - track.last_velocity[1],
                         )
+                        if track.last_velocity is not None else None
+                    )
+                    association_pair_rows.append(row)
+                    track.last_velocity = (
+                        row["estimate_vx"], row["estimate_vy"]
                     )
                     if previous.gt_key is not None:
                         association_pairs_with_known_identity += 1
@@ -332,6 +432,7 @@ def analyze_frames(
                     detection.x,
                     detection.y,
                     detection_gt.get(detection_index),
+                    detection.yaw,
                 )],
             )
             next_track_id += 1
@@ -350,6 +451,7 @@ def analyze_frames(
         "matched_detections": matched_detections,
         "gt_identity_predicted_centers": gt_report,
         "causal_detection_association": association_report,
+        "causal_quality_gates": summarize_quality_gates(association_pair_rows),
         "velocity_head_on_identical_pairs": summarize_pair_rows(paired_head_rows),
         "velocity_head_longitudinal_mae_mps": statistics(head_errors),
     }

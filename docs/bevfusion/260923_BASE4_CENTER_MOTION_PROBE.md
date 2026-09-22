@@ -50,6 +50,39 @@ CTRV state와의 상관, longitudinal bias를 함께 다뤄야 한다.
 production tuning이 아니다. 다음 A/B는 단순 noise sweep보다 innovation/residual,
 연속 관측 수, track age를 함께 쓰는 accept/reject quality gate를 우선한다.
 
+## Fit-residual quality gate 후속 실험
+
+GT 없이 계산할 수 있는 세 quality signal을 0.8--1.0초 causal pair에 붙여 비교했다.
+
+- center history constant-velocity fit residual.
+- box yaw와 center-motion 방향의 axial error.
+- 직전 center-motion estimate와 velocity 변화량.
+
+Yaw와 velocity 변화량은 대부분의 sample을 그대로 통과시켜 구분력이 거의 없었다. 반면
+fit residual `<=0.10 m`는 highway1에서 vector error `0.263 -> 0.186 m/s`, merge에서
+`0.520 -> 0.179 m/s`로 낮췄다. coverage는 각각 `33.0%`, `32.1%`였다. 이는 runtime에서
+관측 가능한 유효 quality signal이다.
+
+다만 동일 gate를 실제 파이프라인에 적용한 결과는 다음과 같다.
+
+| Case (2-bag macro) | F1 | Center p50 m | Speed MAE m/s | 2D AVE m/s | Lat MAE m/s | Top-1 FDE 1/2/3 s m |
+|---|---:|---:|---:|---:|---:|---:|
+| E25 position-only | 0.9341 | **0.615** | **0.645** | **0.964** | 0.574 | **1.224 / 2.640 / 4.663** |
+| Fit gate, EKF state fusion | 0.9351 | 0.618 | 0.667 | 0.977 | 0.562 | 1.263 / 2.700 / 4.738 |
+| Fit gate, output velocity only | **0.9363** | 0.618 | 0.680 | 0.975 | **0.546** | 1.260 / 2.709 / 4.767 |
+
+선별 pair 자체의 수치는 좋지만 full-track speed와 Map-CV는 개선되지 않았다. 따라서
+Q0를 production에 켜지 않는다. 이 차이는 pairwise probe가 충분히 긴 이력과 지속 검출이
+있는 부분집합만 평가하는 반면, full pipeline은 startup, miss/reacquisition, 30 Hz output
+hold를 모두 포함하기 때문이다. 다음 분석에서는 Q0가 실제로 활성화된 output frame을
+명시적으로 표식하여 accepted/rejected slice를 따로 평가해야 한다.
+
+추가 산출물:
+
+- `artifacts/evaluation/bevfusion/q0_quality_gate_probe_260923/`
+- `artifacts/evaluation/bevfusion/q0_fit010_mature060_260923/`
+- `artifacts/evaluation/bevfusion/q0_fit010_output_override_260923/`
+
 유효 end-to-end 산출물:
 
 - `artifacts/evaluation/bevfusion/q0_center_motion_260923_v4/`: every-detection Q0.

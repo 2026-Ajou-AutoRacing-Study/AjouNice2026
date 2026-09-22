@@ -53,6 +53,21 @@ class DetectionCenterMotionProbeTest(unittest.TestCase):
         self.assertAlmostEqual(row["vector_error"], 0.0)
         self.assertAlmostEqual(row["speed_error"], 0.0)
 
+    def test_linear_fit_residual_rejects_center_outlier(self):
+        straight = [
+            PROBE.Observation(0.0, 0.0, 0.0),
+            PROBE.Observation(0.5, 5.0, 0.0),
+            PROBE.Observation(1.0, 10.0, 0.0),
+        ]
+        outlier = straight + [PROBE.Observation(1.5, 15.0, 1.0)]
+        self.assertAlmostEqual(PROBE.linear_fit_residual_m(straight), 0.0)
+        self.assertGreater(PROBE.linear_fit_residual_m(outlier), 0.2)
+
+    def test_axial_heading_treats_pi_flip_as_equivalent(self):
+        self.assertAlmostEqual(
+            PROBE.axial_heading_error_deg(-10.0, 0.0, 0.0), 0.0
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
