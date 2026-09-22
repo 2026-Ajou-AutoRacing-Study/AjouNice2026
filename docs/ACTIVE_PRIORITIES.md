@@ -67,9 +67,11 @@
   `velocity_target_ego_mps=[vx,vy]` 하나만 노출한다.
 - 과거 sweep은 Ego motion만 현재 frame에 정합한다. 추론에 존재하지 않는 GT Object
   motion compensation은 input에 사용하지 않는다.
-- Architecture 순서는 single-frame 9D -> native 3-sweep -> 필요 시 lightweight
-  temporal BEV -> 마지막에 StreamPETR-inspired query memory다. StreamPETR를 첫 구현으로
-  바로 포팅하지 않는다.
+- Architecture 순서는 single-frame 9D -> native 3-sweep -> lightweight temporal BEV
+  -> 마지막에 StreamPETR-inspired query memory다. Sweep-separated BEV spatial gate인
+  T2 P0는 구현 및 16-frame smoke를 통과했다. 아직 3회 LiDAR encoding을 사용하므로
+  production 실시간 구조가 아니며, 동일 4-epoch T1/T2 비교에서 rosbag velocity jitter와
+  downstream FDE가 개선될 때만 recurrent cache 최적화로 진행한다.
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.
