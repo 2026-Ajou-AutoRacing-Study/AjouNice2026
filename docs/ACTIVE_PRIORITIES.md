@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획
 
-마지막 갱신: 2026-09-22.
+마지막 갱신: 2026-09-23.
 
 이 문서는 **아직 끝나지 않았고 다음 작업에서 반드시 다시 확인할 항목만** 둔다.
 완료된 수집·학습·실험 수치는 각 CURRENT/EVIDENCE 문서에 보존하며 여기로 다시
@@ -94,10 +94,18 @@
   MAE는 Production E25 `0.29/0.64 m/s`, V1 `0.38/0.67 m/s`, T1
   `0.52/0.71 m/s`(고주로1/합류)였다.
   같은 pair의 velocity head `2.53--4.23 m/s`보다 크게 낮고, GT-ID 대비
-  causal association 추가 손실도 `0.00--0.09 m/s`였다. 따라서 learned Q1 전에
-  track-age 기반 0.45/0.65/0.90초 center-motion `B4H-Q0`를 tracker 앞단에서
-  구현·downstream 검증한다. 단, 현재 bag의 identity switch 0건은 쉽게 분리된
-  차량 분포의 결과이므로 새 다중차량 held-out gate가 필수다.
+  causal association 추가 손실도 `0.00--0.09 m/s`였다. 이후 `B4H-Q0` center-motion을
+  실제 tracker와 Map-CV까지 구현·검증했지만 accepted slice에서도 기존 EKF보다
+  speed/종방향 오차가 악화되어 production 후보에서 제외했다. Quality gate와 진단
+  토픽만 연구 도구로 유지한다. 다음 architecture gate는 Vehicle query memory,
+  명시적 delta-time과 displacement consistency를 결합한 `B4H-Q1`이다. 현재 bag의
+  identity switch 0건은 쉽게 분리된 차량 분포의 결과이므로 새 다중차량 held-out gate가
+  필수다.
+- `B4H-Q1-P0` sparse Vehicle query-memory는 tensor/metadata/full pipeline smoke와
+  matched A/B를 통과했다. Hardcase V2 scene-disjoint best speed MAE는 memory-off
+  `4.075` 대비 memory-on `3.854 m/s`로 `5.4%` 개선됐지만 `<1.0 m/s` gate에는
+  실패했다. Production 적용 없이 P1 displacement auxiliary supervision을 다음 구현
+  gate로 둔다.
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.
@@ -107,6 +115,8 @@
 
 상세 실행 계획:
 [`bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md).
+Q1 실행 순서와 중단 기준:
+[`bevfusion/260923_BASE4_Q1_EXECUTION_ROADMAP.md`](bevfusion/260923_BASE4_Q1_EXECUTION_ROADMAP.md).
 최신 수집 결과:
 [`../dataset/morai_od/docs/260922_base4_highspeed_jitter_pilot_results.md`](../dataset/morai_od/docs/260922_base4_highspeed_jitter_pilot_results.md).
 

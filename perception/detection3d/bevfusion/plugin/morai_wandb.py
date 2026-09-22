@@ -156,9 +156,37 @@ class MoraiEpochLrHook(Hook):
             'loss_heatmap': 'epoch/train_loss_heatmap_mean',
             'layer_-1_loss_cls': 'epoch/train_loss_cls_mean',
             'layer_-1_loss_bbox': 'epoch/train_loss_bbox_mean',
+            'query_memory_active_fraction':
+                'epoch/query_memory_active_fraction_mean',
+            'query_memory_age_sec': 'epoch/query_memory_age_sec_mean',
+            'query_memory_residual_gate':
+                'epoch/query_memory_residual_gate_mean',
         }
         for source, target in aliases.items():
             value = self._history_mean(runner, source, window_size)
             if value is not None:
                 payload[target] = value
         runner.visualizer.add_scalars(payload, step=runner.iter)
+
+
+@HOOKS.register_module()
+class MoraiQueryMemoryStatsHook(Hook):
+    """Expose Q1 memory utilization without coupling it to detector losses."""
+
+    priority = 'BELOW_NORMAL'
+
+    def after_train_iter(self, runner, batch_idx, data_batch=None, outputs=None):
+        model = runner.model.module if hasattr(runner.model, 'module') else runner.model
+        head = getattr(model, 'bbox_head', None)
+        memory = getattr(head, 'query_memory', None)
+        if memory is None or memory.last_active_query_fraction is None:
+            return
+        values = {
+            'train/query_memory_active_fraction':
+                memory.last_active_query_fraction,
+            'train/query_memory_age_sec': memory.last_mean_attention_age_sec,
+            'train/query_memory_residual_gate':
+                memory.residual_logit.detach().sigmoid(),
+        }
+        for name, value in values.items():
+            runner.message_hub.update_scalar(name, float(value))
