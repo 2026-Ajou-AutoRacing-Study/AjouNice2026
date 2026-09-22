@@ -23,6 +23,24 @@
 
 namespace
 {
+TEST(TestOsqpInterface, InvalidBoundsDoNotCrashAndCanRecover)
+{
+  const Eigen::MatrixXd P = Eigen::MatrixXd::Identity(1, 1);
+  const Eigen::MatrixXd A = Eigen::MatrixXd::Identity(1, 1);
+  const std::vector<double> q = {0.0};
+  autoware::osqp_interface::OSQPInterface osqp;
+
+  EXPECT_NE(osqp.initializeProblem(P, A, q, {1.0}, {0.0}), 0);
+  const auto failed = osqp.optimize();
+  EXPECT_NE(failed.solution_status, 1);
+  EXPECT_TRUE(failed.primal_solution.empty());
+
+  EXPECT_EQ(osqp.initializeProblem(P, A, q, {0.0}, {1.0}), 0);
+  const auto recovered = osqp.optimize();
+  EXPECT_EQ(recovered.solution_status, 1);
+  ASSERT_EQ(recovered.primal_solution.size(), 1u);
+}
+
 // Problem taken from https://github.com/osqp/osqp/blob/master/tests/basic_qp/generate_problem.py
 //
 // min  1/2 * x' * P * x  + q' * x

@@ -7,6 +7,7 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
+#include "autoware/path_optimizer/utils/geometry_utils.hpp"
 
 #include <gtest/gtest.h>
 
@@ -52,6 +53,58 @@ TEST(MptConstraintMatrix, RejectsTruncatedStateBlock)
     detail::assignHardConstraintStateBlock(
       destination, truncated_source, reference_count, state_count),
     std::invalid_argument);
+}
+
+TEST(CircleFootprint, ChecksFullCircleAgainstBounds)
+{
+  geometry_msgs::Pose pose;
+  pose.position.x = 0.0;
+  pose.position.y = 5.0;
+  pose.orientation.w = 1.0;
+  const std::vector<geometry_msgs::Point> left = [] {
+    std::vector<geometry_msgs::Point> points(2);
+    points[0].x = -2.0;
+    points[1].x = -2.0;
+    points[1].y = 10.0;
+    return points;
+  }();
+  const std::vector<geometry_msgs::Point> right = [] {
+    std::vector<geometry_msgs::Point> points(2);
+    points[0].x = 2.0;
+    points[1].x = 2.0;
+    points[1].y = 10.0;
+    return points;
+  }();
+  EXPECT_FALSE(geometry_utils::isOutsideDrivableAreaFromCircleFootprint(
+    pose, left, right, {0.5}, {0.0}));
+  pose.position.x = 1.6;
+  EXPECT_TRUE(geometry_utils::isOutsideDrivableAreaFromCircleFootprint(
+    pose, left, right, {0.5}, {0.0}));
+  pose.position.x = 0.0;
+  EXPECT_TRUE(geometry_utils::isOutsideDrivableAreaFromCircleFootprint(
+    pose, left, right, {0.5, 0.5}, {0.0}));
+}
+
+TEST(CircleFootprint, ChecksPerpendicularClearanceAtDiagonalBound)
+{
+  geometry_msgs::Pose pose;
+  pose.orientation.w = 1.0;
+  std::vector<geometry_msgs::Point> left(2);
+  std::vector<geometry_msgs::Point> right(2);
+  left[0].x = -5.0;
+  left[0].y = 0.0;
+  left[1].x = 5.0;
+  left[1].y = 10.0;
+  right[0].x = -5.0;
+  right[0].y = -6.3;
+  right[1].x = 5.0;
+  right[1].y = 3.7;
+  // At the origin the right bound is 1.3 m away along the y-axis, but only
+  // 1.3/sqrt(2) m away in the perpendicular direction.
+  EXPECT_TRUE(geometry_utils::isOutsideDrivableAreaFromCircleFootprint(
+    pose, left, right, {1.0}, {0.0}));
+  EXPECT_FALSE(geometry_utils::isOutsideDrivableAreaFromCircleFootprint(
+    pose, left, right, {0.8}, {0.0}));
 }
 }  // namespace autoware::path_optimizer
 

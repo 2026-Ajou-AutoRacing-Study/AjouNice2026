@@ -758,10 +758,13 @@ bool VelocitySmootherNode::smoothVelocity(
           input, initial_motion.vel, initial_motion.acc, enable_smooth_limit, use_resampling)
       : input;
 
-  // Steering angle rate limit (Note: set use_resample = false since it is resampled above)
+  // The lateral acceleration filter resamples at sample_ds. Reuse that spacing
+  // for steering curvature/rate calculations; otherwise resample here.
   const auto traj_steering_rate_limited =
     node_param_.enable_steering_rate_limit
-      ? smoother_->applySteeringRateLimit(traj_lateral_acc_filtered, false)
+      ? smoother_->applySteeringRateLimit(
+          traj_lateral_acc_filtered, !node_param_.enable_lateral_acc_limit,
+          smoother_->getBaseParam().sample_ds)
       : traj_lateral_acc_filtered;
 
   // Resample trajectory with ego-velocity based interval distance

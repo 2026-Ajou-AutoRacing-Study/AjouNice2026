@@ -77,8 +77,8 @@ public:
     const bool use_resampling = true, const double input_points_interval = 1.0) const;
 
   TrajectoryPoints applySteeringRateLimit(
-    const TrajectoryPoints & input, const bool use_resampling = true,
-    const double input_points_interval = 1.0) const;
+    const TrajectoryPoints & input, const bool use_resampling,
+    const double input_points_interval) const;
 
   double getMaxAccel() const;
   double getMinDecel() const;

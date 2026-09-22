@@ -24,12 +24,15 @@
 #include "autoware/path_optimizer/ros1_compat.hpp"
 
 #include <chrono>
+#include <cmath>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
+#include <tf2/utils.h>
 
 namespace autoware::path_optimizer
 {
@@ -121,6 +124,8 @@ PathOptimizer::PathOptimizer(
       declare_parameter<bool>("option.enable_reset_prev_optimization");
     use_footprint_polygon_for_outside_drivable_area_check_ =
       declare_parameter<bool>("option.use_footprint_polygon_for_outside_drivable_area_check");
+    outside_drivable_area_check_footprint_ =
+      declare_parameter<std::string>("option.outside_drivable_area_check_footprint", "rectangle");
 
     // parameter for debug marker
     enable_pub_debug_marker_ = declare_parameter<bool>("option.debug.enable_pub_debug_marker");
@@ -183,6 +188,9 @@ rcl_interfaces::msg::SetParametersResult PathOptimizer::onParam(
   update_param<bool>(
     parameters, "option.use_footprint_polygon_for_outside_drivable_area_check",
     use_footprint_polygon_for_outside_drivable_area_check_);
+  update_param<std::string>(
+    parameters, "option.outside_drivable_area_check_footprint",
+    outside_drivable_area_check_footprint_);
 
   // parameters for debug marker
   update_param<bool>(parameters, "option.debug.enable_pub_debug_marker", enable_pub_debug_marker_);
@@ -227,6 +235,7 @@ void PathOptimizer::initializePlanning()
 void PathOptimizer::resetPreviousData()
 {
   mpt_optimizer_ptr_->resetPreviousData();
+  last_successful_optimization_time_.reset();
 }
 
 void PathOptimizer::onPath(const PathConstPtr path_ptr)
@@ -307,7 +316,7 @@ void PathOptimizer::onCheckPathOptimizationValid(diagnostic_updater::DiagnosticS
 {
   if (is_optimization_failed_) {
     const std::string error_msg =
-      "[Path Optimizer]: MPT failed; using current input path without optimization";
+      "[Path Optimizer]: MPT failed; using checked previous path or stopping";
     const auto diag_level = diagnostic_msgs::DiagnosticStatus::ERROR;
     stat.summary(diag_level, error_msg);
   } else {
@@ -383,22 +392,99 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
   //    with model predictive trajectory
   const auto mpt_traj = mpt_optimizer_ptr_->optimizeTrajectory(planner_data);
 
-  // Never hold a stale pre-avoidance path while BPP is executing a new maneuver.
-  // This fallback has not passed MPT constraints; downstream checks remain active.
   is_optimization_failed_ = !static_cast<bool>(mpt_traj);
-  auto optimized_traj_points = mpt_traj ? *mpt_traj : p.traj_points;
-  if (is_optimization_failed_) {
-    RCLCPP_WARN_THROTTLE(
-      get_logger(), *get_clock(), 1000,
-      "[MPT] Immediate input-path fallback; optimization constraints not verified");
+  if (mpt_traj) {
+    last_successful_optimization_time_ = now();
+    auto optimized_traj_points = *mpt_traj;
+    applyInputVelocity(optimized_traj_points, p.traj_points, planner_data.ego_pose);
+    return optimized_traj_points;
   }
 
-  // 3. update velocity
-  //    NOTE: When optimization failed or is skipped, velocity in trajectory points must
-  //          be updated since velocity in input trajectory (path) may change.
-  applyInputVelocity(optimized_traj_points, p.traj_points, planner_data.ego_pose);
-
-  return optimized_traj_points;
+  // A failed QP must not switch from an ongoing avoidance path to the unoptimized centerline.
+  // Recheck the last optimized path against this cycle's corridor and ego pose before using it.
+  if (const auto previous = mpt_optimizer_ptr_->getPrevOptimizedTrajectoryPoints();
+      previous && previous->size() >= 2) {
+    auto fallback = *previous;
+    applyInputVelocity(fallback, p.traj_points, p.ego_pose);
+    if (fallback.size() >= 2) {
+      const size_t ego_idx = trajectory_utils::findEgoIndex(fallback, p.ego_pose, ego_nearest_param_);
+      const auto & nearest_pose = fallback.at(ego_idx).pose;
+      const double lateral_gap = autoware_utils::calc_distance2d(nearest_pose, p.ego_pose);
+      const double yaw_gap = std::atan2(
+        std::sin(tf2::getYaw(nearest_pose.orientation) - tf2::getYaw(p.ego_pose.orientation)),
+        std::cos(tf2::getYaw(nearest_pose.orientation) - tf2::getYaw(p.ego_pose.orientation)));
+      if (lateral_gap <= 1.0 && std::abs(yaw_gap) <= 0.35) {
+        const auto radii = mpt_optimizer_ptr_->getVehicleCircleRadii();
+        const auto offsets = mpt_optimizer_ptr_->getVehicleCircleLongitudinalOffsets();
+        const size_t check_end = fallback.size() > 5 ? fallback.size() - 5 : fallback.size();
+        std::optional<size_t> first_outside_idx;
+        for (size_t i = ego_idx; i < check_end; ++i) {
+          if (geometry_utils::isOutsideDrivableAreaFromCircleFootprint(
+                fallback.at(i).pose, p.left_bound, p.right_bound, radii, offsets)) {
+            first_outside_idx = i;
+            break;
+          }
+        }
+        const bool inside_current_corridor = !first_outside_idx;
+        const double age = last_successful_optimization_time_
+          ? (now() - *last_successful_optimization_time_).toSec()
+          : std::numeric_limits<double>::infinity();
+        if (inside_current_corridor && age >= 0.0 && age <= 0.5) {
+          RCLCPP_WARN_THROTTLE(
+            get_logger(), *get_clock(), 1000,
+            "[MPT] Optimization failed; holding validated previous path");
+          return fallback;
+        }
+        // A stale or newly blocked path can still supply a continuous stop prefix. Reserve
+        // one metre before the first invalid point and use a 3 m/s^2 braking envelope.
+        constexpr double braking_deceleration = 3.0;
+        constexpr double stop_margin = 1.0;
+        const size_t last_safe_idx = first_outside_idx ? *first_outside_idx : check_end - 1;
+        double safe_distance = 0.0;
+        for (size_t i = ego_idx + 1; i <= last_safe_idx; ++i) {
+          safe_distance += autoware_utils::calc_distance2d(
+            fallback.at(i - 1).pose, fallback.at(i).pose);
+        }
+        const double stop_distance = std::max(0.0, safe_distance - stop_margin);
+        const double required_distance = p.ego_vel * p.ego_vel / (2.0 * braking_deceleration);
+        if (stop_distance >= required_distance) {
+          double distance = 0.0;
+          for (size_t i = ego_idx; i < fallback.size(); ++i) {
+            if (i > ego_idx) {
+              distance += autoware_utils::calc_distance2d(
+                fallback.at(i - 1).pose, fallback.at(i).pose);
+            }
+            const double allowed_velocity = std::sqrt(
+              2.0 * braking_deceleration * std::max(0.0, stop_distance - distance));
+            fallback.at(i).longitudinal_velocity_mps = std::min(
+              static_cast<double>(fallback.at(i).longitudinal_velocity_mps), allowed_velocity);
+          }
+          RCLCPP_WARN_THROTTLE(
+            get_logger(), *get_clock(), 1000,
+            "[MPT] Optimization failed; braking on previous path (clear=%.2f stop=%.2f)",
+            safe_distance, stop_distance);
+        } else {
+          for (auto & point : fallback) {
+            point.longitudinal_velocity_mps = 0.0;
+          }
+          RCLCPP_WARN_THROTTLE(
+            get_logger(), *get_clock(), 1000,
+            "[MPT] Optimization failed; emergency brake, previous path clear distance %.2f < %.2f",
+            safe_distance, required_distance);
+        }
+        return fallback;
+      }
+    }
+  }
+  auto stop_on_input = p.traj_points;
+  RCLCPP_WARN_THROTTLE(
+    get_logger(), *get_clock(), 1000,
+    "[MPT] Optimization failed; no aligned previous path, emergency stop on input path");
+  applyInputVelocity(stop_on_input, p.traj_points, p.ego_pose);
+  for (auto & point : stop_on_input) {
+    point.longitudinal_velocity_mps = 0.0;
+  }
+  return stop_on_input;
 }
 
 std::vector<TrajectoryPoint> PathOptimizer::getPrevOptimizedTrajectory(
@@ -548,9 +634,14 @@ void PathOptimizer::insertZeroVelocityOutsideDrivableArea(
       const auto & traj_point = optimized_traj_points.at(i);
 
       // check if the footprint is outside the drivable area
-      const bool is_outside = geometry_utils::isOutsideDrivableAreaFromRectangleFootprint(
-        traj_point.pose, planner_data.left_bound, planner_data.right_bound, vehicle_info_,
-        use_footprint_polygon_for_outside_drivable_area_check_);
+      const bool is_outside = outside_drivable_area_check_footprint_ == "vehicle_circles"
+        ? geometry_utils::isOutsideDrivableAreaFromCircleFootprint(
+            traj_point.pose, planner_data.left_bound, planner_data.right_bound,
+            mpt_optimizer_ptr_->getVehicleCircleRadii(),
+            mpt_optimizer_ptr_->getVehicleCircleLongitudinalOffsets())
+        : geometry_utils::isOutsideDrivableAreaFromRectangleFootprint(
+            traj_point.pose, planner_data.left_bound, planner_data.right_bound, vehicle_info_,
+            use_footprint_polygon_for_outside_drivable_area_check_);
 
       if (is_outside) {
         return i;
@@ -560,6 +651,33 @@ void PathOptimizer::insertZeroVelocityOutsideDrivableArea(
   }();
 
   if (first_outside_idx) {
+    if (std::getenv("AJOUNICE_PO_CIRCLE_DIAG") != nullptr && !debug_data_ptr_->ref_points.empty()) {
+      static size_t reports = 0;
+      if (reports++ < 4) {
+        const auto & outside_pose = optimized_traj_points.at(*first_outside_idx).pose;
+        const auto nearest = std::min_element(
+          debug_data_ptr_->ref_points.begin(), debug_data_ptr_->ref_points.end(),
+          [&](const auto & a, const auto & b) {
+            return autoware_utils::calc_distance2d(a.pose, outside_pose) <
+                   autoware_utils::calc_distance2d(b.pose, outside_pose);
+          });
+        const size_t ref_index = std::distance(debug_data_ptr_->ref_points.begin(), nearest);
+        std::cerr << "[PO bound-check] output_pose=(" << outside_pose.position.x << ","
+                  << outside_pose.position.y << ") ref_index=" << ref_index << " ref_pose=("
+                  << nearest->pose.position.x << "," << nearest->pose.position.y
+                  << ") ref_bounds=(" << nearest->bounds.lower_bound << ","
+                  << nearest->bounds.upper_bound << ") optimization_failed="
+                  << is_optimization_failed_ << " optimized_state=("
+                  << nearest->optimized_kinematic_state.lat << ","
+                  << nearest->optimized_kinematic_state.yaw << ")" << std::endl;
+        for (size_t circle = 0; circle < nearest->bounds_on_constraints.size(); ++circle) {
+          const auto & bounds = nearest->bounds_on_constraints.at(circle);
+          std::cerr << "[PO bound-check] circle=" << circle << " qp_bounds=("
+                    << bounds.lower_bound << "," << bounds.upper_bound << ") beta="
+                    << nearest->beta.at(circle) << std::endl;
+        }
+      }
+    }
     debug_data_ptr_->stop_pose_by_drivable_area = optimized_traj_points.at(*first_outside_idx).pose;
     const auto stop_idx = [&]() {
       const auto dist =

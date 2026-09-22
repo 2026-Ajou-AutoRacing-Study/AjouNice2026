@@ -200,6 +200,11 @@ public:
   double getTrajectoryLength() const;
   double getDeltaArcLength() const;
   int getNumberOfPoints() const;
+  const std::vector<double> & getVehicleCircleRadii() const { return vehicle_circle_radiuses_; }
+  const std::vector<double> & getVehicleCircleLongitudinalOffsets() const
+  {
+    return vehicle_circle_longitudinal_offsets_;
+  }
 
 private:
   struct ValueMatrix
@@ -319,6 +324,9 @@ private:
     double vehicle_circles_bicycle_model_rear_radius_ratio;
     double vehicle_circles_bicycle_model_front_radius_ratio;
     int vehicle_circles_fitting_uniform_circle_num;
+    double vehicle_circles_fitting_uniform_circle_rear_center_inset;
+    double vehicle_circles_fitting_uniform_circle_front_center_inset;
+    double vehicle_circles_fitting_uniform_circle_frontmost_rearward_offset;
 
     // validation
     double max_validation_lat_error;
@@ -390,7 +398,9 @@ private:
     const double ego_vel) const;
   void updateVehicleBounds(
     std::vector<ReferencePoint> & ref_points,
-    const autoware::interpolation::SplineInterpolationPoints2d & ref_points_spline) const;
+    const autoware::interpolation::SplineInterpolationPoints2d & ref_points_spline,
+    const std::vector<geometry_msgs::Point> & left_bound,
+    const std::vector<geometry_msgs::Point> & right_bound) const;
   void updateFixedPoint(std::vector<ReferencePoint> & ref_points) const;
   void updateDeltaArcLength(std::vector<ReferencePoint> & ref_points) const;
   void updateExtraPoints(std::vector<ReferencePoint> & ref_points) const;

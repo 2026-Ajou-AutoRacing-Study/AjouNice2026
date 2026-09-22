@@ -78,7 +78,9 @@ protected:  // for the static_centerline_generator package
   bool enable_skip_optimization_;
   bool enable_reset_prev_optimization_;
   bool is_optimization_failed_{false};
+  std::optional<rclcpp::Time> last_successful_optimization_time_;
   bool use_footprint_polygon_for_outside_drivable_area_check_;
+  std::string outside_drivable_area_check_footprint_;
 
   // core algorithms
   std::shared_ptr<ReplanChecker> replan_checker_ptr_{nullptr};
