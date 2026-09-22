@@ -24,6 +24,7 @@
   <arg name="tracker_detection_velocity_fusion_mode" default="0"/>
   <arg name="tracker_detection_velocity_noise_std_mps" default="1.0"/>
   <arg name="tracker_center_motion_velocity_fusion" default="false"/>
+  <arg name="tracker_publish_center_motion_diagnostics" default="false"/>
   <arg name="tracker_center_motion_fuse_ekf_state" default="true"/>
   <arg name="tracker_center_motion_override_output_velocity" default="false"/>
   <arg name="tracker_center_motion_maximum_output_age_sec" default="0.40"/>
@@ -72,6 +73,8 @@
          value="$(arg tracker_detection_velocity_noise_std_mps)"/>
     <arg name="center_motion_velocity_fusion"
          value="$(arg tracker_center_motion_velocity_fusion)"/>
+    <arg name="publish_center_motion_diagnostics"
+         value="$(arg tracker_publish_center_motion_diagnostics)"/>
     <arg name="center_motion_fuse_ekf_state"
          value="$(arg tracker_center_motion_fuse_ekf_state)"/>
     <arg name="center_motion_override_output_velocity"

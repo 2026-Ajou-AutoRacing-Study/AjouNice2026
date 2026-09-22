@@ -1,7 +1,8 @@
 # Base4 predicted-center motion probe
 
 > 날짜: 2026-09-23.
-> 상태: 기존 고주로 detection bag 재사용 분석 및 실제 EKF/Map-CV Q0 A/B 완료.
+> 상태: 기존 고주로 detection bag 재사용 분석, 실제 EKF/Map-CV Q0 A/B와
+> accepted/rejected paired 평가 완료.
 > 재추론 없음.
 
 ## 결론
@@ -16,8 +17,8 @@ velocity head가 있는 Base4 모델로 detector를 먼저 교체할 이유도 �
 
 1. causal center-motion `B4H-Q0`를 optional EKF measurement로 구현했다.
 2. 기존 두 development bag의 end-to-end gate는 통과하지 못했다.
-3. 새 다중차량·차선변경 held-out bag에서 quality gate를 설계·검증한다.
-4. Q0 단독으로 부족하면 learned query memory `B4H-Q1`과 병행한다.
+3. Q0 출력 대체는 종료한다. quality gate는 연구 진단용으로만 유지한다.
+4. 다음 단계는 learned query memory `B4H-Q1`과 velocity supervision 검증이다.
 
 Production detector와 tracker 기본값은 아직 바꾸지 않는다.
 
@@ -76,6 +77,45 @@ Q0를 production에 켜지 않는다. 이 차이는 pairwise probe가 충분히 
 있는 부분집합만 평가하는 반면, full pipeline은 startup, miss/reacquisition, 30 Hz output
 hold를 모두 포함하기 때문이다. 다음 분석에서는 Q0가 실제로 활성화된 output frame을
 명시적으로 표식하여 accepted/rejected slice를 따로 평가해야 한다.
+
+## Runtime accepted/rejected paired 결론
+
+Tracker가 fit gate를 통과한 track과 나머지를 표준 `TrackedObjects` 진단 토픽으로
+분리했다. 같은 gate를 계산한 두 run에서 하나는 기존 EKF velocity를 유지하고, 다른
+하나는 center-motion velocity로 출력만 대체했다. 따라서 단순히 쉬운 표본을 고른 효과와
+Q0 대체 자체의 효과를 분리할 수 있다.
+
+| Bag / accepted slice | 기존 EKF Speed MAE | Q0 Speed MAE | 기존 EKF 2D AVE | Q0 2D AVE | 기존/Q0 Lat MAE |
+|---|---:|---:|---:|---:|---:|
+| highway1, 579 TP | **0.270** | 0.315 | **0.363** | 0.376 | 0.181 / **0.147** |
+| highway merge, 197/201 TP | **0.654** | 0.779 | **0.748** | 0.804 | 0.174 / **0.100** |
+
+Q0는 횡속도 오차를 줄였지만 speed와 종방향 오차를 악화했다. 대회 고주로 gap 판단과
+Map-CV 진행 거리는 종방향 속도에 더 민감하므로 이 교환은 채택할 수 없다. 또한 accepted
+구간이 inactive 구간보다 원래 쉬웠다. Q0 run에서 accepted/inactive 2D AVE는 highway1
+`0.376/0.727 m/s`, merge `0.804/1.082 m/s`였다. 즉 offline pairwise `0.18 m/s` 결과를
+전체 runtime 개선으로 해석하면 안 된다.
+
+최종 결정은 다음과 같다.
+
+- `center_motion_velocity_fusion=false` production 기본값 유지.
+- Q0 output override와 EKF fusion은 production 후보에서 제외.
+- accepted/inactive 토픽은 기본 OFF 진단 기능으로 유지하여 Q1 분석에 재사용.
+- 다음 velocity 개선은 동일 center history를 출력에 직접 덮는 방식이 아니라,
+  temporal feature/query memory와 보조 supervision으로 detector가 학습하게 한다.
+
+진단 토픽:
+
+- `/perception/object_recognition/tracking/center_motion_active_objects`
+- `/perception/object_recognition/tracking/center_motion_inactive_objects`
+
+유효 paired 산출물:
+
+- `artifacts/evaluation/bevfusion/q0_runtime_slices_v2_260923/`
+- `artifacts/evaluation/bevfusion/q0_runtime_paired_baseline_260923/`
+
+`q0_runtime_slices_260923/`은 devel/install launch 중복으로 localization이 시작되지 않은
+실패 run이므로 근거로 사용하지 않는다.
 
 추가 산출물:
 

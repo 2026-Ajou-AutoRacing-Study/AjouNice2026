@@ -35,6 +35,7 @@
   <arg name="detection_velocity_noise_std_mps" default="1.0"/>
   <!-- Experimental B4H-Q0 center-history velocity; production default off. -->
   <arg name="center_motion_velocity_fusion" default="false"/>
+  <arg name="publish_center_motion_diagnostics" default="false"/>
   <arg name="center_motion_fuse_ekf_state" default="true"/>
   <arg name="center_motion_override_output_velocity" default="false"/>
   <arg name="center_motion_maximum_output_age_sec" default="0.40"/>
@@ -206,6 +207,8 @@
          value="$(arg detection_velocity_noise_std_mps)"/>
     <arg name="center_motion_velocity_fusion"
          value="$(arg center_motion_velocity_fusion)"/>
+    <arg name="publish_center_motion_diagnostics"
+         value="$(arg publish_center_motion_diagnostics)"/>
     <arg name="center_motion_fuse_ekf_state"
          value="$(arg center_motion_fuse_ekf_state)"/>
     <arg name="center_motion_override_output_velocity"
