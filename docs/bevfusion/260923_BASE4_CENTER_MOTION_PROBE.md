@@ -1,6 +1,6 @@
 # Base4 predicted-center motion probe
 
-> 날짜: 2026-09-23  
+> 날짜: 2026-09-23.
 > 상태: 기존 고주로 detection bag 재사용 분석 완료. 재추론 없음.
 
 ## 결론
