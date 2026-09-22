@@ -6,6 +6,7 @@ import torch
 from perception.detection3d.bevfusion.plugin.morai_temporal_bevfusion import (
     MoraiTemporalBEVGate,
     MoraiTemporalBEVResidual,
+    warp_bev_feature_between_lidar_poses,
 )
 
 
@@ -35,6 +36,25 @@ def main():
     assert final_weight_grad is not None
     assert float(final_weight_grad.abs().sum()) > 0.0
     assert float(residual.last_residual_rms) == 0.0
+
+    impulse = torch.zeros(1, 1, 5, 5)
+    impulse[0, 0, 2, 2] = 1.0
+    identity = warp_bev_feature_between_lidar_poses(
+        impulse, (0.0, 0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 0.0),
+        (-2.5, -2.5, -1.0, 2.5, 2.5, 1.0))
+    assert torch.allclose(identity, impulse, atol=1.0e-6)
+    translated = warp_bev_feature_between_lidar_poses(
+        impulse, (0.0, 0.0, 0.0, 0.0), (1.0, 0.0, 0.0, 0.0),
+        (-2.5, -2.5, -1.0, 2.5, 2.5, 1.0))
+    assert torch.allclose(translated[0, 0, 2, 1], torch.tensor(1.0))
+
+    source_x = torch.zeros(1, 1, 5, 5)
+    source_x[0, 0, 2, 3] = 1.0
+    rotated = warp_bev_feature_between_lidar_poses(
+        source_x, (0.0, 0.0, 0.0, torch.pi / 2.0),
+        (0.0, 0.0, 0.0, 0.0),
+        (-2.5, -2.5, -1.0, 2.5, 2.5, 1.0))
+    assert torch.allclose(rotated[0, 0, 3, 2], torch.tensor(1.0))
     print("TEMPORAL_BEV_GATE_OK")
 
 

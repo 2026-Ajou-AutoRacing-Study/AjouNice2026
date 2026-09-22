@@ -49,6 +49,8 @@ class BevFusionModel:
         use_amp=True,
         preprocess_workers=4,
         warmup_iterations=2,
+        temporal_feature_cache=False,
+        temporal_maximum_age_sec=0.30,
     ):
         config = Config.fromfile(config_path)
         config.model.img_backbone.init_cfg = None
@@ -72,6 +74,19 @@ class BevFusionModel:
             "num_features", 4))
         self.temporal_num_sweeps = int(getattr(
             self.model, "temporal_num_sweeps", 1))
+        self.temporal_feature_cache = bool(temporal_feature_cache)
+        self.temporal_maximum_age_sec = float(temporal_maximum_age_sec)
+        if self.temporal_feature_cache:
+            enable_cache = getattr(
+                self.model, "enable_online_temporal_cache", None)
+            if enable_cache is None or self.temporal_num_sweeps <= 1:
+                raise ValueError(
+                    "temporal feature cache requires a temporal BEV model")
+            point_cloud_range = config.get(
+                "point_cloud_range",
+                (-30.0, -30.0, -3.0, 30.0, 30.0, 2.0),
+            )
+            enable_cache(point_cloud_range, self.temporal_maximum_age_sec)
         self.use_amp = bool(use_amp)
         self.device_type = torch.device(device).type
         self.preprocessor = Base3OnlinePreprocessor(
@@ -94,6 +109,8 @@ class BevFusionModel:
         score_threshold,
         max_detections,
         images_preprocessed=False,
+        timestamp_sec=None,
+        lidar_pose_world=None,
     ):
         preprocess_start = time.perf_counter()
         batch = self.preprocessor.prepare(
@@ -106,6 +123,7 @@ class BevFusionModel:
 
         if not self.warmed_up:
             self._warm_up(batch)
+        self._set_temporal_context(timestamp_sec, lidar_pose_world)
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         start = time.perf_counter()
@@ -151,7 +169,9 @@ class BevFusionModel:
             self.warmed_up = True
             return
         points = build_warmup_points(
-            self.point_dim, self.temporal_num_sweeps)
+            self.point_dim,
+            1 if self.temporal_feature_cache else self.temporal_num_sweeps,
+        )
         final_height, final_width = self.preprocessor.final_dim
         empty_image = bytes(final_height * final_width * 3)
         images = {
@@ -167,11 +187,25 @@ class BevFusionModel:
         self._warm_up(batch)
 
     def _warm_up(self, batch):
-        for _ in range(self.warmup_iterations):
+        for index in range(self.warmup_iterations):
+            if self.temporal_feature_cache:
+                self._set_temporal_context(
+                    0.1 * index, (0.0, 0.0, 0.0, 0.0))
             self._forward(batch)
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         self.warmed_up = True
+        if self.temporal_feature_cache:
+            self.model.reset_online_temporal_cache()
+
+    def _set_temporal_context(self, timestamp_sec, lidar_pose_world):
+        if not self.temporal_feature_cache:
+            return
+        if timestamp_sec is None or lidar_pose_world is None:
+            raise ValueError(
+                "cached temporal inference requires timestamp and LiDAR pose")
+        self.model.set_online_temporal_context(
+            float(timestamp_sec), lidar_pose_world)
 
     def _forward(self, batch):
         with torch.inference_mode():

@@ -142,6 +142,30 @@ def _lidar_world_pose(ego_poses, lidar_position, lidar_yaw):
     return np.column_stack((x, y, z, yaw))
 
 
+def lidar_world_pose_at_time(
+    pose_samples,
+    time_sec,
+    lidar_position=(0.0, 0.0, 0.0),
+    lidar_yaw=0.0,
+    maximum_extrapolation_sec=0.03,
+):
+    """Return ``[x, y, z, yaw]`` for the LiDAR in the world frame.
+
+    Runtime temporal feature caches need the pose attached to the feature that
+    was actually encoded.  Exposing the same interpolation and extrinsic math
+    used by point/sweep alignment prevents the ROS bridge and Docker runtime
+    from maintaining subtly different SE(2) contracts.
+    """
+    ego_pose = interpolate_planar_poses(
+        pose_samples,
+        np.asarray([float(time_sec)], dtype=np.float64),
+        maximum_extrapolation_sec,
+    )
+    if ego_pose is None:
+        return None
+    return _lidar_world_pose(ego_pose, lidar_position, lidar_yaw)[0]
+
+
 def deskew_points_to_reference_pose(
     points,
     point_time_offsets,

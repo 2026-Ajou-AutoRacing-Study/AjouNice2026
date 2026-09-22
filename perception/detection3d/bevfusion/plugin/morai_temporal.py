@@ -53,6 +53,7 @@ class MoraiLoadPointsFromCausalSweeps(BaseTransform):
             axis=1,
         )
         point_sets = [self._new_temporal_point(current, current_5d)]
+        temporal_sweep2lidar = [np.eye(4, dtype=np.float32)]
         sweeps = list(results.get("lidar_sweeps", []))[:self.sweeps_num]
         if not sweeps and self.pad_empty_sweeps:
             sweeps = [None] * self.sweeps_num
@@ -61,11 +62,13 @@ class MoraiLoadPointsFromCausalSweeps(BaseTransform):
                 point_sets.append(
                     self._new_temporal_point(current, current_5d.copy())
                 )
+                temporal_sweep2lidar.append(np.eye(4, dtype=np.float32))
                 continue
             values = self._load_xyzi(sweep["lidar_points"]["lidar_path"])
             transform = np.asarray(
                 sweep["lidar_points"]["sweep2lidar"], dtype=np.float64
             )
+            temporal_sweep2lidar.append(transform.astype(np.float32))
             homogeneous = np.concatenate(
                 [values[:, :3].astype(np.float64), np.ones((len(values), 1))],
                 axis=1,
@@ -80,4 +83,5 @@ class MoraiLoadPointsFromCausalSweeps(BaseTransform):
             ))
         results["points"] = current.cat(point_sets)
         results["num_pts_feats"] = 5
+        results["temporal_sweep2lidar"] = temporal_sweep2lidar
         return results

@@ -44,6 +44,8 @@ class InferenceServer:
                 use_amp=args.amp,
                 preprocess_workers=args.preprocess_workers,
                 warmup_iterations=args.warmup_iterations,
+                temporal_feature_cache=args.temporal_feature_cache,
+                temporal_maximum_age_sec=args.temporal_maximum_age_sec,
             )
             LOGGER.info("BEVFusion model is ready")
 
@@ -132,6 +134,8 @@ class InferenceServer:
             metadata.get("score_threshold", 0.2),
             metadata.get("max_detections", 100),
             images_preprocessed=(image_encoding == "rgb8"),
+            timestamp_sec=metadata.get("stamp"),
+            lidar_pose_world=metadata.get("lidar_pose_world"),
         )
         send_message(
             connection,
@@ -205,6 +209,8 @@ def parse_args():
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--preprocess-workers", type=int, default=4)
     parser.add_argument("--warmup-iterations", type=int, default=2)
+    parser.add_argument("--temporal-feature-cache", action="store_true")
+    parser.add_argument("--temporal-maximum-age-sec", type=float, default=0.30)
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args()
 

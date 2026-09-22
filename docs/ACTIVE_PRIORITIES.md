@@ -74,8 +74,14 @@
   error-step p95, position-only tracking AVE와 Map-CV FDE를 모두 개선했다. 다만 3회
   LiDAR encoding을 사용하고 held-out 검증이 없으므로 production은 E25/mode 0을 유지한다.
   5060 Ti의 보고 latency도 mean `128 ms`, p95 `170 ms`로 12 Hz LiDAR 추종에 부족했다.
-  다음 gate는 새 고주로 bag 재현, online latency, recurrent cache 또는 object/query
-  memory 선택이다.
+  Recurrent cached-BEV P0는 encoder를 frame당 한 번만 실행해 mean `80.3 ms`, p95
+  `87.1 ms`로 12 Hz gate에 도달했지만, 기존 T2R checkpoint를 그대로 적용하면
+  train/runtime temporal 의미 불일치로 speed MAE가 `2.873 -> 3.701 m/s`로 악화했다.
+  source-frame encode + feature-warp로 학습 의미를 맞춘 T2C도 cached merge bag에서
+  mean `79.1 ms`, p95 `84.6 ms`로 실시간 gate와 spatial AP는 통과했지만 speed MAE
+  `3.627 m/s`, error-step p95 `4.599 m/s`로 T2R보다 나빠 기각했다. Cache/Ego-warp
+  인프라는 보존하되 다음 architecture gate는 object/query memory와 명시적
+  delta-time·displacement supervision이다. 최종 후보 판정에는 새 고주로 bag이 필요하다.
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.

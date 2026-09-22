@@ -20,6 +20,7 @@ lidar_deskew_pose_topic="${BEVFUSION_EVAL_LIDAR_DESKEW_POSE_TOPIC:-/Ego_topic}"
 lidar_deskew_pose_type="${BEVFUSION_EVAL_LIDAR_DESKEW_POSE_TYPE:-ego_status}"
 temporal_sweeps="${BEVFUSION_EVAL_TEMPORAL_SWEEPS:-0}"
 temporal_maximum_age_sec="${BEVFUSION_EVAL_TEMPORAL_MAXIMUM_AGE_SEC:-0.30}"
+temporal_feature_cache="${BEVFUSION_EVAL_TEMPORAL_FEATURE_CACHE:-false}"
 publish_detector_velocity="${BEVFUSION_EVAL_PUBLISH_DETECTOR_VELOCITY:-false}"
 detector_velocity_noise_std_mps="${BEVFUSION_EVAL_DETECTOR_VELOCITY_NOISE_STD_MPS:-1.0}"
 gt_reference="${BEVFUSION_EVAL_GT_REFERENCE:-bbox-center-calibrated-v1}"
@@ -71,6 +72,7 @@ roslaunch bevfusion_ros base3_online.launch \
   lidar_deskew_pose_type:="$lidar_deskew_pose_type" \
   temporal_sweeps:="$temporal_sweeps" \
   temporal_maximum_age_sec:="$temporal_maximum_age_sec" \
+  temporal_feature_cache:="$temporal_feature_cache" \
   publish_detector_velocity:="$publish_detector_velocity" \
   detector_velocity_noise_std_mps:="$detector_velocity_noise_std_mps" \
   >"$output_dir/bevfusion_bridge.log" 2>&1 &
@@ -130,7 +132,8 @@ bridge_pid=""
   "$lidar_deskew_mode" "$lidar_deskew_reference" \
   "$lidar_deskew_pose_topic" "$lidar_deskew_pose_type" \
   "$temporal_sweeps" "$temporal_maximum_age_sec" \
-  "$publish_detector_velocity" "$detector_velocity_noise_std_mps" <<'PY'
+  "$temporal_feature_cache" "$publish_detector_velocity" \
+  "$detector_velocity_noise_std_mps" <<'PY'
 import json
 import sys
 
@@ -152,10 +155,11 @@ report["lidar_deskew"] = {
 report["temporal_input"] = {
     "past_sweeps": int(sys.argv[10]),
     "maximum_age_sec": float(sys.argv[11]),
+    "feature_cache": sys.argv[12].strip().lower() == "true",
 }
 report["detector_velocity_output"] = {
-    "enabled": sys.argv[12].strip().lower() == "true",
-    "noise_std_mps": float(sys.argv[13]),
+    "enabled": sys.argv[13].strip().lower() == "true",
+    "noise_std_mps": float(sys.argv[14]),
 }
 with open(path, "w", encoding="utf-8") as handle:
     json.dump(report, handle, indent=2, sort_keys=True)

@@ -1,0 +1,39 @@
+version: 1
+name: base4-highway-first-exp-t2c-cached-bev-e4
+mode: finetune
+epochs: 4
+learning_rate: 2.0e-5
+checkpoint: ${BEVFUSION_BASE4_V1_TO_T1_CHECKPOINT}
+base_config: perception/detection3d/bevfusion/configs/bevfusion_base4_t2c_4cam_lidar_cached_bev_velocity.py
+
+dataset:
+  capture_root: ${BASE4_HIGHWAY_FIRST_EXP_RAW_ROOT}
+  info_root: ${BASE4_HIGHWAY_FIRST_EXP_RAW_ROOT}
+  container_root: /datasets/base4_highway_first_experiment_v1_raw
+
+schedule:
+  warmup_optimizer_updates: 75
+  validation_interval: 1
+
+gpu:
+  profile: auto
+  # Feature-warp training keeps three LiDAR encoder graphs alive. 2x2 keeps
+  # the established effective batch of four within a 16 GiB RTX 5060 Ti.
+  physical_batch_size: 2
+  gradient_accumulation: 2
+  workers: auto
+  shm_size: auto
+
+wandb:
+  enabled: true
+  entity: AjouNice2026
+  project: morai-3d-object-detection
+  group: bevfusion-base4-temporal-architecture
+  tags: [base4, highway, velocity, temporal-bev, cached-bev, feature-warp]
+
+output:
+  root: ""
+
+checkpointing:
+  interval: 1
+  max_keep_ckpts: 4

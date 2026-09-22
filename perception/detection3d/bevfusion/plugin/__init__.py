@@ -10,6 +10,8 @@ from .morai_temporal_bevfusion import (
     MoraiTemporalBEVFusion,
     MoraiTemporalBEVGate,
     MoraiTemporalBEVResidual,
+    source_to_target_matrix_from_lidar_poses,
+    warp_bev_feature_by_source_to_target,
 )
 from .morai_wandb import MoraiEpochLrHook, MoraiWandbVisBackend
 
@@ -25,5 +27,7 @@ __all__ = [
     "MoraiTemporalBEVFusion",
     "MoraiTemporalBEVGate",
     "MoraiTemporalBEVResidual",
+    "source_to_target_matrix_from_lidar_poses",
+    "warp_bev_feature_by_source_to_target",
     "MoraiWandbVisBackend",
 ]

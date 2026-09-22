@@ -145,11 +145,84 @@ mean `128.0 ms`, p50 `125.0 ms`, p95 `170.0 ms`였다. 단순 역수는 약 `7.8
 W&B:
 <https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/bf-sw-base4-highway-first-exp-t2r-temporal-delta-e4-rtx5060ti-260922-201033>.
 
+## T2C recurrent cached-BEV P0
+
+T2R의 세 sweep encoder 반복을 없애기 위해 online inference에서 현재 LiDAR만
+encode하고, 직전 두 BEV feature를 현재 LiDAR 좌표계로 Ego-motion warp해
+`MoraiTemporalBEVResidual`에 넣는 P0를 구현했다.
+
+- ROS bridge는 현재 point와 해당 시각의 world-frame LiDAR pose만 server에 보낸다.
+- server/model은 timestamp가 역행하거나 cache age가 초과되면 history를 reset한다.
+- camera BEV는 계속 현재 frame만 사용한다.
+- cache는 LiDAR BEV에만 적용하며 GT object motion은 사용하지 않는다.
+- `temporal_feature_cache`는 연구용 opt-in이고 production 기본값은 `false`다.
+
+기존 T2R E1을 cache inference에 그대로 적용한 최초 진단은 merge bag에서 latency를
+mean `128.0 -> 80.3 ms`, p50 `125.0 -> 79.6 ms`, p95 `170.0 -> 87.1 ms`로 줄였다.
+단순 역수 약 `12.5 Hz`로 5060 Ti에서도 LiDAR 12 Hz gate에 도달했다. 하지만 detector
+speed MAE는 `2.873 -> 3.701 m/s`, signed bias는 `+0.572 -> +2.728 m/s`로 악화했다.
+
+이는 기존 T2R 학습이 `point를 현재 frame으로 정렬한 뒤 encode`한 반면 cache 추론은
+`source frame에서 encode한 뒤 feature를 warp`하기 때문이다. 따라서 cache 자체를
+기각하지 않고, 학습도 source-frame encode + BEV feature warp로 맞춘 `T2C`를 별도
+구성한다.
+
+T2C 학습 계약:
+
+- loader는 기존 정렬 point와 함께 sweep-to-current 4x4 transform을 metadata로 보존한다.
+- camera view transform에는 기존 정렬 point를 유지한다.
+- LiDAR branch만 과거 point를 source frame으로 복원해 공유 encoder를 통과시킨 뒤,
+  augmentation을 포함한 sweep-to-current transform으로 BEV feature를 warp한다.
+- 16 GiB GPU에서는 physical batch 2, accumulation 2로 effective batch 4를 유지한다.
+- online inference는 한 frame당 LiDAR encoder를 한 번만 실행한다.
+
+구현:
+
+- `configs/bevfusion_base4_t2c_4cam_lidar_cached_bev_velocity.py`
+- `configs/team/recipes/base4_highway_first_exp_t2c_cached_bev_e4.yaml`
+- `MoraiLoadPointsFromCausalSweeps.temporal_sweep2lidar`
+- `MoraiTemporalBEVFusion`의 train-time feature warp와 online cache
+- ROS/Docker의 `temporal_feature_cache` opt-in
+
+Smoke는 train forward/backward, validation, W&B, checkpoint까지 통과했다. 16 GiB
+RTX 5060 Ti에서 physical batch 4는 backward OOM이었고 `2 x accumulation 2`는
+effective batch 4를 유지하며 안정적으로 완료됐다.
+
+정식 E4 결과:
+
+| epoch | center mAP | mATE | mAVE | speed MAE |
+|---:|---:|---:|---:|---:|
+| 1 | 0.2961 | 0.2213 | 3.8493 | 3.8251 |
+| 2 | **0.2989** | 0.2179 | **3.7584** | **3.7277** |
+| 3 | 0.2986 | 0.2154 | 4.0164 | 3.9840 |
+| 4 | 0.2978 | **0.2134** | 3.8820 | 3.8533 |
+
+W&B:
+<https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/bf-sw-base4-highway-first-exp-t2c-cached-bev-e4-rtx5060ti-260922-214413>.
+
+Velocity best E2를 실제 online cache로 merge bag에 적용한 결과는 다음과 같다.
+
+| model | AP | F1@1m | speed MAE | signed bias | error-step p95 | latency mean/p95 |
+|---|---:|---:|---:|---:|---:|---:|
+| T2R E1, 3x encode | 0.7774 | 0.8769 | **2.873** | **+0.572** | **2.939** | 128.0/170.0 ms |
+| T2C E2, cache | **0.7787** | 0.8611 | 3.627 | +1.657 | 4.599 | **79.1/84.6 ms** |
+
+T2C는 5060 Ti에서도 mean 역수 약 `12.6 Hz`로 실시간 gate를 통과했고 spatial AP도
+보존했다. 그러나 velocity 평균 오차, bias, frame jitter가 모두 T2R보다 나빠 모델
+후보로는 **기각**한다. Highway1과 downstream tracker를 추가 평가해도 이 velocity
+gate 실패를 뒤집을 근거가 없으므로 반복 사용 dev bag 평가를 늘리지 않는다.
+
+결론적으로 recurrent BEV cache와 Ego warp 인프라는 다음 구조에서 재사용할 가치가
+있지만, 단순 residual fusion만으로 raw detector `0.5 m/s` 목표에 도달하지 않는다.
+다음 architecture gate는 object/query memory와 명시적 delta-time·displacement
+supervision이다.
+
 ## 아직 해결하지 않은 부분
 
 - 현재는 LiDAR encoder를 sweep마다 실행하므로 단일-frame보다 LiDAR encoder 비용이
   약 3배다. 실시간 production 구현이 아니다.
-- online recurrent cache와 BEV feature warp는 아직 없다.
+- online recurrent cache와 BEV feature warp P0는 실시간 gate를 통과했지만 T2C
+  velocity 정확도는 기각됐다.
 - object/query memory, 명시적 delta-time embedding, velocity consistency loss도 없다.
 - T2R도 장기 occlusion이나 object association을 직접 모델링하지 않는다.
 - 현재 W&B에는 gate 사용률의 epoch 평균을 별도 panel로 기록하지 않는다.

@@ -29,6 +29,9 @@
        Base3/V1 single-frame contract. -->
   <arg name="temporal_sweeps" default="0"/>
   <arg name="temporal_maximum_age_sec" default="0.30"/>
+  <!-- Research-only recurrent feature cache. It sends only the current sweep
+       plus its LiDAR world pose; the Docker model reuses prior encoded BEV. -->
+  <arg name="temporal_feature_cache" default="false"/>
   <!-- Base3 E25 is 7D, so velocity remains opt-in. Base4 9D experiments
        explicitly enable this contract. -->
   <arg name="publish_detector_velocity" default="false"/>
@@ -58,6 +61,8 @@
     <param name="temporal_sweeps" value="$(arg temporal_sweeps)"/>
     <param name="temporal_maximum_age_sec"
            value="$(arg temporal_maximum_age_sec)"/>
+    <param name="temporal_feature_cache"
+           value="$(arg temporal_feature_cache)"/>
     <param name="publish_detector_velocity"
            value="$(arg publish_detector_velocity)"/>
     <param name="detector_velocity_noise_std_mps"

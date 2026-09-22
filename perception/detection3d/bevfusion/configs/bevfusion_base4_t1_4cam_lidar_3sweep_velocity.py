@@ -44,6 +44,7 @@ train_pipeline = [
             'cam2lidar', 'ori_lidar2img', 'img_aug_matrix',
             'lidar_aug_matrix', 'box_type_3d', 'sample_idx', 'lidar_path',
             'img_path', 'num_pts_feats', 'num_views',
+            'temporal_sweep2lidar',
             'transformation_3d_flow', 'pcd_rotation', 'pcd_scale_factor',
             'pcd_trans'])]
 
@@ -65,7 +66,8 @@ test_pipeline = [
         meta_keys=[
             'cam2img', 'ori_cam2img', 'lidar2cam', 'lidar2img',
             'cam2lidar', 'img_aug_matrix', 'box_type_3d', 'sample_idx',
-            'lidar_path', 'img_path', 'num_pts_feats', 'num_views'])]
+            'lidar_path', 'img_path', 'num_pts_feats', 'num_views',
+            'temporal_sweep2lidar'])]
 
 train_dataloader = dict(dataset=dict(pipeline=train_pipeline))
 val_dataloader = dict(dataset=dict(pipeline=test_pipeline))

@@ -18,6 +18,7 @@ from perception_object_pipeline import make_detected_objects
 from perception_object_pipeline.rolling_lidar import (
     PlanarPoseBuffer,
     deskew_points_to_reference_pose,
+    lidar_world_pose_at_time,
     scan_time_contract,
     transform_points_between_lidar_times,
 )
@@ -89,8 +90,13 @@ class BevFusionRosBridge:
         ).strip().lower()
         self.temporal_sweeps = max(
             0, int(rospy.get_param("~temporal_sweeps", 0)))
+        self.temporal_feature_cache = bool(
+            rospy.get_param("~temporal_feature_cache", False))
         self.temporal_maximum_age_sec = float(
             rospy.get_param("~temporal_maximum_age_sec", 0.30))
+        if self.temporal_feature_cache and self.temporal_sweeps <= 0:
+            raise ValueError(
+                "temporal_feature_cache requires temporal_sweeps > 0")
         if self.lidar_deskew_mode not in ("off", "ego_pose_2d"):
             raise ValueError("lidar_deskew_mode must be off or ego_pose_2d")
         if self.lidar_deskew_reference not in ("end", "median", "header"):
@@ -224,11 +230,13 @@ class BevFusionRosBridge:
         rospy.on_shutdown(self.shutdown)
         self._publish_status("waiting_for_synchronized_sensor_frame")
         rospy.loginfo(
-            "BEVFusion bridge: operation=%s, lidar=%s, cameras=%s, temporal_sweeps=%d",
+            "BEVFusion bridge: operation=%s, lidar=%s, cameras=%s, "
+            "temporal_sweeps=%d, temporal_feature_cache=%s",
             self.operation,
             self.lidar_topic,
             self.camera_topics,
             self.temporal_sweeps,
+            self.temporal_feature_cache,
         )
 
     def _load_topics(self):
@@ -421,7 +429,25 @@ class BevFusionRosBridge:
             points, deskew_displacement, _reference_pose = deskewed
             deskew_ms = (time.monotonic() - deskew_start) * 1000.0
         points_for_history = np.asarray(points, dtype=np.float32)
-        if self.temporal_sweeps > 0:
+        temporal_lidar_pose_world = None
+        if self.temporal_feature_cache:
+            pose_samples = self.ego_pose_buffer.snapshot()
+            temporal_lidar_pose_world = lidar_world_pose_at_time(
+                pose_samples,
+                reference_stamp,
+                lidar_position=self.lidar_position,
+                lidar_yaw=self.lidar_yaw,
+                maximum_extrapolation_sec=(
+                    self.lidar_deskew_maximum_extrapolation_sec),
+            )
+            if temporal_lidar_pose_world is None:
+                raise ValueError("temporal feature cache pose coverage is insufficient")
+            points = np.concatenate(
+                [points_for_history,
+                 np.zeros((len(points_for_history), 1), np.float32)],
+                axis=1,
+            )
+        elif self.temporal_sweeps > 0:
             point_sets = [np.concatenate(
                 [points_for_history, np.zeros((len(points_for_history), 1), np.float32)],
                 axis=1,
@@ -480,6 +506,11 @@ class BevFusionRosBridge:
                 else float(np.percentile(deskew_displacement, 95.0))
             ),
         }
+        if temporal_lidar_pose_world is not None:
+            metadata["temporal_feature_cache"] = True
+            metadata["lidar_pose_world"] = [
+                float(value) for value in temporal_lidar_pose_world
+            ]
         blobs = {"points": points.astype("<f4", copy=False).tobytes()}
         if self.operation == "inference":
             resized = dict(self.camera_executor.map(
