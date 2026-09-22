@@ -14,6 +14,31 @@ from app.online_preprocessor import Base3OnlinePreprocessor
 DEFAULT_CLASSES = ["vehicle", "pedestrian", "obstacle"]
 
 
+def build_warmup_points(point_dim, temporal_num_sweeps, point_count=8192):
+    """Create a representative current/causal-sweep runtime point tensor."""
+    point_dim = int(point_dim)
+    temporal_num_sweeps = int(temporal_num_sweeps)
+    point_count = int(point_count)
+    if point_dim < 4 or point_count < temporal_num_sweeps:
+        raise ValueError("invalid warm-up point shape")
+    if temporal_num_sweeps > 1 and point_dim < 5:
+        raise ValueError("temporal warm-up requires an age feature")
+
+    generator = np.random.default_rng(260916)
+    points = np.zeros((point_count, point_dim), dtype=np.float32)
+    points[:, 0] = generator.uniform(-29.5, 29.5, len(points))
+    points[:, 1] = generator.uniform(-29.5, 29.5, len(points))
+    points[:, 2] = generator.uniform(-2.5, 1.5, len(points))
+    points[:, 3] = generator.uniform(0.0, 1.0, len(points))
+    if temporal_num_sweeps > 1:
+        # Match the online bridge contract: current=0, causal past ages > 0.
+        for sweep_index, indices in enumerate(
+            np.array_split(np.arange(point_count), temporal_num_sweeps)
+        ):
+            points[indices, 4] = 0.1 * sweep_index
+    return points
+
+
 class BevFusionModel:
     def __init__(
         self,
@@ -45,6 +70,8 @@ class BevFusionModel:
         self.model.dataset_meta["classes"] = self.classes
         self.point_dim = int(config.model.pts_voxel_encoder.get(
             "num_features", 4))
+        self.temporal_num_sweeps = int(getattr(
+            self.model, "temporal_num_sweeps", 1))
         self.use_amp = bool(use_amp)
         self.device_type = torch.device(device).type
         self.preprocessor = Base3OnlinePreprocessor(
@@ -123,12 +150,8 @@ class BevFusionModel:
         if self.warmup_iterations <= 0:
             self.warmed_up = True
             return
-        generator = np.random.default_rng(260916)
-        points = np.zeros((8192, self.point_dim), dtype=np.float32)
-        points[:, 0] = generator.uniform(-29.5, 29.5, len(points))
-        points[:, 1] = generator.uniform(-29.5, 29.5, len(points))
-        points[:, 2] = generator.uniform(-2.5, 1.5, len(points))
-        points[:, 3] = generator.uniform(0.0, 1.0, len(points))
+        points = build_warmup_points(
+            self.point_dim, self.temporal_num_sweeps)
         final_height, final_width = self.preprocessor.final_dim
         empty_image = bytes(final_height * final_width * 3)
         images = {

@@ -64,6 +64,67 @@ class MoraiTemporalBEVGate(nn.Module):
 
 
 @MODELS.register_module()
+class MoraiTemporalBEVResidual(nn.Module):
+    """Preserve current geometry and encode ordered BEV feature changes.
+
+    A convex average can discard the direction of temporal changes. This
+    branch instead consumes ``current``, ``current - t1`` and consecutive
+    past differences, then predicts a residual on top of the current BEV.
+    The last layer starts at zero so a warm-start is exactly current-only.
+    """
+
+    def __init__(
+        self,
+        channels: int = 256,
+        num_sweeps: int = 3,
+        hidden_channels: int = 128,
+    ) -> None:
+        super().__init__()
+        if num_sweeps < 2:
+            raise ValueError("num_sweeps must include current and past frames")
+        self.channels = int(channels)
+        self.num_sweeps = int(num_sweeps)
+        self.motion_encoder = nn.Sequential(
+            nn.Conv2d(
+                self.channels * self.num_sweeps,
+                int(hidden_channels),
+                kernel_size=1,
+                bias=False,
+            ),
+            nn.BatchNorm2d(int(hidden_channels)),
+            nn.SiLU(inplace=True),
+            nn.Conv2d(
+                int(hidden_channels), self.channels, kernel_size=1, bias=True
+            ),
+        )
+        nn.init.zeros_(self.motion_encoder[-1].weight)
+        nn.init.zeros_(self.motion_encoder[-1].bias)
+        self.last_residual_rms: Optional[Tensor] = None
+
+    def forward(self, features: List[Tensor]) -> Tensor:
+        if len(features) != self.num_sweeps:
+            raise ValueError(
+                f"expected {self.num_sweeps} sweep features, got {len(features)}"
+            )
+        current = features[0]
+        expected = (current.shape[0], self.channels, *current.shape[-2:])
+        for index, feature in enumerate(features):
+            if tuple(feature.shape) != expected:
+                raise ValueError(
+                    f"sweep {index} shape {tuple(feature.shape)} != {expected}"
+                )
+        ordered_changes = [
+            features[index - 1] - features[index]
+            for index in range(1, self.num_sweeps)
+        ]
+        residual = self.motion_encoder(
+            torch.cat([current, *ordered_changes], dim=1)
+        )
+        self.last_residual_rms = residual.detach().square().mean().sqrt()
+        return current + residual
+
+
+@MODELS.register_module()
 class MoraiTemporalBEVFusion(BEVFusion):
     """BEVFusion variant that encodes causal LiDAR sweeps separately.
 

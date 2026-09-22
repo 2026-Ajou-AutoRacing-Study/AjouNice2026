@@ -5,6 +5,7 @@ import torch
 
 from perception.detection3d.bevfusion.plugin.morai_temporal_bevfusion import (
     MoraiTemporalBEVGate,
+    MoraiTemporalBEVResidual,
 )
 
 
@@ -25,6 +26,15 @@ def main():
     assert past1.grad is not None and float(past1.grad.abs().sum()) > 0.0
     assert past2.grad is not None and float(past2.grad.abs().sum()) > 0.0
     print("weights:", weights.tolist())
+
+    residual = MoraiTemporalBEVResidual(channels=4, num_sweeps=3)
+    residual_output = residual([current.detach(), past1.detach(), past2.detach()])
+    assert torch.equal(residual_output, current.detach())
+    residual_output.square().mean().backward()
+    final_weight_grad = residual.motion_encoder[-1].weight.grad
+    assert final_weight_grad is not None
+    assert float(final_weight_grad.abs().sum()) > 0.0
+    assert float(residual.last_residual_rms) == 0.0
     print("TEMPORAL_BEV_GATE_OK")
 
 

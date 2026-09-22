@@ -68,10 +68,14 @@
 - 과거 sweep은 Ego motion만 현재 frame에 정합한다. 추론에 존재하지 않는 GT Object
   motion compensation은 input에 사용하지 않는다.
 - Architecture 순서는 single-frame 9D -> native 3-sweep -> lightweight temporal BEV
-  -> 마지막에 StreamPETR-inspired query memory다. Sweep-separated BEV spatial gate인
-  T2 P0는 구현 및 16-frame smoke를 통과했다. 아직 3회 LiDAR encoding을 사용하므로
-  production 실시간 구조가 아니며, 동일 4-epoch T1/T2 비교에서 rosbag velocity jitter와
-  downstream FDE가 개선될 때만 recurrent cache 최적화로 진행한다.
+  -> 마지막에 StreamPETR-inspired query memory다. Sweep-separated softmax gate T2는
+  current sweep에 거의 고정되고 T1보다 속도가 나빠 기각했다. Ordered BEV delta를
+  current BEV에 더하는 T2R E1은 두 dev bag에서 T1 대비 detector speed MAE,
+  error-step p95, position-only tracking AVE와 Map-CV FDE를 모두 개선했다. 다만 3회
+  LiDAR encoding을 사용하고 held-out 검증이 없으므로 production은 E25/mode 0을 유지한다.
+  5060 Ti의 보고 latency도 mean `128 ms`, p95 `170 ms`로 12 Hz LiDAR 추종에 부족했다.
+  다음 gate는 새 고주로 bag 재현, online latency, recurrent cache 또는 object/query
+  memory 선택이다.
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.

@@ -9,6 +9,7 @@ from .morai_temporal import MoraiLoadPointsFromCausalSweeps
 from .morai_temporal_bevfusion import (
     MoraiTemporalBEVFusion,
     MoraiTemporalBEVGate,
+    MoraiTemporalBEVResidual,
 )
 from .morai_wandb import MoraiEpochLrHook, MoraiWandbVisBackend
 
@@ -23,5 +24,6 @@ __all__ = [
     "MoraiLoadPointsFromCausalSweeps",
     "MoraiTemporalBEVFusion",
     "MoraiTemporalBEVGate",
+    "MoraiTemporalBEVResidual",
     "MoraiWandbVisBackend",
 ]
