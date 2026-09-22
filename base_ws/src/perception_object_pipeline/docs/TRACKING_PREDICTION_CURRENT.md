@@ -29,6 +29,8 @@ BEVFusion B3-BF0-F40 E25 DetectedObjects
 - motion model: CTRV(`prediction_model=1`).
 - detector position measurement noise: `0.40 m`.
 - detector velocity fusion: `off`; production E25는 7D detector다.
+- causal detection-center velocity fusion: `off`. B4H-Q0는 연구용으로 구현됐지만 기존
+  고주로 2-bag Map-CV gate를 통과하지 못했다.
 - detector measurement timestamp state를 current time으로 강제 보상하지 않는다.
 - EKF 내부 scheduler가 30 Hz로 prediction copy를 발행한다.
 - production `tracking` alias의 maximum measurement age는 `0.50 s`다. generic
@@ -82,6 +84,7 @@ Map-CV 1/2/3초 top-1 및 minFDE-K를 함께 본다. 최신 detector 및 tracker
 - 기본 horizon 5초와 로터리 3~4초의 map-zone-aware 전환.
 - tracker history를 이용한 temporal lane association과 Top-1 안정화.
 - detector 9D velocity를 tracker update에 fusion.
+- detection-center history velocity의 innovation/track-age quality gate.
 - Planning의 추월 gap 판단을 위한 track-age/confidence gate.
 
 위 항목은 localization 및 Base4 velocity pilot과 동시에 바꾸지 않는다. 기존 v60

@@ -1,7 +1,8 @@
 # Base4 predicted-center motion probe
 
 > 날짜: 2026-09-23.
-> 상태: 기존 고주로 detection bag 재사용 분석 완료. 재추론 없음.
+> 상태: 기존 고주로 detection bag 재사용 분석 및 실제 EKF/Map-CV Q0 A/B 완료.
+> 재추론 없음.
 
 ## 결론
 
@@ -13,12 +14,46 @@ velocity head가 있는 Base4 모델로 detector를 먼저 교체할 이유도 �
 
 따라서 다음 우선순위는 대규모 temporal detector를 바로 학습하는 것이 아니다.
 
-1. 기존 production detection과 별도로 causal center-motion `B4H-Q0`를 구현한다.
-2. 0.45/0.65/0.90초 estimate와 track age 기반 covariance를 tracker에 선택적으로 넣는다.
-3. 새 다중차량·차선변경 held-out bag에서 association과 downstream 효과를 검증한다.
-4. Q0가 불충분할 때만 learned query memory `B4H-Q1`을 구현한다.
+1. causal center-motion `B4H-Q0`를 optional EKF measurement로 구현했다.
+2. 기존 두 development bag의 end-to-end gate는 통과하지 못했다.
+3. 새 다중차량·차선변경 held-out bag에서 quality gate를 설계·검증한다.
+4. Q0 단독으로 부족하면 learned query memory `B4H-Q1`과 병행한다.
 
 Production detector와 tracker 기본값은 아직 바꾸지 않는다.
+
+## 실제 EKF·Map-CV Q0 결과
+
+Production E25의 저장 detection을 재사용하여 같은 CTRV EKF와 Map-CV를 1배속으로
+다시 실행했다. Q0는 Vehicle의 map-frame raw detection center만 사용하고, association
+gap이 `0.25 s`를 넘으면 history를 초기화한다. `<0.3 s`는 position-only,
+`0.45/0.65/0.90 s` baseline과 `1.5 -> 0.6 m/s` noise schedule을 사용했다.
+
+| Case (2-bag macro) | F1 | Center p50 m | Speed MAE m/s | 2D AVE m/s | Lat MAE m/s | Top-1 FDE 1/2/3 s m |
+|---|---:|---:|---:|---:|---:|---:|
+| E25 position-only | 0.9341 | **0.615** | **0.645** | 0.964 | 0.574 | **1.224 / 2.640 / 4.663** |
+| Q0 every detection | **0.9350** | 0.628 | 0.680 | **0.960** | **0.518** | 1.366 / 2.825 / 4.870 |
+| Q0, minimum update interval 0.20 s | 0.9344 | 0.622 | 0.703 | 0.985 | 0.534 | 1.356 / 2.846 / 4.925 |
+
+Q0 every-detection은 횡속도와 2D AVE를 아주 조금 개선했지만 speed와 Map-CV FDE를
+악화했다. 겹치는 displacement window를 독립 관측처럼 반복 융합하지 않도록 `0.20 s`
+update interval도 적용했으나 더 좋아지지 않았다. 즉 center-motion 관측의 pairwise
+정확도와 downstream EKF 효용은 같은 의미가 아니다. startup/miss를 포함한 전체 track,
+CTRV state와의 상관, longitudinal bias를 함께 다뤄야 한다.
+
+구현은 다음 위치에 optional 연구 기능으로 남긴다.
+
+- `ekf-multi-object-tracking`: raw associated-center history와 adaptive velocity covariance.
+- `tracker_center_motion_velocity_fusion:=true`: 연구용 launch gate.
+- production/default: `false`.
+
+현재 구현의 `0.20 s` interval은 상관 관측 과신을 막는 안전장치이지, 성능이 검증된
+production tuning이 아니다. 다음 A/B는 단순 noise sweep보다 innovation/residual,
+연속 관측 수, track age를 함께 쓰는 accept/reject quality gate를 우선한다.
+
+유효 end-to-end 산출물:
+
+- `artifacts/evaluation/bevfusion/q0_center_motion_260923_v4/`: every-detection Q0.
+- `artifacts/evaluation/bevfusion/q0_center_motion_interval020_260923/`: 0.20초 gate Q0.
 
 ## 질문과 분해 방식
 
