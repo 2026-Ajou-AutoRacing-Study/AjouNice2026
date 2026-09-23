@@ -1,7 +1,7 @@
 # Base4 Q1 실행 로드맵
 
 > 날짜: 2026-09-23.
-> 상태: Q1-P2 post-decoder motion gate까지 완료한 CURRENT 계획.
+> 상태: Q1-P5 shadow soft-blend 판정까지 완료한 CURRENT 계획.
 > 목표: 고주로 Vehicle velocity와 downstream 추월 판단을 개선하되 E25 production을
 > 흔들지 않는다.
 
@@ -139,6 +139,16 @@ P4b도 hardcase best `1.274 m/s`로 P3 `0.845 m/s`보다 악화했다. 동일 P3
 gate가 원인임을 분리했다. rosbag/tracker gate는 열지 않았으며 P3를 연구 baseline으로
 유지한다. 상세 결과는
 [`260923_BASE4_Q1_P4_ROBUST_ASSOCIATION_RESULTS.md`](260923_BASE4_Q1_P4_ROBUST_ASSOCIATION_RESULTS.md)를
+따른다.
+
+P5는 P3 출력을 보존한 채 robust 후보를 confidence로 작게 섞었다. 동일 P3 E1
+checkpoint의 재학습 없는 hardcase 비교에서 blend `0.00/0.10/0.25`의 speed MAE는 각각
+`0.8451/0.8472/0.8508 m/s`였다. 공간 mAP과 mATE는 완전히 동일했지만 robust 후보의
+비중을 높일수록 velocity만 단조롭게 악화했다. 따라서 rosbag/tracker gate는 열지 않고,
+현재 위치 기반 mutual/consensus threshold 튜닝을 종료한다. 다음 association 연구는
+query feature similarity 또는 tracker innovation처럼 identity 정보가 추가될 때만 재개한다.
+상세 결과는
+[`260923_BASE4_Q1_P5_SHADOW_SOFT_BLEND_RESULTS.md`](260923_BASE4_Q1_P5_SHADOW_SOFT_BLEND_RESULTS.md)를
 따른다.
 
 ## 중단·전환 기준

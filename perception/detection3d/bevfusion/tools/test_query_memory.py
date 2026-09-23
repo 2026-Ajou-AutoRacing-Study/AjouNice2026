@@ -150,6 +150,43 @@ def main():
         single_pair_module.last_single_pair_query_fraction,
         torch.tensor(0.5))
 
+    # Shadow mode must be exactly P3-compatible when its blend is zero.  It
+    # still computes robust diagnostics, but neither attention nor direct
+    # velocity may be hard-gated.
+    shadow_baseline = MoraiQueryMemoryAttention(
+        channels=8, num_heads=2, maximum_association_distance_m=30.0)
+    shadow_module = MoraiQueryMemoryAttention(
+        channels=8,
+        num_heads=2,
+        maximum_association_distance_m=30.0,
+        shadow_robust_association=True,
+        robust_velocity_blend=0.0,
+        robust_allow_single_mutual_pair=True,
+    )
+    shadow_module.load_state_dict(shadow_baseline.state_dict())
+    shadow_current_features = torch.randn(1, 8, 1)
+    shadow_memory_features = torch.randn(1, 8, 3)
+    shadow_args = (
+        shadow_current_features,
+        torch.tensor([[[3.0, 0.0]]]),
+        torch.tensor([[0]]),
+        shadow_memory_features,
+        torch.tensor([[[2.9, 0.0], [2.8, 0.0], [0.0, 0.0]]]),
+        torch.tensor([[0.9, 0.9, 0.9]]),
+        torch.zeros(1, 3, dtype=torch.long),
+        torch.tensor([[0.1, 0.2, 0.3]]),
+    )
+    baseline_output = shadow_baseline(*shadow_args)
+    shadow_output = shadow_module(
+        *shadow_args, torch.tensor([[0, 1, 2]]))
+    assert torch.allclose(shadow_output, baseline_output, atol=1.0e-6)
+    assert torch.allclose(
+        shadow_module.last_direct_velocity,
+        shadow_baseline.last_direct_velocity,
+        atol=1.0e-6)
+    assert shadow_module.last_direct_velocity_active_mask.tolist() == [[True]]
+    assert float(shadow_module.last_consensus_query_fraction) == 1.0
+
     bank = CausalQueryMemoryBank(
         max_frames=2, max_queries_per_frame=2, maximum_age_sec=0.6,
         reset_gap_sec=0.3)

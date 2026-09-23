@@ -190,6 +190,8 @@ class BevFusionModel:
             "last_query_switch_fraction",
             "last_consensus_pair_count_mean",
             "last_single_pair_query_fraction",
+            "last_robust_blend_fraction",
+            "last_robust_confidence_mean",
         )
         output = {}
         for name in names:

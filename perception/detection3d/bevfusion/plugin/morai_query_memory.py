@@ -84,6 +84,8 @@ class MoraiQueryMemoryAttention(nn.Module):
         robust_consensus_threshold_mps: float = 3.0,
         robust_allow_single_mutual_pair: bool = False,
         robust_single_pair_max_speed_mps: float = 35.0,
+        shadow_robust_association: bool = False,
+        robust_velocity_blend: float = 0.0,
     ) -> None:
         super().__init__()
         if channels % num_heads != 0:
@@ -106,6 +108,8 @@ class MoraiQueryMemoryAttention(nn.Module):
             robust_allow_single_mutual_pair)
         self.robust_single_pair_max_speed_mps = float(
             robust_single_pair_max_speed_mps)
+        self.shadow_robust_association = bool(shadow_robust_association)
+        self.robust_velocity_blend = float(robust_velocity_blend)
         if self.robust_min_consensus_frames < 2:
             raise ValueError("robust_min_consensus_frames must be >= 2")
         if self.robust_consensus_threshold_mps <= 0.0:
@@ -113,6 +117,8 @@ class MoraiQueryMemoryAttention(nn.Module):
         if self.robust_single_pair_max_speed_mps <= 0.0:
             raise ValueError(
                 "robust_single_pair_max_speed_mps must be positive")
+        if not 0.0 <= self.robust_velocity_blend <= 1.0:
+            raise ValueError("robust_velocity_blend must be in [0, 1]")
 
         self.query_projection = nn.Linear(self.channels, self.channels)
         self.key_projection = nn.Linear(self.channels, self.channels)
@@ -144,6 +150,8 @@ class MoraiQueryMemoryAttention(nn.Module):
         self.last_query_switch_fraction: Optional[Tensor] = None
         self.last_consensus_pair_count_mean: Optional[Tensor] = None
         self.last_single_pair_query_fraction: Optional[Tensor] = None
+        self.last_robust_blend_fraction: Optional[Tensor] = None
+        self.last_robust_confidence_mean: Optional[Tensor] = None
 
     @staticmethod
     def _safe_quantile(values: Tensor, quantile: float, reference: Tensor) -> Tensor:
@@ -199,12 +207,13 @@ class MoraiQueryMemoryAttention(nn.Module):
         distance: Tensor,
         memory_scores: Tensor,
         current_vehicle: Tensor,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         """Aggregate mutually matched pair velocities with median consensus."""
         batch, current_count, _memory_count, _ = velocity.shape
         direct = velocity.new_zeros(batch, current_count, 2)
         active = torch.zeros(
             batch, current_count, dtype=torch.bool, device=velocity.device)
+        confidence = velocity.new_zeros(batch, current_count)
         dispersions = []
         switch_flags = []
         accepted_pair_counts = []
@@ -223,6 +232,13 @@ class MoraiQueryMemoryAttention(nn.Module):
                             and speed <= self.robust_single_pair_max_speed_mps):
                         direct[batch_index, query_index] = pair_velocity[0]
                         active[batch_index, query_index] = True
+                        distance_confidence = (
+                            1.0 - distance[
+                                batch_index, query_index, pair_indices[0]]
+                            / self.maximum_association_distance_m
+                        ).clamp(0.0, 1.0)
+                        confidence[batch_index, query_index] = (
+                            0.25 * distance_confidence)
                         accepted_pair_counts.append(
                             velocity.new_tensor(1.0).detach())
                         single_pair_queries += 1
@@ -257,6 +273,17 @@ class MoraiQueryMemoryAttention(nn.Module):
                     accepted_velocity * pair_weight[:, None]
                 ).sum(dim=0) / pair_weight.sum()
                 active[batch_index, query_index] = True
+                inlier_fraction = inliers.float().mean()
+                dispersion_confidence = torch.exp(
+                    -dispersion / self.robust_consensus_threshold_mps)
+                distance_confidence = (
+                    1.0 - distance[
+                        batch_index, query_index, accepted_indices].mean()
+                    / self.maximum_association_distance_m
+                ).clamp(0.0, 1.0)
+                confidence[batch_index, query_index] = (
+                    inlier_fraction * dispersion_confidence
+                    * distance_confidence)
                 accepted_pair_counts.append(
                     inliers.sum().to(dtype=velocity.dtype).detach())
 
@@ -286,7 +313,7 @@ class MoraiQueryMemoryAttention(nn.Module):
                 accepted_pair_counts).float().mean().to(velocity.dtype)
         else:
             self.last_consensus_pair_count_mean = velocity.new_tensor(0.0)
-        return direct, active
+        return direct, active, confidence
 
     def _reset_diagnostics(self, reference: Tensor, batch: int,
                            current_count: int) -> None:
@@ -307,6 +334,8 @@ class MoraiQueryMemoryAttention(nn.Module):
         self.last_query_switch_fraction = zero
         self.last_consensus_pair_count_mean = zero
         self.last_single_pair_query_fraction = zero
+        self.last_robust_blend_fraction = zero
+        self.last_robust_confidence_mean = zero
 
     def forward(
         self,
@@ -338,7 +367,9 @@ class MoraiQueryMemoryAttention(nn.Module):
             self.last_direct_velocity = current_features.new_zeros(
                 batch, 2, current_count)
             return current_features
-        if self.robust_direct_velocity:
+        use_robust_association = (
+            self.robust_direct_velocity or self.shadow_robust_association)
+        if use_robust_association:
             if memory_frame_indices is None:
                 raise ValueError(
                     "robust direct velocity requires memory frame indices")
@@ -377,9 +408,12 @@ class MoraiQueryMemoryAttention(nn.Module):
             & memory_valid[:, None, :]
             & (distance <= self.maximum_association_distance_m)
         )
-        if self.robust_direct_velocity:
-            valid_pairs = self._mutual_pairs_by_frame(
+        mutual_pairs = None
+        if use_robust_association:
+            mutual_pairs = self._mutual_pairs_by_frame(
                 distance, base_valid_pairs, memory_frame_indices)
+        if self.robust_direct_velocity:
+            valid_pairs = mutual_pairs
         else:
             valid_pairs = base_valid_pairs
         expanded_valid = valid_pairs[:, None, :, :]
@@ -399,29 +433,63 @@ class MoraiQueryMemoryAttention(nn.Module):
         active = valid_pairs.any(dim=-1)
         residual = residual * active[:, :, None]
         motion_context = context * active[:, :, None]
+        robust_velocity = None
+        robust_active = None
+        robust_confidence = None
+        if use_robust_association:
+            robust_velocity, robust_active, robust_confidence = (
+                self._robust_consensus_velocity(
+                    velocity, mutual_pairs, distance, memory_scores,
+                    current_vehicle))
         if self.robust_direct_velocity:
-            direct_velocity, direct_active = self._robust_consensus_velocity(
-                velocity, valid_pairs, distance, memory_scores,
-                current_vehicle)
+            direct_velocity = robust_velocity
+            direct_active = robust_active
+            self.last_robust_blend_fraction = velocity.new_tensor(0.0)
+            selected_confidence = robust_confidence[robust_active]
+            self.last_robust_confidence_mean = (
+                selected_confidence.detach().mean()
+                if selected_confidence.numel()
+                else velocity.new_tensor(0.0))
         else:
             velocity_weights = weights.mean(dim=1)
             direct_velocity = torch.einsum(
                 "bnm,bnmd->bnd", velocity_weights, velocity)
             direct_velocity = direct_velocity * active[:, :, None]
             direct_active = active
-            vehicle_denominator = current_vehicle.float().sum().clamp_min(1.0)
-            self.last_consensus_query_fraction = (
-                (direct_active & current_vehicle).float().sum()
-                / vehicle_denominator)
-            self.last_fallback_query_fraction = (
-                (current_vehicle & ~direct_active).float().sum()
-                / vehicle_denominator)
-            zero = current_features.new_tensor(0.0)
-            self.last_pair_velocity_dispersion_mean_mps = zero
-            self.last_pair_velocity_dispersion_p95_mps = zero
-            self.last_query_switch_fraction = zero
-            self.last_consensus_pair_count_mean = zero
-            self.last_single_pair_query_fraction = zero
+            if self.shadow_robust_association:
+                blend = (
+                    self.robust_velocity_blend
+                    * robust_confidence * robust_active.to(velocity.dtype)
+                )
+                direct_velocity = direct_velocity + blend[:, :, None] * (
+                    robust_velocity - direct_velocity)
+                self.last_robust_blend_fraction = (
+                    (blend > 0.0).float().sum()
+                    / current_vehicle.float().sum().clamp_min(1.0))
+                selected_confidence = robust_confidence[robust_active]
+                self.last_robust_confidence_mean = (
+                    selected_confidence.detach().mean()
+                    if selected_confidence.numel()
+                    else velocity.new_tensor(0.0))
+            else:
+                zero = current_features.new_tensor(0.0)
+                self.last_robust_blend_fraction = zero
+                self.last_robust_confidence_mean = zero
+            if not use_robust_association:
+                vehicle_denominator = (
+                    current_vehicle.float().sum().clamp_min(1.0))
+                self.last_consensus_query_fraction = (
+                    (direct_active & current_vehicle).float().sum()
+                    / vehicle_denominator)
+                self.last_fallback_query_fraction = (
+                    (current_vehicle & ~direct_active).float().sum()
+                    / vehicle_denominator)
+                zero = current_features.new_tensor(0.0)
+                self.last_pair_velocity_dispersion_mean_mps = zero
+                self.last_pair_velocity_dispersion_p95_mps = zero
+                self.last_query_switch_fraction = zero
+                self.last_consensus_pair_count_mean = zero
+                self.last_single_pair_query_fraction = zero
         scale = torch.sigmoid(self.residual_logit)
         output = current + scale * residual
 
@@ -434,8 +502,11 @@ class MoraiQueryMemoryAttention(nn.Module):
             self.last_active_query_fraction = active.float().mean()
             base_count = base_valid_pairs.float().sum().clamp_min(1.0)
             self.last_mutual_pair_fraction = (
-                valid_pairs.float().sum() / base_count)
-            matched_distances = distance[valid_pairs]
+                (mutual_pairs if mutual_pairs is not None else valid_pairs)
+                .float().sum() / base_count)
+            diagnostic_pairs = (
+                mutual_pairs if mutual_pairs is not None else valid_pairs)
+            matched_distances = distance[diagnostic_pairs]
             if matched_distances.numel() > 0:
                 self.last_association_distance_mean_m = \
                     matched_distances.float().mean()

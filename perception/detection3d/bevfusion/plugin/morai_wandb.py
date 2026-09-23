@@ -183,6 +183,10 @@ class MoraiEpochLrHook(Hook):
                 'epoch/query_memory_consensus_pair_count_mean',
             'query_memory_single_pair_fraction':
                 'epoch/query_memory_single_pair_fraction_mean',
+            'query_memory_robust_blend_fraction':
+                'epoch/query_memory_robust_blend_fraction_mean',
+            'query_memory_robust_confidence':
+                'epoch/query_memory_robust_confidence_mean',
         }
         for source, target in aliases.items():
             value = self._history_mean(runner, source, window_size)
@@ -229,6 +233,10 @@ class MoraiQueryMemoryStatsHook(Hook):
                 memory.last_consensus_pair_count_mean,
             'train/query_memory_single_pair_fraction':
                 memory.last_single_pair_query_fraction,
+            'train/query_memory_robust_blend_fraction':
+                memory.last_robust_blend_fraction,
+            'train/query_memory_robust_confidence':
+                memory.last_robust_confidence_mean,
         }
         refinement = getattr(head, 'last_query_center_refinement_m', None)
         if refinement is not None:
