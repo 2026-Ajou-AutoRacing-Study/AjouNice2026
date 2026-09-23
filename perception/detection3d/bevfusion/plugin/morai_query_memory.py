@@ -79,6 +79,11 @@ class MoraiQueryMemoryAttention(nn.Module):
         maximum_association_distance_m: float = 6.0,
         initial_residual_logit: float = -4.0,
         use_motion_value: bool = False,
+        robust_direct_velocity: bool = False,
+        robust_min_consensus_frames: int = 2,
+        robust_consensus_threshold_mps: float = 3.0,
+        robust_allow_single_mutual_pair: bool = False,
+        robust_single_pair_max_speed_mps: float = 35.0,
     ) -> None:
         super().__init__()
         if channels % num_heads != 0:
@@ -92,6 +97,22 @@ class MoraiQueryMemoryAttention(nn.Module):
         self.maximum_association_distance_m = float(
             maximum_association_distance_m)
         self.use_motion_value = bool(use_motion_value)
+        self.robust_direct_velocity = bool(robust_direct_velocity)
+        self.robust_min_consensus_frames = int(
+            robust_min_consensus_frames)
+        self.robust_consensus_threshold_mps = float(
+            robust_consensus_threshold_mps)
+        self.robust_allow_single_mutual_pair = bool(
+            robust_allow_single_mutual_pair)
+        self.robust_single_pair_max_speed_mps = float(
+            robust_single_pair_max_speed_mps)
+        if self.robust_min_consensus_frames < 2:
+            raise ValueError("robust_min_consensus_frames must be >= 2")
+        if self.robust_consensus_threshold_mps <= 0.0:
+            raise ValueError("robust_consensus_threshold_mps must be positive")
+        if self.robust_single_pair_max_speed_mps <= 0.0:
+            raise ValueError(
+                "robust_single_pair_max_speed_mps must be positive")
 
         self.query_projection = nn.Linear(self.channels, self.channels)
         self.key_projection = nn.Linear(self.channels, self.channels)
@@ -112,6 +133,180 @@ class MoraiQueryMemoryAttention(nn.Module):
         self.last_active_query_mask: Optional[Tensor] = None
         self.last_motion_context: Optional[Tensor] = None
         self.last_direct_velocity: Optional[Tensor] = None
+        self.last_direct_velocity_active_mask: Optional[Tensor] = None
+        self.last_mutual_pair_fraction: Optional[Tensor] = None
+        self.last_consensus_query_fraction: Optional[Tensor] = None
+        self.last_fallback_query_fraction: Optional[Tensor] = None
+        self.last_association_distance_mean_m: Optional[Tensor] = None
+        self.last_association_distance_p95_m: Optional[Tensor] = None
+        self.last_pair_velocity_dispersion_mean_mps: Optional[Tensor] = None
+        self.last_pair_velocity_dispersion_p95_mps: Optional[Tensor] = None
+        self.last_query_switch_fraction: Optional[Tensor] = None
+        self.last_consensus_pair_count_mean: Optional[Tensor] = None
+        self.last_single_pair_query_fraction: Optional[Tensor] = None
+
+    @staticmethod
+    def _safe_quantile(values: Tensor, quantile: float, reference: Tensor) -> Tensor:
+        if values.numel() == 0:
+            return reference.new_tensor(0.0)
+        return torch.quantile(values.float(), float(quantile)).to(reference.dtype)
+
+    def _mutual_pairs_by_frame(
+        self,
+        distance: Tensor,
+        base_valid_pairs: Tensor,
+        memory_frame_indices: Tensor,
+    ) -> Tensor:
+        """Return one-to-one geometric matches independently per memory frame."""
+        mutual = torch.zeros_like(base_valid_pairs)
+        batch, current_count, _memory_count = distance.shape
+        for batch_index in range(batch):
+            frame_ids = torch.unique(memory_frame_indices[batch_index])
+            for frame_id in frame_ids.tolist():
+                if frame_id < 0:
+                    continue
+                memory_indices = torch.where(
+                    memory_frame_indices[batch_index] == frame_id)[0]
+                if memory_indices.numel() == 0:
+                    continue
+                valid = base_valid_pairs[
+                    batch_index, :, memory_indices]
+                if not valid.any():
+                    continue
+                frame_distance = distance[
+                    batch_index, :, memory_indices]
+                masked = frame_distance.masked_fill(~valid, float("inf"))
+                current_best_distance, current_best_local = masked.min(dim=1)
+                memory_best_current = masked.min(dim=0).indices
+                current_indices = torch.arange(
+                    current_count, device=distance.device)
+                selected_memory_global = memory_indices[current_best_local]
+                is_mutual = (
+                    torch.isfinite(current_best_distance)
+                    & (memory_best_current[current_best_local] == current_indices)
+                )
+                mutual[
+                    batch_index,
+                    current_indices[is_mutual],
+                    selected_memory_global[is_mutual],
+                ] = True
+        return mutual
+
+    def _robust_consensus_velocity(
+        self,
+        velocity: Tensor,
+        mutual_pairs: Tensor,
+        distance: Tensor,
+        memory_scores: Tensor,
+        current_vehicle: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
+        """Aggregate mutually matched pair velocities with median consensus."""
+        batch, current_count, _memory_count, _ = velocity.shape
+        direct = velocity.new_zeros(batch, current_count, 2)
+        active = torch.zeros(
+            batch, current_count, dtype=torch.bool, device=velocity.device)
+        dispersions = []
+        switch_flags = []
+        accepted_pair_counts = []
+        single_pair_queries = 0
+        for batch_index in range(batch):
+            for query_index in range(current_count):
+                pair_indices = torch.where(
+                    mutual_pairs[batch_index, query_index])[0]
+                if pair_indices.numel() == 0:
+                    continue
+                pair_velocity = velocity[
+                    batch_index, query_index, pair_indices]
+                if pair_indices.numel() == 1:
+                    speed = torch.linalg.vector_norm(pair_velocity[0])
+                    if (self.robust_allow_single_mutual_pair
+                            and speed <= self.robust_single_pair_max_speed_mps):
+                        direct[batch_index, query_index] = pair_velocity[0]
+                        active[batch_index, query_index] = True
+                        accepted_pair_counts.append(
+                            velocity.new_tensor(1.0).detach())
+                        single_pair_queries += 1
+                    continue
+                median = pair_velocity.median(dim=0).values
+                deviation = torch.linalg.vector_norm(
+                    pair_velocity - median[None, :], dim=-1)
+                dispersion = deviation.max()
+                # A single memory frame cannot reveal an association switch.
+                # Keep it available for attention, but exclude it from the
+                # cross-frame consistency diagnostics.
+                if pair_indices.numel() >= 2:
+                    dispersions.append(dispersion.detach())
+                    switch_flags.append(
+                        (dispersion > self.robust_consensus_threshold_mps)
+                        .to(dtype=velocity.dtype))
+                inliers = deviation <= self.robust_consensus_threshold_mps
+                if int(inliers.sum()) < self.robust_min_consensus_frames:
+                    continue
+                accepted_indices = pair_indices[inliers]
+                # Prefer confident, spatially close pairs after the robust
+                # rejection.  The 0.25 m floor prevents an unstable singular
+                # weight for nearly coincident centers.
+                pair_weight = (
+                    memory_scores[batch_index, accepted_indices]
+                    / (distance[
+                        batch_index, query_index, accepted_indices] + 0.25)
+                ).clamp_min(1.0e-6)
+                accepted_velocity = velocity[
+                    batch_index, query_index, accepted_indices]
+                direct[batch_index, query_index] = (
+                    accepted_velocity * pair_weight[:, None]
+                ).sum(dim=0) / pair_weight.sum()
+                active[batch_index, query_index] = True
+                accepted_pair_counts.append(
+                    inliers.sum().to(dtype=velocity.dtype).detach())
+
+        vehicle_denominator = current_vehicle.float().sum().clamp_min(1.0)
+        self.last_consensus_query_fraction = (
+            (active & current_vehicle).float().sum() / vehicle_denominator)
+        self.last_fallback_query_fraction = (
+            (current_vehicle & ~active).float().sum() / vehicle_denominator)
+        self.last_single_pair_query_fraction = (
+            velocity.new_tensor(float(single_pair_queries))
+            / vehicle_denominator)
+        if dispersions:
+            dispersion_tensor = torch.stack(dispersions)
+            self.last_pair_velocity_dispersion_mean_mps = \
+                dispersion_tensor.mean()
+            self.last_pair_velocity_dispersion_p95_mps = \
+                self._safe_quantile(dispersion_tensor, 0.95, velocity)
+            self.last_query_switch_fraction = torch.stack(
+                switch_flags).float().mean().to(velocity.dtype)
+        else:
+            zero = velocity.new_tensor(0.0)
+            self.last_pair_velocity_dispersion_mean_mps = zero
+            self.last_pair_velocity_dispersion_p95_mps = zero
+            self.last_query_switch_fraction = zero
+        if accepted_pair_counts:
+            self.last_consensus_pair_count_mean = torch.stack(
+                accepted_pair_counts).float().mean().to(velocity.dtype)
+        else:
+            self.last_consensus_pair_count_mean = velocity.new_tensor(0.0)
+        return direct, active
+
+    def _reset_diagnostics(self, reference: Tensor, batch: int,
+                           current_count: int) -> None:
+        zero = reference.new_tensor(0.0)
+        self.last_active_query_fraction = zero
+        self.last_mean_attention_age_sec = zero
+        self.last_active_query_mask = torch.zeros(
+            batch, current_count, dtype=torch.bool, device=reference.device)
+        self.last_direct_velocity_active_mask = torch.zeros(
+            batch, current_count, dtype=torch.bool, device=reference.device)
+        self.last_mutual_pair_fraction = zero
+        self.last_consensus_query_fraction = zero
+        self.last_fallback_query_fraction = zero
+        self.last_association_distance_mean_m = zero
+        self.last_association_distance_p95_m = zero
+        self.last_pair_velocity_dispersion_mean_mps = zero
+        self.last_pair_velocity_dispersion_p95_mps = zero
+        self.last_query_switch_fraction = zero
+        self.last_consensus_pair_count_mean = zero
+        self.last_single_pair_query_fraction = zero
 
     def forward(
         self,
@@ -123,6 +318,7 @@ class MoraiQueryMemoryAttention(nn.Module):
         memory_scores: Tensor,
         memory_labels: Tensor,
         memory_ages_sec: Tensor,
+        memory_frame_indices: Optional[Tensor] = None,
     ) -> Tensor:
         if current_features.ndim != 3 or memory_features.ndim != 3:
             raise ValueError("query features must be [B,C,N]")
@@ -136,15 +332,18 @@ class MoraiQueryMemoryAttention(nn.Module):
         if memory_centers_xy.shape != (batch, memory_count, 2):
             raise ValueError("memory center shape mismatch")
         if memory_count == 0:
-            self.last_active_query_fraction = current_features.new_tensor(0.0)
-            self.last_mean_attention_age_sec = current_features.new_tensor(0.0)
-            self.last_active_query_mask = torch.zeros(
-                batch, current_count, dtype=torch.bool,
-                device=current_features.device)
+            self._reset_diagnostics(
+                current_features, batch, current_count)
             self.last_motion_context = torch.zeros_like(current_features)
             self.last_direct_velocity = current_features.new_zeros(
                 batch, 2, current_count)
             return current_features
+        if self.robust_direct_velocity:
+            if memory_frame_indices is None:
+                raise ValueError(
+                    "robust direct velocity requires memory frame indices")
+            if memory_frame_indices.shape != (batch, memory_count):
+                raise ValueError("memory frame index shape mismatch")
 
         current = current_features.transpose(1, 2)
         memory = memory_features.transpose(1, 2)
@@ -173,11 +372,16 @@ class MoraiQueryMemoryAttention(nn.Module):
             & (memory_ages_sec > 0.0)
             & (memory_ages_sec <= self.maximum_memory_age_sec)
         )
-        valid_pairs = (
+        base_valid_pairs = (
             current_vehicle[:, :, None]
             & memory_valid[:, None, :]
             & (distance <= self.maximum_association_distance_m)
         )
+        if self.robust_direct_velocity:
+            valid_pairs = self._mutual_pairs_by_frame(
+                distance, base_valid_pairs, memory_frame_indices)
+        else:
+            valid_pairs = base_valid_pairs
         expanded_valid = valid_pairs[:, None, :, :]
         masked_logits = logits.masked_fill(~expanded_valid, -1.0e4)
         weights = torch.softmax(masked_logits, dim=-1) * expanded_valid
@@ -195,19 +399,53 @@ class MoraiQueryMemoryAttention(nn.Module):
         active = valid_pairs.any(dim=-1)
         residual = residual * active[:, :, None]
         motion_context = context * active[:, :, None]
-        velocity_weights = weights.mean(dim=1)
-        direct_velocity = torch.einsum(
-            "bnm,bnmd->bnd", velocity_weights, velocity)
-        direct_velocity = direct_velocity * active[:, :, None]
+        if self.robust_direct_velocity:
+            direct_velocity, direct_active = self._robust_consensus_velocity(
+                velocity, valid_pairs, distance, memory_scores,
+                current_vehicle)
+        else:
+            velocity_weights = weights.mean(dim=1)
+            direct_velocity = torch.einsum(
+                "bnm,bnmd->bnd", velocity_weights, velocity)
+            direct_velocity = direct_velocity * active[:, :, None]
+            direct_active = active
+            vehicle_denominator = current_vehicle.float().sum().clamp_min(1.0)
+            self.last_consensus_query_fraction = (
+                (direct_active & current_vehicle).float().sum()
+                / vehicle_denominator)
+            self.last_fallback_query_fraction = (
+                (current_vehicle & ~direct_active).float().sum()
+                / vehicle_denominator)
+            zero = current_features.new_tensor(0.0)
+            self.last_pair_velocity_dispersion_mean_mps = zero
+            self.last_pair_velocity_dispersion_p95_mps = zero
+            self.last_query_switch_fraction = zero
+            self.last_consensus_pair_count_mean = zero
+            self.last_single_pair_query_fraction = zero
         scale = torch.sigmoid(self.residual_logit)
         output = current + scale * residual
 
         self.last_active_query_mask = active
+        self.last_direct_velocity_active_mask = direct_active
         self.last_motion_context = motion_context.transpose(1, 2)
         self.last_direct_velocity = direct_velocity.transpose(1, 2)
 
         with torch.no_grad():
             self.last_active_query_fraction = active.float().mean()
+            base_count = base_valid_pairs.float().sum().clamp_min(1.0)
+            self.last_mutual_pair_fraction = (
+                valid_pairs.float().sum() / base_count)
+            matched_distances = distance[valid_pairs]
+            if matched_distances.numel() > 0:
+                self.last_association_distance_mean_m = \
+                    matched_distances.float().mean()
+                self.last_association_distance_p95_m = self._safe_quantile(
+                    matched_distances, 0.95, current_features)
+            else:
+                self.last_association_distance_mean_m = \
+                    current_features.new_tensor(0.0)
+                self.last_association_distance_p95_m = \
+                    current_features.new_tensor(0.0)
             age_weights = weights.mean(dim=1).sum(dim=1)
             denominator = age_weights.sum().clamp_min(1.0e-8)
             self.last_mean_attention_age_sec = (
@@ -268,8 +506,9 @@ class CausalQueryMemoryBank:
         dtype,
     ) -> Dict[str, Tensor]:
         self._ensure_context(str(scene_id), float(timestamp_sec))
-        features, centers, scores, labels, ages = [], [], [], [], []
-        for frame in self._frames:
+        features, centers, scores, labels, ages, frame_indices = \
+            [], [], [], [], [], []
+        for frame_index, frame in enumerate(self._frames):
             age = float(timestamp_sec) - frame.timestamp_sec
             if age <= 0.0 or age > self.maximum_age_sec:
                 continue
@@ -281,6 +520,8 @@ class CausalQueryMemoryBank:
             scores.append(frame.scores)
             labels.append(frame.labels)
             ages.append(frame.scores.new_full(frame.scores.shape, age))
+            frame_indices.append(torch.full_like(
+                frame.labels, frame_index, dtype=torch.long))
         if not features:
             return {
                 "features": torch.empty(1, channels, 0, device=device, dtype=dtype),
@@ -288,6 +529,8 @@ class CausalQueryMemoryBank:
                 "scores": torch.empty(1, 0, device=device, dtype=dtype),
                 "labels": torch.empty(1, 0, device=device, dtype=torch.long),
                 "ages_sec": torch.empty(1, 0, device=device, dtype=dtype),
+                "frame_indices": torch.empty(
+                    1, 0, device=device, dtype=torch.long),
             }
         return {
             "features": torch.cat(features, dim=-1).unsqueeze(0).to(
@@ -297,6 +540,8 @@ class CausalQueryMemoryBank:
             "scores": torch.cat(scores).unsqueeze(0).to(device=device, dtype=dtype),
             "labels": torch.cat(labels).unsqueeze(0).to(device=device),
             "ages_sec": torch.cat(ages).unsqueeze(0).to(device=device, dtype=dtype),
+            "frame_indices": torch.cat(frame_indices).unsqueeze(0).to(
+                device=device),
         }
 
     def push(

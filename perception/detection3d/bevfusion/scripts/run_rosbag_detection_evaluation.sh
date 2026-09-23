@@ -22,6 +22,7 @@ temporal_sweeps="${BEVFUSION_EVAL_TEMPORAL_SWEEPS:-0}"
 temporal_maximum_age_sec="${BEVFUSION_EVAL_TEMPORAL_MAXIMUM_AGE_SEC:-0.30}"
 temporal_feature_cache="${BEVFUSION_EVAL_TEMPORAL_FEATURE_CACHE:-false}"
 query_memory_context="${BEVFUSION_EVAL_QUERY_MEMORY_CONTEXT:-false}"
+query_memory_diagnostics_path="${BEVFUSION_EVAL_QUERY_MEMORY_DIAGNOSTICS_PATH:-$output_dir/query_memory_diagnostics.jsonl}"
 publish_detector_velocity="${BEVFUSION_EVAL_PUBLISH_DETECTOR_VELOCITY:-false}"
 detector_velocity_noise_std_mps="${BEVFUSION_EVAL_DETECTOR_VELOCITY_NOISE_STD_MPS:-1.0}"
 gt_reference="${BEVFUSION_EVAL_GT_REFERENCE:-bbox-center-calibrated-v1}"
@@ -75,6 +76,7 @@ roslaunch bevfusion_ros base3_online.launch \
   temporal_maximum_age_sec:="$temporal_maximum_age_sec" \
   temporal_feature_cache:="$temporal_feature_cache" \
   query_memory_context:="$query_memory_context" \
+  query_memory_diagnostics_path:="$query_memory_diagnostics_path" \
   publish_detector_velocity:="$publish_detector_velocity" \
   detector_velocity_noise_std_mps:="$detector_velocity_noise_std_mps" \
   >"$output_dir/bevfusion_bridge.log" 2>&1 &
@@ -168,5 +170,13 @@ with open(path, "w", encoding="utf-8") as handle:
     json.dump(report, handle, indent=2, sort_keys=True)
     handle.write("\n")
 PY
+
+if [[ -s "$query_memory_diagnostics_path" ]]; then
+  /usr/bin/python3 \
+    perception/detection3d/bevfusion/tools/summarize_query_memory_diagnostics.py \
+    "$query_memory_diagnostics_path" \
+    --output "$output_dir/query_memory_diagnostics_summary.json" \
+    >/dev/null
+fi
 
 echo "[evaluation] $label -> $output_dir/summary.json"

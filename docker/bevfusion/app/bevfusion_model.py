@@ -99,6 +99,7 @@ class BevFusionModel:
         )
         self.warmup_iterations = max(0, int(warmup_iterations))
         self.warmed_up = False
+        self.last_query_memory_diagnostics = {}
         if torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
             torch.backends.cuda.matmul.allow_tf32 = True
@@ -139,6 +140,8 @@ class BevFusionModel:
             torch.cuda.synchronize()
         start = time.perf_counter()
         result = self._forward(batch)[0]
+        self.last_query_memory_diagnostics = \
+            self._collect_query_memory_diagnostics()
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         inference_ms = (time.perf_counter() - start) * 1000.0
@@ -167,6 +170,42 @@ class BevFusionModel:
                 }
             )
         return detections, preprocess_ms, inference_ms
+
+    def _collect_query_memory_diagnostics(self):
+        """Expose scalar Q1 association diagnostics to the ROS client."""
+        head = getattr(self.model, "bbox_head", None)
+        memory = getattr(head, "query_memory", None)
+        if memory is None:
+            return {}
+        names = (
+            "last_active_query_fraction",
+            "last_mean_attention_age_sec",
+            "last_mutual_pair_fraction",
+            "last_consensus_query_fraction",
+            "last_fallback_query_fraction",
+            "last_association_distance_mean_m",
+            "last_association_distance_p95_m",
+            "last_pair_velocity_dispersion_mean_mps",
+            "last_pair_velocity_dispersion_p95_mps",
+            "last_query_switch_fraction",
+            "last_consensus_pair_count_mean",
+            "last_single_pair_query_fraction",
+        )
+        output = {}
+        for name in names:
+            value = getattr(memory, name, None)
+            if value is None:
+                continue
+            if torch.is_tensor(value):
+                if value.numel() != 1:
+                    continue
+                value = value.detach().float().cpu().item()
+            output[name.removeprefix("last_")] = float(value)
+        fusion = getattr(head, "query_memory_velocity_fusion_logit", None)
+        if fusion is not None:
+            output["velocity_fusion_gate"] = float(
+                torch.sigmoid(fusion.detach().float()).cpu().item())
+        return output
 
     def _warm_up_before_ready(self):
         """Materialize CUDA kernels before the server advertises readiness.

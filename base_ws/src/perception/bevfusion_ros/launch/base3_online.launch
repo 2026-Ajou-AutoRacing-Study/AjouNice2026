@@ -35,6 +35,7 @@
   <!-- Q1 sparse query-memory needs timestamp and current LiDAR world pose,
        but does not require multi-sweep points or the dense feature cache. -->
   <arg name="query_memory_context" default="false"/>
+  <arg name="query_memory_diagnostics_path" default=""/>
   <!-- Base3 E25 is 7D, so velocity remains opt-in. Base4 9D experiments
        explicitly enable this contract. -->
   <arg name="publish_detector_velocity" default="false"/>
@@ -68,6 +69,8 @@
            value="$(arg temporal_feature_cache)"/>
     <param name="query_memory_context"
            value="$(arg query_memory_context)"/>
+    <param name="query_memory_diagnostics_path"
+           value="$(arg query_memory_diagnostics_path)"/>
     <param name="publish_detector_velocity"
            value="$(arg publish_detector_velocity)"/>
     <param name="detector_velocity_noise_std_mps"

@@ -132,6 +132,15 @@ P3의 다중-frame direct motion은 scene-disjoint speed MAE `0.845 m/s`로 첫 
 [`260923_BASE4_Q1_P3_ROBUST_MOTION_RESULTS.md`](260923_BASE4_Q1_P3_ROBUST_MOTION_RESULTS.md)를
 따른다.
 
+P4의 mutual matching + robust consensus는 기각했다. 엄격 2-frame consensus는 exact64
+speed MAE가 `1.998 m/s`로 붕괴했고, 단일 mutual pair를 35 m/s cap 아래에서 허용한
+P4b도 hardcase best `1.274 m/s`로 P3 `0.845 m/s`보다 악화했다. 동일 P3 가중치의
+재학습 없는 비교에서도 P4b velocity만 `0.845 → 1.419 m/s`로 악화해 association hard
+gate가 원인임을 분리했다. rosbag/tracker gate는 열지 않았으며 P3를 연구 baseline으로
+유지한다. 상세 결과는
+[`260923_BASE4_Q1_P4_ROBUST_ASSOCIATION_RESULTS.md`](260923_BASE4_Q1_P4_ROBUST_ASSOCIATION_RESULTS.md)를
+따른다.
+
 ## 중단·전환 기준
 
 - exact overfit도 실패: implementation/loss 연결 문제부터 수정한다.

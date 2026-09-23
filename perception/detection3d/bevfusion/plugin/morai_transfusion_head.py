@@ -137,6 +137,7 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
             memory["scores"],
             memory["labels"],
             memory["ages_sec"],
+            memory["frame_indices"],
         )
         temporal_velocity = None
         temporal_velocity_active = None
@@ -148,7 +149,7 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
                     self.query_memory.last_direct_velocity
                     + temporal_velocity)
             temporal_velocity_active = (
-                self.query_memory.last_active_query_mask[:, None, :]
+                self.query_memory.last_direct_velocity_active_mask[:, None, :]
                 .to(dtype=temporal_velocity.dtype))
         self._last_temporal_velocity = temporal_velocity
         self._last_temporal_velocity_active = temporal_velocity_active

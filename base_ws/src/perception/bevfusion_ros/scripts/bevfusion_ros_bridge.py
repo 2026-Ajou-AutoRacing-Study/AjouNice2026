@@ -94,6 +94,17 @@ class BevFusionRosBridge:
             rospy.get_param("~temporal_feature_cache", False))
         self.query_memory_context = bool(
             rospy.get_param("~query_memory_context", False))
+        self.query_memory_diagnostics_path = os.path.abspath(
+            os.path.expanduser(str(rospy.get_param(
+                "~query_memory_diagnostics_path", "")))) \
+            if rospy.get_param("~query_memory_diagnostics_path", "") else ""
+        self.query_memory_diagnostics_handle = None
+        if self.query_memory_diagnostics_path:
+            parent = os.path.dirname(self.query_memory_diagnostics_path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            self.query_memory_diagnostics_handle = open(
+                self.query_memory_diagnostics_path, "a", buffering=1)
         self.temporal_maximum_age_sec = float(
             rospy.get_param("~temporal_maximum_age_sec", 0.30))
         if self.temporal_feature_cache and self.temporal_sweeps <= 0:
@@ -586,6 +597,7 @@ class BevFusionRosBridge:
             self._publish_projection(response, response_blobs)
         else:
             self._publish_detections(response, stamp)
+            self._write_query_memory_diagnostics(response, metadata)
         self._publish_status(
             "ok operation={} sequence={} latency_ms={:.1f} host_preprocess_ms={:.1f} "
             "pointcloud_ms={:.1f} server_preprocess_ms={:.1f} "
@@ -611,6 +623,20 @@ class BevFusionRosBridge:
                 self.dropped_deskew_pose,
             )
         )
+
+    def _write_query_memory_diagnostics(self, response, request_metadata):
+        if self.query_memory_diagnostics_handle is None:
+            return
+        diagnostics = response.get("query_memory_diagnostics")
+        if not diagnostics:
+            return
+        record = {
+            "sequence": int(request_metadata.get("sequence", 0)),
+            "stamp": float(response.get("stamp", 0.0)),
+            "diagnostics": diagnostics,
+        }
+        self.query_memory_diagnostics_handle.write(
+            json.dumps(record, sort_keys=True) + "\n")
 
     def _publish_projection(self, response, blobs):
         stamp = rospy.Time.from_sec(float(response.get("stamp", 0.0)))
@@ -706,6 +732,9 @@ class BevFusionRosBridge:
     def shutdown(self):
         self.shutting_down = True
         self.transport.close()
+        if self.query_memory_diagnostics_handle is not None:
+            self.query_memory_diagnostics_handle.close()
+            self.query_memory_diagnostics_handle = None
         with self.pipeline_condition:
             self.pipeline_condition.notify_all()
         self.camera_executor.shutdown(wait=False)

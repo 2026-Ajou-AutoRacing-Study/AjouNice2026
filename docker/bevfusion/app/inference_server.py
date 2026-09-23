@@ -146,6 +146,8 @@ class InferenceServer:
                 "sequence": metadata.get("sequence", 0),
                 "frame_id": self.calibration["lidar_frame"],
                 "detections": detections,
+                "query_memory_diagnostics": (
+                    self.model.last_query_memory_diagnostics),
                 "preprocess_ms": preprocess_ms,
                 "inference_ms": inference_ms,
                 "server_ms": (time.monotonic() - request_start) * 1000.0,

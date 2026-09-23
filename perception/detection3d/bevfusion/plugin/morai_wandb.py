@@ -163,6 +163,26 @@ class MoraiEpochLrHook(Hook):
                 'epoch/query_memory_residual_gate_mean',
             'query_center_refinement_m':
                 'epoch/query_center_refinement_m_mean',
+            'query_memory_mutual_pair_fraction':
+                'epoch/query_memory_mutual_pair_fraction_mean',
+            'query_memory_consensus_fraction':
+                'epoch/query_memory_consensus_fraction_mean',
+            'query_memory_fallback_fraction':
+                'epoch/query_memory_fallback_fraction_mean',
+            'query_memory_association_distance_mean_m':
+                'epoch/query_memory_association_distance_mean_m',
+            'query_memory_association_distance_p95_m':
+                'epoch/query_memory_association_distance_p95_m_mean',
+            'query_memory_pair_dispersion_mean_mps':
+                'epoch/query_memory_pair_dispersion_mean_mps',
+            'query_memory_pair_dispersion_p95_mps':
+                'epoch/query_memory_pair_dispersion_p95_mps_mean',
+            'query_memory_switch_fraction':
+                'epoch/query_memory_switch_fraction_mean',
+            'query_memory_consensus_pair_count':
+                'epoch/query_memory_consensus_pair_count_mean',
+            'query_memory_single_pair_fraction':
+                'epoch/query_memory_single_pair_fraction_mean',
         }
         for source, target in aliases.items():
             value = self._history_mean(runner, source, window_size)
@@ -189,6 +209,26 @@ class MoraiQueryMemoryStatsHook(Hook):
             'train/query_memory_age_sec': memory.last_mean_attention_age_sec,
             'train/query_memory_residual_gate':
                 memory.residual_logit.detach().sigmoid(),
+            'train/query_memory_mutual_pair_fraction':
+                memory.last_mutual_pair_fraction,
+            'train/query_memory_consensus_fraction':
+                memory.last_consensus_query_fraction,
+            'train/query_memory_fallback_fraction':
+                memory.last_fallback_query_fraction,
+            'train/query_memory_association_distance_mean_m':
+                memory.last_association_distance_mean_m,
+            'train/query_memory_association_distance_p95_m':
+                memory.last_association_distance_p95_m,
+            'train/query_memory_pair_dispersion_mean_mps':
+                memory.last_pair_velocity_dispersion_mean_mps,
+            'train/query_memory_pair_dispersion_p95_mps':
+                memory.last_pair_velocity_dispersion_p95_mps,
+            'train/query_memory_switch_fraction':
+                memory.last_query_switch_fraction,
+            'train/query_memory_consensus_pair_count':
+                memory.last_consensus_pair_count_mean,
+            'train/query_memory_single_pair_fraction':
+                memory.last_single_pair_query_fraction,
         }
         refinement = getattr(head, 'last_query_center_refinement_m', None)
         if refinement is not None:
