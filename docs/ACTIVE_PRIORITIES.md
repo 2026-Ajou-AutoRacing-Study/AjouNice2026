@@ -114,6 +114,11 @@
   fusion은 exact overfit에서 악화되어 기각했다. `<1.0 m/s` gate를 근소하게 넘었으므로
   production 적용 없이 memory-active/fallback, jitter, 개발 rosbag과 latency를 다음
   gate로 둔다.
+- Q1-P2 gate 90%를 실제 Docker online context로 두 개발 bag에 적용했다. speed MAE는
+  T1 대비 합류 `3.419 → 1.277 m/s`, highway1 `2.589 → 2.288 m/s`로 개선됐지만,
+  highway1 adjacent error-step p95가 `8.351 m/s`로 악화했다. 5060 Ti mean latency도
+  `93.5--95.3 ms`로 12 Hz budget을 넘었다. 평균 성능만으로 detector velocity fusion을
+  열지 않으며, 다음은 다중-frame robust motion으로 query switch/jitter를 줄이는 P3다.
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.

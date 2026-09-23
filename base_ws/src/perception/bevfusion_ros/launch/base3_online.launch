@@ -32,6 +32,9 @@
   <!-- Research-only recurrent feature cache. It sends only the current sweep
        plus its LiDAR world pose; the Docker model reuses prior encoded BEV. -->
   <arg name="temporal_feature_cache" default="false"/>
+  <!-- Q1 sparse query-memory needs timestamp and current LiDAR world pose,
+       but does not require multi-sweep points or the dense feature cache. -->
+  <arg name="query_memory_context" default="false"/>
   <!-- Base3 E25 is 7D, so velocity remains opt-in. Base4 9D experiments
        explicitly enable this contract. -->
   <arg name="publish_detector_velocity" default="false"/>
@@ -63,6 +66,8 @@
            value="$(arg temporal_maximum_age_sec)"/>
     <param name="temporal_feature_cache"
            value="$(arg temporal_feature_cache)"/>
+    <param name="query_memory_context"
+           value="$(arg query_memory_context)"/>
     <param name="publish_detector_velocity"
            value="$(arg publish_detector_velocity)"/>
     <param name="detector_velocity_noise_std_mps"

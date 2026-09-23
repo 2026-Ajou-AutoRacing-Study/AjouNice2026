@@ -92,6 +92,8 @@ class BevFusionRosBridge:
             0, int(rospy.get_param("~temporal_sweeps", 0)))
         self.temporal_feature_cache = bool(
             rospy.get_param("~temporal_feature_cache", False))
+        self.query_memory_context = bool(
+            rospy.get_param("~query_memory_context", False))
         self.temporal_maximum_age_sec = float(
             rospy.get_param("~temporal_maximum_age_sec", 0.30))
         if self.temporal_feature_cache and self.temporal_sweeps <= 0:
@@ -201,7 +203,11 @@ class BevFusionRosBridge:
                 buff_size=32 * 1024 * 1024,
             )
         )
-        if self.lidar_deskew_mode == "ego_pose_2d" or self.temporal_sweeps > 0:
+        if (
+            self.lidar_deskew_mode == "ego_pose_2d"
+            or self.temporal_sweeps > 0
+            or self.query_memory_context
+        ):
             pose_message_type = (
                 Odometry
                 if self.lidar_deskew_pose_type == "odometry"
@@ -430,7 +436,7 @@ class BevFusionRosBridge:
             deskew_ms = (time.monotonic() - deskew_start) * 1000.0
         points_for_history = np.asarray(points, dtype=np.float32)
         temporal_lidar_pose_world = None
-        if self.temporal_feature_cache:
+        if self.temporal_feature_cache or self.query_memory_context:
             pose_samples = self.ego_pose_buffer.snapshot()
             temporal_lidar_pose_world = lidar_world_pose_at_time(
                 pose_samples,
@@ -441,7 +447,8 @@ class BevFusionRosBridge:
                     self.lidar_deskew_maximum_extrapolation_sec),
             )
             if temporal_lidar_pose_world is None:
-                raise ValueError("temporal feature cache pose coverage is insufficient")
+                raise ValueError("temporal model pose coverage is insufficient")
+        if self.temporal_feature_cache:
             points = np.concatenate(
                 [points_for_history,
                  np.zeros((len(points_for_history), 1), np.float32)],
@@ -507,7 +514,8 @@ class BevFusionRosBridge:
             ),
         }
         if temporal_lidar_pose_world is not None:
-            metadata["temporal_feature_cache"] = True
+            metadata["temporal_feature_cache"] = self.temporal_feature_cache
+            metadata["query_memory_context"] = self.query_memory_context
             metadata["lidar_pose_world"] = [
                 float(value) for value in temporal_lidar_pose_world
             ]

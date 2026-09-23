@@ -116,3 +116,34 @@ P2는 Q1에서 처음으로 실용 gate에 근접한 구조다. 단, `1.070 m/s`
 
 현재 남은 차이는 더 큰 temporal network보다 association coverage, 첫 frame fallback,
 불규칙 delta-time과 center jitter를 분리해 줄이는 것이 우선이다.
+
+## 개발 rosbag gate
+
+학습 직후 온라인 runtime을 감사한 결과, 기존 Docker 전처리는 Q1 head가 요구하는
+`scene_id`, `timestamp`, `lidar2global`을 data sample에 넣지 않았고 ROS bridge도 sparse
+query-memory용 LiDAR world pose를 보내지 않았다. 다음 opt-in 계약을 추가했다.
+
+- launch `query_memory_context:=true`일 때 Ego pose를 buffering하고 LiDAR timestamp의
+  world pose를 Docker로 보낸다.
+- Docker online preprocessor가 `scene_id`, `timestamp`, `lidar2global`을 model meta로
+  구성한다.
+- Q1 config는 pose가 없으면 identity pose로 조용히 실행하지 않고 명시적으로 실패한다.
+- 기본값은 `false`라 E25 production 실행은 바뀌지 않는다.
+
+gate 90% E3를 Vehicle `0.40`, detector velocity 발행 on, deskew off로 기존 개발 bag에
+적용했다.
+
+| Bag | frame coverage | center mAP | F1@1m | speed MAE | signed bias | error-step p50 / p95 | latency mean / p95 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| highway1 | 452/452 | 0.7459 | 0.9532 | 2.288 m/s | +1.598 | 1.292 / 8.351 m/s | 93.5 / 105.4 ms |
+| highway merge | 421/422 | 0.5309 | 0.7690 | 1.277 m/s | +0.508 | 0.798 / 4.030 m/s | 95.3 / 119.4 ms |
+
+동일 temporal evaluator의 T1 E6와 비교하면 합류 speed MAE는 `3.419 -> 1.277 m/s`,
+highway1은 `2.589 -> 2.288 m/s`로 개선됐다. 그러나 highway1 error-step p95는
+`3.810 -> 8.351 m/s`로 크게 악화했고, 5060 Ti latency도 12 Hz budget `83 ms`를
+초과했다.
+
+따라서 **평균 velocity 개선은 rosbag에서도 재현됐지만 temporal stability와 latency
+gate는 실패**했다. tracker velocity fusion과 production 적용은 계속 보류한다. 다음 P3는
+다중-frame robust association/motion으로 1-frame query switch를 억제하며, runtime
+최적화는 정확도 gate와 분리한다.

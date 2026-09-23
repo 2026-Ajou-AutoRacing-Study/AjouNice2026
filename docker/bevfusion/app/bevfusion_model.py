@@ -54,6 +54,9 @@ class BevFusionModel:
     ):
         config = Config.fromfile(config_path)
         config.model.img_backbone.init_cfg = None
+        bbox_head_type = str(config.model.bbox_head.get("type", ""))
+        self.requires_query_memory_context = (
+            bbox_head_type == "MoraiQueryMemoryTransFusionHead")
         self.model = init_model(config, checkpoint_path, device=device)
         self.model.eval()
         self.classes = list(config.get("metainfo", {}).get(
@@ -118,7 +121,15 @@ class BevFusionModel:
             image_blobs,
             sample_idx,
             images_preprocessed=images_preprocessed,
+            timestamp_sec=0.0 if timestamp_sec is None else timestamp_sec,
+            lidar_pose_world=lidar_pose_world,
+            scene_id="online",
         )
+
+        if self.requires_query_memory_context:
+            if timestamp_sec is None or lidar_pose_world is None:
+                raise ValueError(
+                    "query-memory inference requires timestamp and LiDAR pose")
         preprocess_ms = (time.perf_counter() - preprocess_start) * 1000.0
 
         if not self.warmed_up:
@@ -183,6 +194,9 @@ class BevFusionModel:
             images,
             sample_idx="startup_warmup",
             images_preprocessed=True,
+            timestamp_sec=0.0,
+            lidar_pose_world=(0.0, 0.0, 0.0, 0.0),
+            scene_id="startup_warmup",
         )
         self._warm_up(batch)
 

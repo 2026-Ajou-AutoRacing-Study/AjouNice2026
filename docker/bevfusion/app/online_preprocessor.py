@@ -63,7 +63,14 @@ class Base3OnlinePreprocessor:
         self.img_aug_matrix = np.stack(self.img_aug_matrix)
 
     def prepare(
-        self, points, image_blobs, sample_idx=0, images_preprocessed=False
+        self,
+        points,
+        image_blobs,
+        sample_idx=0,
+        images_preprocessed=False,
+        timestamp_sec=0.0,
+        lidar_pose_world=None,
+        scene_id="runtime",
     ):
         """Return a pseudo-collated batch accepted directly by model.test_step."""
         cameras = self.calibration["cameras"]
@@ -86,8 +93,12 @@ class Base3OnlinePreprocessor:
         point_tensor = torch.from_numpy(points)
 
         data_sample = Det3DDataSample()
+        lidar2global = self._lidar2global(lidar_pose_world)
         data_sample.set_metainfo({
             "sample_idx": str(sample_idx),
+            "scene_id": str(scene_id),
+            "timestamp": float(timestamp_sec),
+            "lidar2global": lidar2global,
             "num_pts_feats": self.point_dim,
             "num_views": len(cameras),
             "box_type_3d": LiDARInstance3DBoxes,
@@ -103,6 +114,24 @@ class Base3OnlinePreprocessor:
             "inputs": {"points": [point_tensor], "img": [image_tensor]},
             "data_samples": [data_sample],
         }
+
+    @staticmethod
+    def _lidar2global(lidar_pose_world):
+        matrix = np.eye(4, dtype=np.float32)
+        if lidar_pose_world is None:
+            return matrix
+        values = np.asarray(lidar_pose_world, dtype=np.float64).reshape(-1)
+        if values.size != 4 or not np.isfinite(values).all():
+            raise ValueError(
+                "lidar_pose_world must contain finite x, y, z, yaw")
+        x, y, z, yaw = values.tolist()
+        cosine, sine = np.cos(yaw), np.sin(yaw)
+        matrix[0, 0] = cosine
+        matrix[0, 1] = -sine
+        matrix[1, 0] = sine
+        matrix[1, 1] = cosine
+        matrix[:3, 3] = (x, y, z)
+        return matrix
 
     def close(self):
         if self.executor is not None:
