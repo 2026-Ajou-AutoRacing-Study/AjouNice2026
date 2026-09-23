@@ -106,9 +106,14 @@
   `4.075` 대비 memory-on `3.854 m/s`로 `5.4%` 개선됐지만 `<1.0 m/s` gate에는
   실패했다. 이어서 P1은 motion을 attention logit뿐 아니라 value에 직접 넣고 temporal
   velocity auxiliary head를 추가해 best speed MAE를 `3.133 m/s`까지 낮췄다. P0
-  memory-on 대비 `18.7%` 개선이고 공간 mAP은 보존됐지만 절대 gate에는 여전히
-  실패했다. Production 적용 없이 GT identity displacement-consistency와
-  counterfactual mini split을 다음 gate로 둔다.
+  memory-on 대비 `18.7%` 개선이고 공간 mAP은 보존됐다. 이후 P2 감사에서 현재 frame의
+  decoder 전 center와 memory의 decoder 후 center를 비교해 평균 `~0.48 m`의 decoder
+  correction이 가짜 motion으로 들어가던 문제를 찾았다. 양쪽을 post-decoder center로
+  통일하고 temporal velocity fusion을 90%로 둔 결과 hardcase V2 scene-disjoint speed
+  MAE가 `3.133 → 1.070 m/s`로 `65.8%` 개선됐고 공간 mAP도 보존됐다. 99% 강제에 가까운
+  fusion은 exact overfit에서 악화되어 기각했다. `<1.0 m/s` gate를 근소하게 넘었으므로
+  production 적용 없이 memory-active/fallback, jitter, 개발 rosbag과 latency를 다음
+  gate로 둔다.
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.

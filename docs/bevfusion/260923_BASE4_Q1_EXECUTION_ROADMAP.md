@@ -1,7 +1,7 @@
 # Base4 Q1 실행 로드맵
 
 > 날짜: 2026-09-23.
-> 상태: Q1-P1 motion-value gate까지 완료한 CURRENT 계획.
+> 상태: Q1-P2 post-decoder motion gate까지 완료한 CURRENT 계획.
 > 목표: 고주로 Vehicle velocity와 downstream 추월 판단을 개선하되 E25 production을
 > 흔들지 않는다.
 
@@ -107,9 +107,15 @@ Q1과 tracker/prediction 변경을 한 실험에서 동시에 튜닝하지 않�
 - P1에서 `(delta center / delta-time, age)`를 memory value에 명시적으로 넣고 temporal
   velocity auxiliary head를 추가했다. Hardcase V2 scene-disjoint best speed MAE는
   `3.854 → 3.133 m/s`로 P0보다 `18.7%` 개선됐고 공간 mAP도 보존됐다.
-- 다만 `<1.0 m/s` gate에는 여전히 실패했다. P1 checkpoint도 rosbag/production 후보가
-  아니며, 다음은 GT identity를 학습/진단에만 사용하는 실제 displacement-consistency
-  target과 counterfactual mini split이다.
+- P1은 현재 frame의 decoder 전 proposal center와 memory의 decoder 후 center를 비교했다.
+  decoder refinement 평균 `~0.48 m`가 `~0.15 s` 간격에서 `~3.2 m/s`의 가짜 motion이 될
+  수 있는 구조 오류였다.
+- P2는 양쪽 center를 decoder 후 기준으로 통일했다. Hardcase V2 scene-disjoint에서
+  temporal velocity 90% fusion은 best speed MAE를 `3.133 → 1.070 m/s`로 `65.8%`
+  개선했고 center mAP도 보존했다. 99% gate는 exact overfit에서 90%보다 악화되어
+  기각했다.
+- `<1.0 m/s` gate에는 근소하게 실패했으므로 아직 production 후보는 아니다. 다음은
+  memory-active/fallback 분리 진단, adjacent-frame jitter, 개발 rosbag과 latency gate다.
 
 구현 및 결과 문서는
 [`260923_BASE4_Q1_P0_QUERY_MEMORY_RESULTS.md`](260923_BASE4_Q1_P0_QUERY_MEMORY_RESULTS.md)를
@@ -117,6 +123,9 @@ Q1과 tracker/prediction 변경을 한 실험에서 동시에 튜닝하지 않�
 [`260923_BASE4_Q1_P1_MOTION_VALUE_RESULTS.md`](260923_BASE4_Q1_P1_MOTION_VALUE_RESULTS.md)를
 따른다. P1의 auxiliary target은 기존 velocity annotation이며 GT identity 기반
 displacement-consistency loss는 아직 구현하지 않았다.
+P2의 center-contract 수정과 gate A/B는
+[`260923_BASE4_Q1_P2_POSTDECODER_MOTION_RESULTS.md`](260923_BASE4_Q1_P2_POSTDECODER_MOTION_RESULTS.md)를
+따른다.
 
 ## 중단·전환 기준
 

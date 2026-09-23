@@ -161,6 +161,8 @@ class MoraiEpochLrHook(Hook):
             'query_memory_age_sec': 'epoch/query_memory_age_sec_mean',
             'query_memory_residual_gate':
                 'epoch/query_memory_residual_gate_mean',
+            'query_center_refinement_m':
+                'epoch/query_center_refinement_m_mean',
         }
         for source, target in aliases.items():
             value = self._history_mean(runner, source, window_size)
@@ -188,5 +190,8 @@ class MoraiQueryMemoryStatsHook(Hook):
             'train/query_memory_residual_gate':
                 memory.residual_logit.detach().sigmoid(),
         }
+        refinement = getattr(head, 'last_query_center_refinement_m', None)
+        if refinement is not None:
+            values['train/query_center_refinement_m'] = refinement
         for name, value in values.items():
             runner.message_hub.update_scalar(name, float(value))

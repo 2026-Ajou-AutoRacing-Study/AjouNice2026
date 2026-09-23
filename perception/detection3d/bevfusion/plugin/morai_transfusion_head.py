@@ -50,6 +50,7 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
         memory_reset_gap_sec=0.30,
         temporal_velocity_aux_weight=0.0,
         initial_velocity_fusion_logit=-2.0,
+        query_memory_after_decoder=False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -66,6 +67,7 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
         )
         self.temporal_velocity_aux_weight = float(
             temporal_velocity_aux_weight)
+        self.query_memory_after_decoder = bool(query_memory_after_decoder)
         if self.temporal_velocity_aux_weight > 0.0:
             channels = int(query_memory["channels"])
             self.query_memory_velocity_head = nn.Sequential(
@@ -82,6 +84,7 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
             self.register_parameter(
                 "query_memory_velocity_fusion_logit", None)
         self.last_temporal_velocity_pair_fraction = None
+        self.last_query_center_refinement_m = None
 
     @staticmethod
     def _pose_from_lidar2global(matrix):
@@ -114,6 +117,47 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
             float(self.test_cfg['pc_range'][1]) + metric[..., 1] * stride_y
         )
         return metric
+
+    def _apply_query_memory(
+        self,
+        query_feat,
+        query_pos,
+        top_proposals_class,
+        memory,
+    ):
+        query_feat = self.query_memory(
+            query_feat,
+            self._grid_to_metric(query_pos),
+            top_proposals_class,
+            memory["features"],
+            memory["centers_xy"],
+            memory["scores"],
+            memory["labels"],
+            memory["ages_sec"],
+        )
+        temporal_velocity = None
+        temporal_velocity_active = None
+        if self.query_memory_velocity_head is not None:
+            temporal_velocity = self.query_memory_velocity_head(
+                self.query_memory.last_motion_context)
+            temporal_velocity_active = (
+                self.query_memory.last_active_query_mask[:, None, :]
+                .to(dtype=temporal_velocity.dtype))
+        self._last_temporal_velocity = temporal_velocity
+        self._last_temporal_velocity_active = temporal_velocity_active
+        return query_feat, temporal_velocity, temporal_velocity_active
+
+    def _fuse_temporal_velocity(
+        self,
+        result,
+        temporal_velocity,
+        temporal_velocity_active,
+    ):
+        if temporal_velocity is None or 'vel' not in result:
+            return
+        fusion = torch.sigmoid(self.query_memory_velocity_fusion_logit)
+        result['vel'] = result['vel'] + temporal_velocity_active * (
+            fusion * (temporal_velocity - result['vel']))
 
     def forward_single(self, inputs, metas):
         if inputs.shape[0] != 1 or len(metas) != 1:
@@ -174,6 +218,7 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
                 -1, -1, bev_pos.shape[-1]),
             dim=1,
         )
+        initial_query_metric = self._grid_to_metric(query_pos).detach()
 
         memory = self.query_memory_bank.prepare(
             scene_id,
@@ -183,26 +228,12 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
             device=query_feat.device,
             dtype=query_feat.dtype,
         )
-        query_feat = self.query_memory(
-            query_feat,
-            self._grid_to_metric(query_pos),
-            top_proposals_class,
-            memory["features"],
-            memory["centers_xy"],
-            memory["scores"],
-            memory["labels"],
-            memory["ages_sec"],
-        )
         temporal_velocity = None
         temporal_velocity_active = None
-        if self.query_memory_velocity_head is not None:
-            temporal_velocity = self.query_memory_velocity_head(
-                self.query_memory.last_motion_context)
-            temporal_velocity_active = (
-                self.query_memory.last_active_query_mask[:, None, :]
-                .to(dtype=temporal_velocity.dtype))
-        self._last_temporal_velocity = temporal_velocity
-        self._last_temporal_velocity_active = temporal_velocity_active
+        if not self.query_memory_after_decoder:
+            query_feat, temporal_velocity, temporal_velocity_active = (
+                self._apply_query_memory(
+                    query_feat, query_pos, top_proposals_class, memory))
 
         ret_dicts = []
         for layer_index in range(self.num_decoder_layers):
@@ -214,13 +245,24 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
             )
             result = self.prediction_heads[layer_index](query_feat)
             result['center'] = result['center'] + query_pos.permute(0, 2, 1)
-            if temporal_velocity is not None and 'vel' in result:
-                fusion = torch.sigmoid(
-                    self.query_memory_velocity_fusion_logit)
-                result['vel'] = result['vel'] + temporal_velocity_active * (
-                    fusion * (temporal_velocity - result['vel']))
+            next_query_pos = result['center'].detach().clone().permute(0, 2, 1)
+            if (
+                self.query_memory_after_decoder
+                and layer_index == self.num_decoder_layers - 1
+            ):
+                query_feat, temporal_velocity, temporal_velocity_active = (
+                    self._apply_query_memory(
+                        query_feat, next_query_pos,
+                        top_proposals_class, memory))
+            self._fuse_temporal_velocity(
+                result, temporal_velocity, temporal_velocity_active)
             ret_dicts.append(result)
-            query_pos = result['center'].detach().clone().permute(0, 2, 1)
+            query_pos = next_query_pos
+
+        with torch.no_grad():
+            final_query_metric = self._grid_to_metric(query_pos)
+            self.last_query_center_refinement_m = torch.linalg.vector_norm(
+                final_query_metric - initial_query_metric, dim=-1).mean()
 
         proposal_scores = heatmap.gather(
             index=top_proposals_index[:, None, :].expand(
