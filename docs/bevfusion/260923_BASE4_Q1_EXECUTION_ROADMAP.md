@@ -1,7 +1,7 @@
 # Base4 Q1 실행 로드맵
 
 > 날짜: 2026-09-23.
-> 상태: Q1-P5 shadow soft-blend 판정까지 완료한 CURRENT 계획.
+> 상태: Q1-P6 age-weighted motion 및 tracker gate 판정까지 완료한 CURRENT 계획.
 > 목표: 고주로 Vehicle velocity와 downstream 추월 판단을 개선하되 E25 production을
 > 흔들지 않는다.
 
@@ -149,6 +149,21 @@ checkpoint의 재학습 없는 hardcase 비교에서 blend `0.00/0.10/0.25`의 s
 query feature similarity 또는 tracker innovation처럼 identity 정보가 추가될 때만 재개한다.
 상세 결과는
 [`260923_BASE4_Q1_P5_SHADOW_SOFT_BLEND_RESULTS.md`](260923_BASE4_Q1_P5_SHADOW_SOFT_BLEND_RESULTS.md)를
+따른다.
+
+P6 진단에서는 hardcase val의 association 후보가 p50/p95 모두 `1`이었고, GT identity로
+사후 검증한 distance/feature matching도 `98/98`로 정확했다. 반면 정답 identity query
+center displacement 자체의 speed MAE가 `0.846 m/s`여서, 오매칭보다 짧은 `dt`의 center
+jitter가 병목임을 확인했다. Pair weight에 `dt^2`를 적용한 fixed-intercept WLS는 재학습
+없이 hardcase speed MAE를 `0.845 → 0.738 m/s`로 낮췄다. 개발 bag에서도 highway1
+speed MAE `1.581 → 0.872 m/s`, error-step p95 `5.569 → 1.492 m/s`로 개선했고 합류도
+동시에 개선했다.
+
+그러나 downstream tracker A/B에서는 position-only가 F1 `0.9329`, speed MAE
+`0.671 m/s`, AVE `0.821 m/s`와 stable minFDE-K 전 horizon에서 가장 좋았다. Detector
+velocity 매-frame update와 init-only 모두 이를 넘지 못했다. 따라서 P6는 detector 연구
+후보로 채택하되 production의 detector velocity fusion은 계속 끈다. 상세 결과는
+[`260923_BASE4_Q1_P6_AGE_WEIGHTED_MOTION_RESULTS.md`](260923_BASE4_Q1_P6_AGE_WEIGHTED_MOTION_RESULTS.md)를
 따른다.
 
 ## 중단·전환 기준

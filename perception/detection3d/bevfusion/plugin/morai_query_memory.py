@@ -86,6 +86,7 @@ class MoraiQueryMemoryAttention(nn.Module):
         robust_single_pair_max_speed_mps: float = 35.0,
         shadow_robust_association: bool = False,
         robust_velocity_blend: float = 0.0,
+        direct_velocity_age_power: float = 0.0,
     ) -> None:
         super().__init__()
         if channels % num_heads != 0:
@@ -110,6 +111,7 @@ class MoraiQueryMemoryAttention(nn.Module):
             robust_single_pair_max_speed_mps)
         self.shadow_robust_association = bool(shadow_robust_association)
         self.robust_velocity_blend = float(robust_velocity_blend)
+        self.direct_velocity_age_power = float(direct_velocity_age_power)
         if self.robust_min_consensus_frames < 2:
             raise ValueError("robust_min_consensus_frames must be >= 2")
         if self.robust_consensus_threshold_mps <= 0.0:
@@ -119,6 +121,8 @@ class MoraiQueryMemoryAttention(nn.Module):
                 "robust_single_pair_max_speed_mps must be positive")
         if not 0.0 <= self.robust_velocity_blend <= 1.0:
             raise ValueError("robust_velocity_blend must be in [0, 1]")
+        if self.direct_velocity_age_power < 0.0:
+            raise ValueError("direct_velocity_age_power must be non-negative")
 
         self.query_projection = nn.Linear(self.channels, self.channels)
         self.key_projection = nn.Linear(self.channels, self.channels)
@@ -452,6 +456,12 @@ class MoraiQueryMemoryAttention(nn.Module):
                 else velocity.new_tensor(0.0))
         else:
             velocity_weights = weights.mean(dim=1)
+            if self.direct_velocity_age_power > 0.0:
+                age_scale = memory_ages_sec[:, None, :].pow(
+                    self.direct_velocity_age_power)
+                velocity_weights = velocity_weights * age_scale
+                velocity_weights = velocity_weights / velocity_weights.sum(
+                    dim=-1, keepdim=True).clamp_min(1.0e-8)
             direct_velocity = torch.einsum(
                 "bnm,bnmd->bnd", velocity_weights, velocity)
             direct_velocity = direct_velocity * active[:, :, None]

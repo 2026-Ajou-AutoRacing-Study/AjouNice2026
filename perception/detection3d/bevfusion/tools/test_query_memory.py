@@ -187,6 +187,36 @@ def main():
     assert shadow_module.last_direct_velocity_active_mask.tolist() == [[True]]
     assert float(shadow_module.last_consensus_query_fraction) == 1.0
 
+    # P6 fixed-intercept WLS must suppress a noisy short-dt displacement in
+    # favour of the longer baseline. Zero logits make the two pair weights
+    # identical before the dt^2 reweighting.
+    pair_mean_module = MoraiQueryMemoryAttention(
+        channels=8, num_heads=2, maximum_association_distance_m=30.0)
+    age_wls_module = MoraiQueryMemoryAttention(
+        channels=8, num_heads=2, maximum_association_distance_m=30.0,
+        direct_velocity_age_power=2.0)
+    age_wls_module.load_state_dict(pair_mean_module.state_dict())
+    for candidate in (pair_mean_module, age_wls_module):
+        for parameter in candidate.parameters():
+            parameter.data.zero_()
+    wls_args = (
+        torch.zeros(1, 8, 1),
+        torch.tensor([[[3.0, 0.0]]]),
+        torch.tensor([[0]]),
+        torch.zeros(1, 8, 2),
+        # Pair velocities are 3 m/s at 0.1 s and 2 m/s at 0.5 s.
+        torch.tensor([[[2.7, 0.0], [2.0, 0.0]]]),
+        torch.tensor([[0.9, 0.9]]),
+        torch.zeros(1, 2, dtype=torch.long),
+        torch.tensor([[0.1, 0.5]]),
+    )
+    pair_mean_module(*wls_args)
+    age_wls_module(*wls_args)
+    pair_mean_speed = pair_mean_module.last_direct_velocity[0, 0, 0]
+    age_wls_speed = age_wls_module.last_direct_velocity[0, 0, 0]
+    assert torch.allclose(pair_mean_speed, torch.tensor(2.5), atol=1.0e-5)
+    assert abs(float(age_wls_speed) - 2.0) < abs(float(pair_mean_speed) - 2.0)
+
     bank = CausalQueryMemoryBank(
         max_frames=2, max_queries_per_frame=2, maximum_age_sec=0.6,
         reset_gap_sec=0.3)
