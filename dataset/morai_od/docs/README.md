@@ -2,6 +2,14 @@
 
 마지막 정리: 2026-09-22.
 
+## 사람 주행 평가 rosbag — CURRENT HANDOFF
+
+- [`260923_HUMAN_DRIVING_ROSBAG_CAPTURE_HANDOFF.md`](260923_HUMAN_DRIVING_ROSBAG_CAPTURE_HANDOFF.md)
+  - 새 clone, 최소 `morai_msgs + sensor_interface` 빌드, MR 시나리오 설치,
+    raw rosbag 시작·종료·자동 audit 절차.
+- [`../human_eval_capture/capture_plan.json`](../human_eval_capture/capture_plan.json)
+  - 고주로·회전교차로·보행자·장애물 run ID와 development/locked/training-candidate 역할.
+
 ## Base4 rosbag capture — CURRENT
 
 1. [`BASE4_ROSBAG_CAPTURE_CURRENT_STATE.md`](BASE4_ROSBAG_CAPTURE_CURRENT_STATE.md)

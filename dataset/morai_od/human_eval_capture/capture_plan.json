@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "dataset_role_policy": {
+    "development": "May be inspected while changing models, thresholds, tracker, or evaluator.",
+    "evaluation_locked": "Never train on this run and do not tune against individual frames.",
+    "training_candidate": "Keep sealed until an explicit decision promotes it into a training corpus."
+  },
+  "runs": [
+    {
+      "id": "H01",
+      "priority": 1,
+      "mission": "highway",
+      "role": "development",
+      "scenario": "ajounice_eval_highway_balanced.json",
+      "instruction": "One take: merge ramp at <=59 km/h, merge, cruise 80-100 km/h, make a safe pass, cover the lane-reduction bottleneck, continue to immediately before the toll/GPS-shadow section."
+    },
+    {
+      "id": "H02",
+      "priority": 1,
+      "mission": "highway",
+      "role": "evaluation_locked",
+      "scenario": "ajounice_eval_highway_slow_lead.json",
+      "instruction": "Same one-take route. Follow a slower lead briefly, observe both adjacent lanes, then pass only with a safe gap. Do not exceed 59 km/h before completing the merge."
+    },
+    {
+      "id": "H03",
+      "priority": 1,
+      "mission": "highway",
+      "role": "evaluation_locked",
+      "scenario": "ajounice_eval_highway_mixed_overtake.json",
+      "instruction": "Same one-take route. Include at least one relative-speed sign change: approach an NPC, pass it, and let it move behind Ego."
+    },
+    {
+      "id": "H04",
+      "priority": 1,
+      "mission": "highway",
+      "role": "evaluation_locked",
+      "scenario": "ajounice_eval_highway_fast_surround.json",
+      "instruction": "Same one-take route with conservative lane changes around faster surrounding traffic. Cover the bottleneck and finish before the toll/GPS-shadow section."
+    },
+    {
+      "id": "H05",
+      "priority": 2,
+      "mission": "highway",
+      "role": "training_candidate",
+      "scenario": "ajounice_eval_highway_balanced.json",
+      "instruction": "Repeat the complete highway route naturally. Vary lateral position within the lane and acceleration timing; do not imitate H01 exactly."
+    },
+    {
+      "id": "R01",
+      "priority": 2,
+      "mission": "roundabout",
+      "role": "development",
+      "scenario": "ajounice_eval_roundabout_nominal.json",
+      "instruction": "Approach, yield naturally, enter the roundabout, observe crossing NPCs, and exit. Do not stop the bag in the middle of the roundabout."
+    },
+    {
+      "id": "R02",
+      "priority": 2,
+      "mission": "roundabout",
+      "role": "evaluation_locked",
+      "scenario": "ajounice_eval_roundabout_slow.json",
+      "instruction": "Complete one natural approach-entry-exit pass. Preserve at least five seconds before the first interaction and after exit."
+    },
+    {
+      "id": "R03",
+      "priority": 3,
+      "mission": "roundabout",
+      "role": "evaluation_locked",
+      "scenario": "ajounice_eval_roundabout_fast.json",
+      "instruction": "Complete one conservative approach-entry-exit pass with the faster fixed traffic profile."
+    },
+    {
+      "id": "P01",
+      "priority": 2,
+      "mission": "pedestrian",
+      "role": "development",
+      "scenario": "ajounice_eval_pedestrian_crossing.json",
+      "instruction": "Start parked, approach the crossing naturally, yield to the official moving pedestrian, then pass after clearance. Keep at least five seconds before and after interaction."
+    },
+    {
+      "id": "P02",
+      "priority": 3,
+      "mission": "pedestrian",
+      "role": "evaluation_locked",
+      "scenario": "ajounice_eval_pedestrian_crossing.json",
+      "instruction": "Repeat with a different approach speed while remaining safe. Never train on this run."
+    },
+    {
+      "id": "O01",
+      "priority": 2,
+      "mission": "obstacle",
+      "role": "development",
+      "scenario": "ajounice_eval_obstacle_scale1_six_assets.json",
+      "instruction": "Drive past all six scale-1 assets at low speed. Observe them from front-oblique and side angles; do not collide."
+    },
+    {
+      "id": "O02",
+      "priority": 3,
+      "mission": "obstacle",
+      "role": "evaluation_locked",
+      "scenario": "ajounice_eval_obstacle_scale1_six_assets.json",
+      "instruction": "Repeat the six-asset corridor using a different safe lateral offset. WoodBox is intentionally excluded pending the official GT answer."
+    }
+  ]
+}
