@@ -119,6 +119,13 @@
   highway1 adjacent error-step p95가 `8.351 m/s`로 악화했다. 5060 Ti mean latency도
   `93.5--95.3 ms`로 12 Hz budget을 넘었다. 평균 성능만으로 detector velocity fusion을
   열지 않으며, 다음은 다중-frame robust motion으로 query switch/jitter를 줄이는 P3다.
+- Q1-P3는 최대 4개 memory frame의 attention-weighted center displacement를 직접 velocity
+  기준값으로 사용하고 learned residual만 보정한다. Hardcase V2 scene-disjoint E1에서
+  speed MAE `0.845 m/s`, center mAP `0.9106`으로 첫 `<1.0 m/s` gate를 통과했다. 개발
+  bag에서도 highway1 `1.582 m/s`, merge `1.021 m/s`까지 개선됐고 error-step p95도
+  P2 대비 각각 `8.351 → 5.569`, `4.030 → 3.367 m/s`로 줄었다. 다만 highway1 jitter는
+  T1 `3.810 m/s`보다 크고 latency는 `92.8--95.2 ms`다. P3를 다음 연구 baseline으로
+  삼되 production/fusion은 보류하고 robust association outlier gate를 P4로 진행한다.
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.

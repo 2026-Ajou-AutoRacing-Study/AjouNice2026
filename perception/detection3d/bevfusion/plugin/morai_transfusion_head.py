@@ -51,6 +51,7 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
         temporal_velocity_aux_weight=0.0,
         initial_velocity_fusion_logit=-2.0,
         query_memory_after_decoder=False,
+        direct_motion_velocity_residual=False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -68,6 +69,8 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
         self.temporal_velocity_aux_weight = float(
             temporal_velocity_aux_weight)
         self.query_memory_after_decoder = bool(query_memory_after_decoder)
+        self.direct_motion_velocity_residual = bool(
+            direct_motion_velocity_residual)
         if self.temporal_velocity_aux_weight > 0.0:
             channels = int(query_memory["channels"])
             self.query_memory_velocity_head = nn.Sequential(
@@ -140,6 +143,10 @@ class MoraiQueryMemoryTransFusionHead(MoraiTransFusionHead):
         if self.query_memory_velocity_head is not None:
             temporal_velocity = self.query_memory_velocity_head(
                 self.query_memory.last_motion_context)
+            if self.direct_motion_velocity_residual:
+                temporal_velocity = (
+                    self.query_memory.last_direct_velocity
+                    + temporal_velocity)
             temporal_velocity_active = (
                 self.query_memory.last_active_query_mask[:, None, :]
                 .to(dtype=temporal_velocity.dtype))

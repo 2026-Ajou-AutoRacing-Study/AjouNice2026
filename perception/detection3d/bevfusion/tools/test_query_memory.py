@@ -57,6 +57,8 @@ def main():
         torch.tensor([[0.2, 0.2, 0.2, 0.2]]))
     motion_output.square().mean().backward()
     assert motion_module.last_motion_context.shape == current.shape
+    assert motion_module.last_direct_velocity.shape == (1, 2, 3)
+    assert torch.isfinite(motion_module.last_direct_velocity).all()
     assert float(motion_module.motion_value[0].weight.grad.abs().sum()) > 0.0
 
     bank = CausalQueryMemoryBank(

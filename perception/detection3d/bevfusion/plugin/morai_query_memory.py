@@ -111,6 +111,7 @@ class MoraiQueryMemoryAttention(nn.Module):
         self.last_mean_attention_age_sec: Optional[Tensor] = None
         self.last_active_query_mask: Optional[Tensor] = None
         self.last_motion_context: Optional[Tensor] = None
+        self.last_direct_velocity: Optional[Tensor] = None
 
     def forward(
         self,
@@ -141,6 +142,8 @@ class MoraiQueryMemoryAttention(nn.Module):
                 batch, current_count, dtype=torch.bool,
                 device=current_features.device)
             self.last_motion_context = torch.zeros_like(current_features)
+            self.last_direct_velocity = current_features.new_zeros(
+                batch, 2, current_count)
             return current_features
 
         current = current_features.transpose(1, 2)
@@ -192,11 +195,16 @@ class MoraiQueryMemoryAttention(nn.Module):
         active = valid_pairs.any(dim=-1)
         residual = residual * active[:, :, None]
         motion_context = context * active[:, :, None]
+        velocity_weights = weights.mean(dim=1)
+        direct_velocity = torch.einsum(
+            "bnm,bnmd->bnd", velocity_weights, velocity)
+        direct_velocity = direct_velocity * active[:, :, None]
         scale = torch.sigmoid(self.residual_logit)
         output = current + scale * residual
 
         self.last_active_query_mask = active
         self.last_motion_context = motion_context.transpose(1, 2)
+        self.last_direct_velocity = direct_velocity.transpose(1, 2)
 
         with torch.no_grad():
             self.last_active_query_fraction = active.float().mean()

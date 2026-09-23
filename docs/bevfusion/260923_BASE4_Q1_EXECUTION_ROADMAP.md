@@ -126,6 +126,11 @@ displacement-consistency loss는 아직 구현하지 않았다.
 P2의 center-contract 수정과 gate A/B는
 [`260923_BASE4_Q1_P2_POSTDECODER_MOTION_RESULTS.md`](260923_BASE4_Q1_P2_POSTDECODER_MOTION_RESULTS.md)를
 따른다.
+P3의 다중-frame direct motion은 scene-disjoint speed MAE `0.845 m/s`로 첫 절대 gate를
+통과했고 두 개발 bag에서도 평균과 jitter를 모두 개선했다. 다만 highway1 error-step p95
+`5.569 m/s`와 mean latency `92.8 ms`가 남아 production 후보는 아니다. 상세 결과는
+[`260923_BASE4_Q1_P3_ROBUST_MOTION_RESULTS.md`](260923_BASE4_Q1_P3_ROBUST_MOTION_RESULTS.md)를
+따른다.
 
 ## 중단·전환 기준
 
