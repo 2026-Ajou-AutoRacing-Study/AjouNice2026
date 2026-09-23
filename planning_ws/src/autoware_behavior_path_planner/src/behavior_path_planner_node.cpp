@@ -53,6 +53,8 @@ BehaviorPathPlannerNode::BehaviorPathPlannerNode(ros::NodeHandle private_node)
 
   // publisher
   path_publisher_ = create_publisher<PathWithLaneId>("output/path", 1);
+  obstacle_scene_publisher_ = create_publisher<autoware_planning_msgs::StaticObstacleScene>(
+    "/planning/scenario_planning/lane_driving/behavior_planning/static_obstacle_scene", 10);
   turn_signal_publisher_ =
     create_publisher<TurnIndicatorsCommand>("output/turn_indicators_cmd", 1);
   hazard_signal_publisher_ = create_publisher<HazardLightsCommand>("output/hazard_lights_cmd", 1);
@@ -465,6 +467,22 @@ void BehaviorPathPlannerNode::run()
         planner_data_->parameters.input_path_interval);
 
     if (!path->points.empty()) {
+      autoware_planning_msgs::StaticObstacleScene scene;
+      scene.header = path->header;
+      for (const auto & obstacle : output.drivable_area_info.obstacles) {
+        if (!obstacle.direct_constraint) continue;
+        autoware_planning_msgs::StaticObstacle msg;
+        msg.id = obstacle.id;
+        msg.hard_margin = obstacle.hard_margin;
+        msg.soft_margin = obstacle.soft_margin;
+        for (const auto & vertex : obstacle.poly.outer()) {
+          geometry_msgs::Point32 point;
+          point.x = vertex.x(); point.y = vertex.y();
+          msg.polygon.points.push_back(point);
+        }
+        scene.obstacles.push_back(msg);
+      }
+      obstacle_scene_publisher_->publish(scene);
       path_publisher_->publish(*path);
       published_time_publisher_->publish_if_subscribed(path_publisher_.identity(), path->header.stamp);
     } else {

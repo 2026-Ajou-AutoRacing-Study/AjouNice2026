@@ -257,6 +257,27 @@ TEST(StaticDrivableArea, ClipsBoundaryCrossingObstacleAtBothIntersections)
   EXPECT_TRUE(hasPointNear(path.right_bound, 8.0, -1.0));
 }
 
+TEST(StaticDrivableArea, InsertsPolygonWhollyWithinOneBoundarySegment)
+{
+  auto path = makeStraightPath();
+  utils::extractObstaclesFromDrivableArea(path, {makeRightObstacle(1.0, 4.0)});
+  EXPECT_TRUE(hasPointNear(path.right_bound, 0.0, -2.0));
+  EXPECT_TRUE(hasPointNear(path.right_bound, 5.0, -2.0));
+  EXPECT_TRUE(hasPointNear(path.right_bound, 1.0, -1.0));
+  EXPECT_TRUE(hasPointNear(path.right_bound, 4.0, -1.0));
+}
+
+TEST(StaticDrivableArea, DirectObstacleKeepsBothRoadBoundaries)
+{
+  auto path = makeStraightPath();
+  const auto original = path;
+  auto obstacle = makeRightObstacle(1.0, 4.0);
+  obstacle.direct_constraint = true;
+  utils::extractObstaclesFromDrivableArea(path, {obstacle});
+  EXPECT_EQ(path.left_bound, original.left_bound);
+  EXPECT_EQ(path.right_bound, original.right_bound);
+}
+
 TEST(StaticDrivableArea, PreservesSourceEquivalentOverlappingObstacleStitching)
 {
   auto path = makeStraightPath();

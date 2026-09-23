@@ -38,6 +38,11 @@ struct ResampleParam
   double sparse_min_interval_distance;  // minimum points-interval length for sparse sampling [m]
 };
 
+// Transfer longitudinal motion to the collision-checked spatial path. Internal
+// time-grid resampling must not replace that path's positions or orientations.
+TrajectoryPoints applyVelocityProfileToGeometry(
+  const TrajectoryPoints & geometry, const TrajectoryPoints & profile, size_t ego_index = 0);
+
 TrajectoryPoints resampleTrajectory(
   const TrajectoryPoints & input, const double v_current,
   const geometry_msgs::Pose & current_pose, const double nearest_dist_threshold,

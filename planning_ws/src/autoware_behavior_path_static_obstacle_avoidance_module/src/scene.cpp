@@ -111,6 +111,11 @@ bool StaticObstacleAvoidanceModule::isExecutionRequested() const
   // Check ego is in preferred lane
   updateMarker(BehaviorModuleOutput{}, avoid_data_, path_shifter_, debug_data_);
 
+  // Optimization mode has no shift line: obstacle lifetime owns activation.
+  if (parameters_->path_generation_method == "optimization_base") {
+    return !clip_objects_.empty();
+  }
+
   // there is object that should be avoid. return true.
   if (!!avoid_data_.stop_target_object) {
     return true;
@@ -216,18 +221,8 @@ void StaticObstacleAvoidanceModule::updateOptimizationClipObjects(AvoidancePlann
     }
 
     auto updated = observed;
-    if (!latched.envelope_poly.outer().empty() &&
-        !boost::geometry::covered_by(observed.envelope_poly, latched.envelope_poly)) {
-      // Keep the previously verified footprint while expanding to cover a larger or shifted
-      // observation. A later small detection must not shrink an ongoing avoidance corridor.
-      boost::geometry::model::multi_point<Point2d> points;
-      for (const auto & point : latched.envelope_poly.outer()) points.push_back(point);
-      for (const auto & point : observed.envelope_poly.outer()) points.push_back(point);
-      boost::geometry::convex_hull(points, updated.envelope_poly);
-      boost::geometry::correct(updated.envelope_poly);
-    } else if (!latched.envelope_poly.outer().empty()) {
-      updated.envelope_poly = latched.envelope_poly;
-    }
+    updated.envelope_poly = utils::static_obstacle_avoidance::mergeStaticEnvelopes(
+      latched.envelope_poly, observed.envelope_poly);
 
     if (latched.avoid_margin) {
       updated.avoid_margin = updated.avoid_margin
@@ -306,6 +301,12 @@ void StaticObstacleAvoidanceModule::updateOptimizationClipObjects(AvoidancePlann
 bool StaticObstacleAvoidanceModule::canTransitSuccessState()
 {
   const auto & data = avoid_data_;
+  if (parameters_->path_generation_method == "optimization_base") {
+    // A lanelet/window change does not mean that the latched obstacle has been passed.
+    // Completion must use the same rear-pass lifetime as activation and output publication.
+    helper_->setPreviousDrivingLanes(data.current_lanelets);
+    return clip_objects_.empty();
+  }
 
   // Change input lane. -> EXIT.
   if (!isDrivingSameLane(helper_->getPreviousDrivingLanes(), data.current_lanelets)) {

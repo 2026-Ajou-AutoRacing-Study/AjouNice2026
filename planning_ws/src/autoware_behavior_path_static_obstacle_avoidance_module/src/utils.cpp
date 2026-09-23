@@ -32,6 +32,7 @@
 
 #include <boost/geometry/algorithms/buffer.hpp>
 #include <boost/geometry/algorithms/convex_hull.hpp>
+#include <boost/geometry/geometries/multi_point.hpp>
 #include <boost/geometry/algorithms/correct.hpp>
 #include <boost/geometry/algorithms/union.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
@@ -1722,6 +1723,40 @@ Polygon2d createEnvelopePolygon(
   return createEnvelopePolygon(object_polygon, closest_pose, envelope_buffer);
 }
 
+Polygon2d mergeStaticEnvelopes(const Polygon2d & previous, const Polygon2d & observed)
+{
+  namespace bg = boost::geometry;
+
+  if (previous.outer().empty()) {
+    return observed;
+  }
+  if (observed.outer().empty()) {
+    return previous;
+  }
+
+  // Preserve the largest verified shape without preserving stale positions.  A tracker commonly
+  // moves the center while a distant detection converges.  Taking a convex hull in map coordinates
+  // turns that convergence history into a swept obstacle and can eventually block a valid
+  // avoidance path.  Recenter the retained envelope on the latest observation before merging it.
+  Point2d previous_centroid;
+  Point2d observed_centroid;
+  bg::centroid(previous, previous_centroid);
+  bg::centroid(observed, observed_centroid);
+  const double dx = observed_centroid.x() - previous_centroid.x();
+  const double dy = observed_centroid.y() - previous_centroid.y();
+
+  boost::geometry::model::multi_point<Point2d> vertices;
+  for (const auto & vertex : previous.outer()) {
+    vertices.emplace_back(vertex.x() + dx, vertex.y() + dy);
+  }
+  for (const auto & vertex : observed.outer()) vertices.push_back(vertex);
+  // Boost convex_hull appends to the output ring. Never pass an input envelope as output.
+  Polygon2d merged;
+  bg::convex_hull(vertices, merged);
+  bg::correct(merged);
+  return merged;
+}
+
 std::vector<DrivableAreaInfo::Obstacle> generateObstaclePolygonsForDrivableArea(
   const ObjectDataArray & objects, const std::shared_ptr<AvoidanceParameters> & parameters,
   const double vehicle_width)
@@ -1733,6 +1768,22 @@ std::vector<DrivableAreaInfo::Obstacle> generateObstaclePolygonsForDrivableArea(
   }
 
   for (const auto & object : objects) {
+    if (parameters->path_generation_method == "optimization_base") {
+      if (object.envelope_poly.outer().size() < 4) continue;
+      const auto label = autoware::object_recognition_utils::getHighestProbLabel(
+        object.object.classification);
+      const auto & param = parameters->object_parameters.at(label);
+      DrivableAreaInfo::Obstacle obstacle;
+      obstacle.pose = object.getPose();
+      obstacle.poly = object.envelope_poly;  // already contains envelope uncertainty buffer
+      obstacle.direct_constraint = true;
+      obstacle.id = object.object.object_id;
+      obstacle.hard_margin = object.is_parked
+        ? param.lateral_hard_margin_for_parked_vehicle : param.lateral_hard_margin;
+      obstacle.soft_margin = param.lateral_soft_margin;
+      obstacles_for_drivable_area.push_back(obstacle);
+      continue;
+    }
     // check if avoid marin is calculated
     if (!object.avoid_margin.has_value()) {
       continue;

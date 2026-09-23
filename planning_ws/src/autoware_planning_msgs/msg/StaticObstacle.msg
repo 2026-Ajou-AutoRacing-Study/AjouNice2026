@@ -1,0 +1,4 @@
+unique_identifier_msgs/UUID id
+geometry_msgs/Polygon polygon
+float64 hard_margin
+float64 soft_margin

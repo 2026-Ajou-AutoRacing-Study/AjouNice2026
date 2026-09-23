@@ -8,6 +8,8 @@ option/debug/enable_pub_extra_debug_marker: true
 option/debug/enable_debug_info: false
 option/debug/enable_calculation_time_info: true
 common/output_delta_arc_length: 0.2
+# Soft wall-time budget between complete side candidates; unfinished sides resume next cycle.
+obstacle_search_time_budget_ms: 100.0
 common/output_backward_traj_length: 5.0
 common/vehicle_stop_margin_outside_drivable_area: 0.0
 replan/max_path_shape_around_ego_lat_dist: 2.0
@@ -28,6 +30,8 @@ mpt/common/delta_arc_length: 0.5
 mpt/clearance/hard_clearance_from_road: 0.1
 mpt/clearance/soft_clearance_from_road: 0.0
 mpt/weight/soft_collision_free_weight: 1.0
+# L1 penalty on preferred obstacle clearance; hard clearance remains a separate constraint.
+mpt/weight/obstacle_clearance_weight: 100.0
 mpt/weight/lat_error_weight: 1.0
 mpt/weight/yaw_error_weight: 0.0
 mpt/weight/yaw_error_rate_weight: 0.0

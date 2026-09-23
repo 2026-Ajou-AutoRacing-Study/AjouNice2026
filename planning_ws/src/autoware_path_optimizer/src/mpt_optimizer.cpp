@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "autoware/path_optimizer/obstacle_interval.hpp"
+#include "autoware/path_optimizer/obstacle_collision.hpp"
+
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
 
 #include "acados_mpc/include/acados_interface.hpp"
@@ -128,13 +131,15 @@ std::tuple<std::vector<double>, std::vector<double>> calcVehicleCirclesByFitting
 }
 
 std::tuple<Eigen::VectorXd, Eigen::VectorXd> extractBounds(
-  const std::vector<ReferencePoint> & ref_points, const size_t l_idx, const double offset)
+  const std::vector<ReferencePoint> & ref_points, const size_t l_idx, const double offset, const bool soft = false)
 {
   Eigen::VectorXd ub_vec(ref_points.size());
   Eigen::VectorXd lb_vec(ref_points.size());
   for (size_t i = 0; i < ref_points.size(); ++i) {
-    ub_vec(i) = ref_points.at(i).bounds_on_constraints.at(l_idx).upper_bound + offset;
-    lb_vec(i) = ref_points.at(i).bounds_on_constraints.at(l_idx).lower_bound - offset;
+    const auto & bounds = soft ? ref_points.at(i).soft_bounds_on_constraints
+                              : ref_points.at(i).bounds_on_constraints;
+    ub_vec(i) = bounds.at(l_idx).upper_bound + offset;
+    lb_vec(i) = bounds.at(l_idx).lower_bound - offset;
   }
   return {ub_vec, lb_vec};
 }
@@ -252,6 +257,8 @@ MPTOptimizer::MPTParam::MPTParam(
     soft_collision_free_weight =
       node->declare_parameter<double>("mpt.weight.soft_collision_free_weight");
 
+    obstacle_clearance_weight = node->declare_parameter<double>(
+      "mpt.weight.obstacle_clearance_weight", 100.0);
     lat_error_weight = node->declare_parameter<double>("mpt.weight.lat_error_weight");
     yaw_error_weight = node->declare_parameter<double>("mpt.weight.yaw_error_weight");
     yaw_error_rate_weight = node->declare_parameter<double>("mpt.weight.yaw_error_rate_weight");
@@ -424,6 +431,7 @@ void MPTOptimizer::MPTParam::onParam(const std::vector<rclcpp::Parameter> & para
     update_param<double>(
       parameters, "mpt.weight.soft_collision_free_weight", soft_collision_free_weight);
 
+    update_param<double>(parameters, "mpt.weight.obstacle_clearance_weight", obstacle_clearance_weight);
     update_param<double>(parameters, "mpt.weight.lat_error_weight", lat_error_weight);
     update_param<double>(parameters, "mpt.weight.yaw_error_weight", yaw_error_weight);
     update_param<double>(parameters, "mpt.weight.yaw_error_rate_weight", yaw_error_rate_weight);
@@ -530,6 +538,7 @@ void MPTOptimizer::updateVehicleCircles()
         p.vehicle_circles_fitting_uniform_circle_rear_center_inset,
         p.vehicle_circles_fitting_uniform_circle_front_center_inset,
         p.vehicle_circles_fitting_uniform_circle_frontmost_rearward_offset);
+    vehicle_circle_radiuses_ = obstacleCoveringRadii(vehicle_info_, vehicle_circle_longitudinal_offsets_);
   } else {
     throw std::invalid_argument("mpt_param_.vehicle_circles_method is invalid.");
   }
@@ -563,6 +572,14 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
 
   const auto & p = planner_data;
   const auto & traj_points = p.traj_points;
+  candidate_trial_ = !p.obstacles.empty();
+  exactly_checked_ego_index_.reset();
+  const auto reject_candidate = [&](const char * reason) -> std::optional<std::vector<TrajectoryPoint>> {
+    if (candidate_trial_ && std::getenv("AJOUNICE_OBSTACLE_DIAG")) {
+      RCLCPP_INFO(logger_, "[MPT candidate] t=%.3f rejected: %s", p.header.stamp.toSec(), reason);
+    }
+    return std::nullopt;
+  };
 
   // 1. calculate reference points
   auto [ref_points, ref_points_spline] = calcReferencePoints(planner_data, traj_points);
@@ -572,8 +589,93 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
     return std::nullopt;
   }
 
+  if (candidate_trial_) {
+    TrajectoryPoint measured;
+    measured.pose = p.ego_pose;
+    if (firstObstacleCollision({measured}, 0, p.obstacles, vehicle_info_)) {
+      return reject_candidate("measured footprint overlaps obstacle");
+    }
+    if (!measuredFootprintInsideRoad(
+          p.ego_pose, p.left_bound, p.right_bound, vehicle_info_, mpt_param_.hard_clearance_from_road)) {
+      return reject_candidate("measured footprint outside current road");
+    }
+    // The measured state is already fixed, and its real footprint was checked by
+    // above against obstacles and roads. Do not reject that
+    // known safe state using a first-order circle projection around a different
+    // heading. All future states still require the full hard inequalities.
+    exactly_checked_ego_index_ = trajectory_utils::findEgoIndex(ref_points, p.ego_pose, ego_nearest_param_);
+    // Reject an empty side corridor or an impossible measured starting state before
+    // handing bounds to the solver. These are candidate infeasibilities, not OSQP errors.
+    for (const auto & ref : ref_points) {
+      if (static_cast<size_t>(&ref - ref_points.data()) == *exactly_checked_ego_index_) continue;
+      for (size_t c = 0; c < vehicle_circle_radiuses_.size(); ++c) {
+        const double offset = vehicle_info_.vehicle_width_m / 2.0 - vehicle_circle_radiuses_[c] -
+                              mpt_param_.hard_clearance_from_road;
+        const auto & bounds = ref.bounds_on_constraints.at(c);
+        const double lo = bounds.lower_bound - offset, hi = bounds.upper_bound + offset;
+        if (lo > hi || !std::isfinite(lo) || !std::isfinite(hi)) return reject_candidate("empty hard corridor");
+        if (ref.fixed_kinematic_state) {
+          const auto state = *ref.fixed_kinematic_state;
+          const double lon = vehicle_circle_longitudinal_offsets_[c], beta = ref.beta.at(c);
+          const double lateral = (state.lat + lon * state.yaw) * std::cos(beta) + lon * std::sin(beta);
+          if (lateral < lo - 1e-3 || lateral > hi + 1e-3) {
+            if (std::getenv("AJOUNICE_OBSTACLE_DIAG")) RCLCPP_INFO(logger_,
+              "[MPT candidate] fixed ref=(%.3f,%.3f) circle=%zu lat=%.3f bounds=[%.3f,%.3f] state=(%.3f,%.3f)",
+              ref.pose.position.x, ref.pose.position.y, c, lateral, lo, hi, state.lat, state.yaw);
+            return reject_candidate("fixed state outside hard corridor");
+          }
+        }
+      }
+    }
+  }
+
   // 2. calculate B and W matrices where x = B u + W
   const auto mpt_mat = state_equation_generator_.calcMatrix(ref_points);
+
+  if (candidate_trial_ && mpt_param_.hard_constraint && mpt_param_.steer_limit_constraint) {
+    // Propagate an outer interval approximation of the SAME linear dynamics and hard
+    // constraints used by the QP. An empty reachable set proves this side assignment
+    // impossible; do not spend an OSQP solve on switching sides between nearby fragments.
+    const size_t start = trajectory_utils::findEgoIndex(ref_points, p.ego_pose, ego_nearest_param_);
+    if (ref_points[start].fixed_kinematic_state) {
+      const auto initial = *ref_points[start].fixed_kinematic_state;
+      std::array<double,2> low{initial.lat,initial.yaw}, high=low;
+      for (size_t i=start; i<ref_points.size(); ++i) {
+        for (int pass=0; pass<2; ++pass) {
+          for (size_t c=0; c<vehicle_circle_radiuses_.size(); ++c) {
+            if (exactly_checked_ego_index_ && i == *exactly_checked_ego_index_) continue;
+            const double lon=vehicle_circle_longitudinal_offsets_[c], beta=ref_points[i].beta[c];
+            const std::array<double,2> coefficient{std::cos(beta),lon*std::cos(beta)};
+            const double offset=vehicle_info_.vehicle_width_m/2.0-vehicle_circle_radiuses_[c]-mpt_param_.hard_clearance_from_road;
+            const auto & bounds=ref_points[i].bounds_on_constraints[c];
+            const double lower=bounds.lower_bound-offset-lon*std::sin(beta)-1e-3;
+            const double upper=bounds.upper_bound+offset-lon*std::sin(beta)+1e-3;
+            for (size_t j=0; j<2; ++j) {
+              if (std::abs(coefficient[j])<1e-9) continue;
+              const size_t k=1-j;
+              const double other_low=std::min(coefficient[k]*low[k],coefficient[k]*high[k]);
+              const double other_high=std::max(coefficient[k]*low[k],coefficient[k]*high[k]);
+              const double a=(lower-other_high)/coefficient[j], b=(upper-other_low)/coefficient[j];
+              low[j]=std::max(low[j],std::min(a,b)); high[j]=std::min(high[j],std::max(a,b));
+              if (low[j]>high[j]) return reject_candidate("unreachable hard corridor");
+            }
+          }
+        }
+        if (i+1 == ref_points.size()) break;
+        std::array<double,2> next_low{},next_high{};
+        for (size_t j=0; j<2; ++j) {
+          next_low[j]=next_high[j]=mpt_mat.W(2*(i+1)+j);
+          for (size_t k=0; k<2; ++k) {
+            const double a=mpt_mat.A(2*(i+1)+j,2*i+k);
+            next_low[j]+=std::min(a*low[k],a*high[k]); next_high[j]+=std::max(a*low[k],a*high[k]);
+          }
+          const double control=std::abs(mpt_mat.B(2*(i+1)+j,i))*mpt_param_.max_steer_rad;
+          next_low[j]-=control; next_high[j]+=control;
+        }
+        low=next_low; high=next_high;
+      }
+    }
+  }
 
   // 3. calculate Q and R matrices where J(x, u) = x^t Q x + u^t R u
   const auto val_mat = calcValueMatrix(ref_points, traj_points);
@@ -587,9 +689,9 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
   // 6. optimize steer angles
   const auto optimized_variables = calcOptimizedSteerAngles(ref_points, obj_mat, const_mat);
   if (!optimized_variables && !mpt_param_.use_acados) {
-    RCLCPP_WARN(logger_, "return std::nullopt since could not solve qp");
+    if (!candidate_trial_) RCLCPP_WARN(logger_, "return std::nullopt since could not solve qp");
 
-    return std::nullopt;
+    return reject_candidate("QP infeasible or not solved");
   }
 
   // 7. convert to points with validation
@@ -646,11 +748,13 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
     output_trajectory = std::move(acados_traj_points);
   }
 
-  if (mpt_traj_points) {
-    // 9.a. publish trajectories for debug
-    publishDebugTrajectories(p.header, ref_points, *mpt_traj_points);
-  } else {
-    publishDebugTrajectories(p.header, ref_points, std::vector<TrajectoryPoint>());
+  if (!candidate_trial_) {
+    if (mpt_traj_points) {
+      // 9.a. publish trajectories for debug
+      publishDebugTrajectories(p.header, ref_points, *mpt_traj_points);
+    } else {
+      publishDebugTrajectories(p.header, ref_points, std::vector<TrajectoryPoint>());
+    }
   }
 
   debug_data_ptr_->ref_points = ref_points;
@@ -1125,6 +1229,36 @@ MPTOptimizer::calcReferencePoints(
   // NOTE: After this, resample must not be called since bounds are not interpolated.
   updateBounds(ref_points, p.left_bound, p.right_bound, p.ego_pose, p.ego_vel);
   updateVehicleBounds(ref_points, ref_points_spline, p.left_bound, p.right_bound);
+  for (auto & ref : ref_points) ref.soft_bounds_on_constraints = ref.bounds_on_constraints;
+  // Independent obstacle constraints: roads remain unchanged. Each candidate chooses a
+  // separating side per polygon; the vehicle circle must lie beyond its support plane.
+  const size_t obstacle_ego_idx = trajectory_utils::findEgoIndex(ref_points, p.ego_pose, ego_nearest_param_);
+  // Fitting circles with radius half the width leave the bumper corners and
+  // gaps between circles uncovered. Obstacle constraints must cover the whole
+  // rectangle; otherwise relinearization cannot remove those corner collisions.
+  const auto obstacle_radii = obstacleCoveringRadii(vehicle_info_, vehicle_circle_longitudinal_offsets_);
+  for (size_t ref_idx = obstacle_ego_idx; ref_idx < ref_points.size(); ++ref_idx) {
+    auto & ref = ref_points.at(ref_idx);
+    for (size_t c = 0; c < vehicle_circle_radiuses_.size(); ++c) {
+      const auto & pose = ref.pose_on_constraints.at(c);
+      const double radius = vehicle_circle_radiuses_.at(c);
+      const double offset = vehicle_info_.vehicle_width_m / 2.0 - radius -
+                            mpt_param_.hard_clearance_from_road;
+      for (size_t o = 0; o < p.obstacles.size(); ++o) {
+        const auto & obstacle = p.obstacles.at(o);
+        const auto hard = obstacleLateralInterval(
+          obstacle.polygon, pose, std::max(radius, obstacle_radii[c]) + obstacle.hard_margin);
+        const auto soft = obstacleLateralInterval(
+          obstacle.polygon, pose, std::max(radius, obstacle_radii[c]) + obstacle.hard_margin + obstacle.soft_margin);
+        const auto tighten = [&](Bounds & bounds, const std::pair<double,double> & interval) {
+          if (p.pass_left.at(o)) bounds.lower_bound = std::max(bounds.lower_bound, interval.second + offset);
+          else bounds.upper_bound = std::min(bounds.upper_bound, interval.first - offset);
+        };
+        if (hard) tighten(ref.bounds_on_constraints.at(c), *hard);
+        if (soft) tighten(ref.soft_bounds_on_constraints.at(c), *soft);
+      }
+    }
+  }
 
   // A fixed state copied from the previous optimization is only valid if it still satisfies
   // this cycle's hard vehicle-circle bounds.  When an obstacle cutout moves under a backward
@@ -1152,6 +1286,23 @@ MPTOptimizer::calcReferencePoints(
         break;
       }
     }
+  }
+
+  if (!p.obstacles.empty()) {
+    // A feasible curve must start at the measured vehicle state, not jump laterally to
+    // another homotopy. Apply after discarding stale historical equalities.
+    // Historical equalities behind the measured state are not independent initial
+    // conditions. Keeping both can make the dynamics infeasible even without obstacles
+    // when localization or tracking has deviated from the last planned curve.
+    for (size_t i = 0; i < obstacle_ego_idx; ++i) ref_points.at(i).fixed_kinematic_state.reset();
+    auto & ego_ref = ref_points.at(obstacle_ego_idx);
+    const double yaw = ego_ref.getYaw();
+    const double dx = p.ego_pose.position.x - ego_ref.pose.position.x;
+    const double dy = p.ego_pose.position.y - ego_ref.pose.position.y;
+    const double yaw_error = tf2::getYaw(p.ego_pose.orientation) - yaw;
+    ego_ref.fixed_kinematic_state = KinematicState{
+      -std::sin(yaw) * dx + std::cos(yaw) * dy,
+      std::atan2(std::sin(yaw_error), std::cos(yaw_error))};
   }
 
   // 7. update delta arc length
@@ -1381,6 +1532,13 @@ void MPTOptimizer::updateBounds(
       ref_point_for_bound_search.pose, right_bound, soft_road_clearance, false);
     ref_points.at(i).bounds = Bounds{dist_to_right_bound, dist_to_left_bound};
   }
+
+  // Independent obstacle candidates use the current road geometry. The legacy
+  // cutout heuristics extend obstacle notches and copy historical lateral bounds
+  // by index; those values are expressed in a different reference frame after a
+  // candidate is relinearized and can exclude the measured ego on an open road.
+  // Continuity is handled by the candidate trajectory cost, not stale hard bounds.
+  if (candidate_trial_) return;
 
   // keep vehicle width + margin
   // NOTE: The drivable area's width is sometimes narrower than the vehicle width which means
@@ -1676,6 +1834,7 @@ void MPTOptimizer::updateVehicleBounds(
     // NOTE: This clear is required.
     // It seems they sometimes already have previous values.
     ref_points.at(p_idx).bounds_on_constraints.clear();
+    ref_points.at(p_idx).pose_on_constraints.clear();
     ref_points.at(p_idx).beta.clear();
 
     for (size_t circle_index = 0; circle_index < vehicle_circle_longitudinal_offsets_.size();
@@ -1928,7 +2087,9 @@ MPTOptimizer::ObjectiveMatrix MPTOptimizer::calcObjectiveMatrix(
 
   Eigen::VectorXd g = Eigen::VectorXd::Zero(N_v);
   g.segment(0, N_x) = T_vec.transpose() * val_mat.Q * sparse_T_mat;
-  g.segment(N_x + N_u, N_s) = mpt_param_.soft_collision_free_weight * Eigen::VectorXd::Ones(N_s);
+  const double slack_weight = candidate_trial_ ? mpt_param_.obstacle_clearance_weight
+                                                : mpt_param_.soft_collision_free_weight;
+  g.segment(N_x + N_u, N_s) = slack_weight * Eigen::VectorXd::Ones(N_s);
   time_keeper_->end_track("objectiveMatrix_Hg");
 
   time_keeper_->comment(
@@ -2035,6 +2196,7 @@ MPTOptimizer::ConstraintMatrix MPTOptimizer::calcConstraintMatrix(
       vehicle_info_.vehicle_width_m / 2.0 - vehicle_circle_radiuses_.at(l_idx) -
       mpt_param_.hard_clearance_from_road;
     const auto & [part_ub, part_lb] = extractBounds(ref_points, l_idx, bounds_offset);
+    const auto & [soft_ub, soft_lb] = extractBounds(ref_points, l_idx, bounds_offset, true);
 
     // soft constraints
     if (mpt_param_.soft_constraint) {
@@ -2058,8 +2220,8 @@ MPTOptimizer::ConstraintMatrix MPTOptimizer::calcConstraintMatrix(
       //        C - upper_bound
       //               O        ]
       Eigen::VectorXd lb_blk = Eigen::VectorXd::Zero(A_blk_rows);
-      lb_blk.segment(0, N_ref) = -C_vec + part_lb;
-      lb_blk.segment(N_ref, N_ref) = C_vec - part_ub;
+      lb_blk.segment(0, N_ref) = -C_vec + soft_lb;
+      lb_blk.segment(N_ref, N_ref) = C_vec - soft_ub;
 
       A.block(A_rows_end, 0, A_blk_rows, N_v) = A_blk;
       lb.segment(A_rows_end, A_blk_rows) = lb_blk;
@@ -2080,6 +2242,11 @@ MPTOptimizer::ConstraintMatrix MPTOptimizer::calcConstraintMatrix(
       A.block(A_rows_end, 0, A_blk_rows, N_v) = A_blk;
       lb.segment(A_rows_end, A_blk_rows) = part_lb - C_vec;
       ub.segment(A_rows_end, A_blk_rows) = part_ub - C_vec;
+      if (exactly_checked_ego_index_) {
+        const size_t row = A_rows_end + *exactly_checked_ego_index_;
+        lb(row) = -autoware::osqp_interface::INF;
+        ub(row) = autoware::osqp_interface::INF;
+      }
 
       A_rows_end += A_blk_rows;
     }
@@ -2218,7 +2385,7 @@ std::optional<Eigen::VectorXd> MPTOptimizer::calcOptimizedSteerAngles(
   const int solution_status = osqp_result.solution_status;
   prev_solution_status_ = solution_status;
   if (solution_status != 1) {
-    osqp_solver_ptr_->logUnsolvedStatus("[MPT]");
+    if (!candidate_trial_) osqp_solver_ptr_->logUnsolvedStatus("[MPT]");
     // Replay-only diagnosis: remove one constraint family at a time from the exact failed QP.
     // This does not change the published trajectory and is inert unless explicitly enabled.
     if (std::getenv("AJOUNICE_MPT_QP_DIAG") != nullptr) {

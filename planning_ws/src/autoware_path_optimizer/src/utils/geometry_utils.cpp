@@ -75,35 +75,59 @@ bool isOutsideDrivableAreaFromRectangleFootprint(
     pose, left_bound, right_bound, vehicle_info, use_footprint_polygon_for_outside_drivable_area_check);
 }
 
+struct CircleFootprintRoadChecker::Geometry
+{
+  using Line = autoware::motion_utils::drivable_area::LineString2d;
+  autoware::motion_utils::drivable_area::Polygon2d polygon;
+  Line left, right, back;
+  std::vector<geometry_msgs::Point> front;
+  bool has_bounds{false};
+  Geometry(const std::vector<geometry_msgs::Point> & lhs,
+           const std::vector<geometry_msgs::Point> & rhs)
+  {
+    if (lhs.size() < 2 || rhs.size() < 2) return;
+    has_bounds = true;
+    polygon = autoware::motion_utils::drivable_area::createDrivablePolygon(lhs, rhs);
+    for (const auto & p : lhs) left.emplace_back(p.x, p.y);
+    for (const auto & p : rhs) right.emplace_back(p.x, p.y);
+    back = {left.back(), right.back()};
+    // These projection endpoints depend only on the road, not on the circle.
+    // Previously they were found by scanning both boundaries for every circle
+    // of every pose of every candidate.
+    front = {
+      autoware::motion_utils::drivable_area::detail::getStartPoint(lhs, rhs.front()),
+      autoware::motion_utils::drivable_area::detail::getStartPoint(rhs, lhs.front())};
+  }
+};
+
+CircleFootprintRoadChecker::CircleFootprintRoadChecker(
+  const std::vector<geometry_msgs::Point> & left_bound,
+  const std::vector<geometry_msgs::Point> & right_bound)
+: geometry_(std::make_shared<Geometry>(left_bound, right_bound)) {}
+
 bool isOutsideDrivableAreaFromCircleFootprint(
   const geometry_msgs::Pose & pose, const std::vector<geometry_msgs::Point> & left_bound,
   const std::vector<geometry_msgs::Point> & right_bound,
   const std::vector<double> & circle_radii,
   const std::vector<double> & circle_longitudinal_offsets)
 {
-  if (left_bound.size() < 2 || right_bound.size() < 2) {
-    return false;
-  }
-  if (circle_radii.empty() || circle_radii.size() != circle_longitudinal_offsets.size()) {
-    // A missing or malformed optimization footprint must not silently pass the final check.
-    return true;
-  }
+  return CircleFootprintRoadChecker(left_bound, right_bound).isOutside(
+    pose, circle_radii, circle_longitudinal_offsets);
+}
 
+bool CircleFootprintRoadChecker::isOutside(
+  const geometry_msgs::Pose & pose, const std::vector<double> & circle_radii,
+  const std::vector<double> & circle_longitudinal_offsets) const
+{
+  if (!geometry_->has_bounds) return false;
+  if (circle_radii.empty() || circle_radii.size() != circle_longitudinal_offsets.size()) return true;
   using autoware::motion_utils::drivable_area::LineString2d;
   using autoware::motion_utils::drivable_area::Point2d;
   namespace bg = boost::geometry;
-
-  const auto drivable_polygon =
-    autoware::motion_utils::drivable_area::createDrivablePolygon(left_bound, right_bound);
-  LineString2d left_line;
-  LineString2d right_line;
-  for (const auto & point : left_bound) {
-    left_line.emplace_back(point.x, point.y);
-  }
-  for (const auto & point : right_bound) {
-    right_line.emplace_back(point.x, point.y);
-  }
-  const LineString2d back_line{left_line.back(), right_line.back()};
+  const auto & drivable_polygon = geometry_->polygon;
+  const auto & left_line = geometry_->left;
+  const auto & right_line = geometry_->right;
+  const auto & back_line = geometry_->back;
   const auto diagnose = [&](const size_t circle_index, const geometry_msgs::Point & center,
                             const double radius, const double left_distance,
                             const double right_distance, const double back_distance,
@@ -144,8 +168,8 @@ bool isOutsideDrivableAreaFromCircleFootprint(
       autoware_utils_geometry::calc_offset_pose(pose, circle_longitudinal_offsets.at(i), 0.0, 0.0);
     const auto & center = center_pose.position;
     const Point2d point{center.x, center.y};
-    const bool before_front = autoware::motion_utils::drivable_area::isFrontDrivableArea(
-      center, left_bound, right_bound);
+    const bool before_front =
+      autoware::motion_utils::calcLateralOffset(geometry_->front, center) < 0.1;
     const bool center_inside = bg::within(point, drivable_polygon);
     const double left_distance = distance_to_line(point, left_line);
     const double right_distance = distance_to_line(point, right_line);

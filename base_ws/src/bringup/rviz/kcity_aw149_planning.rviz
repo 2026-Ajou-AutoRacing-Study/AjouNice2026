@@ -11,7 +11,7 @@ Panels:
         - /Final Trajectory1
         - /Perception Pipeline1
       Splitter Ratio: 0.5
-    Tree Height: 221
+    Tree Height: 251
   - Class: bringup/RosbagRecorder
     Name: Rosbag Recorder
   - Class: bringup/RouteControl
@@ -118,7 +118,10 @@ Visualization Manager:
       Marker Topic: /planning/debug/final_trajectory/markers
       Name: Final Trajectory
       Namespaces:
-        {}
+        final_trajectory_ends: true
+        final_trajectory_horizon: true
+        final_trajectory_line: true
+        final_trajectory_points: true
       Queue Size: 10
       Value: true
     - Alpha: 1
@@ -177,7 +180,7 @@ Visualization Manager:
           Marker Topic: /perception/object_recognition/visualization/detections
           Name: Detections (green, raw detector)
           Namespaces:
-            {}
+            detected_boxes: true
           Queue Size: 5
           Value: true
         - Class: rviz/MarkerArray
@@ -185,7 +188,8 @@ Visualization Manager:
           Marker Topic: /perception/object_recognition/visualization/tracks
           Name: Tracks (class and UNKNOWN labels)
           Namespaces:
-            {}
+            tracked_boxes: true
+            tracked_labels: true
           Queue Size: 5
           Value: true
         - Class: rviz/MarkerArray
@@ -193,7 +197,11 @@ Visualization Manager:
           Marker Topic: /perception/object_recognition/visualization/predictions
           Name: Map-CV Predictions (0-3 s)
           Namespaces:
-            {}
+            predicted_confidence/top_1: true
+            predicted_horizon_1_sec/top_1: true
+            predicted_horizon_2_sec/top_1: true
+            predicted_horizon_3_sec/top_1: true
+            predicted_paths/top_1: true
           Queue Size: 5
           Value: true
         - Class: rviz/MarkerArray
@@ -345,7 +353,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/ThirdPersonFollower
-      Distance: 43.323368072509766
+      Distance: 75.25112915039062
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -353,8 +361,8 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.03873586654663086
-        Y: 3.4378507137298584
+        X: -2.1641178131103516
+        Y: -0.33179914951324463
         Z: 7.62939453125e-06
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
@@ -373,13 +381,13 @@ Window Geometry:
   Hide Right Dock: true
   Image:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd00000002000000000000016f00000292fc0200000004fb000000100044006900730070006c00610079007301000001490000011a000000c900fffffffb0000001e0052006f00730062006100670020005200650063006f00720064006500720100000269000000be0000008800fffffffb000000180052006f0075007400650020005300740061007400750073010000032d000000ae0000007c00fffffffb0000000a005600690065007700730000000328000000b3000000a400ffffff00000002000004e300000106fc0100000004fb0000000a0049006d00610067006501000000000000013d0000007600fffffffb0000000a0049006d0061006700650100000143000001970000007600fffffffb0000000a0049006d00610067006501000002e0000001480000007600fffffffb0000000a0049006d006100670065010000042e000000b50000007600ffffff0000036e0000029200000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000002000000000000016f000002d6fc0200000004fb000000100044006900730070006c006100790073010000010500000138000000c900fffffffb0000001e0052006f00730062006100670020005200650063006f00720064006500720100000243000000d20000008800fffffffb000000180052006f0075007400650020005300740061007400750073010000031b000000c00000007c00fffffffb0000000a005600690065007700730000000328000000b3000000a400ffffff00000002000003a3000000c2fc0100000004fb0000000a0049006d0061006700650100000000000000eb0000007600fffffffb0000000a0049006d00610067006501000000f10000012d0000007600fffffffb0000000a0049006d0061006700650100000224000000f30000007600fffffffb0000000a0049006d006100670065010000031d000000860000007600ffffff0000022e000002d600000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Rosbag Recorder:
     collapsed: false
   Route Status:
     collapsed: false
   Views:
     collapsed: false
-  Width: 1251
+  Width: 931
   X: 0
   Y: 27
