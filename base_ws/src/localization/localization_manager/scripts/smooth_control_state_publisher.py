@@ -82,6 +82,8 @@ class PlanarAlignmentSmoother:
         max_translation_rate_mps=0.0,
         max_yaw_rate_radps=0.0,
         reset_gap_sec=0.5,
+        reset_translation_error_m=0.0,
+        reset_yaw_error_rad=0.0,
     ):
         values = (
             translation_tau_sec,
@@ -89,6 +91,8 @@ class PlanarAlignmentSmoother:
             max_translation_rate_mps,
             max_yaw_rate_radps,
             reset_gap_sec,
+            reset_translation_error_m,
+            reset_yaw_error_rad,
         )
         if not all(math.isfinite(value) and value >= 0.0 for value in values):
             raise ValueError("smoother parameters must be finite and non-negative")
@@ -99,8 +103,11 @@ class PlanarAlignmentSmoother:
         self.max_translation_rate_mps = max_translation_rate_mps
         self.max_yaw_rate_radps = max_yaw_rate_radps
         self.reset_gap_sec = reset_gap_sec
+        self.reset_translation_error_m = reset_translation_error_m
+        self.reset_yaw_error_rad = reset_yaw_error_rad
         self.value = None
         self.stamp_sec = None
+        self.last_reset_reason = None
 
     def reset(self, alignment, stamp_sec):
         self.value = tuple(float(value) for value in alignment)
@@ -110,12 +117,33 @@ class PlanarAlignmentSmoother:
     def update(self, target, stamp_sec):
         stamp_sec = float(stamp_sec)
         if self.value is None:
+            self.last_reset_reason = "initialization"
             return self.reset(target, stamp_sec)
         dt_sec = stamp_sec - self.stamp_sec
         if dt_sec <= 0.0:
             raise ValueError("alignment timestamps must be strictly increasing")
         if dt_sec > self.reset_gap_sec:
+            self.last_reset_reason = "timestamp_gap"
             return self.reset(target, stamp_sec)
+
+        translation_error = math.hypot(
+            target[0] - self.value[0], target[1] - self.value[1]
+        )
+        yaw_error = abs(normalize_angle(target[2] - self.value[2]))
+        if (
+            self.reset_translation_error_m > 0.0
+            and translation_error > self.reset_translation_error_m
+        ):
+            self.last_reset_reason = "translation_discontinuity"
+            return self.reset(target, stamp_sec)
+        if (
+            self.reset_yaw_error_rad > 0.0
+            and yaw_error > self.reset_yaw_error_rad
+        ):
+            self.last_reset_reason = "yaw_discontinuity"
+            return self.reset(target, stamp_sec)
+
+        self.last_reset_reason = None
 
         alpha_xy = exponential_alpha(dt_sec, self.translation_tau_sec)
         step_x = alpha_xy * (target[0] - self.value[0])
@@ -189,6 +217,12 @@ class SmoothControlStatePublisher:
                 float(rospy.get_param("~max_yaw_rate_degps", 0.0))
             ),
             reset_gap_sec=float(rospy.get_param("~reset_gap_sec", 0.5)),
+            reset_translation_error_m=float(
+                rospy.get_param("~reset_translation_error_m", 5.0)
+            ),
+            reset_yaw_error_rad=math.radians(
+                float(rospy.get_param("~reset_yaw_error_deg", 20.0))
+            ),
         )
         self.local_message = None
         self.last_global_stamp = None
@@ -256,6 +290,11 @@ class SmoothControlStatePublisher:
         except ValueError as error:
             rospy.logwarn_throttle(2.0, str(error))
             return
+        if self.smoother.last_reset_reason not in (None, "initialization"):
+            rospy.logwarn(
+                "Reset smooth control alignment: %s",
+                self.smoother.last_reset_reason,
+            )
         output_pose = compose_planar(smooth_alignment, local_pose)
 
         output = copy.deepcopy(message)

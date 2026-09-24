@@ -55,6 +55,27 @@ class SmoothControlStateTest(unittest.TestCase):
         smoother.reset((0.0, 0.0, 0.0), 0.0)
         value = smoother.update((2.0, 3.0, 0.4), 1.0)
         self.assertEqual(value, (2.0, 3.0, 0.4))
+        self.assertEqual(smoother.last_reset_reason, "timestamp_gap")
+
+    def test_large_translation_discontinuity_resets_alignment(self):
+        smoother = MODULE.PlanarAlignmentSmoother(
+            1.0, 1.0, reset_translation_error_m=1.0
+        )
+        smoother.reset((0.0, 0.0, 0.0), 0.0)
+        value = smoother.update((5.0, -2.0, 0.0), 0.02)
+        self.assertEqual(value, (5.0, -2.0, 0.0))
+        self.assertEqual(
+            smoother.last_reset_reason, "translation_discontinuity"
+        )
+
+    def test_large_yaw_discontinuity_resets_alignment(self):
+        smoother = MODULE.PlanarAlignmentSmoother(
+            1.0, 1.0, reset_yaw_error_rad=math.radians(20.0)
+        )
+        smoother.reset((0.0, 0.0, 0.0), 0.0)
+        value = smoother.update((0.0, 0.0, math.radians(30.0)), 0.02)
+        self.assertAlmostEqual(value[2], math.radians(30.0))
+        self.assertEqual(smoother.last_reset_reason, "yaw_discontinuity")
 
 
 if __name__ == "__main__":

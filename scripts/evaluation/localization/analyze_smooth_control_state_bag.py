@@ -158,7 +158,14 @@ def pose_metrics(times, poses, oracle, speed, moving_threshold):
     }
 
 
-def smooth_candidate(times, global_pose, local_pose, tau_sec):
+def smooth_candidate(
+    times,
+    global_pose,
+    local_pose,
+    tau_sec,
+    reset_translation_error_m,
+    reset_yaw_error_deg,
+):
     raw_alignment = np.asarray(
         [
             SMOOTHER.planar_alignment(map_pose, odom_pose)
@@ -170,10 +177,17 @@ def smooth_candidate(times, global_pose, local_pose, tau_sec):
         translation_tau_sec=tau_sec,
         yaw_tau_sec=tau_sec,
         reset_gap_sec=0.5,
+        reset_translation_error_m=reset_translation_error_m,
+        reset_yaw_error_rad=math.radians(reset_yaw_error_deg),
     )
     filtered_alignment = []
+    reset_counts = {}
     for stamp, target in zip(times, raw_alignment):
         filtered_alignment.append(smoother.update(target, stamp))
+        if smoother.last_reset_reason not in (None, "initialization"):
+            reset_counts[smoother.last_reset_reason] = (
+                reset_counts.get(smoother.last_reset_reason, 0) + 1
+            )
     filtered_alignment = np.asarray(filtered_alignment, dtype=float)
     poses = np.asarray(
         [
@@ -189,10 +203,18 @@ def smooth_candidate(times, global_pose, local_pose, tau_sec):
     return poses, {
         "raw_alignment_translation_step_m": percentile_summary(raw_step),
         "filtered_alignment_translation_step_m": percentile_summary(filtered_step),
+        "reset_counts": reset_counts,
     }
 
 
-def analyze(path, taus, heading_offset_deg, moving_threshold):
+def analyze(
+    path,
+    taus,
+    heading_offset_deg,
+    moving_threshold,
+    reset_translation_error_m,
+    reset_yaw_error_deg,
+):
     ego, global_state, local_state, transform = parse_bag(path)
     ego = sorted_unique(ego)
     global_state = sorted_unique(global_state)
@@ -244,7 +266,12 @@ def analyze(path, taus, heading_offset_deg, moving_threshold):
     }
     for tau_sec in taus:
         poses, alignment = smooth_candidate(
-            times, global_pose, local_pose, tau_sec
+            times,
+            global_pose,
+            local_pose,
+            tau_sec,
+            reset_translation_error_m,
+            reset_yaw_error_deg,
         )
         result["candidates"]["tau_{:.3f}s".format(tau_sec)] = {
             "tau_sec": tau_sec,
@@ -262,6 +289,8 @@ def main():
     parser.add_argument("--taus", default="0.1,0.2,0.5,1.0,2.0,5.0")
     parser.add_argument("--heading-offset-deg", type=float, default=-1.347)
     parser.add_argument("--moving-speed-threshold", type=float, default=1.0)
+    parser.add_argument("--reset-translation-error-m", type=float, default=5.0)
+    parser.add_argument("--reset-yaw-error-deg", type=float, default=20.0)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     taus = [float(value) for value in args.taus.split(",")]
@@ -272,6 +301,8 @@ def main():
         taus,
         args.heading_offset_deg,
         args.moving_speed_threshold,
+        args.reset_translation_error_m,
+        args.reset_yaw_error_deg,
     )
     rendered = json.dumps(result, indent=2, sort_keys=True)
     if args.output:

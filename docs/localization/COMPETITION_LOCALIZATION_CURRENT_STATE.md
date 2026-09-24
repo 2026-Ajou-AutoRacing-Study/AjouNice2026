@@ -99,6 +99,11 @@ pose에서 `map -> odom` 정합을 구해 그 correction만 저역통과한 뒤 
 `publish_control_state=false`가 기본이고 production alias/controller 입력은 유지한다.
 근거는 `260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md`에 있다.
 
+폐루프용 launch 배선은 준비했다. Planning/TF는 Global state를 유지하고 두 controller
+node만 `controller_kinematic_state_topic`으로 함께 전환할 수 있다. 정상 bag에서
+false reset이 없었던 `5 m / 20 deg` 불연속 안전장치도 후보에 포함했지만 checkpoint
+실측이 없어 아직 production 계약은 아니다.
+
 `/localization/odometry/local`만 controller에 단순 remap하면 map trajectory와 frame이
 달라지므로 금지한다.
 

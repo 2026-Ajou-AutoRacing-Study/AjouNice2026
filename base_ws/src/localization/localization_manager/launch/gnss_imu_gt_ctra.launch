@@ -44,6 +44,8 @@
        default="/localization/control_kinematic_state"/>
   <arg name="control_translation_tau_sec" default="0.5"/>
   <arg name="control_yaw_tau_sec" default="0.5"/>
+  <arg name="control_state_reset_translation_error_m" default="5.0"/>
+  <arg name="control_state_reset_yaw_error_deg" default="20.0"/>
   <arg name="acceleration_topic" default="/localization/acceleration"/>
   <arg name="initial_pose_topic" default="/localization/initialpose"/>
 
@@ -188,5 +190,9 @@
     <param name="max_translation_rate_mps" value="0.0"/>
     <param name="max_yaw_rate_degps" value="0.0"/>
     <param name="reset_gap_sec" value="0.5"/>
+    <param name="reset_translation_error_m"
+           value="$(arg control_state_reset_translation_error_m)"/>
+    <param name="reset_yaw_error_deg"
+           value="$(arg control_state_reset_yaw_error_deg)"/>
   </node>
 </launch>

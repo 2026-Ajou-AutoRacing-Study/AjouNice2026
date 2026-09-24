@@ -28,6 +28,11 @@ Global EKF map pose + Local EKF odom pose
 - 후보 node는 TF를 발행하지 않는다.
 - production launch 기본값은 `publish_control_state=false`이다.
 - `/localization/odometry/local`을 map trajectory와 직접 섞지 않는다.
+- controller만 후보 토픽으로 바꾸는 launch 인자를 추가했으며 planning/TF 입력은
+  바뀌지 않는다.
+- alignment가 `5 m` 또는 `20 deg` 이상 불연속이면 저역통과를 중단하고 즉시
+  재정렬한다. 이는 checkpoint 이동 때 과거 위치를 천천히 따라가는 것을 막는
+  안전장치이며, 자동 EKF reset을 의미하지 않는다.
 
 ## rosbag별 provenance
 
@@ -77,6 +82,14 @@ negative-control에서는 진행축을 즉시 반영할 때 종 오차/jump가 �
 따라서 차량축별 파라미터를 추가해 복잡도를 늘리지 않고, 현재 등방성 `0.5 s`를
 단일 폐루프 후보로 유지한다.
 
+### 불연속 reset 기준
+
+정상 주행을 checkpoint 이동으로 오인하지 않도록 translation 기준 `1/2/5/10 m`를
+세 bag에서 sweep했다. `1 m`는 장주행에서 74회, negative control에서 37회,
+`2 m`도 각각 16회와 5회 잘못 발동했다. `5 m`와 `10 m`는 세 bag 모두 0회였다.
+따라서 후보 기본값은 더 작은 false-trigger-free 값인 `5 m`로 정했다. 실제
+checkpoint 이동 bag이 없으므로 이 기준은 HOLD이며 새 bag에서 반드시 재검증한다.
+
 ## 구현 검증
 
 - pure-function unit test `5/5` 통과.
@@ -116,3 +129,21 @@ offset `0 deg`로 전체 estimator를 다시 실행했다.
 4. checkpoint 순간이동 시 reset 동작.
 
 위 gate 전에는 `localization` alias나 controller 기본 입력을 변경하지 않는다.
+
+## 다음 폐루프 A/B 실행 계약
+
+기존 planning 상태는 바꾸지 않고 다음 두 인자만 후보로 켠다.
+
+```bash
+# localization terminal
+localization publish_control_state:=true
+
+# planning/control terminal: 기존 나머지 인자는 그대로 유지
+roslaunch ajounice_planning_integration morai_planning_stack.launch \
+  start_controller:=true \
+  controller_kinematic_state_topic:=/localization/control_kinematic_state
+```
+
+Baseline은 두 인자를 생략한 기존 실행이다. 후보 실행에서도 planning과 TF는 계속
+`/localization/kinematic_state`를 사용하며 pure-pursuit와 longitudinal PI만 후보
+토픽을 구독한다. 두 controller node가 서로 다른 상태를 보게 하는 설정은 금지한다.
