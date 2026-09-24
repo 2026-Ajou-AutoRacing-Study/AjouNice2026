@@ -564,6 +564,10 @@ smoke도 Docker/W&B/checkpoint까지 완료했다. 이 결과는 velocity head �
 
 ## 실행 순서
 
+Q1 sparse query-memory의 P0 이후 최신 진행과 판정은
+[`260923_BASE4_Q1_EXECUTION_ROADMAP.md`](260923_BASE4_Q1_EXECUTION_ROADMAP.md)를 단일
+CURRENT ledger로 사용한다.
+
 1. P0 LiDAR raw/deskew/zero-time 고속 정적 구조물 A/B로 scan 내부 deskew 계약을
    확정한다. 단, 결과와 무관하게 원본 point/time은 보존한다.
 2. 현재 Base3-Online raw bag/index가 true consecutive temporal sample을 보존하는지
