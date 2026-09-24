@@ -29,12 +29,17 @@
 - GNSS horizontal sigma `0.10 m`, Global EKF Qxy `0.0005`.
 - `predict_to_current_time=true`, `two_d_mode=true`, `publish_sensor_tf=false`.
 - 대회에서 `/Ego_topic` 기반 provider는 fallback이 아니다.
+- 공식 시작 position interface가 확정되기 전까지 초기 pose 한 번만
+  `/Ego_topic`을 임시 사용한다. 연속 localization source나 대회 fallback이라는 뜻은
+  아니다.
 - localization A/B에는 `od_gt`를 사용해 detector/GPU 부하를 분리한다.
 
 ## EVIDENCE
 
 - [`260924_LOCALIZATION_BASELINE_AUDIT.md`](260924_LOCALIZATION_BASELINE_AUDIT.md)
   - 현재 코드·bag·평가기의 1차 감사와 다음 개선 우선순위.
+- [`260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md`](260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md)
+  - GPS 음영 state 연속 발행과 frame·단위 계약 감사.
 - [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)
   - 현장 채터링, GNSS 양자화, 시간축과 GPS 음영 문제의 누적 원인 분석.
 - [`260920_lightweight_closed_loop_evidence.md`](260920_lightweight_closed_loop_evidence.md)

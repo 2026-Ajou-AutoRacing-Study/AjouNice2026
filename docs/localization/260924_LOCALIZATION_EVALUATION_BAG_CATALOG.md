@@ -19,9 +19,9 @@ bag을 다음 네 등급으로 나눈다.
 | 등급 | bag | heading oracle | 용도 |
 |---|---|---:|---|
 | REPLAY-A | `rosbags/raw_sensor_w_cam/competition_full_run/260822_005713_competition_full_route_raw_hz_run01.bag` | `-1.347 deg` | `/Competition_topic`, GPS, IMU, Ego가 모두 있는 99초 동일입력 offline A/B |
-| REPLAY-B1 | `rosbags/raw_sensor/gps_blank1.bag` | `0 deg` | MRP `/Ego_topic` 기반 약 5.55초 zero-GNSS, 음영 state 연속성 |
-| REPLAY-B2 | `rosbags/raw_sensor/gps_blank2.bag` | `0 deg` | MRP `/Ego_topic` 기반 약 10.93초 zero-GNSS, 장기 음영 state 연속성 |
-| CLOSED-LOOP-A | `rosbags/eval/localization/local_mr_stability/260919_231906_q0005_r010_gt_object_lightweight_no_traffic.bag` | `-1.347 deg` | production Q/R 장주행 회귀 기준 |
+| REPLAY-B1 | `rosbags/raw_sensor/gps_blank1.bag` | replay `0 deg` | 2026-07-29 구형 로컬 raw, 취득 alias 불명. 약 5.58초 zero-GNSS의 기계적 연속성·재획득 replay 전용 |
+| REPLAY-B2 | `rosbags/raw_sensor/gps_blank2.bag` | replay `0 deg` | 2026-07-29 구형 로컬 raw, 취득 alias 불명. 약 10.95초 zero-GNSS의 기계적 연속성·재획득 replay 전용 |
+| REPLAY+CLOSED-LOOP-A | `rosbags/eval/localization/local_mr_stability/260919_231906_q0005_r010_gt_object_lightweight_no_traffic.bag` | `-1.347 deg` | 최신 경량 폐루프. 마지막 27.75초 GPS 음영 안에서 정지하며 구형 final state가 27.31초 중단됨. 음영 복귀는 없음 |
 | CLOSED-LOOP-B | `rosbags/eval/localization/local_mr_stability/260920_003403_q0005_r010_gt_object_lightweight_no_traffic_v2_test.bag` | `-1.347 deg` | production Q/R 짧은 반복 smoke |
 | NEGATIVE-CONTROL | `rosbags/eval/localization/local_mr_stability/260919_233559_sigma0p05_qxy0p05_gt_object_lightweight_no_traffic.bag` | `-1.347 deg` | 기각 Q/R이 악화하는지 평가기 회귀 확인 |
 | FIELD-FUSION | `rosbags/eval/localization/260915_field_inspection/planning_rviz_0915_sensor_local_3.bag` | `-1.347 deg` | LAN-to-LAN fusion 채터링 결과 비교, 재실행 불가 |
