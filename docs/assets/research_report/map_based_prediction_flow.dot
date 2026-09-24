@@ -1,0 +1,73 @@
+digraph MapBasedPredictionFlow {
+  graph [
+    rankdir=LR,
+    bgcolor="white",
+    pad="0.35",
+    nodesep="0.55",
+    ranksep="0.75",
+    splines=ortho,
+    fontname="Noto Sans CJK KR",
+    fontsize=31,
+    labelloc=t,
+    label="지도 기반 미래 궤적 예측 내부 처리 흐름"
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    penwidth=2.7,
+    margin="0.27,0.21",
+    fontname="Noto Sans CJK KR",
+    fontsize=23,
+    color="#334155",
+    fontcolor="#0F172A"
+  ];
+
+  edge [
+    color="#475569",
+    penwidth=3.0,
+    arrowsize=1.05,
+    fontname="Noto Sans CJK KR",
+    fontsize=18,
+    fontcolor="#334155"
+  ];
+
+  tracked [
+    label="1. Tracked Object 입력\n\nTrack ID · Pose\nVelocity · Yaw Rate",
+    fillcolor="#E0F2FE",
+    color="#0284C7"
+  ];
+
+  matching [
+    label="2. Vehicle 지도 경로 정합\n\n객체 Position · Yaw와\n주변 중심 경로 비교",
+    fillcolor="#EDE9FE",
+    color="#7C3AED"
+  ];
+
+  fallback [
+    label="Class별 Fallback\n\nPedestrian: Cartesian CV\nObstacle: Stationary",
+    fillcolor="#F1F5F9",
+    color="#64748B"
+  ];
+
+  generation [
+    label="3. 경로 후보 생성\n\n도로 연결 관계 탐색\n→ 3초 미래 Pose Sampling",
+    fillcolor="#FEF3C7",
+    color="#D97706"
+  ];
+
+  output [
+    label="4. 후보 정리 및 출력\n\nVehicle 후보 병합 · Confidence 정규화\nFallback Path 포함 → Predicted Paths",
+    fillcolor="#DCFCE7",
+    color="#16A34A",
+    penwidth=3.2
+  ];
+
+  tracked -> matching [xlabel="Vehicle"];
+  tracked -> fallback [xlabel="Pedestrian · Obstacle"];
+  matching -> generation;
+  generation -> output;
+  fallback -> output;
+
+  {rank=same; matching; fallback;}
+}

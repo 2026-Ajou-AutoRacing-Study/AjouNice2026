@@ -1,0 +1,63 @@
+digraph CTRVEKFTrackingFlow {
+  graph [
+    rankdir=LR,
+    bgcolor="white",
+    pad="0.35",
+    nodesep="0.55",
+    ranksep="0.75",
+    splines=ortho,
+    fontname="Noto Sans CJK KR",
+    fontsize=31,
+    labelloc=t,
+    label="CTRV-EKF 객체 추적 내부 처리 흐름"
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    penwidth=2.7,
+    margin="0.27,0.21",
+    fontname="Noto Sans CJK KR",
+    fontsize=23,
+    color="#334155",
+    fontcolor="#0F172A"
+  ];
+
+  edge [
+    color="#475569",
+    penwidth=3.0,
+    arrowsize=1.05,
+    fontname="Noto Sans CJK KR",
+    fontsize=18,
+    fontcolor="#334155"
+  ];
+
+  detection [
+    label="1. Detection 입력\n\nClass · Confidence\nBBox Center · Size · Yaw",
+    fillcolor="#E0F2FE",
+    color="#0284C7"
+  ];
+
+  prediction [
+    label="2. CTRV 상태 예측\n\n이전 Position · Velocity · Yaw Rate\n→ 현재 시각의 Track 상태 예측",
+    fillcolor="#EDE9FE",
+    color="#7C3AED"
+  ];
+
+  update [
+    label="3. Association 및 EKF 갱신\n\nDetection과 기존 Track 연결\n→ Position · Yaw Measurement Update",
+    fillcolor="#FEF3C7",
+    color="#D97706"
+  ];
+
+  output [
+    label="4. Track 관리 및 출력\n\nTrack 생성 · 유지 · 삭제\n→ Track ID · Pose · Velocity · Yaw Rate",
+    fillcolor="#DCFCE7",
+    color="#16A34A",
+    penwidth=3.2
+  ];
+
+  detection -> prediction;
+  prediction -> update;
+  update -> output;
+}
