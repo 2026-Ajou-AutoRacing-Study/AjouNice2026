@@ -6,8 +6,11 @@
 ## 결론
 
 카메라·LiDAR·신호등 인지를 끄고 MORAI GT object만 detector 대체 입력으로 사용한
-폐루프에서 production Q/R인 `GNSS sigma=0.10 m`, `Global Qxy=0.0005`는 50 Hz
-localization을 유지했고, 종·횡 오차와 frame jump가 낮게 유지됐다. 같은 경량 환경의
+폐루프의 정상 GNSS·이동 구간에서 production Q/R인 `GNSS sigma=0.10 m`, Global
+`Qxy=0.0005`는 50 Hz localization과 낮은 종·횡 오차 및 frame jump를 보였다. 그러나
+마지막에는 GPS 음영 안에서 차량이 정지했고, 당시 구현은 stale GNSS z 때문에
+controller-facing state를 약 27.31초 동안 발행하지 못했다. 따라서 이 bag을
+“localization이 끝까지 50 Hz로 완주한 결과”로 해석하지 않는다. 같은 경량 환경의
 `sigma=0.05 m`, `Qxy=0.05` preset은 별도 주행임을 감안해도 위치 jump와 조향률이
 크게 나빠 production으로 채택하지 않는다.
 
@@ -43,7 +46,7 @@ rosbags/eval/localization/local_mr_stability/
 | 항목 | 결과 |
 |---|---:|
 | 전체 / moving 시간 | `242.72 / 156.05 s` |
-| Competition / GPS / localization / trajectory | `49.81 / 29.89 / 50.00 / 9.83 Hz` |
+| Competition / GPS / localization active rate / trajectory | `49.81 / 29.89 / 50.00 / 9.83 Hz` |
 | 횡 오차 abs p50 / p95 | `1.79 / 5.56 cm` |
 | 종 오차 abs p50 / p95 | `1.77 / 6.28 cm` |
 | 횡 frame jump abs p50 / p95 | `0.21 / 1.31 cm` |
@@ -52,10 +55,31 @@ rosbags/eval/localization/local_mr_stability/
 | 조향률 abs p50 / p95 | `0.082 / 0.541 rad/s` |
 | 유효 조향 부호 반전 | `0.500 /s` |
 
+### 마지막 GPS 음영과 정지
+
+- zero-GNSS 시작부터 bag 종료까지: `27.746 s`.
+- 음영 진입 속도: 약 `16.47 m/s`.
+- 음영 구간의 약 `90.2%`는 속도 `0.2 m/s` 미만.
+- 마지막 `20 s`는 사실상 완전 정지.
+- Global EKF `/localization/odom`은 bag 끝까지 `50 Hz`로 발행.
+- 당시 `/localization/kinematic_state`는 음영 진입 약 `0.44 s` 뒤 중단되고,
+  bag 종료 `27.31 s` 전부터 message가 없다.
+- Planning trajectory와 control command는 계속 발행됐지만 localization state가
+  끊겼으므로, 정지 원인을 판단 알고리즘 단독 문제로 확정할 수 없다.
+
+이 구간은 GPS가 복귀하기 전에 bag이 종료되므로 재획득 correction 평가에는 쓰지
+않는다. 반면 GPS 음영 진입 후 controller-facing state 연속성 회귀에는 강한 실제
+폐루프 근거다.
+
+여기서 localization `50.00 Hz`는 message가 존재하는 active 구간의 주기다. bag 전체
+연속성을 뜻하지 않는다. 속도 `>1 m/s`의 `7,772` matched sample 역시 state가 존재했던
+구간만 포함한다.
+
 현장 baseline fusion의 조향률 abs p95 `1.59 rad/s`보다 작지만, detector 부하,
 route, planning/control revision이 다르므로 이를 Q/R만의 `66%` 개선으로 해석하지
-않는다. 이 bag의 강한 결론은 경량 정상 시간축에서 production estimator가 저율화되지
-않고 안정적으로 폐루프를 완주했다는 것이다.
+않는다. 이 bag의 강한 결론은 GPS 음영 진입 전의 경량 정상 시간축에서 production
+estimator가 저율화되지 않고 안정적으로 동작했다는 것이다. Bag 전체 완주나 GPS 음영
+대응을 입증하는 결과로 확대 해석하지 않는다.
 
 ## 실험 preset 비교
 

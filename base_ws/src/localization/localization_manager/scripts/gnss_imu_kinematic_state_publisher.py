@@ -29,6 +29,22 @@ def normalized_angle(angle):
     return math.atan2(math.sin(angle), math.cos(angle))
 
 
+def z_sample_state(has_sample, age_sec, max_age_sec):
+    """Classify the auxiliary GNSS height without gating planar state.
+
+    The localization filters run in 2D and continue producing valid x/y/yaw
+    and twist through a GNSS outage.  Height is display/map metadata, so once
+    one finite sample exists its age must never stop the planar state stream.
+    """
+    if not has_sample:
+        return "missing"
+    if not math.isfinite(age_sec) or not math.isfinite(max_age_sec):
+        return "invalid"
+    if abs(age_sec) > max_age_sec:
+        return "held"
+    return "fresh"
+
+
 def compose_planar_map_to_odom(map_to_base, odom_to_base):
     """Return planar map->odom from map->base and odom->base poses."""
     map_yaw = yaw_from_quaternion(map_to_base.orientation)
@@ -76,11 +92,16 @@ class GnssImuKinematicStatePublisher:
             rospy.get_param("~base_frame", "base_link")
         )
         self.max_z_age = float(rospy.get_param("~max_z_age_sec", 0.5))
+        if not math.isfinite(self.max_z_age) or self.max_z_age <= 0.0:
+            raise rospy.ROSInitException(
+                "~max_z_age_sec must be positive and finite"
+            )
         self.tf_timeout = float(rospy.get_param("~tf_timeout_sec", 0.05))
         self.last_stamp = None
         self.z_stamp = None
         self.z_position = None
         self.z_variance = None
+        self.z_was_held = False
 
         self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(10.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -188,15 +209,30 @@ class GnssImuKinematicStatePublisher:
         if self.z_stamp is None:
             rospy.logwarn_throttle(2.0, "Waiting for GNSS z sample")
             return
-        z_age = abs((message.header.stamp - self.z_stamp).to_sec())
-        if z_age > self.max_z_age:
+        z_age = (message.header.stamp - self.z_stamp).to_sec()
+        z_state = z_sample_state(True, z_age, self.max_z_age)
+        if z_state == "invalid":
             rospy.logwarn_throttle(
                 2.0,
-                "Rejecting fused odometry: GNSS z age %.3fs exceeds %.3fs",
+                "Rejecting fused odometry with invalid GNSS z age %.3fs",
+                z_age,
+            )
+            return
+        if z_state == "held":
+            rospy.logwarn_throttle(
+                5.0,
+                "Holding last valid GNSS z: age %.3fs exceeds %.3fs; "
+                "planar fused state remains valid",
                 z_age,
                 self.max_z_age,
             )
-            return
+            self.z_was_held = True
+        elif self.z_was_held:
+            rospy.loginfo(
+                "Fresh GNSS z resumed after hold; age=%.3fs",
+                z_age,
+            )
+            self.z_was_held = False
 
         try:
             odom_to_base = self.tf_buffer.lookup_transform(

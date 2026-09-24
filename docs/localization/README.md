@@ -1,72 +1,90 @@
-# Localization 문서 진입점
+# Localization 문서 index
 
-이 디렉터리에서 현재 대회 production 계약은 하나다.
+마지막 정리: 2026-09-24.
+
+이 디렉터리의 문서는 날짜가 아니라 `CURRENT / EVIDENCE / PLAN / HISTORICAL`
+상태로 판단한다. 코드와 문서가 다르면 현재 branch의 tracked launch/config/code를
+우선한다.
+
+## CURRENT
+
+| 목적 | 문서 |
+|---|---|
+| Production 계약, 알려진 위험, 다음 승인 gate | [`COMPETITION_LOCALIZATION_CURRENT_STATE.md`](COMPETITION_LOCALIZATION_CURRENT_STATE.md) |
+| 평가용 rosbag 등급과 heading provenance | [`260924_LOCALIZATION_EVALUATION_BAG_CATALOG.md`](260924_LOCALIZATION_EVALUATION_BAG_CATALOG.md) |
+| 새 실험 기록 형식 | [`EXPERIMENT_TEMPLATE.md`](EXPERIMENT_TEMPLATE.md) |
+
+현재 production estimator는 다음과 같다.
 
 ```text
 /Competition_topic heading, velocity.x
 + /sensor/gps
-+ /sensor/imu
--> GNSS+IMU+GT CTRA-like local/global EKF
++ /sensor/imu yaw-rate, longitudinal acceleration
+-> local/global robot_localization EKF
 -> /localization/kinematic_state
 ```
 
-## 현재 읽어야 하는 문서
+- MR 및 실대회: `localization`, `/Competition_topic`, heading correction `-1.347 deg`.
+- MRP: `localization_mrp`, `/Ego_topic`, heading correction `0 deg`.
+- GNSS horizontal sigma `0.10 m`, Global EKF Qxy `0.0005`.
+- `predict_to_current_time=true`, `two_d_mode=true`, `publish_sensor_tf=false`.
+- 대회에서 `/Ego_topic` 기반 provider는 fallback이 아니다.
+- 공식 시작 position interface가 확정되기 전까지 초기 pose 한 번만
+  `/Ego_topic`을 임시 사용한다. 연속 localization source나 대회 fallback이라는 뜻은
+  아니다.
+- localization A/B에는 `od_gt`를 사용해 detector/GPU 부하를 분리한다.
 
-1. [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)
-   - 현재 중대 이슈, 확정 원인, production 계약과 남은 현장 검증.
-2. [`260920_lightweight_closed_loop_evidence.md`](260920_lightweight_closed_loop_evidence.md)
-   - 경량 GT-object 폐루프에서 production Q/R과 실험 preset을 비교한 최신 근거.
-3. [`260919_quantized_gnss_qr_tuning_evidence.md`](260919_quantized_gnss_qr_tuning_evidence.md)
-   - GNSS 양자화 원인과 production Q/R 채택 근거.
-4. [`morai_udp_receipt_time.md`](morai_udp_receipt_time.md)
-   - 현장 UDP receipt-time 정책.
+## EVIDENCE
+
+- [`260924_LOCALIZATION_BASELINE_AUDIT.md`](260924_LOCALIZATION_BASELINE_AUDIT.md)
+  - 현재 코드·bag·평가기의 1차 감사와 다음 개선 우선순위.
+- [`260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md`](260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md)
+  - GPS 음영 state 연속 발행과 frame·단위 계약 감사.
+- [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)
+  - 현장 채터링, GNSS 양자화, 시간축과 GPS 음영 문제의 누적 원인 분석.
+- [`260920_lightweight_closed_loop_evidence.md`](260920_lightweight_closed_loop_evidence.md)
+  - 경량 GT-object 폐루프의 production Q/R 및 기각 preset 결과.
+- [`260919_quantized_gnss_qr_tuning_evidence.md`](260919_quantized_gnss_qr_tuning_evidence.md)
+  - GNSS 양자화와 production Q/R 채택 근거.
+- [`morai_udp_receipt_time.md`](morai_udp_receipt_time.md)
+  - 현장 UDP receipt-time 정책과 변경 금지 근거.
+
+## PLAN
+
+- [`260920_competition_status_and_local_control_frame_plan.md`](260920_competition_status_and_local_control_frame_plan.md)
+  - Competition Status 확장과 controller용 smooth local-frame 구조.
+
+PLAN의 구조나 파라미터는 production 기본값이 아니다. 동일 bag offline A/B, 경량
+폐루프, GPS 음영, LAN-to-LAN 순서로 검증한 뒤에만 CURRENT로 승격한다.
 
 ## 공식 실행 계약
 
-`docs/common_alias.txt`를 source한 터미널에서 다음만 production 진입점으로 사용한다.
+`docs/common_alias.txt`를 source한 터미널에서 다음 진입점만 사용한다.
 
 ```bash
-# MR 및 실대회: /Competition_topic, heading -1.347 deg correction
+# MR 및 실대회
 localization
 
-# MRP: /Ego_topic, 나머지 estimator 계약은 동일
+# MRP
 localization_mrp
 ```
 
-여기서 `MR`은 2025 대회용 launcher, `MRP`는 2026 개인용 launcher다. 실행하는
-컴퓨터가 로컬인지 여부가 아니라 launcher가 제공하는 topic 계약으로 alias를 고른다.
+`MR/MRP`는 실행 PC의 위치가 아니라 launcher와 topic 계약을 뜻한다. `-1.347 deg`는
+UDP/ROS transport 보정이 아니라 MR heading convention 보정이다. 이미 보정된
+`/localization/kinematic_state`에 다시 적용하지 않는다.
 
-대회 client에서는 `/Ego_topic`을 기대하지 않는다. 따라서
-`localization_morai_gt`는 대회 fallback이 아니다. 대회에서는 `localization` 하나를
-정상화하고, 입력 상실 시 안전 정지하는 정책을 사용한다.
-
-동시에 두 localization provider를 실행하지 않는다. duplicate timestamp 거부는 서로
-다른 provider가 같은 TF와 topic을 중복 발행하는 것을 방지하지 못한다.
-
-현재 production estimator tuning은 GNSS horizontal sigma `0.10 m`, Global EKF
-x/y process-noise diagonal `0.0005`다. `predict_to_current_time=true`를 유지한다.
-개발 단계의 최초 start pose는 `/Ego_topic`을 사용하며, 대회 전 공식 start-pose
-interface로 교체한다.
-
-폐루프 A/B에서만 다음 명시적 preset을 사용할 수 있다. 둘 다 `/Competition_topic`,
-heading correction `-1.347°` 등 production 입출력 계약은 유지하지만 Global Qxy를
-`0.05`로 높인다. 기본 `localization` alias와 production YAML은 변경하지 않는다.
+raw `/Ego_topic`을 oracle로 사용할 때만 실행 조건과 같은 offset을 oracle 쪽에
+적용한다. `analyze_localization_stability_bag.py` 기본값은 MR용 `-1.347`이므로 MRP
+bag은 반드시 다음 인자를 사용한다.
 
 ```bash
-# GNSS sigma 0.10 m, Global Qxy 0.05
-localization_sigma_0p10_qxy_0p05
-
-# GNSS sigma 0.05 m, Global Qxy 0.05
-localization_sigma_0p05_qxy_0p05
+--heading-offset-deg 0
 ```
 
-두 preset은 동시에 실행하지 않으며, 매 주행마다 사용한 alias를 rosbag run tag에
-기록한다. 현장 결과가 좋았다는 정성 관측만으로 production 기본값을 변경하지 않는다.
+동시에 두 localization provider를 실행하지 않는다.
 
-## Legacy
+## HISTORICAL
 
-[`legacy/`](legacy/)는 과거 1~7 설치·MORAI·rosbag·FAST-LIO 문서, 구형 GNSS+IMU
-baseline, `/Ego_topic` 직접 GT, 8월 estimator 구현 기록, 완료된 9월 16일 안정화 계획과
-과거 control 실행 기록이다.
-현재 대회 명령이나 기본값을 결정할 때 검색 결과만 보고 재사용하지 않는다. 과거 실험
-재현이 필요한 경우에만 읽는다.
+[`legacy/`](legacy/)에는 Fast-LIO, 구형 GNSS+IMU baseline, `/Ego_topic` 직접 GT,
+과거 설치·실행 절차와 완료된 계획만 둔다. 검색 결과에 먼저 나와도 checkpoint,
+heading, Q/R, alias를 현재 기본값으로 재사용하지 않는다.

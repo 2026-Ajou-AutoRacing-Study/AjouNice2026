@@ -28,10 +28,12 @@ localization
 localization_mrp
 ```
 
-Both aliases enable the `-1.347 deg` heading correction and disable duplicate
-sensor static TF publication. `/Ego_topic` direct GT localization is not a
-competition fallback. See `docs/localization/README.md` for the canonical
-document index.
+`localization` applies the MR/competition `-1.347 deg` heading correction.
+`localization_mrp` applies no correction because the audited MRP convention is
+already aligned. This distinction follows the launcher convention, not ROS
+versus UDP transport. Both aliases disable duplicate sensor static TF
+publication. `/Ego_topic` direct GT localization is not a competition fallback.
+See `docs/localization/README.md` for the canonical document index.
 
 ## Legacy/research FAST-LIO provider
 
