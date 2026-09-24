@@ -33,6 +33,7 @@ from bevfusion_ros.score_thresholds import (
     filter_detections,
     server_score_floor,
 )
+from bevfusion_ros.rotated_bev_nms import class_aware_rotated_bev_nms
 from bevfusion_ros.transport import TcpTransport
 
 
@@ -126,6 +127,15 @@ class BevFusionRosBridge:
             self.score_threshold, self.class_score_thresholds
         )
         self.max_detections = int(rospy.get_param("~max_detections", 100))
+        self.rotated_bev_nms_enabled = bool(
+            rospy.get_param("~rotated_bev_nms_enabled", True)
+        )
+        self.rotated_bev_nms_iou_threshold = float(
+            rospy.get_param("~rotated_bev_nms_iou_threshold", 0.50)
+        )
+        if not 0.0 <= self.rotated_bev_nms_iou_threshold <= 1.0:
+            raise ValueError(
+                "rotated_bev_nms_iou_threshold must be in [0, 1]")
         self.publish_detector_velocity = bool(
             rospy.get_param("~publish_detector_velocity", False)
         )
@@ -165,6 +175,7 @@ class BevFusionRosBridge:
         self.dropped_prepared = 0
         self.dropped_deskew_timing = 0
         self.dropped_deskew_pose = 0
+        self.nms_suppressed_total = 0
         self.last_marker_count = 0
         self.shutting_down = False
 
@@ -248,12 +259,15 @@ class BevFusionRosBridge:
         self._publish_status("waiting_for_synchronized_sensor_frame")
         rospy.loginfo(
             "BEVFusion bridge: operation=%s, lidar=%s, cameras=%s, "
-            "temporal_sweeps=%d, temporal_feature_cache=%s",
+            "temporal_sweeps=%d, temporal_feature_cache=%s, "
+            "rotated_bev_nms=%s@%.2f",
             self.operation,
             self.lidar_topic,
             self.camera_topics,
             self.temporal_sweeps,
             self.temporal_feature_cache,
+            self.rotated_bev_nms_enabled,
+            self.rotated_bev_nms_iou_threshold,
         )
 
     def _load_topics(self):
@@ -604,7 +618,8 @@ class BevFusionRosBridge:
             "inference_ms={:.1f} request_ms={:.1f} dropped_raw={} "
             "dropped_prepared={} deskew_mode={} deskew_ms={:.2f} "
             "deskew_span_ms={:.2f} deskew_displacement_p95_m={:.3f} "
-            "dropped_deskew_timing={} dropped_deskew_pose={}".format(
+            "dropped_deskew_timing={} dropped_deskew_pose={} "
+            "nms_suppressed_total={}".format(
                 response.get("operation"),
                 metadata.get("sequence", 0),
                 latency_ms,
@@ -621,6 +636,7 @@ class BevFusionRosBridge:
                 float(metadata.get("lidar_deskew_displacement_p95_m", 0.0)),
                 self.dropped_deskew_timing,
                 self.dropped_deskew_pose,
+                self.nms_suppressed_total,
             )
         )
 
@@ -659,6 +675,11 @@ class BevFusionRosBridge:
             self.score_threshold,
             self.class_score_thresholds,
         )
+        if self.rotated_bev_nms_enabled:
+            detection_count_before_nms = len(detections)
+            detections = class_aware_rotated_bev_nms(
+                detections, self.rotated_bev_nms_iou_threshold)
+            self.nms_suppressed_total += detection_count_before_nms - len(detections)
         delete_all = Marker()
         delete_all.header.frame_id = frame_id
         delete_all.header.stamp = stamp

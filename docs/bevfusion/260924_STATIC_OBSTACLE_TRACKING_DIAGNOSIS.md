@@ -257,3 +257,63 @@ track lifecycle로 보강하는 것이 맞다.
 
 정량 결과 원본은
 `artifacts/evaluation/bevfusion/teamlead_vehicle_id_switch_260925/`에 생성했다.
+
+## 2026-09-25 A: detector duplicate suppression 적용 결과
+
+Tracker lifecycle 변경과 분리해 첫 단계 A로 BEVFusion ROS bridge 출력에
+class-aware rotated BEV NMS를 적용했다.
+
+- 위치: class별 confidence threshold 적용 직후, canonical detection topic 발행 전.
+- 기준: 같은 class이고 rotated BEV IoU가 `0.50`보다 큰 box 중 confidence가 가장 높은
+  하나만 유지한다.
+- 기본값: `base3_online.launch`에서 활성화. 기존 E25 checkpoint, Docker inference,
+  ROS topic/message 계약은 바꾸지 않는다.
+- 진단: `/perception/bevfusion/status`의 `nms_suppressed_total`로 누적 제거 수를 확인한다.
+
+13개 정적 장애물·차량 저장 detection을 검사했을 때 정상 Sonata 5개 run에서는 제거가
+한 건도 없었다. 반면 문제 barricade run에서는 실제 겹친 frame만 제거됐다.
+
+| bag | 제거 box / duplicate frame |
+|---|---:|
+| manual position 04 | `5 / 5` |
+| teamlead barricade case 01 | `7 / 7` |
+| teamlead barricade case 02 | `5 / 4` |
+
+기존 E25 8-scenario 저장 detection 회귀검사에서도 Vehicle 네 bag은 제거 0건이었다.
+Obstacle bag 두 개에는 각각 `43`, `21`개의 겹친 box가 있었으며 NMS 후 현재 evaluator의
+center AP/F1은 감소하지 않았다.
+
+| E25 obstacle bag | center AP raw -> NMS | F1@1m raw -> NMS |
+|---|---:|---:|
+| 왕복 | `60.68 -> 61.14%` | `0.855 -> 0.883` |
+| 다중 asset | `68.76 -> 68.84%` | `0.829 -> 0.843` |
+
+이 수치는 양쪽 모두 같은 legacy calibrated GT로 다시 계산한 NMS A/B이며, 과거 보고서의
+다른 GT 계약 수치와 직접 섞지 않는다. 목적은 recall 손실 여부를 같은 조건에서 확인하는
+것이다.
+
+동일 EKF tracker를 2배속으로 raw detection과 NMS detection에 각각 재실행한 결과는 다음과
+같다. UUID 값 자체가 매 실행마다 달라지므로 unique ID 수, 동시 track frame과 track
+길이를 비교했다.
+
+| bag | 입력 | unique ID | 동시 복수 track frame | 최장 track frame |
+|---|---|---:|---:|---:|
+| manual position 04 | raw | 6 | 6 | 32 |
+|  | NMS | **2** | **0** | **45** |
+| teamlead case 01 | raw | 10 | 12 | 66 |
+|  | NMS | **5** | **2** | **67** |
+| teamlead case 02 | raw | 7 | 5 | 81 |
+|  | NMS | **4** | **0** | **82** |
+
+따라서 A는 duplicate detection이 unmatched detection으로 남아 새 ID를 만드는 경로를
+실제로 차단한다. 다만 NMS 적용 후에도 unique ID가 2--5개 남는다. 이는 서로 겹친
+동시 box 문제가 아니라 detection 공백, 근접 형상 붕괴와 재획득 문제이므로 두 번째
+단계 B의 track lifecycle/association 대상으로 남긴다. A 결과만으로 B까지 해결됐다고
+판정하지 않는다.
+
+host Python microbenchmark에서 평균 추가 시간은 detection 5/20/100개일 때 각각
+약 `0.005/0.068/1.83 ms`였다. 실제 production 검출 수는 대개 이보다 훨씬 적으며,
+12 Hz inference budget에 유의미한 지연을 추가하지 않는다.
+
+재현 수치는
+`artifacts/evaluation/bevfusion/static_obstacle_rotated_nms_260925/`에 저장했다.

@@ -29,6 +29,10 @@ MR에서 planning/control/RViz 없이 이 계약만 실주행·녹화하는 터�
 
 ## Tracker
 
+- E25 ROS bridge는 tracker 입력 전에 같은 class의 rotated BEV IoU `0.50` NMS를
+  적용한다. Barricade duplicate가 unmatched detection으로 남아 새 ID를 만드는 현상을
+  막기 위한 production 기본값이며 tracker association gate 변경은 아니다.
+
 - motion model: CTRV(`prediction_model=1`).
 - detector position measurement noise: `0.40 m`.
 - detector velocity fusion: `off`; production E25는 7D detector다.
