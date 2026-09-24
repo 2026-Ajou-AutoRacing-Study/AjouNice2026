@@ -19,6 +19,9 @@ tracker_use_kinematic_model="${TRACKER_USE_KINEMATIC_MODEL:-false}"
 tracker_detection_velocity_fusion_mode="${TRACKER_DETECTION_VELOCITY_FUSION_MODE:-0}"
 tracker_detection_velocity_noise_std_mps="${TRACKER_DETECTION_VELOCITY_NOISE_STD_MPS:-1.0}"
 tracker_detection_velocity_update_max_track_age_sec="${TRACKER_DETECTION_VELOCITY_UPDATE_MAX_TRACK_AGE_SEC:-1.0}"
+tracker_detection_velocity_maximum_output_age_sec="${TRACKER_DETECTION_VELOCITY_MAXIMUM_OUTPUT_AGE_SEC:-0.25}"
+tracker_detection_velocity_max_longitudinal_innovation_mps="${TRACKER_DETECTION_VELOCITY_MAX_LONGITUDINAL_INNOVATION_MPS:-5.0}"
+tracker_detection_velocity_longitudinal_blend="${TRACKER_DETECTION_VELOCITY_LONGITUDINAL_BLEND:-1.0}"
 tracker_center_motion_velocity_fusion="${TRACKER_CENTER_MOTION_VELOCITY_FUSION:-false}"
 tracker_center_motion_fuse_ekf_state="${TRACKER_CENTER_MOTION_FUSE_EKF_STATE:-true}"
 tracker_center_motion_override_output_velocity="${TRACKER_CENTER_MOTION_OVERRIDE_OUTPUT_VELOCITY:-false}"
@@ -116,6 +119,9 @@ env PYTHONPATH="$system_pythonpath" PYTHONNOUSERSITE=1 \
   tracker_detection_velocity_fusion_mode:="$tracker_detection_velocity_fusion_mode" \
   tracker_detection_velocity_noise_std_mps:="$tracker_detection_velocity_noise_std_mps" \
   tracker_detection_velocity_update_max_track_age_sec:="$tracker_detection_velocity_update_max_track_age_sec" \
+  tracker_detection_velocity_maximum_output_age_sec:="$tracker_detection_velocity_maximum_output_age_sec" \
+  tracker_detection_velocity_max_longitudinal_innovation_mps:="$tracker_detection_velocity_max_longitudinal_innovation_mps" \
+  tracker_detection_velocity_longitudinal_blend:="$tracker_detection_velocity_longitudinal_blend" \
   tracker_center_motion_velocity_fusion:="$tracker_center_motion_velocity_fusion" \
   tracker_center_motion_fuse_ekf_state:="$tracker_center_motion_fuse_ekf_state" \
   tracker_center_motion_override_output_velocity:="$tracker_center_motion_override_output_velocity" \
@@ -181,6 +187,9 @@ cat >"$output_dir/tracker_config.json" <<EOF
   "detection_velocity_fusion_mode": $tracker_detection_velocity_fusion_mode,
   "detection_velocity_noise_std_mps": $tracker_detection_velocity_noise_std_mps,
   "detection_velocity_update_max_track_age_sec": $tracker_detection_velocity_update_max_track_age_sec,
+  "detection_velocity_maximum_output_age_sec": $tracker_detection_velocity_maximum_output_age_sec,
+  "detection_velocity_max_longitudinal_innovation_mps": $tracker_detection_velocity_max_longitudinal_innovation_mps,
+  "detection_velocity_longitudinal_blend": $tracker_detection_velocity_longitudinal_blend,
   "center_motion_velocity_fusion": $tracker_center_motion_velocity_fusion,
   "center_motion_fuse_ekf_state": $tracker_center_motion_fuse_ekf_state,
   "center_motion_override_output_velocity": $tracker_center_motion_override_output_velocity,

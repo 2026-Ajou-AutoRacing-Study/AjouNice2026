@@ -85,6 +85,10 @@ selector가 `0.409 m/s`로 tracker 단독 `0.430 m/s`보다 좋아졌다. 이는
 
 ## 초기 1초 EKF 직접 융합 실험
 
+> 후속 P8 감사에서 이 실험 당시 tracker가 LiDAR-frame detector velocity를 map frame으로
+> 회전하지 않은 사실을 발견했다. 아래 수치는 문제 발견의 historical evidence이며,
+> frame 수정 후 판정은 P8 결과 문서를 우선한다.
+
 실제 ROS pipeline에 mode 3을 추가해 track 생성 후 1초까지만 detector `vx, vy`를 EKF에
 넣었다. 기본값은 계속 mode 0이며 실험 옵션만 추가했다.
 

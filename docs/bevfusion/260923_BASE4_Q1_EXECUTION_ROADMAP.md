@@ -1,18 +1,35 @@
 # Base4 Q1 실행 로드맵
 
-> 날짜: 2026-09-23.
-> 상태: Q1-P7 free-intercept motion 및 tracker gate 판정까지 완료한 CURRENT 계획.
+> 날짜: 2026-09-24.
+> 상태: Q1-P8 velocity frame 및 longitudinal output gate까지 완료한 CURRENT 계획.
 > 목표: 고주로 Vehicle velocity와 downstream 추월 판단을 개선하되 E25 production을
 > 흔들지 않는다.
 
 ## 현재 결론
 
-- Production은 `B3-BF0-F40 E25`, 7D position-only tracker 입력을 유지한다.
+- Production은 `B3-BF0-F40 E25`, 7D position-only tracker mode 0을 유지한다.
 - V1/T1의 9D velocity head는 학습은 가능하지만 rosbag 일반화와 frame 안정성이 부족하다.
 - T2/T2R/T2C dense BEV 계열은 정확도 또는 latency gate를 통과하지 못했다.
 - Q0 causal center-motion 직접 출력은 accepted slice에서도 종방향 오차를 악화시켜
   기각했다.
-- 다음 유효 가설은 같은 객체의 이력을 보존하는 sparse object/query memory다.
+- Q1 sparse query memory의 detector baseline은 P7 free-intercept다.
+- P8에서 detector velocity의 누락됐던 LiDAR→map 회전을 수정했다.
+- 초기 종방향 output-only 결합은 speed/AVE를 소폭 개선했지만 모든 Map-CV horizon을
+  동시에 개선하지 못해 production에는 올리지 않는다.
+
+## P0--P8 실험 ledger
+
+| 단계 | 핵심 가설·변경 | 대표 결과 | 판정 |
+| --- | --- | --- | --- |
+| P0 | Ego-warped sparse Vehicle query memory | val speed `4.075→3.854` | 신호 확인, 절대오차 실패 |
+| P1 | displacement/dt를 value에 넣고 auxiliary velocity head 추가 | `3.854→3.133` | 개선, center 기준 오류 발견 |
+| P2 | current와 memory center를 모두 post-decoder로 통일 | `3.133→1.070` | 구조 오류 수정, `<1` 근소 실패 |
+| P3 | 여러 causal pair의 direct motion aggregation | val `0.845`, 첫 `<1` | detector baseline 채택 |
+| P4 | mutual matching과 hard robust consensus | `1.274~1.998` | 기각: 유효 pair 과도 제거 |
+| P5 | robust 후보 soft blend | `0.845→0.847~0.851` | 기각: 단조 악화 |
+| P6 | GT-ID 진단 후 `dt²` age-weighted slope | val `0.738`, highway1 `0.872` | center jitter 병목 완화 |
+| P7 | intercept와 slope 동시 적합 | val `0.676`, bags `0.811/0.779` | detector 연구 baseline 갱신 |
+| P8 | velocity frame 수정 + 초기 종방향 output-only | bags AVE `0.589/1.009` | 가능성 확인, Map-CV gate 미통과 |
 
 ## 장기 실행 단계
 
@@ -77,18 +94,14 @@ Q1 detector가 Phase C를 통과한 뒤에만 detector velocity fusion을 다시
 
 Q1과 tracker/prediction 변경을 한 실험에서 동시에 튜닝하지 않는다.
 
-## 즉시 수행할 작업
+## 다음 수행 gate
 
-다음 작업 묶음은 학습을 오래 돌리기 전에 끝낸다.
-
-1. TransFusion query 입출력과 checkpoint key를 고정하는 Q1-P0 wrapper 설계.
-2. memory transform/reset/attention의 CPU tensor 단위시험 구현.
-3. 기존 Base4 clip metadata가 Q1의 sequence ID, timestamp, Ego pose를 모두 제공하는지
-   audit하고 누락 시 info builder만 보강.
-4. 64-sample 및 counterfactual mini recipe 생성.
-5. forward/backward smoke 한 번 후 parameter count, VRAM과 latency를 기록.
-
-이 단계 전에는 대규모 재수집이나 장시간 full training을 시작하지 않는다.
+1. 기존 두 development bag의 추가 파라미터 튜닝은 중단한다.
+2. 가속 합류, 로터리 가속, 일정 순항과 후측방 차량을 포함한 새 held-out bag을 확보한다.
+3. P7 detector와 position-only/P8을 고정 설정으로 한 번 비교한다.
+4. P8이 tracking AVE와 Map-CV 전 horizon을 함께 개선할 때만 uncertainty-aware P9로 간다.
+5. 통과하지 못하면 detector velocity는 confidence 참고값으로만 남기고 position tracker와
+   temporal lane association 개선으로 전환한다.
 
 ## 2026-09-23 진행 상태
 
@@ -177,6 +190,14 @@ center 전체에서 intercept와 velocity를 함께 적합했다. 재학습 없�
 계속 position-only mode 0을 유지한다. 다음 P8은 track/lane 종방향 성분만 조건부로
 사용하고 lateral/spatial state를 건드리지 않는 결합을 검토한다. 상세 결과는
 [`260924_BASE4_Q1_P7_FREE_INTERCEPT_RESULTS.md`](260924_BASE4_Q1_P7_FREE_INTERCEPT_RESULTS.md)를
+따른다.
+
+P8 감사에서 tracker가 detector position/yaw는 map frame으로 바꾸면서 LiDAR-frame
+velocity를 회전하지 않는 계약 오류를 발견해 수정했다. 이후 EKF state는 position-only로
+유지하고 초기 1초의 종방향 output만 선형 감쇠 결합했다. 두 bag에서 speed와 2D AVE는
+소폭 개선됐고 stable 3초 FDE도 개선됐지만, highway1 all-FDE와 stable 1/2초는 소폭
+악화해 production gate에는 미달했다. mode 4는 기본 off 연구 옵션이며 상세 결과는
+[`260924_BASE4_Q1_P8_LONGITUDINAL_OUTPUT_RESULTS.md`](260924_BASE4_Q1_P8_LONGITUDINAL_OUTPUT_RESULTS.md)를
 따른다.
 
 ## 중단·전환 기준

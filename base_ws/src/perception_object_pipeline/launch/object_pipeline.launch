@@ -30,10 +30,13 @@
   <!-- Production: update on detector input and publish predicted EKF state at 30 Hz. -->
   <arg name="tracking_internal_publish_rate_hz" default="30.0"/>
   <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
-  <!-- Optional detector velocity fusion: 0 off, 1 init, 2 always, 3 early. -->
+  <!-- Velocity: 0 off, 1 init, 2 always, 3 early EKF, 4 early longitudinal output. -->
   <arg name="detection_velocity_fusion_mode" default="0"/>
   <arg name="detection_velocity_noise_std_mps" default="1.0"/>
   <arg name="detection_velocity_update_max_track_age_sec" default="1.0"/>
+  <arg name="detection_velocity_maximum_output_age_sec" default="0.25"/>
+  <arg name="detection_velocity_max_longitudinal_innovation_mps" default="5.0"/>
+  <arg name="detection_velocity_longitudinal_blend" default="1.0"/>
   <!-- Experimental B4H-Q0 center-history velocity; production default off. -->
   <arg name="center_motion_velocity_fusion" default="false"/>
   <arg name="publish_center_motion_diagnostics" default="false"/>
@@ -208,6 +211,12 @@
          value="$(arg detection_velocity_noise_std_mps)"/>
     <arg name="detection_velocity_update_max_track_age_sec"
          value="$(arg detection_velocity_update_max_track_age_sec)"/>
+    <arg name="detection_velocity_maximum_output_age_sec"
+         value="$(arg detection_velocity_maximum_output_age_sec)"/>
+    <arg name="detection_velocity_max_longitudinal_innovation_mps"
+         value="$(arg detection_velocity_max_longitudinal_innovation_mps)"/>
+    <arg name="detection_velocity_longitudinal_blend"
+         value="$(arg detection_velocity_longitudinal_blend)"/>
     <arg name="center_motion_velocity_fusion"
          value="$(arg center_motion_velocity_fusion)"/>
     <arg name="publish_center_motion_diagnostics"
