@@ -65,6 +65,8 @@ base_ws/.catkin_workspace
 *.bag
 *.bag.active
 /rosbags/datasets/base3_online/
+/rosbags/datasets/base4_temporal/
+/rosbags/eval/perception/
 /planner_logs/
 /.catkin_workspace
 
@@ -324,6 +326,11 @@ __marimo__/
 /data/morai_4class_v1/
 /outputs/
 /wandb/
+
+# Local research-report drafts and generated figures.
+# Keep these files in the workspace, but do not publish ongoing report edits.
+/docs/*research_report*.md
+/docs/assets/research_report/
 
 # Vendored source lib/ directories are source, not generated Python lib output.
 !/planning_ws/src/autoware_lanelet2_extension/lib/
