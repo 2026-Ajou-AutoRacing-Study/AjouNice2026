@@ -1,7 +1,7 @@
 # Tracking·Prediction production 현재 상태
 
 상태: **CURRENT**
-마지막 코드 대조: 2026-09-20, `planning/autoware-universe-to-ros1`
+마지막 코드 대조: 2026-09-25, `perception/static-obstacle-tracking-integration-260925`
 
 ## Production 계약
 
@@ -29,6 +29,14 @@ BEVFusion B3-BF0-F40 E25 DetectedObjects
 - E25 ROS bridge는 tracker 입력 전에 같은 class의 rotated BEV IoU `0.50` NMS를
   적용한다. Barricade duplicate가 unmatched detection으로 남아 새 ID를 만드는 현상을
   막기 위한 production 기본값이며 tracker association gate 변경은 아니다.
+- Confirmed-track 삭제는 detector frame 수가 아니라 message stamp 경과시간을 사용한다.
+  moving track은 `0.50 s`, UNKNOWN 및 2 m/s 이하 CAR/TRUCK은 `1.00 s`까지 bounded
+  coasting한다. Tentative track은 기존 strict 정책을 유지하며 pedestrian에는 긴 정적
+  lifetime을 적용하지 않는다.
+- 이미 mature track이 association된 frame에서는 중심 `0.75 m` 이내의 유사한 큰
+  unmatched box가 두 번째 ID를 만들지 못하게 한다. 이는 detector NMS를 통과한
+  low-IoU shape outlier에 대한 tracker-side 안전장치이며 전역 association gate `5 m`를
+  넓힌 것이 아니다.
 
 - motion model: CTRV(`prediction_model=1`).
 - detector position measurement noise: `0.40 m`.
