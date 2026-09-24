@@ -28,6 +28,11 @@
   <arg name="control_yaw_tau_sec" default="0.5"/>
   <arg name="control_state_reset_translation_error_m" default="0.5"/>
   <arg name="control_state_reset_yaw_error_deg" default="20.0"/>
+  <arg name="enable_relocation_guard" default="false"/>
+  <arg name="relocation_guard_monitor_only" default="true"/>
+  <arg name="relocation_guard_threshold_m" default="5.0"/>
+  <arg name="relocation_guard_consecutive_samples" default="3"/>
+  <arg name="relocation_guard_cooldown_sec" default="5.0"/>
 
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
@@ -77,5 +82,10 @@
          value="$(arg control_state_reset_translation_error_m)"/>
     <arg name="control_state_reset_yaw_error_deg"
          value="$(arg control_state_reset_yaw_error_deg)"/>
+    <arg name="enable_relocation_guard" value="$(arg enable_relocation_guard)"/>
+    <arg name="relocation_guard_monitor_only" value="$(arg relocation_guard_monitor_only)"/>
+    <arg name="relocation_guard_threshold_m" value="$(arg relocation_guard_threshold_m)"/>
+    <arg name="relocation_guard_consecutive_samples" value="$(arg relocation_guard_consecutive_samples)"/>
+    <arg name="relocation_guard_cooldown_sec" value="$(arg relocation_guard_cooldown_sec)"/>
   </include>
 </launch>

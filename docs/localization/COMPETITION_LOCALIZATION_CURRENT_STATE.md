@@ -132,7 +132,10 @@ closure p95는 `17.40 -> 0.071 cm`로 감소했다. EKF state 자체는 변경�
 Competition Status에는 global position이 없다. 현재 첫 `/Ego_topic` pose는 주최 측의
 공식 시작 position interface가 아직 확정되지 않아 초기값 용도로만 쓰는 의도적인 임시
 계약이며 문제나 fallback이 아니다. 공식 interface가 제공되면 이 입력만 교체한다.
-사고 후 checkpoint 순간이동을 자동 검출해 두 EKF를 reset하는 계약도 아직 없다.
+사고 후 checkpoint 순간이동 후보를 감지하는 가드를 추가했다. 정상 bag 두 개에서
+5 m 초과 innovation은 0건이었고 합성 20 m 이동은 3 sample 뒤 감지했지만, 실제
+checkpoint bag과 폐루프가 없어 기본 OFF·monitor-only다. active 후보는 Global EKF만
+reset하고 Local odom 연속성을 유지한다. 자동 reset production 계약은 아직 없다.
 
 ### P1. Competition yaw-rate A/B
 

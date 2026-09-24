@@ -48,6 +48,11 @@
   <arg name="control_state_reset_yaw_error_deg" default="20.0"/>
   <arg name="acceleration_topic" default="/localization/acceleration"/>
   <arg name="initial_pose_topic" default="/localization/initialpose"/>
+  <arg name="enable_relocation_guard" default="false"/>
+  <arg name="relocation_guard_monitor_only" default="true"/>
+  <arg name="relocation_guard_threshold_m" default="5.0"/>
+  <arg name="relocation_guard_consecutive_samples" default="3"/>
+  <arg name="relocation_guard_cooldown_sec" default="5.0"/>
 
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
@@ -140,6 +145,29 @@
     <remap from="odometry/filtered" to="$(arg local_odom_topic)"/>
     <remap from="set_pose"
            to="/localization/gnss_imu_gt/local_set_pose_unused"/>
+  </node>
+
+  <!--
+    Experimental checkpoint-relocation detector. Disabled by default and
+    monitor-only when enabled; it cannot reset the Global EKF unless both
+    launch gates are deliberately changed.
+  -->
+  <node if="$(arg enable_relocation_guard)"
+        pkg="localization_manager"
+        type="localization_relocation_guard.py"
+        name="localization_relocation_guard"
+        output="screen">
+    <param name="monitor_only" value="$(arg relocation_guard_monitor_only)"/>
+    <param name="innovation_threshold_m" value="$(arg relocation_guard_threshold_m)"/>
+    <param name="consecutive_samples" value="$(arg relocation_guard_consecutive_samples)"/>
+    <param name="cooldown_sec" value="$(arg relocation_guard_cooldown_sec)"/>
+    <param name="gnss_topic" value="$(arg gnss_odom_topic)"/>
+    <param name="state_topic" value="$(arg kinematic_state_topic)"/>
+    <param name="orientation_topic" value="$(arg gt_orientation_topic)"/>
+    <param name="reset_topic" value="$(arg initial_pose_topic)"/>
+    <param name="map_frame" value="$(arg map_frame)"/>
+    <param name="max_state_age_sec" value="0.1"/>
+    <param name="max_orientation_age_sec" value="0.1"/>
   </node>
 
   <node pkg="robot_localization"

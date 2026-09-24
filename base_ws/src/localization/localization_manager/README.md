@@ -58,6 +58,24 @@ Odometry). The node publishes no TF and does not alter the global Planning
 state. It is disabled by default and must not become the controller input until
 closed-loop, GPS-outage/reacquisition, and checkpoint-reset gates pass.
 
+### Experimental checkpoint-relocation guard
+
+`localization_relocation_guard.py` compares co-timed GNSS and fused map poses.
+It requires a 5 m innovation for three consecutive GNSS samples and applies a
+five-second cooldown. The launch gate is disabled by default, and enabling it
+still runs monitor-only unless explicitly overridden:
+
+```bash
+roslaunch bringup localization_gnss_imu_gt_ctra.launch \
+  enable_relocation_guard:=true \
+  relocation_guard_monitor_only:=true
+```
+
+Only an active experiment (`relocation_guard_monitor_only:=false`) publishes a
+corrected-orientation pose to the Global EKF reset topic. The Local EKF is not
+reset. Do not enable automatic reset in production until a real checkpoint
+relocation bag and closed-loop recovery pass the documented gates.
+
 ## Legacy/research FAST-LIO provider
 
 Run:

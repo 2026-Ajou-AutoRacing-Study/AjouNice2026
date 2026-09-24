@@ -27,6 +27,7 @@ catkin_install_python(PROGRAMS
   scripts/gnss_imu_initial_pose_publisher.py
   scripts/gnss_imu_kinematic_state_publisher.py
   scripts/smooth_control_state_publisher.py
+  scripts/localization_relocation_guard.py
   scripts/localization_minimap_publisher.py
   scripts/localization_state_rviz_marker.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -44,6 +45,8 @@ if(CATKIN_ENABLE_TESTING)
   find_package(rostest REQUIRED)
   catkin_add_nosetests(test/test_gnss_imu_contract.py)
   catkin_add_nosetests(test/test_smooth_control_state.py)
+  catkin_add_nosetests(test/test_localization_relocation_guard.py)
   catkin_add_nosetests(test/test_morai_gt_contract.py)
   add_rostest(test/morai_gt_transport.test)
+  add_rostest(test/localization_relocation_guard_transport.test)
 endif()
