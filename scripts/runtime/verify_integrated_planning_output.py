@@ -33,7 +33,7 @@ from tf.transformations import quaternion_from_euler
 
 repo = Path(os.environ["AJOUNICE_ROOT"]).resolve()
 result_path = Path(os.environ["AW149_OUTPUT_PROBE_RESULT"]).resolve()
-route_path = repo / "base_ws/src/planning_addons/competition_route_requester/config/kcity_v84_competition_route.yaml"
+route_path = repo / "base_ws/src/planning_addons/competition_route_requester/config/kcity_v85_competition_route.yaml"
 route_config = yaml.safe_load(route_path.read_text())
 selected = route_config["route_a"]
 use_requester = os.environ.get("AW149_OUTPUT_PROBE_USE_REQUESTER", "0") == "1"

@@ -74,7 +74,7 @@ def test_production_topics_and_v76_map_are_explicit():
     assert arguments["measurement_tracked_objects"] == "/perception/object_recognition/tracking/measurement_objects"
     assert arguments["tracked_objects"] == "/perception/object_recognition/tracking/objects"
     assert arguments["predicted_objects"] == "/perception/object_recognition/objects"
-    assert top_level["map_file"]["default"].endswith("/lanelet2_map_v84.osm")
+    assert top_level["map_file"]["default"].endswith("/lanelet2_map_v85.osm")
     assert top_level["projector_file"]["default"].endswith("/map_projector_info_v1.yaml")
     assert arguments["map_file"] == "$(arg map_file)"
     assert arguments["projector_file"] == "$(arg projector_file)"
