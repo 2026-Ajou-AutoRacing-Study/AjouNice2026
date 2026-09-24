@@ -217,6 +217,37 @@ def main():
     assert torch.allclose(pair_mean_speed, torch.tensor(2.5), atol=1.0e-5)
     assert abs(float(age_wls_speed) - 2.0) < abs(float(pair_mean_speed) - 2.0)
 
+    # P7 free-intercept fitting must recover the trajectory slope without
+    # treating a noisy current center as an exact intercept.  The true motion
+    # is 2 m/s; only the current observation has a +0.2 m center error.
+    fixed_intercept_module = MoraiQueryMemoryAttention(
+        channels=8, num_heads=2, maximum_association_distance_m=30.0,
+        direct_velocity_age_power=2.0)
+    free_intercept_module = MoraiQueryMemoryAttention(
+        channels=8, num_heads=2, maximum_association_distance_m=30.0,
+        direct_velocity_fit_intercept=True)
+    free_intercept_module.load_state_dict(fixed_intercept_module.state_dict())
+    for candidate in (fixed_intercept_module, free_intercept_module):
+        for parameter in candidate.parameters():
+            parameter.data.zero_()
+    fit_args = (
+        torch.zeros(1, 8, 1),
+        torch.tensor([[[1.2, 0.0]]]),
+        torch.tensor([[0]]),
+        torch.zeros(1, 8, 3),
+        torch.tensor([[[0.8, 0.0], [0.4, 0.0], [0.0, 0.0]]]),
+        torch.tensor([[0.9, 0.9, 0.9]]),
+        torch.zeros(1, 3, dtype=torch.long),
+        torch.tensor([[0.1, 0.3, 0.5]]),
+    )
+    fixed_intercept_module(*fit_args)
+    free_intercept_module(*fit_args)
+    fixed_speed = fixed_intercept_module.last_direct_velocity[0, 0, 0]
+    free_speed = free_intercept_module.last_direct_velocity[0, 0, 0]
+    assert abs(float(free_speed) - 2.0) < abs(float(fixed_speed) - 2.0)
+    assert torch.allclose(
+        free_speed, torch.tensor(2.3050847), atol=1.0e-5)
+
     bank = CausalQueryMemoryBank(
         max_frames=2, max_queries_per_frame=2, maximum_age_sec=0.6,
         reset_gap_sec=0.3)

@@ -148,6 +148,11 @@ def main():
     residual_steps = []
     prediction_acceleration = []
     gt_acceleration = []
+    acceleration_slices = {
+        "steady_le_0_5_mps2": [],
+        "moderate_0_5_to_2_mps2": [],
+        "high_gt_2_mps2": [],
+    }
     adjacent_pairs = 0
     for rows in track_rows.values():
         rows.sort(key=lambda row: row["timestamp"])
@@ -171,7 +176,19 @@ def main():
             gt_steps.append(abs(gt_step))
             residual_steps.append(abs(residual_step))
             prediction_acceleration.append(abs(prediction_step / dt))
-            gt_acceleration.append(abs(gt_step / dt))
+            absolute_gt_acceleration = abs(gt_step / dt)
+            gt_acceleration.append(absolute_gt_acceleration)
+            current_absolute_error = abs(
+                current["signed_longitudinal_error_mps"])
+            if absolute_gt_acceleration <= 0.5:
+                acceleration_slices["steady_le_0_5_mps2"].append(
+                    current_absolute_error)
+            elif absolute_gt_acceleration <= 2.0:
+                acceleration_slices["moderate_0_5_to_2_mps2"].append(
+                    current_absolute_error)
+            else:
+                acceleration_slices["high_gt_2_mps2"].append(
+                    current_absolute_error)
             adjacent_pairs += 1
 
     report = {
@@ -207,6 +224,10 @@ def main():
         "adjacent_velocity_error_step_mps": statistics(residual_steps),
         "apparent_prediction_acceleration_mps2": statistics(prediction_acceleration),
         "apparent_gt_acceleration_mps2": statistics(gt_acceleration),
+        "speed_error_by_gt_acceleration": {
+            name: statistics(values)
+            for name, values in acceleration_slices.items()
+        },
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

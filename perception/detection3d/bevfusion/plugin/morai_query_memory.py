@@ -87,6 +87,8 @@ class MoraiQueryMemoryAttention(nn.Module):
         shadow_robust_association: bool = False,
         robust_velocity_blend: float = 0.0,
         direct_velocity_age_power: float = 0.0,
+        direct_velocity_fit_intercept: bool = False,
+        direct_velocity_current_weight: float = 1.0,
     ) -> None:
         super().__init__()
         if channels % num_heads != 0:
@@ -112,6 +114,10 @@ class MoraiQueryMemoryAttention(nn.Module):
         self.shadow_robust_association = bool(shadow_robust_association)
         self.robust_velocity_blend = float(robust_velocity_blend)
         self.direct_velocity_age_power = float(direct_velocity_age_power)
+        self.direct_velocity_fit_intercept = bool(
+            direct_velocity_fit_intercept)
+        self.direct_velocity_current_weight = float(
+            direct_velocity_current_weight)
         if self.robust_min_consensus_frames < 2:
             raise ValueError("robust_min_consensus_frames must be >= 2")
         if self.robust_consensus_threshold_mps <= 0.0:
@@ -123,6 +129,9 @@ class MoraiQueryMemoryAttention(nn.Module):
             raise ValueError("robust_velocity_blend must be in [0, 1]")
         if self.direct_velocity_age_power < 0.0:
             raise ValueError("direct_velocity_age_power must be non-negative")
+        if self.direct_velocity_current_weight <= 0.0:
+            raise ValueError(
+                "direct_velocity_current_weight must be positive")
 
         self.query_projection = nn.Linear(self.channels, self.channels)
         self.key_projection = nn.Linear(self.channels, self.channels)
@@ -456,14 +465,61 @@ class MoraiQueryMemoryAttention(nn.Module):
                 else velocity.new_tensor(0.0))
         else:
             velocity_weights = weights.mean(dim=1)
-            if self.direct_velocity_age_power > 0.0:
-                age_scale = memory_ages_sec[:, None, :].pow(
-                    self.direct_velocity_age_power)
-                velocity_weights = velocity_weights * age_scale
-                velocity_weights = velocity_weights / velocity_weights.sum(
-                    dim=-1, keepdim=True).clamp_min(1.0e-8)
-            direct_velocity = torch.einsum(
-                "bnm,bnmd->bnd", velocity_weights, velocity)
+            if self.direct_velocity_fit_intercept:
+                # Fit p(t) = intercept + velocity * t over the current point
+                # at t=0 and every valid causal memory point.  Unlike the
+                # fixed-current pair slopes, this treats current-center noise
+                # symmetrically instead of injecting it into every estimate.
+                # A current weight of 1.0 means one average memory-observation
+                # weight, so uniform attention gives every time point equal
+                # influence.
+                past_weights = velocity_weights
+                valid_count = valid_pairs.sum(dim=-1).clamp_min(1).to(
+                    past_weights.dtype)
+                current_weight = (
+                    past_weights.sum(dim=-1) / valid_count
+                    * self.direct_velocity_current_weight
+                )
+                past_times = -memory_ages_sec[:, None, :].expand(
+                    -1, current_count, -1)
+                total_weight = (
+                    past_weights.sum(dim=-1) + current_weight
+                ).clamp_min(1.0e-8)
+                mean_time = (
+                    past_weights * past_times
+                ).sum(dim=-1) / total_weight
+                mean_position = (
+                    torch.einsum(
+                        "bnm,bmd->bnd", past_weights, memory_centers_xy)
+                    + current_weight[:, :, None] * current_centers_xy
+                ) / total_weight[:, :, None]
+                centered_past_time = past_times - mean_time[:, :, None]
+                numerator = torch.einsum(
+                    "bnm,bnm,bnmd->bnd",
+                    past_weights,
+                    centered_past_time,
+                    memory_centers_xy[:, None, :, :]
+                    - mean_position[:, :, None, :],
+                )
+                numerator = numerator + (
+                    current_weight[:, :, None]
+                    * (-mean_time)[:, :, None]
+                    * (current_centers_xy - mean_position)
+                )
+                denominator = (
+                    past_weights * centered_past_time.square()
+                ).sum(dim=-1) + current_weight * mean_time.square()
+                direct_velocity = numerator / denominator.clamp_min(
+                    1.0e-8)[:, :, None]
+            else:
+                if self.direct_velocity_age_power > 0.0:
+                    age_scale = memory_ages_sec[:, None, :].pow(
+                        self.direct_velocity_age_power)
+                    velocity_weights = velocity_weights * age_scale
+                    velocity_weights = velocity_weights / velocity_weights.sum(
+                        dim=-1, keepdim=True).clamp_min(1.0e-8)
+                direct_velocity = torch.einsum(
+                    "bnm,bnmd->bnd", velocity_weights, velocity)
             direct_velocity = direct_velocity * active[:, :, None]
             direct_active = active
             if self.shadow_robust_association:
