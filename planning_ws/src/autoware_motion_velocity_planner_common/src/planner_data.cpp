@@ -184,6 +184,11 @@ const std::vector<pcl::PointIndices> PlannerData::Pointcloud::get_cluster_indice
   return *cluster_indices_;
 }
 
+bool PlannerData::Pointcloud::has_processed_pointcloud() const noexcept
+{
+  return filtered_pointcloud_ptr_.has_value() && cluster_indices_.has_value();
+}
+
 pcl::PointCloud<pcl::PointXYZ> PlannerData::Pointcloud::extract_clustered_points() const
 {
   const auto source = get_filtered_pointcloud_ptr();

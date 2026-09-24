@@ -5,6 +5,7 @@
 TEST(MotionVelocityPlannerDataPointcloud, RejectsReadBeforePreprocess)
 {
   autoware::motion_velocity_planner::PlannerData::Pointcloud pointcloud;
+  EXPECT_FALSE(pointcloud.has_processed_pointcloud());
   EXPECT_THROW(pointcloud.get_filtered_pointcloud_ptr(), std::runtime_error);
   EXPECT_THROW(pointcloud.get_cluster_indices(), std::runtime_error);
 }
@@ -28,6 +29,7 @@ TEST(MotionVelocityPlannerDataPointcloud, DownsamplesClustersAndExtractsFiltered
   input.push_back({5.2F, 0.0F, 0.0F});
   pointcloud.preprocess_pointcloud(input);
 
+  EXPECT_TRUE(pointcloud.has_processed_pointcloud());
   const auto filtered = pointcloud.get_filtered_pointcloud_ptr();
   const auto clusters = pointcloud.get_cluster_indices();
   EXPECT_EQ(filtered->size(), 4U);

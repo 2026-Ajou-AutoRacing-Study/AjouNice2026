@@ -127,6 +127,7 @@ struct PlannerData
     }
     const pcl::PointCloud<pcl::PointXYZ>::Ptr get_filtered_pointcloud_ptr() const;
     const std::vector<pcl::PointIndices> get_cluster_indices() const;
+    bool has_processed_pointcloud() const noexcept;
     pcl::PointCloud<pcl::PointXYZ> extract_clustered_points() const;
 
     pcl::PointCloud<pcl::PointXYZ> pointcloud;

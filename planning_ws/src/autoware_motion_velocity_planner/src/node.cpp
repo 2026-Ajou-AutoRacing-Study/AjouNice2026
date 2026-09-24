@@ -310,18 +310,35 @@ void MotionVelocityPlannerNode::on_trajectory(
   output_trajectory_msg.header = input_trajectory_msg->header;
   processing_times["generate_trajectory"] = stop_watch.toc(true);
 
-  lk.unlock();
-
-  trajectory_pub_->publish(output_trajectory_msg);
-
+  std::optional<sensor_msgs::PointCloud2> debug_processed_pointcloud_msg;
   if (
     debug_processed_pointcloud_pub_.getNumSubscribers() > 0 &&
     planner_data_->no_ground_pointcloud.preprocess_params_.downsample_by_voxel_grid
       .enable_downsample) {
-    sensor_msgs::PointCloud2 output_pointcloud_msg;
-    pcl::toROSMsg(
-      planner_data_->no_ground_pointcloud.extract_clustered_points(), output_pointcloud_msg);
-    debug_processed_pointcloud_pub_.publish(output_pointcloud_msg);
+    if (planner_data_->no_ground_pointcloud.has_processed_pointcloud()) {
+      try {
+        sensor_msgs::PointCloud2 output_pointcloud_msg;
+        pcl::toROSMsg(
+          planner_data_->no_ground_pointcloud.extract_clustered_points(), output_pointcloud_msg);
+        debug_processed_pointcloud_msg = std::move(output_pointcloud_msg);
+      } catch (const std::exception & error) {
+        // A debug subscriber must never be able to terminate the required planning node.
+        ROS_WARN_THROTTLE(
+          1.0, "Skipping debug processed pointcloud publication: %s", error.what());
+      }
+    } else {
+      ROS_DEBUG_THROTTLE(
+        1.0, "Skipping debug processed pointcloud publication because pointcloud preprocessing "
+        "has not run for the loaded planner modules");
+    }
+  }
+
+  lk.unlock();
+
+  trajectory_pub_->publish(output_trajectory_msg);
+
+  if (debug_processed_pointcloud_msg) {
+    debug_processed_pointcloud_pub_.publish(*debug_processed_pointcloud_msg);
     processing_times["publish_down_sampled_pointcloud"] = stop_watch.toc(true);
   }
 
