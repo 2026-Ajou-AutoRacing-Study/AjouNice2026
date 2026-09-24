@@ -1,10 +1,16 @@
 # 대회 Localization 중대 이슈 현황과 해결 기준
 
+상태: **EVIDENCE**
+
 마지막 갱신: 2026-09-24
 
 이 문서는 대회용 GNSS+IMU+GT motion localization에서 관측한 위치 흔들림과
 제어 채터링의 최신 사실, 반증된 가설, 남은 위험 및 다음 실험 계약을 한곳에
 고정한다. 과거 채팅이나 단일 실험 결과보다 이 문서를 우선한다.
+
+현재 production 계약과 다음 우선순위는
+[`COMPETITION_LOCALIZATION_CURRENT_STATE.md`](COMPETITION_LOCALIZATION_CURRENT_STATE.md)를
+우선한다. 이 문서는 문제 원인과 판단 근거를 보존하는 누적 evidence다.
 
 ## 1. 현재 심각도와 목표
 
