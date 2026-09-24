@@ -40,6 +40,15 @@ MR에서 planning/control/RViz 없이 이 계약만 실주행·녹화하는 터�
   unmatched box가 두 번째 ID를 만들지 못하게 한다. 이는 detector NMS를 통과한
   low-IoU shape outlier에 대한 tracker-side 안전장치이며 전역 association gate `5 m`를
   넓힌 것이 아니다.
+- 같은 E25 detection을 고정해 1배속 회귀한 결과, ID switch는 회전교차로
+  `1 -> 0`, 고주로 합류 `0 -> 0`, 고주로 순항 `0 -> 0`이었다. 고주로 순항은
+  coasting에 따른 FP가 `19 -> 26`으로 소폭 증가했으므로 false occupancy를 계속
+  감시하되, 로터리·고주로에 대한 유의미한 ID 연속성 회귀는 확인되지 않았다.
+- Pedestrian confirmed track은 정적·동적 모두 `0.50 s`만 coasting한다. 저속
+  CAR/TRUCK/UNKNOWN용 `1.00 s` lifetime과 최소 크기 `1.0 m`인 duplicate-birth guard를
+  pedestrian에 확대하지 않는다. 거리 변화 bag의 4명은 4개 ID로 안정적이었지만,
+  횡단 bag의 1명은 3개 ID가 발생했다. 실제 횡단보도 planning 실패가 재현되기 전에는
+  가까운 두 사람을 합칠 위험이 있는 pedestrian 전용 suppression을 추가하지 않는다.
 
 - motion model: CTRV(`prediction_model=1`).
 - detector position measurement noise: `0.40 m`.

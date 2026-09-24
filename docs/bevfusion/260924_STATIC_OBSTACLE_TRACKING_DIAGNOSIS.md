@@ -367,3 +367,57 @@ off와 동일했다. 이는 정적 UNKNOWN miss tolerance의 의도된 trade-off
 duplicate birth 억제, 인접한 별개/작은 객체 보존, legacy frame-count mode를 포함하며
 package 전체 `40 tests`가 통과했다. 재현 출력과 요약은
 `artifacts/evaluation/bevfusion/static_obstacle_tracker_lifecycle_b_260925/`에 저장했다.
+
+## 2026-09-25 로터리·고주로 및 Pedestrian 회귀 확인
+
+### Vehicle mission 회귀
+
+기존 E25 `0.40/0.15/0.10` 저장 detection을 고정 입력으로 사용해 현재 A+B tracker를
+1배속으로 다시 실행했다. 과거 production summary와 현재 replay는 시작·종료 시점의
+수 frame 차이가 있으므로 절대 count보다 ID switch와 비율 지표를 우선 비교한다.
+
+| mission | 기존 ID switch | A+B ID switch | 기존 MOTA | A+B MOTA |
+|---|---:|---:|---:|---:|
+| 회전교차로 | `1` | **`0`** | `0.8933` | **`0.9205`** |
+| 고주로 합류 | `0` | `0` | `0.7957` | `0.7977` |
+| 고주로 순항 | `0` | `0` | `0.9559` | `0.9524` |
+
+- 회전교차로는 기존 ID switch 1회가 사라지고 recall이 `0.9144 -> 0.9417`로
+  개선됐다.
+- 고주로 합류는 ID switch 없이 사실상 동등했다.
+- 고주로 순항은 ID switch 0회를 유지하고 recall은 `0.9694 -> 0.9709`로 소폭
+  증가했지만 FP가 `19 -> 26`으로 늘었다. 이는 움직이는 confirmed track을 최대
+  `0.50 s` coasting하는 데 따른 짧은 ghost-track trade-off로 본다. MOTA 하락은
+  약 `0.0035`로 작지만, 현장에서는 추월 gap이 잠깐 늦게 열리는지 감시한다.
+
+따라서 A+B가 로터리·고주로의 ID 연속성을 해친 근거는 없으며, 로터리에서는 오히려
+개선됐다. 다만 coasting은 관측이 없는 동안 객체가 정확하다는 의미가 아니므로 moving
+Vehicle의 false occupancy가 늘어나는지 새 held-out 주행 bag에서도 확인한다.
+
+### Pedestrian 적용 범위
+
+현재 구현에서 pedestrian은 다음 계약을 사용한다.
+
+- detector의 same-class rotated BEV NMS는 pedestrian에도 적용된다.
+- confirmed pedestrian은 정적·동적 구분 없이 최대 `0.50 s` coasting한다.
+- UNKNOWN 및 저속 CAR/TRUCK용 `1.00 s` stationary lifetime은 적용하지 않는다.
+- tracker duplicate-birth guard는 최소 최대변 `1.0 m` 조건 때문에 일반적인
+  pedestrian에는 사실상 적용되지 않는다.
+
+기존 E25 pedestrian detection으로 두 bag을 재실행한 결과는 다음과 같다.
+
+| bag | GT pedestrian | tracking 결과 |
+|---|---:|---|
+| 거리 변화 | `4` | 4개 ID가 약 29초 동안 유지, GT 수 초과 frame `0` |
+| 횡단 | `1` | 총 3개 ID, 복수 ID 동시 출력 `111` frame |
+
+횡단 bag에서 detector가 두 pedestrian box를 동시에 낸 것은 290 detection frame 중
+3 frame뿐이었지만, tracker가 별도 ID를 만들고 번갈아 갱신하면서 복수 track 구간이
+길어졌다. 이는 pedestrian도 별도 association 문제가 생길 수 있다는 근거이지만,
+차량용 중심거리 `0.75 m` duplicate-birth suppression을 그대로 확대하면 실제로 가까이
+걷는 두 사람을 하나로 합칠 위험이 있다.
+
+Production 결정은 pedestrian의 현재 `0.50 s` confirmed-track coasting을 유지하고,
+1초 stationary lifetime 또는 차량용 duplicate-birth guard를 추가하지 않는 것이다.
+횡단보도 planning에서 pedestrian ID 분절로 인한 실제 실패가 재현되면 pedestrian
+전용 evaluator와 더 좁은 class-specific association 조건을 먼저 만든 뒤 튜닝한다.
