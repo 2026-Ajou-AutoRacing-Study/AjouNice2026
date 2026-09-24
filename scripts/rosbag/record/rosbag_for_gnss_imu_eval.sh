@@ -23,6 +23,7 @@ TOPICS=(
   /localization/odometry/local
   /localization/odom
   /localization/kinematic_state
+  /localization/control_kinematic_state
   /localization/acceleration
   /tf
   /tf_static

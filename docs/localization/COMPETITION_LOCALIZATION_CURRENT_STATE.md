@@ -104,6 +104,11 @@ node만 `controller_kinematic_state_topic`으로 함께 전환할 수 있다. �
 false reset이 없었던 `5 m / 20 deg` 불연속 안전장치도 후보에 포함했지만 checkpoint
 실측이 없어 아직 production 계약은 아니다.
 
+동일 기록 trajectory로 controller를 다시 실행한 open-loop A/B에서 `tau=0.5 s`
+후보는 52초/242초 bag 모두 steering-rate p95를 약 4%, sign flip을 약 15~17%
+줄였다. 장주행 controller lateral error p50/p95도 `3.95/27.65 -> 2.68/24.14 cm`로
+개선됐다. 따라서 다음 폐루프의 단일 1순위 후보지만 production 승격은 아니다.
+
 `/localization/odometry/local`만 controller에 단순 remap하면 map trajectory와 frame이
 달라지므로 금지한다.
 
@@ -126,6 +131,10 @@ twist를 추가 발행한다.
 bag에서 Competition yaw-rate와 IMU yaw-rate의 부호·단위·지연·heading 미분 오차를
 비교한다. 두 신호는 같은 simulator state에서 파생됐을 수 있으므로 동시에 독립 측정처럼
 fuse하지 않고, IMU 대체 또는 residual 진단으로만 통제 실험한다.
+
+기존 입력 ablation에서는 IMU yaw-rate 제거가 yaw p95를 약 3.6~3.9배 악화했고,
+ax 제거는 장주행 종오차를 조금 악화하면서 유의미한 횡 이득이 없었다. 따라서 새
+Competition yaw-rate 비교 전까지 현재 IMU yaw-rate와 ax를 유지한다.
 
 ## Production 변경 gate
 

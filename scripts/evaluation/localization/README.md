@@ -50,6 +50,14 @@ python3 scripts/evaluation/localization/analyze_smooth_control_state_bag.py \
   --output /tmp/smooth_control_state.json
 ```
 
+`run_controller_state_open_loop_ab.sh` replays one recorded trajectory twice
+and changes only the state consumed by both trajectory-follower nodes. This is
+stronger than output-only smoothing but still has no vehicle feedback.
+
+```bash
+scripts/evaluation/localization/run_controller_state_open_loop_ab.sh INPUT.bag
+```
+
 ## Competition yaw-rate diagnostic
 
 The native UDP packet includes angular velocity, but the legacy
@@ -66,3 +74,13 @@ python3 scripts/evaluation/localization/analyze_competition_yaw_rate.py \
 Old bags without `/competition/raw_twist` cannot answer this question. Do not
 fuse Competition and IMU yaw-rate as independent sensors merely because both
 topics exist.
+
+## Motion-input ablation
+
+`run_motion_input_ablation.sh` re-runs the current filter with IMU yaw-rate and
+ax enabled/disabled independently. It defaults to 1x replay because faster
+replay can reduce the final-state rate and invalidate the comparison.
+
+```bash
+scripts/evaluation/localization/run_motion_input_ablation.sh INPUT.bag
+```

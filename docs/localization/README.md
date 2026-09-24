@@ -42,6 +42,10 @@
   - GPS 음영 state 연속 발행과 frame·단위 계약 감사.
 - [`260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md`](260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md)
   - Global 정확도와 Local 연속성을 분리한 controller용 state의 offline 사전 검증.
+- [`260925_SMOOTH_CONTROL_STATE_OPEN_LOOP_EVIDENCE.md`](260925_SMOOTH_CONTROL_STATE_OPEN_LOOP_EVIDENCE.md)
+  - 동일 trajectory에서 controller 입력만 바꾼 open-loop A/B.
+- [`260925_MOTION_INPUT_ABLATION_EVIDENCE.md`](260925_MOTION_INPUT_ABLATION_EVIDENCE.md)
+  - IMU yaw-rate/ax 제거 A/B와 production motion input 유지 근거.
 - [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)
   - 현장 채터링, GNSS 양자화, 시간축과 GPS 음영 문제의 누적 원인 분석.
 - [`260920_lightweight_closed_loop_evidence.md`](260920_lightweight_closed_loop_evidence.md)
