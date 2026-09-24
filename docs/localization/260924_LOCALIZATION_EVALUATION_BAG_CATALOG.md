@@ -65,6 +65,7 @@ heading과 무관한 topic rate나 raw position jump는 제한적으로 사용�
 
 ```text
 /Competition_topic
+/competition/raw_twist       # native UDP receiver의 Competition linear/angular velocity
 /Ego_topic                 # 개발/검증 oracle, 대회 제공 여부와 별개
 /sensor/gps
 /sensor/imu

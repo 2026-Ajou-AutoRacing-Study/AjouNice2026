@@ -13,6 +13,7 @@ TOPICS=(
   /clock
   /Ego_topic
   /Competition_topic
+  /competition/raw_twist
   /sensor/gps
   /sensor/imu
   /localization/imu

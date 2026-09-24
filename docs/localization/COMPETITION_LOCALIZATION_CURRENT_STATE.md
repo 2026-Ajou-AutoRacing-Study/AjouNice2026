@@ -112,8 +112,15 @@ Competition Status에는 global position이 없다. 현재 첫 `/Ego_topic` pose
 ### P1. Competition yaw-rate A/B
 
 현재는 Competition heading/vx와 IMU yaw-rate/ax를 사용한다. Competition
-`angular_velocity.z`는 IMU와 상관된 신호일 수 있으므로 동시에 독립 측정처럼 fuse하지
-않는다. IMU yaw-rate 대체 또는 residual 진단으로만 통제 실험한다.
+UDP 패킷에는 `angular_velocity.z`가 있지만 기존 `EgoVehicleStatus` ROS type에는 해당
+필드가 없어 receiver가 값을 버리고 있었다. 기존 message MD5와 bag 호환성을 유지하기
+위해 `/Competition_topic`은 바꾸지 않고 `/competition/raw_twist`에 전체 linear/angular
+twist를 추가 발행한다.
+
+현재 저장된 bag에는 새 토픽이 없으므로 fusion 기본값은 변경하지 않았다. 새 MR·현장
+bag에서 Competition yaw-rate와 IMU yaw-rate의 부호·단위·지연·heading 미분 오차를
+비교한다. 두 신호는 같은 simulator state에서 파생됐을 수 있으므로 동시에 독립 측정처럼
+fuse하지 않고, IMU 대체 또는 residual 진단으로만 통제 실험한다.
 
 ## Production 변경 gate
 

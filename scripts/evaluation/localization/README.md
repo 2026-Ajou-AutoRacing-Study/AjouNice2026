@@ -49,3 +49,20 @@ python3 scripts/evaluation/localization/analyze_smooth_control_state_bag.py \
   --heading-offset-deg -1.347 \
   --output /tmp/smooth_control_state.json
 ```
+
+## Competition yaw-rate diagnostic
+
+The native UDP packet includes angular velocity, but the legacy
+`EgoVehicleStatus` type does not. New recordings preserve it on
+`/competition/raw_twist`. Compare that signal with IMU yaw-rate and the
+derivative of Competition heading using:
+
+```bash
+python3 scripts/evaluation/localization/analyze_competition_yaw_rate.py \
+  <new_competition_bag.bag> \
+  --output /tmp/competition_yaw_rate.json
+```
+
+Old bags without `/competition/raw_twist` cannot answer this question. Do not
+fuse Competition and IMU yaw-rate as independent sensors merely because both
+topics exist.
