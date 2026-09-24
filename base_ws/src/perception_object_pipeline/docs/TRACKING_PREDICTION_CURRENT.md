@@ -1,7 +1,7 @@
 # Tracking·Prediction production 현재 상태
 
 상태: **CURRENT**
-마지막 코드 대조: 2026-09-20, `planning/autoware-universe-to-ros1`
+마지막 코드 대조: 2026-09-24, `perception/static-obstacle-tracking-diagnosis-260924`
 
 ## Production 계약
 
@@ -15,6 +15,9 @@ BEVFusion B3-BF0-F40 E25 DetectedObjects
 
 운영 진입점은 `docs/common_alias.txt`의 `tracking`이다. detector와 localization은 별도
 프로세스이며 동시에 다른 detector나 tracker를 같은 canonical topic에 발행하지 않는다.
+MR에서 planning/control/RViz 없이 이 계약만 실주행·녹화하는 터미널 순서는
+[`../../../../docs/runbooks/morai_mr_tracking_only_recording.md`](../../../../docs/runbooks/morai_mr_tracking_only_recording.md)를
+따른다.
 
 | 구간 | 현재값 |
 |---|---|
@@ -87,6 +90,11 @@ start Lanelet을 점수화하고 routing graph successor와 연결성을 따라 
 Map-CV 1/2/3초 top-1 및 minFDE-K를 함께 본다. 최신 detector 및 tracker 근거는
 `docs/bevfusion/README.md`와
 `docs/bevfusion/260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`를 따른다.
+
+Base4 Q1 P0--P9 구현 일부가 tracker 소스에 존재하지만 mode 4/5와 center-motion은
+production에서 모두 비활성이다. E25에 실제 반영된 후단 개선과 연구 옵션의 정확한 경계는
+`docs/bevfusion/260925_E25_P0_P9_PRODUCTION_IMPACT_AUDIT.md`를 따른다. 특히 E25는
+P7 temporal velocity나 P8/P9 detector velocity fusion을 사용하지 않는다.
 
 다음은 계획일 뿐 현재 production에 구현되지 않았다.
 

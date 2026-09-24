@@ -1,6 +1,6 @@
 # BEVFusion 문서 index
 
-마지막 정리: 2026-09-23.
+마지막 정리: 2026-09-25.
 
 ## CURRENT
 
@@ -8,6 +8,7 @@
 |---|---|
 | Production E25 실행·판단팀 전달 | [`BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
 | Production E25 rosbag Tracking/Prediction RViz 재생 | [`E25_ROSBAG_RVIZ_RUNBOOK.md`](E25_ROSBAG_RVIZ_RUNBOOK.md) |
+| MR 수동 주행 tracking-only 실행·녹화 | [`../runbooks/morai_mr_tracking_only_recording.md`](../runbooks/morai_mr_tracking_only_recording.md) |
 | 팀 공용 Docker 학습 | [`TEAM_DOCKER_TRAINING_HANDOFF.md`](TEAM_DOCKER_TRAINING_HANDOFF.md) |
 | Base4 temporal 팀원 인계·재현 | [`BASE4_TEMPORAL_TEAM_HANDOFF.md`](BASE4_TEMPORAL_TEAM_HANDOFF.md) |
 | Base3-Online dataset 현재 상태 | [`../../dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md`](../../dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md) |
@@ -17,6 +18,8 @@
 | Base4 velocity head learnability·LR 진단 | [`260922_BASE4_VELOCITY_LEARNABILITY_AND_LR_ABLATION.md`](260922_BASE4_VELOCITY_LEARNABILITY_AND_LR_ABLATION.md) |
 | Base4 center-motion/association 오차 분해 | [`260923_BASE4_CENTER_MOTION_PROBE.md`](260923_BASE4_CENTER_MOTION_PROBE.md) |
 | Base4 T2 sweep-separated temporal BEV 구현·smoke | [`260922_BASE4_T2_TEMPORAL_BEV_P0.md`](260922_BASE4_T2_TEMPORAL_BEV_P0.md) |
+| 정적 장애물 position 4/5 실패·duplicate/ID 분절 진단 | [`260924_STATIC_OBSTACLE_TRACKING_DIAGNOSIS.md`](260924_STATIC_OBSTACLE_TRACKING_DIAGNOSIS.md) |
+| E25와 Base4 Q1 P0--P9 production 영향 경계 | [`260925_E25_P0_P9_PRODUCTION_IMPACT_AUDIT.md`](260925_E25_P0_P9_PRODUCTION_IMPACT_AUDIT.md) |
 
 Production 표준은 `B3-BF0-F40 E25`, class threshold는 `0.40/0.15/0.10`이다.
 Offline 최고 epoch만으로 production을 바꾸지 않고 detection, tracking, Map-CV를 같은
@@ -29,6 +32,8 @@ mission rosbag에서 비교한다.
   - Vehicle detection·center·2D AVE는 개선됐지만 Obstacle 망각 때문에 E25 유지.
 - [`260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`](260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md)
   - Tracker motion model/noise, 올바른 2D AVE 계약, GT-velocity oracle 근거.
+- [`260925_E25_P0_P9_PRODUCTION_IMPACT_AUDIT.md`](260925_E25_P0_P9_PRODUCTION_IMPACT_AUDIT.md)
+  - E25 checkpoint, 채택된 production 후단, P0--P9 연구 옵션을 분리한 영향 감사.
 - [`260921_ROSBAG_ASSET_CATALOG_GT_REEVALUATION.md`](260921_ROSBAG_ASSET_CATALOG_GT_REEVALUATION.md)
   - 학습 변환기와 rosbag 평가기의 asset별 BBox center/size 계약 통합 및 기존 고주로 A/B.
 - [`260918_base3_e40_production_evaluation_results.md`](260918_base3_e40_production_evaluation_results.md)

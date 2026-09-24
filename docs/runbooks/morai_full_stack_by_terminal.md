@@ -23,6 +23,10 @@ MORAI sensors/Ego
 [`260915_field_inspection_checklist.md`](../competition/260915_field_inspection_checklist.md)를
 함께 사용한다.
 
+Planning/control/RViz 없이 사람이 MR을 직접 운전하며 BEVFusion tracking만 녹화할
+때는 이 문서에서 일부 명령을 임의로 빼지 말고 전용
+[`morai_mr_tracking_only_recording.md`](morai_mr_tracking_only_recording.md)를 사용한다.
+
 현재 production detector는 `B3-BF0-F40 E25`, class threshold는
 Vehicle/Pedestrian/Obstacle `0.40/0.15/0.10`이다. E10은 rollback
 baseline이며 BF1은 실험 모델로 이 runbook의 기본 모델이 아니다.

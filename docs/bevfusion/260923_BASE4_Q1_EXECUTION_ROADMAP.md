@@ -1,7 +1,7 @@
 # Base4 Q1 실행 로드맵
 
 > 날짜: 2026-09-24.
-> 상태: Q1-P8 velocity frame 및 longitudinal output gate까지 완료한 CURRENT 계획.
+> 상태: Q1-P9 uncertainty-aware velocity fusion gate까지 완료한 CURRENT 계획.
 > 목표: 고주로 Vehicle velocity와 downstream 추월 판단을 개선하되 E25 production을
 > 흔들지 않는다.
 
@@ -17,7 +17,7 @@
 - 초기 종방향 output-only 결합은 speed/AVE를 소폭 개선했지만 모든 Map-CV horizon을
   동시에 개선하지 못해 production에는 올리지 않는다.
 
-## P0--P8 실험 ledger
+## P0--P9 실험 ledger
 
 | 단계 | 핵심 가설·변경 | 대표 결과 | 판정 |
 | --- | --- | --- | --- |
@@ -30,6 +30,7 @@
 | P6 | GT-ID 진단 후 `dt²` age-weighted slope | val `0.738`, highway1 `0.872` | center jitter 병목 완화 |
 | P7 | intercept와 slope 동시 적합 | val `0.676`, bags `0.811/0.779` | detector 연구 baseline 갱신 |
 | P8 | velocity frame 수정 + 초기 종방향 output-only | bags AVE `0.589/1.009` | 가능성 확인, Map-CV gate 미통과 |
+| P9 | detector covariance 전달 + uncertainty-aware output | 초기 speed/all-FDE 일부 개선 | stable FDE 불일치, continuous 결합 기각 |
 
 ## 장기 실행 단계
 
