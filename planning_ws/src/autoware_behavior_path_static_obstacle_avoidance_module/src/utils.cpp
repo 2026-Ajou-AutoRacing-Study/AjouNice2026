@@ -1723,7 +1723,7 @@ Polygon2d createEnvelopePolygon(
   return createEnvelopePolygon(object_polygon, closest_pose, envelope_buffer);
 }
 
-Polygon2d mergeStaticEnvelopes(const Polygon2d & previous, const Polygon2d & observed)
+Polygon2d selectStaticEnvelope(const Polygon2d & previous, const Polygon2d & observed)
 {
   namespace bg = boost::geometry;
 
@@ -1734,27 +1734,10 @@ Polygon2d mergeStaticEnvelopes(const Polygon2d & previous, const Polygon2d & obs
     return previous;
   }
 
-  // Preserve the largest verified shape without preserving stale positions.  A tracker commonly
-  // moves the center while a distant detection converges.  Taking a convex hull in map coordinates
-  // turns that convergence history into a swept obstacle and can eventually block a valid
-  // avoidance path.  Recenter the retained envelope on the latest observation before merging it.
-  Point2d previous_centroid;
-  Point2d observed_centroid;
-  bg::centroid(previous, previous_centroid);
-  bg::centroid(observed, observed_centroid);
-  const double dx = observed_centroid.x() - previous_centroid.x();
-  const double dy = observed_centroid.y() - previous_centroid.y();
-
-  boost::geometry::model::multi_point<Point2d> vertices;
-  for (const auto & vertex : previous.outer()) {
-    vertices.emplace_back(vertex.x() + dx, vertex.y() + dy);
-  }
-  for (const auto & vertex : observed.outer()) vertices.push_back(vertex);
-  // Boost convex_hull appends to the output ring. Never pass an input envelope as output.
-  Polygon2d merged;
-  bg::convex_hull(vertices, merged);
-  bg::correct(merged);
-  return merged;
+  // A present observation replaces geometry. History is only a fallback for
+  // missing/invalid observations, never a union of positions or maximum sizes.
+  if (!bg::is_valid(observed)) return previous;
+  return observed;
 }
 
 std::vector<DrivableAreaInfo::Obstacle> generateObstaclePolygonsForDrivableArea(
@@ -1802,6 +1785,27 @@ std::vector<DrivableAreaInfo::Obstacle> generateObstaclePolygonsForDrivableArea(
       object.avoid_margin.value() - object_parameter.envelope_buffer_margin - vehicle_width / 2.0;
     const auto obj_poly = autoware_utils::expand_polygon(object.envelope_poly, diff_poly_buffer);
     obstacles_for_drivable_area.push_back({object.getPose(), obj_poly, !isOnRight(object)});
+  }
+  if (parameters->path_generation_method == "optimization_base") {
+    // Drop only geometrically redundant constraints in this publication. Keep
+    // latch state so a dropout or a later smaller observation restores them.
+    const auto all = obstacles_for_drivable_area;
+    obstacles_for_drivable_area.clear();
+    for (size_t i = 0; i < all.size(); ++i) {
+      bool redundant = false;
+      for (size_t j = 0; j < all.size(); ++j) {
+        if (i == j || all[j].hard_margin < all[i].hard_margin ||
+            all[j].soft_margin < all[i].soft_margin ||
+            !boost::geometry::is_valid(all[i].poly) ||
+            !boost::geometry::is_valid(all[j].poly)) continue;
+        if (!boost::geometry::covered_by(all[i].poly, all[j].poly)) continue;
+        // Equal geometry/margins must retain one deterministic representative.
+        const bool equivalent = boost::geometry::covered_by(all[j].poly, all[i].poly) &&
+          all[j].hard_margin == all[i].hard_margin && all[j].soft_margin == all[i].soft_margin;
+        if (!equivalent || j < i) { redundant = true; break; }
+      }
+      if (!redundant) obstacles_for_drivable_area.push_back(all[i]);
+    }
   }
   return obstacles_for_drivable_area;
 }
@@ -1906,6 +1910,16 @@ void fillObjectEnvelopePolygon(
 
   const auto & envelope_buffer_margin =
     object_parameter.envelope_buffer_margin * object_data.distance_factor;
+
+  if (parameters->path_generation_method == "optimization_base") {
+    // The optimization latch owns dropout persistence. Feeding it the legacy
+    // map-coordinate multi-step union turns tracking jitter into object size.
+    object_data.envelope_poly =
+      createEnvelopePolygon(object_data, closest_pose, envelope_buffer_margin);
+    object_data.error_eclipse_max =
+      calcErrorEclipseLongRadius(object_data.object.kinematics.initial_pose_with_covariance);
+    return;
+  }
 
   const auto id = object_data.object.object_id;
   const auto same_id_obj = std::find_if(

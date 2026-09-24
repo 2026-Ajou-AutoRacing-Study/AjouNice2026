@@ -113,3 +113,30 @@ int main(int argc, char ** argv)
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
+
+namespace autoware::path_optimizer {
+TEST(MptConstraintMatrix, SameDimensionsDoNotMakeCscValueUpdatesEquivalent) {
+  using autoware::osqp_interface::OSQPInterface;
+  using autoware::osqp_interface::calCSCMatrix;
+  const Eigen::MatrixXd P = Eigen::MatrixXd::Identity(2,2);
+  const Eigen::MatrixXd A = Eigen::MatrixXd::Identity(2,2);
+  Eigen::MatrixXd swapped(2,2); swapped << 0,1,1,0;
+  const std::vector<double> q{-2,-4}, lower{0,0}, upper{1,3};
+  OSQPInterface previous(P,A,q,lower,upper,1e-6);
+  auto first = previous.optimize();
+  ASSERT_EQ(first.solution_status,1);
+  EXPECT_NEAR(first.primal_solution[0],1,1e-3);
+  EXPECT_NEAR(first.primal_solution[1],3,1e-3);
+  const auto before = calCSCMatrix(A), after = calCSCMatrix(swapped);
+  ASSERT_EQ(before.m_vals,after.m_vals);
+  ASSERT_EQ(before.m_col_idxs,after.m_col_idxs);
+  ASSERT_NE(before.m_row_idxs,after.m_row_idxs);
+  // A value-only update cannot express these new row indices. Rebuild the QP;
+  // the swapped constraints require x[1] <= 1 instead of x[0] <= 1.
+  OSQPInterface rebuilt(P,swapped,q,lower,upper,1e-6);
+  const auto second = rebuilt.optimize();
+  ASSERT_EQ(second.solution_status,1);
+  EXPECT_NEAR(second.primal_solution[0],2,1e-3);
+  EXPECT_NEAR(second.primal_solution[1],1,1e-3);
+}
+}

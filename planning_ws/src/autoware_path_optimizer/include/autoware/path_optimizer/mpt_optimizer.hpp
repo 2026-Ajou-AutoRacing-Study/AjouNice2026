@@ -391,6 +391,8 @@ private:
   int prev_mat_n_ = 0;
   int prev_mat_m_ = 0;
   int prev_solution_status_ = 0;
+  autoware::osqp_interface::CSC_Matrix previous_p_pattern_;
+  autoware::osqp_interface::CSC_Matrix previous_a_pattern_;
   bool candidate_trial_{false};
   std::optional<size_t> exactly_checked_ego_index_;
   std::shared_ptr<std::vector<ReferencePoint>> prev_ref_points_ptr_{nullptr};

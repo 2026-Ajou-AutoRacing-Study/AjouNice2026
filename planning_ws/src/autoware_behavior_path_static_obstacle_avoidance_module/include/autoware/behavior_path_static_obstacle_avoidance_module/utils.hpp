@@ -45,8 +45,8 @@ static constexpr const char * logger_namespace =
  */
 bool isOnRight(const ObjectData & obj);
 
-// Keep the largest verified shape at the latest observed center; returns a fresh polygon.
-Polygon2d mergeStaticEnvelopes(const Polygon2d & previous, const Polygon2d & observed);
+// Use the current valid observation; preserve history only when it is unavailable.
+Polygon2d selectStaticEnvelope(const Polygon2d & previous, const Polygon2d & observed);
 
 /**
  * @brief calculate shift length from centerline of current lane.

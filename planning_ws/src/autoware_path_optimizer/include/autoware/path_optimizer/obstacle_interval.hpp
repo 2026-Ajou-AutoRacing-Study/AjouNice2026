@@ -46,5 +46,32 @@ inline std::optional<std::pair<double,double>> obstacleLateralInterval(
   if (lower>upper) return std::nullopt;
   return std::make_pair(lower,upper);
 }
+// A side assignment must contain the measured state when the vehicle is already
+// alongside the polygon. Only prune well inside a longitudinal overlap and with
+// a locally aligned reference; ambiguous turns retain the full reachability test.
+inline bool oppositeSideAtMeasuredState(
+  const geometry_msgs::Polygon & polygon, const geometry_msgs::Pose & ego,
+  double reference_yaw, bool pass_left, double step)
+{
+  const double yaw = tf2::getYaw(ego.orientation);
+  const double error = std::atan2(std::sin(reference_yaw-yaw), std::cos(reference_yaw-yaw));
+  if (std::abs(error) > 0.1 || polygon.points.size() < 3) return false;
+  auto axis = ego;
+  axis.orientation.x = axis.orientation.y = 0.0;
+  axis.orientation.z = std::sin(reference_yaw/2.0);
+  axis.orientation.w = std::cos(reference_yaw/2.0);
+  // Require an actual polygon cross-section, not an inflated corner ahead of ego.
+  // Both neighboring stations must put the entire cross-section on the same side.
+  for (double ds : {-2.0*step, 0.0, 2.0*step}) {
+    auto section = axis;
+    section.position.x += ds*std::cos(reference_yaw);
+    section.position.y += ds*std::sin(reference_yaw);
+    const auto interval = obstacleLateralInterval(polygon, section, 1e-6);
+    if (!interval) return false;
+    if (pass_left ? interval->first <= 1e-3 : interval->second >= -1e-3) return false;
+  }
+  return true;
+}
+
 }
 #endif

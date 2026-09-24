@@ -3,13 +3,17 @@ option/enable_reset_prev_optimization: false
 option/enable_outside_drivable_area_stop: false
 option/outside_drivable_area_check_footprint: vehicle_circles
 option/use_footprint_polygon_for_outside_drivable_area_check: true
-option/debug/enable_pub_debug_marker: true
-option/debug/enable_pub_extra_debug_marker: true
+option/debug/enable_pub_debug_marker: false
+option/debug/enable_pub_extra_debug_marker: false
 option/debug/enable_debug_info: false
 option/debug/enable_calculation_time_info: true
 common/output_delta_arc_length: 0.2
-# Soft wall-time budget between complete side candidates; unfinished sides resume next cycle.
+# Retry budget between seeds/refinements as well as side candidates.
+# A single solver call can still exceed the budget.
 obstacle_search_time_budget_ms: 100.0
+# Extend the base horizon to cover observed obstacle margins, the vehicle and return.
+obstacle_optimization/max_forward_length: 60.0
+obstacle_optimization/return_length: 15.0
 common/output_backward_traj_length: 5.0
 common/vehicle_stop_margin_outside_drivable_area: 0.0
 replan/max_path_shape_around_ego_lat_dist: 2.0
@@ -25,7 +29,8 @@ mpt/option/visualize_sampling_num: 1
 mpt/option/enable_manual_warm_start: false
 mpt/option/enable_warm_start: true
 mpt/option/enable_optimization_validation: true
-mpt/common/num_points: 100
+# Base point count. Avoidance coverage may add points at the same 0.5 m spacing.
+mpt/common/num_points: 40
 mpt/common/delta_arc_length: 0.5
 mpt/clearance/hard_clearance_from_road: 0.1
 mpt/clearance/soft_clearance_from_road: 0.0

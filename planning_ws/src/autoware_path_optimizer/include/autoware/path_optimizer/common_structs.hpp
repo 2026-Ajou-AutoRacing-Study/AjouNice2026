@@ -39,6 +39,8 @@ struct PlannerData
 
   std::vector<autoware_planning_msgs::StaticObstacle> obstacles;
   std::vector<bool> pass_left;
+  // Required coverage measured forward from ego, independent of backward history points.
+  double optimization_forward_length{0.0};
 
   // ego
   geometry_msgs::Pose ego_pose;

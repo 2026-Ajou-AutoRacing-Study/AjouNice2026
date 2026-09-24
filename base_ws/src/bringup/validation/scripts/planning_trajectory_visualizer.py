@@ -136,7 +136,7 @@ class PlanningTrajectoryVisualizer:
             MarkerArray(markers=[line, points, start, horizon])
         )
         velocities = [velocity for _pose, velocity in display_points]
-        rospy.loginfo_throttle(
+        rospy.logdebug_throttle(
             3.0,
             "final trajectory visualized: points=%d velocity=%.2f..%.2f m/s",
             len(display_points),
