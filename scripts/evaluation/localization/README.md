@@ -20,3 +20,18 @@ Yaw alignment modes:
 
 The evaluation script is shared by all localization providers. Provider
 specific code must not be imported here.
+
+## Heading provenance
+
+`analyze_localization_stability_bag.py` compares the estimator with raw MORAI
+`/Ego_topic`. Its default `--heading-offset-deg -1.347` is only correct for an
+MR/competition estimator run that applied the same correction.
+
+- MR/competition `localization`: use `-1.347`.
+- MRP `localization_mrp`: use `0`.
+- A direct MORAI GT provider that did not apply the correction: use `0`.
+- Never apply the offset again to `/localization/kinematic_state` itself.
+
+Do not infer this value from the bag filename or recording computer. Recover
+the launcher, alias, `gt_source`, and runtime parameter provenance first. See
+`docs/localization/260924_LOCALIZATION_EVALUATION_BAG_CATALOG.md`.

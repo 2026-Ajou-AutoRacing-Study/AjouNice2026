@@ -36,7 +36,9 @@
   복귀 검증이다. 그 전에는 quantization-aware update나 global/local 제어 상태 분리를
   추가하지 않는다.
 
-최신 문제 정의와 검증 계약:
+현재 production 계약과 개선 순서:
+[`localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md`](localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md).
+누적 문제 근거:
 [`localization/260918_competition_localization_critical_issue_status.md`](localization/260918_competition_localization_critical_issue_status.md).
 최신 폐루프 근거:
 [`localization/260920_lightweight_closed_loop_evidence.md`](localization/260920_lightweight_closed_loop_evidence.md).
