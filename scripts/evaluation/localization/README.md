@@ -58,6 +58,10 @@ stronger than output-only smoothing but still has no vehicle feedback.
 scripts/evaluation/localization/run_controller_state_open_loop_ab.sh INPUT.bag
 ```
 
+Set `LOCALIZATION_CONTROL_AB_TAUS='0.2 0.5 1.0'` for a tau sweep. Set
+`LOCALIZATION_CONTROL_AB_INCLUDE_GLOBAL=false` when a previously validated
+Global result is being reused.
+
 ## Competition yaw-rate diagnostic
 
 The native UDP packet includes angular velocity, but the legacy

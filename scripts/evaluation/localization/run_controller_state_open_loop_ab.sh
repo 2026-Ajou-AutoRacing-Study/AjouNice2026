@@ -55,12 +55,21 @@ cleanup_run() {
 }
 trap cleanup_run EXIT INT TERM
 
-for index in 0 1; do
-  if [[ "$index" -eq 0 ]]; then
+read -r -a smooth_taus <<<"${LOCALIZATION_CONTROL_AB_TAUS:-0.5}"
+profiles=()
+if [[ "${LOCALIZATION_CONTROL_AB_INCLUDE_GLOBAL:-true}" == "true" ]]; then
+  profiles+=("global:0")
+fi
+for tau in "${smooth_taus[@]}"; do
+  profiles+=("smooth_tau${tau/./p}:$tau")
+done
+
+for index in "${!profiles[@]}"; do
+  IFS=: read -r label tau <<<"${profiles[$index]}"
+  if [[ "$label" == "global" ]]; then
     label="global"
     state_topic="/localization/kinematic_state"
   else
-    label="smooth_tau0p5"
     state_topic="/localization/control_kinematic_state"
   fi
   run_dir="$OUTPUT_ROOT/$label"
@@ -86,10 +95,10 @@ for index in 0 1; do
   done
   rosparam set /use_sim_time true
 
-  if [[ "$label" == "smooth_tau0p5" ]]; then
+  if [[ "$label" != "global" ]]; then
     rosrun localization_manager smooth_control_state_publisher.py \
-      _translation_tau_sec:=0.5 \
-      _yaw_tau_sec:=0.5 \
+      _translation_tau_sec:="$tau" \
+      _yaw_tau_sec:="$tau" \
       _reset_translation_error_m:=5.0 \
       _reset_yaw_error_deg:=20.0 \
       >"$run_dir/smooth.log" 2>&1 &

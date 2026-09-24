@@ -13,6 +13,11 @@
 따라서 smooth state를 새 MR 폐루프의 단일 1순위 후보로 확정한다. 차량 반응과
 planning 재계산이 없는 open-loop이므로 production 기본값은 아직 바꾸지 않는다.
 
+추가 tau sweep 결과 전체 균형은 `0.5 s`가 가장 좋았다. `0.2 s`는 장주행
+steering-rate p95가 더 낮았지만 sign flip과 lateral error 개선이 작았고, `1.0 s`는
+짧은 bag에서 steering-rate 이득을 거의 잃었다. 따라서 `0.5 s`를 1순위로 유지하고
+폐루프에서 correction 지연이 관찰될 때만 `0.2 s`를 fallback 후보로 사용한다.
+
 ## 실험 격리
 
 두 실행에서 같은 항목:
@@ -56,6 +61,29 @@ Planning과 TF는 재실행하지 않았다. 따라서 결과는 controller 입�
 WARN/ERROR/FATAL이 없었다. 장주행 마지막 GPS 음영은 복귀 없이 종료되므로 재획득
 근거로 사용하지 않는다.
 
+## Tau 민감도
+
+짧은 bag에서 `0.2/0.5/1.0 s`를 같은 방식으로 비교했다.
+
+| tau | steering-rate p95 | sign flip | lateral error p50/p95 |
+|---:|---:|---:|---:|
+| Global | 0.3828 rad/s | 0.3990 /s | 3.91 / 42.17 cm |
+| 0.2 s | **0.3704 rad/s** | 0.3376 /s | 3.12 / **42.70 cm** |
+| 0.5 s | 0.3729 rad/s | **0.3376 /s** | 2.69 / 43.24 cm |
+| 1.0 s | 0.3824 rad/s | 0.3377 /s | **2.42** / 43.19 cm |
+
+장주행에서 `0.2 s`도 추가 확인했다.
+
+| tau | steering-rate p95 | sign flip | lateral error p50/p95 |
+|---:|---:|---:|---:|
+| Global | 0.3331 rad/s | 0.3397 /s | 3.95 / 27.65 cm |
+| 0.2 s | **0.3129 rad/s** | 0.3019 /s | 3.21 / 25.88 cm |
+| 0.5 s | 0.3176 rad/s | **0.2830 /s** | **2.68 / 24.14 cm** |
+
+ROS timer 기반 open-loop 재실행 간 p95에는 소폭 변동이 있어 근소한 순위 자체를
+과해석하지 않는다. 0.5초는 sign flip과 lateral error에서 일관되게 더 강하고,
+0.2초는 correction 지연 위험이 작은 보조 후보다.
+
 ## 다음 승인 gate
 
 1. 같은 route에서 baseline과 smooth의 실제 폐루프 주행.
@@ -69,3 +97,6 @@ WARN/ERROR/FATAL이 없었다. 장주행 마지막 GPS 음영은 복귀 없이 �
 ```bash
 scripts/evaluation/localization/run_controller_state_open_loop_ab.sh INPUT.bag
 ```
+
+기본은 Global과 `0.5 s`를 비교한다. tau sweep은
+`LOCALIZATION_CONTROL_AB_TAUS='0.2 0.5 1.0'`으로 실행할 수 있다.
