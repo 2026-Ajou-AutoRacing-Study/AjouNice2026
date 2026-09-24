@@ -100,9 +100,11 @@ pose에서 `map -> odom` 정합을 구해 그 correction만 저역통과한 뒤 
 근거는 `260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md`에 있다.
 
 폐루프용 launch 배선은 준비했다. Planning/TF는 Global state를 유지하고 두 controller
-node만 `controller_kinematic_state_topic`으로 함께 전환할 수 있다. 정상 bag에서
-false reset이 없었던 `5 m / 20 deg` 불연속 안전장치도 후보에 포함했지만 checkpoint
-실측이 없어 아직 production 계약은 아니다.
+node만 `controller_kinematic_state_topic`으로 함께 전환할 수 있다. 불연속 판정은
+alignment parameter가 아니라 현재 차량의 map pose 차이로 수행한다. `0.5 m / 20 deg`
+기준은 정상 replay에서 reset 0회였고, 인위적 8초 음영 두 경우의 `0.53 / 1.38 m`
+재획득 correction에서 각각 1회 reset돼 planning과 controller state의 장시간 frame
+불일치를 막았다. checkpoint 실측이 없어 아직 production 계약은 아니다.
 
 동일 기록 trajectory로 controller를 다시 실행한 open-loop A/B에서 `tau=0.5 s`
 후보는 52초/242초 bag 모두 steering-rate p95를 약 4%, sign flip을 약 15~17%

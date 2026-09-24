@@ -114,7 +114,7 @@ class PlanarAlignmentSmoother:
         self.stamp_sec = float(stamp_sec)
         return self.value
 
-    def update(self, target, stamp_sec):
+    def update(self, target, stamp_sec, reference_pose=None):
         stamp_sec = float(stamp_sec)
         if self.value is None:
             self.last_reset_reason = "initialization"
@@ -126,9 +126,17 @@ class PlanarAlignmentSmoother:
             self.last_reset_reason = "timestamp_gap"
             return self.reset(target, stamp_sec)
 
-        translation_error = math.hypot(
-            target[0] - self.value[0], target[1] - self.value[1]
-        )
+        if reference_pose is None:
+            translation_error = math.hypot(
+                target[0] - self.value[0], target[1] - self.value[1]
+            )
+        else:
+            target_pose = compose_planar(target, reference_pose)
+            current_pose = compose_planar(self.value, reference_pose)
+            translation_error = math.hypot(
+                target_pose[0] - current_pose[0],
+                target_pose[1] - current_pose[1],
+            )
         yaw_error = abs(normalize_angle(target[2] - self.value[2]))
         if (
             self.reset_translation_error_m > 0.0
@@ -218,7 +226,7 @@ class SmoothControlStatePublisher:
             ),
             reset_gap_sec=float(rospy.get_param("~reset_gap_sec", 0.5)),
             reset_translation_error_m=float(
-                rospy.get_param("~reset_translation_error_m", 5.0)
+                rospy.get_param("~reset_translation_error_m", 0.5)
             ),
             reset_yaw_error_rad=math.radians(
                 float(rospy.get_param("~reset_yaw_error_deg", 20.0))
@@ -286,7 +294,9 @@ class SmoothControlStatePublisher:
         )
         raw_alignment = planar_alignment(global_pose, local_pose)
         try:
-            smooth_alignment = self.smoother.update(raw_alignment, stamp_sec)
+            smooth_alignment = self.smoother.update(
+                raw_alignment, stamp_sec, reference_pose=local_pose
+            )
         except ValueError as error:
             rospy.logwarn_throttle(2.0, str(error))
             return

@@ -58,6 +58,22 @@ When a bag records Local odometry, final kinematic state, and `/tf`, the same
 analyzer emits `tf_contract`. It checks that recorded `map -> odom` composed
 with co-timed `odom -> base_link` closes onto the final map-frame state.
 
+## Repeatable GNSS outage/reacquisition replay
+
+The outage runner creates a small derived input bag containing only Ego,
+Competition, GPS, IMU, and static TF, removes GPS in a selected interval, then
+re-runs the production estimator while recording both Global and experimental
+smooth controller states. Use a moving interval and keep the generated
+`metadata.txt` with every result.
+
+```bash
+LOCALIZATION_OUTAGE_OUTPUT_DIR=/tmp/localization_outage \
+scripts/evaluation/localization/run_gnss_outage_reacquisition.sh \
+  rosbags/raw_sensor_w_cam/competition_full_run/\
+260822_005713_competition_full_route_raw_hz_run01.bag \
+  15 8 turning_8s
+```
+
 ```bash
 python3 scripts/evaluation/localization/analyze_smooth_control_state_bag.py \
   rosbags/eval/localization/local_mr_stability/<bag>.bag \

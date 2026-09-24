@@ -50,6 +50,8 @@
   - Ego pose의 프레임 시간 불균일과 종 frame-jump 해석 제한.
 - [`260925_TF_COTIME_CONTRACT_EVIDENCE.md`](260925_TF_COTIME_CONTRACT_EVIDENCE.md)
   - Local/Global EKF 시각 불일치로 생긴 TF closure 오류와 수정 replay.
+- [`260925_GNSS_OUTAGE_REACQUISITION_EVIDENCE.md`](260925_GNSS_OUTAGE_REACQUISITION_EVIDENCE.md)
+  - 반복 가능한 8초 음영 replay와 큰 재획득 correction의 안전 reset.
 - [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)
   - 현장 채터링, GNSS 양자화, 시간축과 GPS 음영 문제의 누적 원인 분석.
 - [`260920_lightweight_closed_loop_evidence.md`](260920_lightweight_closed_loop_evidence.md)

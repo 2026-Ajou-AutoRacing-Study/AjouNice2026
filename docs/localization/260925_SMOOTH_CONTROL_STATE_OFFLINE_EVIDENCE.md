@@ -30,7 +30,7 @@ Global EKF map pose + Local EKF odom pose
 - `/localization/odometry/local`을 map trajectory와 직접 섞지 않는다.
 - controller만 후보 토픽으로 바꾸는 launch 인자를 추가했으며 planning/TF 입력은
   바뀌지 않는다.
-- alignment가 `5 m` 또는 `20 deg` 이상 불연속이면 저역통과를 중단하고 즉시
+- 차량 map pose가 `0.5 m` 또는 `20 deg` 이상 불연속이면 저역통과를 중단하고 즉시
   재정렬한다. 이는 checkpoint 이동 때 과거 위치를 천천히 따라가는 것을 막는
   안전장치이며, 자동 EKF reset을 의미하지 않는다.
 
@@ -83,13 +83,14 @@ negative-control에서는 진행축을 즉시 반영할 때 종 오차/jump가 �
 따라서 차량축별 파라미터를 추가해 복잡도를 늘리지 않고, 현재 등방성 `0.5 s`를
 단일 폐루프 후보로 유지한다.
 
-### 불연속 reset 기준
+### 불연속 reset 기준 정정
 
-정상 주행을 checkpoint 이동으로 오인하지 않도록 translation 기준 `1/2/5/10 m`를
-세 bag에서 sweep했다. `1 m`는 장주행에서 74회, negative control에서 37회,
-`2 m`도 각각 16회와 5회 잘못 발동했다. `5 m`와 `10 m`는 세 bag 모두 0회였다.
-따라서 후보 기본값은 더 작은 false-trigger-free 값인 `5 m`로 정했다. 실제
-checkpoint 이동 bag이 없으므로 이 기준은 HOLD이며 새 bag에서 반드시 재검증한다.
+초기 sweep은 `map -> odom` alignment x/y 차이를 사용했다. 이 값은 odom 원점에서
+멀어질수록 작은 yaw 변화에도 수 m 바뀌므로 차량 순간이동 지표가 아니었다. 후속
+수정은 현재 Local pose에 기존/목표 alignment를 합성한 **차량 map pose 차이**를
+사용한다. 정상 replay에서 `0.5 m` 기준 reset은 0회였고, 인위적 8초 GNSS 음영의
+`0.53 / 1.38 m` 재획득 correction에는 각각 1회 작동했다. 상세 근거는
+`260925_GNSS_OUTAGE_REACQUISITION_EVIDENCE.md`에 있다.
 
 ## 구현 검증
 
@@ -127,7 +128,7 @@ offset `0 deg`로 전체 estimator를 다시 실행했다.
 1. 횡·종 제어 오차와 steering-rate/sign flip.
 2. 저속·좌회전·로터리에서 phase lag.
 3. GPS 음영 유지와 재획득 correction.
-4. checkpoint 순간이동 시 reset 동작.
+4. checkpoint 순간이동 시 pose 기준 `0.5 m / 20 deg` reset 동작.
 
 위 gate 전에는 `localization` alias나 controller 기본 입력을 변경하지 않는다.
 

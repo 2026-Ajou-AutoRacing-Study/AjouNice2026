@@ -26,7 +26,7 @@
        default="/localization/control_kinematic_state"/>
   <arg name="control_translation_tau_sec" default="0.5"/>
   <arg name="control_yaw_tau_sec" default="0.5"/>
-  <arg name="control_state_reset_translation_error_m" default="5.0"/>
+  <arg name="control_state_reset_translation_error_m" default="0.5"/>
   <arg name="control_state_reset_yaw_error_deg" default="20.0"/>
 
   <arg name="map_frame" default="map"/>
