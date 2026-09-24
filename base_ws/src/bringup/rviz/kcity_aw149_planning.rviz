@@ -65,12 +65,7 @@ Visualization Manager:
       Marker Topic: /planning/mission_planning/route_marker
       Name: Mission Route
       Namespaces:
-        end_lanelets: true
-        goal_lanelets: true
-        lane_start_bound: true
-        left_lane_bound: true
-        right_lane_bound: true
-        route_lanelets: true
+        {}
       Queue Size: 10
       Value: true
     - Class: rviz/MarkerArray
@@ -118,10 +113,7 @@ Visualization Manager:
       Marker Topic: /planning/debug/final_trajectory/markers
       Name: Final Trajectory
       Namespaces:
-        final_trajectory_ends: true
-        final_trajectory_horizon: true
-        final_trajectory_line: true
-        final_trajectory_points: true
+        {}
       Queue Size: 10
       Value: true
     - Alpha: 1
@@ -159,7 +151,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: FlatColor
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Min Color: 0; 0; 0
@@ -174,13 +166,13 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Class: rviz/MarkerArray
           Enabled: true
           Marker Topic: /perception/object_recognition/visualization/detections
           Name: Detections (green, raw detector)
           Namespaces:
-            detected_boxes: true
+            {}
           Queue Size: 5
           Value: true
         - Class: rviz/MarkerArray
@@ -188,8 +180,7 @@ Visualization Manager:
           Marker Topic: /perception/object_recognition/visualization/tracks
           Name: Tracks (class and UNKNOWN labels)
           Namespaces:
-            tracked_boxes: true
-            tracked_labels: true
+            {}
           Queue Size: 5
           Value: true
         - Class: rviz/MarkerArray
@@ -197,11 +188,7 @@ Visualization Manager:
           Marker Topic: /perception/object_recognition/visualization/predictions
           Name: Map-CV Predictions (0-3 s)
           Namespaces:
-            predicted_confidence/top_1: true
-            predicted_horizon_1_sec/top_1: true
-            predicted_horizon_2_sec/top_1: true
-            predicted_horizon_3_sec/top_1: true
-            predicted_paths/top_1: true
+            {}
           Queue Size: 5
           Value: true
         - Class: rviz/MarkerArray

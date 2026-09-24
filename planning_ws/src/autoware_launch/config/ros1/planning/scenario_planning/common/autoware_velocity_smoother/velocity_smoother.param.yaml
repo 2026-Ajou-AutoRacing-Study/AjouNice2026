@@ -11,17 +11,18 @@ min_curve_velocity: 4.1667
 decel_distance_before_curve: 2.0
 decel_distance_after_curve: 0.5
 min_decel_for_lateral_acc_lim_filter: -3.0
-enable_steering_rate_limit: true
+# Steering command rate is limited in the controller; disable planner speed reduction.
+enable_steering_rate_limit: false
 velocity_thresholds:
 - 0.1
 - 0.3
 - 20.0
 - 30.0
 steering_angle_rate_limits:
-- 28.75
-- 28.75
-- 26.25
-- 8.75
+- 40.0
+- 40.0
+- 40.0
+- 40.0
 resample_ds: 0.1
 curvature_threshold: 0.02
 replan_vel_deviation: 5.53

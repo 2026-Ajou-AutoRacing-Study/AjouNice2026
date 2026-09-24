@@ -164,3 +164,42 @@ int main(int argc, char ** argv)
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
+
+namespace autoware::path_optimizer {
+TEST(ObstacleSidePruning, AlongsideRejectsOnlyDisconnectedSide) {
+  const auto obstacle = box(-3, -1, 6, 2);
+  auto ego = point(0, 3).pose;
+  EXPECT_TRUE(oppositeSideAtMeasuredState(obstacle.polygon, ego, 0, false, 0.5));
+  EXPECT_FALSE(oppositeSideAtMeasuredState(obstacle.polygon, ego, 0, true, 0.5));
+  ego.position.y = -3;
+  EXPECT_TRUE(oppositeSideAtMeasuredState(obstacle.polygon, ego, 0, true, 0.5));
+  EXPECT_FALSE(oppositeSideAtMeasuredState(obstacle.polygon, ego, 0, false, 0.5));
+}
+TEST(ObstacleSidePruning, ApproachDepartureAndTurningRemainSearchable) {
+  const auto obstacle = box(-3, -1, 6, 2);
+  for (double x : {-5.0, -2.5, 2.5, 5.0}) {
+    auto ego = point(x,3).pose;
+    EXPECT_FALSE(oppositeSideAtMeasuredState(obstacle.polygon, ego, 0, false, 0.5));
+  }
+  EXPECT_FALSE(oppositeSideAtMeasuredState(obstacle.polygon, point(0,3).pose, 0.3, false, 0.5));
+  EXPECT_FALSE(oppositeSideAtMeasuredState(obstacle.polygon, point(0,0).pose, 0, false, 0.5));
+}
+}
+
+namespace autoware::path_optimizer {
+TEST(ObstacleSidePruning, RotatedMapPreservesSideAndApproach) {
+  const double yaw = 1.2, c = std::cos(yaw), sn = std::sin(yaw);
+  auto obstacle = box(-3, -1, 6, 2);
+  for (auto & vertex : obstacle.polygon.points) {
+    const double x = vertex.x, y = vertex.y;
+    vertex.x = 100 + c*x - sn*y;
+    vertex.y = 200 + sn*x + c*y;
+  }
+  auto ego = point(100-3*sn, 200+3*c).pose;
+  ego.orientation.z = std::sin(yaw/2); ego.orientation.w = std::cos(yaw/2);
+  EXPECT_TRUE(oppositeSideAtMeasuredState(obstacle.polygon, ego, yaw, false, 0.5));
+  EXPECT_FALSE(oppositeSideAtMeasuredState(obstacle.polygon, ego, yaw, true, 0.5));
+  ego.position.x -= 5*c; ego.position.y -= 5*sn;
+  EXPECT_FALSE(oppositeSideAtMeasuredState(obstacle.polygon, ego, yaw, false, 0.5));
+}
+}

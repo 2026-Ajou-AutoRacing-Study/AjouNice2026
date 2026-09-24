@@ -581,6 +581,20 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
     return std::nullopt;
   };
 
+  // Reject a disconnected side before spline, road bounds and QP assembly.
+  // Evaluate against this seed's reference frame; no previous-side latch is used.
+  if (candidate_trial_ && !traj_points.empty()) {
+    const auto idx = trajectory_utils::findEgoIndex(traj_points, p.ego_pose, ego_nearest_param_);
+    const double yaw = tf2::getYaw(traj_points[idx].pose.orientation);
+    for (size_t o = 0; o < p.obstacles.size(); ++o) {
+      if (oppositeSideAtMeasuredState(
+            p.obstacles[o].polygon, p.ego_pose, yaw, p.pass_left.at(o),
+            mpt_param_.delta_arc_length)) {
+        return reject_candidate("opposite side disconnected from measured state");
+      }
+    }
+  }
+
   // 1. calculate reference points
   auto [ref_points, ref_points_spline] = calcReferencePoints(planner_data, traj_points);
   if (ref_points.size() < 2) {
@@ -698,8 +712,10 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
   std::optional<std::vector<TrajectoryPoint>> mpt_traj_points =
     optimized_variables ? calcMPTPoints(ref_points, *optimized_variables, mpt_mat) : std::nullopt;
   if (!mpt_traj_points && !mpt_param_.use_acados) {
-    RCLCPP_WARN(logger_, "return std::nullopt since lateral or yaw error is too large.");
-    return std::nullopt;
+    if (!candidate_trial_) {
+      RCLCPP_WARN(logger_, "return std::nullopt since lateral or yaw error is too large.");
+    }
+    return reject_candidate("lateral or yaw error too large");
   }
 
   std::optional<std::vector<TrajectoryPoint>> output_trajectory = mpt_traj_points;
@@ -1179,8 +1195,12 @@ MPTOptimizer::calcReferencePoints(
 
   const auto & p = planner_data;
 
-  const double forward_traj_length = mpt_param_.num_points * mpt_param_.delta_arc_length;
+  const double forward_traj_length = std::max(
+    mpt_param_.num_points * mpt_param_.delta_arc_length, p.optimization_forward_length);
   const double backward_traj_length = traj_param_.output_backward_traj_length;
+  const size_t point_count = p.obstacles.empty() ? static_cast<size_t>(mpt_param_.num_points) :
+    static_cast<size_t>(std::ceil((forward_traj_length + backward_traj_length) /
+      mpt_param_.delta_arc_length)) + 1;
 
   // 1. resample and convert smoothed points type from trajectory points to reference points
   time_keeper_->start_track("resampleReferencePoints");
@@ -1223,6 +1243,9 @@ MPTOptimizer::calcReferencePoints(
   //       New start point may be added and resampled. Spline is rebuilt on ref_points below.
   updateFixedPoint(ref_points);
   ref_points = trajectory_utils::sanitizePoints(ref_points);
+  // Bound construction is expensive. Do it only for states entering this QP,
+  // rather than constructing the spline's temporary look-ahead margin as well.
+  if (!mpt_param_.use_acados && ref_points.size() > point_count) ref_points.resize(point_count);
   ref_points_spline = autoware::interpolation::SplineInterpolationPoints2d(ref_points);
 
   // 6. update bounds
@@ -1331,8 +1354,8 @@ MPTOptimizer::calcReferencePoints(
     return std::make_pair(ref_points, ref_points_spline);
   }
 
-  if (static_cast<size_t>(mpt_param_.num_points) < ref_points.size()) {
-    ref_points.resize(mpt_param_.num_points);
+  if (point_count < ref_points.size()) {
+    ref_points.resize(point_count);
   }
 
   ref_points_spline = autoware::interpolation::SplineInterpolationPoints2d(ref_points);
@@ -2361,7 +2384,11 @@ std::optional<Eigen::VectorXd> MPTOptimizer::calcOptimizedSteerAngles(
   const autoware::osqp_interface::CSC_Matrix A_csc = autoware::osqp_interface::calCSCMatrix(A);
   if (
     prev_solution_status_ == 1 && mpt_param_.enable_warm_start && prev_mat_n_ == H.rows() &&
-    prev_mat_m_ == A.rows()) {
+    prev_mat_m_ == A.rows() &&
+    previous_p_pattern_.m_row_idxs == P_csc.m_row_idxs &&
+    previous_p_pattern_.m_col_idxs == P_csc.m_col_idxs &&
+    previous_a_pattern_.m_row_idxs == A_csc.m_row_idxs &&
+    previous_a_pattern_.m_col_idxs == A_csc.m_col_idxs) {
     RCLCPP_INFO_EXPRESSION(logger_, enable_debug_info_, "warm start");
     osqp_solver_ptr_->updateCscP(P_csc);
     osqp_solver_ptr_->updateQ(f);
@@ -2372,6 +2399,12 @@ std::optional<Eigen::VectorXd> MPTOptimizer::calcOptimizedSteerAngles(
     osqp_solver_ptr_ = std::make_unique<autoware::osqp_interface::OSQPInterface>(
       P_csc, A_csc, f, lower_bound, upper_bound, osqp_epsilon_);
   }
+  // OSQP value-only updates retain the original CSC indices. Dimensions alone
+  // cannot establish compatibility after changing the reference/linearization.
+  previous_p_pattern_.m_row_idxs = P_csc.m_row_idxs;
+  previous_p_pattern_.m_col_idxs = P_csc.m_col_idxs;
+  previous_a_pattern_.m_row_idxs = A_csc.m_row_idxs;
+  previous_a_pattern_.m_col_idxs = A_csc.m_col_idxs;
   prev_mat_n_ = H.rows();
   prev_mat_m_ = A.rows();
   time_keeper_->end_track("initOsqp");

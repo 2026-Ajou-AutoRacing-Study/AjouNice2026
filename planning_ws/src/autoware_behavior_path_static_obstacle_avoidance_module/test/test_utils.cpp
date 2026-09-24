@@ -1638,7 +1638,7 @@ namespace autoware::behavior_path_planner::utils::static_obstacle_avoidance
 {
 TEST(TestUtils, StaticEnvelopeGrowthFollowsLatestObservedCenter)
 {
-  using autoware::behavior_path_planner::utils::static_obstacle_avoidance::mergeStaticEnvelopes;
+  using autoware::behavior_path_planner::utils::static_obstacle_avoidance::selectStaticEnvelope;
   Polygon2d original;
   original.outer() = {{0,0},{0,2},{2,2},{2,0},{0,0}};
   Polygon2d current = original;
@@ -1646,7 +1646,7 @@ TEST(TestUtils, StaticEnvelopeGrowthFollowsLatestObservedCenter)
     Polygon2d observed;
     const double d = i * 0.05;
     observed.outer() = {{d,0},{d,2},{2+d,2},{2+d,0},{d,0}};
-    current = mergeStaticEnvelopes(current, observed);
+    current = selectStaticEnvelope(current, observed);
     EXPECT_TRUE(boost::geometry::is_valid(current));
     EXPECT_TRUE(boost::geometry::covered_by(observed, current));
     EXPECT_NEAR(boost::geometry::area(current), 4.0, 1e-9);
@@ -1656,21 +1656,86 @@ TEST(TestUtils, StaticEnvelopeGrowthFollowsLatestObservedCenter)
   }
 }
 
-TEST(TestUtils, StaticEnvelopeKeepsLargerVerifiedShapeAtLatestCenter)
+TEST(TestUtils, StaticEnvelopeReplacesOldShapeWhenObservationReturns)
 {
   Polygon2d previous;
   previous.outer() = {{-2,-1},{-2,1},{2,1},{2,-1},{-2,-1}};
   Polygon2d observed;
   observed.outer() = {{9.5,-0.5},{9.5,0.5},{10.5,0.5},{10.5,-0.5},{9.5,-0.5}};
 
-  const auto merged = mergeStaticEnvelopes(previous, observed);
+  const auto merged = selectStaticEnvelope(previous, observed);
   const auto centroid = boost::geometry::return_centroid<Point2d>(merged);
   EXPECT_TRUE(boost::geometry::is_valid(merged));
-  EXPECT_NEAR(boost::geometry::area(merged), 8.0, 1e-9);
+  EXPECT_NEAR(boost::geometry::area(merged), 1.0, 1e-9);
   EXPECT_NEAR(boost::geometry::get<0>(centroid), 10.0, 1e-9);
   EXPECT_NEAR(boost::geometry::get<1>(centroid), 0.0, 1e-9);
   EXPECT_FALSE(boost::geometry::covered_by(Point2d{0.0, 0.0}, merged));
   EXPECT_TRUE(boost::geometry::covered_by(observed, merged));
 }
 
+}  // namespace autoware::behavior_path_planner::utils::static_obstacle_avoidance
+
+namespace autoware::behavior_path_planner::utils::static_obstacle_avoidance
+{
+TEST(TestUtils, StaticEnvelopeDropoutAndGrowth)
+{
+  Polygon2d small, large, empty, invalid;
+  small.outer() = {{0,0},{0,1},{1,1},{1,0},{0,0}};
+  large.outer() = {{-1,-1},{-1,2},{2,2},{2,-1},{-1,-1}};
+  invalid.outer() = {{0,0},{1,1},{0,1},{1,0},{0,0}};
+  EXPECT_NEAR(boost::geometry::area(selectStaticEnvelope(small, large)), 9.0, 1e-9);
+  EXPECT_NEAR(boost::geometry::area(selectStaticEnvelope(large, empty)), 9.0, 1e-9);
+  EXPECT_NEAR(boost::geometry::area(selectStaticEnvelope(large, invalid)), 9.0, 1e-9);
+}
+
+TEST(TestUtils, OptimizationEnvelopeDoesNotAccumulateMovingObservations)
+{
+  auto params = std::make_shared<AvoidanceParameters>();
+  params->path_generation_method = "optimization_base";
+  params->object_parameters[ObjectClassification::CAR].envelope_buffer_margin = 0.15;
+  Shape shape;
+  shape.type = Shape::BOUNDING_BOX;
+  shape.dimensions = create_vector3(5.0, 2.0, 1.5);
+  Pose road;
+  road.orientation.w = 1.0;
+  ObjectDataArray registered;
+  Polygon2d latched;
+  for (size_t i = 0; i < 30; ++i) {
+    auto pose = road;
+    pose.position.x = (i % 2 == 0 ? -0.7 : 0.7);
+    pose.position.y = 0.03 * i;
+    auto object = create_test_object(pose, Vector3{}, shape, ObjectClassification::CAR);
+    object.distance_factor = 1.0;
+    fillObjectEnvelopePolygon(object, registered, road, params);
+    latched = selectStaticEnvelope(latched, object.envelope_poly);
+    EXPECT_NEAR(boost::geometry::area(latched), 5.3 * 2.3, 1e-6);
+    const auto center = boost::geometry::return_centroid<Point2d>(latched);
+    EXPECT_NEAR(center.x(), pose.position.x, 1e-6);
+    EXPECT_NEAR(center.y(), pose.position.y, 1e-6);
+    registered = {object};
+  }
+}
+
+TEST(TestUtils, RedundantObstacleConstraintsAreRestoredWhenCoverageChanges)
+{
+  auto params = std::make_shared<AvoidanceParameters>();
+  params->path_generation_method = "optimization_base";
+  auto & param = params->object_parameters[ObjectClassification::CAR];
+  param.lateral_hard_margin = 0.1;
+  param.lateral_soft_margin = 0.2;
+  ObjectData small, large;
+  for (auto * object : {&small, &large}) {
+    ObjectClassification cls;
+    cls.label = ObjectClassification::CAR;
+    cls.probability = 1.0;
+    object->object.classification.push_back(cls);
+  }
+  small.envelope_poly.outer() = {{0,0},{0,1},{1,1},{1,0},{0,0}};
+  large.envelope_poly.outer() = {{-1,-1},{-1,2},{2,2},{2,-1},{-1,-1}};
+  EXPECT_EQ(generateObstaclePolygonsForDrivableArea({small, large}, params, 1.89).size(), 1UL);
+  EXPECT_EQ(generateObstaclePolygonsForDrivableArea({small, small}, params, 1.89).size(), 1UL);
+  large.envelope_poly.outer() = {{2,0},{2,1},{3,1},{3,0},{2,0}};
+  EXPECT_EQ(generateObstaclePolygonsForDrivableArea({small, large}, params, 1.89).size(), 2UL);
+  EXPECT_EQ(generateObstaclePolygonsForDrivableArea({small}, params, 1.89).size(), 1UL);
+}
 }  // namespace autoware::behavior_path_planner::utils::static_obstacle_avoidance

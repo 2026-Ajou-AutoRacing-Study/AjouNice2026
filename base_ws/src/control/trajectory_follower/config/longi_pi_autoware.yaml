@@ -4,13 +4,16 @@ ki: 0.05
 integral_limit: 3.0
 command_deadband: 0.05
 
-# Keep the existing PI actuator interface, but begin decelerating for a lower speed already
-# present in the trajectory. This is deliberately bounded: it does not replace the speed planner.
+# Distance-aware preview: retain the local plan unless a future speed restriction
+# requires braking now. The horizon expands to cover the assumed stopping distance.
 speed_preview:
   enabled: true
   time_s: 1.5
   min_distance_m: 5.0
   max_distance_m: 30.0
+  deceleration_mps2: 2.0
+  response_delay_s: 0.3
+  distance_margin_m: 0.2
 
 # MORAI type-1 command is normalized, not m/s^2. Calibrate hold_brake_cmd on the target vehicle.
 stop:

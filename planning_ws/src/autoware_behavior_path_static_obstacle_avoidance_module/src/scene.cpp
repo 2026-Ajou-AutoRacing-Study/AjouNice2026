@@ -216,12 +216,13 @@ void StaticObstacleAvoidanceModule::updateOptimizationClipObjects(AvoidancePlann
   };
 
   const auto update_geometry = [](ObjectData & latched, const ObjectData & observed) {
-    if (observed.envelope_poly.outer().empty()) {
+    if (observed.envelope_poly.outer().empty() ||
+        !boost::geometry::is_valid(observed.envelope_poly)) {
       return;
     }
 
     auto updated = observed;
-    updated.envelope_poly = utils::static_obstacle_avoidance::mergeStaticEnvelopes(
+    updated.envelope_poly = utils::static_obstacle_avoidance::selectStaticEnvelope(
       latched.envelope_poly, observed.envelope_poly);
 
     if (latched.avoid_margin) {

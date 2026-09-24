@@ -11,6 +11,7 @@
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float64.h>
+#include <trajectory_follower/distance_speed_limit.hpp>
 
 namespace
 {
@@ -82,6 +83,9 @@ public:
     private_nh_.param("speed_preview/time_s", speed_preview_time_s_, 1.5);
     private_nh_.param("speed_preview/min_distance_m", speed_preview_min_distance_m_, 5.0);
     private_nh_.param("speed_preview/max_distance_m", speed_preview_max_distance_m_, 30.0);
+    private_nh_.param("speed_preview/deceleration_mps2", preview_deceleration_mps2_, 2.0);
+    private_nh_.param("speed_preview/response_delay_s", preview_response_delay_s_, 0.3);
+    private_nh_.param("speed_preview/distance_margin_m", preview_distance_margin_m_, 0.2);
     private_nh_.param("stop/velocity_threshold_mps", stop_velocity_threshold_mps_, 0.1);
     private_nh_.param("stop/hold_brake_cmd", hold_brake_cmd_, 0.2);
     validateParameters();
@@ -116,6 +120,9 @@ private:
       std::isfinite(speed_preview_min_distance_m_) && speed_preview_min_distance_m_ >= 0.0 &&
       std::isfinite(speed_preview_max_distance_m_) &&
       speed_preview_max_distance_m_ >= speed_preview_min_distance_m_ &&
+      std::isfinite(preview_deceleration_mps2_) && preview_deceleration_mps2_ > 0.0 &&
+      std::isfinite(preview_response_delay_s_) && preview_response_delay_s_ >= 0.0 &&
+      std::isfinite(preview_distance_margin_m_) && preview_distance_margin_m_ >= 0.0 &&
       std::isfinite(stop_velocity_threshold_mps_) && stop_velocity_threshold_mps_ >= 0.0 &&
       std::isfinite(hold_brake_cmd_) && hold_brake_cmd_ >= 0.0 && hold_brake_cmd_ <= max_brake_cmd_;
     if (!valid) {
@@ -188,25 +195,42 @@ private:
       return initial_target;
     }
 
-    const double preview_distance = std::max(
+    const double approach_speed = std::max(std::abs(current_velocity), initial_target);
+    const double preview_distance = std::max(trajectory_follower::brakingPreviewDistance(
+      approach_speed, preview_deceleration_mps2_, preview_response_delay_s_,
+      preview_distance_margin_m_), std::max(
       speed_preview_min_distance_m_, std::min(
-        speed_preview_max_distance_m_, std::abs(current_velocity) * speed_preview_time_s_));
+        speed_preview_max_distance_m_, std::abs(current_velocity) * speed_preview_time_s_)));
     double target_velocity = initial_target;
+    // Account for ego lying between sampled points; nearest-point distance alone
+    // overestimates the stopping distance when ego is ahead of that point.
     double traversed_distance = 0.0;
+    if (nearest + 1U < trajectory_.points.size()) {
+      const auto & p = trajectory_.points[nearest].pose.position;
+      const auto & q = trajectory_.points[nearest + 1U].pose.position;
+      const double dx = q.x - p.x, dy = q.y - p.y;
+      const double length = std::hypot(dx, dy);
+      if (length > 1e-6) {
+        const auto & ego = state_.pose.pose.position;
+        traversed_distance = -std::max(-length, std::min(length,
+          ((ego.x - p.x) * dx + (ego.y - p.y) * dy) / length));
+      }
+    }
     for (std::size_t i = nearest; i + 1U < trajectory_.points.size(); ++i) {
       const auto & first = trajectory_.points[i];
       const auto & second = trajectory_.points[i + 1U];
       traversed_distance += std::hypot(
         second.pose.position.x - first.pose.position.x,
         second.pose.position.y - first.pose.position.y);
-      if (traversed_distance > preview_distance) {
-        break;
-      }
-      // A trajectory owns the speed plan.  The controller only starts following the lowest
-      // forward speed that is already scheduled inside its bounded braking preview.
+      // Preserve the current planned speed unless a future restriction requires
+      // braking now. A stop five metres ahead is not a zero-speed command here.
       if (second.longitudinal_velocity_mps >= 0.0) {
-        target_velocity = std::min(target_velocity, static_cast<double>(second.longitudinal_velocity_mps));
+        target_velocity = std::min(target_velocity, trajectory_follower::distanceSpeedLimit(
+          second.longitudinal_velocity_mps, traversed_distance, approach_speed,
+          preview_deceleration_mps2_, preview_response_delay_s_, preview_distance_margin_m_));
       }
+      // Include the first point beyond the horizon to cover sparse segments.
+      if (traversed_distance >= preview_distance) break;
     }
     return target_velocity;
   }
@@ -323,6 +347,9 @@ private:
   double speed_preview_time_s_{1.5};
   double speed_preview_min_distance_m_{5.0};
   double speed_preview_max_distance_m_{30.0};
+  double preview_deceleration_mps2_{2.0};
+  double preview_response_delay_s_{0.3};
+  double preview_distance_margin_m_{0.2};
   double stop_velocity_threshold_mps_{0.1};
   double hold_brake_cmd_{0.2};
   double integral_{0.0};

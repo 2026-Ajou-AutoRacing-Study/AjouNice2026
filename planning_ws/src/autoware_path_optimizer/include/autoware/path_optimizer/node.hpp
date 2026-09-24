@@ -81,7 +81,7 @@ protected:  // for the static_centerline_generator package
   bool is_optimization_failed_{false};
   std::optional<rclcpp::Time> last_successful_optimization_time_;
   std::optional<std::vector<TrajectoryPoint>> last_validated_output_;
-  bool using_previous_geometry_{false};
+  bool using_final_geometry_{false};
   bool use_footprint_polygon_for_outside_drivable_area_check_;
   std::string outside_drivable_area_check_footprint_;
 
@@ -106,6 +106,8 @@ protected:  // for the static_centerline_generator package
   ros::WallTimer scene_timeout_timer_;
   bool require_obstacle_scene_{false};
   double obstacle_search_time_budget_ms_{100.0};
+  double obstacle_max_forward_length_{60.0};
+  double obstacle_return_length_{15.0};
   size_t obstacle_search_cursor_{0};
   std::map<uint64_t, autoware_planning_msgs::StaticObstacleScene> obstacle_scenes_;
   PathConstPtr pending_path_;
