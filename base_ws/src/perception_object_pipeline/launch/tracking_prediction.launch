@@ -21,6 +21,14 @@
   <arg name="tracker_meas_noise_std_xy_m" default="0.4"/>
   <arg name="tracker_meas_noise_std_yaw_deg" default="10.0"/>
   <arg name="tracker_use_kinematic_model" default="false"/>
+  <arg name="tracker_time_aware_track_lifecycle" default="true"/>
+  <arg name="tracker_confirmed_track_max_coast_time_sec" default="0.50"/>
+  <arg name="tracker_confirmed_stationary_track_max_coast_time_sec" default="1.00"/>
+  <arg name="tracker_lifecycle_stationary_speed_threshold_mps" default="2.0"/>
+  <arg name="tracker_suppress_duplicate_track_birth" default="true"/>
+  <arg name="tracker_duplicate_birth_suppression_distance_m" default="0.75"/>
+  <arg name="tracker_duplicate_birth_minimum_max_dimension_m" default="1.0"/>
+  <arg name="tracker_duplicate_birth_maximum_dimension_ratio" default="2.0"/>
   <arg name="tracker_detection_velocity_fusion_mode" default="0"/>
   <arg name="tracker_detection_velocity_noise_std_mps" default="1.0"/>
 
@@ -54,6 +62,22 @@
     <arg name="maximum_tracking_output_compensation_sec" value="0.25"/>
     <arg name="tracking_internal_publish_rate_hz" value="30.0"/>
     <arg name="maximum_tracking_internal_prediction_age_sec" value="0.25"/>
+    <arg name="time_aware_track_lifecycle"
+         value="$(arg tracker_time_aware_track_lifecycle)"/>
+    <arg name="confirmed_track_max_coast_time_sec"
+         value="$(arg tracker_confirmed_track_max_coast_time_sec)"/>
+    <arg name="confirmed_stationary_track_max_coast_time_sec"
+         value="$(arg tracker_confirmed_stationary_track_max_coast_time_sec)"/>
+    <arg name="lifecycle_stationary_speed_threshold_mps"
+         value="$(arg tracker_lifecycle_stationary_speed_threshold_mps)"/>
+    <arg name="suppress_duplicate_track_birth"
+         value="$(arg tracker_suppress_duplicate_track_birth)"/>
+    <arg name="duplicate_birth_suppression_distance_m"
+         value="$(arg tracker_duplicate_birth_suppression_distance_m)"/>
+    <arg name="duplicate_birth_minimum_max_dimension_m"
+         value="$(arg tracker_duplicate_birth_minimum_max_dimension_m)"/>
+    <arg name="duplicate_birth_maximum_dimension_ratio"
+         value="$(arg tracker_duplicate_birth_maximum_dimension_ratio)"/>
     <arg name="detection_velocity_fusion_mode"
          value="$(arg tracker_detection_velocity_fusion_mode)"/>
     <arg name="detection_velocity_noise_std_mps"

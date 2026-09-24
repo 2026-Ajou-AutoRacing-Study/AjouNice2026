@@ -39,6 +39,13 @@ all boxes down to `0.10` and applies the class thresholds before publishing the
 canonical object topic. Override the corresponding `*_score_threshold` launch
 arguments only for a controlled evaluation.
 
+After class thresholds, production also applies class-aware rotated BEV NMS
+at IoU `0.50`. This removes a lower-confidence box only when it substantially
+overlaps a higher-confidence box of the same class; nearby distinct objects
+and different classes are preserved. Set `rotated_bev_nms_enabled:=false`
+only for a controlled A/B. The cumulative removal count is exposed as
+`nms_suppressed_total` in `/perception/bevfusion/status`.
+
 `zero_shot.launch` remains only as a compatibility alias. Runtime timing and
 drop counters are published in `/perception/bevfusion/status`; total sensor to
 result latency is published in `/perception/bevfusion/latency_ms`.

@@ -16,6 +16,14 @@
   <arg name="show_morai_gt" default="true"/>
   <arg name="morai_gt_objects" default="/Object_topic"/>
   <!--
+    Keep the live/full-stack magenta GT boxes on the same audited geometric
+    BBox contract as the rosbag evaluation RViz.  /Object_topic reports actor
+    pivots and base asset dimensions, so it is not sufficient by itself for
+    the LiDAR-instance BBox overlay used to judge detector alignment.
+  -->
+  <arg name="asset_bbox_catalog"
+       default="$(arg repo_root)/dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json"/>
+  <!--
     Keep the visualization map on the same surveyed map-height datum used by
     the planning map, routes, trajectories, MORAI GT, and GNSS localization.
     The legacy flattened view remains opt-in for old planar bags only.
@@ -133,8 +141,10 @@
     <param name="output" value="/evaluation/visualization/gt_boxes"/>
     <param name="morai_static_tf"
            value="$(arg repo_root)/configs/tf/morai_lanelet_static_tf.yaml"/>
+    <param name="asset_bbox_catalog" value="$(arg asset_bbox_catalog)"/>
     <param name="line_width_m" value="0.09"/>
-    <param name="flatten_z" value="true"/>
+    <!-- Keep GT boxes on the same vertical contract as the selected map view. -->
+    <param name="flatten_z" value="$(arg flatten_visualization_map)"/>
     <param name="ground_z" value="0.0"/>
     <rosparam param="color_rgba">[1.0, 0.0, 0.85, 1.0]</rosparam>
   </node>

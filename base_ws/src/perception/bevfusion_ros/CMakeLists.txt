@@ -16,6 +16,7 @@ catkin_package(
 
 if(CATKIN_ENABLE_TESTING)
   catkin_add_nosetests(test/test_score_thresholds.py)
+  catkin_add_nosetests(test/test_rotated_bev_nms.py)
 endif()
 
 catkin_install_python(

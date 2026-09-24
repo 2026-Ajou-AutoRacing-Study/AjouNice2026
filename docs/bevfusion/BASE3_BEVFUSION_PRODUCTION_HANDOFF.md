@@ -20,8 +20,9 @@ checkpoint 실험 기록이며 production 실행법이 아니다.
 | 모델 입력 | front/front-left/front-right/back JPEG + LiDAR XYZI |
 | 출력 | `/perception/object_recognition/detection/objects` |
 | confidence | Vehicle `0.40`, Pedestrian `0.15`, Obstacle `0.10` |
+| duplicate suppression | class-aware rotated BEV NMS, IoU `0.50` |
 | 후단 | EKF tracking → UNKNOWN stationary policy → Map-CV prediction |
-| Tracker | CTRV, position measurement noise `0.40 m` |
+| Tracker | CTRV, position measurement noise `0.40 m`, confirmed-track time-aware lifecycle |
 | Detector velocity | E25는 7D이므로 fusion 기본 `off` |
 | Docker base | PyTorch 2.7.1, CUDA 12.8, cuDNN 9 |
 | GPU | RTX 4090의 compute capability 8.9가 이미지 빌드 대상에 포함됨 |
@@ -76,7 +77,7 @@ catkin_make_isolated --install \
   --build "$PWD/base_ws/build_aw149" \
   --devel "$PWD/base_ws/devel_aw149" \
   --install-space "$PWD/base_ws/install_aw149" \
-  --pkg bevfusion_ros tracking_prediction_evaluation \
+  --pkg bevfusion_ros ekf_multi_object_tracking tracking_prediction_evaluation \
         lanelet_map_visualizer bringup \
   -DCMAKE_BUILD_TYPE=Release \
   -DPYTHON_EXECUTABLE=/usr/bin/python3 \
@@ -144,7 +145,9 @@ roslaunch bevfusion_ros base3_online.launch start_rviz:=false
 
 launch 기본값 자체가 `0.40/0.15/0.10`을 적용한다. Docker에는 가장 낮은
 `0.10`까지 요청하고, ROS bridge가 class별 operating point를 적용한 뒤 하나의
-canonical detection topic만 발행한다.
+canonical detection topic만 발행한다. 같은 class의 겹친 box가 tracker에서 별도 ID를
+만들지 않도록 rotated BEV IoU `0.50` NMS도 기본 적용한다. 이는 host bridge 후처리이므로
+checkpoint와 Docker 이미지는 바뀌지 않는다.
 
 ### 4. Planning stack
 
@@ -169,6 +172,16 @@ FastBEV/PointPainting을 하나 더 띄우지 않게 한다는 뜻이다. BEVFus
 fusion은 꺼져 있다. 향후 9D velocity 모델도 검증 없이 자동으로 fusion을 켜지 않으며,
 첫 A/B covariance는 `0.5 m/s`를 사용한다. 근거는
 [`260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`](260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md)를
+따른다.
+
+2026-09-25 정적 장애물 재현 bag A/B 이후 confirmed track 삭제는 detector frame 수가
+아니라 실제 message 시간으로 판정한다. moving track은 최대 `0.50 s`, UNKNOWN 및
+2 m/s 이하 CAR/TRUCK은 최대 `1.00 s` 동안 coasting한다. Tentative track은 기존의
+엄격한 확인 정책을 유지하고 pedestrian에는 1초 정적 수명을 적용하지 않는다. 또한
+같은 frame에서 mature track이 이미 관측된 위치 `0.75 m` 안의 유사한 큰 box는 새
+track ID를 만들지 않는다. 이는 planning/control 변경 없이 tracking output에서
+적용된다. 근거와 bag별 수치는
+[`260924_STATIC_OBSTACLE_TRACKING_DIAGNOSIS.md`](260924_STATIC_OBSTACLE_TRACKING_DIAGNOSIS.md)를
 따른다.
 
 공용 planning 기본값은 `0.25 s`로 유지한다. 위 `0.5 s` override는 RTX 5060 Ti에서
