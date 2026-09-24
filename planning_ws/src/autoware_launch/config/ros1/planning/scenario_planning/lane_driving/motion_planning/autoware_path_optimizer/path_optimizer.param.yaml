@@ -41,7 +41,8 @@ mpt/weight/lat_error_weight: 1.0
 mpt/weight/yaw_error_weight: 0.0
 mpt/weight/yaw_error_rate_weight: 0.0
 mpt/weight/steer_input_weight: 1.0
-mpt/weight/steer_rate_weight: 1.0
+# Penalize adjacent steering changes; this is not a time-domain steering-rate bound.
+mpt/weight/steer_rate_weight: 10.0
 mpt/weight/terminal_lat_error_weight: 100.0
 mpt/weight/terminal_yaw_error_weight: 1.0
 mpt/weight/goal_lat_error_weight: 1000.0
