@@ -62,8 +62,9 @@ Global EKF map pose + Local EKF odom pose
 | negative control | tau 1.0 s | 4.54 | 0.16 | 구조 효과 확인 |
 
 `tau=5 s`는 bag에 따라 횡 오차 p95가 약 `7.6~10.5 cm`까지 악화해 제외했다.
-종방향 frame jump는 약 `7 cm` 수준이 유지됐다. 이 값은 map correction보다 Local EKF
-motion/timestamp에 주로 기인하므로 별도 가설로 다룬다.
+종방향 frame jump 약 `7 cm`는 후속 oracle 감사에서 `/Ego_topic` 자체의 프레임별
+종방향 운동학 residual에 크게 오염된 값으로 확인됐다. 따라서 아래 종 jump는
+구조 채택 근거로 사용하지 않고 횡 jump와 실제 controller 지표를 우선한다.
 
 ### 종·횡 correction 분리 가설
 

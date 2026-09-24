@@ -109,6 +109,11 @@ false reset이 없었던 `5 m / 20 deg` 불연속 안전장치도 후보에 포�
 줄였다. 장주행 controller lateral error p50/p95도 `3.95/27.65 -> 2.68/24.14 cm`로
 개선됐다. 따라서 다음 폐루프의 단일 1순위 후보지만 production 승격은 아니다.
 
+후속 Ego oracle 감사에서 frame별 종방향 pose 증분이 자체 velocity/heading 예측과
+p95 약 `10~12 cm` 불일치함을 확인했다. 전체 거리 적분은 `0.01%` 이내로 맞으므로
+속도 bias는 아니며 pose 갱신 시간 불균일이다. 이에 따라 종 frame jump는 진단값으로만
+남기고, continuity 승격 판단에는 횡 frame jump와 controller 지표를 사용한다.
+
 `/localization/odometry/local`만 controller에 단순 remap하면 map trajectory와 frame이
 달라지므로 금지한다.
 

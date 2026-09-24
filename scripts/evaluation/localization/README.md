@@ -43,6 +43,17 @@ outputs while smoothing only their `map -> odom` alignment. This is a
 counterfactual offline pre-screen: it does not re-run the controller and cannot
 approve a production change.
 
+For a new bag that already records `/localization/control_kinematic_state`,
+`analyze_localization_stability_bag.py` reports Global pose, controller-state
+pose, and controller chatter in one result. Old bags remain compatible and
+report `control_state.available=false`.
+
+The analyzer also emits `ego_oracle_quality`. MORAI Ego pose has a measurable
+per-frame longitudinal timing residual even though its full-drive position and
+velocity integral agree. Treat longitudinal frame jump as diagnostic only when
+it is comparable to that residual; lateral frame jump remains the primary
+pose-continuity metric.
+
 ```bash
 python3 scripts/evaluation/localization/analyze_smooth_control_state_bag.py \
   rosbags/eval/localization/local_mr_stability/<bag>.bag \

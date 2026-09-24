@@ -22,6 +22,7 @@ TOPICS = [
     "/localization/gnss/odom",
     "/localization/odometry/local",
     "/localization/kinematic_state",
+    "/localization/control_kinematic_state",
     "/planning/trajectory",
     "/control/autoware/controller_valid",
     "/control/command/steering",
@@ -167,7 +168,10 @@ def parse_bag(path):
                         record_time,
                     )
                 )
-            elif topic == "/localization/kinematic_state":
+            elif topic in (
+                "/localization/kinematic_state",
+                "/localization/control_kinematic_state",
+            ):
                 position = message.pose.pose.position
                 series[topic].append(
                     (
@@ -229,6 +233,31 @@ def analyze(path, moving_speed_threshold=1.0, heading_offset_deg=-1.347):
         np.radians(ego[:, 3]) + math.radians(heading_offset_deg) + transform_yaw
     )
 
+    # MORAI pose and velocity agree over a complete drive, but the pose update
+    # cadence is not perfectly uniform.  Quantify that oracle-side timing
+    # residual so localization frame-jump metrics are not interpreted as if
+    # the reference itself were kinematically smooth at every sample.
+    ego_dt = np.diff(ego[:, 0])
+    ego_mid_yaw = 0.5 * (ego_yaw[:-1] + ego_yaw[1:])
+    ego_mid_speed = 0.5 * (ego[:-1, 4] + ego[1:, 4])
+    expected_dx = ego_mid_speed * ego_dt * np.cos(ego_mid_yaw)
+    expected_dy = ego_mid_speed * ego_dt * np.sin(ego_mid_yaw)
+    ego_residual_x = np.diff(ego_map_x) - expected_dx
+    ego_residual_y = np.diff(ego_map_y) - expected_dy
+    ego_longitudinal_residual = (
+        ego_residual_x * np.cos(ego_mid_yaw)
+        + ego_residual_y * np.sin(ego_mid_yaw)
+    )
+    ego_lateral_residual = (
+        -ego_residual_x * np.sin(ego_mid_yaw)
+        + ego_residual_y * np.cos(ego_mid_yaw)
+    )
+    ego_oracle_valid = (
+        (ego_dt > 1.0e-4)
+        & (ego_dt < 0.1)
+        & (np.abs(ego_mid_speed) > moving_speed_threshold)
+    )
+
     loc_times = localization[:, 0]
     valid_time = (loc_times >= ego[0, 0]) & (loc_times <= ego[-1, 0])
     loc_times = loc_times[valid_time]
@@ -252,6 +281,7 @@ def analyze(path, moving_speed_threshold=1.0, heading_offset_deg=-1.347):
 
     gnss_odom = np.asarray(series["/localization/gnss/odom"], dtype=float)
     gnss_outages = []
+    gnss_outage_windows = []
     normal_gnss = np.ones(loc_times.shape, dtype=bool)
     if gnss_odom.size:
         gnss_times = np.sort(gnss_odom[:, 0])
@@ -265,6 +295,7 @@ def analyze(path, moving_speed_threshold=1.0, heading_offset_deg=-1.347):
             normal_gnss &= ~(
                 (loc_times >= outage_start) & (loc_times <= recovery_end)
             )
+            gnss_outage_windows.append((outage_start, recovery_end))
             gnss_outages.append(
                 {
                     "start_bag_offset_sec": outage_start - bag_start,
@@ -352,6 +383,7 @@ def analyze(path, moving_speed_threshold=1.0, heading_offset_deg=-1.347):
         "/sensor/imu",
         "/localization/gnss/odom",
         "/localization/kinematic_state",
+        "/localization/control_kinematic_state",
         "/planning/trajectory",
     ]
     rates = {}
@@ -362,11 +394,90 @@ def analyze(path, moving_speed_threshold=1.0, heading_offset_deg=-1.347):
         elif topic in (
             "/localization/gnss/odom",
             "/localization/kinematic_state",
+            "/localization/control_kinematic_state",
         ):
             times = [row[-1] for row in values]
         else:
             times = values
         rates[topic] = rate_summary(times)
+
+    control_state_result = {"available": False}
+    if series["/localization/control_kinematic_state"]:
+        control_state = np.asarray(
+            series["/localization/control_kinematic_state"], dtype=float
+        )
+        control_state = control_state[np.argsort(control_state[:, 0])]
+        valid = (
+            (control_state[:, 0] >= ego[0, 0])
+            & (control_state[:, 0] <= ego[-1, 0])
+        )
+        control_state = control_state[valid]
+        control_times = control_state[:, 0]
+        control_gt_x = np.interp(control_times, ego[:, 0], ego_map_x)
+        control_gt_y = np.interp(control_times, ego[:, 0], ego_map_y)
+        control_gt_yaw = np.interp(control_times, ego[:, 0], ego_yaw)
+        control_gt_speed = np.interp(control_times, ego[:, 0], ego[:, 4])
+        control_dx = control_state[:, 1] - control_gt_x
+        control_dy = control_state[:, 2] - control_gt_y
+        control_longitudinal = (
+            control_dx * np.cos(control_gt_yaw)
+            + control_dy * np.sin(control_gt_yaw)
+        )
+        control_lateral = (
+            -control_dx * np.sin(control_gt_yaw)
+            + control_dy * np.cos(control_gt_yaw)
+        )
+        control_yaw_error = np.degrees(
+            wrap_angle(control_state[:, 3] - control_gt_yaw)
+        )
+        control_moving = np.abs(control_gt_speed) > moving_speed_threshold
+        control_normal = control_moving.copy()
+        for outage_start, recovery_end in gnss_outage_windows:
+            control_normal &= ~(
+                (control_times >= outage_start)
+                & (control_times <= recovery_end)
+            )
+        control_dt = np.diff(control_times)
+        control_adjacent = (
+            (control_dt > 1.0e-4)
+            & (control_dt < 0.1)
+            & control_moving[1:]
+            & control_moving[:-1]
+        )
+        control_normal_adjacent = (
+            (control_dt > 1.0e-4)
+            & (control_dt < 0.1)
+            & control_normal[1:]
+            & control_normal[:-1]
+        )
+
+        def control_pose_summary(mask, adjacent_mask):
+            return {
+                "sample_count": int(np.count_nonzero(mask)),
+                "longitudinal_error_m": scalar_summary(
+                    control_longitudinal[mask], absolute=True
+                ),
+                "lateral_error_m": scalar_summary(
+                    control_lateral[mask], absolute=True
+                ),
+                "yaw_error_deg": scalar_summary(
+                    control_yaw_error[mask], absolute=True
+                ),
+                "longitudinal_frame_jump_m": scalar_summary(
+                    np.diff(control_longitudinal)[adjacent_mask], absolute=True
+                ),
+                "lateral_frame_jump_m": scalar_summary(
+                    np.diff(control_lateral)[adjacent_mask], absolute=True
+                ),
+            }
+
+        control_state_result = {
+            "available": True,
+            "moving": control_pose_summary(control_moving, control_adjacent),
+            "normal_gnss_moving": control_pose_summary(
+                control_normal, control_normal_adjacent
+            ),
+        }
 
     result = {
         "bag": str(path.resolve()),
@@ -381,6 +492,20 @@ def analyze(path, moving_speed_threshold=1.0, heading_offset_deg=-1.347):
             "moving_intervals_bag_time": moving_intervals,
             "moving_interval_count": len(moving_intervals),
             "moving_duration_sec": float(sum(end - start for start, end in moving_intervals)),
+        },
+        "ego_oracle_quality": {
+            "description": (
+                "Per-frame MORAI pose increment minus the increment predicted "
+                "by its own velocity and heading. Large values form a lower "
+                "bound on interpretable localization frame-jump metrics."
+            ),
+            "valid_moving_pair_count": int(np.count_nonzero(ego_oracle_valid)),
+            "longitudinal_kinematic_residual_m": scalar_summary(
+                ego_longitudinal_residual[ego_oracle_valid], absolute=True
+            ),
+            "lateral_kinematic_residual_m": scalar_summary(
+                ego_lateral_residual[ego_oracle_valid], absolute=True
+            ),
         },
         "localization_moving": {
             "sample_count": int(np.count_nonzero(moving)),
@@ -406,6 +531,7 @@ def analyze(path, moving_speed_threshold=1.0, heading_offset_deg=-1.347):
             ),
         },
         "control_moving_valid": control_metrics,
+        "control_state": control_state_result,
     }
     return result
 

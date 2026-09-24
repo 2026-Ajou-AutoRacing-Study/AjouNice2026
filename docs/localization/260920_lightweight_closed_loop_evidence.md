@@ -55,6 +55,11 @@ rosbags/eval/localization/local_mr_stability/
 | 조향률 abs p50 / p95 | `0.082 / 0.541 rad/s` |
 | 유효 조향 부호 반전 | `0.500 /s` |
 
+후속 oracle timing 감사에서 `/Ego_topic`의 종방향 프레임 운동학 residual p95가
+`12.08 cm`로 확인됐다. 따라서 이 표의 종 frame jump `7.53 cm`는 localization
+단독 연속성 지표가 아니며 채택 근거에서 제외한다. 횡 frame jump, 위치 오차, yaw,
+실제 조향 지표는 유효하다.
+
 ### 마지막 GPS 음영과 정지
 
 - zero-GNSS 시작부터 bag 종료까지: `27.746 s`.

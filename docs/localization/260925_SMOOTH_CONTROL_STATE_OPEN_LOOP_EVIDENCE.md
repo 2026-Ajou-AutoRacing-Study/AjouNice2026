@@ -100,3 +100,7 @@ scripts/evaluation/localization/run_controller_state_open_loop_ab.sh INPUT.bag
 
 기본은 Global과 `0.5 s`를 비교한다. tau sweep은
 `LOCALIZATION_CONTROL_AB_TAUS='0.2 0.5 1.0'`으로 실행할 수 있다.
+
+새 폐루프 recorder는 Global과 control state를 동시에 담고 adjacent metadata 파일에
+commit, branch, 실제 controller input topic과 runtime parameter를 저장한다. 안정성
+평가기 한 번으로 두 pose와 실제 controller chatter를 함께 보고한다.
