@@ -1,7 +1,7 @@
 # Base4 Q1 실행 로드맵
 
 > 날짜: 2026-09-23.
-> 상태: Q1-P6 age-weighted motion 및 tracker gate 판정까지 완료한 CURRENT 계획.
+> 상태: Q1-P7 free-intercept motion 및 tracker gate 판정까지 완료한 CURRENT 계획.
 > 목표: 고주로 Vehicle velocity와 downstream 추월 판단을 개선하되 E25 production을
 > 흔들지 않는다.
 
@@ -164,6 +164,19 @@ speed MAE `1.581 → 0.872 m/s`, error-step p95 `5.569 → 1.492 m/s`로 개선�
 velocity 매-frame update와 init-only 모두 이를 넘지 못했다. 따라서 P6는 detector 연구
 후보로 채택하되 production의 detector velocity fusion은 계속 끈다. 상세 결과는
 [`260923_BASE4_Q1_P6_AGE_WEIGHTED_MOTION_RESULTS.md`](260923_BASE4_Q1_P6_AGE_WEIGHTED_MOTION_RESULTS.md)를
+따른다.
+
+P7은 P6가 현재 query center를 정확한 intercept로 고정하던 가정을 제거하고, 현재와 과거
+center 전체에서 intercept와 velocity를 함께 적합했다. 재학습 없이 hardcase speed MAE를
+`0.738 → 0.676 m/s`로 낮췄고, 개발 bag도 highway1 `0.872 → 0.811 m/s`, 합류
+`0.829 → 0.779 m/s`로 모두 개선했다. 가속도 근사 slice에서도 highway1 moderate/high와
+합류 steady/moderate가 개선되어 등속 구간에만 맞춘 결과로 보이지 않는다.
+
+다만 track 생성 후 1초 동안 P7의 `vx, vy`를 EKF에 직접 넣은 실험은 종방향 speed만
+개선하고 center, lateral error, 2D AVE와 stable minFDE-K를 악화시켰다. Production은
+계속 position-only mode 0을 유지한다. 다음 P8은 track/lane 종방향 성분만 조건부로
+사용하고 lateral/spatial state를 건드리지 않는 결합을 검토한다. 상세 결과는
+[`260924_BASE4_Q1_P7_FREE_INTERCEPT_RESULTS.md`](260924_BASE4_Q1_P7_FREE_INTERCEPT_RESULTS.md)를
 따른다.
 
 ## 중단·전환 기준
