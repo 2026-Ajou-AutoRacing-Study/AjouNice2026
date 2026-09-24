@@ -31,7 +31,6 @@
 <title>tracked&#45;&gt;matching</title>
 <path fill="none" stroke="#475569" stroke-width="3" d="M271.14,-195C271.14,-195 323.24,-195 323.24,-195"/>
 <polygon fill="#475569" stroke="#475569" stroke-width="3" points="323.24,-198.68 333.74,-195 323.24,-191.33 323.24,-198.68"/>
-<text text-anchor="middle" x="327.69" y="-180.6" font-family="Noto Sans CJK KR" font-size="18.00" fill="#334155">Vehicle</text>
 </g>
 <!-- fallback -->
 <g id="node3" class="node">
@@ -46,7 +45,6 @@
 <title>tracked&#45;&gt;fallback</title>
 <path fill="none" stroke="#475569" stroke-width="3" d="M271.14,-109C271.14,-109 314.29,-109 314.29,-109"/>
 <polygon fill="#475569" stroke="#475569" stroke-width="3" points="314.29,-112.68 324.79,-109 314.29,-105.33 314.29,-112.68"/>
-<text text-anchor="middle" x="383.72" y="-94.6" font-family="Noto Sans CJK KR" font-size="18.00" fill="#334155">Pedestrian · Obstacle</text>
 </g>
 <!-- generation -->
 <g id="node4" class="node">

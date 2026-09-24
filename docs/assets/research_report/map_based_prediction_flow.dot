@@ -63,8 +63,8 @@ digraph MapBasedPredictionFlow {
     penwidth=3.2
   ];
 
-  tracked -> matching [xlabel="Vehicle"];
-  tracked -> fallback [xlabel="Pedestrian · Obstacle"];
+  tracked -> matching;
+  tracked -> fallback;
   matching -> generation;
   generation -> output;
   fallback -> output;
