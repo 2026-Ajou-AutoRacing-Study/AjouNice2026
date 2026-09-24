@@ -117,6 +117,14 @@ p95 약 `10~12 cm` 불일치함을 확인했다. 전체 거리 적분은 `0.01%`
 `/localization/odometry/local`만 controller에 단순 remap하면 map trajectory와 frame이
 달라지므로 금지한다.
 
+### P0-C. Local/Global TF co-time 정합
+
+기존 final-state publisher는 Global state와 약 `3~17 ms` 오래된 최신 Local TF를
+합성해 고속에서 TF closure가 p95 `4.5~28.9 cm` 어긋났다. 현재 코드는 Local pose를
+Global timestamp까지 외삽해 `map -> odom`을 만들며, production 짧은 bag 1× replay의
+closure p95는 `17.40 -> 0.071 cm`로 감소했다. EKF state 자체는 변경하지 않는다.
+새 bag에서 50 Hz와 `tf_contract`를 재확인한다.
+
 ### P1. 공식 start pose 교체와 checkpoint reset
 
 Competition Status에는 global position이 없다. 현재 첫 `/Ego_topic` pose는 주최 측의

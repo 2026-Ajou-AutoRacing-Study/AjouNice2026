@@ -174,9 +174,16 @@ global EKF: map -> odom
 ```
 
 The global EKF output `/localization/odom` is copied, including pose and twist
-covariance, to `/localization/kinematic_state`. The copying node emits no TF.
-This lets Planning keep the same input contract while the localization backend
-changes.
+covariance, to `/localization/kinematic_state`. The final-state publisher also
+owns `map -> odom`, while the Local EKF independently owns
+`odom -> base_link`. This lets Planning keep the same state and TF contract
+while the localization backend changes.
+
+The competition GT-assisted provider's final-state publisher additionally owns
+`map -> odom`. It subscribes to Local EKF odometry and extrapolates that pose to
+the Global EKF message timestamp before composing the transform. Do not replace
+this with a latest (`Time(0)`) TF lookup: asynchronous 50 Hz EKF phases produced
+up to tens of centimeters of TF closure error at speed.
 
 GNSS+IMU uses the same `ego | manual` starting-pose policy as FAST-LIO+GNSS.
 During development, the first valid `/Ego_topic` pose is transformed from

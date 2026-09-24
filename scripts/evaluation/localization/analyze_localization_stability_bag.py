@@ -28,6 +28,7 @@ TOPICS = [
     "/control/command/steering",
     "/purepursuit_autoware/debug/lateral_error",
     "/ctrl_cmd",
+    "/tf",
     "/tf_static",
 ]
 
@@ -156,6 +157,24 @@ def parse_bag(path):
                         )
                 continue
 
+            if topic == "/tf":
+                for transform in message.transforms:
+                    if (
+                        transform.header.frame_id.lstrip("/") == "map"
+                        and transform.child_frame_id.lstrip("/") == "odom"
+                    ):
+                        translation = transform.transform.translation
+                        series[topic].append(
+                            (
+                                transform.header.stamp.to_sec(),
+                                float(translation.x),
+                                float(translation.y),
+                                yaw_from_quaternion(transform.transform.rotation),
+                                record_time,
+                            )
+                        )
+                continue
+
             time = stamp_or_bag(message, bag_time)
             if topic == "/Ego_topic":
                 series[topic].append(
@@ -183,7 +202,18 @@ def parse_bag(path):
                         record_time,
                     )
                 )
-            elif topic in ("/localization/gnss/odom", "/localization/odometry/local"):
+            elif topic == "/localization/odometry/local":
+                position = message.pose.pose.position
+                series[topic].append(
+                    (
+                        time,
+                        float(position.x),
+                        float(position.y),
+                        yaw_from_quaternion(message.pose.pose.orientation),
+                        record_time,
+                    )
+                )
+            elif topic == "/localization/gnss/odom":
                 position = message.pose.pose.position
                 series[topic].append((time, float(position.x), float(position.y), record_time))
             elif topic in (
@@ -479,6 +509,64 @@ def analyze(path, moving_speed_threshold=1.0, heading_offset_deg=-1.347):
             ),
         }
 
+    tf_contract = {"available": False}
+    local_odom = np.asarray(series["/localization/odometry/local"], dtype=float)
+    map_to_odom = np.asarray(series["/tf"], dtype=float)
+    if local_odom.size and map_to_odom.size:
+        local_odom = local_odom[np.argsort(local_odom[:, 0])]
+        map_to_odom = map_to_odom[np.argsort(map_to_odom[:, 0])]
+        tf_times = map_to_odom[:, 0]
+        valid = (
+            (tf_times >= local_odom[0, 0])
+            & (tf_times <= local_odom[-1, 0])
+            & (tf_times >= localization[0, 0])
+            & (tf_times <= localization[-1, 0])
+        )
+        map_to_odom = map_to_odom[valid]
+        tf_times = map_to_odom[:, 0]
+        local_x = np.interp(tf_times, local_odom[:, 0], local_odom[:, 1])
+        local_y = np.interp(tf_times, local_odom[:, 0], local_odom[:, 2])
+        local_yaw = np.interp(
+            tf_times, local_odom[:, 0], np.unwrap(local_odom[:, 3])
+        )
+        global_x = np.interp(tf_times, localization[:, 0], localization[:, 1])
+        global_y = np.interp(tf_times, localization[:, 0], localization[:, 2])
+        global_yaw = np.interp(
+            tf_times, localization[:, 0], np.unwrap(localization[:, 3])
+        )
+        tf_cosine = np.cos(map_to_odom[:, 3])
+        tf_sine = np.sin(map_to_odom[:, 3])
+        composed_x = (
+            map_to_odom[:, 1]
+            + tf_cosine * local_x
+            - tf_sine * local_y
+        )
+        composed_y = (
+            map_to_odom[:, 2]
+            + tf_sine * local_x
+            + tf_cosine * local_y
+        )
+        closure_position = np.hypot(
+            composed_x - global_x, composed_y - global_y
+        )
+        closure_yaw = np.degrees(
+            wrap_angle(map_to_odom[:, 3] + local_yaw - global_yaw)
+        )
+        tf_contract = {
+            "available": True,
+            "sample_count": int(tf_times.size),
+            "description": (
+                "Closure residual of recorded map->odom composed with co-timed "
+                "local odometry against localization/kinematic_state."
+            ),
+            "position_closure_error_m": scalar_summary(
+                closure_position, absolute=True
+            ),
+            "yaw_closure_error_deg": scalar_summary(
+                closure_yaw, absolute=True
+            ),
+        }
+
     result = {
         "bag": str(path.resolve()),
         "duration_sec": float(bag_end - bag_start),
@@ -532,6 +620,7 @@ def analyze(path, moving_speed_threshold=1.0, heading_offset_deg=-1.347):
         },
         "control_moving_valid": control_metrics,
         "control_state": control_state_result,
+        "tf_contract": tf_contract,
     }
     return result
 

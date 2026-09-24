@@ -54,6 +54,10 @@ velocity integral agree. Treat longitudinal frame jump as diagnostic only when
 it is comparable to that residual; lateral frame jump remains the primary
 pose-continuity metric.
 
+When a bag records Local odometry, final kinematic state, and `/tf`, the same
+analyzer emits `tf_contract`. It checks that recorded `map -> odom` composed
+with co-timed `odom -> base_link` closes onto the final map-frame state.
+
 ```bash
 python3 scripts/evaluation/localization/analyze_smooth_control_state_bag.py \
   rosbags/eval/localization/local_mr_stability/<bag>.bag \

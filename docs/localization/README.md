@@ -48,6 +48,8 @@
   - IMU yaw-rate/ax 제거 A/B와 production motion input 유지 근거.
 - [`260925_EGO_ORACLE_TIMING_AUDIT.md`](260925_EGO_ORACLE_TIMING_AUDIT.md)
   - Ego pose의 프레임 시간 불균일과 종 frame-jump 해석 제한.
+- [`260925_TF_COTIME_CONTRACT_EVIDENCE.md`](260925_TF_COTIME_CONTRACT_EVIDENCE.md)
+  - Local/Global EKF 시각 불일치로 생긴 TF closure 오류와 수정 replay.
 - [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)
   - 현장 채터링, GNSS 양자화, 시간축과 GPS 음영 문제의 누적 원인 분석.
 - [`260920_lightweight_closed_loop_evidence.md`](260920_lightweight_closed_loop_evidence.md)
