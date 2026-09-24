@@ -30,6 +30,15 @@
   <!-- Production: update on detector input and publish predicted EKF state at 30 Hz. -->
   <arg name="tracking_internal_publish_rate_hz" default="30.0"/>
   <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
+  <!-- Confirmed-track miss tolerance and conservative duplicate-birth guard. -->
+  <arg name="time_aware_track_lifecycle" default="true"/>
+  <arg name="confirmed_track_max_coast_time_sec" default="0.50"/>
+  <arg name="confirmed_stationary_track_max_coast_time_sec" default="1.00"/>
+  <arg name="lifecycle_stationary_speed_threshold_mps" default="2.0"/>
+  <arg name="suppress_duplicate_track_birth" default="true"/>
+  <arg name="duplicate_birth_suppression_distance_m" default="0.75"/>
+  <arg name="duplicate_birth_minimum_max_dimension_m" default="1.0"/>
+  <arg name="duplicate_birth_maximum_dimension_ratio" default="2.0"/>
   <!-- Velocity: 0 off, 1 init, 2 always, 3 early EKF, 4 early longitudinal output. -->
   <arg name="detection_velocity_fusion_mode" default="0"/>
   <arg name="detection_velocity_noise_std_mps" default="1.0"/>
@@ -205,6 +214,22 @@
          value="$(eval arg('tracking_internal_publish_rate_hz') if float(arg('tracking_publish_rate_hz')) &lt;= 0.0 else '0.0')"/>
     <arg name="maximum_fixed_output_prediction_age_sec"
          value="$(arg maximum_tracking_internal_prediction_age_sec)"/>
+    <arg name="time_aware_track_lifecycle"
+         value="$(arg time_aware_track_lifecycle)"/>
+    <arg name="confirmed_track_max_coast_time_sec"
+         value="$(arg confirmed_track_max_coast_time_sec)"/>
+    <arg name="confirmed_stationary_track_max_coast_time_sec"
+         value="$(arg confirmed_stationary_track_max_coast_time_sec)"/>
+    <arg name="lifecycle_stationary_speed_threshold_mps"
+         value="$(arg lifecycle_stationary_speed_threshold_mps)"/>
+    <arg name="suppress_duplicate_track_birth"
+         value="$(arg suppress_duplicate_track_birth)"/>
+    <arg name="duplicate_birth_suppression_distance_m"
+         value="$(arg duplicate_birth_suppression_distance_m)"/>
+    <arg name="duplicate_birth_minimum_max_dimension_m"
+         value="$(arg duplicate_birth_minimum_max_dimension_m)"/>
+    <arg name="duplicate_birth_maximum_dimension_ratio"
+         value="$(arg duplicate_birth_maximum_dimension_ratio)"/>
     <arg name="detection_velocity_fusion_mode"
          value="$(arg detection_velocity_fusion_mode)"/>
     <arg name="detection_velocity_noise_std_mps"

@@ -296,14 +296,17 @@ center AP/F1은 감소하지 않았다.
 같다. UUID 값 자체가 매 실행마다 달라지므로 unique ID 수, 동시 track frame과 track
 길이를 비교했다.
 
-| bag | 입력 | unique ID | 동시 복수 track frame | 최장 track frame |
+아래 표는 다른 class의 짧은 오검출을 섞지 않고, 문제 장애물과 같은 `UNKNOWN` track만
+집계한 결과다.
+
+| bag | 입력 | UNKNOWN unique ID | 동시 복수 UNKNOWN frame | 최장 UNKNOWN track frame |
 |---|---|---:|---:|---:|
 | manual position 04 | raw | 6 | 6 | 32 |
 |  | NMS | **2** | **0** | **45** |
-| teamlead case 01 | raw | 10 | 12 | 66 |
-|  | NMS | **5** | **2** | **67** |
-| teamlead case 02 | raw | 7 | 5 | 81 |
-|  | NMS | **4** | **0** | **82** |
+| teamlead case 01 | raw | 8 | 12 | 23 |
+|  | NMS | **3** | **2** | **39** |
+| teamlead case 02 | raw | 5 | 5 | 35 |
+|  | NMS | **2** | **0** | **55** |
 
 따라서 A는 duplicate detection이 unmatched detection으로 남아 새 ID를 만드는 경로를
 실제로 차단한다. 다만 NMS 적용 후에도 unique ID가 2--5개 남는다. 이는 서로 겹친
@@ -317,3 +320,50 @@ host Python microbenchmark에서 평균 추가 시간은 detection 5/20/100개�
 
 재현 수치는
 `artifacts/evaluation/bevfusion/static_obstacle_rotated_nms_260925/`에 저장했다.
+
+## 2026-09-25 B: confirmed-track lifecycle 및 duplicate birth 보강
+
+A를 통과한 동일 NMS detection을 고정 입력으로 두고 tracker만 B off/on으로
+재실행했다. B는 두 문제를 분리해 해결한다.
+
+1. confirmed track 삭제를 최근 frame 개수가 아니라 message stamp 기준 bounded
+   coasting으로 바꿨다. moving track은 `0.50 s`, UNKNOWN 및 2 m/s 이하 CAR/TRUCK은
+   `1.00 s`까지 유지한다. Tentative track의 strict 삭제 정책은 그대로이며 pedestrian은
+   1초 정적 lifetime 대상이 아니다.
+2. A의 rotated NMS를 통과한 low-IoU shape outlier가 있을 때, 같은 frame에 이미
+   association된 mature large-object track 중심 `0.75 m` 안의 유사 크기 unmatched
+   detection은 새 ID를 만들지 않는다. Association 전체를 먼저 갱신하고 birth 후보를
+   나중에 처리해 detection 배열 순서에도 의존하지 않게 했다.
+
+이는 전역 association distance `5 m`를 늘리는 변경이 아니다. 서로 다른 인접 객체를
+합칠 위험을 제한하기 위해 mature/associated 조건, pedestrian class 경계, 최소 최대변
+`1.0 m`, 최대변 비율 `2.0`을 함께 사용한다.
+
+| bag | A only UNKNOWN ID | A+B UNKNOWN ID | A only 복수 frame | A+B 복수 frame |
+|---|---:|---:|---:|---:|
+| manual position 04 | 2 | **1** | 0 | **0** |
+| teamlead case 01 | 3 | **1** | 2 | **0** |
+| teamlead case 02 | 2 | **1** | 0 | **0** |
+
+- manual position 04의 `0.554 s` detector gap에서 같은 ID가 재사용됐다.
+- teamlead case 02의 `0.988 s` gap도 UNKNOWN stationary 한도 안에서 같은 ID를
+  유지했다.
+- teamlead case 01의 약 `0.25--0.31 m` center 차이 low-IoU shape outlier는 새 track을
+  만들지 않았다.
+
+정상 정적 Sonata 회귀도 함께 수행했다.
+
+| regression bag | B off | B on |
+|---|---:|---:|
+| teamlead Sonata 정상 CAR | CAR ID `1`, 복수 frame `0` | CAR ID `1`, 복수 frame `0` |
+| static vehicle position 01 | CAR ID `1`, 복수 frame `0` | CAR ID `1`, 복수 frame `0` |
+
+첫 Sonata bag의 원거리 작은 UNKNOWN은 B에서 bounded coasting되어 보이는 시간이
+늘었지만 정상 CAR와 동시에 중복되거나 합쳐지지 않았고, 정상 CAR의 ID/길이/최대 속도는
+off와 동일했다. 이는 정적 UNKNOWN miss tolerance의 의도된 trade-off다. 향후 현장에서는
+1초 이상 지속되는 false UNKNOWN 비율도 함께 감시한다.
+
+단위 테스트는 mature stationary gap 재획득, 1초 초과 만료, input-order-independent
+duplicate birth 억제, 인접한 별개/작은 객체 보존, legacy frame-count mode를 포함하며
+package 전체 `40 tests`가 통과했다. 재현 출력과 요약은
+`artifacts/evaluation/bevfusion/static_obstacle_tracker_lifecycle_b_260925/`에 저장했다.
