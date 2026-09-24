@@ -39,6 +39,11 @@
   <arg name="local_odom_topic" default="/localization/odometry/local"/>
   <arg name="global_odom_topic" default="/localization/odom"/>
   <arg name="kinematic_state_topic" default="/localization/kinematic_state"/>
+  <arg name="publish_control_state" default="false"/>
+  <arg name="control_state_topic"
+       default="/localization/control_kinematic_state"/>
+  <arg name="control_translation_tau_sec" default="0.5"/>
+  <arg name="control_yaw_tau_sec" default="0.5"/>
   <arg name="acceleration_topic" default="/localization/acceleration"/>
   <arg name="initial_pose_topic" default="/localization/initialpose"/>
 
@@ -159,5 +164,29 @@
     <param name="base_frame" value="$(arg base_frame)"/>
     <param name="max_z_age_sec" value="0.5"/>
     <param name="tf_timeout_sec" value="0.05"/>
+  </node>
+
+  <!--
+    Experimental controller-only state.  It owns no TF and does not replace
+    the global state consumed by planning.  Enable only for a controlled A/B.
+  -->
+  <node if="$(arg publish_control_state)"
+        pkg="localization_manager"
+        type="smooth_control_state_publisher.py"
+        name="smooth_control_state_publisher"
+        output="screen">
+    <param name="global_topic" value="$(arg kinematic_state_topic)"/>
+    <param name="local_topic" value="$(arg local_odom_topic)"/>
+    <param name="output_topic" value="$(arg control_state_topic)"/>
+    <param name="map_frame" value="$(arg map_frame)"/>
+    <param name="odom_frame" value="odom"/>
+    <param name="base_frame" value="$(arg base_frame)"/>
+    <param name="translation_tau_sec"
+           value="$(arg control_translation_tau_sec)"/>
+    <param name="yaw_tau_sec" value="$(arg control_yaw_tau_sec)"/>
+    <param name="max_local_age_sec" value="0.05"/>
+    <param name="max_translation_rate_mps" value="0.0"/>
+    <param name="max_yaw_rate_degps" value="0.0"/>
+    <param name="reset_gap_sec" value="0.5"/>
   </node>
 </launch>

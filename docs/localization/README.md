@@ -1,6 +1,6 @@
 # Localization 문서 index
 
-마지막 정리: 2026-09-24.
+마지막 정리: 2026-09-25.
 
 이 디렉터리의 문서는 날짜가 아니라 `CURRENT / EVIDENCE / PLAN / HISTORICAL`
 상태로 판단한다. 코드와 문서가 다르면 현재 branch의 tracked launch/config/code를
@@ -40,6 +40,8 @@
   - 현재 코드·bag·평가기의 1차 감사와 다음 개선 우선순위.
 - [`260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md`](260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md)
   - GPS 음영 state 연속 발행과 frame·단위 계약 감사.
+- [`260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md`](260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md)
+  - Global 정확도와 Local 연속성을 분리한 controller용 state의 offline 사전 검증.
 - [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)
   - 현장 채터링, GNSS 양자화, 시간축과 GPS 음영 문제의 누적 원인 분석.
 - [`260920_lightweight_closed_loop_evidence.md`](260920_lightweight_closed_loop_evidence.md)

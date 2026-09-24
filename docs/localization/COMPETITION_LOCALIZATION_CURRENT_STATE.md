@@ -1,7 +1,7 @@
 # Competition Localization 현재 상태
 
 상태: **CURRENT**
-마지막 갱신: 2026-09-24
+마지막 갱신: 2026-09-25
 
 ## 한 줄 결론
 
@@ -89,7 +89,16 @@ covariance inflation은 넣지 않았다. GPS 음영 미션 폐루프와 checkpo
 ### P0-B. Controller가 Global correction을 직접 소비
 
 Local EKF는 이미 smooth state를 만들지만 controller는 Global EKF pose를 받는다.
-장기 구조 후보는 controller 전용 local state와 같은 frame으로 변환한 trajectory다.
+이를 해결하는 controller 전용 map-frame state prototype을 추가했다. Global/Local
+pose에서 `map -> odom` 정합을 구해 그 correction만 저역통과한 뒤 현재 Local pose와
+합성한다. planning과 TF는 기존 Global state를 유지한다.
+
+세 종류의 기존 bag에서 `tau=0.5~1.0 s`는 횡 frame jump p95를 크게 줄였고,
+격리 ROS replay에서 `49.994 Hz`의 정상 message contract를 확인했다. 그러나 기록된
+출력에 대한 counterfactual일 뿐 controller 폐루프 승인은 아니다. 따라서
+`publish_control_state=false`가 기본이고 production alias/controller 입력은 유지한다.
+근거는 `260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md`에 있다.
+
 `/localization/odometry/local`만 controller에 단순 remap하면 map trajectory와 frame이
 달라지므로 금지한다.
 

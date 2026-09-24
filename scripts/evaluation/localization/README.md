@@ -35,3 +35,17 @@ MR/competition estimator run that applied the same correction.
 Do not infer this value from the bag filename or recording computer. Recover
 the launcher, alias, `gt_source`, and runtime parameter provenance first. See
 `docs/localization/260924_LOCALIZATION_EVALUATION_BAG_CATALOG.md`.
+
+## Smooth controller-state pre-screen
+
+`analyze_smooth_control_state_bag.py` combines recorded Global and Local EKF
+outputs while smoothing only their `map -> odom` alignment. This is a
+counterfactual offline pre-screen: it does not re-run the controller and cannot
+approve a production change.
+
+```bash
+python3 scripts/evaluation/localization/analyze_smooth_control_state_bag.py \
+  rosbags/eval/localization/local_mr_stability/<bag>.bag \
+  --heading-offset-deg -1.347 \
+  --output /tmp/smooth_control_state.json
+```
