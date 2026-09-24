@@ -9,12 +9,15 @@
 ## 결론
 
 Localization은 전혀 개선되지 않은 상태가 아니다. GNSS 양자화 원인 규명과 production
-Q/R 채택으로 정상 구간 pose jump는 크게 줄었고, 경량 폐루프도 50 Hz로 완주했다.
-다만 지금까지의 개선은 주로 Q/R 튜닝이며, GPS 음영에서 output 연속성, 재획득,
-controller용 smooth local state라는 구조 문제는 아직 남아 있다.
+Q/R 채택으로 정상 구간 pose jump는 크게 줄었고, 경량 폐루프의 정상 GNSS active
+구간에서도 50 Hz를 재현했다. 다만 해당 bag 마지막 GPS 음영에서는 당시 final-state
+publisher가 중단됐으므로 bag 전체 완주 근거로 사용하지 않는다.
+감사 시점까지의 개선은 주로 Q/R 튜닝이었다. 같은 날 GPS 음영 output 연속성은
+해결했고, 재획득과 controller용 smooth local state라는 구조 문제는 남아 있다.
 
-가장 먼저 해결할 항목은 GPS 음영 중 stale GNSS z 때문에 최종 state 전체가 중단되는
-경로다. 그 다음에 reacquisition과 local-control frame을 분리해서 검증한다.
+감사 당시 가장 먼저 지적한 stale GNSS z 경로는 같은 날 수정·replay 검증됐다. 결과는
+`260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md`에 분리해 기록한다. 다음 단계는
+reacquisition과 local-control frame을 분리해서 검증하는 것이다.
 
 ## 현재 구현 감사
 
@@ -29,11 +32,12 @@ controller용 smooth local state라는 구조 문제는 아직 남아 있다.
 
 ### 구조적 위험
 
-1. `gnss_imu_kinematic_state_publisher.py`는 GNSS z age가 `0.5 s`를 넘으면
-   `/localization/kinematic_state` 전체를 발행하지 않는다.
+1. ~~GNSS z age가 `0.5 s`를 넘으면 최종 state 전체가 중단된다.~~
+   - 2026-09-24 수정 및 `gps_blank1/2` replay 통과.
 2. GPS 음영 종료 첫 유효 GNSS를 일반 update로 즉시 반영하며 gradual realignment가 없다.
 3. Controller는 Local EKF가 아닌 Global EKF pose를 직접 소비한다.
-4. Competition production도 initial pose는 개발 편의상 `/Ego_topic`에 의존한다.
+4. Competition initial pose는 공식 시작 position을 아직 받지 못해 `/Ego_topic`을
+   한 번만 임시 사용한다. 이는 의도된 개발 계약이며 공식 interface 제공 시 교체한다.
 5. Competition `angular_velocity.z`와 IMU yaw-rate의 frame·부호·상관성 A/B가 없다.
 
 ## 2026-09-24 평가기 재검증
@@ -63,23 +67,25 @@ controller용 smooth local state라는 구조 문제는 아직 남아 있다.
 | `gps_blank1.bag` | 596 | 162 | 약 `5.55 s` |
 | `gps_blank2.bag` | 960 | 315 | 약 `10.93 s` |
 
-두 bag 모두 `/Ego_topic`, GPS, IMU는 있지만 `/Competition_topic`은 없다. 따라서 MRP
-계약인 `gt_source=ego`, heading offset `0 deg`로 state-continuity A/B를 수행한다.
-대회 입력 완전 재현은 아니지만 stale-z output 중단을 검출하기에는 충분하다.
+두 bag 모두 2026-07-29 로컬 MORAI에서 취득한 구형 raw sensor bag이며 당시 사용한
+launcher와 MR/MRP provenance는 복구되지 않았다. `/Ego_topic`, GPS, IMU는 있지만
+`/Competition_topic`은 없으므로 현재 replay에서만 `gt_source=ego`, heading offset
+`0 deg` 계약을 사용한다. 대회 입력 완전 재현이나 폐루프 성능 근거는 아니지만 stale-z
+output 중단과 재획득 기계 동작을 검출하기에는 충분하다.
 
 ## 개선 순서
 
-1. **P0-A: GNSS z hold A/B**
-   - GPS 음영에서도 planar state를 계속 발행하고 마지막 유효 z만 유지.
-   - `gps_blank1/2`로 output gap, pose jump, NaN을 검증.
-2. **P0-B: reacquisition 상태기계**
+1. **완료: GNSS z hold A/B**
+   - `gps_blank1/2`에서 `49.997/50.005 Hz`, max gap `26.93/31.04 ms`.
+2. **P0-A: reacquisition 상태기계**
    - 복귀 첫 update의 innovation과 correction step을 측정.
    - covariance inflation 또는 제한된 realignment를 각각 분리 A/B.
-3. **P0-C: controller-local state prototype**
+3. **P0-B: controller-local state prototype**
    - local pose와 map trajectory를 같은 control-local frame으로 변환.
    - 단순 topic remap은 하지 않음.
-4. **P1: start/reset 계약**
-   - 공식 start pose 및 checkpoint teleport interface 확정.
+4. **P1: 공식 start pose 및 checkpoint reset 계약**
+   - 공식 시작 position interface로 임시 Ego 초기값을 교체.
+   - checkpoint teleport reset은 미해결.
 5. **P1: Competition yaw-rate 통제 실험**
    - IMU 대체와 residual 진단만 비교하고 중복 fuse하지 않음.
 

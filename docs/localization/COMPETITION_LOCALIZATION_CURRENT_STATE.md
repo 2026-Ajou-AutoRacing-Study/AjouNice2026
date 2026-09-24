@@ -5,9 +5,10 @@
 
 ## 한 줄 결론
 
-현재 production은 GNSS 양자화에 맞춘 Q/R로 정상 GNSS 구간의 pose jump를 크게
-줄였지만, controller가 Global EKF state를 직접 소비하고 GPS 음영에서 GNSS z가
-stale해지면 최종 state가 중단될 수 있는 구조적 위험이 남아 있다.
+현재 production은 GNSS 양자화에 맞춘 Q/R로 정상 GNSS 구간의 pose jump를 줄였고,
+GPS 음영 중에도 마지막 유효 z만 유지하며 planar state를 계속 발행한다. 남은 핵심
+구조 과제는 GPS 재획득 correction과 controller가 Global EKF state를 직접 소비하는
+점이다.
 
 ## Production 계약
 
@@ -16,6 +17,7 @@ stale해지면 최종 state가 중단될 수 있는 구조적 위험이 남아 �
 | alias | `localization` | `localization_mrp` |
 | motion source | `/Competition_topic` | `/Ego_topic` |
 | heading correction | `-1.347 deg` | `0 deg` |
+| initial pose | 공식 시작 position 제공 전 첫 `/Ego_topic` pose 임시 사용 | 동일 |
 | GNSS horizontal sigma | `0.10 m` | `0.10 m` |
 | Global EKF Qxy | `0.0005` | `0.0005` |
 | controller-facing state | `/localization/kinematic_state` | 동일 |
@@ -28,8 +30,8 @@ stale해지면 최종 state가 중단될 수 있는 구조적 위험이 남아 �
 - UDP는 ROS host receipt-time 정책을 유지한다.
 - localization provider는 한 번에 하나만 실행한다.
 - 대회에서 `/Ego_topic`과 `/Object_topic`을 기대하지 않는다.
-- 개발 중 initial pose는 `/Ego_topic`을 사용하지만, 대회 전 공식 start-pose
-  interface로 교체해야 한다.
+- `/Ego_topic`은 현재 초기 pose 한 번에만 쓰는 개발용 임시 입력이다. 공식 시작
+  position interface를 받으면 교체한다.
 
 ## 현재 데이터 흐름
 
@@ -41,7 +43,7 @@ stale해지면 최종 state가 중단될 수 있는 구조적 위험이 남아 �
 
 Local EKF  : odom -> base_link, GNSS가 직접 들어가지 않는 smooth motion
 Global EKF : map pose, GNSS x/y correction 포함
-Publisher  : Global pose + 최신 GNSS z -> /localization/kinematic_state
+Publisher  : Global pose + 최신/마지막 유효 GNSS z -> /localization/kinematic_state
 Controller : /localization/kinematic_state 직접 소비
 ```
 
@@ -57,20 +59,21 @@ Controller : /localization/kinematic_state 직접 소비
    `1.31 cm`, steering-rate p95 `0.54 rad/s` 수준을 재현했다.
 5. 로컬 full-stack의 velocity 적분 불일치는 production `velocity.x` bias가 아니라
    MORAI 비실시간율과 receipt wall-time 혼합 artifact로 판정했다.
+6. GPS 음영 `5.64 s`, `11.01 s` replay에서도 마지막 유효 z를 유지하면서
+   `/localization/kinematic_state`를 각각 `50.00 Hz`, `50.01 Hz`로 연속 발행했다.
+7. 현재 `/Ego_topic` 임시 초기값 계약으로 수행한 Competition 전체 경로 replay에서
+   `49.71 Hz` state와 기존 정확도 수준을 유지했다.
 
 ## 남은 위험과 우선순위
 
-### P0-A. GPS 음영 중 최종 state 연속성
+### 해결. GPS 음영 중 최종 state 연속성
 
-`morai_gps_to_local_odometry.py`는 `(0,0)` GNSS를 정상적으로 거부한다. 그러나
-`gnss_imu_kinematic_state_publisher.py`는 최신 GNSS z age가 `0.5 s`를 넘으면 Global
-EKF odometry 전체를 거부한다. 보유 GPS 음영 bag은 zero-GNSS가 각각 약 `5.55 s`,
-`10.93 s` 지속되므로 현 구조에서는 controller-facing state가 끊길 가능성이 높다.
+`morai_gps_to_local_odometry.py`는 `(0,0)` GNSS를 거부한다. 최초 유효 z를 받은 뒤
+GNSS가 stale해지면 publisher는 마지막 유효 z만 유지하고 Global EKF의 x/y/yaw/twist를
+계속 발행한다. 유효 GNSS가 돌아오면 z hold를 해제한다. 최초 z조차 없는 startup은
+기존처럼 준비되지 않은 상태로 판단한다.
 
-첫 개선은 x/y/yaw/twist를 계속 발행하면서 z만 마지막 유효값으로 hold하는 제한된
-A/B다. 음영 종료 후 reacquisition 정책과 섞지 않는다.
-
-### P0-B. GPS 재획득과 checkpoint 순간이동 구분
+### P0-A. GPS 재획득과 checkpoint 순간이동 구분
 
 현재는 음영 종료 첫 GNSS를 일반 update로 즉시 반영한다. 다음 기능은 없다.
 
@@ -79,20 +82,23 @@ A/B다. 음영 종료 후 reacquisition 정책과 섞지 않는다.
 - correction step/rate limit.
 - 정상 복귀와 checkpoint teleport 구분.
 
-P0-A로 출력 연속성을 먼저 보장한 뒤 별도 실험한다.
+현재 low-Q replay에서는 재획득 직후 폭발적 correction이 관찰되지 않아 임의의
+covariance inflation은 넣지 않았다. GPS 음영 미션 폐루프와 checkpoint teleport를
+분리해 추가 검증한다.
 
-### P0-C. Controller가 Global correction을 직접 소비
+### P0-B. Controller가 Global correction을 직접 소비
 
 Local EKF는 이미 smooth state를 만들지만 controller는 Global EKF pose를 받는다.
 장기 구조 후보는 controller 전용 local state와 같은 frame으로 변환한 trajectory다.
 `/localization/odometry/local`만 controller에 단순 remap하면 map trajectory와 frame이
 달라지므로 금지한다.
 
-### P1. 공식 start pose
+### P1. 공식 start pose 교체와 checkpoint reset
 
-Competition Status에는 global position이 없다. 현재 initial pose publisher가
-`/Ego_topic`을 사용하는 개발 편의 계약은 실대회에서 성립하지 않는다. 대회가 제공하는
-start pose interface와 reset/checkpoint 계약을 확정해야 한다.
+Competition Status에는 global position이 없다. 현재 첫 `/Ego_topic` pose는 주최 측의
+공식 시작 position interface가 아직 확정되지 않아 초기값 용도로만 쓰는 의도적인 임시
+계약이며 문제나 fallback이 아니다. 공식 interface가 제공되면 이 입력만 교체한다.
+사고 후 checkpoint 순간이동을 자동 검출해 두 EKF를 reset하는 계약도 아직 없다.
 
 ### P1. Competition yaw-rate A/B
 

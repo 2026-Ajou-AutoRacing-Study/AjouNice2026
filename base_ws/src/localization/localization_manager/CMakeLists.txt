@@ -41,6 +41,7 @@ install(DIRECTORY rviz/
 
 if(CATKIN_ENABLE_TESTING)
   find_package(rostest REQUIRED)
+  catkin_add_nosetests(test/test_gnss_imu_contract.py)
   catkin_add_nosetests(test/test_morai_gt_contract.py)
   add_rostest(test/morai_gt_transport.test)
 endif()
