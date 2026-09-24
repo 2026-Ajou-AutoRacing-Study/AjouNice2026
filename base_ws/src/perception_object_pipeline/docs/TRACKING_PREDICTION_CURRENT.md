@@ -32,6 +32,10 @@ BEVFusion B3-BF0-F40 E25 DetectedObjects
 - Base4 P8에서 detector velocity의 LiDAR→map 회전 누락을 수정했다. 초기 종방향
   output-only mode 4는 speed/AVE를 소폭 개선했지만 두 개발 bag의 Map-CV 전 horizon
   gate를 통과하지 못해 연구 옵션으로만 남긴다. Production 기본값은 계속 mode 0이다.
+- Base4 P9 mode 5는 detector message covariance와 tracker longitudinal covariance를
+  이용한 초기 output-only 결합이다. speed/AVE는 소폭 개선됐지만 stable FDE gate를
+  통과하지 못했고 mature track까지 계속 결합한 실험은 크게 악화했다. 기본 mode 0을
+  유지한다.
 - causal detection-center velocity fusion: `off`. B4H-Q0는 연구용으로 구현됐지만 기존
   고주로 2-bag Map-CV gate와 accepted-slice paired gate를 통과하지 못했다. 안정적인
   center history를 고르는 데는 성공했지만 그 구간에서도 기존 EKF 대비 speed/종방향

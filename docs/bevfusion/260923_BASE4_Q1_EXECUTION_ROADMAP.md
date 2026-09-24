@@ -200,6 +200,15 @@ velocity를 회전하지 않는 계약 오류를 발견해 수정했다. 이후 
 [`260924_BASE4_Q1_P8_LONGITUDINAL_OUTPUT_RESULTS.md`](260924_BASE4_Q1_P8_LONGITUDINAL_OUTPUT_RESULTS.md)를
 따른다.
 
+P9-A는 이미 메시지에 존재하던 detector twist covariance가 tracker에서 버려지던 경로를
+복구하고, tracker 종방향 covariance와 역분산 결합하는 mode 5를 추가했다. 초기 1초로
+제한하면 두 개발 bag의 speed/AVE와 all-FDE는 소폭 개선됐지만 stable FDE는 일관되지
+않았다. track-age 제한을 제거한 continuous 결합은 highway1 speed MAE `0.445 → 0.695`,
+stable FDE@3s `0.905 → 2.478 m`로 명확히 실패해 기각했다. Production은 mode 0이며,
+query별 temporal uncertainty를 추가하는 P9-B는 새 held-out bag 이후에만 연다. 상세는
+[`260924_BASE4_Q1_P9_UNCERTAINTY_FUSION_RESULTS.md`](260924_BASE4_Q1_P9_UNCERTAINTY_FUSION_RESULTS.md)를
+따른다.
+
 ## 중단·전환 기준
 
 - exact overfit도 실패: implementation/loss 연결 문제부터 수정한다.
