@@ -20,6 +20,7 @@ checkpoint 실험 기록이며 production 실행법이 아니다.
 | 모델 입력 | front/front-left/front-right/back JPEG + LiDAR XYZI |
 | 출력 | `/perception/object_recognition/detection/objects` |
 | confidence | Vehicle `0.40`, Pedestrian `0.15`, Obstacle `0.10` |
+| duplicate suppression | class-aware rotated BEV NMS, IoU `0.50` |
 | 후단 | EKF tracking → UNKNOWN stationary policy → Map-CV prediction |
 | Tracker | CTRV, position measurement noise `0.40 m` |
 | Detector velocity | E25는 7D이므로 fusion 기본 `off` |
@@ -144,7 +145,9 @@ roslaunch bevfusion_ros base3_online.launch start_rviz:=false
 
 launch 기본값 자체가 `0.40/0.15/0.10`을 적용한다. Docker에는 가장 낮은
 `0.10`까지 요청하고, ROS bridge가 class별 operating point를 적용한 뒤 하나의
-canonical detection topic만 발행한다.
+canonical detection topic만 발행한다. 같은 class의 겹친 box가 tracker에서 별도 ID를
+만들지 않도록 rotated BEV IoU `0.50` NMS도 기본 적용한다. 이는 host bridge 후처리이므로
+checkpoint와 Docker 이미지는 바뀌지 않는다.
 
 ### 4. Planning stack
 

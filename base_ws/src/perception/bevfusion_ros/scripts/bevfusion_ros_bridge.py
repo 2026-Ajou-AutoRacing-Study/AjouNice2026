@@ -24,6 +24,7 @@ from bevfusion_ros.score_thresholds import (
     filter_detections,
     server_score_floor,
 )
+from bevfusion_ros.rotated_bev_nms import class_aware_rotated_bev_nms
 from bevfusion_ros.transport import TcpTransport
 
 
@@ -69,6 +70,15 @@ class BevFusionRosBridge:
             self.score_threshold, self.class_score_thresholds
         )
         self.max_detections = int(rospy.get_param("~max_detections", 100))
+        self.rotated_bev_nms_enabled = bool(
+            rospy.get_param("~rotated_bev_nms_enabled", True)
+        )
+        self.rotated_bev_nms_iou_threshold = float(
+            rospy.get_param("~rotated_bev_nms_iou_threshold", 0.50)
+        )
+        if not 0.0 <= self.rotated_bev_nms_iou_threshold <= 1.0:
+            raise ValueError(
+                "rotated_bev_nms_iou_threshold must be in [0, 1]")
         self.marker_lifetime = float(rospy.get_param("~marker_lifetime_sec", 0.5))
         self.transport = TcpTransport(
             rospy.get_param("~server_host", "127.0.0.1"),
@@ -92,6 +102,7 @@ class BevFusionRosBridge:
         self.sequence = 0
         self.dropped_raw = 0
         self.dropped_prepared = 0
+        self.nms_suppressed_total = 0
         self.last_marker_count = 0
         self.shutting_down = False
 
@@ -156,10 +167,13 @@ class BevFusionRosBridge:
         rospy.on_shutdown(self.shutdown)
         self._publish_status("waiting_for_synchronized_sensor_frame")
         rospy.loginfo(
-            "BEVFusion bridge: operation=%s, lidar=%s, cameras=%s",
+            "BEVFusion bridge: operation=%s, lidar=%s, cameras=%s, "
+            "rotated_bev_nms=%s@%.2f",
             self.operation,
             self.lidar_topic,
             self.camera_topics,
+            self.rotated_bev_nms_enabled,
+            self.rotated_bev_nms_iou_threshold,
         )
 
     def _load_topics(self):
@@ -361,7 +375,7 @@ class BevFusionRosBridge:
             "ok operation={} sequence={} latency_ms={:.1f} host_preprocess_ms={:.1f} "
             "pointcloud_ms={:.1f} server_preprocess_ms={:.1f} "
             "inference_ms={:.1f} request_ms={:.1f} dropped_raw={} "
-            "dropped_prepared={}".format(
+            "dropped_prepared={} nms_suppressed_total={}".format(
                 response.get("operation"),
                 metadata.get("sequence", 0),
                 latency_ms,
@@ -372,6 +386,7 @@ class BevFusionRosBridge:
                 transport_ms,
                 self.dropped_raw,
                 self.dropped_prepared,
+                self.nms_suppressed_total,
             )
         )
 
@@ -396,6 +411,11 @@ class BevFusionRosBridge:
             self.score_threshold,
             self.class_score_thresholds,
         )
+        if self.rotated_bev_nms_enabled:
+            detection_count_before_nms = len(detections)
+            detections = class_aware_rotated_bev_nms(
+                detections, self.rotated_bev_nms_iou_threshold)
+            self.nms_suppressed_total += detection_count_before_nms - len(detections)
         delete_all = Marker()
         delete_all.header.frame_id = frame_id
         delete_all.header.stamp = stamp
