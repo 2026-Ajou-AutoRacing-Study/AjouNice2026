@@ -29,6 +29,12 @@
               "description": "If false, only the footprint's corner points are considered for drivable area check.",
               "default": false
             },
+            "outside_drivable_area_check_footprint": {
+              "type": "string",
+              "description": "Vehicle footprint used for the final drivable-area stop check.",
+              "enum": ["rectangle", "vehicle_circles"],
+              "default": "rectangle"
+            },
             "debug": {
               "type": "object",
               "properties": {
@@ -450,6 +456,24 @@
                           "type": "integer",
                           "description": "Number of circles.",
                           "default": 3
+                        },
+                        "rear_center_inset": {
+                          "type": "number",
+                          "description": "Move the rear circle center forward from the rear bumper [m].",
+                          "minimum": 0.0,
+                          "default": 0.0
+                        },
+                        "front_center_inset": {
+                          "type": "number",
+                          "description": "Move the front circle center backward from the front bumper [m].",
+                          "minimum": 0.0,
+                          "default": 0.0
+                        },
+                        "frontmost_rearward_offset": {
+                          "type": "number",
+                          "description": "Move only the frontmost circle backward from its uniformly spaced center [m].",
+                          "minimum": 0.0,
+                          "default": 0.0
                         }
                       },
                       "required": ["num"],

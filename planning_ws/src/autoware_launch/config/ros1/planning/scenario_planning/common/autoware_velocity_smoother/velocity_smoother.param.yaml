@@ -18,10 +18,10 @@ velocity_thresholds:
 - 20.0
 - 30.0
 steering_angle_rate_limits:
-- 11.5
-- 11.5
-- 10.5
-- 3.5
+- 28.75
+- 28.75
+- 26.25
+- 8.75
 resample_ds: 0.1
 curvature_threshold: 0.02
 replan_vel_deviation: 5.53

@@ -50,6 +50,7 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME} BEFORE PUBLIC
   ${AUTOWARE_PLANNING_MSGS_AUTHORITATIVE_INCLUDE})
 target_include_directories(${PROJECT_NAME} PUBLIC include ${catkin_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} BEFORE PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(${PROJECT_NAME} PUBLIC ${catkin_LIBRARIES} Eigen3::Eigen)
 
 set(AW149_VELOCITY_SMOOTHER_INSTALL_TARGETS ${PROJECT_NAME})
@@ -61,6 +62,7 @@ set(AW149_VELOCITY_SMOOTHER_INSTALL_TARGETS ${PROJECT_NAME})
   target_include_directories(velocity_smoother_node BEFORE PRIVATE
     ${AUTOWARE_PLANNING_MSGS_AUTHORITATIVE_INCLUDE})
   target_include_directories(velocity_smoother_node PRIVATE include ${catkin_INCLUDE_DIRS})
+  target_include_directories(velocity_smoother_node BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_link_libraries(velocity_smoother_node PRIVATE ${PROJECT_NAME} ${catkin_LIBRARIES} Eigen3::Eigen)
   list(APPEND AW149_VELOCITY_SMOOTHER_INSTALL_TARGETS velocity_smoother_node)
 
@@ -81,6 +83,8 @@ if(CATKIN_ENABLE_TESTING)
   if(TARGET test_velocity_smoother_resample)
     target_include_directories(test_velocity_smoother_resample BEFORE PRIVATE
       ${AUTOWARE_PLANNING_MSGS_AUTHORITATIVE_INCLUDE})
+    target_include_directories(test_velocity_smoother_resample BEFORE PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include)
     target_link_libraries(test_velocity_smoother_resample
       ${PROJECT_NAME} ${catkin_LIBRARIES} Eigen3::Eigen)
   endif()

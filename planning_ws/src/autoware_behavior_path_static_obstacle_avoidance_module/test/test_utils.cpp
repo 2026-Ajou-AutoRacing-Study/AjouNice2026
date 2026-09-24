@@ -26,6 +26,8 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <boost/geometry/algorithms/is_valid.hpp>
+#include <boost/geometry/algorithms/covered_by.hpp>
 
 #include <limits>
 #include <memory>
@@ -1630,4 +1632,45 @@ TEST(TestUtils, forceAvoidStoppedParallelVehicleInIntersection)
   EXPECT_FALSE(not_stopped_long_enough.is_parking_violation);
   EXPECT_EQ(not_stopped_long_enough.info, ObjectInfo::PARALLEL_TO_EGO_LANE);
 }
+}  // namespace autoware::behavior_path_planner::utils::static_obstacle_avoidance
+
+namespace autoware::behavior_path_planner::utils::static_obstacle_avoidance
+{
+TEST(TestUtils, StaticEnvelopeGrowthFollowsLatestObservedCenter)
+{
+  using autoware::behavior_path_planner::utils::static_obstacle_avoidance::mergeStaticEnvelopes;
+  Polygon2d original;
+  original.outer() = {{0,0},{0,2},{2,2},{2,0},{0,0}};
+  Polygon2d current = original;
+  for (int i = 1; i <= 20; ++i) {
+    Polygon2d observed;
+    const double d = i * 0.05;
+    observed.outer() = {{d,0},{d,2},{2+d,2},{2+d,0},{d,0}};
+    current = mergeStaticEnvelopes(current, observed);
+    EXPECT_TRUE(boost::geometry::is_valid(current));
+    EXPECT_TRUE(boost::geometry::covered_by(observed, current));
+    EXPECT_NEAR(boost::geometry::area(current), 4.0, 1e-9);
+    EXPECT_NEAR(boost::geometry::get<0>(boost::geometry::return_centroid<Point2d>(current)),
+                1.0 + d, 1e-9);
+    EXPECT_LE(current.outer().size(), 5UL);
+  }
+}
+
+TEST(TestUtils, StaticEnvelopeKeepsLargerVerifiedShapeAtLatestCenter)
+{
+  Polygon2d previous;
+  previous.outer() = {{-2,-1},{-2,1},{2,1},{2,-1},{-2,-1}};
+  Polygon2d observed;
+  observed.outer() = {{9.5,-0.5},{9.5,0.5},{10.5,0.5},{10.5,-0.5},{9.5,-0.5}};
+
+  const auto merged = mergeStaticEnvelopes(previous, observed);
+  const auto centroid = boost::geometry::return_centroid<Point2d>(merged);
+  EXPECT_TRUE(boost::geometry::is_valid(merged));
+  EXPECT_NEAR(boost::geometry::area(merged), 8.0, 1e-9);
+  EXPECT_NEAR(boost::geometry::get<0>(centroid), 10.0, 1e-9);
+  EXPECT_NEAR(boost::geometry::get<1>(centroid), 0.0, 1e-9);
+  EXPECT_FALSE(boost::geometry::covered_by(Point2d{0.0, 0.0}, merged));
+  EXPECT_TRUE(boost::geometry::covered_by(observed, merged));
+}
+
 }  // namespace autoware::behavior_path_planner::utils::static_obstacle_avoidance

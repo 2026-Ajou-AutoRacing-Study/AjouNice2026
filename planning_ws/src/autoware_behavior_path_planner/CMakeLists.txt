@@ -380,10 +380,11 @@ install(DIRECTORY config/ DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
 
 # Complete original node/arbitration, isolated from the retained legacy host ABI.
 find_package(autoware_utils_rclcpp REQUIRED)
-include_directories(BEFORE ${autoware_utils_rclcpp_INCLUDE_DIRS})
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/include ${autoware_utils_rclcpp_INCLUDE_DIRS})
 find_package(autoware_planning_test_manager REQUIRED)
 find_package(yaml-cpp REQUIRED)
 include_directories(${autoware_planning_test_manager_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_library(${PROJECT_NAME}_full_source src/planner_manager.cpp src/behavior_path_planner_node.cpp src/test_utils.cpp)
 target_include_directories(${PROJECT_NAME}_full_source BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_features(${PROJECT_NAME}_full_source PUBLIC cxx_std_17)

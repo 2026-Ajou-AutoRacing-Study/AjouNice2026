@@ -34,11 +34,13 @@
 #include <autoware_map_msgs/LaneletMapBin.h>
 #include <autoware_planning_msgs/LaneletRoute.h>
 #include <autoware_planning_msgs/Trajectory.h>
+#include <autoware_planning_msgs/StaticObstacleScene.h>
 #include <diagnostic_msgs/DiagnosticArray.h>
 #include <geometry_msgs/AccelWithCovarianceStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/PointCloud2.h>
 
+#include <ros/callback_queue.h>
 #include <memory>
 #include <string>
 
@@ -73,11 +75,21 @@ private:
 
   void publishProcessingTime(const double processing_time_ms);
   void publishTrajectory();
+  void onStaticScene(const autoware_planning_msgs::StaticObstacleScene::ConstPtr & scene);
+  bool guardStaticScene(Trajectory & trajectory);
+  void publishSceneCheckedTrajectory(Trajectory trajectory);
   void publishDebugInfo();
   void displayStatus();
 
   // subscriber
   ros::Subscriber sub_trajectory_;
+  ros::CallbackQueue static_scene_queue_;
+  ros::WallTimer static_scene_timer_;
+  ros::Subscriber sub_static_scene_;
+  autoware_planning_msgs::StaticObstacleScene::ConstPtr static_scene_;
+  Trajectory::ConstPtr last_published_trajectory_;
+  Odometry::ConstPtr scene_check_odometry_;
+  uint32_t published_trajectory_sequence_{0};
   autoware_utils::InterProcessPollingSubscriber<
     LaneletRoute, autoware_utils::polling_policy::Newest>
     sub_route_{this, "input/route", 1};
@@ -100,6 +112,7 @@ private:
   validator_native::Publisher<PlanningValidatorStatus> pub_status_;
   validator_native::Publisher<Float64Stamped> pub_processing_time_ms_;
   validator_native::Publisher<visualization_msgs::MarkerArray> pub_markers_;
+  validator_native::Publisher<diagnostic_msgs::DiagnosticArray> pub_scene_check_;
 
   PlanningValidatorManager manager_;
 

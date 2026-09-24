@@ -31,6 +31,9 @@
 #include <autoware_utils/system/time_keeper.hpp>
 
 #include <boost/geometry/algorithms/correct.hpp>
+#include <boost/geometry/algorithms/covered_by.hpp>
+#include <boost/geometry/algorithms/convex_hull.hpp>
+#include <boost/geometry/geometries/multi_point.hpp>
 
 #include <fmt/format.h>
 
@@ -97,6 +100,8 @@ StaticObstacleAvoidanceModule::StaticObstacleAvoidanceModule(
   parameters_{parameters},
   generator_{parameters}
 {
+  node.param(
+    "avoidance/optimization_clip_release_margin", optimization_clip_release_margin_, 10.0);
 }
 
 bool StaticObstacleAvoidanceModule::isExecutionRequested() const
@@ -105,6 +110,11 @@ bool StaticObstacleAvoidanceModule::isExecutionRequested() const
 
   // Check ego is in preferred lane
   updateMarker(BehaviorModuleOutput{}, avoid_data_, path_shifter_, debug_data_);
+
+  // Optimization mode has no shift line: obstacle lifetime owns activation.
+  if (parameters_->path_generation_method == "optimization_base") {
+    return !clip_objects_.empty();
+  }
 
   // there is object that should be avoid. return true.
   if (!!avoid_data_.stop_target_object) {
@@ -205,10 +215,36 @@ void StaticObstacleAvoidanceModule::updateOptimizationClipObjects(AvoidancePlann
     return object.object.object_id == id;
   };
 
-  // Latch the geometry used to start the maneuver.  Perception jitter or a temporary loss must not
-  // pull the obstacle polygon out from under an optimization that is already being followed.
+  const auto update_geometry = [](ObjectData & latched, const ObjectData & observed) {
+    if (observed.envelope_poly.outer().empty()) {
+      return;
+    }
+
+    auto updated = observed;
+    updated.envelope_poly = utils::static_obstacle_avoidance::mergeStaticEnvelopes(
+      latched.envelope_poly, observed.envelope_poly);
+
+    if (latched.avoid_margin) {
+      updated.avoid_margin = updated.avoid_margin
+        ? std::max(*latched.avoid_margin, *updated.avoid_margin)
+        : latched.avoid_margin;
+    }
+    updated.is_clip_target = true;
+    latched = std::move(updated);
+  };
+
+  // Keep the corridor through a temporary detection loss, but incorporate newer observations.
   for (const auto & target : data.target_objects) {
     const auto id = target.object.object_id;
+    const auto id_string = to_hex_string(id);
+    if (released_clip_object_ids_.count(id_string) != 0) {
+      // A released object may legitimately move ahead later. Require a full new approach
+      // before arming it again; small post-pass perception jitter must not recreate the cutout.
+      if (target.longitudinal + target.length <= optimization_clip_release_margin_) {
+        continue;
+      }
+      released_clip_object_ids_.erase(id_string);
+    }
     const auto found = std::find_if(
       clip_objects_.begin(), clip_objects_.end(),
       [&](const auto & object) { return same_id(object, id); });
@@ -219,6 +255,20 @@ void StaticObstacleAvoidanceModule::updateOptimizationClipObjects(AvoidancePlann
       RCLCPP_INFO(
         getLogger(), "SOA optimization latch added object=%s",
         to_hex_string(latched.object.object_id).c_str());
+    } else {
+      update_geometry(*found, target);
+    }
+  }
+
+  // A refined UNKNOWN detection may become a CAR and move to other_objects. The already latched
+  // object must still receive its new footprint even when its behavior category changes.
+  for (const auto & observed : data.other_objects) {
+    const auto id = observed.object.object_id;
+    const auto found = std::find_if(
+      clip_objects_.begin(), clip_objects_.end(),
+      [&](const auto & object) { return same_id(object, id); });
+    if (found != clip_objects_.end()) {
+      update_geometry(*found, observed);
     }
   }
 
@@ -232,10 +282,12 @@ void StaticObstacleAvoidanceModule::updateOptimizationClipObjects(AvoidancePlann
   const auto passed = [&](const auto & object) {
     const auto type = autoware::object_recognition_utils::getHighestProbLabel(
       object.object.classification);
-    const auto release_margin = parameters_->object_parameters.at(type).longitudinal_margin;
+    const auto release_margin = optimization_clip_release_margin_ +
+                                parameters_->object_parameters.at(type).longitudinal_margin;
     const bool has_passed = utils::static_obstacle_avoidance::isClipObjectPassed(
       object, base_link2rear, release_margin);
     if (has_passed) {
+      released_clip_object_ids_.insert(to_hex_string(object.object.object_id));
       RCLCPP_INFO(
         getLogger(), "SOA optimization latch released object=%s front_from_ego=%.2f",
         to_hex_string(object.object.object_id).c_str(), object.longitudinal + object.length);
@@ -249,6 +301,12 @@ void StaticObstacleAvoidanceModule::updateOptimizationClipObjects(AvoidancePlann
 bool StaticObstacleAvoidanceModule::canTransitSuccessState()
 {
   const auto & data = avoid_data_;
+  if (parameters_->path_generation_method == "optimization_base") {
+    // A lanelet/window change does not mean that the latched obstacle has been passed.
+    // Completion must use the same rear-pass lifetime as activation and output publication.
+    helper_->setPreviousDrivingLanes(data.current_lanelets);
+    return clip_objects_.empty();
+  }
 
   // Change input lane. -> EXIT.
   if (!isDrivingSameLane(helper_->getPreviousDrivingLanes(), data.current_lanelets)) {

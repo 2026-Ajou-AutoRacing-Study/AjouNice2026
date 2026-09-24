@@ -18,6 +18,7 @@
 #include "osqp/osqp.h"
 
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -320,6 +321,21 @@ int64_t OSQPInterface::initializeProblem(
   CSC_Matrix P_csc, CSC_Matrix A_csc, const std::vector<double> & q, const std::vector<double> & l,
   const std::vector<double> & u)
 {
+  m_work.reset();
+  m_work_initialized = false;
+  m_latest_work_info = OSQPInfo{};
+  m_exitflag = 1;
+  if (l.size() != u.size() || A_csc.m_col_idxs.size() != q.size() + 1) {
+    ROS_ERROR_NAMED("osqp_interface", "Invalid QP dimensions");
+    return m_exitflag;
+  }
+  for (size_t i = 0; i < l.size(); ++i) {
+    if (std::isnan(l[i]) || std::isnan(u[i]) || l[i] > u[i]) {
+      ROS_ERROR_NAMED(
+        "osqp_interface", "Invalid QP bounds at row %zu: lower=%g upper=%g", i, l[i], u[i]);
+      return m_exitflag;
+    }
+  }
   // Dynamic float arrays
   std::vector<double> q_tmp(q.begin(), q.end());
   std::vector<double> l_tmp(l.begin(), l.end());
@@ -351,18 +367,36 @@ int64_t OSQPInterface::initializeProblem(
   m_data->u = u_dyn;
 
   // Setup workspace
-  OSQPWorkspace * workspace;
+  OSQPWorkspace * workspace = nullptr;
   m_exitflag = osqp_setup(&workspace, m_data.get(), m_settings.get());
   m_work.reset(workspace);
-  m_work_initialized = true;
+  m_work_initialized = m_exitflag == 0 && m_work != nullptr;
 
   return m_exitflag;
 }
 
 OSQPResult OSQPInterface::solve()
 {
+  OSQPResult result;
+  result.exit_flag = static_cast<int>(m_exitflag);
+  if (!m_work_initialized || !m_work) {
+    ROS_ERROR_NAMED("osqp_interface", "Cannot solve: OSQP setup failed");
+    return result;
+  }
   // Solve Problem
   int32_t exit_flag = static_cast<int32_t>(osqp_solve(m_work.get()));
+  result.exit_flag = exit_flag;
+  if (m_work->info) {
+    m_latest_work_info = *(m_work->info);
+    result.polish_status = m_latest_work_info.status_polish;
+    result.solution_status = m_latest_work_info.status_val;
+    result.iteration_status = m_latest_work_info.iter;
+  }
+  if (exit_flag != 0 || !m_work->solution || !m_work->solution->x ||
+      !m_work->solution->y || !m_work->info) {
+    result.solution_status = -1;
+    return result;
+  }
 
   /********************
    * EXTRACT SOLUTION
@@ -377,8 +411,6 @@ OSQPResult OSQPInterface::solve()
   int64_t status_iteration = m_work->info->iter;
 
   // Result tuple
-  OSQPResult result;
-
   result.primal_solution = sol_primal;
   result.lagrange_multipliers = sol_lagrange_multiplier;
   result.polish_status = static_cast<int>(status_polish);
@@ -416,6 +448,12 @@ OSQPResult OSQPInterface::optimize(
 
 void OSQPInterface::logUnsolvedStatus(const std::string & prefix_message) const
 {
+  if (!m_work_initialized) {
+    ROS_WARN_NAMED(
+      "osqp_interface", "%s OSQP setup failed (exit_flag=%ld)", prefix_message.c_str(),
+      static_cast<long>(m_exitflag));
+    return;
+  }
   const int status = static_cast<int>(getStatus());
   if (status == 1) {
     // No need to log since optimization was solved.

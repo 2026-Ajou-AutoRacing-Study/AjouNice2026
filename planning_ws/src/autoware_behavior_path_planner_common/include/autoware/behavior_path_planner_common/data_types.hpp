@@ -6,6 +6,7 @@
 #include <autoware_planning_msgs/PoseWithUuidStamped.h>
 #include <autoware_utils_geometry/boost_geometry.hpp>
 #include <geometry_msgs/Pose.h>
+#include <unique_identifier_msgs/UUID.h>
 
 #include <lanelet2_core/primitives/Lanelet.h>
 
@@ -30,6 +31,10 @@ struct DrivableAreaInfo
     geometry_msgs::Pose pose;
     autoware_utils_geometry::Polygon2d poly;
     bool is_left{true};
+    bool direct_constraint{false};
+    unique_identifier_msgs::UUID id;
+    double hard_margin{0.0};
+    double soft_margin{0.0};
   };
   std::vector<DrivableLanes> drivable_lanes;
   std::vector<Obstacle> obstacles;

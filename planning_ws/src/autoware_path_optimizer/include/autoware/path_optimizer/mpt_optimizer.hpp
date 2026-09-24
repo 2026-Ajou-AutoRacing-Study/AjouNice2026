@@ -113,6 +113,7 @@ struct ReferencePoint
 
   // bounds and its local pose on each collision-free constraint
   std::vector<Bounds> bounds_on_constraints{};
+  std::vector<Bounds> soft_bounds_on_constraints{};
   std::vector<geometry_msgs::Pose> pose_on_constraints{};
 
   // optimization result
@@ -194,12 +195,35 @@ public:
   std::optional<std::vector<TrajectoryPoint>> getPrevOptimizedTrajectoryPoints() const;
 
   void initialize(const bool enable_debug_info, const TrajectoryParam & traj_param);
+  struct History {
+    std::shared_ptr<std::vector<ReferencePoint>> reference;
+    std::shared_ptr<std::vector<TrajectoryPoint>> trajectory;
+  };
+  double obstacleClearanceWeight() const { return mpt_param_.obstacle_clearance_weight; }
+  double maximumCurvature() const { return std::tan(mpt_param_.max_steer_rad) / vehicle_info_.wheel_base_m; }
+  double hardRoadClearance() const { return mpt_param_.hard_clearance_from_road; }
+  void publishAcceptedDebug(const Header & header) {
+    if (prev_ref_points_ptr_ && prev_optimized_traj_points_ptr_) {
+      debug_data_ptr_->ref_points = *prev_ref_points_ptr_;
+      publishDebugTrajectories(header, *prev_ref_points_ptr_, *prev_optimized_traj_points_ptr_);
+    }
+  }
+  History history() const { return {prev_ref_points_ptr_, prev_optimized_traj_points_ptr_}; }
+  void restoreHistory(const History & history) {
+    prev_ref_points_ptr_ = history.reference;
+    prev_optimized_traj_points_ptr_ = history.trajectory;
+  }
   void resetPreviousData();
   void onParam(const std::vector<rclcpp::Parameter> & parameters);
 
   double getTrajectoryLength() const;
   double getDeltaArcLength() const;
   int getNumberOfPoints() const;
+  const std::vector<double> & getVehicleCircleRadii() const { return vehicle_circle_radiuses_; }
+  const std::vector<double> & getVehicleCircleLongitudinalOffsets() const
+  {
+    return vehicle_circle_longitudinal_offsets_;
+  }
 
 private:
   struct ValueMatrix
@@ -280,6 +304,7 @@ private:
     double hard_clearance_from_road;
     double soft_clearance_from_road;
     double soft_collision_free_weight;
+    double obstacle_clearance_weight{100.0};
 
     // weight
     double lat_error_weight;
@@ -319,6 +344,9 @@ private:
     double vehicle_circles_bicycle_model_rear_radius_ratio;
     double vehicle_circles_bicycle_model_front_radius_ratio;
     int vehicle_circles_fitting_uniform_circle_num;
+    double vehicle_circles_fitting_uniform_circle_rear_center_inset;
+    double vehicle_circles_fitting_uniform_circle_front_center_inset;
+    double vehicle_circles_fitting_uniform_circle_frontmost_rearward_offset;
 
     // validation
     double max_validation_lat_error;
@@ -363,6 +391,8 @@ private:
   int prev_mat_n_ = 0;
   int prev_mat_m_ = 0;
   int prev_solution_status_ = 0;
+  bool candidate_trial_{false};
+  std::optional<size_t> exactly_checked_ego_index_;
   std::shared_ptr<std::vector<ReferencePoint>> prev_ref_points_ptr_{nullptr};
   std::shared_ptr<std::vector<TrajectoryPoint>> prev_optimized_traj_points_ptr_{nullptr};
 
@@ -390,7 +420,9 @@ private:
     const double ego_vel) const;
   void updateVehicleBounds(
     std::vector<ReferencePoint> & ref_points,
-    const autoware::interpolation::SplineInterpolationPoints2d & ref_points_spline) const;
+    const autoware::interpolation::SplineInterpolationPoints2d & ref_points_spline,
+    const std::vector<geometry_msgs::Point> & left_bound,
+    const std::vector<geometry_msgs::Point> & right_bound) const;
   void updateFixedPoint(std::vector<ReferencePoint> & ref_points) const;
   void updateDeltaArcLength(std::vector<ReferencePoint> & ref_points) const;
   void updateExtraPoints(std::vector<ReferencePoint> & ref_points) const;

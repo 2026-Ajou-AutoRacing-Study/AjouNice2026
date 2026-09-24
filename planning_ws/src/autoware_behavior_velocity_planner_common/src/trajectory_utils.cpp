@@ -40,7 +40,8 @@ bool smoothPath(
   const double a0 = planner_data.current_acceleration->accel.accel.linear.x;
   const auto trajectory = autoware::motion_utils::convertToTrajectoryPoints(in_path);
   const auto lateral = planner_data.velocity_smoother_->applyLateralAccelerationFilter(trajectory);
-  const auto steering = planner_data.velocity_smoother_->applySteeringRateLimit(lateral, false);
+  const auto steering = planner_data.velocity_smoother_->applySteeringRateLimit(
+    lateral, false, planner_data.velocity_smoother_->getBaseParam().sample_ds);
   const auto resampled = planner_data.velocity_smoother_->resampleTrajectory(
     steering, v0, current_pose, planner_data.ego_nearest_dist_threshold,
     planner_data.ego_nearest_yaw_threshold);

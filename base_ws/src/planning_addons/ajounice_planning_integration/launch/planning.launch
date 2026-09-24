@@ -36,7 +36,7 @@
     <arg name="repo_root" value="$(arg repo_root)"/>
   </include>
   <include file="$(find tier4_planning_launch)/launch/planning.launch">
-    <!-- LC-only candidate rejection logs; no planning behavior change. -->
+    <!-- LC runtime log level; detailed candidate traces are opt-in. -->
     <env name="ROSCONSOLE_CONFIG_FILE"
          value="$(find ajounice_planning_integration)/config/lane_change_diagnostics.rosconsole"/>
     <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>

@@ -13,6 +13,7 @@ public:
     manager_ptrs_(std::move(managers)),
     root_reference_publisher_(node.advertise<visualization_msgs::MarkerArray>(
       "debug/root_reference_path", 1)) {
+    node.param("drivable_area_use_intersection_areas", use_intersection_areas_, false);
     processing_time_["total_time"] = 0.0;
     for (const auto & manager : manager_ptrs_) processing_time_[manager->name()] = 0.0;
     configureModuleSlot(slots);
@@ -32,6 +33,7 @@ public:
     for (auto & slot : planner_manager_slots_) slot.reset();
   }
 private:
+  bool use_intersection_areas_{false};
   void resetCurrentRouteLanelet(const std::shared_ptr<PlannerData> & data) {
     lanelet::ConstLanelet lane;
     if (!data->route_handler->getClosestLaneletWithinRoute(data->self_odometry->pose.pose, &lane))

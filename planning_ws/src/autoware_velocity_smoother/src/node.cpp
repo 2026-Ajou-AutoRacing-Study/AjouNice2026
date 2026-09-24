@@ -640,13 +640,16 @@ void VelocitySmootherNode::onCurrentTrajectory(const Trajectory::ConstPtr msg)
     node_param_.ego_nearest_dist_threshold, node_param_.ego_nearest_yaw_threshold,
     node_param_.post_resample_param, false);
 
+  output_resampled = resampling::applyVelocityProfileToGeometry(
+    input_points, output_resampled, findNearestIndexFromEgo(input_points));
+
   // Set 0 at the end of the trajectory
   if (!output_resampled.empty()) {
     output_resampled.back().longitudinal_velocity_mps = 0.0;
   }
 
   // update previous step infomation
-  updatePrevValues(output);
+  updatePrevValues(output_resampled);
 
   // for reverse velocity
   // NOTE: this process must be in the end of the process
@@ -758,10 +761,13 @@ bool VelocitySmootherNode::smoothVelocity(
           input, initial_motion.vel, initial_motion.acc, enable_smooth_limit, use_resampling)
       : input;
 
-  // Steering angle rate limit (Note: set use_resample = false since it is resampled above)
+  // The lateral acceleration filter resamples at sample_ds. Reuse that spacing
+  // for steering curvature/rate calculations; otherwise resample here.
   const auto traj_steering_rate_limited =
     node_param_.enable_steering_rate_limit
-      ? smoother_->applySteeringRateLimit(traj_lateral_acc_filtered, false)
+      ? smoother_->applySteeringRateLimit(
+          traj_lateral_acc_filtered, !node_param_.enable_lateral_acc_limit,
+          smoother_->getBaseParam().sample_ds)
       : traj_lateral_acc_filtered;
 
   // Resample trajectory with ego-velocity based interval distance
@@ -942,6 +948,27 @@ std::pair<Motion, VelocitySmootherNode::InitializeType> VelocitySmootherNode::ca
   const double desired_acc = current_closest_point_from_prev_output_->acceleration_mps2;
   const double vel_error = vehicle_speed - std::fabs(desired_vel);
 
+  // Releasing an all-zero upstream request is a change of planning state. The
+  // vehicle may still be moving while that request is withdrawn. Using the old
+  // zero as the new initial condition can keep commanding a fictitious standstill
+  // until the generic velocity-deviation threshold is exceeded.
+  const double engage_vel_thr = node_param_.engage_velocity * node_param_.engage_exit_ratio;
+  if (std::abs(desired_vel) < 1e-4 && target_vel >= node_param_.engage_velocity &&
+      vehicle_speed > engage_vel_thr && !prev_output_.empty()) {
+    const size_t previous_closest = findNearestIndexFromEgo(prev_output_);
+    const bool previous_requested_stop = std::all_of(
+      prev_output_.begin() + previous_closest, prev_output_.end(),
+      [](const auto & p) { return std::abs(p.longitudinal_velocity_mps) < 1e-4; });
+    if (previous_requested_stop) {
+      const auto limits = smoother_->getBaseParam();
+      const Motion initial_motion = {
+        vehicle_speed, std::clamp(vehicle_acceleration, limits.min_decel, limits.max_accel)};
+      RCLCPP_INFO_THROTTLE(get_logger(), *clock_, 1000,
+        "Released stop request while moving; initialize from measured speed %.3f", vehicle_speed);
+      return {initial_motion, InitializeType::EGO_VELOCITY};
+    }
+  }
+
   if (std::fabs(vel_error) > node_param_.replan_vel_deviation) {
     RCLCPP_DEBUG(
       get_logger(),
@@ -954,7 +981,6 @@ std::pair<Motion, VelocitySmootherNode::InitializeType> VelocitySmootherNode::ca
 
   // if current vehicle velocity is low && base_desired speed is high,
   // use engage_velocity for engage vehicle
-  const double engage_vel_thr = node_param_.engage_velocity * node_param_.engage_exit_ratio;
   if (vehicle_speed < engage_vel_thr) {
     if (target_vel >= node_param_.engage_velocity) {
       const double stop_dist = trajectory_utils::calcStopDistance(input_traj, input_closest);
