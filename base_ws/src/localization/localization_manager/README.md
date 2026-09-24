@@ -49,6 +49,10 @@ roslaunch localization_manager gnss_imu_gt_ctra.launch \
   control_yaw_tau_sec:=0.5
 ```
 
+The same arguments are passed through by
+`bringup/localization_gnss_imu_gt_ctra.launch`, which should be used for full
+provider replay and closed-loop tests.
+
 The output is `/localization/control_kinematic_state` (`map -> base_link`
 Odometry). The node publishes no TF and does not alter the global Planning
 state. It is disabled by default and must not become the controller input until

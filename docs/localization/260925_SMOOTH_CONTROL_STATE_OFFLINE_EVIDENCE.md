@@ -60,6 +60,23 @@ Global EKF map pose + Local EKF odom pose
 종방향 frame jump는 약 `7 cm` 수준이 유지됐다. 이 값은 map correction보다 Local EKF
 motion/timestamp에 주로 기인하므로 별도 가설로 다룬다.
 
+### 종·횡 correction 분리 가설
+
+차량 진행축 correction은 즉시 반영하고 횡축만 `0.5~1.0 s`로 늦추는 후보도
+사전 검증했다. production 두 bag에서는 등방성 `0.5 s`와 차이가 거의 없었고,
+negative-control에서는 진행축을 즉시 반영할 때 종 오차/jump가 오히려 크게
+악화했다.
+
+| bag | 후보 | 횡 / 종 오차 p95 | 횡 / 종 jump p95 |
+|---|---|---:|---:|
+| production 장주행 | 등방성 0.5 s | **3.93 / 6.26 cm** | 0.20 / 7.49 cm |
+| production 장주행 | 종 0 s, 횡 0.5 s | 4.02 / 6.28 cm | 0.20 / 7.53 cm |
+| negative control | 등방성 0.5 s | **4.27 / 5.52 cm** | 0.26 / 6.85 cm |
+| negative control | 종 0 s, 횡 0.5 s | 4.40 / 8.92 cm | 0.26 / 9.63 cm |
+
+따라서 차량축별 파라미터를 추가해 복잡도를 늘리지 않고, 현재 등방성 `0.5 s`를
+단일 폐루프 후보로 유지한다.
+
 ## 구현 검증
 
 - pure-function unit test `5/5` 통과.
@@ -70,6 +87,22 @@ motion/timestamp에 주로 기인하므로 별도 가설로 다룬다.
   - header stamp 모두 strictly increasing.
   - frame `map -> base_link`.
   - NaN 없음, quaternion norm 정상.
+
+### 구형 GPS 음영 기계 시험
+
+`gps_blank1/2`는 취득 alias와 launcher provenance가 불완전하므로 정확도 채택 근거로
+쓰지 않고, 출력 연속성과 복귀 순간의 횡 jump만 확인했다. `gt_source=ego`, heading
+offset `0 deg`로 전체 estimator를 다시 실행했다.
+
+| bag | zero-GNSS | Global / Control 출력 수 | 출력 rate | 복귀 후 횡 jump p95 |
+|---|---:|---:|---:|---:|
+| `gps_blank1` | 5.55 s | 1041 / 1041 | 49.72 Hz | 2.66 / **0.83 cm** |
+| `gps_blank2` | 10.93 s | 1659 / 1659 | 49.72 Hz | 3.03 / **0.48 cm** |
+
+후보 토픽은 음영 중에도 한 frame도 추가로 끊기지 않았고 복귀 순간 횡 correction을
+완화했다. 다만 `gps_blank1`에서는 오래된 heading/runtime 조건 아래 횡 절대 오차가
+커졌으므로 이 결과를 accuracy 개선으로 해석하지 않는다. 새 production 폐루프의
+음영 진입·복귀 bag이 여전히 필수다.
 
 ## 판정과 다음 gate
 
