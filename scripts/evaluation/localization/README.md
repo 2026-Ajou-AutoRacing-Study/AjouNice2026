@@ -74,6 +74,18 @@ scripts/evaluation/localization/run_gnss_outage_reacquisition.sh \
   15 8 turning_8s
 ```
 
+기본은 기존 smooth control-state replay다. Quantized-GNSS 후보는 다음처럼 같은
+runner에서 선택한다.
+
+```bash
+LOCALIZATION_OUTAGE_CONTROL_MODE=quantized \
+scripts/evaluation/localization/run_gnss_outage_reacquisition.sh \
+  INPUT.bag 15 8 quantized_turning_8s
+```
+
+두 모드 모두 1×가 유효 기준이다. 배속 replay에서 output state가 50 Hz를 유지하지
+못하면 결과를 폐기한다.
+
 ```bash
 python3 scripts/evaluation/localization/analyze_smooth_control_state_bag.py \
   rosbags/eval/localization/local_mr_stability/<bag>.bag \

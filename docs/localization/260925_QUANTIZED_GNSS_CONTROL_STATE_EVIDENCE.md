@@ -34,8 +34,12 @@ Local EKF pose를 현재 map→odom alignment로 map에 투영한다.
 3. yaw는 Global EKF와 동일하게 유지한다.
 4. 최종 출력은 후보의 횡 displacement만 사용하고, 차량 heading 방향 종 위치는
    Global EKF를 그대로 보존한다.
-5. GNSS가 끊기면 마지막 alignment와 Local EKF motion으로 계속 발행한다.
-6. 큰 Global discontinuity는 기존 reset threshold로 alignment를 재초기화한다.
+5. GNSS가 `0.2 s` 이상 stale이면 과거 cell은 무효화하고 Global과 동일하게
+   fallback한다.
+6. 재획득 후 `1.0 s`는 Global settling을 그대로 따르고 이후 cell correction을
+   재개한다.
+7. GNSS와 Global의 거리가 `0.5 m`보다 크면 quantization correction을 생략한다.
+8. 큰 Global discontinuity는 기존 reset threshold로 alignment를 재초기화한다.
 
 새 node는 TF를 발행하지 않으며 planning state도 바꾸지 않는다.
 
@@ -74,6 +78,31 @@ bag: `260919_231906_q0005_r010_gt_object_lightweight_no_traffic.bag`
 구간에서도 마지막 alignment를 유지하며 output rate가 끊기지 않았다. 다만 이 구간은
 차량이 정지하며 GNSS 재획득이 없어 recovery 승격 근거는 아니다.
 
+## 8초 GNSS 음영·재획득 replay
+
+원본 raw Competition bag의 GPS만 선택 구간에서 제거하고 Local/Global EKF부터 다시
+1× 실행했다. 구형 bag의 큰 GNSS innovation에서 cell correction과 Global reset이
+경합해 reset이 연속 7회 발생하는 prototype 결함을 먼저 확인했다. 다음 안전장치를
+추가한 뒤 같은 입력을 다시 실행했다.
+
+- GNSS–Global innovation `0.5 m` gate.
+- stale GNSS 즉시 Global fallback.
+- 재획득 `1.0 s` grace period.
+
+단위는 횡 오차와 step 모두 `cm`다.
+
+| 8초 음영 구간 | state | 음영 횡 p95 / max | 복귀 0~1s 횡 p95 | 복귀 1~4s 횡 p95 | 복귀 step p95 / max | rate |
+|---|---|---:|---:|---:|---:|---:|
+| offset 15 s 회전 | Global | 41.58 / 53.99 | 3.31 | 10.78 | 1.68 / 54.46 | 49.97 Hz |
+| offset 15 s 회전 | 후보 | **41.58 / 53.99** | **3.31** | **4.74** | **1.68 / 54.46** | 49.97 Hz |
+| offset 83 s, 약 89° 회전 | Global | 52.83 / 53.29 | 6.96 | 8.87 | 1.65 / 58.26 | 49.99 Hz |
+| offset 83 s, 약 89° 회전 | 후보 | **52.83 / 53.29** | **6.96** | **2.28** | 1.68 / **58.26** | 49.99 Hz |
+
+후보는 stale/recovery 초기에 Global보다 나빠지지 않고, grace 이후 정상 cell update가
+돌아오면 횡 오차를 다시 줄였다. 재획득 때 Global 자체가 만드는 큰 단일 correction은
+그대로 따른다. Planning과 controller의 map pose가 장시간 분리되는 것보다 안전한
+정책이다. 연속 reset loop는 제거됐고 각 재획득에서 한 번만 재정렬됐다.
+
 ## 구현 중 제거한 결함
 
 초기 prototype은 map→odom yaw를 odom 원점 기준으로 변경해 멀리 있는 차량 pose까지
@@ -84,7 +113,7 @@ bag: `260919_231906_q0005_r010_gt_object_lightweight_no_traffic.bag`
 
 1. `od_gt` 경량 폐루프에서 동일 route를 Global/후보 각각 주행.
 2. steering-rate p95, sign flip, lateral control error와 lane departure 비교.
-3. GPS 음영 진입·유지·재획득 폐루프 비교.
+3. GPS 음영 replay는 통과했으며, 실제 GPS 음영 폐루프 비교.
 4. checkpoint relocation/reset과 후보 alignment 재초기화 확인.
 5. LAN-to-LAN 동일 controller 반복.
 

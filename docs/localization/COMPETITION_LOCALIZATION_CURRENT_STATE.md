@@ -106,6 +106,11 @@ pose에서 `map -> odom` 정합을 구해 그 correction만 저역통과한 뒤 
 아직 폐루프가 아니므로 `use_quantized_gnss_control_state=false`가 기본이다. 근거는
 `260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md`에 있다.
 
+두 개의 합성 8초 GNSS 음영 1× filter replay도 수행했다. stale GNSS에서는 Global로
+fallback하고 재획득 후 1초 grace를 둔 결과, 음영과 복귀 첫 1초의 후보가 Global보다
+나빠지지 않았으며 복귀 1~4초 횡 p95는 각각 `10.78 -> 4.74 cm`,
+`8.87 -> 2.28 cm`로 감소했다. 이는 replay gate 통과이며 실제 폐루프 승격은 아니다.
+
 폐루프용 launch 배선은 준비했다. Planning/TF는 Global state를 유지하고 두 controller
 node만 `controller_kinematic_state_topic`으로 함께 전환할 수 있다. 불연속 판정은
 alignment parameter가 아니라 현재 차량의 map pose 차이로 수행한다. `0.5 m / 20 deg`

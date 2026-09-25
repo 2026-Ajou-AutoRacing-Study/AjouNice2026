@@ -13,6 +13,7 @@ OUTAGE_DURATION="$3"
 LABEL="${4:-outage_${OUTAGE_START_OFFSET}s_${OUTAGE_DURATION}s}"
 RATE="${LOCALIZATION_OUTAGE_RATE:-1.0}"
 CONTROL_TAU="${LOCALIZATION_OUTAGE_TAU_SEC:-0.5}"
+CONTROL_MODE="${LOCALIZATION_OUTAGE_CONTROL_MODE:-smooth}"
 PORT="${LOCALIZATION_OUTAGE_PORT:-$((26000 + ($$ % 10000)))}"
 STAMP="$(date '+%y%m%d_%H%M%S')"
 OUTPUT_ROOT="${LOCALIZATION_OUTAGE_OUTPUT_DIR:-$ROOT/rosbags/eval/localization/gnss_outage_$STAMP}"
@@ -37,10 +38,16 @@ for label, raw in zip(("start", "duration", "control tau"), sys.argv[1:]):
             label, "positive" if label == "control tau" else "non-negative"
         ))
 PY
+if [[ "$CONTROL_MODE" != "smooth" && "$CONTROL_MODE" != "quantized" ]]; then
+  echo "LOCALIZATION_OUTAGE_CONTROL_MODE must be smooth or quantized" >&2
+  exit 2
+fi
 
 mkdir -p "$RUN_DIR"
 source /opt/ros/noetic/setup.bash
 source "$ROOT/scripts/workspace/source_aw149.sh"
+export ROS_PACKAGE_PATH="$ROOT/base_ws/src/localization${ROS_PACKAGE_PATH:+:$ROS_PACKAGE_PATH}"
+rospack profile >/dev/null
 
 read -r BAG_START BAG_END < <(
   python3 - "$INPUT_BAG" <<'PY'
@@ -87,9 +94,11 @@ printf '%s\n' \
   "heading_offset_deg=-1.347" \
   "control_translation_tau_sec=$CONTROL_TAU" \
   "control_yaw_tau_sec=$CONTROL_TAU" \
+  "control_mode=$CONTROL_MODE" \
   >"$RUN_DIR/metadata.txt"
 
 CORE_PID=""
+MAP_TF_PID=""
 LAUNCH_PID=""
 RECORD_PID=""
 cleanup_process() {
@@ -107,6 +116,7 @@ cleanup_process() {
 cleanup() {
   cleanup_process "$RECORD_PID"
   cleanup_process "$LAUNCH_PID"
+  cleanup_process "$MAP_TF_PID"
   cleanup_process "$CORE_PID"
 }
 trap cleanup EXIT INT TERM
@@ -123,18 +133,33 @@ for _ in $(seq 1 100); do
 done
 rosparam set /use_sim_time true
 
-roslaunch bringup localization_gnss_imu_gt_ctra.launch \
-  use_sim_time:=true \
-  gt_source:=competition \
-  use_heading_correction:=true \
-  heading_yaw_offset_deg:=-1.347 \
-  publish_sensor_tf:=true \
-  publish_control_state:=true \
-  control_translation_tau_sec:="$CONTROL_TAU" \
-  control_yaw_tau_sec:="$CONTROL_TAU" \
-  control_state_reset_translation_error_m:=0.5 \
-  sensor_config:="$SENSOR_CONFIG" \
-  >"$RUN_DIR/launch.log" 2>&1 &
+if [[ "$CONTROL_MODE" == "quantized" ]]; then
+  roslaunch tf_pub map_tf.launch >"$RUN_DIR/map_tf.log" 2>&1 &
+  MAP_TF_PID=$!
+  roslaunch "$ROOT/base_ws/src/localization/localization_manager/launch/gnss_imu_gt_ctra.launch" \
+    gt_source:=competition \
+    use_heading_correction:=true \
+    heading_yaw_offset_deg:=-1.347 \
+    publish_control_state:=true \
+    use_quantized_gnss_control_state:=true \
+    quantized_control_yaw_tau_sec:=0.0 \
+    control_state_reset_translation_error_m:=0.5 \
+    sensor_config:="$SENSOR_CONFIG" \
+    >"$RUN_DIR/launch.log" 2>&1 &
+else
+  roslaunch bringup localization_gnss_imu_gt_ctra.launch \
+    use_sim_time:=true \
+    gt_source:=competition \
+    use_heading_correction:=true \
+    heading_yaw_offset_deg:=-1.347 \
+    publish_sensor_tf:=true \
+    publish_control_state:=true \
+    control_translation_tau_sec:="$CONTROL_TAU" \
+    control_yaw_tau_sec:="$CONTROL_TAU" \
+    control_state_reset_translation_error_m:=0.5 \
+    sensor_config:="$SENSOR_CONFIG" \
+    >"$RUN_DIR/launch.log" 2>&1 &
+fi
 LAUNCH_PID=$!
 sleep 2
 
@@ -153,6 +178,7 @@ rosbag play --clock --rate "$RATE" "$FILTERED_BAG" \
 sleep 1
 cleanup
 CORE_PID=""
+MAP_TF_PID=""
 LAUNCH_PID=""
 RECORD_PID=""
 

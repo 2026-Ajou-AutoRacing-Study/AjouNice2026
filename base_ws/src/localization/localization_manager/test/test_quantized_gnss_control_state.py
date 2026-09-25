@@ -90,6 +90,15 @@ class QuantizedGnssControlStateTest(unittest.TestCase):
         self.assertAlmostEqual(output_longitudinal, 0.0, places=9)
         self.assertAlmostEqual(output[2], candidate_pose[2])
 
+    def test_planar_distance_is_frame_independent(self):
+        self.assertAlmostEqual(MODULE.planar_distance(2.0, 3.0, -1.0, 7.0), 5.0)
+
+    def test_measurement_freshness_uses_absolute_age(self):
+        self.assertTrue(MODULE.measurement_is_fresh(10.0, 10.1, 0.2))
+        self.assertTrue(MODULE.measurement_is_fresh(10.1, 10.0, 0.2))
+        self.assertFalse(MODULE.measurement_is_fresh(10.0, 10.3, 0.2))
+        self.assertFalse(MODULE.measurement_is_fresh(None, 10.0, 0.2))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -244,6 +244,8 @@
     <param name="cell_scale" value="1.25"/>
     <param name="grid_yaw_deg" value="0.0"/>
     <param name="preserve_global_longitudinal" value="true"/>
+    <param name="max_gnss_global_distance_m" value="0.5"/>
+    <param name="gnss_recovery_grace_sec" value="1.0"/>
     <param name="yaw_tau_sec" value="$(arg quantized_control_yaw_tau_sec)"/>
     <param name="reset_translation_error_m"
            value="$(arg control_state_reset_translation_error_m)"/>

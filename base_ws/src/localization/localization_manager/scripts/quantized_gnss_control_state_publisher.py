@@ -69,6 +69,16 @@ def preserve_global_longitudinal(global_pose, candidate_pose):
     )
 
 
+def planar_distance(first_x, first_y, second_x, second_y):
+    return math.hypot(first_x - second_x, first_y - second_y)
+
+
+def measurement_is_fresh(source_stamp_sec, target_stamp_sec, max_age_sec):
+    if source_stamp_sec is None:
+        return False
+    return abs(float(target_stamp_sec) - float(source_stamp_sec)) <= max_age_sec
+
+
 class QuantizedGnssAlignment:
     """Maintain map->odom alignment with interval-valued GNSS translation."""
 
@@ -193,6 +203,26 @@ class QuantizedGnssControlStatePublisher:
         self.base_frame = rospy.get_param("~base_frame", "base_link").lstrip("/")
         self.max_local_age_sec = float(rospy.get_param("~max_local_age_sec", 0.05))
         self.max_gnss_age_sec = float(rospy.get_param("~max_gnss_age_sec", 0.2))
+        self.max_gnss_global_distance_m = float(
+            rospy.get_param("~max_gnss_global_distance_m", 0.5)
+        )
+        self.gnss_recovery_grace_sec = float(
+            rospy.get_param("~gnss_recovery_grace_sec", 1.0)
+        )
+        if (
+            not math.isfinite(self.max_gnss_global_distance_m)
+            or self.max_gnss_global_distance_m <= 0.0
+        ):
+            raise rospy.ROSInitException(
+                "~max_gnss_global_distance_m must be positive"
+            )
+        if (
+            not math.isfinite(self.gnss_recovery_grace_sec)
+            or self.gnss_recovery_grace_sec < 0.0
+        ):
+            raise rospy.ROSInitException(
+                "~gnss_recovery_grace_sec must be finite and non-negative"
+            )
         self.preserve_global_longitudinal = bool(
             rospy.get_param("~preserve_global_longitudinal", True)
         )
@@ -219,6 +249,7 @@ class QuantizedGnssControlStatePublisher:
         self.gnss_message = None
         self.last_gnss_stamp = None
         self.last_global_stamp = None
+        self.quantized_resume_stamp_sec = None
         self.publisher = rospy.Publisher(self.output_topic, Odometry, queue_size=100)
         self.local_subscriber = rospy.Subscriber(
             self.local_topic, Odometry, self.local_callback, queue_size=100
@@ -298,25 +329,58 @@ class QuantizedGnssControlStatePublisher:
                 self.alignment.last_reset_reason,
             )
 
+        gnss_stamp_sec = None
+        if self.gnss_message is not None:
+            gnss_stamp_sec = self.gnss_message.header.stamp.to_sec()
+        gnss_fresh = measurement_is_fresh(
+            gnss_stamp_sec, stamp_sec, self.max_gnss_age_sec
+        )
+        if not gnss_fresh:
+            # A quantized cell constrains position only while it is current.
+            # Once stale, following the old cell during a turn creates a false
+            # lateral offset.  Track Global until a new cell arrives.
+            self.alignment.reset(target, stamp_sec, "gnss_stale")
+            self.quantized_resume_stamp_sec = (
+                stamp_sec + self.gnss_recovery_grace_sec
+            )
+
+        quantized_enabled = gnss_fresh and (
+            self.quantized_resume_stamp_sec is None
+            or stamp_sec >= self.quantized_resume_stamp_sec
+        )
+        if gnss_fresh and not quantized_enabled:
+            self.alignment.reset(target, stamp_sec, "gnss_recovery_grace")
+
         if (
-            self.gnss_message is not None
+            quantized_enabled
             and self.gnss_message.header.stamp != self.last_gnss_stamp
         ):
-            gnss_stamp_sec = self.gnss_message.header.stamp.to_sec()
-            gnss_age = stamp_sec - gnss_stamp_sec
-            if abs(gnss_age) <= self.max_gnss_age_sec:
+            gnss_x = self.gnss_message.pose.pose.position.x
+            gnss_y = self.gnss_message.pose.pose.position.y
+            innovation = planar_distance(
+                gnss_x, gnss_y, global_pose[0], global_pose[1]
+            )
+            if innovation <= self.max_gnss_global_distance_m:
                 local_at_gnss = extrapolated_local_pose(
                     self.local_message, gnss_stamp_sec
                 )
                 self.alignment.constrain_position(
-                    local_at_gnss,
-                    self.gnss_message.pose.pose.position.x,
-                    self.gnss_message.pose.pose.position.y,
+                    local_at_gnss, gnss_x, gnss_y
                 )
-                self.last_gnss_stamp = self.gnss_message.header.stamp
+            else:
+                rospy.logwarn_throttle(
+                    2.0,
+                    "Skipping quantized GNSS correction: Global innovation "
+                    "%.3fm exceeds %.3fm",
+                    innovation,
+                    self.max_gnss_global_distance_m,
+                )
+            self.last_gnss_stamp = self.gnss_message.header.stamp
 
         output_pose = compose_planar(self.alignment.value, local_pose)
-        if self.preserve_global_longitudinal:
+        if not quantized_enabled:
+            output_pose = global_pose
+        elif self.preserve_global_longitudinal:
             output_pose = preserve_global_longitudinal(global_pose, output_pose)
         output = copy.deepcopy(message)
         output.pose.pose.position.x = output_pose[0]

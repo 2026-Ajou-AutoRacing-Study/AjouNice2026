@@ -387,6 +387,9 @@ lateral correction needed to remain in that cell, and preserves the Global
 EKF longitudinal pose and yaw.  Both strategies are default-off and own no TF;
 see `docs/localization/260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md` before
 using either one in a controller A/B.
+The quantized strategy falls back to the Global state when GNSS is stale,
+waits one second after reacquisition, and ignores cell corrections whose
+GNSS-to-Global innovation exceeds 0.5 m.
 
 ## TF ownership and exclusivity
 
