@@ -106,6 +106,10 @@ pose에서 `map -> odom` 정합을 구해 그 correction만 저역통과한 뒤 
 아직 폐루프가 아니므로 `use_quantized_gnss_control_state=false`가 기본이다. 근거는
 `260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md`에 있다.
 
+세 raw bag에서 위·경도 격자 `1/600000 deg`와 UTM cell 축 `-1.348 deg`를 독립적으로
+재확인해 후보의 기존 axis-aligned cell을 바로잡았다. 변경 후 1× replay도 49.99 Hz와
+종 위치 보존을 유지했다. 이는 후보 내부 좌표계 정합 수정이며 production 승격은 아니다.
+
 두 개의 합성 8초 GNSS 음영 1× filter replay도 수행했다. stale GNSS에서는 Global로
 fallback하고 재획득 후 1초 grace를 둔 결과, 음영과 복귀 첫 1초의 후보가 Global보다
 나빠지지 않았으며 복귀 1~4초 횡 p95는 각각 `10.78 -> 4.74 cm`,

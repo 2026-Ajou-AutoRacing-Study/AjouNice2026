@@ -14,6 +14,7 @@ LABEL="${4:-outage_${OUTAGE_START_OFFSET}s_${OUTAGE_DURATION}s}"
 RATE="${LOCALIZATION_OUTAGE_RATE:-1.0}"
 CONTROL_TAU="${LOCALIZATION_OUTAGE_TAU_SEC:-0.5}"
 CONTROL_MODE="${LOCALIZATION_OUTAGE_CONTROL_MODE:-smooth}"
+GRID_YAW_DEG="${LOCALIZATION_OUTAGE_GRID_YAW_DEG:--1.347}"
 PORT="${LOCALIZATION_OUTAGE_PORT:-$((26000 + ($$ % 10000)))}"
 STAMP="$(date '+%y%m%d_%H%M%S')"
 OUTPUT_ROOT="${LOCALIZATION_OUTAGE_OUTPUT_DIR:-$ROOT/rosbags/eval/localization/gnss_outage_$STAMP}"
@@ -28,14 +29,21 @@ if [[ ! -f "$INPUT_BAG" ]]; then
   echo "input bag not found: $INPUT_BAG" >&2
   exit 2
 fi
-python3 - "$OUTAGE_START_OFFSET" "$OUTAGE_DURATION" "$CONTROL_TAU" <<'PY'
+python3 - "$OUTAGE_START_OFFSET" "$OUTAGE_DURATION" "$CONTROL_TAU" "$GRID_YAW_DEG" <<'PY'
 import math
 import sys
-for label, raw in zip(("start", "duration", "control tau"), sys.argv[1:]):
+for label, raw in zip(("start", "duration", "control tau", "grid yaw"), sys.argv[1:]):
     value = float(raw)
-    if not math.isfinite(value) or value < 0.0 or (label == "control tau" and value == 0.0):
+    if not math.isfinite(value) or (
+        label != "grid yaw" and (
+            value < 0.0 or (label == "control tau" and value == 0.0)
+        )
+    ):
         raise SystemExit("{} must be finite and {}".format(
-            label, "positive" if label == "control tau" else "non-negative"
+            label,
+            "any real angle" if label == "grid yaw" else (
+                "positive" if label == "control tau" else "non-negative"
+            ),
         ))
 PY
 if [[ "$CONTROL_MODE" != "smooth" && "$CONTROL_MODE" != "quantized" ]]; then
@@ -95,6 +103,7 @@ printf '%s\n' \
   "control_translation_tau_sec=$CONTROL_TAU" \
   "control_yaw_tau_sec=$CONTROL_TAU" \
   "control_mode=$CONTROL_MODE" \
+  "quantized_grid_yaw_deg=$GRID_YAW_DEG" \
   >"$RUN_DIR/metadata.txt"
 
 CORE_PID=""
@@ -143,6 +152,7 @@ if [[ "$CONTROL_MODE" == "quantized" ]]; then
     publish_control_state:=true \
     use_quantized_gnss_control_state:=true \
     quantized_control_yaw_tau_sec:=0.0 \
+    quantized_control_grid_yaw_deg:="$GRID_YAW_DEG" \
     control_state_reset_translation_error_m:=0.5 \
     sensor_config:="$SENSOR_CONFIG" \
     >"$RUN_DIR/launch.log" 2>&1 &

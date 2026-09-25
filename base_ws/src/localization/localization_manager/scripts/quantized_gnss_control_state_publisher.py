@@ -236,7 +236,9 @@ class QuantizedGnssControlStatePublisher:
             half_width_y=0.5
             * float(rospy.get_param("~cell_width_y_m", 0.185))
             * cell_scale,
-            grid_yaw=math.radians(float(rospy.get_param("~grid_yaw_deg", 0.0))),
+            grid_yaw=math.radians(
+                float(rospy.get_param("~grid_yaw_deg", -1.347))
+            ),
             yaw_tau_sec=float(rospy.get_param("~yaw_tau_sec", 0.0)),
             reset_translation_error_m=float(
                 rospy.get_param("~reset_translation_error_m", 0.5)

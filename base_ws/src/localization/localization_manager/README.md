@@ -390,6 +390,9 @@ using either one in a controller A/B.
 The quantized strategy falls back to the Global state when GNSS is stale,
 waits one second after reacquisition, and ignores cell corrections whose
 GNSS-to-Global innovation exceeds 0.5 m.
+Its cell is rotated `-1.347 deg` in the map frame: three raw bags independently
+showed the MORAI `1/600000 deg` WGS84 lattice projects to a UTM 52N east axis
+at approximately `-1.348 deg` in K-City.
 
 ## TF ownership and exclusivity
 

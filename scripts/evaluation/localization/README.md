@@ -101,6 +101,17 @@ The generated `analysis.json` records reset count, GNSS-to-Global recovery,
 Global-to-control agreement, reset jump, and both output rates. Keep replay at
 1× and retain `metadata.txt` with the result.
 
+## GNSS quantization lattice audit
+
+`analyze_gnss_quantization_lattice.py` measures the smallest non-zero raw
+latitude/longitude step and projects both cell axes with the same WGS84→UTM
+52N conversion used by localization.
+
+```bash
+python3 scripts/evaluation/localization/analyze_gnss_quantization_lattice.py \
+  BAG1 BAG2 BAG3 --output /tmp/gnss_quantization_lattice.json
+```
+
 ```bash
 python3 scripts/evaluation/localization/analyze_smooth_control_state_bag.py \
   rosbags/eval/localization/local_mr_stability/<bag>.bag \

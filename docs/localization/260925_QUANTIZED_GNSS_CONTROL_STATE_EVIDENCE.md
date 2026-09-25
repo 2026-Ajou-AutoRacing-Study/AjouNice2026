@@ -24,8 +24,12 @@ MORAI GNSS 한 cell은 K-City에서 대략 다음 크기다.
 
 | 축 | cell width | 후보 half-width (`scale=1.25`) |
 |---|---:|---:|
-| UTM east / map x | `14.8 cm` | `9.25 cm` |
-| UTM north / map y | `18.5 cm` | `11.56 cm` |
+| UTM east | `14.8 cm` | `9.25 cm` |
+| UTM north | `18.5 cm` | `11.56 cm` |
+
+세 raw bag의 위·경도 격자를 UTM 52N으로 직접 투영한 결과 cell 축은 map x/y 대비
+약 `-1.348 deg` 회전한다. 후보는 `grid_yaw=-1.347 deg`를 사용한다. 폭과 회전각의
+근거는 `260925_GNSS_QUANTIZATION_LATTICE_AUDIT.md`에 있다.
 
 Local EKF pose를 현재 map→odom alignment로 map에 투영한다.
 
