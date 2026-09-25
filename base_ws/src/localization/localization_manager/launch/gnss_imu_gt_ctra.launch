@@ -56,6 +56,7 @@
   <arg name="relocation_guard_threshold_m" default="5.0"/>
   <arg name="relocation_guard_consecutive_samples" default="3"/>
   <arg name="relocation_guard_cooldown_sec" default="5.0"/>
+  <arg name="relocation_guard_max_sample_gap_sec" default="0.5"/>
 
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
@@ -164,6 +165,8 @@
     <param name="innovation_threshold_m" value="$(arg relocation_guard_threshold_m)"/>
     <param name="consecutive_samples" value="$(arg relocation_guard_consecutive_samples)"/>
     <param name="cooldown_sec" value="$(arg relocation_guard_cooldown_sec)"/>
+    <param name="max_sample_gap_sec"
+           value="$(arg relocation_guard_max_sample_gap_sec)"/>
     <param name="gnss_topic" value="$(arg gnss_odom_topic)"/>
     <param name="state_topic" value="$(arg kinematic_state_topic)"/>
     <param name="orientation_topic" value="$(arg gt_orientation_topic)"/>

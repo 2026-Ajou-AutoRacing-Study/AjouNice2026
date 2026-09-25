@@ -14,21 +14,40 @@ from sensor_msgs.msg import Imu
 class RelocationDetector:
     """Pure state machine used by both the ROS node and unit tests."""
 
-    def __init__(self, threshold_m=5.0, consecutive_samples=3, cooldown_sec=5.0):
+    def __init__(
+        self,
+        threshold_m=5.0,
+        consecutive_samples=3,
+        cooldown_sec=5.0,
+        max_sample_gap_sec=0.5,
+    ):
         if not math.isfinite(threshold_m) or threshold_m <= 0.0:
             raise ValueError("threshold_m must be positive and finite")
         if consecutive_samples < 1:
             raise ValueError("consecutive_samples must be at least one")
         if not math.isfinite(cooldown_sec) or cooldown_sec < 0.0:
             raise ValueError("cooldown_sec must be finite and non-negative")
+        if not math.isfinite(max_sample_gap_sec) or max_sample_gap_sec <= 0.0:
+            raise ValueError("max_sample_gap_sec must be positive and finite")
         self.threshold_m = float(threshold_m)
         self.consecutive_samples = int(consecutive_samples)
         self.cooldown_sec = float(cooldown_sec)
+        self.max_sample_gap_sec = float(max_sample_gap_sec)
         self.count = 0
         self.last_trigger_sec = None
+        self.last_observation_sec = None
 
     def observe(self, innovation_m, stamp_sec):
-        if not math.isfinite(innovation_m) or not math.isfinite(stamp_sec):
+        if not math.isfinite(stamp_sec):
+            self.count = 0
+            self.last_observation_sec = None
+            return False
+        if self.last_observation_sec is not None:
+            gap_sec = stamp_sec - self.last_observation_sec
+            if gap_sec <= 0.0 or gap_sec > self.max_sample_gap_sec:
+                self.count = 0
+        self.last_observation_sec = stamp_sec
+        if not math.isfinite(innovation_m):
             self.count = 0
             return False
         if innovation_m < self.threshold_m:
@@ -74,6 +93,9 @@ class LocalizationRelocationGuard:
             threshold_m=float(rospy.get_param("~innovation_threshold_m", 5.0)),
             consecutive_samples=int(rospy.get_param("~consecutive_samples", 3)),
             cooldown_sec=float(rospy.get_param("~cooldown_sec", 5.0)),
+            max_sample_gap_sec=float(
+                rospy.get_param("~max_sample_gap_sec", 0.5)
+            ),
         )
         position_stddev = float(rospy.get_param("~reset_position_stddev_m", 0.1))
         yaw_stddev = math.radians(
@@ -116,10 +138,12 @@ class LocalizationRelocationGuard:
             queue_size=100,
         )
         rospy.loginfo(
-            "localization_relocation_guard monitor_only=%s threshold=%.2fm consecutive=%d",
+            "localization_relocation_guard monitor_only=%s threshold=%.2fm "
+            "consecutive=%d max_sample_gap=%.2fs",
             self.monitor_only,
             self.detector.threshold_m,
             self.detector.consecutive_samples,
+            self.detector.max_sample_gap_sec,
         )
 
     def state_callback(self, message):

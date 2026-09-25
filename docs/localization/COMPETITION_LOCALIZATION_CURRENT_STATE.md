@@ -160,6 +160,8 @@ reset하고 Local odom 연속성을 유지한다. 자동 reset production 계약
 Quantization-aware control state와 active guard를 결합한 합성 20 m 전체 replay에서는
 guard reset이 1회였고 reset 순간 Global–control 차이가 0.0 m였다. 따라서 두 후보의
 기계적 결합은 통과했지만, 실제 checkpoint 폐루프 gate는 여전히 남아 있다.
+GNSS gap `0.5 s` 초과 또는 timestamp 역행 시 relocation 연속 count를 초기화해 음영
+전후 표본이 하나의 3-sample 후보로 잘못 이어지는 상태관리 결함은 제거했다.
 
 ### P1. Competition yaw-rate A/B
 

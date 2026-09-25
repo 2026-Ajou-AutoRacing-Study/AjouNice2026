@@ -36,6 +36,8 @@ GNSS map x/y - /localization/kinematic_state map x/y
 - Local EKF는 reset하지 않는다. Local odom 연속성을 유지하고 Global `map->odom`이 새
   위치를 흡수한다.
 - 5초 cooldown으로 reset 반복을 막는다.
+- GNSS sample 간격이 `0.5 s`를 넘거나 timestamp가 역행하면 연속 초과 count를
+  초기화한다. 따라서 음영 전 1~2개 초과 표본이 재획득 후 표본과 이어지지 않는다.
 - 자동 reset은 `enable_relocation_guard=false`와
   `relocation_guard_monitor_only=true` 두 겹으로 차단한다.
 
@@ -128,3 +130,7 @@ scripts/evaluation/localization/run_checkpoint_relocation_replay.sh \
 3. 경량 `od_gt` 폐루프에서 active reset 후 route/controller 복구를 확인한다.
 4. LAN-to-LAN에서 동일 reset 계약을 확인한다.
 5. 가능하면 휴리스틱보다 주최 측의 명시적 checkpoint/reset event를 우선한다.
+
+긴 음영 후 실제 drift가 5 m를 넘는 경우와 checkpoint를 위치 innovation만으로 완전히
+구분하는 문제는 남아 있다. 이번 gap-count 수정은 잘못된 연속 표본 계산만 제거하며,
+재획득 grace나 threshold를 임의로 바꾸지 않는다.

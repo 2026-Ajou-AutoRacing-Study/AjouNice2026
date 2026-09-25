@@ -394,6 +394,11 @@ Its cell is rotated `-1.347 deg` in the map frame: three raw bags independently
 showed the MORAI `1/600000 deg` WGS84 lattice projects to a UTM 52N east axis
 at approximately `-1.348 deg` in K-City.
 
+The separate checkpoint-relocation guard is disabled and monitor-only by
+default. Its persistent-sample counter resets after a GNSS gap longer than
+0.5 s or a non-monotonic timestamp, so samples on opposite sides of an outage
+cannot satisfy one relocation sequence.
+
 ## TF ownership and exclusivity
 
 Do not run any two provider launch files together. Do

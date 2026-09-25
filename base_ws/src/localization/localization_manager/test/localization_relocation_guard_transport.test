@@ -7,6 +7,7 @@
     <param name="innovation_threshold_m" value="5.0"/>
     <param name="consecutive_samples" value="3"/>
     <param name="cooldown_sec" value="5.0"/>
+    <param name="max_sample_gap_sec" value="0.5"/>
     <param name="gnss_topic" value="/test/gnss"/>
     <param name="state_topic" value="/test/state"/>
     <param name="orientation_topic" value="/test/orientation"/>
