@@ -252,11 +252,17 @@ sensing/UDP 순서로 내린 뒤 roscore를 마지막에 종료한다.
 MR에서 다음 시나리오를 연다.
 
 ```text
-localization_full_route_no_actors
+0_localization_full_route_no_actors
 ```
 
 tracked 원본은
 `configs/scenario/localization_evaluation/localization_full_route_no_actors.json`이다.
+MR `SaveFile/Scenario/R_KR_PR_K-city_2025`에서는 목록 상단에 보이도록 로컬
+복사본의 파일명에만 `0_`를 붙였다. 같은 방식으로 샘플 시나리오와 Base3 정적
+장애물 벤치마크도 각각 `0_2026_molit_comp_sample_scene.json`,
+`0_bench_static_obstacle_base3_assets_raw.json`으로 표시된다. Git에 있는 원본
+시나리오 이름이나 JSON 내용은 바꾸지 않는다. 이 MR 로컬 파일명은 Git pull만으로
+다른 PC에 생성되지 않는다.
 원본 sample의 Ego 시작점, 전체 코스와 GPS 음영 영역은 유지하고 NPC, 보행자,
 장애물과 모든 actor spawn을 제거했다. Sensor는
 `Sensor_localization_gt_lightweight.json`, Ego Network는
