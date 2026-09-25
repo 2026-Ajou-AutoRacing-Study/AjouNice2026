@@ -154,6 +154,12 @@ fuse하지 않고, IMU 대체 또는 residual 진단으로만 통제 실험한�
 ax 제거는 장주행 종오차를 조금 악화하면서 유의미한 횡 이득이 없었다. 따라서 새
 Competition yaw-rate 비교 전까지 현재 IMU yaw-rate와 ax를 유지한다.
 
+추가 입력 계약 감사에서 최신 receipt-time bag의 IMU yaw-rate와 Competition heading
+미분은 상관계수 `0.99925`, p95 오차 `0.0140 rad/s`로 정합했다. IMU TF의 translation에
+따른 lever-arm 가속도는 `robot_localization`이 이미 target frame 원점으로 보정하므로
+adapter에서 중복 보정하지 않는다. 자세한 근거는
+`260925_FUSION_INPUT_CONTRACT_AUDIT.md`에 있다.
+
 ## Production 변경 gate
 
 ```text

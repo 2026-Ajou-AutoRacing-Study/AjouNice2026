@@ -46,6 +46,8 @@
   - 동일 trajectory에서 controller 입력만 바꾼 open-loop A/B.
 - [`260925_MOTION_INPUT_ABLATION_EVIDENCE.md`](260925_MOTION_INPUT_ABLATION_EVIDENCE.md)
   - IMU yaw-rate/ax 제거 A/B와 production motion input 유지 근거.
+- [`260925_FUSION_INPUT_CONTRACT_AUDIT.md`](260925_FUSION_INPUT_CONTRACT_AUDIT.md)
+  - IMU yaw-rate의 부호·단위·시간 정합과 lever-arm 이중 보정 방지 감사.
 - [`260925_EGO_ORACLE_TIMING_AUDIT.md`](260925_EGO_ORACLE_TIMING_AUDIT.md)
   - Ego pose의 프레임 시간 불균일과 종 frame-jump 해석 제한.
 - [`260925_TF_COTIME_CONTRACT_EVIDENCE.md`](260925_TF_COTIME_CONTRACT_EVIDENCE.md)

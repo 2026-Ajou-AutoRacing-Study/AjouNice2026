@@ -96,63 +96,43 @@ def analyze(path, window, max_lag_sec, lag_step_sec):
     missing = []
     if not heading:
         missing.append("/Competition_topic")
-    if not competition_rate:
-        missing.append("/competition/raw_twist")
     if not imu_rate:
         missing.append("/sensor/imu")
     if missing:
         raise RuntimeError("bag is missing required topics: " + ", ".join(missing))
 
     heading = unique_sorted(heading)
-    competition_rate = unique_sorted(competition_rate)
     imu_rate = unique_sorted(imu_rate)
     heading[:, 1] = np.unwrap(heading[:, 1])
     derivative = derivative_local_regression(heading[:, 0], heading[:, 1], window)
 
     lags = np.arange(-max_lag_sec, max_lag_sec + 0.5 * lag_step_sec, lag_step_sec)
-    competition_trials = []
     imu_trials = []
+    competition_trials = []
+    if competition_rate:
+        competition_rate = unique_sorted(competition_rate)
     for lag in lags:
-        comp_error, comp_corr = compare(
-            heading[:, 0], derivative, competition_rate, lag
-        )
         imu_error, imu_corr = compare(heading[:, 0], derivative, imu_rate, lag)
-        competition_trials.append((comp_error["rmse_radps"], -comp_corr, lag))
         imu_trials.append((imu_error["rmse_radps"], -imu_corr, lag))
+        if len(competition_rate):
+            comp_error, comp_corr = compare(
+                heading[:, 0], derivative, competition_rate, lag
+            )
+            competition_trials.append((comp_error["rmse_radps"], -comp_corr, lag))
 
-    competition_best = min(competition_trials)
     imu_best = min(imu_trials)
-    comp_vs_heading, comp_corr = compare(
-        heading[:, 0], derivative, competition_rate, competition_best[2]
-    )
     imu_vs_heading, imu_corr = compare(
         heading[:, 0], derivative, imu_rate, imu_best[2]
     )
-    comp_vs_imu, comp_imu_corr = compare(
-        competition_rate[:, 0],
-        competition_rate[:, 1],
-        imu_rate,
-        imu_best[2] - competition_best[2],
-    )
-
-    return {
+    result = {
         "bag": str(path.resolve()),
         "production_changed": False,
         "heading_derivative_window": window,
-        "competition_vs_heading": {
-            "best_lag_sec": float(competition_best[2]),
-            "correlation": comp_corr,
-            "error": comp_vs_heading,
-        },
+        "competition_raw_twist_available": bool(len(competition_rate)),
         "imu_vs_heading": {
             "best_lag_sec": float(imu_best[2]),
             "correlation": imu_corr,
             "error": imu_vs_heading,
-        },
-        "competition_vs_imu": {
-            "relative_lag_sec": float(imu_best[2] - competition_best[2]),
-            "correlation": comp_imu_corr,
-            "error": comp_vs_imu,
         },
         "decision_rule": (
             "Do not fuse both as independent measurements. Select a replacement "
@@ -160,6 +140,32 @@ def analyze(path, window, max_lag_sec, lag_step_sec):
             "lag, and heading-derivative error."
         ),
     }
+    if competition_trials:
+        competition_best = min(competition_trials)
+        comp_vs_heading, comp_corr = compare(
+            heading[:, 0], derivative, competition_rate, competition_best[2]
+        )
+        comp_vs_imu, comp_imu_corr = compare(
+            competition_rate[:, 0],
+            competition_rate[:, 1],
+            imu_rate,
+            imu_best[2] - competition_best[2],
+        )
+        result["competition_vs_heading"] = {
+            "best_lag_sec": float(competition_best[2]),
+            "correlation": comp_corr,
+            "error": comp_vs_heading,
+        }
+        result["competition_vs_imu"] = {
+            "relative_lag_sec": float(imu_best[2] - competition_best[2]),
+            "correlation": comp_imu_corr,
+            "error": comp_vs_imu,
+        }
+    else:
+        result["blocked_comparison"] = (
+            "Record /competition/raw_twist before comparing Competition and IMU yaw-rate."
+        )
+    return result
 
 
 def main():

@@ -45,20 +45,6 @@ def z_sample_state(has_sample, age_sec, max_age_sec):
     return "fresh"
 
 
-def compose_planar_map_to_odom(map_to_base, odom_to_base):
-    """Return planar map->odom from co-timed map->base and odom->base poses."""
-    map_yaw = yaw_from_quaternion(map_to_base.orientation)
-    odom_yaw = yaw_from_quaternion(odom_to_base.rotation)
-    map_to_odom_yaw = normalized_angle(map_yaw - odom_yaw)
-    cosine = math.cos(map_to_odom_yaw)
-    sine = math.sin(map_to_odom_yaw)
-
-    rotated_odom_x = (
-        cosine * odom_to_base.translation.x
-        - sine * odom_to_base.translation.y
-    )
-
-
 def extrapolated_planar_pose(message, target_stamp_sec):
     """Extrapolate child-frame odometry to a nearby target timestamp."""
     pose = message.pose.pose
@@ -88,16 +74,6 @@ def compose_planar_pose_map_to_odom(map_to_base, odom_pose):
         map_to_base.position.x - cosine * odom_x + sine * odom_y,
         map_to_base.position.y - sine * odom_x - cosine * odom_y,
         map_to_base.position.z - odom_z,
-        map_to_odom_yaw,
-    )
-    rotated_odom_y = (
-        sine * odom_to_base.translation.x
-        + cosine * odom_to_base.translation.y
-    )
-    return (
-        map_to_base.position.x - rotated_odom_x,
-        map_to_base.position.y - rotated_odom_y,
-        map_to_base.position.z - odom_to_base.translation.z,
         map_to_odom_yaw,
     )
 
