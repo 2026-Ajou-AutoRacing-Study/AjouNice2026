@@ -1065,10 +1065,21 @@ bool isSatisfiedWithNonVehicleCondition(
     return false;
   }
 
-  // Object is on center line -> ignore.
   object.to_centerline = autoware::experimental::lanelet2_utils::get_arc_coordinates(
                            data.current_lanelets, object.getPose())
                            .distance;
+
+  // In optimization mode, a stopped pedestrian/bicycle obstructing the path is a
+  // geometric obstacle even near the lane center or inside an intersection.
+  // Moving objects were rejected by the common filter and crosswalk users above.
+  // PO owns corridor feasibility; the legacy roadside/parking tests below must
+  // not suppress its obstacle constraint.
+  if (parameters->path_generation_method == "optimization_base") {
+    object.is_on_ego_lane = isOnEgoLane(object, planner_data->route_handler);
+    return true;
+  }
+
+  // The shift-line policy only avoids roadside non-vehicle objects.
   if (std::abs(object.to_centerline) < parameters->threshold_distance_object_is_on_center) {
     object.info = ObjectInfo::TOO_NEAR_TO_CENTERLINE;
     return false;

@@ -31,15 +31,22 @@ private Q_SLOTS:
 private:
   void stopRecorderForShutdown();
   QString makeOutputPath() const;
+  void nameCompletedBag();
 
   QLineEdit * output_directory_edit_;
   QLabel * status_label_;
   QPushButton * start_button_;
   QPushButton * stop_button_;
+  QPushButton * rename_button_;
   QProcess * recorder_;
   QString topics_;
   QString active_output_path_;
+  QString recording_stamp_;
+  QString completed_output_path_;
+  QString completed_stamp_;
+  QString last_scenario_name_;
   bool stop_requested_{false};
+  bool shutting_down_{false};
 };
 
 }  // namespace bringup
