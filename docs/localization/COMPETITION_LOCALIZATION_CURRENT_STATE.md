@@ -174,7 +174,7 @@ guard reset이 1회였고 reset 순간 Global–control 차이가 0.0 m였다. �
 GNSS gap `0.5 s` 초과 또는 timestamp 역행 시 relocation 연속 count를 초기화해 음영
 전후 표본이 하나의 3-sample 후보로 잘못 이어지는 상태관리 결함은 제거했다.
 
-### P1. Competition yaw-rate A/B
+### 해결. Competition yaw-rate A/B
 
 현재는 Competition heading/vx와 IMU yaw-rate/ax를 사용한다. Competition
 UDP 패킷에는 `angular_velocity.z`가 있지만 기존 `EgoVehicleStatus` ROS type에는 해당
@@ -182,20 +182,22 @@ UDP 패킷에는 `angular_velocity.z`가 있지만 기존 `EgoVehicleStatus` ROS
 위해 `/Competition_topic`은 바꾸지 않고 `/competition/raw_twist`에 전체 linear/angular
 twist를 추가 발행한다.
 
-260925 전체 경로 bag에는 새 토픽이 기록됐다. 다음 실험에서 Competition yaw-rate와
-IMU yaw-rate의 부호·단위·지연·heading 미분 오차를
-비교한다. 두 신호는 같은 simulator state에서 파생됐을 수 있으므로 동시에 독립 측정처럼
-fuse하지 않고, IMU 대체 또는 residual 진단으로만 통제 실험한다.
+260925 전체 경로 bag의 새 토픽으로 확인한 결과 native angular.z는 clockwise
+degrees/s이며 ROS yaw-rate에는 `-pi/180` 변환이 필요했다. 변환 후 IMU와의 상관계수는
+`0.99995` 이상이었다. IMU를 대체한 1× 전체 EKF replay에서도 횡·종·yaw 성능은
+사실상 동등해 production 입력 변경을 기각했다. 두 신호는 같은 simulator state에서
+파생되므로 동시에 독립 측정처럼 fuse하지 않는다.
 
 기존 입력 ablation에서는 IMU yaw-rate 제거가 yaw p95를 약 3.6~3.9배 악화했고,
-ax 제거는 장주행 종오차를 조금 악화하면서 유의미한 횡 이득이 없었다. 따라서 새
-Competition yaw-rate 비교 전까지 현재 IMU yaw-rate와 ax를 유지한다.
+ax 제거는 장주행 종오차를 조금 악화하면서 유의미한 횡 이득이 없었다. Competition
+yaw-rate 대체도 의미 있는 우위가 없어 현재 IMU yaw-rate와 ax를 유지한다.
 
 추가 입력 계약 감사에서 최신 receipt-time bag의 IMU yaw-rate와 Competition heading
 미분은 상관계수 `0.99925`, p95 오차 `0.0140 rad/s`로 정합했다. IMU TF의 translation에
 따른 lever-arm 가속도는 `robot_localization`이 이미 target frame 원점으로 보정하므로
 adapter에서 중복 보정하지 않는다. 자세한 근거는
-`260925_FUSION_INPUT_CONTRACT_AUDIT.md`에 있다.
+`260925_FUSION_INPUT_CONTRACT_AUDIT.md`와
+`260925_COMPETITION_YAW_RATE_AND_YAW_SMOOTHING_EVIDENCE.md`에 있다.
 
 ## Production 변경 gate
 

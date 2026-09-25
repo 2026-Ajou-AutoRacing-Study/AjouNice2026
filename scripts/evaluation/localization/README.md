@@ -155,9 +155,11 @@ python3 scripts/evaluation/localization/analyze_competition_yaw_rate.py \
   --output /tmp/competition_yaw_rate.json
 ```
 
-Old bags without `/competition/raw_twist` cannot answer this question. Do not
-fuse Competition and IMU yaw-rate as independent sensors merely because both
-topics exist.
+Old bags without `/competition/raw_twist` cannot answer this question. The raw
+angular value is clockwise degrees/s, not ROS rad/s; the analyzer and
+experimental replacement adapter apply `-pi/180`. Do not fuse Competition and
+IMU yaw-rate as independent sensors because both originate from the same
+simulator state.
 
 ## Motion-input ablation
 
