@@ -44,6 +44,8 @@
   - Global 정확도와 Local 연속성을 분리한 controller용 state의 offline 사전 검증.
 - [`260925_SMOOTH_CONTROL_STATE_OPEN_LOOP_EVIDENCE.md`](260925_SMOOTH_CONTROL_STATE_OPEN_LOOP_EVIDENCE.md)
   - 동일 trajectory에서 controller 입력만 바꾼 open-loop A/B.
+- [`260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md`](260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md)
+  - GNSS cell interval과 Global 종방향을 결합한 controller state 후보의 1× replay.
 - [`260925_MOTION_INPUT_ABLATION_EVIDENCE.md`](260925_MOTION_INPUT_ABLATION_EVIDENCE.md)
   - IMU yaw-rate/ax 제거 A/B와 production motion input 유지 근거.
 - [`260925_FUSION_INPUT_CONTRACT_AUDIT.md`](260925_FUSION_INPUT_CONTRACT_AUDIT.md)

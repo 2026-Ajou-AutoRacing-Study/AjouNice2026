@@ -379,6 +379,15 @@ The current production contract and validation scope are documented in
 The initial implementation record is preserved under
 `docs/localization/legacy/260801_robot_localization_gnss_imu_gt_ctra_fusion.md`.
 
+An experimental controller-only output can be enabled with
+`publish_control_state:=true`.  The default strategy low-pass filters the
+Global/Local alignment.  Adding `use_quantized_gnss_control_state:=true`
+instead treats each GNSS value as a quantized cell, applies only the minimum
+lateral correction needed to remain in that cell, and preserves the Global
+EKF longitudinal pose and yaw.  Both strategies are default-off and own no TF;
+see `docs/localization/260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md` before
+using either one in a controller A/B.
+
 ## TF ownership and exclusivity
 
 Do not run any two provider launch files together. Do

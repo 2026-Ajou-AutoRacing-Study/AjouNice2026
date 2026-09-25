@@ -99,6 +99,13 @@ pose에서 `map -> odom` 정합을 구해 그 correction만 저역통과한 뒤 
 `publish_control_state=false`가 기본이고 production alias/controller 입력은 유지한다.
 근거는 `260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md`에 있다.
 
+후속 quantization-aware 후보는 GNSS를 점이 아닌 cell interval로 처리하고, 그 결과의
+횡 displacement만 controller state에 사용하면서 종 위치와 yaw는 Global EKF를
+보존한다. 52초/242초 1× replay에서 횡 jump p95가 각각 `1.263 -> 0.213 cm`,
+`1.307 -> 0.259 cm`로 줄고 종·yaw는 유지됐다. 기존 Global-LPF보다 더 강한 후보지만
+아직 폐루프가 아니므로 `use_quantized_gnss_control_state=false`가 기본이다. 근거는
+`260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md`에 있다.
+
 폐루프용 launch 배선은 준비했다. Planning/TF는 Global state를 유지하고 두 controller
 node만 `controller_kinematic_state_topic`으로 함께 전환할 수 있다. 불연속 판정은
 alignment parameter가 아니라 현재 차량의 map pose 차이로 수행한다. `0.5 m / 20 deg`

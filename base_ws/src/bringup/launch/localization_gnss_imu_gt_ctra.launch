@@ -22,10 +22,12 @@
   <!-- sensing.launch owns the shared sensor static TFs in the competition stack. -->
   <arg name="publish_sensor_tf" default="false"/>
   <arg name="publish_control_state" default="false"/>
+  <arg name="use_quantized_gnss_control_state" default="false"/>
   <arg name="control_state_topic"
        default="/localization/control_kinematic_state"/>
   <arg name="control_translation_tau_sec" default="0.5"/>
   <arg name="control_yaw_tau_sec" default="0.5"/>
+  <arg name="quantized_control_yaw_tau_sec" default="0.0"/>
   <arg name="control_state_reset_translation_error_m" default="0.5"/>
   <arg name="control_state_reset_yaw_error_deg" default="20.0"/>
   <arg name="enable_relocation_guard" default="false"/>
@@ -74,10 +76,14 @@
     <arg name="morai_map_frame" value="$(arg morai_map_frame)"/>
     <arg name="base_frame" value="$(arg base_frame)"/>
     <arg name="publish_control_state" value="$(arg publish_control_state)"/>
+    <arg name="use_quantized_gnss_control_state"
+         value="$(arg use_quantized_gnss_control_state)"/>
     <arg name="control_state_topic" value="$(arg control_state_topic)"/>
     <arg name="control_translation_tau_sec"
          value="$(arg control_translation_tau_sec)"/>
     <arg name="control_yaw_tau_sec" value="$(arg control_yaw_tau_sec)"/>
+    <arg name="quantized_control_yaw_tau_sec"
+         value="$(arg quantized_control_yaw_tau_sec)"/>
     <arg name="control_state_reset_translation_error_m"
          value="$(arg control_state_reset_translation_error_m)"/>
     <arg name="control_state_reset_yaw_error_deg"

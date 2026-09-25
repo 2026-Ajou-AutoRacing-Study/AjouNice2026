@@ -40,10 +40,12 @@
   <arg name="global_odom_topic" default="/localization/odom"/>
   <arg name="kinematic_state_topic" default="/localization/kinematic_state"/>
   <arg name="publish_control_state" default="false"/>
+  <arg name="use_quantized_gnss_control_state" default="false"/>
   <arg name="control_state_topic"
        default="/localization/control_kinematic_state"/>
   <arg name="control_translation_tau_sec" default="0.5"/>
   <arg name="control_yaw_tau_sec" default="0.5"/>
+  <arg name="quantized_control_yaw_tau_sec" default="0.0"/>
   <arg name="control_state_reset_translation_error_m" default="0.5"/>
   <arg name="control_state_reset_yaw_error_deg" default="20.0"/>
   <arg name="acceleration_topic" default="/localization/acceleration"/>
@@ -201,7 +203,8 @@
     Experimental controller-only state.  It owns no TF and does not replace
     the global state consumed by planning.  Enable only for a controlled A/B.
   -->
-  <node if="$(arg publish_control_state)"
+  <group if="$(arg publish_control_state)">
+  <node unless="$(arg use_quantized_gnss_control_state)"
         pkg="localization_manager"
         type="smooth_control_state_publisher.py"
         name="smooth_control_state_publisher"
@@ -224,4 +227,28 @@
     <param name="reset_yaw_error_deg"
            value="$(arg control_state_reset_yaw_error_deg)"/>
   </node>
+  <node if="$(arg use_quantized_gnss_control_state)"
+        pkg="localization_manager"
+        type="quantized_gnss_control_state_publisher.py"
+        name="quantized_gnss_control_state_publisher"
+        output="screen">
+    <param name="global_topic" value="$(arg kinematic_state_topic)"/>
+    <param name="local_topic" value="$(arg local_odom_topic)"/>
+    <param name="gnss_topic" value="$(arg gnss_odom_topic)"/>
+    <param name="output_topic" value="$(arg control_state_topic)"/>
+    <param name="map_frame" value="$(arg map_frame)"/>
+    <param name="odom_frame" value="odom"/>
+    <param name="base_frame" value="$(arg base_frame)"/>
+    <param name="cell_width_x_m" value="0.148"/>
+    <param name="cell_width_y_m" value="0.185"/>
+    <param name="cell_scale" value="1.25"/>
+    <param name="grid_yaw_deg" value="0.0"/>
+    <param name="preserve_global_longitudinal" value="true"/>
+    <param name="yaw_tau_sec" value="$(arg quantized_control_yaw_tau_sec)"/>
+    <param name="reset_translation_error_m"
+           value="$(arg control_state_reset_translation_error_m)"/>
+    <param name="reset_yaw_error_deg"
+           value="$(arg control_state_reset_yaw_error_deg)"/>
+  </node>
+  </group>
 </launch>
