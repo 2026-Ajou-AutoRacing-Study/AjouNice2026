@@ -21,18 +21,24 @@
 + /sensor/gps
 + /sensor/imu yaw-rate, longitudinal acceleration
 -> local/global robot_localization EKF
--> /localization/kinematic_state
+-> /localization/kinematic_state (Planning/TF)
+-> /localization/control_kinematic_state (Controller, smooth tau=0.5/0.5 s)
 ```
 
 - MR 및 실대회: `localization`, `/Competition_topic`, heading correction `-1.347 deg`.
 - MRP: `localization_mrp`, `/Ego_topic`, heading correction `0 deg`.
 - GNSS horizontal sigma `0.10 m`, Global EKF Qxy `0.0005`.
+- controller는 Smooth state `/localization/control_kinematic_state`를 사용한다.
+  Planning과 TF는 Global `/localization/kinematic_state`를 유지한다.
 - `predict_to_current_time=true`, `two_d_mode=true`, `publish_sensor_tf=false`.
 - 대회에서 `/Ego_topic` 기반 provider는 fallback이 아니다.
 - 공식 시작 position interface가 확정되기 전까지 초기 pose 한 번만
   `/Ego_topic`을 임시 사용한다. 연속 localization source나 대회 fallback이라는 뜻은
   아니다.
 - localization A/B에는 `od_gt`를 사용해 detector/GPU 부하를 분리한다.
+- 폐루프 전체 코스 A/B에는 객체·spawn을 제거하고 GPS 음영 영역을 유지한
+  `configs/scenario/localization_evaluation/localization_full_route_no_actors.json`을
+  사용한다. 신호등 인지와 planner plugin도 함께 끈다.
 
 ## EVIDENCE
 
@@ -44,6 +50,8 @@
   - Global 정확도와 Local 연속성을 분리한 controller용 state의 offline 사전 검증.
 - [`260925_SMOOTH_CONTROL_STATE_OPEN_LOOP_EVIDENCE.md`](260925_SMOOTH_CONTROL_STATE_OPEN_LOOP_EVIDENCE.md)
   - 동일 trajectory에서 controller 입력만 바꾼 open-loop A/B.
+- [`260925_SMOOTH_CONTROL_STATE_CLOSED_LOOP_EVIDENCE.md`](260925_SMOOTH_CONTROL_STATE_CLOSED_LOOP_EVIDENCE.md)
+  - 전체 경로·GPS 음영 포함 폐루프 A/B와 Smooth state production 승격 근거.
 - [`260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md`](260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md)
   - GNSS cell interval과 Global 종방향을 결합한 controller state 후보의 1× replay.
 - [`260925_GNSS_QUANTIZATION_LATTICE_AUDIT.md`](260925_GNSS_QUANTIZATION_LATTICE_AUDIT.md)
