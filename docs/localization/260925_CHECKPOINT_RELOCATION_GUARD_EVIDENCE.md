@@ -80,6 +80,28 @@ Global EKF가 세 번째 sample 전 일부 correction을 시작했으므로 trig
 것보다 planning과 controller를 새 위치에 즉시 함께 정렬하는 것이 의도한 동작이다.
 이 결과는 mechanism 검증이지 실제 checkpoint 폐루프 승인 결과는 아니다.
 
+### Quantized control state 결합 검증
+
+동일한 종류의 25초 raw replay에 quantization-aware controller state를 결합해 다시
+검증했다. 재현 가능한 runner가 raw GPS 위도에 약 20 m 북방 이동을 12.5초부터
+주입하고, active guard와 전체 EKF를 1×로 실행한다.
+
+| 항목 | 결과 |
+|---|---:|
+| initial pose / relocation reset message | 1 / **1회** |
+| reset 0.08초 전 GNSS–Global 차이 | **20.009 m** |
+| reset 순간 GNSS–Global 차이 | **0.000 m** |
+| reset 0.1초 / 2.0초 뒤 GNSS–Global 차이 | 0.079 / 0.022 m |
+| reset 순간 Global–control 차이 | **0.000 m** |
+| reset 0.1초 / 2.0초 뒤 Global–control 차이 | **0.012 / 0.010 m** |
+| Global / control state rate | **49.997 / 49.997 Hz** |
+
+따라서 quantized controller state가 checkpoint 이전 좌표에 남아 Global state와
+분리되는 문제는 재현되지 않았다. 이동 감지 전 Global EKF가 새 GNSS를 따라가기
+시작한 짧은 구간에는 내부 alignment discontinuity reset 경고가 세 번 발생했지만,
+GNSS–Global 0.5 m gate 때문에 잘못된 quantized correction은 적용되지 않았고 output은
+Global을 따랐다. active guard 자체는 한 번만 발행됐다.
+
 ## 재현
 
 ```bash
@@ -93,6 +115,10 @@ python3 scripts/evaluation/localization/analyze_relocation_guard_bag.py \
   rosbags/eval/localization/local_mr_stability/\
 260920_003403_q0005_r010_gt_object_lightweight_no_traffic_v2_test.bag \
   --synthetic-offset-m 20
+
+scripts/evaluation/localization/run_checkpoint_relocation_replay.sh \
+  rosbags/eval/localization/local_mr_stability/\
+260920_003403_q0005_r010_gt_object_lightweight_no_traffic_v2_test.bag
 ```
 
 ## 다음 gate

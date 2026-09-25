@@ -148,6 +148,9 @@ Competition Status에는 global position이 없다. 현재 첫 `/Ego_topic` pose
 5 m 초과 innovation은 0건이었고 합성 20 m 이동은 3 sample 뒤 감지했지만, 실제
 checkpoint bag과 폐루프가 없어 기본 OFF·monitor-only다. active 후보는 Global EKF만
 reset하고 Local odom 연속성을 유지한다. 자동 reset production 계약은 아직 없다.
+Quantization-aware control state와 active guard를 결합한 합성 20 m 전체 replay에서는
+guard reset이 1회였고 reset 순간 Global–control 차이가 0.0 m였다. 따라서 두 후보의
+기계적 결합은 통과했지만, 실제 checkpoint 폐루프 gate는 여전히 남아 있다.
 
 ### P1. Competition yaw-rate A/B
 

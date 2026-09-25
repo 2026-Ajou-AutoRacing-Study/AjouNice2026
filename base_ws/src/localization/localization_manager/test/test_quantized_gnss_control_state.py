@@ -73,6 +73,29 @@ class QuantizedGnssControlStateTest(unittest.TestCase):
         self.assertAlmostEqual(pose[0], 1.1)
         self.assertAlmostEqual(pose[1], 2.2)
 
+    def test_checkpoint_global_jump_resets_candidate_to_same_pose(self):
+        alignment = MODULE.QuantizedGnssAlignment(
+            0.1,
+            0.1,
+            yaw_tau_sec=0.0,
+            reset_translation_error_m=0.5,
+        )
+        local_pose = (100.0, 50.0, 0.2)
+        initial_global = (102.0, 53.0, 0.2)
+        alignment.reset(
+            MODULE.planar_alignment(initial_global, local_pose),
+            0.0,
+            "initialization",
+        )
+        relocated_global = (102.0, 73.0, 0.2)
+        target = MODULE.planar_alignment(relocated_global, local_pose)
+        alignment.update_global(target, local_pose, 0.1)
+        output = MODULE.compose_planar(alignment.value, local_pose)
+        self.assertEqual(alignment.last_reset_reason, "translation_discontinuity")
+        self.assertAlmostEqual(output[0], relocated_global[0], places=9)
+        self.assertAlmostEqual(output[1], relocated_global[1], places=9)
+        self.assertAlmostEqual(output[2], relocated_global[2], places=9)
+
     def test_blend_preserves_global_longitudinal_and_candidate_lateral(self):
         global_pose = (10.0, 5.0, math.radians(30.0))
         candidate_pose = (10.4, 4.7, math.radians(31.0))

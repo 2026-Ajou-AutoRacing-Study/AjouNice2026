@@ -114,7 +114,9 @@ bag: `260919_231906_q0005_r010_gt_object_lightweight_no_traffic.bag`
 1. `od_gt` 경량 폐루프에서 동일 route를 Global/후보 각각 주행.
 2. steering-rate p95, sign flip, lateral control error와 lane departure 비교.
 3. GPS 음영 replay는 통과했으며, 실제 GPS 음영 폐루프 비교.
-4. checkpoint relocation/reset과 후보 alignment 재초기화 확인.
+4. checkpoint relocation/reset과 후보 alignment 재초기화 확인. **통과:** 합성
+   20 m 이동에서 guard reset 1회, reset 순간 Global–control 차이 0.0 m, 두 state
+   모두 49.997 Hz였다. 상세는 체크포인트 guard EVIDENCE를 따른다.
 5. LAN-to-LAN 동일 controller 반복.
 
 위 gate 전에는 production alias나 controller 기본 topic을 변경하지 않는다.

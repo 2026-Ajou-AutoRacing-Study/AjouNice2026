@@ -86,6 +86,21 @@ scripts/evaluation/localization/run_gnss_outage_reacquisition.sh \
 두 모드 모두 1×가 유효 기준이다. 배속 replay에서 output state가 50 Hz를 유지하지
 못하면 결과를 폐기한다.
 
+## Repeatable checkpoint-relocation replay
+
+The relocation runner keeps the same raw-input contract, injects a 20 m
+northward GPS displacement halfway through a 25 s slice, and runs the active
+relocation guard with the quantization-aware controller state. It is a
+mechanism test, not approval to enable the guard in production.
+
+```bash
+scripts/evaluation/localization/run_checkpoint_relocation_replay.sh INPUT.bag
+```
+
+The generated `analysis.json` records reset count, GNSS-to-Global recovery,
+Global-to-control agreement, reset jump, and both output rates. Keep replay at
+1× and retain `metadata.txt` with the result.
+
 ```bash
 python3 scripts/evaluation/localization/analyze_smooth_control_state_bag.py \
   rosbags/eval/localization/local_mr_stability/<bag>.bag \
