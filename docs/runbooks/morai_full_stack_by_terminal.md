@@ -389,6 +389,30 @@ traj_fol_global
 
 bag tag는 `global_full_route_no_actors`를 사용한다.
 
+### Quantized-GNSS 후보 폐루프 재현
+
+Production 기본값을 바꾸지 않고 quantization-aware controller state의 마지막 폐루프
+gate를 수행할 때만 Terminal 4를 다음으로 바꾼다. Terminal 10은 production과 같은
+`traj_fol_a`를 사용한다.
+
+```bash
+ajou
+roslaunch bringup localization_gnss_imu_gt_ctra.launch \
+  gt_source:=competition \
+  use_heading_correction:=true \
+  heading_yaw_offset_deg:=-1.347 \
+  publish_sensor_tf:=false \
+  publish_control_state:=true \
+  use_quantized_gnss_control_state:=true \
+  quantized_control_yaw_tau_sec:=0.0 \
+  quantized_control_grid_yaw_deg:=-1.347
+```
+
+Terminal 9의 bag tag는 `quantized_full_route_no_actors`로 지정한다. 이 실험은
+Planning/TF의 Global state를 바꾸지 않고 controller용 state만 교체한다. 결과가
+Smooth production보다 좋아도 문서의 offline/open-loop/음영 안전 gate와 함께 검토한
+뒤에만 기본값을 바꾼다.
+
 기본값 대신 과거 closed-loop 후보를 재검증할 때는 위 `localization` 한 줄만 다음 중
 하나로 교체한다. 다른 터미널 구성은 동일하게 유지한다.
 
