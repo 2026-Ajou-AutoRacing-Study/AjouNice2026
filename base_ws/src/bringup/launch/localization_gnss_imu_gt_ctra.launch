@@ -19,6 +19,8 @@
        default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_gt_ctra_local.yaml"/>
   <arg name="global_ekf_gt_config"
        default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_gt_ctra_global.yaml"/>
+  <arg name="gnss_quantization_input_mode" default="off"/>
+  <arg name="gnss_quantization_step_deg" default="0.0000016666666666666667"/>
   <!-- sensing.launch owns the shared sensor static TFs in the competition stack. -->
   <arg name="publish_sensor_tf" default="false"/>
   <!-- Production controller state. Planning and TF continue to use the
@@ -74,6 +76,8 @@
     <arg name="global_ekf_base_config" value="$(arg global_ekf_base_config)"/>
     <arg name="local_ekf_gt_config" value="$(arg local_ekf_gt_config)"/>
     <arg name="global_ekf_gt_config" value="$(arg global_ekf_gt_config)"/>
+    <arg name="gnss_quantization_input_mode" value="$(arg gnss_quantization_input_mode)"/>
+    <arg name="gnss_quantization_step_deg" value="$(arg gnss_quantization_step_deg)"/>
     <arg name="map_frame" value="$(arg map_frame)"/>
     <arg name="morai_map_frame" value="$(arg morai_map_frame)"/>
     <arg name="base_frame" value="$(arg base_frame)"/>

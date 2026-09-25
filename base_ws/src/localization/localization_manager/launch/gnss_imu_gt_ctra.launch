@@ -36,6 +36,8 @@
   <arg name="gps_topic" default="/sensor/gps"/>
   <arg name="normalized_imu_topic" default="/localization/imu"/>
   <arg name="gnss_odom_topic" default="/localization/gnss/odom"/>
+  <arg name="gnss_quantization_input_mode" default="off"/>
+  <arg name="gnss_quantization_step_deg" default="0.0000016666666666666667"/>
   <arg name="local_odom_topic" default="/localization/odometry/local"/>
   <arg name="global_odom_topic" default="/localization/odom"/>
   <arg name="kinematic_state_topic" default="/localization/kinematic_state"/>
@@ -110,6 +112,8 @@
         output="screen">
     <param name="input_topic" value="$(arg gps_topic)"/>
     <param name="output_topic" value="$(arg gnss_odom_topic)"/>
+    <param name="quantization_input_mode" value="$(arg gnss_quantization_input_mode)"/>
+    <param name="quantization_step_deg" value="$(arg gnss_quantization_step_deg)"/>
     <param name="sensor_config" value="$(arg sensor_config)"/>
     <param name="map_frame" value="$(arg map_frame)"/>
     <param name="morai_map_frame" value="$(arg morai_map_frame)"/>

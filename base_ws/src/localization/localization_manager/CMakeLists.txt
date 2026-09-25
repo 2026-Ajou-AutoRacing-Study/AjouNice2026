@@ -46,6 +46,7 @@ install(DIRECTORY rviz/
 if(CATKIN_ENABLE_TESTING)
   find_package(rostest REQUIRED)
   catkin_add_nosetests(test/test_gnss_imu_contract.py)
+  catkin_add_nosetests(test/test_gnss_quantization_input.py)
   catkin_add_nosetests(test/test_smooth_control_state.py)
   catkin_add_nosetests(test/test_quantized_gnss_control_state.py)
   catkin_add_nosetests(test/test_competition_yaw_rate_imu_adapter.py)

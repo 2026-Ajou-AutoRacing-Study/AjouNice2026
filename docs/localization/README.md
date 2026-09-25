@@ -81,6 +81,8 @@
 
 ## PLAN
 
+- [`LOCALIZATION_PLANNING_CONTROL_EXPERIMENT_PLAN.md`](LOCALIZATION_PLANNING_CONTROL_EXPERIMENT_PLAN.md)
+  - GNSS 입력 양자화 대응, odom-frame 경로·제어, 이후 판단·제어 공동 곡선 추종 A/B.
 - [`260920_competition_status_and_local_control_frame_plan.md`](260920_competition_status_and_local_control_frame_plan.md)
   - Competition Status 확장과 controller용 smooth local-frame 구조.
 

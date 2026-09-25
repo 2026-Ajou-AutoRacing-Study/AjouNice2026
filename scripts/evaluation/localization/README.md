@@ -38,6 +38,12 @@ the launcher, alias, `gt_source`, and runtime parameter provenance first. See
 
 ## Smooth controller-state pre-screen
 
+`analyze_odom_frame_control_contract_bag.py INPUT.bag` compares recorded
+map-frame trajectories against Global, Smooth, and two odom-frame conversion
+counterfactuals. It is read-only and reports geometric cross-track distance,
+not replayed steering or closed-loop performance. The 2026-09-26 result is
+recorded in `docs/localization/LOCALIZATION_PLANNING_CONTROL_EXPERIMENT_PLAN.md`.
+
 `analyze_smooth_control_state_bag.py` combines recorded Global and Local EKF
 outputs while smoothing only their `map -> odom` alignment. This is a
 counterfactual offline pre-screen: it does not re-run the controller and cannot
@@ -106,6 +112,14 @@ Global-to-control agreement, reset jump, and both output rates. Keep replay at
 `analyze_gnss_quantization_lattice.py` measures the smallest non-zero raw
 latitude/longitude step and projects both cell axes with the same WGS84→UTM
 52N conversion used by localization.
+
+`run_gnss_quantization_input_ab.sh INPUT.bag` compares the unchanged GNSS
+input against an experimental `cell_transition` input. The latter publishes a
+position fix only when the raw latitude/longitude lattice cell changes; it
+does not alter the EKF configuration or the production default (`off`). This
+is a first input-side ablation, not a complete interval-likelihood filter.
+Use a Competition/MR raw bag containing Ego oracle, GPS, IMU and Competition
+Status, at 1× replay.
 
 ```bash
 python3 scripts/evaluation/localization/analyze_gnss_quantization_lattice.py \
