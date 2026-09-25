@@ -247,16 +247,147 @@ sensing/UDP 순서로 내린 뒤 roscore를 마지막에 종료한다.
 `Sensor_localization_gt_lightweight.json`을 로드한다. 이 파일은 MR과 MRP의
 `SaveFile/Sensor` 양쪽에 둘 수 있으며 GPS와 IMU만 생성한다.
 
+### 고정 시나리오와 시험 계약
+
+MR에서 다음 시나리오를 연다.
+
 ```text
+localization_full_route_no_actors
+```
+
+tracked 원본은
+`configs/scenario/localization_evaluation/localization_full_route_no_actors.json`이다.
+원본 sample의 Ego 시작점, 전체 코스와 GPS 음영 영역은 유지하고 NPC, 보행자,
+장애물과 모든 actor spawn을 제거했다. Sensor는
+`Sensor_localization_gt_lightweight.json`, Ego Network는
+`ego_network_competition_local.json`을 로드한다. control mode는
+`AV-ExternalCtrl`로 설정한다.
+
+이 절차는 planning과 TF에는 기존 Global state를 유지하면서 controller만 production
+Smooth local control state(`tau=0.5/0.5 s`)를 받는다. `traffic`과 detector는 실행하지
+않고 planner의 TrafficLight plugin도 끈다.
+
+### Terminal 0: MR launcher와 시나리오
+
+```bash
+mr
+```
+
+MR UI에서 위 시나리오, lightweight Sensor, local Ego Network를 차례로 로드한다.
+아직 Route A를 누르거나 차량을 출발시키지 않는다.
+
+### Terminal 1: ROS master
+
+```bash
+ajou
+rc
+```
+
+### Terminal 2: 경량 UDP gateway
+
+```bash
+ajou
 udp_localization_light
+```
+
+### Terminal 3: 경량 sensing/TF
+
+```bash
+ajou
 sensing_localization_light
-localization                 # MR: Competition_topic
+```
+
+### Terminal 4: MR production localization
+
+```bash
+ajou
+localization
+```
+
+`/localization/kinematic_state`는 Global planning/TF용이며,
+`/localization/control_kinematic_state`만 production controller 입력이다.
+
+### Terminal 5: MORAI GT object adapter
+
+```bash
+ajou
 od_gt
+```
+
+시나리오에 객체가 없어도 빈 detection message를 계속 공급해 planning의 perception
+입력 계약을 유지한다.
+
+### Terminal 6: tracking + Map-CV
+
+```bash
+ajou
 tracking
+```
+
+### Terminal 7: 신호등 없는 planning
+
+```bash
+ajou
 planning enable_traffic_light_planner:=false
+```
+
+`traffic` alias는 실행하지 않는다.
+
+### Terminal 8: Planning RViz
+
+```bash
+ajou
 planviz show_morai_gt:=true
+```
+
+차량, lanelet map, localization과 route 대기 상태가 정상인지 확인한다.
+
+### Terminal 9: localization 평가 rosbag
+
+```bash
+ajou
+bash scripts/rosbag/record/rosbag_for_localization_stability_eval.sh \
+  smooth_tau0p5_full_route_no_actors
+```
+
+`Recording to`가 나온 뒤에만 다음 단계로 간다. 출력은
+`rosbags/eval/localization/local_mr_stability/<시각>_smooth_tau0p5_full_route_no_actors.bag`
+및 같은 이름의 metadata 파일이다. Camera, LiDAR, PointCloud는 기록하지 않는다.
+
+### Terminal 10: controller
+
+Route A를 먼저 요청해 RViz에 유효한 `/planning/trajectory`가 생기는지 확인한 뒤
+controller를 실행한다.
+
+```bash
+ajou
 traj_fol_a
 ```
+
+차량이 출발하지 않으면 controller 인자를 바꾸기 전에 다음을 확인한다.
+
+```bash
+rostopic hz /localization/kinematic_state
+rostopic hz /localization/control_kinematic_state
+rostopic hz /planning/trajectory
+rostopic hz /ctrl_cmd
+```
+
+완주 후 Terminal 10의 controller를 가장 먼저 끄고 Terminal 9의 recorder를
+`Ctrl-C`로 정상 종료한다. 그 다음 planning부터 역순으로 종료한다.
+
+### Global-state baseline 재현
+
+동일 시나리오에서 baseline을 추가로 녹화할 때만 Terminal 4와 Terminal 10을 다음처럼
+바꾼다. 나머지 조건은 전부 유지한다.
+
+```bash
+# Terminal 10
+ajou
+traj_fol_global
+```
+
+bag tag는 `global_full_route_no_actors`를 사용한다.
 
 기본값 대신 과거 closed-loop 후보를 재검증할 때는 위 `localization` 한 줄만 다음 중
 하나로 교체한다. 다른 터미널 구성은 동일하게 유지한다.
@@ -266,13 +397,9 @@ localization_sigma_0p10_qxy_0p05  # sigma=0.10 m, Global Qxy=0.05
 localization_sigma_0p05_qxy_0p05  # sigma=0.05 m, Global Qxy=0.05
 ```
 
-`traffic`과 detector는 실행하지 않는다. Planner의 TrafficLight plugin도 명시적으로
-빠지므로 모든 교통신호를 무시한다. `enable_traffic_light_planner`의 기본값은
-`true`이며 인자를 생략한 production `planning`은 기존과 동일하다. 이 구성에서도
-Sunshine과 RViz는 유지할 수 있다.
-
-Bag은 `rosbag_for_localization_stability_eval.sh`로 기록하며 Camera, LiDAR,
-PointCloud topic을 포함하지 않는다. 주행 후
+`enable_traffic_light_planner`의 기본값은 `true`이며 인자를 생략한 production
+`planning`은 기존과 동일하다. 이 구성에서도 Sunshine과 RViz는 유지할 수 있다.
+Bag은 Camera, LiDAR, PointCloud topic을 포함하지 않는다. 주행 후
 `Ego position distance / integral(velocity.x dt)`가 `0.98~1.02`인지 먼저 확인한다.
 
 ## 수동 통합 launch 참고

@@ -25,7 +25,7 @@ def test_integrated_stack_owns_downstream_pipeline_but_not_detector_by_default()
     assert args["start_traffic_light"]["default"] == "true"
     assert args["enable_traffic_light_planner"]["default"] == "true"
     assert args["controller_kinematic_state_topic"]["default"] == (
-        "/localization/kinematic_state"
+        "/localization/control_kinematic_state"
     )
 
 
@@ -77,6 +77,24 @@ def test_controller_state_override_does_not_remap_planning_state():
             if item.attrib["name"] == "topics/kinematic_state"
         )
         assert topic_override.attrib["value"] == "$(arg kinematic_state_topic)"
+
+
+def test_production_localization_publishes_smooth_controller_state():
+    localization_launch = ET.parse(
+        REPO_ROOT
+        / "base_ws/src/bringup/launch/localization_gnss_imu_gt_ctra.launch"
+    ).getroot()
+    args = {
+        item.attrib["name"]: item.attrib
+        for item in localization_launch.findall("arg")
+    }
+    assert args["publish_control_state"]["default"] == "true"
+    assert args["use_quantized_gnss_control_state"]["default"] == "false"
+    assert args["control_state_topic"]["default"] == (
+        "/localization/control_kinematic_state"
+    )
+    assert args["control_translation_tau_sec"]["default"] == "0.5"
+    assert args["control_yaw_tau_sec"]["default"] == "0.5"
 
 
 def test_local_load_test_can_disable_only_the_traffic_light_planner_plugin():

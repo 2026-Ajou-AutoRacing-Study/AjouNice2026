@@ -21,7 +21,9 @@
        default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_gt_ctra_global.yaml"/>
   <!-- sensing.launch owns the shared sensor static TFs in the competition stack. -->
   <arg name="publish_sensor_tf" default="false"/>
-  <arg name="publish_control_state" default="false"/>
+  <!-- Production controller state. Planning and TF continue to use the
+       unsmoothed global /localization/kinematic_state. -->
+  <arg name="publish_control_state" default="true"/>
   <arg name="use_quantized_gnss_control_state" default="false"/>
   <arg name="control_state_topic"
        default="/localization/control_kinematic_state"/>

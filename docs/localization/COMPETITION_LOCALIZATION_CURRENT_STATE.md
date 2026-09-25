@@ -5,10 +5,10 @@
 
 ## 한 줄 결론
 
-현재 production은 GNSS 양자화에 맞춘 Q/R로 정상 GNSS 구간의 pose jump를 줄였고,
-GPS 음영 중에도 마지막 유효 z만 유지하며 planar state를 계속 발행한다. 남은 핵심
-구조 과제는 GPS 재획득 correction과 controller가 Global EKF state를 직접 소비하는
-점이다.
+현재 production은 GNSS 양자화에 맞춘 Q/R과 Local EKF 기반 Smooth controller
+state를 함께 사용한다. Planning과 TF는 Global state를 유지하고 controller만
+translation/yaw tau `0.5/0.5 s`의 연속적인 state를 사용한다. GPS 음영 중에도 마지막
+유효 z를 유지하며 planar state를 계속 발행한다.
 
 ## Production 계약
 
@@ -20,7 +20,9 @@ GPS 음영 중에도 마지막 유효 z만 유지하며 planar state를 계속 �
 | initial pose | 공식 시작 position 제공 전 첫 `/Ego_topic` pose 임시 사용 | 동일 |
 | GNSS horizontal sigma | `0.10 m` | `0.10 m` |
 | Global EKF Qxy | `0.0005` | `0.0005` |
-| controller-facing state | `/localization/kinematic_state` | 동일 |
+| planning/TF state | `/localization/kinematic_state` | 동일 |
+| controller-facing state | `/localization/control_kinematic_state` | 동일 |
+| control translation/yaw tau | `0.5 / 0.5 s` | 동일 |
 
 공통 계약:
 
@@ -44,7 +46,10 @@ GPS 음영 중에도 마지막 유효 z만 유지하며 planar state를 계속 �
 Local EKF  : odom -> base_link, GNSS가 직접 들어가지 않는 smooth motion
 Global EKF : map pose, GNSS x/y correction 포함
 Publisher  : Global pose + 최신/마지막 유효 GNSS z -> /localization/kinematic_state
-Controller : /localization/kinematic_state 직접 소비
+Smooth     : 저역통과한 map -> odom 정합 x 최신 Local pose
+             -> /localization/control_kinematic_state
+Planning/TF: /localization/kinematic_state
+Controller : /localization/control_kinematic_state
 ```
 
 ## 해결된 범위
@@ -63,6 +68,12 @@ Controller : /localization/kinematic_state 직접 소비
    `/localization/kinematic_state`를 각각 `50.00 Hz`, `50.01 Hz`로 연속 발행했다.
 7. 현재 `/Ego_topic` 임시 초기값 계약으로 수행한 Competition 전체 경로 replay에서
    `49.71 Hz` state와 기존 정확도 수준을 유지했다.
+8. 동일 actor-free 전체 경로 폐루프 A/B에서 Smooth state는 완주 시간 손실 없이
+   steering-rate 평균을 `15.4%`, 조향 반전 빈도를 `23.8%` 줄였다.
+9. 같은 A/B에서 controller-facing XY p50은 `2.44 -> 1.66 cm`, 횡오차 p50은
+   `1.77 -> 0.88 cm`로 감소했다.
+10. 약 `7.25 s` GPS 음영 재획득 직후 첫 1초의 조향 변화율 p95는
+    `0.698 -> 0.221 rad/s`로 `68.3%` 감소했다.
 
 ## 남은 위험과 우선순위
 
@@ -86,18 +97,18 @@ GNSS가 stale해지면 publisher는 마지막 유효 z만 유지하고 Global EK
 covariance inflation은 넣지 않았다. GPS 음영 미션 폐루프와 checkpoint teleport를
 분리해 추가 검증한다.
 
-### P0-B. Controller가 Global correction을 직접 소비
+### 해결. Controller의 Global correction 직접 소비
 
-Local EKF는 이미 smooth state를 만들지만 controller는 Global EKF pose를 받는다.
-이를 해결하는 controller 전용 map-frame state prototype을 추가했다. Global/Local
+Local EKF의 연속성을 controller에 전달하는 전용 map-frame state를 사용한다. Global/Local
 pose에서 `map -> odom` 정합을 구해 그 correction만 저역통과한 뒤 현재 Local pose와
 합성한다. planning과 TF는 기존 Global state를 유지한다.
 
-세 종류의 기존 bag에서 `tau=0.5~1.0 s`는 횡 frame jump p95를 크게 줄였고,
-격리 ROS replay에서 `49.994 Hz`의 정상 message contract를 확인했다. 그러나 기록된
-출력에 대한 counterfactual일 뿐 controller 폐루프 승인은 아니다. 따라서
-`publish_control_state=false`가 기본이고 production alias/controller 입력은 유지한다.
-근거는 `260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md`에 있다.
+offline/open-loop 검증 뒤 동일 전체 경로 폐루프 A/B를 수행했다. `tau=0.5/0.5 s`
+후보는 gate-to-gate 완주 시간 차이 `0.28%` 이내에서 steering-rate 평균을 `15.4%`,
+sign flip을 `23.8%` 줄였다. GPS 재획득 직후 조향 변화율 p95도 `68.3%` 감소했다.
+따라서 production alias는 `publish_control_state=true`, controller 기본 입력은
+`/localization/control_kinematic_state`로 승격했다. 근거는
+`260925_SMOOTH_CONTROL_STATE_CLOSED_LOOP_EVIDENCE.md`에 있다.
 
 후속 quantization-aware 후보는 GNSS를 점이 아닌 cell interval로 처리하고, 그 결과의
 횡 displacement만 controller state에 사용하면서 종 위치와 yaw는 Global EKF를
@@ -115,17 +126,17 @@ fallback하고 재획득 후 1초 grace를 둔 결과, 음영과 복귀 첫 1초
 나빠지지 않았으며 복귀 1~4초 횡 p95는 각각 `10.78 -> 4.74 cm`,
 `8.87 -> 2.28 cm`로 감소했다. 이는 replay gate 통과이며 실제 폐루프 승격은 아니다.
 
-폐루프용 launch 배선은 준비했다. Planning/TF는 Global state를 유지하고 두 controller
-node만 `controller_kinematic_state_topic`으로 함께 전환할 수 있다. 불연속 판정은
+Planning/TF는 Global state를 유지하고 두 controller node만
+`controller_kinematic_state_topic`으로 함께 전환한다. 불연속 판정은
 alignment parameter가 아니라 현재 차량의 map pose 차이로 수행한다. `0.5 m / 20 deg`
 기준은 정상 replay에서 reset 0회였고, 인위적 8초 음영 두 경우의 `0.53 / 1.38 m`
 재획득 correction에서 각각 1회 reset돼 planning과 controller state의 장시간 frame
 불일치를 막았다. checkpoint 실측이 없어 아직 production 계약은 아니다.
 
-동일 기록 trajectory로 controller를 다시 실행한 open-loop A/B에서 `tau=0.5 s`
+승격 전 동일 기록 trajectory로 controller를 다시 실행한 open-loop A/B에서 `tau=0.5 s`
 후보는 52초/242초 bag 모두 steering-rate p95를 약 4%, sign flip을 약 15~17%
 줄였다. 장주행 controller lateral error p50/p95도 `3.95/27.65 -> 2.68/24.14 cm`로
-개선됐다. 따라서 다음 폐루프의 단일 1순위 후보지만 production 승격은 아니다.
+개선됐고, 이후 전체 경로 폐루프도 통과했다.
 
 Quantization-aware 후보도 같은 controller A/B에서 Global보다 개선됐지만, 장주행
 sign flip `0.2925/s`, lateral error `2.84/25.08 cm`로 Smooth의 `0.2830/s`,
@@ -171,8 +182,8 @@ UDP 패킷에는 `angular_velocity.z`가 있지만 기존 `EgoVehicleStatus` ROS
 위해 `/Competition_topic`은 바꾸지 않고 `/competition/raw_twist`에 전체 linear/angular
 twist를 추가 발행한다.
 
-현재 저장된 bag에는 새 토픽이 없으므로 fusion 기본값은 변경하지 않았다. 새 MR·현장
-bag에서 Competition yaw-rate와 IMU yaw-rate의 부호·단위·지연·heading 미분 오차를
+260925 전체 경로 bag에는 새 토픽이 기록됐다. 다음 실험에서 Competition yaw-rate와
+IMU yaw-rate의 부호·단위·지연·heading 미분 오차를
 비교한다. 두 신호는 같은 simulator state에서 파생됐을 수 있으므로 동시에 독립 측정처럼
 fuse하지 않고, IMU 대체 또는 residual 진단으로만 통제 실험한다.
 

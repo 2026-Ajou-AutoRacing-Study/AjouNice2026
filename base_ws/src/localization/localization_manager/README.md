@@ -35,12 +35,12 @@ versus UDP transport. Both aliases disable duplicate sensor static TF
 publication. `/Ego_topic` direct GT localization is not a competition fallback.
 See `docs/localization/README.md` for the canonical document index.
 
-### Experimental smooth controller state
+### Production smooth controller state
 
 The production planning and TF contract remains
-`/localization/kinematic_state`. For controlled A/B tests only, the provider can
-also publish a controller-facing map-frame state that combines Local EKF motion
-with a smoothed Global/Local alignment:
+`/localization/kinematic_state`. The competition bringup also publishes a
+controller-facing map-frame state that combines Local EKF motion with a
+smoothed Global/Local alignment:
 
 ```bash
 roslaunch localization_manager gnss_imu_gt_ctra.launch \
@@ -55,8 +55,11 @@ provider replay and closed-loop tests.
 
 The output is `/localization/control_kinematic_state` (`map -> base_link`
 Odometry). The node publishes no TF and does not alter the global Planning
-state. It is disabled by default and must not become the controller input until
-closed-loop, GPS-outage/reacquisition, and checkpoint-reset gates pass.
+state. Full-route closed-loop A/B, including the GPS-shadow region, passed on
+2026-09-25. The official `localization`/`localization_mrp`, `traj_fol_a`, and
+integrated planning entrypoints therefore use this state with translation/yaw
+time constants of `0.5 s`. Override the controller topic with
+`/localization/kinematic_state` to reproduce the previous baseline.
 
 ### Experimental checkpoint-relocation guard
 
