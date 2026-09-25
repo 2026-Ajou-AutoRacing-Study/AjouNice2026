@@ -127,6 +127,11 @@ alignment parameter가 아니라 현재 차량의 map pose 차이로 수행한�
 줄였다. 장주행 controller lateral error p50/p95도 `3.95/27.65 -> 2.68/24.14 cm`로
 개선됐다. 따라서 다음 폐루프의 단일 1순위 후보지만 production 승격은 아니다.
 
+Quantization-aware 후보도 같은 controller A/B에서 Global보다 개선됐지만, 장주행
+sign flip `0.2925/s`, lateral error `2.84/25.08 cm`로 Smooth의 `0.2830/s`,
+`2.68/24.14 cm`보다 근소하게 나빴다. 따라서 더 낮은 pose jump만으로 순위를
+뒤집지 않고 Smooth 0.5초를 폐루프 1순위로 유지한다.
+
 후속 Ego oracle 감사에서 frame별 종방향 pose 증분이 자체 velocity/heading 예측과
 p95 약 `10~12 cm` 불일치함을 확인했다. 전체 거리 적분은 `0.01%` 이내로 맞으므로
 속도 bias는 아니며 pose 갱신 시간 불균일이다. 이에 따라 종 frame jump는 진단값으로만

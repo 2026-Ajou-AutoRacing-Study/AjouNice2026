@@ -13,6 +13,10 @@
 따라서 smooth state를 새 MR 폐루프의 단일 1순위 후보로 확정한다. 차량 반응과
 planning 재계산이 없는 open-loop이므로 production 기본값은 아직 바꾸지 않는다.
 
+후속 quantization-aware state도 동일 controller 계약으로 비교했다. Global보다는
+일관되게 개선됐지만 두 bag 전체 균형에서 Smooth 0.5초를 넘지 못했다. 따라서
+폐루프 1순위는 Smooth 0.5초, quantized는 2순위 진단 후보로 유지한다.
+
 추가 tau sweep 결과 전체 균형은 `0.5 s`가 가장 좋았다. `0.2 s`는 장주행
 steering-rate p95가 더 낮았지만 sign flip과 lateral error 개선이 작았고, `1.0 s`는
 짧은 bag에서 steering-rate 이득을 거의 잃었다. 따라서 `0.5 s`를 1순위로 유지하고
@@ -83,6 +87,36 @@ WARN/ERROR/FATAL이 없었다. 장주행 마지막 GPS 음영은 복귀 없이 �
 ROS timer 기반 open-loop 재실행 간 p95에는 소폭 변동이 있어 근소한 순위 자체를
 과해석하지 않는다. 0.5초는 sign flip과 lateral error에서 일관되게 더 강하고,
 0.2초는 correction 지연 위험이 작은 보조 후보다.
+
+## Quantization-aware state 비교
+
+UTM GNSS cell 축 `-1.347 deg`를 적용한 후보를 같은 recorded trajectory와 controller로
+실행했다.
+
+### 52초 짧은 반복 bag
+
+| 지표 | Global | Smooth 0.5 s | Quantized |
+|---|---:|---:|---:|
+| steering abs p95 | 0.2980 | **0.2961** | 0.2971 rad |
+| steering-rate abs p95 | 0.3829 | **0.3728** | 0.3787 rad/s |
+| steering sign flip | 0.3990 | 0.3376 | **0.3376 /s** |
+| controller lateral error p50 | 3.91 | 2.70 | **2.59 cm** |
+| controller lateral error p95 | **42.05** | 43.24 | 42.84 cm |
+
+### 242초 production 장주행 bag
+
+| 지표 | Global | Smooth 0.5 s | Quantized |
+|---|---:|---:|---:|
+| steering abs p95 | 0.2197 | **0.2160** | 0.2207 rad |
+| steering-rate abs p95 | 0.3331 | 0.3176 | **0.3171 rad/s** |
+| steering sign flip | 0.3397 | **0.2830** | 0.2925 /s |
+| controller lateral error p50 | 3.95 | **2.68** | 2.84 cm |
+| controller lateral error p95 | 27.65 | **24.14** | 25.08 cm |
+
+Quantized output은 두 bag 모두 50.00 Hz였다. 장주행에서는 steering-rate가 Smooth와
+사실상 같았지만 sign flip과 lateral error는 Smooth가 더 좋았다. GNSS cell 경계에서
+최소 correction을 즉시 적용하는 특성이 pose jump는 강하게 줄여도 controller의
+lookahead/deadband 이후 출력에는 추가 이득으로 모두 이어지지 않는 것으로 해석한다.
 
 ## 다음 승인 gate
 

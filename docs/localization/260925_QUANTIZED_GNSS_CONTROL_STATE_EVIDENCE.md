@@ -115,7 +115,8 @@ bag: `260919_231906_q0005_r010_gt_object_lightweight_no_traffic.bag`
 
 ## 다음 gate
 
-1. `od_gt` 경량 폐루프에서 동일 route를 Global/후보 각각 주행.
+1. 동일 trajectory controller open-loop는 통과했으나 Smooth 0.5초보다 종합 우위가
+   없었다. `od_gt` 경량 폐루프 1순위는 Smooth, quantized는 2순위로 비교한다.
 2. steering-rate p95, sign flip, lateral control error와 lane departure 비교.
 3. GPS 음영 replay는 통과했으며, 실제 GPS 음영 폐루프 비교.
 4. checkpoint relocation/reset과 후보 alignment 재초기화 확인. **통과:** 합성

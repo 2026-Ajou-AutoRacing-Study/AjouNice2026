@@ -24,7 +24,7 @@ source /opt/ros/noetic/setup.bash
 source "$ROOT/scripts/workspace/source_aw149.sh"
 
 CORE_PID=""
-SMOOTH_PID=""
+STATE_PID=""
 CONTROL_PID=""
 RECORD_PID=""
 
@@ -46,11 +46,11 @@ stop_process() {
 cleanup_run() {
   stop_process "$RECORD_PID"
   stop_process "$CONTROL_PID"
-  stop_process "$SMOOTH_PID"
+  stop_process "$STATE_PID"
   stop_process "$CORE_PID"
   RECORD_PID=""
   CONTROL_PID=""
-  SMOOTH_PID=""
+  STATE_PID=""
   CORE_PID=""
 }
 trap cleanup_run EXIT INT TERM
@@ -58,15 +58,24 @@ trap cleanup_run EXIT INT TERM
 read -r -a smooth_taus <<<"${LOCALIZATION_CONTROL_AB_TAUS:-0.5}"
 profiles=()
 if [[ "${LOCALIZATION_CONTROL_AB_INCLUDE_GLOBAL:-true}" == "true" ]]; then
-  profiles+=("global:0")
+  profiles+=("global:global:0")
 fi
-for tau in "${smooth_taus[@]}"; do
-  profiles+=("smooth_tau${tau/./p}:$tau")
-done
+if [[ "${LOCALIZATION_CONTROL_AB_INCLUDE_SMOOTH:-true}" == "true" ]]; then
+  for tau in "${smooth_taus[@]}"; do
+    profiles+=("smooth_tau${tau/./p}:smooth:$tau")
+  done
+fi
+if [[ "${LOCALIZATION_CONTROL_AB_INCLUDE_QUANTIZED:-false}" == "true" ]]; then
+  profiles+=("quantized:quantized:0")
+fi
+if [[ ${#profiles[@]} -eq 0 ]]; then
+  echo "no controller-state profiles selected" >&2
+  exit 2
+fi
 
 for index in "${!profiles[@]}"; do
-  IFS=: read -r label tau <<<"${profiles[$index]}"
-  if [[ "$label" == "global" ]]; then
+  IFS=: read -r label mode tau <<<"${profiles[$index]}"
+  if [[ "$mode" == "global" ]]; then
     label="global"
     state_topic="/localization/kinematic_state"
   else
@@ -82,6 +91,18 @@ for index in "${!profiles[@]}"; do
   export ROS_MASTER_URI="http://127.0.0.1:$port"
   export ROS_HOME="$ros_home"
 
+  printf '%s\n' \
+    "input_bag=$INPUT_BAG" \
+    "source_commit=$(git -C "$ROOT" rev-parse HEAD)" \
+    "source_branch=$(git -C "$ROOT" branch --show-current)" \
+    "profile=$label" \
+    "state_mode=$mode" \
+    "controller_state_topic=$state_topic" \
+    "smooth_tau_sec=$tau" \
+    "quantized_grid_yaw_deg=-1.347" \
+    "replay_rate=$RATE" \
+    >"$run_dir/metadata.txt"
+
   roscore -p "$port" >"$run_dir/roscore.log" 2>&1 &
   CORE_PID=$!
   sleep 0.5
@@ -95,14 +116,29 @@ for index in "${!profiles[@]}"; do
   done
   rosparam set /use_sim_time true
 
-  if [[ "$label" != "global" ]]; then
+  if [[ "$mode" == "smooth" ]]; then
     rosrun localization_manager smooth_control_state_publisher.py \
       _translation_tau_sec:="$tau" \
       _yaw_tau_sec:="$tau" \
       _reset_translation_error_m:=5.0 \
       _reset_yaw_error_deg:=20.0 \
       >"$run_dir/smooth.log" 2>&1 &
-    SMOOTH_PID=$!
+    STATE_PID=$!
+  elif [[ "$mode" == "quantized" ]]; then
+    python3 "$ROOT/base_ws/src/localization/localization_manager/scripts/quantized_gnss_control_state_publisher.py" \
+      _grid_yaw_deg:=-1.347 \
+      _yaw_tau_sec:=0.0 \
+      _reset_translation_error_m:=0.5 \
+      _reset_yaw_error_deg:=20.0 \
+      >"$run_dir/quantized.log" 2>&1 &
+    STATE_PID=$!
+  fi
+  if [[ "$mode" != "global" ]]; then
+    sleep 0.5
+    if ! kill -0 "$STATE_PID" 2>/dev/null; then
+      echo "$mode controller-state publisher failed; see $run_dir logs" >&2
+      exit 1
+    fi
   fi
 
   roslaunch trajectory_follower pp_pi_autoware.launch \
