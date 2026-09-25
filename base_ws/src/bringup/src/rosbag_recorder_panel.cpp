@@ -1,4 +1,5 @@
 #include "bringup/rosbag_recorder_panel.hpp"
+#include "bringup/rosbag_filename.hpp"
 
 #include <pluginlib/class_list_macros.h>
 #include <ros/ros.h>
@@ -6,9 +7,11 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QFile>
 #include <QFont>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QInputDialog>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QRegExp>
@@ -134,6 +137,10 @@ RosbagRecorderPanel::RosbagRecorderPanel(QWidget * parent)
   button_layout->addWidget(stop_button_);
   main_layout->addLayout(button_layout);
 
+  rename_button_ = new QPushButton(QString::fromUtf8("저장한 백 이름 변경"), this);
+  rename_button_->setEnabled(false);
+  main_layout->addWidget(rename_button_);
+
   status_label_ = new QLabel("Ready", this);
   status_label_->setWordWrap(true);
   main_layout->addWidget(status_label_);
@@ -141,6 +148,7 @@ RosbagRecorderPanel::RosbagRecorderPanel(QWidget * parent)
 
   connect(start_button_, &QPushButton::clicked, this, &RosbagRecorderPanel::startRecording);
   connect(stop_button_, &QPushButton::clicked, this, &RosbagRecorderPanel::stopRecording);
+  connect(rename_button_, &QPushButton::clicked, this, &RosbagRecorderPanel::nameCompletedBag);
   connect(
     recorder_, static_cast<void (QProcess::*)(int, QProcess::ExitStatus)>(&QProcess::finished),
     this, &RosbagRecorderPanel::recorderFinished);
@@ -152,16 +160,17 @@ RosbagRecorderPanel::RosbagRecorderPanel(QWidget * parent)
 
 RosbagRecorderPanel::~RosbagRecorderPanel()
 {
+  shutting_down_ = true;
   stopRecorderForShutdown();
 }
 
 QString RosbagRecorderPanel::makeOutputPath() const
 {
   QDir directory(output_directory_edit_->text().trimmed());
-  const QString stamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+  const QString stamp = recording_stamp_;
   QString path = directory.filePath("planning_rviz_" + stamp + ".bag");
   int suffix = 1;
-  while (QFileInfo::exists(path)) {
+  while (QFileInfo::exists(path) || QFileInfo::exists(path + ".active")) {
     path = directory.filePath(
       QString("planning_rviz_%1_%2.bag").arg(stamp).arg(suffix++));
   }
@@ -180,6 +189,7 @@ void RosbagRecorderPanel::startRecording()
     return;
   }
 
+  recording_stamp_ = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
   active_output_path_ = makeOutputPath();
   QStringList arguments{"record", "--lz4", "--buffsize=1024", "-O", active_output_path_};
   arguments.append(topics_.split(QRegExp("\\s+"), QString::SkipEmptyParts));
@@ -195,6 +205,7 @@ void RosbagRecorderPanel::startRecording()
   output_directory_edit_->setEnabled(false);
   start_button_->setEnabled(false);
   stop_button_->setEnabled(true);
+  rename_button_->setEnabled(false);
   status_label_->setText("Recording: " + QFileInfo(active_output_path_).fileName());
 }
 
@@ -212,17 +223,62 @@ void RosbagRecorderPanel::stopRecording()
 void RosbagRecorderPanel::recorderFinished(
   int exit_code, QProcess::ExitStatus exit_status)
 {
-  output_directory_edit_->setEnabled(true);
-  start_button_->setEnabled(true);
   stop_button_->setEnabled(false);
 
-  if (stop_requested_ && exit_status == QProcess::NormalExit) {
+  if (stop_requested_ && exit_status == QProcess::NormalExit && exit_code == 0 &&
+      QFileInfo::exists(active_output_path_) &&
+      !QFileInfo::exists(active_output_path_ + ".active")) {
+    completed_output_path_ = active_output_path_;
+    completed_stamp_ = recording_stamp_;
+    status_label_->setText("Saved: " + completed_output_path_);
+  } else if (shutting_down_ && QFileInfo::exists(active_output_path_)) {
     status_label_->setText("Saved: " + active_output_path_);
   } else {
     status_label_->setText(
       QString("Recorder stopped unexpectedly (exit %1)").arg(exit_code));
   }
   stop_requested_ = false;
+  output_directory_edit_->setEnabled(true);
+  start_button_->setEnabled(true);
+  rename_button_->setEnabled(!shutting_down_ && QFileInfo::exists(completed_output_path_));
+  rename_button_->setToolTip(completed_output_path_);
+}
+
+void RosbagRecorderPanel::nameCompletedBag()
+{
+  if (recorder_->state() != QProcess::NotRunning ||
+      !QFileInfo::exists(completed_output_path_) ||
+      QFileInfo::exists(completed_output_path_ + ".active")) {
+    status_label_->setText("Cannot rename: completed bag is unavailable");
+    return;
+  }
+  bool accepted = false;
+  const QString entered = QInputDialog::getText(
+    this, QString::fromUtf8("로스백 시나리오 이름"),
+    QString::fromUtf8("시나리오 약칭 (예: scooter5, scooter5_bevfusion)\n"
+                      "취소하면 현재 파일명으로 보관합니다."),
+    QLineEdit::Normal, last_scenario_name_, &accepted);
+  const QString scenario = normalizeBagScenario(entered);
+  if (!accepted || scenario.isEmpty()) {
+    status_label_->setText("Saved (name unchanged): " + completed_output_path_);
+    return;
+  }
+  last_scenario_name_ = scenario;
+  const QDir directory = QFileInfo(completed_output_path_).dir();
+  const QString requested = directory.filePath(
+    "plan_rviz_" + scenario + "_" + completed_stamp_ + ".bag");
+  if (requested == completed_output_path_) {
+    status_label_->setText("Saved (name unchanged): " + completed_output_path_);
+    return;
+  }
+  const QString destination = completedBagPath(directory, scenario, completed_stamp_);
+  if (!QFile::rename(completed_output_path_, destination)) {
+    status_label_->setText("Saved; rename failed. Original kept: " + completed_output_path_);
+    return;
+  }
+  completed_output_path_ = destination;
+  rename_button_->setToolTip(completed_output_path_);
+  status_label_->setText("Saved: " + completed_output_path_);
 }
 
 void RosbagRecorderPanel::discardRecorderOutput()
