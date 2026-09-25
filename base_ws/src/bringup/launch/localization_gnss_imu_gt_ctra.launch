@@ -21,6 +21,22 @@
        default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_gt_ctra_global.yaml"/>
   <!-- sensing.launch owns the shared sensor static TFs in the competition stack. -->
   <arg name="publish_sensor_tf" default="false"/>
+  <!-- Production controller state. Planning and TF continue to use the
+       unsmoothed global /localization/kinematic_state. -->
+  <arg name="publish_control_state" default="true"/>
+  <arg name="use_quantized_gnss_control_state" default="false"/>
+  <arg name="control_state_topic"
+       default="/localization/control_kinematic_state"/>
+  <arg name="control_translation_tau_sec" default="0.5"/>
+  <arg name="control_yaw_tau_sec" default="0.5"/>
+  <arg name="quantized_control_yaw_tau_sec" default="0.0"/>
+  <arg name="control_state_reset_translation_error_m" default="0.5"/>
+  <arg name="control_state_reset_yaw_error_deg" default="20.0"/>
+  <arg name="enable_relocation_guard" default="false"/>
+  <arg name="relocation_guard_monitor_only" default="true"/>
+  <arg name="relocation_guard_threshold_m" default="5.0"/>
+  <arg name="relocation_guard_consecutive_samples" default="3"/>
+  <arg name="relocation_guard_cooldown_sec" default="5.0"/>
 
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
@@ -61,5 +77,23 @@
     <arg name="map_frame" value="$(arg map_frame)"/>
     <arg name="morai_map_frame" value="$(arg morai_map_frame)"/>
     <arg name="base_frame" value="$(arg base_frame)"/>
+    <arg name="publish_control_state" value="$(arg publish_control_state)"/>
+    <arg name="use_quantized_gnss_control_state"
+         value="$(arg use_quantized_gnss_control_state)"/>
+    <arg name="control_state_topic" value="$(arg control_state_topic)"/>
+    <arg name="control_translation_tau_sec"
+         value="$(arg control_translation_tau_sec)"/>
+    <arg name="control_yaw_tau_sec" value="$(arg control_yaw_tau_sec)"/>
+    <arg name="quantized_control_yaw_tau_sec"
+         value="$(arg quantized_control_yaw_tau_sec)"/>
+    <arg name="control_state_reset_translation_error_m"
+         value="$(arg control_state_reset_translation_error_m)"/>
+    <arg name="control_state_reset_yaw_error_deg"
+         value="$(arg control_state_reset_yaw_error_deg)"/>
+    <arg name="enable_relocation_guard" value="$(arg enable_relocation_guard)"/>
+    <arg name="relocation_guard_monitor_only" value="$(arg relocation_guard_monitor_only)"/>
+    <arg name="relocation_guard_threshold_m" value="$(arg relocation_guard_threshold_m)"/>
+    <arg name="relocation_guard_consecutive_samples" value="$(arg relocation_guard_consecutive_samples)"/>
+    <arg name="relocation_guard_cooldown_sec" value="$(arg relocation_guard_cooldown_sec)"/>
   </include>
 </launch>

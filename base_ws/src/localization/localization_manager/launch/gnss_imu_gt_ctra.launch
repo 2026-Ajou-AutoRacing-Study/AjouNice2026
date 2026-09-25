@@ -39,8 +39,24 @@
   <arg name="local_odom_topic" default="/localization/odometry/local"/>
   <arg name="global_odom_topic" default="/localization/odom"/>
   <arg name="kinematic_state_topic" default="/localization/kinematic_state"/>
+  <arg name="publish_control_state" default="false"/>
+  <arg name="use_quantized_gnss_control_state" default="false"/>
+  <arg name="control_state_topic"
+       default="/localization/control_kinematic_state"/>
+  <arg name="control_translation_tau_sec" default="0.5"/>
+  <arg name="control_yaw_tau_sec" default="0.5"/>
+  <arg name="quantized_control_yaw_tau_sec" default="0.0"/>
+  <arg name="quantized_control_grid_yaw_deg" default="-1.347"/>
+  <arg name="control_state_reset_translation_error_m" default="0.5"/>
+  <arg name="control_state_reset_yaw_error_deg" default="20.0"/>
   <arg name="acceleration_topic" default="/localization/acceleration"/>
   <arg name="initial_pose_topic" default="/localization/initialpose"/>
+  <arg name="enable_relocation_guard" default="false"/>
+  <arg name="relocation_guard_monitor_only" default="true"/>
+  <arg name="relocation_guard_threshold_m" default="5.0"/>
+  <arg name="relocation_guard_consecutive_samples" default="3"/>
+  <arg name="relocation_guard_cooldown_sec" default="5.0"/>
+  <arg name="relocation_guard_max_sample_gap_sec" default="0.5"/>
 
   <arg name="map_frame" default="map"/>
   <arg name="morai_map_frame" default="morai_map"/>
@@ -135,6 +151,31 @@
            to="/localization/gnss_imu_gt/local_set_pose_unused"/>
   </node>
 
+  <!--
+    Experimental checkpoint-relocation detector. Disabled by default and
+    monitor-only when enabled; it cannot reset the Global EKF unless both
+    launch gates are deliberately changed.
+  -->
+  <node if="$(arg enable_relocation_guard)"
+        pkg="localization_manager"
+        type="localization_relocation_guard.py"
+        name="localization_relocation_guard"
+        output="screen">
+    <param name="monitor_only" value="$(arg relocation_guard_monitor_only)"/>
+    <param name="innovation_threshold_m" value="$(arg relocation_guard_threshold_m)"/>
+    <param name="consecutive_samples" value="$(arg relocation_guard_consecutive_samples)"/>
+    <param name="cooldown_sec" value="$(arg relocation_guard_cooldown_sec)"/>
+    <param name="max_sample_gap_sec"
+           value="$(arg relocation_guard_max_sample_gap_sec)"/>
+    <param name="gnss_topic" value="$(arg gnss_odom_topic)"/>
+    <param name="state_topic" value="$(arg kinematic_state_topic)"/>
+    <param name="orientation_topic" value="$(arg gt_orientation_topic)"/>
+    <param name="reset_topic" value="$(arg initial_pose_topic)"/>
+    <param name="map_frame" value="$(arg map_frame)"/>
+    <param name="max_state_age_sec" value="0.1"/>
+    <param name="max_orientation_age_sec" value="0.1"/>
+  </node>
+
   <node pkg="robot_localization"
         type="ekf_localization_node"
         name="gnss_imu_gt_global_ekf"
@@ -154,10 +195,66 @@
     <param name="input_topic" value="$(arg global_odom_topic)"/>
     <param name="output_topic" value="$(arg kinematic_state_topic)"/>
     <param name="z_input_topic" value="$(arg gnss_odom_topic)"/>
+    <param name="local_input_topic" value="$(arg local_odom_topic)"/>
     <param name="map_frame" value="$(arg map_frame)"/>
     <param name="odom_frame" value="odom"/>
     <param name="base_frame" value="$(arg base_frame)"/>
     <param name="max_z_age_sec" value="0.5"/>
-    <param name="tf_timeout_sec" value="0.05"/>
+    <param name="max_local_age_sec" value="0.05"/>
   </node>
+
+  <!--
+    Experimental controller-only state.  It owns no TF and does not replace
+    the global state consumed by planning.  Enable only for a controlled A/B.
+  -->
+  <group if="$(arg publish_control_state)">
+  <node unless="$(arg use_quantized_gnss_control_state)"
+        pkg="localization_manager"
+        type="smooth_control_state_publisher.py"
+        name="smooth_control_state_publisher"
+        output="screen">
+    <param name="global_topic" value="$(arg kinematic_state_topic)"/>
+    <param name="local_topic" value="$(arg local_odom_topic)"/>
+    <param name="output_topic" value="$(arg control_state_topic)"/>
+    <param name="map_frame" value="$(arg map_frame)"/>
+    <param name="odom_frame" value="odom"/>
+    <param name="base_frame" value="$(arg base_frame)"/>
+    <param name="translation_tau_sec"
+           value="$(arg control_translation_tau_sec)"/>
+    <param name="yaw_tau_sec" value="$(arg control_yaw_tau_sec)"/>
+    <param name="max_local_age_sec" value="0.05"/>
+    <param name="max_translation_rate_mps" value="0.0"/>
+    <param name="max_yaw_rate_degps" value="0.0"/>
+    <param name="reset_gap_sec" value="0.5"/>
+    <param name="reset_translation_error_m"
+           value="$(arg control_state_reset_translation_error_m)"/>
+    <param name="reset_yaw_error_deg"
+           value="$(arg control_state_reset_yaw_error_deg)"/>
+  </node>
+  <node if="$(arg use_quantized_gnss_control_state)"
+        pkg="localization_manager"
+        type="quantized_gnss_control_state_publisher.py"
+        name="quantized_gnss_control_state_publisher"
+        output="screen">
+    <param name="global_topic" value="$(arg kinematic_state_topic)"/>
+    <param name="local_topic" value="$(arg local_odom_topic)"/>
+    <param name="gnss_topic" value="$(arg gnss_odom_topic)"/>
+    <param name="output_topic" value="$(arg control_state_topic)"/>
+    <param name="map_frame" value="$(arg map_frame)"/>
+    <param name="odom_frame" value="odom"/>
+    <param name="base_frame" value="$(arg base_frame)"/>
+    <param name="cell_width_x_m" value="0.148"/>
+    <param name="cell_width_y_m" value="0.185"/>
+    <param name="cell_scale" value="1.25"/>
+    <param name="grid_yaw_deg" value="$(arg quantized_control_grid_yaw_deg)"/>
+    <param name="preserve_global_longitudinal" value="true"/>
+    <param name="max_gnss_global_distance_m" value="0.5"/>
+    <param name="gnss_recovery_grace_sec" value="1.0"/>
+    <param name="yaw_tau_sec" value="$(arg quantized_control_yaw_tau_sec)"/>
+    <param name="reset_translation_error_m"
+           value="$(arg control_state_reset_translation_error_m)"/>
+    <param name="reset_yaw_error_deg"
+           value="$(arg control_state_reset_yaw_error_deg)"/>
+  </node>
+  </group>
 </launch>

@@ -1,6 +1,6 @@
 # Localization 문서 index
 
-마지막 정리: 2026-09-24.
+마지막 정리: 2026-09-25.
 
 이 디렉터리의 문서는 날짜가 아니라 `CURRENT / EVIDENCE / PLAN / HISTORICAL`
 상태로 판단한다. 코드와 문서가 다르면 현재 branch의 tracked launch/config/code를
@@ -21,18 +21,24 @@
 + /sensor/gps
 + /sensor/imu yaw-rate, longitudinal acceleration
 -> local/global robot_localization EKF
--> /localization/kinematic_state
+-> /localization/kinematic_state (Planning/TF)
+-> /localization/control_kinematic_state (Controller, smooth tau=0.5/0.5 s)
 ```
 
 - MR 및 실대회: `localization`, `/Competition_topic`, heading correction `-1.347 deg`.
 - MRP: `localization_mrp`, `/Ego_topic`, heading correction `0 deg`.
 - GNSS horizontal sigma `0.10 m`, Global EKF Qxy `0.0005`.
+- controller는 Smooth state `/localization/control_kinematic_state`를 사용한다.
+  Planning과 TF는 Global `/localization/kinematic_state`를 유지한다.
 - `predict_to_current_time=true`, `two_d_mode=true`, `publish_sensor_tf=false`.
 - 대회에서 `/Ego_topic` 기반 provider는 fallback이 아니다.
 - 공식 시작 position interface가 확정되기 전까지 초기 pose 한 번만
   `/Ego_topic`을 임시 사용한다. 연속 localization source나 대회 fallback이라는 뜻은
   아니다.
 - localization A/B에는 `od_gt`를 사용해 detector/GPU 부하를 분리한다.
+- 폐루프 전체 코스 A/B에는 객체·spawn을 제거하고 GPS 음영 영역을 유지한
+  `configs/scenario/localization_evaluation/localization_full_route_no_actors.json`을
+  사용한다. 신호등 인지와 planner plugin도 함께 끈다.
 
 ## EVIDENCE
 
@@ -40,6 +46,28 @@
   - 현재 코드·bag·평가기의 1차 감사와 다음 개선 우선순위.
 - [`260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md`](260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md)
   - GPS 음영 state 연속 발행과 frame·단위 계약 감사.
+- [`260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md`](260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md)
+  - Global 정확도와 Local 연속성을 분리한 controller용 state의 offline 사전 검증.
+- [`260925_SMOOTH_CONTROL_STATE_OPEN_LOOP_EVIDENCE.md`](260925_SMOOTH_CONTROL_STATE_OPEN_LOOP_EVIDENCE.md)
+  - 동일 trajectory에서 controller 입력만 바꾼 open-loop A/B.
+- [`260925_SMOOTH_CONTROL_STATE_CLOSED_LOOP_EVIDENCE.md`](260925_SMOOTH_CONTROL_STATE_CLOSED_LOOP_EVIDENCE.md)
+  - 전체 경로·GPS 음영 포함 폐루프 A/B와 Smooth state production 승격 근거.
+- [`260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md`](260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md)
+  - GNSS cell interval과 Global 종방향을 결합한 controller state 후보의 1× replay.
+- [`260925_GNSS_QUANTIZATION_LATTICE_AUDIT.md`](260925_GNSS_QUANTIZATION_LATTICE_AUDIT.md)
+  - 세 raw bag의 `1/600000°` 격자와 UTM cell 축 `-1.348°` 정합 감사.
+- [`260925_MOTION_INPUT_ABLATION_EVIDENCE.md`](260925_MOTION_INPUT_ABLATION_EVIDENCE.md)
+  - IMU yaw-rate/ax 제거 A/B와 production motion input 유지 근거.
+- [`260925_FUSION_INPUT_CONTRACT_AUDIT.md`](260925_FUSION_INPUT_CONTRACT_AUDIT.md)
+  - IMU yaw-rate의 부호·단위·시간 정합과 lever-arm 이중 보정 방지 감사.
+- [`260925_EGO_ORACLE_TIMING_AUDIT.md`](260925_EGO_ORACLE_TIMING_AUDIT.md)
+  - Ego pose의 프레임 시간 불균일과 종 frame-jump 해석 제한.
+- [`260925_TF_COTIME_CONTRACT_EVIDENCE.md`](260925_TF_COTIME_CONTRACT_EVIDENCE.md)
+  - Local/Global EKF 시각 불일치로 생긴 TF closure 오류와 수정 replay.
+- [`260925_GNSS_OUTAGE_REACQUISITION_EVIDENCE.md`](260925_GNSS_OUTAGE_REACQUISITION_EVIDENCE.md)
+  - 반복 가능한 8초 음영 replay와 큰 재획득 correction의 안전 reset.
+- [`260925_CHECKPOINT_RELOCATION_GUARD_EVIDENCE.md`](260925_CHECKPOINT_RELOCATION_GUARD_EVIDENCE.md)
+  - 기본 OFF/monitor-only 체크포인트 이동 감지 가드와 정상 bag 오탐 감사.
 - [`260918_competition_localization_critical_issue_status.md`](260918_competition_localization_critical_issue_status.md)
   - 현장 채터링, GNSS 양자화, 시간축과 GPS 음영 문제의 누적 원인 분석.
 - [`260920_lightweight_closed_loop_evidence.md`](260920_lightweight_closed_loop_evidence.md)

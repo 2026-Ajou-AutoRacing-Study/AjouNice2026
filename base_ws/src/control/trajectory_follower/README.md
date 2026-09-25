@@ -60,6 +60,14 @@ lookahead:
 roslaunch trajectory_follower pp_pi_autoware.launch
 ```
 
+Localization continuity A/B에서는 planning/TF는 그대로 둔 채 두 controller가 같은
+후보 state를 보도록 다음 인자만 바꿀 수 있다. 기본값은 기존 Global state다.
+
+```bash
+roslaunch trajectory_follower pp_pi_autoware.launch \
+  kinematic_state_topic:=/localization/control_kinematic_state
+```
+
 두 모드는 `path_processing/resampling_ds_m`과
 `path_processing/curvature_calculation_distance_m`을 공유한다. 따라서 같은 trajectory와
 차량 상태에서는 `path_curvature`가 같고 LD 선택 이후의 target/steering 계산도 동일하다.

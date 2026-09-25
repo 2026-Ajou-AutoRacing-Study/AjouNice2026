@@ -41,6 +41,7 @@ def main():
                 except OSError:
                     time.sleep(.05)
             import rospy
+            from geometry_msgs.msg import TwistStamped
             from morai_msgs.msg import EgoVehicleStatus, GPSMessage, ObjectStatusList, CollisionData
             from sensor_msgs.msg import Imu, CompressedImage
             rospy.init_node('receipt_test', disable_signals=True)
@@ -75,6 +76,7 @@ def main():
             subscribers = []
             for topic, cls in [('/Ego_topic', EgoVehicleStatus), ('/Competition_topic', EgoVehicleStatus),
                                ('/Object_topic', ObjectStatusList), ('/CollisionData', CollisionData),
+                               ('/competition/raw_twist', TwistStamped),
                                ('/sensor/imu', Imu), ('/sensor/gps', GPSMessage),
                                ('/sensor/camera/front/compressed', CompressedImage)]:
                 subscribers.append(rospy.Subscriber(topic, cls,
@@ -93,6 +95,9 @@ def main():
                     struct.pack_into('<ii', packet, 27, remote, 0)
                     packet[-2:] = b'\r\n'
                     packets[topic] = packet
+                # Competition packet offsets: vel_xyz=101, ang_vel_xyz=113.
+                struct.pack_into('<fff', packets['/Competition_topic'], 101, 36.0, 0.0, 0.0)
+                struct.pack_into('<fff', packets['/Competition_topic'], 113, 0.0, 0.0, 0.25)
                 imu = bytearray(115)
                 struct.pack_into('<ii', imu, 25, remote, 0)
                 struct.pack_into('<d', imu, 33, 1.0)
@@ -119,7 +124,13 @@ def main():
                     stamp = message.header.stamp.to_sec()
                     assert started <= stamp <= observed, (topic, stamp, started, observed)
                     assert observed - stamp < .5, (topic, observed - stamp)
-                print('PASS: remote clock offset %+d s, all 7 streams use ROS receipt time' % offset)
+                assert '/competition/raw_twist' in received
+                twist, observed = received['/competition/raw_twist']
+                assert abs(twist.twist.linear.x - 10.0) < 1.0e-6
+                assert abs(twist.twist.angular.z - 0.25) < 1.0e-6
+                assert twist.header.frame_id == 'base_link'
+                assert observed - twist.header.stamp.to_sec() < .5
+                print('PASS: remote clock offset %+d s, all streams use ROS receipt time' % offset)
             sock.close()
             rospy.signal_shutdown('test complete')
         finally:
