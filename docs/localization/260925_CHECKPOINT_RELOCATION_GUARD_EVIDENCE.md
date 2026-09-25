@@ -61,6 +61,25 @@ sample에서 감지했다.
 두 sample까지 reset 0회, 세 번째 sample에서 `/localization/initialpose` 1회와 올바른
 map pose/covariance를 확인했다.
 
+추가로 raw Competition 입력 25초 구간의 후반 GNSS 북방 위치에 `+20 m`를 주입하고
+Local/Global EKF, final publisher, smooth control state, active guard 전체를 1× replay했다.
+
+| 항목 | 결과 |
+|---|---:|
+| initial pose / relocation reset message | 1 / **1회** |
+| reset 직전 GNSS–Global 차이 | **19.93 m** |
+| trigger 시 innovation | **17.455 m** |
+| reset 직후 GNSS–Global 차이 | **0.000 m** |
+| 0.1초 뒤 GNSS–Global 차이 | 0.126 m |
+| 2.0초 뒤 GNSS–Global 차이 | 0.030 m |
+| Global / control state rate | **49.996 / 49.996 Hz** |
+
+Global EKF가 세 번째 sample 전 일부 correction을 시작했으므로 trigger innovation은
+주입한 20 m보다 작다. Reset 순간 Global state는 17.455 m 이동했고 control state도
+17.543 m 이동했다. 실제 checkpoint 순간이동에서는 이전 위치를 부드럽게 통과하는
+것보다 planning과 controller를 새 위치에 즉시 함께 정렬하는 것이 의도한 동작이다.
+이 결과는 mechanism 검증이지 실제 checkpoint 폐루프 승인 결과는 아니다.
+
 ## 재현
 
 ```bash
@@ -83,4 +102,3 @@ python3 scripts/evaluation/localization/analyze_relocation_guard_bag.py \
 3. 경량 `od_gt` 폐루프에서 active reset 후 route/controller 복구를 확인한다.
 4. LAN-to-LAN에서 동일 reset 계약을 확인한다.
 5. 가능하면 휴리스틱보다 주최 측의 명시적 checkpoint/reset event를 우선한다.
-
