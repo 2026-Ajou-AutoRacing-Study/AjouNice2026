@@ -3,6 +3,9 @@
   <arg name="use_sim_time" default="false"/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="gt_source" default="ego"/>
+  <arg name="initial_position_source" default="ego"/>
+  <arg name="official_start_config"
+       default="$(arg repo_root)/base_ws/src/competition/competition_rule_monitor/config/kcity_v85_rules.yaml"/>
   <arg name="use_heading_correction" default="true"/>
   <arg name="heading_yaw_offset_deg" default="-1.347"/>
   <arg name="sensor_config"
@@ -64,6 +67,8 @@
 
   <include file="$(find localization_manager)/launch/gnss_imu_gt_ctra.launch">
     <arg name="gt_source" value="$(arg gt_source)"/>
+    <arg name="initial_position_source" value="$(arg initial_position_source)"/>
+    <arg name="official_start_config" value="$(arg official_start_config)"/>
     <arg name="use_heading_correction"
          value="$(arg use_heading_correction)"/>
     <arg name="heading_yaw_offset_deg"

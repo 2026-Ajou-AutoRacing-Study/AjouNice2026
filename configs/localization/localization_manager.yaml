@@ -42,10 +42,15 @@ providers:
       max_position_variance_m2: 200.0
   gnss_imu:
     initialization:
-      # Development proxy for the competition-provided starting pose.
-      # Switch to manual when the official start-pose interface is available.
-      source: ego  # ego | manual
+      # Only the initial position uses Ego in MR development. The CTRA launch
+      # selects its initial heading from the same status source as motion.
+      source: ego  # ego | official_start | manual
       heading_unit: degrees
+      max_pose_heading_stamp_delta_sec: 0.2
+      max_official_gnss_heading_stamp_delta_sec: 0.5
+      max_official_start_distance_m: 3.0
+      # Fail closed on the observed 1.347-degree missing/double-correction error.
+      max_official_yaw_error_deg: 1.0
       position_stddev_m: 0.1
       yaw_stddev_rad: 0.017453292519943295
       manual:

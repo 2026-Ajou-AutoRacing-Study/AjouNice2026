@@ -17,7 +17,7 @@ translation/yaw tau `0.5/0.5 s`의 연속적인 state를 사용한다. GPS 음�
 | alias | `localization` | `localization_mrp` |
 | motion source | `/Competition_topic` | `/Ego_topic` |
 | heading correction | `-1.347 deg` | `0 deg` |
-| initial pose | 공식 시작 position 제공 전 첫 `/Ego_topic` pose 임시 사용 | 동일 |
+| initial pose | 개발 기본값: 첫 `/Ego_topic` **위치** + `/Competition_topic` **heading**. 대회 후보: 공식 START 위치 + `/Competition_topic` heading | 첫 `/Ego_topic` 위치·heading, 보정 `0 deg` |
 | GNSS horizontal sigma | `0.10 m` | `0.10 m` |
 | Global EKF Qxy | `0.0005` | `0.0005` |
 | planning/TF state | `/localization/kinematic_state` | 동일 |
@@ -32,8 +32,17 @@ translation/yaw tau `0.5/0.5 s`의 연속적인 state를 사용한다. GPS 음�
 - UDP는 ROS host receipt-time 정책을 유지한다.
 - localization provider는 한 번에 하나만 실행한다.
 - 대회에서 `/Ego_topic`과 `/Object_topic`을 기대하지 않는다.
-- `/Ego_topic`은 현재 초기 pose 한 번에만 쓰는 개발용 임시 입력이다. 공식 시작
-  position interface를 받으면 교체한다.
+- MR 개발용 `localization`은 초기 위치에만 `/Ego_topic`을 쓴다. 초기 yaw와
+  연속 GT yaw는 모두 `/Competition_topic.heading - 1.347 deg`다.
+- 대회용 고정 위치 후보는 `localization initial_position_source:=official_start`로
+  명시한다. 위치는 v85 공식 규칙 파일의 `start_finish.xyz`를 `morai_map -> map`
+  변환하고 yaw는 동일한 Competition heading을 쓴다. 공식 `start_finish.yaw_deg`는
+  입력 yaw가 아니라 시작 정합 검증 기준이다. 보정된 yaw가 기준과 `1 deg` 초과로
+  다르면 초기화를 거부한다. GNSS map 위치가 공식 START에서 `3 m` 이내이고
+  Competition heading과 GNSS stamp 차이가 `0.5 s` 이내인 것도 확인한다.
+  이 모드는 실제 시작점 검증 전까지 기본값이 아니다.
+- 공식 고정 모드에서는 `/Ego_topic`을 구독하거나 기다리지 않는다. 사고 후
+  체크포인트 복귀를 START 초기값으로 반복 처리하지 않는다.
 
 ## 현재 데이터 흐름
 
@@ -161,9 +170,10 @@ closure p95는 `17.40 -> 0.071 cm`로 감소했다. EKF state 자체는 변경�
 
 ### P1. 공식 start pose 교체와 checkpoint reset
 
-Competition Status에는 global position이 없다. 현재 첫 `/Ego_topic` pose는 주최 측의
-공식 시작 position interface가 아직 확정되지 않아 초기값 용도로만 쓰는 의도적인 임시
-계약이며 문제나 fallback이 아니다. 공식 interface가 제공되면 이 입력만 교체한다.
+Competition Status에는 global position이 없다. MR 개발 기본값의 첫 `/Ego_topic`
+**위치**는 임의 시나리오를 지원하기 위한 초기값 전용이다. 공식 START 좌표가
+확인되어 이를 선택하는 launch 인자를 마련했지만, 현장 시작점·yaw 대조 검증 전에는
+대회 기본값으로 승격하지 않는다. MRP는 별도 Ego 계약을 유지한다.
 사고 후 checkpoint 순간이동 후보를 감지하는 가드를 추가했다. 정상 bag 두 개에서
 5 m 초과 innovation은 0건이었고 합성 20 m 이동은 3 sample 뒤 감지했지만, 실제
 checkpoint bag과 폐루프가 없어 기본 OFF·monitor-only다. active 후보는 Global EKF만

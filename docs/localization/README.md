@@ -32,9 +32,10 @@
   Planning과 TF는 Global `/localization/kinematic_state`를 유지한다.
 - `predict_to_current_time=true`, `two_d_mode=true`, `publish_sensor_tf=false`.
 - 대회에서 `/Ego_topic` 기반 provider는 fallback이 아니다.
-- 공식 시작 position interface가 확정되기 전까지 초기 pose 한 번만
-  `/Ego_topic`을 임시 사용한다. 연속 localization source나 대회 fallback이라는 뜻은
-  아니다.
+- MR의 초기 yaw와 연속 yaw는 모두 보정된 `/Competition_topic.heading`을 쓴다.
+  개발 기본값은 초기 **위치만** `/Ego_topic`에서 가져온다. 대회 공식 START
+  위치는 `localization initial_position_source:=official_start`로 선택하며,
+  실제 시작점 대조 전에는 기본값으로 승격하지 않는다.
 - localization A/B에는 `od_gt`를 사용해 detector/GPU 부하를 분리한다.
 - 폐루프 전체 코스 A/B에는 객체·spawn을 제거하고 GPS 음영 영역을 유지한
   `configs/scenario/localization_evaluation/localization_full_route_no_actors.json`을
@@ -96,6 +97,9 @@ PLAN의 구조나 파라미터는 production 기본값이 아니다. 동일 bag 
 ```bash
 # MR 및 실대회
 localization
+
+# 공식 START에서만: v85 공식 시작 위치 + 보정된 Competition 초기 yaw
+localization initial_position_source:=official_start
 
 # MRP
 localization_mrp
