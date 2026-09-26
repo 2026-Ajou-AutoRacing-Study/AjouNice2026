@@ -1,7 +1,7 @@
 # Competition Localization 현재 상태
 
 상태: **CURRENT**
-마지막 갱신: 2026-09-25
+마지막 갱신: 2026-09-26
 
 ## 한 줄 결론
 
@@ -16,7 +16,7 @@ translation/yaw tau `0.5/0.5 s`의 연속적인 state를 사용한다. GPS 음�
 |---|---|---|
 | alias | `localization` | `localization_mrp` |
 | motion source | `/Competition_topic` | `/Ego_topic` |
-| heading correction | `-1.347 deg` | `0 deg` |
+| heading correction | `-1.347 deg` | `0 deg` (현재 설정; MRP 시나리오·지도 기준 독립 검증은 아직 없음) |
 | initial pose | 개발 기본값: 첫 `/Ego_topic` **위치** + `/Competition_topic` **heading**. 대회 후보: 공식 START 위치 + `/Competition_topic` heading | 첫 `/Ego_topic` 위치·heading, 보정 `0 deg` |
 | GNSS horizontal sigma | `0.10 m` | `0.10 m` |
 | Global EKF Qxy | `0.0005` | `0.0005` |
@@ -40,9 +40,38 @@ translation/yaw tau `0.5/0.5 s`의 연속적인 state를 사용한다. GPS 음�
   입력 yaw가 아니라 시작 정합 검증 기준이다. 보정된 yaw가 기준과 `1 deg` 초과로
   다르면 초기화를 거부한다. GNSS map 위치가 공식 START에서 `3 m` 이내이고
   Competition heading과 GNSS stamp 차이가 `0.5 s` 이내인 것도 확인한다.
-  이 모드는 실제 시작점 검증 전까지 기본값이 아니다.
+  MR 로컬 시작점 대조는 통과했으나 대회 LAN 검증 전까지 기본값이 아니다.
 - 공식 고정 모드에서는 `/Ego_topic`을 구독하거나 기다리지 않는다. 사고 후
   체크포인트 복귀를 START 초기값으로 반복 처리하지 않는다.
+
+## 공식 START MR 로컬 검증 (2026-09-26)
+
+`06023573` 코드 기준으로 MR에 공식 START 위치·yaw를 지정한 로컬 전용
+`0_official_start_localization_probe.json`을 로드하고
+`localization initial_position_source:=official_start`를 실행했다. 시나리오 파일은
+MORAI SaveFile에만 있으며 Git 전달물이 아니다. 공식 기준은 v85 규칙 파일의
+`start_finish`다.
+
+| 항목 | 관측값 |
+|---|---:|
+| 공식 START morai_map 좌표 | `(-131.689798, -428.331023, 28.543960) m` |
+| 공식 START yaw | `61.298126 deg` |
+| `/Competition_topic` raw heading | `62.627533 deg` |
+| raw heading `- 1.347 deg` | `61.280533 deg` |
+| EKF 초기 / 현재 yaw | `61.280762 / 61.280532 deg` |
+| EKF 초기 map XY / 공식 START 변환 map XY | `(-0.130667, 117.580) / (-0.130667, 117.580) m` |
+
+초기화는 `/Ego_topic` 없이 완료됐고, 보정된 yaw와 공식 기준 차이는
+`0.017593 deg`다. 이는 **MR 로컬 출발 정합 통과**이지 LAN-to-LAN, 전체 주행,
+checkpoint 복귀 검증은 아니다. 이 한 표본만으로 `-1.347 deg`를 재조정하지 않는다.
+공식 시나리오 로드 직후 z 변화에 따른 차량 자세 안정화가 차이에 기여했을 가능성은
+있지만 측정된 원인으로 단정하지 않는다. 시작 직후 Smooth가
+`translation_discontinuity` reset을 한 번 기록했으며 반복 여부·주행 영향은 이
+시험에서 평가하지 않았다.
+
+MRP의 `0 deg`는 현재 alias 설정과 기존 MRP replay 비교 계약이다. 공식
+시나리오 yaw와 지도 heading을 독립 대조한 결과가 아니므로 MR의
+`-1.347 deg`와 우열·정합성을 이 결과에서 추론하지 않는다.
 
 ## 현재 데이터 흐름
 
@@ -172,8 +201,9 @@ closure p95는 `17.40 -> 0.071 cm`로 감소했다. EKF state 자체는 변경�
 
 Competition Status에는 global position이 없다. MR 개발 기본값의 첫 `/Ego_topic`
 **위치**는 임의 시나리오를 지원하기 위한 초기값 전용이다. 공식 START 좌표가
-확인되어 이를 선택하는 launch 인자를 마련했지만, 현장 시작점·yaw 대조 검증 전에는
-대회 기본값으로 승격하지 않는다. MRP는 별도 Ego 계약을 유지한다.
+확인되어 이를 선택하는 launch 인자를 마련했다. MR 로컬 공식 START 위치·yaw 대조는
+통과했지만 현장 LAN 시작 검증 전에는 대회 기본값으로 승격하지 않는다. MRP는 별도
+Ego 계약을 유지한다.
 사고 후 checkpoint 순간이동 후보를 감지하는 가드를 추가했다. 정상 bag 두 개에서
 5 m 초과 innovation은 0건이었고 합성 20 m 이동은 3 sample 뒤 감지했지만, 실제
 checkpoint bag과 폐루프가 없어 기본 OFF·monitor-only다. active 후보는 Global EKF만

@@ -1,6 +1,6 @@
 # Localization 문서 index
 
-마지막 정리: 2026-09-25.
+마지막 정리: 2026-09-26.
 
 이 디렉터리의 문서는 날짜가 아니라 `CURRENT / EVIDENCE / PLAN / HISTORICAL`
 상태로 판단한다. 코드와 문서가 다르면 현재 branch의 tracked launch/config/code를
@@ -27,6 +27,7 @@
 
 - MR 및 실대회: `localization`, `/Competition_topic`, heading correction `-1.347 deg`.
 - MRP: `localization_mrp`, `/Ego_topic`, heading correction `0 deg`.
+  이는 현재 replay 설정이며 MRP 시나리오·지도 yaw 정합의 독립 검증은 아니다.
 - GNSS horizontal sigma `0.10 m`, Global EKF Qxy `0.0005`.
 - controller는 Smooth state `/localization/control_kinematic_state`를 사용한다.
   Planning과 TF는 Global `/localization/kinematic_state`를 유지한다.
@@ -35,7 +36,8 @@
 - MR의 초기 yaw와 연속 yaw는 모두 보정된 `/Competition_topic.heading`을 쓴다.
   개발 기본값은 초기 **위치만** `/Ego_topic`에서 가져온다. 대회 공식 START
   위치는 `localization initial_position_source:=official_start`로 선택하며,
-  실제 시작점 대조 전에는 기본값으로 승격하지 않는다.
+  MR 로컬 공식 START 대조는 통과했다(위 CURRENT 문서). 대회 LAN 시작 검증 전에는
+  기본값으로 승격하지 않는다.
 - localization A/B에는 `od_gt`를 사용해 detector/GPU 부하를 분리한다.
 - 폐루프 전체 코스 A/B에는 객체·spawn을 제거하고 GPS 음영 영역을 유지한
   `configs/scenario/localization_evaluation/localization_full_route_no_actors.json`을
