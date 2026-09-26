@@ -22,6 +22,7 @@ catkin_install_python(PROGRAMS
   scripts/morai_gt_kinematic_state_publisher.py
   scripts/morai_gps_to_navsatfix.py
   scripts/imu_covariance_adapter.py
+  scripts/competition_yaw_rate_imu_adapter.py
   scripts/morai_gps_to_local_odometry.py
   scripts/morai_gt_motion_adapter.py
   scripts/gnss_imu_initial_pose_publisher.py
@@ -45,8 +46,11 @@ install(DIRECTORY rviz/
 if(CATKIN_ENABLE_TESTING)
   find_package(rostest REQUIRED)
   catkin_add_nosetests(test/test_gnss_imu_contract.py)
+  catkin_add_nosetests(test/test_gnss_imu_initial_pose.py)
+  catkin_add_nosetests(test/test_gnss_quantization_input.py)
   catkin_add_nosetests(test/test_smooth_control_state.py)
   catkin_add_nosetests(test/test_quantized_gnss_control_state.py)
+  catkin_add_nosetests(test/test_competition_yaw_rate_imu_adapter.py)
   catkin_add_nosetests(test/test_localization_relocation_guard.py)
   catkin_add_nosetests(test/test_morai_gt_contract.py)
   add_rostest(test/morai_gt_transport.test)

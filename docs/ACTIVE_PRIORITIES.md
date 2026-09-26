@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획
 
-마지막 갱신: 2026-09-20.
+마지막 갱신: 2026-09-26.
 
 이 문서는 **아직 끝나지 않았고 다음 작업에서 반드시 다시 확인할 항목만** 둔다.
 완료된 수집·학습·실험 수치는 각 CURRENT/EVIDENCE 문서에 보존하며 여기로 다시
@@ -14,7 +14,8 @@
 - E25는 7D detector이므로 detector velocity fusion은 기본 `off`.
 - Prediction: Lanelet Map-CV, 현재 3초 horizon.
 - Localization production: `/Competition_topic`, heading correction `-1.347 deg`,
-  sensor TF 중복 발행 금지. MRP 로컬 실행은 `localization_mrp`.
+  sensor TF 중복 발행 금지. Planning/TF는 Global state, controller는 Smooth
+  `/localization/control_kinematic_state`를 사용한다. MRP는 `localization_mrp`.
 
 실행 계약은
 [`bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`](bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md)와
@@ -32,9 +33,12 @@
 - 경량 GT-object 폐루프에서 production Q/R은 localization `50 Hz`, 횡 frame-jump
   p95 약 `1.31 cm`, steering-rate p95 약 `0.54 rad/s`를 유지했다. 이 test bed 확보는
   완료됐고 `sigma=0.05, Qxy=0.05` preset은 기각한다.
-- 다음 gate는 최신 Pure Pursuit limiter를 포함한 LAN-to-LAN closed-loop와 GPS 음영
-  복귀 검증이다. 그 전에는 quantization-aware update나 global/local 제어 상태 분리를
-  추가하지 않는다.
+- Global/Local state 분리와 Smooth controller 입력은 경량 전체 경로 폐루프 A/B를
+  통과해 production에 반영했다. Quantization-aware 후보는 동일 기록 controller
+  A/B에서 Smooth보다 우위가 없었고, 폐루프 승격 전이므로 기본 OFF다.
+- 공식 START 고정 위치 + 보정된 Competition heading 초기화는 MR 로컬 대조를
+  통과했다. 대회 LAN 출발·GPS 음영 복귀·checkpoint 순간이동 검증은 남아 있다.
+  공식 START는 그때까지 opt-in이며 개발 기본 초기 위치는 `/Ego_topic`이다.
 
 현재 production 계약과 개선 순서:
 [`localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md`](localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md).

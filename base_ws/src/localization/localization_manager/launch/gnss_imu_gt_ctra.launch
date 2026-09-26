@@ -26,6 +26,9 @@
        default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_gt_ctra_global.yaml"/>
 
   <arg name="gt_source" default="ego"/>
+  <arg name="initial_position_source" default="ego"/>
+  <arg name="official_start_config"
+       default="$(arg repo_root)/base_ws/src/competition/competition_rule_monitor/config/kcity_v85_rules.yaml"/>
   <arg name="use_heading_correction" default="true"/>
   <arg name="heading_yaw_offset_deg" default="-1.347"/>
   <arg name="ego_topic" default="/Ego_topic"/>
@@ -36,6 +39,8 @@
   <arg name="gps_topic" default="/sensor/gps"/>
   <arg name="normalized_imu_topic" default="/localization/imu"/>
   <arg name="gnss_odom_topic" default="/localization/gnss/odom"/>
+  <arg name="gnss_quantization_input_mode" default="off"/>
+  <arg name="gnss_quantization_step_deg" default="0.0000016666666666666667"/>
   <arg name="local_odom_topic" default="/localization/odometry/local"/>
   <arg name="global_odom_topic" default="/localization/odom"/>
   <arg name="kinematic_state_topic" default="/localization/kinematic_state"/>
@@ -110,6 +115,8 @@
         output="screen">
     <param name="input_topic" value="$(arg gps_topic)"/>
     <param name="output_topic" value="$(arg gnss_odom_topic)"/>
+    <param name="quantization_input_mode" value="$(arg gnss_quantization_input_mode)"/>
+    <param name="quantization_step_deg" value="$(arg gnss_quantization_step_deg)"/>
     <param name="sensor_config" value="$(arg sensor_config)"/>
     <param name="map_frame" value="$(arg map_frame)"/>
     <param name="morai_map_frame" value="$(arg morai_map_frame)"/>
@@ -128,11 +135,16 @@
     <param name="tf_timeout_sec" value="0.1"/>
   </node>
 
-  <!-- Initial pose remains independent of the continuously selected GT source. -->
+  <!-- Position source is selectable; heading follows the continuous GT source. -->
   <node pkg="localization_manager"
         type="gnss_imu_initial_pose_publisher.py"
         name="gnss_imu_initial_pose_publisher"
         output="screen">
+    <rosparam command="load" file="$(arg official_start_config)"/>
+    <param name="initial_position_source" value="$(arg initial_position_source)"/>
+    <param name="initial_heading_source" value="$(arg gt_source)"/>
+    <param name="competition_topic" value="$(arg competition_topic)"/>
+    <param name="gnss_odom_topic" value="$(arg gnss_odom_topic)"/>
     <param name="use_heading_correction"
            value="$(arg use_heading_correction)"/>
     <param name="heading_yaw_offset_deg"

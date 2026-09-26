@@ -252,11 +252,17 @@ sensing/UDP 순서로 내린 뒤 roscore를 마지막에 종료한다.
 MR에서 다음 시나리오를 연다.
 
 ```text
-localization_full_route_no_actors
+0_localization_full_route_no_actors
 ```
 
 tracked 원본은
 `configs/scenario/localization_evaluation/localization_full_route_no_actors.json`이다.
+MR `SaveFile/Scenario/R_KR_PR_K-city_2025`에서는 목록 상단에 보이도록 로컬
+복사본의 파일명에만 `0_`를 붙였다. 같은 방식으로 샘플 시나리오와 Base3 정적
+장애물 벤치마크도 각각 `0_2026_molit_comp_sample_scene.json`,
+`0_bench_static_obstacle_base3_assets_raw.json`으로 표시된다. Git에 있는 원본
+시나리오 이름이나 JSON 내용은 바꾸지 않는다. 이 MR 로컬 파일명은 Git pull만으로
+다른 PC에 생성되지 않는다.
 원본 sample의 Ego 시작점, 전체 코스와 GPS 음영 영역은 유지하고 NPC, 보행자,
 장애물과 모든 actor spawn을 제거했다. Sensor는
 `Sensor_localization_gt_lightweight.json`, Ego Network는
@@ -388,6 +394,30 @@ traj_fol_global
 ```
 
 bag tag는 `global_full_route_no_actors`를 사용한다.
+
+### Quantized-GNSS 후보 폐루프 재현
+
+Production 기본값을 바꾸지 않고 quantization-aware controller state의 마지막 폐루프
+gate를 수행할 때만 Terminal 4를 다음으로 바꾼다. Terminal 10은 production과 같은
+`traj_fol_a`를 사용한다.
+
+```bash
+ajou
+roslaunch bringup localization_gnss_imu_gt_ctra.launch \
+  gt_source:=competition \
+  use_heading_correction:=true \
+  heading_yaw_offset_deg:=-1.347 \
+  publish_sensor_tf:=false \
+  publish_control_state:=true \
+  use_quantized_gnss_control_state:=true \
+  quantized_control_yaw_tau_sec:=0.0 \
+  quantized_control_grid_yaw_deg:=-1.347
+```
+
+Terminal 9의 bag tag는 `quantized_full_route_no_actors`로 지정한다. 이 실험은
+Planning/TF의 Global state를 바꾸지 않고 controller용 state만 교체한다. 결과가
+Smooth production보다 좋아도 문서의 offline/open-loop/음영 안전 gate와 함께 검토한
+뒤에만 기본값을 바꾼다.
 
 기본값 대신 과거 closed-loop 후보를 재검증할 때는 위 `localization` 한 줄만 다음 중
 하나로 교체한다. 다른 터미널 구성은 동일하게 유지한다.

@@ -315,7 +315,9 @@ class MoraiEgoUdpReceiver {
     // EgoVehicleStatus is kept byte-compatible with existing bags and has no
     // angular-velocity field. Preserve the full Competition packet motion on
     // a separate standard ROS topic instead of silently discarding it. MORAI
-    // encodes linear velocity in km/h and angular velocity in rad/s.
+    // encodes linear velocity in km/h. The angular fields are intentionally
+    // preserved in native clockwise degrees/s on this *raw* topic; consumers
+    // must explicitly convert them before using a ROS rad/s convention.
     geometry_msgs::TwistStamped raw_twist;
     raw_twist.header.stamp = received_at;
     raw_twist.header.frame_id = base_frame_;

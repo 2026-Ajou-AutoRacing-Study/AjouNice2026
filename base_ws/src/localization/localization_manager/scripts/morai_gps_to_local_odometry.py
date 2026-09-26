@@ -26,6 +26,15 @@ def is_zero_geodetic_position(latitude, longitude, epsilon):
     return abs(latitude) <= epsilon and abs(longitude) <= epsilon
 
 
+def quantized_cell(latitude, longitude, step_deg):
+    """Return the MORAI latitude/longitude lattice cell indices."""
+    return (int(round(latitude / step_deg)), int(round(longitude / step_deg)))
+
+
+def should_publish_quantized_fix(mode, cell, last_published_cell):
+    return mode == "off" or cell != last_published_cell
+
+
 def wgs84_to_utm(latitude_deg, longitude_deg, zone, northern_hemisphere):
     f = 1.0 / WGS84_INV_F
     e2 = f * (2.0 - f)
@@ -157,6 +166,20 @@ class MoraiGpsToLocalOdometry:
         self.reject_duplicate_stamps = bool(
             rospy.get_param("~reject_duplicate_stamps", True)
         )
+        self.quantization_input_mode = rospy.get_param(
+            "~quantization_input_mode", "off"
+        )
+        if self.quantization_input_mode not in ("off", "cell_transition"):
+            raise rospy.ROSInitException(
+                "~quantization_input_mode must be off or cell_transition"
+            )
+        self.quantization_step_deg = float(
+            rospy.get_param("~quantization_step_deg", 1.0 / 600000.0)
+        )
+        if not math.isfinite(self.quantization_step_deg) or self.quantization_step_deg <= 0:
+            raise rospy.ROSInitException(
+                "~quantization_step_deg must be positive and finite"
+            )
         self.tf_timeout = float(rospy.get_param("~tf_timeout_sec", 0.1))
         self.noise_ns = rospy.get_param(
             "~noise_namespace", DEFAULT_NOISE_NS
@@ -172,6 +195,7 @@ class MoraiGpsToLocalOdometry:
         self.vertical_variance = vertical_stddev**2
         self.gps_z_in_base = self.read_gps_height()
         self.last_stamp = None
+        self.last_published_cell = None
         self.outage_start_stamp = None
 
         self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(30.0))
@@ -185,7 +209,7 @@ class MoraiGpsToLocalOdometry:
 
         rospy.loginfo(
             "morai_gps_to_local_odometry: %s -> %s; UTM %d%s, "
-            "fallback offset=(%.3f, %.3f), sigma_xy=%.3fm",
+            "fallback offset=(%.3f, %.3f), sigma_xy=%.3fm, quantization=%s",
             self.input_topic,
             self.output_topic,
             self.utm_zone,
@@ -193,6 +217,7 @@ class MoraiGpsToLocalOdometry:
             self.fallback_east_offset,
             self.fallback_north_offset,
             horizontal_stddev,
+            self.quantization_input_mode,
         )
 
     def positive_noise_param(self, relative_name):
@@ -268,6 +293,7 @@ class MoraiGpsToLocalOdometry:
         ):
             if self.outage_start_stamp is None:
                 self.outage_start_stamp = message.header.stamp
+                self.last_published_cell = None
                 rospy.logwarn(
                     "GNSS outage started: rejecting zero latitude/longitude "
                     "from /sensor/gps"
@@ -287,6 +313,18 @@ class MoraiGpsToLocalOdometry:
                 max(0.0, outage_duration),
             )
             self.outage_start_stamp = None
+
+        cell = quantized_cell(
+            message.latitude, message.longitude, self.quantization_step_deg
+        )
+        if not should_publish_quantized_fix(
+            self.quantization_input_mode, cell, self.last_published_cell
+        ):
+            # Repeated lattice output is not a new independent position fix.
+            # Keep the observed timestamp monotonic, but preserve the prior
+            # published position until the cell changes. This is experimental.
+            self.last_stamp = message.header.stamp
+            return
 
         easting, northing = wgs84_to_utm(
             message.latitude,
@@ -345,6 +383,7 @@ class MoraiGpsToLocalOdometry:
         output.twist.covariance = [0.0] * 36
 
         self.last_stamp = message.header.stamp
+        self.last_published_cell = cell
         self.publisher.publish(output)
 
 

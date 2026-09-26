@@ -71,7 +71,7 @@ def compare(reference_times, reference, source, lag_sec=0.0):
     return summary(measured - expected), correlation
 
 
-def analyze(path, window, max_lag_sec, lag_step_sec):
+def analyze(path, window, max_lag_sec, lag_step_sec, competition_yaw_scale):
     heading = []
     competition_rate = []
     imu_rate = []
@@ -88,7 +88,10 @@ def analyze(path, window, max_lag_sec, lag_step_sec):
                 heading.append((time_sec, math.radians(float(message.heading))))
             elif topic == "/competition/raw_twist":
                 competition_rate.append(
-                    (time_sec, float(message.twist.angular.z))
+                    (
+                        time_sec,
+                        float(message.twist.angular.z) * competition_yaw_scale,
+                    )
                 )
             else:
                 imu_rate.append((time_sec, float(message.angular_velocity.z)))
@@ -128,6 +131,7 @@ def analyze(path, window, max_lag_sec, lag_step_sec):
         "bag": str(path.resolve()),
         "production_changed": False,
         "heading_derivative_window": window,
+        "competition_raw_yaw_scale": competition_yaw_scale,
         "competition_raw_twist_available": bool(len(competition_rate)),
         "imu_vs_heading": {
             "best_lag_sec": float(imu_best[2]),
@@ -145,11 +149,18 @@ def analyze(path, window, max_lag_sec, lag_step_sec):
         comp_vs_heading, comp_corr = compare(
             heading[:, 0], derivative, competition_rate, competition_best[2]
         )
+        comp_imu_trials = []
+        for lag in lags:
+            error, correlation = compare(
+                competition_rate[:, 0], competition_rate[:, 1], imu_rate, lag
+            )
+            comp_imu_trials.append((error["rmse_radps"], -correlation, lag))
+        comp_imu_best = min(comp_imu_trials)
         comp_vs_imu, comp_imu_corr = compare(
             competition_rate[:, 0],
             competition_rate[:, 1],
             imu_rate,
-            imu_best[2] - competition_best[2],
+            comp_imu_best[2],
         )
         result["competition_vs_heading"] = {
             "best_lag_sec": float(competition_best[2]),
@@ -157,7 +168,7 @@ def analyze(path, window, max_lag_sec, lag_step_sec):
             "error": comp_vs_heading,
         }
         result["competition_vs_imu"] = {
-            "relative_lag_sec": float(imu_best[2] - competition_best[2]),
+            "relative_lag_sec": float(comp_imu_best[2]),
             "correlation": comp_imu_corr,
             "error": comp_vs_imu,
         }
@@ -174,15 +185,24 @@ def main():
     parser.add_argument("--heading-window", type=int, default=7)
     parser.add_argument("--max-lag-sec", type=float, default=0.10)
     parser.add_argument("--lag-step-sec", type=float, default=0.002)
+    parser.add_argument(
+        "--competition-yaw-scale",
+        type=float,
+        default=-math.pi / 180.0,
+        help="native clockwise deg/s to ROS rad/s; default=-pi/180",
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.max_lag_sec < 0.0 or args.lag_step_sec <= 0.0:
         raise ValueError("lag range and step must be positive")
+    if not math.isfinite(args.competition_yaw_scale) or args.competition_yaw_scale == 0.0:
+        raise ValueError("--competition-yaw-scale must be finite and non-zero")
     result = analyze(
         args.bag,
         args.heading_window,
         args.max_lag_sec,
         args.lag_step_sec,
+        args.competition_yaw_scale,
     )
     rendered = json.dumps(result, indent=2, sort_keys=True)
     if args.output:
