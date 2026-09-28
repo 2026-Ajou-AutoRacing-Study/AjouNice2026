@@ -1,11 +1,11 @@
 <launch>
   <arg name="vehicle_param_file"/>
   <arg name="nearest_search_param_path"/>
-  <arg name="common_param_path" default="$(find autoware_velocity_smoother)/config/ros1/default_common.yaml"/>
-  <arg name="velocity_smoother_param_path" default="$(find autoware_velocity_smoother)/config/ros1/default_velocity_smoother.yaml"/>
-  <arg name="analytical_param_path" default="$(find autoware_velocity_smoother)/config/ros1/Analytical.yaml"/>
-  <arg name="motion_velocity_planner_param_path" default="$(find autoware_motion_velocity_planner)/config/ros1/motion_velocity_planner.yaml"/>
-  <arg name="module_param_path" default="$(find autoware_motion_velocity_planner)/config/ros1/obstacle_stop_default.yaml"/>
+  <arg name="common_param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_velocity_smoother/config/ros1/default_common.yaml"/>
+  <arg name="velocity_smoother_param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_velocity_smoother/config/ros1/default_velocity_smoother.yaml"/>
+  <arg name="analytical_param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_velocity_smoother/config/ros1/Analytical.yaml"/>
+  <arg name="motion_velocity_planner_param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_motion_velocity_planner/config/ros1/motion_velocity_planner.yaml"/>
+  <arg name="module_param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_motion_velocity_planner/config/ros1/obstacle_stop_default.yaml"/>
   <arg name="launch_modules" default="[autoware::motion_velocity_planner::ObstacleStopModule]"/>
   <arg name="input_trajectory" default="trajectory_in"/>
   <arg name="output_trajectory" default="trajectory_out"/>

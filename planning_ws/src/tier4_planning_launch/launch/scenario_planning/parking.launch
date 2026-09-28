@@ -2,8 +2,8 @@
   <!-- ROS1 process equivalent of the original parking container. Staged until
        the remaining planning graph and configuration closure are validated. -->
   <arg name="vehicle_param_path"/>
-  <arg name="costmap_param_path" default="$(find autoware_costmap_generator)/config/costmap_generator.ros1.yaml"/>
-  <arg name="freespace_param_path" default="$(find autoware_freespace_planner)/config/freespace_planner.ros1.yaml"/>
+  <arg name="costmap_param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_costmap_generator/config/costmap_generator.ros1.yaml"/>
+  <arg name="freespace_param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_freespace_planner/config/freespace_planner.ros1.yaml"/>
   <arg name="input_objects" default="/perception/object_recognition/objects"/>
   <arg name="input_points" default="/perception/obstacle_segmentation/pointcloud"/>
   <arg name="input_map" default="/map/vector_map"/>

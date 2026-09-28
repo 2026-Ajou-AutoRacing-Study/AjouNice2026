@@ -8,9 +8,9 @@
 
   <node pkg="autoware_velocity_smoother" type="velocity_smoother_node"
         name="velocity_smoother" output="screen">
-    <rosparam command="load" file="$(find autoware_velocity_smoother)/config/ros1/default_common.yaml"/>
-    <rosparam command="load" file="$(find autoware_velocity_smoother)/config/ros1/default_velocity_smoother.yaml"/>
-    <rosparam command="load" file="$(find autoware_velocity_smoother)/config/ros1/$(arg algorithm_type).yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_velocity_smoother/config/ros1/default_common.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_velocity_smoother/config/ros1/default_velocity_smoother.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_velocity_smoother/config/ros1/$(arg algorithm_type).yaml"/>
     <rosparam command="load" file="$(arg nearest_search_param_path)"/>
     <rosparam command="load" file="$(arg vehicle_info_param_path)"/>
     <param name="publish_debug_trajs" value="$(arg publish_debug_trajs)"/>

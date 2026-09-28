@@ -23,14 +23,14 @@
         type="planning_validator_candidate_node"
         name="planning_validator_candidate"
         output="screen">
-    <rosparam file="$(find autoware_planning_validator)/config/planning_validator.ros1.yaml"/>
+    <rosparam file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_planning_validator/config/planning_validator.ros1.yaml"/>
     <!-- Keep the source switch testable without changing validation/output. -->
     <param name="publish_diag" value="$(arg publish_diag)" type="bool"/>
     <param name="diag_error_count_threshold" value="$(arg diag_error_count_threshold)" type="int"/>
     <param name="default_handling_type" value="$(arg default_handling_type)" type="int"/>
-    <rosparam file="$(find autoware_planning_validator_trajectory_checker)/config/trajectory_checker.ros1.yaml"/>
+    <rosparam file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_planning_validator_trajectory_checker/config/trajectory_checker.ros1.yaml"/>
     <!-- ICC has no behavior defaults: retain its complete source-shaped tree. -->
-    <rosparam file="$(find autoware_planning_validator_intersection_collision_checker)/config/intersection_collision_checker.ros1.yaml"/>
+    <rosparam file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_planning_validator_intersection_collision_checker/config/intersection_collision_checker.ros1.yaml"/>
     <rosparam command="load" file="$(arg vehicle_param_path)"/>
     <param name="trajectory_checker_plugin" value="autoware::planning_validator::TrajectoryCheckerRos1"/>
     <param name="latency_checker_plugin" value="autoware::planning_validator::LatencyCheckerRos1"/>

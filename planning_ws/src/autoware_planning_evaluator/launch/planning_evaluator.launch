@@ -16,7 +16,7 @@
   <node name="planning_evaluator" type="planning_evaluator" pkg="autoware_planning_evaluator" output="screen">
     <rosparam command="load" file="$(arg common_param_path)"/>
     <rosparam command="load" file="$(arg vehicle_info_param_path)"/>
-    <rosparam command="load" file="$(find autoware_planning_evaluator)/config/planning_evaluator.ros1.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_planning_evaluator/config/planning_evaluator.ros1.yaml"/>
     <param name="output_metrics" value="$(arg output_metrics)"/>
     <remap from="~input/odometry" to="$(arg odometry)"/>
     <remap from="~input/acceleration" to="$(arg acceleration)"/>

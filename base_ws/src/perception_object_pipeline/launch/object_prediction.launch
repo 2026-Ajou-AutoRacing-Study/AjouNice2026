@@ -34,7 +34,7 @@
       <remap from="~input/objects" to="$(arg input_objects)"/>
       <remap from="~output/objects" to="$(arg output_objects)"/>
       <rosparam command="load"
-                file="$(find perception_object_pipeline)/config/map_based_prediction.yaml"/>
+                file="$(env AJOUNICE_ROOT)/base_ws/src/perception_object_pipeline/config/map_based_prediction.yaml"/>
       <param name="prediction_time_step" value="$(arg prediction_time_step)"/>
       <param name="prediction_horizon" value="$(arg prediction_horizon)"/>
       <param name="map_file" value="$(arg map_file)"/>
