@@ -36,7 +36,7 @@ catkin_package(INCLUDE_DIRS include LIBRARIES ${PROJECT_NAME} acados_interface
     autoware_planning_msgs autoware_utils autoware_utils_debug autoware_utils_geometry autoware_utils_math
     autoware_utils_rclcpp autoware_utils_system autoware_vehicle_info_utils)
 add_library(${PROJECT_NAME} SHARED
-  src/node.cpp src/replan_checker.cpp src/mpt_optimizer.cpp src/state_equation_generator.cpp
+  src/node.cpp src/replan_checker.cpp src/mpt_optimizer.cpp src/obstacle_clustering.cpp src/state_equation_generator.cpp
   src/debug_marker.cpp src/vehicle_model/vehicle_model_interface.cpp
   src/vehicle_model/vehicle_model_bicycle_kinematics.cpp src/utils/trajectory_utils.cpp
   src/utils/geometry_utils.cpp)
@@ -56,6 +56,10 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_mpt_constraint_matrix test/test_mpt_constraint_matrix.cpp)
   if(TARGET test_mpt_constraint_matrix)
     target_link_libraries(test_mpt_constraint_matrix ${PROJECT_NAME})
+  endif()
+  catkin_add_gtest(test_obstacle_clustering test/test_obstacle_clustering.cpp)
+  if(TARGET test_obstacle_clustering)
+    target_link_libraries(test_obstacle_clustering ${PROJECT_NAME})
   endif()
 endif()
 

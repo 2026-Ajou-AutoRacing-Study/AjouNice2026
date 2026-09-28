@@ -102,6 +102,10 @@ void PlanningValidatorNode::setupParameters()
 
   p.soft_stop_deceleration = declare_parameter<double>("soft_stop_deceleration");
   p.soft_stop_jerk_lim = declare_parameter<double>("soft_stop_jerk_lim");
+  static_scene_deceleration_ = declare_parameter<double>("static_scene_deceleration");
+  if (!std::isfinite(static_scene_deceleration_) || static_scene_deceleration_ <= 0.0) {
+    throw std::invalid_argument("static_scene_deceleration must be finite and positive");
+  }
   p.th_traffic_light_timeout = declare_parameter<double>("th_traffic_light_timeout");
   p.require_obstacle_pointcloud = declare_parameter<bool>("require_obstacle_pointcloud");
   context_->data->require_obstacle_pointcloud = p.require_obstacle_pointcloud;
@@ -313,7 +317,7 @@ bool PlanningValidatorNode::guardStaticScene(Trajectory & trajectory)
     clear += std::hypot(points[i].pose.position.x - points[i - 1].pose.position.x,
                         points[i].pose.position.y - points[i - 1].pose.position.y);
   }
-  constexpr double deceleration = 3.0;
+  const double deceleration = static_scene_deceleration_;
   const double stop_distance = std::max(0.0, clear - 1.0);
   const double speed = odometry->twist.twist.linear.x;
   const bool emergency = frame_mismatch || measured_overlap ||
