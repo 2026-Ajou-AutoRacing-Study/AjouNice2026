@@ -1,6 +1,6 @@
 roundabout/common/attention_area_margin: 0.75
 roundabout/common/attention_area_angle_threshold: 0.785
-roundabout/common/default_stopline_margin: 1.5
+roundabout/common/default_stopline_margin: -3.0
 roundabout/common/path_interpolation_ds: 0.1
 roundabout/common/enable_pass_judge_before_default_stopline: false
 roundabout/collision_detection/collision_detection_hold_time: 0.5

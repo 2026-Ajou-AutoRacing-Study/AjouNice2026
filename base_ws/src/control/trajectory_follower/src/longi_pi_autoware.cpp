@@ -66,6 +66,10 @@ public:
     }
     private_nh_.param("control_limits/max_accel_cmd", max_accel_cmd_, 1.0);
     private_nh_.param("control_limits/max_brake_cmd", max_brake_cmd_, 1.0);
+    private_nh_.param(
+      "control_limits/max_brake_rise_rate_per_s", max_brake_rise_rate_per_s_, 2.0);
+    private_nh_.param(
+      "control_limits/max_brake_fall_rate_per_s", max_brake_fall_rate_per_s_, 5.0);
     private_nh_.param("safety/trajectory_timeout_s", trajectory_timeout_s_, 0.5);
     private_nh_.param("safety/state_timeout_s", state_timeout_s_, 0.5);
     private_nh_.param("safety/trajectory_source_timeout_s", trajectory_source_timeout_s_, 0.5);
@@ -108,6 +112,8 @@ private:
       max_steer_rad_ > 0.0 && std::isfinite(max_accel_cmd_) && max_accel_cmd_ > 0.0 &&
       max_accel_cmd_ <= 1.0 && std::isfinite(max_brake_cmd_) && max_brake_cmd_ > 0.0 &&
       max_brake_cmd_ <= 1.0 && std::isfinite(stop_brake_cmd_) && stop_brake_cmd_ >= 0.0 &&
+      std::isfinite(max_brake_rise_rate_per_s_) && max_brake_rise_rate_per_s_ > 0.0 &&
+      std::isfinite(max_brake_fall_rate_per_s_) && max_brake_fall_rate_per_s_ > 0.0 &&
       stop_brake_cmd_ <= 1.0 && std::isfinite(trajectory_timeout_s_) && trajectory_timeout_s_ > 0.0 &&
       std::isfinite(state_timeout_s_) && state_timeout_s_ > 0.0 && std::isfinite(steering_timeout_s_) &&
       steering_timeout_s_ > 0.0 && std::isfinite(lateral_valid_timeout_s_) && lateral_valid_timeout_s_ > 0.0 &&
@@ -238,6 +244,7 @@ private:
   void publishHold(const double steering)
   {
     integral_ = 0.0;
+    last_brake_cmd_ = hold_brake_cmd_;
     morai_msgs::CtrlCmd command;
     command.longlCmdType = 1;
     command.accel = 0.0;
@@ -251,6 +258,7 @@ private:
   void publishStop()
   {
     integral_ = 0.0;
+    last_brake_cmd_ = stop_brake_cmd_;
     morai_msgs::CtrlCmd command;
     command.longlCmdType = 1;
     command.accel = 0.0;
@@ -305,10 +313,15 @@ private:
     command.steering = steering_;
     command.velocity = 0.0;
     command.acceleration = 0.0;
-    command.accel = command_value > command_deadband_
-      ? std::min(max_accel_cmd_, command_value) : 0.0;
-    command.brake = command_value < -command_deadband_
+    const double desired_brake = command_value < -command_deadband_
       ? std::min(max_brake_cmd_, -command_value) : 0.0;
+    const double brake_lower = std::max(0.0, last_brake_cmd_ - max_brake_fall_rate_per_s_ * dt);
+    const double brake_upper = std::min(max_brake_cmd_, last_brake_cmd_ + max_brake_rise_rate_per_s_ * dt);
+    command.brake = std::max(brake_lower, std::min(brake_upper, desired_brake));
+    last_brake_cmd_ = command.brake;
+    // Never request throttle while a previous brake command is being released.
+    command.accel = command.brake <= command_deadband_ && command_value > command_deadband_
+      ? std::min(max_accel_cmd_, command_value) : 0.0;
     command_publisher_.publish(command);
   }
 
@@ -330,6 +343,8 @@ private:
   double max_steer_rad_{0.698};
   double max_accel_cmd_{1.0};
   double max_brake_cmd_{1.0};
+  double max_brake_rise_rate_per_s_{2.0};
+  double max_brake_fall_rate_per_s_{5.0};
   double trajectory_timeout_s_{0.5};
   double state_timeout_s_{0.5};
   double trajectory_source_timeout_s_{0.5};
@@ -352,6 +367,7 @@ private:
   double preview_distance_margin_m_{0.2};
   double stop_velocity_threshold_mps_{0.1};
   double hold_brake_cmd_{0.2};
+  double last_brake_cmd_{0.0};
   double integral_{0.0};
   double steering_{0.0};
   bool trajectory_valid_{false};
