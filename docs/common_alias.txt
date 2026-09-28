@@ -10,6 +10,12 @@ elif [ -f "$AJOUNICE_ROOT/base_ws/devel/setup.bash" ]; then
   source "$AJOUNICE_ROOT/base_ws/devel/setup.bash"
 fi
 
+# After this file is sourced once, re-enter this checkout's runtime from any directory.
+ajou() {
+  cd "$AJOUNICE_ROOT" || return
+  source "$AJOUNICE_ROOT/docs/common_alias.txt"
+}
+
 #-----------------------------------------------------
 alias ck="catkin_make"
 alias cm="catkin_make"
