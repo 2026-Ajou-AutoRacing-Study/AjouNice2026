@@ -3,6 +3,22 @@ kp: 0.8
 ki: 0.05
 integral_limit: 3.0
 command_deadband: 0.05
+# Do not let acceleration-side integral memory delay braking. Brake-side
+# integral is retained across a brief positive error to avoid rapid re-acceleration.
+reset_acceleration_integral_on_braking: true
+
+brake_hysteresis:
+  enabled: true
+  # Enter on a real overspeed, and require a wider recovery before leaving brake mode.
+  enter_error_mps: 0.08
+  exit_error_mps: 0.15
+  # Release for a substantial underspeed only when it persists; this rejects
+  # one- or two-cycle state/target discontinuities during strong deceleration.
+  hard_exit_error_mps: 0.50
+  hard_exit_hold_s: 0.10
+  # While the trajectory still requests at least this deceleration, retain a small brake.
+  planned_deceleration_threshold_mps2: 0.50
+  min_brake_cmd: 0.05
 
 control_limits:
   # Normal trajectory tracking only. Safety/watchdog stops still publish stop_brake_cmd immediately.

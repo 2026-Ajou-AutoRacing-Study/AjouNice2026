@@ -12,6 +12,7 @@
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float64.h>
 #include <trajectory_follower/distance_speed_limit.hpp>
+#include <trajectory_follower/longitudinal_pi_utils.hpp>
 
 namespace
 {
@@ -83,6 +84,17 @@ public:
     private_nh_.param("ki", ki_, 0.05);
     private_nh_.param("integral_limit", integral_limit_, 3.0);
     private_nh_.param("command_deadband", command_deadband_, 0.05);
+    private_nh_.param(
+      "reset_acceleration_integral_on_braking", reset_acceleration_integral_on_braking_, true);
+    private_nh_.param("brake_hysteresis/enabled", brake_hysteresis_enabled_, true);
+    private_nh_.param("brake_hysteresis/enter_error_mps", brake_enter_error_mps_, 0.08);
+    private_nh_.param("brake_hysteresis/exit_error_mps", brake_exit_error_mps_, 0.15);
+    private_nh_.param("brake_hysteresis/hard_exit_error_mps", brake_hard_exit_error_mps_, 0.5);
+    private_nh_.param("brake_hysteresis/hard_exit_hold_s", brake_hard_exit_hold_s_, 0.1);
+    private_nh_.param(
+      "brake_hysteresis/planned_deceleration_threshold_mps2",
+      brake_planned_deceleration_threshold_mps2_, 0.5);
+    private_nh_.param("brake_hysteresis/min_brake_cmd", brake_min_command_, 0.05);
     private_nh_.param("speed_preview/enabled", speed_preview_enabled_, true);
     private_nh_.param("speed_preview/time_s", speed_preview_time_s_, 1.5);
     private_nh_.param("speed_preview/min_distance_m", speed_preview_min_distance_m_, 5.0);
@@ -122,7 +134,14 @@ private:
       std::isfinite(future_stamp_tolerance_s_) && future_stamp_tolerance_s_ >= 0.0 &&
       min_points_ >= 3 && std::isfinite(kp_) && kp_ >= 0.0 && std::isfinite(ki_) && ki_ >= 0.0 &&
       std::isfinite(integral_limit_) && integral_limit_ > 0.0 && std::isfinite(command_deadband_) &&
-      command_deadband_ >= 0.0 && std::isfinite(speed_preview_time_s_) && speed_preview_time_s_ >= 0.0 &&
+      command_deadband_ >= 0.0 && std::isfinite(brake_enter_error_mps_) && brake_enter_error_mps_ >= 0.0 &&
+      std::isfinite(brake_exit_error_mps_) && brake_exit_error_mps_ > brake_enter_error_mps_ &&
+      std::isfinite(brake_hard_exit_error_mps_) && brake_hard_exit_error_mps_ >= brake_exit_error_mps_ &&
+      std::isfinite(brake_hard_exit_hold_s_) && brake_hard_exit_hold_s_ >= 0.0 &&
+      std::isfinite(brake_planned_deceleration_threshold_mps2_) &&
+      brake_planned_deceleration_threshold_mps2_ > 0.0 && std::isfinite(brake_min_command_) &&
+      brake_min_command_ >= 0.0 && brake_min_command_ <= max_brake_cmd_ &&
+      std::isfinite(speed_preview_time_s_) && speed_preview_time_s_ >= 0.0 &&
       std::isfinite(speed_preview_min_distance_m_) && speed_preview_min_distance_m_ >= 0.0 &&
       std::isfinite(speed_preview_max_distance_m_) &&
       speed_preview_max_distance_m_ >= speed_preview_min_distance_m_ &&
@@ -142,7 +161,7 @@ private:
       message->points.size() >= static_cast<std::size_t>(min_points_);
     for (const auto & point : message->points) {
       valid = valid && std::isfinite(point.pose.position.x) && std::isfinite(point.pose.position.y) &&
-        std::isfinite(point.longitudinal_velocity_mps);
+        std::isfinite(point.longitudinal_velocity_mps) && std::isfinite(point.acceleration_mps2);
     }
     trajectory_valid_ = valid;
     if (valid) {
@@ -244,6 +263,8 @@ private:
   void publishHold(const double steering)
   {
     integral_ = 0.0;
+    braking_mode_ = false;
+    brake_hard_exit_elapsed_s_ = 0.0;
     last_brake_cmd_ = hold_brake_cmd_;
     morai_msgs::CtrlCmd command;
     command.longlCmdType = 1;
@@ -258,6 +279,8 @@ private:
   void publishStop()
   {
     integral_ = 0.0;
+    braking_mode_ = false;
+    brake_hard_exit_elapsed_s_ = 0.0;
     last_brake_cmd_ = stop_brake_cmd_;
     morai_msgs::CtrlCmd command;
     command.longlCmdType = 1;
@@ -297,10 +320,21 @@ private:
       return;
     }
     const double error = target_velocity - current_velocity;
+    const double planned_acceleration = trajectory_.points[nearest].acceleration_mps2;
     double dt = (event.current_real - event.last_real).toSec();
     if (!std::isfinite(dt) || dt <= 0.0 || dt > 1.0) {
       dt = 1.0 / control_rate_hz_;
     }
+    integral_ = trajectory_follower::resetAccelerationIntegralOnBraking(
+      error, integral_, reset_acceleration_integral_on_braking_);
+    const auto brake_hysteresis = trajectory_follower::updateBrakeHysteresis(
+      {braking_mode_, brake_hard_exit_elapsed_s_}, error, planned_acceleration, dt,
+      brake_hysteresis_enabled_,
+      brake_enter_error_mps_, brake_exit_error_mps_, brake_hard_exit_error_mps_,
+      brake_hard_exit_hold_s_,
+      brake_planned_deceleration_threshold_mps2_);
+    braking_mode_ = brake_hysteresis.active;
+    brake_hard_exit_elapsed_s_ = brake_hysteresis.hard_exit_elapsed_s;
     const double candidate_integral = std::max(-integral_limit_, std::min(integral_limit_, integral_ + error * dt));
     const double candidate_command = kp_ * error + ki_ * candidate_integral;
     if (!((candidate_command > max_accel_cmd_ && error > 0.0) ||
@@ -313,14 +347,20 @@ private:
     command.steering = steering_;
     command.velocity = 0.0;
     command.acceleration = 0.0;
-    const double desired_brake = command_value < -command_deadband_
+    double desired_brake = command_value < -command_deadband_
       ? std::min(max_brake_cmd_, -command_value) : 0.0;
+    const bool retain_brake_for_planned_deceleration = braking_mode_ &&
+      planned_acceleration <= -brake_planned_deceleration_threshold_mps2_;
+    if (retain_brake_for_planned_deceleration) {
+      desired_brake = std::max(desired_brake, brake_min_command_);
+    }
     const double brake_lower = std::max(0.0, last_brake_cmd_ - max_brake_fall_rate_per_s_ * dt);
     const double brake_upper = std::min(max_brake_cmd_, last_brake_cmd_ + max_brake_rise_rate_per_s_ * dt);
     command.brake = std::max(brake_lower, std::min(brake_upper, desired_brake));
     last_brake_cmd_ = command.brake;
     // Never request throttle while a previous brake command is being released.
-    command.accel = command.brake <= command_deadband_ && command_value > command_deadband_
+    command.accel = !braking_mode_ && command.brake <= command_deadband_ &&
+      command_value > command_deadband_
       ? std::min(max_accel_cmd_, command_value) : 0.0;
     command_publisher_.publish(command);
   }
@@ -358,6 +398,14 @@ private:
   double ki_{0.05};
   double integral_limit_{3.0};
   double command_deadband_{0.05};
+  bool reset_acceleration_integral_on_braking_{true};
+  bool brake_hysteresis_enabled_{true};
+  double brake_enter_error_mps_{0.08};
+  double brake_exit_error_mps_{0.15};
+  double brake_hard_exit_error_mps_{0.5};
+  double brake_hard_exit_hold_s_{0.1};
+  double brake_planned_deceleration_threshold_mps2_{0.5};
+  double brake_min_command_{0.05};
   bool speed_preview_enabled_{true};
   double speed_preview_time_s_{1.5};
   double speed_preview_min_distance_m_{5.0};
@@ -369,6 +417,8 @@ private:
   double hold_brake_cmd_{0.2};
   double last_brake_cmd_{0.0};
   double integral_{0.0};
+  bool braking_mode_{false};
+  double brake_hard_exit_elapsed_s_{0.0};
   double steering_{0.0};
   bool trajectory_valid_{false};
   bool state_valid_{false};
