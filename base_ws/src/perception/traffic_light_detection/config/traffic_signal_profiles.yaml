@@ -16,9 +16,11 @@ profiles:
       - [YELLOW_CIRCLE]
       - [GREEN_CIRCLE]
     corrections:
-      RED_CIRCLE+GREEN_CIRCLE: [GREEN_CIRCLE]
-      RED_CIRCLE+YELLOW_CIRCLE: [YELLOW_CIRCLE]
-    fallback_phase: [GREEN_CIRCLE]
+      # A/B phase order is R -> G -> Y -> R; neither R+G nor R+Y ever occurs,
+      # so both are false positives. Prefer the observed red, same rule as C/D-2.
+      RED_CIRCLE+GREEN_CIRCLE: [RED_CIRCLE]
+      RED_CIRCLE+YELLOW_CIRCLE: [RED_CIRCLE]
+    fallback_phase: [RED_CIRCLE]
 
   straight_left_combined:
     supported_lamps: [RED_CIRCLE, YELLOW_CIRCLE, GREEN_CIRCLE, GREEN_LEFT_ARROW]
