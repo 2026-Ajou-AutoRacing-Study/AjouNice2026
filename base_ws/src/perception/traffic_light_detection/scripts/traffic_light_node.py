@@ -9,7 +9,7 @@ v13 -> v14 변경점 (2026-08-19, 스무딩 창(5)/과반수(3) 값 재조정을
     외부에서 관측 가능했음.
   - 수정: raw_color_results(보정까지는 거치되 스무딩 전)를 매 프레임
     ~debug_raw_label(std_msgs/String) 토픽으로 추가 발행. 이 토픽을 별도
-    로거(raw_streak_analyzer.py)로 구독해서, raw 라벨이 몇 프레임 연속으로
+    로거로 구독해서, raw 라벨이 몇 프레임 연속으로
     유지되는지 실측 가능하게 함.
 """
 import os
