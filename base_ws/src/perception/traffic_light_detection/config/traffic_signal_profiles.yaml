@@ -1,5 +1,12 @@
 default_profile: simple_3color
 
+section_labels:
+  201351: A
+  201365: B
+  201290: C
+  201326: D-2
+  201397: D-1
+
 signal_assignments:
   # Competition course A, B, C, D-2 and D-1 regulatory-element IDs.
   201351: simple_3color
@@ -40,22 +47,20 @@ profiles:
 
   straight_or_protected_left:
     supported_lamps: [RED_CIRCLE, YELLOW_CIRCLE, GREEN_CIRCLE, GREEN_LEFT_ARROW]
+    # D-2 has two yellow phases, told apart by the red lamp alone:
+    #   YELLOW_CIRCLE            = end of straight green -> STOP for our route
+    #   RED_CIRCLE+YELLOW_CIRCLE = end of protected left -> GO (already turning)
+    # No dependence on the preceding phase.
     valid_phases:
       - [RED_CIRCLE]
-      - [YELLOW_CIRCLE]
       - [GREEN_CIRCLE]
       - [RED_CIRCLE, GREEN_LEFT_ARROW]
+      - [RED_CIRCLE, YELLOW_CIRCLE]
     corrections:
       GREEN_LEFT_ARROW: [RED_CIRCLE, GREEN_LEFT_ARROW]
       RED_CIRCLE+GREEN_CIRCLE: [RED_CIRCLE]
       GREEN_CIRCLE+GREEN_LEFT_ARROW: [GREEN_CIRCLE]
-      RED_CIRCLE+YELLOW_CIRCLE: [YELLOW_CIRCLE]
-    # D-2 has two yellow phases. Yellow is GO only after the protected-left
-    # phase; yellow after straight green is represented as red (STOP).
-    conditional_yellow:
-      go_after_phases:
-        - [RED_CIRCLE, GREEN_LEFT_ARROW]
-      stop_phase: [RED_CIRCLE]
+      YELLOW_CIRCLE: [RED_CIRCLE]
     # Simulation-only bounded hold; never interpret fallback red as observation.
     observation_guard:
       max_observation_gap_sec: 1.5

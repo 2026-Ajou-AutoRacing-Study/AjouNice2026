@@ -35,7 +35,10 @@ class SignalPhasePolicy:
             for group_id, profile in config.get("signal_assignments", {}).items()
         }
         self.profiles = config.get("profiles", {})
-        self._last_non_yellow_phase = {}
+        self.section_labels = {
+            int(group_id): str(label)
+            for group_id, label in (config.get("section_labels") or {}).items()
+        }
         self._observation_state = {}
         self._validate()
 
@@ -76,25 +79,12 @@ class SignalPhasePolicy:
                 self._validate_phase(target, f"{profile_name}.corrections[{source}]")
                 if not set(target).issubset(supported_set):
                     raise ValueError(f"{profile_name}.corrections[{source}] uses unsupported lamps")
-            conditional_yellow = profile.get("conditional_yellow")
-            if conditional_yellow is not None:
-                for index, phase in enumerate(conditional_yellow.get("go_after_phases", [])):
-                    self._validate_phase(
-                        phase, f"{profile_name}.conditional_yellow.go_after_phases[{index}]"
-                    )
-                    if not set(phase).issubset(supported_set):
-                        raise ValueError(
-                            f"{profile_name}.conditional_yellow.go_after_phases[{index}] "
-                            "uses unsupported lamps"
-                        )
-                stop_phase = conditional_yellow.get("stop_phase", [])
-                self._validate_phase(
-                    stop_phase, f"{profile_name}.conditional_yellow.stop_phase"
-                )
-                if not set(stop_phase).issubset(supported_set):
-                    raise ValueError(
-                        f"{profile_name}.conditional_yellow.stop_phase uses unsupported lamps"
-                    )
+
+    def section_label(self, group_id):
+        gid = int(group_id)
+        if gid in self.section_labels:
+            return self.section_labels[gid]
+        return "none" if gid == 0 else str(gid)
 
     def profile_name(self, group_id):
         return self.assignments.get(int(group_id), self.default_profile)
@@ -137,12 +127,11 @@ class SignalPhasePolicy:
         return self._results(profile.get("fallback_phase", [])), f"{profile_name}:fail_open"
 
     def apply_transition(self, color_results, group_id):
-        """Resolve phases whose permission depends on the preceding stable phase.
+        """Guard against an empty phase reaching the planner.
 
-        This is intentionally called after temporal smoothing. In particular,
-        D-2 has both straight-green -> yellow (STOP for our left-turn route) and
-        protected-left -> yellow (GO), which cannot be distinguished from the
-        current yellow lamps alone.
+        Phase permission no longer depends on the preceding phase: D-2 tells its
+        two yellows apart by the red lamp alone (YELLOW_CIRCLE = stop,
+        RED_CIRCLE+YELLOW_CIRCLE = go), which the profile expresses directly.
         """
         profile_name = self.profile_name(group_id)
         profile = self.profiles[profile_name]
@@ -152,41 +141,19 @@ class SignalPhasePolicy:
         observed_tokens = [
             RESULT_TO_TOKEN[result] for result in color_results if result in RESULT_TO_TOKEN
         ]
-        observed_key = _phase_key(observed_tokens)
-        yellow_key = _phase_key(["YELLOW_CIRCLE"])
-        conditional_yellow = profile.get("conditional_yellow")
-
         # A split vote from the smoother must not leak an empty phase to BVP,
-        # where competition fail-open would authorize motion. Use the
-        # profile's explicit fallback; C and D-2 configure this as red.
-        if not observed_key:
+        # where competition fail-open would authorize motion.
+        if not observed_tokens:
             return (
                 self._results(profile.get("fallback_phase", [])),
                 f"{profile_name}:transition_fallback",
             )
-
-        if conditional_yellow is not None and observed_key == yellow_key:
-            allowed_predecessors = {
-                _phase_key(phase)
-                for phase in conditional_yellow.get("go_after_phases", [])
-            }
-            if self._last_non_yellow_phase.get(int(group_id)) in allowed_predecessors:
-                return list(color_results), f"{profile_name}:yellow_go_after_allowed_phase"
-            return (
-                self._results(conditional_yellow.get("stop_phase", [])),
-                f"{profile_name}:yellow_stop_after_disallowed_phase",
-            )
-
-        if observed_key and observed_key != yellow_key:
-            self._last_non_yellow_phase[int(group_id)] = observed_key
         return list(color_results), f"{profile_name}:transition_valid"
 
     def reset_transition(self, group_id=None):
         if group_id is None:
-            self._last_non_yellow_phase.clear()
             self._observation_state.clear()
         else:
-            self._last_non_yellow_phase.pop(int(group_id), None)
             self._observation_state.pop(int(group_id), None)
 
     def process_normalized(self, normalized, reason, group_id, stamp, confidence, smoother):
@@ -211,7 +178,6 @@ class SignalPhasePolicy:
         valid = not reason.endswith(":fail_open")
         gap = float(limits["max_observation_gap_sec"])
         if stamp - state.get("input_at", stamp) > gap:
-            self._last_non_yellow_phase.pop(group_id, None)
             state.pop("output", None)
             state.pop("yellow_since", None)
             smoother.reset()
@@ -224,7 +190,7 @@ class SignalPhasePolicy:
             lamps, conf, observed_at = result
             if observed_at > state.get("observed_at", float("-inf")):
                 state["observed_at"] = observed_at
-                is_yellow = set(lamps) == {TOKEN_TO_RESULT["YELLOW_CIRCLE"]}
+                is_yellow = TOKEN_TO_RESULT["YELLOW_CIRCLE"] in set(lamps)
                 if is_yellow:
                     state.setdefault("yellow_since", observed_at)
                 else:
@@ -235,11 +201,8 @@ class SignalPhasePolicy:
             "yellow_since" in state and
             stamp - state["yellow_since"] >= float(limits["max_yellow_sec"])
         )
-        if yellow_expired:
-            self._last_non_yellow_phase.pop(group_id, None)
         if "output" in state and stamp - state["observed_at"] <= gap and not yellow_expired:
             return state["output"], state["confidence"], state["reason"] + ":bounded_observation"
-        self._last_non_yellow_phase.pop(group_id, None)
         return self._results(profile["fallback_phase"]), 0.0, "observation_guard:expired_or_unconfirmed"
 
     @staticmethod
