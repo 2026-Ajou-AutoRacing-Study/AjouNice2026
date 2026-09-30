@@ -11,9 +11,17 @@ common/output_delta_arc_length: 0.2
 # Retry budget between seeds/refinements as well as side candidates.
 # A single solver call can still exceed the budget.
 obstacle_search_time_budget_ms: 100.0
+# Positive magnitude for braking on a still-aligned path when obstacle optimization fails.
+obstacle_fallback_deceleration: 7.0
 # Extend the base horizon to cover observed obstacle margins, the vehicle and return.
 obstacle_optimization/max_forward_length: 60.0
 obstacle_optimization/return_length: 15.0
+# Collapse only nearby, same-side duplicate footprints before enumerating pass sides.
+# Raw polygons remain authoritative for candidate and final collision checks.
+obstacle_clustering/trigger_count: 4
+obstacle_clustering/polygon_gap_threshold: 0.75
+obstacle_clustering/max_longitudinal_span: 4.0
+obstacle_clustering/max_lateral_span: 2.5
 common/output_backward_traj_length: 5.0
 common/vehicle_stop_margin_outside_drivable_area: 0.0
 replan/max_path_shape_around_ego_lat_dist: 2.0

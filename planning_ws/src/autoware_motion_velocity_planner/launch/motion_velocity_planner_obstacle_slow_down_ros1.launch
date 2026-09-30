@@ -11,7 +11,7 @@
   <node pkg="autoware_motion_velocity_planner" type="motion_velocity_planner_legacy_node"
         name="motion_velocity_planner" output="screen">
     <rosparam command="load" file="$(arg vehicle_info_param_path)"/>
-    <rosparam command="load" file="$(find autoware_motion_velocity_obstacle_slow_down_module)/config/obstacle_slow_down_ros1.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_motion_velocity_obstacle_slow_down_module/config/obstacle_slow_down_ros1.yaml"/>
     <rosparam param="launch_modules">[autoware::motion_velocity_planner::ObstacleSlowDownModule]</rosparam>
     <remap from="~input/trajectory" to="$(arg input_trajectory)"/>
     <remap from="~input/predicted_objects" to="$(arg input_predicted_objects)"/>

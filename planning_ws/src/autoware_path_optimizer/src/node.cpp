@@ -113,10 +113,33 @@ PathOptimizer::PathOptimizer(
   if (!std::isfinite(obstacle_search_time_budget_ms_) || obstacle_search_time_budget_ms_ <= 0.0) {
     throw std::invalid_argument("obstacle_search_time_budget_ms must be finite and positive");
   }
+  private_node.param(
+    "obstacle_fallback_deceleration", obstacle_fallback_deceleration_, 7.0);
+  if (!std::isfinite(obstacle_fallback_deceleration_) ||
+      obstacle_fallback_deceleration_ <= 0.0) {
+    throw std::invalid_argument("obstacle_fallback_deceleration must be finite and positive");
+  }
   private_node.param("obstacle_optimization/max_forward_length", obstacle_max_forward_length_, 60.0);
   private_node.param("obstacle_optimization/return_length", obstacle_return_length_, 15.0);
+  int clustering_trigger_count = 4;
+  private_node.param("obstacle_clustering/trigger_count", clustering_trigger_count, 4);
+  private_node.param(
+    "obstacle_clustering/polygon_gap_threshold",
+    obstacle_clustering_param_.polygon_gap_threshold, 0.75);
+  private_node.param(
+    "obstacle_clustering/max_longitudinal_span",
+    obstacle_clustering_param_.max_longitudinal_span, 4.0);
+  private_node.param(
+    "obstacle_clustering/max_lateral_span", obstacle_clustering_param_.max_lateral_span, 2.5);
+  obstacle_clustering_param_.trigger_count = static_cast<size_t>(std::max(1, clustering_trigger_count));
   if (!std::isfinite(obstacle_max_forward_length_) || obstacle_max_forward_length_ <= 0.0 ||
-      !std::isfinite(obstacle_return_length_) || obstacle_return_length_ < 0.0) {
+      !std::isfinite(obstacle_return_length_) || obstacle_return_length_ < 0.0 ||
+      !std::isfinite(obstacle_clustering_param_.polygon_gap_threshold) ||
+      obstacle_clustering_param_.polygon_gap_threshold < 0.0 ||
+      !std::isfinite(obstacle_clustering_param_.max_longitudinal_span) ||
+      obstacle_clustering_param_.max_longitudinal_span <= 0.0 ||
+      !std::isfinite(obstacle_clustering_param_.max_lateral_span) ||
+      obstacle_clustering_param_.max_lateral_span <= 0.0) {
     throw std::invalid_argument("invalid obstacle optimization coverage");
   }
   auto scene_node = private_node;
@@ -585,8 +608,8 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
           return fallback;
         }
         // A stale or newly blocked path can still supply a continuous stop prefix. Reserve
-        // one metre before the first invalid point and use a 3 m/s^2 braking envelope.
-        constexpr double braking_deceleration = 3.0;
+        // one metre before the first invalid point and use the configured braking envelope.
+        const double braking_deceleration = obstacle_fallback_deceleration_;
         constexpr double stop_margin = 1.0;
         const size_t last_safe_idx = first_outside_idx ? *first_outside_idx : check_end - 1;
         double safe_distance = 0.0;
@@ -976,11 +999,22 @@ void PathOptimizer::publishDebugData(const Header & header) const
   debug_extended_traj_pub_->publish(debug_extended_traj);
 }
 std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandidates(
-  const PlannerData & data)
+  const PlannerData & input_data)
 {
+  PlannerData data = input_data;
+  data.obstacles = clusterStaticObstacles(
+    input_data.obstacles, input_data.traj_points, obstacle_clustering_param_);
+  if (data.obstacles.size() != input_data.obstacles.size()) {
+    RCLCPP_INFO_THROTTLE(
+      get_logger(), *get_clock(), 1000,
+      "[MPT] Clustered static obstacles: raw=%zu clustered=%zu",
+      input_data.obstacles.size(), data.obstacles.size());
+  }
   // Bound exponential search explicitly. Never silently omit an obstacle.
   if (data.obstacles.size() > 6) {
-    RCLCPP_ERROR(get_logger(), "[MPT] More than 6 static obstacles; safe stop required");
+    RCLCPP_ERROR(
+      get_logger(), "[MPT] More than 6 spatially distinct static obstacles after clustering; "
+      "safe stop required");
     return std::nullopt;
   }
   const auto original = mpt_optimizer_ptr_->history();
@@ -999,7 +1033,8 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
       const size_t reference = autoware::motion_utils::findNearestIndex(data.traj_points, pose.position);
       const double deviation = autoware_utils::calc_distance2d(pose, data.traj_points[reference].pose);
       cost += deviation * deviation;
-      cost += mpt_optimizer_ptr_->obstacleClearanceWeight() * obstacleSoftViolation(pose, data.obstacles, vehicle_info_);
+      cost += mpt_optimizer_ptr_->obstacleClearanceWeight() *
+        obstacleSoftViolation(pose, input_data.obstacles, vehicle_info_);
       if (i + 5 < score_end && road.isOutside(
             pose, mpt_optimizer_ptr_->getVehicleCircleRadii(),
             mpt_optimizer_ptr_->getVehicleCircleLongitudinalOffsets())) return std::nullopt;
@@ -1030,7 +1065,7 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
     if (covers_horizon && isAlignedWithEgoPose(previous[ego].pose, data.ego_pose) &&
         measuredFootprintInsideRoad(data.ego_pose, data.left_bound, data.right_bound,
           vehicle_info_, mpt_optimizer_ptr_->hardRoadClearance()) &&
-        !firstObstacleCollision(previous, ego, data.obstacles, vehicle_info_) &&
+        !firstObstacleCollision(previous, ego, input_data.obstacles, vehicle_info_) &&
         !firstCurvatureViolation(previous, ego, std::min(previous.size(), ego + size_t{250}),
           mpt_optimizer_ptr_->maximumCurvature())) {
       if (const auto cost = evaluate_cost(previous, ego)) {
@@ -1142,7 +1177,7 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
         const auto prefix_end = autoware::motion_utils::findNearestIndex(
           checked_trajectory, trajectory->back().pose.position);
         const auto collision = firstObstacleCollision(
-          checked_trajectory, ego, data.obstacles, vehicle_info_);
+          checked_trajectory, ego, input_data.obstacles, vehicle_info_);
         // The spatial resampling can rotate the tangent away from the QP's
         // fixed initial yaw. A newly accepted curve must meet the same measured
         // state contract as a retained curve; otherwise relinearize it first.

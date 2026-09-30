@@ -11,9 +11,9 @@
         name="$(arg node_name)" output="screen" required="true">
     <rosparam command="load" file="$(arg vehicle_param_file)"/>
     <rosparam command="load" file="$(arg common_param_file)"/>
-    <rosparam command="load" file="$(find autoware_behavior_path_planner)/config/ros1/behavior_path_planner.yaml"/>
-    <rosparam command="load" file="$(find autoware_behavior_path_planner)/config/ros1/drivable_area_expansion.yaml"/>
-    <rosparam command="load" file="$(find autoware_behavior_path_planner)/config/ros1/scene_module_manager.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_behavior_path_planner/config/ros1/behavior_path_planner.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_behavior_path_planner/config/ros1/drivable_area_expansion.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_behavior_path_planner/config/ros1/scene_module_manager.yaml"/>
     <rosparam command="load" file="$(arg module_config_file)"/>
     <param name="use_occupancy_grid" value="$(arg use_occupancy_grid)"/>
     <rosparam if="$(eval arg('launch_modules') != '')" param="launch_modules"

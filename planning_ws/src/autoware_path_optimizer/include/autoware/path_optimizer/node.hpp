@@ -18,6 +18,7 @@
 #include "autoware/motion_utils/trajectory/trajectory.hpp"
 #include "autoware/path_optimizer/common_structs.hpp"
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
+#include "autoware/path_optimizer/obstacle_clustering.hpp"
 #include "autoware/path_optimizer/replan_checker.hpp"
 #include "autoware/path_optimizer/type_alias.hpp"
 #include "autoware_utils/ros/logger_level_configure.hpp"
@@ -106,8 +107,10 @@ protected:  // for the static_centerline_generator package
   ros::WallTimer scene_timeout_timer_;
   bool require_obstacle_scene_{false};
   double obstacle_search_time_budget_ms_{100.0};
+  double obstacle_fallback_deceleration_{7.0};
   double obstacle_max_forward_length_{60.0};
   double obstacle_return_length_{15.0};
+  ObstacleClusteringParameters obstacle_clustering_param_;
   size_t obstacle_search_cursor_{0};
   std::map<uint64_t, autoware_planning_msgs::StaticObstacleScene> obstacle_scenes_;
   PathConstPtr pending_path_;

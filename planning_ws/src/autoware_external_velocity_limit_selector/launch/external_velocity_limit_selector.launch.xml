@@ -1,6 +1,6 @@
 <launch>
-  <arg name="common_param_path" default="$(find autoware_external_velocity_limit_selector)/config/default_common.param.yaml"/>
-  <arg name="param_path" default="$(find autoware_external_velocity_limit_selector)/config/default.param.yaml"/>
+  <arg name="common_param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_external_velocity_limit_selector/config/default_common.param.yaml"/>
+  <arg name="param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_external_velocity_limit_selector/config/default.param.yaml"/>
   <arg name="input_velocity_limit_from_api" default="/planning/scenario_planning/max_velocity_default"/>
   <arg name="input_velocity_limit_from_internal" default="/planning/scenario_planning/max_velocity_candidates"/>
   <arg name="input_velocity_limit_clear_command_from_internal" default="/planning/scenario_planning/clear_velocity_limit"/>

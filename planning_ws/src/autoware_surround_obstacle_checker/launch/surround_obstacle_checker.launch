@@ -1,7 +1,7 @@
 <launch>
   <!-- Original full node/debug source with native ROS1 transport. -->
   <arg name="vehicle_param_file"/>
-  <arg name="param_path" default="$(find autoware_surround_obstacle_checker)/config/ros1/surround_obstacle_checker.yaml"/>
+  <arg name="param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_surround_obstacle_checker/config/ros1/surround_obstacle_checker.yaml"/>
   <arg name="input_objects" default="/perception/object_recognition/objects"/>
   <arg name="input_odometry" default="/localization/kinematic_state"/>
   <arg name="input_pointcloud" default="/perception/obstacle_segmentation/pointcloud"/>

@@ -1,11 +1,11 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="common_config"
-       default="$(find trajectory_follower)/config/trajectory_follower_autoware.yaml"/>
+       default="$(env AJOUNICE_ROOT)/base_ws/src/control/trajectory_follower/config/trajectory_follower_autoware.yaml"/>
   <arg name="pp_config"
-       default="$(find trajectory_follower)/config/purepursuit_autoware.yaml"/>
+       default="$(env AJOUNICE_ROOT)/base_ws/src/control/trajectory_follower/config/purepursuit_autoware.yaml"/>
   <arg name="pi_config"
-       default="$(find trajectory_follower)/config/longi_pi_autoware.yaml"/>
+       default="$(env AJOUNICE_ROOT)/base_ws/src/control/trajectory_follower/config/longi_pi_autoware.yaml"/>
   <arg name="vehicle_config"
        default="$(arg repo_root)/configs/vehicle/ioniq5.yaml"/>
   <!-- Keep the production default on the global state.  Localization A/B may
