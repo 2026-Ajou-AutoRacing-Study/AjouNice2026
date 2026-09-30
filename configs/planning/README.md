@@ -28,6 +28,8 @@ launch 자체 또는 C++/Python 실행 코드 변경의 설치/빌드 절차는 
 | Velocity smoother | `planning_ws/src/autoware_launch/config/ros1/planning/scenario_planning/common/autoware_velocity_smoother/velocity_smoother.param.yaml` |
 | 라우트 요청 정책 | `base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester.param.yaml` |
 
+`planning` 명령의 roundabout 파라미터는 BVP 통합 모듈 설정의 `roundabout:` 항목에서만 수정한다.
+roundabout 관련 ROS 1 테스트도 이 파일을 읽는다. 모듈의 ROS 2 형식 설정은 별도 환경용이다.
 개별 패키지의 독립 실행용 YAML과 통합 실행용 YAML은 용도가 다를 수 있다.
 이 변경은 운영 launch가 선택하는 파일을 소스에서 읽도록 만든다. 여러 YAML이
 겹치는 키를 정의하거나 launch가 명시적으로 값을 덮어쓰는 경우 기존 우선순위를 유지한다.

@@ -315,7 +315,7 @@ roundabout:
   common:
     attention_area_margin: 0.75
     attention_area_angle_threshold: 0.785
-    default_stopline_margin: 1.5
+    default_stopline_margin: 0.0
     path_interpolation_ds: 0.1
     enable_pass_judge_before_default_stopline: false
   collision_detection:
