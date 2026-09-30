@@ -480,6 +480,12 @@ class DynamicCaptureToolsTest(unittest.TestCase):
         self.assertEqual(cruise["maximum_motion_m"], 260.0)
         self.assertEqual(merge["ego_initial_speed_kph"], 0.0)
         self.assertEqual(cruise["ego_initial_speed_kph"], 0.0)
+        self.assertEqual(
+            merge["interaction_roles"][0]["maximum_distance_m"], 29.0
+        )
+        self.assertEqual(cruise["actor_gate_maximum_distance_m"], 29.0)
+        self.assertEqual(cruise["actor_gate_longitudinal_m"], [-29.0, 29.0])
+        self.assertEqual(cruise["actor_gate_minimum_in_gate_frames"], 6)
         self.assertEqual(config["capture"]["maximum_precontrol_drift_m"], 0.75)
         self.assertEqual(merge["count"] + cruise["count"], 30)
 

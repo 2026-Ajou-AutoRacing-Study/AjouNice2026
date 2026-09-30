@@ -4,6 +4,13 @@
 - 마지막 검증: 2026-09-30
 - 대상: raw 4-camera + LiDAR BEVFusion, 이후 Base4-Temporal
 
+2026-09-30 competition-v2 복구 live 검증은
+[`260930_base4_competition_v2_live_validation.md`](260930_base4_competition_v2_live_validation.md)에 기록했다.
+현재 **장시간 본 수집 보류** 상태다. `mission`의 초기속도 0은 유지됐지만,
+제어 서비스가 5초 지연될 때 NPC가 캡처 위치를 벗어나는 문제가 재현됐다.
+또한 runner 성공만으로 Vehicle-positive 학습 frame을 보장할 수 없으므로,
+소수 scene 실주행과 변환 품질 audit를 모두 통과한 뒤 본 수집을 승인한다.
+
 현재 코드 기준은 `perception/base4-temporal-competition-v2`다. 과거
 `dataset/base4-temporal`의 수집·변환·temporal 실험 자산을 최신 planning/localization,
 production rotated NMS와 tracker lifecycle 위에 선별 복구했다. Production E25와 모든

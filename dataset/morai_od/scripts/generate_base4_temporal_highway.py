@@ -196,7 +196,9 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
                     "gate_longitudinal_m": [-40.0, 65.0],
                     "maximum_abs_lateral_m": 22.0,
                     "minimum_distance_m": 5.0,
-                    "maximum_distance_m": 72.0,
+                    # A captured actor must enter the detector's +/-30 m
+                    # training range, not merely the wider runner gate.
+                    "maximum_distance_m": 29.0,
                 }
             ],
             "motion_phase": "highway_merge_below_59kph",
@@ -254,6 +256,15 @@ def build_config(scene_count, seed, campaign_tag, profile="mission"):
             "maximum_motion_m": 260.0,
             "motion_stall_timeout_sec": 14.0,
             "capture_motion_arm_m": 80.0,
+            # Without this, a front actor at 48 m satisfies the default
+            # 65 m gate and the entire 16-frame clip can have zero GT in
+            # the production +/-30 m box range.
+            "actor_gate_maximum_distance_m": 29.0,
+            "actor_gate_longitudinal_m": [-29.0, 29.0],
+            # Once six consecutive actor-positive frames are secured, keep
+            # the natural pass-by/disappearance instead of invalidating the
+            # entire clip when the actor crosses behind Ego.
+            "actor_gate_minimum_in_gate_frames": 6,
             "load_settle_sec": 0.10,
             # Mainline tracking and overtaking also happen off the exact
             # centreline.  The larger straight-road envelope remains well
@@ -779,6 +790,12 @@ def main():
         args.scene_count, args.seed, args.campaign_tag, profile=args.profile
     )
     tag = "".join(ch for ch in args.campaign_tag.lower() if ch.isalnum())
+    scenario_stem = "b4th{0}_b4{0}_hc001".format(tag)
+    if len(scenario_stem.encode("ascii")) > 29:
+        raise ValueError(
+            "campaign tag is too long for MORAI's 29-byte scenario stem: "
+            "{} (use a short tag such as rv8)".format(scenario_stem)
+        )
     config_path = (
         args.output_root
         / "metadata/base4_temporal_highway"

@@ -4,6 +4,9 @@
 
 ## Base4 rosbag capture — CURRENT
 
+2026-09-30 live 복구 검증 및 본 수집 보류 사유:
+[`260930_base4_competition_v2_live_validation.md`](260930_base4_competition_v2_live_validation.md).
+
 1. [`BASE4_ROSBAG_CAPTURE_CURRENT_STATE.md`](BASE4_ROSBAG_CAPTURE_CURRENT_STATE.md)
    - MR/MRP minimal hybrid 계약, 녹화 topic, 실행·audit·임시 변환, 다음 temporal gate.
 2. [`morai_mr_mrp_hybrid_scenario_capture_runbook.md`](morai_mr_mrp_hybrid_scenario_capture_runbook.md)

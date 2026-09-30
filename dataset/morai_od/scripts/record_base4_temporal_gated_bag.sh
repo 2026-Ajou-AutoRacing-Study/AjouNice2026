@@ -99,6 +99,27 @@ cleanup() {
   fi
   if [[ -n "${RECORDER_PID}" ]] && kill -0 "${RECORDER_PID}" 2>/dev/null; then
     kill -INT "${RECORDER_PID}" 2>/dev/null || true
+    # Snapshot-mode rosbag can ignore SIGINT after the gate exits. Do not
+    # leave an orphan subscriber that blocks the next validation run.
+    for _ in $(seq 1 30); do
+      if ! kill -0 "${RECORDER_PID}" 2>/dev/null; then
+        break
+      fi
+      sleep 0.1
+    done
+    if kill -0 "${RECORDER_PID}" 2>/dev/null; then
+      kill -TERM "${RECORDER_PID}" 2>/dev/null || true
+      for _ in $(seq 1 20); do
+        if ! kill -0 "${RECORDER_PID}" 2>/dev/null; then
+          break
+        fi
+        sleep 0.1
+      done
+    fi
+    if kill -0 "${RECORDER_PID}" 2>/dev/null; then
+      echo "rosbag snapshot recorder ignored INT/TERM; forcing shutdown" >&2
+      kill -KILL "${RECORDER_PID}" 2>/dev/null || true
+    fi
     wait "${RECORDER_PID}" 2>/dev/null || true
   fi
 }
