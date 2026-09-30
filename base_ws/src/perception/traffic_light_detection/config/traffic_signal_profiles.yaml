@@ -42,7 +42,8 @@ profiles:
       # Prefer the observed red over an impossible green false positive.
       RED_CIRCLE+GREEN_CIRCLE: [RED_CIRCLE]
       RED_CIRCLE+GREEN_LEFT_ARROW: [RED_CIRCLE]
-      RED_CIRCLE+YELLOW_CIRCLE: [YELLOW_CIRCLE]
+      # C phase order is R -> G+GL -> Y -> R; R+Y never occurs, so prefer red.
+      RED_CIRCLE+YELLOW_CIRCLE: [RED_CIRCLE]
     fallback_phase: [RED_CIRCLE]
 
   straight_or_protected_left:
