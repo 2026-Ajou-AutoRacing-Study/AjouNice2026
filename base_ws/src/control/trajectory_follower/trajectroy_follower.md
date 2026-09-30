@@ -53,6 +53,10 @@ u = kp * error + ki * integral
 - `u > deadband`: accel만 사용
 - `u < -deadband`: brake만 사용
 - 그 외: accel과 brake 모두 0
+- 감속 오차가 시작될 때 남아 있는 가속 방향 적분만 reset
+- brake mode 진입/해제 속도 오차에 hysteresis를 적용하고, 계획 궤적이 계속 감속 중이면
+  짧은 오차 반전 동안 최소 brake를 유지하며 accel 전환을 금지
+- 큰 양의 속도 오차에 의한 강제 해제는 설정 시간 이상 지속될 때만 적용
 - saturation 방향으로 integral이 증가하지 않도록 conditional anti-windup 적용
 
 최종 MORAI 명령은 다음 계약을 지킨다.
