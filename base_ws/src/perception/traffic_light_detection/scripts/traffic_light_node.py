@@ -346,6 +346,7 @@ class TrafficLightNode:
                 self._maybe_save_conflict_crop(crop, raw_color_results)
 
         self.observed_debug_pub.publish(String(data=_raw_label_for(raw_color_results)))
+        detected_color_results = list(raw_color_results)
         fixed, policy_reason = self.signal_phase_policy.apply(
             raw_color_results, group.traffic_light_group_id
         )
@@ -391,7 +392,13 @@ class TrafficLightNode:
             group.elements.append(elem)
         if labels_for_debug:
             label_text = "+".join(labels_for_debug)
-        draw_color_name = _pick_draw_color(color_results)
+        # 디버그 영상은 '인식 결과'를 보여준다. 박스 색 = 실제로 검출한 램프 색,
+        # 텍스트 = 인식->최종판정(정책 보정 포함)을 병기, 텍스트 색 = 최종 판정 색.
+        detected_text = _short_label(detected_color_results)
+        decided_text = _short_label(color_results)
+        label_text = decided_text if detected_text == decided_text else f"{detected_text}->{decided_text}"
+        draw_color_name = _pick_draw_color(detected_color_results)
+        decision_color_name = _pick_draw_color(color_results)
 
         group_array.traffic_light_groups.append(group)
 
@@ -403,7 +410,8 @@ class TrafficLightNode:
                 debug_img,
                 f"{label_text} ({det_conf:.2f}) gid={group.traffic_light_group_id}",
                 (x1c, max(0, y1c - 8)),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, box_color, 2, cv2.LINE_AA,
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                DEBUG_DRAW_COLOR[decision_color_name], 2, cv2.LINE_AA,
             )
 
         self.pub.publish(group_array)
