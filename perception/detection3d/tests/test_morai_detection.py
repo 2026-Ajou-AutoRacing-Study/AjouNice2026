@@ -15,10 +15,15 @@ from perception.detection3d.common.evaluation.morai_detection import (
 
 
 def sample(gt_boxes=(), gt_labels=(), pred_boxes=(), pred_labels=(), scores=()):
+    dimensions = 7
+    for boxes in (gt_boxes, pred_boxes):
+        if len(boxes):
+            dimensions = len(boxes[0])
+            break
     return {
-        "gt_boxes": np.asarray(gt_boxes, dtype=np.float64).reshape(-1, 7),
+        "gt_boxes": np.asarray(gt_boxes, dtype=np.float64).reshape(-1, dimensions),
         "gt_labels": np.asarray(gt_labels, dtype=np.int64),
-        "pred_boxes": np.asarray(pred_boxes, dtype=np.float64).reshape(-1, 7),
+        "pred_boxes": np.asarray(pred_boxes, dtype=np.float64).reshape(-1, dimensions),
         "pred_labels": np.asarray(pred_labels, dtype=np.int64),
         "pred_scores": np.asarray(scores, dtype=np.float64),
     }
@@ -66,6 +71,17 @@ class MoraiDetectionEvalTest(unittest.TestCase):
         self.assertAlmostEqual(_scale_error([2, 2, 2], [2, 2, 2]), 0.0)
         self.assertAlmostEqual(
             _orientation_error(-np.pi + 0.1, np.pi - 0.1), 0.2)
+
+    def test_velocity_and_speed_errors_share_center_match(self):
+        gt = BOX + [10.0, 0.0]
+        pred = BOX + [8.0, 1.0]
+        metric, _, _ = accumulate(
+            [sample([gt], [0], [pred], [0], [0.9])], 0, 0.5)
+        self.assertTrue(metric.velocity_available)
+        self.assertAlmostEqual(
+            calculate_tp(metric, "velocity_error"), np.sqrt(5.0))
+        self.assertAlmostEqual(
+            calculate_tp(metric, "speed_error"), 10.0 - np.sqrt(65.0))
 
     def test_class_threshold_average_has_unambiguous_name(self):
         metrics = _evaluate_center(

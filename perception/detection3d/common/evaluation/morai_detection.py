@@ -2,9 +2,10 @@
 
 This module intentionally has no dependency on the nuScenes database or
 devkit.  It follows the nuScenes detection matching/AP interpolation rules,
-but evaluates the three MORAI classes directly in the LiDAR/ego frame.  NDS is
-not reported because the current dataset has no trustworthy velocity or
-attribute ground truth.
+but evaluates the three MORAI classes directly in the LiDAR/ego frame.  When
+both GT and predictions contain planar velocity, the same TP matches also
+report AVE and scalar speed MAE. NDS remains unavailable because MORAI has no
+compatible attribute ground truth.
 """
 
 from dataclasses import dataclass
@@ -26,6 +27,9 @@ class MetricData:
     translation_error: np.ndarray
     scale_error: np.ndarray
     orientation_error: np.ndarray
+    velocity_error: np.ndarray
+    speed_error: np.ndarray
+    velocity_available: bool = False
 
     @property
     def max_recall_index(self):
@@ -33,7 +37,7 @@ class MetricData:
         return int(nonzero[-1]) if len(nonzero) else 0
 
 
-def _empty_metric_data():
+def _empty_metric_data(velocity_available=False):
     recall = np.linspace(0.0, 1.0, 101)
     return MetricData(
         recall=recall,
@@ -42,6 +46,9 @@ def _empty_metric_data():
         translation_error=np.ones(101),
         scale_error=np.ones(101),
         orientation_error=np.ones(101),
+        velocity_error=np.ones(101),
+        speed_error=np.ones(101),
+        velocity_available=bool(velocity_available),
     )
 
 
@@ -72,7 +79,7 @@ def _normalize_result(result):
     elif "img_bbox" in result:
         result = result["img_bbox"]
     return {
-        "boxes": result["boxes_3d"].tensor.detach().cpu().numpy()[:, :7],
+        "boxes": result["boxes_3d"].tensor.detach().cpu().numpy(),
         "scores": result["scores_3d"].detach().cpu().numpy(),
         "labels": result["labels_3d"].detach().cpu().numpy(),
     }
@@ -86,7 +93,7 @@ def _extract_samples(data_infos, results, class_names, use_valid_flag):
             valid = np.asarray(info["valid_flag"], dtype=bool)
         else:
             valid = np.asarray(info["num_lidar_pts"]) > 0
-        gt_boxes = np.asarray(info["gt_boxes"], dtype=np.float64)[valid, :7]
+        gt_boxes = np.asarray(info["gt_boxes"], dtype=np.float64)[valid]
         gt_names = np.asarray(info["gt_names"])[valid]
         gt_labels = np.asarray([
             class_names.index(name) if name in class_names else -1
@@ -165,8 +172,13 @@ def accumulate(samples, class_index, distance_threshold):
     """Score-ranked, per-sample, one-to-one center-distance matching."""
     positives = sum(int(np.count_nonzero(sample["gt_labels"] == class_index))
                     for sample in samples)
+    velocity_available = bool(samples) and all(
+        sample["gt_boxes"].shape[1] >= 9
+        and sample["pred_boxes"].shape[1] >= 9
+        for sample in samples
+    )
     if positives == 0:
-        return _empty_metric_data(), 0, 0
+        return _empty_metric_data(velocity_available), 0, 0
 
     ranked = []
     for sample_index, sample in enumerate(samples):
@@ -179,6 +191,7 @@ def accumulate(samples, class_index, distance_threshold):
     tp, fp, confidence = [], [], []
     match_confidence = []
     translation_error, scale_error, orientation_error = [], [], []
+    velocity_error, speed_error = [], []
     for score, sample_index, pred_index in ranked:
         sample = samples[sample_index]
         candidates = np.nonzero(sample["gt_labels"] == class_index)[0]
@@ -201,6 +214,14 @@ def accumulate(samples, class_index, distance_threshold):
             translation_error.append(best_distance)
             scale_error.append(_scale_error(gt_box[3:6], pred_box[3:6]))
             orientation_error.append(_orientation_error(gt_box[6], pred_box[6]))
+            if velocity_available:
+                gt_velocity = gt_box[7:9]
+                pred_velocity = pred_box[7:9]
+                velocity_error.append(float(np.linalg.norm(
+                    pred_velocity - gt_velocity)))
+                speed_error.append(float(abs(
+                    np.linalg.norm(pred_velocity) -
+                    np.linalg.norm(gt_velocity))))
             match_confidence.append(score)
         else:
             tp.append(0.0)
@@ -208,7 +229,7 @@ def accumulate(samples, class_index, distance_threshold):
         confidence.append(score)
 
     if not match_confidence:
-        return _empty_metric_data(), positives, len(ranked)
+        return _empty_metric_data(velocity_available), positives, len(ranked)
 
     cumulative_tp = np.cumsum(tp, dtype=np.float64)
     cumulative_fp = np.cumsum(fp, dtype=np.float64)
@@ -221,7 +242,10 @@ def accumulate(samples, class_index, distance_threshold):
 
     errors = []
     reference_confidence = np.asarray(match_confidence)[::-1]
-    for values in (translation_error, scale_error, orientation_error):
+    error_values = [translation_error, scale_error, orientation_error]
+    if velocity_available:
+        error_values.extend([velocity_error, speed_error])
+    for values in error_values:
         cumulative = _cummean(values)
         errors.append(np.interp(
             interpolated_confidence[::-1],
@@ -229,6 +253,8 @@ def accumulate(samples, class_index, distance_threshold):
             cumulative[::-1],
         )[::-1])
 
+    if not velocity_available:
+        errors.extend([np.ones(101), np.ones(101)])
     return MetricData(
         recall=recall,
         precision=precision,
@@ -236,6 +262,9 @@ def accumulate(samples, class_index, distance_threshold):
         translation_error=errors[0],
         scale_error=errors[1],
         orientation_error=errors[2],
+        velocity_error=errors[3],
+        speed_error=errors[4],
+        velocity_available=velocity_available,
     ), positives, len(ranked)
 
 
@@ -461,10 +490,16 @@ def _evaluate_center(samples, class_names, center_thresholds,
         class_mean_aps.append(mean_ap)
 
         if include_tp:
-            metric_data, _, _ = accumulate(samples, class_index, tp_threshold)
+            metric_data, positives, _ = accumulate(
+                samples, class_index, tp_threshold)
             for name, alias in zip(tp_names, tp_aliases):
                 metrics[f"tp/{class_name}_{alias}"] = calculate_tp(
                     metric_data, name, min_recall)
+            if positives > 0 and metric_data.velocity_available:
+                metrics[f"tp/{class_name}_mAVE"] = calculate_tp(
+                    metric_data, "velocity_error", min_recall)
+                metrics[f"tp/{class_name}_speed_MAE"] = calculate_tp(
+                    metric_data, "speed_error", min_recall)
     metrics[f"{prefix}/mAP"] = float(np.mean(class_mean_aps))
     return metrics
 

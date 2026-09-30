@@ -26,4 +26,9 @@ if [[ "${PROJECTION_ONLY:-false}" == "true" ]]; then
   args+=(--projection-only)
 fi
 
+if [[ "${TEMPORAL_FEATURE_CACHE:-false}" == "true" ]]; then
+  args+=(--temporal-feature-cache)
+  args+=(--temporal-maximum-age-sec "${TEMPORAL_MAXIMUM_AGE_SEC:-0.30}")
+fi
+
 exec "${args[@]}" "$@"
