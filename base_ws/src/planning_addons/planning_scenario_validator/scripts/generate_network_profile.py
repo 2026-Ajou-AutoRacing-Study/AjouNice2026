@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[5]
 BASE = ROOT / "configs/network/ego_network_competition_local.json"
 SCENARIO_SOURCE = ROOT / "configs/network/ego_network_local.json"
-OUTPUT = ROOT / "base_ws/src/control/planning_scenario_validator/config/generated/ego_network_validator_local.json"
+OUTPUT = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/generated/ego_network_validator_local.json"
 MR_NETWORK_DIR = Path.home() / "MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Network/25.S4.MolitComp03"
 
 

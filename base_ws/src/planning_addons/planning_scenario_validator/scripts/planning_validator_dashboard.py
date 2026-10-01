@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """캠페인 결과 파일을 읽는 터미널 대시보드."""
 import sys
 from pathlib import Path

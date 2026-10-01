@@ -8,12 +8,12 @@
 2. 저장소 루트에서 실행한다.
 
 ```bash
-bash base_ws/src/control/planning_scenario_validator/install.sh
-mkdir -p base_ws/src/control/planning_scenario_validator/config/users/sw
-cp base_ws/src/control/planning_scenario_validator/config/examples/static_obstacle_gt.yaml \
-   base_ws/src/control/planning_scenario_validator/config/users/sw/campaign.yaml
-./planning_validator base_ws/src/control/planning_scenario_validator/config/users/sw/campaign.yaml --dry-run
-./planning_validator base_ws/src/control/planning_scenario_validator/config/users/sw/campaign.yaml
+bash base_ws/src/planning_addons/planning_scenario_validator/install.sh
+mkdir -p base_ws/src/planning_addons/planning_scenario_validator/config/users/sw
+cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_obstacle_gt.yaml \
+   base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/campaign.yaml
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/campaign.yaml --dry-run
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/campaign.yaml
 ```
 
 다른 터미널의 대시보드:

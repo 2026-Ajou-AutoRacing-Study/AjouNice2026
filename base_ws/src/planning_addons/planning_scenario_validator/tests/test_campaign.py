@@ -11,7 +11,7 @@ from planning_scenario_validator.runtime import prepare_scenario
 from planning_scenario_validator.runner import _recover_interrupted
 
 
-EXAMPLE = ROOT / "base_ws/src/control/planning_scenario_validator/config/examples/static_obstacle_gt.yaml"
+EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_obstacle_gt.yaml"
 
 
 class CampaignTest(unittest.TestCase):

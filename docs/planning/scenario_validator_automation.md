@@ -6,7 +6,7 @@
 
 ## 현재 구현
 
-- `base_ws/src/control/planning_scenario_validator` ROS 패키지와 루트의 `planning_validator`, `planning_validator_dashboard` 진입점을 만들었다.
+- `base_ws/src/planning_addons/planning_scenario_validator` ROS 패키지와 루트의 `planning_validator`, `planning_validator_dashboard` 진입점을 만들었다. 이 패키지는 제어기 구현이 아니라 planning 시나리오 검증·스택 orchestration이므로 `control/`에서 `planning_addons/`로 옮겼다.
 - 시나리오 원본을 검증하고 MORAI MR SaveFile에 정지 ExternalCtrl 사본, 대응 Ego Network `_MN.json`을 설치한다. 기존 `trajectory_batch_runner`에서 검증한 69-byte ScenarioLoad UDP payload builder를 재사용한다. 일반 주행용 competition local JSON에는 ScenarioLoad 항목이 없다. `PUBSUB_TYPE=783`이 `/GetTrafficLightStatus`로 배정된 슬롯을 `ego_network_local.json`의 UDP 9095 ScenarioLoad 항목으로 교체한 전용 JSON을 설치한다. 이 전용 JSON을 MORAI GUI에서 최초 1회 Connect해야 한다. 두 783 항목을 중복 추가하는 방식은 사용하지 않는다.
 - 공통 스택과 개별 시나리오 스택을 분리한다. 시나리오마다 localization, GT adapter, tracking, planning을 재시작해 이전 상태를 제거한다. BEVFusion inference 서버, UDP, sensing, Planviz는 한 캠페인 동안 유지한다.
 - `/planning/set_waypoint_route`에 UUID가 있는 goal/waypoints를 요청하고, 같은 UUID의 route와 이후 trajectory가 도착해야 controller를 켠다. 대회 route requester는 꺼서 경로 공급자가 둘이 되지 않도록 한다.
@@ -36,6 +36,8 @@ map goal 수정 후에는 Route와 controller가 실제 준비됐고, 실시간 
 연속·재개 시험 `soa_two_scene_resume_261002`: 첫 장면 PASS/SUCCESS(40.88초, 목표 최소거리 0.11m), 두 번째 장면 DRIVING 중 Ctrl+C로 MANUAL_ABORT 기록. 같은 YAML을 다시 실행하니 첫 장면은 건너뛰고 두 번째만 attempt 2로 실행되어 PASS/SUCCESS(33.09초, 최소거리 0.176m)했다. 최종 `summary.csv` 2/2 PASS, attempt 1/2, 이전 중단 증거는 `error/`에 보존됐다. 즉 scene 자동 전환·분리 bag·실시간 판정·중단 후 resume를 MR에서 실제 확인했다. 이 결과는 정적 장애물 회피 전체 시나리오의 일반적 성공률을 뜻하지 않는다.
 
 `catkin_make_isolated --install --pkg planning_scenario_validator` scoped build와 설치 후 `rospack find`/`roslaunch --nodes`, 4개 unit test, `git diff --check`가 통과했다. 이 테스트들은 `od_gt + localization + 신호등 off` 조합의 검증이다. BEVFusion, 신호등 on, 원격 LAN MORAI, Google Drive 업로드는 구성만 제공하며 아직 live 검증하지 않았다.
+
+ScenarioLoad 패킷은 `trajectory_batch_runner.morai_udp_client.build_scenario_load_payload`를 재사용한다. dataset 수집 PoC의 UDP builder와 같은 요청으로 출력한 패킷이 **69바이트 전체에서 byte-identical**함을 확인했다. dataset 쪽 builder는 대형 실험 스크립트 안에 있고 입력 검사가 적다. 본 도구는 batch runner의 독립된 packet builder를 쓰고, 필요한 3회 재시도와 Ego 위치 확인은 validator에서 수행한다. dataset PoC 전체를 planning 런타임에 의존시키지 않는다.
 
 ## 알려진 제한
 

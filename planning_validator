@@ -3,4 +3,4 @@ set -euo pipefail
 AJOUNICE_VALIDATOR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export AJOUNICE_ROOT="$AJOUNICE_VALIDATOR_ROOT"
 source "$AJOUNICE_VALIDATOR_ROOT/scripts/workspace/source_aw149.sh"
-exec /usr/bin/python3 "$AJOUNICE_VALIDATOR_ROOT/base_ws/src/control/planning_scenario_validator/scripts/planning_validator.py" "$@"
+exec /usr/bin/python3 "$AJOUNICE_VALIDATOR_ROOT/base_ws/src/planning_addons/planning_scenario_validator/scripts/planning_validator.py" "$@"
