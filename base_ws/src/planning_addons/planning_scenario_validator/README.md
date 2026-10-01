@@ -49,6 +49,24 @@ cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/stati
 
 빌더의 `soa_corridor_*`는 Base3 **OD 벤치마크용 합성 배치**다. 단일 CargoBox도 planning에서 정지하거나 충돌할 수 있으므로 이를 공식 샘플의 회피 가능 장면으로 취급하지 않는다. 일반 정적 장애물 구간의 기본 검증은 `soa_official_*`로 시작한다.
 
+다른 장애물 종류와 배치에 대한 **비공식 스트레스 테스트**는 `static_catalog_gt.yaml`과 `static_catalog_bevfusion.yaml`로 실행한다. 두 설정은 같은 `soa_catalog_*` 8개 장면(PE_Drum, TrafficBarrel, Concrete_Barricade01, PE_Firewall_Orange 각각 2개 위치)을 고른다. `sample_pose`는 배포 샘플 CargoBox의 위치이며, `pathward_080`은 무장애물 주행 경로 쪽으로 x를 0.8m 이동시킨 위치다. 다른 asset을 그 위치에 놓은 것이므로 대회 출제 장면·공식 성공률로 해석하지 않는다. GT 실행에서 배치 자체가 회피 가능한지 먼저 보고, 동일 장면을 BEVFusion으로 비교한다.
+
+```bash
+/usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_static_corridor_cases.py
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_catalog_gt.yaml --dry-run
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_catalog_gt.yaml
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_catalog_bevfusion.yaml
+```
+
+두 장애물을 연속으로 피해 가는 **비공식 지그재그 스트레스 테스트**는 `static_pair_mission_gt.yaml`/`static_pair_mission_bevfusion.yaml` 예제를 사용한다. PE_Drum과 TrafficBarrel을 약 17m 간격으로 배치한 한 장면(`soa_pair_05*`)을 선택하며, 두 물체가 각각 단독으로도 통과한 배치다. GT와 BEVFusion을 같은 장면·goal로 비교한다. 빌더가 함께 만드는 `soa_pair_01`~`04`와 `soa_pair_control_*`은 실패 원인을 찾기 위해 사용한 실험 장면이며 기본 실행 예제에는 포함하지 않았다. 여러 장애물 결과를 단일 물체 성공률에 합산하지 않는다.
+
+```bash
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_pair_mission_gt.yaml
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_pair_mission_bevfusion.yaml
+```
+
+두 명령은 동시에 실행하지 않는다. 각각 스택을 자체 실행·종료하며, 첫 명령이 끝난 뒤 두 번째를 실행한다.
+
 ## 팀원이 해야 할 일
 
 시나리오 폴더에 `.json`을 넣는다. 공통 goal을 쓴다면 YAML의 `default_case.goal`을 한 번만 설정한다. 목적지가 다를 때만 같은 이름의 `.case.yaml`을 추가한다.

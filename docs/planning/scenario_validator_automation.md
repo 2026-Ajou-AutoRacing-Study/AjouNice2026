@@ -62,4 +62,10 @@ ScenarioLoad 패킷은 `trajectory_batch_runner.morai_udp_client.build_scenario_
 
 `config/examples/static_obstacle_{gt,bevfusion}.yaml`은 GPS **음영 구간 안**의 hidden mission이다. 일반 정적 장애물 구간과 구분한다. 일반 구간은 validator의 `scripts/build_static_corridor_cases.py`로 `planner_logs/validation_inputs/static_corridor/`에 재현 장면을 생성하고, `config/examples/static_mission_{gt,bevfusion}.yaml`로 같은 장면·goal·sensor를 비교한다. `soa_official_*`은 배포 샘플 CargoBox의 원래 위치와 scale을 기준으로 하고, 움직이는 NPC와 GPS 음영만 제거한다. `soa_corridor_*`은 Base3 OD 벤치마크의 합성 배치이므로 공식 샘플의 회피 가능 장면으로 간주하지 않는다.
 
+빌더의 `soa_catalog_*`은 배포 샘플과 동일한 정적 구간 출발점·목적지에 Base3 카탈로그 장애물 4종을 한 개씩 배치한 **비공식 스트레스 테스트**다. 각각 샘플 CargoBox 위치와 무장애물 Ego 경로 방향으로 x를 0.8m 이동한 위치를 사용한다. `config/examples/static_catalog_{gt,bevfusion}.yaml`은 두 인지 소스에서 같은 8개 장면을 선택한다. 장애물 유형·배치가 바뀌므로 CargoBox 공식 샘플 결과와 성공률을 섞지 않는다.
+
+`soa_pair_05*`는 같은 일반 구간에 PE_Drum과 TrafficBarrel을 약 17m 간격으로 엇갈리게 놓은 비공식 지그재그 스트레스 장면이다. 두 장애물이 같은 출발점·목적지에서 각각 단독으로도 GT 통과한 배치이며, `config/examples/static_pair_mission_{gt,bevfusion}.yaml`에서 선택한다. GT 입력이 이미 실패한다면 BEVFusion 실패를 모델 문제로 단정하지 않고 planning·배치·경로 조건부터 분리한다.
+
+빌더는 실패 원인 분리용 `soa_pair_01`~`04`와 `soa_pair_control_*`도 생성하지만, 팀원용 기본 예제에서는 선택하지 않는다. 단일 배치도 실패하면 두 장애물의 상호작용 때문이라는 추론은 성립하지 않는다. 개별 실행 근거와 영상은 각 PC의 Git 제외 `planner_logs/`에 남긴다.
+
 동일 장면을 GT와 BEVFusion으로 비교할 때는 검출 유무뿐 아니라 `trajectory`의 속도·횡방향 경로, `ctrl_cmd`, `/CollisionData`와 실제 Ego 궤적을 함께 확인한다. PASS 한 번은 해당 장면의 폐루프 성공일 뿐 다른 객체·배치의 안전성 보장은 아니다. 개별 bag, 수치, 이미지와 분석 보고서는 Git 제외 경로 `planner_logs/analysis/<run_id>/`에 둔다.

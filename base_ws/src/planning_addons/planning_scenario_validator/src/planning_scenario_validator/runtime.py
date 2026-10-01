@@ -417,18 +417,25 @@ def video_size():
 
 def focus_planviz(timeout=45):
     """Maximize/raise the RViz window before full-screen X11 capture."""
-    try:
-        result = subprocess.run(
-            ["/usr/bin/python3", str(ROOT / "base_ws/src/planning_addons/"
-                                     "planning_scenario_validator/scripts/focus_planviz.py"),
-             str(timeout)],
-            capture_output=True, text=True, timeout=timeout + 3)
-    except subprocess.TimeoutExpired as error:
-        raise RuntimeFailure("Planviz 창 최대화 대기 시간이 초과됐습니다") from error
-    if result.returncode:
-        detail = result.stderr.strip() or result.stdout.strip() or "진단 출력 없음"
-        raise RuntimeFailure("Planviz 자동 최대화 실패(exit {}): {}".format(
-            result.returncode, detail))
+    command = ["/usr/bin/python3", str(ROOT / "base_ws/src/planning_addons/"
+                                        "planning_scenario_validator/scripts/focus_planviz.py"),
+               str(timeout)]
+    # libwnck can occasionally crash while RViz replaces its X11 window on a
+    # scenario transition. A fresh helper process succeeds once that window
+    # settles; keep the recorder non-fatal if every attempt fails.
+    for attempt in range(3):
+        try:
+            result = subprocess.run(command, capture_output=True, text=True,
+                                    timeout=timeout + 3)
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeFailure("Planviz 창 최대화 대기 시간이 초과됐습니다") from error
+        if result.returncode == 0:
+            return
+        if result.returncode not in (-11, 139) or attempt == 2:
+            detail = result.stderr.strip() or result.stdout.strip() or "진단 출력 없음"
+            raise RuntimeFailure("Planviz 자동 최대화 실패(exit {}): {}".format(
+                result.returncode, detail))
+        time.sleep(1.0)
 
 
 class Recording:

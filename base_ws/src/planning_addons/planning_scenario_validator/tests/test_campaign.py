@@ -5,12 +5,13 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from build_static_corridor_cases import build as build_static_corridor_cases
 from planning_scenario_validator.config import ConfigError, ROOT, load_campaign
-from planning_scenario_validator.runtime import LiveMonitor, prepare_scenario
+from planning_scenario_validator.runtime import LiveMonitor, focus_planviz, prepare_scenario
 from planning_scenario_validator.runner import _recover_interrupted
 
 
@@ -45,7 +46,7 @@ class CampaignTest(unittest.TestCase):
         self.assertFalse(cfg["recording"]["include_sensors"])
         self.assertNotIn("/sensor/lidar1", cfg["recording"]["topics"])
 
-    def test_static_corridor_cases_use_non_shadow_0_1_3_6_obstacles(self):
+    def test_static_corridor_cases_cover_catalog_and_pair_controls(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             build_static_corridor_cases(output=output)
@@ -63,6 +64,44 @@ class CampaignTest(unittest.TestCase):
             sample = json.loads((output / "soa_official_01_cargobox_scaled.json").read_text())
             self.assertEqual(sample["objectList"][0]["scale"]["x"], 2.0)
             self.assertEqual(sample["objectList"][0]["scale"]["y"], 3.0)
+            expected_assets = {"pe_drum": 40100027, "traffic_barrel": 40100005,
+                               "concrete_barricade": 40100047, "pe_firewall_orange": 40100028}
+            for name, data_id in expected_assets.items():
+                for suffix, dx in (("sample_pose", 0.0), ("pathward_080", 0.8)):
+                    path = output / ("soa_catalog_{}_{}.json".format(name, suffix))
+                    catalog_scene = json.loads(path.read_text())
+                    self.assertEqual(catalog_scene["shadedAreaList"], [])
+                    self.assertEqual(len(catalog_scene["objectList"]), 1)
+                    obj = catalog_scene["objectList"][0]
+                    self.assertEqual(obj["DataID"], data_id)
+                    self.assertAlmostEqual(obj["pos"]["x"], -60.61000061035156 + dx)
+                    self.assertEqual(obj["scale"]["x"], 1.0)
+                    self.assertEqual(catalog_scene["egoVehicle"]["initPosition"]["pos"]["x"], -63.195)
+            for stem, ids in (("soa_pair_01_drum_barrel_zigzag", [40100027, 40100005]),
+                              ("soa_pair_02_barrel_drum_zigzag", [40100005, 40100027]),
+                              ("soa_pair_03_drum_barrel_separated", [40100027, 40100005]),
+                              ("soa_pair_04_drum_barrel_valid_start", [40100027, 40100005]),
+                              ("soa_pair_05_drum_barrel_alternate_side", [40100027, 40100005])):
+                pair = json.loads((output / (stem + ".json")).read_text())
+                self.assertEqual([item["DataID"] for item in pair["objectList"]], ids)
+                self.assertEqual([item["UNIQUEID"] for item in pair["objectList"]], [2, 3])
+                self.assertEqual(pair["shadedAreaList"], [])
+                self.assertTrue((output / (stem + ".case.yaml")).is_file())
+            wide_case = (output / "soa_pair_03_drum_barrel_separated.case.yaml").read_text()
+            self.assertIn("x: 71.704", wide_case)
+            self.assertIn("timeout_sec: 100", wide_case)
+            for index, (stem, data_id) in enumerate((("soa_pair_control_01_early_drum", 40100027),
+                                  ("soa_pair_control_02_early_barrel", 40100005),
+                                  ("soa_pair_control_03_late_barrel", 40100005),
+                                  ("soa_pair_control_04_mid_drum_long_goal", 40100027),
+                                  ("soa_pair_control_05_mid_barrel_long_goal", 40100005),
+                                  ("soa_pair_control_06_mid_barrel_left", 40100005),
+                                  ("soa_pair_control_07_mid_drum_right", 40100027)), 1):
+                folder = output / "mid_controls" if index >= 4 else output
+                control = json.loads((folder / (stem + ".json")).read_text())
+                self.assertEqual(len(control["objectList"]), 1)
+                self.assertEqual(control["objectList"][0]["DataID"], data_id)
+                self.assertEqual(control["shadedAreaList"], [])
 
     def test_scenario_staging_preserves_source_and_installs_network_sidecar(self):
         cfg = load_campaign(EXAMPLE)
@@ -126,6 +165,14 @@ class CampaignTest(unittest.TestCase):
         monitor._collision(contact)
         self.assertEqual(monitor.collision_count, 1)
         self.assertEqual(events, [("COLLISION", {"object_id": 4101})])
+
+    def test_planviz_focus_retries_transient_wnck_crash(self):
+        with patch("planning_scenario_validator.runtime.subprocess.run", side_effect=[
+                SimpleNamespace(returncode=-11, stderr="", stdout=""),
+                SimpleNamespace(returncode=0, stderr="", stdout="")]) as run:
+            with patch("planning_scenario_validator.runtime.time.sleep"):
+                focus_planviz(timeout=2)
+        self.assertEqual(run.call_count, 2)
 
 
 def cfg_case():
