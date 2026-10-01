@@ -11,10 +11,12 @@ acceleration_feedforward:
   enabled: true
   # Acceleration-to-pedal normalization, not a change to the planner's limit.
   max_acceleration_mps2: 3.7
-  gain: 0.75
+  gain: 0.6
   # Pedal units/s; only increases are limited. 0 disables the limiter.
   # Decreases and braking disable FF immediately, without a decay tail.
-  max_rise_rate_per_s: 0.5
+  # Faster initial response; larger sustained FF caused pedal cut/re-entry
+  # in low-speed MORAI sweeps, so prefer a fast rise with a moderate gain.
+  max_rise_rate_per_s: 2.0
 # Do not let acceleration-side integral memory delay braking. Brake-side
 # integral is retained across a brief positive error to avoid rapid re-acceleration.
 reset_acceleration_integral_on_braking: true
