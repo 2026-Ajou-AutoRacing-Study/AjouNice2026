@@ -17,6 +17,7 @@
 #include "autoware/motion_utils/resample/resample.hpp"
 #include "autoware/motion_utils/trajectory/conversion.hpp"
 #include "autoware/motion_utils/trajectory/trajectory.hpp"
+#include "autoware/motion_utils/trajectory/acceleration_limits_ros.hpp"
 #include "autoware/velocity_smoother/resample.hpp"
 #include "autoware/velocity_smoother/trajectory_utils.hpp"
 
@@ -68,7 +69,8 @@ TrajectoryPoints applyPreProcess(
 
 SmootherBase::SmootherBase(
   rclcpp::Node & node, const std::shared_ptr<autoware_utils_debug::TimeKeeper> time_keeper)
-: time_keeper_(time_keeper)
+: acceleration_limits_(autoware::motion_utils::loadPlanningAccelerationLimits()),
+  time_keeper_(time_keeper)
 {
   auto & p = base_param_;
   p.max_accel = node.declare_parameter<double>("normal.max_acc");

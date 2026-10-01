@@ -33,6 +33,8 @@
 #include <lanelet2_core/primitives/Point.h>
 
 #include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <list>
 #include <queue>
 #include <set>
@@ -134,7 +136,16 @@ std::optional<RoundaboutStopLines> RoundaboutModule::generateRoundaboutStopLines
   const double ds = interpolated_path_info.ds;
   const double baselink2front = planner_data.vehicle_info_.max_longitudinal_offset_m;
 
-  const int stopline_margin_idx_dist = std::ceil(stopline_margin / ds);
+  if (path_ip.points.empty() || !std::isfinite(ds) || ds <= 0.0) {
+    return std::nullopt;
+  }
+
+  const auto last_path_idx = static_cast<std::int64_t>(path_ip.points.size() - 1);
+  const auto clamp_to_path = [last_path_idx](const std::int64_t idx) {
+    return static_cast<size_t>(std::clamp<std::int64_t>(idx, 0, last_path_idx));
+  };
+  const auto stopline_margin_idx_dist =
+    static_cast<std::int64_t>(std::ceil(stopline_margin / ds));
 
   // find the index of the first point whose vehicle footprint on it intersects with attention_area
   const auto local_footprint = planner_data.vehicle_info_.createFootprint(0.0, 0.0);
@@ -146,14 +157,20 @@ std::optional<RoundaboutStopLines> RoundaboutModule::generateRoundaboutStopLines
   }
   const auto first_footprint_inside_1st_attention_ip =
     first_footprint_inside_1st_attention_ip_opt.value();
+  const auto first_attention_idx =
+    static_cast<std::int64_t>(first_footprint_inside_1st_attention_ip);
 
   // (1) default stop line position on interpolated path
-  bool default_stopline_valid = true;
-  int stop_idx_ip_int = first_footprint_inside_1st_attention_ip - stopline_margin_idx_dist;
-  if (stop_idx_ip_int < 0) {
-    default_stopline_valid = false;
+  const auto stop_idx_ip_int = first_attention_idx - stopline_margin_idx_dist;
+  const bool default_stopline_valid = stop_idx_ip_int >= 0;
+  if (stop_idx_ip_int > last_path_idx) {
+    RCLCPP_WARN_THROTTLE(
+      logger_, *clock_, 5000,
+      "Roundabout default stop line is beyond the interpolated path; clamping it to the path "
+      "end (requested index: %lld, last index: %lld)",
+      static_cast<long long>(stop_idx_ip_int), static_cast<long long>(last_path_idx));
   }
-  const auto default_stopline_ip = stop_idx_ip_int >= 0 ? static_cast<size_t>(stop_idx_ip_int) : 0;
+  const auto default_stopline_ip = clamp_to_path(stop_idx_ip_int);
 
   // (2) ego front stop line position on interpolated path
   const geometry_msgs::Pose & current_pose = planner_data.current_odometry->pose;
@@ -165,18 +182,22 @@ std::optional<RoundaboutStopLines> RoundaboutModule::generateRoundaboutStopLines
   const double acceleration = planner_data.current_acceleration->accel.accel.linear.x;
   const double braking_dist = planning_utils::calcJudgeLineDistWithJerkLimit(
     velocity, acceleration, max_accel, max_jerk, delay_response_time);
+  if (!std::isfinite(braking_dist)) {
+    return std::nullopt;
+  }
+  const auto braking_dist_idx = static_cast<std::int64_t>(std::ceil(braking_dist / ds));
 
   // collision_stopline
-  const size_t collision_stopline_ip = closest_idx_ip + std::ceil(braking_dist / ds);
+  const auto collision_stopline_idx =
+    static_cast<std::int64_t>(closest_idx_ip) + braking_dist_idx;
+  const size_t collision_stopline_ip = clamp_to_path(collision_stopline_idx);
 
   // (4) first attention stopline position on interpolated path
   const auto first_attention_stopline_ip = first_footprint_inside_1st_attention_ip;
 
   // (5) 1st pass judge line position on interpolated path
-  int first_pass_judge_ip_int =
-    static_cast<int>(first_footprint_inside_1st_attention_ip) - std::ceil(braking_dist / ds);
-  const auto first_pass_judge_line_ip = static_cast<size_t>(
-    std::clamp<int>(first_pass_judge_ip_int, 0, static_cast<int>(path_ip.points.size()) - 1));
+  const auto first_pass_judge_ip_int = first_attention_idx - braking_dist_idx;
+  const auto first_pass_judge_line_ip = clamp_to_path(first_pass_judge_ip_int);
 
   struct RoundaboutStopLinesTemp
   {

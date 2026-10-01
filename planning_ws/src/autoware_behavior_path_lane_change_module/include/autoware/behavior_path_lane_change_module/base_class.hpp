@@ -39,6 +39,8 @@
 #include <utility>
 
 class TestNormalLaneChange;
+#include <autoware/motion_utils/trajectory/acceleration_limits_ros.hpp>
+
 namespace autoware::behavior_path_planner
 {
 using autoware::behavior_path_planner::PoseWithDetailOpt;
@@ -64,6 +66,7 @@ public:
     type_{type},
     time_keeper_(std::make_shared<autoware_utils::TimeKeeper>())
   {
+    common_data_ptr_->acceleration_limits = autoware::motion_utils::loadPlanningAccelerationLimits();
   }
 
   LaneChangeBase(const LaneChangeBase &) = delete;

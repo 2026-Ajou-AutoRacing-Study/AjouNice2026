@@ -1,27 +1,93 @@
 # Existing MORAI type-1 PI values. The lateral validity watchdog is new.
-kp: 0.8
+kp: 1.0
 ki: 0.05
 integral_limit: 3.0
 command_deadband: 0.05
+# Positive planned acceleration -> pedal FF, added to the existing PI.
+# MORAI-tuned with continuous profiles. Planned deceleration, brake-entry
+# thresholds and stop logic are unchanged. In the existing brake-entry
+# deadband, FF tapers continuously and PI trims it before pedal selection.
+# When enabled, increasing positive-speed segments are sampled at the ego's
+# projected position instead of the nearest discrete point (no extrapolation).
+acceleration_feedforward:
+  enabled: true
+  # Acceleration-to-pedal normalization, not a change to the planner's limit.
+  max_acceleration_mps2: 3.7
+  # Full-throttle MORAI calibration [speed m/s, acceleration m/s^2].
+  # Empty [] uses max_acceleration_mps2 above. This is NOT a planner limit.
+  # Speeds: 0, 10, 20, 60, 120 km/h. Interpolate; clamp outside the table.
+  speed_acceleration_map:
+    - [0.0, 5.2]
+    - [2.777778, 5.1]
+    - [5.555556, 3.65]
+    - [16.666667, 3.5]
+    - [33.333333, 3.35]
+  gain: 0.7
+  # Pedal units/s; only increases are limited. 0 disables the limiter.
+  # Decreases and braking disable FF immediately, without a decay tail.
+  # Faster initial response; larger sustained FF caused pedal cut/re-entry
+  # in low-speed MORAI sweeps, so prefer a fast rise with a moderate gain.
+  max_rise_rate_per_s: 3.0
+# Do not let acceleration-side integral memory delay braking. Brake-side
+# integral is retained across a brief positive error to avoid rapid re-acceleration.
+reset_acceleration_integral_on_braking: true
+
+brake_hysteresis:
+  enabled: true
+  # Enter on a real overspeed, and require a wider recovery before leaving brake mode.
+  enter_error_mps: 0.08
+  exit_error_mps: 0.15
+  # Release for a substantial underspeed only when it persists; this rejects
+  # one- or two-cycle state/target discontinuities during strong deceleration.
+  hard_exit_error_mps: 0.50
+  hard_exit_hold_s: 0.10
+  # While the trajectory still requests at least this deceleration, retain a small brake.
+  planned_deceleration_threshold_mps2: 0.50
+  min_brake_cmd: 0.05
 
 control_limits:
   # Normal trajectory tracking only. Safety/watchdog stops still publish stop_brake_cmd immediately.
   max_brake_rise_rate_per_s: 2.0
   max_brake_fall_rate_per_s: 5.0
 
-# Distance-aware preview: retain the local plan unless a future speed restriction
-# requires braking now. The horizon expands to cover the assumed stopping distance.
-speed_preview:
+# Prototype: track planned deceleration with filtered measured acceleration,
+# not an uncalibrated acceleration-to-pedal feedforward map.
+deceleration_feedback:
   enabled: true
+  activation_mps2: 0.3
+  # Follow planned braking without clipping normal -3.5/-6 requests to -2.2.
+  # This is an allowed magnitude, not a request to brake at -8 every time.
+  max_deceleration_mps2: 8.0
+  # Large overspeed follows the velocity smoother safety limit, not the normal cap.
+  safety_max_deceleration_mps2: 8.0
+  acceleration_lpf_time_constant_s: 0.1
+  brake_integrator_gain: 0.40
+  speed_error_override_mps: 2.0
+  # Safety PI may assist but cannot saturate the brake pedal by itself.
+  safety_pi_max_brake_cmd: 0.40
+  # Bounded outer velocity loop: close raw-target tracking error smoothly.
+  # When below target, release brake a little sooner to prevent underspeed.
+  velocity_error_gain: 0.55
+  max_velocity_correction_mps2: 0.65
+  # When above raw target, allow slightly stronger but bounded deceleration.
+  overspeed_velocity_error_gain: 0.80
+  max_overspeed_correction_mps2: 0.50
+
+# Disabled: follow the trajectory's local speed target without preview intervention.
+speed_preview:
+  enabled: false
   time_s: 1.5
   min_distance_m: 5.0
   max_distance_m: 30.0
-  # Keep one m/s^2 of reserve below the 7.0 m/s^2 planner emergency envelope.
-  deceleration_mps2: 6.0
+  deceleration_mps2: 1.5
   response_delay_s: 0.3
-  distance_margin_m: 0.2
+  distance_margin_m: 0.5
 
 # MORAI type-1 command is normalized, not m/s^2. Calibrate hold_brake_cmd on the target vehicle.
 stop:
   velocity_threshold_mps: 0.1
   hold_brake_cmd: 0.2
+  # Dedicated terminal-stop region: brake release is slow and blends into hold.
+  smooth_stop_enabled: true
+  smooth_stop_entry_velocity_mps: 0.5
+  smooth_stop_max_brake_fall_rate_per_s: 0.5

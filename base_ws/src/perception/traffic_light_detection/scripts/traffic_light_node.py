@@ -9,7 +9,7 @@ v13 -> v14 변경점 (2026-08-19, 스무딩 창(5)/과반수(3) 값 재조정을
     외부에서 관측 가능했음.
   - 수정: raw_color_results(보정까지는 거치되 스무딩 전)를 매 프레임
     ~debug_raw_label(std_msgs/String) 토픽으로 추가 발행. 이 토픽을 별도
-    로거(raw_streak_analyzer.py)로 구독해서, raw 라벨이 몇 프레임 연속으로
+    로거로 구독해서, raw 라벨이 몇 프레임 연속으로
     유지되는지 실측 가능하게 함.
 """
 import os
@@ -84,6 +84,58 @@ def _raw_label_for(color_results):
     return "+".join(sorted(parts))
 
 
+_SHORT_TOKEN = {
+    ("red", "circle", None): "RC",
+    ("yellow", "circle", None): "YC",
+    ("green", "circle", None): "GC",
+    ("green", "arrow", True): "GLA",
+    ("green", "arrow", False): "GRA",
+}
+
+
+def _short_label(color_results):
+    if not color_results:
+        return "OFF"
+    return "+".join(sorted(_SHORT_TOKEN.get(tuple(r), "?") for r in color_results))
+
+
+class _StatusLog:
+    """[Traffic] 상태를 1초에 한 줄로만 출력한다.
+
+    한 주기 안에서 가장 심각한 사건의 레벨로 찍어, rosconsole 기본 색상
+    (DEBUG 초록 / INFO 흰색 / WARN 노랑 / ERROR 빨강)이 그대로 의미를 갖게 한다.
+    """
+
+    INFO, WARN, ERROR = 0, 1, 2
+
+    def __init__(self, period_sec=1.0):
+        self.period = float(period_sec)
+        self._last_emit = 0.0
+        self._level = self.INFO
+        self._note = ""
+
+    def note(self, level, text):
+        if level >= self._level:
+            self._level = level
+            self._note = text
+
+    def tick(self, now, section, phase=None):
+        if now - self._last_emit < self.period:
+            return
+        self._last_emit = now
+        body = section if phase is None else f"{section} | {phase}"
+        if self._note:
+            body = f"{body} | {self._note}"
+        if self._level >= self.ERROR:
+            rospy.logerr(f"[Traffic][ERROR] {body}")
+        elif self._level == self.WARN:
+            rospy.logwarn(f"[Traffic][WARN] {body}")
+        else:
+            rospy.loginfo(f"[Traffic] {body}")
+        self._level = self.INFO
+        self._note = ""
+
+
 class TrafficLightNode:
     def __init__(self):
         weights_path = rospy.get_param("~weights_path")
@@ -105,8 +157,10 @@ class TrafficLightNode:
         if self.debug_save_crop_dir:
             os.makedirs(self.debug_save_crop_dir, exist_ok=True)
             rospy.loginfo(
-                f"[traffic_light_node] 무효 조합 타겟 크롭 저장 활성화: {self.debug_save_crop_dir}"
+                f"[Traffic] 충돌 크롭 저장: {self.debug_save_crop_dir}"
             )
+
+        self.status = _StatusLog(float(rospy.get_param("~log_interval_sec", 1.0)))
 
         smoothing_window_size = int(rospy.get_param("~smoothing_window_size", 5))
         smoothing_majority_count = rospy.get_param("~smoothing_majority_count", None)
@@ -116,8 +170,8 @@ class TrafficLightNode:
             window_size=smoothing_window_size,
             majority_count=smoothing_majority_count,
         )
-        rospy.loginfo(
-            f"[traffic_light_node] 신호 스무딩: window={smoothing_window_size}, "
+        rospy.logdebug(
+            f"[Traffic] 스무딩 window={smoothing_window_size} "
             f"majority={self.signal_smoother.majority_count}"
         )
 
@@ -133,15 +187,12 @@ class TrafficLightNode:
         self._external_route_group_id = None
         self._external_route_group_id_stamp = None
         self._last_policy_group_id = None
-        rospy.loginfo(f"[traffic_light_node] 신호 phase 프로파일: {signal_profile_path}")
+        rospy.logdebug(f"[Traffic] 프로파일: {signal_profile_path}")
 
         if not os.path.exists(weights_path):
-            rospy.logerr(f"[traffic_light_node] 가중치 파일 없음: {weights_path}")
+            rospy.logerr(f"[Traffic][ERROR] 가중치 파일 없음: {weights_path}")
 
-        rospy.loginfo(
-            f"[traffic_light_node] YOLO 가중치 로드: {weights_path} "
-            f"(device={self.inference_device})"
-        )
+        rospy.loginfo(f"[Traffic] 기동: YOLO {os.path.basename(weights_path)} device={self.inference_device}")
         self.model = YOLO(weights_path)
 
         self.pub = rospy.Publisher(
@@ -176,9 +227,8 @@ class TrafficLightNode:
 
         self.sub = rospy.Subscriber(image_topic, CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
         rospy.loginfo(
-            f"[traffic_light_node] 구독: {image_topic} (CompressedImage) / "
-            f"발행: /perception/traffic_light_recognition/traffic_signals, ~debug_raw_label"
-            + (" / 디버그 이미지: ~debug_image/compressed" if self.publish_debug_image else "")
+            f"[Traffic] 구독 {image_topic}"
+            + (" / 디버그 영상 ON" if self.publish_debug_image else "")
         )
 
     def route_group_id_callback(self, msg):
@@ -206,9 +256,8 @@ class TrafficLightNode:
             hz = HZ_LOG_INTERVAL / elapsed if elapsed > 0 else 0.0
             avg_ms = (self._proc_time_sum / HZ_LOG_INTERVAL) * 1000.0
             max_ms = self._proc_time_max * 1000.0
-            rospy.loginfo(
-                f"[traffic_light_node] 실시간성: 최근 {HZ_LOG_INTERVAL}프레임 "
-                f"평균 {hz:.1f} Hz, 프레임당 처리시간 평균 {avg_ms:.1f}ms / 최대 {max_ms:.1f}ms"
+            rospy.logdebug(
+                f"[Traffic] {hz:.1f}Hz 평균 {avg_ms:.1f}ms 최대 {max_ms:.1f}ms"
             )
             self._hz_window_start = time.time()
             self._proc_time_sum = 0.0
@@ -237,7 +286,8 @@ class TrafficLightNode:
             if img is None:
                 raise ValueError("cv2.imdecode 실패 (None)")
         except Exception as e:
-            rospy.logwarn(f"[traffic_light_node] 이미지 디코딩 실패: {e}")
+            self.status.note(_StatusLog.ERROR, f"이미지 디코딩 실패: {e}")
+            self.status.tick(time.time(), "—")
             return
 
         h, w = img.shape[:2]
@@ -296,16 +346,15 @@ class TrafficLightNode:
                 self._maybe_save_conflict_crop(crop, raw_color_results)
 
         self.observed_debug_pub.publish(String(data=_raw_label_for(raw_color_results)))
+        detected_color_results = list(raw_color_results)
         fixed, policy_reason = self.signal_phase_policy.apply(
             raw_color_results, group.traffic_light_group_id
         )
         if fixed != raw_color_results:
             self._n_conflict_fixed += 1
-            rospy.logwarn_throttle(
-                2.0,
-                f"[traffic_light_node] 신호 phase 보정(누적 {self._n_conflict_fixed}회, "
-                f"gid={group.traffic_light_group_id}, reason={policy_reason}): "
-                f"{raw_color_results} -> {fixed}",
+            self.status.note(
+                _StatusLog.WARN,
+                f"보정 {_short_label(raw_color_results)}->{_short_label(fixed)}",
             )
         raw_color_results = fixed
 
@@ -315,12 +364,10 @@ class TrafficLightNode:
             raw_color_results, policy_reason, group.traffic_light_group_id,
             now.to_sec(), raw_det_conf, self.signal_smoother,
         )
-        if transition_reason.endswith("yellow_stop_after_disallowed_phase"):
-            rospy.logwarn_throttle(
-                2.0,
-                f"[traffic_light_node] 조건부 노랑 STOP "
-                f"(gid={group.traffic_light_group_id}, reason={transition_reason})",
-            )
+        if policy_reason.endswith(":fail_open"):
+            self.status.note(_StatusLog.WARN, "검출 없음 -> fallback")
+        elif transition_reason.startswith("observation_guard"):
+            self.status.note(_StatusLog.WARN, "관측 가드 만료")
         self.policy_debug_pub.publish(String(data=f"{policy_reason}|{transition_reason}"))
 
         labels_for_debug = []
@@ -345,7 +392,13 @@ class TrafficLightNode:
             group.elements.append(elem)
         if labels_for_debug:
             label_text = "+".join(labels_for_debug)
-        draw_color_name = _pick_draw_color(color_results)
+        # 디버그 영상은 '인식 결과'를 보여준다. 박스 색 = 실제로 검출한 램프 색,
+        # 텍스트 = 인식->최종판정(정책 보정 포함)을 병기, 텍스트 색 = 최종 판정 색.
+        detected_text = _short_label(detected_color_results)
+        decided_text = _short_label(color_results)
+        label_text = decided_text if detected_text == decided_text else f"{detected_text}->{decided_text}"
+        draw_color_name = _pick_draw_color(detected_color_results)
+        decision_color_name = _pick_draw_color(color_results)
 
         group_array.traffic_light_groups.append(group)
 
@@ -357,7 +410,8 @@ class TrafficLightNode:
                 debug_img,
                 f"{label_text} ({det_conf:.2f}) gid={group.traffic_light_group_id}",
                 (x1c, max(0, y1c - 8)),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, box_color, 2, cv2.LINE_AA,
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                DEBUG_DRAW_COLOR[decision_color_name], 2, cv2.LINE_AA,
             )
 
         self.pub.publish(group_array)
@@ -375,6 +429,11 @@ class TrafficLightNode:
         self._proc_time_sum += proc_time
         self._proc_time_max = max(self._proc_time_max, proc_time)
         self._log_hz_if_needed()
+        self.status.tick(
+            time.time(),
+            self.signal_phase_policy.section_label(group.traffic_light_group_id),
+            _short_label(color_results),
+        )
 
 
 def main():

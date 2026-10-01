@@ -11,7 +11,9 @@
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float64.h>
+#include <std_msgs/Float64MultiArray.h>
 #include <trajectory_follower/distance_speed_limit.hpp>
+#include <trajectory_follower/longitudinal_pi_utils.hpp>
 
 namespace
 {
@@ -83,6 +85,39 @@ public:
     private_nh_.param("ki", ki_, 0.05);
     private_nh_.param("integral_limit", integral_limit_, 3.0);
     private_nh_.param("command_deadband", command_deadband_, 0.05);
+    private_nh_.param("acceleration_feedforward/enabled", acceleration_feedforward_enabled_, false);
+    private_nh_.param("acceleration_feedforward/max_acceleration_mps2", feedforward_max_acceleration_, 3.7);
+    private_nh_.param("acceleration_feedforward/gain", feedforward_gain_, 1.0);
+    private_nh_.param("acceleration_feedforward/max_rise_rate_per_s", feedforward_rise_rate_, 0.0);
+    XmlRpc::XmlRpcValue acceleration_map;
+    if (private_nh_.getParam("acceleration_feedforward/speed_acceleration_map", acceleration_map)) {
+      const auto number = [](XmlRpc::XmlRpcValue & value) -> double {
+        if (value.getType() == XmlRpc::XmlRpcValue::TypeDouble) {return static_cast<double>(value);}
+        if (value.getType() == XmlRpc::XmlRpcValue::TypeInt) {return static_cast<int>(value);}
+        throw std::runtime_error("FF speed_acceleration_map requires numeric [m/s, m/s^2] pairs");
+      };
+      if (acceleration_map.getType() != XmlRpc::XmlRpcValue::TypeArray) {
+        throw std::runtime_error("FF speed_acceleration_map must be an array");
+      }
+      for (int i = 0; i < acceleration_map.size(); ++i) {
+        auto & point = acceleration_map[i];
+        if (point.getType() != XmlRpc::XmlRpcValue::TypeArray || point.size() != 2) {
+          throw std::runtime_error("FF speed_acceleration_map requires [m/s, m/s^2] pairs");
+        }
+        feedforward_acceleration_map_.emplace_back(number(point[0]), number(point[1]));
+      }
+    }
+    private_nh_.param(
+      "reset_acceleration_integral_on_braking", reset_acceleration_integral_on_braking_, true);
+    private_nh_.param("brake_hysteresis/enabled", brake_hysteresis_enabled_, true);
+    private_nh_.param("brake_hysteresis/enter_error_mps", brake_enter_error_mps_, 0.08);
+    private_nh_.param("brake_hysteresis/exit_error_mps", brake_exit_error_mps_, 0.15);
+    private_nh_.param("brake_hysteresis/hard_exit_error_mps", brake_hard_exit_error_mps_, 0.5);
+    private_nh_.param("brake_hysteresis/hard_exit_hold_s", brake_hard_exit_hold_s_, 0.1);
+    private_nh_.param(
+      "brake_hysteresis/planned_deceleration_threshold_mps2",
+      brake_planned_deceleration_threshold_mps2_, 0.5);
+    private_nh_.param("brake_hysteresis/min_brake_cmd", brake_min_command_, 0.05);
     private_nh_.param("speed_preview/enabled", speed_preview_enabled_, true);
     private_nh_.param("speed_preview/time_s", speed_preview_time_s_, 1.5);
     private_nh_.param("speed_preview/min_distance_m", speed_preview_min_distance_m_, 5.0);
@@ -92,9 +127,36 @@ public:
     private_nh_.param("speed_preview/distance_margin_m", preview_distance_margin_m_, 0.2);
     private_nh_.param("stop/velocity_threshold_mps", stop_velocity_threshold_mps_, 0.1);
     private_nh_.param("stop/hold_brake_cmd", hold_brake_cmd_, 0.2);
+    private_nh_.param("stop/smooth_stop_enabled", smooth_stop_enabled_, false);
+    private_nh_.param("stop/smooth_stop_entry_velocity_mps", smooth_stop_entry_velocity_mps_, 0.5);
+    private_nh_.param("stop/smooth_stop_max_brake_fall_rate_per_s",
+      smooth_stop_max_brake_fall_rate_per_s_, 0.5);
+    private_nh_.param("deceleration_feedback/enabled", deceleration_feedback_enabled_, false);
+    private_nh_.param("deceleration_feedback/activation_mps2", deceleration_feedback_activation_mps2_, 0.3);
+    private_nh_.param("deceleration_feedback/max_deceleration_mps2",
+      deceleration_feedback_max_deceleration_mps2_, 2.0);
+    private_nh_.param("deceleration_feedback/safety_max_deceleration_mps2",
+      deceleration_feedback_safety_max_deceleration_mps2_, 8.0);
+    private_nh_.param("deceleration_feedback/acceleration_lpf_time_constant_s",
+      acceleration_lpf_time_constant_s_, 0.2);
+    private_nh_.param("deceleration_feedback/brake_integrator_gain",
+      deceleration_feedback_brake_integrator_gain_, 0.35);
+    private_nh_.param("deceleration_feedback/speed_error_override_mps",
+      deceleration_feedback_speed_error_override_mps_, 1.0);
+    private_nh_.param("deceleration_feedback/safety_pi_max_brake_cmd",
+      deceleration_feedback_safety_pi_max_brake_cmd_, 0.4);
+    private_nh_.param("deceleration_feedback/velocity_error_gain",
+      deceleration_feedback_velocity_error_gain_, 0.35);
+    private_nh_.param("deceleration_feedback/max_velocity_correction_mps2",
+      deceleration_feedback_max_velocity_correction_mps2_, 0.4);
+    private_nh_.param("deceleration_feedback/overspeed_velocity_error_gain",
+      deceleration_feedback_overspeed_velocity_error_gain_, 0.5);
+    private_nh_.param("deceleration_feedback/max_overspeed_correction_mps2",
+      deceleration_feedback_max_overspeed_correction_mps2_, 0.5);
     validateParameters();
 
     command_publisher_ = nh_.advertise<morai_msgs::CtrlCmd>(ctrl_cmd_topic_, 10);
+    debug_publisher_ = private_nh_.advertise<std_msgs::Float64MultiArray>("debug/longitudinal", 10);
     trajectory_subscriber_ = nh_.subscribe(trajectory_topic_, 2,
       &AutowareLongitudinalPi::trajectoryCallback, this);
     state_subscriber_ = nh_.subscribe(state_topic_, 10, &AutowareLongitudinalPi::stateCallback, this);
@@ -122,7 +184,19 @@ private:
       std::isfinite(future_stamp_tolerance_s_) && future_stamp_tolerance_s_ >= 0.0 &&
       min_points_ >= 3 && std::isfinite(kp_) && kp_ >= 0.0 && std::isfinite(ki_) && ki_ >= 0.0 &&
       std::isfinite(integral_limit_) && integral_limit_ > 0.0 && std::isfinite(command_deadband_) &&
-      command_deadband_ >= 0.0 && std::isfinite(speed_preview_time_s_) && speed_preview_time_s_ >= 0.0 &&
+      command_deadband_ >= 0.0 &&
+      std::isfinite(feedforward_max_acceleration_) && feedforward_max_acceleration_ > 0.0 &&
+      std::isfinite(feedforward_gain_) && feedforward_gain_ >= 0.0 &&
+      std::isfinite(feedforward_rise_rate_) && feedforward_rise_rate_ >= 0.0 &&
+      trajectory_follower::validAccelerationMap(feedforward_acceleration_map_) &&
+      std::isfinite(brake_enter_error_mps_) && brake_enter_error_mps_ >= 0.0 &&
+      std::isfinite(brake_exit_error_mps_) && brake_exit_error_mps_ > brake_enter_error_mps_ &&
+      std::isfinite(brake_hard_exit_error_mps_) && brake_hard_exit_error_mps_ >= brake_exit_error_mps_ &&
+      std::isfinite(brake_hard_exit_hold_s_) && brake_hard_exit_hold_s_ >= 0.0 &&
+      std::isfinite(brake_planned_deceleration_threshold_mps2_) &&
+      brake_planned_deceleration_threshold_mps2_ > 0.0 && std::isfinite(brake_min_command_) &&
+      brake_min_command_ >= 0.0 && brake_min_command_ <= max_brake_cmd_ &&
+      std::isfinite(speed_preview_time_s_) && speed_preview_time_s_ >= 0.0 &&
       std::isfinite(speed_preview_min_distance_m_) && speed_preview_min_distance_m_ >= 0.0 &&
       std::isfinite(speed_preview_max_distance_m_) &&
       speed_preview_max_distance_m_ >= speed_preview_min_distance_m_ &&
@@ -130,7 +204,33 @@ private:
       std::isfinite(preview_response_delay_s_) && preview_response_delay_s_ >= 0.0 &&
       std::isfinite(preview_distance_margin_m_) && preview_distance_margin_m_ >= 0.0 &&
       std::isfinite(stop_velocity_threshold_mps_) && stop_velocity_threshold_mps_ >= 0.0 &&
-      std::isfinite(hold_brake_cmd_) && hold_brake_cmd_ >= 0.0 && hold_brake_cmd_ <= max_brake_cmd_;
+      std::isfinite(hold_brake_cmd_) && hold_brake_cmd_ >= 0.0 && hold_brake_cmd_ <= max_brake_cmd_ &&
+      std::isfinite(smooth_stop_entry_velocity_mps_) &&
+      smooth_stop_entry_velocity_mps_ > stop_velocity_threshold_mps_ &&
+      std::isfinite(smooth_stop_max_brake_fall_rate_per_s_) &&
+      smooth_stop_max_brake_fall_rate_per_s_ > 0.0 &&
+      std::isfinite(deceleration_feedback_activation_mps2_) &&
+      deceleration_feedback_activation_mps2_ > 0.0 &&
+      std::isfinite(deceleration_feedback_max_deceleration_mps2_) &&
+      deceleration_feedback_max_deceleration_mps2_ > 0.0 &&
+      std::isfinite(deceleration_feedback_safety_max_deceleration_mps2_) &&
+      deceleration_feedback_safety_max_deceleration_mps2_ >= deceleration_feedback_max_deceleration_mps2_ &&
+      std::isfinite(acceleration_lpf_time_constant_s_) && acceleration_lpf_time_constant_s_ >= 0.0 &&
+      std::isfinite(deceleration_feedback_brake_integrator_gain_) &&
+      deceleration_feedback_brake_integrator_gain_ >= 0.0 &&
+      std::isfinite(deceleration_feedback_speed_error_override_mps_) &&
+      deceleration_feedback_speed_error_override_mps_ > 0.0 &&
+      std::isfinite(deceleration_feedback_safety_pi_max_brake_cmd_) &&
+      deceleration_feedback_safety_pi_max_brake_cmd_ >= 0.0 &&
+      deceleration_feedback_safety_pi_max_brake_cmd_ <= max_brake_cmd_ &&
+      std::isfinite(deceleration_feedback_velocity_error_gain_) &&
+      deceleration_feedback_velocity_error_gain_ >= 0.0 &&
+      std::isfinite(deceleration_feedback_max_velocity_correction_mps2_) &&
+      deceleration_feedback_max_velocity_correction_mps2_ >= 0.0 &&
+      std::isfinite(deceleration_feedback_overspeed_velocity_error_gain_) &&
+      deceleration_feedback_overspeed_velocity_error_gain_ >= 0.0 &&
+      std::isfinite(deceleration_feedback_max_overspeed_correction_mps2_) &&
+      deceleration_feedback_max_overspeed_correction_mps2_ >= 0.0;
     if (!valid) {
       throw std::runtime_error("invalid longi_pi_autoware parameter");
     }
@@ -142,7 +242,7 @@ private:
       message->points.size() >= static_cast<std::size_t>(min_points_);
     for (const auto & point : message->points) {
       valid = valid && std::isfinite(point.pose.position.x) && std::isfinite(point.pose.position.y) &&
-        std::isfinite(point.longitudinal_velocity_mps);
+        std::isfinite(point.longitudinal_velocity_mps) && std::isfinite(point.acceleration_mps2);
     }
     trajectory_valid_ = valid;
     if (valid) {
@@ -189,6 +289,46 @@ private:
       }
     }
     return nearest;
+  }
+
+  double accelerationTargetVelocity(const std::size_t nearest, const double fallback) const
+  {
+    if (!acceleration_feedforward_enabled_ || speed_preview_enabled_ ||
+        trajectory_.points[nearest].acceleration_mps2 <= 0.0 ||
+        fallback <= stop_velocity_threshold_mps_) {
+      return fallback;
+    }
+    double best_distance = std::numeric_limits<double>::infinity();
+    double result = fallback;
+    for (std::size_t i = nearest > 0 ? nearest - 1 : 0;
+         i <= nearest && i + 1 < trajectory_.points.size(); ++i) {
+      const auto & first = trajectory_.points[i];
+      const auto & second = trajectory_.points[i + 1];
+      const double dx = second.pose.position.x - first.pose.position.x;
+      const double dy = second.pose.position.y - first.pose.position.y;
+      const double length_squared = dx * dx + dy * dy;
+      if (length_squared <= std::numeric_limits<double>::epsilon()) {
+        continue;
+      }
+      const double ex = state_.pose.pose.position.x - first.pose.position.x;
+      const double ey = state_.pose.pose.position.y - first.pose.position.y;
+      const double ratio = std::max(0.0, std::min(1.0, (ex * dx + ey * dy) / length_squared));
+      const double px = ex - ratio * dx;
+      const double py = ey - ratio * dy;
+      const double distance_squared = px * px + py * py;
+      if (distance_squared >= best_distance) {
+        continue;
+      }
+      best_distance = distance_squared;
+      result = fallback;
+      // Preserve all deceleration/stop targets, including a transition segment.
+      if (first.acceleration_mps2 > 0.0 && second.acceleration_mps2 > 0.0 &&
+          first.longitudinal_velocity_mps > stop_velocity_threshold_mps_) {
+        result = trajectory_follower::interpolateIncreasingVelocity(
+          first.longitudinal_velocity_mps, second.longitudinal_velocity_mps, ratio, fallback);
+      }
+    }
+    return result;
   }
 
   double previewTargetVelocity(const std::size_t nearest, const double current_velocity) const
@@ -243,8 +383,12 @@ private:
 
   void publishHold(const double steering)
   {
+    last_feedforward_ = 0.0;
     integral_ = 0.0;
+    braking_mode_ = false;
+    brake_hard_exit_elapsed_s_ = 0.0;
     last_brake_cmd_ = hold_brake_cmd_;
+    acceleration_initialized_ = false;
     morai_msgs::CtrlCmd command;
     command.longlCmdType = 1;
     command.accel = 0.0;
@@ -257,8 +401,12 @@ private:
 
   void publishStop()
   {
+    last_feedforward_ = 0.0;
     integral_ = 0.0;
+    braking_mode_ = false;
+    brake_hard_exit_elapsed_s_ = 0.0;
     last_brake_cmd_ = stop_brake_cmd_;
+    acceleration_initialized_ = false;
     morai_msgs::CtrlCmd command;
     command.longlCmdType = 1;
     command.accel = 0.0;
@@ -290,20 +438,67 @@ private:
       return;
     }
     const double current_velocity = state_.twist.twist.linear.x * velocity_scale_;
-    const double target_velocity = previewTargetVelocity(nearest, current_velocity);
+    const double target_velocity = accelerationTargetVelocity(
+      nearest, previewTargetVelocity(nearest, current_velocity));
     if (target_velocity <= stop_velocity_threshold_mps_ &&
         std::abs(current_velocity) <= stop_velocity_threshold_mps_) {
       publishHold(steering_);
       return;
     }
     const double error = target_velocity - current_velocity;
+    const double planned_acceleration = trajectory_.points[nearest].acceleration_mps2;
+    const bool smooth_stop_active = smooth_stop_enabled_ &&
+      target_velocity <= stop_velocity_threshold_mps_ &&
+      std::abs(current_velocity) <= smooth_stop_entry_velocity_mps_;
     double dt = (event.current_real - event.last_real).toSec();
     if (!std::isfinite(dt) || dt <= 0.0 || dt > 1.0) {
       dt = 1.0 / control_rate_hz_;
     }
+    if (acceleration_initialized_) {
+      const double raw_acceleration = (current_velocity - previous_velocity_mps_) / dt;
+      if (std::isfinite(raw_acceleration)) {
+        const double alpha = acceleration_lpf_time_constant_s_ <= 0.0
+          ? 1.0 : dt / (acceleration_lpf_time_constant_s_ + dt);
+        filtered_acceleration_mps2_ += std::max(0.0, std::min(1.0, alpha)) *
+          (raw_acceleration - filtered_acceleration_mps2_);
+      }
+    } else {
+      filtered_acceleration_mps2_ = 0.0;
+      acceleration_initialized_ = true;
+    }
+    previous_velocity_mps_ = current_velocity;
+    const bool deceleration_feedback_active = deceleration_feedback_enabled_ &&
+      !smooth_stop_active && planned_acceleration <= -deceleration_feedback_activation_mps2_ &&
+      acceleration_initialized_;
+    if (deceleration_feedback_active) {
+      // Avoid carrying a velocity-PI windup into acceleration-controlled braking.
+      integral_ = 0.0;
+    }
+    integral_ = trajectory_follower::resetAccelerationIntegralOnBraking(
+      error, integral_, reset_acceleration_integral_on_braking_);
+    const auto brake_hysteresis = trajectory_follower::updateBrakeHysteresis(
+      {braking_mode_, brake_hard_exit_elapsed_s_}, error, planned_acceleration, dt,
+      brake_hysteresis_enabled_,
+      brake_enter_error_mps_, brake_exit_error_mps_, brake_hard_exit_error_mps_,
+      brake_hard_exit_hold_s_,
+      brake_planned_deceleration_threshold_mps2_);
+    braking_mode_ = brake_hysteresis.active;
+    brake_hard_exit_elapsed_s_ = brake_hysteresis.hard_exit_elapsed_s;
+    const bool acceleration_allowed = !braking_mode_ && !smooth_stop_active &&
+      !deceleration_feedback_active && last_brake_cmd_ <= command_deadband_ &&
+      current_velocity >= 0.0 && target_velocity > stop_velocity_threshold_mps_;
+    const double feedforward_weight = trajectory_follower::accelerationFeedforwardWeight(
+      error, brake_hysteresis_enabled_ ? brake_enter_error_mps_ : 0.0);
+    const double calibrated_acceleration = trajectory_follower::accelerationAtSpeed(
+      feedforward_acceleration_map_, current_velocity, feedforward_max_acceleration_);
+    const double requested_feedforward = trajectory_follower::accelerationFeedforward(
+      acceleration_feedforward_enabled_, acceleration_allowed, planned_acceleration,
+      calibrated_acceleration, feedforward_gain_) * feedforward_weight;
+    const double feedforward = trajectory_follower::limitFeedforwardRise(
+      requested_feedforward, last_feedforward_, feedforward_rise_rate_, dt);
     const double candidate_integral = std::max(-integral_limit_, std::min(integral_limit_, integral_ + error * dt));
     const double candidate_command = kp_ * error + ki_ * candidate_integral;
-    if (!((candidate_command > max_accel_cmd_ && error > 0.0) ||
+    if (!((candidate_command + feedforward > max_accel_cmd_ && error > 0.0) ||
           (candidate_command < -max_brake_cmd_ && error < 0.0))) {
       integral_ = candidate_integral;
     }
@@ -313,16 +508,87 @@ private:
     command.steering = steering_;
     command.velocity = 0.0;
     command.acceleration = 0.0;
-    const double desired_brake = command_value < -command_deadband_
-      ? std::min(max_brake_cmd_, -command_value) : 0.0;
-    const double brake_lower = std::max(0.0, last_brake_cmd_ - max_brake_fall_rate_per_s_ * dt);
+    // Only during permitted positive acceleration, PI trims the feedforward
+    // before choosing a pedal. Braking mode, nonpositive planned acceleration,
+    // hold and watchdog retain the original brake arbitration.
+    const double pedal_command = command_value + feedforward;
+    double desired_brake = pedal_command < -command_deadband_
+      ? std::min(max_brake_cmd_, -pedal_command) : 0.0;
+    if (deceleration_feedback_active) {
+      const bool safety_override = error < -deceleration_feedback_speed_error_override_mps_;
+      const double maximum_deceleration = safety_override
+        ? deceleration_feedback_safety_max_deceleration_mps2_
+        : deceleration_feedback_max_deceleration_mps2_;
+      double desired_acceleration = std::max(-maximum_deceleration,
+        std::min(0.0, planned_acceleration));
+      if (!safety_override) {
+        // A bounded outer velocity loop closes the residual gap to the raw target
+        // without converting the raw trajectory acceleration directly to pedal.
+        const bool overspeed = error < 0.0;
+        const double correction_gain = overspeed
+          ? deceleration_feedback_overspeed_velocity_error_gain_
+          : deceleration_feedback_velocity_error_gain_;
+        const double correction_limit = overspeed
+          ? deceleration_feedback_max_overspeed_correction_mps2_
+          : deceleration_feedback_max_velocity_correction_mps2_;
+        const double velocity_correction = std::max(-correction_limit,
+          std::min(correction_limit, correction_gain * error));
+        desired_acceleration = std::max(-(maximum_deceleration + correction_limit),
+          std::min(0.0, desired_acceleration + velocity_correction));
+      }
+      // If measured deceleration is too weak, increase brake; if it is too strong,
+      // release it gradually. This avoids mapping planned acceleration directly to pedal.
+      const double acceleration_error = filtered_acceleration_mps2_ - desired_acceleration;
+      const double feedback_brake = last_brake_cmd_ +
+        deceleration_feedback_brake_integrator_gain_ * acceleration_error * dt;
+      desired_brake = std::max(0.0, std::min(max_brake_cmd_, feedback_brake));
+      // Retain the existing velocity PI only for a large overspeed safety correction.
+      if (safety_override) {
+        const double bounded_pi_brake = command_value < 0.0
+          ? std::min(deceleration_feedback_safety_pi_max_brake_cmd_, -command_value) : 0.0;
+        desired_brake = std::max(desired_brake, bounded_pi_brake);
+      }
+    }
+    const bool retain_brake_for_planned_deceleration = braking_mode_ &&
+      planned_acceleration <= -brake_planned_deceleration_threshold_mps2_;
+    if (retain_brake_for_planned_deceleration) {
+      desired_brake = std::max(desired_brake, brake_min_command_);
+    }
+    if (smooth_stop_active) {
+      // Blend continuously into hold brake and suppress terminal brake chatter.
+      const double range = smooth_stop_entry_velocity_mps_ - stop_velocity_threshold_mps_;
+      const double progress = std::max(0.0, std::min(1.0,
+        (smooth_stop_entry_velocity_mps_ - std::abs(current_velocity)) / range));
+      desired_brake = std::max(desired_brake, hold_brake_cmd_ * progress);
+    }
+    const double brake_fall_rate = smooth_stop_active
+      ? std::min(max_brake_fall_rate_per_s_, smooth_stop_max_brake_fall_rate_per_s_)
+      : max_brake_fall_rate_per_s_;
+    const double brake_lower = std::max(0.0, last_brake_cmd_ - brake_fall_rate * dt);
     const double brake_upper = std::min(max_brake_cmd_, last_brake_cmd_ + max_brake_rise_rate_per_s_ * dt);
     command.brake = std::max(brake_lower, std::min(brake_upper, desired_brake));
     last_brake_cmd_ = command.brake;
+    // FF is zero at brake entry and must never bypass a brake-release interlock.
+    const double applied_feedforward = command.brake <= command_deadband_ &&
+      desired_brake == 0.0 ? feedforward : 0.0;
+    last_feedforward_ = applied_feedforward;
+    const double acceleration_command = command_value + applied_feedforward;
     // Never request throttle while a previous brake command is being released.
-    command.accel = command.brake <= command_deadband_ && command_value > command_deadband_
-      ? std::min(max_accel_cmd_, command_value) : 0.0;
+    command.accel = !braking_mode_ && !smooth_stop_active && !deceleration_feedback_active &&
+      command.brake <= command_deadband_ &&
+      acceleration_command > command_deadband_
+      ? std::min(max_accel_cmd_, acceleration_command) : 0.0;
     command_publisher_.publish(command);
+    std_msgs::Float64MultiArray debug;
+    debug.layout.dim.resize(1);
+    debug.layout.dim[0].label =
+      "stamp_s,target_mps,actual_mps,planned_acc_mps2,measured_acc_mps2,P,I,FF,accel,brake,braking_mode";
+    debug.data = {now.toSec(), target_velocity, current_velocity, planned_acceleration,
+      filtered_acceleration_mps2_, kp_ * error, ki_ * integral_, applied_feedforward,
+      command.accel, command.brake, braking_mode_ ? 1.0 : 0.0};
+    debug.layout.dim[0].size = debug.data.size();
+    debug.layout.dim[0].stride = debug.data.size();
+    debug_publisher_.publish(debug);
   }
 
   ros::NodeHandle nh_;
@@ -332,6 +598,13 @@ private:
   ros::Subscriber steering_subscriber_;
   ros::Subscriber validity_subscriber_;
   ros::Publisher command_publisher_;
+  ros::Publisher debug_publisher_;
+  bool acceleration_feedforward_enabled_{false};
+  double feedforward_max_acceleration_{3.7};
+  double feedforward_gain_{1.0};
+  double feedforward_rise_rate_{0.0};
+  trajectory_follower::AccelerationMap feedforward_acceleration_map_;
+  double last_feedforward_{0.0};
   ros::Timer timer_;
   std::string trajectory_topic_;
   std::string state_topic_;
@@ -358,6 +631,14 @@ private:
   double ki_{0.05};
   double integral_limit_{3.0};
   double command_deadband_{0.05};
+  bool reset_acceleration_integral_on_braking_{true};
+  bool brake_hysteresis_enabled_{true};
+  double brake_enter_error_mps_{0.08};
+  double brake_exit_error_mps_{0.15};
+  double brake_hard_exit_error_mps_{0.5};
+  double brake_hard_exit_hold_s_{0.1};
+  double brake_planned_deceleration_threshold_mps2_{0.5};
+  double brake_min_command_{0.05};
   bool speed_preview_enabled_{true};
   double speed_preview_time_s_{1.5};
   double speed_preview_min_distance_m_{5.0};
@@ -367,8 +648,28 @@ private:
   double preview_distance_margin_m_{0.2};
   double stop_velocity_threshold_mps_{0.1};
   double hold_brake_cmd_{0.2};
+  bool smooth_stop_enabled_{false};
+  double smooth_stop_entry_velocity_mps_{0.5};
+  double smooth_stop_max_brake_fall_rate_per_s_{0.5};
+  bool deceleration_feedback_enabled_{false};
+  double deceleration_feedback_activation_mps2_{0.3};
+  double deceleration_feedback_max_deceleration_mps2_{2.0};
+  double deceleration_feedback_safety_max_deceleration_mps2_{8.0};
+  double acceleration_lpf_time_constant_s_{0.2};
+  double deceleration_feedback_brake_integrator_gain_{0.35};
+  double deceleration_feedback_speed_error_override_mps_{1.0};
+  double deceleration_feedback_safety_pi_max_brake_cmd_{0.4};
+  double deceleration_feedback_velocity_error_gain_{0.35};
+  double deceleration_feedback_max_velocity_correction_mps2_{0.4};
+  double deceleration_feedback_overspeed_velocity_error_gain_{0.5};
+  double deceleration_feedback_max_overspeed_correction_mps2_{0.5};
   double last_brake_cmd_{0.0};
+  bool acceleration_initialized_{false};
+  double previous_velocity_mps_{0.0};
+  double filtered_acceleration_mps2_{0.0};
   double integral_{0.0};
+  bool braking_mode_{false};
+  double brake_hard_exit_elapsed_s_{0.0};
   double steering_{0.0};
   bool trajectory_valid_{false};
   bool state_valid_{false};

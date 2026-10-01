@@ -143,7 +143,7 @@ def _parse_roundabout_regulatory_ids(map_file):
     result = set()
     for rel in tree.getroot().findall("relation"):
         tags = {t.get("k"): t.get("v") for t in rel.findall("tag")}
-        if tags.get("type") == "regulatory_element" and tags.get("subtype") == "roundabout":
+        if tags.get("type") == "regulatory_element" and tags.get("subtype") in ("roundabout", "crosswalk"):
             result.add(int(rel.get("id")))
     return result
 
@@ -170,7 +170,7 @@ def _load_lanelet_map_for_traffic_matching(map_file, projector):
         raise RuntimeError("Lanelet map parser errors:\n" + "\n".join(details))
 
     rospy.logwarn(
-        "[lanelet_route_matcher] Python Lanelet2가 roundabout regulatory element %s를 "
+        "[lanelet_route_matcher] Python Lanelet2가 미지원 regulatory element %s를 "
         "지원하지 않아 해당 규칙만 제외하고 신호등 route 매칭을 계속합니다 "
         "(lanelet=%d, 허용된 파싱 경고=%d)",
         sorted(roundabout_ids),
