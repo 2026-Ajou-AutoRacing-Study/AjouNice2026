@@ -1,3 +1,5 @@
+# GPS 음영 구간 안의 hidden mission regression 전용입니다.
+# 일반 정적 장애물 구간은 static_mission_gt.yaml을 사용하세요.
 # 이 파일을 config/users/<내 이니셜>/campaign.yaml로 복사해 사용하세요.
 # 사용자가 바꿀 값은 이 첫 묶음에 모았습니다. 경로는 AjouNice2026 저장소 기준 상대경로입니다.
 schema_version: 1

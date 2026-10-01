@@ -7,6 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from build_static_corridor_cases import build as build_static_corridor_cases
 from planning_scenario_validator.config import ConfigError, ROOT, load_campaign
 from planning_scenario_validator.runtime import LiveMonitor, prepare_scenario
 from planning_scenario_validator.runner import _recover_interrupted
@@ -42,6 +44,25 @@ class CampaignTest(unittest.TestCase):
         self.assertEqual(cfg["stack"]["detector"], "bevfusion")
         self.assertFalse(cfg["recording"]["include_sensors"])
         self.assertNotIn("/sensor/lidar1", cfg["recording"]["topics"])
+
+    def test_static_corridor_cases_use_non_shadow_0_1_3_6_obstacles(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            build_static_corridor_cases(output=output)
+            for stem, count in (("soa_corridor_00_clear", 0),
+                                ("soa_corridor_01_cargobox", 1),
+                                ("soa_corridor_03_mixed", 3),
+                                ("soa_corridor_06_mixed", 6),
+                                ("soa_official_00_clear", 0),
+                                ("soa_official_01_cargobox_native", 1),
+                                ("soa_official_01_cargobox_scaled", 1)):
+                scene = json.loads((output / (stem + ".json")).read_text())
+                self.assertEqual(len(scene["objectList"]), count)
+                self.assertEqual(scene["shadedAreaList"], [])
+                self.assertTrue((output / (stem + ".case.yaml")).is_file())
+            sample = json.loads((output / "soa_official_01_cargobox_scaled.json").read_text())
+            self.assertEqual(sample["objectList"][0]["scale"]["x"], 2.0)
+            self.assertEqual(sample["objectList"][0]["scale"]["y"], 3.0)
 
     def test_scenario_staging_preserves_source_and_installs_network_sidecar(self):
         cfg = load_campaign(EXAMPLE)
@@ -88,6 +109,23 @@ class CampaignTest(unittest.TestCase):
         monitor.last_ego_gap_at = 0.0
         self.assertTrue(monitor.scenario_confirmed(
             expected, after=10.0, baseline_xy=(-144.0, -452.0), tolerance=2.0))
+
+    def test_repeated_contact_with_one_object_counts_once(self):
+        monitor = LiveMonitor.__new__(LiveMonitor)
+        monitor.armed = True
+        monitor.collision_ids = set()
+        monitor.seen_collision_ids = set()
+        monitor.collision_count = 0
+        monitor.stamps = {}
+        events = []
+        monitor.event = lambda name, **fields: events.append((name, fields))
+        contact = SimpleNamespace(collision_object=[SimpleNamespace(unique_id=4101)])
+        empty = SimpleNamespace(collision_object=[])
+        monitor._collision(contact)
+        monitor._collision(empty)
+        monitor._collision(contact)
+        self.assertEqual(monitor.collision_count, 1)
+        self.assertEqual(events, [("COLLISION", {"object_id": 4101})])
 
 
 def cfg_case():

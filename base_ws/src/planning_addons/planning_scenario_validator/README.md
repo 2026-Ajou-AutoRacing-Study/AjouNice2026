@@ -9,8 +9,9 @@
 
 ```bash
 bash base_ws/src/planning_addons/planning_scenario_validator/install.sh
+/usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_static_corridor_cases.py
 mkdir -p base_ws/src/planning_addons/planning_scenario_validator/config/users/sw
-cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_obstacle_gt.yaml \
+cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_mission_gt.yaml \
    base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/campaign.yaml
 ./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/campaign.yaml --dry-run
 ./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/campaign.yaml
@@ -19,12 +20,12 @@ cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/stati
 다른 터미널의 대시보드:
 
 ```bash
-./planning_validator_dashboard planner_logs/validation/soa_team_example_01
+./planning_validator_dashboard planner_logs/validation/soa_static_mission_gt_example
 ```
 
 Ctrl+C 후 같은 명령을 다시 실행하면 완료된 시나리오를 건너뛰고 남은 시나리오를 진행한다. 실패 시나리오를 다시 보려면 `--rerun-failed`를 붙인다. 개별 오류가 났다면 `error/`에 증거를 남기고 다음 실행에서 재시도한다.
 
-BEVFusion까지 켜는 시험은 별도 예제를 복사해서 사용한다. 먼저 무장애물 연결 확인용 `bevfusion_clear_smoke.yaml`을 권장한다. 장애물 회피를 시험하려면 아래 명령의 파일명만 `static_obstacle_bevfusion.yaml`로 바꾼다. MORAI GUI의 Sensor는 예제에 적힌 `Sensor_competition_local.json`, Ego Network는 validator 전용 JSON으로 연결해야 한다. BEVFusion checkpoint·Docker image도 `scripts/runtime/run_bevfusion.sh`의 계약대로 준비해야 한다.
+BEVFusion까지 켜는 시험은 별도 예제를 복사해서 사용한다. 먼저 무장애물 연결 확인용 `bevfusion_clear_smoke.yaml`을 권장한다. **일반 정적 장애물 구간**은 아래의 `static_mission_bevfusion.yaml`을 사용한다. `static_obstacle_bevfusion.yaml`과 `static_obstacle_gt.yaml`은 이름과 달리 GPS 음영 구간 안의 hidden mission regression이므로 이번 일반 구간과 혼동하지 않는다. MORAI GUI의 Sensor는 예제에 적힌 `Sensor_competition_local.json`, Ego Network는 validator 전용 JSON으로 연결해야 한다. BEVFusion checkpoint·Docker image도 `scripts/runtime/run_bevfusion.sh`의 계약대로 준비해야 한다.
 
 ```bash
 cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/bevfusion_clear_smoke.yaml \
@@ -33,7 +34,20 @@ cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/bevfu
 ./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/bevfusion_campaign.yaml
 ```
 
-무장애물 예제는 원시 센서를 bag에서 제외한다. 정적 장애물 예제는 원시 센서도 녹화하므로 약 3분에 bag이 수 GB일 수 있다. `recording.include_sensors: false`로 바꿔도 BEVFusion **추론 입력은 그대로 유지**된다. `FAIL/TIMEOUT` 같은 실제 주행 실패와 `ERROR/SYSTEM_ERROR` 같은 자동화·환경 오류는 별도로 분류한다.
+무장애물 예제와 일반 정적 장애물 예제는 원시 센서를 bag에서 제외한다. 음영 구간 regression 예제 `static_obstacle_bevfusion.yaml`만 원시 센서도 녹화하므로 약 3분에 bag이 수 GB일 수 있다. `recording.include_sensors: false`로 바꿔도 BEVFusion **추론 입력은 그대로 유지**된다. `FAIL/TIMEOUT` 같은 실제 주행 실패와 `ERROR/SYSTEM_ERROR` 같은 자동화·환경 오류는 별도로 분류한다.
+
+일반 정적 장애물 구간의 두 CargoBox 변형을 생성·비교하려면 다음을 실행한다. 두 YAML은 **같은 scenario와 sensor/goal**을 사용하고 detector만 다르다. 원본 샘플의 CargoBox scale `2×3×2`와 비교용 native `1×1×1`을 포함하며, GPS 음영과 움직이는 NPC는 제거한다. 시나리오는 Git에 추적하지 않는 `planner_logs/validation_inputs/static_corridor/`에 생성된다.
+
+```bash
+/usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_static_corridor_cases.py
+cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_mission_bevfusion.yaml \
+   base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/static_mission_bevfusion.yaml
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/static_mission_bevfusion.yaml --dry-run
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/static_mission_bevfusion.yaml
+# GT 비교도 static_mission_gt.yaml을 같은 방식으로 복사하되 campaign_name을 다르게 둡니다.
+```
+
+빌더의 `soa_corridor_*`는 Base3 **OD 벤치마크용 합성 배치**다. 단일 CargoBox도 planning에서 정지하거나 충돌할 수 있으므로 이를 공식 샘플의 회피 가능 장면으로 취급하지 않는다. 일반 정적 장애물 구간의 기본 검증은 `soa_official_*`로 시작한다.
 
 ## 팀원이 해야 할 일
 
@@ -55,7 +69,7 @@ arrival_mode: stop
 
 `scenario_install_dir: auto`는 `~/MoraiLauncher_Lin/`의 대회 MR을 선택한다. 팀원 PC에서 경로가 다르면 해당 값을 직접 지정한다. 실행기는 원본 JSON을 수정하지 않고 MR SaveFile에 ExternalCtrl/정지 시작 사본과 `_MN.json`을 설치한다.
 
-목적지·경유점은 MORAI scenario JSON의 로컬 좌표가 아닌 planning의 `map` 좌표로 입력한다. 예제 goal은 v85 지도 Route A 끝점에서 가져왔다. 장면마다 다른 지점에서 끝내려면 `.case.yaml`로 지도 좌표 목적지를 지정한다.
+목적지·경유점은 MORAI scenario JSON의 로컬 좌표가 아닌 planning의 `map` 좌표로 입력한다. 일반 정적 구간 예제 goal은 v85 지도에서 장애물 약 25m 뒤의 차로 중심이다. 장면마다 다른 지점에서 끝내려면 `.case.yaml`로 지도 좌표 목적지를 지정한다.
 
 ## 녹화 및 판정
 
@@ -63,14 +77,14 @@ arrival_mode: stop
 - `lightweight.json`: 위치, trajectory, command, collision 중심
 - `full.json`: 알려진 센서·planning 토픽 목록. 실제 수신하지 않는 항목은 rosbag에 들어가지 않는다.
 - 영상은 X11 전체 화면을 시나리오마다 ffmpeg로 녹화한다. 기본값 `focus_planviz: true`는 녹화 직전 Planviz를 전면·최대화하며 ROS1 EOL 팝업을 띄우지 않는다. 다른 창에 포커스를 주면 전체 화면 영상에도 그 창이 찍힌다.
-- 충돌은 `/CollisionData`의 새 contact ID를 실시간으로 읽는다. goal 반경, 속도 및 유지 시간으로 성공을 판단한다. 지정 시간 미도달은 TIMEOUT이다.
+- 충돌은 `/CollisionData`의 객체 ID를 실시간으로 읽는다. 한 시나리오에서 같은 ID의 접촉 메시지가 끊겼다 재등장해도 1개 객체로만 센다. goal 반경, 속도 및 유지 시간으로 성공을 판단한다. 지정 시간 미도달은 TIMEOUT이다.
 - `result.json`은 개별 증거용, `summary.csv`는 사람에게 보여주기 위한 전체 표, `events.jsonl`은 시간 순서 감사 기록이다.
 - 녹화는 ScenarioLoad 전에 시작한다. Route 요청이 거부돼도 bag·MP4·이벤트가 남는다. `elapsed_sec`은 주행 판정 시간이고, 새 결과의 `wall_elapsed_sec`은 준비와 정리를 포함한 전체 실행 시간이다.
 
 출력 예:
 
 ```text
-planner_logs/validation/soa_team_example_01/
+planner_logs/validation/soa_static_mission_gt_example/
   campaign_state.json
   summary.csv
   stack_logs/

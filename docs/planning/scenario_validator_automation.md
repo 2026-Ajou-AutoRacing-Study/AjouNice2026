@@ -57,3 +57,9 @@ ScenarioLoad 패킷은 `trajectory_batch_runner.morai_udp_client.build_scenario_
 - BEVFusion 예제에서 raw 센서를 함께 녹화하면 1장면 약 3분에도 bag이 수 GB가 될 수 있다. 인지 재현이 불필요한 캠페인은 `include_sensors: false`로 설정한다.
 - 성공은 goal 접근과 정차(또는 통과) 및 충돌 없음으로 판단한다. 공식 대회 판정과 동일하다는 뜻은 아니다.
 - `rclone`이 없는 PC에서도 검증은 동작하지만 자동 업로드는 실패로 기록된다.
+
+## 일반 정적 장애물 구간 재사용 계약
+
+`config/examples/static_obstacle_{gt,bevfusion}.yaml`은 GPS **음영 구간 안**의 hidden mission이다. 일반 정적 장애물 구간과 구분한다. 일반 구간은 validator의 `scripts/build_static_corridor_cases.py`로 `planner_logs/validation_inputs/static_corridor/`에 재현 장면을 생성하고, `config/examples/static_mission_{gt,bevfusion}.yaml`로 같은 장면·goal·sensor를 비교한다. `soa_official_*`은 배포 샘플 CargoBox의 원래 위치와 scale을 기준으로 하고, 움직이는 NPC와 GPS 음영만 제거한다. `soa_corridor_*`은 Base3 OD 벤치마크의 합성 배치이므로 공식 샘플의 회피 가능 장면으로 간주하지 않는다.
+
+동일 장면을 GT와 BEVFusion으로 비교할 때는 검출 유무뿐 아니라 `trajectory`의 속도·횡방향 경로, `ctrl_cmd`, `/CollisionData`와 실제 Ego 궤적을 함께 확인한다. PASS 한 번은 해당 장면의 폐루프 성공일 뿐 다른 객체·배치의 안전성 보장은 아니다. 개별 bag, 수치, 이미지와 분석 보고서는 Git 제외 경로 `planner_logs/analysis/<run_id>/`에 둔다.

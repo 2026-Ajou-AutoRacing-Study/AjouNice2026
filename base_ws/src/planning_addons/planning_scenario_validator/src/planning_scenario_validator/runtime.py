@@ -154,6 +154,7 @@ class LiveMonitor:
         self.last_ego_gap_at = 0.0
         self.previous_ego_stamp = 0.0
         self.collision_ids = set()
+        self.seen_collision_ids = set()
         self.collision_count = 0
         self.armed = False
         self.events_path = None
@@ -197,9 +198,10 @@ class LiveMonitor:
     def _collision(self, message):
         current = {int(obj.unique_id) for obj in message.collision_object}
         if self.armed:
-            for object_id in current - self.collision_ids:
+            for object_id in current - self.seen_collision_ids:
                 self.collision_count += 1
                 self.event("COLLISION", object_id=object_id)
+            self.seen_collision_ids.update(current)
         self.collision_ids = current
         self.stamps["collision"] = time.monotonic()
 
@@ -262,6 +264,7 @@ class LiveMonitor:
         self.collision_count = 0
         # 이전 scenario의 contact ID가 새 시나리오 첫 접촉을 숨기지 않게 한다.
         self.collision_ids.clear()
+        self.seen_collision_ids.clear()
         self.armed = True
         self.goal_min = float("inf")
         self.max_speed = 0.0
@@ -423,7 +426,9 @@ def focus_planviz(timeout=45):
     except subprocess.TimeoutExpired as error:
         raise RuntimeFailure("Planviz 창 최대화 대기 시간이 초과됐습니다") from error
     if result.returncode:
-        raise RuntimeFailure("Planviz 자동 최대화 실패: {}".format(result.stderr.strip()))
+        detail = result.stderr.strip() or result.stdout.strip() or "진단 출력 없음"
+        raise RuntimeFailure("Planviz 자동 최대화 실패(exit {}): {}".format(
+            result.returncode, detail))
 
 
 class Recording:
