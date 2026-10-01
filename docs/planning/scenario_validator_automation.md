@@ -66,6 +66,10 @@ ScenarioLoad 패킷은 `trajectory_batch_runner.morai_udp_client.build_scenario_
 
 `soa_pair_05*`는 같은 일반 구간에 PE_Drum과 TrafficBarrel을 약 17m 간격으로 엇갈리게 놓은 비공식 지그재그 스트레스 장면이다. 두 장애물이 같은 출발점·목적지에서 각각 단독으로도 GT 통과한 배치이며, `config/examples/static_pair_mission_{gt,bevfusion}.yaml`에서 선택한다. GT 입력이 이미 실패한다면 BEVFusion 실패를 모델 문제로 단정하지 않고 planning·배치·경로 조건부터 분리한다.
 
-빌더는 실패 원인 분리용 `soa_pair_01`~`04`와 `soa_pair_control_*`도 생성하지만, 팀원용 기본 예제에서는 선택하지 않는다. 단일 배치도 실패하면 두 장애물의 상호작용 때문이라는 추론은 성립하지 않는다. 개별 실행 근거와 영상은 각 PC의 Git 제외 `planner_logs/`에 남긴다.
+빌더는 `soa_pair_01`~`04`와 `soa_pair_control_*`도 생성한다. 빠른 연결 확인용 `static_pair_mission_{gt,bevfusion}.yaml`은 통과 배치 `05`만 선택하지만, 실패를 찾는 `static_pair_stress_{gt,bevfusion}.yaml`은 `01`~`05`를 모두 실행한다. 단일 배치도 실패하면 두 장애물의 상호작용 때문이라는 추론은 성립하지 않는다. 개별 실행 근거와 영상은 각 PC의 Git 제외 `planner_logs/`에 남긴다.
+
+실패 분석은 주행 중 구독한 Ego 이동거리·속도, trajectory 앞부분 속도, `/ctrl_cmd`, 목표 거리와 해당 장면의 스택 로그를 사용한다. `TIMEOUT`을 미출발, 주행 후 정지, 목표 반경에 왔으나 정차/유지 실패, 기타 목적지 미도달로 나누고, 결과 JSON과 CSV에 증거를 남긴다. `suspected_stage`는 원인 확정이 아닌 조사 우선순위다. 로그는 캠페인 공용 파일이므로 장면 시작 시 바이트 위치를 기록해 이전 장면의 경고가 섞이지 않게 한다. 실패 분석 자체가 오류를 내더라도 bag/영상/원래 판정을 보존한다.
+
+분류 기준은 의도적으로 보수적이다. `NO_DEPARTURE`는 출발점 기준 최대 이동 ≤0.5m와 최고 속도 ≤0.5m/s가 동시에 충족될 때만 붙인다. `MID_DRIVE_STOP`은 출발점에서 0.5m 이상 이동한 후, 종료 시 속도 ≤0.3m/s·최근 5초 이동 ≤0.5m·마지막 유의미한 속도 이후 ≥3초인 경우다. 목적지 반경에는 왔으나 정차·유지 조건을 채우지 못했다면 `ARRIVAL_CONDITION_UNMET`으로 별도 표시한다. 관측값이 부족하면 `INSUFFICIENT_OBSERVATION`으로 남긴다. planner가 0속도 궤적을 냈다는 관측은 `planning_output` 조사 우선순위를 줄 수 있지만, 그 판단이 잘못된 이유가 perception·map·planning 중 무엇인지는 GT/BEV 대조 및 bag 분석 없이는 확정하지 않는다. 모든 결과의 `root_cause_confirmed`는 false다.
 
 동일 장면을 GT와 BEVFusion으로 비교할 때는 검출 유무뿐 아니라 `trajectory`의 속도·횡방향 경로, `ctrl_cmd`, `/CollisionData`와 실제 Ego 궤적을 함께 확인한다. PASS 한 번은 해당 장면의 폐루프 성공일 뿐 다른 객체·배치의 안전성 보장은 아니다. 개별 bag, 수치, 이미지와 분석 보고서는 Git 제외 경로 `planner_logs/analysis/<run_id>/`에 둔다.

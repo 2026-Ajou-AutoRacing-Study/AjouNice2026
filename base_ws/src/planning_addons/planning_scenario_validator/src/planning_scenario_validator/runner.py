@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import ConfigError, ROOT, load_campaign
+from .failure_analysis import analyze_failure, compact_summary, log_offsets, scan_log_signals
 from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure,
                       ScenarioFailure,
                       atomic_json, check_no_conflicting_publishers,
@@ -153,6 +154,8 @@ def _load_scene(cfg, installed, monitor, ego_xy):
 def _record_result(cfg, state, case, result, folder):
     state["results"][case.name] = {"source_sha256": case.source_sha256,
         "status": result["status"], "reason": result["reason"],
+        "failure_category": result["failure_analysis"]["category"],
+        "suspected_stage": result["failure_analysis"]["suspected_stage"],
         "result_path": str(folder / (result["basename"] + ".json")),
         "attempts": int(state["results"].get(case.name, {}).get("attempts", 0)) + 1}
     state["updated_at"] = now()
@@ -165,7 +168,8 @@ def _write_state(cfg, state):
     temporary = path.with_name(path.name + ".tmp")
     with temporary.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.writer(stream)
-        writer.writerow(["scenario", "status", "reason", "elapsed_sec", "collision_count",
+        writer.writerow(["scenario", "status", "reason", "failure_category", "suspected_stage",
+                         "evidence_summary", "elapsed_sec", "collision_count",
                          "minimum_goal_distance_m", "attempts", "result_path"])
         for name, row in sorted(state["results"].items()):
             result_path = Path(row["result_path"])
@@ -174,9 +178,11 @@ def _write_state(cfg, state):
             except (OSError, ValueError):
                 details = {}
             metric = details.get("metrics", {})
-            writer.writerow([name, row["status"], row["reason"], metric.get("elapsed_sec", ""),
-                metric.get("collision_count", ""), metric.get("minimum_goal_distance_m", ""),
-                row["attempts"], row["result_path"]])
+            analysis = details.get("failure_analysis", {})
+            writer.writerow([name, row["status"], row["reason"], analysis.get("category", ""),
+                analysis.get("suspected_stage", ""), compact_summary(analysis),
+                metric.get("elapsed_sec", ""), metric.get("collision_count", ""),
+                metric.get("minimum_goal_distance_m", ""), row["attempts"], row["result_path"]])
     os.replace(temporary, path)
 
 
@@ -197,6 +203,7 @@ def _upload(cfg, folder, state, case):
 
 
 def _run_case(cfg, processes, monitor, case, state):
+    case_log_offsets = log_offsets(processes.log_dir)
     attempt = int(state["results"].get(case.name, {}).get("attempts", 0)) + 1
     timestamp = _stamp()
     safe_name = "".join(c if c.isascii() and (c.isalnum() or c in "_-") else "_" for c in case.name)[:50]
@@ -271,6 +278,7 @@ def _run_case(cfg, processes, monitor, case, state):
         state["current"]["phase"] = "DRIVING"
         _write_state(cfg, state)
         drive_start = time.monotonic()
+        monitor.start_driving(drive_start)
         last_state = [0.0]
 
         def progress(metrics):
@@ -294,6 +302,7 @@ def _run_case(cfg, processes, monitor, case, state):
         print("[{}] {}: {}".format(case.name, reason, error), file=sys.stderr)
     finally:
         monitor.event("CASE_RESULT", reason=reason, error=error)
+        drive_evidence = monitor.drive_evidence()
         processes.stop("controller")
         if brake_hold is not None:
             brake_hold.stop()
@@ -312,16 +321,32 @@ def _run_case(cfg, processes, monitor, case, state):
             error = str(exc)
             final_base = basename.replace("_R_", "_E_")
         processes.stop_many(CASE_STACK)
+        metrics = {"elapsed_sec": round(elapsed, 2),
+            "wall_elapsed_sec": round(time.monotonic() - wall_started, 2),
+            "collision_count": monitor.collision_count,
+            "minimum_goal_distance_m": None if monitor.goal_min == float("inf") else round(monitor.goal_min, 3),
+            "maximum_speed_mps": round(monitor.max_speed, 3), **drive_evidence}
+        try:
+            failure_analysis = analyze_failure(reason, metrics, error=error,
+                goal_tolerance_m=float(cfg["document"].get("validation", {}).get("goal_tolerance_m", 2.0)),
+                log_signals=scan_log_signals(processes.log_dir, case_log_offsets))
+        except Exception as exc:
+            # A report-generation error must not erase the bag and drive result.
+            failure_analysis = {"schema_version": 1, "category": "ANALYSIS_ERROR",
+                "summary": "실패 분석기 오류; 원본 기록을 확인하세요", "suspected_stage": "undetermined",
+                "stage_confidence": "none", "evidence": [str(exc)[:240]],
+                "log_signals": [], "root_cause_confirmed": False}
+        with (folder / "events.jsonl").open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"time": now(), "event": "FAILURE_ANALYSIS",
+                "category": failure_analysis["category"],
+                "suspected_stage": failure_analysis["suspected_stage"]},
+                ensure_ascii=False) + "\n")
         result = {"schema_version": 1, "basename": final_base,
             "scenario": str(case.source), "scenario_sha256": case.source_sha256,
             "attempt": attempt, "started_at": started_at, "finished_at": now(),
             "status": "PASS" if code == "P" else "ERROR" if code == "E" else "FAIL",
             "reason": reason, "error": error, "route_uuid": route_id,
-            "metrics": {"elapsed_sec": round(elapsed, 2),
-                "wall_elapsed_sec": round(time.monotonic() - wall_started, 2),
-                "collision_count": monitor.collision_count,
-                "minimum_goal_distance_m": None if monitor.goal_min == float("inf") else round(monitor.goal_min, 3),
-                "maximum_speed_mps": round(monitor.max_speed, 3)},
+            "metrics": metrics, "failure_analysis": failure_analysis,
             "files": {"bag": bag.name if bag else None, "video": video.name if video else None,
                       "events": "events.jsonl"}}
         atomic_json(folder / (final_base + ".json"), result)

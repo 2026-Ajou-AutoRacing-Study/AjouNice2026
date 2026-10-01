@@ -8,6 +8,7 @@ import subprocess
 import threading
 import time
 import uuid
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -142,7 +143,7 @@ class LiveMonitor:
         import rospy
         from autoware_perception_msgs.msg import DetectedObjects
         from autoware_planning_msgs.msg import LaneletRoute, Trajectory
-        from morai_msgs.msg import CollisionData, EgoVehicleStatus
+        from morai_msgs.msg import CollisionData, CtrlCmd, EgoVehicleStatus
         from nav_msgs.msg import Odometry
         self.rospy = rospy
         self.ego = None
@@ -163,6 +164,23 @@ class LiveMonitor:
         self.arrival_since = None
         self.last_progress_time = time.monotonic()
         self.best_goal_distance = float("inf")
+        self.evidence_lock = threading.Lock()
+        self.drive_started_at = None
+        self.start_odom_xy = None
+        self.max_displacement_m = 0.0
+        self.last_motion_at = None
+        self.recent_odom = deque(maxlen=300)
+        self.trajectory_message_count = 0
+        self.trajectory_max_speed_mps = 0.0
+        self.latest_trajectory_max_speed_mps = None
+        self.trajectory_near_max_speed_mps = 0.0
+        self.latest_trajectory_near_speed_mps = None
+        self.control_command_count = 0
+        self.max_accel_command = 0.0
+        self.max_brake_command = 0.0
+        self.latest_accel_command = None
+        self.latest_brake_command = None
+        self.detection_message_count = 0
         rospy.Subscriber("/Ego_topic", EgoVehicleStatus, self._ego, queue_size=10)
         rospy.Subscriber("/CollisionData", CollisionData, self._collision, queue_size=10)
         rospy.Subscriber("/localization/kinematic_state", Odometry, self._odom, queue_size=10)
@@ -170,6 +188,7 @@ class LiveMonitor:
         rospy.Subscriber("/planning/trajectory", Trajectory, self._trajectory, queue_size=10)
         rospy.Subscriber("/perception/object_recognition/detection/objects",
                          DetectedObjects, self._detections, queue_size=10)
+        rospy.Subscriber("/ctrl_cmd", CtrlCmd, self._control, queue_size=10)
 
     def _ego(self, message):
         self.ego = message
@@ -181,7 +200,20 @@ class LiveMonitor:
 
     def _odom(self, message):
         self.odom = message
-        self.stamps["odom"] = time.monotonic()
+        received_at = time.monotonic()
+        self.stamps["odom"] = received_at
+        with self.evidence_lock:
+            if self.drive_started_at is not None:
+                position = message.pose.pose.position
+                xy = (float(position.x), float(position.y))
+                if self.start_odom_xy is None:
+                    self.start_odom_xy = xy
+                self.max_displacement_m = max(self.max_displacement_m,
+                    math.hypot(xy[0] - self.start_odom_xy[0], xy[1] - self.start_odom_xy[1]))
+                speed = abs(float(message.twist.twist.linear.x))
+                self.recent_odom.append((received_at, xy[0], xy[1], speed))
+                if speed >= 0.3:
+                    self.last_motion_at = received_at
 
     def _route(self, message):
         self.route = message
@@ -190,10 +222,35 @@ class LiveMonitor:
     def _trajectory(self, message):
         self.trajectory = message
         self.stamps["trajectory"] = time.monotonic()
+        with self.evidence_lock:
+            if self.drive_started_at is not None:
+                self.trajectory_message_count += 1
+                speed = max((abs(float(point.longitudinal_velocity_mps))
+                             for point in message.points), default=0.0)
+                self.latest_trajectory_max_speed_mps = speed
+                self.trajectory_max_speed_mps = max(self.trajectory_max_speed_mps, speed)
+                near_speed = max((abs(float(point.longitudinal_velocity_mps))
+                                  for point in message.points[:5]), default=0.0)
+                self.latest_trajectory_near_speed_mps = near_speed
+                self.trajectory_near_max_speed_mps = max(self.trajectory_near_max_speed_mps,
+                                                          near_speed)
 
     def _detections(self, message):
         self.detections = message
         self.stamps["detections"] = time.monotonic()
+        with self.evidence_lock:
+            if self.drive_started_at is not None:
+                self.detection_message_count += 1
+
+    def _control(self, message):
+        with self.evidence_lock:
+            if self.drive_started_at is None:
+                return
+            self.control_command_count += 1
+            self.latest_accel_command = float(message.accel)
+            self.latest_brake_command = float(message.brake)
+            self.max_accel_command = max(self.max_accel_command, self.latest_accel_command)
+            self.max_brake_command = max(self.max_brake_command, self.latest_brake_command)
 
     def _collision(self, message):
         current = {int(obj.unique_id) for obj in message.collision_object}
@@ -271,7 +328,67 @@ class LiveMonitor:
         self.arrival_since = None
         self.best_goal_distance = float("inf")
         self.last_progress_time = time.monotonic()
+        with self.evidence_lock:
+            self.drive_started_at = None
         self.event("RUN_ARMED", existing_collision_ids=sorted(self.collision_ids))
+
+    def start_driving(self, started_at):
+        """Reset evidence after the controller is ready, excluding startup brake hold."""
+        with self.evidence_lock:
+            self.drive_started_at = started_at
+            self.start_odom_xy = None if self.odom is None else (
+                float(self.odom.pose.pose.position.x), float(self.odom.pose.pose.position.y))
+            self.max_displacement_m = 0.0
+            self.last_motion_at = started_at
+            self.recent_odom.clear()
+            self.trajectory_message_count = 0
+            self.trajectory_max_speed_mps = 0.0
+            self.latest_trajectory_max_speed_mps = None
+            self.trajectory_near_max_speed_mps = 0.0
+            self.latest_trajectory_near_speed_mps = None
+            self.control_command_count = 0
+            self.max_accel_command = 0.0
+            self.max_brake_command = 0.0
+            self.latest_accel_command = None
+            self.latest_brake_command = None
+            self.detection_message_count = 0
+
+    def drive_evidence(self):
+        """Summarize live subscribers without replaying the saved rosbag."""
+        with self.evidence_lock:
+            if self.drive_started_at is None:
+                return {"drive_observation_available": False}
+            tick = time.monotonic()
+            odom_age = tick - self.stamps.get("odom", self.drive_started_at)
+            trajectory_age = tick - self.stamps.get("trajectory", self.drive_started_at)
+            final_speed = (abs(float(self.odom.twist.twist.linear.x))
+                           if self.odom is not None else None)
+            recent = [sample for sample in self.recent_odom if sample[0] >= tick - 5.0]
+            recent_displacement = (math.hypot(recent[-1][1] - recent[0][1],
+                                              recent[-1][2] - recent[0][2])
+                                   if len(recent) >= 2 else None)
+            return {
+                "drive_observation_available": True,
+                "max_displacement_m": round(self.max_displacement_m, 3),
+                "final_speed_mps": None if final_speed is None else round(final_speed, 3),
+                "stationary_duration_sec": round(tick - self.last_motion_at, 2)
+                    if self.last_motion_at is not None else None,
+                "last_5s_displacement_m": None if recent_displacement is None
+                    else round(recent_displacement, 3),
+                "odom_age_sec": round(odom_age, 2),
+                "trajectory_age_sec": round(trajectory_age, 2),
+                "trajectory_message_count": self.trajectory_message_count,
+                "trajectory_max_speed_mps": round(self.trajectory_max_speed_mps, 3),
+                "latest_trajectory_max_speed_mps": self.latest_trajectory_max_speed_mps,
+                "trajectory_near_max_speed_mps": round(self.trajectory_near_max_speed_mps, 3),
+                "latest_trajectory_near_speed_mps": self.latest_trajectory_near_speed_mps,
+                "control_command_count": self.control_command_count,
+                "max_accel_command": round(self.max_accel_command, 3),
+                "max_brake_command": round(self.max_brake_command, 3),
+                "latest_accel_command": self.latest_accel_command,
+                "latest_brake_command": self.latest_brake_command,
+                "detection_message_count": self.detection_message_count,
+            }
 
     def begin_case(self, events_path):
         self.events_path = Path(events_path)
@@ -282,6 +399,8 @@ class LiveMonitor:
 
     def disarm(self):
         self.armed = False
+        with self.evidence_lock:
+            self.drive_started_at = None
         self.events_path = None
 
     def run_until_done(self, case, validation, started, state_callback=None):

@@ -2,7 +2,10 @@
 import json
 import sys
 import tempfile
+import threading
+import time
 import unittest
+from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -173,6 +176,31 @@ class CampaignTest(unittest.TestCase):
             with patch("planning_scenario_validator.runtime.time.sleep"):
                 focus_planviz(timeout=2)
         self.assertEqual(run.call_count, 2)
+
+    def test_live_evidence_records_motion_plan_and_control(self):
+        monitor = LiveMonitor.__new__(LiveMonitor)
+        monitor.evidence_lock = threading.Lock()
+        monitor.stamps = {}
+        monitor.odom = None
+        monitor.recent_odom = deque(maxlen=300)
+        monitor.start_driving(time.monotonic())
+
+        def odom(x, speed):
+            return SimpleNamespace(
+                pose=SimpleNamespace(pose=SimpleNamespace(position=SimpleNamespace(x=x, y=0.0))),
+                twist=SimpleNamespace(twist=SimpleNamespace(linear=SimpleNamespace(x=speed))))
+
+        monitor._odom(odom(0.0, 0.0))
+        monitor._trajectory(SimpleNamespace(points=[
+            SimpleNamespace(longitudinal_velocity_mps=3.0),
+            SimpleNamespace(longitudinal_velocity_mps=4.0)]))
+        monitor._control(SimpleNamespace(accel=0.3, brake=0.0))
+        monitor._odom(odom(1.2, 2.0))
+        evidence = monitor.drive_evidence()
+        self.assertGreaterEqual(evidence["max_displacement_m"], 1.2)
+        self.assertEqual(evidence["trajectory_near_max_speed_mps"], 4.0)
+        self.assertEqual(evidence["control_command_count"], 1)
+        self.assertEqual(evidence["max_accel_command"], 0.3)
 
 
 def cfg_case():

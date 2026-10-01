@@ -35,7 +35,10 @@ def main(argv=None):
                 else:
                     print("현재 실행 중인 시나리오 없음")
                 for name, row in list(results.items())[-8:]:
-                    print("  {:6s} {:34s} {}".format(row.get("status", "?"), name[:34], row.get("reason", "")))
+                    detail = row.get("failure_category") or row.get("reason", "")
+                    stage = row.get("suspected_stage", "")
+                    print("  {:6s} {:34s} {}{}".format(row.get("status", "?"), name[:34],
+                        detail, " [{}]".format(stage) if stage and stage != "undetermined" else ""))
                 if state.get("upload_errors"):
                     print("업로드 오류 {}개 (로컬 결과는 보존됨)".format(len(state["upload_errors"])))
             if args.once:
