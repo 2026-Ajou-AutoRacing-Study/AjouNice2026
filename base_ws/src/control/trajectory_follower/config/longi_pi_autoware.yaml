@@ -55,12 +55,13 @@ control_limits:
 deceleration_feedback:
   enabled: true
   activation_mps2: 0.3
-  # Normal driving follows the smoother's normal envelope.
-  max_deceleration_mps2: 2.2
+  # Follow planned braking without clipping normal -3.5/-6 requests to -2.2.
+  # This is an allowed magnitude, not a request to brake at -8 every time.
+  max_deceleration_mps2: 8.0
   # Large overspeed follows the velocity smoother safety limit, not the normal cap.
   safety_max_deceleration_mps2: 8.0
-  acceleration_lpf_time_constant_s: 0.6
-  brake_integrator_gain: 0.22
+  acceleration_lpf_time_constant_s: 0.1
+  brake_integrator_gain: 0.40
   speed_error_override_mps: 2.0
   # Safety PI may assist but cannot saturate the brake pedal by itself.
   safety_pi_max_brake_cmd: 0.40
