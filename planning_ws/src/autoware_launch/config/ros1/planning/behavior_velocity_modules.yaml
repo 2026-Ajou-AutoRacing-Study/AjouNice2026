@@ -319,10 +319,10 @@ roundabout:
     path_interpolation_ds: 0.1
     enable_pass_judge_before_default_stopline: false
   collision_detection:
-    collision_detection_hold_time: 0.5
+    collision_detection_hold_time: 0.0
     min_predicted_path_confidence: 0.05
-    collision_start_margin_time: 3.0
-    collision_end_margin_time: 2.0
+    collision_start_margin_time: 0.0
+    collision_end_margin_time: 0.0
     target_type:
       car: true
       bus: true
