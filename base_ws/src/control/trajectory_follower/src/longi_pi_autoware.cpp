@@ -11,6 +11,7 @@
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float64.h>
+#include <std_msgs/Float64MultiArray.h>
 #include <trajectory_follower/distance_speed_limit.hpp>
 #include <trajectory_follower/longitudinal_pi_utils.hpp>
 
@@ -84,6 +85,10 @@ public:
     private_nh_.param("ki", ki_, 0.05);
     private_nh_.param("integral_limit", integral_limit_, 3.0);
     private_nh_.param("command_deadband", command_deadband_, 0.05);
+    private_nh_.param("acceleration_feedforward/enabled", acceleration_feedforward_enabled_, false);
+    private_nh_.param("acceleration_feedforward/max_acceleration_mps2", feedforward_max_acceleration_, 3.7);
+    private_nh_.param("acceleration_feedforward/gain", feedforward_gain_, 1.0);
+    private_nh_.param("acceleration_feedforward/max_rise_rate_per_s", feedforward_rise_rate_, 0.0);
     private_nh_.param(
       "reset_acceleration_integral_on_braking", reset_acceleration_integral_on_braking_, true);
     private_nh_.param("brake_hysteresis/enabled", brake_hysteresis_enabled_, true);
@@ -133,6 +138,7 @@ public:
     validateParameters();
 
     command_publisher_ = nh_.advertise<morai_msgs::CtrlCmd>(ctrl_cmd_topic_, 10);
+    debug_publisher_ = private_nh_.advertise<std_msgs::Float64MultiArray>("debug/longitudinal", 10);
     trajectory_subscriber_ = nh_.subscribe(trajectory_topic_, 2,
       &AutowareLongitudinalPi::trajectoryCallback, this);
     state_subscriber_ = nh_.subscribe(state_topic_, 10, &AutowareLongitudinalPi::stateCallback, this);
@@ -160,7 +166,11 @@ private:
       std::isfinite(future_stamp_tolerance_s_) && future_stamp_tolerance_s_ >= 0.0 &&
       min_points_ >= 3 && std::isfinite(kp_) && kp_ >= 0.0 && std::isfinite(ki_) && ki_ >= 0.0 &&
       std::isfinite(integral_limit_) && integral_limit_ > 0.0 && std::isfinite(command_deadband_) &&
-      command_deadband_ >= 0.0 && std::isfinite(brake_enter_error_mps_) && brake_enter_error_mps_ >= 0.0 &&
+      command_deadband_ >= 0.0 &&
+      std::isfinite(feedforward_max_acceleration_) && feedforward_max_acceleration_ > 0.0 &&
+      std::isfinite(feedforward_gain_) && feedforward_gain_ >= 0.0 &&
+      std::isfinite(feedforward_rise_rate_) && feedforward_rise_rate_ >= 0.0 &&
+      std::isfinite(brake_enter_error_mps_) && brake_enter_error_mps_ >= 0.0 &&
       std::isfinite(brake_exit_error_mps_) && brake_exit_error_mps_ > brake_enter_error_mps_ &&
       std::isfinite(brake_hard_exit_error_mps_) && brake_hard_exit_error_mps_ >= brake_exit_error_mps_ &&
       std::isfinite(brake_hard_exit_hold_s_) && brake_hard_exit_hold_s_ >= 0.0 &&
@@ -262,6 +272,46 @@ private:
     return nearest;
   }
 
+  double accelerationTargetVelocity(const std::size_t nearest, const double fallback) const
+  {
+    if (!acceleration_feedforward_enabled_ || speed_preview_enabled_ ||
+        trajectory_.points[nearest].acceleration_mps2 <= 0.0 ||
+        fallback <= stop_velocity_threshold_mps_) {
+      return fallback;
+    }
+    double best_distance = std::numeric_limits<double>::infinity();
+    double result = fallback;
+    for (std::size_t i = nearest > 0 ? nearest - 1 : 0;
+         i <= nearest && i + 1 < trajectory_.points.size(); ++i) {
+      const auto & first = trajectory_.points[i];
+      const auto & second = trajectory_.points[i + 1];
+      const double dx = second.pose.position.x - first.pose.position.x;
+      const double dy = second.pose.position.y - first.pose.position.y;
+      const double length_squared = dx * dx + dy * dy;
+      if (length_squared <= std::numeric_limits<double>::epsilon()) {
+        continue;
+      }
+      const double ex = state_.pose.pose.position.x - first.pose.position.x;
+      const double ey = state_.pose.pose.position.y - first.pose.position.y;
+      const double ratio = std::max(0.0, std::min(1.0, (ex * dx + ey * dy) / length_squared));
+      const double px = ex - ratio * dx;
+      const double py = ey - ratio * dy;
+      const double distance_squared = px * px + py * py;
+      if (distance_squared >= best_distance) {
+        continue;
+      }
+      best_distance = distance_squared;
+      result = fallback;
+      // Preserve all deceleration/stop targets, including a transition segment.
+      if (first.acceleration_mps2 > 0.0 && second.acceleration_mps2 > 0.0 &&
+          first.longitudinal_velocity_mps > stop_velocity_threshold_mps_) {
+        result = trajectory_follower::interpolateIncreasingVelocity(
+          first.longitudinal_velocity_mps, second.longitudinal_velocity_mps, ratio, fallback);
+      }
+    }
+    return result;
+  }
+
   double previewTargetVelocity(const std::size_t nearest, const double current_velocity) const
   {
     const double initial_target = trajectory_.points[nearest].longitudinal_velocity_mps;
@@ -314,6 +364,7 @@ private:
 
   void publishHold(const double steering)
   {
+    last_feedforward_ = 0.0;
     integral_ = 0.0;
     braking_mode_ = false;
     brake_hard_exit_elapsed_s_ = 0.0;
@@ -331,6 +382,7 @@ private:
 
   void publishStop()
   {
+    last_feedforward_ = 0.0;
     integral_ = 0.0;
     braking_mode_ = false;
     brake_hard_exit_elapsed_s_ = 0.0;
@@ -367,7 +419,8 @@ private:
       return;
     }
     const double current_velocity = state_.twist.twist.linear.x * velocity_scale_;
-    const double target_velocity = previewTargetVelocity(nearest, current_velocity);
+    const double target_velocity = accelerationTargetVelocity(
+      nearest, previewTargetVelocity(nearest, current_velocity));
     if (target_velocity <= stop_velocity_threshold_mps_ &&
         std::abs(current_velocity) <= stop_velocity_threshold_mps_) {
       publishHold(steering_);
@@ -412,9 +465,17 @@ private:
       brake_planned_deceleration_threshold_mps2_);
     braking_mode_ = brake_hysteresis.active;
     brake_hard_exit_elapsed_s_ = brake_hysteresis.hard_exit_elapsed_s;
+    const bool acceleration_allowed = !braking_mode_ && !smooth_stop_active &&
+      !deceleration_feedback_active && last_brake_cmd_ <= command_deadband_ &&
+      current_velocity >= 0.0 && target_velocity > stop_velocity_threshold_mps_ && error >= 0.0;
+    const double requested_feedforward = trajectory_follower::accelerationFeedforward(
+      acceleration_feedforward_enabled_, acceleration_allowed, planned_acceleration,
+      feedforward_max_acceleration_, feedforward_gain_);
+    const double feedforward = trajectory_follower::limitFeedforwardRise(
+      requested_feedforward, last_feedforward_, feedforward_rise_rate_, dt);
     const double candidate_integral = std::max(-integral_limit_, std::min(integral_limit_, integral_ + error * dt));
     const double candidate_command = kp_ * error + ki_ * candidate_integral;
-    if (!((candidate_command > max_accel_cmd_ && error > 0.0) ||
+    if (!((candidate_command + feedforward > max_accel_cmd_ && error > 0.0) ||
           (candidate_command < -max_brake_cmd_ && error < 0.0))) {
       integral_ = candidate_integral;
     }
@@ -480,12 +541,27 @@ private:
     const double brake_upper = std::min(max_brake_cmd_, last_brake_cmd_ + max_brake_rise_rate_per_s_ * dt);
     command.brake = std::max(brake_lower, std::min(brake_upper, desired_brake));
     last_brake_cmd_ = command.brake;
+    // A positive FF must never cancel PI braking or a brake-release interlock.
+    const double applied_feedforward = command.brake <= command_deadband_ &&
+      desired_brake == 0.0 ? feedforward : 0.0;
+    last_feedforward_ = applied_feedforward;
+    const double acceleration_command = command_value + applied_feedforward;
     // Never request throttle while a previous brake command is being released.
     command.accel = !braking_mode_ && !smooth_stop_active && !deceleration_feedback_active &&
       command.brake <= command_deadband_ &&
-      command_value > command_deadband_
-      ? std::min(max_accel_cmd_, command_value) : 0.0;
+      acceleration_command > command_deadband_
+      ? std::min(max_accel_cmd_, acceleration_command) : 0.0;
     command_publisher_.publish(command);
+    std_msgs::Float64MultiArray debug;
+    debug.layout.dim.resize(1);
+    debug.layout.dim[0].label =
+      "stamp_s,target_mps,actual_mps,planned_acc_mps2,measured_acc_mps2,P,I,FF,accel,brake,braking_mode";
+    debug.data = {now.toSec(), target_velocity, current_velocity, planned_acceleration,
+      filtered_acceleration_mps2_, kp_ * error, ki_ * integral_, applied_feedforward,
+      command.accel, command.brake, braking_mode_ ? 1.0 : 0.0};
+    debug.layout.dim[0].size = debug.data.size();
+    debug.layout.dim[0].stride = debug.data.size();
+    debug_publisher_.publish(debug);
   }
 
   ros::NodeHandle nh_;
@@ -495,6 +571,12 @@ private:
   ros::Subscriber steering_subscriber_;
   ros::Subscriber validity_subscriber_;
   ros::Publisher command_publisher_;
+  ros::Publisher debug_publisher_;
+  bool acceleration_feedforward_enabled_{false};
+  double feedforward_max_acceleration_{3.7};
+  double feedforward_gain_{1.0};
+  double feedforward_rise_rate_{0.0};
+  double last_feedforward_{0.0};
   ros::Timer timer_;
   std::string trajectory_topic_;
   std::string state_topic_;

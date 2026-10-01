@@ -1,6 +1,51 @@
 #include "trajectory_follower/longitudinal_pi_utils.hpp"
 
 #include <gtest/gtest.h>
+#include <limits>
+
+TEST(LongitudinalPiUtils, FeedforwardIsZeroForDisabledBrakingAndInvalidInputs)
+{
+  using trajectory_follower::accelerationFeedforward;
+  EXPECT_DOUBLE_EQ(accelerationFeedforward(false, true, 3.7, 3.7, 1.0), 0.0);
+  EXPECT_DOUBLE_EQ(accelerationFeedforward(true, false, 3.7, 3.7, 1.0), 0.0);
+  EXPECT_DOUBLE_EQ(accelerationFeedforward(true, true, -2.0, 3.7, 1.0), 0.0);
+  EXPECT_DOUBLE_EQ(accelerationFeedforward(true, true, 0.0, 3.7, 1.0), 0.0);
+  EXPECT_DOUBLE_EQ(accelerationFeedforward(true, true,
+    std::numeric_limits<double>::quiet_NaN(), 3.7, 1.0), 0.0);
+  EXPECT_DOUBLE_EQ(accelerationFeedforward(true, true, 3.7, 0.0, 1.0), 0.0);
+}
+
+TEST(LongitudinalPiUtils, FeedforwardUsesAccelerationAndCapsPedal)
+{
+  using trajectory_follower::accelerationFeedforward;
+  EXPECT_DOUBLE_EQ(accelerationFeedforward(true, true, 1.85, 3.7, 1.0), 0.5);
+  EXPECT_DOUBLE_EQ(accelerationFeedforward(true, true, 3.7, 3.7, 0.5), 0.5);
+  EXPECT_DOUBLE_EQ(accelerationFeedforward(true, true, 7.4, 3.7, 1.0), 1.0);
+}
+
+TEST(LongitudinalPiUtils, FeedforwardRiseNeverDelaysBraking)
+{
+  using trajectory_follower::limitFeedforwardRise;
+  EXPECT_DOUBLE_EQ(limitFeedforwardRise(0.75, 0.0, 0.5, 0.02), 0.01);
+  EXPECT_DOUBLE_EQ(limitFeedforwardRise(0.75, 0.74, 0.5, 0.02), 0.75);
+  EXPECT_DOUBLE_EQ(limitFeedforwardRise(0.2, 0.75, 0.5, 0.02), 0.2);
+  EXPECT_DOUBLE_EQ(limitFeedforwardRise(0.0, 0.75, 0.5, 0.02), 0.0);
+  EXPECT_DOUBLE_EQ(limitFeedforwardRise(0.75, 0.0, 0.0, 0.02), 0.75);
+  EXPECT_DOUBLE_EQ(limitFeedforwardRise(0.75, 0.0, 0.5, 0.0), 0.0);
+}
+
+TEST(LongitudinalPiUtils, IncreasingProfileUsesCurrentPositionAndNeverExtrapolates)
+{
+  using trajectory_follower::interpolateIncreasingVelocity;
+  EXPECT_DOUBLE_EQ(interpolateIncreasingVelocity(1., 3., .5, 1.), std::sqrt(5.));
+  EXPECT_DOUBLE_EQ(interpolateIncreasingVelocity(1., 3., -1., 1.), 1.);
+  EXPECT_DOUBLE_EQ(interpolateIncreasingVelocity(1., 3., 2., 1.), 3.);
+  EXPECT_DOUBLE_EQ(interpolateIncreasingVelocity(3., 1., .5, 2.), 2.);
+  EXPECT_DOUBLE_EQ(interpolateIncreasingVelocity(0., 1., .5, 0.), 0.);
+  EXPECT_DOUBLE_EQ(interpolateIncreasingVelocity(3., 3., .5, 2.), 2.);
+  EXPECT_DOUBLE_EQ(interpolateIncreasingVelocity(
+    1., 3., std::numeric_limits<double>::quiet_NaN(), 2.), 2.);
+}
 
 TEST(LongitudinalPiUtils, ResetsAccelerationIntegralWhenBrakingBegins)
 {
