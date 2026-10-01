@@ -11,6 +11,8 @@
   "/localization/kinematic_state",
   "/localization/control_kinematic_state",
   "/perception/object_recognition/detection/objects",
+  "/perception/bevfusion/status",
+  "/perception/bevfusion/latency_ms",
   "/perception/object_recognition/tracking/objects",
   "/perception/object_recognition/objects",
   "/perception/object_recognition/visualization/detections",

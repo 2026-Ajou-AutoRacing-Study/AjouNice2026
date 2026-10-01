@@ -15,10 +15,10 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import ConfigError, ROOT, load_campaign
-from .runtime import (LiveMonitor, Processes, Recording, RuntimeFailure,
+from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure,
                       ScenarioFailure,
                       atomic_json, check_no_conflicting_publishers,
-                      master_alive, now, prepare_scenario, publish_brake,
+                      focus_planviz, master_alive, now, prepare_scenario, publish_brake,
                       request_route)
 
 
@@ -49,6 +49,7 @@ def _env():
     env = os.environ.copy()
     env["AJOUNICE_ROOT"] = str(ROOT)
     env.setdefault("PYTHONNOUSERSITE", "1")
+    env["DISABLE_ROS1_EOL_WARNINGS"] = "1"
     return env
 
 
@@ -68,11 +69,11 @@ def _start_master(processes, monitor_timeout):
 def _start_persistent(cfg, processes, monitor):
     network, stack = cfg["network"], cfg["stack"]
     sensor = network["sensor_json"]
-    light = "lightweight" in sensor.name.lower()
     processes.start("udp", _launch("sensor_interface", "morai_udp_interface.launch",
-        sensor_config=sensor, network_config=network["ego_network_json"], enable_lidar=not light))
+        sensor_config=sensor, network_config=network["ego_network_json"],
+        enable_lidar=network["has_lidar"]))
     processes.start("sensing", _launch("bringup", "sensing.launch", sensor_config=sensor,
-        publish_lidar_tf=not light, publish_camera_tf=not light))
+        publish_lidar_tf=network["has_lidar"], publish_camera_tf=network["camera_count"] > 0))
     timeout = float(cfg["document"].get("readiness_timeout_sec", 45))
     monitor.wait(lambda: monitor.stamps.get("ego", 0) > 0, timeout, "/Ego_topic")
     scenario_host = cfg["document"].get("morai", {}).get("scenario_load_host", "127.0.0.1")
@@ -83,7 +84,7 @@ def _start_persistent(cfg, processes, monitor):
         if bound.returncode != 0 or not bound.stdout.strip():
             raise RuntimeFailure("MORAI가 ScenarioLoad UDP {}을 열지 않았습니다. MR GUI Ego Network에 ego_network_validator_local.json을 다시 Load/Connect하세요".format(scenario_port))
     if stack["detector"] == "bevfusion":
-        processes.start("bevfusion", ["bash", str(ROOT / "scripts/runtime/run_bevfusion.sh")])
+        processes.start("bevfusion", ["bash", str(ROOT / "scripts/runtime/run_bevfusion.sh"), str(sensor)])
     if stack.get("planviz", True):
         processes.start("planviz", _launch("bringup", "aw149_planning_rviz.launch"))
 
@@ -132,13 +133,16 @@ def _load_scene(cfg, installed, monitor, ego_xy):
     host, port = udp.get("scenario_load_host", "127.0.0.1"), int(udp.get("scenario_load_port", 9095))
     timeout = float(cfg["document"].get("scenario_ready_timeout_sec", 35))
     for attempt in range(1, 4):
+        baseline_xy = None if monitor.ego is None else (
+            float(monitor.ego.position.x), float(monitor.ego.position.y))
         after = time.monotonic()
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as connection:
             sent = connection.sendto(payload, (host, port))
         if sent != len(payload):
             raise RuntimeFailure("ScenarioLoad UDP packet이 일부만 송신됐습니다")
         try:
-            monitor.wait_scenario(ego_xy, after=after, timeout=timeout, tolerance=2.0)
+            monitor.wait_scenario(ego_xy, after=after, timeout=timeout,
+                                  tolerance=2.0, baseline_xy=baseline_xy)
             return
         except RuntimeFailure:
             if attempt == 3:
@@ -214,25 +218,50 @@ def _run_case(cfg, processes, monitor, case, state):
                         "started_at": now(), "metrics": {}}
     _write_state(cfg, state)
     recorder = Recording(cfg["recording"], folder, processes.env)
+    brake_hold = None
     reason, elapsed, route_id, error = "SYSTEM_ERROR", 0.0, None, None
     started_at = now()
+    wall_started = time.monotonic()
     try:
+        monitor.begin_case(folder / "events.jsonl")
         installed, ego_xy = prepare_scenario(case, cfg["install"], cfg["network"]["ego_network_json"])
         shutil.copy2(installed, folder / "scenario.json")
+        brake_hold = BrakeHold()
+        brake_hold.start()
+        # Route rejection and stack startup failures are useful campaign evidence too.
+        # Start both recorders before ScenarioLoad instead of only after route readiness.
+        if (cfg["recording"].get("video", {}).get("enabled", False)
+                and cfg["stack"].get("planviz", True)
+                and cfg["recording"]["video"].get("focus_planviz", True)):
+            try:
+                focus_planviz(timeout=float(cfg["document"].get("readiness_timeout_sec", 45)))
+            except RuntimeFailure as exc:
+                monitor.event("VIDEO_FOCUS_WARNING", message=str(exc))
+                print("[WARN] {}: 영상은 계속 녹화합니다".format(exc), file=sys.stderr)
+        recorder.start(basename)
+        monitor.event("SCENARIO_LOAD_REQUEST", installed=installed.name)
         _load_scene(cfg, installed, monitor, ego_xy)
+        monitor.event("SCENARIO_READY")
+        if cfg["stack"]["detector"] == "bevfusion":
+            detector_after = time.monotonic()
+            monitor.wait_detection(after=detector_after, timeout=max(
+                60.0, float(cfg["document"].get("readiness_timeout_sec", 45))),
+                process=processes.running["bevfusion"],
+                log_path=processes.log_dir / "bevfusion.log")
+            monitor.event("BEVFUSION_READY")
         publish_brake()
         state["current"]["phase"] = "STACK_READY"
         _write_state(cfg, state)
         _start_case_stack(cfg, processes, monitor)
         state["current"]["phase"] = "ROUTE_REQUEST"
         _write_state(cfg, state)
+        monitor.event("ROUTE_REQUEST")
         route_id = request_route(case, monitor,
             timeout=float(cfg["document"].get("route_ready_timeout_sec", 75)))
-        state["current"]["phase"] = "RECORDING"
-        _write_state(cfg, state)
-        recorder.start(basename)
         monitor.arm(folder / "events.jsonl")
         monitor.event("CONTROLLER_START")
+        brake_hold.stop()
+        brake_hold = None
         controller_state = "/localization/control_kinematic_state" if cfg["stack"]["pose_source"] == "localization" else "/localization/kinematic_state"
         processes.start("controller", _launch("trajectory_follower", "pp_pi_autoware.launch",
             kinematic_state_topic=controller_state))
@@ -264,12 +293,14 @@ def _run_case(cfg, processes, monitor, case, state):
         reason = "SYSTEM_ERROR"
         print("[{}] {}: {}".format(case.name, reason, error), file=sys.stderr)
     finally:
+        monitor.event("CASE_RESULT", reason=reason, error=error)
         processes.stop("controller")
-        if reason != "SYSTEM_ERROR":
-            try:
-                publish_brake()
-            except Exception:
-                pass
+        if brake_hold is not None:
+            brake_hold.stop()
+        try:
+            publish_brake()
+        except Exception:
+            pass
         monitor.disarm()
         code = "P" if reason == "SUCCESS" else "E" if reason in ("SYSTEM_ERROR", "MANUAL_ABORT") else "F"
         final_base = basename.replace("_R_", "_{}_".format(code))
@@ -286,7 +317,9 @@ def _run_case(cfg, processes, monitor, case, state):
             "attempt": attempt, "started_at": started_at, "finished_at": now(),
             "status": "PASS" if code == "P" else "ERROR" if code == "E" else "FAIL",
             "reason": reason, "error": error, "route_uuid": route_id,
-            "metrics": {"elapsed_sec": round(elapsed, 2), "collision_count": monitor.collision_count,
+            "metrics": {"elapsed_sec": round(elapsed, 2),
+                "wall_elapsed_sec": round(time.monotonic() - wall_started, 2),
+                "collision_count": monitor.collision_count,
                 "minimum_goal_distance_m": None if monitor.goal_min == float("inf") else round(monitor.goal_min, 3),
                 "maximum_speed_mps": round(monitor.max_speed, 3)},
             "files": {"bag": bag.name if bag else None, "video": video.name if video else None,
@@ -385,6 +418,9 @@ def run(cfg, resume=True, rerun_failed=False):
             if result["status"] == "ERROR" and not cfg["document"].get("continue_on_system_error", False):
                 break
     finally:
+        # A second Ctrl+C during ROS shutdown must not orphan roscore/UDP/Planviz.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
         processes.close()
         state["current"] = None
         _write_state(cfg, state)

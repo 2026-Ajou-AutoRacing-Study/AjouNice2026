@@ -1,6 +1,6 @@
 # Planning scenario validator
 
-팀원이 만든 MORAI scenario JSON 폴더를 대상으로, 실제 localization → 인지 → tracking/prediction → planning → controller 폐루프 주행을 시나리오별로 검증한다. GUI는 필요 없다. 각 시나리오는 bag, 화면 영상, 실시간 판정 결과로 따로 저장한다.
+팀원이 만든 MORAI scenario JSON 폴더를 대상으로, 실제 localization → 인지 → tracking/prediction → planning → controller 폐루프 주행을 시나리오별로 검증한다. 검증기 전용 GUI는 없지만 MORAI MR의 최초 네트워크 Connect에는 MORAI GUI가 필요하다. 각 시나리오는 bag, 화면 영상, 실시간 판정 결과로 따로 저장한다.
 
 ## 5분 실행
 
@@ -23,6 +23,17 @@ cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/stati
 ```
 
 Ctrl+C 후 같은 명령을 다시 실행하면 완료된 시나리오를 건너뛰고 남은 시나리오를 진행한다. 실패 시나리오를 다시 보려면 `--rerun-failed`를 붙인다. 개별 오류가 났다면 `error/`에 증거를 남기고 다음 실행에서 재시도한다.
+
+BEVFusion까지 켜는 시험은 별도 예제를 복사해서 사용한다. 먼저 무장애물 연결 확인용 `bevfusion_clear_smoke.yaml`을 권장한다. 장애물 회피를 시험하려면 아래 명령의 파일명만 `static_obstacle_bevfusion.yaml`로 바꾼다. MORAI GUI의 Sensor는 예제에 적힌 `Sensor_competition_local.json`, Ego Network는 validator 전용 JSON으로 연결해야 한다. BEVFusion checkpoint·Docker image도 `scripts/runtime/run_bevfusion.sh`의 계약대로 준비해야 한다.
+
+```bash
+cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/bevfusion_clear_smoke.yaml \
+   base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/bevfusion_campaign.yaml
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/bevfusion_campaign.yaml --dry-run
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/users/sw/bevfusion_campaign.yaml
+```
+
+무장애물 예제는 원시 센서를 bag에서 제외한다. 정적 장애물 예제는 원시 센서도 녹화하므로 약 3분에 bag이 수 GB일 수 있다. `recording.include_sensors: false`로 바꿔도 BEVFusion **추론 입력은 그대로 유지**된다. `FAIL/TIMEOUT` 같은 실제 주행 실패와 `ERROR/SYSTEM_ERROR` 같은 자동화·환경 오류는 별도로 분류한다.
 
 ## 팀원이 해야 할 일
 
@@ -51,9 +62,10 @@ arrival_mode: stop
 - `basic.json`: camera/LiDAR 제외, planning/인지/제어/GT 핵심 토픽
 - `lightweight.json`: 위치, trajectory, command, collision 중심
 - `full.json`: 알려진 센서·planning 토픽 목록. 실제 수신하지 않는 항목은 rosbag에 들어가지 않는다.
-- 영상은 X11 전체 화면을 시나리오마다 ffmpeg로 녹화한다. Planviz를 최대화하면 원하는 화면이 저장된다.
+- 영상은 X11 전체 화면을 시나리오마다 ffmpeg로 녹화한다. 기본값 `focus_planviz: true`는 녹화 직전 Planviz를 전면·최대화하며 ROS1 EOL 팝업을 띄우지 않는다. 다른 창에 포커스를 주면 전체 화면 영상에도 그 창이 찍힌다.
 - 충돌은 `/CollisionData`의 새 contact ID를 실시간으로 읽는다. goal 반경, 속도 및 유지 시간으로 성공을 판단한다. 지정 시간 미도달은 TIMEOUT이다.
 - `result.json`은 개별 증거용, `summary.csv`는 사람에게 보여주기 위한 전체 표, `events.jsonl`은 시간 순서 감사 기록이다.
+- 녹화는 ScenarioLoad 전에 시작한다. Route 요청이 거부돼도 bag·MP4·이벤트가 남는다. `elapsed_sec`은 주행 판정 시간이고, 새 결과의 `wall_elapsed_sec`은 준비와 정리를 포함한 전체 실행 시간이다.
 
 출력 예:
 
@@ -80,6 +92,7 @@ planner_logs/validation/soa_team_example_01/
 - custom goal은 `/planning/set_waypoint_route`로 보낸다. 대회 Route A/B requester는 실행하지 않는다.
 - `pose_source: localization`은 MR `/Competition_topic` + -1.347° 보정을 사용한다. `maptf_morai`는 `/Ego_topic`을 사용한다.
 - `detector: od_gt`는 `/Object_topic`이 필요하다. `bevfusion`은 카메라 4대·LiDAR가 있는 Sensor JSON과 기존 BEVFusion image/checkpoint가 필요하다.
+- BEVFusion 실행기에는 YAML의 Sensor JSON을 그대로 전달한다. 모델 준비뿐 아니라 실제 detection 토픽의 새 메시지가 확인돼야 route/controller 단계로 넘어간다.
 - 신호등 off는 신호 인지 노드와 planner 소비 모듈을 함께 끈다.
 - 실행기에서 최초 MORAI GUI Sensor/Ego Network Connect는 자동화하지 않는다. topic 준비 검사를 통해 연결 누락을 찾는다.
 - `install.sh`는 기존 대회용 Ego UDP 설정의 `PUBSUB_TYPE=783` 슬롯을 검증된 UDP ScenarioLoad(9095)로 바꾼 전용 JSON을 생성한다. 이 슬롯의 기존 `/GetTrafficLightStatus` UDP 요청 기능은 전용 프로필에서 사용하지 않으며, 카메라 기반 신호등 인지 노드와는 별개다. 기존 `ego_network_competition_local.json`은 수정하지 않는다. GUI에서 전용 JSON을 로드해야 한다.

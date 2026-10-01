@@ -4,14 +4,17 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from planning_scenario_validator.config import ConfigError, ROOT, load_campaign
-from planning_scenario_validator.runtime import prepare_scenario
+from planning_scenario_validator.runtime import LiveMonitor, prepare_scenario
 from planning_scenario_validator.runner import _recover_interrupted
 
 
 EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_obstacle_gt.yaml"
+BEVFUSION_EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_obstacle_bevfusion.yaml"
+BEVFUSION_CLEAR_EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/bevfusion_clear_smoke.yaml"
 
 
 class CampaignTest(unittest.TestCase):
@@ -24,6 +27,21 @@ class CampaignTest(unittest.TestCase):
         network = json.loads(cfg["network"]["ego_network_json"].read_text(encoding="utf-8"))
         entries = network["egoNetworkData"][0]["listEgoNetworkInfo"]
         self.assertEqual(sum(e.get("config", {}).get("udpConfig", {}).get("hostPort") == 9095 for e in entries), 1)
+
+    def test_bevfusion_example_uses_four_cameras_lidar_and_sensor_recording(self):
+        cfg = load_campaign(BEVFUSION_EXAMPLE)
+        self.assertEqual(len(cfg["cases"]), 1)
+        self.assertEqual(cfg["stack"]["detector"], "bevfusion")
+        self.assertEqual(cfg["network"]["camera_count"], 4)
+        self.assertTrue(cfg["network"]["has_lidar"])
+        self.assertIn("/sensor/lidar1", cfg["recording"]["topics"])
+
+    def test_bevfusion_clear_smoke_omits_raw_sensors_from_bag(self):
+        cfg = load_campaign(BEVFUSION_CLEAR_EXAMPLE)
+        self.assertEqual(len(cfg["cases"]), 1)
+        self.assertEqual(cfg["stack"]["detector"], "bevfusion")
+        self.assertFalse(cfg["recording"]["include_sensors"])
+        self.assertNotIn("/sensor/lidar1", cfg["recording"]["topics"])
 
     def test_scenario_staging_preserves_source_and_installs_network_sidecar(self):
         cfg = load_campaign(EXAMPLE)
@@ -54,6 +72,22 @@ class CampaignTest(unittest.TestCase):
             rescued = output / "error" / unfinished.name
             self.assertEqual((rescued / "video.mp4").read_bytes(), b"partial")
             self.assertEqual(json.loads((rescued / "interrupted.json").read_text())["reason"], "PROCESS_INTERRUPTED")
+
+    def test_same_spawn_requires_observable_reload_not_just_fresh_ego(self):
+        monitor = LiveMonitor.__new__(LiveMonitor)
+        monitor.ego = SimpleNamespace(position=SimpleNamespace(x=53.08, y=-466.31))
+        monitor.stamps = {"ego": 10.1}
+        monitor.last_ego_gap_at = 0.0
+        expected = (53.08, -466.31)
+        self.assertFalse(monitor.scenario_confirmed(
+            expected, after=10.0, baseline_xy=expected, tolerance=2.0))
+        monitor.last_ego_gap_at = 10.2
+        monitor.stamps["ego"] = 10.3
+        self.assertTrue(monitor.scenario_confirmed(
+            expected, after=10.0, baseline_xy=expected, tolerance=2.0))
+        monitor.last_ego_gap_at = 0.0
+        self.assertTrue(monitor.scenario_confirmed(
+            expected, after=10.0, baseline_xy=(-144.0, -452.0), tolerance=2.0))
 
 
 def cfg_case():

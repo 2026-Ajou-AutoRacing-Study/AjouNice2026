@@ -5,6 +5,7 @@ import os
 import shutil
 import signal
 import subprocess
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -139,6 +140,7 @@ def prepare_scenario(case, install_dir, ego_network_json):
 class LiveMonitor:
     def __init__(self):
         import rospy
+        from autoware_perception_msgs.msg import DetectedObjects
         from autoware_planning_msgs.msg import LaneletRoute, Trajectory
         from morai_msgs.msg import CollisionData, EgoVehicleStatus
         from nav_msgs.msg import Odometry
@@ -147,7 +149,10 @@ class LiveMonitor:
         self.odom = None
         self.route = None
         self.trajectory = None
+        self.detections = None
         self.stamps = {}
+        self.last_ego_gap_at = 0.0
+        self.previous_ego_stamp = 0.0
         self.collision_ids = set()
         self.collision_count = 0
         self.armed = False
@@ -162,10 +167,16 @@ class LiveMonitor:
         rospy.Subscriber("/localization/kinematic_state", Odometry, self._odom, queue_size=10)
         rospy.Subscriber("/planning/mission_planning/route", LaneletRoute, self._route, queue_size=10)
         rospy.Subscriber("/planning/trajectory", Trajectory, self._trajectory, queue_size=10)
+        rospy.Subscriber("/perception/object_recognition/detection/objects",
+                         DetectedObjects, self._detections, queue_size=10)
 
     def _ego(self, message):
         self.ego = message
-        self.stamps["ego"] = time.monotonic()
+        received_at = time.monotonic()
+        if self.previous_ego_stamp and received_at - self.previous_ego_stamp >= 0.7:
+            self.last_ego_gap_at = received_at
+        self.previous_ego_stamp = received_at
+        self.stamps["ego"] = received_at
 
     def _odom(self, message):
         self.odom = message
@@ -178,6 +189,10 @@ class LiveMonitor:
     def _trajectory(self, message):
         self.trajectory = message
         self.stamps["trajectory"] = time.monotonic()
+
+    def _detections(self, message):
+        self.detections = message
+        self.stamps["detections"] = time.monotonic()
 
     def _collision(self, message):
         current = {int(obj.unique_id) for obj in message.collision_object}
@@ -202,14 +217,37 @@ class LiveMonitor:
             time.sleep(0.1)
         raise RuntimeFailure("{} 준비 제한시간({:.0f}초) 초과".format(label, seconds))
 
-    def wait_scenario(self, xy, *, after, timeout, tolerance):
-        self.wait(lambda: self.ego is not None and self.stamps.get("ego", 0) > after
-                  and math.hypot(float(self.ego.position.x) - xy[0],
-                                 float(self.ego.position.y) - xy[1]) <= tolerance,
-                  timeout, "ScenarioLoad Ego 위치")
+    def scenario_confirmed(self, xy, *, after, baseline_xy, tolerance):
+        if self.ego is None or self.stamps.get("ego", 0) <= after:
+            return False
+        if math.hypot(float(self.ego.position.x) - xy[0],
+                      float(self.ego.position.y) - xy[1]) > tolerance:
+            return False
+        # With the same starting position, a fresh UDP Ego packet can still
+        # belong to the *old* scene. MORAI pauses its Ego stream during reload.
+        # Require that observable reset gap before accepting the new scene.
+        if baseline_xy is not None and math.hypot(
+                baseline_xy[0] - xy[0], baseline_xy[1] - xy[1]) <= tolerance:
+            return self.last_ego_gap_at > after
+        return True
+
+    def wait_scenario(self, xy, *, after, timeout, tolerance, baseline_xy=None):
+        self.wait(lambda: self.scenario_confirmed(
+            xy, after=after, baseline_xy=baseline_xy, tolerance=tolerance),
+            timeout, "ScenarioLoad Ego 위치/재시작")
 
     def wait_odom(self, *, after, timeout):
         self.wait(lambda: self.stamps.get("odom", 0) > after, timeout, "localization")
+
+    def wait_detection(self, *, after, timeout, process=None, log_path=None):
+        deadline = time.monotonic() + timeout
+        while not self.rospy.is_shutdown() and time.monotonic() < deadline:
+            if self.stamps.get("detections", 0) > after:
+                return
+            if process is not None and process.poll() is not None:
+                raise RuntimeFailure("BEVFusion 실행기가 종료됐습니다. 로그: {}".format(log_path))
+            time.sleep(0.1)
+        raise RuntimeFailure("BEVFusion detection 준비 제한시간({:.0f}초) 초과. LiDAR/카메라/서버 연결을 확인하세요".format(timeout))
 
     def wait_route_and_trajectory(self, route_uuid, *, after, timeout):
         self.wait(lambda: self.route is not None and self.stamps.get("route", 0) > after
@@ -220,8 +258,7 @@ class LiveMonitor:
                   and bool(self.trajectory.points), timeout, "새 planning trajectory")
 
     def arm(self, events_path):
-        self.events_path = Path(events_path)
-        self.events_path.touch()
+        self.begin_case(events_path)
         self.collision_count = 0
         # 이전 scenario의 contact ID가 새 시나리오 첫 접촉을 숨기지 않게 한다.
         self.collision_ids.clear()
@@ -232,6 +269,13 @@ class LiveMonitor:
         self.best_goal_distance = float("inf")
         self.last_progress_time = time.monotonic()
         self.event("RUN_ARMED", existing_collision_ids=sorted(self.collision_ids))
+
+    def begin_case(self, events_path):
+        self.events_path = Path(events_path)
+        self.events_path.touch(exist_ok=True)
+        self.collision_count = 0
+        self.goal_min = float("inf")
+        self.max_speed = 0.0
 
     def disarm(self):
         self.armed = False
@@ -328,6 +372,37 @@ def publish_brake(duration=1.0):
     publisher.unregister()
 
 
+class BrakeHold:
+    """Keep MORAI stationary while asynchronous model/planning nodes start."""
+
+    def __init__(self):
+        import rospy
+        from morai_msgs.msg import CtrlCmd
+        self.rospy = rospy
+        self.publisher = rospy.Publisher("/ctrl_cmd", CtrlCmd, queue_size=1)
+        self.command = CtrlCmd()
+        self.command.longlCmdType = 1
+        self.command.brake = 1.0
+        self.stopped = threading.Event()
+        self.thread = None
+
+    def start(self):
+        self.thread = threading.Thread(target=self._run, name="validator_brake_hold", daemon=True)
+        self.thread.start()
+
+    def _run(self):
+        while not self.stopped.is_set() and not self.rospy.is_shutdown():
+            self.publisher.publish(self.command)
+            self.stopped.wait(0.05)
+
+    def stop(self):
+        self.stopped.set()
+        if self.thread is not None:
+            self.thread.join(timeout=1.0)
+            self.thread = None
+        self.publisher.unregister()
+
+
 def video_size():
     output = subprocess.check_output(["xdpyinfo"], text=True, timeout=5)
     import re
@@ -335,6 +410,20 @@ def video_size():
     if not match:
         raise RuntimeFailure("X11 화면 크기를 확인하지 못했습니다")
     return match.group(1)
+
+
+def focus_planviz(timeout=45):
+    """Maximize/raise the RViz window before full-screen X11 capture."""
+    try:
+        result = subprocess.run(
+            ["/usr/bin/python3", str(ROOT / "base_ws/src/planning_addons/"
+                                     "planning_scenario_validator/scripts/focus_planviz.py"),
+             str(timeout)],
+            capture_output=True, text=True, timeout=timeout + 3)
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeFailure("Planviz 창 최대화 대기 시간이 초과됐습니다") from error
+    if result.returncode:
+        raise RuntimeFailure("Planviz 자동 최대화 실패: {}".format(result.stderr.strip()))
 
 
 class Recording:

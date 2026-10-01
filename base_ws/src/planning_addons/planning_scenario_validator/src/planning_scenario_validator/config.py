@@ -151,6 +151,9 @@ def load_campaign(path, *, check_install=True):
             raise ConfigError("네트워크 JSON을 읽을 수 없습니다: {}".format(resolved)) from error
         network[key] = resolved
     ego_network = json.loads(network["ego_network_json"].read_text(encoding="utf-8"))
+    sensor_config = json.loads(network["sensor_json"].read_text(encoding="utf-8"))
+    network["has_lidar"] = bool(sensor_config.get("Lidar3DList"))
+    network["camera_count"] = len(sensor_config.get("cameraList", []))
     try:
         entries = ego_network["egoNetworkData"][0]["listEgoNetworkInfo"]
     except (KeyError, IndexError, TypeError) as error:
@@ -171,9 +174,10 @@ def load_campaign(path, *, check_install=True):
         raise ConfigError("stack.detector는 od_gt 또는 bevfusion입니다")
     if not isinstance(stack.get("traffic_light", False), bool):
         raise ConfigError("stack.traffic_light는 true/false입니다")
-    if stack["detector"] == "bevfusion" and "lightweight" in network["sensor_json"].name.lower():
-        raise ConfigError("BEVFusion에는 카메라와 LiDAR가 있는 sensor JSON이 필요합니다")
-    if stack.get("traffic_light", False) and "lightweight" in network["sensor_json"].name.lower():
+    if stack["detector"] == "bevfusion" and (
+            network["camera_count"] < 4 or not network["has_lidar"]):
+        raise ConfigError("BEVFusion에는 카메라 4대와 LiDAR가 있는 sensor JSON이 필요합니다")
+    if stack.get("traffic_light", False) and network["camera_count"] < 1:
         raise ConfigError("신호등 인지에는 전방 카메라가 있는 sensor JSON이 필요합니다")
     recording = document.get("recording", {})
     profile = resolve_path(recording.get("topic_profile"))
