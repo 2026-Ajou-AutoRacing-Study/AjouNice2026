@@ -158,6 +158,7 @@ void TrafficLightModuleManager::launchNewModules(
     } else {
       // Update the stop line for the existing module
       existing_module->updateStopLine(*stop_line);
+      existing_module->updateDecisionLane(decision_lane, is_turn_lane);
     }
   }
 }
