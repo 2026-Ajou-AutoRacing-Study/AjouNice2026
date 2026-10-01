@@ -294,6 +294,16 @@ def parse_args():
         ),
     )
     parser.add_argument("--ego-position-tolerance-m", type=float, default=5.0)
+    parser.add_argument(
+        "--maximum-precontrol-drift-m",
+        type=float,
+        default=None,
+        help=(
+            "fail before releasing external control when Ego moved farther "
+            "than this from the generated start pose during scenario load; "
+            "zero disables the gate"
+        ),
+    )
     parser.add_argument("--route-deviation-limit-m", type=float, default=None)
     parser.add_argument("--heading-error-limit-deg", type=float, default=None)
     parser.add_argument("--lookahead-m", type=float, default=None)
@@ -1282,6 +1292,7 @@ class AutoCapture:
             for key in (
                 "speed_kph",
                 "capture_period_sec",
+                "capture_spacing_m",
                 "capture_motion_arm_m",
                 "minimum_capture_progress_m",
                 "dynamic_warmup_sec",
@@ -1289,9 +1300,13 @@ class AutoCapture:
                 "maximum_motion_m",
                 "motion_stall_timeout_sec",
                 "route_deviation_limit_m",
+                "heading_error_limit_deg",
                 "lookahead_m",
+                "maximum_steering_rad",
                 "adaptive_curve_control",
                 "minimum_curve_speed_kph",
+                "load_settle_sec",
+                "maximum_precontrol_drift_m",
             )
         }
         self.scene_minimum_ego_speed_kph = 0.0
@@ -1489,10 +1504,13 @@ class AutoCapture:
         for key in self.base_motion_args:
             if key in overrides:
                 setattr(self.args, key, overrides[key])
-        if not 0.5 <= float(self.args.speed_kph) <= 80.0:
+        allow_high_speed = bool(overrides.get("allow_high_speed_capture", False))
+        maximum_speed_kph = 130.0 if allow_high_speed else 80.0
+        if not 0.5 <= float(self.args.speed_kph) <= maximum_speed_kph:
             raise ValueError(
-                "scene {} ego_target_speed_kph must be within 0.5..80.0"
-                .format(scene.get("id"))
+                "scene {} ego_target_speed_kph must be within 0.5..{:.1f}; "
+                "speeds above 80 require allow_high_speed_capture=true"
+                .format(scene.get("id"), maximum_speed_kph)
             )
         self.args.minimum_curve_speed_kph = min(
             float(self.args.minimum_curve_speed_kph),
@@ -2059,6 +2077,27 @@ class AutoCapture:
                 # expose the old service briefly and return handler=None.
                 self.wait_for_scene(scene, issued)
                 self.wait_for_static_actor_stability(scene)
+                if self.args.maximum_precontrol_drift_m > 0.0:
+                    snapshot = self.state.snapshot()
+                    if snapshot["ego"] is None:
+                        raise RuntimeError(
+                            "Ego telemetry unavailable before control handoff"
+                        )
+                    expected = scene["expected_ego"]
+                    precontrol_drift = math.hypot(
+                        float(snapshot["ego"].position.x)
+                        - float(expected["x"]),
+                        float(snapshot["ego"].position.y)
+                        - float(expected["y"]),
+                    )
+                    if precontrol_drift > self.args.maximum_precontrol_drift_m:
+                        raise RuntimeError(
+                            "Ego moved {:.2f} m before external control; limit "
+                            "is {:.2f} m. Retrying ScenarioLoad from rest.".format(
+                                precontrol_drift,
+                                self.args.maximum_precontrol_drift_m,
+                            )
+                        )
                 self.last_scene_load_issued = issued
                 last_error = None
                 break
@@ -2082,8 +2121,8 @@ class AutoCapture:
             # Do not publish the brake command after this service call: the
             # personal MORAI launcher can retain that brake state even after
             # velocity-mode CtrlCmd messages begin, leaving Ego stationary.
-            # The loaded scenario already starts at zero velocity and the
-            # motion routine immediately starts publishing its drive command.
+            # The loaded scenario starts at zero velocity and the motion
+            # routine immediately starts publishing its drive command.
             control_error = None
             for attempt in range(1, 4):
                 try:
@@ -2208,6 +2247,32 @@ class AutoCapture:
         before = recursive_files(source_root)
         triggered_unix = time.time()
         started = time.monotonic()
+        # Preserve the exact online actor reference used when requesting the
+        # synchronous MORAI snapshot.  Stationary captures previously kept
+        # only the emitted sensor filenames, which made an authoritative
+        # ObjectStatus-pivot versus LiDAR Instance-box calibration impossible
+        # without a separate rosbag.  SharedState is updated even when timing
+        # history is disabled, so this remains available while MORAI Capture
+        # Mode suppresses the live camera/LiDAR ROS streams.
+        trigger_snapshot = self.state.snapshot()
+        trigger_ego = (
+            serialize_ego(
+                trigger_snapshot["ego"],
+                trigger_snapshot["ego_unix_time"],
+                trigger_snapshot["ego_wall_time"],
+            )
+            if trigger_snapshot["ego"] is not None
+            else None
+        )
+        trigger_objects = (
+            serialize_objects(
+                trigger_snapshot["objects"],
+                trigger_snapshot["objects_unix_time"],
+                trigger_snapshot["objects_wall_time"],
+            )
+            if trigger_snapshot["objects"] is not None
+            else None
+        )
         self.publish_capture_request()
 
         deadline = time.monotonic() + self.args.capture_timeout_sec
@@ -2312,6 +2377,24 @@ class AutoCapture:
             "triggered_unix": triggered_unix,
             "completed_unix": completed_unix,
             "duration_sec": duration_sec,
+            "ego": trigger_ego,
+            "objects": trigger_objects,
+            "quality": {
+                "ego_state_age_sec": (
+                    max(0.0, triggered_unix - trigger_snapshot["ego_unix_time"])
+                    if trigger_ego is not None
+                    else None
+                ),
+                "object_state_age_sec": (
+                    max(
+                        0.0,
+                        triggered_unix
+                        - trigger_snapshot["objects_unix_time"],
+                    )
+                    if trigger_objects is not None
+                    else None
+                ),
+            },
             "new_file_count": len(new_files),
             "observed_sensor_dirs": sorted(observed_sensors),
             "missing_sensor_dirs": sorted(missing_sensors),
@@ -3791,7 +3874,36 @@ class AutoCapture:
                 command.acceleration = 0.0
                 self.control_pub.publish(command)
 
-                if travelled >= next_capture_distance_m:
+                ego_speed_kph = 3.6 * math.sqrt(
+                    ego.velocity.x * ego.velocity.x
+                    + ego.velocity.y * ego.velocity.y
+                    + ego.velocity.z * ego.velocity.z
+                )
+                stable_ready = True
+                if self.scene_stable_ego_window_sec > 0.0:
+                    ego_history = self.state.timing_window(
+                        time.monotonic() - self.scene_stable_ego_window_sec,
+                        time.monotonic(),
+                        0.0,
+                    ).get("ego", [])
+                    stable_ready = stable_ego_motion(
+                        ego_history,
+                        self.scene_stable_ego_window_sec * 0.9,
+                        self.scene_maximum_stable_acceleration_mps2,
+                    )
+                # Acceleration/stability gates only arm the clip. Once frame
+                # zero exists, keep the temporal sequence contiguous through
+                # real bottleneck deceleration instead of pausing until Ego
+                # becomes steady again.
+                kinematics_ready = (
+                    bool(triggers)
+                    or (
+                        travelled >= self.args.capture_motion_arm_m
+                        and ego_speed_kph >= self.scene_minimum_ego_speed_kph
+                        and stable_ready
+                    )
+                )
+                if travelled >= next_capture_distance_m and kinematics_ready:
                     self.wait_for_connections(
                         context="before rolling-fast trigger"
                     )
@@ -3820,13 +3932,46 @@ class AutoCapture:
                             # the nominal first distance slot. Keep driving
                             # until it is visibly moving instead of recording
                             # a mislabeled static-pedestrian frame.
+                            rospy.loginfo_throttle(
+                                1.0,
+                                "Actor gate pending at %.1fm, ego=%.1fkm/h: %s",
+                                travelled,
+                                ego_speed_kph,
+                                actor_gate_observation,
+                            )
                             time.sleep(0.05)
                             continue
-                        raise RuntimeError(
-                            "actor left capture gate before rolling-grouped "
-                            "frame {}: {}".format(
-                                len(triggers) + 1, actor_gate_observation
+                        minimum_in_gate_frames = int(
+                            self.scene_capture_actor_gate.get(
+                                "minimum_in_gate_frames", capture_count
                             )
+                        )
+                        if len(triggers) < minimum_in_gate_frames:
+                            raise RuntimeError(
+                                "actor left capture gate before rolling-grouped "
+                                "frame {}: {}".format(
+                                    len(triggers) + 1,
+                                    actor_gate_observation,
+                                )
+                            )
+                        rospy.loginfo_throttle(
+                            1.0,
+                            "Actor exited gate after %d verified frames; "
+                            "retaining temporal disappearance: %s",
+                            len(triggers),
+                            actor_gate_observation,
+                        )
+                    if not triggers:
+                        self.emit_scenario_marker(
+                            "sequence_start",
+                            scene,
+                            frame_index=0,
+                            actual_objects=self.object_observation(
+                                snapshot["objects"]
+                            ),
+                            ego=ego_state,
+                            actor_gate=self.scene_capture_actor_gate,
+                            actor_gate_observation=actor_gate_observation,
                         )
                     if not self.args.online_bag_only:
                         self.publish_capture_request()
@@ -3878,6 +4023,17 @@ class AutoCapture:
                                 trigger_unix - snapshot["objects_unix_time"],
                             ),
                             "actor_gate_ready": actor_gate_ready,
+                            "actor_gate_exit_allowed": bool(
+                                self.scene_capture_actor_gate
+                                and not actor_gate_ready
+                                and len(triggers)
+                                >= int(
+                                    self.scene_capture_actor_gate.get(
+                                        "minimum_in_gate_frames",
+                                        capture_count,
+                                    )
+                                )
+                            ),
                             "actor_gate": self.scene_capture_actor_gate,
                             "actor_gate_observation": actor_gate_observation,
                         },
@@ -4502,10 +4658,12 @@ class AutoCapture:
             include_motion_interface=self.args.motion_mode == "teleport"
         )
         scenes_path = self.args.capture_dir / "scenes.jsonl"
+        captures_path = self.args.capture_dir / "captures.jsonl"
         failures_path = self.args.capture_dir / "failures.jsonl"
         summary_path = self.args.capture_dir / "summary.json"
         if original_started_unix is None:
             scenes_path.write_text("", encoding="utf-8")
+            captures_path.write_text("", encoding="utf-8")
             failures_path.write_text("", encoding="utf-8")
         report = {
             "schema_version": 2,
@@ -4565,6 +4723,7 @@ class AutoCapture:
                 ),
                 "files": {
                     "scene_records": "scenes.jsonl",
+                    "capture_records": "captures.jsonl",
                     "failure_details": "failures.jsonl",
                 },
             }
@@ -4643,6 +4802,16 @@ class AutoCapture:
                     scene["id"],
                     error,
                 )
+            for capture in result.get("captures", []):
+                capture_record = dict(capture)
+                capture_record.update(
+                    {
+                        "scene_id": scene["id"],
+                        "file_name": scene["file_name"],
+                        "split": scene.get("split"),
+                    }
+                )
+                append_jsonl(captures_path, capture_record)
             compact = compact_scene_result(result)
             report["scenes"].append(compact)
             append_jsonl(scenes_path, compact)
@@ -4731,6 +4900,10 @@ def validate_policy(args, manifest):
     if args.maximum_steering_rad is None:
         args.maximum_steering_rad = float(
             policy.get("maximum_steering_rad", 0.20)
+        )
+    if args.maximum_precontrol_drift_m is None:
+        args.maximum_precontrol_drift_m = float(
+            policy.get("maximum_precontrol_drift_m", 0.0)
         )
     if args.adaptive_curve_control is None:
         args.adaptive_curve_control = bool(
@@ -4843,6 +5016,8 @@ def validate_policy(args, manifest):
         raise ValueError("--lookahead-m must be positive")
     if args.maximum_steering_rad <= 0.0:
         raise ValueError("--maximum-steering-rad must be positive")
+    if args.maximum_precontrol_drift_m < 0.0:
+        raise ValueError("--maximum-precontrol-drift-m must be non-negative")
     if args.curve_control_window_m <= 0.0:
         raise ValueError("--curve-control-window-m must be positive")
     if args.curve_control_full_turn_deg <= 0.0:

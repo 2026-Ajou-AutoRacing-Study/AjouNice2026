@@ -14,12 +14,12 @@ DEFAULT_INSTALL = Path.home() / (
     "MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/Scenario/"
     "R_KR_PR_K-city_2025"
 )
-REQUIRED_TOPICS = {
+REQUIRED_ONLINE_TOPICS = {
     "/ScenarioLoad",
-    "/SaveSensorData",
     "/Ego_topic",
     "/Object_topic",
 }
+SAVE_SENSOR_DATA_TOPIC = "/SaveSensorData"
 
 
 def parse_args():
@@ -27,6 +27,14 @@ def parse_args():
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--network-template", type=Path, required=True)
     parser.add_argument("--install-dir", type=Path, default=DEFAULT_INSTALL)
+    parser.add_argument(
+        "--online-bag-only",
+        action="store_true",
+        help=(
+            "Install a rosbag-first campaign. Do not require the legacy "
+            "/SaveSensorData interface in the Ego Network sidecar."
+        ),
+    )
     parser.add_argument(
         "--runtime-manifest",
         type=Path,
@@ -81,9 +89,12 @@ def main():
     args = parse_args()
     manifest = load_json(args.manifest)
     network = load_json(args.network_template)
+    required_topics = set(REQUIRED_ONLINE_TOPICS)
+    if not args.online_bag_only:
+        required_topics.add(SAVE_SENSOR_DATA_TOPIC)
     unique_ids = network_unique_ids(network)
     strings = set(collect_strings(network))
-    missing_topics = sorted(REQUIRED_TOPICS - strings)
+    missing_topics = sorted(required_topics - strings)
     if unique_ids != {0}:
         raise SystemExit(
             f"network template must contain only Ego UNIQUEID=0, got {sorted(unique_ids)}"
@@ -116,6 +127,8 @@ def main():
         "install_dir": str(args.install_dir.resolve()),
         "network_template": str(args.network_template.resolve()),
         "network_template_sha256": sha256(args.network_template),
+        "online_bag_only": args.online_bag_only,
+        "required_topics": sorted(required_topics),
         "scenario_count": len(installed),
         "installed": installed,
     }
@@ -124,7 +137,7 @@ def main():
         "transport": "rosbridge",
         "load_network_connection_data": True,
         "template_sha256": sha256(args.network_template),
-        "required_topics": sorted(REQUIRED_TOPICS),
+        "required_topics": sorted(required_topics),
         "required_unique_ids": [0],
         "forbidden_unique_ids": [],
     }

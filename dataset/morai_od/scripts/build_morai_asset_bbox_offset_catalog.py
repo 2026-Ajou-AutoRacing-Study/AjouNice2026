@@ -18,12 +18,36 @@ from pathlib import Path
 
 import numpy as np
 
+from dynamic_capture_metadata import (
+    enrich_derived_motion,
+    normalized_sensor_calibration,
+)
+
 
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--capture-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--minimum-observations", type=int, default=2)
+    parser.add_argument(
+        "--ego-heading-correction-deg",
+        type=float,
+        default=0.0,
+        help=(
+            "rotate ObjectStatus Ego-relative XY into the calibrated Ego "
+            "frame; competition MR uses -1.347 deg and MRP uses 0 deg"
+        ),
+    )
+    parser.add_argument(
+        "--sensor-config",
+        type=Path,
+        help=(
+            "Sensor JSON used to derive Ego-to-LiDAR calibration when "
+            "reading stationary captures.jsonl records. Temporal capture "
+            "directories with dynamic_metadata/calibration.json do not "
+            "require this option."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -75,62 +99,128 @@ def percentile(values, q):
     return float(np.percentile(np.asarray(values, dtype=np.float64), q))
 
 
-def main():
-    args = arguments()
-    root = args.capture_root.expanduser().resolve()
-    observations = defaultdict(list)
-    skipped = defaultdict(int)
+def corrected_relative_position(position, heading_correction_deg):
+    """Rotate a raw Ego-frame vector after correcting absolute Ego heading."""
 
-    frame_files = sorted(root.glob("*/dynamic_metadata/*.frames.jsonl"))
-    for frames_path in frame_files:
+    angle = -math.radians(float(heading_correction_deg))
+    cosine, sine = math.cos(angle), math.sin(angle)
+    x, y = float(position["x"]), float(position["y"])
+    return [
+        cosine * x - sine * y,
+        sine * x + cosine * y,
+        float(position["z"]),
+    ]
+
+
+def calibration_for_capture_records(capture_dir, sensor_config):
+    candidates = (
+        capture_dir / "dynamic_metadata" / "calibration.json",
+        capture_dir / "calibration.json",
+    )
+    for path in candidates:
+        if path.is_file():
+            return json.loads(path.read_text(encoding="utf-8")), str(path)
+    if sensor_config is None:
+        raise ValueError(
+            "stationary captures.jsonl requires --sensor-config or a local "
+            "calibration.json: {}".format(capture_dir)
+        )
+    path = sensor_config.expanduser().resolve()
+    return normalized_sensor_calibration(path), str(path)
+
+
+def frame_sources(root, sensor_config, skipped):
+    """Yield (frame, capture root, calibration source) for both formats."""
+
+    for frames_path in sorted(root.glob("*/dynamic_metadata/*.frames.jsonl")):
         calibration_path = frames_path.parent / "calibration.json"
         if not calibration_path.is_file():
             skipped["missing_calibration"] += 1
             continue
         calibration = json.loads(calibration_path.read_text(encoding="utf-8"))
-        ego_to_lidar = calibration["lidar"]["ego_to_lidar"]
         capture_dir = frames_path.parent.parent
         for frame in read_jsonl(frames_path):
-            path = instance_path(frame, capture_dir)
-            if path is None:
-                skipped["missing_instance_file"] += 1
+            yield (
+                frame, capture_dir, calibration, str(calibration_path),
+                str(frames_path),
+            )
+
+    for captures_path in sorted(root.glob("**/captures.jsonl")):
+        capture_dir = captures_path.parent
+        calibration, calibration_source = calibration_for_capture_records(
+            capture_dir, sensor_config
+        )
+        for capture in read_jsonl(captures_path):
+            # Adds the same Ego-relative actor representation used by the
+            # temporal metadata path without inventing motion from a single
+            # stationary sample.
+            enrich_derived_motion([capture])
+            yield (
+                capture, capture_dir, calibration, calibration_source,
+                str(captures_path),
+            )
+
+
+def main():
+    args = arguments()
+    root = args.capture_root.expanduser().resolve()
+    observations = defaultdict(list)
+    skipped = defaultdict(int)
+    metadata_sources = set()
+    metadata_files = set()
+    calibration_sources = set()
+
+    for (
+        frame, capture_dir, calibration, calibration_source, metadata_file
+    ) in frame_sources(
+        root, args.sensor_config, skipped
+    ):
+        metadata_sources.add(str(capture_dir))
+        metadata_files.add(metadata_file)
+        calibration_sources.add(calibration_source)
+        ego_to_lidar = calibration["lidar"]["ego_to_lidar"]
+        path = instance_path(frame, capture_dir)
+        if path is None:
+            skipped["missing_instance_file"] += 1
+            continue
+        instances = parse_lidar_instances(path)
+        actors = (frame.get("objects") or {}).get("actors") or []
+        for actor in actors:
+            instance = instances.get(int(actor["unique_id"]))
+            relative = actor.get("relative_to_ego")
+            if instance is None or not relative:
+                skipped["actor_without_lidar_gt"] += 1
                 continue
-            instances = parse_lidar_instances(path)
-            actors = (frame.get("objects") or {}).get("actors") or []
-            for actor in actors:
-                instance = instances.get(int(actor["unique_id"]))
-                relative = actor.get("relative_to_ego")
-                if instance is None or not relative:
-                    skipped["actor_without_lidar_gt"] += 1
-                    continue
-                position = relative["position_m"]
-                pivot_lidar = transform_point(
-                    ego_to_lidar,
-                    [position["x"], position["y"], position["z"]],
-                )
-                center = np.asarray(instance["center_lidar_m"], dtype=np.float64)
-                delta_lidar = center - pivot_lidar
-                yaw = float(instance["rotation_rpy_rad"][2])
-                cosine, sine = math.cos(yaw), math.sin(yaw)
-                delta_local = np.asarray(
-                    [
-                        cosine * delta_lidar[0] + sine * delta_lidar[1],
-                        -sine * delta_lidar[0] + cosine * delta_lidar[1],
-                        delta_lidar[2],
-                    ],
-                    dtype=np.float64,
-                )
-                key = (str(actor["class"]), str(actor["name"]))
-                observations[key].append(
-                    {
-                        "offset_local_m": delta_local,
-                        "size_m": np.asarray(instance["size_m"], dtype=np.float64),
-                        "center_lidar_m": center,
-                        "pivot_lidar_m": pivot_lidar,
-                        "yaw_rad": yaw,
-                        "source": str(path),
-                    }
-                )
+            position = relative["position_m"]
+            pivot_lidar = transform_point(
+                ego_to_lidar,
+                corrected_relative_position(
+                    position, args.ego_heading_correction_deg
+                ),
+            )
+            center = np.asarray(instance["center_lidar_m"], dtype=np.float64)
+            delta_lidar = center - pivot_lidar
+            yaw = float(instance["rotation_rpy_rad"][2])
+            cosine, sine = math.cos(yaw), math.sin(yaw)
+            delta_local = np.asarray(
+                [
+                    cosine * delta_lidar[0] + sine * delta_lidar[1],
+                    -sine * delta_lidar[0] + cosine * delta_lidar[1],
+                    delta_lidar[2],
+                ],
+                dtype=np.float64,
+            )
+            key = (str(actor["class"]), str(actor["name"]))
+            observations[key].append(
+                {
+                    "offset_local_m": delta_local,
+                    "size_m": np.asarray(instance["size_m"], dtype=np.float64),
+                    "center_lidar_m": center,
+                    "pivot_lidar_m": pivot_lidar,
+                    "yaw_rad": yaw,
+                    "source": str(path),
+                }
+            )
 
     assets = {}
     residuals_all = []
@@ -174,6 +264,8 @@ def main():
     report = {
         "schema_version": 1,
         "source_capture_root": str(root),
+        "calibration_sources": sorted(calibration_sources),
+        "ego_heading_correction_deg": args.ego_heading_correction_deg,
         "contract": {
             "object_status_position": "asset pivot in morai_map",
             "offset_axes": "asset local: x forward, y left, z up",
@@ -183,7 +275,8 @@ def main():
             ),
         },
         "summary": {
-            "metadata_files": len(frame_files),
+            "metadata_files": len(metadata_files),
+            "metadata_sources": len(metadata_sources),
             "assets": len(assets),
             "observations": sum(row["observations"] for row in assets.values()),
             "center_residual_m": {

@@ -5,13 +5,30 @@ import numpy as np
 from perception_object_pipeline.rolling_lidar import (
     PlanarPoseBuffer,
     deskew_points_to_reference_pose,
+    lidar_world_pose_at_time,
     representative_detection_time_offset,
+    scan_time_contract,
     transform_boxes_between_lidar_times,
     transform_points_between_lidar_times,
 )
 
 
 class RollingLidarTimingTest(unittest.TestCase):
+    def test_scan_time_contract_uses_scan_end(self):
+        contract = scan_time_contract(
+            np.asarray([0.001, 0.050, 0.099], dtype=np.float32),
+            max_span_sec=0.15,
+            reference="end",
+        )
+        self.assertIsNotNone(contract)
+        self.assertAlmostEqual(contract["span_sec"], 0.098, places=6)
+        self.assertAlmostEqual(contract["reference_offset_sec"], 0.099, places=6)
+
+    def test_scan_time_contract_rejects_invalid_scans(self):
+        self.assertIsNone(scan_time_contract([0.0, 0.0]))
+        self.assertIsNone(scan_time_contract([0.0, float("nan")]))
+        self.assertIsNone(scan_time_contract([0.0, 0.16], max_span_sec=0.15))
+
     def test_uses_median_of_per_box_medians(self):
         points = np.asarray(
             [
@@ -140,6 +157,25 @@ class RollingLidarDeskewTest(unittest.TestCase):
         self.assertIsNotNone(transformed)
         np.testing.assert_allclose(transformed[:, :3], [[4.0, 0.0, 0.0]])
         np.testing.assert_allclose(transformed[:, 3:], points[:, 3:])
+
+    def test_lidar_world_pose_uses_interpolated_ego_and_extrinsic(self):
+        poses = self.poses(
+            (0.0, 0.0, 0.0, 1.0, 0.0),
+            (2.0, 2.0, 0.0, 1.0, np.pi / 2.0),
+        )
+        pose = lidar_world_pose_at_time(
+            poses,
+            1.0,
+            lidar_position=(1.0, 0.0, 0.5),
+            lidar_yaw=0.1,
+            maximum_extrapolation_sec=0.0,
+        )
+        self.assertIsNotNone(pose)
+        expected_yaw = np.pi / 4.0 + 0.1
+        self.assertAlmostEqual(float(pose[0]), 1.0 + np.cos(np.pi / 4.0), places=6)
+        self.assertAlmostEqual(float(pose[1]), np.sin(np.pi / 4.0), places=6)
+        self.assertAlmostEqual(float(pose[2]), 1.5, places=6)
+        self.assertAlmostEqual(float(pose[3]), expected_yaw, places=6)
 
     def test_velocity_vector_rotates_with_lidar_axes(self):
         poses = self.poses(

@@ -44,6 +44,8 @@ class InferenceServer:
                 use_amp=args.amp,
                 preprocess_workers=args.preprocess_workers,
                 warmup_iterations=args.warmup_iterations,
+                temporal_feature_cache=args.temporal_feature_cache,
+                temporal_maximum_age_sec=args.temporal_maximum_age_sec,
             )
             LOGGER.info("BEVFusion model is ready")
 
@@ -132,6 +134,8 @@ class InferenceServer:
             metadata.get("score_threshold", 0.2),
             metadata.get("max_detections", 100),
             images_preprocessed=(image_encoding == "rgb8"),
+            timestamp_sec=metadata.get("stamp"),
+            lidar_pose_world=metadata.get("lidar_pose_world"),
         )
         send_message(
             connection,
@@ -142,6 +146,8 @@ class InferenceServer:
                 "sequence": metadata.get("sequence", 0),
                 "frame_id": self.calibration["lidar_frame"],
                 "detections": detections,
+                "query_memory_diagnostics": (
+                    self.model.last_query_memory_diagnostics),
                 "preprocess_ms": preprocess_ms,
                 "inference_ms": inference_ms,
                 "server_ms": (time.monotonic() - request_start) * 1000.0,
@@ -205,6 +211,8 @@ def parse_args():
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--preprocess-workers", type=int, default=4)
     parser.add_argument("--warmup-iterations", type=int, default=2)
+    parser.add_argument("--temporal-feature-cache", action="store_true")
+    parser.add_argument("--temporal-maximum-age-sec", type=float, default=0.30)
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args()
 
@@ -214,11 +222,10 @@ def parse_points(metadata, blobs):
     if blob_name not in blobs:
         raise ValueError("request is missing point cloud blob")
     point_dim = int(metadata.get("point_dim", 4))
-    if point_dim != 4:
+    if point_dim not in (4, 5):
         raise ValueError(
-            "Base3 runtime expects four float32 point fields, got {}".format(
-                point_dim
-            )
+            "BEVFusion runtime expects 4 or 5 float32 point fields, got {}".format(
+                point_dim)
         )
     values = np.frombuffer(blobs[blob_name], dtype="<f4")
     if values.size % point_dim:

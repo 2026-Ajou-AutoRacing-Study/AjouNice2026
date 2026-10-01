@@ -118,7 +118,8 @@ train_pipeline = [
             'lidar_aug_matrix', 'box_type_3d', 'sample_idx', 'lidar_path',
             'img_path', 'num_pts_feats', 'num_views',
             'transformation_3d_flow', 'pcd_rotation', 'pcd_scale_factor',
-            'pcd_trans',
+            'pcd_trans', 'scene_id', 'timestamp', 'sequence_frame_index',
+            'sequence_length', 'ego2global', 'lidar2global',
         ]),
 ]
 
@@ -149,6 +150,8 @@ test_pipeline = [
             'cam2img', 'ori_cam2img', 'lidar2cam', 'lidar2img',
             'cam2lidar', 'img_aug_matrix', 'box_type_3d', 'sample_idx',
             'lidar_path', 'img_path', 'num_pts_feats', 'num_views',
+            'scene_id', 'timestamp', 'sequence_frame_index',
+            'sequence_length', 'ego2global', 'lidar2global',
         ]),
 ]
 

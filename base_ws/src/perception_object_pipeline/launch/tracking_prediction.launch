@@ -31,6 +31,23 @@
   <arg name="tracker_duplicate_birth_maximum_dimension_ratio" default="2.0"/>
   <arg name="tracker_detection_velocity_fusion_mode" default="0"/>
   <arg name="tracker_detection_velocity_noise_std_mps" default="1.0"/>
+  <arg name="tracker_detection_velocity_update_max_track_age_sec" default="1.0"/>
+  <arg name="tracker_detection_velocity_maximum_output_age_sec" default="0.25"/>
+  <arg name="tracker_detection_velocity_max_longitudinal_innovation_mps" default="5.0"/>
+  <arg name="tracker_detection_velocity_longitudinal_blend" default="1.0"/>
+  <arg name="tracker_center_motion_velocity_fusion" default="false"/>
+  <arg name="tracker_publish_center_motion_diagnostics" default="false"/>
+  <arg name="tracker_center_motion_fuse_ekf_state" default="true"/>
+  <arg name="tracker_center_motion_override_output_velocity" default="false"/>
+  <arg name="tracker_center_motion_maximum_output_age_sec" default="0.40"/>
+  <arg name="tracker_center_motion_min_baseline_sec" default="0.30"/>
+  <arg name="tracker_center_motion_medium_baseline_sec" default="0.65"/>
+  <arg name="tracker_center_motion_long_baseline_sec" default="0.90"/>
+  <arg name="tracker_center_motion_max_gap_sec" default="0.25"/>
+  <arg name="tracker_center_motion_min_update_interval_sec" default="0.20"/>
+  <arg name="tracker_center_motion_max_fit_residual_m" default="0.10"/>
+  <arg name="tracker_center_motion_early_noise_std_mps" default="1.50"/>
+  <arg name="tracker_center_motion_mature_noise_std_mps" default="0.60"/>
 
   <group if="$(arg use_morai_gt_detection)">
     <include file="$(find perception_object_pipeline)/launch/morai_gt_detection.launch">
@@ -82,6 +99,40 @@
          value="$(arg tracker_detection_velocity_fusion_mode)"/>
     <arg name="detection_velocity_noise_std_mps"
          value="$(arg tracker_detection_velocity_noise_std_mps)"/>
+    <arg name="detection_velocity_update_max_track_age_sec"
+         value="$(arg tracker_detection_velocity_update_max_track_age_sec)"/>
+    <arg name="detection_velocity_maximum_output_age_sec"
+         value="$(arg tracker_detection_velocity_maximum_output_age_sec)"/>
+    <arg name="detection_velocity_max_longitudinal_innovation_mps"
+         value="$(arg tracker_detection_velocity_max_longitudinal_innovation_mps)"/>
+    <arg name="detection_velocity_longitudinal_blend"
+         value="$(arg tracker_detection_velocity_longitudinal_blend)"/>
+    <arg name="center_motion_velocity_fusion"
+         value="$(arg tracker_center_motion_velocity_fusion)"/>
+    <arg name="publish_center_motion_diagnostics"
+         value="$(arg tracker_publish_center_motion_diagnostics)"/>
+    <arg name="center_motion_fuse_ekf_state"
+         value="$(arg tracker_center_motion_fuse_ekf_state)"/>
+    <arg name="center_motion_override_output_velocity"
+         value="$(arg tracker_center_motion_override_output_velocity)"/>
+    <arg name="center_motion_maximum_output_age_sec"
+         value="$(arg tracker_center_motion_maximum_output_age_sec)"/>
+    <arg name="center_motion_min_baseline_sec"
+         value="$(arg tracker_center_motion_min_baseline_sec)"/>
+    <arg name="center_motion_medium_baseline_sec"
+         value="$(arg tracker_center_motion_medium_baseline_sec)"/>
+    <arg name="center_motion_long_baseline_sec"
+         value="$(arg tracker_center_motion_long_baseline_sec)"/>
+    <arg name="center_motion_max_gap_sec"
+         value="$(arg tracker_center_motion_max_gap_sec)"/>
+    <arg name="center_motion_min_update_interval_sec"
+         value="$(arg tracker_center_motion_min_update_interval_sec)"/>
+    <arg name="center_motion_max_fit_residual_m"
+         value="$(arg tracker_center_motion_max_fit_residual_m)"/>
+    <arg name="center_motion_early_noise_std_mps"
+         value="$(arg tracker_center_motion_early_noise_std_mps)"/>
+    <arg name="center_motion_mature_noise_std_mps"
+         value="$(arg tracker_center_motion_mature_noise_std_mps)"/>
     <arg name="tracker_prediction_model" value="$(arg tracker_prediction_model)"/>
     <arg name="tracker_system_noise_std_vx_vy_ms"
          value="$(arg tracker_system_noise_std_vx_vy_ms)"/>

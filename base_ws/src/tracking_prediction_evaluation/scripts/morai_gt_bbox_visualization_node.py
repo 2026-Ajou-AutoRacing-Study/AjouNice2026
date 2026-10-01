@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import math
 from pathlib import Path
 
@@ -84,6 +85,9 @@ class MoraiGtBboxVisualization:
         if abs(rpy[0]) > 1.0e-9 or abs(rpy[1]) > 1.0e-9:
             raise ValueError("GT BBox visualizer supports a yaw-only transform")
         self.transform_yaw = rpy[2]
+        self.heading_correction_yaw = math.radians(
+            float(rospy.get_param("~morai_heading_correction_deg", 0.0))
+        )
         self.line_width = float(rospy.get_param("~line_width_m", 0.09))
         self.flatten_z = bool(rospy.get_param("~flatten_z", False))
         self.ground_z = float(rospy.get_param("~ground_z", 0.0))
@@ -94,6 +98,37 @@ class MoraiGtBboxVisualization:
         if len(rgba) != 4:
             raise ValueError("~color_rgba must contain RGBA")
         self.color = ColorRGBA(*(float(value) for value in rgba))
+        raw_rgba = rospy.get_param(
+            "~raw_comparison_color_rgba", [1.0, 0.0, 0.85, 0.8]
+        )
+        if len(raw_rgba) != 4:
+            raise ValueError("~raw_comparison_color_rgba must contain RGBA")
+        self.raw_comparison_color = ColorRGBA(
+            *(float(value) for value in raw_rgba)
+        )
+        self.show_raw_comparison = bool(
+            rospy.get_param("~show_raw_comparison", False)
+        )
+        catalog_path = str(rospy.get_param("~asset_bbox_catalog", "")).strip()
+        self.asset_catalog = {}
+        self.vehicle_size_match_max_error_m = float(
+            rospy.get_param(
+                "~vehicle_size_match_max_error_m",
+                0.12,
+            )
+        )
+        self.vehicle_size_match_min_margin_m = float(
+            rospy.get_param(
+                "~vehicle_size_match_min_margin_m",
+                0.02,
+            )
+        )
+        if catalog_path:
+            catalog_file = Path(catalog_path).expanduser()
+            catalog = json.loads(catalog_file.read_text(encoding="utf-8"))
+            self.asset_catalog = catalog.get("assets", {})
+            if not isinstance(self.asset_catalog, dict):
+                raise ValueError("asset bbox catalog must contain an assets object")
 
         input_topic = rospy.get_param("~input", "/Object_topic")
         output_topic = rospy.get_param(
@@ -104,52 +139,109 @@ class MoraiGtBboxVisualization:
             input_topic, ObjectStatusList, self.callback, queue_size=1
         )
         rospy.loginfo(
-            "[morai_gt_bbox_visualization] %s -> %s, color=magenta, frame=map",
+            "[morai_gt_bbox_visualization] %s -> %s, frame=map, catalog_assets=%d, heading_correction_deg=%.3f, raw_comparison=%s",
             input_topic,
             output_topic,
+            len(self.asset_catalog),
+            math.degrees(self.heading_correction_yaw),
+            self.show_raw_comparison,
         )
 
-    def transform_center(self, status, class_name):
+    def resolve_catalog_asset(self, status, class_name):
+        """Resolve the same audited asset geometry used by rosbag evaluation."""
+        exact = self.asset_catalog.get(str(status.name))
+        if exact is not None and exact.get("class") == class_name:
+            return exact
+        if class_name != "vehicle":
+            return None
+
+        dimensions = (
+            float(status.size.x), float(status.size.y), float(status.size.z)
+        )
+        if min(dimensions) <= 0.0:
+            return None
+        candidates = []
+        for name, asset in self.asset_catalog.items():
+            if asset.get("class") != "vehicle":
+                continue
+            expected = tuple(float(value) for value in asset["bbox_size_m"])
+            error = math.sqrt(
+                sum(
+                    (actual - target) ** 2
+                    for actual, target in zip(dimensions, expected)
+                )
+            )
+            candidates.append((error, name, asset))
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        if not candidates or candidates[0][0] > self.vehicle_size_match_max_error_m:
+            return None
+        second_error = candidates[1][0] if len(candidates) > 1 else math.inf
+        if second_error - candidates[0][0] < self.vehicle_size_match_min_margin_m:
+            return None
+        return candidates[0][2]
+
+    def transform_geometry(self, status, class_name, apply_catalog=True):
         cosine = math.cos(self.transform_yaw)
         sine = math.sin(self.transform_yaw)
         x = cosine * status.position.x - sine * status.position.y + self.translation[0]
         y = sine * status.position.x + cosine * status.position.y + self.translation[1]
         z = status.position.z + self.translation[2]
+        yaw = quaternion_yaw(
+            status.heading,
+            self.transform_yaw + self.heading_correction_yaw,
+        )
+        dimensions = (
+            float(status.size.x), float(status.size.y), float(status.size.z)
+        )
+        asset = (
+            self.resolve_catalog_asset(status, class_name)
+            if apply_catalog
+            else None
+        )
+        if asset is not None:
+            offset = tuple(
+                float(value) for value in asset["pivot_to_bbox_center_local_m"]
+            )
+            dimensions = tuple(float(value) for value in asset["bbox_size_m"])
+            x += math.cos(yaw) * offset[0] - math.sin(yaw) * offset[1]
+            y += math.sin(yaw) * offset[0] + math.cos(yaw) * offset[1]
+            z += offset[2]
+        elif class_name == "vehicle":
+            offset = vehicle_bbox_offset(*dimensions)
+            x += offset * math.cos(yaw)
+            y += offset * math.sin(yaw)
         if self.flatten_z:
             # ObjectStatus z is an altitude-like MORAI map coordinate, whereas
             # the production planning visualization intentionally keeps its
             # planar localization at z=0. Place only this debug wireframe on
             # that plane; do not change the source message or planning TF.
-            z = self.ground_z + 0.5 * max(0.01, float(status.size.z))
-        yaw = quaternion_yaw(status.heading, self.transform_yaw)
-        if class_name == "vehicle":
-            offset = vehicle_bbox_offset(
-                float(status.size.x), float(status.size.y), float(status.size.z)
-            )
-            x += offset * math.cos(yaw)
-            y += offset * math.sin(yaw)
-        return x, y, z, yaw
+            z = self.ground_z + 0.5 * max(0.01, dimensions[2])
+        return x, y, z, yaw, dimensions, asset is not None
 
-    def make_box(self, header, status, class_name, marker_id):
-        x, y, z, yaw = self.transform_center(status, class_name)
+    def make_box(
+        self, header, status, class_name, marker_id, *, apply_catalog, namespace, color
+    ):
+        x, y, z, yaw, dimensions, corrected = self.transform_geometry(
+            status, class_name, apply_catalog=apply_catalog
+        )
         corners = box_corners(
             (x, y, z),
-            (float(status.size.x), float(status.size.y), float(status.size.z)),
+            dimensions,
             yaw,
         )
         marker = Marker()
         marker.header = copy.deepcopy(header)
-        marker.ns = "morai_gt_boxes"
+        marker.ns = namespace
         marker.id = marker_id
         marker.type = Marker.LINE_LIST
         marker.action = Marker.ADD
         marker.pose.orientation.w = 1.0
         marker.scale.x = self.line_width
-        marker.color = copy.deepcopy(self.color)
+        marker.color = copy.deepcopy(color)
         marker.lifetime = self.lifetime
         for first, second in BOX_EDGES:
             marker.points.extend((corners[first], corners[second]))
-        return marker
+        return marker, corrected
 
     def callback(self, message):
         header = copy.deepcopy(message.header)
@@ -169,10 +261,29 @@ class MoraiGtBboxVisualization:
         marker_id = 0
         for class_name, statuses in groups:
             for status in statuses:
-                output.markers.append(
-                    self.make_box(header, status, class_name, marker_id)
+                corrected_marker, corrected = self.make_box(
+                    header,
+                    status,
+                    class_name,
+                    marker_id,
+                    apply_catalog=True,
+                    namespace="morai_gt_boxes",
+                    color=self.color,
                 )
+                output.markers.append(corrected_marker)
                 marker_id += 1
+                if self.show_raw_comparison and corrected:
+                    raw_marker, _ = self.make_box(
+                        header,
+                        status,
+                        class_name,
+                        marker_id,
+                        apply_catalog=False,
+                        namespace="morai_gt_boxes_raw_object_topic",
+                        color=self.raw_comparison_color,
+                    )
+                    output.markers.append(raw_marker)
+                    marker_id += 1
         self.publisher.publish(output)
 
 

@@ -2,6 +2,10 @@
 
 > **문서 상태: CURRENT.** 최신 상태와 canonical 경로는
 > [`BASE3_ONLINE_CURRENT_STATE.md`](BASE3_ONLINE_CURRENT_STATE.md)를 먼저 확인한다.
+> MR/MRP launcher별 ROS/UDP 설정과 터미널 순서는
+> [`morai_mr_mrp_hybrid_scenario_capture_runbook.md`](morai_mr_mrp_hybrid_scenario_capture_runbook.md)를
+> 단일 기준으로 사용한다. 이 문서는 Base3-Online campaign의 녹화·audit·변환 명령에
+> 집중한다.
 
 마지막 검증: 2026-09-19. 대상 모델은 raw 4-camera + LiDAR BEVFusion이다.
 PointPainting용 semantic image는 이 경로에서 만들지 않는다.
@@ -143,8 +147,22 @@ python3 dataset/morai_od/scripts/audit_base3_online_gt_alignment.py \
   --output-dir artifacts/datasets/base3_online_mixed30_alignment_motion_v2 \
   --samples-per-scene 3 \
   --state-alignment interpolate \
+  --ego-heading-correction-deg "$EGO_HEADING_CORRECTION_DEG" \
   --max-extrapolation-sec 0.05
 ```
+
+Launcher별로 먼저 다음 중 하나를 명시한다.
+
+```bash
+# Competition MR
+EGO_HEADING_CORRECTION_DEG=-1.347
+
+# Personal MRP
+EGO_HEADING_CORRECTION_DEG=0.0
+```
+
+MR 값은 동기 LiDAR Instance annotation과 `/Ego_topic`을 교차검증해 얻은 값이다. MRP
+Base3 캡처에는 같은 편향이 관측되지 않았으므로 MR 보정을 MRP에 적용하면 안 된다.
 
 `unknown_assets`는 반드시 빈 배열이어야 한다. 생성된 `*_bev.png`와 4-camera JPG를
 Vehicle/Pedestrian/Obstacle에서 각각 눈으로 확인한다.
@@ -161,6 +179,7 @@ python3 perception/detection3d/bevfusion/tools/build_base3_online_bevfusion_info
   --samples-per-scene 3 \
   --minimum-gt-points 5 \
   --state-alignment interpolate \
+  --ego-heading-correction-deg "$EGO_HEADING_CORRECTION_DEG" \
   --max-extrapolation-sec 0.05 \
   --distance-filter box-range
 
@@ -298,3 +317,11 @@ gate를 적용한 권장 V2는 train/val/test `692/147/144`, 총 983 frame과 Ve
 상세 결과와 경로는
 [`260919_base3_online_highway_vehicle_1k_results.md`](260919_base3_online_highway_vehicle_1k_results.md)를
 기준으로 한다.
+
+## 10. Highway Static V2 대용량 추가 수집
+
+Base4 temporal을 시작하기 전에 동일한 검증 방식으로 정적 Vehicle scene을 1,000개 더
+수집하는 캠페인은
+[`260920_base3_online_highway_static_v2_collection_plan.md`](260920_base3_online_highway_static_v2_collection_plan.md)를
+따른다. 1,000개를 MRP에 동시에 설치하지 않고 250-scene shard 4개를 순차 설치·보관한다.
+이 캠페인은 `train/val/test=800/200/0`이며 기존 334-scene 결과를 덮어쓰지 않는다.

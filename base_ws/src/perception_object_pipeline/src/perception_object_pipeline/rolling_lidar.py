@@ -7,6 +7,40 @@ from collections import deque
 import numpy as np
 
 
+def scan_time_contract(point_time_offsets, max_span_sec=0.15, reference="end"):
+    """Validate one rolling-scan timing vector.
+
+    Returns a small dictionary that can be serialized into dataset/runtime
+    audits, or ``None`` when deskew must not be applied.  Keeping this gate in
+    the shared math module prevents offline conversion and online inference
+    from silently accepting different scans.
+    """
+    offsets = np.asarray(point_time_offsets, dtype=np.float64).reshape(-1)
+    if offsets.size == 0 or not np.isfinite(offsets).all():
+        return None
+    minimum = float(offsets.min())
+    maximum = float(offsets.max())
+    span = maximum - minimum
+    if span <= 1.0e-9 or span > max(0.0, float(max_span_sec)):
+        return None
+    if reference == "end":
+        reference_offset = maximum
+    elif reference == "median":
+        reference_offset = float(np.median(offsets))
+    elif reference == "header":
+        reference_offset = 0.0
+    else:
+        raise ValueError("reference must be end, median, or header")
+    return {
+        "minimum_offset_sec": minimum,
+        "maximum_offset_sec": maximum,
+        "span_sec": span,
+        "reference": reference,
+        "reference_offset_sec": reference_offset,
+        "point_count": int(offsets.size),
+    }
+
+
 def normalize_angle(value):
     return np.arctan2(np.sin(value), np.cos(value))
 
@@ -106,6 +140,30 @@ def _lidar_world_pose(ego_poses, lidar_position, lidar_yaw):
     z = ego_poses[:, 2] + lidar_position[2]
     yaw = normalize_angle(ego_poses[:, 3] + float(lidar_yaw))
     return np.column_stack((x, y, z, yaw))
+
+
+def lidar_world_pose_at_time(
+    pose_samples,
+    time_sec,
+    lidar_position=(0.0, 0.0, 0.0),
+    lidar_yaw=0.0,
+    maximum_extrapolation_sec=0.03,
+):
+    """Return ``[x, y, z, yaw]`` for the LiDAR in the world frame.
+
+    Runtime temporal feature caches need the pose attached to the feature that
+    was actually encoded.  Exposing the same interpolation and extrinsic math
+    used by point/sweep alignment prevents the ROS bridge and Docker runtime
+    from maintaining subtly different SE(2) contracts.
+    """
+    ego_pose = interpolate_planar_poses(
+        pose_samples,
+        np.asarray([float(time_sec)], dtype=np.float64),
+        maximum_extrapolation_sec,
+    )
+    if ego_pose is None:
+        return None
+    return _lidar_world_pose(ego_pose, lidar_position, lidar_yaw)[0]
 
 
 def deskew_points_to_reference_pose(
