@@ -95,7 +95,7 @@ bool JerkFilteredSmoother::apply(
 
   // jerk filter
   const auto forward_filtered =
-    forwardJerkFilter(v0, std::max(a0, a_min), a_max, a_stop_accel, j_max, input);
+    forwardJerkFilter(v0, std::max(a0, a_min), a_max, a_stop_accel, j_max, input, true);
   const auto backward_filtered = backwardJerkFilter(
     input.back().longitudinal_velocity_mps, a_stop_decel, a_min, a_stop_decel, j_min, input);
   const auto filtered =
@@ -185,7 +185,8 @@ bool JerkFilteredSmoother::apply(
   const uint32_t IDX_GAMMA0 = 4 * N;
 
   const uint32_t l_variables = 5 * N;
-  const uint32_t l_constraints = 4 * N + 1;
+  const bool enforce_propulsion = acceleration_limits_.enabled() && a_max > 0.0;
+  const uint32_t l_constraints = 4 * N + 1 + (enforce_propulsion ? 2 * (N - 1) : 0);
 
   // the matrix size depends on constraint numbers.
   Eigen::MatrixXd A = Eigen::MatrixXd::Zero(l_constraints, l_variables);
@@ -273,7 +274,7 @@ bool JerkFilteredSmoother::apply(
       upper_bound[constr_idx] = a_stop_decel;
       lower_bound[constr_idx] = a_stop_decel;
     } else {
-      upper_bound[constr_idx] = a_max;
+      upper_bound[constr_idx] = acceleration_limits_.limit(v_max_arr.at(i), a_max);
       lower_bound[constr_idx] = a_min;
     }
   }
@@ -314,6 +315,33 @@ bool JerkFilteredSmoother::apply(
     A(static_cast<Eigen::Index>(constr_idx), static_cast<Eigen::Index>(IDX_A0)) = 1.0;  // a0
     upper_bound[constr_idx] = a0;
     lower_bound[constr_idx] = a0;
+    ++constr_idx;
+  }
+
+  if (enforce_propulsion) {
+    // Keep the nonlinear decreasing a(v) map outside this convex QP. At each
+    // point use a reachable upper speed envelope, then cap a at that faster
+    // speed. Hard b <= envelope^2 guarantees this conservative cap is valid
+    // for the solved speed, despite the existing soft velocity/accel slacks.
+    // The nondecreasing prefix envelope never imposes extra braking. a0 is
+    // deliberately exempt: it is an initial state, not an instantaneous command.
+    double speed_bound = std::abs(v0), prefix_speed = speed_bound;
+    for (size_t i = 1; i < N; ++i) {
+      prefix_speed = std::max(prefix_speed, v_max_arr[i]);
+      const double envelope_acc = i == 1 ? std::max({0.0, a_max, a0}) : std::max(0.0, a_max);
+      const double reachable = std::sqrt(speed_bound * speed_bound +
+        2 * envelope_acc * std::max(0.0, interval_dist_arr[i - 1]));
+      // Preserve feasibility of b1 = b0 + 2*a0*ds even if a0 exceeds the new cap.
+      if (i == 1 && a0 > 0.0) prefix_speed = std::max(prefix_speed,
+        std::sqrt(v0*v0 + 2*a0*std::max(0.0, interval_dist_arr[0])));
+      speed_bound = std::min(prefix_speed, reachable);
+      A(constr_idx, IDX_B0 + i) = 1.0;
+      lower_bound[constr_idx] = -std::numeric_limits<double>::infinity();
+      upper_bound[constr_idx++] = speed_bound * speed_bound;
+      A(constr_idx, IDX_A0 + i) = 1.0;
+      lower_bound[constr_idx] = -std::numeric_limits<double>::infinity();
+      upper_bound[constr_idx++] = acceleration_limits_.limit(speed_bound, a_max);
+    }
   }
   time_keeper_->end_track("initOptimization");
 
@@ -350,6 +378,19 @@ bool JerkFilteredSmoother::apply(
     output.at(i).acceleration_mps2 = static_cast<float>(a_stop_decel);
   }
 
+  // Numeric/solver regression guard. Never clamp only the acceleration field:
+  // that would leave an inconsistent, physically unreachable velocity profile.
+  if (enforce_propulsion) {
+    for (size_t i = 1; i < N; ++i) {
+      if (output[i].acceleration_mps2 >
+          acceleration_limits_.limit(output[i].longitudinal_velocity_mps, a_max) + 1e-3) {
+        RCLCPP_WARN(logger_, "QP propulsion envelope validation failed; use jerk-filtered path");
+        output = opt_resampled_trajectory;
+        return false;
+      }
+    }
+  }
+
   if (VERBOSE_TRAJECTORY_VELOCITY) {
     const auto s_output = trajectory_utils::calcArclengthArray(output);
 
@@ -372,7 +413,7 @@ bool JerkFilteredSmoother::apply(
 
 TrajectoryPoints JerkFilteredSmoother::forwardJerkFilter(
   const double v0, const double a0, const double a_max, const double a_start, const double j_max,
-  const TrajectoryPoints & input) const
+  const TrajectoryPoints & input, const bool limit_propulsion) const
 {
   autoware_utils_debug::ScopedTimeTrack st(__func__, *time_keeper_);
 
@@ -409,10 +450,14 @@ TrajectoryPoints JerkFilteredSmoother::forwardJerkFilter(
     const double max_dt = std::pow(6.0 * ds / j_max, 1.0 / 3.0);  // assuming v0 = a0 = 0.
     const double dt = std::min(ds / std::max(current_vel, 1.0e-6), max_dt);
 
-    if (current_acc + j_max * dt >= a_max) {
-      const double tmp_jerk = std::min((a_max - current_acc) / dt, j_max);
+    const double predicted_speed = std::max(current_vel,
+      current_vel + std::max({0.0, current_acc, a_max}) * dt);
+    const double point_max_acc = limit_propulsion
+      ? acceleration_limits_.limit(predicted_speed, a_max) : a_max;
+    if (current_acc + j_max * dt >= point_max_acc) {
+      const double tmp_jerk = std::min((point_max_acc - current_acc) / dt, j_max);
       current_vel = current_vel + current_acc * dt + 0.5 * tmp_jerk * dt * dt;
-      current_acc = a_max;
+      current_acc = point_max_acc;
     } else {
       current_vel = current_vel + current_acc * dt + 0.5 * j_max * dt * dt;
       current_acc = current_acc + j_max * dt;

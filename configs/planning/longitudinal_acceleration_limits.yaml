@@ -1,0 +1,11 @@
+# Positive planning acceleration, NOT normalized throttle or the FF plant map.
+# [speed m/s, maximum acceleration m/s2], monotone PCHIP; endpoints clamped.
+# 0, 10, 20, 60, 120 km/h. MORAI full-throttle measurements include reserve.
+# One table is loaded before the final smoother, BVP and lane-change modules.
+# Edit this source YAML and restart planning; no build for value-only changes.
+speed_acceleration_map:
+  - [0.0, 3.7]
+  - [2.777777777777778, 3.7]
+  - [5.555555555555556, 3.5]
+  - [16.666666666666668, 3.4]
+  - [33.333333333333336, 3.25]

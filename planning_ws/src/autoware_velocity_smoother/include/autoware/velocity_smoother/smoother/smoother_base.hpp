@@ -17,6 +17,7 @@
 
 #include "autoware/velocity_smoother/resample.hpp"
 #include "autoware/velocity_smoother/ros1_compat.hpp"
+#include <autoware/motion_utils/trajectory/acceleration_limits.hpp>
 
 #include <autoware_utils_debug/time_keeper.hpp>
 
@@ -120,6 +121,7 @@ public:
     const std::vector<std::pair<double, double>> steer_rate_velocity_ratio_limits) const;
 
 protected:
+  autoware::motion_utils::AccelerationLimits acceleration_limits_;
   BaseParam base_param_;
   mutable std::shared_ptr<autoware_utils_debug::TimeKeeper> time_keeper_{nullptr};
 };
