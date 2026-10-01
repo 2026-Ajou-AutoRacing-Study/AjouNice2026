@@ -4,19 +4,30 @@ ki: 0.05
 integral_limit: 3.0
 command_deadband: 0.05
 # Positive planned acceleration -> pedal FF, added to the existing PI.
-# MORAI-tuned with continuous speed profiles; braking/stop logic is unchanged.
+# MORAI-tuned with continuous profiles. Planned deceleration, brake-entry
+# thresholds and stop logic are unchanged. In the existing brake-entry
+# deadband, FF tapers continuously and PI trims it before pedal selection.
 # When enabled, increasing positive-speed segments are sampled at the ego's
 # projected position instead of the nearest discrete point (no extrapolation).
 acceleration_feedforward:
   enabled: true
   # Acceleration-to-pedal normalization, not a change to the planner's limit.
   max_acceleration_mps2: 3.7
-  gain: 0.6
+  # Full-throttle MORAI calibration [speed m/s, acceleration m/s^2].
+  # Empty [] uses max_acceleration_mps2 above. This is NOT a planner limit.
+  # Speeds: 0, 10, 20, 60, 120 km/h. Interpolate; clamp outside the table.
+  speed_acceleration_map:
+    - [0.0, 5.2]
+    - [2.777778, 5.1]
+    - [5.555556, 3.65]
+    - [16.666667, 3.5]
+    - [33.333333, 3.35]
+  gain: 0.7
   # Pedal units/s; only increases are limited. 0 disables the limiter.
   # Decreases and braking disable FF immediately, without a decay tail.
   # Faster initial response; larger sustained FF caused pedal cut/re-entry
   # in low-speed MORAI sweeps, so prefer a fast rise with a moderate gain.
-  max_rise_rate_per_s: 2.0
+  max_rise_rate_per_s: 3.0
 # Do not let acceleration-side integral memory delay braking. Brake-side
 # integral is retained across a brief positive error to avoid rapid re-acceleration.
 reset_acceleration_integral_on_braking: true

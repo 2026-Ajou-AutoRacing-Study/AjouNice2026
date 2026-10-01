@@ -89,6 +89,24 @@ public:
     private_nh_.param("acceleration_feedforward/max_acceleration_mps2", feedforward_max_acceleration_, 3.7);
     private_nh_.param("acceleration_feedforward/gain", feedforward_gain_, 1.0);
     private_nh_.param("acceleration_feedforward/max_rise_rate_per_s", feedforward_rise_rate_, 0.0);
+    XmlRpc::XmlRpcValue acceleration_map;
+    if (private_nh_.getParam("acceleration_feedforward/speed_acceleration_map", acceleration_map)) {
+      const auto number = [](XmlRpc::XmlRpcValue & value) -> double {
+        if (value.getType() == XmlRpc::XmlRpcValue::TypeDouble) {return static_cast<double>(value);}
+        if (value.getType() == XmlRpc::XmlRpcValue::TypeInt) {return static_cast<int>(value);}
+        throw std::runtime_error("FF speed_acceleration_map requires numeric [m/s, m/s^2] pairs");
+      };
+      if (acceleration_map.getType() != XmlRpc::XmlRpcValue::TypeArray) {
+        throw std::runtime_error("FF speed_acceleration_map must be an array");
+      }
+      for (int i = 0; i < acceleration_map.size(); ++i) {
+        auto & point = acceleration_map[i];
+        if (point.getType() != XmlRpc::XmlRpcValue::TypeArray || point.size() != 2) {
+          throw std::runtime_error("FF speed_acceleration_map requires [m/s, m/s^2] pairs");
+        }
+        feedforward_acceleration_map_.emplace_back(number(point[0]), number(point[1]));
+      }
+    }
     private_nh_.param(
       "reset_acceleration_integral_on_braking", reset_acceleration_integral_on_braking_, true);
     private_nh_.param("brake_hysteresis/enabled", brake_hysteresis_enabled_, true);
@@ -170,6 +188,7 @@ private:
       std::isfinite(feedforward_max_acceleration_) && feedforward_max_acceleration_ > 0.0 &&
       std::isfinite(feedforward_gain_) && feedforward_gain_ >= 0.0 &&
       std::isfinite(feedforward_rise_rate_) && feedforward_rise_rate_ >= 0.0 &&
+      trajectory_follower::validAccelerationMap(feedforward_acceleration_map_) &&
       std::isfinite(brake_enter_error_mps_) && brake_enter_error_mps_ >= 0.0 &&
       std::isfinite(brake_exit_error_mps_) && brake_exit_error_mps_ > brake_enter_error_mps_ &&
       std::isfinite(brake_hard_exit_error_mps_) && brake_hard_exit_error_mps_ >= brake_exit_error_mps_ &&
@@ -467,10 +486,14 @@ private:
     brake_hard_exit_elapsed_s_ = brake_hysteresis.hard_exit_elapsed_s;
     const bool acceleration_allowed = !braking_mode_ && !smooth_stop_active &&
       !deceleration_feedback_active && last_brake_cmd_ <= command_deadband_ &&
-      current_velocity >= 0.0 && target_velocity > stop_velocity_threshold_mps_ && error >= 0.0;
+      current_velocity >= 0.0 && target_velocity > stop_velocity_threshold_mps_;
+    const double feedforward_weight = trajectory_follower::accelerationFeedforwardWeight(
+      error, brake_hysteresis_enabled_ ? brake_enter_error_mps_ : 0.0);
+    const double calibrated_acceleration = trajectory_follower::accelerationAtSpeed(
+      feedforward_acceleration_map_, current_velocity, feedforward_max_acceleration_);
     const double requested_feedforward = trajectory_follower::accelerationFeedforward(
       acceleration_feedforward_enabled_, acceleration_allowed, planned_acceleration,
-      feedforward_max_acceleration_, feedforward_gain_);
+      calibrated_acceleration, feedforward_gain_) * feedforward_weight;
     const double feedforward = trajectory_follower::limitFeedforwardRise(
       requested_feedforward, last_feedforward_, feedforward_rise_rate_, dt);
     const double candidate_integral = std::max(-integral_limit_, std::min(integral_limit_, integral_ + error * dt));
@@ -485,8 +508,12 @@ private:
     command.steering = steering_;
     command.velocity = 0.0;
     command.acceleration = 0.0;
-    double desired_brake = command_value < -command_deadband_
-      ? std::min(max_brake_cmd_, -command_value) : 0.0;
+    // Only during permitted positive acceleration, PI trims the feedforward
+    // before choosing a pedal. Braking mode, nonpositive planned acceleration,
+    // hold and watchdog retain the original brake arbitration.
+    const double pedal_command = command_value + feedforward;
+    double desired_brake = pedal_command < -command_deadband_
+      ? std::min(max_brake_cmd_, -pedal_command) : 0.0;
     if (deceleration_feedback_active) {
       const bool safety_override = error < -deceleration_feedback_speed_error_override_mps_;
       const double maximum_deceleration = safety_override
@@ -541,7 +568,7 @@ private:
     const double brake_upper = std::min(max_brake_cmd_, last_brake_cmd_ + max_brake_rise_rate_per_s_ * dt);
     command.brake = std::max(brake_lower, std::min(brake_upper, desired_brake));
     last_brake_cmd_ = command.brake;
-    // A positive FF must never cancel PI braking or a brake-release interlock.
+    // FF is zero at brake entry and must never bypass a brake-release interlock.
     const double applied_feedforward = command.brake <= command_deadband_ &&
       desired_brake == 0.0 ? feedforward : 0.0;
     last_feedforward_ = applied_feedforward;
@@ -576,6 +603,7 @@ private:
   double feedforward_max_acceleration_{3.7};
   double feedforward_gain_{1.0};
   double feedforward_rise_rate_{0.0};
+  trajectory_follower::AccelerationMap feedforward_acceleration_map_;
   double last_feedforward_{0.0};
   ros::Timer timer_;
   std::string trajectory_topic_;

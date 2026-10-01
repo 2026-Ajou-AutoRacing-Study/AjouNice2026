@@ -3,6 +3,34 @@
 #include <gtest/gtest.h>
 #include <limits>
 
+TEST(LongitudinalPiUtils, AccelerationMapValidatesAndClamps)
+{
+  using trajectory_follower::accelerationAtSpeed;
+  using trajectory_follower::validAccelerationMap;
+  const trajectory_follower::AccelerationMap map{{0., 5.2}, {10., 3.6}, {30., 3.3}};
+  EXPECT_TRUE(validAccelerationMap(map));
+  EXPECT_FALSE(validAccelerationMap({{1., 3.}, {1., 4.}}));
+  EXPECT_FALSE(validAccelerationMap({{-1., 3.}}));
+  EXPECT_FALSE(validAccelerationMap({{1., 0.}}));
+  EXPECT_FALSE(validAccelerationMap({{1., std::numeric_limits<double>::quiet_NaN()}}));
+  EXPECT_DOUBLE_EQ(accelerationAtSpeed(map, -2., 3.7), 5.2);
+  EXPECT_DOUBLE_EQ(accelerationAtSpeed(map, 5., 3.7), 4.4);
+  EXPECT_DOUBLE_EQ(accelerationAtSpeed(map, 40., 3.7), 3.3);
+  EXPECT_DOUBLE_EQ(accelerationAtSpeed({}, 5., 3.7), 3.7);
+}
+
+TEST(LongitudinalPiUtils, FeedforwardTapersContinuouslyBeforeUnchangedBrakeEntry)
+{
+  using trajectory_follower::accelerationFeedforwardWeight;
+  EXPECT_DOUBLE_EQ(accelerationFeedforwardWeight(0.1, 0.08), 1.0);
+  EXPECT_DOUBLE_EQ(accelerationFeedforwardWeight(0.0, 0.08), 1.0);
+  EXPECT_NEAR(accelerationFeedforwardWeight(-0.0001, 0.08), 0.99875, 1e-12);
+  EXPECT_DOUBLE_EQ(accelerationFeedforwardWeight(-0.04, 0.08), 0.5);
+  EXPECT_DOUBLE_EQ(accelerationFeedforwardWeight(-0.08, 0.08), 0.0);
+  EXPECT_DOUBLE_EQ(accelerationFeedforwardWeight(-0.2, 0.08), 0.0);
+  EXPECT_DOUBLE_EQ(accelerationFeedforwardWeight(-0.01, 0.0), 0.0);
+}
+
 TEST(LongitudinalPiUtils, FeedforwardIsZeroForDisabledBrakingAndInvalidInputs)
 {
   using trajectory_follower::accelerationFeedforward;
