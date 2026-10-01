@@ -195,6 +195,7 @@ field_log_list() {
 alias planning='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch ajounice_planning_integration competition_planning.launch'
 alias planviz='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup aw149_planning_rviz.launch'
 alias pvalidate='"$AJOUNICE_ROOT/planning_validator"'
+alias pvgui='"$AJOUNICE_ROOT/planning_validator_gui"'
 alias pvdash='"$AJOUNICE_ROOT/planning_validator_dashboard"'
 alias judge='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch competition_rule_monitor competition_rule_monitor.launch'
 alias planner='roslaunch bringup kcity_morai_competition_planner_rviz.launch'

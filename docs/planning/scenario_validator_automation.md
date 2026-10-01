@@ -35,7 +35,7 @@ map goal 수정 후에는 Route와 controller가 실제 준비됐고, 실시간 
 
 연속·재개 시험 `soa_two_scene_resume_261002`: 첫 장면 PASS/SUCCESS(40.88초, 목표 최소거리 0.11m), 두 번째 장면 DRIVING 중 Ctrl+C로 MANUAL_ABORT 기록. 같은 YAML을 다시 실행하니 첫 장면은 건너뛰고 두 번째만 attempt 2로 실행되어 PASS/SUCCESS(33.09초, 최소거리 0.176m)했다. 최종 `summary.csv` 2/2 PASS, attempt 1/2, 이전 중단 증거는 `error/`에 보존됐다. 즉 scene 자동 전환·분리 bag·실시간 판정·중단 후 resume를 MR에서 실제 확인했다. 이 결과는 정적 장애물 회피 전체 시나리오의 일반적 성공률을 뜻하지 않는다.
 
-`catkin_make_isolated --install --pkg planning_scenario_validator` scoped build와 설치 후 `rospack find`/`roslaunch --nodes`, 현재 7개 unit test, `git diff --check`가 통과했다. 첫 live 연속·재개 시험의 스택 조합은 `od_gt + localization + 신호등 off`였다.
+`catkin_make_isolated --install --pkg planning_scenario_validator` scoped build와 설치 후 `rospack find`/`roslaunch --nodes`, 당시 7개 unit test, `git diff --check`가 통과했다. 첫 live 연속·재개 시험의 스택 조합은 `od_gt + localization + 신호등 off`였다.
 
 추가 live 게이트(2026-10-02): 고의로 map 밖 goal을 지정한 `soa_route_failure_evidence_261002`에서 `FAIL/ROUTE_FAILURE`를 재현했다. 수정 후에는 경로가 없어도 indexed bag 17.3초·5,006메시지, MP4 17.1초, `SCENARIO_LOAD_REQUEST → SCENARIO_READY → ROUTE_REQUEST` 이벤트가 남았다.
 
@@ -73,3 +73,6 @@ ScenarioLoad 패킷은 `trajectory_batch_runner.morai_udp_client.build_scenario_
 분류 기준은 의도적으로 보수적이다. `NO_DEPARTURE`는 출발점 기준 최대 이동 ≤0.5m와 최고 속도 ≤0.5m/s가 동시에 충족될 때만 붙인다. `MID_DRIVE_STOP`은 출발점에서 0.5m 이상 이동한 후, 종료 시 속도 ≤0.3m/s·최근 5초 이동 ≤0.5m·마지막 유의미한 속도 이후 ≥3초인 경우다. 목적지 반경에는 왔으나 정차·유지 조건을 채우지 못했다면 `ARRIVAL_CONDITION_UNMET`으로 별도 표시한다. 관측값이 부족하면 `INSUFFICIENT_OBSERVATION`으로 남긴다. planner가 0속도 궤적을 냈다는 관측은 `planning_output` 조사 우선순위를 줄 수 있지만, 그 판단이 잘못된 이유가 perception·map·planning 중 무엇인지는 GT/BEV 대조 및 bag 분석 없이는 확정하지 않는다. 모든 결과의 `root_cause_confirmed`는 false다.
 
 동일 장면을 GT와 BEVFusion으로 비교할 때는 검출 유무뿐 아니라 `trajectory`의 속도·횡방향 경로, `ctrl_cmd`, `/CollisionData`와 실제 Ego 궤적을 함께 확인한다. PASS 한 번은 해당 장면의 폐루프 성공일 뿐 다른 객체·배치의 안전성 보장은 아니다. 개별 bag, 수치, 이미지와 분석 보고서는 Git 제외 경로 `planner_logs/analysis/<run_id>/`에 둔다.
+## 2026-10-02 GUI 진입점
+
+`./planning_validator_gui` (alias `pvgui`)는 Tkinter로 예제 YAML을 개인 설정에 복사·편집하고, 동일한 CLI 검증기 프로세스를 실행/중단/resume한다. ROS graph 제어·분석·녹화 로직은 GUI로 이중화하지 않았다. GUI는 `campaign_state.json`을 주기적으로 읽어 표를 표시하고 전체 화면 영상 녹화 동안 자동 최소화한다. MORAI GUI에서 Sensor/Ego Network Load·Connect는 여전히 수동이다. 개인 YAML은 Git에서 제외되며, 이미 실행된 캠페인의 YAML 내용은 resume 해시 계약을 지키기 위해 변경할 수 없다. 사용법은 패키지 README를 우선 참조한다.

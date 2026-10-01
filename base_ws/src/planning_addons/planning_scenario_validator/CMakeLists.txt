@@ -5,6 +5,7 @@ catkin_python_setup()
 catkin_package()
 catkin_install_python(PROGRAMS
   scripts/planning_validator.py
+  scripts/planning_validator_gui.py
   scripts/planning_validator_dashboard.py
   scripts/focus_planviz.py
   scripts/build_static_corridor_cases.py

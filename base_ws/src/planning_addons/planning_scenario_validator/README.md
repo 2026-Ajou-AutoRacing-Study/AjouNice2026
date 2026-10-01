@@ -1,6 +1,19 @@
 # Planning scenario validator
 
-팀원이 만든 MORAI scenario JSON 폴더를 대상으로, 실제 localization → 인지 → tracking/prediction → planning → controller 폐루프 주행을 시나리오별로 검증한다. 검증기 전용 GUI는 없지만 MORAI MR의 최초 네트워크 Connect에는 MORAI GUI가 필요하다. 각 시나리오는 bag, 화면 영상, 실시간 판정 결과로 따로 저장한다.
+팀원이 만든 MORAI scenario JSON 폴더를 대상으로, 실제 localization → 인지 → tracking/prediction → planning → controller 폐루프 주행을 시나리오별로 검증한다. CLI와 얇은 설정 GUI를 제공하지만 MORAI MR의 최초 네트워크 Connect에는 MORAI GUI가 필요하다. 각 시나리오는 bag, 화면 영상, 실시간 판정 결과로 따로 저장한다.
+
+## GUI로 시작하기
+
+저장소 루트에서 `bash base_ws/src/planning_addons/planning_scenario_validator/install.sh`를 한 번 실행한다. 처음 시나리오 예제를 만들 때는 `/usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_static_corridor_cases.py`를 실행한다. MORAI MR GUI에서 사용할 Sensor JSON과 생성된 validator 전용 Ego Network JSON을 Load·Connect한다. 이 단계는 GUI가 대신하지 않는다.
+
+```bash
+./planning_validator_gui
+# docs/common_alias.txt를 source했다면 pvgui
+```
+
+처음에는 실패 장면도 포함하는 `static_pair_stress_gt.yaml` 예제가 선택된다. 시나리오 폴더·glob·목적지(map 좌표)·제한 시간·측위·탐지기·녹화 옵션을 확인한 뒤 `설정 검사` → `실행 / resume`을 누른다. 예제 파일은 바뀌지 않고 `config/users/<리눅스 사용자>/<campaign_name>.yaml`에 개인 설정이 생성된다. 폴더 안의 시나리오별 `.case.yaml` 목적지/시간 override와 GUI에 보이지 않는 고급 YAML 옵션도 보존된다. 직접 저장한 YAML은 `내 YAML 열기 / resume`으로 다시 열어 이어서 실행한다. 한 번 실행된 캠페인은 YAML을 바꿀 수 없으므로 조건 변경 시 새 `campaign_name`을 쓴다.
+
+GUI는 기존 `./planning_validator`만 호출한다. 실행 중 표에 완료 장면의 PASS/FAIL/ERROR와 관측된 실패 유형을 표시하며, `중단`은 결과를 보존하고 다음 실행에서 resume한다. 영상은 X11 전체 화면을 녹화하므로 GUI가 실행 직후 최소화된다. 다시 열면 녹화 화면에도 GUI가 보일 수 있다. `설정 검사`가 통과해도 MORAI 연결·BEVFusion checkpoint·주행 성공까지 보증하지는 않는다. GUI가 필요 없는 서버/터미널에서는 아래 CLI를 그대로 사용한다.
 
 ## 5분 실행
 

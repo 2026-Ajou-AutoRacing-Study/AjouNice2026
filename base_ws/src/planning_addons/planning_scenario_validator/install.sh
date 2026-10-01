@@ -15,6 +15,9 @@ fi
 if ! /usr/bin/python3 -c 'import gi; gi.require_version("Wnck", "3.0"); from gi.repository import Wnck' >/dev/null 2>&1; then
   MISSING+=("python3-gi/gir1.2-wnck-3.0")
 fi
+if ! /usr/bin/python3 -c 'import tkinter' >/dev/null 2>&1; then
+  echo "참고: 선택형 GUI를 쓰려면 sudo apt install python3-tk (CLI는 그대로 사용 가능)" >&2
+fi
 if ((${#MISSING[@]})); then
   echo "필요한 도구가 없습니다: ${MISSING[*]}" >&2
   echo "Ubuntu: sudo apt install ffmpeg x11-utils python3-yaml python3-gi gir1.2-wnck-3.0" >&2
