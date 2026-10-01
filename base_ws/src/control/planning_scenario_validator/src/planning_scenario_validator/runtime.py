@@ -1,0 +1,397 @@
+"""ROS 실행, 실시간 판정, 시나리오별 녹화의 공통 도구."""
+import json
+import math
+import os
+import shutil
+import signal
+import subprocess
+import time
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+from .config import ROOT
+
+
+class RuntimeFailure(RuntimeError):
+    pass
+
+
+class ScenarioFailure(RuntimeFailure):
+    """입력 시나리오에서 route/trajectory를 만들지 못한 유효한 실패."""
+    def __init__(self, reason, message):
+        super().__init__(message)
+        self.reason = reason
+
+
+def now():
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+
+def atomic_json(path, value):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(path.name + ".tmp")
+    temp.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(temp, path)
+
+
+def stop_group(process, *, timeout=12):
+    if process.poll() is not None:
+        return
+    for sig, wait_sec in ((signal.SIGINT, timeout), (signal.SIGTERM, 4), (signal.SIGKILL, 2)):
+        try:
+            os.killpg(process.pid, sig)
+            process.wait(timeout=wait_sec)
+            return
+        except ProcessLookupError:
+            return
+        except subprocess.TimeoutExpired:
+            pass
+
+
+class Processes:
+    def __init__(self, log_dir, env):
+        self.log_dir = Path(log_dir)
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.env = env
+        self.running = {}
+        self.handles = {}
+
+    def start(self, name, command):
+        if name in self.running:
+            raise RuntimeFailure("이미 실행 중인 프로세스: {}".format(name))
+        logfile = (self.log_dir / (name + ".log")).open("ab", buffering=0)
+        try:
+            process = subprocess.Popen([str(c) for c in command], stdout=logfile,
+                                       stderr=subprocess.STDOUT, env=self.env,
+                                       start_new_session=True, cwd=str(ROOT))
+        except Exception:
+            logfile.close()
+            raise
+        self.running[name] = process
+        self.handles[name] = logfile
+        time.sleep(0.4)
+        if process.poll() is not None:
+            self.stop(name)
+            raise RuntimeFailure("{} 시작 실패. 로그: {}".format(name, self.log_dir / (name + ".log")))
+        return process
+
+    def stop(self, name):
+        process = self.running.pop(name, None)
+        if process is not None:
+            stop_group(process)
+        handle = self.handles.pop(name, None)
+        if handle is not None:
+            handle.close()
+
+    def stop_many(self, names):
+        for name in names:
+            self.stop(name)
+
+    def close(self):
+        self.stop_many(list(self.running)[::-1])
+
+
+def master_alive():
+    try:
+        import rosgraph
+        return bool(rosgraph.Master("/planning_scenario_validator").getPid())
+    except Exception:
+        return False
+
+
+def check_no_conflicting_publishers():
+    import rosgraph
+    state = rosgraph.Master("/planning_scenario_validator").getSystemState()[0]
+    owners = dict(state)
+    for topic in ("/Ego_topic", "/Object_topic", "/sensor/gps", "/ctrl_cmd",
+                  "/planning/trajectory", "/localization/kinematic_state",
+                  "/perception/object_recognition/detection/objects"):
+        if owners.get(topic):
+            raise RuntimeFailure("기존 스택이 {}을 발행 중입니다: {}. 새 캠페인은 빈 ROS graph에서 시작하세요".format(topic, owners[topic]))
+
+
+def prepare_scenario(case, install_dir, ego_network_json):
+    """원본은 유지하고 ExternalCtrl 정지 시작 + network sidecar만 설치한다."""
+    scene = json.loads(case.source.read_text(encoding="utf-8"))
+    ego = scene["egoVehicle"]
+    ego["beforeControlMode"] = 2
+    ego["currentControlMode"] = 2
+    ego["currentVelocity"] = 0.0
+    ego["customValue"] = 0.0
+    initial = ego["initPosition"]
+    saved = initial.get("vehicleSaveData", {})
+    saved["velocity"] = 0.0
+    for container in (saved, saved.get("vehicle", {})):
+        if "lastVelocity" in container:
+            container["lastVelocity"] = {"x": 0.0, "y": 0.0, "z": 0.0}
+    if isinstance(saved.get("inputData"), list) and len(saved["inputData"]) > 6:
+        saved["inputData"][6] = initial.get("gear", 1)
+    installed = install_dir / (case.install_stem + ".json")
+    atomic_json(installed, scene)
+    sidecar = install_dir / "EgoNetwork" / (case.install_stem + "_MN.json")
+    atomic_json(sidecar, json.loads(ego_network_json.read_text(encoding="utf-8")))
+    pos = initial["pos"]
+    return installed, (float(pos["x"]), float(pos["y"]))
+
+
+class LiveMonitor:
+    def __init__(self):
+        import rospy
+        from autoware_planning_msgs.msg import LaneletRoute, Trajectory
+        from morai_msgs.msg import CollisionData, EgoVehicleStatus
+        from nav_msgs.msg import Odometry
+        self.rospy = rospy
+        self.ego = None
+        self.odom = None
+        self.route = None
+        self.trajectory = None
+        self.stamps = {}
+        self.collision_ids = set()
+        self.collision_count = 0
+        self.armed = False
+        self.events_path = None
+        self.goal_min = float("inf")
+        self.max_speed = 0.0
+        self.arrival_since = None
+        self.last_progress_time = time.monotonic()
+        self.best_goal_distance = float("inf")
+        rospy.Subscriber("/Ego_topic", EgoVehicleStatus, self._ego, queue_size=10)
+        rospy.Subscriber("/CollisionData", CollisionData, self._collision, queue_size=10)
+        rospy.Subscriber("/localization/kinematic_state", Odometry, self._odom, queue_size=10)
+        rospy.Subscriber("/planning/mission_planning/route", LaneletRoute, self._route, queue_size=10)
+        rospy.Subscriber("/planning/trajectory", Trajectory, self._trajectory, queue_size=10)
+
+    def _ego(self, message):
+        self.ego = message
+        self.stamps["ego"] = time.monotonic()
+
+    def _odom(self, message):
+        self.odom = message
+        self.stamps["odom"] = time.monotonic()
+
+    def _route(self, message):
+        self.route = message
+        self.stamps["route"] = time.monotonic()
+
+    def _trajectory(self, message):
+        self.trajectory = message
+        self.stamps["trajectory"] = time.monotonic()
+
+    def _collision(self, message):
+        current = {int(obj.unique_id) for obj in message.collision_object}
+        if self.armed:
+            for object_id in current - self.collision_ids:
+                self.collision_count += 1
+                self.event("COLLISION", object_id=object_id)
+        self.collision_ids = current
+        self.stamps["collision"] = time.monotonic()
+
+    def event(self, name, **fields):
+        if self.events_path is None:
+            return
+        with self.events_path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"time": now(), "event": name, **fields}, ensure_ascii=False) + "\n")
+
+    def wait(self, predicate, seconds, label):
+        deadline = time.monotonic() + seconds
+        while not self.rospy.is_shutdown() and time.monotonic() < deadline:
+            if predicate():
+                return
+            time.sleep(0.1)
+        raise RuntimeFailure("{} 준비 제한시간({:.0f}초) 초과".format(label, seconds))
+
+    def wait_scenario(self, xy, *, after, timeout, tolerance):
+        self.wait(lambda: self.ego is not None and self.stamps.get("ego", 0) > after
+                  and math.hypot(float(self.ego.position.x) - xy[0],
+                                 float(self.ego.position.y) - xy[1]) <= tolerance,
+                  timeout, "ScenarioLoad Ego 위치")
+
+    def wait_odom(self, *, after, timeout):
+        self.wait(lambda: self.stamps.get("odom", 0) > after, timeout, "localization")
+
+    def wait_route_and_trajectory(self, route_uuid, *, after, timeout):
+        self.wait(lambda: self.route is not None and self.stamps.get("route", 0) > after
+                  and list(self.route.uuid.uuid) == list(route_uuid), timeout, "요청한 route")
+        route_time = self.stamps["route"]
+        self.wait(lambda: self.trajectory is not None
+                  and self.stamps.get("trajectory", 0) > route_time
+                  and bool(self.trajectory.points), timeout, "새 planning trajectory")
+
+    def arm(self, events_path):
+        self.events_path = Path(events_path)
+        self.events_path.touch()
+        self.collision_count = 0
+        # 이전 scenario의 contact ID가 새 시나리오 첫 접촉을 숨기지 않게 한다.
+        self.collision_ids.clear()
+        self.armed = True
+        self.goal_min = float("inf")
+        self.max_speed = 0.0
+        self.arrival_since = None
+        self.best_goal_distance = float("inf")
+        self.last_progress_time = time.monotonic()
+        self.event("RUN_ARMED", existing_collision_ids=sorted(self.collision_ids))
+
+    def disarm(self):
+        self.armed = False
+        self.events_path = None
+
+    def run_until_done(self, case, validation, started, state_callback=None):
+        radius = float(validation.get("goal_tolerance_m", 2.0))
+        hold = float(validation.get("goal_hold_sec", 1.0))
+        max_stop_speed = float(validation.get("goal_speed_max_mps", 0.5))
+        stale = float(validation.get("topic_loss_timeout_sec", 4.0))
+        stuck_sec = float(validation.get("stuck_timeout_sec", 0.0))
+        while not self.rospy.is_shutdown():
+            tick = time.monotonic()
+            elapsed = tick - started
+            if self.collision_count:
+                return "COLLISION", elapsed
+            if elapsed >= case.timeout_sec:
+                return "TIMEOUT", elapsed
+            if tick - self.stamps.get("odom", started) > stale:
+                raise RuntimeFailure("localization topic이 {}초 이상 끊겼습니다".format(stale))
+            if tick - self.stamps.get("trajectory", started) > stale:
+                raise RuntimeFailure("planning trajectory가 {}초 이상 끊겼습니다".format(stale))
+            if self.odom is not None:
+                p = self.odom.pose.pose.position
+                distance = math.hypot(p.x - case.goal["x"], p.y - case.goal["y"])
+                speed = abs(self.odom.twist.twist.linear.x)
+                self.goal_min = min(self.goal_min, distance)
+                self.max_speed = max(self.max_speed, speed)
+                if distance < self.best_goal_distance - 1.0:
+                    self.best_goal_distance = distance
+                    self.last_progress_time = tick
+                if distance <= radius and (case.arrival_mode == "pass_through" or speed <= max_stop_speed):
+                    self.arrival_since = self.arrival_since or tick
+                    if tick - self.arrival_since >= hold:
+                        self.event("GOAL_REACHED", distance_m=round(distance, 3))
+                        return "SUCCESS", elapsed
+                else:
+                    self.arrival_since = None
+                if stuck_sec > 0 and elapsed > stuck_sec and tick - self.last_progress_time > stuck_sec:
+                    return "STUCK", elapsed
+                if state_callback:
+                    state_callback({"elapsed_sec": round(elapsed, 2), "goal_distance_m": round(distance, 2),
+                                    "speed_mps": round(speed, 2), "collision_count": self.collision_count})
+            time.sleep(0.2)
+        return "MANUAL_ABORT", time.monotonic() - started
+
+
+def _pose_message(value):
+    from geometry_msgs.msg import Pose
+    pose = Pose()
+    pose.position.x, pose.position.y, pose.position.z = value["x"], value["y"], value["z"]
+    angle = math.radians(value["yaw_deg"]) / 2
+    pose.orientation.z, pose.orientation.w = math.sin(angle), math.cos(angle)
+    return pose
+
+
+def request_route(case, monitor, *, timeout):
+    import rospy
+    from autoware_internal_planning_msgs.srv import SetWaypointRoute, SetWaypointRouteRequest
+    rospy.wait_for_service("/planning/set_waypoint_route", timeout=timeout)
+    request = SetWaypointRouteRequest()
+    request.header.frame_id = "map"
+    request.header.stamp = rospy.Time.now()
+    request.goal_pose = _pose_message(case.goal)
+    request.waypoints = [_pose_message(p) for p in case.waypoints]
+    route_id = uuid.uuid4().bytes
+    request.uuid.uuid = list(route_id)
+    request.allow_modification = False
+    after = time.monotonic()
+    response = rospy.ServiceProxy("/planning/set_waypoint_route", SetWaypointRoute)(request)
+    if not response.status.success:
+        raise ScenarioFailure("ROUTE_FAILURE", "route 요청 거부: {}".format(response.status))
+    try:
+        monitor.wait_route_and_trajectory(route_id, after=after, timeout=timeout)
+    except RuntimeFailure as error:
+        raise ScenarioFailure("NO_TRAJECTORY", str(error)) from error
+    monitor.event("ROUTE_READY", uuid=str(uuid.UUID(bytes=route_id)))
+    return str(uuid.UUID(bytes=route_id))
+
+
+def publish_brake(duration=1.0):
+    import rospy
+    from morai_msgs.msg import CtrlCmd
+    publisher = rospy.Publisher("/ctrl_cmd", CtrlCmd, queue_size=1)
+    command = CtrlCmd()
+    command.longlCmdType = 1
+    command.accel = 0.0
+    command.brake = 1.0
+    command.steering = 0.0
+    until = time.monotonic() + duration
+    while time.monotonic() < until and not rospy.is_shutdown():
+        publisher.publish(command)
+        time.sleep(0.05)
+    publisher.unregister()
+
+
+def video_size():
+    output = subprocess.check_output(["xdpyinfo"], text=True, timeout=5)
+    import re
+    match = re.search(r"dimensions:\s+(\d+x\d+) pixels", output)
+    if not match:
+        raise RuntimeFailure("X11 화면 크기를 확인하지 못했습니다")
+    return match.group(1)
+
+
+class Recording:
+    def __init__(self, config, output, env):
+        self.config, self.output, self.env = config, Path(output), env
+        self.bag = None
+        self.video = None
+        self.handles = []
+
+    def start(self, basename):
+        self.output.mkdir(parents=True, exist_ok=True)
+        self.bag_prefix = self.output / (basename + "_recording")
+        bag_log = (self.output / "rosbag.log").open("wb")
+        self.handles.append(bag_log)
+        self.bag = subprocess.Popen(["rosbag", "record", "-O", str(self.bag_prefix),
+                                     *self.config["topics"]], stdout=bag_log,
+                                    stderr=subprocess.STDOUT, start_new_session=True, env=self.env)
+        time.sleep(0.7)
+        if self.bag.poll() is not None:
+            raise RuntimeFailure("rosbag 시작 실패: {}".format(self.output / "rosbag.log"))
+        video = self.config.get("video", {})
+        if video.get("enabled", False):
+            if not shutil.which("ffmpeg"):
+                raise RuntimeFailure("영상 녹화에 ffmpeg가 필요합니다")
+            self.video_path = self.output / (basename + "_recording.mp4")
+            video_log = (self.output / "video.log").open("wb")
+            self.handles.append(video_log)
+            self.video = subprocess.Popen([
+                "ffmpeg", "-nostdin", "-loglevel", "warning", "-y", "-f", "x11grab",
+                "-framerate", str(video.get("fps", 15)), "-video_size", video_size(),
+                "-i", str(video["display"]), "-c:v", "libx264", "-preset", "ultrafast",
+                "-crf", "28", "-pix_fmt", "yuv420p", str(self.video_path)
+            ], stdout=video_log, stderr=subprocess.STDOUT, start_new_session=True, env=self.env)
+            time.sleep(0.5)
+            if self.video.poll() is not None:
+                raise RuntimeFailure("화면 녹화 시작 실패: {}".format(self.output / "video.log"))
+
+    def stop(self, final_basename):
+        if self.video is not None:
+            stop_group(self.video, timeout=15)
+        if self.bag is not None:
+            stop_group(self.bag, timeout=30)
+        for handle in self.handles:
+            handle.close()
+        bag_source = Path(str(self.bag_prefix) + ".bag") if self.bag is not None else None
+        if bag_source:
+            deadline = time.monotonic() + 15
+            while not bag_source.is_file() and time.monotonic() < deadline:
+                time.sleep(0.2)
+            if not bag_source.is_file():
+                raise RuntimeFailure("rosbag이 정상 마감되지 않았습니다: {} (active 파일은 보존됨)".format(self.bag_prefix))
+        bag_final = self.output / (final_basename + ".bag") if bag_source else None
+        if bag_source:
+            bag_source.rename(bag_final)
+        video_final = self.output / (final_basename + ".mp4") if self.video is not None else None
+        if video_final:
+            if not self.video_path.is_file():
+                raise RuntimeFailure("영상 파일이 생성되지 않았습니다")
+            self.video_path.rename(video_final)
+        return bag_final, video_final

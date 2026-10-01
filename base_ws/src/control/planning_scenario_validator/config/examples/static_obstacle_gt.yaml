@@ -1,0 +1,50 @@
+# 이 파일을 config/users/<내 이니셜>/campaign.yaml로 복사해 사용하세요.
+# 사용자가 바꿀 값은 이 첫 묶음에 모았습니다. 경로는 AjouNice2026 저장소 기준 상대경로입니다.
+schema_version: 1
+campaign_name: soa_team_example_01       # 결과 폴더 이름. 새 실험이면 새 이름을 사용하세요.
+scenarios:
+  directory: configs/scenario/hidden_mission/static_3  # 팀원이 만든 JSON 폴더
+  glob: "s3_0[15]*.json"                # 예제는 두 개만 실행. 전체면 "*.json"
+default_case:
+  # 공통 목적지. 시나리오별 목적지가 다르면 같은 폴더에 <이름>.case.yaml을 둡니다.
+  goal: {x: -13.382585757, y: 93.782754520, z: 28.489, yaw_deg: 60.815}  # v85 Route A 끝, map 좌표
+  waypoints: []                         # 필요할 때만 경유점 추가
+  timeout_sec: 180                      # 한 시나리오의 최대 주행 시간
+  arrival_mode: stop                    # stop: 목적지 정차 / pass_through: 통과
+stack:
+  pose_source: localization             # localization | maptf_morai
+  detector: od_gt                       # od_gt | bevfusion
+  traffic_light: false                  # false면 planner의 신호등 판단도 꺼짐
+recording:
+  topic_profile: base_ws/src/control/planning_scenario_validator/config/topic_profiles/basic.json
+  include_sensors: false                # true면 카메라 4대와 LiDAR도 bag에 추가
+  video:
+    enabled: true                       # 전체 X11 화면. Planviz를 최대화해 두세요.
+    display: ":0.0"                     # echo $DISPLAY와 맞추세요.
+    fps: 15
+
+# 보통 수정하지 않는 연결/운영 설정입니다.
+network:
+  # GT 객체 시험은 GPS+IMU 경량 센서면 충분합니다. BEVFusion은 full sensor JSON을 사용하세요.
+  sensor_json: configs/sensors/Sensor_localization_gt_lightweight.json
+  ego_network_json: base_ws/src/control/planning_scenario_validator/config/generated/ego_network_validator_local.json
+morai:
+  map_name: R_KR_PR_K-city_2025
+  scenario_install_dir: auto             # 자동 탐색 실패 시 MR SaveFile/Scenario/<맵> 절대경로
+  scenario_load_host: 127.0.0.1
+  scenario_load_port: 9095
+output_root: planner_logs/validation
+resume: true                              # Ctrl+C 후 같은 YAML로 재실행하면 미완료분 재개
+continue_on_system_error: false           # 통신/스택 오류는 멈춰서 원인 확인
+readiness_timeout_sec: 45
+scenario_ready_timeout_sec: 35
+route_ready_timeout_sec: 75
+validation:
+  goal_tolerance_m: 2.0
+  goal_hold_sec: 1.0
+  goal_speed_max_mps: 0.5
+  topic_loss_timeout_sec: 4.0
+  stuck_timeout_sec: 0.0                 # 0은 STUCK 조기종료 끔; timeout으로 판정
+upload:
+  enabled: false                         # true이면 각 시나리오 종료 직후 rclone copy
+  rclone_remote: ""                      # 예: ajounice-drive:ajounice2026/planning
