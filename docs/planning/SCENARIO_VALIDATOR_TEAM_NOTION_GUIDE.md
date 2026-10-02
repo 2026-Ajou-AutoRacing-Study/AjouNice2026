@@ -6,7 +6,11 @@
 
 현재 공유 브랜치는 **planning/scenario-validator-automation**입니다. 아래 내용은 개인 PC에서 MORAI와 알고리즘을 같이 켜는 기준입니다. 현장 LAN 설정과 섞지 말아 주세요.
 
-이미 우리 풀스택과 E25가 준비된 분은 1장에서 브랜치만 갱신하고, 4장 업데이트 빌드 → 7장 Network 준비 → 8장 GUI 실행으로 가면 됩니다. 신호등도 켤 사람은 7-1의 환경 설치/선택까지 확인해 주세요.
+**이미 Docker에 BEVFusion 이미지를 등록했고 E25 가중치도 준비한 분은 다시 설치하거나 다운로드하지 마세요.** 우리 풀스택도 준비돼 있으면 **1장 브랜치 갱신 → 4장 업데이트 빌드 → 7장 검증기 Network 준비 → 8장 GUI 실행**으로 가면 됩니다. **5·6장의 Docker 설치, 이미지 다운로드·docker load, E25 압축 해제는 건너뜁니다.** 7장의 `install.sh --gui`는 도구 검사와 검증기 Network 생성이므로 기존 준비자도 실행합니다. 신호등도 켤 사람만 7-1의 환경 설치/선택을 추가 확인해 주세요.
+
+기존 환경은 지우지 말고 GUI의 **환경 검사**에서 실제 사용하는 이미지·E25 경로를 확인하세요. `.env.bevfusion.local`에 본인 경로가 있으면 기본 경로보다 우선합니다. GPU 사용을 아직 확인하지 않은 분만 **실제 GPU 검사**도 실행합니다. Docker만 설치됐거나 학습용 이미지만 있는 경우는 BEVFusion 추론/E25까지 준비됐다는 뜻이 아니니 아래 5장의 구분을 참고하세요. GUI·녹화 도구가 빠졌다면 그 도구만 추가하면 됩니다.
+
+**첫 실행 전에 담당 미션의 `base/README.md`를 한 번 읽어 주세요.** 시작점·목적지는 왜 그곳인지, 어떤 조건을 더 만들어 볼지, 무엇이 아직 미검증인지 적어뒀습니다. [미션별 README 목차](../../base_ws/src/planning_addons/planning_scenario_validator/config/missions/README.md)에서 본인 미션을 고르면 됩니다. YAML만 열고 바로 24개를 돌리기보다는 이 안내를 보고 baseline 두 장면부터 확인해 주세요.
 
 ## 0. 시작 전에 이것만 확인
 
@@ -200,9 +204,17 @@ rospack find morai_msgs
 
 **GT 객체로 먼저 돌려볼 분은 이 장과 6장을 건너뛰고, GUI 탐지기를 od_gt로 선택하면 됩니다.** 실제 BEVFusion 시험은 Docker 이미지와 E25 가중치가 둘 다 필요합니다.
 
-### 5-0. 이제 이 명령으로 한 번에 준비하면 됩니다
+**이미 이미지 등록·E25 준비가 끝났으면 이 장의 설치 명령을 반복하지 말고 7장으로 넘어가세요.** 준비 상태에 따라 필요한 부분만 진행합니다.
 
-Ubuntu 20.04 팀 PC라면 아래를 먼저 쓰세요. 앞의 ROS·빌드·맵 준비와 rclone 본인 로그인이 끝난 상태 기준입니다.
+| 현재 준비 상태 | 할 일 |
+| --- | --- |
+| Docker·Compose·GPU 사용·BEVFusion 추론 이미지·E25가 준비됨 | 5·6장 건너뛰고 7장. GUI 환경 검사에서 실제 이미지/가중치 경로 확인 |
+| Docker는 되지만 이미지나 E25가 없음 | Docker 재설치 없이 5-0의 `--assets-only` 또는 6장에서 없는 자료만 준비 |
+| Docker/Compose/GPU Toolkit 준비가 안 됨 | 5-0 자동 준비 또는 아래 수동 안내. 기존 설치는 먼저 확인 |
+
+### 5-0. 처음 준비하거나 빠진 항목이 있을 때만
+
+Ubuntu 20.04 팀 PC에서 Docker·추론 준비가 아직 안 됐을 때 사용하세요. **이미 준비된 분은 실행할 필요 없습니다.** 앞의 ROS·빌드·맵 준비와 rclone 본인 로그인이 끝난 상태 기준입니다.
 
 ```bash
 cd ~/AjouNice2026
@@ -225,7 +237,7 @@ bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --bevfus
 
 설치 완료 후에는 **아래 5-1·5-2·6의 수동 명령을 반복하지 않고 7의 MORAI 연결로 넘어가세요.** ROS 설치·workspace 빌드·맵 다운로드·신호등 Python 환경까지 한꺼번에 설치하는 명령은 아닙니다. Ubuntu 20.04는 현재 Docker 공식 지원 목록에서 빠져 있어 focal 저장소의 설치 가능한 패키지를 확인하고, 후보가 없으면 다른 OS 패키지를 섞지 않고 중단합니다.
 
-이미 Docker가 있고 시스템 설정을 건드리지 않은 채 자료만 받고 싶으면 다음을 사용합니다. Drive remote가 다른 경우 --remote 이름으로 바꿀 수 있습니다.
+이미 Docker와 GPU 사용이 되고 **이미지나 E25만 빠졌다면**, 시스템 설정을 건드리지 않는 아래 명령을 사용합니다. 있는 이미지와 정상 E25는 재사용하고 없는 자료만 준비합니다. 둘 다 이미 있으면 이 명령도 생략하세요. Drive remote가 다른 경우 --remote 이름으로 바꿀 수 있습니다.
 
 ```bash
 bash scripts/runtime/setup_bevfusion_inference.sh --assets-only
@@ -287,6 +299,8 @@ sudo systemctl restart docker
 Docker 재시작은 실행 중 컨테이너에 영향을 줍니다. 학습·추론을 돌리는 도중에는 하지 마세요. 설정 기준은 [NVIDIA 공식 설치 안내](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)입니다.
 
 ## 6. Drive에서 공용 이미지 + E25 받기
+
+**이미 BEVFusion 이미지 등록과 E25 준비를 마쳤으면 이 장 전체를 건너뛰고 7장으로 가세요.** 다시 다운로드·docker load·압축 해제할 필요 없습니다. 이미지나 가중치 한쪽만 없다면 5-0의 `--assets-only`가 없는 자료만 준비하므로 그 방법을 권장합니다. 아래 수동 명령은 둘 다 없는 경우의 순서입니다.
 
 AjouNice2026/model/bevfusion/는 **Google Drive 공유 폴더 안의 경로**입니다. http://ajounice2026/...를 인터넷 다운로드 주소로 쓰는 건 아닙니다.
 
@@ -481,7 +495,7 @@ pvgui
 ### 처음엔 내 미션의 두 장면만
 
 1. 예제 목록에서 missions/내미션/base/example.yaml을 고릅니다.
-   YAML 옆 README.md에 시작점·목적지·왜 이렇게 배치했는지·더 만들어볼 조건이 있습니다. 처음에는 좌표를 바꿀 필요 없습니다.
+   **실행 전에 YAML 옆 README.md를 한 번 읽어 주세요.** 시작점·목적지·왜 이렇게 배치했는지·더 만들어볼 조건이 있습니다. 끝의 미션별 AI 프롬프트를 본인 AI에게 전달해도 됩니다. 처음에는 좌표를 바꿀 필요 없습니다.
 2. **베이스 → 내 작업 폴더 복사**를 누릅니다. 공유 base는 그대로 두고 내 workspace에 시나리오·YAML이 생깁니다.
 3. 파일 패턴을 *_baseline_*.json으로 바꿉니다. 처음부터 24개 밤새 돌리지 말고 연결·주행·배우 동작부터 봅니다.
 4. 캠페인 이름은 본인과 미션이 구분되게 적어 주세요. 예: yj_highway_baseline_01. 팀원의 업로드 결과가 같은 폴더에 섞이는 걸 피하려고 이름을 다르게 쓰는 겁니다.

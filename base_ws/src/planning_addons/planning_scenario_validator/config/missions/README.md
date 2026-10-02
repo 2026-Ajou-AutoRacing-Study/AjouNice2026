@@ -41,6 +41,8 @@ Manifest는 실행용 시나리오가 아니므로 `base/scenarios/` 밖에 둔�
 
 설치 후에는 자기 미션의 아래 안내만 먼저 읽으면 된다. 실제 JSON/YAML에서 가져온 시작점·목적지, 배치 근거, 변경할 조건, 실제 확인할 배우 동작, 담당 AI에게 복붙할 프롬프트가 있다. 좌표는 기본을 유지하고 객체 조건부터 바꾼다. 미검증 좌표 후보를 정상 주행 가능 지점처럼 제공하지 않는다.
 
+**첫 실행 전에 담당 미션 README를 한 번 읽어 주세요.** 본인 AI에게도 해당 README와 YAML·manifest를 같이 전달하면 된다. 이미 Docker·BEVFusion 이미지·E25가 준비된 팀원은 다시 설치·다운로드하지 않고 기존 환경으로 검증기 도구 검사와 GUI 실행을 이어간다. 실제 이미지·E25 경로는 GUI 환경 검사로 확인한다.
+
 - [회전교차로](roundabout/base/README.md)
 - [고속주행도로](highway/base/README.md)
 - [일반 정적 장애물](static_obstacle/base/README.md)

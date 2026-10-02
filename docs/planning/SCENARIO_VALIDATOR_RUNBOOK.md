@@ -2,6 +2,8 @@
 
 처음 세팅하는 PC는 [설치 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 해 주세요. 여기서는 ROS 빌드·맵·Docker/E25 준비가 끝난 상태를 기준으로 설명합니다. 공유 브랜치는 `planning/scenario-validator-automation`입니다.
 
+**이미 Docker·BEVFusion 이미지·E25까지 준비한 분은 재설치·재다운로드 없이 아래 1번부터 하면 됩니다.** 기존 `.env.bevfusion.local`과 가중치는 유지하고 GUI 환경 검사에서 실제 사용 경로를 확인합니다. 설치 가이드 5·6장을 다시 실행하지 마세요. 첫 실행 전에 담당 미션의 `base/README.md`를 한 번 읽어 주세요. [미션별 안내 목차](../../base_ws/src/planning_addons/planning_scenario_validator/config/missions/README.md)에서 고르면 됩니다.
+
 ROS·맵은 준비했는데 Docker/E25만 없는 Ubuntu 20.04 PC는 `bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --bevfusion`으로 설치·Drive 다운로드·이미지 등록·GPU 검사를 한 번에 진행합니다. 본인 Google 로그인과 sudo가 필요하고, Docker 그룹 신규 추가 시 GUI 사용 전 재로그인합니다. 자세한 제한은 설치 가이드 5-0을 참고하세요.
 
 ## 1. MORAI 연결하고 GUI 켜기
@@ -21,7 +23,7 @@ bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --gui
 ## 2. 내 YAML 준비하기
 
 1. 예제 목록에서 `missions/<담당 미션>/base/example.yaml`을 선택합니다.
-   같은 폴더의 `README.md`에 기본 시작점·목적지와 미션별 배치 의도·확장 방법이 있습니다. 처음에는 좌표를 그대로 사용합니다.
+   **먼저 같은 폴더의 `README.md`를 읽어 주세요.** 기본 시작점·목적지와 미션별 배치 의도·확장 방법·AI 프롬프트가 있습니다. 처음에는 좌표를 그대로 사용합니다.
 2. `베이스 → 내 작업 폴더 복사`를 누릅니다. 같은 미션의 `workspace/`에 개인 YAML과 시나리오 사본이 생깁니다.
 3. 첫 시험은 파일 패턴을 `*_baseline_*.json`으로 두고 두 장면만 실행합니다. 새 배우가 실제로 움직이는지도 확인합니다.
 4. 이름·공통 목적지·시간·측위·탐지기를 확인하고 `개인 YAML 저장`을 누릅니다. 기본은 basic 토픽, 원시 LiDAR·카메라 녹화 제외, 영상 켜짐입니다. 센서 제외는 **녹화만** 바꾸며 BEVFusion 입력을 끄지 않습니다.
