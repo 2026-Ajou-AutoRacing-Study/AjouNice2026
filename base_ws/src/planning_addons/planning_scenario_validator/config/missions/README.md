@@ -49,6 +49,12 @@ Manifest는 실행용 시나리오가 아니므로 `base/scenarios/` 밖에 둔�
 GT 대조는 GUI 탐지기를 `od_gt`로 바꿔 별도 캠페인으로 저장한다. 측위 원인 분리는 `maptf_morai`를 사용하되 대회용 측위 검증으로 오해하지 않는다.
 GUI 없이도 저장소 루트에서 `./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/missions/highway/base/example.yaml`로 공유 기준선을 실행한다. 개인 변형은 workspace의 YAML을 지정한다.
 
+### 여러 조건을 걸어놓을 때
+
+조건별 개인 YAML을 저장하고 GUI `실행 목록 / 배치`에서 `YAML 여러 개 추가` → 순서 정렬 → `전체 검사` → `배치 실행 / 재개`를 누른다. 기본 미션 YAML 24장면은 준비·마감 포함 대략 40–50분 추정이다. 다섯 미션 전체는 약 4시간 추정이며 실제 준비 시간과 실패 조기 종료에 따라 달라진다. 처음에는 baseline 두 장면의 수신·배우·녹화를 확인한다.
+
+모든 YAML의 Sensor/Ego Network와 ScenarioLoad 대상은 같아야 한다. 중단 후 같은 목록은 재개하고, 처음부터 다시 시험하려면 `새 실행으로 복사`한다. 공유 base를 배치에 직접 넣기보다 개인 workspace 파일을 넣는다. 자세한 동작은 [짧은 사용법](../../../../../../docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md)을 참고한다.
+
 ### YAML 저장 규칙
 
 - 미션 base를 열면 저장은 같은 미션 workspace에 하고, base 원본은 보호한다. workspace YAML은 미실행 상태에서는 같은 캠페인 이름으로 수정한다.

@@ -4,6 +4,8 @@
 
 처음 쓰는 팀원은 [노션 공유용 첫 설치·실행 안내](../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 한다. Clone/브랜치 전환, ROS 빌드, 맵·공용 Docker 이미지·E25 다운로드, MORAI 연결과 GUI 실행을 한 문서에 정리했다. `install.sh --gui`는 GUI 도구 검사와 Network 생성이며 전체 설치를 대신하지 않는다.
 
+설치 후에는 [짧은 사용법](../../../../docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md)을 따른다. **YAML 하나는 공통 실행 조건 하나**, 여러 YAML은 GUI `실행 목록 / 배치`에 추가해 순서대로 실행한다. 미션별 사용자 진입점은 `config/missions/<미션>/base/`와 Git 제외 `workspace/`이며, 토픽·생성 Network는 `config/internal/`에 분리했다.
+
 ## GUI로 시작하기
 
 팀원에게 배포할 미션별 YAML·시나리오는 [미션 스타터 안내](config/missions/README.md)를 참고한다. 회전교차로·일반 정적·사거리 동적·GPS 음영 정적·고주로 각각 `base/`(공유 24개)와 `workspace/`(Git 제외 개인 작업)로 나눈다. GUI 예제 목록에서 base를 선택하고 `베이스 → 내 작업 폴더 복사`를 누르면 시나리오와 새 캠페인 YAML을 준비한다. 이 묶음은 오프라인 검사 완료 상태이며 live 주행·배우 동작은 첫 기준선부터 확인한다.
@@ -24,7 +26,17 @@ GUI는 마지막으로 열거나 저장한 YAML의 경로를 `~/.config/ajounice
 
 현재 설정 형식은 `schema_version: 2`다. 장면별 `.case.yaml`은 제거했고 읽지 않는다. GUI는 보조 YAML이나 필수 항목이 없는 파일을 거절하며 기존 입력을 유지한다. 이전 v1 YAML은 GUI에서 열어 확인할 수 있지만 저장 시 v2로 전환한다. 이전 방식으로 이미 실행한 캠페인은 새 이름으로 저장한다. 과거 결과는 삭제하지 않으며 새 실행 계약과 섞어서 resume하지 않는다. 새 v2 캠페인의 중단/resume은 그대로 지원한다.
 
-GUI는 기존 `./planning_validator`만 호출한다. 실행 중 완료 장면의 PASS/FAIL/ERROR와 현재 단계, 주행 시간·목적지 거리·속도·충돌 횟수를 실시간으로 표시한다. `split` 영상 설정으로 실행하면 설정·결과 표는 접고 GUI를 화면 하단의 얇은 모니터 바로 자동 전환한다. `전체 설정 보기`로 언제든 펼칠 수 있지만 펼친 창도 영상에 찍힌다. 실패 장면을 더블클릭하면 근거 수치와 조사 우선 단계를 볼 수 있다. 별도 대시보드는 필수가 아니다. `중단`은 결과를 보존하고 다음 실행에서 resume한다. 기본 resume는 완료된 PASS/FAIL을 건너뛴다. 같은 설정으로 실패 장면을 다시 돌리려면 `기존 FAIL도 다시 실행`을 체크한다. **실행기의 종료 코드 0은 전체 시나리오 PASS를 의미하지 않는다**. GUI의 성공/주행 실패/시스템 오류 건수와 `summary.csv`를 확인한다. GUI의 `중단` 버튼이나 **GUI를 실행한 터미널에서 Ctrl+C**로 안전 중단할 수 있다. 영상에는 전면의 다른 앱이 찍힐 수 있으므로 녹화 중 데스크톱 조작을 피한다. `설정 검사`가 통과해도 MORAI 연결·BEVFusion checkpoint·주행 성공까지 보증하지는 않는다. GUI가 필요 없는 서버/터미널에서는 아래 CLI를 그대로 사용한다.
+GUI의 단일 실행은 기존 `./planning_validator`를 호출하고, 배치는 같은 실행기를 YAML별로 순서대로 호출한다. 실행 중 완료 장면의 PASS/FAIL/ERROR와 현재 단계, 주행 시간·목적지 거리·속도·충돌 횟수를 실시간으로 표시한다. `split` 영상 설정으로 실행하면 GUI를 하단 모니터 바로 전환하며 `전체 설정 보기`로 펼칠 수 있다. 실패 장면을 더블클릭하면 근거 수치와 조사 우선 단계를 볼 수 있다. `중단`은 결과를 보존하고 다음 실행에서 resume한다. 단일 실행의 `기존 FAIL도 다시 실행` 체크는 배치에는 적용하지 않는다. **종료 코드 0은 모든 장면 PASS를 의미하지 않는다.** GUI와 `summary.csv`의 성공/주행 실패/시스템 오류를 확인한다. GUI 버튼이나 실행 터미널 Ctrl+C로 안전 중단하며 마감이 끝날 때까지 기다린다. 영상은 전체 화면이므로 다른 앱으로 가리거나 화면을 잠그지 않는다.
+
+`고급 / 네트워크`의 `환경 검사`는 ROS 메시지·현재 맵·녹화 도구·디스크·선택 Docker/E25/Python을 읽기 위주로 확인한다. `실제 GPU 검사`는 명시적으로 컨테이너 CUDA 연산·선택된 신호등 모델 검사를 추가하고, `ROS 수신 검사`는 이미 수신 중인 graph에서 관측한다. 기본 검사 통과는 MORAI Connect나 주행 성공 보장이 아니다. `install.sh --check`는 Network를 생성하지 않는 도구 검사다.
+
+## 여러 YAML 배치
+
+개인 YAML을 먼저 저장한 뒤 `실행 목록 / 배치`에서 추가·제거·↑/↓ 정렬 → `전체 검사` → `배치 실행 / 재개`를 사용한다. 배치 안에서 목적지·스택은 달라도 되지만 Sensor/Ego Network 및 ScenarioLoad 대상은 같아야 한다. 같은 YAML·결과 폴더의 중복과 같은 ROS master의 중복 validator 실행을 거절한다. 목록은 `~/.config/ajounice/planning_scenario_validator/batch.json`에 자동 저장하며 Git에 포함되지 않는다.
+
+주행 FAIL은 다음 YAML을 진행하고 시스템 오류는 멈춘다. B 실행 중 중단한 A/B/C 목록을 재개하면 완료된 A와 완료된 장면은 건너뛴다. 실행 후에는 목록과 입력을 변경하지 않는다. `목록 초기화`는 결과를 지우지 않으며 이전 결과의 `queue.json`을 `이전 목록 열기`로 복원한다. 같은 조건을 처음부터 시험하려면 `새 실행으로 복사`로 새 이름의 YAML을 만든다. 모니터에는 배치 i/n과 현재 장면 진행이 표시된다.
+
+배치 결과는 `planner_logs/validation_batches/<id>/{state.json,queue.json,summary.csv}`다. GUI의 `배치 CSV`·`배치 결과 폴더`로 연다. CSV는 UTF-8 BOM이며 스프레드시트 가져오기를 지원한다. 각 캠페인의 bag·MP4·JSON은 기존 `planner_logs/validation/<campaign_name>/`에 남는다. 캠페인별 Drive 공유는 기존 옵션을 유지하며, 배치 CSV 자체는 자동 업로드하지 않는다.
 
 `split`은 영상 자체를 자르는 기능이 아니다. `recording.video.window_layout: split`이면 시나리오마다 Dock·Panel을 제외한 X11 작업 영역에 RViz를 왼쪽 위, GUI 모니터 바를 왼쪽 아래, MORAI를 오른쪽 **전체 높이**로 배치한 뒤 X11 화면 **전체**를 녹화한다. `bottom_bar_px: auto`는 작업 영역 높이의 약 17%(170~275 px)를 왼쪽 RViz 아래에 남긴다. PC에 맞춰 고정 높이 `180`(100~400 px 입력)이나 비율 `"18%"`(10~30%)로 바꿀 수 있다. GUI 내용이 잘리지 않도록 실제 예약 높이는 최소 140 px로 제한한다. GUI와 RViz는 같은 설정값을 사용하며, GUI 창은 테두리를 포함한 실제 바깥 크기로 배치를 시도한다. MORAI 창을 못 찾거나 창이 크기 조절을 거부하면 경고만 기록하고 녹화·주행은 계속하므로 직접 배치하면 된다. 기존 예제의 `window_layout: manual`(기본값)과 `focus_planviz: true`는 기존 RViz 최대화 방식 그대로다. GUI 없이 CLI로 split을 실행하면 왼쪽 아래 공간은 비어 있으므로 필요에 따라 직접 창을 채운다.
 

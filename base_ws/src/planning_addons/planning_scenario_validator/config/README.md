@@ -17,6 +17,8 @@ config/
 
 **캠페인 YAML 하나 = 공통 목적지·시간·스택·녹화 조건 하나.** 시나리오 JSON 여러 개를 선택할 수 있지만, 장면별 조건을 덮어쓰는 보조 YAML은 없다. 다른 조건은 다른 캠페인 이름의 YAML로 만든다.
 
+여러 개인 YAML은 GUI `실행 목록 / 배치`에서 순서대로 실행한다. 별도의 배치 YAML을 작성할 필요는 없다. 목록과 재개 경로는 홈 설정 폴더의 `batch.json`에 자동 저장하며 결과는 `planner_logs/validation_batches/`에 보관한다. 목록 초기화는 기존 YAML·녹화 결과를 지우지 않는다.
+
 `base/manifest.json`은 제작 의도와 조건 설명이며 실행 설정이 아니다. 시나리오 폴더에는 실행할 MORAI JSON만 넣는다. 생성된 Network JSON도 시나리오가 아니다.
 
 개인 `workspace/`의 YAML·JSON은 Git 제외된다. 공유할 입력은 검토 후 base/생성기에 반영한다. 녹화 결과는 별도 `planner_logs/validation/`에 저장된다.
@@ -24,6 +26,7 @@ config/
 작은 smoke·GT/BEV 비교 예제도 해당 미션의 `base/`에 모았다. `static_obstacle_*.yaml` 두 파일은 이름과 달리 음영 구간이므로 `gps_shadow/base/`에 있다. 예전 examples·generated·topic_profiles 경로를 담은 개인 YAML은 내용 수정 없이 읽기 호환한다. 기존 `users/` 개인 파일도 이동하지 않는다.
 
 - [미션별 베이스·실행 안내](missions/README.md)
+- [설치 후 짧은 사용법·배치 실행](../../../../../docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md)
 - [첫 설치부터 실행까지](../../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)
 - [시나리오·YAML 직접 제작](../../../../../docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md)
 
