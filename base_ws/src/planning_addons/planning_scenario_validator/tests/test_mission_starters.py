@@ -17,6 +17,7 @@ from planning_scenario_validator.config import load_campaign
 from planning_scenario_validator.gui import campaign_examples, default_name
 from planning_scenario_validator.runner import check_free_disk
 from planning_scenario_validator.runtime import RuntimeFailure
+from mission_starter_guides import PROFILES, render_guide
 
 
 class StarterTests(unittest.TestCase):
@@ -28,6 +29,34 @@ class StarterTests(unittest.TestCase):
     def test_checked_in_files_match_generator(self):
         for path, content in self.expected.items():
             self.assertEqual(path.read_text(encoding="utf-8"), content, str(path))
+
+    def test_guides_cover_every_mission_and_actual_anchor(self):
+        for family in PROFILES:
+            folder = OUTPUT / family / 'base'
+            guide = (folder / 'README.md').read_text(encoding='utf-8')
+            config = yaml.safe_load((folder / 'example.yaml').read_text())
+            scene = read(sorted((folder / 'scenarios').glob('*.json'))[0])
+            initial = scene['egoVehicle']['initPosition']
+            for axis in ('x', 'y', 'z'):
+                self.assertIn(f"{axis}={initial['pos'][axis]:.6f}", guide)
+                self.assertIn(f"{axis}={config['default_case']['goal'][axis]:.6f}", guide)
+            self.assertIn(initial['initLink'], guide)
+            self.assertIn('전체 live 주행은 미검증', guide)
+            self.assertIn('담당 AI에게 복붙', guide)
+            self.assertIn(f'config/missions/{family}/workspace/', guide)
+            for neighbor in ('example.yaml', 'manifest.json', 'scenarios/'):
+                self.assertTrue((folder / neighbor).exists())
+                self.assertIn(f']({neighbor})', guide)
+            for source in PROFILES[family]['sources']:
+                self.assertTrue((PACKAGE.parents[3] / source).exists(), source)
+
+    def test_guide_refuses_to_hide_different_start_positions(self):
+        import copy
+        first = read(OUTPUT / 'highway/base/scenarios/high_baseline_00.json')
+        second = copy.deepcopy(first)
+        second['egoVehicle']['initPosition']['pos']['x'] += 1
+        with self.assertRaisesRegex(ValueError, '시작점이 달라졌습니다'):
+            render_guide('highway', [('a', first), ('b', second)], {}, None, PACKAGE.parents[3], PACKAGE)
 
     def test_all_campaigns_load_and_keep_low_volume_recording(self):
         for family in OUTPUT.iterdir():

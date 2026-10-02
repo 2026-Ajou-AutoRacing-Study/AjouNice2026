@@ -61,6 +61,7 @@ class GuiConfigTests(unittest.TestCase):
         example = copy.deepcopy(self.example)
         example['output_root'] = str(root / 'results')
         (base / 'example.yaml').write_text(yaml.safe_dump(example))
+        (base / 'README.md').write_text('base guide')
         (base / 'scenarios/a.json').write_text('{"base": true}')
         (base / 'scenarios/a.case.yaml').write_text('timeout_sec: 45\n')
         with patch.object(gui_module, 'MISSIONS', missions), patch.object(gui_module, 'ROOT', root):
@@ -70,6 +71,9 @@ class GuiConfigTests(unittest.TestCase):
             self.assertEqual(document['scenarios']['directory'], 'missions/highway/workspace/scenarios')
             self.assertFalse((first.parent / 'scenarios/a.case.yaml').exists())
             self.assertTrue(gui_module.is_personal(first))
+            notes = first.parent / 'README.md'
+            self.assertIn('../base/README.md', notes.read_text())
+            notes.write_text('내 실험 메모', encoding='utf-8')
             self.assertEqual(gui_module.personal_path({'campaign_name': 'new_name'}, source=first),
                              first.parent / 'new_name.yaml')
             changed = first.parent / 'scenarios/a.json'
@@ -77,6 +81,7 @@ class GuiConfigTests(unittest.TestCase):
             second = gui_module.copy_base_to_workspace(first)
             self.assertNotEqual(first, second)
             self.assertEqual(changed.read_text(), '{"my_edit": true}')
+            self.assertEqual(notes.read_text(encoding='utf-8'), '내 실험 메모')
             with self.assertRaisesRegex(ValueError, '공유 base'):
                 save_personal(example, base / 'example.yaml')
     def test_old_campaign_roundtrip_keeps_resume_hash_compatible(self):

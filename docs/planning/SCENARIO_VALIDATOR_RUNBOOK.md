@@ -21,6 +21,7 @@ bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --gui
 ## 2. 내 YAML 준비하기
 
 1. 예제 목록에서 `missions/<담당 미션>/base/example.yaml`을 선택합니다.
+   같은 폴더의 `README.md`에 기본 시작점·목적지와 미션별 배치 의도·확장 방법이 있습니다. 처음에는 좌표를 그대로 사용합니다.
 2. `베이스 → 내 작업 폴더 복사`를 누릅니다. 같은 미션의 `workspace/`에 개인 YAML과 시나리오 사본이 생깁니다.
 3. 첫 시험은 파일 패턴을 `*_baseline_*.json`으로 두고 두 장면만 실행합니다. 새 배우가 실제로 움직이는지도 확인합니다.
 4. 이름·공통 목적지·시간·측위·탐지기를 확인하고 `개인 YAML 저장`을 누릅니다. 기본은 basic 토픽, 원시 LiDAR·카메라 녹화 제외, 영상 켜짐입니다. 센서 제외는 **녹화만** 바꾸며 BEVFusion 입력을 끄지 않습니다.

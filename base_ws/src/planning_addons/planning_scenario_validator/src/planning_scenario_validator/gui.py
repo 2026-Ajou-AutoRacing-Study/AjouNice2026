@@ -271,6 +271,25 @@ def copy_base_to_workspace(source):
                     raise
         except FileExistsError:
             pass
+    if (base / "README.md").is_file():
+        # Keep links valid in workspace and preserve the user's own notes.
+        note = workspace / "README.md"
+        note.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with note.open("x", encoding="utf-8") as stream:
+                try:
+                    stream.write(
+                        "# 내 미션 작업 폴더\n\n"
+                        "시작점·목적지·배치 의도·확장 예시·담당 AI 프롬프트는 "
+                        "[공유 미션 안내](../base/README.md)를 먼저 보세요.\n\n"
+                        "이 폴더의 YAML·JSON·메모는 Git 제외입니다. 개인 시나리오를 수정한 내용은 "
+                        "공유 안내나 manifest에 자동 반영되지 않습니다. 변경 조건과 배우 실기 확인 여부를 "
+                        "여기에 메모해 두세요. GUI 복사를 다시 해도 기존 파일과 메모는 덮어쓰지 않습니다.\n")
+                except OSError:
+                    note.unlink(missing_ok=True)
+                    raise
+        except FileExistsError:
+            pass
     document = load_document(base / "example.yaml")
     name = default_name(base / "example.yaml")
     initial = name

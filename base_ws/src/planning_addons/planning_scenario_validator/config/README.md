@@ -5,7 +5,7 @@
 ```text
 config/
 ├─ missions/<미션>/
-│  ├─ base/                 # Git 공유: example.yaml, manifest.json, scenarios/*.json
+│  ├─ base/                 # Git 공유: README.md, example.yaml, manifest.json, scenarios/*.json
 │  └─ workspace/            # 개인 YAML·JSON: .gitignore만 공유
 ├─ internal/
 │  ├─ generated/            # 설치기가 생성하는 validator 전용 Ego Network
@@ -20,6 +20,8 @@ config/
 여러 개인 YAML은 GUI `실행 목록 / 배치`에서 순서대로 실행한다. 별도의 배치 YAML을 작성할 필요는 없다. 목록과 재개 경로는 홈 설정 폴더의 `batch.json`에 자동 저장하며 결과는 `planner_logs/validation_batches/`에 보관한다. 목록 초기화는 기존 YAML·녹화 결과를 지우지 않는다.
 
 `base/manifest.json`은 제작 의도와 조건 설명이며 실행 설정이 아니다. 시나리오 폴더에는 실행할 MORAI JSON만 넣는다. 생성된 Network JSON도 시나리오가 아니다.
+
+자기 미션 `base/README.md`에는 실제 시작점·목적지, 배치 근거, 조건을 바꿔 볼 순서와 담당 AI 프롬프트가 있다. 처음에는 좌표를 유지하고 객체 조건부터 바꾸면 된다. GUI 복사 시 workspace README에 공유 안내 링크도 만들며, 개인 메모는 덮어쓰지 않는다.
 
 개인 `workspace/`의 YAML·JSON은 Git 제외된다. 공유할 입력은 검토 후 base/생성기에 반영한다. 녹화 결과는 별도 `planner_logs/validation/`에 저장된다.
 

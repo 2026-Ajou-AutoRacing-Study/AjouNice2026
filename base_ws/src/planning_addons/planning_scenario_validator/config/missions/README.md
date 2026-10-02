@@ -21,6 +21,7 @@
 ```text
 config/missions/highway/
 ├─ base/                 # 공유 베이스: Git 추적, GUI에서 덮어쓰지 않음
+│  ├─ README.md          # 시작점·목적지·설계 의도·확장 방법·AI 프롬프트
 │  ├─ example.yaml
 │  ├─ manifest.json
 │  └─ scenarios/         # 실행할 MORAI JSON만
@@ -31,10 +32,22 @@ config/missions/highway/
    └─ scenarios/         # 베이스 복사 버튼으로 준비 후 자유롭게 수정
 ```
 
-`base/`는 `example.yaml`, `manifest.json`, `scenarios/*.json`으로 구성한다.
+`base/`는 `README.md`, `example.yaml`, `manifest.json`, `scenarios/*.json`으로 구성한다.
 각각 baseline 2개 → 일반 변형 14개 → stress 8개 순서다. 이름은 검증 분류이며 성공 보장이 아니다.
 Manifest는 실행용 시나리오가 아니므로 `base/scenarios/` 밖에 둔다.
 공유 YAML·JSON·manifest는 Git에 추적한다. 개인 YAML과 녹화 결과는 Git에서 제외한다.
+
+## 담당 미션부터 읽기
+
+설치 후에는 자기 미션의 아래 안내만 먼저 읽으면 된다. 실제 JSON/YAML에서 가져온 시작점·목적지, 배치 근거, 변경할 조건, 실제 확인할 배우 동작, 담당 AI에게 복붙할 프롬프트가 있다. 좌표는 기본을 유지하고 객체 조건부터 바꾼다. 미검증 좌표 후보를 정상 주행 가능 지점처럼 제공하지 않는다.
+
+- [회전교차로](roundabout/base/README.md)
+- [고속주행도로](highway/base/README.md)
+- [일반 정적 장애물](static_obstacle/base/README.md)
+- [GPS 음영 정적 장애물](gps_shadow/base/README.md)
+- [사거리 동적 장애물](dynamic_obstacle/base/README.md)
+
+GUI 베이스 복사는 workspace에 공유 미션 안내로 연결하는 README도 만든다. 기존 개인 README·JSON은 덮어쓰지 않는다. 공유 안내는 원본 베이스 설명이므로 개인 변경 조건·실기 확인 여부는 workspace README에 별도로 기록한다. 생성기는 README 좌표도 함께 재현 검사한다. 새 AGENTS 지침이나 planning/control의 동작 변경은 아니다.
 
 ## 가장 쉬운 실행
 

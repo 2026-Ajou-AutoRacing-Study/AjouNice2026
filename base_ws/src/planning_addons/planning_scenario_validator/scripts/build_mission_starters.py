@@ -10,6 +10,7 @@ from pathlib import Path
 import yaml
 
 from build_static_corridor_cases import _prepared_official_scene, _vector, OFFICIAL_GOAL
+from mission_starter_guides import render_guide
 
 ROOT = Path(__file__).resolve().parents[5]
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -319,6 +320,7 @@ def build(output=OUTPUT):
                   "# 센서는 계속 켜고, bag에서만 LiDAR/카메라를 제외합니다.\n"
                   "# GT 대조는 GUI 탐지기를 od_gt로 바꾸고 새 캠페인으로 저장하세요.\n")
         expected[folder / "example.yaml"] = header + yaml.safe_dump(campaign, allow_unicode=True, sort_keys=False)
+        expected[folder / "README.md"] = render_guide(family, rows, campaign, geom, ROOT, PACKAGE)
         expected[folder / "manifest.json"] = json.dumps({"schema_version": 1, "mission": family,
             "source_sample_sha256": digest(SAMPLE), "live_verified": False,
             "geometry_sha256": {str(p.relative_to(ROOT)): digest(p) for p in (

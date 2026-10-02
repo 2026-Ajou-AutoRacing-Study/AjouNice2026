@@ -6,6 +6,14 @@
 
 ## 현재 구현
 
+### 미션별 팀원 설계 안내 (2026-10-03)
+
+다섯 미션의 `config/missions/<미션>/base/README.md`를 YAML 옆에 제공한다. 설계 목적·기본 시작점(MORAI와 map 참고 좌표)·공통 목적지·도로 anchor·제한시간·배치 출처·조건별 확장 순서·배우 확인 항목·미션별 AI 프롬프트를 담았다. 기본 좌표를 유지할 상황과 새 YAML이 필요한 상황을 구분한다. 추가 좌표를 임의로 만들지 않으며 정적 미션의 긴 목적지는 기존 pair YAML의 값을 출처·검증 범위와 함께 참고 후보로만 제공한다.
+
+`mission_starter_guides.py`는 기존 생성기의 실제 JSON/YAML에서 좌표를 렌더링한다. 같은 미션의 시작점이 달라지면 단일 좌표 안내로 숨기지 않고 생성 검사를 실패시킨다. 새 안내는 AGENTS 지침이 아니며 planning/control/localization 파라미터나 시나리오 JSON·실행 YAML을 변경하지 않았다. 기존 130개 입력에 README 5개만 더해 135개 파일/120개 JSON 재현 검사를 통과했다.
+
+GUI `베이스 → 내 작업 폴더 복사`는 workspace README에 `../base/README.md` 링크를 생성한다. 공유 manifest와 개인 수정 상태를 혼동하지 않도록 안내하고 기존 개인 README·JSON을 덮어쓰지 않는다. Xvfb 포함 전체 124개 테스트에서 문서 좌표·출처 파일·상대 링크·시작점 변경 차단과 개인 메모 보존을 확인했다. 이번 작업은 문서·복사 인터페이스 검증이며 새 120개 미션의 live 주행을 추가 검증한 것은 아니다. 최초 baseline과 새 배우 한두 장면의 실기 확인은 팀원 단계로 남는다.
+
 ### 여러 YAML 순차 배치·설치 점검 (2026-10-03)
 
 후속 선택형 설치: `install.sh --bevfusion` → stdlib-only `bootstrap.py`로 Ubuntu 20.04 amd64의 Docker/Compose/Container Toolkit·rclone/zstd·GUI/녹화 도구를 준비하고, 공유 Drive의 고정 공용 이미지/E25 압축을 검증·등록한다. 이미지 압축은 SHA256 검사 후 `zstd -dc | docker load` 방식으로 큰 tar 사본을 만들지 않는다. E25 압축도 SHA256을 검사하며 regular checkpoint 한 개만 읽어 별도 SHA256을 검증·exclusive 설치한다. 임의 archive 경로나 symlink는 extract하지 않는다. 기본 경로·수동 대안은 팀원 가이드 5-0에 있다.

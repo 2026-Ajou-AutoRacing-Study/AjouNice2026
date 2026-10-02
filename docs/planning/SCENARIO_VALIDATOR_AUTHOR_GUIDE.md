@@ -35,6 +35,7 @@ cd ~/AjouNice2026
 config/missions/highway/
 ├─ base/                         # 팀 공유 원본. 직접 수정하지 않기
 │  ├─ example.yaml
+│  ├─ README.md                  # 시작/끝점·설계 의도·확장 예시·미션 AI 프롬프트
 │  ├─ manifest.json
 │  └─ scenarios/*.json
 └─ workspace/                    # 내 PC 작업. Git 제외
@@ -68,6 +69,7 @@ YAML은 같은 JSON 폴더를 공유해도 됩니다. 예를 들어 GT 대조는
 ### AI로 만들 때도 지킬 것
 
 - 해당 미션 `base/manifest.json`과 기존 JSON을 먼저 읽히세요. 좌표·spawn 링크·DataID를 추측해서 만들지 않도록 합니다.
+- 같은 폴더의 `base/README.md`도 읽히세요. 기본 시작점·목적지와 유지/변경 기준, 미션별 추가 실험 순서가 있습니다. GUI 복사 시 workspace README에 공유 안내 링크를 만들며 기존 개인 메모는 보존합니다.
 - Ego 시작점은 도로 위, 진행 방향과 일치하도록 둡니다. 목적지까지 연결되는지 먼저 봅니다.
 - 한 장면 안 객체 unique ID가 중복되지 않게 합니다. 지원 객체는 기존 예제나 `dataset/morai_od/configs/morai_asset_catalog_260807.json`을 참고합니다.
 - 정적 장애물은 실제 정적 미션 구간에서 좌우 위치·종류·개수를 바꿉니다. 음영 구간은 정적 장애물과 정지 차량 중심입니다.
@@ -165,7 +167,8 @@ PASS는 현재 충돌·목적지·시간 기준을 통과했다는 뜻입니다.
 ```text
 planning_scenario_validator로 검증할 개인 시나리오와 캠페인 YAML을 만들어 줘.
 먼저 docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md,
-패키지 config/missions/README.md, 담당 미션 base/example.yaml과 manifest.json을 읽어 줘.
+패키지 config/missions/README.md, 담당 미션 base/README.md,
+base/example.yaml과 manifest.json을 읽어 줘.
 
 공유 base는 수정하지 말고 해당 미션 workspace 아래에 작성해 줘.
 YAML 하나는 공통 목적지·경유점·제한시간·스택 조건 하나야.
