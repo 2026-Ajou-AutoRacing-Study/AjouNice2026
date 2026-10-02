@@ -52,6 +52,37 @@ class GuiConfigTests(unittest.TestCase):
         gui_module.remember_yaml(path)
         self.assertIsNone(gui_module.remembered_yaml())
 
+    def test_personal_folder_opens_workspace_without_changing_files(self):
+        root = Path(os.environ["XDG_CONFIG_HOME"])
+        missions, users = root / "missions", root / "users"
+        base = missions / "highway/base/example.yaml"
+        workspace = missions / "highway/workspace"
+        personal = workspace / "test.yaml"
+        personal.parent.mkdir(parents=True)
+        personal.write_text("keep my edits")
+        with patch.object(gui_module, "MISSIONS", missions), \
+             patch.object(gui_module, "USERS", users), \
+             patch.object(gui_module.subprocess, "Popen") as popen:
+            self.assertEqual(gui_module.open_personal_folder(base), workspace)
+            self.assertEqual(popen.call_args.args[0], ["xdg-open", str(workspace)])
+            self.assertEqual(gui_module.personal_directory(personal), workspace)
+            self.assertEqual(gui_module.personal_directory(workspace / "nested/test.yaml"), workspace / "nested")
+            old = users / "yj/config.yaml"
+            self.assertEqual(gui_module.personal_directory(old), old.parent)
+            record = root / "results/run/config_snapshot.yaml"
+            self.assertTrue(is_within(gui_module.personal_directory(record), users))
+            self.assertEqual(personal.read_text(), "keep my edits")
+
+    def test_personal_folder_rejects_workspace_symlink_to_shared_files(self):
+        root = Path(os.environ["XDG_CONFIG_HOME"])
+        missions = root / "missions"
+        base = missions / "highway/base"
+        base.mkdir(parents=True)
+        (base.parent / "workspace").symlink_to(base, target_is_directory=True)
+        with patch.object(gui_module, "MISSIONS", missions):
+            with self.assertRaisesRegex(ValueError, "개인 작업 폴더"):
+                gui_module.personal_directory(base / "example.yaml")
+
     def test_mission_workspace_copy_preserves_edits_and_saves_named_campaigns(self):
         root = Path(os.environ['XDG_CONFIG_HOME'])
         missions = root / 'missions'
@@ -206,6 +237,40 @@ class GuiWindowTests(unittest.TestCase):
         config_patch = patch.dict(os.environ, {"XDG_CONFIG_HOME": directory.name})
         config_patch.start()
         self.addCleanup(config_patch.stop)
+
+    def test_work_folder_button_and_running_guard(self):
+        from tkinter import ttk
+        with tempfile.TemporaryDirectory() as temp:
+            users = Path(temp) / "users"
+            personal = users / "yj/config.yaml"
+            personal.parent.mkdir(parents=True)
+            personal.write_text(yaml.safe_dump(load_document(EXAMPLES / "static_pair_stress_gt.yaml")))
+
+            def ready(app):
+                try:
+                    app["actions"]["open_yaml"](personal)
+                    top = next(widget for widget in app["root"].winfo_children()[0].winfo_children()
+                               if isinstance(widget, ttk.LabelFrame)
+                               and widget.cget("text").startswith("설정 파일"))
+                    button = next(widget for widget in top.winfo_children()
+                                  if isinstance(widget, ttk.Button) and widget.cget("text") == "내 작업 폴더 열기")
+                    with patch.object(gui_module.subprocess, "Popen") as popen, \
+                         patch("tkinter.messagebox.showerror") as error:
+                        button.invoke()
+                        self.assertEqual(popen.call_args.args[0], ["xdg-open", str(personal.parent)])
+                        for key in ("process", "check_process"):
+                            app["active"][key] = SimpleNamespace(poll=lambda: None)
+                            button.invoke()
+                            app["active"][key] = None
+                        self.assertEqual(popen.call_count, 1)
+                        self.assertEqual(error.call_count, 2)
+                        self.assertIn("실행/검사 중", error.call_args.args[1])
+                finally:
+                    app["active"]["process"] = app["active"]["check_process"] = None
+                    app["root"].destroy()
+
+            with patch.object(gui_module, "USERS", users):
+                gui_module.main(on_ready=ready)
 
     def test_traffic_environment_is_only_in_its_tab_and_keeps_yaml_bindings(self):
         from tkinter import ttk

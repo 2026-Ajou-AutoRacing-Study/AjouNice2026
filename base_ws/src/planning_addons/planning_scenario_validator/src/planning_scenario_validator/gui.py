@@ -237,6 +237,8 @@ def mission_directory(source):
 
 def is_personal(path):
     mission = mission_directory(path)
+    if mission and is_within(path, mission / "base"):
+        return False  # A workspace symlink must not make shared base editable.
     return is_within(path, USERS) or bool(mission and is_within(path, mission / "workspace"))
 
 
@@ -246,6 +248,24 @@ def personal_path(document, user=None, source=None):
         return mission / "workspace" / (document["campaign_name"] + ".yaml")
     username = re.sub(r"[^a-zA-Z0-9_-]", "_", user or getpass.getuser())
     return USERS / username / (document["campaign_name"] + ".yaml")
+
+
+def personal_directory(source=None):
+    """Open only authoring workspaces, never shared base or execution records."""
+    if source is not None and is_personal(source):
+        return resolve_path(source).parent
+    directory = personal_path({"campaign_name": "unused"}, source=source).parent.resolve()
+    if not is_personal(directory / "unused.yaml"):
+        raise ValueError("개인 작업 폴더가 아닌 경로는 열 수 없습니다")
+    return directory
+
+
+def open_personal_folder(source=None):
+    directory = personal_directory(source)
+    directory.mkdir(parents=True, exist_ok=True)
+    subprocess.Popen(["xdg-open", str(directory)],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return directory
 
 
 def copy_base_to_workspace(source):
@@ -483,17 +503,28 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     source_box.bind("<<ComboboxSelected>>", select_source)
 
     def choose_personal():
-        mission = mission_directory(active.get("source_path"))
-        directory = mission / "workspace" if mission else USERS
-        path = filedialog.askopenfilename(initialdir=str(directory), filetypes=[("YAML", "*.yaml *.yml")])
-        if path:
-            try:
+        try:
+            directory = personal_directory(active.get("source_path"))
+            path = filedialog.askopenfilename(initialdir=str(directory), filetypes=[("YAML", "*.yaml *.yml")])
+            if path:
                 read_source(path)
-            except Exception as error:
-                messagebox.showerror("설정 로드 실패", str(error))
+        except Exception as error:
+            messagebox.showerror("설정 로드 실패", str(error))
 
     personal_button = ttk.Button(top, text="내 YAML 열기", command=choose_personal)
     personal_button.grid(row=0, column=1, padx=4)
+
+    def browse_personal_folder():
+        try:
+            if any(active.get(key) and active[key].poll() is None for key in ("process", "check_process")):
+                raise ValueError("실행/검사 중에는 입력 파일을 정리하지 마세요. 중단·정리가 끝난 뒤 작업 폴더를 여세요")
+            directory = open_personal_folder(active.get("source_path"))
+            status.set("내 작업 폴더: {} — 파일 탐색기에서 삭제·이름 변경 가능. 현재 열린 YAML을 삭제했다면 다른 YAML을 열어 주세요.".format(directory))
+        except Exception as error:
+            messagebox.showerror("작업 폴더 열기 실패", str(error))
+
+    folder_button = ttk.Button(top, text="내 작업 폴더 열기", command=browse_personal_folder)
+    folder_button.grid(row=0, column=2, padx=4)
 
     def copy_workspace():
         try:
@@ -980,7 +1011,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
                           ("전체 검사", check_batch), ("새 배치 시작", lambda: start_batch(new=True)), ("배치 재개", start_batch),
                           ("새 배치 준비", clone_batch),
                           ("배치 결과 폴더", open_batch_result), ("배치 CSV", lambda: open_batch_result(csv=True)),
-                          ("짧은 사용법", lambda: open_local_result(ROOT / "docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md")),
+                          ("짧은 사용법", lambda: open_local_result(ROOT / "docs/planning/SCENARIO_VALIDATOR_WORKFLOW.md")),
                           ("첫 설치 안내", lambda: open_local_result(ROOT / "docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md")))):
         button = ttk.Button(batch_bar, text=label, command=action)
         button.grid(row=index // 5, column=index % 5, padx=3, pady=3, sticky="ew")
@@ -1418,6 +1449,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             "save": save, "check": check, "start": start, "stop": stop,
             "environment_check": check_environment,
             "copy_workspace": copy_workspace, "open_yaml": read_source,
+            "open_personal_folder": browse_personal_folder,
             'refresh_history': refresh_history, 'select_execution': select_execution,
             'resume_execution': lambda directory: start(execution=directory),
             "batch_edit": edit_batch, "batch_check": check_batch, "batch_start": start_batch,

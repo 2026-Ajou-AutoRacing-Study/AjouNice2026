@@ -1,6 +1,8 @@
 # 회전교차로 — 시나리오 만들 때 옆에 두는 안내
 
-처음에는 [example.yaml](example.yaml)을 GUI에서 열고 **베이스 → 내 작업 폴더 복사**를 누르세요. 시작점·목적지는 그대로 쓰고 객체 조건부터 바꾸면 됩니다. 공통 설치/실행법은 저장소의 `docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md`, 제작 규칙은 `docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md`를 봅니다. 아래 파일 경로는 모두 저장소 루트 기준입니다.
+**[example.yaml](example.yaml)은 공유 원본이므로 바로 실행하지 마세요. GUI에서 선택한 뒤 반드시 `베이스 → 내 작업 폴더 복사`를 누르고, 열린 YAML 경로가 이 미션의 `workspace/`인지 확인하세요.** 이후 설정·실행·배치 추가는 개인 복사본을 사용합니다. `workspace/`의 개인 파일은 Git 제외지만 `base/`의 example 및 공유 비교 예제 YAML은 추적됩니다.
+
+시작점·목적지는 그대로 쓰고 객체 조건부터 바꾸면 됩니다. 공통 설치/실행법은 저장소의 `docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md`, 제작 규칙은 `docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md`를 봅니다. 아래 파일 경로는 모두 저장소 루트 기준입니다.
 
 ## 1. 무엇을 확인하려고 만들었나
 
@@ -71,7 +73,7 @@ NPC가 실제 순환 경로로 들어오는지, Ego가 gap을 보고 진입하�
 
 현재 자동 PASS/FAIL은 충돌·목적지·시간 조건 중심입니다. 양보·차선 침범·규정 속도·배우가 실제로 만났는지는 전부 자동 판정하지 않습니다. 도착했다고 미션 전체가 올바른 것은 아니며, timeout이라고 모두 판단 버그인 것도 아닙니다. `summary.csv`와 해당 run JSON/이벤트/영상에서 관측 근거를 함께 봅니다. 분석기의 원인 설명도 확정 원인이 아니라 근거에 기반한 후보로 확인하세요.
 
-개인 파일은 workspace에서 Git 제외됩니다. 녹화는 `planner_logs/validation/<campaign_name>/`에 남습니다. GUI 복사 버튼이 만드는 workspace README는 이 원본 안내로 연결하는 참고 문서이며 개인 JSON 수정 내용을 자동 추적하지 않습니다.
+개인 파일은 workspace에서 Git 제외됩니다. 녹화는 `planner_logs/validation/<실험 이름>_<YYMMDD_HHMMSS>/`에 남습니다. GUI 복사 버튼이 만드는 workspace README는 이 원본 안내로 연결하는 참고 문서이며 개인 JSON 수정 내용을 자동 추적하지 않습니다.
 
 ## 6. 담당 AI에게 복붙
 

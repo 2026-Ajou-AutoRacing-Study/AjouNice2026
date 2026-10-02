@@ -55,16 +55,18 @@ GUI 베이스 복사는 workspace에 공유 미션 안내로 연결하는 README
 
 ## 가장 쉬운 실행
 
+**팀원은 `base/example.yaml`을 바로 실행하지 않는다. GUI에서 선택 → `베이스 → 내 작업 폴더 복사` → 열린 YAML 경로가 `workspace/`인지 확인 → 개인 복사본 실행 순서로 사용한다.** 배치 목록에도 개인 복사본을 넣는다. `base/`에는 example뿐 아니라 Git으로 공유하는 비교 예제 YAML도 있으므로 개인 파일은 반드시 `workspace/`에 만든다.
+
 1. 저장소 루트에서 패키지 `install.sh`를 실행하고, MORAI에 validator 전용 Ego Network와 `Sensor_competition_local.json`을 Load·Connect한다. 카메라와 LiDAR는 **실제로 켜둔다**.
 2. `./planning_validator_gui`를 열고 예제 선택 목록의 `missions/<미션>/base/example.yaml`을 고른 뒤 **베이스 → 내 작업 폴더 복사** 버튼을 누른다. 시나리오 JSON을 workspace로 복사하고 timestamp 없는 `<미션>_starter.yaml`을 만들어 바로 연다. 이미 있으면 기존 개인 YAML을 열며 사용자 수정값을 덮어쓰지 않는다.
-3. 처음에는 파일 패턴을 `*_baseline_*.json`으로 바꿔 두 기준선을 실행한다. 실제 배우 위치/움직임·목적지·센서 주기가 맞는지 본다. 복사 없이 바로 저장/실행하면 workspace에 YAML만 만들고 공유 base 시나리오를 참조한다. 시나리오를 수정하려면 복사 버튼부터 사용한다.
+3. 개인 복사본에서 파일 패턴을 `*_baseline_*.json`으로 바꿔 두 기준선을 실행한다. 실제 배우 위치/움직임·목적지·센서 주기가 맞는지 본다. 복사 버튼을 생략하면 개인 시나리오 사본이 준비되지 않으므로 먼저 복사한다.
 4. 확인 후 같은 개인 YAML의 패턴을 `*.json`으로 바꿔 저장·설정 검사 후 `새 실험 시작`을 누른다. 재개는 `실험 기록 / 재개`에서 별도로 선택한다. 기준선을 통과시키려고 판단 파라미터나 장애물 위치를 억지로 바꾸지 않는다.
 5. FAIL은 조사 대상이다. `summary.csv`, 해당 run JSON/이벤트/영상으로 관측 근거를 확인한다. 시스템 오류나 시나리오 배우 오작동은 planning 실패와 구별한다.
 
 기본은 localization + BEVFusion + 신호등 off, basic bag + **원시 센서 녹화 제외** + 10fps 전체 화면 split 영상이다.
 신호등 자체가 아닌 해당 미션을 격리해 보는 예제이며, 신호등 on 통합 시험을 대체하지 않는다.
 GT 대조는 GUI 탐지기를 `od_gt`로 바꿔 별도 캠페인으로 저장한다. 측위 원인 분리는 `maptf_morai`를 사용하되 대회용 측위 검증으로 오해하지 않는다.
-GUI 없이도 저장소 루트에서 `./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/missions/highway/base/example.yaml`로 공유 기준선을 실행한다. 개인 변형은 workspace의 YAML을 지정한다.
+GUI 없이 실행할 때도 먼저 GUI 복사 버튼으로 준비한 `workspace/`의 개인 YAML을 `./planning_validator`에 지정한다. CLI에서 공유 base를 직접 실행하는 기능은 유지되지만 팀원의 일반 작업 흐름으로는 권장하지 않는다.
 
 ### 여러 조건을 걸어놓을 때
 
@@ -74,7 +76,7 @@ GUI 없이도 저장소 루트에서 `./planning_validator base_ws/src/planning_
 
 ### YAML 저장 규칙
 
-- 미션 base를 열면 저장은 같은 미션 workspace에 하고, base 원본은 보호한다. workspace YAML은 미실행 상태에서는 같은 캠페인 이름으로 수정한다.
+- 미션 base를 열면 저장은 같은 미션 workspace에 하고, base 원본은 보호한다. workspace YAML은 실행 후에도 수정·재사용한다. 입력 사본 없는 이전 고정 이름 결과의 재개는 당시 원본을 유지해야 한다.
 - 같은 개인 YAML은 계속 수정·재사용한다. `새 실험 시작`은 timestamp 결과 폴더와 입력 사본을 만들고, `실험 기록 / 재개`는 당시 사본으로 이어간다. YAML 키 campaign_name은 실험 이름이며 날짜를 직접 붙일 필요 없다.
 - 현재 실행 계약은 `schema_version: 2`다. 이전 v1 YAML은 GUI에서 열어 새 캠페인으로 저장할 수 있지만, 예전 결과와 새 계약을 섞어서 resume하지 않는다. 기존 결과는 삭제하지 않는다. 남아 있는 `.case.yaml`은 실행 시 경고하고 무시하며 GUI에서 실행용 YAML로 열 수 없다.
 - ‘베이스 복사’를 다시 누르면 기존 시나리오는 유지하고 누락된 베이스 파일만 복사하며 기존 `<미션>_starter.yaml`을 연다. 기존 사용자 설정을 초기화하고 싶다면 새 시나리오 폴더를 직접 준비하고 새 YAML을 사용한다.

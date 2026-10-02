@@ -1,5 +1,7 @@
 # 시나리오 검증기 짧은 사용법
 
+설치가 끝나고 **작업하면서 볼 문서는 [딸깍 작업 순서](SCENARIO_VALIDATOR_WORKFLOW.md)**입니다. 이 문서는 연결·입력 계약·문제 해결을 조금 더 자세히 다룹니다. [자주 쓰는 버튼을 표시한 화면 5장](SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)도 참고하세요.
+
 처음 세팅하는 PC는 [설치 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 해 주세요. 여기서는 ROS 빌드·맵·Docker/E25 준비가 끝난 상태를 기준으로 설명합니다. 공유·시나리오 실행 브랜치는 `planning/autoware-universe-to-ros1`입니다. 검증기를 쓰려고 다른 개발 브랜치로 이동할 필요 없습니다.
 
 **이미 Docker·BEVFusion 이미지·E25까지 준비한 분은 재설치·재다운로드 없이 아래 1번부터 하면 됩니다.** 기존 `.env.bevfusion.local`과 가중치는 유지하고 GUI 환경 검사에서 실제 사용 경로를 확인합니다. 설치 가이드 5·6장을 다시 실행하지 마세요. 첫 실행 전에 담당 미션의 `base/README.md`를 한 번 읽어 주세요. [미션별 안내 목차](../../base_ws/src/planning_addons/planning_scenario_validator/config/missions/README.md)에서 고르면 됩니다.
@@ -26,6 +28,8 @@ bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --gui
 
 ## 2. 내 YAML 준비하기
 
+**`base/example.yaml`은 공유 원본입니다. 선택하자마자 실행하지 말고, 반드시 `베이스 → 내 작업 폴더 복사`부터 누르세요.** 복사 후 GUI에 열린 YAML 경로가 `missions/<담당 미션>/workspace/…yaml`인지 확인하고, 그 개인 복사본으로 설정·실행합니다. 배치에도 `base/example.yaml`이 아니라 `workspace/`의 YAML을 넣습니다.
+
 1. 예제 목록에서 `missions/<담당 미션>/base/example.yaml`을 선택합니다.
    **먼저 같은 폴더의 `README.md`를 읽어 주세요.** 기본 시작점·목적지와 미션별 배치 의도·확장 방법·AI 프롬프트가 있습니다. 처음에는 좌표를 그대로 사용합니다.
 2. `베이스 → 내 작업 폴더 복사`를 누릅니다. 같은 미션의 `workspace/`에 `highway_starter.yaml`처럼 timestamp 없는 개인 YAML과 시나리오 사본이 생깁니다. 다시 누르면 기존 개인 YAML을 열며 수정값을 덮어쓰지 않습니다.
@@ -36,6 +40,10 @@ bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --gui
 빠른 연결 확인은 `static_obstacle/base/static_pair_mission_gt_split.yaml` 한 장면으로 시작해도 됩니다. 위 정적 예제 생성 명령이 필요합니다. BEVFusion 준비 후 같은 개인 YAML에서 탐지기를 바꿔 저장하고 새 실험을 시작하면 같은 장면을 비교할 수 있습니다.
 
 **YAML 하나의 목적지·시간·스택은 그 YAML이 선택한 모든 장면에 적용됩니다.** 목적지가 다르면 YAML을 하나 더 만듭니다. 장면별 보조 YAML은 사용하지 않습니다. 공유 `base/`는 직접 바꾸지 않고 `workspace/`에서 작업합니다. 개인 YAML과 JSON은 Git에서 제외됩니다.
+
+Git 제외는 파일명이 아니라 **저장 위치** 기준입니다. `workspace/`의 개인 파일은 제외되지만 `base/`의 `example.yaml`과 공유 GT/BEVFusion 비교 예제 YAML은 추적됩니다. `example.yaml` 이외의 모든 YAML이 자동 제외되는 것은 아니므로 개인 파일은 반드시 `workspace/`에 두세요.
+
+**개인 YAML 삭제·이름 변경은 `내 작업 폴더 열기`로 합니다.** `내 YAML 열기`는 파일 선택창이고 파일 관리용이 아닙니다. 옆의 폴더 버튼은 현재 미션의 workspace(개인 YAML을 열었다면 그 폴더)를 파일 탐색기로 엽니다. 실행·검사 중에는 열 수 없으며 먼저 중단·정리가 끝나야 합니다. 가능하면 영구 삭제 대신 휴지통으로 옮기세요. 현재 열린 YAML을 삭제했다면 다른 YAML을 열어 주세요. GUI 편집값은 자동으로 지워지지 않아 다시 저장하면 파일이 재생성될 수 있습니다. YAML을 삭제해도 기존 실행 결과는 남습니다. 다만 이전 입력 사본 없는 기록이나 저장된 배치 목록은 원본 경로를 참조할 수 있으니 재개할 파일은 남겨두세요.
 
 ## 3. YAML 여러 개 걸어놓기
 

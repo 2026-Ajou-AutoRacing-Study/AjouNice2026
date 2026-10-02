@@ -6,11 +6,15 @@
 
 처음 쓰는 팀원은 [노션 공유용 첫 설치·실행 안내](../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 한다. Clone/브랜치 전환, ROS 빌드, 맵·공용 Docker 이미지·E25 다운로드, MORAI 연결과 GUI 실행을 한 문서에 정리했다. `install.sh --gui`는 GUI 도구 검사와 Network 생성이며 전체 설치를 대신하지 않는다.
 
-설치 후에는 [짧은 사용법](../../../../docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md)을 따른다. **YAML 하나는 공통 실행 조건 하나**, 여러 YAML은 GUI `실행 목록 / 배치`에 추가해 순서대로 실행한다. 미션별 사용자 진입점은 `config/missions/<미션>/base/`와 Git 제외 `workspace/`이며, 토픽·생성 Network는 `config/internal/`에 분리했다.
+설치 후에는 [실제 작업 순서](../../../../docs/planning/SCENARIO_VALIDATOR_WORKFLOW.md)를 따른다. [자주 쓰는 곳을 표시한 화면 5장](../../../../docs/planning/SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)과 [자세한 사용법](../../../../docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md)도 제공한다. **YAML 하나는 공통 실행 조건 하나**, 여러 YAML은 GUI `실행 목록 / 배치`에 추가해 순서대로 실행한다. 미션별 사용자 진입점은 `config/missions/<미션>/base/`와 Git 제외 `workspace/`이며, 토픽·생성 Network는 `config/internal/`에 분리했다.
 
 Ubuntu 20.04에서 Docker·Drive 이미지·E25를 한 번에 준비하려면 `bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --bevfusion`을 선택한다. 기본 `--gui`/`--check`는 계속 도구 검사이며 자동 설치하지 않는다. `--bevfusion --dry-run`은 변경 없는 계획 출력이다. 기존 Docker·가중치·.env·드라이버는 임의 교체하지 않으며 최초 본인 Google 인증·sudo·Docker 그룹 재로그인은 필요할 수 있다. ROS 빌드·맵은 별도다. 자세한 단계는 설치 가이드 5-0을 참고한다.
 
 ## GUI로 시작하기
+
+**담당 미션의 `config/missions/<미션>/base/example.yaml`을 GUI에서 선택한 뒤, 바로 실행하지 말고 `베이스 → 내 작업 폴더 복사`부터 누른다.** 열린 YAML 경로가 `workspace/`인지 확인하고 개인 복사본으로 설정·실행·배치 추가한다. `workspace/`는 Git 제외지만 `base/`의 example 및 공유 비교 예제 YAML은 추적되므로 개인 파일은 workspace에 둔다.
+
+개인 YAML 삭제·이름 변경은 `내 작업 폴더 열기`로 파일 탐색기를 열어 진행한다. 공유 base나 실행 기록이 아니라 개인 작업 폴더를 열며 실행/검사 중에는 막는다. 현재 열린 파일을 삭제하면 다른 YAML을 연다. 편집값은 자동 삭제되지 않아 다시 저장하면 파일이 재생성될 수 있다. 녹화 결과는 보존되지만 저장된 배치의 원본 경로와 예전 사본 없는 기록은 따로 확인한다.
 
 ### 설정 파일과 실행 기록
 

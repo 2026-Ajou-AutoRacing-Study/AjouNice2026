@@ -2,6 +2,8 @@
 
 팀원이 새로 시작할 때는 `missions/<미션>/base/example.yaml`을 GUI에서 연 뒤 **베이스 → 내 작업 폴더 복사**를 누르면 된다.
 
+**example.yaml을 선택한 상태에서 바로 실행하지 않는다. 반드시 복사 버튼부터 누르고, GUI에 열린 경로가 `missions/<미션>/workspace/…yaml`인지 확인한다.** 설정·실행·배치 추가는 개인 복사본을 사용한다.
+
 ```text
 config/
 ├─ missions/<미션>/
@@ -27,9 +29,13 @@ config/
 
 개인 `workspace/`의 YAML·JSON은 Git 제외된다. 공유할 입력은 검토 후 base/생성기에 반영한다. 녹화 결과는 별도 `planner_logs/validation/`에 저장된다.
 
+`example.yaml` 이외의 모든 YAML을 제외하는 규칙은 아니다. `base/`의 공유 GT/BEVFusion 비교 예제 YAML도 Git 추적 대상이다. 개인 파일은 이름과 무관하게 `workspace/`에 둔다.
+
 작은 smoke·GT/BEV 비교 예제도 해당 미션의 `base/`에 모았다. `static_obstacle_*.yaml` 두 파일은 이름과 달리 음영 구간이므로 `gps_shadow/base/`에 있다. 예전 examples·generated·topic_profiles 경로를 담은 개인 YAML은 내용 수정 없이 읽기 호환한다. 기존 `users/` 개인 파일도 이동하지 않는다.
 
 - [미션별 베이스·실행 안내](missions/README.md)
+- [설치 후 실제 작업 순서](../../../../../docs/planning/SCENARIO_VALIDATOR_WORKFLOW.md)
+- [자주 쓰는 버튼 표시 화면](../../../../../docs/planning/SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)
 - [설치 후 짧은 사용법·배치 실행](../../../../../docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md)
 - [첫 설치부터 실행까지](../../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)
 - [시나리오·YAML 직접 제작](../../../../../docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md)
