@@ -118,6 +118,7 @@ def validate_campaign_document(document, *, allow_legacy=False):
     for key in ("directory", "glob"):
         if not isinstance(document["scenarios"].get(key), str) or not document["scenarios"][key].strip():
             raise ConfigError("scenarios.{}이 비어 있습니다".format(key))
+    validate_scenario_include(document["scenarios"])
     common = document["default_case"]
     if set(common) - {"description", "goal", "waypoints", "timeout_sec", "arrival_mode"}:
         raise ConfigError("default_case에는 공통 목적지·경유점·시간·도착 방식만 설정합니다")
@@ -131,6 +132,45 @@ def validate_campaign_document(document, *, allow_legacy=False):
         raise ConfigError("default_case.arrival_mode는 stop 또는 pass_through입니다")
     if set(document) & {"cases", "case_overrides", "overrides"}:
         raise ConfigError("장면별 설정 덮어쓰기는 지원하지 않습니다. 목적지나 실행 조건이 다르면 별도 YAML을 만드세요")
+
+
+def validate_scenario_include(scenarios):
+    """Absent include means glob; an empty/broken selection must never run all."""
+    if "include" not in scenarios:
+        return
+    names = scenarios["include"]
+    if not isinstance(names, list) or not names:
+        raise ConfigError("scenarios.include는 선택한 JSON 파일명 목록이어야 합니다 (최소 1개)")
+    for name in names:
+        if (not isinstance(name, str) or not name.strip() or "/" in name or "\\" in name
+                or Path(name).suffix != ".json" or Path(name).name != name):
+            raise ConfigError("scenarios.include에는 현재 폴더의 .json 파일명만 넣으세요")
+    if len(set(names)) != len(names):
+        raise ConfigError("scenarios.include에 중복 파일명이 있습니다")
+
+
+def scenario_sources(scenarios):
+    """Shared CLI/GUI selection contract; explicit filenames override glob."""
+    validate_scenario_include(scenarios)
+    directory = resolve_path(scenarios.get("directory"))
+    if not directory.is_dir():
+        raise ConfigError("시나리오 폴더가 없습니다: {}".format(directory))
+    if "include" in scenarios:
+        sources = [directory / name for name in sorted(scenarios["include"])]
+        for source in sources:
+            if not source.is_file() or source.resolve().parent != directory:
+                raise ConfigError("선택한 시나리오가 없거나 폴더 밖입니다: {}".format(source.name))
+    else:
+        pattern = str(scenarios.get("glob", "*.json"))
+        if "/" in pattern or "\\" in pattern or ".." in pattern:
+            raise ConfigError("scenarios.glob은 현재 폴더의 파일 패턴만 지원합니다")
+        sources = sorted(source for source in directory.glob(pattern)
+                         if source.is_file() and source.suffix.lower() == ".json")
+        if any(source.resolve().parent != directory for source in sources):
+            raise ConfigError("시나리오가 선택한 폴더 밖을 가리킵니다")
+    if not sources:
+        raise ConfigError("시나리오 JSON이 없습니다: {} ({})".format(directory, scenarios.get("glob")))
+    return sources
 
 
 def install_directory(value):
@@ -188,16 +228,7 @@ def load_campaign(path, *, check_install=True):
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{1,59}", name):
         raise ConfigError("campaign_name은 영문/숫자로 시작하는 2~60자 ASCII 이름이어야 합니다")
     scenarios = document.get("scenarios", {})
-    scenario_dir = resolve_path(scenarios.get("directory"))
-    if not scenario_dir.is_dir():
-        raise ConfigError("시나리오 폴더가 없습니다: {}".format(scenario_dir))
-    pattern = str(scenarios.get("glob", "*.json"))
-    if "/" in pattern or ".." in pattern:
-        raise ConfigError("scenarios.glob은 현재 폴더의 파일 패턴만 지원합니다")
-    sources = sorted(source for source in scenario_dir.glob(pattern)
-                     if source.is_file() and source.suffix.lower() == ".json")
-    if not sources:
-        raise ConfigError("시나리오 JSON이 없습니다: {} ({})".format(scenario_dir, pattern))
+    sources = scenario_sources(scenarios)
     default = document.get("default_case", {})
     cases = [_load_case(source, default) for source in sources]
     if len({case.install_stem for case in cases}) != len(cases):

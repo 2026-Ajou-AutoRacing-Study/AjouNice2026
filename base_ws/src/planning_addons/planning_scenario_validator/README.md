@@ -139,6 +139,8 @@ cp base_ws/src/planning_addons/planning_scenario_validator/config/missions/stati
 
 시나리오 폴더에는 MORAI 시나리오 `.json`만 넣고, 실행 설정은 workspace의 캠페인 YAML 하나에 둔다. 목적지나 제한시간·스택이 달라지면 YAML을 복사하고 `campaign_name`을 바꾼다. [시나리오·YAML 제작 가이드](../../../../docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md)를 참고한다.
 
+같은 폴더에서 일부 장면만 실행하려면 GUI 기본 탭의 `장면 선택`을 사용한다. 이름/와일드카드/쉼표 OR 검색, baseline·normal·stress 빠른 필터, 검색 결과 전체 체크·해제와 Ctrl·Shift 다중 행 선택 후 Space를 지원한다. 선택은 YAML의 선택적 `scenarios.include: [파일명.json, ...]`에 저장되어 `glob`보다 우선하며 파일명 순서로 실행한다. `전체 실행(패턴)`은 include를 제거한다. 빈 목록·없는 파일·폴더 밖 경로·중복은 오류이며 전체로 자동 대체하지 않는다. 새 파일 자동 포함은 패턴 모드에서만 이루어진다. 선택한 장면만 실행 사본에 복제되므로 배치와 중단·재개도 동일한 입력 계약을 사용한다. 시나리오 데이터나 판단·제어 로직을 변경하는 기능은 아니다.
+
 ```text
 workspace/
   narrow_gap.yaml       # 공통 목적지·시간·스택

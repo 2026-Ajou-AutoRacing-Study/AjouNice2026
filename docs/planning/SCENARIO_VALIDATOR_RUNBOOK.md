@@ -28,6 +28,8 @@ bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --gui
 
 ## 2. 내 YAML 준비하기
 
+같은 시나리오 폴더에서 일부만 골라 실행할 수 있습니다. 기본 탭의 `장면 선택` → 이름/패턴 검색 또는 기본·일반·어려운 빠른 필터 → 검색 결과 전체 체크 → 체크한 장면 적용 → 개인 YAML 저장을 사용합니다. 선택은 `scenarios.include`에 저장되어 glob보다 우선합니다. 폴더 전체는 전체 실행(패턴)으로 전환 후 `*.json`을 사용하세요. 선택 파일이 없어지면 실행 오류이며 전체로 자동 대체하지 않습니다. 자세한 선택·새 파일·재개 규칙은 [제작 가이드](SCENARIO_VALIDATOR_AUTHOR_GUIDE.md#같은-폴더에서-일부-장면만-고르기)를 참고하세요.
+
 **`base/example.yaml`은 공유 원본입니다. 선택하자마자 실행하지 말고, 반드시 `베이스 → 내 작업 폴더 복사`부터 누르세요.** 복사 후 GUI에 열린 YAML 경로가 `missions/<담당 미션>/workspace/…yaml`인지 확인하고, 그 개인 복사본으로 설정·실행합니다. 배치에도 `base/example.yaml`이 아니라 `workspace/`의 YAML을 넣습니다.
 
 1. 예제 목록에서 `missions/<담당 미션>/base/example.yaml`을 선택합니다.

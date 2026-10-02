@@ -26,6 +26,7 @@ from .layout import normalize_bar_setting, resolve_bar_height
 from .traffic_light import DEFAULT_PYTHON, LABEL_MODES, MODE_LABELS, runtime_mode, runtime_settings
 from . import executions
 from . import batch
+from .scenario_selection import choose_scenarios
 
 
 PACKAGE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator"
@@ -349,6 +350,8 @@ def save_personal(document, path):
     path.parent.mkdir(parents=True, exist_ok=True)
     header = ("# GUI에서 저장한 개인 실험 설정입니다. 이 파일은 Git에 포함되지 않습니다.\n"
               "# 이 YAML의 목적지·주행 제한시간은 선택한 모든 시나리오에 동일하게 적용됩니다.\n"
+              "# scenarios.include가 있으면 파일명 목록만 실행하며 glob보다 우선합니다.\n"
+              "# 목록 없이 패턴 실행하려면 GUI 장면 선택에서 전체 실행(패턴)을 누르세요.\n"
               "# 이 파일은 재사용·수정 가능합니다. 새 실행마다 입력 사본과 결과 폴더를 따로 만듭니다.\n"
               "# 재개는 GUI 실험 기록 또는 --execution 결과폴더로 진행합니다.\n")
     temporary = path.with_name(path.name + ".tmp.{}".format(os.getpid()))
@@ -477,6 +480,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         active["mode"] = "single"
         active['execution'] = None
         active['history_root'] = None
+        active['scenario_include'] = copy.deepcopy(document['scenarios'].get('include'))
         result_paths.clear()
         for item in table.get_children():
             table.delete(item)
@@ -484,6 +488,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         source.set(str(path))
         for key, value in values.items():
             vars_[key].set(value)
+        update_scenario_widgets()
         status.set("설정 로드: {} — {}".format(Path(path).name,
                    "이전 설정: 저장하면 공통 설정 v2로 전환. 기존 실행은 새 캠페인 이름을 사용하세요."
                    if document.get("schema_version") == 1 else "목적지·제한시간은 모든 장면에 공통 적용"))
@@ -572,7 +577,31 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
 
     add_field(basic, 0, "campaign_name", "실험 이름")
     add_field(basic, 1, "directory", "시나리오 JSON 폴더", browse="dir")
-    add_field(basic, 2, "glob", "파일 선택 패턴")
+    pattern_entry = add_field(basic, 2, "glob", "전체 실행 파일 패턴")
+
+    def update_scenario_widgets():
+        chosen = active.get('scenario_include')
+        pattern_entry.configure(state='normal' if chosen is None else 'disabled')
+        scenario_button.configure(text='장면 선택 · 패턴 실행' if chosen is None
+                                  else '장면 선택 · {}개'.format(len(chosen)))
+
+    def select_scenarios():
+        try:
+            if any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process')):
+                raise ValueError('실행/검사 중에는 장면 선택을 바꿀 수 없습니다')
+            applied, chosen = choose_scenarios(root, resolve_path(vars_['directory'].get()),
+                                              vars_['glob'].get(), active.get('scenario_include'))
+            if applied:
+                active['scenario_include'] = chosen
+                update_scenario_widgets()
+                status.set(('장면 {}개 선택 — 개인 YAML 저장 후 실행하세요. 패턴은 선택 목록보다 우선하지 않습니다.'
+                            .format(len(chosen))) if chosen is not None else
+                           '패턴 실행으로 변경 — 선택 목록 없이 현재 파일 패턴으로 실행합니다. 개인 YAML을 저장하세요.')
+        except Exception as error:
+            messagebox.showerror('장면 선택 실패', str(error))
+
+    scenario_button = ttk.Button(basic, text='장면 선택', command=select_scenarios)
+    scenario_button.grid(row=2, column=2, padx=5)
     for row, (key, label) in enumerate((("x", "목적지 map X (m)"), ("y", "목적지 map Y (m)"),
                                         ("z", "목적지 map Z (m)"), ("yaw_deg", "목적지 yaw (deg)")), 3):
         add_field(basic, row, "goal_" + key, label)
@@ -631,6 +660,10 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     def collect():
         values = {key: var.get() for key, var in vars_.items()}
         document = build_document(active["template"], values)
+        if active.get('scenario_include') is None:
+            document['scenarios'].pop('include', None)
+        else:
+            document['scenarios']['include'] = list(active['scenario_include'])
         path = active["source_path"]
         if not is_personal(path):
             path = personal_path(document, source=path)
@@ -1144,6 +1177,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         source_box.configure(state="disabled" if running else "readonly")
         personal_button.configure(state="disabled" if running else "normal")
         copy_button.configure(state="disabled" if running else "normal")
+        scenario_button.configure(state="disabled" if running else "normal")
         for button in batch_buttons:
             button.configure(state="disabled" if running else "normal")
         for label in ("개인 YAML 저장", "설정 검사", "새 실험 시작", '실험 기록'):
@@ -1450,6 +1484,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             "environment_check": check_environment,
             "copy_workspace": copy_workspace, "open_yaml": read_source,
             "open_personal_folder": browse_personal_folder,
+            "select_scenarios": select_scenarios,
             'refresh_history': refresh_history, 'select_execution': select_execution,
             'resume_execution': lambda directory: start(execution=directory),
             "batch_edit": edit_batch, "batch_check": check_batch, "batch_start": start_batch,

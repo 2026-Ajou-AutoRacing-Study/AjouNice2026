@@ -95,6 +95,22 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(self.run_queue(), 0)
         self.assertEqual((self.output('batch_A') / 'calls').read_text(), '1')
 
+    def test_same_folder_different_selections_run_and_resume_independently(self):
+        for path, names in zip(self.paths, (['one.json'], ['two.json'], ['one.json', 'two.json'])):
+            document = yaml.safe_load(path.read_text())
+            document['scenarios']['include'] = names
+            path.write_text(yaml.safe_dump(document))
+        self.assertEqual(self.run_queue(), 0)
+        self.assertEqual([row['counts'] for row in self.state()['items']], [
+            {'PASS': 1, 'FAIL': 0, 'ERROR': 0}, {'PASS': 0, 'FAIL': 1, 'ERROR': 0},
+            {'PASS': 1, 'FAIL': 1, 'ERROR': 0}])
+        # Original selection edits are for new runs, not the frozen batch resume.
+        document = yaml.safe_load(self.paths[0].read_text())
+        document['scenarios']['include'] = ['two.json']
+        self.paths[0].write_text(yaml.safe_dump(document))
+        self.assertEqual(self.run_queue(), 0)
+        self.assertEqual((self.output('batch_A') / 'calls').read_text(), '1')
+
     def test_manual_interrupt_B_then_resume_A_is_not_repeated(self):
         stop = threading.Event()
         errors = []
