@@ -150,12 +150,13 @@ class GuiWindowTests(unittest.TestCase):
                     if app["active"]["process"] is None and "실행 종료" in app["status"].get():
                         captured["log"] = app["log"].get("1.0", "end")
                         captured["status"] = app["status"].get()
+                        root.after_cancel(safety_timer)
                         root.destroy()
                     else:
                         root.after(100, finish)
 
                 root.after(2200, finish)
-                root.after(9000, root.destroy)  # A failing test must not hang CI.
+                safety_timer = root.after(9000, root.destroy)  # A failing test must not hang CI.
 
             with patch.object(gui_module, "USERS", Path(temp) / "users"), \
                  patch("tkinter.messagebox.askokcancel", return_value=True), \
@@ -170,6 +171,44 @@ class GuiWindowTests(unittest.TestCase):
             self.assertIn("RUN_STARTED --rerun-failed", captured.get("log", ""))
             self.assertTrue(any(call.args[0] == "설정 검사 중" for call in info.call_args_list))
             self.assertIn("결과 파일 없음", captured.get("status", ""))
+
+    def test_video_mode_hides_gui_and_terminal_interrupt_stops_runner(self):
+        with tempfile.TemporaryDirectory() as temp:
+            executable = Path(temp) / "fake_validator"
+            executable.write_text("#!/usr/bin/python3\nimport time\n"
+                                  "print('VIDEO_RUN_STARTED', flush=True)\ntime.sleep(30)\n",
+                                  encoding="utf-8")
+            executable.chmod(0o755)
+            captured = {}
+
+            def ready(app):
+                root = app["root"]
+                app["fields"]["campaign_name"].set("gui_video_interrupt")
+                app["fields"]["video"].set(True)
+                root.after(50, app["actions"]["start"])
+
+                def interrupt():
+                    captured["window_state"] = root.state()
+                    signal.raise_signal(signal.SIGINT)
+
+                root.after(1250, interrupt)
+
+                def finish():
+                    if app["active"]["process"] is None and "실행 종료" in app["status"].get():
+                        captured["log"] = app["log"].get("1.0", "end")
+                        root.after_cancel(safety_timer)
+                        root.destroy()
+                    else:
+                        root.after(100, finish)
+
+                root.after(1550, finish)
+                safety_timer = root.after(8000, root.destroy)
+
+            with patch.object(gui_module, "USERS", Path(temp) / "users"), \
+                 patch("tkinter.messagebox.askokcancel", return_value=True):
+                gui_module.main(on_ready=ready, runner_executable=executable)
+            self.assertEqual(captured.get("window_state"), "withdrawn")
+            self.assertIn("VIDEO_RUN_STARTED", captured.get("log", ""))
 
 
 if __name__ == "__main__":

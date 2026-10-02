@@ -223,6 +223,7 @@ def main(*, on_ready=None, runner_executable=None):
     rerun_failed = tk.BooleanVar(value=False)
     result_paths = {}
     events = queue.Queue()
+    poll_after = {"id": None}
 
     def read_source(path, fresh_name=False):
         document = load_document(path)
@@ -379,7 +380,10 @@ def main(*, on_ready=None, runner_executable=None):
         except Exception as error:
             show_error("실행 준비 실패", error)
             return
-        if not messagebox.askokcancel("캠페인 시작", "MORAI GUI에서 YAML의 Sensor/Ego Network JSON을 Load·Connect했나요?\n\n녹화 중 GUI를 최소화합니다. 다시 띄우면 전체 화면 영상에도 찍힐 수 있습니다."):
+        video_enabled = active["document"]["recording"]["video"]["enabled"]
+        note = ("영상 녹화 중 GUI를 숨깁니다. 중단하려면 실행 터미널에서 Ctrl+C를 누르세요."
+                if video_enabled else "실행 중 GUI의 중단 버튼을 사용할 수 있습니다.")
+        if not messagebox.askokcancel("캠페인 시작", "MORAI GUI에서 YAML의 Sensor/Ego Network JSON을 Load·Connect했나요?\n\n" + note):
             return
         try:
             command = [runner, str(path)]
@@ -395,13 +399,15 @@ def main(*, on_ready=None, runner_executable=None):
         set_running_ui(True)
         status.set("주행 검증 실행 중: {}".format(active["document"]["campaign_name"]))
         threading.Thread(target=command_reader, args=(process, "run"), daemon=True).start()
-        root.after(800, lambda: root.iconify() if active["process"] and
-                   active["process"].poll() is None else None)
+        if video_enabled:
+            print("영상 녹화 중 GUI를 숨깁니다. 안전 중단: 이 터미널에서 Ctrl+C", flush=True)
+            root.after(800, lambda: root.withdraw() if active["process"] and
+                       active["process"].poll() is None else None)
 
-    def stop():
+    def stop(*, force=False):
         process = active["process"]
         if process and process.poll() is None and not active["stopping"]:
-            if messagebox.askyesno("안전 중단", "현재 주행을 중단하고 기록을 보존할까요?\n다음 실행에서 이어갈 수 있습니다."):
+            if force or messagebox.askyesno("안전 중단", "현재 주행을 중단하고 기록을 보존할까요?\n다음 실행에서 이어갈 수 있습니다."):
                 active["stopping"] = True
                 try:
                     os.killpg(process.pid, signal.SIGINT)
@@ -531,7 +537,12 @@ def main(*, on_ready=None, runner_executable=None):
                     set_running_ui(False)
                     status.set("설정 검사 {}".format("통과" if code == 0 else "실패 (로그 확인)"))
         update_progress()
-        root.after(500, poll)
+        poll_after["id"] = root.after(500, poll)
+
+    def on_destroy(event):
+        if event.widget is root and poll_after["id"] is not None:
+            root.after_cancel(poll_after["id"])
+            poll_after["id"] = None
 
     def on_close():
         if active["check_process"] and active["check_process"].poll() is None:
@@ -542,7 +553,19 @@ def main(*, on_ready=None, runner_executable=None):
             return
         root.destroy()
 
+    def on_interrupt(_signum, _frame):
+        # The main window is hidden during video capture; terminal Ctrl+C must
+        # still stop the child runner so it can finalize rosbag and MP4.
+        if active["process"] and active["process"].poll() is None:
+            print("안전 중단 요청: 녹화 마감과 ROS 정리를 기다립니다", flush=True)
+            stop(force=True)
+        else:
+            root.after(0, root.destroy)
+
+    previous_sigint = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, on_interrupt)
     root.protocol("WM_DELETE_WINDOW", on_close)
+    root.bind("<Destroy>", on_destroy)
     read_source(initial, fresh_name=True)
     if on_ready is not None:
         on_ready({"root": root, "fields": vars_, "actions": {
@@ -550,6 +573,9 @@ def main(*, on_ready=None, runner_executable=None):
             "update_progress": update_progress}, "active": active,
             "status": status, "table": table, "log": log,
             "rerun_failed": rerun_failed})
-    root.after(500, poll)
-    root.mainloop()
+    poll_after["id"] = root.after(500, poll)
+    try:
+        root.mainloop()
+    finally:
+        signal.signal(signal.SIGINT, previous_sigint)
     return 0
