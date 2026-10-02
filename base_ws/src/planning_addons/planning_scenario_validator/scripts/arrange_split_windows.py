@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Tile the MORAI game and Planviz above the validator GUI's bottom monitor bar.
+
+This is a best-effort X11 helper. The caller records the full screen even if a
+window refuses resizing, so a layout failure must not be mistaken for a failed
+scenario or sensor connection.
+"""
+import sys
+import time
+
+
+def choose_windows(windows):
+    """Do not mistake a terminal opened in ~/MoraiLauncher_Lin for the game."""
+    names = [(window, (window.get_name() or "").lower(),
+              (window.get_class_group_name() or "").lower()) for window in windows]
+    rviz = [window for window, name, _ in names if "kcity_aw149_planning" in name]
+    if not rviz:
+        rviz = [window for window, name, _ in names if "rviz" in name]
+    morai = [window for window, name, class_name in names
+             if ("morai" in name or "simulator" in name)
+             and not any(term in class_name for term in
+                         ("terminal", "terminator", "code", "firefox", "chrome"))
+             and "rviz" not in name]
+    return (rviz[-1] if rviz else None, morai[-1] if morai else None)
+
+
+def main(argv=None):
+    import gi
+    gi.require_version("Wnck", "3.0")
+    from gi.repository import GLib, Wnck
+
+    args = sys.argv[1:] if argv is None else argv
+    bottom_bar_px = int(args[0]) if args else 150
+    screen = Wnck.Screen.get_default()
+    if screen is None:
+        print("X11 screen unavailable", file=sys.stderr)
+        return 1
+    context = GLib.MainContext.default()
+    deadline = time.monotonic() + 3.0
+    rviz = morai = None
+    while time.monotonic() < deadline:
+        while context.pending():
+            context.iteration(False)
+        screen.force_update()
+        rviz, morai = choose_windows(screen.get_windows())
+        if rviz is not None and morai is not None:
+            break
+        time.sleep(0.2)
+    if rviz is None or morai is None:
+        print("필요한 창을 찾지 못했습니다: RViz={}, MORAI={}. 수동 반반 배치하세요".format(
+            bool(rviz), bool(morai)), file=sys.stderr)
+        return 1
+
+    width, height = screen.get_width(), screen.get_height()
+    top_height = height - bottom_bar_px
+    if width < 900 or top_height < 400:
+        print("화면이 반반 배치에 너무 작습니다: {}x{}".format(width, height), file=sys.stderr)
+        return 1
+    left_width = width // 2
+    mask = (Wnck.WindowMoveResizeMask.X | Wnck.WindowMoveResizeMask.Y |
+            Wnck.WindowMoveResizeMask.WIDTH | Wnck.WindowMoveResizeMask.HEIGHT)
+    targets = ((rviz, 0, left_width), (morai, left_width, width - left_width))
+    for window, _, _ in targets:
+        if window.is_maximized():
+            window.unmaximize()
+        if window.is_fullscreen():
+            window.set_fullscreen(False)
+    for _ in range(2):
+        while context.pending():
+            context.iteration(False)
+        screen.force_update()
+        for window, x, target_width in targets:
+            window.set_geometry(Wnck.WindowGravity.STATIC, mask,
+                                x, 0, target_width, top_height)
+        time.sleep(0.35)
+    screen.force_update()
+    refused = []
+    for window, x, target_width in targets:
+        actual_x, _, actual_width, actual_height = window.get_geometry()
+        if (abs(actual_x - x) > 100 or abs(actual_width - target_width) > 100 or
+                abs(actual_height - top_height) > 100):
+            refused.append(window.get_name() or "이름 없는 창")
+    if refused:
+        print("창 크기 조절을 거부한 창: {}. 수동 반반 배치하세요".format(", ".join(refused)),
+              file=sys.stderr)
+        return 1
+    print("split layout: RViz left, MORAI right, bottom bar {}px".format(bottom_bar_px))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

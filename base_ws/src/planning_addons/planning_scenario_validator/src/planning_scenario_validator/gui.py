@@ -5,6 +5,7 @@ starts the same `planning_validator` command used by terminal operators.
 """
 import copy
 import getpass
+import hashlib
 import json
 import math
 import os
@@ -62,6 +63,8 @@ def form_values(document):
         "topic_profile": recording.get("topic_profile", ""),
         "include_sensors": recording.get("include_sensors", False),
         "video": recording.get("video", {}).get("enabled", False),
+        "video_layout": recording.get("video", {}).get("window_layout", "manual"),
+        "bottom_bar_px": recording.get("video", {}).get("bottom_bar_px", 150),
         "sensor_json": network.get("sensor_json", ""),
         "ego_network_json": network.get("ego_network_json", ""),
         "scenario_load_host": morai.get("scenario_load_host", "127.0.0.1"),
@@ -107,6 +110,16 @@ def build_document(template, values):
     recording["topic_profile"] = str(values["topic_profile"]).strip()
     recording["include_sensors"] = bool(values["include_sensors"])
     recording.setdefault("video", {})["enabled"] = bool(values["video"])
+    layout = str(values["video_layout"])
+    if layout not in ("manual", "split"):
+        raise ValueError("녹화 화면 배치는 manual 또는 split이어야 합니다")
+    if "window_layout" in recording["video"] or layout != "manual":
+        recording["video"]["window_layout"] = layout
+    bottom_bar = finite_number(values["bottom_bar_px"], "하단 모니터 바 높이", positive=True)
+    if not bottom_bar.is_integer() or not 100 <= bottom_bar <= 400:
+        raise ValueError("하단 모니터 바 높이는 100~400 정수여야 합니다")
+    if "bottom_bar_px" in recording["video"] or int(bottom_bar) != 150:
+        recording["video"]["bottom_bar_px"] = int(bottom_bar)
     network = result.setdefault("network", {})
     for key in ("sensor_json", "ego_network_json"):
         network[key] = str(values[key]).strip()
@@ -129,12 +142,20 @@ def save_personal(document, path):
     """Never mutate a campaign's YAML once its state exists; resume needs same hash."""
     path = Path(path)
     output = resolve_path(document.get("output_root", "planner_logs/validation")) / document["campaign_name"]
+    state_path = output / "campaign_state.json"
+    if state_path.is_file():
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if (not path.is_file() or
+                state.get("config_path", str(path.resolve())) != str(path.resolve()) or
+                (state.get("config_sha256") and
+                 state["config_sha256"] != hashlib.sha256(path.read_bytes()).hexdigest()) or
+                load_document(path) != document):
+            raise ValueError("실행된 캠페인의 YAML은 수정할 수 없습니다. 새 캠페인 이름을 사용하세요")
+        return path
     if path.is_file():
         old = load_document(path)
         if old == document:
             return path
-        if (output / "campaign_state.json").exists():
-            raise ValueError("실행된 캠페인의 YAML은 수정할 수 없습니다. 새 캠페인 이름을 사용하세요")
     path.parent.mkdir(parents=True, exist_ok=True)
     header = ("# GUI에서 저장한 개인 캠페인입니다. 이 파일은 Git에 포함되지 않습니다.\n"
               "# 시나리오별 다른 목적지/시간은 같은 이름의 .case.yaml에 적습니다.\n"
@@ -205,7 +226,9 @@ def main(*, on_ready=None, runner_executable=None):
     examples = sorted(EXAMPLES.glob("*.yaml"))
     if not examples:
         raise RuntimeError("검증기 예제 YAML이 없습니다: {}".format(EXAMPLES))
-    preferred = EXAMPLES / "static_pair_stress_gt.yaml"
+    # Start first-time operators with the short, previously validated demo.
+    # The five-case stress campaign is available from the same dropdown.
+    preferred = EXAMPLES / "static_pair_mission_gt_split.yaml"
     initial = preferred if preferred.exists() else examples[0]
     runner = str(runner_executable or ROOT / "planning_validator")
 
@@ -217,6 +240,7 @@ def main(*, on_ready=None, runner_executable=None):
     frame.pack(fill="both", expand=True)
     source = tk.StringVar()
     status = tk.StringVar(value="준비됨 — MORAI GUI에서 Sensor/Ego Network를 먼저 Load·Connect하세요.")
+    live_status = tk.StringVar(value="")
     vars_ = {}
     active = {"process": None, "check_process": None, "config": None,
               "document": None, "stopping": False}
@@ -224,6 +248,12 @@ def main(*, on_ready=None, runner_executable=None):
     result_paths = {}
     events = queue.Queue()
     poll_after = {"id": None}
+    compact = {"enabled": False, "previous_geometry": None}
+
+    monitor_panel = ttk.LabelFrame(frame, text="실시간 캠페인 현황", padding=6)
+    monitor_panel.pack(fill="x", pady=(0, 4))
+    ttk.Label(monitor_panel, textvariable=status, wraplength=1840).pack(anchor="w")
+    ttk.Label(monitor_panel, textvariable=live_status, wraplength=1840).pack(anchor="w")
 
     def read_source(path, fresh_name=False):
         document = load_document(path)
@@ -237,6 +267,7 @@ def main(*, on_ready=None, runner_executable=None):
         result_paths.clear()
         for item in table.get_children():
             table.delete(item)
+        live_status.set("")
         source.set(str(path))
         for key, value in values.items():
             vars_[key].set(value)
@@ -306,7 +337,9 @@ def main(*, on_ready=None, runner_executable=None):
     add_field(advanced, 2, "ego_network_json", "MORAI Ego Network JSON", browse="file")
     add_field(advanced, 3, "scenario_load_host", "ScenarioLoad IP")
     add_field(advanced, 4, "goal_tolerance_m", "목적지 허용 반경 (m)")
-    ttk.Label(advanced, text="그 외 옵션과 시나리오별 .case.yaml override는 원본 YAML 값을 보존합니다.").grid(row=5, column=0, columnspan=3, sticky="w", pady=8)
+    add_field(advanced, 5, "video_layout", "녹화 화면 배치", choices=["manual", "split"])
+    add_field(advanced, 6, "bottom_bar_px", "GUI 하단 높이 (px)")
+    ttk.Label(advanced, text="split: RViz 왼쪽, MORAI 오른쪽, GUI 하단. 그 외 옵션과 시나리오별 .case.yaml override는 보존합니다.").grid(row=7, column=0, columnspan=3, sticky="w", pady=8)
 
     def collect():
         values = {key: var.get() for key, var in vars_.items()}
@@ -322,7 +355,26 @@ def main(*, on_ready=None, runner_executable=None):
         if active["process"] and active["process"].poll() is None:
             raise ValueError("캠페인 실행 중에는 YAML을 변경할 수 없습니다. 중단 후 새 이름으로 저장하세요")
         document, path = collect()
-        save_personal(document, path)
+        try:
+            save_personal(document, path)
+        except ValueError:
+            if not (campaign_output(document) / "campaign_state.json").is_file():
+                raise
+            if not messagebox.askyesno(
+                    "새 캠페인으로 복사",
+                    "이 캠페인은 이미 실행돼 설정을 바꾸면 기존 결과와 resume할 수 없습니다.\n"
+                    "기존 기록은 보존하고 변경된 설정을 새 캠페인 이름으로 저장할까요?"):
+                raise ValueError("기존 캠페인 설정은 변경하지 않았습니다. 그대로 재개하거나 새 이름을 입력하세요")
+            fresh = default_name(document["campaign_name"])
+            base = fresh
+            suffix = 2
+            while (personal_path({"campaign_name": fresh}).exists() or
+                   campaign_output({**document, "campaign_name": fresh}).exists()):
+                fresh = "{}_{}".format(base[:57], suffix)
+                suffix += 1
+            vars_["campaign_name"].set(fresh)
+            document, path = collect()
+            save_personal(document, path)
         active.update(config=path, document=document)
         status.set("개인 YAML 저장: {}".format(path))
         return path
@@ -381,7 +433,12 @@ def main(*, on_ready=None, runner_executable=None):
             show_error("실행 준비 실패", error)
             return
         video_enabled = active["document"]["recording"]["video"]["enabled"]
-        note = ("영상 녹화 중 GUI를 숨깁니다. 중단하려면 실행 터미널에서 Ctrl+C를 누르세요."
+        split = active["document"]["recording"]["video"].get("window_layout") == "split"
+        note = ("전체 화면을 녹화하며 RViz·MORAI를 반반 배치하고 GUI를 하단 모니터 바로 바꿉니다. "
+                "창 배치가 실패하면 수동으로 조정해 주세요. 중단은 GUI 버튼 또는 터미널 Ctrl+C입니다."
+                if video_enabled and split else
+                "영상은 전체 화면을 녹화합니다. 필요하면 직접 GUI 창을 최소화하고 "
+                "Planviz를 전면에 두세요. 중단은 GUI 버튼이나 실행 터미널 Ctrl+C로 가능합니다."
                 if video_enabled else "실행 중 GUI의 중단 버튼을 사용할 수 있습니다.")
         if not messagebox.askokcancel("캠페인 시작", "MORAI GUI에서 YAML의 Sensor/Ego Network JSON을 Load·Connect했나요?\n\n" + note):
             return
@@ -397,12 +454,10 @@ def main(*, on_ready=None, runner_executable=None):
             return
         active.update(process=process, stopping=False)
         set_running_ui(True)
+        if video_enabled and active["document"]["recording"]["video"].get("window_layout") == "split":
+            set_compact_mode(True, active["document"]["recording"]["video"].get("bottom_bar_px", 150))
         status.set("주행 검증 실행 중: {}".format(active["document"]["campaign_name"]))
         threading.Thread(target=command_reader, args=(process, "run"), daemon=True).start()
-        if video_enabled:
-            print("영상 녹화 중 GUI를 숨깁니다. 안전 중단: 이 터미널에서 Ctrl+C", flush=True)
-            root.after(800, lambda: root.withdraw() if active["process"] and
-                       active["process"].poll() is None else None)
 
     def stop(*, force=False):
         process = active["process"]
@@ -429,7 +484,7 @@ def main(*, on_ready=None, runner_executable=None):
         else:
             messagebox.showinfo("결과 없음", "아직 생성되지 않았습니다: {}".format(path))
 
-    controls = ttk.Frame(frame)
+    controls = ttk.Frame(monitor_panel)
     controls.pack(fill="x", pady=5)
     control_buttons = {}
     for label, action in (("개인 YAML 저장", save_clicked), ("설정 검사", check),
@@ -438,6 +493,9 @@ def main(*, on_ready=None, runner_executable=None):
         button.pack(side="left", padx=4)
         control_buttons[label] = button
     ttk.Checkbutton(controls, text="기존 FAIL도 다시 실행", variable=rerun_failed).pack(side="left", padx=12)
+    compact_button = ttk.Button(controls, text="모니터 모드",
+                                command=lambda: set_compact_mode(not compact["enabled"]))
+    compact_button.pack(side="right", padx=4)
 
     def set_running_ui(running, *, allow_stop=True):
         source_box.configure(state="disabled" if running else "readonly")
@@ -447,7 +505,6 @@ def main(*, on_ready=None, runner_executable=None):
         control_buttons["중단"].configure(state="normal" if running and allow_stop else "disabled")
 
     set_running_ui(False)
-    ttk.Label(frame, textvariable=status, wraplength=970).pack(anchor="w", pady=4)
 
     columns = ("scenario", "status", "reason", "category", "stage")
     table = ttk.Treeview(frame, columns=columns, show="headings", height=8)
@@ -478,9 +535,38 @@ def main(*, on_ready=None, runner_executable=None):
             messagebox.showerror("결과 읽기 실패", str(error))
 
     table.bind("<Double-1>", show_detail)
-    ttk.Label(frame, text="실패 장면을 더블클릭하면 관측 수치와 의심 단계를 볼 수 있습니다. 원인 확정은 아닙니다.").pack(anchor="w")
+    detail_note = ttk.Label(frame, text="실패 장면을 더블클릭하면 관측 수치와 의심 단계를 볼 수 있습니다. 원인 확정은 아닙니다.")
+    detail_note.pack(anchor="w")
     log = tk.Text(frame, height=9, wrap="word", state="disabled")
     log.pack(fill="both", expand=True)
+
+    def set_compact_mode(enabled, bottom_bar_px=150):
+        if enabled == compact["enabled"]:
+            return
+        if enabled:
+            root.update_idletasks()
+            compact["previous_geometry"] = root.geometry()
+            for widget in (top, notebook, table, detail_note, log):
+                widget.pack_forget()
+            screen_width = root.winfo_screenwidth()
+            screen_height = root.winfo_screenheight()
+            bar = max(120, min(int(bottom_bar_px), 400, screen_height // 3))
+            root.minsize(850, 90)
+            root.geometry("{}x{}+0+{}".format(screen_width, bar - 38,
+                                              screen_height - bar + 26))
+            root.attributes("-topmost", True)
+            compact_button.configure(text="전체 설정 보기")
+        else:
+            root.attributes("-topmost", False)
+            top.pack(fill="x")
+            notebook.pack(fill="x", pady=8)
+            table.pack(fill="both", expand=True, pady=4)
+            detail_note.pack(anchor="w")
+            log.pack(fill="both", expand=True)
+            root.minsize(850, 650)
+            root.geometry(compact["previous_geometry"] or "1010x810")
+            compact_button.configure(text="모니터 모드")
+        compact["enabled"] = enabled
 
     def append(line):
         log.configure(state="normal")
@@ -512,6 +598,16 @@ def main(*, on_ready=None, runner_executable=None):
         if active["process"] and active["process"].poll() is None:
             status.set("진행 {}/{} | 성공 {} 실패 {} 오류 {} | 현재 {}".format(
                 len(results), state.get("total", "?"), counts["PASS"], counts["FAIL"], counts["ERROR"], current))
+            current_state = state.get("current")
+            metrics = (current_state.get("metrics") or {}) if isinstance(current_state, dict) else {}
+            if "elapsed_sec" in metrics:
+                live_status.set("실시간 주행 {:.1f}초 | 목적지까지 {:.1f}m | 속도 {:.1f}m/s | 충돌 {}회".format(
+                    metrics.get("elapsed_sec", 0.0), metrics.get("goal_distance_m", 0.0),
+                    metrics.get("speed_mps", 0.0), metrics.get("collision_count", 0)))
+            else:
+                live_status.set("현재 단계: {}".format(current))
+        else:
+            live_status.set("")
         return state
 
     def poll():
@@ -554,8 +650,7 @@ def main(*, on_ready=None, runner_executable=None):
         root.destroy()
 
     def on_interrupt(_signum, _frame):
-        # The main window is hidden during video capture; terminal Ctrl+C must
-        # still stop the child runner so it can finalize rosbag and MP4.
+        # Terminal Ctrl+C must stop the child runner so rosbag and MP4 finalize.
         if active["process"] and active["process"].poll() is None:
             print("안전 중단 요청: 녹화 마감과 ROS 정리를 기다립니다", flush=True)
             stop(force=True)
@@ -570,9 +665,10 @@ def main(*, on_ready=None, runner_executable=None):
     if on_ready is not None:
         on_ready({"root": root, "fields": vars_, "actions": {
             "save": save, "check": check, "start": start, "stop": stop,
-            "update_progress": update_progress}, "active": active,
+            "update_progress": update_progress, "compact": set_compact_mode}, "active": active,
             "status": status, "table": table, "log": log,
-            "rerun_failed": rerun_failed})
+            "live_status": live_status, "rerun_failed": rerun_failed,
+            "compact_state": compact})
     poll_after["id"] = root.after(500, poll)
     try:
         root.mainloop()

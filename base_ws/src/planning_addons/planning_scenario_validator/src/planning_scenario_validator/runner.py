@@ -19,7 +19,7 @@ from .failure_analysis import analyze_failure, compact_summary, log_offsets, sca
 from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure,
                       ScenarioFailure,
                       atomic_json, check_no_conflicting_publishers,
-                      focus_planviz, master_alive, now, prepare_scenario, publish_brake,
+                      arrange_split_windows, focus_planviz, master_alive, now, prepare_scenario, publish_brake,
                       request_route)
 
 
@@ -237,12 +237,20 @@ def _run_case(cfg, processes, monitor, case, state):
         brake_hold.start()
         # Route rejection and stack startup failures are useful campaign evidence too.
         # Start both recorders before ScenarioLoad instead of only after route readiness.
-        if (cfg["recording"].get("video", {}).get("enabled", False)
-                and cfg["stack"].get("planviz", True)
-                and cfg["recording"]["video"].get("focus_planviz", True)):
+        video_cfg = cfg["recording"].get("video", {})
+        if (video_cfg.get("enabled", False) and cfg["stack"].get("planviz", True)
+                and video_cfg.get("window_layout") == "split"):
+            try:
+                arrange_split_windows(bottom_bar_px=video_cfg["bottom_bar_px"],
+                                      display=video_cfg["display"])
+            except RuntimeFailure as exc:
+                monitor.event("VIDEO_LAYOUT_WARNING", message=str(exc))
+                print("[WARN] {}: 수동 반반 배치로 영상은 계속 녹화합니다".format(exc), file=sys.stderr)
+        elif (video_cfg.get("enabled", False) and cfg["stack"].get("planviz", True)
+              and video_cfg.get("focus_planviz", True)):
             try:
                 focus_planviz(timeout=float(cfg["document"].get("readiness_timeout_sec", 45)),
-                              display=cfg["recording"]["video"]["display"])
+                              display=video_cfg["display"])
             except RuntimeFailure as exc:
                 monitor.event("VIDEO_FOCUS_WARNING", message=str(exc))
                 print("[WARN] {}: 영상은 계속 녹화합니다".format(exc), file=sys.stderr)

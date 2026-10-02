@@ -196,6 +196,15 @@ def load_campaign(path, *, check_install=True):
     video = recording.get("video", {})
     if video.get("enabled", False) and not video.get("display"):
         raise ConfigError("영상 녹화에는 recording.video.display가 필요합니다")
+    if video.get("window_layout", "manual") not in ("manual", "split"):
+        raise ConfigError("recording.video.window_layout은 manual 또는 split이어야 합니다")
+    try:
+        bottom_bar_px = int(video.get("bottom_bar_px", 150))
+    except (TypeError, ValueError) as error:
+        raise ConfigError("recording.video.bottom_bar_px은 100~400 정수여야 합니다") from error
+    if bottom_bar_px < 100 or bottom_bar_px > 400:
+        raise ConfigError("recording.video.bottom_bar_px은 100~400 정수여야 합니다")
+    video["bottom_bar_px"] = bottom_bar_px
     upload = document.get("upload", {})
     if upload.get("enabled", False) and not upload.get("rclone_remote"):
         raise ConfigError("Google Drive 업로드에는 upload.rclone_remote가 필요합니다")

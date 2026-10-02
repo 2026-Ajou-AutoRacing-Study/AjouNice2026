@@ -11,9 +11,11 @@
 # docs/common_alias.txt를 source했다면 pvgui
 ```
 
-처음에는 실패 장면도 포함하는 `static_pair_stress_gt.yaml` 예제가 선택된다. 시나리오 폴더·glob·목적지(map 좌표)·제한 시간·측위·탐지기·녹화 옵션을 확인한 뒤 `설정 검사` → `실행 / resume`을 누른다. 예제 파일은 바뀌지 않고 `config/users/<리눅스 사용자>/<campaign_name>.yaml`에 개인 설정이 생성된다. 폴더 안의 시나리오별 `.case.yaml` 목적지/시간 override와 GUI에 보이지 않는 고급 YAML 옵션도 보존된다. 직접 저장한 YAML은 `내 YAML 열기 / resume`으로 다시 열어 이어서 실행한다. 한 번 실행된 캠페인은 YAML을 바꿀 수 없으므로 조건 변경 시 새 `campaign_name`을 쓴다.
+처음에는 통과 확인된 한 장면의 `static_pair_mission_gt_split.yaml` 예제가 선택된다. RViz 왼쪽·MORAI 오른쪽·GUI 하단 모니터 바의 전체 화면 영상용 설정이다. 실패 장면을 찾는 5개 장면 스트레스 예제는 목록의 `static_pair_stress_gt.yaml`에서 선택한다. 시나리오 폴더·glob·목적지(map 좌표)·제한 시간·측위·탐지기·녹화 옵션을 확인한 뒤 `설정 검사` → `실행 / resume`을 누른다. 예제 파일은 바뀌지 않고 `config/users/<리눅스 사용자>/<campaign_name>.yaml`에 개인 설정이 생성된다. 폴더 안의 시나리오별 `.case.yaml` 목적지/시간 override와 GUI에 보이지 않는 고급 YAML 옵션도 보존된다. 직접 저장한 YAML은 `내 YAML 열기 / resume`으로 다시 열어 이어서 실행한다. 한 번 실행된 캠페인의 설정을 바꾸면 기존 기록 보호를 위해 새 캠페인 이름으로 복사할지 GUI가 묻는다. **그대로 이어 실행할 때는 기존 개인 YAML을 열고 값을 바꾸지 않는다.**
 
-GUI는 기존 `./planning_validator`만 호출한다. 실행 중 표에 완료 장면의 PASS/FAIL/ERROR와 관측된 실패 유형을 표시하며, 실패 장면을 더블클릭하면 근거 수치와 조사 우선 단계를 볼 수 있다. `중단`은 결과를 보존하고 다음 실행에서 resume한다. 기본 resume는 완료된 PASS/FAIL을 건너뛴다. 같은 설정으로 실패 장면을 다시 돌리려면 `기존 FAIL도 다시 실행`을 체크한다. **실행기의 종료 코드 0은 전체 시나리오 PASS를 의미하지 않는다**. GUI의 성공/주행 실패/시스템 오류 건수와 `summary.csv`를 확인한다. X11 전체 화면 영상이 켜져 있으면 GUI를 완전히 숨기고 완료 후 다시 표시한다. 이때는 **GUI를 실행한 터미널에서 Ctrl+C**로 안전 중단한다. 영상이 꺼져 있으면 GUI의 `중단` 버튼을 쓴다. 화면 영상에는 여전히 전면의 다른 앱이 찍힐 수 있으므로 녹화 중 데스크톱 조작을 피한다. `설정 검사`가 통과해도 MORAI 연결·BEVFusion checkpoint·주행 성공까지 보증하지는 않는다. GUI가 필요 없는 서버/터미널에서는 아래 CLI를 그대로 사용한다.
+GUI는 기존 `./planning_validator`만 호출한다. 실행 중 완료 장면의 PASS/FAIL/ERROR와 현재 단계, 주행 시간·목적지 거리·속도·충돌 횟수를 실시간으로 표시한다. `split` 영상 설정으로 실행하면 설정·결과 표는 접고 GUI를 화면 하단의 얇은 모니터 바로 자동 전환한다. `전체 설정 보기`로 언제든 펼칠 수 있지만 펼친 창도 영상에 찍힌다. 실패 장면을 더블클릭하면 근거 수치와 조사 우선 단계를 볼 수 있다. 별도 대시보드는 필수가 아니다. `중단`은 결과를 보존하고 다음 실행에서 resume한다. 기본 resume는 완료된 PASS/FAIL을 건너뛴다. 같은 설정으로 실패 장면을 다시 돌리려면 `기존 FAIL도 다시 실행`을 체크한다. **실행기의 종료 코드 0은 전체 시나리오 PASS를 의미하지 않는다**. GUI의 성공/주행 실패/시스템 오류 건수와 `summary.csv`를 확인한다. GUI의 `중단` 버튼이나 **GUI를 실행한 터미널에서 Ctrl+C**로 안전 중단할 수 있다. 영상에는 전면의 다른 앱이 찍힐 수 있으므로 녹화 중 데스크톱 조작을 피한다. `설정 검사`가 통과해도 MORAI 연결·BEVFusion checkpoint·주행 성공까지 보증하지는 않는다. GUI가 필요 없는 서버/터미널에서는 아래 CLI를 그대로 사용한다.
+
+`split`은 영상 자체를 자르는 기능이 아니다. `recording.video.window_layout: split`이면 시나리오마다 두 창을 위쪽 공간에 배치하도록 시도하고, 하단 `bottom_bar_px`를 GUI 모니터 바에 남긴 뒤 X11 화면 **전체**를 녹화한다. MORAI 창을 못 찾거나 창이 크기 조절을 거부하면 경고만 기록하고 녹화·주행은 계속하므로 직접 반반 배치하면 된다. 기존 예제의 `window_layout: manual`(기본값)과 `focus_planviz: true`는 기존 RViz 최대화 방식 그대로다. GUI 없이 CLI로 split을 실행하면 하단 공간은 비어 있으므로 필요에 따라 직접 창을 채운다.
 
 ## 5분 실행
 
@@ -114,7 +116,7 @@ arrival_mode: stop
 - `basic.json`: camera/LiDAR 제외, planning/인지/제어/GT 핵심 토픽
 - `lightweight.json`: 위치, trajectory, command, collision 중심
 - `full.json`: 알려진 센서·planning 토픽 목록. 실제 수신하지 않는 항목은 rosbag에 들어가지 않는다.
-- 영상은 X11 전체 화면을 시나리오마다 ffmpeg로 녹화한다. `recording.video.display`는 Planviz가 뜬 X11 화면(보통 `:0.0`)과 같아야 한다. 기본값 `focus_planviz: true`는 녹화 직전 그 화면의 Planviz를 전면·최대화하며 ROS1 EOL 팝업을 띄우지 않는다. 다른 창에 포커스를 주면 전체 화면 영상에도 그 창이 찍힌다.
+- 영상은 X11 전체 화면을 시나리오마다 ffmpeg로 녹화한다. `recording.video.display`는 MORAI와 Planviz가 뜬 X11 화면(보통 `:0.0`)과 같아야 한다. `window_layout: split`은 RViz 최대화를 하지 않고 반반 배치한다. 기존 `window_layout: manual`의 `focus_planviz: true`는 녹화 직전 Planviz를 전면·최대화한다. 다른 창에 포커스를 주면 전체 화면 영상에도 그 창이 찍힌다.
 - 충돌은 `/CollisionData`의 객체 ID를 실시간으로 읽는다. 한 시나리오에서 같은 ID의 접촉 메시지가 끊겼다 재등장해도 1개 객체로만 센다. goal 반경, 속도 및 유지 시간으로 성공을 판단한다. 지정 시간 미도달은 TIMEOUT이다.
 - `result.json`은 개별 증거용, `summary.csv`는 사람에게 보여주기 위한 전체 표, `events.jsonl`은 시간 순서 감사 기록이다. 실패 분석기는 녹화 재생 없이 실시간 구독값과 해당 장면의 스택 로그만 사용한다. `result.json`의 `failure_analysis`에 증상 분류, 수치 근거, 로그 징후, 의심 단계와 신뢰도를 기록한다. 탐지 토픽 수신 횟수와 실제 객체가 포함된 메시지 수를 별도로 세므로, **토픽이 살아 있음**과 **객체가 검출됨**을 혼동하지 않는다. `summary.csv`에는 `failure_category`, `suspected_stage`, `evidence_summary`가 추가된다. 이는 코드 수준의 근본 원인 확정이 아니다.
 - 녹화는 ScenarioLoad 전에 시작한다. Route 요청이 거부돼도 bag·MP4·이벤트가 남는다. `elapsed_sec`은 주행 판정 시간이고, 새 결과의 `wall_elapsed_sec`은 준비와 정리를 포함한 전체 실행 시간이다.

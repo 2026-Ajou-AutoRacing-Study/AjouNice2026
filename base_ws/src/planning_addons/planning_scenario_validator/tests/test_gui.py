@@ -1,5 +1,6 @@
 """Headless tests for the GUI's YAML contract (no Tk display or ROS needed)."""
 import copy
+import hashlib
 import json
 import os
 import signal
@@ -7,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import yaml
@@ -23,6 +25,13 @@ from planning_scenario_validator import gui as gui_module
 class GuiConfigTests(unittest.TestCase):
     def setUp(self):
         self.example = load_document(EXAMPLES / "static_pair_stress_gt.yaml")
+
+    def test_old_campaign_roundtrip_keeps_resume_hash_compatible(self):
+        self.assertEqual(build_document(self.example, form_values(self.example)), self.example)
+        changed = form_values(self.example)
+        changed["video_layout"] = "split"
+        self.assertEqual(build_document(self.example, changed)["recording"]["video"]["window_layout"],
+                         "split")
 
     def test_form_preserves_advanced_and_case_settings(self):
         source = copy.deepcopy(self.example)
@@ -50,13 +59,18 @@ class GuiConfigTests(unittest.TestCase):
             original = path.read_bytes()
             output = campaign_output(document)
             output.mkdir()
-            (output / "campaign_state.json").write_text(json.dumps({"current": None}), encoding="utf-8")
+            (output / "campaign_state.json").write_text(json.dumps({
+                "current": None, "config_path": str(path.resolve()),
+                "config_sha256": hashlib.sha256(original).hexdigest()}), encoding="utf-8")
             save_personal(document, path)
             self.assertEqual(original, path.read_bytes())
             changed = copy.deepcopy(document)
             changed["stack"]["detector"] = "bevfusion"
             with self.assertRaisesRegex(ValueError, "새 캠페인 이름"):
                 save_personal(changed, path)
+            path.write_bytes(original + b"# edited comment\n")
+            with self.assertRaisesRegex(ValueError, "새 캠페인 이름"):
+                save_personal(document, path)
 
     def test_bad_name_and_relative_paths(self):
         values = form_values(self.example)
@@ -172,7 +186,7 @@ class GuiWindowTests(unittest.TestCase):
             self.assertTrue(any(call.args[0] == "설정 검사 중" for call in info.call_args_list))
             self.assertIn("결과 파일 없음", captured.get("status", ""))
 
-    def test_video_mode_hides_gui_and_terminal_interrupt_stops_runner(self):
+    def test_video_mode_keeps_gui_visible_and_terminal_interrupt_stops_runner(self):
         with tempfile.TemporaryDirectory() as temp:
             executable = Path(temp) / "fake_validator"
             executable.write_text("#!/usr/bin/python3\nimport time\n"
@@ -189,6 +203,8 @@ class GuiWindowTests(unittest.TestCase):
 
                 def interrupt():
                     captured["window_state"] = root.state()
+                    captured["compact"] = app["compact_state"]["enabled"]
+                    captured["window_height"] = root.winfo_height()
                     signal.raise_signal(signal.SIGINT)
 
                 root.after(1250, interrupt)
@@ -207,8 +223,77 @@ class GuiWindowTests(unittest.TestCase):
             with patch.object(gui_module, "USERS", Path(temp) / "users"), \
                  patch("tkinter.messagebox.askokcancel", return_value=True):
                 gui_module.main(on_ready=ready, runner_executable=executable)
-            self.assertEqual(captured.get("window_state"), "withdrawn")
+            self.assertEqual(captured.get("window_state"), "normal")
+            self.assertTrue(captured.get("compact"))
+            self.assertLess(captured.get("window_height", 999), 200)
             self.assertIn("VIDEO_RUN_STARTED", captured.get("log", ""))
+
+    def test_changed_executed_campaign_offers_new_name_and_preserves_old_yaml(self):
+        with tempfile.TemporaryDirectory() as temp:
+            captured = {}
+
+            def ready(app):
+                root = app["root"]
+
+                def exercise():
+                    app["active"]["template"]["output_root"] = temp
+                    app["fields"]["campaign_name"].set("gui_clone_test")
+                    first = app["actions"]["save"]()
+                    original = first.read_bytes()
+                    output = campaign_output(app["active"]["document"])
+                    output.mkdir()
+                    (output / "campaign_state.json").write_text("{}", encoding="utf-8")
+                    app["fields"]["goal_x"].set("42.5")
+                    second = app["actions"]["save"]()
+                    captured.update(first=first, second=second, original=original,
+                                    old_bytes=first.read_bytes(), new_doc=load_document(second),
+                                    selected_name=app["fields"]["campaign_name"].get())
+                    root.destroy()
+
+                root.after(20, exercise)
+
+            with patch.object(gui_module, "USERS", Path(temp) / "users"), \
+                 patch("tkinter.messagebox.askyesno", return_value=True):
+                gui_module.main(on_ready=ready)
+            self.assertNotEqual(captured["first"], captured["second"])
+            self.assertEqual(captured["old_bytes"], captured["original"])
+            self.assertEqual(captured["new_doc"]["default_case"]["goal"]["x"], 42.5)
+            self.assertEqual(captured["new_doc"]["campaign_name"], captured["selected_name"])
+
+    def test_live_drive_metrics_are_visible_in_gui(self):
+        with tempfile.TemporaryDirectory() as temp:
+            captured = {}
+
+            def ready(app):
+                root = app["root"]
+
+                def exercise():
+                    self.assertEqual(app["active"]["source_path"].stem, "static_pair_mission_gt_split")
+                    app["active"]["template"]["output_root"] = temp
+                    app["fields"]["campaign_name"].set("gui_live_metrics")
+                    config_path = app["actions"]["save"]()
+                    state_path = campaign_output(app["active"]["document"]) / "campaign_state.json"
+                    state_path.parent.mkdir()
+                    state_path.write_text(json.dumps({
+                        "config_path": str(config_path.resolve()), "total": 1,
+                        "results": {}, "current": {"scenario": "test_scene", "phase": "DRIVING",
+                            "metrics": {"elapsed_sec": 12.5, "goal_distance_m": 30.0,
+                                        "speed_mps": 4.5, "collision_count": 0}}}), encoding="utf-8")
+                    app["active"]["process"] = SimpleNamespace(poll=lambda: None)
+                    app["actions"]["update_progress"]()
+                    captured["status"] = app["status"].get()
+                    captured["live"] = app["live_status"].get()
+                    app["active"]["process"] = None
+                    root.destroy()
+
+                root.after(20, exercise)
+
+            with patch.object(gui_module, "USERS", Path(temp) / "users"):
+                gui_module.main(on_ready=ready)
+            self.assertIn("test_scene / DRIVING", captured["status"])
+            self.assertIn("12.5초", captured["live"])
+            self.assertIn("30.0m", captured["live"])
+            self.assertIn("4.5m/s", captured["live"])
 
 
 if __name__ == "__main__":

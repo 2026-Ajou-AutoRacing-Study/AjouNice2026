@@ -8,6 +8,7 @@ catkin_install_python(PROGRAMS
   scripts/planning_validator_gui.py
   scripts/planning_validator_dashboard.py
   scripts/focus_planviz.py
+  scripts/arrange_split_windows.py
   scripts/build_static_corridor_cases.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 install(DIRECTORY launch config DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

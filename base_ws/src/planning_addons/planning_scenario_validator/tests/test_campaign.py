@@ -14,16 +14,43 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from build_static_corridor_cases import build as build_static_corridor_cases
 from planning_scenario_validator.config import ConfigError, ROOT, load_campaign
-from planning_scenario_validator.runtime import LiveMonitor, focus_planviz, prepare_scenario, video_size
+from planning_scenario_validator.runtime import (LiveMonitor, arrange_split_windows,
+                                                 focus_planviz, prepare_scenario, video_size)
+from arrange_split_windows import choose_windows
 from planning_scenario_validator.runner import _recover_interrupted
 
 
 EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_obstacle_gt.yaml"
 BEVFUSION_EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_obstacle_bevfusion.yaml"
 BEVFUSION_CLEAR_EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/bevfusion_clear_smoke.yaml"
+SPLIT_EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_pair_mission_gt_split.yaml"
 
 
 class CampaignTest(unittest.TestCase):
+    def test_split_example_records_full_screen_without_planviz_maximize(self):
+        cfg = load_campaign(SPLIT_EXAMPLE)
+        video = cfg["recording"]["video"]
+        self.assertEqual(len(cfg["cases"]), 1)
+        self.assertEqual(video["window_layout"], "split")
+        self.assertEqual(video["bottom_bar_px"], 150)
+        self.assertFalse(video["focus_planviz"])
+
+    def test_split_window_picker_ignores_morai_launcher_terminal(self):
+        def window(name, class_name):
+            return SimpleNamespace(get_name=lambda: name,
+                                   get_class_group_name=lambda: class_name)
+        terminal = window("luv@pc: ~/MoraiLauncher_Lin", "Terminator")
+        simulator = window("Simulator", "Simulator.x86_64")
+        rviz = window("kcity_aw149_planning - RViz", "Rviz")
+        self.assertEqual(choose_windows([terminal, simulator, rviz]), (rviz, simulator))
+
+    def test_split_layout_uses_video_display(self):
+        with patch("planning_scenario_validator.runtime.subprocess.run",
+                   return_value=SimpleNamespace(returncode=0, stderr="", stdout="")) as run:
+            arrange_split_windows(bottom_bar_px=150, display=":9.0")
+        self.assertEqual(run.call_args.kwargs["env"]["DISPLAY"], ":9.0")
+        self.assertEqual(run.call_args.args[0][-1], "150")
+
     def test_example_selects_two_cases_and_local_gt_profile(self):
         cfg = load_campaign(EXAMPLE)
         self.assertEqual(len(cfg["cases"]), 2)
