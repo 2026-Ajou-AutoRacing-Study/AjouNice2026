@@ -17,7 +17,8 @@ import sys
 import time as _time_module
 
 _user_site = os.path.expanduser(f"~/.local/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages")
-if os.path.isdir(_user_site) and _user_site not in sys.path:
+if (os.environ.get("TRAFFIC_LIGHT_ISOLATE_PYTHON", "false").lower() != "true"
+        and os.path.isdir(_user_site) and _user_site not in sys.path):
     sys.path.insert(0, _user_site)
 _this_dir = os.path.dirname(os.path.abspath(__file__))
 if _this_dir not in sys.path:

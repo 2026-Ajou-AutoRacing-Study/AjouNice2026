@@ -8,6 +8,7 @@ from pathlib import Path
 
 import yaml
 from .layout import normalize_bar_setting
+from .traffic_light import runtime_settings
 
 
 ROOT = Path(__file__).resolve().parents[6]
@@ -193,6 +194,10 @@ def load_campaign(path, *, check_install=True):
         raise ConfigError("stack.detector는 od_gt 또는 bevfusion입니다")
     if not isinstance(stack.get("traffic_light", False), bool):
         raise ConfigError("stack.traffic_light는 true/false입니다")
+    try:
+        runtime_settings(stack, ROOT, check_exists=stack.get("traffic_light", False))
+    except ValueError as error:
+        raise ConfigError(str(error)) from error
     if stack["detector"] == "bevfusion" and (
             network["camera_count"] < 4 or not network["has_lidar"]):
         raise ConfigError("BEVFusion에는 카메라 4대와 LiDAR가 있는 sensor JSON이 필요합니다")

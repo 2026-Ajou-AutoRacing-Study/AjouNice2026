@@ -6,6 +6,18 @@
 
 ## 현재 구현
 
+### 신호등 Python 선택
+
+신호등 on/off와 별개로 GUI에서 `시스템 Python` / `가상환경 Python`을 선택한다. YAML의 `stack.traffic_light_runtime`은 `system|virtualenv`이고, 기존 `traffic_light_python`만 지정한 YAML도 호환한다. 기본 system은 `/usr/bin/python3` 및 기존 사용자 패키지 방식이며, virtualenv에서는 사용자 site-packages를 차단한다. `traffic_light_python`의 `~`는 각 사용자의 홈 폴더로 해석하고, 실행 파일의 venv symlink는 해제하지 않는다. `traffic_light_device`는 GPU 번호 또는 `cpu`다. 기존 YAML을 열고 저장하는 것만으로 환경 키를 추가하거나 resume 해시를 바꾸지 않는다.
+
+공용 설치기는 `scripts/runtime/setup_traffic_light_env.sh`다. 기본 prefix는 `~/.local/share/ajounice/traffic_light_gpu`, Python 3.11 / Torch 2.7.1 cu128 / TorchVision 0.22.1 cu128이며 inference dependencies는 기존 `requirements-runtime.txt`를 재사용한다. 기존 Conda 실행 파일을 사용하거나, 없으면 checksum 검증한 Miniforge를 홈 폴더에 설치한다. 시스템 Python·기존 환경·bashrc는 변경하지 않는다. 설치기가 관리하지 않는 기존 prefix는 덮어쓰지 않는다. `--check`는 설치 없이 공용 버전/모델/GPU/ROS 메시지를 검사한다.
+
+신호등 on이면 캠페인별 실제 실행 전에 `check_traffic_light_env.py`로 선택한 Python의 실제 CUDA 연산·YOLO 추론·ROS import를 검사하고, 실패/120초 timeout은 시스템 오류로 중단한다. 로그는 `stack_logs/traffic_light_preflight.log`에 남긴다. 설정 검사/dry-run은 경로·YAML 검사이며 GPU를 사용하지 않는다. signal decision parameters, 별도 system-Python 지도 매칭, 기본 예제 off는 유지한다.
+
+공용 환경 신규 설치 및 재실행 검사, 실제 ROS CompressedImage → GPU YOLO → TrafficLightGroupArray smoke를 **로컬 5060 Ti**에서 검증했다. CUDA 아키텍처 목록에는 `sm_75/86/90/120`이 있으나 2080 Ti/3090/4090 실기 검증을 완료한 뜻은 아니다. 신호등 색 판단·A/B/C/D 실주행 성공률은 이번 환경 smoke의 검증 범위가 아니다. 최초 설치 및 GUI 사용은 [팀원 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)의 7-1을 참고한다.
+
+### 자동화 스택과 녹화
+
 - `base_ws/src/planning_addons/planning_scenario_validator` ROS 패키지와 루트의 `planning_validator`, `planning_validator_dashboard` 진입점을 만들었다. 이 패키지는 제어기 구현이 아니라 planning 시나리오 검증·스택 orchestration이므로 `control/`에서 `planning_addons/`로 옮겼다.
 - 시나리오 원본을 검증하고 MORAI MR SaveFile에 정지 ExternalCtrl 사본, 대응 Ego Network `_MN.json`을 설치한다. 기존 `trajectory_batch_runner`에서 검증한 69-byte ScenarioLoad UDP payload builder를 재사용한다. 일반 주행용 competition local JSON에는 ScenarioLoad 항목이 없다. `PUBSUB_TYPE=783`이 `/GetTrafficLightStatus`로 배정된 슬롯을 `ego_network_local.json`의 UDP 9095 ScenarioLoad 항목으로 교체한 전용 JSON을 설치한다. 이 전용 JSON을 MORAI GUI에서 최초 1회 Connect해야 한다. 두 783 항목을 중복 추가하는 방식은 사용하지 않는다.
 - 공통 스택과 개별 시나리오 스택을 분리한다. 시나리오마다 localization, GT adapter, tracking, planning을 재시작해 이전 상태를 제거한다. BEVFusion inference 서버, UDP, sensing, Planviz는 한 캠페인 동안 유지한다.

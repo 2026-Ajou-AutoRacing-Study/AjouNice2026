@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import shutil
+import shlex
 import signal
 import socket
 import subprocess
@@ -15,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import ConfigError, ROOT, load_campaign
+from .traffic_light import runtime_mode, runtime_settings
 from .failure_analysis import analyze_failure, compact_summary, log_offsets, scan_log_signals
 from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure,
                       ScenarioFailure,
@@ -52,6 +54,28 @@ def _env():
     env.setdefault("PYTHONNOUSERSITE", "1")
     env["DISABLE_ROS1_EOL_WARNINGS"] = "1"
     return env
+
+
+def _check_traffic_light(cfg):
+    if not cfg["stack"].get("traffic_light", False):
+        return
+    python, device = runtime_settings(cfg["stack"], ROOT, check_exists=True)
+    command = [python] + (["-s"] if runtime_mode(cfg["stack"]) == "virtualenv" else [])
+    command += [str(ROOT / "scripts/runtime/check_traffic_light_env.py"),
+                "--device", device, "--check-ros"]
+    if runtime_mode(cfg["stack"]) == "virtualenv":
+        command.append("--isolate-python")
+    print("신호등 실행 환경 검사: {} / device={}".format(python, device), flush=True)
+    try:
+        checked = subprocess.run(command, env=_env(), stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeFailure("신호등 환경 검사 실행 실패: {}".format(error)) from error
+    (cfg["output"] / "stack_logs").mkdir(parents=True, exist_ok=True)
+    (cfg["output"] / "stack_logs/traffic_light_preflight.log").write_text(checked.stdout, encoding="utf-8")
+    print(checked.stdout, flush=True)
+    if checked.returncode:
+        raise RuntimeFailure("신호등 환경 검사가 실패했습니다. 차량 주행은 시작하지 않았습니다. 환경 설치 가이드를 확인하세요")
 
 
 def _start_master(processes, monitor_timeout):
@@ -110,9 +134,10 @@ def _start_case_stack(cfg, processes, monitor):
         start_detector=False, prediction_model="map_based",
         maximum_tracking_internal_prediction_age_sec=0.5))
     if stack.get("traffic_light", False):
-        python = stack.get("traffic_light_python", "/usr/bin/python3")
+        python, device = runtime_settings(stack, ROOT, check_exists=True)
         processes.start("traffic_light", _launch("traffic_light_detection", "traffic_light_node.launch",
-            inference_python=python, device=stack.get("traffic_light_device", "0")))
+            inference_python=shlex.quote(python), device=device,
+            isolate_python=runtime_mode(stack) == "virtualenv"))
     processes.start("planning", _launch("ajounice_planning_integration", "planning.launch",
         repo_root=ROOT, start_requester=False, is_simulation=False,
         behavior_path_forward_length=400.0, intersection_attention_area_length=100.0,
@@ -496,6 +521,7 @@ def run(cfg, resume=True, rerun_failed=False):
     processes = Processes(cfg["output"] / "stack_logs", _env())
     try:
         check_free_disk(cfg)
+        _check_traffic_light(cfg)
         _start_master(processes, float(cfg["document"].get("readiness_timeout_sec", 45)))
         import rospy
         rospy.init_node("planning_scenario_validator", anonymous=False, disable_signals=True)

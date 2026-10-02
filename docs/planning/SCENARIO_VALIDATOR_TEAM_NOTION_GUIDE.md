@@ -6,7 +6,7 @@
 
 현재 공유 브랜치는 **planning/scenario-validator-automation**입니다. 아래 내용은 개인 PC에서 MORAI와 알고리즘을 같이 켜는 기준입니다. 현장 LAN 설정과 섞지 말아 주세요.
 
-이미 우리 풀스택과 E25가 준비된 분은 1장에서 브랜치만 갱신하고, 4장 업데이트 빌드 → 7장 Network 준비 → 8장 GUI 실행으로 가면 됩니다.
+이미 우리 풀스택과 E25가 준비된 분은 1장에서 브랜치만 갱신하고, 4장 업데이트 빌드 → 7장 Network 준비 → 8장 GUI 실행으로 가면 됩니다. 신호등도 켤 사람은 7-1의 환경 설치/선택까지 확인해 주세요.
 
 ## 0. 시작 전에 이것만 확인
 
@@ -117,7 +117,7 @@ rosdep install --from-paths planning_ws/src base_ws/src \
 
 skip 목록은 아무 의존성이나 무시하라는 뜻은 아닙니다. osqp/proxsuite/acados는 저장소 빌드 도구가 따로 준비하고, rospkg는 위 python3-rospkg로 설치합니다. 마지막 네 개는 구 bringup에 남은 이름이며 현재 AW149의 autoware_* 패키지를 사용합니다. 이 목록 외의 unresolved dependency가 나오면 오류를 공유해 주세요. 이 명령은 현재 PC에서 설치 없이 simulate해 의존성 이름 처리를 확인했습니다. 완전히 빈 팀원 PC의 빌드까지 검증한 것은 아닙니다.
 
-신호등은 이번 미션 예제에서 기본 off입니다. 신호등 on으로 통합 시험하려면 해당 팀의 모델·Python 실행 환경도 별도로 준비해야 합니다. BEVFusion 때문에 호스트에 PyTorch나 CUDA Toolkit을 따로 설치할 필요는 없습니다.
+신호등은 이번 미션 예제에서 기본 off입니다. 켜서 시험할 사람은 아래 7-1의 공용 가상환경도 설치해 주세요. BEVFusion은 Docker, 신호등은 호스트 Python으로 별개로 돌아갑니다. BEVFusion만 쓰려고 호스트에 PyTorch나 CUDA Toolkit을 설치할 필요는 없습니다.
 
 ## 3. rclone 로그인하고 맵 받기
 
@@ -361,6 +361,67 @@ fi
 MR이 다른 폴더에 설치되어 있으면 두 JSON을 직접 골라 Load하고, GUI 고급 설정의 MORAI scenario 폴더도 본인의 SaveFile/Scenario/R_KR_PR_K-city_2025로 지정해 주세요. 여러 MR/MRP 설치가 섞이면 auto 탐색이 실패할 수 있습니다.
 
 네트워크 최초 Connect는 사람이 한 번 합니다. 이후 시나리오 로드와 주행은 검증기가 합니다. 센서는 켜둬야 합니다. **LiDAR·카메라 녹화 제외는 bag 용량 옵션이지 센서를 끄는 옵션이 아닙니다.**
+
+## 7-1. 신호등도 켜려면 — 팀원은 공용 가상환경 추천
+
+팀장님처럼 시스템 Python에서 이미 잘 돌아가면 그대로 쓰면 됩니다. 새로 세팅하는 팀원은 아래로 별도 환경을 만드는 쪽으로 가 주세요. 시스템 Python이나 기존 Conda 환경을 덮어쓰지 않습니다. 신호등 모델 best.pt는 Git에 있어서 별도로 받을 필요 없습니다. BEVFusion E25 가중치와는 다른 모델입니다.
+
+ROS 빌드까지 끝낸 다음 새 터미널에서 최초 한 번 실행합니다.
+
+```bash
+cd ~/AjouNice2026
+nvidia-smi
+bash scripts/runtime/setup_traffic_light_env.sh
+```
+
+Conda가 있으면 그 실행 파일을 쓰고, 없으면 홈 폴더 아래 Miniforge를 설치합니다. conda init이나 bashrc 변경은 하지 않습니다. 패키지 다운로드에 인터넷이 필요하고, 제 PC에서는 새 환경 자체가 약 7.2 GiB를 사용했습니다. 다운로드 캐시·Miniforge 공간도 별도라 신호등 설치용으로 15 GiB 정도 여유를 권장합니다. nvidia-smi가 안 되면 NVIDIA 드라이버부터 해결해야 합니다. GPU 드라이버는 이 스크립트가 설치하지 않습니다.
+
+설치 완료 후 아래 환경이 생깁니다.
+
+- Python 경로: ~/.local/share/ajounice/traffic_light_gpu/bin/python
+- Python 3.11 / torch 2.7.1+cu128 / torchvision 0.22.1+cu128
+- ultralytics 8.4.143 / numpy 1.26.4 / opencv-python 4.8.1.78
+
+2080 Ti, 3090, 4090, 5060 Ti 모두 같은 설치 명령을 사용합니다. 다만 드라이버와 실제 GPU에서의 작동은 각 PC에서 마지막 검사를 통과해야 합니다. **현재 실제 설치·GPU 추론 검증은 제 5060 Ti에서 완료했고 나머지 GPU 실기 검증은 아직입니다.** 설치 마지막에 GPU 연산, 신호등 가중치 추론, ROS 메시지 import를 검사해서 PASS인지 보여줍니다. CUDA Toolkit을 호스트에 따로 깔 필요는 없습니다. 버전 조합은 [PyTorch 공식 설치 안내](https://pytorch.org/get-started/previous-versions/)의 2.7.1 CUDA 12.8 조합을 사용합니다. Conda가 없는 경우 설치하는 도구는 [Miniforge](https://github.com/conda-forge/miniforge)입니다.
+
+GUI에서:
+
+1. 신호등 인지 on을 켭니다.
+2. 바로 옆에서 **가상환경 Python**을 고릅니다.
+3. 신호등 환경 탭에서 위 기본 Python 경로와 장치 0을 확인합니다. GPU가 하나면 0입니다. CPU로 시험할 때만 cpu를 입력합니다.
+4. 이미 실행한 캠페인이라면 새 이름으로 저장한 뒤 실행합니다.
+
+매번 conda activate를 할 필요 없습니다. 검증기가 선택한 Python을 직접 실행합니다. 신호등 환경 탭의 설치 명령 복사 버튼도 같은 설치 명령을 복사하는 기능입니다. GUI에서 몰래 설치하거나 sudo를 실행하지는 않습니다.
+
+나중에 설치 없이 환경만 다시 검사하려면:
+
+```bash
+cd ~/AjouNice2026
+bash scripts/runtime/setup_traffic_light_env.sh --check
+```
+
+기존 시스템 Python을 유지할 사람은 GUI에서 **시스템 Python**을 고릅니다. /usr/bin/python3를 사용하며 이미 설치된 사용자 패키지를 사용하는 기존 방식도 유지합니다. 공용 환경 버전을 시스템 Python에 억지로 설치하지 마세요. Ubuntu 20.04의 시스템 Python 3.8에 위 Python 3.11 조합을 그대로 넣는 방식이 아닙니다. 기존 시스템 환경 검사는 아래처럼 합니다. 실패하면 시스템에 설치를 밀어넣지 말고 공용 가상환경을 선택하는 게 편합니다.
+
+```bash
+cd ~/AjouNice2026
+source scripts/workspace/source_aw149.sh
+/usr/bin/python3 scripts/runtime/check_traffic_light_env.py --device 0 --check-ros
+```
+
+이미 본인 신호등 Conda 환경이 있으면 신호등 환경 탭에서 그 환경의 bin/python 경로로 바꿔도 됩니다. 기존 환경을 수정하는 설치 명령을 실행할 필요는 없습니다. 가상환경 선택에서는 사용자 site-packages가 섞이지 않도록 격리합니다. 지도 매칭은 기존처럼 별도 시스템 Python 프로세스에 남아 있고, 신호등 모델 추론만 선택한 Python으로 돌아갑니다. 판단 threshold·스무딩·신호 매칭 기준은 실행 환경 선택으로 바뀌지 않습니다.
+
+직접 YAML을 편집하는 경우 stack 아래에 다음 값을 넣습니다. GUI로 선택하면 알아서 저장됩니다. 아래 경로의 ~는 각자 홈 폴더로 해석되니 /home/luv로 바꿀 필요 없습니다.
+
+```yaml
+stack:
+  # 나머지 기존 stack 설정은 유지
+  traffic_light: true
+  traffic_light_runtime: virtualenv  # system이면 /usr/bin/python3 사용
+  traffic_light_python: ~/.local/share/ajounice/traffic_light_gpu/bin/python
+  traffic_light_device: '0'  # CPU 시험만 cpu
+```
+
+신호등 on 상태로 실행하면 차량을 움직이기 전에 실제 환경 검사를 먼저 합니다. 실패하면 stack_logs/traffic_light_preflight.log와 GUI 로그를 확인하세요. 설정 검사 버튼은 경로·YAML 검사이고, 실제 GPU/모델 검사는 실행 버튼에서 합니다. off인 예제는 이 환경이 없어도 실행할 수 있습니다. 기본 예제는 계속 off로 유지합니다.
 
 ## 8. 이제 실제 실행 — 터미널은 어디까지 켜나
 

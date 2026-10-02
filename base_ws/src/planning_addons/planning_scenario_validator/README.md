@@ -28,6 +28,12 @@ GUI는 기존 `./planning_validator`만 호출한다. 실행 중 완료 장면�
 
 첫 장면에서는 RViz 창이 생성된 뒤 저장된 창 크기를 늦게 복원할 수 있어, 약 6초간 초기화를 기다린 다음 반반 배치하고 1.5초간 유지 여부를 확인한다. 이후 장면에서는 이 대기를 반복하지 않는다. 실제 창 크기가 요청값에서 16px 이상 벗어나면 성공으로 처리하지 않고 수동 배치 경고를 남긴다. `split`인데 창이 원래 크기로 되돌아간다면 먼저 **실행 중이던 GUI를 닫고 다시 실행**하여 새 배치 코드를 적용한다.
 
+## 신호등 실행 환경 선택
+
+GUI의 신호등 on 옆에서 **시스템 Python / 가상환경 Python**을 선택한다. 기본은 기존 `/usr/bin/python3`이며, 새 팀원은 `bash scripts/runtime/setup_traffic_light_env.sh`로 공용 환경을 준비한 뒤 가상환경을 선택한다. 설치는 시스템 Python/기존 Conda를 변경하지 않고 홈 폴더 아래 별도 환경을 만든다. 기본 경로는 `~/.local/share/ajounice/traffic_light_gpu/bin/python`, 장치는 `0`이다. CPU 시험은 `cpu`로 바꾼다. GUI의 `신호등 환경` 탭에서 기존 환경의 Python 경로도 지정할 수 있다. 신호등 모델은 Git에 포함돼 있으며 BEVFusion Docker와 별개다.
+
+YAML 키는 `stack.traffic_light`, `traffic_light_runtime: system|virtualenv`, `traffic_light_python`, `traffic_light_device`이다. 기존 YAML의 `traffic_light_python`만 지정한 형식도 호환한다. off에서는 환경 설치가 필요 없고, on이면 실행 직전 모델/GPU/ROS import를 검사하여 실패 시 주행을 시작하지 않는다. 설정 검사 버튼은 실제 GPU 추론까지 수행하지 않는다. threshold/스무딩/지도 매칭 정책은 바꾸지 않는다. 최초 설치 및 시스템 환경 검사 명령은 [팀원 가이드](../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#7-1-신호등도-켜려면--팀원은-공용-가상환경-추천)를 참고한다.
+
 ## 5분 실행
 
 1. 아래 `install.sh`를 한 번 실행한다. 그러면 `ego_network_validator_local.json`이 대회 MR의 `SaveFile/Network/25.S4.MolitComp03/`에도 설치된다. MORAI MR에서 K-City 맵을 열고, YAML에 적힌 Sensor JSON과 이 Ego Network JSON을 각각 로드해 Connect한다. MORAI GUI의 최초 Connect는 사용자가 한 번 한다. 시나리오 전환은 실행기가 자동으로 한다. 평소의 `ego_network_competition_local.json`을 대신 로드하면 ScenarioLoad가 없어 자동 전환이 실패한다.

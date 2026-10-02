@@ -21,6 +21,7 @@ import yaml
 
 from .config import DEFAULT_UPLOAD_REMOTE, ROOT, UPLOAD_PROFILES, resolve_path
 from .layout import normalize_bar_setting, resolve_bar_height
+from .traffic_light import DEFAULT_PYTHON, LABEL_MODES, MODE_LABELS, runtime_mode, runtime_settings
 
 
 PACKAGE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator"
@@ -111,6 +112,9 @@ def form_values(document):
         "pose_source": stack.get("pose_source", "localization"),
         "detector": stack.get("detector", "od_gt"),
         "traffic_light": stack.get("traffic_light", False),
+        "traffic_light_runtime": MODE_LABELS[runtime_mode(stack)],
+        "traffic_light_python": stack.get("traffic_light_python", DEFAULT_PYTHON) if stack.get("traffic_light_python") != "/usr/bin/python3" else DEFAULT_PYTHON,
+        "traffic_light_device": str(stack.get("traffic_light_device", "0")),
         "topic_profile": recording.get("topic_profile", ""),
         "include_sensors": recording.get("include_sensors", False),
         "video": recording.get("video", {}).get("enabled", False),
@@ -160,6 +164,17 @@ def build_document(template, values):
     for key in ("pose_source", "detector"):
         stack[key] = str(values[key])
     stack["traffic_light"] = bool(values["traffic_light"])
+    mode = LABEL_MODES.get(str(values["traffic_light_runtime"]))
+    if mode is None:
+        raise ValueError("신호등 실행 환경을 선택하세요")
+    old = form_values(template)
+    # Never change existing resume hashes merely by opening/saving an old YAML.
+    if any(str(values[key]) != str(old[key]) for key in (
+            "traffic_light_runtime", "traffic_light_python", "traffic_light_device")):
+        stack["traffic_light_runtime"] = mode
+        stack["traffic_light_python"] = str(values["traffic_light_python"]).strip()
+        stack["traffic_light_device"] = str(values["traffic_light_device"]).strip()
+    runtime_settings(stack, ROOT)
     recording = result.setdefault("recording", {})
     recording["topic_profile"] = str(values["topic_profile"]).strip()
     recording["include_sensors"] = bool(values["include_sensors"])
@@ -453,8 +468,10 @@ def main(*, on_ready=None, runner_executable=None):
     notebook.pack(fill="x", pady=8)
     basic = ttk.Frame(notebook, padding=10)
     advanced = ttk.Frame(notebook, padding=10)
+    traffic_tab = ttk.Frame(notebook, padding=10)
     notebook.add(basic, text="기본 설정")
     notebook.add(advanced, text="고급 / 네트워크")
+    notebook.add(traffic_tab, text="신호등 환경")
 
     def add_field(parent, row, key, label, *, choices=None, browse=False, boolean=False):
         var = tk.BooleanVar() if boolean else tk.StringVar()
@@ -474,6 +491,7 @@ def main(*, on_ready=None, runner_executable=None):
                     var.set(selected)
             ttk.Button(parent, text="찾기", command=pick).grid(row=row, column=2, padx=5)
         parent.columnconfigure(1, weight=1)
+        return widget
 
     add_field(basic, 0, "campaign_name", "캠페인 이름")
     add_field(basic, 1, "directory", "시나리오 JSON 폴더", browse="dir")
@@ -484,7 +502,16 @@ def main(*, on_ready=None, runner_executable=None):
     add_field(basic, 7, "timeout_sec", "주행 제한 시간 (초)")
     add_field(basic, 8, "pose_source", "측위", choices=["localization", "maptf_morai"])
     add_field(basic, 9, "detector", "객체 탐지", choices=["od_gt", "bevfusion"])
-    add_field(basic, 10, "traffic_light", "신호등 인지", boolean=True)
+    ttk.Label(basic, text="신호등 인지", width=19).grid(row=10, column=0, sticky="w", pady=3)
+    traffic_row = ttk.Frame(basic)
+    traffic_row.grid(row=10, column=1, sticky="ew")
+    vars_["traffic_light"] = tk.BooleanVar()
+    vars_["traffic_light_runtime"] = tk.StringVar()
+    ttk.Checkbutton(traffic_row, text="on", variable=vars_["traffic_light"]).pack(side="left")
+    traffic_mode = ttk.Combobox(traffic_row, textvariable=vars_["traffic_light_runtime"],
+                              values=list(MODE_LABELS.values()), state="readonly", width=22)
+    traffic_mode.pack(side="left", padx=10)
+    ttk.Label(traffic_row, text="경로·장치: 신호등 환경 탭").pack(side="left")
     add_field(basic, 11, "video", "화면 영상 녹화", boolean=True)
     add_field(basic, 12, "include_sensors", "bag에 카메라/LiDAR", boolean=True)
     add_field(basic, 13, "upload_enabled", "Drive 자동 업로드", boolean=True)
@@ -499,6 +526,32 @@ def main(*, on_ready=None, runner_executable=None):
     add_field(advanced, 6, "bottom_bar_px", "GUI 하단 높이 (auto/px/%)")
     add_field(advanced, 7, "upload_remote", "Drive rclone 경로")
     ttk.Label(advanced, text="split: RViz 왼쪽, MORAI 오른쪽, GUI 하단. Drive 공유는 rclone remote를 각 PC에서 설정해야 합니다.").grid(row=8, column=0, columnspan=3, sticky="w", pady=8)
+
+    traffic_python = add_field(traffic_tab, 0, "traffic_light_python", "가상환경 Python", browse="file")
+    add_field(traffic_tab, 1, "traffic_light_device", "신호등 장치 (0/cpu)")
+    ttk.Label(traffic_tab, text="시스템 선택: /usr/bin/python3 (기존 환경 유지). 가상환경 선택: 위 실행 파일 사용.\n"
+              "GPU 번호 0이 기본값입니다. CPU 시험은 cpu로 입력하세요. 신호등 off이면 환경이 없어도 실행됩니다.",
+              wraplength=750).grid(row=2, column=0, columnspan=3, sticky="w", pady=8)
+
+    def copy_traffic_install():
+        root.clipboard_clear()
+        root.clipboard_append("cd ~/AjouNice2026\nbash scripts/runtime/setup_traffic_light_env.sh")
+        status.set("공용 가상환경 설치 명령을 복사했습니다. 별도 터미널에 붙여넣으세요. 설치 후 가상환경을 선택하세요.")
+
+    ttk.Button(traffic_tab, text="공용 가상환경 설치 명령 복사", command=copy_traffic_install).grid(
+        row=3, column=0, columnspan=3, sticky="w", pady=8)
+    ttk.Label(traffic_tab, text="설치는 최초 1회입니다. Conda activate는 필요 없습니다.\n"
+              "실행 버튼을 누르면 선택한 Python으로 모델/GPU/ROS import를 먼저 검사합니다.\n"
+              "환경 변경 후 이미 실행한 캠페인은 새 이름으로 저장하세요.", wraplength=750).grid(
+        row=4, column=0, columnspan=3, sticky="w", pady=8)
+
+    def update_traffic_widgets(*_):
+        enabled = vars_["traffic_light"].get()
+        traffic_mode.configure(state="readonly" if enabled else "disabled")
+        traffic_python.configure(state="normal" if enabled and vars_["traffic_light_runtime"].get() == MODE_LABELS["virtualenv"] else "disabled")
+
+    vars_["traffic_light"].trace_add("write", update_traffic_widgets)
+    vars_["traffic_light_runtime"].trace_add("write", update_traffic_widgets)
 
     def collect():
         values = {key: var.get() for key, var in vars_.items()}
