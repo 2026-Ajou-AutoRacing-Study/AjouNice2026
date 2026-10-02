@@ -200,6 +200,42 @@ rospack find morai_msgs
 
 **GT 객체로 먼저 돌려볼 분은 이 장과 6장을 건너뛰고, GUI 탐지기를 od_gt로 선택하면 됩니다.** 실제 BEVFusion 시험은 Docker 이미지와 E25 가중치가 둘 다 필요합니다.
 
+### 5-0. 이제 이 명령으로 한 번에 준비하면 됩니다
+
+Ubuntu 20.04 팀 PC라면 아래를 먼저 쓰세요. 앞의 ROS·빌드·맵 준비와 rclone 본인 로그인이 끝난 상태 기준입니다.
+
+```bash
+cd ~/AjouNice2026
+bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --bevfusion
+```
+
+이 명령이 필요한 다운로드·GUI 도구, Docker Engine/Compose, NVIDIA Container Toolkit을 준비하고, 공유 Drive의 공용 이미지와 E25를 받아 등록합니다. 이미지 압축은 체크섬 확인 후 바로 docker load로 흘려 보내서 큰 tar 사본을 만들지 않습니다. 가중치는 압축에서 E25 파일만 꺼내 SHA256을 확인하고 기본 경로에 넣습니다. 마지막에 기존 verify_team_image.sh로 실제 모듈 import·GPU 연산까지 검사합니다.
+
+sudo 비밀번호는 본인 PC 비밀번호를 입력합니다. rclone 로그인 안 했으면 설치 중 config 화면을 열어 안내하니 본인 Google 계정으로 인증하면 됩니다. 인증 토큰을 Git이나 팀 채팅에 올리지 마세요.
+
+기존 Docker와 정상 이미지·가중치는 재사용합니다. 기존 가중치가 다른 파일이면 덮어쓰지 않고 멈춥니다. 실행 중 컨테이너가 있으면 GPU 설정을 위해 Docker를 재시작하지 않습니다. docker.io 같은 충돌 패키지를 지우거나 NVIDIA 드라이버를 업그레이드하지도 않습니다. 이런 경우만 아래 수동 안내를 보거나 오류를 보내 주세요.
+
+처음 Docker 그룹에 계정이 추가되면 이미지 준비는 sudo로 마무리하지만, **GUI 사용 전 로그아웃/로그인이 한 번 필요합니다.** 재로그인 후 docker ps가 sudo 없이 되면 됩니다. docker 그룹은 관리자 수준 권한입니다.
+
+설치 전에 실행 계획만 보고 싶으면:
+
+```bash
+bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --bevfusion --dry-run
+```
+
+설치 완료 후에는 **아래 5-1·5-2·6의 수동 명령을 반복하지 않고 7의 MORAI 연결로 넘어가세요.** ROS 설치·workspace 빌드·맵 다운로드·신호등 Python 환경까지 한꺼번에 설치하는 명령은 아닙니다. Ubuntu 20.04는 현재 Docker 공식 지원 목록에서 빠져 있어 focal 저장소의 설치 가능한 패키지를 확인하고, 후보가 없으면 다른 OS 패키지를 섞지 않고 중단합니다.
+
+이미 Docker가 있고 시스템 설정을 건드리지 않은 채 자료만 받고 싶으면 다음을 사용합니다. Drive remote가 다른 경우 --remote 이름으로 바꿀 수 있습니다.
+
+```bash
+bash scripts/runtime/setup_bevfusion_inference.sh --assets-only
+# 선택: --remote 내remote --download-dir ~/bevfusion_downloads
+```
+
+기본 다운로드는 ~/bevfusion_downloads, 기본 E25는 ~/bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth입니다. .env.bevfusion.local은 자동 수정하지 않으니 이전 경로를 지정했던 분은 GUI 환경 검사로 확인해 주세요. 다운로드 완료 압축은 보존·재사용하고, 중단된 .part는 다음에 다시 시도합니다. 중간 파일의 바이트 단위 이어받기를 보장하는 것은 아닙니다.
+
+이번 로컬 검증은 기존 Docker가 있는 5060 Ti에서 실제 Drive E25 다운로드·압축 검증·설치·GPU 검사까지 완료한 것입니다. 빈 팀원 PC의 apt 설치와 다른 GPU 실기 설치까지 검증한 뜻은 아닙니다.
+
 ### 5-1. Docker가 이미 있으면 먼저 확인
 
 ```bash
@@ -333,7 +369,7 @@ cd ~/AjouNice2026
 bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --gui
 ```
 
-이 install.sh는 이름과 달리 전체 자동 설치기가 아닙니다. GUI·녹화 도구를 확인하고 validator용 Ego Network JSON을 만듭니다. **ROS 설치 / 빌드 / 맵 다운로드 / Docker 설치 / E25 다운로드 / rclone 로그인은 앞에서 따로 해줘야 합니다.** --gui를 붙이면 tkinter가 없는 것도 오류로 알려줍니다.
+기본 install.sh와 --gui는 도구 확인·validator용 Ego Network 생성을 합니다. **--bevfusion을 선택했을 때만 Docker·Drive 이미지·E25 준비를 추가합니다.** ROS 설치 / 빌드 / 맵 다운로드는 여전히 앞에서 해야 합니다. --gui를 붙이면 tkinter가 없는 것도 오류로 알려줍니다. 자동 준비에 성공했으면 여기서는 JSON Load·Connect만 이어가면 됩니다.
 
 MR을 켜서 K-City 맵을 연 뒤 다음 두 파일을 Load하고 Connect합니다.
 

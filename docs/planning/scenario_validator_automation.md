@@ -8,6 +8,12 @@
 
 ### 여러 YAML 순차 배치·설치 점검 (2026-10-03)
 
+후속 선택형 설치: `install.sh --bevfusion` → stdlib-only `bootstrap.py`로 Ubuntu 20.04 amd64의 Docker/Compose/Container Toolkit·rclone/zstd·GUI/녹화 도구를 준비하고, 공유 Drive의 고정 공용 이미지/E25 압축을 검증·등록한다. 이미지 압축은 SHA256 검사 후 `zstd -dc | docker load` 방식으로 큰 tar 사본을 만들지 않는다. E25 압축도 SHA256을 검사하며 regular checkpoint 한 개만 읽어 별도 SHA256을 검증·exclusive 설치한다. 임의 archive 경로나 symlink는 extract하지 않는다. 기본 경로·수동 대안은 팀원 가이드 5-0에 있다.
+
+기존 충돌 패키지 자동 삭제·GPU 드라이버 업그레이드·실행 중 컨테이너가 있는 daemon 재시작·기존 .env/가중치 덮어쓰기는 하지 않는다. 최초 Google 로그인과 sudo, 새 Docker 그룹 적용을 위한 재로그인은 사용자 단계다. `--dry-run`은 설치/다운로드/GPU 연산 없이 계획만 출력하고, `--assets-only`는 시스템 설정을 바꾸지 않는다. 완료 압축을 재사용하며 미완료 .part는 재시도하지만 바이트 단위 resume는 보장하지 않는다. Ubuntu 20.04는 현재 Docker 최신 공식 지원 목록 밖이므로 focal 설치 후보를 확인하고 다른 OS 패키지를 혼용하지 않는다.
+
+실제 Drive E25 다운로드·압축/가중치 SHA 검증·단일 파일 설치와 기존 공용 이미지의 모듈 import/전체 선언 architecture 검사/5060 Ti CUDA 연산은 로컬에서 확인했다. 새 설치 명령 분기·보존·컨테이너 재시작 차단·사용자 Docker endpoint 보호・실제 zstd 스트림 연결을 포함한 전체 테스트 122개를 통과했다. 빈 PC의 apt 설치는 실제 수행하지 않고 명령 분기·보존·중단 안전성을 테스트한다. 새로운 팀원 PC 파일럿이 남아 있다. 기본 설치 도구 검사는 기존 동작을 유지한다.
+
 GUI의 `실행 목록 / 배치`에서 개인 YAML을 추가·제거·정렬하고 하나의 목록을 실행한다. 캠페인 설정은 각 YAML만 사용하며, 목록 JSON은 YAML 경로와 결과 위치만 기억한다. 목록은 `~/.config/ajounice/planning_scenario_validator/batch.json`(XDG_CONFIG_HOME 지원)에 자동 저장되어 Git에 포함되지 않는다. 배치 안에 다른 배치를 중첩하지 않는다.
 
 중단은 현재 recorder와 ROS 스택을 정상 마감한 뒤 다음 YAML을 시작하지 않는다. 재개하면 완료된 PASS/FAIL 캠페인·장면을 건너뛰고 미완료부터 실행한다. 주행 FAIL은 다음 YAML을 계속 실행하고, 시스템 오류·불완전한 종료는 배치를 멈춘다. 종료 코드 0만으로 완료를 인정하지 않고 캠페인 state의 실행 계약·YAML 해시·선택 장면별 결과를 검증한다. 목록·YAML·시나리오·Network·토픽 프로필이 변경되면 같은 배치 재개를 거부한다. 배치 lock과 ROS graph lock으로 중복 실행도 막는다.

@@ -8,6 +8,7 @@ catkin_install_python(PROGRAMS
   scripts/planning_validator_gui.py
   scripts/planning_validator_batch.py
   scripts/planning_validator_doctor.py
+  scripts/setup_bevfusion_inference.py
   scripts/planning_validator_dashboard.py
   scripts/focus_planviz.py
   scripts/arrange_split_windows.py

@@ -6,6 +6,8 @@
 
 설치 후에는 [짧은 사용법](../../../../docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md)을 따른다. **YAML 하나는 공통 실행 조건 하나**, 여러 YAML은 GUI `실행 목록 / 배치`에 추가해 순서대로 실행한다. 미션별 사용자 진입점은 `config/missions/<미션>/base/`와 Git 제외 `workspace/`이며, 토픽·생성 Network는 `config/internal/`에 분리했다.
 
+Ubuntu 20.04에서 Docker·Drive 이미지·E25를 한 번에 준비하려면 `bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --bevfusion`을 선택한다. 기본 `--gui`/`--check`는 계속 도구 검사이며 자동 설치하지 않는다. `--bevfusion --dry-run`은 변경 없는 계획 출력이다. 기존 Docker·가중치·.env·드라이버는 임의 교체하지 않으며 최초 본인 Google 인증·sudo·Docker 그룹 재로그인은 필요할 수 있다. ROS 빌드·맵은 별도다. 자세한 단계는 설치 가이드 5-0을 참고한다.
+
 ## GUI로 시작하기
 
 팀원에게 배포할 미션별 YAML·시나리오는 [미션 스타터 안내](config/missions/README.md)를 참고한다. 회전교차로·일반 정적·사거리 동적·GPS 음영 정적·고주로 각각 `base/`(공유 24개)와 `workspace/`(Git 제외 개인 작업)로 나눈다. GUI 예제 목록에서 base를 선택하고 `베이스 → 내 작업 폴더 복사`를 누르면 시나리오와 새 캠페인 YAML을 준비한다. 이 묶음은 오프라인 검사 완료 상태이며 live 주행·배우 동작은 첫 기준선부터 확인한다.

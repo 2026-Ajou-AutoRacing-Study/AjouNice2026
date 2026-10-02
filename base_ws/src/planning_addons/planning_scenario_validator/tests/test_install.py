@@ -13,10 +13,12 @@ class InstallEntryTests(unittest.TestCase):
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0)
         self.assertIn("--gui", result.stdout)
+        self.assertIn("--bevfusion", result.stdout)
+        self.assertIn("--dry-run", result.stdout)
         self.assertIn("SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md", result.stdout)
 
     def test_unknown_and_extra_options_fail_before_setup(self):
-        for options in (("--install-everything",), ("--gui", "extra")):
+        for options in (("--install-everything",), ("--gui", "extra"), ("--check", "--bevfusion"), ("--dry-run",)):
             with self.subTest(options=options):
                 result = subprocess.run(["bash", str(INSTALL), *options],
                                         capture_output=True, text=True)
