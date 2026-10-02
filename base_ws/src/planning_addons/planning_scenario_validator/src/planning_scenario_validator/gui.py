@@ -551,12 +551,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     traffic_row = ttk.Frame(basic)
     traffic_row.grid(row=10, column=1, sticky="ew")
     vars_["traffic_light"] = tk.BooleanVar()
-    vars_["traffic_light_runtime"] = tk.StringVar()
     ttk.Checkbutton(traffic_row, text="on", variable=vars_["traffic_light"]).pack(side="left")
-    traffic_mode = ttk.Combobox(traffic_row, textvariable=vars_["traffic_light_runtime"],
-                              values=list(MODE_LABELS.values()), state="readonly", width=22)
-    traffic_mode.pack(side="left", padx=10)
-    ttk.Label(traffic_row, text="경로·장치: 신호등 환경 탭").pack(side="left")
+    ttk.Label(traffic_row, text="실행 환경 설정: 신호등 환경 탭").pack(side="left", padx=10)
     add_field(basic, 11, "video", "화면 영상 녹화", boolean=True)
     add_field(basic, 12, "include_sensors", "bag에 카메라/LiDAR", boolean=True)
     add_field(basic, 13, "upload_enabled", "Drive 자동 업로드", boolean=True)
@@ -572,11 +568,13 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     add_field(advanced, 7, "upload_remote", "Drive rclone 경로")
     ttk.Label(advanced, text="split: RViz 왼쪽, MORAI 오른쪽, GUI 하단. Drive 공유는 rclone remote를 각 PC에서 설정해야 합니다.").grid(row=8, column=0, columnspan=3, sticky="w", pady=8)
 
-    traffic_python = add_field(traffic_tab, 0, "traffic_light_python", "가상환경 Python", browse="file")
-    add_field(traffic_tab, 1, "traffic_light_device", "신호등 장치 (0/cpu)")
+    traffic_mode = add_field(traffic_tab, 0, "traffic_light_runtime", "실행 환경",
+                             choices=list(MODE_LABELS.values()))
+    traffic_python = add_field(traffic_tab, 1, "traffic_light_python", "가상환경 Python", browse="file")
+    add_field(traffic_tab, 2, "traffic_light_device", "신호등 장치 (0/cpu)")
     ttk.Label(traffic_tab, text="시스템 선택: /usr/bin/python3 (기존 환경 유지). 가상환경 선택: 위 실행 파일 사용.\n"
               "GPU 번호 0이 기본값입니다. CPU 시험은 cpu로 입력하세요. 신호등 off이면 환경이 없어도 실행됩니다.",
-              wraplength=750).grid(row=2, column=0, columnspan=3, sticky="w", pady=8)
+              wraplength=750).grid(row=3, column=0, columnspan=3, sticky="w", pady=8)
 
     def copy_traffic_install():
         root.clipboard_clear()
@@ -584,11 +582,11 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         status.set("공용 가상환경 설치 명령을 복사했습니다. 별도 터미널에 붙여넣으세요. 설치 후 가상환경을 선택하세요.")
 
     ttk.Button(traffic_tab, text="공용 가상환경 설치 명령 복사", command=copy_traffic_install).grid(
-        row=3, column=0, columnspan=3, sticky="w", pady=8)
+        row=4, column=0, columnspan=3, sticky="w", pady=8)
     ttk.Label(traffic_tab, text="설치는 최초 1회입니다. Conda activate는 필요 없습니다.\n"
               "실행 버튼을 누르면 선택한 Python으로 모델/GPU/ROS import를 먼저 검사합니다.\n"
               "환경 변경 후 이미 실행한 캠페인은 새 이름으로 저장하세요.", wraplength=750).grid(
-        row=4, column=0, columnspan=3, sticky="w", pady=8)
+        row=5, column=0, columnspan=3, sticky="w", pady=8)
 
     def update_traffic_widgets(*_):
         enabled = vars_["traffic_light"].get()

@@ -207,6 +207,66 @@ class GuiWindowTests(unittest.TestCase):
         config_patch.start()
         self.addCleanup(config_patch.stop)
 
+    def test_traffic_environment_is_only_in_its_tab_and_keeps_yaml_bindings(self):
+        from tkinter import ttk
+        captured = {}
+
+        def descendants(widget):
+            for child in widget.winfo_children():
+                yield child
+                yield from descendants(child)
+
+        def ready(app):
+            try:
+                notebook = next(widget for widget in descendants(app['root'])
+                                if isinstance(widget, ttk.Notebook))
+                tabs = {notebook.tab(tab, 'text'): app['root'].nametowidget(tab)
+                        for tab in notebook.tabs()}
+                runtime_var = str(app['fields']['traffic_light_runtime'])
+                basic_widgets = list(descendants(tabs['기본 설정']))
+                self.assertFalse(any(str(widget.cget('textvariable')) == runtime_var
+                                     for widget in basic_widgets
+                                     if 'textvariable' in widget.keys()))
+                toggle = next(widget for widget in basic_widgets
+                              if isinstance(widget, ttk.Checkbutton)
+                              and str(widget.cget('variable')) == str(app['fields']['traffic_light']))
+                env_widgets = list(descendants(tabs['신호등 환경']))
+                mode = next(widget for widget in env_widgets
+                            if isinstance(widget, ttk.Combobox)
+                            and str(widget.cget('textvariable')) == runtime_var)
+                python_entry = next(widget for widget in env_widgets
+                                    if isinstance(widget, ttk.Entry)
+                                    and str(widget.cget('textvariable')) == str(app['fields']['traffic_light_python']))
+                self.assertEqual(tuple(mode.cget('values')), tuple(gui_module.MODE_LABELS.values()))
+                app['fields']['traffic_light'].set(False)
+                self.assertEqual(str(mode.cget('state')), 'disabled')
+                toggle.invoke()
+                self.assertTrue(app['fields']['traffic_light'].get())
+                self.assertEqual(str(mode.cget('state')), 'readonly')
+                app['fields']['campaign_name'].set('gui_traffic_environment')
+                app['fields']['traffic_light_python'].set(gui_module.DEFAULT_PYTHON)
+                app['fields']['traffic_light_device'].set('cpu')
+                for runtime in ('system', 'virtualenv'):
+                    app['fields']['traffic_light_runtime'].set(gui_module.MODE_LABELS[runtime])
+                    self.assertEqual(str(python_entry.cget('state')),
+                                     'normal' if runtime == 'virtualenv' else 'disabled')
+                    document = load_document(app['actions']['save']())
+                    self.assertTrue(document['stack']['traffic_light'])
+                    self.assertEqual(document['stack']['traffic_light_runtime'], runtime)
+                    self.assertEqual(document['stack']['traffic_light_device'], 'cpu')
+                app['fields']['traffic_light'].set(False)
+                document = load_document(app['actions']['save']())
+                self.assertFalse(document['stack']['traffic_light'])
+                self.assertEqual(document['stack']['traffic_light_runtime'], 'virtualenv')
+                self.assertEqual(document['stack']['traffic_light_python'], gui_module.DEFAULT_PYTHON)
+                captured['ok'] = True
+            finally:
+                app['root'].destroy()
+
+        with patch.object(gui_module, 'USERS', Path(os.environ['XDG_CONFIG_HOME']) / 'users'):
+            gui_module.main(on_ready=ready)
+        self.assertTrue(captured.get('ok'))
+
     def test_workspace_button_and_save_use_selected_mission(self):
         root_path = Path(os.environ['XDG_CONFIG_HOME'])
         missions = root_path / 'missions'

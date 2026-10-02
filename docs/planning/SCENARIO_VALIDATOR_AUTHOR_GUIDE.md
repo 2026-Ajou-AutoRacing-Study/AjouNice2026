@@ -131,7 +131,7 @@ rostopic echo -n 1 /move_base_simple/goal
 - `default_case.timeout_sec`는 준비 후 실제 주행 시간입니다. 스택·시나리오·route 준비 timeout은 별개라 이 값만 줄여도 준비가 빨라지지는 않습니다.
 - `stop`은 목표 반경 안에서 속도·유지시간 조건까지 만족해야 도착입니다. `pass_through`는 목표 영역 통과를 보는 별도 모드입니다. 같은 YAML에서 장면마다 다르게 지정하지 않습니다.
 - 기본은 `basic` 토픽 + `include_sensors: false` + 영상 on입니다. **센서를 끄라는 뜻이 아니라 bag에 카메라/LiDAR를 안 넣겠다는 뜻**입니다.
-- 신호등을 켜면 Python 방식과 실행 경로를 선택합니다. 팀원 가상환경 설치는 [설치 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)의 7-1을 참고하세요.
+- 기본 설정 탭에서는 신호등 on/off만 선택합니다. Python 방식·실행 경로·GPU/CPU 장치는 신호등 환경 탭에서 설정합니다. 팀원 가상환경 설치는 [설치 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)의 7-1을 참고하세요.
 - 업로드는 기본 off입니다. 필요한 공유 범위만 고릅니다. 로컬 bag·영상은 업로드 선택과 별개로 보존됩니다.
 
 ## 5. 새 케이스는 먼저 한두 개만 실행
