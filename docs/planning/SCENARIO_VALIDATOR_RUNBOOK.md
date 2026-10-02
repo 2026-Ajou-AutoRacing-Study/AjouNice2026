@@ -1,12 +1,16 @@
 # 시나리오 검증기 짧은 사용법
 
-처음 세팅하는 PC는 [설치 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 해 주세요. 여기서는 ROS 빌드·맵·Docker/E25 준비가 끝난 상태를 기준으로 설명합니다. 공유 브랜치는 `planning/scenario-validator-automation`입니다.
+처음 세팅하는 PC는 [설치 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 해 주세요. 여기서는 ROS 빌드·맵·Docker/E25 준비가 끝난 상태를 기준으로 설명합니다. 공유·시나리오 실행 브랜치는 `planning/autoware-universe-to-ros1`입니다. 검증기를 쓰려고 다른 개발 브랜치로 이동할 필요 없습니다.
 
 **이미 Docker·BEVFusion 이미지·E25까지 준비한 분은 재설치·재다운로드 없이 아래 1번부터 하면 됩니다.** 기존 `.env.bevfusion.local`과 가중치는 유지하고 GUI 환경 검사에서 실제 사용 경로를 확인합니다. 설치 가이드 5·6장을 다시 실행하지 마세요. 첫 실행 전에 담당 미션의 `base/README.md`를 한 번 읽어 주세요. [미션별 안내 목차](../../base_ws/src/planning_addons/planning_scenario_validator/config/missions/README.md)에서 고르면 됩니다.
 
 ROS·맵은 준비했는데 Docker/E25만 없는 Ubuntu 20.04 PC는 `bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --bevfusion`으로 설치·Drive 다운로드·이미지 등록·GPU 검사를 한 번에 진행합니다. 본인 Google 로그인과 sudo가 필요하고, Docker 그룹 신규 추가 시 GUI 사용 전 재로그인합니다. 자세한 제한은 설치 가이드 5-0을 참고하세요.
 
 ## 1. MORAI 연결하고 GUI 켜기
+
+업데이트가 올라왔으면 캠페인·GUI·수동 스택을 정상 종료한 뒤 이 브랜치를 pull하고 **planning → base 둘 다 증분 빌드**합니다. 실패 시 중단하는 복붙 명령은 [설치 가이드 4-1](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#4-1-다음부터는-pull-후-증분-빌드)에 있습니다. build_all.sh만으로는 이미 설치된 planning이 갱신되지 않을 수 있습니다. 평상시 build/install을 지우지 않습니다.
+
+증분 빌드는 변경된 파일과 영향받는 의존 대상을 다시 컴파일하며 패키지 순회·설치 복사는 다시 할 수 있습니다. 빌드 후 환경을 다시 source하고 노드를 재실행하세요. 업데이트 전후 비교는 새 캠페인 이름으로 분리하며 기존 녹화는 남겨둡니다.
 
 ```bash
 cd ~/AjouNice2026

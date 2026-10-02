@@ -6,6 +6,12 @@
 
 ## 현재 구현
 
+### 공유 planning 브랜치로 운영 통일 (2026-10-03)
+
+팀원용 공유·시나리오 실행 브랜치는 `planning/autoware-universe-to-ros1`로 통일한다. 자동화 개발 브랜치의 검증기·GUI·설치 안내를 같은 계보로 통합하며, 인지·측위·판단·제어 업데이트도 공유 planning 브랜치에서 pull하고 증분 빌드해서 사용한다. 개발 브랜치는 보존하되 팀원이 검증기를 쓰기 위해 전환해야 하는 브랜치로 안내하지 않는다.
+
+업데이트 순서는 캠페인·GUI·수동 노드 정상 종료 → 깨끗한 worktree 확인 → `git pull --ff-only` → pinned submodule 갱신 → `planning_ws/tools/build.sh --providers` → `scripts/workspace/build_all.sh` → 새 환경 source·노드 재실행이다. build_all.sh는 완성된 planning 설치를 재사용하므로 그것만 실행해서 planning 변경이 빌드됐다고 가정하지 않는다. 평상시 --clean/setup_ws를 반복하지 않으며 입력과 녹화는 보존한다. 코드 업데이트 전후 비교는 같은 입력 hash여도 새 캠페인으로 분리한다. 기본 빌드 도구 자체는 수정하지 않았다.
+
 ### 미션별 팀원 설계 안내 (2026-10-03)
 
 다섯 미션의 `config/missions/<미션>/base/README.md`를 YAML 옆에 제공한다. 설계 목적·기본 시작점(MORAI와 map 참고 좌표)·공통 목적지·도로 anchor·제한시간·배치 출처·조건별 확장 순서·배우 확인 항목·미션별 AI 프롬프트를 담았다. 기본 좌표를 유지할 상황과 새 YAML이 필요한 상황을 구분한다. 추가 좌표를 임의로 만들지 않으며 정적 미션의 긴 목적지는 기존 pair YAML의 값을 출처·검증 범위와 함께 참고 후보로만 제공한다.

@@ -3,6 +3,8 @@
 목적은 학습 데이터 생성이 아니라 **정상 상황의 회귀와 대응하지 못하는 상황 발견**이다.
 사람 이름 대신 미션 폴더를 공유한다. 담당자가 바뀌어도 그대로 이어받는다.
 
+공유·실행 브랜치는 `planning/autoware-universe-to-ros1`이다. 판단·제어·인지·측위·검증기 업데이트 때는 캠페인을 정상 종료하고 이 브랜치를 pull한 뒤 planning → base 증분 빌드를 수행한다. 평상시 빌드 폴더를 삭제하지 않는다. 복붙 순서는 [설치 가이드 4-1](../../../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#4-1-다음부터는-pull-후-증분-빌드)에 있다.
+
 새 PC 세팅부터 필요한 팀원은 [첫 설치·실행 안내](../../../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)를 먼저 참고한다.
 시나리오와 YAML을 직접 만드는 방법은 [제작 가이드](../../../../../../docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md)에 정리했다.
 

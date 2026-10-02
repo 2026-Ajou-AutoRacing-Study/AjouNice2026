@@ -4,7 +4,7 @@
 
 처음 PC에 세팅하는 경우만 좀 길고, 세팅 끝나면 MORAI 연결 → GUI에서 내 미션 선택 → 실행으로 갑니다. 시나리오마다 사람이 녹화 켰다 껐다 할 필요는 없습니다.
 
-현재 공유 브랜치는 **planning/scenario-validator-automation**입니다. 아래 내용은 개인 PC에서 MORAI와 알고리즘을 같이 켜는 기준입니다. 현장 LAN 설정과 섞지 말아 주세요.
+현재 공유·실행 브랜치는 **planning/autoware-universe-to-ros1**입니다. 시나리오 검증기도 판단·제어·인지·측위와 같은 브랜치에 합칩니다. 팀원은 자동화 개발 브랜치로 따로 이동하지 않고, 이 브랜치를 pull하고 증분 빌드해서 사용하면 됩니다. 아래 내용은 개인 PC에서 MORAI와 알고리즘을 같이 켜는 기준입니다. 현장 LAN 설정과 섞지 말아 주세요.
 
 **이미 Docker에 BEVFusion 이미지를 등록했고 E25 가중치도 준비한 분은 다시 설치하거나 다운로드하지 마세요.** 우리 풀스택도 준비돼 있으면 **1장 브랜치 갱신 → 4장 업데이트 빌드 → 7장 검증기 Network 준비 → 8장 GUI 실행**으로 가면 됩니다. **5·6장의 Docker 설치, 이미지 다운로드·docker load, E25 압축 해제는 건너뜁니다.** 7장의 `install.sh --gui`는 도구 검사와 검증기 Network 생성이므로 기존 준비자도 실행합니다. 신호등도 켤 사람만 7-1의 환경 설치/선택을 추가 확인해 주세요.
 
@@ -35,7 +35,7 @@ XDG_SESSION_TYPE이 wayland면 로그인 화면에서 Ubuntu on Xorg를 선택�
 
 ```bash
 cd ~
-git clone --branch planning/scenario-validator-automation \
+git clone --branch planning/autoware-universe-to-ros1 \
   https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026.git
 cd ~/AjouNice2026
 git submodule update --init --recursive
@@ -56,15 +56,15 @@ git status --short
 
 ```bash
 git fetch origin
-git switch planning/scenario-validator-automation
-git pull --ff-only origin planning/scenario-validator-automation
+git switch planning/autoware-universe-to-ros1
+git pull --ff-only origin planning/autoware-universe-to-ros1
 git submodule update --init --recursive
 ```
 
 switch에서 로컬 브랜치가 없다고 나오면 대신 아래 명령을 한 번 쓰고, 위 pull·submodule 명령부터 이어가면 됩니다.
 
 ```bash
-git switch --track origin/planning/scenario-validator-automation
+git switch --track origin/planning/autoware-universe-to-ros1
 ```
 
 pull이 갈라진 이력 때문에 거절되면 강제 push/rebase부터 하지 말고 알려 주세요. 개인 YAML·시나리오는 뒤에 나오는 workspace에서 만들면 Git 변경으로 안 뜹니다.
@@ -173,19 +173,17 @@ cd ~/AjouNice2026
 bash scripts/workspace/setup_ws.sh
 ```
 
-이미 우리 풀스택을 빌드했던 PC는 아래로 업데이트합니다. setup_ws.sh는 base 빌드 결과를 clean하는 초기 세팅 명령이라 매번 쓸 필요는 없습니다.
+이미 우리 풀스택을 빌드했던 PC는 아래로 업데이트합니다. setup_ws.sh는 base 빌드 결과를 clean하는 초기 세팅 명령이라 매번 쓰지 않습니다. **planning과 base 모두 증분 빌드를 호출**해야 판단·제어와 검증기 업데이트가 함께 적용됩니다.
 
 ```bash
 cd ~/AjouNice2026
-bash scripts/workspace/build_all.sh
-```
-
-build_all.sh는 완성된 planning 설치가 있으면 그 빌드를 재사용합니다. 다른 브랜치에서 planning 소스까지 바뀐 경우에는 먼저 아래로 planning도 갱신한 다음 build_all.sh를 실행해 주세요.
-
-```bash
 bash planning_ws/tools/build.sh --providers
 bash scripts/workspace/build_all.sh
 ```
+
+build_all.sh만 실행하면 완성된 planning 설치를 재사용해서 **새 planning 소스가 빌드되지 않을 수 있습니다.** 위 두 명령을 순서대로 실행하세요. 첫 명령이 실패했다면 두 번째로 넘어가지 않습니다.
+
+매번 전체를 처음부터 컴파일하는 명령이 아닙니다. 기존 build/devel/install과 CMake·Make 결과를 유지하며 변경된 파일과 영향받는 의존 대상을 다시 컴파일합니다. 다만 패키지 순회·설정 확인·install 복사는 수행하므로 변경 없는 패키지도 로그에 나올 수 있습니다. 공용 header·메시지·빌드 설정이 바뀌면 관련 패키지까지 빌드될 수 있습니다. Python·launch·config도 install 경로에 반영해야 하므로 업데이트 빌드를 생략하지 않습니다. Docker 이미지나 모델 가중치를 다시 만드는 과정은 아닙니다.
 
 빌드가 끝나면 확인합니다.
 
@@ -199,6 +197,32 @@ rospack find morai_msgs
 ```
 
 앞의 두 패키지가 base_ws/install_aw149 쪽에서 찾아져야 합니다. source 실패를 예전 base_ws/devel로 우회하지 마세요. 빌드 마지막 오류가 나면 마지막 30줄 정도 공유해 주세요.
+
+### 4-1. 다음부터는 pull 후 증분 빌드
+
+작업 시작 전이나 팀원이 판단·제어·인지·측위·검증기를 업데이트했다고 알려주면 갱신하세요. 실행 중인 캠페인은 GUI로 중단해서 녹화를 마감하고, GUI와 수동 풀스택 노드도 종료한 뒤 **Conda가 꺼진 새 터미널**에서 진행합니다. 실행 중 pull/build하면 현재 프로세스와 새 파일이 섞일 수 있습니다.
+
+아래는 중간 명령이 실패하면 멈춥니다. 개인 작업이 있으면 자동 stash/reset/rebase하지 않고 보존하라는 메시지를 냅니다.
+
+```bash
+(
+  set -e
+  cd ~/AjouNice2026
+  if [[ -n "$(git status --porcelain)" ]]; then
+    echo "본인 Git 변경이 있습니다. 작업을 보존한 뒤 다시 진행하세요."
+    exit 1
+  fi
+  git switch planning/autoware-universe-to-ros1
+  git pull --ff-only origin planning/autoware-universe-to-ros1
+  git submodule update --init --recursive
+  bash planning_ws/tools/build.sh --providers
+  bash scripts/workspace/build_all.sh
+)
+```
+
+성공한 뒤 새 터미널에서 `source scripts/workspace/source_aw149.sh`로 환경을 읽고 GUI를 다시 켭니다. **빌드는 이미 실행 중인 노드를 바꾸지 않으므로 재실행이 필요합니다.** 본인 workspace YAML·JSON과 녹화 결과는 Git 제외라 pull로 자동 공유되거나 지워지지 않습니다. 과거 실행 결과는 보존하되 코드 업데이트 전후 비교는 새 캠페인 이름으로 실행하세요. 입력 해시가 같다고 실행 코드까지 동일하다는 뜻은 아닙니다.
+
+평상시에는 setup_ws.sh나 --clean을 쓰지 않습니다. ff-only가 거절되면 로컬 커밋을 강제로 지우지 말고 본인 AI와 이력을 확인하세요. 빌드 오류 때도 build/install을 먼저 통째로 삭제하지 않습니다.
 
 ## 5. BEVFusion Docker 준비
 
