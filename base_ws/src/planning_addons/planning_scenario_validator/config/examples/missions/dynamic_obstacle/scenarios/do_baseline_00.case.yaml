@@ -1,0 +1,9 @@
+description: '[baseline] 공식 사거리; 보행자/스쿠터 양방향 또는 도로 NPC 교차'
+goal:
+  x: 70.991398
+  y: 585.981428
+  z: 28.387175
+  yaw_deg: 90.733994
+waypoints: []
+timeout_sec: 70
+arrival_mode: stop

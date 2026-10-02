@@ -459,6 +459,14 @@ def _recover_interrupted(cfg):
         folder.rename(destination)
 
 
+def check_free_disk(cfg):
+    minimum = cfg["recording"].get("minimum_free_disk_gib")
+    if minimum is not None:
+        free = shutil.disk_usage(cfg["output"]).free / (1024 ** 3)
+        if free < float(minimum):
+            raise RuntimeFailure("저장 공간 부족: {:.1f} GiB 남음 / 최소 {} GiB. 공간 확보 후 재개하세요".format(free, minimum))
+
+
 def run(cfg, resume=True, rerun_failed=False):
     cfg["output"].mkdir(parents=True, exist_ok=True)
     lock = (cfg["output"] / ".lock").open("w")
@@ -487,12 +495,15 @@ def run(cfg, resume=True, rerun_failed=False):
         return 0
     processes = Processes(cfg["output"] / "stack_logs", _env())
     try:
+        check_free_disk(cfg)
         _start_master(processes, float(cfg["document"].get("readiness_timeout_sec", 45)))
         import rospy
         rospy.init_node("planning_scenario_validator", anonymous=False, disable_signals=True)
         monitor = LiveMonitor()
         _start_persistent(cfg, processes, monitor)
         for index, case in enumerate(todo, 1):
+            # Check between cases without corrupting an in-progress recorder.
+            check_free_disk(cfg)
             print("[{}/{}] {}".format(index, len(todo), case.name), flush=True)
             result = _run_case(cfg, processes, monitor, case, state)
             print("  -> {} ({})".format(result["status"], result["reason"]), flush=True)

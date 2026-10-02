@@ -39,8 +39,15 @@ UPLOAD_LABEL_PROFILES = {label: key for key, label in UPLOAD_PROFILE_LABELS.item
 
 
 def default_name(template):
-    base = re.sub(r"[^a-zA-Z0-9_-]", "_", Path(template).stem)[:35]
+    path = Path(template)
+    stem = path.parent.name + "_starter" if path.stem == "example" and path.parent.parent.name == "missions" else path.stem
+    base = re.sub(r"[^a-zA-Z0-9_-]", "_", stem)[:35]
     return "{}_{}".format(base, datetime.now().strftime("%y%m%d_%H%M%S"))
+
+
+def campaign_examples():
+    # Do not expose scenario .case.yaml files as executable campaigns.
+    return sorted(EXAMPLES.glob("*.yaml")) + sorted(EXAMPLES.glob("missions/*/example.yaml"))
 
 
 def load_document(path):
@@ -285,7 +292,7 @@ def main(*, on_ready=None, runner_executable=None):
     import tkinter as tk
     from tkinter import filedialog, font as tkfont, messagebox, ttk
 
-    examples = sorted(EXAMPLES.glob("*.yaml"))
+    examples = campaign_examples()
     if not examples:
         raise RuntimeError("검증기 예제 YAML이 없습니다: {}".format(EXAMPLES))
     # Start first-time operators with the short, previously validated demo.

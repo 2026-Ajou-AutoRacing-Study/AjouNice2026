@@ -1,0 +1,9 @@
+description: '[normal] 공식 음영 유지; 정적 객체/정지 차량 회피, 끼어들기 없음'
+goal:
+  x: -13.382585757
+  y: 93.78275452
+  z: 28.489
+  yaw_deg: 60.815
+waypoints: []
+timeout_sec: 90
+arrival_mode: stop

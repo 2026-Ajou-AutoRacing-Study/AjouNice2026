@@ -1,0 +1,9 @@
+description: '[stress] 샘플 spawn/종료 링크 유지; 속도·간격·차종 변형'
+goal:
+  x: 197.5177
+  y: 653.498242
+  z: 28.264104
+  yaw_deg: -86.688598
+waypoints: []
+timeout_sec: 90
+arrival_mode: stop

@@ -4,6 +4,8 @@
 
 ## GUI로 시작하기
 
+팀원에게 배포할 미션별 YAML·시나리오는 [미션 스타터 안내](config/examples/missions/README.md)를 참고한다. 사람별 폴더 대신 회전교차로·일반 정적·사거리 동적·GPS 음영 정적·고주로의 5개 폴더로 제공하며 각각 24개다. GUI 예제 목록에서도 선택할 수 있다. 이 새 묶음은 오프라인 검사 완료 상태이며 live 주행·배우 동작은 첫 기준선부터 확인한다.
+
 각자 PC의 `~/AjouNice2026` 저장소 루트에서 `bash base_ws/src/planning_addons/planning_scenario_validator/install.sh`를 한 번 실행한다. 처음 시나리오 예제를 만들 때는 `/usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_static_corridor_cases.py`를 실행한다. YAML의 저장소 상대경로는 실행 시 해당 PC의 저장소 경로로 해석되며 `/home/luv`를 요구하지 않는다. MORAI MR GUI에서 사용할 Sensor JSON과 생성된 validator 전용 Ego Network JSON을 Load·Connect한다. 이 단계는 GUI가 대신하지 않는다.
 
 ```bash

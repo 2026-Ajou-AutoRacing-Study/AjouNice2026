@@ -185,6 +185,8 @@ def load_campaign(path, *, check_install=True):
     if stack.get("traffic_light", False) and network["camera_count"] < 1:
         raise ConfigError("신호등 인지에는 전방 카메라가 있는 sensor JSON이 필요합니다")
     recording = document.get("recording", {})
+    if "minimum_free_disk_gib" in recording:
+        positive(recording["minimum_free_disk_gib"], "recording.minimum_free_disk_gib")
     profile = resolve_path(recording.get("topic_profile"))
     try:
         topic_list = json.loads(profile.read_text(encoding="utf-8"))

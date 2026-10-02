@@ -78,6 +78,8 @@ ScenarioLoad 패킷은 `trajectory_batch_runner.morai_udp_client.build_scenario_
 
 ### 팀원 사용 계약과 설정 복원
 
+미션별 Git 추적 스타터는 `base_ws/src/planning_addons/planning_scenario_validator/config/examples/missions/`에 있다. `roundabout`, `static_obstacle`, `dynamic_obstacle`, `gps_shadow`, `highway` 각각 `example.yaml`과 24개 시나리오·case sidecar를 제공한다. GUI 예제 목록에 포함하며 기본 탐지기는 BEVFusion이다. 총 120개는 새 live 검증을 완료한 결과가 아니라 **재현 가능한 오프라인 검증 입력**이다. 일반/기준선 16개와 stress 8개를 구분하고, 주최측 답변과 검증용 가정·미검증 배우 동작을 별도 README/manifest에 명시했다. 음영은 끼어들기 없이 정적 회피 중심이다. 기존 샘플과 학습 데이터 생성기는 수정하지 않았다.
+
 목적은 항상 성공하는 시나리오 생성이 아니라, 팀원이 준비한 다양한 시나리오에서 시스템이 대응하지 못하는 상황을 찾고 실패 근거를 보존하는 것이다. 자동 실행·녹화·실시간 판정·resume 구조는 이 목적에 맞지만, 첫 사용자가 네트워크 연결과 목적지를 준비하는 과정은 여전히 수동이다.
 
 - 배포자는 미션별 캠페인 YAML과 네트워크 설정을 제공하고, 팀원은 시나리오 JSON 폴더와 목적지·제한시간을 준비한다. 풀스택 YAML을 처음부터 작성하도록 요구하지 않는다.

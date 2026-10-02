@@ -1,0 +1,605 @@
+{
+  "schema_version": 1,
+  "mission": "roundabout",
+  "source_sample_sha256": "e7d01898dc28e1a548f26ca4b2812409b0ae159dd2218029fa2d6b1ac7013467",
+  "live_verified": false,
+  "geometry_sha256": {
+    "kcity_map/mgeo_map/link_set.json": "5ce0fd57da07b83221c0a4d117b0606b2d9c094c8de476a7d1176c78a4dc5b0f",
+    "configs/global_path/2026_molit_comp_global_path.txt": "ae1342a51dc853a389ccacb29cc694f9bb467b0775b065c1b80cc549cdac162c",
+    "configs/tf/morai_lanelet_static_tf.yaml": "a735a18443b1054108fd5766bbfee1f0082ff9e73ef7e1ecb82847f7f82dd49e"
+  },
+  "official_distribution": "unknown; illustrative validation variations, not competition guarantees",
+  "cases": [
+    {
+      "name": "ra_baseline_00",
+      "tier": "baseline",
+      "parameters": {
+        "spawns": []
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 무차량 기준선",
+      "live_verified": false
+    },
+    {
+      "name": "ra_baseline_01",
+      "tier": "baseline",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 20,
+            "initial_kmh": 0,
+            "period_sec": 5,
+            "lateral_m": 0,
+            "model_id": 30100004
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_02",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 25,
+            "initial_kmh": 0,
+            "period_sec": 7,
+            "lateral_m": 0,
+            "model_id": 30100014
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_03",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 30,
+            "initial_kmh": 0,
+            "period_sec": 10,
+            "lateral_m": 0,
+            "model_id": 30200014
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_04",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 35,
+            "initial_kmh": 0,
+            "period_sec": 14,
+            "lateral_m": 0,
+            "model_id": 30100004
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_05",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 40,
+            "initial_kmh": 0,
+            "period_sec": 3,
+            "lateral_m": 0,
+            "model_id": 30100007
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_06",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 15,
+            "initial_kmh": 0,
+            "period_sec": 5,
+            "lateral_m": 0,
+            "model_id": 30100014
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_07",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 20,
+            "initial_kmh": 0,
+            "period_sec": 7,
+            "lateral_m": 0,
+            "model_id": 30200014
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_08",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 25,
+            "initial_kmh": 25,
+            "period_sec": 10,
+            "lateral_m": 0,
+            "model_id": 30100004
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_09",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 30,
+            "initial_kmh": 10,
+            "period_sec": 14,
+            "lateral_m": 0,
+            "model_id": 30100007
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_10",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 35,
+            "initial_kmh": 20,
+            "period_sec": 3,
+            "lateral_m": 0,
+            "model_id": 30100014
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_11",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 40,
+            "initial_kmh": 40,
+            "period_sec": 5,
+            "lateral_m": 0,
+            "model_id": 30200014
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_12",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 15,
+            "initial_kmh": 10,
+            "period_sec": 7,
+            "lateral_m": 0,
+            "model_id": 30100004
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_13",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 20,
+            "initial_kmh": 20,
+            "period_sec": 10,
+            "lateral_m": 0,
+            "model_id": 30100007
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_14",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 25,
+            "initial_kmh": 25,
+            "period_sec": 14,
+            "lateral_m": 0,
+            "model_id": 30100014
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_normal_15",
+      "tier": "normal",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 30,
+            "initial_kmh": 10,
+            "period_sec": 3,
+            "lateral_m": 0,
+            "model_id": 30200014
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_stress_16",
+      "tier": "stress",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 35,
+            "initial_kmh": 20,
+            "period_sec": 5,
+            "lateral_m": -0.35,
+            "model_id": 30100004
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_stress_17",
+      "tier": "stress",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 40,
+            "initial_kmh": 40,
+            "period_sec": 7,
+            "lateral_m": 0.35,
+            "model_id": 30100007
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_stress_18",
+      "tier": "stress",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 15,
+            "initial_kmh": 10,
+            "period_sec": 10,
+            "lateral_m": -0.35,
+            "model_id": 30100014
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_stress_19",
+      "tier": "stress",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 20,
+            "initial_kmh": 20,
+            "period_sec": 14,
+            "lateral_m": 0.35,
+            "model_id": 30200014
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_stress_20",
+      "tier": "stress",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 25,
+            "initial_kmh": 25,
+            "period_sec": 3,
+            "lateral_m": -0.35,
+            "model_id": 30100004
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_stress_21",
+      "tier": "stress",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 30,
+            "initial_kmh": 10,
+            "period_sec": 5,
+            "lateral_m": 0.35,
+            "model_id": 30100007
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_stress_22",
+      "tier": "stress",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 35,
+            "initial_kmh": 20,
+            "period_sec": 7,
+            "lateral_m": -0.35,
+            "model_id": 30100014
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    },
+    {
+      "name": "ra_stress_23",
+      "tier": "stress",
+      "parameters": {
+        "spawns": [
+          {
+            "spawn_id": 4,
+            "goal_kmh": 40,
+            "initial_kmh": 40,
+            "period_sec": 10,
+            "lateral_m": 0.35,
+            "model_id": 30200014
+          }
+        ]
+      },
+      "actors": [],
+      "goal_map": {
+        "x": 122.219869,
+        "y": 891.686433,
+        "z": 28.343408,
+        "yaw_deg": 0.565181
+      },
+      "description": "샘플 spawn/종료 링크 유지; 속도·간격·차종 변형",
+      "live_verified": false
+    }
+  ]
+}
