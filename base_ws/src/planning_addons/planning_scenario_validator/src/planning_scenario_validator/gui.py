@@ -15,7 +15,6 @@ import signal
 import shutil
 import subprocess
 import threading
-from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -25,6 +24,7 @@ from .config import (CONFIG_SCHEMA_VERSION, DEFAULT_UPLOAD_REMOTE, EXECUTION_CON
 from .config import load_campaign
 from .layout import normalize_bar_setting, resolve_bar_height
 from .traffic_light import DEFAULT_PYTHON, LABEL_MODES, MODE_LABELS, runtime_mode, runtime_settings
+from . import executions
 from . import batch
 
 
@@ -49,7 +49,7 @@ def default_name(template):
     mission = mission_directory(path)
     stem = mission.name + "_starter" if path.stem == "example" and mission else path.stem
     base = re.sub(r"[^a-zA-Z0-9_-]", "_", stem)[:35]
-    return "{}_{}".format(base, datetime.now().strftime("%y%m%d_%H%M%S"))
+    return base
 
 
 def campaign_examples():
@@ -292,23 +292,22 @@ def copy_base_to_workspace(source):
             pass
     document = load_document(base / "example.yaml")
     name = default_name(base / "example.yaml")
-    initial = name
-    index = 2
     while True:
         document["campaign_name"] = name
         path = personal_path(document, source=source)
-        if not path.exists() and not campaign_output(document).exists():
-            break
-        name = "{}_{}".format(initial[:55], index)
-        index += 1
+        if path.exists():
+            return path  # Reopen the reusable personal YAML; never overwrite edits.
+        break
     document["scenarios"]["directory"] = str((workspace / "scenarios").relative_to(ROOT))
     save_personal(document, path)
     return path
 
 
 def save_personal(document, path):
-    """Never mutate a campaign's YAML once its state exists; resume needs same hash."""
+    """Authoring YAMLs are reusable; only snapshots and old legacy inputs are locked."""
     path = Path(path)
+    if executions.is_snapshot(path) or (path.parent / 'execution.json').exists():
+        raise ValueError('실행 사본은 수정할 수 없습니다. 원본 개인 YAML을 편집하세요')
     mission = mission_directory(path)
     if is_within(path, EXAMPLES) or (mission and is_within(path, mission / "base")):
         raise ValueError("공유 base/예제 YAML은 수정하지 않습니다. workspace에 저장하세요")
@@ -328,10 +327,10 @@ def save_personal(document, path):
         if old == document:
             return path
     path.parent.mkdir(parents=True, exist_ok=True)
-    header = ("# GUI에서 저장한 개인 캠페인입니다. 이 파일은 Git에 포함되지 않습니다.\n"
+    header = ("# GUI에서 저장한 개인 실험 설정입니다. 이 파일은 Git에 포함되지 않습니다.\n"
               "# 이 YAML의 목적지·주행 제한시간은 선택한 모든 시나리오에 동일하게 적용됩니다.\n"
-              "# 목적지나 실행 조건이 달라지면 새 이름의 YAML을 만드세요.\n"
-              "# 실행 후에는 resume 해시 보호를 위해 수정하지 말고 새 campaign_name을 쓰세요.\n")
+              "# 이 파일은 재사용·수정 가능합니다. 새 실행마다 입력 사본과 결과 폴더를 따로 만듭니다.\n"
+              "# 재개는 GUI 실험 기록 또는 --execution 결과폴더로 진행합니다.\n")
     temporary = path.with_name(path.name + ".tmp.{}".format(os.getpid()))
     try:
         temporary.write_text(header + yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
@@ -421,7 +420,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     live_status = tk.StringVar(value="")
     vars_ = {}
     active = {"process": None, "check_process": None, "config": None,
-              "document": None, "stopping": False, "mode": "single", "batch_document": None}
+              "document": None, "execution": None, "stopping": False, "mode": "single", "batch_document": None}
     try:
         batch_queue = batch.read_queue()
     except (OSError, ValueError) as error:
@@ -456,6 +455,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         active["config"] = Path(path) if is_personal(path) else None
         active["document"] = document if active["config"] else None
         active["mode"] = "single"
+        active['execution'] = None
+        active['history_root'] = None
         result_paths.clear()
         for item in table.get_children():
             table.delete(item)
@@ -491,7 +492,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             except Exception as error:
                 messagebox.showerror("설정 로드 실패", str(error))
 
-    personal_button = ttk.Button(top, text="내 YAML 열기 / resume", command=choose_personal)
+    personal_button = ttk.Button(top, text="내 YAML 열기", command=choose_personal)
     personal_button.grid(row=0, column=1, padx=4)
 
     def copy_workspace():
@@ -538,7 +539,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         parent.columnconfigure(1, weight=1)
         return widget
 
-    add_field(basic, 0, "campaign_name", "캠페인 이름")
+    add_field(basic, 0, "campaign_name", "실험 이름")
     add_field(basic, 1, "directory", "시나리오 JSON 폴더", browse="dir")
     add_field(basic, 2, "glob", "파일 선택 패턴")
     for row, (key, label) in enumerate((("x", "목적지 map X (m)"), ("y", "목적지 map Y (m)"),
@@ -585,7 +586,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         row=4, column=0, columnspan=3, sticky="w", pady=8)
     ttk.Label(traffic_tab, text="설치는 최초 1회입니다. Conda activate는 필요 없습니다.\n"
               "실행 버튼을 누르면 선택한 Python으로 모델/GPU/ROS import를 먼저 검사합니다.\n"
-              "환경 변경 후 이미 실행한 캠페인은 새 이름으로 저장하세요.", wraplength=750).grid(
+              "환경 변경은 원본 YAML에 저장하고 새 실험을 시작하세요. 이전 기록은 당시 환경 설정으로 재개합니다.", wraplength=750).grid(
         row=5, column=0, columnspan=3, sticky="w", pady=8)
 
     def update_traffic_widgets(*_):
@@ -608,7 +609,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
 
     def save():
         if active["process"] and active["process"].poll() is None:
-            raise ValueError("캠페인 실행 중에는 YAML을 변경할 수 없습니다. 중단 후 새 이름으로 저장하세요")
+            raise ValueError("실험 실행 중에는 GUI 저장을 잠급니다. 중단 후 원본 YAML을 수정·저장하세요")
         document, path = collect()
         try:
             save_personal(document, path)
@@ -707,56 +708,70 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         batch_buttons.append(button)
 
     def copy_connection_paths():
-        document, _ = collect()
+        if active.get('execution') and active.get('mode') == 'single':
+            document = load_document(active['execution']['path'])
+        else:
+            document, _ = collect()
         root.clipboard_clear()
         root.clipboard_append("Ego Network: {}\nSensor: {}".format(
             resolve_path(document["network"]["ego_network_json"]), resolve_path(document["network"]["sensor_json"])))
-        status.set("MORAI에 Load할 두 JSON 경로를 복사했습니다. 최초 연결은 MORAI GUI에서 직접 합니다.")
+        status.set("MORAI에 Load할 두 JSON 경로를 복사했습니다. 기록 선택 시 해당 실험 사본 기준입니다. 연결은 MORAI GUI에서 직접 합니다.")
     ttk.Button(environment_bar, text="연결 JSON 경로 복사", command=copy_connection_paths).pack(side="left", padx=3)
 
-    def start():
+    def start(execution=None):
         if active["check_process"] and active["check_process"].poll() is None:
             messagebox.showinfo("설정 검사 중", "현재 설정 검사가 끝난 후 캠페인을 시작하세요.")
             return
         if active["process"] and active["process"].poll() is None:
             messagebox.showinfo("이미 실행 중", "한 번에 한 캠페인만 실행할 수 있습니다.")
             return
-        if vars_["video"].get() and vars_["video_layout"].get() == "manual":
+        if execution is None and vars_["video"].get() and vars_["video_layout"].get() == "manual":
             if messagebox.askyesno(
                     "RViz 전체화면 설정 확인",
                     "현재 녹화 화면 배치가 manual이라 장면마다 RViz를 최대화합니다.\n"
                     "RViz 왼쪽·MORAI 오른쪽·GUI 하단의 split 배치로 변경할까요?"):
                 vars_["video_layout"].set("split")
         try:
-            path = save()
+            if execution is None:
+                path = save()
+                document = active['document']
+            else:
+                cfg = executions.load_execution(execution, check_install=runner_executable is None)
+                path = cfg['path']
+                document = load_document(path)
         except Exception as error:
             show_error("실행 준비 실패", error)
             return
-        video_enabled = active["document"]["recording"]["video"]["enabled"]
-        split = active["document"]["recording"]["video"].get("window_layout") == "split"
+        video_enabled = document["recording"]["video"]["enabled"]
+        split = document["recording"]["video"].get("window_layout") == "split"
         note = ("전체 화면을 녹화하며 RViz·MORAI를 반반 배치하고 GUI를 하단 모니터 바로 바꿉니다. "
                 "창 배치가 실패하면 수동으로 조정해 주세요. 중단은 GUI 버튼 또는 터미널 Ctrl+C입니다."
                 if video_enabled and split else
                 "영상은 전체 화면을 녹화합니다. 필요하면 직접 GUI 창을 최소화하고 "
                 "Planviz를 전면에 두세요. 중단은 GUI 버튼이나 실행 터미널 Ctrl+C로 가능합니다."
                 if video_enabled else "실행 중 GUI의 중단 버튼을 사용할 수 있습니다.")
-        if not messagebox.askokcancel("캠페인 시작", "MORAI GUI에서 YAML의 Sensor/Ego Network JSON을 Load·Connect했나요?\n\n" + note):
+        action_note = ('이전 실험의 보관된 설정·시나리오로 재개합니다. 현재 편집 중인 YAML은 사용하지 않습니다.\n' if execution else
+                       '새 결과 폴더에 현재 설정·시나리오 사본을 보관하고 처음부터 실행합니다.\n')
+        if not messagebox.askokcancel("실험 재개" if execution else "새 실험 시작", action_note + "MORAI GUI에서 해당 Sensor/Ego Network JSON을 Load·Connect했나요?\n\n" + note):
             return
         try:
-            command = [runner, str(path)]
-            if rerun_failed.get():
+            if execution is None:
+                cfg = executions.prepare_execution(path, check_install=runner_executable is None)
+            command = [runner, str(cfg['path']), '--resume=true']
+            if execution and rerun_failed.get():
                 command.append("--rerun-failed")
             process = subprocess.Popen(command, cwd=str(ROOT),
                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                        text=True, bufsize=1, start_new_session=True)
-        except OSError as error:
+        except (OSError, ValueError) as error:
             show_error("캠페인 실행 실패", error)
             return
-        active.update(process=process, stopping=False, mode="single")
+        active.update(process=process, execution=cfg, stopping=False, mode="single")
+        refresh_history()
         set_running_ui(True)
-        if video_enabled and active["document"]["recording"]["video"].get("window_layout") == "split":
-            set_compact_mode(True, active["document"]["recording"]["video"].get("bottom_bar_px", "auto"))
-        status.set("주행 검증 실행 중: {}".format(active["document"]["campaign_name"]))
+        if video_enabled and document["recording"]["video"].get("window_layout") == "split":
+            set_compact_mode(True, document["recording"]["video"].get("bottom_bar_px", "auto"))
+        status.set("주행 검증 실행 중: {}".format(cfg['name']))
         threading.Thread(target=command_reader, args=(process, "run"), daemon=True).start()
 
     def stop(*, force=False):
@@ -775,7 +790,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     batch_note = tk.StringVar(value="YAML 여러 개를 순서대로 실행합니다. 목록은 자동 저장되고 중단 후 재개됩니다.")
     ttk.Label(batch_tab, textvariable=batch_note, wraplength=900).pack(anchor="w")
     batch_table = ttk.Treeview(batch_tab, columns=("name", "scenes", "minutes", "state", "counts"), show="headings", height=5)
-    for key, title, width in (("name", "캠페인 YAML", 270), ("scenes", "장면", 60),
+    for key, title, width in (("name", "실험 YAML", 270), ("scenes", "장면", 60),
                               ("minutes", "예상 분", 75), ("state", "상태", 120), ("counts", "P/F/E", 95)):
         batch_table.heading(key, text=title)
         batch_table.column(key, width=width)
@@ -882,20 +897,29 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         except Exception as error:
             show_error("배치 검사 실패", error)
 
-    def start_batch():
+    def start_batch(new=False):
         try:
             if any(active.get(key) and active[key].poll() is None for key in ("process", "check_process")):
                 raise ValueError("현재 실행/검사가 끝난 뒤 배치를 시작하세요")
             if batch_queue.get("load_error"):
                 raise ValueError(batch_queue["load_error"])
-            configs, _ = batch.plan(batch_queue["items"])
-            if not messagebox.askokcancel("배치 시작 / 재개", "MORAI에 이 목록의 공통 Sensor/Ego Network를 Load·Connect했나요?\n완료한 YAML은 건너뛰고 중단된 장면부터 재개합니다. 주행 FAIL은 계속, 시스템 오류는 중단합니다."):
+            state = batch.batch_state(batch_queue) if not new else None
+            if not new and state is None:
+                raise ValueError('재개할 배치가 없습니다. 새 배치 시작을 누르세요')
+            configs = ([executions.load_execution(row['output']) for row in state['items']]
+                       if state else batch.plan(batch_queue['items'])[0])
+            if not messagebox.askokcancel("새 배치 시작" if new else "배치 재개", "MORAI에 이 목록의 공통 Sensor/Ego Network를 Load·Connect했나요?\n" +
+                    ('각 YAML의 새 입력 사본으로 처음부터 실행합니다. 이전 결과는 보존됩니다.' if new else
+                     '보관된 입력으로 완료 장면은 건너뛰고 중단 장면부터 재개합니다.') + '\n주행 FAIL은 계속, 시스템 오류는 중단합니다.'):
                 return
+            if new:
+                batch_queue['run_directory'] = None
+                batch.write_queue(batch_queue)
             command = ([str(batch_executable)] if batch_executable else
                        ["/usr/bin/python3", str(PACKAGE / "scripts/planning_validator_batch.py")]) + [str(batch.queue_path())]
             process = subprocess.Popen(command, cwd=str(ROOT), stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT, text=True, bufsize=1, start_new_session=True)
-            active.update(process=process, stopping=False, mode="batch", batch_document=None, batch_error=None)
+            active.update(process=process, execution=None, stopping=False, mode="batch", batch_document=None, batch_error=None)
             set_running_ui(True)
             video = configs[0]["recording"].get("video", {})
             if video.get("enabled") and video.get("window_layout") == "split":
@@ -926,26 +950,9 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
                 raise ValueError("실행/검사 중에는 새 실행으로 복사할 수 없습니다")
             if not batch_queue["items"]:
                 raise ValueError("복사할 목록이 없습니다")
-            documents = [(path, load_document(path)) for path in batch_queue["items"]]
-            if not messagebox.askyesno("새 실행으로 복사", "같은 조건의 새 개인 YAML과 campaign_name을 만들어 처음부터 실행할 목록을 준비할까요? 기존 결과는 보존됩니다."):
+            if not messagebox.askyesno("새 배치 준비", "같은 YAML 목록으로 새 배치를 준비할까요? YAML은 복사하지 않고 기존 결과와 입력 사본은 보존합니다."):
                 return
-            paths = []
-            for index, (source_path, document) in enumerate(documents, 1):
-                document = build_document(document, form_values(document))
-                name = default_name(document["campaign_name"] + "_repeat")[:55] + "_" + str(index)
-                document["campaign_name"] = name
-                mission = mission_directory(source_path)
-                directory = (mission or MISSIONS / "static_obstacle") / "workspace"
-                path = directory / (name + ".yaml")
-                suffix = 1
-                while path.exists() or campaign_output(document).exists():
-                    suffix += 1
-                    document["campaign_name"] = name[:54] + "_" + str(suffix)
-                    path = directory / (document["campaign_name"] + ".yaml")
-                save_personal(document, path)
-                paths.append(str(path))
-            batch_queue.clear()
-            batch_queue.update(schema_version=1, items=paths, run_directory=None)
+            batch_queue['run_directory'] = None
             batch.write_queue(batch_queue)
             refresh_batch()
         except Exception as error:
@@ -970,13 +977,14 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     for index, (label, action) in enumerate((("현재 YAML 추가", lambda: edit_batch("current")), ("YAML 여러 개 추가", lambda: edit_batch("files")),
                           ("제거", lambda: edit_batch("remove")), ("↑", lambda: edit_batch("up")), ("↓", lambda: edit_batch("down")),
                           ("목록 초기화", lambda: edit_batch("reset")), ("이전 목록 열기", restore_batch),
-                          ("전체 검사", check_batch), ("배치 실행 / 재개", start_batch), ("새 실행으로 복사", clone_batch),
+                          ("전체 검사", check_batch), ("새 배치 시작", lambda: start_batch(new=True)), ("배치 재개", start_batch),
+                          ("새 배치 준비", clone_batch),
                           ("배치 결과 폴더", open_batch_result), ("배치 CSV", lambda: open_batch_result(csv=True)),
                           ("짧은 사용법", lambda: open_local_result(ROOT / "docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md")),
                           ("첫 설치 안내", lambda: open_local_result(ROOT / "docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md")))):
         button = ttk.Button(batch_bar, text=label, command=action)
         button.grid(row=index // 5, column=index % 5, padx=3, pady=3, sticky="ew")
-        if index < 10:
+        if index < 11:
             batch_buttons.append(button)
     def open_batch_item(_event):
         selected = batch_table.selection()
@@ -989,6 +997,86 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     batch_table.bind("<Double-1>", open_batch_item)
     refresh_batch()
 
+    history_tab = ttk.Frame(notebook, padding=8)
+    notebook.add(history_tab, text='실험 기록 / 재개')
+    ttk.Label(history_tab, text='새 실행은 현재 YAML, 재개는 기록에 보관된 설정·시나리오를 사용합니다. 원본을 수정해도 기록은 유지됩니다.',
+              wraplength=900).pack(anchor='w')
+    history_table = ttk.Treeview(history_tab, columns=('name', 'time', 'state', 'progress', 'counts'),
+                                show='headings', height=6)
+    for key, label, width in (('name', '실험 이름', 230), ('time', '시작 시간 (PC 현지)', 200),
+                              ('state', '상태', 110), ('progress', '완료/전체', 80), ('counts', 'P/F/E', 80)):
+        history_table.heading(key, text=label)
+        history_table.column(key, width=width)
+    history_table.pack(fill='x', pady=5)
+
+    def refresh_history():
+        document = active.get('template') or {}
+        root_path = active.get('history_root') or resolve_path(document.get('output_root', 'planner_logs/validation'))
+        rows = executions.history(root_path)
+        old_selection = history_table.selection()
+        for iid in history_table.get_children():
+            history_table.delete(iid)
+        for row in rows:
+            counts = row['counts']
+            label = {'READY': '준비', 'RUNNING': '진행 중', 'DONE': '완료', 'INTERRUPTED': '중단/미완료',
+                     'DAMAGED': '기록 손상'}.get(row['status'], row['status'])
+            history_table.insert('', 'end', iid=row['directory'], values=(row['name'], executions.local_time(row['created_at']),
+                label + (' (이전)' if row['legacy'] else ''), '{}/{}'.format(row['completed'], row['total']),
+                '{}/{}/{}'.format(counts.get('PASS', 0), counts.get('FAIL', 0), counts.get('ERROR', 0))))
+        for iid in old_selection:
+            if history_table.exists(iid):
+                history_table.selection_set(iid)
+        return rows
+
+    def select_execution(directory):
+        if any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process')):
+            raise ValueError('현재 실행/검사가 끝난 뒤 이전 실험을 선택하세요')
+        cfg = executions.load_execution(directory, check_install=False)
+        active.update(execution=cfg, mode='single')
+        update_progress()
+        status.set('실험 기록 선택: {} — 재개 시 현재 편집값 대신 보관된 입력을 사용합니다'.format(cfg['output'].name))
+        return cfg
+
+    def resume_selected():
+        try:
+            selected = history_table.selection()
+            if not selected:
+                raise ValueError('재개할 실험 기록을 선택하세요')
+            start(execution=selected[0])
+        except (ValueError, OSError) as error:
+            show_error('실험 재개 실패', error)
+
+    def browse_execution():
+        path = filedialog.askopenfilename(initialdir=str(ROOT / 'planner_logs/validation'),
+            filetypes=[('실험 기록', 'execution.json campaign_state.json')])
+        if path:
+            try:
+                cfg = select_execution(Path(path).parent)
+                # Keep the authoring fields untouched; only change the history root.
+                active['history_root'] = cfg['output'].parent
+                refresh_history()
+                history_table.selection_set(str(cfg['output']))
+            except (ValueError, OSError) as error:
+                show_error('기록 열기 실패', error)
+
+    history_bar = ttk.Frame(history_tab)
+    history_bar.pack(fill='x')
+    for label, action in (('새로고침', refresh_history), ('선택 실험 재개', resume_selected),
+                          ('다른 폴더 기록 열기', browse_execution)):
+        button = ttk.Button(history_bar, text=label, command=action)
+        button.pack(side='left', padx=3)
+        batch_buttons.append(button)
+    def on_history_select(_event):
+        if any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process')):
+            return
+        selected = history_table.selection()
+        if selected:
+            try:
+                select_execution(selected[0])
+            except (ValueError, OSError) as error:
+                show_error('기록 읽기 실패', error)
+    history_table.bind('<<TreeviewSelect>>', on_history_select)
+
     def open_results():
         if active.get("mode") == "batch" and batch_queue.get("run_directory"):
             subprocess.Popen(["xdg-open", batch_queue["run_directory"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1000,7 +1088,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             except Exception as error:
                 show_error("결과 폴더 열기 실패", error)
                 return
-        path = campaign_output(document)
+        path = active['execution']['output'] if active.get('execution') else campaign_output(document)
         if path.is_dir():
             subprocess.Popen(["xdg-open", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
@@ -1010,11 +1098,12 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     controls.pack(fill="x", pady=5)
     control_buttons = {}
     for label, action in (("개인 YAML 저장", save_clicked), ("설정 검사", check),
-                          ("실행 / resume", start), ("중단", stop), ("결과 폴더", open_results)):
+                          ("새 실험 시작", start), ('실험 기록', lambda: (refresh_history(), notebook.select(history_tab))),
+                          ("중단", stop), ("결과 폴더", open_results)):
         button = ttk.Button(controls, text=label, command=action)
         button.pack(side="left", padx=4)
         control_buttons[label] = button
-    rerun_checkbox = ttk.Checkbutton(controls, text="기존 FAIL도 다시 실행", variable=rerun_failed)
+    rerun_checkbox = ttk.Checkbutton(controls, text="재개 시 FAIL도 재실행", variable=rerun_failed)
     rerun_checkbox.pack(side="left", padx=12)
     compact_button = ttk.Button(controls, text="모니터 모드",
                                 command=lambda: toggle_compact_mode())
@@ -1026,7 +1115,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         copy_button.configure(state="disabled" if running else "normal")
         for button in batch_buttons:
             button.configure(state="disabled" if running else "normal")
-        for label in ("개인 YAML 저장", "설정 검사", "실행 / resume"):
+        for label in ("개인 YAML 저장", "설정 검사", "새 실험 시작", '실험 기록'):
             control_buttons[label].configure(state="disabled" if running else "normal")
         control_buttons["중단"].configure(state="normal" if running and allow_stop else "disabled")
 
@@ -1096,7 +1185,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
                 pass
             bar = resolve_bar_height(area_height, bottom_bar_px)
             compact_width = area_width // 2
-            for label in ("개인 YAML 저장", "설정 검사", "실행 / resume"):
+            for label in ("개인 YAML 저장", "설정 검사", "새 실험 시작", '실험 기록'):
                 control_buttons[label].pack_forget()
             rerun_checkbox.pack_forget()
             # Keep the return button above status text, even if a long status
@@ -1148,7 +1237,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             compact_button.configure(text="전체 설정 보기")
         else:
             root.attributes("-topmost", False)
-            for label in ("개인 YAML 저장", "설정 검사", "실행 / resume"):
+            for label in ("개인 YAML 저장", "설정 검사", "새 실험 시작", '실험 기록'):
                 control_buttons[label].pack(side="left", padx=4, before=control_buttons["중단"])
             rerun_checkbox.pack(side="left", padx=12)
             controls.pack_forget()
@@ -1181,7 +1270,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             messagebox.showwarning(
                 "현재 캠페인은 전체화면 설정",
                 "현재 실행 중인 YAML은 manual 배치라 장면마다 RViz를 최대화합니다. "
-                "이 캠페인을 중단하고 새 이름으로 split 배치를 설정해 재실행해야 지속적으로 반반 배치됩니다.")
+                "이 실험을 중단하고 원본 YAML을 split 배치로 설정한 뒤 새 실험을 시작해야 지속적으로 반반 배치됩니다.")
         try:
             set_compact_mode(True, vars_["bottom_bar_px"].get())
         except ValueError as error:
@@ -1196,8 +1285,13 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         log.configure(state="disabled")
 
     def update_progress():
-        document = active.get("document")
-        prefix = ""
+        try:
+            document = (load_document(active['execution']['path']) if active.get('execution')
+                        else active.get("document"))
+        except (OSError, ValueError):
+            status.set('실험 사본을 읽을 수 없습니다. 기록 폴더와 로그를 확인하세요.')
+            return None
+        prefix = (active['execution']['output'].name + ' | ') if active.get('execution') else ''
         batch_config = None
         if active.get("mode") == "batch":
             state = refresh_batch()
@@ -1206,7 +1300,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
                 if index is not None:
                     item = state["items"][index]
                     prefix = "배치 {}/{} · {} | ".format(index + 1, len(state["items"]), item["campaign"])
-                    batch_config = resolve_path(item["path"])
+                    batch_config = resolve_path(item.get('execution_path', item["path"]))
                     try:
                         document = load_document(batch_config)
                         active["batch_document"] = document
@@ -1226,7 +1320,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             state = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
-        config_path = batch_config or active.get("config")
+        config_path = batch_config or (active['execution']['path'] if active.get('execution') else active.get("config"))
         if config_path and state.get("config_path") != str(config_path.resolve()):
             return None
         results = state.get("results", {})
@@ -1275,6 +1369,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
                     state = update_progress()
                     if label == "run":
                         status.set(completion_label(code, state))
+                    refresh_history()
                 else:
                     active["check_process"] = None
                     set_running_ui(False)
@@ -1317,16 +1412,20 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     root.protocol("WM_DELETE_WINDOW", on_close)
     root.bind("<Destroy>", on_destroy)
     read_source(initial, fresh_name=restored is None)
+    refresh_history()
     if on_ready is not None:
         on_ready({"root": root, "fields": vars_, "actions": {
             "save": save, "check": check, "start": start, "stop": stop,
             "environment_check": check_environment,
             "copy_workspace": copy_workspace, "open_yaml": read_source,
+            'refresh_history': refresh_history, 'select_execution': select_execution,
+            'resume_execution': lambda directory: start(execution=directory),
             "batch_edit": edit_batch, "batch_check": check_batch, "batch_start": start_batch,
             "batch_refresh": refresh_batch,
             "batch_clone": clone_batch, "batch_restore": restore_batch,
             "update_progress": update_progress, "compact": set_compact_mode}, "active": active,
             "status": status, "table": table, "log": log, "batch_table": batch_table,
+            'history_table': history_table,
             "batch_queue": batch_queue, "batch_note": batch_note,
             "live_status": live_status, "rerun_failed": rerun_failed,
             "compact_state": compact, "compact_button": compact_button})

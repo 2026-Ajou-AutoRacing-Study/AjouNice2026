@@ -6,6 +6,21 @@
 
 ## 현재 구현
 
+### 편집용 YAML / 실행 기록 분리 (2026-10-03, 최신 실행 계약)
+
+아래의 이전 단계에서 언급한 `실행 / resume`, `새 실행으로 복사`, 실행 후 원본 수정 금지는 **기존 고정 이름 결과의 동작**이다. 새 실험에서는 다음 계약을 우선한다. YAML schema_version: 2와 내부 campaign_name 키는 유지하며 planning/control/인지 판단 로직은 변경하지 않는다.
+
+- `베이스 → 내 작업 폴더 복사`는 `<미션>_starter.yaml`처럼 timestamp 없는 개인 설정을 만든다. 파일이 이미 있으면 사용자 수정값을 덮어쓰지 않고 연다. 기존 timestamp YAML은 강제로 개명/삭제하지 않는다.
+- `새 실험 시작`은 개인 YAML을 저장하고 `executions.prepare_execution`으로 `<실험 이름>_<YYMMDD_HHMMSS>` 결과 폴더를 독점 생성한다. 같은 초에 실행해도 숫자 suffix로 충돌을 피한다. YAML·선택 JSON·Network 두 개·토픽 프로필의 작은 입력 사본과 SHA256을 보관하고, runner는 그 `config_snapshot.yaml`을 실행한다. 원본은 변경하지 않는다.
+- GUI `실험 기록 / 재개`는 시작 시간·진행·P/F/E·상태를 보여준다. `선택 실험 재개`/CLI `--execution <결과폴더>`는 저장한 입력을 읽고 hash와 목록·결과 경로를 검증한다. 원본 YAML/JSON 삭제·수정은 새 기록의 재개에 영향을 주지 않지만, 사본 수정·추가·누락은 거절한다. 현재 GUI 편집값을 과거 기록에 섞지 않는다.
+- 같은 개인 YAML 명령을 다시 실행하면 **새 실험**이다. `--check`/`--dry-run`은 사본/결과를 생성하지 않는다. 기존 고정 이름 실험에 명시한 `--resume=true`는 당시 원본이 보존됐을 때만 이전 동작을 지원한다. 기존 결과는 자동 이동하거나 덮어쓰지 않는다.
+- 배치는 시작 전에 모든 YAML의 입력을 고정한다. `새 배치 시작`은 같은 YAML 목록으로 새 사본/결과를 만들고, `배치 재개`는 해당 배치의 사본으로 완료 YAML·장면을 건너뛴다. 원본 편집과 독립되며 실행한 목록과 사본은 고정이다. 이전 queue.json은 그대로 보존한다. 새로운 개인 YAML을 다섯 개씩 복제하지 않는다.
+- 스냅샷 대상은 작은 실행 입력이다. ROS 코드·지도·모델·Python/Docker 환경 바이너리까지 복제하지는 않는다. 코드 업데이트 전후 비교는 새 실험으로 구분하고 재개할 때 MORAI 실제 연결도 보관된 Network와 맞춰야 한다.
+
+결과 폴더에는 execution.json(실험 이름·실행 ID·원본 경로·hash), source_config.yaml(원본), config_snapshot.yaml(실행용), scenarios/, network/, topic_profile.json과 기존 summary.csv·campaign_state.json·success/failure/error 증거가 있다. `campaign_config.yaml`은 기존 recorder/공유 호환용 실행 설정 사본이다. 배치 요약 CSV는 기존 배치 결과 폴더에 보관한다.
+
+이번 구조는 ROS/MORAI 없이 subprocess·Xvfb 포함 **143개 테스트**를 통과했다. 같은 YAML 새 실행 두 번, 원본 YAML/JSON/Network/토픽 삭제·수정 후 사본 재개, 사본 변조·추가·손상 거절, 60자 이름과 결과 ID 길이, 배치 B 중단 후 A 생략 재개, 같은 YAML 목록 새 배치의 이전 결과 보존, GUI 기록 선택과 frozen 경로 실행을 검사했다. 135개 생성 파일/120개 시나리오 재현 검사와 로컬 패키지 설치도 통과했고 기본/기록 탭을 Xvfb 화면으로 확인했다. 실제 MR 주행은 이번 변경 후 아직 수행하지 않았다. 기존 live 결과를 새로운 실행 구조의 live 검증으로 해석하지 않는다. 검사 로그·화면은 Git 제외 `planner_logs/analysis/validator_execution_snapshot_261003/`에 보관한다.
+
 ### 공유 planning 브랜치로 운영 통일 (2026-10-03)
 
 팀원용 공유·시나리오 실행 브랜치는 `planning/autoware-universe-to-ros1`로 통일한다. 자동화 개발 브랜치의 검증기·GUI·설치 안내를 같은 계보로 통합하며, 인지·측위·판단·제어 업데이트도 공유 planning 브랜치에서 pull하고 증분 빌드해서 사용한다. 개발 브랜치는 보존하되 팀원이 검증기를 쓰기 위해 전환해야 하는 브랜치로 안내하지 않는다.

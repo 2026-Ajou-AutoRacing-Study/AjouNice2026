@@ -2,7 +2,7 @@
 # 이 YAML의 목적지/주행시간이 모든 선택 시나리오에 동일하게 적용됩니다.
 # 다른 목적지/시간은 별도 이름의 YAML로 시험하세요.
 # 센서는 계속 켜고, bag에서만 LiDAR/카메라를 제외합니다.
-# GT 대조는 GUI 탐지기를 od_gt로 바꾸고 새 캠페인으로 저장하세요.
+# GT 대조는 GUI 탐지기를 od_gt로 바꿔 저장하고 새 실험을 시작하세요.
 schema_version: 2
 campaign_name: starter_static_obstacle_bev
 scenarios:

@@ -21,6 +21,7 @@ import hashlib, json, os, signal, sys, time
 from pathlib import Path
 from planning_scenario_validator.config import load_campaign, EXECUTION_CONTRACT
 cfg = load_campaign(sys.argv[1], check_install=False)
+label = json.loads((cfg['path'].parent / 'execution.json').read_text()).get('experiment_name', cfg['name']) if (cfg['path'].parent / 'execution.json').exists() else cfg['name']
 out = cfg['output']; out.mkdir(parents=True, exist_ok=True)
 calls = out / 'calls'
 calls.write_text(str(int(calls.read_text()) + 1) if calls.exists() else '1')
@@ -31,11 +32,11 @@ def stop(*args):
     global stopped
     stopped = True
 signal.signal(signal.SIGINT, stop)
-if os.environ.get('WAIT_CAMPAIGN') == cfg['name']:
+if os.environ.get('WAIT_CAMPAIGN') == label:
     (out / 'waiting').touch()
     while not stopped: time.sleep(.02)
     sys.exit(130)
-limit = 1 if os.environ.get('INCOMPLETE_CAMPAIGN') == cfg['name'] else len(cfg['cases'])
+limit = 1 if os.environ.get('INCOMPLETE_CAMPAIGN') == label else len(cfg['cases'])
 for case in cfg['cases'][:limit]:
     state['results'][case.name] = {'status': 'FAIL' if case.name.endswith('two') else 'PASS',
         'source_sha256': case.source_sha256, 'result_path': str(out / case.name)}
@@ -79,6 +80,9 @@ class BatchTests(unittest.TestCase):
     def state(self):
         return batch.batch_state(batch.read_queue(self.queue_file))
 
+    def output(self, name):
+        return Path(next(row['output'] for row in self.state()['items'] if row['campaign'] == name))
+
     def test_fail_is_completed_and_next_yaml_runs(self):
         self.assertEqual(self.run_queue(), 0)
         state = self.state()
@@ -89,7 +93,7 @@ class BatchTests(unittest.TestCase):
         self.assertTrue((directory / 'summary.csv').is_file())
         self.assertEqual(batch.read_queue(directory / 'queue.json'), batch.read_queue(self.queue_file))
         self.assertEqual(self.run_queue(), 0)
-        self.assertEqual((self.root / 'results/batch_A/calls').read_text(), '1')
+        self.assertEqual((self.output('batch_A') / 'calls').read_text(), '1')
 
     def test_manual_interrupt_B_then_resume_A_is_not_repeated(self):
         stop = threading.Event()
@@ -97,7 +101,8 @@ class BatchTests(unittest.TestCase):
         def interrupt():
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline:
-                if (self.root / 'results/batch_B/waiting').exists():
+                state = self.state() if batch.read_queue(self.queue_file).get('run_directory') else None
+                if state and (self.output('batch_B') / 'waiting').exists():
                     stop.set()
                     return
                 time.sleep(.02)
@@ -110,25 +115,25 @@ class BatchTests(unittest.TestCase):
         thread.join(2)
         self.assertFalse(errors)
         self.assertEqual([r['status'] for r in self.state()['items']], ['DONE', 'INTERRUPTED', 'PENDING'])
-        self.assertFalse((self.root / 'results/batch_C').exists())
+        self.assertFalse((self.output('batch_C') / 'calls').exists())
         self.assertEqual(self.run_queue(), 0)
-        self.assertEqual((self.root / 'results/batch_A/calls').read_text(), '1')
-        self.assertEqual((self.root / 'results/batch_B/calls').read_text(), '2')
+        self.assertEqual((self.output('batch_A') / 'calls').read_text(), '1')
+        self.assertEqual((self.output('batch_B') / 'calls').read_text(), '2')
 
     def test_zero_exit_with_missing_scenes_stops_queue(self):
         with patch.dict(os.environ, {'INCOMPLETE_CAMPAIGN': 'batch_B'}):
             self.assertEqual(self.run_queue(), 1)
         self.assertEqual(self.state()['status'], 'ERROR')
-        self.assertFalse((self.root / 'results/batch_C').exists())
+        self.assertFalse((self.output('batch_C') / 'calls').exists())
 
-    def test_changed_input_cannot_resume_and_old_state_is_preserved(self):
+    def test_changed_authoring_yaml_can_resume_from_frozen_inputs(self):
         self.assertEqual(self.run_queue(), 0)
         state_path = Path(batch.read_queue(self.queue_file)['run_directory']) / 'state.json'
         original = state_path.read_bytes()
         self.paths[1].write_text(self.paths[1].read_text() + '# changed\n')
-        with self.assertRaisesRegex(ValueError, '바뀌었습니다'):
-            self.run_queue()
-        self.assertEqual(state_path.read_bytes(), original)
+        self.assertEqual(self.run_queue(), 0)
+        self.assertEqual((self.output('batch_A') / 'calls').read_text(), '1')
+        self.assertEqual(self.state()['status'], 'DONE')
 
     def test_duplicate_and_network_mismatch_rejected(self):
         with self.assertRaisesRegex(ValueError, '중복'):
@@ -136,13 +141,27 @@ class BatchTests(unittest.TestCase):
         doc = yaml.safe_load(self.paths[1].read_text())
         doc['campaign_name'] = 'batch_A'
         self.paths[1].write_text(yaml.safe_dump(doc))
-        with self.assertRaisesRegex(ValueError, '결과 폴더'):
-            batch.plan(self.paths[:2], check_install=False)
+        self.assertEqual(len(batch.plan(self.paths[:2], check_install=False)[0]), 2)
         doc['campaign_name'] = 'batch_B'
         doc.setdefault('morai', {})['scenario_load_port'] = 9096
         self.paths[1].write_text(yaml.safe_dump(doc))
         with self.assertRaisesRegex(ValueError, '무인 배치'):
             batch.plan(self.paths[:2], check_install=False)
+
+    def test_same_yaml_queue_new_batch_preserves_old_results_without_yaml_copies(self):
+        self.assertEqual(self.run_queue(), 0)
+        previous = copy.deepcopy(self.state())
+        old_state_path = Path(batch.read_queue(self.queue_file)['run_directory']) / 'state.json'
+        old_state = old_state_path.read_bytes()
+        queue = batch.read_queue(self.queue_file)
+        queue['run_directory'] = None
+        batch.write_queue(queue, self.queue_file)
+        self.assertEqual(self.run_queue(), 0)
+        self.assertEqual([row['path'] for row in self.state()['items']], [str(path) for path in self.paths])
+        self.assertNotEqual([row['output'] for row in self.state()['items']], [row['output'] for row in previous['items']])
+        self.assertEqual(old_state_path.read_bytes(), old_state)
+        for row in previous['items']:
+            self.assertEqual((Path(row['output']) / 'calls').read_text(), '1')
 
     def test_queue_lock_prevents_duplicate_run(self):
         with self.queue_file.with_suffix('.lock').open('a') as lock:
@@ -160,12 +179,17 @@ class BatchTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'state 형식'):
             batch.batch_state({'run_directory': str(self.root)})
 
-    def test_changed_scene_cannot_resume(self):
+    def test_changed_original_scene_does_not_change_snapshot_resume(self):
         self.assertEqual(self.run_queue(), 0)
         state_path = Path(batch.read_queue(self.queue_file)['run_directory']) / 'state.json'
         original = state_path.read_bytes()
         (self.scenes / 'one.json').write_text((self.scenes / 'one.json').read_text() + '\n')
-        with self.assertRaisesRegex(ValueError, '바뀌었습니다'):
+        self.assertEqual(self.run_queue(), 0)
+        self.assertEqual((self.output('batch_A') / 'calls').read_text(), '1')
+        frozen = self.output('batch_A') / 'scenarios/one.json'
+        frozen.write_text(frozen.read_text() + '\n')
+        original = state_path.read_bytes()
+        with self.assertRaisesRegex(ValueError, '사본'):
             self.run_queue()
         self.assertEqual(state_path.read_bytes(), original)
 
@@ -221,7 +245,7 @@ sys.exit(batch.run_batch(sys.argv[1], runner=%r, stop_event=stop, check_install=
                         app['root'].destroy()
                 def start():
                     with patch('tkinter.messagebox.askokcancel', return_value=True):
-                        app['actions']['batch_start']()
+                        app['actions']['batch_start'](new=True)
                     self.assertEqual(app['active']['mode'], 'batch')
                     app['root'].after(50, check)
                 app['root'].after(50, start)
@@ -234,7 +258,9 @@ sys.exit(batch.run_batch(sys.argv[1], runner=%r, stop_event=stop, check_install=
     def test_gui_rejected_resume_does_not_show_old_done_as_success(self):
         self.assertEqual(self.run_queue(), 0)
         previous = batch.read_queue(self.queue_file)
-        self.paths[1].write_text(self.paths[1].read_text() + '# changed input\n')
+        # Queue mismatch is detected by the child runner, while GUI can still
+        # show the last complete state without misreporting the rejected resume.
+        previous['items'][1], previous['items'][2] = previous['items'][2], previous['items'][1]
         executable = self.root / 'rejected-batch'
         executable.write_text('''#!/usr/bin/python3
 import sys
@@ -294,10 +320,10 @@ sys.exit(batch.run_batch(sys.argv[1], runner=%r, check_install=False))
                         self.assertIsNone(copied['run_directory'])
                         self.assertEqual(len(copied['items']), 3)
                         for old, new in zip(self.paths, copied['items']):
-                            self.assertNotEqual(str(old), new)
+                            self.assertEqual(str(old), new)
                             self.assertTrue(Path(new).is_file())
                             doc = gui.load_document(new)
-                            self.assertNotEqual(doc['campaign_name'], old.stem)
+                            self.assertEqual(doc['campaign_name'], old.stem)
                             self.assertEqual(doc['scenarios']['directory'], str(self.scenes))
                         self.assertEqual([path.read_bytes() for path in self.paths], original_inputs)
                         self.assertEqual((Path(previous['run_directory']) / 'state.json').read_bytes(), original_state)

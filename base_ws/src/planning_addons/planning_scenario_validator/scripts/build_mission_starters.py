@@ -318,7 +318,7 @@ def build(output=OUTPUT):
                   "# 이 YAML의 목적지/주행시간이 모든 선택 시나리오에 동일하게 적용됩니다.\n"
                   "# 다른 목적지/시간은 별도 이름의 YAML로 시험하세요.\n"
                   "# 센서는 계속 켜고, bag에서만 LiDAR/카메라를 제외합니다.\n"
-                  "# GT 대조는 GUI 탐지기를 od_gt로 바꾸고 새 캠페인으로 저장하세요.\n")
+                  "# GT 대조는 GUI 탐지기를 od_gt로 바꿔 저장하고 새 실험을 시작하세요.\n")
         expected[folder / "example.yaml"] = header + yaml.safe_dump(campaign, allow_unicode=True, sort_keys=False)
         expected[folder / "README.md"] = render_guide(family, rows, campaign, geom, ROOT, PACKAGE)
         expected[folder / "manifest.json"] = json.dumps({"schema_version": 1, "mission": family,

@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign
+from .executions import is_snapshot, load_execution, prepare_execution
 from .traffic_light import runtime_mode, runtime_settings
 from .failure_analysis import analyze_failure, compact_summary, log_offsets, scan_log_signals
 from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure,
@@ -27,7 +28,8 @@ from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailu
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="MORAI planning 시나리오 자동 검증")
-    parser.add_argument("config", help="캠페인 YAML 한 개")
+    parser.add_argument("config", nargs="?", help="편집용 실험 YAML 한 개 (새 실행)")
+    parser.add_argument("--execution", help="재개할 기존 실험 결과 폴더")
     parser.add_argument("--check", action="store_true", help="ROS 실행 없이 설정과 파일만 검사")
     parser.add_argument("--dry-run", action="store_true", help="실행할 순서와 설정을 출력")
     parser.add_argument("--resume", choices=["true", "false"], help="중단된 캠페인 재개 여부")
@@ -496,6 +498,8 @@ def check_free_disk(cfg):
 
 
 def run(cfg, resume=True, rerun_failed=False):
+    if cfg.get('path') and is_snapshot(cfg['path']):
+        cfg = load_execution(cfg['path'])
     # Campaign-local locks alone allow two different YAMLs to race on one ROS graph.
     directory = ROOT / "planner_logs/validation"
     directory.mkdir(parents=True, exist_ok=True)
@@ -517,6 +521,7 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
     except BlockingIOError as error:
         raise RuntimeFailure("같은 캠페인이 이미 실행 중입니다") from error
     state = _load_state(cfg, resume)
+    state.update(run_status='RUNNING', runner_pid=os.getpid())
     snapshot = cfg["output"] / "campaign_config.yaml"
     if not snapshot.exists():
         shutil.copy2(cfg["path"], snapshot)
@@ -533,6 +538,8 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
             continue
         todo.append(case)
     if not todo:
+        state['run_status'] = 'DONE'
+        _write_state(cfg, state)
         print("완료된 캠페인입니다: {}".format(cfg["output"]))
         return 0
     processes = Processes(cfg["output"] / "stack_logs", _env())
@@ -545,6 +552,8 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
         monitor = LiveMonitor()
         _start_persistent(cfg, processes, monitor)
         for index, case in enumerate(todo, 1):
+            if is_snapshot(cfg['path']):
+                load_execution(cfg['output'])
             # Check between cases without corrupting an in-progress recorder.
             check_free_disk(cfg)
             print("[{}/{}] {}".format(index, len(todo), case.name), flush=True)
@@ -560,6 +569,8 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         processes.close()
         state["current"] = None
+        total_complete = sum(row['status'] in ('PASS', 'FAIL') for row in state['results'].values()) == len(cfg['cases'])
+        state['run_status'] = 'DONE' if total_complete else 'INTERRUPTED'
         _write_state(cfg, state)
         lock.close()
     counts = {label: sum(row["status"] == label for row in state["results"].values())
@@ -572,7 +583,12 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
 def main(argv=None):
     args = parse_args(argv)
     try:
-        cfg = load_campaign(args.config)
+        if args.execution:
+            cfg = load_execution(args.execution)
+        elif args.config:
+            cfg = load_execution(args.config) if is_snapshot(args.config) else load_campaign(args.config)
+        else:
+            raise ConfigError('새 실행은 YAML, 재개는 --execution 결과폴더를 지정하세요')
         if cfg["ignored_case_yamls"]:
             print("안내: 예전 .case.yaml {}개는 읽지 않습니다. 이 YAML의 공통 목적지·시간을 모든 장면에 적용합니다.".format(
                 len(cfg["ignored_case_yamls"])), file=sys.stderr)
@@ -583,16 +599,25 @@ def main(argv=None):
                     print("{:02d}. {} -> goal ({:.1f}, {:.1f}) / {}초".format(index, case.source.name,
                         case.goal["x"], case.goal["y"], case.timeout_sec))
             return 0
-        resume = args.resume == "true" if args.resume is not None else bool(cfg["document"].get("resume", True))
+        if args.execution or is_snapshot(cfg['path']):
+            cfg = load_execution(args.execution or cfg['path'])
+        elif args.resume == 'true' and (cfg['output'] / 'campaign_state.json').is_file():
+            cfg = load_execution(cfg['output'])  # Existing pre-snapshot records only.
+            print('이전 고정 이름 실험을 재개합니다. 새 실험은 --resume 옵션 없이 원본 YAML을 실행하세요.')
+        else:
+            cfg = prepare_execution(cfg['path'])
+            print('새 실험: {}'.format(cfg['output']), flush=True)
+        print('실행 기록: {}'.format(cfg['output']), flush=True)
+        resume = args.resume != 'false'
         def on_terminate(_signal, _frame):
             raise KeyboardInterrupt()
         signal.signal(signal.SIGTERM, on_terminate)
         return run(cfg, resume, args.rerun_failed)
-    except (ConfigError, RuntimeFailure) as error:
+    except (ConfigError, RuntimeFailure, ValueError, OSError) as error:
         print("planning_validator 오류: {}".format(error), file=sys.stderr)
         return 2
     except KeyboardInterrupt:
-        print("중단했습니다. 같은 YAML로 재실행하면 resume합니다.", file=sys.stderr)
+        print("중단했습니다. GUI 실험 기록에서 재개하거나 --execution 결과폴더를 지정하세요.", file=sys.stderr)
         return 130
 
 

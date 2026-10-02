@@ -13,6 +13,7 @@ import uuid
 from pathlib import Path
 
 from .config import ROOT, EXECUTION_CONTRACT, load_campaign, resolve_path
+from .executions import load_execution, prepare_execution
 from .runtime import RuntimeFailure, atomic_json, now
 
 
@@ -75,8 +76,6 @@ def plan(paths, *, check_install=True):
     configs = [load_campaign(path, check_install=check_install) for path in paths]
     if len({str(cfg["path"]) for cfg in configs}) != len(configs):
         raise ValueError("같은 YAML이 배치에 중복되었습니다")
-    if len({str(cfg["output"]) for cfg in configs}) != len(configs):
-        raise ValueError("캠페인 결과 폴더가 중복됩니다. campaign_name을 각각 다르게 지정하세요")
     # MORAI first connection stays manual: do not cross a reconnect boundary.
     network = None
     load_target = None
@@ -150,15 +149,30 @@ def run_batch(path=None, *, runner=None, stop_event=None, check_install=True):
         except BlockingIOError as error:
             raise RuntimeFailure("이 배치가 이미 실행 중입니다") from error
         queue = read_queue(path)
-        configs, planned = plan(queue["items"], check_install=check_install)
         state = batch_state(queue)
         if state:
-            if [(r["path"], r["contract"]) for r in state["items"]] != [(r["path"], r["contract"]) for r in planned]:
-                raise ValueError("실행 후 YAML/JSON/Network/목록이 바뀌었습니다. 입력을 복원하거나 새 목록으로 분리하세요")
+            if [str(resolve_path(path)) for path in queue['items']] != [row['path'] for row in state['items']]:
+                raise ValueError('배치 실행 목록이 바뀌었습니다. 이전 목록을 복원하세요')
+            if state.get('snapshot_inputs'):
+                configs = [load_execution(row['output'], check_install=check_install) for row in state['items']]
+                _, planned = plan([cfg['path'] for cfg in configs], check_install=check_install)
+                if [row['contract'] for row in planned] != [row['contract'] for row in state['items']]:
+                    raise ValueError('배치 실행 사본이 바뀌었습니다. 사본을 복원하세요')
+            else:
+                configs, planned = plan(queue['items'], check_install=check_install)
+                if [(r['path'], r['contract']) for r in state['items']] != [(r['path'], r['contract']) for r in planned]:
+                    raise ValueError('이전 배치의 입력이 바뀌었습니다. 입력을 복원하세요')
             directory = resolve_path(queue["run_directory"])
         else:
+            _, planned = plan(queue['items'], check_install=check_install)
+            configs = []
+            for row in planned:
+                cfg = prepare_execution(row['path'], check_install=check_install)
+                configs.append(cfg)
+                row.update(output=str(cfg['output']), execution_path=str(cfg['path']), contract=input_contract(cfg))
+            plan([cfg['path'] for cfg in configs], check_install=check_install)
             directory = ROOT / "planner_logs/validation_batches" / uuid.uuid4().hex[:16]
-            state = {"schema_version": 1, "created_at": now(), "items": planned,
+            state = {"schema_version": 1, "snapshot_inputs": True, "created_at": now(), "items": planned,
                      "current_index": None, "status": "READY"}
             queue["run_directory"] = str(directory)
             # Persist state before pointing the GUI to it.
@@ -172,7 +186,11 @@ def run_batch(path=None, *, runner=None, stop_event=None, check_install=True):
                 if stop_event.is_set():
                     break
                 # Validate all inputs again before each campaign, not just the active one.
-                _, current = plan(queue["items"], check_install=check_install)
+                paths = [row.get('execution_path', row['path']) for row in state['items']]
+                if state.get('snapshot_inputs'):
+                    for row in state['items']:
+                        load_execution(row['output'], check_install=check_install)
+                _, current = plan(paths, check_install=check_install)
                 if [r["contract"] for r in current] != [r["contract"] for r in state["items"]]:
                     raise ValueError("배치 실행 중 입력 파일이 바뀌었습니다. 다음 주행을 시작하지 않습니다")
                 complete, counts, _ = summarize_campaign(cfg)

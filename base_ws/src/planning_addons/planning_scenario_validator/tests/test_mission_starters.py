@@ -117,7 +117,7 @@ class StarterTests(unittest.TestCase):
         choices = campaign_examples()
         self.assertEqual(len([p for p in choices if p.parent.parent.parent == OUTPUT and p.name == 'example.yaml']), 5)
         self.assertFalse(any(p.name.endswith('.case.yaml') for p in choices))
-        self.assertTrue(default_name(OUTPUT / 'highway/base/example.yaml').startswith('highway_starter_'))
+        self.assertEqual(default_name(OUTPUT / 'highway/base/example.yaml'), 'highway_starter')
 
     def test_legacy_scenario_paths_resolve_without_rewriting_yaml(self):
         from planning_scenario_validator.config import resolve_path

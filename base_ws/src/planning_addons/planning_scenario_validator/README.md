@@ -12,6 +12,12 @@ Ubuntu 20.04에서 Docker·Drive 이미지·E25를 한 번에 준비하려면 `b
 
 ## GUI로 시작하기
 
+### 설정 파일과 실행 기록
+
+개인 YAML은 계속 편집·재사용하는 설정이다. **새 실험 시작**은 `planner_logs/validation/<실험 이름>_<YYMMDD_HHMMSS>/`를 새로 만들고 설정·선택 시나리오·Network·토픽 목록 사본과 hash를 보관한다. 같은 YAML을 다음날 다시 사용해도 된다. **실험 기록 / 재개 → 선택 실험 재개**는 당시 사본을 사용하므로 원본 YAML/JSON 수정과 무관하게 이전 조건으로 이어간다. 사본을 직접 수정하면 재개를 거절한다. 코드·지도·모델 바이너리는 복제하지 않는다.
+
+`베이스 → 내 작업 폴더 복사`는 `highway_starter.yaml`처럼 timestamp 없는 파일을 만들며 재복사 시 기존 개인 YAML을 연다. 기존 YAML을 덮어쓰지 않는다. 날짜는 새 실행 결과 폴더에만 붙인다. 기존 timestamp 이름의 개인 파일은 이름을 강제로 바꾸지 않는다. 이전 고정 이름 결과도 보존하며 변경되지 않은 당시 원본 입력이 있을 때만 재개한다.
+
 팀원에게 배포할 미션별 YAML·시나리오는 [미션 스타터 안내](config/missions/README.md)를 참고한다. 회전교차로·일반 정적·사거리 동적·GPS 음영 정적·고주로 각각 `base/`(공유 24개)와 `workspace/`(Git 제외 개인 작업)로 나눈다. GUI 예제 목록에서 base를 선택하고 `베이스 → 내 작업 폴더 복사`를 누르면 시나리오와 새 캠페인 YAML을 준비한다. 이 묶음은 오프라인 검사 완료 상태이며 live 주행·배우 동작은 첫 기준선부터 확인한다.
 
 각자 PC의 `~/AjouNice2026` 저장소 루트에서 `bash base_ws/src/planning_addons/planning_scenario_validator/install.sh`를 한 번 실행한다. 처음 시나리오 예제를 만들 때는 `/usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_static_corridor_cases.py`를 실행한다. YAML의 저장소 상대경로는 실행 시 해당 PC의 저장소 경로로 해석되며 `/home/luv`를 요구하지 않는다. MORAI MR GUI에서 사용할 Sensor JSON과 생성된 validator 전용 Ego Network JSON을 Load·Connect한다. 이 단계는 GUI가 대신하지 않는다.
@@ -26,7 +32,7 @@ GUI는 마지막으로 열거나 저장한 YAML의 경로를 `~/.config/ajounice
 
 `모니터 모드`를 누르면 GUI가 RViz와 같은 폭으로 화면 왼쪽 아래에 놓인다. 바 높이는 기존 설정을 유지하며 `중단`, `결과 폴더`, `전체 설정 보기` 버튼이 남는다. 긴 상태 문구가 있어도 버튼은 위쪽에 표시한다. 최대화된 설정 창에서도 모니터 바로 전환할 수 있고, `전체 설정 보기`를 누르면 이전 창 상태로 돌아간다. 실행 전 이 버튼을 누르면 영상 설정을 `split`으로 바꾸며, 기존 `manual` YAML에서 바로 실행할 때도 RViz 전체화면 동작을 안내하고 `split` 변경 여부를 묻는다. 이미 실행 중인 캠페인은 YAML이 고정되어 있으므로 화면 배치를 지속적으로 바꾸려면 안전 중단 후 새 캠페인 이름으로 다시 실행해야 한다.
 
-마지막 YAML 기록이 없는 첫 실행에서는 통과 확인된 한 장면의 `static_pair_mission_gt_split.yaml` 예제가 선택된다. RViz 왼쪽·MORAI 오른쪽·GUI 하단 모니터 바의 전체 화면 영상용 설정이다. 실패 장면을 찾는 5개 장면 스트레스 예제는 목록의 `static_pair_stress_gt.yaml`에서 선택한다. 시나리오 폴더·glob·목적지(map 좌표)·제한 시간·측위·탐지기·녹화 옵션을 확인한 뒤 `설정 검사` → `실행 / resume`을 누른다. **YAML 하나의 목적지·시간·도착 방식·경유점은 선택한 모든 장면에 동일하게 적용된다.** 예제 파일은 바뀌지 않는다. 미션 base를 선택하면 같은 미션 workspace에 `<campaign_name>.yaml`을 저장하며, 기존 공통 예제를 선택하면 `config/users/<리눅스 사용자>/<campaign_name>.yaml`에 저장한다. GUI에 보이지 않는 고급 YAML 옵션도 보존된다. 직접 저장한 YAML은 `내 YAML 열기 / resume`으로 다시 열어 이어서 실행한다. 한 번 실행된 캠페인의 설정을 바꾸면 기존 기록 보호를 위해 새 캠페인 이름으로 복사할지 GUI가 묻는다. **그대로 이어 실행할 때는 기존 개인 YAML을 열고 값을 바꾸지 않는다.**
+마지막 YAML 기록이 없는 첫 실행에서는 통과 확인된 한 장면의 `static_pair_mission_gt_split.yaml` 예제가 선택된다. RViz 왼쪽·MORAI 오른쪽·GUI 하단 모니터 바의 전체 화면 영상용 설정이다. 실패 장면을 찾는 5개 장면 스트레스 예제는 목록의 `static_pair_stress_gt.yaml`에서 선택한다. 시나리오 폴더·glob·목적지(map 좌표)·제한 시간·측위·탐지기·녹화 옵션을 확인한 뒤 `설정 검사` → `새 실험 시작`을 누른다. **YAML 하나의 목적지·시간·도착 방식·경유점은 선택한 모든 장면에 동일하게 적용된다.** 예제 파일은 바뀌지 않는다. 미션 base를 선택하면 같은 미션 workspace에 `<campaign_name>.yaml`을 저장하며, 기존 공통 예제를 선택하면 `config/users/<리눅스 사용자>/<campaign_name>.yaml`에 저장한다. GUI에 보이지 않는 고급 YAML 옵션도 보존된다. 직접 저장한 YAML은 `내 YAML 열기`로 다시 열어 수정하고, 실행 재개는 실험 기록 탭에서 선택한다.
 
 현재 설정 형식은 `schema_version: 2`다. 장면별 `.case.yaml`은 제거했고 읽지 않는다. GUI는 보조 YAML이나 필수 항목이 없는 파일을 거절하며 기존 입력을 유지한다. 이전 v1 YAML은 GUI에서 열어 확인할 수 있지만 저장 시 v2로 전환한다. 이전 방식으로 이미 실행한 캠페인은 새 이름으로 저장한다. 과거 결과는 삭제하지 않으며 새 실행 계약과 섞어서 resume하지 않는다. 새 v2 캠페인의 중단/resume은 그대로 지원한다.
 
@@ -36,11 +42,11 @@ GUI의 단일 실행은 기존 `./planning_validator`를 호출하고, 배치는
 
 ## 여러 YAML 배치
 
-개인 YAML을 먼저 저장한 뒤 `실행 목록 / 배치`에서 추가·제거·↑/↓ 정렬 → `전체 검사` → `배치 실행 / 재개`를 사용한다. 배치 안에서 목적지·스택은 달라도 되지만 Sensor/Ego Network 및 ScenarioLoad 대상은 같아야 한다. 같은 YAML·결과 폴더의 중복과 같은 ROS master의 중복 validator 실행을 거절한다. 목록은 `~/.config/ajounice/planning_scenario_validator/batch.json`에 자동 저장하며 Git에 포함되지 않는다.
+개인 YAML을 먼저 저장한 뒤 `실행 목록 / 배치`에서 추가·제거·↑/↓ 정렬 → `전체 검사` → `새 배치 시작`을 사용한다. 배치 안에서 목적지·스택은 달라도 되지만 Sensor/Ego Network 및 ScenarioLoad 대상은 같아야 한다. 같은 YAML의 중복과 같은 ROS master의 중복 validator 실행을 거절한다. 목록은 `~/.config/ajounice/planning_scenario_validator/batch.json`에 자동 저장하며 Git에 포함되지 않는다.
 
-주행 FAIL은 다음 YAML을 진행하고 시스템 오류는 멈춘다. B 실행 중 중단한 A/B/C 목록을 재개하면 완료된 A와 완료된 장면은 건너뛴다. 실행 후에는 목록과 입력을 변경하지 않는다. `목록 초기화`는 결과를 지우지 않으며 이전 결과의 `queue.json`을 `이전 목록 열기`로 복원한다. 같은 조건을 처음부터 시험하려면 `새 실행으로 복사`로 새 이름의 YAML을 만든다. 모니터에는 배치 i/n과 현재 장면 진행이 표시된다.
+주행 FAIL은 다음 YAML을 진행하고 시스템 오류는 멈춘다. B 실행 중 중단한 A/B/C 목록을 `배치 재개`하면 완료된 A와 완료된 장면은 건너뛴다. 원본 설정은 수정해도 되지만 실행한 목록과 입력 사본은 고정된다. `목록 초기화`는 결과를 지우지 않으며 이전 결과의 `queue.json`을 `이전 목록 열기`로 복원한다. 같은 YAML 목록을 처음부터 다시 시험하려면 `새 배치 시작`을 누른다. 모니터에는 배치 i/n과 현재 장면 진행이 표시된다.
 
-배치 결과는 `planner_logs/validation_batches/<id>/{state.json,queue.json,summary.csv}`다. GUI의 `배치 CSV`·`배치 결과 폴더`로 연다. CSV는 UTF-8 BOM이며 스프레드시트 가져오기를 지원한다. 각 캠페인의 bag·MP4·JSON은 기존 `planner_logs/validation/<campaign_name>/`에 남는다. 캠페인별 Drive 공유는 기존 옵션을 유지하며, 배치 CSV 자체는 자동 업로드하지 않는다.
+배치 결과는 `planner_logs/validation_batches/<id>/{state.json,queue.json,summary.csv}`다. GUI의 `배치 CSV`·`배치 결과 폴더`로 연다. CSV는 UTF-8 BOM이며 스프레드시트 가져오기를 지원한다. 각 실험의 bag·MP4·JSON은 `planner_logs/validation/<실험 이름>_<YYMMDD_HHMMSS>/`에 남는다. 실험별 Drive 공유는 기존 옵션을 유지하며, 배치 CSV 자체는 자동 업로드하지 않는다.
 
 `split`은 영상 자체를 자르는 기능이 아니다. `recording.video.window_layout: split`이면 시나리오마다 Dock·Panel을 제외한 X11 작업 영역에 RViz를 왼쪽 위, GUI 모니터 바를 왼쪽 아래, MORAI를 오른쪽 **전체 높이**로 배치한 뒤 X11 화면 **전체**를 녹화한다. `bottom_bar_px: auto`는 작업 영역 높이의 약 17%(170~275 px)를 왼쪽 RViz 아래에 남긴다. PC에 맞춰 고정 높이 `180`(100~400 px 입력)이나 비율 `"18%"`(10~30%)로 바꿀 수 있다. GUI 내용이 잘리지 않도록 실제 예약 높이는 최소 140 px로 제한한다. GUI와 RViz는 같은 설정값을 사용하며, GUI 창은 테두리를 포함한 실제 바깥 크기로 배치를 시도한다. MORAI 창을 못 찾거나 창이 크기 조절을 거부하면 경고만 기록하고 녹화·주행은 계속하므로 직접 배치하면 된다. 기존 예제의 `window_layout: manual`(기본값)과 `focus_planviz: true`는 기존 RViz 최대화 방식 그대로다. GUI 없이 CLI로 split을 실행하면 왼쪽 아래 공간은 비어 있으므로 필요에 따라 직접 창을 채운다.
 
@@ -48,7 +54,7 @@ GUI의 단일 실행은 기존 `./planning_validator`를 호출하고, 배치는
 
 ## 신호등 실행 환경 선택
 
-GUI의 신호등 on 옆에서 **시스템 Python / 가상환경 Python**을 선택한다. 기본은 기존 `/usr/bin/python3`이며, 새 팀원은 `bash scripts/runtime/setup_traffic_light_env.sh`로 공용 환경을 준비한 뒤 가상환경을 선택한다. 설치는 시스템 Python/기존 Conda를 변경하지 않고 홈 폴더 아래 별도 환경을 만든다. 기본 경로는 `~/.local/share/ajounice/traffic_light_gpu/bin/python`, 장치는 `0`이다. CPU 시험은 `cpu`로 바꾼다. GUI의 `신호등 환경` 탭에서 기존 환경의 Python 경로도 지정할 수 있다. 신호등 모델은 Git에 포함돼 있으며 BEVFusion Docker와 별개다.
+GUI 기본 설정은 신호등 on/off만 선택하며, **신호등 환경** 탭에서 시스템 Python / 가상환경 Python·경로·GPU/CPU 장치를 설정한다. 기본은 기존 `/usr/bin/python3`이며, 새 팀원은 `bash scripts/runtime/setup_traffic_light_env.sh`로 공용 환경을 준비한 뒤 가상환경을 선택한다. 설치는 시스템 Python/기존 Conda를 변경하지 않고 홈 폴더 아래 별도 환경을 만든다. 기본 경로는 `~/.local/share/ajounice/traffic_light_gpu/bin/python`, 장치는 `0`이다. CPU 시험은 `cpu`로 바꾼다. 신호등 모델은 Git에 포함돼 있으며 BEVFusion Docker와 별개다.
 
 YAML 키는 `stack.traffic_light`, `traffic_light_runtime: system|virtualenv`, `traffic_light_python`, `traffic_light_device`이다. 기존 YAML의 `traffic_light_python`만 지정한 형식도 호환한다. off에서는 환경 설치가 필요 없고, on이면 실행 직전 모델/GPU/ROS import를 검사하여 실패 시 주행을 시작하지 않는다. 설정 검사 버튼은 실제 GPU 추론까지 수행하지 않는다. threshold/스무딩/지도 매칭 정책은 바꾸지 않는다. 최초 설치 및 시스템 환경 검사 명령은 [팀원 가이드](../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#7-1-신호등도-켜려면--팀원은-공용-가상환경-추천)를 참고한다.
 
@@ -71,10 +77,10 @@ cp base_ws/src/planning_addons/planning_scenario_validator/config/missions/stati
 다른 터미널의 대시보드:
 
 ```bash
-./planning_validator_dashboard planner_logs/validation/soa_static_mission_gt_example
+./planning_validator_dashboard planner_logs/validation/<실행ID>
 ```
 
-Ctrl+C 후 같은 명령을 다시 실행하면 완료된 시나리오를 건너뛰고 남은 시나리오를 진행한다. 실패 시나리오를 다시 보려면 `--rerun-failed`를 붙인다. 개별 오류가 났다면 `error/`에 증거를 남기고 다음 실행에서 재시도한다.
+Ctrl+C 후에는 `./planning_validator --execution planner_logs/validation/<실행ID>`로 재개한다. 같은 YAML 명령을 반복하면 새 실험을 처음부터 시작한다. 재개 때 실패 시나리오도 다시 보려면 `--rerun-failed`를 붙인다. 개별 오류는 `error/`에 보존한다. `--check`/`--dry-run`은 새 결과 폴더를 만들지 않는다.
 
 BEVFusion까지 켜는 시험은 별도 예제를 복사해서 사용한다. 먼저 무장애물 연결 확인용 `bevfusion_clear_smoke.yaml`을 권장한다. **일반 정적 장애물 구간**은 아래의 `static_mission_bevfusion.yaml`을 사용한다. `static_obstacle_bevfusion.yaml`과 `static_obstacle_gt.yaml`은 이름과 달리 GPS 음영 구간 안의 hidden mission regression이므로 이번 일반 구간과 혼동하지 않는다. MORAI GUI의 Sensor는 예제에 적힌 `Sensor_competition_local.json`, Ego Network는 validator 전용 JSON으로 연결해야 한다. BEVFusion checkpoint·Docker image도 `scripts/runtime/run_bevfusion.sh`의 계약대로 준비해야 한다.
 
@@ -191,7 +197,7 @@ Google Drive 공유는 캠페인 YAML의 `upload.enabled`, `upload.profile`, `up
 | `video` | 기본 공유 + `.mp4` |
 | `full` | 기본 공유 + `.bag` + `.mp4` |
 
-로컬 bag과 영상은 어느 모드에서나 보존된다. Drive 업로드 오류는 주행 PASS/FAIL과 별개로 `campaign_state.json`의 `upload_errors`와 GUI에 기록된다. 이미 실행한 캠페인의 업로드 설정을 바꾸면 resume 해시가 달라지므로 새 캠페인 이름을 사용한다. 특정 과거 bag만 재주행 없이 추가 업로드하는 기능은 아직 없다.
+로컬 bag과 영상은 어느 모드에서나 보존된다. Drive 업로드 오류는 주행 PASS/FAIL과 별개로 `campaign_state.json`의 `upload_errors`와 GUI에 기록된다. 원본 YAML의 업로드 설정을 바꾸면 다음 새 실험에 적용하며, 기존 실험 재개는 당시 사본의 업로드 설정을 유지한다. 특정 과거 bag만 재주행 없이 추가 업로드하는 기능은 아직 없다.
 
 ## 운영 계약
 

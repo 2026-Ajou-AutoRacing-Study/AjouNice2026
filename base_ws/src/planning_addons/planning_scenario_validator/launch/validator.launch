@@ -1,6 +1,6 @@
 <launch>
   <arg name="config"/>
-  <arg name="resume" default="true"/>
+  <arg name="resume" default="false"/>
   <node pkg="planning_scenario_validator" type="planning_validator.py"
         name="planning_scenario_validator" output="screen"
         args="$(arg config) --resume=$(arg resume)" required="true"/>

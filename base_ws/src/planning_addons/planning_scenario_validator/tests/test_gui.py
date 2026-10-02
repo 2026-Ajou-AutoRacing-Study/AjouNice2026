@@ -79,7 +79,7 @@ class GuiConfigTests(unittest.TestCase):
             changed = first.parent / 'scenarios/a.json'
             changed.write_text('{"my_edit": true}')
             second = gui_module.copy_base_to_workspace(first)
-            self.assertNotEqual(first, second)
+            self.assertEqual(first, second)
             self.assertEqual(changed.read_text(), '{"my_edit": true}')
             self.assertEqual(notes.read_text(encoding='utf-8'), '내 실험 메모')
             with self.assertRaisesRegex(ValueError, '공유 base'):
@@ -341,6 +341,7 @@ class GuiWindowTests(unittest.TestCase):
             def ready(app):
                 root = app["root"]
                 captured["app"] = app
+                app['active']['template']['output_root'] = str(Path(temp) / 'results')
                 app["fields"]["campaign_name"].set("gui_process_smoke")
                 app["rerun_failed"].set(True)
                 root.after(50, app["actions"]["check"])
@@ -370,7 +371,8 @@ class GuiWindowTests(unittest.TestCase):
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait(timeout=2)
             self.assertIn("DRY_RUN_OK", captured.get("log", ""))
-            self.assertIn("RUN_STARTED --rerun-failed", captured.get("log", ""))
+            self.assertIn("RUN_STARTED --resume=true", captured.get("log", ""))
+            self.assertNotIn('--rerun-failed', captured.get('log', ''))  # Applies only to resume.
             self.assertTrue(any(call.args[0] == "설정 검사 중" for call in info.call_args_list))
             self.assertIn("결과 파일 없음", captured.get("status", ""))
 
@@ -385,6 +387,7 @@ class GuiWindowTests(unittest.TestCase):
 
             def ready(app):
                 root = app["root"]
+                app['active']['template']['output_root'] = str(Path(temp) / 'results')
                 app["fields"]["campaign_name"].set("gui_video_interrupt")
                 app["fields"]["video"].set(True)
                 app["fields"]["video_layout"].set("manual")

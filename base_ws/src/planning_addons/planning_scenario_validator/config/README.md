@@ -19,6 +19,8 @@ config/
 
 여러 개인 YAML은 GUI `실행 목록 / 배치`에서 순서대로 실행한다. 별도의 배치 YAML을 작성할 필요는 없다. 목록과 재개 경로는 홈 설정 폴더의 `batch.json`에 자동 저장하며 결과는 `planner_logs/validation_batches/`에 보관한다. 목록 초기화는 기존 YAML·녹화 결과를 지우지 않는다.
 
+작업용 YAML 이름에는 timestamp를 붙이지 않는다. 베이스 복사 시 `highway_starter.yaml`처럼 만들고, 이미 있으면 그대로 연다. 개인 YAML은 계속 수정·재사용할 수 있다. `새 실험 시작`/`새 배치 시작`마다 별도 timestamp 결과 폴더에 입력 사본을 보관한다. 재개는 결과 폴더의 사본을 사용하며 원본 YAML·JSON 수정과 구분한다. 이전 고정 이름 기록은 당시 원본 입력을 유지해야 재개할 수 있다.
+
 `base/manifest.json`은 제작 의도와 조건 설명이며 실행 설정이 아니다. 시나리오 폴더에는 실행할 MORAI JSON만 넣는다. 생성된 Network JSON도 시나리오가 아니다.
 
 자기 미션 `base/README.md`에는 실제 시작점·목적지, 배치 근거, 조건을 바꿔 볼 순서와 담당 AI 프롬프트가 있다. 처음에는 좌표를 유지하고 객체 조건부터 바꾸면 된다. GUI 복사 시 workspace README에 공유 안내 링크도 만들며, 개인 메모는 덮어쓰지 않는다.
