@@ -3,17 +3,20 @@
 # ROS/Docker 설치, workspace 빌드, 맵/가중치 다운로드는 수행하지 않는다.
 set -euo pipefail
 REQUIRE_GUI=false
+CHECK_ONLY=false
 case "${1:-}" in
   --gui) REQUIRE_GUI=true; shift ;;
+  --check) REQUIRE_GUI=true; CHECK_ONLY=true; shift ;;
   --help|-h)
-    echo "Usage: bash install.sh [--gui]"
+    echo "Usage: bash install.sh [--gui|--check]"
     echo "도구 확인 + validator Ego Network 생성. --gui는 tkinter도 필수로 검사합니다."
+    echo "--check는 도구만 확인하며 Network·설정을 변경하지 않습니다."
     echo "처음 설치: docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md"
     exit 0 ;;
   "") ;;
-  *) echo "Usage: bash install.sh [--gui]" >&2; exit 2 ;;
+  *) echo "Usage: bash install.sh [--gui|--check]" >&2; exit 2 ;;
 esac
-if (($#)); then echo "Usage: bash install.sh [--gui]" >&2; exit 2; fi
+if (($#)); then echo "Usage: bash install.sh [--gui|--check]" >&2; exit 2; fi
 PACKAGE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f /opt/ros/noetic/setup.bash ]]; then
   source /opt/ros/noetic/setup.bash
@@ -44,6 +47,11 @@ if ((${#MISSING[@]})); then
 fi
 if ! test -f "$PACKAGE_ROOT/../../../install_aw149/setup.bash"; then
   echo "주의: AW149 overlay가 없습니다. 저장소 루트에서 scripts/workspace/setup_ws.sh를 실행하세요." >&2
+fi
+if [[ "$CHECK_ONLY" == true ]]; then
+  echo "GUI·녹화 도구 검사 완료. Network·설정은 변경하지 않았습니다."
+  echo "GUI 고급/네트워크 탭에서 환경 검사 → 필요 시 실제 GPU 검사를 실행하세요."
+  exit 0
 fi
 NETWORK_PROFILE="$(/usr/bin/python3 "$PACKAGE_ROOT/scripts/generate_network_profile.py")"
 echo "MORAI GUI에서 로드할 Ego Network: $NETWORK_PROFILE"

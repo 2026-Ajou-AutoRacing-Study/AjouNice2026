@@ -12,6 +12,7 @@ import os
 import queue
 import re
 import signal
+import shutil
 import subprocess
 import threading
 from datetime import datetime
@@ -21,8 +22,10 @@ import yaml
 
 from .config import (CONFIG_SCHEMA_VERSION, DEFAULT_UPLOAD_REMOTE, EXECUTION_CONTRACT, ROOT,
                      UPLOAD_PROFILES, resolve_path, validate_campaign_document)
+from .config import load_campaign
 from .layout import normalize_bar_setting, resolve_bar_height
 from .traffic_light import DEFAULT_PYTHON, LABEL_MODES, MODE_LABELS, runtime_mode, runtime_settings
+from . import batch
 
 
 PACKAGE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator"
@@ -371,7 +374,7 @@ def is_within(path, directory):
         return False
 
 
-def main(*, on_ready=None, runner_executable=None):
+def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     """Open the GUI; optional hooks let Xvfb tests drive buttons without ROS."""
     import tkinter as tk
     from tkinter import filedialog, font as tkfont, messagebox, ttk
@@ -399,7 +402,14 @@ def main(*, on_ready=None, runner_executable=None):
     live_status = tk.StringVar(value="")
     vars_ = {}
     active = {"process": None, "check_process": None, "config": None,
-              "document": None, "stopping": False}
+              "document": None, "stopping": False, "mode": "single", "batch_document": None}
+    try:
+        batch_queue = batch.read_queue()
+    except (OSError, ValueError) as error:
+        # Preserve the damaged file; explicit reset is required before writing.
+        batch_queue = {"schema_version": 1, "items": [], "run_directory": None, "load_error": str(error)}
+    batch_buttons = []
+    batch_preview = {}
     rerun_failed = tk.BooleanVar(value=False)
     result_paths = {}
     events = queue.Queue()
@@ -415,6 +425,8 @@ def main(*, on_ready=None, runner_executable=None):
     live_label.pack(anchor="w")
 
     def read_source(path, fresh_name=False):
+        if any(active.get(key) and active[key].poll() is None for key in ("process", "check_process")):
+            raise ValueError("실행/검사 중에는 다른 YAML을 열 수 없습니다")
         path = resolve_path(path)
         document = load_document(path)
         values = form_values(document)
@@ -424,6 +436,7 @@ def main(*, on_ready=None, runner_executable=None):
         active["source_path"] = Path(path)
         active["config"] = Path(path) if is_personal(path) else None
         active["document"] = document if active["config"] else None
+        active["mode"] = "single"
         result_paths.clear()
         for item in table.get_children():
             table.delete(item)
@@ -646,6 +659,44 @@ def main(*, on_ready=None, runner_executable=None):
         set_running_ui(True, allow_stop=False)
         threading.Thread(target=command_reader, args=(process, "check"), daemon=True).start()
 
+    def check_environment(gpu=False, live=False):
+        try:
+            if any(active.get(key) and active[key].poll() is None for key in ("process", "check_process")):
+                raise ValueError("다른 실행/검사가 끝난 뒤 환경 검사를 시작하세요. 실행 중 수신 상태는 모니터의 실시간 값으로 확인하세요")
+            path = save()
+            command = ["/usr/bin/python3", str(PACKAGE / "scripts/planning_validator_doctor.py"), str(path)]
+            if gpu:
+                if not messagebox.askokcancel("GPU 검사", "컨테이너 GPU 연산과 선택된 신호등 실제 추론을 검사합니다. 잠시 GPU 메모리를 사용합니다. 계속할까요?"):
+                    return
+                command.append("--gpu")
+            if live:
+                command.append("--live")
+            process = subprocess.Popen(command, cwd=str(ROOT), stdout=subprocess.PIPE,
+                                       stderr=subprocess.STDOUT, text=True, bufsize=1)
+            active["check_process"] = process
+            set_running_ui(True, allow_stop=False)
+            status.set("환경 검사 중 — 아래 로그에서 PASS/WARN/FAIL과 해결 방법을 확인하세요")
+            threading.Thread(target=command_reader, args=(process, "environment"), daemon=True).start()
+        except Exception as error:
+            show_error("환경 검사 실패", error)
+
+    environment_bar = ttk.Frame(advanced)
+    environment_bar.grid(row=9, column=0, columnspan=3, sticky="w", pady=8)
+    for label, action in (("환경 검사", check_environment),
+                          ("실제 GPU 검사", lambda: check_environment(gpu=True)),
+                          ("ROS 수신 검사", lambda: check_environment(live=True))):
+        button = ttk.Button(environment_bar, text=label, command=action)
+        button.pack(side="left", padx=3)
+        batch_buttons.append(button)
+
+    def copy_connection_paths():
+        document, _ = collect()
+        root.clipboard_clear()
+        root.clipboard_append("Ego Network: {}\nSensor: {}".format(
+            resolve_path(document["network"]["ego_network_json"]), resolve_path(document["network"]["sensor_json"])))
+        status.set("MORAI에 Load할 두 JSON 경로를 복사했습니다. 최초 연결은 MORAI GUI에서 직접 합니다.")
+    ttk.Button(environment_bar, text="연결 JSON 경로 복사", command=copy_connection_paths).pack(side="left", padx=3)
+
     def start():
         if active["check_process"] and active["check_process"].poll() is None:
             messagebox.showinfo("설정 검사 중", "현재 설정 검사가 끝난 후 캠페인을 시작하세요.")
@@ -684,7 +735,7 @@ def main(*, on_ready=None, runner_executable=None):
         except OSError as error:
             show_error("캠페인 실행 실패", error)
             return
-        active.update(process=process, stopping=False)
+        active.update(process=process, stopping=False, mode="single")
         set_running_ui(True)
         if video_enabled and active["document"]["recording"]["video"].get("window_layout") == "split":
             set_compact_mode(True, active["document"]["recording"]["video"].get("bottom_bar_px", "auto"))
@@ -702,7 +753,229 @@ def main(*, on_ready=None, runner_executable=None):
                     pass
                 status.set("중단 요청 중 — 녹화와 ROS 스택 정리를 기다립니다")
 
+    batch_tab = ttk.Frame(notebook, padding=8)
+    notebook.add(batch_tab, text="실행 목록 / 배치")
+    batch_note = tk.StringVar(value="YAML 여러 개를 순서대로 실행합니다. 목록은 자동 저장되고 중단 후 재개됩니다.")
+    ttk.Label(batch_tab, textvariable=batch_note, wraplength=900).pack(anchor="w")
+    batch_table = ttk.Treeview(batch_tab, columns=("name", "scenes", "minutes", "state", "counts"), show="headings", height=5)
+    for key, title, width in (("name", "캠페인 YAML", 270), ("scenes", "장면", 60),
+                              ("minutes", "예상 분", 75), ("state", "상태", 120), ("counts", "P/F/E", 95)):
+        batch_table.heading(key, text=title)
+        batch_table.column(key, width=width)
+    batch_table.pack(fill="x", pady=4)
+    batch_bar = ttk.Frame(batch_tab)
+    batch_bar.pack(fill="x")
+
+    def refresh_batch():
+        try:
+            value = batch.read_queue() if not batch_queue.get("load_error") else batch_queue
+            batch_queue.update(value)
+            state = batch.batch_state(value)
+        except (OSError, ValueError) as error:
+            batch_note.set("목록/결과 읽기 실패: {} — 기존 파일은 보존했습니다".format(error))
+            return None
+        states = {item["path"]: item for item in state["items"]} if state else {}
+        ids = set()
+        total_scenes, total_seconds = 0, 0
+        for index, path in enumerate(value["items"]):
+            iid = str(index)
+            ids.add(iid)
+            row = states.get(str(resolve_path(path)), {})
+            if row:
+                name, n, seconds = row["campaign"], row["scene_count"], row["estimate_sec"]
+            else:
+                key = str(path)
+                try:
+                    stamp = resolve_path(path).stat().st_mtime_ns
+                    if key not in batch_preview or batch_preview[key][0] != stamp:
+                        cfg = load_campaign(path, check_install=False)
+                        batch_preview[key] = (stamp, cfg["name"], len(cfg["cases"]), sum(case.timeout_sec + 35 for case in cfg["cases"]))
+                    _, name, n, seconds = batch_preview[key]
+                except (ValueError, OSError):
+                    name, n, seconds = Path(path).name, 0, 0
+            total_scenes += n
+            total_seconds += seconds
+            counts = row.get("counts", {})
+            values = (name, n, round(seconds / 60, 1), row.get("status", "대기"),
+                      "{}/{}/{}".format(counts.get("PASS", 0), counts.get("FAIL", 0), counts.get("ERROR", 0)))
+            if batch_table.exists(iid):
+                batch_table.item(iid, values=values)
+            else:
+                batch_table.insert("", "end", iid=iid, values=values)
+        for iid in batch_table.get_children():
+            if iid not in ids:
+                batch_table.delete(iid)
+        if not batch_queue.get("load_error"):
+            batch_note.set("YAML {}개 / 장면 {}개 / 약 {:.0f}분 (제한시간+준비 추정) · 기본 녹화 약 {:.1f}GiB; 센서 포함 시 별도 | {}".format(
+                len(value["items"]), total_scenes, total_seconds / 60, total_seconds / 60 * 60 / 1024,
+                state.get("status", "미실행") if state else "미실행"))
+        return state
+
+    def edit_batch(operation):
+        try:
+            if any(active.get(key) and active[key].poll() is None for key in ("process", "check_process")):
+                raise ValueError("실행/검사 중에는 목록을 바꿀 수 없습니다")
+            if batch_queue.get("load_error") and operation != "reset":
+                raise ValueError("목록 파일이 손상됐습니다. 파일을 백업하고 목록 초기화를 선택하세요")
+            if batch_queue.get("run_directory") and operation != "reset":
+                raise ValueError("이미 실행한 목록은 재개용으로 고정됩니다. 새 목록으로 바꾸려면 목록 초기화를 먼저 누르세요. 결과는 삭제하지 않습니다")
+            items = list(batch_queue["items"])
+            if operation == "current":
+                items.append(str(save().resolve()))
+            elif operation == "files":
+                selected = filedialog.askopenfilenames(initialdir=str(MISSIONS), filetypes=[("캠페인 YAML", "*.yaml *.yml")])
+                for path in selected:
+                    document = load_document(path)
+                    if document["schema_version"] != 2:
+                        raise ValueError("이전 YAML은 먼저 열어서 v2 개인 캠페인으로 저장하세요")
+                    if mission_directory(path) and is_within(resolve_path(path), mission_directory(path) / "base"):
+                        raise ValueError("공유 base 대신 GUI에서 개인 YAML로 저장한 파일을 추가하세요")
+                    items.append(str(resolve_path(path)))
+            elif operation == "reset":
+                if not messagebox.askyesno("목록 초기화", "실행 목록만 비울까요? 캠페인·배치 결과와 YAML은 삭제하지 않습니다. 이전 배치 재개 정보는 결과 폴더의 queue.json에 보존됩니다."):
+                    return
+                items = []
+                if batch_queue.get("load_error") and batch.queue_path().exists():
+                    shutil.copy2(batch.queue_path(), batch.queue_path().with_name("batch.broken.{}.json".format(os.getpid())))
+            else:
+                selected = batch_table.selection()
+                if not selected:
+                    return
+                index = int(selected[0])
+                if operation == "remove":
+                    items.pop(index)
+                elif operation in ("up", "down"):
+                    target = index + (-1 if operation == "up" else 1)
+                    if 0 <= target < len(items):
+                        items[index], items[target] = items[target], items[index]
+            if len(set(items)) != len(items):
+                raise ValueError("같은 YAML을 두 번 추가할 수 없습니다")
+            batch_queue.clear()
+            batch_queue.update(schema_version=1, items=items, run_directory=None)
+            batch.write_queue(batch_queue)
+            refresh_batch()
+        except Exception as error:
+            show_error("목록 편집 실패", error)
+
+    def check_batch():
+        try:
+            configs, rows = batch.plan(batch_queue["items"])
+            batch_note.set("파일·배치 검사 통과: YAML {}개 / 장면 {}개. 실제 모델·센서 연결은 환경 검사로 확인하세요.".format(
+                len(rows), sum(row["scene_count"] for row in rows)))
+        except Exception as error:
+            show_error("배치 검사 실패", error)
+
+    def start_batch():
+        try:
+            if any(active.get(key) and active[key].poll() is None for key in ("process", "check_process")):
+                raise ValueError("현재 실행/검사가 끝난 뒤 배치를 시작하세요")
+            if batch_queue.get("load_error"):
+                raise ValueError(batch_queue["load_error"])
+            configs, _ = batch.plan(batch_queue["items"])
+            if not messagebox.askokcancel("배치 시작 / 재개", "MORAI에 이 목록의 공통 Sensor/Ego Network를 Load·Connect했나요?\n완료한 YAML은 건너뛰고 중단된 장면부터 재개합니다. 주행 FAIL은 계속, 시스템 오류는 중단합니다."):
+                return
+            command = ([str(batch_executable)] if batch_executable else
+                       ["/usr/bin/python3", str(PACKAGE / "scripts/planning_validator_batch.py")]) + [str(batch.queue_path())]
+            process = subprocess.Popen(command, cwd=str(ROOT), stdout=subprocess.PIPE,
+                                       stderr=subprocess.STDOUT, text=True, bufsize=1, start_new_session=True)
+            active.update(process=process, stopping=False, mode="batch", batch_document=None, batch_error=None)
+            set_running_ui(True)
+            video = configs[0]["recording"].get("video", {})
+            if video.get("enabled") and video.get("window_layout") == "split":
+                set_compact_mode(True, video.get("bottom_bar_px", "auto"))
+            status.set("배치 시작 준비: YAML {}개".format(len(configs)))
+            threading.Thread(target=command_reader, args=(process, "batch"), daemon=True).start()
+        except Exception as error:
+            show_error("배치 시작 실패", error)
+
+    def restore_batch():
+        try:
+            if active["process"] and active["process"].poll() is None:
+                raise ValueError("실행 중에는 이전 목록을 열 수 없습니다")
+            path = filedialog.askopenfilename(initialdir=str(ROOT / "planner_logs/validation_batches"), filetypes=[("이전 배치 queue.json", "queue.json")])
+            if path:
+                value = batch.read_queue(path)
+                batch.batch_state(value)  # Missing state is an actionable error.
+                batch.write_queue(value)
+                batch_queue.clear()
+                batch_queue.update(value)
+                refresh_batch()
+        except Exception as error:
+            show_error("이전 배치 열기 실패", error)
+
+    def clone_batch():
+        try:
+            if any(active.get(key) and active[key].poll() is None for key in ("process", "check_process")):
+                raise ValueError("실행/검사 중에는 새 실행으로 복사할 수 없습니다")
+            if not batch_queue["items"]:
+                raise ValueError("복사할 목록이 없습니다")
+            documents = [(path, load_document(path)) for path in batch_queue["items"]]
+            if not messagebox.askyesno("새 실행으로 복사", "같은 조건의 새 개인 YAML과 campaign_name을 만들어 처음부터 실행할 목록을 준비할까요? 기존 결과는 보존됩니다."):
+                return
+            paths = []
+            for index, (source_path, document) in enumerate(documents, 1):
+                document = build_document(document, form_values(document))
+                name = default_name(document["campaign_name"] + "_repeat")[:55] + "_" + str(index)
+                document["campaign_name"] = name
+                mission = mission_directory(source_path)
+                directory = (mission or MISSIONS / "static_obstacle") / "workspace"
+                path = directory / (name + ".yaml")
+                suffix = 1
+                while path.exists() or campaign_output(document).exists():
+                    suffix += 1
+                    document["campaign_name"] = name[:54] + "_" + str(suffix)
+                    path = directory / (document["campaign_name"] + ".yaml")
+                save_personal(document, path)
+                paths.append(str(path))
+            batch_queue.clear()
+            batch_queue.update(schema_version=1, items=paths, run_directory=None)
+            batch.write_queue(batch_queue)
+            refresh_batch()
+        except Exception as error:
+            show_error("새 실행 복사 실패", error)
+
+    def open_local_result(path):
+        try:
+            path = resolve_path(path)
+            if not path.exists():
+                raise ValueError("아직 생성되지 않았습니다: {}".format(path))
+            subprocess.Popen(["xdg-open", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except (ValueError, OSError) as error:
+            show_error("파일 열기 실패", error)
+
+    def open_batch_result(csv=False):
+        directory = batch_queue.get("run_directory")
+        if not directory:
+            messagebox.showinfo("결과 없음", "배치를 실행하면 결과 폴더가 생성됩니다")
+            return
+        open_local_result(resolve_path(directory) / "summary.csv" if csv else directory)
+
+    for index, (label, action) in enumerate((("현재 YAML 추가", lambda: edit_batch("current")), ("YAML 여러 개 추가", lambda: edit_batch("files")),
+                          ("제거", lambda: edit_batch("remove")), ("↑", lambda: edit_batch("up")), ("↓", lambda: edit_batch("down")),
+                          ("목록 초기화", lambda: edit_batch("reset")), ("이전 목록 열기", restore_batch),
+                          ("전체 검사", check_batch), ("배치 실행 / 재개", start_batch), ("새 실행으로 복사", clone_batch),
+                          ("배치 결과 폴더", open_batch_result), ("배치 CSV", lambda: open_batch_result(csv=True)),
+                          ("짧은 사용법", lambda: open_local_result(ROOT / "docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md")),
+                          ("첫 설치 안내", lambda: open_local_result(ROOT / "docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md")))):
+        button = ttk.Button(batch_bar, text=label, command=action)
+        button.grid(row=index // 5, column=index % 5, padx=3, pady=3, sticky="ew")
+        if index < 10:
+            batch_buttons.append(button)
+    def open_batch_item(_event):
+        selected = batch_table.selection()
+        if selected:
+            try:
+                read_source(batch_queue["items"][int(selected[0])])
+                notebook.select(basic)
+            except Exception as error:
+                show_error("YAML 열기 실패", error)
+    batch_table.bind("<Double-1>", open_batch_item)
+    refresh_batch()
+
     def open_results():
+        if active.get("mode") == "batch" and batch_queue.get("run_directory"):
+            subprocess.Popen(["xdg-open", batch_queue["run_directory"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
         document = active.get("document")
         if not document:
             try:
@@ -734,6 +1007,8 @@ def main(*, on_ready=None, runner_executable=None):
         source_box.configure(state="disabled" if running else "readonly")
         personal_button.configure(state="disabled" if running else "normal")
         copy_button.configure(state="disabled" if running else "normal")
+        for button in batch_buttons:
+            button.configure(state="disabled" if running else "normal")
         for label in ("개인 YAML 저장", "설정 검사", "실행 / resume"):
             control_buttons[label].configure(state="disabled" if running else "normal")
         control_buttons["중단"].configure(state="normal" if running and allow_stop else "disabled")
@@ -885,7 +1160,7 @@ def main(*, on_ready=None, runner_executable=None):
             # The operator chose the split-screen monitor layout. Persist that
             # choice in the form so the runner will not maximize RViz per case.
             vars_["video_layout"].set("split")
-        elif running and active["document"]["recording"]["video"].get("window_layout") != "split":
+        elif running and (active.get("batch_document") or active.get("document") or active["template"])["recording"]["video"].get("window_layout") != "split":
             messagebox.showwarning(
                 "현재 캠페인은 전체화면 설정",
                 "현재 실행 중인 YAML은 manual 배치라 장면마다 RViz를 최대화합니다. "
@@ -905,6 +1180,28 @@ def main(*, on_ready=None, runner_executable=None):
 
     def update_progress():
         document = active.get("document")
+        prefix = ""
+        batch_config = None
+        if active.get("mode") == "batch":
+            state = refresh_batch()
+            if state:
+                index = state.get("current_index")
+                if index is not None:
+                    item = state["items"][index]
+                    prefix = "배치 {}/{} · {} | ".format(index + 1, len(state["items"]), item["campaign"])
+                    batch_config = resolve_path(item["path"])
+                    try:
+                        document = load_document(batch_config)
+                        active["batch_document"] = document
+                    except (OSError, ValueError):
+                        return None
+                if state["status"] != "RUNNING":
+                    done = sum(row["status"] == "DONE" for row in state["items"])
+                    totals = {key: sum(row.get("counts", {}).get(key, 0) for row in state["items"]) for key in ("PASS", "FAIL", "ERROR")}
+                    status.set(active.get("batch_error") or "배치 {} · YAML {}/{} · 성공 {} 실패 {} 오류 {}".format(
+                        state["status"], done, len(state["items"]), totals["PASS"], totals["FAIL"], totals["ERROR"]))
+            if document is None:
+                return None
         if not document:
             return None
         path = campaign_output(document) / "campaign_state.json"
@@ -912,7 +1209,7 @@ def main(*, on_ready=None, runner_executable=None):
             state = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
-        config_path = active.get("config")
+        config_path = batch_config or active.get("config")
         if config_path and state.get("config_path") != str(config_path.resolve()):
             return None
         results = state.get("results", {})
@@ -924,7 +1221,7 @@ def main(*, on_ready=None, runner_executable=None):
         current = current or "대기"
         if active["process"] and active["process"].poll() is None:
             upload_note = " | Drive 오류 {}건".format(len(state["upload_errors"])) if state.get("upload_errors") else ""
-            status.set("진행 {}/{} | 성공 {} 실패 {} 오류 {} | 현재 {}{}".format(
+            status.set(prefix + "장면 {}/{} | 성공 {} 실패 {} 오류 {} | 현재 {}{}".format(
                 len(results), state.get("total", "?"), counts["PASS"], counts["FAIL"], counts["ERROR"],
                 current, upload_note))
             current_state = state.get("current")
@@ -950,23 +1247,35 @@ def main(*, on_ready=None, runner_executable=None):
             elif event[0] == "done":
                 label, code = event[1:]
                 append("{} 종료 코드: {}".format(label, code))
-                if label == "run":
+                if label in ("run", "batch"):
                     active["process"] = None
+                    if label == "batch" and code not in (0, 130):
+                        active["batch_error"] = "배치 실행 오류 (코드 {}) — 입력 변경·환경 오류를 로그에서 확인하세요. 이전 결과는 보존됩니다.".format(code)
+                        status.set(active["batch_error"])
                     set_running_ui(False)
                     root.deiconify()
                     root.lift()
                     state = update_progress()
-                    status.set(completion_label(code, state))
+                    if label == "run":
+                        status.set(completion_label(code, state))
                 else:
                     active["check_process"] = None
                     set_running_ui(False)
-                    status.set("설정 검사 {}".format("통과" if code == 0 else "실패 (로그 확인)"))
+                    status.set(("환경 검사 FAIL 없음 — WARN·연결 상태도 로그에서 확인하세요" if code == 0 else "환경 검사 실패 — 로그의 해결 방법을 확인하세요")
+                               if label == "environment" else "설정 검사 {}".format("통과" if code == 0 else "실패 (로그 확인)"))
         update_progress()
         poll_after["id"] = root.after(500, poll)
 
     def on_destroy(event):
-        if event.widget is root and poll_after["id"] is not None:
-            root.after_cancel(poll_after["id"])
+        if event.widget is root:
+            active["closed"] = True
+            # Delayed geometry/interrupt callbacks must not run after this Tk
+            # instance closes (including repeated Xvfb GUI tests).
+            for identifier in root.tk.call("after", "info"):
+                try:
+                    root.after_cancel(identifier)
+                except tk.TclError:
+                    pass
             poll_after["id"] = None
 
     def on_close():
@@ -994,14 +1303,20 @@ def main(*, on_ready=None, runner_executable=None):
     if on_ready is not None:
         on_ready({"root": root, "fields": vars_, "actions": {
             "save": save, "check": check, "start": start, "stop": stop,
+            "environment_check": check_environment,
             "copy_workspace": copy_workspace, "open_yaml": read_source,
+            "batch_edit": edit_batch, "batch_check": check_batch, "batch_start": start_batch,
+            "batch_refresh": refresh_batch,
+            "batch_clone": clone_batch, "batch_restore": restore_batch,
             "update_progress": update_progress, "compact": set_compact_mode}, "active": active,
-            "status": status, "table": table, "log": log,
+            "status": status, "table": table, "log": log, "batch_table": batch_table,
+            "batch_queue": batch_queue, "batch_note": batch_note,
             "live_status": live_status, "rerun_failed": rerun_failed,
             "compact_state": compact, "compact_button": compact_button})
-    poll_after["id"] = root.after(500, poll)
     try:
-        root.mainloop()
+        if not active.get("closed"):
+            poll_after["id"] = root.after(500, poll)
+            root.mainloop()
     finally:
         signal.signal(signal.SIGINT, previous_sigint)
     return 0

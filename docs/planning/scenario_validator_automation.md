@@ -6,13 +6,29 @@
 
 ## 현재 구현
 
+### 여러 YAML 순차 배치·설치 점검 (2026-10-03)
+
+GUI의 `실행 목록 / 배치`에서 개인 YAML을 추가·제거·정렬하고 하나의 목록을 실행한다. 캠페인 설정은 각 YAML만 사용하며, 목록 JSON은 YAML 경로와 결과 위치만 기억한다. 목록은 `~/.config/ajounice/planning_scenario_validator/batch.json`(XDG_CONFIG_HOME 지원)에 자동 저장되어 Git에 포함되지 않는다. 배치 안에 다른 배치를 중첩하지 않는다.
+
+중단은 현재 recorder와 ROS 스택을 정상 마감한 뒤 다음 YAML을 시작하지 않는다. 재개하면 완료된 PASS/FAIL 캠페인·장면을 건너뛰고 미완료부터 실행한다. 주행 FAIL은 다음 YAML을 계속 실행하고, 시스템 오류·불완전한 종료는 배치를 멈춘다. 종료 코드 0만으로 완료를 인정하지 않고 캠페인 state의 실행 계약·YAML 해시·선택 장면별 결과를 검증한다. 목록·YAML·시나리오·Network·토픽 프로필이 변경되면 같은 배치 재개를 거부한다. 배치 lock과 ROS graph lock으로 중복 실행도 막는다.
+
+실행 후 목록은 고정한다. `목록 초기화`는 목록만 비우며 결과와 YAML은 지우지 않는다. 이전 결과의 `queue.json`을 `이전 목록 열기`로 다시 선택할 수 있다. `새 실행으로 복사`는 기존 결과를 보존하고 새 이름의 개인 YAML을 만든다. 배치 폴더는 `planner_logs/validation_batches/<id>/`이며 state·queue 스냅샷·UTF-8 BOM summary.csv가 남는다. 모니터에는 배치 i/n과 현재 캠페인의 장면 진행·실시간 주행 값이 표시된다. GUI에서 배치 CSV와 결과 폴더, 짧은 사용법을 열 수 있다.
+
+배치 전체는 같은 Sensor/Ego Network 및 ScenarioLoad 대상만 허용한다. 스택·목적지·제한시간은 YAML마다 달라도 된다. 최초 MORAI GUI Connect는 여전히 수동이다. `환경 검사`는 ROS 메시지·현재 planning 맵·녹화 도구·디스크·선택된 Docker/E25/Python을 검사하며, `실제 GPU 검사`와 `ROS 수신 검사`는 명시적으로 별도 실행한다. 기본 검사는 GPU나 주행 스택을 띄우지 않는다. WARN은 실제 연결이나 추론을 아직 확인하지 못했다는 뜻이지 성공 보장이 아니다. `install.sh --check`는 읽기 전용 도구 검사이고 전체 ROS/Docker 설치기는 아니다.
+
+검증: Xvfb 포함 101개 테스트 통과. A 완료→B 중단→재개 시 A 생략·B 재시도·C 진행, FAIL 후 다음 YAML 진행, 변경 입력 재개 거부, 잘못된 queue/state 보존, GUI 실제 배치 프로세스 실행·완료 표시·재개 거절 표시, 이전 목록 열기·새 실행 복사·원본 보존, 중복 lock을 검사했다. 생성기 재현 검증은 기존 130개 파일/120개 JSON 계약을 유지한다. 로컬 5060 Ti에서 공용 Docker의 실제 CUDA 텐서 연산을 확인했다.
+
+실제 MR에서는 같은 정적 pair 장면의 GT → E25 BEVFusion → 고의 map 밖 목적지 배치를 실행해 PASS/SUCCESS, PASS/SUCCESS, FAIL/ROUTE_FAILURE로 마감했다. 각 indexed bag과 1920×1080 MP4가 정상 생성됐고 미완료 .active는 남지 않았다. 동일 배치 재실행은 세 캠페인을 건너뛰었다. 이는 배치·녹화·두 인지 경로의 연결 검증이며, 전체 120개 시나리오의 성공률이나 다른 팀원 GPU 검증을 뜻하지 않는다. 개별 측정 자료는 Git 제외 `planner_logs/analysis/validator_release_261003/`과 배치 결과에 둔다.
+
+남은 외부 검증: 팀원 PC별 설치·창 관리자·GPU 파일럿, LAN MORAI, 신호등 on을 포함한 이번 배치 실주행, Drive 실제 업로드. 캠페인별 Drive 공유는 기존 기능을 사용하고 **배치 summary.csv 자체는 자동 업로드하지 않는다**. 필요하면 GUI의 배치 CSV로 열어 별도 공유한다. 실행 중 강제 전원 종료 시 recorder 마감은 보장하지 않으며 다음 재개에서 미완료 장면을 다시 시도한다.
+
 ### 단일 YAML 실행 계약 (2026-10-03)
 
 `schema_version: 2`에서는 캠페인 YAML 하나에 공통 목적지·경유점·주행 제한시간·도착 방식·스택·녹화를 정의한다. 선택된 모든 JSON이 같은 설정으로 실행된다. 다른 목적지나 조건은 별도 이름의 YAML로 시험한다. 공유 미션의 120개 `.case.yaml`을 제거했고 두 생성기도 보조 실행 YAML을 만들지 않는다. 기존 정적 생성기의 장면별 참고 값은 `metadata/manifest.json`에만 보관하며 실행에는 사용하지 않는다.
 
 GUI는 불완전한 YAML과 `.case.yaml`을 열 때 빈 양식을 보여주는 대신 오류를 안내하고 이전 양식을 유지한다. v1 실행용 YAML은 확인·변환을 위해 열 수 있지만 저장 시 v2가 된다. 기존 실행 이력이 있으면 새 캠페인으로 분리한다. runner는 이전 계약의 state를 새 계약과 섞어 resume하지 않으며 기존 결과 파일을 지우지 않는다. 남아 있는 개인 보조 YAML은 경고하고 무시한다.
 
-폴더 진입점은 패키지 `config/README.md`, 공유 미션은 `config/missions/README.md`다. 팀원 직접 제작은 [시나리오·YAML 제작 가이드](SCENARIO_VALIDATOR_AUTHOR_GUIDE.md), 최초 설치는 [팀원 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)를 사용한다. 이번 변경의 검증은 오프라인 설정·GUI·resume 테스트이며 새 실주행 성공률을 측정한 것은 아니다.
+폴더 진입점은 패키지 `config/README.md`, 공유 미션은 `config/missions/README.md`다. 팀원 직접 제작은 [시나리오·YAML 제작 가이드](SCENARIO_VALIDATOR_AUTHOR_GUIDE.md), 최초 설치는 [팀원 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md), 재실행은 [짧은 사용법](SCENARIO_VALIDATOR_RUNBOOK.md)을 사용한다. 이 단일 YAML 변경 자체의 검증은 오프라인이며, 후속 실제 배치 검증 범위는 위 절에 구분했다.
 
 검증 결과: Xvfb를 포함한 validator 테스트 83개 통과, 생성기 130개 파일/120개 JSON 재현 검사 통과, 5개 미션 CLI dry-run에서 공통 목적지·시간 적용 확인, scoped CMake install 완료. GUI에서 highway YAML의 실제 값이 채워지고 잘못된 YAML을 열어도 기존 양식이 유지됨을 검사했다. 공유 시나리오 JSON 내용은 변경하지 않았으며 기존 개인 YAML·결과는 보존했다.
 

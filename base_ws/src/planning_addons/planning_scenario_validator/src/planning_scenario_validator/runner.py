@@ -496,6 +496,20 @@ def check_free_disk(cfg):
 
 
 def run(cfg, resume=True, rerun_failed=False):
+    # Campaign-local locks alone allow two different YAMLs to race on one ROS graph.
+    directory = ROOT / "planner_logs/validation"
+    directory.mkdir(parents=True, exist_ok=True)
+    master = os.environ.get("ROS_MASTER_URI", "http://localhost:11311")
+    key = hashlib.sha256(master.encode()).hexdigest()[:16]
+    with (directory / (".ros_graph_" + key + ".lock")).open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise RuntimeFailure("다른 validator가 같은 ROS master를 사용 중입니다. 중단·정리가 끝난 뒤 실행하세요") from error
+        return _run_campaign(cfg, resume, rerun_failed)
+
+
+def _run_campaign(cfg, resume=True, rerun_failed=False):
     cfg["output"].mkdir(parents=True, exist_ok=True)
     lock = (cfg["output"] / ".lock").open("w")
     try:
