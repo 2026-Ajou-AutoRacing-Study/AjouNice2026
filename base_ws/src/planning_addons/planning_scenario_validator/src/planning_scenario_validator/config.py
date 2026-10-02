@@ -27,7 +27,21 @@ def resolve_path(value, *, required=True):
             raise ConfigError("필수 경로가 비어 있습니다")
         return None
     path = Path(str(value)).expanduser()
-    return (path if path.is_absolute() else ROOT / path).resolve()
+    path = (path if path.is_absolute() else ROOT / path).resolve()
+    # Read-only compatibility for already saved campaigns; never rewrite their
+    # YAML bytes/resume hash just because shared starter files moved.
+    old = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/missions"
+    try:
+        parts = path.relative_to(old).parts
+    except ValueError:
+        return path
+    removed = not path.exists() or (path.is_dir() and not any(path.iterdir()))
+    if removed and len(parts) >= 2 and parts[0] in (
+            "highway", "roundabout", "static_obstacle", "dynamic_obstacle", "gps_shadow"):
+        migrated = old.parents[1] / "missions" / parts[0] / "base" / Path(*parts[1:])
+        if migrated.exists():
+            return migrated.resolve()
+    return path
 
 
 def positive(value, label):

@@ -33,7 +33,7 @@ class StarterTests(unittest.TestCase):
         for family in OUTPUT.iterdir():
             if not family.is_dir():
                 continue
-            cfg = load_campaign(family / "example.yaml", check_install=False)
+            cfg = load_campaign(family / "base/example.yaml", check_install=False)
             self.assertEqual(len(cfg["cases"]), 24)
             self.assertEqual(cfg["stack"]["detector"], "bevfusion")
             self.assertFalse(cfg["recording"]["include_sensors"])
@@ -41,7 +41,7 @@ class StarterTests(unittest.TestCase):
             self.assertFalse(cfg["upload"]["enabled"])
             self.assertFalse(any(t.startswith('/sensor/camera/') or t == '/sensor/lidar1'
                                  for t in cfg["recording"]["topics"]))
-            meta = read(family / "manifest.json")
+            meta = read(family / "base/manifest.json")
             self.assertEqual(Counter(x["tier"] for x in meta["cases"]),
                              {"baseline": 2, "normal": 14, "stress": 8})
             self.assertFalse(meta["live_verified"])
@@ -49,7 +49,7 @@ class StarterTests(unittest.TestCase):
     def test_spawns_keep_official_anchors_and_middle_size_filter(self):
         by_id = {p["UNIQUEID"]: p for p in self.sample["spawnPointList"]}
         for family in ("highway", "roundabout"):
-            for path in (OUTPUT / family / "scenarios").glob('*.json'):
+            for path in (OUTPUT / family / "base/scenarios").glob('*.json'):
                 for p in read(path)["spawnPointList"]:
                     source = by_id[p["UNIQUEID"]]
                     for key in ("pos", "rot", "startLinkInfo", "endLinkInfo", "destinationObjUniqueID"):
@@ -60,7 +60,7 @@ class StarterTests(unittest.TestCase):
                         self.assertEqual(p["listVehicleLengthType"], [2])
 
     def test_shadow_has_no_dynamic_cut_in_and_dynamic_stays_outside_shadow(self):
-        for path in (OUTPUT / 'gps_shadow/scenarios').glob('*.json'):
+        for path in (OUTPUT / 'gps_shadow/base/scenarios').glob('*.json'):
             scene = read(path)
             self.assertTrue(scene['shadedAreaList'])
             self.assertFalse(scene['spawnPointList'])
@@ -69,7 +69,7 @@ class StarterTests(unittest.TestCase):
                 self.assertEqual(actor['currentVelocity'], 0)
             for actor in scene['pedestrianList']:
                 self.assertEqual(actor['speed'], 0)
-        for path in (OUTPUT / 'dynamic_obstacle/scenarios').glob('*.json'):
+        for path in (OUTPUT / 'dynamic_obstacle/base/scenarios').glob('*.json'):
             scene = read(path)
             self.assertFalse(scene['shadedAreaList'])
             for way in scene['waypointDataList']:
@@ -81,9 +81,23 @@ class StarterTests(unittest.TestCase):
 
     def test_gui_discovers_campaigns_but_not_case_sidecars(self):
         choices = campaign_examples()
-        self.assertEqual(len([p for p in choices if p.parent.parent == OUTPUT]), 5)
+        self.assertEqual(len([p for p in choices if p.parent.parent.parent == OUTPUT]), 5)
         self.assertFalse(any(p.name.endswith('.case.yaml') for p in choices))
-        self.assertTrue(default_name(OUTPUT / 'highway/example.yaml').startswith('highway_starter_'))
+        self.assertTrue(default_name(OUTPUT / 'highway/base/example.yaml').startswith('highway_starter_'))
+
+    def test_legacy_scenario_paths_resolve_without_rewriting_yaml(self):
+        from planning_scenario_validator.config import resolve_path
+        old = PACKAGE / 'config/examples/missions/highway/scenarios'
+        self.assertEqual(resolve_path(old), OUTPUT / 'highway/base/scenarios')
+        legacy = yaml.safe_load((OUTPUT / 'highway/base/example.yaml').read_text())
+        legacy['scenarios']['directory'] = str(old)
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'old.yaml'
+            path.write_text(yaml.safe_dump(legacy))
+            before = path.read_bytes()
+            self.assertEqual(len(load_campaign(path, check_install=False)['cases']), 24)
+            self.assertEqual(path.read_bytes(), before)
 
     def test_space_guard_does_not_require_ros(self):
         cfg = {'output': OUTPUT, 'recording': {'minimum_free_disk_gib': 10}}

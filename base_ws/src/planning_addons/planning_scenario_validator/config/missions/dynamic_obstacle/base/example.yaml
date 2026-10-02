@@ -3,18 +3,18 @@
 # 센서는 계속 켜고, bag에서만 LiDAR/카메라를 제외합니다.
 # GT 대조는 GUI 탐지기를 od_gt로 바꾸고 새 캠페인으로 저장하세요.
 schema_version: 1
-campaign_name: starter_gps_shadow_bev
+campaign_name: starter_dynamic_obstacle_bev
 scenarios:
-  directory: base_ws/src/planning_addons/planning_scenario_validator/config/examples/missions/gps_shadow/scenarios
+  directory: base_ws/src/planning_addons/planning_scenario_validator/config/missions/dynamic_obstacle/base/scenarios
   glob: '*.json'
 default_case:
   goal:
-    x: -13.382585757
-    y: 93.78275452
-    z: 28.489
-    yaw_deg: 60.815
+    x: 70.991398
+    y: 585.981428
+    z: 28.387175
+    yaw_deg: 90.733994
   waypoints: []
-  timeout_sec: 90
+  timeout_sec: 70
   arrival_mode: stop
 stack:
   pose_source: localization

@@ -13,7 +13,7 @@ from build_static_corridor_cases import _prepared_official_scene, _vector, OFFIC
 
 ROOT = Path(__file__).resolve().parents[5]
 PACKAGE = Path(__file__).resolve().parents[1]
-OUTPUT = PACKAGE / "config/examples/missions"
+OUTPUT = PACKAGE / "config/missions"
 SAMPLE = ROOT / "configs/scenario/2026_molit_comp_sample_scene.json"
 ACTOR_LISTS = ("vehicleList", "pedestrianList", "objectList", "spawnPointList",
                "pedspawnPointList", "aiPedstrianList", "waypointDataList")
@@ -299,7 +299,7 @@ def build(output=OUTPUT):
     template = yaml.safe_load((PACKAGE / "config/examples/static_pair_mission_bevfusion.yaml").read_text())
     expected = {}
     for family, rows in families.items():
-        folder = Path(output) / family
+        folder = Path(output) / family / "base"
         for stem, scene, case, meta in rows:
             validate(scene, geom)
             expected[folder / "scenarios" / (stem + ".json")] = json.dumps(scene, ensure_ascii=False, indent=2) + "\n"

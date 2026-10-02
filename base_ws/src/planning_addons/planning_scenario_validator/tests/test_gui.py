@@ -52,6 +52,32 @@ class GuiConfigTests(unittest.TestCase):
         gui_module.remember_yaml(path)
         self.assertIsNone(gui_module.remembered_yaml())
 
+    def test_mission_workspace_copy_preserves_edits_and_saves_named_campaigns(self):
+        root = Path(os.environ['XDG_CONFIG_HOME'])
+        missions = root / 'missions'
+        base = missions / 'highway/base'
+        base.mkdir(parents=True)
+        (base / 'scenarios').mkdir()
+        example = copy.deepcopy(self.example)
+        example['output_root'] = str(root / 'results')
+        (base / 'example.yaml').write_text(yaml.safe_dump(example))
+        (base / 'scenarios/a.json').write_text('{"base": true}')
+        (base / 'scenarios/a.case.yaml').write_text('timeout_sec: 45\n')
+        with patch.object(gui_module, 'MISSIONS', missions), patch.object(gui_module, 'ROOT', root):
+            first = gui_module.copy_base_to_workspace(base / 'example.yaml')
+            self.assertEqual(first.parent, missions / 'highway/workspace')
+            document = load_document(first)
+            self.assertEqual(document['scenarios']['directory'], 'missions/highway/workspace/scenarios')
+            self.assertTrue(gui_module.is_personal(first))
+            self.assertEqual(gui_module.personal_path({'campaign_name': 'new_name'}, source=first),
+                             first.parent / 'new_name.yaml')
+            changed = first.parent / 'scenarios/a.json'
+            changed.write_text('{"my_edit": true}')
+            second = gui_module.copy_base_to_workspace(first)
+            self.assertNotEqual(first, second)
+            self.assertEqual(changed.read_text(), '{"my_edit": true}')
+            with self.assertRaisesRegex(ValueError, '공유 base'):
+                save_personal(example, base / 'example.yaml')
     def test_old_campaign_roundtrip_keeps_resume_hash_compatible(self):
         self.assertEqual(build_document(self.example, form_values(self.example)), self.example)
         changed = form_values(self.example)
@@ -173,6 +199,35 @@ class GuiWindowTests(unittest.TestCase):
         config_patch = patch.dict(os.environ, {"XDG_CONFIG_HOME": directory.name})
         config_patch.start()
         self.addCleanup(config_patch.stop)
+
+    def test_workspace_button_and_save_use_selected_mission(self):
+        root_path = Path(os.environ['XDG_CONFIG_HOME'])
+        missions = root_path / 'missions'
+        base = missions / 'roundabout/base'
+        (base / 'scenarios').mkdir(parents=True)
+        example = load_document(EXAMPLES / 'static_pair_stress_gt.yaml')
+        example['output_root'] = str(root_path / 'results')
+        (base / 'example.yaml').write_text(yaml.safe_dump(example))
+        (base / 'scenarios/scene.json').write_text('{}')
+        captured = {}
+
+        def ready(app):
+            try:
+                app['actions']['open_yaml'](base / 'example.yaml', fresh_name=True)
+                app['actions']['copy_workspace']()
+                path = app['active']['config']
+                self.assertEqual(path.parent, missions / 'roundabout/workspace')
+                self.assertEqual(app['fields']['directory'].get(), 'missions/roundabout/workspace/scenarios')
+                app['fields']['timeout_sec'].set('42')
+                self.assertEqual(app['actions']['save'](), path)
+                self.assertEqual(load_document(path)['default_case']['timeout_sec'], 42)
+                captured['ok'] = True
+            finally:
+                app['root'].destroy()
+
+        with patch.object(gui_module, 'MISSIONS', missions), patch.object(gui_module, 'ROOT', root_path):
+            gui_module.main(on_ready=ready)
+        self.assertTrue(captured.get('ok'))
 
     def test_result_selection_survives_progress_refresh(self):
         import tkinter as tk

@@ -27,6 +27,7 @@ PACKAGE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator"
 if not PACKAGE.is_dir():
     PACKAGE = ROOT / "base_ws/install_aw149/share/planning_scenario_validator"
 EXAMPLES = PACKAGE / "config/examples"
+MISSIONS = PACKAGE / "config/missions"
 USERS = PACKAGE / "config/users"
 NAME_RE = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_-]{1,59}\Z")
 UPLOAD_PROFILE_LABELS = {
@@ -40,18 +41,19 @@ UPLOAD_LABEL_PROFILES = {label: key for key, label in UPLOAD_PROFILE_LABELS.item
 
 def default_name(template):
     path = Path(template)
-    stem = path.parent.name + "_starter" if path.stem == "example" and path.parent.parent.name == "missions" else path.stem
+    mission = mission_directory(path)
+    stem = mission.name + "_starter" if path.stem == "example" and mission else path.stem
     base = re.sub(r"[^a-zA-Z0-9_-]", "_", stem)[:35]
     return "{}_{}".format(base, datetime.now().strftime("%y%m%d_%H%M%S"))
 
 
 def campaign_examples():
     # Do not expose scenario .case.yaml files as executable campaigns.
-    return sorted(EXAMPLES.glob("*.yaml")) + sorted(EXAMPLES.glob("missions/*/example.yaml"))
+    return sorted(EXAMPLES.glob("*.yaml")) + sorted(MISSIONS.glob("*/base/example.yaml"))
 
 
 def load_document(path):
-    value = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    value = yaml.safe_load(resolve_path(path).read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise ValueError("YAML 최상위는 mapping이어야 합니다")
     return value
@@ -83,7 +85,7 @@ def remember_yaml(path):
 def remembered_yaml():
     try:
         settings = json.loads(gui_settings_path().read_text(encoding="utf-8"))
-        path = Path(settings["last_yaml"])
+        path = resolve_path(settings["last_yaml"])
         form_values(load_document(path))
         return path if path.is_file() else None
     except (OSError, ValueError, TypeError, KeyError, AttributeError, yaml.YAMLError):
@@ -199,14 +201,76 @@ def build_document(template, values):
     return result
 
 
-def personal_path(document, user=None):
+def mission_directory(source):
+    if source is None:
+        return None
+    try:
+        parts = resolve_path(source).relative_to(MISSIONS.resolve()).parts
+    except ValueError:
+        return None
+    if len(parts) >= 2 and parts[1] in ("base", "workspace"):
+        return MISSIONS / parts[0]
+    return None
+
+
+def is_personal(path):
+    mission = mission_directory(path)
+    return is_within(path, USERS) or bool(mission and is_within(path, mission / "workspace"))
+
+
+def personal_path(document, user=None, source=None):
+    mission = mission_directory(source)
+    if mission:
+        return mission / "workspace" / (document["campaign_name"] + ".yaml")
     username = re.sub(r"[^a-zA-Z0-9_-]", "_", user or getpass.getuser())
     return USERS / username / (document["campaign_name"] + ".yaml")
+
+
+def copy_base_to_workspace(source):
+    """Copy missing inputs, preserve all user edits, create a distinct campaign."""
+    mission = mission_directory(source)
+    if mission is None:
+        raise ValueError("미션별 base 예제 또는 workspace YAML을 먼저 선택하세요")
+    base = mission / "base"
+    workspace = mission / "workspace"
+    for path in (base / "scenarios").iterdir():
+        if not path.is_file() or path.suffix not in (".json", ".yaml", ".yml"):
+            continue
+        target = workspace / "scenarios" / path.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        content = path.read_bytes()
+        # Exclusive creation prevents overwriting an existing scenario.
+        try:
+            with target.open("xb") as stream:
+                try:
+                    stream.write(content)
+                except OSError:
+                    target.unlink(missing_ok=True)
+                    raise
+        except FileExistsError:
+            pass
+    document = load_document(base / "example.yaml")
+    name = default_name(base / "example.yaml")
+    initial = name
+    index = 2
+    while True:
+        document["campaign_name"] = name
+        path = personal_path(document, source=source)
+        if not path.exists() and not campaign_output(document).exists():
+            break
+        name = "{}_{}".format(initial[:55], index)
+        index += 1
+    document["scenarios"]["directory"] = str((workspace / "scenarios").relative_to(ROOT))
+    save_personal(document, path)
+    return path
 
 
 def save_personal(document, path):
     """Never mutate a campaign's YAML once its state exists; resume needs same hash."""
     path = Path(path)
+    mission = mission_directory(path)
+    if is_within(path, EXAMPLES) or (mission and is_within(path, mission / "base")):
+        raise ValueError("공유 base/예제 YAML은 수정하지 않습니다. workspace에 저장하세요")
     output = resolve_path(document.get("output_root", "planner_logs/validation")) / document["campaign_name"]
     state_path = output / "campaign_state.json"
     if state_path.is_file():
@@ -331,13 +395,14 @@ def main(*, on_ready=None, runner_executable=None):
     live_label.pack(anchor="w")
 
     def read_source(path, fresh_name=False):
+        path = resolve_path(path)
         document = load_document(path)
         values = form_values(document)
         if fresh_name:
             values["campaign_name"] = default_name(path)
         active["template"] = document
         active["source_path"] = Path(path)
-        active["config"] = Path(path) if is_within(path, USERS) else None
+        active["config"] = Path(path) if is_personal(path) else None
         active["document"] = document if active["config"] else None
         result_paths.clear()
         for item in table.get_children():
@@ -349,7 +414,7 @@ def main(*, on_ready=None, runner_executable=None):
         status.set("설정 로드: {}".format(Path(path).name))
         remember_yaml(path)
 
-    top = ttk.LabelFrame(frame, text="설정 파일 (예제는 읽기 전용, 저장은 개인 폴더)", padding=8)
+    top = ttk.LabelFrame(frame, text="설정 파일 (미션 base → workspace / 기존 개인 YAML도 사용 가능)", padding=8)
     top.pack(fill="x")
     choices = [str(p) for p in examples]
     source_box = ttk.Combobox(top, textvariable=source, values=choices, state="readonly", width=100)
@@ -357,7 +422,9 @@ def main(*, on_ready=None, runner_executable=None):
     source_box.bind("<<ComboboxSelected>>", lambda _: read_source(source.get(), fresh_name=True))
 
     def choose_personal():
-        path = filedialog.askopenfilename(initialdir=str(USERS), filetypes=[("YAML", "*.yaml *.yml")])
+        mission = mission_directory(active.get("source_path"))
+        directory = mission / "workspace" if mission else USERS
+        path = filedialog.askopenfilename(initialdir=str(directory), filetypes=[("YAML", "*.yaml *.yml")])
         if path:
             try:
                 read_source(path)
@@ -366,8 +433,21 @@ def main(*, on_ready=None, runner_executable=None):
 
     personal_button = ttk.Button(top, text="내 YAML 열기 / resume", command=choose_personal)
     personal_button.grid(row=0, column=1, padx=4)
+
+    def copy_workspace():
+        try:
+            if any(active.get(key) and active[key].poll() is None for key in ("process", "check_process")):
+                raise ValueError("실행/검사 중에는 작업 폴더를 준비할 수 없습니다")
+            path = copy_base_to_workspace(active.get("source_path"))
+            read_source(path)
+            status.set("workspace 준비 완료 (기존 시나리오 유지): {}".format(path))
+        except Exception as error:
+            messagebox.showerror("베이스 복사 실패", str(error))
+
+    copy_button = ttk.Button(top, text="베이스 → 내 작업 폴더 복사", command=copy_workspace)
+    copy_button.grid(row=1, column=1, padx=4)
     top.columnconfigure(0, weight=1)
-    ttk.Label(top, text="처음 연결은 MORAI MR GUI에서 직접 합니다. 시나리오 전환만 자동입니다.", foreground="#a44").grid(row=1, column=0, columnspan=2, sticky="w", pady=5)
+    ttk.Label(top, text="처음 연결은 MORAI MR GUI에서 직접 합니다. 시나리오 전환만 자동입니다.", foreground="#a44").grid(row=1, column=0, sticky="w", pady=5)
 
     notebook = ttk.Notebook(frame)
     notebook.pack(fill="x", pady=8)
@@ -424,10 +504,10 @@ def main(*, on_ready=None, runner_executable=None):
         values = {key: var.get() for key, var in vars_.items()}
         document = build_document(active["template"], values)
         path = active["source_path"]
-        if is_within(path, EXAMPLES) or not is_within(path, USERS):
-            path = personal_path(document)
+        if not is_personal(path):
+            path = personal_path(document, source=path)
         elif path.stem != document["campaign_name"]:
-            path = personal_path(document)
+            path = personal_path(document, source=path)
         return document, path
 
     def save():
@@ -447,7 +527,7 @@ def main(*, on_ready=None, runner_executable=None):
             fresh = default_name(document["campaign_name"])
             base = fresh
             suffix = 2
-            while (personal_path({"campaign_name": fresh}).exists() or
+            while (personal_path({"campaign_name": fresh}, source=active["source_path"]).exists() or
                    campaign_output({**document, "campaign_name": fresh}).exists()):
                 fresh = "{}_{}".format(base[:57], suffix)
                 suffix += 1
@@ -587,6 +667,7 @@ def main(*, on_ready=None, runner_executable=None):
     def set_running_ui(running, *, allow_stop=True):
         source_box.configure(state="disabled" if running else "readonly")
         personal_button.configure(state="disabled" if running else "normal")
+        copy_button.configure(state="disabled" if running else "normal")
         for label in ("개인 YAML 저장", "설정 검사", "실행 / resume"):
             control_buttons[label].configure(state="disabled" if running else "normal")
         control_buttons["중단"].configure(state="normal" if running and allow_stop else "disabled")
@@ -847,6 +928,7 @@ def main(*, on_ready=None, runner_executable=None):
     if on_ready is not None:
         on_ready({"root": root, "fields": vars_, "actions": {
             "save": save, "check": check, "start": start, "stop": stop,
+            "copy_workspace": copy_workspace, "open_yaml": read_source,
             "update_progress": update_progress, "compact": set_compact_mode}, "active": active,
             "status": status, "table": table, "log": log,
             "live_status": live_status, "rerun_failed": rerun_failed,

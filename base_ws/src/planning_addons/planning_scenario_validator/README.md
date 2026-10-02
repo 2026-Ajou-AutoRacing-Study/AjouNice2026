@@ -4,7 +4,7 @@
 
 ## GUI로 시작하기
 
-팀원에게 배포할 미션별 YAML·시나리오는 [미션 스타터 안내](config/examples/missions/README.md)를 참고한다. 사람별 폴더 대신 회전교차로·일반 정적·사거리 동적·GPS 음영 정적·고주로의 5개 폴더로 제공하며 각각 24개다. GUI 예제 목록에서도 선택할 수 있다. 이 새 묶음은 오프라인 검사 완료 상태이며 live 주행·배우 동작은 첫 기준선부터 확인한다.
+팀원에게 배포할 미션별 YAML·시나리오는 [미션 스타터 안내](config/missions/README.md)를 참고한다. 회전교차로·일반 정적·사거리 동적·GPS 음영 정적·고주로 각각 `base/`(공유 24개)와 `workspace/`(Git 제외 개인 작업)로 나눈다. GUI 예제 목록에서 base를 선택하고 `베이스 → 내 작업 폴더 복사`를 누르면 시나리오와 새 캠페인 YAML을 준비한다. 이 묶음은 오프라인 검사 완료 상태이며 live 주행·배우 동작은 첫 기준선부터 확인한다.
 
 각자 PC의 `~/AjouNice2026` 저장소 루트에서 `bash base_ws/src/planning_addons/planning_scenario_validator/install.sh`를 한 번 실행한다. 처음 시나리오 예제를 만들 때는 `/usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_static_corridor_cases.py`를 실행한다. YAML의 저장소 상대경로는 실행 시 해당 PC의 저장소 경로로 해석되며 `/home/luv`를 요구하지 않는다. MORAI MR GUI에서 사용할 Sensor JSON과 생성된 validator 전용 Ego Network JSON을 Load·Connect한다. 이 단계는 GUI가 대신하지 않는다.
 
@@ -18,7 +18,7 @@ GUI는 마지막으로 열거나 저장한 YAML의 경로를 `~/.config/ajounice
 
 `모니터 모드`를 누르면 GUI가 RViz와 같은 폭으로 화면 왼쪽 아래에 놓인다. 바 높이는 기존 설정을 유지하며 `중단`, `결과 폴더`, `전체 설정 보기` 버튼이 남는다. 긴 상태 문구가 있어도 버튼은 위쪽에 표시한다. 최대화된 설정 창에서도 모니터 바로 전환할 수 있고, `전체 설정 보기`를 누르면 이전 창 상태로 돌아간다. 실행 전 이 버튼을 누르면 영상 설정을 `split`으로 바꾸며, 기존 `manual` YAML에서 바로 실행할 때도 RViz 전체화면 동작을 안내하고 `split` 변경 여부를 묻는다. 이미 실행 중인 캠페인은 YAML이 고정되어 있으므로 화면 배치를 지속적으로 바꾸려면 안전 중단 후 새 캠페인 이름으로 다시 실행해야 한다.
 
-처음에는 통과 확인된 한 장면의 `static_pair_mission_gt_split.yaml` 예제가 선택된다. RViz 왼쪽·MORAI 오른쪽·GUI 하단 모니터 바의 전체 화면 영상용 설정이다. 실패 장면을 찾는 5개 장면 스트레스 예제는 목록의 `static_pair_stress_gt.yaml`에서 선택한다. 시나리오 폴더·glob·목적지(map 좌표)·제한 시간·측위·탐지기·녹화 옵션을 확인한 뒤 `설정 검사` → `실행 / resume`을 누른다. 예제 파일은 바뀌지 않고 `config/users/<리눅스 사용자>/<campaign_name>.yaml`에 개인 설정이 생성된다. 폴더 안의 시나리오별 `.case.yaml` 목적지/시간 override와 GUI에 보이지 않는 고급 YAML 옵션도 보존된다. 직접 저장한 YAML은 `내 YAML 열기 / resume`으로 다시 열어 이어서 실행한다. 한 번 실행된 캠페인의 설정을 바꾸면 기존 기록 보호를 위해 새 캠페인 이름으로 복사할지 GUI가 묻는다. **그대로 이어 실행할 때는 기존 개인 YAML을 열고 값을 바꾸지 않는다.**
+마지막 YAML 기록이 없는 첫 실행에서는 통과 확인된 한 장면의 `static_pair_mission_gt_split.yaml` 예제가 선택된다. RViz 왼쪽·MORAI 오른쪽·GUI 하단 모니터 바의 전체 화면 영상용 설정이다. 실패 장면을 찾는 5개 장면 스트레스 예제는 목록의 `static_pair_stress_gt.yaml`에서 선택한다. 시나리오 폴더·glob·목적지(map 좌표)·제한 시간·측위·탐지기·녹화 옵션을 확인한 뒤 `설정 검사` → `실행 / resume`을 누른다. 예제 파일은 바뀌지 않는다. 미션 base를 선택하면 같은 미션 workspace에 `<campaign_name>.yaml`을 저장하며, 기존 공통 예제를 선택하면 `config/users/<리눅스 사용자>/<campaign_name>.yaml`에 저장한다. 폴더 안의 시나리오별 `.case.yaml` 목적지/시간 override와 GUI에 보이지 않는 고급 YAML 옵션도 보존된다. 직접 저장한 YAML은 `내 YAML 열기 / resume`으로 다시 열어 이어서 실행한다. 한 번 실행된 캠페인의 설정을 바꾸면 기존 기록 보호를 위해 새 캠페인 이름으로 복사할지 GUI가 묻는다. **그대로 이어 실행할 때는 기존 개인 YAML을 열고 값을 바꾸지 않는다.**
 
 GUI는 기존 `./planning_validator`만 호출한다. 실행 중 완료 장면의 PASS/FAIL/ERROR와 현재 단계, 주행 시간·목적지 거리·속도·충돌 횟수를 실시간으로 표시한다. `split` 영상 설정으로 실행하면 설정·결과 표는 접고 GUI를 화면 하단의 얇은 모니터 바로 자동 전환한다. `전체 설정 보기`로 언제든 펼칠 수 있지만 펼친 창도 영상에 찍힌다. 실패 장면을 더블클릭하면 근거 수치와 조사 우선 단계를 볼 수 있다. 별도 대시보드는 필수가 아니다. `중단`은 결과를 보존하고 다음 실행에서 resume한다. 기본 resume는 완료된 PASS/FAIL을 건너뛴다. 같은 설정으로 실패 장면을 다시 돌리려면 `기존 FAIL도 다시 실행`을 체크한다. **실행기의 종료 코드 0은 전체 시나리오 PASS를 의미하지 않는다**. GUI의 성공/주행 실패/시스템 오류 건수와 `summary.csv`를 확인한다. GUI의 `중단` 버튼이나 **GUI를 실행한 터미널에서 Ctrl+C**로 안전 중단할 수 있다. 영상에는 전면의 다른 앱이 찍힐 수 있으므로 녹화 중 데스크톱 조작을 피한다. `설정 검사`가 통과해도 MORAI 연결·BEVFusion checkpoint·주행 성공까지 보증하지는 않는다. GUI가 필요 없는 서버/터미널에서는 아래 CLI를 그대로 사용한다.
 

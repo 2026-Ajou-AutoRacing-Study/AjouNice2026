@@ -3,18 +3,18 @@
 # 센서는 계속 켜고, bag에서만 LiDAR/카메라를 제외합니다.
 # GT 대조는 GUI 탐지기를 od_gt로 바꾸고 새 캠페인으로 저장하세요.
 schema_version: 1
-campaign_name: starter_roundabout_bev
+campaign_name: starter_static_obstacle_bev
 scenarios:
-  directory: base_ws/src/planning_addons/planning_scenario_validator/config/examples/missions/roundabout/scenarios
+  directory: base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/scenarios
   glob: '*.json'
 default_case:
   goal:
-    x: 122.219869
-    y: 891.686433
-    z: 28.343408
-    yaw_deg: 0.565181
+    x: 71.51
+    y: 429.608
+    z: 28.383
+    yaw_deg: 90.033
   waypoints: []
-  timeout_sec: 75
+  timeout_sec: 65
   arrival_mode: stop
 stack:
   pose_source: localization
