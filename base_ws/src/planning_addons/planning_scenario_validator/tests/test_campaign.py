@@ -29,15 +29,15 @@ from planning_scenario_validator.runner import (_recover_interrupted, _upload,
                                                 _upload_commands, _write_state)
 
 
-EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_obstacle_gt.yaml"
-BEVFUSION_EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_obstacle_bevfusion.yaml"
-BEVFUSION_CLEAR_EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/bevfusion_clear_smoke.yaml"
-SPLIT_EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_pair_mission_gt_split.yaml"
+EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/missions/gps_shadow/base/static_obstacle_gt.yaml"
+BEVFUSION_EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/missions/gps_shadow/base/static_obstacle_bevfusion.yaml"
+BEVFUSION_CLEAR_EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/bevfusion_clear_smoke.yaml"
+SPLIT_EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/static_pair_mission_gt_split.yaml"
 
 
 class CampaignTest(unittest.TestCase):
     def test_example_paths_follow_each_users_repository(self):
-        examples = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples"
+        examples = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base"
         for path in examples.glob("*.yaml"):
             document = yaml.safe_load(path.read_text(encoding="utf-8"))
             paths = [document["scenarios"]["directory"], document["recording"]["topic_profile"],

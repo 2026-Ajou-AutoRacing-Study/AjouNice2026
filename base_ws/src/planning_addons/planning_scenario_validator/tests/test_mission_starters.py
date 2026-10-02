@@ -86,7 +86,7 @@ class StarterTests(unittest.TestCase):
 
     def test_gui_discovers_campaigns_but_not_case_sidecars(self):
         choices = campaign_examples()
-        self.assertEqual(len([p for p in choices if p.parent.parent.parent == OUTPUT]), 5)
+        self.assertEqual(len([p for p in choices if p.parent.parent.parent == OUTPUT and p.name == 'example.yaml']), 5)
         self.assertFalse(any(p.name.endswith('.case.yaml') for p in choices))
         self.assertTrue(default_name(OUTPUT / 'highway/base/example.yaml').startswith('highway_starter_'))
 

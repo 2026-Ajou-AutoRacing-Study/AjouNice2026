@@ -214,7 +214,7 @@ def build(output=OUTPUT):
 
     # No shadow cut-in traffic. Retain the official shade plus static actors.
     shadow_ref = read(ROOT / "configs/scenario/localization_evaluation/localization_shadow_entry_clear.json")
-    shadow_goal = yaml.safe_load((PACKAGE / "config/examples/static_obstacle_bevfusion.yaml").read_text())["default_case"]["goal"]
+    shadow_goal = yaml.safe_load((PACKAGE / "config/missions/gps_shadow/base/static_obstacle_bevfusion.yaml").read_text())["default_case"]["goal"]
     shadow_sources = sorted((ROOT / "configs/scenario/hidden_mission/static_2").glob("*.json"))[:9]
     shadow_sources += sorted((ROOT / "configs/scenario/hidden_mission/static_3").glob("*.json"))[:9]
     for i in range(24):
@@ -296,7 +296,7 @@ def build(output=OUTPUT):
             "공식 사거리; 보행자/스쿠터 양방향 또는 도로 NPC 교차", tier,
             {"experimental_actor_motion": i >= 12})
 
-    template = yaml.safe_load((PACKAGE / "config/examples/static_pair_mission_bevfusion.yaml").read_text())
+    template = yaml.safe_load((PACKAGE / "config/missions/static_obstacle/base/static_pair_mission_bevfusion.yaml").read_text())
     expected = {}
     for family, rows in families.items():
         folder = Path(output) / family / "base"

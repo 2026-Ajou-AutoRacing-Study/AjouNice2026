@@ -28,7 +28,7 @@ from .traffic_light import DEFAULT_PYTHON, LABEL_MODES, MODE_LABELS, runtime_mod
 PACKAGE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator"
 if not PACKAGE.is_dir():
     PACKAGE = ROOT / "base_ws/install_aw149/share/planning_scenario_validator"
-EXAMPLES = PACKAGE / "config/examples"
+EXAMPLES = PACKAGE / "config/missions/static_obstacle/base"
 MISSIONS = PACKAGE / "config/missions"
 USERS = PACKAGE / "config/users"
 NAME_RE = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_-]{1,59}\Z")
@@ -51,7 +51,7 @@ def default_name(template):
 
 def campaign_examples():
     # Do not expose scenario .case.yaml files as executable campaigns.
-    return sorted(EXAMPLES.glob("*.yaml")) + sorted(MISSIONS.glob("*/base/example.yaml"))
+    return sorted(MISSIONS.glob("*/base/*.yaml"))
 
 
 def load_document(path):

@@ -46,7 +46,7 @@ cd ~/AjouNice2026
 bash base_ws/src/planning_addons/planning_scenario_validator/install.sh
 /usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_static_corridor_cases.py
 mkdir -p "base_ws/src/planning_addons/planning_scenario_validator/config/users/$USER"
-cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_mission_gt.yaml \
+cp base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/static_mission_gt.yaml \
    "base_ws/src/planning_addons/planning_scenario_validator/config/users/$USER/campaign.yaml"
 ./planning_validator "base_ws/src/planning_addons/planning_scenario_validator/config/users/$USER/campaign.yaml" --dry-run
 ./planning_validator "base_ws/src/planning_addons/planning_scenario_validator/config/users/$USER/campaign.yaml"
@@ -63,7 +63,7 @@ Ctrl+C 후 같은 명령을 다시 실행하면 완료된 시나리오를 건너
 BEVFusion까지 켜는 시험은 별도 예제를 복사해서 사용한다. 먼저 무장애물 연결 확인용 `bevfusion_clear_smoke.yaml`을 권장한다. **일반 정적 장애물 구간**은 아래의 `static_mission_bevfusion.yaml`을 사용한다. `static_obstacle_bevfusion.yaml`과 `static_obstacle_gt.yaml`은 이름과 달리 GPS 음영 구간 안의 hidden mission regression이므로 이번 일반 구간과 혼동하지 않는다. MORAI GUI의 Sensor는 예제에 적힌 `Sensor_competition_local.json`, Ego Network는 validator 전용 JSON으로 연결해야 한다. BEVFusion checkpoint·Docker image도 `scripts/runtime/run_bevfusion.sh`의 계약대로 준비해야 한다.
 
 ```bash
-cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/bevfusion_clear_smoke.yaml \
+cp base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/bevfusion_clear_smoke.yaml \
    "base_ws/src/planning_addons/planning_scenario_validator/config/users/$USER/bevfusion_campaign.yaml"
 ./planning_validator "base_ws/src/planning_addons/planning_scenario_validator/config/users/$USER/bevfusion_campaign.yaml" --dry-run
 ./planning_validator "base_ws/src/planning_addons/planning_scenario_validator/config/users/$USER/bevfusion_campaign.yaml"
@@ -75,7 +75,7 @@ cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/bevfu
 
 ```bash
 /usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_static_corridor_cases.py
-cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_mission_bevfusion.yaml \
+cp base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/static_mission_bevfusion.yaml \
    "base_ws/src/planning_addons/planning_scenario_validator/config/users/$USER/static_mission_bevfusion.yaml"
 ./planning_validator "base_ws/src/planning_addons/planning_scenario_validator/config/users/$USER/static_mission_bevfusion.yaml" --dry-run
 ./planning_validator "base_ws/src/planning_addons/planning_scenario_validator/config/users/$USER/static_mission_bevfusion.yaml"
@@ -88,16 +88,16 @@ cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/stati
 
 ```bash
 /usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_static_corridor_cases.py
-./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_catalog_gt.yaml --dry-run
-./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_catalog_gt.yaml
-./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_catalog_bevfusion.yaml
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/static_catalog_gt.yaml --dry-run
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/static_catalog_gt.yaml
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/static_catalog_bevfusion.yaml
 ```
 
 두 장애물을 연속으로 피해 가는 **비공식 지그재그 스트레스 테스트**는 `static_pair_mission_gt.yaml`/`static_pair_mission_bevfusion.yaml` 예제를 사용한다. PE_Drum과 TrafficBarrel을 약 17m 간격으로 배치한 한 장면(`soa_pair_05*`)을 선택하며, 두 물체가 각각 단독으로도 통과한 배치다. GT와 BEVFusion을 같은 장면·goal로 비교한다. 빌더가 함께 만드는 `soa_pair_01`~`04`와 `soa_pair_control_*`은 실패 원인을 찾기 위해 사용한 실험 장면이며 기본 실행 예제에는 포함하지 않았다. 여러 장애물 결과를 단일 물체 성공률에 합산하지 않는다.
 
 ```bash
-./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_pair_mission_gt.yaml
-./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_pair_mission_bevfusion.yaml
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/static_pair_mission_gt.yaml
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/static_pair_mission_bevfusion.yaml
 ```
 
 두 명령은 동시에 실행하지 않는다. 각각 스택을 자체 실행·종료하며, 첫 명령이 끝난 뒤 두 번째를 실행한다.
@@ -105,8 +105,8 @@ cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/stati
 **실패를 찾는 본 검증**은 통과 장면만 고르지 않는다. `static_pair_stress_gt.yaml`과 `static_pair_stress_bevfusion.yaml`은 `soa_pair_01`~`05`를 모두 실행한다. 이전에 GT 기준으로 미출발·중도 정지가 재현된 장면도 분모에 포함해, 조건을 바꾸었을 때 실패가 사라지거나 새로 생기는지 본다. 한 캠페인이 끝난 다음 다른 캠페인을 실행한다.
 
 ```bash
-./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_pair_stress_gt.yaml
-./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_pair_stress_bevfusion.yaml
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/static_pair_stress_gt.yaml
+./planning_validator base_ws/src/planning_addons/planning_scenario_validator/config/missions/static_obstacle/base/static_pair_stress_bevfusion.yaml
 ```
 
 ## 팀원이 해야 할 일

@@ -340,7 +340,7 @@ MR을 켜서 K-City 맵을 연 뒤 다음 두 파일을 Load하고 Connect합니
 | MORAI에서 로드할 항목 | 파일 |
 | --- | --- |
 | Sensor | ~/AjouNice2026/configs/sensors/Sensor_competition_local.json |
-| Ego Network | ~/AjouNice2026/base_ws/src/planning_addons/planning_scenario_validator/config/generated/ego_network_validator_local.json |
+| Ego Network | ~/AjouNice2026/base_ws/src/planning_addons/planning_scenario_validator/config/internal/generated/ego_network_validator_local.json |
 
 일반 ego_network_competition_local.json 대신 **validator가 붙은 파일**을 써야 합니다. 자동 ScenarioLoad용 UDP 9095가 있어야 시나리오를 알아서 바꿉니다. 포트 번호는 임의로 바꾸지 말아 주세요.
 

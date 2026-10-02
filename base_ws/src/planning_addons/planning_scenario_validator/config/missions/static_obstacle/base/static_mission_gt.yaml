@@ -1,27 +1,26 @@
-# 비공식 일반 정적 객체 스트레스 테스트: 종류 4개 × 위치 2개.
-# 배포 샘플 시나리오의 정적 구간을 바탕으로 하지만 출제 시나리오가 아닙니다.
-# scripts/build_static_corridor_cases.py로 ignored 시나리오를 먼저 생성하세요.
+# GPS 음영 밖, 배포 샘플의 일반 정적 장애물 구간. GT 객체 기준선.
+# 먼저 scripts/build_static_corridor_cases.py를 실행해 ignored 시나리오를 생성하세요.
 schema_version: 2
-campaign_name: soa_catalog_gt_example
+campaign_name: soa_static_mission_gt_example
 scenarios:
   directory: planner_logs/validation_inputs/static_corridor
-  glob: "soa_catalog_*.json"
+  glob: "soa_official_01_cargobox_*.json"  # native / 배포 샘플 scale 2x3x2
 default_case:
   goal: {x: 71.510, y: 429.608, z: 28.383, yaw_deg: 90.033}
   waypoints: []
-  timeout_sec: 35
+  timeout_sec: 50
   arrival_mode: stop
 stack:
   pose_source: localization
   detector: od_gt
   traffic_light: false
 recording:
-  topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/topic_profiles/basic.json
+  topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/basic.json
   include_sensors: false
   video: {enabled: true, display: ":0.0", fps: 10, focus_planviz: true}
 network:
   sensor_json: configs/sensors/Sensor_competition_local.json
-  ego_network_json: base_ws/src/planning_addons/planning_scenario_validator/config/generated/ego_network_validator_local.json
+  ego_network_json: base_ws/src/planning_addons/planning_scenario_validator/config/internal/generated/ego_network_validator_local.json
 morai:
   map_name: R_KR_PR_K-city_2025
   scenario_install_dir: auto

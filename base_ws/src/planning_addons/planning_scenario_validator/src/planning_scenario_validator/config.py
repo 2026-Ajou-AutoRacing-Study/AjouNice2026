@@ -31,6 +31,23 @@ def resolve_path(value, *, required=True):
         return None
     path = Path(str(value)).expanduser()
     path = (path if path.is_absolute() else ROOT / path).resolve()
+    config_root = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config"
+    # Keep legacy personal YAML bytes/hashes intact after public assets move.
+    if not path.exists():
+        for old_dir, new_dir in (("generated", "internal/generated"),
+                                 ("topic_profiles", "internal/topic_profiles")):
+            try:
+                tail = path.relative_to(config_root / old_dir)
+            except ValueError:
+                continue
+            migrated = config_root / new_dir / tail
+            if migrated.exists():
+                return migrated.resolve()
+        if path.parent == config_root / "examples" and path.suffix == ".yaml":
+            family = "gps_shadow" if path.name.startswith("static_obstacle_") else "static_obstacle"
+            migrated = config_root / "missions" / family / "base" / path.name
+            if migrated.exists():
+                return migrated.resolve()
     # Read-only compatibility for already saved campaigns; never rewrite their
     # YAML bytes/resume hash just because shared starter files moved.
     old = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/missions"
