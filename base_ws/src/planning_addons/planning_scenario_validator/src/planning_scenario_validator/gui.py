@@ -548,12 +548,25 @@ def main(*, on_ready=None, runner_executable=None):
             compact["previous_geometry"] = root.geometry()
             for widget in (top, notebook, table, detail_note, log):
                 widget.pack_forget()
-            screen_width = root.winfo_screenwidth()
-            screen_height = root.winfo_screenheight()
-            bar = max(120, min(int(bottom_bar_px), 400, screen_height // 3))
+            area_x, area_y = 0, 0
+            area_width, area_height = root.winfo_screenwidth(), root.winfo_screenheight()
+            try:
+                import gi
+                gi.require_version("Gdk", "3.0")
+                from gi.repository import Gdk
+                gdk_display = Gdk.Display.get_default()
+                monitor = gdk_display.get_monitor_at_point(
+                    root.winfo_rootx() + root.winfo_width() // 2,
+                    root.winfo_rooty() + root.winfo_height() // 2)
+                workarea = monitor.get_workarea()
+                area_x, area_y = workarea.x, workarea.y
+                area_width, area_height = workarea.width, workarea.height
+            except (ImportError, ValueError, AttributeError):
+                pass
+            bar = max(120, min(int(bottom_bar_px), 400, area_height // 3))
             root.minsize(850, 90)
-            root.geometry("{}x{}+0+{}".format(screen_width, bar - 38,
-                                              screen_height - bar + 26))
+            root.geometry("{}x{}+{}+{}".format(area_width, bar - 38,
+                                               area_x, area_y + area_height - bar + 26))
             root.attributes("-topmost", True)
             compact_button.configure(text="전체 설정 보기")
         else:

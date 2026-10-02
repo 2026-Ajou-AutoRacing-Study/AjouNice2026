@@ -16,7 +16,7 @@ from build_static_corridor_cases import build as build_static_corridor_cases
 from planning_scenario_validator.config import ConfigError, ROOT, load_campaign
 from planning_scenario_validator.runtime import (LiveMonitor, arrange_split_windows,
                                                  focus_planviz, prepare_scenario, video_size)
-from arrange_split_windows import choose_windows
+from arrange_split_windows import choose_windows, clear_maximized_axes, split_rectangles
 from planning_scenario_validator.runner import _recover_interrupted
 
 
@@ -43,6 +43,23 @@ class CampaignTest(unittest.TestCase):
         simulator = window("Simulator", "Simulator.x86_64")
         rviz = window("kcity_aw149_planning - RViz", "Rviz")
         self.assertEqual(choose_windows([terminal, simulator, rviz]), (rviz, simulator))
+
+    def test_split_rectangles_respect_desktop_dock_and_bottom_bar(self):
+        area = SimpleNamespace(x=72, y=27, width=1848, height=1053)
+        self.assertEqual(split_rectangles(area, 150),
+                         ((72, 27, 924, 903), (996, 27, 924, 903)))
+
+    def test_split_clears_vertical_only_maximize(self):
+        calls = []
+        window = SimpleNamespace(
+            is_maximized_horizontally=lambda: False,
+            is_maximized_vertically=lambda: True,
+            is_fullscreen=lambda: False,
+            unmaximize_horizontally=lambda: calls.append("horizontal"),
+            unmaximize_vertically=lambda: calls.append("vertical"),
+            set_fullscreen=lambda value: calls.append("fullscreen"))
+        clear_maximized_axes(window)
+        self.assertEqual(calls, ["vertical"])
 
     def test_split_layout_uses_video_display(self):
         with patch("planning_scenario_validator.runtime.subprocess.run",

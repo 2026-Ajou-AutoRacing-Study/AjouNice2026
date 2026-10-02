@@ -24,10 +24,29 @@ def choose_windows(windows):
     return (rviz[-1] if rviz else None, morai[-1] if morai else None)
 
 
+def split_rectangles(area, bottom_bar_px):
+    """Use the WM workarea, not raw display pixels hidden behind docks/panels."""
+    top_height = area.height - bottom_bar_px
+    left_width = area.width // 2
+    return ((area.x, area.y, left_width, top_height),
+            (area.x + left_width, area.y, area.width - left_width, top_height))
+
+
+def clear_maximized_axes(window):
+    """A single maximized axis also makes the WM reject resize requests."""
+    if window.is_maximized_horizontally():
+        window.unmaximize_horizontally()
+    if window.is_maximized_vertically():
+        window.unmaximize_vertically()
+    if window.is_fullscreen():
+        window.set_fullscreen(False)
+
+
 def main(argv=None):
     import gi
+    gi.require_version("Gdk", "3.0")
     gi.require_version("Wnck", "3.0")
-    from gi.repository import GLib, Wnck
+    from gi.repository import Gdk, GLib, Wnck
 
     args = sys.argv[1:] if argv is None else argv
     bottom_bar_px = int(args[0]) if args else 150
@@ -51,34 +70,37 @@ def main(argv=None):
             bool(rviz), bool(morai)), file=sys.stderr)
         return 1
 
-    width, height = screen.get_width(), screen.get_height()
-    top_height = height - bottom_bar_px
-    if width < 900 or top_height < 400:
-        print("화면이 반반 배치에 너무 작습니다: {}x{}".format(width, height), file=sys.stderr)
+    gdk_display = Gdk.Display.get_default()
+    morai_x, morai_y, morai_width, morai_height = morai.get_geometry()
+    monitor = gdk_display.get_monitor_at_point(morai_x + morai_width // 2,
+                                               morai_y + morai_height // 2)
+    area = monitor.get_workarea()
+    top_height = area.height - bottom_bar_px
+    if area.width < 900 or top_height < 400:
+        print("화면 작업 영역이 반반 배치에 너무 작습니다: {}x{}".format(
+            area.width, area.height), file=sys.stderr)
         return 1
-    left_width = width // 2
     mask = (Wnck.WindowMoveResizeMask.X | Wnck.WindowMoveResizeMask.Y |
             Wnck.WindowMoveResizeMask.WIDTH | Wnck.WindowMoveResizeMask.HEIGHT)
-    targets = ((rviz, 0, left_width), (morai, left_width, width - left_width))
-    for window, _, _ in targets:
-        if window.is_maximized():
-            window.unmaximize()
-        if window.is_fullscreen():
-            window.set_fullscreen(False)
+    left, right = split_rectangles(area, bottom_bar_px)
+    targets = ((rviz, left), (morai, right))
+    for window, _ in targets:
+        clear_maximized_axes(window)
     for _ in range(2):
         while context.pending():
             context.iteration(False)
         screen.force_update()
-        for window, x, target_width in targets:
+        for window, (x, y, target_width, target_height) in targets:
             window.set_geometry(Wnck.WindowGravity.STATIC, mask,
-                                x, 0, target_width, top_height)
+                                x, y, target_width, target_height)
         time.sleep(0.35)
     screen.force_update()
     refused = []
-    for window, x, target_width in targets:
-        actual_x, _, actual_width, actual_height = window.get_geometry()
-        if (abs(actual_x - x) > 100 or abs(actual_width - target_width) > 100 or
-                abs(actual_height - top_height) > 100):
+    for window, (x, y, target_width, target_height) in targets:
+        actual_x, actual_y, actual_width, actual_height = window.get_geometry()
+        if (abs(actual_x - x) > 100 or abs(actual_y - y) > 100 or
+                abs(actual_width - target_width) > 100 or
+                abs(actual_height - target_height) > 100):
             refused.append(window.get_name() or "이름 없는 창")
     if refused:
         print("창 크기 조절을 거부한 창: {}. 수동 반반 배치하세요".format(", ".join(refused)),
