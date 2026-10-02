@@ -59,6 +59,7 @@ class Processes:
         self.env = env
         self.running = {}
         self.handles = {}
+        self.split_layout_initialized = False
 
     def start(self, name, command):
         if name in self.running:
@@ -574,22 +575,23 @@ def focus_planviz(timeout=45, display=None):
         time.sleep(1.0)
 
 
-def arrange_split_windows(*, bottom_bar_px=150, display=None):
+def arrange_split_windows(*, bottom_bar_px="auto", display=None, startup_grace_sec=0.0):
     """Best-effort MORAI/RViz tiling; a failed layout must not abort recording."""
     command = ["/usr/bin/python3", str(ROOT / "base_ws/src/planning_addons/"
                                         "planning_scenario_validator/scripts/arrange_split_windows.py"),
-               str(bottom_bar_px)]
+               str(bottom_bar_px), str(startup_grace_sec)]
     layout_env = os.environ.copy()
     if display:
         layout_env["DISPLAY"] = str(display)
     try:
         result = subprocess.run(command, capture_output=True, text=True,
-                                timeout=12, env=layout_env)
+                                timeout=18, env=layout_env)
     except subprocess.TimeoutExpired as error:
         raise RuntimeFailure("MORAI/RViz 반반 배치 시간 초과") from error
     if result.returncode:
         detail = result.stderr.strip() or result.stdout.strip() or "진단 출력 없음"
         raise RuntimeFailure("MORAI/RViz 자동 반반 배치 실패: {}".format(detail))
+    return result.stdout.strip()
 
 
 class Recording:

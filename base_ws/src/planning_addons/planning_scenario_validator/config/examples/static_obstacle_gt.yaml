@@ -11,7 +11,7 @@ default_case:
   # 공통 목적지. 시나리오별 목적지가 다르면 같은 폴더에 <이름>.case.yaml을 둡니다.
   goal: {x: -13.382585757, y: 93.782754520, z: 28.489, yaw_deg: 60.815}  # v85 Route A 끝, map 좌표
   waypoints: []                         # 필요할 때만 경유점 추가
-  timeout_sec: 180                      # 한 시나리오의 최대 주행 시간
+  timeout_sec: 75                       # 한 시나리오의 최대 주행 시간
   arrival_mode: stop                    # stop: 목적지 정차 / pass_through: 통과
 stack:
   pose_source: localization             # localization | maptf_morai
@@ -50,4 +50,4 @@ validation:
   stuck_timeout_sec: 0.0                 # 0은 STUCK 조기종료 끔; timeout으로 판정
 upload:
   enabled: false                         # true이면 각 시나리오 종료 직후 rclone copy
-  rclone_remote: ""                      # 예: ajounice-drive:ajounice2026/planning
+  rclone_remote: "ajou_drive:planning_validator"  # 공유 AjouNice2026 폴더 안. 기본 업로드는 꺼짐

@@ -9,7 +9,7 @@ scenarios:
 default_case:
   goal: {x: -13.382585757, y: 93.782754520, z: 28.489, yaw_deg: 60.815}
   waypoints: []
-  timeout_sec: 180
+  timeout_sec: 75
   arrival_mode: stop
 stack:
   pose_source: localization
@@ -17,7 +17,7 @@ stack:
   traffic_light: false
 recording:
   topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/topic_profiles/basic.json
-  include_sensors: true                 # BEVFusion 입력을 함께 보존. 용량이 부족하면 false.
+  include_sensors: false                # 기본은 bag에서 원시 센서 제외. 인지 재현이 필요할 때만 true.
   video:
     enabled: true
     display: ":0.0"
@@ -45,4 +45,4 @@ validation:
   stuck_timeout_sec: 0.0
 upload:
   enabled: false
-  rclone_remote: ""
+  rclone_remote: "ajou_drive:planning_validator"

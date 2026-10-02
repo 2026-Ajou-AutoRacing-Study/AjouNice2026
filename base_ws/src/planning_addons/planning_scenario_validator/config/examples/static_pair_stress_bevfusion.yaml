@@ -8,7 +8,7 @@ scenarios:
 default_case:
   goal: {x: 71.704, y: 459.605, z: 28.379, yaw_deg: 90.131}
   waypoints: []
-  timeout_sec: 100
+  timeout_sec: 50
   arrival_mode: stop
 stack:
   pose_source: localization
@@ -38,4 +38,4 @@ validation:
   goal_speed_max_mps: 0.5
   topic_loss_timeout_sec: 4.0
   stuck_timeout_sec: 0.0
-upload: {enabled: false, rclone_remote: ""}
+upload: {enabled: false, rclone_remote: "ajou_drive:planning_validator"}

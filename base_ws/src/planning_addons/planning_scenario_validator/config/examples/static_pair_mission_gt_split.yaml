@@ -9,7 +9,7 @@ scenarios:
 default_case:
   goal: {x: 71.704, y: 459.605, z: 28.379, yaw_deg: 90.131}
   waypoints: []
-  timeout_sec: 100
+  timeout_sec: 50
   arrival_mode: stop
 stack:
   pose_source: localization
@@ -23,7 +23,7 @@ recording:
     display: ":0.0"
     fps: 10
     window_layout: split       # RViz 왼쪽 / MORAI 오른쪽, 녹화는 전체 화면
-    bottom_bar_px: 150         # GUI 모니터 바용 하단 높이. 화면 해상도에 맞춰 100~400 조절
+    bottom_bar_px: auto        # 작업 영역 높이의 약 17%. 필요하면 180 또는 "18%"로 지정
     focus_planviz: false       # split에서 RViz 최대화 금지
 network:
   sensor_json: configs/sensors/Sensor_competition_local.json
@@ -45,4 +45,7 @@ validation:
   goal_speed_max_mps: 0.5
   topic_loss_timeout_sec: 4.0
   stuck_timeout_sec: 0.0
-upload: {enabled: false, rclone_remote: ""}
+upload:
+  enabled: false            # true면 장면 종료마다 Drive로 자동 업로드
+  profile: basic            # basic=CSV/JSON, bag=기본+bag, video=기본+MP4, full=모두
+  rclone_remote: "ajou_drive:planning_validator"  # 공유 AjouNice2026 폴더 안. 기본 업로드는 꺼짐

@@ -7,9 +7,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
+from .layout import normalize_bar_setting
 
 
 ROOT = Path(__file__).resolve().parents[6]
+UPLOAD_PROFILES = ("basic", "bag", "video", "full")
+DEFAULT_UPLOAD_REMOTE = "ajou_drive:planning_validator"
+# Same shared AjouNice2026 Drive folder used by scripts/map/*_kcity_map_assets.sh.
+AJOU_DRIVE_ROOT_FOLDER_ID = "12T1IuT2ZyIYG5IkMDvsPrN1zzf6O43IP"
 
 
 class ConfigError(ValueError):
@@ -199,15 +204,18 @@ def load_campaign(path, *, check_install=True):
     if video.get("window_layout", "manual") not in ("manual", "split"):
         raise ConfigError("recording.video.window_layout은 manual 또는 split이어야 합니다")
     try:
-        bottom_bar_px = int(video.get("bottom_bar_px", 150))
-    except (TypeError, ValueError) as error:
-        raise ConfigError("recording.video.bottom_bar_px은 100~400 정수여야 합니다") from error
-    if bottom_bar_px < 100 or bottom_bar_px > 400:
-        raise ConfigError("recording.video.bottom_bar_px은 100~400 정수여야 합니다")
-    video["bottom_bar_px"] = bottom_bar_px
+        video["bottom_bar_px"] = normalize_bar_setting(video.get("bottom_bar_px", "auto"))
+    except ValueError as error:
+        raise ConfigError("recording.video.bottom_bar_px: {}".format(error)) from error
     upload = document.get("upload", {})
+    if not isinstance(upload, dict):
+        raise ConfigError("upload는 YAML mapping이어야 합니다")
+    if upload.get("profile", "basic") not in UPLOAD_PROFILES:
+        raise ConfigError("upload.profile은 basic, bag, video, full 중 하나여야 합니다")
     if upload.get("enabled", False) and not upload.get("rclone_remote"):
         raise ConfigError("Google Drive 업로드에는 upload.rclone_remote가 필요합니다")
+    if "drive_root_folder_id" not in upload and str(upload.get("rclone_remote", "")).startswith("ajou_drive:"):
+        upload["drive_root_folder_id"] = AJOU_DRIVE_ROOT_FOLDER_ID
     output = resolve_path(document.get("output_root", "planner_logs/validation")) / name
     install = install_directory(document.get("morai", {}).get("scenario_install_dir", "auto")) if check_install else None
     return {"path": path, "document": document, "name": name, "cases": cases,

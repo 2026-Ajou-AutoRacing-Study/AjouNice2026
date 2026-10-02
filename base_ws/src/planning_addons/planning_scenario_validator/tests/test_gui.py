@@ -20,18 +20,65 @@ from planning_scenario_validator.gui import (EXAMPLES, build_document, campaign_
                                              render_result_table, result_counts,
                                              save_personal)
 from planning_scenario_validator import gui as gui_module
+from planning_scenario_validator.config import DEFAULT_UPLOAD_REMOTE
 
 
 class GuiConfigTests(unittest.TestCase):
     def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        config_patch = patch.dict(os.environ, {"XDG_CONFIG_HOME": directory.name})
+        config_patch.start()
+        self.addCleanup(config_patch.stop)
         self.example = load_document(EXAMPLES / "static_pair_stress_gt.yaml")
+
+    def test_remember_existing_yaml_and_fallback_when_deleted(self):
+        path = Path(os.environ["XDG_CONFIG_HOME"]) / "personal.yaml"
+        path.write_text(yaml.safe_dump(self.example), encoding="utf-8")
+        original = path.read_bytes()
+        gui_module.remember_yaml(path)
+        self.assertEqual(gui_module.remembered_yaml(), path.resolve())
+        self.assertEqual(path.read_bytes(), original)
+        path.unlink()
+        self.assertIsNone(gui_module.remembered_yaml())
+
+    def test_bad_gui_settings_and_bad_yaml_fall_back(self):
+        settings = gui_module.gui_settings_path()
+        settings.parent.mkdir(parents=True)
+        settings.write_text("broken json", encoding="utf-8")
+        self.assertIsNone(gui_module.remembered_yaml())
+        path = settings.parent / "invalid.yaml"
+        path.write_text("- not a campaign", encoding="utf-8")
+        gui_module.remember_yaml(path)
+        self.assertIsNone(gui_module.remembered_yaml())
 
     def test_old_campaign_roundtrip_keeps_resume_hash_compatible(self):
         self.assertEqual(build_document(self.example, form_values(self.example)), self.example)
         changed = form_values(self.example)
         changed["video_layout"] = "split"
-        self.assertEqual(build_document(self.example, changed)["recording"]["video"]["window_layout"],
-                         "split")
+        video = build_document(self.example, changed)["recording"]["video"]
+        self.assertEqual(video["window_layout"], "split")
+        self.assertFalse(video["focus_planviz"])
+
+    def test_legacy_blank_drive_path_displays_default_without_changing_resume_yaml(self):
+        legacy = copy.deepcopy(self.example)
+        legacy["upload"]["rclone_remote"] = ""
+        values = form_values(legacy)
+        self.assertEqual(values["upload_remote"], DEFAULT_UPLOAD_REMOTE)
+        self.assertEqual(build_document(legacy, values), legacy)
+        values["upload_enabled"] = True
+        self.assertEqual(build_document(legacy, values)["upload"]["rclone_remote"],
+                         DEFAULT_UPLOAD_REMOTE)
+
+    def test_monitor_bar_setting_roundtrip(self):
+        values = form_values(self.example)
+        values["bottom_bar_px"] = "18%"
+        document = build_document(self.example, values)
+        self.assertEqual(document["recording"]["video"]["bottom_bar_px"], "18%")
+        self.assertEqual(form_values(document)["bottom_bar_px"], "18%")
+        values["bottom_bar_px"] = "400%"
+        with self.assertRaisesRegex(ValueError, "10~30%"):
+            build_document(self.example, values)
 
     def test_form_preserves_advanced_and_case_settings(self):
         source = copy.deepcopy(self.example)
@@ -47,6 +94,18 @@ class GuiConfigTests(unittest.TestCase):
         self.assertEqual(result["stack"]["detector"], "bevfusion")
         self.assertFalse(result["recording"]["video"]["enabled"])
         self.assertEqual(source["stack"]["detector"], "od_gt")
+
+    def test_upload_profile_roundtrip_and_remote_validation(self):
+        values = form_values(self.example)
+        values.update(upload_enabled=True, upload_profile=gui_module.UPLOAD_PROFILE_LABELS["bag"],
+                      upload_remote="team:planning")
+        result = build_document(self.example, values)
+        self.assertEqual(result["upload"], {"enabled": True, "rclone_remote": "team:planning",
+                                            "profile": "bag"})
+        self.assertEqual(form_values(result)["upload_profile"], gui_module.UPLOAD_PROFILE_LABELS["bag"])
+        values["upload_remote"] = ""
+        with self.assertRaisesRegex(ValueError, "rclone 경로"):
+            build_document(self.example, values)
 
     def test_save_resume_does_not_rewrite_hash_or_running_config(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -108,6 +167,13 @@ class GuiConfigTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("DISPLAY"), "Tk display가 없어 화면 테스트를 건너뜁니다")
 class GuiWindowTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        config_patch = patch.dict(os.environ, {"XDG_CONFIG_HOME": directory.name})
+        config_patch.start()
+        self.addCleanup(config_patch.stop)
+
     def test_result_selection_survives_progress_refresh(self):
         import tkinter as tk
         from tkinter import ttk
@@ -199,12 +265,18 @@ class GuiWindowTests(unittest.TestCase):
                 root = app["root"]
                 app["fields"]["campaign_name"].set("gui_video_interrupt")
                 app["fields"]["video"].set(True)
+                app["fields"]["video_layout"].set("manual")
                 root.after(50, app["actions"]["start"])
 
                 def interrupt():
                     captured["window_state"] = root.state()
                     captured["compact"] = app["compact_state"]["enabled"]
                     captured["window_height"] = root.winfo_height()
+                    captured["window_width"] = root.winfo_width()
+                    captured["screen_width"] = root.winfo_screenwidth()
+                    captured["expand_text"] = app["compact_button"].cget("text")
+                    captured["expand_mapped"] = app["compact_button"].winfo_ismapped()
+                    captured["saved_video"] = app["active"]["document"]["recording"]["video"]
                     signal.raise_signal(signal.SIGINT)
 
                 root.after(1250, interrupt)
@@ -221,12 +293,60 @@ class GuiWindowTests(unittest.TestCase):
                 safety_timer = root.after(8000, root.destroy)
 
             with patch.object(gui_module, "USERS", Path(temp) / "users"), \
-                 patch("tkinter.messagebox.askokcancel", return_value=True):
+                 patch("tkinter.messagebox.askokcancel", return_value=True), \
+                 patch("tkinter.messagebox.askyesno", return_value=True):
                 gui_module.main(on_ready=ready, runner_executable=executable)
             self.assertEqual(captured.get("window_state"), "normal")
             self.assertTrue(captured.get("compact"))
             self.assertLess(captured.get("window_height", 999), 200)
+            self.assertLessEqual(captured.get("window_width", 9999),
+                                 captured.get("screen_width", 0) * 0.6)
+            self.assertEqual(captured.get("expand_text"), "전체 설정 보기")
+            self.assertTrue(captured.get("expand_mapped"))
+            self.assertEqual(captured.get("saved_video", {}).get("window_layout"), "split")
+            self.assertFalse(captured.get("saved_video", {}).get("focus_planviz", True))
             self.assertIn("VIDEO_RUN_STARTED", captured.get("log", ""))
+
+    def test_manual_monitor_mode_can_expand_back_to_full_settings(self):
+        captured = {}
+
+        def ready(app):
+            root = app["root"]
+
+            def compact():
+                app["fields"]["video_layout"].set("manual")
+                app["status"].set("주행 검증 실행 중: " + "very_long_campaign_name_" * 20)
+                app["live_status"].set("현재 단계 / 시간 / 거리 / 속도 / 충돌 " * 25)
+                app["compact_button"].invoke()
+                root.after(350, inspect_compact)
+
+            def inspect_compact():
+                captured["compact_width"] = root.winfo_width()
+                captured["expand_mapped"] = app["compact_button"].winfo_ismapped()
+                captured["expand_button_bottom"] = (app["compact_button"].winfo_rooty()
+                                                    + app["compact_button"].winfo_height()
+                                                    - root.winfo_rooty())
+                captured["compact_height"] = root.winfo_height()
+                captured["video_layout"] = app["fields"]["video_layout"].get()
+                app["compact_button"].invoke()
+                root.after(150, inspect_expanded)
+
+            def inspect_expanded():
+                captured["expanded_width"] = root.winfo_width()
+                captured["button_text"] = app["compact_button"].cget("text")
+                root.destroy()
+
+            root.after(50, compact)
+            root.after(3000, root.destroy)
+
+        gui_module.main(on_ready=ready)
+        self.assertTrue(captured.get("expand_mapped"))
+        self.assertLess(captured.get("expand_button_bottom", 9999),
+                        captured.get("compact_height", 0))
+        self.assertEqual(captured.get("video_layout"), "split")
+        self.assertGreater(captured.get("expanded_width", 0),
+                           captured.get("compact_width", 9999))
+        self.assertEqual(captured.get("button_text"), "모니터 모드")
 
     def test_changed_executed_campaign_offers_new_name_and_preserves_old_yaml(self):
         with tempfile.TemporaryDirectory() as temp:

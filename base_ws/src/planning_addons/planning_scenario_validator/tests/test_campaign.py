@@ -1,5 +1,7 @@
 """실제 MORAI를 건드리지 않고 config와 시나리오 사본 계약을 검증한다."""
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -10,14 +12,21 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from build_static_corridor_cases import build as build_static_corridor_cases
-from planning_scenario_validator.config import ConfigError, ROOT, load_campaign
+from planning_scenario_validator.config import (AJOU_DRIVE_ROOT_FOLDER_ID, ConfigError,
+                                                DEFAULT_UPLOAD_REMOTE, ROOT, load_campaign,
+                                                resolve_path)
+from planning_scenario_validator.layout import normalize_bar_setting, resolve_bar_height
 from planning_scenario_validator.runtime import (LiveMonitor, arrange_split_windows,
                                                  focus_planviz, prepare_scenario, video_size)
 from arrange_split_windows import choose_windows, clear_maximized_axes, split_rectangles
-from planning_scenario_validator.runner import _recover_interrupted
+from place_monitor_bar import find_gui_window
+from planning_scenario_validator.runner import (_recover_interrupted, _upload,
+                                                _upload_commands, _write_state)
 
 
 EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples/static_obstacle_gt.yaml"
@@ -27,13 +36,148 @@ SPLIT_EXAMPLE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/
 
 
 class CampaignTest(unittest.TestCase):
+    def test_example_paths_follow_each_users_repository(self):
+        examples = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/examples"
+        for path in examples.glob("*.yaml"):
+            document = yaml.safe_load(path.read_text(encoding="utf-8"))
+            paths = [document["scenarios"]["directory"], document["recording"]["topic_profile"],
+                     document["network"]["sensor_json"], document["network"]["ego_network_json"],
+                     document["output_root"]]
+            with self.subTest(example=path.name):
+                self.assertTrue(all(not Path(value).is_absolute() for value in paths))
+                self.assertEqual(Path(document["recording"]["topic_profile"]).name, "basic.json")
+                self.assertFalse(document["recording"]["include_sensors"])
+                self.assertTrue(document["recording"]["video"]["enabled"])
+        with tempfile.TemporaryDirectory() as directory:
+            teammate_root = Path(directory) / "AjouNice2026"
+            with patch("planning_scenario_validator.config.ROOT", teammate_root):
+                self.assertEqual(resolve_path("configs/sensors/Sensor_competition_local.json"),
+                                 teammate_root / "configs/sensors/Sensor_competition_local.json")
+
+    def test_default_drive_destination_uses_shared_ajounice_folder(self):
+        cfg = load_campaign(SPLIT_EXAMPLE, check_install=False)
+        self.assertFalse(cfg["upload"]["enabled"])
+        self.assertEqual(cfg["upload"]["rclone_remote"], DEFAULT_UPLOAD_REMOTE)
+        self.assertEqual(cfg["upload"]["drive_root_folder_id"], AJOU_DRIVE_ROOT_FOLDER_ID)
+        case = cfg["output"] / "success" / "case_01"
+        case_command, metadata = _upload_commands(cfg, case)
+        for command in [case_command] + metadata:
+            self.assertIn("--drive-root-folder-id", command)
+            self.assertEqual(command[command.index("--drive-root-folder-id") + 1],
+                             AJOU_DRIVE_ROOT_FOLDER_ID)
+        self.assertEqual(case_command[3],
+                         "ajou_drive:planning_validator/{}/success/case_01".format(cfg["name"]))
+
+    def test_invalid_upload_profile_is_rejected_before_ros(self):
+        with tempfile.TemporaryDirectory() as directory:
+            document = yaml.safe_load(SPLIT_EXAMPLE.read_text(encoding="utf-8"))
+            document["upload"]["profile"] = "surprise"
+            path = Path(directory) / "invalid_upload.yaml"
+            path.write_text(yaml.safe_dump(document), encoding="utf-8")
+            with self.assertRaisesRegex(ConfigError, "upload.profile"):
+                load_campaign(path, check_install=False)
+
+    def test_upload_profiles_keep_category_and_choose_large_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "success" / "case_01"
+            for profile, has_bag, has_video in (("basic", False, False),
+                                                 ("bag", True, False),
+                                                 ("video", False, True),
+                                                 ("full", True, True)):
+                cfg = {"upload": {"rclone_remote": "team:planning", "profile": profile},
+                       "name": "campaign", "output": Path(directory)}
+                case_command, metadata = _upload_commands(cfg, folder)
+                self.assertEqual(case_command[3], "team:planning/campaign/success/case_01")
+                self.assertEqual("*.bag" not in case_command, has_bag)
+                self.assertEqual("*.mp4" not in case_command, has_video)
+                self.assertEqual([command[3].rsplit("/", 1)[-1] for command in metadata],
+                                 ["summary.csv", "campaign_config.yaml"])
+
+    @unittest.skipUnless(shutil.which("rclone"), "로컬 rclone 필터 테스트를 건너뜁니다")
+    def test_rclone_upload_profiles_copy_only_selected_media(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            folder = root / "local" / "success" / "case_01"
+            folder.mkdir(parents=True)
+            for name in ("result.json", "events.jsonl", "drive.bag", "screen.mp4"):
+                (folder / name).write_text(name, encoding="utf-8")
+            for profile, expected in (
+                    ("basic", {"result.json", "events.jsonl"}),
+                    ("bag", {"result.json", "events.jsonl", "drive.bag"}),
+                    ("video", {"result.json", "events.jsonl", "screen.mp4"}),
+                    ("full", {"result.json", "events.jsonl", "drive.bag", "screen.mp4"})):
+                cfg = {"upload": {"rclone_remote": str(root / profile), "profile": profile},
+                       "name": "campaign", "output": root / "local"}
+                case_command, _ = _upload_commands(cfg, folder)
+                subprocess.run(case_command, check=True, capture_output=True, text=True)
+                copied = root / profile / "campaign" / "success" / "case_01"
+                self.assertEqual({path.name for path in copied.iterdir()}, expected)
+
+    def test_upload_failure_keeps_local_result_and_attempts_csv_and_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            folder = root / "failure" / "case_01"
+            folder.mkdir(parents=True)
+            cfg = {"upload": {"enabled": True, "profile": "basic",
+                              "rclone_remote": "team:planning"},
+                   "name": "campaign", "output": root}
+            state = {"results": {}, "upload_errors": []}
+            calls = []
+
+            def fake_run(command, **_kwargs):
+                calls.append(command)
+                return SimpleNamespace(returncode=1 if len(calls) == 1 else 0,
+                                       stderr="simulated upload failure")
+
+            with patch("planning_scenario_validator.runner.shutil.which", return_value="/usr/bin/rclone"), \
+                 patch("planning_scenario_validator.runner.subprocess.run", side_effect=fake_run):
+                _upload(cfg, folder, state, SimpleNamespace(name="case_01"))
+            self.assertEqual(len(calls), 4)
+            self.assertTrue(folder.is_dir())
+            self.assertEqual(len(state["upload_errors"]), 1)
+            self.assertTrue((root / "summary.csv").is_file())
+            self.assertEqual(calls[-1][3], "team:planning/campaign/campaign_state.json")
+
+    def test_shared_summary_uses_relative_result_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = root / "success" / "case_01" / "result.json"
+            result.parent.mkdir(parents=True)
+            result.write_text("{}", encoding="utf-8")
+            state = {"results": {"case_01": {"status": "PASS", "reason": "SUCCESS",
+                                               "result_path": str(result), "attempts": 1}}}
+            _write_state({"output": root}, state)
+            self.assertIn("success/case_01/result.json", (root / "summary.csv").read_text(encoding="utf-8"))
+            self.assertNotIn(str(root), (root / "summary.csv").read_text(encoding="utf-8"))
+
     def test_split_example_records_full_screen_without_planviz_maximize(self):
         cfg = load_campaign(SPLIT_EXAMPLE)
         video = cfg["recording"]["video"]
         self.assertEqual(len(cfg["cases"]), 1)
         self.assertEqual(video["window_layout"], "split")
-        self.assertEqual(video["bottom_bar_px"], 150)
+        self.assertEqual(video["bottom_bar_px"], "auto")
         self.assertFalse(video["focus_planviz"])
+
+    def test_monitor_bar_auto_percent_and_legacy_pixels(self):
+        self.assertEqual(resolve_bar_height(741, "auto"), 170)
+        self.assertEqual(resolve_bar_height(1053, "auto"), 179)
+        self.assertEqual(resolve_bar_height(1413, "auto"), 240)
+        self.assertEqual(resolve_bar_height(2133, "auto"), 275)
+        self.assertEqual(resolve_bar_height(1053, "20%"), 211)
+        self.assertEqual(resolve_bar_height(1053, 150), 150)
+        self.assertEqual(normalize_bar_setting("14.0%"), "14%")
+        for value in ("9%", "31%", "nan", "401", "140.5", "oops"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                normalize_bar_setting(value)
+
+    def test_invalid_monitor_bar_setting_is_rejected_before_ros(self):
+        with tempfile.TemporaryDirectory() as directory:
+            document = yaml.safe_load(SPLIT_EXAMPLE.read_text(encoding="utf-8"))
+            document["recording"]["video"]["bottom_bar_px"] = "75%"
+            path = Path(directory) / "invalid_bar.yaml"
+            path.write_text(yaml.safe_dump(document), encoding="utf-8")
+            with self.assertRaisesRegex(ConfigError, "bottom_bar_px"):
+                load_campaign(path, check_install=False)
 
     def test_split_window_picker_ignores_morai_launcher_terminal(self):
         def window(name, class_name):
@@ -44,10 +188,17 @@ class CampaignTest(unittest.TestCase):
         rviz = window("kcity_aw149_planning - RViz", "Rviz")
         self.assertEqual(choose_windows([terminal, simulator, rviz]), (rviz, simulator))
 
+    def test_monitor_bar_uses_unique_gui_title_not_missing_tk_pid(self):
+        first = SimpleNamespace(get_name=lambda: "AjouNice 주행 시나리오 검증기 [111]",
+                                get_pid=lambda: 0)
+        second = SimpleNamespace(get_name=lambda: "AjouNice 주행 시나리오 검증기 [222]",
+                                 get_pid=lambda: 0)
+        self.assertIs(find_gui_window([first, second], second.get_name()), second)
+
     def test_split_rectangles_respect_desktop_dock_and_bottom_bar(self):
         area = SimpleNamespace(x=72, y=27, width=1848, height=1053)
         self.assertEqual(split_rectangles(area, 150),
-                         ((72, 27, 924, 903), (996, 27, 924, 903)))
+                         ((72, 27, 924, 903), (996, 27, 924, 1053)))
 
     def test_split_clears_vertical_only_maximize(self):
         calls = []
@@ -66,25 +217,32 @@ class CampaignTest(unittest.TestCase):
                    return_value=SimpleNamespace(returncode=0, stderr="", stdout="")) as run:
             arrange_split_windows(bottom_bar_px=150, display=":9.0")
         self.assertEqual(run.call_args.kwargs["env"]["DISPLAY"], ":9.0")
-        self.assertEqual(run.call_args.args[0][-1], "150")
+        self.assertEqual(run.call_args.args[0][-2:], ["150", "0.0"])
+
+    def test_split_layout_waits_for_first_rviz_config_restore(self):
+        with patch("planning_scenario_validator.runtime.subprocess.run",
+                   return_value=SimpleNamespace(returncode=0, stderr="", stdout="split layout")) as run:
+            detail = arrange_split_windows(bottom_bar_px="auto", startup_grace_sec=6.0)
+        self.assertEqual(run.call_args.args[0][-2:], ["auto", "6.0"])
+        self.assertEqual(detail, "split layout")
 
     def test_example_selects_two_cases_and_local_gt_profile(self):
         cfg = load_campaign(EXAMPLE)
         self.assertEqual(len(cfg["cases"]), 2)
         self.assertEqual(cfg["stack"]["detector"], "od_gt")
         self.assertIn("/CollisionData", cfg["recording"]["topics"])
-        self.assertTrue(all(c.timeout_sec == 180 for c in cfg["cases"]))
+        self.assertTrue(all(c.timeout_sec == 75 for c in cfg["cases"]))
         network = json.loads(cfg["network"]["ego_network_json"].read_text(encoding="utf-8"))
         entries = network["egoNetworkData"][0]["listEgoNetworkInfo"]
         self.assertEqual(sum(e.get("config", {}).get("udpConfig", {}).get("hostPort") == 9095 for e in entries), 1)
 
-    def test_bevfusion_example_uses_four_cameras_lidar_and_sensor_recording(self):
+    def test_bevfusion_example_uses_four_cameras_lidar_without_sensor_recording(self):
         cfg = load_campaign(BEVFUSION_EXAMPLE)
         self.assertEqual(len(cfg["cases"]), 1)
         self.assertEqual(cfg["stack"]["detector"], "bevfusion")
         self.assertEqual(cfg["network"]["camera_count"], 4)
         self.assertTrue(cfg["network"]["has_lidar"])
-        self.assertIn("/sensor/lidar1", cfg["recording"]["topics"])
+        self.assertNotIn("/sensor/lidar1", cfg["recording"]["topics"])
 
     def test_bevfusion_clear_smoke_omits_raw_sensors_from_bag(self):
         cfg = load_campaign(BEVFUSION_CLEAR_EXAMPLE)
@@ -136,7 +294,7 @@ class CampaignTest(unittest.TestCase):
                 self.assertTrue((output / (stem + ".case.yaml")).is_file())
             wide_case = (output / "soa_pair_03_drum_barrel_separated.case.yaml").read_text()
             self.assertIn("x: 71.704", wide_case)
-            self.assertIn("timeout_sec: 100", wide_case)
+            self.assertIn("timeout_sec: 50", wide_case)
             for index, (stem, data_id) in enumerate((("soa_pair_control_01_early_drum", 40100027),
                                   ("soa_pair_control_02_early_barrel", 40100005),
                                   ("soa_pair_control_03_late_barrel", 40100005),

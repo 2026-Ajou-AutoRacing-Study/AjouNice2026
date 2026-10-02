@@ -19,7 +19,8 @@ from pathlib import Path
 
 import yaml
 
-from .config import ROOT, resolve_path
+from .config import DEFAULT_UPLOAD_REMOTE, ROOT, UPLOAD_PROFILES, resolve_path
+from .layout import normalize_bar_setting, resolve_bar_height
 
 
 PACKAGE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator"
@@ -28,6 +29,13 @@ if not PACKAGE.is_dir():
 EXAMPLES = PACKAGE / "config/examples"
 USERS = PACKAGE / "config/users"
 NAME_RE = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_-]{1,59}\Z")
+UPLOAD_PROFILE_LABELS = {
+    "basic": "기본 공유 — CSV·JSON",
+    "bag": "bag 공유 — 기본 + rosbag",
+    "video": "영상 공유 — 기본 + MP4",
+    "full": "원본 공유 — 기본 + rosbag + MP4",
+}
+UPLOAD_LABEL_PROFILES = {label: key for key, label in UPLOAD_PROFILE_LABELS.items()}
 
 
 def default_name(template):
@@ -42,6 +50,39 @@ def load_document(path):
     return value
 
 
+def gui_settings_path():
+    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    return base / "ajounice/planning_scenario_validator/gui_settings.json"
+
+
+def remember_yaml(path):
+    """Remember only a successfully opened/saved file, not unsaved form edits."""
+    settings = gui_settings_path()
+    temporary = settings.with_name(settings.name + ".tmp.{}".format(os.getpid()))
+    try:
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        temporary.write_text(json.dumps({"last_yaml": str(Path(path).resolve())},
+                                        ensure_ascii=False) + "\n", encoding="utf-8")
+        os.replace(temporary, settings)
+    except OSError as error:
+        print("GUI 설정 저장 실패 (캠페인에는 영향 없음): {}".format(error), flush=True)
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def remembered_yaml():
+    try:
+        settings = json.loads(gui_settings_path().read_text(encoding="utf-8"))
+        path = Path(settings["last_yaml"])
+        form_values(load_document(path))
+        return path if path.is_file() else None
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, yaml.YAMLError):
+        return None
+
+
 def form_values(document):
     """Expose common choices; preserve every other YAML key without interpretation."""
     scene = document.get("scenarios", {})
@@ -52,6 +93,7 @@ def form_values(document):
     network = document.get("network", {})
     morai = document.get("morai", {})
     validation = document.get("validation", {})
+    upload = document.get("upload", {})
     result = {
         "campaign_name": document.get("campaign_name", ""),
         "directory": scene.get("directory", ""),
@@ -64,11 +106,14 @@ def form_values(document):
         "include_sensors": recording.get("include_sensors", False),
         "video": recording.get("video", {}).get("enabled", False),
         "video_layout": recording.get("video", {}).get("window_layout", "manual"),
-        "bottom_bar_px": recording.get("video", {}).get("bottom_bar_px", 150),
+        "bottom_bar_px": recording.get("video", {}).get("bottom_bar_px", "auto"),
         "sensor_json": network.get("sensor_json", ""),
         "ego_network_json": network.get("ego_network_json", ""),
         "scenario_load_host": morai.get("scenario_load_host", "127.0.0.1"),
         "goal_tolerance_m": validation.get("goal_tolerance_m", 2.0),
+        "upload_enabled": upload.get("enabled", False),
+        "upload_profile": UPLOAD_PROFILE_LABELS.get(upload.get("profile", "basic"), upload.get("profile")),
+        "upload_remote": upload.get("rclone_remote") or DEFAULT_UPLOAD_REMOTE,
     }
     for key in ("x", "y", "z", "yaw_deg"):
         result["goal_" + key] = goal.get(key, 0)
@@ -115,11 +160,11 @@ def build_document(template, values):
         raise ValueError("녹화 화면 배치는 manual 또는 split이어야 합니다")
     if "window_layout" in recording["video"] or layout != "manual":
         recording["video"]["window_layout"] = layout
-    bottom_bar = finite_number(values["bottom_bar_px"], "하단 모니터 바 높이", positive=True)
-    if not bottom_bar.is_integer() or not 100 <= bottom_bar <= 400:
-        raise ValueError("하단 모니터 바 높이는 100~400 정수여야 합니다")
-    if "bottom_bar_px" in recording["video"] or int(bottom_bar) != 150:
-        recording["video"]["bottom_bar_px"] = int(bottom_bar)
+    if layout == "split":
+        recording["video"]["focus_planviz"] = False
+    bottom_bar = normalize_bar_setting(values["bottom_bar_px"])
+    if "bottom_bar_px" in recording["video"] or bottom_bar != "auto":
+        recording["video"]["bottom_bar_px"] = bottom_bar
     network = result.setdefault("network", {})
     for key in ("sensor_json", "ego_network_json"):
         network[key] = str(values[key]).strip()
@@ -129,6 +174,20 @@ def build_document(template, values):
     result.setdefault("morai", {})["scenario_load_host"] = host
     tolerance = finite_number(values["goal_tolerance_m"], "도착 허용 거리", positive=True)
     result.setdefault("validation", {})["goal_tolerance_m"] = tolerance
+    profile = UPLOAD_LABEL_PROFILES.get(str(values["upload_profile"]))
+    if profile not in UPLOAD_PROFILES:
+        raise ValueError("Google Drive 공유 모드를 선택하세요")
+    enabled = bool(values["upload_enabled"])
+    remote = str(values["upload_remote"]).strip()
+    if enabled and not remote:
+        raise ValueError("자동 업로드에는 Google Drive rclone 경로가 필요합니다")
+    if "upload" in result or enabled or remote != DEFAULT_UPLOAD_REMOTE or profile != "basic":
+        upload = result.setdefault("upload", {})
+        upload["enabled"] = enabled
+        if enabled or upload.get("rclone_remote") or remote != DEFAULT_UPLOAD_REMOTE:
+            upload["rclone_remote"] = remote
+        if "profile" in upload or enabled or profile != "basic":
+            upload["profile"] = profile
     result["resume"] = True
     return result
 
@@ -187,8 +246,11 @@ def completion_label(code, state):
     counts = result_counts(state)
     total = state.get("total", "?")
     completed = len(state.get("results", {}))
-    return "검증 종료 {}/{} | 성공 {} / 주행 실패 {} / 시스템 오류 {} | 종료 코드 {}".format(
+    label = "검증 종료 {}/{} | 성공 {} / 주행 실패 {} / 시스템 오류 {} | 종료 코드 {}".format(
         completed, total, counts["PASS"], counts["FAIL"], counts["ERROR"], code)
+    if state.get("upload_errors"):
+        label += " | Drive 업로드 오류 {}건 (로컬 결과 보존)".format(len(state["upload_errors"]))
+    return label
 
 
 def render_result_table(table, state, result_paths):
@@ -221,7 +283,7 @@ def is_within(path, directory):
 def main(*, on_ready=None, runner_executable=None):
     """Open the GUI; optional hooks let Xvfb tests drive buttons without ROS."""
     import tkinter as tk
-    from tkinter import filedialog, messagebox, ttk
+    from tkinter import filedialog, font as tkfont, messagebox, ttk
 
     examples = sorted(EXAMPLES.glob("*.yaml"))
     if not examples:
@@ -229,11 +291,14 @@ def main(*, on_ready=None, runner_executable=None):
     # Start first-time operators with the short, previously validated demo.
     # The five-case stress campaign is available from the same dropdown.
     preferred = EXAMPLES / "static_pair_mission_gt_split.yaml"
-    initial = preferred if preferred.exists() else examples[0]
+    restored = remembered_yaml()
+    initial = restored or (preferred if preferred.exists() else examples[0])
     runner = str(runner_executable or ROOT / "planning_validator")
 
     root = tk.Tk()
-    root.title("AjouNice 주행 시나리오 검증기")
+    # Tk windows do not reliably advertise _NET_WM_PID on X11. A unique title
+    # lets the outer-geometry helper select this instance, not another GUI.
+    root.title("AjouNice 주행 시나리오 검증기 [{}]".format(os.getpid()))
     root.geometry("1010x810")
     root.minsize(850, 650)
     frame = ttk.Frame(root, padding=10)
@@ -248,12 +313,15 @@ def main(*, on_ready=None, runner_executable=None):
     result_paths = {}
     events = queue.Queue()
     poll_after = {"id": None}
-    compact = {"enabled": False, "previous_geometry": None}
+    compact = {"enabled": False, "previous_geometry": None,
+               "previous_zoomed": False, "previous_fullscreen": False}
 
     monitor_panel = ttk.LabelFrame(frame, text="실시간 캠페인 현황", padding=6)
     monitor_panel.pack(fill="x", pady=(0, 4))
-    ttk.Label(monitor_panel, textvariable=status, wraplength=1840).pack(anchor="w")
-    ttk.Label(monitor_panel, textvariable=live_status, wraplength=1840).pack(anchor="w")
+    status_label = ttk.Label(monitor_panel, textvariable=status, wraplength=1840)
+    status_label.pack(anchor="w")
+    live_label = ttk.Label(monitor_panel, textvariable=live_status, wraplength=1840)
+    live_label.pack(anchor="w")
 
     def read_source(path, fresh_name=False):
         document = load_document(path)
@@ -272,6 +340,7 @@ def main(*, on_ready=None, runner_executable=None):
         for key, value in values.items():
             vars_[key].set(value)
         status.set("설정 로드: {}".format(Path(path).name))
+        remember_yaml(path)
 
     top = ttk.LabelFrame(frame, text="설정 파일 (예제는 읽기 전용, 저장은 개인 폴더)", padding=8)
     top.pack(fill="x")
@@ -331,6 +400,8 @@ def main(*, on_ready=None, runner_executable=None):
     add_field(basic, 10, "traffic_light", "신호등 인지", boolean=True)
     add_field(basic, 11, "video", "화면 영상 녹화", boolean=True)
     add_field(basic, 12, "include_sensors", "bag에 카메라/LiDAR", boolean=True)
+    add_field(basic, 13, "upload_enabled", "Drive 자동 업로드", boolean=True)
+    add_field(basic, 14, "upload_profile", "공유 모드", choices=list(UPLOAD_PROFILE_LABELS.values()))
 
     add_field(advanced, 0, "topic_profile", "rosbag 토픽 JSON", browse="file")
     add_field(advanced, 1, "sensor_json", "MORAI Sensor JSON", browse="file")
@@ -338,8 +409,9 @@ def main(*, on_ready=None, runner_executable=None):
     add_field(advanced, 3, "scenario_load_host", "ScenarioLoad IP")
     add_field(advanced, 4, "goal_tolerance_m", "목적지 허용 반경 (m)")
     add_field(advanced, 5, "video_layout", "녹화 화면 배치", choices=["manual", "split"])
-    add_field(advanced, 6, "bottom_bar_px", "GUI 하단 높이 (px)")
-    ttk.Label(advanced, text="split: RViz 왼쪽, MORAI 오른쪽, GUI 하단. 그 외 옵션과 시나리오별 .case.yaml override는 보존합니다.").grid(row=7, column=0, columnspan=3, sticky="w", pady=8)
+    add_field(advanced, 6, "bottom_bar_px", "GUI 하단 높이 (auto/px/%)")
+    add_field(advanced, 7, "upload_remote", "Drive rclone 경로")
+    ttk.Label(advanced, text="split: RViz 왼쪽, MORAI 오른쪽, GUI 하단. Drive 공유는 rclone remote를 각 PC에서 설정해야 합니다.").grid(row=8, column=0, columnspan=3, sticky="w", pady=8)
 
     def collect():
         values = {key: var.get() for key, var in vars_.items()}
@@ -376,6 +448,7 @@ def main(*, on_ready=None, runner_executable=None):
             document, path = collect()
             save_personal(document, path)
         active.update(config=path, document=document)
+        remember_yaml(path)
         status.set("개인 YAML 저장: {}".format(path))
         return path
 
@@ -427,6 +500,12 @@ def main(*, on_ready=None, runner_executable=None):
         if active["process"] and active["process"].poll() is None:
             messagebox.showinfo("이미 실행 중", "한 번에 한 캠페인만 실행할 수 있습니다.")
             return
+        if vars_["video"].get() and vars_["video_layout"].get() == "manual":
+            if messagebox.askyesno(
+                    "RViz 전체화면 설정 확인",
+                    "현재 녹화 화면 배치가 manual이라 장면마다 RViz를 최대화합니다.\n"
+                    "RViz 왼쪽·MORAI 오른쪽·GUI 하단의 split 배치로 변경할까요?"):
+                vars_["video_layout"].set("split")
         try:
             path = save()
         except Exception as error:
@@ -455,7 +534,7 @@ def main(*, on_ready=None, runner_executable=None):
         active.update(process=process, stopping=False)
         set_running_ui(True)
         if video_enabled and active["document"]["recording"]["video"].get("window_layout") == "split":
-            set_compact_mode(True, active["document"]["recording"]["video"].get("bottom_bar_px", 150))
+            set_compact_mode(True, active["document"]["recording"]["video"].get("bottom_bar_px", "auto"))
         status.set("주행 검증 실행 중: {}".format(active["document"]["campaign_name"]))
         threading.Thread(target=command_reader, args=(process, "run"), daemon=True).start()
 
@@ -492,9 +571,10 @@ def main(*, on_ready=None, runner_executable=None):
         button = ttk.Button(controls, text=label, command=action)
         button.pack(side="left", padx=4)
         control_buttons[label] = button
-    ttk.Checkbutton(controls, text="기존 FAIL도 다시 실행", variable=rerun_failed).pack(side="left", padx=12)
+    rerun_checkbox = ttk.Checkbutton(controls, text="기존 FAIL도 다시 실행", variable=rerun_failed)
+    rerun_checkbox.pack(side="left", padx=12)
     compact_button = ttk.Button(controls, text="모니터 모드",
-                                command=lambda: set_compact_mode(not compact["enabled"]))
+                                command=lambda: toggle_compact_mode())
     compact_button.pack(side="right", padx=4)
 
     def set_running_ui(running, *, allow_stop=True):
@@ -540,12 +620,17 @@ def main(*, on_ready=None, runner_executable=None):
     log = tk.Text(frame, height=9, wrap="word", state="disabled")
     log.pack(fill="both", expand=True)
 
-    def set_compact_mode(enabled, bottom_bar_px=150):
+    def set_compact_mode(enabled, bottom_bar_px="auto"):
         if enabled == compact["enabled"]:
             return
         if enabled:
+            bottom_bar_px = normalize_bar_setting(bottom_bar_px)
+        compact["enabled"] = enabled
+        if enabled:
             root.update_idletasks()
             compact["previous_geometry"] = root.geometry()
+            compact["previous_zoomed"] = bool(root.attributes("-zoomed"))
+            compact["previous_fullscreen"] = bool(root.attributes("-fullscreen"))
             for widget in (top, notebook, table, detail_note, log):
                 widget.pack_forget()
             area_x, area_y = 0, 0
@@ -563,14 +648,67 @@ def main(*, on_ready=None, runner_executable=None):
                 area_width, area_height = workarea.width, workarea.height
             except (ImportError, ValueError, AttributeError):
                 pass
-            bar = max(120, min(int(bottom_bar_px), 400, area_height // 3))
-            root.minsize(850, 90)
-            root.geometry("{}x{}+{}+{}".format(area_width, bar - 38,
-                                               area_x, area_y + area_height - bar + 26))
+            bar = resolve_bar_height(area_height, bottom_bar_px)
+            compact_width = area_width // 2
+            for label in ("개인 YAML 저장", "설정 검사", "실행 / resume"):
+                control_buttons[label].pack_forget()
+            rerun_checkbox.pack_forget()
+            # Keep the return button above status text, even if a long status
+            # would otherwise consume the entire fixed-height monitor bar.
+            controls.pack_forget()
+            controls.pack(fill="x", pady=(0, 2), before=status_label)
+            char_width = max(1, tkfont.nametofont("TkDefaultFont").measure("M"))
+            label_chars = max(20, (compact_width - 50) // char_width)
+            status_label.configure(wraplength=0, width=label_chars)
+            live_label.configure(wraplength=0, width=label_chars)
+            root.minsize(min(850, compact_width), 90)
+            # Tk's -zoomed request is asynchronous on X11. A geometry request
+            # made before the WM acknowledges unmaximize is silently ignored.
+            root.attributes("-fullscreen", False)
+            root.attributes("-zoomed", False)
+            root.state("normal")
+
+            def place_after_unmaximize(remaining=12):
+                if not compact["enabled"]:
+                    return
+                if (root.attributes("-zoomed") or root.attributes("-fullscreen")) and remaining:
+                    root.attributes("-fullscreen", False)
+                    root.attributes("-zoomed", False)
+                    root.after(100, place_after_unmaximize, remaining - 1)
+                    return
+                # First place via Tk using the *measured* frame offset. Wnck
+                # then sets the exact outer rectangle, including decorations.
+                root.update_idletasks()
+                frame_top = max(0, root.winfo_rooty() - root.winfo_y())
+                root.geometry("{}x{}+{}+{}".format(
+                    compact_width, max(90, bar - frame_top),
+                    area_x, area_y + area_height - bar))
+
+                def place_outer_window():
+                    if not compact["enabled"]:
+                        return
+                    command = ["/usr/bin/python3", str(PACKAGE / "scripts/place_monitor_bar.py"),
+                               root.title(), str(area_x), str(area_y + area_height - bar),
+                               str(compact_width), str(bar)]
+                    try:
+                        subprocess.run(command, capture_output=True, timeout=3, check=False)
+                    except (OSError, subprocess.TimeoutExpired):
+                        pass  # Tk's measured-frame placement remains usable.
+
+                root.after(150, place_outer_window)
+
+            root.after(100, place_after_unmaximize)
             root.attributes("-topmost", True)
             compact_button.configure(text="전체 설정 보기")
         else:
             root.attributes("-topmost", False)
+            for label in ("개인 YAML 저장", "설정 검사", "실행 / resume"):
+                control_buttons[label].pack(side="left", padx=4, before=control_buttons["중단"])
+            rerun_checkbox.pack(side="left", padx=12)
+            controls.pack_forget()
+            controls.pack(fill="x", pady=5)
+            status_label.configure(wraplength=1840, width=0)
+            live_label.configure(wraplength=1840, width=0)
             top.pack(fill="x")
             notebook.pack(fill="x", pady=8)
             table.pack(fill="both", expand=True, pady=4)
@@ -578,8 +716,30 @@ def main(*, on_ready=None, runner_executable=None):
             log.pack(fill="both", expand=True)
             root.minsize(850, 650)
             root.geometry(compact["previous_geometry"] or "1010x810")
+            if compact["previous_fullscreen"]:
+                root.after(100, lambda: root.attributes("-fullscreen", True))
+            elif compact["previous_zoomed"]:
+                root.after(100, lambda: root.attributes("-zoomed", True))
             compact_button.configure(text="모니터 모드")
-        compact["enabled"] = enabled
+
+    def toggle_compact_mode():
+        if compact["enabled"]:
+            set_compact_mode(False)
+            return
+        running = active["process"] and active["process"].poll() is None
+        if not running and vars_["video"].get():
+            # The operator chose the split-screen monitor layout. Persist that
+            # choice in the form so the runner will not maximize RViz per case.
+            vars_["video_layout"].set("split")
+        elif running and active["document"]["recording"]["video"].get("window_layout") != "split":
+            messagebox.showwarning(
+                "현재 캠페인은 전체화면 설정",
+                "현재 실행 중인 YAML은 manual 배치라 장면마다 RViz를 최대화합니다. "
+                "이 캠페인을 중단하고 새 이름으로 split 배치를 설정해 재실행해야 지속적으로 반반 배치됩니다.")
+        try:
+            set_compact_mode(True, vars_["bottom_bar_px"].get())
+        except ValueError as error:
+            messagebox.showerror("모니터 바 높이", str(error))
 
     def append(line):
         log.configure(state="normal")
@@ -609,8 +769,10 @@ def main(*, on_ready=None, runner_executable=None):
             current = "{} / {}".format(current.get("scenario", "?"), current.get("phase", "?"))
         current = current or "대기"
         if active["process"] and active["process"].poll() is None:
-            status.set("진행 {}/{} | 성공 {} 실패 {} 오류 {} | 현재 {}".format(
-                len(results), state.get("total", "?"), counts["PASS"], counts["FAIL"], counts["ERROR"], current))
+            upload_note = " | Drive 오류 {}건".format(len(state["upload_errors"])) if state.get("upload_errors") else ""
+            status.set("진행 {}/{} | 성공 {} 실패 {} 오류 {} | 현재 {}{}".format(
+                len(results), state.get("total", "?"), counts["PASS"], counts["FAIL"], counts["ERROR"],
+                current, upload_note))
             current_state = state.get("current")
             metrics = (current_state.get("metrics") or {}) if isinstance(current_state, dict) else {}
             if "elapsed_sec" in metrics:
@@ -674,14 +836,14 @@ def main(*, on_ready=None, runner_executable=None):
     signal.signal(signal.SIGINT, on_interrupt)
     root.protocol("WM_DELETE_WINDOW", on_close)
     root.bind("<Destroy>", on_destroy)
-    read_source(initial, fresh_name=True)
+    read_source(initial, fresh_name=restored is None)
     if on_ready is not None:
         on_ready({"root": root, "fields": vars_, "actions": {
             "save": save, "check": check, "start": start, "stop": stop,
             "update_progress": update_progress, "compact": set_compact_mode}, "active": active,
             "status": status, "table": table, "log": log,
             "live_status": live_status, "rerun_failed": rerun_failed,
-            "compact_state": compact})
+            "compact_state": compact, "compact_button": compact_button})
     poll_after["id"] = root.after(500, poll)
     try:
         root.mainloop()

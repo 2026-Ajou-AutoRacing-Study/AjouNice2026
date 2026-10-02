@@ -13,7 +13,7 @@
 - 실시간 subscriber가 localization, trajectory, collision을 관측한다. goal 반경/hold/speed, 충돌, timeout, topic loss를 판정한다.
 - 시나리오별 rosbag과 X11 전체 화면 MP4를 **ScenarioLoad 전부터** 기록하고 `PASS/FAIL/ERROR` 폴더로 분류한다. 경로 거부·스택 시작 실패도 녹화 범위에 포함한다. `result.json`/`events.jsonl`/전체 `summary.csv`/대시보드를 생성한다.
 - 종료되거나 Ctrl+C로 중단돼도 완료 결과를 유지한다. 같은 YAML의 resume는 PASS/FAIL을 건너뛰고 ERROR/미완료를 다시 시도한다.
-- Google Drive 업로드는 `rclone` remote를 설정했을 때 각 결과 이후 수행한다. 실패해도 로컬 기록을 보존한다.
+- Google Drive 업로드는 캠페인 YAML의 `upload.enabled`, `upload.profile`(`basic`/`bag`/`video`/`full`), `upload.rclone_remote`로 고른다. 기본 경로는 `ajou_drive:planning_validator`이며 맵 스크립트와 같은 공유 `AjouNice2026` 폴더 ID를 rclone 명령에 전달한다. 따라서 실제 위치는 `AjouNice2026/planning_validator/<campaign_name>/...`이다. 각 결과 이후 선택한 파일과 캠페인 `summary.csv`·설정·상태 JSON을 공유하고, `success/failure/error` 구조를 유지한다. bag·MP4를 제외해도 로컬에는 원본을 보존한다. 실패는 주행 결과와 구분해 기록한다. 현재 기본값은 업로드 꺼짐이며 실제 Drive 전송은 아직 검증하지 않았다. 기존 빈 경로 개인 YAML은 GUI에 제안 경로가 보여도 업로드를 켜기 전까지 원본을 유지한다.
 
 ## 검증 게이트
 
@@ -54,7 +54,7 @@ ScenarioLoad 패킷은 `trajectory_batch_runner.morai_udp_client.build_scenario_
 - `full.json`은 알려진 토픽 inventory이며 새/비표준 토픽은 수동 추가해야 한다. `rosbag record -a`는 디스크 위험 때문에 사용하지 않는다.
 - 영상은 전체 X11 화면이다. 첫 BEVFusion smoke의 MP4를 실제 프레임으로 확인했을 때 RViz EOL 팝업과 미최대화 창이 영상을 가렸다. 후속 수정에서 ROS1 EOL 팝업 비활성화와 Planviz 자동 전면·최대화를 추가했다. 재녹화 프레임에서 팝업 없이 최대화된 Planviz를 확인했다. 다만 화면 잠금·다른 창의 가림은 여전히 피해야 한다.
 - 시작 위치가 이전 장면과 같으면 Ego UDP 스트림의 재시작 간격을 ScenarioLoad 확인 신호로 사용한다. 매우 특이한 통신 장애가 동일한 현상을 만들 수 있으므로, 이것을 MORAI의 명시적 성공 ACK로 간주하지 않는다.
-- BEVFusion 예제에서 raw 센서를 함께 녹화하면 1장면 약 3분에도 bag이 수 GB가 될 수 있다. 인지 재현이 불필요한 캠페인은 `include_sensors: false`로 설정한다.
+- 모든 배포 예제의 녹화 기본값은 `basic.json` + `include_sensors: false` + 화면 영상 켜짐이다. BEVFusion 추론은 센서 제외 녹화에서도 그대로 수행한다. 인지 재현이 필요해 raw 센서를 함께 녹화하면 1장면 약 3분에도 bag이 수 GB가 될 수 있다.
 - 성공은 goal 접근과 정차(또는 통과) 및 충돌 없음으로 판단한다. 공식 대회 판정과 동일하다는 뜻은 아니다.
 - `rclone`이 없는 PC에서도 검증은 동작하지만 자동 업로드는 실패로 기록된다.
 
@@ -76,7 +76,33 @@ ScenarioLoad 패킷은 `trajectory_batch_runner.morai_udp_client.build_scenario_
 
 ## 2026-10-02 GUI 진입점
 
+### 팀원 사용 계약과 설정 복원
+
+목적은 항상 성공하는 시나리오 생성이 아니라, 팀원이 준비한 다양한 시나리오에서 시스템이 대응하지 못하는 상황을 찾고 실패 근거를 보존하는 것이다. 자동 실행·녹화·실시간 판정·resume 구조는 이 목적에 맞지만, 첫 사용자가 네트워크 연결과 목적지를 준비하는 과정은 여전히 수동이다.
+
+- 배포자는 미션별 캠페인 YAML과 네트워크 설정을 제공하고, 팀원은 시나리오 JSON 폴더와 목적지·제한시간을 준비한다. 풀스택 YAML을 처음부터 작성하도록 요구하지 않는다.
+- 같은 구간에서 객체 배치만 바뀌면 공통 목적지·시간을 사용한다. 다른 장면만 같은 이름의 `.case.yaml`을 둔다. Sidecar 값은 캠페인 기본값보다 우선한다.
+- 예제는 개인 YAML로 복사하며, 미실행 개인 YAML은 같은 이름으로 수정한다. 실행 이력이 있는 캠페인은 설정 변경 시 새 이름으로 복사한다. 설정 검사·실행 버튼도 먼저 저장한다.
+- 마지막으로 열거나 저장한 YAML 경로만 `~/.config/ajounice/planning_scenario_validator/gui_settings.json`에 기억한다 (`XDG_CONFIG_HOME` 설정 시 해당 경로 사용). 재시작 시 해당 YAML을 불러오고, 삭제되었거나 읽을 수 없으면 기본 예제로 돌아간다. 미저장 입력값·창 위치·모니터 모드·실패 재실행 체크는 복원하지 않는다. 개인 YAML과 GUI 설정은 Git에 포함하지 않는다.
+- 미션 템플릿과 시나리오 폴더를 선택하는 ‘새 캠페인 만들기’ 마법사는 후속 후보이며 아직 구현하지 않았다. 팀원 1명이 안내만으로 실행해 보면서 준비 과정의 막힘을 확인하는 것이 다음 사용성 검증이다.
+
+### 짧은 제한시간과 전환 대기
+
+배포 예제의 기본 주행 제한시간은 catalog 35초, 일반 정적 장애물·pair·clear 50초, 음영 구간 75초로 줄였다. 생성기의 장면별 override는 clear 40초, pair 45~50초, 복잡한 corridor 65~90초 등이다. 생성된 sidecar를 쓰면 생성기를 다시 실행해야 새 값이 적용된다. 개인 YAML도 유형별 상한으로 낮추되 더 짧은 값은 유지했다. 기존 결과는 보존하고 변경된 설정은 새 캠페인으로 실행하며, 과거 결과의 제한시간을 소급 변경하지 않는다.
+
+현재 대기 1(주행 종료→다음 ScenarioLoad, 약 7~8초)과 대기 2(ScenarioLoad→주행 시작, GT 약 25초·BEVFusion 약 27초)는 유지한다. 대기 1에는 녹화 마감·스택 정리·결과 저장이, 대기 2에는 새 스택과 해당 장면 route·비어 있지 않은 궤적 준비 확인이 포함된다. 임의의 고정 sleep만 있는 것이 아니며 readiness timeout을 낮춰도 정상 준비가 빨라지지는 않는다. 모든 시간이 필수라고 확정한 것은 아니다. 특히 대기 2의 서비스 준비·route 계산·궤적 생성 시간을 분리 측정한 뒤 최적화하며, 이전 장면 궤적 재사용이나 녹화 마감 생략으로 줄이지 않는다.
+
+후속 화면 구성 변경: 모니터 모드의 GUI 폭은 작업 영역의 절반, 즉 왼쪽 RViz 창과 동일하게 설정한다. 하단 바 높이는 `bottom_bar_px: auto`이면 작업 영역 높이의 약 17%(170~275 px)이고, 100~400 px 정수 또는 `"18%"`처럼 10~30%로 직접 지정할 수도 있다. GUI와 RViz가 같은 설정을 해석하며, GUI는 창 관리자의 실제 바깥 창 크기(테두리 포함)로 맞춘다. `전체 설정 보기` 버튼을 상태 문구보다 위에 배치하고 긴 상태 문구를 한 줄로 잘라 고정 높이 안에 남도록 했다. 최대화된 GUI에서 전환할 때는 X11 창 관리자의 최대화 해제 완료를 기다린 뒤 위치·크기를 적용한다. `manual` 영상 설정은 장면마다 RViz를 다시 최대화하므로, GUI 시작 시 이를 안내하고 `split` 변경 여부를 묻는다. 아래의 실제 X11 배치 수치는 이 변경 **이전**의 전체 폭 모니터 바 검증 결과다.
+
+GUI 최소 높이를 위해 비율·고정 px 입력의 실제 예약 높이는 최소 140 px다. 실제 X11에서 임시 Tk 창에 바깥 크기 450×150 px을 지정하여 창 관리자가 보고하는 크기가 정확히 450×150 px인지 확인했다. Tk의 `_NET_WM_PID`는 이 환경에서 0이므로, 복수 GUI 창이 있을 때도 정확한 창을 찾도록 제목에 프로세스 ID를 포함한다. 이 검증은 GUI 창 자체의 배치이며 RViz·MORAI를 포함한 전체 split 영상 재검증은 별도다.
+
+추가 실주행 영상에서 `window_layout: split`, `focus_planviz: false`인데도 첫 장면 녹화 시작 후 7초까지 RViz가 저장된 1251px 폭으로 돌아간 것을 확인했다. `focus_planviz` 최대화 경로가 아니라 RViz 초기화 중 저장된 `QMainWindow` 크기 복원과 외부 배치의 순서 경쟁으로 판단한다. 첫 장면의 배치를 RViz 창 발견 후 6초 늦추고, 이후 크기 유지 여부를 검사·재적용하도록 변경했다. 첫 장면 녹화 시작은 그만큼 늦어지며 이후 장면에는 초기화 대기를 적용하지 않는다. 실제 X11에서 수정된 배치 helper가 RViz 924×906px, MORAI 924×1053px 목표를 유지함을 확인했지만, 새 코드를 적용한 전체 캠페인 MP4는 아직 재검증하지 않았다.
+
+현재 `split` 배치는 왼쪽 위 RViz와 왼쪽 아래 GUI만 세로 공간을 나눠 사용한다. 오른쪽 MORAI에는 더 이상 하단 여백을 남기지 않고 작업 영역 전체 높이를 준다. 과거의 양쪽 903px 배치 수치는 아래에 이전 검증 기록으로 남긴다.
+
 `./planning_validator_gui` (alias `pvgui`)는 Tkinter로 예제 YAML을 개인 설정에 복사·편집하고, 동일한 CLI 검증기 프로세스를 실행/중단/resume한다. ROS graph 제어·분석·녹화 로직은 GUI로 이중화하지 않았다. GUI는 `campaign_state.json`을 주기적으로 읽어 완료 결과와 현재 단계·시간·목적지 거리·속도·충돌 횟수를 표시한다. `static_pair_mission_gt_split.yaml` 예제로 시작하면 실행 중 GUI를 하단의 얇은 모니터 바로 접고, RViz 왼쪽·MORAI 오른쪽 자동 배치를 시도한다. 영상은 세 창이 놓인 X11 화면 전체를 녹화한다. 창 자동 배치가 안 되면 경고만 남기고 주행·녹화는 계속한다. `전체 설정 보기`로 GUI를 펼칠 수 있지만 영상에도 찍힌다. GUI 버튼과 실행 터미널 Ctrl+C 모두 안전 중단 입력이다. MORAI GUI에서 Sensor/Ego Network Load·Connect는 여전히 수동이다. 개인 YAML은 Git에서 제외되며, 이미 실행된 캠페인의 설정을 바꿀 때는 새 캠페인 이름으로 복사할지 묻는다. 사용법은 패키지 README를 우선 참조한다.
+
+후순위 영상 실험: 현행 ScenarioLoad 전 녹화 시작을 유지한다. 센서 제외 성공 녹화에서는 bag 약 50 MiB/분, MP4 약 10 MiB/분이므로 영상 트리밍은 용량 최적화의 우선 대상이 아니다. 영상 on/off의 CPU·MORAI·BEVFusion 주기 A/B를 먼저 측정하고, 필요할 경우에만 새 궤적 준비 직후 영상 시작을 시험한다. 궤적이 생성되지 않는 실패에는 스크린샷을 남겨야 한다. 종료 결과 문구와 약 1초 후행 영상을 원한다면 GUI에 결과가 표시된 것을 확인한 뒤 recorder를 닫도록 순서를 바꿔야 한다. 현재는 결과 저장·GUI 갱신이 recorder 종료 뒤에 일어나므로 1초 대기만 넣어서는 문구가 영상에 남지 않는다. 어느 개선도 아직 적용하지 않았다.
 
 후속 GUI 견고화: 진행표는 행을 지우고 다시 만들지 않고 제자리에서 갱신해 선택된 실패 장면의 상세 보기 상태를 보존한다. CLI 종료 코드 0이어도 FAIL 결과가 있으면 GUI에서 주행 실패 건수를 명확히 표시한다. `기존 FAIL도 다시 실행`은 기존 CLI의 `--rerun-failed`에만 연결된다. 실행·설정 검사 중에는 다른 YAML을 열거나 저장해 resume 해시를 바꾸지 못하도록 막는다. 탐지 토픽의 메시지 수와 객체가 실제 포함된 메시지 수를 따로 기록한다. GUI 가짜 실행기 화면 시험과 MORAI MR local GT 성공·실패 장면, BEVFusion+Planviz+MP4 조합의 실제 GUI 폐루프 및 indexed bag을 확인했다. 동일 조합을 반복했을 때 PASS와 FAIL이 모두 나와, 실패를 화면 녹화 부하만으로 설명할 수 없다. 전체 화면 녹화 중 다른 앱이 앞에 뜨면 영상도 그 앱을 기록하는 제약이 있다. 일회성 수치와 bag 경로는 `planner_logs/analysis/scenario_validator_gui_261002/report.md`에만 둔다.
 

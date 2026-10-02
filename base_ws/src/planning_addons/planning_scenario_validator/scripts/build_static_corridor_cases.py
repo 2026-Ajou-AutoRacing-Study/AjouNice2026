@@ -15,10 +15,10 @@ DEFAULT_OUTPUT = ROOT / "planner_logs/validation_inputs/static_corridor"
 # Goals are v85 map-frame centerline points at route arcs 305, 335 and 385 m.
 # Source MGeo poses are transformed with configs/tf/morai_lanelet_static_tf.yaml.
 CASES = (
-    ("soa_corridor_00_clear", 0, (71.092, 379.631, 28.396, 84.901), 80),
-    ("soa_corridor_01_cargobox", 1, (71.092, 379.631, 28.396, 84.901), 100),
-    ("soa_corridor_03_mixed", 3, (71.694, 409.612, 28.384, 90.096), 130),
-    ("soa_corridor_06_mixed", 6, (71.704, 459.605, 28.379, 90.131), 180),
+    ("soa_corridor_00_clear", 0, (71.092, 379.631, 28.396, 84.901), 40),
+    ("soa_corridor_01_cargobox", 1, (71.092, 379.631, 28.396, 84.901), 50),
+    ("soa_corridor_03_mixed", 3, (71.694, 409.612, 28.384, 90.096), 65),
+    ("soa_corridor_06_mixed", 6, (71.704, 459.605, 28.379, 90.131), 90),
 )
 EXPECTED_IDS = (40100001, 40100027, 40100005, 40200162, 40100047, 40100028)
 OFFICIAL_GOAL = (71.510, 429.608, 28.383, 90.033)  # v85 map, route arc 355 m
@@ -35,19 +35,19 @@ CATALOG_X_OFFSETS = (("sample_pose", 0.0), ("pathward_080", 0.8))
 PAIR_CASES = (
     ("soa_pair_01_drum_barrel_zigzag",
      ((40100027, -60.91, -159.25, 28.41), (40100005, -59.81, -142.18, 28.37)),
-     OFFICIAL_GOAL, 80),
+     OFFICIAL_GOAL, 45),
     ("soa_pair_02_barrel_drum_zigzag",
      ((40100005, -59.20, -159.25, 28.41), (40100027, -60.61, -142.18, 28.37)),
-     OFFICIAL_GOAL, 80),
+     OFFICIAL_GOAL, 45),
     ("soa_pair_03_drum_barrel_separated",
      ((40100027, -60.61, -142.18, 28.37), (40100005, -59.05, -105.33, 28.36)),
-     (71.704, 459.605, 28.379, 90.131), 100),  # v85 map route arc 385 m
+     (71.704, 459.605, 28.379, 90.131), 50),  # v85 map route arc 385 m
     ("soa_pair_04_drum_barrel_valid_start",
      ((40100027, -60.61, -142.18, 28.37), (40100005, -59.05, -125.18, 28.38)),
-     (71.704, 459.605, 28.379, 90.131), 100),
+     (71.704, 459.605, 28.379, 90.131), 50),
     ("soa_pair_05_drum_barrel_alternate_side",
      ((40100027, -59.81, -142.18, 28.37), (40100005, -60.61, -125.18, 28.38)),
-     (71.704, 459.605, 28.379, 90.131), 100),
+     (71.704, 459.605, 28.379, 90.131), 50),
 )
 PAIR_CONTROLS = (
     ("soa_pair_control_01_early_drum", 40100027, (-60.91, -159.25, 28.41), OFFICIAL_GOAL),
@@ -119,7 +119,7 @@ def _official_scenes(output, source=OFFICIAL_SOURCE):
         target["objectList"] = target["objectList"][:objects]
         if scale is not None:
             target["objectList"][0]["scale"] = _vector(scale, scale, scale)
-        _write_case(output, stem, target, OFFICIAL_GOAL, 100,
+        _write_case(output, stem, target, OFFICIAL_GOAL, 50,
                     "샘플 정적 장애물 구간 / {} / GPS 음영 없음".format(stem))
 
 
@@ -143,7 +143,7 @@ def _catalog_scenes(output, catalog_objects, source=OFFICIAL_SOURCE):
             item["scale"] = _vector(1.0, 1.0, 1.0)
             target["objectList"] = [item]
             stem = "soa_catalog_{}_{}".format(name, suffix)
-            _write_case(output, stem, target, OFFICIAL_GOAL, 70,
+            _write_case(output, stem, target, OFFICIAL_GOAL, 35,
                         "비공식 정적 객체 스트레스 테스트 / {} / {} / GPS 음영 없음".format(name, suffix))
 
 
@@ -184,7 +184,7 @@ def _pair_control_scenes(output, catalog_objects, source=OFFICIAL_SOURCE):
         # Keep the later exploratory controls out of the default root glob.
         control_output = output / "mid_controls" if index >= 4 else output
         control_output.mkdir(parents=True, exist_ok=True)
-        _write_case(control_output, stem, target, goal, 70,
+        _write_case(control_output, stem, target, goal, 45,
                     "2객체 실패 원인 분리용 단일 객체 대조 / {} / GPS 음영 없음".format(stem))
 
 

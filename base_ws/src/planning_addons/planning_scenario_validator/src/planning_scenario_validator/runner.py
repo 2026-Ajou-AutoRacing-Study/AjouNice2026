@@ -179,27 +179,72 @@ def _write_state(cfg, state):
                 details = {}
             metric = details.get("metrics", {})
             analysis = details.get("failure_analysis", {})
+            try:
+                shared_result_path = str(result_path.relative_to(cfg["output"]))
+            except ValueError:
+                shared_result_path = str(result_path)
             writer.writerow([name, row["status"], row["reason"], analysis.get("category", ""),
                 analysis.get("suspected_stage", ""), compact_summary(analysis),
                 metric.get("elapsed_sec", ""), metric.get("collision_count", ""),
-                metric.get("minimum_goal_distance_m", ""), row["attempts"], row["result_path"]])
+                metric.get("minimum_goal_distance_m", ""), row["attempts"], shared_result_path])
     os.replace(temporary, path)
+
+
+def _upload_commands(cfg, folder):
+    """Build one campaign-profile upload without changing the local evidence."""
+    remote = str(cfg["upload"]["rclone_remote"]).rstrip("/")
+    base = "{}/{}".format(remote, cfg["name"])
+    profile = cfg["upload"].get("profile", "basic")
+    excludes = []
+    if profile not in ("bag", "full"):
+        excludes.extend(["--exclude", "*.bag", "--exclude", "*.bag.active"])
+    if profile not in ("video", "full"):
+        excludes.extend(["--exclude", "*.mp4"])
+    case_target = "{}/{}/{}".format(base, folder.parent.name, folder.name)
+    drive_flags = _upload_drive_flags(cfg)
+    case_command = ["rclone", "copy", str(folder), case_target] + excludes + drive_flags
+    metadata = [(cfg["output"] / name, "{}/{}".format(base, name))
+                for name in ("summary.csv", "campaign_config.yaml")]
+    return case_command, [["rclone", "copyto", str(source), target]
+                          + drive_flags
+                          for source, target in metadata]
+
+
+def _upload_drive_flags(cfg):
+    root_id = cfg["upload"].get("drive_root_folder_id")
+    return ["--drive-root-folder-id", str(root_id)] if root_id else []
 
 
 def _upload(cfg, folder, state, case):
     upload = cfg["upload"]
     if not upload.get("enabled", False):
         return
+    state.setdefault("upload_errors", [])
     if not shutil.which("rclone"):
         state["upload_errors"].append({"scenario": case.name, "message": "rclone 미설치"})
+        _write_state(cfg, state)
         return
-    remote = str(upload["rclone_remote"]).rstrip("/")
-    target = "{}/{}/{}".format(remote, cfg["name"], folder.name)
-    completed = subprocess.run(["rclone", "copy", str(folder), target],
-                               capture_output=True, text=True, timeout=3600)
-    if completed.returncode:
-        state["upload_errors"].append({"scenario": case.name, "message": completed.stderr[-500:]})
+    case_command, metadata_commands = _upload_commands(cfg, folder)
+    state_command = ["rclone", "copyto", str(cfg["output"] / "campaign_state.json"),
+                     "{}/{}/campaign_state.json".format(str(upload["rclone_remote"]).rstrip("/"),
+                                                          cfg["name"])] + _upload_drive_flags(cfg)
+    for command in [case_command] + metadata_commands:
+        try:
+            completed = subprocess.run(command, capture_output=True, text=True, timeout=3600)
+            if completed.returncode:
+                raise RuntimeError(completed.stderr[-500:] or "rclone 종료 코드 {}".format(completed.returncode))
+        except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+            state["upload_errors"].append({"scenario": case.name, "target": command[3],
+                                           "message": str(error)[-500:]})
     _write_state(cfg, state)
+    try:
+        completed = subprocess.run(state_command, capture_output=True, text=True, timeout=3600)
+        if completed.returncode:
+            raise RuntimeError(completed.stderr[-500:] or "rclone 종료 코드 {}".format(completed.returncode))
+    except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+        state["upload_errors"].append({"scenario": case.name, "target": state_command[3],
+                                       "message": str(error)[-500:]})
+        _write_state(cfg, state)
 
 
 def _run_case(cfg, processes, monitor, case, state):
@@ -241,8 +286,12 @@ def _run_case(cfg, processes, monitor, case, state):
         if (video_cfg.get("enabled", False) and cfg["stack"].get("planviz", True)
                 and video_cfg.get("window_layout") == "split"):
             try:
-                arrange_split_windows(bottom_bar_px=video_cfg["bottom_bar_px"],
-                                      display=video_cfg["display"])
+                detail = arrange_split_windows(
+                    bottom_bar_px=video_cfg["bottom_bar_px"],
+                    display=video_cfg["display"],
+                    startup_grace_sec=(6.0 if not processes.split_layout_initialized else 0.0))
+                processes.split_layout_initialized = True
+                monitor.event("VIDEO_LAYOUT_APPLIED", detail=detail)
             except RuntimeFailure as exc:
                 monitor.event("VIDEO_LAYOUT_WARNING", message=str(exc))
                 print("[WARN] {}: 수동 반반 배치로 영상은 계속 녹화합니다".format(exc), file=sys.stderr)
