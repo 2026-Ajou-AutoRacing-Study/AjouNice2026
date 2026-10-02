@@ -10,7 +10,13 @@
 
 팀원용 공유·시나리오 실행 브랜치는 `planning/autoware-universe-to-ros1`로 통일한다. 자동화 개발 브랜치의 검증기·GUI·설치 안내를 같은 계보로 통합하며, 인지·측위·판단·제어 업데이트도 공유 planning 브랜치에서 pull하고 증분 빌드해서 사용한다. 개발 브랜치는 보존하되 팀원이 검증기를 쓰기 위해 전환해야 하는 브랜치로 안내하지 않는다.
 
-업데이트 순서는 캠페인·GUI·수동 노드 정상 종료 → 깨끗한 worktree 확인 → `git pull --ff-only` → pinned submodule 갱신 → `planning_ws/tools/build.sh --providers` → `scripts/workspace/build_all.sh` → 새 환경 source·노드 재실행이다. build_all.sh는 완성된 planning 설치를 재사용하므로 그것만 실행해서 planning 변경이 빌드됐다고 가정하지 않는다. 평상시 --clean/setup_ws를 반복하지 않으며 입력과 녹화는 보존한다. 코드 업데이트 전후 비교는 같은 입력 hash여도 새 캠페인으로 분리한다. 기본 빌드 도구 자체는 수정하지 않았다.
+업데이트 순서는 캠페인·GUI·수동 노드 정상 종료 → 깨끗한 worktree 확인 → `git pull --ff-only` → pinned submodule 갱신 → `planning_ws/tools/build.sh --providers` → `scripts/workspace/build_all.sh` → 새 환경 source·노드 재실행이다. build_all.sh는 완성된 planning 설치를 재사용하므로 그것만 실행해서 planning 변경이 빌드됐다고 가정하지 않는다. 평상시 --clean/setup_ws를 반복하지 않으며 입력과 녹화는 보존한다. 코드 업데이트 전후 비교는 같은 입력 hash여도 새 캠페인으로 분리한다.
+
+깨끗한 새 터미널에 해당하는 `env -i` 빌드 검증에서 ROS setup hook의 미정의 ROS_DISTRO 참조와 build_all.sh의 nounset이 충돌하는 것을 재현했다. Noetic·planning setup을 source하는 구간에서만 nounset을 해제하고 바로 복원한다. errexit/pipefail은 유지하며 빌드 대상·컴파일 옵션·주행 코드·파라미터는 바꾸지 않는다. 초기화되지 않은 새 터미널에서도 같은 증분 빌드 명령을 사용할 수 있게 한 호환 수정이다.
+
+base 설치 파일 검사에서 패키지 최상위 README가 하위 config README의 legacy flat 설치로 오인되던 조건도 수정했다. 동일 이름의 실제 패키지 최상위 원본이 있는 경우 정상적인 별도 설치로 인정하며 하위 파일의 설치 여부는 계속 검사한다. 격리 테스트에서 정상 README는 허용하고 실제 runtime 파일 누락·잘못된 flat 설치는 각각 오류로 검출되는지 확인한다. 단순히 --clean으로 문서 오인을 회피하지 않는다.
+
+통합 점검 당시 원격 planning 최신 `a3265f16`(로터리 collision hold/time margin 조정)은 자동화 브랜치에 이미 포함돼 있었다. 추가 planning 커밋 없이 같은 계보를 fast-forward로 통합하는 조건이다. planning 154개 패키지 빌드와 깨끗한 환경의 base 증분 빌드·런타임 설치 파일 검사, Xvfb 포함 validator 회귀 129개, 135파일/120장면 재현 검사를 통과했다. 주행 코드는 새로 변경하지 않았으며 이번 점검은 빌드·오프라인 검증이지 새로운 미션 live 주행 검증이 아니다.
 
 ### 미션별 팀원 설계 안내 (2026-10-03)
 
