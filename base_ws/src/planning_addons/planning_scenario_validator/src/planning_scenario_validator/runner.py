@@ -241,7 +241,8 @@ def _run_case(cfg, processes, monitor, case, state):
                 and cfg["stack"].get("planviz", True)
                 and cfg["recording"]["video"].get("focus_planviz", True)):
             try:
-                focus_planviz(timeout=float(cfg["document"].get("readiness_timeout_sec", 45)))
+                focus_planviz(timeout=float(cfg["document"].get("readiness_timeout_sec", 45)),
+                              display=cfg["recording"]["video"]["display"])
             except RuntimeFailure as exc:
                 monitor.event("VIDEO_FOCUS_WARNING", message=str(exc))
                 print("[WARN] {}: 영상은 계속 녹화합니다".format(exc), file=sys.stderr)

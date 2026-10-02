@@ -181,6 +181,9 @@ class LiveMonitor:
         self.latest_accel_command = None
         self.latest_brake_command = None
         self.detection_message_count = 0
+        self.detection_nonempty_message_count = 0
+        self.detection_max_objects = 0
+        self.latest_detection_objects = None
         rospy.Subscriber("/Ego_topic", EgoVehicleStatus, self._ego, queue_size=10)
         rospy.Subscriber("/CollisionData", CollisionData, self._collision, queue_size=10)
         rospy.Subscriber("/localization/kinematic_state", Odometry, self._odom, queue_size=10)
@@ -241,6 +244,11 @@ class LiveMonitor:
         with self.evidence_lock:
             if self.drive_started_at is not None:
                 self.detection_message_count += 1
+                count = len(message.objects)
+                self.latest_detection_objects = count
+                self.detection_max_objects = max(self.detection_max_objects, count)
+                if count:
+                    self.detection_nonempty_message_count += 1
 
     def _control(self, message):
         with self.evidence_lock:
@@ -352,6 +360,9 @@ class LiveMonitor:
             self.latest_accel_command = None
             self.latest_brake_command = None
             self.detection_message_count = 0
+            self.detection_nonempty_message_count = 0
+            self.detection_max_objects = 0
+            self.latest_detection_objects = None
 
     def drive_evidence(self):
         """Summarize live subscribers without replaying the saved rosbag."""
@@ -388,6 +399,9 @@ class LiveMonitor:
                 "latest_accel_command": self.latest_accel_command,
                 "latest_brake_command": self.latest_brake_command,
                 "detection_message_count": self.detection_message_count,
+                "detection_nonempty_message_count": self.detection_nonempty_message_count,
+                "detection_max_objects": self.detection_max_objects,
+                "latest_detection_objects": self.latest_detection_objects,
             }
 
     def begin_case(self, events_path):
@@ -525,8 +539,8 @@ class BrakeHold:
         self.publisher.unregister()
 
 
-def video_size():
-    output = subprocess.check_output(["xdpyinfo"], text=True, timeout=5)
+def video_size(display):
+    output = subprocess.check_output(["xdpyinfo", "-display", str(display)], text=True, timeout=5)
     import re
     match = re.search(r"dimensions:\s+(\d+x\d+) pixels", output)
     if not match:
@@ -534,7 +548,7 @@ def video_size():
     return match.group(1)
 
 
-def focus_planviz(timeout=45):
+def focus_planviz(timeout=45, display=None):
     """Maximize/raise the RViz window before full-screen X11 capture."""
     command = ["/usr/bin/python3", str(ROOT / "base_ws/src/planning_addons/"
                                         "planning_scenario_validator/scripts/focus_planviz.py"),
@@ -542,10 +556,13 @@ def focus_planviz(timeout=45):
     # libwnck can occasionally crash while RViz replaces its X11 window on a
     # scenario transition. A fresh helper process succeeds once that window
     # settles; keep the recorder non-fatal if every attempt fails.
+    focus_env = os.environ.copy()
+    if display:
+        focus_env["DISPLAY"] = str(display)
     for attempt in range(3):
         try:
             result = subprocess.run(command, capture_output=True, text=True,
-                                    timeout=timeout + 3)
+                                    timeout=timeout + 3, env=focus_env)
         except subprocess.TimeoutExpired as error:
             raise RuntimeFailure("Planviz 창 최대화 대기 시간이 초과됐습니다") from error
         if result.returncode == 0:
@@ -584,7 +601,7 @@ class Recording:
             self.handles.append(video_log)
             self.video = subprocess.Popen([
                 "ffmpeg", "-nostdin", "-loglevel", "warning", "-y", "-f", "x11grab",
-                "-framerate", str(video.get("fps", 15)), "-video_size", video_size(),
+                "-framerate", str(video.get("fps", 15)), "-video_size", video_size(video["display"]),
                 "-i", str(video["display"]), "-c:v", "libx264", "-preset", "ultrafast",
                 "-crf", "28", "-pix_fmt", "yuv420p", str(self.video_path)
             ], stdout=video_log, stderr=subprocess.STDOUT, start_new_session=True, env=self.env)

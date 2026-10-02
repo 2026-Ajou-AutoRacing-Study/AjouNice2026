@@ -13,7 +13,7 @@
 
 처음에는 실패 장면도 포함하는 `static_pair_stress_gt.yaml` 예제가 선택된다. 시나리오 폴더·glob·목적지(map 좌표)·제한 시간·측위·탐지기·녹화 옵션을 확인한 뒤 `설정 검사` → `실행 / resume`을 누른다. 예제 파일은 바뀌지 않고 `config/users/<리눅스 사용자>/<campaign_name>.yaml`에 개인 설정이 생성된다. 폴더 안의 시나리오별 `.case.yaml` 목적지/시간 override와 GUI에 보이지 않는 고급 YAML 옵션도 보존된다. 직접 저장한 YAML은 `내 YAML 열기 / resume`으로 다시 열어 이어서 실행한다. 한 번 실행된 캠페인은 YAML을 바꿀 수 없으므로 조건 변경 시 새 `campaign_name`을 쓴다.
 
-GUI는 기존 `./planning_validator`만 호출한다. 실행 중 표에 완료 장면의 PASS/FAIL/ERROR와 관측된 실패 유형을 표시하며, `중단`은 결과를 보존하고 다음 실행에서 resume한다. 영상은 X11 전체 화면을 녹화하므로 GUI가 실행 직후 최소화된다. 다시 열면 녹화 화면에도 GUI가 보일 수 있다. `설정 검사`가 통과해도 MORAI 연결·BEVFusion checkpoint·주행 성공까지 보증하지는 않는다. GUI가 필요 없는 서버/터미널에서는 아래 CLI를 그대로 사용한다.
+GUI는 기존 `./planning_validator`만 호출한다. 실행 중 표에 완료 장면의 PASS/FAIL/ERROR와 관측된 실패 유형을 표시하며, 실패 장면을 더블클릭하면 근거 수치와 조사 우선 단계를 볼 수 있다. `중단`은 결과를 보존하고 다음 실행에서 resume한다. 기본 resume는 완료된 PASS/FAIL을 건너뛴다. 같은 설정으로 실패 장면을 다시 돌리려면 `기존 FAIL도 다시 실행`을 체크한다. **실행기의 종료 코드 0은 전체 시나리오 PASS를 의미하지 않는다**. GUI의 성공/주행 실패/시스템 오류 건수와 `summary.csv`를 확인한다. 영상은 X11 전체 화면을 녹화하므로 GUI가 실행 직후 최소화된다. 다시 열면 녹화 화면에도 GUI가 보일 수 있다. `설정 검사`가 통과해도 MORAI 연결·BEVFusion checkpoint·주행 성공까지 보증하지는 않는다. GUI가 필요 없는 서버/터미널에서는 아래 CLI를 그대로 사용한다.
 
 ## 5분 실행
 
@@ -114,9 +114,9 @@ arrival_mode: stop
 - `basic.json`: camera/LiDAR 제외, planning/인지/제어/GT 핵심 토픽
 - `lightweight.json`: 위치, trajectory, command, collision 중심
 - `full.json`: 알려진 센서·planning 토픽 목록. 실제 수신하지 않는 항목은 rosbag에 들어가지 않는다.
-- 영상은 X11 전체 화면을 시나리오마다 ffmpeg로 녹화한다. 기본값 `focus_planviz: true`는 녹화 직전 Planviz를 전면·최대화하며 ROS1 EOL 팝업을 띄우지 않는다. 다른 창에 포커스를 주면 전체 화면 영상에도 그 창이 찍힌다.
+- 영상은 X11 전체 화면을 시나리오마다 ffmpeg로 녹화한다. `recording.video.display`는 Planviz가 뜬 X11 화면(보통 `:0.0`)과 같아야 한다. 기본값 `focus_planviz: true`는 녹화 직전 그 화면의 Planviz를 전면·최대화하며 ROS1 EOL 팝업을 띄우지 않는다. 다른 창에 포커스를 주면 전체 화면 영상에도 그 창이 찍힌다.
 - 충돌은 `/CollisionData`의 객체 ID를 실시간으로 읽는다. 한 시나리오에서 같은 ID의 접촉 메시지가 끊겼다 재등장해도 1개 객체로만 센다. goal 반경, 속도 및 유지 시간으로 성공을 판단한다. 지정 시간 미도달은 TIMEOUT이다.
-- `result.json`은 개별 증거용, `summary.csv`는 사람에게 보여주기 위한 전체 표, `events.jsonl`은 시간 순서 감사 기록이다. 실패 분석기는 녹화 재생 없이 실시간 구독값과 해당 장면의 스택 로그만 사용한다. `result.json`의 `failure_analysis`에 증상 분류, 수치 근거, 로그 징후, 의심 단계와 신뢰도를 기록한다. `summary.csv`에는 `failure_category`, `suspected_stage`, `evidence_summary`가 추가된다. 이는 코드 수준의 근본 원인 확정이 아니다.
+- `result.json`은 개별 증거용, `summary.csv`는 사람에게 보여주기 위한 전체 표, `events.jsonl`은 시간 순서 감사 기록이다. 실패 분석기는 녹화 재생 없이 실시간 구독값과 해당 장면의 스택 로그만 사용한다. `result.json`의 `failure_analysis`에 증상 분류, 수치 근거, 로그 징후, 의심 단계와 신뢰도를 기록한다. 탐지 토픽 수신 횟수와 실제 객체가 포함된 메시지 수를 별도로 세므로, **토픽이 살아 있음**과 **객체가 검출됨**을 혼동하지 않는다. `summary.csv`에는 `failure_category`, `suspected_stage`, `evidence_summary`가 추가된다. 이는 코드 수준의 근본 원인 확정이 아니다.
 - 녹화는 ScenarioLoad 전에 시작한다. Route 요청이 거부돼도 bag·MP4·이벤트가 남는다. `elapsed_sec`은 주행 판정 시간이고, 새 결과의 `wall_elapsed_sec`은 준비와 정리를 포함한 전체 실행 시간이다.
 
 출력 예:

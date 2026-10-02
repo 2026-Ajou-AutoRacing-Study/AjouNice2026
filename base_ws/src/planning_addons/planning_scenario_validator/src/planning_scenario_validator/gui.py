@@ -6,6 +6,7 @@ starts the same `planning_validator` command used by terminal operators.
 import copy
 import getpass
 import json
+import math
 import os
 import queue
 import re
@@ -71,6 +72,17 @@ def form_values(document):
     return result
 
 
+def finite_number(value, label, *, positive=False):
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("{}은 숫자여야 합니다".format(label)) from error
+    if not math.isfinite(number) or (positive and number <= 0):
+        raise ValueError("{}은 {}유한한 숫자여야 합니다".format(
+            label, "0보다 큰 " if positive else ""))
+    return number
+
+
 def build_document(template, values):
     """Transform form values into a validated personal YAML document."""
     result = copy.deepcopy(template)
@@ -84,10 +96,8 @@ def build_document(template, values):
         raise ValueError("시나리오 폴더와 파일 패턴이 필요합니다")
     goal = result.setdefault("default_case", {}).setdefault("goal", {})
     for key in ("x", "y", "z", "yaw_deg"):
-        goal[key] = float(values["goal_" + key])
-    timeout = float(values["timeout_sec"])
-    if timeout <= 0:
-        raise ValueError("주행 제한 시간은 양수여야 합니다")
+        goal[key] = finite_number(values["goal_" + key], "목적지 " + key)
+    timeout = finite_number(values["timeout_sec"], "주행 제한 시간", positive=True)
     result["default_case"]["timeout_sec"] = timeout
     stack = result.setdefault("stack", {})
     for key in ("pose_source", "detector"):
@@ -100,10 +110,11 @@ def build_document(template, values):
     network = result.setdefault("network", {})
     for key in ("sensor_json", "ego_network_json"):
         network[key] = str(values[key]).strip()
-    result.setdefault("morai", {})["scenario_load_host"] = str(values["scenario_load_host"]).strip()
-    tolerance = float(values["goal_tolerance_m"])
-    if tolerance <= 0:
-        raise ValueError("도착 허용 거리는 양수여야 합니다")
+    host = str(values["scenario_load_host"]).strip()
+    if not host:
+        raise ValueError("ScenarioLoad IP가 비어 있습니다")
+    result.setdefault("morai", {})["scenario_load_host"] = host
+    tolerance = finite_number(values["goal_tolerance_m"], "도착 허용 거리", positive=True)
     result.setdefault("validation", {})["goal_tolerance_m"] = tolerance
     result["resume"] = True
     return result
@@ -128,12 +139,54 @@ def save_personal(document, path):
     header = ("# GUI에서 저장한 개인 캠페인입니다. 이 파일은 Git에 포함되지 않습니다.\n"
               "# 시나리오별 다른 목적지/시간은 같은 이름의 .case.yaml에 적습니다.\n"
               "# 실행 후에는 resume 해시 보호를 위해 수정하지 말고 새 campaign_name을 쓰세요.\n")
-    path.write_text(header + yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    temporary = path.with_name(path.name + ".tmp.{}".format(os.getpid()))
+    try:
+        temporary.write_text(header + yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+                             encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
     return path
 
 
 def campaign_output(document):
     return resolve_path(document.get("output_root", "planner_logs/validation")) / document["campaign_name"]
+
+
+def result_counts(state):
+    results = state.get("results", {})
+    return {key: sum(row.get("status") == key for row in results.values())
+            for key in ("PASS", "FAIL", "ERROR")}
+
+
+def completion_label(code, state):
+    """CLI exit 0 can include legitimate FAIL cases: never call that a pass."""
+    if state is None:
+        return "실행 종료 (코드 {}). 결과 파일 없음 — 로그를 확인하세요.".format(code)
+    counts = result_counts(state)
+    total = state.get("total", "?")
+    completed = len(state.get("results", {}))
+    return "검증 종료 {}/{} | 성공 {} / 주행 실패 {} / 시스템 오류 {} | 종료 코드 {}".format(
+        completed, total, counts["PASS"], counts["FAIL"], counts["ERROR"], code)
+
+
+def render_result_table(table, state, result_paths):
+    """Update rows in place so a selected failure stays selected while polling."""
+    results = state.get("results", {})
+    for old in table.get_children():
+        if old not in results:
+            table.delete(old)
+            result_paths.pop(old, None)
+    for name, row in sorted(results.items()):
+        values = (name, row.get("status", ""), row.get("reason", ""),
+                  row.get("failure_category", ""),
+                  "" if row.get("status") == "PASS" else row.get("suspected_stage", ""))
+        if table.exists(name):
+            if tuple(table.item(name, "values")) != values:
+                table.item(name, values=values)
+        else:
+            table.insert("", "end", iid=name, values=values)
+        result_paths[name] = Path(row["result_path"])
 
 
 def is_within(path, directory):
@@ -144,7 +197,8 @@ def is_within(path, directory):
         return False
 
 
-def main():
+def main(*, on_ready=None, runner_executable=None):
+    """Open the GUI; optional hooks let Xvfb tests drive buttons without ROS."""
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
 
@@ -153,6 +207,7 @@ def main():
         raise RuntimeError("검증기 예제 YAML이 없습니다: {}".format(EXAMPLES))
     preferred = EXAMPLES / "static_pair_stress_gt.yaml"
     initial = preferred if preferred.exists() else examples[0]
+    runner = str(runner_executable or ROOT / "planning_validator")
 
     root = tk.Tk()
     root.title("AjouNice 주행 시나리오 검증기")
@@ -163,7 +218,10 @@ def main():
     source = tk.StringVar()
     status = tk.StringVar(value="준비됨 — MORAI GUI에서 Sensor/Ego Network를 먼저 Load·Connect하세요.")
     vars_ = {}
-    active = {"process": None, "config": None, "document": None, "stopping": False}
+    active = {"process": None, "check_process": None, "config": None,
+              "document": None, "stopping": False}
+    rerun_failed = tk.BooleanVar(value=False)
+    result_paths = {}
     events = queue.Queue()
 
     def read_source(path, fresh_name=False):
@@ -173,6 +231,11 @@ def main():
             values["campaign_name"] = default_name(path)
         active["template"] = document
         active["source_path"] = Path(path)
+        active["config"] = Path(path) if is_within(path, USERS) else None
+        active["document"] = document if active["config"] else None
+        result_paths.clear()
+        for item in table.get_children():
+            table.delete(item)
         source.set(str(path))
         for key, value in values.items():
             vars_[key].set(value)
@@ -193,7 +256,8 @@ def main():
             except Exception as error:
                 messagebox.showerror("설정 로드 실패", str(error))
 
-    ttk.Button(top, text="내 YAML 열기 / resume", command=choose_personal).grid(row=0, column=1, padx=4)
+    personal_button = ttk.Button(top, text="내 YAML 열기 / resume", command=choose_personal)
+    personal_button.grid(row=0, column=1, padx=4)
     top.columnconfigure(0, weight=1)
     ttk.Label(top, text="처음 연결은 MORAI MR GUI에서 직접 합니다. 시나리오 전환만 자동입니다.", foreground="#a44").grid(row=1, column=0, columnspan=2, sticky="w", pady=5)
 
@@ -254,6 +318,8 @@ def main():
         return document, path
 
     def save():
+        if active["process"] and active["process"].poll() is None:
+            raise ValueError("캠페인 실행 중에는 YAML을 변경할 수 없습니다. 중단 후 새 이름으로 저장하세요")
         document, path = collect()
         save_personal(document, path)
         active.update(config=path, document=document)
@@ -274,11 +340,16 @@ def main():
         try:
             for line in process.stdout:
                 events.put(("line", line.rstrip("\n")))
-            events.put(("done", label, process.wait()))
         except Exception as error:
             events.put(("line", "출력 수집 오류: {}".format(error)))
+        finally:
+            process.stdout.close()
+            events.put(("done", label, process.wait()))
 
     def check():
+        if active["check_process"] and active["check_process"].poll() is None:
+            messagebox.showinfo("설정 검사 중", "현재 설정 검사가 끝날 때까지 기다려 주세요.")
+            return
         try:
             path = save()
         except Exception as error:
@@ -286,15 +357,20 @@ def main():
             return
         status.set("설정 검사 중...")
         try:
-            process = subprocess.Popen([str(ROOT / "planning_validator"), str(path), "--dry-run"],
+            process = subprocess.Popen([runner, str(path), "--dry-run"],
                                        cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                        text=True, bufsize=1)
         except OSError as error:
             show_error("설정 검사 실행 실패", error)
             return
+        active["check_process"] = process
+        set_running_ui(True, allow_stop=False)
         threading.Thread(target=command_reader, args=(process, "check"), daemon=True).start()
 
     def start():
+        if active["check_process"] and active["check_process"].poll() is None:
+            messagebox.showinfo("설정 검사 중", "현재 설정 검사가 끝난 후 캠페인을 시작하세요.")
+            return
         if active["process"] and active["process"].poll() is None:
             messagebox.showinfo("이미 실행 중", "한 번에 한 캠페인만 실행할 수 있습니다.")
             return
@@ -306,13 +382,17 @@ def main():
         if not messagebox.askokcancel("캠페인 시작", "MORAI GUI에서 YAML의 Sensor/Ego Network JSON을 Load·Connect했나요?\n\n녹화 중 GUI를 최소화합니다. 다시 띄우면 전체 화면 영상에도 찍힐 수 있습니다."):
             return
         try:
-            process = subprocess.Popen([str(ROOT / "planning_validator"), str(path)], cwd=str(ROOT),
+            command = [runner, str(path)]
+            if rerun_failed.get():
+                command.append("--rerun-failed")
+            process = subprocess.Popen(command, cwd=str(ROOT),
                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                        text=True, bufsize=1, start_new_session=True)
         except OSError as error:
             show_error("캠페인 실행 실패", error)
             return
         active.update(process=process, stopping=False)
+        set_running_ui(True)
         status.set("주행 검증 실행 중: {}".format(active["document"]["campaign_name"]))
         threading.Thread(target=command_reader, args=(process, "run"), daemon=True).start()
         root.after(800, lambda: root.iconify() if active["process"] and
@@ -345,9 +425,22 @@ def main():
 
     controls = ttk.Frame(frame)
     controls.pack(fill="x", pady=5)
+    control_buttons = {}
     for label, action in (("개인 YAML 저장", save_clicked), ("설정 검사", check),
                           ("실행 / resume", start), ("중단", stop), ("결과 폴더", open_results)):
-        ttk.Button(controls, text=label, command=action).pack(side="left", padx=4)
+        button = ttk.Button(controls, text=label, command=action)
+        button.pack(side="left", padx=4)
+        control_buttons[label] = button
+    ttk.Checkbutton(controls, text="기존 FAIL도 다시 실행", variable=rerun_failed).pack(side="left", padx=12)
+
+    def set_running_ui(running, *, allow_stop=True):
+        source_box.configure(state="disabled" if running else "readonly")
+        personal_button.configure(state="disabled" if running else "normal")
+        for label in ("개인 YAML 저장", "설정 검사", "실행 / resume"):
+            control_buttons[label].configure(state="disabled" if running else "normal")
+        control_buttons["중단"].configure(state="normal" if running and allow_stop else "disabled")
+
+    set_running_ui(False)
     ttk.Label(frame, textvariable=status, wraplength=970).pack(anchor="w", pady=4)
 
     columns = ("scenario", "status", "reason", "category", "stage")
@@ -358,7 +451,6 @@ def main():
         table.heading(key, text=title)
         table.column(key, width=width, anchor="w")
     table.pack(fill="both", expand=True, pady=4)
-    result_paths = {}
 
     def show_detail(_event):
         selected = table.selection()
@@ -395,23 +487,18 @@ def main():
     def update_progress():
         document = active.get("document")
         if not document:
-            return
+            return None
         path = campaign_output(document) / "campaign_state.json"
         try:
             state = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return
-        children = table.get_children()
-        if children:
-            table.delete(*children)
-        result_paths.clear()
+            return None
+        config_path = active.get("config")
+        if config_path and state.get("config_path") != str(config_path.resolve()):
+            return None
         results = state.get("results", {})
-        for name, row in sorted(results.items()):
-            item = table.insert("", "end", values=(name, row.get("status", ""), row.get("reason", ""),
-                                                     row.get("failure_category", ""),
-                                                     row.get("suspected_stage", "")))
-            result_paths[item] = Path(row["result_path"])
-        counts = {key: sum(r.get("status") == key for r in results.values()) for key in ("PASS", "FAIL", "ERROR")}
+        render_result_table(table, state, result_paths)
+        counts = result_counts(state)
         current = state.get("current")
         if isinstance(current, dict):
             current = "{} / {}".format(current.get("scenario", "?"), current.get("phase", "?"))
@@ -419,6 +506,7 @@ def main():
         if active["process"] and active["process"].poll() is None:
             status.set("진행 {}/{} | 성공 {} 실패 {} 오류 {} | 현재 {}".format(
                 len(results), state.get("total", "?"), counts["PASS"], counts["FAIL"], counts["ERROR"], current))
+        return state
 
     def poll():
         while True:
@@ -433,16 +521,22 @@ def main():
                 append("{} 종료 코드: {}".format(label, code))
                 if label == "run":
                     active["process"] = None
+                    set_running_ui(False)
                     root.deiconify()
                     root.lift()
-                    update_progress()
-                    status.set("캠페인 종료 (코드 {}). PASS/FAIL 집계는 아래 표와 summary.csv를 확인하세요.".format(code))
+                    state = update_progress()
+                    status.set(completion_label(code, state))
                 else:
+                    active["check_process"] = None
+                    set_running_ui(False)
                     status.set("설정 검사 {}".format("통과" if code == 0 else "실패 (로그 확인)"))
         update_progress()
         root.after(500, poll)
 
     def on_close():
+        if active["check_process"] and active["check_process"].poll() is None:
+            messagebox.showinfo("설정 검사 중", "설정 검사가 끝난 후 창을 닫아 주세요.")
+            return
         if active["process"] and active["process"].poll() is None:
             messagebox.showinfo("실행 중", "먼저 중단 버튼을 눌러 ROS와 녹화를 정리하세요.")
             return
@@ -450,6 +544,12 @@ def main():
 
     root.protocol("WM_DELETE_WINDOW", on_close)
     read_source(initial, fresh_name=True)
+    if on_ready is not None:
+        on_ready({"root": root, "fields": vars_, "actions": {
+            "save": save, "check": check, "start": start, "stop": stop,
+            "update_progress": update_progress}, "active": active,
+            "status": status, "table": table, "log": log,
+            "rerun_failed": rerun_failed})
     root.after(500, poll)
     root.mainloop()
     return 0

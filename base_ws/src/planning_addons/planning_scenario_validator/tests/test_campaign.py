@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from build_static_corridor_cases import build as build_static_corridor_cases
 from planning_scenario_validator.config import ConfigError, ROOT, load_campaign
-from planning_scenario_validator.runtime import LiveMonitor, focus_planviz, prepare_scenario
+from planning_scenario_validator.runtime import LiveMonitor, focus_planviz, prepare_scenario, video_size
 from planning_scenario_validator.runner import _recover_interrupted
 
 
@@ -177,6 +177,16 @@ class CampaignTest(unittest.TestCase):
                 focus_planviz(timeout=2)
         self.assertEqual(run.call_count, 2)
 
+    def test_video_tools_use_configured_display_not_calling_shell_display(self):
+        with patch("planning_scenario_validator.runtime.subprocess.check_output",
+                   return_value="  dimensions:    1920x1080 pixels\n") as check:
+            self.assertEqual(video_size(":9.0"), "1920x1080")
+        self.assertEqual(check.call_args.args[0], ["xdpyinfo", "-display", ":9.0"])
+        with patch("planning_scenario_validator.runtime.subprocess.run",
+                   return_value=SimpleNamespace(returncode=0, stderr="", stdout="")) as run:
+            focus_planviz(timeout=2, display=":9.0")
+        self.assertEqual(run.call_args.kwargs["env"]["DISPLAY"], ":9.0")
+
     def test_live_evidence_records_motion_plan_and_control(self):
         monitor = LiveMonitor.__new__(LiveMonitor)
         monitor.evidence_lock = threading.Lock()
@@ -195,12 +205,18 @@ class CampaignTest(unittest.TestCase):
             SimpleNamespace(longitudinal_velocity_mps=3.0),
             SimpleNamespace(longitudinal_velocity_mps=4.0)]))
         monitor._control(SimpleNamespace(accel=0.3, brake=0.0))
+        monitor._detections(SimpleNamespace(objects=[]))
+        monitor._detections(SimpleNamespace(objects=[object(), object()]))
         monitor._odom(odom(1.2, 2.0))
         evidence = monitor.drive_evidence()
         self.assertGreaterEqual(evidence["max_displacement_m"], 1.2)
         self.assertEqual(evidence["trajectory_near_max_speed_mps"], 4.0)
         self.assertEqual(evidence["control_command_count"], 1)
         self.assertEqual(evidence["max_accel_command"], 0.3)
+        self.assertEqual(evidence["detection_message_count"], 2)
+        self.assertEqual(evidence["detection_nonempty_message_count"], 1)
+        self.assertEqual(evidence["detection_max_objects"], 2)
+        self.assertEqual(evidence["latest_detection_objects"], 2)
 
 
 def cfg_case():

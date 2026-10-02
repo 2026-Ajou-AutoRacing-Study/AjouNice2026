@@ -38,7 +38,8 @@ def main(argv=None):
                     detail = row.get("failure_category") or row.get("reason", "")
                     stage = row.get("suspected_stage", "")
                     print("  {:6s} {:34s} {}{}".format(row.get("status", "?"), name[:34],
-                        detail, " [{}]".format(stage) if stage and stage != "undetermined" else ""))
+                        detail, " [{}]".format(stage) if row.get("status") != "PASS" and
+                        stage and stage not in ("undetermined", "not_applicable") else ""))
                 if state.get("upload_errors"):
                     print("업로드 오류 {}개 (로컬 결과는 보존됨)".format(len(state["upload_errors"])))
             if args.once:

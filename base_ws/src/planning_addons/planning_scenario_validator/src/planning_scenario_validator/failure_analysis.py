@@ -11,6 +11,8 @@ from pathlib import Path
 
 LOG_PATTERNS = {
     "MPT_NO_ALIGNED_PATH": re.compile(r"no aligned previous path", re.I),
+    "MPT_FOOTPRINT_OVERLAP": re.compile(
+        r"Measured footprint already overlaps static obstacle clearance; stopping", re.I),
     "EMPTY_ROUTE": re.compile(r"DefaultPlanner returned an empty route", re.I),
 }
 LOG_FILES = ("planning.log", "controller.log", "pose.log", "bevfusion.log")
@@ -18,7 +20,7 @@ LOG_FILES = ("planning.log", "controller.log", "pose.log", "bevfusion.log")
 
 def compact_summary(analysis):
     """Keep the CSV scannable while exposing the decisive numerical evidence."""
-    important = ("출발점", "궤적 앞", "planner 로그", "제어 명령", "충돌 객체", "실행 오류")
+    important = ("출발점", "궤적 앞", "planner 로그", "제어 명령", "검출 메시지", "충돌 객체", "실행 오류")
     evidence = [item for item in analysis.get("evidence", [])
                 if any(token in item for token in important)]
     if not evidence:
@@ -69,7 +71,8 @@ def analyze_failure(reason, metrics, *, error=None, goal_tolerance_m=2.0, log_si
     if error:
         evidence.append("실행 오류: {}".format(str(error)[:240]))
     if reason == "SUCCESS":
-        analysis.update(category="SUCCESS", summary="목적지 도착 및 충돌 없음")
+        analysis.update(category="SUCCESS", summary="목적지 도착 및 충돌 없음",
+                        suspected_stage="not_applicable")
         return analysis
     if reason == "COLLISION":
         analysis.update(category="COLLISION", summary="/CollisionData에서 충돌 관측",
@@ -151,15 +154,28 @@ def analyze_failure(reason, metrics, *, error=None, goal_tolerance_m=2.0, log_si
             evidence.append("궤적 앞 5점의 {} 속도 {:.2f}m/s".format(
                 "최대" if analysis["category"] == "NO_DEPARTURE" else "종료 시 최대", near_speed))
         evidence.append("제어 명령 {}개, 최대 가속 명령 {:.2f}".format(command_count, max_accel))
+        detector_messages = metrics.get("detection_message_count")
+        if detector_messages is not None:
+            evidence.append("검출 메시지 {}개 중 객체 포함 {}개, 최신 객체 {}개".format(
+                detector_messages, metrics.get("detection_nonempty_message_count", "?"),
+                metrics.get("latest_detection_objects", "?")))
         if latest_accel is not None and latest_brake is not None:
             evidence.append("마지막 가속/제동 명령 {:.2f}/{:.2f}".format(
                 latest_accel, latest_brake))
         mpt_count = sum(item["count"] for item in signals
                         if item["code"] == "MPT_NO_ALIGNED_PATH")
+        overlap_count = sum(item["count"] for item in signals
+                            if item["code"] == "MPT_FOOTPRINT_OVERLAP")
         if mpt_count:
             evidence.append("해당 장면 planner 로그의 'no aligned previous path' {}회".format(mpt_count))
+        if overlap_count:
+            evidence.append("해당 장면 planner 로그의 'footprint overlaps static obstacle clearance; stopping' {}회".format(
+                overlap_count))
         if near_speed is not None and near_speed <= 0.1:
-            analysis.update(suspected_stage="planning_output", stage_confidence="medium")
+            if overlap_count >= 3:
+                analysis.update(suspected_stage="planning_safety_stop", stage_confidence="high")
+            else:
+                analysis.update(suspected_stage="planning_output", stage_confidence="medium")
         elif near_speed is not None and near_speed > 0.5 and command_count > 0:
             if analysis["category"] == "NO_DEPARTURE" and max_accel > 0.05:
                 analysis.update(suspected_stage="vehicle_or_command_interface",

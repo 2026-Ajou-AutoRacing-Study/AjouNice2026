@@ -34,10 +34,12 @@ def main():
                     context.iteration(False)
                 time.sleep(0.2)
                 screen.force_update()
-                if window.is_maximized():
+                active = screen.get_active_window()
+                if (window.is_maximized() and active is not None
+                        and active.get_xid() == window.get_xid()):
                     return 0
         time.sleep(0.2)
-    print("Planviz RViz window not found/maximized", file=sys.stderr)
+    print("Planviz RViz window not found/maximized/active", file=sys.stderr)
     return 1
 
 
