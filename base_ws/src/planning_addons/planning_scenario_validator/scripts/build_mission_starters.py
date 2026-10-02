@@ -303,16 +303,19 @@ def build(output=OUTPUT):
         for stem, scene, case, meta in rows:
             validate(scene, geom)
             expected[folder / "scenarios" / (stem + ".json")] = json.dumps(scene, ensure_ascii=False, indent=2) + "\n"
-            expected[folder / "scenarios" / (stem + ".case.yaml")] = yaml.safe_dump(case, allow_unicode=True, sort_keys=False)
+        common = {k: v for k, v in rows[0][2].items() if k != "description"}
+        if any({k: v for k, v in row[2].items() if k != "description"} != common for row in rows):
+            raise ValueError("{}: 서로 다른 목적지/시간은 별도 캠페인 YAML로 분리하세요".format(family))
         campaign = copy.deepcopy(template)
-        campaign.update(campaign_name="starter_{}_bev".format(family))
+        campaign.update(schema_version=2, campaign_name="starter_{}_bev".format(family))
         campaign["scenarios"] = {"directory": str((folder / "scenarios").relative_to(ROOT)), "glob": "*.json"}
-        campaign["default_case"] = {k: v for k, v in rows[0][2].items() if k != "description"}
+        campaign["default_case"] = common
         campaign["recording"]["video"].update(window_layout="split", focus_planviz=False, bottom_bar_px="auto", fps=10)
         campaign["recording"]["minimum_free_disk_gib"] = 10
         campaign["upload"] = {"enabled": False, "rclone_remote": "ajou_drive:planning_validator", "profile": "basic"}
         header = ("# 미션별 공유 예제: GUI에서 열어 개인 YAML로 저장하세요.\n"
-                  "# 목적지/주행시간은 scenarios/*.case.yaml이 우선합니다.\n"
+                  "# 이 YAML의 목적지/주행시간이 모든 선택 시나리오에 동일하게 적용됩니다.\n"
+                  "# 다른 목적지/시간은 별도 이름의 YAML로 시험하세요.\n"
                   "# 센서는 계속 켜고, bag에서만 LiDAR/카메라를 제외합니다.\n"
                   "# GT 대조는 GUI 탐지기를 od_gt로 바꾸고 새 캠페인으로 저장하세요.\n")
         expected[folder / "example.yaml"] = header + yaml.safe_dump(campaign, allow_unicode=True, sort_keys=False)
@@ -353,6 +356,9 @@ def main():
         else:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
+    obsolete = sorted(OUTPUT.glob("*/base/scenarios/*.case.yaml"))
+    if obsolete:
+        raise SystemExit("폐기된 보조 YAML이 {}개 남았습니다. 공유 base의 .case.yaml을 제거하세요".format(len(obsolete)))
     print("{} files / 5 missions / 120 scenarios {}".format(len(expected), "verified" if args.check else "generated"))
 
 

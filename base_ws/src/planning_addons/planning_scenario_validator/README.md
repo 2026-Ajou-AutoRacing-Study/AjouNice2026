@@ -20,7 +20,9 @@ GUI는 마지막으로 열거나 저장한 YAML의 경로를 `~/.config/ajounice
 
 `모니터 모드`를 누르면 GUI가 RViz와 같은 폭으로 화면 왼쪽 아래에 놓인다. 바 높이는 기존 설정을 유지하며 `중단`, `결과 폴더`, `전체 설정 보기` 버튼이 남는다. 긴 상태 문구가 있어도 버튼은 위쪽에 표시한다. 최대화된 설정 창에서도 모니터 바로 전환할 수 있고, `전체 설정 보기`를 누르면 이전 창 상태로 돌아간다. 실행 전 이 버튼을 누르면 영상 설정을 `split`으로 바꾸며, 기존 `manual` YAML에서 바로 실행할 때도 RViz 전체화면 동작을 안내하고 `split` 변경 여부를 묻는다. 이미 실행 중인 캠페인은 YAML이 고정되어 있으므로 화면 배치를 지속적으로 바꾸려면 안전 중단 후 새 캠페인 이름으로 다시 실행해야 한다.
 
-마지막 YAML 기록이 없는 첫 실행에서는 통과 확인된 한 장면의 `static_pair_mission_gt_split.yaml` 예제가 선택된다. RViz 왼쪽·MORAI 오른쪽·GUI 하단 모니터 바의 전체 화면 영상용 설정이다. 실패 장면을 찾는 5개 장면 스트레스 예제는 목록의 `static_pair_stress_gt.yaml`에서 선택한다. 시나리오 폴더·glob·목적지(map 좌표)·제한 시간·측위·탐지기·녹화 옵션을 확인한 뒤 `설정 검사` → `실행 / resume`을 누른다. 예제 파일은 바뀌지 않는다. 미션 base를 선택하면 같은 미션 workspace에 `<campaign_name>.yaml`을 저장하며, 기존 공통 예제를 선택하면 `config/users/<리눅스 사용자>/<campaign_name>.yaml`에 저장한다. 폴더 안의 시나리오별 `.case.yaml` 목적지/시간 override와 GUI에 보이지 않는 고급 YAML 옵션도 보존된다. 직접 저장한 YAML은 `내 YAML 열기 / resume`으로 다시 열어 이어서 실행한다. 한 번 실행된 캠페인의 설정을 바꾸면 기존 기록 보호를 위해 새 캠페인 이름으로 복사할지 GUI가 묻는다. **그대로 이어 실행할 때는 기존 개인 YAML을 열고 값을 바꾸지 않는다.**
+마지막 YAML 기록이 없는 첫 실행에서는 통과 확인된 한 장면의 `static_pair_mission_gt_split.yaml` 예제가 선택된다. RViz 왼쪽·MORAI 오른쪽·GUI 하단 모니터 바의 전체 화면 영상용 설정이다. 실패 장면을 찾는 5개 장면 스트레스 예제는 목록의 `static_pair_stress_gt.yaml`에서 선택한다. 시나리오 폴더·glob·목적지(map 좌표)·제한 시간·측위·탐지기·녹화 옵션을 확인한 뒤 `설정 검사` → `실행 / resume`을 누른다. **YAML 하나의 목적지·시간·도착 방식·경유점은 선택한 모든 장면에 동일하게 적용된다.** 예제 파일은 바뀌지 않는다. 미션 base를 선택하면 같은 미션 workspace에 `<campaign_name>.yaml`을 저장하며, 기존 공통 예제를 선택하면 `config/users/<리눅스 사용자>/<campaign_name>.yaml`에 저장한다. GUI에 보이지 않는 고급 YAML 옵션도 보존된다. 직접 저장한 YAML은 `내 YAML 열기 / resume`으로 다시 열어 이어서 실행한다. 한 번 실행된 캠페인의 설정을 바꾸면 기존 기록 보호를 위해 새 캠페인 이름으로 복사할지 GUI가 묻는다. **그대로 이어 실행할 때는 기존 개인 YAML을 열고 값을 바꾸지 않는다.**
+
+현재 설정 형식은 `schema_version: 2`다. 장면별 `.case.yaml`은 제거했고 읽지 않는다. GUI는 보조 YAML이나 필수 항목이 없는 파일을 거절하며 기존 입력을 유지한다. 이전 v1 YAML은 GUI에서 열어 확인할 수 있지만 저장 시 v2로 전환한다. 이전 방식으로 이미 실행한 캠페인은 새 이름으로 저장한다. 과거 결과는 삭제하지 않으며 새 실행 계약과 섞어서 resume하지 않는다. 새 v2 캠페인의 중단/resume은 그대로 지원한다.
 
 GUI는 기존 `./planning_validator`만 호출한다. 실행 중 완료 장면의 PASS/FAIL/ERROR와 현재 단계, 주행 시간·목적지 거리·속도·충돌 횟수를 실시간으로 표시한다. `split` 영상 설정으로 실행하면 설정·결과 표는 접고 GUI를 화면 하단의 얇은 모니터 바로 자동 전환한다. `전체 설정 보기`로 언제든 펼칠 수 있지만 펼친 창도 영상에 찍힌다. 실패 장면을 더블클릭하면 근거 수치와 조사 우선 단계를 볼 수 있다. 별도 대시보드는 필수가 아니다. `중단`은 결과를 보존하고 다음 실행에서 resume한다. 기본 resume는 완료된 PASS/FAIL을 건너뛴다. 같은 설정으로 실패 장면을 다시 돌리려면 `기존 FAIL도 다시 실행`을 체크한다. **실행기의 종료 코드 0은 전체 시나리오 PASS를 의미하지 않는다**. GUI의 성공/주행 실패/시스템 오류 건수와 `summary.csv`를 확인한다. GUI의 `중단` 버튼이나 **GUI를 실행한 터미널에서 Ctrl+C**로 안전 중단할 수 있다. 영상에는 전면의 다른 앱이 찍힐 수 있으므로 녹화 중 데스크톱 조작을 피한다. `설정 검사`가 통과해도 MORAI 연결·BEVFusion checkpoint·주행 성공까지 보증하지는 않는다. GUI가 필요 없는 서버/터미널에서는 아래 CLI를 그대로 사용한다.
 
@@ -109,25 +111,29 @@ cp base_ws/src/planning_addons/planning_scenario_validator/config/examples/stati
 
 ## 팀원이 해야 할 일
 
-시나리오 폴더에 `.json`을 넣는다. 공통 goal을 쓴다면 YAML의 `default_case.goal`을 한 번만 설정한다. 목적지가 다를 때만 같은 이름의 `.case.yaml`을 추가한다.
+시나리오 폴더에는 MORAI 시나리오 `.json`만 넣고, 실행 설정은 workspace의 캠페인 YAML 하나에 둔다. 목적지나 제한시간·스택이 달라지면 YAML을 복사하고 `campaign_name`을 바꾼다. [시나리오·YAML 제작 가이드](../../../../docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md)를 참고한다.
 
 ```text
-scenarios/
-  soa_narrow_gap.json
-  soa_narrow_gap.case.yaml
+workspace/
+  narrow_gap.yaml       # 공통 목적지·시간·스택
+  narrow_gap_long.yaml  # 다른 조건의 별도 캠페인
+  scenarios/
+    soa_narrow_gap_01.json
+    soa_narrow_gap_02.json
 ```
 
 ```yaml
-description: 좁은 S자 통과
-goal: {x: -13.382585757, y: 93.782754520, z: 28.489, yaw_deg: 60.815}
-waypoints: []
-timeout_sec: 75
-arrival_mode: stop
+# 전체 캠페인 YAML에서 이 부분만 공통 주행 조건입니다.
+default_case:
+  goal: {x: -13.382585757, y: 93.782754520, z: 28.489, yaw_deg: 60.815}
+  waypoints: []
+  timeout_sec: 75
+  arrival_mode: stop
 ```
 
 `scenario_install_dir: auto`는 `~/MoraiLauncher_Lin/`의 대회 MR을 선택한다. 팀원 PC에서 경로가 다르면 해당 값을 직접 지정한다. 실행기는 원본 JSON을 수정하지 않고 MR SaveFile에 ExternalCtrl/정지 시작 사본과 `_MN.json`을 설치한다.
 
-목적지·경유점은 MORAI scenario JSON의 로컬 좌표가 아닌 planning의 `map` 좌표로 입력한다. 일반 정적 구간 예제 goal은 v85 지도에서 장애물 약 25m 뒤의 차로 중심이다. 장면마다 다른 지점에서 끝내려면 `.case.yaml`로 지도 좌표 목적지를 지정한다.
+목적지·경유점은 MORAI scenario JSON의 로컬 좌표가 아닌 planning의 `map` 좌표로 입력한다. 일반 정적 구간 예제 goal은 v85 지도에서 장애물 약 25m 뒤의 차로 중심이다. 모든 장면이 그 목적지로 주행 가능하도록 묶는다. 다른 구간에서 끝내려면 별도 이름의 캠페인 YAML을 만든다.
 
 ## 녹화 및 판정
 
@@ -139,7 +145,7 @@ arrival_mode: stop
 - `result.json`은 개별 증거용, `summary.csv`는 사람에게 보여주기 위한 전체 표, `events.jsonl`은 시간 순서 감사 기록이다. 실패 분석기는 녹화 재생 없이 실시간 구독값과 해당 장면의 스택 로그만 사용한다. `result.json`의 `failure_analysis`에 증상 분류, 수치 근거, 로그 징후, 의심 단계와 신뢰도를 기록한다. 탐지 토픽 수신 횟수와 실제 객체가 포함된 메시지 수를 별도로 세므로, **토픽이 살아 있음**과 **객체가 검출됨**을 혼동하지 않는다. `summary.csv`에는 `failure_category`, `suspected_stage`, `evidence_summary`가 추가된다. 이는 코드 수준의 근본 원인 확정이 아니다.
 - 녹화는 ScenarioLoad 전에 시작한다. Route 요청이 거부돼도 bag·MP4·이벤트가 남는다. `elapsed_sec`은 주행 판정 시간이고, 새 결과의 `wall_elapsed_sec`은 준비와 정리를 포함한 전체 실행 시간이다.
 
-예제의 주행 제한은 카탈로그 35초, 일반 정적 장애물·2객체·무장애물 50초, GPS 음영 구간 75초로 짧게 잡았다. 이 값은 **controller 준비 후 실제 주행**에만 적용되며, ScenarioLoad·측위·경로 생성 대기에는 적용되지 않는다. JSON과 같은 이름의 `.case.yaml`에 `timeout_sec`이 있으면 예제 YAML의 `default_case.timeout_sec`보다 우선한다. `build_static_corridor_cases.py`가 만드는 sidecar도 함께 단축했으므로 기존 생성 폴더는 빌더를 다시 실행해야 새 값이 적용된다. 더 긴 실험이 필요하면 해당 `.case.yaml`만 늘린다. 기존 캠페인 결과와 새 시간제한 결과를 섞지 않도록 새 `campaign_name`으로 실행한다.
+예제의 주행 제한은 카탈로그 35초, 일반 정적 장애물·2객체·무장애물 50초, GPS 음영 구간 75초다. 미션별 스타터는 미션에 따라 65~90초다. 이 값은 **controller 준비 후 실제 주행**에만 적용되며, ScenarioLoad·측위·경로 생성 대기에는 적용되지 않는다. 실제 제한시간은 항상 캠페인 YAML의 `default_case.timeout_sec`다. 더 긴 실험은 새 이름의 YAML에서 공통 값을 늘린다. `build_static_corridor_cases.py`의 `metadata/manifest.json`은 제작 참고 자료이고 실행 조건을 덮어쓰지 않는다. 기존 폴더에 남은 `.case.yaml`은 경고 후 무시한다.
 
 영상 구간 최적화는 후순위다. 현재처럼 ScenarioLoad 전부터 영상을 녹화하면 궤적 미생성·스택 시작 실패도 영상으로 확인할 수 있다. 실제 센서 제외 성공 녹화에서 bag은 약 50 MiB/분, MP4는 약 10 MiB/분이어서, 영상 앞부분만 잘라도 전체 저장 용량은 크게 줄지 않는다. 향후 영상 on/off 시 MORAI·BEVFusion 주기와 CPU 부하를 비교하고, 필요할 때만 궤적 준비 후 시작을 실험한다. 이 방식에서는 궤적 미생성 실패의 스크린샷을 별도로 남겨야 한다. 결과 문구를 끝 영상에 넣으려면 현재의 `recorder.stop()` 이후 GUI 결과 갱신 순서를 바꾸고, 실제 표시를 확인한 뒤 약 1초 녹화하는 기능이 필요하다. **이 항목들은 아직 구현하지 않았다.**
 

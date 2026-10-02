@@ -1,7 +1,7 @@
 # 팀장님 공유용 내부 시연: 서로 다른 정적 장애물 4개, BEVFusion, 화면 반반 녹화.
 # 네 장면은 과거 BEVFusion 폐루프에서 각각 PASS/충돌 0회였지만 재실행 성공을 보장하지는 않습니다.
 # 비공식 합성 배치이며 본선 시나리오 또는 공식 성공률로 해석하지 마세요.
-schema_version: 1
+schema_version: 2
 campaign_name: soa_catalog_showcase_bev_split_example
 scenarios:
   directory: planner_logs/validation_inputs/static_corridor

@@ -1,9 +1,0 @@
-description: '[baseline] 일반 정적 구간 좌우/다객체/정지 차량; 01은 원본 scaled CargoBox'
-goal:
-  x: 71.51
-  y: 429.608
-  z: 28.383
-  yaw_deg: 90.033
-waypoints: []
-timeout_sec: 65
-arrival_mode: stop

@@ -6,6 +6,16 @@
 
 ## 현재 구현
 
+### 단일 YAML 실행 계약 (2026-10-03)
+
+`schema_version: 2`에서는 캠페인 YAML 하나에 공통 목적지·경유점·주행 제한시간·도착 방식·스택·녹화를 정의한다. 선택된 모든 JSON이 같은 설정으로 실행된다. 다른 목적지나 조건은 별도 이름의 YAML로 시험한다. 공유 미션의 120개 `.case.yaml`을 제거했고 두 생성기도 보조 실행 YAML을 만들지 않는다. 기존 정적 생성기의 장면별 참고 값은 `metadata/manifest.json`에만 보관하며 실행에는 사용하지 않는다.
+
+GUI는 불완전한 YAML과 `.case.yaml`을 열 때 빈 양식을 보여주는 대신 오류를 안내하고 이전 양식을 유지한다. v1 실행용 YAML은 확인·변환을 위해 열 수 있지만 저장 시 v2가 된다. 기존 실행 이력이 있으면 새 캠페인으로 분리한다. runner는 이전 계약의 state를 새 계약과 섞어 resume하지 않으며 기존 결과 파일을 지우지 않는다. 남아 있는 개인 보조 YAML은 경고하고 무시한다.
+
+폴더 진입점은 패키지 `config/README.md`, 공유 미션은 `config/missions/README.md`다. 팀원 직접 제작은 [시나리오·YAML 제작 가이드](SCENARIO_VALIDATOR_AUTHOR_GUIDE.md), 최초 설치는 [팀원 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)를 사용한다. 이번 변경의 검증은 오프라인 설정·GUI·resume 테스트이며 새 실주행 성공률을 측정한 것은 아니다.
+
+검증 결과: Xvfb를 포함한 validator 테스트 83개 통과, 생성기 130개 파일/120개 JSON 재현 검사 통과, 5개 미션 CLI dry-run에서 공통 목적지·시간 적용 확인, scoped CMake install 완료. GUI에서 highway YAML의 실제 값이 채워지고 잘못된 YAML을 열어도 기존 양식이 유지됨을 검사했다. 공유 시나리오 JSON 내용은 변경하지 않았으며 기존 개인 YAML·결과는 보존했다.
+
 ### 신호등 Python 선택
 
 신호등 on/off와 별개로 GUI에서 `시스템 Python` / `가상환경 Python`을 선택한다. YAML의 `stack.traffic_light_runtime`은 `system|virtualenv`이고, 기존 `traffic_light_python`만 지정한 YAML도 호환한다. 기본 system은 `/usr/bin/python3` 및 기존 사용자 패키지 방식이며, virtualenv에서는 사용자 site-packages를 차단한다. `traffic_light_python`의 `~`는 각 사용자의 홈 폴더로 해석하고, 실행 파일의 venv symlink는 해제하지 않는다. `traffic_light_device`는 GPU 번호 또는 `cpu`다. 기존 YAML을 열고 저장하는 것만으로 환경 키를 추가하거나 resume 해시를 바꾸지 않는다.
@@ -62,7 +72,7 @@ ScenarioLoad 패킷은 `trajectory_batch_runner.morai_udp_client.build_scenario_
 ## 알려진 제한
 
 - 최초 Sensor/Ego Network JSON 선택과 Connect는 MORAI GUI에서 수동이다. 시나리오 전환은 UDP로 자동 수행한다.
-- 시나리오별 goal이 다르면 `.case.yaml`을 둔다. JSON 자체에서 임의 목적지를 추측하지 않는다.
+- 시나리오별 goal이 다르면 별도 캠페인 YAML로 분리한다. JSON 자체에서 임의 목적지를 추측하지 않는다.
 - `full.json`은 알려진 토픽 inventory이며 새/비표준 토픽은 수동 추가해야 한다. `rosbag record -a`는 디스크 위험 때문에 사용하지 않는다.
 - 영상은 전체 X11 화면이다. 첫 BEVFusion smoke의 MP4를 실제 프레임으로 확인했을 때 RViz EOL 팝업과 미최대화 창이 영상을 가렸다. 후속 수정에서 ROS1 EOL 팝업 비활성화와 Planviz 자동 전면·최대화를 추가했다. 재녹화 프레임에서 팝업 없이 최대화된 Planviz를 확인했다. 다만 화면 잠금·다른 창의 가림은 여전히 피해야 한다.
 - 시작 위치가 이전 장면과 같으면 Ego UDP 스트림의 재시작 간격을 ScenarioLoad 확인 신호로 사용한다. 매우 특이한 통신 장애가 동일한 현상을 만들 수 있으므로, 이것을 MORAI의 명시적 성공 ACK로 간주하지 않는다.
@@ -90,21 +100,21 @@ ScenarioLoad 패킷은 `trajectory_batch_runner.morai_udp_client.build_scenario_
 
 ### 팀원 사용 계약과 설정 복원
 
-미션별 Git 추적 스타터는 `base_ws/src/planning_addons/planning_scenario_validator/config/missions/`에 있다. `roundabout`, `static_obstacle`, `dynamic_obstacle`, `gps_shadow`, `highway` 각각 `base/`와 `workspace/` 두 폴더로 나눈다. base에는 `example.yaml`과 24개 시나리오·case sidecar·manifest를 제공한다. workspace는 `.gitignore`만 공유하고 YAML·시나리오는 Git 제외한다. GUI에서 base를 선택해 `베이스 → 내 작업 폴더 복사`를 누르면 기존 시나리오를 덮어쓰지 않고 작업 사본과 새 캠페인 YAML을 만든다. 미션 YAML 저장/복사는 workspace를 사용하고 기존 config/users 개인 파일은 그대로 유지한다. 예전 config/examples/missions 경로를 쓰는 기존 YAML은 파일 내용·resume 해시 변경 없이 새 base 위치로 읽기 호환 처리한다.
+미션별 Git 추적 스타터는 `base_ws/src/planning_addons/planning_scenario_validator/config/missions/`에 있다. `roundabout`, `static_obstacle`, `dynamic_obstacle`, `gps_shadow`, `highway` 각각 `base/`와 `workspace/` 두 폴더로 나눈다. base에는 공통 설정을 담은 `example.yaml`과 24개 시나리오 JSON·manifest를 제공한다. workspace는 `.gitignore`만 공유하고 YAML·시나리오는 Git 제외한다. GUI에서 base를 선택해 `베이스 → 내 작업 폴더 복사`를 누르면 기존 시나리오를 덮어쓰지 않고 JSON 작업 사본과 새 캠페인 YAML을 만든다. 미션 YAML 저장/복사는 workspace를 사용하고 기존 config/users 개인 파일은 그대로 유지한다. 예전 config/examples/missions 경로는 읽기 호환 처리하지만, 예전 실행 계약의 결과를 새 계약과 섞어 resume하지 않는다.
 
 GUI 예제 목록에 포함하며 기본 탐지기는 BEVFusion이다. 총 120개는 새 live 검증을 완료한 결과가 아니라 **재현 가능한 오프라인 검증 입력**이다. 일반/기준선 16개와 stress 8개를 구분하고, 주최측 답변과 검증용 가정·미검증 배우 동작을 별도 README/manifest에 명시했다. 음영은 끼어들기 없이 정적 회피 중심이다. 기존 샘플과 학습 데이터 생성기는 수정하지 않았다.
 
 목적은 항상 성공하는 시나리오 생성이 아니라, 팀원이 준비한 다양한 시나리오에서 시스템이 대응하지 못하는 상황을 찾고 실패 근거를 보존하는 것이다. 자동 실행·녹화·실시간 판정·resume 구조는 이 목적에 맞지만, 첫 사용자가 네트워크 연결과 목적지를 준비하는 과정은 여전히 수동이다.
 
 - 배포자는 미션별 캠페인 YAML과 네트워크 설정을 제공하고, 팀원은 시나리오 JSON 폴더와 목적지·제한시간을 준비한다. 풀스택 YAML을 처음부터 작성하도록 요구하지 않는다.
-- 같은 구간에서 객체 배치만 바뀌면 공통 목적지·시간을 사용한다. 다른 장면만 같은 이름의 `.case.yaml`을 둔다. Sidecar 값은 캠페인 기본값보다 우선한다.
+- 같은 구간에서 객체 배치만 바뀌면 공통 목적지·시간을 사용한다. 다른 목적지나 제한시간은 별도 이름의 YAML로 분리한다. 보조 파일이 GUI 설정을 덮어쓰는 경로는 없다.
 - 예제는 개인 YAML로 복사하며, 미실행 개인 YAML은 같은 이름으로 수정한다. 실행 이력이 있는 캠페인은 설정 변경 시 새 이름으로 복사한다. 설정 검사·실행 버튼도 먼저 저장한다.
 - 마지막으로 열거나 저장한 YAML 경로만 `~/.config/ajounice/planning_scenario_validator/gui_settings.json`에 기억한다 (`XDG_CONFIG_HOME` 설정 시 해당 경로 사용). 재시작 시 해당 YAML을 불러오고, 삭제되었거나 읽을 수 없으면 기본 예제로 돌아간다. 미저장 입력값·창 위치·모니터 모드·실패 재실행 체크는 복원하지 않는다. 개인 YAML과 GUI 설정은 Git에 포함하지 않는다.
 - 미션 템플릿과 시나리오 폴더를 선택하는 ‘새 캠페인 만들기’ 마법사는 후속 후보이며 아직 구현하지 않았다. 팀원 1명이 안내만으로 실행해 보면서 준비 과정의 막힘을 확인하는 것이 다음 사용성 검증이다.
 
 ### 짧은 제한시간과 전환 대기
 
-배포 예제의 기본 주행 제한시간은 catalog 35초, 일반 정적 장애물·pair·clear 50초, 음영 구간 75초로 줄였다. 생성기의 장면별 override는 clear 40초, pair 45~50초, 복잡한 corridor 65~90초 등이다. 생성된 sidecar를 쓰면 생성기를 다시 실행해야 새 값이 적용된다. 개인 YAML도 유형별 상한으로 낮추되 더 짧은 값은 유지했다. 기존 결과는 보존하고 변경된 설정은 새 캠페인으로 실행하며, 과거 결과의 제한시간을 소급 변경하지 않는다.
+기존 smoke 예제의 공통 주행 제한시간은 catalog 35초, 일반 정적 장애물·pair·clear 50초, 음영 구간 75초다. 미션 base는 로터리 75초, 정적 장애물 65초, 동적 장애물 70초, 음영·고주로 90초다. 실행에는 선택한 YAML의 공통 값만 사용한다. 생성기 metadata의 장면별 참고 제한시간은 실행 override가 아니다. 기존 개인 YAML과 과거 결과는 소급 변경하지 않으며 다른 제한시간은 새 캠페인으로 시험한다.
 
 현재 대기 1(주행 종료→다음 ScenarioLoad, 약 7~8초)과 대기 2(ScenarioLoad→주행 시작, GT 약 25초·BEVFusion 약 27초)는 유지한다. 대기 1에는 녹화 마감·스택 정리·결과 저장이, 대기 2에는 새 스택과 해당 장면 route·비어 있지 않은 궤적 준비 확인이 포함된다. 임의의 고정 sleep만 있는 것이 아니며 readiness timeout을 낮춰도 정상 준비가 빨라지지는 않는다. 모든 시간이 필수라고 확정한 것은 아니다. 특히 대기 2의 서비스 준비·route 계산·궤적 생성 시간을 분리 측정한 뒤 최적화하며, 이전 장면 궤적 재사용이나 녹화 마감 생략으로 줄이지 않는다.
 

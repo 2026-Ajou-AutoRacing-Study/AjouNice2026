@@ -1,6 +1,6 @@
 # 비공식 일반 정적 구간: PE_Drum/TrafficBarrel 17m 연속 회피, GT 기준선.
 # 두 물체는 같은 출발점·목적지에서 각각 단독으로도 통과한 배치입니다.
-schema_version: 1
+schema_version: 2
 campaign_name: soa_pair_mission_gt_example
 scenarios:
   directory: planner_logs/validation_inputs/static_corridor

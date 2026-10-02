@@ -15,7 +15,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .config import ConfigError, ROOT, load_campaign
+from .config import ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign
 from .traffic_light import runtime_mode, runtime_settings
 from .failure_analysis import analyze_failure, compact_summary, log_offsets, scan_log_signals
 from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure,
@@ -450,12 +450,15 @@ def _load_state(cfg, resume):
         raise RuntimeFailure("이미 존재하는 캠페인입니다. --resume=true 또는 campaign_name 변경: {}".format(path))
     if path.is_file():
         state = json.loads(path.read_text(encoding="utf-8"))
+        if state.get("execution_contract") != EXECUTION_CONTRACT:
+            raise RuntimeFailure("이전 장면별 설정 방식의 캠페인은 새 공통 설정과 섞어 resume할 수 없습니다. 기존 결과는 보존하고 새 이름의 YAML/campaign_name으로 실행하세요")
         if state.get("config_path") != str(cfg["path"]):
             raise RuntimeFailure("resume YAML 경로가 이전과 다릅니다")
         if state.get("config_sha256") != _config_sha(cfg):
             raise RuntimeFailure("resume 도중 YAML 내용이 바뀌었습니다. 이전 설정을 복원하거나 새 campaign_name을 쓰세요")
         return state
-    return {"schema_version": 1, "campaign": cfg["name"], "config_path": str(cfg["path"]),
+    return {"schema_version": 2, "execution_contract": EXECUTION_CONTRACT,
+            "campaign": cfg["name"], "config_path": str(cfg["path"]),
             "config_sha256": _config_sha(cfg),
             "created_at": now(), "updated_at": now(), "total": len(cfg["cases"]),
             "current": None, "results": {}, "upload_errors": []}
@@ -556,6 +559,9 @@ def main(argv=None):
     args = parse_args(argv)
     try:
         cfg = load_campaign(args.config)
+        if cfg["ignored_case_yamls"]:
+            print("안내: 예전 .case.yaml {}개는 읽지 않습니다. 이 YAML의 공통 목적지·시간을 모든 장면에 적용합니다.".format(
+                len(cfg["ignored_case_yamls"])), file=sys.stderr)
         if args.check or args.dry_run:
             print("설정 확인: {} | 시나리오 {}개 | 설치 {}".format(cfg["name"], len(cfg["cases"]), cfg["install"]))
             if args.dry_run:

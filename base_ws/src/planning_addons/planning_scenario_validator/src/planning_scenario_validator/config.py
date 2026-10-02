@@ -12,6 +12,8 @@ from .traffic_light import runtime_settings
 
 
 ROOT = Path(__file__).resolve().parents[6]
+CONFIG_SCHEMA_VERSION = 2
+EXECUTION_CONTRACT = "campaign-common-settings-v2"
 UPLOAD_PROFILES = ("basic", "bag", "video", "full")
 DEFAULT_UPLOAD_REMOTE = "ajou_drive:planning_validator"
 # Same shared AjouNice2026 Drive folder used by scripts/map/*_kcity_map_assets.sh.
@@ -79,6 +81,41 @@ def _yaml(path):
     return value
 
 
+def validate_campaign_document(document, *, allow_legacy=False):
+    """Structural checks for GUI opening too; no ROS/filesystem prerequisites."""
+    if not isinstance(document, dict):
+        raise ConfigError("실행용 캠페인 YAML이어야 합니다")
+    version = document.get("schema_version")
+    if version != CONFIG_SCHEMA_VERSION and not (allow_legacy and version == 1):
+        raise ConfigError("schema_version: 2인 실행용 YAML이 필요합니다. 이전 YAML은 GUI에서 열어 새 캠페인으로 저장하세요")
+    required = {"campaign_name", "scenarios", "default_case", "stack", "recording", "network"}
+    missing = required - set(document)
+    if missing:
+        raise ConfigError("실행용 YAML의 필수 항목이 없습니다: {}. 장면별 .case.yaml은 실행 파일이 아닙니다".format(
+            ", ".join(sorted(missing))))
+    if not isinstance(document["campaign_name"], str) or not document["campaign_name"].strip():
+        raise ConfigError("campaign_name이 비어 있습니다")
+    for key in required - {"campaign_name"}:
+        if not isinstance(document[key], dict):
+            raise ConfigError("{}은 YAML mapping이어야 합니다".format(key))
+    for key in ("directory", "glob"):
+        if not isinstance(document["scenarios"].get(key), str) or not document["scenarios"][key].strip():
+            raise ConfigError("scenarios.{}이 비어 있습니다".format(key))
+    common = document["default_case"]
+    if set(common) - {"description", "goal", "waypoints", "timeout_sec", "arrival_mode"}:
+        raise ConfigError("default_case에는 공통 목적지·경유점·시간·도착 방식만 설정합니다")
+    _pose(common.get("goal"), "default_case.goal")
+    positive(common.get("timeout_sec"), "default_case.timeout_sec")
+    if not isinstance(common.get("waypoints", []), list):
+        raise ConfigError("default_case.waypoints는 공통 경유점 목록이어야 합니다")
+    for point in common.get("waypoints", []):
+        _pose(point, "default_case.waypoints")
+    if common.get("arrival_mode", "stop") not in ("stop", "pass_through"):
+        raise ConfigError("default_case.arrival_mode는 stop 또는 pass_through입니다")
+    if set(document) & {"cases", "case_overrides", "overrides"}:
+        raise ConfigError("장면별 설정 덮어쓰기는 지원하지 않습니다. 목적지나 실행 조건이 다르면 별도 YAML을 만드세요")
+
+
 def install_directory(value):
     if value != "auto":
         path = resolve_path(value)
@@ -109,13 +146,7 @@ class Case:
 
 
 def _load_case(source, default):
-    sidecar = source.with_suffix(".case.yaml")
-    override = _yaml(sidecar) if sidecar.is_file() else {}
-    unknown = set(override) - {"description", "goal", "waypoints", "timeout_sec", "arrival_mode"}
-    if unknown:
-        raise ConfigError("{}의 알 수 없는 필드: {}".format(sidecar, sorted(unknown)))
     raw = dict(default)
-    raw.update(override)
     sha = hashlib.sha256(source.read_bytes()).hexdigest()
     clean = re.sub(r"[^a-zA-Z0-9_]+", "_", source.stem).strip("_")[:15]
     stem = "pv_{}_{}".format(clean, sha[:8])
@@ -131,10 +162,11 @@ def _load_case(source, default):
 
 
 def load_campaign(path, *, check_install=True):
-    path = Path(path).expanduser().resolve()
+    path = resolve_path(path)
+    if path.name.endswith(".case.yaml"):
+        raise ConfigError(".case.yaml은 폐기된 보조 설정입니다. base/example.yaml 또는 본인의 캠페인 YAML을 선택하세요")
     document = _yaml(path)
-    if document.get("schema_version") != 1:
-        raise ConfigError("schema_version은 1이어야 합니다")
+    validate_campaign_document(document)
     name = str(document.get("campaign_name", ""))
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{1,59}", name):
         raise ConfigError("campaign_name은 영문/숫자로 시작하는 2~60자 ASCII 이름이어야 합니다")
@@ -145,7 +177,8 @@ def load_campaign(path, *, check_install=True):
     pattern = str(scenarios.get("glob", "*.json"))
     if "/" in pattern or ".." in pattern:
         raise ConfigError("scenarios.glob은 현재 폴더의 파일 패턴만 지원합니다")
-    sources = sorted(scenario_dir.glob(pattern))
+    sources = sorted(source for source in scenario_dir.glob(pattern)
+                     if source.is_file() and source.suffix.lower() == ".json")
     if not sources:
         raise ConfigError("시나리오 JSON이 없습니다: {} ({})".format(scenario_dir, pattern))
     default = document.get("default_case", {})
@@ -241,4 +274,6 @@ def load_campaign(path, *, check_install=True):
     install = install_directory(document.get("morai", {}).get("scenario_install_dir", "auto")) if check_install else None
     return {"path": path, "document": document, "name": name, "cases": cases,
             "network": network, "stack": stack, "recording": recording,
-            "output": output, "install": install, "upload": upload}
+            "output": output, "install": install, "upload": upload,
+            "ignored_case_yamls": [str(source.with_suffix(".case.yaml")) for source in sources
+                                   if source.with_suffix(".case.yaml").is_file()]}

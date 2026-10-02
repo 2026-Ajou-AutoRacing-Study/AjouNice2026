@@ -1,7 +1,7 @@
 # 비공식 일반 정적 객체 스트레스 테스트: 종류 4개 × 위치 2개.
 # 배포 샘플 시나리오의 정적 구간을 바탕으로 하지만 출제 시나리오가 아닙니다.
 # scripts/build_static_corridor_cases.py로 ignored 시나리오를 먼저 생성하세요.
-schema_version: 1
+schema_version: 2
 campaign_name: soa_catalog_gt_example
 scenarios:
   directory: planner_logs/validation_inputs/static_corridor

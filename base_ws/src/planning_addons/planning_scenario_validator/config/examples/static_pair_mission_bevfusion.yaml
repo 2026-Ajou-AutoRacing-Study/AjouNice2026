@@ -1,5 +1,5 @@
 # GT 기준선과 동일한 17m 연속 장애물 장면. BEVFusion만 다릅니다.
-schema_version: 1
+schema_version: 2
 campaign_name: soa_pair_mission_bev_example
 scenarios:
   directory: planner_logs/validation_inputs/static_corridor

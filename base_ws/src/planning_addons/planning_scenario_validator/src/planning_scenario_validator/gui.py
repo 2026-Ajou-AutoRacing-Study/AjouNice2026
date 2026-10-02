@@ -19,7 +19,8 @@ from pathlib import Path
 
 import yaml
 
-from .config import DEFAULT_UPLOAD_REMOTE, ROOT, UPLOAD_PROFILES, resolve_path
+from .config import (CONFIG_SCHEMA_VERSION, DEFAULT_UPLOAD_REMOTE, EXECUTION_CONTRACT, ROOT,
+                     UPLOAD_PROFILES, resolve_path, validate_campaign_document)
 from .layout import normalize_bar_setting, resolve_bar_height
 from .traffic_light import DEFAULT_PYTHON, LABEL_MODES, MODE_LABELS, runtime_mode, runtime_settings
 
@@ -54,9 +55,11 @@ def campaign_examples():
 
 
 def load_document(path):
-    value = yaml.safe_load(resolve_path(path).read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise ValueError("YAML 최상위는 mapping이어야 합니다")
+    path = resolve_path(path)
+    if path.name.endswith(".case.yaml"):
+        raise ValueError("이 파일은 실행용 YAML이 아닌 예전 장면별 보조 설정입니다.\n미션 base/example.yaml 또는 workspace의 캠페인 YAML을 선택하세요.")
+    value = yaml.safe_load(path.read_text(encoding="utf-8"))
+    validate_campaign_document(value, allow_legacy=True)
     return value
 
 
@@ -147,6 +150,7 @@ def finite_number(value, label, *, positive=False):
 def build_document(template, values):
     """Transform form values into a validated personal YAML document."""
     result = copy.deepcopy(template)
+    result["schema_version"] = CONFIG_SCHEMA_VERSION
     name = str(values["campaign_name"]).strip()
     if not NAME_RE.fullmatch(name):
         raise ValueError("캠페인 이름은 영문/숫자로 시작하는 2~60자 ASCII여야 합니다")
@@ -249,7 +253,7 @@ def copy_base_to_workspace(source):
     base = mission / "base"
     workspace = mission / "workspace"
     for path in (base / "scenarios").iterdir():
-        if not path.is_file() or path.suffix not in (".json", ".yaml", ".yml"):
+        if not path.is_file() or path.suffix.lower() != ".json":
             continue
         target = workspace / "scenarios" / path.name
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -290,7 +294,7 @@ def save_personal(document, path):
     state_path = output / "campaign_state.json"
     if state_path.is_file():
         state = json.loads(state_path.read_text(encoding="utf-8"))
-        if (not path.is_file() or
+        if (state.get("execution_contract") != EXECUTION_CONTRACT or not path.is_file() or
                 state.get("config_path", str(path.resolve())) != str(path.resolve()) or
                 (state.get("config_sha256") and
                  state["config_sha256"] != hashlib.sha256(path.read_bytes()).hexdigest()) or
@@ -303,7 +307,8 @@ def save_personal(document, path):
             return path
     path.parent.mkdir(parents=True, exist_ok=True)
     header = ("# GUI에서 저장한 개인 캠페인입니다. 이 파일은 Git에 포함되지 않습니다.\n"
-              "# 시나리오별 다른 목적지/시간은 같은 이름의 .case.yaml에 적습니다.\n"
+              "# 이 YAML의 목적지·주행 제한시간은 선택한 모든 시나리오에 동일하게 적용됩니다.\n"
+              "# 목적지나 실행 조건이 달라지면 새 이름의 YAML을 만드세요.\n"
               "# 실행 후에는 resume 해시 보호를 위해 수정하지 말고 새 campaign_name을 쓰세요.\n")
     temporary = path.with_name(path.name + ".tmp.{}".format(os.getpid()))
     try:
@@ -426,7 +431,9 @@ def main(*, on_ready=None, runner_executable=None):
         source.set(str(path))
         for key, value in values.items():
             vars_[key].set(value)
-        status.set("설정 로드: {}".format(Path(path).name))
+        status.set("설정 로드: {} — {}".format(Path(path).name,
+                   "이전 설정: 저장하면 공통 설정 v2로 전환. 기존 실행은 새 캠페인 이름을 사용하세요."
+                   if document.get("schema_version") == 1 else "목적지·제한시간은 모든 장면에 공통 적용"))
         remember_yaml(path)
 
     top = ttk.LabelFrame(frame, text="설정 파일 (미션 base → workspace / 기존 개인 YAML도 사용 가능)", padding=8)
@@ -434,7 +441,13 @@ def main(*, on_ready=None, runner_executable=None):
     choices = [str(p) for p in examples]
     source_box = ttk.Combobox(top, textvariable=source, values=choices, state="readonly", width=100)
     source_box.grid(row=0, column=0, sticky="ew", padx=4)
-    source_box.bind("<<ComboboxSelected>>", lambda _: read_source(source.get(), fresh_name=True))
+    def select_source(_event):
+        try:
+            read_source(source.get(), fresh_name=True)
+        except Exception as error:
+            source.set(str(active.get("source_path", "")))
+            messagebox.showerror("설정 로드 실패", str(error))
+    source_box.bind("<<ComboboxSelected>>", select_source)
 
     def choose_personal():
         mission = mission_directory(active.get("source_path"))
@@ -499,7 +512,7 @@ def main(*, on_ready=None, runner_executable=None):
     for row, (key, label) in enumerate((("x", "목적지 map X (m)"), ("y", "목적지 map Y (m)"),
                                         ("z", "목적지 map Z (m)"), ("yaw_deg", "목적지 yaw (deg)")), 3):
         add_field(basic, row, "goal_" + key, label)
-    add_field(basic, 7, "timeout_sec", "주행 제한 시간 (초)")
+    add_field(basic, 7, "timeout_sec", "공통 주행 제한 (초)")
     add_field(basic, 8, "pose_source", "측위", choices=["localization", "maptf_morai"])
     add_field(basic, 9, "detector", "객체 탐지", choices=["od_gt", "bevfusion"])
     ttk.Label(basic, text="신호등 인지", width=19).grid(row=10, column=0, sticky="w", pady=3)

@@ -1,6 +1,6 @@
 # BEVFusion 포함 폐루프의 연결·녹화 확인용 무장애물 예제입니다.
 # 장애물 회피 성능 검증이 아니며, 실제 평가에는 팀원이 만든 시나리오를 넣으세요.
-schema_version: 1
+schema_version: 2
 campaign_name: bevfusion_clear_smoke_example
 scenarios:
   directory: configs/scenario/localization_evaluation

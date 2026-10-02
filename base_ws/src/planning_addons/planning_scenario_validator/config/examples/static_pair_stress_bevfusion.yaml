@@ -1,6 +1,6 @@
 # GT 스트레스 캠페인과 동일한 5개 장면. BEVFusion에서도 실패 증거를 수집합니다.
 # 먼저 GT 결과와 비교하고, 인지 실패를 단정하지 마세요.
-schema_version: 1
+schema_version: 2
 campaign_name: soa_pair_stress_bev_example
 scenarios:
   directory: planner_logs/validation_inputs/static_corridor

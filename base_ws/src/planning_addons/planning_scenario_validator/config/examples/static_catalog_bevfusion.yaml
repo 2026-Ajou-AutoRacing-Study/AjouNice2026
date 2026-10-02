@@ -1,5 +1,5 @@
 # GT 예제와 같은 장면·목적지·센서. 인지 소스만 BEVFusion으로 변경.
-schema_version: 1
+schema_version: 2
 campaign_name: soa_catalog_bev_example
 scenarios:
   directory: planner_logs/validation_inputs/static_corridor

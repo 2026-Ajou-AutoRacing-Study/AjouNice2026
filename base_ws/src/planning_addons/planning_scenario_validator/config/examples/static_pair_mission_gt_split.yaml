@@ -1,7 +1,7 @@
 # 한 장면 빠른 시연: RViz 왼쪽 + MORAI 오른쪽 + GUI 하단 상태 바.
 # MORAI와 RViz가 모두 같은 X11 화면(:0.0)에 떠 있어야 자동 배치됩니다.
 # 창 자동 배치가 실패해도 전체 화면 녹화와 주행은 계속됩니다. 그때는 직접 반반 배치하세요.
-schema_version: 1
+schema_version: 2
 campaign_name: soa_pair_mission_gt_split_example
 scenarios:
   directory: planner_logs/validation_inputs/static_corridor

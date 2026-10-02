@@ -1,7 +1,7 @@
 # 일반 정적 구간의 2객체 배치 5개를 모두 검증합니다. 실패 장면도 제외하지 않습니다.
 # soa_pair_01~04는 이전 주행에서 실패/정지를 보인 회귀 사례, 05는 통과 사례입니다.
 # 이 결과를 대회 공식 성공률로 해석하지 마세요.
-schema_version: 1
+schema_version: 2
 campaign_name: soa_pair_stress_gt_example
 scenarios:
   directory: planner_logs/validation_inputs/static_corridor

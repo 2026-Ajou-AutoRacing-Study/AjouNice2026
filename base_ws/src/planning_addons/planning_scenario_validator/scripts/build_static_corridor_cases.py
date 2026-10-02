@@ -69,14 +69,15 @@ def _write_case(output, stem, scene, goal, timeout, description):
     path = output / (stem + ".json")
     path.write_text(json.dumps(scene, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     x, y, z, yaw = goal
-    (output / (stem + ".case.yaml")).write_text(
-        "description: {}\n"
-        "goal: {{x: {:.3f}, y: {:.3f}, z: {:.3f}, yaw_deg: {:.3f}}}\n"
-        "waypoints: []\n"
-        "timeout_sec: {}\n"
-        "arrival_mode: stop\n".format(description, x, y, z, yaw, timeout),
-        encoding="utf-8",
-    )
+    # Author reference only, never an executable YAML or runtime override.
+    # Keep metadata outside the scenario JSON glob.
+    metadata = output / "metadata" / "manifest.json"
+    metadata.parent.mkdir(parents=True, exist_ok=True)
+    values = json.loads(metadata.read_text(encoding="utf-8")) if metadata.is_file() else {}
+    values[stem] = {"description": description,
+                    "reference_goal": {"x": x, "y": y, "z": z, "yaw_deg": yaw},
+                    "reference_timeout_sec": timeout}
+    metadata.write_text(json.dumps(values, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(path)
 
 

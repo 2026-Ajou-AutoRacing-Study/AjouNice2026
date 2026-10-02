@@ -20,7 +20,7 @@ from planning_scenario_validator.gui import (EXAMPLES, build_document, campaign_
                                              render_result_table, result_counts,
                                              save_personal)
 from planning_scenario_validator import gui as gui_module
-from planning_scenario_validator.config import DEFAULT_UPLOAD_REMOTE
+from planning_scenario_validator.config import DEFAULT_UPLOAD_REMOTE, EXECUTION_CONTRACT
 
 
 class GuiConfigTests(unittest.TestCase):
@@ -68,6 +68,7 @@ class GuiConfigTests(unittest.TestCase):
             self.assertEqual(first.parent, missions / 'highway/workspace')
             document = load_document(first)
             self.assertEqual(document['scenarios']['directory'], 'missions/highway/workspace/scenarios')
+            self.assertFalse((first.parent / 'scenarios/a.case.yaml').exists())
             self.assertTrue(gui_module.is_personal(first))
             self.assertEqual(gui_module.personal_path({'campaign_name': 'new_name'}, source=first),
                              first.parent / 'new_name.yaml')
@@ -146,6 +147,7 @@ class GuiConfigTests(unittest.TestCase):
             output.mkdir()
             (output / "campaign_state.json").write_text(json.dumps({
                 "current": None, "config_path": str(path.resolve()),
+                "execution_contract": EXECUTION_CONTRACT,
                 "config_sha256": hashlib.sha256(original).hexdigest()}), encoding="utf-8")
             save_personal(document, path)
             self.assertEqual(original, path.read_bytes())

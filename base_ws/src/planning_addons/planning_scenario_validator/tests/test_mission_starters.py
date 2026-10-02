@@ -35,6 +35,11 @@ class StarterTests(unittest.TestCase):
                 continue
             cfg = load_campaign(family / "base/example.yaml", check_install=False)
             self.assertEqual(len(cfg["cases"]), 24)
+            self.assertEqual(cfg["document"]["schema_version"], 2)
+            common = cfg["document"]["default_case"]
+            self.assertTrue(all(case.goal == common["goal"] and case.timeout_sec == common["timeout_sec"]
+                                for case in cfg["cases"]))
+            self.assertFalse(list((family / "base/scenarios").glob("*.yaml")))
             self.assertEqual(cfg["stack"]["detector"], "bevfusion")
             self.assertFalse(cfg["recording"]["include_sensors"])
             self.assertTrue(cfg["recording"]["video"]["enabled"])

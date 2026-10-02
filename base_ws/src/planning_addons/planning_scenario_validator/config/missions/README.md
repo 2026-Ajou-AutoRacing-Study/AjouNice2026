@@ -4,6 +4,9 @@
 사람 이름 대신 미션 폴더를 공유한다. 담당자가 바뀌어도 그대로 이어받는다.
 
 새 PC 세팅부터 필요한 팀원은 [첫 설치·실행 안내](../../../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)를 먼저 참고한다.
+시나리오와 YAML을 직접 만드는 방법은 [제작 가이드](../../../../../../docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md)에 정리했다.
+
+**YAML 하나는 공통 목적지·경유점·제한시간·스택 설정 하나다.** 선택된 모든 JSON에 같은 설정을 적용한다. 다른 목적지나 조건을 시험하려면 YAML을 하나 더 만든다. 장면별 `.case.yaml`은 사용하지 않는다.
 
 | 폴더 | 내용 | 시나리오 | 주행 제한/장면 |
 | --- | --- | ---: | ---: |
@@ -20,23 +23,23 @@ config/missions/highway/
 ├─ base/                 # 공유 베이스: Git 추적, GUI에서 덮어쓰지 않음
 │  ├─ example.yaml
 │  ├─ manifest.json
-│  └─ scenarios/         # JSON + 같은 이름의 .case.yaml
+│  └─ scenarios/         # 실행할 MORAI JSON만
 └─ workspace/            # 개인 작업: .gitignore만 Git 추적
    ├─ .gitignore
    ├─ highway_starter_<시간>.yaml
-   ├─ my_dense_case.yaml # 필요하면 캠페인 YAML을 계속 추가
+   ├─ highway_other_goal.yaml # 다른 목적지/조건은 다른 YAML
    └─ scenarios/         # 베이스 복사 버튼으로 준비 후 자유롭게 수정
 ```
 
-`base/`는 `example.yaml`, `manifest.json`, `scenarios/*.json`, `scenarios/*.case.yaml`로 구성한다.
+`base/`는 `example.yaml`, `manifest.json`, `scenarios/*.json`으로 구성한다.
 각각 baseline 2개 → 일반 변형 14개 → stress 8개 순서다. 이름은 검증 분류이며 성공 보장이 아니다.
 Manifest는 실행용 시나리오가 아니므로 `base/scenarios/` 밖에 둔다.
-전체 파일은 약 1.1 MiB로 Git에 추적한다. 개인 YAML과 녹화 결과는 Git에서 제외한다.
+공유 YAML·JSON·manifest는 Git에 추적한다. 개인 YAML과 녹화 결과는 Git에서 제외한다.
 
 ## 가장 쉬운 실행
 
 1. 저장소 루트에서 패키지 `install.sh`를 실행하고, MORAI에 validator 전용 Ego Network와 `Sensor_competition_local.json`을 Load·Connect한다. 카메라와 LiDAR는 **실제로 켜둔다**.
-2. `./planning_validator_gui`를 열고 예제 선택 목록의 `missions/<미션>/base/example.yaml`을 고른 뒤 **베이스 → 내 작업 폴더 복사** 버튼을 누른다. 시나리오와 sidecar를 workspace로 복사하고 새 이름의 YAML을 만들어 바로 연다. 같은 이름의 기존 시나리오는 덮어쓰지 않는다.
+2. `./planning_validator_gui`를 열고 예제 선택 목록의 `missions/<미션>/base/example.yaml`을 고른 뒤 **베이스 → 내 작업 폴더 복사** 버튼을 누른다. 시나리오 JSON을 workspace로 복사하고 새 이름의 YAML을 만들어 바로 연다. 같은 이름의 기존 시나리오는 덮어쓰지 않는다.
 3. 처음에는 파일 패턴을 `*_baseline_*.json`으로 바꿔 두 기준선을 실행한다. 실제 배우 위치/움직임·목적지·센서 주기가 맞는지 본다. 복사 없이 바로 저장/실행하면 workspace에 YAML만 만들고 공유 base 시나리오를 참조한다. 시나리오를 수정하려면 복사 버튼부터 사용한다.
 4. 확인 후 패턴을 `*.json`으로 바꾸고 새 캠페인으로 저장·설정 검사·실행한다. 기존 결과는 자동 resume된다. 기준선을 통과시키려고 판단 파라미터나 장애물 위치를 억지로 바꾸지 않는다.
 5. FAIL은 조사 대상이다. `summary.csv`, 해당 run JSON/이벤트/영상으로 관측 근거를 확인한다. 시스템 오류나 시나리오 배우 오작동은 planning 실패와 구별한다.
@@ -50,6 +53,7 @@ GUI 없이도 저장소 루트에서 `./planning_validator base_ws/src/planning_
 
 - 미션 base를 열면 저장은 같은 미션 workspace에 하고, base 원본은 보호한다. workspace YAML은 미실행 상태에서는 같은 캠페인 이름으로 수정한다.
 - 이미 실행한 YAML을 설정 그대로 열면 동일 캠페인을 재개한다. 설정 변경 시 확인 후 새 캠페인 이름의 YAML을 같은 workspace에 만든다. `campaign.yaml` 하나를 계속 덮어쓰는 구조가 아니다.
+- 현재 실행 계약은 `schema_version: 2`다. 이전 v1 YAML은 GUI에서 열어 새 캠페인으로 저장할 수 있지만, 예전 결과와 새 계약을 섞어서 resume하지 않는다. 기존 결과는 삭제하지 않는다. 남아 있는 `.case.yaml`은 실행 시 경고하고 무시하며 GUI에서 실행용 YAML로 열 수 없다.
 - ‘베이스 복사’를 다시 누르면 기존 시나리오는 유지하고 누락된 베이스 파일만 복사하며, 새 캠페인 YAML을 하나 더 만든다. 기존 사용자 설정을 초기화하고 싶다면 새 시나리오 폴더를 직접 준비하고 새 YAML을 사용한다.
 - `내 YAML 열기 / resume`는 선택한 미션의 workspace에서 시작한다. 기존 `config/users/<사용자>/` YAML도 열 수 있고 그곳의 기존 저장 방식은 유지한다. 기존 파일을 강제로 이주시키지 않는다.
 - 마지막으로 연/저장한 YAML 기억은 workspace에서도 동일하다. 예전 `config/examples/missions/...` 경로는 해당 공유 base의 새 위치로 읽기 호환 처리한다. 기존 YAML·결과 스냅샷을 소급 수정하지 않는다.
@@ -75,7 +79,7 @@ GUI 없이도 저장소 루트에서 `./planning_validator base_ws/src/planning_
 현재 validator는 충돌·시간·목적지로 판정하며 미션별 양보/차선침범/배우 작동/속도 규정 준수의 자동 판정을 모두 제공하지는 않는다.
 회피/추월 성공을 주장하려면 영상과 궤적을 함께 확인해야 한다.
 
-팀원은 workspace의 JSON을 복사하여 한두 조건씩 바꾸고 같은 이름의 `.case.yaml`을 만든다.
+팀원은 workspace의 JSON을 복사하여 한두 조건씩 바꾸고, 공통 조건을 담은 캠페인 YAML에서 해당 폴더·패턴을 선택한다. 장면마다 보조 YAML을 만들지 않는다. 목적지나 제한시간이 다르면 새 캠페인 이름의 YAML로 분리한다.
 새 시나리오는 workspace/scenarios 또는 그 아래 별도 실험 폴더에 두고 GUI의 시나리오 폴더를 바꾼다. 하위 폴더를 자동 재귀 실행하지는 않는다. 실행 후 같은 캠페인 입력을 수정하지 말고 새 이름으로 저장한다.
 담당 AI에게는 이 README와 해당 base/manifest.json을 먼저 읽히고, 원본 sample anchor와 일반/스트레스 균형을 유지하도록 요청한다.
 공유 스타터를 수정하려면 생성기를 수정한 뒤 재생성한다. 기존 JSON 손수 수정 후 생성기를 돌리면 덮어써지므로 개인 변형은 별도 폴더에 보관한다.

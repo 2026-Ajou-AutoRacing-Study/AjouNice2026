@@ -1,6 +1,6 @@
 # GPS 음영 밖, 배포 샘플의 일반 정적 장애물 구간. GT 객체 기준선.
 # 먼저 scripts/build_static_corridor_cases.py를 실행해 ignored 시나리오를 생성하세요.
-schema_version: 1
+schema_version: 2
 campaign_name: soa_static_mission_gt_example
 scenarios:
   directory: planner_logs/validation_inputs/static_corridor

@@ -265,7 +265,7 @@ class CampaignTest(unittest.TestCase):
                 scene = json.loads((output / (stem + ".json")).read_text())
                 self.assertEqual(len(scene["objectList"]), count)
                 self.assertEqual(scene["shadedAreaList"], [])
-                self.assertTrue((output / (stem + ".case.yaml")).is_file())
+                self.assertFalse((output / (stem + ".case.yaml")).exists())
             sample = json.loads((output / "soa_official_01_cargobox_scaled.json").read_text())
             self.assertEqual(sample["objectList"][0]["scale"]["x"], 2.0)
             self.assertEqual(sample["objectList"][0]["scale"]["y"], 3.0)
@@ -291,10 +291,11 @@ class CampaignTest(unittest.TestCase):
                 self.assertEqual([item["DataID"] for item in pair["objectList"]], ids)
                 self.assertEqual([item["UNIQUEID"] for item in pair["objectList"]], [2, 3])
                 self.assertEqual(pair["shadedAreaList"], [])
-                self.assertTrue((output / (stem + ".case.yaml")).is_file())
-            wide_case = (output / "soa_pair_03_drum_barrel_separated.case.yaml").read_text()
-            self.assertIn("x: 71.704", wide_case)
-            self.assertIn("timeout_sec: 50", wide_case)
+                self.assertFalse((output / (stem + ".case.yaml")).exists())
+            metadata = json.loads((output / "metadata/manifest.json").read_text())
+            wide_case = metadata["soa_pair_03_drum_barrel_separated"]
+            self.assertEqual(wide_case["reference_goal"]["x"], 71.704)
+            self.assertEqual(wide_case["reference_timeout_sec"], 50)
             for index, (stem, data_id) in enumerate((("soa_pair_control_01_early_drum", 40100027),
                                   ("soa_pair_control_02_early_barrel", 40100005),
                                   ("soa_pair_control_03_late_barrel", 40100005),
