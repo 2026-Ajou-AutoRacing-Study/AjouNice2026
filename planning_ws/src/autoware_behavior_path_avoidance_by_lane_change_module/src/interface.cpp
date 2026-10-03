@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "interface.hpp"
+#include "request_condition.hpp"
 
 #include "autoware/behavior_path_planner_common/interface/scene_module_interface.hpp"
 #include "autoware/behavior_path_planner_common/interface/scene_module_visitor.hpp"
@@ -47,8 +48,10 @@ AvoidanceByLaneChangeInterface::AvoidanceByLaneChangeInterface(
 
 bool AvoidanceByLaneChangeInterface::isExecutionRequested() const
 {
-  return module_type_->isLaneChangeRequired() && module_type_->specialRequiredCheck() &&
-         module_type_->isValidPath();
+  const auto error=module_type_->isLaneChangeRequired();
+  if(error)return false;
+  return avoidance_request::allowed(error,module_type_->specialRequiredCheck(),
+    module_type_->isValidPath());
 }
 
 void AvoidanceByLaneChangeInterface::processOnEntry()

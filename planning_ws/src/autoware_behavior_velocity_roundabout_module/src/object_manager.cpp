@@ -118,6 +118,21 @@ std::optional<RoundaboutCollisionInterval> findRoundaboutPassageInterval(
   const autoware_perception_msgs::Shape & shape, const lanelet::BasicPolygon2d & ego_lane_poly,
   const std::optional<lanelet::ConstLanelet> & first_attention_lane_opt)
 {
+  std::vector<double> times(predicted_path.path.size());
+  for (size_t i = 0; i < times.size(); ++i) {
+    times[i] = i * roundabout_ros1::duration(predicted_path.time_step).toSec();
+  }
+  return findRoundaboutPassageInterval(
+    predicted_path, shape, ego_lane_poly, first_attention_lane_opt, times);
+}
+
+std::optional<RoundaboutCollisionInterval> findRoundaboutPassageInterval(
+  const autoware_perception_msgs::PredictedPath & predicted_path,
+  const autoware_perception_msgs::Shape & shape, const lanelet::BasicPolygon2d & ego_lane_poly,
+  const std::optional<lanelet::ConstLanelet> & first_attention_lane_opt,
+  const std::vector<double> & relative_times)
+{
+  if (relative_times.size() != predicted_path.path.size()) return std::nullopt;
   const auto first_itr = std::adjacent_find(
     predicted_path.path.cbegin(), predicted_path.path.cend(), [&](const auto & a, const auto & b) {
       return bg::intersects(ego_lane_poly, util::createOneStepPolygon(a, b, shape));
@@ -137,11 +152,9 @@ std::optional<RoundaboutCollisionInterval> findRoundaboutPassageInterval(
   }
 
   const size_t enter_idx = static_cast<size_t>(first_itr - predicted_path.path.begin());
-  const double object_enter_time =
-    static_cast<double>(enter_idx) * roundabout_ros1::duration(predicted_path.time_step).toSec();
+  const double object_enter_time = relative_times.at(enter_idx);
   const size_t exit_idx = std::distance(predicted_path.path.begin(), last_itr.base()) - 1;
-  const double object_exit_time =
-    static_cast<double>(exit_idx) * roundabout_ros1::duration(predicted_path.time_step).toSec();
+  const double object_exit_time = relative_times.at(exit_idx);
   const auto lane_position = [&]() {
     if (first_attention_lane_opt) {
       if (lanelet::geometry::inside(

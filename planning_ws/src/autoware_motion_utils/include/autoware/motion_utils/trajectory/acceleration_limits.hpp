@@ -47,6 +47,7 @@ public:
     }
   }
   bool enabled() const { return !map_.empty(); }
+  const Map & map() const { return map_; }  // Read-only exact diagnostic snapshot.
   double at(double speed) const
   {
     if (map_.empty()) return std::numeric_limits<double>::infinity();

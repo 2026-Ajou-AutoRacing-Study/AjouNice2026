@@ -16,6 +16,7 @@
 #include "autoware/path_optimizer/obstacle_collision.hpp"
 
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
+#include "autoware/path_optimizer/history_compatibility.hpp"
 
 #include "acados_mpc/include/acados_interface.hpp"
 #include "autoware/interpolation/spline_interpolation.hpp"
@@ -197,6 +198,29 @@ double calcLateralDistToBounds(
 
 namespace detail
 {
+void anchorMeasuredEgo(
+  std::vector<ReferencePoint> & points, const size_t ego_index, const geometry_msgs::Pose & pose)
+{
+  if (ego_index >= points.size()) throw std::out_of_range("invalid measured ego anchor index");
+  // Preserve the current hard corridor and dynamics; replace only historical initial states.
+  for (size_t i = 0; i < ego_index; ++i) points.at(i).fixed_kinematic_state.reset();
+  auto & ref = points.at(ego_index);
+  const double yaw = ref.getYaw();
+  const double dx = pose.position.x - ref.pose.position.x;
+  const double dy = pose.position.y - ref.pose.position.y;
+  const double yaw_error = tf2::getYaw(pose.orientation) - yaw;
+  ref.fixed_kinematic_state = KinematicState{
+    -std::sin(yaw) * dx + std::cos(yaw) * dy,
+    std::atan2(std::sin(yaw_error), std::cos(yaw_error))};
+}
+
+size_t boundsInterpolationPreviousIndex(const size_t offset_index, const size_t point_count)
+{
+  if (point_count < 2) throw std::invalid_argument("bounds interpolation requires two points");
+  // A rear circle can precede the first knot: saturate BEFORE unsigned subtraction.
+  return std::min(offset_index > 0 ? offset_index - 1 : size_t{0}, point_count - 2);
+}
+
 void assignHardConstraintStateBlock(
   Eigen::MatrixXd & destination, const Eigen::SparseMatrix<double> & source,
   const size_t reference_count, const size_t state_count)
@@ -1317,15 +1341,7 @@ MPTOptimizer::calcReferencePoints(
     // Historical equalities behind the measured state are not independent initial
     // conditions. Keeping both can make the dynamics infeasible even without obstacles
     // when localization or tracking has deviated from the last planned curve.
-    for (size_t i = 0; i < obstacle_ego_idx; ++i) ref_points.at(i).fixed_kinematic_state.reset();
-    auto & ego_ref = ref_points.at(obstacle_ego_idx);
-    const double yaw = ego_ref.getYaw();
-    const double dx = p.ego_pose.position.x - ego_ref.pose.position.x;
-    const double dy = p.ego_pose.position.y - ego_ref.pose.position.y;
-    const double yaw_error = tf2::getYaw(p.ego_pose.orientation) - yaw;
-    ego_ref.fixed_kinematic_state = KinematicState{
-      -std::sin(yaw) * dx + std::cos(yaw) * dy,
-      std::atan2(std::sin(yaw_error), std::cos(yaw_error))};
+    detail::anchorMeasuredEgo(ref_points, obstacle_ego_idx, p.ego_pose);
   }
 
   // 7. update delta arc length
@@ -1391,6 +1407,7 @@ void MPTOptimizer::updateFixedPoint(std::vector<ReferencePoint> & ref_points) co
     return;
   }
 
+  const auto fresh_reference = ref_points;
   // replace the front pose and curvature with previous reference points
   const auto idx = trajectory_utils::updateFrontPointForFix(
     ref_points, *prev_ref_points_ptr_, mpt_param_.delta_arc_length, ego_nearest_param_);
@@ -1425,6 +1442,16 @@ void MPTOptimizer::updateFixedPoint(std::vector<ReferencePoint> & ref_points) co
     ref_points.front().pose = front_point.pose;
     ref_points.front().curvature = front_point.curvature;
     ref_points.front().fixed_kinematic_state = front_point.optimized_kinematic_state;
+  }
+  // A changed LC reference must not be stitched to an obsolete lateral prefix.
+  // Keep normal temporal continuity, but reject a join that newly exceeds this
+  // vehicle's steering curvature. Current hard corridor/dynamics remain intact.
+  const double curvature_limit = std::tan(mpt_param_.max_steer_rad) / vehicle_info_.wheel_base_m;
+  if (!detail::historyPrefixCompatible(
+        ref_points, fresh_reference, curvature_limit, mpt_param_.delta_arc_length,
+        [](const auto & ref) { return ref.pose.position; })) {
+    ref_points = fresh_reference;
+    ROS_WARN_THROTTLE(1.0, "[MPT] Reject incompatible historical reference join");
   }
 }
 
@@ -1886,9 +1913,8 @@ void MPTOptimizer::updateVehicleBounds(
         const double collision_check_s = ref_points_spline.getAccumulatedLength(p_idx) + lon_offset;
         const size_t collision_check_idx = ref_points_spline.getOffsetIndex(p_idx, lon_offset);
 
-        const size_t prev_idx = std::clamp(
-          collision_check_idx - 1, static_cast<size_t>(0),
-          static_cast<size_t>(ref_points_spline.getSize() - 2));
+        const size_t prev_idx = detail::boundsInterpolationPreviousIndex(
+          collision_check_idx, ref_points_spline.getSize());
         const size_t next_idx = prev_idx + 1;
 
         const auto & prev_bounds = ref_points.at(prev_idx).bounds;
@@ -2430,12 +2456,21 @@ std::optional<Eigen::VectorXd> MPTOptimizer::calcOptimizedSteerAngles(
         const size_t fixed_count = std::count_if(
           ref_points.begin(), ref_points.end(),
           [](const auto & point) { return point.fixed_kinematic_state.has_value(); });
-        const size_t hard_start = N_x + soft_rows;
-        const size_t fixed_start = hard_start + hard_rows;
-        const auto relaxed_status = [&](const size_t start, const size_t count) {
+        // calcConstraintMatrix interleaves [soft, hard] for EACH vehicle circle.
+        // Only the fixed block follows the total of all collision rows.
+        const size_t soft_per_circle = mpt_param_.soft_constraint ? 3 * N_ref : 0;
+        const size_t hard_per_circle = mpt_param_.hard_constraint ? N_ref : 0;
+        const size_t circle_stride = soft_per_circle + hard_per_circle;
+        const size_t hard_start = N_x + soft_per_circle;
+        const size_t fixed_start = N_x + soft_rows + hard_rows;
+        const auto relaxed_status = [&](const size_t start, const size_t count,
+                                        const bool interleaved_hard = false) {
           auto relaxed_lower = lower_bound;
           auto relaxed_upper = upper_bound;
-          for (size_t row = start; row < start + count; ++row) {
+          for (size_t offset = 0; offset < count; ++offset) {
+            const size_t row = interleaved_hard
+              ? hard_start + (offset / N_ref) * circle_stride + offset % N_ref
+              : start + offset;
             relaxed_lower.at(row) = -autoware::osqp_interface::INF;
             relaxed_upper.at(row) = autoware::osqp_interface::INF;
           }
@@ -2443,9 +2478,24 @@ std::optional<Eigen::VectorXd> MPTOptimizer::calcOptimizedSteerAngles(
             P_csc, A_csc, f, relaxed_lower, relaxed_upper, osqp_epsilon_);
           return probe.optimize().solution_status;
         };
-        const int without_hard = relaxed_status(hard_start, hard_rows);
+        const int without_hard = relaxed_status(hard_start, hard_rows, true);
         const int without_fixed = relaxed_status(fixed_start, fixed_count * D_x);
         const int without_dynamics = relaxed_status(0, N_x);
+        if (std::getenv("AJOUNICE_MPT_HARD_ROWS") != nullptr && hard_rows != 0) {
+          for (size_t i = 0; i < N_ref; ++i) {
+            for (size_t circle = 0; circle < circle_count; ++circle) {
+              const size_t row = hard_start + circle * circle_stride + i;
+              const auto & ref = ref_points.at(i);
+              const auto & cp = ref.pose_on_constraints.at(circle).position;
+              RCLCPP_WARN(logger_,
+                "[MPT_HARD_ROW] case=%zu i=%zu circle=%zu a=%.12g b=%.12g lb=%.12g ub=%.12g "
+                "ref_x=%.9g ref_y=%.9g circle_x=%.9g circle_y=%.9g raw_left=%.9g raw_right=%.9g",
+                diagnosed_failures, i, circle, A(row, D_x * i), A(row, D_x * i + 1),
+                lower_bound.at(row), upper_bound.at(row), ref.pose.position.x,
+                ref.pose.position.y, cp.x, cp.y, ref.bounds.upper_bound, ref.bounds.lower_bound);
+            }
+          }
+        }
         size_t inverted_bounds = 0;
         for (size_t row = 0; row < lower_bound.size(); ++row) {
           inverted_bounds += lower_bound.at(row) > upper_bound.at(row);
@@ -2467,7 +2517,7 @@ std::optional<Eigen::VectorXd> MPTOptimizer::calcOptimizedSteerAngles(
           fixed_lat = fixed(0);
           fixed_yaw = fixed(1);
           for (size_t circle = 0; circle < circle_count && hard_rows != 0; ++circle) {
-            const size_t row = hard_start + circle * N_ref + i;
+            const size_t row = hard_start + circle * circle_stride + i;
             const double value = A(row, D_x * i) * fixed(0) +
                                  A(row, D_x * i + 1) * fixed(1);
             const double violation = std::max(

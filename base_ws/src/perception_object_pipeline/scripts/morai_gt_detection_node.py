@@ -13,6 +13,9 @@ from perception_object_pipeline.morai_gt_detection import make_morai_gt_detectio
 class MoraiGtDetectionNode:
     def __init__(self):
         self.frame_id = str(rospy.get_param("~frame_id", "morai_map"))
+        self.include_velocity = bool(rospy.get_param("~include_velocity", False))
+        self.velocity_noise_std_mps = float(rospy.get_param("~velocity_noise_std_mps", 1.0))
+        self.maximum_velocity_mps = float(rospy.get_param("~maximum_velocity_mps", 50.0))
         self.correct_vehicle_bbox_center = bool(
             rospy.get_param("~correct_vehicle_bbox_center", True)
         )
@@ -39,11 +42,12 @@ class MoraiGtDetectionNode:
             tcp_nodelay=True,
         )
         rospy.loginfo(
-            "[morai_gt_detection] %s -> %s, frame=%s, bbox_center=%s",
+            "[morai_gt_detection] %s -> %s, frame=%s, bbox_center=%s, sim_velocity=%s",
             input_topic,
             output_topic,
             self.frame_id,
             self.correct_vehicle_bbox_center,
+            self.include_velocity,
         )
 
     def callback(self, message):
@@ -53,6 +57,9 @@ class MoraiGtDetectionNode:
             output = make_morai_gt_detections(
                 message,
                 frame_id=self.frame_id,
+                include_velocity=self.include_velocity,
+                velocity_noise_std_mps=self.velocity_noise_std_mps,
+                maximum_velocity_mps=self.maximum_velocity_mps,
                 correct_vehicle_bbox_center=self.correct_vehicle_bbox_center,
                 passenger_maximum_length_m=self.passenger_maximum_length_m,
                 passenger_longitudinal_offset_m=(

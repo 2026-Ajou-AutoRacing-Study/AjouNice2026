@@ -104,6 +104,8 @@ struct FullSceneModuleStatus
 
   bool is_execution_ready{false};
   bool is_waiting_approval{false};
+  bool is_approved{false};
+  std::vector<std::pair<std::string, unique_identifier_msgs::UUID>> rtc_uuids;
 
   ModuleStatus status{ModuleStatus::SUCCESS};
 };
@@ -480,6 +482,8 @@ public:
       auto s = std::make_shared<FullSceneModuleStatus>(m->name());
       s->is_waiting_approval = m->isWaitingApproval();
       s->status = m->getCurrentStatus();
+      s->is_approved = true;
+      for (const auto & rtc : m->getRtcUuids()) s->rtc_uuids.push_back(rtc);
       ret.push_back(s);
     }
 
@@ -487,6 +491,7 @@ public:
       auto s = std::make_shared<FullSceneModuleStatus>(m->name());
       s->is_waiting_approval = m->isWaitingApproval();
       s->status = m->getCurrentStatus();
+      for (const auto & rtc : m->getRtcUuids()) s->rtc_uuids.push_back(rtc);
       ret.push_back(s);
     }
 

@@ -16,6 +16,7 @@
 
 #include "autoware/interpolation/spline_interpolation_points_2d.hpp"
 #include "autoware/motion_utils/trajectory/conversion.hpp"
+#include "autoware/motion_utils/trajectory/rising_velocity.hpp"
 #include "autoware/path_smoother/utils/geometry_utils.hpp"
 #include "autoware/path_smoother/utils/trajectory_utils.hpp"
 #include "autoware/path_smoother/log_compat.hpp"
@@ -272,6 +273,8 @@ void ElasticBandSmoother::applyInputVelocity(
   }();
 
   // update velocity
+  bool interpolate_rising_velocity=false;
+  ros::param::getCached("/planning/interpolate_rising_velocity",interpolate_rising_velocity);
   size_t input_traj_start_idx = 0;
   for (size_t i = 0; i < output_traj_points.size(); i++) {
     // crop backward for efficient calculation
@@ -283,8 +286,16 @@ void ElasticBandSmoother::applyInputVelocity(
       cropped_input_traj_points, output_traj_points.at(i).pose, ego_nearest_param_);
     input_traj_start_idx = nearest_seg_idx;
 
-    // calculate velocity with zero order hold
-    const double velocity = cropped_input_traj_points.at(nearest_seg_idx).longitudinal_velocity_mps;
+    // Keep legacy hold for decreasing speeds/stops. Increasing spatial speed
+    // profiles must not turn an ego-speed anchor into an extra low-speed zone.
+    const auto & mapped=cropped_input_traj_points.at(nearest_seg_idx);
+    double velocity = mapped.longitudinal_velocity_mps;
+    if(interpolate_rising_velocity && nearest_seg_idx+1<cropped_input_traj_points.size()) {
+      const auto & next=cropped_input_traj_points.at(nearest_seg_idx+1);
+      velocity=autoware::motion_utils::rising_velocity_at_projection(
+        mapped.pose.position,next.pose.position,output_traj_points.at(i).pose.position,
+        velocity,next.longitudinal_velocity_mps);
+    }
     output_traj_points.at(i).longitudinal_velocity_mps = velocity;
   }
 

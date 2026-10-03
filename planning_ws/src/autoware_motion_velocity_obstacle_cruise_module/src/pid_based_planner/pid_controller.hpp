@@ -42,6 +42,8 @@ public:
   double getKi() const { return ki_; }
   double getKd() const { return kd_; }
 
+  void reset() { error_sum_=0.0; prev_error_.reset(); }
+
   void updateParam(const double kp, const double ki, const double kd)
   {
     kp_ = kp;

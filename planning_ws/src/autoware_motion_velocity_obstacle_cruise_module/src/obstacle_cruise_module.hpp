@@ -61,6 +61,7 @@ public:
   }
 
 private:
+  friend class CruiseFutureAdmissionTestAccess;
   std::string module_name_;
 
   // ros parameters
@@ -106,7 +107,8 @@ private:
     const std::shared_ptr<PlannerData::Object> object, const ros::Time & predicted_objects_stamp,
     const double dist_from_obj_poly_to_traj_poly, const bool is_driving_forward,
     const VehicleInfo & vehicle_info,
-    const TrajectoryPolygonCollisionCheck & trajectory_polygon_collision_check) const;
+    const TrajectoryPolygonCollisionCheck & trajectory_polygon_collision_check,
+    bool precise_future_admission = false, bool rough_rejected = false) const;
   std::optional<std::vector<CruiseObstacle>> find_yield_cruise_obstacles(
     const Odometry & odometry, const std::vector<std::shared_ptr<PlannerData::Object>> & objects,
     const ros::Time & predicted_objects_stamp, const std::vector<TrajectoryPoint> & traj_points,

@@ -22,10 +22,10 @@
        default="[autoware::behavior_velocity_planner::experimental::CrosswalkModulePlugin, autoware::behavior_velocity_planner::experimental::WalkwayModulePlugin, autoware::behavior_velocity_planner::experimental::RoundaboutModulePlugin, autoware::behavior_velocity_planner::experimental::MergeFromPrivateModulePlugin, autoware::behavior_velocity_planner::experimental::BlindSpotModulePlugin, autoware::behavior_velocity_planner::experimental::VirtualTrafficLightModulePlugin, autoware::behavior_velocity_planner::experimental::NoStoppingAreaModulePlugin, autoware::behavior_velocity_planner::experimental::StopLineModulePlugin, autoware::behavior_velocity_planner::experimental::SpeedBumpModulePlugin, autoware::behavior_velocity_planner::experimental::NoDrivableLaneModulePlugin]"/>
   <arg name="behavior_velocity_launch_modules"
        default="$(eval arg('behavior_velocity_launch_modules_with_traffic_light') if arg('enable_traffic_light_planner') else arg('behavior_velocity_launch_modules_without_traffic_light'))"/>
-  <!-- The competition perception stack intentionally publishes unresolved
-       detections as UNKNOWN. Do not suppress a newly observed UNKNOWN object
-       for the upstream two-second classification-stability grace period. -->
-  <arg name="static_avoidance_unknown_stability_time" default="0.0"/>
+  <!-- Newly initialized BEVFusion tracks can briefly be UNKNOWN with zero
+       velocity. Allow a short classification window before static lateral
+       avoidance; longitudinal object safety modules still receive the object. -->
+  <arg name="static_avoidance_unknown_stability_time" default="0.5"/>
   <arg name="publish_fixed_autonomous_mode" default="true"/>
   <arg name="relay_operation_mode_to_api" default="true"/>
   <arg name="use_ground_pointcloud" default="false"/>

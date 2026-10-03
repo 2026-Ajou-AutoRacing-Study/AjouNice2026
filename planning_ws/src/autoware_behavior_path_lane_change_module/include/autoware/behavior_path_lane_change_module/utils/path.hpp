@@ -72,10 +72,31 @@ bool get_prepare_segment(
  *
  * @return LaneChangePath The constructed candidate lane change path.
  */
+// Additional proposal context: calls the same private native reference builder.
+// Existing generation overloads and default behavior remain unchanged.
+PathWithLaneId world_candidate_native_reference(
+  const CommonDataPtr &, const LaneChangePhaseMetrics &, const LaneChangePhaseMetrics &,
+  const PathWithLaneId &, bool physical_endpoint_consistency);
+
 LaneChangePath get_candidate_path(
   const CommonDataPtr & common_data_ptr, const LaneChangePhaseMetrics & prep_metric,
   const LaneChangePhaseMetrics & lc_metric, const PathWithLaneId & prep_segment,
   const std::vector<std::vector<int64_t>> & sorted_lane_ids, const double shift_length);
+
+// Explicit normal-module experiment. Original overload preserves default OFF
+// and its existing ABI for external callers.
+LaneChangePath get_candidate_path(
+  const CommonDataPtr & common_data_ptr, const LaneChangePhaseMetrics & prep_metric,
+  const LaneChangePhaseMetrics & lc_metric, const PathWithLaneId & prep_segment,
+  const std::vector<std::vector<int64_t>> & sorted_lane_ids, const double shift_length,
+  const bool physical_endpoint_consistency);
+
+// Diagnostic-only input; borrowed synchronously, copied only on a rate-limited rejection.
+LaneChangePath get_candidate_path(
+  const CommonDataPtr & common_data_ptr, const LaneChangePhaseMetrics & prep_metric,
+  const LaneChangePhaseMetrics & lc_metric, const PathWithLaneId & prep_segment,
+  const std::vector<std::vector<int64_t>> & sorted_lane_ids, const double shift_length,
+  const bool physical_endpoint_consistency, const PathWithLaneId * diagnostic_upstream);
 
 /**
  * @brief Constructs a candidate path for a lane change maneuver.
@@ -98,6 +119,18 @@ LaneChangePath construct_candidate_path(
   const CommonDataPtr & common_data_ptr, const LaneChangeInfo & lane_change_info,
   const PathWithLaneId & prepare_segment, const PathWithLaneId & target_lane_reference_path,
   const std::vector<std::vector<int64_t>> & sorted_lane_ids);
+
+LaneChangePath construct_candidate_path(
+  const CommonDataPtr & common_data_ptr, const LaneChangeInfo & lane_change_info,
+  const PathWithLaneId & prepare_segment, const PathWithLaneId & target_lane_reference_path,
+  const std::vector<std::vector<int64_t>> & sorted_lane_ids,
+  const bool physical_endpoint_consistency);
+
+LaneChangePath construct_candidate_path(
+  const CommonDataPtr & common_data_ptr, const LaneChangeInfo & lane_change_info,
+  const PathWithLaneId & prepare_segment, const PathWithLaneId & target_lane_reference_path,
+  const std::vector<std::vector<int64_t>> & sorted_lane_ids,
+  const bool physical_endpoint_consistency, const PathWithLaneId * diagnostic_upstream);
 
 /**
  * @brief Generates candidate trajectories in the Frenet frame for a lane change maneuver.

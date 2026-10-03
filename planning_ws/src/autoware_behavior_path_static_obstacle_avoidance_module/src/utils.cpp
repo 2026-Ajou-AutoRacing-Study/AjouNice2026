@@ -1573,6 +1573,20 @@ void fillLongitudinalAndLengthByClosestEnvelopeFootprint(
   obj.length = max_distance - min_distance;
 }
 
+void removeMovingClipObjects(
+  ObjectDataArray & clip_objects, const ObjectDataArray & observations,
+  const std::shared_ptr<AvoidanceParameters> & parameters)
+{
+  clip_objects.erase(
+    std::remove_if(clip_objects.begin(), clip_objects.end(), [&](const auto & latched) {
+      return std::any_of(observations.begin(), observations.end(), [&](const auto & observed) {
+        return latched.object.object_id == observed.object.object_id &&
+               filtering_utils::isMovingObject(observed, parameters);
+      });
+    }),
+    clip_objects.end());
+}
+
 bool isClipObjectPassed(
   const ObjectData & object, const double base_link2rear, const double release_margin)
 {

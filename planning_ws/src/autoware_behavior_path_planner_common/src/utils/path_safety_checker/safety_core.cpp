@@ -1,4 +1,5 @@
 #include <autoware/behavior_path_planner_common/utils/path_safety_checker/safety_core.hpp>
+#include <autoware/behavior_path_planner_common/utils/path_safety_checker/prepared_path_projection.hpp>
 
 #include <autoware/motion_utils/trajectory/trajectory.hpp>
 #include <algorithm>
@@ -86,21 +87,35 @@ autoware_utils_geometry::Polygon2d create_extended_ego_polygon_along_path(
   const autoware::vehicle_info_utils::VehicleInfo & vehicle_info, const double longitudinal_length,
   const double lateral_margin, const bool is_stopped_object)
 {
+  return create_extended_ego_polygon_along_path(planned_path,base_link_pose,vehicle_info,
+    longitudinal_length,lateral_margin,is_stopped_object,nullptr);
+}
+autoware_utils_geometry::Polygon2d create_extended_ego_polygon_along_path(
+  const autoware_internal_planning_msgs::PathWithLaneId & planned_path,
+  const geometry_msgs::Pose & base_link_pose,
+  const autoware::vehicle_info_utils::VehicleInfo & vehicle_info, const double longitudinal_length,
+  const double lateral_margin, const bool is_stopped_object,
+  const PreparedPathProjection * projection)
+{
+  // A workspace from any other path must never change this path's geometry.
+  if(projection&&!projection->matches(planned_path))projection=nullptr;
   const double front_offset = vehicle_info.max_longitudinal_offset_m +
     (is_stopped_object ? longitudinal_length / 2.0 : longitudinal_length);
   const double rear_offset = -vehicle_info.rear_overhang_m -
     (is_stopped_object ? longitudinal_length / 2.0 : 0.0);
   const double lateral_offset = vehicle_info.vehicle_width_m / 2.0 + lateral_margin;
-  const auto target_pose = autoware::motion_utils::calcLongitudinalOffsetPose(
-    planned_path.points, base_link_pose.position, longitudinal_length);
+  const auto target_pose = projection?
+    projection->offset_pose(base_link_pose.position,longitudinal_length):
+    autoware::motion_utils::calcLongitudinalOffsetPose(
+      planned_path.points, base_link_pose.position, longitudinal_length);
   if (!target_pose) {
     return create_extended_ego_polygon(
       base_link_pose, vehicle_info, longitudinal_length, lateral_margin, is_stopped_object);
   }
-  const size_t start_index = autoware::motion_utils::findNearestSegmentIndex(
-    planned_path.points, base_link_pose.position);
-  const size_t end_index = autoware::motion_utils::findNearestSegmentIndex(
-    planned_path.points, target_pose->position);
+  const size_t start_index = projection?projection->nearest(base_link_pose.position):
+    autoware::motion_utils::findNearestSegmentIndex(planned_path.points,base_link_pose.position);
+  const size_t end_index = projection?projection->nearest(target_pose->position):
+    autoware::motion_utils::findNearestSegmentIndex(planned_path.points,target_pose->position);
   autoware_utils_geometry::Polygon2d polygon;
   const auto append = [&](const geometry_msgs::Pose & pose) {
     polygon.outer().emplace_back(pose.position.x, pose.position.y);
@@ -440,6 +455,18 @@ bool check_safety_with_rss(
   const RSSparams & params, const bool use_all_predicted_paths,
   const double hysteresis_factor, const double yaw_difference_threshold)
 {
+  return check_safety_with_rss(planned_path,ego_predicted_path,vehicle_info,objects,debug_map,
+    params,use_all_predicted_paths,hysteresis_factor,yaw_difference_threshold,nullptr);
+}
+bool check_safety_with_rss(
+  const autoware_internal_planning_msgs::PathWithLaneId & planned_path,
+  const std::vector<PoseWithVelocityStamped> & ego_predicted_path,
+  const autoware::vehicle_info_utils::VehicleInfo & vehicle_info,
+  const ExtendedPredictedObjects & objects, CollisionCheckDebugMap & debug_map,
+  const RSSparams & params, const bool use_all_predicted_paths,
+  const double hysteresis_factor, const double yaw_difference_threshold,
+  const PreparedPathProjection * projection)
+{
   if ((params.extended_polygon_policy != "rectangle" &&
        params.extended_polygon_policy != "along_path") || hysteresis_factor < 0.0) return false;
   for (const auto & object : objects) {
@@ -478,7 +505,7 @@ bool check_safety_with_rss(
         const auto extended_ego = !object_is_front ? ego_polygon :
           (params.extended_polygon_policy == "along_path"
             ? create_extended_ego_polygon_along_path(
-                planned_path, ego->pose, vehicle_info, extension, lateral, stopped)
+                planned_path, ego->pose, vehicle_info, extension, lateral, stopped,projection)
             : create_extended_ego_polygon(ego->pose, vehicle_info, extension, lateral, stopped));
         const auto extended_object = object_is_front ? object_pose.polygon :
           create_extended_object_polygon(object_pose, extension, lateral, stopped);

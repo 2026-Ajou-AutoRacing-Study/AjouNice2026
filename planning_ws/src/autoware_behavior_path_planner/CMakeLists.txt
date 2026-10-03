@@ -400,6 +400,11 @@ install(TARGETS ${PROJECT_NAME}_full_source behavior_path_planner_full_node
 
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_full_bpp_original_utilities test/full_original/input.cpp test/full_original/test_utils.cpp)
+  catkin_add_gtest(test_bpp_final_ego_poll test/test_bpp_final_ego_poll.cpp)
+  if(TARGET test_bpp_final_ego_poll)
+    target_compile_features(test_bpp_final_ego_poll PUBLIC cxx_std_17)
+    target_link_libraries(test_bpp_final_ego_poll gtest_main ${catkin_LIBRARIES})
+  endif()
   catkin_add_gtest(test_full_bpp_original_node test/full_original/test_autoware_behavior_path_planner_node_interface.cpp)
   foreach(full_test test_full_bpp_original_utilities test_full_bpp_original_node)
     if(TARGET ${full_test})

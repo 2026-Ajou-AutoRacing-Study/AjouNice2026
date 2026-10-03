@@ -42,6 +42,12 @@
 
 namespace autoware::behavior_path_planner::utils::lane_change
 {
+// Membership of an intended lane sequence is not uniquely determined by the
+// route-wide closest lane ID when same-direction polygons overlap.
+bool contains_direction_compatible_pose(
+  const lanelet::ConstLanelets & lanes, const geometry_msgs::Pose & pose,
+  double yaw_threshold);
+
 bool contains_lane_change_maneuver(
   const LaneChangePath & candidate, const double tolerance = 1.0);
 

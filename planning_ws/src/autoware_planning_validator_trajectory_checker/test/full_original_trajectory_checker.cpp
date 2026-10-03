@@ -165,6 +165,100 @@ TEST_F(TestTrajectoryChecker, checkValidCurvatureFunction)
   }
 }
 
+TEST_F(TestTrajectoryChecker, CurvatureTurnDirectionSymmetryAndBoundary)
+{
+  constexpr double threshold = 0.1;
+  for (const double direction : {-1.0, 1.0}) {
+    for (const double magnitude : {0.099, 0.101}) {
+      node_->setParam("trajectory_checker/curvature/threshold", threshold);
+      trajectory_checker_->init(*node_, "trajectory_checker", context_);
+      Trajectory trajectory;
+      for (size_t i = 0; i < 20; ++i) {
+        autoware_planning_msgs::TrajectoryPoint point;
+        const double angle = 0.2 * i;
+        point.pose.position.x = std::sin(angle) / magnitude;
+        point.pose.position.y = direction * (1.0 - std::cos(angle)) / magnitude;
+        point.pose.orientation.w = 1.0;
+        trajectory.points.push_back(point);
+      }
+      set_trajectory(trajectory);
+      EXPECT_EQ(trajectory_checker_->check_valid_curvature(), magnitude < threshold);
+      EXPECT_NEAR(context_->validation_status->max_curvature, direction * magnitude, 1e-6);
+      const auto measured = trajectory_checker_utils::calcMaxCurvature(
+        *context_->data->resampled_current_trajectory).first;
+      node_->setParam("trajectory_checker/curvature/threshold", std::abs(measured));
+      trajectory_checker_->init(*node_, "trajectory_checker", context_);
+      EXPECT_TRUE(trajectory_checker_->check_valid_curvature());
+    }
+  }
+}
+
+TEST_F(TestTrajectoryChecker, CurvatureSelectsLargestMagnitudeAcrossBothDirections)
+{
+  Trajectory trajectory;
+  const std::vector<double> lateral{0.0, 0.1, 0.0, 0.0, 1.0, 3.0, 1.0, 0.0, 0.0};
+  for (size_t i = 0; i < lateral.size(); ++i) {
+    autoware_planning_msgs::TrajectoryPoint point;
+    point.pose.position.x = 2.0 * i;
+    point.pose.position.y = lateral.at(i);
+    trajectory.points.push_back(point);
+  }
+  const auto actual = trajectory_checker_utils::calcMaxCurvature(trajectory);
+  EXPECT_NEAR(actual.first, -0.5, 1e-6);
+  EXPECT_EQ(actual.second, 5U);
+  for (auto & point : trajectory.points) point.pose.position.y *= -1.0;
+  const auto mirrored = trajectory_checker_utils::calcMaxCurvature(trajectory);
+  EXPECT_DOUBLE_EQ(mirrored.first, -actual.first);
+  EXPECT_EQ(mirrored.second, actual.second);
+}
+
+TEST_F(TestTrajectoryChecker, LateralAccelerationTurnDirectionSymmetry)
+{
+  constexpr double threshold = 9.8;
+  node_->setParam("trajectory_checker/lateral_accel/threshold", threshold);
+  trajectory_checker_->init(*node_, "trajectory_checker", context_);
+  for (const double direction : {-1.0, 1.0}) {
+    for (const double magnitude : {threshold - 0.001, threshold + 0.001, 11.77}) {
+      Trajectory trajectory;
+      for (size_t i = 0; i < 20; ++i) {
+        autoware_planning_msgs::TrajectoryPoint point;
+        const double angle = 0.2 * i;
+        point.pose.position.x = 10.0 * std::sin(angle);
+        point.pose.position.y = direction * 10.0 * (1.0 - std::cos(angle));
+        point.pose.orientation.w = 1.0;
+        point.longitudinal_velocity_mps = std::sqrt(magnitude * 10.0);
+        trajectory.points.push_back(point);
+      }
+      set_trajectory(trajectory);
+      EXPECT_EQ(trajectory_checker_->check_valid_lateral_acceleration(), magnitude < threshold);
+      EXPECT_NEAR(context_->validation_status->max_lateral_acc, direction * magnitude, 1e-4);
+    }
+  }
+}
+
+TEST_F(TestTrajectoryChecker, LateralAccelerationThresholdIsInclusive)
+{
+  for (const double direction : {-1.0, 1.0}) {
+    Trajectory trajectory;
+    for (size_t i = 0; i < 20; ++i) {
+      autoware_planning_msgs::TrajectoryPoint point;
+      const double angle = 0.2 * i;
+      point.pose.position.x = 10.0 * std::sin(angle);
+      point.pose.position.y = direction * 10.0 * (1.0 - std::cos(angle));
+      point.pose.orientation.w = 1.0;
+      point.longitudinal_velocity_mps = std::sqrt(98.0);
+      trajectory.points.push_back(point);
+    }
+    set_trajectory(trajectory);
+    const auto measured = trajectory_checker_utils::calcMaxLateralAcceleration(
+      *context_->data->resampled_current_trajectory).first;
+    // Match the floating-point measurement exactly to test > versus >=.
+    node_->setParam("trajectory_checker/lateral_accel/threshold", std::abs(measured));
+    trajectory_checker_->init(*node_, "trajectory_checker", context_);
+    EXPECT_TRUE(trajectory_checker_->check_valid_lateral_acceleration());
+  }
+}
+
 TEST_F(TestTrajectoryChecker, checkValidRelativeAngleFunction)
 {
   // valid case

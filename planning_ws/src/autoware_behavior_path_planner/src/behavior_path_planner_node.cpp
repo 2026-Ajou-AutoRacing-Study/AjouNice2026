@@ -16,6 +16,9 @@
 // limitations under the License.
 
 #include "autoware/behavior_path_planner/behavior_path_planner_node.hpp"
+#include "autoware/behavior_path_planner/final_ego_poll.hpp"
+#include "autoware/behavior_path_planner/coherent_ego_poll.hpp"
+#include <autoware/behavior_path_planner_common/interface/fresh_input_provider.hpp>
 
 #include "autoware/motion_utils/trajectory/conversion.hpp"
 
@@ -29,6 +32,8 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <iomanip>
+#include <sstream>
 
 namespace autoware::behavior_path_planner
 {
@@ -53,6 +58,10 @@ BehaviorPathPlannerNode::BehaviorPathPlannerNode(ros::NodeHandle private_node)
 
   // publisher
   path_publisher_ = create_publisher<PathWithLaneId>("output/path", 1);
+  ownership_snapshot_publisher_ = create_publisher<std_msgs::String>(
+    "/planning/debug/behavior_path_planner/module_ownership", 1);
+  ownership_boot_id_ = std::to_string(ros::WallTime::now().toNSec());
+  publishOwnershipSnapshot(false, "initializing");
   obstacle_scene_publisher_ = create_publisher<autoware_planning_msgs::StaticObstacleScene>(
     "/planning/scenario_planning/lane_driving/behavior_planning/static_obstacle_scene", 10);
   turn_signal_publisher_ =
@@ -280,6 +289,24 @@ void BehaviorPathPlannerNode::takeData()
       planner_data_->external_limit_max_velocity = msg;
     }
   }
+  // Each ROS1 polling subscriber services its own callback queue on take_data.
+  // A newer ego message can therefore arrive while the later input queues are
+  // serviced. Refresh before any module builds its common data, not mid-plan.
+  bool refresh_ego = false;
+  ros::param::getCached("/planning/bpp_final_ego_poll", refresh_ego);
+  const auto before_odom = planner_data_->self_odometry;
+  const auto before_acceleration = planner_data_->self_acceleration;
+  if (final_ego_poll(refresh_ego, velocity_subscriber_, acceleration_subscriber_,
+      planner_data_->self_odometry, planner_data_->self_acceleration)) {
+    const auto stamp = [](const auto & message) {
+      return message ? message->header.stamp.toSec() : 0.0;
+    };
+    ROS_INFO_THROTTLE(1.0,
+      "BPP final ego poll: odom_before=%.9f odom_after=%.9f acceleration_before=%.9f acceleration_after=%.9f objects=%.9f acquired_at=%.9f",
+      stamp(before_odom), stamp(planner_data_->self_odometry),
+      stamp(before_acceleration), stamp(planner_data_->self_acceleration),
+      stamp(planner_data_->dynamic_object), ros::Time::now().toSec());
+  }
 }
 
 // check if mandatory data is ready and check if cyclic data is not timed out.
@@ -355,6 +382,70 @@ BehaviorPathPlannerNode::DataReadyStatus BehaviorPathPlannerNode::isDataReady(
   return status;
 }
 
+void BehaviorPathPlannerNode::publishOwnershipSnapshot(
+  const bool valid, const std::string & reason)
+{
+  // Read-only complete manager snapshot. Caller holds mutex_manager_ when valid.
+  const auto quote = [](const std::string & value) {
+    std::ostringstream out;
+    out << '"';
+    for (const unsigned char c : value) {
+      if (c == '"' || c == '\\') out << '\\' << c;
+      else if (c < 32) out << "\\u" << std::hex << std::setw(4) << std::setfill('0') << unsigned(c);
+      else out << c;
+    }
+    out << '"';
+    return out.str();
+  };
+  const auto hex_uuid = [](const auto & uuid) {
+    std::ostringstream out;
+    for (const auto byte : uuid.uuid) out << std::hex << std::setw(2) << std::setfill('0') << unsigned(byte);
+    return out.str();
+  };
+  std::ostringstream out;
+  out << std::boolalpha << std::setprecision(17)
+      << "{\"valid\":" << valid << ",\"complete_snapshot\":" << valid
+      << ",\"stamp\":" << ros::Time::now().toSec()
+      << ",\"sequence\":" << ++ownership_sequence_
+      << ",\"boot_id\":" << quote(ownership_boot_id_)
+      << ",\"route_generation\":" << ownership_route_generation_
+      << ",\"route_uuid\":" << quote(route_ptr_ ? hex_uuid(route_ptr_->uuid) : "")
+      << ",\"route_stamp\":" << (route_ptr_ ? route_ptr_->header.stamp.toSec() : 0.0)
+      << ",\"reason\":" << quote(reason) << ",\"modules\":[";
+  bool first = true;
+  if (valid && planner_manager_) {
+    for (const auto & module : planner_manager_->getSceneModuleStatus()) {
+      if (!first) out << ',';
+      first = false;
+      out << "{\"name\":" << quote(module->module_name)
+          << ",\"state\":" << static_cast<int>(module->status)
+          // Explicit waitApproval() can coexist with lifecycle RUNNING. A
+          // waiting candidate is not a physical owner; an approved module
+          // remains an owner until terminal even if it re-enters approval.
+          << ",\"active\":" <<
+            ((module->is_approved && module->status != ModuleStatus::SUCCESS &&
+              module->status != ModuleStatus::FAILURE) ||
+             (module->status == ModuleStatus::RUNNING && !module->is_waiting_approval))
+          << ",\"approved\":" << module->is_approved
+          << ",\"waiting_approval\":" << module->is_waiting_approval
+          << ",\"rtc_uuid_available\":true"
+          << ",\"rtc_uuids\":[";
+      bool first_uuid = true;
+      for (const auto & rtc : module->rtc_uuids) {
+        if (!first_uuid) out << ',';
+        first_uuid = false;
+        out << "{\"interface\":" << quote(rtc.first)
+            << ",\"uuid\":" << quote(hex_uuid(rtc.second)) << '}';
+      }
+      out << "]}";
+    }
+  }
+  out << "]}";
+  std_msgs::String message;
+  message.data = out.str();
+  ownership_snapshot_publisher_->publish(message);
+}
+
 void BehaviorPathPlannerNode::run()
 {
   const auto stamp = this->now();
@@ -364,6 +455,7 @@ void BehaviorPathPlannerNode::run()
   const auto data_ready_status = isDataReady(stamp);
   // `DataReadyStatus::TIMEOUT` is not handled intentionally as the reason in "NOTE" below
   if (data_ready_status == DataReadyStatus::NOT_RECEIVED) {
+    publishOwnershipSnapshot(false, "required_input_not_received");
     /*
      * NOTE:
      * To preserve the existing logic of the run() callback,
@@ -379,6 +471,7 @@ void BehaviorPathPlannerNode::run()
 
   // behavior_path_planner runs only in LANE DRIVING scenario.
   if (current_scenario_->current_scenario != Scenario::LANEDRIVING) {
+    publishOwnershipSnapshot(false, "not_lane_driving");
     diagnostics_message_timeout_->publish(stamp);
     return;
   }
@@ -407,6 +500,7 @@ void BehaviorPathPlannerNode::run()
 
   // update map
   if (map_ptr) {
+    publishOwnershipSnapshot(false, "map_update");
     planner_data_->route_handler->setMap(*map_ptr);
   }
 
@@ -415,6 +509,8 @@ void BehaviorPathPlannerNode::run()
   // update route
   const bool is_first_time = !(planner_data_->route_handler->isHandlerReady());
   if (route_ptr) {
+    ++ownership_route_generation_;
+    publishOwnershipSnapshot(false, "route_update");
     planner_data_->route_handler->setRoute(*route_ptr);
     // uuid is not changed when rerouting with modified goal,
     // in this case do not need to reset modules.
@@ -438,7 +534,78 @@ void BehaviorPathPlannerNode::run()
     planner_manager_->resetCurrentRouteLanelet(planner_data_);
 
   // run behavior planner
-  const auto output = planner_manager_->run(planner_data_);
+  const auto output = [&]() {
+    bool fresh_commit_enabled = false;
+    ros::param::getCached("/planning/lc_fresh_commit_input", fresh_commit_enabled);
+    fresh_commit::Provider provider;
+    if (fresh_commit_enabled) {
+      const auto baseline = std::make_shared<const PlannerData>(*planner_data_);
+      const auto map = map_ptr_;
+      const auto route = route_ptr_;
+      const auto handler = baseline->route_handler;
+      const auto lanelet_map = handler->getLaneletMapPtr();
+      const auto uuid = handler->getRouteUuid();
+      const auto route_stamp = handler->getRouteHeader().stamp;
+      provider = [this, baseline, map, route, handler, lanelet_map, uuid, route_stamp]()
+        -> std::optional<fresh_commit::Snapshot> {
+        if (map_ptr_ != map || route_ptr_ != route || planner_data_->route_handler != handler ||
+            handler->getLaneletMapPtr() != lanelet_map ||
+            handler->getRouteUuid().uuid != uuid.uuid ||
+            handler->getRouteHeader().stamp != route_stamp) return std::nullopt;
+        auto fresh = std::make_shared<PlannerData>(*baseline);
+        // Poll actual existing queues only. This is acquisition, not synchronization;
+        // consumers retain all frame, skew, freshness and motion-validity checks.
+        if (auto msg = perception_subscriber_.take_data()) fresh->dynamic_object = msg;
+        if (auto msg = velocity_subscriber_.take_data()) fresh->self_odometry = msg;
+        if (auto msg = acceleration_subscriber_.take_data()) fresh->self_acceleration = msg;
+        if (!fresh->self_odometry || !fresh->self_acceleration || !fresh->dynamic_object)
+          return std::nullopt;
+        const auto repoll_deadline=ros::WallTime::now()+ros::WallDuration(.002);
+        CoherentEgoPollDiagnostic poll_diagnostic;
+        if(!coherent_ego_poll(velocity_subscriber_,acceleration_subscriber_,
+            fresh->self_odometry,fresh->self_acceleration,fresh->dynamic_object,
+            [this](){return this->now();},
+            [&](){return ros::WallTime::now()<repoll_deadline;},4,&poll_diagnostic)) {
+          ROS_WARN_STREAM_THROTTLE(1.0, "Fresh commit acquisition rejected: reason=" <<
+            poll_diagnostic.reason << " attempts=" << poll_diagnostic.attempts <<
+            " acquired_at=" << std::fixed << std::setprecision(9) << poll_diagnostic.acquired_at <<
+            " odom_stamp=" << fresh->self_odometry->header.stamp.toSec() <<
+            " odom_frame=" << fresh->self_odometry->header.frame_id <<
+            " accel_stamp=" << fresh->self_acceleration->header.stamp.toSec() <<
+            " accel_frame=" << fresh->self_acceleration->header.frame_id <<
+            " objects_stamp=" << fresh->dynamic_object->header.stamp.toSec() <<
+            " objects_frame=" << fresh->dynamic_object->header.frame_id);
+          return std::nullopt;
+        }
+        if (map_ptr_ != map || route_ptr_ != route || planner_data_->route_handler != handler ||
+            handler->getLaneletMapPtr() != lanelet_map ||
+            handler->getRouteUuid().uuid != uuid.uuid ||
+            handler->getRouteHeader().stamp != route_stamp) return std::nullopt;
+        fresh_commit::Snapshot result;
+        result.planner_data = std::move(fresh);
+        result.acquired_at = this->now();
+        result.acquired_wall = ros::WallTime::now();
+        result.owner = this;
+        result.map_identity = lanelet_map.get();
+        result.route_message_identity = route.get();
+        result.route_handler = handler.get();
+        result.route_uuid = uuid;
+        result.route_stamp = route_stamp;
+        return result;
+      };
+    }
+    fresh_commit::ScopedProvider fresh_input_scope(std::move(provider));
+    try {
+      return planner_manager_->run(planner_data_);
+    } catch (...) {
+      publishOwnershipSnapshot(false, "planner_exception");
+      throw;
+    }
+  }();
+  publishOwnershipSnapshot(
+    data_ready_status == DataReadyStatus::SUCCESS && route_ptr_ &&
+      planner_data_->route_handler->isHandlerReady() && !output.path.points.empty(),
+    data_ready_status == DataReadyStatus::SUCCESS ? "completed_cycle" : "input_timeout");
 
   // path handling
   const auto path = getPath(output, planner_data_);

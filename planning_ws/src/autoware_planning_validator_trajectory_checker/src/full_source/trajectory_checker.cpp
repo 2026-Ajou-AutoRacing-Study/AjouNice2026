@@ -290,7 +290,7 @@ bool TrajectoryChecker::check_valid_curvature()
 
   const auto [max_curvature, i] = trajectory_checker_utils::calcMaxCurvature(trajectory);
   status->max_curvature = max_curvature;
-  if (max_curvature > params_.curvature.threshold) {
+  if (std::abs(max_curvature) > params_.curvature.threshold) {
     const auto & p = trajectory.points;
     if (i > 0 && i < p.size() - 1) {
       context_->debug_pose_publisher->pushPoseMarker(p.at(i - 1), "trajectory_curvature");
@@ -317,7 +317,8 @@ bool TrajectoryChecker::check_valid_lateral_acceleration()
   const auto [max_lateral_acc, i] =
     trajectory_checker_utils::calcMaxLateralAcceleration(trajectory);
   status->max_lateral_acc = max_lateral_acc;
-  if (max_lateral_acc > params_.lateral_accel.threshold) {
+  // The diagnostic keeps the turn direction; the magnitude determines safety.
+  if (std::abs(max_lateral_acc) > params_.lateral_accel.threshold) {
     context_->debug_pose_publisher->pushPoseMarker(trajectory.points.at(i), "lateral_acceleration");
     context_->set_handling(params_.lateral_accel.handling_type);
     override_all_error_diag_ |= params_.lateral_accel.override_error_diag;

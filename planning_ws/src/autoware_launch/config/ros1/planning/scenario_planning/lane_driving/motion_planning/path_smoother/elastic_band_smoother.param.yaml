@@ -2,7 +2,8 @@ common/output_delta_arc_length: 0.2
 common/output_backward_traj_length: 5.0
 elastic_band/option/enable_warm_start: true
 elastic_band/option/enable_optimization_validation: true
-elastic_band/common/num_points: 120
+# Cover highway braking lookahead with bounded smoothing, not raw spline tail.
+elastic_band/common/num_points: 360
 elastic_band/common/delta_arc_length: 0.5
 elastic_band/clearance/num_joint_points: 3
 elastic_band/clearance/clearance_for_fix: 0.0

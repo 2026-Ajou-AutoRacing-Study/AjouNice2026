@@ -13,8 +13,10 @@
 // limitations under the License.
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/calculation.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/prepare_candidate_selection.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/utils.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/speed_profile.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/speed_refresh.hpp"
 #include "autoware/behavior_path_planner_common/utils/drivable_area_expansion/static_drivable_area.hpp"
 
 #include <autoware_utils/geometry/geometry.hpp>
@@ -22,8 +24,227 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <array>
+#include <set>
 
 constexpr double epsilon = 1e-6;
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, SafePrepareFallbackPreservesIndicesAndLastContract)
+{
+  using namespace autoware::behavior_path_planner::lane_change;
+  SafePrepareCandidateSelection best;
+  std::vector<int> paths{10};
+  EXPECT_TRUE(best.consider(0,true,5.0));
+  paths.push_back(20); // Later unsafe candidate must never become selected.
+  EXPECT_FALSE(best.consider(1,false,0.0));
+  EXPECT_TRUE(best.append_selected(paths)); // Timeout/exhaustion finalize.
+  ASSERT_EQ(paths.size(),3U);
+  EXPECT_EQ(paths[0],10);EXPECT_EQ(paths[1],20);EXPECT_EQ(paths.back(),10);
+}
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, SafePrepareLowerLossAndZeroDuration)
+{
+  using namespace autoware::behavior_path_planner::lane_change;
+  EXPECT_DOUBLE_EQ(prepare_speed_loss(16.1,0.0,11.0),0.0);
+  EXPECT_NEAR(prepare_speed_loss(16.1,2.56,11.03),5.07,1e-9);
+  EXPECT_DOUBLE_EQ(prepare_speed_loss(16.1,2.0,18.0),0.0);
+  SafePrepareCandidateSelection best;std::vector<int> paths{10,20,30};
+  EXPECT_TRUE(best.consider(0,true,5.07));
+  EXPECT_TRUE(best.consider(1,true,1.0));
+  EXPECT_TRUE(best.consider(2,true,0.0));
+  EXPECT_TRUE(best.no_prepare_loss());
+  EXPECT_TRUE(best.append_selected(paths));
+  EXPECT_EQ(paths.size(),3U);EXPECT_EQ(paths.back(),30);
+}
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, SafePrepareNoSafeAndInvalidRankFailSelectionClosed)
+{
+  using namespace autoware::behavior_path_planner::lane_change;
+  SafePrepareCandidateSelection best;std::vector<int> paths{10,20};
+  EXPECT_FALSE(best.consider(0,false,0.0));
+  EXPECT_FALSE(best.append_selected(paths));
+  EXPECT_TRUE(best.consider(0,true,std::numeric_limits<double>::infinity()));
+  EXPECT_FALSE(best.no_prepare_loss());
+  EXPECT_TRUE(best.consider(1,true,2.0));
+  EXPECT_TRUE(best.append_selected(paths));EXPECT_EQ(paths.back(),20);
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, SafeZeroLossDoesNotHideFasterSafeCandidate)
+{
+  using namespace autoware::behavior_path_planner::lane_change;
+  SafePrepareCandidateSelection best;std::vector<int> paths{10,20,30};
+  EXPECT_TRUE(best.consider(0,true,0.0,48.0,3.0)); // R23 coast during preparation.
+  EXPECT_TRUE(best.consider(1,true,0.0,57.0,0.0)); // Faster, equally loss-free.
+  EXPECT_FALSE(best.consider(2,false,0.0,65.0,0.0));
+  EXPECT_TRUE(best.append_selected(paths)); // Timeout preserves best, not latest unsafe.
+  EXPECT_EQ(paths[0],10);EXPECT_EQ(paths[1],20);EXPECT_EQ(paths[2],30);
+  EXPECT_EQ(paths.back(),20);
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, SafeProgressTieUsesShorterPreparation)
+{
+  using namespace autoware::behavior_path_planner::lane_change;
+  SafePrepareCandidateSelection best;std::vector<int> paths{10,20,30};
+  EXPECT_TRUE(best.consider(0,true,0.0,48.0,3.0));
+  EXPECT_TRUE(best.consider(1,true,0.0,48.0005,1.0));
+  EXPECT_FALSE(best.consider(2,true,0.0,48.0008,2.0));
+  EXPECT_TRUE(best.append_selected(paths));EXPECT_EQ(paths.back(),20);
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, SafeRankingFailureRetainsFallbackAndNoExtraLoss)
+{
+  using namespace autoware::behavior_path_planner::lane_change;
+  SafePrepareCandidateSelection best;std::vector<int> paths{10,20,30};
+  EXPECT_TRUE(best.consider(0,true,0.0,-1.0,3.0)); // Scoring failed; safety did not.
+  EXPECT_FALSE(best.consider(1,true,2.0,60.0,0.0)); // Do not buy progress with extra loss.
+  EXPECT_TRUE(best.consider(2,true,0.0,49.0,2.0));
+  EXPECT_TRUE(best.append_selected(paths));EXPECT_EQ(paths.back(),30);
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, ApprovedSpeedRefreshPreservesGeometryStopsAndBounds)
+{
+  using namespace autoware::behavior_path_planner;
+  PathWithLaneId original;
+  for (int i = 0; i <= 120; ++i) {
+    PathPointWithLaneId p;
+    p.point.pose.position.x = i;
+    p.point.pose.orientation.w = 1;
+    p.point.longitudinal_velocity_mps = i >= 100 ? 0.0 : 10.0;
+    p.lane_ids = {10, 20};
+    original.points.push_back(p);
+  }
+  const auto refreshed = utils::lane_change::refresh_path_speed(
+    original, 10, 90, std::vector<double>(81, 25.0), 10.0, 3.0, 4.0);
+  EXPECT_GT(refreshed.points[50].point.longitudinal_velocity_mps, 15.0);
+  for (size_t i = 0; i < original.points.size(); ++i) {
+    EXPECT_EQ(refreshed.points[i].point.pose, original.points[i].point.pose);
+    EXPECT_EQ(refreshed.points[i].lane_ids, original.points[i].lane_ids);
+    if (i <= 10 || i >= 90) EXPECT_EQ(
+      refreshed.points[i].point.longitudinal_velocity_mps,
+      original.points[i].point.longitudinal_velocity_mps);
+    if (i > 10 && i <= 90) {
+      const double a = (std::pow(refreshed.points[i].point.longitudinal_velocity_mps, 2) -
+        std::pow(refreshed.points[i-1].point.longitudinal_velocity_mps, 2)) / 2;
+      EXPECT_LE(a, 3.0 + 1e-4);
+      EXPECT_GE(a, -4.0 - 1e-4);
+    }
+  }
+  auto caps = std::vector<double>(101, 25.0);
+  caps[70] = 8.0;
+  const auto stopped = utils::lane_change::refresh_path_speed(
+    original, 10, 110, caps, 10.0, 3.0, 4.0);
+  EXPECT_LE(stopped.points[80].point.longitudinal_velocity_mps, 8.0);
+  for (size_t i = 100; i <= 120; ++i) EXPECT_EQ(
+    stopped.points[i].point.longitudinal_velocity_mps, 0.0);
+  EXPECT_THROW(utils::lane_change::refresh_path_speed(
+    original, 10, 90, std::vector<double>(81, 1.0), 10.0, 3.0, 4.0), std::logic_error);
+  // Failed proposals have never mutated the original approved path.
+  EXPECT_EQ(original.points[50].point.longitudinal_velocity_mps, 10.0);
+  const autoware::motion_utils::AccelerationLimits map({{0.0, 1.0}, {40.0, 1.0}});
+  const auto map_limited = utils::lane_change::refresh_path_speed(
+    original, 10, 90, std::vector<double>(81, 25.0), 10.0, 3.7, 4.0, map);
+  for (size_t i = 11; i <= 90; ++i) {
+    const double a = (std::pow(map_limited.points[i].point.longitudinal_velocity_mps, 2) -
+      std::pow(map_limited.points[i-1].point.longitudinal_velocity_mps, 2)) / 2;
+    EXPECT_LE(a, 1.0 + 1e-4);
+  }
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, ApprovedSpeedRefreshRemovesEndValleyWithoutRaisingTail)
+{
+  using namespace autoware::behavior_path_planner;
+  using namespace utils::lane_change;
+  PathWithLaneId original;
+  std::vector<double> caps;
+  constexpr size_t lc_end = 30;
+  for (size_t i = 0; i <= 120; ++i) {
+    PathPointWithLaneId p;
+    p.point.pose.position.x = i;
+    p.point.pose.orientation.w = 1.0;
+    p.point.longitudinal_velocity_mps = i <= lc_end ? 10.0 : (i >= 100 ? 0.0 : 25.0);
+    p.lane_ids = i <= lc_end ? std::vector<int64_t>{1, 2} : std::vector<int64_t>{2};
+    original.points.push_back(p);
+    caps.push_back(i <= lc_end ? 25.0 : p.point.longitudinal_velocity_mps);
+  }
+  const auto refreshed = refresh_path_speed(original, 0, 120, caps, 10.0, 3.0, 4.0);
+  EXPECT_GT(refreshed.points[lc_end].point.longitudinal_velocity_mps, 16.0);
+  EXPECT_GT(refreshed.points[lc_end + 1].point.longitudinal_velocity_mps,
+            refreshed.points[lc_end].point.longitudinal_velocity_mps);
+  for (size_t i = lc_end + 1; i < original.points.size(); ++i) {
+    EXPECT_LE(refreshed.points[i].point.longitudinal_velocity_mps,
+              original.points[i].point.longitudinal_velocity_mps);
+    EXPECT_EQ(refreshed.points[i].point.pose, original.points[i].point.pose);
+    EXPECT_EQ(refreshed.points[i].lane_ids, original.points[i].lane_ids);
+  }
+  const auto lc = refresh_lc_metrics(refreshed, 0, lc_end);
+  const auto tail = refresh_lc_metrics(refreshed, 0, 100);
+  EXPECT_NEAR(lc.terminal_velocity, refreshed.points[lc_end].point.longitudinal_velocity_mps, 1e-6);
+  EXPECT_GT(lc.terminal_velocity, 10.0);
+  EXPECT_LT(lc.duration, tail.duration);
+  EXPECT_EQ(tail.terminal_velocity, 0.0);
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, ApprovedSpeedRefreshFinalOutputAtomicCommit)
+{
+  using namespace autoware::behavior_path_planner;
+  using utils::lane_change::commit_final_speed_refresh;
+  LaneChangePath approved;
+  for (int i = 0; i < 4; ++i) {
+    PathPointWithLaneId p;
+    p.point.pose.position.x = i;
+    p.point.pose.orientation.w = 1.0;
+    p.point.longitudinal_velocity_mps = 10.0;
+    p.lane_ids = {1};
+    approved.path.points.push_back(p);
+  }
+  auto output = approved.path;
+  output.points.back().point.longitudinal_velocity_mps = 0.0;  // Late terminal stop.
+  auto proposal = approved;
+  proposal.path = output;
+  proposal.path.points[1].point.longitudinal_velocity_mps = 11.0;
+  int checks = 0;
+  const auto reject = [&](const LaneChangePath & final_path) {
+    ++checks;
+    EXPECT_EQ(final_path.path.points.back().point.longitudinal_velocity_mps, 0.0);
+    return false;  // E.g. newly inserted stop fails trailing-object RSS.
+  };
+  EXPECT_FALSE(commit_final_speed_refresh(approved, output, proposal, false, reject));
+  EXPECT_EQ(checks, 1);
+  EXPECT_EQ(approved.path.points[1].point.longitudinal_velocity_mps, 10.0);
+  EXPECT_EQ(output.points[1].point.longitudinal_velocity_mps, 10.0);
+  EXPECT_EQ(output.points.back().point.longitudinal_velocity_mps, 0.0);
+  EXPECT_FALSE(commit_final_speed_refresh(approved, output, proposal, true, reject));
+  EXPECT_EQ(checks, 1);  // Shortened-output fallback cannot commit even if safe.
+  const auto accept = [](const LaneChangePath &) { return true; };
+  auto erased_stop = proposal;
+  erased_stop.path.points.back().point.longitudinal_velocity_mps = 10.0;
+  EXPECT_FALSE(commit_final_speed_refresh(approved, output, erased_stop, false, accept));
+  auto moved_geometry = proposal;
+  moved_geometry.path.points[1].point.pose.position.y = 1.0;
+  EXPECT_FALSE(commit_final_speed_refresh(approved, output, moved_geometry, false, accept));
+  EXPECT_THROW(commit_final_speed_refresh(approved, output, proposal, false,
+    [](const LaneChangePath &) -> bool { throw std::logic_error("prediction failed"); }),
+    std::logic_error);
+  EXPECT_EQ(output.points[1].point.longitudinal_velocity_mps, 10.0);
+  EXPECT_TRUE(commit_final_speed_refresh(approved, output, proposal, false, accept));
+  EXPECT_EQ(approved.path, output);
+  EXPECT_EQ(output.points[1].point.longitudinal_velocity_mps, 11.0);
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, ApprovedSpeedRefreshRejectsIncompleteHypotheses)
+{
+  using namespace autoware::behavior_path_planner;
+  using utils::lane_change::complete_refresh_predictions;
+  struct Sample { double time; };
+  std::vector<std::vector<Sample>> paths{{{0.0}, {1.0}}, {{0.0}, {1.0}}};
+  EXPECT_TRUE(complete_refresh_predictions(paths));
+  paths[1].resize(1);
+  EXPECT_FALSE(complete_refresh_predictions(paths));
+  paths[1] = {{0.0}, {0.0}};
+  EXPECT_FALSE(complete_refresh_predictions(paths));
+  paths[1] = {{0.0}, {1.0}, {0.5}};
+  EXPECT_FALSE(complete_refresh_predictions(paths));
+  paths.resize(1);
+  EXPECT_FALSE(complete_refresh_predictions(paths));
+}
 
 TEST(BehaviorPathPlanningLaneChangeUtilsTest, SpatialSpeedProfileRespectsTransitionsAndDynamics)
 {
@@ -93,6 +314,161 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, SpatialCollisionPredictionUsesOutp
   }
 }
 
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionDiverseCandidateRankWithinShortBudget)
+{
+  using namespace autoware::behavior_path_planner::utils::lane_change::calculation;
+  std::vector<PhaseMetrics> preparations;
+  // Reproduce duration-major fine acceleration grid that previously consumed
+  // all ten checks at duration=0 and lateral acceleration=1.
+  for (const double duration : {0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0}) {
+    for (const double acceleration : {3.25, 2.8, 2.0, 1.0, 0.0, -0.013, -1.0, -2.0, -4.0}) {
+      preparations.emplace_back(duration, 20.0 * duration, 20.0, acceleration,
+        duration == 0.0 ? 0.0 : acceleration, 0.0);
+    }
+  }
+  const auto order = diverse_phase_order(preparations, true);
+  ASSERT_EQ(order.size(), preparations.size());
+  EXPECT_EQ(std::set<size_t>(order.begin(), order.end()).size(), preparations.size());
+  const std::array<double, 3> expected_acc{3.25, 0.0, -2.0};
+  const std::array<double, 3> expected_lat{4.5, 2.75, 1.0};
+  for (size_t rank = 0; rank < 6; ++rank) {
+    const auto & prep = preparations[order[rank]];
+    EXPECT_DOUBLE_EQ(prep.duration, rank < 3 ? 0.0 : 1.5);
+    EXPECT_DOUBLE_EQ(prep.sampled_lon_accel, expected_acc[rank % 3]);
+    std::vector<PhaseMetrics> execution;
+    for (const double lat : {1.0, 1.5, 2.0, 2.75, 3.5, 4.0, 4.5}) {
+      execution.emplace_back(3.0, 60.0, 20.0, prep.sampled_lon_accel,
+        prep.sampled_lon_accel, lat);
+    }
+    const auto execution_order = diverse_phase_order(execution, false, rank);
+    EXPECT_DOUBLE_EQ(execution[execution_order.front()].lat_accel, expected_lat[rank % 3]);
+    EXPECT_EQ(std::set<size_t>(execution_order.begin(), execution_order.end()).size(), execution.size());
+  }
+  EXPECT_TRUE(diverse_phase_order({}, true).empty());
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, OverlappingLaneMembershipUsesIntendedPolygonAndHeading)
+{
+  using namespace autoware::behavior_path_planner::utils::lane_change;
+  lanelet::LineString3d left(11, {lanelet::Point3d(1, 0, 2, 0), lanelet::Point3d(2, 100, 2, 0)});
+  lanelet::LineString3d right(12, {lanelet::Point3d(3, 0, -2, 0), lanelet::Point3d(4, 100, -2, 0)});
+  const lanelet::ConstLanelet intended(lanelet::Lanelet(201439, left, right));
+  const lanelet::ConstLanelet overlapping(lanelet::Lanelet(201441, left, right));
+  geometry_msgs::Pose pose;
+  pose.position.x = 50; pose.position.y = 0.016; pose.orientation.w = 1;
+  const lanelet::ConstLanelets lanes{intended};
+  // Both polygons have distance zero, but an arbitrary global closest ID can
+  // differ from the current maneuver's lane ID. Membership must remain true.
+  EXPECT_FALSE(is_lanelet_in_lanelet_collections(lanes, overlapping));
+  EXPECT_TRUE(contains_direction_compatible_pose(lanes, pose, 0.785));
+  EXPECT_TRUE(contains_direction_compatible_pose({overlapping, intended}, pose, 0.785));
+  EXPECT_TRUE(contains_direction_compatible_pose({intended, overlapping}, pose, 0.785));
+  pose.position.y = 2.0;
+  EXPECT_TRUE(contains_direction_compatible_pose(lanes, pose, 0.785));
+  pose.position.y = 2.0001;
+  EXPECT_FALSE(contains_direction_compatible_pose(lanes, pose, 0.785));
+  pose.position.y = 0;
+  pose.position.x = 100.001;
+  EXPECT_FALSE(contains_direction_compatible_pose(lanes, pose, 0.785));
+  pose.position.x = 50;
+  pose.orientation.z = 1; pose.orientation.w = 0;  // Opposing carriageway.
+  EXPECT_FALSE(contains_direction_compatible_pose(lanes, pose, 0.785));
+  pose.orientation.z = std::sin(0.8 / 2); pose.orientation.w = std::cos(0.8 / 2);
+  EXPECT_FALSE(contains_direction_compatible_pose(lanes, pose, 0.785));
+  pose.orientation.z = std::sin(0.7 / 2); pose.orientation.w = std::cos(0.7 / 2);
+  EXPECT_TRUE(contains_direction_compatible_pose(lanes, pose, 0.785));
+  EXPECT_FALSE(contains_direction_compatible_pose({}, pose, 0.785));
+  EXPECT_FALSE(contains_direction_compatible_pose(lanes, pose, -1));
+  pose.position.x = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_FALSE(contains_direction_compatible_pose(lanes, pose, 0.785));
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionDiverseRankPreservesExistingBounds)
+{
+  using namespace autoware::behavior_path_planner::utils::lane_change::calculation;
+  std::vector<PhaseMetrics> metrics;
+  for (const double lon : {0.0, -0.1, -0.5}) {
+    for (const double lat : {1.0, 1.5}) metrics.emplace_back(2.0, 30.0, 15.0, lon, lon, lat);
+  }
+  const auto order = diverse_phase_order(metrics, false);
+  ASSERT_EQ(order.size(), metrics.size());
+  EXPECT_EQ(std::set<size_t>(order.begin(), order.end()).size(), metrics.size());
+  // A -2 anchor ranks only existing bounded values; it cannot create -2.
+  EXPECT_DOUBLE_EQ(metrics[order[1]].actual_lon_accel, -0.5);
+  metrics[0].lat_accel = std::numeric_limits<double>::quiet_NaN();
+  const auto invalid_order = diverse_phase_order(metrics, false);
+  for (size_t i = 0; i < metrics.size(); ++i) EXPECT_EQ(invalid_order[i], i);
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionDiverseRankOnGeneratedMetrics)
+{
+  using namespace autoware::behavior_path_planner;
+  using namespace utils::lane_change::calculation;
+  auto data = std::make_shared<lane_change::CommonData>();
+  data->lc_param_ptr = std::make_shared<lane_change::Parameters>();
+  data->bpp_param_ptr = std::make_shared<BehaviorPathPlannerParameters>();
+  auto odometry = boost::make_shared<nav_msgs::Odometry>();
+  odometry->twist.twist.linear.x = 22.227;
+  data->self_odometry_ptr = odometry;
+  auto & p = data->lc_param_ptr->trajectory;
+  p.min_prepare_duration = 0; p.max_prepare_duration = 3;
+  p.lon_acc_sampling_num = 20; p.lat_acc_sampling_num = 11;
+  p.min_longitudinal_acc = -4; p.max_longitudinal_acc = 3.7;
+  p.min_lane_changing_velocity = 2.78; p.lateral_jerk = 5;
+  p.lat_acc_map.add(0, 1, 4.5);
+  data->bpp_param_ptr->min_acc = -4; data->bpp_param_ptr->max_acc = 3.7;
+  data->bpp_param_ptr->max_vel = 33.333;
+  data->transient_data.lane_change_prepare_duration = 0;
+  const auto preparations = calc_prepare_phase_metrics(data, 22.227, 33.333, 0, 245);
+  const auto order = diverse_phase_order(preparations, true);
+  ASSERT_GE(order.size(), 6U);
+  for (size_t rank = 0; rank < 6; ++rank) {
+    const auto & prep = preparations[order[rank]];
+    EXPECT_NEAR(prep.duration, rank < 3 ? 0.0 : 1.5, epsilon);
+    if (rank % 3 == 0) EXPECT_GT(prep.sampled_lon_accel, 0.0);
+    if (rank % 3 == 1) EXPECT_NEAR(prep.sampled_lon_accel, 0.0, epsilon);
+    if (rank % 3 == 2) EXPECT_LT(prep.sampled_lon_accel, -1.5);
+    const auto execution = calc_shift_phase_metrics(
+      data, 3.55, prep.velocity, 33.333, prep.sampled_lon_accel, 192);
+    const auto ranked = diverse_phase_order(execution, false, rank);
+    ASSERT_FALSE(ranked.empty());
+    const auto & first = execution[ranked.front()];
+    if (rank % 3 == 0) EXPECT_NEAR(first.lat_accel, 4.5, epsilon);
+    if (rank % 3 == 1) { EXPECT_GT(first.lat_accel, 2.0); EXPECT_LT(first.lat_accel, 3.5); }
+    if (rank % 3 == 2) EXPECT_NEAR(first.lat_accel, 1.0, epsilon);
+    EXPECT_LE(first.actual_lon_accel, 3.7);
+    EXPECT_GE(first.actual_lon_accel, -4.0);
+  }
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionJointBudgetCoversLongitudinalRegimes)
+{
+  using namespace autoware::behavior_path_planner::utils::lane_change::calculation;
+  // Lazy scheduling checks the first group before even initializing the others.
+  JointSampleQueue lazy(100, true);
+  EXPECT_EQ(lazy.pop(), std::make_pair(size_t{0}, size_t{0}));
+  lazy.refine(0, 1);
+  EXPECT_EQ(lazy.pop(), std::make_pair(size_t{1}, size_t{0}));
+  JointSampleQueue streaming(100, false);
+  EXPECT_EQ(streaming.pop(), std::make_pair(size_t{0}, size_t{0}));
+  streaming.refine(0, 1);
+  EXPECT_EQ(streaming.pop(), std::make_pair(size_t{0}, size_t{1}));
+  const auto order = joint_sample_order({12, 12, 12});
+  ASSERT_EQ(order.size(), 36U);
+  // Even a three-candidate budget reaches accelerate/coast/mild-brake rather
+  // than consuming twelve collision checks on accelerating lateral variants.
+  for (size_t i = 0; i < 3; ++i) {
+    EXPECT_EQ(order[i].first, i);
+    EXPECT_EQ(order[i].second, 0U);
+  }
+  const auto ragged = joint_sample_order({0, 2, 1});
+  ASSERT_EQ(ragged.size(), 3U);
+  EXPECT_EQ(ragged[0], std::make_pair(size_t{1}, size_t{0}));
+  EXPECT_EQ(ragged[1], std::make_pair(size_t{2}, size_t{0}));
+  EXPECT_EQ(ragged[2], std::make_pair(size_t{1}, size_t{1}));
+  EXPECT_TRUE(joint_sample_order({}).empty());
+}
+
 TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionLongitudinalGridAndExecutionLimits)
 {
   using namespace autoware::behavior_path_planner;
@@ -116,7 +492,10 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionLongitudinalGridAndExec
   auto samples = calc_lon_acceleration_samples(data, 50, 0);
   ASSERT_EQ(samples.size(), 22U);
   EXPECT_DOUBLE_EQ(samples[0], 3.7);
-  EXPECT_DOUBLE_EQ(samples[1], -6.0);
+  EXPECT_DOUBLE_EQ(samples.back(), -6.0);
+  EXPECT_DOUBLE_EQ(samples[1], 0.0);
+  EXPECT_LT(samples[2], 0.0);
+  EXPECT_GT(samples[2], -0.485);
   std::sort(samples.begin(), samples.end());
   EXPECT_NE(std::find(samples.begin(), samples.end(), 0.0), samples.end());
   for (size_t i = 1; i < samples.size(); ++i) EXPECT_LE(samples[i] - samples[i-1], 0.485 + epsilon);
@@ -125,6 +504,19 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionLongitudinalGridAndExec
   EXPECT_NEAR(calc_lane_changing_acceleration(data, 5, 50, 3, -6), (2.78 - 5) / 3, epsilon);
   EXPECT_NEAR(calc_lane_changing_acceleration(data, 49, 50, 3, 3.7), 1.0 / 3, epsilon);
   EXPECT_TRUE(std::isnan(calc_lane_changing_acceleration(data, 30, 1, 3, -6)));
+  // Regression: with acceleration disabled, the first fallback after coasting
+  // must be mild braking, not the extreme deceleration that caused a 60->10
+  // km/h LC in official022. Preserve the full grid and strongest fallback.
+  p.max_longitudinal_acc = 0;
+  const auto braking_samples = calc_lon_acceleration_samples(data, 50, 0);
+  ASSERT_EQ(braking_samples.size(), 21U);
+  EXPECT_DOUBLE_EQ(braking_samples.front(), 0.0);
+  EXPECT_NEAR(braking_samples[1], -0.3, epsilon);
+  EXPECT_DOUBLE_EQ(braking_samples.back(), -6.0);
+  for (size_t i = 1; i < braking_samples.size(); ++i) {
+    EXPECT_GE(braking_samples[i-1], braking_samples[i]);
+  }
+  p.max_longitudinal_acc = 3.7;
   p.lon_acc_sampling_num = 0;
   EXPECT_TRUE(calc_lon_acceleration_samples(data, 50, 0).empty());
   p.lon_acc_sampling_num = 20;

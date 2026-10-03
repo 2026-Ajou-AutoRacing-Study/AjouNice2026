@@ -96,6 +96,9 @@ public:
   lanelet::ConstPolygon3d getExtraDrivableAreaById(const lanelet::Id id) const;
   Header getRouteHeader() const;
   UUID getRouteUuid() const;
+  // Read-only route-order access for bounded policy proofs. This is an additive
+  // ROS1 extension; callers must retain and validate the route epoch.
+  std::shared_ptr<const LaneletRoute> getRouteMessage() const { return route_ptr_; }
   bool isAllowedGoalModification() const;
 
   // for routing graph

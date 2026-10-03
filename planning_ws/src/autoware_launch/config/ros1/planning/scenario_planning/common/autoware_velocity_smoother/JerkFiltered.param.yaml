@@ -1,5 +1,9 @@
-jerk_weight: 0.1
+# R35 simulator experiment: reduce unnecessary QP acceleration attenuation.
+# Existing velocity/acceleration/jerk slack penalties and limits stay unchanged.
+jerk_weight: 0.005
 over_v_weight: 10000.0
-over_a_weight: 500.0
-over_j_weight: 200.0
+# Penalize physical acceleration/jerk slack during changing LC terminal paths.
+# These remain soft constraints; assess speed-limit and solver residuals in bags.
+over_a_weight: 10000.0
+over_j_weight: 2000.0
 jerk_filter_ds: 0.1

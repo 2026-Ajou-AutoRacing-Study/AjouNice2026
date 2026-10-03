@@ -17,6 +17,7 @@
 
 namespace autoware::behavior_path_planner::utils::path_safety_checker
 {
+class PreparedPathProjection;
 double calc_rss_distance(double front_object_velocity, double rear_object_velocity, const RSSparams & params);
 double calc_minimum_longitudinal_length(double front_object_velocity, double rear_object_velocity, const RSSparams & params);
 double calc_obstacle_min_length(const autoware_perception_msgs::Shape & shape);
@@ -29,6 +30,11 @@ autoware_utils_geometry::Polygon2d create_extended_ego_polygon_along_path(
   const geometry_msgs::Pose & base_link_pose,
   const autoware::vehicle_info_utils::VehicleInfo & vehicle_info, double longitudinal_length,
   double lateral_margin, bool is_stopped_object);
+autoware_utils_geometry::Polygon2d create_extended_ego_polygon_along_path(
+  const autoware_internal_planning_msgs::PathWithLaneId & planned_path,
+  const geometry_msgs::Pose & base_link_pose,
+  const autoware::vehicle_info_utils::VehicleInfo & vehicle_info, double longitudinal_length,
+  double lateral_margin, bool is_stopped_object, const PreparedPathProjection * projection);
 autoware_utils_geometry::Polygon2d create_extended_object_polygon(
   const PoseWithVelocityAndPolygonStamped & object_pose, double longitudinal_length,
   double lateral_margin, bool is_stopped_object);
@@ -83,4 +89,11 @@ bool check_safety_with_rss(
   const ExtendedPredictedObjects & objects, CollisionCheckDebugMap & debug_map,
   const RSSparams & params, bool use_all_predicted_paths, double hysteresis_factor,
   double yaw_difference_threshold);
+bool check_safety_with_rss(
+  const autoware_internal_planning_msgs::PathWithLaneId & planned_path,
+  const std::vector<PoseWithVelocityStamped> & ego_predicted_path,
+  const autoware::vehicle_info_utils::VehicleInfo & vehicle_info,
+  const ExtendedPredictedObjects & objects, CollisionCheckDebugMap & debug_map,
+  const RSSparams & params, bool use_all_predicted_paths, double hysteresis_factor,
+  double yaw_difference_threshold, const PreparedPathProjection * projection);
 }

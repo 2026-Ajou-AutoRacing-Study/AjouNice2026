@@ -125,7 +125,9 @@ std::pair<double, size_t> calcMaxCurvature(const Trajectory & trajectory)
   std::vector<double> curvature_vector;
   calcCurvature(trajectory, curvature_vector);
 
-  const auto max_curvature_it = std::max_element(curvature_vector.begin(), curvature_vector.end());
+  const auto max_curvature_it = std::max_element(
+    curvature_vector.begin(), curvature_vector.end(),
+    [](double a, double b) { return std::abs(a) < std::abs(b); });
   const size_t index = std::distance(curvature_vector.begin(), max_curvature_it);
 
   return {*max_curvature_it, index};

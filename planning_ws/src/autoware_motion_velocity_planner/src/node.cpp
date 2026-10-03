@@ -316,6 +316,7 @@ void MotionVelocityPlannerNode::on_trajectory(
 
   if (
     debug_processed_pointcloud_pub_.getNumSubscribers() > 0 &&
+    planner_data_->no_ground_pointcloud.has_processed_pointcloud() &&
     planner_data_->no_ground_pointcloud.preprocess_params_.downsample_by_voxel_grid
       .enable_downsample) {
     sensor_msgs::PointCloud2 output_pointcloud_msg;

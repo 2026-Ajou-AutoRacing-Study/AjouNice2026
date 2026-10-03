@@ -16,6 +16,7 @@
 #define AUTOWARE__PATH_OPTIMIZER__NODE_HPP_
 
 #include "autoware/motion_utils/trajectory/trajectory.hpp"
+#include "autoware/motion_utils/trajectory/acceleration_limits.hpp"
 #include "autoware/path_optimizer/common_structs.hpp"
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
 #include "autoware/path_optimizer/obstacle_clustering.hpp"
@@ -69,6 +70,7 @@ protected:  // for the static_centerline_generator package
 
   // argument variables
   autoware::vehicle_info_utils::VehicleInfo vehicle_info_{};
+  const autoware::motion_utils::AccelerationLimits acceleration_limits_;
   mutable std::shared_ptr<DebugData> debug_data_ptr_{nullptr};
   mutable std::shared_ptr<autoware_utils::TimeKeeper> time_keeper_{nullptr};
 
@@ -148,7 +150,8 @@ protected:  // for the static_centerline_generator package
   std::vector<TrajectoryPoint> generateOptimizedTrajectory(const PlannerData & planner_data);
   std::vector<TrajectoryPoint> extendTrajectory(
     const std::vector<TrajectoryPoint> & traj_points,
-    const std::vector<TrajectoryPoint> & optimized_points) const;
+    const std::vector<TrajectoryPoint> & optimized_points,
+    const PlannerData * safety_data = nullptr) const;
   void publishDebugData(const Header & header) const;
   void onCheckPathOptimizationValid(diagnostic_updater::DiagnosticStatusWrapper & stat);
 

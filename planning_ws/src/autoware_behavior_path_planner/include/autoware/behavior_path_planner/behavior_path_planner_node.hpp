@@ -34,6 +34,7 @@
 #include <autoware_map_msgs/LaneletMapBin.h>
 #include <autoware_perception_msgs/PredictedObjects.h>
 #include <autoware_planning_msgs/LaneletRoute.h>
+#include <std_msgs/String.h>
 #include <autoware_planning_msgs/Path.h>
 #include <autoware_planning_msgs/PoseWithUuidStamped.h>
 #include <autoware_vehicle_msgs/HazardLightsCommand.h>
@@ -122,6 +123,11 @@ private:
 
   // publisher
   bpp_full_native::Publisher<PathWithLaneId> path_publisher_;
+  bpp_full_native::Publisher<std_msgs::String> ownership_snapshot_publisher_;
+  void publishOwnershipSnapshot(bool valid, const std::string & reason);
+  uint64_t ownership_sequence_{0};
+  uint64_t ownership_route_generation_{0};
+  std::string ownership_boot_id_;
   bpp_full_native::Publisher<autoware_planning_msgs::StaticObstacleScene> obstacle_scene_publisher_;
   bpp_full_native::Publisher<TurnIndicatorsCommand> turn_signal_publisher_;
   bpp_full_native::Publisher<HazardLightsCommand> hazard_signal_publisher_;

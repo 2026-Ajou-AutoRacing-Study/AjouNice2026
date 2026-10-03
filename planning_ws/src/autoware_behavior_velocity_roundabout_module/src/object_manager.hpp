@@ -219,6 +219,12 @@ std::optional<RoundaboutCollisionInterval> findRoundaboutPassageInterval(
   const autoware_perception_msgs::Shape & shape, const lanelet::BasicPolygon2d & ego_lane_poly,
   const std::optional<lanelet::ConstLanelet> & first_attention_lane_opt);
 
+std::optional<RoundaboutCollisionInterval> findRoundaboutPassageInterval(
+  const autoware_perception_msgs::PredictedPath & predicted_path,
+  const autoware_perception_msgs::Shape & shape, const lanelet::BasicPolygon2d & ego_lane_poly,
+  const std::optional<lanelet::ConstLanelet> & first_attention_lane_opt,
+  const std::vector<double> & relative_times);
+
 }  // namespace autoware::behavior_velocity_planner
 
 #endif  // OBJECT_MANAGER_HPP_

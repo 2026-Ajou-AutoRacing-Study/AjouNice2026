@@ -3,10 +3,35 @@
 #include <autoware/behavior_velocity_planner_common/experimental/plugin_interface.hpp>
 #include "object_manager.hpp"
 #include "decision_result.hpp"
+#include "prediction_time.hpp"
 #include <pluginlib/class_loader.hpp>
 #include <gtest/gtest.h>
 #include <cstdlib>
 namespace bvp = autoware::behavior_velocity_planner;
+TEST(RoundaboutPassageTime, NonuniformTimesAndTerminalCoverage)
+{
+  autoware_perception_msgs::PredictedPath path;
+  path.time_step.nanosec = 100000000;
+  for (const double x : {-3.0, -1.0, 0.0}) {
+    geometry_msgs::Pose pose; pose.position.x = x; pose.orientation.w = 1.0;
+    path.path.push_back(pose);
+  }
+  autoware_perception_msgs::Shape shape;
+  shape.type = autoware_perception_msgs::Shape::BOUNDING_BOX;
+  shape.dimensions.x = .2; shape.dimensions.y = .2; shape.dimensions.z = 1.0;
+  lanelet::BasicPolygon2d corridor{{-.2,-1.0},{.2,-1.0},{.2,1.0},{-.2,1.0}};
+  const std::vector<double> times{0.0, .017, .093};
+  const auto interval = bvp::findRoundaboutPassageInterval(
+    path, shape, corridor, std::nullopt, times);
+  ASSERT_TRUE(interval);
+  EXPECT_DOUBLE_EQ(interval->interval_time.first, .017);
+  EXPECT_DOUBLE_EQ(interval->interval_time.second, .093);
+  EXPECT_TRUE(bvp::unresolvedRoundaboutExit(true, .1, .017, 0.0));
+  EXPECT_FALSE(bvp::unresolvedRoundaboutExit(true, .01, .017, 0.0));
+  EXPECT_FALSE(bvp::findRoundaboutPassageInterval(
+    path, shape, corridor, std::nullopt, {0.0}));
+}
+
 template<class Interface> void plugins(const std::string & base, const std::string & prefix)
 {
   ros::NodeHandle node("/full_roundabout_test");

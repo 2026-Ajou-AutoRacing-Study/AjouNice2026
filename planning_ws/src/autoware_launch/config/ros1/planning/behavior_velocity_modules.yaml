@@ -317,9 +317,13 @@ roundabout:
     attention_area_angle_threshold: 0.785
     default_stopline_margin: 0.0
     path_interpolation_ds: 0.1
-    enable_pass_judge_before_default_stopline: false
+    # Simulator experiment: avoid an infeasible late stop after a safe approach.
+    # Retain collision detection and the committed-state smooth-stop check.
+    enable_pass_judge_before_default_stopline: true
   collision_detection:
-    collision_detection_hold_time: 0.0
+    # Suppress brief safe/unsafe flips during a new BEVFusion track's velocity
+    # initialization. Geometric and collision-time margins remain unchanged.
+    collision_detection_hold_time: 0.8
     min_predicted_path_confidence: 0.05
     collision_start_margin_time: 0.0
     collision_end_margin_time: 0.0

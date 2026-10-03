@@ -230,6 +230,12 @@ void fillObjectAvoidableByDesiredShiftLength(
 
 void updateClipObject(ObjectDataArray & clip_objects, AvoidancePlanningData & data);
 
+// Drop a static constraint only on a matched, motion-confirmed observation.
+// Missing observations must retain the existing dropout persistence policy.
+void removeMovingClipObjects(
+  ObjectDataArray & clip_objects, const ObjectDataArray & observations,
+  const std::shared_ptr<AvoidanceParameters> & parameters);
+
 /**
  * @brief return true once the whole object is behind the ego rear edge and release margin.
  */

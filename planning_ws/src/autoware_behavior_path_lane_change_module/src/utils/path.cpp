@@ -13,16 +13,24 @@
 // limitations under the License.
 
 #include "autoware/behavior_path_lane_change_module/utils/path.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/generation_rejection.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/frenet_endpoint.hpp"
 
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/calculation.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/speed_profile.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/prepare_speed_profile.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/lateral_speed_cap.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/physical_lc_endpoint.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/c2_reference_window.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/utils.hpp"
 #include "autoware/behavior_path_planner_common/utils/path_utils.hpp"
 #include "autoware/behavior_path_planner_common/utils/utils.hpp"
 
 #include <autoware/lanelet2_utils/geometry.hpp>
 #include <autoware/motion_utils/trajectory/path_shift.hpp>
+#include <autoware/motion_utils/trajectory/trajectory.hpp>
+#include <autoware/motion_utils/trajectory/interpolation.hpp>
 #include <autoware_frenet_planner/frenet_planner.hpp>
 #include <autoware_utils/system/stop_watch.hpp>
 #include <range/v3/action/insert.hpp>
@@ -80,7 +88,8 @@ double calc_resample_interval(
 
 PathWithLaneId get_reference_path_from_target_lane(
   const CommonDataPtr & common_data_ptr, const Pose & lane_changing_start_pose,
-  const double lane_changing_length, const double resample_interval)
+  const double lane_changing_length, const double resample_interval,
+  const bool reference_window=false)
 {
   const auto & route_handler = *common_data_ptr->route_handler_ptr;
   const auto & target_lanes = common_data_ptr->lanes_ptr->target;
@@ -114,8 +123,14 @@ PathWithLaneId get_reference_path_from_target_lane(
   const auto lane_changing_reference_path =
     route_handler.getCenterLinePath(target_lanes, s_start, s_end);
 
-  return autoware::behavior_path_planner::utils::resamplePathWithSpline(
+  auto reference = autoware::behavior_path_planner::utils::resamplePathWithSpline(
     lane_changing_reference_path, resample_interval, true, {0.0, lane_changing_length});
+  if(!reference_window)return reference;
+  auto repaired=autoware::behavior_path_planner::utils::lane_change::c2_reference_window::apply(
+    lane_changing_reference_path,reference,resample_interval,lane_changing_length,true);
+  ROS_INFO_THROTTLE(1.0,"LC reference window: applied=%d reason=%s",
+    repaired.applied,repaired.reason.c_str());
+  return repaired.path;
 }
 
 ShiftLine get_lane_changing_shift_line(
@@ -449,10 +464,49 @@ bool get_prepare_segment(
   return average_curvature <= common_data_ptr->lc_param_ptr->trajectory.th_prepare_curvature;
 }
 
+PathWithLaneId world_candidate_native_reference(
+  const CommonDataPtr & common_data_ptr, const LaneChangePhaseMetrics & prep_metric,
+  const LaneChangePhaseMetrics & lc_metric, const PathWithLaneId & prep_segment,
+  const bool physical_endpoint_consistency)
+{
+  if (prep_segment.points.empty()) throw std::logic_error("Empty prepare segment!");
+  bool requested=false,strict=false,continuous=false,partial=false;
+  ros::param::getCached("/planning/lc_c2_reference_window",requested);
+  ros::param::getCached("/planning/lc_strict_maneuver_safety",strict);
+  ros::param::getCached("/planning/lc_continuous_bounded_output",continuous);
+  ros::param::getCached("/planning/lc_partial_acceleration_candidates",partial);
+  const bool window=c2_reference_window::enabled_for_candidate(requested,
+    common_data_ptr->lc_type==autoware::behavior_path_planner::lane_change::ModuleType::NORMAL,
+    strict,continuous,partial,physical_endpoint_consistency);
+  return get_reference_path_from_target_lane(common_data_ptr,
+    prep_segment.points.back().point.pose,lc_metric.length,
+    calc_resample_interval(lc_metric.length,prep_metric.velocity),window);
+}
+
 LaneChangePath get_candidate_path(
   const CommonDataPtr & common_data_ptr, const LaneChangePhaseMetrics & prep_metric,
   const LaneChangePhaseMetrics & lc_metric, const PathWithLaneId & prep_segment,
   const std::vector<std::vector<int64_t>> & sorted_lane_ids, const double shift_length)
+{
+  return get_candidate_path(common_data_ptr,prep_metric,lc_metric,prep_segment,
+    sorted_lane_ids,shift_length,false);
+}
+
+LaneChangePath get_candidate_path(
+  const CommonDataPtr & common_data_ptr, const LaneChangePhaseMetrics & prep_metric,
+  const LaneChangePhaseMetrics & lc_metric, const PathWithLaneId & prep_segment,
+  const std::vector<std::vector<int64_t>> & sorted_lane_ids, const double shift_length,
+  const bool physical_endpoint_consistency)
+{
+  return get_candidate_path(common_data_ptr, prep_metric, lc_metric, prep_segment,
+    sorted_lane_ids, shift_length, physical_endpoint_consistency, nullptr);
+}
+
+LaneChangePath get_candidate_path(
+  const CommonDataPtr & common_data_ptr, const LaneChangePhaseMetrics & prep_metric,
+  const LaneChangePhaseMetrics & lc_metric, const PathWithLaneId & prep_segment,
+  const std::vector<std::vector<int64_t>> & sorted_lane_ids, const double shift_length,
+  const bool physical_endpoint_consistency, const PathWithLaneId * diagnostic_upstream)
 {
   const auto & route_handler = *common_data_ptr->route_handler_ptr;
   const auto & target_lanes = common_data_ptr->lanes_ptr->target;
@@ -464,8 +518,17 @@ LaneChangePath get_candidate_path(
   }
 
   const auto & lc_start_pose = prep_segment.points.back().point.pose;
+  bool requested=false,strict=false,continuous=false,partial=false;
+  ros::param::getCached("/planning/lc_c2_reference_window",requested);
+  ros::param::getCached("/planning/lc_strict_maneuver_safety",strict);
+  ros::param::getCached("/planning/lc_continuous_bounded_output",continuous);
+  ros::param::getCached("/planning/lc_partial_acceleration_candidates",partial);
+  const bool reference_window=
+    utils::lane_change::c2_reference_window::enabled_for_candidate(requested,
+      common_data_ptr->lc_type==autoware::behavior_path_planner::lane_change::ModuleType::NORMAL,
+      strict,continuous,partial,physical_endpoint_consistency);
   const auto target_lane_reference_path = get_reference_path_from_target_lane(
-    common_data_ptr, lc_start_pose, lc_metric.length, resample_interval);
+    common_data_ptr, lc_start_pose, lc_metric.length, resample_interval,reference_window);
 
   if (target_lane_reference_path.points.empty()) {
     throw std::logic_error("Empty target reference!");
@@ -491,13 +554,34 @@ LaneChangePath get_candidate_path(
   }
 
   return utils::lane_change::construct_candidate_path(
-    common_data_ptr, lane_change_info, prep_segment, target_lane_reference_path, sorted_lane_ids);
+    common_data_ptr, lane_change_info, prep_segment, target_lane_reference_path, sorted_lane_ids,
+    physical_endpoint_consistency, diagnostic_upstream);
 }
 
 LaneChangePath construct_candidate_path(
   const CommonDataPtr & common_data_ptr, const LaneChangeInfo & lane_change_info,
   const PathWithLaneId & prepare_segment, const PathWithLaneId & target_lane_reference_path,
   const std::vector<std::vector<int64_t>> & sorted_lane_ids)
+{
+  return construct_candidate_path(common_data_ptr,lane_change_info,prepare_segment,
+    target_lane_reference_path,sorted_lane_ids,false);
+}
+
+LaneChangePath construct_candidate_path(
+  const CommonDataPtr & common_data_ptr, const LaneChangeInfo & lane_change_info,
+  const PathWithLaneId & prepare_segment, const PathWithLaneId & target_lane_reference_path,
+  const std::vector<std::vector<int64_t>> & sorted_lane_ids,
+  const bool physical_endpoint_consistency)
+{
+  return construct_candidate_path(common_data_ptr, lane_change_info, prepare_segment,
+    target_lane_reference_path, sorted_lane_ids, physical_endpoint_consistency, nullptr);
+}
+
+LaneChangePath construct_candidate_path(
+  const CommonDataPtr & common_data_ptr, const LaneChangeInfo & lane_change_info,
+  const PathWithLaneId & prepare_segment, const PathWithLaneId & target_lane_reference_path,
+  const std::vector<std::vector<int64_t>> & sorted_lane_ids,
+  const bool physical_endpoint_consistency, const PathWithLaneId * diagnostic_upstream)
 {
   const auto & shift_line = lane_change_info.shift_line;
   const auto terminal_lane_changing_velocity = lane_change_info.terminal_lane_changing_velocity;
@@ -565,7 +649,14 @@ LaneChangePath construct_candidate_path(
     std::stringstream err_msg;
     err_msg << "Excessive yaw difference " << yaw_diff_opt.value() << " which exceeds the "
             << yaw_diff_th << " radian threshold.";
-    throw std::logic_error(err_msg.str());
+    bool audit = false;
+    ros::param::getCached("/planning/lc_candidate_reason_audit", audit);
+    static GenerationDiagnosticRate rate;
+    const double now = std::chrono::duration<double>(
+      std::chrono::steady_clock::now().time_since_epoch()).count();
+    reject_generation_yaw(rate.claim(audit, now), err_msg.str(), prepare_segment,
+      shifted_path, target_lane_reference_path, lane_change_info,
+      yaw_diff_opt.value(), yaw_diff_th, diagnostic_upstream);
   }
 
   LaneChangePath candidate_path;
@@ -577,6 +668,10 @@ LaneChangePath construct_candidate_path(
   if (spatial_speed) {
     const auto & bpp = *common_data_ptr->bpp_param_ptr;
     const auto & params = common_data_ptr->lc_param_ptr->trajectory;
+    if(params.lat_acc_map.base_max_acc.empty())
+      throw std::logic_error("Missing LC lateral acceleration map");
+    const double lateral_limit=*std::min_element(
+      params.lat_acc_map.base_max_acc.begin(),params.lat_acc_map.base_max_acc.end());
     const auto & current_ref = common_data_ptr->current_lanes_path;
     const auto & target_ref = common_data_ptr->target_lanes_path;
     if (current_ref.points.size() < 2 || target_ref.points.size() < 2) {
@@ -597,6 +692,7 @@ LaneChangePath construct_candidate_path(
       if (i > begin) distances.push_back(distances.back() + autoware_utils::calc_distance2d(
         shifted_path.path.points.at(i - 1), point));
       limits.push_back(std::min({bpp.max_vel,
+        lateral_speed_cap(shifted_path.path.points,i,lateral_limit),
         static_cast<double>(point.point.longitudinal_velocity_mps),
         static_cast<double>(road_limit(current_ref, point.point.pose)),
         static_cast<double>(road_limit(target_ref, point.point.pose))}));
@@ -617,6 +713,82 @@ LaneChangePath construct_candidate_path(
     candidate_path.info.duration.lane_changing = speed_profile_duration(distances, velocities);
     candidate_path.info.terminal_lane_changing_velocity = velocities.back();
     candidate_path.type = PathType::SpatialSpeedProfile;
+
+    // A spatial prediction consumes prepare AND changing velocities as actual
+    // speeds. Legacy prepare points contain road upper bounds (possibly 150kph),
+    // not a reachable deceleration profile. Normalize the whole forward maneuver.
+    auto & full = candidate_path.path;
+    const auto ego_segment = autoware::motion_utils::findFirstNearestSegmentIndexWithSoftConstraints(
+      full.points, common_data_ptr->get_ego_pose(), bpp.ego_nearest_dist_threshold,
+      bpp.ego_nearest_yaw_threshold);
+    const double ego_s = utils::convertToFrenetPoint(
+      full.points, common_data_ptr->get_ego_pose().position, ego_segment).length;
+    const auto anchor_pose = autoware::motion_utils::calcInterpolatedPose(full.points, ego_s);
+    const size_t segment = autoware::motion_utils::findNearestSegmentIndex(
+      full.points, anchor_pose.position);
+    const size_t anchor = insert_maneuver_anchor(full, segment, anchor_pose);
+    const auto prepare_idx = autoware::motion_utils::findNearestIndex(
+      full.points, lane_change_info.lane_changing_start);
+    const auto finish_idx = autoware::motion_utils::findNearestIndex(
+      full.points, lane_change_info.lane_changing_end);
+    if (!prepare_idx || !finish_idx || *prepare_idx < anchor || *finish_idx <= *prepare_idx)
+      throw std::logic_error("Invalid full LC prepare/changing interval");
+    std::vector<double> stations{0.0}, caps;
+    double prepare_distance = 0;
+    for (size_t i=anchor;i<=*finish_idx;++i) {
+      const auto & point=full.points[i];
+      if (i>anchor) stations.push_back(stations.back()+autoware_utils::calc_distance2d(full.points[i-1],point));
+      if (i==*prepare_idx) prepare_distance=stations.back();
+      caps.push_back(std::min({bpp.max_vel,
+        i>=*prepare_idx?lateral_speed_cap(full.points,i,lateral_limit):
+          std::numeric_limits<double>::infinity(),
+        static_cast<double>(point.point.longitudinal_velocity_mps),
+        static_cast<double>(road_limit(current_ref,point.point.pose)),
+        i>=*prepare_idx?static_cast<double>(road_limit(target_ref,point.point.pose)):
+          std::numeric_limits<double>::infinity()}));
+    }
+    const auto maneuver_v=make_maneuver_speed_profile(
+      stations,caps,common_data_ptr->get_ego_speed(),prepare_distance,
+      lane_change_info.longitudinal_acceleration.prepare,
+      std::min({bpp.max_acc,params.max_longitudinal_acc,
+                lane_change_info.longitudinal_acceleration.lane_changing}),
+      -std::max(bpp.min_acc,params.min_longitudinal_acc),common_data_ptr->acceleration_limits);
+    if (*std::min_element(maneuver_v.begin(),maneuver_v.end())<=0.0)
+      throw std::logic_error("Stopped full LC maneuver profile");
+    const size_t split=*prepare_idx-anchor;
+    if (*std::min_element(maneuver_v.begin()+split,maneuver_v.end()) < params.min_lane_changing_velocity)
+      throw std::logic_error("Full LC speed profile falls below minimum changing velocity");
+    for(size_t i=anchor;i<=*finish_idx;++i)
+      full.points[i].point.longitudinal_velocity_mps=maneuver_v[i-anchor];
+    // Preserve shifted geometry/index alignment; copy only matching point speeds.
+    for(auto & point:candidate_path.shifted_path.path.points) {
+      const size_t index=autoware::motion_utils::findNearestIndex(full.points,point.point.pose.position);
+      if(index>=anchor && index<=*finish_idx && autoware_utils::calc_distance2d(point,full.points[index])<1e-4)
+        point.point.longitudinal_velocity_mps=full.points[index].point.longitudinal_velocity_mps;
+    }
+    candidate_path.info.duration.prepare=speed_profile_duration(
+      {stations.begin(),stations.begin()+split+1},{maneuver_v.begin(),maneuver_v.begin()+split+1});
+    candidate_path.info.duration.lane_changing=speed_profile_duration(
+      {stations.begin()+split,stations.end()},{maneuver_v.begin()+split,maneuver_v.end()});
+    candidate_path.info.velocity.prepare=maneuver_v[split];
+    candidate_path.info.velocity.lane_changing=maneuver_v[split];
+    candidate_path.info.terminal_lane_changing_velocity=maneuver_v.back();
+  }
+
+  if(physical_endpoint_consistency) {
+    try {
+      const auto original_end=candidate_path.info.lane_changing_end.position;
+      const auto certificate=physical_endpoint::apply(
+        target_lane_reference_path,candidate_path,*lc_end_idx_opt);
+      ROS_INFO_THROTTLE(1.0,
+        "LC certified physical endpoint: reference=%zu shifted=%zu combined=%zu correction=%.9f",
+        certificate.reference_index,certificate.shifted_index,certificate.combined_index,
+        std::hypot(original_end.x-certificate.pose.position.x,original_end.y-certificate.pose.position.y));
+    }catch(const std::logic_error&e) {
+      // No guessed endpoint and no relaxed safety gate: native metadata is
+      // retained atomically if the exact reference identity is not provable.
+      ROS_WARN_THROTTLE(1.0,"LC physical endpoint native fallback: %s",e.what());
+    }
   }
 
   return candidate_path;
@@ -646,6 +818,20 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
 
   size_t rejected_prepare = 0, empty_reference = 0, rejected_sampling = 0;
   size_t generated = 0, duplicate = 0, rejected_boundary = 0;
+  bool exact_endpoint=false,endpoint_strict=false,endpoint_continuous=false;
+  bool endpoint_partial=false,endpoint_physical=false;
+  if(common_data_ptr->lc_type==lane_change::ModuleType::NORMAL) {
+    ros::param::getCached("/planning/lc_exact_frenet_endpoint",exact_endpoint);
+    if(exact_endpoint) {
+      ros::param::getCached("/planning/lc_strict_maneuver_safety",endpoint_strict);
+      ros::param::getCached("/planning/lc_continuous_bounded_output",endpoint_continuous);
+      ros::param::getCached("/planning/lc_partial_acceleration_candidates",endpoint_partial);
+      ros::param::getCached("/planning/lc_physical_endpoint_consistency",endpoint_physical);
+    }
+  }
+  exact_endpoint=frenet_endpoint::enabled(exact_endpoint,
+    common_data_ptr->lc_type==lane_change::ModuleType::NORMAL,endpoint_strict,
+    endpoint_continuous,endpoint_partial,endpoint_physical);
 
   for (const auto & metric : prep_metrics) {
     PathWithLaneId prepare_segment;
@@ -715,6 +901,18 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
         sampling_parameters_opt->parameters.front().target_state.longitudinal_acceleration;
       auto samples = frenet_planner::generateTrajectories(
         reference_spline, sampled_initial_state, *sampling_parameters_opt);
+      if(exact_endpoint) {
+        samples.erase(std::remove_if(samples.begin(),samples.end(),[&](auto & sample) {
+          try {
+            if(frenet_endpoint::complete(reference_spline,sample))
+              ROS_INFO_THROTTLE(1.0,"LC exact Frenet endpoint: T=%.9f samples=%zu",sample.times.back(),sample.times.size());
+            return false;
+          }catch(const std::exception & error) {
+            ROS_WARN_THROTTLE(1.0,"LC exact Frenet endpoint rejected: %s",error.what());
+            return true;
+          }
+        }),samples.end());
+      }
       frenet_trajectories.insert(
         frenet_trajectories.end(), std::make_move_iterator(samples.begin()),
         std::make_move_iterator(samples.end()));

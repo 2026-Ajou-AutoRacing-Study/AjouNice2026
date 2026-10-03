@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "obstacle_cruise_module.hpp"
+#include "collision_front_check.hpp"
 #include "ros1_compat.hpp"
 
 #include "autoware_utils/ros/uuid_helper.hpp"
@@ -209,6 +210,8 @@ std::vector<CruiseObstacle> ObstacleCruiseModule::filter_cruise_obstacle_for_pre
 
   // cruise
   std::vector<CruiseObstacle> cruise_obstacles;
+  bool precise_future_admission = false;
+  ros::param::getCached("/planning/cruise_precise_future_admission", precise_future_admission);
   for (const auto & object : objects) {
     // 1. rough filtering
     // 1.1. Check if the obstacle is in front of the ego.
@@ -221,7 +224,9 @@ std::vector<CruiseObstacle> ObstacleCruiseModule::filter_cruise_obstacle_for_pre
     // 1.2. Check if the rough lateral distance is smaller than the threshold.
     const double min_lat_dist_to_traj_poly =
       utils::calc_possible_min_dist_from_obj_to_traj_poly(object, traj_points, vehicle_info);
-    if (obstacle_filtering_param_.max_lat_margin < min_lat_dist_to_traj_poly) {
+    const bool rough_rejected =
+      obstacle_filtering_param_.max_lat_margin < min_lat_dist_to_traj_poly;
+    if (rough_rejected && !precise_future_admission) {
       continue;
     }
 
@@ -229,7 +234,8 @@ std::vector<CruiseObstacle> ObstacleCruiseModule::filter_cruise_obstacle_for_pre
     const auto cruise_obstacle = create_cruise_obstacle(
       odometry, traj_points, decimated_traj_points, decimated_traj_polys, object,
       predicted_objects_stamp, object->get_dist_to_traj_poly(decimated_traj_polys),
-      is_driving_forward, vehicle_info, trajectory_polygon_collision_check);
+      is_driving_forward, vehicle_info, trajectory_polygon_collision_check,
+      precise_future_admission, rough_rejected);
     if (cruise_obstacle) {
       cruise_obstacles.push_back(*cruise_obstacle);
       continue;
@@ -341,7 +347,8 @@ std::optional<CruiseObstacle> ObstacleCruiseModule::create_cruise_obstacle(
   const std::shared_ptr<PlannerData::Object> object, const rclcpp::Time & predicted_objects_stamp,
   const double dist_from_obj_poly_to_traj_poly, const bool is_driving_forward,
   const VehicleInfo & vehicle_info,
-  const TrajectoryPolygonCollisionCheck & trajectory_polygon_collision_check) const
+  const TrajectoryPolygonCollisionCheck & trajectory_polygon_collision_check,
+  const bool precise_future_admission, const bool rough_rejected) const
 {
   const auto & obj_uuid = object->predicted_object.object_id;
   const auto & obj_uuid_str = autoware_utils::to_hex_string(obj_uuid);
@@ -361,14 +368,16 @@ std::optional<CruiseObstacle> ObstacleCruiseModule::create_cruise_obstacle(
     return std::nullopt;
   }
 
+  bool lateral_ttc_rejected = false;
   if (obstacle_filtering_param_.max_lat_margin < dist_from_obj_poly_to_traj_poly) {
     const auto time_to_traj = dist_from_obj_poly_to_traj_poly /
                               std::max(1e-6, object->get_lat_vel_relative_to_traj(traj_points));
     if (time_to_traj > obstacle_filtering_param_.max_lateral_time_margin) {
+      lateral_ttc_rejected = true;
       RCLCPP_DEBUG(
         logger_, "[Cruise] Ignore obstacle (%s) since it's far from trajectory.",
         obj_uuid_str.substr(0, 4).c_str());
-      return std::nullopt;
+      if (!precise_future_admission) return std::nullopt;
     }
   }
 
@@ -380,6 +389,17 @@ std::optional<CruiseObstacle> ObstacleCruiseModule::create_cruise_obstacle(
   }
 
   const auto collision_points = [&]() -> std::optional<std::vector<polygon_utils::PointWithStamp>> {
+    if (rough_rejected || lateral_ttc_rejected) {
+      // The current lateral distance / object-only lateral velocity can miss
+      // ego's planned lateral approach. Admit ONLY an unchanged native future
+      // collision certificate, including type, speed, overlap and front checks.
+      // Reuse these points below; never run the expensive precise check twice.
+      if (!precise_future_admission || odometry.twist.twist.linear.x < 0.1)
+        return std::nullopt;
+      return create_collision_points_for_outside_cruise_obstacle(
+        traj_points, decimated_traj_points, decimated_traj_polys, object, predicted_objects_stamp,
+        is_driving_forward, vehicle_info, trajectory_polygon_collision_check);
+    }
     constexpr double epsilon = 1e-6;
     if (dist_from_obj_poly_to_traj_poly < epsilon) {
       // obstacle is inside the trajectory
@@ -663,7 +683,9 @@ ObstacleCruiseModule::create_collision_points_for_outside_cruise_obstacle(
   // Note: Only using isFrontObstacle(), behind obstacles cannot be filtered
   // properly when the trajectory is crossing or overlapping.
   const size_t first_collision_index = collision_index.front();
-  if (!is_front_collide_obstacle(traj_points, object, first_collision_index)) {
+  // getCollisionPoints indexes the decimated polygon-source trajectory.
+  // Using the full trajectory here changes both origin and sampling density.
+  if (!is_front_collide_obstacle(decimated_traj_points, object, first_collision_index)) {
     return std::nullopt;
   }
   return collision_points;
@@ -772,16 +794,13 @@ bool ObstacleCruiseModule::is_front_collide_obstacle(
   const std::vector<TrajectoryPoint> & traj_points,
   const std::shared_ptr<PlannerData::Object> object, const size_t first_collision_idx) const
 {
-  const auto obstacle_idx = autoware::motion_utils::findNearestIndex(
-    traj_points, object->predicted_object.kinematics.initial_pose_with_covariance.pose.position);
-
-  const double obstacle_to_col_points_distance =
-    autoware::motion_utils::calcSignedArcLength(traj_points, obstacle_idx, first_collision_idx);
   const double object_possible_max_dist_from_center =
     utils::calc_object_possible_max_dist_from_center(object->predicted_object.shape);
 
   // If the obstacle is far in front of the collision point, the obstacle is behind the ego.
-  return obstacle_to_col_points_distance > -object_possible_max_dist_from_center;
+  return collision_is_ahead_of_object(
+    traj_points, object->predicted_object.kinematics.initial_pose_with_covariance.pose.position,
+    first_collision_idx, object_possible_max_dist_from_center);
 }
 
 bool ObstacleCruiseModule::is_obstacle_crossing(

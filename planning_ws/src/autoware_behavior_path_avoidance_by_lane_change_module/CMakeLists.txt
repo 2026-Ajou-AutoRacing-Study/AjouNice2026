@@ -61,6 +61,16 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC AW149_BPP_HOST_ABI=1)
 target_link_libraries(${PROJECT_NAME} ${BPP_COMMON_LIBRARY} ${LANE_CHANGE_LIBRARY} ${STATIC_AVOIDANCE_LIBRARY} ${MOTION_UTILS_LIBRARY} ${RTC_INTERFACE_LIBRARY} ${VEHICLE_INFO_UTILS_LIBRARY} ${ROUTE_HANDLER_LIBRARY} ${LANELET2_UTILS_LIBRARY} ${BOUNDARY_DEPARTURE_CHECKER_LIBRARY} ${BOUNDARY_DEPARTURE_CHECKER_UTILS_LIBRARY} ${TRAFFIC_LIGHT_UTILS_LIBRARY} ${AUTOWARE_UTILS_DEBUG_LIBRARY} ${catkin_LIBRARIES})
 
 if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_avlc_moving_target_filter test/test_moving_target_filter.cpp)
+  if(TARGET test_avlc_moving_target_filter)
+    target_compile_features(test_avlc_moving_target_filter PRIVATE cxx_std_17)
+    target_link_libraries(test_avlc_moving_target_filter ${PROJECT_NAME} gtest_main)
+  endif()
+  catkin_add_gtest(test_avoidance_request_condition test/test_request_condition.cpp)
+  if(TARGET test_avoidance_request_condition)
+    target_include_directories(test_avoidance_request_condition PRIVATE src)
+    target_link_libraries(test_avoidance_request_condition gtest_main)
+  endif()
   # The upstream test imports the ROS2 behavior-path-planner harness.  Keep it
   # out of this candidate closure and verify the ROS1 plugin descriptor with
   # the real SceneModuleManagerInterface instead.

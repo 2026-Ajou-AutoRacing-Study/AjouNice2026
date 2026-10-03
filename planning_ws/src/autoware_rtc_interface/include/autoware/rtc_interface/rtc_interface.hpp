@@ -91,6 +91,9 @@ private:
   void updateCooperateCommandStatus(const std::vector<CooperateCommand> & commands);
   void removeStoredCommand(const UUID & uuid);
   bool isLocked() const;
+  void refreshSingleCandidate();  // mutex_ must be held
+  bool singleCandidateFresh(const CooperateStatus & status) const;
+  bool requestSingleCandidateLease(const UUID & uuid);  // mutex_ must be held
 
   ros::Publisher pub_statuses_;
   ros::Publisher pub_auto_mode_status_;
@@ -104,6 +107,11 @@ private:
   std::vector<CooperateCommand> stored_commands_;
   bool is_auto_mode_enabled_;
   bool is_locked_;
+  bool auto_mode_single_candidate_{false};
+  double auto_mode_lease_sec_{1.0};
+  std::optional<UUID> auto_mode_candidate_;
+  ros::WallTime auto_mode_deadline_;
+  bool auto_mode_lease_expired_{false};
 
   std::string cooperate_status_namespace_ = "/planning/cooperate_status";
   std::string auto_mode_status_namespace_ = "/planning/auto_mode_status";

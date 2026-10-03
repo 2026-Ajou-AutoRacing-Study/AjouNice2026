@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "autoware/path_optimizer/obstacle_collision.hpp"
+#include "autoware/path_optimizer/c2_bridge.hpp"
+#include "autoware/motion_utils/trajectory/rising_velocity.hpp"
 
 #include "autoware/path_optimizer/node.hpp"
 
@@ -39,6 +41,7 @@
 #include <utility>
 #include <vector>
 #include <tf2/utils.h>
+#include <autoware/motion_utils/trajectory/acceleration_limits_ros.hpp>
 
 namespace autoware::path_optimizer
 {
@@ -101,6 +104,7 @@ PathOptimizer::PathOptimizer(
   const ros::NodeHandle & node_handle, const ros::NodeHandle & private_node)
 : Node(node_handle, private_node),
   vehicle_info_(autoware::vehicle_info_utils::VehicleInfoUtils(private_node).getVehicleInfo()),
+  acceleration_limits_(autoware::motion_utils::loadPlanningAccelerationLimits()),
   debug_data_ptr_(std::make_shared<DebugData>()),
   updater_(node_handle)
 {
@@ -369,11 +373,21 @@ void PathOptimizer::onPath(const PathConstPtr path_ptr)
   planning_odometry_pub_->publish(planning_odometry);
 
   // 2. generate optimized trajectory
-  const auto optimized_traj_points = generateOptimizedTrajectory(planner_data);
-
-  // 3. extend trajectory to connect the optimized trajectory and the following path smoothly
-  auto full_traj_points = using_final_geometry_ ? optimized_traj_points :
-    extendTrajectory(planner_data.traj_points, optimized_traj_points);
+  std::vector<TrajectoryPoint> full_traj_points;
+  try {
+    const auto optimized_traj_points = generateOptimizedTrajectory(planner_data);
+    // 3. Extend only after synchronized road/obstacle data is available.
+    full_traj_points = using_final_geometry_ ? optimized_traj_points :
+      extendTrajectory(planner_data.traj_points, optimized_traj_points, &planner_data);
+  } catch (const std::logic_error & error) {
+    // A failure of the baseline extension itself still fails closed. Optional
+    // C2 rejection is handled transactionally inside extendTrajectory; both
+    // selections pass the unchanged final safety checks below.
+    full_traj_points = planner_data.traj_points;
+    for (auto & point : full_traj_points) point.longitudinal_velocity_mps = 0.0;
+    is_optimization_failed_ = true;
+    RCLCPP_WARN(get_logger(), "[MPT] Extension rejected; stopping: %s", error.what());
+  }
 
   // Road and obstacle checks must see the same geometry that is published.
   // Extension reconstructs yaw; checking the raw MPT states can insert a stop
@@ -707,6 +721,8 @@ void PathOptimizer::applyInputVelocity(
   }();
 
   // update velocity
+  bool interpolate_rising_velocity=false;
+  ros::param::getCached("/planning/interpolate_rising_velocity",interpolate_rising_velocity);
   const auto segment_length_vec = calcSegmentLengthVector(forward_cropped_input_traj_points);
   const double mpt_delta_arc_length = mpt_optimizer_ptr_->getDeltaArcLength();
   size_t input_traj_start_idx = trajectory_utils::findEgoSegmentIndex(
@@ -739,10 +755,17 @@ void PathOptimizer::applyInputVelocity(
         cropped_input_traj_points, output_traj_points.at(i).pose, ego_nearest_param_);
       input_traj_start_idx += nearest_seg_idx;
 
-      return cropped_input_traj_points.at(nearest_seg_idx);
+      auto mapped = cropped_input_traj_points.at(nearest_seg_idx);
+      if(interpolate_rising_velocity && nearest_seg_idx+1<cropped_input_traj_points.size()) {
+        const auto & next=cropped_input_traj_points.at(nearest_seg_idx+1);
+        mapped.longitudinal_velocity_mps=autoware::motion_utils::rising_velocity_at_projection(
+          mapped.pose.position,next.pose.position,output_traj_points.at(i).pose.position,
+          mapped.longitudinal_velocity_mps,next.longitudinal_velocity_mps);
+      }
+      return mapped;
     }();
 
-    // calculate velocity with zero order hold
+    // Legacy hold unless the opt-in rising spatial-profile transfer is enabled.
     output_traj_points.at(i).longitudinal_velocity_mps =
       nearest_traj_point.longitudinal_velocity_mps;
   }
@@ -928,9 +951,16 @@ void PathOptimizer::publishDebugMarkerOfOptimization(
 
 std::vector<TrajectoryPoint> PathOptimizer::extendTrajectory(
   const std::vector<TrajectoryPoint> & traj_points,
-  const std::vector<TrajectoryPoint> & optimized_traj_points) const
+  const std::vector<TrajectoryPoint> & optimized_traj_points,
+  const PlannerData * safety_data) const
 {
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
+
+  bool c2_enabled = false;
+  ros::param::getCached("/planning/mpt_c2_bridge", c2_enabled);
+  bool transfer_rising_velocity = false;
+  ros::param::getCached("/planning/interpolate_rising_velocity", transfer_rising_velocity);
+  if (optimized_traj_points.empty()) throw std::logic_error("empty optimized extension");
 
   const auto & joint_start_pose = optimized_traj_points.back().pose;
 
@@ -945,6 +975,8 @@ std::vector<TrajectoryPoint> PathOptimizer::extendTrajectory(
     traj_points, joint_start_pose.position, joint_start_traj_seg_idx,
     joint_traj_max_length_for_smoothing, joint_traj_min_length_for_smoothing);
   if (!joint_end_traj_point_idx) {
+    // No candidate can be constructed. Preserve the exact legacy selection;
+    // the caller still applies the ordinary final safety checks.
     return trajectory_utils::resampleTrajectoryPoints(
       optimized_traj_points, traj_param_.output_delta_arc_length, true);
   }
@@ -965,23 +997,92 @@ std::vector<TrajectoryPoint> PathOptimizer::extendTrajectory(
     return concatVectors(optimized_traj_points, extended_traj_points);
   }();
 
-  // resample trajectory points
-  auto resampled_traj_points = trajectory_utils::resampleTrajectoryPoints(
-    full_traj_points, traj_param_.output_delta_arc_length, true);
-
-  // update stop velocity on joint
-  for (size_t i = joint_start_traj_seg_idx + 1; i <= *joint_end_traj_point_idx; ++i) {
-    if (hasZeroVelocity(traj_points.at(i))) {
-      if (i != 0 && !hasZeroVelocity(traj_points.at(i - 1))) {
-        // Here is when current point is 0 velocity, but previous point is not 0 velocity.
-        const auto & input_stop_pose = traj_points.at(i).pose;
-        const size_t stop_seg_idx = trajectory_utils::findEgoSegmentIndex(
-          resampled_traj_points, input_stop_pose, ego_nearest_param_);
-
-        // calculate and insert stop pose on output trajectory
-        trajectory_utils::insertStopPoint(resampled_traj_points, input_stop_pose, stop_seg_idx);
+  const auto reinsert_input_stops = [&](std::vector<TrajectoryPoint> & output) {
+    for (size_t i = joint_start_traj_seg_idx + 1; i <= *joint_end_traj_point_idx; ++i) {
+      if (hasZeroVelocity(traj_points.at(i)) && i != 0 &&
+          !hasZeroVelocity(traj_points.at(i - 1))) {
+        const auto & stop_pose = traj_points.at(i).pose;
+        const size_t segment = trajectory_utils::findEgoSegmentIndex(
+          output, stop_pose, ego_nearest_param_);
+        trajectory_utils::insertStopPoint(output, stop_pose, segment);
       }
     }
+  };
+
+  // Construct an immutable legacy result before attempting an optional bridge.
+  // The candidate may not mutate the fallback, including its stop positions.
+  auto baseline = trajectory_utils::resampleTrajectoryPoints(
+    full_traj_points, traj_param_.output_delta_arc_length, true);
+  reinsert_input_stops(baseline);
+  if (!c2_enabled) return baseline;
+
+  bool adopted = false;
+  std::string rejection;
+  auto resampled_traj_points = detail::adoptValidatedBridgeOrBaseline(baseline, [&]() {
+    if (!safety_data) throw std::logic_error("C2 bridge missing synchronized safety data");
+    auto bridge = detail::makeC2Bridge(optimized_traj_points, traj_points,
+      *joint_end_traj_point_idx, mpt_optimizer_ptr_->maximumCurvature(), transfer_rising_velocity,
+      &acceleration_limits_);
+    const auto bridge_begin_pose = bridge.points[bridge.begin].pose;
+    const auto bridge_end_pose = bridge.points[bridge.end].pose;
+    // Stop insertion can insert a pose. Validate the final geometry, not the
+    // pre-stop draft, and recover indices after the insertion.
+    reinsert_input_stops(bridge.points);
+    bridge.begin = autoware::motion_utils::findNearestIndex(
+      bridge.points, bridge_begin_pose.position);
+    bridge.end = autoware::motion_utils::findNearestIndex(
+      bridge.points, bridge_end_pose.position);
+    const geometry_utils::CircleFootprintRoadChecker road(
+      safety_data->left_bound, safety_data->right_bound);
+    const auto & radii = mpt_optimizer_ptr_->getVehicleCircleRadii();
+    const auto & offsets = mpt_optimizer_ptr_->getVehicleCircleLongitudinalOffsets();
+    if (radii.empty() || radii.size() != offsets.size()) {
+      throw std::logic_error("C2 bridge missing vehicle circles");
+    }
+    // Check both joins plus one full vehicle length on each unchanged side.
+    size_t begin = bridge.begin, end = bridge.end;
+    double distance = 0.0;
+    while (begin > 0 && distance < vehicle_info_.vehicle_length_m) {
+      distance += autoware_utils::calc_distance2d(bridge.points[begin],bridge.points[begin-1]);
+      --begin;
+    }
+    distance = 0.0;
+    while (end + 1 < bridge.points.size() && distance < vehicle_info_.vehicle_length_m) {
+      distance += autoware_utils::calc_distance2d(bridge.points[end],bridge.points[end+1]);
+      ++end;
+    }
+    const auto road_check_start = std::chrono::steady_clock::now();
+    size_t road_checks = 0;
+    const auto outside = [&](const auto & pose, const auto & circle_radii,
+                             const auto & circle_offsets) {
+      if (++road_checks > 8000 || std::chrono::duration<double>(
+            std::chrono::steady_clock::now()-road_check_start).count() > .030) {
+        throw std::logic_error("C2 bridge road certificate budget exhausted");
+      }
+      return road.isOutside(pose,circle_radii,circle_offsets);
+    };
+    for (size_t i = begin; i < end; ++i) {
+      const auto & a = bridge.points[i].pose;
+      const auto & b = bridge.points[i+1].pose;
+      if (!detail::certifySweptCircleSegment(a,b,radii,offsets,outside)) {
+        throw std::logic_error("C2 bridge full swept circle outside road");
+      }
+    }
+    if (firstObstacleCollision(bridge.points,begin,safety_data->obstacles,vehicle_info_)) {
+      throw std::logic_error("C2 bridge static obstacle collision");
+    }
+    if (firstCurvatureViolation(bridge.points,begin,end+1,
+          mpt_optimizer_ptr_->maximumCurvature())) {
+      throw std::logic_error("C2 bridge discrete join curvature violation");
+    }
+    return bridge.points;
+  }, adopted, rejection);
+  // Per-candidate records allow exact adoption accounting in isolated replay.
+  if (adopted) {
+    RCLCPP_INFO(get_logger(), "[MPT] C2 candidate adopted after full road/obstacle checks");
+  } else {
+    RCLCPP_INFO(get_logger(), "[MPT] C2 candidate rejected; baseline retained for final checks: %s",
+      rejection.c_str());
   }
 
   // debug_data_ptr_->extended_traj_points =
@@ -1172,7 +1273,7 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
         // Match optimizeTrajectory's velocity/stop insertion and backward crop
         // before extending. Cropping changes the resampling phase and its yaw.
         applyInputVelocity(publish_prefix, data.traj_points, data.ego_pose);
-        checked_trajectory = extendTrajectory(data.traj_points, publish_prefix);
+        checked_trajectory = extendTrajectory(data.traj_points, publish_prefix, &data);
         ego = trajectory_utils::findEgoIndex(checked_trajectory, data.ego_pose, ego_nearest_param_);
         const auto prefix_end = autoware::motion_utils::findNearestIndex(
           checked_trajectory, trajectory->back().pose.position);

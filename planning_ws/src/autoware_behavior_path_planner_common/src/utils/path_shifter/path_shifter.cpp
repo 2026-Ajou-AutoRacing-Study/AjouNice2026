@@ -1,4 +1,5 @@
 #include <autoware/behavior_path_planner_common/utils/path_shifter/path_shifter.hpp>
+#include "negative_shift_time.hpp"
 
 #include <autoware/behavior_path_planner_common/utils/path_utils.hpp>
 #include <autoware/interpolation/spline_interpolation.hpp>
@@ -81,10 +82,11 @@ void PathShifter::apply_spline_shifter(ShiftedPath * shifted_path, const bool of
   for (const auto & line : shift_lines_) {
     const double delta = line.end_shift_length - shifted_path->shift_length.at(line.end_idx);
     const double length = std::max(arclength.at(line.end_idx) - arclength.at(line.start_idx), 1e-8);
-    const auto bases = calc_base_lengths(length, delta, offset_back);
+    auto bases = calc_base_lengths(length, delta, offset_back);
     std::vector<double> query;
     for (size_t index = line.start_idx + 1; index < line.end_idx; ++index)
       query.push_back(arclength.at(index) - arclength.at(line.start_idx));
+    detail::reparameterize_negative_shift(velocity_, longitudinal_acc_, bases.first, query);
     const auto offsets = query.empty() ? std::vector<double>{} : autoware::interpolation::spline(bases.first, bases.second, query);
     for (size_t index = 0; index < offsets.size(); ++index)
       add_lateral_offset_on_index_point(shifted_path, offsets.at(index), line.start_idx + 1 + index);

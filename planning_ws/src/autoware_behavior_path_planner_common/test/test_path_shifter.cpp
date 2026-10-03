@@ -1,4 +1,6 @@
 #include <autoware/behavior_path_planner_common/utils/path_shifter/path_shifter.hpp>
+#include "../src/utils/path_shifter/negative_shift_time.hpp"
+#include <autoware/interpolation/spline_interpolation.hpp>
 #include <autoware/behavior_path_planner_common/utils/path_utils.hpp>
 #include <autoware/behavior_path_planner_common/utils/utils.hpp>
 #include <autoware/behavior_path_planner_common/utils/parking_departure/utils.hpp>
@@ -1919,6 +1921,102 @@ TEST(BppPlannerManagerSlotCore, RunsTheFirstRequestingManagerAndOwnsActiveModule
   EXPECT_EQ(slot.activeModuleCount(), 0U);
   first->updateObserver();
   EXPECT_EQ(first->observerCount(), 0U);
+}
+
+namespace {
+using ShiftPath=autoware::behavior_path_planner::PathWithLaneId;
+ShiftPath negativeShiftReference() {
+  ShiftPath p;
+  for(size_t i=0;i<=100;++i){autoware::behavior_path_planner::PathPointWithLaneId q;
+    q.point.pose.position.x=i*.5;q.point.pose.orientation.w=1;q.lane_ids={17};
+    q.point.longitudinal_velocity_mps=i>=90?0:15;p.points.push_back(q);}
+  return p;
+}
+// Independent time integration of constant jerk / constant acceleration phases.
+std::pair<std::vector<double>,std::vector<double>> shiftExpectedKnots(
+  double S,double L,double v,double a,double limit,bool back)
+{
+  const double T=a?2*S/(v+std::sqrt(v*v+2*a*S)):S/v;
+  std::vector<double> times{0,T/4,3*T/4,T},values{0,L/12,11*L/12,L};
+  bool constrained=false;
+  if(8*std::abs(L)/(T*T)>=limit){
+    const double tj=T/2-2*std::abs(L)/(limit*T),ta=4*std::abs(L)/(limit*T)-T/2;
+    if(tj>=0&&ta>=0&&tj/T>=.1){
+      constrained=true;times={0};values={0};double t=0,y=0,dy=0,ddy=0;
+      const double j=std::copysign(2*limit*limit*T/(limit*T*T-4*std::abs(L)),L);
+      const std::vector<double> dt{tj,ta,tj,tj,ta,tj},jerks{j,0,-j,-j,0,j};
+      for(size_t i=0;i<dt.size();++i){const double h=dt[i],z=jerks[i];
+        y+=dy*h+.5*ddy*h*h+z*h*h*h/6;dy+=ddy*h+.5*z*h*h;ddy+=z*h;t+=h;
+        times.push_back(t);values.push_back(y);}
+    }
+  }
+  if(!back)std::reverse(values.begin(),values.end());
+  if(a>=0){
+    if(constrained)for(auto&t:times)t=v*t+.5*a*t*t;
+    else times={0,S/4,3*S/4,S}; // Existing positive/coast output contract unchanged.
+  }
+  return {times,values};
+}
+void checkShiftExpected(double a,double limit,double L,bool back) {
+  namespace bpp=autoware::behavior_path_planner;
+  auto ref=negativeShiftReference();bpp::ShiftLine line;line.start=ref.points[4].point.pose;
+  line.end=ref.points[84].point.pose;line.end_shift_length=L;
+  bpp::PathShifter shifter;shifter.setPath(ref);shifter.addShiftLine(line);
+  shifter.setVelocity(15);shifter.setLongitudinalAcceleration(a);shifter.setLateralAccelerationLimit(limit);
+  bpp::ShiftedPath out;ASSERT_TRUE(shifter.generate(&out,back));
+  const auto knots=shiftExpectedKnots(40,L,15,a,limit,back);
+  autoware::interpolation::SplineInterpolation spline(knots.first,knots.second);
+  for(size_t i=5;i<84;++i){const double s=(i-4)*.5;
+    const double q=a<0?2*s/(15+std::sqrt(225+2*a*s)):s;
+    EXPECT_NEAR(out.shift_length[i],spline.getSplineInterpolatedValues({q})[0],1e-12);}
+  for(size_t i=84;i<ref.points.size();++i){
+    EXPECT_NEAR(out.shift_length[i],back?L:0.,1e-12);
+    EXPECT_EQ(out.path.points[i].lane_ids,ref.points[i].lane_ids);
+    EXPECT_EQ(out.path.points[i].point.longitudinal_velocity_mps,ref.points[i].point.longitudinal_velocity_mps);
+    if(!back)EXPECT_EQ(out.path.points[i],ref.points[i]);}
+  EXPECT_DOUBLE_EQ(out.shift_length[0],back?0.:out.shift_length[5]);
+}
+}
+TEST(NegativeShiftTime, FourAndSevenKnotsSignedBothDirections) {
+  for(double limit:{10.,2.2})for(double shift:{-3.,3.})for(bool back:{false,true})
+    checkShiftExpected(-1.,limit,shift,back);
+}
+TEST(NegativeShiftTime, PositiveCoastPreservePriorDistanceMath) {
+  for(double a:{0.,1.})for(double limit:{10.,3.})for(double shift:{-3.,3.})for(bool back:{false,true})
+    checkShiftExpected(a,limit,shift,back);
+}
+TEST(NegativeShiftTime, InverseFiniteAtStopAndInvalidIsAtomic) {
+  namespace d=autoware::behavior_path_planner::detail;
+  std::vector<double> bases{0,7.5,10},queries{2,5,9};
+  EXPECT_TRUE(d::reparameterize_negative_shift(10,-5,bases,queries));
+  EXPECT_DOUBLE_EQ(bases.back(),2);for(double t:queries)EXPECT_TRUE(std::isfinite(t));
+  {std::vector<double> b{0,5,10},q{1,1,5};EXPECT_TRUE(d::reparameterize_negative_shift(10,-5,b,q));EXPECT_DOUBLE_EQ(q[0],q[1]);}
+  for(const auto invalid:std::vector<std::vector<double>>{{0,11},{0,5,4},{0,0},{0,std::numeric_limits<double>::infinity()}}){
+    auto b=invalid,q=std::vector<double>{1};EXPECT_THROW(d::reparameterize_negative_shift(10,-5,b,q),std::logic_error);EXPECT_EQ(b,invalid);EXPECT_EQ(q,std::vector<double>{1});}
+  std::vector<double> b{0,1},q{.5};
+  EXPECT_THROW(d::reparameterize_negative_shift(std::numeric_limits<double>::quiet_NaN(),-1,b,q),std::logic_error);
+  for(double a:{0.,1.,-1e-4}){auto x=b,y=q;EXPECT_FALSE(d::reparameterize_negative_shift(10,a,x,y));EXPECT_EQ(x,b);EXPECT_EQ(y,q);}
+}
+TEST(NegativeShiftTime, EndpointTimeDerivativesAndNearStopNoSmoothnessClaim) {
+  for(double limit:{10.,2.2})for(bool back:{false,true}){
+    const auto knot=shiftExpectedKnots(40,3,15,-1,limit,back);
+    autoware::interpolation::SplineInterpolation spline(knot.first,knot.second);
+    EXPECT_NEAR(spline.getSplineInterpolatedDiffValues({0,knot.first.back()})[0],0,1e-12);
+    EXPECT_NEAR(spline.getSplineInterpolatedDiffValues({0,knot.first.back()})[1],0,1e-12);
+    EXPECT_NEAR(spline.getSplineInterpolatedQuadDiffValues({knot.first.back()})[0],0,1e-12);
+  }
+  namespace bpp=autoware::behavior_path_planner;
+  auto ref=negativeShiftReference();bpp::ShiftLine line;line.start=ref.points[0].point.pose;line.end=ref.points[80].point.pose;line.end_shift_length=3;
+  for(double a:{-1.25,-1.25+1e-10}){bpp::PathShifter shifter;shifter.setPath(ref);shifter.addShiftLine(line);shifter.setVelocity(10);shifter.setLongitudinalAcceleration(a);shifter.setLateralAccelerationLimit(10);bpp::ShiftedPath out;
+    ASSERT_TRUE(shifter.generate(&out,false));for(double x:out.shift_length)EXPECT_TRUE(std::isfinite(x));EXPECT_DOUBLE_EQ(out.shift_length[80],0);}
+}
+TEST(NegativeShiftTime, MultipleLinesAndLinearUnchanged) {
+  namespace bpp=autoware::behavior_path_planner;auto ref=negativeShiftReference();
+  bpp::ShiftLine one,two;one.start=ref.points[4].point.pose;one.end=ref.points[44].point.pose;one.end_shift_length=1;
+  two.start=ref.points[44].point.pose;two.end=ref.points[84].point.pose;two.end_shift_length=2;
+  bpp::PathShifter shifter;shifter.setPath(ref);shifter.setShiftLines({one,two});shifter.setVelocity(15);shifter.setLongitudinalAcceleration(-1);shifter.setLateralAccelerationLimit(10);
+  bpp::ShiftedPath out;ASSERT_TRUE(shifter.generate(&out,true));EXPECT_NEAR(out.shift_length[44],1,1e-12);EXPECT_NEAR(out.shift_length[84],2,1e-12);
+  ASSERT_TRUE(shifter.generate(&out,false,bpp::SHIFT_TYPE::LINEAR));EXPECT_DOUBLE_EQ(out.shift_length[24],.5);EXPECT_DOUBLE_EQ(out.shift_length[64],1.5);EXPECT_DOUBLE_EQ(out.shift_length[84],2);
 }
 
 int main(int argc, char ** argv)

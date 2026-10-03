@@ -109,6 +109,9 @@ protected:
 
   std::unique_ptr<LaneChangeBase> module_type_;
 
+  // Opt-in simulator arbitration. Never changes an already running maneuver.
+  bool deferPassingConvenienceReturn() const;
+
   PathSafetyStatus post_process_safety_status_;
 
   bool canTransitSuccessState() override;

@@ -16,6 +16,7 @@
 
 #include "autoware/behavior_path_lane_change_module/base_class.hpp"
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/bounded_output_policy.hpp"
 
 #include <memory>
 #include <string>
@@ -24,6 +25,8 @@
 
 namespace autoware::behavior_path_planner
 {
+namespace utils::lane_change { struct PreparedSafetyWorld; }
+namespace utils::path_safety_checker { class PreparedPathProjection; }
 using autoware::behavior_path_planner::utils::path_safety_checker::CollisionCheckDebug;
 using autoware::behavior_path_planner::utils::path_safety_checker::CollisionCheckDebugMap;
 using autoware::behavior_path_planner::utils::path_safety_checker::ExtendedPredictedObject;
@@ -57,6 +60,9 @@ public:
   void update_lanes(const bool is_approved) final;
 
   void update_transient_data(const bool is_approved) final;
+  // Recompute only pose-dependent geometry; never advance stop/stuck timers.
+  void refresh_transient_geometry(const bool is_approved);
+  bool acquire_fresh_output_context();
 
   void update_filtered_objects() final;
 
@@ -158,6 +164,27 @@ protected:
 
   bool check_candidate_path_safety(
     const LaneChangePath & candidate_path, const lane_change::TargetObjects & target_objects) const;
+  bool check_reachable_candidate_admission(
+    const LaneChangePath & candidate_path, const ros::WallTime & deadline) const;
+
+  bool check_strict_maneuver_safety(
+    const LaneChangePath & candidate, const PathWithLaneId & final_path,
+    std::string & reason, bool approved, bool current_lane_following = false) const;
+  std::shared_ptr<const utils::lane_change::PreparedSafetyWorld> prepare_admission_world() const;
+  bool check_strict_maneuver_safety(
+    const LaneChangePath & candidate, const PathWithLaneId & final_path,
+    std::string & reason, bool approved, bool current_lane_following,
+    const utils::lane_change::PreparedSafetyWorld * world) const;
+  void enforce_strict_maneuver_safety(BehaviorModuleOutput & output);
+  std::optional<utils::lane_change::SelectedOutputIdentity> selected_output_identity() const;
+  void remember_selected_output(const LaneChangePath & model, const PathWithLaneId & path);
+  bool defer_pre_adjacency_request() const;
+  void publishStrictSafetySnapshot(
+    const std::string & stage,const LaneChangePath & candidate,const PathWithLaneId & original_path,
+    const PathWithLaneId * selected_path,const ros::Time & stamp,
+    const std::string & original_reason,const std::string & cancel_reason,
+    const std::string & brake_reason,
+    const std::vector<double> * attempted_targets = nullptr) const;
 
   std::optional<PathWithLaneId> compute_terminal_lane_change_path() const;
 
@@ -181,6 +208,11 @@ protected:
     const LaneChangePath & lane_change_path, const ExtendedPredictedObject & obj,
     const std::vector<PoseWithVelocityStamped> & ego_predicted_path, const RSSparams & rss_param,
     CollisionCheckDebugMap & debug_data, const bool is_approved) const;
+  bool is_colliding(
+    const LaneChangePath & lane_change_path, const ExtendedPredictedObject & obj,
+    const std::vector<PoseWithVelocityStamped> & ego_predicted_path, const RSSparams & rss_param,
+    CollisionCheckDebugMap & debug_data, const bool is_approved,
+    const utils::path_safety_checker::PreparedPathProjection * projection) const;
 
   double get_max_velocity_for_safety_check() const;
 
@@ -209,6 +241,10 @@ protected:
   bool is_ego_in_current_or_target_lanes() const final;
 
   std::vector<PathPointWithLaneId> path_after_intersection_;
+  uint64_t selected_output_cycle_{0};
+  bool transient_is_approved_{true};
+  std::optional<LaneChangePath> selected_output_model_;
+  std::optional<utils::lane_change::SelectedOutputIdentity> selected_output_identity_;
   double stop_time_{0.0};
 };
 }  // namespace autoware::behavior_path_planner

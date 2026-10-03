@@ -78,6 +78,7 @@ catkin_package(INCLUDE_DIRS include LIBRARIES ${PROJECT_NAME}
   CATKIN_DEPENDS autoware_adapi_v1_msgs autoware_deprecated_boundary_departure_checker autoware_internal_debug_msgs autoware_internal_planning_msgs autoware_perception_msgs autoware_planning_msgs autoware_traffic_light_utils autoware_vehicle_msgs autoware_motion_utils autoware_vehicle_info_utils autoware_route_handler autoware_lanelet2_utils autoware_lanelet2_extension autoware_freespace_planning_algorithms autoware_object_recognition_utils autoware_planning_factor_interface autoware_objects_of_interest_marker_interface autoware_rtc_interface geometry_msgs nav_msgs roscpp tf2 tf2_geometry_msgs tier4_planning_msgs unique_identifier_msgs autoware_utils visualization_msgs)
 include_directories(include ${catkin_INCLUDE_DIRS} ${AW149_LANELET2_EXTENSION_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIRS} ${MOTION_UTILS_INCLUDE_DIR} ${INTERPOLATION_INCLUDE_DIR} ${UNIVERSE_UTILS_INCLUDE_DIR} ${VEHICLE_INFO_UTILS_INCLUDE_DIR} ${ROUTE_HANDLER_INCLUDE_DIR} ${PLANNING_FACTOR_INTERFACE_INCLUDE_DIR} ${OBJECTS_OF_INTEREST_MARKER_INTERFACE_INCLUDE_DIR} ${RTC_INTERFACE_INCLUDE_DIR} ${LANELET2_UTILS_INCLUDE_DIR} ${BOUNDARY_DEPARTURE_CHECKER_INCLUDE_DIR} ${FREESPACE_ALGORITHMS_INCLUDE_DIR} ${OBJECT_RECOGNITION_UTILS_INCLUDE_DIR})
 add_library(${PROJECT_NAME} SHARED
+  src/interface/fresh_input_provider.cpp
   src/interface/data_readiness.cpp
   src/interface/bpp_input_core.cpp
   src/interface/scene_module_interface.cpp
@@ -117,6 +118,15 @@ add_library(${PROJECT_NAME} SHARED
 target_link_libraries(${PROJECT_NAME} ${MOTION_UTILS_LIBRARY} ${INTERPOLATION_LIBRARY} ${VEHICLE_INFO_UTILS_LIBRARY} ${ROUTE_HANDLER_LIBRARY} ${PLANNING_FACTOR_INTERFACE_LIBRARY} ${OBJECTS_OF_INTEREST_MARKER_INTERFACE_LIBRARY} ${RTC_INTERFACE_LIBRARY} ${LANELET2_UTILS_LIBRARY} ${BOUNDARY_DEPARTURE_CHECKER_LIBRARY} ${FREESPACE_ALGORITHMS_LIBRARY} ${OBJECT_RECOGNITION_UTILS_LIBRARY} ${LANELET2_CORE_LIBRARY} ${catkin_LIBRARIES})
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_prepared_path_projection test/test_prepared_path_projection.cpp)
+  if(TARGET test_prepared_path_projection)
+    target_link_libraries(test_prepared_path_projection gtest_main ${PROJECT_NAME} ${catkin_LIBRARIES})
+  endif()
+  catkin_add_gtest(test_fresh_input_provider test/test_fresh_input_provider.cpp)
+  if(TARGET test_fresh_input_provider)
+    target_link_libraries(test_fresh_input_provider gtest_main ${PROJECT_NAME} ${catkin_LIBRARIES})
+    target_compile_features(test_fresh_input_provider PRIVATE cxx_std_17)
+  endif()
   catkin_add_gtest(test_path_shifter test/test_path_shifter.cpp)
   if(TARGET test_path_shifter)
     # Retained fixture is part of this export, not the upstream checkout.

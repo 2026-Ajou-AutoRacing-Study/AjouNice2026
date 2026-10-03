@@ -179,6 +179,7 @@ public:
   bool isSafe() const { return status_.is_safe; }
 
   bool isStopState() const { return current_lane_change_state_ == LaneChangeStates::Stop; }
+  bool isCancelState() const { return current_lane_change_state_ == LaneChangeStates::Cancel; }
 
   bool isValidPath() const { return status_.is_valid_path; }
 
@@ -224,6 +225,23 @@ public:
   std::shared_ptr<RouteHandler> getRouteHandler() const { return planner_data_->route_handler; }
 
   std_msgs::Header getRouteHeader() const { return getRouteHandler()->getRouteHeader(); }
+
+  // Read-only copy for simulator arbitration; no mutation of LC planning state.
+  lane_change::TransientData passingIntentTransientData() const
+  {
+    return common_data_ptr_ ? common_data_ptr_->transient_data : lane_change::TransientData{};
+  }
+
+  std::optional<double> passingIntentAcceleration() const
+  {
+    if (!common_data_ptr_ || !common_data_ptr_->current_acceleration) return std::nullopt;
+    return common_data_ptr_->current_acceleration->accel.accel.linear.x;
+  }
+
+  double passingIntentFrontMargin() const
+  {
+    return planner_data_->parameters.base_link2front;
+  }
 
   std::string getModuleTypeStr() const
   {

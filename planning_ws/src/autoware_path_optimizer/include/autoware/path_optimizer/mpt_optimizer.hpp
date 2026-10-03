@@ -43,8 +43,12 @@
 
 namespace autoware::path_optimizer
 {
+struct ReferencePoint;
 namespace detail
 {
+size_t boundsInterpolationPreviousIndex(size_t offset_index, size_t point_count);
+void anchorMeasuredEgo(
+  std::vector<ReferencePoint> & points, size_t ego_index, const geometry_msgs::Pose & pose);
 void assignHardConstraintStateBlock(
   Eigen::MatrixXd & destination, const Eigen::SparseMatrix<double> & source,
   size_t reference_count, size_t state_count);

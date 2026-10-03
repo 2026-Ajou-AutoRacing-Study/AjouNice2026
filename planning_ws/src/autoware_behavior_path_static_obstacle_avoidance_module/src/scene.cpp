@@ -211,6 +211,10 @@ AvoidanceState StaticObstacleAvoidanceModule::getCurrentModuleState(
 
 void StaticObstacleAvoidanceModule::updateOptimizationClipObjects(AvoidancePlanningData & data)
 {
+  // A motion-confirmed object belongs to longitudinal/dynamic planners, not
+  // the static PO constraint latch. Retain stationary/dropout observations.
+  utils::static_obstacle_avoidance::removeMovingClipObjects(
+    clip_objects_, data.other_objects, parameters_);
   const auto same_id = [](const ObjectData & object, const UUID & id) {
     return object.object.object_id == id;
   };

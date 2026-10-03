@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "pid_based_planner.hpp"
+#include "lead_identity_reset.hpp"
 
 #include "autoware/interpolation/spline_interpolation.hpp"
 #include "autoware/motion_utils/marker/marker_helper.hpp"
@@ -240,6 +241,25 @@ std::optional<PIDBasedPlanner::CruiseObstacleInfo> PIDBasedPlanner::calc_obstacl
     cruise_obstacle_info =
       CruiseObstacleInfo(obstacle, error_cruise_dist, dist_to_obstacle, target_dist_to_obstacle);
   }
+
+  bool identity_reset=false;
+  ros::param::getCached("/planning/cruise_reset_on_lead_change",identity_reset);
+  const std::optional<UUID> selected_uuid=cruise_obstacle_info
+    ?std::optional<UUID>(cruise_obstacle_info->obstacle.uuid):std::nullopt;
+  const bool reset=reset_lead_history_if_changed(identity_reset,selected_uuid,
+    filtered_lead_uuid_,[&] {
+      lpf_dist_to_obstacle_ptr_->reset();
+      lpf_obstacle_vel_ptr_->reset();
+      lpf_error_cruise_dist_ptr_->reset();
+      lpf_normalized_error_cruise_dist_ptr_->reset();
+      lpf_output_vel_ptr_->reset();
+      velocity_limit_based_planner_param_.pid_vel_controller->reset();
+      velocity_insertion_based_planner_param_.pid_acc_controller->reset();
+      velocity_insertion_based_planner_param_.pid_jerk_controller->reset();
+      // Keep prev_target_acc_ and output acceleration/jerk filters: they
+      // describe the ego's continuous actuation, not the departed lead.
+    });
+  if(reset)ROS_INFO_THROTTLE(1.0,"Cruise lead identity changed: measurement/PID/velocity history reset");
 
   if (!cruise_obstacle_info) {  // if obstacle to cruise was not found
     lpf_dist_to_obstacle_ptr_->reset();

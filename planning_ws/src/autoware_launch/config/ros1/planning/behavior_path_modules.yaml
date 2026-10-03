@@ -731,7 +731,8 @@ goal_planner:
   enable_simultaneous_execution_as_approved_module: true
   enable_simultaneous_execution_as_candidate_module: false
 lane_change:
-  time_limit: 50.0
+  # R42 simulator: shared native generation + bounded admission search budget (ms).
+  time_limit: 100.0
   backward_lane_length: 200.0
   backward_length_buffer_for_end_of_lane: 3.0
   backward_length_buffer_for_blocking_object: 3.0
@@ -743,10 +744,14 @@ lane_change:
     disable_near_goal: true
     stop_at_boundary: false
   trajectory:
-    max_prepare_duration: 4.0
+    # Immediate LC remains allowed; look ahead to legally starting merge lanes.
+    max_prepare_duration: 3.0
     min_prepare_duration: 0.0
     lateral_jerk: 5.0
-    min_longitudinal_acc: -8.0
+    # Ordinary LC candidates: avoid choosing emergency-strength braking to merge.
+    # Obstacle stop/cruise braking and full RSS collision checks remain separate.
+    min_longitudinal_acc: -4.0
+    # Positive candidates remain capped by the calibrated speed/acceleration map.
     max_longitudinal_acc: 3.7
     th_prepare_length_diff: 1.0
     th_lane_changing_length_diff: 1.0
@@ -771,23 +776,24 @@ lane_change:
     enable_target_lane_bound_check: true
     stopped_object_velocity_threshold: 0.3
     prepare:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -1.0
-      rear_vehicle_reaction_time: 1.0
-      rear_vehicle_safety_time_margin: 0.8
+      expected_front_deceleration: -6.0
+      expected_rear_deceleration: -6.0
+      rear_vehicle_reaction_time: 0.5
+      rear_vehicle_safety_time_margin: 0.0
       lateral_distance_max_threshold: 0.5
       longitudinal_distance_min_threshold: 1.0
       longitudinal_velocity_delta_time: 0.0
       extended_polygon_policy: along_path
     execution:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -1.0
-      rear_vehicle_reaction_time: 2.0
-      rear_vehicle_safety_time_margin: 1.0
-      lateral_distance_max_threshold: 2.0
+      expected_front_deceleration: -6.0
+      expected_rear_deceleration: -6.0
+      rear_vehicle_reaction_time: 0.5
+      rear_vehicle_safety_time_margin: 0.0
+      lateral_distance_max_threshold: 0.5
       longitudinal_distance_min_threshold: 3.0
       longitudinal_velocity_delta_time: 0.0
-      extended_polygon_policy: rectangle
+      # Follow the actual LC path; physical overlap and RSS margins remain binding.
+      extended_polygon_policy: along_path
     parked:
       expected_front_deceleration: -1.0
       expected_rear_deceleration: -2.0
@@ -798,14 +804,16 @@ lane_change:
       longitudinal_velocity_delta_time: 0.0
       extended_polygon_policy: rectangle
     cancel:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -2.0
-      rear_vehicle_reaction_time: 1.5
-      rear_vehicle_safety_time_margin: 0.8
-      lateral_distance_max_threshold: 1.0
-      longitudinal_distance_min_threshold: 2.5
+      # R18 simulator experiment: same emergency RSS assumptions as execution.
+      # Strict final/abort checks remain enabled; not a calibrated vehicle claim.
+      expected_front_deceleration: -6.0
+      expected_rear_deceleration: -6.0
+      rear_vehicle_reaction_time: 0.5
+      rear_vehicle_safety_time_margin: 0.0
+      lateral_distance_max_threshold: 0.5
+      longitudinal_distance_min_threshold: 3.0
       longitudinal_velocity_delta_time: 0.0
-      extended_polygon_policy: rectangle
+      extended_polygon_policy: along_path
     stuck:
       expected_front_deceleration: -1.0
       expected_rear_deceleration: -1.0
@@ -828,9 +836,9 @@ lane_change:
     - 1.0
     - 1.0
     max_values:
-    - 6.5
-    - 6.5
-    - 6.5
+    - 4.5
+    - 4.5
+    - 4.5
   target_object:
     car: true
     truck: true
@@ -844,8 +852,8 @@ lane_change:
     prediction_time_resolution: 0.5
     th_incoming_object_yaw: 2.3562
     yaw_diff_threshold: 3.1416
-    check_current_lanes: false
-    check_other_lanes: false
+    check_current_lanes: true
+    check_other_lanes: true
     use_all_predicted_paths: false
   regulation:
     crosswalk: true
@@ -948,11 +956,13 @@ slot3:
 slot4:
 - dynamic_obstacle_avoidance
 external_request_lane_change_left:
-  enable_rtc: false
+  # External requests require an explicit RTC command; auto approval causes
+  # unsolicited lane changes even when the route-preferred lane is reached.
+  enable_rtc: true
   enable_simultaneous_execution_as_approved_module: false
   enable_simultaneous_execution_as_candidate_module: true
 external_request_lane_change_right:
-  enable_rtc: false
+  enable_rtc: true
   enable_simultaneous_execution_as_approved_module: false
   enable_simultaneous_execution_as_candidate_module: true
 lane_change_left:

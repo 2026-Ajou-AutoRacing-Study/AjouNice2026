@@ -19,6 +19,7 @@
 #include <autoware/lanelet2_utils/geometry.hpp>
 #include <autoware/motion_utils/trajectory/path_shift.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <array>
 
 #include <boost/geometry/algorithms/buffer.hpp>
 #include <boost/geometry/algorithms/correct.hpp>
@@ -447,6 +448,70 @@ std::vector<double> calc_acceleration_values(
   return sampled_values;
 }
 
+std::vector<size_t> diverse_phase_order(
+  const std::vector<PhaseMetrics> & metrics, const bool preparation, const size_t group_rank)
+{
+  std::vector<size_t> order;
+  if (metrics.empty()) return order;
+  const auto axis = [&](const PhaseMetrics & m) {
+    return preparation ? m.duration : m.lat_accel;
+  };
+  const auto acceleration = [&](const PhaseMetrics & m) {
+    return preparation ? m.sampled_lon_accel : m.actual_lon_accel;
+  };
+  double lo = axis(metrics.front()), hi = lo;
+  double amin = acceleration(metrics.front()), amax = amin;
+  for (const auto & m : metrics) {
+    if (!std::isfinite(axis(m)) || !std::isfinite(acceleration(m))) {
+      // Leave malformed input to the existing generation/safety checks.
+      for (size_t i = 0; i < metrics.size(); ++i) order.push_back(i);
+      return order;
+    }
+    lo = std::min(lo, axis(m)); hi = std::max(hi, axis(m));
+    amin = std::min(amin, acceleration(m)); amax = std::max(amax, acceleration(m));
+  }
+  const std::array<double, 3> axes = preparation
+    ? std::array<double, 3>{lo, (lo + hi) * 0.5, hi}
+    : std::array<double, 3>{hi, (lo + hi) * 0.5, lo};
+  const std::array<double, 3> accels{amax, std::clamp(0.0, amin, amax),
+    std::clamp(-2.0, amin, amax)};
+  std::vector<bool> used(metrics.size(), false);
+  // Each anchor selects an existing sample. Duplicate anchors (e.g. a fixed
+  // execution acceleration) do not consume repeated nearby refinements.
+  for (size_t a = 0; a < axes.size(); ++a) {
+    const double target_axis = axes[(a + (preparation ? 0 : group_rank % 3)) % 3];
+    for (const double target_acc : accels) {
+      size_t best = 0;
+      double score = std::numeric_limits<double>::infinity();
+      for (size_t i = 0; i < metrics.size(); ++i) {
+        const double current = std::abs(axis(metrics[i]) - target_axis) /
+          std::max(1e-6, hi - lo) + std::abs(acceleration(metrics[i]) - target_acc) /
+          std::max(1e-6, amax - amin);
+        if (current < score) { score = current; best = i; }
+      }
+      if (!used[best]) { used[best] = true; order.push_back(best); }
+    }
+  }
+  for (size_t i = 0; i < metrics.size(); ++i) if (!used[i]) order.push_back(i);
+  return order;
+}
+
+std::vector<std::pair<size_t, size_t>> joint_sample_order(
+  const std::vector<size_t> & lateral_sample_counts)
+{
+  std::vector<std::pair<size_t, size_t>> result;
+  const auto max_samples = lateral_sample_counts.empty() ? 0 :
+    *std::max_element(lateral_sample_counts.begin(), lateral_sample_counts.end());
+  for (size_t lateral = 0; lateral < max_samples; ++lateral) {
+    for (size_t longitudinal = 0; longitudinal < lateral_sample_counts.size(); ++longitudinal) {
+      if (lateral < lateral_sample_counts[longitudinal]) {
+        result.emplace_back(longitudinal, lateral);
+      }
+    }
+  }
+  return result;
+}
+
 std::vector<double> calc_lon_acceleration_samples(
   const CommonDataPtr & common_data_ptr, const double max_path_velocity,
   const double prepare_duration)
@@ -461,14 +526,21 @@ std::vector<double> calc_lon_acceleration_samples(
 
   // Competition mode explores front and rear gaps even far from a lane end.
   if (common_data_ptr->lc_param_ptr->trajectory.min_prepare_duration <= eps) {
-    const auto values = calc_acceleration_values(min_accel, max_accel, sampling_num);
+    auto values = calc_acceleration_values(min_accel, max_accel, sampling_num);
     std::vector<double> ordered;
-    // Cover both extremes before refining, so a time budget does not spend all
-    // its work on the accelerating half of the grid.
-    for (size_t i = 0; i < (values.size() + 1) / 2; ++i) {
-      ordered.push_back(values[i]);
-      if (values.size() - 1 - i != i) ordered.push_back(values[values.size() - 1 - i]);
-    }
+    const auto take = [&](const auto it) {
+      ordered.push_back(*it);
+      values.erase(it);
+    };
+    // Cover front-gap, coasting and mild rear-gap choices before refining.
+    // Do not put the extreme braking sample ahead of milder alternatives.
+    if (!values.empty()) take(values.begin());
+    const auto zero = std::find(values.begin(), values.end(), 0.0);
+    if (zero != values.end()) take(zero);
+    const auto mild_braking = std::find_if(values.begin(), values.end(),
+      [](const double a) { return a < 0.0; });
+    if (mild_braking != values.end()) take(mild_braking);
+    ordered.insert(ordered.end(), values.begin(), values.end());
     return ordered;
   }
   const auto & current_pose = common_data_ptr->get_ego_pose();

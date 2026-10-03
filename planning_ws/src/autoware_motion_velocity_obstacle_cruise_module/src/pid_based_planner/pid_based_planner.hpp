@@ -131,6 +131,7 @@ private:
   VelocityInsertionBasedPlannerParam velocity_insertion_based_planner_param_;
 
   std::optional<double> prev_target_acc_;
+  std::optional<UUID> filtered_lead_uuid_;
 
   // lpf for nodes's input
   std::shared_ptr<LowpassFilter1d> lpf_dist_to_obstacle_ptr_;

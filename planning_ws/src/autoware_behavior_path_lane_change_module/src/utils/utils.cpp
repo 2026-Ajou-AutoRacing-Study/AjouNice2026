@@ -50,6 +50,7 @@
 #include <tf2/utils.h>
 
 #include <boost/geometry/algorithms/buffer.hpp>
+#include <boost/geometry/algorithms/covered_by.hpp>
 #include <boost/geometry/algorithms/detail/disjoint/interface.hpp>
 #include <boost/geometry/io/svg/svg_mapper.hpp>
 #include <boost/geometry/io/svg/write.hpp>
@@ -93,6 +94,30 @@ double calc_arc_length(
 
 namespace autoware::behavior_path_planner::utils::lane_change
 {
+bool contains_direction_compatible_pose(
+  const lanelet::ConstLanelets & lanes, const geometry_msgs::Pose & pose,
+  const double yaw_threshold)
+{
+  const auto & p = pose.position;
+  const auto & q = pose.orientation;
+  const double norm = q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w;
+  if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z) ||
+      !std::isfinite(norm) || std::abs(norm - 1.0) > 1e-3 ||
+      !std::isfinite(yaw_threshold) || yaw_threshold < 0.0) return false;
+  const double yaw = tf2::getYaw(q);
+  if (!std::isfinite(yaw)) return false;
+  for (const auto & lane : lanes) {
+    if (lane.centerline().size() < 2 || lane.polygon2d().size() < 3) continue;
+    if (!boost::geometry::covered_by(
+          lanelet::BasicPoint2d(p.x, p.y), lane.polygon2d().basicPolygon())) continue;
+    const double lane_yaw = autoware::experimental::lanelet2_utils::get_lanelet_angle(
+      lane, lanelet::BasicPoint3d(p.x, p.y, p.z));
+    const double delta = std::atan2(std::sin(yaw - lane_yaw), std::cos(yaw - lane_yaw));
+    if (std::isfinite(delta) && std::abs(delta) <= yaw_threshold) return true;
+  }
+  return false;
+}
+
 PathWithLaneId get_maneuver_check_path(
   const LaneChangePath & candidate, const double settling_length)
 {

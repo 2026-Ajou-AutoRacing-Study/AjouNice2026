@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import math
+import io
 import unittest
 
 from autoware_perception_msgs.msg import (
@@ -28,6 +29,50 @@ def make_status(*, heading=0.0, length=4.5, width=1.8, height=1.5):
 
 
 class MoraiGtDetectionTest(unittest.TestCase):
+    def test_sim_velocity_body_axes_and_metadata(self):
+        for heading in (0.0, 90.0, -90.0, 179.0):
+            message = ObjectStatusList()
+            status = make_status(heading=heading)
+            status.unique_id = 23
+            status.velocity.x, status.velocity.y = 33.333, -0.4
+            message.npc_list = [status]
+            baseline = make_morai_gt_detections(message).objects[0]
+            obj = make_morai_gt_detections(message, include_velocity=True).objects[0]
+            self.assertEqual(obj.shape, baseline.shape)
+            self.assertEqual(obj.classification, baseline.classification)
+            self.assertEqual(obj.kinematics.pose_with_covariance, baseline.kinematics.pose_with_covariance)
+            self.assertTrue(obj.kinematics.has_twist)
+            self.assertTrue(obj.kinematics.has_twist_covariance)
+            self.assertAlmostEqual(obj.kinematics.twist_with_covariance.twist.linear.x, 33.333)
+            self.assertAlmostEqual(obj.kinematics.twist_with_covariance.twist.linear.y, -0.4)
+            self.assertEqual(obj.kinematics.twist_with_covariance.covariance[0], 1.0)
+            # Tracker applies world pose yaw, which includes the map TF yaw.
+            world_yaw = math.radians(heading) + 0.31
+            twist = obj.kinematics.twist_with_covariance.twist.linear
+            world_vx = math.cos(world_yaw) * twist.x - math.sin(world_yaw) * twist.y
+            self.assertAlmostEqual(world_vx, math.cos(world_yaw) * 33.333 + math.sin(world_yaw) * 0.4)
+
+    def test_default_serialization_and_invalid_velocity(self):
+        message = ObjectStatusList()
+        message.npc_list = [make_status()]
+        before = io.BytesIO()
+        make_morai_gt_detections(message).serialize(before)
+        for value in (float('nan'), float('inf'), 51.0):
+            message.npc_list[0].velocity.x = value
+            after = io.BytesIO()
+            make_morai_gt_detections(message, include_velocity=False).serialize(after)
+            self.assertEqual(before.getvalue(), after.getvalue())
+            self.assertFalse(make_morai_gt_detections(message, include_velocity=True).objects[0].kinematics.has_twist)
+
+    def test_stationary_and_non_vehicle_velocity(self):
+        message = ObjectStatusList()
+        message.npc_list = [make_status()]
+        message.pedestrian_list = [make_status(length=0.6)]
+        objects = make_morai_gt_detections(message, include_velocity=True).objects
+        self.assertTrue(objects[0].kinematics.has_twist)
+        self.assertEqual(objects[0].kinematics.twist_with_covariance.twist.linear.x, 0.0)
+        self.assertFalse(objects[1].kinematics.has_twist)
+
     def test_vehicle_actor_reference_is_shifted_to_bbox_center(self):
         message = ObjectStatusList()
         message.npc_list = [make_status(heading=90.0)]

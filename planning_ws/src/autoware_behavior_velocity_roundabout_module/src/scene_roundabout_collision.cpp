@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "scene_roundabout.hpp"
+#include "prediction_time.hpp"
 
 #include <autoware/behavior_velocity_intersection_module/util.hpp>
 #include <autoware/behavior_velocity_planner_common/utilization/boost_geometry_helper.hpp>  // for toGeomPoly
@@ -142,6 +143,8 @@ void RoundaboutModule::updateObjectInfoManagerCollision(
   }
 
   const double passing_time = time_distance_array.back().first;
+  const double prediction_age =
+    (clock_->now() - planner_data_->predicted_objects->header.stamp).toSec();
   const auto & concat_lanelets_opt =
     autoware::experimental::lanelet2_utils::combine_lanelets_shape(path_lanelets.all);
   if (!concat_lanelets_opt.has_value()) {
@@ -209,22 +212,23 @@ void RoundaboutModule::updateObjectInfoManagerCollision(
         planner_param_.collision_detection.min_predicted_path_confidence) {
         continue;
       }
-      cutPredictPathWithinDuration(
-        planner_data_->predicted_objects->header.stamp, passing_time + collision_start_margin_time,
-        &predicted_path);
-      if (predicted_path.path.size() < 2) {
-        continue;
+      const auto aligned = alignRoundaboutPrediction(
+        predicted_path, prediction_age,
+        passing_time + collision_start_margin_time);
+      if (!aligned) {
+        ROS_WARN_STREAM_THROTTLE(1.0,
+          "roundabout prediction UNKNOWN: invalid_or_uncovered_time age=" << prediction_age
+          << " samples=" << predicted_path.path.size());
+        unsafe_interval = RoundaboutCollisionInterval{
+          RoundaboutCollisionInterval::ELSE,
+          {predicted_object.kinematics.initial_pose_with_covariance.pose}, {0, 0}, {0.0, 0.0}};
+        safe_interval.reset();
+        break;
       }
-      const double time_step = roundabout_ros1::duration(predicted_path.time_step).toSec();
-      const double horizon = time_step * static_cast<double>(predicted_path.path.size());
-      predicted_path =
-        autoware::object_recognition_utils::resamplePredictedPath(predicted_path, 0.1, horizon);
-      if (predicted_path.path.size() < 2) {
-        continue;
-      }
+      predicted_path = aligned->path;
       const auto object_passage_interval_opt = findRoundaboutPassageInterval(
         predicted_path, predicted_object.shape, ego_poly,
-        roundabout_lanelets.first_attention_lane());
+        roundabout_lanelets.first_attention_lane(), aligned->times);
       if (!object_passage_interval_opt) {
         // there is no chance of geometric collision for the entire prediction horizon
         continue;
@@ -287,7 +291,17 @@ void RoundaboutModule::updateObjectInfoManagerCollision(
           boost::geometry::correct(object_polygon);
         }
       }
-      const bool collision_detected = bg::intersects(polygon, object_polygon);
+      const bool exit_unresolved = unresolvedRoundaboutExit(
+        bg::intersects(ego_poly, util::createOneStepPolygon(
+          predicted_path.path.back(), predicted_path.path.back(), predicted_object.shape)),
+        time_distance_array.back().first, object_enter_time, collision_start_margin_time);
+      // UNKNOWN finite-horizon clearance follows the existing unsafe decision.
+      const bool collision_detected = exit_unresolved || bg::intersects(polygon, object_polygon);
+      if (exit_unresolved) {
+        ROS_WARN_STREAM_THROTTLE(1.0,
+          "roundabout prediction UNKNOWN: censored_exit coverage=" << aligned->times.back()
+          << " entry=" << object_enter_time << " ego_clear=" << time_distance_array.back().first);
+      }
       debug_data_.candidate_collision_object_polygon = toGeomPoly(object_polygon);
       auto get_object_info = [&]() {
         // debug info

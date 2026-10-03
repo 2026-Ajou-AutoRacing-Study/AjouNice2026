@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "scene.hpp"
+#include "moving_target_filter.hpp"
 
 #include "autoware/behavior_path_planner_common/utils/drivable_area_expansion/static_drivable_area.hpp"
 #include "autoware/behavior_path_planner_common/utils/path_safety_checker/objects_filtering.hpp"
@@ -34,6 +35,8 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <sstream>
+#include <iomanip>
 #include <utility>
 
 namespace
@@ -225,10 +228,30 @@ void AvoidanceByLaneChange::fillAvoidanceTargetObjects(
   }
 
   ObjectDataArray target_lane_objects;
+  std::size_t moving_filtered = 0;
+  std::ostringstream moving_ids;
+  const auto record_moving = [&](const PredictedObject & obj) {
+    if (moving_filtered++ < 8) {
+      if (moving_filtered > 1) moving_ids << ',';
+      for (const auto byte : obj.object_id.uuid) {
+        moving_ids << std::hex << std::setw(2) << std::setfill('0') << unsigned(byte);
+      }
+    }
+  };
   target_lane_objects.reserve(object_within_target_lane.objects.size());
   for (const auto & obj : object_within_target_lane.objects) {
     const auto target_lane_object = createObjectData(data, obj);
     if (!target_lane_object) {
+      if (avoidance_lane_change_detail::excludeMovingCenterFilteredObject(
+            obj, stopped_objects_, p, data.other_objects)) {
+        record_moving(obj);
+      }
+      continue;
+    }
+
+    if (avoidance_lane_change_detail::excludeMovingTarget(
+          *target_lane_object, p, data.other_objects)) {
+      record_moving(obj);
       continue;
     }
 
@@ -236,6 +259,8 @@ void AvoidanceByLaneChange::fillAvoidanceTargetObjects(
   }
 
   data.target_objects = target_lane_objects;
+  ROS_INFO_STREAM_THROTTLE(1.0, "AVLC moving target filter: excluded=" << moving_filtered
+    << " targets=" << data.target_objects.size() << " uuids=" << moving_ids.str());
 }
 
 std::optional<ObjectData> AvoidanceByLaneChange::createObjectData(

@@ -15,6 +15,7 @@
 #include "autoware/rtc_interface/rtc_interface.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <iomanip>
@@ -124,6 +125,12 @@ RTCInterface::RTCInterface(ros::NodeHandle * node, const std::string & name, con
 : logger_name_{"RTCInterface[" + name + "]"}, is_auto_mode_enabled_{!enable_rtc},
   is_locked_{false}
 {
+  node->param(name + "/auto_mode_single_candidate", auto_mode_single_candidate_, false);
+  node->param(name + "/auto_mode_lease_sec", auto_mode_lease_sec_, 1.0);
+  if (!std::isfinite(auto_mode_lease_sec_) || auto_mode_lease_sec_ <= 0.0) {
+    throw std::invalid_argument("RTC auto_mode_lease_sec must be finite and positive");
+  }
+  if (auto_mode_single_candidate_) is_auto_mode_enabled_ = false;
   timer_ = node->createTimer(ros::Duration(0.1), &RTCInterface::onTimer, this);
 
   // Publisher
@@ -133,8 +140,12 @@ RTCInterface::RTCInterface(ros::NodeHandle * node, const std::string & name, con
     auto_mode_status_namespace_ + "/" + name, 1, false);
 
   // Service
+  // A separate endpoint prevents an updated client from accidentally invoking
+  // legacy manual ACTIVATE semantics on an older/non-opt-in server.
+  const auto commands_namespace = auto_mode_single_candidate_
+    ? "/planning/enable_auto_mode_candidate" : cooperate_commands_namespace_;
   srv_commands_ = node->advertiseService(
-    cooperate_commands_namespace_ + "/" + name, &RTCInterface::onCooperateCommandService, this);
+    commands_namespace + std::string("/") + name, &RTCInterface::onCooperateCommandService, this);
   srv_auto_mode_ = node->advertiseService(
     enable_auto_mode_namespace_ + "/" + name, &RTCInterface::onAutoModeService, this);
 
@@ -154,6 +165,23 @@ bool RTCInterface::onCooperateCommandService(
   CooperateCommands::Request & request, CooperateCommands::Response & responses)
 {
   std::lock_guard<std::mutex> lock(mutex_);
+
+  if (auto_mode_single_candidate_) {
+    // In simulator single-candidate mode this UUID-bearing API requests a
+    // safe-only automatic lease, never a manual ACTIVATE command. Locked
+    // requests are rejected, not queued for an unrelated future candidate.
+    responses.responses.clear();
+    for (const auto & command : request.commands) {
+      CooperateResponse response;
+      response.uuid = command.uuid;
+      response.module = command.module;
+      response.success = request.commands.size() == 1 && !isLocked() &&
+        command.module.type == module_.type && command.command.type == Command::ACTIVATE &&
+        requestSingleCandidateLease(command.uuid);
+      responses.responses.push_back(response);
+    }
+    return true;
+  }
 
   responses.responses = validateCooperateCommands(request.commands);
 
@@ -219,9 +247,61 @@ void RTCInterface::updateCooperateCommandStatus(const std::vector<CooperateComma
   }
 }
 
+bool RTCInterface::requestSingleCandidateLease(const UUID & uuid)
+{
+  refreshSingleCandidate();
+  auto chosen = registered_status_.statuses.end();
+  const auto now = ros::Time::now();
+  for (auto it = registered_status_.statuses.begin(); it != registered_status_.statuses.end(); ++it) {
+    if (it->state.type == State::RUNNING || it->state.type == State::ABORTING) return false;
+    if (it->state.type != State::WAITING_FOR_EXECUTION) continue;
+    const ros::Time stamp(it->stamp.sec, it->stamp.nanosec);
+    // Retained WAITING history is not a second current candidate. Unknown or
+    // future time is not evidence of inactivity, so keep that case fail-closed.
+    if (stamp.isZero() || stamp > now) return false;
+    if ((now - stamp).toSec() > auto_mode_lease_sec_) continue;
+    if (chosen != registered_status_.statuses.end()) return false;
+    chosen = it;
+  }
+  if (chosen == registered_status_.statuses.end() || chosen->uuid != uuid ||
+      !singleCandidateFresh(*chosen) || !chosen->safe || chosen->requested ||
+      chosen->command_status.type != Command::DEACTIVATE ||
+      (auto_mode_candidate_ && (*auto_mode_candidate_ != uuid || auto_mode_lease_expired_))) {
+    return false;
+  }
+  auto_mode_candidate_ = uuid;
+  auto_mode_deadline_ = ros::WallTime::now() + ros::WallDuration(auto_mode_lease_sec_);
+  auto_mode_lease_expired_ = false;
+  chosen->auto_mode = true;
+  return true;
+}
+
 bool RTCInterface::onAutoModeService(AutoMode::Request & request, AutoMode::Response & response)
 {
   std::lock_guard<std::mutex> lock(mutex_);
+  if (auto_mode_single_candidate_) {
+    refreshSingleCandidate();
+    auto bound = std::find_if(registered_status_.statuses.begin(), registered_status_.statuses.end(),
+      [&](const auto & s) { return auto_mode_candidate_ && s.uuid == *auto_mode_candidate_; });
+    if (!request.enable) {
+      // Revoking a running maneuver can itself cause an unsafe abrupt cancel.
+      // It remains safe-only until its own normal terminal/abort lifecycle ends.
+      if (bound != registered_status_.statuses.end() &&
+          (bound->state.type == State::RUNNING || bound->state.type == State::ABORTING)) {
+        response.success = true;
+        return true;
+      }
+      if (bound != registered_status_.statuses.end()) bound->auto_mode = false;
+      auto_mode_candidate_.reset();
+      auto_mode_lease_expired_ = false;
+      response.success = true;
+      return true;
+    }
+    response.success = false;
+    // UUID-free enable cannot prove it refers to the candidate the client saw.
+    // Use the UUID-bearing cooperate-command safe lease branch above instead.
+    return true;
+  }
   is_auto_mode_enabled_ = request.enable;
   for (auto & status : registered_status_.statuses) {
     status.auto_mode = request.enable;
@@ -230,11 +310,40 @@ bool RTCInterface::onAutoModeService(AutoMode::Request & request, AutoMode::Resp
   return true;
 }
 
+bool RTCInterface::singleCandidateFresh(const CooperateStatus & status) const
+{
+  const auto age = (ros::Time::now() - ros::Time(status.stamp.sec, status.stamp.nanosec)).toSec();
+  return age >= 0.0 && age <= auto_mode_lease_sec_;
+}
+
+void RTCInterface::refreshSingleCandidate()
+{
+  if (!auto_mode_single_candidate_ || !auto_mode_candidate_) return;
+  const auto it = std::find_if(registered_status_.statuses.begin(), registered_status_.statuses.end(),
+    [&](const auto & s) { return s.uuid == *auto_mode_candidate_; });
+  if (it == registered_status_.statuses.end() || it->state.type == State::SUCCEEDED ||
+      it->state.type == State::FAILED) {
+    if (it != registered_status_.statuses.end()) it->auto_mode = false;
+    auto_mode_candidate_.reset();
+    auto_mode_lease_expired_ = false;
+    return;
+  }
+  if (it->state.type == State::WAITING_FOR_EXECUTION &&
+      (ros::WallTime::now() >= auto_mode_deadline_ || !singleCandidateFresh(*it))) {
+    it->auto_mode = false;
+    auto_mode_lease_expired_ = true;
+  }
+}
+
 void RTCInterface::onTimer(const ros::TimerEvent &)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
+  refreshSingleCandidate();
   AutoModeStatus auto_mode_status;
   auto_mode_status.module = module_;
-  auto_mode_status.is_auto_mode = is_auto_mode_enabled_;
+  auto_mode_status.is_auto_mode = auto_mode_single_candidate_ ?
+    std::any_of(registered_status_.statuses.begin(), registered_status_.statuses.end(),
+      [](const auto & s) { return s.auto_mode; }) : is_auto_mode_enabled_;
 
   pub_auto_mode_status_.publish(auto_mode_status);
 }
@@ -263,7 +372,8 @@ void RTCInterface::updateCooperateStatus(
     status.state.type = State::WAITING_FOR_EXECUTION;
     status.start_distance = start_distance;
     status.finish_distance = finish_distance;
-    status.auto_mode = override_rtc_auto_mode.value_or(is_auto_mode_enabled_);
+    status.auto_mode = auto_mode_single_candidate_ ? false :
+      override_rtc_auto_mode.value_or(is_auto_mode_enabled_);
     registered_status_.statuses.push_back(status);
 
     if (state != State::WAITING_FOR_EXECUTION)
@@ -282,6 +392,7 @@ void RTCInterface::updateCooperateStatus(
     status.state.type = state;
     status.start_distance = start_distance;
     status.finish_distance = finish_distance;
+    refreshSingleCandidate();
   };
 
   // If the registered status is found, update status by considering the state transition
@@ -363,6 +474,8 @@ void RTCInterface::clearCooperateStatus()
   std::lock_guard<std::mutex> lock(mutex_);
   registered_status_.statuses.clear();
   stored_commands_.clear();
+  auto_mode_candidate_.reset();
+  auto_mode_lease_expired_ = false;
 }
 
 bool RTCInterface::isActivated(const UUID & uuid) const
@@ -376,6 +489,10 @@ bool RTCInterface::isActivated(const UUID & uuid) const
     if (itr->state.type == State::FAILED || itr->state.type == State::SUCCEEDED) {
       return false;
     }
+    if (auto_mode_single_candidate_ && auto_mode_candidate_ && itr->uuid == *auto_mode_candidate_ &&
+        itr->state.type == State::WAITING_FOR_EXECUTION &&
+        (auto_mode_lease_expired_ || ros::WallTime::now() >= auto_mode_deadline_ ||
+         !singleCandidateFresh(*itr))) return false;
     if (itr->auto_mode && !itr->requested) {
       return itr->safe;
     }

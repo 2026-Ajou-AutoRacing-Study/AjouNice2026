@@ -20,6 +20,7 @@
 #include <geometry_msgs/Pose.h>
 
 #include <optional>
+#include <deque>
 
 namespace autoware::behavior_path_planner::utils::lane_change::calculation
 {
@@ -35,6 +36,35 @@ using behavior_path_planner::lane_change::MinMaxValue;
 using behavior_path_planner::lane_change::PhaseMetrics;
 
 static constexpr double eps = 0.001;
+
+// Reorder existing samples only; never widen dynamic limits or remove samples.
+// Preparation covers immediate/delayed and accelerate/coast/meaningful brake.
+// Execution rotates fast/medium/gentle lateral choices across preparation groups.
+std::vector<size_t> diverse_phase_order(
+  const std::vector<PhaseMetrics> & metrics, bool preparation, size_t group_rank = 0);
+
+// Groups are initialized by the caller only when popped. Refinement stays behind
+// untouched groups in competition mode, but streams one group in normal mode.
+class JointSampleQueue
+{
+public:
+  JointSampleQueue(size_t groups, bool breadth) : breadth_(breadth) {
+    for (size_t i = 0; i < groups; ++i) pending_.emplace_back(i, 0);
+  }
+  bool empty() const { return pending_.empty(); }
+  std::pair<size_t, size_t> pop() {
+    const auto item = pending_.front();
+    pending_.pop_front();
+    return item;
+  }
+  void refine(size_t group, size_t next_sample) {
+    if (breadth_) pending_.emplace_back(group, next_sample);
+    else pending_.emplace_front(group, next_sample);
+  }
+private:
+  bool breadth_;
+  std::deque<std::pair<size_t, size_t>> pending_;
+};
 
 double calc_dist_from_pose_to_terminal_end(
   const CommonDataPtr & common_data_ptr, const lanelet::ConstLanelets & lanes,
@@ -199,6 +229,9 @@ std::vector<PhaseMetrics> calc_shift_phase_metrics(
  */
 std::optional<std::pair<MinMaxValue, MinMaxValue>> calc_lc_length_and_dist_buffer(
   const CommonDataPtr & common_data_ptr, const lanelet::ConstLanelets & lanes);
+// Breadth-first traversal of per-longitudinal-sample lateral refinements.
+std::vector<std::pair<size_t, size_t>> joint_sample_order(
+  const std::vector<size_t> & lateral_sample_counts);
 }  // namespace autoware::behavior_path_planner::utils::lane_change::calculation
 
 #endif  // AUTOWARE__BEHAVIOR_PATH_LANE_CHANGE_MODULE__UTILS__CALCULATION_HPP_

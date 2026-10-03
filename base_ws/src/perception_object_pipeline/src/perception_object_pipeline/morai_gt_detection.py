@@ -89,6 +89,9 @@ def make_morai_gt_detections(
     message,
     *,
     frame_id: str = "morai_map",
+    include_velocity: bool = False,
+    velocity_noise_std_mps: float = 1.0,
+    maximum_velocity_mps: float = 50.0,
     correct_vehicle_bbox_center: bool = True,
     passenger_maximum_length_m: float = PASSENGER_VEHICLE_MAXIMUM_LENGTH_M,
     passenger_longitudinal_offset_m: float = (
@@ -97,8 +100,9 @@ def make_morai_gt_detections(
 ) -> DetectedObjects:
     """Map ObjectStatusList poses/classes to detector-like boxes.
 
-    Velocity is deliberately omitted.  This adapter replaces only object
-    detection; the downstream EKF still estimates motion from detections.
+    Velocity is omitted by default. The simulation-only opt-in supplies vehicle
+    body-axis velocity already converted to m/s by morai_ego_udp_receiver.
+    Tracking still runs normally; its fusion mode must be enabled separately.
     """
     header = copy.copy(message.header)
     header.frame_id = frame_id
@@ -121,6 +125,16 @@ def make_morai_gt_detections(
                     ),
                 )
             )
+            if include_velocity and class_name == "vehicle":
+                # The common detector builder accepts world-frame XY velocity
+                # and writes body-frame twist. Do not rotate the MORAI body
+                # measurement twice (the tracker later applies the TF yaw).
+                yaw = boxes[-1][6]
+                vx, vy = float(status.velocity.x), float(status.velocity.y)
+                boxes[-1].extend([
+                    math.cos(yaw) * vx - math.sin(yaw) * vy,
+                    math.sin(yaw) * vx + math.cos(yaw) * vy,
+                ])
             class_names.append(class_name)
 
     return make_detected_objects(
@@ -128,5 +142,7 @@ def make_morai_gt_detections(
         boxes,
         [1.0] * len(boxes),
         class_names,
-        include_velocity=False,
+        include_velocity=include_velocity,
+        velocity_noise_std_mps=velocity_noise_std_mps,
+        maximum_velocity_mps=maximum_velocity_mps,
     )

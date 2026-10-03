@@ -39,6 +39,42 @@ public:
     return rtc_interface_->registered_status_;
   }
 
+  void singleCandidateMode()
+  {
+    rtc_interface_->auto_mode_single_candidate_ = true;
+    rtc_interface_->is_auto_mode_enabled_ = false;
+  }
+
+  void expireLease()
+  {
+    rtc_interface_->auto_mode_deadline_ = ros::WallTime::now() - ros::WallDuration(1.0);
+  }
+
+  bool autoMode(const bool enable)
+  {
+    AutoMode::Request request;
+    AutoMode::Response response;
+    request.enable = enable;
+    EXPECT_TRUE(callAutoMode(request, response));
+    return response.success;
+  }
+
+  bool lease(const UUID & id)
+  {
+    CooperateCommands::Request request;
+    CooperateCommands::Response response;
+    request.commands = {command(id, Command::ACTIVATE)};
+    EXPECT_TRUE(callCooperate(request, response));
+    EXPECT_EQ(response.responses.size(), 1U);
+    return response.responses.size() == 1 && response.responses.front().success;
+  }
+
+  void freshStatus(const UUID & id, const bool safe = true,
+                   const uint8_t state = State::WAITING_FOR_EXECUTION)
+  {
+    rtc_interface_->updateCooperateStatus(id, safe, state, 0.0, 20.0, ros::Time::now());
+  }
+
   // Mechanical ROS1 counterparts of the upstream friend-fixture accessors.
   void update_cooperate_command_status(const std::vector<CooperateCommand> & commands)
   {
@@ -204,6 +240,210 @@ TEST_F(RTCInterfaceTest, rtc_automode_true_then_false_broadcast)
       EXPECT_EQ(status.auto_mode, enabled);
     }
   }
+}
+
+TEST_F(RTCInterfaceTest, uuid_lease_endpoint_is_separate_from_legacy_manual_service)
+{
+  rtc_interface_.reset();
+  node_->setParam("intersection/auto_mode_single_candidate", true);
+  rtc_interface_ = std::make_unique<RTCInterface>(node_.get(), "intersection", false);
+  node_->deleteParam("intersection/auto_mode_single_candidate");
+  EXPECT_TRUE(ros::service::exists("/planning/enable_auto_mode_candidate/intersection", false));
+  EXPECT_FALSE(ros::service::exists("/planning/cooperate_commands/intersection", false));
+  EXPECT_TRUE(ros::service::exists("/planning/enable_auto_mode/intersection", false));
+  rtc_interface_.reset();
+  rtc_interface_ = std::make_unique<RTCInterface>(node_.get(), "intersection", false);
+  EXPECT_FALSE(ros::service::exists("/planning/enable_auto_mode_candidate/intersection", false));
+  EXPECT_TRUE(ros::service::exists("/planning/cooperate_commands/intersection", false));
+}
+
+TEST_F(RTCInterfaceTest, uuid_lease_rejects_candidate_replacement_race_and_uuid_free_enable)
+{
+  singleCandidateMode();
+  const auto seen = uuid(1), replacement = uuid(2);
+  freshStatus(seen);
+  EXPECT_FALSE(autoMode(true));  // UUID-free enable is forbidden even with one safe candidate.
+  rtc_interface_->removeCooperateStatus(seen);
+  freshStatus(replacement);
+  EXPECT_FALSE(lease(seen));  // Client's ACK refers to X, server now contains only Y.
+  EXPECT_FALSE(rtc_interface_->isActivated(replacement));
+  EXPECT_TRUE(lease(replacement));
+  EXPECT_TRUE(rtc_interface_->isActivated(replacement));
+  EXPECT_FALSE(rtc_interface_->isForceActivated(replacement));
+  EXPECT_EQ(registeredStatuses().statuses.front().command_status.type, Command::DEACTIVATE);
+}
+
+TEST_F(RTCInterfaceTest, uuid_lease_rejects_locked_batch_wrong_module_and_deactivate)
+{
+  singleCandidateMode();
+  freshStatus(uuid(1));
+  rtc_interface_->lockCommandUpdate();
+  EXPECT_FALSE(lease(uuid(1)));
+  EXPECT_TRUE(storedCommands().empty());
+  rtc_interface_->unlockCommandUpdate();
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(1)));
+  CooperateCommands::Request request;
+  CooperateCommands::Response response;
+  request.commands = {command(uuid(1), Command::ACTIVATE), command(uuid(1), Command::ACTIVATE)};
+  EXPECT_TRUE(callCooperate(request, response));
+  ASSERT_EQ(response.responses.size(), 2U);
+  EXPECT_FALSE(response.responses[0].success);
+  EXPECT_FALSE(response.responses[1].success);
+  request.commands.resize(1);
+  request.commands[0].module.type = Module::LANE_CHANGE_LEFT;
+  EXPECT_TRUE(callCooperate(request, response));
+  EXPECT_FALSE(response.responses.front().success);
+  request.commands = {command(uuid(1), Command::DEACTIVATE)};
+  EXPECT_TRUE(callCooperate(request, response));
+  EXPECT_FALSE(response.responses.front().success);
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(1)));
+  EXPECT_TRUE(lease(uuid(1)));
+  freshStatus(uuid(1), false);
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(1)));
+  EXPECT_FALSE(rtc_interface_->isForceActivated(uuid(1)));
+}
+
+TEST_F(RTCInterfaceTest, single_candidate_rejects_missing_unsafe_ambiguous_and_stale)
+{
+  singleCandidateMode();
+  EXPECT_FALSE(lease(uuid(1)));
+  freshStatus(uuid(1), false);
+  EXPECT_FALSE(lease(uuid(1)));
+  freshStatus(uuid(1));
+  freshStatus(uuid(2));
+  EXPECT_FALSE(lease(uuid(1)));
+  rtc_interface_->removeCooperateStatus(uuid(2));
+  rtc_interface_->updateCooperateStatus(uuid(1), true, State::WAITING_FOR_EXECUTION,
+    0.0, 20.0, ros::Time::now() - ros::Duration(2.0));
+  EXPECT_FALSE(lease(uuid(1)));
+  freshStatus(uuid(1));
+  EXPECT_TRUE(lease(uuid(1)));
+  EXPECT_TRUE(rtc_interface_->isActivated(uuid(1)));
+  EXPECT_FALSE(rtc_interface_->isForceActivated(uuid(1)));
+}
+
+TEST_F(RTCInterfaceTest, single_candidate_ignores_only_expired_waiting_history)
+{
+  singleCandidateMode();
+  freshStatus(uuid(1));
+  rtc_interface_->updateCooperateStatus(uuid(2), false, State::WAITING_FOR_EXECUTION,
+    0.0, 20.0, ros::Time::now() - ros::Duration(2.0));
+  EXPECT_FALSE(lease(uuid(2)));  // Never bind the stale UUID itself.
+  EXPECT_TRUE(lease(uuid(1)));
+  EXPECT_FALSE(rtc_interface_->isForceActivated(uuid(1)));
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(2)));
+  EXPECT_EQ(registeredStatuses().statuses.size(), 2U);  // History is not deleted.
+}
+
+TEST_F(RTCInterfaceTest, single_candidate_waiting_ttl_boundary_and_unsafe_peer)
+{
+  singleCandidateMode();
+  freshStatus(uuid(1));
+  rtc_interface_->updateCooperateStatus(uuid(2), false, State::WAITING_FOR_EXECUTION,
+    0.0, 20.0, ros::Time::now() - ros::Duration(0.5));
+  EXPECT_FALSE(lease(uuid(1)));  // A fresh unsafe peer still makes it ambiguous.
+  rtc_interface_->updateCooperateStatus(uuid(2), false, State::WAITING_FOR_EXECUTION,
+    0.0, 20.0, ros::Time::now() - ros::Duration(1.001));
+  EXPECT_TRUE(lease(uuid(1)));
+}
+
+TEST_F(RTCInterfaceTest, single_candidate_stale_running_or_aborting_still_blocks)
+{
+  singleCandidateMode();
+  freshStatus(uuid(1));
+  freshStatus(uuid(2));  // Registration must begin WAITING before state transitions.
+  for (const auto state : {State::RUNNING, State::ABORTING}) {
+    rtc_interface_->updateCooperateStatus(uuid(2), false, state,
+      0.0, 20.0, ros::Time::now() - ros::Duration(20.0));
+    EXPECT_FALSE(lease(uuid(1)));
+  }
+}
+
+TEST_F(RTCInterfaceTest, single_candidate_unknown_or_future_waiting_time_blocks)
+{
+  singleCandidateMode();
+  freshStatus(uuid(1));
+  rtc_interface_->updateCooperateStatus(uuid(2), false, State::WAITING_FOR_EXECUTION,
+    0.0, 20.0, ros::Time(0));
+  EXPECT_FALSE(lease(uuid(1)));
+  rtc_interface_->updateCooperateStatus(uuid(2), false, State::WAITING_FOR_EXECUTION,
+    0.0, 20.0, ros::Time::now() + ros::Duration(2.0));
+  EXPECT_FALSE(lease(uuid(1)));
+}
+
+TEST_F(RTCInterfaceTest, single_candidate_lease_and_no_transfer_to_new_uuid)
+{
+  singleCandidateMode();
+  freshStatus(uuid(1));
+  EXPECT_TRUE(lease(uuid(1)));
+  EXPECT_TRUE(lease(uuid(1)));  // Renewal is the same UUID only.
+  freshStatus(uuid(2));
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(2)));
+  expireLease();
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(1)));
+  EXPECT_FALSE(lease(uuid(1)));  // Expired lease cannot silently rebind.
+  EXPECT_TRUE(autoMode(false));
+  EXPECT_FALSE(lease(uuid(1)));  // Two pending candidates remain ambiguous.
+  rtc_interface_->removeCooperateStatus(uuid(1));
+  EXPECT_TRUE(lease(uuid(2)));
+  EXPECT_TRUE(rtc_interface_->isActivated(uuid(2)));
+}
+
+TEST_F(RTCInterfaceTest, single_candidate_running_retains_safe_only_until_terminal)
+{
+  singleCandidateMode();
+  freshStatus(uuid(1));
+  EXPECT_TRUE(lease(uuid(1)));
+  freshStatus(uuid(1), true, State::RUNNING);
+  expireLease();
+  EXPECT_TRUE(autoMode(false));  // Defer deactivation of an ongoing maneuver.
+  EXPECT_TRUE(rtc_interface_->isActivated(uuid(1)));
+  EXPECT_FALSE(rtc_interface_->isForceDeactivated(uuid(1)));
+  freshStatus(uuid(1), false, State::RUNNING);
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(1)));
+  EXPECT_FALSE(rtc_interface_->isForceActivated(uuid(1)));
+  freshStatus(uuid(2));
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(2)));
+  EXPECT_FALSE(lease(uuid(1)));
+  freshStatus(uuid(1), true, State::SUCCEEDED);
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(1)));
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(2)));
+  EXPECT_TRUE(lease(uuid(2)));
+  EXPECT_TRUE(rtc_interface_->isActivated(uuid(2)));
+}
+
+TEST_F(RTCInterfaceTest, single_candidate_never_reuses_manual_force_command)
+{
+  singleCandidateMode();
+  freshStatus(uuid(1));
+  update_cooperate_command_status({command(uuid(1), Command::ACTIVATE)});
+  EXPECT_FALSE(lease(uuid(1)));
+  update_cooperate_command_status({command(uuid(1), Command::DEACTIVATE)});
+  EXPECT_TRUE(lease(uuid(1)));
+  freshStatus(uuid(1), false);
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(1)));
+  EXPECT_FALSE(rtc_interface_->isForceActivated(uuid(1)));
+}
+
+TEST_F(RTCInterfaceTest, single_candidate_rejects_requested_future_stamp_and_clears_removed_owner)
+{
+  singleCandidateMode();
+  rtc_interface_->updateCooperateStatus(uuid(1), true, State::WAITING_FOR_EXECUTION,
+    0.0, 20.0, ros::Time::now(), true);
+  EXPECT_FALSE(lease(uuid(1)));
+  rtc_interface_->updateCooperateStatus(uuid(1), true, State::WAITING_FOR_EXECUTION,
+    0.0, 20.0, ros::Time::now() + ros::Duration(2.0));
+  EXPECT_FALSE(lease(uuid(1)));
+  freshStatus(uuid(1));
+  EXPECT_TRUE(lease(uuid(1)));
+  rtc_interface_->removeCooperateStatus(uuid(1));
+  freshStatus(uuid(2));
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(2)));
+  EXPECT_TRUE(lease(uuid(2)));
+  rtc_interface_->clearCooperateStatus();
+  freshStatus(uuid(3));
+  EXPECT_FALSE(rtc_interface_->isActivated(uuid(3)));
+  EXPECT_TRUE(lease(uuid(3)));
 }
 
 TEST_F(RTCInterfaceTest, rtc_service_overlap_has_no_private_spinner_and_no_forced_order_claim)

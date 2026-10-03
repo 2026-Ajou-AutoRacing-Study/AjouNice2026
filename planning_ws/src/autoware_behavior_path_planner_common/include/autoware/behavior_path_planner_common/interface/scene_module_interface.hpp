@@ -87,6 +87,12 @@ public:
     return false;
   }
 
+  // Read-only diagnostics snapshot. Nonvirtual and inline: no layout/vtable change.
+  std::unordered_map<std::string, unique_identifier_msgs::UUID> getRtcUuids() const
+  {
+    return rtc_uuids_;
+  }
+
   void update_rtc_status(
     double start_distance, double finish_distance,
     std::optional<bool> safe = std::nullopt, std::optional<uint8_t> state = std::nullopt)

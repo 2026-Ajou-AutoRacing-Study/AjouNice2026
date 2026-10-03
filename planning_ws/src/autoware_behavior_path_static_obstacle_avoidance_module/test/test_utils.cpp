@@ -155,6 +155,30 @@ auto get_parameters() -> std::shared_ptr<AvoidanceParameters>
   return std::make_shared<AvoidanceParameters>(parameters);
 }
 
+TEST(StaticObstacleAvoidanceUtils, MovingClipReleaseRequiresMatchedConfirmedObservation)
+{
+  ObjectData latched;
+  latched.object.object_id.uuid[0] = 1;
+  latched.object.classification.emplace_back(
+    autoware_perception_msgs::build<ObjectClassification>()
+      .label(ObjectClassification::TRUCK).probability(1.0));
+  ObjectDataArray clips{latched};
+  const auto parameters = get_parameters();
+  removeMovingClipObjects(clips, {}, parameters);
+  ASSERT_EQ(clips.size(), 1U);  // dropout is not evidence of motion
+  auto observed = latched;
+  observed.move_time = 0.5;
+  removeMovingClipObjects(clips, {observed}, parameters);
+  ASSERT_EQ(clips.size(), 1U);  // existing strict threshold retained
+  observed.move_time = 0.51;
+  observed.object.object_id.uuid[0] = 2;
+  removeMovingClipObjects(clips, {observed}, parameters);
+  ASSERT_EQ(clips.size(), 1U);  // another moving object cannot release it
+  observed.object.object_id.uuid[0] = 1;
+  removeMovingClipObjects(clips, {observed}, parameters);
+  EXPECT_TRUE(clips.empty());
+}
+
 TEST(TestUtils, isMovingObject)
 {
   {
