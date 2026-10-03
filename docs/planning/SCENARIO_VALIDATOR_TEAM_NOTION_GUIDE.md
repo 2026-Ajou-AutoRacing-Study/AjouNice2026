@@ -1,6 +1,6 @@
 # 시나리오 자동 주행 검증기 — 처음 세팅부터 실행까지
 
-**설치가 끝났으면 [실제 작업 순서만 적은 문서](SCENARIO_VALIDATOR_WORKFLOW.md)를 보세요.** 예제 복사 → 두 장면 확인 → 시나리오 수정 → 배치 → 중단·재개 → 결과 공유 순서입니다. 버튼 위치는 [빨간 표시를 붙인 화면 5장](SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)에 있습니다. 이 문서는 첫 설치·업데이트·빠진 환경 준비가 필요할 때 참고합니다.
+**설치가 끝났으면 [실제 작업 순서만 적은 문서](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_WORKFLOW.md)를 보세요.** 예제 복사 → 두 장면 확인 → 시나리오 수정 → 배치 → 중단·재개 → 결과 공유 순서입니다. 버튼 위치는 [빨간 표시를 붙인 화면 5장](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)에 있습니다. 이 문서는 첫 설치·업데이트·빠진 환경 준비가 필요할 때 참고합니다.
 
 일단 이거는 시나리오를 전부 성공시키려는 도구가 아니라, **우리 시스템이 어디서 실패하는지 찾고 기록하려고 만든 도구입니다.** 실패해도 괜찮습니다. 실패한 시나리오랑 bag, 영상, 실패 근거를 같이 남기는 게 목적이에요.
 
@@ -12,7 +12,7 @@
 
 기존 환경은 지우지 말고 GUI의 **환경 검사**에서 실제 사용하는 이미지·E25 경로를 확인하세요. `.env.bevfusion.local`에 본인 경로가 있으면 기본 경로보다 우선합니다. GPU 사용을 아직 확인하지 않은 분만 **실제 GPU 검사**도 실행합니다. Docker만 설치됐거나 학습용 이미지만 있는 경우는 BEVFusion 추론/E25까지 준비됐다는 뜻이 아니니 아래 5장의 구분을 참고하세요. GUI·녹화 도구가 빠졌다면 그 도구만 추가하면 됩니다.
 
-**첫 실행 전에 담당 미션의 `base/README.md`를 한 번 읽어 주세요.** 시작점·목적지는 왜 그곳인지, 어떤 조건을 더 만들어 볼지, 무엇이 아직 미검증인지 적어뒀습니다. [미션별 README 목차](../../base_ws/src/planning_addons/planning_scenario_validator/config/missions/README.md)에서 본인 미션을 고르면 됩니다. YAML만 열고 바로 24개를 돌리기보다는 이 안내를 보고 baseline 두 장면부터 확인해 주세요.
+**첫 실행 전에 담당 미션의 `base/README.md`를 한 번 읽어 주세요.** 시작점·목적지는 왜 그곳인지, 어떤 조건을 더 만들어 볼지, 무엇이 아직 미검증인지 적어뒀습니다. [미션별 README 목차](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/base_ws/src/planning_addons/planning_scenario_validator/config/missions/README.md)에서 본인 미션을 고르면 됩니다. YAML만 열고 바로 24개를 돌리기보다는 이 안내를 보고 baseline 두 장면부터 확인해 주세요.
 
 ## 0. 시작 전에 이것만 확인
 
@@ -551,7 +551,7 @@ Git에 안 올라가는 건 workspace 안의 개인 파일입니다. example.yam
 
 모니터 바에 배치 2/5, 캠페인 이름, 현재 장면 진행이 같이 나옵니다. 파일·목록 검사는 실제 주행 성공 검사가 아닙니다. 환경 검사의 WARN도 내용을 봐 주세요. 기본 환경 검사는 GPU를 띄우거나 MORAI를 자동 연결하지 않고, 실제 GPU 검사는 사용자가 눌렀을 때만 합니다.
 
-배치 시간은 제한시간+준비·마감 기준 추정이며 24장면짜리 다섯 미션은 대략 4시간 예상입니다. 밤새 돌리기 전에 두 장면의 실제 시간과 저장 용량을 확인하는 게 좋습니다. 설정 후 자주 쓰는 순서는 [짧은 사용법](SCENARIO_VALIDATOR_RUNBOOK.md)에 따로 줄여뒀습니다. GUI 배치 탭에서도 문서를 열 수 있습니다.
+배치 시간은 제한시간+준비·마감 기준 추정이며 24장면짜리 다섯 미션은 대략 4시간 예상입니다. 밤새 돌리기 전에 두 장면의 실제 시간과 저장 용량을 확인하는 게 좋습니다. 설정 후 자주 쓰는 순서는 [짧은 사용법](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md)에 따로 줄여뒀습니다. GUI 배치 탭에서도 문서를 열 수 있습니다.
 
 ## 9. 담당 미션과 내 작업 폴더
 
@@ -583,7 +583,7 @@ missions/highway/
 
 개인 YAML은 같은 이름으로 계속 수정·저장할 수 있습니다. 새 실험마다 당시 설정·시나리오·Network·토픽 사본을 결과 폴더에 보관하므로 과거 기록과 섞이지 않습니다. 단, 입력 사본이 없던 이전 고정 이름 실험의 YAML은 기존 보호 규칙을 유지합니다.
 
-시나리오를 직접 만들 때는 JSON만 추가합니다. 그 장면들이 도달할 공통 목적지·시간은 workspace의 실행용 YAML에 적습니다. 목적지는 MORAI 배치 좌표가 아니라 planning의 map 좌표입니다. 서로 다른 목적지가 필요하면 YAML을 각각 복사하고 캠페인 이름을 다르게 주세요. 자세한 제작 순서는 [시나리오·YAML 제작 가이드](SCENARIO_VALIDATOR_AUTHOR_GUIDE.md)에 따로 정리했습니다.
+시나리오를 직접 만들 때는 JSON만 추가합니다. 그 장면들이 도달할 공통 목적지·시간은 workspace의 실행용 YAML에 적습니다. 목적지는 MORAI 배치 좌표가 아니라 planning의 map 좌표입니다. 서로 다른 목적지가 필요하면 YAML을 각각 복사하고 캠페인 이름을 다르게 주세요. 자세한 제작 순서는 [시나리오·YAML 제작 가이드](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md)에 따로 정리했습니다.
 
 workspace 아래 하위 폴더를 새로 만들었으면 GUI 시나리오 폴더도 그 경로로 바꿔야 합니다. 하위 폴더를 자동으로 전부 재귀 실행하지 않습니다. 원본 JSON·YAML을 수정해도 이전 실험은 보관된 사본으로 재개하지만 결과 폴더의 사본을 직접 수정하면 안 됩니다.
 

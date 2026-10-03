@@ -1,16 +1,16 @@
 # 시나리오 검증기 짧은 사용법
 
-설치가 끝나고 **작업하면서 볼 문서는 [딸깍 작업 순서](SCENARIO_VALIDATOR_WORKFLOW.md)**입니다. 이 문서는 연결·입력 계약·문제 해결을 조금 더 자세히 다룹니다. [자주 쓰는 버튼을 표시한 화면 5장](SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)도 참고하세요.
+설치가 끝나고 **작업하면서 볼 문서는 [딸깍 작업 순서](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_WORKFLOW.md)**입니다. 이 문서는 연결·입력 계약·문제 해결을 조금 더 자세히 다룹니다. [자주 쓰는 버튼을 표시한 화면 5장](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)도 참고하세요.
 
-처음 세팅하는 PC는 [설치 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 해 주세요. 여기서는 ROS 빌드·맵·Docker/E25 준비가 끝난 상태를 기준으로 설명합니다. 공유·시나리오 실행 브랜치는 `planning/autoware-universe-to-ros1`입니다. 검증기를 쓰려고 다른 개발 브랜치로 이동할 필요 없습니다.
+처음 세팅하는 PC는 [설치 가이드](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 해 주세요. 여기서는 ROS 빌드·맵·Docker/E25 준비가 끝난 상태를 기준으로 설명합니다. 공유·시나리오 실행 브랜치는 `planning/autoware-universe-to-ros1`입니다. 검증기를 쓰려고 다른 개발 브랜치로 이동할 필요 없습니다.
 
-**이미 Docker·BEVFusion 이미지·E25까지 준비한 분은 재설치·재다운로드 없이 아래 1번부터 하면 됩니다.** 기존 `.env.bevfusion.local`과 가중치는 유지하고 GUI 환경 검사에서 실제 사용 경로를 확인합니다. 설치 가이드 5·6장을 다시 실행하지 마세요. 첫 실행 전에 담당 미션의 `base/README.md`를 한 번 읽어 주세요. [미션별 안내 목차](../../base_ws/src/planning_addons/planning_scenario_validator/config/missions/README.md)에서 고르면 됩니다.
+**이미 Docker·BEVFusion 이미지·E25까지 준비한 분은 재설치·재다운로드 없이 아래 1번부터 하면 됩니다.** 기존 `.env.bevfusion.local`과 가중치는 유지하고 GUI 환경 검사에서 실제 사용 경로를 확인합니다. 설치 가이드 5·6장을 다시 실행하지 마세요. 첫 실행 전에 담당 미션의 `base/README.md`를 한 번 읽어 주세요. [미션별 안내 목차](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/base_ws/src/planning_addons/planning_scenario_validator/config/missions/README.md)에서 고르면 됩니다.
 
 ROS·맵은 준비했는데 Docker/E25만 없는 Ubuntu 20.04 PC는 `bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --bevfusion`으로 설치·Drive 다운로드·이미지 등록·GPU 검사를 한 번에 진행합니다. 본인 Google 로그인과 sudo가 필요하고, Docker 그룹 신규 추가 시 GUI 사용 전 재로그인합니다. 자세한 제한은 설치 가이드 5-0을 참고하세요.
 
 ## 1. MORAI 연결하고 GUI 켜기
 
-업데이트가 올라왔으면 캠페인·GUI·수동 스택을 정상 종료한 뒤 이 브랜치를 pull하고 **planning → base 둘 다 증분 빌드**합니다. 실패 시 중단하는 복붙 명령은 [설치 가이드 4-1](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#4-1-다음부터는-pull-후-증분-빌드)에 있습니다. build_all.sh만으로는 이미 설치된 planning이 갱신되지 않을 수 있습니다. 평상시 build/install을 지우지 않습니다.
+업데이트가 올라왔으면 캠페인·GUI·수동 스택을 정상 종료한 뒤 이 브랜치를 pull하고 **planning → base 둘 다 증분 빌드**합니다. 실패 시 중단하는 복붙 명령은 [설치 가이드 4-1](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#4-1-다음부터는-pull-후-증분-빌드)에 있습니다. build_all.sh만으로는 이미 설치된 planning이 갱신되지 않을 수 있습니다. 평상시 build/install을 지우지 않습니다.
 
 증분 빌드는 변경된 파일과 영향받는 의존 대상을 다시 컴파일하며 패키지 순회·설치 복사는 다시 할 수 있습니다. 빌드 후 환경을 다시 source하고 노드를 재실행하세요. 업데이트 전후 비교는 `새 실험 시작`으로 결과를 분리하며 기존 녹화는 남겨둡니다.
 
@@ -28,7 +28,7 @@ bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --gui
 
 ## 2. 내 YAML 준비하기
 
-같은 시나리오 폴더에서 일부만 골라 실행할 수 있습니다. 기본 탭의 `장면 선택` → 이름/패턴 검색 또는 기본·일반·어려운 빠른 필터 → 검색 결과 전체 체크 → 체크한 장면 적용 → 개인 YAML 저장을 사용합니다. 선택은 `scenarios.include`에 저장되어 glob보다 우선합니다. 폴더 전체는 전체 실행(패턴)으로 전환 후 `*.json`을 사용하세요. 선택 파일이 없어지면 실행 오류이며 전체로 자동 대체하지 않습니다. 자세한 선택·새 파일·재개 규칙은 [제작 가이드](SCENARIO_VALIDATOR_AUTHOR_GUIDE.md#같은-폴더에서-일부-장면만-고르기)를 참고하세요.
+같은 시나리오 폴더에서 일부만 골라 실행할 수 있습니다. 기본 탭의 `장면 선택` → 이름/패턴 검색 또는 기본·일반·어려운 빠른 필터 → 검색 결과 전체 체크 → 체크한 장면 적용 → 개인 YAML 저장을 사용합니다. 선택은 `scenarios.include`에 저장되어 glob보다 우선합니다. 폴더 전체는 전체 실행(패턴)으로 전환 후 `*.json`을 사용하세요. 선택 파일이 없어지면 실행 오류이며 전체로 자동 대체하지 않습니다. 자세한 선택·새 파일·재개 규칙은 [제작 가이드](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md#같은-폴더에서-일부-장면만-고르기)를 참고하세요.
 
 **`base/example.yaml`은 공유 원본입니다. 선택하자마자 실행하지 말고, 반드시 `베이스 → 내 작업 폴더 복사`부터 누르세요.** 복사 후 GUI에 열린 YAML 경로가 `missions/<담당 미션>/workspace/…yaml`인지 확인하고, 그 개인 복사본으로 설정·실행합니다. 배치에도 `base/example.yaml`이 아니라 `workspace/`의 YAML을 넣습니다.
 
@@ -105,4 +105,4 @@ Drive 업로드는 각 YAML의 옵션입니다. 기본은 꺼짐이며, 켜면 `
 - 수신 오류: 스택 수신 중 ROS 토픽과 포트를 확인합니다. 실행 중에는 GUI가 실시간 주행 값을 보여주고, 별도 `ROS 수신 검사`는 다른 실행이 없을 때만 켤 수 있습니다.
 - TIMEOUT·충돌·경로 실패: 없애거나 성공으로 덮지 말고 JSON·로그·영상을 남깁니다. 그 실패를 찾는 것이 검증기의 목적입니다.
 
-새 장면을 만드는 방법은 [제작 가이드](SCENARIO_VALIDATOR_AUTHOR_GUIDE.md), 다른 AI가 이어서 볼 구현 계약·검증 범위는 [구현 문서](scenario_validator_automation.md)를 참고하세요.
+새 장면을 만드는 방법은 [제작 가이드](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md), 다른 AI가 이어서 볼 구현 계약·검증 범위는 [구현 문서](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/scenario_validator_automation.md)를 참고하세요.

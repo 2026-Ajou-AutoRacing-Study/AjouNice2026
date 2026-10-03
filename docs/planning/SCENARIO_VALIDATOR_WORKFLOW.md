@@ -1,6 +1,6 @@
 # 설치 끝났으면 이것만 보고 돌리면 됩니다
 
-시나리오 검증기 설치·ROS 빌드·맵·BEVFusion 준비까지 끝난 분용입니다. GUI 전체 설명이 아니라 실제 작업 순서만 적었습니다. 처음 설치는 [설치 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md), 버튼 위치는 [화면 5장 안내](SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)를 보세요.
+시나리오 검증기 설치·ROS 빌드·맵·BEVFusion 준비까지 끝난 분용입니다. GUI 전체 설명이 아니라 실제 작업 순서만 적었습니다. 처음 설치는 [설치 가이드](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md), 버튼 위치는 [화면 5장 안내](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)를 보세요.
 
 ## 1. MORAI 연결하고 GUI 켜기
 
@@ -48,7 +48,7 @@ pvgui
 
 전체를 돌릴 때는 **장면 선택 → 전체 실행(패턴)**으로 돌아간 뒤 패턴을 *.json으로 바꿉니다. 일부만 돌릴 때는 이름을 검색하고 **검색 결과 전체 체크 / 체크 해제**를 쓰세요. baseline,stress처럼 쉼표로 여러 묶음을 한 번에 찾을 수도 있습니다. 기존 체크는 검색을 바꿔도 유지됩니다. 새 조합으로 고르려면 먼저 **모든 체크 지우기**를 누르세요.
 
-**개인 YAML 저장 → 설정 검사 → 새 실험 시작**하면 선택한 장면을 다시 처음부터 돕니다. 선택 목록도 이 YAML 안에 저장됩니다. 목록 모드에서는 나중에 추가한 JSON이 자동 포함되지 않으며, 패턴 모드에서는 패턴에 맞으면 포함됩니다. 같은 YAML의 목적지·제한시간·스택이 선택한 모든 장면에 적용됩니다. 자세한 제작법은 [시나리오·YAML 제작 가이드](SCENARIO_VALIDATOR_AUTHOR_GUIDE.md)에 있습니다.
+**개인 YAML 저장 → 설정 검사 → 새 실험 시작**하면 선택한 장면을 다시 처음부터 돕니다. 선택 목록도 이 YAML 안에 저장됩니다. 목록 모드에서는 나중에 추가한 JSON이 자동 포함되지 않으며, 패턴 모드에서는 패턴에 맞으면 포함됩니다. 같은 YAML의 목적지·제한시간·스택이 선택한 모든 장면에 적용됩니다. 자세한 제작법은 [시나리오·YAML 제작 가이드](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md)에 있습니다.
 
 개인 YAML·JSON은 workspace에 두면 Git에 안 올라갑니다. base는 공유 원본입니다. 파일 탐색기에서 삭제·이름 변경도 가능하지만, 삭제한 YAML이 GUI에 아직 열려 있으면 다른 파일을 여세요. 그대로 저장하면 다시 생길 수 있습니다.
 
@@ -75,4 +75,4 @@ pvgui
 
 Drive로 공유할 때만 기본 설정의 자동 업로드를 켜고 공유 모드를 고릅니다. 기본 공유는 CSV·JSON, bag 공유는 여기에 bag, 영상 공유는 MP4, 원본 공유는 둘 다입니다. 기본 경로는 AjouNice2026/planning_validator/입니다. 배치 CSV는 자동 업로드하지 않으므로 필요하면 별도로 공유하세요.
 
-업데이트가 올라오면 실행·GUI 종료 후 **pull → planning/base 증분 빌드 → GUI 다시 실행**합니다. 설치를 다시 할 필요는 없습니다. 복붙 명령은 [설치 가이드 4-1](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#4-1-다음부터는-pull-후-증분-빌드)에 있습니다.
+업데이트가 올라오면 실행·GUI 종료 후 **pull → planning/base 증분 빌드 → GUI 다시 실행**합니다. 설치를 다시 할 필요는 없습니다. 복붙 명령은 [설치 가이드 4-1](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#4-1-다음부터는-pull-후-증분-빌드)에 있습니다.

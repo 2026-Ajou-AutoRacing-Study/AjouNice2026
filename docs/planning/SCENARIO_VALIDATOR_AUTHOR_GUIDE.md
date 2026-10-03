@@ -1,6 +1,6 @@
 # 시나리오랑 YAML 직접 만드는 법
 
-설치가 끝난 팀원이 새 검증 케이스를 만드는 안내입니다. 처음 세팅하는 경우에는 [설치·실행 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 보면 됩니다.
+설치가 끝난 팀원이 새 검증 케이스를 만드는 안내입니다. 처음 세팅하는 경우에는 [설치·실행 가이드](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 보면 됩니다.
 
 우리 목적은 데이터셋 수집이 아니라 **일반 상황에서도 잘 도는지, 어떤 상황에서 못 도는지 찾아 녹화와 근거를 남기는 것**입니다. 실패하는 시나리오도 필요한 결과입니다.
 
@@ -11,7 +11,7 @@
 
 **YAML 하나에서는 모든 장면이 같은 목적지·경유점·제한시간·도착 방식으로 실행됩니다.** 객체 위치나 NPC 조건만 달라지는 JSON들은 같은 YAML로 묶어도 됩니다. 다른 목적지·제한시간·스택을 원하면 다른 이름의 YAML을 하나 더 만드세요. `campaign.yaml` 하나만 계속 덮어쓸 필요 없습니다.
 
-만든 YAML 여러 개를 밤새 실행하려면 GUI `실행 목록 / 배치`에 추가하면 됩니다. 배치를 위한 별도 YAML은 만들지 않습니다. 공통 Network를 연결하고 순서대로 실행·중단·재개하는 방법은 [짧은 사용법](SCENARIO_VALIDATOR_RUNBOOK.md)에 정리했습니다. 새 실험/배치는 입력 사본을 보관하므로 원본 YAML·JSON을 나중에 수정해도 이전 기록을 재개할 수 있습니다.
+만든 YAML 여러 개를 밤새 실행하려면 GUI `실행 목록 / 배치`에 추가하면 됩니다. 배치를 위한 별도 YAML은 만들지 않습니다. 공통 Network를 연결하고 순서대로 실행·중단·재개하는 방법은 [짧은 사용법](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md)에 정리했습니다. 새 실험/배치는 입력 사본을 보관하므로 원본 YAML·JSON을 나중에 수정해도 이전 기록을 재개할 수 있습니다.
 
 장면마다 `.case.yaml`을 만드는 방식은 없앴습니다. JSON 폴더에 남아 있어도 설정을 덮어쓰지 않고 경고 후 무시합니다. GUI에는 **완성된 캠페인 YAML**을 열어야 합니다. 목적지 두 줄만 적힌 YAML이나 빈 YAML은 열 수 없습니다.
 
@@ -153,7 +153,7 @@ rostopic echo -n 1 /move_base_simple/goal
 - `default_case.timeout_sec`는 준비 후 실제 주행 시간입니다. 스택·시나리오·route 준비 timeout은 별개라 이 값만 줄여도 준비가 빨라지지는 않습니다.
 - `stop`은 목표 반경 안에서 속도·유지시간 조건까지 만족해야 도착입니다. `pass_through`는 목표 영역 통과를 보는 별도 모드입니다. 같은 YAML에서 장면마다 다르게 지정하지 않습니다.
 - 기본은 `basic` 토픽 + `include_sensors: false` + 영상 on입니다. **센서를 끄라는 뜻이 아니라 bag에 카메라/LiDAR를 안 넣겠다는 뜻**입니다.
-- 기본 설정 탭에서는 신호등 on/off만 선택합니다. Python 방식·실행 경로·GPU/CPU 장치는 신호등 환경 탭에서 설정합니다. 팀원 가상환경 설치는 [설치 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)의 7-1을 참고하세요.
+- 기본 설정 탭에서는 신호등 on/off만 선택합니다. Python 방식·실행 경로·GPU/CPU 장치는 신호등 환경 탭에서 설정합니다. 팀원 가상환경 설치는 [설치 가이드](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)의 7-1을 참고하세요.
 - 업로드는 기본 off입니다. 필요한 공유 범위만 고릅니다. 로컬 bag·영상은 업로드 선택과 별개로 보존됩니다.
 
 ## 5. 새 케이스는 먼저 한두 개만 실행
