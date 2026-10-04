@@ -64,3 +64,49 @@
 - [ ] `pos15`: BEVFusion 입력에서 발생한 충돌 객체와 회피 경로 확인
 - [ ] `pos04`, `pos07`, `car01`: GT/BEVFusion 결과 차이의 인지·플래닝 입력 비교
 - [ ] 수정 후 동일한 17개 캠페인을 재실행하여 결과 갱신
+
+## 7. 자동검사 전체 수치 (최종 판정 34건)
+
+| 시나리오 | GT 판정 | GT 시간 | GT 최소 목표거리 | GT 충돌 | BEVFusion 판정 | BEV 시간 | BEV 최소 목표거리 | BEV 충돌 | 비교 |
+| --- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | --- |
+| `pos01` | PASS | 17.26초 | 0.417 m | 0 | PASS | 17.90초 | 0.247 m | 0 | 공통 PASS |
+| `pos02` | PASS | 16.24초 | 0.106 m | 0 | PASS | 18.08초 | 0.197 m | 0 | 공통 PASS |
+| `pos03` | PASS | 16.24초 | 0.129 m | 0 | PASS | 16.47초 | 0.118 m | 0 | 공통 PASS |
+| `pos04` | TIMEOUT | 90.01초 | 32.204 m | 0 | PASS | 19.27초 | 0.258 m | 0 | BEVFusion PASS |
+| `pos05` | PASS | 16.05초 | 0.128 m | 0 | PASS | 17.27초 | 0.229 m | 0 | 공통 PASS |
+| `pos06` | PASS | 16.25초 | 0.165 m | 0 | PASS | 16.47초 | 0.130 m | 0 | 공통 PASS |
+| `pos07` | TIMEOUT | 90.03초 | 27.974 m | 0 | PASS | 18.70초 | 0.256 m | 0 | BEVFusion PASS |
+| `pos08` | PASS | 16.26초 | 0.262 m | 0 | PASS | 19.68초 | 0.270 m | 0 | 공통 PASS |
+| `pos09` | PASS | 16.25초 | 0.131 m | 0 | PASS | 16.67초 | 0.207 m | 0 | 공통 PASS |
+| `pos10` | PASS | 17.27초 | 0.112 m | 0 | PASS | 18.47초 | 0.248 m | 0 | 공통 PASS |
+| `pos11` | PASS | 16.66초 | 0.269 m | 0 | PASS | 20.71초 | 0.266 m | 0 | 공통 PASS |
+| `pos12` | PASS | 16.27초 | 0.123 m | 0 | PASS | 16.70초 | 0.256 m | 0 | 공통 PASS |
+| `pos13` | TIMEOUT | 90.09초 | 38.654 m | 0 | TIMEOUT | 90.20초 | 39.627 m | 0 | 공통 TIMEOUT |
+| `pos14` | PASS | 16.66초 | 0.218 m | 0 | PASS | 18.29초 | 0.251 m | 0 | 공통 PASS |
+| `pos15` | PASS | 18.06초 | 0.105 m | 0 | COLLISION | 11.26초 | 20.814 m | 1 | BEVFusion 충돌 |
+| `pos16` | PASS | 16.27초 | 0.240 m | 0 | PASS | 16.91초 | 0.238 m | 0 | 공통 PASS |
+| `car01` | TIMEOUT | 90.13초 | 41.291 m | 0 | PASS | 18.91초 | 0.272 m | 0 | BEVFusion PASS |
+
+- GT 합계: 17건 / **13 PASS, 4 TIMEOUT**, 실행시간 합계 215.74초, 충돌 0건
+- BEVFusion 합계: 17건 / **15 PASS, 1 TIMEOUT, 1 COLLISION**, 실행시간 합계 281.76초, 충돌 1건
+- 최종 판정 기준 시스템 오류: 0건
+
+## 8. 실패 원인 수치
+
+| 모드 | 시나리오 | 실패 유형 | 관측 내용 |
+| --- | --- | --- | --- |
+| GT | `pos04` | TIMEOUT | 81.59 m 주행 뒤 정지, 최대 속도 14.32 m/s, 남은 목표거리 32.204 m |
+| GT | `pos07` | TIMEOUT | 85.69 m 주행 뒤 정지, 최대 속도 14.06 m/s, 남은 목표거리 27.974 m |
+| GT | `pos13` | TIMEOUT | 75.29 m 주행 뒤 정지, 최대 속도 13.81 m/s, 남은 목표거리 38.654 m |
+| GT | `car01` | TIMEOUT | 72.72 m 주행 뒤 정지, 최대 속도 13.48 m/s, 남은 목표거리 41.291 m |
+| BEVFusion | `pos13` | TIMEOUT | 74.34 m 주행 뒤 정지, 최대 속도 13.87 m/s, 궤적 앞 5점 최대 속도 7.04 m/s, 남은 목표거리 39.627 m |
+| BEVFusion | `pos15` | COLLISION | `/CollisionData` 충돌 1건, 11.26초에 종료, 목표까지 20.814 m 남음 |
+
+> `car01`의 GT 첫 시도에는 일시 오류 기록이 남아 있으나 자동 재시도 후 TIMEOUT으로 최종 판정됐습니다. 표에는 최종 시도 결과만 반영했습니다.
+
+## 9. 결과 파일 및 영상
+
+- GT CSV: `planner_logs/validation/user_static_obstacle_17_gt_261004_165741/summary.csv`
+- BEVFusion CSV: `planner_logs/validation/user_static_obstacle_17_bev_261004_172418/summary.csv`
+- 케이스별 기록: 각 `success/`, `failure/`, `error/` 폴더의 `planbag_*.json` 및 `planbag_*.mp4`
+- `planbag`은 검증기 실행 기록(JSON/MP4)이며, ROS 원본 `.bag`은 별도 `rosbag record` 실행 시에만 생성됩니다.
