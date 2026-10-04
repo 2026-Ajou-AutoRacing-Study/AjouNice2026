@@ -116,11 +116,17 @@ def load_asset_bbox_catalog(path):
             "pivot_to_bbox_center_local_m": offset,
             "bbox_size_m": size,
         }
+        if "object_status_size_m" in value:
+            status_size = tuple(float(v) for v in value["object_status_size_m"])
+            if len(status_size) != 3 or any(not math.isfinite(v) or v <= 0 for v in status_size):
+                raise ValueError("invalid ObjectStatus size for {}".format(name))
+            normalized[str(name)]["object_status_size_m"] = status_size
     return normalized, {
         "path": str(path),
         "sha256": hashlib.sha256(payload).hexdigest(),
         "schema_version": document.get("schema_version"),
         "asset_count": len(normalized),
+        "status_size_reference": document.get("status_size_reference"),
     }
 
 
@@ -147,9 +153,10 @@ def _resolve_segment_asset(
     if len(exact_names) > 1:
         return None, None, None, None, "multiple-asset-names"
 
-    # Old MORAI RandomMode bags put the current MGeo link in ``name``. Vehicle
-    # ObjectStatus dimensions are nevertheless stable and agree closely with
-    # the audited asset catalog, so resolve only this measured legacy case.
+    # UDP may omit identity, and ROS RandomMode may put a MGeo link in ``name``.
+    # Match basic ObjectStatus specifications to measured basic specifications,
+    # NOT to the larger geometric box. Old catalogs retain the legacy matcher
+    # below only for reproducibility of previously reported evaluations.
     # Pedestrian/obstacle size inference is intentionally forbidden: several
     # assets have similar pivots/sizes and guessing would corrupt the GT.
     if segment.class_name != "vehicle":
@@ -157,6 +164,33 @@ def _resolve_segment_asset(
     dimensions = _segment_dimensions(segment)
     if min(dimensions) <= 0.0:
         return None, None, None, None, "missing-object-status-size"
+    nominal = [(name, asset) for name, asset in assets.items()
+               if asset["class"] == segment.class_name and "object_status_size_m" in asset]
+    if nominal:
+        groups = defaultdict(list)
+        for name, asset in nominal:
+            groups[asset["object_status_size_m"]].append((name, asset))
+        ranked = sorted((math.dist(dimensions, signature), signature, members)
+                        for signature, members in groups.items())
+        error, _, members = ranked[0]
+        if error > min(0.03, vehicle_size_match_max_error_m):
+            return None, None, None, None, "vehicle-status-size-no-match"
+        if len(ranked) > 1 and ranked[1][0] - error < vehicle_size_match_min_margin_m:
+            return None, None, None, None, "vehicle-status-size-ambiguous"
+        if len(members) == 1:
+            name, asset = members[0]
+            return name, asset, "vehicle-status-size", float(error), None
+        # Identity is unnecessary if all candidates imply equivalent geometry.
+        # Identical basic specifications alone do NOT establish that condition.
+        geometry = np.asarray([a["pivot_to_bbox_center_local_m"] + a["bbox_size_m"]
+                               for _, a in members])
+        if np.max(np.ptp(geometry, axis=0)) > 0.01 + 1e-9:
+            return None, None, None, None, "vehicle-status-size-geometry-ambiguous"
+        average = np.mean(geometry, axis=0)
+        name = "geometry-group:" + "|".join(sorted(n for n, _ in members))
+        asset = {"class": segment.class_name,
+                 "pivot_to_bbox_center_local_m": tuple(average[:3]), "bbox_size_m": tuple(average[3:])}
+        return name, asset, "vehicle-status-size-shared-geometry", float(error), None
     candidates = []
     for name, asset in assets.items():
         if asset["class"] != segment.class_name:
@@ -254,6 +288,10 @@ def transform_segments_to_asset_catalog_bbox_center(
     report = {
         **ASSET_CATALOG_BBOX_REFERENCE_V1,
         **catalog_report,
+        "size_matching_reference": (
+            "measured-object-status-size" if any("object_status_size_m" in a for a in assets.values())
+            else "legacy-geometric-bbox-size"
+        ),
         "vehicle_size_match_max_error_m": float(vehicle_size_match_max_error_m),
         "vehicle_size_match_min_margin_m": float(vehicle_size_match_min_margin_m),
         "input_segment_count": len(segments),

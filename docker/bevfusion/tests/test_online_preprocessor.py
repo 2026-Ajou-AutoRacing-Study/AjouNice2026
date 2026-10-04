@@ -5,7 +5,7 @@ import unittest
 import cv2
 import numpy as np
 
-from app.online_preprocessor import Base3OnlinePreprocessor
+from app.online_preprocessor import Base3OnlinePreprocessor, preprocessing_options_from_config
 
 
 def calibration():
@@ -30,6 +30,28 @@ def calibration():
 
 
 class OnlinePreprocessorTest(unittest.TestCase):
+    def test_config_drives_high_resolution_and_rejects_mismatched_projection(self):
+        config = dict(point_cloud_range=[-30, -30, -3, 30, 30, 2],
+            model=dict(view_transform=dict(image_size=[320, 896], feature_size=[40, 112])),
+            test_dataloader=dict(dataset=dict(pipeline=[dict(type='MoraiImageAug3D',
+                final_dim=[320, 896], resize_lim=[0.70, 0.70], is_train=False)])))
+        options = preprocessing_options_from_config(config)
+        self.assertEqual(options['final_dim'], (320, 896))
+        highres = Base3OnlinePreprocessor(calibration(), camera_workers=1, **options)
+        try:
+            for camera in calibration()['cameras']:
+                resized, crop = highres._resize_crop(camera)
+                self.assertEqual((crop[3] - crop[1], crop[2] - crop[0]), (320, 896))
+                self.assertGreaterEqual(resized[1], 320)
+        finally:
+            highres.close()
+        config['model']['view_transform']['image_size'] = [256, 704]
+        with self.assertRaisesRegex(ValueError, 'sizes differ'):
+            preprocessing_options_from_config(config)
+        config['test_dataloader']['dataset']['pipeline'][0]['final_dim'] = [320, 880]
+        with self.assertRaisesRegex(ValueError, 'divisible by 32'):
+            preprocessing_options_from_config(config)
+
     def setUp(self):
         self.preprocessor = Base3OnlinePreprocessor(
             calibration(), camera_workers=2
@@ -84,6 +106,16 @@ class OnlinePreprocessorTest(unittest.TestCase):
     def test_rejects_old_five_feature_contract(self):
         with self.assertRaisesRegex(ValueError, "Nx4"):
             self.preprocessor._filter_points(np.zeros((3, 5), dtype=np.float32))
+
+    def test_longitudinal_range60_retains_far_points_without_widening_lateral_roi(self):
+        points = np.asarray([[45., 0., 0., 1.], [-45., 0., 0., 1.],
+                             [61., 0., 0., 1.], [0., 31., 0., 1.]], dtype=np.float32)
+        with self.assertRaisesRegex(ValueError, 'no finite LiDAR points'):
+            self.preprocessor._filter_points(points)
+        self.preprocessor.point_cloud_range = np.asarray([-60, -30, -3, 60, 30, 2])
+        actual = self.preprocessor._filter_points(points)
+        self.assertEqual(len(actual), 2)
+        np.testing.assert_array_equal(actual[:, 0], [45., -45.])
 
     def test_rejects_invalid_lidar_pose(self):
         with self.assertRaisesRegex(ValueError, "finite x, y, z, yaw"):

@@ -12,6 +12,8 @@ output_dir="$(realpath -m "$3")"
 label="$4"
 playback_rate="$5"
 tracker_prediction_model="${TRACKER_PREDICTION_MODEL:-1}"
+tracker_fast_confirmed_vehicle_promotion="${TRACKER_FAST_CONFIRMED_VEHICLE_PROMOTION:-false}"
+tracker_vehicle_promotion_min_confidence="${TRACKER_VEHICLE_PROMOTION_MIN_CONFIDENCE:-0.60}"
 tracker_system_noise_std_vx_vy_ms="${TRACKER_SYSTEM_NOISE_STD_VX_VY_MS:-1.0}"
 tracker_meas_noise_std_xy_m="${TRACKER_MEAS_NOISE_STD_XY_M:-0.4}"
 tracker_meas_noise_std_yaw_deg="${TRACKER_MEAS_NOISE_STD_YAW_DEG:-10.0}"
@@ -36,7 +38,7 @@ tracker_center_motion_max_fit_residual_m="${TRACKER_CENTER_MOTION_MAX_FIT_RESIDU
 tracker_center_motion_early_noise_std_mps="${TRACKER_CENTER_MOTION_EARLY_NOISE_STD_MPS:-1.50}"
 tracker_center_motion_mature_noise_std_mps="${TRACKER_CENTER_MOTION_MATURE_NOISE_STD_MPS:-0.60}"
 gt_reference="${BEVFUSION_EVAL_GT_REFERENCE:-bbox-center-calibrated-v1}"
-asset_bbox_catalog="${BEVFUSION_EVAL_ASSET_BBOX_CATALOG:-dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json}"
+asset_bbox_catalog="${BEVFUSION_EVAL_ASSET_BBOX_CATALOG:-dataset/morai_od/configs/morai_asset_bbox_offsets_status_size_v2.json}"
 morai_heading_correction_deg="${BEVFUSION_EVAL_MORAI_HEADING_CORRECTION_DEG:-0.0}"
 heading_correction_enabled=true
 if [[ "$morai_heading_correction_deg" == "0" || "$morai_heading_correction_deg" == "0.0" ]]; then
@@ -84,7 +86,20 @@ fi
 export ROS_MASTER_URI="http://127.0.0.1:${ros_port}"
 export ROS_IP=127.0.0.1
 system_pythonpath="${PYTHONPATH:-$repo_root/base_ws/install_aw149/lib/python3/dist-packages:/opt/ros/noetic/lib/python3/dist-packages}"
+tracking_launch="${BEVFUSION_PIPELINE_EVAL_LAUNCH:-$repo_root/base_ws/src/perception_object_pipeline/launch/tracking_prediction.launch}"
+promotion_args=()
+if rg -q '<arg name="tracker_fast_confirmed_vehicle_promotion"' "$tracking_launch"; then
+  promotion_args+=(tracker_fast_confirmed_vehicle_promotion:="$tracker_fast_confirmed_vehicle_promotion"
+    tracker_vehicle_promotion_min_confidence:="$tracker_vehicle_promotion_min_confidence")
+elif [[ "$tracker_fast_confirmed_vehicle_promotion" != "false" ]]; then
+  echo "[ERROR] selected launch does not support vehicle promotion" >&2
+  exit 1
+fi
 evaluation_pythonpath="$repo_root/base_ws/src/tracking_prediction_evaluation/src:$system_pythonpath"
+evaluation_extra_args=(--class-name "${BEVFUSION_EVAL_CLASS_NAME:-vehicle}")
+if [[ -n "${BEVFUSION_EVAL_ASSET_NAME_MAP:-}" ]]; then
+  evaluation_extra_args+=(--asset-name-map "$BEVFUSION_EVAL_ASSET_NAME_MAP")
+fi
 
 roscore -p "$ros_port" >"$output_dir/roscore.log" 2>&1 &
 roscore_pid=$!
@@ -110,8 +125,10 @@ sensor_tf_pid=$!
 
 env PYTHONPATH="$system_pythonpath" PYTHONNOUSERSITE=1 \
   /usr/bin/python3 /opt/ros/noetic/bin/roslaunch \
-  "$repo_root/base_ws/src/perception_object_pipeline/launch/tracking_prediction.launch" use_sim_time:=true \
+  "$tracking_launch" use_sim_time:=true \
+  maximum_tracking_internal_prediction_age_sec:="${BEVFUSION_PIPELINE_EVAL_MAXIMUM_TRACKING_AGE_SEC:-0.25}" \
   tracker_prediction_model:="$tracker_prediction_model" \
+  "${promotion_args[@]}" \
   tracker_system_noise_std_vx_vy_ms:="$tracker_system_noise_std_vx_vy_ms" \
   tracker_meas_noise_std_xy_m:="$tracker_meas_noise_std_xy_m" \
   tracker_meas_noise_std_yaw_deg:="$tracker_meas_noise_std_yaw_deg" \
@@ -180,6 +197,8 @@ sleep 0.5
 cat >"$output_dir/tracker_config.json" <<EOF
 {
   "prediction_model": $tracker_prediction_model,
+  "fast_confirmed_vehicle_promotion": $tracker_fast_confirmed_vehicle_promotion,
+  "vehicle_promotion_min_confidence": $tracker_vehicle_promotion_min_confidence,
   "system_noise_std_vx_vy_ms": $tracker_system_noise_std_vx_vy_ms,
   "meas_noise_std_xy_m": $tracker_meas_noise_std_xy_m,
   "meas_noise_std_yaw_deg": $tracker_meas_noise_std_yaw_deg,
@@ -229,7 +248,8 @@ env PYTHONPATH="$evaluation_pythonpath" PYTHONNOUSERSITE=1 /usr/bin/python3 \
   --output "$output_dir/summary.json" \
   --gt-reference "$gt_reference" \
   --asset-bbox-catalog "$asset_bbox_catalog" \
-  --morai-heading-correction-deg "$morai_heading_correction_deg"
+  --morai-heading-correction-deg "$morai_heading_correction_deg" \
+  "${evaluation_extra_args[@]}"
 
 env PYTHONPATH="$evaluation_pythonpath" PYTHONNOUSERSITE=1 /usr/bin/python3 \
   base_ws/src/tracking_prediction_evaluation/scripts/evaluate_pipeline_prediction.py \
@@ -239,6 +259,7 @@ env PYTHONPATH="$evaluation_pythonpath" PYTHONNOUSERSITE=1 /usr/bin/python3 \
   --asset-bbox-catalog "$asset_bbox_catalog" \
   --morai-heading-correction-deg "$morai_heading_correction_deg" \
   --prediction-motion-slice cv-stable \
-  --maximum-longitudinal-acceleration-mps2 0.5
+  --maximum-longitudinal-acceleration-mps2 0.5 \
+  "${evaluation_extra_args[@]}"
 
 echo "[evaluation] $label -> $output_dir/summary.json"

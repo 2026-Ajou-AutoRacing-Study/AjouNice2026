@@ -1,4 +1,5 @@
 import math
+from dataclasses import replace
 from types import SimpleNamespace
 
 from tracking_prediction_evaluation.pipeline_evaluator import (
@@ -31,6 +32,17 @@ def point(x, y, object_id):
         object_id=object_id,
         asset_name="test",
     )
+
+
+def test_pedestrian_velocity_preserves_motion_perpendicular_to_mesh_heading():
+    points = tuple(replace(point(t, 0.0, 3), timestamp=t,
+        yaw=math.pi / 2, class_name="pedestrian") for t in (0.0, 0.1, 0.2, 0.3))
+    segment = TrajectorySegment("ped", "pedestrian", 3, "Man1", points)
+    result = evaluate_pipeline((segment,), (),
+        tracking_frames={0.3: (ObjectEstimate(b"ped", 0.3, 0.0, yaw=0.0, speed=1.0),)},
+        prediction_frames={}, horizons=(1.0,))
+    assert result["tracking"]["absolute_speed_error_mps"]["mean"] < 1e-9
+    assert result["tracking"]["velocity_l2_error_mps"]["mean"] < 1e-9
 
 
 def test_assignment_uses_global_minimum_and_distance_gate():

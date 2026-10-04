@@ -97,6 +97,38 @@ class AssetCatalogBboxReferenceTest(unittest.TestCase):
         self.assertEqual(transformed, ())
         self.assertEqual(report["unresolved_reasons"], {"vehicle-size-no-match": 1})
 
+    def nominal_catalog(self, shared=False, different_geometry=False):
+        doc = json.loads(self.catalog.read_text())
+        doc['assets']['CarA']['object_status_size_m'] = [4.0, 1.6, 1.4]
+        doc['assets']['CarB']['object_status_size_m'] = [4.0, 1.6, 1.4] if shared else [5.0, 2.0, 1.7]
+        if shared and not different_geometry:
+            doc['assets']['CarB']['bbox_size_m'] = doc['assets']['CarA']['bbox_size_m']
+            doc['assets']['CarB']['pivot_to_bbox_center_local_m'] = doc['assets']['CarA']['pivot_to_bbox_center_local_m']
+        self.catalog.write_text(json.dumps(doc))
+
+    def test_nominal_status_size_does_not_match_geometric_size(self):
+        self.nominal_catalog()
+        output, report = transform_segments_to_asset_catalog_bbox_center(
+            (self.segment('link', (4.0, 1.6, 1.4)),), self.catalog)
+        self.assertEqual(output[0].asset_name, 'CarA')
+        self.assertEqual(output[0].points[0].length, 4.5)
+        self.assertEqual(report['resolution_counts'], {'vehicle-status-size': 1})
+
+    def test_unknown_identity_with_shared_geometry_is_supported(self):
+        self.nominal_catalog(shared=True)
+        output, report = transform_segments_to_asset_catalog_bbox_center(
+            (self.segment('link', (4.0, 1.6, 1.4)),), self.catalog)
+        self.assertTrue(output[0].asset_name.startswith('geometry-group:'))
+        self.assertEqual(output[0].points[0].length, 4.5)
+        self.assertEqual(report['resolution_counts'], {'vehicle-status-size-shared-geometry': 1})
+
+    def test_same_nominal_size_with_different_geometry_is_not_guessed(self):
+        self.nominal_catalog(shared=True, different_geometry=True)
+        output, report = transform_segments_to_asset_catalog_bbox_center(
+            (self.segment('link', (4.0, 1.6, 1.4)),), self.catalog)
+        self.assertEqual(output, ())
+        self.assertEqual(report['unresolved_reasons'], {'vehicle-status-size-geometry-ambiguous': 1})
+
     def test_track_with_multiple_exact_asset_names_is_rejected(self):
         first = point(name="CarA", size=(4.5, 1.8, 1.5))
         second = point(name="CarB", size=(5.1, 2.1, 1.8))

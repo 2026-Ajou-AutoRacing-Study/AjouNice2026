@@ -219,6 +219,7 @@ def read_morai_trajectories(
     maximum_gap_sec: float = 0.5,
     minimum_points: int = 8,
     heading_correction_deg: float = 0.0,
+    asset_name_map: dict[str, str] | None = None,
 ) -> list[TrajectorySegment]:
     """Read MORAI GT frames and reconstruct persistent actor trajectories."""
     try:
@@ -267,7 +268,9 @@ def read_morai_trajectories(
                             lateral_acceleration=float(obj.acceleration.y),
                             class_name=class_name,
                             object_id=int(obj.unique_id),
-                            asset_name=str(obj.name),
+                            asset_name=(asset_name_map or {}).get(
+                                f"{class_name}:{int(obj.unique_id)}", str(obj.name)
+                            ),
                             length=float(obj.size.x),
                             width=float(obj.size.y),
                             height=float(obj.size.z),

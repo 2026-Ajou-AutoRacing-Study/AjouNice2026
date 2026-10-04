@@ -35,6 +35,10 @@ def parse_args():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--object-topic", default="/Object_topic")
     parser.add_argument("--ego-topic", default="/Ego_topic")
+    parser.add_argument("--asset-name-map", type=Path,
+                        help="Explicit class:original-ID -> asset name JSON from verified scenario")
+    parser.add_argument("--exclude-frames-with-unresolved-gt", action="store_true",
+                        help="Conservative secondary metric: drop whole frames with nearby unresolved GT")
     parser.add_argument(
         "--detection-topic",
         default="/perception/object_recognition/detection/objects",
@@ -81,7 +85,7 @@ def parse_args():
         "--asset-bbox-catalog",
         type=Path,
         default=Path(
-            "dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json"
+            "dataset/morai_od/configs/morai_asset_bbox_offsets_status_size_v2.json"
         ),
     )
     parser.add_argument(
@@ -156,6 +160,11 @@ def _bag_topic_count(path, topic):
 
 def main():
     args = parse_args()
+    if args.asset_name_map is not None:
+        # Explicit scenario IDs only; never guess unnamed obstacles by size.
+        name_map = json.loads(args.asset_name_map.read_text())["asset_names"]
+        if not all(isinstance(k, str) and isinstance(v, str) and v for k, v in name_map.items()):
+            raise ValueError("invalid explicit asset-name map")
     translation_xyz, transform_yaw = load_morai_to_map_transform(
         args.morai_static_tf
     )
@@ -164,6 +173,8 @@ def main():
         topic=args.object_topic,
         include_classes=tuple(args.classes),
         heading_correction_deg=args.morai_heading_correction_deg,
+        asset_name_map=(json.loads(args.asset_name_map.read_text())["asset_names"]
+                        if args.asset_name_map else None),
     )
     if (
         args.gt_reference == "asset-catalog-bbox-center-v1"
@@ -213,6 +224,14 @@ def main():
         sensor_to_ego_y_m=args.sensor_to_ego_y_m,
         sensor_to_ego_z_m=args.sensor_to_ego_z_m,
     )
+    resolved_frames = None
+    if args.exclude_frames_with_unresolved_gt:
+        from tracking_prediction_evaluation.unresolved_frame_policy import resolved_frame_mask
+        raw_map_segments = transform_segments_planar(raw_segments, translation_xyz, transform_yaw)
+        mask, resolved_frames = resolved_frame_mask(raw_map_segments, segments, ego_points,
+            [f.timestamp for f in frames], args.maximum_range_m,
+            args.maximum_interpolation_bracket_sec)
+        frames = tuple(f for f in frames if mask[f.timestamp])
     metrics = evaluate_detection_frames(
         frames,
         class_names=tuple(args.classes),
@@ -223,6 +242,8 @@ def main():
         args.detection_bag, args.detection_topic
     )
     report = {
+        "resolved_frame_policy": resolved_frames,
+        "asset_name_map": str(args.asset_name_map.resolve()) if args.asset_name_map else None,
         "protocol": {
             "name": "morai-online-center-distance-v1",
             "center_thresholds_m": [0.5, 1.0, 2.0, 4.0],

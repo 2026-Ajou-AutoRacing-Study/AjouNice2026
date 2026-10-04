@@ -8,7 +8,8 @@ from mmengine.config import Config
 
 from mmdet3d.apis import init_model
 
-from app.online_preprocessor import Base3OnlinePreprocessor
+from app.online_preprocessor import Base3OnlinePreprocessor, preprocessing_options_from_config
+from app.view_geometry import restore_view_geometry
 
 
 DEFAULT_CLASSES = ["vehicle", "pedestrian", "obstacle"]
@@ -58,6 +59,7 @@ class BevFusionModel:
         self.requires_query_memory_context = (
             bbox_head_type == "MoraiQueryMemoryTransFusionHead")
         self.model = init_model(config, checkpoint_path, device=device)
+        restore_view_geometry(self.model.view_transform)
         self.model.eval()
         self.classes = list(config.get("metainfo", {}).get(
             "classes", DEFAULT_CLASSES
@@ -96,6 +98,7 @@ class BevFusionModel:
             calibration,
             camera_workers=preprocess_workers,
             point_dim=self.point_dim,
+            **preprocessing_options_from_config(config),
         )
         self.warmup_iterations = max(0, int(warmup_iterations))
         self.warmed_up = False

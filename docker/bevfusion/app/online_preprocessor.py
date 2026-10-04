@@ -8,6 +8,38 @@ import torch
 from mmdet3d.structures import Det3DDataSample, LiDARInstance3DBoxes
 
 
+def preprocessing_options_from_config(config):
+    """Use the deterministic test augmentation contract, including new sizes.
+
+    Refuse unsupported crops/rotations instead of silently serving pixels with
+    a projection matrix different from training. This does not extend model ROI.
+    """
+    pipeline = config['test_dataloader']['dataset']['pipeline']
+    transforms = [item for item in pipeline if item['type'] == 'MoraiImageAug3D']
+    if len(transforms) != 1:
+        raise ValueError('runtime requires exactly one MoraiImageAug3D')
+    aug = transforms[0]
+    for key in ('bot_pct_lim', 'rot_lim'):
+        if tuple(aug.get(key, (0.0, 0.0))) != (0.0, 0.0):
+            raise ValueError('runtime requires zero ' + key)
+    if aug.get('rand_flip', False) or aug.get('is_train', False):
+        raise ValueError('runtime requires deterministic test augmentation')
+    resize_lim = tuple(aug['resize_lim'])
+    if len(resize_lim) != 2 or resize_lim[0] != resize_lim[1]:
+        raise ValueError('runtime requires a fixed resize factor')
+    final_dim = tuple(aug['final_dim'])
+    if any(d <= 0 or d % 32 for d in final_dim):
+        raise ValueError('Swin/depth fusion requires image dimensions divisible by 32')
+    view = config['model']['view_transform']
+    if tuple(view['image_size']) != final_dim:
+        raise ValueError('augmentation and view-transform image sizes differ')
+    if tuple(view['feature_size']) != tuple(d // 8 for d in final_dim) or any(d % 8 for d in final_dim):
+        raise ValueError('runtime requires stride-8 view-transform features')
+    return dict(final_dim=final_dim, resize=float(resize_lim[0]),
+                reference_width=aug.get('reference_width', 1280),
+                point_cloud_range=config['point_cloud_range'])
+
+
 class Base3OnlinePreprocessor:
     """Build MMDetection3D inputs without temporary image or point files."""
 

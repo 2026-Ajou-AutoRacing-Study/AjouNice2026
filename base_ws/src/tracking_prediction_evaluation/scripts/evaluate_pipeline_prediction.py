@@ -34,6 +34,11 @@ def parse_args():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--object-topic", default="/Object_topic")
     parser.add_argument("--ego-topic", default="/Ego_topic")
+    parser.add_argument("--class-name", choices=("vehicle", "pedestrian", "obstacle"), default="vehicle")
+    parser.add_argument("--asset-name-map", type=Path,
+                        help="Explicit class:original-ID -> asset name JSON from verified scenario")
+    parser.add_argument("--exclude-frames-with-unresolved-gt", action="store_true",
+                        help="Drop whole output frames with nearby unresolved GT; secondary metric")
     parser.add_argument(
         "--detection-topic",
         default="/perception/object_recognition/detection/objects",
@@ -81,7 +86,7 @@ def parse_args():
         "--asset-bbox-catalog",
         type=Path,
         default=Path(
-            "dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json"
+            "dataset/morai_od/configs/morai_asset_bbox_offsets_status_size_v2.json"
         ),
     )
     parser.add_argument(
@@ -125,8 +130,10 @@ def main():
     object_status_segments = read_morai_trajectories(
         args.raw_bag,
         topic=args.object_topic,
-        include_classes=("vehicle",),
+        include_classes=(args.class_name,),
         heading_correction_deg=args.morai_heading_correction_deg,
+        asset_name_map=(json.loads(args.asset_name_map.read_text())["asset_names"]
+                        if args.asset_name_map else None),
     )
     reference_calibration = None
     if args.gt_reference == "asset-catalog-bbox-center-v1":
@@ -166,8 +173,18 @@ def main():
         args.output_bag,
         args.tracking_topic,
         args.prediction_topic,
+        class_name=args.class_name,
     )
-    detection_frames = read_detection_frames(args.output_bag, args.detection_topic)
+    detection_frames = read_detection_frames(args.output_bag, args.detection_topic, args.class_name)
+    resolved_frames = None
+    if args.exclude_frames_with_unresolved_gt:
+        from tracking_prediction_evaluation.unresolved_frame_policy import resolved_frame_mask
+        mask, resolved_frames = resolved_frame_mask(object_status_map_segments, segments,
+            ego_points, set(tracking_frames) | set(prediction_frames) | set(detection_frames),
+            args.maximum_range_m, args.maximum_interpolation_bracket_sec)
+        tracking_frames = {t: v for t, v in tracking_frames.items() if mask[t]}
+        prediction_frames = {t: v for t, v in prediction_frames.items() if mask[t]}
+        detection_frames = {t: v for t, v in detection_frames.items() if mask[t]}
     summary = evaluate_pipeline(
         segments,
         ego_points,
@@ -184,6 +201,7 @@ def main():
         gt_reference=args.gt_reference,
     )
     if reference_calibration is not None:
+        summary["evaluation"]["resolved_frame_policy"] = resolved_frames
         summary["evaluation"]["gt_reference_calibration"] = reference_calibration
         summary["evaluation"]["primary_metric_paths"] = {
             "tracking": "tracking.bbox_center_absolute_distance_m",
@@ -261,6 +279,8 @@ def main():
         "fallback_origin_count": oracle_predictor.fallback_origin_count,
     }
     summary["source"] = {
+        "evaluation_class": args.class_name,
+        "asset_name_map": str(args.asset_name_map.resolve()) if args.asset_name_map else None,
         "raw_bag": str(args.raw_bag.resolve()),
         "output_bag": str(args.output_bag.resolve()),
         "trajectory_segment_count": len(segments),
