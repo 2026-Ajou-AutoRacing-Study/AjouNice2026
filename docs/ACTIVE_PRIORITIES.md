@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획
 
-마지막 갱신: 2026-09-26.
+마지막 갱신: 2026-10-05.
 
 이 문서는 **아직 끝나지 않았고 다음 작업에서 반드시 다시 확인할 항목만** 둔다.
 완료된 수집·학습·실험 수치는 각 CURRENT/EVIDENCE 문서에 보존하며 여기로 다시
@@ -47,33 +47,46 @@
 최신 폐루프 근거:
 [`localization/260920_lightweight_closed_loop_evidence.md`](localization/260920_lightweight_closed_loop_evidence.md).
 
-## P1. Base4-Temporal 고주로 Velocity Pilot
+## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
+
+- Base5 E2 학습 및 [E1 보행자·장애물9-bag A/B](bevfusion/261005_BASE5_E1_MISSION_ROSBAG_AB.md)는 완료됐다. E1 장애물 소폭 개선에도 0–2m 장애물·20–30m 보행자 공백은 미해결이다. 다음은 해당 거리·부분 시야 표적 보강 + replay다. Production E25 유지, Far ROI와 고해상도는 별도 A/B로 유지한다.
+- 전방은 빠른 존재 전달을, 후방/로터리는 위치·속도·궤적 안정성을 함께 평가한다.
+- 현재 E25의 근접 장애물 누락은 tracker만으로 해결하지 않는다. 부분 시야·얇은
+  방향·통과 중 raw/GT를 보강하고 동일 held-out bag에서 재학습 후보를 비교한다.
+- 원거리 검증은 40/60/80/100m 가시성부터 시작한다. 현 ±30m config와 향후 모델의
+  능력을 구분하며, ROI/학습/평가 범위를 함께 설계한다.
+- 고해상도 320×896은 5060 Ti GPU smoke를 통과했다. 정확도·4090 속도는 미측정이다.
+- 전후방 ±60m/좌우 ±30m ROI 후보는 축소 입력 forward와 checkpoint 기하 복원 검증을
+  통과했다. 확장 GT 재변환·full-input 학습·출력/평가 필터 연계는 아직 미완료다.
+- confirmed UNKNOWN→차량 빠른 승격은 opt-in 후보이며 기본 OFF다. 신규 track
+  확인을 무조건 생략하거나 검출 없는 객체를 차량으로 만드는 기능은 아니다.
+- Production E25 교체는 Detection/Tracking/Map-CV 동일 bag 회귀 검증 후 결정한다.
+
+최신 근거·실행 경계:
+[`bevfusion/261004_PERCEPTION_RANGE_NEARFIELD_AND_PROMOTION_PILOT.md`](bevfusion/261004_PERCEPTION_RANGE_NEARFIELD_AND_PROMOTION_PILOT.md).
+
+## 후속 연구. Base4/Q1 velocity·temporal
 
 - 목적은 100 km/h 고주로 추월에 필요한 Vehicle velocity와 1/2/3초 미래경로를
   개선하는 것이다.
-- Position-only tracker의 고주로 2D AVE는 약 `0.96 m/s`다. GT velocity oracle은
-  `0.259 m/s`, stable 3초 FDE `0.594 m`를 보여 실제 velocity observation의 가치가
-  충분하다.
-- 전체 Base4를 바로 만들지 않고 `B4T-HWY-P0` 통제 실험부터 수행한다.
-  1. E25-7D production 기준선.
-  2. B4H-V1 single-frame 9D `vx,vy` head.
-  3. B4H-T1 causal 3-sweep 9D `vx,vy` head.
+- 과거 개발 bag의 Position-only/GT oracle 숫자를 현재 production 성능으로 재사용하지
+  않는다. 최신 팀원 bag의 보정 GT 비교는 BEVFusion index의 2026-10-04 EVIDENCE를 따른다.
+- 이미 수행한 `B4T-HWY-P0` 및 Q1 이력을 참고하되, 새 근거 없이 초기 pilot을 자동 재개하지 않는다.
 - 새 데이터는 실제 LiDAR cadence의 연속 sequence로 수집한다. LiDAR timestamp에
   Ego/Object pose를 보간하고 학습 GT는
   `velocity_target_ego_mps=[vx,vy]` 하나만 노출한다.
 - 과거 sweep은 Ego motion만 현재 frame에 정합한다. 추론에 존재하지 않는 GT Object
   motion compensation은 input에 사용하지 않는다.
-- Architecture 순서는 single-frame 9D -> native 3-sweep -> 필요 시 lightweight
-  temporal BEV -> 마지막에 StreamPETR-inspired query memory다. StreamPETR를 첫 구현으로
-  바로 포팅하지 않는다.
+- single-frame, 3-sweep, dense temporal BEV, query memory는 이미 실험 이력이 있다.
+  다음 architecture는 Q1 결과와 새 bag의 실패 분해를 보고 선택한다.
 - Pilot dataset은 sequence 단위 train/val만 사용한다. 기존 고주로 합류·고주로1
   bag은 반복 사용된 dev 평가이며 최종 test가 아니다. 최종 후보는 새 held-out 고주로
   bag 최소 2개에서 한 번 평가한다.
 - 각 모델은 tracker velocity `off/on`을 모두 평가한다. 첫 velocity covariance는
   `0.5 m/s`이며 geometry, association, 2D AVE와 Map-CV FDE를 함께 본다.
 
-상세 실행 계획:
-[`bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md).
+실험 이력:
+[`bevfusion/260923_BASE4_Q1_EXECUTION_ROADMAP.md`](bevfusion/260923_BASE4_Q1_EXECUTION_ROADMAP.md).
 
 ## P2. Localization과 velocity pilot 이후 Prediction 개선
 

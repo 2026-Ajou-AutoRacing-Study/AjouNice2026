@@ -9,6 +9,8 @@
 
 ## 한 줄 결론
 
+2026-10-05 Base5 E25-init E2 pilot과 [E1 보행자·장애물9-bag rosbag A/B](../../../docs/bevfusion/261005_BASE5_E1_MISSION_ROSBAG_AB.md)는 완료됐다. 소폭 개선이지만 근접·원거리 공백 미해결로 아래 Base3-Online 전달본과 production E25를 대체하지 않는다. [거리 공백·후속 보강](../../../docs/bevfusion/261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md)을 참고한다.
+
 Base5 후속 보강 smoke는 [24+2 scene 결과 및 런북](261004_base5_reinforcement_smoke_runbook.md)을 따른다.
 canonical 선택 데이터는 84 frame이며 기존 Base3 학습 전달본을 대체하지 않는다.
 

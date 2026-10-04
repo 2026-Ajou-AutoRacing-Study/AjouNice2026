@@ -1,6 +1,12 @@
 # Base5 MR 복구 객체 rosbag 보강
 
-상태: EVIDENCE / E25-init E2 학습 RUNNING. 2026-10-04, dataset/base5. Production E25 변경 없음.
+상태: EVIDENCE / E25-init E2 학습 COMPLETE. 완료 확인 2026-10-05, dataset/base5. Production E25 변경 없음.
+
+## 완료 결과
+
+E1/E2 Center mAP 96.831%/96.778%, IoU AP@0.50 91.05%/90.58%다. Offline best는 `best_val_center_mAP_epoch_1.pth`다. E2 checkpoint 저장 및 W&B 최종 sync를 확인했다.
+같은 val의 E25 baseline은 미측정이다. 이후 [E1 보행자·장애물9-bag rosbag A/B](../../../docs/bevfusion/261005_BASE5_E1_MISSION_ROSBAG_AB.md)를 완료했으나 장애물 소폭 개선에 그쳤고 공백 미해결로 production E25를 유지한다. 이번 val에는 20–30m Pedestrian GT가 없다.
+Base3 실제 분포 공백과 상세 결과·다음 실행은 [최신 분석](../../../docs/bevfusion/261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md)을 따른다.
 
 ## 학습 시작 기록
 

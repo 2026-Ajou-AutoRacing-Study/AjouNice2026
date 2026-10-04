@@ -4,7 +4,8 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- [MR 복구 객체 rosbag 보강·학습 입력](261004_base5_restored_replay_results.md): 20 scene/60 frame, WoodBox6장 camera review, 최신727/124 replay 준비.
+- [MR 복구 객체 rosbag 보강·학습 결과](261004_base5_restored_replay_results.md): 20 scene/60 frame, WoodBox6장 camera review, 727/124 replay E2 완료. Offline best E1, production 미변경.
+- [Base3 분포 공백·완료 학습 분석·다음 실행](../../../docs/bevfusion/261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md): 초근접·원거리 허점과 후보 rosbag A/B 계획.
 - [복구 객체 GT 보정 결과·재연결](261004_mr_restored_asset_gt_calibration_runbook.md): MR20 scene/40 capture 완료, 복구4종 reference 확보, CargoBox 역사적 size 차이와 UDP 재연결 필요사항.
 - [MR 전용 asset 수집 기준](MR_ASSET_COLLECTION_CURRENT.md): WoodBox·MRP 제외 자산 복구, MR 원본 template/default, GT calibration 미완료 항목.
 - [`261004_base5_diversity_and_replay_pilot.md`](261004_base5_diversity_and_replay_pilot.md)
