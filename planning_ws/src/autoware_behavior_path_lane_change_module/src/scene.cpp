@@ -3073,7 +3073,22 @@ bool NormalLaneChange::check_candidate_path_safety(
   if (strict) {
     candidateReason("strict_raw_exception");
     std::string reason;
-    if (!check_strict_maneuver_safety(candidate_path, candidate_path.path, reason, false)) {
+    bool continuous=false,partial=false,reachable=false;
+    ros::param::getCached("/planning/lc_continuous_bounded_output",continuous);
+    ros::param::getCached("/planning/lc_partial_acceleration_candidates",partial);
+    ros::param::getCached("/planning/lc_reachable_admission",reachable);
+    auto provisional=candidate_path;
+    if(lane_change::reachable_admission::use_actual_start_provisional_phase(
+         getModuleType()==LaneChangeModuleType::NORMAL,
+         candidate_path.type==lane_change::PathType::SpatialSpeedProfile,
+         strict,continuous,partial,reachable)) {
+      // Screen unchanged geometry/ceilings using native phase prediction from
+      // actual speed. NEVER publish this model or overwrite candidate metadata.
+      // Both search callers still require the actual-v/a bounded admission
+      // witness after all native checks, within the original shared deadline.
+      provisional.type=lane_change::PathType::ConstantJerk;
+    }
+    if (!check_strict_maneuver_safety(provisional, candidate_path.path, reason, false)) {
       candidateReason(std::string("strict_raw_rejected:")+reason);
       ROS_INFO_THROTTLE(1.0, "Strict LC candidate rejected: %s", reason.c_str());
       return false;

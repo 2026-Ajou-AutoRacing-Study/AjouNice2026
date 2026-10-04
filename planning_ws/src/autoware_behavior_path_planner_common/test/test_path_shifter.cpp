@@ -1938,22 +1938,24 @@ std::pair<std::vector<double>,std::vector<double>> shiftExpectedKnots(
 {
   const double T=a?2*S/(v+std::sqrt(v*v+2*a*S)):S/v;
   std::vector<double> times{0,T/4,3*T/4,T},values{0,L/12,11*L/12,L};
-  bool constrained=false;
+  bool native_distance_fallback=false;
   if(8*std::abs(L)/(T*T)>=limit){
     const double tj=T/2-2*std::abs(L)/(limit*T),ta=4*std::abs(L)/(limit*T)-T/2;
     if(tj>=0&&ta>=0&&tj/T>=.1){
-      constrained=true;times={0};values={0};double t=0,y=0,dy=0,ddy=0;
+      times={0};values={0};double t=0,y=0,dy=0,ddy=0;
       const double j=std::copysign(2*limit*limit*T/(limit*T*T-4*std::abs(L)),L);
       const std::vector<double> dt{tj,ta,tj,tj,ta,tj},jerks{j,0,-j,-j,0,j};
       for(size_t i=0;i<dt.size();++i){const double h=dt[i],z=jerks[i];
         y+=dy*h+.5*ddy*h*h+z*h*h*h/6;dy+=ddy*h+.5*z*h*h;ddy+=z*h;t+=h;
         times.push_back(t);values.push_back(y);}
-    }
+    } else native_distance_fallback=true;
   }
   if(!back)std::reverse(values.begin(),values.end());
   if(a>=0){
-    if(constrained)for(auto&t:times)t=v*t+.5*a*t*t;
-    else times={0,S/4,3*S/4,S}; // Existing positive/coast output contract unchanged.
+    // Upstream converts quarter-time knots to distance even in the
+    // unconstrained positive-acceleration branch (not S/4 and 3*S/4).
+    if(native_distance_fallback) times={0,S/4,3*S/4,S};
+    else for(auto&t:times)t=v*t+.5*a*t*t;
   }
   return {times,values};
 }
@@ -1981,8 +1983,8 @@ TEST(NegativeShiftTime, FourAndSevenKnotsSignedBothDirections) {
   for(double limit:{10.,2.2})for(double shift:{-3.,3.})for(bool back:{false,true})
     checkShiftExpected(-1.,limit,shift,back);
 }
-TEST(NegativeShiftTime, PositiveCoastPreservePriorDistanceMath) {
-  for(double a:{0.,1.})for(double limit:{10.,3.})for(double shift:{-3.,3.})for(bool back:{false,true})
+TEST(NegativeShiftTime, PositiveAndCoastMatchUpstreamTimeFractionMath) {
+  for(double a:{0.,1.})for(double limit:{10.,3.,.5})for(double shift:{-3.,3.})for(bool back:{false,true})
     checkShiftExpected(a,limit,shift,back);
 }
 TEST(NegativeShiftTime, InverseFiniteAtStopAndInvalidIsAtomic) {

@@ -1,6 +1,7 @@
 #include <autoware/behavior_path_planner_common/utils/route_utils.hpp>
 
 #include <autoware/behavior_path_planner_common/planner_data.hpp>
+#include <autoware/behavior_path_planner_common/utils/path_lanelet_owner.hpp>
 
 #include <autoware/lanelet2_utils/geometry.hpp>
 #include <autoware/lanelet2_utils/nn_search.hpp>
@@ -93,7 +94,7 @@ lanelet::ConstLanelets getCurrentLanesFromPath(
   for (const auto & point : path.points) lane_ids.insert(point.lane_ids.begin(), point.lane_ids.end());
   lanelet::ConstLanelets reference_lanes;
   for (const auto id : lane_ids) reference_lanes.push_back(planner_data->route_handler->getLaneletsFromId(id));
-  const auto current_lane = autoware::experimental::lanelet2_utils::get_closest_lanelet(
+  const auto current_lane = getPathLaneletOwner(
     reference_lanes, planner_data->self_odometry->pose.pose);
   if (!current_lane) return {};
   auto lanes = planner_data->route_handler->getLaneletSequence(

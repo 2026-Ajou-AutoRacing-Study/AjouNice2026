@@ -1,6 +1,7 @@
 #ifndef AUTOWARE_LC_FUTURE_HANDOFF_HPP
 #define AUTOWARE_LC_FUTURE_HANDOFF_HPP
 #include <autoware/lanelet2_utils/nn_search.hpp>
+#include <autoware/behavior_path_planner_common/utils/path_lanelet_owner.hpp>
 #include <lanelet2_core/geometry/Polygon.h>
 #include <lanelet2_core/geometry/Point.h>
 #include <boost/geometry/algorithms/covered_by.hpp>
@@ -21,7 +22,10 @@ inline Result check(const std::vector<Id>&proved,Id future,Id native_owner,
 {
   if(proved.empty()||proved.size()>128||native_sequence.empty()||native_sequence.size()>128)
     return {false,"invalid_or_unbounded_proof"};
-  if(!current_containing.empty())return {false,"end_still_overlaps_current"};
+  // Polygon overlap alone does not determine ownership at a branching merge.
+  // A current-only selected owner still cannot hand off to the proved target.
+  if(current_containing.count(native_owner)&&!target_containing.count(native_owner))
+    return {false,"end_still_overlaps_current"};
   if(!target_containing.count(native_owner))return {false,"native_owner_not_target"};
   const auto begin=std::find(proved.begin(),proved.end(),native_owner);
   const auto future_at=std::find(proved.begin(),proved.end(),future);
@@ -59,8 +63,13 @@ Result evaluate(const Path&path,const Pose&end_pose,const lanelet::ConstLanelets
     if(!handler.isRouteLanelet(lane))return {false,"handoff_lane_outside_route"};
     reference.push_back(lane);
   }
-  const auto closest=autoware::experimental::lanelet2_utils::get_closest_lanelet(reference,end_pose);
+  const auto closest=autoware::behavior_path_planner::utils::getPathLaneletOwner(reference,end_pose);
   if(!closest)return {false,"native_owner_unavailable"};
+  const auto alignment=autoware::route_handler::detail::routeLaneletTie(
+    closest->centerline(),end_pose.position.x,end_pose.position.y,
+    tf2::getYaw(end_pose.orientation),closest->id());
+  if(!alignment.valid||alignment.heading_error>std::acos(-1.0)*0.5)
+    return {false,"native_owner_direction_incompatible"};
   const lanelet::BasicPoint2d point(end_pose.position.x,end_pose.position.y);
   std::set<Id> current_hits,target_hits;
   std::vector<Id> proof;
@@ -70,8 +79,8 @@ Result evaluate(const Path&path,const Pose&end_pose,const lanelet::ConstLanelets
     proof.push_back(lane.id());
     if(boost::geometry::covered_by(point,lane.polygon2d().basicPolygon()))target_hits.insert(lane.id());
   }
-  // Check every eligible containing target owner, not only a lucky closest
-  // tie. Current overlap rejects before ownership can be handed back.
+  // Every containing target owner must retain the proved suffix. Current-only
+  // polygon hits are not owners when the shared native selector chose target.
   auto owners=target_hits;owners.insert(closest->id());
   for(Id owner:owners) {
     std::vector<Id> native{owner};std::set<Id> visited{owner};

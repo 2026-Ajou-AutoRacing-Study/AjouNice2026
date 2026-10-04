@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "autoware/route_handler/route_handler.hpp"
+#include "autoware/route_handler/route_lanelet_tie.hpp"
 
 #include <autoware/lanelet2_utils/conversion.hpp>
 #include <autoware/lanelet2_utils/geometry.hpp>
@@ -1106,6 +1107,11 @@ bool RouteHandler::getClosestLaneletWithinRoute(
   const auto query_nearest = boost::geometry::index::nearest(search_point, route_lanelets_.size());
   auto min_dist_to_route_lanelet = std::numeric_limits<double>::max();
   size_t nearest_id = 0;
+  const auto tie_score = [&](const lanelet::ConstLanelet & lane) {
+    return detail::routeLaneletTie(
+      lane.centerline(), search_pose.position.x, search_pose.position.y,
+      tf2::getYaw(search_pose.orientation), lane.id());
+  };
   // search starting from the nearest bounding box
   for (auto query_it = route_lanelets_rtree_.qbegin(query_nearest);
        query_it != route_lanelets_rtree_.qend(); ++query_it) {
@@ -1116,7 +1122,10 @@ bool RouteHandler::getClosestLaneletWithinRoute(
     }
     const auto dist = boost::geometry::comparable_distance(
       search_point, route_lanelets_[query_it->second].polygon2d().basicPolygon());
-    if (dist < min_dist_to_route_lanelet) {
+    if (
+      dist < min_dist_to_route_lanelet ||
+      (dist == min_dist_to_route_lanelet && detail::routeLaneletTieLess(
+        tie_score(route_lanelets_[query_it->second]), tie_score(route_lanelets_[nearest_id])))) {
       min_dist_to_route_lanelet = dist;
       nearest_id = query_it->second;
     }

@@ -123,9 +123,10 @@ std::pair<std::vector<double>, std::vector<double>> PathShifter::calc_base_lengt
     2.0 * arclength / (velocity + std::sqrt(final_velocity_squared)) : arclength / velocity;
   const auto unconstrained = [&]() {
     auto lengths = get_base_lengths_without_accel_limit(arclength, shift_length, offset_back);
-    // The lateral spline knots are time fractions, not distance fractions,
-    // when braking. Preserve the historical nonnegative-acceleration path.
-    if (acceleration < 0.0) {
+    // Restore the upstream positive-acceleration time-fraction knots as well
+    // as the signed-braking extension. Quarter times are not quarter distances
+    // when longitudinal acceleration is nonzero.
+    if (acceleration != 0.0) {
       for (auto & s : lengths.first) {
         const double t = time * s / arclength;
         s = velocity * t + 0.5 * acceleration * t * t;
@@ -139,8 +140,13 @@ std::pair<std::vector<double>, std::vector<double>> PathShifter::calc_base_lengt
   const double tj = time * 0.5 - 2.0 * std::abs(shift_length) / (lateral_acc_limit_ * time);
   const double ta = 4.0 * std::abs(shift_length) / (lateral_acc_limit_ * time) - time * 0.5;
   const double denominator = lateral_acc_limit_ * time * time - 4.0 * std::abs(shift_length);
-  if (tj < 0.0 || ta < 0.0 || denominator <= 0.0 || tj / time < 0.1)
-    return unconstrained();
+  if (tj < 0.0 || ta < 0.0 || denominator <= 0.0 || tj / time < 0.1) {
+    // Upstream's invalid lateral-limit fallback deliberately uses the basic
+    // distance knots. Keep that positive/coast branch distinct from the
+    // ordinary unconstrained time-fraction branch; retain signed-braking math.
+    return acceleration < 0.0 ? unconstrained() :
+      get_base_lengths_without_accel_limit(arclength, shift_length, offset_back);
+  }
   const double jerk = 2.0 * lateral_acc_limit_ * lateral_acc_limit_ * time / denominator;
   const double tj3 = tj * tj * tj, ta2tj = ta * ta * tj, tatj2 = ta * tj * tj;
   const double s1 = std::min(tj * velocity + 0.5 * acceleration * tj * tj, arclength);

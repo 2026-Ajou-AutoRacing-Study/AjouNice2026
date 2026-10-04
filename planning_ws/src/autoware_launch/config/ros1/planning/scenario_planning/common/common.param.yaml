@@ -1,9 +1,14 @@
 max_vel: 38.8889
 normal/min_acc: -6.0
 normal/max_acc: 3.7
-normal/min_jerk: -10.0
+# MORAI tuning: release positive acceleration before a nearby road-speed cap.
+# R66 recorded-state regression rejects -10 and admits coast at -20 without
+# raising road caps or changing RSS. Requires closed-loop validation; not a
+# calibrated real-vehicle jerk limit. Keep Analytical forward in sync.
+normal/min_jerk: -20.0
 normal/max_jerk: 100.0
 limit/min_acc: -8.0
 limit/max_acc: 3.7
-limit/min_jerk: -16.0
+# Emergency bounds must not be weaker than the normal release bound.
+limit/min_jerk: -20.0
 limit/max_jerk: 100.0

@@ -159,6 +159,19 @@ inline std::pair<SafetyPath, size_t> anchor_maneuver_at_ego(
   return {result,*index};
 }
 
+// Spatial v(s) is a commanded profile, not a road-speed ceiling. Its t=0
+// sample must represent this observation's actual speed. Compare in the ROS
+// float32 field's representation, not with a physical speed tolerance. Never
+// silently rewrite the profile: that would validate a different publication.
+inline void require_actual_spatial_start(
+  const SafetyPath & path, const size_t begin, const double actual_speed)
+{
+  if(begin>=path.points.size() || !std::isfinite(actual_speed) || actual_speed<0 ||
+     !std::isfinite(static_cast<float>(actual_speed)) ||
+     path.points[begin].point.longitudinal_velocity_mps!=static_cast<float>(actual_speed))
+    throw std::logic_error("spatial initial speed differs from actual state");
+}
+
 // Prediction-only representation. Published normal-following tail velocities
 // are ceilings, not instantaneous commands. Spatial LC points remain exact;
 // legacy phase points use their selected acceleration rather than road caps.
@@ -177,6 +190,7 @@ inline SafetyPath maneuver_prediction_profile(
     throw std::logic_error("invalid maneuver prediction model");
   auto modeled=original;
   const size_t end=std::max(begin,lc_end);
+  if(spatial && end>begin)require_actual_spatial_start(original,begin,actual_speed);
   const auto reachable=[&](double v,double distance,double acc) {
     if (acc < -deceleration-1e-6) throw std::logic_error("phase acceleration below limit");
     return acc<0 ? std::sqrt(std::max(0.0,v*v+2*acc*distance)) :
@@ -253,7 +267,10 @@ inline SafetyPath make_maneuver_braking_proposal(
       const double u=(distance-s[lo])/(s[hi]-s[lo]);
       planned=std::sqrt(std::max(0.0,v[lo]*v[lo]+u*(v[hi]*v[hi]-v[lo]*v[lo])));
     }
-    if (planned > original.points[i].point.longitudinal_velocity_mps+0.1)
+    // Use the same numerical cap tolerance as the bounded candidate family.
+    // A braking fallback must not manufacture feasibility by clipping a
+    // genuinely unreachable speed to a lower road cap.
+    if (planned > original.points[i].point.longitudinal_velocity_mps+1e-5)
       throw std::logic_error("upstream cap requires stronger braking");
     output.points[i].point.longitudinal_velocity_mps = std::min<double>(
       original.points[i].point.longitudinal_velocity_mps, planned);

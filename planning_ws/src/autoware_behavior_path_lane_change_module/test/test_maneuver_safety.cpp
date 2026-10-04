@@ -1,5 +1,6 @@
 #include "autoware/behavior_path_lane_change_module/utils/maneuver_safety.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/prepared_safety_world.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/selected_output_prediction.hpp"
 #include <gtest/gtest.h>
 
 namespace lc = autoware::behavior_path_planner::utils::lane_change;
@@ -241,6 +242,58 @@ TEST(ManeuverSafety, SpatialTailRoadCeilingDoesNotBecomeInstant150Kph) {
   EXPECT_FLOAT_EQ(path.points[11].point.longitudinal_velocity_mps,41.667f);
 }
 
+TEST(ManeuverSafety, R66SpatialNativeSpeedCannotTeleportAheadOfActual) {
+  // Recorded R66r3 fatal actual v and nearby original Spatial vertex v.
+  // This is a scalar contract reproducer, not a full recorded RSS replay.
+  const double actual=25.79912252002062;
+  auto path=line(28.617488861083984);
+  const auto original=path;
+  EXPECT_THROW(lc::maneuver_prediction_profile(path,0,60,0,true,actual,0,3.25,3.25,4),
+    std::logic_error);
+  EXPECT_THROW(lc::selected_output_predictions(path,0,60,0,actual,1.9748379816591568,
+    41.667,.5,3.,true,true),std::logic_error);
+  EXPECT_EQ(path,original);
+}
+
+TEST(ManeuverSafety, ActualSpatialStartPreservesPublishedFloatAndDiagnosticPolicy) {
+  const double actual=25.79912252002062;
+  auto path=line(actual);
+  const auto original=path;
+  EXPECT_NO_THROW(lc::require_actual_spatial_start(path,0,actual));
+  const auto predictions=lc::selected_output_predictions(path,0,80,0,actual,1.9748379816591568,
+    41.667,.5,2.5,true,true);
+  ASSERT_EQ(predictions.size(),1u);
+  EXPECT_DOUBLE_EQ(predictions[0].prediction.front().velocity,static_cast<float>(actual));
+  EXPECT_EQ(path,original);
+  path.points[0].point.longitudinal_velocity_mps=std::nextafter(
+    static_cast<float>(actual),std::numeric_limits<float>::infinity());
+  EXPECT_THROW(lc::require_actual_spatial_start(path,0,actual),std::logic_error);
+  EXPECT_THROW(lc::require_actual_spatial_start(path,path.points.size(),actual),std::logic_error);
+  EXPECT_THROW(lc::require_actual_spatial_start(path,0,
+    std::numeric_limits<double>::quiet_NaN()),std::logic_error);
+}
+
+TEST(ManeuverSafety, R66ProvisionalNativePhaseStartsActualWithoutPublishingFakeSpatial) {
+  const double actual=25.79912252002062;
+  auto candidate=line(28.617488861083984);
+  const auto original=candidate;
+  const auto provisional=lc::maneuver_prediction_profile(
+    candidate,0,60,0,false,actual,0.,3.25,3.25,4.);
+  EXPECT_FLOAT_EQ(provisional.points[0].point.longitudinal_velocity_mps,actual);
+  const auto predictions=lc::maneuver_motion_hypotheses(provisional,0,60,
+    actual,1.9748379816591568,41.667,2.5,.5,2.5);
+  EXPECT_DOUBLE_EQ(predictions[0].front().velocity,static_cast<float>(actual));
+  for(size_t i=0;i<provisional.points.size();++i) {
+    EXPECT_EQ(provisional.points[i].point.pose,original.points[i].point.pose);
+    EXPECT_LE(provisional.points[i].point.longitudinal_velocity_mps,
+      original.points[i].point.longitudinal_velocity_mps);
+  }
+  EXPECT_EQ(candidate,original);
+  // The nominal publication remains invalid; only a separately constructed
+  // and checked actual-v/a bounded output may be committed.
+  EXPECT_THROW(lc::require_actual_spatial_start(candidate,0,actual),std::logic_error);
+}
+
 TEST(ManeuverSafety, LegacyPrepareRoadCeilingUsesSelectedAcceleration) {
   const auto path=line(41.667);
   const auto model=lc::maneuver_prediction_profile(path,0,60,20,false,10,0,1,2,4);
@@ -280,6 +333,15 @@ TEST(ManeuverSafety, AbortUsesItsOwnCoastingModelNotOldPositiveLcAcceleration) {
 
 TEST(ManeuverSafety, FailureReasonJsonEscapesQuotesBackslashesAndControlBytes) {
   EXPECT_EQ(lc::safety_json_string("a\"\\\n\t"),"\"a\\\"\\\\\\u000a\\u0009\"");
+}
+
+TEST(ManeuverSafety, BrakingFallbackCannotClipAnInfeasibleInitialRoadCap) {
+  auto path=line(10.0);
+  // The former 0.1 m/s allowance silently exported 10.0 from actual 10.05.
+  EXPECT_THROW(lc::make_maneuver_braking_proposal(path,0,10.05,0,-4,-10,100),
+    std::logic_error);
+  const auto valid=lc::make_maneuver_braking_proposal(path,0,10.0,0,-4,-10,100);
+  EXPECT_FLOAT_EQ(valid.points.front().point.longitudinal_velocity_mps,10.0f);
 }
 
 TEST(ManeuverSafety, PlanarStationsPreserveGradeWithoutMovingAcrossSegments) {

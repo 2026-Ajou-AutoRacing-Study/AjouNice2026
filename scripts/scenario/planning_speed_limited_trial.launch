@@ -1,0 +1,15 @@
+<launch>
+  <!-- Isolated experiment override; does not edit production speed parameters. -->
+  <arg name="speed_limit_kph" default="100.0"/>
+  <include file="$(find ajounice_planning_integration)/launch/competition_planning.launch">
+    <arg name="enable_traffic_light_planner" value="false"/>
+  </include>
+  <!-- Diagnostic only: collect the existing ETA tables for the trial roundabout.
+       This changes no margins, decisions, or production launch defaults. -->
+  <rosparam param="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/roundabout/debug/ttc">[201095]</rosparam>
+  <param name="/planning/scenario_planning/velocity_smoother/max_vel" value="$(eval float(arg('speed_limit_kph')) / 3.6)"/>
+  <param name="/planning/scenario_planning/external_velocity_limit_selector/max_vel" value="$(eval float(arg('speed_limit_kph')) / 3.6)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/max_vel" value="$(eval float(arg('speed_limit_kph')) / 3.6)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/max_vel" value="$(eval float(arg('speed_limit_kph')) / 3.6)"/>
+  <param name="/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/max_vel" value="$(eval float(arg('speed_limit_kph')) / 3.6)"/>
+</launch>

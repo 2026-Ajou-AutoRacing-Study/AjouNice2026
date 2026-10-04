@@ -12,6 +12,7 @@ inline std::vector<SelectedOutputPrediction> selected_output_predictions(
   double speed,double acceleration,double maximum_speed,double resolution,
   double horizon,bool immediate,bool diagnostic_only)
 {
+  require_actual_spatial_start(path,begin,speed);
   auto hypotheses=maneuver_motion_hypotheses(path,begin,end,speed,acceleration,
     maximum_speed,2.5,resolution,horizon);
   if(diagnostic_only)hypotheses.resize(1);

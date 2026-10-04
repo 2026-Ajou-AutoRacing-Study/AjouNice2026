@@ -465,7 +465,10 @@ TEST_F(OutputGate, FreshProviderR47ExactEpochThroughModule){
   for(const auto * key:{"lc_fresh_commit_input","lc_strict_maneuver_safety","lc_continuous_bounded_output","lc_partial_acceleration_candidates"})ros::param::set(std::string("/planning/")+key,true);
   ASSERT_TRUE(p.acquire_fresh_output_context());EXPECT_EQ(data->self_odometry,original_odom);EXPECT_EQ(p.privateData()->self_odometry,latest->self_odometry);
   EXPECT_FALSE(p.check_strict_maneuver_safety(candidate,selected,reason,true))<<reason;
-  EXPECT_NE(reason.find("planned_or_actual_rss_collision"),std::string::npos)<<reason;
+  // This old publication belongs to the previous ego epoch. Reject its
+  // instantaneous initial-speed mismatch before using it as an RSS hypothesis.
+  // The fresh actual-v/a bounded witness below remains independently required.
+  EXPECT_EQ(reason,"spatial initial speed differs from actual state");
   compare_world(selected);
   const auto pose=latest->self_odometry->pose.pose;
   const auto anchored=lc::anchor_maneuver_at_ego(candidate.path,

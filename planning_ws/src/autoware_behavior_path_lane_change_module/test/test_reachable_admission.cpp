@@ -13,6 +13,17 @@ TEST(ReachableAdmission, NativeUnsafeCannotBeRescued) {
    [&](const auto&,std::string&){++called;return true;},budget);
  EXPECT_FALSE(result.accepted);EXPECT_EQ(called,0u);EXPECT_EQ(result.reason,"native_unsafe");
 }
+TEST(ReachableAdmission, ProvisionalPhaseRequiresMandatoryActualWitnessMode) {
+ EXPECT_TRUE(r::use_actual_start_provisional_phase(true,true,true,true,true,true));
+ for(size_t disabled=0;disabled<6;++disabled) {
+   std::array<bool,6> flags{{true,true,true,true,true,true}};flags[disabled]=false;
+   EXPECT_FALSE(r::use_actual_start_provisional_phase(
+     flags[0],flags[1],flags[2],flags[3],flags[4],flags[5]));
+ }
+ // Provisional/native safety cannot substitute for the final actual witness.
+ EXPECT_FALSE(r::evaluate(true,arc,caps,25.79912252002062,1.9748379816591568,
+   3.,-4.,-20.,100.,limit,[](const auto&,std::string&){return false;},budget,true).accepted);
+}
 TEST(ReachableAdmission, ExpandedFamilyPreservesOldTargetsAndAddsPositiveIntervals) {
  namespace grid=bounded_speed_grid;
  namespace positive=autoware::behavior_path_planner::lane_change::rss_positive_grid;

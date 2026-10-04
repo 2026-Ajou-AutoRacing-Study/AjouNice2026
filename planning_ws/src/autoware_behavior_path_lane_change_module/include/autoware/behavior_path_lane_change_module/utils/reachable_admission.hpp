@@ -5,6 +5,14 @@
 #include <string>
 
 namespace autoware::behavior_path_planner::lane_change::reachable_admission {
+// A nominal Spatial candidate may be screened using its native phase model
+// from actual speed only when the same search must subsequently obtain a
+// checked actual-v/a bounded witness. This is not a publication permission.
+inline bool use_actual_start_provisional_phase(
+ bool normal,bool spatial,bool strict,bool continuous,bool partial,bool reachable)
+{
+ return normal&&spatial&&strict&&continuous&&partial&&reachable;
+}
 struct Result { bool accepted=false; unsigned attempted=0; double target=0; std::string reason="no_reachable_witness"; };
 template<class Candidate,class Finalize,class Admit>
 bool finalize_then_admit(Candidate&candidate,Finalize finalize,Admit admit) {

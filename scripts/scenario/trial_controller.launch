@@ -1,0 +1,9 @@
+<launch>
+  <!-- Only the trial driver may publish the actual simulator command. -->
+  <group>
+    <remap from="/ctrl_cmd" to="/control/scenario_trial/raw_cmd"/>
+    <include file="$(find trajectory_follower)/launch/pp_pi_autoware.launch">
+      <arg name="kinematic_state_topic" value="/localization/control_kinematic_state"/>
+    </include>
+  </group>
+</launch>

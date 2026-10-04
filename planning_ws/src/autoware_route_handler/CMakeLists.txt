@@ -42,6 +42,15 @@ add_executable(route_handler_runtime_oracle test/route_handler_runtime_oracle.cp
 target_link_libraries(route_handler_runtime_oracle PRIVATE autoware_route_handler ${catkin_LIBRARIES})
 target_compile_features(route_handler_runtime_oracle PRIVATE cxx_std_17)
 
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_route_lanelet_tie test/test_route_lanelet_tie.cpp)
+  if(TARGET test_route_lanelet_tie)
+    target_include_directories(test_route_lanelet_tie PRIVATE include)
+    target_link_libraries(test_route_lanelet_tie gtest_main)
+    target_compile_features(test_route_lanelet_tie PRIVATE cxx_std_17)
+  endif()
+endif()
+
 install(TARGETS autoware_route_handler
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
