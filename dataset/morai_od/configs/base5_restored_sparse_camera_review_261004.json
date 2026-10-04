@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "scope": "Only listed sample/instance pairs; baseline minimum5 remains unchanged",
+  "evidence": "b5rt05/06 front.jpg all six images manually inspected: fully visible unobscured WoodBox at8m; b5rt07/08 at12m reviewed but not exempted (nearfield policy <=10m). Existing b5rf02 CargoBox review preserved.",
+  "reviewed_instances": [
+    {
+      "sample_idx": "b5rt05_f000",
+      "instance_id": 9304
+    },
+    {
+      "sample_idx": "b5rt05_f001",
+      "instance_id": 9304
+    },
+    {
+      "sample_idx": "b5rt05_f002",
+      "instance_id": 9304
+    },
+    {
+      "sample_idx": "b5rt06_f000",
+      "instance_id": 9305
+    },
+    {
+      "sample_idx": "b5rt06_f001",
+      "instance_id": 9305
+    },
+    {
+      "sample_idx": "b5rt06_f002",
+      "instance_id": 9305
+    },
+    {
+      "sample_idx": "b5rf02_f000",
+      "instance_id": 8501
+    },
+    {
+      "sample_idx": "b5rf02_f001",
+      "instance_id": 8501
+    },
+    {
+      "sample_idx": "b5rf02_f002",
+      "instance_id": 8501
+    }
+  ]
+}

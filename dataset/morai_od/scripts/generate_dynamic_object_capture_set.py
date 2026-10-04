@@ -34,14 +34,14 @@ DEFAULT_ROUTE = (
 DEFAULT_MGEO = PROJECT_ROOT / "kcity_map/mgeo_map_scenario_runner_2025"
 DEFAULT_OUTPUT = PROJECT_ROOT / "dataset/morai_od"
 DEFAULT_ASSET_CATALOG = (
-    PROJECT_ROOT / "dataset/morai_od/configs/morai_asset_catalog_personal_260807.json"
+    PROJECT_ROOT / "dataset/morai_od/configs/morai_asset_catalog_260807.json"
 )
 DEFAULT_ASSET_COMPATIBILITY = (
     PROJECT_ROOT
-    / "dataset/morai_od/configs/morai_asset_launcher_compatibility_260807.json"
+    / "dataset/morai_od/configs/morai_asset_mr_collection_261004.json"
 )
 DEFAULT_RUNTIME_ASSET_DIR = Path.home() / (
-    "MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/"
+    "MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/"
     "Scenario/R_KR_PR_K-city_2025"
 )
 
@@ -3920,17 +3920,28 @@ def shade_local_to_world(shade, longitudinal, lateral):
     }
 
 
+def runtime_catalog_source(compatibility):
+    """MR is the active profile; explicit historical MRP configs still replay."""
+    return ('competition' if compatibility['policy']['capture_runtime'] == 'competition_launcher'
+            else 'personal')
+
+
+def runtime_actor_templates(source):
+    # MR catalogs include aiPedstrianList as well as pedestrianList.
+    return {int(actor['DataID']): actor for value in source.values()
+            if isinstance(value, list) for actor in value
+            if isinstance(actor, dict) and 'DataID' in actor}
+
+
 def load_runtime_obstacle_pool(catalog_path, compatibility_path, runtime_dir):
     catalog = load_json(catalog_path)
     compatibility = load_json(compatibility_path)
-    source_name = compatibility["personal"]["generated_from"]["obstacle"][
+    source_name = compatibility[runtime_catalog_source(compatibility)]["generated_from"]["obstacle"][
         "file_name"
     ]
     source_path = runtime_dir.expanduser().resolve() / source_name
     source = load_json(source_path)
-    actors = {
-        int(actor["DataID"]): actor for actor in source.get("objectList", [])
-    }
+    actors = runtime_actor_templates(source)
     eligible = set(compatibility["automatic_eligible"]["obstacle"])
     rows = []
     for row in catalog["obstacles_and_related"]:
@@ -3949,13 +3960,12 @@ def load_runtime_obstacle_pool(catalog_path, compatibility_path, runtime_dir):
 def load_runtime_pedestrian_pool(catalog_path, compatibility_path, runtime_dir):
     catalog = load_json(catalog_path)
     compatibility = load_json(compatibility_path)
-    source_name = compatibility["personal"]["generated_from"]["pedestrian"][
+    runtime_source = runtime_catalog_source(compatibility)
+    source_name = compatibility[runtime_source]["generated_from"]["pedestrian"][
         "file_name"
     ]
     source = load_json(runtime_dir.expanduser().resolve() / source_name)
-    actors = {
-        int(actor["DataID"]): actor for actor in source.get("pedestrianList", [])
-    }
+    actors = runtime_actor_templates(source)
     eligible = set(compatibility["automatic_eligible"]["pedestrian"])
     rows = []
     for row in catalog["pedestrians_and_related"]:
@@ -3968,7 +3978,7 @@ def load_runtime_pedestrian_pool(catalog_path, compatibility_path, runtime_dir):
         # MRP builds accept their DataID in a scenario and then omit the actor
         # from ObjectStatus.  Route-wide standing/mixed scenes need a stable
         # human actor, so keep the runtime pool to real person assets.
-        if row.get("subtype") != "person":
+        if runtime_source == 'personal' and row.get("subtype") != "person":
             continue
         if row.get("generation_policy") not in {"enabled", "limited_weight"}:
             continue
@@ -3980,17 +3990,15 @@ def load_runtime_pedestrian_pool(catalog_path, compatibility_path, runtime_dir):
 
 
 def load_runtime_vehicle_pool(catalog_path, compatibility_path, runtime_dir):
-    """Load the personal-launcher vehicle assets proven safe for automation."""
+    """Load vehicle templates from the explicitly selected runtime catalog."""
 
     catalog = load_json(catalog_path)
     compatibility = load_json(compatibility_path)
-    source_name = compatibility["personal"]["generated_from"]["vehicle"][
+    source_name = compatibility[runtime_catalog_source(compatibility)]["generated_from"]["vehicle"][
         "file_name"
     ]
     source = load_json(runtime_dir.expanduser().resolve() / source_name)
-    actors = {
-        int(actor["DataID"]): actor for actor in source.get("vehicleList", [])
-    }
+    actors = runtime_actor_templates(source)
     eligible = set(compatibility["automatic_eligible"]["vehicle"])
     rows = []
     for row in catalog["vehicles"]:

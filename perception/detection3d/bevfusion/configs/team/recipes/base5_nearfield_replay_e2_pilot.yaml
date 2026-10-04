@@ -1,0 +1,31 @@
+version: 1
+name: base5-nearfield-replay-e2-pilot
+mode: finetune
+epochs: 2
+learning_rate: 2.0e-5
+schedule:
+  warmup_optimizer_updates: 25
+  validation_interval: 1
+checkpoint: ${BEVFUSION_BASE3_E25_FINETUNE_CHECKPOINT}
+base_config: perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py
+dataset:
+  capture_root: ${BASE5_REPLAY_ROOT}
+  info_root: ${BASE5_REPLAY_ROOT}
+  container_root: /datasets/base5_replay
+gpu:
+  profile: auto
+  physical_batch_size: auto
+  gradient_accumulation: auto
+  workers: auto
+  shm_size: auto
+wandb:
+  enabled: true
+  entity: AjouNice2026
+  project: morai-3d-object-detection
+  group: base5-nearfield-replay-pilot
+  tags: [base5, nearfield, base3-replay, e25-init, spatial-only, pilot]
+output:
+  root: ""
+checkpointing:
+  interval: 1
+  max_keep_ckpts: 2

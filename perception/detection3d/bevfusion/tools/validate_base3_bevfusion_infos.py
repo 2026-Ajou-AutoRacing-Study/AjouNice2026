@@ -13,12 +13,22 @@ import numpy as np
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--info-dir', type=Path, required=True)
+    parser.add_argument('--minimum-gt-points', type=int, default=5,
+                        help='Explicit pilot visibility contract; baseline remains 5.')
+    parser.add_argument('--sparse-camera-review', type=Path,
+                        help='Explicit reviewed sample/instance JSON; no global zero-point exemption')
     parser.add_argument(
         '--capture-root', type=Path,
         help='host capture root used to validate portable /datasets/base3 paths')
     parser.add_argument(
         '--serialized-capture-root', type=Path, default=Path('/datasets/base3'))
     args = parser.parse_args()
+    if args.minimum_gt_points < 0:
+        parser.error('--minimum-gt-points must be non-negative')
+    reviewed = set()
+    if args.sparse_camera_review:
+        reviewed = {(x['sample_idx'], int(x['instance_id'])) for x in
+                    json.loads(args.sparse_camera_review.read_text())['reviewed_instances']}
 
     def host_path(value):
         path = Path(value)
@@ -87,7 +97,9 @@ def main():
             for instance in row['instances']:
                 label = int(instance['bbox_label_3d'])
                 assert 0 <= label < 3
-                assert int(instance['num_lidar_pts']) >= 5
+                assert (int(instance['num_lidar_pts']) >= args.minimum_gt_points or
+                        (instance.get('sparse_camera_reviewed_exception', False) and
+                         (sample, int(instance['instance_id'])) in reviewed))
                 box = np.asarray(instance['bbox_3d'], dtype=np.float64)
                 assert box.shape == (box_dim,) and np.isfinite(box).all()
                 assert np.all(box[3:6] > 0)

@@ -66,6 +66,7 @@ base_ws/.catkin_workspace
 *.bag.active
 /rosbags/datasets/base3_online/
 /rosbags/datasets/base4_temporal/
+/rosbags/datasets/base5/
 /rosbags/eval/perception/
 /planner_logs/
 

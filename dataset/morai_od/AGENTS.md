@@ -4,6 +4,7 @@
 
 1. `docs/README.md`
 2. `docs/BASE3_ONLINE_CURRENT_STATE.md`
+   - MR 신규 수집은 `docs/MR_ASSET_COLLECTION_CURRENT.md`의 catalog/profile이 우선한다. 과거 MRP 교집합·quarantine을 MR에 적용하지 않는다.
 3. 작업이 수집이면 `docs/base3_online_rosbag_collection_runbook.md`
 4. Base4 temporal 작업이면 `docs/BASE4_ROSBAG_CAPTURE_CURRENT_STATE.md`와
    `docs/260920_base4_deskew_and_control_safety_evidence.md`

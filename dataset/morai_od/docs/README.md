@@ -2,6 +2,17 @@
 
 마지막 정리: 2026-09-22.
 
+## Base5 근접·원거리 보강 — CURRENT PILOT
+
+- [MR 복구 객체 rosbag 보강·학습 입력](261004_base5_restored_replay_results.md): 20 scene/60 frame, WoodBox6장 camera review, 최신727/124 replay 준비.
+- [복구 객체 GT 보정 결과·재연결](261004_mr_restored_asset_gt_calibration_runbook.md): MR20 scene/40 capture 완료, 복구4종 reference 확보, CargoBox 역사적 size 차이와 UDP 재연결 필요사항.
+- [MR 전용 asset 수집 기준](MR_ASSET_COLLECTION_CURRENT.md): WoodBox·MRP 제외 자산 복구, MR 원본 template/default, GT calibration 미완료 항목.
+- [`261004_base5_diversity_and_replay_pilot.md`](261004_base5_diversity_and_replay_pilot.md)
+  - 후속 43/48 scene, 거리 margin 검증, 명시적 camera-sparse review 정책, 688/115 replay 학습 준비.
+- [`261004_base5_reinforcement_smoke_runbook.md`](261004_base5_reinforcement_smoke_runbook.md)
+  - MR 24개 정지 + 2개 저속 통과 수집, 84-frame 변환, sparse/거리 경계 품질 gate와 실행·모니터 명령.
+  - 본 학습 dataset이나 production 교체 결과는 아니다.
+
 ## Base4 rosbag capture — CURRENT
 
 2026-09-30 live 복구 검증 및 본 수집 보류 사유:

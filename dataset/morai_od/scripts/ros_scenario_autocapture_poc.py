@@ -2241,6 +2241,31 @@ class AutoCapture:
         )
 
     def trigger_capture(self, scene, frame_index):
+        if self.args.online_bag_only and self.args.motion_mode == "stationary":
+            # Diagnostic frames only: do not fabricate motion or invoke a
+            # synchronous writer when testing the ordinary UDP sensor stream.
+            self.wait_for_connections(context="before stationary online sample")
+            time.sleep(self.args.capture_period_sec)
+            snapshot = self.state.snapshot()
+            if snapshot["ego"] is None or snapshot["objects"] is None:
+                raise RuntimeError("stationary online state unavailable")
+            now = time.monotonic()
+            if any(now-snapshot[key] > 0.25 for key in ("ego_wall_time", "objects_wall_time")):
+                raise RuntimeError("stationary online state older than 0.25s")
+            expected = scene["expected_ego"]
+            drift = math.hypot(snapshot["ego"].position.x-expected["x"],
+                               snapshot["ego"].position.y-expected["y"])
+            if drift > 0.25:
+                raise RuntimeError("stationary probe drift exceeds 0.25m: {:.3f}".format(drift))
+            return dict(schema_version=1, dataset_id=self.dataset_id,
+                clip_id=scene["id"], scene_id=scene["id"], split=scene.get("split"),
+                frame_index=frame_index, frame_id="{}_f{:06d}".format(scene["id"],frame_index),
+                capture_id=self.capture_identifier(scene, frame_index),
+                triggered_unix=time.time(), triggered_monotonic=time.monotonic(),
+                trigger_distance_m=0.0, command_speed_kph=0.0,
+                ego=serialize_ego(snapshot["ego"], snapshot["ego_unix_time"], snapshot["ego_wall_time"]),
+                objects=serialize_objects(snapshot["objects"], snapshot["objects_unix_time"], snapshot["objects_wall_time"]),
+                verified=True, online_bag_only=True, new_files=[], new_file_count=0)
         self.wait_for_connections(context="before sensor capture")
         capture_id = self.capture_identifier(scene, frame_index)
         source_root = self.args.morai_sensor_data_dir
@@ -4447,7 +4472,9 @@ class AutoCapture:
                 "sequence_contract": scene.get("sequence_contract"),
                 "split": scene.get("split"),
                 "environment": self.environment,
-                "capture_format": "morai_save_sensor_data_rolling_grouped",
+                "capture_format": ("rosbag_stationary_probe" if self.args.online_bag_only and self.args.motion_mode == "stationary"
+                                   else "rosbag_rolling_grouped" if self.args.online_bag_only
+                                   else "morai_save_sensor_data_rolling_grouped"),
                 "capture_spacing_m": self.args.capture_spacing_m,
                 "frame_count": len(triggers),
                 "frames_jsonl": str(
@@ -4460,9 +4487,9 @@ class AutoCapture:
                 ),
                 "timing_streams": timing_availability,
                 "timing_notes": {
-                    "sensor_payload_source": "MORAI SaveSensorData files",
+                    "sensor_payload_source": ("UDP ROS bag" if self.args.online_bag_only else "MORAI SaveSensorData files"),
                     "sidecar_payload_policy": "headers_and_state_only",
-                    "trigger_policy": "ego route displacement",
+                    "trigger_policy": ("stationary wall interval" if self.args.motion_mode == "stationary" else "ego route displacement"),
                     "state_binding": (
                         "nearest ROS callback plus trigger-adjacent snapshot"
                     ),
@@ -4565,6 +4592,12 @@ class AutoCapture:
                 self.trigger_capture(scene, index)
                 for index in range(scene_capture_count)
             ]
+            if self.args.online_bag_only:
+                histories = self.state.timing_window(
+                    captures[0]["triggered_monotonic"], captures[-1]["triggered_monotonic"],
+                    self.args.timing_window_padding_sec)
+                mode_metrics.update(self.write_rolling_grouped_metadata(
+                    scene, captures, histories, timing_summary(histories, self.timing_topics)))
         elif self.args.motion_mode == "route-follow":
             if not control_prepared:
                 self.select_external_control_mode()
@@ -4936,9 +4969,9 @@ def validate_policy(args, manifest):
 
     if args.captures_per_scene < 1:
         raise ValueError("--captures-per-scene must be >= 1")
-    if args.online_bag_only and args.motion_mode != "rolling-grouped":
+    if args.online_bag_only and args.motion_mode not in ("rolling-grouped", "stationary"):
         raise ValueError(
-            "--online-bag-only currently requires --motion-mode rolling-grouped"
+            "--online-bag-only requires rolling-grouped or stationary diagnostic mode"
         )
     if args.scenario_load_attempts < 1:
         raise ValueError("--scenario-load-attempts must be >= 1")

@@ -204,6 +204,7 @@ def load_manifest(path, requested):
     return {
         "path": str(path.expanduser().resolve()),
         "dataset_id": document.get("dataset_id"),
+        "capture_policy": document.get("capture_policy", {}),
         "scenes": scenes,
         "by_id": {scene["id"]: scene for scene in scenes},
         "by_file": {scene["file_name"]: scene for scene in scenes},
@@ -377,7 +378,8 @@ def build_snapshot(run_dir, summary, scene_rows, failure_rows, console_lines, ma
     target_frames = None
     if selected_scenes and (not requested or requested == len(selected_scenes)):
         target_frames = sum(
-            int(scene.get("sequence_contract", {}).get("clip_length", 1))
+            int(scene.get("sequence_contract", {}).get("clip_length",
+                scene.get("captures_per_scene", manifest.get("capture_policy", {}).get("captures_per_scene", 1))))
             for scene in selected_scenes
         )
 

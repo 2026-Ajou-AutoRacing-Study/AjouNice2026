@@ -22,7 +22,17 @@
     "vehicle_shaped_object_entries": "excluded by user before catalog extraction",
     "human_integrated_obstacle_assets": "excluded by user before catalog extraction; only unoccupied bicycle/scooter assets remain eligible as hard negatives",
     "speed_bump_asset": "retained in the catalog for provenance but excluded from automatic dataset generation because it is non-mission road infrastructure with an extremely thin 3D shape",
-    "deduplicate_by_data_id": true
+    "deduplicate_by_data_id": true,
+    "capture_runtime": "competition_launcher",
+    "active_collection_contract": "MR only; do not apply personal-launcher intersection or MRP direct-load quarantine",
+    "restored_mrp_exclusions": [
+      "2017_Hyundai_Grandeur",
+      "police_f_1",
+      "Boy2",
+      "Scooter_01"
+    ],
+    "woodbox": "Included for MR collection/training; sensor-capture geometric GT calibration is required before rosbag conversion, do not fabricate offsets",
+    "updated_at": "2026-10-04"
   },
   "counts": {
     "vehicles": 43,
@@ -1006,7 +1016,9 @@
       "pointpainting_pedestrian_role": "positive",
       "future_bev_role": "positive",
       "generation_policy": "enabled",
-      "label_audit_required": false
+      "label_audit_required": true,
+      "geometric_gt_calibration_status": "measured_mr_stationary_scale1_261004",
+      "geometric_gt_reference": "dataset/morai_od/configs/morai_asset_bbox_offsets_mr_restored_261004.json"
     },
     {
       "data_id": 50200001,
@@ -1081,7 +1093,9 @@
       "pointpainting_pedestrian_role": "positive",
       "future_bev_role": "positive",
       "generation_policy": "enabled",
-      "label_audit_required": false
+      "label_audit_required": true,
+      "geometric_gt_calibration_status": "measured_mr_stationary_scale1_261004",
+      "geometric_gt_reference": "dataset/morai_od/configs/morai_asset_bbox_offsets_mr_restored_261004.json"
     },
     {
       "data_id": 50100004,
@@ -1473,7 +1487,9 @@
       "pointpainting_pedestrian_role": "hard_negative_or_context",
       "future_bev_role": "positive",
       "generation_policy": "enabled",
-      "label_audit_required": false
+      "label_audit_required": true,
+      "geometric_gt_calibration_status": "measured_mr_stationary_scale1_261004",
+      "geometric_gt_reference": "dataset/morai_od/configs/morai_asset_bbox_offsets_mr_restored_261004.json"
     },
     {
       "data_id": 40100062,
@@ -1488,7 +1504,9 @@
       "pointpainting_pedestrian_role": "context_background",
       "future_bev_role": "candidate_two_wheeler",
       "generation_policy": "enabled_realistic_zone_only",
-      "label_audit_required": true
+      "label_audit_required": true,
+      "geometric_gt_calibration_status": "measured_mr_stationary_scale1_261004",
+      "geometric_gt_reference": "dataset/morai_od/configs/morai_asset_bbox_offsets_mr_restored_261004.json"
     },
     {
       "data_id": 40100031,
