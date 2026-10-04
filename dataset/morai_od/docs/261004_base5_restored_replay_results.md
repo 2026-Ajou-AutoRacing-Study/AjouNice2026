@@ -1,6 +1,15 @@
 # Base5 MR 복구 객체 rosbag 보강
 
-상태: EVIDENCE / 학습 PREPARED. 2026-10-04, dataset/base5. Production E25 변경 없음.
+상태: EVIDENCE / E25-init E2 학습 RUNNING. 2026-10-04, dataset/base5. Production E25 변경 없음.
+
+## 학습 시작 기록
+
+- 수집·보정·학습 준비 commit: `a3423172`.
+- Run: `bf-sw-base5-nearfield-replay-e2-pilot-rtx5060ti-261004-214609`.
+- Output: `artifacts/detection3d/bevfusion/team_training/sw/bf-sw-base5-nearfield-replay-e2-pilot-rtx5060ti-261004-214609/`.
+- [W&B online run](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/bf-sw-base5-nearfield-replay-e2-pilot-rtx5060ti-261004-214609) 로그인·sync 확인.
+- E25 checkpoint load와 첫20/182 iteration PASS: loss0.2979, grad_norm4.8650, finite. 초기 관측 GPU memory 약11.3GiB. 이 값은 학습 완료나 성능 개선 근거가 아니다.
+- MR 종료 뒤 실행했다. 독립 immutable source snapshot을 사용하며 기존 production weight는 변경하지 않는다.
 
 ## 수집·변환
 
@@ -24,7 +33,7 @@
 
 ## 실행
 
-MR 종료 후 실행한다. GPU 학습은 아직 미실행이며 아래 recipe의 dry-run은 PASS.
+MR 종료 후 실행한다. 아래 명령으로 현재 실행을 시작했으며 중복 실행하지 않는다. Recipe dry-run도 PASS.
 
 ```bash
 ajou
