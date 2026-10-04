@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from tracking_prediction_evaluation.bbox_reference import (
+    transform_segments_to_asset_catalog_bbox_center,
     transform_segments_to_calibrated_bbox_center,
 )
 from tracking_prediction_evaluation.pipeline_evaluator import (
@@ -53,14 +54,34 @@ def parse_args():
     )
     parser.add_argument("--sensor-to-ego-x-m", type=float, default=0.855)
     parser.add_argument("--sensor-to-ego-y-m", type=float, default=0.0)
+    parser.add_argument(
+        "--morai-heading-correction-deg",
+        type=float,
+        default=0.0,
+        help=(
+            "heading correction for both Ego and Object status. Use -1.347 "
+            "for audited MR bags and 0 for audited MRP captures"
+        ),
+    )
     parser.add_argument("--maximum-interpolation-bracket-sec", type=float, default=0.15)
     parser.add_argument(
         "--gt-reference",
-        choices=("bbox-center-calibrated-v1", "object-status"),
+        choices=(
+            "asset-catalog-bbox-center-v1",
+            "bbox-center-calibrated-v1",
+            "object-status",
+        ),
         default="bbox-center-calibrated-v1",
         help=(
             "primary GT reference; bbox-center-calibrated-v1 supports "
             "passenger vehicles and explicitly calibrated larger assets"
+        ),
+    )
+    parser.add_argument(
+        "--asset-bbox-catalog",
+        type=Path,
+        default=Path(
+            "dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json"
         ),
     )
     parser.add_argument(
@@ -105,9 +126,20 @@ def main():
         args.raw_bag,
         topic=args.object_topic,
         include_classes=("vehicle",),
+        heading_correction_deg=args.morai_heading_correction_deg,
     )
     reference_calibration = None
-    if args.gt_reference == "bbox-center-calibrated-v1":
+    if args.gt_reference == "asset-catalog-bbox-center-v1":
+        primary_segments, reference_calibration = (
+            transform_segments_to_asset_catalog_bbox_center(
+                object_status_segments, args.asset_bbox_catalog
+            )
+        )
+        if not primary_segments:
+            raise RuntimeError(
+                "asset-catalog-bbox-center-v1 found no supported vehicle segments"
+            )
+    elif args.gt_reference == "bbox-center-calibrated-v1":
         primary_segments, reference_calibration = (
             transform_segments_to_calibrated_bbox_center(object_status_segments)
         )
@@ -128,6 +160,7 @@ def main():
         args.ego_topic,
         translation_xyz,
         transform_yaw,
+        args.morai_heading_correction_deg,
     )
     tracking_frames, prediction_frames = read_output_frames(
         args.output_bag,
@@ -239,6 +272,12 @@ def main():
         "morai_static_tf": str(args.morai_static_tf.resolve()),
         "map_file": str(args.map_file.resolve()),
         "projector_file": str(args.projector_file.resolve()),
+        "morai_heading_correction_deg": args.morai_heading_correction_deg,
+        "asset_bbox_catalog": (
+            str(args.asset_bbox_catalog.resolve())
+            if args.gt_reference == "asset-catalog-bbox-center-v1"
+            else None
+        ),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -252,7 +291,10 @@ def main():
                     "bbox_center_absolute_distance_m"
                 ].get("p50"),
                 "unsupported_segment_count": (
-                    reference_calibration["unsupported_segment_count"]
+                    reference_calibration.get(
+                        "unsupported_segment_count",
+                        reference_calibration.get("unresolved_segment_count", 0),
+                    )
                     if reference_calibration is not None
                     else 0
                 ),

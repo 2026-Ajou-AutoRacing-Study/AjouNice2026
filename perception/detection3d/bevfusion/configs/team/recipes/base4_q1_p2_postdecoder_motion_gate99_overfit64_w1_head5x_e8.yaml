@@ -1,0 +1,38 @@
+version: 1
+name: base4-q1-p2-postdecoder-motion-gate99-overfit64-w1-head5x-e8
+mode: finetune
+epochs: 8
+learning_rate: 1.0e-4
+checkpoint: ${BEVFUSION_BASE3_E25_FINETUNE_CHECKPOINT}
+base_config: perception/detection3d/bevfusion/configs/bevfusion_base4_q1_p2_postdecoder_motion_gate99_4cam_lidar_velocity.py
+
+dataset:
+  capture_root: ${BASE4_VELOCITY_HARDCASE_V2_ROOT}
+  info_root: ${BASE4_VELOCITY_HARDCASE_V2_ROOT}
+  container_root: /datasets/base4_velocity_hardcase_v2_raw16
+  overfit_samples: 64
+
+gpu:
+  profile: auto
+  physical_batch_size: 1
+  gradient_accumulation: 4
+  workers: 2
+  shm_size: auto
+
+schedule:
+  warmup_optimizer_updates: 10
+  validation_interval: 2
+
+wandb:
+  enabled: true
+  entity: AjouNice2026
+  project: morai-3d-object-detection
+  group: bevfusion-base4-q1-query-memory
+  tags: [base4, highway, velocity, q1-p2d, postdecoder-motion, gate99, motion-value, temporal-velocity-aux, overfit64, velocity-weight-1, head-lr-5x]
+
+output:
+  root: ""
+
+checkpointing:
+  interval: 2
+  max_keep_ckpts: 4

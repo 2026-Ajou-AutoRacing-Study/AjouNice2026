@@ -48,6 +48,8 @@ TOPICS=(
   /planning/route_state
   /planning/scenario_planning/lane_driving/behavior_planning/path
   /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id
+  /planning/scenario_planning/lane_driving/behavior_planning/static_obstacle_scene
+  /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/avoidance_debug_message_array
   /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory
   /planning/trajectory
   /planning/validation_status

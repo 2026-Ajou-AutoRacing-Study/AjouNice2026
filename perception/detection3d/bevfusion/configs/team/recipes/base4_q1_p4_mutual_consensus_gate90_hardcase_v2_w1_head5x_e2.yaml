@@ -1,0 +1,37 @@
+version: 1
+name: base4-q1-p4-singlecap35-gate90-hardcase-v2-w1-head5x-e2
+mode: finetune
+epochs: 2
+learning_rate: 1.0e-4
+checkpoint: ${BEVFUSION_BASE4_Q1_P3_HARDCASE_CHECKPOINT}
+base_config: perception/detection3d/bevfusion/configs/bevfusion_base4_q1_p4_mutual_consensus_gate90_4cam_lidar_velocity.py
+
+dataset:
+  capture_root: ${BASE4_VELOCITY_HARDCASE_V2_ROOT}
+  info_root: ${BASE4_VELOCITY_HARDCASE_V2_ROOT}
+  container_root: /datasets/base4_velocity_hardcase_v2_raw16
+
+gpu:
+  profile: auto
+  physical_batch_size: 1
+  gradient_accumulation: 4
+  workers: 2
+  shm_size: auto
+
+schedule:
+  warmup_optimizer_updates: 100
+  validation_interval: 1
+
+wandb:
+  enabled: true
+  entity: AjouNice2026
+  project: morai-3d-object-detection
+  group: bevfusion-base4-q1-hardcase-v2-ab
+  tags: [base4, highway, velocity, q1-p4, mutual-matching, robust-consensus, single-mutual-cap35, gate90, hardcase-v2, scene-disjoint, velocity-weight-1, head-lr-5x]
+
+output:
+  root: ""
+
+checkpointing:
+  interval: 1
+  max_keep_ckpts: 2

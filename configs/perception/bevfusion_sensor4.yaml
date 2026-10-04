@@ -17,10 +17,17 @@ sync_tolerance_sec: 0.10
 latest_frame_only: true
 drop_incomplete_frame: true
 
-# Base3 is trained on exactly [x, y, z, intensity]. The ROS bridge enforces
-# this contract and intentionally drops MORAI's optional per-point time field.
+# The model still receives exactly [x, y, z, intensity]. When explicitly
+# enabled, the bridge consumes MORAI's point `time` only to correct XYZ into
+# one scan-end LiDAR frame before inference. E25 remains raw/off by default.
 point_feature_contract: xyzi
 preprocess_workers: 4
+lidar_deskew_mode: off
+lidar_deskew_reference: end
+lidar_deskew_pose_topic: /localization/kinematic_state
+lidar_deskew_pose_type: odometry
+lidar_deskew_max_point_time_span_sec: 0.15
+lidar_deskew_maximum_extrapolation_sec: 0.05
 
 intrinsic_source: horizontal_fov
 score_threshold: 0.20

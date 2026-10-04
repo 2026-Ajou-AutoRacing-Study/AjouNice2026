@@ -12,7 +12,12 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from .evaluator import estimate_motion_state
-from .trajectory import TrajectoryPoint, TrajectorySegment, interpolate_point
+from .trajectory import (
+    TrajectoryPoint,
+    TrajectorySegment,
+    interpolate_point,
+    morai_heading_radians,
+)
 
 
 VEHICLE_LABELS = frozenset((1, 2, 3, 4, 5, 6))
@@ -65,7 +70,13 @@ def transform_xy(x: float, y: float, translation_xyz, yaw: float):
     )
 
 
-def read_ego_points(bag_path, topic, translation_xyz, transform_yaw):
+def read_ego_points(
+    bag_path,
+    topic,
+    translation_xyz,
+    transform_yaw,
+    heading_correction_deg=0.0,
+):
     import rosbag
 
     points = []
@@ -83,7 +94,13 @@ def read_ego_points(bag_path, topic, translation_xyz, transform_yaw):
                     timestamp,
                     x,
                     y,
-                    (math.radians(float(message.heading)) + transform_yaw + math.pi)
+                    (
+                        morai_heading_radians(
+                            float(message.heading), heading_correction_deg
+                        )
+                        + transform_yaw
+                        + math.pi
+                    )
                     % (2.0 * math.pi)
                     - math.pi,
                 )
@@ -1192,7 +1209,10 @@ def evaluate_pipeline(
             "motp_center_error_caveat": (
                 "Validated bbox-center distance for the supported calibrated "
                 "vehicle subset"
-                if gt_reference == "bbox-center-calibrated-v1"
+                if gt_reference in (
+                    "bbox-center-calibrated-v1",
+                    "asset-catalog-bbox-center-v1",
+                )
                 else "Compatibility alias only: MORAI ObjectStatus.position "
                 "and detector bbox center have different empirical "
                 "longitudinal reference points, so this is not validated "
@@ -1200,7 +1220,10 @@ def evaluate_pipeline(
             ),
             "bbox_center_absolute_distance_m": (
                 statistics(tracking_errors)
-                if gt_reference == "bbox-center-calibrated-v1"
+                if gt_reference in (
+                    "bbox-center-calibrated-v1",
+                    "asset-catalog-bbox-center-v1",
+                )
                 else {"count": 0, "reason": "bbox-center GT not selected"}
             ),
             "absolute_speed_error_mps": statistics(tracking_speed_errors),

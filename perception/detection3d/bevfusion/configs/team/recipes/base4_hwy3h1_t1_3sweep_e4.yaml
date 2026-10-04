@@ -1,0 +1,33 @@
+version: 1
+name: base4-hwy3h1-t1-3sweep-e4
+mode: finetune
+epochs: 4
+learning_rate: 2.0e-5
+checkpoint: ${BEVFUSION_BASE4_T1_INIT_CHECKPOINT}
+base_config: perception/detection3d/bevfusion/configs/bevfusion_base4_t1_4cam_lidar_3sweep_velocity.py
+
+dataset:
+  capture_root: ${BASE4_HWY3H1_RAW_ROOT}
+  info_root: ${BASE4_HWY3H1_RAW_ROOT}
+  container_root: /datasets/base4_hwy3h1_raw
+
+gpu:
+  profile: auto
+  physical_batch_size: auto
+  gradient_accumulation: auto
+  workers: auto
+  shm_size: auto
+
+wandb:
+  enabled: true
+  entity: AjouNice2026
+  project: morai-3d-object-detection
+  group: bevfusion-base4-hwy3h1-temporal-ab
+  tags: [base4, hwy3h1, causal-3-sweep, velocity, e25-finetune]
+
+output:
+  root: ""
+
+checkpointing:
+  interval: 1
+  max_keep_ckpts: 4

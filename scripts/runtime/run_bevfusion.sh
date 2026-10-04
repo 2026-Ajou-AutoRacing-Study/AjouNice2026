@@ -9,6 +9,11 @@ if [[ -f "$ROOT/.env.bevfusion.local" ]]; then
   set +a
 fi
 COMPOSE_FILE="$ROOT/docker/bevfusion/compose.yaml"
+SENSOR_CONFIG="${1:-${BEVFUSION_SENSOR_CONFIG:-}}"
+if [[ -n "$SENSOR_CONFIG" && ! -f "$SENSOR_CONFIG" ]]; then
+  echo "[ERROR] BEVFusion sensor config not found: $SENSOR_CONFIG" >&2
+  exit 1
+fi
 CHECKPOINT="${BEVFUSION_CHECKPOINT:-${BEVFUSION_INFERENCE_CHECKPOINT:-$HOME/bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth}}"
 IMAGE="${BEVFUSION_IMAGE:-ajounice/bevfusion:team-cu128-v1}"
 EXPECTED_SHA256="36816cf769c87d49483d002111abfad8e1afd043afd74a0b9fc54aac82133011"
@@ -80,4 +85,9 @@ source "$ROOT/scripts/workspace/source_aw149.sh"
 
 echo "[BEVFusion] Starting ROS bridge on $DETECTION_TOPIC"
 echo "[BEVFusion] Ctrl-C stops both the ROS bridge and Docker inference server"
-roslaunch bevfusion_ros base3_online.launch
+if [[ -n "$SENSOR_CONFIG" ]]; then
+  echo "[BEVFusion] Using sensor config: $SENSOR_CONFIG"
+  roslaunch bevfusion_ros base3_online.launch sensor_config:="$SENSOR_CONFIG"
+else
+  roslaunch bevfusion_ros base3_online.launch
+fi

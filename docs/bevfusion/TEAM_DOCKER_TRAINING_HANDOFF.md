@@ -1,7 +1,8 @@
 # BEVFusion 팀 공용 Docker 학습·추론 handoff
 
-> **문서 상태: CURRENT.** 공용 Docker와 일반 Base3 학습 계약이다. Base3-Online
-> 실험은 `260919_BASE3_ONLINE_HIGHWAY_TEAM_HANDOFF.md`의 추가 경로 계약을 따른다.
+> **문서 상태: CURRENT.** 공용 Docker와 일반 Base3 학습 계약이다. Base4 temporal
+> 실험은 [`BASE4_TEMPORAL_TEAM_HANDOFF.md`](BASE4_TEMPORAL_TEAM_HANDOFF.md)의
+> 추가 dataset·checkpoint·audit 계약을 따른다.
 
 ## 목적과 기준
 

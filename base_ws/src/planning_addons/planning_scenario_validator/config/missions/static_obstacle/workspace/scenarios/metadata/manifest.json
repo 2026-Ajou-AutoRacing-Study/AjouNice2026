@@ -1,0 +1,294 @@
+{
+  "generated_by": "generate_user_static_obstacle_campaign.py",
+  "source_directory": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025",
+  "startline": {
+    "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-startline.json",
+    "source_sha256": "b06ef1256bff77132c7aeeb64af233157f7e31bc0cba370dce65bc634e543f56",
+    "applied_ego_start": {
+      "x": -78.6729965209961,
+      "y": -227.79299926757812,
+      "z": 28.733999252319336
+    }
+  },
+  "cases": {
+    "user_static_01_pos01": {
+      "order": 1,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos1.json",
+      "source_sha256": "0bdaaefa6d5f30cc9c2e7e15b147fb59cd6cf6f55b7d3a8aac231851d23f30e8",
+      "description": "pos01 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -60.821998596191406,
+          "y": -144.74000549316406,
+          "z": 28.37700080871582
+        }
+      ]
+    },
+    "user_static_02_pos02": {
+      "order": 2,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos2.json",
+      "source_sha256": "2384a0e72e366565edc8fb4ec6a0763be27dd89ecd2f70ea7b27b6b94631089e",
+      "description": "pos02 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -57.91699981689453,
+          "y": -146.19900512695312,
+          "z": 28.3700008392334
+        }
+      ]
+    },
+    "user_static_03_pos03": {
+      "order": 3,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos3.json",
+      "source_sha256": "efb170d84309edd5f74d371301ab152480c47bd75f6a07de3ff9ab094a54db89",
+      "description": "pos03 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -55.125999450683594,
+          "y": -146.89100646972656,
+          "z": 28.354999542236328
+        }
+      ]
+    },
+    "user_static_04_pos04": {
+      "order": 4,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos4.json",
+      "source_sha256": "6b908cf60ff7713ebe3984b1c89b8390b629c9e4d279b9fedd5262ca2318034a",
+      "description": "pos04 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -60.89099884033203,
+          "y": -143.27699279785156,
+          "z": 28.374000549316406
+        }
+      ]
+    },
+    "user_static_05_pos05": {
+      "order": 5,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos5.json",
+      "source_sha256": "dd67bf07caa6999ac5f91ffd283b473de2713389b738dd6bae69df6e1766f4e0",
+      "description": "pos05 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -58.04899978637695,
+          "y": -143.15899658203125,
+          "z": 28.36400032043457
+        }
+      ]
+    },
+    "user_static_06_pos06": {
+      "order": 6,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos6.json",
+      "source_sha256": "b900cf6c7c2219ae6901562a18c78550a4a206b901ca630e9fd01bd774750cce",
+      "description": "pos06 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -55.99700164794922,
+          "y": -143.27699279785156,
+          "z": 28.358999252319336
+        }
+      ]
+    },
+    "user_static_07_pos07": {
+      "order": 7,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos7.json",
+      "source_sha256": "10e5f62821a4e75709c8c3a31dc585cf05f7e9b3e9bfb6b99701309e83928637",
+      "description": "pos07 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -60.8120002746582,
+          "y": -139.01499938964844,
+          "z": 28.37299919128418
+        }
+      ]
+    },
+    "user_static_08_pos08": {
+      "order": 8,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos8.json",
+      "source_sha256": "4fba165e435763368bccd07d4baefe998051bc8d9199fb4a9e83fb80711fb15b",
+      "description": "pos08 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -57.79899978637695,
+          "y": -139.25799560546875,
+          "z": 28.367000579833984
+        }
+      ]
+    },
+    "user_static_09_pos09": {
+      "order": 9,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos9.json",
+      "source_sha256": "488ef88e7b04c1a653e1dcbe9f6ce02bdfbaa76fa4e0e1315564c247d54c0f03",
+      "description": "pos09 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -55.10499954223633,
+          "y": -139.343994140625,
+          "z": 28.361000061035156
+        }
+      ]
+    },
+    "user_static_10_pos10": {
+      "order": 10,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos10.json",
+      "source_sha256": "2a20020f1418c40eac797e0f4ca36192fd9742473d9c9f441b743bec2814f9fe",
+      "description": "pos10 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -60.88399887084961,
+          "y": -136.68499755859375,
+          "z": 28.378000259399414
+        }
+      ]
+    },
+    "user_static_11_pos11": {
+      "order": 11,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos11.json",
+      "source_sha256": "badc42ee6628b7a86c4edb1cec76d08a8fc265b0976267b4758b5f1610e2d8c5",
+      "description": "pos11 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -57.801998138427734,
+          "y": -136.5030059814453,
+          "z": 28.371999740600586
+        }
+      ]
+    },
+    "user_static_12_pos12": {
+      "order": 12,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos12.json",
+      "source_sha256": "6bc934d54a70a0b9641bf6f8a2714cefe538de1ba625fe155dc1d8e503f8a776",
+      "description": "pos12 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -55.26499938964844,
+          "y": -136.63900756835938,
+          "z": 28.368000030517578
+        }
+      ]
+    },
+    "user_static_13_pos13": {
+      "order": 13,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos13.json",
+      "source_sha256": "d515fcdbbf2bbb1e178be102b2092840250c09876bec29ac93adde57da382f10",
+      "description": "pos13 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -60.86399841308594,
+          "y": -149.66600036621094,
+          "z": 28.393999099731445
+        }
+      ]
+    },
+    "user_static_14_pos14": {
+      "order": 14,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos14.json",
+      "source_sha256": "0c1b87025a624ac471419e45eff1a3724f944072927eba58b7435ab1a1e27bb9",
+      "description": "pos14 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -57.6879997253418,
+          "y": -149.66600036621094,
+          "z": 28.378999710083008
+        }
+      ]
+    },
+    "user_static_15_pos15": {
+      "order": 15,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos15.json",
+      "source_sha256": "91a26fcd8489bf86470791c6dcd29f6667b966e924f47dd63b3860cc42bf1550",
+      "description": "pos15 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -60.86399841308594,
+          "y": -130.84300231933594,
+          "z": 28.375999450683594
+        }
+      ]
+    },
+    "user_static_16_pos16": {
+      "order": 16,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-pos16.json",
+      "source_sha256": "5464b3085935cdf63023c82adfc2ff9606a9d915e18ad6b6e8959744331e9c46",
+      "description": "pos16 / static-startline ego 시작점 적용",
+      "object_count": 1,
+      "objects": [
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -57.6879997253418,
+          "y": -130.61000061035156,
+          "z": 28.371999740600586
+        }
+      ]
+    },
+    "user_static_17_car01": {
+      "order": 17,
+      "source": "/home/ajou/Desktop/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/static-obstacle-car1.json",
+      "source_sha256": "c620a8fd0d23db8b79524a83fc1c4a3beb6e6bb23bbb4de85e34780234458eea",
+      "description": "car01 / static-startline ego 시작점 적용",
+      "object_count": 2,
+      "objects": [
+        {
+          "data_id": 40100018,
+          "unique_id": 13,
+          "x": -56.893001556396484,
+          "y": -150.0399932861328,
+          "z": 28.374000549316406
+        },
+        {
+          "data_id": 40100001,
+          "unique_id": 2,
+          "x": -57.31399917602539,
+          "y": -132.05799865722656,
+          "z": 28.374000549316406
+        }
+      ]
+    }
+  }
+}

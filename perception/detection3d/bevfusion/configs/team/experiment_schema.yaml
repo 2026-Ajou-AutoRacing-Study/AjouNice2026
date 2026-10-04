@@ -13,6 +13,10 @@ allowed:
     capture_root: path_or_empty
     info_root: path_or_empty
     container_root: absolute_container_path
+    overfit_samples: nonnegative_integer
+  schedule:
+    warmup_optimizer_updates: nonnegative_integer
+    validation_interval: positive_integer
   gpu:
     profile: [auto, rtx2080ti, rtx3090, rtx4090, rtx5060ti]
     physical_batch_size: positive_integer_or_auto

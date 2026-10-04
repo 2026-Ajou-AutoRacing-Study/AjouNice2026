@@ -7,6 +7,9 @@
   <!-- Only the inference node uses this Python. Lanelet map matching remains
        on ROS Noetic's /usr/bin/python3 in a sibling process. -->
   <arg name="inference_python" default="/usr/bin/python3" />
+  <!-- Default preserves existing system/user-site installations. The shared
+       virtual environment explicitly disables user-site package injection. -->
+  <arg name="isolate_python" default="false" />
   <arg name="device" default="0" />
   <!-- Preserve the traffic-light team's validated decision cadence. GPU
        execution reduces compute load; it must not silently retune semantics. -->
@@ -69,6 +72,8 @@
     <!-- Runtime uses a provisioned local checkpoint; never block startup on
          Ultralytics' Cloudflare/Google DNS connectivity probe. -->
     <env name="YOLO_OFFLINE" value="true" />
+    <env name="TRAFFIC_LIGHT_ISOLATE_PYTHON" value="$(arg isolate_python)" />
+    <env name="PYTHONNOUSERSITE" value="$(eval '1' if arg('isolate_python') else '')" />
     <env name="MPLCONFIGDIR" value="/tmp/matplotlib-traffic-light-gpu" />
     <env name="YOLO_CONFIG_DIR" value="/tmp" />
     <param name="image_topic" value="$(arg image_topic)" />

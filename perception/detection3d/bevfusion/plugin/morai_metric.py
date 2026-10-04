@@ -34,7 +34,7 @@ class MoraiCenterMetric(BaseMetric):
             ann = sample["eval_ann_info"]
             self.results.append({
                 "info": {
-                    "gt_boxes": ann["gt_bboxes_3d"].tensor.cpu().numpy()[:, :7],
+                    "gt_boxes": ann["gt_bboxes_3d"].tensor.cpu().numpy(),
                     "gt_names": np.asarray([
                         self.dataset_meta["classes"][int(label)]
                         for label in ann["gt_labels_3d"]

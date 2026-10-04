@@ -1,0 +1,40 @@
+# GT 예제와 같은 장면·목적지·센서. 인지 소스만 BEVFusion으로 변경.
+schema_version: 2
+campaign_name: soa_catalog_bev_example
+scenarios:
+  directory: planner_logs/validation_inputs/static_corridor
+  glob: "soa_catalog_*.json"
+default_case:
+  goal: {x: 71.510, y: 429.608, z: 28.383, yaw_deg: 90.033}
+  waypoints: []
+  timeout_sec: 35
+  arrival_mode: stop
+stack:
+  pose_source: localization
+  detector: bevfusion
+  traffic_light: false
+recording:
+  topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/basic.json
+  include_sensors: false
+  video: {enabled: true, display: ":0.0", fps: 10, focus_planviz: true}
+network:
+  sensor_json: configs/sensors/Sensor_competition_local.json
+  ego_network_json: base_ws/src/planning_addons/planning_scenario_validator/config/internal/generated/ego_network_validator_local.json
+morai:
+  map_name: R_KR_PR_K-city_2025
+  scenario_install_dir: auto
+  scenario_load_host: 127.0.0.1
+  scenario_load_port: 9095
+output_root: planner_logs/validation
+resume: true
+continue_on_system_error: false
+readiness_timeout_sec: 60
+scenario_ready_timeout_sec: 35
+route_ready_timeout_sec: 75
+validation:
+  goal_tolerance_m: 2.0
+  goal_hold_sec: 1.0
+  goal_speed_max_mps: 0.5
+  topic_loss_timeout_sec: 4.0
+  stuck_timeout_sec: 0.0
+upload: {enabled: false, rclone_remote: "ajou_drive:planning_validator"}

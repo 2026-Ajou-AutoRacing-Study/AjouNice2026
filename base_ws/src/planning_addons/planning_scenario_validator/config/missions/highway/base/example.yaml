@@ -1,0 +1,58 @@
+# 미션별 공유 예제: GUI에서 열어 개인 YAML로 저장하세요.
+# 이 YAML의 목적지/주행시간이 모든 선택 시나리오에 동일하게 적용됩니다.
+# 다른 목적지/시간은 별도 이름의 YAML로 시험하세요.
+# 센서는 계속 켜고, bag에서만 LiDAR/카메라를 제외합니다.
+# GT 대조는 GUI 탐지기를 od_gt로 바꿔 저장하고 새 실험을 시작하세요.
+schema_version: 2
+campaign_name: starter_highway_bev
+scenarios:
+  directory: base_ws/src/planning_addons/planning_scenario_validator/config/missions/highway/base/scenarios
+  glob: '*.json'
+default_case:
+  goal:
+    x: 197.5177
+    y: 653.498242
+    z: 28.264104
+    yaw_deg: -86.688598
+  waypoints: []
+  timeout_sec: 90
+  arrival_mode: stop
+stack:
+  pose_source: localization
+  detector: bevfusion
+  traffic_light: false
+recording:
+  topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/basic.json
+  include_sensors: false
+  video:
+    enabled: true
+    display: :0.0
+    fps: 10
+    focus_planviz: false
+    window_layout: split
+    bottom_bar_px: auto
+  minimum_free_disk_gib: 10
+network:
+  sensor_json: configs/sensors/Sensor_competition_local.json
+  ego_network_json: base_ws/src/planning_addons/planning_scenario_validator/config/internal/generated/ego_network_validator_local.json
+morai:
+  map_name: R_KR_PR_K-city_2025
+  scenario_install_dir: auto
+  scenario_load_host: 127.0.0.1
+  scenario_load_port: 9095
+output_root: planner_logs/validation
+resume: true
+continue_on_system_error: false
+readiness_timeout_sec: 60
+scenario_ready_timeout_sec: 35
+route_ready_timeout_sec: 75
+validation:
+  goal_tolerance_m: 2.0
+  goal_hold_sec: 1.0
+  goal_speed_max_mps: 0.5
+  topic_loss_timeout_sec: 4.0
+  stuck_timeout_sec: 0.0
+upload:
+  enabled: false
+  rclone_remote: ajou_drive:planning_validator
+  profile: basic
