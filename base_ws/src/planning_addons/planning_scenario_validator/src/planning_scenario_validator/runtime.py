@@ -14,6 +14,9 @@ from pathlib import Path
 
 from .config import ROOT
 
+# 실제 Ego 접촉은 차체 중심 간 약 5m 이내. 이보다 먼 /CollisionData 보고는 Ego 충돌이 아니다.
+COLLISION_EGO_RADIUS_M = 10.0
+
 
 class RuntimeFailure(RuntimeError):
     pass
@@ -158,6 +161,7 @@ class LiveMonitor:
         self.collision_ids = set()
         self.seen_collision_ids = set()
         self.collision_count = 0
+        self.far_collision = None
         self.armed = False
         self.events_path = None
         self.goal_min = float("inf")
@@ -264,12 +268,32 @@ class LiveMonitor:
     def _collision(self, message):
         current = {int(obj.unique_id) for obj in message.collision_object}
         if self.armed:
-            for object_id in current - self.seen_collision_ids:
+            for obj in message.collision_object:
+                object_id = int(obj.unique_id)
+                if object_id in self.seen_collision_ids:
+                    continue
+                distance = self._ego_distance(obj.position)
+                if distance is not None and distance > COLLISION_EGO_RADIUS_M:
+                    # MORAI는 이전 실행에서 Ego와 부딪힌 unique_id를 재사용된 NPC에도
+                    # 충돌로 보고한다. Ego 충돌이 아니므로 FAIL로 세지 않고 오염으로 처리한다.
+                    self.far_collision = (object_id, round(distance, 1))
+                    self.event("COLLISION_FAR_FROM_EGO", object_id=object_id,
+                               distance_m=round(distance, 1),
+                               position=[round(float(obj.position.x), 1), round(float(obj.position.y), 1)])
+                    continue
                 self.collision_count += 1
-                self.event("COLLISION", object_id=object_id)
+                self.event("COLLISION", object_id=object_id,
+                           distance_m=None if distance is None else round(distance, 1))
             self.seen_collision_ids.update(current)
         self.collision_ids = current
         self.stamps["collision"] = time.monotonic()
+
+    def _ego_distance(self, position):
+        """Ego(/Ego_topic)와 충돌 객체 사이 거리. 둘 다 MORAI 좌표. Ego를 모르면 None."""
+        if self.ego is None:
+            return None
+        return math.hypot(float(position.x) - float(self.ego.position.x),
+                          float(position.y) - float(self.ego.position.y))
 
     def event(self, name, **fields):
         if self.events_path is None:
@@ -328,6 +352,7 @@ class LiveMonitor:
     def arm(self, events_path):
         self.begin_case(events_path)
         self.collision_count = 0
+        self.far_collision = None
         # 이전 scenario의 contact ID가 새 시나리오 첫 접촉을 숨기지 않게 한다.
         self.collision_ids.clear()
         self.seen_collision_ids.clear()
@@ -429,6 +454,10 @@ class LiveMonitor:
             elapsed = tick - started
             if self.collision_count:
                 return "COLLISION", elapsed
+            if self.far_collision:
+                raise RuntimeFailure(
+                    "MORAI가 Ego와 {1}m 떨어진 객체 {0}을 충돌로 보고했습니다. 이전 충돌 상태가 남은 것으로 "
+                    "보입니다. MORAI를 재시작한 뒤 재개하세요".format(*self.far_collision))
             if elapsed >= case.timeout_sec:
                 return "TIMEOUT", elapsed
             if tick - self.stamps.get("odom", started) > stale:
