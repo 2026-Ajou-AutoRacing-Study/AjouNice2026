@@ -15,6 +15,14 @@ from PIL import Image
 
 
 class IndependentTest(unittest.TestCase):
+    def test_sample_corridor_endpoints_and_point_indices(self):
+        links={r['idx']:r for r in gen.geo.load_json(gen.geo.DEFAULT_MGEO/'link_set.json')}
+        for c in gen.sample_highway_corridors(links):
+            for end,p in ((c['start'],c['route'][0]),(c['end'],c['route'][-1])):
+                self.assertEqual(p['point_idx'],end['pointIdx'])
+                self.assertEqual(p['link_idx'],end['linkIdx'])
+                self.assertEqual([p[k] for k in ('x','y','z')],links[end['linkIdx']]['points'][end['pointIdx']])
+                self.assertAlmostEqual(p['point_ratio'],end['pointIdx']/(len(links[end['linkIdx']]['points'])-1))
     def test_exact_quota_and_repeatability(self):
         c=gen.geo.load_json(gen.CONFIG);rows=gen.specs(c)
         self.assertEqual(rows,gen.specs(c));self.assertEqual(len(rows),10000)

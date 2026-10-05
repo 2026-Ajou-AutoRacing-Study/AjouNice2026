@@ -37,6 +37,23 @@
 Ego yaw는 도로 대비 절대0–3° 60%, 3–10° 30%, 10–15° 10%, 부호는 랜덤이다.
 Ego 횡 offset은 0/±0.15/±0.30 m이며 좁은 구간은 ±0.15 m와 lane-envelope 검사로 제한한다.
 
+### 고주로 범용 / 미션 NPC 배치 경계
+
+- 범용1,800장: 기존 확장 MGeo 경로를 유지한다. 샘플 NPC 종료 지점으로 자르지 않는다.
+  병목 이후·후반 구간도 범용 학습 분포에 포함한다.
+- 미션1,200장: primary와 보조 `vehicleList` 객체 모두 샘플의 세 NPC 경로 중
+  하나의 startLinkInfo.pointIdx부터 endLinkInfo.pointIdx까지에만 배치한다.
+  인접 차선 선택도 이 경계 밖으로 우회하지 않는다. 해당 거리·방향에 가능한 위치가
+  없으면 장면을 재시도하며 범용 배치로 fallback하지 않는다.
+- 경계는 NPC pivot/reference position 기준이다. Ego까지 같은 종료점으로 자르지는 않는다.
+  종료점 이후 Ego가 뒤쪽 NPC를 보는 장면은 가능하다. NPC BBox 가장자리 경계가 아니다.
+- 샘플 UID6/8/10의 종료점은 각각 `A2256W001105:83`, `A2256W000422:59`,
+  `A2256W000432:246`이다. UID6은 420→179→1105 출구 경로를 사용한다.
+  이는 샘플의 **설정상 종료점**이며 실제 despawn timing이나 콘 위치를 새 live 실험으로
+  확정했다는 뜻은 아니다. 본선 차종·속도가 샘플과 동일하다고 가정하지 않는다.
+- 최신 생성 후보는 `scenarios_10k_v12/`이다. 이전 v10은 비교 증거로 보존한다.
+  NPC 경로/종료점과 sample hash는 metadata/manifest에 남기고 실제 scenario position도 감사한다.
+
 ### 거리 — geometric center의 Ego-frame XY 거리
 
 | 대상/방향 | 거리 bin과 비중 |
@@ -98,6 +115,9 @@ Peak allocated3.723 GiB / reserved4.715 GiB였다. 34.684초는 모델 초기화
 
 | 증거 | 결과 |
 |---|---|
+| `scenarios_10k_v12/manifest.json`, `offline_audit.json` | 최신 후보10,000 unique payload, errors0. 미션 고주로1,200장/차량1,568개 sample 경계 검사 통과 |
+| `scenarios_10k_v12/v10_payload_comparison.json` | 범용 고주로1,800장 및 다른 장면7,000장, 총8,800개 scenario SHA256 v10과 동일 |
+| v12 생성 resample / 단위 검증 | 평균0.6823회, 최대76회; Base5 independent tests7개 통과. 잘린 경로의 원본 pointIdx/initLinkRatio 유지 검사 포함 |
 | `scenarios_10k_v10/manifest.json`, `offline_audit.json` | dummy 정지 수정 후10,000 unique payload, quota/거리/추정 footprint 검사 errors0 |
 | 동일 manifest split | train8,609 / val1,391, link-group hash |
 | 생성 resample | 평균0.594회, 최대76회 |
@@ -117,7 +137,7 @@ Network 재로드 직후 service duplicate overwrite 로그도 확인했다.5초
 재광고 안정화 대기 및 idempotent mode/gear 요청1회 재시도로 연결 문제를 완화했다.
 검증 응답을 생략하지 않으며 최종 통신 실패는 중단한다. MR 재시작은 하지 않았다.
 
-v10 전체는 **OFFLINE_PASS이지 전수 LIVE_PASS가 아니다.** 43개 asset은 아직 캡처 기반 geometry
+v12 전체는 **OFFLINE_PASS이지 전수 LIVE_PASS가 아니다.** v11은 링크 비율 수정 전 중간 산출물이므로 캡처 후보로 쓰지 않는다. 43개 asset은 아직 캡처 기반 geometry
 reference가 없어 보수적 크기를 사용한다. 지면/애니메이션/실제 mesh·collider, 근접 partial-view,
 원거리 가시성은 이 검사로 인증하지 못한다. 인접 link 사이 시야 중복도 가능하므로
 현재 train/val split을 최종 generalization test로 주장하지 않는다.

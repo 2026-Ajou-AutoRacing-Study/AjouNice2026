@@ -15,6 +15,42 @@ import build_base5_mr_asset_catalog as catalog
 
 CONFIG = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_independent_v2.json'
 GEOMETRY = geo.PROJECT_ROOT/'dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json'
+HIGHWAY_SAMPLE = geo.PROJECT_ROOT/'configs/scenario/2026_molit_comp_sample_scene.json'
+
+def sample_highway_corridors(links):
+    """Sample reference-point paths, clipped at start/end pointIdx (not box edges)."""
+    paths={6:('406','409','420','179','1105'),
+           8:('175','410','430','434','422'),
+           10:('029','418','431','435','423','432')}
+    spawns={a['UNIQUEID']:a for a in geo.load_json(HIGHWAY_SAMPLE)['spawnPointList']}
+    corridors=[]
+    for uid,suffixes in paths.items():
+        spawn=spawns[uid];path=['A2256W'+s.zfill(6) for s in suffixes]
+        if path[0]!=spawn['startLinkInfo']['linkIdx'] or path[-1]!=spawn['endLinkInfo']['linkIdx']:
+            raise ValueError('Sample NPC path endpoints changed')
+        for left,right in zip(path,path[1:]):
+            if links[left]['to_node_idx']!=links[right]['from_node_idx']:
+                raise ValueError('Disconnected sample NPC path')
+        clipped=copy.deepcopy(links)
+        clipped[path[0]]['points']=clipped[path[0]]['points'][spawn['startLinkInfo']['pointIdx']:]
+        clipped[path[-1]]['points']=clipped[path[-1]]['points'][:spawn['endLinkInfo']['pointIdx']+1]
+        route,arc=geo.route_from_link_path(clipped,path)
+        for p in route:
+            if p['link_idx']==path[0]: p['point_idx']+=spawn['startLinkInfo']['pointIdx']
+            p['point_ratio']=p['point_idx']/max(1,len(links[p['link_idx']]['points'])-1)
+        corridors.append(dict(spawn_uid=uid,path=path,start=spawn['startLinkInfo'],
+            end=spawn['endLinkInfo'],route=route,arc=arc))
+    return corridors
+
+def mission_vehicle_candidates(ctx,ego,lower,upper,direction):
+    candidates=[];a=math.radians(ego['yaw'])
+    for corridor in ctx['sample_corridors']:
+        for j,p in enumerate(corridor['route']):
+            dx,dy=p['x']-ego['x'],p['y']-ego['y']
+            lon=math.cos(a)*dx+math.sin(a)*dy
+            if lower-3<=math.hypot(dx,dy)<upper+3 and lon*direction>0:
+                candidates.append((corridor,j))
+    return candidates
 
 def exact_deck(weighted, count, rng):
     total = sum(float(w) for _, w in weighted)
@@ -125,7 +161,8 @@ def context(runtime, mgeo):
         mission_templates[mission]=[(str(p),geo.load_json(p)) for p in paths]
     return dict(pools=pools,links=links,route=route,arc=geo.route_arc_coordinates(route),
         geometry=geometry_rows,geometry_sources=geometry_sources,template=geo.load_json(geo.DEFAULT_TEMPLATE),anchors={},
-        mission_templates=mission_templates,crosswalks=geo.load_crosswalk_catalog(mgeo))
+        mission_templates=mission_templates,crosswalks=geo.load_crosswalk_catalog(mgeo),
+        sample_corridors=sample_highway_corridors(links))
 
 def anchor_bank(ctx,topology):
     if topology in ctx['anchors']: return ctx['anchors'][topology]
@@ -244,6 +281,7 @@ def build(row,config,ctx,attempt=0):
     actor_records=[]; footprints=[]
     desired=None
     for i in range(row['actors']):
+        sample_placement=None
         selected_pool=poolkey
         if i:
             # Mixed secondary classes without changing the primary family quota.
@@ -257,7 +295,15 @@ def build(row,config,ctx,attempt=0):
         role=row['role'] if not i else rng.choice(['front','left','right','rear'])
         if asset['source_list']=='vehicleList':
             direction=1 if role in ('front','left') else -1
-            if row['family']=='other_vehicle' and role in ('left','right'):
+            if row['family']=='highway' and row['mission']:
+                candidates=mission_vehicle_candidates(ctx,ego,lower,upper,direction)
+                if not candidates: raise ValueError('No sample-bounded NPC in requested mission ring')
+                corridor,j=rng.choice(candidates)
+                pose=geo.continuous_route_pose_at_arc(corridor['route'],corridor['arc'],float(corridor['arc'][j]))
+                sample_placement=dict(spawn_uid=corridor['spawn_uid'],route_links=corridor['path'],
+                    start=corridor['start'],end=corridor['end'],reference_arc_m=float(corridor['arc'][j]),
+                    corridor_length_m=float(corridor['arc'][-1]))
+            elif row['family']=='other_vehicle' and role in ('left','right'):
                 source=ctx['links'][base['link_idx']]
                 destination=source.get(role+'_lane_change_dst_link_idx')
                 if not source.get('can_move_'+role+'_lane') or destination not in ctx['links']:
@@ -277,7 +323,7 @@ def build(row,config,ctx,attempt=0):
                 if not 0<=goal<=arc[-1]: raise ValueError('Actor outside legal route')
                 pose=geo.continuous_route_pose_at_arc(route,arc,goal)
             # Independent real neighboring lane only; no lateral jitter of route NPC.
-            if row['family']=='highway' and rng.random()<.5:
+            if row['family']=='highway' and not row['mission'] and rng.random()<.5:
                 neighbors=[]
                 for path in geo.HIGHWAY_LANE_LINK_PATHS.values():
                     nr,na=geo.route_from_link_path(ctx['links'],path)
@@ -332,6 +378,7 @@ def build(row,config,ctx,attempt=0):
             training_class='animal' if asset.get('ontology_class')=='Animal' else 'component_annotation',
             runtime_mapping_verified=False if selected_pool in ('animal','pet_person','stroller','rider') else True))
         if not i: desired=actual
+        if sample_placement is not None: actor_records[-1]['sample_highway_placement']=sample_placement
     group=base['link_idx']  # whole-link split; still neighboring-link visibility leakage possible
     split='val' if int(hashlib.sha256(group.encode()).hexdigest()[:8],16)/2**32<.15 else 'train'
     meta=dict(spec=row,ego=ego,base=base,details=details,runtime_actors=actor_records,
@@ -368,6 +415,7 @@ def generate(config,output,start,count,runtime=geo.DEFAULT_RUNTIME_ASSET_DIR,mge
         status='OFFLINE_GENERATED; per-scene live validation pending',scenes=entries,
         provenance=dict(config_sha256=hashlib.sha256(json.dumps(config,sort_keys=True).encode()).hexdigest(),
             generator_sha256=code_sha256,
+            highway_sample_sha256=geo.sha256(HIGHWAY_SAMPLE),
             geometry_sha256=geo.sha256(GEOMETRY),catalog_sha256=geo.sha256(catalog.DEFAULT_CATALOG),
             geometry_references=ctx['geometry_sources'],
             runtime_sources={k:geo.sha256(runtime/k) for k in json.loads(catalog.DEFAULT_CATALOG.read_text())['source_sha256']},

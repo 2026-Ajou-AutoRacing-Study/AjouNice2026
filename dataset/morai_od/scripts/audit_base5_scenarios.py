@@ -11,6 +11,9 @@ import generate_base5_independent as gen
 def audit(manifest_path):
     m=json.loads(Path(manifest_path).read_text()); families=Counter();missions=Counter();bins=Counter()
     groups=Counter();assets=Counter();roles=Counter();splits=Counter();retries=[];unknown=Counter();hashes=set();errors=[]
+    links={r['idx']:r for r in gen.geo.load_json(gen.geo.DEFAULT_MGEO/'link_set.json')}
+    corridors={c['spawn_uid']:c for c in gen.sample_highway_corridors(links)}
+    bounded_vehicles=0
     for entry in m['scenes']:
         s=json.loads(Path(entry['scenario']).read_text());meta=json.loads(Path(entry['metadata']).read_text());r=meta['spec']
         digest=gen.geo.sha256(Path(entry['scenario']))
@@ -31,6 +34,23 @@ def audit(manifest_path):
             if a['planned_surface_clearance_m']<.3:errors.append((entry['id'],'ego collision'))
             # Actual generated rot is authoritative, not an independent random estimate.
             actor=next(t for k in ('vehicleList','objectList','pedestrianList','aiPedstrianList') for t in s.get(k,[]) if t['UNIQUEID']==a['unique_id'])
+            bounded=r['family']=='highway' and r['mission'] and a['source_list']=='vehicleList'
+            placement=a.get('sample_highway_placement')
+            if bounded:
+                if not placement or placement.get('spawn_uid') not in corridors:
+                    errors.append((entry['id'],'missing sample NPC corridor'))
+                else:
+                    c=corridors[placement['spawn_uid']];distance=placement['reference_arc_m']
+                    if not 0<=distance<=c['arc'][-1]: errors.append((entry['id'],'sample NPC arc bounds'))
+                    expected=gen.geo.continuous_route_pose_at_arc(c['route'],c['arc'],distance)
+                    pos=actor['initPosition']['pos']
+                    # set_static_vehicle_actor preserves the existing +0.36m spawn-height contract.
+                    if any(abs(pos[k]-expected[k])>1e-5 for k in ('x','y')) or abs(pos['z']-expected['z']-.36)>1e-5:
+                        errors.append((entry['id'],'scenario NPC differs from bounded route'))
+                    if abs(actor['initPosition']['initLinkRatio']-expected['point_ratio'])>1e-6:
+                        errors.append((entry['id'],'sample NPC original link ratio'))
+                    bounded_vehicles+=1
+            elif placement: errors.append((entry['id'],'unexpected generic NPC restriction'))
             yaw=float(actor['initPosition']['rot']['yaw']) if 'initPosition' in actor else float(actor['rot']['yaw'])
             poly=gen.rectangle(a['geometric_center_estimate'],a['estimated_size'],yaw)
             if ego_poly.distance(poly)<.299:errors.append((entry['id'],'recomputed ego footprint'))
@@ -45,6 +65,7 @@ def audit(manifest_path):
         if dict(missions)!=m['config']['mission_counts']:errors.append(('all','mission quota'))
     return dict(status='OFFLINE_PASS' if not errors else 'OFFLINE_FAIL',live_validation=False,
         scenes=len(m['scenes']),unique_payloads=len(hashes),families=dict(families),mission_counts=dict(missions),
+        sample_bounded_highway_vehicle_count=bounded_vehicles,
         distance_direction_bins=dict(bins),asset_groups=dict(groups),asset_counts=dict(assets),splits=dict(splits),
         actual_actor_directions=dict(roles),geometry_without_capture_reference=dict(unknown),
         mean_resamples=sum(retries)/max(1,len(retries)),max_resamples=max(retries,default=0),errors=errors,
