@@ -4,7 +4,37 @@
 기존 v1/E25 보강 실험과 구분한다. **구버전 왕복10K 생성 기록은 있으나 최신 일방향
 기본의10K는 생성하지 않았다. 소량 live 검증만 수행했고 본 수집·본 학습은 미시작이다.**
 
-## 최신 v24 — 실제 yaw별 ROI 검사 / 일부 재촬영 대기
+## 최신 v25 — yaw42조건 완료 / GPU 속도 측정 대기
+
+2026-10-06. 재개 전 정지 상태의 gear-only Park probe는22.4ms에 성공했다.
+남은 `straight_front +10°`, `curve_left -10°`를 원본과 같은 NPC payload로 재로드했다.
+두 장 모두 고정 위치/정지 gate·실제 GT/visibility·CollisionData 검사를 통과했다.
+이제 **유효42/42조건, 충돌 없는42조건**이다. 이동한 원래4회/저장 전 차단2회는
+실패 이력으로 보존하며 비교에서 제외했다. 최초42회+재시도4회+최종2회로 총48회 시도,
+raw46장 중 유효한 paired 조건42개다. 본 학습 quota에 넣은 것은 아니다.
+
+| yaw 절댓값 | 실제 GT center ROI 포함 | 해석 |
+| --- | ---: | --- |
+| 0° | 6/6 | 모두 포함 |
+| 3° | 12/12 | 양 부호 모두 포함 |
+| 10° | 12/12 | 미완료2조건까지 완료 |
+| 15° | 10/12 | 좌/우 곡선 각1조건 제외 |
+
+직선·인접 차선28조건은 모두 포함, 곡선14조건은12조건 포함이다.
+유효42장 중 camera 근거가 있는0-point GT는9장이다. 전체 대회 분포/AP는 아니다.
+재집계한 경계 stress GT40개의 증강 유지율은 current RTS92.19%, scale 제거94.61%,
+rotation 제거96.92%, translation만100%다. 기존 GT75개의99.65% 결과는 동일하다.
+MORAI·GPU 모델을 동시에 돌려 추론 속도를 측정하지 않았다.
+
+최종 종료Park은 첫3초 timeout 후 재시도 성공(총3.317초)했다. 재개 전 probe 성공과
+최종gear1 응답은 확인했지만 **EventCmd 지연 원인 해결·장시간 무고장 인증은 아니다.**
+다음은 MORAI 종료 후 production30m 대비100m 후보의 GPU latency/VRAM 비교,
+정적NPC runtime 이동과 Park 간헐 timeout의 본 수집 gate 보강이다. 새10K/본 수집은 미실행이다.
+
+근거: `/home/luv/morai_cap/base5_v2_261006/yaw_report_v25.json`,
+`park_preflight_v25.json`, `yaw_remaining_capture_v25/`.
+
+## v24 — 실제 yaw별 ROI 검사 / 당시 일부 재촬영 대기
 
 2026-10-06. 직선 전/후방·좌/우 인접 차선·좌/우 곡선6개 배치에서
 Ego XY와 NPC scenario payload를 고정하고 yaw만0/±3/±10/±15°로 바꿨다.

@@ -1,6 +1,7 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v24 yaw 검사·Park timeout 중단 상태가 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v25 yaw42조건 완료가 최신이다.
+최종Park은 재시도 성공했으며 간헐 timeout 원인은 미해결이다.
 아래 v23 분산검증 이력과 맨 아래 yaw 검사 명령을 구분한다.
 **본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
 
@@ -440,8 +441,8 @@ ROI 경계 진단용이므로 offline ROI 오류2건을 의도적으로 포함�
 `report_base5_yaw_probe.py`가 기대한2건 외에 오류가 있는지 명시한다.
 
 v24 실행의 raw/ledger/metadata를 보존하고 재현에는 새 output을 사용한다.
-현재 마지막 Park 응답을 확인하지 못했으므로 **MR 재연결·정지/Park 상태 확인 전에는
-아래 live 명령을 실행하지 않는다.** 남은2조건 입력은 준비했다.
+당시 마지막 Park 응답을 확인하지 못해 중단했다. v25는 사전Park probe 후 아래2조건을
+완료했다. 아래는 **완료 세션의 read-only resume 예시**이며 새 캡처 명령이 아니다.
 
 ```bash
 ajou
@@ -461,8 +462,9 @@ python3 dataset/morai_od/scripts/report_base5_yaw_probe.py \
   --manifest /home/luv/morai_cap/base5_v2_261006/yaw_probe_v24/manifest.json \
   --ledger /home/luv/morai_cap/base5_v2_261006/yaw_capture_v24/ledger.jsonl \
   --ledger /home/luv/morai_cap/base5_v2_261006/yaw_retry_capture_v24/ledger.jsonl \
+  --ledger /home/luv/morai_cap/base5_v2_261006/yaw_remaining_capture_v25/ledger.jsonl \
   --readiness-ledger /home/luv/morai_cap/base5_v2_261006/readiness_selected_v23.jsonl \
-  --output /home/luv/morai_cap/base5_v2_261006/yaw_report_v24.json
+  --output /home/luv/morai_cap/base5_v2_261006/yaw_report_v25.json
 ```
 
 도로 의미의 전후/좌우는 road-frame metadata, 학습/추론 범위는 실제 LiDAR-frame으로 판단한다.
