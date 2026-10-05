@@ -4,7 +4,33 @@
 기존 v1/E25 보강 실험과 구분한다. **구버전 왕복10K 생성 기록은 있으나 최신 일방향
 기본의10K는 생성하지 않았다. 소량 live 검증만 수행했고 본 수집·본 학습은 미시작이다.**
 
-## 최신 v26 — 동적 외관·자연 속도 유지/뒤쪽 출발 live 검증
+## 최신 v27 — 자산별 정지/이동 외관 비교 완료
+
+2026-10-06. 대표13자산×정지/이동×2반복의 **최종52조건/80 component GT**를 확보했다.
+74시도/71 raw 저장/3도착실패 차단이며, 실패와 이전 표본을 삭제하지 않고 최종 pair를
+별도 선택했다.52조건 모두 도착·실제 정지/이동·visibility·CollisionData 비충돌 검사 통과.
+최종 종료Park는 첫timeout/재시도 성공이다. 간헐 서비스지연은 여전히 미해결이다.
+
+- Dog1/2,Deer1,Ped_Pet1은 실제 자세/형상 변화가 있어 정지+이동 phase 유지 권장.
+  기존Woman2 v26의 동작 외관 근거도 유지한다.
+- BabyStroller2/3,Bike3,Scooter1은 현재 template에서 이동해도 뚜렷한 자세 변화가
+  관측되지 않았고 component size도 동일했다. NCAP_EPTa·rigid obstacle·차량과 함께
+  **외관 수집은 정지 우선**으로 설계한다. 다른 자산/애니메이션에는 자동 일반화하지 않는다.
+- object 계열 일부의 정지/waypoint 이동 높이가 약0.31–0.65m 달랐다. 이 차이를
+  형상 변화로 오해하지 않고12조건을 실제 높이가 맞도록 재촬영했다. raw GT 사후변환 없음.
+- 초기 NPC 진단의 spawn z 중복 +0.36m는 preparer에서 수정하고 차량8조건을 재촬영했다.
+- 속도 회귀/temporal 학습 재개나 runtime의 정적 객체 정책 변경이 아니다.
+  detector·tracker·planning/localization production 인터페이스는 그대로다.
+
+근거·제한·자산별 수치:
+[자산별 외관 비교 EVIDENCE](261006_base5_asset_motion_appearance_evidence.md).
+원본/최종비교: `/home/luv/morai_cap/base5_v2_261006/asset_motion_report_v27_canonical/`.
+다음은 일반generator에 자산별 외관 정책/자연속도 뒤쪽출발을 통합하고 근접·혼합 배치를
+소량 재검증하는 것이다. **일반10K default 통합/새10K 생성·본 수집은 아직 미시작**이다.
+GPU latency/VRAM은 MR 종료 후 측정한다.
+최종 Base5 테스트59개, 새 스크립트 Python compile, diff whitespace 검사를 통과했다.
+
+## v26 — 동적 외관·자연 속도 유지/뒤쪽 출발 live 검증
 
 2026-10-06. 기존 생성기는 좁은 거리cell 내부에 시작점과 전체 경로를 넣기 위해
 `speed=min(nominal,path_length/6s)`를 사용한다. 이번에는 **캡처 목표 위치를 고정하고

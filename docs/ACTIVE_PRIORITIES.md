@@ -57,8 +57,12 @@
   Park 재확인 후 남은2조건 완료,최종Park 재시도 성공. 간헐 timeout 원인은 미해결이다.
   추론 latency 측정은 아직 하지 않았다.
   v26은 속도를 낮추지 않고뒤쪽출발+실제목표도착 capture를Woman2 12조건에서 검증했다.
-  이동자세/GT 형상이달라짐을 확인. 자연속도 방식의 일반generator/audit 통합과
-  근접·복합·animal 확장검증이 남으며 본10K default는 아직 바꾸지 않았다.
+  이동자세/GT 형상이달라짐을 확인.
+  v27은 대표13자산의52조건/80component GT 비교 완료. 일부 object의 이동높이 차이는
+  12조건 matched-height 재촬영으로 제거했다. 관절 변화 사람/동물은 동적 phase,
+  현재 fixed-pose 복합/rigid 자산은 정지 우선 권장. 미검증 자산에는 자동 일반화하지 않는다.
+  자산별 외관 정책·자연속도 방식의 일반generator/audit 통합과 근접/혼합 재검증이 남으며
+  본10K default는 아직 바꾸지 않았다.
   새 기본의10K 전수 생성/audit·전체pool/장시간 검증과4-class runtime 결정은 남는다.
   구왕복10K는 새 기본 수집에 사용하지 않는다. 본 수집/본 학습은 미실행이다.
 

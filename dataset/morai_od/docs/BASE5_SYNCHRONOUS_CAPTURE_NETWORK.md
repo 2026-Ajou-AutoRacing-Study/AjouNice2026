@@ -1,6 +1,6 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v26 뒤쪽출발/동적외관12조건 검증이 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v27 자산별 정지/이동52조건 비교가 최신이다.
 최종Park은 재시도 성공했으며 간헐 timeout 원인은 미해결이다.
 아래 v23 분산검증 이력과 맨 아래 yaw 검사 명령을 구분한다.
 **본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
@@ -507,3 +507,40 @@ python3 dataset/morai_od/scripts/report_base5_motion_appearance_probe.py \
 
 normal Base5 generator의자연속도 기본전환은아직아니다. 현재walking/running tag는속도분기이고,
 모든자산에서 explicit animation Walk/Run 전환을확인한것은아니다.
+
+## 자산별 외관 비교 / v27
+
+기존 ROS 동기캡처 network/Capture Mode를 그대로 사용했다. 다른 UDP/full stack을
+동시에 켜지 않는다. 대표13종52조건의 완료 기록과 높이 matched 재촬영 근거는
+[EVIDENCE](261006_base5_asset_motion_appearance_evidence.md)와 CURRENT를 읽는다.
+현재 preparer는 진단 전용이며 일반10K 수집 명령이 아니다.
+
+새 진단 deck 준비는 MR에 로드하지 않으며 존재하지 않는 output만 허용한다.
+reference는 로컬 raw이므로 fresh clone만으로 아래 경로가 생기지는 않는다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/prepare_base5_asset_motion_probe.py \
+  --reference "$HOME/morai_cap/base5_v2_261006/readiness_capture_v22/captures/b5v2_00039" \
+  --output "$HOME/morai_cap/base5_v2_261006/asset_motion_probe_next"
+```
+
+수집은 해당 manifest와 새 output을 `run_base5_capture.py --limit 52`에 전달한다.
+이미 완료한 session에 다른 hash의 deck을 덮어써 resume하지 않는다.
+높이 비교용 `--height-reference-report`는 실제 정지/이동 report에서 계산한 waypoint
+z offset으로 입력 시나리오만 바꾸는 진단 옵션이다. 일반도로 지면 보정/GT 변환으로 쓰지 않는다.
+
+최종 선택 보고서를 read-only로 다시 만들 때는 아래처럼 run 순서를 명시한다.
+원래 실패와 교체된 raw도 보고서에 보존되며 원본 파일을 바꾸지 않는다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/report_base5_asset_motion_probe.py \
+  --capture-root "$HOME/morai_cap/base5_v2_261006/asset_motion_capture_v27" \
+  --additional-capture-root "$HOME/morai_cap/base5_v2_261006/asset_motion_capture_v27_corrected" \
+  --additional-capture-root "$HOME/morai_cap/base5_v2_261006/asset_motion_capture_v27_height" \
+  --output "$HOME/morai_cap/base5_v2_261006/asset_motion_report_next"
+```
+
+각 `*_comparison.png`는 정지2/이동2 원본 RGB crop 확대다. `*_lidar_xz.png`는
+component 로컬 관측점 그림이며 mesh 재구성이나 detector 평가가 아니다.

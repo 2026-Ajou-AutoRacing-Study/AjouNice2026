@@ -4,7 +4,13 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- **최신 v26:**같은Woman2 속도0/0.35/1.1/2.2m/s×3반복의 뒤쪽출발/실제도착 캡처 검증.
+- **최신 v27:**대표13자산×정지/이동×2반복의52조건/80component GT 비교 완료.
+  관절 변화가 있는 사람·동물은 동적 phase 유지, 현재 fixed-pose 복합 객체/rigid 객체는
+  정지 우선 권장. object 이동 높이 차이는12조건 matched-height 재촬영으로 제거했다.
+  일반10K default 통합/본 수집은 아직이다.
+  [CURRENT](BASE5_V2_CURRENT.md), [외관 EVIDENCE](261006_base5_asset_motion_appearance_evidence.md) 우선.
+
+- **v26:**같은Woman2 속도0/0.35/1.1/2.2m/s×3반복의 뒤쪽출발/실제도착 캡처 검증.
   최초10성공/2차단,재시도 후12유효 캡처. 이동 시 실제 자세/GT 형상 변화 확인.
   자연속도 유지 접근은 가능하며 일반generator 기본 전환·전체동적 자산 검증은 아직이다.
   준비시간 보통3.7초/기록최대8.5초,Park 간헐timeout 미해결.
@@ -45,7 +51,7 @@
   [CURRENT](BASE5_V2_CURRENT.md)와 [실행/재개 런북](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md)을 먼저 읽는다.
   최신10K 후보는v18d offline PASS. 본 수집은 미실행이며 sparse 가시성 보충·최종GT 정책은 남아 있다.
 
-- [독립 Base5 v2 최신 구현·검증·다음 실행](BASE5_V2_CURRENT.md): 최신 v26은 위 항목.
+- [독립 Base5 v2 최신 구현·검증·다음 실행](BASE5_V2_CURRENT.md): 최신 v27은 위 항목.
   이전10K 전수 offline PASS, 100m/4-class 후보 GPU loss·역전파 및48장 live41후보/7검토는 EVIDENCE다.
   v15는 미션 차량·장애물 회피 관측1,300장과10–50cm 측방 gap 후보를 추가했다.
   8장+대조4장 실제 캡처, 약13–34cm actual gap 확보. 지면/collider 증거가 없어 review 유지.
