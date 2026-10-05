@@ -220,6 +220,28 @@ def main():
                         if moving and movement_before and math.hypot(moving['x']-movement_before['x'],moving['y']-movement_before['y'])>=.05:break
                         fresh();time.sleep(.025)
                 else:time.sleep(.2)
+                arrival_evidence=None
+                if meta.get('motion_probe') and entry['motion'] not in ('static','standing'):
+                    probe=meta['motion_probe'];target=probe['target_position']
+                    status('waiting_motion_target',entry['id'])
+                    deadline=time.monotonic()+probe['arrival_timeout_sec'];closest=float('inf')
+                    while time.monotonic()<deadline:
+                        with lock:current=actor_position(state['objects'],primary_uid)
+                        if current:
+                            distance=math.hypot(current['x']-target['x'],current['y']-target['y'])
+                            closest=min(closest,distance)
+                            if distance<=probe['target_tolerance_m']:
+                                arrival_evidence=dict(target_error_m=distance,position=current,
+                                    load_to_arrival_sec=time.monotonic()-load_time);break
+                        fresh();time.sleep(.015)
+                    else:
+                        with lock:failed_objects=state['objects'];failed_trace=list(object_traces)
+                        atomic_json(args.output/'failures'/(entry['id']+'_'+str(time.time_ns())+'.json'),
+                            dict(reason='motion_probe_arrival_not_observed',metadata=meta,
+                                closest_observed_target_error_m=closest if math.isfinite(closest) else None,objects=failed_objects,
+                                object_position_samples=[r for r in failed_trace if r['t']>=load_time],
+                                load_time_monotonic=load_time))
+                        raise ValueError('Motion probe target arrival not observed; no capture')
                 e1=fresh()
                 if math.hypot(e1['x']-e0['x'],e1['y']-e0['y'])>manifest['config']['capture']['maximum_ego_drift_m']:
                     raise ValueError('Stationary Ego drift exceeded')
@@ -321,6 +343,7 @@ def main():
                     objects_after=objects_after,ego_samples=samples,capture_drift_m=drift,
                     primary_displacement_during_wait_m=movement,object_position_samples=actor_samples,
                     capture_requested_at_monotonic=capture_requested_at,motion_capture=motion_evidence,
+                    motion_probe_arrival=arrival_evidence,
                     motion_capture_actors=motion_actors))
                 atomic_json(dest/'metadata.json',meta);atomic_json(dest/'audit.json',audit)
                 atomic_json(dest/'attempt.json',dict(stage='complete',scenario_sha256=entry['scenario_sha256'],archived_previous_attempt=archived))

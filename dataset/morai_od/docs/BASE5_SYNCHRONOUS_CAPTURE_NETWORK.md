@@ -1,6 +1,6 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v25 yaw42조건 완료가 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v26 뒤쪽출발/동적외관12조건 검증이 최신이다.
 최종Park은 재시도 성공했으며 간헐 timeout 원인은 미해결이다.
 아래 v23 분산검증 이력과 맨 아래 yaw 검사 명령을 구분한다.
 **본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
@@ -469,3 +469,41 @@ python3 dataset/morai_od/scripts/report_base5_yaw_probe.py \
 
 도로 의미의 전후/좌우는 road-frame metadata, 학습/추론 범위는 실제 LiDAR-frame으로 판단한다.
 GT를 도로 방향으로 돌려 범위 안으로 취급하지 않는다. 검증 중 detector·planner·GPU 추론을 켜지 않는다.
+
+## 동적 외관·뒤쪽 출발 진단 / v26
+
+기존 네트워크·Capture Mode를 유지하며 full stack은 필요 없다. 같은 ordinary pedestrian의
+완료 raw가 있어야 한다. 아래경로는 로컬 증거이며freshclone용 데이터 제공 명령은 아니다.
+목표위치까지 움직인 뒤 저장하므로 저속화를 위해좁은cell 전체에 경로를 억지로 넣지 않는다.
+target 도착확인/전체경로 충돌 proxy/실제CollisionData/endpoint/가시성 gate를 유지한다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/prepare_base5_motion_appearance_probe.py \
+  --capture "$HOME/morai_cap/base5_v2_261006/readiness_capture_v22/captures/b5v2_00039" \
+  --output "$HOME/morai_cap/base5_v2_261006/motion_probe_next"
+```
+
+위 명령은 새12개 scenario를 준비할 뿐 MR에 로드하지 않는다. 새output만 허용한다.
+실제v26 캡처는 완료됐으며 아래는 완료12개를다시촬영하지 않는 read-only resume 확인이다.
+실패2회 기록은ledger에보존돼있다. 완료한원본scenario나session계약을 바꿔재개하지 않는다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/run_base5_capture.py \
+  --manifest "$HOME/morai_cap/base5_v2_261006/motion_probe_v26/manifest.json" \
+  --output "$HOME/morai_cap/base5_v2_261006/motion_capture_v26" --limit 12
+```
+
+원본RGB crop·속도/도착/캡처시각의 read-only 보고서 생성은 새output을사용한다.
+`appearance_contact_sheet.png`는보기용 확대이며 새로운센서해상도 데이터가 아니다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/report_base5_motion_appearance_probe.py \
+  --capture-root "$HOME/morai_cap/base5_v2_261006/motion_capture_v26" \
+  --output "$HOME/morai_cap/base5_v2_261006/motion_report_next"
+```
+
+normal Base5 generator의자연속도 기본전환은아직아니다. 현재walking/running tag는속도분기이고,
+모든자산에서 explicit animation Walk/Run 전환을확인한것은아니다.
