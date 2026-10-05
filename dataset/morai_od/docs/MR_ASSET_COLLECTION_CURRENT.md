@@ -2,6 +2,43 @@
 
 상태: CURRENT. 2026-10-05. 향후 수집은 MR만 사용한다.
 
+## 최신 구현 상태 — 2026-10-05 후속
+
+[새 카탈로그 연결 및12-scene MR 검증](261005_base5_mr_asset_review_smoke.md)을 우선한다.
+Base5 전용 versioned catalog를 연결했고 pool은 Vehicle59/Pedestrian28/Obstacle19다.
+G80 open door는 지면 실패로 review 보류, Animal/유인 복합 자산도 review다.
+아래의 "미구현" 문구는 합의 당시 이력이며 Base5 연결 상태는 이 절과 evidence가
+대체한다. 기존 general generator/production/과거 catalog는 변경하지 않았다.
+
+## 동물·아기·복합 객체 학습 정책 — 2026-10-05 합의 / 구현 대기
+
+[G80 및 복합 GT 확인](261005_g80_and_composite_gt_followup.md)에서 실제 구성요소와
+annotation ID 구조를 확인했다. 아래는 다음 학습용 정책이며 현재 자동 positive pool에
+이미 편입됐다는 뜻이 아니다. Animal/복합 자산의 review 상태는 필요한 변환 검증 전까지 유지한다.
+
+- 모델은 우선 Vehicle/Pedestrian/Obstacle 3-class를 유지한다. 별도 Animal head는 추가하지 않는다.
+- 원본·카탈로그에는 animal과 세부 종류를 보존하고, 학습용 동물은 우선 Obstacle로 매핑한다.
+  움직이는 동물까지 UNKNOWN 속도0 정책으로 처리하는 것은 한계다. 동적 대응이 필요하면
+  별도 class와 tracker/planning 매핑을 함께 검토하며 현재 정책이 해결했다고 주장하지 않는다.
+- 아기는 Pedestrian이다. 유모차 내부 아기의 독립 GT도 원본에 보존한다. 실제 가시성과
+  크기 기준으로 supervision을 검토하고 이름만으로 일괄 제외/일괄 positive 처리하지 않는다.
+  현재 point gate를 임의로 없애거나 camera-visible 기준이 이미 구현됐다고 해석하지 않는다.
+- 복합 객체는 소량부터 학습 포함을 지향한다. 사람+개, 성인+유모차+아기 등을 하나의 큰
+  박스로 합치지 않고 구성요소별 GT 및 class를 보존한다. 사람/아기=Pedestrian,
+  개/유모차=Obstacle을 기본 후보로 관리한다.
+- 자전거는 센서 annotation에서 Vehicle이지만 현재 Vehicle→CAR 및 CAR Map-CV 정책과
+  의미가 다를 수 있다. 사람은 Pedestrian으로 보존하되 자전거 구성요소의 학습/runtime
+  매핑은 검토 대기다. 자동차로 즉시 편입하거나 무조건 Obstacle로 바꾸지 않는다.
+- LiDAR Instance의 같은 부모 UID 아래 여러 행을 보존하는 parser가 선행 조건이다.
+  `uid -> box` 덮어쓰기를 금지하고 `uid -> components` 또는 독립 instance key를 사용한다.
+  순서에만 의존한 시간축 component ID 대응도 검증 없이 확정하지 않는다.
+- 일반 사람·차량의 비중을 보존하고 희귀 복합 자산을 별도 관리한다. 소량 학습 이후
+  동일 mission rosbag에서 기존 class 성능과 근접 객체 재현 성능을 함께 확인한 뒤 확대한다.
+
+문 닫힌 `2021_Hyundai_G80`(30100010, vehicleList)은 현재 Vehicle positive다.
+문 열린 `OBJ_G80_Open_Door`(40100034, objectList)는 별도 asset이며 지면 실패로 보류다.
+이번 9-case 지면 검증은 문 열린 asset만 대상으로 했으며 일반 G80도 실패한다고 확대하지 않는다.
+
 ## 2026-10-05 새 목록 검수 및 후속 정책
 
 아래는 **목록 검수 완료 / 생성기 연결·분류 변경 미구현** 상태다. 아래 합의가 기존
@@ -22,7 +59,7 @@ Obstacle 목록은81개 배치/70종이다. Tree03(`40200004`)와 EFFECT_Fire01(
 중복 제거하여 배치 횟수가 asset sampling 가중치로 변하지 않게 해야 한다.
 새 목록은 로컬 MR SaveFile에 있으며 이번 문서 변경으로 Git catalog에 편입되지는 않는다.
 
-### 합의 및 검토 경계
+### 당시 합의 및 검토 경계 (후속 정책은 위 최신 절 우선)
 
 - MRP 미지원·교집합·quarantine을 신규 MR 수집의 제외 이유로 쓰지 않는다.
 - 신규 정적 `OBJ_` 차량17종은 수집·Vehicle positive 편입 우선 후보다.

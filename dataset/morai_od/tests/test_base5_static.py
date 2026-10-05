@@ -57,6 +57,12 @@ class Base5StaticTest(unittest.TestCase):
             for row in manifest['scenes']:
                 families.add(row['mission_family'])
                 scenario = json.loads(Path(row['scenario']).read_text())
+                metadata = json.loads(Path(row['metadata']).read_text())
+                for actor in metadata['runtime_actors']:
+                    if actor['name'].startswith('OBJ_'):
+                        self.assertEqual(actor['class'], 'obstacle')
+                        self.assertEqual(actor['training_class'], 'vehicle')
+                        self.assertEqual(actor['source_list'], 'objectList')
                 self.assertEqual(scenario['spawnPointList'], [])
                 self.assertEqual(scenario['egoVehicle']['currentVelocity'], 0.)
                 self.assertEqual(scenario['egoVehicle']['initPosition']['vehicleSaveData']['velocity'], 0.)

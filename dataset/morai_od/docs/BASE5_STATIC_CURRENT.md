@@ -1,13 +1,21 @@
 # Base5-Static 생성기 — CURRENT PREPARED
 
-2026-10-05. **오프라인 생성기 구현 완료, MR live 및 본 수집 미실행.**
+2026-10-05. **생성기·새 카탈로그 연결 완료, MR 자산12-scene 동기 smoke 완료. 본 수집 미실행.**
 Production E25, 학습 ROI, tracker 및 localization 계약은 변경하지 않았다.
 
-자산 정책: [MR 카탈로그 현재 상태](MR_ASSET_COLLECTION_CURRENT.md)의2026-10-05
-검수/합의를 따른다. 새 목록43/33/70종은 검수됐지만 아래 생성기는 아직 기존
-catalog/template를 사용한다. 정적 OBJ_ 차량·복합 자산 분류를 연결하고 소량 검증하기
-전에는 새70종으로 본 수집이 준비됐다고 해석하지 않는다. 일반 표지판은 도로변만
-배치하며 차로 중앙 positive로 랜덤 배치하지 않는다.
+MR 동기 캡처 연결은 [Base5 전용 Network](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md)를
+사용한다. JSON 준비/설치와 실제 subscriber 연결·캡처 성공은 별도 검증이다.
+
+자산 정책: [MR 카탈로그 현재 상태](MR_ASSET_COLLECTION_CURRENT.md)를 따른다.
+아래 생성기는 새 versioned catalog의59 Vehicle/28 Pedestrian/19 Obstacle 후보를
+사용한다. [12-scene smoke](261005_base5_mr_asset_review_smoke.md)에서 G80 지면 실패와
+복합객체의 동일UID 다중GT를 확인했다. 전체pool·초근접·partial-view 검증 완료는 아니다.
+일반 표지판은 도로변 전용이며 현재 positive pool에는 넣지 않는다.
+
+동물/아기/복합 자산은 위 MR CURRENT의 최신 학습 정책을 따른다: 3-class 유지,
+원본 세부 종류 및 component GT 보존, 소량 포함 후 평가. 이는 정책 합의이며
+component-preserving 학습 변환 및 positive pool 편입은 아직 구현하지 않았다.
+자전거 runtime 매핑과 동물의 강제정지 정책 한계는 별도 해결 대상이다.
 
 센서 거리 경계: [MR/VLP16 live 증거](../../../docs/bevfusion/261005_MR_VLP16_100M_RANGE_EVIDENCE.md).
 fireDistance150을 저장해도 실제 출력은 약100m로 제한됐다. Base5의20–60m 차량

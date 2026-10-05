@@ -11,6 +11,7 @@ from pathlib import Path
 
 import generate_dynamic_object_capture_set as geo
 import generate_static_classcentric_base3_batch as base3
+import build_base5_mr_asset_catalog as assets
 
 DEFAULT_CONFIG = geo.PROJECT_ROOT / 'dataset/morai_od/configs/base5_static_v1.json'
 
@@ -74,11 +75,7 @@ def split_for_group(group, config):
 
 
 def load_context(runtime_dir, mgeo_dir):
-    loaders = {'near_obstacle': geo.load_runtime_obstacle_pool,
-               'far_vehicle': geo.load_runtime_vehicle_pool,
-               'pedestrian': geo.load_runtime_pedestrian_pool}
-    pools = {name: loader(geo.DEFAULT_ASSET_CATALOG, geo.DEFAULT_ASSET_COMPATIBILITY,
-                         runtime_dir) for name, loader in loaders.items()}
+    pools = assets.load_pools(runtime=runtime_dir)
     pools['near_obstacle'] = [a for a in pools['near_obstacle']
                              if a.get('ontology_class') == 'Obstacle']
     if not pools['near_obstacle']:
@@ -166,13 +163,20 @@ def build_scene(spec, config, context, all_specs):
             position = {k: pose[k] for k in ('x', 'y', 'z')}
             yaw = pose['yaw']
             actor = copy.deepcopy(asset['template'])
-            geo.set_static_vehicle_actor(actor, pose, position, 8500, yaw_override=yaw)
-            saved = actor['initPosition'].get('vehicleSaveData', {})
-            saved['velocity'] = 0.
-            geo.zero_vector(saved.get('lastVelocity'))
-            geo.zero_vector(saved.get('vehicle', {}).get('lastVelocity'))
-            scenario['vehicleList'] = [actor]
-            position = actor['initPosition']['pos']
+            if asset['source_list'] == 'objectList':
+                geo.set_actor_world_position(actor, position, yaw)
+                actor.update(UNIQUEID=8500, moveSpeed=0., isWaypointMode=False, waypointEventList=[])
+                actor['scale'] = dict(x=1., y=1., z=1.)
+                scenario['objectList'] = [actor]
+                position = actor['pos']
+            else:
+                geo.set_static_vehicle_actor(actor, pose, position, 8500, yaw_override=yaw)
+                saved = actor['initPosition'].get('vehicleSaveData', {})
+                saved['velocity'] = 0.
+                geo.zero_vector(saved.get('lastVelocity'))
+                geo.zero_vector(saved.get('vehicle', {}).get('lastVelocity'))
+                scenario['vehicleList'] = [actor]
+                position = actor['initPosition']['pos']
             observed_design['actor_route_arc_delta_m'] = direction * distance
         else:
             angles = {'front': 0., 'left': 75., 'right': -75., 'rear': 180.}
@@ -193,8 +197,10 @@ def build_scene(spec, config, context, all_specs):
                 scenario['objectList'] = [actor]
         cls = {'near_obstacle': 'obstacle', 'far_vehicle': 'vehicle',
                'pedestrian': 'pedestrian'}[spec['family']]
+        transport_class = 'obstacle' if asset['source_list'] == 'objectList' else cls
         runtime = [dict(unique_id=8500, data_id=asset['data_id'], name=asset['name'],
-                        asset_name=asset['name'], motion='static', **{'class': cls},
+                        asset_name=asset['name'], motion='static', **{'class': transport_class},
+                        training_class=cls, source_list=asset['source_list'],
                         position={k: float(position[k]) for k in ('x', 'y', 'z')}, yaw_deg=yaw)]
         observed_design.update(asset=asset['name'], role=role,
                                requested_pivot_distance_m=distance,

@@ -1,12 +1,18 @@
 # MORAI OD dataset 문서 index
 
-마지막 정리: 2026-09-22.
+마지막 정리: 2026-10-05.
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- [MR 새 자산 목록 검수·포함/제외 합의](MR_ASSET_COLLECTION_CURRENT.md): 새43/33/70종, 정적 차량 Vehicle 편입 후보, 동물·유인 복합 자산 검토 경계, 표지판 도로변 전용. 새 pool 연결은 아직 미구현.
+- [G80 배치·복합객체 GT 후속 확인](261005_g80_and_composite_gt_followup.md): G80 수동actor/다른Ego·위치·배치필드9-case 재로드 및 사람/개/자전거/유모차/아기 component 확인.
 
-- [Base5-Static 생성기·10k 설계](BASE5_STATIC_CURRENT.md): SaveSensorData single-frame용 bounded generator. 오프라인 검증만 완료, live 및 본 수집 미실행. 최대64 scene/batch, 대량 사전 생성 금지.
+- [새 MR 카탈로그 연결·12-scene 실제 검증](261005_base5_mr_asset_review_smoke.md): static Vehicle 연결, G80 지면 실패/보류, 복합 객체 동일UID 다중GT 발견. 본수집 전 남은 gate.
+
+- [Base5 MR 동기 캡처 Network](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md): 목적별6-interface JSON 및 MR 설치 경로. 정적 검증과12-scene live 캡처 통과.
+
+- [MR 새 자산 목록 검수·포함/제외 합의](MR_ASSET_COLLECTION_CURRENT.md): 새43/33/70종과 Base5 pool 연결 완료. 동물/아기/복합 객체의3-class 학습 정책은 합의 완료·변환 구현 대기. 표지판은 도로변 전용.
+
+- [Base5-Static 생성기·10k 설계](BASE5_STATIC_CURRENT.md): SaveSensorData single-frame용 bounded generator. 자산 review live 완료, 전체 배치/본 수집은 미실행. 최대64 scene/batch, 대량 사전 생성 금지.
 
 - [MR 복구 객체 rosbag 보강·학습 결과](261004_base5_restored_replay_results.md): 20 scene/60 frame, WoodBox6장 camera review, 727/124 replay E2 완료. Offline best E1, production 미변경.
 - [Base3 분포 공백·완료 학습 분석·다음 실행](../../../docs/bevfusion/261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md): 초근접·원거리 허점과 후보 rosbag A/B 계획.
