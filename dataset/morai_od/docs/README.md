@@ -4,7 +4,12 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- **최신 v29:** zero XYZ 무효점에 의한 근접 지면 오판을 수정했다. 과거 근접·혼합13장
+- **최신 v30:** Z 여유0/2/5/10cm 및 실측 지면 보정·아래쪽 대조60시도/57raw.
+  작은 상향 여유는 부유를 해결하지 않았다. 지면 기준 입력/waypoint 보정 후24/24 통과.
+  일괄Z상향·전역asset offset은 적용하지 않는다.3세션 종료Park 확인,간헐첫timeout은남음.
+  [CURRENT](BASE5_V2_CURRENT.md), [v30 EVIDENCE](261006_base5_z_margin_probe_evidence.md) 우선.
+
+- **v29 이력:** zero XYZ 무효점에 의한 근접 지면 오판을 수정했다. 과거 근접·혼합13장
   재검사는9통과/4review다. 독립 empty-ground 촬영/보정·동일cell 재배치 자동loop 구현.
   안전 종료4장/GT8개 학습 변환 CPU smoke PASS. 자동loop 두 번째 종료Park2회timeout으로
   live 중단, 나머지2cell 미실행. 재연결 후 소량 마무리 필요, 본10K/학습/GPU속도미측정.

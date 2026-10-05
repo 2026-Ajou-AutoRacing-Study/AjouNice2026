@@ -1,8 +1,9 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v29 검사기 수정/자동 보완이 최신이다.
-종료Park2회timeout으로새live는중단상태다. MR 재연결·서비스정상확인없이재개하지않는다.
-최종Park은 재시도 성공했으며 간헐 timeout 원인은 미해결이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v30 입력Z 대조가 최신이다.
+v29의Park2회timeout 중단 후 v30 사전Park 정상 확인으로 소량실험을 재개했고,
+3세션 종료Park을 확인했다. 간헐첫timeout/재시도 성공은 남아 있으며 장시간 인증은 아니다.
+추가 세션도 사전통신/종료Park gate를 유지한다. v29 안전실패 기록은 수정하지 않았다.
 아래 v23 분산검증 이력과 맨 아래 yaw 검사 명령을 구분한다.
 **본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
 
