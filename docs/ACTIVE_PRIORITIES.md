@@ -52,6 +52,9 @@
 - 독립 [Base5 v2](../dataset/morai_od/docs/BASE5_V2_CURRENT.md)의10K 오프라인 생성과
   100m 후보 GPU wiring은 이전 근거다. 최신v23은48조건 분산검증·2조건 대체·빠른 동작/
   all-actor motion gate·lidar1_camera0 정책·CPU 변환 검사 완료다.
+  v24 yaw 실측은 유효40/42조건: ±15° 곡선2조건이 횡30m 밖이다.
+  정지설정 NPC runtime 이동 표본은 제외/재촬영 gate로 차단했다.
+  종료Park timeout으로 live 중단,2조건 재검증 대기. 추론 latency 측정은 아직 하지 않았다.
   새 기본의10K 전수 생성/audit·전체pool/장시간 검증과4-class runtime 결정은 남는다.
   구왕복10K는 새 기본 수집에 사용하지 않는다. 본 수집/본 학습은 미실행이다.
 

@@ -14,6 +14,7 @@ import generate_dynamic_object_capture_set as geo
 import generate_static_classcentric_base3_batch as b3
 import build_base5_mr_asset_catalog as catalog
 import base5_avoidance_geometry as avoidance
+from base5_reference_frames import references
 
 CONFIG = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_independent_v2.json'
 GEOMETRY = geo.PROJECT_ROOT/'dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json'
@@ -487,6 +488,7 @@ def build(row,config,ctx,attempt=0):
             geometric_center_estimate=center,geometry_reference_known=known,estimated_size=size,
             planned_center_distance_m=actual,planned_surface_clearance_m=gap,
             longitudinal_m=lon,lateral_m=lat,actual_ego_role=actual_role,
+            reference_frames=references(center,ego,base['yaw']),
             training_class='animal' if asset.get('ontology_class')=='Animal' else 'component_annotation',
             runtime_mapping_verified=False if selected_pool in ('animal','pet_person','stroller','rider') else True))
         if not i: desired=actual

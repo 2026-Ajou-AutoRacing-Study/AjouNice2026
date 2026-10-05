@@ -4,7 +4,56 @@
 기존 v1/E25 보강 실험과 구분한다. **구버전 왕복10K 생성 기록은 있으나 최신 일방향
 기본의10K는 생성하지 않았다. 소량 live 검증만 수행했고 본 수집·본 학습은 미시작이다.**
 
-## 최신 v23 — 동작 타이밍·48조건 분산검증·GT 정책 결정
+## 최신 v24 — 실제 yaw별 ROI 검사 / 일부 재촬영 대기
+
+2026-10-06. 직선 전/후방·좌/우 인접 차선·좌/우 곡선6개 배치에서
+Ego XY와 NPC scenario payload를 고정하고 yaw만0/±3/±10/±15°로 바꿨다.
+요청42회 raw 저장은 성공했으나 **runtime NPC가 움직인4회는 paired 비교에서 제외**했다.
+재시도4회 중2회 복구/2회 저장 전 차단으로 **유효40/42조건**이다.
+마지막 Park 응답2회 timeout으로 추가 live를 중단했다. 본 수집 승인은 아니다.
+
+| 도로 접선 대비 Ego yaw | 실제 GT center ROI 포함 | 비고 |
+| --- | ---: | --- |
+| 0° | 6/6 | 직선·인접 차선·곡선 모두 포함 |
+| ±3° | 12/12 | 모두 포함 |
+| ±10° | 10/10 | 예정12조건 중2조건 미완료; 전체 통과로 쓰지 않음 |
+| ±15° | 10/12 | 좌/우 곡선 각1조건 횡30m 밖 |
+
+모델 LiDAR-frame ROI는 종±100/횡±30m다. 실제 curve_right +15°는
+GT center=(71.81,-33.63)m, curve_left -15°는(83.25,34.54)m다.
+각5 LiDAR point가 있었지만 model point ROI 안에는0개였다.
+직선·인접 차선은 검증된27조건 모두 center ROI 안이었다.
+**이 비율은 골라낸6개 stress 배치의 포함률이지 전체 대회 도로 포함 확률/AP가 아니다.**
+
+- MR Ego heading-1.347°로 요청 yaw를 확인했다. 최대 오차0.108°.
+  센서 GT 자체에는 heading 보정을 다시 적용하지 않았다.
+- 포함 기준은 실제 LiDAR Instance center다. 학습 ObjectRangeFilter는 strict XY center,
+  inference post-center filter는 XYZ다. 전체 BBox가 안에 들어간다는 의미는 아니다.
+- 유효40장 중9장은 box 내부 LiDAR point0이지만 실제 대응 camera crop 근거가 있다.
+  이는 lidar1_camera0 정책의 필요 근거이지 camera-only detector 성공 증거는 아니다.
+- 일부 NPC는 scenario 속도 설정0인데 runtime 이동이 관측됐다. 이동 표본에서
+  Object_topic 위치와 GT 위치가 함께 변했다. 원인은 아직 미확정이며 yaw 효과로 해석하지 않는다.
+  yaw probe gate는 설정 위치 XY 오차>0.25m 또는 캡처 전후 이동>0.10m를 차단/REVIEW한다.
+  일반 본 수집의 정적 NPC도 이 위험을 추가 검증해야 한다.
+- 신규 생성 metadata에는 road-frame 의미 위치와 Ego-frame 관측 위치를 함께 기록한다.
+  원본 LiDAR/camera/GT를 도로 접선 기준으로 회전시키거나 모델 ROI를 바꾸지는 않았다.
+- 현재 학습 증강(R±0.1rad, T std0.2m, S0.95–1.05; RTS 순서)의 CPU
+  5,000 draw 검사에서, 처음 안에 있던 stress GT38개의 평균 유지율92.65%다.
+  scale 제거95.19%, rotation 제거96.76%, translation만100%다.
+  기존48조건의 GT75개는99.65% 유지됐다. 전체 corpus 비율이 아닌 표본 민감도이며,
+  증강 기본값을 즉시 제거하지 않고 신규10K 생성 후 거리/yaw cell별 탈락률을 검사한다.
+  설치된 MMDet3D box 회전/이동/scale CPU 수치와 RTS 계산을 대조했다.
+- 원래 offline audit의 ROI 오류2개는 의도적인 범위 밖 진단이다.
+  `OFFLINE_FAIL` 원본을 그대로 보존하고 report에서 해당2개만 기대 오류로 구분한다.
+  이 장면을 일반 학습 quota의 accepted 후보로 세지 않는다.
+
+근거: `/home/luv/morai_cap/base5_v2_261006/yaw_report_v24.json`.
+원본 `yaw_probe_v24/`, `yaw_capture_v24/`, `yaw_retry_capture_v24/`를 보존했다.
+미완료는 `b5yaw_straight_front_p10`, `b5yaw_curve_left_m10`이며
+`yaw_remaining_manifest_v24.json`에2조건만 준비했다. Park/연결 확인 없이 재개하지 않는다.
+구현·재현 명령은 [동기 캡처 런북](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md)의 yaw 검사 절 참조.
+
+## v23 — 동작 타이밍·48조건 분산검증·GT 정책 결정
 
 사용자가 요청한1–3단계를 수행했다. **새10K 생성·본 캡처·학습은 하지 않았다.**
 현재 default는 왕복 없는 일방향+appearance profile이다. 이전v18d의 왕복10K는 그대로

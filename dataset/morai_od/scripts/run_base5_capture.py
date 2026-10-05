@@ -205,6 +205,10 @@ def main():
                     raise RuntimeError('External control mode/Drive gear not confirmed')
                 time.sleep(.2)
                 e0=fresh()
+                if meta.get('yaw_probe'):
+                    corrected=e0['heading']+meta['yaw_probe'].get('ego_heading_correction_deg',-1.347)
+                    error=(corrected-meta['ego']['yaw']+180.)%360.-180.
+                    if abs(error)>.2:raise ValueError('Yaw probe loaded heading differs from requested yaw')
                 primary_uid=meta['runtime_actors'][0]['unique_id'] if meta['runtime_actors'] else None
                 with lock: movement_before=actor_position(state['objects'],primary_uid)
                 # Capture as soon as real motion is established. A fixed 1.2s
@@ -220,6 +224,14 @@ def main():
                 if math.hypot(e1['x']-e0['x'],e1['y']-e0['y'])>manifest['config']['capture']['maximum_ego_drift_m']:
                     raise ValueError('Stationary Ego drift exceeded')
                 with lock: objects_before=state['objects']
+                if meta.get('yaw_probe'):
+                    from base5_reference_frames import yaw_runtime_review
+                    frozen_reasons=yaw_runtime_review(meta,objects_before)
+                    if frozen_reasons:
+                        atomic_json(args.output/'failures'/(entry['id']+'_'+str(time.time_ns())+'.json'),
+                            dict(reason='yaw_probe_frozen_world_failed',review_reasons=frozen_reasons,
+                                metadata=meta,objects_before=objects_before,ego_before=e1))
+                        raise ValueError('Yaw probe NPC is not at the fixed world pose')
                 movement_after=actor_position(objects_before,primary_uid)
                 movement=math.hypot(movement_after['x']-movement_before['x'],movement_after['y']-movement_before['y']) if movement_before and movement_after else None
                 if entry['motion'] not in ('static','standing') and (movement is None or movement<.05):
@@ -291,6 +303,9 @@ def main():
                     objects_before,objects_after,actor_samples,capture_requested_at)) for a in meta['runtime_actors']]
                 audit['motion_capture']=motion_evidence
                 audit['motion_capture_actors']=motion_actors
+                if meta.get('yaw_probe'):
+                    audit['yaw_runtime_review']=yaw_runtime_review(meta,objects_before,objects_after)
+                    audit['review_reasons'].extend(audit['yaw_runtime_review'])
                 for evidence in motion_actors:audit['review_reasons'].extend(evidence['review_reasons'])
                 runtime_missing,annotation_only=runtime_presence_review(meta,objects_before,objects_after,audit['components'])
                 if runtime_missing:audit['review_reasons'].append('missing_runtime_actor')

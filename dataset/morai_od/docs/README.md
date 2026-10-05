@@ -4,7 +4,12 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- **최신 v23:**빠른 동작 profile·all-actor 캡처 motion/endpoint gate·48조건 분산검증.
+- **최신 v24:**실제 yaw0/±3/±10/±15° paired 검사 유효40/42조건.
+  ±15° 곡선2조건 횡30m 밖, 직선/인접 차선 검증27조건 모두 포함.
+  NPC runtime 이동 표본 제외·재촬영 gate 추가. 종료Park timeout으로 live 중단;
+  2조건 대기, 본 수집 승인 아님. [CURRENT](BASE5_V2_CURRENT.md) 우선.
+
+- **v23:**빠른 동작 profile·all-actor 캡처 motion/endpoint gate·48조건 분산검증.
   최초46후보/1검토/1실패,2조건 재배치 및 최종gate 반복 후48조건 canonical 선택.
   GT75개,CPU raw/PKL 검사 통과. lidar1_camera0 기본 결정,실제camera-only5개 보존.
   본10K 생성·캡처·학습은 미실행. [CURRENT](BASE5_V2_CURRENT.md)와 런북 우선.
@@ -28,7 +33,7 @@
   [CURRENT](BASE5_V2_CURRENT.md)와 [실행/재개 런북](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md)을 먼저 읽는다.
   최신10K 후보는v18d offline PASS. 본 수집은 미실행이며 sparse 가시성 보충·최종GT 정책은 남아 있다.
 
-- [독립 Base5 v2 최신 구현·검증·다음 실행](BASE5_V2_CURRENT.md): 최신 v23은 위 항목.
+- [독립 Base5 v2 최신 구현·검증·다음 실행](BASE5_V2_CURRENT.md): 최신 v24는 위 항목.
   이전10K 전수 offline PASS, 100m/4-class 후보 GPU loss·역전파 및48장 live41후보/7검토는 EVIDENCE다.
   v15는 미션 차량·장애물 회피 관측1,300장과10–50cm 측방 gap 후보를 추가했다.
   8장+대조4장 실제 캡처, 약13–34cm actual gap 확보. 지면/collider 증거가 없어 review 유지.

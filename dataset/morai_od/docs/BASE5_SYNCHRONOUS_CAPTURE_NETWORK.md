@@ -1,6 +1,7 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v23 분산검증·all-actor motion gate가 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v24 yaw 검사·Park timeout 중단 상태가 최신이다.
+아래 v23 분산검증 이력과 맨 아래 yaw 검사 명령을 구분한다.
 **본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
 
 v18은 같은 one-load/seven-interface network를 사용한다. pause·선택적 actor-only load를
@@ -8,7 +9,7 @@ v18은 같은 one-load/seven-interface network를 사용한다. pause·선택적
 output을 사용한다. Dashboard는 새 세션 output을 `--capture-root`로 지정하면 된다.
 아래12-scene 성공은 이전 asset-review 이력이며 새10K 배치 성공을 뜻하지 않는다.
 
-## 최신 v23 — 준비·모니터링·최종 완료 resume
+## v23 — 준비·모니터링·최종 완료 resume
 
 새 분산48개를 준비할 때는 빈output을 사용한다. 아래 준비는 MR을 로드하지 않으며
 10K 생성도 아니다. 원본spec을 참고하되 일방향 appearance profile로 다시 배치한다.
@@ -416,3 +417,53 @@ pause 재개/선택적 actor-only load를 시험하다 서비스 timeout·연결
 이 두 방식은 기본 runner에 적용하지 않았다. MR 재연결 후 정상 one-load 소량 검증부터
 재확인한다. 지금 본 수집 명령을 실행하지 않는다. 상세 상태·증거는
 [BASE5_V2_CURRENT](BASE5_V2_CURRENT.md)의 v17 항목을 따른다.
+## yaw별 범위 검사 재현 / v24
+
+현재 네트워크·Capture Mode·Instance 설정은 위의 Base5 동기 캡처와 동일하다.
+`prepare_base5_yaw_probe.py`는 기존 source manifest의 실제 도로 배치6개를 사용하므로
+source가 없는 fresh clone에서 단독 실행되는 범용 생성 명령은 아니다.
+NPC payload를 그대로 두고 Ego yaw만 바꾸며, MR 폴더에는 runner가 현재1장만 설치/정리한다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/prepare_base5_yaw_probe.py \
+  --manifest /home/luv/morai_cap/base5_v2_261006/scenarios_10k_v18d/manifest.json \
+  --output /home/luv/morai_cap/base5_v2_261006/yaw_probe_new
+
+python3 dataset/morai_od/scripts/audit_base5_scenarios.py \
+  --manifest /home/luv/morai_cap/base5_v2_261006/yaw_probe_new/manifest.json \
+  --output /home/luv/morai_cap/base5_v2_261006/yaw_probe_new/offline_audit.json
+```
+
+ROI 경계 진단용이므로 offline ROI 오류2건을 의도적으로 포함한다.
+일반 생성 audit의 합격과 구분하고 일반 학습 quota에 섞지 않는다.
+`report_base5_yaw_probe.py`가 기대한2건 외에 오류가 있는지 명시한다.
+
+v24 실행의 raw/ledger/metadata를 보존하고 재현에는 새 output을 사용한다.
+현재 마지막 Park 응답을 확인하지 못했으므로 **MR 재연결·정지/Park 상태 확인 전에는
+아래 live 명령을 실행하지 않는다.** 남은2조건 입력은 준비했다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/run_base5_capture.py \
+  --manifest /home/luv/morai_cap/base5_v2_261006/yaw_remaining_manifest_v24.json \
+  --output /home/luv/morai_cap/base5_v2_261006/yaw_remaining_capture_v25 \
+  --limit 2
+```
+
+집계는 read-only이며 MR 통신이 필요 없다. 여러 ledger를 입력하면 처음 확인된 유효
+고정NPC 조건을 채택하고, 이동/미저장 시도도 제외 이유로 남긴다.
+새 remaining ledger는 완료 후 추가한다. raw를 덮어쓰거나 실패를 삭제하지 않는다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/report_base5_yaw_probe.py \
+  --manifest /home/luv/morai_cap/base5_v2_261006/yaw_probe_v24/manifest.json \
+  --ledger /home/luv/morai_cap/base5_v2_261006/yaw_capture_v24/ledger.jsonl \
+  --ledger /home/luv/morai_cap/base5_v2_261006/yaw_retry_capture_v24/ledger.jsonl \
+  --readiness-ledger /home/luv/morai_cap/base5_v2_261006/readiness_selected_v23.jsonl \
+  --output /home/luv/morai_cap/base5_v2_261006/yaw_report_v24.json
+```
+
+도로 의미의 전후/좌우는 road-frame metadata, 학습/추론 범위는 실제 LiDAR-frame으로 판단한다.
+GT를 도로 방향으로 돌려 범위 안으로 취급하지 않는다. 검증 중 detector·planner·GPU 추론을 켜지 않는다.
