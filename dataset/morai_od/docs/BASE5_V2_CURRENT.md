@@ -4,7 +4,61 @@
 기존 v1/E25 보강 실험과 구분한다. **시나리오 10,000개 생성은 완료했지만,
 소량 live는 아래처럼 통과/검토로 나뉘었다. 본 수집과 본 학습은 시작하지 않았다.**
 
-## 최신 v17 — 전체 후보 재생성 통과 / 동적 live 검증 중단
+## 최신 v18 — 동적 거리 수정·live 복구 / 본 수집 미시작
+
+2026-10-06 재연결 후 기존 one-load 정적1장 통과. pause/actor-only load는 재사용하지 않았다.
+새 motion 경로의 대표16장 재캡처는 **15후보 /1가시성 검토 /0실행실패**다.
+근접 회피8장, 전방60–80m/후방80–99m 차량, 로터리, 빈 배경을 포함한다.
+추가 전방 초근접 유모차·Bike3도 통과했고, AI police는 아래 존재 확인 수정 후 재캡처 통과했다.
+전체 자산이나10K live가 검증됐다는 뜻은 아니며 본 수집·학습은 미시작이다.
+
+- 일반 사람 요청5–10m: 실제9.526m,33point. 유모차 요청3–5m:
+  component3개 실제3.956/3.973/3.989m,98/95/24point. 준비 대기 중8m 이탈 문제를 수정했다.
+- 동적 자산은 Ego 기준 거리 원에 접하는0.5–4m 구간을 왕복한다. 동일 endpoint를
+  연속으로 연결한64회 유한 왕복이며, respawn/teleport/런처 loop 기능에 의존하지 않는다.
+  객체가 움직이는 외관을 확보하는 single-frame 수집 전용이다. 대회 이동 경로, temporal
+  학습, velocity label로 사용하지 않는다. 실측 displacement가 없으면 캡처 실패다.
+- endpoint·중간점의 거리 cell/ROI와 방향, 회전 중 heading까지 포함하는 보수적 swept
+  envelope를 검사한다. 여러 객체의 이동 envelope끼리도 이격을 유지한다. 이 envelope는
+  추정 geometry이며 실제 CollisionData·동기 annotation 검사를 대체하지 않는다.
+- 전방 초근접 유모차는 실제4.985/5.064/5.077m였다. 기존 annotation 거리 audit의
+  ±0.5m tolerance 안에서 통과한 값이며 모두 엄밀히5m 미만이라고 해석하지 않는다.
+- Dog2는 같은15–29m/좌측 조건 재배치에서 한 번 통과했지만, 같은 배치 반복에서는
+  실제24.565m·0point·camera crop 근거 부족으로 다시 검토였다. 자산 삭제·빈 배경화·GT
+  강제 positive 처리를 하지 않는다. 가시성 실패는 raw 보존 후 동일 cell 재배치/보충 대상이다.
+  timing 수정이 sparse 관측까지 해결한 것은 아니다.
+- police1은 `aiPedstrianList` 전용 AI destination 형식으로 일반 waypoint API와 다르다.
+  자산은 포함하되 움직이는 AI 경로는 미검증이므로 정지 외관으로 유지한다. requested motion과
+  effective standing은 metadata에 구분되고 manifest는 effective motion을 사용한다.
+  실제 annotation10.632m·32point가 있으나 Object_topic에는 해당UID가 없었다.
+  정지 AI 자산만 positive sensor annotation으로 존재를 입증할 수 있게 좁은 예외를 추가했다.
+  일반 객체 누락·동적 AI·센서 근거 없는 AI는 여전히 검토다. 충돌·지면 gate는 완화하지 않았다.
+
+최신10K 후보: `/home/luv/morai_cap/base5_v2_261006/scenarios_10k_v18d/manifest.json`.
+전수검사 OFFLINE_PASS:10,000 unique payload/오류0, train8,611/val1,389.
+기존 family/mission/거리/좌우/근접 gap quota 유지. 시나리오는 MR에 일괄 설치하지 않았다.
+이전 v18/v18b/v18c 부분 생성 실패본은 진단 근거로 보존하며 본 수집 manifest가 아니다.
+
+주요 증거 경로:
+
+- `.../shuttle_pilot_v18d/manifest.json`, `.../shuttle_capture_v18d/smoke_report.json`
+- `.../shuttle_extra_pilot_v18/manifest.json`, `.../shuttle_extra_capture_v18/smoke_report.json`
+- `.../ai_presence_capture_v18/smoke_report.json` (새 presence 계약·subset 재실행 no-op 통과)
+- 공통 prefix: `/home/luv/morai_cap/base5_v2_261006/`
+
+대표16장 평균5.234초/장·p50 4.959초, raw80,845,627bytes. 단순 외삽10K 약14.5시간이며
+보충·실패·환경 부하는 별도다. info 변환은 train12/val3, GT19개 통과했다.
+`artifacts/datasets/base5_v18_shuttle_smoke/`이며 학습은 수행하지 않았다.
+단위검증30개 통과, dashboard HTTP에서16완료/15후보/1검토를 확인했다.
+본 수집 승인은 별도다. 검토 재배치 보충과 provisional GT 정책 확정 없이10K positive를 보장하지 않는다.
+
+presence gate 버전이 session contract에 포함된다. 이전 safety policy 세션과 섞지 말고 새
+output을 사용한다. 같은 계약의 resume은 완료 raw/ledger를 변경하지 않는다. 이번 subset
+resume report는 실제 선택 indices를 전달하므로 첫 N장으로 잘못 재개하지 않는다.
+일부 소량 세션 종료에서 Park 응답 timeout 경고가 있었다. 초기속도0·제동은 유지했지만,
+장시간 unattended 수집 전 종료 gear 확인/복구 신뢰성은 별도로 점검한다.
+
+## v17 — 전체 후보 재생성 통과 / 동적 live 검증 중단 이력
 
 최신 후보는 `/home/luv/morai_cap/base5_v2_261006/scenarios_10k_v17/manifest.json`이다.
 v16에서 확정한 concrete-barrier/HD65 배치 geometry를 전체에 반영했다.

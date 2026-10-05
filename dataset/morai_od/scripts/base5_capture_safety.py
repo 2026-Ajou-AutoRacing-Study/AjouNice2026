@@ -19,6 +19,23 @@ def status_row(row):
     return compact
 
 
+def runtime_presence_review(metadata, before, after, components):
+    """AI actors may have sensor GT but no Object_topic row; never waive ordinary actors."""
+    seen=[]
+    for objects in (before,after):
+        seen.append({a['unique_id'] for key in ('npc_list','pedestrian_list','obstacle_list')
+            for a in (objects or {}).get(key,[])})
+    missing=[];annotation_only=[]
+    for actor in metadata['runtime_actors']:
+        uid=actor['unique_id']
+        if all(uid in ids for ids in seen):continue
+        witness=any(c['parent_uid']==uid and c.get('positive_lidar1_camera0') for c in components)
+        if actor['source_list']=='aiPedstrianList' and actor['motion'] in ('static','standing') and witness:
+            annotation_only.append(uid)
+        else:missing.append(uid)
+    return sorted(missing),sorted(annotation_only)
+
+
 def atomic_json(path, value):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     temp=path.with_suffix(path.suffix+'.tmp')
@@ -54,7 +71,7 @@ def prepare_session(output,manifest,network,sensor):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     contract=dict(schema_version=3,manifest_sha256=sha256(manifest),
         network_sha256=sha256(network),sensor_sha256=sha256(sensor),
-        safety_policy='collision-history-v1; missing-runtime-actors; support-proxy-not-mesh')
+        safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; support-proxy-not-mesh')
     path=output/'session_contract.json'
     if path.exists():
         if json.loads(path.read_text())!=contract:raise ValueError('Resume session contract mismatch')

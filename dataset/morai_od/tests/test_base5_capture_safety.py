@@ -4,10 +4,20 @@ import tempfile
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from base5_capture_safety import collision_window,load_ledger,prepare_session,archive_incomplete
+from base5_capture_safety import collision_window,load_ledger,prepare_session,archive_incomplete,runtime_presence_review
 
 
 class CaptureSafetyTest(unittest.TestCase):
+    def test_ai_annotation_exception_never_waives_ordinary_or_invisible_actor(self):
+        actor=dict(unique_id=8500,source_list='aiPedstrianList',motion='standing')
+        components=[dict(parent_uid=8500,positive_lidar1_camera0=True)]
+        self.assertEqual(runtime_presence_review(dict(runtime_actors=[actor]),{}, {},components),([],[8500]))
+        self.assertEqual(runtime_presence_review(dict(runtime_actors=[actor]),{}, {},[]),([8500],[]))
+        actor['motion']='walking'
+        self.assertEqual(runtime_presence_review(dict(runtime_actors=[actor]),{}, {},components),([8500],[]))
+        actor.update(motion='standing',source_list='pedestrianList')
+        self.assertEqual(runtime_presence_review(dict(runtime_actors=[actor]),{}, {},components),([8500],[]))
+
     def test_ego_only_and_both_arrays(self):
         rows=[dict(t=t,message=dict(collision_object=[dict(unique_id=0)],collision_objecta=[])) for t in (.1,.5,.9)]
         self.assertTrue(collision_window(rows,0.,1.)['no_collision_verified'])

@@ -15,6 +15,30 @@ from PIL import Image
 
 
 class IndependentTest(unittest.TestCase):
+    def test_ai_person_retained_without_invented_waypoint_motion(self):
+        config=gen.geo.load_json(gen.CONFIG);ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
+        row=gen.specs(config)[81]
+        for attempt in range(512):
+            try:scene,meta=gen.build(row,config,ctx,attempt);break
+            except ValueError:continue
+        else:self.fail('AI static cell unfillable')
+        self.assertEqual(meta['runtime_actors'][0]['name'],'police1')
+        self.assertEqual(meta['runtime_actors'][0]['motion'],'standing')
+        self.assertNotIn('motion_path',meta['runtime_actors'][0])
+        self.assertNotIn('isWaypointMode',scene['aiPedstrianList'][0])
+
+    def test_bounded_motion_retains_distance_cell(self):
+        import math
+        for radius,bounds in ((3.5,[3,5]),(8.,[5,10]),(23.,[15,29])):
+            pose=dict(x=radius,y=0.,z=0.)
+            path=gen.bounded_motion_path(pose,[radius,0.],dict(x=0.,y=0.),bounds)
+            self.assertEqual(path['points'][0],path['points'][-1])
+            for i in range(101):
+                t=i/100.;end=path['points'][1]
+                r=math.hypot(radius+t*(end['x']-radius),t*end['y'])
+                self.assertTrue(bounds[0]<=r<bounds[1])
+        with self.assertRaises(ValueError):gen.bounded_motion_path(dict(x=4.99,y=0,z=0),[4.99,0],dict(x=0,y=0),[3,5])
+
     def test_avoidance_geometry_rotated_assets_and_both_sides(self):
         import random,math
         route=[dict(x=float(i),y=0.,z=0.,yaw=0.,link_idx='test',point_idx=i,point_ratio=i/200.) for i in range(201)]

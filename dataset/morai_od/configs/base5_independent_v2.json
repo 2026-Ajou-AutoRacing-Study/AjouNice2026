@@ -26,5 +26,5 @@
     "alongside_gap_bins_m": [[0.10,0.20,25],[0.20,0.30,35],[0.30,0.50,40]],
     "requires_live_ground_and_collider_review": true
   },
-  "capture": {"per_scene": 1, "dynamic_wait_sec": 1.2, "maximum_ego_drift_m": 0.08, "maximum_runtime_batch": 64}
+  "capture": {"per_scene": 1, "dynamic_wait_sec": 1.2, "maximum_ego_drift_m": 0.08, "maximum_runtime_batch": 64, "dynamic_path_policy": "bounded-shuttle-v1"}
 }

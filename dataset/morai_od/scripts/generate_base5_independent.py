@@ -214,7 +214,20 @@ def rectangle(center,size,yaw):
     return Polygon([(center[0]+c*x-s*y,center[1]+s*x+c*y) for x,y in
                     [(-size[0]/2,-size[1]/2),(-size[0]/2,size[1]/2),(size[0]/2,size[1]/2),(size[0]/2,-size[1]/2)]])
 
-def set_pose(actor,pose,uid,asset,scene,motion):
+def bounded_motion_path(pose,center,ego,bounds):
+    """Short tangent shuttle: same radial cell throughout, closed without teleport."""
+    dx,dy=center[0]-ego['x'],center[1]-ego['y'];radius=math.hypot(dx,dy)
+    lo,hi=bounds
+    if not lo<=radius<hi-.025:raise ValueError('Dynamic range reserve missing')
+    length=min(4.,math.sqrt(max(0.,(hi-.025)**2-radius**2)))
+    if length<.5:raise ValueError('Dynamic shuttle too short')
+    tangent=(-dy/radius,dx/radius)
+    end=dict(x=pose['x']+length*tangent[0],y=pose['y']+length*tangent[1],z=pose['z'])
+    return dict(policy='bounded-shuttle-v1',length_m=length,tangent=list(tangent),distance_bounds_m=list(bounds),
+        points=[{k:pose[k] for k in ('x','y','z')},end,{k:pose[k] for k in ('x','y','z')}],
+        limitation='Single-frame animated appearance only; not a competition trajectory or velocity label.')
+
+def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None):
     position={k:pose[k] for k in ('x','y','z')}
     container=asset['source_list']
     if container=='vehicleList':
@@ -225,6 +238,12 @@ def set_pose(actor,pose,uid,asset,scene,motion):
     else:
         geo.set_actor_world_position(actor,position,pose['yaw'])
         actor['UNIQUEID']=uid
+        if container=='aiPedstrianList':
+            # AI police uses destinations/customSpeed, not ordinary waypoints.
+            # Keep the asset, but do not invent a moving-AI interface contract.
+            actor.update(speed=0.,customSpeed=0.,activeDistance=0.)
+            scene[container].append(actor)
+            return
         if container=='objectList':
             actor.update(scale=geo.formatted_vector(1.,1.,1.),moveSpeed=0.,isWaypointMode=False,waypointEventList=[])
             if motion not in ('static','standing'):
@@ -245,6 +264,13 @@ def set_pose(actor,pose,uid,asset,scene,motion):
                 scene['waypointDataList'].append(dict(pathName='PedPath - '+str(uid),waypointData=[
                     dict(pos=geo.world_to_morai_waypoint(position),rot=geo.formatted_rotation(0.)),
                     dict(pos=geo.world_to_morai_waypoint(end),rot=geo.formatted_rotation(0.))]))
+        if motion_path is not None:
+            # Finite contiguous returns also work for objectList, which has no
+            # verified loop flag. End equals start; no respawn/teleport assumed.
+            points=motion_path['points'][:2]*64+[motion_path['points'][0]]
+            actor['waypointEventList']=[dict(index=-1,waypointEventData=[]) for _ in points]
+            scene['waypointDataList'][-1]['waypointData']=[
+                dict(pos=geo.world_to_morai_waypoint(p),rot=geo.formatted_rotation(0.)) for p in points]
     scene[container].append(actor)
 
 def build(row,config,ctx,attempt=0):
@@ -319,6 +345,7 @@ def build(row,config,ctx,attempt=0):
             selected_pool=rng.choices([poolkey,'vehicle','obstacle','person'],weights=[6,1,2,1])[0]
             pool=ctx['pools'][selected_pool];asset=pool[rng.randrange(len(pool))]
         actor_motion=row['motion'] if selected_pool in ('person','animal','pet_person','stroller','rider') else 'static'
+        if asset['source_list']=='aiPedstrianList':actor_motion='standing'
         size,off,known=geometry(asset,ctx)
         lower,upper=row['distance_bounds']
         if i: lower,upper=6.,45.
@@ -385,9 +412,26 @@ def build(row,config,ctx,attempt=0):
         gap=footprint.distance(box)
         minimum_gap=.10 if i==0 and avoidance_ref and row['avoidance_phase']=='alongside' else .3
         if gap<minimum_gap-1e-6 or any(box.distance(other)<.20 for other in footprints): raise ValueError('Footprint clearance failure')
+        motion_path=None
         if actor_motion not in ('static','standing'):
-            end_center=[center[0]+8*math.cos(pa),center[1]+8*math.sin(pa)]
+            if config['capture'].get('dynamic_path_policy')=='bounded-shuttle-v1':
+                if asset['source_list'] not in ('pedestrianList','aiPedstrianList','objectList'):raise ValueError('Shuttle unsupported actor container')
+                motion_path=bounded_motion_path(pose,center,ego,[lower,upper])
+                end=motion_path['points'][1]
+                end_center=[center[0]+end['x']-pose['x'],center[1]+end['y']-pose['y']]
+                end_lon=math.cos(ea)*(end_center[0]-ego['x'])+math.sin(ea)*(end_center[1]-ego['y'])
+                end_lat=-math.sin(ea)*(end_center[0]-ego['x'])+math.cos(ea)*(end_center[1]-ego['y'])
+                end_role=('front' if end_lon>=0 else 'rear') if abs(end_lon)>=abs(end_lat) else ('left' if end_lat>=0 else 'right')
+                if abs(end_lat)>29.5 or abs(end_lon)>99.5 or (i==0 and end_role!=row['role']):
+                    raise ValueError('Dynamic shuttle leaves ROI/direction cell')
+            else:end_center=[center[0]+8*math.cos(pa),center[1]+8*math.sin(pa)]
             swept=box.union(rectangle(end_center,size,pose['yaw'])).convex_hull
+            if motion_path is not None:
+                from shapely.geometry import LineString
+                # Bound every heading during the return turn, not just the
+                # initial fixed-yaw rectangle. This remains a geometry proxy.
+                swept=LineString([(pose['x'],pose['y']),(end['x'],end['y'])]).buffer(
+                    math.hypot(size[0],size[1])/2+math.hypot(off[0],off[1]))
             if swept.distance(footprint)<.3 or any(swept.distance(other)<.2 for other in footprints):
                 raise ValueError('Dynamic actor path crosses stationary Ego/other actors')
         actual=math.hypot(center[0]-ego['x'],center[1]-ego['y'])
@@ -402,8 +446,8 @@ def build(row,config,ctx,attempt=0):
         if not i and row['family']=='highway' and ((lon<0)!=(row['role']=='rear')):
             raise ValueError('Highway longitudinal sign differs from quota')
         uid=8500+i
-        set_pose(copy.deepcopy(asset['template']),pose,uid,asset,scene,actor_motion)
-        footprints.append(box)
+        set_pose(copy.deepcopy(asset['template']),pose,uid,asset,scene,actor_motion,motion_path)
+        footprints.append(swept if motion_path is not None else box)
         actor_records.append(dict(unique_id=uid,data_id=asset['data_id'],name=asset['name'],
             source_list=asset['source_list'],motion=actor_motion,position={k:pose[k] for k in ('x','y','z')},
             geometric_center_estimate=center,geometry_reference_known=known,estimated_size=size,
@@ -412,6 +456,8 @@ def build(row,config,ctx,attempt=0):
             training_class='animal' if asset.get('ontology_class')=='Animal' else 'component_annotation',
             runtime_mapping_verified=False if selected_pool in ('animal','pet_person','stroller','rider') else True))
         if not i: desired=actual
+        if asset['source_list']=='aiPedstrianList':actor_records[-1]['motion_capability_note']='AI destination API unvalidated; retained as standing, not removed'
+        if motion_path is not None:actor_records[-1]['motion_path']=motion_path
         if sample_placement is not None: actor_records[-1]['sample_highway_placement']=sample_placement
     group=base['link_idx']  # whole-link split; still neighboring-link visibility leakage possible
     split='val' if int(hashlib.sha256(group.encode()).hexdigest()[:8],16)/2**32<.15 else 'train'
@@ -446,7 +492,7 @@ def generate(config,output,start,count,runtime=geo.DEFAULT_RUNTIME_ASSET_DIR,mge
         geo.write_json(path,scene); geo.write_json(mpath,meta)
         entries.append(dict(id=name,scenario=str(path.resolve()),metadata=str(mpath.resolve()),
             scenario_sha256=geo.sha256(path),split=meta['split'],family=row['family'],mission=row['mission'],
-            distance_bounds=row.get('distance_bounds'),role=row['role'],motion=row['motion'],subfamily=row['subfamily']))
+            distance_bounds=row.get('distance_bounds'),role=row['role'],motion=meta['runtime_actors'][0]['motion'] if meta['runtime_actors'] else row['motion'],subfamily=row['subfamily']))
         if (len(entries)%500)==0: print('Generated',len(entries),flush=True)
     manifest=dict(schema_version=2,dataset_id=config['dataset_id'],config=config,start=start,count=count,
         status='OFFLINE_GENERATED; per-scene live validation pending',scenes=entries,

@@ -33,7 +33,11 @@ def report(root,manifest,resume_check=False):
         archived_raw_lidar_files=sum(len(list(p.glob('LIDAR_*/*_Intensity.bin'))) for p in archived))
     if resume_check:
         before=snapshot(root/'captures');lines_before=(root/'ledger.jsonl').read_bytes()
-        cmd=[sys.executable,str(Path(__file__).with_name('run_base5_capture.py')),'--manifest',str(manifest),'--output',str(root),'--limit',str(len(latest))]
+        entries=json.loads(manifest.read_text())['scenes']
+        indices=[str(i) for i,e in enumerate(entries) if e['id'] in latest]
+        if len(indices)!=len(latest):raise ValueError('Resume report IDs not in manifest')
+        cmd=[sys.executable,str(Path(__file__).with_name('run_base5_capture.py')),'--manifest',str(manifest),'--output',str(root),
+            '--indices',','.join(indices),'--limit',str(len(latest))]
         run=subprocess.run(cmd,capture_output=True,text=True,timeout=35)
         verification.update(resume_returncode=run.returncode,resume_stdout=run.stdout,resume_stderr=run.stderr,
             completed_files_hash_and_mtime_unchanged=before==snapshot(root/'captures'),ledger_unchanged=lines_before==(root/'ledger.jsonl').read_bytes())
@@ -43,7 +47,7 @@ def report(root,manifest,resume_check=False):
     return dict(status_counts=dict(Counter(r['status'] for r in result)),scenes=len(result),rows=result,
         duration_mean_sec=float(np.mean(times)),duration_p50_sec=float(np.median(times)),
         final_capture_bytes=sum(r['bytes'] for r in result),resume_verification=verification,
-        limitations=['Representative 16 scenes, not all assets or 10K certification.',
+        limitations=[f'Representative {len(result)} scenes, not all assets or 10K certification.',
             'Support is measured vertical stability, not pavement polygon or physical mesh proof.',
             'No detector training or 10K bulk collection performed.'])
 

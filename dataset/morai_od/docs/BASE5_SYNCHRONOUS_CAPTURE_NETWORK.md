@@ -1,7 +1,11 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v17 후보 전수검사·live 중단 기록이 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v18 동적 거리 수정·live 복구 기록이 최신이다.
 **본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
+
+v18은 같은 one-load/seven-interface network를 사용한다. pause·선택적 actor-only load를
+도입하지 않는다. 새 AI presence 계약으로 이전 output resume은 거부될 수 있으므로 새
+output을 사용한다. Dashboard는 새 세션 output을 `--capture-root`로 지정하면 된다.
 아래12-scene 성공은 이전 asset-review 이력이며 새10K 배치 성공을 뜻하지 않는다.
 
 ## v2 캡처·실시간 대시보드

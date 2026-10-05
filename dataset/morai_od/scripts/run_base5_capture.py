@@ -13,7 +13,7 @@ import uuid
 import fcntl
 
 from base5_capture_audit import audit_capture
-from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row
+from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review
 
 ROOT=Path(__file__).resolve().parents[3]
 
@@ -264,10 +264,10 @@ def main():
                 atomic_json(dest/'collision_history.json',dict(summary=safety,samples=collision_samples,
                     load_time_monotonic=load_time,pose_confirmed_monotonic=pose_confirmed))
                 audit=audit_capture(dest,meta)
-                runtime_missing=sorted(a['unique_id'] for a in meta['runtime_actors']
-                    if actor_position(objects_before,a['unique_id']) is None or actor_position(objects_after,a['unique_id']) is None)
+                runtime_missing,annotation_only=runtime_presence_review(meta,objects_before,objects_after,audit['components'])
                 if runtime_missing:audit['review_reasons'].append('missing_runtime_actor')
                 audit['runtime_missing_uids']=runtime_missing
+                audit['runtime_annotation_only_uids']=annotation_only
                 audit['capture_safety']=meta['capture_safety']
                 audit['review_reasons']=sorted(set(audit['review_reasons']))
                 audit['accepted_candidate']=not audit['review_reasons']

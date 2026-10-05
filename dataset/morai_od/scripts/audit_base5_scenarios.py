@@ -71,7 +71,28 @@ def audit(manifest_path):
                     errors.append((entry['id'],'avoidance solved gap'))
                 if a['actual_ego_role']!=r['role']:errors.append((entry['id'],'avoidance actual side'))
             if any(poly.distance(p)<.199 for p in footprints):errors.append((entry['id'],'actor overlap'))
-            footprints.append(poly)
+            path=a.get('motion_path')
+            envelope=poly
+            if path is not None:
+                from shapely.geometry import LineString
+                points=path['points'];start=points[0];end=points[1]
+                if points[0]!=points[-1]:errors.append((entry['id'],'open shuttle return'))
+                expected_points=points[:2]*64+[points[0]]
+                runtime_path=next((p for p in s['waypointDataList'] if p['pathName'].endswith(' - '+str(a['unique_id']))),None)
+                if runtime_path is None or runtime_path['waypointData']!=[
+                        dict(pos=gen.geo.world_to_morai_waypoint(p),rot=gen.geo.formatted_rotation(0.)) for p in expected_points]:
+                    errors.append((entry['id'],'runtime shuttle differs from metadata'))
+                cx,cy=a['geometric_center_estimate'];lo,hi=path['distance_bounds_m']
+                for step in range(21):
+                    t=step/20.;x=cx+t*(end['x']-start['x']);y=cy+t*(end['y']-start['y'])
+                    if not lo<=gen.math.hypot(x-e['x'],y-e['y'])<hi:errors.append((entry['id'],'shuttle distance cell'))
+                    if abs(-gen.math.sin(ea)*(x-e['x'])+gen.math.cos(ea)*(y-e['y']))>29.5:
+                        errors.append((entry['id'],'shuttle lateral ROI'))
+                radius=gen.math.hypot(*a['estimated_size'][:2])/2+gen.math.hypot(cx-start['x'],cy-start['y'])
+                envelope=LineString([(start['x'],start['y']),(end['x'],end['y'])]).buffer(radius)
+                if envelope.distance(ego_poly)<.3 or any(envelope.distance(p)<.199 for p in footprints):
+                    errors.append((entry['id'],'shuttle swept clearance'))
+            footprints.append(envelope)
             if i==0:
                 lo,hi=r['distance_bounds']
                 if not lo<=a['planned_center_distance_m']<hi:errors.append((entry['id'],'distance quota'))

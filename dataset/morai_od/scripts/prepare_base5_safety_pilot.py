@@ -8,8 +8,9 @@ import generate_base5_independent as gen
 from select_base5_avoidance_pilot import select as avoidance_select
 
 
-def prepare(source,output):
+def prepare(source,output,motion_policy=None,retry_offset=0,extra_runtime_coverage=False):
     manifest=gen.geo.load_json(source)
+    if motion_policy:manifest['config']['capture']['dynamic_path_policy']=motion_policy
     if output.exists():raise FileExistsError('Pilot overwrite refused')
     ids=avoidance_select(manifest)
     predicates=[lambda r:r['family']=='highway' and r['role']=='front' and r['distance_bounds'][0]>=45,
@@ -21,18 +22,29 @@ def prepare(source,output):
         candidates=[i for i,r in enumerate(manifest['scenes']) if pred(r) and i not in ids]
         if not candidates:raise ValueError('Missing safety pilot coverage')
         ids.append(min(candidates))
+    if extra_runtime_coverage:
+        checks=[('AI police',lambda r,m:m['runtime_actors'] and m['runtime_actors'][0]['name']=='police1'),
+            ('moving rider',lambda r,m:r['subfamily']=='rider' and r['motion'] not in ('static','standing')),
+            ('front near stroller',lambda r,m:r['subfamily']=='stroller' and r['role']=='front' and r['distance_bounds']==[3,5] and r['motion'] not in ('static','standing'))]
+        for label,check in checks:
+            for index,row in enumerate(manifest['scenes']):
+                if index not in ids and row['family']=='pedestrian_related' and check(row,gen.geo.load_json(Path(row['metadata']))):
+                    ids.append(index);break
+            else:raise ValueError('Missing runtime coverage: '+label)
     output.mkdir(parents=True);ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO);entries=[]
     for index in ids:
         old=manifest['scenes'][index];meta=gen.geo.load_json(Path(old['metadata']))
-        for attempt in range(meta['retry'],meta['retry']+128):
+        first=meta['retry']+retry_offset
+        for attempt in range(first,first+128):
             try:scene,newmeta=gen.build(meta['spec'],manifest['config'],ctx,attempt);break
             except ValueError:
-                if attempt==meta['retry']+127:raise
+                if attempt==first+127:raise
         name=old['id'];sp=output/(name+'.json');mp=output/(name+'_metadata.json')
         newmeta['safety_pilot_source']=dict(manifest=str(source.resolve()),index=index,
             scenario_sha256=old['scenario_sha256'],placement_reference_updated=True)
         gen.geo.write_json(sp,scene);gen.geo.write_json(mp,newmeta)
-        entry=copy.deepcopy(old);entry.update(scenario=str(sp.resolve()),metadata=str(mp.resolve()),scenario_sha256=gen.geo.sha256(sp));entries.append(entry)
+        entry=copy.deepcopy(old);entry.update(scenario=str(sp.resolve()),metadata=str(mp.resolve()),scenario_sha256=gen.geo.sha256(sp),
+            motion=newmeta['runtime_actors'][0]['motion'] if newmeta['runtime_actors'] else old['motion']);entries.append(entry)
     manifest.update(scenes=entries,count=len(entries),start=0,status='SAFETY_PILOT_ONLY; no bulk collection',
         safety_pilot_provenance=dict(source_manifest_sha256=gen.geo.sha256(source),source_indices=ids,
             geometry_references=ctx['geometry_sources'],generator_sha256=gen.geo.sha256(Path(gen.__file__))))
@@ -40,5 +52,7 @@ def prepare(source,output):
 
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--manifest',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
-    print(prepare(a.manifest,a.output))
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--manifest',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--motion-policy',choices=['bounded-shuttle-v1']);p.add_argument('--retry-offset',type=int,default=0)
+    p.add_argument('--extra-runtime-coverage',action='store_true');a=p.parse_args()
+    print(prepare(a.manifest,a.output,a.motion_policy,a.retry_offset,a.extra_runtime_coverage))
