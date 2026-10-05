@@ -117,9 +117,9 @@ def load_ledger(path):
 
 def prepare_session(output,manifest,network,sensor):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
-    contract=dict(schema_version=4,manifest_sha256=sha256(manifest),
+    contract=dict(schema_version=5,manifest_sha256=sha256(manifest),
         network_sha256=sha256(network),sensor_sha256=sha256(sensor),
-        safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; support-proxy-not-mesh; motion-endpoint-window-v1')
+        safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; support-proxy-not-mesh; all-actor-motion-endpoint-window-v1')
     path=output/'session_contract.json'
     if path.exists():
         if json.loads(path.read_text())!=contract:raise ValueError('Resume session contract mismatch')

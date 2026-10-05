@@ -4,7 +4,12 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- **최신 v21:**왕복 대신 heading-aligned 저속 일방향2-waypoint 구현.
+- **최신 v23:**빠른 동작 profile·all-actor 캡처 motion/endpoint gate·48조건 분산검증.
+  최초46후보/1검토/1실패,2조건 재배치 및 최종gate 반복 후48조건 canonical 선택.
+  GT75개,CPU raw/PKL 검사 통과. lidar1_camera0 기본 결정,실제camera-only5개 보존.
+  본10K 생성·캡처·학습은 미실행. [CURRENT](BASE5_V2_CURRENT.md)와 런북 우선.
+
+- **v21 이력:**왕복 대신 heading-aligned 저속 일방향2-waypoint 구현.
   실제6조건+4조건 속도반복10캡처 중9후보/1Dog2 가시성검토, 종료Park·resume 통과.
   새 생성default는 일방향/6초준비여유. 기존 왕복10K deck은 구버전이고 새10K는 생성하지 않았다.
   빠른 동작외관·전체pool 검증은 남음. [CURRENT](BASE5_V2_CURRENT.md) 참조.
@@ -17,13 +22,13 @@
   info변환/안전중단·resume 테스트35개 통과.
   [CURRENT](BASE5_V2_CURRENT.md), [런북](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md) 참조.
 
-- **최신 v18 dynamic timing smoke:**16장 캡처15후보/1가시성검토/0실행실패, 근접 회피8장 통과.
+- **v18 이력:**16장 캡처15후보/1가시성검토/0실행실패, 근접 회피8장 통과.
   동적 거리 경로 수정, 추가 근접 유모차/탑승자 및 static AI 존재 확인 검증 완료.
   CollisionData 이력·강제 중단 후 raw 보존·완료 세션 재실행 검증 완료.
   [CURRENT](BASE5_V2_CURRENT.md)와 [실행/재개 런북](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md)을 먼저 읽는다.
   최신10K 후보는v18d offline PASS. 본 수집은 미실행이며 sparse 가시성 보충·최종GT 정책은 남아 있다.
 
-- [독립 Base5 v2 최신 구현·검증·다음 실행](BASE5_V2_CURRENT.md): 최신 v21은 위 항목.
+- [독립 Base5 v2 최신 구현·검증·다음 실행](BASE5_V2_CURRENT.md): 최신 v23은 위 항목.
   이전10K 전수 offline PASS, 100m/4-class 후보 GPU loss·역전파 및48장 live41후보/7검토는 EVIDENCE다.
   v15는 미션 차량·장애물 회피 관측1,300장과10–50cm 측방 gap 후보를 추가했다.
   8장+대조4장 실제 캡처, 약13–34cm actual gap 확보. 지면/collider 증거가 없어 review 유지.

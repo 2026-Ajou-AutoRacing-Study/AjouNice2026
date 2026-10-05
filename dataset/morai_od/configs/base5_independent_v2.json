@@ -19,12 +19,12 @@
   },
   "training_roi_candidate": [-100,-30,-3,100,30,2],
   "classes_candidate": ["vehicle","pedestrian","obstacle","animal"],
-  "gt_policy": "retain_raw; compare lidar5/lidar1/lidar1_camera0; final positive policy provisional",
+  "gt_policy": "retain_raw; positive=lidar1_camera0; lidar1/lidar5 are audit alternatives, not assumed model-quality improvements",
   "bulk_capture_authorized": false,
   "mission_avoidance": {
     "phases": {"approach": 20, "entry": 20, "alongside": 40, "clearing": 20},
     "alongside_gap_bins_m": [[0.10,0.20,25],[0.20,0.30,35],[0.30,0.50,40]],
     "requires_live_ground_and_collider_review": true
   },
-  "capture": {"per_scene": 1, "dynamic_wait_sec": 1.2, "maximum_ego_drift_m": 0.08, "maximum_runtime_batch": 64, "dynamic_path_policy": "one-way-slow-v1", "one_way_setup_budget_sec": 6}
+  "capture": {"per_scene": 1, "dynamic_wait_sec": 1.2, "maximum_ego_drift_m": 0.08, "maximum_runtime_batch": 64, "dynamic_path_policy": "one-way-slow-v1", "one_way_setup_budget_sec": 6, "one_way_appearance_profile": true}
 }

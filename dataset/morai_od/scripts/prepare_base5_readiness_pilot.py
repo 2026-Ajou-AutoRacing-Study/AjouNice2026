@@ -44,30 +44,40 @@ def choose(rows, metadata):
     return picked
 
 
-def prepare(source,output):
+def prepare(source,output,retry_indices=None,retry_offset=0):
     if output.exists():raise FileExistsError('Pilot overwrite refused')
     manifest=gen.geo.load_json(source);cache={}
     def metadata(i):
         if i not in cache:cache[i]=gen.geo.load_json(Path(manifest['scenes'][i]['metadata']))
         return cache[i]
-    ids=choose(manifest['scenes'],metadata)
+    if retry_indices is not None:
+        if not 1<=len(retry_indices)<=4 or len(set(retry_indices))!=len(retry_indices):
+            raise ValueError('Diagnostic retry limited to 1–4 unique cells')
+        if any(i<0 or i>=len(manifest['scenes']) for i in retry_indices):raise ValueError('Retry index out of range')
+        if not 1<=retry_offset<=16:raise ValueError('Diagnostic retry offset required')
+        ids=retry_indices
+    else:ids=choose(manifest['scenes'],metadata)
     config=manifest['config'];config['capture'].update(dynamic_path_policy='one-way-slow-v1',
         one_way_setup_budget_sec=6.,one_way_appearance_profile=True)
+    config['gt_policy']=gen.geo.load_json(gen.CONFIG)['gt_policy']
     ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
     output.mkdir(parents=True);entries=[]
     for index in ids:
         old=manifest['scenes'][index];meta=metadata(index)
-        for retry in range(meta['retry'],meta['retry']+1024):
+        first=meta['retry']+retry_offset
+        for retry in range(first,first+1024):
             try:scene,newmeta=gen.build(meta['spec'],config,ctx,retry);break
             except ValueError:
-                if retry==meta['retry']+1023:raise
-        name=old['id'];sp=output/(name+'.json');mp=output/(name+'_metadata.json')
+                if retry==first+1023:raise
+        name=old['id']+(f'_retry{retry_offset:02d}' if retry_indices is not None else '')
+        sp=output/(name+'.json');mp=output/(name+'_metadata.json')
         newmeta['readiness_pilot_source']=dict(index=index,manifest_sha256=gen.geo.sha256(source))
         gen.geo.write_json(sp,scene);gen.geo.write_json(mp,newmeta)
-        row=copy.deepcopy(old);row.update(scenario=str(sp.resolve()),metadata=str(mp.resolve()),
+        row=copy.deepcopy(old);row.update(id=name,scenario=str(sp.resolve()),metadata=str(mp.resolve()),
             scenario_sha256=gen.geo.sha256(sp),motion=newmeta['runtime_actors'][0]['motion'] if newmeta['runtime_actors'] else 'static')
+        if retry_indices is not None:row['source_cell_id']=old.get('source_cell_id',old['id'])
         entries.append(row)
-    manifest.update(scenes=entries,count=48,start=0,status='READINESS_PILOT_ONLY',
+    manifest.update(scenes=entries,count=len(entries),start=0,status='READINESS_PILOT_ONLY',
         readiness_pilot_provenance=dict(source_indices=ids,source_sha256=gen.geo.sha256(source),
             generator_sha256=gen.geo.sha256(Path(gen.__file__)),placement_attempts=1024,
             limitation='Coverage sample, not exhaustive catalog or production accuracy evidence'))
@@ -78,4 +88,7 @@ def prepare(source,output):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--manifest',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
-    a=p.parse_args();print(prepare(a.manifest,a.output))
+    p.add_argument('--retry-indices',help='1–4 source row indices for explicit diagnostic replacement')
+    p.add_argument('--retry-offset',type=int,default=0)
+    a=p.parse_args();indices=[int(i) for i in a.retry_indices.split(',')] if a.retry_indices else None
+    print(prepare(a.manifest,a.output,indices,a.retry_offset))

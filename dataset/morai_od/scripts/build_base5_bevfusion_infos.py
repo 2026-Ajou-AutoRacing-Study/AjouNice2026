@@ -15,10 +15,11 @@ CLASSES=('vehicle','pedestrian','obstacle','animal')
 def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=None):
     calibration=normalized_sensor_calibration(sensor)
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
-    captures={}
+    captures={};failed=[]
     for line in Path(ledger).read_text().splitlines():
         entry=json.loads(line)
         if entry['status'] in ('accepted_candidate','review'): captures[entry['id']]=entry
+        elif entry['status']=='failed':failed.append(entry['id'])
     splits={name:[] for name in ('train','val','test')}; kept=Counter();excluded=Counter();review=[]
     source_root=Path(ledger).resolve().parent
     def mapped(path):
@@ -66,7 +67,7 @@ def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=Non
         with (output/f'morai_base5_infos_{split}.pkl').open('wb') as f:
             pickle.dump(dict(metainfo=metainfo,data_list=rows),f)
     report=dict(splits={k:len(v) for k,v in splits.items()},kept_gt=dict(kept),excluded_gt=dict(excluded),
-        excluded_review_scenes=review,policy=policy,raw_preserved=True,
+        excluded_review_scenes=review,excluded_failed_scenes=failed,policy=policy,raw_preserved=True,
         limitations=['Scene-disjoint link split is not a held-out real-driving test.',
                     'Unsupported components are excluded by explicit evidence policy; all remain in raw audit.'])
     (output/'conversion_audit.json').write_text(json.dumps(report,indent=2)+'\n')

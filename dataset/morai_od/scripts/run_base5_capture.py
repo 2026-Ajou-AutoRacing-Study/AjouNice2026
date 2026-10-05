@@ -223,6 +223,11 @@ def main():
                 movement_after=actor_position(objects_before,primary_uid)
                 movement=math.hypot(movement_after['x']-movement_before['x'],movement_after['y']-movement_before['y']) if movement_before and movement_after else None
                 if entry['motion'] not in ('static','standing') and (movement is None or movement<.05):
+                    atomic_json(args.output/'failures'/(entry['id']+'_'+str(time.time_ns())+'.json'),
+                        dict(reason='motion_not_established',metadata=meta,load_time_monotonic=load_time,
+                            pose_confirmed_monotonic=pose_confirmed,observed_at_monotonic=time.monotonic(),
+                            objects_before=objects_before,primary_before=movement_before,primary_after=movement_after,
+                            displacement_m=movement,ego_before=e0,ego_after=e1))
                     raise ValueError('Requested animation/motion has no measured actor displacement')
                 before={f for f in args.sensor_dir.rglob('*') if f.is_file()}
                 dest.mkdir(parents=True,exist_ok=False)
@@ -282,8 +287,11 @@ def main():
                 audit=audit_capture(dest,meta)
                 motion_evidence=motion_capture_review(meta['runtime_actors'][0] if meta['runtime_actors'] else None,
                     objects_before,objects_after,actor_samples,capture_requested_at)
+                motion_actors=[dict(uid=a['unique_id'],asset=a['name'],**motion_capture_review(a,
+                    objects_before,objects_after,actor_samples,capture_requested_at)) for a in meta['runtime_actors']]
                 audit['motion_capture']=motion_evidence
-                audit['review_reasons'].extend(motion_evidence['review_reasons'])
+                audit['motion_capture_actors']=motion_actors
+                for evidence in motion_actors:audit['review_reasons'].extend(evidence['review_reasons'])
                 runtime_missing,annotation_only=runtime_presence_review(meta,objects_before,objects_after,audit['components'])
                 if runtime_missing:audit['review_reasons'].append('missing_runtime_actor')
                 audit['runtime_missing_uids']=runtime_missing
@@ -297,7 +305,8 @@ def main():
                 atomic_json(dest/'telemetry.json',dict(ego_before=e1,ego_after=e2,objects_before=objects_before,
                     objects_after=objects_after,ego_samples=samples,capture_drift_m=drift,
                     primary_displacement_during_wait_m=movement,object_position_samples=actor_samples,
-                    capture_requested_at_monotonic=capture_requested_at,motion_capture=motion_evidence))
+                    capture_requested_at_monotonic=capture_requested_at,motion_capture=motion_evidence,
+                    motion_capture_actors=motion_actors))
                 atomic_json(dest/'metadata.json',meta);atomic_json(dest/'audit.json',audit)
                 atomic_json(dest/'attempt.json',dict(stage='complete',scenario_sha256=entry['scenario_sha256'],archived_previous_attempt=archived))
                 result=dict(id=entry['id'],scenario_sha256=entry['scenario_sha256'],family=entry['family'],
@@ -305,6 +314,7 @@ def main():
                     status='accepted_candidate' if audit['accepted_candidate'] else 'review',
                     duration_sec=time.time()-t0,capture_root=str(dest.resolve()),audit=audit,
                     bytes=sum(f.stat().st_size for f in dest.rglob('*') if f.is_file()))
+                if entry.get('source_cell_id'):result['source_cell_id']=entry['source_cell_id']
                 failures=0
             except (ValueError,RuntimeError) as exc:
                 result=dict(id=entry['id'],scenario_sha256=entry['scenario_sha256'],family=entry['family'],

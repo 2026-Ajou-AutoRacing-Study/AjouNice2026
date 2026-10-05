@@ -7,12 +7,13 @@ from pathlib import Path
 import pickle
 import numpy as np
 from PIL import Image
-from base5_capture_safety import atomic_json,load_ledger
+from base5_capture_safety import atomic_json,load_ledger,motion_capture_review
 
 
-def report(capture_root,info_root):
-    rows=list({r['id']:r for r in load_ledger(capture_root/'ledger.jsonl')}.values())
-    cells={};motions=[];raw=0;camera_only=Counter();errors=[];missing_motion=[]
+def report(capture_root,info_root,ledger=None):
+    ledger=ledger or capture_root/'ledger.jsonl'
+    rows=list({r['id']:r for r in load_ledger(ledger)}.values())
+    cells={};motions=[];raw=0;camera_only=Counter();errors=[];secondary_motion=[]
     for row in rows:
         key=str((row['family'],row.get('distance_bounds'),row.get('role')))
         cells.setdefault(key,Counter())[row['status']]+=1
@@ -24,10 +25,14 @@ def report(capture_root,info_root):
         if motion.get('required'):
             motions.append(dict(id=row['id'],asset=meta['runtime_actors'][0]['name'],
                 nominal_speed_mps=meta['runtime_actors'][0]['motion_path']['nominal_speed_mps'],**motion))
-        # Report all-secondary witnesses separately; current live gate validates primary motion.
+        # Historical v22 primary-only live gate: independently replay secondary
+        # checks from preserved receive-time traces without rewriting raw/ledger.
         for actor in meta['runtime_actors'][1:]:
             if actor['motion'] not in ('static','standing'):
-                missing_motion.append(dict(id=row['id'],asset=actor['name'],uid=actor['unique_id']))
+                evidence=motion_capture_review(actor,tele['objects_before'],tele['objects_after'],
+                    tele.get('object_position_samples',[]),tele.get('capture_requested_at_monotonic',0.))
+                secondary_motion.append(dict(id=row['id'],asset=actor['name'],uid=actor['unique_id'],**evidence))
+                if evidence['review_reasons']:errors.append('Secondary motion review '+row['id'])
         if row['status']=='accepted_candidate':
             for c in audit['components']:
                 if c['positive_lidar1_camera0'] and c['lidar_points']==0:camera_only[c['training_class']]+=1
@@ -56,8 +61,8 @@ def report(capture_root,info_root):
                 else:gt[classes[label]]+=1
     times=[r['duration_sec'] for r in rows];mean=float(np.mean(times)) if times else None
     shutdown=json.loads((capture_root/'shutdown_safety.json').read_text())
-    return dict(status_counts=dict(Counter(r['status'] for r in rows)),cells={k:dict(v) for k,v in cells.items()},
-        motion_evidence=motions,secondary_motion_without_primary_gate=missing_motion,
+    return dict(ledger=str(ledger.resolve()),status_counts=dict(Counter(r['status'] for r in rows)),cells={k:dict(v) for k,v in cells.items()},
+        motion_evidence=motions,secondary_motion_replayed_from_raw=secondary_motion,
         camera_only_kept_gt=dict(camera_only),shutdown=shutdown,
         loader_sanity=dict(samples=samples,empty_background_samples=empty,gt=dict(gt),errors=errors,
             limitation='Raw image/point/calibration/PKL CPU sanity, not MMDet3D training-forward validation'),
@@ -66,7 +71,7 @@ def report(capture_root,info_root):
         estimate_10k=dict(seconds_at_sample_mean=mean*10000 if mean else None,
             bytes_at_sample_mean=raw/max(1,len(rows))*10000,
             limitation='Pilot mean only; excludes failed-cell replenishment, simulator aging, training and derived caches'),
-        limitations=['48-cell pilot is not exhaustive catalog validation or detector evaluation.',
+        limitations=[f'{len(rows)}-cell report is not exhaustive catalog validation or detector evaluation.',
             'Endpoint before/after save is conservative, not exact sensor-capture-time motion certification.',
             'Review raw remains preserved and cannot become empty negative training samples.'])
 
@@ -74,6 +79,7 @@ def report(capture_root,info_root):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--capture-root',type=Path,required=True)
     p.add_argument('--info-root',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
-    a=p.parse_args();r=report(a.capture_root,a.info_root);atomic_json(a.output,r)
+    p.add_argument('--ledger',type=Path,help='Optional canonical selected ledger; use safety selector provenance for all source exits')
+    a=p.parse_args();r=report(a.capture_root,a.info_root,a.ledger);atomic_json(a.output,r)
     print(json.dumps({k:v for k,v in r.items() if k not in ('cells','motion_evidence')},indent=2))
     if r['loader_sanity']['errors'] or not r['shutdown']['park_verified']:raise SystemExit(1)

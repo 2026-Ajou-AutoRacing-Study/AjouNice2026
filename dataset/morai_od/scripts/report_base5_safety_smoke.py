@@ -37,16 +37,21 @@ def report(root,manifest,resume_check=False):
         archived_raw_lidar_files=sum(len(list(p.glob('LIDAR_*/*_Intensity.bin'))) for p in archived))
     if resume_check:
         before=snapshot(root/'captures');lines_before=(root/'ledger.jsonl').read_bytes()
+        status_before=json.loads((root/'status.json').read_text())
         entries=json.loads(manifest.read_text())['scenes']
-        indices=[str(i) for i,e in enumerate(entries) if e['id'] in latest]
-        if len(indices)!=len(latest):raise ValueError('Resume report IDs not in manifest')
+        completed={k:v for k,v in latest.items() if v['status'] in ('accepted_candidate','review')}
+        indices=[str(i) for i,e in enumerate(entries) if e['id'] in completed]
+        if len(indices)!=len(completed):raise ValueError('Resume report IDs not in manifest')
         cmd=[sys.executable,str(Path(__file__).with_name('run_base5_capture.py')),'--manifest',str(manifest),'--output',str(root),
-            '--indices',','.join(indices),'--limit',str(len(latest))]
+            '--indices',','.join(indices),'--limit',str(len(completed))]
         run=subprocess.run(cmd,capture_output=True,text=True,timeout=35)
         verification.update(resume_returncode=run.returncode,resume_stdout=run.stdout,resume_stderr=run.stderr,
             completed_files_hash_and_mtime_unchanged=before==snapshot(root/'captures'),ledger_unchanged=lines_before==(root/'ledger.jsonl').read_bytes())
         if run.returncode or not verification['completed_files_hash_and_mtime_unchanged'] or not verification['ledger_unchanged']:
             raise RuntimeError('Completed-session resume verification failed')
+        # Do not hide an excluded failed cell in the full-pilot dashboard.
+        atomic_json(root/'status.json',status_before)
+        verification['completed_cells_checked']=len(completed)
     times=[r['duration_sec'] for r in result]
     return dict(status_counts=dict(Counter(r['status'] for r in result)),scenes=len(result),rows=result,
         duration_mean_sec=float(np.mean(times)),duration_p50_sec=float(np.median(times)),

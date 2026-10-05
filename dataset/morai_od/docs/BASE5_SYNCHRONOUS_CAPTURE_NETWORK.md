@@ -1,6 +1,6 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v21 일방향motion 소량검증이 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v23 분산검증·all-actor motion gate가 최신이다.
 **본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
 
 v18은 같은 one-load/seven-interface network를 사용한다. pause·선택적 actor-only load를
@@ -8,10 +8,53 @@ v18은 같은 one-load/seven-interface network를 사용한다. pause·선택적
 output을 사용한다. Dashboard는 새 세션 output을 `--capture-root`로 지정하면 된다.
 아래12-scene 성공은 이전 asset-review 이력이며 새10K 배치 성공을 뜻하지 않는다.
 
-## v21 일방향 소량 재검증 명령
+## 최신 v23 — 준비·모니터링·최종 완료 resume
 
-다음은 **이미 완료한4장을 read-only resume 확인**하는 명령이다. MR 로드/캡처를
-추가 수행하지 않으며 기존 raw/ledger를 변경하지 않는다.
+새 분산48개를 준비할 때는 빈output을 사용한다. 아래 준비는 MR을 로드하지 않으며
+10K 생성도 아니다. 원본spec을 참고하되 일방향 appearance profile로 다시 배치한다.
+
+```bash
+ajou
+ROOT="$HOME/morai_cap/base5_v2_261006"
+python3 dataset/morai_od/scripts/prepare_base5_readiness_pilot.py \
+  --manifest "$ROOT/scenarios_10k_v18d/manifest.json" \
+  --output "$ROOT/readiness_next_pilot"
+```
+
+실제 캡처는 연결/CollisionData·Capture Mode 확인 후,사용자 승인된 새output에서만 한다.
+현재 완료한 세션의 **read-only resume** 확인은 다음이다. 기존1개를 재촬영하지 않는다.
+
+```bash
+ajou
+ROOT="$HOME/morai_cap/base5_v2_261006"
+python3 dataset/morai_od/scripts/run_base5_capture.py \
+  --manifest "$ROOT/readiness_retry_pilot_v22/manifest.json" \
+  --output "$ROOT/all_actor_capture_v23" --indices 1 --limit 1
+```
+
+최신 session schema5는 모든 moving actor의 캡처 직전 움직임과 전후 endpoint를
+검사한다. 이전schema3/4 세션은 현runner로 resume하지 않는다. 계약SHA/schema를
+수동 변경해 우회하지 않는다. 아래v21/v16 명령은 당시 실행 이력이다.
+
+모니터링은 ROS 없이 가능하다. 이미8075가 떠 있으면 두 번째 서버를 띄우지 않는다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
+  --capture-root "$HOME/morai_cap/base5_v2_261006/readiness_capture_v22" --port 8075
+```
+
+이 화면은 최초48회의46후보/1검토/1실패를 숨기지 않는다. 재배치 포함 최종48조건은
+`$ROOT/readiness_selected_report_v23.json` 및 `readiness_selected_v23.provenance.json`을 본다.
+선택본 PKL은 `artifacts/datasets/base5_readiness_selected_v23/`다. 데이터/산출물은 Git 제외다.
+GT 기본은 lidar1_camera0,scale1·geometric Instance·component 보존·7D/no velocity다.
+원거리 미관측/이동 미확인/끝점 도달을 승인하거나 empty negative로 바꾸지 않는다.
+종료Park이 확인된 세션만 `select_base5_ready_captures.py`로 통합한다.
+
+## v21 일방향 소량 재검증 명령 — 과거 실행 이력
+
+다음은 당시 **이미 완료한4장을 read-only resume 확인**했던 명령이다.
+현재schema5 runner로는 계약 불일치로 거부하므로 재실행하지 않는다.
 
 ```bash
 ajou

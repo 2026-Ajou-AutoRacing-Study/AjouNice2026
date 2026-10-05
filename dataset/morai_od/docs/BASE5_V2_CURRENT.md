@@ -1,10 +1,115 @@
-# Base5 독립 10K v2 — CURRENT / 10K 생성·소량 live 검증
+# Base5 독립 10K v2 — CURRENT / 소량 live 및 수집 준비 검증
 
 2026-10-06. 이 문서를 Base5 생성·캡처·변환의 최신 진입점으로 읽는다.
-기존 v1/E25 보강 실험과 구분한다. **시나리오 10,000개 생성은 완료했지만,
-소량 live는 아래처럼 통과/검토로 나뉘었다. 본 수집과 본 학습은 시작하지 않았다.**
+기존 v1/E25 보강 실험과 구분한다. **구버전 왕복10K 생성 기록은 있으나 최신 일방향
+기본의10K는 생성하지 않았다. 소량 live 검증만 수행했고 본 수집·본 학습은 미시작이다.**
 
-## 최신 v21 — 왕복 제거·저속 일방향 smoke / 본 수집 미시작
+## 최신 v23 — 동작 타이밍·48조건 분산검증·GT 정책 결정
+
+사용자가 요청한1–3단계를 수행했다. **새10K 생성·본 캡처·학습은 하지 않았다.**
+현재 default는 왕복 없는 일방향+appearance profile이다. 이전v18d의 왕복10K는 그대로
+보존하며 신규 수집에 사용하지 않는다. v21 저속 결과는 아래 이력으로 남긴다.
+
+### 1. 움직임과 캡처 타이밍
+
+- 넓은 거리 cell은0.5–16m 일방향 경로를 허용한다. 종류별 nominal cap 후보는
+  걷기1.1/달리기2.2/Animal1.2/자전거·스쿠터2.5m/s이며,
+  실제 설정은 `min(cap, 구간길이/6초)`다. 좁은 cell에서는 계속 느려질 수 있다.
+  초저속만으로 모든 동작 quota를 채우지 않는다. 속도 label/temporal 학습은 하지 않는다.
+- 거리 cell 전체 유지 검사는 선분의 정확한 최소·최대거리로 계산한다. ROI/방향,
+  swept clearance, 실제 annotation 및 CollisionData gate는 유지한다.
+- 실제 관측속도: 걷는 사람1.182m/s, 달리는 사람2.107m/s, Scooter1 1.917m/s.
+  수신시간 기반 위치 변화이며 공식 속도GT·애니메이션 인증이 아니다.
+- 캡처 직전0.3초 trace에서 실제 이동을 확인하고, 저장 전후 waypoint 끝점까지
+  최소0.1m 여유가 없으면 REVIEW다. 정지·배경에는 적용하지 않는다.
+  저장 시각을 정확히 아는 검사가 아니라 보수적인 전후 구간 검사다.
+- 추가 actor도 같은 검사를 적용한다. 초기48장에서는 primary live gate였으나
+  남긴 trace로 secondary2건을 별도 재검증했고 모두 통과했다. 최종 all-actor gate는
+  두 Ped_Pet1이 움직이는 장면1회로 live/resume까지 확인했다.
+- 이동이 확인되지 않은 실패에는 새 코드부터 별도 failure telemetry를 남긴다.
+  첫 실패의 endpoint 직접 trace는 없으므로 원인을 확정하지 않는다.
+
+### 2. 분산 pilot 및 제한적 재배치
+
+| 패밀리 | 독립 조건 | 범위 |
+| --- | ---: | --- |
+| 고주로 | 12 | 전·후방 각각6개 거리 cell,6–99m |
+| 로터리 | 4 | 이번 표본은10–20m 중심, 전 범위 인증 아님 |
+| 정적 차량 회피 | 4 | 접근·진입·좌/우 alongside |
+| 실체 장애물 | 12 | 회피4조건+범용 전/후/좌/우 및60–99m |
+| 사람·동물·복합 객체 | 14 | 걷기/달리기/정지,Dog1/2·Deer1·dummy·유모차·탑승자·반려동물 |
+| 빈 배경 | 2 | 정상 negative |
+| 합계 | 48 | 전체 카탈로그 전수 인증 아님 |
+
+첫48회는 **46후보/1검토/1실행실패**다. 후방80–99m DEFAULT_MPV는 runtime/annotation
+모두 미관측이었다. 같은 자산·cell로 재배치한96.786m 장면은3point로 통과했다.
+자산 자체 미지원으로 결론내리지 않는다. Ped_Pet1은 움직임을 확인하지 못해 센서
+저장을 진행하지 않았다. 첫 시도9.53초와 명목6초 경로는 조기 endpoint 가능성을
+시사하지만 직접 증거는 없다. 같은 객체·cell의 다른 일방향 배치는 통과했다.
+
+두 재배치+최종 all-actor 반복1회까지 총51회 시도/50개 raw 캡처다.
+**독립 조건은48개**이며 반복을 데이터 다양성 증가로 세지 않는다. 원래 실패·검토를
+삭제하지 않고 안전 종료한 대체본만 canonical selection에 넣었다.
+
+- 원거리 실제 primary: 전77.178m/4point,97.056m/10point;
+  후63.616m/6point,96.786m/3point.
+- alongside primary annotation gap: 정적 차량0.127/0.200m,
+  장애물0.364/0.390m. 해당4조건은 CollisionData 이력에 non-Ego 충돌이 없었다.
+  Ego proxy와 annotation gap이지 실제 collider 간격 측정은 아니다.
+- 종료Park은 각 검증 세션 첫 요청 성공. 대표48장 종료17.7ms,재배치9.1ms.
+  완료된47개 raw의 hash/mtime·ledger 불변 resume 확인; 실패1개를 자동 재캡처하지 않았다.
+  최종 all-actor 세션도 완료 resume 통과했다. 장시간 무고장 보장은 아니다.
+
+### 3. GT·변환·수집 준비 결론
+
+학습 준비 기본은 **lidar1_camera0**로 정했다. 원본 LiDAR Instance geometric box를
+보존하고,≥1LiDAR point 또는 실제 대응 camera Instance의 모델 crop 근거(≥16pixel,
+extent≥4×4)를 요구한다. 같은 부모·class의 복합 component를 구분하지 못하면
+camera-only positive를 억지로 배정하지 않는다. raw에는 제외 component도 보존한다.
+primary 근거가 없는 장면을 빈 배경으로 바꾸지 않는다.
+
+| GT 정책 | 대체본 선택 후 usable 조건 | 유지 GT |
+| --- | ---: | ---: |
+| lidar5 | 38 | 50 |
+| lidar1 | 46 | 69 |
+| lidar1_camera0 | 48 | 75 |
+
+실제0-point camera-only positive5개(Obstacle4/Animal1)를 보존했다.
+이는 camera 근거 정책이 작동한다는 증거이며 AP 개선·최적 threshold 증명은 아니다.
+변환 제외 component는Obstacle1/Animal1/Pedestrian3개이며 raw/audit에 남는다.
+
+최종48조건→train42/val6/test0,GT Vehicle26/Pedestrian20/Obstacle23/Animal6.
+7D single-frame/no velocity target이다. 4카메라 파일·실제 해상도·LiDAR4feature·finite
+보정행렬·양의 box 크기·class index CPU 검사 모두 통과했다. 이번에는 MMDet3D
+training forward나 모델 성능평가를 하지 않았다. 기존production3-class E25는 그대로다.
+
+최초48회 평균5.255초/p50 4.944초/p95 8.054초. 최종 선택본 평균5.168초.
+이번 모든 raw 약240.7MiB,최종 선택본231.2MiB. 단순10K 환산은 약14.4–14.6시간,
+47GiB 전후 raw다. 재시도·MORAI 장시간 저하·파생 캐시는 별도이며 소량 추정이다.
+현재 디스크 여유269GiB로 공간은 충분하지만 과거3-frame 수집 속도로 예상하면 안 된다.
+
+**준비 판단:** 제한적인48조건 수집·GT·변환·모니터링 경로는 통과했다.
+다음은 새 기본 정책으로10K 시나리오를 별도 생성하여 전수 quota/배치 audit하는 단계다.
+512회 탐색 한도 안 모든 희소 cell이 채워지는지는 미검증이며 실패 시 quota를 몰래
+축소하지 않는다. 전체pool·로터리 전체거리·장시간 서비스 안정성과 모델 일반화는 남는다.
+10K 생성/본 수집은 다음 사용자 지시 전 시작하지 않는다.
+
+증거 prefix `/home/luv/morai_cap/base5_v2_261006/`:
+
+- `readiness_pilot_v22/offline_audit.json`:48개 OFFLINE_PASS
+- `readiness_capture_v22/smoke_report.json`, `readiness_report_v22.json`:첫 시도 그대로
+- `readiness_retry_pilot_v22/`, `readiness_retry_capture_v22/`:2조건 재배치
+- `all_actor_capture_v23/smoke_report.json`:최종 all-actor live/resume
+- `readiness_selected_v23.jsonl` 및 `.provenance.json`:48개 canonical,원본불변
+- `readiness_selected_report_v23.json`, `gt_policy_readiness_replaced_v22.json`
+- info: `artifacts/datasets/base5_readiness_selected_v23/`
+
+단위검증43개. Dashboard `http://127.0.0.1:8075`는 첫48회 상태를 그대로 보여준다.
+재배치 후48개 최종 선택 결과는 selected report를 본다.
+Session schema5는 all-actor motion 계약이다. v21/schema3,v22/schema4 output에 현
+runner로 resume하면 계약 불일치로 거부한다. 과거 세션을 새 계약으로 자동 승인하지 않는다.
+
+## v21 — 왕복 제거·저속 일방향 smoke / 본 수집 미시작
 
 사용자와 논의한 일방향 대안을 구현하고 실제 움직이는6조건을 검증했다.
 `one-way-slow-v1`은 **현재 heading 방향으로2개 waypoint만** 사용하며 왕복/방향반전/

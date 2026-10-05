@@ -234,8 +234,12 @@ def one_way_motion_path(pose,center,ego,bounds,motion,asset,setup_budget_sec=12.
     length=None
     for tenth in range(160 if appearance_profile else 40,4,-1):
         candidate=tenth/10.
-        if all(lo<=math.hypot(center[0]+candidate*t/20*dx-ego['x'],
-                center[1]+candidate*t/20*dy-ego['y'])<hi-.025 for t in range(21)):
+        cx,cy=center[0]-ego['x'],center[1]-ego['y']
+        closest=max(0.,min(candidate,-cx*dx-cy*dy))
+        minimum=math.hypot(cx+closest*dx,cy+closest*dy)
+        maximum=max(math.hypot(cx,cy),math.hypot(cx+candidate*dx,cy+candidate*dy))
+        # Exact segment extrema, not just 21 discrete points through a radial cell.
+        if lo<=minimum and maximum<hi-.025:
             length=candidate;break
     if length is None:raise ValueError('One-way segment too short inside distance cell')
     # Raw scene speed fields are treated as km/h candidates; actual displacement
