@@ -31,6 +31,8 @@ mission rosbag에서 비교한다.
 
 ## EVIDENCE
 
+- [MR VLP16 실제 출력100m 제한](261005_MR_VLP16_100M_RANGE_EVIDENCE.md): fireDistance150 저장 유지에도 원본 UDP/pointcloud는 약100m 이내. 원거리7대와55.6m control 차량 live 대조. 내부 원인/대회 규정 제한을 확정한 것은 아니다.
+
 - [`261005_BASE5_E1_MISSION_ROSBAG_AB.md`](261005_BASE5_E1_MISSION_ROSBAG_AB.md)
   - E1 기존/새 보행자·장애물9-bag 완료, 동일 E25 계약 Detection/Tracking/Map-CV 및 거리별 검출률. E2·차량 미션은 이번 범위 밖.
 - [`261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md`](261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md)

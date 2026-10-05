@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "dataset_id": "base5_static_v1",
+  "seed": 261005,
+  "target_frames": 10000,
+  "captures_per_scene": 1,
+  "maximum_batch_scenes": 64,
+  "families": {
+    "near_obstacle": 4000,
+    "far_vehicle": 4000,
+    "pedestrian": 1500,
+    "background": 500
+  },
+  "distance_bins_m": {
+    "near_obstacle": [[3.2, 5.0], [5.0, 10.0], [10.0, 20.0]],
+    "far_vehicle": [[20.0, 30.0], [30.0, 45.0], [45.0, 60.0]],
+    "pedestrian": [[3.2, 10.0], [10.0, 20.0], [20.0, 30.0]]
+  },
+  "ego_lateral_offsets_m": [0.0, 0.0, -0.15, 0.15, -0.30, 0.30],
+  "obstacle_yaws_deg": [0.0, 30.0, 60.0, 90.0, 120.0, 150.0],
+  "split": {"train": 0.85, "val": 0.15},
+  "notes": "Requested distances are actor pivot distances, NOT geometric GT center or surface clearance. Live annotation/visibility/collision audit is mandatory. Stationary independent snapshots; no temporal claim."
+}
