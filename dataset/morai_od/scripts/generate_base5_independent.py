@@ -227,12 +227,12 @@ def bounded_motion_path(pose,center,ego,bounds):
         points=[{k:pose[k] for k in ('x','y','z')},end,{k:pose[k] for k in ('x','y','z')}],
         limitation='Single-frame animated appearance only; not a competition trajectory or velocity label.')
 
-def one_way_motion_path(pose,center,ego,bounds,motion,asset,setup_budget_sec=12.):
+def one_way_motion_path(pose,center,ego,bounds,motion,asset,setup_budget_sec=12.,appearance_profile=False):
     """Heading-aligned finite segment; slow enough to survive normal setup, no return."""
     a=math.radians(pose['yaw']);dx,dy=math.cos(a),math.sin(a)
     lo,hi=bounds
     length=None
-    for tenth in range(40,4,-1):
+    for tenth in range(160 if appearance_profile else 40,4,-1):
         candidate=tenth/10.
         if all(lo<=math.hypot(center[0]+candidate*t/20*dx-ego['x'],
                 center[1]+candidate*t/20*dy-ego['y'])<hi-.025 for t in range(21)):
@@ -241,12 +241,14 @@ def one_way_motion_path(pose,center,ego,bounds,motion,asset,setup_budget_sec=12.
     # Raw scene speed fields are treated as km/h candidates; actual displacement
     # must be measured in live validation, especially objectList.moveSpeed.
     nominal=.25 if asset.get('ontology_class')=='Animal' else .6 if motion=='running' else .35
+    if appearance_profile:
+        nominal=1.2 if asset.get('ontology_class')=='Animal' else 2.2 if motion=='running' else 2.5 if asset.get('name','').startswith(('Bike','Scooter','Bicycle')) else 1.1
     if not 4.<=setup_budget_sec<=30.:raise ValueError('Bounded one-way setup budget required')
     speed=min(nominal,length/setup_budget_sec)
     end=dict(x=pose['x']+length*dx,y=pose['y']+length*dy,z=pose['z'])
     return dict(policy='one-way-slow-v1',length_m=length,distance_bounds_m=list(bounds),
         points=[{k:pose[k] for k in ('x','y','z')},end],speed_field_value=speed*3.6,
-        nominal_speed_mps=speed,nominal_duration_sec=length/speed,
+        nominal_speed_mps=speed,nominal_duration_sec=length/speed,appearance_profile=appearance_profile,
         limitation='Single-frame appearance probe; reduced-speed animation realism and field units need live validation.')
 
 
@@ -443,7 +445,8 @@ def build(row,config,ctx,attempt=0):
             if policy in ('bounded-shuttle-v1','one-way-slow-v1'):
                 if asset['source_list'] not in ('pedestrianList','aiPedstrianList','objectList'):raise ValueError('Shuttle unsupported actor container')
                 motion_path=one_way_motion_path(pose,center,ego,[lower,upper],actor_motion,asset,
-                    config['capture'].get('one_way_setup_budget_sec',12.)) if policy=='one-way-slow-v1' else bounded_motion_path(pose,center,ego,[lower,upper])
+                    config['capture'].get('one_way_setup_budget_sec',12.),
+                    config['capture'].get('one_way_appearance_profile',False)) if policy=='one-way-slow-v1' else bounded_motion_path(pose,center,ego,[lower,upper])
                 end=motion_path['points'][1]
                 end_center=[center[0]+end['x']-pose['x'],center[1]+end['y']-pose['y']]
                 end_lon=math.cos(ea)*(end_center[0]-ego['x'])+math.sin(ea)*(end_center[1]-ego['y'])

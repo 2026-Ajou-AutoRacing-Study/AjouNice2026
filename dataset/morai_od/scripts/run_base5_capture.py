@@ -14,7 +14,7 @@ import uuid
 import fcntl
 
 from base5_capture_audit import audit_capture
-from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields
+from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review
 
 ROOT=Path(__file__).resolve().parents[3]
 
@@ -109,14 +109,20 @@ def main():
     def interrupted(signum,frame): raise KeyboardInterrupt()
     signal.signal(signal.SIGINT,interrupted);signal.signal(signal.SIGTERM,interrupted)
     state={'ego':None,'objects':None,'ego_t':0.,'object_t':0.,'collision_t':0.}; traces=[];collisions=[]
-    lock=threading.RLock(); halt=threading.Event()
+    lock=threading.RLock(); halt=threading.Event();object_traces=[]
     def ego_cb(m):
         with lock:
             row=dict(t=time.monotonic(),x=m.position.x,y=m.position.y,z=m.position.z,heading=m.heading,vx=m.velocity.x,vy=m.velocity.y)
             state.update(ego=row,ego_t=row['t']);traces.append(row)
             if len(traces)>2000: del traces[:1000]
     def object_cb(m):
-        with lock: state.update(objects=message_dict(m),object_t=time.monotonic())
+        with lock:
+            now=time.monotonic();objects=message_dict(m)
+            state.update(objects=objects,object_t=now)
+            for key in ('npc_list','pedestrian_list','obstacle_list'):
+                for actor in objects.get(key,[]):
+                    object_traces.append(dict(t=now,uid=actor['unique_id'],**actor['position']))
+            if len(object_traces)>10000:del object_traces[:5000]
     def collision_cb(m):
         with lock:
             now=time.monotonic();state['collision_t']=now
@@ -226,6 +232,7 @@ def main():
                 shutil.copy2(sensor_source,dest/'sensor_reference.json')
                 atomic_json(dest/'attempt.json',dict(stage='capture_requested',load_time=load_time,
                     archived_previous_attempt=archived,scenario_sha256=entry['scenario_sha256']))
+                capture_requested_at=time.monotonic()
                 status('capture',entry['id']);capture.publish(SaveSensorData(is_custom_file_name=False))
                 deadline=time.monotonic()+20; new=set();signature=None; stable=time.monotonic()
                 while time.monotonic()<deadline:
@@ -258,6 +265,7 @@ def main():
                     collision_samples=[r for r in collisions if r['t']>=load_time]
                     samples=[r for r in traces if r['t']>=pose_confirmed]
                     objects_after=state['objects']
+                    actor_samples=[r for r in object_traces if r['t']>=load_time]
                 safety=collision_window(collision_samples,pose_confirmed,time.monotonic())
                 # Load-time contacts are retained conservatively even before pose confirmation.
                 all_peers=sorted({int(a['unique_id']) for r in collision_samples
@@ -272,6 +280,10 @@ def main():
                 atomic_json(dest/'collision_history.json',dict(summary=safety,samples=collision_samples,
                     load_time_monotonic=load_time,pose_confirmed_monotonic=pose_confirmed))
                 audit=audit_capture(dest,meta)
+                motion_evidence=motion_capture_review(meta['runtime_actors'][0] if meta['runtime_actors'] else None,
+                    objects_before,objects_after,actor_samples,capture_requested_at)
+                audit['motion_capture']=motion_evidence
+                audit['review_reasons'].extend(motion_evidence['review_reasons'])
                 runtime_missing,annotation_only=runtime_presence_review(meta,objects_before,objects_after,audit['components'])
                 if runtime_missing:audit['review_reasons'].append('missing_runtime_actor')
                 audit['runtime_missing_uids']=runtime_missing
@@ -284,7 +296,8 @@ def main():
                 with lock: objects_after=state['objects'];samples=[r for r in traces if r['t']>=load_time]
                 atomic_json(dest/'telemetry.json',dict(ego_before=e1,ego_after=e2,objects_before=objects_before,
                     objects_after=objects_after,ego_samples=samples,capture_drift_m=drift,
-                    primary_displacement_during_wait_m=movement))
+                    primary_displacement_during_wait_m=movement,object_position_samples=actor_samples,
+                    capture_requested_at_monotonic=capture_requested_at,motion_capture=motion_evidence))
                 atomic_json(dest/'metadata.json',meta);atomic_json(dest/'audit.json',audit)
                 atomic_json(dest/'attempt.json',dict(stage='complete',scenario_sha256=entry['scenario_sha256'],archived_previous_attempt=archived))
                 result=dict(id=entry['id'],scenario_sha256=entry['scenario_sha256'],family=entry['family'],

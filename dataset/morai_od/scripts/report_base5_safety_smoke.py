@@ -17,6 +17,10 @@ def snapshot(root):
 def report(root,manifest,resume_check=False):
     rows=load_ledger(root/'ledger.jsonl');latest={r['id']:r for r in rows};result=[]
     for entry in latest.values():
+        if entry['status']=='failed':
+            result.append(dict(id=entry['id'],family=entry['family'],status='failed',
+                error=entry.get('error'),duration_sec=entry['duration_sec'],bytes=0))
+            continue
         capture=Path(entry['capture_root']);meta=json.loads((capture/'metadata.json').read_text());audit=json.loads((capture/'audit.json').read_text())
         uid=meta['runtime_actors'][0]['unique_id'] if meta['runtime_actors'] else None
         components=[r for r in audit['components'] if r['parent_uid']==uid]

@@ -4,6 +4,34 @@ import json
 import os
 from pathlib import Path
 import time
+import math
+
+
+def motion_capture_review(actor, before, after, samples, requested_at):
+    """Conservative endpoint/real-displacement witness, not animation or velocity GT."""
+    if not actor or actor['motion'] in ('static','standing'):
+        return dict(required=False,review_reasons=[])
+    path=actor.get('motion_path') or {}
+    end=(path.get('points') or [{}])[-1]
+    uid=actor['unique_id']
+    def pos(objects):
+        return next((a['position'] for k in ('npc_list','pedestrian_list','obstacle_list')
+            for a in (objects or {}).get(k,[]) if a['unique_id']==uid),None)
+    a,b=pos(before),pos(after)
+    remaining=lambda p:math.hypot(p['x']-end['x'],p['y']-end['y']) if p and 'x' in end else None
+    ra,rb=remaining(a),remaining(b)
+    reasons=[]
+    if ra is None or rb is None:reasons.append('motion_capture_missing_endpoint_witness')
+    elif min(ra,rb)<.10:reasons.append('motion_endpoint_reached_during_capture_window')
+    trace=[r for r in samples if r['uid']==uid and requested_at-.30<=r['t']<=requested_at]
+    displacement=math.hypot(trace[-1]['x']-trace[0]['x'],trace[-1]['y']-trace[0]['y']) if len(trace)>1 else None
+    span=trace[-1]['t']-trace[0]['t'] if len(trace)>1 else 0.
+    if span<.05 or displacement is None or displacement<.001:
+        reasons.append('motion_not_observed_immediately_before_capture')
+    return dict(required=True,review_reasons=reasons,endpoint_remaining_before_m=ra,
+        endpoint_remaining_after_m=rb,pre_request_trace_span_sec=span,
+        pre_request_displacement_m=displacement,observed_speed_mps=displacement/span if span else None,
+        limitation='Receive-time finite difference and endpoint bounds; not exact sensor timestamp or animation certification')
 
 
 def sha256(path):
@@ -89,9 +117,9 @@ def load_ledger(path):
 
 def prepare_session(output,manifest,network,sensor):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
-    contract=dict(schema_version=3,manifest_sha256=sha256(manifest),
+    contract=dict(schema_version=4,manifest_sha256=sha256(manifest),
         network_sha256=sha256(network),sensor_sha256=sha256(sensor),
-        safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; support-proxy-not-mesh')
+        safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; support-proxy-not-mesh; motion-endpoint-window-v1')
     path=output/'session_contract.json'
     if path.exists():
         if json.loads(path.read_text())!=contract:raise ValueError('Resume session contract mismatch')
