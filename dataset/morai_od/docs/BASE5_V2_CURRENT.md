@@ -6,6 +6,16 @@
 
 ## 최신 v27 — 자산별 정지/이동 외관 비교 완료
 
+추가 안전 gate: 동적 actor의 캡처요청 직전1초부터 저장완료까지 수신된 z를 검사한다.
+인접 수신간격≤0.2초에서 z변화>0.10m이면 `motion_vertical_jump`로 후보에서 제외한다.
+처음부터 일정 높이로 떠 있는 경우도 있어 objectList 이동 자산은 독립 검증된 높이
+reference 없이 합격시키지 않는다. 현재 flat-ground 진단의 정지 실측 reference와
+차이가>0.05m이면 제외한다. 이 임시 기준을 임의 slope/pivot의 절대 높이로 일반화하지 않는다.
+raw는 원인 분석용으로 보존하고 audit를review/accepted_candidate=false로 기록한다.
+저장 전 activation의 모든 z transition을 관측하거나 지면 mesh 접촉을 인증하는 gate는 아니다.
+기존 raw 재검사에서 공중 배치11/11 제외, 높이 matched 재촬영12/12 통과.
+Base5 테스트65개 통과. 새 live 수집은 이 추가 gate 구현 중 실행하지 않았다.
+
 2026-10-06. 대표13자산×정지/이동×2반복의 **최종52조건/80 component GT**를 확보했다.
 74시도/71 raw 저장/3도착실패 차단이며, 실패와 이전 표본을 삭제하지 않고 최종 pair를
 별도 선택했다.52조건 모두 도착·실제 정지/이동·visibility·CollisionData 비충돌 검사 통과.

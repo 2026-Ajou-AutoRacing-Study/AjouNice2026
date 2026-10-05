@@ -14,7 +14,7 @@ import uuid
 import fcntl
 
 from base5_capture_audit import audit_capture
-from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review
+from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review
 
 ROOT=Path(__file__).resolve().parents[3]
 
@@ -325,6 +325,12 @@ def main():
                     objects_before,objects_after,actor_samples,capture_requested_at)) for a in meta['runtime_actors']]
                 audit['motion_capture']=motion_evidence
                 audit['motion_capture_actors']=motion_actors
+                height_reference=meta.get('motion_probe',{}).get('height_calibration',{}).get('static_z')
+                vertical_actors=[dict(uid=a['unique_id'],asset=a['name'],**vertical_motion_review(a,
+                    actor_samples,capture_requested_at-1.,height_reference if len(meta['runtime_actors'])==1 else None))
+                    for a in meta['runtime_actors']]
+                audit['vertical_motion_actors']=vertical_actors
+                for evidence in vertical_actors:audit['review_reasons'].extend(evidence['review_reasons'])
                 if meta.get('yaw_probe'):
                     audit['yaw_runtime_review']=yaw_runtime_review(meta,objects_before,objects_after)
                     audit['review_reasons'].extend(audit['yaw_runtime_review'])

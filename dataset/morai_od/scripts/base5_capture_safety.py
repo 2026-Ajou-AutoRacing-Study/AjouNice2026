@@ -7,6 +7,27 @@ import time
 import math
 
 
+def vertical_motion_review(actor,samples,window_start,reference_z=None,step_limit_m=.10,height_limit_m=.05):
+    """Observed moving-window Z gate; absolute reference must be independently validated."""
+    if not actor or actor['motion'] in ('static','standing'):
+        return dict(required=False,review_reasons=[])
+    trace=sorted([r for r in samples if r['uid']==actor['unique_id'] and r['t']>=window_start
+                  and all(math.isfinite(r.get(k,float('nan'))) for k in ('t','z'))],key=lambda r:r['t'])
+    steps=[abs(b['z']-a['z']) for a,b in zip(trace,trace[1:]) if 0<b['t']-a['t']<=.20]
+    reasons=[]
+    if not steps:reasons.append('motion_vertical_trace_unverified')
+    elif max(steps)>step_limit_m:reasons.append('motion_vertical_jump')
+    # A constant floating object has no Z jump: do not certify it from stability alone.
+    if actor.get('source_list')=='objectList' and reference_z is None:
+        reasons.append('motion_vertical_ground_reference_unverified')
+    error=max((abs(r['z']-reference_z) for r in trace),default=None) if reference_z is not None else None
+    if error is not None and error>height_limit_m:reasons.append('motion_vertical_reference_mismatch')
+    return dict(required=True,review_reasons=reasons,maximum_observed_z_step_m=max(steps) if steps else None,
+        reference_z_m=reference_z,maximum_height_error_m=error,step_limit_m=step_limit_m,
+        height_limit_m=height_limit_m,window_start_monotonic=window_start,
+        limitation='Capture-window receive samples only; stable Z is not ground support. Scalar reference is for independently matched flat-ground probes, not arbitrary slopes or pivots.')
+
+
 def motion_capture_review(actor, before, after, samples, requested_at):
     """Conservative endpoint/real-displacement witness, not animation or velocity GT."""
     if not actor or actor['motion'] in ('static','standing'):

@@ -510,6 +510,12 @@ normal Base5 generator의자연속도 기본전환은아직아니다. 현재walk
 
 ## 자산별 외관 비교 / v27
 
+동적 z gate도 기본 적용한다. 갑작스러운 z변화/검증된 높이 reference 불일치는
+합격 후보에서 제외하고 raw 증거는 보존한다. objectList 이동은 높이 reference가
+없어도review이며, 안정적인 z만으로 공중 배치를 합격시키지 않는다. 경사면의 임의
+고정 z reference로 대체하지 않는다. 현재 진단은 `motion_probe.height_calibration.static_z`
+실측값을 사용하며, 일반 생성기에는 위치·자산별 지면 reference 검증이 추가로 필요하다.
+
 기존 ROS 동기캡처 network/Capture Mode를 그대로 사용했다. 다른 UDP/full stack을
 동시에 켜지 않는다. 대표13종52조건의 완료 기록과 높이 matched 재촬영 근거는
 [EVIDENCE](261006_base5_asset_motion_appearance_evidence.md)와 CURRENT를 읽는다.
