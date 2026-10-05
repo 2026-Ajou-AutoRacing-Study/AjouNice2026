@@ -4,7 +4,34 @@
 기존 v1/E25 보강 실험과 구분한다. **구버전 왕복10K 생성 기록은 있으나 최신 일방향
 기본의10K는 생성하지 않았다. 소량 live 검증만 수행했고 본 수집·본 학습은 미시작이다.**
 
-## 최신 v28 — 일반 생성기 통합 완료 / 지면 높이 문제는 일부 미해결
+## 최신 v29 — 무효 LiDAR 지면 오판 수정·자동 보완 구현 / Park 실패로 live 중단
+
+근접 below-ground 의심의 일부는 **검사기 오판**이었다. 원본 Dog2 근접 cloud의
+zero XYZ 점10,010개가 extrinsic 후 같은 높이로 모여 평면 적합을 왜곡했다.
+지면/visibility 감사에서 zero XYZ와 Ego footprint를 제외했다. raw cloud/GT 및 모델
+추론 전처리는 바꾸지 않았다. 기존17장 재검사는13 accepted/4 review이며,
+근접·혼합13장 중9장 통과/4 review다. 아래 v28의 낮은 합격률은 당시 이력이다.
+과거 개 표본의 실제공중gap25–29cm 및 입력Z 수정 효과는 별개로 유지된다.
+
+근접 ground 부족에는 empty-scene/경로상12m 뒤 Ego의 독립 지면 촬영과 world-plane
+reference를 연결했다. 로컬·독립 평면이10cm 이상 다르면 통과시키지 않는다.
+`run_base5_quality_loop.py`는 최대4cell에서 캡처→입력Z 수정/독립지면→같은cell 재배치→
+재검증을 자동 수행한다. 각cell 최대2retry, 안전 실패 시 후속로드 차단, STOP/status/partial
+selection 보존이다. 일반 capture runner의resume은 유지하되 loop campaign은 새output을 쓴다.
+
+새12raw(지면5+객체7) 중 안전 종료된 객체4장만 변환했다. train4/GT8개,
+RGB/LiDAR/캘리브레이션/4-class/7D/±100m×±30m LiDAR-frame ROI CPU 검사PASS,
+raw annotation 대비 GT차이0. 학습/모델 성능 검증이 아니다.
+독립 Woman2/Dog2/Ped_Pet1 재촬영3조건은 높이·Z·가시성·충돌·종료Park 통과.
+자동loop 첫cell도 보완 성공. 두 번째cell은 raw검사 통과했지만 **종료Park2회timeout**으로
+즉시중단했다. 해당raw는학습선택에서제외했고나머지2cell은로드하지않았다.
+
+Base5 tests76개통과. 다음은 사용자가MR 재연결/서비스 정상 확인한 뒤 중단/미실행조건
+소량마무리다. 실제 지형의 최초배치높이를항상맞추는universal solver는미완성이며
+20m밖/이동경로전체ground contact인증도아니다. 10K/학습/GPU latency는미실행.
+[v29 근거·원본 경로](261006_base5_ground_quality_loop_evidence.md).
+
+## v28 — 일반 생성기 통합 이력 (지면 검사 오판 후속은 v29 우선)
 
 자산별 외관 정책과 자연 속도 뒤쪽 출발을 일반 `generate_base5_independent.py` 기본에
 통합했다. 확인된 fixed-pose 자산은 정지 우선, 사람·동물은 요청된 동적 phase 유지,

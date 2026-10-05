@@ -73,6 +73,8 @@ def audit_capture(root, metadata):
     points = raw.reshape(-1,4)
     if not np.isfinite(points).all():
         raise ValueError('Nonfinite LiDAR')
+    zero_returns=int((points[:,:3]==0).all(axis=1).sum())
+    points=points[(points[:,:3]!=0).any(axis=1)]
     actors = {int(a['unique_id']):a for a in metadata['runtime_actors']}
     boxes = parse_instances(annotation_files[0])
     # parse_instances is permissive historically; here malformed records are fatal.
@@ -126,7 +128,8 @@ def audit_capture(root, metadata):
         else:
             from base5_ground_support import ground_review
             ground=ground_review(points[:,:3],boxes,metadata['lidar_to_ego'],
-                ground_config.get('max_range_m',20.),ground_config.get('maximum_gap_m',.15))
+                ground_config.get('max_range_m',20.),ground_config.get('maximum_gap_m',.15),
+                references=metadata.get('ground_probe_references'),runtime_ego=metadata.get('capture_runtime_ego'))
             reasons.extend(ground['review_reasons'])
     live=metadata.get('capture_safety')
     if live is not None:
@@ -173,6 +176,7 @@ def audit_capture(root, metadata):
                 reasons.append('actual_GT_actor_footprint_overlap')
             footprints.append((box['unique_id'],poly))
     return dict(components=results,missing_uids=missing,raw_complete=True,ground_support=ground,
+        zero_xyz_returns_excluded_from_audit=zero_returns,valid_lidar_return_count=len(points),
         actual_annotation_clearances=clearances,
         accepted_candidate=not reasons,review_reasons=sorted(set(reasons)),
         positive_policy='provisional lidar1 OR actual instance pixels in model crop',

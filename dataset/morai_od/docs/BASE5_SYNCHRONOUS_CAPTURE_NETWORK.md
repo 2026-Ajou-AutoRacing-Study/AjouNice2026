@@ -1,6 +1,7 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v28 일반 생성기 통합/지면 높이 검사가 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v29 검사기 수정/자동 보완이 최신이다.
+종료Park2회timeout으로새live는중단상태다. MR 재연결·서비스정상확인없이재개하지않는다.
 최종Park은 재시도 성공했으며 간헐 timeout 원인은 미해결이다.
 아래 v23 분산검증 이력과 맨 아래 yaw 검사 명령을 구분한다.
 **본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
@@ -600,3 +601,45 @@ python3 dataset/morai_od/scripts/report_base5_ground_integration.py \
 ```
 
 결과/제한은 [v28 EVIDENCE](261006_base5_appearance_ground_integration_evidence.md)를 참고한다.
+
+## v29 — 소량 자동 품질 보완 루프
+
+지면 감사는 zero XYZ 점/Ego footprint를 제외한다. raw point/GT를 수정하지 않는다.
+독립 지면은 캡처용 Ego를 route상12m 뒤로 옮긴 **calibration-only** 파일이며 학습에서 제외한다.
+MR seven-interface network는 그대로다. 현재 서비스 문제가 있으므로 아래는 정상 재연결 후 예시다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/probe_base5_park.py \
+  --output "$HOME/morai_cap/base5_quality_next_park.json"
+```
+
+Park확인실패시loop를실행하지않는다. 기존코드의간헐첫timeout과반복실패를구분한다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/run_base5_quality_loop.py \
+  --manifest "$HOME/morai_cap/base5_v2_261006/appearance_integration_deck_v28/manifest.json" \
+  --indices 3,6,8 \
+  --output "$HOME/morai_cap/base5_quality_next"
+```
+
+최대4cell·cell당최대2retry다. 위indices는v29에서중단/미실행한조건이다.
+sourcepath는로컬pilot예시이며10K수집명령이아니다.
+STOP요청은새터미널에서 `touch "$HOME/morai_cap/base5_quality_next/STOP"`이다.
+기존 dashboard에 `--capture-root "$HOME/morai_cap/base5_quality_next"`를지정한다.
+campaign은기존output을덮어쓰지않으며,실패시child로그/shutdown/원본을보존한다.
+각child의안전계약에코드hash가있어코드변경뒤기존childresume은거부된다.
+
+안전하게끝난partial selection만변환한다. stage=halted라고실패raw를추가하지않는다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/build_base5_bevfusion_infos.py \
+  --ledger "$HOME/morai_cap/base5_quality_next/selected_ledger.jsonl" \
+  --output "$AJOUNICE_ROOT/artifacts/datasets/base5_quality_next_infos" \
+  --sensor-config "$AJOUNICE_ROOT/configs/sensors/Sensor_competition_local.json" \
+  --point-cloud-range -100 -30 -3 100 30 2
+```
+
+미실행 조건·실제 근거는 [v29 EVIDENCE](261006_base5_ground_quality_loop_evidence.md)를 읽는다.

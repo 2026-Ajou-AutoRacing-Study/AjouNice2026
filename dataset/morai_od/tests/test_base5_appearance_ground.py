@@ -10,6 +10,43 @@ from prepare_base5_ground_retry import shift_actor
 
 
 class AppearanceGroundTest(unittest.TestCase):
+    def test_zero_xyz_placeholders_cannot_dominate_ground_fit(self):
+        x,y=np.meshgrid(np.linspace(-8,8,25),np.linspace(-8,8,25))
+        ground=np.c_[x.ravel(),y.ravel(),np.full(x.size,-1.388)]
+        cloud=np.r_[np.zeros((10010,3)),ground]
+        transform=np.eye(4);transform[2,3]=1.388
+        box=dict(unique_id=1,center=np.array([3.5,0.,-.888]),size=np.array([.3,.3,1.]),rotation_rpy=np.zeros(3))
+        r=ground_review(cloud,[box],transform)
+        self.assertTrue(r['actors'][0]['verified'])
+        self.assertAlmostEqual(r['actors'][0]['minimum_annotation_ground_gap_m'],0.,places=8)
+
+    def test_ego_mesh_returns_are_not_ground(self):
+        x,y=np.meshgrid(np.linspace(-1,3.5,30),np.linspace(-1,1,30))
+        bonnet=np.c_[x.ravel(),y.ravel(),np.ones(x.size)]
+        box=dict(unique_id=1,center=np.array([3.5,0.,.5]),size=np.array([.3,.3,1.]),rotation_rpy=np.zeros(3))
+        result=ground_review(bonnet,[box],np.eye(4))
+        self.assertIn('actor_ground_plane_unverified',result['review_reasons'])
+        self.assertNotIn('actor_annotation_deep_below_ground',result['review_reasons'])
+
+    def test_empty_ground_reference_resolves_blind_spot(self):
+        from base5_ground_probe import ego_to_world
+        x,y=np.meshgrid(np.linspace(-8,8,25),np.linspace(-8,8,25))
+        plane=fit_plane(np.c_[x.ravel(),y.ravel(),np.zeros(x.size)])
+        reference=dict(uid=1,plane_world=plane)
+        box=dict(unique_id=1,center=np.array([3.,0.,.5]),size=np.array([.4,.4,1.]),rotation_rpy=np.zeros(3))
+        result=ground_review(np.zeros((0,3)),[box],np.eye(4),references=[reference],runtime_ego=dict(x=0,y=0,z=0,heading=1.347))
+        self.assertTrue(result['actors'][0]['verified'])
+        self.assertTrue(result['actors'][0]['used_independent_reference'])
+        np.testing.assert_allclose(ego_to_world([[1,0,0]],dict(x=2,y=3,z=4,heading=91.347)),[[2,4,4]],atol=1e-9)
+
+    def test_training_roi_is_lidar_frame_rectangular_not_radial(self):
+        from build_base5_bevfusion_infos import in_roi
+        self.assertTrue(in_roi([99,29,0]))
+        self.assertTrue(in_roi([-100,-30,-3]))
+        self.assertFalse(in_roi([100,0,0]))
+        self.assertFalse(in_roi([0,30,0]))
+        self.assertFalse(in_roi([0,0,2]))
+
     def test_asset_policy_does_not_generalize_unobserved_models(self):
         p=gen.geo.load_json(gen.APPEARANCE_POLICY)
         for name in ('BabyStroller2','Bike3','Scooter1'):

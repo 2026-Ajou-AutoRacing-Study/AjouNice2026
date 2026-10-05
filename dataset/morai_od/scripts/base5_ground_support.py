@@ -30,12 +30,19 @@ def fit_plane(points,minimum_points=18):
                 residual_rms_m=float(np.sqrt(np.mean(residual**2))),support_polygon_xy=list(hull.exterior.coords))
 
 
-def ground_review(points,boxes,transform,max_range=20.,maximum_gap=.15):
+def ground_review(points,boxes,transform,max_range=20.,maximum_gap=.15,references=None,runtime_ego=None):
     from base5_capture_audit import rotation_matrix
     points=np.asarray(points,float);transform=np.asarray(transform,float)
+    # MORAI synchronous scans contain zero-XYZ no-return placeholders. They
+    # become thousands of identical elevated Ego-frame points after extrinsics.
+    # Keep raw files intact, but never use those placeholders as ground evidence.
+    points=points[np.isfinite(points).all(axis=1)&(points!=0).any(axis=1)]
     ego_points=(np.c_[points,np.ones(len(points))]@transform.T)[:,:3]
     signs=np.asarray([[x,y,z] for x in (-1,1) for y in (-1,1) for z in (-1,1)])
-    corners=[];outside=np.ones(len(points),bool)
+    # Near patches can include returns from Ego itself. A very flat bonnet/roof
+    # is not road ground even if RANSAC residual and XY support look excellent.
+    outside=~((ego_points[:,0]>=-1.3)&(ego_points[:,0]<=4.)&(abs(ego_points[:,1])<=1.3))
+    corners=[]
     for b in boxes:
         local=(points-b['center'])@rotation_matrix(b['rotation_rpy'])
         outside&=~(abs(local[:,:2])<=b['size'][:2]/2+.20).all(axis=1)
@@ -56,6 +63,24 @@ def ground_review(points,boxes,transform,max_range=20.,maximum_gap=.15):
             if candidate is not None and Polygon(candidate['support_polygon_xy']).distance(Point(xy))<=.75:
                 plane=candidate;break
         row=dict(uid=uid,required=True,verified=False,plane=plane,patch_radius_m=patch_radius)
+        reference=next((r for r in (references or []) if r['uid']==uid),None)
+        if reference and runtime_ego:
+            from base5_ground_probe import ego_to_world,plane_height,supported
+            world=ego_to_world(cs,runtime_ego);independent=reference['plane_world']
+            if all(supported(independent,c[:2]) for c in world):
+                external_gap=world[:,2]-np.array([plane_height(independent,c[:2]) for c in world])
+                if plane:
+                    a,b,c=plane['coefficients'];local_gap=cs[:,2]-(a*cs[:,0]+b*cs[:,1]+c)
+                    if np.max(abs(external_gap-local_gap))>.10:
+                        row.update(reason='actor_ground_reference_disagreement',reference=reference,
+                            maximum_reference_disagreement_m=float(np.max(abs(external_gap-local_gap))))
+                        results.append(row);reasons.append(row['reason']);continue
+                gap=float(external_gap.min());row.update(reference=reference,used_independent_reference=True,
+                    minimum_annotation_ground_gap_m=gap,suggested_z_shift_m=-gap-.03 if gap>maximum_gap else 0.)
+                if gap>maximum_gap:row['reason']='actor_annotation_above_ground';reasons.append(row['reason'])
+                elif gap<-.30:row['reason']='actor_annotation_deep_below_ground';reasons.append(row['reason'])
+                else:row.update(verified=True,reason=None)
+                results.append(row);continue
         if plane is None:row['reason']='actor_ground_plane_unverified';reasons.append(row['reason'])
         else:
             a,b,c=plane['coefficients'];clearance=cs[:,2]-(a*cs[:,0]+b*cs[:,1]+c)

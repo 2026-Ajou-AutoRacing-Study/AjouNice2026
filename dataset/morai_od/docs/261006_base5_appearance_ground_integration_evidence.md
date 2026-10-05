@@ -4,6 +4,10 @@
 Production E25·threshold·tracker·planning·localization은 변경하지 않았다.
 10K 생성·본 수집·학습은 시작하지 않았다.
 
+후속 [v29 검사기 수정](261006_base5_ground_quality_loop_evidence.md): 일부 근접 below-ground
+판정은 zero XYZ 무효점으로 인한 지면 오판이었다. 최신 재검사는17장 중13통과이며
+아래6/17은 당시 이력이다. 실제 개 표본 공중 배치/입력Z 수정 효과와는 별개다.
+
 ## 일반 생성기에 통합한 계약
 
 - `base5_asset_appearance_policy_v1.json`의 **확인된 자산 이름**에만 정지 우선 정책을 적용한다.

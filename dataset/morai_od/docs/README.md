@@ -4,7 +4,13 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- **최신 v28:** 자산별 정지/동적 외관 정책·자연 속도 뒤쪽 출발을 일반 생성기 기본에 통합했다.
+- **최신 v29:** zero XYZ 무효점에 의한 근접 지면 오판을 수정했다. 과거 근접·혼합13장
+  재검사는9통과/4review다. 독립 empty-ground 촬영/보정·동일cell 재배치 자동loop 구현.
+  안전 종료4장/GT8개 학습 변환 CPU smoke PASS. 자동loop 두 번째 종료Park2회timeout으로
+  live 중단, 나머지2cell 미실행. 재연결 후 소량 마무리 필요, 본10K/학습/GPU속도미측정.
+  [CURRENT](BASE5_V2_CURRENT.md), [v29 EVIDENCE](261006_base5_ground_quality_loop_evidence.md) 우선.
+
+- **v28 이력:** 자산별 정지/동적 외관 정책·자연 속도 뒤쪽 출발을 일반 생성기 기본에 통합했다.
   근접·혼합13장 중 최종 지면 검사 전체 통과2장, 나머지는review다. 별도 입력 Z 수정 후
   재촬영한 개4조건은 공중 gap25–29cm→약−3cm로 개선됐다. 안정된Z만으로 지면을 인증하지 않는다.
   다음은 근접 지형 높이/sparse-ground 보강이며 본10K는 미시작이다.
@@ -57,7 +63,7 @@
   [CURRENT](BASE5_V2_CURRENT.md)와 [실행/재개 런북](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md)을 먼저 읽는다.
   최신10K 후보는v18d offline PASS. 본 수집은 미실행이며 sparse 가시성 보충·최종GT 정책은 남아 있다.
 
-- [독립 Base5 v2 최신 구현·검증·다음 실행](BASE5_V2_CURRENT.md): 최신 v28은 위 항목.
+- [독립 Base5 v2 최신 구현·검증·다음 실행](BASE5_V2_CURRENT.md): 최신 v29은 위 항목.
   이전10K 전수 offline PASS, 100m/4-class 후보 GPU loss·역전파 및48장 live41후보/7검토는 EVIDENCE다.
   v15는 미션 차량·장애물 회피 관측1,300장과10–50cm 측방 gap 후보를 추가했다.
   8장+대조4장 실제 캡처, 약13–34cm actual gap 확보. 지면/collider 증거가 없어 review 유지.
