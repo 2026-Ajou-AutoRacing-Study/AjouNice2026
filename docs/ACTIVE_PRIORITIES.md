@@ -49,6 +49,11 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- 독립 [Base5 v2](../dataset/morai_od/docs/BASE5_V2_CURRENT.md)의10K 오프라인 생성과
+  100m 후보 GPU wiring과48장 live 검사는 완료됐다. 다음 gate는 동적 capture timing·원거리
+  미관측 보충→GT 정책 및
+  class/runtime 결정이다. 본 수집/본 학습은 아직 승인·실행하지 않았다.
+
 - Base5 E2 학습 및 [E1 보행자·장애물9-bag A/B](bevfusion/261005_BASE5_E1_MISSION_ROSBAG_AB.md)는 완료됐다. E1 장애물 소폭 개선에도 0–2m 장애물·20–30m 보행자 공백은 미해결이다. 다음은 해당 거리·부분 시야 표적 보강 + replay다. Production E25 유지, Far ROI와 고해상도는 별도 A/B로 유지한다.
 - 전방은 빠른 존재 전달을, 후방/로터리는 위치·속도·궤적 안정성을 함께 평가한다.
 - 현재 E25의 근접 장애물 누락은 tracker만으로 해결하지 않는다. 부분 시야·얇은

@@ -2,6 +2,11 @@
 
 상태: CURRENT. 2026-10-05. 향후 수집은 MR만 사용한다.
 
+2026-10-06 구현 후속: [Base5 v2 CURRENT](BASE5_V2_CURRENT.md)가 아래의 구현 대기
+문구를 대체한다. Component-preserving 변환과 움직이는 Animal의 별도4-class 연구 후보가
+연결됐다. 기존3-class production은 유지하며 최종 ontology/runtime은 미확정이다.
+새 v2 live는 연결 실패 후 복구하여48장 검사했다. 전체pool 검증을 완료했다는 뜻은 아니다.
+
 최신 독립 수집 목표의 quota/자세/동작 정책은 [Base5 독립 10K 설계](BASE5_INDEPENDENT_10K_DESIGN.md)를 따른다.
 이 문서의 asset eligibility와 review 보류는 유지하며 새 설계가 자동 pool 편입을 뜻하지 않는다.
 

@@ -1,5 +1,9 @@
 # Base5 독립 10K — single-frame OD 수집 설계
 
+2026-10-06: 아래는 최초 PLAN 이력이다. 구현하면서 변경한 거리, pool/class 후보,
+검증 결과와 남은 gate는 [v2 CURRENT](BASE5_V2_CURRENT.md)가 우선한다.
+10K 시나리오 생성은 완료됐으며 10K accepted capture나 학습 완료는 아니다.
+
 2026-10-05. **PLAN / 생성기 v2 구현 전.** 이번 설계는 기존 Base5 보강용 v1을
 대체하는 다음 목표다. 현재 실행 코드/config가 아래 quota를 구현했다는 뜻은 아니다.
 

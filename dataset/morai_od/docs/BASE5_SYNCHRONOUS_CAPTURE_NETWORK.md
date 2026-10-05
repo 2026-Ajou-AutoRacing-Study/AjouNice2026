@@ -1,5 +1,63 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의48장 live 결과와 재시험 상태가 최신이다.
+아래12-scene 성공은 이전 asset-review 이력이며 새10K 배치 성공을 뜻하지 않는다.
+
+## v2 캡처·실시간 대시보드
+
+터미널1/2는 아래 `ajou`, `rc`, rosbridge 순서를 따른다. SaveSensorData 수집 자체에는
+UDP sensor receiver·localization·BEVFusion·planning·RViz가 필요하지 않다.
+MR Network GUI에서 전용 JSON을 다시 연결하고 Capture Mode/Instance 저장을 확인한다.
+
+대시보드 터미널:
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
+  --capture-root "$HOME/morai_cap/base5_v2_261006/capture_pilot_retry"
+```
+
+브라우저 `http://127.0.0.1:8075`에서2초마다 완료/후보/검토/실패 및 거리·방향을 본다.
+ROS와 무관한 read-only 서버다. 현재는 complete/48장이며41후보/7검토의 원래 pilot
+결과를 표시한다. 수정 후 개별 재시험은 CURRENT의 별도 경로를 따른다.
+ETA는 캡처 표본 전에는 의미가 없다. 오래된 capture1 status는 사용하지 않는다.
+
+**본 수집 전 필요한 수정·연결 확인 후** 새 v10 대표48장 pilot만 실행하는 예시:
+
+```bash
+ajou
+ROOT="$HOME/morai_cap/base5_v2_261006"
+INDICES="$(python3 -c 'import json,os; p=os.path.expanduser("~/morai_cap/base5_v2_261006/pilot_selection_v10.json"); print(",".join(map(str,json.load(open(p))["indices"])))')"
+python3 dataset/morai_od/scripts/run_base5_capture.py \
+  --manifest "$ROOT/scenarios_10k_v10/manifest.json" \
+  --output "$ROOT/capture_pilot_v10" --indices "$INDICES" --limit 48
+```
+
+MR 경로가 다르면 `--scenario-dir`과 `--sensor-dir`를 지정한다.
+런타임 scene/EgoNetwork는 `zz_b5_<session>_...`로 한 장씩 설치·회수한다.
+기존 사용자 시나리오를 지우거나10K 전체를 MR GUI 폴더에 넣지 않는다.
+통신 stale/pose 미확인/서비스 timeout이면 즉시 중단한다. Ctrl+C 또는 output의
+`STOP` 파일로 종료하며 ledger/raw는 보존한다. 재시작은 같은 manifest/hash로만 한다.
+
+이번 검증에서는 SceneLoad 뒤 모든 rosbridge client가 끊겼다. network=false도 실패해
+현재 runner는 network=true를 사용한다. 모델/GPU 문제나 JSON 누락으로 단정하지 않는다.
+Ego/Object 신규 메시지와3개 명령 subscriber가 복구되기 전에는 로드하지 않는다.
+전체10K 수집용 `--approve-bulk-capture`는 아직 사용하지 않는다.
+
+캡처 통과 후 변환 예시(본 학습 실행 명령이 아님):
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/build_base5_bevfusion_infos.py \
+  --ledger "$HOME/morai_cap/base5_v2_261006/pilot_reaudit_v2/ledger.jsonl" \
+  --output artifacts/datasets/base5_v2_live_pilot \
+  --sensor-config configs/sensors/Sensor_competition_local.json \
+  --policy lidar1_camera0
+```
+
+이 policy는 비교 후보다. `lidar5`, `lidar1`도 별도 output으로 비교한다. Review scene과
+관측 불가능한 primary는 자동 background로 변환하지 않는다. Raw는 수정하지 않는다.
+
 2026-10-05. JSON 정적 검증/설치 및 실제12-scene 캡처 연결 통과.
 결과와 제한은 [MR asset smoke](261005_base5_mr_asset_review_smoke.md)를 따른다.
 

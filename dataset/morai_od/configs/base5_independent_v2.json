@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "dataset_id": "base5_independent_v2_261006",
+  "seed": 261006,
+  "target_scenes": 10000,
+  "families": {"highway": 3000, "roundabout": 700, "other_vehicle": 300, "obstacle": 3000, "pedestrian_related": 2500, "background": 500},
+  "mission_counts": {"highway": 1200, "roundabout": 500, "other_vehicle": 100, "obstacle": 1200, "pedestrian_related": 500, "background": 0},
+  "ped_subfamilies": {"person": 1875, "dummy": 125, "animal": 125, "pet_person": 125, "stroller": 125, "rider": 125},
+  "distance_decks": {
+    "highway": [[6,10,0.10],[10,30,0.25],[30,45,0.20],[45,60,0.15],[60,80,0.15],[80,99,0.15]],
+    "roundabout": [[5,10,0.25],[10,20,0.40],[20,30,0.25],[30,40,0.10]],
+    "other_vehicle": [[6,15,0.35],[15,30,0.40],[30,60,0.25]],
+    "other_vehicle_side": [[3,6,0.25],[6,15,0.50],[15,29,0.25]],
+    "pedestrian_related": [[3,5,0.25],[5,10,0.20],[10,15,0.20],[15,30,0.25],[30,50,0.10]],
+    "pedestrian_related_side": [[3,5,0.25],[5,10,0.20],[10,15,0.20],[15,29,0.35]],
+    "obstacle_front": [[3,10,0.40],[10,30,0.35],[30,60,0.20],[60,99,0.05]],
+    "obstacle_side": [[2,5,0.50],[5,15,0.35],[15,30,0.15]],
+    "obstacle_rear": [[3,10,0.60],[10,30,0.35],[30,60,0.05]]
+  },
+  "training_roi_candidate": [-100,-30,-3,100,30,2],
+  "classes_candidate": ["vehicle","pedestrian","obstacle","animal"],
+  "gt_policy": "retain_raw; compare lidar5/lidar1/lidar1_camera0; final positive policy provisional",
+  "bulk_capture_authorized": false,
+  "capture": {"per_scene": 1, "dynamic_wait_sec": 1.2, "maximum_ego_drift_m": 0.08, "maximum_runtime_batch": 64}
+}

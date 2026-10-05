@@ -1,5 +1,10 @@
 # Base5-Static 생성기 — CURRENT PREPARED
 
+2026-10-06 최신 구현·전수 검사·live 중단 상태는
+[Base5 v2 CURRENT](BASE5_V2_CURRENT.md)를 먼저 읽는다. 아래 내용은 v1 이력이다.
+v2는10K 오프라인 생성과4-class/100m 후보 GPU 역전파 및48장 live 검사를 수행했다.
+41장 후보/7장 검토이며 production 및 최종 class/GT 정책을 바꾸지 않았다.
+
 ## 다음 목표: 독립 Base5 10K (설계와 현재 구현 구분)
 
 최신 수집 목표는 [독립 10K 설계](BASE5_INDEPENDENT_10K_DESIGN.md)다.

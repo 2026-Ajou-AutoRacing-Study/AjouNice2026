@@ -4,6 +4,8 @@
 
 ## CURRENT
 
+독립 Base5 생성/학습 후보는 [Base5 v2 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)를 우선한다. 10K는 시나리오 생성 완료이며 accepted dataset이 아니다. 100m 직사각형 BEV 및4-class 후보의 단일 GPU loss/역전파 smoke와 production E25를 구분한다.
+
 Tracker 속도 평가의 GT 기준은 [velocity GT 재검토·실행 설정](261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md)를 함께 읽는다. 보행자 ROS 메시지 우선/이동-zero fallback은 단위·좌표계 명시 opt-in으로 구현했다. 차량은 위치 전체XY/메시지 전체XY/차축→중심 가정 보정의 세 기준을 동일 표본으로 유지한다. H01/R01 및 UDP P01 baseline 재현과 pytest55개를 통과했다. 물리 velocity 기준점과 새 ROS 실주행 A/B는 미확정이며 기존 기본값과 production은 그대로다.
 
 Base5 E25-init E2 학습과 [E1 보행자·장애물9-bag rosbag A/B](261005_BASE5_E1_MISSION_ROSBAG_AB.md)는 완료됐다. 장애물 소폭 개선이지만 초근접·원거리 보행자 공백은 미해결이다. Production은 E25 그대로다. [Base3 공백·학습 결과·후속 보강](261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md)을 함께 읽는다.
