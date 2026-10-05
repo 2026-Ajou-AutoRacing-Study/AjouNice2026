@@ -119,11 +119,19 @@ def audit_capture(root, metadata):
     # Raw is retained even when primary is invisible. Such frames are NOT silently accepted as empty.
     supported = background or any(r['positive_lidar1_camera0'] for r in primary)
     reasons=[]
+    live=metadata.get('capture_safety')
+    if live is not None:
+        if not live.get('collision',{}).get('observed'):reasons.append('collision_history_incomplete')
+        if live.get('collision',{}).get('non_ego_uids'):reasons.append('physical_collision_during_capture_window')
+        if not live.get('support',{}).get('stationary_support_observed'):reasons.append('ego_vertical_support_unstable')
     if metadata.get('avoidance_observation'):
         # A planned positive OBB gap does not certify paved ground or a physical collider.
         # Keep these new layouts in review until an independently recorded live check exists.
         check=metadata.get('avoidance_live_review',{})
-        if not (check.get('ground_support_verified') and check.get('no_collision_verified') and check.get('evidence_path')):
+        live=metadata.get('capture_safety',{})
+        operational=(live.get('collision',{}).get('no_collision_verified') and
+            live.get('support',{}).get('stationary_support_observed') and live.get('evidence_path'))
+        if not (operational or (check.get('ground_support_verified') and check.get('no_collision_verified') and check.get('evidence_path'))):
             reasons.append('avoidance_ground_collider_review_required')
     if missing: reasons.append('missing_actor_annotation')
     if not supported: reasons.append('primary_no_sensor_evidence')
@@ -134,6 +142,7 @@ def audit_capture(root, metadata):
             reasons.append('primary_actual_distance_bin_mismatch')
     # Actual capture footprint gate is independent of the placement size estimate.
     # Lidar-to-Ego comes from the explicit sensor calibration, never raw Object_topic.size.
+    clearances=[]
     if metadata.get('lidar_to_ego') is not None:
         from shapely.geometry import Polygon
         transform=np.asarray(metadata['lidar_to_ego'])
@@ -145,11 +154,17 @@ def audit_capture(root, metadata):
             corners=local@rotation_matrix(box['rotation_rpy']).T+box['center']
             corners=(np.c_[corners,np.ones(4)]@transform.T)[:,:2]
             poly=Polygon(corners)
-            if poly.distance(ego)<.15: reasons.append('actual_GT_ego_footprint_clearance')
+            clearances.append(dict(parent_uid=box['unique_id'],annotation_surface_gap_m=poly.distance(ego),
+                annotation_overlap_area_m2=poly.intersection(ego).area))
+            # Annotation margins can overlap without a physical collision. Keep the
+            # conservative geometric gate unless live collision history was observed.
+            if poly.distance(ego)<.15 and not metadata.get('capture_safety',{}).get('collision',{}).get('no_collision_verified'):
+                reasons.append('actual_GT_ego_footprint_clearance')
             if any(uid!=box['unique_id'] and poly.distance(other)<.05 for uid,other in footprints):
                 reasons.append('actual_GT_actor_footprint_overlap')
             footprints.append((box['unique_id'],poly))
     return dict(components=results,missing_uids=missing,raw_complete=True,
+        actual_annotation_clearances=clearances,
         accepted_candidate=not reasons,review_reasons=sorted(set(reasons)),
         positive_policy='provisional lidar1 OR actual instance pixels in model crop',
         limitations=['With calibration: Ego-frame distance, 0.5m audit tolerance; legacy without calibration: LiDAR frame, 2.5m tolerance.',

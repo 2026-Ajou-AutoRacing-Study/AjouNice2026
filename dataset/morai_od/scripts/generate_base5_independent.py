@@ -17,6 +17,7 @@ import base5_avoidance_geometry as avoidance
 
 CONFIG = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_independent_v2.json'
 GEOMETRY = geo.PROJECT_ROOT/'dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json'
+LIVE_GEOMETRY = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_stationary_geometry_mr_261006.json'
 HIGHWAY_SAMPLE = geo.PROJECT_ROOT/'configs/scenario/2026_molit_comp_sample_scene.json'
 
 def sample_highway_corridors(links):
@@ -145,6 +146,9 @@ def context(runtime, mgeo):
         if row.get('geometric_gt_reference'):
             ref=geo.PROJECT_ROOT/row['geometric_gt_reference']
             geometry_rows.update(geo.load_json(ref)['assets']);geometry_sources[str(ref)]=geo.sha256(ref)
+    if LIVE_GEOMETRY.exists():
+        geometry_rows.update(geo.load_json(LIVE_GEOMETRY)['assets'])
+        geometry_sources[str(LIVE_GEOMETRY)]=geo.sha256(LIVE_GEOMETRY)
     documents={f:geo.load_json(runtime/f) for f in inventory['source_sha256']}
     templates={}
     for f,doc in documents.items():

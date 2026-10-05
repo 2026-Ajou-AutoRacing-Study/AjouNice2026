@@ -4,6 +4,51 @@
 기존 v1/E25 보강 실험과 구분한다. **시나리오 10,000개 생성은 완료했지만,
 소량 live는 아래처럼 통과/검토로 나뉘었다. 본 수집과 본 학습은 시작하지 않았다.**
 
+## 최신 v16 safety/resume smoke — 2026-10-06
+
+새 runner로16장 실제 캡처: **13후보 /3검토 /0실행실패**. 본10K 수집은 미실행이다.
+manifest: `/home/luv/morai_cap/base5_v2_261006/safety_pilot_v16/manifest.json`.
+output: `/home/luv/morai_cap/base5_v2_261006/safety_capture_v16/`.
+정량·resume 증거는 `smoke_report.json`, 원본은 captures/와 incomplete_attempts/에 있다.
+
+- 근접 회피8장 전부 후보. annotation gap은 concrete-barrier10.98cm,
+  Grandeur12.72cm, HD65 20.04cm, Barricade02 32.54cm였다. 모두 대상 존재와
+  동기 GT/센서 evidence가 있고 관측된 CollisionData 구간에 접촉 상대가 없었다.
+  위 gap은 실제 객체 annotation과 Ego4.8×2.0m footprint proxy 사이 거리이며,
+  물리 collider 간격을 직접 측정한 값은 아니다.
+- concrete-barrier와 OBJ_Hyundai_HD65는 기존4개 정지 캡처로 geometry 참고값을
+  보정했다. `base5_stationary_geometry_mr_261006.json`의 크기/offset을 배치 추정에만
+  적용한다. 학습 annotation과 point는 변경하지 않는다. reference yaw는 MR heading
+  -1.347° 계약과 scenario yaw를 대조하며, 이 보정을 annotation에 다시 적용하지 않는다.
+- 전방71.78m 차량4 LiDAR point·후방88.05m 차량5 point도 저장/후보 통과했다.
+  최종 positive 정책은 provisional이며 원거리 detector 성능이 검증됐다는 뜻은 아니다.
+- 일반 사람은 요청5–10m에서 실제16.95m, 유모차는 요청3–5m에서 실제7.69–8.31m로
+  이동하여 검토다. Dog2는 annotation이 있지만 LiDAR0point/camera evidence 부족으로
+  검토다. 상대 motion/통신 대기와 캡처 timing 보완이 여전히 필요하다.
+- 평균6.079초/장, p50 4.923초, 최종 raw 81,606,035bytes.16장 표본 외삽10K 약16.9시간.
+  retry/실패 보충/환경 부하는 별도이며 원래48장 표본과 구성도 다르다.
+- 정상2장 후 중단, 세 번째 raw 이동 후 의도적 중단, 재개, 완료 후 재실행까지 검증했다.
+  완료16장의 hash/mtime과 ledger는 불변, 중단 raw는 별도 폴더에 보존했다.
+- 학습 info 변환 smoke도 통과했다. `artifacts/datasets/base5_v16_safety_smoke/`에
+  train12/val1/test0, GT15개(Obstacle4/Vehicle7/Pedestrian2/Animal2)가 저장됐다.
+  검토3장은 제외했고 raw는 보존했다. 학습 또는 모델 성능 평가는 수행하지 않았다.
+- Base5 관련 단위검증26개 통과. Dashboard HTTP에서 complete16/후보13/검토3을
+  확인했다. status는 camera audit 전체를 반복 직렬화하지 않는 compact summary이며
+  상세 annotation·collision 증거는 ledger와 captures에 보존한다.
+- 수집 gate는 실제 대상 존재·annotation·CollisionData 이력을 사용한다. 측정된 Z 안정성
+  (<4cm span)을 stationary support proxy로 기록한다. 포장면/물리 mesh 지지 인증은 아니다.
+  annotation0.15m gate는 충분히 관측된 무충돌 이력이 있을 때 hard reject로 사용하지
+  않으며 actual gap/overlap은 audit에 보존한다. 다른 actor 간 겹침 검사는 유지한다.
+
+기존 생성10K v15는 보존했다. 이번 v16은 보정된 대표16장 subset이다. 본 수집 전에는
+동적 timing/가시성 검토를 보완하고 geometry 업데이트를 전체 후보 deck에 적용·offline
+재검사해야 한다. 이전 완료48장/회피 pilot을 새 safety 계약으로 자동 승인하지 않는다.
+
+충돌 gate 근거: [Network 런북의 정지/1km/h 대조](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md).
+정지 근접 배치에서는 객체 로드 거부가 재현됐고, 정상 배치 후1km/h 접촉 두 번에서
+CollisionData의 상대UID8500이 검출됐다. 정지 후 상대가 사라져 캡처 시점 한 메시지로
+충돌 이력을 대체할 수 없다. 새 runner에는 이 이력 수집 gate가 연결됐다.
+
 ## 목적과 구현 범위
 
 - Base3와 섞거나 E25에서 시작하는 것을 전제로 하지 않는 독립 single-frame OD corpus다.
@@ -107,9 +152,10 @@ Sonata는 물리 충돌 없이 annotation OBB의 작은 overlap도 있었다. **
 추출·재현한 것은 아니며**, 해당 근거로 설계한 analytical 후보다. BBox overlap 후보는 생성하지 않는다.
 
 `avoidance_observation`에 요청/실제 gap, phase/side/yaw/offset 및 미검증 지면·collider 상태를 남긴다.
-동기 캡처 audit는 `avoidance_live_review`의 지면/무충돌 확인과 evidence 경로가 없으면
+이전 v15 동기 캡처 audit는 `avoidance_live_review`의 지면/무충돌 확인과 evidence 경로가 없으면
 `avoidance_ground_collider_review_required`로 review 처리한다. 현재 actual annotation0.15m gate도
-유지하므로10–15cm 후보는 추가 검토 대상이다. Captured raw GT를 임의로 줄여 통과시키지 않는다.
+유지하므로10–15cm 후보는 추가 검토 대상이었다. 최신 v16 gate는 위 절을 따른다.
+Captured raw GT를 임의로 줄여 통과시키지 않는다.
 통신 연결 성공·파일 저장 성공만으로 이 gate를 승인하지 않는다. 범용의 도로 밖 XY 배치에 대한
 실제 지면 검사도 아직 미구현이며 본 수집 전 남은 공통 과제다.
 

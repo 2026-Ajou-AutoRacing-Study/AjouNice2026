@@ -1,6 +1,6 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의48장 live 결과와 재시험 상태가 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v16 safety/resume smoke 결과가 최신이다.
 아래12-scene 성공은 이전 asset-review 이력이며 새10K 배치 성공을 뜻하지 않는다.
 
 ## v2 캡처·실시간 대시보드
@@ -8,6 +8,48 @@
 터미널1/2는 아래 `ajou`, `rc`, rosbridge 순서를 따른다. SaveSensorData 수집 자체에는
 UDP sensor receiver·localization·BEVFusion·planning·RViz가 필요하지 않다.
 MR Network GUI에서 전용 JSON을 다시 연결하고 Capture Mode/Instance 저장을 확인한다.
+현재 runner 기본은 `ego_network_mr_base5_savesensordata_collision_local.json`이다.
+기존6-interface 프로필은 이력/일반 캡처용이며 새 안전 gate를 통과하지 못한다.
+
+### 현재 v16 수집·중단·재개
+
+대표16장 완료:13후보/3검토/0실행실패. 동적 거리2장·Dog2 가시성1장은 검토로 보존한다.
+근접 회피8장은 모두 후보이며 full10K 검증이나 detector 성능 향상을 뜻하지 않는다.
+
+```bash
+ajou
+ROOT="$HOME/morai_cap/base5_v2_261006"
+python3 dataset/morai_od/scripts/run_base5_capture.py \
+  --manifest "$ROOT/safety_pilot_v16/manifest.json" \
+  --output "$ROOT/safety_capture_v16" --limit 16
+```
+
+위 명령은 완료된16장을 다시 캡처하지 않는다. 중단 후에도 **동일 manifest/output**으로
+재실행한다. 완료 후보와 검토 장면을 건너뛰며 검토 장면을 자동 승인하지 않는다.
+manifest/Network/sensor 계약 불일치는 중단한다. 완료 sensor/provenance 누락도 중단한다.
+모두 완료된 세션은 ROS 없이 검증·skip하므로 MR 로드/제어 명령도 보내지 않는다.
+실패/미기록 캡처 폴더는 `incomplete_attempts/`에 이동·보존한 뒤 새로 캡처한다.
+MR SensorData에 남아 있는 파일은 사용자 소유일 수 있으므로 자동 삭제하지 않는다.
+이번 시험에서는 raw 이동 후 강제 중단→재개→완료 세션 재실행을 모두 검증했고,
+완료 파일의 hash/mtime과 ledger가 불변임을 확인했다.
+마지막 ledger 행의 불완전 append는 원본 backup 후 복구하며 중간 행 손상은 중단한다.
+동일 output runner 동시 실행은 lock으로 거부한다. `STOP` 파일로 멈춘 경우 재개 전에
+해당 세션의 STOP 파일만 제거한다. 출력 경로를 바꾸면 새 수집이지 resume이 아니다.
+실제 캡처 종료/중단 시에는 brake와 bounded Park 요청을 보낸다. Park 응답 미확인은
+경고로 남으며 무한 대기하지 않는다. 다음 캡처 SceneLoad 뒤에는 다시 Drive를 확인한다.
+
+브라우저 모니터:
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
+  --capture-root "$HOME/morai_cap/base5_v2_261006/safety_capture_v16"
+```
+
+`http://127.0.0.1:8075`. 다른 dashboard가 이 포트를 사용 중이면 기존 서버를 종료하거나
+스크립트의 port 옵션을 확인한다. raw/provenance와 최종 `smoke_report.json`은 위 output에 있다.
+평균6.079초/장·최종 raw 약77.83MiB다.16장 선택 표본의 단순10K 외삽은 약16.9시간이며
+통신 retry·검토 보충·환경 부하는 별도다. 본 수집은 아직 실행하지 않았다.
 
 대시보드 터미널:
 
@@ -75,12 +117,66 @@ python3 dataset/morai_od/scripts/build_base5_bevfusion_infos.py \
 
 ## 파일과 용도
 
-- Git 원본: `configs/network/ego_network_mr_base5_savesensordata_local.json`
-- MR 로드 위치: `$HOME/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Network/25.S4.MolitComp03/ego_network_mr_base5_savesensordata_local.json`
+### CollisionData 연결 확인용 별도 프로필 — PREPARED
+
+`configs/network/ego_network_mr_base5_savesensordata_collision_local.json`은 기존6개
+연결에 ROS `/CollisionData`만 추가한7-interface 프로필이다. MR Network 폴더에
+같은 이름으로 설치했다. 후속 대조 시험에서 실제 ROS CollisionData 연속 수신을 확인했다.
+
+MR Scenario 폴더에는 다음2개만 설치했다. 둘 다 정지 배치 대조 장면이며 의도적
+충돌 시험이나 물리 collider 안전성 인증 장면이 아니다.
+
+- `1_b5_collision_check_barrier_baseline.json`
+- `2_b5_collision_check_truck_baseline.json`
+
+각각 `EgoNetwork/<scenario_name>_MN.json`도 새7-interface 프로필로 설치했다.
+GUI에서 첫 시나리오를 로드하고 새 Network를 로드·연결한 뒤 수신을 재확인한다.
+토픽이 없거나 메시지가 없다는 이유만으로 비충돌을 판정하지 않는다.
+후속 runner는 새7-interface 프로필을 sidecar와 provenance에 사용하고 CollisionData를
+기록한다. 양쪽 배열에서 Ego UID0 외 접촉 상대를 검사한다. 연결 stale이면 중단하고,
+로드 이후 접촉 이력이 있으면 review로 남긴다. Capture pause 동안2초 초과 관측 공백도
+자동 무충돌로 승인하지 않는다.
+
+2026-10-06 정지 배치 대조 evidence:
+`/home/luv/morai_cap/base5_v2_261006/collision_load_probe_023706/`.
+시나리오4개, 실행 probe, summary/전체 telemetry JSON, 경량 rosbag, MR Player.log를 보존했다.
+기존 바리케이드 baseline → Ego만 객체 쪽으로0.6m 이동 →1.1m 이동 →baseline 복원 순서다.
+각 장면5초 관측에서 baseline과 복원은 대상UID8500이 모든 Object 메시지에 존재했다.
+두 inward 배치에서는 대상이 전부 누락됐으며 각각 `cannot be placed here`가 로그에 남았다.
+네 장면 모두 CollisionData는 `collision_object=[Ego UID0]`, `collision_objecta=[]`였다.
+따라서 이 ROS 프로필에서 Ego만 있는 메시지는 실재하는 충돌 상대의 증거가 아니며,
+배열 비어 있지 않음만으로 collision을 판단하면 안 된다. 반대로 상대가 없다는 것만으로
+배치 안전성을 통과시키면 로드 거부로 사라진 객체를 정상 배경으로 잘못 수집한다.
+대상UID 존재 + annotation 존재 + 신규 CollisionData 관측을 별도 gate로 유지해야 한다.
+이 실험은 정지 로드 거부를 확인했다. 실제 주행 접촉 positive control은 아래 후속을 따른다.
+
+### 1km/h 접근·정지 후 충돌 대조 — EVIDENCE
+
+후속 raw: `/home/luv/morai_cap/base5_v2_261006/collision_contact_probe_024422/`.
+앞선 정지 세분화: `collision_contact_probe_024344/` (정지4조건 완료 뒤 probe의
+scenario key 오류로 이동 시험 전 중단·baseline 복원; 완료 주행 근거로 사용하지 않는다).
+정지 Ego를 baseline보다 객체 쪽으로0.1m/0.2m 이동하면 대상은 존재했고 상대 충돌은
+없었다.0.3m 이동은 대상이 누락됐다. 주행 전6m 뒤쪽 배치에서도 대상은 존재했고 충돌은 없었다.
+외부 제어/Drive를 확인하고 `CtrlCmd(longlCmdType=2, velocity=1)`로 두 번 직진했다.
+velocity 명령의 단위는 km/h다. 각각 CollisionData에 `[0,8500]`이8/7메시지 나타났고,
+충돌 감지 즉시 brake 후5초 관측에서는251/251메시지가 Ego만 포함했다.
+대상은 주행과 정지 후 모든 Object 메시지에 계속 존재했다. 새로운 header의 연속 수신이므로
+latched 마지막 메시지나 topic 미연결이 아니다. 최종 baseline 복원·임시 파일 회수 완료.
+
+충돌 이후 정지에서 상대가 사라진 것은 확인했으나, solver가 접촉을 분리했을 가능성도 있어
+"정적 collider 충돌은 발행하지 않는다" 또는 "1km/h 임계값에서만 발행한다"는 결론은 아니다.
+로드 시 객체 존재, annotation 존재와 더불어 **로드 이후 캡처까지 non-Ego 충돌 이력**을
+봐야 한다. 캡처 순간 한 메시지만 읽어 충돌이 없다고 판정하지 않는다.
+raw summary의 `speed_kph_min/max` 키는 Ego 메시지의 수치에 단위를 잘못 명명한 probe
+이력이다. 이를 실제 km/h 근거로 쓰지 않으며 이동량/시간 또는 확인된 단위로 재계산한다.
+이번 정지/이동 시험은 하나의 concrete-barrier asset 근거이며 전 asset 안전성 인증은 아니다.
+
+- 현재 Git 원본: `configs/network/ego_network_mr_base5_savesensordata_collision_local.json`
+- MR 로드 위치: `$HOME/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Network/25.S4.MolitComp03/ego_network_mr_base5_savesensordata_collision_local.json`
 - MR 개인 PC의 ScenarioLoad + 정지 Ego + SaveSensorData/Instance annotation 검증용이다.
   대회 LAN용 또는 full-stack 주행용 Network가 아니다.
-- 기존 `ego_network_mr_calibration_hybrid.json`의 검증된6-interface 내용을 그대로
-  사용했다. 새 목적별 이름을 부여했으며 프로토콜/enum/주기/포트를 추정해 바꾸지 않았다.
+- 초기 `ego_network_mr_base5_savesensordata_local.json`은 검증된6-interface 기반이다.
+  현재 collision 프로필은 여기에 실제 수신을 검증한 ROS CollisionData1개를 추가했다.
 
 | 연결 | 목적 |
 |---|---|
@@ -90,6 +186,7 @@ python3 dataset/morai_od/scripts/build_base5_bevfusion_infos.py \
 | /ctrl_cmd | 정지/제어 요청 |
 | /Service_MoraiEventCmd | 제어 모드·기어 등 runner의 기존 서비스 |
 | /SaveSensorData | 동기 센서 파일 캡처 요청 |
+| /CollisionData | 로드 이후 캡처까지의 물리 접촉 이력 |
 
 Ego UNIQUEID=0만 포함한다. Simulator UNIQUEID=-100, SyncMode 서비스, /tf,
 신호 상태, Competition/기타 상태 연결은 포함하지 않는다. Ego/Object ROS 발행 설정은
@@ -123,7 +220,7 @@ rosparam set /use_sim_time false
 roslaunch rosbridge_server rosbridge_websocket.launch
 ```
 
-MR에서는 `ego_network_mr_base5_savesensordata_local.json`을 로드·연결한다.
+MR에서는 `ego_network_mr_base5_savesensordata_collision_local.json`을 로드·연결한다.
 센서 설정은 `configs/sensors/Sensor_competition_local.json`을 기준으로 유지하고,
 Capture Mode와 LiDAR Instance annotation 저장을 활성화한다.
 Ego/Object, 제어, ScenarioLoad, SaveSensorData는 위 Network의 ROS 인터페이스를 사용한다.
