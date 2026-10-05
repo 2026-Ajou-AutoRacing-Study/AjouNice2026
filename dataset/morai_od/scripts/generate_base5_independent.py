@@ -19,6 +19,7 @@ from base5_reference_frames import references
 CONFIG = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_independent_v2.json'
 GEOMETRY = geo.PROJECT_ROOT/'dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json'
 LIVE_GEOMETRY = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_stationary_geometry_mr_261006.json'
+APPEARANCE_POLICY = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_asset_appearance_policy_v1.json'
 HIGHWAY_SAMPLE = geo.PROJECT_ROOT/'configs/scenario/2026_molit_comp_sample_scene.json'
 
 def sample_highway_corridors(links):
@@ -186,7 +187,7 @@ def context(runtime, mgeo):
     for mission in ('static_obstacle','dynamic_obstacle'):
         paths=sorted((validator/mission/'base/scenarios').glob('*.json'))
         mission_templates[mission]=[(str(p),geo.load_json(p)) for p in paths]
-    return dict(pools=pools,links=links,route=route,arc=geo.route_arc_coordinates(route),
+    return dict(pools=pools,links=links,route=route,arc=geo.route_arc_coordinates(route),appearance_policy=geo.load_json(APPEARANCE_POLICY),
         geometry=geometry_rows,geometry_sources=geometry_sources,template=geo.load_json(geo.DEFAULT_TEMPLATE),anchors={},
         mission_templates=mission_templates,crosswalks=geo.load_crosswalk_catalog(mgeo),
         sample_corridors=sample_highway_corridors(links))
@@ -227,6 +228,29 @@ def bounded_motion_path(pose,center,ego,bounds):
     return dict(policy='bounded-shuttle-v1',length_m=length,tangent=list(tangent),distance_bounds_m=list(bounds),
         points=[{k:pose[k] for k in ('x','y','z')},end,{k:pose[k] for k in ('x','y','z')}],
         limitation='Single-frame animated appearance only; not a competition trajectory or velocity label.')
+
+
+def appearance_motion(asset,requested,policy):
+    if asset['source_list']=='aiPedstrianList':return 'standing','ai_motion_unverified'
+    if asset['name'] in policy.get('static_primary',[]):return 'standing' if requested!='static' else 'static','observed_fixed_pose'
+    return requested,'observed_articulated' if asset['name'] in policy.get('articulated_observed',[]) else 'unverified_preserve_request'
+
+
+def natural_target_path(pose,center,ego,bounds,motion,asset,budget=9.):
+    """Target is the quota position; departure is backwards at natural appearance speed."""
+    if not 6.<=budget<=30.:raise ValueError('Natural target setup budget out of bounds')
+    speed=1.2 if asset.get('ontology_class')=='Animal' else 2.2 if motion=='running' else 1.1
+    dx,dy=center[0]-ego['x'],center[1]-ego['y'];r=math.hypot(dx,dy)
+    if r<.1:raise ValueError('Natural target at Ego')
+    # Tangential crossing keeps the close target from driving through Ego.
+    direction=(-dy/r,dx/r);yaw=math.degrees(math.atan2(direction[1],direction[0]))
+    start=dict(x=pose['x']-direction[0]*speed*budget,y=pose['y']-direction[1]*speed*budget,z=pose['z'])
+    end=dict(x=pose['x']+direction[0]*3.,y=pose['y']+direction[1]*3.,z=pose['z'])
+    return dict(policy='natural-target-v1',points=[start,end],target_position={k:pose[k] for k in ('x','y','z')},
+        target_tolerance_m=.4,arrival_timeout_sec=20.,setup_budget_sec=budget,departure_yaw_deg=yaw,
+        distance_bounds_m=list(bounds),nominal_speed_mps=speed,speed_field_value=speed*3.6,
+        length_m=speed*budget+3.,nominal_duration_sec=budget+3./speed,
+        limitation='Distance quota applies at capture target, not whole path. Natural appearance speed, not velocity training GT. Constant-Z proposal requires raw local ground validation.')
 
 def one_way_motion_path(pose,center,ego,bounds,motion,asset,setup_budget_sec=12.,appearance_profile=False):
     """Heading-aligned finite segment; slow enough to survive normal setup, no return."""
@@ -297,8 +321,8 @@ def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None):
         if motion_path is not None:
             # One-way probes use exactly two points. Historical shuttle uses
             # finite contiguous returns without respawn/teleport.
-            points=motion_path['points'] if motion_path['policy']=='one-way-slow-v1' else motion_path['points'][:2]*64+[motion_path['points'][0]]
-            if motion_path['policy']=='one-way-slow-v1':
+            points=motion_path['points'] if motion_path['policy'] in ('one-way-slow-v1','natural-target-v1') else motion_path['points'][:2]*64+[motion_path['points'][0]]
+            if motion_path['policy'] in ('one-way-slow-v1','natural-target-v1'):
                 actor['moveSpeed' if container=='objectList' else 'speed']=motion_path['speed_field_value']
             actor['waypointEventList']=[dict(index=-1,waypointEventData=[]) for _ in points]
             scene['waypointDataList'][-1]['waypointData']=[
@@ -377,7 +401,8 @@ def build(row,config,ctx,attempt=0):
             selected_pool=rng.choices([poolkey,'vehicle','obstacle','person'],weights=[6,1,2,1])[0]
             pool=ctx['pools'][selected_pool];asset=pool[rng.randrange(len(pool))]
         actor_motion=row['motion'] if selected_pool in ('person','animal','pet_person','stroller','rider') else 'static'
-        if asset['source_list']=='aiPedstrianList':actor_motion='standing'
+        requested_motion=actor_motion
+        actor_motion,motion_decision=appearance_motion(asset,actor_motion,ctx.get('appearance_policy',{}) if config['capture'].get('asset_appearance_policy',False) else {})
         size,off,known=geometry(asset,ctx)
         lower,upper=row['distance_bounds']
         if i: lower,upper=6.,45.
@@ -447,7 +472,19 @@ def build(row,config,ctx,attempt=0):
         motion_path=None
         if actor_motion not in ('static','standing'):
             policy=config['capture'].get('dynamic_path_policy')
-            if policy in ('bounded-shuttle-v1','one-way-slow-v1'):
+            if policy=='natural-target-v1':
+                motion_path=natural_target_path(pose,center,ego,[lower,upper],actor_motion,asset,config['capture'].get('natural_setup_budget_sec',9.))
+                # Rotate the target pivot before departure so the geometric quota remains exact.
+                pa=math.radians(motion_path['departure_yaw_deg']);pose=dict(pose,yaw=motion_path['departure_yaw_deg'])
+                center=[pose['x']+math.cos(pa)*off[0]-math.sin(pa)*off[1],pose['y']+math.sin(pa)*off[0]+math.cos(pa)*off[1]]
+                box=rectangle(center,size,pose['yaw']);gap=footprint.distance(box)
+                if gap<minimum_gap or any(box.distance(other)<.20 for other in footprints):raise ValueError('Rotated natural target clearance failure')
+                end=motion_path['points'][1]
+                end_center=[center[0]+end['x']-pose['x'],center[1]+end['y']-pose['y']]
+                for point in motion_path['points']:
+                    ref=references([point['x'],point['y']],ego,base['yaw'])
+                    if abs(ref['ego_lateral_m'])>29.5 or abs(ref['ego_longitudinal_m'])>99.5:raise ValueError('Natural path leaves input ROI')
+            elif policy in ('bounded-shuttle-v1','one-way-slow-v1'):
                 if asset['source_list'] not in ('pedestrianList','aiPedstrianList','objectList'):raise ValueError('Shuttle unsupported actor container')
                 motion_path=one_way_motion_path(pose,center,ego,[lower,upper],actor_motion,asset,
                     config['capture'].get('one_way_setup_budget_sec',12.),
@@ -465,7 +502,7 @@ def build(row,config,ctx,attempt=0):
                 from shapely.geometry import LineString
                 # Bound every heading during the return turn, not just the
                 # initial fixed-yaw rectangle. This remains a geometry proxy.
-                swept=LineString([(pose['x'],pose['y']),(end['x'],end['y'])]).buffer(
+                swept=LineString([(motion_path['points'][0]['x'],motion_path['points'][0]['y']),(end['x'],end['y'])]).buffer(
                     math.hypot(size[0],size[1])/2+math.hypot(off[0],off[1]))
             if swept.distance(footprint)<.3 or any(swept.distance(other)<.2 for other in footprints):
                 raise ValueError('Dynamic actor path crosses stationary Ego/other actors')
@@ -481,10 +518,12 @@ def build(row,config,ctx,attempt=0):
         if not i and row['family']=='highway' and ((lon<0)!=(row['role']=='rear')):
             raise ValueError('Highway longitudinal sign differs from quota')
         uid=8500+i
-        set_pose(copy.deepcopy(asset['template']),pose,uid,asset,scene,actor_motion,motion_path)
+        runtime_pose=dict(pose,**motion_path['points'][0]) if motion_path and motion_path['policy']=='natural-target-v1' else pose
+        set_pose(copy.deepcopy(asset['template']),runtime_pose,uid,asset,scene,actor_motion,motion_path)
         footprints.append(swept if motion_path is not None else box)
         actor_records.append(dict(unique_id=uid,data_id=asset['data_id'],name=asset['name'],
-            source_list=asset['source_list'],motion=actor_motion,position={k:pose[k] for k in ('x','y','z')},
+            source_list=asset['source_list'],motion=actor_motion,position={k:runtime_pose[k] for k in ('x','y','z')},
+            appearance_motion_decision=motion_decision,requested_motion=requested_motion,
             geometric_center_estimate=center,geometry_reference_known=known,estimated_size=size,
             planned_center_distance_m=actual,planned_surface_clearance_m=gap,
             longitudinal_m=lon,lateral_m=lat,actual_ego_role=actual_role,
@@ -495,7 +534,7 @@ def build(row,config,ctx,attempt=0):
         if asset['source_list']=='aiPedstrianList':actor_records[-1]['motion_capability_note']='AI destination API unvalidated; retained as standing, not removed'
         if motion_path is not None:
             actor_records[-1]['motion_path']=motion_path
-            if motion_path['policy']=='one-way-slow-v1':
+            if motion_path['policy'] in ('one-way-slow-v1','natural-target-v1'):
                 actor_records[-1]['motion_capability_note']='Requested walking/running category is not animation certification; actual translation verified live.'
         if sample_placement is not None: actor_records[-1]['sample_highway_placement']=sample_placement
     group=base['link_idx']  # whole-link split; still neighboring-link visibility leakage possible
@@ -504,6 +543,7 @@ def build(row,config,ctx,attempt=0):
         split=split,split_group=group,split_limit='whole link; adjacent links can share 100m views; held-out mission bag required',
         ego_road_yaw_offset_deg=yaw_delta,ego_lateral_offset_m=offset,
         planned_primary_distance_m=desired,retry=attempt,live_validated=False)
+    if config['capture'].get('ground_support_check',False):meta['ground_support_check']=dict(enabled=True,max_range_m=20.,maximum_gap_m=.15)
     if avoidance_ref:
         avoidance_ref['actual_surface_gap_m']=actor_records[0]['planned_surface_clearance_m']
         meta['avoidance_observation']=avoidance_ref
@@ -537,6 +577,7 @@ def generate(config,output,start,count,runtime=geo.DEFAULT_RUNTIME_ASSET_DIR,mge
         status='OFFLINE_GENERATED; per-scene live validation pending',scenes=entries,
         provenance=dict(config_sha256=hashlib.sha256(json.dumps(config,sort_keys=True).encode()).hexdigest(),
             generator_sha256=code_sha256,
+            appearance_policy_sha256=geo.sha256(APPEARANCE_POLICY),
             avoidance_geometry_sha256=geo.sha256(Path(avoidance.__file__)),
             highway_sample_sha256=geo.sha256(HIGHWAY_SAMPLE),
             geometry_sha256=geo.sha256(GEOMETRY),catalog_sha256=geo.sha256(catalog.DEFAULT_CATALOG),

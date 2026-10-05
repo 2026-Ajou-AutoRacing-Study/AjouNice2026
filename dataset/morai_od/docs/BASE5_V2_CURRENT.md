@@ -4,7 +4,33 @@
 기존 v1/E25 보강 실험과 구분한다. **구버전 왕복10K 생성 기록은 있으나 최신 일방향
 기본의10K는 생성하지 않았다. 소량 live 검증만 수행했고 본 수집·본 학습은 미시작이다.**
 
-## 최신 v27 — 자산별 정지/이동 외관 비교 완료
+## 최신 v28 — 일반 생성기 통합 완료 / 지면 높이 문제는 일부 미해결
+
+자산별 외관 정책과 자연 속도 뒤쪽 출발을 일반 `generate_base5_independent.py` 기본에
+통합했다. 확인된 fixed-pose 자산은 정지 우선, 사람·동물은 요청된 동적 phase 유지,
+미검증 자산은 요청 보존이다. `natural-target-v1`은 목표 거리 quota와 전체 경로 안전 검사를
+분리하고 실제 목표 도착 후 캡처한다. 전체 10K는 새로 생성하지 않았다.
+
+근접·혼합 9장+재배치 4장을 촬영했다. 캡처 window의 동적 Z 급변은 없었지만
+최종 엄격한 로컬 지면 검사에서는 13장 중 2장만 전체 통과했다.
+나머지는 지면 미확인·지면 아래 배치 의심·누락으로 review이며 raw를 보존했다.
+**안정된 Z ≠ 지면 정상**이다. v27의 parent Z matched 비교를 지면 보정으로 읽지 않는다.
+기존 개·사슴·반려동물 동반 사람 일부는 주변 지면보다 약27–29cm 떠 있었다.
+
+입력 scenario/waypoint Z만 낮춘 별도 재촬영 도구를 구현했다. Dog1/2 정지·이동
+4조건에서 +25–29cm의 GT 하단–지면 gap을 약−3cm로 줄였고, 실제 이동/Z/가시성/
+CollisionData 검사도 통과했다. raw GT 사후 보정은 없다. 지면 plane 미확인 장면은
+억지 보정하지 않는다. 20m 밖·모든 이동 경로의 ground support는 인증하지 않는다.
+
+Base5 unit tests70개 통과. 모든 세션 종료Park 확인, 간헐 EventCmd timeout은 재시도 성공.
+최종 코드 재검사 정규 raw17장 중6 accepted/11 review이며 별도 미등록 raw1장도 보존했다.
+다음은 근접 장면의 실제 지형 높이 산정/sparse-ground fallback 보강이다.
+본10K 수집·학습/GPU 추론은 미실행이며 이 상태를 대량 수집 준비 완료로 해석하지 않는다.
+
+[v28 상세 근거](261006_base5_appearance_ground_integration_evidence.md),
+[명령/재개 런북](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md).
+
+## v27 — 자산별 정지/이동 외관 비교 완료 (지면 정합 인증 아님)
 
 추가 안전 gate: 동적 actor의 캡처요청 직전1초부터 저장완료까지 수신된 z를 검사한다.
 인접 수신간격≤0.2초에서 z변화>0.10m이면 `motion_vertical_jump`로 후보에서 제외한다.
@@ -35,8 +61,7 @@ Base5 테스트65개 통과. 새 live 수집은 이 추가 gate 구현 중 실�
 근거·제한·자산별 수치:
 [자산별 외관 비교 EVIDENCE](261006_base5_asset_motion_appearance_evidence.md).
 원본/최종비교: `/home/luv/morai_cap/base5_v2_261006/asset_motion_report_v27_canonical/`.
-다음은 일반generator에 자산별 외관 정책/자연속도 뒤쪽출발을 통합하고 근접·혼합 배치를
-소량 재검증하는 것이다. **일반10K default 통합/새10K 생성·본 수집은 아직 미시작**이다.
+일반generator 통합/근접·혼합 후속은 위 v28로 대체한다. 새10K 생성·본 수집은 미시작이다.
 GPU latency/VRAM은 MR 종료 후 측정한다.
 최종 Base5 테스트59개, 새 스크립트 Python compile, diff whitespace 검사를 통과했다.
 

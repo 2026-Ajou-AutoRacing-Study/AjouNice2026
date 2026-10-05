@@ -76,13 +76,14 @@ def audit(manifest_path):
             if path is not None:
                 from shapely.geometry import LineString
                 points=path['points'];start=points[0];end=points[1]
-                if path['policy'] not in ('bounded-shuttle-v1','one-way-slow-v1'):
+                if path['policy'] not in ('bounded-shuttle-v1','one-way-slow-v1','natural-target-v1'):
                     errors.append((entry['id'],'unknown motion path policy'))
                 if path['policy']=='bounded-shuttle-v1' and points[0]!=points[-1]:errors.append((entry['id'],'open shuttle return'))
-                expected_points=points if path['policy']=='one-way-slow-v1' else points[:2]*64+[points[0]]
-                if path['policy']=='one-way-slow-v1' and (len(points)!=2 or points[0]==points[1]):
+                one_way=path['policy'] in ('one-way-slow-v1','natural-target-v1')
+                expected_points=points if one_way else points[:2]*64+[points[0]]
+                if one_way and (len(points)!=2 or points[0]==points[1]):
                     errors.append((entry['id'],'one-way endpoint count'))
-                if path['policy']=='one-way-slow-v1':
+                if one_way:
                     runtime_actor=next(a2 for a2 in s[a['source_list']] if a2.get('UNIQUEID')==a['unique_id'])
                     field='moveSpeed' if a['source_list']=='objectList' else 'speed'
                     if runtime_actor[field]!=path['speed_field_value'] or len(runtime_actor['waypointEventList'])!=2:
@@ -92,12 +93,16 @@ def audit(manifest_path):
                         dict(pos=gen.geo.world_to_morai_waypoint(p),rot=gen.geo.formatted_rotation(0.)) for p in expected_points]:
                     errors.append((entry['id'],'runtime shuttle differs from metadata'))
                 cx,cy=a['geometric_center_estimate'];lo,hi=path['distance_bounds_m']
+                pivot=path.get('target_position',start)
+                offset_x,offset_y=cx-pivot['x'],cy-pivot['y']
                 for step in range(21):
-                    t=step/20.;x=cx+t*(end['x']-start['x']);y=cy+t*(end['y']-start['y'])
-                    if not lo<=gen.math.hypot(x-e['x'],y-e['y'])<hi:errors.append((entry['id'],'shuttle distance cell'))
+                    t=step/20.;x=start['x']+offset_x+t*(end['x']-start['x']);y=start['y']+offset_y+t*(end['y']-start['y'])
+                    if path['policy']!='natural-target-v1' and not lo<=gen.math.hypot(x-e['x'],y-e['y'])<hi:errors.append((entry['id'],'shuttle distance cell'))
                     if abs(-gen.math.sin(ea)*(x-e['x'])+gen.math.cos(ea)*(y-e['y']))>29.5:
                         errors.append((entry['id'],'shuttle lateral ROI'))
-                radius=gen.math.hypot(*a['estimated_size'][:2])/2+gen.math.hypot(cx-start['x'],cy-start['y'])
+                    if abs(gen.math.cos(ea)*(x-e['x'])+gen.math.sin(ea)*(y-e['y']))>99.5:
+                        errors.append((entry['id'],'motion longitudinal ROI'))
+                radius=gen.math.hypot(*a['estimated_size'][:2])/2+gen.math.hypot(offset_x,offset_y)
                 envelope=LineString([(start['x'],start['y']),(end['x'],end['y'])]).buffer(radius)
                 if envelope.distance(ego_poly)<.3 or any(envelope.distance(p)<.199 for p in footprints):
                     errors.append((entry['id'],'shuttle swept clearance'))

@@ -1,6 +1,6 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v27 자산별 정지/이동52조건 비교가 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v28 일반 생성기 통합/지면 높이 검사가 최신이다.
 최종Park은 재시도 성공했으며 간헐 timeout 원인은 미해결이다.
 아래 v23 분산검증 이력과 맨 아래 yaw 검사 명령을 구분한다.
 **본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
@@ -550,3 +550,53 @@ python3 dataset/morai_od/scripts/report_base5_asset_motion_probe.py \
 
 각 `*_comparison.png`는 정지2/이동2 원본 RGB crop 확대다. `*_lidar_xz.png`는
 component 로컬 관측점 그림이며 mesh 재구성이나 detector 평가가 아니다.
+
+## v28 — 일반 생성기 정책/근접·혼합 및 입력 Z 재촬영
+
+네트워크는 위 MR seven-interface 설정 그대로다. 추가 topic/UDP는 필요 없다.
+현재 기본은 `natural-target-v1`이며 오래된 one-way-slow deck을 새 기본 검증으로 사용하지 않는다.
+본10K는 승인하지 않았다. 아래는 **소량 새 세션 예시**다. 이미 완료한 v28 output은 덮어쓰지 않는다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/prepare_base5_appearance_pilot.py \
+  --output "$HOME/morai_cap/base5_appearance_next/deck"
+python3 dataset/morai_od/scripts/audit_base5_scenarios.py \
+  --manifest "$HOME/morai_cap/base5_appearance_next/deck/manifest.json" \
+  --output "$HOME/morai_cap/base5_appearance_next/offline_audit.json"
+python3 dataset/morai_od/scripts/run_base5_capture.py \
+  --manifest "$HOME/morai_cap/base5_appearance_next/deck/manifest.json" \
+  --output "$HOME/morai_cap/base5_appearance_next/capture" --limit 9
+```
+
+기존 dashboard는 새 capture output을 `--capture-root`로 지정한다.
+통신/종료Park 실패 시 중단한다. 지면 미확인·below-ground·visibility 누락을 성공으로 취급하지 않는다.
+
+확실한 above-ground만 입력 Z 수정 deck으로 분리할 수 있다. 다른 위치에 같은 offset을
+복사하지 않는다. 보정 뒤 반드시 새 캡처+지면/Z/CollisionData 검사를 통과해야 한다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/prepare_base5_ground_retry.py \
+  --manifest "$HOME/morai_cap/base5_appearance_next/deck/manifest.json" \
+  --captures "$HOME/morai_cap/base5_appearance_next/capture" \
+  --output "$HOME/morai_cap/base5_appearance_next/ground_retry_deck"
+python3 dataset/morai_od/scripts/run_base5_capture.py \
+  --manifest "$HOME/morai_cap/base5_appearance_next/ground_retry_deck/manifest.json" \
+  --output "$HOME/morai_cap/base5_appearance_next/ground_retry_capture" --limit 9
+```
+
+retry deck count가 0이면 실행하지 않는다. 실행 limit는 실제 deck count에 맞춘다.
+새 세션은 v6 안전 계약에 감사/runner 코드 hash도 기록한다. 검증 코드가 바뀌면 기존 세션의
+resume을 거부한다. 기존 v28 촬영의 v5 계약을 수동 수정하지 말고 읽기 전용 report로 재검사한다.
+이는 universal terrain solver가 아니며 가까운 sparse ground 때문에 review가 많을 수 있다.
+원본 ledger/GT를 수정하지 않는 최종 코드 재검사:
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/report_base5_ground_integration.py \
+  --capture-root "$HOME/morai_cap/base5_appearance_next/capture" \
+  --output "$HOME/morai_cap/base5_appearance_next/ground_report.json"
+```
+
+결과/제한은 [v28 EVIDENCE](261006_base5_appearance_ground_integration_evidence.md)를 참고한다.

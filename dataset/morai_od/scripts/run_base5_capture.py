@@ -68,6 +68,11 @@ def main():
     rows=manifest['scenes']
     if args.indices: rows=[rows[int(i)] for i in args.indices.split(',')]
     rows=rows[:args.limit]
+    if not rows:raise ValueError('Empty selected capture deck; no ROS/control action')
+    # Fail malformed manifests before ROS/control or any raw capture side effect.
+    required={'id','scenario','metadata','scenario_sha256','family','role','distance_bounds','subfamily','motion'}
+    for row in rows:
+        if required-set(row):raise ValueError('Incomplete scene entry '+str(row.get('id'))+': '+str(sorted(required-set(row))))
     args.output.mkdir(parents=True,exist_ok=True)
     process_lock=(args.output/'.runner.lock').open('a')
     try:fcntl.flock(process_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -221,6 +226,26 @@ def main():
                         fresh();time.sleep(.025)
                 else:time.sleep(.2)
                 arrival_evidence=None
+                targets=[a for a in meta['runtime_actors'] if a.get('motion_path',{}).get('policy')=='natural-target-v1']
+                if targets:
+                    status('waiting_motion_target',entry['id']);deadline=time.monotonic()+20.;closest={}
+                    while time.monotonic()<deadline:
+                        with lock:current_objects=state['objects']
+                        observed=[]
+                        for a in targets:
+                            current=actor_position(current_objects,a['unique_id']);target=a['motion_path']['target_position']
+                            distance=math.hypot(current['x']-target['x'],current['y']-target['y']) if current else float('inf')
+                            closest[a['unique_id']]=min(closest.get(a['unique_id'],float('inf')),distance)
+                            observed.append(dict(uid=a['unique_id'],target_error_m=distance if math.isfinite(distance) else None,
+                                arrived=distance<=a['motion_path']['target_tolerance_m']))
+                        if all(o['arrived'] for o in observed):
+                            arrival_evidence=dict(actors=observed,load_to_arrival_sec=time.monotonic()-load_time);break
+                        fresh();time.sleep(.015)
+                    else:
+                        atomic_json(args.output/'failures'/(entry['id']+'_'+str(time.time_ns())+'.json'),dict(
+                            reason='natural_targets_not_simultaneously_observed',metadata=meta,
+                            closest_errors_m={str(k):v if math.isfinite(v) else None for k,v in closest.items()}))
+                        raise ValueError('Natural target arrival not observed for all moving actors; no capture')
                 if meta.get('motion_probe') and entry['motion'] not in ('static','standing'):
                     probe=meta['motion_probe'];target=probe['target_position']
                     status('waiting_motion_target',entry['id'])
@@ -326,8 +351,10 @@ def main():
                 audit['motion_capture']=motion_evidence
                 audit['motion_capture_actors']=motion_actors
                 height_reference=meta.get('motion_probe',{}).get('height_calibration',{}).get('static_z')
+                ground_verified={a['uid'] for a in (audit.get('ground_support') or {}).get('actors',[]) if a['verified']}
                 vertical_actors=[dict(uid=a['unique_id'],asset=a['name'],**vertical_motion_review(a,
-                    actor_samples,capture_requested_at-1.,height_reference if len(meta['runtime_actors'])==1 else None))
+                    actor_samples,capture_requested_at-1.,height_reference if len(meta['runtime_actors'])==1 else None,
+                    ground_support_verified=a['unique_id'] in ground_verified))
                     for a in meta['runtime_actors']]
                 audit['vertical_motion_actors']=vertical_actors
                 for evidence in vertical_actors:audit['review_reasons'].extend(evidence['review_reasons'])

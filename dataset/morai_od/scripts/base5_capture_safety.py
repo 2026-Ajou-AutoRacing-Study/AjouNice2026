@@ -7,7 +7,7 @@ import time
 import math
 
 
-def vertical_motion_review(actor,samples,window_start,reference_z=None,step_limit_m=.10,height_limit_m=.05):
+def vertical_motion_review(actor,samples,window_start,reference_z=None,step_limit_m=.10,height_limit_m=.05,ground_support_verified=False):
     """Observed moving-window Z gate; absolute reference must be independently validated."""
     if not actor or actor['motion'] in ('static','standing'):
         return dict(required=False,review_reasons=[])
@@ -18,12 +18,12 @@ def vertical_motion_review(actor,samples,window_start,reference_z=None,step_limi
     if not steps:reasons.append('motion_vertical_trace_unverified')
     elif max(steps)>step_limit_m:reasons.append('motion_vertical_jump')
     # A constant floating object has no Z jump: do not certify it from stability alone.
-    if actor.get('source_list')=='objectList' and reference_z is None:
+    if actor.get('source_list')=='objectList' and reference_z is None and not ground_support_verified:
         reasons.append('motion_vertical_ground_reference_unverified')
     error=max((abs(r['z']-reference_z) for r in trace),default=None) if reference_z is not None else None
     if error is not None and error>height_limit_m:reasons.append('motion_vertical_reference_mismatch')
     return dict(required=True,review_reasons=reasons,maximum_observed_z_step_m=max(steps) if steps else None,
-        reference_z_m=reference_z,maximum_height_error_m=error,step_limit_m=step_limit_m,
+        reference_z_m=reference_z,ground_support_verified=ground_support_verified,maximum_height_error_m=error,step_limit_m=step_limit_m,
         height_limit_m=height_limit_m,window_start_monotonic=window_start,
         limitation='Capture-window receive samples only; stable Z is not ground support. Scalar reference is for independently matched flat-ground probes, not arbitrary slopes or pivots.')
 
@@ -138,9 +138,11 @@ def load_ledger(path):
 
 def prepare_session(output,manifest,network,sensor):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
-    contract=dict(schema_version=5,manifest_sha256=sha256(manifest),
+    scripts=Path(__file__).parent
+    contract=dict(schema_version=6,manifest_sha256=sha256(manifest),
         network_sha256=sha256(network),sensor_sha256=sha256(sensor),
-        safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; support-proxy-not-mesh; all-actor-motion-endpoint-window-v1')
+        safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_ground_support.py','run_base5_capture.py')},
+        safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; local-ground-plane-v1; all-actor-motion-endpoint-window-v1; vertical-step-window-v1')
     path=output/'session_contract.json'
     if path.exists():
         if json.loads(path.read_text())!=contract:raise ValueError('Resume session contract mismatch')

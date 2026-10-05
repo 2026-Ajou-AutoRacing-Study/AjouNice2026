@@ -119,6 +119,15 @@ def audit_capture(root, metadata):
     # Raw is retained even when primary is invisible. Such frames are NOT silently accepted as empty.
     supported = background or any(r['positive_lidar1_camera0'] for r in primary)
     reasons=[]
+    ground=None
+    ground_config=metadata.get('ground_support_check',{})
+    if ground_config.get('enabled'):
+        if metadata.get('lidar_to_ego') is None:reasons.append('ground_probe_missing_calibration')
+        else:
+            from base5_ground_support import ground_review
+            ground=ground_review(points[:,:3],boxes,metadata['lidar_to_ego'],
+                ground_config.get('max_range_m',20.),ground_config.get('maximum_gap_m',.15))
+            reasons.extend(ground['review_reasons'])
     live=metadata.get('capture_safety')
     if live is not None:
         if not live.get('collision',{}).get('observed'):reasons.append('collision_history_incomplete')
@@ -163,7 +172,7 @@ def audit_capture(root, metadata):
             if any(uid!=box['unique_id'] and poly.distance(other)<.05 for uid,other in footprints):
                 reasons.append('actual_GT_actor_footprint_overlap')
             footprints.append((box['unique_id'],poly))
-    return dict(components=results,missing_uids=missing,raw_complete=True,
+    return dict(components=results,missing_uids=missing,raw_complete=True,ground_support=ground,
         actual_annotation_clearances=clearances,
         accepted_candidate=not reasons,review_reasons=sorted(set(reasons)),
         positive_policy='provisional lidar1 OR actual instance pixels in model crop',

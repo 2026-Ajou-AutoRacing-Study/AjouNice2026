@@ -4,6 +4,10 @@
 아니라 **single-frame 학습에서 이동 자세를 별도로 수집할 필요가 있는지** 확인한 기록이다.
 최신 진입점은 `BASE5_V2_CURRENT.md`다. Production E25·threshold·tracker·planning은 변경하지 않았다.
 
+후속 [v28 지면 검사](261006_base5_appearance_ground_integration_evidence.md)에서 일부 사람/동물
+표본의 공중 배치가 발견됐다. 아래 matched-height는 정지/이동 외관 비교이며 ground support
+인증이 아니다. 원래 결과를 보존하되 학습용 지면 합격 근거로 사용하지 않는다.
+
 ## 실험 및 최종 선택
 
 - 대표13자산 × 정지/이동 × 2반복 = 최종52조건. 동일 자산·Ego·목표 XY·yaw로 비교했다.
