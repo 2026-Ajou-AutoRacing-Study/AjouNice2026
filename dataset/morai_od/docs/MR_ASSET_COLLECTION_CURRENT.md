@@ -1,8 +1,64 @@
 # MR 전용 객체 카탈로그·수집 계약
 
-상태: CURRENT. 2026-10-04. 향후 수집은 MR만 사용한다.
+상태: CURRENT. 2026-10-05. 향후 수집은 MR만 사용한다.
 
-## 현재 기준
+## 2026-10-05 새 목록 검수 및 후속 정책
+
+아래는 **목록 검수 완료 / 생성기 연결·분류 변경 미구현** 상태다. 아래 합의가 기존
+catalog/eligibility/runtime에 이미 적용됐다고 해석하지 않는다.
+
+MR Scenario directory의 `new_vehicle_list.json`, `new_pedestrian_list.json`,
+`new_obstacle_list.json`을 DataID 기준으로 기존 catalog와 비교했다.
+
+| 목록 | 기존 고유 종류 | 새 고유 종류 | 검수 결과 |
+|---|---:|---:|---|
+| Vehicle | 43 | 43 | 기존 누락 없음 |
+| Pedestrian 및 관련 객체 | 33 | 33 | 기존 누락 없음 |
+| Obstacle 및 관련 객체 | 33 | 70 | 기존 누락 없음, 신규37종 |
+
+Obstacle 목록은81개 배치/70종이다. Tree03(`40200004`)와 EFFECT_Fire01(`40300001`)
+모두 포함한다. `_2`를 원본 이름으로 승격하고 EgoNetwork sidecar도 함께 교체했으며
+두 파일의 일치를 확인했다. 중복 배치는 삭제하지 않았다. 생성기에서는 DataID로
+중복 제거하여 배치 횟수가 asset sampling 가중치로 변하지 않게 해야 한다.
+새 목록은 로컬 MR SaveFile에 있으며 이번 문서 변경으로 Git catalog에 편입되지는 않는다.
+
+### 합의 및 검토 경계
+
+- MRP 미지원·교집합·quarantine을 신규 MR 수집의 제외 이유로 쓰지 않는다.
+- 신규 정적 `OBJ_` 차량17종은 수집·Vehicle positive 편입 우선 후보다.
+  정지 여부와 semantic class를 분리한다. 이는 현재 미구현인 추천 방향이다.
+  `OBJ_G80_Open_Door`는 열린 문을 포함하는 geometric GT를 확인한다.
+  일반 차량과 같은 이름이라는 이유로 기존 pivot offset/size를 복사하지 않는다.
+- 현재 runtime은 Vehicle→CAR, Pedestrian→PEDESTRIAN, Obstacle→UNKNOWN이다.
+  UNKNOWN motion policy는 속도를0으로 만든다. 동물/탑승자처럼 움직일 수 있는
+  객체를 그대로 Obstacle로 편입하는 것은 안전한 호환 방안이 아니다.
+- Animal(Dog1/Dog2/Deer1), Ped_Pet1, Bicycle_Female1, 사람이 포함될 수 있는
+  BabyStroller/Bike/Scooter 계열은 후속 소량 annotation/형상 확인 대상이다.
+  이름만으로 탑승자 유무를 확정하지 않는다. 신규 학습에서 동물을 라벨 없는
+  hard negative로 섞는 것은 피한다. Animal 클래스 추가나 Pedestrian 편입은
+  아직 결정/구현하지 않았다. 기존 catalog의 hard_negative_only/quarantine은 남아 있다.
+- 무인 자전거/스쿠터 등 실체 정적 객체는 낮은 비중의 Obstacle 편입 후보다.
+- WoodBox/CargoBox 등 실체 장애물은 포함한다. scale1 유지, 센서 캡처의
+  geometric GT 사용, rosbag 변환 시 reference coverage 검증을 유지한다.
+- **Tree01–09, EFFECT_Fire01, Speed_Bump, 맨홀은 이번 positive 보강 및 재검토
+  대상에서 제외한다.** 전체 목록에는 보존하며 기존 도로 배경을 제거하지 않는다.
+- **일반 표지판·가로등은 도로변 배경으로만 둔다. 차로 중앙에 랜덤 배치하지
+  않으며 이번 집중 수집/검토 대상이 아니다.** 차로를 막는 바리케이드류는 별도
+  실체 장애물이다. 기존 정책의 도로시설 context와 Obstacle positive를 혼동하지 않는다.
+- 70종 전체 균등 sampling이나 obstacleList 전체를 Obstacle class로 변환하지 않는다.
+  정상 차량/보행자 비중을 보존하고 희귀 복합 자산은 별도 관리한다.
+
+### 다음 순서
+
+1. 새 목록 기반의 versioned catalog/template/eligibility를 만들고 역할과 제외 이유를
+   명시한다. 기존 production 및 과거 dataset catalog는 재현용으로 보존한다.
+2. 정적 차량의 Vehicle 편입과 무인/유인 복합 자산 분리를 loader까지 연결한다.
+3. 소량 MR 동기 capture에서 Instance annotation, bbox, 부분 시야, 지면/충돌 상태를
+   확인한다. 새 정적 차량의 rosbag calibration은 별도 확보한다.
+4. 통과한 pool로 Base5 소량 smoke 후 본 수집 runner를 연결한다. 현재±30m ROI와
+   이후 원거리 확장 학습 계약을 구분하며 대량10k 수집부터 시작하지 않는다.
+
+## 현재 코드 기준 — 새 목록 연결 전
 
 - 원본: `configs/morai_asset_catalog_260807.json` (대회 MR에서 저장한 목록).
 - Eligibility: `configs/morai_asset_mr_collection_261004.json`.
