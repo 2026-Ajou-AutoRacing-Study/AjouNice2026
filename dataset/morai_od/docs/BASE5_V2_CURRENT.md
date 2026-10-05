@@ -4,7 +4,47 @@
 기존 v1/E25 보강 실험과 구분한다. **시나리오 10,000개 생성은 완료했지만,
 소량 live는 아래처럼 통과/검토로 나뉘었다. 본 수집과 본 학습은 시작하지 않았다.**
 
-## 최신 v19 — 동일 cell 보충 구현 / 종료 Park 미확인으로 live 중단
+## 최신 v20 — 종료 Park 요청 최소 수정 / 소량 재검증
+
+이번 요청은 v19의 Park 응답 문제만 대상으로 했다. 왕복 motion/거리 quota/GT 정책은
+변경하지 않았다.10K 수집·학습은 하지 않았다.
+
+현재 정지 상태에서 독립 요청은 기어만(option2)15.5ms, 제어모드+기어(option3)10.5ms로
+모두 P 응답이었다. 이어 동일 one-load/capture 수집기로 비교했다.
+
+| 종료 요청 | 장면 | 첫 요청 | 최종 P 응답 |
+| --- | --- | --- | --- |
+| option3: control mode+gear | 빈 배경 | 3초 timeout | 두 번째 성공, 총3.312초 |
+| option3: control mode+gear | Dog2 동적 | 3초 timeout | 두 번째 성공, 총3.308초 |
+| option2: gear only | 빈 배경 | 성공 | 11.3ms |
+| option2: gear only | Dog2 동적 | 성공 | 3.9ms |
+| option2: gear only | 빈 배경 반복 | 성공 | 7.4ms |
+
+종료는 **P 기어만 변경**하도록 최소 수정했다. 로드 직후 external control/Drive 확인은
+기존 option3 유지다. 종료시에 이미 확인한 control mode를 다시 설정하지 않는다.
+요청당3초·최대2회·제동 유지·응답 gear1 확인·실패 중단은 모두 유지한다.
+shutdown evidence에 실제 request_fields를 추가했고 잘못된 gear 응답도 여전히 실패다.
+
+현재 소량3회에서 첫 요청 성공을 확인했으므로 종료 수정 후보는 통과다. 다만
+비무작위 순차 A/B이며 MORAI 내부 응답 누락 원인은 미확정이다. 기존 v19의 실패를
+성공으로 수정하거나 unsafe session을 재개하지 않는다. 장시간 안정성 보장은 아니다.
+P는 서비스 응답으로 확인했으며 EgoVehicleStatus에 gear 필드가 없어 독립 gear topic
+대조는 수행하지 못했다. 두 Dog2 캡처의 visibility review는 별개로 유지했다.
+
+증거 공통prefix `/home/luv/morai_cap/base5_v2_261006/`:
+
+- `park_response_comparison_v20.json`, `park_rosbridge_log_v20.log`
+- `park_probe_v20_gear_only.json`, `park_probe_v20_combined.json`
+- `park_baseline_capture_v20/`, `park_dynamic_capture_v20/`
+- `park_gear_only_capture_v20/`, `park_gear_only_dynamic_v20/`, `park_gear_only_repeat_v20/`
+
+독립 probe는 `scripts/probe_base5_park.py`: 정지·fresh Ego·제동 subscriber를 확인하고
+한 번의 bounded Park 요청만 보낸다. 시나리오 로드/캡처/가속 없음, 증거 덮어쓰기 거부.
+단위검증36개 통과. 다음은 사용자와 논의한 일방향 저속 motion 대안 검증이며 아직 구현하지 않았다.
+프로토콜에서 option2=gear, option1=control mode, gear1=P는
+[MORAI 공식 규격](https://help-morai-sim.scrollhelp.site/ko/morai-sim-drive/24.R1.0/ros-1)을 참조한다.
+
+## v19 — 동일 cell 보충 구현 / 종료 Park 미확인으로 live 중단
 
 사용자 요청대로10K 캡처·학습은 하지 않았다. v18 후보 생성기는 유지하며 소량 검증만 수행했다.
 `base5_replenishment.py`는 **가시성만 실패한 review**에 한해 같은 asset/spec/split을

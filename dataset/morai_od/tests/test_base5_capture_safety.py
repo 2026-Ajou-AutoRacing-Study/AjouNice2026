@@ -4,10 +4,13 @@ import tempfile
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from base5_capture_safety import collision_window,load_ledger,prepare_session,archive_incomplete,runtime_presence_review,confirm_park
+from base5_capture_safety import collision_window,load_ledger,prepare_session,archive_incomplete,runtime_presence_review,confirm_park,park_request_fields
 
 
 class CaptureSafetyTest(unittest.TestCase):
+    def test_exit_park_changes_only_gear_not_control_mode(self):
+        self.assertEqual(park_request_fields(),dict(option=2,gear=1))
+
     def test_park_retry_and_wrong_gear_are_not_silently_successful(self):
         calls=[]
         def request():

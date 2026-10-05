@@ -14,7 +14,7 @@ import uuid
 import fcntl
 
 from base5_capture_audit import audit_capture
-from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review,confirm_park
+from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields
 
 ROOT=Path(__file__).resolve().parents[3]
 
@@ -321,10 +321,13 @@ def main():
                 fresh(1.)
                 if not control.get_num_connections():raise RuntimeError('Exit control subscriber missing')
                 control.publish(CtrlCmd(longlCmdType=1,brake=1.,accel=0.,steering=0.))
-                park=MoraiEventCmdSrvRequest();park.request.option=3;park.request.ctrl_mode=3;park.request.gear=1
+                # Exit changes only the gear; control mode was confirmed after load.
+                park=MoraiEventCmdSrvRequest()
+                for key,value in park_request_fields().items():setattr(park.request,key,value)
                 response=bounded_call(lambda:rospy.ServiceProxy('/Service_MoraiEventCmd',MoraiEventCmdSrv)(park),timeout=3.)
                 return response.response.gear
             shutdown=confirm_park(park_request)
+            shutdown['request_fields']=park_request_fields()
             shutdown['brake_held_during_requests']=True
             atomic_json(args.output/'shutdown_safety.json',shutdown)
             if not shutdown['park_verified']:

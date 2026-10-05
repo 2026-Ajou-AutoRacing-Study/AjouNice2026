@@ -36,6 +36,11 @@ def runtime_presence_review(metadata, before, after, components):
     return sorted(missing),sorted(annotation_only)
 
 
+def park_request_fields():
+    """Exit changes gear only; do not reconfigure the already-confirmed control mode."""
+    return dict(option=2,gear=1)
+
+
 def confirm_park(request, attempts=2, retry_delay=.3):
     """Idempotent gear-P confirmation; caller must bound each request and keep braking."""
     errors=[];started=time.monotonic()

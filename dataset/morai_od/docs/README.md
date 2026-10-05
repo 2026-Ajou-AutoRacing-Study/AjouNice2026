@@ -4,7 +4,10 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- **최신 v19:**동일cell 가시성 보충 구현, Dog2 재배치1장 capture 통과(2point).
+- **최신 v20:**종료 Park을 gear-only 요청으로 최소 수정. 기존 동시 요청2회는
+  첫 요청 timeout/재시도 성공, gear-only3회는 첫 요청4–11ms 성공. 장시간 검증은 아님.
+  [CURRENT](BASE5_V2_CURRENT.md), [런북](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md) 참조.
+- **v19 이력:**동일cell 가시성 보충 구현, Dog2 재배치1장 capture 통과(2point).
   종료Park2회 timeout으로 live 중단; 후속로드/10K/학습 없음. GT정책3종 비교와
   info변환/안전중단·resume 테스트35개 통과.
   [CURRENT](BASE5_V2_CURRENT.md), [런북](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md) 참조.
@@ -15,7 +18,7 @@
   [CURRENT](BASE5_V2_CURRENT.md)와 [실행/재개 런북](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md)을 먼저 읽는다.
   최신10K 후보는v18d offline PASS. 본 수집은 미실행이며 sparse 가시성 보충·최종GT 정책은 남아 있다.
 
-- [독립 Base5 v2 최신 구현·검증·다음 실행](BASE5_V2_CURRENT.md): 최신 v19는 위 항목.
+- [독립 Base5 v2 최신 구현·검증·다음 실행](BASE5_V2_CURRENT.md): 최신 v20은 위 항목.
   이전10K 전수 offline PASS, 100m/4-class 후보 GPU loss·역전파 및48장 live41후보/7검토는 EVIDENCE다.
   v15는 미션 차량·장애물 회피 관측1,300장과10–50cm 측방 gap 후보를 추가했다.
   8장+대조4장 실제 캡처, 약13–34cm actual gap 확보. 지면/collider 증거가 없어 review 유지.

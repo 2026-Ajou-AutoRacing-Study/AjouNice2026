@@ -1,6 +1,6 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v19 보충/종료 안전 gate 기록이 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v20 종료Park gear-only 소량검증이 최신이다.
 **본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
 
 v18은 같은 one-load/seven-interface network를 사용한다. pause·선택적 actor-only load를
@@ -18,7 +18,8 @@ MR Network GUI에서 전용 JSON을 다시 연결하고 Capture Mode/Instance �
 
 ### v19 보충·정책 비교·dashboard
 
-현재 live는 Park 응답 미확인으로 중단했다. 다음 명령의 기본은 **준비만**이며
+v19 live는 Park 응답 미확인으로 중단했다. v20 gear-only 종료는3회 첫 응답 통과했다.
+다음 명령의 기본은 **준비만**이며
 MR을 로드하지 않는다. 기존 `replenishment_v19`는 중단 증거이므로 덮어쓰거나 자동 재개하지 않는다.
 MR 제어/기어를 확인한 뒤 별도 소량 live를 검증해야 한다. 10K 시작 명령이 아니다.
 
@@ -86,6 +87,19 @@ MR SensorData에 남아 있는 파일은 사용자 소유일 수 있으므로 �
 실제 캡처 종료/중단 시에는 brake와 bounded Park 요청을 보낸다. **현재 v19부터**
 Park 응답 미확인은 경고만이 아니라 종료실패 상태로 남으며 자동 후속로드를 중단한다.
 요청당3초·2회 동안 제동을 유지하고 `shutdown_safety.json`에 결과를 기록한다.
+v20 종료 요청은 option2/gear1이며 제어모드를 재설정하지 않는다. 로드 직후 mode/Drive
+확인은 option3 그대로다. 완료된 unsafe output을 새 결과로 덮어쓰지 않는다.
+
+정지 상태에서만 한 번 요청하는 독립 진단(캡처/로드 없음):
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/probe_base5_park.py --option 2 \
+  --output "$HOME/morai_cap/base5_v2_261006/park_manual_check.json"
+```
+
+증거 파일이 이미 있으면 덮어쓰지 않는다. timeout이면 반복해서 쌓지 말고 MR 연결·제어를
+확인한다. 이 명령으로 모든 런처의 안정성이 검증되는 것은 아니다.
 
 브라우저 모니터:
 
