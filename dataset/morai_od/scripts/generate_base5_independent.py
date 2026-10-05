@@ -227,6 +227,29 @@ def bounded_motion_path(pose,center,ego,bounds):
         points=[{k:pose[k] for k in ('x','y','z')},end,{k:pose[k] for k in ('x','y','z')}],
         limitation='Single-frame animated appearance only; not a competition trajectory or velocity label.')
 
+def one_way_motion_path(pose,center,ego,bounds,motion,asset,setup_budget_sec=12.):
+    """Heading-aligned finite segment; slow enough to survive normal setup, no return."""
+    a=math.radians(pose['yaw']);dx,dy=math.cos(a),math.sin(a)
+    lo,hi=bounds
+    length=None
+    for tenth in range(40,4,-1):
+        candidate=tenth/10.
+        if all(lo<=math.hypot(center[0]+candidate*t/20*dx-ego['x'],
+                center[1]+candidate*t/20*dy-ego['y'])<hi-.025 for t in range(21)):
+            length=candidate;break
+    if length is None:raise ValueError('One-way segment too short inside distance cell')
+    # Raw scene speed fields are treated as km/h candidates; actual displacement
+    # must be measured in live validation, especially objectList.moveSpeed.
+    nominal=.25 if asset.get('ontology_class')=='Animal' else .6 if motion=='running' else .35
+    if not 4.<=setup_budget_sec<=30.:raise ValueError('Bounded one-way setup budget required')
+    speed=min(nominal,length/setup_budget_sec)
+    end=dict(x=pose['x']+length*dx,y=pose['y']+length*dy,z=pose['z'])
+    return dict(policy='one-way-slow-v1',length_m=length,distance_bounds_m=list(bounds),
+        points=[{k:pose[k] for k in ('x','y','z')},end],speed_field_value=speed*3.6,
+        nominal_speed_mps=speed,nominal_duration_sec=length/speed,
+        limitation='Single-frame appearance probe; reduced-speed animation realism and field units need live validation.')
+
+
 def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None):
     position={k:pose[k] for k in ('x','y','z')}
     container=asset['source_list']
@@ -265,9 +288,11 @@ def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None):
                     dict(pos=geo.world_to_morai_waypoint(position),rot=geo.formatted_rotation(0.)),
                     dict(pos=geo.world_to_morai_waypoint(end),rot=geo.formatted_rotation(0.))]))
         if motion_path is not None:
-            # Finite contiguous returns also work for objectList, which has no
-            # verified loop flag. End equals start; no respawn/teleport assumed.
-            points=motion_path['points'][:2]*64+[motion_path['points'][0]]
+            # One-way probes use exactly two points. Historical shuttle uses
+            # finite contiguous returns without respawn/teleport.
+            points=motion_path['points'] if motion_path['policy']=='one-way-slow-v1' else motion_path['points'][:2]*64+[motion_path['points'][0]]
+            if motion_path['policy']=='one-way-slow-v1':
+                actor['moveSpeed' if container=='objectList' else 'speed']=motion_path['speed_field_value']
             actor['waypointEventList']=[dict(index=-1,waypointEventData=[]) for _ in points]
             scene['waypointDataList'][-1]['waypointData']=[
                 dict(pos=geo.world_to_morai_waypoint(p),rot=geo.formatted_rotation(0.)) for p in points]
@@ -414,9 +439,11 @@ def build(row,config,ctx,attempt=0):
         if gap<minimum_gap-1e-6 or any(box.distance(other)<.20 for other in footprints): raise ValueError('Footprint clearance failure')
         motion_path=None
         if actor_motion not in ('static','standing'):
-            if config['capture'].get('dynamic_path_policy')=='bounded-shuttle-v1':
+            policy=config['capture'].get('dynamic_path_policy')
+            if policy in ('bounded-shuttle-v1','one-way-slow-v1'):
                 if asset['source_list'] not in ('pedestrianList','aiPedstrianList','objectList'):raise ValueError('Shuttle unsupported actor container')
-                motion_path=bounded_motion_path(pose,center,ego,[lower,upper])
+                motion_path=one_way_motion_path(pose,center,ego,[lower,upper],actor_motion,asset,
+                    config['capture'].get('one_way_setup_budget_sec',12.)) if policy=='one-way-slow-v1' else bounded_motion_path(pose,center,ego,[lower,upper])
                 end=motion_path['points'][1]
                 end_center=[center[0]+end['x']-pose['x'],center[1]+end['y']-pose['y']]
                 end_lon=math.cos(ea)*(end_center[0]-ego['x'])+math.sin(ea)*(end_center[1]-ego['y'])
@@ -457,7 +484,10 @@ def build(row,config,ctx,attempt=0):
             runtime_mapping_verified=False if selected_pool in ('animal','pet_person','stroller','rider') else True))
         if not i: desired=actual
         if asset['source_list']=='aiPedstrianList':actor_records[-1]['motion_capability_note']='AI destination API unvalidated; retained as standing, not removed'
-        if motion_path is not None:actor_records[-1]['motion_path']=motion_path
+        if motion_path is not None:
+            actor_records[-1]['motion_path']=motion_path
+            if motion_path['policy']=='one-way-slow-v1':
+                actor_records[-1]['motion_capability_note']='Requested walking/running category is not animation certification; actual translation verified live.'
         if sample_placement is not None: actor_records[-1]['sample_highway_placement']=sample_placement
     group=base['link_idx']  # whole-link split; still neighboring-link visibility leakage possible
     split='val' if int(hashlib.sha256(group.encode()).hexdigest()[:8],16)/2**32<.15 else 'train'

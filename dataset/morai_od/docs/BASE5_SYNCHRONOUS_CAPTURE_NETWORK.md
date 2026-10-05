@@ -1,12 +1,41 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v20 종료Park gear-only 소량검증이 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v21 일방향motion 소량검증이 최신이다.
 **본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
 
 v18은 같은 one-load/seven-interface network를 사용한다. pause·선택적 actor-only load를
 도입하지 않는다. 새 AI presence 계약으로 이전 output resume은 거부될 수 있으므로 새
 output을 사용한다. Dashboard는 새 세션 output을 `--capture-root`로 지정하면 된다.
 아래12-scene 성공은 이전 asset-review 이력이며 새10K 배치 성공을 뜻하지 않는다.
+
+## v21 일방향 소량 재검증 명령
+
+다음은 **이미 완료한4장을 read-only resume 확인**하는 명령이다. MR 로드/캡처를
+추가 수행하지 않으며 기존 raw/ledger를 변경하지 않는다.
+
+```bash
+ajou
+ROOT="$HOME/morai_cap/base5_v2_261006"
+python3 dataset/morai_od/scripts/run_base5_capture.py \
+  --manifest "$ROOT/one_way_pilot_v21c/manifest.json" \
+  --output "$ROOT/one_way_capture_v21c" --indices 12,14,17,18 --limit 4
+```
+
+새 offline19개 pilot을 준비하려면 반드시 새output을 지정한다(실제로드 없음):
+
+```bash
+ajou
+ROOT="$HOME/morai_cap/base5_v2_261006"
+python3 dataset/morai_od/scripts/prepare_base5_safety_pilot.py \
+  --manifest "$ROOT/scenarios_10k_v18d/manifest.json" \
+  --output "$ROOT/one_way_next_pilot" --motion-policy one-way-slow-v1 \
+  --extra-runtime-coverage --placement-attempts 1024 --one-way-setup-budget-sec 6
+```
+
+기존source의quota/asset spec을 참고해 새 일방향 payload를 만들며 원본은 변경하지 않는다.
+1024는offline 배치 탐색 한도이지 MR 로드 횟수가 아니다. actual 거리/충돌 gate는 유지한다.
+`one_way_setup_budget_sec`는 속도 제한을 계산하는 명목여유로, 실제 캡처 대기시간이나
+통신 timeout을6초로 바꾸는 파라미터가 아니다. 늦어서 이미 멈췄으면 motion check 실패다.
 
 ## v2 캡처·실시간 대시보드
 

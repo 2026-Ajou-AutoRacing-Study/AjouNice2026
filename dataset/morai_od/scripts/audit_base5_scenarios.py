@@ -76,8 +76,17 @@ def audit(manifest_path):
             if path is not None:
                 from shapely.geometry import LineString
                 points=path['points'];start=points[0];end=points[1]
-                if points[0]!=points[-1]:errors.append((entry['id'],'open shuttle return'))
-                expected_points=points[:2]*64+[points[0]]
+                if path['policy'] not in ('bounded-shuttle-v1','one-way-slow-v1'):
+                    errors.append((entry['id'],'unknown motion path policy'))
+                if path['policy']=='bounded-shuttle-v1' and points[0]!=points[-1]:errors.append((entry['id'],'open shuttle return'))
+                expected_points=points if path['policy']=='one-way-slow-v1' else points[:2]*64+[points[0]]
+                if path['policy']=='one-way-slow-v1' and (len(points)!=2 or points[0]==points[1]):
+                    errors.append((entry['id'],'one-way endpoint count'))
+                if path['policy']=='one-way-slow-v1':
+                    runtime_actor=next(a2 for a2 in s[a['source_list']] if a2.get('UNIQUEID')==a['unique_id'])
+                    field='moveSpeed' if a['source_list']=='objectList' else 'speed'
+                    if runtime_actor[field]!=path['speed_field_value'] or len(runtime_actor['waypointEventList'])!=2:
+                        errors.append((entry['id'],'one-way speed/waypoint event mismatch'))
                 runtime_path=next((p for p in s['waypointDataList'] if p['pathName'].endswith(' - '+str(a['unique_id']))),None)
                 if runtime_path is None or runtime_path['waypointData']!=[
                         dict(pos=gen.geo.world_to_morai_waypoint(p),rot=gen.geo.formatted_rotation(0.)) for p in expected_points]:

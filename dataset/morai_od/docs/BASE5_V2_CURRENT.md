@@ -4,7 +4,69 @@
 기존 v1/E25 보강 실험과 구분한다. **시나리오 10,000개 생성은 완료했지만,
 소량 live는 아래처럼 통과/검토로 나뉘었다. 본 수집과 본 학습은 시작하지 않았다.**
 
-## 최신 v20 — 종료 Park 요청 최소 수정 / 소량 재검증
+## 최신 v21 — 왕복 제거·저속 일방향 smoke / 본 수집 미시작
+
+사용자와 논의한 일방향 대안을 구현하고 실제 움직이는6조건을 검증했다.
+`one-way-slow-v1`은 **현재 heading 방향으로2개 waypoint만** 사용하며 왕복/방향반전/
+respawn/teleport를 넣지 않는다. 초기 heading과 이동방향을 맞추고,0.5–4m 구간 전체가
+추정 geometric 거리 cell 안에 머물도록 선택한다. Ego/다른 actor swept clearance와
+ROI/방향, 실제 CollisionData·annotation gate는 유지했다. Ego는 정지·제동 상태다.
+
+좁은 cell에서 너무 느려질 수 있어12초 준비 여유 프로필과6초 프로필을 순차 비교했다.
+설정 속도는 `min(종류별 nominal cap, 구간길이/준비여유)`이며 cap은
+Animal0.25/걷기0.35/달리기0.6m/s 후보다. raw speed 필드에는3.6배 값을 넣는다.
+실제 이동은 검증했지만 객체별 speed 필드 단위·동작 애니메이션은 독립 인증하지 않았다.
+특히 requested walking/running quota를 실제 걷기/달리기 동작으로 확정하지 않는다.
+
+| 조건 | 요청거리/방향 | 12초 프로필 | 6초 프로필 |
+| --- | --- | --- | --- |
+| worker_m_1 | 좌5–10m | 통과, nominal0.067m/s | 통과,0.133m/s |
+| Dog2 | 좌15–29m | 센서 근거 부족 검토,0.25m/s | 이번 반복 미대상 |
+| BabyStroller2 | 우3–5m | 통과,0.117m/s | 통과,0.233m/s |
+| Ped_Pet1 | 전15–30m | 통과,0.333m/s | 이번 반복 미대상 |
+| Bike3 | 전5–10m | 통과,0.192m/s | 통과,0.35m/s |
+| BabyStroller2 | 전3–5m | 통과,0.05m/s | 통과,0.10m/s |
+
+합계10회 실제 캡처:9회 후보/1회 Dog2 가시성 검토/0실행실패.
+**서로 독립10개 조건이 아니라6조건+동일4조건 속도 A/B 반복**이며 수량 quota로 중복 합산하지 않는다.
+전부 기다리는 동안≥0.05m 실제 이동을 확인했다. 종료 Park은 두 세션 모두 첫 요청에
+4.1/5.7ms 성공. 세션평균5.294/5.048초, raw30,734,186/20,386,467bytes.
+완료 resume에서 raw hash/mtime·ledger 불변을 확인했다. Info 변환은 각각 train5/val0
+GT13, train4/val0 GT9이며 학습·AP 평가를 하지 않았다.
+
+6초 프로필 실제 component 거리/point:
+worker9.508m/37point; 우유모차3.691/3.234/3.162m·134/110/8point;
+Bike3 5.413/5.377m·119/188point; 전유모차4.909/5.078/5.115m·106/102/28point.
+전유모차 일부 component는5m를 넘으며 기존±0.5m annotation tolerance 내 통과다.
+Dog2는24.084m·0point이고 유효 camera 근거도 없어 검토 유지다. 거리·point 기준을
+완화하거나 정답을 임의 추가하지 않았다. 전유모차 raw CAMERA_1도 눈으로 확인했다.
+
+마지막 전유모차의 endpoint를 캡처 종료 이후 read-only3초/150메시지 관측:
+시작점에서0.599991m 이동, 예정 endpoint 오차0.000021m, 관측 이동span0m였다.
+이 자산은 끝에서 멈췄으며 복귀/loop가 관측되지 않았다. 모든 container 인증은 아니다.
+
+**새 생성기 default는 일방향/6초 여유로 변경**했고 기존 왕복은 명시적 역사적 옵션으로
+보존한다. 기존v18d 10K manifest는 왕복 계약인 구버전 후보이므로 새 기본 수집에 그대로
+사용하지 않는다. 이번에는19개짜리 offline pilot 두 개만 생성했고 10K 재생성·캡처는 하지 않았다.
+초근접 전유모차는128회 배치 탐색에서 미충족,1024회 한도 안289retry로 채웠다.
+부분 실패v21은 보존한다. 이 희소한 배치의 전수10K 충족 가능성은 아직 검증하지 않았다.
+
+증거 공통prefix `/home/luv/morai_cap/base5_v2_261006/`:
+
+- `one_way_pilot_v21b/`, `one_way_pilot_v21c/`: 각각19개 OFFLINE_PASS
+- `one_way_capture_v21b/smoke_report.json`, `one_way_capture_v21c/smoke_report.json`
+- `one_way_motion_comparison_v21.json`, `one_way_endpoint_v21.json`
+- info: `artifacts/datasets/base5_one_way_v21b/`, `base5_one_way_v21c/`
+
+단위검증38개 통과. 이 결과는 왕복 없이 거리 유지·실제 이동·캡처·resume이 가능하다는
+근거다. 모두 초저속으로10K를 수집하자는 뜻은 아니다. 더 빠른 사람/탑승자의 다양한
+동작 외관, readiness 지연 시 endpoint 도달, 전체pool quota는 본 수집 전 남은 gate다.
+준비가 늦어 motion 확인 전에 endpoint에 도착하여 움직임이 없으면 실패시킨다.
+motion 확인 후 저장 직전까지 움직임을 유지하는지 runtime 보장은 아직 별도 보강 대상이다.
+이번10회는 post-capture Object pose를 대조해 endpoint까지0.252–3.224m 남았음을 확인했다.
+끝점에 멈춘 상태의 캡처가 관측되지는 않았으나 이 소량 증거로 모든 지연 상황을 보장하지 않는다.
+
+## v20 — 종료 Park 요청 최소 수정 / 소량 재검증
 
 이번 요청은 v19의 Park 응답 문제만 대상으로 했다. 왕복 motion/거리 quota/GT 정책은
 변경하지 않았다.10K 수집·학습은 하지 않았다.

@@ -15,6 +15,31 @@ from PIL import Image
 
 
 class IndependentTest(unittest.TestCase):
+    def test_one_way_runtime_payload_is_two_points_and_low_speed(self):
+        config=gen.geo.load_json(gen.CONFIG);config['capture']['dynamic_path_policy']='one-way-slow-v1'
+        ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO);row=gen.specs(config)[3]
+        for attempt in range(512):
+            try:scene,meta=gen.build(row,config,ctx,attempt);break
+            except ValueError:continue
+        else:self.fail('One-way person cell unfillable')
+        actor=meta['runtime_actors'][0];path=actor['motion_path']
+        raw=next(a for a in scene[actor['source_list']] if a['UNIQUEID']==actor['unique_id'])
+        self.assertEqual(len(raw['waypointEventList']),2)
+        self.assertFalse(raw['loop']);self.assertEqual(raw['speed'],path['speed_field_value'])
+
+    def test_one_way_motion_has_no_return_and_bounded_speed(self):
+        import math
+        for radius,bounds in ((3.5,[3,5]),(8.,[5,10]),(23.,[15,29])):
+            pose=dict(x=radius,y=0.,z=0.,yaw=90.)
+            path=gen.one_way_motion_path(pose,[radius,0.],dict(x=0.,y=0.),bounds,'walking',dict(ontology_class='Pedestrian'))
+            self.assertEqual(len(path['points']),2)
+            self.assertNotEqual(path['points'][0],path['points'][1])
+            self.assertGreaterEqual(path['nominal_duration_sec'],12.)
+            self.assertLessEqual(path['nominal_speed_mps'],.35)
+            for i in range(101):
+                end=path['points'][1];t=i/100
+                self.assertTrue(bounds[0]<=math.hypot(radius+t*(end['x']-radius),t*end['y'])<bounds[1])
+
     def test_ai_person_retained_without_invented_waypoint_motion(self):
         config=gen.geo.load_json(gen.CONFIG);ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
         row=gen.specs(config)[81]
