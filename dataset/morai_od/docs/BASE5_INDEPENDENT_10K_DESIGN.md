@@ -234,9 +234,129 @@ Fire/speedbump/manhole은현재학습scope제외. 배경scene에 미라벨동물
 
 ## 10. 다음 구현 순서
 
+### 확정 사항과 후속 세분화 — 2026-10-05
+
+- **Ego 정지, 독립 배치 1 scene = 1 frame**를 기본으로 유지한다.
+  이동하며3장 방식은 근접 충돌과 후속frame 통제/audit 비용 때문에 주 수집으로 채택하지 않는다.
+- 실패·미검증 자산 quota는 **보류**한다. 다른 family로 자동 대체하지 않는다.
+  같은 family의 검증된 대체종을 사용하면 제외된 종류와 coverage 차이를 기록한다.
+- 유모차125 등 희귀 family 수량은 초기 제안값이지 검증된 최적값이 아니다.
+  주 대상 scene quota이며 단독 장면 수/전체 등장 상한/GT box 수가 아니다.
+  복합 자산의3개 component도 frame은1장으로 센다. 지원 동작·매핑 검증 후 세부 배분을 재검토한다.
+- 동적 객체의 실제 이동·animation 중 동기 캡처 가능성은 에이전트 smoke 대상이다.
+  실패하면 정지외관으로 대체하지 않고 보고한다. 본10K는 smoke 결과 보고 후 별도 승인한다.
+
+거리 세분화는 아래 초기안을 사용한다. 기존 상위 quota와 모순되지 않도록 하며,
+최종 Ego 기준 geometric center XY거리와 차체-객체 surface clearance를 별도 관리한다.
+
+| Family | 거리 bin / 해당 family 내 목표 비율 |
+|---|---|
+| 고주로 차량 | 0–10m10%, 10–30m25%, 30–45m20%, 45–60m15%, 60–80m15%, 80–100m15% |
+| 로터리 차량 | 0–5m10%, 5–10m15%, 10–20m40%, 20–30m25%, 30–40m10% |
+| 보행자·동적/복합 관련 | 0–5m25%, 5–10m20%, 10–15m20%, 15–30m25%, 30–50m10% |
+| 전방 장애물 | 0–10m40%, 10–30m35%, 30–60m20%, 60–100m5% |
+| 좌·우 장애물 각각 | 0–5m50%, 5–15m35%, 15–30m15% |
+| 후방 장애물 | 0–10m60%, 10–30m35%, 30–60m5% |
+
+측방 초근접은 surface clearance0.3–0.7 /0.7–1.2 /1.2–2.0m 구간을 별도 보호한다.
+비중은 비충돌/가시성 smoke 이후 정한다. 중심0.5m 배치와 혼동하지 않는다.
+각 bin 안은 균형 하위 deck과 작은 위치 jitter로 분산하며 몇 개 고정 거리만 반복하지 않는다.
+도로 공간 구간 quota → arc-distance 위치 bin 순회 → bin 내부 jitter → Ego offset/yaw →
+객체 배치 → 최종 bin 감사 순서다. 위치 bin 길이는 구간별로 smoke 후 정한다.
+기존50m cell은 split용으로 위치 sampling bin과 다르다.
+로터리에서는 Ego의 접근/진입/순환/이탈 경로를 촘촘하게 coverage하고 NPC는 자신의
+로터리 경로 위에 정지 배치한다. 역할·차량 간격은 변화시키며 동일간격만 반복하지 않는다.
+
+### 회피 자세 reference 및 동적 미션 판단 확인
+
+회피 경로를 그림으로 입력에 넣거나 planner를 주 수집에 계속 돌리는 것이 아니다.
+개발용 회피 bag에서 Ego 위치/yaw/횡 offset/표면 간격을 추출해 해당 순간을 정지 배치로
+재현한다. 회피 진입 → 비스듬한 회피중 → 측방 나란히 통과 → 후측방 복귀를 포함한다.
+참고 source는 `rosbags/eval/perception/static_obstacle_tracking/`의 팀장님 planviz 및
+full-stack 차량/barrier bag이다. 성공/실패를 분리하고 heading/좌표계 계약을 확인한다.
+evaluation_locked bag의 정확한 배치를 학습으로 복제하지 않는다. 현재 존재확인까지 했으며
+yaw/clearance 통계 추출은 아직 하지 않았다.
+
+현재 기본 planning source launch는 Crosswalk, RunOut, DynamicObstacleStop,
+RoadUserStop 등을 활성화한다. 단순히 객체가 보이면 항상 정지하는 로직이 아니다.
+횡단보도는 YIELD/EGO_PASS_FIRST/EGO_PASS_LATER를 판단하고 YIELD의 collision에 정지점을
+생성한다. RunOut도 Ego의 시간 여유가 충분한 선통과 분기가 있으며 기본 통합 설정의
+정지 해제 buffer는2초다. 차량 동적정지와 VRU 대응은 class와 예상경로에 따라 다르다.
+이는 source/기본설정 확인이지 현재 runtime 동작이나 특정 bag의 결정 재현 결과가 아니다.
+
+근거: `base_ws/src/planning_addons/ajounice_planning_integration/launch/planning.launch`,
+`planning_ws/src/autoware_launch/config/ros1/planning/motion_velocity_modules.yaml`,
+`planning_ws/src/autoware_behavior_velocity_crosswalk_module/src/experimental/scene_crosswalk.cpp`.
+
+따라서 동적 미션은 아래 **네 관측 상태 모두** 포함한다:
+1. 접근 중 최초 발견.
+2. 객체의 진로 진입/횡단 중.
+3. Ego가 양보하며 기다리는 위치에서의 관측.
+4. 객체 이탈 또는 Ego가 먼저 통과 가능한 상대 위치.
+
+UNKNOWN 동물/유모차의 속도0 정책이 실제 동적 대응을 보장하지 않는다.
+팀원 pedestrian crossing bag은 수동주행이므로 최신 planner 정책의 증거로 해석하지 않는다.
+**planning_validator는 사용자가 별도로 실행한다.** 에이전트가 이번 문서 수정에서
+validator/full-stack/controller 또는 시나리오를 실행하지 않는다. 후속 제공 bag에서
+접근·양보·통과 상태를 확인해 배치 설계를 보완할 수 있다.
+진단 실행 시 Ego는 미션 가까운 접근점, 초기 정지, 입력/제어 준비 후 객체 활성화를
+권장한다. activation 제어 불가 시 시작위치/지연을 조절해 도착 전 객체가 지나가지 않게 한다.
+
+현재 수집 연결의 read-only 관측에서는 Ego/Object 약52Hz, GPS약30Hz, IMU약50Hz였다.
+Competition 입력과 localization/TF 출력은 없었고 LiDAR는 짧은 관측에서0건이었다.
+ctrl_cmd의 rosbridge subscriber만 확인했으며 실제 제어응답은 미검증이다.
+기본 localization은Competition입력이 필요하므로 수집 연결 그대로 풀스택 준비 완료라고
+주장하지 않는다. 프로필/측위 구성을 확인해야 하며 임의로 기존 연결을 변경하지 않는다.
+
+### 원거리 UNKNOWN과 confidence threshold
+
+전방장애물60–100m5%는 planning 기반 최적값이 아니라 초기 coverage값이다.
+전체장애물3,000의5%가 아닌 전방1,200의5%=60장이다. 큰장애물·정적차량의
+조기발견은 가능성이 있지만 안정위치/폭/ID와 false positive를 함께 확인해야 한다.
+정적회피는UNKNOWN대상 및 전방검토거리min50/max150m설정이 있으나 모든객체를
+그거리에서즉시회피한다는뜻은아니다. Production ROI가현재±30m라는 한계도 별개다.
+새모델학습후 현threshold0.40/0.15/0.10으로기준평가하고 저장검출에서threshold를
+별도sweep한다. 최초안정전달거리/오검출/ID·box안정성/회피결과로선택하며
+학습과동시에threshold를자동으로높이거나 현재production을변경하지않는다.
+
+### GT point/visibility 정책 검증 — 2026-10-05 추가 합의
+
+최종 GT 필터는 아직 확정하지 않는다. 현재 Base3 converter의 최소5점은 자체 정책이고,
+원본 MIT BEVFusion nuScenes train은 valid_flag를 사용한다. 원본 converter의 flag는
+`num_lidar_pts + num_radar_pts > 0`이며 카메라 가시성만으로0점 GT를 구제하지 않는다.
+Radar가 없는 우리 환경에서 해당 관행은 최소1점 기준과 대응하지만 그대로 최선이라고
+단정하지 않는다. BEV camera feature가 존재하는 것과 camera-only 3D detection 성능은 별개다.
+
+출처: [원본 train 설정](https://github.com/mit-han-lab/bevfusion/blob/main/configs/nuscenes/default.yaml),
+[원본 annotation 변환](https://github.com/mit-han-lab/bevfusion/blob/main/tools/data_converter/nuscenes_converter.py).
+
+1. Raw annotation과 입력은 변경하지 않고 GT를 >=5점 /1–4점 /0점으로 나눈다.
+   최종 모델 입력으로 crop한 cloud 기준 point count와 raw count를 함께 기록한다.
+   Box tolerance·좌표계·component 정합을 먼저 확인해0점이 annotation 오류인지 구분한다.
+2. 각 그룹에서 camera Instance 가시픽셀, 영상 크기, 가림, class, 거리/방향을 감사한다.
+   Camera-only0점 후보는 단순투영 box만으로 승인하지 않는다. 픽셀 임계값은 대표장면
+   수동확인 후 고정하며 보이지 않는 객체까지 포함하는 정책을 시험하지 않는다.
+3. 동일 scene split·센서입력·초기가중치·optimizer·학습budget으로 소량 A/B/C를 실시한다:
+   A=기존>=5점, B=>=1점, C=B+검증된camera-visible0점.
+   각각의 rejected/ignored GT 처리 방식도 기록한다. 현재 converter의 drop이 loss ignore를
+   구현한다는 뜻은 아니다. 부분적인 ignore 미지원이면 필요한mask를 검증하거나 scene을
+   보류하고, 관측객체를무조건background로바꾼결과를깨끗한ignore실험이라고부르지않는다.
+4. 평가는 세정책에서 **동일한 고정 GT 계약**을 사용한다. sparse GT를 지워서 지표를
+   올리지 않는다. mission rosbag에서 거리·방위별 AP/recall, false positives,
+   first detection/planning 전달거리, 근접tracking ID/box 안정성을 함께 비교한다.
+   sparse/camera-only 독립annotation reference가 없는 rosbag 구간은 평가가능범위와
+   누락을 명시하고 별도 capture held-out 결과를 보완한다.
+5. 정책은 class/range subgroup 성능과 정상객체회귀를 확인한 뒤 확정한다. 필요하면
+   class/visibility별기준을사용하되 dev bag에맞춘임계값남발은피한다. 소량A/B 결과로
+   production자동교체하지않고 CURRENT문서와converter설정에채택근거를함께갱신한다.
+
+본수집원본에는세그룹정보를보존하므로 필터변경만을위해전체재수집하지않는다.
+최종대량학습승인전GT정책검증을완료한다. 이번추가는계획이며학습/A/B는실행하지않았다.
+
 policy v2 exact deck →component-preserving converter/class매핑 →동작지원probe →
 Ego pose/footprint·final Ego bin audit →48scene smoke →range/visibility gate →
-학습ROI/dataloader GPU smoke →accepted quota resume runner →본10K수집.
+학습ROI/dataloader GPU smoke →GT point/visibility 소량 A/B/C →
+accepted quota resume runner →본10K수집.
 
 이번commit은설계문서만추가한다. 기존v1실행config는과거pilot재현용으로유지하며
 위설계로수집할때는새versionedconfig를명시적으로만든다. 대량생성/로드/학습은하지않았다.
