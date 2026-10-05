@@ -119,6 +119,12 @@ def audit_capture(root, metadata):
     # Raw is retained even when primary is invisible. Such frames are NOT silently accepted as empty.
     supported = background or any(r['positive_lidar1_camera0'] for r in primary)
     reasons=[]
+    if metadata.get('avoidance_observation'):
+        # A planned positive OBB gap does not certify paved ground or a physical collider.
+        # Keep these new layouts in review until an independently recorded live check exists.
+        check=metadata.get('avoidance_live_review',{})
+        if not (check.get('ground_support_verified') and check.get('no_collision_verified') and check.get('evidence_path')):
+            reasons.append('avoidance_ground_collider_review_required')
     if missing: reasons.append('missing_actor_annotation')
     if not supported: reasons.append('primary_no_sensor_evidence')
     if not background and primary:

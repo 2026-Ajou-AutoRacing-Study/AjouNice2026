@@ -34,7 +34,7 @@
 
 고주로는 합류600 / 본선1,500 / 병목 이후600 / 출구300이며 primary 전방1,500 /
 후방1,500이다. NPC는 실제 MGeo 경로 위치·yaw를 사용한다. 임의 NPC 횡 offset은 없다.
-Ego yaw는 도로 대비 절대0–3° 60%, 3–10° 30%, 10–15° 10%, 부호는 랜덤이다.
+회피 관측 패밀리 외 Ego yaw는 도로 대비 절대0–3° 60%, 3–10° 30%, 10–15° 10%, 부호는 랜덤이다.
 Ego 횡 offset은 0/±0.15/±0.30 m이며 좁은 구간은 ±0.15 m와 lane-envelope 검사로 제한한다.
 
 ### 고주로 범용 / 미션 NPC 배치 경계
@@ -51,7 +51,7 @@ Ego 횡 offset은 0/±0.15/±0.30 m이며 좁은 구간은 ±0.15 m와 lane-enve
   `A2256W000432:246`이다. UID6은 420→179→1105 출구 경로를 사용한다.
   이는 샘플의 **설정상 종료점**이며 실제 despawn timing이나 콘 위치를 새 live 실험으로
   확정했다는 뜻은 아니다. 본선 차종·속도가 샘플과 동일하다고 가정하지 않는다.
-- 최신 생성 후보는 `scenarios_10k_v12/`이다. 이전 v10은 비교 증거로 보존한다.
+- 최신 생성 후보는 `scenarios_10k_v15/`이다. 이전 v12는 고주로 경계 수정 증거로 보존한다.
   NPC 경로/종료점과 sample hash는 metadata/manifest에 남기고 실제 scenario position도 감사한다.
 
 ### 거리 — geometric center의 Ego-frame XY 거리
@@ -68,11 +68,50 @@ Ego 횡 offset은 0/±0.15/±0.30 m이며 좁은 구간은 ±0.15 m와 lane-enve
 | 장애물 측방 | 2–5:50%, 5–15:35%, 15–30:15% |
 | 장애물 후방 | 3–10:60%, 10–30:35%, 30–60:5% |
 
-장애물 방향은 전방40% / 좌20% / 우20% / 후20%다. 중심 거리와 표면 간격을
-혼동하지 않는다. 초근접 측방은 추정 표면 clearance 0.3 m 이상으로 배치한다.
+위 거리 deck과 장애물 전방40% / 좌20% / 우20% / 후20%는 **범용 배치 규칙**이다.
+회피 미션1,300장은 아래 phase/표면 간격 규칙으로 대체한다. 기존 전역 방향·거리 quota가
+그대로 유지됐다고 주장하지 않는다. 범용은 추정 clearance0.3 m 이상을 유지하고
+회피 나란히 통과는0.10–0.50 m 후보를 별도로 생성한다. 중심 거리와 표면 간격을 혼동하지 않는다.
 현재 ±30 m lateral ROI에서 측방30–50/60 m는 불가능하므로 위처럼 수정했다.
 고주로 근접 대형차는 비충돌 가능한 실제 인접 차선/위치를 찾으며 불가능한 cell은
 다른 방향으로 몰래 바꾸지 않는다. 512회 재시도 후 실패하면 생성 자체를 중단한다.
+
+### 정적 차량·장애물 회피 관측 — v15
+
+대상은 미션 `obstacle`1,200장 + 미션 `other_vehicle`100장이다. 고주로 주행 NPC와
+범용은 이 가상 회피 경로를 적용하지 않는다. 1 scene/1 stationary capture 계약을 유지한다.
+
+| 관측 단계 | 장애물 | 정적 OBJ 차량 | 배치 |
+|---|---:|---:|---|
+| 접근 | 240 | 20 | 객체보다8–60m+두 박스 반길이 합 만큼 앞선 관측 위치 |
+| 회피 진입 | 240 | 20 | 객체 앞에서 smoothstep 횡 이동 구간의 접선 yaw |
+| 나란히 초근접 통과 | 480 | 40 | 객체가 Ego rear-axle frame의 좌·우에 있도록 배치, oriented footprint 간격 역산 |
+| 통과 직후 | 240 | 20 | 객체를 지나 원래 방향으로 복귀하는 접선 yaw |
+
+각 단계 안에서 **Ego 좌회피/우회피50:50**다. Ego가 좌로 피하면 객체는 오른쪽에 있으므로
+`avoidance_side`와 `actual_ego_role`은 반대다. 차량 reference는 후륜축이고 Ego BBox 중심은
+1.35m 앞에 있다는 기존 footprint proxy를 유지한다. 긴 트럭에서도 실제 측방 quota를 감사한다.
+나란히520장 gap bin은0.10–0.20m25% /0.20–0.30m35% /0.30–0.50m40%다.
+JSON mm/0.001° 반올림을 고려해 bin 끝에서3mm 여유를 둔다. 각 장면은 임의 center 거리 대신
+원하는 **회전 BBox 표면 간격**을32회 이분 탐색해 맞춘다. 나머지 단계/보조 객체는0.3m 검사 유지.
+
+객체를 먼저 기준 도로에 놓고 Ego를 그 주변의 회피 관측 위치에 놓는다. 장애물 yaw는
+도로 기준0/±90°+±8° 후보, 정적 OBJ 차량은 도로 방향이다. Ego yaw/횡 이동은 별도 회피
+관측 계산을 따르므로 기존±0.30m lane-envelope를 적용했다고 해석하지 않는다.
+이 계산은 연속 제어기의 실행 가능한 경로가 아니라 **독립 관측 자세**다. 곡선·좁은 도로에서
+Ego의 포장면/지면 지지가 보장되지 않으므로 다음 live gate가 필수다.
+
+근거는 [기존 실제 회피 bag 분석](../../../docs/bevfusion/260924_STATIC_OBSTACLE_TRACKING_DIAGNOSIS.md)의
+Sonata manual02와 Barricade pos04 manual01이다. Barricade의 최저 geometric 간격은0.293m였고,
+Sonata는 물리 충돌 없이 annotation OBB의 작은 overlap도 있었다. **이번에 bag 궤적을 그대로
+추출·재현한 것은 아니며**, 해당 근거로 설계한 analytical 후보다. BBox overlap 후보는 생성하지 않는다.
+
+`avoidance_observation`에 요청/실제 gap, phase/side/yaw/offset 및 미검증 지면·collider 상태를 남긴다.
+동기 캡처 audit는 `avoidance_live_review`의 지면/무충돌 확인과 evidence 경로가 없으면
+`avoidance_ground_collider_review_required`로 review 처리한다. 현재 actual annotation0.15m gate도
+유지하므로10–15cm 후보는 추가 검토 대상이다. Captured raw GT를 임의로 줄여 통과시키지 않는다.
+통신 연결 성공·파일 저장 성공만으로 이 gate를 승인하지 않는다. 범용의 도로 밖 XY 배치에 대한
+실제 지면 검사도 아직 미구현이며 본 수집 전 남은 공통 과제다.
 
 ## GT·class 정책: raw 보존, positive 후보 비교
 
@@ -115,7 +154,13 @@ Peak allocated3.723 GiB / reserved4.715 GiB였다. 34.684초는 모델 초기화
 
 | 증거 | 결과 |
 |---|---|
-| `scenarios_10k_v12/manifest.json`, `offline_audit.json` | 최신 후보10,000 unique payload, errors0. 미션 고주로1,200장/차량1,568개 sample 경계 검사 통과 |
+| `scenarios_10k_v15/manifest.json`, `offline_audit.json` | 최신 후보10K offline PASS. 회피1,300장 phase/side/gap quota 및 고주로 sample 경계 검사 통과 |
+| `scenarios_10k_v15/v12_payload_comparison.json` | 회피 미션 외8,700장 scenario SHA256 v12와 동일. 범용 및 고주로 미션 유지 |
+| `avoidance_pilot_v15/geometry_audit.json` | 8/8 raw 캡처,6/8 primary annotation. actual 표면 gap: Barricade02 0.325m, Grandeur 0.126m. 모든8장 review 유지 |
+| `avoidance_gap_probe_capture_v15/geometry_audit.json` | 누락2장의 Ego만1m 외측 이동한 대조군,2/2 primary 복구. 학습용 아님 |
+| `avoidance_gap03_capture_v15/geometry_audit.json` | 같은2장의 Ego만0.3m 외측 이동,2/2 primary 복구. actual gap concrete-barrier0.340m, HD65 0.259m |
+| 회피 구현 단위 검증 | 8 tests PASS, 회전 barrier/대형 vehicle/좌우 footprint 역산 및 exact phase quota 포함 |
+| `scenarios_10k_v12/manifest.json`, `offline_audit.json` | 과거 후보10,000 unique payload, errors0. 미션 고주로1,200장/차량1,568개 sample 경계 검사 통과 |
 | `scenarios_10k_v12/v10_payload_comparison.json` | 범용 고주로1,800장 및 다른 장면7,000장, 총8,800개 scenario SHA256 v10과 동일 |
 | v12 생성 resample / 단위 검증 | 평균0.6823회, 최대76회; Base5 independent tests7개 통과. 잘린 경로의 원본 pointIdx/initLinkRatio 유지 검사 포함 |
 | `scenarios_10k_v10/manifest.json`, `offline_audit.json` | dummy 정지 수정 후10,000 unique payload, quota/거리/추정 footprint 검사 errors0 |
@@ -137,10 +182,21 @@ Network 재로드 직후 service duplicate overwrite 로그도 확인했다.5초
 재광고 안정화 대기 및 idempotent mode/gear 요청1회 재시도로 연결 문제를 완화했다.
 검증 응답을 생략하지 않으며 최종 통신 실패는 중단한다. MR 재시작은 하지 않았다.
 
-v12 전체는 **OFFLINE_PASS이지 전수 LIVE_PASS가 아니다.** v11은 링크 비율 수정 전 중간 산출물이므로 캡처 후보로 쓰지 않는다. 43개 asset은 아직 캡처 기반 geometry
+v15 전체는 **OFFLINE_PASS이지 전수 LIVE_PASS가 아니다.** v11/v13/v14는 수정 전/검증 실패 중간 산출물이므로 캡처 후보로 쓰지 않는다. 43개 asset은 아직 캡처 기반 geometry
 reference가 없어 보수적 크기를 사용한다. 지면/애니메이션/실제 mesh·collider, 근접 partial-view,
 원거리 가시성은 이 검사로 인증하지 못한다. 인접 link 사이 시야 중복도 가능하므로
 현재 train/val split을 최종 generalization test로 주장하지 않는다.
+
+회피 소량 live 판정: `concrete-barrier`와 `OBJ_Hyundai_HD65`의 첫 초근접 scene은
+상태 토픽과 annotation에 객체가 없었고 Player.log에 `cannot be placed here`가 있었다.
+객체 위치/yaw/asset을 유지하고 Ego만 외측 이동하니 두 경우 모두 복구됐다.
+따라서 이번 누락은 단순 센서 사각이나 항상 실패하는 asset이라는 결론이 아니라
+**근접 배치에 따른 MORAI 로드 거부**로 판별한다. 구체적인 내부 collider 규칙은 미확정이다.
+특히 HD65 fallback 추정 size5×2×1.8m와 actual annotation6.557×2.517×2.457m가 달라
+계획한 간격을 실제 간격으로 간주하면 안 된다. 임의 자산 제거나 GT 크기 축소로 해결하지 않는다.
+범용 최소0.3m도 actual collider 안전 인증이 아니며, unknown geometry의 calibration이 필요하다.
+총12장 raw 저장을 성공했지만 지면/CollisionData 증거가 없어 **accepted 학습 후보는0**이다.
+이 단계는 초근접 캡처 가능성/배치 실패 원인 확인이지 OD 개선·회피 성공률 검증이 아니다.
 
 ## 다음 순서
 

@@ -364,3 +364,12 @@ accepted quota resume runner →본10K수집.
 
 이번commit은설계문서만추가한다. 기존v1실행config는과거pilot재현용으로유지하며
 위설계로수집할때는새versionedconfig를명시적으로만든다. 대량생성/로드/학습은하지않았다.
+
+## 2026-10-06 회피 관측 구현 보충
+
+초기 설계의 회피 stage/최소0.3m 정책은 [BASE5_V2_CURRENT.md](BASE5_V2_CURRENT.md)의
+v15 구현으로 갱신한다. 미션 장애물1,200/정적 OBJ 차량100장을 접근20%·진입20%·
+나란히40%·통과직후20%, 각 stage 좌우50:50로 구성한다. 나란히는 oriented BBox 표면
+간격0.10–0.50m 비교 후보다. 범용은 그대로 유지한다. 실제 bag의 관측을 설계 근거로
+사용했지만 bag 궤적 재현이나 물리 안전 경로 인증을 완료했다는 뜻이 아니다.
+지면/collider live 증거가 없으면 캡처 audit가 review로 남기므로 본 학습 자동 포함 금지다.

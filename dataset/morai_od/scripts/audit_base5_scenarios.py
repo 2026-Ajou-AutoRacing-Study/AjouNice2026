@@ -13,7 +13,7 @@ def audit(manifest_path):
     groups=Counter();assets=Counter();roles=Counter();splits=Counter();retries=[];unknown=Counter();hashes=set();errors=[]
     links={r['idx']:r for r in gen.geo.load_json(gen.geo.DEFAULT_MGEO/'link_set.json')}
     corridors={c['spawn_uid']:c for c in gen.sample_highway_corridors(links)}
-    bounded_vehicles=0
+    bounded_vehicles=0;avoidance_phases=Counter();avoidance_gaps=[];avoidance_bins=Counter()
     for entry in m['scenes']:
         s=json.loads(Path(entry['scenario']).read_text());meta=json.loads(Path(entry['metadata']).read_text());r=meta['spec']
         digest=gen.geo.sha256(Path(entry['scenario']))
@@ -26,12 +26,21 @@ def audit(manifest_path):
         if s['spawnPointList'] or s['pedspawnPointList']:errors.append((entry['id'],'traffic spawn'))
         if len(meta['runtime_actors'])!=r['actors']:errors.append((entry['id'],'actor count'))
         footprints=[];ea=gen.math.radians(meta['ego']['yaw']);e=meta['ego']
+        avoidance=meta.get('avoidance_observation')
+        if r.get('avoidance_phase'):
+            if not avoidance:errors.append((entry['id'],'missing avoidance observation'))
+            else:
+                avoidance_phases[str((r['family'],avoidance['phase'],avoidance['side']))]+=1
+                if avoidance['phase']=='alongside':
+                    avoidance_gaps.append(avoidance['actual_surface_gap_m'])
+                    avoidance_bins[str((r['family'],r['avoidance_gap_bounds_m']))]+=1
         ego_poly=gen.rectangle([e['x']+1.35*gen.math.cos(ea),e['y']+1.35*gen.math.sin(ea)],[4.8,2.],e['yaw'])
         for i,a in enumerate(meta['runtime_actors']):
             assets[a['name']]+=1;roles[str((r['family'],a['actual_ego_role']))]+=1
             if not a['geometry_reference_known']:unknown[a['name']]+=1
             if a['planned_center_distance_m']>100 or abs(a['lateral_m'])>29.5: errors.append((entry['id'],'ROI'))
-            if a['planned_surface_clearance_m']<.3:errors.append((entry['id'],'ego collision'))
+            minimum=.10 if i==0 and avoidance and avoidance['phase']=='alongside' else .3
+            if a['planned_surface_clearance_m']<minimum-1e-6:errors.append((entry['id'],'ego collision'))
             # Actual generated rot is authoritative, not an independent random estimate.
             actor=next(t for k in ('vehicleList','objectList','pedestrianList','aiPedstrianList') for t in s.get(k,[]) if t['UNIQUEID']==a['unique_id'])
             bounded=r['family']=='highway' and r['mission'] and a['source_list']=='vehicleList'
@@ -53,7 +62,14 @@ def audit(manifest_path):
             elif placement: errors.append((entry['id'],'unexpected generic NPC restriction'))
             yaw=float(actor['initPosition']['rot']['yaw']) if 'initPosition' in actor else float(actor['rot']['yaw'])
             poly=gen.rectangle(a['geometric_center_estimate'],a['estimated_size'],yaw)
-            if ego_poly.distance(poly)<.299:errors.append((entry['id'],'recomputed ego footprint'))
+            computed_gap=ego_poly.distance(poly)
+            if computed_gap<minimum-1e-6:errors.append((entry['id'],'recomputed ego footprint'))
+            if i==0 and avoidance and avoidance['phase']=='alongside':
+                lo,hi=r['avoidance_gap_bounds_m']
+                if not lo-1e-6<=computed_gap<=hi+1e-6:errors.append((entry['id'],'avoidance gap quota'))
+                if abs(computed_gap-avoidance['requested_surface_gap_m'])>.001:
+                    errors.append((entry['id'],'avoidance solved gap'))
+                if a['actual_ego_role']!=r['role']:errors.append((entry['id'],'avoidance actual side'))
             if any(poly.distance(p)<.199 for p in footprints):errors.append((entry['id'],'actor overlap'))
             footprints.append(poly)
             if i==0:
@@ -63,9 +79,24 @@ def audit(manifest_path):
     if m['count']==m['config']['target_scenes']:
         if dict(families)!=m['config']['families']:errors.append(('all','family quota'))
         if dict(missions)!=m['config']['mission_counts']:errors.append(('all','mission quota'))
+        plan=m['config'].get('mission_avoidance')
+        if plan:
+            for family in ('obstacle','other_vehicle'):
+                total=m['config']['mission_counts'][family]
+                for phase,weight in plan['phases'].items():
+                    for side in ('left','right'):
+                        if avoidance_phases[str((family,phase,side))]!=total*weight//200:
+                            errors.append(('all','avoidance phase/side quota'))
+                alongside=total*plan['phases']['alongside']//100
+                for lo,hi,weight in plan['alongside_gap_bins_m']:
+                    if avoidance_bins[str((family,[lo,hi]))]!=alongside*weight//100:
+                        errors.append(('all','avoidance gap-bin quota'))
     return dict(status='OFFLINE_PASS' if not errors else 'OFFLINE_FAIL',live_validation=False,
         scenes=len(m['scenes']),unique_payloads=len(hashes),families=dict(families),mission_counts=dict(missions),
         sample_bounded_highway_vehicle_count=bounded_vehicles,
+        avoidance_phase_side_counts=dict(avoidance_phases),
+        avoidance_gap_bin_counts=dict(avoidance_bins),
+        alongside_gap_min_max_m=[min(avoidance_gaps),max(avoidance_gaps)] if avoidance_gaps else [],
         distance_direction_bins=dict(bins),asset_groups=dict(groups),asset_counts=dict(assets),splits=dict(splits),
         actual_actor_directions=dict(roles),geometry_without_capture_reference=dict(unknown),
         mean_resamples=sum(retries)/max(1,len(retries)),max_resamples=max(retries,default=0),errors=errors,

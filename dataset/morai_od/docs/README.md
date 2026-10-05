@@ -5,6 +5,8 @@
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
 - [독립 Base5 v2 최신 구현·검증·다음 실행](BASE5_V2_CURRENT.md): 10K 시나리오 전수 offline PASS, 100m/4-class 후보 GPU loss·역전파 통과. 48장 live는41후보/7검토, dummy 수정 재검증. 본 수집·학습 미실행. 아래 v1/초기 PLAN보다 먼저 읽는다.
+  v15는 미션 차량·장애물 회피 관측1,300장과10–50cm 측방 gap 후보를 추가했다.
+  8장+대조4장 실제 캡처, 약13–34cm actual gap 확보. 지면/collider 증거가 없어 review 유지.
 
 - [SaveSensorData Ego 정지/이동 A/B](261005_savesensordata_ego_motion_ab.md): 정지2장·실제28/49km/h 직진 각2장. 현재 동기 캡처에서 큰 속도 의존 형상 왜곡은 미관측, 정지 배치 유지의 제한적 근거. UDP deskew·Camera blur·고속 회전과 분리한다.
 

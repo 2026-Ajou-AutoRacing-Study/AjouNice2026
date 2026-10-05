@@ -6,12 +6,14 @@ import hashlib
 import json
 import math
 import random
+import sys
 from collections import Counter
 from pathlib import Path
 
 import generate_dynamic_object_capture_set as geo
 import generate_static_classcentric_base3_batch as b3
 import build_base5_mr_asset_catalog as catalog
+import base5_avoidance_geometry as avoidance
 
 CONFIG = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_independent_v2.json'
 GEOMETRY = geo.PROJECT_ROOT/'dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json'
@@ -113,6 +115,26 @@ def specs(config):
             bins=config['distance_decks'][key]
             bins_deck=exact_deck([(i,b[2]) for i,b in enumerate(bins)],len(rows),random.Random(config['seed']+len(rows)+sum(map(ord,family+role))))
             for row,b in zip(rows,bins_deck): row.update(distance_bin=b,distance_bounds=bins[b][:2])
+    if config.get('mission_avoidance'):
+        plan=config['mission_avoidance']
+        for family in ('obstacle','other_vehicle'):
+            rows=[r for r in output if r['family']==family and r['mission']]
+            rng=random.Random(config['seed']+sum(map(ord,family))+73)
+            phases=exact_deck(list(plan['phases'].items()),len(rows),rng)
+            sides=exact_deck([('left',1),('right',1)],len(rows),rng)
+            for row,phase,side in zip(rows,phases,sides):
+                row.update(avoidance_phase=phase,avoidance_side=side,
+                    avoidance_gap_bounds_m=[.3,.5],distance_bounds=[0.,100.],distance_bin='avoidance_geometry',
+                    role=('right' if side=='left' else 'left') if phase=='alongside' else 'front' if phase in ('approach','entry') else 'rear')
+            # Exact side balance inside each phase, not just the family total.
+            for phase in plan['phases']:
+                subset=[r for r in rows if r['avoidance_phase']==phase]
+                for row,side in zip(subset,exact_deck([('left',1),('right',1)],len(subset),rng)):
+                    row['avoidance_side']=side
+                    if phase=='alongside':row['role']='right' if side=='left' else 'left'
+            subset=[r for r in rows if r['avoidance_phase']=='alongside']
+            deck=exact_deck([(b[:2],b[2]) for b in plan['alongside_gap_bins_m']],len(subset),rng)
+            for row,bounds in zip(subset,deck):row['avoidance_gap_bounds_m']=bounds
     return output
 
 def context(runtime, mgeo):
@@ -273,6 +295,11 @@ def build(row,config,ctx,attempt=0):
     envelope=4.8*abs(math.sin(math.radians(yaw_delta)))+2.0*abs(math.cos(math.radians(yaw_delta)))+2*abs(offset)
     if envelope>lane_width: raise ValueError('Ego yaw/offset lane envelope exceeds width proxy')
     ego=dict(base,x=base['x']-math.sin(a)*offset,y=base['y']+math.cos(a)*offset,yaw=base['yaw']+yaw_delta)
+    avoidance_ref=None;primary_pose=None
+    if row.get('avoidance_phase'):
+        ego,primary_pose,avoidance_ref=avoidance.observation(sys.modules[__name__],ctx,route,arc,base,asset,row,rng)
+        yaw_delta=ego['yaw']-base['yaw']
+        offset=avoidance_ref['lateral_center_offset_m']
     scene=copy.deepcopy(ctx['template']); geo.clear_actor_lists(scene)
     geo.set_ego_pose(scene['egoVehicle'],ego,initial_speed_kph=0.)
     geo.zero_vector(scene['egoVehicle']['initPosition'].get('vehicleSaveData',{}).get('vehicle',{}).get('lastVelocity'))
@@ -293,7 +320,9 @@ def build(row,config,ctx,attempt=0):
         if i: lower,upper=6.,45.
         distance=rng.uniform(lower+.05,upper-.05)
         role=row['role'] if not i else rng.choice(['front','left','right','rear'])
-        if asset['source_list']=='vehicleList':
+        if i==0 and primary_pose is not None:
+            pose=primary_pose
+        elif asset['source_list']=='vehicleList':
             direction=1 if role in ('front','left') else -1
             if row['family']=='highway' and row['mission']:
                 candidates=mission_vehicle_candidates(ctx,ego,lower,upper,direction)
@@ -350,7 +379,8 @@ def build(row,config,ctx,attempt=0):
         pa=math.radians(pose['yaw']); center=[pose['x']+math.cos(pa)*off[0]-math.sin(pa)*off[1],pose['y']+math.sin(pa)*off[0]+math.cos(pa)*off[1]]
         box=rectangle(center,size,pose['yaw'])
         gap=footprint.distance(box)
-        if gap<.3 or any(box.distance(other)<.20 for other in footprints): raise ValueError('Footprint clearance failure')
+        minimum_gap=.10 if i==0 and avoidance_ref and row['avoidance_phase']=='alongside' else .3
+        if gap<minimum_gap-1e-6 or any(box.distance(other)<.20 for other in footprints): raise ValueError('Footprint clearance failure')
         if actor_motion not in ('static','standing'):
             end_center=[center[0]+8*math.cos(pa),center[1]+8*math.sin(pa)]
             swept=box.union(rectangle(end_center,size,pose['yaw'])).convex_hull
@@ -363,7 +393,7 @@ def build(row,config,ctx,attempt=0):
         lon=math.cos(ea)*(center[0]-ego['x'])+math.sin(ea)*(center[1]-ego['y'])
         lat=-math.sin(ea)*(center[0]-ego['x'])+math.cos(ea)*(center[1]-ego['y'])
         actual_role=('front' if lon>=0 else 'rear') if abs(lon)>=abs(lat) else ('left' if lat>=0 else 'right')
-        if not i and row['family'] in ('obstacle','pedestrian_related') and actual_role!=row['role']:
+        if not i and not avoidance_ref and row['family'] in ('obstacle','pedestrian_related') and actual_role!=row['role']:
             raise ValueError('Actual Ego-relative direction differs from quota')
         if not i and row['family']=='highway' and ((lon<0)!=(row['role']=='rear')):
             raise ValueError('Highway longitudinal sign differs from quota')
@@ -385,6 +415,9 @@ def build(row,config,ctx,attempt=0):
         split=split,split_group=group,split_limit='whole link; adjacent links can share 100m views; held-out mission bag required',
         ego_road_yaw_offset_deg=yaw_delta,ego_lateral_offset_m=offset,
         planned_primary_distance_m=desired,retry=attempt,live_validated=False)
+    if avoidance_ref:
+        avoidance_ref['actual_surface_gap_m']=actor_records[0]['planned_surface_clearance_m']
+        meta['avoidance_observation']=avoidance_ref
     return scene,meta
 
 def generate(config,output,start,count,runtime=geo.DEFAULT_RUNTIME_ASSET_DIR,mgeo=geo.DEFAULT_MGEO):
@@ -415,6 +448,7 @@ def generate(config,output,start,count,runtime=geo.DEFAULT_RUNTIME_ASSET_DIR,mge
         status='OFFLINE_GENERATED; per-scene live validation pending',scenes=entries,
         provenance=dict(config_sha256=hashlib.sha256(json.dumps(config,sort_keys=True).encode()).hexdigest(),
             generator_sha256=code_sha256,
+            avoidance_geometry_sha256=geo.sha256(Path(avoidance.__file__)),
             highway_sample_sha256=geo.sha256(HIGHWAY_SAMPLE),
             geometry_sha256=geo.sha256(GEOMETRY),catalog_sha256=geo.sha256(catalog.DEFAULT_CATALOG),
             geometry_references=ctx['geometry_sources'],

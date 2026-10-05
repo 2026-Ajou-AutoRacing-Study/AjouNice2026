@@ -22,16 +22,28 @@ ROS와 무관한 read-only 서버다. 현재는 complete/48장이며41후보/7�
 결과를 표시한다. 수정 후 개별 재시험은 CURRENT의 별도 경로를 따른다.
 ETA는 캡처 표본 전에는 의미가 없다. 오래된 capture1 status는 사용하지 않는다.
 
-**본 수집 전 필요한 수정·연결 확인 후** 새 v10 대표48장 pilot만 실행하는 예시:
+**본 수집 전 필요한 수정·연결 확인 후** v15 회피 대표8장 pilot만 실행하는 예시:
 
 ```bash
 ajou
 ROOT="$HOME/morai_cap/base5_v2_261006"
-INDICES="$(python3 -c 'import json,os; p=os.path.expanduser("~/morai_cap/base5_v2_261006/pilot_selection_v10.json"); print(",".join(map(str,json.load(open(p))["indices"])))')"
+python3 dataset/morai_od/scripts/select_base5_avoidance_pilot.py \
+  --manifest "$ROOT/scenarios_10k_v15/manifest.json" \
+  --output "$ROOT/avoidance_selection_new.json"
+INDICES="$(python3 -c 'import json,os; p=os.path.expanduser("~/morai_cap/base5_v2_261006/avoidance_selection_new.json"); print(",".join(map(str,json.load(open(p))["indices"])))')"
 python3 dataset/morai_od/scripts/run_base5_capture.py \
-  --manifest "$ROOT/scenarios_10k_v10/manifest.json" \
-  --output "$ROOT/capture_pilot_v10" --indices "$INDICES" --limit 48
+  --manifest "$ROOT/scenarios_10k_v15/manifest.json" \
+  --output "$ROOT/avoidance_pilot_new" --indices "$INDICES" --limit 8
+python3 dataset/morai_od/scripts/audit_base5_avoidance_capture.py \
+  --capture-root "$ROOT/avoidance_pilot_new" \
+  --output "$ROOT/avoidance_pilot_new/geometry_audit.json"
 ```
+
+출력 경로는 새 이름을 사용한다. selector는 기존 파일을 덮어쓰지 않는다. 회피 장면은
+지면/collider live evidence가 없으면 review로 남고 학습 변환에 자동 포함되지 않는다.
+`prepare_base5_avoidance_gap_probe.py`는 누락 scene의 객체를 유지한 채 Ego만 외측으로
+이동하는 대조 시험용이며 본 training deck을 바꾸거나 초근접 quota를 자동 완화하지 않는다.
+현재 v15 캡처/대조 결과와 남은 geometry 보정은 CURRENT를 따른다.
 
 MR 경로가 다르면 `--scenario-dir`과 `--sensor-dir`를 지정한다.
 런타임 scene/EgoNetwork는 `zz_b5_<session>_...`로 한 장씩 설치·회수한다.
