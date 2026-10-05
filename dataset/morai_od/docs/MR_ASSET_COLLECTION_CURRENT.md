@@ -2,6 +2,9 @@
 
 상태: CURRENT. 2026-10-05. 향후 수집은 MR만 사용한다.
 
+최신 독립 수집 목표의 quota/자세/동작 정책은 [Base5 독립 10K 설계](BASE5_INDEPENDENT_10K_DESIGN.md)를 따른다.
+이 문서의 asset eligibility와 review 보류는 유지하며 새 설계가 자동 pool 편입을 뜻하지 않는다.
+
 ## 최신 구현 상태 — 2026-10-05 후속
 
 [새 카탈로그 연결 및12-scene MR 검증](261005_base5_mr_asset_review_smoke.md)을 우선한다.

@@ -1,5 +1,15 @@
 # Base5-Static 생성기 — CURRENT PREPARED
 
+## 다음 목표: 독립 Base5 10K (설계와 현재 구현 구분)
+
+최신 수집 목표는 [독립 10K 설계](BASE5_INDEPENDENT_10K_DESIGN.md)다.
+Base3/E25 보강이 아닌 새 단독 학습 corpus를 지향하며 차량4,000 / 장애물3,000 /
+보행자·동적 관련2,500 / 배경500, 범용60% / 미션35% / 배경5%로 설계했다.
+고주로3,000 및 로터리700, Ego yaw/횡 offset, 실제 동작 외관, component GT 및
+전후방100m 수집 gate를 정의했다. Temporal/velocity head는 하지 않는다.
+**아래 v1 코드·config는 이 설계의 구현본이 아니다.** 이전 pilot 재현용으로 유지한다.
+v2 구현·소량 검증·본 수집 승인이 필요하며 이번 문서 작성에서 수집하지 않았다.
+
 2026-10-05. **생성기·새 카탈로그 연결 완료, MR 자산12-scene 동기 smoke 완료. 본 수집 미실행.**
 Production E25, 학습 ROI, tracker 및 localization 계약은 변경하지 않았다.
 

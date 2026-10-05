@@ -4,6 +4,8 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- [독립 Base5 10K 상세 설계 — PLAN](BASE5_INDEPENDENT_10K_DESIGN.md): Base3/E25와 별도 corpus, 범용60/미션35/배경5, 고주로·로터리·회피·동작 외관 세부 quota. 기존 v1 구현과 구분한다.
+
 - [G80 배치·복합객체 GT 후속 확인](261005_g80_and_composite_gt_followup.md): G80 수동actor/다른Ego·위치·배치필드9-case 재로드 및 사람/개/자전거/유모차/아기 component 확인.
 
 - [새 MR 카탈로그 연결·12-scene 실제 검증](261005_base5_mr_asset_review_smoke.md): static Vehicle 연결, G80 지면 실패/보류, 복합 객체 동일UID 다중GT 발견. 본수집 전 남은 gate.
