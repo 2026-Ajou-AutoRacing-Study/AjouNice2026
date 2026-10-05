@@ -45,6 +45,35 @@ def test_pedestrian_velocity_preserves_motion_perpendicular_to_mesh_heading():
     assert result["tracking"]["velocity_l2_error_mps"]["mean"] < 1e-9
 
 
+def test_pedestrian_ros_message_kmh_is_used_without_position_derivative_bias():
+    points = tuple(replace(point(t * 2., 0., 3), timestamp=t,
+        class_name='pedestrian', longitudinal_velocity=3.6)
+        for t in (0., .1, .2, .3))
+    result = evaluate_pipeline((TrajectorySegment('ped', 'pedestrian', 3, 'Man1', points),), (),
+        {0.3: (ObjectEstimate(b'ped', .6, 0., yaw=0., speed=1.),)}, {},
+        pedestrian_velocity_reference='message-preferred',
+        pedestrian_message_unit='kmh', pedestrian_message_frame='body')
+    assert result['tracking']['velocity_l2_error_mps']['mean'] < 1e-9
+    assert result['tracking']['velocity_gt_source_counts'] == {'pedestrian:message': 1}
+
+
+def test_pedestrian_udp_moving_zero_falls_back_to_position():
+    points = tuple(replace(point(t, 0., 3), timestamp=t, class_name='pedestrian')
+        for t in (0., .1, .2, .3))
+    result = evaluate_pipeline((TrajectorySegment('ped', 'pedestrian', 3, 'Man1', points),), (),
+        {0.3: (ObjectEstimate(b'ped', .3, 0., yaw=0., speed=1.),)}, {},
+        pedestrian_velocity_reference='message-preferred',
+        pedestrian_message_unit='mps', pedestrian_message_frame='body')
+    assert result['tracking']['velocity_l2_error_mps']['mean'] < 1e-9
+    assert result['tracking']['velocity_gt_source_counts'] == {'pedestrian:position_fallback_message_unavailable': 1}
+
+
+def test_pedestrian_message_policy_requires_explicit_units():
+    import pytest
+    with pytest.raises(ValueError, match='audited'):
+        evaluate_pipeline((), (), {}, {}, pedestrian_velocity_reference='message-preferred')
+
+
 def test_assignment_uses_global_minimum_and_distance_gate():
     gt = [
         (TrajectorySegment("a", "vehicle", 1, "test", ()), point(0.0, 0.0, 1)),

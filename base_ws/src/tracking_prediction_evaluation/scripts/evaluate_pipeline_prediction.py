@@ -35,6 +35,10 @@ def parse_args():
     parser.add_argument("--object-topic", default="/Object_topic")
     parser.add_argument("--ego-topic", default="/Ego_topic")
     parser.add_argument("--class-name", choices=("vehicle", "pedestrian", "obstacle"), default="vehicle")
+    parser.add_argument("--pedestrian-velocity-reference", choices=("position", "message-preferred"), default="position",
+                        help="Opt-in audited ROS message GT with moving-zero fallback; legacy position remains reproducible")
+    parser.add_argument("--pedestrian-message-unit", choices=("mps", "kmh"))
+    parser.add_argument("--pedestrian-message-frame", choices=("body", "morai-map"))
     parser.add_argument("--asset-name-map", type=Path,
                         help="Explicit class:original-ID -> asset name JSON from verified scenario")
     parser.add_argument("--exclude-frames-with-unresolved-gt", action="store_true",
@@ -199,6 +203,10 @@ def main():
             args.maximum_longitudinal_acceleration_mps2
         ),
         gt_reference=args.gt_reference,
+        pedestrian_velocity_reference=args.pedestrian_velocity_reference,
+        pedestrian_message_unit=args.pedestrian_message_unit,
+        pedestrian_message_frame=args.pedestrian_message_frame,
+        pedestrian_message_frame_yaw=transform_yaw,
     )
     if reference_calibration is not None:
         summary["evaluation"]["resolved_frame_policy"] = resolved_frames

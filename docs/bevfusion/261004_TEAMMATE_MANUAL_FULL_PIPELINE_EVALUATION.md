@@ -52,6 +52,11 @@
 
 ## 속도와 예측 지표
 
+2026-10-05 추가 검토: 아래 차량 지표는 기존 위치 미분 GT 계약이다.
+[새 H01 동일 tracker 출력 GT A/B](261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md)에서
+메시지 속도 기준과 유의한 수치 차이가 확인됐다. 기존 결과는 보존하며, 메시지
+velocity의 단위·좌표계·기준점 검증 후 별도 계약으로 재평가할 예정이다.
+
 - Vehicle speed MAE는 기존 signed body-x 기준을 유지한다. 2D AVE는 map-frame 벡터 L2 오차이다.
 - 보행자는 mesh heading과 보행 방향이 다르고 `/Object_topic.velocity`가 0인 bag이다.
   causal 위치 이력의 XY 미분을 사용하며 speed MAE는 벡터 크기 차이, AVE는 XY 벡터 차이다.

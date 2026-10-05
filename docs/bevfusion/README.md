@@ -4,6 +4,8 @@
 
 ## CURRENT
 
+Tracker 속도 평가의 GT 기준은 [velocity GT 재검토·실행 설정](261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md)를 함께 읽는다. 보행자 ROS 메시지 우선/이동-zero fallback은 단위·좌표계 명시 opt-in으로 구현했다. 차량은 위치 전체XY/메시지 전체XY/차축→중심 가정 보정의 세 기준을 동일 표본으로 유지한다. H01/R01 및 UDP P01 baseline 재현과 pytest55개를 통과했다. 물리 velocity 기준점과 새 ROS 실주행 A/B는 미확정이며 기존 기본값과 production은 그대로다.
+
 Base5 E25-init E2 학습과 [E1 보행자·장애물9-bag rosbag A/B](261005_BASE5_E1_MISSION_ROSBAG_AB.md)는 완료됐다. 장애물 소폭 개선이지만 초근접·원거리 보행자 공백은 미해결이다. Production은 E25 그대로다. [Base3 공백·학습 결과·후속 보강](261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md)을 함께 읽는다.
 
 | 목적 | 문서 |
@@ -30,6 +32,9 @@ Offline 최고 epoch만으로 production을 바꾸지 않고 detection, tracking
 mission rosbag에서 비교한다.
 
 ## EVIDENCE
+
+- [`261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md`](261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md)
+  - 새 H01 E25 동일 tracker 출력의 위치 미분/메시지 속도 GT A/B, 짧은 이력 문제, 단위 이력 정정 및 차축→BBox 중심 속도 기준 미확정 경계.
 
 - [MR VLP16 실제 출력100m 제한](261005_MR_VLP16_100M_RANGE_EVIDENCE.md): fireDistance150 저장 유지에도 원본 UDP/pointcloud는 약100m 이내. 원거리7대와55.6m control 차량 live 대조. 내부 원인/대회 규정 제한을 확정한 것은 아니다.
 

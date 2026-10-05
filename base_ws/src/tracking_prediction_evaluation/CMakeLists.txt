@@ -23,6 +23,8 @@ catkin_install_python(PROGRAMS
   scripts/audit_timestamp_alignment.py
   scripts/evaluate_oracle_prediction.py
   scripts/evaluate_pipeline_prediction.py
+  scripts/compare_vehicle_velocity_gt.py
+  scripts/compare_pedestrian_velocity_gt.py
   scripts/evaluate_rosbag_detection.py
   scripts/evaluate_map_centerline_snap_ablation.py
   scripts/evaluate_velocity_oracle_ablation.py
