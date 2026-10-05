@@ -4,7 +4,44 @@
 기존 v1/E25 보강 실험과 구분한다. **시나리오 10,000개 생성은 완료했지만,
 소량 live는 아래처럼 통과/검토로 나뉘었다. 본 수집과 본 학습은 시작하지 않았다.**
 
-## 최신 v16 safety/resume smoke — 2026-10-06
+## 최신 v17 — 전체 후보 재생성 통과 / 동적 live 검증 중단
+
+최신 후보는 `/home/luv/morai_cap/base5_v2_261006/scenarios_10k_v17/manifest.json`이다.
+v16에서 확정한 concrete-barrier/HD65 배치 geometry를 전체에 반영했다.
+`offline_audit.json`: 10,000장/10,000 unique payload, 오류0, train8,618/val1,382.
+패밀리·미션·거리·회피 좌우/phase/gap quota를 전수 검사했다. 기존 v15/v16 원본은 보존했다.
+**이는 offline 후보 통과다. 10K 실제 캡처 승인 또는 live 통과가 아니다.**
+
+v16 검토3건을 원본으로 좁힌 결과:
+
+- worker_m_1: 캡처 직전 pivot은 초기 배치에서7.797m 이동했다. 요청5–10m,
+  actual annotation center16.954m. 준비 대기 중 움직임이 거리 분포를 깨뜨렸다.
+- BabyStroller2도 요청3–5m에서 실제7.69–8.31m였다. component별 center를
+  유지하며 오차 허용 범위를 늘리거나 GT를 옮겨 승인하지 않는다.
+- Dog2: actual22.63m, LiDAR0point, native camera instance6pixel, 모델 crop0pixel.
+  객체가 존재하지만 현재 입력에서 positive 근거가 없는 사례다. Dog2 자체를 제외하지 않는다.
+
+대기 중 움직임을 막는 두 방식을 실제 시험했으나 채택하지 않았다.
+
+1. `ScenarioLoad.set_pause=True` 후 Event option8/False 재개: 응답 set_pause는
+   계속True였고 실제 움직임 재개도 확인되지 않았다. 후속 시험은 Event timeout으로 중단했다.
+2. Ego만 로드·모드 확인 후 객체만 별도 로드(network/Ego reload false): 현재 MR 로그에
+   network disconnect가 기록됐고 Ego/Object/Collision freshness 실패로 즉시 중단했다.
+
+실패한 변경은 기본 runner에서 제거했다. 프로덕션 runtime은 변경하지 않았다.
+실패가 가시성/거리 정책을 완화해야 한다는 근거는 아니다. 본 수집은 보류한다.
+재연결 후 기존 정상 one-load 경로를 먼저 확인하고, 동적 캡처 phase/경로와 가시성
+재샘플 전략을 검증해야 한다. pause/선택 로드를 다시 쓰려면 런처 지원부터 독립 확인한다.
+
+증거: `/home/luv/morai_cap/base5_v2_261006/dynamic_timing_report_v17.json`,
+`dynamic_pause_probe_v17/`, `dynamic_pause_probe_v17b/`, `dynamic_staged_probe_v17/`.
+마지막 폴더의 `Player_snapshot.log`에 런처 로그를 보존했다.
+재집계 도구는 `scripts/report_base5_dynamic_timing.py`이며 ROS/모델을 실행하지 않는다.
+
+공식 pause/option8 정의는 [MORAI ROS 프로토콜](https://help-morai-sim.scrollhelp.site/ko/morai-sim-drive/24.R1.0/ros-1)에 있다.
+현재 MR의 실험 결과를 공식 지원 여부 전체에 대한 결론으로 일반화하지 않는다.
+
+## v16 safety/resume smoke — 2026-10-06
 
 새 runner로16장 실제 캡처: **13후보 /3검토 /0실행실패**. 본10K 수집은 미실행이다.
 manifest: `/home/luv/morai_cap/base5_v2_261006/safety_pilot_v16/manifest.json`.

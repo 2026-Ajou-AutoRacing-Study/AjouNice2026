@@ -1,6 +1,7 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v16 safety/resume smoke 결과가 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v17 후보 전수검사·live 중단 기록이 최신이다.
+**본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
 아래12-scene 성공은 이전 asset-review 이력이며 새10K 배치 성공을 뜻하지 않는다.
 
 ## v2 캡처·실시간 대시보드
@@ -274,3 +275,10 @@ Ego/Object의 실제 신규 메시지, ScenarioLoad/SaveSensorData 연결을 확
 ScenarioLoad 시 EgoNetwork sidecar가 Network를 다시 바꿀 수 있으므로 신규 캡처 시나리오
 설치에는 이 파일을 `--network-template`로 사용한다. 단순 GUI 연결 검증을 위해 모든
 기존 시나리오 sidecar를 덮어쓰지 않는다.
+## v17 검증 주의 — 본 수집 보류
+
+2026-10-06: 최신 후보10K는 offline 검사를 통과했지만 동적 timing3건은 아직 미해결이다.
+pause 재개/선택적 actor-only load를 시험하다 서비스 timeout·연결 freshness 실패로 중단했다.
+이 두 방식은 기본 runner에 적용하지 않았다. MR 재연결 후 정상 one-load 소량 검증부터
+재확인한다. 지금 본 수집 명령을 실행하지 않는다. 상세 상태·증거는
+[BASE5_V2_CURRENT](BASE5_V2_CURRENT.md)의 v17 항목을 따른다.
