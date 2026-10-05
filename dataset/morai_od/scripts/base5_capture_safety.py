@@ -36,6 +36,21 @@ def runtime_presence_review(metadata, before, after, components):
     return sorted(missing),sorted(annotation_only)
 
 
+def confirm_park(request, attempts=2, retry_delay=.3):
+    """Idempotent gear-P confirmation; caller must bound each request and keep braking."""
+    errors=[];started=time.monotonic()
+    for index in range(attempts):
+        try:
+            gear=request()
+            if gear!=1:raise RuntimeError('Park response gear is '+str(gear))
+            return dict(park_verified=True,gear=gear,attempts=index+1,errors=errors,
+                elapsed_sec=time.monotonic()-started)
+        except Exception as exc:errors.append(str(exc))
+        if index+1<attempts:time.sleep(retry_delay)
+    return dict(park_verified=False,gear=None,attempts=attempts,errors=errors,
+        elapsed_sec=time.monotonic()-started)
+
+
 def atomic_json(path, value):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     temp=path.with_suffix(path.suffix+'.tmp')

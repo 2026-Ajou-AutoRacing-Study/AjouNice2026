@@ -1,6 +1,6 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v18 동적 거리 수정·live 복구 기록이 최신이다.
+2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v19 보충/종료 안전 gate 기록이 최신이다.
 **본 수집은 보류다. 아래 v16 명령은 검증된 이전 smoke 세션 예시이며10K 시작 승인이 아니다.**
 
 v18은 같은 one-load/seven-interface network를 사용한다. pause·선택적 actor-only load를
@@ -16,7 +16,50 @@ MR Network GUI에서 전용 JSON을 다시 연결하고 Capture Mode/Instance �
 현재 runner 기본은 `ego_network_mr_base5_savesensordata_collision_local.json`이다.
 기존6-interface 프로필은 이력/일반 캡처용이며 새 안전 gate를 통과하지 못한다.
 
-### 현재 v16 수집·중단·재개
+### v19 보충·정책 비교·dashboard
+
+현재 live는 Park 응답 미확인으로 중단했다. 다음 명령의 기본은 **준비만**이며
+MR을 로드하지 않는다. 기존 `replenishment_v19`는 중단 증거이므로 덮어쓰거나 자동 재개하지 않는다.
+MR 제어/기어를 확인한 뒤 별도 소량 live를 검증해야 한다. 10K 시작 명령이 아니다.
+
+```bash
+ajou
+ROOT="$HOME/morai_cap/base5_v2_261006"
+python3 dataset/morai_od/scripts/base5_replenishment.py \
+  --source-manifest "$ROOT/scenarios_10k_v18d/manifest.json" \
+  --source-ledger "$ROOT/shuttle_capture_v18d/ledger.jsonl" \
+  --output "$ROOT/replenishment_next_pilot" --attempts 3
+```
+
+안전 확인 후 명시적으로 `--run`을 추가해야 bounded live가 시작된다. 준비만은 동작 검증이 아니다.
+원본review는 삭제하지 않으며 안전종료까지 성공한 보충만 `selected_ledger.jsonl`에 기록한다.
+child 종료Park 실패/통신 실패 시 즉시 중단하며 해당 output의 자동 재개를 거부한다.
+`STOP` 파일은 다음 attempt 시작 전 검사한다. 현재 attempt의 cleanup을 생략하지 않는다.
+
+현재 중단 결과를 확인하는 read-only dashboard:
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
+  --capture-root "$HOME/morai_cap/base5_v2_261006/replenishment_v19" --port 8075
+```
+
+브라우저 `http://127.0.0.1:8075`. 개별 child 종료gate까지 보려면 capture-root를
+`replenishment_v19/attempts/b5v2_00024_r01`로 바꾼다. `halted_exit_safety`는 정상완료가 아니다.
+
+GT정책 비교는 ROS/MR 없이 수행한다:
+
+```bash
+ajou
+ROOT="$HOME/morai_cap/base5_v2_261006"
+python3 dataset/morai_od/scripts/report_base5_gt_policies.py --ledgers \
+  "$ROOT/shuttle_capture_v18d/ledger.jsonl" \
+  "$ROOT/shuttle_extra_capture_v18/ledger.jsonl" \
+  "$ROOT/ai_presence_capture_v18/ledger.jsonl" \
+  --output "$ROOT/gt_policy_comparison_v19.json"
+```
+
+### v16 수집·중단·재개 이력
 
 대표16장 완료:13후보/3검토/0실행실패. 동적 거리2장·Dog2 가시성1장은 검토로 보존한다.
 근접 회피8장은 모두 후보이며 full10K 검증이나 detector 성능 향상을 뜻하지 않는다.
@@ -40,8 +83,9 @@ MR SensorData에 남아 있는 파일은 사용자 소유일 수 있으므로 �
 마지막 ledger 행의 불완전 append는 원본 backup 후 복구하며 중간 행 손상은 중단한다.
 동일 output runner 동시 실행은 lock으로 거부한다. `STOP` 파일로 멈춘 경우 재개 전에
 해당 세션의 STOP 파일만 제거한다. 출력 경로를 바꾸면 새 수집이지 resume이 아니다.
-실제 캡처 종료/중단 시에는 brake와 bounded Park 요청을 보낸다. Park 응답 미확인은
-경고로 남으며 무한 대기하지 않는다. 다음 캡처 SceneLoad 뒤에는 다시 Drive를 확인한다.
+실제 캡처 종료/중단 시에는 brake와 bounded Park 요청을 보낸다. **현재 v19부터**
+Park 응답 미확인은 경고만이 아니라 종료실패 상태로 남으며 자동 후속로드를 중단한다.
+요청당3초·2회 동안 제동을 유지하고 `shutdown_safety.json`에 결과를 기록한다.
 
 브라우저 모니터:
 

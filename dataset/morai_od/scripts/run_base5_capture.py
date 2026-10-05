@@ -7,13 +7,14 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import sys
 import threading
 import time
 import uuid
 import fcntl
 
 from base5_capture_audit import audit_capture
-from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review
+from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review,confirm_park
 
 ROOT=Path(__file__).resolve().parents[3]
 
@@ -89,11 +90,18 @@ def main():
         # Completed-session resume is read-only with respect to MR, even offline.
         saved=json.loads((args.output/'status.json').read_text()) if (args.output/'status.json').exists() else {}
         finished=[completed[r['id']] for r in rows]
-        saved.update(stage='complete',current=None,error=None,updated_at=time.time(),requested=len(rows),finished=len(rows),
+        exit_record=args.output/'shutdown_safety.json'
+        unsafe_exit=exit_record.exists() and not json.loads(exit_record.read_text())['park_verified']
+        saved.update(stage='halted_exit_safety' if unsafe_exit else 'complete',current=None,
+            error='Previous exit Park not verified; raw complete, no live resume permitted' if unsafe_exit else None,
+            updated_at=time.time(),requested=len(rows),finished=len(rows),
             accepted_candidate=sum(r['status']=='accepted_candidate' for r in finished),
             review=sum(r['status']=='review' for r in finished),failed=0,eta_sec=0,results=[status_row(r) for r in finished])
         atomic_json(args.output/'status.json',saved)
         return
+    exit_record=args.output/'shutdown_safety.json'
+    if exit_record.exists() and not json.loads(exit_record.read_text())['park_verified']:
+        raise RuntimeError('Previous exit Park not verified; check MR and use a new output session')
     import rospy
     from morai_msgs.msg import CtrlCmd,EgoVehicleStatus,ObjectStatusList,SaveSensorData,ScenarioLoad,CollisionData
     from morai_msgs.srv import MoraiEventCmdSrv,MoraiEventCmdSrvRequest
@@ -304,19 +312,29 @@ def main():
     except BaseException as exc:
         status('interrupted' if isinstance(exc,KeyboardInterrupt) else 'halted',error=str(exc));raise
     finally:
-        halt.set()
-        # A stationary capture session must not roll away after Ctrl+C/end.
-        # Only attempt the bounded Park request while the verified link is fresh.
+        active_exception=sys.exc_info()[0] is not None
+        # Keep the 40Hz brake alive throughout both bounded, idempotent Park
+        # attempts. A single publication followed by a short timeout is not
+        # sufficient exit-state evidence.
         try:
-            fresh(1.)
-            if control.get_num_connections():
+            def park_request():
+                fresh(1.)
+                if not control.get_num_connections():raise RuntimeError('Exit control subscriber missing')
                 control.publish(CtrlCmd(longlCmdType=1,brake=1.,accel=0.,steering=0.))
                 park=MoraiEventCmdSrvRequest();park.request.option=3;park.request.ctrl_mode=3;park.request.gear=1
-                response=bounded_call(lambda:rospy.ServiceProxy('/Service_MoraiEventCmd',MoraiEventCmdSrv)(park),timeout=1.5)
-                if response.response.gear!=1:rospy.logwarn('Capture exit Park gear not confirmed')
-        except Exception as exc:rospy.logwarn('Capture exit Park unavailable: %s',exc)
-        for f in owned:
-            if f.exists(): f.unlink()
+                response=bounded_call(lambda:rospy.ServiceProxy('/Service_MoraiEventCmd',MoraiEventCmdSrv)(park),timeout=3.)
+                return response.response.gear
+            shutdown=confirm_park(park_request)
+            shutdown['brake_held_during_requests']=True
+            atomic_json(args.output/'shutdown_safety.json',shutdown)
+            if not shutdown['park_verified']:
+                status('halted_exit_safety',error='Park not confirmed: '+'; '.join(shutdown['errors']))
+                rospy.logerr('Capture exit Park NOT confirmed; stop further collection')
+                if not active_exception:raise RuntimeError('Capture exit Park not confirmed')
+        finally:
+            halt.set()
+            for f in owned:
+                if f.exists(): f.unlink()
 
 
 if __name__=='__main__': main()

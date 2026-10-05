@@ -4,10 +4,21 @@ import tempfile
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from base5_capture_safety import collision_window,load_ledger,prepare_session,archive_incomplete,runtime_presence_review
+from base5_capture_safety import collision_window,load_ledger,prepare_session,archive_incomplete,runtime_presence_review,confirm_park
 
 
 class CaptureSafetyTest(unittest.TestCase):
+    def test_park_retry_and_wrong_gear_are_not_silently_successful(self):
+        calls=[]
+        def request():
+            calls.append(1)
+            if len(calls)==1:raise RuntimeError('response timeout')
+            return 1
+        result=confirm_park(request,retry_delay=0)
+        self.assertTrue(result['park_verified']);self.assertEqual(result['attempts'],2)
+        result=confirm_park(lambda:4,retry_delay=0)
+        self.assertFalse(result['park_verified']);self.assertEqual(result['attempts'],2)
+
     def test_ai_annotation_exception_never_waives_ordinary_or_invisible_actor(self):
         actor=dict(unique_id=8500,source_list='aiPedstrianList',motion='standing')
         components=[dict(parent_uid=8500,positive_lidar1_camera0=True)]

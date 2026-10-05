@@ -4,7 +4,55 @@
 기존 v1/E25 보강 실험과 구분한다. **시나리오 10,000개 생성은 완료했지만,
 소량 live는 아래처럼 통과/검토로 나뉘었다. 본 수집과 본 학습은 시작하지 않았다.**
 
-## 최신 v18 — 동적 거리 수정·live 복구 / 본 수집 미시작
+## 최신 v19 — 동일 cell 보충 구현 / 종료 Park 미확인으로 live 중단
+
+사용자 요청대로10K 캡처·학습은 하지 않았다. v18 후보 생성기는 유지하며 소량 검증만 수행했다.
+`base5_replenishment.py`는 **가시성만 실패한 review**에 한해 같은 asset/spec/split을
+유지한 재배치를 만든다. 거리·방향·motion·미션 cell을 바꾸거나 GT tolerance를 완화하지 않는다.
+최대16개 cell, cell당1–4회, 전체64회 이하이며 첫 통과 뒤 그 cell은 종료한다.
+충돌/객체 누락/거리 실패가 섞인 review는 자동 보충 대상이 아니다. 원본과 실패 raw는 보존한다.
+provenance·동시 실행 lock·STOP·child 실패 즉시 중단을 포함한다.
+
+실제 Dog2 좌측15–29m cell에3회 한도의 재배치를 준비하고 **첫1회만 캡처**했다.
+Dog2 LiDAR2point로 capture audit 통과,4.861초였다. 동일 spec/data ID50300003/train split이
+세 후보 모두 유지됨을 검사했다. 그러나 종료 Park 요청은3초씩2회 모두 timeout이었다.
+40Hz 제동은 두 요청 동안 유지했으나, Park 응답을 입증하지 못했으므로 전체 보충은
+`halted`, child는 `halted_exit_safety`로 중단했다. 나머지2회는 로드하지 않았다.
+**캡처 품질 통과와 안전한 세션 종료는 별도다. 보충 완료/안전 종료 통과로 보고하지 않는다.**
+
+- 증거: `.../replenishment_v19/report.json`,
+  `.../attempts/b5v2_00024_r01/shutdown_safety.json`, captures 내 raw/audit/telemetry.
+- 완료 child 재실행은 ROS 없이 raw34파일+ledger hash/mtime 불변을 확인했고,
+  종료 실패 상태를 complete로 지우지 않는다. 실패한 보충 세션의 자동 재개는 거부한다.
+- 사후 read-only3초: Ego150/Object149/Collision150개, Ego velocity.x≈0.00000153m/s.
+  전체 topic 연결 단절은 관측되지 않았다. EventCmd 응답 누락 원인은 미확정이다.
+  다음 live는 MR 제어/기어 확인 후 새 소량 세션으로 검증해야 한다.
+
+### GT 정책 비교 — 최종 모델 성능 결정 아님
+
+v18d16장+추가3장, AI 재검증은 같은ID를 대체하여19개 unique scene을 비교했다.
+종료 실패 Dog2 보충은 아래 주 비교에 넣지 않았다.
+
+| 정책 | 사용 장면 | 유지GT | 제외component |
+| --- | ---: | ---: | --- |
+| LiDAR≥5point | 17 | 22 | Pedestrian2/Animal1 |
+| LiDAR≥1point | 18 | 26 | 0 |
+| LiDAR≥1 OR 실제 모델crop 카메라 근거 | 18 | 26 | 0 |
+
+세 정책 모두 센서 근거 없는 원래 Dog2 scene은 review로 유지한다. 5point는 한 장면을
+추가 제외하며, 나머지 사용 scene에서도 일부 복합 객체 component를 제외한다.
+이 표는 quota/visibility 진단이고 AP 평가가 아니다. 표본에는 유효한 camera-only positive
+증거가 없어 camera OR 정책의 추가 이득을 입증하지 못했다. 현재 provisional default
+`lidar1_camera0`를 유지하되 최종 본 학습 승인으로 해석하지 않는다. raw annotation은
+모두 보존하므로 이후 정책 교체에 재수집이 필수는 아니다.
+
+`report_base5_gt_policies.py`가 ledger SHA·scene별 사용/검토·class/거리/방향을 기록한다.
+증거: `.../gt_policy_comparison_v19.json`. 실제 info 변환도 v18d 대표16장으로 세 정책
+모두 수행했다: lidar5 train11/val3 GT16, lidar1 및 OR train12/val3 GT19.
+산출물 `artifacts/datasets/base5_v19_gt_policy_smoke/`, 학습 미실행.
+단위검증35개 통과. production detector/threshold/planning/control/localization은 변경하지 않았다.
+
+## v18 — 동적 거리 수정·live 복구 / 본 수집 미시작
 
 2026-10-06 재연결 후 기존 one-load 정적1장 통과. pause/actor-only load는 재사용하지 않았다.
 새 motion 경로의 대표16장 재캡처는 **15후보 /1가시성 검토 /0실행실패**다.
