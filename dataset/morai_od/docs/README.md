@@ -4,6 +4,8 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- [SaveSensorData Ego 정지/이동 A/B](261005_savesensordata_ego_motion_ab.md): 정지2장·실제28/49km/h 직진 각2장. 현재 동기 캡처에서 큰 속도 의존 형상 왜곡은 미관측, 정지 배치 유지의 제한적 근거. UDP deskew·Camera blur·고속 회전과 분리한다.
+
 - [독립 Base5 10K 상세 설계 — PLAN](BASE5_INDEPENDENT_10K_DESIGN.md): Base3/E25와 별도 corpus, 범용60/미션35/배경5, 고주로·로터리·회피·동작 외관 세부 quota. 기존 v1 구현과 구분한다.
 
 - [G80 배치·복합객체 GT 후속 확인](261005_g80_and_composite_gt_followup.md): G80 수동actor/다른Ego·위치·배치필드9-case 재로드 및 사람/개/자전거/유모차/아기 component 확인.

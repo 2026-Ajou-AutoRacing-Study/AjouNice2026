@@ -13,6 +13,11 @@ v2 구현·소량 검증·본 수집 승인이 필요하며 이번 문서 작성
 2026-10-05. **생성기·새 카탈로그 연결 완료, MR 자산12-scene 동기 smoke 완료. 본 수집 미실행.**
 Production E25, 학습 ROI, tracker 및 localization 계약은 변경하지 않았다.
 
+[Ego 정지/이동 SaveSensorData A/B](261005_savesensordata_ego_motion_ab.md)는 정지2장,
+실제 약28/49km/h 직진 각2장에서 큰 속도 의존 LiDAR 형상 왜곡을 관측하지 못했다.
+Base5 정지 배치 기본 설계를 유지한다. Snapshot 구현 방식 확정, Camera blur,
+동적 객체 및 실제60km/h 이상·회전 검증 완료로 확대하지 않는다.
+
 MR 동기 캡처 연결은 [Base5 전용 Network](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md)를
 사용한다. JSON 준비/설치와 실제 subscriber 연결·캡처 성공은 별도 검증이다.
 
