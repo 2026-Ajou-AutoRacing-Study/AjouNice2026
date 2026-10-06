@@ -4,6 +4,10 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **본수집 터미널 명령의 단일 기준:** [Base5 v45 운영 런북](261006_base5_bulk_resume_v45.md#터미널별-운영-순서--처음-실행부터-재개까지).
+  rc → guarded bridge → MR7-interface/Capture Mode → 수집 → 대시보드,
+  각 인자 뜻·PAUSE/재개·halted 주의를 한곳에 정리했다. rosbag/UDP 런북과 구분한다.
+
 - **최신 v45: 6초10K 전수OFFLINE_PASS·bulk 실행/PAUSE/resume 연결.**
   실제12/12+marker8/8·CPU GT28·143tests PASS, 완료resume 추가촬영0.
   명시적bulk승인·4셀 child·64셀 목록checkpoint·누적시간 보존.

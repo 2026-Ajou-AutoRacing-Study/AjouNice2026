@@ -1,6 +1,8 @@
 # Base5 v45 — 6초 10K 준비 및 본수집 실행 경로
 
-2026-10-06 / CURRENT PREPARED + EVIDENCE. **본10K 캡처·학습 미시작.**
+CURRENT 운영 런북 + EVIDENCE. 검증 근거:2026-10-06 / 운영 명령 갱신:2026-10-07.
+아래 명령을 본수집의 단일 실행 기준으로 사용한다. 실제 수집 시작/진행/종료 여부는
+collection_10k_v45/status.json과 대시보드로 확인한다. 과거 소량검증 당시에는 본10K 미시작이었다.
 
 ## 6초 수집 묶음
 
@@ -50,43 +52,111 @@ python3 dataset/morai_od/scripts/prepare_base5_setup_budget_pilot.py \
   본수집 변환은 complete 상태의 최종 selected_ledger만 사용한다. 진행중 checkpoint를
   최종10K 전달본으로 간주하지 않는다.
 
-### 본수집 명령 — 준비된 예시, 아직 실행하지 않음
+## 터미널별 운영 순서 — 처음 실행부터 재개까지
 
-기존 roscore/guarded bridge/7-interface/CaptureMode 연결을 유지한다. 중복 bridge를 켜지 않는다.
+각 터미널에서 먼저 `ajou`를 실행한다. 기존 master/bridge가 실행 중이면 아래1·2를
+중복 실행하지 않고 현재 연결을 유지한다. `ajou`는 저장소 이동과 팀 공통 ROS 환경 설정이다.
+
+### 터미널1 — ROS master
 
 ```bash
 ajou
-MANIFEST="$HOME/morai_cap/base5_v2_261006/scenarios_10k_budget6_v45/manifest.json"
-OUTPUT="$HOME/morai_cap/base5_v2_261006/collection_10k_v45"
-python3 dataset/morai_od/scripts/run_base5_batch_campaign.py \
-  --manifest "$MANIFEST" --output "$OUTPUT" \
-  --limit 10000 --chunk-size 4 --approve-bulk-capture
+rc
 ```
 
-같은 계약으로 재개할 때 마지막 줄에 `--resume`을 추가한다.
-새로 시작하는 명령은 기존 output을 거부한다. 원본/코드 변경 후 구 output resume도 거부한다.
+`rc`는 roscore alias다.
 
-### 안전 일시정지와 즉시 중단은 다름
+### 터미널2 — guarded ROS bridge
 
 ```bash
-# 현재4셀 및 필요한 품질보완·Park를 끝내고 다음chunk 전에 일시정지
-touch "$HOME/morai_cap/base5_v2_261006/collection_10k_v45/PAUSE"
+ajou
+python3 dataset/morai_od/scripts/run_base5_rosbridge.py
 ```
 
-status.json에서 paused 확인 후 PAUSE 파일을 제거하고 같은 명령에 --resume을 붙인다.
-PAUSE는 즉시 멈춤이 아니며, 느린 보완이 진행되면 기다릴 수 있다.
-긴급 중단은 기존 STOP/Ctrl-C 경로다. child를 종료시키므로 halted가 될 수 있고,
-정상 Park가 한 번 보였다고 unsafe 이전 경계를 자동 승인하지 않는다.
+일반 `roslaunch rosbridge_server rosbridge_websocket.launch`가 아니라 위 guarded bridge를
+사용한다.9090에 기존 bridge가 있으면 중복으로 띄우지 않는다.
 
-### 모니터링
+MR 설정:
+
+- Capture Mode 사용, 기존 검증된 센서 배치/설정 유지.
+- Ego Network에서 아래7-interface profile을 Load → Connect.
+- profile 경로:`$HOME/AjouNice2026/configs/network/ego_network_mr_base5_savesensordata_collision_local.json`.
+- /Ego_topic, /Object_topic, /CollisionData와 ScenarioLoad/SaveSensorData/제어 서비스 연결 유지.
+- 이번 동기 캡처에는 UDP receiver·sensing·localization·BEVFusion·planning·control을
+  별도로 실행하지 않는다. rosbag 실주행 녹화용 명령과 혼동하지 않는다.
+- 10K scenario 파일을 MR GUI 폴더에 복사하지 않는다. runner가 소량만 임시 설치한다.
+
+### 터미널3 — 본수집 시작 / 재개 공통 명령
+
+```bash
+ajou
+python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
+  --manifest "$HOME/morai_cap/base5_v2_261006/scenarios_10k_budget6_v45/manifest.json" \
+  --output "$HOME/morai_cap/base5_v2_261006/collection_10k_v45" \
+  --limit 10000 \
+  --chunk-size 4 \
+  --approve-bulk-capture \
+  --resume
+```
+
+`--resume`은 첫 실행에도 사용 가능하다. output이 없으면 처음 시작하고,
+기존 안전 기록이 있으면 검증 후 이어서 진행한다. 동일 output에 수집기를 둘 켜지 않는다.
+수집 중에는 collector 코드·원본 scenario·network/sensor config를 수정하지 않는다.
+코드/원본 hash 변경 후 구 output resume은 거부한다. 계약파일을 강제로 고치지 않는다.
+PC 절전/자동 종료를 꺼 둔다. pause 뒤 재개는 아래PAUSE 파일을 먼저 제거한 후 같은 명령이다.
+
+### 인자 뜻
+
+| 인자 | 의미 |
+| --- | --- |
+| python3 -u | 로그를 버퍼에 쌓지 않고 즉시 출력 |
+| --manifest | 6초 준비 설정 Base5 10K의 scenario/metadata 목록 |
+| --output | 캡처 raw·감사·진행·재개 기록을 저장하는 campaign 폴더 |
+| --limit 10000 | 목록에서 최대10,000 원래 quota 장면을 처리 |
+| --chunk-size 4 | 한 공유ROS child에서4장면 처리. 안전PAUSE는 묶음 및 보완 완료 후 적용 |
+| --approve-bulk-capture | 기본64장 제한을 넘는 대량 수집의 명시적 실행 허용 |
+| --resume | 기존 안전 기록 검증 후 이어서 진행. 첫 실행도 가능 |
+
+**4는 장면당 촬영 수가 아니다.** 기본은 독립 장면당1프레임이며4장면을 한 묶음으로 처리한다.
+지면/Z/가시성 보완 등이 필요하면 추가 촬영할 수 있다.
+**10,000 quota 처리와10,000 accepted 학습 장면 보장은 다르다.** 보완 소진은 deficit로 남고,
+실패/review raw를 성공 장면으로 섞지 않는다. 부족분은 quota.json/deficit_manifest.json으로 확인한다.
+
+### 터미널4 — 대시보드
 
 ```bash
 ajou
 python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
-  --capture-root "$HOME/morai_cap/base5_v2_261006/collection_10k_v45" --port 8081
+  --capture-root "$HOME/morai_cap/base5_v2_261006/collection_10k_v45" \
+  --port 8081
 ```
 
-브라우저 http://127.0.0.1:8081 . 현재 소량 증거 화면8080은 bulk_path_smoke12_v45다.
+브라우저 http://127.0.0.1:8081 . 수집 전에는 status.json 대기 화면일 수 있다.
+이 대시보드는 관측 전용이며 닫아도 수집기는 멈추지 않는다.8080은 과거 소량검증 화면이다.
+finished는 실제 완료 quota 수, checkpoint_finished는 전체목록 저장 지점이다.
+bulk에서는64장 단위로 전체목록을 저장하므로 두 수가 잠시 다른 것이 정상이다.
+
+### 별도 터미널 — 안전 일시정지 / 재개
+
+```bash
+ajou
+# 현재4셀 및 필요한 품질보완·Park를 끝내고 다음chunk 전에 일시정지
+touch "$HOME/morai_cap/base5_v2_261006/collection_10k_v45/PAUSE"
+```
+
+대시보드/status.json에서 **paused를 확인할 때까지 기다린다.** 즉시 master/bridge/MR을 끄지 않는다.
+재개 전 아래를 실행하고 터미널3의 공통 명령을 그대로 다시 실행한다.
+
+```bash
+ajou
+rm -f "$HOME/morai_cap/base5_v2_261006/collection_10k_v45/PAUSE"
+```
+
+PAUSE는 즉시 멈춤이 아니며, 느린 보완이 진행되면 기다릴 수 있다.
+긴급 중단은 기존 STOP/Ctrl-C 경로다. child를 종료시키므로 halted가 될 수 있고,
+정상 Park가 한 번 보였다고 unsafe 이전 경계를 자동 승인하지 않는다.
+`halted`라면 PAUSE만 지워서 강제 재개하지 말고 실패 로그/안전 증거를 확인한다.
+완료를 다시 resume하면 정상적으로 증거 검증만 하고 종료하며 처음부터 다시10K를 찍지 않는다.
 
 ## 실제 소량 검증과 비용 제한
 
