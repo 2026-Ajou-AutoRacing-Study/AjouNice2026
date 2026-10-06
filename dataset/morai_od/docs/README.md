@@ -4,6 +4,12 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **최신 v39: 재연결·안전 ROS batch·quota 보완 연결.** 새6장 pause/resume6/6,
+  첫12셀 최종12/12·실제14촬영·CPU17GT 변환 통과. 간헐Park timeout은 미해결이며
+  실패boundary는보존/재개금지. 후속20셀은8quota후최종Park미확인으로중단, 합계20/32다.
+  109tests PASS. 남은12셀·종료서비스지연 및한계는 [최신근거](261006_base5_safe_batch_quota_v39.md).
+  본10K캡처/학습은미시작이다.
+
 - **최신 v38: ROS공유6/6 통과·13.85% 단축 / 네트워크 재사용 실패로 live 중단.**
   network flag=false 두 번째 load에서client0·종료Park미확인. 옵션금지, 모든scene network reload유지.
   사용자 재연결·사전Park 후 새 안전batch/stop-resume검증이 남음. 본10K미시작.

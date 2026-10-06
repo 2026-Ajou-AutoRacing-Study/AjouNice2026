@@ -4,14 +4,28 @@
 기존 v1/E25 보강 실험과 구분한다. **최신 자연속도/정적자산 정책의10K 시나리오를
 v35로 생성·전수감사했다. 소량 live 검증과 달리 본10K 캡처·본 학습은 미시작이다.**
 
-## 최신 v38 — ROS 공유13.85% 단축 / 네트워크 재사용 실패·재연결 대기
+## 최신 v39 — 안전 ROS batch·quota 보완·resume 검증
+
+[재연결·실제 검증·새 pilot 실행](261006_base5_safe_batch_quota_v39.md).
+재연결 사전Park 통과 후 첫 batch의 boundary Park2회timeout으로 중단했다.
+최종Park는 확인했고 실패 세션은 보존한다. 별도 새6장 pause/resume는6/6통과했다.
+chunk4의 첫12셀은 보완 후12/12통과,14회 실제촬영/최종quota12장이다.
+완료resume 원본aggregate SHA 불변,CPU12장/17GT 변환 통과.
+남은20셀은8quota통과 후 다음chunk 최종Park2회timeout으로중단했다.
+합계최종20/32quota·30회촬영(terrain포함), 미확인chunk4raw는선택에서제외했다.
+신규driver포함109tests PASS. 실패캠페인resume금지·남은12셀은안전복구후새output검증이필요하다.
+네트워크는 매scene reload하며, 통신/충돌/Park 실패를 quality retry로 덮지 않는다.
+새 batch driver는최대64셀 pilot이며 본10K수집용기본이 아니다. 간헐Park 원인은 미해결이다.
+**본10K 캡처·학습은 미시작이다.**
+
+## v38 — ROS 공유13.85% 단축 / 네트워크 재사용 실패
 
 [실측 비교·실패·복구 순서](261006_base5_ros_batch_network_evidence_v38.md).
 동일6개 셀별프로세스50.484초/ROS공유43.491초, 양쪽6/6통과와 최종Park 확인.
 네트워크첫장면만 reload하는 실험은 두 번째에서 클라이언트0·위치timeout·종료Park미확인으로 중단했다.
 세 번째는 미로드. 해당 옵션은 코드에서 금지했고 매 장면 network reload를 유지한다.
 max16 shared-ROS 안전batch 후보/103tests를 추가했으나 새 guard+stop/resume live는 재연결 이후다.
-**현재 통신 복구·정지/Park 확인 전 추가로드 금지. 본10K/학습 미시작.**
+당시 통신 복구 전 추가로드를 중단했다. 복구 이후는v39를 따른다. 본10K/학습 미시작.
 
 ## v37 — 비용 계측·중복작업 제거 / live6셀 A/B
 

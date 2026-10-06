@@ -89,7 +89,11 @@
   조건부 정지확인 preflight만 단축하고 안전gate는 유지한다. 현코드로 구세션resume 금지.
   [v38 ROS/network 비교](../dataset/morai_od/docs/261006_base5_ros_batch_network_evidence_v38.md):
   ROS공유6/6통과·13.85%단축. network 재사용은2번째로드에서client0/종료Park미확인으로중단했다.
-  옵션금지·scene별network reload유지. 사용자재연결/사전Park 전 추가로드금지.
+  옵션금지·scene별network reload유지. 당시재연결/사전Park 전 추가로드를중단했다.
+  [v39 안전batch/quota](../dataset/morai_od/docs/261006_base5_safe_batch_quota_v39.md)는
+  재연결후 새6장resume·첫12셀보완/CPU17GT 변환을통과했다.
+  후속합계20/32quota에서최종Park2회timeout으로중단했다. 실패출력resume금지,
+  남은12셀/반복Park서비스지연/장시간안정성 검증이남는다. max64셀pilot이며 본10K미시작이다.
   실제 전체pool/장시간 캡처 검증과4-class runtime 결정은 남는다.
   구왕복10K는 새 기본 수집에 사용하지 않는다. 본 수집/본 학습은 미실행이다.
 

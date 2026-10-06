@@ -1,5 +1,15 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
+## 최신 v39 — 재연결 이후 안전 batch·quota pilot
+
+[최신 근거·실행·모니터링](261006_base5_safe_batch_quota_v39.md)을 우선한다.
+network 재사용은 계속 금지하며7-interface/scene별network reload를 유지한다.
+새6장 pause/resume와chunk4 첫12셀 보완/완료resume를 검증했다.
+boundary Park 간헐timeout은 남았으므로 실패 세션을 정상finalPark만으로 재개하지 않는다.
+`run_base5_batch_campaign.py`는max64셀 pilot이고 본10K명령이 아니다.
+후속검증합계20/32quota에서 최종Park미확인으로중단했다. 재연결/정지/Park를다시확인하고
+실패출력이아닌새output에서남은12셀을검증해야한다. 현재 무인본수집 시작금지다.
+
 ## v38 — 네트워크 재사용 금지 / 재연결 필요
 
 [최신실험·복구](261006_base5_ros_batch_network_evidence_v38.md)가 아래 이력보다 우선한다.

@@ -13,7 +13,7 @@ HTML='''<!doctype html><html lang="ko"><meta charset="utf-8"><title>Base5 캡처
 <script>const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function tick(){try{let s=await(await fetch('/status.json',{cache:'no-store'})).json();
 let stale=(Date.now()/1000-s.updated_at)>20&&!['complete','halted','halted_exit_safety','interrupted','stopped','stopped_for_resume_test','prepared_waiting_for_MR_reconnect'].includes(s.stage);document.getElementById('stage').textContent=`${s.stage} · ${s.current||''} ${stale?'(상태 갱신 지연)':''}`;
-bar.max=s.requested||1;bar.value=s.finished;cards.innerHTML=[['완료',`${s.finished}/${s.requested}`],['후보 승인',s.accepted_candidate],['검토',s.review],['실패',s.failed],['예상 잔여',s.finished?`${Math.round(s.eta_sec/60)}분`:'측정 전']].map(([a,b])=>`<div>${esc(a)}<h2>${esc(b)}</h2></div>`).join('');
+bar.max=s.requested||1;bar.value=s.finished;cards.innerHTML=[['완료',`${s.finished}/${s.requested}`],['후보 승인',s.accepted_candidate],['검토',s.review],['실패',s.failed],['예상 잔여',s.eta_sec>0?`${Math.round(s.eta_sec/60)}분`:(s.finished===s.requested?'완료':'계측 중')],...(s.child_progress?[['진행 중 batch',`${s.child_progress.finished}/${s.child_progress.requested} · ${s.child_progress.stage}`]]:[])].map(([a,b])=>`<div>${esc(a)}<h2>${esc(b)}</h2></div>`).join('');
 let bins={};for(let r of s.results||[]){let k=`${r.family} / ${(r.distance_bounds||[]).join('–')}m / ${r.role||''}`;bins[k]??={accepted_candidate:0,review:0,failed:0};bins[k][r.status]++;}
 document.getElementById('bins').innerHTML=Object.entries(bins).sort().map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.accepted_candidate}</td><td>${v.review}</td><td>${v.failed}</td></tr>`).join('');error.textContent=s.error||'';
 }catch(e){document.getElementById('stage').textContent='status.json 대기 중'} }tick();setInterval(tick,2000);</script></html>'''
@@ -28,7 +28,16 @@ def main():
         def do_GET(self):
             if self.path=='/': body=HTML.encode();mime='text/html; charset=utf-8'
             elif self.path=='/status.json':
-                try: body=(a.capture_root/'status.json').read_bytes()
+                try:
+                    status=json.loads((a.capture_root/'status.json').read_text())
+                    # Only expose a child under this capture root. Never serve arbitrary files.
+                    child=status.get('current')
+                    if child:
+                        target=(Path(child)/'status.json').resolve()
+                        if a.capture_root.resolve() in target.parents:
+                            try:status['child_progress']=json.loads(target.read_text())
+                            except (OSError,ValueError):pass
+                    body=json.dumps(status,ensure_ascii=False).encode()
                 except FileNotFoundError: body=b'{}'
                 mime='application/json'
             else: self.send_error(404);return
