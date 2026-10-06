@@ -127,6 +127,27 @@ Docker에서각10회/역순10회로검증해8/8case통과와최종PASS ZIP생성
 전달ZIP내manifest의전체file해시와반환ZIP의해시도검사했다.
 코드·README만tracked, 가중치/raw/delivery/result ZIP은ignored그대로다.
 
+공유Drive 업로드완료:
+`ajou_drive:model/bevfusion/benchmarks/capacity_4090_261006/ajounice_capacity_4090.zip`.
+root folder ID는`12T1IuT2ZyIYG5IkMDvsPrN1zzf6O43IP`이며파일ID는
+`1y9BLx2SZ0xTT2eZ2amNvgCSZ3-7wHazj`다. 원격size151,437,062bytes와
+MD5 `29ed6ed13acfa13a03885dce3baacd90`가로컬과일치한다. 같은폴더에SHA256SUMS도업로드했다.
+팀원은본인계정으로인증한ajou_drive remote로:
+
+```bash
+mkdir -p "$HOME/ajou_gpu_bench"
+rclone copy ajou_drive:model/bevfusion/benchmarks/capacity_4090_261006 \
+  "$HOME/ajou_gpu_bench" \
+  --drive-root-folder-id 12T1IuT2ZyIYG5IkMDvsPrN1zzf6O43IP --progress
+cd "$HOME/ajou_gpu_bench"
+sha256sum -c SHA256SUMS
+unzip ajounice_capacity_4090.zip
+cd ajounice_capacity_4090
+bash run.sh
+```
+
+MORAI/학습/다른추론을끈뒤실행한다. 마지막SEND THIS ZIP의결과파일만회신한다.
+
 예상1.5–2배보다비용이낮았던원인은[단계별분해·finegrid/depth대조](261006_BASE5_LATENCY_STAGE_BREAKDOWN.md)에서실측했다.
 격자/depth를기존처럼촘촘하게한100m highres 비용대조는GPU모델처리약129.21ms로E25의약1.98배다.
 
