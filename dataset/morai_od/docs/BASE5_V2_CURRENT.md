@@ -4,7 +4,20 @@
 기존 v1/E25 보강 실험과 구분한다. **최신 자연속도/정적자산 정책의10K 시나리오를
 v35로 생성·전수감사했다. 소량 live 검증과 달리 본10K 캡처·본 학습은 미시작이다.**
 
-## 최신 v40 — rosbridge 서비스 세대 응답 혼선 재현 / 재연결 필요
+## 최신 v41 — guard live 확인·중복 촬영 제거
+
+[실측·안전·resume 근거](261006_base5_guard_seed_recovery_v41.md).
+사용자 재연결 후 Park12회/남은4셀 보완4/4 통과로 기존선택과 합쳐 대표32/32다.
+같은4셀에서 review 재사용으로 실제촬영6→5회, wall53.93→41.95초(22.21% 단축).
+최종보완Z는 각실측값으로 산정하므로 최종payload 비트일치 비교는 아니다.
+timeout/미종료worker0. 새실행에는 reload전환 오류2회가 약0.21초에 반환됐고
+기존retry 후 정상응답·모든Park확인. 무오류/장시간 인증/전체10K22% 절감을 주장하지 않는다.
+seed는 원본session·payload·audit·Park를 검증하며 gate나network reload를 생략하지 않는다.
+123tests PASS, 완료resume 추가촬영0, CPU4장/GT7개 변환 PASS.
+대시보드8077은 새seeded campaign이다. 다음은 더넓은 bounded throughput/stop-resume 검증.
+**본10K 캡처·학습 미시작.**
+
+## v40 — rosbridge 서비스 세대 응답 혼선 재현 / 당시 재연결 필요
 
 [원인 근거·보완 코드·재연결 순서](261006_base5_eventcmd_rosbridge_v40.md).
 정지Park12회는모두정상응답했고,캡처timeout은TCP요청후응답수신대기로확인했다.

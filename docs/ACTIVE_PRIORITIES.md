@@ -97,6 +97,10 @@
   후속[v40 EventCmd/rosbridge](../dataset/morai_od/docs/261006_base5_eventcmd_rosbridge_v40.md)에서
   서비스재등록ID/공유response혼선을설치코드로재현했다. opt-in guard offline통과/live미검증.
   추가8quota로28/32통과,남은4셀은3raw보존/1미로드다. 기존bridge재시작/MR재연결이먼저다.
+  후속[v41 guard live/중복촬영 제거](../dataset/morai_od/docs/261006_base5_guard_seed_recovery_v41.md):
+  재연결후 남은4셀보완PASS로 대표32/32. 동일4셀53.93→41.95초/실제6→5촬영,
+  123tests·완료resume·CPU4장7GT PASS. 전환오류2회retry회복·timeout0;
+  장시간 인증이나전체10K22%절감은 아니다. 최신진입점은BASE5_V2_CURRENT를 따른다.
   실제 전체pool/장시간 캡처 검증과4-class runtime 결정은 남는다.
   구왕복10K는 새 기본 수집에 사용하지 않는다. 본 수집/본 학습은 미실행이다.
 

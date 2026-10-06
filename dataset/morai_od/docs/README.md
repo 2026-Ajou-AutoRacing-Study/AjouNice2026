@@ -4,7 +4,12 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- **최신 v40: rosbridge 서비스 세대 간 응답 혼선 재현·opt-in 보완.** 추가8quota통과로28/32.
+- **최신 v41: guard live·대표32/32·중복 촬영 제거.** 같은4셀53.93→41.95초,
+  실제6→5촬영.123tests/완료resume/CPU변환 통과. 전환 오류2회는retry회복,
+  timeout0이나장시간인증은 아니다. [근거](261006_base5_guard_seed_recovery_v41.md).
+  본10K/학습 미시작.
+
+- **v40 당시: rosbridge 서비스 세대 간 응답 혼선 재현·opt-in 보완.** 추가8quota통과로28/32.
   남은4셀은3raw보존/1미로드다. 기존bridge재시작·MR재연결후guard live검증이필요하다.
   [원인·코드·재연결 명령](261006_base5_eventcmd_rosbridge_v40.md). 본10K/학습미시작.
 

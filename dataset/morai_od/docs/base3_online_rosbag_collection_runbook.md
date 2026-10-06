@@ -325,3 +325,20 @@ Base4 temporal을 시작하기 전에 동일한 검증 방식으로 정적 Vehic
 [`260920_base3_online_highway_static_v2_collection_plan.md`](260920_base3_online_highway_static_v2_collection_plan.md)를
 따른다. 1,000개를 MRP에 동시에 설치하지 않고 250-scene shard 4개를 순차 설치·보관한다.
 이 캠페인은 `train/val/test=800/200/0`이며 기존 334-scene 결과를 덮어쓰지 않는다.
+# Base5 SaveSensorData 최신 수집 진입점
+
+Base5 독립10K는 이 문서의 과거 rosbag 수집 명령과 구분한다.
+현재 계약은 [BASE5_V2_CURRENT](BASE5_V2_CURRENT.md), 서비스·속도 보완은
+[v41 live 근거](261006_base5_guard_seed_recovery_v41.md)를 먼저 읽는다.
+사용자 재연결 후 opt-in guarded bridge가 실제 요청을 통과했다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/run_base5_rosbridge.py
+```
+
+기존9090 rosbridge와 동시에 실행하지 않는다. MR의 기존7-interface SaveSensorData/
+Collision profile을 연결하고 CaptureMode를 사용한다. 각scene network reload를 유지한다.
+현재 batch driver는 최대64셀 검증용이다. 10K 본수집 승인으로 해석하지 않는다.
+review 원본의 안전/provenance를 검증한 뒤 재사용하며 보완장면은 다시 촬영한다.
+현재대시보드 http://127.0.0.1:8077 은 v41 완료pilot 결과를 표시한다.

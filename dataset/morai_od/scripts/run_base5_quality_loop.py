@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 import generate_base5_independent as gen
-from base5_capture_safety import atomic_json,sha256
+from base5_capture_safety import atomic_json,sha256,prepare_session,load_ledger
 from prepare_base5_ground_retry import prepare as height_retry
 from prepare_base5_empty_ground_probe import prepare as empty_probe
 from prepare_base5_probed_retry import prepare as probed_retry
@@ -34,9 +34,35 @@ def replacement(manifest,output):
     atomic_json(output/'manifest.json',m);return output/'manifest.json'
 
 
-def execute(source,indices,output,resume=False,stop_path=None,progress=None):
+def validate_seed(path,original):
+    """Reuse only authoritative, safe same-payload batch review; never transplant raw."""
+    seed=gen.geo.load_json(path);root=Path(seed['capture_root']);manifest=Path(seed['manifest'])
+    safety=gen.geo.load_json(root/'shutdown_safety.json')
+    if not safety.get('park_verified'):raise ValueError('Seed final Park unverified')
+    session=gen.geo.load_json(root/'session_contract.json');repo=Path(__file__).resolve().parents[3]
+    rows,_=prepare_session(root,manifest,
+        repo/'configs/network/ego_network_mr_base5_savesensordata_collision_local.json',
+        repo/'configs/sensors/Sensor_competition_local.json',session.get('runner_options'))
+    if not session.get('runner_options',{}).get('shared_ros_batch'):
+        raise ValueError('Seed must be a guarded shared-ROS batch')
+    row=next((r for r in reversed(rows) if r['id']==seed['id']),None)
+    if row is None or row['id']!=original['id'] or row['scenario_sha256']!=original['scenario_sha256']:
+        raise ValueError('Seed is not the original quota payload')
+    if row['status']!='review':raise ValueError('Only reviewed seed may enter recovery')
+    if any(r['status'] not in ('accepted_candidate','review') or not r.get('between_scene_park',{}).get('park_verified') for r in rows):
+        raise ValueError('Seed batch unsafe or failed')
+    capture=Path(row['capture_root'])
+    if gen.geo.load_json(capture/'audit.json')!=row['audit']:raise ValueError('Seed audit differs from authoritative ledger')
+    if gen.geo.load_json(capture/'metadata.json').get('calibration_only'):raise ValueError('Calibration seed forbidden')
+    if 'physical_collision_during_capture_window' in row['audit'].get('review_reasons',[]):
+        raise ValueError('Physical collision seed forbidden')
+    return copy.deepcopy(row),root,safety
+
+
+def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed_capture=None):
     if output.exists() and not resume:raise FileExistsError('New quality-loop output required; use campaign resume')
     if not 1<=len(indices)<=4 or len(set(indices))!=len(indices):raise ValueError('Pilot limited to 1–4 cells')
+    if seed_capture is not None and len(indices)!=1:raise ValueError('Seed recovery is single-cell only')
     output.mkdir(parents=True,exist_ok=True);lock=(output/'.quality.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     source_data=gen.geo.load_json(source);attempts=[];selected=[];unresolved=[]
     runner=Path(__file__).with_name('run_base5_capture.py')
@@ -104,7 +130,14 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None):
             original=copy.deepcopy(source_data['scenes'][index]);cell=original['id'];base=output/cell;base.mkdir(exist_ok=True)
             m=copy.deepcopy(source_data);m.update(scenes=[original],count=1)
             manifest=base/'manifest.json';atomic_json(manifest,m)
-            result=capture(manifest,base/'initial',cell,'initial')
+            if seed_capture is not None:
+                if stopped():raise RuntimeError('STOP before seeded recovery')
+                result,seed_root,safety=validate_seed(seed_capture,original)
+                attempts.append(dict(cell=cell,kind='seeded_batch_review',capture_root=str(seed_root),
+                    status=result['status'],reasons=result['audit']['review_reasons'],shutdown=safety,
+                    reused_raw=True,seed_source=str(seed_capture)))
+                save('running')
+            else:result=capture(manifest,base/'initial',cell,'initial')
             for ordinal in range(2):
                 if result['status']=='accepted_candidate':break
                 reasons=set(result.get('audit',{}).get('review_reasons',[]))

@@ -82,6 +82,8 @@ def recover(source,index,output,stop):
     output.mkdir(parents=True,exist_ok=True)
     command=[sys.executable,str(Path(__file__).with_name('run_base5_capture_campaign.py')),
         '--manifest',str(source),'--indices',str(index),'--output',str(output),'--resume']
+    seed=output.parent/(output.name+'_seed.json')
+    if seed.exists():command.extend(['--seed-capture',str(seed)])
     with (output.parent/(output.name+'.log')).open('a') as log:
         child=subprocess.Popen(command,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
         return wait_child(child,output,stop,lambda root:None,800)
@@ -135,6 +137,9 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                     else:
                         recovery=folder/'recovery'/cell['id']
                         if stop.exists():save('stopped');return 0
+                        seed=recovery.parent/(recovery.name+'_seed.json')
+                        seed.parent.mkdir(parents=True,exist_ok=True)
+                        if not seed.exists():atomic_json(seed,dict(capture_root=str(root.resolve()),manifest=str(manifest.resolve()),id=cell['id']))
                         code=recover(source,index,recovery,stop)
                         if code:raise RuntimeError('Single-cell recovery halted; no next load')
                         accepted=load_ledger(recovery/'selected_ledger.jsonl')
@@ -149,8 +154,8 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                 after=inspect_batch(root,manifest)
                 if len(after)<=before:raise RuntimeError('Batch made no progress')
                 if code and after[-1]['status']!='review':raise RuntimeError('Batch failed outside a safe quality-review boundary')
-                # The reviewed first pass is preserved. Recovery intentionally
-                # makes a new initial capture (not a forged imported session).
+                # Reviewed raw is preserved in its original safe session; recovery
+                # verifies that evidence rather than repeating the initial capture.
             if stop_after_chunks and ordinal+1>=stop_after_chunks:
                 save('paused');return 0
         save('complete_with_deficit' if deficits else 'complete');return 0

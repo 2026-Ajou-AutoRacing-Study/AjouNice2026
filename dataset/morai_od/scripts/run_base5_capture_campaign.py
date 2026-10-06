@@ -62,14 +62,16 @@ def validate_selected(report):
         prepare_session(root,manifest,network,sensor,session.get('runner_options'))
 
 
-def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=False):
+def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=False,seed_capture=None):
     if not indices or len(indices)!=len(set(indices)):raise ValueError('Unique nonempty indices required')
     if len(indices)>64 and not bulk:raise ValueError('More than 64 cells requires --approve-bulk-capture')
     if not 1<=rounds<=3:raise ValueError('Quota rounds must be 1–3')
+    if seed_capture is not None and len(indices)!=1:raise ValueError('Seed campaign must be single-cell')
     if output.exists() and not resume:raise FileExistsError('Existing campaign requires --resume')
     output.mkdir(parents=True,exist_ok=True)
     lock=(output/'.campaign.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     expected=contract(source,indices,rounds);cp=output/'campaign_contract.json'
+    if seed_capture is not None:expected['seed_sha256']=sha256(seed_capture)
     if cp.exists() and loop.gen.geo.load_json(cp)!=expected:
         lock.close();raise ValueError('Campaign resume contract mismatch; use new output')
     atomic_json(cp,expected)
@@ -116,7 +118,9 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
                     outcome=loop.gen.geo.load_json(report);validate_selected(outcome)
                 else:
                     # STOP is also watched within the running bounded loop.
-                    code=loop.execute(manifest,[0],target,resume=target.exists(),stop_path=output/'STOP',progress=progress)
+                    options=dict(resume=target.exists(),stop_path=output/'STOP',progress=progress)
+                    if ordinal==0 and seed_capture is not None:options['seed_capture']=seed_capture
+                    code=loop.execute(manifest,[0],target,**options)
                     outcome=loop.gen.geo.load_json(report)
                     if code:raise RuntimeError('Quality child halted; no next cell: '+str(target))
                     validate_selected(outcome)
@@ -142,6 +146,7 @@ if __name__=='__main__':
     p.add_argument('--indices');p.add_argument('--limit',type=int,default=64)
     p.add_argument('--resume',action='store_true');p.add_argument('--approve-bulk-capture',action='store_true')
     p.add_argument('--quota-rounds',type=int,default=2);p.add_argument('--stop-after-cells',type=int,default=0)
+    p.add_argument('--seed-capture',type=Path)
     a=p.parse_args();m=loop.gen.geo.load_json(a.manifest)
     ids=[int(i) for i in a.indices.split(',')] if a.indices else list(range(min(a.limit,len(m['scenes']))))
-    raise SystemExit(execute(a.manifest,ids,a.output,a.resume,a.quota_rounds,a.stop_after_cells,a.approve_bulk_capture))
+    raise SystemExit(execute(a.manifest,ids,a.output,a.resume,a.quota_rounds,a.stop_after_cells,a.approve_bulk_capture,a.seed_capture))
