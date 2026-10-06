@@ -329,7 +329,7 @@ Base4 temporal을 시작하기 전에 동일한 검증 방식으로 정적 Vehic
 
 Base5 독립10K는 이 문서의 과거 rosbag 수집 명령과 구분한다.
 현재 계약은 [BASE5_V2_CURRENT](BASE5_V2_CURRENT.md), 서비스·속도 보완은
-[v44 자산 확대·10K 시간 근거](261006_base5_diverse_coverage_eta_v44.md)를 먼저 읽는다.
+[v45 본수집 준비·PAUSE/resume 런북](261006_base5_bulk_resume_v45.md)를 먼저 읽는다.
 사용자 재연결 후 opt-in guarded bridge가 실제 요청을 통과했다.
 
 ```bash
@@ -339,10 +339,14 @@ python3 dataset/morai_od/scripts/run_base5_rosbridge.py
 
 기존9090 rosbridge와 동시에 실행하지 않는다. MR의 기존7-interface SaveSensorData/
 Collision profile을 연결하고 CaptureMode를 사용한다. 각scene network reload를 유지한다.
-현재 batch driver는 최대64셀 검증용이다. 10K 본수집 승인으로 해석하지 않는다.
+기본 batch driver는 최대64셀 검증용이다. 명시적bulk승인일때만최대10K이며
+현재는 실행경로소량검증까지만했다. 10K 본수집 승인으로 해석하지 않는다.
 review 원본의 안전/provenance를 검증한 뒤 재사용하며 보완장면은 다시 촬영한다.
 현재대시보드 http://127.0.0.1:8077 은 v43 혼합32셀 완료pilot 결과를 표시한다.
 추가검증 http://127.0.0.1:8078 은후방/복합8셀, http://127.0.0.1:8079 는새자산56셀이다.
-기본10K 준비 여유는9초 유지다. 6초 후보에서 초기 목표를 놓치면 안전 증거와
+v35 9초baseline은보존하고 다음수집은 별도v45 6초deck을선택한다.
+6초 후보에서 초기 목표를 놓치면 안전 증거와
 Park를 확인한 경우에만 동일quota9초를 한 번 재시도한다. 통신/충돌/Z 실패를
 목표 누락으로 간주해 계속하지 않는다. 진단 전용 지연 데이터는 학습 제외다.
+현재 http://127.0.0.1:8080 은본수집코드12셀소량검증 완료결과다.
+안전 PAUSE marker와 긴급 STOP은다르며 최신v45런북의구분을따른다.

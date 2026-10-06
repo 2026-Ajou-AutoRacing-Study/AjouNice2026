@@ -9,9 +9,9 @@ import generate_base5_independent as gen
 from base5_capture_safety import atomic_json, sha256
 
 
-def prepare(source,indices,output,budget=6.,include_static=False):
+def prepare(source,indices,output,budget=6.,include_static=False,approve_bulk=False):
     if output.exists():raise FileExistsError('New budget pilot output required')
-    maximum=64 if include_static else 8
+    maximum=10000 if approve_bulk and include_static else (64 if include_static else 8)
     if not 1<=len(indices)<=maximum or len(set(indices))!=len(indices):raise ValueError('Bounded unique pilot cells required')
     if not 6<=budget<=9:raise ValueError('Pilot setup budget must be 6–9 seconds')
     original=gen.geo.load_json(source)
@@ -27,7 +27,7 @@ def prepare(source,indices,output,budget=6.,include_static=False):
             if not include_static:raise ValueError('Budget pilot requires natural motion')
             pending.append((entry,gen.geo.load_json(Path(entry['scenario'])),old));continue
         dynamic_count+=1
-        if dynamic_count>8:raise ValueError('Mixed pilot limited to eight natural-motion cells')
+        if dynamic_count>8 and not approve_bulk:raise ValueError('Mixed pilot limited to eight natural-motion cells')
         scene,new=gen.build(old['spec'],deck['config'],context,old['retry'])
         if any(new[k]!=old[k] for k in ('spec','ego','split')):raise ValueError('Budget changed quota or Ego')
         if len(new['runtime_actors'])!=len(old['runtime_actors']):raise ValueError('Budget changed actors')
@@ -49,7 +49,7 @@ def prepare(source,indices,output,budget=6.,include_static=False):
         atomic_json(path,scene);atomic_json(mp,meta)
         entry.update(scenario=str(path.resolve()),metadata=str(mp.resolve()),scenario_sha256=sha256(path))
         entries.append(entry)
-    deck.update(count=len(entries),scenes=entries,status='SETUP_BUDGET_PILOT; LIVE_PENDING',
+    deck.update(count=len(entries),scenes=entries,status='SETUP_BUDGET_DECK; LIVE_PENDING' if approve_bulk else 'SETUP_BUDGET_PILOT; LIVE_PENDING',
         setup_budget_pilot=dict(source_manifest_sha256=sha256(source),indices=indices,budget_sec=budget))
     deck['provenance']['config_sha256']=hashlib.sha256(json.dumps(deck['config'],sort_keys=True).encode()).hexdigest()
     atomic_json(output/'manifest.json',deck)
@@ -58,7 +58,12 @@ def prepare(source,indices,output,budget=6.,include_static=False):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--manifest',type=Path,required=True);p.add_argument('--indices',required=True)
+    p.add_argument('--manifest',type=Path,required=True)
+    select=p.add_mutually_exclusive_group(required=True)
+    select.add_argument('--indices');select.add_argument('--all-scenes',action='store_true')
     p.add_argument('--output',type=Path,required=True);p.add_argument('--budget-sec',type=float,default=6)
     p.add_argument('--include-static',action='store_true',help='Allow bounded mixed pilot up to64 cells, with at most8 natural-motion cells')
-    a=p.parse_args();print(prepare(a.manifest,[int(i) for i in a.indices.split(',')],a.output,a.budget_sec,a.include_static))
+    p.add_argument('--approve-bulk-prepare',action='store_true',help='Explicit offline-only deck preparation up to10K; does not authorize capture')
+    a=p.parse_args()
+    indices=list(range(len(gen.geo.load_json(a.manifest)['scenes']))) if a.all_scenes else [int(i) for i in a.indices.split(',')]
+    print(prepare(a.manifest,indices,a.output,a.budget_sec,a.include_static,a.approve_bulk_prepare))

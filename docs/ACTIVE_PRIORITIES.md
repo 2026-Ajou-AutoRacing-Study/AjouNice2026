@@ -102,7 +102,11 @@
   123tests·완료resume·CPU4장7GT PASS. 전환오류2회retry회복·timeout0;
   장시간 인증이나전체10K22%절감은 아니다. 최신진입점은BASE5_V2_CURRENT를 따른다.
   실제 전체pool/장시간 캡처 검증과4-class runtime 결정은 남는다.
-  최신[v44 후방·복합/새자산·10K 시간](../dataset/morai_od/docs/261006_base5_diverse_coverage_eta_v44.md):
+  최신[v45 6초10K·본수집 실행경로](../dataset/morai_od/docs/261006_base5_bulk_resume_v45.md):
+  새6초10K 전수OFFLINE_PASS, 실제bulk경로12/12+PAUSE/resume8/8·143tests PASS.
+  4셀 child/64셀목록checkpoint/누적시간/unsafe resume거부. v35baseline보존,
+  다음수집은v45별도6초deck선택. 예상18.71시간 유지, 본10K 촬영·학습미시작.
+  이전[v44 후방·복합/새자산·10K 시간](../dataset/morai_od/docs/261006_base5_diverse_coverage_eta_v44.md):
   추가64/64셀·66촬영/GT95,138tests PASS. 대표10K 예상18.71시간 유지,
   자연이동5–10%재시도/추가30초가정19.40–20.09시간. 기본9초/본수집미시작.
   이전[v43 6초후보·안전재시도](../dataset/morai_od/docs/261006_base5_budget6_fallback_v43.md):

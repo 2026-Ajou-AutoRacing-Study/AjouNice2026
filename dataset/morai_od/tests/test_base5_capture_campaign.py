@@ -72,6 +72,20 @@ class CampaignTest(unittest.TestCase):
                 with self.assertRaises(ValueError):campaign.execute(source,[0],out,resume=True)
             with self.assertRaises(ValueError):campaign.execute(source,list(range(65)),root/'bulk')
 
+    def test_completed_deficit_verification_never_recaptures(self):
+        def review(source,indices,output,**kwargs):
+            output.mkdir(parents=True);campaign.atomic_json(output/'report.json',dict(stage='complete',attempts=[],selected=[],unresolved=['visibility']))
+            return 0
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=self.fixture(root);out=root/'out'
+            with patch.object(campaign,'contract',return_value={}),patch.object(campaign,'validate_selected'),patch.object(campaign.loop,'execute',side_effect=review) as child:
+                self.assertEqual(campaign.execute(source,[0],out,rounds=1),0)
+                self.assertEqual(campaign.execute(source,[0],out,rounds=1,resume=True),0)
+                self.assertEqual(child.call_count,1)
+                (out/'a'/'round_0'/'report.json').unlink()
+                self.assertEqual(campaign.execute(source,[0],out,rounds=1,resume=True),1)
+                self.assertEqual(child.call_count,1)
+
     def test_quota_replacement_retains_original_cell_identity(self):
         calls=[]
         def replacement(source,output):

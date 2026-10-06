@@ -119,6 +119,61 @@ class BatchCampaignTest(unittest.TestCase):
                 with self.assertRaises(ValueError):batch.execute(root/'absent',indices,root/'out',size)
             self.assertFalse((root/'out').exists())
 
+    def test_bulk_checkpoint_heartbeat_pause_and_cumulative_time(self):
+        records={};snapshots=[]
+        def child(manifest,root,stop,heartbeat):
+            ledger=out/'selected_ledger.jsonl'
+            before=ledger.read_bytes() if ledger.exists() else None
+            for _ in range(3):heartbeat(root)
+            self.assertEqual(ledger.read_bytes() if ledger.exists() else None,before)
+            rows=json.loads(manifest.read_text())['scenes']
+            records[str(root)]=[dict(id=r['id'],family='test',status='accepted_candidate') for r in rows]
+            batch.atomic_json(root/'session_contract.json',{})
+            return 0
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=root/'source.json';out=root/'out'
+            batch.atomic_json(source,dict(scenes=[dict(id=str(i)) for i in range(68)],config={}))
+            indices=list(range(68))
+            with patch.object(batch.campaign,'contract',return_value={}),patch.object(batch,'run_child',side_effect=child) as capture,patch.object(batch,'inspect_batch',side_effect=lambda root,manifest:records[str(root)]):
+                self.assertEqual(batch.execute(source,indices,out,4,stop_after_chunks=2,bulk=True),0)
+                paused=json.loads((out/'status.json').read_text());self.assertEqual(paused['finished'],8)
+                paused['elapsed_sec']=100.;batch.atomic_json(out/'status.json',paused)
+                self.assertEqual(batch.execute(source,indices,out,4,resume=True,bulk=True),0)
+                status=json.loads((out/'status.json').read_text())
+                self.assertGreaterEqual(status['elapsed_sec'],100.)
+                self.assertEqual(status['accepted_bins'],{'["test", null, null]':68})
+                self.assertEqual(len(batch.load_ledger(out/'selected_ledger.jsonl')),68)
+                calls=capture.call_count;before=(out/'selected_ledger.jsonl').read_bytes()
+                self.assertEqual(batch.execute(source,indices,out,4,resume=True,bulk=True),0)
+                self.assertEqual(capture.call_count,calls)
+                self.assertEqual((out/'selected_ledger.jsonl').read_bytes(),before)
+
+    def test_halted_resume_never_loads(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=self.fixture(root);out=root/'out';out.mkdir()
+            batch.atomic_json(out/'status.json',dict(stage='halted',elapsed_sec=40))
+            with patch.object(batch.campaign,'contract',return_value={}),patch.object(batch,'run_child') as child:
+                with self.assertRaisesRegex(ValueError,'Halted campaign'):batch.execute(source,[0,1],out,resume=True)
+                child.assert_not_called()
+
+    def test_pause_marker_finishes_current_chunk_then_resumes(self):
+        records={}
+        def child(manifest,root,stop,heartbeat):
+            records[str(root)]=[dict(id=r['id'],status='accepted_candidate') for r in json.loads(manifest.read_text())['scenes']]
+            batch.atomic_json(root/'session_contract.json',{})
+            (out/'PAUSE').touch()
+            return 0
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=self.fixture(root);out=root/'out'
+            with patch.object(batch.campaign,'contract',return_value={}),patch.object(batch,'run_child',side_effect=child) as capture,patch.object(batch,'inspect_batch',side_effect=lambda root,manifest:records[str(root)]):
+                self.assertEqual(batch.execute(source,[0,1],out,1,bulk=True),0)
+                self.assertEqual(json.loads((out/'status.json').read_text())['stage'],'paused')
+                self.assertEqual(capture.call_count,1)
+                (out/'PAUSE').unlink()
+                self.assertEqual(batch.execute(source,[0,1],out,1,resume=True,bulk=True),0)
+                self.assertEqual(capture.call_count,2)
+                self.assertEqual(len(batch.load_ledger(out/'selected_ledger.jsonl')),2)
+
     def test_inspector_rejects_final_or_boundary_park_and_collision(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);batch.atomic_json(root/'shutdown_safety.json',dict(park_verified=False))

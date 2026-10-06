@@ -42,5 +42,16 @@ class BudgetTest(unittest.TestCase):
             for ids,budget in [([0],5),([0],10),([0,0],6),(list(range(9)),6)]:
                 with self.assertRaises(ValueError):pilot.prepare(p/'none',ids,p/'out',budget)
 
+    def test_bulk_preparation_explicit_and_source_preserved(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d);source,meta=self.fixture(p);deck=pilot.gen.geo.load_json(source)
+            deck['scenes']=[dict(deck['scenes'][0],id=str(i)) for i in range(65)]
+            pilot.atomic_json(source,deck);before=source.read_bytes()
+            with patch.object(pilot.gen,'context',return_value={}),patch.object(pilot.gen,'build',return_value=({},copy.deepcopy(meta))):
+                with self.assertRaises(ValueError):pilot.prepare(source,list(range(65)),p/'no',6,True)
+                result=pilot.prepare(source,list(range(65)),p/'out',6,True,True)
+            self.assertEqual(len(pilot.gen.geo.load_json(result)['scenes']),65)
+            self.assertEqual(source.read_bytes(),before)
+
 
 if __name__=='__main__':unittest.main()

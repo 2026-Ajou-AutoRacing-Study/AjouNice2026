@@ -2,9 +2,23 @@
 
 2026-10-06. 이 문서를 Base5 생성·캡처·변환의 최신 진입점으로 읽는다.
 기존 v1/E25 보강 실험과 구분한다. **최신 자연속도/정적자산 정책의10K 시나리오를
-v35로 생성·전수감사했다. 소량 live 검증과 달리 본10K 캡처·본 학습은 미시작이다.**
+v35로 생성·전수감사했고 v45에서6초 준비 후보10K를 별도로 전수감사했다.
+소량 live 검증과 달리 본10K 캡처·본 학습은 미시작이다.**
 
-## 최신 v44 — 후방·복합 및 새 자산64셀·시간 민감도
+## 최신 v45 — 6초10K 준비·bulk checkpoint·안전 PAUSE/resume
+
+[실행·정지·재개 런북 및 근거](261006_base5_bulk_resume_v45.md).
+새`scenarios_10k_budget6_v45/manifest.json`은10K/unique10K/OFFLINE_PASS,
+train8607/val1393/test0, 기존quota/Ego/목표geometry/자연속도/split 유지.
+본수집 모드에서는4셀 child 유지, 전체목록64셀 checkpoint와 lightweight dashboard.
+명시적bulk승인 없이64셀 초과거부, halt 자동resume거부, 누적active wall 보존.
+실제12/12(14촬영/108.464초)과PAUSE marker8/8(8촬영/51.624초) 통과.
+최종8셀완료resume ledger SHA/시간/호출수불변·추가촬영0. CPU합20장/GT28,143tests PASS.
+9초v35 baseline은보존, 다음본수집은 별도6초v45 deck을선택한다.
+예상18.71시간/재시도가정19–20시간대 유지. 새I/O의추가절감·하루안정성은미측정.
+**본10K 촬영·학습 미시작.**
+
+## v44 — 후방·복합 및 새 자산64셀·시간 민감도
 
 [실제 결과·10K 시간 계산](261006_base5_diverse_coverage_eta_v44.md).
 후방/복합8/8, 새자산혼합56/56 통과, 합66촬영/64장/GT95.

@@ -90,13 +90,13 @@ def recover(source,index,output,stop):
         return wait_child(child,output,stop,lambda root:None,800)
 
 
-def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chunks=0):
-    if not indices or len(indices)>64 or len(set(indices))!=len(indices):
-        raise ValueError('Unique 1–64 cell pilot only; not a bulk collector')
+def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chunks=0,bulk=False):
+    if not indices or len(indices)>(10000 if bulk else 64) or len(set(indices))!=len(indices):
+        raise ValueError('Unique 1–64 pilot cells; up to10K only with explicit bulk approval')
     if not 1<=chunk_size<=16:raise ValueError('Chunk must contain 1–16 cells')
     if output.exists() and not resume:raise FileExistsError('Existing campaign requires --resume')
     expected=campaign.contract(source,indices,2)
-    expected.update(batch_driver_sha256=sha256(__file__),chunk_size=chunk_size)
+    expected.update(batch_driver_sha256=sha256(__file__),chunk_size=chunk_size,bulk=bulk)
     output.mkdir(parents=True,exist_ok=True)
     lock=(output/'.batch.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     original=json.loads(source.read_text());selected={};deficits={};started=time.monotonic()
@@ -106,28 +106,48 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
     atomic_json(contract_path,expected)
     status_path=output/'status.json'
     prior_status=json.loads(status_path.read_text()) if status_path.exists() else {}
-    verify_only=resume and prior_status.get('stage')=='complete'
+    if resume and prior_status.get('stage')=='halted':
+        lock.close();raise ValueError('Halted campaign requires manual safety recovery and new output')
+    completed_stages=('complete','complete_with_deficit')
+    verify_only=resume and prior_status.get('stage') in completed_stages
+    prior_elapsed=prior_status.get('elapsed_sec',0) if resume else 0
+    last_checkpoint=prior_status.get('checkpoint_finished',-1) if resume else -1
     def save(stage,error=None,child=None):
+        nonlocal last_checkpoint
         # A completed resume is a verification pass. Do not publish its partial
         # reconstruction to concurrent converters/dashboard readers.
         if verify_only and stage=='running':return
-        atomic_json(output/'quota.json',dict(target=len(indices),accepted=len(selected),
-            deficit=len(deficits),pending=len(indices)-len(selected)-len(deficits),cells=list(deficits.values())))
-        atomic_json(output/'deficit_manifest.json',campaign.subset_deck(original,
-            [original['scenes'][i] for i in indices if original['scenes'][i]['id'] in deficits]))
-        if not verify_only or stage=='complete':
+        finished=len(selected)+len(deficits)
+        snapshot=(not bulk or stage!='running' or
+                  (child is None and (last_checkpoint<0 or finished-last_checkpoint>=64)))
+        elapsed=prior_elapsed if verify_only else prior_elapsed+time.monotonic()-started
+        if snapshot:
+            atomic_json(output/'quota.json',dict(target=len(indices),accepted=len(selected),
+                deficit=len(deficits),pending=len(indices)-len(selected)-len(deficits),cells=list(deficits.values())))
+            atomic_json(output/'deficit_manifest.json',campaign.subset_deck(original,
+                [original['scenes'][i] for i in indices if original['scenes'][i]['id'] in deficits]))
+        if snapshot and (not verify_only or stage in completed_stages):
             temp=output/'.selected.tmp'
             with temp.open('w') as handle:
                 for i in indices:
                     row=selected.get(original['scenes'][i]['id'])
                     if row:handle.write(json.dumps(row,ensure_ascii=False)+'\n')
+                handle.flush();os.fsync(handle.fileno())
             temp.replace(output/'selected_ledger.jsonl')
+            last_checkpoint=finished
+        bins={}
+        for row in selected.values():
+            key=json.dumps([row.get('family'),row.get('distance_bounds'),row.get('role')])
+            bins[key]=bins.get(key,0)+1
         atomic_json(output/'status.json',dict(stage=stage,error=error,requested=len(indices),
             finished=len(selected)+len(deficits),accepted_candidate=len(selected),review=len(deficits),
             failed=int(stage=='halted'),updated_at=time.time(),
-            elapsed_sec=prior_status['elapsed_sec'] if verify_only else time.monotonic()-started,
-            eta_sec=0,current=str(child) if child else None,
-            results=[status_row(row) for row in selected.values()]))
+            elapsed_sec=elapsed,
+            eta_sec=elapsed/finished*(len(indices)-finished) if finished and not verify_only else 0,
+            current=str(child) if child else None,
+            checkpoint_finished=last_checkpoint,checkpoint_only=bulk,
+            accepted_bins=bins if bulk else None,
+            results=[] if bulk else [status_row(row) for row in selected.values()]))
     try:
         for ordinal,start in enumerate(range(0,len(indices),chunk_size)):
             chunk_indices=indices[start:start+chunk_size]
@@ -146,7 +166,7 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                     else:
                         recovery=folder/'recovery'/cell['id']
                         if verify_only and (not (recovery/'status.json').exists() or
-                                json.loads((recovery/'status.json').read_text())['stage']!='complete'):
+                                json.loads((recovery/'status.json').read_text())['stage'] not in completed_stages):
                             raise ValueError('Completed recovery evidence missing; verification cannot recapture')
                         if stop.exists():save('stopped');return 0
                         seed=recovery.parent/(recovery.name+'_seed.json')
@@ -169,7 +189,7 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                         if stop.exists():save('stopped');return 0
                         recovery=folder/'recovery'/cell['id']
                         if verify_only and (not (recovery/'status.json').exists() or
-                                json.loads((recovery/'status.json').read_text())['stage']!='complete'):
+                                json.loads((recovery/'status.json').read_text())['stage'] not in completed_stages):
                             raise ValueError('Completed tail evidence missing; no recapture')
                         code=recover(source,index,recovery,stop)
                         if code:raise RuntimeError('Post-miss isolated capture halted; no next load')
@@ -189,7 +209,7 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                     raise RuntimeError('Batch failed outside a verified review/target-miss boundary')
                 # Reviewed raw is preserved in its original safe session; recovery
                 # verifies that evidence rather than repeating the initial capture.
-            if stop_after_chunks and ordinal+1>=stop_after_chunks:
+            if (output/'PAUSE').exists() or (stop_after_chunks and ordinal+1>=stop_after_chunks):
                 save('paused');return 0
         save('complete_with_deficit' if deficits else 'complete');return 0
     except KeyboardInterrupt:
@@ -205,6 +225,7 @@ if __name__=='__main__':
     parser.add_argument('--limit',type=int,default=32);parser.add_argument('--indices')
     parser.add_argument('--chunk-size',type=int,default=4);parser.add_argument('--resume',action='store_true')
     parser.add_argument('--stop-after-chunks',type=int,default=0)
+    parser.add_argument('--approve-bulk-capture',action='store_true',help='Explicit authorization above64 cells; child batches remain bounded')
     args=parser.parse_args();deck=json.loads(args.manifest.read_text())
     indices=[int(i) for i in args.indices.split(',')] if args.indices else list(range(min(args.limit,len(deck['scenes']))))
-    raise SystemExit(execute(args.manifest,indices,args.output,args.chunk_size,args.resume,args.stop_after_chunks))
+    raise SystemExit(execute(args.manifest,indices,args.output,args.chunk_size,args.resume,args.stop_after_chunks,args.approve_bulk_capture))

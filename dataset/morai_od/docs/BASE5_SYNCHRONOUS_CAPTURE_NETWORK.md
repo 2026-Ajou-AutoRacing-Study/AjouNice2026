@@ -2,11 +2,11 @@
 
 ## 현재 진입점 — guard 재연결 및 v43 검증 완료
 
-[CURRENT](BASE5_V2_CURRENT.md)와 [v44 근거](261006_base5_diverse_coverage_eta_v44.md)를
+[CURRENT](BASE5_V2_CURRENT.md)와 [v45 실행·정지·재개](261006_base5_bulk_resume_v45.md)를
 우선한다. 아래 v40/v39의 재연결 필요·미완료 내용은 당시 이력이다.
 현재 guarded bridge 재연결 뒤 대표32/32와 자연 이동16/16, 안전한9초 재시도 진단을
-통과했다.7-interface와 매scene network reload를 유지한다. 기본 준비9초는 미변경이며
-6초는 opt-in 검증 후보다. 본10K 캡처·학습은 시작하지 않았다.
+통과했다.7-interface와 매scene network reload를 유지한다. v35 9초 baseline을보존하고
+다음 수집에는 v45 별도6초10K deck을 선택한다. 본10K 캡처·학습은 시작하지 않았다.
 현재 bridge가 연결돼 있으면 아래 과거 재시작 지시 때문에 임의로 끊지 않는다.
 통신/충돌/Park 실패시에는 계속하지 않고 현재 session 증거를 확인한다.
 

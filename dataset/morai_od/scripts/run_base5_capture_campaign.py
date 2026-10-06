@@ -79,7 +79,8 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
     original=loop.gen.geo.load_json(source);selected=[];deficits=[];finished=0;start=time.time()
     status_path=output/'status.json'
     prior_status=loop.gen.geo.load_json(status_path) if status_path.exists() else {}
-    verify_only=resume and prior_status.get('stage')=='complete'
+    completed_stages=('complete','complete_with_deficit')
+    verify_only=resume and prior_status.get('stage') in completed_stages
     def progress(cell,kind,root):
         atomic_json(output/'status.json',dict(stage='running',current=cell+' / '+kind,
             requested=len(indices),finished=finished,accepted_candidate=len(selected),review=len(deficits),
@@ -91,7 +92,7 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
         if verify_only and stage=='running':return
         # Cell reports are authoritative. Canonical ledger is rebuilt on resume,
         # with one selection per original quota cell, never calibration frames.
-        if not verify_only or stage=='complete':
+        if not verify_only or stage in completed_stages:
             temp=output/'.selected.tmp'
             with temp.open('w') as f:
                 for row in selected:f.write(json.dumps(row,ensure_ascii=False)+'\n')

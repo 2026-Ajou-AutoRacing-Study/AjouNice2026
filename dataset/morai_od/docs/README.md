@@ -4,7 +4,12 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- **최신 v44: 후방·복합8/8 + 새자산56/56.** 추가64장/66촬영,138tests PASS.
+- **최신 v45: 6초10K 전수OFFLINE_PASS·bulk 실행/PAUSE/resume 연결.**
+  실제12/12+marker8/8·CPU GT28·143tests PASS, 완료resume 추가촬영0.
+  명시적bulk승인·4셀 child·64셀 목록checkpoint·누적시간 보존.
+  v35 baseline보존/본10K·학습미시작. [실행·정지·재개 런북](261006_base5_bulk_resume_v45.md).
+
+- **v44: 후방·복합8/8 + 새자산56/56.** 추가64장/66촬영,138tests PASS.
   10K 자연 이동1,646셀의9→6초절약약1.37시간. 대표외삽18.71시간 유지,
   목표누락재시도 가정5–10%/추가30초면19.40–20.09시간. 기본9초/본수집미시작.
   [실측·시간 계산](261006_base5_diverse_coverage_eta_v44.md).
