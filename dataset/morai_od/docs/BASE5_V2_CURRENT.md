@@ -4,7 +4,15 @@
 기존 v1/E25 보강 실험과 구분한다. **구버전 왕복10K 생성 기록은 있으나 최신 일방향
 기본의10K는 생성하지 않았다. 소량 live 검증만 수행했고 본 수집·본 학습은 미시작이다.**
 
-## 최신 v31 — 남은 조건 통과 / bounded campaign quota·resume 연결
+## 최신 v32 — MR OFF batch1 / ROS 포화 비용 확인
+
+5060Ti에서 E25 batch1 service71.94ms/13.90FPS, Base5320×896/±100m freshgeometry 후보94.52ms/10.58FPS.
+E25 ROS원속도 입력/출력11.47Hz·드롭0, 약98Hz입력 stress에서는출력12.97Hz/평균receipt→response88.89ms다.
+학습되지않은Base5후보의정확도·4090·확대후보ROS·full-stack 성능은측정하지않았다.
+4-class/resize 온라인연결은후속이다.10K 본수집은미시작이다.
+[측정계약·원본·재현](../../../docs/bevfusion/261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md).
+
+## v31 — 남은 조건 통과 / bounded campaign quota·resume 연결
 
 남은 Deer1+바리케이드, 유모차2개, 스쿠터+Niro 혼합3셀을 재검증해 모두 통과했다.
 Deer는 독립 지면 보완, 스쿠터 혼합은 누락 이후 같은 셀 재배치가 필요했다.

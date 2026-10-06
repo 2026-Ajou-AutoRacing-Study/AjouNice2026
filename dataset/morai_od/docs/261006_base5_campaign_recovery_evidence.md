@@ -37,4 +37,6 @@
 
 ## 다음
 
-소량 선택 ledger의 학습 변환 CPU smoke까지 확인했다. 다음은 MR 종료 뒤 직사각형 BEV의 추론 속도/메모리 비교다. 본10K 시작은 별도 승인 이후다.
+소량 선택 ledger의 학습 변환 CPU smoke까지 확인했다. 당시 다음이던 MR OFF 속도/메모리 비교는
+[v32 EVIDENCE](../../../docs/bevfusion/261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md)에서 완료했다.
+본10K 시작은 별도 승인 이후다.

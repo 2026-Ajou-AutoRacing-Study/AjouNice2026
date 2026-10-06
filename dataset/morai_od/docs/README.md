@@ -4,6 +4,10 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **최신 v32:** MR OFF에서batch1 및E25 ROS포화 속도를 측정했다.
+  Base5320×896/±100m 후보는5060Ti에서약10.58FPS 비용probe다.4090/후보정확도/후보ROS는미측정.
+  [CURRENT](BASE5_V2_CURRENT.md), [capacity EVIDENCE](../../../docs/bevfusion/261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md).
+
 - **최신 v31:** 남은 근접·혼합3셀 통과. quality loop를 bounded campaign의 재시도·quota 보충·resume에 연결했다.
   소량 live stop/resume 및89 tests 통과. 본10K·학습·GPU속도 미실행.
   [CURRENT](BASE5_V2_CURRENT.md), [v31 EVIDENCE](261006_base5_campaign_recovery_evidence.md) 우선.

@@ -55,7 +55,9 @@
   v25 yaw 실측은 유효42/42조건: ±15° 곡선2조건이 횡30m 밖이다.
   정지설정 NPC runtime 이동 표본은 제외/재촬영 gate로 차단했다.
   Park 재확인 후 남은2조건 완료,최종Park 재시도 성공. 간헐 timeout 원인은 미해결이다.
-  추론 latency 측정은 아직 하지 않았다.
+  v32에서 E25 및Base5후보의5060Ti batch1 비용과E25 ROS포화처리량을측정했다.
+  근거는[capacity EVIDENCE](bevfusion/261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md)다.
+  4090/확대후보ROS/full-stack은미측정이다.
   v26은 속도를 낮추지 않고뒤쪽출발+실제목표도착 capture를Woman2 12조건에서 검증했다.
   이동자세/GT 형상이달라짐을 확인.
   v27은 대표13자산의52조건/80component GT 비교 완료. 일부 object의 이동높이 차이는
@@ -68,7 +70,7 @@
   v30의60시도/57raw에서작은Z상향여유는부유를해결하지않았다.
   지면기준입력/waypoint보정후24/24통과했으며일괄상향·전역offset은적용하지않는다.
   v31에서 남은 근접·혼합3셀을 마무리했고 quality loop의 bounded campaign/quota 보충/resume을 연결했다.
-  소량 stop/resume 및89 tests 통과. 다음은 선택 ledger 변환 확인·MR 종료 뒤 추론 속도 비교다.
+  소량 stop/resume 및89 tests 통과. 선택ledger CPU변환·MR OFF 속도비교까지완료했다.
   안정된Z도 떠 있을 수 있으며 입력Z 수정 후 개4조건의공중gap은약−3cm로 개선됐다.
   raw GT 사후 보정은 하지 않는다. 자동보완은universal지형높이solver인증이아니다.
   새 기본의10K 전수 생성/audit·전체pool/장시간 검증과4-class runtime 결정은 남는다.
@@ -80,7 +82,7 @@
   방향·통과 중 raw/GT를 보강하고 동일 held-out bag에서 재학습 후보를 비교한다.
 - 원거리 검증은 40/60/80/100m 가시성부터 시작한다. 현 ±30m config와 향후 모델의
   능력을 구분하며, ROI/학습/평가 범위를 함께 설계한다.
-- 고해상도 320×896은 5060 Ti GPU smoke를 통과했다. 정확도·4090 속도는 미측정이다.
+- 고해상도 320×896은 5060 Ti batch1 약10–11FPS로측정했다. 정확도·4090 속도는 미측정이다.
 - 전후방 ±60m/좌우 ±30m ROI 후보는 축소 입력 forward와 checkpoint 기하 복원 검증을
   통과했다. 확장 GT 재변환·full-input 학습·출력/평가 필터 연계는 아직 미완료다.
 - confirmed UNKNOWN→차량 빠른 승격은 opt-in 후보이며 기본 OFF다. 신규 track
