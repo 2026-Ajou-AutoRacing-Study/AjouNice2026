@@ -109,6 +109,9 @@ python3 perception/detection3d/bevfusion/scripts/benchmark_ros_capacity.py \
 
 ## 다음
 
+예상1.5–2배보다비용이낮았던원인은[단계별분해·finegrid/depth대조](261006_BASE5_LATENCY_STAGE_BREAKDOWN.md)에서실측했다.
+격자/depth를기존처럼촘촘하게한100m highres 비용대조는GPU모델처리약129.21ms로E25의약1.98배다.
+
 Base5 설계/수집 전 GPU wiring·용량 측정은 완료됐다.10K생성/캡처는별도승인후진행한다.
 현320×896/±100m 후보로학습한 뒤 geometry/class/resize 계약을온라인에연결하고,
 4090에서full-stack latency·출력률·정확도를함께검증한다. 원거리학습이나production 교체를

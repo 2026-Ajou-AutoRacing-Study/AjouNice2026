@@ -11,6 +11,9 @@ E25 ROS원속도 입력/출력11.47Hz·드롭0, 약98Hz입력 stress에서는출
 학습되지않은Base5후보의정확도·4090·확대후보ROS·full-stack 성능은측정하지않았다.
 4-class/resize 온라인연결은후속이다.10K 본수집은미시작이다.
 [측정계약·원본·재현](../../../docs/bevfusion/261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md).
+[단계별 원인](../../../docs/bevfusion/261006_BASE5_LATENCY_STAGE_BREAKDOWN.md):
+ROI확대비용을0.10mvoxel/0.40mBEV/1mdepth가상쇄했다.기존격자+0.5mdepth의100m highres대조는모델처리약1.98배다.
+현재격자의원거리정확도유지여부는미확정이다.
 
 ## v31 — 남은 조건 통과 / bounded campaign quota·resume 연결
 

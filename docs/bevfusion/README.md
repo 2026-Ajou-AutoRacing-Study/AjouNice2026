@@ -7,6 +7,8 @@
 Base5/E25의 [batch1·ROS 포화 처리량](261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md)을 측정했다.
 5060Ti에서E25 offline13.90FPS, 원속도ROS11.47Hz/드롭0, 약98Hz stress 입력에서출력12.97Hz다.
 320×896/±100m fresh후보는offline10.58FPS cost probe이며 정확도/4090/확대후보ROS 결과는 아니다.
+[단계별비용·격자/depth대조](261006_BASE5_LATENCY_STAGE_BREAKDOWN.md)에서 비용상쇄를실측했다.
+기존격자+0.5mdepth로100m highres를보는비용대조는E25대비약1.98배다.현재후보의속도를무료정확도개선으로해석하지않는다.
 
 독립 Base5 생성/학습 후보는 [Base5 v2 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)를 우선한다. 생성된10K는 구왕복 이력이며 최신 일방향 기본의10K는 아직 생성하지 않았다. v25 yaw 실측은42/42조건 완료,Park 재시도 성공이며 간헐timeout 원인은 미해결이다. 100m 직사각형 BEV 및4-class 후보의 단일 GPU loss/역전파 smoke와 production E25를 구분한다.
 
