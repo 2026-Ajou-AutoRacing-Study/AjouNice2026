@@ -1,5 +1,38 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
+## v31 — quality campaign resume/quota 보충
+
+최신 진행 상태는 [CURRENT](BASE5_V2_CURRENT.md)와 [EVIDENCE](261006_base5_campaign_recovery_evidence.md)를 읽는다.
+아래는 소량 검증용이다. 본10K 시작 명령이 아니다. 기존 Capture Mode/CollisionData 연결을 유지한다.
+
+```bash
+ajou
+ROOT="$HOME/morai_cap/base5_v2_261006"
+python3 dataset/morai_od/scripts/run_base5_capture_campaign.py \
+  --manifest "$ROOT/appearance_integration_deck_v28/manifest.json" \
+  --indices 3,6 --output "$ROOT/campaign_final_v31" --resume
+```
+
+이미 완료한 위 output은 재촬영하지 않고 무결성 확인만 한다. 새 검증은 다른 output으로 실행한다.
+`--stop-after-cells 1`은 안전 종료된 첫 셀 후 멈추는 resume 검증용 옵션이다.
+campaign·개별 child lock이 중복 실행을 막는다. 계약 변경/unsafe child는 새 output 및 안전 확인이 필요하다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
+  --capture-root "$HOME/morai_cap/base5_v2_261006/campaign_final_v31" --port 8075
+```
+
+브라우저 `http://127.0.0.1:8075`. child 대기 중에도 상태가 갱신된다.
+안전 중단은 해당 campaign 폴더에 `STOP` 파일을 만든다. 재개 전 STOP을 제거하고 `--resume`을 사용한다.
+강제 kill/미확인 Park은 자동 재개하지 않는다. 먼저 실차 상태/통신/브레이크를 확인한다.
+
+재시도 소진 시 `quota.json`의 부족 셀과 `deficit_manifest.json`이 생성된다.
+보충 필요성을 확인한 뒤 이 manifest로 **새 output**의 bounded campaign을 시작한다.
+같은 output의 resume은 소진된 실패를 무한 반복하지 않는다.
+변환/학습에는 `selected_ledger.jsonl`만 전달한다. 빈 지면/실패/review raw를 임의로 합치지 않는다.
+64셀 초과의 명시적 bulk 플래그는 준비돼 있지만 현재는 본 수집을 시작하지 않는다.
+
 2026-10-06: [v2 CURRENT](BASE5_V2_CURRENT.md)의 v30 입력Z 대조가 최신이다.
 v29의Park2회timeout 중단 후 v30 사전Park 정상 확인으로 소량실험을 재개했고,
 3세션 종료Park을 확인했다. 간헐첫timeout/재시도 성공은 남아 있으며 장시간 인증은 아니다.

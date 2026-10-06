@@ -4,7 +4,18 @@
 기존 v1/E25 보강 실험과 구분한다. **구버전 왕복10K 생성 기록은 있으나 최신 일방향
 기본의10K는 생성하지 않았다. 소량 live 검증만 수행했고 본 수집·본 학습은 미시작이다.**
 
-## 최신 v30 — 입력 Z 여유 가설 시험 / 실측 지면 보정 유효
+## 최신 v31 — 남은 조건 통과 / bounded campaign quota·resume 연결
+
+남은 Deer1+바리케이드, 유모차2개, 스쿠터+Niro 혼합3셀을 재검증해 모두 통과했다.
+Deer는 독립 지면 보완, 스쿠터 혼합은 누락 이후 같은 셀 재배치가 필요했다.
+`run_base5_capture_campaign.py`로 quality loop를 대량 수집 경로에 연결했다.
+원래 셀당 한 장만 quota로 인정하며 유한 재시도 후 부족 manifest를 내보낸다.
+통과 셀은 resume에서 raw/session 근거 검사 후 재사용하고, 안전 종료 미확인 시 재개를 막는다.
+실제 소량 stop/resume 검증 및89 tests PASS.10K/장시간 인증·학습·GPU속도는 미실행이다.
+[v31 EVIDENCE](261006_base5_campaign_recovery_evidence.md),
+[실행·resume·보충 명령](BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md#v31--quality-campaign-resumequota-보충).
+
+## v30 — 입력 Z 여유 가설 시험 / 실측 지면 보정 유효
 
 Dog2/Ped_Pet1/Scooter1 정지·이동에서 기존 입력+0/2/5/10cm, 지면 보정 후 같은 여유,
 보정 후−5/−10cm를 실제 MR에서60회 시도해57 raw를 보존했다. 도착미확인3회는 저장 차단.

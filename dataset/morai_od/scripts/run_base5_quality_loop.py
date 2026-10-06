@@ -34,12 +34,22 @@ def replacement(manifest,output):
     atomic_json(output/'manifest.json',m);return output/'manifest.json'
 
 
-def execute(source,indices,output):
-    if output.exists():raise FileExistsError('New quality-loop output required; child captures retain resume support')
+def execute(source,indices,output,resume=False,stop_path=None,progress=None):
+    if output.exists() and not resume:raise FileExistsError('New quality-loop output required; use campaign resume')
     if not 1<=len(indices)<=4 or len(set(indices))!=len(indices):raise ValueError('Pilot limited to 1–4 cells')
-    output.mkdir(parents=True);lock=(output/'.quality.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    output.mkdir(parents=True,exist_ok=True);lock=(output/'.quality.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     source_data=gen.geo.load_json(source);attempts=[];selected=[];unresolved=[]
     runner=Path(__file__).with_name('run_base5_capture.py')
+    def stopped():return (output/'STOP').exists() or (stop_path is not None and stop_path.exists())
+    def prepared(path,make):
+        if path.exists():
+            # Only complete, durable preparation decks are reusable.
+            deck=gen.geo.load_json(path)
+            for item in deck['scenes']:
+                if sha256(Path(item['scenario']))!=item['scenario_sha256']:raise ValueError('Prepared deck checksum mismatch')
+                gen.geo.load_json(Path(item['metadata']))
+            return path
+        return make()
     def save(stage,error=None):
         # Preserve usable selections even when a later child fails. Unsafe
         # children never enter this list or the conversion handoff.
@@ -51,19 +61,30 @@ def execute(source,indices,output):
             requested=len(indices),finished=len(selected)+len(unresolved),accepted_candidate=len(selected),review=len(unresolved),
             failed=int(stage=='halted'),updated_at=time.time(),eta_sec=0,results=[]))
     def capture(manifest,root,cell,kind):
-        if (output/'STOP').exists():raise RuntimeError('Quality-loop STOP requested')
+        if stopped():raise RuntimeError('Quality-loop STOP requested')
         root.mkdir(parents=True,exist_ok=True)
+        if (root/'session_contract.json').exists():
+            safety_path=root/'shutdown_safety.json'
+            if not safety_path.exists() or not gen.geo.load_json(safety_path).get('park_verified'):
+                raise RuntimeError('Interrupted/unsafe child requires manual safety recovery and a new campaign')
         cmd=[sys.executable,str(runner),'--manifest',str(manifest),'--output',str(root),'--limit','1']
         with (root.parent/(root.name+'.log')).open('w') as log:
             child=subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT)
             deadline=time.monotonic()+100.
+            heartbeat=0.
             while child.poll() is None:
-                if (output/'STOP').exists() or time.monotonic()>deadline:
+                if progress and time.monotonic()>=heartbeat:
+                    progress(cell,kind,root);heartbeat=time.monotonic()+2.
+                if stopped() or time.monotonic()>deadline:
                     (root/'STOP').touch();child.terminate()
                     try:child.wait(timeout=15.)
                     except subprocess.TimeoutExpired:raise RuntimeError('Child remains alive after interrupt; no further loads')
                     raise RuntimeError('Child interrupted; check shutdown evidence before any resume')
-                time.sleep(.1)
+                try:time.sleep(.1)
+                except KeyboardInterrupt:
+                    (root/'STOP').touch();child.terminate()
+                    child.wait(timeout=15.)
+                    raise RuntimeError('Interrupted; child shutdown must be checked before resume')
         if child.returncode:
             safety=gen.geo.load_json(root/'shutdown_safety.json') if (root/'shutdown_safety.json').exists() else {}
             attempts.append(dict(cell=cell,kind=kind,capture_root=str(root),status='failed',
@@ -74,37 +95,45 @@ def execute(source,indices,output):
         rows=[json.loads(l) for l in (root/'ledger.jsonl').read_text().splitlines() if l]
         row=rows[-1];attempts.append(dict(cell=cell,kind=kind,capture_root=str(root),status=row['status'],
             reasons=row.get('audit',{}).get('review_reasons',[]),shutdown=safety));save('running')
-        if row['status']=='failed':raise RuntimeError('Scene failed; no automatic continuation')
+        if row['status']=='failed' and 'target arrival not observed' not in row.get('error','').lower():
+            raise RuntimeError('Scene failed; no automatic continuation')
         return row
     try:
         save('running')
         for index in indices:
-            original=copy.deepcopy(source_data['scenes'][index]);cell=original['id'];base=output/cell;base.mkdir()
+            original=copy.deepcopy(source_data['scenes'][index]);cell=original['id'];base=output/cell;base.mkdir(exist_ok=True)
             m=copy.deepcopy(source_data);m.update(scenes=[original],count=1)
             manifest=base/'manifest.json';atomic_json(manifest,m)
             result=capture(manifest,base/'initial',cell,'initial')
             for ordinal in range(2):
                 if result['status']=='accepted_candidate':break
-                reasons=set(result['audit']['review_reasons'])
+                reasons=set(result.get('audit',{}).get('review_reasons',[]))
                 if 'physical_collision_during_capture_window' in reasons:raise RuntimeError('Physical contact; stop quality loop')
                 current=Path(attempts[-1]['capture_root'])
                 if ordinal==0 and reasons=={'actor_annotation_above_ground'}:
-                    next_manifest=height_retry(manifest,current,base/'height_deck')
+                    next_manifest=prepared(base/'height_deck'/'manifest.json',lambda:height_retry(manifest,current,base/'height_deck'))
                     kind='input_z_retry'
                 elif ordinal==0 and reasons and reasons<={'actor_ground_plane_unverified','actor_annotation_deep_below_ground'}:
-                    probes=empty_probe(manifest,[0],base/'terrain_deck')
-                    capture(probes,base/'terrain',cell,'empty_terrain')
-                    next_manifest=probed_retry(manifest,current,base/'terrain',base/'probed_deck')
-                    kind='independent_ground_retry'
+                    try:
+                        probes=prepared(base/'terrain_deck'/'manifest.json',lambda:empty_probe(manifest,[0],base/'terrain_deck'))
+                        capture(probes,base/'terrain',cell,'empty_terrain')
+                        next_manifest=prepared(base/'probed_deck'/'manifest.json',lambda:probed_retry(manifest,current,base/'terrain',base/'probed_deck'))
+                        kind='independent_ground_retry'
+                    except ValueError as exc:
+                        # Unsupported terrain is a quality deficit, not permission
+                        # to waive the gate. Communication exceptions stay fatal.
+                        attempts.append(dict(cell=cell,kind='ground_preparation_unavailable',error=str(exc)))
+                        next_manifest=prepared(base/'fallback_deck'/'manifest.json',lambda:replacement(manifest,base/'fallback_deck'))
+                        kind='same_cell_replacement'
                 else:
-                    next_manifest=replacement(manifest,base/f'replacement_deck_{ordinal}')
+                    next_manifest=prepared(base/f'replacement_deck_{ordinal}'/'manifest.json',lambda:replacement(manifest,base/f'replacement_deck_{ordinal}'))
                     kind='same_cell_replacement'
                 if not gen.geo.load_json(next_manifest)['scenes']:break
                 manifest=next_manifest
                 result=capture(manifest,base/f'retry_{ordinal}',cell,kind)
             if result['status']=='accepted_candidate':
                 result['source_cell_id']=cell;selected.append(result)
-            else:unresolved.append(dict(cell=cell,reasons=result['audit']['review_reasons']))
+            else:unresolved.append(dict(cell=cell,reasons=result.get('audit',{}).get('review_reasons',[result.get('error','quality deficit')])))
             save('running')
         save('complete');return 0
     except Exception as exc:save('halted',str(exc));print(str(exc),file=sys.stderr);return 1

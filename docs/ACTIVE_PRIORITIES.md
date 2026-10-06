@@ -67,6 +67,8 @@
   당시종료Park2회timeout으로중단했으나v30사전확인/3세션종료Park통과후소량검증을재개했다.
   v30의60시도/57raw에서작은Z상향여유는부유를해결하지않았다.
   지면기준입력/waypoint보정후24/24통과했으며일괄상향·전역offset은적용하지않는다.
+  v31에서 남은 근접·혼합3셀을 마무리했고 quality loop의 bounded campaign/quota 보충/resume을 연결했다.
+  소량 stop/resume 및89 tests 통과. 다음은 선택 ledger 변환 확인·MR 종료 뒤 추론 속도 비교다.
   안정된Z도 떠 있을 수 있으며 입력Z 수정 후 개4조건의공중gap은약−3cm로 개선됐다.
   raw GT 사후 보정은 하지 않는다. 자동보완은universal지형높이solver인증이아니다.
   새 기본의10K 전수 생성/audit·전체pool/장시간 검증과4-class runtime 결정은 남는다.
