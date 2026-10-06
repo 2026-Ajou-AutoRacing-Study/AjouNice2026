@@ -80,8 +80,39 @@ class BatchCampaignTest(unittest.TestCase):
             with patch.object(batch,'prepare_session',return_value=([row],{})):
                 with self.assertRaises(ValueError):batch.inspect_batch(root,root/'manifest.json')
                 row['between_scene_park']['park_verified']=True
-                row['audit']=dict(review_reasons=['physical_collision_reported'])
+                row['audit']=dict(review_reasons=['physical_collision_during_capture_window'])
                 with self.assertRaises(ValueError):batch.inspect_batch(root,root/'manifest.json')
+
+    def test_parent_interrupt_stops_and_reaps_child(self):
+        class Child:
+            def poll(self):raise KeyboardInterrupt()
+            def wait(self,timeout=None):self.waited=True;return 0
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);child=Child()
+            with self.assertRaises(KeyboardInterrupt):batch.wait_child(child,root,root/'parent_STOP',lambda root:None,10)
+            self.assertTrue((root/'STOP').exists());self.assertTrue(child.waited)
+
+    def test_parent_stop_is_forwarded_to_child(self):
+        class Child:
+            def poll(self):return None
+            def wait(self,timeout=None):return 0
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);stop=root/'parent_STOP';stop.touch()
+            with self.assertRaises(RuntimeError):batch.wait_child(Child(),root,stop,lambda root:None,10)
+            self.assertTrue((root/'STOP').exists())
+
+    def test_forced_shutdown_targets_owned_process_group(self):
+        class Child:
+            pid=12345
+            count=0
+            def wait(self,timeout=None):
+                self.count+=1
+                if self.count<3:raise batch.subprocess.TimeoutExpired('child',timeout)
+                return 0
+        with tempfile.TemporaryDirectory() as d,patch.object(batch.os,'killpg') as kill:
+            batch.stop_child(Child(),Path(d))
+            self.assertEqual(kill.call_args_list[0].args,(12345,batch.signal.SIGTERM))
+            self.assertEqual(kill.call_args_list[1].args,(12345,batch.signal.SIGKILL))
 
 
 if __name__=='__main__':unittest.main()

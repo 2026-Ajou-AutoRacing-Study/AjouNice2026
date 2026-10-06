@@ -12,8 +12,12 @@ v35로 생성·전수감사했다. 소량 live 검증과 달리 본10K 캡처·�
 chunk4의 첫12셀은 보완 후12/12통과,14회 실제촬영/최종quota12장이다.
 완료resume 원본aggregate SHA 불변,CPU12장/17GT 변환 통과.
 남은20셀은8quota통과 후 다음chunk 최종Park2회timeout으로중단했다.
-합계최종20/32quota·30회촬영(terrain포함), 미확인chunk4raw는선택에서제외했다.
+합계최종20/32quota·29회촬영(terrain포함), 미확인chunk4raw는선택에서제외했다.
 신규driver포함109tests PASS. 실패캠페인resume금지·남은12셀은안전복구후새output검증이필요하다.
+후속parent Ctrl-C/child process-group 정리 보강은단위검증이며추가live는미실행이다.
+driver hash가바뀌므로구v39도현driver resume금지다. live코드는84ff5887로보존했다.
+사후별도Park17.9ms정상응답·선택20장/GT28개CPU변환·후속112tests PASS.
+사후Park성공은실패chunk승인이나장시간안정성해결이아니다.
 네트워크는 매scene reload하며, 통신/충돌/Park 실패를 quality retry로 덮지 않는다.
 새 batch driver는최대64셀 pilot이며 본10K수집용기본이 아니다. 간헐Park 원인은 미해결이다.
 **본10K 캡처·학습은 미시작이다.**

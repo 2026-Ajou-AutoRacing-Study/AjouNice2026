@@ -54,15 +54,29 @@ chunk 종료 finally의 Park 요청2회가 모두 timeout했다. 최종 안전 �
 종료 후 읽기전용 점검에서 Ego publisher/서비스는 남아 있었다. client 소실 사례와
 다르며, 직전 boundary Park 성공 직후의 반복 요청 지연도 조사해야 한다.
 지연 원인/안전 완전해결을 주장하지 않는다. 요청 횟수·timeout을 늘려 덮지 않았다.
+수집 중단 뒤 별도 정지 Park probe는 약17.9ms로정상응답했다.
+`park_after_final_failure_v39.json`에보존하며, 이사후성공으로실패수집chunk를소급승인하지않는다.
 
 두 pilot 합계 **최종 선택20/32셀**이다. 24개 원래 셀의 first pass가 촬영됐고
-보완6회(terrain1회 포함)로 총30회촬영, 전달 selection20장이다.
+보완5회(terrain1회 포함)로 총29회촬영, 전달 selection20장이다.
 미시작8셀과 최종Park 미확인 chunk4셀은 pending12로 남는다.
 실패 세션 resume 금지, 원본보존, 수동 안전 복구 후 새output에서 남은 셀만 검증한다.
 따라서32/32 PASS 또는 장시간 무인 수집 준비완료로 해석하지 않는다.
 
-최종 단위 검증은 Base5 tests109개 PASS다. 새driver6개 테스트는 안전중단,
+live 당시 단위 검증은 Base5 tests109개 PASS다. 새driver6개 테스트는 안전중단,
 review 보완/한quota, pause/resume/완료시 재촬영 없음, 계약 변경/대량 제한을 검사한다.
+
+### 후속 중단 처리 보강
+
+live 검증 구현은 commit `84ff5887`로 보존한다. 그 뒤 parent Ctrl-C/예외에도
+child STOP→bounded 대기→필요시 독립 process group 종료를 보강했다.
+단일 셀 보완도 감독 subprocess로 분리하여 parent 종료 시 capture가 남지 않게 했다.
+이 후속은 별도 단위검증이며 MR live의 강제중단/보완 재검증은 아직 하지 않았다.
+driver code hash가 바뀌었으므로 위v39 세션도 현driver로 resume하지 않는다.
+원본읽기/CPU변환은 가능하며 이후검증은새output을사용한다. 기존contract를수정하지않는다.
+선택20장 전체CPU변환은train17/val3/test0·GT28개(vehicle14/pedestrian6/obstacle8),
+review/failed제외0으로통과했다. Animal 및남은Z보완셀을이번PASS에포함하지않는다.
+후속단위검증112개PASS이며Parent STOP/Ctrl-C 및강제종료process group 테스트를추가했다.
 
 ## 경로
 

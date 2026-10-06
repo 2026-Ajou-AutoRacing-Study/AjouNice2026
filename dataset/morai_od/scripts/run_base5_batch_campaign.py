@@ -4,10 +4,11 @@ import argparse
 import copy
 import fcntl
 import json
+import os
 from pathlib import Path
 import subprocess
+import signal
 import sys
-import threading
 import time
 import run_base5_capture_campaign as campaign
 from base5_capture_safety import atomic_json, load_ledger, prepare_session, sha256, status_row
@@ -30,7 +31,39 @@ def inspect_batch(root, manifest):
         reasons=row.get('audit',{}).get('review_reasons',[])
         if any(str(reason).startswith('physical_collision') for reason in reasons):
             raise ValueError('Physical collision; automatic continuation forbidden')
+        if row['status']=='accepted_candidate':
+            if reasons:raise ValueError('Accepted row still carries review reasons')
+            metadata=json.loads((Path(row['capture_root'])/'metadata.json').read_text())
+            if metadata.get('calibration_only'):raise ValueError('Calibration cannot fill quota')
     return rows
+
+
+def stop_child(child,root):
+    """Request graceful shutdown first; never orphan a capture on parent Ctrl-C."""
+    (root/'STOP').touch()
+    try:child.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        try:os.killpg(child.pid,signal.SIGTERM)
+        except ProcessLookupError:child.wait();return
+        try:child.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            try:os.killpg(child.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+            child.wait()
+
+
+def wait_child(child,root,stop,heartbeat,timeout):
+    deadline=time.monotonic()+timeout
+    try:
+        while child.poll() is None:
+            heartbeat(root)
+            if stop.exists() or time.monotonic()>deadline:
+                raise RuntimeError('STOP/deadline: inspect child safety before starting a new campaign')
+            time.sleep(.5)
+        return child.returncode
+    except BaseException:
+        stop_child(child,root)
+        raise
 
 
 def run_child(manifest, root, stop, heartbeat):
@@ -39,35 +72,19 @@ def run_child(manifest, root, stop, heartbeat):
         '--manifest',str(manifest),'--output',str(root),'--shared-ros-batch',
         '--limit',str(len(json.loads(manifest.read_text())['scenes']))]
     with (root.parent/'batch.log').open('a') as log:
-        child=subprocess.Popen(command,stdout=log,stderr=subprocess.STDOUT)
-        deadline=time.monotonic()+100*len(json.loads(manifest.read_text())['scenes'])
-        while child.poll() is None:
-            heartbeat(root)
-            if stop.exists() or time.monotonic()>deadline:
-                (root/'STOP').touch()
-                try:child.wait(timeout=15)
-                except subprocess.TimeoutExpired:
-                    child.terminate()
-                    try:child.wait(timeout=15)
-                    except subprocess.TimeoutExpired:
-                        child.kill();child.wait()
-                raise RuntimeError('STOP/deadline: inspect child safety before starting a new campaign')
-            time.sleep(.5)
-        return child.returncode
+        child=subprocess.Popen(command,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+        return wait_child(child,root,stop,heartbeat,
+            100*len(json.loads(manifest.read_text())['scenes']))
 
 
 def recover(source,index,output,stop):
-    """Forward parent STOP to the existing bounded recovery campaign."""
+    """Use an independently supervised recovery process, including parent Ctrl-C."""
     output.mkdir(parents=True,exist_ok=True)
-    done=threading.Event()
-    def relay():
-        while not done.wait(.2):
-            if stop.exists():(output/'STOP').touch()
-    thread=threading.Thread(target=relay,daemon=True);thread.start()
-    try:
-        return campaign.execute(source,[index],output,resume=True)
-    finally:
-        done.set();thread.join(timeout=1)
+    command=[sys.executable,str(Path(__file__).with_name('run_base5_capture_campaign.py')),
+        '--manifest',str(source),'--indices',str(index),'--output',str(output),'--resume']
+    with (output.parent/(output.name+'.log')).open('a') as log:
+        child=subprocess.Popen(command,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+        return wait_child(child,output,stop,lambda root:None,800)
 
 
 def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chunks=0):
@@ -137,6 +154,8 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
             if stop_after_chunks and ordinal+1>=stop_after_chunks:
                 save('paused');return 0
         save('complete_with_deficit' if deficits else 'complete');return 0
+    except KeyboardInterrupt:
+        save('halted','Parent interrupted; child STOP issued; inspect Park before recovery');return 130
     except Exception as exc:
         save('halted',str(exc));return 1
     finally:lock.close()
