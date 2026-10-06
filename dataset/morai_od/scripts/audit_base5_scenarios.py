@@ -14,6 +14,9 @@ def audit(manifest_path):
     links={r['idx']:r for r in gen.geo.load_json(gen.geo.DEFAULT_MGEO/'link_set.json')}
     corridors={c['spawn_uid']:c for c in gen.sample_highway_corridors(links)}
     bounded_vehicles=0;avoidance_phases=Counter();avoidance_gaps=[];avoidance_bins=Counter()
+    primary_assets=Counter();primary_roles=Counter();motion_counts=Counter();motion_decisions=Counter()
+    inventory={r['data_id']:r for r in gen.geo.load_json(gen.catalog.DEFAULT_CATALOG)['assets']}
+    appearance=gen.geo.load_json(gen.APPEARANCE_POLICY)
     for entry in m['scenes']:
         s=json.loads(Path(entry['scenario']).read_text());meta=json.loads(Path(entry['metadata']).read_text());r=meta['spec']
         digest=gen.geo.sha256(Path(entry['scenario']))
@@ -36,6 +39,18 @@ def audit(manifest_path):
                     avoidance_bins[str((r['family'],r['avoidance_gap_bounds_m']))]+=1
         ego_poly=gen.rectangle([e['x']+1.35*gen.math.cos(ea),e['y']+1.35*gen.math.sin(ea)],[4.8,2.],e['yaw'])
         for i,a in enumerate(meta['runtime_actors']):
+            if a['data_id'] in gen.catalog.COMPETITION_EXCLUDED_IDS:
+                errors.append((entry['id'],'official competition-excluded asset'))
+            if m['config']['capture'].get('asset_appearance_policy',False):
+                policy_asset=dict(inventory[a['data_id']],name=a['name'],source_list=a['source_list'])
+                expected_motion,decision=gen.appearance_motion(policy_asset,a['requested_motion'],appearance)
+                if a['motion']!=expected_motion or a['appearance_motion_decision']!=decision:
+                    errors.append((entry['id'],'asset appearance policy mismatch'))
+            motion_counts[str((a['name'],a['motion']))]+=1
+            motion_decisions[a.get('appearance_motion_decision','legacy')]+=1
+            if i==0:
+                primary_assets[str((r['family'],r['subfamily'],a['name']))]+=1
+                primary_roles[str((r['family'],a['actual_ego_role']))]+=1
             assets[a['name']]+=1;roles[str((r['family'],a['actual_ego_role']))]+=1
             if not a['geometry_reference_known']:unknown[a['name']]+=1
             if a['planned_center_distance_m']>100 or abs(a['lateral_m'])>29.5: errors.append((entry['id'],'ROI'))
@@ -134,6 +149,8 @@ def audit(manifest_path):
         alongside_gap_min_max_m=[min(avoidance_gaps),max(avoidance_gaps)] if avoidance_gaps else [],
         distance_direction_bins=dict(bins),asset_groups=dict(groups),asset_counts=dict(assets),splits=dict(splits),
         actual_actor_directions=dict(roles),geometry_without_capture_reference=dict(unknown),
+        primary_asset_counts=dict(primary_assets),primary_actual_directions=dict(primary_roles),
+        actual_asset_motion_counts=dict(motion_counts),appearance_motion_decisions=dict(motion_decisions),
         mean_resamples=sum(retries)/max(1,len(retries)),max_resamples=max(retries,default=0),errors=errors,
         limitations=['Footprints use capture-derived or conservative estimated size, not live mesh/collider.',
             'No ground support, actor animation or sensor visibility certification.',
@@ -144,5 +161,6 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--manifest',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True);a=p.parse_args();r=audit(a.manifest)
     a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(json.dumps(r,indent=2)+'\n')
-    print(json.dumps({k:v for k,v in r.items() if k not in ('distance_direction_bins','asset_counts','actual_actor_directions')},indent=2))
+    print(json.dumps({k:v for k,v in r.items() if k not in ('distance_direction_bins','asset_counts','actual_actor_directions',
+        'primary_asset_counts','primary_actual_directions','actual_asset_motion_counts')},indent=2))
     if r['errors']:raise SystemExit(1)

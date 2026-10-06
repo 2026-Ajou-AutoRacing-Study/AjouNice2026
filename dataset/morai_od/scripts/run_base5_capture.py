@@ -14,6 +14,7 @@ import uuid
 import fcntl
 
 from base5_capture_audit import audit_capture
+from base5_capture_timing import StageTiming, preflight_stationary
 from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review
 
 ROOT=Path(__file__).resolve().parents[3]
@@ -47,6 +48,7 @@ def actor_position(objects, uid):
 
 
 def main():
+    timing=StageTiming()
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--manifest',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
     p.add_argument('--scenario-dir',type=Path,default=Path.home()/'MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025')
@@ -107,6 +109,7 @@ def main():
     exit_record=args.output/'shutdown_safety.json'
     if exit_record.exists() and not json.loads(exit_record.read_text())['park_verified']:
         raise RuntimeError('Previous exit Park not verified; check MR and use a new output session')
+    timing.mark('manifest_and_session_setup')
     import rospy
     from morai_msgs.msg import CtrlCmd,EgoVehicleStatus,ObjectStatusList,SaveSensorData,ScenarioLoad,CollisionData
     from morai_msgs.srv import MoraiEventCmdSrv,MoraiEventCmdSrvRequest
@@ -162,10 +165,21 @@ def main():
             eta_sec=elapsed/max(1,len(finished)-len(previous))*max(0,len(rows)-len(finished)),
             manifest=str(args.manifest.resolve()),ledger=str(ledger.resolve()),results=[status_row(r) for r in finished]))
     try:
-        status('preflight');time.sleep(1.3);fresh()
-        if any(not pub.get_num_connections() for pub in (control,loader,capture)):
-            raise RuntimeError('Missing ScenarioLoad/SaveSensorData/ctrl subscriber; stop without loading')
+        timing.mark('ros_setup')
+        status('preflight');preflight_started=time.monotonic();deadline=preflight_started+3.
+        while time.monotonic()<deadline:
+            with lock: observed=list(traces)
+            try: fresh()
+            except RuntimeError:
+                time.sleep(.025);continue
+            now=time.monotonic()
+            if (all(pub.get_num_connections() for pub in (control,loader,capture))
+                    and now-preflight_started>=.30 and preflight_stationary(observed,now)):
+                break
+            time.sleep(.025)
+        else:raise RuntimeError('Preflight connections/stationary Ego unverified; stop without loading')
         if not args.scenario_dir.is_dir() or not args.sensor_dir.is_dir(): raise ValueError('MR paths missing')
+        timing.mark('preflight')
         for entry in rows:
             if stopfile.exists() or rospy.is_shutdown(): status('stopped');break
             if entry['id'] in completed: continue
@@ -182,6 +196,7 @@ def main():
             sidecar.parent.mkdir(exist_ok=True)
             shutil.copy2(entry['scenario'],scenario);owned.append(scenario)
             shutil.copy2(args.network_template,sidecar);owned.append(sidecar)
+            timing.mark('scenario_install')
             try:
                 status('scene_load',entry['id']);load_time=time.monotonic()
                 loader.publish(ScenarioLoad(file_name=name,load_network_connection_data=True,load_ego_vehicle_data=True,
@@ -193,6 +208,7 @@ def main():
                     time.sleep(.05)
                 else: raise RuntimeError('Scene load pose not confirmed')
                 pose_confirmed=time.monotonic()
+                timing.mark('pose_confirmation')
                 rospy.wait_for_service('/Service_MoraiEventCmd',timeout=4.)
                 req=MoraiEventCmdSrvRequest();req.request.option=3;req.request.ctrl_mode=3;req.request.gear=4
                 # Network reload can replace rosbridge's advertised service after
@@ -210,6 +226,7 @@ def main():
                     raise RuntimeError('External control mode/Drive gear not confirmed')
                 time.sleep(.2)
                 e0=fresh()
+                timing.mark('control_readiness')
                 if meta.get('yaw_probe'):
                     corrected=e0['heading']+meta['yaw_probe'].get('ego_heading_correction_deg',-1.347)
                     error=(corrected-meta['ego']['yaw']+180.)%360.-180.
@@ -288,6 +305,7 @@ def main():
                             objects_before=objects_before,primary_before=movement_before,primary_after=movement_after,
                             displacement_m=movement,ego_before=e0,ego_after=e1))
                     raise ValueError('Requested animation/motion has no measured actor displacement')
+                timing.mark('motion_target_and_witness')
                 before={f for f in args.sensor_dir.rglob('*') if f.is_file()}
                 dest.mkdir(parents=True,exist_ok=False)
                 atomic_json(dest/'metadata.json',meta)
@@ -297,6 +315,7 @@ def main():
                 atomic_json(dest/'attempt.json',dict(stage='capture_requested',load_time=load_time,
                     archived_previous_attempt=archived,scenario_sha256=entry['scenario_sha256']))
                 capture_requested_at=time.monotonic()
+                timing.mark('capture_prepare')
                 status('capture',entry['id']);capture.publish(SaveSensorData(is_custom_file_name=False))
                 deadline=time.monotonic()+20; new=set();signature=None; stable=time.monotonic()
                 while time.monotonic()<deadline:
@@ -309,10 +328,12 @@ def main():
                     if len(cams)==4 and len(lidar)==1 and len(annotation)==1 and lidar[0].stat().st_size and time.monotonic()-stable>.5: break
                     fresh(4.);time.sleep(.05)
                 else: raise ValueError('Synchronous file completeness timeout')
+                timing.mark('capture_write_and_stability_wait')
                 # Retain raw before quality decisions; never remove files from previous captures.
                 for f in sorted(new):
                     target=dest/f.relative_to(args.sensor_dir);target.parent.mkdir(parents=True,exist_ok=True)
                     shutil.move(str(f),str(target))
+                timing.mark('raw_preserve')
                 if args.test_interrupt_after_raw_move==entry['id']:
                     raise KeyboardInterrupt('Injected smoke-test interruption after preserving raw')
                 deadline=time.monotonic()+4
@@ -320,6 +341,7 @@ def main():
                     try: e2=fresh();break
                     except RuntimeError: time.sleep(.05)
                 else: raise RuntimeError('Telemetry did not resume after capture')
+                timing.mark('telemetry_recovery')
                 # Preserve provenance even if annotation auditing raises.
                 atomic_json(dest/'metadata.json',meta)
                 shutil.copy2(entry['scenario'],dest/'scenario.json')
@@ -345,6 +367,7 @@ def main():
                     load_time_monotonic=load_time,pose_confirmed_monotonic=pose_confirmed))
                 meta['capture_runtime_ego']=e1
                 audit=audit_capture(dest,meta)
+                timing.mark('provenance_collision_and_sensor_audit')
                 motion_evidence=motion_capture_review(meta['runtime_actors'][0] if meta['runtime_actors'] else None,
                     objects_before,objects_after,actor_samples,capture_requested_at)
                 motion_actors=[dict(uid=a['unique_id'],asset=a['name'],**motion_capture_review(a,
@@ -387,8 +410,10 @@ def main():
                     duration_sec=time.time()-t0,capture_root=str(dest.resolve()),audit=audit,
                     bytes=sum(f.stat().st_size for f in dest.rglob('*') if f.is_file()))
                 if entry.get('source_cell_id'):result['source_cell_id']=entry['source_cell_id']
+                timing.mark('runtime_audit_and_evidence_write')
                 failures=0
             except (ValueError,RuntimeError) as exc:
+                timing.mark('failed_phase')
                 result=dict(id=entry['id'],scenario_sha256=entry['scenario_sha256'],family=entry['family'],
                     status='failed',error=str(exc),duration_sec=time.time()-t0)
                 failures+=1
@@ -400,11 +425,13 @@ def main():
             with ledger.open('a') as f: f.write(json.dumps(result,ensure_ascii=False)+'\n');f.flush();os.fsync(f.fileno())
             status('running',entry['id']); print(json.dumps({k:v for k,v in result.items() if k!='audit'}),flush=True)
             new_captures+=1
+            timing.mark('cleanup_and_ledger')
             if args.stop_after_new_captures and new_captures>=args.stop_after_new_captures:
                 status('stopped_for_resume_test',entry['id']);break
             if failures>=3: raise RuntimeError('Capture halted after connection failure or three consecutive scene failures')
         else: status('complete')
     except BaseException as exc:
+        timing.mark('interrupted_phase')
         status('interrupted' if isinstance(exc,KeyboardInterrupt) else 'halted',error=str(exc));raise
     finally:
         active_exception=sys.exc_info()[0] is not None
@@ -422,6 +449,7 @@ def main():
                 response=bounded_call(lambda:rospy.ServiceProxy('/Service_MoraiEventCmd',MoraiEventCmdSrv)(park),timeout=3.)
                 return response.response.gear
             shutdown=confirm_park(park_request)
+            timing.mark('shutdown_park')
             shutdown['request_fields']=park_request_fields()
             shutdown['brake_held_during_requests']=True
             atomic_json(args.output/'shutdown_safety.json',shutdown)
@@ -433,6 +461,7 @@ def main():
             halt.set()
             for f in owned:
                 if f.exists(): f.unlink()
+            atomic_json(args.output/'timing.json',timing.snapshot())
 
 
 if __name__=='__main__': main()

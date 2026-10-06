@@ -4,6 +4,28 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **최신 v37: 비용 분리·안전 조건부 대기 단축.** 동일6셀56.6→50.7초(10.3%),
+  양쪽6/6통과·Park 확인.32장 image cache 감사출력 정확일치, tests100PASS.
+  본10K 미시작, 구세션 hash변경 resume 금지. [최신근거](261006_base5_capture_stage_optimization_v37.md).
+
+- **최신 v36: 대표32셀 실제 캡처32/32 통과.** 36회촬영/314.657초, 보완3셀.
+  현 방식10K 예상27.53시간·원본54.71GiB(작은 coverage 표본의 외삽).
+  본10K 캡처/학습 미시작. [비용·재시도 근거](261006_base5_capture_capacity_v36.md).
+
+- **최신 v35: 10K 시나리오 생성·전수 OFFLINE PASS.** 자연속도/정적자산 정책, 열린G80 제외,
+  122종 primary coverage. moving center 경계1건을 수정·재생성했고 tests94개PASS.
+  본10K 캡처/학습은 미시작. [canonical 경로·분포·제한](261006_base5_final_10k_v35.md).
+
+- **v33 공식 정책 코드 반영 / live 완료:** 열린 G80 공식 제외, rigid/차량 정지 캡처 적용.
+  새12장 offline 및live12/12 PASS, 부족0. pause/resume·Park/충돌·동적Z·CPU30GT 변환 확인.
+  원거리 약96m 차량은 camera 근거 중요,20m밖 ground 인증/모델 정확도 검증은 아니다.
+  [근거·다음 실행](261006_base5_official_reply_smoke.md).
+
+- **공식 답변 갱신:** [객체 출제 범위·G80·UDP 차량 velocity](260920_questions_for_morai.md#최신-추가-답변--객체-범위g80차량-속도-기준).
+  F2 전체 객체가 후보이며 기존 정적 자산의 이동 예외는 없다. 열린 G80은 공식 출제 제외,
+  차량 velocity는 후륜 차축 기준으로 확인됐다. 타 자산 부유는 자료 요청 상태다.
+  현재 코드/평가기 기본값/학습은 이 문서 갱신으로 변경하지 않았다.
+
 - **최신 v32:** MR OFF에서batch1 및E25 ROS포화 속도를 측정했다.
   Base5320×896/±100m 후보는5060Ti에서약10.58FPS 비용probe다.4090/후보정확도/후보ROS는미측정.
   [CURRENT](BASE5_V2_CURRENT.md), [capacity EVIDENCE](../../../docs/bevfusion/261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md).

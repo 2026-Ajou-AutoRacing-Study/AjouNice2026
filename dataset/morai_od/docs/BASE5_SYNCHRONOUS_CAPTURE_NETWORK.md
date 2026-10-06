@@ -1,5 +1,14 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
+## v37 — 조건부 준비 대기 / 구세션 보호
+
+최신 비용/실행 계약은 [v37 계측·소량A/B](261006_base5_capture_stage_optimization_v37.md)를 따른다.
+실제 publisher 연결과 신선한 Ego/Object/CollisionData,0.3초 정지 증거가 확보되면
+preflight 고정 대기를 단축한다. 증거미확보3초 timeout은 로드 전 중단이다.
+아래 과거 세션 명령은 당시 검증 이력이다. 코드/안전 hash가 바뀐 v36 및 v37 baseline을
+현재 코드로 resume하거나 계약파일을 수동 수정하지 않는다. raw/ledger는 보존하고 읽기전용 report를 사용한다.
+현재 코드와 동일 hash의 새 세션만 기존 resume/STOP/quota 규칙으로 재개한다.
+
 ## v31 — quality campaign resume/quota 보충
 
 최신 진행 상태는 [CURRENT](BASE5_V2_CURRENT.md)와 [EVIDENCE](261006_base5_campaign_recovery_evidence.md)를 읽는다.

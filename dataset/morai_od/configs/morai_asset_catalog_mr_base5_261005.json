@@ -1189,9 +1189,9 @@
       "source_file": "new_obstacle_list.json",
       "source_list": "objectList",
       "semantic_class": "vehicle",
-      "collection_role": "review",
-      "generation_policy": "review_only",
-      "reason": "261005 live: floating mesh/GT; requested z -0.55m did not change observed height. Retain Vehicle semantics, block training until ground support resolved.",
+      "collection_role": "excluded",
+      "generation_policy": "competition_excluded",
+      "reason": "MORAI official reply recorded 2026-10-06: competition excluded; option removal announced, local patch not verified.",
       "ontology_class": "Vehicle"
     },
     {

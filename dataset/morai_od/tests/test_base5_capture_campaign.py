@@ -9,6 +9,14 @@ import run_base5_capture_campaign as campaign
 
 
 class CampaignTest(unittest.TestCase):
+    def test_subset_deck_equivalence_and_no_aliasing(self):
+        source=dict(scenes=[dict(id=str(i)) for i in range(10000)],config=dict(a=[1]),count=10000)
+        subset=campaign.subset_deck(source,[source['scenes'][9]])
+        self.assertEqual(subset,dict(scenes=[dict(id='9')],config=dict(a=[1]),count=1))
+        subset['config']['a'].append(2);subset['scenes'][0]['id']='changed'
+        self.assertEqual(source['config']['a'],[1])
+        self.assertEqual(source['scenes'][9]['id'],'9')
+
     def fixture(self,root):
         source=root/'source.json'
         source.write_text(json.dumps(dict(scenes=[dict(id='a',family='obstacle'),dict(id='b',family='vehicle')],config={})))

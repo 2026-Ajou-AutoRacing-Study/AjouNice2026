@@ -10,6 +10,14 @@ from prepare_base5_ground_retry import shift_actor
 
 
 class AppearanceGroundTest(unittest.TestCase):
+    def test_natural_path_roi_uses_geometric_center_not_only_pivot(self):
+        ego=dict(x=0.,y=0.,yaw=0.)
+        points=[dict(x=5.,y=29.48),dict(x=6.,y=28.)]
+        target=dict(x=5.,y=28.)
+        with self.assertRaises(ValueError):
+            gen.validate_natural_path_roi(points,target,[5.,28.04],ego,0.)
+        gen.validate_natural_path_roi(points,target,[5.,28.01],ego,0.)
+
     def test_zero_xyz_placeholders_cannot_dominate_ground_fit(self):
         x,y=np.meshgrid(np.linspace(-8,8,25),np.linspace(-8,8,25))
         ground=np.c_[x.ravel(),y.ravel(),np.full(x.size,-1.388)]
@@ -51,8 +59,21 @@ class AppearanceGroundTest(unittest.TestCase):
         p=gen.geo.load_json(gen.APPEARANCE_POLICY)
         for name in ('BabyStroller2','Bike3','Scooter1'):
             self.assertEqual(gen.appearance_motion(dict(name=name,source_list='objectList'),'walking',p)[0],'standing')
-        self.assertEqual(gen.appearance_motion(dict(name='BabyStroller_unseen',source_list='objectList'),'walking',p)[0],'walking')
+        motion,reason=gen.appearance_motion(dict(name='BabyStroller_unseen',source_list='objectList'),'walking',p)
+        self.assertEqual(motion,'standing')
+        self.assertEqual(reason,'unverified_static_pending_appearance_review')
         self.assertEqual(gen.appearance_motion(dict(name='Dog1',source_list='pedestrianList'),'walking',p)[0],'walking')
+
+    def test_official_static_assets_never_receive_dynamic_capture(self):
+        for source,semantic in (('objectList','obstacle'),('objectList','vehicle'),('vehicleList','vehicle')):
+            asset=dict(name='unseen_rigid_asset',source_list=source,semantic_class=semantic)
+            for request in ('static','walking','running'):
+                self.assertEqual(gen.appearance_motion(asset,request,{})[0],'static')
+
+    def test_people_and_animals_retain_dynamic_capture_validation(self):
+        for asset in (dict(name='unseen_person',source_list='pedestrianList',semantic_class='pedestrian'),
+                      dict(name='unseen_animal',source_list='pedestrianList',ontology_class='Animal')):
+            self.assertEqual(gen.appearance_motion(asset,'walking',{})[0],'walking')
 
     def test_natural_path_arrives_without_lowering_natural_speed(self):
         pose=dict(x=3.5,y=0.,z=28.,yaw=90.)

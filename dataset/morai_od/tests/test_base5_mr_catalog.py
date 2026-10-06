@@ -8,6 +8,15 @@ import build_base5_mr_asset_catalog as assets
 
 
 class CatalogTest(unittest.TestCase):
+    def test_official_open_g80_exclusion_preserves_closed_g80(self):
+        rows = json.loads(assets.DEFAULT_CATALOG.read_text())['assets']
+        opened = next(r for r in rows if r['data_id'] == 40100034)
+        self.assertEqual(opened['generation_policy'], 'competition_excluded')
+        self.assertEqual(opened['collection_role'], 'excluded')
+        closed = next(r for r in rows if r['name'] == '2021_Hyundai_G80')
+        self.assertEqual(closed['collection_role'], 'positive')
+        self.assertNotIn(closed['data_id'], assets.COMPETITION_EXCLUDED_IDS)
+
     def test_inventory_policy_and_containers(self):
         rows = json.loads(assets.DEFAULT_CATALOG.read_text())['assets']
         self.assertEqual(len(rows), 146)

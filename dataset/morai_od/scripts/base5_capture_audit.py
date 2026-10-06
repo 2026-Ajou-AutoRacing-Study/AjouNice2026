@@ -20,13 +20,19 @@ def rotation_matrix(rpy):
         [sy*cp,sy*sp*sr+cy*cr,sy*sp*cr-cy*sr],[-sp,cp*sr,cp*cr]])
 
 
-def camera_evidence(root, uid, raw_class):
+def camera_evidence(root, uid, raw_class, pixels_cache=None):
     evidence = []
     for folder in sorted(Path(root).glob('CAMERA_*')):
         images = list(folder.glob('*_Instance.png'))
         if not images:
             continue
-        pixels = np.asarray(Image.open(images[0]).convert('RGBA'))
+        if pixels_cache is not None and images[0] in pixels_cache:
+            pixels = pixels_cache[images[0]]
+        else:
+            with Image.open(images[0]) as image:
+                pixels = np.asarray(image.convert('RGBA'))
+            if pixels_cache is not None:
+                pixels_cache[images[0]] = pixels
         height, width = pixels.shape[:2]
         for annotation in folder.glob('*_BBox2D.txt'):
             for line in annotation.read_text().splitlines():
@@ -61,7 +67,7 @@ def camera_evidence(root, uid, raw_class):
     return evidence
 
 
-def audit_capture(root, metadata):
+def audit_capture(root, metadata, cache_camera_pixels=True):
     root = Path(root)
     lidar_files = list(root.glob('LIDAR_*/*_Intensity.bin'))
     annotation_files = list(root.glob('LIDAR_*/*_Instance.txt'))
@@ -81,6 +87,7 @@ def audit_capture(root, metadata):
     if len(boxes) != len([s for s in annotation_files[0].read_text().splitlines() if s.strip()]):
         raise ValueError('Malformed GT record')
     results = []
+    pixels_cache = {} if cache_camera_pixels else None
     ordinals = {}
     for box in boxes:
         uid = box['unique_id']
@@ -93,7 +100,7 @@ def audit_capture(root, metadata):
         rot = rotation_matrix(box['rotation_rpy'])
         local = (points[:,:3]-center) @ rot
         count = int((np.abs(local)<=size/2+1e-5).all(axis=1).sum())
-        cameras = camera_evidence(root,uid,box['raw_class'])
+        cameras = camera_evidence(root,uid,box['raw_class'],pixels_cache)
         ambiguous=sum(b['unique_id']==uid and b['raw_class']==box['raw_class'] for b in boxes)>1
         visible = not ambiguous and any(c['crop_320x896_instance_pixels']>=16 and min(c['model_extent_px'])>=4 for c in cameras)
         key = (uid,box['raw_class']); ordinal = ordinals.get(key,0); ordinals[key]=ordinal+1

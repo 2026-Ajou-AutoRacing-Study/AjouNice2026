@@ -49,6 +49,13 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- 최신[MORAI 답변](../dataset/morai_od/docs/260920_questions_for_morai.md#최신-추가-답변--객체-범위g80차량-속도-기준)에서
+  F2 전체 객체가 미션 후보이며 정적 자산의 이동 예외는 없다고 확인했다.
+  열린G80은 공식 출제 제외이며 코드에도 반영했다. 부유 재현 ZIP 전달은 완료됐고
+  MORAI 후속 답변 및 나무/불/도로시설 등 기존background/ignore coverage 검토가 남는다.
+  Animal/복합 GT 후보는 유지한다.
+  UDP차량velocity 후륜 기준은 확정됐으나 기존R01의변환잔차 검증/새평가 계약 선택은 남는다.
+
 - 독립 [Base5 v2](../dataset/morai_od/docs/BASE5_V2_CURRENT.md)의10K 오프라인 생성과
   100m 후보 GPU wiring은 이전 근거다. 최신v23은48조건 분산검증·2조건 대체·빠른 동작/
   all-actor motion gate·lidar1_camera0 정책·CPU 변환 검사 완료다.
@@ -73,7 +80,14 @@
   소량 stop/resume 및89 tests 통과. 선택ledger CPU변환·MR OFF 속도비교까지완료했다.
   안정된Z도 떠 있을 수 있으며 입력Z 수정 후 개4조건의공중gap은약−3cm로 개선됐다.
   raw GT 사후 보정은 하지 않는다. 자동보완은universal지형높이solver인증이아니다.
-  새 기본의10K 전수 생성/audit·전체pool/장시간 검증과4-class runtime 결정은 남는다.
+  v33 공식정책 반영 후12/12 live·부족0, pause/resume·CPU30GT 변환 통과.
+  약96m 전/후방 차량에서camera 근거를 확인했으며20m밖ground/모델정확도 인증은 아니다.
+  v35 새 기본10K 전수 생성/audit PASS 및122종 primary 배치 coverage를 완료했다.
+  v36 대표32/32실제캡처36회/314.7초,10K 비용외삽27.5시간·원본54.7GiB다.
+  [v37 비용분리·최적화](../dataset/morai_od/docs/261006_base5_capture_stage_optimization_v37.md)는
+  동일6셀56.6→50.7초/양쪽6통과,32장 감사출력 정확일치와100tests를 확인했다.
+  조건부 정지확인 preflight만 단축하고 안전gate는 유지한다. 현코드로 구세션resume 금지.
+  실제 전체pool/장시간 캡처 검증과4-class runtime 결정은 남는다.
   구왕복10K는 새 기본 수집에 사용하지 않는다. 본 수집/본 학습은 미실행이다.
 
 - Base5 E2 학습 및 [E1 보행자·장애물9-bag A/B](bevfusion/261005_BASE5_E1_MISSION_ROSBAG_AB.md)는 완료됐다. E1 장애물 소폭 개선에도 0–2m 장애물·20–30m 보행자 공백은 미해결이다. 다음은 해당 거리·부분 시야 표적 보강 + replay다. Production E25 유지, Far ROI와 고해상도는 별도 A/B로 유지한다.

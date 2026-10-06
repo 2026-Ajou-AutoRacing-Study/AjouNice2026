@@ -2,7 +2,8 @@
   "schema_version": 1,
   "scope": "Single-frame appearance capture, not runtime motion classification or velocity supervision",
   "evidence": "dataset/morai_od/docs/261006_base5_asset_motion_appearance_evidence.md",
-  "unverified_policy": "preserve_request_and_review",
+  "unverified_policy": "static_capture_pending_appearance_review; do not infer fixed pose",
+  "official_static_asset_policy": "objectList physical obstacle/static vehicle and vehicleList use static capture; no rigid-motion stress cases in training",
   "static_primary": ["BabyStroller2", "BabyStroller3", "Bike3", "Scooter1", "NCAP_EPTa", "CargoBox", "OBJ_Hyundai_Grandeur", "2016_Hyundai_Ioniq", "2014_Hyundai_Xcient(Mixer)"],
   "articulated_observed": ["Woman2", "Dog1", "Dog2", "Deer1", "Ped_Pet1"]
 }

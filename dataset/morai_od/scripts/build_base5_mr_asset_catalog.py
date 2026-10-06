@@ -10,6 +10,7 @@ import extract_morai_asset_catalog as extract
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CATALOG = ROOT / 'dataset/morai_od/configs/morai_asset_catalog_mr_base5_261005.json'
 DEFAULT_RUNTIME = Path.home() / 'MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025'
+COMPETITION_EXCLUDED_IDS = frozenset({40100034})  # MORAI reply: OBJ_G80_Open_Door
 
 
 def build(runtime, option_list, historical):
@@ -57,9 +58,9 @@ def build(runtime, option_list, historical):
                            generation_policy='enabled', reason='Existing physical obstacle')
             else:
                 row.update(reason='New stroller/two-wheeler: occupant and annotation review first')
-            if name == 'OBJ_G80_Open_Door':
-                row.update(collection_role='review', generation_policy='review_only',
-                           reason='261005 live: floating mesh/GT; requested z -0.55m did not change observed height. Retain Vehicle semantics, block training until ground support resolved.')
+            if ident in COMPETITION_EXCLUDED_IDS:
+                row.update(collection_role='excluded', generation_policy='competition_excluded',
+                           reason='MORAI official reply recorded 2026-10-06: competition excluded; option removal announced, local patch not verified.')
             rows.append(row)
     return dict(schema_version=1, policy_version='mr_base5_261005',
                 source_sha256=sources, option_list_sha256=extract.sha256(option_list),
@@ -79,6 +80,8 @@ def load_pools(catalog_path=DEFAULT_CATALOG, runtime=DEFAULT_RUNTIME):
     pools = {key: [] for key in ('near_obstacle', 'far_vehicle', 'pedestrian')}
     family = {'obstacle': 'near_obstacle', 'vehicle': 'far_vehicle', 'pedestrian': 'pedestrian'}
     for row in catalog['assets']:
+        if int(row['data_id']) in COMPETITION_EXCLUDED_IDS:
+            continue
         if row['collection_role'] != 'positive':
             continue
         key = (row['source_file'], row['source_list'], row['data_id'])

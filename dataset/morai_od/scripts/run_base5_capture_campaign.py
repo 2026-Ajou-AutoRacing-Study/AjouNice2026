@@ -11,6 +11,13 @@ import run_base5_quality_loop as loop
 from base5_capture_safety import atomic_json, sha256, prepare_session
 
 
+def subset_deck(original, scenes):
+    """Copy only retained rows, not the full 10K scene array for each cell."""
+    deck=copy.deepcopy({k:v for k,v in original.items() if k!='scenes'})
+    deck.update(scenes=copy.deepcopy(scenes),count=len(scenes))
+    return deck
+
+
 def contract(source, indices, rounds):
     data=loop.gen.geo.load_json(source)
     scripts=Path(__file__).parent
@@ -18,7 +25,7 @@ def contract(source, indices, rounds):
            'generate_base5_independent.py','prepare_base5_ground_retry.py',
            'prepare_base5_empty_ground_probe.py','prepare_base5_probed_retry.py',
            'run_base5_capture.py','base5_capture_safety.py','base5_capture_audit.py',
-           'base5_ground_support.py','base5_ground_probe.py']
+           'base5_ground_support.py','base5_ground_probe.py','base5_capture_timing.py']
     sources=[]
     for i in indices:
         row=data['scenes'][i]
@@ -84,7 +91,7 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
         temp.replace(output/'selected_ledger.jsonl')
         atomic_json(output/'quota.json',dict(target=len(indices),accepted=len(selected),
                     deficit=len(deficits),pending=len(indices)-finished,cells=deficits))
-        deck=copy.deepcopy(original);deck.update(scenes=[original['scenes'][d['index']] for d in deficits],count=len(deficits))
+        deck=subset_deck(original,[original['scenes'][d['index']] for d in deficits])
         atomic_json(output/'deficit_manifest.json',deck)
         atomic_json(output/'status.json',dict(stage=stage,error=error,requested=len(indices),
                     finished=finished,accepted_candidate=len(selected),review=len(deficits),
@@ -95,7 +102,7 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
         for index in indices:
             if (output/'STOP').exists():save('stopped');return 0
             row=original['scenes'][index];cell=output/row['id'];cell.mkdir(exist_ok=True)
-            deck=copy.deepcopy(original);deck.update(scenes=[copy.deepcopy(row)],count=1)
+            deck=subset_deck(original,[row])
             manifest=cell/'manifest.json'
             if not manifest.exists():atomic_json(manifest,deck)
             outcome=None

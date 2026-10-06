@@ -1,8 +1,57 @@
 # Base5 독립 10K v2 — CURRENT / 소량 live 및 수집 준비 검증
 
 2026-10-06. 이 문서를 Base5 생성·캡처·변환의 최신 진입점으로 읽는다.
-기존 v1/E25 보강 실험과 구분한다. **구버전 왕복10K 생성 기록은 있으나 최신 일방향
-기본의10K는 생성하지 않았다. 소량 live 검증만 수행했고 본 수집·본 학습은 미시작이다.**
+기존 v1/E25 보강 실험과 구분한다. **최신 자연속도/정적자산 정책의10K 시나리오를
+v35로 생성·전수감사했다. 소량 live 검증과 달리 본10K 캡처·본 학습은 미시작이다.**
+
+## 최신 v37 — 비용 계측·중복작업 제거 / live6셀 A/B
+
+[단계별 비용·변경·정확일치 근거](261006_base5_capture_stage_optimization_v37.md).
+동일6개 시나리오56.556→50.732초(10.30% 절감), 양쪽6/6통과·종료Park 확인.
+고정 preflight1.3초를 실제 연결/0.3초 정지 증거 기반으로만 단축했다.
+원본32장 cache on/off 감사출력 정확일치,10K manifest 전체 반복복사 제거, tests100PASS.
+로드/제어/파일 안정화·충돌/지면/Z/가시성 gate는 유지한다.
+구세션은 코드hash 불일치로 현코드 resume 금지, 원본보존 및 읽기전용 보고서만 허용한다.
+본10K 캡처/학습은 아직 미시작이다. 하루 규모 비용이라는 판단은 유지한다.
+
+## v36 — 대표32셀 live 통과 / 본 수집 비용 확인
+
+[실측 시간·용량·보완 근거](261006_base5_capture_capacity_v36.md).
+32/32셀 통과, 실제촬영36회, 총314.657초. 보완3셀과 모든 종료Park 확인.
+현재 방식의10K family 가중 예상27.53시간, 원본 저장량 단순 예상54.71GiB다.
+작은 coverage 우선 표본이며 장시간 안정성/완료시간 보장은 아니다.
+본10K 캡처·학습은 아직 미시작이며 canonical v35는 유지한다.
+
+## v35 — 10K 시나리오 전수 PASS / 실제 수집 대기
+
+[경로·분포·실패 수정·남은 제한](261006_base5_final_10k_v35.md).
+canonical은 `$HOME/morai_cap/base5_v2_261006/scenarios_10k_v35/manifest.json`이다.
+10,000 unique payload/errors0, eligible122종 primary coverage, Base5 tests94개PASS.
+v34의1건 moving secondary geometric-center 경계 초과를 generator guard로 수정하고 재생성했다.
+로터리 actual 우측2장 편향과 미검증 geometry/20m밖ground 한계를 숨기지 않는다.
+MR 시나리오 폴더에10K복사/실제캡처/학습은 하지 않았다. 구10K·v34는 수집에 사용하지 않는다.
+
+## 공식 답변 반영 — 2026-10-06
+
+후속 **v33 코드 반영 / 12-cell live 완료**:
+[공식 정책·12장 준비 및 검증](261006_base5_official_reply_smoke.md).
+열린 G80 공식 제외와 rigid/차량 정지 캡처를 코드에 반영했다.
+12장 offline PASS 뒤 사용자 재연결로 실제12/12셀 통과·부족0이다.
+첫 셀 pause/resume·완료 read-only resume, CollisionData/종료Park, CPU12장/GT30개 변환을 확인했다.
+동적5셀 capture-window Z step0m. 앞96.86m LiDAR0/뒤95.83m 4점은 camera 근거로 보존했다.
+20m 밖 ground 인증은 아니며 재촬영은 이번에는 필요 없었다. 본10K는 미시작이다.
+
+[MORAI 추가 답변 기록](260920_questions_for_morai.md#최신-추가-답변--객체-범위g80차량-속도-기준):
+F2 전체 에셋이 음영/정적/동적 장애물 구간의 출제 후보이며 기존 정적 객체를
+움직이는 예외는 없다. `OBJ_G80_Open_Door`는 공식 출제 제외/목록 삭제 예고다.
+Animal/복합 객체 coverage는 유지하고, rigid static 자산에 양수 goal velocity를
+넣는 스트레스 실험을 대회 분포로 확대하지 않는다. 부유 재현 ZIP은 공유 Drive 업로드 및 사용자 전달 완료다.
+Z/ground gate를 유지하며 G80 제외가 타 자산 부유 해결을 의미하지 않는다.
+전체 후보를 모든 자산 균등 sampling/동일 Obstacle GT로 해석하지 않는다.
+나무/불/도로시설 background/ignore 정책은 공식 출제 금지가 아니므로 coverage 재검토가 남는다.
+UDP 차량 velocity의 후륜 기준도 공식 확인됐다. OD 학습은 센서 geometric box
+그대로이며 속도 평가 계약과 구분한다. 최초 문서 갱신에서는 코드 미변경이었고,
+후속 v33에서 생성기 정책만 반영했다. 10K 생성/평가기 기본값은 변경하지 않았다.
 
 ## 최신 v32 — MR OFF batch1 / ROS 포화 비용 확인
 

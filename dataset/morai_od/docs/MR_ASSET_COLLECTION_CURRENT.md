@@ -1,6 +1,28 @@
 # MR 전용 객체 카탈로그·수집 계약
 
-상태: CURRENT. 2026-10-05. 향후 수집은 MR만 사용한다.
+상태: CURRENT. 최신 공식 답변 반영 2026-10-06. 향후 수집은 MR만 사용한다.
+
+## 최신 공식 출제 범위 — 2026-10-06 답변 정리
+
+[MORAI 추가 답변](260920_questions_for_morai.md#최신-추가-답변--객체-범위g80차량-속도-기준)이
+아래 과거 추정/보류 문구보다 우선한다.
+
+- GPS 음영 및 정적/동적 장애물 구간의 후보는 대회용 F2에 보이는 전체 객체 에셋이다.
+  Vehicle/Pedestrian/Animal/복합 객체가 출제될 수 있다. 전체 균등 출제라는 뜻은 아니다.
+- 기존 정적 객체를 움직이는 예외는 없다고 확인했다. CargoBox 같은 rigid static
+  자산의 비정상 이동 설정을 대회 동적 미션 분포에 넣지 않는다.
+- `OBJ_G80_Open_Door`(40100034)는 **공식 출제 제외**이며 옵션 목록 삭제 조치를
+  예고했다. 기존 review 보류보다 강한 제외 사유다. 실제 런처 패치/목록 삭제는
+  미확인이고 문 닫힌 G80은 이 제외 대상이 아니다. 후속 v33에서 catalog도
+  competition_excluded로 반영했으며 pool loader에 ID 방어 규칙을 추가했다.
+- 타 자산의 동적 부유는 MORAI가 재현 시나리오를 요청한 상태다. 다른 자산의
+  동일 버그 인정/수정/출제 제외까지 확정된 것은 아니다. 기존 ground/Z quality gate 유지.
+- 동물/복합 객체 coverage와 component GT는 유지한다. 나무/불/도로시설 등의
+  기존 background/ignore 선택은 우리 학습 정책이지 공식 출제 금지가 아니다.
+  공식 전체 범위를 반영한 잔여 coverage/ontology 검토가 필요하며, 모든 자산을
+  Obstacle positive로 바꾸거나 무조건 차로 중앙에 배치하지 않는다.
+
+아래 2026-10-05 합의/구현 대기 절은 이력이며, 최신 구현은 Base5 v2 CURRENT를 따른다.
 
 2026-10-06 구현 후속: [Base5 v2 CURRENT](BASE5_V2_CURRENT.md)가 아래의 구현 대기
 문구를 대체한다. Component-preserving 변환과 움직이는 Animal의 별도4-class 연구 후보가
@@ -14,7 +36,8 @@
 
 [새 카탈로그 연결 및12-scene MR 검증](261005_base5_mr_asset_review_smoke.md)을 우선한다.
 Base5 전용 versioned catalog를 연결했고 pool은 Vehicle59/Pedestrian28/Obstacle19다.
-G80 open door는 지면 실패로 review 보류, Animal/유인 복합 자산도 review다.
+당시 G80 open door는 지면 실패로 review 보류였고 현재는 위 공식 출제 제외가 우선이다.
+Animal/유인 복합 자산도 당시 review였으며 후속 구현 상태는 Base5 v2 CURRENT를 따른다.
 아래의 "미구현" 문구는 합의 당시 이력이며 Base5 연결 상태는 이 절과 evidence가
 대체한다. 기존 general generator/production/과거 catalog는 변경하지 않았다.
 
@@ -44,7 +67,7 @@ annotation ID 구조를 확인했다. 아래는 다음 학습용 정책이며 �
   동일 mission rosbag에서 기존 class 성능과 근접 객체 재현 성능을 함께 확인한 뒤 확대한다.
 
 문 닫힌 `2021_Hyundai_G80`(30100010, vehicleList)은 현재 Vehicle positive다.
-문 열린 `OBJ_G80_Open_Door`(40100034, objectList)는 별도 asset이며 지면 실패로 보류다.
+문 열린 `OBJ_G80_Open_Door`(40100034, objectList)는 별도 asset이며 현재 공식 출제 제외다.
 이번 9-case 지면 검증은 문 열린 asset만 대상으로 했으며 일반 G80도 실패한다고 확대하지 않는다.
 
 ## 2026-10-05 새 목록 검수 및 후속 정책

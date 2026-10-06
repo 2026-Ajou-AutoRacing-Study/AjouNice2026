@@ -158,6 +158,8 @@ def context(runtime, mgeo):
             for actor in doc.get(container,[]): templates.setdefault((f,container,actor['DataID']),actor)
     pools={k:[] for k in ('vehicle','static_vehicle','obstacle','person','dummy','animal','pet_person','stroller','rider')}
     for row in inventory['assets']:
+        if int(row['data_id']) in catalog.COMPETITION_EXCLUDED_IDS:
+            continue
         name=row['name']; key=(row['source_file'],row['source_list'],row['data_id'])
         asset=dict(row,template=templates[key])
         if row['collection_role']=='positive':
@@ -232,8 +234,24 @@ def bounded_motion_path(pose,center,ego,bounds):
 
 def appearance_motion(asset,requested,policy):
     if asset['source_list']=='aiPedstrianList':return 'standing','ai_motion_unverified'
+    if asset['source_list']=='vehicleList':return 'static','vehicle_static_capture'
+    if asset['source_list']=='objectList' and asset.get('semantic_class') in ('obstacle','vehicle'):
+        return 'static','official_static_asset'
     if asset['name'] in policy.get('static_primary',[]):return 'standing' if requested!='static' else 'static','observed_fixed_pose'
-    return requested,'observed_articulated' if asset['name'] in policy.get('articulated_observed',[]) else 'unverified_preserve_request'
+    if asset['name'] in policy.get('articulated_observed',[]):return requested,'observed_articulated'
+    if asset.get('ontology_class')=='Animal' or asset.get('semantic_class')=='pedestrian':
+        return requested,'articulated_candidate_requires_capture_validation'
+    return 'static' if requested=='static' else 'standing','unverified_static_pending_appearance_review'
+
+
+def validate_natural_path_roi(points,target,center,ego,road_yaw):
+    # Translate pivot waypoints to the same geometric center used by the auditor.
+    # For a straight path, endpoint checks bound every intermediate center.
+    dx,dy=center[0]-target['x'],center[1]-target['y']
+    for point in points:
+        ref=references([point['x']+dx,point['y']+dy],ego,road_yaw)
+        if abs(ref['ego_lateral_m'])>29.5 or abs(ref['ego_longitudinal_m'])>99.5:
+            raise ValueError('Natural geometric-center path leaves input ROI')
 
 
 def natural_target_path(pose,center,ego,bounds,motion,asset,budget=9.):
@@ -481,9 +499,7 @@ def build(row,config,ctx,attempt=0):
                 if gap<minimum_gap or any(box.distance(other)<.20 for other in footprints):raise ValueError('Rotated natural target clearance failure')
                 end=motion_path['points'][1]
                 end_center=[center[0]+end['x']-pose['x'],center[1]+end['y']-pose['y']]
-                for point in motion_path['points']:
-                    ref=references([point['x'],point['y']],ego,base['yaw'])
-                    if abs(ref['ego_lateral_m'])>29.5 or abs(ref['ego_longitudinal_m'])>99.5:raise ValueError('Natural path leaves input ROI')
+                validate_natural_path_roi(motion_path['points'],motion_path['target_position'],center,ego,base['yaw'])
             elif policy in ('bounded-shuttle-v1','one-way-slow-v1'):
                 if asset['source_list'] not in ('pedestrianList','aiPedstrianList','objectList'):raise ValueError('Shuttle unsupported actor container')
                 motion_path=one_way_motion_path(pose,center,ego,[lower,upper],actor_motion,asset,
