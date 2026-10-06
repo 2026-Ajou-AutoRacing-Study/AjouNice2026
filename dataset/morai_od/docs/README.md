@@ -4,6 +4,10 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **최신 v40: rosbridge 서비스 세대 간 응답 혼선 재현·opt-in 보완.** 추가8quota통과로28/32.
+  남은4셀은3raw보존/1미로드다. 기존bridge재시작·MR재연결후guard live검증이필요하다.
+  [원인·코드·재연결 명령](261006_base5_eventcmd_rosbridge_v40.md). 본10K/학습미시작.
+
 - **최신 v39: 재연결·안전 ROS batch·quota 보완 연결.** 새6장 pause/resume6/6,
   첫12셀 최종12/12·실제14촬영·CPU17GT 변환 통과. 간헐Park timeout은 미해결이며
   실패boundary는보존/재개금지. 후속20셀은8quota후최종Park미확인으로중단, 합계20/32다.

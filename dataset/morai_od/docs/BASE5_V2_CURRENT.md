@@ -4,7 +4,21 @@
 기존 v1/E25 보강 실험과 구분한다. **최신 자연속도/정적자산 정책의10K 시나리오를
 v35로 생성·전수감사했다. 소량 live 검증과 달리 본10K 캡처·본 학습은 미시작이다.**
 
-## 최신 v39 — 안전 ROS batch·quota 보완·resume 검증
+## 최신 v40 — rosbridge 서비스 세대 응답 혼선 재현 / 재연결 필요
+
+[원인 근거·보완 코드·재연결 순서](261006_base5_eventcmd_rosbridge_v40.md).
+정지Park12회는모두정상응답했고,캡처timeout은TCP요청후응답수신대기로확인했다.
+설치된rosbridge에서서비스재등록시ID재사용/공유response dict로이전handler가새응답을
+가져가는결함을offline재현했다.세대분리guard는재현테스트를통과했으나MR live미검증이다.
+client timeout연결정리·미종료worker후추가요청금지·phase/stack기록을구현했다.
+추가8quota통과로최종28/32셀.남은4셀중3raw는최종Park미확인으로선택하지않았고1셀은미로드다.
+925셀동물annotation지면위review도보존하며안전복구후기존Z보완루프로검증해야한다.
+기존bridge터미널종료→`python3 dataset/morai_od/scripts/run_base5_rosbridge.py`→MR재연결이필요하다.
+설치ROS파일/production alias는미변경.모든timeout원인해결이나전체32PASS를주장하지않는다.
+Base5단위118tests PASS. guarded bridge/MORAI ID echo호환성은재연결후검증한다.
+**본10K 캡처·학습은 미시작이다.**
+
+## v39 — 안전 ROS batch·quota 보완·resume 검증
 
 [재연결·실제 검증·새 pilot 실행](261006_base5_safe_batch_quota_v39.md).
 재연결 사전Park 통과 후 첫 batch의 boundary Park2회timeout으로 중단했다.

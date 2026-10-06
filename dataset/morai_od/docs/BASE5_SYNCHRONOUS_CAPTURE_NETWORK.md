@@ -1,5 +1,12 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
+## 최신 v40 — guard 적용 bridge 재시작 필요
+
+[서비스 응답 혼선 재현·재연결 명령](261006_base5_eventcmd_rosbridge_v40.md)이우선한다.
+새수집은28/32quota까지통과후최종Park미확인으로중단했다.
+7-interface network는그대로유지한다.기존bridge종료후`run_base5_rosbridge.py`실행,
+MR Disconnect/Connect 후소량live검증이필요하다.설치ROS파일/production alias는수정하지않았다.
+
 ## 최신 v39 — 재연결 이후 안전 batch·quota pilot
 
 [최신 근거·실행·모니터링](261006_base5_safe_batch_quota_v39.md)을 우선한다.

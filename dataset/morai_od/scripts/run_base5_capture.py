@@ -15,6 +15,7 @@ import fcntl
 
 from base5_capture_audit import audit_capture
 from base5_capture_timing import StageTiming, preflight_stationary, post_load_topics_ready
+from base5_event_cmd import BoundedServiceCaller
 from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review
 
 ROOT=Path(__file__).resolve().parents[3]
@@ -157,13 +158,20 @@ def main():
                 raise RuntimeError('Ego/Object/CollisionData connection stale')
             return dict(state['ego'])
     started=time.time(); results=list(previous); owned=[]; failures=0;new_captures=0
+    current_scene=None
+    def event_report(record):
+        record.update(scene=current_scene,recorded_at=time.time())
+        with (args.output/'event_cmd_requests.jsonl').open('a') as handle:
+            handle.write(json.dumps(record,ensure_ascii=False)+'\n');handle.flush();os.fsync(handle.fileno())
+    event_caller=BoundedServiceCaller(
+        lambda:rospy.ServiceProxy('/Service_MoraiEventCmd',MoraiEventCmdSrv,persistent=True),event_report)
     def park_request():
         fresh(1.)
         if not control.get_num_connections():raise RuntimeError('Exit control subscriber missing')
         control.publish(CtrlCmd(longlCmdType=1,brake=1.,accel=0.,steering=0.))
         park=MoraiEventCmdSrvRequest()
         for key,value in park_request_fields().items():setattr(park.request,key,value)
-        response=bounded_call(lambda:rospy.ServiceProxy('/Service_MoraiEventCmd',MoraiEventCmdSrv)(park),timeout=3.)
+        response=event_caller.call(park,3.,'park')
         return response.response.gear
     def check_stop():
         if stopfile.exists() or rospy.is_shutdown():raise KeyboardInterrupt('Graceful STOP during capture wait')
@@ -198,6 +206,7 @@ def main():
         for entry in rows:
             if stopfile.exists() or rospy.is_shutdown(): status('stopped');break
             if entry['id'] in completed: continue
+            current_scene=entry['id']
             if args.shared_ros_batch:
                 fresh()
                 if any(not pub.get_num_connections() for pub in (control,loader,capture)):
@@ -245,7 +254,7 @@ def main():
                 time.sleep(.7)
                 for attempt in range(2):
                     try:
-                        response=bounded_call(lambda:rospy.ServiceProxy('/Service_MoraiEventCmd',MoraiEventCmdSrv)(req))
+                        response=event_caller.call(req,5.,'control_readiness')
                         break
                     except RuntimeError:
                         if attempt:raise

@@ -94,6 +94,9 @@
   재연결후 새6장resume·첫12셀보완/CPU17GT 변환을통과했다.
   후속합계20/32quota에서최종Park2회timeout으로중단했다. 실패출력resume금지,
   남은12셀/반복Park서비스지연/장시간안정성 검증이남는다. max64셀pilot이며 본10K미시작이다.
+  후속[v40 EventCmd/rosbridge](../dataset/morai_od/docs/261006_base5_eventcmd_rosbridge_v40.md)에서
+  서비스재등록ID/공유response혼선을설치코드로재현했다. opt-in guard offline통과/live미검증.
+  추가8quota로28/32통과,남은4셀은3raw보존/1미로드다. 기존bridge재시작/MR재연결이먼저다.
   실제 전체pool/장시간 캡처 검증과4-class runtime 결정은 남는다.
   구왕복10K는 새 기본 수집에 사용하지 않는다. 본 수집/본 학습은 미실행이다.
 

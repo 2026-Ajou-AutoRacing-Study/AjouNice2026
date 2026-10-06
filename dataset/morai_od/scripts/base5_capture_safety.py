@@ -141,7 +141,7 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
     scripts=Path(__file__).parent
     contract=dict(schema_version=6,manifest_sha256=sha256(manifest),
         network_sha256=sha256(network),sensor_sha256=sha256(sensor),
-        safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_ground_support.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py')},
+        safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_ground_support.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py','base5_event_cmd.py')},
         safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; local-ground-plane-v1; all-actor-motion-endpoint-window-v1; vertical-step-window-v1')
     if runner_options is not None:contract['runner_options']=runner_options
     path=output/'session_contract.json'
