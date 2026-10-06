@@ -109,6 +109,24 @@ python3 perception/detection3d/bevfusion/scripts/benchmark_ros_capacity.py \
 
 ## 다음
 
+### 4090 팀원 독립 측정 패키지
+
+Git/ROS 없이팀Docker로같은고정간격4-case를실행하는handoff를만들었다.
+빌더는`perception/detection3d/bevfusion/scripts/build_portable_capacity_bundle.py`,
+팀원용instructions/runner는같은scripts의`portable_capacity/`다.
+E25가중치·H01raw3장·Sensor교정·필요config/plugin을포함한다.
+각60회측정/역순30회재확인, CPU전처리+모델처리평균/p50/p95,
+단계별span·메모리·GPUtelemetry·image/driver정보를결과ZIP으로자동반환한다.
+ROS/full-stack출력Hz·AP·4090실측을이미완료했다고해석하지않는다.
+
+최종전달ZIP:
+`artifacts/handoff/capacity_4090_261006_v2/ajounice_capacity_4090.zip`
+(151,437,062bytes, SHA256 `1d695096388261ebd7df0e212a76ef9f24b5c31db231de5b21c75798d8aa149c`).
+구v1은공통metric import누락으로FAILED. common모듈을포함한v2를패키지만mount한
+Docker에서각10회/역순10회로검증해8/8case통과와최종PASS ZIP생성을확인했다.
+전달ZIP내manifest의전체file해시와반환ZIP의해시도검사했다.
+코드·README만tracked, 가중치/raw/delivery/result ZIP은ignored그대로다.
+
 예상1.5–2배보다비용이낮았던원인은[단계별분해·finegrid/depth대조](261006_BASE5_LATENCY_STAGE_BREAKDOWN.md)에서실측했다.
 격자/depth를기존처럼촘촘하게한100m highres 비용대조는GPU모델처리약129.21ms로E25의약1.98배다.
 

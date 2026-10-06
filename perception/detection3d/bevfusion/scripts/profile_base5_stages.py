@@ -126,6 +126,7 @@ def main():
         contract='CUDA-event critical-path spans incl host idle; parent/substage overlap; hooks perturb timing. Same raw bag samples. Legacy wide variants fresh/untrained; controlled cases use E25 3-class compatible weights, with resized depth output untrained. Cost only, not accuracy.')
     torch.backends.cudnn.benchmark=True;torch.backends.cuda.matmul.allow_tf32=True
     for case in a.cases:
+        torch.cuda.reset_peak_memory_stats()
         model=None;pre=None;rec=None;result=dict(case=case)
         try:
             cfg=configuration(a.root/'perception/detection3d/bevfusion/configs',case);torch.manual_seed(261006)
@@ -143,15 +144,20 @@ def main():
                 rec.wrap(model.view_transform,method,'view_'+method)
             rec.wrap(model.view_transform.downsample,'forward','view_downsample',shape=True)
             rec.wrap(model.bbox_head,'predict','head_predict',shape=False)
-            spans={};host={};total=[];cpu=[];residual=[]
+            spans={};host={};total=[];cpu=[];residual=[];service=[]
+            warmup_peak_bytes=0
             with torch.inference_mode():
                 for i in range(a.iterations+6):
+                    if i==6:
+                        warmup_peak_bytes=torch.cuda.max_memory_allocated()
+                        torch.cuda.reset_peak_memory_stats()
                     rec.enabled=i>=6;rec.records=[]
                     pts,images=samples[i%len(samples)];t0=time.perf_counter();batch=pre.prepare(pts,images,i)
                     cpu_elapsed=(time.perf_counter()-t0)*1000;torch.cuda.synchronize();start=time.perf_counter()
                     with torch.autocast('cuda',dtype=torch.float16):model.test_step(batch)
                     torch.cuda.synchronize();elapsed=(time.perf_counter()-start)*1000
                     if rec.enabled:
+                        service.append((time.perf_counter()-t0)*1000)
                         total.append(elapsed);cpu.append(cpu_elapsed);top_sum=0.
                         for name,begin,end,submitted in rec.records:
                             ms=begin.elapsed_time(end);spans.setdefault(name,[]).append(ms);host.setdefault(name,[]).append(submitted)
@@ -159,6 +165,9 @@ def main():
                         residual.append(elapsed-top_sum)
             vt=model.view_transform
             result.update(valid=True,forward_wall_ms=stats(total),cpu_prepare_ms=stats(cpu),
+                offline_service_ms=stats(service),
+                warmup_peak_allocated_mib=warmup_peak_bytes/1048576,
+                steady_peak_allocated_mib=torch.cuda.max_memory_allocated()/1048576,
                 stage_stream_ms={k:stats(v) for k,v in spans.items()},stage_host_call_ms={k:stats(v) for k,v in host.items()},
                 outside_instrumented_spans_wall_ms=stats(residual),feature_shapes=rec.shapes,
                 occupied_voxels=sorted(set(rec.voxels)),
