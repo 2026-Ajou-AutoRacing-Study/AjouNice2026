@@ -1,13 +1,23 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-## 최신 v40 — guard 적용 bridge 재시작 필요
+## 현재 진입점 — guard 재연결 및 v43 검증 완료
+
+[CURRENT](BASE5_V2_CURRENT.md)와 [v44 근거](261006_base5_diverse_coverage_eta_v44.md)를
+우선한다. 아래 v40/v39의 재연결 필요·미완료 내용은 당시 이력이다.
+현재 guarded bridge 재연결 뒤 대표32/32와 자연 이동16/16, 안전한9초 재시도 진단을
+통과했다.7-interface와 매scene network reload를 유지한다. 기본 준비9초는 미변경이며
+6초는 opt-in 검증 후보다. 본10K 캡처·학습은 시작하지 않았다.
+현재 bridge가 연결돼 있으면 아래 과거 재시작 지시 때문에 임의로 끊지 않는다.
+통신/충돌/Park 실패시에는 계속하지 않고 현재 session 증거를 확인한다.
+
+## v40 당시 — guard 적용 bridge 재시작 필요
 
 [서비스 응답 혼선 재현·재연결 명령](261006_base5_eventcmd_rosbridge_v40.md)이우선한다.
 새수집은28/32quota까지통과후최종Park미확인으로중단했다.
 7-interface network는그대로유지한다.기존bridge종료후`run_base5_rosbridge.py`실행,
 MR Disconnect/Connect 후소량live검증이필요하다.설치ROS파일/production alias는수정하지않았다.
 
-## 최신 v39 — 재연결 이후 안전 batch·quota pilot
+## v39 당시 — 재연결 이후 안전 batch·quota pilot
 
 [최신 근거·실행·모니터링](261006_base5_safe_batch_quota_v39.md)을 우선한다.
 network 재사용은 계속 금지하며7-interface/scene별network reload를 유지한다.

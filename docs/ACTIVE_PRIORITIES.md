@@ -102,7 +102,10 @@
   123tests·완료resume·CPU4장7GT PASS. 전환오류2회retry회복·timeout0;
   장시간 인증이나전체10K22%절감은 아니다. 최신진입점은BASE5_V2_CURRENT를 따른다.
   실제 전체pool/장시간 캡처 검증과4-class runtime 결정은 남는다.
-  최신[v43 6초후보·안전재시도](../dataset/morai_od/docs/261006_base5_budget6_fallback_v43.md):
+  최신[v44 후방·복합/새자산·10K 시간](../dataset/morai_od/docs/261006_base5_diverse_coverage_eta_v44.md):
+  추가64/64셀·66촬영/GT95,138tests PASS. 대표10K 예상18.71시간 유지,
+  자연이동5–10%재시도/추가30초가정19.40–20.09시간. 기본9초/본수집미시작.
+  이전[v43 6초후보·안전재시도](../dataset/morai_od/docs/261006_base5_budget6_fallback_v43.md):
   자연이동16/16·혼합32/32/216초, 준비지연 진단6초실패→9초통과·진단학습제외.
   동일10K 예상18.71시간은 표본 외삽이며 기본9초/본수집미시작 유지.
   이전[v42 비용·동적준비 후보](../dataset/morai_od/docs/261006_base5_batch_capacity_budget_v42.md):
