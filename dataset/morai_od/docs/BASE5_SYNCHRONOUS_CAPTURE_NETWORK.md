@@ -1,5 +1,15 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
+## v38 — 네트워크 재사용 금지 / 재연결 필요
+
+[최신실험·복구](261006_base5_ros_batch_network_evidence_v38.md)가 아래 이력보다 우선한다.
+ROS 프로세스 공유는 소량 통과했지만 network flag=false는 두 번째 장면에서 전체client가 끊겼다.
+--batch-reuse-network 금지, scene별 network reload 유지. 종료Park 미확인이므로 새 로드도 중단했다.
+원래 configs/network/ego_network_mr_base5_savesensordata_collision_local.json을 MR에서 Load/Connect하고,
+Ego 정지/Park·필수topic·사전Park 응답을 확인한 뒤 새output의 소량검증만 재개한다.
+실패 network_reuse_v38 output은 resume하거나 계약을 수정하지 않는다.
+--shared-ros-batch는 max16 실험후보이며 새 guard/stop-resume live는 아직 미검증, 본수집용 기본이 아니다.
+
 ## v37 — 조건부 준비 대기 / 구세션 보호
 
 최신 비용/실행 계약은 [v37 계측·소량A/B](261006_base5_capture_stage_optimization_v37.md)를 따른다.

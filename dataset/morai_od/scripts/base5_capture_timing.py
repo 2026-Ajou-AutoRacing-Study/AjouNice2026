@@ -3,6 +3,18 @@ import time
 import math
 
 
+def post_load_topics_ready(state, actors, load_time, now):
+    """Fresh post-load receive witnesses; AI annotation-only exception stays scoped."""
+    if any(state[k]<=load_time+.5 or now-state[k]>.8
+           for k in ('ego_t','object_t','collision_t')):
+        return False
+    expected={a['unique_id'] for a in actors if a['source_list']!='aiPedstrianList'}
+    objects=state.get('objects') or {}
+    seen={a['unique_id'] for k in ('npc_list','pedestrian_list','obstacle_list')
+          for a in objects.get(k,[])}
+    return expected<=seen
+
+
 def preflight_stationary(samples, now, window=.30):
     """Require recent finite, near-zero-speed and stable-pose receive evidence."""
     rows=[r for r in samples if now-window-.10 <= r['t'] <= now]

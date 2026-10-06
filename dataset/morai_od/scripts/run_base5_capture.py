@@ -14,7 +14,7 @@ import uuid
 import fcntl
 
 from base5_capture_audit import audit_capture
-from base5_capture_timing import StageTiming, preflight_stationary
+from base5_capture_timing import StageTiming, preflight_stationary, post_load_topics_ready
 from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review
 
 ROOT=Path(__file__).resolve().parents[3]
@@ -58,8 +58,11 @@ def main():
     p.add_argument('--prepare-only',action='store_true',help='Write selected plan/status without importing ROS or controlling MR')
     p.add_argument('--network-template',type=Path,default=ROOT/'configs/network/ego_network_mr_base5_savesensordata_collision_local.json')
     p.add_argument('--stop-after-new-captures',type=int,help='Graceful resume smoke-test stop; does not change selected plan')
+    p.add_argument('--shared-ros-batch',action='store_true',help='Experimental <=16-row pilot: share ROS process, reload network every scene, verify per-scene Park, halt on review')
+    p.add_argument('--batch-reuse-network',action='store_true',help=argparse.SUPPRESS)
     p.add_argument('--test-interrupt-after-raw-move',help=argparse.SUPPRESS)
     args=p.parse_args()
+    if args.batch_reuse_network:p.error('Network reuse disabled: v38 second load disconnected all MORAI clients; use per-scene network reload')
     if args.limit<1 or (args.limit>64 and not args.approve_bulk_capture): p.error('Pilot limited to 64; bulk requires explicit approval')
     if args.stop_after_new_captures is not None and args.stop_after_new_captures<1:p.error('Stop count must be positive')
     if args.test_interrupt_after_raw_move and args.limit>64:p.error('Interruption injection is pilot-only')
@@ -70,6 +73,7 @@ def main():
     rows=manifest['scenes']
     if args.indices: rows=[rows[int(i)] for i in args.indices.split(',')]
     rows=rows[:args.limit]
+    if args.shared_ros_batch and len(rows)>16:p.error('Shared ROS batch remains limited to 16 scenes; not approved for bulk')
     if not rows:raise ValueError('Empty selected capture deck; no ROS/control action')
     # Fail malformed manifests before ROS/control or any raw capture side effect.
     required={'id','scenario','metadata','scenario_sha256','family','role','distance_bounds','subfamily','motion'}
@@ -90,7 +94,8 @@ def main():
         return
     session=uuid.uuid4().hex[:8]
     ledger=args.output/'ledger.jsonl'; stopfile=args.output/'STOP'
-    previous,completed=prepare_session(args.output,args.manifest,args.network_template,sensor_source)
+    runner_options=dict(shared_ros_batch=args.shared_ros_batch,selected_scene_ids=[row['id'] for row in rows])
+    previous,completed=prepare_session(args.output,args.manifest,args.network_template,sensor_source,runner_options)
     if any(r.get('scenario_sha256')!=next((s['scenario_sha256'] for s in rows if s['id']==r['id']),r.get('scenario_sha256')) for r in previous):
         raise ValueError('Resume scenario provenance mismatch')
     if rows and all(r['id'] in completed for r in rows):
@@ -152,6 +157,16 @@ def main():
                 raise RuntimeError('Ego/Object/CollisionData connection stale')
             return dict(state['ego'])
     started=time.time(); results=list(previous); owned=[]; failures=0;new_captures=0
+    def park_request():
+        fresh(1.)
+        if not control.get_num_connections():raise RuntimeError('Exit control subscriber missing')
+        control.publish(CtrlCmd(longlCmdType=1,brake=1.,accel=0.,steering=0.))
+        park=MoraiEventCmdSrvRequest()
+        for key,value in park_request_fields().items():setattr(park.request,key,value)
+        response=bounded_call(lambda:rospy.ServiceProxy('/Service_MoraiEventCmd',MoraiEventCmdSrv)(park),timeout=3.)
+        return response.response.gear
+    def check_stop():
+        if stopfile.exists() or rospy.is_shutdown():raise KeyboardInterrupt('Graceful STOP during capture wait')
     def status(stage,current=None,error=None):
         selected={r['id'] for r in rows}
         latest={r['id']:r for r in results if r['id'] in selected}
@@ -183,6 +198,10 @@ def main():
         for entry in rows:
             if stopfile.exists() or rospy.is_shutdown(): status('stopped');break
             if entry['id'] in completed: continue
+            if args.shared_ros_batch:
+                fresh()
+                if any(not pub.get_num_connections() for pub in (control,loader,capture)):
+                    raise RuntimeError('Batch live subscriber missing; no further load')
             meta=json.loads(Path(entry['metadata']).read_text()); scene=json.loads(Path(entry['scenario']).read_text())
             meta['lidar_to_ego']=calibration['lidar']['lidar_to_ego']
             meta['sensor_source_sha256']=calibration['source_sha256']
@@ -199,6 +218,7 @@ def main():
             timing.mark('scenario_install')
             try:
                 status('scene_load',entry['id']);load_time=time.monotonic()
+                meta['capture_network_policy']=dict(shared_ros_batch=args.shared_ros_batch,network_reloaded=True)
                 loader.publish(ScenarioLoad(file_name=name,load_network_connection_data=True,load_ego_vehicle_data=True,
                     load_surrounding_vehicle_data=True,load_pedestrian_data=True,load_obstacle_data=True,set_pause=False))
                 expected=scene['egoVehicle']['initPosition']['pos'];deadline=time.monotonic()+12
@@ -207,6 +227,14 @@ def main():
                     if e and e['t']>load_time+.5 and time.monotonic()-e['t']<.3 and math.hypot(e['x']-expected['x'],e['y']-expected['y'])<3.5: break
                     time.sleep(.05)
                 else: raise RuntimeError('Scene load pose not confirmed')
+                if args.shared_ros_batch:
+                    deadline=time.monotonic()+3.
+                    while time.monotonic()<deadline:
+                        check_stop()
+                        with lock:ready=post_load_topics_ready(state,meta['runtime_actors'],load_time,time.monotonic())
+                        if ready:break
+                        time.sleep(.025)
+                    else:raise RuntimeError('Post-load Ego/Object/Collision witnesses unverified')
                 pose_confirmed=time.monotonic()
                 timing.mark('pose_confirmation')
                 rospy.wait_for_service('/Service_MoraiEventCmd',timeout=4.)
@@ -238,6 +266,7 @@ def main():
                 deadline=time.monotonic()+manifest['config']['capture']['dynamic_wait_sec']
                 if entry['motion'] not in ('static','standing'):
                     while time.monotonic()<deadline:
+                        check_stop()
                         with lock: moving=actor_position(state['objects'],primary_uid)
                         if moving and movement_before and math.hypot(moving['x']-movement_before['x'],moving['y']-movement_before['y'])>=.05:break
                         fresh();time.sleep(.025)
@@ -247,6 +276,7 @@ def main():
                 if targets:
                     status('waiting_motion_target',entry['id']);deadline=time.monotonic()+20.;closest={}
                     while time.monotonic()<deadline:
+                        check_stop()
                         with lock:current_objects=state['objects']
                         observed=[]
                         for a in targets:
@@ -268,6 +298,7 @@ def main():
                     status('waiting_motion_target',entry['id'])
                     deadline=time.monotonic()+probe['arrival_timeout_sec'];closest=float('inf')
                     while time.monotonic()<deadline:
+                        check_stop()
                         with lock:current=actor_position(state['objects'],primary_uid)
                         if current:
                             distance=math.hypot(current['x']-target['x'],current['y']-target['y'])
@@ -319,6 +350,7 @@ def main():
                 status('capture',entry['id']);capture.publish(SaveSensorData(is_custom_file_name=False))
                 deadline=time.monotonic()+20; new=set();signature=None; stable=time.monotonic()
                 while time.monotonic()<deadline:
+                    check_stop()
                     new={f for f in args.sensor_dir.rglob('*') if f.is_file() and f not in before}
                     sig=sorted((str(f),f.stat().st_size) for f in new)
                     if sig!=signature: signature=sig;stable=time.monotonic()
@@ -422,10 +454,18 @@ def main():
                 for f in (scenario,sidecar):
                     if f in owned and f.exists(): f.unlink()
             results.append(result)
+            if args.shared_ros_batch:
+                boundary=confirm_park(park_request)
+                boundary['request_fields']=park_request_fields();boundary['brake_held_during_requests']=True
+                result['between_scene_park']=boundary
+                atomic_json(args.output/'scene_parks'/(entry['id']+'.json'),boundary)
+                timing.mark('between_scene_park')
             with ledger.open('a') as f: f.write(json.dumps(result,ensure_ascii=False)+'\n');f.flush();os.fsync(f.fileno())
             status('running',entry['id']); print(json.dumps({k:v for k,v in result.items() if k!='audit'}),flush=True)
             new_captures+=1
             timing.mark('cleanup_and_ledger')
+            if args.shared_ros_batch and (result['status']!='accepted_candidate' or not boundary['park_verified']):
+                raise RuntimeError('Batch review/failure or unsafe boundary Park; halt before next scene')
             if args.stop_after_new_captures and new_captures>=args.stop_after_new_captures:
                 status('stopped_for_resume_test',entry['id']);break
             if failures>=3: raise RuntimeError('Capture halted after connection failure or three consecutive scene failures')
@@ -439,15 +479,6 @@ def main():
         # attempts. A single publication followed by a short timeout is not
         # sufficient exit-state evidence.
         try:
-            def park_request():
-                fresh(1.)
-                if not control.get_num_connections():raise RuntimeError('Exit control subscriber missing')
-                control.publish(CtrlCmd(longlCmdType=1,brake=1.,accel=0.,steering=0.))
-                # Exit changes only the gear; control mode was confirmed after load.
-                park=MoraiEventCmdSrvRequest()
-                for key,value in park_request_fields().items():setattr(park.request,key,value)
-                response=bounded_call(lambda:rospy.ServiceProxy('/Service_MoraiEventCmd',MoraiEventCmdSrv)(park),timeout=3.)
-                return response.response.gear
             shutdown=confirm_park(park_request)
             timing.mark('shutdown_park')
             shutdown['request_fields']=park_request_fields()

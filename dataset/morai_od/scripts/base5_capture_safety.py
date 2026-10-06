@@ -136,13 +136,14 @@ def load_ledger(path):
     return rows
 
 
-def prepare_session(output,manifest,network,sensor):
+def prepare_session(output,manifest,network,sensor,runner_options=None):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     scripts=Path(__file__).parent
     contract=dict(schema_version=6,manifest_sha256=sha256(manifest),
         network_sha256=sha256(network),sensor_sha256=sha256(sensor),
         safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_ground_support.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py')},
         safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; local-ground-plane-v1; all-actor-motion-endpoint-window-v1; vertical-step-window-v1')
+    if runner_options is not None:contract['runner_options']=runner_options
     path=output/'session_contract.json'
     if path.exists():
         if json.loads(path.read_text())!=contract:raise ValueError('Resume session contract mismatch')
@@ -152,6 +153,8 @@ def prepare_session(output,manifest,network,sensor):
     previous=load_ledger(output/'ledger.jsonl');latest={r['id']:r for r in previous}
     completed={k:r for k,r in latest.items() if r['status'] in ('accepted_candidate','review')}
     for ident,row in completed.items():
+        if ((runner_options or {}).get('shared_ros_batch') or (runner_options or {}).get('batch_reuse_network')) and not row.get('between_scene_park',{}).get('park_verified'):
+            raise ValueError('Batch completed row lacks safe boundary Park: '+ident)
         capture=Path(row['capture_root'])
         if any(not (capture/f).is_file() for f in ('scenario.json','metadata.json','audit.json','telemetry.json','collision_history.json')):
             raise ValueError('Completed ledger has incomplete provenance: '+ident)

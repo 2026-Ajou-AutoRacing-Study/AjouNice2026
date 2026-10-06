@@ -8,6 +8,22 @@ from base5_capture_safety import collision_window,load_ledger,prepare_session,ar
 
 
 class CaptureSafetyTest(unittest.TestCase):
+    def test_batch_mode_is_part_of_resume_contract(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);files=[]
+            for name in ('manifest','network','sensor'):
+                path=root/name;path.write_text('{}');files.append(path)
+            prepare_session(root/'out',*files,runner_options=dict(batch_reuse_network=True))
+            with self.assertRaises(ValueError):
+                prepare_session(root/'out',*files,runner_options=dict(batch_reuse_network=False))
+            options=dict(shared_ros_batch=True,selected_scene_ids=['a','b'])
+            prepare_session(root/'plan',*files,runner_options=options)
+            with self.assertRaises(ValueError):
+                prepare_session(root/'plan',*files,runner_options=dict(shared_ros_batch=True,selected_scene_ids=['b','a']))
+            (root/'out'/'ledger.jsonl').write_text(json.dumps(dict(id='a',status='accepted_candidate',between_scene_park=dict(park_verified=False)))+'\n')
+            with self.assertRaisesRegex(ValueError,'boundary Park'):
+                prepare_session(root/'out',*files,runner_options=dict(batch_reuse_network=True))
+
     def test_exit_park_changes_only_gear_not_control_mode(self):
         self.assertEqual(park_request_fields(),dict(option=2,gear=1))
 

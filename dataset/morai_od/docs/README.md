@@ -4,6 +4,11 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **최신 v38: ROS공유6/6 통과·13.85% 단축 / 네트워크 재사용 실패로 live 중단.**
+  network flag=false 두 번째 load에서client0·종료Park미확인. 옵션금지, 모든scene network reload유지.
+  사용자 재연결·사전Park 후 새 안전batch/stop-resume검증이 남음. 본10K미시작.
+  [최신근거·복구순서](261006_base5_ros_batch_network_evidence_v38.md).
+
 - **최신 v37: 비용 분리·안전 조건부 대기 단축.** 동일6셀56.6→50.7초(10.3%),
   양쪽6/6통과·Park 확인.32장 image cache 감사출력 정확일치, tests100PASS.
   본10K 미시작, 구세션 hash변경 resume 금지. [최신근거](261006_base5_capture_stage_optimization_v37.md).

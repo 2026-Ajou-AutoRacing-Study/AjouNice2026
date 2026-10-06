@@ -1,17 +1,44 @@
 import sys
 import unittest
 import tempfile
+import json
+import subprocess
 from unittest.mock import patch
 import numpy as np
 from PIL import Image
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from base5_capture_timing import StageTiming, preflight_stationary
+from base5_capture_timing import StageTiming, preflight_stationary, post_load_topics_ready
 from base5_capture_audit import camera_evidence
 
 
 class TimingTest(unittest.TestCase):
+    def test_network_reuse_bulk_refused_before_output_or_ros(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);manifest=root/'manifest.json'
+            manifest.write_text(json.dumps(dict(scenes=[dict(id=str(i)) for i in range(17)])))
+            result=subprocess.run([sys.executable,str(Path(__file__).resolve().parents[1]/'scripts/run_base5_capture.py'),
+                '--manifest',str(manifest),'--output',str(root/'out'),'--limit','17',
+                '--batch-reuse-network','--prepare-only'],capture_output=True,text=True)
+            self.assertEqual(result.returncode,2)
+            self.assertIn('Network reuse disabled',result.stderr)
+            self.assertFalse((root/'out').exists())
+            result=subprocess.run([sys.executable,str(Path(__file__).resolve().parents[1]/'scripts/run_base5_capture.py'),
+                '--manifest',str(manifest),'--output',str(root/'out'),'--limit','17',
+                '--shared-ros-batch','--prepare-only'],capture_output=True,text=True)
+            self.assertEqual(result.returncode,2)
+            self.assertIn('limited to 16',result.stderr)
+            self.assertFalse((root/'out').exists())
+
+    def test_batch_network_first_load_and_post_load_witness(self):
+        actors=[dict(unique_id=1,source_list='vehicleList'),dict(unique_id=2,source_list='aiPedstrianList')]
+        state=dict(ego_t=1.7,object_t=1.7,collision_t=1.7,objects=dict(npc_list=[dict(unique_id=1)]))
+        self.assertTrue(post_load_topics_ready(state,actors,1.,1.8))
+        self.assertFalse(post_load_topics_ready(dict(state,collision_t=1.3),actors,1.,1.8))
+        self.assertFalse(post_load_topics_ready(state,actors,1.,3.))
+        self.assertFalse(post_load_topics_ready(dict(state,objects={}),actors,1.,1.8))
+
     def test_stages_partition_elapsed_without_altering_clock(self):
         ticks = iter([10., 11., 13., 14.])
         timer = StageTiming(lambda: next(ticks))

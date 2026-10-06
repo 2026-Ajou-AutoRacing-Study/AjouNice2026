@@ -59,7 +59,7 @@ def validate_selected(report):
         candidates=list(root.parent.rglob('manifest.json'))
         manifest=next((p for p in candidates if sha256(p)==session['manifest_sha256']),None)
         if manifest is None:raise ValueError('Child manifest missing')
-        prepare_session(root,manifest,network,sensor)
+        prepare_session(root,manifest,network,sensor,session.get('runner_options'))
 
 
 def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=False):
