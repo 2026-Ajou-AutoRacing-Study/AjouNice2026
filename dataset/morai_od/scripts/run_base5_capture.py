@@ -298,8 +298,29 @@ def main():
                             arrival_evidence=dict(actors=observed,load_to_arrival_sec=time.monotonic()-load_time);break
                         fresh();time.sleep(.015)
                     else:
-                        atomic_json(args.output/'failures'/(entry['id']+'_'+str(time.time_ns())+'.json'),dict(
+                        # A missed target is eligible for a longer departure
+                        # budget only with explicit pre-capture safety evidence.
+                        # Never infer safety merely from a matching error string.
+                        current_ego=fresh()
+                        with lock:
+                            now=time.monotonic()
+                            miss_collision=collision_window(list(collisions),pose_confirmed,now)
+                            z_checks=[vertical_motion_review(a,list(object_traces),pose_confirmed) for a in targets]
+                            present=all(actor_position(state['objects'],a['unique_id']) is not None for a in targets)
+                        miss_safety=dict(no_capture_requested=True,topic_freshness_verified=True,
+                            collision=miss_collision,actor_presence_verified=present,
+                            ego_stationary_verified=(math.hypot(current_ego['x']-e0['x'],current_ego['y']-e0['y'])<=.08
+                                and abs(current_ego['z']-e0['z'])<=.05
+                                and math.hypot(current_ego['vx'],current_ego['vy'])<.02),
+                            actor_z_steps_verified=all(c['maximum_observed_z_step_m'] is not None
+                                and c['maximum_observed_z_step_m']<=.10 for c in z_checks),
+                            vertical_checks=z_checks,
+                            limitation='Missed-target pre-capture continuity only; next capture must independently pass ground/Z/visibility gates')
+                        miss_evidence=args.output/'failures'/(entry['id']+'_'+str(time.time_ns())+'.json')
+                        atomic_json(miss_evidence,dict(
                             reason='natural_targets_not_simultaneously_observed',metadata=meta,
+                            scenario_sha256=entry['scenario_sha256'],
+                            no_capture_safety=miss_safety,
                             closest_errors_m={str(k):v if math.isfinite(v) else None for k,v in closest.items()}))
                         raise ValueError('Natural target arrival not observed for all moving actors; no capture')
                 if meta.get('motion_probe') and entry['motion'] not in ('static','standing'):
@@ -457,6 +478,10 @@ def main():
                 timing.mark('failed_phase')
                 result=dict(id=entry['id'],scenario_sha256=entry['scenario_sha256'],family=entry['family'],
                     status='failed',error=str(exc),duration_sec=time.time()-t0)
+                if str(exc)=='Natural target arrival not observed for all moving actors; no capture':
+                    result['no_capture_safety']=miss_safety
+                    result['failure_evidence']=str(miss_evidence.resolve())
+                    result['failure_evidence_sha256']=hashlib.sha256(miss_evidence.read_bytes()).hexdigest()
                 failures+=1
                 if isinstance(exc,RuntimeError): failures=3 # communication failures halt immediately
             finally:

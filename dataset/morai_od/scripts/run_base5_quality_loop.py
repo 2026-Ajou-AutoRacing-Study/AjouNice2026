@@ -13,6 +13,27 @@ from base5_capture_safety import atomic_json,sha256,prepare_session,load_ledger
 from prepare_base5_ground_retry import prepare as height_retry
 from prepare_base5_empty_ground_probe import prepare as empty_probe
 from prepare_base5_probed_retry import prepare as probed_retry
+from prepare_base5_setup_budget_pilot import prepare as budget_retry
+
+
+def arrival_retry_eligible(result,manifest):
+    if result.get('status')!='failed' or result.get('error')!='Natural target arrival not observed for all moving actors; no capture':
+        return False
+    if gen.geo.load_json(manifest)['config']['capture'].get('natural_setup_budget_sec',9)>=9:return False
+    safety=result.get('no_capture_safety',{})
+    return (all(safety.get(k) is True for k in ('no_capture_requested','topic_freshness_verified',
+        'actor_presence_verified','ego_stationary_verified','actor_z_steps_verified'))
+        and safety.get('collision',{}).get('no_collision_verified') is True)
+
+
+def validate_miss_evidence(row,manifest):
+    if not arrival_retry_eligible(row,manifest):raise ValueError('Unsafe/non-budget target failure')
+    path=Path(row['failure_evidence'])
+    if sha256(path)!=row['failure_evidence_sha256']:raise ValueError('Target miss evidence changed')
+    data=gen.geo.load_json(path)
+    if (data['scenario_sha256']!=row['scenario_sha256'] or data['no_capture_safety']!=row['no_capture_safety']
+            or data['reason']!='natural_targets_not_simultaneously_observed'):
+        raise ValueError('Target miss evidence does not match ledger')
 
 
 def replacement(manifest,output):
@@ -48,9 +69,13 @@ def validate_seed(path,original):
     row=next((r for r in reversed(rows) if r['id']==seed['id']),None)
     if row is None or row['id']!=original['id'] or row['scenario_sha256']!=original['scenario_sha256']:
         raise ValueError('Seed is not the original quota payload')
-    if row['status']!='review':raise ValueError('Only reviewed seed may enter recovery')
-    if any(r['status'] not in ('accepted_candidate','review') or not r.get('between_scene_park',{}).get('park_verified') for r in rows):
+    missed=row['status']=='failed'
+    if missed:validate_miss_evidence(row,manifest)
+    elif row['status']!='review':raise ValueError('Only reviewed seed may enter recovery')
+    if any((r['status'] not in ('accepted_candidate','review') and r is not row)
+            or not r.get('between_scene_park',{}).get('park_verified') for r in rows):
         raise ValueError('Seed batch unsafe or failed')
+    if missed:return copy.deepcopy(row),root,safety
     capture=Path(row['capture_root'])
     if gen.geo.load_json(capture/'audit.json')!=row['audit']:raise ValueError('Seed audit differs from authoritative ledger')
     if gen.geo.load_json(capture/'metadata.json').get('calibration_only'):raise ValueError('Calibration seed forbidden')
@@ -121,8 +146,8 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
         rows=[json.loads(l) for l in (root/'ledger.jsonl').read_text().splitlines() if l]
         row=rows[-1];attempts.append(dict(cell=cell,kind=kind,capture_root=str(root),status=row['status'],
             reasons=row.get('audit',{}).get('review_reasons',[]),shutdown=safety));save('running')
-        if row['status']=='failed' and 'target arrival not observed' not in row.get('error','').lower():
-            raise RuntimeError('Scene failed; no automatic continuation')
+        if row['status']=='failed' and (kind!='initial' or not arrival_retry_eligible(row,manifest)):
+            raise RuntimeError('Scene failed without safe budget-retry evidence; no automatic continuation')
         return row
     try:
         save('running')
@@ -133,11 +158,18 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
             if seed_capture is not None:
                 if stopped():raise RuntimeError('STOP before seeded recovery')
                 result,seed_root,safety=validate_seed(seed_capture,original)
-                attempts.append(dict(cell=cell,kind='seeded_batch_review',capture_root=str(seed_root),
-                    status=result['status'],reasons=result['audit']['review_reasons'],shutdown=safety,
+                attempts.append(dict(cell=cell,kind='seeded_batch_target_miss' if result['status']=='failed' else 'seeded_batch_review',capture_root=str(seed_root),
+                    status=result['status'],reasons=result.get('audit',{}).get('review_reasons',[]),shutdown=safety,
                     reused_raw=True,seed_source=str(seed_capture)))
                 save('running')
             else:result=capture(manifest,base/'initial',cell,'initial')
+            if result['status']=='failed':
+                if not arrival_retry_eligible(result,manifest):
+                    raise RuntimeError('Target miss lacks safe evidence or already used 9-second budget')
+                manifest=prepared(base/'budget9_deck'/'manifest.json',
+                    lambda:budget_retry(manifest,[0],base/'budget9_deck',9.))
+                result=capture(manifest,base/'budget9',cell,'natural_budget9_retry')
+                if result['status']=='failed':raise RuntimeError('9-second target retry failed; no further loads')
             for ordinal in range(2):
                 if result['status']=='accepted_candidate':break
                 reasons=set(result.get('audit',{}).get('review_reasons',[]))

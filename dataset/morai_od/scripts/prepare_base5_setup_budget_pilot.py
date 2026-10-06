@@ -9,20 +9,25 @@ import generate_base5_independent as gen
 from base5_capture_safety import atomic_json, sha256
 
 
-def prepare(source,indices,output,budget=6.):
+def prepare(source,indices,output,budget=6.,include_static=False):
     if output.exists():raise FileExistsError('New budget pilot output required')
-    if not 1<=len(indices)<=8 or len(set(indices))!=len(indices):raise ValueError('Unique 1–8 cell pilot only')
+    maximum=64 if include_static else 8
+    if not 1<=len(indices)<=maximum or len(set(indices))!=len(indices):raise ValueError('Bounded unique pilot cells required')
     if not 6<=budget<=9:raise ValueError('Pilot setup budget must be 6–9 seconds')
     original=gen.geo.load_json(source)
     deck=copy.deepcopy({k:v for k,v in original.items() if k!='scenes'})
     deck['config']['capture']['natural_setup_budget_sec']=budget
     context=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
     pending=[]
+    dynamic_count=0
     for index in indices:
         entry=copy.deepcopy(original['scenes'][index]);old=gen.geo.load_json(Path(entry['metadata']))
         if sha256(Path(entry['scenario']))!=entry['scenario_sha256']:raise ValueError('Source scenario changed')
         if not any(a.get('motion_path',{}).get('policy')=='natural-target-v1' for a in old['runtime_actors']):
-            raise ValueError('Budget pilot requires natural motion')
+            if not include_static:raise ValueError('Budget pilot requires natural motion')
+            pending.append((entry,gen.geo.load_json(Path(entry['scenario'])),old));continue
+        dynamic_count+=1
+        if dynamic_count>8:raise ValueError('Mixed pilot limited to eight natural-motion cells')
         scene,new=gen.build(old['spec'],deck['config'],context,old['retry'])
         if any(new[k]!=old[k] for k in ('spec','ego','split')):raise ValueError('Budget changed quota or Ego')
         if len(new['runtime_actors'])!=len(old['runtime_actors']):raise ValueError('Budget changed actors')
@@ -55,4 +60,5 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--manifest',type=Path,required=True);p.add_argument('--indices',required=True)
     p.add_argument('--output',type=Path,required=True);p.add_argument('--budget-sec',type=float,default=6)
-    a=p.parse_args();print(prepare(a.manifest,[int(i) for i in a.indices.split(',')],a.output,a.budget_sec))
+    p.add_argument('--include-static',action='store_true',help='Allow bounded mixed pilot up to64 cells, with at most8 natural-motion cells')
+    a=p.parse_args();print(prepare(a.manifest,[int(i) for i in a.indices.split(',')],a.output,a.budget_sec,a.include_static))

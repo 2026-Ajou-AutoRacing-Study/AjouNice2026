@@ -26,7 +26,8 @@ def inspect_batch(root, manifest):
     for row in rows:
         if not row.get('between_scene_park',{}).get('park_verified'):
             raise ValueError('Batch boundary Park unverified')
-        if row['status'] not in ('accepted_candidate','review'):
+        if row['status']=='failed':campaign.loop.validate_miss_evidence(row,manifest)
+        elif row['status'] not in ('accepted_candidate','review'):
             raise ValueError('Batch capture failure; automatic continuation forbidden')
         reasons=row.get('audit',{}).get('review_reasons',[])
         if any(str(reason).startswith('physical_collision') for reason in reasons):
@@ -158,6 +159,25 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                         if accepted:selected[cell['id']]=accepted[0]
                         else:deficits[cell['id']]=dict(id=cell['id'],index=index,reasons=json.loads((recovery/'quota.json').read_text())['cells'])
                 save('running')
+                if any(r['status']=='failed' for r in rows):
+                    # Do not resume the failed six-second source batch: its raw
+                    # session correctly does not mark failed rows as completed.
+                    # Finish the remaining cells through isolated bounded loops.
+                    for index in chunk_indices:
+                        cell=original['scenes'][index]
+                        if cell['id'] in by_id:continue
+                        if stop.exists():save('stopped');return 0
+                        recovery=folder/'recovery'/cell['id']
+                        if verify_only and (not (recovery/'status.json').exists() or
+                                json.loads((recovery/'status.json').read_text())['stage']!='complete'):
+                            raise ValueError('Completed tail evidence missing; no recapture')
+                        code=recover(source,index,recovery,stop)
+                        if code:raise RuntimeError('Post-miss isolated capture halted; no next load')
+                        accepted=load_ledger(recovery/'selected_ledger.jsonl')
+                        if accepted:selected[cell['id']]=accepted[0]
+                        else:deficits[cell['id']]=dict(id=cell['id'],index=index,reasons=json.loads((recovery/'quota.json').read_text())['cells'])
+                        save('running')
+                    break
                 if len(rows)==len(chunk_indices):break
                 if stop.exists():save('stopped');return 0
                 before=len(rows)
@@ -165,7 +185,8 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                 code=run_child(manifest,root,stop,lambda child:save('running',child=child))
                 after=inspect_batch(root,manifest)
                 if len(after)<=before:raise RuntimeError('Batch made no progress')
-                if code and after[-1]['status']!='review':raise RuntimeError('Batch failed outside a safe quality-review boundary')
+                if code and after[-1]['status'] not in ('review','failed'):
+                    raise RuntimeError('Batch failed outside a verified review/target-miss boundary')
                 # Reviewed raw is preserved in its original safe session; recovery
                 # verifies that evidence rather than repeating the initial capture.
             if stop_after_chunks and ordinal+1>=stop_after_chunks:

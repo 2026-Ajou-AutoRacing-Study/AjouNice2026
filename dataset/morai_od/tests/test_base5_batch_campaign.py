@@ -70,6 +70,22 @@ class BatchCampaignTest(unittest.TestCase):
             self.assertEqual((out/'selected_ledger.jsonl').read_bytes(),before)
             self.assertEqual(json.loads((out/'status.json').read_text())['elapsed_sec'],elapsed)
 
+    def test_target_miss_finishes_tail_without_resuming_failed_source(self):
+        records={}
+        def child(manifest,root,stop,heartbeat):
+            root.mkdir(exist_ok=True);batch.atomic_json(root/'session_contract.json',{})
+            records[str(root)]=[dict(id='a',status='failed')];return 1
+        def recovery(source,index,out,stop):
+            out.mkdir(parents=True,exist_ok=True)
+            (out/'selected_ledger.jsonl').write_text(json.dumps(dict(id='ab'[index],source_cell_id='ab'[index],status='accepted_candidate'))+'\n')
+            return 0
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=self.fixture(root);out=root/'out'
+            with patch.object(batch.campaign,'contract',return_value={}),patch.object(batch,'run_child',side_effect=child) as capture,patch.object(batch,'inspect_batch',side_effect=lambda root,manifest:records[str(root)]),patch.object(batch,'recover',side_effect=recovery) as recover:
+                self.assertEqual(batch.execute(source,[0,1],out,2),0)
+                self.assertEqual(capture.call_count,1);self.assertEqual(recover.call_count,2)
+            self.assertEqual([r['source_cell_id'] for r in batch.load_ledger(out/'selected_ledger.jsonl')],['a','b'])
+
     def test_completed_missing_evidence_halts_without_recapture(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);source=self.fixture(root);out=root/'out';out.mkdir()

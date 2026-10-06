@@ -4,7 +4,12 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- **최신 v42: 한campaign32/32·233.02초/약26% 단축.** chunk8 pause/resume16/16,
+- **최신 v43: 자연 이동16/16·혼합32/32·216.00초.** 6초 준비 후보의
+  안전 실패→9초 재시도를 실제 지연 진단으로 확인, 진단 데이터 학습 제외.
+  10K 예상18.71시간은 소량 표본 외삽. 기본9초 유지/본수집 미시작.
+  [근거](261006_base5_budget6_fallback_v43.md).
+
+- **v42: 한campaign32/32·233.02초/약26% 단축.** chunk8 pause/resume16/16,
   동적출발여유9→6초후보4/4·약25% 단축. 완료resume snapshot 경합수정·132tests PASS.
   canonical10K 기본9초/production은미변경,본10K/학습미시작.
   [근거·최종32장변환경로](261006_base5_batch_capacity_budget_v42.md).
