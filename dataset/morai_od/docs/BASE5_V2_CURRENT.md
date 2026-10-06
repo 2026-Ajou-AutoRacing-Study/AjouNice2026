@@ -14,6 +14,9 @@ E25 ROS원속도 입력/출력11.47Hz·드롭0, 약98Hz입력 stress에서는출
 [단계별 원인](../../../docs/bevfusion/261006_BASE5_LATENCY_STAGE_BREAKDOWN.md):
 ROI확대비용을0.10mvoxel/0.40mBEV/1mdepth가상쇄했다.기존격자+0.5mdepth의100m highres대조는모델처리약1.98배다.
 현재격자의원거리정확도유지여부는미확정이다.
+최신간격고정3-class/200query 대조는기존66.48/이미지만90.46/범위만96.27/
+둘다130.59ms다.0.075mvoxel/0.30mBEV/0.50mdepth 간격을고정했으며
+범위확대depth bin수는118→198이다. production격자변경또는확대모델정확도평가는아니다.
 
 ## v31 — 남은 조건 통과 / bounded campaign quota·resume 연결
 

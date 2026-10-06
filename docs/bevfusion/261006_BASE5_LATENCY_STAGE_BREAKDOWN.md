@@ -6,6 +6,63 @@ wide fresh architecture는 비용 대조이며 정확도 결과가 아니다.
 
 ## 결론
 
+최신 공정 대조는 아래 **고정 간격 4-case**를 사용한다. 이전 fresh4-class/coarse
+표는 비용 상쇄를 확인한 이력이며, 범위/이미지 확대 자체의 기준 비교로 사용하지 않는다.
+
+## 최신: E25 간격 고정 4-case
+
+같은 H01 원본3장, RTX5060Ti, batch1 AMP, 각6회 warmup +60회 측정.
+모두3-class/200 query, voxel XYZ `0.075/0.075/0.20m`, camera BEV XY `0.30m`,
+depth step `0.50m`다. 이미지와 종방향 범위만 변수로 두었다.
+
+| 설정 | 이미지 | semantic X/Y 범위 | depth bin | 모델처리 평균 / p50 / p95 ms | 기존 대비 |
+|---|---|---|---:|---|---:|
+| E25 기존 |256×704|±30/±30m|118|66.48 /66.44 /67.92|1.00×|
+| 이미지 확대만 |320×896|±30/±30m|118|90.46 /90.09 /93.36|1.36×|
+| 범위 확대만 |256×704|±100/±30m|198|96.27 /95.99 /98.70|1.45×|
+| 범위+이미지 확대 |320×896|±100/±30m|198|130.59 /130.45 /132.11|1.96×|
+
+depth는1m부터각각60/100m미만까지다. 간격과bin수를동시에고정하면coverage가
+같아져100m depth확장대조가아니다. 여기서는간격고정으로118→198bin을허용한다.
+stride16 때문에확대내부grid만X±100.8/Y±32.4m로padding한다.
+semantic 입력/출력ROI는X±100/Y±30m로유지한다. 최종BEV는100×100→108×336이다.
+
+| 단계 평균 ms | 기존 | 이미지 확대 | 범위 확대 | 둘 다 확대 |
+|---|---:|---:|---:|---:|
+| CPU decode/resize/crop/pack(모델 밖) |6.75|7.13|6.13|6.70|
+| Camera backbone+neck(신경망) |16.59|24.49|16.64|24.47|
+| Camera→BEV(신경망+기하 처리) |27.73|43.66|48.36|74.71|
+| LiDAR voxelization(격자화, 비신경망) |1.93|2.00|2.08|2.08|
+| LiDAR sparse encoder(신경망) |13.26|13.23|12.42|12.74|
+| BEV fusion/backbone/neck(신경망) |1.94|1.94|6.69|6.67|
+| Head+decode(신경망+박스복원) |3.73|3.77|8.41|8.45|
+
+범위 확대만으로+29.79ms다. Camera→BEV+20.63ms,
+BEV신경망+4.75ms, head+decode+4.67ms가주요증가다.
+이미지확대만으로+23.98ms다. Camera backbone+neck+7.91ms와
+Camera→BEV+15.93ms가대부분이다. 둘다확대하면depth×화소의상호작용도생긴다.
+Camera→BEV내부는get_geometry/get_cam_feats/bev_pool/downsample로원본JSON에분리했다.
+표값은GPUstream critical-path span이며순수kernel self-time은아니다.
+
+E25 checkpoint의compatible weights를모두불러왔다. 범위확대에서는depthnet의
+마지막출력층이118+80→198+80채널로바뀌어그weight/bias는새초기화다.
+frustum/bx/dx/nx는config기준으로복원했다. 기존/이미지확대는production원본head를
+유지했고범위확대만동일신경망구조의rectangular query격자helper를사용했다.
+**따라서확대모델정확도/학습완료/production승격을검증한것은아니다.**
+H01표본의넓은입력에도point수는약8.6–10.3K다. 더조밀한Base5장면의sparse비용,
+4090및확대ROS/full-stack비용은별도측정이필요하다.
+
+최종원본: `artifacts/evaluation/bevfusion/capacity_261006/controlled_four_production_baseline.json`.
+초기4case는square에도rectangular headhelper를적용한`controlled_four.json`이다.
+그초기계약의순서반전30회`controlled_four_reverse.json`은평균차이0.7–2.6%였다.
+최종에서는square2case를production원본head로돌려60회재측정했다.
+이전129.21msfresh4-class대조와최신130.59ms3-class대조는약1%차이이며
+둘다정밀도유지확장의약2배비용을지지한다.
+재현: 아래script에
+`--iterations 60 --cases controlled_baseline controlled_image controlled_range controlled_both`를준다.
+
+## 이전: coarse/fresh 후보 비용 상쇄 진단
+
 이전1.5–2배 추정은 범위/이미지 확대에 따른 거친 비용 추정이었다.
 현재 Base5는 범위만 늘린 모델이 아니라 voxel·BEV metric step·depth discretization도 바꾼 후보다.
 또 전체 처리의 모든 단계가 이미지/면적에 비례하지 않는다.

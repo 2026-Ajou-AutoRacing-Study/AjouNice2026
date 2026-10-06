@@ -23,6 +23,48 @@ from benchmark_base5_capacity import stats
 
 
 def configuration(folder,case):
+    if case.startswith('controlled_'):
+        if case not in ('controlled_baseline','controlled_image','controlled_range','controlled_both'):
+            raise ValueError('Unknown controlled case: '+case)
+        import perception.detection3d.bevfusion.plugin.morai_rectangular_bev  # register opt-in geometry
+        # Only image dimensions and longitudinal extent vary. All four cases
+        # keep the E25 three-class weights/head and metric sampling intervals.
+        highres=case in ('controlled_image','controlled_both')
+        wide=case in ('controlled_range','controlled_both')
+        cfg=Config.fromfile(folder/'bevfusion_base3_b0_4cam_lidar.py')
+        cfg.model.img_backbone.init_cfg=None
+        cfg.custom_imports.imports.append('perception.detection3d.bevfusion.plugin.morai_rectangular_bev')
+        hw=[320,896] if highres else [256,704]
+        cfg.model.view_transform.image_size=hw
+        cfg.model.view_transform.feature_size=[v//8 for v in hw]
+        cfg.model.view_transform.dbound=[1.,100. if wide else 60.,.5]
+        roi=[-100.,-30.,-3.,100.,30.,2.] if wide else [-30.,-30.,-3.,30.,30.,2.]
+        cfg.point_cloud_range=roi
+        for pipeline in (cfg.train_pipeline,cfg.test_pipeline,cfg.test_dataloader.dataset.pipeline,
+                         cfg.val_dataloader.dataset.pipeline,cfg.train_dataloader.dataset.pipeline):
+            for item in pipeline:
+                if item['type']=='MoraiImageAug3D':
+                    item['final_dim']=hw;item['resize_lim']=[.70,.70] if highres else [.55,.55]
+                if item['type'] in ('PointsRangeFilter','ObjectRangeFilter'):item['point_cloud_range']=roi
+        if wide:
+            cfg.model.bbox_head.type='MoraiRectangularTransFusionHead'
+            # Sparse encoder/FPN stride16 requires padded internal extents.
+            origin=[-100.8,-32.4];vox=[.075,.075,.2];grid=[2688,864,41]
+            cfg.model.data_preprocessor.voxelize_cfg.voxel_size=vox
+            cfg.model.data_preprocessor.voxelize_cfg.point_cloud_range=[*origin,-5.,100.8,32.4,3.]
+            cfg.model.pts_middle_encoder.sparse_shape=[864,2688,41]
+            cfg.model.view_transform.type='MoraiRectangularDepthLSSTransform'
+            cfg.model.view_transform.xbound=[-100.8,100.8,.3]
+            cfg.model.view_transform.ybound=[-32.4,32.4,.3]
+            head=cfg.model.bbox_head
+            head.train_cfg.update(grid_size=grid,voxel_size=vox,point_cloud_range=[*origin,-3.,100.8,32.4,2.])
+            head.test_cfg.update(grid_size=grid,voxel_size=vox[:2],pc_range=origin)
+            head.bbox_coder.update(voxel_size=vox[:2],pc_range=origin,post_center_range=roi)
+        assert list(cfg.model.data_preprocessor.voxelize_cfg.voxel_size)==[.075,.075,.2]
+        assert cfg.model.view_transform.xbound[2]==cfg.model.view_transform.ybound[2]==.3
+        assert cfg.model.view_transform.dbound[2]==.5
+        assert cfg.model.bbox_head.num_classes==3 and cfg.model.bbox_head.num_proposals==200
+        return cfg
     name={'e25':'bevfusion_base3_b0_4cam_lidar.py','highres':'bevfusion_base5_highres_320x896_pilot.py',
           'wide_lowres':'bevfusion_base5_independent_100m.py','wide_highres':'bevfusion_base5_independent_100m.py',
           'wide_finegrid':'bevfusion_base5_independent_100m.py',
@@ -81,14 +123,15 @@ def main():
     calibration=load_sensor4_calibration(a.root/'configs/sensors/Sensor.json')
     checkpoint=a.root/'artifacts/detection3d/bevfusion/releases/base3_bf0_f40_e25/base3_bf0_f40_e25_inference.pth'
     report=dict(gpu=torch.cuda.get_device_name(),iterations=a.iterations,cases=[],
-        contract='CUDA-event critical-path spans incl host idle; parent/substage overlap; hooks perturb timing. Same raw bag samples. Wide variants fresh/untrained.')
+        contract='CUDA-event critical-path spans incl host idle; parent/substage overlap; hooks perturb timing. Same raw bag samples. Legacy wide variants fresh/untrained; controlled cases use E25 3-class compatible weights, with resized depth output untrained. Cost only, not accuracy.')
     torch.backends.cudnn.benchmark=True;torch.backends.cuda.matmul.allow_tf32=True
     for case in a.cases:
         model=None;pre=None;rec=None;result=dict(case=case)
         try:
             cfg=configuration(a.root/'perception/detection3d/bevfusion/configs',case);torch.manual_seed(261006)
             # BEVFusion constructor pops voxelize_cfg; preserve audit config.
-            model=init_model(deepcopy(cfg),str(checkpoint) if case in ('e25','highres') else None,device='cuda:0')
+            use_checkpoint=case in ('e25','highres') or case.startswith('controlled_')
+            model=init_model(deepcopy(cfg),str(checkpoint) if use_checkpoint else None,device='cuda:0')
             restore_view_geometry(model.view_transform);model.eval()
             pre=Base3OnlinePreprocessor(calibration,camera_workers=4,point_dim=4,**preprocessing_options_from_config(cfg))
             rec=StageRecorder()
@@ -123,6 +166,12 @@ def main():
                 voxel_size=cfg.model.data_preprocessor.voxelize_cfg.voxel_size,
                 sparse_shape=cfg.model.pts_middle_encoder.sparse_shape,
                 classes=list(cfg.classes),retained_points=[len(pre._filter_points(s[0])) for s in samples])
+            result.update(checkpoint=str(checkpoint) if use_checkpoint else None,
+                depth_bound=list(cfg.model.view_transform.dbound),
+                camera_bev_xbound=list(cfg.model.view_transform.xbound),
+                camera_bev_ybound=list(cfg.model.view_transform.ybound),
+                semantic_roi=list(cfg.point_cloud_range),
+                num_proposals=cfg.model.bbox_head.num_proposals)
         except Exception as exc:result.update(valid=False,error=repr(exc))
         finally:
             if pre:pre.close()
