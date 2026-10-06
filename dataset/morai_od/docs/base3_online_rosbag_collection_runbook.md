@@ -329,7 +329,7 @@ Base4 temporal을 시작하기 전에 동일한 검증 방식으로 정적 Vehic
 
 Base5 독립10K는 이 문서의 과거 rosbag 수집 명령과 구분한다.
 현재 계약은 [BASE5_V2_CURRENT](BASE5_V2_CURRENT.md), 서비스·속도 보완은
-[v41 live 근거](261006_base5_guard_seed_recovery_v41.md)를 먼저 읽는다.
+[v42 비용·resume 근거](261006_base5_batch_capacity_budget_v42.md)를 먼저 읽는다.
 사용자 재연결 후 opt-in guarded bridge가 실제 요청을 통과했다.
 
 ```bash
@@ -341,4 +341,4 @@ python3 dataset/morai_od/scripts/run_base5_rosbridge.py
 Collision profile을 연결하고 CaptureMode를 사용한다. 각scene network reload를 유지한다.
 현재 batch driver는 최대64셀 검증용이다. 10K 본수집 승인으로 해석하지 않는다.
 review 원본의 안전/provenance를 검증한 뒤 재사용하며 보완장면은 다시 촬영한다.
-현재대시보드 http://127.0.0.1:8077 은 v41 완료pilot 결과를 표시한다.
+현재대시보드 http://127.0.0.1:8077 은 v42 동적6초후보 완료pilot 결과를 표시한다.

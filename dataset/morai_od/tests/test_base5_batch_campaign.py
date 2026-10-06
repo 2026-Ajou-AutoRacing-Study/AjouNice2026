@@ -49,6 +49,38 @@ class BatchCampaignTest(unittest.TestCase):
                 self.assertEqual(batch.execute(source,[0,1],out,2),0)
             self.assertEqual([r['source_cell_id'] for r in batch.load_ledger(out/'selected_ledger.jsonl')],['a','b'])
 
+    def test_completed_resume_never_publishes_partial_snapshot(self):
+        records={}
+        def child(manifest,root,stop,heartbeat):
+            root.mkdir(exist_ok=True);batch.atomic_json(root/'session_contract.json',{})
+            records[str(root)]=[dict(id=r['id'],status='accepted_candidate') for r in json.loads(manifest.read_text())['scenes']]
+            return 0
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=self.fixture(root);out=root/'out'
+            with patch.object(batch.campaign,'contract',return_value={}),patch.object(batch,'run_child',side_effect=child),patch.object(batch,'inspect_batch',side_effect=lambda root,manifest:records[str(root)]):
+                self.assertEqual(batch.execute(source,[0,1],out,1),0)
+            before=(out/'selected_ledger.jsonl').read_bytes()
+            elapsed=json.loads((out/'status.json').read_text())['elapsed_sec']
+            def inspect(root,manifest):
+                self.assertEqual((out/'selected_ledger.jsonl').read_bytes(),before)
+                return records[str(root)]
+            with patch.object(batch.campaign,'contract',return_value={}),patch.object(batch,'inspect_batch',side_effect=inspect),patch.object(batch,'run_child') as capture:
+                self.assertEqual(batch.execute(source,[0,1],out,1,resume=True),0)
+                capture.assert_not_called()
+            self.assertEqual((out/'selected_ledger.jsonl').read_bytes(),before)
+            self.assertEqual(json.loads((out/'status.json').read_text())['elapsed_sec'],elapsed)
+
+    def test_completed_missing_evidence_halts_without_recapture(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=self.fixture(root);out=root/'out';out.mkdir()
+            batch.atomic_json(out/'status.json',dict(stage='complete',elapsed_sec=30))
+            before=b'preserved completed snapshot\n';(out/'selected_ledger.jsonl').write_bytes(before)
+            with patch.object(batch.campaign,'contract',return_value={}),patch.object(batch,'run_child') as capture:
+                self.assertEqual(batch.execute(source,[0,1],out,1,resume=True),1)
+                capture.assert_not_called()
+            self.assertEqual((out/'selected_ledger.jsonl').read_bytes(),before)
+            self.assertEqual(json.loads((out/'status.json').read_text())['stage'],'halted')
+
     def test_unsafe_boundary_never_runs_recovery_or_next_chunk(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);source=self.fixture(root);out=root/'out'

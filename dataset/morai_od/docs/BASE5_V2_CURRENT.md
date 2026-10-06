@@ -4,7 +4,22 @@
 기존 v1/E25 보강 실험과 구분한다. **최신 자연속도/정적자산 정책의10K 시나리오를
 v35로 생성·전수감사했다. 소량 live 검증과 달리 본10K 캡처·본 학습은 미시작이다.**
 
-## 최신 v41 — guard live 확인·중복 촬영 제거
+## 최신 v42 — 단일32셀 검증·비용 재집계·동적 준비 후보
+
+[비용·pause/resume·snapshot 수정 근거](261006_base5_batch_capacity_budget_v42.md).
+한새campaign32/32 통과, 실제36촬영/233.02초(v36 314.657초대비약26% 단축).
+EventCmd86회·짧은전환오류3회retry회복·timeout/미종료worker0, CPU32장/GT48개 PASS.
+같은방법의family가중 외삽27.24→20.19시간이며작은coverage표본의예상일뿐이다.
+별도chunk8 pause/resume16/16·호출37회무오류 PASS. 기본chunk4 유지.
+동적4셀에서같은속도/목표위치, 출발여유9→6초후보59.39→44.58초(약25%).
+양쪽4quota/5촬영/최종gate PASS,6초후보CPU4장8GT PASS. canonical10K 기본9초는미변경.
+완료resume와변환기동시읽기경합을고쳐부분ledger발행을막고원래완료wall을보존한다.
+132tests PASS.최종새2셀완료resume는25회동시읽기/ledger SHA/wall불변·추가호출0.
+32장학습형식은`batch_32_seed_guard_v42_infos_final`만사용한다.
+다음은동적자산/지연조건확대·6초실패시동일quota9초fallback 검증이다.
+**본10K 캡처·학습 미시작.**
+
+## v41 — guard live 확인·중복 촬영 제거
 
 [실측·안전·resume 근거](261006_base5_guard_seed_recovery_v41.md).
 사용자 재연결 후 Park12회/남은4셀 보완4/4 통과로 기존선택과 합쳐 대표32/32다.

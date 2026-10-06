@@ -76,6 +76,9 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
         lock.close();raise ValueError('Campaign resume contract mismatch; use new output')
     atomic_json(cp,expected)
     original=loop.gen.geo.load_json(source);selected=[];deficits=[];finished=0;start=time.time()
+    status_path=output/'status.json'
+    prior_status=loop.gen.geo.load_json(status_path) if status_path.exists() else {}
+    verify_only=resume and prior_status.get('stage')=='complete'
     def progress(cell,kind,root):
         atomic_json(output/'status.json',dict(stage='running',current=cell+' / '+kind,
             requested=len(indices),finished=finished,accepted_candidate=len(selected),review=len(deficits),
@@ -84,20 +87,24 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
             results=[dict(family=r.get('family'),role=r.get('role'),distance_bounds=r.get('distance_bounds'),status='accepted_candidate') for r in selected],
             child_status=str(root/'status.json')))
     def save(stage,error=None):
+        if verify_only and stage=='running':return
         # Cell reports are authoritative. Canonical ledger is rebuilt on resume,
         # with one selection per original quota cell, never calibration frames.
-        temp=output/'.selected.tmp'
-        with temp.open('w') as f:
-            for row in selected:f.write(json.dumps(row,ensure_ascii=False)+'\n')
-            f.flush();os.fsync(f.fileno())
-        temp.replace(output/'selected_ledger.jsonl')
+        if not verify_only or stage=='complete':
+            temp=output/'.selected.tmp'
+            with temp.open('w') as f:
+                for row in selected:f.write(json.dumps(row,ensure_ascii=False)+'\n')
+                f.flush();os.fsync(f.fileno())
+            temp.replace(output/'selected_ledger.jsonl')
         atomic_json(output/'quota.json',dict(target=len(indices),accepted=len(selected),
                     deficit=len(deficits),pending=len(indices)-finished,cells=deficits))
         deck=subset_deck(original,[original['scenes'][d['index']] for d in deficits])
         atomic_json(output/'deficit_manifest.json',deck)
         atomic_json(output/'status.json',dict(stage=stage,error=error,requested=len(indices),
                     finished=finished,accepted_candidate=len(selected),review=len(deficits),
-                    failed=int(stage=='halted'),elapsed_sec=time.time()-start,updated_at=time.time(),
+                    failed=int(stage=='halted'),
+                    elapsed_sec=prior_status['elapsed_sec'] if verify_only else time.time()-start,
+                    updated_at=time.time(),
                     eta_sec=0,results=[]))
     try:
         save('running')
@@ -117,6 +124,7 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
                 if report.exists() and loop.gen.geo.load_json(report)['stage']=='complete':
                     outcome=loop.gen.geo.load_json(report);validate_selected(outcome)
                 else:
+                    if verify_only:raise ValueError('Completed cell evidence missing; verification cannot recapture')
                     # STOP is also watched within the running bounded loop.
                     options=dict(resume=target.exists(),stop_path=output/'STOP',progress=progress)
                     if ordinal==0 and seed_capture is not None:options['seed_capture']=seed_capture

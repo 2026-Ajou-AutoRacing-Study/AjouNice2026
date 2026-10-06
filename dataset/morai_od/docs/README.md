@@ -4,7 +4,12 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- **최신 v41: guard live·대표32/32·중복 촬영 제거.** 같은4셀53.93→41.95초,
+- **최신 v42: 한campaign32/32·233.02초/약26% 단축.** chunk8 pause/resume16/16,
+  동적출발여유9→6초후보4/4·약25% 단축. 완료resume snapshot 경합수정·132tests PASS.
+  canonical10K 기본9초/production은미변경,본10K/학습미시작.
+  [근거·최종32장변환경로](261006_base5_batch_capacity_budget_v42.md).
+
+- **v41: guard live·대표32/32·중복 촬영 제거.** 같은4셀53.93→41.95초,
   실제6→5촬영.123tests/완료resume/CPU변환 통과. 전환 오류2회는retry회복,
   timeout0이나장시간인증은 아니다. [근거](261006_base5_guard_seed_recovery_v41.md).
   본10K/학습 미시작.

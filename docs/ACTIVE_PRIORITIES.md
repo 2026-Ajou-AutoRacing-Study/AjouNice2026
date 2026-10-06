@@ -102,6 +102,10 @@
   123tests·완료resume·CPU4장7GT PASS. 전환오류2회retry회복·timeout0;
   장시간 인증이나전체10K22%절감은 아니다. 최신진입점은BASE5_V2_CURRENT를 따른다.
   실제 전체pool/장시간 캡처 검증과4-class runtime 결정은 남는다.
+  최신[v42 비용·동적준비 후보](../dataset/morai_od/docs/261006_base5_batch_capacity_budget_v42.md):
+  단일32셀233.02초/이력대비약26% 단축,chunk8 pause/resume16/16,
+  동적4셀9→6초후보약25% 단축. canonical10K 기본9초는미변경이다.
+  완료resume 부분목록 노출/완료wall덮어쓰기 수정·132tests PASS.
   구왕복10K는 새 기본 수집에 사용하지 않는다. 본 수집/본 학습은 미실행이다.
 
 - Base5 E2 학습 및 [E1 보행자·장애물9-bag A/B](bevfusion/261005_BASE5_E1_MISSION_ROSBAG_AB.md)는 완료됐다. E1 장애물 소폭 개선에도 0–2m 장애물·20–30m 보행자 공백은 미해결이다. 다음은 해당 거리·부분 시야 표적 보강 + replay다. Production E25 유지, Far ROI와 고해상도는 별도 A/B로 유지한다.

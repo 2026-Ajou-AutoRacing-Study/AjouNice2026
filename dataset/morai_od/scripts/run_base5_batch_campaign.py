@@ -103,20 +103,28 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
     if contract_path.exists() and json.loads(contract_path.read_text())!=expected:
         lock.close();raise ValueError('Batch campaign contract mismatch')
     atomic_json(contract_path,expected)
+    status_path=output/'status.json'
+    prior_status=json.loads(status_path.read_text()) if status_path.exists() else {}
+    verify_only=resume and prior_status.get('stage')=='complete'
     def save(stage,error=None,child=None):
+        # A completed resume is a verification pass. Do not publish its partial
+        # reconstruction to concurrent converters/dashboard readers.
+        if verify_only and stage=='running':return
         atomic_json(output/'quota.json',dict(target=len(indices),accepted=len(selected),
             deficit=len(deficits),pending=len(indices)-len(selected)-len(deficits),cells=list(deficits.values())))
         atomic_json(output/'deficit_manifest.json',campaign.subset_deck(original,
             [original['scenes'][i] for i in indices if original['scenes'][i]['id'] in deficits]))
-        temp=output/'.selected.tmp'
-        with temp.open('w') as handle:
-            for i in indices:
-                row=selected.get(original['scenes'][i]['id'])
-                if row:handle.write(json.dumps(row,ensure_ascii=False)+'\n')
-        temp.replace(output/'selected_ledger.jsonl')
+        if not verify_only or stage=='complete':
+            temp=output/'.selected.tmp'
+            with temp.open('w') as handle:
+                for i in indices:
+                    row=selected.get(original['scenes'][i]['id'])
+                    if row:handle.write(json.dumps(row,ensure_ascii=False)+'\n')
+            temp.replace(output/'selected_ledger.jsonl')
         atomic_json(output/'status.json',dict(stage=stage,error=error,requested=len(indices),
             finished=len(selected)+len(deficits),accepted_candidate=len(selected),review=len(deficits),
-            failed=int(stage=='halted'),updated_at=time.time(),elapsed_sec=time.monotonic()-started,
+            failed=int(stage=='halted'),updated_at=time.time(),
+            elapsed_sec=prior_status['elapsed_sec'] if verify_only else time.monotonic()-started,
             eta_sec=0,current=str(child) if child else None,
             results=[status_row(row) for row in selected.values()]))
     try:
@@ -136,6 +144,9 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                         chosen=copy.deepcopy(row);chosen['source_cell_id']=cell['id'];selected[cell['id']]=chosen
                     else:
                         recovery=folder/'recovery'/cell['id']
+                        if verify_only and (not (recovery/'status.json').exists() or
+                                json.loads((recovery/'status.json').read_text())['stage']!='complete'):
+                            raise ValueError('Completed recovery evidence missing; verification cannot recapture')
                         if stop.exists():save('stopped');return 0
                         seed=recovery.parent/(recovery.name+'_seed.json')
                         seed.parent.mkdir(parents=True,exist_ok=True)
@@ -150,6 +161,7 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                 if len(rows)==len(chunk_indices):break
                 if stop.exists():save('stopped');return 0
                 before=len(rows)
+                if verify_only:raise ValueError('Completed batch evidence missing; verification cannot recapture')
                 code=run_child(manifest,root,stop,lambda child:save('running',child=child))
                 after=inspect_batch(root,manifest)
                 if len(after)<=before:raise RuntimeError('Batch made no progress')
