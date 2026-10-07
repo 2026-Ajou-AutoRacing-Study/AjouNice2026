@@ -12,7 +12,9 @@
    `docs/261007_base5_direct_5k_current_plan.md` →
    `docs/261007_base5_5k_capture_runbook.md` →
    `docs/261007_base5_final_gates_v105_evidence.md`를 읽는다.
-   Sunny11시 직접5K가 현재 목표다. v45/10K 명령·과거 ETA를 재사용하지 않는다.
+   Sunny13시 직접5K가 현재 목표다. v45/10K 명령·과거 ETA를 재사용하지 않는다.
+   `docs/261007_base5_sunny13_environment_correction.md`의 정정이 11시 오표기보다 우선한다.
+   진행 중인 수집의 manifest/계약은 덮어쓰지 않는다. 기존 sunny11 config는 13시 내용의 호환 alias다.
    본수집은 사용자 승인 후이며 raw GT·실패 근거를 보존한다.
 
 CURRENT/EVIDENCE/PLAN/HISTORICAL 상태를 구분한다. 현재 학습 전달본은

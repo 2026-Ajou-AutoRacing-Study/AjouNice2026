@@ -1,9 +1,11 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-07 / manifest v105·runtime v108. Base5 생성·수집·변환의 현재 진입점이다.
-**Sunny11시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
+2026-10-07 / 환경 header v109·runtime v108. Base5 생성·수집·변환의 현재 진입점이다.
+**Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 5K 시나리오 생성·전수 검사와 대표 live/resume/CPU 검증은 완료했다.
-**본수집·본학습은 시작하지 않았고 사용자 최종 확인 후 진행한다.**
+사용자가 현재 MR 기본값과 수집 환경을 Sunny 13시로 확인했다.
+아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
+이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
 
 ## 읽을 문서
 
@@ -11,6 +13,8 @@
 2. [5K 구성/진행표](261007_base5_direct_5k_current_plan.md).
 3. [현재 운영 런북](261007_base5_5k_capture_runbook.md): rc부터 resume/대시보드/변환까지.
 4. [v105 근거](261007_base5_final_gates_v105_evidence.md): 실제 실패·보완·결과·비용·한계.
+5. [Sunny13시 정정](261007_base5_sunny13_environment_correction.md): 실제 환경과
+   잘못된 11시 선언 구분, 기존 resume 보존 및 새 header 경로.
 
 [v100 이전 누적 이력](BASE5_V2_HISTORY_THROUGH_V100.md)은 과거 분석이 필요할 때만 읽는다.
 v45/10K 명령·18.7h 등 과거 ETA를 현재 명령/예상으로 사용하지 않는다.
@@ -78,12 +82,20 @@ WoodBox/CargoBox 및 MR 복구 자산을 포함한다. 배경 나무/시설은 �
 - safe paused는 같은 코드/manifest hash로 resume. halted는 강제 resume 금지다.
   완료 resume는 증거 검증 전용·추가 촬영0이며 부족분은 별도 보충 campaign이다.
 
-## 최종 준비 산출물 / 본수집 승인 대기
+## 최종 준비 산출물 / 환경 정정과 기존 수집 보존
 
 - 원본 `~/morai_cap/base5_v2_261007/final_5k_v105/manifest.json`.
-- 운용 `~/morai_cap/base5_v2_261007/final_5k_ordered_v105/manifest.json`.
-- 운용manifest SHA256: `407cc518863d496b770a87d9cd75c3ecd7989673449c1e7f854bd3fc90b8bb81`.
-- config SHA256: `d13c7ba70dc45d1d986805438fe836ffe6785b6100cdb208d2e7b65733eda83f`.
+- 기존resume 원본 `~/morai_cap/base5_v2_261007/final_5k_ordered_v105/manifest.json`.
+  원본 SHA256: `407cc518863d496b770a87d9cd75c3ecd7989673449c1e7f854bd3fc90b8bb81`.
+- 신규 수집용13시 정정본:
+  `~/morai_cap/base5_v2_261007/final_5k_ordered_sunny13_v109/manifest.json`.
+  SHA256:`1b8a6ced7d2af06631e1cbd2897a4464adc897ef833023f6f4f373e5c0d04523`.
+- 현재config:`base5_independent_5k_sunny13.json`,
+  SHA256:`d58e15791a32005655da1e343e109a718646b0859bcd4fdb2918d85e03d35948`.
+  기존 generator 기본 경로의 `sunny11` 파일은 동일한 13시 내용의 호환 alias다.
+- 5000 scene row/geometry/metadata/split은 정정 전후 불변이다.
+  이미 수집 중인 명령은 원본 manifest/output 그대로 resume하고 정정 기록을 함께 유지한다.
+  정정본은 새 output에서만 사용하며 중간에 갈아끼우지 않는다.
 - 5,000 unique payload, train4,387/val613/test0, OFFLINE_PASS/오류0.
 - 순서만 정적4,160→실제 이동840으로 변경, 모든5000payload/quota/split 보존.
 - 122종 planned coverage PASS/min4. 전체 sensor effective coverage는 아직 NOT_CAPTURED다.

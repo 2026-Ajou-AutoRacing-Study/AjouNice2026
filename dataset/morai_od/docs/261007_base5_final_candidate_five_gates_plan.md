@@ -6,13 +6,13 @@
 현재 실행·잔여 조건은 [5K CURRENT](BASE5_V2_CURRENT.md)를 우선한다.
 아래 항목의 "미구현"은 최초 계획 시점이며 현재 완료 판단으로 사용하지 않는다.
 
-**후속 사용자 변경:** 이번수집은[Sunny11시직접5K](261007_base5_direct_5k_current_plan.md)다.
+**후속 사용자 변경:** 이번수집은[Sunny13시직접5K](261007_base5_direct_5k_current_plan.md)다.
 아래10K/A·B5K선별은변경전계획이다. 5번은직접5K의균형/희귀자산coverage감사로
 대체하고나머지population·초근접·GT보완은유지한다.
 
 ## 목적과 현재 경계
 
-이번 Sunny 11시 10K는 단순 폐기용 pilot이 아니라 최종 학습본 후보로 수집한다.
+이번 Sunny 13시 10K는 단순 폐기용 pilot이 아니라 최종 학습본 후보로 수집한다.
 Base3 추가분이 아닌 독립 Base5 single-frame 학습용이며 temporal/velocity head는
 학습하지 않는다. Ego는 Park·정지, 장면당 1프레임이다. 사람·동물 등 움직임에 따라
 외관이 바뀌는 자산은 기존 실제 이동 캡처 정책을 유지한다.
@@ -92,7 +92,7 @@ Base3 추가분이 아닌 독립 Base5 single-frame 학습용이며 temporal/vel
 - A/B는 최종 환경 확장에 사용할 선택 묶음이지 train/val split이 아니다.
   train/val은 별도 scene 단위 계약을 유지한다. A만 선택해도 필요한 split이 있어야 한다.
 - 같은 actor 배치의6환경 반복은 같은 scene group에 묶어 train/val 누수를 방지한다.
-  Sunny11시10K 전체를 써 환경별 표본 수가 불균형하면 sampling 정책도 명시한다.
+  Sunny13시10K 전체를 써 환경별 표본 수가 불균형하면 sampling 정책도 명시한다.
 - 실패 대체 시 원래 A/B·family·거리·방향·근접 quota·split을 유지한다.
   평가가 잘 나온 scene만 골라5K를 만들지 않는다.
 

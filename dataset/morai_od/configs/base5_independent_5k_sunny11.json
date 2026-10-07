@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "dataset_id": "base5_independent_5k_sunny11_261007",
+  "dataset_id": "base5_independent_5k_sunny13_261007",
   "seed": 261006,
   "target_scenes": 5000,
   "families": {
@@ -349,7 +349,7 @@
   },
   "collection_environment": {
     "weather": "sunny",
-    "hour": 11,
+    "hour": 13,
     "policy": "operator setting; verify actual MR before capture"
   }
 }

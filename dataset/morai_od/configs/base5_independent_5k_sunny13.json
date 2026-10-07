@@ -1,0 +1,355 @@
+{
+  "schema_version": 2,
+  "dataset_id": "base5_independent_5k_sunny13_261007",
+  "seed": 261006,
+  "target_scenes": 5000,
+  "families": {
+    "highway": 1500,
+    "roundabout": 350,
+    "other_vehicle": 150,
+    "obstacle": 1500,
+    "pedestrian_related": 1250,
+    "background": 250
+  },
+  "mission_counts": {
+    "highway": 600,
+    "roundabout": 250,
+    "other_vehicle": 50,
+    "obstacle": 600,
+    "pedestrian_related": 250,
+    "background": 0
+  },
+  "ped_subfamilies": {
+    "person": 938,
+    "dummy": 62,
+    "animal": 63,
+    "pet_person": 62,
+    "stroller": 62,
+    "rider": 63
+  },
+  "distance_decks": {
+    "highway": [
+      [
+        6,
+        10,
+        0.1
+      ],
+      [
+        10,
+        30,
+        0.25
+      ],
+      [
+        30,
+        45,
+        0.2
+      ],
+      [
+        45,
+        60,
+        0.15
+      ],
+      [
+        60,
+        80,
+        0.15
+      ],
+      [
+        80,
+        99,
+        0.15
+      ]
+    ],
+    "roundabout": [
+      [
+        5,
+        10,
+        0.25
+      ],
+      [
+        10,
+        20,
+        0.4
+      ],
+      [
+        20,
+        30,
+        0.25
+      ],
+      [
+        30,
+        40,
+        0.1
+      ]
+    ],
+    "other_vehicle": [
+      [
+        6,
+        15,
+        0.35
+      ],
+      [
+        15,
+        30,
+        0.4
+      ],
+      [
+        30,
+        60,
+        0.25
+      ]
+    ],
+    "other_vehicle_side": [
+      [
+        3,
+        6,
+        0.25
+      ],
+      [
+        6,
+        15,
+        0.5
+      ],
+      [
+        15,
+        29,
+        0.25
+      ]
+    ],
+    "pedestrian_related": [
+      [
+        3,
+        5,
+        0.25
+      ],
+      [
+        5,
+        10,
+        0.2
+      ],
+      [
+        10,
+        15,
+        0.2
+      ],
+      [
+        15,
+        30,
+        0.25
+      ],
+      [
+        30,
+        50,
+        0.1
+      ]
+    ],
+    "pedestrian_related_side": [
+      [
+        3,
+        5,
+        0.25
+      ],
+      [
+        5,
+        10,
+        0.2
+      ],
+      [
+        10,
+        15,
+        0.2
+      ],
+      [
+        15,
+        29,
+        0.35
+      ]
+    ],
+    "obstacle_front": [
+      [
+        3,
+        10,
+        0.4
+      ],
+      [
+        10,
+        30,
+        0.35
+      ],
+      [
+        30,
+        60,
+        0.2
+      ],
+      [
+        60,
+        99,
+        0.05
+      ]
+    ],
+    "obstacle_side": [
+      [
+        2,
+        5,
+        0.5
+      ],
+      [
+        5,
+        15,
+        0.35
+      ],
+      [
+        15,
+        30,
+        0.15
+      ]
+    ],
+    "obstacle_rear": [
+      [
+        3,
+        10,
+        0.6
+      ],
+      [
+        10,
+        30,
+        0.35
+      ],
+      [
+        30,
+        60,
+        0.05
+      ]
+    ]
+  },
+  "training_roi_candidate": [
+    -100,
+    -30,
+    -3,
+    100,
+    30,
+    2
+  ],
+  "classes_candidate": [
+    "vehicle",
+    "pedestrian",
+    "obstacle",
+    "animal"
+  ],
+  "gt_policy": "retain_raw; positive=lidar1_camera0; lidar1/lidar5 are audit alternatives, not assumed model-quality improvements",
+  "bulk_capture_authorized": false,
+  "population_budget": {
+    "generic_modes": {
+      "generic_single": 30,
+      "generic_regular": 50,
+      "generic_dense": 20
+    },
+    "generic_layouts": {
+      "distributed": 60,
+      "clustered": 40
+    },
+    "budget_bounds": {
+      "generic_regular": [
+        10,
+        14
+      ],
+      "generic_dense": [
+        16,
+        22
+      ]
+    },
+    "max_actors": 8,
+    "minimum_visible_fraction": 0.5,
+    "mission_actor_counts": {
+      "highway": {
+        "1": 50,
+        "2": 35,
+        "3": 15
+      },
+      "roundabout": {
+        "1": 40,
+        "2": 40,
+        "3": 20
+      },
+      "other_vehicle": {
+        "1": 80,
+        "2": 20
+      },
+      "obstacle": {
+        "1": 75,
+        "2": 20,
+        "3": 5
+      },
+      "pedestrian_related": {
+        "1": 80,
+        "2": 20
+      }
+    }
+  },
+  "mission_avoidance": {
+    "phases": {
+      "approach": 20,
+      "entry": 20,
+      "alongside": 40,
+      "clearing": 20
+    },
+    "alongside_gap_bins_m": [
+      [
+        0.1,
+        0.2,
+        25
+      ],
+      [
+        0.2,
+        0.3,
+        35
+      ],
+      [
+        0.3,
+        0.5,
+        40
+      ]
+    ],
+    "requires_live_ground_and_collider_review": true
+  },
+  "mission_vehicle_close": {
+    "eligible_max_center_distance_m": 20,
+    "fraction_percent": {"highway": 100, "roundabout": 40}
+  },
+  "coverage_policy": {
+    "minimum_primary_scenes_per_asset": 4,
+    "minimum_accepted_visible_primary_per_asset": 4
+  },
+  "generic_close_observation": {
+    "families": ["obstacle", "other_vehicle"],
+    "eligible_max_center_distance_m": 15,
+    "eligible_fraction_percent": 30,
+    "surface_gap_bins_m": [[0.3, 0.5, 50], [0.5, 1.0, 30], [1.0, 2.0, 20]]
+  },
+  "mission_dynamic_observation": {
+    "phases": {"approach": 45, "crossing": 25, "yielding": 20, "clearing": 10},
+    "distance_bounds_m": {"approach": [20, 50], "crossing": [8, 20], "yielding": [5, 10], "clearing": [6, 15]},
+    "maximum_starter_distance_m": 90,
+    "maximum_crosswalk_route_distance_m": 12,
+    "maximum_axis_route_dot": 0.4,
+    "target_axis_jitter_m": 3
+  },
+  "capture": {
+    "per_scene": 1,
+    "dynamic_wait_sec": 1.2,
+    "maximum_ego_drift_m": 0.08,
+    "maximum_runtime_batch": 64,
+    "dynamic_path_policy": "natural-target-v1",
+    "natural_setup_budget_sec": 9,
+    "asset_appearance_policy": true,
+    "generic_max_animated_actors": 2,
+    "ground_support_check": true,
+    "one_way_setup_budget_sec": 6,
+    "one_way_appearance_profile": true
+  },
+  "collection_environment": {
+    "weather": "sunny",
+    "hour": 13,
+    "policy": "operator setting; verify actual MR before capture"
+  }
+}

@@ -1,6 +1,6 @@
 # Base5 v45 — 6초 10K 준비 및 본수집 실행 경로
 
-2026-10-07: **HISTORICAL RUNBOOK.** 현재는 Sunny11시 직접5K이며
+2026-10-07: **HISTORICAL RUNBOOK.** 현재는 Sunny13시 직접5K이며
 [새 단일 운영 런북](261007_base5_5k_capture_runbook.md)을 사용한다.
 아래 모든 v45/v86·10K 명령은 현재 본수집 명령이 아니다.
 

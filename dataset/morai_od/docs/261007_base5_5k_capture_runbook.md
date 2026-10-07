@@ -1,8 +1,12 @@
-# Base5 Sunny11시 직접 5K — 현재 운영 런북
+# Base5 Sunny13시 직접 5K — 현재 운영 런북
 
 2026-10-07. 과거 v45/10K 명령 대신 이 문서를 사용한다.
-**본수집은 사용자 최종 확인 후 시작한다. 현재 소량 검증과 5K 시나리오 준비만 수행한다.**
+본수집은 사용자 승인 후 진행하며, 이미 진행 중인 수집은 기존 명령으로 이어간다.
 E25 추론·temporal 학습·rosbag 녹화용 런북이 아니다.
+
+2026-10-07 [환경 정정](261007_base5_sunny13_environment_correction.md): 실제 MR 기본/수집은
+사용자 확인 Sunny 13시다. v108의 미시작 기록은 당시 사전 보고이며, 현재 수집 재시작 지시가 아니다.
+**기존 수집/resume 명령·manifest·output은 그대로 둔다. 아래 새 경로는 신규 수집용이다.**
 
 ## 터미널 순서
 
@@ -24,7 +28,7 @@ python3 dataset/morai_od/scripts/run_base5_rosbridge.py
 ```
 
 기본 localhost9090. 일반 rosbridge launch로 바꾸지 않는다.
-MR에서 Capture Mode를 켜고 센서 설정·Sunny11시를 실제 확인한다.
+MR에서 Capture Mode를 켜고 센서 설정·Sunny13시를 실제 확인한다.
 Ego Network의 Load → Connect에 다음 profile을 사용한다.
 
 ```text
@@ -38,15 +42,15 @@ UDP receiver, sensing, localization, BEVFusion, planning, control은 별도로 �
 
 ### 터미널 3 — 승인 후 수집 / 같은 명령으로 재개
 
-manifest는v105,운용코드는v108이다. 구pilot output에다른코드로resume하지않는다.
+새 manifest는 13시 header 정정 v109, 운용 코드는 v108이다. 구 pilot output에 다른 계약으로 resume하지 않는다.
 전체5K 예상은 소량표본 조건부45.7h이며 확정값이 아니다. 동적 준비비용·부족분이남는다.
 아래전체명령은사용자승인후에만실행한다. 현재자동으로시작하지않는다.
 
 ```bash
 ajou
 python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
-  --manifest "$HOME/morai_cap/base5_v2_261007/final_5k_ordered_v105/manifest.json" \
-  --output "$HOME/morai_cap/base5_v2_261007/collection_5k_v108" \
+  --manifest "$HOME/morai_cap/base5_v2_261007/final_5k_ordered_sunny13_v109/manifest.json" \
+  --output "$HOME/morai_cap/base5_v2_261007/collection_5k_sunny13_v109" \
   --limit 5000 \
   --chunk-size 4 \
   --approve-bulk-capture \
@@ -63,7 +67,7 @@ python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
 ```bash
 ajou
 python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
-  --capture-root "$HOME/morai_cap/base5_v2_261007/collection_5k_v108" \
+  --capture-root "$HOME/morai_cap/base5_v2_261007/collection_5k_sunny13_v109" \
   --port 8075
 ```
 
@@ -77,14 +81,14 @@ python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
 
 ```bash
 ajou
-touch "$HOME/morai_cap/base5_v2_261007/collection_5k_v108/PAUSE"
+touch "$HOME/morai_cap/base5_v2_261007/collection_5k_sunny13_v109/PAUSE"
 ```
 
 paused 확인 후 PAUSE를 제거하고 터미널3과 동일한 명령으로 재개:
 
 ```bash
 ajou
-rm "$HOME/morai_cap/base5_v2_261007/collection_5k_v108/PAUSE"
+rm "$HOME/morai_cap/base5_v2_261007/collection_5k_sunny13_v109/PAUSE"
 ```
 
 긴급 STOP은 해당 output의 `STOP` 파일이다. 종료 중 Park가 확인되기 전 다음 수집을 켜지 않는다.
@@ -102,9 +106,9 @@ complete_with_deficit의 resume은 검증 전용이며 새 촬영으로 부족�
 ```bash
 ajou
 python3 dataset/morai_od/scripts/report_base5_final_coverage.py \
-  --manifest "$HOME/morai_cap/base5_v2_261007/final_5k_ordered_v105/manifest.json" \
-  --ledger "$HOME/morai_cap/base5_v2_261007/collection_5k_v108/selected_ledger.jsonl" \
-  --output "$HOME/morai_cap/base5_v2_261007/collection_5k_v108/effective_coverage.json" \
+  --manifest "$HOME/morai_cap/base5_v2_261007/final_5k_ordered_sunny13_v109/manifest.json" \
+  --ledger "$HOME/morai_cap/base5_v2_261007/collection_5k_sunny13_v109/selected_ledger.jsonl" \
+  --output "$HOME/morai_cap/base5_v2_261007/collection_5k_sunny13_v109/effective_coverage.json" \
   --require-effective-complete
 ```
 
@@ -117,13 +121,13 @@ raw Instance component GT는 보존하고, LiDAR≥1점 또는 실제 camera Ins
 ```bash
 ajou
 python3 dataset/morai_od/scripts/build_base5_bevfusion_infos.py \
-  --ledger "$HOME/morai_cap/base5_v2_261007/collection_5k_v108/selected_ledger.jsonl" \
-  --output "$HOME/morai_cap/base5_v2_261007/base5_5k_infos_v108" \
+  --ledger "$HOME/morai_cap/base5_v2_261007/collection_5k_sunny13_v109/selected_ledger.jsonl" \
+  --output "$HOME/morai_cap/base5_v2_261007/base5_5k_infos_sunny13_v109" \
   --sensor-config configs/sensors/Sensor_competition_local.json
 ```
 
 최종 원본 캡처/raw/실패·calibration 근거는 재검증을 위해 남긴다.
-Sunny11시와 다른 환경을 같은 output의 resume에 섞지 않는다. 나머지5환경은 별도5K campaign이다.
+Sunny13시와 다른 환경을 같은 output의 resume에 섞지 않는다. 나머지5환경은 별도5K campaign이다.
 
 ## 정적만 먼저 수집하기로 승인한 경우
 
@@ -134,8 +138,8 @@ Sunny11시와 다른 환경을 같은 output의 resume에 섞지 않는다. 나�
 ```bash
 ajou
 python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
-  --manifest "$HOME/morai_cap/base5_v2_261007/final_5k_ordered_v105/manifest.json" \
-  --output "$HOME/morai_cap/base5_v2_261007/collection_static4160_v108" \
+  --manifest "$HOME/morai_cap/base5_v2_261007/final_5k_ordered_sunny13_v109/manifest.json" \
+  --output "$HOME/morai_cap/base5_v2_261007/collection_static4160_sunny13_v109" \
   --limit 4160 --chunk-size 4 --approve-bulk-capture --resume
 ```
 

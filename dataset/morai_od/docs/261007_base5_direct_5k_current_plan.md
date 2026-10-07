@@ -1,4 +1,4 @@
-# Base5 Sunny 11시 직접 5K — 최신 수집 목표
+# Base5 Sunny 13시 직접 5K — 최신 수집 목표
 
 2026-10-07. 사용자가 이번 수집을10K→5K로 변경했다.
 **10K를 수집한 뒤 절반 선별하는 방식이 아니라, 처음부터 균형5K를 설계한다.**
@@ -24,13 +24,16 @@
 
 ## 설정 및 변경 범위
 
-- 새 기본config: `dataset/morai_od/configs/base5_independent_5k_sunny11.json`.
-- `generate_base5_independent.py`의기본CONFIG도새5K로변경한다.
+- 명시적config:`dataset/morai_od/configs/base5_independent_5k_sunny13.json`.
+- generator의기존기본경로`base5_independent_5k_sunny11.json`은파일명만호환alias로
+  남기며내용은동일Sunny13이다. code hash/resume를깨뜨리지않는다.
 - 구 `base5_independent_v2.json`은10K재현용으로보존한다.
 - weather/hour는수집의도metadata이며MR실제설정자동적용·인증을뜻하지않는다.
-  live전Sunny11시실제세팅을확인한다.
+  live전Sunny13시실제세팅을확인한다.
 - 4class/scale1/단일정지Ego/필요자산실제애니메이션/GT·접지·충돌·resume계약은유지한다.
 - 기존output에새config를섞어resume하지않는다. 최종manifest/output은새경로로만든다.
+- [13시환경정정](261007_base5_sunny13_environment_correction.md):원본v105는보존하고
+  새header는`final_5k_ordered_sunny13_v109`다. 기존수집중에는manifest를바꾸지않는다.
 
 ## 남은 보완
 
@@ -38,7 +41,7 @@
 v105는새5K전수OFFLINE_PASS/122종planned-primary최소4장을확인했다.
 종류coverage와실제로보이는횟수는별개다. actual visible-primary 최소4장과
 generic visible-parent 하한은본수집후별도감사한다.4장은학습충분성보장이아니다.
-최종6환경×5K=30K목표는유지하되이번수집은Sunny11시5K만이다.
+최종6환경×5K=30K목표는유지하되이번수집은Sunny13시5K만이다.
 최신완료근거/미확인조건은[CURRENT](BASE5_V2_CURRENT.md)와
 [v105 evidence](261007_base5_final_gates_v105_evidence.md)를따른다.
 

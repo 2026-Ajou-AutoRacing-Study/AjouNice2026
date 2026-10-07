@@ -1,6 +1,6 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-## 현재 진입점 — Sunny11시 직접5K / 2026-10-07
+## 현재 진입점 — Sunny13시 직접5K / 2026-10-07
 
 [CURRENT](BASE5_V2_CURRENT.md)와 [직접5K 실행·정지·재개](261007_base5_5k_capture_runbook.md)를
 우선한다. 아래 v43/v40/v39 및 모든 구10K 명령은 당시 이력이다.

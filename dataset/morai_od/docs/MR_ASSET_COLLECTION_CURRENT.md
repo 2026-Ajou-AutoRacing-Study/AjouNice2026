@@ -35,7 +35,7 @@
 연결됐다. 기존3-class production은 유지하며 최종 ontology/runtime은 미확정이다.
 새 v2 live는 연결 실패 후 복구하여48장 검사했다. 전체pool 검증을 완료했다는 뜻은 아니다.
 
-최신 독립 수집 목표는 [Sunny11시 직접5K](261007_base5_direct_5k_current_plan.md)이며
+최신 독립 수집 목표는 [Sunny13시 직접5K](261007_base5_direct_5k_current_plan.md)이며
 quota/자세/동작·실행 경로는 [Base5 CURRENT](BASE5_V2_CURRENT.md)를 따른다.
 구 [10K 설계](BASE5_INDEPENDENT_10K_DESIGN.md)는 최초 설계 이력이다.
 이 문서의 asset eligibility와 review 보류는 유지하며 새 설계가 자동 pool 편입을 뜻하지 않는다.

@@ -5,9 +5,11 @@
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
 - **현재 진입점:** [Base5 CURRENT](BASE5_V2_CURRENT.md) →
-  [Sunny11시 직접5K 구성](261007_base5_direct_5k_current_plan.md) →
+  [Sunny13시 직접5K 구성](261007_base5_direct_5k_current_plan.md) →
   [5K 운영 런북](261007_base5_5k_capture_runbook.md).
   [v105 최종 gate 근거](261007_base5_final_gates_v105_evidence.md)에 실패·보완·실제 결과를 모은다.
+  [Sunny13시 환경 정정](261007_base5_sunny13_environment_correction.md)이
+  최근 11시 오표기보다 우선한다. 이미 진행 중인 수집의 manifest/계약을 덮어쓰지 않는다.
   아래 v45/v86 등 "최신" 표현은 해당 시점의 역사이며 현재 실행 명령으로 사용하지 않는다.
 
 - **manifest v105 / runtime v108:** 새5K/122종 전수오프라인 PASS. 차량 미션 근접133셀, 범용 근접175셀,
@@ -22,7 +24,7 @@
   전방 접근/횡단 관측/양보90%, 통과 직후10%. 250/250 생성 가능,
   대표 live5/5·CPU5장/GT6·212tests PASS. 최종5K/전체미션 인증은 아니다.
 
-- **최신 목표: Sunny11시 직접5K.** [5K구성·설정·미완료gate](261007_base5_direct_5k_current_plan.md).
+- **최신 목표: Sunny13시 직접5K.** [5K구성·설정·미완료gate](261007_base5_direct_5k_current_plan.md).
   구10K산출물은보존하며새기본config로5K를설계한다. 아래10K실측은과거이력이다.
 
 - **범용/미션 객체 수 v89 구현:** [크기 예산 배치·검증](261007_base5_population_budget_v89.md).

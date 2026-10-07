@@ -1,5 +1,16 @@
 # Generation configs
 
+## 현재 Base5 기본 환경
+
+2026-10-07: Sunny13시가 현재 기본값이다.
+`base5_independent_5k_sunny13.json`을 명시적 config로 사용한다.
+`base5_independent_5k_sunny11.json`은 기존 generator/resume 경로 호환을 위해 이름만
+남긴 동일 내용의 alias이며 hour도13이다. 실제 환경은 MR에서 확인하고,
+기존 수집의 frozen manifest를 in-place로 바꾸지 않는다.
+[정정 근거·기존 산출물 처리](../docs/261007_base5_sunny13_environment_correction.md).
+
+## 기존 설정 이력
+
 대량 생성기의 anchor 선택, 객체 수·거리, 날씨·시간 조합, seed와 split 정책을
 YAML 설정으로 관리할 디렉터리다. 현재 프로토타입은 명령행 인자를 사용한다.
 

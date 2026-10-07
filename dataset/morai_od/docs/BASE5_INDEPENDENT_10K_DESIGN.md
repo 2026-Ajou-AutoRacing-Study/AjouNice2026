@@ -1,6 +1,6 @@
 # Base5 독립 10K — single-frame OD 수집 설계
 
-2026-10-07: **HISTORICAL PLAN.** 현재 목표는 Sunny11시 직접5K다.
+2026-10-07: **HISTORICAL PLAN.** 현재 목표는 Sunny13시 직접5K다.
 [현재 구성](261007_base5_direct_5k_current_plan.md), [CURRENT](BASE5_V2_CURRENT.md),
 [현재 수집 런북](261007_base5_5k_capture_runbook.md)이 아래 최초 계획보다 우선한다.
 

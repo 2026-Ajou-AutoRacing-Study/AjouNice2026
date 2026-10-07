@@ -56,7 +56,7 @@
   Animal/복합 GT 후보는 유지한다.
   UDP차량velocity 후륜 기준은 확정됐으나 기존R01의변환잔차 검증/새평가 계약 선택은 남는다.
 
-- 독립 Base5의 현재 목표는 **Sunny11시 직접5K**다. 구10K/v45 명령과 시간 추정은
+- 독립 Base5의 현재 목표는 **Sunny13시 직접5K**다. 구10K/v45 명령과 시간 추정은
   현재 실행 기준이 아니다. [CURRENT](../dataset/morai_od/docs/BASE5_V2_CURRENT.md) →
   [5K 계획](../dataset/morai_od/docs/261007_base5_direct_5k_current_plan.md) →
   [단일 운영 런북](../dataset/morai_od/docs/261007_base5_5k_capture_runbook.md) 순으로 읽는다.
