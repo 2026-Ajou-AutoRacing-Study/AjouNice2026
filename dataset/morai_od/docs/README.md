@@ -4,6 +4,10 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **본수집 전 최신 PLAN:** [최종 학습 후보5개 보완](261007_base5_final_candidate_five_gates_plan.md).
+  객체 수·범용/회피 초근접·고주로/로터리 밀집·GT·균형5K선별을 수정/검증한 뒤
+  새10K를 고정한다. v86 검증 완료와 이 계획 구현 완료를 혼동하지 않는다.
+
 - **최신 v86: 본수집 전 recovery·통합검증 완료.** 32셀31승인/1부족분 후
   Ped_Pet1 near terrain 보완1/1,최종8/8·동적2/2·ordered4/4·198tests PASS.
   새10K 전수OFFLINE_PASS/실캡처 미시작. 구18.7h ETA 폐기,시간 비용 증가 명시.
