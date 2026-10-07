@@ -23,6 +23,7 @@ def audit(manifest_path):
     inventory={r['data_id']:r for r in gen.geo.load_json(gen.catalog.DEFAULT_CATALOG)['assets']}
     appearance=gen.geo.load_json(gen.APPEARANCE_POLICY)
     height_ctx=None;height_assets=None;dynamic_ctx=None;dynamic_phases=Counter();dynamic_crossings=Counter()
+    generic_close=Counter()
     for entry in m['scenes']:
         s=json.loads(Path(entry['scenario']).read_text());meta=json.loads(Path(entry['metadata']).read_text());r=meta['spec']
         digest=gen.geo.sha256(Path(entry['scenario']))
@@ -73,10 +74,15 @@ def audit(manifest_path):
         if r.get('avoidance_phase'):
             if not avoidance:errors.append((entry['id'],'missing avoidance observation'))
             else:
-                avoidance_phases[str((r['family'],avoidance['phase'],avoidance['side']))]+=1
+                if r.get('avoidance_origin')=='generic_close':
+                    generic_close[str((r['family'],r['avoidance_side'],r['avoidance_gap_bounds_m']))]+=1
+                    if r['mission'] or r['original_distance_bounds'][1]>m['config']['generic_close_observation']['eligible_max_center_distance_m']:
+                        errors.append((entry['id'],'generic close changed mission or distant quota'))
+                else:avoidance_phases[str((r['family'],avoidance['phase'],avoidance['side']))]+=1
                 if avoidance['phase']=='alongside':
                     avoidance_gaps.append(avoidance['actual_surface_gap_m'])
-                    avoidance_bins[str((r['family'],r['avoidance_gap_bounds_m']))]+=1
+                    if r.get('avoidance_origin')!='generic_close':
+                        avoidance_bins[str((r['family'],r['avoidance_gap_bounds_m']))]+=1
         ego_poly=gen.rectangle([e['x']+1.35*gen.math.cos(ea),e['y']+1.35*gen.math.sin(ea)],[4.8,2.],e['yaw'])
         for i,a in enumerate(meta['runtime_actors']):
             if a['data_id'] in gen.catalog.COMPETITION_EXCLUDED_IDS:
@@ -206,7 +212,7 @@ def audit(manifest_path):
     return dict(status='OFFLINE_PASS' if not errors else 'OFFLINE_FAIL',live_validation=False,
         scenes=len(m['scenes']),unique_payloads=len(hashes),families=dict(families),mission_counts=dict(missions),
         sample_bounded_highway_vehicle_count=bounded_vehicles,
-        avoidance_phase_side_counts=dict(avoidance_phases),
+        avoidance_phase_side_counts=dict(avoidance_phases),generic_close_counts=dict(generic_close),
         avoidance_gap_bin_counts=dict(avoidance_bins),
         alongside_gap_min_max_m=[min(avoidance_gaps),max(avoidance_gaps)] if avoidance_gaps else [],
         distance_direction_bins=dict(bins),asset_groups=dict(groups),asset_counts=dict(assets),splits=dict(splits),

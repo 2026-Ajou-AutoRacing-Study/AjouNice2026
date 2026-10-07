@@ -312,6 +312,12 @@
     ],
     "requires_live_ground_and_collider_review": true
   },
+  "generic_close_observation": {
+    "families": ["obstacle", "other_vehicle"],
+    "eligible_max_center_distance_m": 15,
+    "eligible_fraction_percent": 30,
+    "surface_gap_bins_m": [[0.3, 0.5, 50], [0.5, 1.0, 30], [1.0, 2.0, 20]]
+  },
   "mission_dynamic_observation": {
     "phases": {"approach": 45, "crossing": 25, "yielding": 20, "clearing": 10},
     "distance_bounds_m": {"approach": [20, 50], "crossing": [8, 20], "yielding": [5, 10], "clearing": [6, 15]},

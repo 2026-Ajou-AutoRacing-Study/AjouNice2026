@@ -64,6 +64,12 @@ def observation(gen,ctx,route,arc,base,asset,row,rng):
     ego=dict(support,x=center[0]+c*longitudinal-s*lateral-1.35*math.cos(yaw_rad),
              y=center[1]+s*longitudinal+c*lateral-1.35*math.sin(yaw_rad),yaw=yaw)
     target_pose=dict(base,yaw=actor_yaw)
+    if row.get('avoidance_origin')=='generic_close':
+        # Generic scenes are not virtual driven bypasses. Keep Ego on the road
+        # anchor and translate the object instead of putting Ego on a curb/verge.
+        dx,dy=base['x']-ego['x'],base['y']-ego['y']
+        ego=dict(base,yaw=yaw)
+        target_pose=dict(target_pose,x=target_pose['x']+dx,y=target_pose['y']+dy)
     reference=dict(phase=phase,side=row['avoidance_side'],
         requested_surface_gap_m=gap if phase=='alongside' else None,
         longitudinal_center_offset_m=longitudinal,lateral_center_offset_m=lateral,
@@ -73,4 +79,7 @@ def observation(gen,ctx,route,arc,base,asset,row,rng):
         clearance_policy='measured-geometry-min30cm; unknown-geometry-min1m-v46',
         collider_clearance_verified=False,virtual_path_driven=False,
         contract='stationary-bypass-observation-v1')
+    if row.get('avoidance_origin')=='generic_close':
+        reference.update(contract='stationary-road-ego-side-object-v97',ego_road_anchor_preserved=True,
+            object_ground_support_verified=False)
     return ego,target_pose,reference

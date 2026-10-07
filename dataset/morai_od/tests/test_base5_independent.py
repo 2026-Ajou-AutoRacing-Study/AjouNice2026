@@ -104,7 +104,8 @@ class IndependentTest(unittest.TestCase):
             for phase in ('approach','entry','alongside','clearing'):
                 sides=Counter(r['avoidance_side'] for r in subset if r['avoidance_phase']==phase)
                 self.assertEqual(sides['left'],sides['right'])
-        self.assertTrue(all('avoidance_phase' not in r for r in rows if not r['mission']))
+        self.assertTrue(all('avoidance_phase' not in r or r.get('avoidance_origin')=='generic_close'
+                            for r in rows if not r['mission']))
     def test_real_batch_geometry_and_guard(self):
         c=gen.geo.load_json(gen.CONFIG)
         with tempfile.TemporaryDirectory() as d:

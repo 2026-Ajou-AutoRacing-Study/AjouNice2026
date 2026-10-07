@@ -163,6 +163,22 @@ def specs(config):
             counts=exact_deck([(int(k),v) for k,v in plan['mission_actor_counts'][family].items()],len(missions),rng)
             for r,n in zip(missions,counts):
                 r.update(actors=n,population_mode='mission_situation',population_layout='mission')
+    close=config.get('generic_close_observation')
+    if close:
+        for family in close['families']:
+            eligible=[r for r in output if r['family']==family and not r['mission']
+                and r['distance_bounds'][1]<=close['eligible_max_center_distance_m']
+                and (family!='other_vehicle' or r['static_vehicle'])]
+            rng=random.Random(config['seed']+sum(map(ord,family))+905)
+            rng.shuffle(eligible)
+            chosen=eligible[:round(len(eligible)*close['eligible_fraction_percent']/100)]
+            sides=exact_deck([('left',1),('right',1)],len(chosen),rng)
+            gaps=exact_deck([(b[:2],b[2]) for b in close['surface_gap_bins_m']],len(chosen),rng)
+            for row,side,bounds in zip(chosen,sides,gaps):
+                row.update(original_distance_bounds=list(row['distance_bounds']),original_role=row['role'],
+                    avoidance_origin='generic_close',avoidance_phase='alongside',avoidance_side=side,
+                    avoidance_gap_bounds_m=bounds,distance_bounds=[0.,30.],distance_bin='generic_surface_gap',
+                    role='right' if side=='left' else 'left')
     return output
 
 def context(runtime, mgeo):
@@ -474,7 +490,7 @@ def build(row,config,ctx,attempt=0):
     if row.get('avoidance_phase'):
         ego,primary_pose,avoidance_ref=avoidance.observation(sys.modules[__name__],ctx,route,arc,base,asset,row,rng)
         yaw_delta=ego['yaw']-base['yaw']
-        offset=avoidance_ref['lateral_center_offset_m']
+        offset=0. if row.get('avoidance_origin')=='generic_close' else avoidance_ref['lateral_center_offset_m']
     scene=copy.deepcopy(ctx['template']); geo.clear_actor_lists(scene)
     geo.set_ego_pose(scene['egoVehicle'],ego,initial_speed_kph=0.)
     geo.zero_vector(scene['egoVehicle']['initPosition'].get('vehicleSaveData',{}).get('vehicle',{}).get('lastVelocity'))
@@ -684,6 +700,7 @@ def build(row,config,ctx,attempt=0):
             required_uids=[a['unique_id'] for a in actor_records],
             policy='all-actors-observed-ground-v1')
     if avoidance_ref:
+        avoidance_ref['origin']=row.get('avoidance_origin','mission_static_avoidance')
         avoidance_ref['actual_surface_gap_m']=actor_records[0]['planned_surface_clearance_m']
         meta['avoidance_observation']=avoidance_ref
     return scene,meta
