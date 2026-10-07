@@ -4,7 +4,19 @@
 **10K를 수집한 뒤 절반 선별하는 방식이 아니라, 처음부터 균형5K를 설계한다.**
 본수집은 아직 시작하지 않는다. 기존10K manifest/raw/pilot은 삭제하지 않는다.
 
-## 2026-10-07 동적 미션 차량 소량 보강 — v112 우선
+## 2026-10-07 최종 XY 초기 높이 — v113 우선
+
+배치 비율은 바꾸지 않고 최종 actor XY의 실제 MGeo road segment/연결 lane boundary 높이를
+자산 pivot 후보와 결합한다. 가상 차선 변경 link는 지면 근거에서 제외한다.
+5K의 Ego·객체 XY/yaw·quota·split·이동 경로를 유지한 새 manifest는
+`final_5k_final_xy_ground_v113_final`이다. 전수 OFFLINE_PASS/122종 planned 최소4다.
+Dog2 실제 부유 사례는 같은 위치 A/B로 ground gate를 통과했고 정상 근접도 유지했다.
+지도 외부/roadside와 일부 reference mismatch는 남으므로 전체 접지 해결로 보지 않는다.
+높이 재촬영1회·배치 대체1회·동일 actor payload의 witness1회로 비용을 제한하며,
+부족분/통신·Park 실패 계약은 유지한다. 실제 결과/한계는 CURRENT와 높이 EVIDENCE를 따른다.
+본수집은 자동 시작하지 않는다. 구 manifest/output resume에 새 코드를 섞지 않는다.
+
+## 2026-10-07 동적 미션 차량 소량 보강 — v112 이력
 
 동적 미션250장면 중12장면(4.8%)을 차량으로 배정한다. 일반 사람 quota만12줄이고,
 동물·반려동물 동반·유모차·탑승자·dummy를 줄이지 않는다. 전체5K와family총량은 유지한다.

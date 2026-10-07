@@ -19,6 +19,9 @@
    v112 동적 미션250셀 중12개는 차량 정지 외관 관측이다. 새manifest 정적4171/이동829,
    구4160limit/구output을 재사용하지 않는다. 차량 양보만8–20m이며 희귀 quota는 유지한다.
    생성기 코드 변경 후 구 output resume 금지. 원래 revision 또는 새 manifest/output을 사용한다.
+   v113 현재 manifest는 `final_5k_final_xy_ground_v113_final`이다. 최종 XY 도로 선분 높이와
+   자산 pivot을 사용하지만 roadside/unsupported 접지 인증은 아니다. QA 재촬영/대체 상한,
+   동일 payload witness1회·단일 master live lock을 유지한다. 구 v112는 `c67f62c3` 재현용이다.
    본수집은 사용자 승인 후이며 raw GT·실패 근거를 보존한다.
 
 CURRENT/EVIDENCE/PLAN/HISTORICAL 상태를 구분한다. 현재 학습 전달본은

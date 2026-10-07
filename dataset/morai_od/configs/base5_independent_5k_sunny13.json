@@ -2,6 +2,7 @@
   "schema_version": 2,
   "dataset_id": "base5_independent_5k_sunny13_261007",
   "seed": 261006,
+  "placement_ground": {"enabled": true, "policy": "mgeo-segment-associated-boundary-v1", "maximum_road_distance_m": 8.0},
   "stationary_mission_assets": {
     "policy": "all-positive-pools-stationary-v111",
     "primary_pool_counts": {
@@ -352,6 +353,11 @@
     "target_axis_jitter_m": 3
   },
   "capture": {
+    "static_quality_budget": {
+      "max_ground_witnesses": 8,
+      "max_height_recaptures": 1,
+      "max_placement_recaptures": 1
+    },
     "per_scene": 1,
     "dynamic_wait_sec": 1.2,
     "maximum_ego_drift_m": 0.08,

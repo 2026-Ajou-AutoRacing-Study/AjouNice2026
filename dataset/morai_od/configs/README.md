@@ -2,6 +2,12 @@
 
 ## 현재 Base5 기본 환경
 
+v113의 `placement_ground`는 최종 actor XY의 실제 도로 선분·연결 차선 경계 높이 추정이다.
+전역 triangulation/가상 차선 변경 link는 사용하지 않으며 mesh 접지 인증은 아니다.
+`capture.static_quality_budget`는 child당 witness 최대8(같은 UID+payload 1회),
+실측 높이 재촬영1/배치 대체1이다. 한도 초과는 성공이 아니라 deficit로 기록한다.
+구 config에 이 옵션이 없으면 legacy 계산/QA loop를 유지한다. frozen 구 output에 새코드 resume 금지.
+
 v112의 `mission_dynamic_observation.vehicle_primary_scenes=12`는 동적 미션250셀의4.8%다.
 길이6m 이하12차종,도로 link 기반 정지 외관 캡처이며 차량 양보 관측만8–20m다.
 일반 사람12슬롯만 교체하고 희귀 복합/동물 quota를 유지한다. 구manifest/resume에 새코드를 섞지 않는다.

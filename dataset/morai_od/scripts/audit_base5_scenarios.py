@@ -8,9 +8,17 @@ from pathlib import Path
 import generate_base5_independent as gen
 
 
-def bounded_vehicle_pose_matches(pos,expected,initializer=None):
+def equivalent(a,b):
+    if isinstance(a,dict) and isinstance(b,dict):return a.keys()==b.keys() and all(equivalent(a[k],b[k]) for k in a)
+    if isinstance(a,list) and isinstance(b,list):return len(a)==len(b) and all(equivalent(x,y) for x,y in zip(a,b))
+    if isinstance(a,(int,float)) and isinstance(b,(int,float)):return abs(a-b)<=1e-5
+    return a==b
+
+
+def bounded_vehicle_pose_matches(pos,expected,initializer=None,ground=None):
     offset=initializer['pivot_height_candidate_m'] if initializer and initializer.get('usable') else .36
-    return all(abs(pos[k]-expected[k])<=1e-5 for k in ('x','y')) and abs(pos['z']-expected['z']-offset)<=1e-5
+    height=ground['height_m'] if ground and ground.get('usable') else expected['z']
+    return all(abs(pos[k]-expected[k])<=1e-5 for k in ('x','y')) and abs(pos['z']-height-offset)<=1e-5
 
 
 def audit(manifest_path):
@@ -133,6 +141,24 @@ def audit(manifest_path):
             if a['planned_surface_clearance_m']<minimum-1e-6:errors.append((entry['id'],'ego collision'))
             # Actual generated rot is authoritative, not an independent random estimate.
             actor=next(t for k in ('vehicleList','objectList','pedestrianList','aiPedstrianList') for t in s.get(k,[]) if t['UNIQUEID']==a['unique_id'])
+            if m['config'].get('placement_ground',{}).get('enabled') and a['motion'] in ('static','standing'):
+                from base5_map_surface import configure,initial_pose
+                if height_ctx is None:
+                    height_ctx=configure(gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO),m['config']['placement_ground'])
+                    height_assets={asset['data_id']:asset for pool in height_ctx['pools'].values() for asset in pool}
+                proof=a.get('map_ground_initializer')
+                if not proof:errors.append((entry['id'],'missing final XY map height proof'))
+                else:
+                    raw=actor['initPosition'] if 'initPosition' in actor else actor
+                    pose=dict(a['position'],z=proof['previous_reference_z_m'],yaw=float(raw['rot']['yaw']),link_idx=proof.get('preferred_link'))
+                    # Footprint offsets are geometry-derived, never trust metadata.
+                    size,offset,_=gen.geometry(height_assets[a['data_id']],height_ctx)
+                    expected_pose,expected_init,expected_ground=initial_pose(pose,height_assets[a['data_id']],size,offset,height_ctx)
+                    if not equivalent(expected_init,a.get('static_height_initializer')) or not equivalent(expected_ground,proof):
+                        errors.append((entry['id'],'final XY map height differs from sources'))
+                    legacy=.36 if a['source_list']=='vehicleList' else 0.
+                    if abs(raw['pos']['z']-expected_pose['z']-legacy)>1e-5:
+                        errors.append((entry['id'],'raw actor Z differs from final XY height'))
             if r.get('stationary_mission_pool'):
                 if any(float(actor.get(k,0))!=0 for k in ('speed','moveSpeed','customSpeed','currentVelocity')) or actor.get('isWaypointMode'):
                     errors.append((entry['id'],'static mission runtime movement enabled'))
@@ -158,7 +184,7 @@ def audit(manifest_path):
                         expected_initializer=saved_height_candidate(height_assets[a['data_id']],height_ctx)
                         if initializer!=expected_initializer:
                             errors.append((entry['id'],'static height initializer differs from sources'))
-                    if not bounded_vehicle_pose_matches(pos,expected,initializer):
+                    if not bounded_vehicle_pose_matches(pos,expected,initializer,a.get('map_ground_initializer')):
                         errors.append((entry['id'],'scenario NPC differs from bounded route'))
                     if abs(actor['initPosition']['initLinkRatio']-expected['point_ratio'])>1e-6:
                         errors.append((entry['id'],'sample NPC original link ratio'))
@@ -187,7 +213,7 @@ def audit(manifest_path):
                         nr,na=gen.geo.route_from_link_path(links,gen.geo.ROUNDABOUT_NPC_LINK_PATH)
                         if close['route_links']!=list(gen.geo.ROUNDABOUT_NPC_LINK_PATH):errors.append((entry['id'],'roundabout close route'))
                         expected=gen.geo.continuous_route_pose_at_arc(nr,na,close['reference_arc_m'])
-                        if not bounded_vehicle_pose_matches(actor['initPosition']['pos'],expected,a.get('static_height_initializer')):
+                        if not bounded_vehicle_pose_matches(actor['initPosition']['pos'],expected,a.get('static_height_initializer'),a.get('map_ground_initializer')):
                             errors.append((entry['id'],'roundabout close NPC off route'))
             if i==0 and avoidance and avoidance['phase']=='alongside':
                 lo,hi=r['avoidance_gap_bounds_m']

@@ -105,6 +105,25 @@ def validate_seed(path,original):
     return copy.deepcopy(row),root,safety
 
 
+class StaticQualityBudget:
+    """Bound expensive static work; missing evidence never becomes a pass."""
+    def __init__(self,config):
+        self.limits=config.get('capture',{}).get('static_quality_budget',{})
+        self.counts={};self.witnessed=set();self.reason=None
+
+    def spend(self,kind,uid=None):
+        if not self.limits:return True
+        key={'witness':'max_ground_witnesses','height':'max_height_recaptures',
+            'replacement':'max_placement_recaptures'}[kind]
+        if kind=='witness' and uid in self.witnessed:
+            self.reason='static_ground_witness_already_attempted';return False
+        if self.counts.get(kind,0)>=self.limits[key]:
+            self.reason='static_quality_budget_exhausted_'+kind;return False
+        self.counts[kind]=self.counts.get(kind,0)+1
+        if kind=='witness':self.witnessed.add(uid)
+        return True
+
+
 def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed_capture=None):
     started=time.monotonic()
     if output.exists() and not resume:raise FileExistsError('New quality-loop output required; use campaign resume')
@@ -295,6 +314,7 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
             # Up to eight actor witnesses, plus bounded height/replacement work.
             # A larger population must not exhaust the old three-actor budget.
             # Every actual terrain/contact/visibility gate remains unchanged.
+            budget=StaticQualityBudget(source_data.get('config',{}))
             for ordinal in range(2*motion_ground.MAX_MOVING_ACTORS+2):
                 if result['status']=='accepted_candidate':break
                 reasons=set(result.get('audit',{}).get('review_reasons',[]))
@@ -303,6 +323,7 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                 local_height=any(a.get('reason')=='actor_annotation_above_ground' and a.get('plane')
                     for a in result.get('audit',{}).get('ground_support',{}).get('actors',[]))
                 if local_height and reasons<={'actor_annotation_above_ground','actor_ground_plane_unverified'}:
+                    if not budget.spend('height'):break
                     next_manifest=prepared(base/'height_deck'/'manifest.json',lambda:height_retry(manifest,current,base/'height_deck'))
                     kind='input_z_retry'
                 elif reasons and reasons<={'actor_ground_plane_unverified','actor_annotation_deep_below_ground','actor_annotation_above_ground'}:
@@ -312,6 +333,8 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                         target_uid=((failed_ground or [probe_meta['runtime_actors'][0]['unique_id']])[0]
                             if probe_meta.get('ground_support_check',{}).get('policy')=='all-actors-observed-ground-v1'
                             and probe_meta.get('runtime_actors') else None)
+                        witness_key=(target_uid,gen.geo.load_json(manifest)['scenes'][0]['scenario_sha256'])
+                        if not budget.spend('witness',witness_key):break
                         terrain_deck=base/f'terrain_deck_{ordinal}';terrain_root=base/f'terrain_{ordinal}'
                         retry_deck=base/f'probed_deck_{ordinal}'
                         target=next((a for a in probe_meta.get('runtime_actors',[]) if a['unique_id']==target_uid),None)
@@ -324,6 +347,7 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                             reference=capture(probes,near_root,cell,'static_near_ground_reference')
                             if is_collision_failure(reference):result=reference;break
                             if reference['status']=='review' and reference['audit']['review_reasons']==['actor_annotation_above_ground']:
+                                if not budget.spend('height'):break
                                 next_manifest=prepared(retry_deck/'manifest.json',
                                     lambda:near_height_retry(manifest,current,near_root,retry_deck,target_uid))
                                 manifest=next_manifest
@@ -342,16 +366,19 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                             probes=prepared(terrain_deck/'manifest.json',lambda:empty_probe(manifest,[0],terrain_deck,target_uid=target_uid))
                             terrain_result=capture(probes,terrain_root,cell,'empty_terrain')
                             if is_collision_failure(terrain_result):result=terrain_result;break
+                            if not budget.spend('height'):break
                             next_manifest=prepared(retry_deck/'manifest.json',lambda:probed_retry(manifest,current,terrain_root,retry_deck))
                             kind='independent_ground_retry'
                     except ValueError as exc:
                         # Unsupported terrain is a quality deficit, not permission
                         # to waive the gate. Communication exceptions stay fatal.
                         attempts.append(dict(cell=cell,kind='ground_preparation_unavailable',error=str(exc)))
+                        if not budget.spend('replacement'):break
                         fallback_deck=base/f'fallback_deck_{ordinal}'
                         next_manifest=prepared(fallback_deck/'manifest.json',lambda:replacement(manifest,fallback_deck,require_ground_observable=True))
                         kind='same_cell_replacement'
                 else:
+                    if not budget.spend('replacement'):break
                     next_manifest=prepared(base/f'replacement_deck_{ordinal}'/'manifest.json',lambda:replacement(manifest,base/f'replacement_deck_{ordinal}',
                         require_ground_observable='actor_ground_plane_unverified' in reasons))
                     kind='same_cell_replacement'
@@ -360,7 +387,8 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                 result=capture(manifest,base/f'retry_{ordinal}',cell,kind)
             if result['status']=='accepted_candidate':
                 result['source_cell_id']=cell;selected.append(result)
-            else:unresolved.append(dict(cell=cell,reasons=result.get('audit',{}).get('review_reasons',[result.get('error','quality deficit')])))
+            else:unresolved.append(dict(cell=cell,reasons=result.get('audit',{}).get('review_reasons',[result.get('error','quality deficit')]),
+                static_quality_budget_reason=budget.reason,static_quality_work=budget.counts))
             save('running')
         save('complete');return 0
     except Exception as exc:save('halted',str(exc));print(str(exc),file=sys.stderr);return 1

@@ -48,6 +48,19 @@ def actor_position(objects, uid):
     return None
 
 
+def acquire_live_master_lock(master, directory=None):
+    """Different output folders must not concurrently control the same MR."""
+    import hashlib
+    directory=Path(directory) if directory is not None else Path.home()/'.cache/ajounice/base5'
+    directory.mkdir(parents=True,exist_ok=True)
+    key=hashlib.sha256(master.encode()).hexdigest()[:16]
+    handle=(directory/f'live_{key}.lock').open('a')
+    try:fcntl.flock(handle,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close();raise RuntimeError('Another Base5 runner controls this ROS master; no MR action permitted')
+    return handle
+
+
 def main():
     timing=StageTiming()
     p=argparse.ArgumentParser(description=__doc__)
@@ -115,6 +128,7 @@ def main():
     exit_record=args.output/'shutdown_safety.json'
     if exit_record.exists() and not json.loads(exit_record.read_text())['park_verified']:
         raise RuntimeError('Previous exit Park not verified; check MR and use a new output session')
+    live_master_lock=acquire_live_master_lock(os.environ.get('ROS_MASTER_URI','http://localhost:11311'))
     timing.mark('manifest_and_session_setup')
     import rospy
     from morai_msgs.msg import CtrlCmd,EgoVehicleStatus,ObjectStatusList,SaveSensorData,ScenarioLoad,CollisionData
@@ -565,6 +579,7 @@ def main():
             for f in owned:
                 if f.exists(): f.unlink()
             atomic_json(args.output/'timing.json',timing.snapshot())
+            live_master_lock.close()
 
 
 if __name__=='__main__': main()

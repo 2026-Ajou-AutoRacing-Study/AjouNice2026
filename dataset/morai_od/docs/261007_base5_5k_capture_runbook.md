@@ -8,12 +8,14 @@ E25 추론·temporal 학습·rosbag 녹화용 런북이 아니다.
 사용자 확인 Sunny 13시다. v108의 미시작 기록은 당시 사전 보고이며, 현재 수집 재시작 지시가 아니다.
 **기존 수집/resume 명령·manifest·output은 그대로 둔다. 아래 새 경로는 신규 수집용이다.**
 
-v112는 정적 미션122종 확장을 유지하고 동적 미션250셀 중 차량12셀을 보강한 새 버전이다.
+v113은 v112의122종/동적 미션 차량12셀을 유지하고 최종 객체 XY의 초기 높이를 보완한 새 버전이다.
 생성기 코드가 바뀌었으므로 구 v105/v109 output에는 새 코드로 resume하지 않는다.
 구 수집을 이어갈 때는 원래 commit `08bf6816`의 코드/manifest/output을 사용한다.
 구 v111 재개는 원래 commit `b0997088`을 사용한다.
-아래 명령은 새 v112 output 전용이며 대표 smoke 결과와 사용자 승인을 확인한 뒤 시작한다.
-대표9셀은7승인/2지면부족, 별도 근접2셀은2/2다. 부족분을 숨기거나 전체 자산 live 인증으로 해석하지 않는다.
+구 v112 재현은 원래 commit `c67f62c3`을 사용한다.
+아래 명령은 새 v113 output 전용이며 대표 smoke 결과와 사용자 승인을 확인한 뒤 시작한다.
+같은 위치 Dog2/정상 근접 보완과 혼합 raw 재검사는 통과했다. 새 frozen 대표4셀은3승인/1부족분이다.
+별도 Ego drift halt/roadside animated calibration 부족도 남는다. 부족분을 숨기거나 전체 자산 live 인증으로 해석하지 않는다.
 
 ## 터미널 순서
 
@@ -46,19 +48,20 @@ $HOME/AjouNice2026/configs/network/ego_network_mr_base5_savesensordata_collision
 UDP receiver, sensing, localization, BEVFusion, planning, control은 별도로 켜지 않는다.
 수집기가 정지 Ego·Park와 시나리오 주입을 관리한다.5K 파일을 MR GUI 폴더에 복사하지 않는다.
 필요한 소량 임시 파일만 설치/회수해 GUI 과부하를 막는다.
+다른 output의 수집기라도 같은 ROS master에 두 개를 동시에 실행하지 않는다. live lock이 차단한다.
 
 ### 터미널 3 — 승인 후 수집 / 같은 명령으로 재개
 
-새 manifest/runtime은 동적 미션 차량 소량 보강 v112다. 구 pilot output에 다른 계약으로 resume하지 않는다.
-이전 v107 소량표본의 전체5K 외삽은45.7h였으며 새 v112의 확정 ETA가 아니다.
+새 manifest/runtime은 최종 XY 높이 보완 v113이다. 구 pilot output에 다른 계약으로 resume하지 않는다.
+이전 v107 소량표본의 전체5K 외삽은45.7h였으며 새 v113의 확정 ETA가 아니다.
 정적 미션 자산 분포가 바뀌었고 동적 준비비용·부족분도 남는다. 실제 누적 속도를 사용한다.
 아래전체명령은사용자승인후에만실행한다. 현재자동으로시작하지않는다.
 
 ```bash
 ajou
 python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
-  --manifest "$HOME/morai_cap/base5_v2_261007/final_5k_dynamic_vehicle_v112_ready/manifest.json" \
-  --output "$HOME/morai_cap/base5_v2_261007/collection_5k_dynamic_vehicle_v112" \
+  --manifest "$HOME/morai_cap/base5_v2_261007/final_5k_final_xy_ground_v113_final/manifest.json" \
+  --output "$HOME/morai_cap/base5_v2_261007/collection_5k_final_xy_ground_v113" \
   --limit 5000 \
   --chunk-size 4 \
   --approve-bulk-capture \
@@ -75,7 +78,7 @@ python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
 ```bash
 ajou
 python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
-  --capture-root "$HOME/morai_cap/base5_v2_261007/collection_5k_dynamic_vehicle_v112" \
+  --capture-root "$HOME/morai_cap/base5_v2_261007/collection_5k_final_xy_ground_v113" \
   --port 8075
 ```
 
@@ -89,20 +92,24 @@ python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
 
 ```bash
 ajou
-touch "$HOME/morai_cap/base5_v2_261007/collection_5k_dynamic_vehicle_v112/PAUSE"
+touch "$HOME/morai_cap/base5_v2_261007/collection_5k_final_xy_ground_v113/PAUSE"
 ```
 
 paused 확인 후 PAUSE를 제거하고 터미널3과 동일한 명령으로 재개:
 
 ```bash
 ajou
-rm "$HOME/morai_cap/base5_v2_261007/collection_5k_dynamic_vehicle_v112/PAUSE"
+rm "$HOME/morai_cap/base5_v2_261007/collection_5k_final_xy_ground_v113/PAUSE"
 ```
 
 긴급 STOP은 해당 output의 `STOP` 파일이다. 종료 중 Park가 확인되기 전 다음 수집을 켜지 않는다.
 `halted`는 자동 resume하지 않는다. 로그·shutdown_safety를 확인하고 안전 복구 후 새 output이다.
 확인된 CollisionData 접촉은 부족분으로 분리하고 새 장면의 안전/Park가 확인된 경우만 진행한다.
 통신 단절·Park/pose 미확인은 전체 halt다. 정적 secondary 누락은 review이며 성공이 아니다.
+정적 QA child당 실측 높이 재촬영1회·배치 대체1회·같은 UID/payload의 근접 witness1회,
+총 witness 최대8회다. 반복 한도 초과는 deficit로 남기며 raw GT/ground gate를 완화하지 않는다.
+바깥 quota recovery는 기본2round라 전체 비용과 한 child 비용을 혼동하지 않는다.
+지도 roadside/unsupported를 지면 증거로 승격하거나 plane 미확인만으로 Z를 낮추지 않는다.
 
 complete_with_deficit의 resume은 검증 전용이며 새 촬영으로 부족분을 채우지 않는다.
 `deficit_manifest.json`을 확인해 같은 asset/family/distance/direction quota로 별도 보충 campaign을 만든다.
@@ -114,9 +121,9 @@ complete_with_deficit의 resume은 검증 전용이며 새 촬영으로 부족�
 ```bash
 ajou
 python3 dataset/morai_od/scripts/report_base5_final_coverage.py \
-  --manifest "$HOME/morai_cap/base5_v2_261007/final_5k_dynamic_vehicle_v112_ready/manifest.json" \
-  --ledger "$HOME/morai_cap/base5_v2_261007/collection_5k_dynamic_vehicle_v112/selected_ledger.jsonl" \
-  --output "$HOME/morai_cap/base5_v2_261007/collection_5k_dynamic_vehicle_v112/effective_coverage.json" \
+  --manifest "$HOME/morai_cap/base5_v2_261007/final_5k_final_xy_ground_v113_final/manifest.json" \
+  --ledger "$HOME/morai_cap/base5_v2_261007/collection_5k_final_xy_ground_v113/selected_ledger.jsonl" \
+  --output "$HOME/morai_cap/base5_v2_261007/collection_5k_final_xy_ground_v113/effective_coverage.json" \
   --require-effective-complete
 ```
 
@@ -129,8 +136,8 @@ raw Instance component GT는 보존하고, LiDAR≥1점 또는 실제 camera Ins
 ```bash
 ajou
 python3 dataset/morai_od/scripts/build_base5_bevfusion_infos.py \
-  --ledger "$HOME/morai_cap/base5_v2_261007/collection_5k_dynamic_vehicle_v112/selected_ledger.jsonl" \
-  --output "$HOME/morai_cap/base5_v2_261007/base5_5k_infos_dynamic_vehicle_v112" \
+  --ledger "$HOME/morai_cap/base5_v2_261007/collection_5k_final_xy_ground_v113/selected_ledger.jsonl" \
+  --output "$HOME/morai_cap/base5_v2_261007/base5_5k_infos_final_xy_ground_v113" \
   --sensor-config configs/sensors/Sensor_competition_local.json
 ```
 
@@ -146,8 +153,8 @@ Sunny13시와 다른 환경을 같은 output의 resume에 섞지 않는다. 나�
 ```bash
 ajou
 python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
-  --manifest "$HOME/morai_cap/base5_v2_261007/final_5k_dynamic_vehicle_v112_ready/manifest.json" \
-  --output "$HOME/morai_cap/base5_v2_261007/collection_static4171_dynamic_vehicle_v112" \
+  --manifest "$HOME/morai_cap/base5_v2_261007/final_5k_final_xy_ground_v113_final/manifest.json" \
+  --output "$HOME/morai_cap/base5_v2_261007/collection_static4171_final_xy_ground_v113" \
   --limit 4171 --chunk-size 4 --approve-bulk-capture --resume
 ```
 

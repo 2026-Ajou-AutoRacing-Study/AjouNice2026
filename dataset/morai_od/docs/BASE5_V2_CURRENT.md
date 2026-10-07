@@ -1,13 +1,55 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-07 / 동적 미션 차량 소량 보강 v112. Base5 생성·수집·변환의 현재 진입점이다.
+2026-10-07 / 최종 XY 기준 초기 높이 보완 v113. Base5 생성·수집·변환의 현재 진입점이다.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 5K 시나리오 생성·전수 검사와 대표 live/resume/CPU 검증은 완료했다.
 사용자가 현재 MR 기본값과 수집 환경을 Sunny 13시로 확인했다.
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
 
-## 동적 장애물 미션 차량 소량 보강 — v112
+## 최종 객체 XY 기준 초기 높이 — v113 우선
+
+일부 좌우/혼합 배치에서 XY를 옮기고도 이전 anchor Z를 사용하던 경로를 보완했다.
+정적/standing actor는 최종 XY에서 실제 MGeo 도로 선분 XYZ를 보간하고,
+그 link에 연결된 차선 경계가 있을 때만 횡경사를 보간한 뒤 자산 pivot 높이를 더한다.
+경로용 `lazy_init`/lane-change 가상 link 208개는 지면 근거에서 제외한다.
+전역 삼각분할·일괄 +Z 여유·raw cloud/annotation 보정은 하지 않는다.
+지도는 지형 mesh/collider가 아니며 roadside/unsupported의 실제 접지는 계속 검사한다.
+F2 저장 pivot의 동일 계산 방식 초기 후보는 81/122종이며 접지 인증 수가 아니다.
+
+새 동결 manifest:
+`~/morai_cap/base5_v2_261007/final_5k_final_xy_ground_v113_final/manifest.json`.
+SHA256 `86f2d7e7c8dd2c319623ecb8343ac203caa951c60049727f98b1594ab92bd758`.
+5000 unique / OFFLINE_PASS / 오류0, 122종 planned-primary 최소4, train4382/val618,
+정적4171/이동829를 유지했다. v112의 Ego/객체 XY·yaw·spec·split·이동 경로는 모두 보존했다.
+이동 actor 1271개는 변경하지 않았고 정적 actor 9371개 중7671개의 입력 Z가 바뀌었다.
+절대 변화 p50 약0.002cm/p95 7.763cm/최대1.207m다. 최대치는 roadside 추정이며 검증된 높이가 아니다.
+지도 confidence는 road strip2067/near centerline5187/roadside1138/unsupported979다.
+이 confidence를 센서 ground 검사 성공으로 사용하지 않는다.
+
+실제 동일 위치 Dog2 A/B: annotation 하단–지면 +31.274cm → −10.089cm,
+old review → new accepted, 입력 Z/실제 캡처를 바꿨으며 GT를 사후 이동시키지 않았다.
+정상 근접 Ped_Pet1/ElectricScooter2 old/new 모두 통과했다.
+혼합4actor는 원본1회 + Girl1 근접 witness1회 + 원본 raw 재검사로 통과(13.567초), 재촬영0이다.
+새 frozen 목록 대표4셀은3승인/1부족분(66.306초); 부족분은 근접 혼합의
+`static_ground_reference_pose_or_view_mismatch`이며 primary 자체 ground는 통과했다.
+별도 최초 Mixer scene은 캡처 전 `Stationary Ego drift exceeded`로 halt/Park됐고,
+최대높이변화 animated 혼합은 지형 witness 확보 불가로 부족분이다. 실패를 숨기지 않는다.
+CPU 승인분: 혼합1장 GT4(Obstacle3/Pedestrian1), frozen 차량3장 GT4, raw 보존.
+261 Base5 tests PASS. 완료 대표 campaign resume 추가촬영0/3승인1부족분 유지.
+
+정적 QA 비용 제한은 child quality-loop마다 measured-height 재촬영1회·배치 대체1회,
+지면 witness 최대8회이며 동일 UID+동일 scenario payload에는1회만 허용한다.
+8회는 actor 최대8개에 대한 상한이지 매 장면8회를 찍는다는 뜻이 아니다.
+실측 above-ground일 때만 높이 재촬영하며 증거 부족만으로 Z를 낮추지 않는다.
+한도 초과는 deficit로 보존한다. 바깥 quota campaign은 기존 최대2round이므로
+전체 비용 한도가 한 child 한도와 같다고 해석하지 않는다.
+서로 다른 output에서도 같은 ROS master를 동시에 제어할 수 없도록 live lock을 추가했다.
+원래 output에는 새 runtime으로 resume하지 않는다. v112 재현은 commit `c67f62c3`이다.
+본수집/학습은 시작하지 않았다. 5K 전체 live 인증·고정 ETA는 주장하지 않는다.
+세부 실험/실패 원인은 [초기 높이 근거](261007_base5_static_height_evidence.md#최종-xy-기준-보완--v113)를 따른다.
+
+## 동적 장애물 미션 차량 소량 보강 — v112 이력
 
 기존250개 동적 미션 슬롯 중 일반 사람12개를 차량12개로 교체한다.
 미션의4.8%,전체5K의0.24%이며 동물/반려동물 동반/유모차/탑승자/dummy 희귀 quota는 유지한다.

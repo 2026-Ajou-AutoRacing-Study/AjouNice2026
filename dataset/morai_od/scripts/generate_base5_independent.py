@@ -281,8 +281,10 @@ def context(runtime, mgeo):
         geometry=geometry_rows,geometry_sources=geometry_sources,template=geo.load_json(geo.DEFAULT_TEMPLATE),anchors={},
         mission_templates=mission_templates,crosswalks=geo.load_crosswalk_catalog(mgeo),
         sample_corridors=sample_highway_corridors(links),
+        lane_boundaries={r['idx']:r for r in geo.load_json(mgeo/'lane_boundary_set.json')} if (mgeo/'lane_boundary_set.json').exists() else {},
         static_height_reference_sources=dict(scenarios={f:geo.sha256(runtime/f) for f in documents},
-            map_link_sha256=geo.sha256(mgeo/'link_set.json')))
+            map_link_sha256=geo.sha256(mgeo/'link_set.json'),
+            map_boundary_sha256=geo.sha256(mgeo/'lane_boundary_set.json') if (mgeo/'lane_boundary_set.json').exists() else None))
 
 def anchor_bank(ctx,topology):
     if topology in ctx['anchors']: return ctx['anchors'][topology]
@@ -501,6 +503,8 @@ def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None):
 
 def build(row,config,ctx,attempt=0):
     row=copy.deepcopy(row)
+    from base5_map_surface import configure
+    ctx=configure(ctx,config.get('placement_ground'))
     if row.get('dynamic_mission_pool'):
         # Low-quota crossing observations use passenger/small vehicles. Large
         # buses/trucks cannot fit the existing 5–10m yielding observation cell.
@@ -750,15 +754,10 @@ def build(row,config,ctx,attempt=0):
             raise ValueError('Highway longitudinal sign differs from quota')
         uid=8500+i
         runtime_pose=dict(pose,**motion_path['points'][0]) if motion_path and motion_path['policy']=='natural-target-v1' else pose
-        height_initializer=None
+        height_initializer=None;ground_initializer=None
         if actor_motion in ('static','standing'):
-            from base5_static_height import saved_height_candidate
-            height_initializer=saved_height_candidate(asset,ctx)
-            if height_initializer['usable']:
-                # set_static_vehicle_actor adds its legacy .36m. Replace that
-                # initializer with the asset's saved pivot candidate, not twice.
-                legacy=.36 if asset['source_list']=='vehicleList' else 0.
-                runtime_pose=dict(runtime_pose,z=runtime_pose['z']+height_initializer['pivot_height_candidate_m']-legacy)
+            from base5_map_surface import initial_pose
+            runtime_pose,height_initializer,ground_initializer=initial_pose(runtime_pose,asset,size,off,ctx)
         set_pose(copy.deepcopy(asset['template']),runtime_pose,uid,asset,scene,actor_motion,motion_path)
         footprints.append(swept if motion_path is not None else box)
         actor_records.append(dict(unique_id=uid,data_id=asset['data_id'],name=asset['name'],
@@ -772,6 +771,7 @@ def build(row,config,ctx,attempt=0):
             training_class='animal' if asset.get('ontology_class')=='Animal' else 'component_annotation',
             runtime_mapping_verified=False if selected_pool in ('animal','pet_person','stroller','rider') else True))
         if height_initializer is not None:actor_records[-1]['static_height_initializer']=height_initializer
+        if ground_initializer is not None:actor_records[-1]['map_ground_initializer']=ground_initializer
         if actor_crossing:
             actor_records[-1]['mission_crossing_id']=actor_crossing['crosswalk_id']
         if not i: desired=actual

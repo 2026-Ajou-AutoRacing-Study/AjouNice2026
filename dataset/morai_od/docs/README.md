@@ -4,6 +4,12 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **v113 최종 XY 초기 높이:** XY 이동 뒤 이전 Z를 쓰던 정적 배치를 도로 선분/연결 경계
+  보간으로 보완했다. 가상 lane-change link 제외, 실제 Dog2 A/B 및 정상 근접 검증,
+  원본 재촬영 없는 ground witness 보강과 정적 QA 비용 제한을 적용했다.
+  새5K/남은 roadside·reference mismatch 및 실패 근거는
+  [CURRENT](BASE5_V2_CURRENT.md)와 [높이 EVIDENCE](261007_base5_static_height_evidence.md#최종-xy-기준-보완--v113)를 따른다.
+
 - **v112 동적 미션 차량 소량:** 250슬롯 중12개(4.8%)를 차량 진입/횡단 관측으로 보강했다.
   일반 사람 슬롯만 교체하고 희귀 복합/동물 quota를 유지한다. 차량은 도로 link 위 정지 캡처다.
   새5K와정적4171/이동829순서·대표검증·새output은 [CURRENT](BASE5_V2_CURRENT.md)를 따른다.
