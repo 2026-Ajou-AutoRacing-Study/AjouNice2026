@@ -2,7 +2,13 @@
 
 마지막 정리: 2026-10-07.
 
-- **v114 Ego 드리프트 우선:** 도로 밖 가상 회피 Ego 배치를 재현/A-B로 분리했다.
+- **v115 현재 정적 QA:** 추가 지면 확인용 이동/촬영 없이 원래 LiDAR만 검사한다.
+  증거 부족은 warning, 명확한40cm 초과 높이 오차는 제외한다. Ego 정지/충돌/GT/가시성은 유지하며
+  동적·calibration 경로는 완화하지 않는다. 실제40셀39승인·271.3초, 정적4171장 약8.1h 조건부 외삽이다.
+  [CURRENT](BASE5_V2_CURRENT.md), [실측 근거](261007_base5_static_height_evidence.md#정적-qa-경량화와-40장면-실측--v115)를 우선한다.
+  구 manifest/output resume 금지, 새5K manifest 준비가 다음이다.
+
+- **v114 Ego 드리프트 유지:** 도로 밖 가상 회피 Ego 배치를 재현/A-B로 분리했다.
   최종 footprint 도로 지지·회피 쌍 공동 이동·Park 뒤 실제 정지 witness가 현재 계약이다.
   구 v113 output resume 금지, 새 5K manifest 준비가 다음이다.
   [CURRENT](BASE5_V2_CURRENT.md), [Ego 근거](261007_base5_static_height_evidence.md#ego-드리프트-원인-분리와-보완--v114)를 먼저 읽는다.

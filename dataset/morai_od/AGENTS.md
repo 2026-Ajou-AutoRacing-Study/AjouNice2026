@@ -27,6 +27,12 @@
    구 v113 동결 manifest/output은 보존하되 현재 코드로 본수집/resume하지 않는다.
    v113 재현 revision은 `10578aa8`이다. 새 v114 5K manifest는 별도 준비해야 한다.
    MGeo roadside 추정을 Ego 도로 지지로 인증하거나 Park ACK만으로 정지를 인증하지 않는다.
+   v115가 정적 QA 실행 기준이다. `static-single-capture-advisory-v115` 명시+전actor static/standing이면
+   원래 LiDAR만 검사한다. plane 부족/중간 높이 오차는 warning, 신뢰 plane 대비±0.40m 초과는 review다.
+   정적 높이 확인용 empty/near witness·height recapture를 추가하지 않는다. raw/GT는 수정하지 않는다.
+   이동actor 또는 calibration_only는 기존 엄격한 경로 유지, Ego 정지/CollisionData/가시성/GT는 유지한다.
+   40셀39승인271.322초→정적4171장8.115h 조건부 외삽; 이동829 포함 전체5K ETA가 아니다.
+   구v113/v114 output resume 금지. v115 새전체5K manifest는 아직 준비 전이다.
 
 CURRENT/EVIDENCE/PLAN/HISTORICAL 상태를 구분한다. 현재 학습 전달본은
 `base3_online_highway_motion_v2`이며 nearest-state V1을 자동 선택하지 않는다.

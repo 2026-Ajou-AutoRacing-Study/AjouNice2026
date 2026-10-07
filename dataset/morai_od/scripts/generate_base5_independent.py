@@ -816,6 +816,8 @@ def build(row,config,ctx,attempt=0):
         meta['ground_support_check']=dict(enabled=True,max_range_m=20.,maximum_gap_m=.15,
             required_uids=[a['unique_id'] for a in actor_records],
             policy='all-actors-observed-ground-v1')
+        if config['capture'].get('static_ground_policy'):
+            meta['ground_support_check']['static_policy']=config['capture']['static_ground_policy']
     if avoidance_ref:
         avoidance_ref['origin']=row.get('avoidance_origin','mission_static_avoidance')
         avoidance_ref['actual_surface_gap_m']=actor_records[0]['planned_surface_clearance_m']

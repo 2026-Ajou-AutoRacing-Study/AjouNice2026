@@ -17,6 +17,7 @@ from prepare_base5_setup_budget_pilot import prepare as budget_retry
 import base5_motion_ground as motion_ground
 from prepare_base5_static_height_reference import prepare as static_height_reference
 from base5_static_ground_reference import prepare as static_reference_retry,reaudit_original,COMPOSITE_ANCHORS
+from base5_static_ground_policy import lightweight_static
 
 
 def arrival_retry_eligible(result,manifest):
@@ -319,6 +320,18 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                 if result['status']=='accepted_candidate':break
                 reasons=set(result.get('audit',{}).get('review_reasons',[]))
                 if is_collision_failure(result):break
+                current_meta=gen.geo.load_json(Path(gen.geo.load_json(manifest)['scenes'][0]['metadata']))
+                if lightweight_static(current_meta):
+                    # No terrain witnesses / height recaptures / Ego relocation
+                    # solely to verify static ground. A severe gap remains deficit;
+                    # the outer campaign may make one same-quota replacement.
+                    if any(r.startswith('static_ground_') for r in reasons):break
+                    if not budget.spend('replacement'):break
+                    next_manifest=prepared(base/f'replacement_deck_{ordinal}'/'manifest.json',
+                        lambda:replacement(manifest,base/f'replacement_deck_{ordinal}'))
+                    manifest=next_manifest
+                    result=capture(manifest,base/f'retry_{ordinal}',cell,'same_cell_replacement')
+                    continue
                 current=Path(attempts[-1]['capture_root'])
                 local_height=any(a.get('reason')=='actor_annotation_above_ground' and a.get('plane')
                     for a in result.get('audit',{}).get('ground_support',{}).get('actors',[]))

@@ -131,24 +131,30 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     reasons=[]
     ground=None
     ground_config=metadata.get('ground_support_check',{})
+    from base5_static_ground_policy import lightweight_static, static_decision
+    light_static=lightweight_static(metadata)
     if ground_config.get('enabled'):
         if metadata.get('lidar_to_ego') is None:reasons.append('ground_probe_missing_calibration')
         else:
             from base5_ground_support import ground_review
             ground=ground_review(points[:,:3],boxes,metadata['lidar_to_ego'],
                 ground_config.get('max_range_m',20.),ground_config.get('maximum_gap_m',.15),
-                references=metadata.get('ground_probe_references'),runtime_ego=metadata.get('capture_runtime_ego'),
+                references=None if light_static else metadata.get('ground_probe_references'),runtime_ego=metadata.get('capture_runtime_ego'),
                 required_uids=ground_config.get('required_uids'))
-            if metadata.get('static_ground_references'):
+            if metadata.get('static_ground_references') and not light_static:
                 from base5_static_ground_reference import apply_reference,ReferenceQualityError
                 try:apply_reference(ground,boxes,root,metadata)
                 except ReferenceQualityError as exc:
                     ground['static_reference_quality_error']=str(exc)
                     reasons.append('static_ground_reference_pose_or_view_mismatch')
-            reasons.extend(ground['review_reasons'])
-            from base5_ground_support import height_response_review
-            ground['height_response']=height_response_review(ground,metadata)
-            reasons.extend(ground['height_response']['review_reasons'])
+            if light_static:
+                ground['static_policy_decision']=static_decision(ground)
+                reasons.extend(ground['static_policy_decision']['review_reasons'])
+            else:
+                reasons.extend(ground['review_reasons'])
+                from base5_ground_support import height_response_review
+                ground['height_response']=height_response_review(ground,metadata)
+                reasons.extend(ground['height_response']['review_reasons'])
     live=metadata.get('capture_safety')
     if live is not None:
         if not live.get('collision',{}).get('observed'):reasons.append('collision_history_incomplete')
@@ -197,6 +203,7 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     population_visibility=visibility_summary(metadata['runtime_actors'],results)
     reasons.extend(visibility_review(metadata,population_visibility))
     result=dict(components=results,missing_uids=missing,raw_complete=True,ground_support=ground,
+        ground_warnings=(ground or {}).get('static_policy_decision',{}).get('warnings',[]),
         population_visibility=population_visibility,
         zero_xyz_returns_excluded_from_audit=zero_returns,valid_lidar_return_count=len(points),
         actual_annotation_clearances=clearances,

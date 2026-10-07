@@ -25,7 +25,7 @@ def contract(source, indices, rounds):
            'generate_base5_independent.py','prepare_base5_ground_retry.py',
            'prepare_base5_empty_ground_probe.py','prepare_base5_probed_retry.py',
            'run_base5_capture.py','base5_capture_safety.py','base5_capture_audit.py',
-           'base5_ground_support.py','base5_ground_probe.py','base5_capture_timing.py','base5_event_cmd.py']
+           'base5_ground_support.py','base5_static_ground_policy.py','base5_ground_probe.py','base5_capture_timing.py','base5_event_cmd.py']
     names.extend(['prepare_base5_setup_budget_pilot.py','base5_motion_ground.py','base5_static_height.py',
         'base5_static_ground_reference.py','prepare_base5_static_height_reference.py','base5_population_budget.py',
         'base5_avoidance_geometry.py','base5_vehicle_close.py','base5_map_surface.py'])

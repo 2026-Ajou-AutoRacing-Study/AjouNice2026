@@ -4,9 +4,15 @@
 본수집은 사용자 승인 후 진행하며, 이미 진행 중인 수집은 기존 명령으로 이어간다.
 E25 추론·temporal 학습·rosbag 녹화용 런북이 아니다.
 
-**v114 우선:** Ego 도로 지지/정지 gate와 세션 계약v7을 적용했다.
+**v115 우선:** 정적은 원래 LiDAR만 지면 검사하며 plane 부족/중간 높이 오차는 warning으로 보존한다.
+신뢰 plane의±40cm 초과 높이 오차는 review다. 정적 지면 확인용 추가 이동/촬영/높이 재촬영은 하지 않는다.
+이동/calibration은 기존 strict ground/Z 경로이며 Ego·충돌·GT/가시성은 유지한다.
+고정40셀 실측39승인/1부족분·271.322초, 정적4171장 약8.1h(여유8–10h) 조건부 예상이다.
+이동829장 비용은 포함하지 않는다. [현재 계약](BASE5_V2_CURRENT.md)의 v115를 먼저 읽는다.
+
+**v114 유지:** Ego 도로 지지/정지 gate와 세션 계약v7을 적용했다.
 현재 코드로 아래 v113 manifest/output을 사용해 새 본수집하거나 resume하지 않는다.
-v113 이력 재현은 commit `10578aa8`이다. 새 v114 5K manifest/output은 아직 미생성이다.
+v113 이력 재현은 commit `10578aa8`이다. 새 v115 5K manifest/output은 아직 미생성이다.
 통신 순서는 그대로이며 다음으로 새 manifest를 만들고 이 문서의 본수집 명령을 교체한다.
 Park 응답 뒤 실제 XY/Z 안정·수평/수직 속도 witness0.3초를 확인하며 최대4초를 넘으면 halt한다.
 `waiting_stationary_ego`는 대시보드의 정상 검증 단계다. 임의로 gate를 끄지 않는다.

@@ -367,6 +367,7 @@
     "asset_appearance_policy": true,
     "generic_max_animated_actors": 2,
     "ground_support_check": true,
+    "static_ground_policy": "static-single-capture-advisory-v115",
     "one_way_setup_budget_sec": 6,
     "one_way_appearance_profile": true
   },

@@ -2,6 +2,11 @@
 
 ## 결론
 
+Base3/Base4의 과거 접지 문제를 다시 확인한 결과는 아래
+[역사 비교](#base3base4-높이-역사-비교와-현재-mr-재현)에 기록했다.
+Base3에도 일부 정지 보행자의 높이 변화/접지 오차가 있었으며, 과거 성공률을 접지 인증으로
+해석하지 않는다. CargoBox/차량의 높이 수렴을 모든 자산의 자동 낙하로 일반화하지 않는다.
+
 현재 구현/판정은 아래 **v113 최종 XY 보완**이 우선한다. 그 위의 v60–v66 내용은
 당시 근거와 해석 변경 이력이며 현재 후보 수/원거리 QA 계약과 혼동하지 않는다.
 
@@ -248,3 +253,184 @@ Localization/EKF 오차를 원인으로 판단하지 않는다. 이번 실험은
 actor 가시성/ground witness 부족은 별도 과제이고, 움직이는 경로는 독립 ground preparation이 필요하다.
 기존v113 raw/manifest/실패를 보존했다.5K 본수집/학습/GPU 모델 실행은 하지 않았다.
 다음은 v114 새5K manifest/output 재생성·전수 검사와 소량 회귀 후 본수집 승인이다.
+
+## Base3/Base4 높이 역사 비교와 현재 MR 재현
+
+### 조사 범위와 과거 구현
+
+2026-10-07 사용자가 과거에도 지면/낙하 문제가 있었는지 확인을 요청했다.
+과거 raw/시나리오/metadata를 읽고 현재 MR에 소량 재현했다. 모델 추론/학습/본수집은 하지 않았다.
+과거 Base3는 MRP 수집이고 이번 재현은 현재 MR이므로 같은 런처 버전의 복제라고 해석하지 않는다.
+
+- Base3 E25 기반은 `260829_034057_base3_static_10k`의 3장 rolling-grouped 수집이다.
+  앞선 8프레임 temporal 설계와 혼동하지 않는다. Ego는 MGeo 경로 위에서 움직였으며,
+  객체는 주로 검증된 Vehicle43/Pedestrian22/Obstacle10종이었다.
+- 당시 코드 `a6358cc2`에도 static stability gate가 있었다. 로드 후 기본2초를 기다리고
+  0.5초 동안 Object_topic의 **3D 이동10cm**를 검사했다. 생성 pose와 Z 차이는3m까지 허용했다.
+  이는 낙하/밀림 감지이지, 정지한 공중 객체나 잘못된 지면 높이의 검증이 아니다.
+- 같은 revision의 `obstacle_local_to_world`는 actor XY를 옮기면서 Z는 `center.z+0.03`으로
+  유지했다. 정지 보행자도 이 경로를 사용했다. 차량은 기존 road Z+0.36, Ego는+0.34였다.
+  최종 actor XY의 지면 재산정/자산별 pivot/독립 LiDAR ground 검사는 없었다.
+- Base4는 주로 고주로 차선 위 moving Vehicle과 Ego였다. 도로 link/spawn 경로를 사용했고,
+  Ego 전진 제어/초기속도/횡편차 검증이 중심이었다. Base5 신규 동물/복합/근접 정적 배치까지
+  검증한 파이프라인이 아니다. 과거 캡처 성공을 전 자산 접지 인증으로 재사용하지 않는다.
+
+### 과거 저장본에서 실제 확인한 내용
+
+Base3 primary batch001–007의 저장 metadata3322클립/9966프레임을 검사했다.
+최종 replacement/보강까지 합친10902장 전체의 불량률 조사는 아니다.
+
+| 대상 | 관측한 actor track | 캡처 구간 Z span 최대 | Z span>10cm |
+| --- | ---: | ---: | ---: |
+| Base3 정지 Vehicle |2756|0.00000763m|0|
+| Base3 정지 Pedestrian |1957|0.236006m|50(47scene)|
+| Base3 정지 Obstacle |5427|0m|0|
+| Base4 hwy3h1 moving Vehicle |583|0.051693m|0|
+
+Base4는583시퀀스/9328프레임이며 Ego Z span 최대7.18cm였다. 움직이는 차의 Z 변화에는
+지형/서스펜션이 포함된다. 이 결과는 **캡처 중 큰 Z 점프가 없었다**는 근거일 뿐,
+로드 직후 낙하나 일정 높이로 부유한 모든 자산이 없었다는 증명은 아니다.
+
+- Base3 `b3sfinal10prodb004p_dsp006`, worker_f_1 UID2002:
+  Z28.554403→28.554403→28.318398m, XY 변화 약6.6mm다.
+  원본 Instance/point로 측정한 하단–지면 gap은 frame1 +3.64cm→frame2 −19.67cm였다.
+  `/Object_topic` 표시만 바뀐 가능성으로 끝내지 않고 실제 센서 annotation 변화도 확인했다.
+  정확한 simulator 내부 전환 기전/중력 낙하 여부는 확정하지 않았다.
+- Base3 `b3sfinal10prodb003p_dsp026`, Woman5 UID2004:
+  Z가19.58cm 낮아졌고 raw ground gap은 약−0.49→−21.07cm였다.
+- 각 positive family에서 결정적으로12장씩 뽑은36장 ground audit:
+  actor141개 중91개검증/10개plane부족/38개20m외/2개상향gap후보다.
+  worker_m_1 +18.14cm, worker_f_1 +19.61cm였다. 표본이며 전체 유병률/mesh contact 인증은 아니다.
+- 기존 최종 audit에 기록된 TrafficBarrel 제외 scene
+  `replacement_v1/b3sfinal10prodb003p_dso106`은 XYZ를 재확인했다.
+  XY 첫→끝 약2.47m, Z span3.36cm와 큰 yaw 회전이었다.
+  **이 사례를 큰 수직 낙하로 설명하면 안 된다.** pre-capture 통과 후에도 이동한 사례다.
+
+### 현재 MR 소량 실제 로드/동기 캡처
+
+Base3 원본 full Cargo/Ped/Vehicle3조건, 같은 primary를 분리한
+입력 Z 0/+0.50/−0.20m9조건, 과거 worker 문제 원본1조건, Base4 r10 원본1조건,
+worker 근접 final-XY Z A/B2조건: **완료16조건/실제 동기 캡처13장**이다.
+기존 network sidecar/구 제어기를 실행하지 않고 현재7-interface profile과 brake/Park을 썼다.
+Ego는 정지 관찰했으므로 옛 rolling Ego 주행 전체를 재수집한 것이 아니다.
+완료조건 모두 Ego정지/no non-Ego CollisionData, 각 세션 종료 safe pose/Park 확인이다.
+
+| 조건 | 현재 MR 결과 |
+| --- | --- |
+| CargoBox 입력Z 0/+50/−20cm | 동일 runtime Z약28.53651m로 수렴. 실제 ground gap각+1.60cm 수준 |
+| 정지 Universe 입력Z 0/+50/−20cm | 동일 runtime Z약29.06342m로 수렴. 후륜 기준 높이이며30m밖 ground contact 인증은 아님 |
+| 정지 Boy1 입력Z 0/+50/−20cm | 입력Z 차이를 그대로 유지. 실제 ground gap+7.79/+57.81/−12.21cm |
+| 과거 worker_f_1 문제 위치 | 원본 입력Z28.31840m를 유지. 오래 기다려도 최종XY 지면으로 자동 교정되지 않음 |
+| Base4 r10 spawn vehicle | GV80 실제 이동 약76.8m, 관찰 Z span6.45cm. 원거리 annotation 지면 판정은 미인증 |
+
+Boy1 +50cm는 카메라에서도 떠 있는 모습/분리된 그림자를 확인했다.
+CargoBox/차량은 입력Z가 달라도 같은 높이로 수렴했지만 첫 fresh telemetry가 이미 수렴 뒤였다.
+그 과정이 매번 자유낙하인지, 로드 시 지면 snap/물리 안정화인지는 이 실험만으로 구별하지 않는다.
+몇 조건에서 수렴한 것을 **전 자산에 일괄 +Z 배치하면 안전하게 떨어진다**는 규칙으로 쓰지 않는다.
+
+worker_f_1 원본 입력Z28.31840m, 최종XY의 동일 MGeo 높이28.54002m로 약22.16cm 차이가 있었다.
+과거 metadata의 MGeo link SHA256와 현재 파일은 동일했다(`f141f5a0…`).
+같은 actor XY/yaw를 유지하고 도로 위 근접 Ego에서 final-XY map+3cm 진단 A/B를 수행했다.
+입력Z28.31840→28.57002m, 실제 annotation-ground gap −15.51→+9.63cm였다.
+**정확한0cm 접지 완료가 아니다.** uniform anchor-Z의 오차와 최종XY 보완의 유용성을 보여주며,
+자산 pivot/실측 QA가 여전히 필요하다. 이 진단의+3cm를 Base5 공통 offset으로 적용하지 않았다.
+
+첫 probe는 Cargo −20cm 조건의 Park 서비스 `handler returned None`에서 중단/안전 복귀했다.
+새 output의 bounded Park retry와 실제 정지 확인으로 나머지를 재검증했다. 준비 코드의
+route arc key 오류1회도 실제 로드 전에 중단했고 새 output으로 수정 검증했다.
+실패/부분 output을 완료16조건에 포함하지 않았고 기존 실패 근거를 덮어쓰지 않았다.
+
+### Base5에 대한 판단 / 다음
+
+1. Base3도 일부 높이 변화/접지 오차를 놓쳤다. 이전 성공률99.64%는 접지 정확도 수치가 아니다.
+2. Base4 고주로 moving Vehicle에서 동일한 큰 Z 점프는 이번 역사 표본에서 확인되지 않았다.
+   자산/지형/경로가 좁고 도로 추종 차량이라 Base5 전체에 일반화하지 않는다.
+3. 현재 v113 최종XY 지면+자산별 초기 pivot, v114 Ego road footprint/실제 정지,
+   캡처 후 raw ground 검사/실패 보존을 유지한다. 구 기준점 Z 복사 방식으로 되돌리지 않는다.
+4. 긴 일괄 대기나 모든 자산 자동 낙하에 의존하지 않는다. 실제 Z 안정과 실제 지면 접지는 별개다.
+   이 조사로 production/허용 threshold/raw GT를 변경하지 않았다.
+5. 다음은 계획대로 새 v114 5K manifest/전수 audit와 소량 정적 회귀다.
+   이번 역사 비교만으로5K 본수집 승인을 대신하지 않는다.
+
+Git 비추적 근거는 `~/morai_cap/base5_v2_261007/ego_drift_v114/` 아래
+`legacy_history_audit`(summary/track/원본raw경로), `legacy_live_comparison`,
+`legacy_live_comparison_retry`, `legacy_worker_final_xy_ab_retry`(입력scenario/telemetry/raw)다.
+`audit_legacy_height.py`, `probe_legacy_height.py`를 함께 보존했다.
+실험 시나리오/EgoNetwork sidecar는 자체 임시 prefix만 제거하고 원래 파일은 변경하지 않았다.
+
+## 정적 QA 경량화와 40장면 실측 — v115
+
+2026-10-07 실측, 10-08 정리. 사용자가 정적 QA 추가 비용 완화를 승인했다.
+정적 높이 초기값은 v113 최종XY 지면+자산 pivot, Ego road footprint/실제 정지는 v114를 유지한다.
+
+### 변경 범위
+
+- `static-single-capture-advisory-v115` 명시, 전actor static/standing인 실제 학습 후보에만 적용한다.
+  이동actor가 하나라도 있거나 calibration_only이면 기존 독립 terrain/static reference/Z gate를 유지한다.
+- 첫 raw LiDAR의 ground plane/annotation 최저 corner를 그대로 검사한다.
+  plane 미확인·중간 gap은 warning이며 verified=false 원래 근거를 보존한다.
+  reliable local plane 대비 gap>+0.40m 또는<−0.40m은 severe review다.
+  40cm는 보수적인 심각 오류 선별 정책이며 mesh 접지 정확도/충돌 마진이라는 뜻이 아니다.
+- 정적 height QA를 위한 near/empty witness, 입력Z 재촬영, Ego 이동을 하지 않는다.
+  severe 실패는 deficit로 남기고 outer bounded same-quota replacement만 가능하다.
+  가시성 등 다른 실패의 bounded 배치 대체는 유지한다.
+- Ego 정지/Park·CollisionData·GT 누락·parent/component/visibility·checksum/resume 계약은 유지한다.
+  raw 센서/annotation을 옮기거나 잘못된 GT를 사후 수정하지 않았다.
+  새 모듈의 SHA를 session/campaign 계약에 포함하므로 구output에 새runtime resume은 거부된다.
+
+### 고정 표본과 실제 결과
+
+신규 `prepare_base5_static_cost_pilot.py`가 결과를 보기 전에 seed261007115로 family별40셀을 뽑았다.
+기존 v113 frozen 목록의 spec/quota/primary 자산을 현재 생성기로 재구성하고 새manifest/output을 사용했다.
+기존10개 정상 표본과 동일 payload의 엄밀한 비용 A/B는 아니다.
+
+| 정적 family | 시도 셀 | 최종 승인 |
+|---|---:|---:|
+| 고주로 | 14 | 13 |
+| 로터리 | 4 | 4 |
+| 기타 차량 | 1 | 1 |
+| 실체 장애물 | 14 | 14 |
+| 보행자 관련 | 4 | 4 |
+| 빈 배경 | 3 | 3 |
+| 합계 | 40 | 39 |
+
+front18/rear13/left6/right3, 미션16/범용24, 80–99m2셀과 근접0.2–0.3m 미션/0.3–0.5m 범용을 포함했다.
+actor0/1/2/3/5개=3/14/11/9/3셀이다. 7–8개 밀집 전수검증 표본은 아니다.
+40unique/OFFLINE_PASS/오류0. 최종39승인/1부족분, 실제43촬영(재배치3회), parent wall271.322초.
+부족분은 `zzb5v115cost_00359` 고주로 후방6–10m 혼합의 `population_visible_actor_deficit`다.
+보조 객체의 실제 가시성이 충분하지 않아 bounded same-quota 대체 뒤에도 제외했다.
+정적 지면용 추가촬영0, calibration/이동촬영0, 안전 미확인 session0, 충돌 성공처리0이다.
+plane 미확인 warning36건은 actor×capture 누적이며 장면 수/부유 객체 수가 아니다.
+기존 MR Boy1 입력Z+50cm의 실제 gap+57.812cm 원본 ground 근거에 정책을 적용하면 severe review다.
+정상+7.790cm/−12.211cm 결과는 유지하며 역사 raw/ledger를 바꾸거나 새dataset으로 승격하지 않았다.
+Park handler None2회는 기존 bounded 재요청으로 해결됐고 종료Park/실제 정지를 모두 확인했다.
+
+### 시간과 한계
+
+- 실패·재배치·child 준비/종료·부모 orchestration까지 포함한 승인당6.957초다.
+  실제 capture-row duration p50 5.132초/p95 6.821초는 all-in 승인당 시간과 다른 값이다.
+- family별 실패 비용과 parent overhead를 포함한 정적4171장 가중 예상8.115h, 단순8.060h다.
+  여유를 포함한 운영 예상은 약8–10h로 두고 실제 본수집 누적rate로 갱신한다.
+  참고로 같은 평균의 정적5000장만 가정하면 약9.66h지만 현재5K는4171정적+829이동이다.
+- 구v107 정적10셀 표본13.4076h보다 약5.3h 짧은 외삽이다.
+  배치/표본/계약이 달라 정책만의 인과적인40% 절감이라고 단정하지 않는다.
+  움직이는829셀의 독립 지면 준비 비용은 이번에 재측정하지 않았다.
+- stage 누적: pose confirmation74.294초, control readiness77.116초,
+  Ego 실제 정지15.320초, 센서 write/stability44.781초, provenance+sensor audit2.988초다.
+  core audit는 실제43캡처당 평균약0.070초이고 ground만의 독립 측정값은 아니다.
+  여전히 시나리오 pose/제어 준비와 센서 저장 대기가 주 비용이다. QA 계산 자체가 주 병목은 아니다.
+
+### 변환·resume·회귀
+
+완료resume 뒤 센서935파일의 hash/inode/mtime·selected SHA·누적wall271.322초·quota가 불변이다.
+추가촬영0. selected SHA=`c4b3e3f78c69266d8bf45fa3ed190375c40c007d4a285fd15fe065c31dcf69d6`.
+CPU 변환39장(train32/val7/test0), Vehicle37/Pedestrian9/Obstacle22/Animal4=72GT,
+sensor-evidence 부족 Obstacle component4개만 제외하고 raw는 보존했다.
+Base5 단위검사272개PASS(57.664초). 정적 경고/심각오류·mixed/calibration strict·안전근거 유지·
+심각 static review에서 ground probe/Popen0회·실패포함 비용/중복resume row 제외를 검사했다.
+
+Git 비추적 근거: `~/morai_cap/base5_v2_261007/static_light_v115/`의
+`pilot40_scenarios/manifest.json`, `pilot40_offline_audit.json`, `collection40/`,
+`static_cost.json`, `legacy_static_severity_regression.json`, `complete_resume_verification.json`, `pilot40_infos/`.
+본5K 수집/학습·production/threshold·planning/control/localization 변경은 없다.
+다음은 새v115 전체5K manifest/전수검사 및 사용자 본수집 승인이다.

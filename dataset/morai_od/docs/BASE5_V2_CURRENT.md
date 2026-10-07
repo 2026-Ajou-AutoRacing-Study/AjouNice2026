@@ -1,14 +1,45 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-07 / Ego 드리프트 보완 v114. Base5 생성·수집·변환의 현재 진입점이다.
+2026-10-07 / 정적 single-capture QA v115. Base5 생성·수집·변환의 현재 진입점이다.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보존한다.
-현재 v114 코드로 본수집하려면 새 5K manifest/output이 필요하다. 구 v113 명령을 그대로 실행하지 않는다.
+현재 v115 코드로 본수집하려면 새 5K manifest/output이 필요하다. 구 v113 명령을 그대로 실행하지 않는다.
 사용자가 현재 MR 기본값과 수집 환경을 Sunny 13시로 확인했다.
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
 
-## Ego 도로 지지와 실제 정지 — v114 우선
+## 정적 지면 QA 경량화와 실제 비용 — v115 우선
+
+사용자 승인에 따라 정적 장면은 이미 취득한 LiDAR의 local ground 검사만 사용한다.
+`static-single-capture-advisory-v115`가 명시된 장면에만 적용하며, 모든 actor가 static/standing이어야 한다.
+plane 미확인·중간 정도 annotation 높이 오차는 warning으로 보존한다. 접지 인증으로 표시하지 않는다.
+신뢰할 수 있는 local plane 대비 annotation 하단이 +0.40m 초과/−0.40m 미만이면 review다.
+정적 지면 확인만을 위한 Ego 근접 이동·empty terrain·높이 재촬영은 하지 않는다.
+심각한 높이 실패는 부족분/기존 bounded same-quota replacement로 처리한다.
+가시성·GT 누락·Ego 최종 road footprint/정지·CollisionData·raw/provenance 계약은 유지한다.
+하나라도 이동 actor가 있거나 calibration_only이면 기존 엄격한 독립 ground/Z 경로를 유지한다.
+원본 센서/GT는 변경하지 않고 core ground 결과와 warning/최종 review를 따로 저장한다.
+
+고정seed261007115의 family-stratified 신규40장면: 39승인/1부족분,
+실제43촬영(재배치3회 포함), parent wall271.322초, 승인당6.957초.
+부족분은 고주로 후방6–10m 혼합의 `population_visible_actor_deficit`이며 실패를 성공으로 세지 않았다.
+정적 ground 추가촬영0, 이동/terrain calibration 촬영0, 안전 미확인 session0이다.
+plane 미확인36건은 actor×capture warning 수이며 36장 또는 부유36건이라는 뜻이 아니다.
+기존 실제 Boy1 부유+57.812cm 근거는 새 정책에서도 severe review로 남았다.
+완료resume: sensor935파일의 hash/inode/mtime·선택ledger·누적wall 불변, 추가촬영0.
+CPU 변환39장(train32/val7), Vehicle37/Pedestrian9/Obstacle22/Animal4=72GT; raw 보존.
+Base5 단위검사272개PASS다. production 모델/추론/threshold·planning/control/localization은 미변경이다.
+
+정적4171장 조건부 외삽은 family 가중8.115h(단순8.060h)다.
+이전 v107 정적10장 표본의13.4h보다 짧지만 표본/생성기/QA 계약이 다르므로 순수 인과 A/B 개선율은 아니다.
+운영 예상은 여유 포함 약8–10h로 보며 실제 bulk 누적rate로 갱신한다. 시간 보장이 아니다.
+이 값은 이동829장을 포함한 전체5K 시간이 아니다. 동적 준비비용은 이번에 새로 측정하지 않았다.
+근거: `~/morai_cap/base5_v2_261007/static_light_v115/`의 `static_cost.json`,
+`pilot40_offline_audit.json`, `complete_resume_verification.json`, `collection40/`.
+[세부 근거](261007_base5_static_height_evidence.md#정적-qa-경량화와-40장면-실측--v115).
+다음은 새 v115 전체5K manifest/전수 audit 준비 및 사용자 본수집 승인이다. 본수집/학습은 미시작이다.
+
+## Ego 도로 지지와 실제 정지 — v114 유지
 
 기존 `b5v2_01502`(manifest index1258)의 실패를 재현했다. 큰 회피 객체의 가상 우회 시점에서
 Ego가 도로 anchor 기준 옆으로 약7.8m 이동했지만 원래 anchor의 Z/link를 계속 사용했다.
@@ -36,7 +67,7 @@ Ego가 도로 anchor 기준 옆으로 약7.8m 이동했지만 원래 anchor의 Z
 새 5K 동결 manifest를 생성한 결과나 전체 지형/가시성 live 인증은 아니다.
 실제 A/B·수정본 캡처·한계는
 [Ego 드리프트 근거](261007_base5_static_height_evidence.md#ego-드리프트-원인-분리와-보완--v114)를 따른다.
-다음은 새 5K manifest 재생성/전수 검사다. 본수집·학습은 이번 작업에서 시작하지 않았다.
+다음 실행 기준은 위 v115다. 본수집·학습은 이번 작업에서 시작하지 않았다.
 
 ## 최종 객체 XY 기준 초기 높이 — v113 이력
 
