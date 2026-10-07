@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from base5_capture_safety import atomic_json,sha256
-from prepare_base5_ground_retry import prepare_from_near
+from prepare_base5_ground_retry import prepare_from_near,parked_source_row
 
 
 class NearHeightTest(unittest.TestCase):
@@ -47,6 +47,18 @@ class NearHeightTest(unittest.TestCase):
             data=json.loads(path.read_text());data['objects_before']['pedestrian_list'][0]['position']['x']+=.1;atomic_json(path,data)
             with self.assertRaisesRegex(ValueError,'position changed'):
                 prepare_from_near(source,root/'old',root/'near',root/'out',1)
+
+    def test_qa_uses_real_source_park_not_qa_shutdown(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);self.fixture(root);qa=root/'qa';qa.mkdir()
+            atomic_json(qa/'metadata.json',dict(static_ground_reaudit=dict(source_capture_root=str(root/'old/capture'))))
+            old=json.loads((root/'old/ledger.jsonl').read_text())
+            atomic_json(qa/'reaudit_result.json',old)
+            with patch('base5_static_ground_reference.validate_reaudit_output',return_value=old) as validate:
+                self.assertEqual(parked_source_row(qa),old);validate.assert_called_once_with(qa)
+                atomic_json(root/'old/shutdown_safety.json',dict(park_verified=False))
+                with self.assertRaisesRegex(RuntimeError,'Park unverified'):parked_source_row(qa)
 
 
 if __name__=='__main__':unittest.main()

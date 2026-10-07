@@ -238,7 +238,9 @@ def reaudit_original(row,manifest,output):
         dest=output/relative;dest.parent.mkdir(parents=True,exist_ok=True)
         os.link(p,dest)
     from base5_capture_audit import audit_capture
-    audit=audit_capture(output,metadata)
+    # Ground hull coordinates may be tuples in memory but lists on disk.
+    # Return the same canonical JSON value that the next chained QA verifies.
+    audit=json.loads(json.dumps(audit_capture(output,metadata)))
     atomic_json(output/'metadata.json',metadata);atomic_json(output/'audit.json',audit)
     result=copy.deepcopy(row);result.update(id=entry['id'],capture_root=str(output.resolve()),audit=audit,
         status='accepted_candidate' if not audit['review_reasons'] else 'review',reused_sensor_capture=True,

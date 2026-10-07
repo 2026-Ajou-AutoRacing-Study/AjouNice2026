@@ -73,6 +73,27 @@ def prepare(manifest_path,captures,output):
     return output/'manifest.json'
 
 
+def parked_source_row(root):
+    """QA views carry proofs, not fictional ROS shutdown/session files."""
+    from base5_static_ground_reference import validate_reaudit_output
+    root=Path(root)
+    if (root/'reaudit_result.json').exists():
+        row=validate_reaudit_output(root)
+        source=Path(gen.geo.load_json(root/'metadata.json')['static_ground_reaudit']['source_capture_root'])
+        original=parked_source_row(source)
+        if row['scenario_sha256']!=original['scenario_sha256']:
+            raise RuntimeError('Near height QA source scenario changed')
+        return row
+    session=root if (root/'ledger.jsonl').exists() else next(
+        (p for p in root.parents if (p/'ledger.jsonl').exists()),None)
+    if session is None or not gen.geo.load_json(session/'shutdown_safety.json').get('park_verified'):
+        raise RuntimeError('Near height source Park unverified')
+    rows=[json.loads(l) for l in (session/'ledger.jsonl').read_text().splitlines() if l]
+    if root!=session:rows=[r for r in rows if Path(r['capture_root']).resolve()==root.resolve()]
+    if not rows:raise RuntimeError('Near height source capture missing from ledger')
+    return rows[-1]
+
+
 def prepare_from_near(source,original,reference,output,uid):
     """Measured near-view height failure for the same static actor; input only."""
     from base5_capture_safety import atomic_json,sha256
@@ -82,11 +103,7 @@ def prepare_from_near(source,original,reference,output,uid):
     scene=gen.geo.load_json(Path(entry['scenario']));meta=gen.geo.load_json(Path(entry['metadata']))
     record=next(a for a in meta['runtime_actors'] if a['unique_id']==uid)
     if record['motion'] not in ('static','standing'):raise ValueError('Near height retry is static only')
-    rows=[]
-    for session in (original,reference):
-        if not gen.geo.load_json(session/'shutdown_safety.json').get('park_verified'):
-            raise RuntimeError('Near height source Park unverified')
-        rows.append(json.loads((session/'ledger.jsonl').read_text().splitlines()[-1]))
+    rows=[parked_source_row(session) for session in (original,reference)]
     old,near=rows;nr=Path(near['capture_root']);nm=gen.geo.load_json(nr/'metadata.json')
     if old['scenario_sha256']!=entry['scenario_sha256'] or not nm.get('calibration_only'):
         raise RuntimeError('Near height source provenance mismatch')

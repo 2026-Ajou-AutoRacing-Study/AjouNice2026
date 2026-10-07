@@ -25,7 +25,9 @@ class StaticRigidReferenceTest(unittest.TestCase):
             digest=sha256(source/'scenario.json')
             atomic_json(root/'manifest.json',dict(scenes=[dict(id='one',metadata=str(root/'request.json'),scenario_sha256=digest)]))
             row=dict(id='raw',status='review',audit=missing,capture_root=str(source),scenario_sha256=digest)
-            def audit(_,meta):return missing if len(meta['static_ground_references'])==1 else accepted
+            def audit(_,meta):
+                result=missing if len(meta['static_ground_references'])==1 else accepted
+                return dict(result,ground_support=dict(hull=((0.,1.),(2.,3.))))
             with patch('base5_capture_audit.audit_capture',side_effect=audit):
                 first=reaudit_original(row,root/'manifest.json',root/'first')
                 first_result_sha=sha256(root/'first'/'reaudit_result.json')
