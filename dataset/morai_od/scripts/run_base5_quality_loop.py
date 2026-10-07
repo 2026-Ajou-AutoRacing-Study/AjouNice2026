@@ -52,10 +52,14 @@ def replacement(manifest,output,require_ground_observable=False):
         if new['runtime_actors'][0]['data_id']!=meta['runtime_actors'][0]['data_id']:raise ValueError('Replacement changed primary asset')
         if require_ground_observable:
             from prepare_base5_empty_ground_probe import target_probe_pose
+            # Animated preparation observes every target through empty probes
+            # with the 8m road bound. Static-only rigid references allow 12m.
+            # A 12m preflight for a mixed scene promised an unavailable witness.
+            static_maximum=8. if motion_ground.moving_actors(new) else 12.
             try:
                 for actor in new['runtime_actors']:
                     if actor['motion'] in ('static','standing'):
-                        target_probe_pose(ctx['links'],actor,maximum_road_distance=12.)
+                        target_probe_pose(ctx['links'],actor,maximum_road_distance=static_maximum)
                     else:
                         target_probe_pose(ctx['links'],dict(actor,position=actor['motion_path']['target_position']))
             except ValueError:continue
@@ -219,7 +223,7 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                     # Observe terrain and this asset at the target before loading
                     # an animated path. Calibration frames never fill training quota.
                     probes=prepared(base/'motion_terrain_deck'/'manifest.json',
-                        lambda:empty_probe(manifest,[0],base/'motion_terrain_deck',backward_route_m=6.))
+                        lambda:empty_probe(manifest,[0],base/'motion_terrain_deck',backward_route_m=0.))
                     terrain_result=capture(probes,base/'motion_terrain',cell,'motion_empty_terrain')
                     if is_collision_failure(terrain_result):
                         unresolved.append(dict(cell=cell,reasons=['physical_collision'],evidence=terrain_result));save('running');continue

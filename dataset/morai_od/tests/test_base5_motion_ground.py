@@ -11,6 +11,32 @@ import generate_base5_independent as gen
 
 
 class MotionGroundTest(unittest.TestCase):
+    def test_zero_offset_terrain_preserves_exact_ego_viewpoint(self):
+        import prepare_base5_empty_ground_probe as probe
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);ego=dict(x=3.,y=.7,z=28.,yaw=13.)
+            meta=dict(ego=ego,base=dict(x=3.,y=0.,z=28.,route_arc_m=3.),runtime_actors=[],spec={})
+            ground.atomic_json(root/'meta.json',meta);ground.atomic_json(root/'scene.json',dict(egoVehicle={}))
+            ground.atomic_json(root/'manifest.json',dict(scenes=[dict(id='a',metadata=str(root/'meta.json'),
+                scenario=str(root/'scene.json'),scenario_sha256='hash')]))
+            with patch.object(probe.gen,'context',return_value=dict(route=[],arc=[])), \
+                 patch.object(probe.gen.geo,'continuous_route_pose_at_arc',return_value=dict(x=3.,y=0.)), \
+                 patch.object(probe.gen.geo,'clear_actor_lists'),patch.object(probe.gen.geo,'set_ego_pose') as set_pose:
+                out=probe.prepare(root/'manifest.json',[0],root/'out',backward_route_m=0.)
+            self.assertEqual(set_pose.call_args.args[1],ego)
+            result=gen.geo.load_json(Path(gen.geo.load_json(out)['scenes'][0]['metadata']))
+            self.assertEqual(result['ground_probe_source']['placement_policy'],'source-ego-exact')
+
+    def test_world_ground_cloud_excludes_ego_mesh_and_zero_returns(self):
+        from base5_ground_probe import world_cloud
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);(root/'LIDAR_5').mkdir()
+            points=np.array([[0,0,0,1],[1,0,-1,1],[5,0,-1,1],[0,2,-1,1]],dtype=np.float32)
+            points.tofile(root/'LIDAR_5/test_Intensity.bin')
+            output=world_cloud(root,dict(lidar_to_ego=np.eye(4)),
+                dict(ego_before=dict(x=0.,y=0.,z=0.,heading=1.347)))
+            np.testing.assert_allclose(output,points[2:,:3])
+
     def test_near_empty_probe_observes_motion_target_not_departure(self):
         import prepare_base5_empty_ground_probe as probe
         with tempfile.TemporaryDirectory() as d:

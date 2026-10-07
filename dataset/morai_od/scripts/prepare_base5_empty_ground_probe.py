@@ -45,7 +45,10 @@ def prepare(source,indices,output,backward_route_m=12.,target_uid=None,target_mo
             ref=gen.geo.continuous_route_pose_at_arc(ctx['route'],ctx['arc'],arc)
             if gen.math.hypot(ref['x']-original['base']['x'],ref['y']-original['base']['y'])>1.:
                 raise ValueError('Source base is not on the ordinary probe route')
-            pose=gen.geo.continuous_route_pose_at_arc(ctx['route'],ctx['arc'],max(0.,arc-backward_route_m))
+            # Zero means the exact capture viewpoint, including Ego yaw and
+            # lateral offset, not a fresh centerline pose at the same arc.
+            pose=(copy.deepcopy(original['ego']) if backward_route_m==0. else
+                  gen.geo.continuous_route_pose_at_arc(ctx['route'],ctx['arc'],max(0.,arc-backward_route_m)))
         gen.geo.clear_actor_lists(scene);gen.geo.set_ego_pose(scene['egoVehicle'],pose,initial_speed_kph=0.)
         sid=old['id']+'_terrain';sp=output/(sid+'.json');mp=output/(sid+'_metadata.json')
         meta=copy.deepcopy(original);meta.update(ego=pose,base=pose,runtime_actors=[],planned_primary_distance_m=None,
@@ -53,7 +56,8 @@ def prepare(source,indices,output,backward_route_m=12.,target_uid=None,target_mo
                 scenario=old['scenario'],metadata=old['metadata'],targets=original['runtime_actors'],
                 source_manifest_sha256=gen.geo.sha256(source),ego_backward_route_m=backward_route_m if target_uid is None else None,
                 target_uid=target_uid,target_motion=target_motion,
-                placement_policy='target-near-mapped-road' if target_uid is not None else 'source-route-backward'))
+                placement_policy=('target-near-mapped-road' if target_uid is not None else
+                                  'source-ego-exact' if backward_route_m==0. else 'source-route-backward')))
         meta['spec'].update(actors=0,family='background',motion='static')
         # The empty witness has no actors. Source actor requirements belong to
         # the subsequent recapture, not this calibration-only scene.

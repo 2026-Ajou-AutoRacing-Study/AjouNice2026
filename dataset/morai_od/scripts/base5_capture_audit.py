@@ -1,5 +1,6 @@
 """Component-preserving synchronous GT audit. No Object_topic box reconstruction."""
 import ast
+import copy
 import math
 from pathlib import Path
 
@@ -195,7 +196,7 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     from base5_population_budget import visibility_summary,visibility_review
     population_visibility=visibility_summary(metadata['runtime_actors'],results)
     reasons.extend(visibility_review(metadata,population_visibility))
-    return dict(components=results,missing_uids=missing,raw_complete=True,ground_support=ground,
+    result=dict(components=results,missing_uids=missing,raw_complete=True,ground_support=ground,
         population_visibility=population_visibility,
         zero_xyz_returns_excluded_from_audit=zero_returns,valid_lidar_return_count=len(points),
         actual_annotation_clearances=clearances,
@@ -204,3 +205,8 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
         limitations=['With calibration: Ego-frame distance, 0.5m audit tolerance; legacy without calibration: LiDAR frame, 2.5m tolerance.',
                     'Instance pixels are simulator labels, not learned detector evidence.',
                     'No automated mesh ground-support/collider certification.'])
+    # Ground-only re-audits call this directly, without the runner's later
+    # overlay. Keep the original observed safety proof available to selectors
+    # and dashboard summaries; never synthesize a successful collision check.
+    if live is not None:result['capture_safety']=copy.deepcopy(live)
+    return result

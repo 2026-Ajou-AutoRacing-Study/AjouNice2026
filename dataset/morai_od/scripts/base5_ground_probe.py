@@ -30,6 +30,9 @@ def world_cloud(root,metadata,telemetry):
     xyz=np.fromfile(paths[0],np.float32).reshape(-1,4)[:,:3]
     xyz=xyz[np.isfinite(xyz).all(axis=1)&(xyz!=0).any(axis=1)]
     ego=(np.c_[xyz,np.ones(len(xyz))]@np.asarray(metadata['lidar_to_ego']).T)[:,:3]
+    # Ego mesh is not independent road support. Same footprint mask used by
+    # ground review; raw sensor files are left untouched.
+    ego=ego[~((ego[:,0]>=-1.3)&(ego[:,0]<=4.)&(np.abs(ego[:,1])<=1.3))]
     return ego_to_world(ego,telemetry['ego_before'])
 
 
