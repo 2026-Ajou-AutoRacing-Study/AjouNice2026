@@ -94,7 +94,11 @@ class IndependentTest(unittest.TestCase):
         self.assertEqual(Counter(r['family'] for r in rows),c['families'])
         self.assertEqual(Counter(r['family'] for r in rows if r['mission']),{k:v for k,v in c['mission_counts'].items() if v})
         self.assertEqual(len({r['seed'] for r in rows}),c['target_scenes'])
-        self.assertEqual(Counter(r['subfamily'] for r in rows if r['subfamily']),c['ped_subfamilies'])
+        expected=Counter(c['ped_subfamilies'])
+        vehicle_count=c.get('mission_dynamic_observation',{}).get('vehicle_primary_scenes',0)
+        expected['person']-=vehicle_count
+        if vehicle_count:expected['vehicle']=vehicle_count
+        self.assertEqual(Counter(r['subfamily'] for r in rows if r['subfamily']),expected)
         self.assertTrue(all(r['motion']=='standing' for r in rows if r['subfamily']=='dummy'))
         for family in ('obstacle','other_vehicle'):
             total=c['mission_counts'][family]

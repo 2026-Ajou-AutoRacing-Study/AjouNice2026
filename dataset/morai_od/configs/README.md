@@ -2,6 +2,10 @@
 
 ## 현재 Base5 기본 환경
 
+v112의 `mission_dynamic_observation.vehicle_primary_scenes=12`는 동적 미션250셀의4.8%다.
+길이6m 이하12차종,도로 link 기반 정지 외관 캡처이며 차량 양보 관측만8–20m다.
+일반 사람12슬롯만 교체하고 희귀 복합/동물 quota를 유지한다. 구manifest/resume에 새코드를 섞지 않는다.
+
 v111의 `stationary_mission_assets`가 정적 회피 슬롯의 자산 범위를 정한다.
 기존600 obstacle 미션 슬롯에9개 pool을 할당하고, other_vehicle50 슬롯은 정적 차량으로 유지한다.
 모든122종이 정적 미션에 들어가며 속도0/이동경로없음이다. family를 GT 클래스로 해석하지 않는다.

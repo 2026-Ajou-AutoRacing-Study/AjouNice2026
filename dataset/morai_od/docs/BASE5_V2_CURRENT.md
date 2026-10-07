@@ -1,11 +1,49 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-07 / 정적 미션 확장 v111. Base5 생성·수집·변환의 현재 진입점이다.
+2026-10-07 / 동적 미션 차량 소량 보강 v112. Base5 생성·수집·변환의 현재 진입점이다.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 5K 시나리오 생성·전수 검사와 대표 live/resume/CPU 검증은 완료했다.
 사용자가 현재 MR 기본값과 수집 환경을 Sunny 13시로 확인했다.
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
+
+## 동적 장애물 미션 차량 소량 보강 — v112
+
+기존250개 동적 미션 슬롯 중 일반 사람12개를 차량12개로 교체한다.
+미션의4.8%,전체5K의0.24%이며 동물/반려동물 동반/유모차/탑승자/dummy 희귀 quota는 유지한다.
+차량 단계는 접근6/횡단3/양보2/통과후1이다. 길이6m 이하 일반 차량 pool에서12종을 고르게 선택했다.
+Porter2 등 소형 상용차도 포함하며 MiddleSize 출제 한정으로 해석하지 않는다.
+대형 차량은 다른 패밀리/정적 미션에서 유지한다. 여기서43종 모두를 찍었다는 뜻은 아니다.
+
+차량은 Single-frame 외관 학습이므로 정지 캡처한다. 실제 차량 이동/trigger/속도 GT 인증은 아니다.
+CW000000/CW000002 주변12m 안의 횡단 방향 MGeo 도로 link XYZ/yaw를 사용하며,
+횡단보도 보행 축 위에 임의 차량 yaw를 넣지 않는다. road witness를 전수 audit한다.
+차량 양보 관측만8–20m로 조정했다. 기존 사람용5–10m와 일부 큰 차종은
+거리·비충돌 조건을 동시에 충족하지 못했다. 보행자 등 기존 거리 정책은 유지한다.
+metadata/manifest에 같은 거리 정책을 기록하고 같은 primary 자산으로 bounded retry한다.
+
+새 manifest:`~/morai_cap/base5_v2_261007/final_5k_dynamic_vehicle_v112_ready/manifest.json`.
+기존v111의4988개 scene payload/hash/metadata는 그대로 재사용하고12개만 재생성한다.
+정적 우선 순서는4171→실제이동829이며 기존4160/840 limit를 재사용하지 않는다.
+family/미션 총량5000/250, GT/가시성/접지/CollisionData 계약은 유지한다.
+기존 manifest/output을 덮어쓰지 않았으며 구output에는 새runtime으로 resume하지 않는다.
+v111 재개는 원래 commit `b0997088`, v105/v109는 원래 `08bf6816`을 사용한다.
+
+검증:5000 unique/OFFLINE_PASS/오류0,train4382/val618/test0,
+122종 planned-primary 최소4장 유지. 새4개 단위검사를 포함한 결과와 실제 최종 smoke는 아래 후속 기록에 갱신한다.
+초기 대표 live `dynamic_vehicle_v112_smoke4`는 접근/횡단/양보/통과후4/4,
+32.924초였다. ground/contact gate·종료Park을 유지했다. CPU4frame/Vehicle5GT,제외0.
+이 초기 manifest의 entry 양보 거리에 구5–10m가 남아있어 spec의8–20m와 달랐다.
+scenario/실제 검사 정책은8–20m였고 entry도 일치하도록 수정해 최종 manifest를 새로 만들었다.
+전체 자산/새 지형 live 인증이나 모델 성능 결과는 아니다. 본수집·학습은 시작하지 않았다.
+
+최종 `dynamic_vehicle_v112_final_smoke4`도4/4,32.983초였다. 양보entry/spec8–20m 일치,
+4장 실제CollisionData no-contact·ground gate 및 종료Park을 확인했다.
+CPU4frame/Vehicle5GT·제외0·raw보존이다. 신규12종을 모두 live 인증한 것은 아니다.
+단위검사250개 PASS. 완료smoke의동일명령resume도추가촬영없이완료됐다.
+manifest SHA256:`6b675018cad62652c385facb5583682e91a4512fb860e3720659217535be821c`.
+후속 정적 자산 상향/하향 배치 반복시험은 별도 계획이다. 자동 낙하·침투 복구를
+모든 자산에 가정하지 않으며 현재 접지 gate와 입력 Z 보완 정책은 유지한다.
 
 ## 정적 장애물 미션의 전체 자산 대응 — v111
 
@@ -34,7 +72,7 @@ Vehicle/Pedestrian/Obstacle/Animal 및 복합 component 분류를 유지하며 �
 122종 모두 정적 미션 primary 최소 3장, dataset 전체 planned-primary 최소 4장이다.
 새 split은 train4381/val619/test0이며 실제 가시성·접지는 별도 capture gate를 통과해야 한다.
 
-새 manifest: `~/morai_cap/base5_v2_261007/final_5k_static_all_v111_ready/manifest.json`.
+v111 보존 manifest: `~/morai_cap/base5_v2_261007/final_5k_static_all_v111_ready/manifest.json`.
 전수 OFFLINE_PASS/5000 unique, planned coverage PASS다. 대표 live 결과는 아래 후속 기록을 따른다.
 기존 v105/v109 output·캡처·contract는 보존한다. 생성기 코드 변경으로 **새 runtime을
 기존 output에 resume하지 않는다**. 기존 수집을 재개할 때는 원래 revision을 사용한다.

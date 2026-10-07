@@ -55,6 +55,8 @@ def audit(manifest_path):
                     if pop.get('required_visible_actors')!=expected:errors.append((entry['id'],'population visible quota mismatch'))
         footprints=[];ea=gen.math.radians(meta['ego']['yaw']);e=meta['ego']
         observation=meta['details'].get('dynamic_observation')
+        if r.get('dynamic_mission_pool') and entry.get('distance_bounds')!=r['distance_bounds']:
+            errors.append((entry['id'],'dynamic vehicle manifest distance differs from spec'))
         if r.get('dynamic_observation_phase'):
             if not observation:errors.append((entry['id'],'missing map-anchored dynamic observation'))
             else:
@@ -72,7 +74,24 @@ def audit(manifest_path):
                 else:
                     dx,dy=target['x']-expected['center']['x'],target['y']-expected['center']['y'];ax,ay=expected['axis']
                     jitter=m['config']['mission_dynamic_observation']['target_axis_jitter_m']
-                    if abs(dx*ay-dy*ax)>1e-5 or abs(dx*ax+dy*ay)>jitter+1e-5:
+                    if r.get('dynamic_mission_pool'):
+                        pivot=target.get('road_pivot',{});link=links.get(pivot.get('link_id'))
+                        j=pivot.get('point_index',-1)
+                        if not link or not 0<=j<len(link['points'])-1:
+                            errors.append((entry['id'],'missing dynamic vehicle road witness'))
+                        else:
+                            p,q=link['points'][j:j+2]
+                            yaw=gen.math.degrees(gen.math.atan2(q[1]-p[1],q[0]-p[0]))
+                            if any(abs(p[k]-pivot[axis])>1e-5 for k,axis in enumerate(('x','y','z'))) or abs(yaw-pivot['yaw'])>1e-5:
+                                errors.append((entry['id'],'dynamic vehicle road witness differs from map'))
+                            if gen.math.hypot(p[0]-expected['center']['x'],p[1]-expected['center']['y'])>12.00001:
+                                errors.append((entry['id'],'dynamic vehicle outside mission road neighborhood'))
+                            angle=gen.math.radians(yaw)
+                            if abs(gen.math.cos(angle)*ax+gen.math.sin(angle)*ay)<.8-1e-5:
+                                errors.append((entry['id'],'dynamic vehicle is not a crossing-direction road'))
+                            if any(a['source_list']!='vehicleList' or a['motion']!='static' or a.get('motion_path') for a in meta['runtime_actors']):
+                                errors.append((entry['id'],'dynamic vehicle snapshot policy violated'))
+                    elif abs(dx*ay-dy*ax)>1e-5 or abs(dx*ax+dy*ay)>jitter+1e-5:
                         errors.append((entry['id'],'dynamic target outside crossing axis quota'))
                     if abs(meta['base']['route_arc_m']-expected['route_arc_m']-delta)>1e-5:
                         errors.append((entry['id'],'dynamic Ego arc witness mismatch'))
@@ -244,6 +263,9 @@ def audit(manifest_path):
         if m['config'].get('mission_dynamic_observation'):
             expected=Counter(r['dynamic_observation_phase'] for r in gen.specs(m['config']) if r.get('dynamic_observation_phase'))
             if dynamic_phases!=expected:errors.append(('all','dynamic observation phase quota'))
+            actual=sum(bool(gen.geo.load_json(Path(e['metadata']))['spec'].get('dynamic_mission_pool')) for e in m['scenes'])
+            if actual!=m['config']['mission_dynamic_observation'].get('vehicle_primary_scenes',0):
+                errors.append(('all','dynamic mission vehicle quota'))
         plan=m['config'].get('mission_avoidance')
         if plan:
             for family in ('obstacle','other_vehicle'):

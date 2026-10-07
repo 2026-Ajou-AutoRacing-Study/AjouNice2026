@@ -182,7 +182,30 @@ def specs(config):
                     role='right' if side=='left' else 'left')
     vehicle_close.assign(sys.modules[__name__],output,config)
     assign_stationary_mission_pools(output,config)
+    assign_dynamic_mission_vehicles(output,config)
     return output
+
+def assign_dynamic_mission_vehicles(rows,config):
+    """Small vehicle observation quota; no velocity supervision or forced motion."""
+    count=config.get('mission_dynamic_observation',{}).get('vehicle_primary_scenes',0)
+    if not isinstance(count,int) or isinstance(count,bool) or count<0:
+        raise ValueError('Dynamic vehicle quota must be a nonnegative integer')
+    eligible=[r for r in rows if r['mission'] and r['family']=='pedestrian_related' and r['subfamily']=='person']
+    if count>len(eligible):raise ValueError('Dynamic vehicle quota exceeds person mission slots')
+    plan=config.get('mission_dynamic_observation',{})
+    rng=random.Random(config['seed']+1112)
+    phases=exact_deck(list(plan['phases'].items()),count,rng) if count else []
+    selected=[]
+    for phase in plan.get('phases',{}):
+        candidates=[r for r in eligible if r.get('dynamic_observation_phase')==phase]
+        rng.shuffle(candidates)
+        n=phases.count(phase)
+        if n>len(candidates):raise ValueError('Insufficient dynamic vehicle phase slots')
+        selected.extend(candidates[:n])
+    for index,row in enumerate(selected):
+        row.update(dynamic_mission_pool='vehicle',subfamily='vehicle',motion='static',asset_index=index)
+        if row['dynamic_observation_phase']=='yielding':
+            row['distance_bounds']=list(plan.get('vehicle_yielding_distance_bounds_m',[8,20]))
 
 def assign_stationary_mission_pools(rows,config):
     """Static mission is an observation context, not the Obstacle label class."""
@@ -302,6 +325,27 @@ def crossing_target(crossing,rng,jitter):
     return dict(crossing['center'],x=crossing['center']['x']+t*crossing['axis'][0],
         y=crossing['center']['y']+t*crossing['axis'][1],
         yaw=math.degrees(math.atan2(crossing['axis'][1],crossing['axis'][0]))+rng.choice([0.,180.]))
+
+def dynamic_vehicle_target(ctx,crossing,rng,offset):
+    """Use nearby crossing-direction road links, never a pedestrian walkway yaw."""
+    cache=ctx.setdefault('dynamic_vehicle_anchors',{})
+    key=crossing['crosswalk_id']
+    if key not in cache:
+        poses=[]
+        for link_id,link in sorted(ctx['links'].items()):
+            points=link['points']
+            for j in range(0,len(points)-1,2):
+                p,q=points[j:j+2];dx,dy=q[0]-p[0],q[1]-p[1];length=math.hypot(dx,dy)
+                if length<.1:continue
+                if math.hypot(p[0]-crossing['center']['x'],p[1]-crossing['center']['y'])>12.:continue
+                if abs((dx*crossing['axis'][0]+dy*crossing['axis'][1])/length)<.8:continue
+                poses.append(dict(x=p[0],y=p[1],z=p[2],yaw=math.degrees(math.atan2(dy,dx)),
+                    link_id=link_id,link_idx=link_id,point_index=j,point_ratio=j/(len(points)-1)))
+        cache[key]=poses
+    if not cache[key]:raise ValueError('No road-supported dynamic mission vehicle anchor')
+    pivot=dict(rng.choice(cache[key]));a=math.radians(pivot['yaw'])
+    return dict(pivot,x=pivot['x']+math.cos(a)*offset[0]-math.sin(a)*offset[1],
+        y=pivot['y']+math.sin(a)*offset[0]+math.cos(a)*offset[1],road_pivot=pivot)
 
 def pivot_for_center(target,offset,yaw):
     a=math.radians(yaw)
@@ -457,15 +501,27 @@ def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None):
 
 def build(row,config,ctx,attempt=0):
     row=copy.deepcopy(row)
+    if row.get('dynamic_mission_pool'):
+        # Low-quota crossing observations use passenger/small vehicles. Large
+        # buses/trucks cannot fit the existing 5–10m yielding observation cell.
+        limit=config['mission_dynamic_observation'].get('vehicle_max_length_m',6.)
+        pool=[a for a in ctx['pools']['vehicle'] if geometry(a,ctx)[0][0]<=limit]
+        if len(pool)<config['mission_dynamic_observation']['vehicle_primary_scenes']:
+            raise ValueError('Insufficient distinct small vehicles for dynamic quota')
+        ctx=dict(ctx,pools=dict(ctx['pools'],vehicle=pool))
     rng=random.Random(row['seed']+attempt*10000019)
     poolkey=row['subfamily'] if row['family']=='pedestrian_related' else 'obstacle' if row['family']=='obstacle' else 'vehicle'
     if row['family']=='other_vehicle' and row['static_vehicle']: poolkey='static_vehicle'
+    if row.get('dynamic_mission_pool'):poolkey=row['dynamic_mission_pool']
     if row['family']=='obstacle': poolkey='obstacle_'+row['asset_group']
     if row.get('stationary_mission_pool'):
         if not row['mission'] or row['family'] not in ('obstacle','other_vehicle') or row['motion']!='static':
             raise ValueError('Expanded stationary pool is restricted to the static mission')
         poolkey=row['stationary_mission_pool']
-    asset=ctx['pools'][poolkey][row['asset_index']%len(ctx['pools'][poolkey])]
+    asset_index=row['asset_index']
+    if row.get('dynamic_mission_pool'):
+        asset_index=asset_index*len(ctx['pools'][poolkey])//config['mission_dynamic_observation']['vehicle_primary_scenes']
+    asset=ctx['pools'][poolkey][asset_index%len(ctx['pools'][poolkey])]
     route,arc,base,details=rng.choice(anchor_bank(ctx,row['topology']))
     base=dict(base);dynamic_crossing=None;dynamic_target=None
     if row['mission'] and row['family'] in ('obstacle','pedestrian_related','other_vehicle'):
@@ -482,7 +538,8 @@ def build(row,config,ctx,attempt=0):
             candidates=dynamic_crossing_candidates(ctx,reference,plan)
             # Deterministic crossing coverage; retries do not silently pick an easier crossing.
             dynamic_crossing=candidates[row['family_index']%len(candidates)]
-            dynamic_target=crossing_target(dynamic_crossing,rng,plan['target_axis_jitter_m'])
+            dynamic_target=(dynamic_vehicle_target(ctx,dynamic_crossing,rng,geometry(asset,ctx)[1])
+                if row.get('dynamic_mission_pool') else crossing_target(dynamic_crossing,rng,plan['target_axis_jitter_m']))
             lower,upper=row['distance_bounds'];distance=rng.uniform(lower+.5,upper-.5)
             direction=1 if row['dynamic_observation_phase']=='clearing' else -1
             target_arc=dynamic_crossing['route_arc_m']+direction*distance
@@ -573,7 +630,8 @@ def build(row,config,ctx,attempt=0):
             actor_crossing=dynamic_crossing if i==0 else candidates[(row['family_index']+i)%len(candidates)]
             # Multiple actors on the same narrow crossing produce overlapping swept corridors.
             # Use the neighboring real crossing rather than arbitrary off-road displacement.
-            mission_target=dynamic_target if i==0 else crossing_target(actor_crossing,rng,config['mission_dynamic_observation']['target_axis_jitter_m'])
+            mission_target=dynamic_target if i==0 else (dynamic_vehicle_target(ctx,actor_crossing,rng,off)
+                if row.get('dynamic_mission_pool') else crossing_target(actor_crossing,rng,config['mission_dynamic_observation']['target_axis_jitter_m']))
         if mission_target:
             pose=pivot_for_center(mission_target,off,mission_target['yaw'])
         elif i==0 and primary_pose is not None:
