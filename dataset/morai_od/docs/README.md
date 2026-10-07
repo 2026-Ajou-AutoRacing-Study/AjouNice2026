@@ -1,6 +1,11 @@
 # MORAI OD dataset 문서 index
 
-마지막 정리: 2026-10-07.
+마지막 정리: 2026-10-08.
+
+- **2026-10-08 다음 작업:** 이동 외관 캡처를 사거리로 제한하는 사용자 방향에 따라
+  수동 접지용10개 경로를 MR에 설치했다. 사용자가 `1.json`…`10.json`으로 보정하면
+  backup→자산/경로별 bounded lookup→live 검증 순서다. bulk 계약 변경/시간 단축은 아직 미검증이다.
+  [수동 보정 안내·계획](261008_base5_intersection_manual_ground_plan.md), [CURRENT](BASE5_V2_CURRENT.md).
 
 - **v115 현재 정적 QA:** 추가 지면 확인용 이동/촬영 없이 원래 LiDAR만 검사한다.
   증거 부족은 warning, 명확한40cm 초과 높이 오차는 제외한다. Ego 정지/충돌/GT/가시성은 유지하며

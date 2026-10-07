@@ -33,6 +33,11 @@
    이동actor 또는 calibration_only는 기존 엄격한 경로 유지, Ego 정지/CollisionData/가시성/GT는 유지한다.
    40셀39승인271.322초→정적4171장8.115h 조건부 외삽; 이동829 포함 전체5K ETA가 아니다.
    구v113/v114 output resume 금지. v115 새전체5K manifest는 아직 준비 전이다.
+   2026-10-08 다음은 `docs/261008_base5_intersection_manual_ground_plan.md`다.
+   이동 외관은 우선 사거리에서만 취득하는 설계 방향이며 음영 저격은 보류다.
+   MR의0_1_…0_10_는 수동 접지용, 1.json…10.json 보정본 대기다. 학습/접지 인증으로 사용하지 않는다.
+   자산별 pivot·경로의 실제 XYZ를 확인한 bounded lookup/live 검증 전에는 동적 검사를 끄지 않는다.
+   기존4171/829는 과거manifest 수량이다. 새bulk output에만 새정책을 적용한다.
 
 CURRENT/EVIDENCE/PLAN/HISTORICAL 상태를 구분한다. 현재 학습 전달본은
 `base3_online_highway_motion_v2`이며 nearest-state V1을 자동 선택하지 않는다.
