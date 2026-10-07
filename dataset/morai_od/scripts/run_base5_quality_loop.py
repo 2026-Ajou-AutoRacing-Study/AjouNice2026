@@ -14,12 +14,16 @@ from prepare_base5_ground_retry import prepare as height_retry
 from prepare_base5_empty_ground_probe import prepare as empty_probe
 from prepare_base5_probed_retry import prepare as probed_retry
 from prepare_base5_setup_budget_pilot import prepare as budget_retry
+import base5_motion_ground as motion_ground
 
 
 def arrival_retry_eligible(result,manifest):
     if result.get('status')!='failed' or result.get('error')!='Natural target arrival not observed for all moving actors; no capture':
         return False
     if gen.geo.load_json(manifest)['config']['capture'].get('natural_setup_budget_sec',9)>=9:return False
+    deck=gen.geo.load_json(manifest)
+    if any(a.get('motion_path',{}).get('ground_path_evidence') for s in deck.get('scenes',[]) if s.get('metadata')
+           for a in gen.geo.load_json(Path(s['metadata']))['runtime_actors']):return False
     safety=result.get('no_capture_safety',{})
     return (all(safety.get(k) is True for k in ('no_capture_requested','topic_freshness_verified',
         'actor_presence_verified','ego_stationary_verified','actor_z_steps_verified'))
@@ -162,7 +166,26 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                     status=result['status'],reasons=result.get('audit',{}).get('review_reasons',[]),shutdown=safety,
                     reused_raw=True,seed_source=str(seed_capture)))
                 save('running')
-            else:result=capture(manifest,base/'initial',cell,'initial')
+            else:
+                metadata=gen.geo.load_json(Path(original['metadata'])) if original.get('metadata') else {}
+                if motion_ground.moving_actors(metadata):
+                    # Observe terrain and this asset at the target before loading
+                    # an animated path. Calibration frames never fill training quota.
+                    probes=prepared(base/'motion_terrain_deck'/'manifest.json',
+                        lambda:empty_probe(manifest,[0],base/'motion_terrain_deck',backward_route_m=6.))
+                    capture(probes,base/'motion_terrain',cell,'motion_empty_terrain')
+                    refs=prepared(base/'motion_static_deck'/'manifest.json',
+                        lambda:motion_ground.static_reference(manifest,base/'motion_static_deck'))
+                    reference=capture(refs,base/'motion_static',cell,'motion_static_reference')
+                    if 'physical_collision_during_capture_window' in reference.get('audit',{}).get('review_reasons',[]):
+                        raise RuntimeError('Motion static reference collision; no moving load')
+                    try:
+                        manifest=prepared(base/'motion_ground_deck'/'manifest.json',
+                            lambda:motion_ground.prepare(manifest,base/'motion_terrain',base/'motion_static',base/'motion_ground_deck'))
+                    except ValueError as exc:
+                        unresolved.append(dict(cell=cell,reasons=['motion_ground_preparation_unavailable'],error=str(exc)))
+                        save('running');continue
+                result=capture(manifest,base/'initial',cell,'initial')
             if result['status']=='failed':
                 if not arrival_retry_eligible(result,manifest):
                     raise RuntimeError('Target miss lacks safe evidence or already used 9-second budget')

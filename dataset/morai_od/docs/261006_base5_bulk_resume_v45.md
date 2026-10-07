@@ -1,8 +1,8 @@
 # Base5 v45 — 6초 10K 준비 및 본수집 실행 경로
 
-CURRENT 운영 런북 + EVIDENCE. 검증 근거:2026-10-06 / 운영 명령 갱신:2026-10-07.
-아래 명령을 본수집의 단일 실행 기준으로 사용한다. 실제 수집 시작/진행/종료 여부는
-collection_10k_v45/status.json과 대시보드로 확인한다. 과거 소량검증 당시에는 본10K 미시작이었다.
+**v45 운영은 중단됐다.** 실제 본수집은 정적 자전거 충돌로 halted이며, 아래 명령을
+그대로 재실행하지 않는다. 최신 정책은 [BASE5_V2_CURRENT.md](BASE5_V2_CURRENT.md)와
+이 문서 마지막의 2026년10월7일 운영 변경 절을 따른다. v45 소량검증 결과와 명령은 이력이다.
 
 ## 6초 수집 묶음
 
@@ -184,3 +184,55 @@ PAUSE 경계/deficit 완료증거손실시재촬영금지 포함. Mock는 장시
 CPU train8/val0/test0·GT10(obstacle2/vehicle5/pedestrian3), review/failed 편입0.
 완료 resume exit0, ledger SHA/elapsed/Event18회 불변, 추가 서비스요청·촬영0.
 소량28GT 변환(12셀GT18+8셀GT10)은 모델 학습/성능평가를 의미하지 않는다.
+# 2026년 10월 7일 충돌 중단 후 운영 변경
+
+기존 `collection_10k_v45`는 `b5v2_00033`의 정적 Bicycle_city 충돌로 halted이다.
+완료 체크포인트32장, 원본 약184MiB를 실패 근거로 보존한다. 위 출력으로 resume하거나
+과거10K 명령을 그대로 재실행하지 않는다. 아래 본문은 v45 당시 명령의 이력이다.
+
+v46은 unknown geometry의1x1m 임시 박스를3x3m 보수적 배치 proxy로 바꾸고,
+측방 회피 gap은 measured geometry 최소30cm/unknown 최소1m로 제한한다.
+이 값은 학습 GT 또는 collider 크기가 아니며 actual annotation·충돌 검사가 최종 판단이다.
+동적 장면은 빈 지면 및 정적 자산 reference를 먼저 캡처하고0.5m 간격으로 waypoint
+높이를 산정한다. 지원되지 않는 지면은 quota 부족으로 남긴다. 기존18.71시간 외삽은
+새 calibration-first 비용을 포함하지 않으므로 새 전체10K 시간으로 사용하지 않는다.
+
+정적 우선 deck은 움직이는 장면을 standing으로 바꾸지 않고 별도 보류한다.
+10K 전체 class/동작 quota가 채워졌다고 해석하지 않는다. 실행 승인과 최신 검증 결과는
+`BASE5_V2_CURRENT.md`를 따른다. 런타임 hash 변경으로 기존 캡처 세션은 재개하지 않는다.
+
+## 새 정적 우선 실행 후보 (2026-10-07)
+
+아래는 새 코드 검증 후 사용자가 본수집을 재개하기 위한 명령이다. 에이전트는 이 본수집을
+자동 시작하지 않았다. 기존 raw는 삭제하지 않았으며 새 output을 사용한다.
+통신은 앞의 rc → guarded bridge → MR 7-interface/Capture Mode 순서를 유지한다.
+별도 UDP/센서 ROS 수신기를 추가할 필요가 없다.
+
+```bash
+ajou
+python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
+  --manifest "$HOME/morai_cap/base5_v2_261007/static_first_all_v46/manifest.json" \
+  --output "$HOME/morai_cap/base5_v2_261007/collection_static_first_v48" \
+  --limit 8354 \
+  --chunk-size 4 \
+  --approve-bulk-capture \
+  --resume
+```
+
+동적 1,646셀은 이 목록에 들어 있지 않다. 학습 전 원래 quota 보충 여부를 별도 확인한다.
+`--resume`는 **동일 manifest·동일 runtime hash의 안전한 중단**에만 사용한다.
+구 halted output을 새 코드로 강제 승인하지 않는다.
+PAUSE marker는 새 output 아래 만들고, 해제 후 위 명령을 다시 실행한다.
+
+대시보드는 별도 터미널에서 같은 새 output을 지정한다. 현재 검증 화면 8082는 정적32셀의
+완료 화면이므로 본수집 화면이라고 혼동하지 않는다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
+  --capture-root "$HOME/morai_cap/base5_v2_261007/collection_static_first_v48" \
+  --port 8083
+```
+
+근거·한계는 `BASE5_V2_CURRENT.md`의 v48 절에 기록했다. 정적32/32와 실제 이동 혼합3/3을
+확인했지만 모든 자산·장시간의 live 검증을 대신하지 않는다.

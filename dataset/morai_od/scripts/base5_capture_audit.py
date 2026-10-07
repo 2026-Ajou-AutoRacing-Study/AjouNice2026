@@ -136,7 +136,8 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
             from base5_ground_support import ground_review
             ground=ground_review(points[:,:3],boxes,metadata['lidar_to_ego'],
                 ground_config.get('max_range_m',20.),ground_config.get('maximum_gap_m',.15),
-                references=metadata.get('ground_probe_references'),runtime_ego=metadata.get('capture_runtime_ego'))
+                references=metadata.get('ground_probe_references'),runtime_ego=metadata.get('capture_runtime_ego'),
+                required_uids=ground_config.get('required_uids'))
             reasons.extend(ground['review_reasons'])
     live=metadata.get('capture_safety')
     if live is not None:

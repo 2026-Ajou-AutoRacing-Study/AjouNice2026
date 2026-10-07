@@ -16,7 +16,7 @@ import fcntl
 from base5_capture_audit import audit_capture
 from base5_capture_timing import StageTiming, preflight_stationary, post_load_topics_ready
 from base5_event_cmd import BoundedServiceCaller
-from base5_capture_safety import prepare_session,archive_incomplete,collision_window,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review
+from base5_capture_safety import prepare_session,archive_incomplete,collision_window,scene_collision_epoch,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review
 
 ROOT=Path(__file__).resolve().parents[3]
 
@@ -212,6 +212,8 @@ def main():
                 if any(not pub.get_num_connections() for pub in (control,loader,capture)):
                     raise RuntimeError('Batch live subscriber missing; no further load')
             meta=json.loads(Path(entry['metadata']).read_text()); scene=json.loads(Path(entry['scenario']).read_text())
+            from base5_motion_ground import validate_motion_ground
+            validate_motion_ground(meta,scene)
             meta['lidar_to_ego']=calibration['lidar']['lidar_to_ego']
             meta['sensor_source_sha256']=calibration['source_sha256']
             import hashlib
@@ -367,6 +369,19 @@ def main():
                             displacement_m=movement,ego_before=e0,ego_after=e1))
                     raise ValueError('Requested animation/motion has no measured actor displacement')
                 timing.mark('motion_target_and_witness')
+                # Contact during load/readiness is a safety failure, not a
+                # visibility retry. Do not request sensor files for that scene.
+                with lock:
+                    pre_contacts=[r for r in collisions if r['t']>=load_time]
+                pre_contacts,collision_epoch=scene_collision_epoch(pre_contacts,load_time,meta['ego'])
+                peers=sorted({int(a['unique_id']) for r in pre_contacts
+                    for key in ('collision_object','collision_objecta')
+                    for a in r['message'].get(key,[]) if int(a['unique_id'])!=0})
+                if peers:
+                    atomic_json(args.output/'failures'/(entry['id']+'_pre_capture_collision.json'),
+                        dict(reason='physical_collision_before_capture',non_ego_uids=peers,
+                             scenario_sha256=entry['scenario_sha256'],samples=pre_contacts))
+                    raise RuntimeError('Physical collision before capture; no SaveSensorData requested')
                 before={f for f in args.sensor_dir.rglob('*') if f.is_file()}
                 dest.mkdir(parents=True,exist_ok=False)
                 atomic_json(dest/'metadata.json',meta)
@@ -410,7 +425,7 @@ def main():
                 shutil.copy2(args.network_template,dest/'network.json')
                 shutil.copy2(sensor_source,dest/'sensor_reference.json')
                 with lock:
-                    collision_samples=[r for r in collisions if r['t']>=load_time]
+                    collision_samples=[r for r in collisions if r['t']>=collision_epoch['start_monotonic']]
                     samples=[r for r in traces if r['t']>=pose_confirmed]
                     objects_after=state['objects']
                     actor_samples=[r for r in object_traces if r['t']>=load_time]
@@ -425,6 +440,7 @@ def main():
                     z_span_m=max(zs)-min(zs) if zs else None,
                     limitation='stationary vertical stability proxy; not paved-road or mesh support certification')
                 meta['capture_safety']=dict(collision=safety,support=support,evidence_path=str((dest/'collision_history.json').resolve()))
+                meta['capture_safety']['scene_collision_epoch']=collision_epoch
                 atomic_json(dest/'collision_history.json',dict(summary=safety,samples=collision_samples,
                     load_time_monotonic=load_time,pose_confirmed_monotonic=pose_confirmed))
                 meta['capture_runtime_ego']=e1

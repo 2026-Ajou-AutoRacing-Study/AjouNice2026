@@ -1,14 +1,20 @@
 # MORAI OD dataset 문서 index
 
-마지막 정리: 2026-10-06.
+마지막 정리: 2026-10-07.
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
 - **본수집 터미널 명령의 단일 기준:** [Base5 v45 운영 런북](261006_base5_bulk_resume_v45.md#터미널별-운영-순서--처음-실행부터-재개까지).
+  반드시 런북 상단 경고와 **10월 7일 변경**부터 읽는다. 구 v45 본수집은 충돌 중단 상태다.
   rc → guarded bridge → MR7-interface/Capture Mode → 수집 → 대시보드,
   각 인자 뜻·PAUSE/재개·halted 주의를 한곳에 정리했다. rosbag/UDP 런북과 구분한다.
 
-- **최신 v45: 6초10K 전수OFFLINE_PASS·bulk 실행/PAUSE/resume 연결.**
+- **최신 v48: 충돌 원인 수정·정적 우선 및 지형 기반 동적 검증.**
+  정적32/32·동적/혼합3/3, Base5 155tests PASS. 정적8,354셀 전수OFFLINE_PASS,
+  동적1,646셀은 지형 준비를 위해 별도 보류. 본수집 자동 재시작/본 학습 없음.
+  [현재 상태·실제 근거·한계](BASE5_V2_CURRENT.md). 아래 기록은 각 버전 당시 상태다.
+
+- **과거 v45: 6초10K 전수OFFLINE_PASS·bulk 실행/PAUSE/resume 연결.**
   실제12/12+marker8/8·CPU GT28·143tests PASS, 완료resume 추가촬영0.
   명시적bulk승인·4셀 child·64셀 목록checkpoint·누적시간 보존.
   v35 baseline보존/본10K·학습미시작. [실행·정지·재개 런북](261006_base5_bulk_resume_v45.md).

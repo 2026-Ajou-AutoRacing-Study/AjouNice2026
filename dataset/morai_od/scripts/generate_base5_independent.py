@@ -209,6 +209,7 @@ def geometry(asset,ctx):
     if row: return row['bbox_size_m'],row['pivot_to_bbox_center_local_m'],True
     cls=asset.get('ontology_class')
     size=[5.,2.,1.8] if cls=='Vehicle' else [1.1,.5,.9] if cls=='Animal' else [1.,1.,1.9]
+    if cls=='Obstacle':size=[3.,3.,2.5] # conservative placement proxy, never training GT
     if any(s in asset['name'].lower() for s in ('truck','bus','xcient')): size=[12.,2.8,3.5]
     return size,[0.,0.,size[2]/2],False
 
@@ -268,7 +269,8 @@ def natural_target_path(pose,center,ego,bounds,motion,asset,budget=9.):
         target_tolerance_m=.4,arrival_timeout_sec=20.,setup_budget_sec=budget,departure_yaw_deg=yaw,
         distance_bounds_m=list(bounds),nominal_speed_mps=speed,speed_field_value=speed*3.6,
         length_m=speed*budget+3.,nominal_duration_sec=budget+3./speed,
-        limitation='Distance quota applies at capture target, not whole path. Natural appearance speed, not velocity training GT. Constant-Z proposal requires raw local ground validation.')
+        ground_path_required=True,
+        limitation='Unverified constant-Z proposal. No capture until independent terrain path preparation. Natural appearance only, not velocity training GT.')
 
 def one_way_motion_path(pose,center,ego,bounds,motion,asset,setup_budget_sec=12.,appearance_profile=False):
     """Heading-aligned finite segment; slow enough to survive normal setup, no return."""

@@ -141,7 +141,7 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
     scripts=Path(__file__).parent
     contract=dict(schema_version=6,manifest_sha256=sha256(manifest),
         network_sha256=sha256(network),sensor_sha256=sha256(sensor),
-        safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_ground_support.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py','base5_event_cmd.py')},
+        safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_ground_support.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py','base5_event_cmd.py','base5_motion_ground.py')},
         safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; local-ground-plane-v1; all-actor-motion-endpoint-window-v1; vertical-step-window-v1')
     if runner_options is not None:contract['runner_options']=runner_options
     path=output/'session_contract.json'
@@ -189,3 +189,18 @@ def collision_window(samples,start,end,max_gap=2.):
         non_ego_uids=peers,messages=len(rows),maximum_gap_sec=maximum,
         window_start_monotonic=start,window_end_monotonic=end,
         contract='Ego UID0 alone is not a contact; both collision arrays inspected')
+
+
+def scene_collision_epoch(samples,load_time,expected,max_pose_error=.35):
+    """Exclude only the pre-teleport prefix; retain every contact after matching Ego."""
+    import math
+    rows=[r for r in samples if r['t']>=load_time]
+    for i,row in enumerate(rows):
+        ego=next((a for key in ('collision_object','collision_objecta')
+                  for a in row['message'].get(key,[]) if int(a['unique_id'])==0),None)
+        if ego and math.hypot(ego['position']['x']-expected['x'],ego['position']['y']-expected['y'])<=max_pose_error:
+            yaw=(float(ego['heading'])-1.347-expected['yaw']+180)%360-180
+            if abs(yaw)<=1.:
+                return rows[i:],dict(matched=True,start_monotonic=row['t'],excluded_transition_messages=i,
+                    contract='Trim only pre-new-pose prefix; never discard later collision-induced drift')
+    raise RuntimeError('Collision stream new-scene Ego pose unverified; no capture')

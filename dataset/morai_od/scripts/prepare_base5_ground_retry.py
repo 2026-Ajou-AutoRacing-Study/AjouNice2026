@@ -21,6 +21,8 @@ def shift_actor(scene,metadata,uid,shift):
     path=record.get('motion_path')
     if path:
         for point in path['points']:point['z']+=shift
+        if path.get('ground_path_evidence'):
+            path['ground_path_evidence']['asset_pivot_offset_m']+=shift
         if 'target_position' in path:path['target_position']['z']+=shift
         raw_path=next(p for p in scene['waypointDataList'] if p['pathName'].endswith(' - '+str(uid)))
         for point in raw_path['waypointData']:

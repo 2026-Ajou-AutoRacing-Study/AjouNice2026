@@ -154,6 +154,26 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
             folder=output/f'chunk_{ordinal:04d}';folder.mkdir(exist_ok=True)
             manifest=folder/'manifest.json';root=folder/'capture'
             if not manifest.exists():atomic_json(manifest,campaign.subset_deck(original,[original['scenes'][i] for i in chunk_indices]))
+            from base5_motion_ground import moving_actors
+            needs_ground=any(moving_actors(json.loads(Path(original['scenes'][i]['metadata']).read_text()))
+                for i in chunk_indices if original['scenes'][i].get('metadata'))
+            if needs_ground:
+                # Animated cells require calibration-first isolated recovery,
+                # never a raw unverified constant-Z shared batch.
+                for index in chunk_indices:
+                    cell=original['scenes'][index];recovery=folder/'recovery'/cell['id']
+                    if verify_only and (not (recovery/'status.json').exists() or
+                            json.loads((recovery/'status.json').read_text())['stage'] not in completed_stages):
+                        raise ValueError('Completed ground preparation evidence missing; no recapture')
+                    if stop.exists():save('stopped');return 0
+                    if recover(source,index,recovery,stop):raise RuntimeError('Ground-prepared isolated capture halted; no next load')
+                    accepted=load_ledger(recovery/'selected_ledger.jsonl')
+                    if accepted:selected[cell['id']]=accepted[0]
+                    else:deficits[cell['id']]=dict(id=cell['id'],index=index,reasons=json.loads((recovery/'quota.json').read_text())['cells'])
+                    save('running')
+                if (output/'PAUSE').exists() or (stop_after_chunks and ordinal+1>=stop_after_chunks):
+                    save('paused');return 0
+                continue
             while True:
                 # No unsafe child may be resumed, even if the final Park later succeeds.
                 rows=inspect_batch(root,manifest) if (root/'session_contract.json').exists() else []

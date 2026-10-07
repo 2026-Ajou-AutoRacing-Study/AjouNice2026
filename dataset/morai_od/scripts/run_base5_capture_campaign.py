@@ -26,7 +26,7 @@ def contract(source, indices, rounds):
            'prepare_base5_empty_ground_probe.py','prepare_base5_probed_retry.py',
            'run_base5_capture.py','base5_capture_safety.py','base5_capture_audit.py',
            'base5_ground_support.py','base5_ground_probe.py','base5_capture_timing.py','base5_event_cmd.py']
-    names.append('prepare_base5_setup_budget_pilot.py')
+    names.extend(['prepare_base5_setup_budget_pilot.py','base5_motion_ground.py'])
     sources=[]
     for i in indices:
         row=data['scenes'][i]

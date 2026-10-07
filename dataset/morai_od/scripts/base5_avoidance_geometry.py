@@ -23,7 +23,10 @@ def observation(gen,ctx,route,arc,base,asset,row,rng):
     halfspan=(projected_length+4.8)/2
     phase=row['avoidance_phase'];sign=1 if row['avoidance_side']=='left' else -1
     low,high=row['avoidance_gap_bounds_m']
-    gap=rng.uniform(low+.003,high-.003)  # room for MORAI's millimetre / 0.001deg JSON rounding
+    requested_gap=rng.uniform(low+.003,high-.003)
+    # A generic 1x1m placeholder is not a collider/mesh measurement. Keep the
+    # same asset and phase, but do not synthesize centimetre passes from it.
+    gap=max(requested_gap,.30 if known else 1.0)
     if phase=='approach':
         longitudinal=-rng.uniform(halfspan+8.,halfspan+60.);lateral=0.;yaw=road_yaw
     else:
@@ -66,6 +69,8 @@ def observation(gen,ctx,route,arc,base,asset,row,rng):
         longitudinal_center_offset_m=longitudinal,lateral_center_offset_m=lateral,
         yaw_relative_to_object_road_deg=yaw-road_yaw,
         geometry_reference_known=known,ground_support_verified=False,
+        original_gap_request_m=requested_gap,
+        clearance_policy='measured-geometry-min30cm; unknown-geometry-min1m-v46',
         collider_clearance_verified=False,virtual_path_driven=False,
         contract='stationary-bypass-observation-v1')
     return ego,target_pose,reference

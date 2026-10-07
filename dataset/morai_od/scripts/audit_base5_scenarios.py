@@ -81,7 +81,13 @@ def audit(manifest_path):
             if computed_gap<minimum-1e-6:errors.append((entry['id'],'recomputed ego footprint'))
             if i==0 and avoidance and avoidance['phase']=='alongside':
                 lo,hi=r['avoidance_gap_bounds_m']
-                if not lo-1e-6<=computed_gap<=hi+1e-6:errors.append((entry['id'],'avoidance gap quota'))
+                requested=avoidance.get('original_gap_request_m',computed_gap)
+                if not lo-1e-6<=requested<=hi+1e-6:errors.append((entry['id'],'avoidance requested gap quota'))
+                if avoidance.get('clearance_policy')=='measured-geometry-min30cm; unknown-geometry-min1m-v46':
+                    floor=.30 if a['geometry_reference_known'] else 1.
+                    if abs(computed_gap-max(requested,floor))>.001:
+                        errors.append((entry['id'],'conservative effective clearance mismatch'))
+                elif not lo-1e-6<=computed_gap<=hi+1e-6:errors.append((entry['id'],'avoidance effective gap quota'))
                 if abs(computed_gap-avoidance['requested_surface_gap_m'])>.001:
                     errors.append((entry['id'],'avoidance solved gap'))
                 if a['actual_ego_role']!=r['role']:errors.append((entry['id'],'avoidance actual side'))
@@ -90,19 +96,23 @@ def audit(manifest_path):
             envelope=poly
             if path is not None:
                 from shapely.geometry import LineString
-                points=path['points'];start=points[0];end=points[1]
+                points=path['points'];start=points[0];end=points[-1] if path.get('ground_path_evidence') else points[1]
                 if path['policy'] not in ('bounded-shuttle-v1','one-way-slow-v1','natural-target-v1'):
                     errors.append((entry['id'],'unknown motion path policy'))
                 if path['policy']=='bounded-shuttle-v1' and points[0]!=points[-1]:errors.append((entry['id'],'open shuttle return'))
                 one_way=path['policy'] in ('one-way-slow-v1','natural-target-v1')
                 expected_points=points if one_way else points[:2]*64+[points[0]]
-                if one_way and (len(points)!=2 or points[0]==points[1]):
+                if one_way and ((len(points)!=2 and not path.get('ground_path_evidence')) or points[0]==points[-1]):
                     errors.append((entry['id'],'one-way endpoint count'))
                 if one_way:
                     runtime_actor=next(a2 for a2 in s[a['source_list']] if a2.get('UNIQUEID')==a['unique_id'])
                     field='moveSpeed' if a['source_list']=='objectList' else 'speed'
-                    if runtime_actor[field]!=path['speed_field_value'] or len(runtime_actor['waypointEventList'])!=2:
+                    if runtime_actor[field]!=path['speed_field_value'] or len(runtime_actor['waypointEventList'])!=len(points):
                         errors.append((entry['id'],'one-way speed/waypoint event mismatch'))
+                    if path.get('ground_path_evidence'):
+                        from base5_motion_ground import validate_motion_ground
+                        try:validate_motion_ground(meta,s)
+                        except ValueError as exc:errors.append((entry['id'],'motion ground evidence '+str(exc)))
                 runtime_path=next((p for p in s['waypointDataList'] if p['pathName'].endswith(' - '+str(a['unique_id']))),None)
                 if runtime_path is None or runtime_path['waypointData']!=[
                         dict(pos=gen.geo.world_to_morai_waypoint(p),rot=gen.geo.formatted_rotation(0.)) for p in expected_points]:

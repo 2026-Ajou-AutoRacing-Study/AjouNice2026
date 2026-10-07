@@ -30,7 +30,7 @@ def fit_plane(points,minimum_points=18):
                 residual_rms_m=float(np.sqrt(np.mean(residual**2))),support_polygon_xy=list(hull.exterior.coords))
 
 
-def ground_review(points,boxes,transform,max_range=20.,maximum_gap=.15,references=None,runtime_ego=None):
+def ground_review(points,boxes,transform,max_range=20.,maximum_gap=.15,references=None,runtime_ego=None,required_uids=None):
     from base5_capture_audit import rotation_matrix
     points=np.asarray(points,float);transform=np.asarray(transform,float)
     # MORAI synchronous scans contain zero-XYZ no-return placeholders. They
@@ -51,7 +51,7 @@ def ground_review(points,boxes,transform,max_range=20.,maximum_gap=.15,reference
     results=[];reasons=[]
     for uid in sorted({u for u,_ in corners}):
         cs=np.concatenate([c for u,c in corners if u==uid]);xy=cs[:,:2].mean(axis=0)
-        if np.linalg.norm(xy)>max_range:
+        if np.linalg.norm(xy)>max_range and uid not in (required_uids or []):
             results.append(dict(uid=uid,required=False,verified=False,reason='outside_local_ground_probe_range'));continue
         radius=max(5.,float(np.linalg.norm(cs[:,:2]-xy,axis=1).max())+2.)
         plane=None
