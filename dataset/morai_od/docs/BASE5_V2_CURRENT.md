@@ -1,13 +1,44 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-07 / 최종 XY 기준 초기 높이 보완 v113. Base5 생성·수집·변환의 현재 진입점이다.
+2026-10-07 / Ego 드리프트 보완 v114. Base5 생성·수집·변환의 현재 진입점이다.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
-5K 시나리오 생성·전수 검사와 대표 live/resume/CPU 검증은 완료했다.
+v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보존한다.
+현재 v114 코드로 본수집하려면 새 5K manifest/output이 필요하다. 구 v113 명령을 그대로 실행하지 않는다.
 사용자가 현재 MR 기본값과 수집 환경을 Sunny 13시로 확인했다.
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
 
-## 최종 객체 XY 기준 초기 높이 — v113 우선
+## Ego 도로 지지와 실제 정지 — v114 우선
+
+기존 `b5v2_01502`(manifest index1258)의 실패를 재현했다. 큰 회피 객체의 가상 우회 시점에서
+Ego가 도로 anchor 기준 옆으로 약7.8m 이동했지만 원래 anchor의 Z/link를 계속 사용했다.
+실제 최종 XY는 가까운 물리 MGeo road centerline에서 약4.45m 떨어진 roadside estimate였다.
+객체를 제거하거나 초기 기어만 Park로 바꿔도 수평 이동17–29cm·Z 변동45–62cm가 남았다.
+같은 yaw에서 Ego를 도로 기준점으로 옮기면 객체 유무 모두 안정됐다.
+도로 밖 배치에 따른 물리적 지지 불안정이 확인됐으며, 상세 지형/서스펜션 기전까지 확정하지는 않았다.
+
+- 생성기: 최종 Ego rear-axle XY와 회전된 footprint의 도로 지지를 검사한다.
+  `roadside_estimate`는 passive actor 높이 후보로는 남지만 Ego의 도로 지지로 인정하지 않는다.
+- 정적 미션의 가상 우회 Ego가 벗어나면 Ego와 primary를 같은 XY만큼 함께 옮겨
+  상대 위치·yaw·BBox 간격을 유지한다. 지지되지 않는 yaw는 같은 자산/phase/quota로 bounded retry한다.
+  최종 Ego XY에서 높이를 다시 구하고 actor 높이도 기존 최종 XY 정책으로 독립 초기화한다.
+  실제 controller가 주행한 회피 궤적이나 객체 접지 인증으로 해석하지 않는다.
+- 수집기: 실제 scenario의 Ego XY/yaw를 로드 전에 재검사한다.
+  Park ACK 이후0.3초 실제 정지 witness를 확인한다(XY/Z span와 XY/수직 속도 각각<0.02).
+  최대4초만 기다리고 캡처 직전에 재확인한다. 드리프트8cm·CollisionData 계약은 완화하지 않는다.
+- 실패 좌표·속도·seq/source stamp·서비스 응답·원본 hash를 저장한다. 통신/정지 불확실은 halt다.
+  CollisionData 접촉은 기존 physical-collision 복구 분류를 유지한다.
+- 세션 계약v7은 도로/경계 지도와 관련 runtime hash도 고정한다. 기존 raw/manifest/output은 보존한다.
+  새 코드로 구 output에 resume하지 않는다. v113 재현 revision은 `10578aa8`이다.
+
+기존 5K의 설계 셀을 파일 저장/본수집 없이 전수 재구성한 결과5000/5000 생성 가능,
+기존family와122종 primary 최소4회를 유지했다. 회피 쌍390개를 도로 지지 위치로 옮겼다.
+새 5K 동결 manifest를 생성한 결과나 전체 지형/가시성 live 인증은 아니다.
+실제 A/B·수정본 캡처·한계는
+[Ego 드리프트 근거](261007_base5_static_height_evidence.md#ego-드리프트-원인-분리와-보완--v114)를 따른다.
+다음은 새 5K manifest 재생성/전수 검사다. 본수집·학습은 이번 작업에서 시작하지 않았다.
+
+## 최종 객체 XY 기준 초기 높이 — v113 이력
 
 일부 좌우/혼합 배치에서 XY를 옮기고도 이전 anchor Z를 사용하던 경로를 보완했다.
 정적/standing actor는 최종 XY에서 실제 MGeo 도로 선분 XYZ를 보간하고,

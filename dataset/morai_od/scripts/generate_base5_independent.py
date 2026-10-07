@@ -505,6 +505,9 @@ def build(row,config,ctx,attempt=0):
     row=copy.deepcopy(row)
     from base5_map_surface import configure
     ctx=configure(ctx,config.get('placement_ground'))
+    from base5_map_surface import MapSurface,ego_road_support
+    if 'map_surface_index' not in ctx:
+        ctx['map_surface_index']=MapSurface(ctx['links'],ctx.get('lane_boundaries'))
     if row.get('dynamic_mission_pool'):
         # Low-quota crossing observations use passenger/small vehicles. Large
         # buses/trucks cannot fit the existing 5–10m yielding observation cell.
@@ -591,6 +594,16 @@ def build(row,config,ctx,attempt=0):
         ego,primary_pose,avoidance_ref=avoidance.observation(sys.modules[__name__],ctx,route,arc,base,asset,row,rng)
         yaw_delta=ego['yaw']-base['yaw']
         offset=0. if row.get('avoidance_origin')=='generic_close' else avoidance_ref['lateral_center_offset_m']
+        if avoidance_ref.get('road_relocation'):
+            anchor=avoidance_ref['road_relocation']['road_anchor'];a=math.radians(anchor['yaw'])
+            offset=-math.sin(a)*(ego['x']-anchor['x'])+math.cos(a)*(ego['y']-anchor['y'])
+    ego_support=ego_road_support(ctx['map_surface_index'],ego)
+    if not ego_support['road_supported']:
+        # Retry the same spec/quota with another deterministic placement. Do
+        # not move Ego alone (that would invalidate the requested close gap),
+        # and do not extrapolate road Z across a curb/verge.
+        raise ValueError('Final Ego footprint outside MGeo road support')
+    ego=dict(ego,z=ego_support['height_m'])
     scene=copy.deepcopy(ctx['template']); geo.clear_actor_lists(scene)
     geo.set_ego_pose(scene['egoVehicle'],ego,initial_speed_kph=0.)
     geo.zero_vector(scene['egoVehicle']['initPosition'].get('vehicleSaveData',{}).get('vehicle',{}).get('lastVelocity'))
@@ -785,6 +798,7 @@ def build(row,config,ctx,attempt=0):
     group=base['link_idx']  # whole-link split; still neighboring-link visibility leakage possible
     split='val' if int(hashlib.sha256(group.encode()).hexdigest()[:8],16)/2**32<.15 else 'train'
     meta=dict(spec=row,ego=ego,base=base,details=details,runtime_actors=actor_records,
+        ego_ground_initializer=ego_support,
         split=split,split_group=group,split_limit='whole link; adjacent links can share 100m views; held-out mission bag required',
         ego_road_yaw_offset_deg=yaw_delta,ego_lateral_offset_m=offset,
         planned_primary_distance_m=desired,retry=attempt,live_validated=False)
@@ -840,11 +854,14 @@ def generate(config,output,start,count,runtime=geo.DEFAULT_RUNTIME_ASSET_DIR,mge
             vehicle_close_sha256=geo.sha256(Path(vehicle_close.__file__)),
             appearance_policy_sha256=geo.sha256(APPEARANCE_POLICY),
             avoidance_geometry_sha256=geo.sha256(Path(avoidance.__file__)),
+            map_surface_sha256=geo.sha256(Path(sys.modules['base5_map_surface'].__file__)),
             highway_sample_sha256=geo.sha256(HIGHWAY_SAMPLE),
             geometry_sha256=geo.sha256(GEOMETRY),catalog_sha256=geo.sha256(catalog.DEFAULT_CATALOG),
             geometry_references=ctx['geometry_sources'],
             runtime_sources={k:geo.sha256(runtime/k) for k in json.loads(catalog.DEFAULT_CATALOG.read_text())['source_sha256']},
-            map_sha256=geo.sha256(mgeo/'link_set.json')),pool_names={k:[a['name'] for a in v] for k,v in ctx['pools'].items()})
+            map_sha256=geo.sha256(mgeo/'link_set.json'),
+            map_boundary_sha256=geo.sha256(mgeo/'lane_boundary_set.json') if (mgeo/'lane_boundary_set.json').exists() else None),
+        pool_names={k:[a['name'] for a in v] for k,v in ctx['pools'].items()})
     geo.write_json(output/'manifest.json',manifest)
     return output/'manifest.json'
 

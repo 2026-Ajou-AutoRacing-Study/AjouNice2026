@@ -160,3 +160,91 @@ Dog 실제 capture 시간은 증가하지 않았다. 대부분 기존 정적 높
 구13.4h/45.7h는 이전 분포의 조건부 외삽이며 이번 정확한 ETA가 아니다.
 본5K 수집/학습은 미시작. 지면 evidence 부족/일부 near reference mismatch/Ego 드리프트는 남는다.
 최대 가능한 지도 초기화와 안전한 품질 분리가 완료됐으며 모든 지형·자산 접지 해결은 아니다.
+
+## Ego 드리프트 원인 분리와 보완 — v114
+
+### 재현 및 원인
+
+정적28장면 후 사용자가 Ego 드리프트 원인부터 해결하도록 요청했다. v113 당시 실패는
+manifest ordinal1258, 실제 ID `b5v2_01502`이며 `b5v2_01258`이 아니다.
+원본 hash는 `f54c690cc168abec8264674b0bbefc2348ca3f42d40af4e53c7f06fe88357919`다.
+실패 당시 EventCmd/Park 정상 응답은 약4–6ms로 단순 서비스 지연 설명과 맞지 않았다.
+당시 드리프트 실패에는 준비 전후 Ego 좌표가 저장되지 않았으므로 외부 read-only 관측기를
+붙여 원본 runner/scene 그대로 재현했다. 수평8cm gate를 통과한 실행에서도 Z span56.6cm,
+실제 수평 속도·브레이크1·Park ACK가 함께 관측되어 raw가 `ego_vertical_support_unstable`로 보류됐다.
+
+동일 load/brake/Park 조건의 load-only A/B다. 각 행의 span은 Park ACK 뒤5초 관측이다.
+
+| 조건 | 수평 위치 span | Z span | 마지막 정지 window |
+|---|---:|---:|---|
+| 원래 위치, 객체 제거 |29.05cm|61.62cm|실패|
+| 원래 위치, Mixer 유지 |22.52cm|53.99cm|실패|
+| 원래 위치, 초기 기어만 Park |16.95cm|44.81cm|실패|
+| 도로 기준점, 객체 제거 |0.145cm|0.174cm|통과|
+| 도로 기준점, Mixer 유지 |0.131cm|0.192cm|통과|
+
+도로 기준점 비교에서는 source yaw를 유지했다. 초기 기어 변경만으로 해결되지 않았고,
+객체를 빼도 흔들렸으므로 NPC 충돌/제어 지연만으로 설명할 수 없다. A/B 종료에는 알려진
+빈 도로 장면을 복원하고 실제 정지·Park를 확인했다. non-Ego CollisionData contact는 없었다.
+이는 지형 접촉이 없다는 뜻은 아니다. 정적 세계 mesh/서스펜션의 세부 접촉 형상은 측정하지 않았다.
+
+가상 회피 observation은 긴 객체의 회전 투영 폭(unknown proxy12×2.8m 포함)으로
+Ego를 원래 도로 anchor에서 횡7.83m 옮겼지만 support route의 Z/link를 그대로 남겼다.
+실제 최종 XY는 가까운 물리 도로 centerline에서도4.45m 떨어져 있고 confidence가
+`roadside_estimate`였다. **Ego가 실제로 안정적으로 지지되는 위치를 보장하지 않은 배치 결함**이다.
+Localization/EKF 오차를 원인으로 판단하지 않는다. 이번 실험은 MORAI Ego 원시 상태를 사용했다.
+
+### 코드 보완
+
+- `base5_map_surface.ego_road_support`: 실제 최종 rear-axle XY와 회전된 Ego footprint를 검사한다.
+  수동 actor에 허용하는 roadside 높이 추정을 Ego 도로 지지로 인정하지 않는다.
+  MORAI JSON의 숫자 문자열 yaw도 해석하며 NaN을 거부한다. 지도 검사는 실제 collider 인증이 아니다.
+- `base5_avoidance_geometry.road_supported_pair`: 도로 밖 정적 미션 Ego와 primary를 같은 XY만큼
+  함께 옮긴다. 상대 XY/yaw/간격은 보존하며 actor의 최종 지면 높이는 독립 초기화한다.
+  Ego geometric center를 road anchor에 맞추고 rear-axle offset1.35m를 고려한다.
+  해당 yaw에서도 footprint가 지지되지 않으면 같은 자산/phase/side quota에서 bounded retry한다.
+- 생성기는 모든 최종 Ego를 재검사하고 최종 XY의 map 높이를 사용한다. actor GT를 사후 고치지 않는다.
+- 수집기는 metadata뿐 아니라 실제 serialized scene XY/yaw를 로드 전에 검사한다.
+  불합격 scene은 ScenarioLoad/SaveSensorData를 요청하지 않고 hash와 근거를 남긴다.
+- Park ACK 뒤0.3초 receive witness를 확인한다. XY/Z span<2cm,
+  수평 속도/절대 수직 속도<0.02m/s이며 최대4초 대기 후 실패하면 no-capture/halt다.
+  캡처 직전에 다시 검사한다. 기존8cm drift/CollisionData/contact/actor GT 정책은 유지한다.
+- 정지 실패에는 e0/e1·좌표/속도/vz·seq/source stamp·Park 응답·scenario hash를 남긴다.
+  CollisionData 접촉에 의한 흔들림은 기존 physical-collision 복구 분류를 유지한다.
+- telemetry schema2는 실제 정지 확인 이후 sample과 전체 load history를 따로 저장한다.
+  초기 teleport/settling 이력은 삭제하지 않고 `ego_load_samples`에 보존한다.
+  세션 계약v7은 map link/boundary와 map-screening/timing/runtime 코드 hash를 고정한다.
+  구 output에 새 코드로 resume하지 않는다. v113 이력 재현은 `10578aa8`이다.
+
+### 실제 검증과 전수 설계 검사
+
+근거 디렉터리: `~/morai_cap/base5_v2_261007/ego_drift_v114/`의 `summary.json`.
+
+- 원래 실패 scene을 새 runner에 넣으면 로드/촬영0으로 차단됐다(`reject_original_v114`).
+- `live_pilot9`: 정적8raw 모두 정지 witness/지원 안정/contact 검사를 통과했다.
+  학습 승인4/보류4이며 보류는 actor 지면 관측 부족·primary 가시성/존재 부족이다.
+  9번째 freshly generated mover는 독립 ground preparation이 없어 로드 전에 거부됐다.
+  이를 승인으로 세지 않고, 다음 시험은 기존 ground-prepared payload를 사용했다.
+- `repeat3_dynamic1`: 수정 Mixer 동일 payload3회 및 ground-prepared Woman3 혼합1회가4/4 승인됐다.
+- `final_static_dynamic2`: 실제 scenario yaw 문자열의 parser 결함을 발견했고 로드/촬영 전 중단했다.
+  형식 지원을 고친 뒤 **새 output** `final_static_dynamic2b`에서 정적/동적2/2 승인됐다.
+- 수정본 실제 캡처 합계14회(중복 반복 포함, 서로 다른 payload9개), 정지/수직 지지/no-contact14/14.
+  수평 캡처 drift 최대0.0975mm, 정지 이후 Z span 최대0.1069mm다.
+  학습 승인10/가시성·actor-ground 부족 보류4를 구분한다. 문제 Mixer payload는 총5회 승인됐다.
+  모든 종료/공유 batch 경계 Park 확인. 최종 완료 output resume는 ledger hash 불변·추가촬영0이다.
+- 이전5K에 새 map screening만 적용하면583개가 보수적 map gate에 걸렸다.
+  이는583개 실제 드리프트 관측 또는 기존 raw 무효 판정이 아니다.
+- 기존5K 설계 셀을 파일 저장/본수집 없이 전수 재구성했다.5000/5000 생성 가능/실패0,
+  122종 primary 최소4회·기존family와phase quota를 유지했다.390회피 쌍 공동 이동,
+  4788셀은 기존retry부터 바로 구성 가능했고212셀은 추가 bounded retry가 필요했다.
+  새5K 동결 manifest나 전체 센서 가시성/ground live 인증은 아니다.
+- 최종 Base5 단위검사265개 PASS, 관련 모듈 compile과 diff whitespace 검사 PASS다.
+  Ego roadside/footprint/yaw·동일 쌍 이동의 상대 위치 보존·vz/정지 witness·숫자 문자열을 검증했다.
+
+### 남은 범위 / 다음
+
+알려진 Ego 드리프트 배치의 원인과 수정은 검증됐다. 모든 curb/경사/지형의 물리 지지를
+지도만으로 보장하지는 않으며 actual Park/stationary/CollisionData gate를 계속 사용한다.
+actor 가시성/ground witness 부족은 별도 과제이고, 움직이는 경로는 독립 ground preparation이 필요하다.
+기존v113 raw/manifest/실패를 보존했다.5K 본수집/학습/GPU 모델 실행은 하지 않았다.
+다음은 v114 새5K manifest/output 재생성·전수 검사와 소량 회귀 후 본수집 승인이다.

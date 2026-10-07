@@ -166,10 +166,14 @@ def load_ledger(path):
 def prepare_session(output,manifest,network,sensor,runner_options=None):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     scripts=Path(__file__).parent
-    contract=dict(schema_version=6,manifest_sha256=sha256(manifest),
+    from generate_dynamic_object_capture_set import DEFAULT_MGEO
+    map_sources={name:sha256(DEFAULT_MGEO/name) if (DEFAULT_MGEO/name).exists() else None
+        for name in ('link_set.json','lane_boundary_set.json')}
+    contract=dict(schema_version=7,manifest_sha256=sha256(manifest),
+        ego_support_map_sha256=map_sources,
         network_sha256=sha256(network),sensor_sha256=sha256(sensor),
-        safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_population_budget.py','base5_ground_support.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py','base5_event_cmd.py','base5_motion_ground.py','base5_static_ground_reference.py')},
-        safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; local-ground-plane-v1; all-actor-motion-endpoint-window-v1; vertical-step-window-v1')
+        safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_population_budget.py','base5_ground_support.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py','base5_event_cmd.py','base5_motion_ground.py','base5_static_ground_reference.py','base5_map_surface.py')},
+        safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; local-ground-plane-v1; all-actor-motion-endpoint-window-v1; vertical-step-window-v1; final-ego-road-footprint-v114; post-park-stationary-v114')
     if runner_options is not None:contract['runner_options']=runner_options
     path=output/'session_contract.json'
     if path.exists():

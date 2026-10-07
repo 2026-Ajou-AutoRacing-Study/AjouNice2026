@@ -2,7 +2,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from base5_map_surface import MapSurface,configure,initial_pose
+from base5_map_surface import MapSurface,configure,initial_pose,ego_road_support
 
 
 class MapSurfaceTest(unittest.TestCase):
@@ -41,6 +41,37 @@ class MapSurfaceTest(unittest.TestCase):
         row=dict(points=[[0,2,10.2],[10,2,11.2]])
         s=MapSurface({'road':dict(points=[[0,0,10],[10,0,11]],lane_mark_left=['z','a'])}, {'z':row,'a':row})
         self.assertEqual(s.estimate([5,1])['boundary']['boundary_id'],'a')
+
+    def test_ego_rejects_roadside_height_even_when_actor_height_is_usable(self):
+        s=self.surface();pose=dict(x=5.,y=4.,z=10.,yaw=0.,link_idx='road')
+        self.assertTrue(s.estimate([5,4])['usable'])
+        self.assertFalse(ego_road_support(s,pose)['road_supported'])
+
+    def test_ego_uses_final_xy_and_oriented_footprint_not_original_link_anchor(self):
+        s=MapSurface({'road':dict(points=[[0,0,10],[30,0,10]],width_start=3.5,width_end=3.5)})
+        pose=dict(x=10.,y=0.,z=99.,yaw=0.,link_idx='road')
+        proof=ego_road_support(s,pose)
+        self.assertTrue(proof['road_supported']);self.assertEqual(proof['height_m'],10.)
+        self.assertFalse(proof['contact_verified'])
+        self.assertFalse(ego_road_support(s,dict(pose,y=8.))['road_supported'])
+        self.assertFalse(ego_road_support(s,dict(pose,yaw=45.))['road_supported'])
+        self.assertEqual(ego_road_support(s,dict(pose,x='10.0',y='0.0',yaw='0.0')),proof)
+        with self.assertRaises(ValueError):ego_road_support(s,dict(pose,yaw='nan'))
+
+    def test_unsupported_pair_translation_preserves_close_view_and_gap(self):
+        from base5_avoidance_geometry import road_supported_pair
+        s=MapSurface({'road':dict(points=[[0,0,10],[30,0,10]])})
+        support=dict(x=10.,y=0.,z=10.,yaw=0.,link_idx='road')
+        ego=dict(support,x=10.,y=6.,yaw=10.)
+        target=dict(x=11.,y=3.,z=10.,yaw=90.)
+        e,a,proof=road_supported_pair(ego,target,support,s)
+        self.assertTrue(ego_road_support(s,e)['road_supported'])
+        self.assertAlmostEqual(a['x']-e['x'],target['x']-ego['x'])
+        self.assertAlmostEqual(a['y']-e['y'],target['y']-ego['y'])
+        self.assertEqual((e['yaw'],a['yaw']),(ego['yaw'],target['yaw']))
+        self.assertFalse(proof['object_ground_contact_verified'])
+        self.assertEqual(road_supported_pair(e,a,support,s),(e,a,None))
+        with self.assertRaises(ValueError):road_supported_pair(dict(ego,yaw=45.),target,support,s)
 
 
 if __name__=='__main__':unittest.main()

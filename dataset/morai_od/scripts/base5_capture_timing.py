@@ -43,6 +43,24 @@ def preflight_stationary(samples, now, window=.30):
             and max(r['z'] for r in rows)-min(r['z'] for r in rows)<.02)
 
 
+def stationary_witness(samples,now,not_before,window=.30):
+    """Post-Park proof includes vertical velocity; never trust gear ACK alone."""
+    rows=[r for r in samples if max(not_before,now-window-.10)<=r['t']<=now]
+    finite=bool(rows) and all(math.isfinite(r.get('vz',float('nan'))) for r in rows)
+    stable=preflight_stationary(rows,now,window) and finite and all(abs(r['vz'])<.02 for r in rows)
+    def span(key):
+        values=[r[key] for r in rows if math.isfinite(r[key])]
+        return max(values)-min(values) if values else None
+    xy=(math.hypot(span('x'),span('y')) if rows and span('x') is not None and span('y') is not None else None)
+    return dict(policy='post-park-stationary-v114',verified=stable,not_before_monotonic=not_before,
+        observed_at_monotonic=now,window_sec=window,sample_count=len(rows),
+        receive_span_sec=rows[-1]['t']-rows[0]['t'] if rows else None,
+        xy_span_m=xy,z_span_m=span('z'),
+        maximum_xy_speed_mps=max((math.hypot(r['vx'],r['vy']) for r in rows),default=None),
+        maximum_abs_vz_mps=max((abs(r.get('vz',float('inf'))) for r in rows),default=None),
+        thresholds=dict(xy_span_m=.02,z_span_m=.02,xy_speed_mps=.02,abs_vz_mps=.02),samples=rows)
+
+
 class StageTiming:
     def __init__(self, clock=time.perf_counter):
         self.clock = clock

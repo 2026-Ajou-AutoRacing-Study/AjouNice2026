@@ -119,6 +119,28 @@ def footprint_profile(surface,pose,size,offset):
         contact_verified=False,limitation='Map footprint profile, not measured mesh contact; actor yaw/pitch and GT unchanged')
 
 
+def ego_road_support(surface,pose):
+    """Reject roadside extrapolation for the physical Ego, unlike passive assets.
+
+    Check the FINAL rear-axle pose and its footprint, not the route anchor used
+    before a virtual bypass displaced XY. This is a map screening gate only;
+    actual stationary receive evidence remains mandatory after every load.
+    """
+    # MORAI scenario JSON stores some rotations as numeric strings, while
+    # metadata/ROS witnesses use floats. Screen the actual serialized values.
+    pose=dict(pose,**{k:float(pose[k]) for k in ('x','y','yaw')})
+    if not all(math.isfinite(pose[k]) for k in ('x','y','yaw')):
+        raise ValueError('Nonfinite serialized Ego pose')
+    center=surface.estimate([pose['x'],pose['y']],pose.get('link_idx'))
+    profile=footprint_profile(surface,pose,[4.8,2.],[1.35,0.,0.])
+    samples=[center]+profile['samples']
+    supported=all(p['usable'] and p['confidence'] in ('road_strip','near_centerline') for p in samples)
+    return dict(policy='final-ego-road-footprint-v114',road_supported=supported,
+        height_m=center.get('height_m'),center=center,footprint=profile,
+        contact_verified=False,
+        limitation='MGeo road support screening; not curb/collider certification. Park and live stationary gate still required.')
+
+
 def initial_pose(pose,asset,size,offset,ctx):
     """Final XY lookup then asset pivot; no blanket positive Z margin."""
     from base5_static_height import saved_height_candidate

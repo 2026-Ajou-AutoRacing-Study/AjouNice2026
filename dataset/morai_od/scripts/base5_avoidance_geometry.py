@@ -7,6 +7,31 @@ def smoothstep(t):
     return t*t*(3.-2.*t),6.*t*(1.-t)
 
 
+def road_supported_pair(ego,target,support,surface):
+    """Rigidly translate a synthetic pair, never snap Ego alone.
+
+    Preserve the view/footprint gap. Place Ego's geometric center over the road
+    center while retaining its tangent yaw; unsupported yaw still retries.
+    This is not a driven-path or object-ground-contact certificate.
+    """
+    from base5_map_surface import ego_road_support
+    before=ego_road_support(surface,ego)
+    if before['road_supported']:return ego,target,None
+    a=math.radians(ego['yaw']);road=math.radians(support['yaw'])
+    fixed=dict(ego,x=support['x']+1.35*(math.cos(road)-math.cos(a)),
+        y=support['y']+1.35*(math.sin(road)-math.sin(a)),z=support['z'])
+    after=ego_road_support(surface,fixed)
+    if not after['road_supported']:
+        raise ValueError('Final Ego footprint outside MGeo road support')
+    dx,dy=fixed['x']-ego['x'],fixed['y']-ego['y']
+    moved=dict(target,x=target['x']+dx,y=target['y']+dy)
+    proof=dict(policy='stationary-road-supported-pair-v114',translation_xy_m=[dx,dy],
+        original_ego=ego,original_target=target,road_anchor=support,
+        before=before,after=after,relative_xy_and_yaw_preserved=True,
+        object_ground_contact_verified=False,virtual_path_driven=False)
+    return fixed,moved,proof
+
+
 def observation(gen,ctx,route,arc,base,asset,row,rng):
     size,off,known=gen.geometry(asset,ctx)
     road_yaw=base['yaw']
@@ -70,6 +95,9 @@ def observation(gen,ctx,route,arc,base,asset,row,rng):
         dx,dy=base['x']-ego['x'],base['y']-ego['y']
         ego=dict(base,yaw=yaw)
         target_pose=dict(target_pose,x=target_pose['x']+dx,y=target_pose['y']+dy)
+    road_relocation=None
+    if row.get('mission') and ctx.get('map_surface_index') is not None:
+        ego,target_pose,road_relocation=road_supported_pair(ego,target_pose,support,ctx['map_surface_index'])
     reference=dict(phase=phase,side=row['avoidance_side'],
         requested_surface_gap_m=gap if phase=='alongside' else None,
         longitudinal_center_offset_m=longitudinal,lateral_center_offset_m=lateral,
@@ -82,4 +110,6 @@ def observation(gen,ctx,route,arc,base,asset,row,rng):
     if row.get('avoidance_origin')=='generic_close':
         reference.update(contract='stationary-road-ego-side-object-v97',ego_road_anchor_preserved=True,
             object_ground_support_verified=False)
+    if road_relocation:
+        reference.update(contract='stationary-road-supported-pair-v114',road_relocation=road_relocation)
     return ego,target_pose,reference

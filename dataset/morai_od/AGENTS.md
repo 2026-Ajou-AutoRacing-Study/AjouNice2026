@@ -23,6 +23,10 @@
    자산 pivot을 사용하지만 roadside/unsupported 접지 인증은 아니다. QA 재촬영/대체 상한,
    동일 payload witness1회·단일 master live lock을 유지한다. 구 v112는 `c67f62c3` 재현용이다.
    본수집은 사용자 승인 후이며 raw GT·실패 근거를 보존한다.
+   v114는 Ego 최종 footprint 도로 지지·회피 쌍 공동 이동·실제 정지 witness 계약이다.
+   구 v113 동결 manifest/output은 보존하되 현재 코드로 본수집/resume하지 않는다.
+   v113 재현 revision은 `10578aa8`이다. 새 v114 5K manifest는 별도 준비해야 한다.
+   MGeo roadside 추정을 Ego 도로 지지로 인증하거나 Park ACK만으로 정지를 인증하지 않는다.
 
 CURRENT/EVIDENCE/PLAN/HISTORICAL 상태를 구분한다. 현재 학습 전달본은
 `base3_online_highway_motion_v2`이며 nearest-state V1을 자동 선택하지 않는다.

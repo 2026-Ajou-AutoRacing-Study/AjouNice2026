@@ -4,6 +4,13 @@
 본수집은 사용자 승인 후 진행하며, 이미 진행 중인 수집은 기존 명령으로 이어간다.
 E25 추론·temporal 학습·rosbag 녹화용 런북이 아니다.
 
+**v114 우선:** Ego 도로 지지/정지 gate와 세션 계약v7을 적용했다.
+현재 코드로 아래 v113 manifest/output을 사용해 새 본수집하거나 resume하지 않는다.
+v113 이력 재현은 commit `10578aa8`이다. 새 v114 5K manifest/output은 아직 미생성이다.
+통신 순서는 그대로이며 다음으로 새 manifest를 만들고 이 문서의 본수집 명령을 교체한다.
+Park 응답 뒤 실제 XY/Z 안정·수평/수직 속도 witness0.3초를 확인하며 최대4초를 넘으면 halt한다.
+`waiting_stationary_ego`는 대시보드의 정상 검증 단계다. 임의로 gate를 끄지 않는다.
+
 2026-10-07 [환경 정정](261007_base5_sunny13_environment_correction.md): 실제 MR 기본/수집은
 사용자 확인 Sunny 13시다. v108의 미시작 기록은 당시 사전 보고이며, 현재 수집 재시작 지시가 아니다.
 **기존 수집/resume 명령·manifest·output은 그대로 둔다. 아래 새 경로는 신규 수집용이다.**
@@ -50,7 +57,7 @@ UDP receiver, sensing, localization, BEVFusion, planning, control은 별도로 �
 필요한 소량 임시 파일만 설치/회수해 GUI 과부하를 막는다.
 다른 output의 수집기라도 같은 ROS master에 두 개를 동시에 실행하지 않는다. live lock이 차단한다.
 
-### 터미널 3 — 승인 후 수집 / 같은 명령으로 재개
+### 터미널 3 — v113 이력 명령 / 현재 v114에서 실행 금지
 
 새 manifest/runtime은 최종 XY 높이 보완 v113이다. 구 pilot output에 다른 계약으로 resume하지 않는다.
 이전 v107 소량표본의 전체5K 외삽은45.7h였으며 새 v113의 확정 ETA가 아니다.

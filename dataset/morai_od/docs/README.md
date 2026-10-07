@@ -2,6 +2,11 @@
 
 마지막 정리: 2026-10-07.
 
+- **v114 Ego 드리프트 우선:** 도로 밖 가상 회피 Ego 배치를 재현/A-B로 분리했다.
+  최종 footprint 도로 지지·회피 쌍 공동 이동·Park 뒤 실제 정지 witness가 현재 계약이다.
+  구 v113 output resume 금지, 새 5K manifest 준비가 다음이다.
+  [CURRENT](BASE5_V2_CURRENT.md), [Ego 근거](261007_base5_static_height_evidence.md#ego-드리프트-원인-분리와-보완--v114)를 먼저 읽는다.
+
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
 - **v113 최종 XY 초기 높이:** XY 이동 뒤 이전 Z를 쓰던 정적 배치를 도로 선분/연결 경계

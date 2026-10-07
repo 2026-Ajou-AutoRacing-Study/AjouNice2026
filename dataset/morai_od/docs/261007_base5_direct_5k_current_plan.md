@@ -4,7 +4,17 @@
 **10K를 수집한 뒤 절반 선별하는 방식이 아니라, 처음부터 균형5K를 설계한다.**
 본수집은 아직 시작하지 않는다. 기존10K manifest/raw/pilot은 삭제하지 않는다.
 
-## 2026-10-07 최종 XY 초기 높이 — v113 우선
+## 2026-10-07 Ego 드리프트 보완 — v114 우선
+
+회피 시점 합성에서 Ego를 roadside로 밀어내던 문제를 A/B로 분리하고 보완했다.
+최종 Ego footprint 도로 지지·최종 XY 높이·Park 뒤 실제 정지 확인이 현재 계약이다.
+Ego만 옮겨 근접 간격을 깨뜨리지 않으며, 정적 회피 쌍은 함께 옮기거나 같은 자산/phase로 재배치한다.
+기존 5K 설계 전수 재구성5000/5000·122종 primary 최소4 확인, 본수집/새5K 파일 생성은 아니다.
+기존 v113 manifest/raw는 보존한다. **현재 코드로 아래 구 v113 본수집 명령을 사용하지 않는다.**
+다음은 v114 새 manifest/output 준비와 전수 검사이며 실제 검증은
+[CURRENT](BASE5_V2_CURRENT.md) 및 [EVIDENCE](261007_base5_static_height_evidence.md#ego-드리프트-원인-분리와-보완--v114)를 따른다.
+
+## 2026-10-07 최종 XY 초기 높이 — v113 이력
 
 배치 비율은 바꾸지 않고 최종 actor XY의 실제 MGeo road segment/연결 lane boundary 높이를
 자산 pivot 후보와 결합한다. 가상 차선 변경 link는 지면 근거에서 제외한다.

@@ -9,7 +9,7 @@ from PIL import Image
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from base5_capture_timing import StageTiming, preflight_stationary, post_load_topics_ready, deferred_static_secondary
+from base5_capture_timing import StageTiming, preflight_stationary, stationary_witness, post_load_topics_ready, deferred_static_secondary
 from base5_capture_audit import camera_evidence
 
 
@@ -82,3 +82,13 @@ class TimingTest(unittest.TestCase):
                 self.assertEqual(camera_evidence(root,7,'Vehicle',cache),expected)
                 self.assertEqual(opened.call_count,1)
             self.assertEqual(len(cache),1)
+
+    def test_post_park_witness_excludes_pre_park_samples_and_checks_vz(self):
+        rows=[dict(t=t,x=0.,y=0.,z=1.,vx=0.,vy=0.,vz=0.) for t in (.61,.71,.81,.91,1.)]
+        self.assertTrue(stationary_witness(rows,1.,.60)['verified'])
+        self.assertFalse(stationary_witness(rows,1.,.81)['verified'])
+        for key,value in [('vx',.021),('vz',.021),('z',1.021),('x',.021),('vz',float('nan'))]:
+            changed=[dict(r) for r in rows];changed[-1][key]=value
+            self.assertFalse(stationary_witness(changed,1.,.60)['verified'],key)
+        del rows[-1]['vz']
+        self.assertFalse(stationary_witness(rows,1.,.60)['verified'])

@@ -14,7 +14,7 @@ import uuid
 import fcntl
 
 from base5_capture_audit import audit_capture
-from base5_capture_timing import StageTiming, preflight_stationary, post_load_topics_ready, deferred_static_secondary
+from base5_capture_timing import StageTiming, preflight_stationary, stationary_witness, post_load_topics_ready, deferred_static_secondary
 from base5_event_cmd import BoundedServiceCaller
 from base5_capture_safety import prepare_session,archive_incomplete,collision_window,scene_collision_epoch,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review,SceneCollisionError
 
@@ -140,7 +140,9 @@ def main():
     lock=threading.RLock(); halt=threading.Event();object_traces=[]
     def ego_cb(m):
         with lock:
-            row=dict(t=time.monotonic(),x=m.position.x,y=m.position.y,z=m.position.z,heading=m.heading,vx=m.velocity.x,vy=m.velocity.y)
+            row=dict(t=time.monotonic(),x=m.position.x,y=m.position.y,z=m.position.z,heading=m.heading,
+                vx=m.velocity.x,vy=m.velocity.y,vz=m.velocity.z,brake=m.brake,
+                seq=m.header.seq,source_stamp=m.header.stamp.to_sec())
             state.update(ego=row,ego_t=row['t']);traces.append(row)
             if len(traces)>2000: del traces[:1000]
     def object_cb(m):
@@ -172,7 +174,7 @@ def main():
                 raise RuntimeError('Ego/Object/CollisionData connection stale')
             return dict(state['ego'])
     started=time.time(); results=list(previous); owned=[]; failures=0;new_captures=0
-    current_scene=None
+    current_scene=None;ego_surface=None
     def event_report(record):
         record.update(scene=current_scene,recorded_at=time.time())
         with (args.output/'event_cmd_requests.jsonl').open('a') as handle:
@@ -241,7 +243,31 @@ def main():
             shutil.copy2(entry['scenario'],scenario);owned.append(scenario)
             shutil.copy2(args.network_template,sidecar);owned.append(sidecar)
             timing.mark('scenario_install')
+            drift_evidence=None
             try:
+                from base5_map_surface import MapSurface,ego_road_support
+                from generate_dynamic_object_capture_set import DEFAULT_MGEO
+                if ego_surface is None:
+                    map_path=DEFAULT_MGEO/'link_set.json'
+                    expected_map=manifest.get('provenance',{}).get('map_sha256')
+                    if expected_map and hashlib.sha256(map_path.read_bytes()).hexdigest()!=expected_map:
+                        raise RuntimeError('Ego support map differs from manifest provenance; regenerate against current map')
+                    links={r['idx']:r for r in json.loads(map_path.read_text())}
+                    boundaries=DEFAULT_MGEO/'lane_boundary_set.json'
+                    expected_boundary=manifest.get('provenance',{}).get('map_boundary_sha256')
+                    if expected_boundary and (not boundaries.exists() or hashlib.sha256(boundaries.read_bytes()).hexdigest()!=expected_boundary):
+                        raise RuntimeError('Ego support boundaries differ from manifest provenance')
+                    ego_surface=MapSurface(links,{r['idx']:r for r in json.loads(boundaries.read_text())} if boundaries.exists() else {})
+                serialized=scene['egoVehicle']['initPosition']
+                screened_ego=dict(meta['ego'],x=serialized['pos']['x'],y=serialized['pos']['y'],
+                    yaw=serialized['rot']['yaw'])
+                proof=ego_road_support(ego_surface,screened_ego)
+                if not proof['road_supported']:
+                    drift_evidence=args.output/'failures'/(entry['id']+'_ego_road_support.json')
+                    atomic_json(drift_evidence,dict(reason='ego_road_support_unverified',no_capture_requested=True,
+                        no_scenario_loaded=True,scenario_sha256=entry['scenario_sha256'],ego=screened_ego,support=proof))
+                    raise ValueError('Final Ego footprint outside MGeo road support; no load/capture')
+                meta['ego_ground_screening']=proof
                 status('scene_load',entry['id']);load_time=time.monotonic()
                 meta['capture_network_policy']=dict(shared_ros_batch=args.shared_ros_batch,network_reloaded=True)
                 loader.publish(ScenarioLoad(file_name=name,load_network_connection_data=True,load_ego_vehicle_data=True,
@@ -280,9 +306,41 @@ def main():
                         fresh();time.sleep(1.)
                 if response.response.ctrl_mode not in (3,4,5) or response.response.gear!=1:
                     raise RuntimeError('External control mode/Park gear not confirmed')
-                time.sleep(.2)
-                e0=fresh()
+                park_confirmed=time.monotonic()
                 timing.mark('control_readiness')
+                # A successful Park reply proves gear selection, not actual
+                # physical rest (off-road suspension bounce was reproduced).
+                # Bounded receive witness replaces the blind 200ms sleep.
+                status('waiting_stationary_ego',entry['id']);deadline=park_confirmed+4.
+                while time.monotonic()<deadline:
+                    check_stop();fresh()
+                    with lock:settle=stationary_witness(list(traces),time.monotonic(),park_confirmed)
+                    if settle['verified']:break
+                    time.sleep(.025)
+                else:
+                    # Collision-induced motion must keep its existing recovery
+                    # classification, not become an unrelated settle timeout.
+                    with lock:pre_contacts=[r for r in collisions if r['t']>=load_time]
+                    pre_contacts,_=scene_collision_epoch(pre_contacts,load_time,meta['ego'])
+                    peers=sorted({int(a['unique_id']) for r in pre_contacts
+                        for key in ('collision_object','collision_objecta')
+                        for a in r['message'].get(key,[]) if int(a['unique_id'])!=0})
+                    if peers:
+                        collision_evidence=args.output/'failures'/(entry['id']+'_pre_capture_collision.json')
+                        atomic_json(collision_evidence,dict(reason='physical_collision_before_capture',non_ego_uids=peers,
+                            scenario_sha256=entry['scenario_sha256'],samples=pre_contacts))
+                        raise SceneCollisionError('Physical collision before capture; no SaveSensorData requested')
+                    drift_evidence=args.output/'failures'/(entry['id']+'_ego_settle.json')
+                    with lock:ego_samples=[r for r in traces if r['t']>=load_time]
+                    atomic_json(drift_evidence,dict(reason='ego_post_park_not_stationary',no_capture_requested=True,
+                        scenario_sha256=entry['scenario_sha256'],load_time_monotonic=load_time,
+                        park_confirmed_monotonic=park_confirmed,park_response=message_dict(response),
+                        witness=settle,ego_samples=ego_samples,support=proof))
+                    raise RuntimeError('Post-Park Ego did not settle; no capture')
+                stationary_confirmed=time.monotonic()
+                meta['ego_stationary_witness']=settle
+                e0=fresh()
+                timing.mark('ego_stationary_settle')
                 if meta.get('yaw_probe'):
                     corrected=e0['heading']+meta['yaw_probe'].get('ego_heading_correction_deg',-1.347)
                     error=(corrected-meta['ego']['yaw']+180.)%360.-180.
@@ -378,7 +436,19 @@ def main():
                         scenario_sha256=entry['scenario_sha256'],samples=pre_contacts))
                     raise SceneCollisionError('Physical collision before capture; no SaveSensorData requested')
                 if math.hypot(e1['x']-e0['x'],e1['y']-e0['y'])>manifest['config']['capture']['maximum_ego_drift_m']:
+                    drift_evidence=args.output/'failures'/(entry['id']+'_ego_drift.json')
+                    with lock:ego_samples=[r for r in traces if r['t']>=load_time]
+                    atomic_json(drift_evidence,dict(reason='stationary_ego_drift_exceeded',no_capture_requested=True,
+                        scenario_sha256=entry['scenario_sha256'],ego_baseline=e0,ego_before_capture=e1,
+                        drift_m=math.hypot(e1['x']-e0['x'],e1['y']-e0['y']),
+                        threshold_m=manifest['config']['capture']['maximum_ego_drift_m'],ego_samples=ego_samples))
                     raise ValueError('Stationary Ego drift exceeded')
+                with lock:before_capture=stationary_witness(list(traces),time.monotonic(),park_confirmed)
+                if not before_capture['verified']:
+                    drift_evidence=args.output/'failures'/(entry['id']+'_ego_pre_capture.json')
+                    atomic_json(drift_evidence,dict(reason='ego_pre_capture_not_stationary',no_capture_requested=True,
+                        scenario_sha256=entry['scenario_sha256'],witness=before_capture,ego_baseline=e0))
+                    raise RuntimeError('Ego stationary witness lost before capture; no capture')
                 with lock: objects_before=state['objects']
                 if meta.get('yaw_probe'):
                     from base5_reference_frames import yaw_runtime_review
@@ -456,7 +526,8 @@ def main():
                 shutil.copy2(sensor_source,dest/'sensor_reference.json')
                 with lock:
                     collision_samples=[r for r in collisions if r['t']>=collision_epoch['start_monotonic']]
-                    samples=[r for r in traces if r['t']>=pose_confirmed]
+                    samples=[r for r in traces if r['t']>=stationary_confirmed]
+                    load_samples=[r for r in traces if r['t']>=load_time]
                     objects_after=state['objects']
                     actor_samples=[r for r in object_traces if r['t']>=load_time]
                 safety=collision_window(collision_samples,pose_confirmed,time.monotonic())
@@ -506,8 +577,13 @@ def main():
                 audit['accepted_candidate']=not audit['review_reasons']
                 drift=math.hypot(e2['x']-e1['x'],e2['y']-e1['y'])
                 if drift>.08: audit['review_reasons'].append('capture_ego_drift');audit['accepted_candidate']=False
-                with lock: objects_after=state['objects'];samples=[r for r in traces if r['t']>=load_time]
-                atomic_json(dest/'telemetry.json',dict(ego_before=e1,ego_after=e2,objects_before=objects_before,
+                atomic_json(dest/'telemetry.json',dict(schema_version=2,
+                    ego_sample_window='stationary_confirmation_to_telemetry_recovery; complete load history in ego_load_samples',
+                    ego_before=e1,ego_after=e2,objects_before=objects_before,
+                    ego_baseline=e0,park_confirmed_monotonic=park_confirmed,
+                    stationary_confirmed_monotonic=stationary_confirmed,
+                    ego_load_samples=load_samples,
+                    post_park_stationary_witness=settle,pre_capture_stationary_witness=before_capture,
                     objects_after=objects_after,ego_samples=samples,capture_drift_m=drift,
                     primary_displacement_during_wait_m=movement,object_position_samples=actor_samples,
                     capture_requested_at_monotonic=capture_requested_at,motion_capture=motion_evidence,
@@ -527,6 +603,9 @@ def main():
                 timing.mark('failed_phase')
                 result=dict(id=entry['id'],scenario_sha256=entry['scenario_sha256'],family=entry['family'],
                     status='failed',error=str(exc),duration_sec=time.time()-t0)
+                if drift_evidence is not None:
+                    result.update(failure_kind='ego_stationary_support',failure_evidence=str(drift_evidence.resolve()),
+                        failure_evidence_sha256=hashlib.sha256(drift_evidence.read_bytes()).hexdigest())
                 if str(exc)=='Natural target arrival not observed for all moving actors; no capture':
                     result['no_capture_safety']=miss_safety
                     result['failure_evidence']=str(miss_evidence.resolve())
