@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 import generate_base5_independent as gen
-from base5_capture_safety import atomic_json,sha256,prepare_session,load_ledger
+from base5_capture_safety import atomic_json,sha256,prepare_session,load_ledger,is_collision_failure,validate_collision_failure
 from prepare_base5_ground_retry import prepare as height_retry
 from prepare_base5_empty_ground_probe import prepare as empty_probe
 from prepare_base5_probed_retry import prepare as probed_retry
@@ -142,6 +142,17 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                     raise RuntimeError('Interrupted; child shutdown must be checked before resume')
         if child.returncode:
             safety=gen.geo.load_json(root/'shutdown_safety.json') if (root/'shutdown_safety.json').exists() else {}
+            rows=load_ledger(root/'ledger.jsonl')
+            child_status=gen.geo.load_json(root/'status.json') if (root/'status.json').exists() else {}
+            collision_exit=child_status.get('error') in (
+                'Batch review/failure or unsafe boundary Park; halt before next scene',
+                'Capture halted after connection failure or three consecutive scene failures')
+            if rows and is_collision_failure(rows[-1]) and safety.get('park_verified') and collision_exit:
+                validate_collision_failure(rows[-1])
+                row=rows[-1]
+                attempts.append(dict(cell=cell,kind=kind,capture_root=str(root),status=row['status'],
+                    reasons=['physical_collision'],shutdown=safety))
+                save('running');return row
             attempts.append(dict(cell=cell,kind=kind,capture_root=str(root),status='failed',
                 reasons=['child_failed_or_exit_unsafe'],shutdown=safety))
             raise RuntimeError('Capture child failed; see '+str(root)+'.log')
@@ -150,6 +161,7 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
         rows=[json.loads(l) for l in (root/'ledger.jsonl').read_text().splitlines() if l]
         row=rows[-1];attempts.append(dict(cell=cell,kind=kind,capture_root=str(root),status=row['status'],
             reasons=row.get('audit',{}).get('review_reasons',[]),shutdown=safety));save('running')
+        if is_collision_failure(row):validate_collision_failure(row);return row
         if row['status']=='failed' and (kind!='initial' or not arrival_retry_eligible(row,manifest)):
             raise RuntimeError('Scene failed without safe budget-retry evidence; no automatic continuation')
         return row
@@ -173,12 +185,14 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                     # an animated path. Calibration frames never fill training quota.
                     probes=prepared(base/'motion_terrain_deck'/'manifest.json',
                         lambda:empty_probe(manifest,[0],base/'motion_terrain_deck',backward_route_m=6.))
-                    capture(probes,base/'motion_terrain',cell,'motion_empty_terrain')
+                    terrain_result=capture(probes,base/'motion_terrain',cell,'motion_empty_terrain')
+                    if is_collision_failure(terrain_result):
+                        unresolved.append(dict(cell=cell,reasons=['physical_collision'],evidence=terrain_result));save('running');continue
                     refs=prepared(base/'motion_static_deck'/'manifest.json',
                         lambda:motion_ground.static_reference(manifest,base/'motion_static_deck'))
                     reference=capture(refs,base/'motion_static',cell,'motion_static_reference')
-                    if 'physical_collision_during_capture_window' in reference.get('audit',{}).get('review_reasons',[]):
-                        raise RuntimeError('Motion static reference collision; no moving load')
+                    if is_collision_failure(reference):
+                        unresolved.append(dict(cell=cell,reasons=['physical_collision'],evidence=reference));save('running');continue
                     try:
                         manifest=prepared(base/'motion_ground_deck'/'manifest.json',
                             lambda:motion_ground.prepare(manifest,base/'motion_terrain',base/'motion_static',base/'motion_ground_deck'))
@@ -186,6 +200,8 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                         unresolved.append(dict(cell=cell,reasons=['motion_ground_preparation_unavailable'],error=str(exc)))
                         save('running');continue
                 result=capture(manifest,base/'initial',cell,'initial')
+            if is_collision_failure(result):
+                unresolved.append(dict(cell=cell,reasons=['physical_collision'],evidence=result));save('running');continue
             if result['status']=='failed':
                 if not arrival_retry_eligible(result,manifest):
                     raise RuntimeError('Target miss lacks safe evidence or already used 9-second budget')
@@ -196,7 +212,7 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
             for ordinal in range(2):
                 if result['status']=='accepted_candidate':break
                 reasons=set(result.get('audit',{}).get('review_reasons',[]))
-                if 'physical_collision_during_capture_window' in reasons:raise RuntimeError('Physical contact; stop quality loop')
+                if is_collision_failure(result):break
                 current=Path(attempts[-1]['capture_root'])
                 if ordinal==0 and reasons=={'actor_annotation_above_ground'}:
                     next_manifest=prepared(base/'height_deck'/'manifest.json',lambda:height_retry(manifest,current,base/'height_deck'))
@@ -204,7 +220,8 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                 elif ordinal==0 and reasons and reasons<={'actor_ground_plane_unverified','actor_annotation_deep_below_ground'}:
                     try:
                         probes=prepared(base/'terrain_deck'/'manifest.json',lambda:empty_probe(manifest,[0],base/'terrain_deck'))
-                        capture(probes,base/'terrain',cell,'empty_terrain')
+                        terrain_result=capture(probes,base/'terrain',cell,'empty_terrain')
+                        if is_collision_failure(terrain_result):result=terrain_result;break
                         next_manifest=prepared(base/'probed_deck'/'manifest.json',lambda:probed_retry(manifest,current,base/'terrain',base/'probed_deck'))
                         kind='independent_ground_retry'
                     except ValueError as exc:

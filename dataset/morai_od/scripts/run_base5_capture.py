@@ -16,7 +16,7 @@ import fcntl
 from base5_capture_audit import audit_capture
 from base5_capture_timing import StageTiming, preflight_stationary, post_load_topics_ready
 from base5_event_cmd import BoundedServiceCaller
-from base5_capture_safety import prepare_session,archive_incomplete,collision_window,scene_collision_epoch,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review
+from base5_capture_safety import prepare_session,archive_incomplete,collision_window,scene_collision_epoch,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review,SceneCollisionError
 
 ROOT=Path(__file__).resolve().parents[3]
 
@@ -249,7 +249,7 @@ def main():
                 pose_confirmed=time.monotonic()
                 timing.mark('pose_confirmation')
                 rospy.wait_for_service('/Service_MoraiEventCmd',timeout=4.)
-                req=MoraiEventCmdSrvRequest();req.request.option=3;req.request.ctrl_mode=3;req.request.gear=4
+                req=MoraiEventCmdSrvRequest();req.request.option=3;req.request.ctrl_mode=3;req.request.gear=1
                 # Network reload can replace rosbridge's advertised service after
                 # Ego starts publishing. Retry the idempotent mode/gear request
                 # once; never bypass response verification or wait indefinitely.
@@ -261,8 +261,8 @@ def main():
                     except RuntimeError:
                         if attempt:raise
                         fresh();time.sleep(1.)
-                if response.response.ctrl_mode not in (3,4,5) or response.response.gear!=4:
-                    raise RuntimeError('External control mode/Drive gear not confirmed')
+                if response.response.ctrl_mode not in (3,4,5) or response.response.gear!=1:
+                    raise RuntimeError('External control mode/Park gear not confirmed')
                 time.sleep(.2)
                 e0=fresh()
                 timing.mark('control_readiness')
@@ -348,6 +348,18 @@ def main():
                                 load_time_monotonic=load_time))
                         raise ValueError('Motion probe target arrival not observed; no capture')
                 e1=fresh()
+                # Classify verified peer contact before collision-induced drift
+                # can be mistaken for an unrelated stationary-control failure.
+                with lock:pre_contacts=[r for r in collisions if r['t']>=load_time]
+                pre_contacts,collision_epoch=scene_collision_epoch(pre_contacts,load_time,meta['ego'])
+                peers=sorted({int(a['unique_id']) for r in pre_contacts
+                    for key in ('collision_object','collision_objecta')
+                    for a in r['message'].get(key,[]) if int(a['unique_id'])!=0})
+                if peers:
+                    collision_evidence=args.output/'failures'/(entry['id']+'_pre_capture_collision.json')
+                    atomic_json(collision_evidence,dict(reason='physical_collision_before_capture',non_ego_uids=peers,
+                        scenario_sha256=entry['scenario_sha256'],samples=pre_contacts))
+                    raise SceneCollisionError('Physical collision before capture; no SaveSensorData requested')
                 if math.hypot(e1['x']-e0['x'],e1['y']-e0['y'])>manifest['config']['capture']['maximum_ego_drift_m']:
                     raise ValueError('Stationary Ego drift exceeded')
                 with lock: objects_before=state['objects']
@@ -378,10 +390,11 @@ def main():
                     for key in ('collision_object','collision_objecta')
                     for a in r['message'].get(key,[]) if int(a['unique_id'])!=0})
                 if peers:
-                    atomic_json(args.output/'failures'/(entry['id']+'_pre_capture_collision.json'),
+                    collision_evidence=args.output/'failures'/(entry['id']+'_pre_capture_collision.json')
+                    atomic_json(collision_evidence,
                         dict(reason='physical_collision_before_capture',non_ego_uids=peers,
                              scenario_sha256=entry['scenario_sha256'],samples=pre_contacts))
-                    raise RuntimeError('Physical collision before capture; no SaveSensorData requested')
+                    raise SceneCollisionError('Physical collision before capture; no SaveSensorData requested')
                 before={f for f in args.sensor_dir.rglob('*') if f.is_file()}
                 dest.mkdir(parents=True,exist_ok=False)
                 atomic_json(dest/'metadata.json',meta)
@@ -498,6 +511,9 @@ def main():
                     result['no_capture_safety']=miss_safety
                     result['failure_evidence']=str(miss_evidence.resolve())
                     result['failure_evidence_sha256']=hashlib.sha256(miss_evidence.read_bytes()).hexdigest()
+                if isinstance(exc,SceneCollisionError):
+                    result.update(failure_kind='physical_collision',failure_evidence=str(collision_evidence.resolve()),
+                        failure_evidence_sha256=hashlib.sha256(collision_evidence.read_bytes()).hexdigest())
                 failures+=1
                 if isinstance(exc,RuntimeError): failures=3 # communication failures halt immediately
             finally:

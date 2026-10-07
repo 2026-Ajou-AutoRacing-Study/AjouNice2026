@@ -59,6 +59,33 @@ def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+class SceneCollisionError(RuntimeError):
+    """Confirmed per-scene contact, not a transport or exit-safety failure."""
+
+
+def is_collision_failure(row):
+    return (row.get('failure_kind')=='physical_collision' or
+        'physical_collision_during_capture_window' in row.get('audit',{}).get('review_reasons',[]))
+
+
+def validate_collision_failure(row):
+    """Only authoritative contact evidence may become a skippable quota deficit."""
+    if not is_collision_failure(row) or row.get('status')=='accepted_candidate':
+        raise ValueError('Not a rejected collision scene')
+    if row.get('failure_kind')=='physical_collision':
+        path=Path(row['failure_evidence'])
+        if sha256(path)!=row['failure_evidence_sha256']:raise ValueError('Collision evidence checksum mismatch')
+        proof=json.loads(path.read_text())
+        if proof.get('scenario_sha256')!=row['scenario_sha256'] or not proof.get('non_ego_uids'):
+            raise ValueError('Collision evidence lacks matching peer contact')
+    else:
+        if not row.get('capture_root'):raise ValueError('Collision review lacks capture provenance')
+        path=Path(row['capture_root'])/'collision_history.json'
+        summary=json.loads(path.read_text())['summary']
+        if not summary.get('observed') or not summary.get('non_ego_uids'):
+            raise ValueError('Collision review lacks actual contact witness')
+
+
 def status_row(row):
     """Dashboard must not rewrite every full camera audit on each scene at 10K scale."""
     compact={k:v for k,v in row.items() if k!='audit'}

@@ -11,7 +11,7 @@ import signal
 import sys
 import time
 import run_base5_capture_campaign as campaign
-from base5_capture_safety import atomic_json, load_ledger, prepare_session, sha256, status_row
+from base5_capture_safety import atomic_json, load_ledger, prepare_session, sha256, status_row,is_collision_failure,validate_collision_failure
 
 
 def inspect_batch(root, manifest):
@@ -26,12 +26,11 @@ def inspect_batch(root, manifest):
     for row in rows:
         if not row.get('between_scene_park',{}).get('park_verified'):
             raise ValueError('Batch boundary Park unverified')
-        if row['status']=='failed':campaign.loop.validate_miss_evidence(row,manifest)
+        if is_collision_failure(row):validate_collision_failure(row)
+        elif row['status']=='failed':campaign.loop.validate_miss_evidence(row,manifest)
         elif row['status'] not in ('accepted_candidate','review'):
             raise ValueError('Batch capture failure; automatic continuation forbidden')
         reasons=row.get('audit',{}).get('review_reasons',[])
-        if any(str(reason).startswith('physical_collision') for reason in reasons):
-            raise ValueError('Physical collision; automatic continuation forbidden')
         if row['status']=='accepted_candidate':
             if reasons:raise ValueError('Accepted row still carries review reasons')
             metadata=json.loads((Path(row['capture_root'])/'metadata.json').read_text())
@@ -181,7 +180,10 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                 for index in chunk_indices:
                     cell=original['scenes'][index];row=by_id.get(cell['id'])
                     if not row:continue
-                    if row['status']=='accepted_candidate':
+                    if is_collision_failure(row):
+                        validate_collision_failure(row)
+                        deficits[cell['id']]=dict(id=cell['id'],index=index,reasons=['physical_collision'],evidence=row)
+                    elif row['status']=='accepted_candidate':
                         chosen=copy.deepcopy(row);chosen['source_cell_id']=cell['id'];selected[cell['id']]=chosen
                     else:
                         recovery=folder/'recovery'/cell['id']
@@ -199,7 +201,7 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                         if accepted:selected[cell['id']]=accepted[0]
                         else:deficits[cell['id']]=dict(id=cell['id'],index=index,reasons=json.loads((recovery/'quota.json').read_text())['cells'])
                 save('running')
-                if any(r['status']=='failed' for r in rows):
+                if any(r['status']=='failed' or is_collision_failure(r) for r in rows):
                     # Do not resume the failed six-second source batch: its raw
                     # session correctly does not mark failed rows as completed.
                     # Finish the remaining cells through isolated bounded loops.

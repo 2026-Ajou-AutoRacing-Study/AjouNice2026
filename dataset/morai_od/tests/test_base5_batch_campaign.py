@@ -9,6 +9,26 @@ import run_base5_batch_campaign as batch
 
 
 class BatchCampaignTest(unittest.TestCase):
+    def test_collision_deficit_skips_recapture_and_continues_tail(self):
+        records={}
+        def child(manifest,root,stop,heartbeat):
+            root.mkdir(exist_ok=True);batch.atomic_json(root/'session_contract.json',{})
+            records[str(root)]=[dict(id='a',status='failed',failure_kind='physical_collision')]
+            return 1
+        def recovery(source,index,out,stop):
+            self.assertEqual(index,1)
+            out.mkdir(parents=True,exist_ok=True);batch.atomic_json(out/'status.json',dict(stage='complete'))
+            (out/'selected_ledger.jsonl').write_text(json.dumps(dict(id='b',source_cell_id='b',status='accepted_candidate'))+'\n')
+            return 0
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=self.fixture(root);out=root/'out'
+            with patch.object(batch.campaign,'contract',return_value={}),patch.object(batch,'run_child',side_effect=child) as run,patch.object(batch,'inspect_batch',side_effect=lambda root,manifest:records[str(root)]),patch.object(batch,'validate_collision_failure'),patch.object(batch,'recover',side_effect=recovery) as recover:
+                self.assertEqual(batch.execute(source,[0,1],out,2),0)
+                self.assertEqual(batch.execute(source,[0,1],out,2,resume=True),0)
+                self.assertEqual(run.call_count,1);self.assertEqual(recover.call_count,2)
+            self.assertEqual([r['source_cell_id'] for r in batch.load_ledger(out/'selected_ledger.jsonl')],['b'])
+            self.assertEqual(json.loads((out/'quota.json').read_text())['deficit'],1)
+
     def fixture(self,root):
         source=root/'manifest.json'
         batch.atomic_json(source,dict(scenes=[dict(id='a'),dict(id='b')],config={}))

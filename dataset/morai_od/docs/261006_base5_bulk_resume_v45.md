@@ -212,7 +212,7 @@ v46은 unknown geometry의1x1m 임시 박스를3x3m 보수적 배치 proxy로 �
 ajou
 python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
   --manifest "$HOME/morai_cap/base5_v2_261007/static_first_all_v46/manifest.json" \
-  --output "$HOME/morai_cap/base5_v2_261007/collection_static_first_v48" \
+  --output "$HOME/morai_cap/base5_v2_261007/collection_static_first_v59" \
   --limit 8354 \
   --chunk-size 4 \
   --approve-bulk-capture \
@@ -230,9 +230,19 @@ PAUSE marker는 새 output 아래 만들고, 해제 후 위 명령을 다시 실
 ```bash
 ajou
 python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
-  --capture-root "$HOME/morai_cap/base5_v2_261007/collection_static_first_v48" \
+  --capture-root "$HOME/morai_cap/base5_v2_261007/collection_static_first_v59" \
   --port 8083
 ```
 
-근거·한계는 `BASE5_V2_CURRENT.md`의 v48 절에 기록했다. 정적32/32와 실제 이동 혼합3/3을
+근거·한계는 `BASE5_V2_CURRENT.md`의 최신 v59 및 v48 절에 기록했다. 정적32/32와 실제 이동 혼합3/3을
 확인했지만 모든 자산·장시간의 live 검증을 대신하지 않는다.
+
+### 10월 7일 후속: Park 유지 및 충돌 처리
+
+정적/동적 모두 Ego는 Park 유지다. 동적 진행을 위해 Drive로 전환하지 않는다.
+확인된 CollisionData peer 접촉은 실패 증거를 보존하고 부족분으로 분리한다. 종료·경계 Park가
+확인되면 다음 수집 장면을 직접 로드하고 새 상태 검사를 수행한다. 전체 운용의 확인된 충돌
+때문에 무조건 halted로 종료하던 기존 설명은 최신 코드에서 대체됐다.
+통신/로드/정지/Park 확인 실패는 여전히 halt이며 단순 실패 무시 옵션은 없다.
+`deficit_manifest.json` 부족분은 완료 resume 시 재촬영되지 않는다. 별도 보충 캠페인 대상으로 사용한다.
+`inject_base5_collision_test.py`는 승인된 진단용 입력 시험에만 사용하는 도구이며 본수집에서는 실행 금지다.

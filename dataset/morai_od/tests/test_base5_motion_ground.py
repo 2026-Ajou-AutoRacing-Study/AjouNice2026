@@ -11,6 +11,19 @@ import generate_base5_independent as gen
 
 
 class MotionGroundTest(unittest.TestCase):
+    def test_collision_skip_requires_matching_hashed_peer_evidence(self):
+        from base5_capture_safety import validate_collision_failure
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'collision.json'
+            ground.atomic_json(p,dict(scenario_sha256='scene',non_ego_uids=[8500]))
+            row=dict(status='failed',failure_kind='physical_collision',scenario_sha256='scene',
+                failure_evidence=str(p),failure_evidence_sha256=ground.sha256(p))
+            validate_collision_failure(row)
+            row['status']='accepted_candidate'
+            with self.assertRaises(ValueError):validate_collision_failure(row)
+            row['status']='failed';p.write_text('{}')
+            with self.assertRaises(ValueError):validate_collision_failure(row)
+
     def test_scene_collision_epoch_keeps_post_match_contacts(self):
         from base5_capture_safety import scene_collision_epoch
         def sample(t,x,peer=False):
