@@ -10,13 +10,13 @@ import sys
 import time
 import generate_base5_independent as gen
 from base5_capture_safety import atomic_json,sha256,prepare_session,load_ledger,is_collision_failure,validate_collision_failure
-from prepare_base5_ground_retry import prepare as height_retry
+from prepare_base5_ground_retry import prepare as height_retry,prepare_from_near as near_height_retry
 from prepare_base5_empty_ground_probe import prepare as empty_probe
 from prepare_base5_probed_retry import prepare as probed_retry
 from prepare_base5_setup_budget_pilot import prepare as budget_retry
 import base5_motion_ground as motion_ground
 from prepare_base5_static_height_reference import prepare as static_height_reference
-from base5_static_ground_reference import prepare as static_reference_retry,reaudit_original
+from base5_static_ground_reference import prepare as static_reference_retry,reaudit_original,COMPOSITE_ANCHORS
 
 
 def arrival_retry_eligible(result,manifest):
@@ -42,7 +42,7 @@ def validate_miss_evidence(row,manifest):
         raise ValueError('Target miss evidence does not match ledger')
 
 
-def replacement(manifest,output):
+def replacement(manifest,output,require_ground_observable=False):
     m=gen.geo.load_json(manifest);old=m['scenes'][0];meta=gen.geo.load_json(Path(old['metadata']))
     ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
     for retry in range(meta['retry']+1,meta['retry']+513):
@@ -50,11 +50,20 @@ def replacement(manifest,output):
         except ValueError:continue
         if new['split']!=meta['split']:continue
         if new['runtime_actors'][0]['data_id']!=meta['runtime_actors'][0]['data_id']:raise ValueError('Replacement changed primary asset')
+        if require_ground_observable:
+            from prepare_base5_empty_ground_probe import target_probe_pose
+            try:
+                for actor in new['runtime_actors']:
+                    if actor['motion'] in ('static','standing'):
+                        target_probe_pose(ctx['links'],actor,maximum_road_distance=12.)
+            except ValueError:continue
         break
     else:raise ValueError('Same-cell/split replacement unavailable')
     output.mkdir();sid=old['id']+'_replace';sp=output/(sid+'.json');mp=output/(sid+'_metadata.json')
     new['replacement']=dict(source_cell_id=old.get('source_cell_id',old['id']),source_scenario_sha256=old['scenario_sha256'],
-        policy='same primary asset, family, mission, motion request, role, distance cell and split; no GT rewriting')
+        policy='same primary asset, family, mission, motion request, role, distance cell and split; no GT rewriting',
+        ground_observation_preflight=require_ground_observable,
+        ground_observation_limitation='Mapped-road witness pose availability only; actual terrain and visibility still required')
     atomic_json(sp,scene);atomic_json(mp,new)
     old.update(id=sid,scenario=str(sp.resolve()),metadata=str(mp.resolve()),scenario_sha256=sha256(sp),motion=new['runtime_actors'][0]['motion'])
     old['source_cell_id']=new['replacement']['source_cell_id']
@@ -233,12 +242,16 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                     lambda:budget_retry(manifest,[0],base/'budget9_deck',9.))
                 result=capture(manifest,base/'budget9',cell,'natural_budget9_retry')
                 if result['status']=='failed':raise RuntimeError('9-second target retry failed; no further loads')
-            for ordinal in range(2):
+            # Three actor witnesses, measured height, visibility replacement,
+            # and its fresh witness. Still bounded; every raw failure survives.
+            for ordinal in range(6):
                 if result['status']=='accepted_candidate':break
                 reasons=set(result.get('audit',{}).get('review_reasons',[]))
                 if is_collision_failure(result):break
                 current=Path(attempts[-1]['capture_root'])
-                if ordinal==0 and reasons=={'actor_annotation_above_ground'}:
+                local_height=any(a.get('reason')=='actor_annotation_above_ground' and a.get('plane')
+                    for a in result.get('audit',{}).get('ground_support',{}).get('actors',[]))
+                if local_height and reasons<={'actor_annotation_above_ground','actor_ground_plane_unverified'}:
                     next_manifest=prepared(base/'height_deck'/'manifest.json',lambda:height_retry(manifest,current,base/'height_deck'))
                     kind='input_z_retry'
                 elif reasons and reasons<={'actor_ground_plane_unverified','actor_annotation_deep_below_ground','actor_annotation_above_ground'}:
@@ -253,12 +266,18 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                         target=next((a for a in probe_meta.get('runtime_actors',[]) if a['unique_id']==target_uid),None)
                         components=[c for c in result['audit'].get('components',[]) if c['parent_uid']==target_uid]
                         if (reasons=={'actor_ground_plane_unverified'} and target
-                                and len(components)==1 and target['planned_center_distance_m']>20.
+                                and (len(components)==1 or target['name'] in COMPOSITE_ANCHORS)
                                 and not motion_ground.moving_actors(probe_meta)):
                             near_deck=base/f'static_near_deck_{ordinal}';near_root=base/f'static_near_{ordinal}'
                             probes=prepared(near_deck/'manifest.json',lambda:static_height_reference(manifest,0,near_deck,target_uid=target_uid))
                             reference=capture(probes,near_root,cell,'static_near_ground_reference')
                             if is_collision_failure(reference):result=reference;break
+                            if reference['status']=='review' and reference['audit']['review_reasons']==['actor_annotation_above_ground']:
+                                next_manifest=prepared(retry_deck/'manifest.json',
+                                    lambda:near_height_retry(manifest,current,near_root,retry_deck,target_uid))
+                                manifest=next_manifest
+                                result=capture(manifest,base/f'retry_{ordinal}',cell,'near_measured_input_z_retry')
+                                save('running');continue
                             next_manifest=prepared(retry_deck/'manifest.json',lambda:static_reference_retry(manifest,near_root,retry_deck))
                             kind='static_rigid_ground_retry'
                             result=reaudit_original(result,next_manifest,base/f'reaudited_{ordinal}')
@@ -279,10 +298,11 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                         # to waive the gate. Communication exceptions stay fatal.
                         attempts.append(dict(cell=cell,kind='ground_preparation_unavailable',error=str(exc)))
                         fallback_deck=base/f'fallback_deck_{ordinal}'
-                        next_manifest=prepared(fallback_deck/'manifest.json',lambda:replacement(manifest,fallback_deck))
+                        next_manifest=prepared(fallback_deck/'manifest.json',lambda:replacement(manifest,fallback_deck,require_ground_observable=True))
                         kind='same_cell_replacement'
                 else:
-                    next_manifest=prepared(base/f'replacement_deck_{ordinal}'/'manifest.json',lambda:replacement(manifest,base/f'replacement_deck_{ordinal}'))
+                    next_manifest=prepared(base/f'replacement_deck_{ordinal}'/'manifest.json',lambda:replacement(manifest,base/f'replacement_deck_{ordinal}',
+                        require_ground_observable='actor_ground_plane_unverified' in reasons))
                     kind='same_cell_replacement'
                 if not gen.geo.load_json(next_manifest)['scenes']:break
                 manifest=next_manifest

@@ -5,7 +5,18 @@ Base3 추가분이 아닌 독립 Base5이며 temporal/velocity head 학습용이
 **v45 본수집은 시작했다가 물리 충돌로 중단됐다. 체크포인트 32장은 보존했다.
 새 코드의 소량 검증은 통과했지만 본수집은 자동 재시작하지 않았다. 본 학습도 미시작이다.**
 
-## 최신 v77 — 보조 객체 원거리 검증·복합/동적 재확인
+## 최신 v81 — 먼 복합·Dog2 보완 / 본수집 전 batch 검증 중
+
+먼 BabyStroller1의 고유 rigid child를 anchor로 사용하되 모든 child GT 대응과
+전체 footprint ground support를 검증하도록 확장했다. 원본 raw/GT는 미수정이다.
+혼합Dog2는 near 실측 Z 재시도와 같은 quota의 ground 관찰 가능 후보 사전검사로
+최종1/1(40.68초) 통과했다. 관찰 위치 사전검사는 실제 지면·가시성·충돌 인증이 아니다.
+QA view를 가상 ROS session으로 취급하던 campaign 연결 오류도 수정했다.
+현재 생성기로 재생성한32셀에서 batch/pause/resume/CPU 변환 검증을 진행 중이다.
+단위회귀189 tests PASS. **본10K·학습 미재개, 최종 capacity/ETA는 아직 미확정**이다.
+[실측 실패·보완·제한](261007_base5_prebulk_recovery_evidence.md).
+
+## v77 — 보조 객체 원거리 검증·복합/동적 재확인
 
 2026-10-07. 원거리 missing-ground 보완을 primary뿐 아니라 static secondary UID까지
 확장했다. 단독 근접 calibration에서 동일 payload/실제 pose/rigid transform을 검증하며

@@ -6,7 +6,7 @@ from pathlib import Path
 import generate_base5_independent as gen
 
 
-def target_probe_pose(links, actor, backward=6.):
+def target_probe_pose(links, actor, backward=6.,maximum_road_distance=8.):
     """Park on a nearby mapped road, not at the object's arbitrary pivot XY/Z."""
     target=actor['position'];candidates=[]
     for key,link in links.items():
@@ -14,7 +14,7 @@ def target_probe_pose(links, actor, backward=6.):
         if len(points)<2:continue
         j=min(range(len(points)),key=lambda n:(points[n][0]-target['x'])**2+(points[n][1]-target['y'])**2)
         p=points[j];distance=gen.math.hypot(p[0]-target['x'],p[1]-target['y'])
-        if distance>8. or abs(p[2]-target['z'])>1.:continue
+        if distance>maximum_road_distance or abs(p[2]-target['z'])>1.:continue
         route,arc=gen.geo.route_from_link_path(links,[key])
         n=gen.geo.nearest_index(route,target['x'],target['y'])
         # Refuse a short link that would place the witness on top of the target.

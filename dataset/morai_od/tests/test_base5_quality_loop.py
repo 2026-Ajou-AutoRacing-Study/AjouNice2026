@@ -10,6 +10,21 @@ from build_base5_bevfusion_infos import convert
 
 
 class QualityLoopTest(unittest.TestCase):
+    def test_ground_replacement_prefilters_unobservable_candidate_without_changing_quota(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);meta=dict(retry=0,spec=dict(family='pedestrian_related',role='left'),split='train',
+                runtime_actors=[dict(data_id=42)])
+            loop.atomic_json(root/'meta.json',meta)
+            loop.atomic_json(root/'manifest.json',dict(config={},scenes=[dict(id='a',metadata=str(root/'meta.json'),scenario_sha256='source')]))
+            new=dict(meta,runtime_actors=[dict(data_id=42,motion='standing')])
+            with patch.object(loop.gen,'context',return_value={'links':{}}),patch.object(loop.gen,'build',return_value=({},new)) as build, \
+                 patch('prepare_base5_empty_ground_probe.target_probe_pose',side_effect=[ValueError('not observable'),{}]) as witness:
+                result=loop.replacement(root/'manifest.json',root/'out',require_ground_observable=True)
+            self.assertEqual(build.call_count,2);self.assertEqual(witness.call_count,2)
+            output=json.loads(result.read_text());saved=json.loads(Path(output['scenes'][0]['metadata']).read_text())
+            self.assertEqual(saved['spec'],meta['spec']);self.assertEqual(saved['split'],'train')
+            self.assertTrue(saved['replacement']['ground_observation_preflight'])
+
     def test_legacy_motion_rejected_before_any_calibration_load(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);source=root/'source.json';meta=root/'meta.json'

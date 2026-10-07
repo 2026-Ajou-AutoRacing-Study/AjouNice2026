@@ -48,9 +48,20 @@ def validate_selected(report):
             raise ValueError('Reviewed capture cannot fill quota')
         if loop.gen.geo.load_json(Path(row['capture_root'])/'metadata.json').get('calibration_only'):
             raise ValueError('Calibration cannot fill quota')
+        root=Path(row['capture_root'])
+        if loop.gen.geo.load_json(root/'metadata.json').get('static_ground_reaudit'):
+            from base5_static_ground_reference import validate_reaudit_output
+            verified=validate_reaudit_output(root)
+            if verified['audit']!=row['audit']:raise RuntimeError('Selected re-audit row changed')
     for attempt in report['attempts']:
         if 'capture_root' not in attempt:continue
         root=Path(attempt['capture_root'])
+        if attempt['kind']=='static_rigid_raw_reaudit':
+            # Hardlinked QA views have no ROS session/independent shutdown file.
+            # Their source and nearby capture attempts are validated separately.
+            from base5_static_ground_reference import validate_reaudit_output
+            validate_reaudit_output(root)
+            continue
         safety=loop.gen.geo.load_json(root/'shutdown_safety.json')
         if not safety.get('park_verified'):raise ValueError('Unsafe child cannot be resumed')
         session=loop.gen.geo.load_json(root/'session_contract.json')

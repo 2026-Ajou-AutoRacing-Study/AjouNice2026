@@ -73,6 +73,49 @@ def prepare(manifest_path,captures,output):
     return output/'manifest.json'
 
 
+def prepare_from_near(source,original,reference,output,uid):
+    """Measured near-view height failure for the same static actor; input only."""
+    from base5_capture_safety import atomic_json,sha256
+    from base5_static_ground_reference import actor_payload,matching_status,object_status
+    if output.exists():raise FileExistsError('New near-height output required')
+    m=gen.geo.load_json(source);entry=m['scenes'][0]
+    scene=gen.geo.load_json(Path(entry['scenario']));meta=gen.geo.load_json(Path(entry['metadata']))
+    record=next(a for a in meta['runtime_actors'] if a['unique_id']==uid)
+    if record['motion'] not in ('static','standing'):raise ValueError('Near height retry is static only')
+    rows=[]
+    for session in (original,reference):
+        if not gen.geo.load_json(session/'shutdown_safety.json').get('park_verified'):
+            raise RuntimeError('Near height source Park unverified')
+        rows.append(json.loads((session/'ledger.jsonl').read_text().splitlines()[-1]))
+    old,near=rows;nr=Path(near['capture_root']);nm=gen.geo.load_json(nr/'metadata.json')
+    if old['scenario_sha256']!=entry['scenario_sha256'] or not nm.get('calibration_only'):
+        raise RuntimeError('Near height source provenance mismatch')
+    if nm['static_height_reference']['source_scenario_sha256']!=entry['scenario_sha256']:
+        raise RuntimeError('Near height calibration source changed')
+    if near['audit']['review_reasons']!=['actor_annotation_above_ground']:
+        raise ValueError('Near height requires isolated measured above-ground failure')
+    if not near['audit']['capture_safety']['collision'].get('no_collision_verified'):
+        raise RuntimeError('Near height collision unverified')
+    if actor_payload(scene,record['source_list'],uid)!=actor_payload(gen.geo.load_json(nr/'scenario.json'),record['source_list'],uid):
+        raise RuntimeError('Near height actor payload changed')
+    ot=gen.geo.load_json(Path(old['capture_root'])/'telemetry.json');nt=gen.geo.load_json(nr/'telemetry.json')
+    for objects in (ot['objects_before'],ot['objects_after'],nt['objects_after']):
+        matching_status(object_status(nt['objects_before'],uid),object_status(objects,uid))
+    row=next(a for a in near['audit']['ground_support']['actors'] if a['uid']==uid)
+    if not row.get('plane') or row['reason']!='actor_annotation_above_ground':raise ValueError('Near ground plane absent')
+    shift_actor(scene,meta,uid,row['suggested_z_shift_m'])
+    meta.pop('static_ground_references',None) # changed payload requires a fresh near witness
+    meta['ground_retry_provenance']=dict(source_scene_sha256=entry['scenario_sha256'],
+        source_capture=old['capture_root'],measured_corrections=[row],near_capture=str(nr),
+        near_files_sha256={str(p):sha256(p) for p in (nr/'metadata.json',nr/'audit.json',nr/'telemetry.json',
+            nr/'scenario.json',nr/'collision_history.json',next(nr.glob('LIDAR_*/*_Instance.txt')))},
+        limitation='Same actual static pose and supported near plane; input Z only, recapture required')
+    sid=entry['id']+'_nearheight';output.mkdir(parents=True)
+    sp=output/(sid+'.json');mp=output/(sid+'_metadata.json');atomic_json(sp,scene);atomic_json(mp,meta)
+    m.update(count=1,scenes=[dict(entry,id=sid,scenario=str(sp.resolve()),metadata=str(mp.resolve()),scenario_sha256=sha256(sp))])
+    atomic_json(output/'manifest.json',m);return output/'manifest.json'
+
+
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--manifest',type=Path,required=True);p.add_argument('--captures',type=Path,required=True)

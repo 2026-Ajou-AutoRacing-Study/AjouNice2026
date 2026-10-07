@@ -17,6 +17,38 @@ class ReferenceQualityError(ValueError):
     """Observed placement/view mismatch: quality deficit, not damaged evidence."""
 
 
+COMPOSITE_ANCHORS={'BabyStroller1':'Obstacle','BabyStroller2':'Obstacle',
+    'BabyStroller3':'Obstacle','Bike3':'Vehicle','Scooter1':'Vehicle'}
+
+
+def select_anchor(boxes,actor):
+    if len(boxes)==1:return boxes[0]
+    label=COMPOSITE_ANCHORS.get(actor.get('name'))
+    candidates=[b for b in boxes if label and b['raw_class']==label]
+    if len(candidates)!=1:raise ReferenceQualityError('No unique known rigid component anchor')
+    return candidates[0]
+
+
+def validate_components(near,far,nt,ft,R,t):
+    """Match by class/size/geometry, never Instance row order or parent collapse."""
+    from base5_capture_audit import rotation_matrix
+    if len(near)!=len(far):raise ReferenceQualityError('Reference component count changed')
+    remaining=list(near);matched=[]
+    for b in far:
+        fc=(ft@np.r_[b['center'],1.])[:3];fr=ft[:3,:3]@rotation_matrix(b['rotation_rpy'])
+        candidates=[]
+        for i,a in enumerate(remaining):
+            if a['raw_class']!=b['raw_class'] or not np.allclose(a['size'],b['size'],atol=.001,rtol=0):continue
+            nc=(nt@np.r_[a['center'],1.])[:3];nr=nt[:3,:3]@rotation_matrix(a['rotation_rpy'])
+            error=float(np.linalg.norm(nc-(R@fc+t)))
+            angle=math.degrees(math.acos(float(np.clip((np.trace(nr.T@R@fr)-1)/2,-1,1))))
+            if error<=.02 and angle<=1.:candidates.append((i,error,angle))
+        if len(candidates)!=1:raise ReferenceQualityError('Component pose/size correspondence changed or ambiguous')
+        i,error,angle=candidates[0];remaining.pop(i)
+        matched.append(dict(raw_class=b['raw_class'],center_error_m=error,rotation_error_deg=angle))
+    return matched
+
+
 def actor_payload(scene,container,uid):
     actor=next(a for a in scene[container] if a['UNIQUEID']==uid)
     return hashlib.sha256(json.dumps(actor,sort_keys=True,separators=(',',':')).encode()).hexdigest()
@@ -55,7 +87,9 @@ def prepare(source,reference_session,output):
         g=next((a for a in audit['ground_support']['actors'] if a['uid']==actor['unique_id']),None)
         if not g or not g['verified'] or not g.get('plane'):continue
         from audit_morai_lidar_gt_visibility import parse_instances
-        if len([b for b in parse_instances(next(root.glob('LIDAR_*/*_Instance.txt'))) if b['unique_id']==actor['unique_id']])!=1:continue
+        components=[b for b in parse_instances(next(root.glob('LIDAR_*/*_Instance.txt'))) if b['unique_id']==actor['unique_id']]
+        try:select_anchor(components,actor)
+        except ReferenceQualityError:continue
         files=[root/'metadata.json',root/'telemetry.json',root/'scenario.json',root/'audit.json',root/'collision_history.json',
             reference_session/'shutdown_safety.json',next(root.glob('LIDAR_*/*_Instance.txt')),
             next(root.glob('LIDAR_*/*_Intensity.bin'))]
@@ -107,7 +141,7 @@ def apply_reference(ground,boxes,root,metadata):
         uid=witness['uid'];g=next((a for a in ground['actors'] if a['uid']==uid),None)
         if not g or g.get('reason')!='actor_ground_plane_unverified':continue
         for path,digest in witness['sha256'].items():
-            if sha256(Path(path))!=digest:raise ValueError('Static ground witness changed')
+            if sha256(Path(path))!=digest:raise RuntimeError('Static ground witness changed')
         nr=Path(witness['capture_root']);nm=json.loads((nr/'metadata.json').read_text())
         actor=next(a for a in metadata['runtime_actors'] if a['unique_id']==uid)
         if actor['motion'] not in ('static','standing') or not nm.get('calibration_only'):
@@ -121,23 +155,44 @@ def apply_reference(ground,boxes,root,metadata):
             matching_status(object_status(tele['objects_before'],uid),object_status(objects,uid))
         nb=[b for b in parse_instances(next(nr.glob('LIDAR_*/*_Instance.txt'))) if b['unique_id']==uid]
         fb=[b for b in boxes if b['unique_id']==uid]
-        if len(nb)!=1 or len(fb)!=1:raise ValueError('Rigid ground reference requires one component')
-        if not np.allclose(nb[0]['size'],fb[0]['size'],atol=.001,rtol=0):raise ReferenceQualityError('Rigid annotation size changed')
+        na=select_anchor(nb,actor);fa=select_anchor(fb,actor)
+        if not np.allclose(na['size'],fa['size'],atol=.001,rtol=0):raise ReferenceQualityError('Rigid annotation size changed')
         ng=next(a for a in json.loads((nr/'audit.json').read_text())['ground_support']['actors'] if a['uid']==uid)
         if not ng['verified'] or not ng.get('plane'):raise ValueError('Reference local plane unverified')
-        plane,R,t=transfer_plane(nb[0],fb[0],nm['lidar_to_ego'],metadata['lidar_to_ego'],ng['plane'])
+        plane,R,t=transfer_plane(na,fa,nm['lidar_to_ego'],metadata['lidar_to_ego'],ng['plane'])
         validate_view_transform(R,t,tele['ego_before'],metadata['capture_runtime_ego'])
+        matched=validate_components(nb,fb,np.asarray(nm['lidar_to_ego']),np.asarray(metadata['lidar_to_ego']),R,t)
         signs=np.array([[x,y,z] for x in (-1,1) for y in (-1,1) for z in (-1,1)])
-        corners=signs*fb[0]['size']/2@rotation_matrix(fb[0]['rotation_rpy']).T+fb[0]['center']
-        corners=(np.c_[corners,np.ones(8)]@np.asarray(metadata['lidar_to_ego']).T)[:,:3]
-        if not all(supported(plane,c[:2]) for c in corners):raise ValueError('Transferred footprint outside observed terrain')
+        corners=np.concatenate([signs*b['size']/2@rotation_matrix(b['rotation_rpy']).T+b['center'] for b in fb])
+        corners=(np.c_[corners,np.ones(len(corners))]@np.asarray(metadata['lidar_to_ego']).T)[:,:3]
+        if not all(supported(plane,c[:2]) for c in corners):raise ReferenceQualityError('Transferred footprint outside observed terrain')
         gap=float(np.min(corners[:,2]-[plane_height(plane,c[:2]) for c in corners]))
-        if not -.30<=gap<=ground['maximum_gap_m']:raise ValueError('Transferred ground gap outside bounds')
+        if not -.30<=gap<=ground['maximum_gap_m']:raise ReferenceQualityError('Transferred ground gap outside bounds')
         g.update(verified=True,reason=None,minimum_annotation_ground_gap_m=gap,suggested_z_shift_m=0.,
             static_rigid_reference=dict(capture_root=str(nr),rotation=R.tolist(),translation=t.tolist(),
-                plane=plane,policy='exact-static-payload-and-observed-pose; full-relative-OBB-rotation',
+                plane=plane,anchor_raw_class=fa['raw_class'],component_matches=matched,
+                policy='exact-static-payload-and-observed-pose; full-relative-rigid-component-rotation',
                 limitation='Same static placement QA only; not Ego attitude measurement or mesh/collider certification'))
     ground['review_reasons']=sorted({a['reason'] for a in ground['actors'] if a.get('required') and a.get('reason')})
+
+
+def validate_reaudit_output(output):
+    """QA views are not capture sessions; verify immutable raw/proofs directly."""
+    from base5_capture_audit import audit_capture
+    meta=json.loads((output/'metadata.json').read_text());proof=meta['static_ground_reaudit']
+    source=Path(proof['source_capture_root']);result=json.loads((output/'reaudit_result.json').read_text())
+    if result['raw_source_capture']!=str(source):raise RuntimeError('Re-audit source changed')
+    for name,key in (('metadata.json','source_metadata_sha256'),('audit.json','source_audit_sha256')):
+        if sha256(source/name)!=proof[key]:raise RuntimeError('Re-audit original proof changed')
+    if sha256(source/'scenario.json')!=result['scenario_sha256']:raise RuntimeError('Re-audit source scenario changed')
+    for p,digest in proof['raw_sha256'].items():
+        if sha256(output/p)!=digest or sha256(source/p)!=digest:raise RuntimeError('Re-audit raw changed')
+    audit=json.loads(json.dumps(audit_capture(output,meta)))
+    if audit!=result['audit'] or json.loads((output/'audit.json').read_text())!=audit:
+        raise RuntimeError('Re-audit verification changed')
+    status='review' if audit['review_reasons'] else 'accepted_candidate'
+    if result['status']!=status:raise RuntimeError('Re-audit status disagrees with QA')
+    return result
 
 
 def reaudit_original(row,manifest,output):

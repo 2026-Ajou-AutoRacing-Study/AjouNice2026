@@ -60,7 +60,8 @@ class SeedTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);source=root/'source.json'
             loop.atomic_json(source,dict(scenes=[dict(id='a',scenario_sha256='hash')]))
-            row=dict(id='a',status='review',audit=dict(review_reasons=['actor_annotation_above_ground']))
+            row=dict(id='a',status='review',audit=dict(review_reasons=['actor_annotation_above_ground'],
+                ground_support=dict(actors=[dict(reason='actor_annotation_above_ground',plane=dict(coefficients=[0,0,0]))])))
             def prepare(manifest,captures,out):
                 out.mkdir();loop.atomic_json(out/'manifest.json',dict(scenes=[dict(id='a_ground')]))
                 return out/'manifest.json'

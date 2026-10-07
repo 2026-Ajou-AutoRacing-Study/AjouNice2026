@@ -18,7 +18,9 @@ def prepare(source,index,output,target_uid=None):
     ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
     target=next((a for a in meta['runtime_actors'] if a['unique_id']==target_uid),None) if target_uid is not None else meta['runtime_actors'][0]
     if target is None:raise ValueError('Reference target UID absent')
-    pose=target_probe_pose(ctx['links'],target)
+    # Only calibration Ego search widens to 12m: actor placements and the actual
+    # full-footprint terrain support gate remain unchanged.
+    pose=target_probe_pose(ctx['links'],target,maximum_road_distance=12.)
     gen.geo.set_ego_pose(scene['egoVehicle'],pose,initial_speed_kph=0.)
     meta=copy.deepcopy(meta);meta.update(ego=pose,base=pose,calibration_only=True,
         static_height_reference=dict(source_scenario_sha256=old['scenario_sha256'],

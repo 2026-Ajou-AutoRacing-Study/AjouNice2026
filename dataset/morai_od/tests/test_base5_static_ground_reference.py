@@ -5,13 +5,25 @@ from unittest.mock import patch
 from pathlib import Path
 import numpy as np
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from base5_static_ground_reference import transfer_plane,matching_status,actor_payload,prepare,validate_view_transform,apply_reference,reaudit_original
+from base5_static_ground_reference import transfer_plane,matching_status,actor_payload,prepare,validate_view_transform,apply_reference,reaudit_original,select_anchor,validate_components
 from base5_capture_safety import atomic_json,sha256
 from base5_capture_audit import rotation_matrix
 from prepare_base5_static_height_reference import prepare as nearby_reference
 
 
 class StaticRigidReferenceTest(unittest.TestCase):
+    def test_composite_anchor_and_correspondence_do_not_depend_on_row_order(self):
+        import copy
+        boxes=[dict(raw_class=c,center=np.array(p,float),size=np.array(s,float),rotation_rpy=[0,0,0])
+            for c,p,s in [('Obstacle',[6,0,.5],[.8,.6,1]),('Pedestrian',[5,0,.8],[.4,.4,1.6]),
+                ('Pedestrian',[6,0,.7],[.3,.2,.4])]]
+        self.assertEqual(select_anchor(boxes,dict(name='BabyStroller1'))['raw_class'],'Obstacle')
+        self.assertEqual(len(validate_components(boxes,list(reversed(boxes)),np.eye(4),np.eye(4),np.eye(3),np.zeros(3))),3)
+        changed=copy.deepcopy(boxes);changed[1]['center'][0]+=.05
+        with self.assertRaisesRegex(ValueError,'correspondence'):validate_components(boxes,changed,np.eye(4),np.eye(4),np.eye(3),np.zeros(3))
+        with self.assertRaisesRegex(ValueError,'count'):validate_components(boxes,boxes[:2],np.eye(4),np.eye(4),np.eye(3),np.zeros(3))
+        with self.assertRaisesRegex(ValueError,'anchor'):select_anchor(boxes,dict(name='Ped_Pet1'))
+        with self.assertRaisesRegex(ValueError,'anchor'):select_anchor(boxes+[boxes[0]],dict(name='BabyStroller1'))
     def test_existing_reaudit_compares_json_values_and_halts_on_real_difference(self):
         import json
         with tempfile.TemporaryDirectory() as d:
@@ -110,7 +122,7 @@ class StaticRigidReferenceTest(unittest.TestCase):
             root=Path(d);p=root/'metadata.json';atomic_json(p,dict(calibration_only=True))
             ground=dict(actors=[dict(uid=1,required=True,verified=False,reason='actor_ground_plane_unverified')])
             meta=dict(static_ground_references=[dict(uid=1,capture_root=str(root),sha256={str(p):'wrong'})])
-            with self.assertRaisesRegex(ValueError,'witness changed'):apply_reference(ground,[],root,meta)
+            with self.assertRaisesRegex(RuntimeError,'witness changed'):apply_reference(ground,[],root,meta)
             self.assertFalse(ground['actors'][0]['verified'])
 
     def test_moving_actor_cannot_use_static_witness(self):

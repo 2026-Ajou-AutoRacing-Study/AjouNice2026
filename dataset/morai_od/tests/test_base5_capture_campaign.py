@@ -9,6 +9,17 @@ import run_base5_capture_campaign as campaign
 
 
 class CampaignTest(unittest.TestCase):
+    def test_qa_view_is_validated_without_fictitious_ros_shutdown_session(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);campaign.atomic_json(root/'metadata.json',dict(static_ground_reaudit={"source":1}))
+            row=dict(status='accepted_candidate',audit=dict(review_reasons=[]),capture_root=str(root))
+            report=dict(selected=[row],attempts=[dict(kind='static_rigid_raw_reaudit',capture_root=str(root))])
+            with patch('base5_static_ground_reference.validate_reaudit_output',return_value=row) as check,patch.object(campaign,'prepare_session') as session:
+                campaign.validate_selected(report)
+                self.assertEqual(check.call_count,2);session.assert_not_called()
+            with patch('base5_static_ground_reference.validate_reaudit_output',side_effect=RuntimeError('proof changed')):
+                with self.assertRaises(RuntimeError):campaign.validate_selected(report)
+
     def test_subset_deck_equivalence_and_no_aliasing(self):
         source=dict(scenes=[dict(id=str(i)) for i in range(10000)],config=dict(a=[1]),count=10000)
         subset=campaign.subset_deck(source,[source['scenes'][9]])
