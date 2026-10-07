@@ -16,6 +16,7 @@ import build_base5_mr_asset_catalog as catalog
 import base5_avoidance_geometry as avoidance
 import base5_population_budget as population
 import base5_vehicle_close as vehicle_close
+import base5_roundabout_mission as roundabout_mission
 from base5_reference_frames import references
 
 CONFIG = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_independent_5k_sunny11.json'
@@ -183,6 +184,7 @@ def specs(config):
     vehicle_close.assign(sys.modules[__name__],output,config)
     assign_stationary_mission_pools(output,config)
     assign_dynamic_mission_vehicles(output,config)
+    roundabout_mission.assign(sys.modules[__name__],output,config)
     return output
 
 def assign_dynamic_mission_vehicles(rows,config):
@@ -483,7 +485,7 @@ def one_way_motion_path(pose,center,ego,bounds,motion,asset,setup_budget_sec=12.
         limitation='Single-frame appearance probe; reduced-speed animation realism and field units need live validation.')
 
 
-def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None):
+def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None,stationary_vehicle_policy=None):
     position={k:pose[k] for k in ('x','y','z')}
     container=asset['source_list']
     if container=='vehicleList':
@@ -491,6 +493,10 @@ def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None):
         saved=actor['initPosition'].get('vehicleSaveData',{})
         saved['velocity']=0.
         geo.zero_vector(saved.get('vehicle',{}).get('lastVelocity'))
+        if stationary_vehicle_policy:
+            from base5_static_vehicle import park,POLICY
+            if stationary_vehicle_policy!=POLICY:raise ValueError('Unknown stationary vehicle policy')
+            park(actor)
     else:
         geo.set_actor_world_position(actor,position,pose['yaw'])
         actor['UNIQUEID']=uid
@@ -560,6 +566,8 @@ def build(row,config,ctx,attempt=0):
         asset_index=asset_index*len(ctx['pools'][poolkey])//config['mission_dynamic_observation']['vehicle_primary_scenes']
     asset=ctx['pools'][poolkey][asset_index%len(ctx['pools'][poolkey])]
     route,arc,base,details=rng.choice(anchor_bank(ctx,row['topology']))
+    if row.get('roundabout_phase'):
+        route,arc,base,details=roundabout_mission.anchor(sys.modules[__name__],ctx,row,config,rng)
     base=dict(base);dynamic_crossing=None;dynamic_target=None
     if row['mission'] and row['family'] in ('obstacle','pedestrian_related','other_vehicle'):
         kind='dynamic_obstacle' if row['family']=='pedestrian_related' else 'static_obstacle'
@@ -612,8 +620,13 @@ def build(row,config,ctx,attempt=0):
         base=geo.continuous_route_pose_at_arc(route,arc,rng.uniform(lo,hi))
     yaw_floor={3:0.,10:3.,15:10.}[row['yaw_limit']]
     yaw_delta=rng.choice([-1,1])*rng.uniform(yaw_floor,row['yaw_limit'])
+    if row.get('roundabout_phase'):
+        yaw_delta=rng.uniform(-config['mission_roundabout_observation']['ego_yaw_limit_deg'],
+                               config['mission_roundabout_observation']['ego_yaw_limit_deg'])
     offset=rng.choice([0.,0.,.15,-.15,.30,-.30])
     if row['topology']!='route_general' and row['topology']!='highway_three_lane': offset=max(-.15,min(.15,offset))
+    if row.get('roundabout_phase'):
+        offset=rng.choice(config['mission_roundabout_observation']['ego_lateral_offsets_m'])
     a=math.radians(base['yaw'])
     # Conservative lane envelope, not an assertion of exact road polygons.
     lane_width=3.2 if row['topology'] in ('roundabout','highway_merge_lane') else 3.5
@@ -647,6 +660,9 @@ def build(row,config,ctx,attempt=0):
     desired=None
     selected=population.choose(asset,poolkey,ctx['pools'],lambda a:geometry(a,ctx),row,rng)
     row['actors']=len(selected)
+    roundabout_poses=None;roundabout_proof=None
+    if row.get('roundabout_phase'):
+        roundabout_poses,roundabout_proof=roundabout_mission.place(sys.modules[__name__],ctx,ego,selected,row,config,rng)
     for i in range(row['actors']):
         sample_placement=None;vehicle_close_proof=None
         selected_pool=poolkey
@@ -662,6 +678,7 @@ def build(row,config,ctx,attempt=0):
         size,off,known=geometry(asset,ctx)
         lower,upper=row['distance_bounds']
         if i: lower,upper=6.,45.
+        if roundabout_poses is not None:lower,upper=0.,60.
         distance=rng.uniform(lower+.05,upper-.05)
         role=row['role'] if not i else rng.choice(['front','left','right','rear'])
         if i and row.get('population_layout')=='clustered':
@@ -684,7 +701,9 @@ def build(row,config,ctx,attempt=0):
             mission_target=dynamic_target if i==0 else (dynamic_vehicle_target(ctx,actor_crossing,rng,off)
                 if row.get('dynamic_mission_pool') else crossing_target(actor_crossing,rng,config['mission_dynamic_observation']['target_axis_jitter_m'],
                     row.get('crossing_direction_sign')*((-1)**i) if row.get('crossing_direction_sign') is not None else None))
-        if mission_target:
+        if roundabout_poses is not None:
+            pose=roundabout_poses[i]
+        elif mission_target:
             pose=pivot_for_center(mission_target,off,mission_target['yaw'])
         elif i==0 and primary_pose is not None:
             pose=primary_pose
@@ -809,7 +828,9 @@ def build(row,config,ctx,attempt=0):
         if actor_motion in ('static','standing'):
             from base5_map_surface import initial_pose
             runtime_pose,height_initializer,ground_initializer=initial_pose(runtime_pose,asset,size,off,ctx)
-        set_pose(copy.deepcopy(asset['template']),runtime_pose,uid,asset,scene,actor_motion,motion_path)
+        stationary_policy=config['capture'].get('static_vehicle_policy')
+        set_pose(copy.deepcopy(asset['template']),runtime_pose,uid,asset,scene,actor_motion,motion_path,
+                 stationary_vehicle_policy=stationary_policy)
         footprints.append(swept if motion_path is not None else box)
         actor_records.append(dict(unique_id=uid,data_id=asset['data_id'],name=asset['name'],
             source_list=asset['source_list'],motion=actor_motion,position={k:runtime_pose[k] for k in ('x','y','z')},
@@ -822,6 +843,8 @@ def build(row,config,ctx,attempt=0):
             training_class='animal' if asset.get('ontology_class')=='Animal' else 'component_annotation',
             runtime_mapping_verified=False if selected_pool in ('animal','pet_person','stroller','rider') else True))
         if height_initializer is not None:actor_records[-1]['static_height_initializer']=height_initializer
+        if stationary_policy and asset['source_list']=='vehicleList':
+            actor_records[-1]['stationary_vehicle_policy']=stationary_policy
         if ground_initializer is not None:actor_records[-1]['map_ground_initializer']=ground_initializer
         if actor_crossing:
             actor_records[-1]['mission_crossing_id']=actor_crossing['crosswalk_id']
@@ -835,6 +858,7 @@ def build(row,config,ctx,attempt=0):
                 actor_records[-1]['motion_capability_note']='Requested walking/running category is not animation certification; actual translation verified live.'
         if sample_placement is not None: actor_records[-1]['sample_highway_placement']=sample_placement
         if vehicle_close_proof is not None:actor_records[-1]['vehicle_close_observation']=vehicle_close_proof
+        if roundabout_proof is not None:actor_records[-1]['sample_roundabout_placement']=roundabout_proof['actors'][i]
     group=base['link_idx']  # whole-link split; still neighboring-link visibility leakage possible
     split='val' if int(hashlib.sha256(group.encode()).hexdigest()[:8],16)/2**32<.15 else 'train'
     meta=dict(spec=row,ego=ego,base=base,details=details,runtime_actors=actor_records,
@@ -862,6 +886,8 @@ def build(row,config,ctx,attempt=0):
         avoidance_ref['origin']=row.get('avoidance_origin','mission_static_avoidance')
         avoidance_ref['actual_surface_gap_m']=actor_records[0]['planned_surface_clearance_m']
         meta['avoidance_observation']=avoidance_ref
+    if roundabout_proof is not None:
+        meta['roundabout_observation']=roundabout_proof
     from base5_intersection_placement import finish_metadata
     return scene,finish_metadata(meta)
 
@@ -896,6 +922,7 @@ def generate(config,output,start,count,runtime=geo.DEFAULT_RUNTIME_ASSET_DIR,mge
             generator_sha256=code_sha256,
             population_budget_sha256=geo.sha256(Path(population.__file__)),
             vehicle_close_sha256=geo.sha256(Path(vehicle_close.__file__)),
+            roundabout_mission_sha256=geo.sha256(Path(roundabout_mission.__file__)),
             appearance_policy_sha256=geo.sha256(APPEARANCE_POLICY),
             avoidance_geometry_sha256=geo.sha256(Path(avoidance.__file__)),
             map_surface_sha256=geo.sha256(Path(sys.modules['base5_map_surface'].__file__)),

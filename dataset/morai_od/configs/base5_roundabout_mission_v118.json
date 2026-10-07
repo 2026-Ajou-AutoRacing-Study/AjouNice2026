@@ -1,0 +1,25 @@
+{
+  "policy": "sample-route-snapshots-v118",
+  "phase_counts": {"approach": 50, "entry": 60, "circulation": 90, "exit": 50},
+  "ego_arc_bounds_m": {
+    "approach": [870, 887],
+    "entry": [887, 900],
+    "circulation": [900, 913],
+    "exit": [913, 934]
+  },
+  "approach_states": {"approaching": 20, "waiting": 30},
+  "approach_state_arc_bounds_m": {"approaching": [870, 883], "waiting": [883, 887]},
+  "actor_count_weights": {
+    "approach": {"1": 20, "2": 60, "3": 20},
+    "entry": {"2": 70, "3": 30},
+    "circulation": {"2": 70, "3": 30},
+    "exit": {"1": 40, "2": 40, "3": 20}
+  },
+  "density_weights": {"tight": 30, "normal": 40, "loose": 30},
+  "ego_gap_bounds_m": {"tight": [0.5, 2.5], "normal": [4.0, 10.0], "loose": [10.0, 22.0]},
+  "ego_yaw_limit_deg": 6,
+  "ego_lateral_offsets_m": [0, 0, 0.15, -0.15, 0.30, -0.30],
+  "npc_minimum_pair_gap_m": 0.5,
+  "reference_policy": "sample route plus development bags; no evaluation_locked data; unknown final speed/period are not hardcoded",
+  "limitation": "Static geometry observations, not validated merging controls, fixed final spacing or collider shapes."
+}

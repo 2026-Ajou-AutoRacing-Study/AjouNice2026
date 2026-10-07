@@ -46,10 +46,22 @@
    짧은 사람 끝점은 같은 구역의 저장 donor 높이와 overlap offset 후보로 보완하고 각각 새 live QA를 했다.
    28종×두 구역×양방향112개 승인용 캡처 PASS, 전체127시도/1LiDAR annotation review는 보존한다.
    실제 이동 primary의 crossing×walk/run×subfamily 방향 차이≤1, same-quota replacement에서도 sign 유지다.
-   최신 manifest는 endpoint_linear_final_5k_v117이며4846정적/154이동·122종 최소4를 유지한다.
+   v117 manifest는 endpoint_linear_final_5k_v117이며4846정적/154이동·122종 최소4를 유지했다.
    v116 raw/manifest는 이력으로 보존하고 새 코드로 기존 output을 resume하지 않는다.
    `docs/261008_base5_intersection_ground_evidence.md`의 최신 batch/resume/경로를 따른다.
    새bulk output에만 새정책을 적용하며 본수집은 보고 후 사용자 승인이다.
+   v119 현재 release는 roundabout_release_5k_v119이다. 로터리 미션250셀 geometry를 실제 경로 관측으로 교체한다.
+   접근20/대기30/진입60/원형 주행90/탈출50, NPC는 샘플spawn4 시작26→삭제9 범위의5개link만 쓴다.
+   원형 주행 앞뒤 NPC 두 대를 raw positive로 검사하며 진입도 두 대 가시성 조건을 적용한다.
+   누락은 bounded same-quota replacement/부족분이고 GT를 임의 채우지 않는다.
+   NPC 임의XY/yaw jitter 없음; Ego±0.30m/±6°는 최종 도로 지지·실제 정지검사를 유지한다.
+   나머지4750 geometry·이동v117/높이v115·122종 최소4는 보존한다. 본선 속도/간격/차종은 하드코딩하지 않는다.
+   static_vehicle_policy=park-static-snapshot-v119가 정적 vehicleList NPC의 세 저장 gear를 Park로 맞춘다.
+   나머지2314셀 control-only 갱신/2436셀 참조 보존, 이동 actor의 상태는 변경하지 않는다.
+   실제 pivot XY25cm 초과 이동/정보 누락, 원형 앞뒤 GT gap quota±30cm 초과는 review다.
+   v118 초기47승인 중3셀은 후속 정지 검사 FAIL로 보존하고 최종 검증본으로 쓰지 않는다.
+   `docs/261008_base5_roundabout_route_mission_evidence.md`를 읽고 런북 v119 새 경로를 사용한다.
+   구v117/v118개발 output에 새runtime resume 금지, 기본config만으로 현재release가 재생성되지는 않는다.
 
 CURRENT/EVIDENCE/PLAN/HISTORICAL 상태를 구분한다. 현재 학습 전달본은
 `base3_online_highway_motion_v2`이며 nearest-state V1을 자동 선택하지 않는다.

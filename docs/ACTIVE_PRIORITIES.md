@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획
 
-마지막 갱신: 2026-10-07.
+마지막 갱신: 2026-10-08.
 
 이 문서는 **아직 끝나지 않았고 다음 작업에서 반드시 다시 확인할 항목만** 둔다.
 완료된 수집·학습·실험 수치는 각 CURRENT/EVIDENCE 문서에 보존하며 여기로 다시
@@ -64,6 +64,9 @@
   [최종 gate 근거](../dataset/morai_od/docs/261007_base5_final_gates_v105_evidence.md)에 묶었다.
   본수집은 최종 보고 후 사용자 승인까지 대기한다. 이전 v23–v100 시행착오·실측은
   dataset evidence 문서에 보존하며 ACTIVE에 중복 나열하지 않는다.
+  현재 실행 진입점은 `roundabout_release_5k_v119`다. 로터리250 geometry/정적 NPC Park의
+  [검증 근거](../dataset/morai_od/docs/261008_base5_roundabout_route_mission_evidence.md)를 따르고
+  구 output에 새 runtime으로 resume하지 않는다. 통신 halt는 안전 확인 후 새 output으로 분리한다.
   Ego Park·독립 지형·CollisionData·실제 Z/가시성 검사는 유지하며 raw GT는 사후 수정하지 않는다.
   [5060Ti 비용 근거](bevfusion/261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md)는 그대로다.
   4090/확대후보ROS/full-stack은 아직 별도 검증이며 수집 pilot으로 인증하지 않는다.

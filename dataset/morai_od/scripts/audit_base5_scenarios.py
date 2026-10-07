@@ -33,8 +33,18 @@ def audit(manifest_path):
     height_ctx=None;height_assets=None;dynamic_ctx=None;dynamic_phases=Counter();dynamic_crossings=Counter()
     generic_close=Counter();vehicle_close_phases=Counter();vehicle_close_gaps=[]
     stationary_pools=Counter();stationary_primary=Counter()
+    roundabout_phases=Counter();roundabout_density=Counter();roundabout_ctx=None
     for entry in m['scenes']:
         s=json.loads(Path(entry['scenario']).read_text());meta=json.loads(Path(entry['metadata']).read_text());r=meta['spec']
+        from base5_static_vehicle import validate_serialized
+        try:validate_serialized(meta,s,m['config']['capture'].get('static_vehicle_policy'))
+        except (ValueError,KeyError,StopIteration) as exc:errors.append((entry['id'],'static vehicle '+str(exc)))
+        if r.get('roundabout_phase'):
+            roundabout_phases[r['roundabout_phase']]+=1
+            roundabout_density[str((r['roundabout_phase'],r['roundabout_density']))]+=1
+            if roundabout_ctx is None:roundabout_ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
+            try:gen.roundabout_mission.validate(gen,roundabout_ctx,meta,s,m['config'])
+            except (ValueError,KeyError) as exc:errors.append((entry['id'],'roundabout '+str(exc)))
         digest=gen.geo.sha256(Path(entry['scenario']))
         if digest!=entry['scenario_sha256']:errors.append((entry['id'],'checksum'))
         if digest in hashes:errors.append((entry['id'],'duplicate scene payload'))
@@ -278,6 +288,17 @@ def audit(manifest_path):
                 if not lo<=a['planned_center_distance_m']<hi:errors.append((entry['id'],'distance quota'))
         retries.append(meta['retry'])
     if m['count']==m['config']['target_scenes']:
+        if m['config'].get('mission_roundabout_observation'):
+            if roundabout_phases!=Counter(m['config']['mission_roundabout_observation']['phase_counts']):
+                errors.append(('all','roundabout phase quota'))
+            expected_rows=[r for r in gen.specs(m['config']) if r.get('roundabout_phase')]
+            expected_density=Counter(str((r['roundabout_phase'],r['roundabout_density'])) for r in expected_rows)
+            if roundabout_density!=expected_density:errors.append(('all','roundabout density quota'))
+            actual_rows=[gen.geo.load_json(Path(e['metadata']))['spec'] for e in m['scenes']
+                         if e['family']=='roundabout' and e['mission']]
+            for fields in (('roundabout_phase','actors'),('roundabout_observation_state',)):
+                if Counter(tuple(r.get(k) for k in fields) for r in actual_rows)!=Counter(tuple(r.get(k) for k in fields) for r in expected_rows):
+                    errors.append(('all','roundabout observation/count quota '+str(fields)))
         if m['config'].get('stationary_mission_assets'):
             expected_pools=Counter(m['config']['stationary_mission_assets']['primary_pool_counts'])
             expected_pools['static_vehicle']+=m['config']['mission_counts']['other_vehicle']
@@ -312,6 +333,7 @@ def audit(manifest_path):
     return dict(status='OFFLINE_PASS' if not errors else 'OFFLINE_FAIL',live_validation=False,
         scenes=len(m['scenes']),unique_payloads=len(hashes),families=dict(families),mission_counts=dict(missions),
         sample_bounded_highway_vehicle_count=bounded_vehicles,
+        roundabout_mission_phase_counts=dict(roundabout_phases),roundabout_mission_density_counts=dict(roundabout_density),
         stationary_mission_pool_counts=dict(stationary_pools),
         stationary_mission_primary_assets=len(stationary_primary),
         avoidance_phase_side_counts=dict(avoidance_phases),generic_close_counts=dict(generic_close),

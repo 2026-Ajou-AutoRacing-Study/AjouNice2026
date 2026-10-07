@@ -1,6 +1,6 @@
 # BEVFusion 문서 index
 
-마지막 정리: 2026-10-06.
+마지막 정리: 2026-10-08.
 
 ## CURRENT
 
@@ -13,7 +13,12 @@ Base5/E25의 [batch1·ROS 포화 처리량](261006_BASE5_BATCH1_CAPACITY_EVIDENC
 이미지확대90.46ms,범위확대96.27ms,둘다확대130.59ms(1.96×)다.
 0.5m depth간격을유지하므로coverage확대에따라118→198bin이다.
 
-독립 Base5 생성/학습 후보는 [Base5 v2 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)를 우선한다. 생성된10K는 구왕복 이력이며 최신 일방향 기본의10K는 아직 생성하지 않았다. v25 yaw 실측은42/42조건 완료,Park 재시도 성공이며 간헐timeout 원인은 미해결이다. 100m 직사각형 BEV 및4-class 후보의 단일 GPU loss/역전파 smoke와 production E25를 구분한다.
+독립 Base5 생성/학습 후보는 [Base5 v2 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)를 우선한다.
+현재는 Sunny13 직접5K `roundabout_release_5k_v119`이며 로터리 미션250셀의 실제 경로 관측과
+정적 NPC Park 초기화를 포함한다. [실제51셀 검증/한계](../../dataset/morai_od/docs/261008_base5_roundabout_route_mission_evidence.md)와
+[본수집 런북](../../dataset/morai_od/docs/261007_base5_5k_capture_runbook.md)을 따른다. 본수집/새 학습은 승인 대기다.
+구10K/왕복/v25 yaw 근거는 이력이다. 간헐 통신 timeout의 내부 원인은 미해결이며 실패를 보존한다.
+100m 직사각형 BEV 및4-class 후보의 단일 GPU loss/역전파 smoke와 production E25를 구분한다.
 
 Tracker 속도 평가의 GT 기준은 [velocity GT 재검토·실행 설정](261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md)를 함께 읽는다. 보행자 ROS 메시지 우선/이동-zero fallback은 opt-in이며 차량 세 기준 비교와 H01/R01 baseline 재현을 보존한다. 2026-10-06 정리한 MORAI 추가 답변에서 **UDP 차량 velocity가 후륜 차축 중심의 순간 선속도**임을 확인했고 메시지 GT 사용을 권장했다. BBox 중심 변환의 좌표계/시간/yaw-rate 검증은 남으며 evaluator 기본값과 production은 변경하지 않았다.
 

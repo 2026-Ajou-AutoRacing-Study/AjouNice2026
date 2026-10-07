@@ -1,12 +1,19 @@
 # Base5 Sunny13시 직접 5K — 현재 운영 런북
 
-2026-10-08 / v117 endpoint-linear + v115 static advisory.
+2026-10-08 / v119 parked static NPC + v118 roundabout mission + v117 endpoint-linear + v115 static advisory.
 Base5-only single-frame OD 수집이다. E25 추론·temporal 학습·rosbag 녹화 명령이 아니다.
 **본5K는 사용자 승인 후 시작한다.** 아래 명령은 준비된 새manifest/output용이며 이번 검증에서 실행하지 않았다.
 
 ## 실행 계약
 
 - 새5K offline 생성 완료: 정적4846/실제 이동154,122종 primary 최소4회.
+- 로터리 미션250셀은 샘플 NPC 시작→삭제 경로와 실제 Ego 통과 경로를 사용한다.
+  접근20/대기30/진입60/원형 주행90/탈출50. 원형 주행 앞뒤 NPC/진입 두 대가 실제로 안 보이면 review다.
+  범용 로터리100셀과 나머지4750셀의 배치 geometry/이동 높이 계약은 유지한다.
+- 정지 차량도 D에서 움직이는 사례를 확인해 모든 정적 vehicleList actor의 저장 기어를 Park로 맞춘다.
+  나머지4750 중2314셀은 위치/자산/GT 변경 없이 기어 상태·실제 위치 검사 metadata만 갱신했다.
+  캡처 전후 기존 Object snapshot의 pivot XY가 계획 위치에서25cm 초과 벗어나면 review다.
+  추가 촬영/높이 witness는 만들지 않는다. 원형 주행의 실제 GT 간격도 quota 범위±30cm로 검사한다.
 - 이동 외관은 신호등 사거리 두 횡단보도에 한정한다. 범용/정적 미션은 같은 자산을 정지 배치한다.
 - 수동 저장 높이를 초기 후보로 검증한 endpoint lookup의 domain 안에서 두 waypoint를 생성한다.
   중간 Z는 두 끝점의 선형 보간이며 자동 지면 추종이 아니다.
@@ -19,10 +26,11 @@ Base5-only single-frame OD 수집이다. E25 추론·temporal 학습·rosbag 녹
 - 원본 point/GT·실패 근거를 보존한다. 배치 수는 실제 visible-positive 수가 아니다.
 - 이동 primary의 걷기/달리기·사람/희귀 그룹별 양방향 차이≤1, 재시도에서도 방향을 고정한다.
   [CURRENT](BASE5_V2_CURRENT.md)와 [근거/한계](261008_base5_intersection_ground_evidence.md)를 먼저 확인한다.
-- 구 v113/v114/v115/v116 pilot output을 현재 코드의 새 본수집에 resume하지 않는다.
+- 구 v113/v114/v115/v116/v117/v118 pilot output을 현재 코드로 resume하지 않는다.
   수집 시작 후 코드·config·manifest·scenario·lookup/source를 바꾸지 않는다.
 
-v117 대표18셀18승인/21capture·184.685s, partial/완료resume와CPU변환 PASS다.
+v117 대표18셀18승인/21capture·184.685s는 이전 이동/혼합 검증 근거다.
+v119 로터리 실제 캡처·43종·resume/CPU 결과는 [로터리 EVIDENCE](261008_base5_roundabout_route_mission_evidence.md)를 따른다.
 정적근접누락3review와일시적service응답오류2회는보존·복구했다. 세부사항은 EVIDENCE를 따른다.
 새두점경로112개승인용검증은높이/운영scope이며 전체5K성공률 인증이 아니다.
 전체소요는현재근거를조건부로합치면약10시간안팎이지만보장하지않고누적rate로갱신한다.
@@ -64,8 +72,8 @@ Ego/Object/CollisionData·ScenarioLoad·SaveSensorData·제어 서비스의7-int
 ```bash
 ajou
 python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
-  --manifest "$HOME/morai_cap/base5_v2_261008/endpoint_linear_final_5k_v117/scenarios_5k/manifest.json" \
-  --output "$HOME/morai_cap/base5_v2_261008/collection_5k_endpoint_linear_v117" \
+  --manifest "$HOME/morai_cap/base5_v2_261008/roundabout_release_5k_v119/scenarios_5k/manifest.json" \
+  --output "$HOME/morai_cap/base5_v2_261008/collection_5k_roundabout_v119" \
   --limit 5000 \
   --chunk-size 4 \
   --approve-bulk-capture \
@@ -83,7 +91,7 @@ python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
 ```bash
 ajou
 python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
-  --capture-root "$HOME/morai_cap/base5_v2_261008/collection_5k_endpoint_linear_v117" \
+  --capture-root "$HOME/morai_cap/base5_v2_261008/collection_5k_roundabout_v119" \
   --port 8075
 ```
 
@@ -99,14 +107,14 @@ waiting_stationary_ego는 정상 정지 검사 단계다. 준비 중 ETA0만으�
 
 ```bash
 ajou
-touch "$HOME/morai_cap/base5_v2_261008/collection_5k_endpoint_linear_v117/PAUSE"
+touch "$HOME/morai_cap/base5_v2_261008/collection_5k_roundabout_v119/PAUSE"
 ```
 
 paused 확인 후 파일을 제거하고 터미널3의 **동일한 명령**으로 재개한다.
 
 ```bash
 ajou
-rm "$HOME/morai_cap/base5_v2_261008/collection_5k_endpoint_linear_v117/PAUSE"
+rm "$HOME/morai_cap/base5_v2_261008/collection_5k_roundabout_v119/PAUSE"
 ```
 
 급히 중단하려면 부모터미널 Ctrl-C/STOP 경로를 사용한다. 종료 Park 확인 전 다른 수집기를 켜지 않는다.
@@ -118,9 +126,9 @@ rm "$HOME/morai_cap/base5_v2_261008/collection_5k_endpoint_linear_v117/PAUSE"
 ```bash
 ajou
 python3 dataset/morai_od/scripts/report_base5_final_coverage.py \
-  --manifest "$HOME/morai_cap/base5_v2_261008/endpoint_linear_final_5k_v117/scenarios_5k/manifest.json" \
-  --ledger "$HOME/morai_cap/base5_v2_261008/collection_5k_endpoint_linear_v117/selected_ledger.jsonl" \
-  --output "$HOME/morai_cap/base5_v2_261008/collection_5k_endpoint_linear_v117/effective_coverage.json" \
+  --manifest "$HOME/morai_cap/base5_v2_261008/roundabout_release_5k_v119/scenarios_5k/manifest.json" \
+  --ledger "$HOME/morai_cap/base5_v2_261008/collection_5k_roundabout_v119/selected_ledger.jsonl" \
+  --output "$HOME/morai_cap/base5_v2_261008/collection_5k_roundabout_v119/effective_coverage.json" \
   --require-effective-complete
 ```
 
@@ -132,11 +140,24 @@ accepted·review없음·calibration아님만 전달한다.
 ```bash
 ajou
 python3 dataset/morai_od/scripts/build_base5_bevfusion_infos.py \
-  --ledger "$HOME/morai_cap/base5_v2_261008/collection_5k_endpoint_linear_v117/selected_ledger.jsonl" \
-  --output "$HOME/morai_cap/base5_v2_261008/base5_5k_infos_endpoint_linear_v117" \
+  --ledger "$HOME/morai_cap/base5_v2_261008/collection_5k_roundabout_v119/selected_ledger.jsonl" \
+  --output "$HOME/morai_cap/base5_v2_261008/base5_5k_infos_roundabout_v119" \
   --sensor-config configs/sensors/Sensor_competition_local.json
 ```
 
 다른환경은 별도5K campaign/output이다. 이번현재환경은Sunny13시이며 과거11시표기를 재사용하지 않는다.
-새manifest 재생성은 freeze_base5_intersection_release.py --endpoint-linear의 새output으로만 수행한다.
+v119 재생성은 아래처럼 v117 동결본에서 로터리250셀 geometry와 정적 NPC 기어 상태를 갱신하는
+**존재하지 않는 새output**에 수행한다. 나머지4750 geometry는 재생성하지 않는다.
+기존5K 파일 일부는 현재manifest의 source로 참조되므로 삭제하지 않는다.
+기본sunny13 config만의 직접 generate는 현재release 전체계약을 재현하지 않는다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/revise_base5_roundabout_mission.py \
+  --source-manifest "$HOME/morai_cap/base5_v2_261008/endpoint_linear_final_5k_v117/scenarios_5k/manifest.json" \
+  --output "$HOME/morai_cap/base5_v2_261008/roundabout_release_5k_v119_new" \
+  --development-reference "$HOME/morai_cap/base5_v2_261008/roundabout_v118/development_reference_units_checked.json"
+```
+
+release config 전체 내용과 runtime hash를 수집 시작 시 고정한다.
 구v113 명령/4171+829/45.7h등은 Git 이력·CURRENT의 historical evidence에 보존하며 현재실행값이 아니다.

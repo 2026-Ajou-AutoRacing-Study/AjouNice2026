@@ -2,10 +2,18 @@
 
 마지막 정리: 2026-10-08.
 
-- **2026-10-08 v117 우선:** 샘플처럼 출발→도착 두 waypoint의 선형 이동으로 변경했다.
+- **2026-10-08 v119 우선:** 로터리 미션250셀을 샘플 NPC 경로/실제 Ego 통과 관측으로 교체한다.
+  접근20/대기30/진입60/원형 주행90/탈출50, 원형 주행은 앞뒤 차량을 함께 관측한다.
+  나머지4750셀 geometry·정적4846/이동154·122종 최소4는 보존한다. 정적 NPC는 초기 Park로 고정한다.
+  나머지 중2314셀은 기어/검사 metadata만 갱신했다. 본수집은 자동 시작하지 않는다.
+  현재 release는 `roundabout_release_5k_v119`이다. [CURRENT](BASE5_V2_CURRENT.md),
+  [로터리 근거](261008_base5_roundabout_route_mission_evidence.md), [런북](261007_base5_5k_capture_runbook.md)을 따른다.
+  구 output에 새runtime으로 resume하지 않는다.
+
+- **2026-10-08 v117 이동 계약 유지:** 샘플처럼 출발→도착 두 waypoint의 선형 이동으로 변경했다.
   28종×두 횡단보도×양방향112개 승인용 캡처 PASS. 전체127시도 중 LiDAR GT 누락1건도 보존한다.
   일반 사람의 걷기/달리기 반대 방향을 각각 균형 배정하고 재시도에서도 방향을 고정한다.
-  새5K는 `endpoint_linear_final_5k_v117`이며4846정적/154이동·122종 최소4다.
+  당시5K는 `endpoint_linear_final_5k_v117`이며 최신 v119에서 이동 계약/높이 lookup을 유지한다.
   [CURRENT](BASE5_V2_CURRENT.md), [근거](261008_base5_intersection_ground_evidence.md),
   [런북](261007_base5_5k_capture_runbook.md)을 우선한다. 본수집은 승인 대기다.
 

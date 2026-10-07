@@ -207,6 +207,12 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     from base5_population_budget import visibility_summary,visibility_review
     population_visibility=visibility_summary(metadata['runtime_actors'],results)
     reasons.extend(visibility_review(metadata,population_visibility))
+    from base5_roundabout_mission import visibility_review as roundabout_visibility_review
+    pair_reasons,roundabout_visibility=roundabout_visibility_review(metadata,results,clearances)
+    reasons.extend(pair_reasons)
+    from base5_static_vehicle import runtime_review as static_vehicle_review
+    static_vehicle_reasons,static_vehicle_evidence=static_vehicle_review(metadata)
+    reasons.extend(static_vehicle_reasons)
     result=dict(components=results,missing_uids=missing,raw_complete=True,ground_support=ground,
         ground_warnings=(ground or {}).get('static_policy_decision',{}).get('warnings',[]),
         population_visibility=population_visibility,
@@ -221,4 +227,6 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     # overlay. Keep the original observed safety proof available to selectors
     # and dashboard summaries; never synthesize a successful collision check.
     if live is not None:result['capture_safety']=copy.deepcopy(live)
+    if roundabout_visibility is not None:result['roundabout_visibility']=roundabout_visibility
+    if static_vehicle_evidence is not None:result['stationary_vehicle_runtime']=static_vehicle_evidence
     return result
