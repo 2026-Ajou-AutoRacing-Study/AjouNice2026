@@ -246,3 +246,9 @@ python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
 통신/로드/정지/Park 확인 실패는 여전히 halt이며 단순 실패 무시 옵션은 없다.
 `deficit_manifest.json` 부족분은 완료 resume 시 재촬영되지 않는다. 별도 보충 캠페인 대상으로 사용한다.
 `inject_base5_collision_test.py`는 승인된 진단용 입력 시험에만 사용하는 도구이며 본수집에서는 실행 금지다.
+# 2026-10-07 v66 후속 주의
+
+아래 v45/v59 수집 명령은 실행 이력/운영 방법이다. 정적 전체 ground gate와 초기 높이
+후보를 보강한 뒤, 원거리 cross-view 지면 검사에서 오판 가능성을 발견했다. 현재 본10K
+readiness가 아니므로 구8354셀 deck 또는 중단 output을 그대로 본수집/resume하지 않는다.
+`BASE5_V2_CURRENT.md`의 v66과 `261007_base5_static_height_evidence.md`를 먼저 읽는다.

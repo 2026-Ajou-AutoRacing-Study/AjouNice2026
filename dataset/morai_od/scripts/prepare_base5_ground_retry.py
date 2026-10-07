@@ -10,10 +10,16 @@ import generate_base5_independent as gen
 def shift_actor(scene,metadata,uid,shift):
     if not -.75<=shift<0:raise ValueError('Ground shift outside conservative downward bound')
     record=next(a for a in metadata['runtime_actors'] if a['unique_id']==uid)
-    if record['source_list'] not in ('objectList','pedestrianList'):raise ValueError('Unsupported height-control container')
+    cumulative=record.get('input_ground_z_shift_m',0.)+shift
+    if not -.75<=cumulative<0:raise ValueError('Cumulative ground shift outside conservative downward bound')
+    if record['source_list'] not in ('objectList','pedestrianList','vehicleList'):raise ValueError('Unsupported height-control container')
     actor=next(a for a in scene[record['source_list']] if a['UNIQUEID']==uid)
-    actor['pos']['z']+=shift;record['position']['z']+=shift
-    if '_z' in actor['pos']:actor['pos']['_z']=f"{actor['pos']['z']:.3f}"
+    if record['source_list']=='vehicleList':
+        if record.get('motion') not in ('static','standing'):raise ValueError('Moving vehicle height retry unsupported')
+        position=actor['initPosition']['pos']
+    else:position=actor['pos']
+    position['z']+=shift;record['position']['z']+=shift
+    if '_z' in position:position['_z']=f"{position['z']:.3f}"
     for key in ('initPos','standardPos'):
         if key in actor:
             actor[key]['y']+=shift
@@ -28,7 +34,7 @@ def shift_actor(scene,metadata,uid,shift):
         for point in raw_path['waypointData']:
             point['pos']['y']+=shift
             if '_y' in point['pos']:point['pos']['_y']=f"{point['pos']['y']:.3f}"
-    record['input_ground_z_shift_m']=shift
+    record['input_ground_z_shift_m']=cumulative
 
 
 def prepare(manifest_path,captures,output):
@@ -51,7 +57,8 @@ def prepare(manifest_path,captures,output):
         sid=entry['id']+'_ground';sp=output/(sid+'.json');mp=output/(sid+'_metadata.json')
         meta['ground_retry_provenance']=dict(source_scene_sha256=entry['scenario_sha256'],source_capture=result['capture_root'],
             measured_corrections=applied,limitation='Input-Z adjustment only; must recapture and pass independent ground/Z/collision/visibility audit')
-        meta['ground_support_check']=dict(enabled=True,max_range_m=20.,maximum_gap_m=.15)
+        meta['ground_support_check']=copy.deepcopy(meta.get('ground_support_check',{}))
+        meta['ground_support_check'].update(enabled=True,max_range_m=20.,maximum_gap_m=.15)
         # A previous matched-height reference is not a ground reference and cannot
         # remain authoritative after changing input Z. Keep it only as provenance.
         probe=meta.get('motion_probe',{})

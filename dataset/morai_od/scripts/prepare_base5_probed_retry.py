@@ -35,6 +35,10 @@ def prepare(source,original,probes,output):
         boxes=parse_instances(next(cap.glob('LIDAR_*/*_Instance.txt')));cloud=world_cloud(root,pm,pt)
         refs=[];shifts=[]
         for actor in meta['runtime_actors']:
+            # ego_to_world currently knows yaw, not physical Ego roll/pitch.
+            # A nearby witness viewed from a distant Ego can therefore create
+            # an apparent vertical gap. Keep distant actors required in the
+            # audit, but never lower them from this yaw-only cross-view proof.
             if actor['planned_center_distance_m']>20.:continue
             uid=actor['unique_id'];cs=[]
             for box in boxes:
@@ -44,7 +48,7 @@ def prepare(source,original,probes,output):
                 ego=(np.c_[lidar,np.ones(8)]@np.array(cm['lidar_to_ego']).T)[:,:3]
                 cs.extend(ego_to_world(ego,ct['ego_before']))
             if not cs:continue
-            cs=np.array(cs);plane=surface_at(cloud,cs[:,:2].mean(axis=0))
+            cs=np.array(cs);plane=surface_at(cloud,cs[:,:2].mean(axis=0),support_xy=cs[:,:2])
             if plane is None or not all(supported(plane,c[:2]) for c in cs):continue
             refs.append(dict(uid=uid,plane_world=plane,probe_capture=str(root),
                 probe_scenario_sha256=result['scenario_sha256'],probe_lidar_sha256=sha256(next(root.glob('LIDAR_*/*_Intensity.bin'))),
@@ -59,7 +63,11 @@ def prepare(source,original,probes,output):
             # asset without a confirmed independent physical placement model.
         if not refs:rejected.append(dict(id=sourceid,reason='no supported independent surface'));continue
         sid=sourceid+'_probed';sp=output/(sid+'.json');mp=output/(sid+'_metadata.json')
-        meta['ground_probe_references']=refs;meta['ground_support_check']=dict(enabled=True,max_range_m=20.,maximum_gap_m=.15)
+        previous={r['uid']:r for r in meta.get('ground_probe_references',[])}
+        previous.update({r['uid']:r for r in refs})
+        meta['ground_probe_references']=list(previous.values())
+        meta['ground_support_check']=copy.deepcopy(meta.get('ground_support_check',{}))
+        meta['ground_support_check'].update(enabled=True,max_range_m=20.,maximum_gap_m=.15)
         meta['probed_retry_provenance']=dict(source_capture=str(cap),source_scenario_sha256=entry['scenario_sha256'],
             input_z_corrections=shifts,limitation='Same-scene empty surface witness; no universal ground offset or raw GT rewrite')
         gen.geo.write_json(sp,scene);gen.geo.write_json(mp,meta)

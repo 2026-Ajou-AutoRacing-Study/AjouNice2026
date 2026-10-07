@@ -192,7 +192,9 @@ def context(runtime, mgeo):
     return dict(pools=pools,links=links,route=route,arc=geo.route_arc_coordinates(route),appearance_policy=geo.load_json(APPEARANCE_POLICY),
         geometry=geometry_rows,geometry_sources=geometry_sources,template=geo.load_json(geo.DEFAULT_TEMPLATE),anchors={},
         mission_templates=mission_templates,crosswalks=geo.load_crosswalk_catalog(mgeo),
-        sample_corridors=sample_highway_corridors(links))
+        sample_corridors=sample_highway_corridors(links),
+        static_height_reference_sources=dict(scenarios={f:geo.sha256(runtime/f) for f in documents},
+            map_link_sha256=geo.sha256(mgeo/'link_set.json')))
 
 def anchor_bank(ctx,topology):
     if topology in ctx['anchors']: return ctx['anchors'][topology]
@@ -537,6 +539,15 @@ def build(row,config,ctx,attempt=0):
             raise ValueError('Highway longitudinal sign differs from quota')
         uid=8500+i
         runtime_pose=dict(pose,**motion_path['points'][0]) if motion_path and motion_path['policy']=='natural-target-v1' else pose
+        height_initializer=None
+        if actor_motion in ('static','standing'):
+            from base5_static_height import saved_height_candidate
+            height_initializer=saved_height_candidate(asset,ctx)
+            if height_initializer['usable']:
+                # set_static_vehicle_actor adds its legacy .36m. Replace that
+                # initializer with the asset's saved pivot candidate, not twice.
+                legacy=.36 if asset['source_list']=='vehicleList' else 0.
+                runtime_pose=dict(runtime_pose,z=runtime_pose['z']+height_initializer['pivot_height_candidate_m']-legacy)
         set_pose(copy.deepcopy(asset['template']),runtime_pose,uid,asset,scene,actor_motion,motion_path)
         footprints.append(swept if motion_path is not None else box)
         actor_records.append(dict(unique_id=uid,data_id=asset['data_id'],name=asset['name'],
@@ -548,6 +559,7 @@ def build(row,config,ctx,attempt=0):
             reference_frames=references(center,ego,base['yaw']),
             training_class='animal' if asset.get('ontology_class')=='Animal' else 'component_annotation',
             runtime_mapping_verified=False if selected_pool in ('animal','pet_person','stroller','rider') else True))
+        if height_initializer is not None:actor_records[-1]['static_height_initializer']=height_initializer
         if not i: desired=actual
         if asset['source_list']=='aiPedstrianList':actor_records[-1]['motion_capability_note']='AI destination API unvalidated; retained as standing, not removed'
         if motion_path is not None:
@@ -561,7 +573,10 @@ def build(row,config,ctx,attempt=0):
         split=split,split_group=group,split_limit='whole link; adjacent links can share 100m views; held-out mission bag required',
         ego_road_yaw_offset_deg=yaw_delta,ego_lateral_offset_m=offset,
         planned_primary_distance_m=desired,retry=attempt,live_validated=False)
-    if config['capture'].get('ground_support_check',False):meta['ground_support_check']=dict(enabled=True,max_range_m=20.,maximum_gap_m=.15)
+    if config['capture'].get('ground_support_check',False):
+        meta['ground_support_check']=dict(enabled=True,max_range_m=20.,maximum_gap_m=.15,
+            required_uids=[a['unique_id'] for a in actor_records],
+            policy='all-actors-observed-ground-v1')
     if avoidance_ref:
         avoidance_ref['actual_surface_gap_m']=actor_records[0]['planned_surface_clearance_m']
         meta['avoidance_observation']=avoidance_ref

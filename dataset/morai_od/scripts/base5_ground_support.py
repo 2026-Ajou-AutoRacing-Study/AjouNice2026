@@ -2,6 +2,25 @@
 import numpy as np
 
 
+def height_response_review(ground, metadata):
+    """Detect measured input-Z changes that did not fix the observed height gap."""
+    changes={}
+    for row in metadata.get('ground_retry_provenance',{}).get('measured_corrections',[]):
+        changes[row['uid']]=(row.get('minimum_annotation_ground_gap_m'),row.get('suggested_z_shift_m'))
+    for row in metadata.get('probed_retry_provenance',{}).get('input_z_corrections',[]):
+        changes[row['uid']]=(row.get('before_ground_gap_m'),row.get('delta_z_m'))
+    results=[]
+    for row in ground.get('actors',[]):
+        before,delta=changes.get(row['uid'],(None,None));after=row.get('minimum_annotation_ground_gap_m')
+        if before is None or delta is None or after is None:continue
+        ineffective=(delta<-.10 and after>ground['maximum_gap_m'] and before-after<abs(delta)*.2)
+        results.append(dict(uid=row['uid'],before_gap_m=before,after_gap_m=after,
+            requested_delta_z_m=delta,observed_gap_reduction_m=before-after,
+            ineffective=ineffective,limitation='Observed annotation/terrain response; not proof of a simulator bug'))
+    return dict(actors=results,review_reasons=['actor_input_z_correction_ineffective']
+        if any(r['ineffective'] for r in results) else [])
+
+
 def fit_plane(points,minimum_points=18):
     points=np.asarray(points,float)
     if len(points)<minimum_points:return None
@@ -60,7 +79,7 @@ def ground_review(points,boxes,transform,max_range=20.,maximum_gap=.15,reference
             patch=ego_points[outside & (np.linalg.norm(ego_points[:,:2]-xy,axis=1)<patch_radius)]
             candidate=fit_plane(patch)
             # Refuse long extrapolation from a separate patch/level.
-            if candidate is not None and Polygon(candidate['support_polygon_xy']).distance(Point(xy))<=.75:
+            if candidate is not None and all(Polygon(candidate['support_polygon_xy']).distance(Point(p))<=.75 for p in cs[:,:2]):
                 plane=candidate;break
         row=dict(uid=uid,required=True,verified=False,plane=plane,patch_radius_m=patch_radius)
         reference=next((r for r in (references or []) if r['uid']==uid),None)
@@ -90,5 +109,8 @@ def ground_review(points,boxes,transform,max_range=20.,maximum_gap=.15,reference
             elif gap<-.30:row['reason']='actor_annotation_deep_below_ground';reasons.append(row['reason'])
             else:row.update(verified=True,reason=None)
         results.append(row)
+    for uid in sorted(set(required_uids or [])-{u for u,_ in corners}):
+        results.append(dict(uid=uid,required=True,verified=False,reason='required_actor_ground_annotation_missing'))
+        reasons.append('required_actor_ground_annotation_missing')
     return dict(actors=results,review_reasons=sorted(set(reasons)),max_range_m=max_range,
         maximum_gap_m=maximum_gap,limitation='Local low-return plane and lowest parent component OBB corner. Margins/articulation may extend below ground; not mesh contact or physics collider proof. Sparse/multilevel terrain stays review.')

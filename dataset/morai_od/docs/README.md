@@ -4,6 +4,11 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **최신 v66: 정적 자산별 높이 후보/전체actor ground gate.** 실제4조건3통과/1보류,
+  근접Kona 정상으로 원거리 부유 확정 해석 철회. yaw-only 장거리 지면 보정 금지,
+  원거리 좌표계/평면 오판 분리가 남음. 본10K/v59 명령 자동 실행 금지.
+  [현재 계약](BASE5_V2_CURRENT.md), [검증 근거](261007_base5_static_height_evidence.md).
+
 - **본수집 터미널 명령의 단일 기준:** [Base5 v45 운영 런북](261006_base5_bulk_resume_v45.md#터미널별-운영-순서--처음-실행부터-재개까지).
   반드시 런북 상단 경고와 **10월 7일 변경**부터 읽는다. 구 v45 본수집은 충돌 중단 상태다.
   rc → guarded bridge → MR7-interface/Capture Mode → 수집 → 대시보드,

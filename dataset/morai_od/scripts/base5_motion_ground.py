@@ -175,7 +175,8 @@ def prepare(source,terrain,reference,output):
         refs.append(dict(uid=uid,plane_world=plane,probe_capture=str(empty),MR_heading_correction_deg=-1.347))
     meta['ground_probe_references']=refs
     meta['ground_support_check']=dict(enabled=True,max_range_m=20.,maximum_gap_m=.15,
-        required_uids=[a['unique_id'] for a in moving_actors(meta)])
+        required_uids=[a['unique_id'] for a in meta['runtime_actors']],
+        policy='all-actors-observed-ground-v1')
     validate_motion_ground(meta,scene)
     output.mkdir(parents=True)
     sid=old['id']+'_groundpath';sp=output/(sid+'.json');mp=output/(sid+'_metadata.json')

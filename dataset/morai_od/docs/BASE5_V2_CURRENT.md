@@ -5,7 +5,25 @@ Base3 추가분이 아닌 독립 Base5이며 temporal/velocity head 학습용이
 **v45 본수집은 시작했다가 물리 충돌로 중단됐다. 체크포인트 32장은 보존했다.
 새 코드의 소량 검증은 통과했지만 본수집은 자동 재시작하지 않았다. 본 학습도 미시작이다.**
 
-## 최신 v59 — Ego Park 유지·확인된 충돌 실패분 분리
+## 최신 v66 — 정적 자산별 초기 높이 후보·전체 ground gate
+
+2026-10-07. 정적 초기 배치에도 F2 저장 pivot와 원본 근처 MGeo 높이의 차이를 후보로
+적용했다. 122종 중69종 후보/53종 fallback이며 **접지 인증69종이 아니다.** 차량 공통+0.36m는
+후보 적용 시 중복 사용하지 않는다. 새 생성·준비는 모든 actor UID의 지면 검사를 요구하며
+정적20m 밖 무검증 합격을 막았다. 누적 downward75cm/정적 차량 입력 retry/전체 BBox
+footprint 평면 support/효과 없는 입력 수정 기록을 추가했다. raw GT는 미수정이다.
+
+실제 `static_initializer_live_v65`는4조건 중3통과/원거리Kona1보류, CPU 성공3장/GT5개다.
+Kona는 같은 실제 위치·heading의 근접 관찰에서는 ground gap−5.84cm로 통과했다.
+따라서 원거리 gap을 실제 부유로 확정하지 않는다. yaw-only Ego world 변환의 cross-view
+높이 오차 가능성 때문에 이 근거로20m 밖 입력Z를 낮추는 처리를 금지했다.
+원거리 local ground가 부족하면 계속 review이며 근접 진단은 학습 quota에 넣지 않는다.
+
+최종 Base5 회귀170 tests PASS. **구8354셀/v59 본수집 명령은 새 ground 정책 readiness가
+아니며 자동 실행하지 않는다.** 본10K 미재개/production 미변경.
+[코드·실제 결과·원거리 해석 수정·남은 한계](261007_base5_static_height_evidence.md).
+
+## v59 — Ego Park 유지·확인된 충돌 실패분 분리
 
 2026-10-07 후속 요청으로 기존 Drive 공통 전환을 제거했다. 정적·동적 캡처 모두 외부 제어
 모드 + Park(gear1), 가속0/브레이크100%를 유지한다. 동적 객체 진행에 Ego Drive가 필요하다는

@@ -217,18 +217,26 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                 if ordinal==0 and reasons=={'actor_annotation_above_ground'}:
                     next_manifest=prepared(base/'height_deck'/'manifest.json',lambda:height_retry(manifest,current,base/'height_deck'))
                     kind='input_z_retry'
-                elif ordinal==0 and reasons and reasons<={'actor_ground_plane_unverified','actor_annotation_deep_below_ground'}:
+                elif reasons and reasons<={'actor_ground_plane_unverified','actor_annotation_deep_below_ground','actor_annotation_above_ground'}:
                     try:
-                        probes=prepared(base/'terrain_deck'/'manifest.json',lambda:empty_probe(manifest,[0],base/'terrain_deck'))
-                        terrain_result=capture(probes,base/'terrain',cell,'empty_terrain')
+                        probe_meta=gen.geo.load_json(Path(gen.geo.load_json(manifest)['scenes'][0]['metadata']))
+                        failed_ground=[a['uid'] for a in result['audit'].get('ground_support',{}).get('actors',[]) if a.get('reason')]
+                        target_uid=((failed_ground or [probe_meta['runtime_actors'][0]['unique_id']])[0]
+                            if probe_meta.get('ground_support_check',{}).get('policy')=='all-actors-observed-ground-v1'
+                            and probe_meta.get('runtime_actors') else None)
+                        terrain_deck=base/f'terrain_deck_{ordinal}';terrain_root=base/f'terrain_{ordinal}'
+                        retry_deck=base/f'probed_deck_{ordinal}'
+                        probes=prepared(terrain_deck/'manifest.json',lambda:empty_probe(manifest,[0],terrain_deck,target_uid=target_uid))
+                        terrain_result=capture(probes,terrain_root,cell,'empty_terrain')
                         if is_collision_failure(terrain_result):result=terrain_result;break
-                        next_manifest=prepared(base/'probed_deck'/'manifest.json',lambda:probed_retry(manifest,current,base/'terrain',base/'probed_deck'))
+                        next_manifest=prepared(retry_deck/'manifest.json',lambda:probed_retry(manifest,current,terrain_root,retry_deck))
                         kind='independent_ground_retry'
                     except ValueError as exc:
                         # Unsupported terrain is a quality deficit, not permission
                         # to waive the gate. Communication exceptions stay fatal.
                         attempts.append(dict(cell=cell,kind='ground_preparation_unavailable',error=str(exc)))
-                        next_manifest=prepared(base/'fallback_deck'/'manifest.json',lambda:replacement(manifest,base/'fallback_deck'))
+                        fallback_deck=base/f'fallback_deck_{ordinal}'
+                        next_manifest=prepared(fallback_deck/'manifest.json',lambda:replacement(manifest,fallback_deck))
                         kind='same_cell_replacement'
                 else:
                     next_manifest=prepared(base/f'replacement_deck_{ordinal}'/'manifest.json',lambda:replacement(manifest,base/f'replacement_deck_{ordinal}'))

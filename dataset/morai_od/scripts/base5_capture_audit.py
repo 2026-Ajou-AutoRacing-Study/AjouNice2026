@@ -139,6 +139,9 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
                 references=metadata.get('ground_probe_references'),runtime_ego=metadata.get('capture_runtime_ego'),
                 required_uids=ground_config.get('required_uids'))
             reasons.extend(ground['review_reasons'])
+            from base5_ground_support import height_response_review
+            ground['height_response']=height_response_review(ground,metadata)
+            reasons.extend(ground['height_response']['review_reasons'])
     live=metadata.get('capture_safety')
     if live is not None:
         if not live.get('collision',{}).get('observed'):reasons.append('collision_history_incomplete')

@@ -12,12 +12,13 @@ def ego_to_world(points,ego,heading_correction=-1.347):
     return np.asarray(points)@R.T+np.array([ego[k] for k in ('x','y','z')])
 
 
-def surface_at(points,xy):
+def surface_at(points,xy,support_xy=None):
     points=np.asarray(points);xy=np.asarray(xy)
     for radius in (3.,5.,8.):
         local=points[np.linalg.norm(points[:,:2]-xy,axis=1)<radius]
         plane=fit_plane(local)
-        if plane and Polygon(plane['support_polygon_xy']).distance(Point(xy))<=.75:
+        targets=[xy] if support_xy is None else support_xy
+        if plane and all(Polygon(plane['support_polygon_xy']).distance(Point(p))<=.75 for p in targets):
             plane.update(patch_radius_m=radius,reference_xy=xy.tolist())
             return plane
     return None
