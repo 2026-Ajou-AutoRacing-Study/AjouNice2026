@@ -11,6 +11,34 @@ import generate_base5_independent as gen
 
 
 class MotionGroundTest(unittest.TestCase):
+    def test_near_empty_probe_observes_motion_target_not_departure(self):
+        import prepare_base5_empty_ground_probe as probe
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);target=dict(x=8.,y=2.,z=28.)
+            actor=dict(unique_id=1,position=dict(x=-5.,y=2.,z=28.),motion_path=dict(target_position=target))
+            meta=dict(runtime_actors=[actor],spec={},ground_support_check=dict(required_uids=[1]))
+            ground.atomic_json(root/'meta.json',meta);ground.atomic_json(root/'scene.json',dict(egoVehicle={}))
+            ground.atomic_json(root/'manifest.json',dict(scenes=[dict(id='a',metadata=str(root/'meta.json'),
+                scenario=str(root/'scene.json'),scenario_sha256=ground.sha256(root/'scene.json'))]))
+            with patch.object(probe.gen,'context',return_value=dict(links={})), \
+                 patch.object(probe,'target_probe_pose',return_value=dict(x=2.,y=2.,z=28.,yaw=0.)) as pose, \
+                 patch.object(probe.gen.geo,'clear_actor_lists'),patch.object(probe.gen.geo,'set_ego_pose'):
+                manifest=probe.prepare(root/'manifest.json',[0],root/'out',target_uid=1,target_motion=True)
+            self.assertEqual(pose.call_args.args[1]['position'],target)
+            row=gen.geo.load_json(manifest)['scenes'][0];output=gen.geo.load_json(Path(row['metadata']))
+            self.assertTrue(output['calibration_only']);self.assertEqual(output['runtime_actors'],[])
+            self.assertEqual(output['ground_probe_source']['targets'],[actor])
+            self.assertEqual(gen.geo.load_json(root/'meta.json'),meta)
+
+    def test_additional_motion_terrain_is_bounded(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            ground.atomic_json(root/'scene.json',{})
+            ground.atomic_json(root/'meta.json',{})
+            ground.atomic_json(root/'manifest.json',dict(scenes=[dict(id='a',metadata=str(root/'meta.json'),scenario=str(root/'scene.json'))]))
+            with self.assertRaisesRegex(ValueError,'four sessions'):
+                ground.prepare(root/'manifest.json',root/'t',root/'r',root/'out',additional_terrain=[root/'t']*4)
+
     def test_collision_skip_requires_matching_hashed_peer_evidence(self):
         from base5_capture_safety import validate_collision_failure
         with tempfile.TemporaryDirectory() as d:

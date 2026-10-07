@@ -115,14 +115,16 @@ def supported_motion_direction(cloud,path,record,meta):
     raise ValueError('No independently supported safe motion direction in same target cell')
 
 
-def prepare(source,terrain,reference,output):
+def prepare(source,terrain,reference,output,additional_terrain=None):
     """Derive asset pivot offset at target, then sample actual empty terrain along path."""
     if output.exists():raise FileExistsError('Grounded motion output overwrite refused')
     m=gen.geo.load_json(source)
     if len(m['scenes'])!=1:raise ValueError('Ground preparation is single-cell')
     old=m['scenes'][0];scene=gen.geo.load_json(Path(old['scenario']));meta=gen.geo.load_json(Path(old['metadata']))
     roots=[]
-    for session in (terrain,reference):
+    terrain_sessions=[terrain]+list(additional_terrain or [])
+    if len(terrain_sessions)>4:raise ValueError('Motion terrain witnesses bounded to four sessions')
+    for session in terrain_sessions+[reference]:
         if not gen.geo.load_json(session/'shutdown_safety.json').get('park_verified'):raise ValueError('Unsafe calibration exit')
         ledger=[__import__('json').loads(l) for l in (session/'ledger.jsonl').read_text().splitlines() if l]
         if len(ledger)!=1 or ledger[0]['status'] not in ('accepted_candidate','review'):raise ValueError('Incomplete calibration')
@@ -131,17 +133,21 @@ def prepare(source,terrain,reference,output):
             raise ValueError('Unsafe calibration contact/support')
         if not gen.geo.load_json(root/'metadata.json').get('calibration_only'):raise ValueError('Calibration provenance missing')
         roots.append(root)
-    empty,ref=roots
-    em=gen.geo.load_json(empty/'metadata.json');et=gen.geo.load_json(empty/'telemetry.json')
-    if em.get('runtime_actors'):raise ValueError('Terrain must have no actors')
-    if em['ground_probe_source']['scenario_sha256']!=old['scenario_sha256']:raise ValueError('Terrain from different source')
+    empty_roots,ref=roots[:-1],roots[-1];empty=empty_roots[0]
+    clouds=[];files=[]
+    for empty_root in empty_roots:
+        em=gen.geo.load_json(empty_root/'metadata.json');et=gen.geo.load_json(empty_root/'telemetry.json')
+        if em.get('runtime_actors'):raise ValueError('Terrain must have no actors')
+        if em['ground_probe_source']['scenario_sha256']!=old['scenario_sha256']:raise ValueError('Terrain from different source')
+        clouds.append(world_cloud(empty_root,em,et))
+        files.extend(dict(path=str(p.resolve()),sha256=sha256(p)) for p in
+            (empty_root/'metadata.json',empty_root/'telemetry.json',next(empty_root.glob('LIDAR_*/*_Intensity.bin'))))
     rm=gen.geo.load_json(ref/'metadata.json');rt=gen.geo.load_json(ref/'telemetry.json')
     if rm['spec']!=meta['spec']:raise ValueError('Static reference quota mismatch')
-    cloud=world_cloud(empty,em,et)
+    cloud=np.concatenate(clouds)
     boxfile=next(ref.glob('LIDAR_*/*_Instance.txt'));boxes=parse_instances(boxfile)
-    files=[dict(path=str(p.resolve()),sha256=sha256(p)) for p in
-        (empty/'metadata.json',empty/'telemetry.json',next(empty.glob('LIDAR_*/*_Intensity.bin')),
-         ref/'metadata.json',ref/'telemetry.json',boxfile)]
+    files.extend(dict(path=str(p.resolve()),sha256=sha256(p)) for p in
+        (ref/'metadata.json',ref/'telemetry.json',boxfile))
     refs=[]
     for record in moving_actors(meta):
         uid=record['unique_id'];path=record['motion_path'];target=path['target_position'];corners=[]
@@ -152,7 +158,7 @@ def prepare(source,terrain,reference,output):
             ego=(np.c_[lidar,np.ones(8)]@np.array(rm['lidar_to_ego']).T)[:,:3]
             corners.extend(ego_to_world(ego,rt['ego_before']))
         if not corners:raise ValueError('Missing static asset annotation')
-        cs=np.array(corners);plane=surface_at(cloud,[target['x'],target['y']])
+        cs=np.array(corners);plane=surface_at(cloud,[target['x'],target['y']],support_xy=cs[:,:2])
         if plane is None or not all(supported(plane,c[:2]) for c in cs):raise ValueError('Static pivot terrain unsupported')
         gap=float(np.min(cs[:,2]-[plane_height(plane,c[:2]) for c in cs]))
         if not -.30<=gap<=.75:raise ValueError('Static placement too far from ground; review')
@@ -172,7 +178,8 @@ def prepare(source,terrain,reference,output):
             terrain_selected_direction_change_deg=direction_change,
             limitation='LiDAR local plane + static annotation witness; not continuous mesh contact proof. Capture audit required.'))
         record['position']=copy.deepcopy(points[0])
-        refs.append(dict(uid=uid,plane_world=plane,probe_capture=str(empty),MR_heading_correction_deg=-1.347))
+        refs.append(dict(uid=uid,plane_world=plane,probe_capture=str(empty),
+            probe_captures=[str(p) for p in empty_roots],MR_heading_correction_deg=-1.347))
     meta['ground_probe_references']=refs
     meta['ground_support_check']=dict(enabled=True,max_range_m=20.,maximum_gap_m=.15,
         required_uids=[a['unique_id'] for a in meta['runtime_actors']],

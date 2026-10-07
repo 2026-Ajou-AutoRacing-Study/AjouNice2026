@@ -230,8 +230,31 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                         manifest=prepared(base/'motion_ground_deck'/'manifest.json',
                             lambda:motion_ground.prepare(manifest,base/'motion_terrain',base/'motion_static',base/'motion_ground_deck'))
                     except ValueError as exc:
-                        unresolved.append(dict(cell=cell,reasons=['motion_ground_preparation_unavailable'],error=str(exc)))
-                        save('running');continue
+                        if str(exc)!='Static pivot terrain unsupported':
+                            unresolved.append(dict(cell=cell,reasons=['motion_ground_preparation_unavailable'],error=str(exc)))
+                            save('running');continue
+                        # Sparse original-view terrain is not a bad placement certificate.
+                        # Add bounded empty near-target observations; never extrapolate/waive support.
+                        additional=[];contact=None
+                        try:
+                            movers=motion_ground.moving_actors(metadata)
+                            if len(movers)>3:raise ValueError('Near motion terrain bounded to three actors')
+                            for n,actor in enumerate(movers):
+                                near_deck=base/f'motion_near_terrain_deck_{n}';near_root=base/f'motion_near_terrain_{n}'
+                                probes=prepared(near_deck/'manifest.json',lambda actor=actor:
+                                    empty_probe(manifest,[0],near_deck,target_uid=actor['unique_id'],target_motion=True))
+                                witness=capture(probes,near_root,cell,'motion_near_empty_terrain')
+                                if is_collision_failure(witness):contact=witness;break
+                                additional.append(near_root)
+                            if contact:
+                                unresolved.append(dict(cell=cell,reasons=['physical_collision'],evidence=contact))
+                                save('running');continue
+                            manifest=prepared(base/'motion_ground_deck'/'manifest.json',lambda:
+                                motion_ground.prepare(manifest,base/'motion_terrain',base/'motion_static',
+                                    base/'motion_ground_deck',additional_terrain=additional))
+                        except ValueError as near_exc:
+                            unresolved.append(dict(cell=cell,reasons=['motion_ground_preparation_unavailable'],error=str(near_exc)))
+                            save('running');continue
                 result=capture(manifest,base/'initial',cell,'initial')
             if is_collision_failure(result):
                 unresolved.append(dict(cell=cell,reasons=['physical_collision'],evidence=result));save('running');continue

@@ -60,3 +60,30 @@ ground witness를 연결할 때 첫 QA view의 `reaudit_result.json`까지 raw �
 session safety는 유지한다. 이전 결과 파일 불변 및 이전 status 위변조 거부를
 단위 재현했다. 최종190 tests PASS. halted 출력은 수정/resume하지 않고 보존하며,
 새 `prebulk_batch_v82`에서32셀 batch·8셀 pause·resume 검증을 시작했다.
+
+## v82 최종 batch / v84 마지막 부족분
+
+- v82:32셀 처리,31승인/1deficit,누적 active wall486.304초.
+  8/8 승인 뒤125.823초에 정상 pause했고 resume했다. 앞8셀의20개 ledger/QA 결과
+  hash 불변이다. 완료resume14.256초는 검증 전용이며2,332개 raw/ledger/QA 파일의
+  수/hash와 누적시간 불변,추가촬영0을 확인했다.
+- 실제 시도68회(학습 승인31장과 별개),raw 재검사18회.56개 child 종료 Park 및
+  boundary 검증,unsafe0,event timeout0,살아남은 service worker0이다.
+  EventCmd handler None 응답7회는 재시도 회복됐으며 오류0이라고 쓰지 않는다.
+- CPU 변환31장(train25/val6/test0),GT44개(Vehicle20/Pedestrian7/Obstacle15/Animal2).
+  카메라4장/4-feature LiDAR/유한 calibration/7D BBox sanity 오류0,empty2장.
+  camera-only Obstacle3개도 현재 정책대로 유지했다. 학습 forward/성능 검증은 아니다.
+- 남은 셀은15–30m/front/Ped_Pet1 두 객체의 동적 캡처다.
+  v83의3-round 보충도41.57초/0승인으로 끝났다. 실제 빈 지형의 static target plane이
+  없었으며, 검사 완화나 자산 제외로 처리하지 않았다.
+- v84에서는 원래 빈 지형이 sparse할 때만 각 moving actor 목표 위치 근처의 mapped-road
+  빈 지형을 추가 관찰한다. 최대3개 추가 witness/총4개 session으로 제한하고,
+  동일 source/hash/empty/calibration/Park/충돌과 전체 footprint support를 요구한다.
+  motion target과 출발점을 구분한다. 전체 경로의 실측 지형/10cm step 한도는 유지한다.
+  첫 terrain+정적 reference+추가 near2+최종 capture의5촬영으로 같은 셀1/1,
+  37.505초 통과. person/animal GT4개(LiDAR21/2/10/6point)를 보존했다.
+  primary 실제 이동 약1.107m/s이며 모든 motion review는 비어 있다.
+
+v85 마지막8조건 회귀와 current10K **오프라인 scenario 준비**를 진행 중이다.
+본10K 센서 캡처는 승인/시작하지 않았다. v82(31)+v84(1)를 한 버전에서32/32로
+실행한 것처럼 표기하지 않는다. 구 v82를 새 capture 코드로 강제resume하지 않는다.

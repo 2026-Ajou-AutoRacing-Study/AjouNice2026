@@ -25,7 +25,7 @@ def target_probe_pose(links, actor, backward=6.,maximum_road_distance=8.):
     return min(candidates,key=lambda x:x[:3])[3]
 
 
-def prepare(source,indices,output,backward_route_m=12.,target_uid=None):
+def prepare(source,indices,output,backward_route_m=12.,target_uid=None,target_motion=False):
     if output.exists():raise FileExistsError('Probe overwrite refused')
     if not 1<=len(indices)<=8 or len(indices)!=len(set(indices)):raise ValueError('Ground probe limited to 1–8 cells')
     if not 0<=backward_route_m<=20:raise ValueError('Ground probe backward offset must be 0–20m')
@@ -37,6 +37,8 @@ def prepare(source,indices,output,backward_route_m=12.,target_uid=None):
         # an unrelated route rather than silently move to a different road level.
         if target_uid is not None:
             actor=next(a for a in original['runtime_actors'] if a['unique_id']==target_uid)
+            if target_motion:
+                actor=dict(actor,position=actor['motion_path']['target_position'])
             pose=target_probe_pose(ctx['links'],actor)
         else:
             arc=original['base']['route_arc_m']
@@ -50,7 +52,8 @@ def prepare(source,indices,output,backward_route_m=12.,target_uid=None):
             calibration_only=True,ground_probe_source=dict(id=old['id'],scenario_sha256=old['scenario_sha256'],
                 scenario=old['scenario'],metadata=old['metadata'],targets=original['runtime_actors'],
                 source_manifest_sha256=gen.geo.sha256(source),ego_backward_route_m=backward_route_m if target_uid is None else None,
-                target_uid=target_uid,placement_policy='target-near-mapped-road' if target_uid is not None else 'source-route-backward'))
+                target_uid=target_uid,target_motion=target_motion,
+                placement_policy='target-near-mapped-road' if target_uid is not None else 'source-route-backward'))
         meta['spec'].update(actors=0,family='background',motion='static')
         # The empty witness has no actors. Source actor requirements belong to
         # the subsequent recapture, not this calibration-only scene.

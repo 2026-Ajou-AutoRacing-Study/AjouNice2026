@@ -10,6 +10,27 @@ from PIL import Image
 from base5_capture_safety import atomic_json,load_ledger,motion_capture_review
 
 
+def shutdown_evidence(root):
+    """A batch parent has no fictitious single ROS shutdown; inspect its children."""
+    if (root/'shutdown_safety.json').exists():
+        return json.loads((root/'shutdown_safety.json').read_text())
+    if not (root/'batch_contract.json').exists():
+        raise ValueError('Missing capture or batch safety contract')
+    stage=json.loads((root/'status.json').read_text())['stage']
+    sessions=list(root.rglob('session_contract.json'));unsafe=[]
+    for path in sessions:
+        shutdown=path.parent/'shutdown_safety.json'
+        if not shutdown.exists() or not json.loads(shutdown.read_text()).get('park_verified'):
+            unsafe.append(str(path.parent))
+        for row in load_ledger(path.parent/'ledger.jsonl'):
+            boundary=row.get('between_scene_park')
+            if boundary is not None and not boundary.get('park_verified'):
+                unsafe.append(str(path.parent)+'/'+row['id']+' boundary')
+    return dict(park_verified=bool(sessions) and not unsafe and stage in ('complete','complete_with_deficit'),
+        kind='completed batch child safety aggregation',sessions=len(sessions),unsafe_sessions=unsafe,
+        limitation='Park aggregation only; quota/GT/raw integrity are separate campaign validations')
+
+
 def report(capture_root,info_root,ledger=None):
     ledger=ledger or capture_root/'ledger.jsonl'
     rows=list({r['id']:r for r in load_ledger(ledger)}.values())
@@ -60,7 +81,7 @@ def report(capture_root,info_root,ledger=None):
                 if not 0<=label<len(classes):errors.append('Invalid class '+row['sample_idx'])
                 else:gt[classes[label]]+=1
     times=[r['duration_sec'] for r in rows];mean=float(np.mean(times)) if times else None
-    shutdown=json.loads((capture_root/'shutdown_safety.json').read_text())
+    shutdown=shutdown_evidence(capture_root)
     return dict(ledger=str(ledger.resolve()),status_counts=dict(Counter(r['status'] for r in rows)),cells={k:dict(v) for k,v in cells.items()},
         motion_evidence=motions,secondary_motion_replayed_from_raw=secondary_motion,
         camera_only_kept_gt=dict(camera_only),shutdown=shutdown,
