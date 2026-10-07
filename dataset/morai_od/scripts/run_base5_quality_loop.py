@@ -18,6 +18,7 @@ import base5_motion_ground as motion_ground
 from prepare_base5_static_height_reference import prepare as static_height_reference
 from base5_static_ground_reference import prepare as static_reference_retry,reaudit_original,COMPOSITE_ANCHORS
 from base5_static_ground_policy import lightweight_static
+from base5_intersection_placement import ready as editor_prepared
 
 
 def arrival_retry_eligible(result,manifest):
@@ -235,7 +236,9 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                 save('running')
             else:
                 metadata=gen.geo.load_json(Path(original['metadata'])) if original.get('metadata') else {}
-                if motion_ground.moving_actors(metadata):
+                if editor_prepared(metadata):
+                    motion_ground.validate_motion_ground(metadata,gen.geo.load_json(Path(original['scenario'])))
+                if motion_ground.moving_actors(metadata) and not editor_prepared(metadata):
                     for actor in motion_ground.moving_actors(metadata):
                         path=actor.get('motion_path',{})
                         if path.get('policy')!='natural-target-v1' or 'target_position' not in path:
@@ -306,11 +309,11 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
             if result['status']=='review':
                 current_meta=gen.geo.load_json(Path(gen.geo.load_json(manifest)['scenes'][0]['metadata']))
                 if motion_ground.moving_actors(current_meta):
-                    # A new animated placement needs a fresh terrain/static calibration.
-                    # Let the outer same-quota campaign round re-enter that preparation,
-                    # rather than send an ungrounded replacement to the capture runner.
+                    # Outer same-quota replacement retains the editor-path contract;
+                    # legacy movers still need fresh independent terrain preparation.
                     unresolved.append(dict(cell=cell,reasons=result['audit']['review_reasons'],
-                        next_policy='same-quota replacement with fresh motion calibration'))
+                        next_policy=('same-quota replacement within live editor-height domain'
+                            if editor_prepared(current_meta) else 'same-quota replacement with fresh motion calibration')))
                     save('running');continue
             # Up to eight actor witnesses, plus bounded height/replacement work.
             # A larger population must not exhaust the old three-actor budget.

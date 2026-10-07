@@ -137,6 +137,8 @@ def vertical_review(actor, samples, window_start):
     for p in samples:
         if p['uid'] != actor['unique_id'] or p['t'] < window_start:
             continue
+        if not all(math.isfinite(p[k]) for k in ('x','y','z')):
+            outside += 1; continue
         try:
             expected = height(profile, p['x'], p['y'])['z']
         except ValueError:

@@ -39,9 +39,15 @@ def lookup_data(config,ctx):
 
 def apply_path(path,asset,crossing_id,config,ctx):
     data=lookup_data(config,ctx)
-    if data is None or crossing_id is None:return path,'not_requested'
+    if data is None:return path,'not_requested'
+    required=config['capture']['intersection_ground_lookup'].get('require_covered_moving_paths',False)
+    if crossing_id is None:
+        if required:raise ValueError('Moving actor lacks covered intersection')
+        return path,'not_requested'
     key=crossing_id+'/'+asset['name'];profile=data['profiles'].get(key)
-    if profile is None:return path,'profile_unavailable_keep_strict_preparation'
+    if profile is None:
+        if required:raise ValueError('Moving asset lacks live manual profile')
+        return path,'profile_unavailable_keep_strict_preparation'
     if profile['data_id']!=asset['data_id']:raise ValueError('Manual lookup/catalog DataID mismatch')
     start,end=path['points'][0],path['points'][-1]
     n=max(1,math.ceil(math.hypot(end['x']-start['x'],end['y']-start['y'])/.5));points=[]
@@ -50,7 +56,8 @@ def apply_path(path,asset,crossing_id,config,ctx):
         for i in range(n+1):
             t=i/n;q=height(profile,start['x']+t*(end['x']-start['x']),start['y']+t*(end['y']-start['y']))
             points.append({k:q[k] for k in ('x','y','z')})
-    except ValueError:
+    except ValueError as exc:
+        if required:raise ValueError('Moving path outside measured editor heights; regenerate same quota') from exc
         return path,'outside_measured_path_keep_strict_preparation'
     result=copy.deepcopy(path);options=config['capture']['intersection_ground_lookup']
     result.update(points=points,ground_path_evidence=dict(policy=POLICY,lookup_file=options['path'],

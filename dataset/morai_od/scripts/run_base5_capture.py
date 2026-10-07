@@ -286,9 +286,13 @@ def main():
                         if ready:break
                         time.sleep(.025)
                     else:
-                        with lock:deferred=deferred_static_secondary(state,meta['runtime_actors'],load_time,time.monotonic())
+                        from base5_static_ground_policy import lightweight_static
+                        with lock:deferred=deferred_static_secondary(state,meta['runtime_actors'],load_time,time.monotonic(),
+                            allow_missing_primary=lightweight_static(meta))
                         if not deferred:raise RuntimeError('Post-load Ego/Object/Collision witnesses unverified')
-                        meta['post_load_missing_static_secondary_uids']=deferred
+                        meta['post_load_missing_static_actor_uids']=deferred
+                        primary_uid=meta['runtime_actors'][0]['unique_id']
+                        meta['post_load_missing_static_secondary_uids']=[uid for uid in deferred if uid!=primary_uid]
                 pose_confirmed=time.monotonic()
                 timing.mark('pose_confirmation')
                 rospy.wait_for_service('/Service_MoraiEventCmd',timeout=4.)

@@ -69,6 +69,15 @@ class TimingTest(unittest.TestCase):
             changed=[dict(r) for r in rows];changed[-1][key]=value
             self.assertFalse(preflight_stationary(changed,1.),key)
 
+    def test_missing_static_primary_requires_explicit_diagnostic_opt_in(self):
+        actors=[dict(unique_id=1,source_list='pedestrianList',motion='static')]
+        state=dict(ego_t=1.7,object_t=1.7,collision_t=1.7,objects={})
+        self.assertEqual(deferred_static_secondary(state,actors,1.,1.8),[])
+        self.assertEqual(deferred_static_secondary(state,actors,1.,1.8,allow_missing_primary=True),[1])
+        self.assertEqual(deferred_static_secondary(dict(state,collision_t=0),actors,1.,1.8,allow_missing_primary=True),[])
+        actors[0]['motion']='walking'
+        self.assertEqual(deferred_static_secondary(state,actors,1.,1.8,allow_missing_primary=True),[])
+
     def test_image_cache_reuses_decode_without_changing_evidence(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);folder=root/'CAMERA_1';folder.mkdir()

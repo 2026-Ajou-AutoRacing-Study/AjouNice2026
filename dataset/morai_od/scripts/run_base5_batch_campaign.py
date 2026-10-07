@@ -11,6 +11,7 @@ import signal
 import sys
 import time
 import run_base5_capture_campaign as campaign
+from base5_intersection_placement import ready as editor_prepared
 from base5_capture_safety import atomic_json, load_ledger, prepare_session, sha256, status_row,is_collision_failure,validate_collision_failure
 
 
@@ -89,6 +90,14 @@ def recover(source,index,output,stop,heartbeat=lambda root:None):
         return wait_child(child,output,stop,heartbeat,800)
 
 
+def needs_independent_preparation(metadata):
+    from base5_motion_ground import moving_actors
+    # A complete editor proof may enter guarded shared ROS capture. The runner
+    # still validates source/report hashes and every serialized path before load.
+    # Mixed prepared/unprepared actors must retain isolated strict preparation.
+    return bool(moving_actors(metadata)) and not editor_prepared(metadata)
+
+
 def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chunks=0,bulk=False):
     if not indices or len(indices)>(10000 if bulk else 64) or len(set(indices))!=len(indices):
         raise ValueError('Unique 1–64 pilot cells; up to10K only with explicit bulk approval')
@@ -153,8 +162,7 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
             folder=output/f'chunk_{ordinal:04d}';folder.mkdir(exist_ok=True)
             manifest=folder/'manifest.json';root=folder/'capture'
             if not manifest.exists():atomic_json(manifest,campaign.subset_deck(original,[original['scenes'][i] for i in chunk_indices]))
-            from base5_motion_ground import moving_actors
-            needs_ground=any(moving_actors(json.loads(Path(original['scenes'][i]['metadata']).read_text()))
+            needs_ground=any(needs_independent_preparation(json.loads(Path(original['scenes'][i]['metadata']).read_text()))
                 for i in chunk_indices if original['scenes'][i].get('metadata'))
             if needs_ground:
                 # Animated cells require calibration-first isolated recovery,

@@ -9,6 +9,14 @@ import run_base5_batch_campaign as batch
 
 
 class BatchCampaignTest(unittest.TestCase):
+    def test_only_all_prepared_movers_can_skip_independent_capture_setup(self):
+        from base5_intersection_ground import POLICY
+        prepared=dict(motion='walking',motion_path=dict(ground_path_evidence=dict(policy=POLICY)))
+        self.assertFalse(batch.needs_independent_preparation(dict(runtime_actors=[dict(motion='static')])))
+        self.assertFalse(batch.needs_independent_preparation(dict(runtime_actors=[prepared,dict(motion='static')])))
+        self.assertTrue(batch.needs_independent_preparation(dict(runtime_actors=[prepared,dict(motion='walking')])))
+        self.assertTrue(batch.needs_independent_preparation(dict(runtime_actors=[dict(motion='walking')])))
+
     def test_collision_deficit_skips_recapture_and_continues_tail(self):
         records={}
         def child(manifest,root,stop,heartbeat):

@@ -869,6 +869,7 @@ def generate(config,output,start,count,runtime=geo.DEFAULT_RUNTIME_ASSET_DIR,mge
             appearance_policy_sha256=geo.sha256(APPEARANCE_POLICY),
             avoidance_geometry_sha256=geo.sha256(Path(avoidance.__file__)),
             map_surface_sha256=geo.sha256(Path(sys.modules['base5_map_surface'].__file__)),
+            intersection_placement_sha256=geo.sha256(Path(sys.modules['base5_intersection_placement'].__file__)),
             highway_sample_sha256=geo.sha256(HIGHWAY_SAMPLE),
             geometry_sha256=geo.sha256(GEOMETRY),catalog_sha256=geo.sha256(catalog.DEFAULT_CATALOG),
             geometry_references=ctx['geometry_sources'],

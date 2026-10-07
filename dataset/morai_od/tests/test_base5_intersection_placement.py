@@ -40,6 +40,13 @@ class RegionalPlacementTest(unittest.TestCase):
             result,decision=placement.apply_path(path,asset,'cw',cfg,{})
             self.assertIs(result,path);self.assertNotIn('ground_path_evidence',result)
             self.assertEqual(decision,'outside_measured_path_keep_strict_preparation')
+            cfg['capture']['intersection_ground_lookup']['require_covered_moving_paths']=True
+            with self.assertRaisesRegex(ValueError,'regenerate same quota'):
+                placement.apply_path(path,asset,'cw',cfg,{})
+            with self.assertRaisesRegex(ValueError,'lacks live manual profile'):
+                placement.apply_path(path,dict(name='Unknown',data_id=99),'cw',cfg,{})
+            with self.assertRaisesRegex(ValueError,'lacks covered intersection'):
+                placement.apply_path(path,asset,None,cfg,{})
 
     def test_mixed_manual_and_unprepared_movers_cannot_skip_calibration(self):
         good=dict(motion='walking',motion_path=dict(ground_path_evidence=dict(policy=ground.POLICY)))

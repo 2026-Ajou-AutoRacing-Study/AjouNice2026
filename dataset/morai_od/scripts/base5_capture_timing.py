@@ -15,15 +15,19 @@ def post_load_topics_ready(state, actors, load_time, now):
     return expected<=seen
 
 
-def deferred_static_secondary(state,actors,load_time,now):
+def deferred_static_secondary(state,actors,load_time,now,allow_missing_primary=False):
     """Fresh transport plus present primary; missing static secondary is review,
-    not a transport outage. Never defer a missing primary or animated actor.
+    not a transport outage. Legacy callers do not defer a missing primary.
+    Explicit lightweight all-static captures may diagnose a missing primary
+    using the original annotation; its absence remains a quality review.
+    Never defer an animated actor or stale transport.
     The subsequent capture still requires Park/contact/pose and presence audits.
     """
     if not actors or not post_load_topics_ready(state,[],load_time,now):return []
     seen={a['unique_id'] for k in ('npc_list','pedestrian_list','obstacle_list')
           for a in (state.get('objects') or {}).get(k,[])}
-    if actors[0]['source_list']!='aiPedstrianList' and actors[0]['unique_id'] not in seen:return []
+    if actors[0]['source_list']!='aiPedstrianList' and actors[0]['unique_id'] not in seen:
+        if not allow_missing_primary or any(a.get('motion') not in ('static','standing') for a in actors):return []
     missing=[a for a in actors if a['source_list']!='aiPedstrianList' and a['unique_id'] not in seen]
     if not missing or any(a.get('motion') not in ('static','standing') for a in missing):return []
     return [a['unique_id'] for a in missing]
