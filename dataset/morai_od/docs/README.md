@@ -4,16 +4,21 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **v95 동적 미션 지도 기준 배치:** [구현·실제 검증·한계](261007_base5_dynamic_map_observation_v95.md).
+  전방 접근/횡단 관측/양보90%, 통과 직후10%. 250/250 생성 가능,
+  대표 live5/5·CPU5장/GT6·212tests PASS. 최종5K/전체미션 인증은 아니다.
+
 - **최신 목표: Sunny11시 직접5K.** [5K구성·설정·미완료gate](261007_base5_direct_5k_current_plan.md).
   구10K산출물은보존하며새기본config로5K를설계한다. 아래10K실측은과거이력이다.
 
 - **범용/미션 객체 수 v89 구현:** [크기 예산 배치·검증](261007_base5_population_budget_v89.md).
-  범용positive6K는단일30/일반혼합50/밀집20%,미션은상황별개수로분리했다.
-  512장OFFLINE_PASS,실제가시parent/component분리. 본10K는미시작이며5개gate전체완료가아니다.
+  현재5K의 범용positive3K는단일30/일반혼합50/밀집20%,미션은상황별개수로분리했다.
+  512장OFFLINE_PASS,실제가시parent/component분리. 최종v93 live4/4는소량근거이며전체gate완료가아니다.
 
 - **본수집 전 최신 PLAN:** [최종 학습 후보5개 보완](261007_base5_final_candidate_five_gates_plan.md).
-  객체 수·범용/회피 초근접·고주로/로터리 밀집·GT·균형5K선별을 수정/검증한 뒤
-  새10K를 고정한다. v86 검증 완료와 이 계획 구현 완료를 혼동하지 않는다.
+  구10K/A·B 선별계획보다 [최신5K 작업 순서](261007_base5_direct_5k_current_plan.md#다음-작업-순서--현재-실행-기준)가 우선한다.
+  동적미션 위치 기준·초근접·밀집·GT·희귀자산coverage를 보완한 뒤 새5K를 고정한다.
+  v86 검증 완료와 현재계획 구현 완료를 혼동하지 않는다.
 
 - **최신 v86: 본수집 전 recovery·통합검증 완료.** 32셀31승인/1부족분 후
   Ped_Pet1 near terrain 보완1/1,최종8/8·동적2/2·ordered4/4·198tests PASS.

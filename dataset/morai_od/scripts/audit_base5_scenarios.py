@@ -22,7 +22,7 @@ def audit(manifest_path):
     primary_assets=Counter();primary_roles=Counter();motion_counts=Counter();motion_decisions=Counter()
     inventory={r['data_id']:r for r in gen.geo.load_json(gen.catalog.DEFAULT_CATALOG)['assets']}
     appearance=gen.geo.load_json(gen.APPEARANCE_POLICY)
-    height_ctx=None;height_assets=None
+    height_ctx=None;height_assets=None;dynamic_ctx=None;dynamic_phases=Counter();dynamic_crossings=Counter()
     for entry in m['scenes']:
         s=json.loads(Path(entry['scenario']).read_text());meta=json.loads(Path(entry['metadata']).read_text());r=meta['spec']
         digest=gen.geo.sha256(Path(entry['scenario']))
@@ -47,6 +47,28 @@ def audit(manifest_path):
                     expected=max(2,gen.math.ceil(len(costs)*m['config']['population_budget']['minimum_visible_fraction']))
                     if pop.get('required_visible_actors')!=expected:errors.append((entry['id'],'population visible quota mismatch'))
         footprints=[];ea=gen.math.radians(meta['ego']['yaw']);e=meta['ego']
+        observation=meta['details'].get('dynamic_observation')
+        if r.get('dynamic_observation_phase'):
+            if not observation:errors.append((entry['id'],'missing map-anchored dynamic observation'))
+            else:
+                phase=r['dynamic_observation_phase'];delta=observation['ego_crossing_arc_displacement_m']
+                dynamic_phases[phase]+=1;dynamic_crossings[observation['crossing']['crosswalk_id']]+=1
+                if (delta>0)!=(phase=='clearing'):errors.append((entry['id'],'dynamic Ego crossing side'))
+                target=observation['target_center'];center=meta['runtime_actors'][0]['geometric_center_estimate']
+                if gen.math.hypot(center[0]-target['x'],center[1]-target['y'])>1e-5:
+                    errors.append((entry['id'],'dynamic primary left map target'))
+                if dynamic_ctx is None:dynamic_ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
+                ref=gen.geo.load_json(Path(meta['details']['mission_reference']))
+                candidates=gen.dynamic_crossing_candidates(dynamic_ctx,ref,m['config']['mission_dynamic_observation'])
+                expected=next((c for c in candidates if c['crosswalk_id']==observation['crossing']['crosswalk_id']),None)
+                if expected!=observation['crossing']:errors.append((entry['id'],'dynamic crossing differs from map'))
+                else:
+                    dx,dy=target['x']-expected['center']['x'],target['y']-expected['center']['y'];ax,ay=expected['axis']
+                    jitter=m['config']['mission_dynamic_observation']['target_axis_jitter_m']
+                    if abs(dx*ay-dy*ax)>1e-5 or abs(dx*ax+dy*ay)>jitter+1e-5:
+                        errors.append((entry['id'],'dynamic target outside crossing axis quota'))
+                    if abs(meta['base']['route_arc_m']-expected['route_arc_m']-delta)>1e-5:
+                        errors.append((entry['id'],'dynamic Ego arc witness mismatch'))
         avoidance=meta.get('avoidance_observation')
         if r.get('avoidance_phase'):
             if not avoidance:errors.append((entry['id'],'missing avoidance observation'))
@@ -166,6 +188,9 @@ def audit(manifest_path):
     if m['count']==m['config']['target_scenes']:
         if dict(families)!=m['config']['families']:errors.append(('all','family quota'))
         if dict(missions)!=m['config']['mission_counts']:errors.append(('all','mission quota'))
+        if m['config'].get('mission_dynamic_observation'):
+            expected=Counter(r['dynamic_observation_phase'] for r in gen.specs(m['config']) if r.get('dynamic_observation_phase'))
+            if dynamic_phases!=expected:errors.append(('all','dynamic observation phase quota'))
         plan=m['config'].get('mission_avoidance')
         if plan:
             for family in ('obstacle','other_vehicle'):

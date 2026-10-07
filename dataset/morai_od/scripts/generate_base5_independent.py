@@ -139,6 +139,13 @@ def specs(config):
             subset=[r for r in rows if r['avoidance_phase']=='alongside']
             deck=exact_deck([(b[:2],b[2]) for b in plan['alongside_gap_bins_m']],len(subset),rng)
             for row,bounds in zip(subset,deck):row['avoidance_gap_bounds_m']=bounds
+    dynamic=config.get('mission_dynamic_observation')
+    if dynamic:
+        rows=[r for r in output if r['family']=='pedestrian_related' and r['mission']]
+        phases=exact_deck(list(dynamic['phases'].items()),len(rows),random.Random(config['seed']+904))
+        for row,phase in zip(rows,phases):
+            row.update(dynamic_observation_phase=phase,distance_bin='dynamic_'+phase,
+                distance_bounds=dynamic['distance_bounds_m'][phase],role='rear' if phase=='clearing' else 'front')
     plan=config.get('population_budget')
     if plan:
         for family in config['families']:
@@ -233,6 +240,34 @@ def geometry(asset,ctx):
     if any(s in asset['name'].lower() for s in ('truck','bus','xcient')): size=[12.,2.8,3.5]
     return size,[0.,0.,size[2]/2],False
 
+def dynamic_crossing_candidates(ctx,reference,plan):
+    """Map crossings near the mission starter, perpendicular to the Ego route."""
+    starter=reference['egoVehicle']['initPosition']['pos'];out=[]
+    for key,cw in sorted(ctx['crosswalks'].items()):
+        pts=cw['points'];axis=cw.get('pedestrian_axis')
+        if not pts or not axis:continue
+        center={k:sum(p[k] for p in pts)/len(pts) for k in ('x','y','z')}
+        if math.hypot(center['x']-starter['x'],center['y']-starter['y'])>plan['maximum_starter_distance_m']:continue
+        j=geo.nearest_index(ctx['route'],center['x'],center['y'])
+        road=geo.continuous_route_pose_at_arc(ctx['route'],ctx['arc'],float(ctx['arc'][j]))
+        if math.hypot(center['x']-road['x'],center['y']-road['y'])>plan['maximum_crosswalk_route_distance_m']:continue
+        a=math.radians(road['yaw'])
+        if abs(axis[0]*math.cos(a)+axis[1]*math.sin(a))>plan['maximum_axis_route_dot']:continue
+        out.append(dict(crosswalk_id=key,center=center,axis=list(axis),route_arc_m=float(ctx['arc'][j])))
+    if not out:raise ValueError('No route-crossing dynamic mission candidate')
+    return out
+
+def crossing_target(crossing,rng,jitter):
+    t=rng.uniform(-jitter,jitter)
+    return dict(crossing['center'],x=crossing['center']['x']+t*crossing['axis'][0],
+        y=crossing['center']['y']+t*crossing['axis'][1],
+        yaw=math.degrees(math.atan2(crossing['axis'][1],crossing['axis'][0]))+rng.choice([0.,180.]))
+
+def pivot_for_center(target,offset,yaw):
+    a=math.radians(yaw)
+    return dict(target,x=target['x']-math.cos(a)*offset[0]+math.sin(a)*offset[1],
+        y=target['y']-math.sin(a)*offset[0]-math.cos(a)*offset[1],yaw=yaw)
+
 def rectangle(center,size,yaw):
     from shapely.geometry import Polygon
     a=math.radians(yaw); c,s=math.cos(a),math.sin(a)
@@ -275,14 +310,14 @@ def validate_natural_path_roi(points,target,center,ego,road_yaw):
             raise ValueError('Natural geometric-center path leaves input ROI')
 
 
-def natural_target_path(pose,center,ego,bounds,motion,asset,budget=9.):
+def natural_target_path(pose,center,ego,bounds,motion,asset,budget=9.,direction=None):
     """Target is the quota position; departure is backwards at natural appearance speed."""
     if not 6.<=budget<=30.:raise ValueError('Natural target setup budget out of bounds')
     speed=1.2 if asset.get('ontology_class')=='Animal' else 2.2 if motion=='running' else 1.1
     dx,dy=center[0]-ego['x'],center[1]-ego['y'];r=math.hypot(dx,dy)
     if r<.1:raise ValueError('Natural target at Ego')
     # Tangential crossing keeps the close target from driving through Ego.
-    direction=(-dy/r,dx/r);yaw=math.degrees(math.atan2(direction[1],direction[0]))
+    direction=direction or (-dy/r,dx/r);yaw=math.degrees(math.atan2(direction[1],direction[0]))
     start=dict(x=pose['x']-direction[0]*speed*budget,y=pose['y']-direction[1]*speed*budget,z=pose['z'])
     end=dict(x=pose['x']+direction[0]*3.,y=pose['y']+direction[1]*3.,z=pose['z'])
     return dict(policy='natural-target-v1',points=[start,end],target_position={k:pose[k] for k in ('x','y','z')},
@@ -377,7 +412,7 @@ def build(row,config,ctx,attempt=0):
     if row['family']=='obstacle': poolkey='obstacle_'+row['asset_group']
     asset=ctx['pools'][poolkey][row['asset_index']%len(ctx['pools'][poolkey])]
     route,arc,base,details=rng.choice(anchor_bank(ctx,row['topology']))
-    base=dict(base)
+    base=dict(base);dynamic_crossing=None;dynamic_target=None
     if row['mission'] and row['family'] in ('obstacle','pedestrian_related','other_vehicle'):
         kind='dynamic_obstacle' if row['family']=='pedestrian_related' else 'static_obstacle'
         if not ctx['mission_templates'][kind]: raise ValueError('Mission starter references missing')
@@ -387,10 +422,23 @@ def build(row,config,ctx,attempt=0):
         route,arc=ctx['route'],ctx['arc']
         # Ego observations at approach, yielding, passing and clearing positions,
         # not always the starter's same fixed view. Only genuine local route anchors.
-        target_arc=float(arc[j])+rng.uniform(-35.,55.)
+        if row.get('dynamic_observation_phase'):
+            plan=config['mission_dynamic_observation']
+            candidates=dynamic_crossing_candidates(ctx,reference,plan)
+            # Deterministic crossing coverage; retries do not silently pick an easier crossing.
+            dynamic_crossing=candidates[row['family_index']%len(candidates)]
+            dynamic_target=crossing_target(dynamic_crossing,rng,plan['target_axis_jitter_m'])
+            lower,upper=row['distance_bounds'];distance=rng.uniform(lower+.5,upper-.5)
+            direction=1 if row['dynamic_observation_phase']=='clearing' else -1
+            target_arc=dynamic_crossing['route_arc_m']+direction*distance
+        else:target_arc=float(arc[j])+rng.uniform(-35.,55.)
         base=geo.continuous_route_pose_at_arc(route,arc,max(0.,min(float(arc[-1]),target_arc)))
         details=dict(spatial_stratum=kind,mission_reference=ref,
             mission_reference_sha256=geo.sha256(Path(ref)),anchor_route_displacement_m=target_arc-float(arc[j]))
+        if dynamic_crossing:
+            details['dynamic_observation']=dict(phase=row['dynamic_observation_phase'],crossing=dynamic_crossing,
+                target_center=dynamic_target,ego_crossing_arc_displacement_m=target_arc-dynamic_crossing['route_arc_m'],
+                limitation='Map-anchored observation; not a validated trigger or actor trajectory. Terrain preparation required for motion.')
     if row['family']=='highway':
         if row['topology']=='highway_three_lane':
             routes=[geo.route_from_link_path(ctx['links'],p) for p in geo.HIGHWAY_LANE_LINK_PATHS.values()]
@@ -461,7 +509,16 @@ def build(row,config,ctx,attempt=0):
                 distance=rng.uniform(lower+.05,upper-.05)
         elif i and row.get('population_layout')=='distributed':
             role=('front','left','rear','right')[(i+('front','left','rear','right').index(row['role']))%4]
-        if i==0 and primary_pose is not None:
+        mission_target=None
+        actor_crossing=None
+        if dynamic_crossing:
+            actor_crossing=dynamic_crossing if i==0 else candidates[(row['family_index']+i)%len(candidates)]
+            # Multiple actors on the same narrow crossing produce overlapping swept corridors.
+            # Use the neighboring real crossing rather than arbitrary off-road displacement.
+            mission_target=dynamic_target if i==0 else crossing_target(actor_crossing,rng,config['mission_dynamic_observation']['target_axis_jitter_m'])
+        if mission_target:
+            pose=pivot_for_center(mission_target,off,mission_target['yaw'])
+        elif i==0 and primary_pose is not None:
             pose=primary_pose
         elif asset['source_list']=='vehicleList':
             direction=1 if role in ('front','left') else -1
@@ -526,7 +583,12 @@ def build(row,config,ctx,attempt=0):
         if actor_motion not in ('static','standing'):
             policy=config['capture'].get('dynamic_path_policy')
             if policy=='natural-target-v1':
-                motion_path=natural_target_path(pose,center,ego,[lower,upper],actor_motion,asset,config['capture'].get('natural_setup_budget_sec',9.))
+                direction=None
+                if mission_target:
+                    # Real crossing axis, not a new Ego-relative tangent on every observation.
+                    ma=math.radians(mission_target['yaw']);direction=(math.cos(ma),math.sin(ma))
+                motion_path=natural_target_path(pose,center,ego,[lower,upper],actor_motion,asset,
+                    config['capture'].get('natural_setup_budget_sec',9.),direction=direction)
                 # Rotate the target pivot before departure so the geometric quota remains exact.
                 pa=math.radians(motion_path['departure_yaw_deg']);pose=dict(pose,yaw=motion_path['departure_yaw_deg'])
                 center=[pose['x']+math.cos(pa)*off[0]-math.sin(pa)*off[1],pose['y']+math.sin(pa)*off[0]+math.cos(pa)*off[1]]
@@ -592,6 +654,8 @@ def build(row,config,ctx,attempt=0):
             training_class='animal' if asset.get('ontology_class')=='Animal' else 'component_annotation',
             runtime_mapping_verified=False if selected_pool in ('animal','pet_person','stroller','rider') else True))
         if height_initializer is not None:actor_records[-1]['static_height_initializer']=height_initializer
+        if actor_crossing:
+            actor_records[-1]['mission_crossing_id']=actor_crossing['crosswalk_id']
         if not i: desired=actual
         if asset['source_list']=='aiPedstrianList':actor_records[-1]['motion_capability_note']='AI destination API unvalidated; retained as standing, not removed'
         if motion_path is not None:

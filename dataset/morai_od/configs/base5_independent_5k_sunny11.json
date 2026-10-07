@@ -312,6 +312,14 @@
     ],
     "requires_live_ground_and_collider_review": true
   },
+  "mission_dynamic_observation": {
+    "phases": {"approach": 45, "crossing": 25, "yielding": 20, "clearing": 10},
+    "distance_bounds_m": {"approach": [20, 50], "crossing": [8, 20], "yielding": [5, 10], "clearing": [6, 15]},
+    "maximum_starter_distance_m": 90,
+    "maximum_crosswalk_route_distance_m": 12,
+    "maximum_axis_route_dot": 0.4,
+    "target_axis_jitter_m": 3
+  },
   "capture": {
     "per_scene": 1,
     "dynamic_wait_sec": 1.2,
