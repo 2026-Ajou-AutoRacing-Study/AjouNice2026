@@ -1,14 +1,51 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-08 / 수동 사거리 경로 v116 + 정적 single-capture QA v115. 현재 진입점이다.
+2026-10-08 / 출발→도착 2점 v117 + 정적 single-capture QA v115. 현재 진입점이다.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보존한다.
-새 v116 5K는 offline 생성 완료다. 아래 최신 경로만 사용하며 본수집 승인 전에는 실행하지 않는다.
+새 v117 5K는 offline 생성 완료다. 아래 최신 경로만 사용하며 본수집 승인 전에는 실행하지 않는다.
 사용자가 현재 MR 기본값과 수집 환경을 Sunny 13시로 확인했다.
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
 
-## 2026-10-08 수동 waypoint 높이 보간 — v116
+## 2026-10-08 출발→도착 2점·양방향 균형 — v117 우선
+
+사용자 결정에 따라 실제 이동 경로는 정확히 두 waypoint로 생성한다.
+원본 샘플 Man1도 두 점이며 과거 bag의 Z가 끝점 선형 보간과 일치했지만,
+본선 모든 경로나 자동 지면 추종을 증명한 것은 아니다. 촘촘한 지면 추종 경로는 기본값에서 제거했다.
+수동 저장 높이를 초기 끝점 후보에 쓰고, 중간 Z는 두 끝점의 직선으로 결정한다.
+
+짧던 CW000002 사람 경로는 같은 구역 Ped_Pet1의 저장 끝점과 겹치는 구간 높이 차이로
+후보를 만들었다. 다른 자산 높이를 그대로 정답으로 인증하지 않고 28종×두 구역×양방향을 재검증했다.
+112개 승인용 캡처 PASS, 실제127회 시도 중 Dog1의 LiDAR 3D annotation 누락1건은 review로 보존했다.
+해당 Dog1은 같은 속도/경로의 더 가까운 관측 위치에서 재검증했다. GT를 임의 생성하거나 실패를 합격 처리하지 않았다.
+측정 가능한 annotation 하단↔local-plane 최대절대 gap7.40cm, 최대 연속Z step0.141mm다.
+이는 시험 경로의 운영 QA이며 모든 지형의 물리적 접지 인증은 아니다.
+
+미션 실제 이동 primary의 방향을 횡단보도×걷기/달리기×사람/희귀 그룹별로 먼저 고정한다.
+같은-quota 재시도에서도 방향을 바꾸지 않는다. 일반 사람 primary 계획 수는 다음과 같다.
+
+| 구역 | 걷기 +/− | 달리기 +/− |
+|---|---:|---:|
+| 첫 CW000002 |20/20|15/14|
+| 뒤 CW000000 |19/19|13/13|
+
++/−는 저장 lookup 횡단축 기준이며 Ego 전후방 의미가 아니다. 홀수 그룹은1개 차이까지 허용한다.
+154개 이동 장면 모두 두 waypoint를 사용한다. 정적4846/전체5000/122종 primary 최소4,
+패밀리·거리·근접·관측 phase 계약은 유지했다. 구 v116 방향 편향 수치는 이력이다.
+
+최신 경로(root `~/morai_cap/base5_v2_261008/`):
+- `endpoint_linear_release56_v117/height_lookup_live.json`
+- `endpoint_linear_final_5k_v117/scenarios_5k/manifest.json`
+- `endpoint_linear_final_5k_v117/pilot_manifest.json` (대표18셀)
+
+일반 생성기 대표18셀18승인/부족분0(실제21capture/184.685s), partial/완료resume PASS다.
+정적 근접 Man1 누락3review는 같은-quota bounded replacement로 보충했고 raw를 보존했다.
+CPU18프레임/28GT 변환,300tests PASS다. 자세한 오류·제약은 [v117 근거](261008_base5_intersection_ground_evidence.md)를 따른다.
+구 v116 manifest/raw는 보존하되 새 코드로 기존 output을 resume하지 않는다.
+본5K 수집/학습은 미시작이며 사용자 승인 뒤 새 output을 사용한다.
+
+## 2026-10-08 수동 waypoint 높이 보간 — v116 이력
 
 사용자 보정본10개/49waypoint를 원본·EgoNetwork와 함께 hash 검증/백업하고 MR에서 해당 파일만 정리했다.
 `2_MN.json`은 없어 missing으로 기록했다. 실제 수동 XY를 횡단보도 축에 투영해 자산별 경로 높이를 보간한다.

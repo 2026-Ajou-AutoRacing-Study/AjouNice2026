@@ -9,7 +9,7 @@ from base5_capture_safety import atomic_json,sha256
 from base5_intersection_ground import load_lookup
 
 
-def report(lookup_file,sessions,output):
+def report(lookup_file,sessions,output,prior_sessions=()):
     if output.exists():raise FileExistsError('New evidence directory required')
     lookup=load_lookup(lookup_file);rows=[];directions={};files=[];elapsed=0.;invalid=set()
     for session in sessions:
@@ -46,12 +46,31 @@ def report(lookup_file,sessions,output):
             else:invalid.add(key)
             files.extend(dict(path=str(p.resolve()),sha256=sha256(p)) for p in
                 (root/'metadata.json',root/'audit.json',root/'telemetry.json',root/'collision_history.json',root/'scenario.json'))
+    prior=[]
+    for session in prior_sessions:
+        shutdown=json.loads((session/'shutdown_safety.json').read_text())
+        if not shutdown.get('park_verified'):raise ValueError('Prior diagnostic shutdown unsafe')
+        status=json.loads((session/'status.json').read_text())
+        elapsed+=status['elapsed_sec']
+        files.extend(dict(path=str(p.resolve()),sha256=sha256(p)) for p in
+                     (session/'shutdown_safety.json',session/'ledger.jsonl',session/'session_contract.json',session/'status.json'))
+        for line in (session/'ledger.jsonl').read_text().splitlines():
+            item=json.loads(line)
+            prior.append(dict(id=item['id'],session=str(session.resolve()),status=item['status'],
+                capture_root=item.get('capture_root'),review_reasons=item.get('audit',{}).get('review_reasons',[]),
+                used_for_profile_approval=False))
+            if item.get('capture_root'):
+                root=Path(item['capture_root'])
+                files.extend(dict(path=str(p.resolve()),sha256=sha256(p)) for p in
+                             (root/'metadata.json',root/'audit.json',root/'telemetry.json',root/'collision_history.json',root/'scenario.json'))
     approved=sorted(k for k,v in directions.items() if v=={-1,1} and k not in invalid)
     output.mkdir(parents=True)
     evidence=dict(status='COMPLETE',source_lookup_sha256=sha256(lookup_file),sessions=[str(p.resolve()) for p in sessions],
         captures=len(rows),accepted=sum(r['accepted'] for r in rows),rows=rows,validated_profiles=approved,
+        prior_diagnostic_attempts=prior,total_actual_capture_attempts=len(rows)+len(prior),
+        prior_review_captures=sum(r['status']=='review' for r in prior),
         unresolved_profiles=sorted(set(lookup['profiles'])-set(approved)),
-        total_session_wall_sec=elapsed,wall_sec_per_capture=elapsed/len(rows) if rows else None,
+        total_session_wall_sec=elapsed,wall_sec_per_capture=elapsed/(len(rows)+len(prior)) if rows or prior else None,
         maximum_path_height_error_m=max((r['height_error_m'] for r in rows if r['height_error_m'] is not None),default=None),
         files=files,terrain_reference_captures=0,static_reference_captures=0,height_recaptures=0,
         validation_scope='Asset-specific forward/reverse operational QA at the tested intersection path. Warning is not physical ground certification.')
@@ -70,5 +89,6 @@ def report(lookup_file,sessions,output):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--lookup',type=Path,required=True);p.add_argument('--sessions',type=Path,nargs='+',required=True)
+    p.add_argument('--prior-sessions',type=Path,nargs='*',default=[],help='Preserved safe diagnostics, not profile approval evidence')
     p.add_argument('--output',type=Path,required=True)
-    a=p.parse_args();print(report(a.lookup,a.sessions,a.output))
+    a=p.parse_args();print(report(a.lookup,a.sessions,a.output,a.prior_sessions))

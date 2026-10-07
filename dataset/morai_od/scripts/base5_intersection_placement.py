@@ -7,6 +7,7 @@ from base5_intersection_ground import POLICY,QA_POLICY,height,load_lookup
 from base5_capture_safety import sha256
 
 SCOPE='intersection-only-v116'
+ENDPOINT_MODE='endpoint-linear-v117'
 
 
 def regional_motion(asset,requested,row,config):
@@ -49,8 +50,13 @@ def apply_path(path,asset,crossing_id,config,ctx):
         if required:raise ValueError('Moving asset lacks live manual profile')
         return path,'profile_unavailable_keep_strict_preparation'
     if profile['data_id']!=asset['data_id']:raise ValueError('Manual lookup/catalog DataID mismatch')
+    mode=config['capture']['intersection_ground_lookup'].get('waypoint_mode')
+    if mode not in (None,ENDPOINT_MODE):raise ValueError('Unknown intersection waypoint mode')
+    if mode==ENDPOINT_MODE and (profile.get('waypoint_mode')!=mode or len(profile['knots'])!=2):
+        raise ValueError('Endpoint generation requires an explicitly prepared two-height profile')
     start,end=path['points'][0],path['points'][-1]
-    n=max(1,math.ceil(math.hypot(end['x']-start['x'],end['y']-start['y'])/.5));points=[]
+    n=1 if mode==ENDPOINT_MODE else max(1,math.ceil(math.hypot(end['x']-start['x'],end['y']-start['y'])/.5))
+    points=[]
     try:
         target=height(profile,path['target_position']['x'],path['target_position']['y'])
         for i in range(n+1):
@@ -63,6 +69,7 @@ def apply_path(path,asset,crossing_id,config,ctx):
     result.update(points=points,ground_path_evidence=dict(policy=POLICY,lookup_file=options['path'],
         lookup_sha256=options['sha256'],profile_key=key),
         limitation='Editor-height initialization; original-capture advisory ground inspection, severe errors still rejected')
+    if mode is not None:result['ground_path_evidence']['waypoint_mode']=mode
     result['target_position']={k:target[k] for k in ('x','y','z')}
     return result,'editor_path_initialization_v116'
 

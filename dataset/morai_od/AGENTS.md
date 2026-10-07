@@ -41,7 +41,13 @@
    새release require_covered_moving_paths=true는 경로 밖을 같은 quota로 초기 재생성한다.
    all-editor movers만 terrain/static-reference 준비를 생략한다. 원본 검사/심한±40cm gap·Z step/
    실제 이동·CollisionData·Ego 정지는 유지한다. 접지/지면 mesh/모든23종 외관 차이 인증은 아니다.
-   첫 횡단보도 사람 경로 끝이 짧아 running 방향 편향이 남는다. 무제한 외삽하지 않는다.
+   v116 당시 첫 횡단보도 사람 경로 끝이 짧아 running 방향 편향이 남았으며 다음 v117이 우선한다.
+   v117은 endpoint-linear-v117 opt-in으로 정확히 두 waypoint/선형 Z를 쓴다. 자동 지면 추종이 아니다.
+   짧은 사람 끝점은 같은 구역의 저장 donor 높이와 overlap offset 후보로 보완하고 각각 새 live QA를 했다.
+   28종×두 구역×양방향112개 승인용 캡처 PASS, 전체127시도/1LiDAR annotation review는 보존한다.
+   실제 이동 primary의 crossing×walk/run×subfamily 방향 차이≤1, same-quota replacement에서도 sign 유지다.
+   최신 manifest는 endpoint_linear_final_5k_v117이며4846정적/154이동·122종 최소4를 유지한다.
+   v116 raw/manifest는 이력으로 보존하고 새 코드로 기존 output을 resume하지 않는다.
    `docs/261008_base5_intersection_ground_evidence.md`의 최신 batch/resume/경로를 따른다.
    새bulk output에만 새정책을 적용하며 본수집은 보고 후 사용자 승인이다.
 

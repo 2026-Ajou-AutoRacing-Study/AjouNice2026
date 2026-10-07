@@ -12,7 +12,7 @@ from base5_intersection_ground import POLICY, QA_POLICY, height, load_lookup
 from base5_map_surface import configure
 
 
-def prepare(lookup_file, prepared_manifest, output, running=False, lateral_offset=0., ego_distance=20.):
+def prepare(lookup_file, prepared_manifest, output, running=False, lateral_offset=0., ego_distance=20., fast_people=False):
     if output.exists():
         raise FileExistsError('New diagnostic output required')
     data=load_lookup(lookup_file)
@@ -26,7 +26,8 @@ def prepare(lookup_file, prepared_manifest, output, running=False, lateral_offse
         if running and row['asset']!='Woman2':continue
         key=row['crosswalk']['crosswalk_id']+'/'+row['asset'];profile=data['profiles'][key]
         asset=assets[row['asset']];size,off,known=gen.geometry(asset,ctx)
-        speed=2.2 if running else 1.2 if asset.get('ontology_class')=='Animal' else 1.1
+        run=running or (fast_people and asset['name'] not in manual.ASSETS[1:])
+        speed=2.2 if run else 1.2 if asset.get('ontology_class')=='Animal' else 1.1
         for sign in (1,-1):
             # Keep the whole departure/target/tail inside the measured span.
             lower,upper=profile['s_bounds_m'];reserve=.1
@@ -42,9 +43,10 @@ def prepare(lookup_file, prepared_manifest, output, running=False, lateral_offse
             a=math.radians(yaw);center=[tx+math.cos(a)*off[0]-math.sin(a)*off[1],ty+math.sin(a)*off[0]+math.cos(a)*off[1]]
             distance=math.hypot(center[0]-ego['x'],center[1]-ego['y'])
             bounds=[max(0.,distance-2.),distance+2.]
-            path=gen.natural_target_path(pose,center,ego,bounds,'running' if running else 'walking',asset,6.,
+            path=gen.natural_target_path(pose,center,ego,bounds,'running' if run else 'walking',asset,6.,
                 direction=(sign*axis[0],sign*axis[1]))
-            start,end=path['points'];n=max(1,math.ceil(path['length_m']/.5))
+            mode=profile.get('waypoint_mode')
+            start,end=path['points'];n=1 if mode=='endpoint-linear-v117' else max(1,math.ceil(path['length_m']/.5))
             points=[]
             for i in range(n+1):
                 t=i/n; p=height(profile,start['x']+t*(end['x']-start['x']),start['y']+t*(end['y']-start['y']))
@@ -52,6 +54,7 @@ def prepare(lookup_file, prepared_manifest, output, running=False, lateral_offse
             path.update(points=points,ground_path_evidence=dict(policy=POLICY,lookup_file=str(lookup_file.resolve()),
                         lookup_sha256=sha256(lookup_file),profile_key=key),
                         limitation='Editor-height diagnostic; no terrain/static-reference recapture, no raw GT edit')
+            if mode is not None:path['ground_path_evidence']['waypoint_mode']=mode
             scene,_=manual.build_scene(ctx,row['crosswalk'],asset,row['number'])
             from base5_map_surface import ego_road_support
             support=ego_road_support(ctx['map_surface_index'],ego)
@@ -60,12 +63,13 @@ def prepare(lookup_file, prepared_manifest, output, running=False, lateral_offse
             gen.geo.set_ego_pose(scene['egoVehicle'],ego,0.);manual.park(scene['egoVehicle'])
             gen.geo.clear_actor_lists(scene)
             gen.set_pose(copy.deepcopy(asset['template']),dict(points[0],yaw=yaw),1,asset,scene,
-                         'running' if running else 'walking',path)
+                         'running' if run else 'walking',path)
             actor=dict(unique_id=1,data_id=asset['data_id'],name=asset['name'],source_list=asset['source_list'],
-                motion='running' if running else 'walking',position=copy.deepcopy(points[0]),motion_path=path,
+                motion='running' if run else 'walking',position=copy.deepcopy(points[0]),motion_path=path,
                 geometric_center_estimate=center,estimated_size=size,geometry_reference_known=known,
                 mission_crossing_id=row['crosswalk']['crosswalk_id'],training_class='animal' if asset.get('ontology_class')=='Animal' else 'component_annotation')
-            sid=f'b5ed116_{row["number"]:02d}_{"f" if sign>0 else "r"}'+('_run' if running else '')
+            version='117' if mode else '116'
+            sid=f'b5ed{version}_{row["number"]:02d}_{"f" if sign>0 else "r"}'+('_run' if run else '')
             meta=dict(calibration_only=True,spec=dict(family='pedestrian_related',role='front',mission=True,
                 motion=actor['motion'],distance_bounds=bounds,actors=1),ego=ego,base=ego,runtime_actors=[actor],
                 split='train',retry=0,live_validated=False,manual_ground_pilot=dict(number=row['number'],
@@ -93,4 +97,5 @@ if __name__=='__main__':
     p.add_argument('--output',type=Path,required=True);p.add_argument('--running',action='store_true')
     p.add_argument('--lateral-offset-m',type=float,default=0.)
     p.add_argument('--ego-distance-m',type=float,default=20.)
-    a=p.parse_args();print(prepare(a.lookup,a.prepared_manifest,a.output,a.running,a.lateral_offset_m,a.ego_distance_m))
+    p.add_argument('--fast-people',action='store_true')
+    a=p.parse_args();print(prepare(a.lookup,a.prepared_manifest,a.output,a.running,a.lateral_offset_m,a.ego_distance_m,a.fast_people))

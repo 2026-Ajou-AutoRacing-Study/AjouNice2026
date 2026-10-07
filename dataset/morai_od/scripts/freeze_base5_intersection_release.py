@@ -13,7 +13,7 @@ from base5_capture_safety import atomic_json, sha256
 from base5_intersection_ground import load_lookup
 
 
-def freeze(lookup_path, output, base_config):
+def freeze(lookup_path, output, base_config, endpoint_linear=False):
     if output.exists():
         raise FileExistsError('Fresh release output required')
     lookup = load_lookup(lookup_path)
@@ -24,11 +24,19 @@ def freeze(lookup_path, output, base_config):
     config['capture'].update(dynamic_region=placement.SCOPE, natural_setup_budget_sec=6.,
         intersection_ground_lookup=dict(path=str(lookup_path.resolve()), sha256=sha256(lookup_path),
                                         require_covered_moving_paths=True))
+    if endpoint_linear:
+        if any(p.get('waypoint_mode')!=placement.ENDPOINT_MODE for p in lookup['profiles'].values()):
+            raise ValueError('Endpoint release requires newly validated two-height profiles')
+        config['dataset_id']='base5_independent_5k_sunny13_endpoint_linear_v117'
+        config['capture']['intersection_ground_lookup']['waypoint_mode']=placement.ENDPOINT_MODE
+        config['mission_dynamic_observation']['balance_crossing_directions']=True
     output.mkdir(parents=True)
     atomic_json(output/'config.json', config)
     manifest_path = gen.generate(config, output/'scenarios_5k', 0, config['target_scenes'])
     deck = gen.geo.load_json(manifest_path)
     families, primary, motions, directions, phases, attempts = Counter(), Counter(), Counter(), Counter(), Counter(), Counter()
+    primary_directions=Counter()
+    kind_directions=Counter()
     static = moving = 0
     candidates = []
     for entry in deck['scenes']:
@@ -48,6 +56,10 @@ def freeze(lookup_path, output, base_config):
                 yaw = math.radians(path['departure_yaw_deg'])
                 sign = 1 if math.cos(yaw)*axis[0]+math.sin(yaw)*axis[1] > 0 else -1
                 directions[str((actor['mission_crossing_id'], actor['motion'], sign))] += 1
+                if endpoint_linear and len(path['points'])!=2:raise ValueError('Release contains a dense motion path')
+                if actor is actors[0]:
+                    primary_directions[(actor['mission_crossing_id'],actor['motion'],sign)]+=1
+                    kind_directions[(actor['mission_crossing_id'],meta['spec']['subfamily'],actor['motion'],sign)]+=1
                 motions[actor['name']] += 1
             phases[meta['spec']['dynamic_observation_phase']] += 1
         else:
@@ -55,6 +67,13 @@ def freeze(lookup_path, output, base_config):
         candidates.append((entry, meta, movers))
     if families != Counter(config['families']) or min(primary.values()) < config['coverage_policy']['minimum_primary_scenes_per_asset']:
         raise ValueError('Family/primary asset coverage regressed')
+    if endpoint_linear:
+        for crossing,motion,_ in primary_directions:
+            if abs(primary_directions[(crossing,motion,-1)]-primary_directions[(crossing,motion,1)])>1:
+                raise ValueError('Actual primary direction balance regressed')
+        for crossing,kind,motion,_ in kind_directions:
+            if abs(kind_directions[(crossing,kind,motion,-1)]-kind_directions[(crossing,kind,motion,1)])>1:
+                raise ValueError('Person/rare primary direction balance regressed')
     # Select before live outcomes, covering walking/running, crossing/clearing,
     # animal/pet and two-mover scenes plus normal/generic/static observations.
     predicates = [
@@ -71,6 +90,15 @@ def freeze(lookup_path, output, base_config):
         lambda e,m,a: not a and e['family'] == 'highway',
         lambda e,m,a: not a and e['family'] == 'obstacle' and not e['mission'] and len(m['runtime_actors']) >= 3,
     ]
+    if endpoint_linear:
+        def direction_is(actors,crossing,motion,sign):
+            if not actors:return False
+            a=actors[0];path=a['motion_path'];axis=lookup['profiles'][path['ground_path_evidence']['profile_key']]['axis']
+            yaw=math.radians(path['departure_yaw_deg'])
+            actual=1 if math.cos(yaw)*axis[0]+math.sin(yaw)*axis[1]>0 else -1
+            return a['mission_crossing_id']==crossing and a['motion']==motion and actual==sign
+        predicates=[lambda e,m,a,c=c,t=t,s=s: direction_is(a,c,t,s)
+                    for c in ('CW000002','CW000000') for t in ('walking','running') for s in (-1,1)] + [predicates[0]] + predicates[3:]
     chosen, indices = [], []
     for predicate in predicates:
         for index, (entry, meta, movers) in enumerate(candidates):
@@ -85,6 +113,9 @@ def freeze(lookup_path, output, base_config):
         scenes=len(deck['scenes']), static_scenes=static, moving_scenes=moving, families=dict(families),
         primary_assets=len(primary), primary_minimum=min(primary.values()), primary_counts=dict(primary),
         moving_asset_counts=dict(motions), moving_phases=dict(phases), moving_direction_counts=dict(directions),
+        moving_primary_direction_counts={str(k):v for k,v in primary_directions.items()},
+        moving_primary_kind_direction_counts={str(k):v for k,v in kind_directions.items()},
+        waypoint_mode=placement.ENDPOINT_MODE if endpoint_linear else 'dense-editor-v116',
         generation_retry_counts=dict(attempts), selected_pilot_indices=indices,
         lookup_sha256=sha256(lookup_path), manifest_sha256=sha256(manifest_path),
         limitation='Offline geometry/quota audit, not bulk terrain/visibility or capture success certification.'))
@@ -96,4 +127,5 @@ if __name__ == '__main__':
     p.add_argument('--lookup', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--config', type=Path, default=gen.geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_independent_5k_sunny13.json')
-    a = p.parse_args(); print(freeze(a.lookup, a.output, a.config))
+    p.add_argument('--endpoint-linear',action='store_true')
+    a = p.parse_args(); print(freeze(a.lookup, a.output, a.config,a.endpoint_linear))

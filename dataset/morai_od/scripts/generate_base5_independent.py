@@ -322,11 +322,38 @@ def dynamic_crossing_candidates(ctx,reference,plan):
     if not out:raise ValueError('No route-crossing dynamic mission candidate')
     return out
 
-def crossing_target(crossing,rng,jitter):
+def crossing_target(crossing,rng,jitter,direction_sign=None):
+    if direction_sign is not None and direction_sign not in (-1,1):raise ValueError('Invalid crossing direction')
     t=rng.uniform(-jitter,jitter)
     return dict(crossing['center'],x=crossing['center']['x']+t*crossing['axis'][0],
         y=crossing['center']['y']+t*crossing['axis'][1],
-        yaw=math.degrees(math.atan2(crossing['axis'][1],crossing['axis'][0]))+rng.choice([0.,180.]))
+        yaw=math.degrees(math.atan2(crossing['axis'][1],crossing['axis'][0]))+
+            (rng.choice([0.,180.]) if direction_sign is None else 0. if direction_sign==1 else 180.))
+
+def assign_crossing_directions(rows,ctx,config):
+    """Balance actual moving primaries per crossing and walk/run; retries retain the sign."""
+    if not config.get('mission_dynamic_observation',{}).get('balance_crossing_directions'):return
+    plan=config['mission_dynamic_observation']
+    crossings=dynamic_crossing_candidates(ctx,ctx['mission_templates']['dynamic_obstacle'][0][1],plan)
+    groups={}
+    for row in rows:
+        if not row.get('dynamic_observation_phase') or row.get('dynamic_mission_pool'):continue
+        asset=ctx['pools'][row['subfamily']][row['asset_index']%len(ctx['pools'][row['subfamily']])]
+        motion,_=population_appearance(asset,row['motion'],row,0,0,config,ctx.get('appearance_policy',{}))
+        if motion in ('static','standing'):continue
+        crossing=crossings[row['family_index']%len(crossings)]['crosswalk_id']
+        groups.setdefault((crossing,motion,row['subfamily']),[]).append(row)
+    totals=Counter()
+    for group,subset in sorted(groups.items()):
+        rng=random.Random(config['seed']+sum(map(ord,str(group)))+117)
+        aggregate=group[:2]
+        preferred=1 if totals[aggregate]<0 else -1
+        signs=[-1,1]*(len(subset)//2)
+        if len(subset)%2:signs.append(preferred)
+        rng.shuffle(signs)
+        for row,sign in zip(subset,signs):
+            row['crossing_direction_sign']=sign
+            totals[aggregate]+=sign
 
 def dynamic_vehicle_target(ctx,crossing,rng,offset):
     """Use nearby crossing-direction road links, never a pedestrian walkway yaw."""
@@ -549,7 +576,8 @@ def build(row,config,ctx,attempt=0):
             # Deterministic crossing coverage; retries do not silently pick an easier crossing.
             dynamic_crossing=candidates[row['family_index']%len(candidates)]
             dynamic_target=(dynamic_vehicle_target(ctx,dynamic_crossing,rng,geometry(asset,ctx)[1])
-                if row.get('dynamic_mission_pool') else crossing_target(dynamic_crossing,rng,plan['target_axis_jitter_m']))
+                if row.get('dynamic_mission_pool') else crossing_target(dynamic_crossing,rng,plan['target_axis_jitter_m'],
+                    row.get('crossing_direction_sign')))
             lower,upper=row['distance_bounds'];distance=rng.uniform(lower+.5,upper-.5)
             direction=1 if row['dynamic_observation_phase']=='clearing' else -1
             target_arc=dynamic_crossing['route_arc_m']+direction*distance
@@ -654,7 +682,8 @@ def build(row,config,ctx,attempt=0):
             # Multiple actors on the same narrow crossing produce overlapping swept corridors.
             # Use the neighboring real crossing rather than arbitrary off-road displacement.
             mission_target=dynamic_target if i==0 else (dynamic_vehicle_target(ctx,actor_crossing,rng,off)
-                if row.get('dynamic_mission_pool') else crossing_target(actor_crossing,rng,config['mission_dynamic_observation']['target_axis_jitter_m']))
+                if row.get('dynamic_mission_pool') else crossing_target(actor_crossing,rng,config['mission_dynamic_observation']['target_axis_jitter_m'],
+                    row.get('crossing_direction_sign')*((-1)**i) if row.get('crossing_direction_sign') is not None else None))
         if mission_target:
             pose=pivot_for_center(mission_target,off,mission_target['yaw'])
         elif i==0 and primary_pose is not None:
@@ -842,6 +871,7 @@ def generate(config,output,start,count,runtime=geo.DEFAULT_RUNTIME_ASSET_DIR,mge
     all_rows=specs(config)
     if not 0<=start<len(all_rows) or count<1 or start+count>len(all_rows): raise ValueError('Invalid deck interval')
     ctx=context(runtime,mgeo); output.mkdir(parents=True,exist_ok=True)
+    assign_crossing_directions(all_rows,ctx,config)
     code_sha256=geo.sha256(Path(__file__))
     entries=[]; failures=[]
     for row in all_rows[start:start+count]:

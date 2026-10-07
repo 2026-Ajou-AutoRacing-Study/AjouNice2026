@@ -1,4 +1,128 @@
-# Base5 수동 사거리 높이 lookup — EVIDENCE / v116
+# Base5 수동 사거리 높이 lookup — EVIDENCE / v117
+
+## 2026-10-08 출발→도착 2점·보행자 반대 방향 — 최신 v117
+
+사용자 요청: 두 끝점의 선형 이동을 기본값으로 채택하고, 반대 방향 사람을 충분히 포함한다.
+촘촘한 v116 waypoint·raw·manifest를 덮어쓰지 않고 새 opt-in 모드/새 lookup/새5K를 만들었다.
+production detector/tracker/planning/control/localization 변경, 본5K 수집, 모델 학습은 없다.
+
+### 샘플 근거와 해석 경계
+
+`~/Downloads/original_2026_molit_comp_sample_scene.json`과 저장된 sample의 Man1 경로는 같다.
+Man1(DataID50100001/UID3), PedPath - 3, 뒤 횡단보도 CW000000의 두 점은
+(-56.7439994812,-11.6140003204,28.561000824) →
+(-70.5690002441,-11.9289999008,28.433000565)이다. XY13.8286m, Z차−0.1280m다.
+기존 `planner_logs/analysis/pedestrian_udp_velocity_261005/zz_ped_vel_udp_261005_1.bag`의
+실제 Z는 끝점 선형 보간과 최대약6.55e−6m 차이였고 속도2.7804m/s였다.
+두 waypoint/선형 Z의 근거이지, 원본 끝점의 수동 편집 방식·정확한 접지·자동 terrain following
+또는 본선 모든 actor의 경로 토폴로지를 증명한 것은 아니다.
+샘플 trigger15m와 이번 즉시 이동/준비시간 보상도 구분한다. 이동 외관을 배우는 정지 Ego OD 수집이다.
+
+### 초기 높이·방향 구현
+
+- `endpoint-linear-v117`: 실제 actor 경로와 profile 높이 knot를 정확히2개로 고정한다.
+  target Z도 같은 두 끝점의 직선이며 중간 지면을 따라 굴곡진 경로로 만들지 않는다.
+  raw point/Instance annotation을 수정해 정합 오차를 숨기지 않는다.
+- 끝점 후보 domain은 횡단축 s=−11.9…+12m다. 기록 범위 안의 수동 높이를 사용한다.
+  짧던 CW000002 사람24종의 상단 후보는 같은 구역 Ped_Pet1의 저장 높이를 사용하되,
+  겹치는 s=−6/−3/0m의 차이 중앙값으로 pivot 차이를 보완한다. 비교 차이가5cm를 넘으면 거부한다.
+  이것은 cross-asset 후보이며 실제 자산별 양방향 QA를 새로 통과한 뒤에만 LIVE로 발행한다.
+  모든 도로/모든 평행 경로에 donor 높이를 확장하지 않는다.
+- 실제 primary의 crossing×walk/run×subfamily별 방향을 생성 전에 배정한다.
+  홀수 subgroup와 전체 walk/run aggregate 모두 양방향 차이≤1이다.
+  재시도/replacement에서 방향을 바꿔 어려운 반대 방향을 회피하지 않는다.
+  실제 raw 끝점 방향과 metadata sign 일치도 전수 audit한다.
+- 기존 dense 모드는 opt-out 이력으로 유지한다. source/profile/report hash와 준비 scope 검사는 유지한다.
+
+### 높이·이동 live QA
+
+일반 사람24종+Dog1/Dog2/Deer1/Ped_Pet1=28종×두 횡단보도×양방향이다.
+사람은 running2.2m/s로 긴 준비 거리 조건을 검증했고 동물/Pet은 기존걷기속도를 유지했다.
+
+| 항목 | 결과 |
+|---|---:|
+| 양방향 승인용 고유 profile/direction 캡처 |112/112 승인|
+| LIVE profile |56/56|
+| 이전 진단까지 실제 총 시도 |127|
+| 이전 review (합격 근거로 미사용) |1|
+| 전체 session wall (실패·중복 포함) |1069.382s|
+| 실제 시도당 wall |8.420s|
+| 최대 Object Z↔경로 선형 Z 차이 |0.004735mm|
+| 최대 연속 Z step |0.141144mm|
+| 측정 가능한 annotation 하단↔local plane 절대 gap |7.399cm|
+
+처음 Ego20m에서 `b5ed117_231_r` Dog1역방향1건이 review였다.
+Camera image/BBox2D/BBox3D에는 개가 있었지만 **LiDAR Instance.txt의 3D GT가 비어 있었다.**
+실제 actor 이동/지정높이/CollisionData 검사는 정상이며 심한 부유의 근거는 아니다.
+현재 converter는 LiDAR3D annotation에서 box를 구성하므로 이 raw를 camera-only 합격으로 꾸미지 않았다.
+중단 session의14승인+1review를 별도 진단 근거로 보존하고 승인집계에 중복 포함하지 않는다.
+Ego 관측 거리12m의 새 output에서 같은 경로/속도 Dog1 및 나머지 asset을 재검증해 GT 포함 PASS했다.
+report의 `prior_diagnostic_attempts`/`used_for_profile_approval=false`에 초기 실패 비용을 남겼다.
+
+추가 empty-terrain/static-reference/높이 재촬영0, 모든 선택 session의 안전 종료 Park 확인이다.
+입력 경로를 따르는 Object Z만으로 접지를 인증하지 않으며, 측정 불가 plane은 기존 warning이다.
+기존 심각한±40cm gap·Z step·실제 충돌·Ego 정지·transport 검사는 유지한다.
+
+### 새5K 방향 계획과 전수 검증
+
+5000고유payload OFFLINE_PASS, primary122종 최소4, 정적4846/실제 이동154장면이다.
+기존 family·미션·거리·근접·관측단계(접근73/횡단37/양보25/통과후19)는 유지했다.
+전체 이동 장면의 모든 mover는 정확히2waypoint이며 source/report proof를 검증했다.
+이동 scene154중1개는 primary standing/secondary moving이므로 이동 primary 집계는153개다.
+
+| 구역 | 일반 사람 걷기 +/− | 일반 사람 달리기 +/− | 희귀 포함 primary 걷기 +/− | 희귀 포함 primary 달리기 +/− |
+|---|---:|---:|---:|---:|
+| 첫 CW000002 |20/20|15/14|26/25|16/16|
+| 뒤 CW000000 |19/19|13/13|21/21|14/14|
+
++/−는 lookup 횡단축 기준이며 Ego 전후방 의미가 아니다.
+사람/animal/Pet subgroup도 각각 차이≤1이다. 방향뿐 아니라 걷기/달리기별 반대 방향이 존재한다.
+이는 계획 장수이며 실제 최종 visible-positive 비율은 본수집 ledger로 다시 검사한다.
+
+최신 root `~/morai_cap/base5_v2_261008/`:
+- `endpoint_linear_candidate_v117b/`: 원본 hash·끝점 derivation을 보존한 pending 후보.
+- `endpoint_linear_live_v117/`, `endpoint_linear_close_live_v117/`: 모든 성공/실패 raw.
+- `endpoint_linear_release56_v117/`: 새 LIVE lookup 및112승인/127시도 report.
+- `endpoint_linear_final_5k_v117/`: config,5000scenario/metadata,offline/geometry/coverage audit,대표18manifest.
+- `endpoint_linear_release_pilot18_v117/`: 일반 생성기 batch/resume/실패보존 근거.
+
+### 일반 생성기 batch·resume·변환 최종 결과
+
+새 manifest에서 live 결과를 보기 전에18셀을 골랐다. 두 구역×걷기/달리기×양방향8층을
+모두 포함하고, 두 mover 혼합·Animal/Pet·접근/횡단/양보/통과후 및 정적 장면을 함께 검사했다.
+18설계셀18승인/부족분0, 실제21capture, parent 누적wall184.685s다.
+첫4셀 뒤 pause→같은 계약으로 나머지14셀 resume을 검증했다.
+
+정적 근접 Man1 `b5v2_00009`의 기존 actor 누락은 이번에도3review였다.
+Object/센서 annotation 모두 actor가 없고 높이 부유나 실제 접촉으로 인증하지 않는다.
+같은 primary/family/phase/거리/split 계약의 bounded replacement로 최종 승인됐으며
+3개 실패 raw를 보존한다. 선택18승인은 최초시도18/18 성공률이라는 뜻이 아니다.
+기존 정상15개 실제 이동 대표 캡처는 모두 승인됐다.
+
+control_readiness 중 MORAI service handler None 응답2회는 event log에 남고 재요청으로 복구했다.
+최종/경계 Park는 모두 확인했으며 service timeout0, alive worker0, unsafe session0이다.
+응답 오류 자체가 없었다고 보고하지 않는다. terrain/static-reference/높이 재촬영은 추가하지 않았다.
+
+완료resume 검증은 원본capture719파일의SHA256/inode/mtime/size,8개event log,
+선택ledger와누적wall 불변 PASS다. 추가capture0이다.
+CPU변환18프레임(train13/val5): Pedestrian15/Animal7/Obstacle5/Vehicle1=28GT,
+추가Animal1component는 가시성 정책에서 제외하되 원본에 보존했다.
+소량 split은 최종 성능평가용이 아니다. 모델 학습/추론은 실행하지 않았다.
+Base5 regression300tests PASS(58.784s), py_compile·diff whitespace 검사 PASS다.
+
+이동 경로 검증127시도 평균8.420s, 정상 생성기 실패보충 포함18셀 승인당10.260s다.
+서로 다른 구성의 v116/v117 wall을 waypoint 단축의 인과적 속도 개선으로 발표하지 않는다.
+6초 자연 이동 준비가 남아 있고 전체5K는 여전히 과거 정적 비용 가정에 따라약10시간 안팎의
+조건부 예상이다. 새로운 전체family 장기rate 인증은 없으며 본수집dashboard로 갱신한다.
+위의 OFFLINE_PASS/18승인은 본5K live 인증이 아니다. 본수집은 사용자 승인 대기다.
+
+재현 보조 도구:
+`prepare_base5_endpoint_linear.py` → `prepare_base5_intersection_ground_pilot.py` →
+`report_base5_intersection_ground.py`(이전 실패 `--prior-sessions`) →
+`freeze_base5_intersection_release.py --endpoint-linear`.
+새본수집은 [현재 런북](261007_base5_5k_capture_runbook.md)의 새 manifest/output을 쓴다.
+
+## v116 이력 — 수동 다점 높이 보간
 
 2026-10-08. 사용자 수동 경로를 실제 XY 기준으로 보간하고, 이동 외관 캡처를 사거리에
 제한해 초기 높이와 수집 비용을 보완했다. 작은 높이 오차 때문에 반복 촬영하지 않는 것이 목적이다.

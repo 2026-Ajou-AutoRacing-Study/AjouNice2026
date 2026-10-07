@@ -83,6 +83,12 @@ def validate_actor(actor, metadata, scene):
     profile = data['profiles'][proof['profile_key']]
     if profile['asset'] != actor['name'] or profile['data_id'] != actor['data_id']:
         raise ValueError('Manual profile asset mismatch')
+    mode=profile.get('waypoint_mode')
+    if mode is not None:
+        if mode!='endpoint-linear-v117' or proof.get('waypoint_mode')!=mode:
+            raise ValueError('Endpoint profile/waypoint mode mismatch')
+        if len(profile['knots'])!=2 or len(path['points'])!=2:
+            raise ValueError('Endpoint mode requires exactly two waypoints')
     if data.get('status') != 'LIVE_VALIDATED' and not metadata.get('calibration_only'):
         raise ValueError('Pending manual lookup is diagnostic only')
     if data.get('status') == 'LIVE_VALIDATED':

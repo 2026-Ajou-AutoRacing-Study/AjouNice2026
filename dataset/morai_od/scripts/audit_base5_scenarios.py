@@ -233,6 +233,11 @@ def audit(manifest_path):
             if path is not None:
                 from shapely.geometry import LineString
                 points=path['points'];start=points[0];end=points[-1] if path.get('ground_path_evidence') else points[1]
+                if i==0 and r.get('crossing_direction_sign') is not None:
+                    axis=observation['crossing']['axis']
+                    sign=1 if (end['x']-start['x'])*axis[0]+(end['y']-start['y'])*axis[1]>0 else -1
+                    if sign!=r['crossing_direction_sign']:
+                        errors.append((entry['id'],'locked primary crossing direction changed'))
                 if path['policy'] not in ('bounded-shuttle-v1','one-way-slow-v1','natural-target-v1'):
                     errors.append((entry['id'],'unknown motion path policy'))
                 if path['policy']=='bounded-shuttle-v1' and points[0]!=points[-1]:errors.append((entry['id'],'open shuttle return'))

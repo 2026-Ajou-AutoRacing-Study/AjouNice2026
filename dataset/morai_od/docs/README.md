@@ -2,7 +2,14 @@
 
 마지막 정리: 2026-10-08.
 
-- **2026-10-08 v116:** 사용자 보정10개/49waypoint를 원본·sidecar와 백업하고 actual-XY 기반
+- **2026-10-08 v117 우선:** 샘플처럼 출발→도착 두 waypoint의 선형 이동으로 변경했다.
+  28종×두 횡단보도×양방향112개 승인용 캡처 PASS. 전체127시도 중 LiDAR GT 누락1건도 보존한다.
+  일반 사람의 걷기/달리기 반대 방향을 각각 균형 배정하고 재시도에서도 방향을 고정한다.
+  새5K는 `endpoint_linear_final_5k_v117`이며4846정적/154이동·122종 최소4다.
+  [CURRENT](BASE5_V2_CURRENT.md), [근거](261008_base5_intersection_ground_evidence.md),
+  [런북](261007_base5_5k_capture_runbook.md)을 우선한다. 본수집은 승인 대기다.
+
+- **2026-10-08 v116 이력:** 사용자 보정10개/49waypoint를 원본·sidecar와 백업하고 actual-XY 기반
   높이 보간을 구현했다.28종×두 횡단보도56profile/132회 live PASS, 작은 높이/근거 부족은 warning이다.
   새5K offline 생성4846정적/154이동·122종 최소4회. 사거리 밖은 정지 캡처이며 본수집은 승인 대기다.
   [현재 결과·제약](261008_base5_intersection_ground_evidence.md), [CURRENT](BASE5_V2_CURRENT.md),
