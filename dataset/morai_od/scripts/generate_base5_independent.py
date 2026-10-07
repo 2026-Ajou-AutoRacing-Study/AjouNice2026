@@ -15,6 +15,7 @@ import generate_static_classcentric_base3_batch as b3
 import build_base5_mr_asset_catalog as catalog
 import base5_avoidance_geometry as avoidance
 import base5_population_budget as population
+import base5_vehicle_close as vehicle_close
 from base5_reference_frames import references
 
 CONFIG = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_independent_5k_sunny11.json'
@@ -179,6 +180,7 @@ def specs(config):
                     avoidance_origin='generic_close',avoidance_phase='alongside',avoidance_side=side,
                     avoidance_gap_bounds_m=bounds,distance_bounds=[0.,30.],distance_bin='generic_surface_gap',
                     role='right' if side=='left' else 'left')
+    vehicle_close.assign(sys.modules[__name__],output,config)
     return output
 
 def context(runtime, mgeo):
@@ -501,7 +503,7 @@ def build(row,config,ctx,attempt=0):
     selected=population.choose(asset,poolkey,ctx['pools'],lambda a:geometry(a,ctx),row,rng)
     row['actors']=len(selected)
     for i in range(row['actors']):
-        sample_placement=None
+        sample_placement=None;vehicle_close_proof=None
         selected_pool=poolkey
         asset=selected[i]
         if i:
@@ -536,6 +538,8 @@ def build(row,config,ctx,attempt=0):
             pose=pivot_for_center(mission_target,off,mission_target['yaw'])
         elif i==0 and primary_pose is not None:
             pose=primary_pose
+        elif i==0 and row.get('vehicle_close_phase'):
+            pose,sample_placement,vehicle_close_proof=vehicle_close.primary_pose(sys.modules[__name__],ctx,ego,asset,row,rng)
         elif asset['source_list']=='vehicleList':
             direction=1 if role in ('front','left') else -1
             if row['family']=='highway' and row['mission']:
@@ -644,7 +648,7 @@ def build(row,config,ctx,attempt=0):
         actual_role=('front' if lon>=0 else 'rear') if abs(lon)>=abs(lat) else ('left' if lat>=0 else 'right')
         if not i and not avoidance_ref and row['family'] in ('obstacle','pedestrian_related') and actual_role!=row['role']:
             raise ValueError('Actual Ego-relative direction differs from quota')
-        if not i and row['family']=='highway' and ((lon<0)!=(row['role']=='rear')):
+        if not i and row['family']=='highway' and not row.get('vehicle_close_phase') and ((lon<0)!=(row['role']=='rear')):
             raise ValueError('Highway longitudinal sign differs from quota')
         uid=8500+i
         runtime_pose=dict(pose,**motion_path['points'][0]) if motion_path and motion_path['policy']=='natural-target-v1' else pose
@@ -679,6 +683,7 @@ def build(row,config,ctx,attempt=0):
             if motion_path['policy'] in ('one-way-slow-v1','natural-target-v1'):
                 actor_records[-1]['motion_capability_note']='Requested walking/running category is not animation certification; actual translation verified live.'
         if sample_placement is not None: actor_records[-1]['sample_highway_placement']=sample_placement
+        if vehicle_close_proof is not None:actor_records[-1]['vehicle_close_observation']=vehicle_close_proof
     group=base['link_idx']  # whole-link split; still neighboring-link visibility leakage possible
     split='val' if int(hashlib.sha256(group.encode()).hexdigest()[:8],16)/2**32<.15 else 'train'
     meta=dict(spec=row,ego=ego,base=base,details=details,runtime_actors=actor_records,
@@ -734,6 +739,7 @@ def generate(config,output,start,count,runtime=geo.DEFAULT_RUNTIME_ASSET_DIR,mge
         provenance=dict(config_sha256=hashlib.sha256(json.dumps(config,sort_keys=True).encode()).hexdigest(),
             generator_sha256=code_sha256,
             population_budget_sha256=geo.sha256(Path(population.__file__)),
+            vehicle_close_sha256=geo.sha256(Path(vehicle_close.__file__)),
             appearance_policy_sha256=geo.sha256(APPEARANCE_POLICY),
             avoidance_geometry_sha256=geo.sha256(Path(avoidance.__file__)),
             highway_sample_sha256=geo.sha256(HIGHWAY_SAMPLE),

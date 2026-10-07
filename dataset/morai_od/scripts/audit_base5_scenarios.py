@@ -23,7 +23,7 @@ def audit(manifest_path):
     inventory={r['data_id']:r for r in gen.geo.load_json(gen.catalog.DEFAULT_CATALOG)['assets']}
     appearance=gen.geo.load_json(gen.APPEARANCE_POLICY)
     height_ctx=None;height_assets=None;dynamic_ctx=None;dynamic_phases=Counter();dynamic_crossings=Counter()
-    generic_close=Counter()
+    generic_close=Counter();vehicle_close_phases=Counter();vehicle_close_gaps=[]
     for entry in m['scenes']:
         s=json.loads(Path(entry['scenario']).read_text());meta=json.loads(Path(entry['metadata']).read_text());r=meta['spec']
         digest=gen.geo.sha256(Path(entry['scenario']))
@@ -134,6 +134,27 @@ def audit(manifest_path):
             poly=gen.rectangle(a['geometric_center_estimate'],a['estimated_size'],yaw)
             computed_gap=ego_poly.distance(poly)
             if computed_gap<minimum-1e-6:errors.append((entry['id'],'recomputed ego footprint'))
+            close=a.get('vehicle_close_observation')
+            if i==0 and r.get('vehicle_close_phase'):
+                if not close:errors.append((entry['id'],'missing legal vehicle close observation'))
+                else:
+                    vehicle_close_phases[str((r['family'],r['vehicle_close_phase']))]+=1
+                    vehicle_close_gaps.append(computed_gap)
+                    if not .3-1e-6<=computed_gap<=2.5+1e-6 or abs(close['planned_surface_gap_m']-computed_gap)>1e-5:
+                        errors.append((entry['id'],'vehicle close footprint gap'))
+                    if close['phase']!=r['vehicle_close_phase'] or close['npc_jitter_applied']:
+                        errors.append((entry['id'],'vehicle close policy mismatch'))
+                    lon,lat=a['longitudinal_m'],a['lateral_m'];phase=close['phase']
+                    if phase=='alongside' and (abs(lon)>1.2 or (lat>0)!=(r['vehicle_close_side']=='left')):
+                        errors.append((entry['id'],'vehicle alongside relative phase'))
+                    if phase in ('front_side','following_front') and lon<=0:errors.append((entry['id'],'vehicle front phase sign'))
+                    if phase in ('rear_side','following_rear') and lon>=0:errors.append((entry['id'],'vehicle rear phase sign'))
+                    if r['family']=='roundabout':
+                        nr,na=gen.geo.route_from_link_path(links,gen.geo.ROUNDABOUT_NPC_LINK_PATH)
+                        if close['route_links']!=list(gen.geo.ROUNDABOUT_NPC_LINK_PATH):errors.append((entry['id'],'roundabout close route'))
+                        expected=gen.geo.continuous_route_pose_at_arc(nr,na,close['reference_arc_m'])
+                        if not bounded_vehicle_pose_matches(actor['initPosition']['pos'],expected,a.get('static_height_initializer')):
+                            errors.append((entry['id'],'roundabout close NPC off route'))
             if i==0 and avoidance and avoidance['phase']=='alongside':
                 lo,hi=r['avoidance_gap_bounds_m']
                 requested=avoidance.get('original_gap_request_m',computed_gap)
@@ -194,6 +215,9 @@ def audit(manifest_path):
     if m['count']==m['config']['target_scenes']:
         if dict(families)!=m['config']['families']:errors.append(('all','family quota'))
         if dict(missions)!=m['config']['mission_counts']:errors.append(('all','mission quota'))
+        if m['config'].get('mission_vehicle_close'):
+            expected=Counter(str((r['family'],r['vehicle_close_phase'])) for r in gen.specs(m['config']) if r.get('vehicle_close_phase'))
+            if vehicle_close_phases!=expected:errors.append(('all','vehicle close phase quota'))
         if m['config'].get('mission_dynamic_observation'):
             expected=Counter(r['dynamic_observation_phase'] for r in gen.specs(m['config']) if r.get('dynamic_observation_phase'))
             if dynamic_phases!=expected:errors.append(('all','dynamic observation phase quota'))
@@ -213,6 +237,8 @@ def audit(manifest_path):
         scenes=len(m['scenes']),unique_payloads=len(hashes),families=dict(families),mission_counts=dict(missions),
         sample_bounded_highway_vehicle_count=bounded_vehicles,
         avoidance_phase_side_counts=dict(avoidance_phases),generic_close_counts=dict(generic_close),
+        vehicle_close_phase_counts=dict(vehicle_close_phases),
+        vehicle_close_gap_min_max_m=[min(vehicle_close_gaps),max(vehicle_close_gaps)] if vehicle_close_gaps else [],
         avoidance_gap_bin_counts=dict(avoidance_bins),
         alongside_gap_min_max_m=[min(avoidance_gaps),max(avoidance_gaps)] if avoidance_gaps else [],
         distance_direction_bins=dict(bins),asset_groups=dict(groups),asset_counts=dict(assets),splits=dict(splits),

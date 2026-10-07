@@ -312,6 +312,14 @@
     ],
     "requires_live_ground_and_collider_review": true
   },
+  "mission_vehicle_close": {
+    "eligible_max_center_distance_m": 20,
+    "fraction_percent": {"highway": 100, "roundabout": 40}
+  },
+  "coverage_policy": {
+    "minimum_primary_scenes_per_asset": 4,
+    "minimum_accepted_visible_primary_per_asset": 4
+  },
   "generic_close_observation": {
     "families": ["obstacle", "other_vehicle"],
     "eligible_max_center_distance_m": 15,
