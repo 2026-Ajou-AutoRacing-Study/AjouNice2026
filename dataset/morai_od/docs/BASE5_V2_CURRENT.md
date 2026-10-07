@@ -5,7 +5,25 @@ Base3 추가분이 아닌 독립 Base5이며 temporal/velocity head 학습용이
 **v45 본수집은 시작했다가 물리 충돌로 중단됐다. 체크포인트 32장은 보존했다.
 새 코드의 소량 검증은 통과했지만 본수집은 자동 재시작하지 않았다. 본 학습도 미시작이다.**
 
-## 최신 v66 — 정적 자산별 초기 높이 후보·전체 ground gate
+## 최신 v72 — 원거리 정적 검증·원본 재검사 / 추가 촬영 감소
+
+2026-10-07. 가까운 검증 plane과 같은 정적 rigid annotation의 전체 상대 R/T를 연결한다.
+동일 actor payload/hash와 실제 XYZ/heading/size/정지 여부, Ego 수평 위치/yaw/tilt,
+전체 footprint support를 검증한다. dynamic/복합/다른 placement에는 확대하지 않는다.
+local plane의 실제 above/below 판정을 무시하지 않으며 yaw-only 장거리 Z 수정도 계속 금지다.
+
+Kona 비교에서 yaw-only gap+17.33cm→full-relative−5.84cm로 차이23.17cm를 확인했다.
+이는 변환에 의한 비교 오차의 근거이며 절대 Ego attitude/모든 부유 원인의 인증은 아니다.
+실제 거리44/97/후방88/대형53m4조건 모두 통과했다. 같은4조건 전체시간78.62→53.60초,
+원거리 원본 재검사로 재촬영4회를 없애 약31.8% 절감했다. 원본 metadata/audit와 sensor GT는
+보존하고, hardlink raw와 별도 QA view를 남긴다. calibration은 학습 제외다.
+
+최종1조건13.50초·완료resume0.104초/추가촬영0/witness hash불변, CPU 정상1장 변환 확인.
+단위회귀179 tests PASS. 본10K 미재개/production 미변경. **18.7시간은 새 정책 확정 ETA가 아니다.**
+미확인 높이/복합·먼 secondary 혼합/동적 전체경로/장시간 비용 분포 검증이 남아 있다.
+[코드·검증 조건·실제 원본·비용·한계](261007_base5_static_rigid_ground_evidence.md).
+
+## v66 — 정적 자산별 초기 높이 후보·전체 ground gate
 
 2026-10-07. 정적 초기 배치에도 F2 저장 pivot와 원본 근처 MGeo 높이의 차이를 후보로
 적용했다. 122종 중69종 후보/53종 fallback이며 **접지 인증69종이 아니다.** 차량 공통+0.36m는

@@ -457,6 +457,7 @@ def main():
                 atomic_json(dest/'collision_history.json',dict(summary=safety,samples=collision_samples,
                     load_time_monotonic=load_time,pose_confirmed_monotonic=pose_confirmed))
                 meta['capture_runtime_ego']=e1
+                meta['capture_runtime_objects']=[objects_before,objects_after]
                 audit=audit_capture(dest,meta)
                 timing.mark('provenance_collision_and_sensor_audit')
                 motion_evidence=motion_capture_review(meta['runtime_actors'][0] if meta['runtime_actors'] else None,

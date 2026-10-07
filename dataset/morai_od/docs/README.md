@@ -4,6 +4,12 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **최신 v72: 원거리 rigid 정적 ground 검증·원본 재검사.** 동일 배치/실제 pose/hash와
+  전체 상대 R/T를 확인해 sparse ground를 보완. 거리44/97/후방88/대형53m4조건 통과,
+  같은4조건78.62→53.60초/재촬영4회 생략. 완료resume 추가촬영0/179tests PASS.
+  본10K·18.7h 확정 ETA 아님. [현재](BASE5_V2_CURRENT.md),
+  [근거·적용 제한](261007_base5_static_rigid_ground_evidence.md).
+
 - **최신 v66: 정적 자산별 높이 후보/전체actor ground gate.** 실제4조건3통과/1보류,
   근접Kona 정상으로 원거리 부유 확정 해석 철회. yaw-only 장거리 지면 보정 금지,
   원거리 좌표계/평면 오판 분리가 남음. 본10K/v59 명령 자동 실행 금지.

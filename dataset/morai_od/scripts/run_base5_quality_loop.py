@@ -15,6 +15,8 @@ from prepare_base5_empty_ground_probe import prepare as empty_probe
 from prepare_base5_probed_retry import prepare as probed_retry
 from prepare_base5_setup_budget_pilot import prepare as budget_retry
 import base5_motion_ground as motion_ground
+from prepare_base5_static_height_reference import prepare as static_height_reference
+from base5_static_ground_reference import prepare as static_reference_retry,reaudit_original
 
 
 def arrival_retry_eligible(result,manifest):
@@ -89,10 +91,13 @@ def validate_seed(path,original):
 
 
 def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed_capture=None):
+    started=time.monotonic()
     if output.exists() and not resume:raise FileExistsError('New quality-loop output required; use campaign resume')
     if not 1<=len(indices)<=4 or len(set(indices))!=len(indices):raise ValueError('Pilot limited to 1–4 cells')
     if seed_capture is not None and len(indices)!=1:raise ValueError('Seed recovery is single-cell only')
     output.mkdir(parents=True,exist_ok=True);lock=(output/'.quality.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    prior_elapsed=(gen.geo.load_json(output/'report.json').get('elapsed_sec',0.)
+        if resume and (output/'report.json').exists() else 0.)
     source_data=gen.geo.load_json(source);attempts=[];selected=[];unresolved=[]
     runner=Path(__file__).with_name('run_base5_capture.py')
     def stopped():return (output/'STOP').exists() or (stop_path is not None and stop_path.exists())
@@ -110,11 +115,12 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
         # children never enter this list or the conversion handoff.
         target=output/'selected_ledger.jsonl';temp=output/'.selected_ledger.tmp'
         temp.write_text(''.join(json.dumps(r,ensure_ascii=False)+'\n' for r in selected));temp.replace(target)
-        atomic_json(output/'report.json',dict(stage=stage,error=error,source_manifest_sha256=sha256(source),
+        elapsed=prior_elapsed+time.monotonic()-started
+        atomic_json(output/'report.json',dict(stage=stage,error=error,elapsed_sec=elapsed,source_manifest_sha256=sha256(source),
             attempts=attempts,selected=selected,unresolved=unresolved,bulk_capture=False))
         atomic_json(output/'status.json',dict(stage=stage,error=error,current=attempts[-1]['cell'] if attempts else None,
             requested=len(indices),finished=len(selected)+len(unresolved),accepted_candidate=len(selected),review=len(unresolved),
-            failed=int(stage=='halted'),updated_at=time.time(),eta_sec=0,results=[]))
+            failed=int(stage=='halted'),updated_at=time.time(),elapsed_sec=elapsed,eta_sec=0,results=[]))
     def capture(manifest,root,cell,kind):
         if stopped():raise RuntimeError('Quality-loop STOP requested')
         root.mkdir(parents=True,exist_ok=True)
@@ -122,6 +128,20 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
             safety_path=root/'shutdown_safety.json'
             if not safety_path.exists() or not gen.geo.load_json(safety_path).get('park_verified'):
                 raise RuntimeError('Interrupted/unsafe child requires manual safety recovery and a new campaign')
+            if resume:
+                session=gen.geo.load_json(root/'session_contract.json');repo=Path(__file__).resolve().parents[3]
+                rows,_=prepare_session(root,manifest,
+                    repo/'configs/network/ego_network_mr_base5_savesensordata_collision_local.json',
+                    repo/'configs/sensors/Sensor_competition_local.json',session.get('runner_options'))
+                if rows and rows[-1]['status'] in ('accepted_candidate','review'):
+                    row=rows[-1]
+                    if gen.geo.load_json(Path(row['capture_root'])/'audit.json')!=row['audit']:
+                        raise RuntimeError('Resumed capture audit differs from ledger')
+                    if is_collision_failure(row):validate_collision_failure(row)
+                    attempts.append(dict(cell=cell,kind=kind,status=row['status'],capture_root=str(root),
+                        reasons=row['audit']['review_reasons'],reused_completed_child=True,
+                        shutdown=gen.geo.load_json(safety_path)))
+                    save('running');return row
         cmd=[sys.executable,str(runner),'--manifest',str(manifest),'--output',str(root),'--limit','1']
         with (root.parent/(root.name+'.log')).open('w') as log:
             child=subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT)
@@ -226,11 +246,28 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                             and probe_meta.get('runtime_actors') else None)
                         terrain_deck=base/f'terrain_deck_{ordinal}';terrain_root=base/f'terrain_{ordinal}'
                         retry_deck=base/f'probed_deck_{ordinal}'
-                        probes=prepared(terrain_deck/'manifest.json',lambda:empty_probe(manifest,[0],terrain_deck,target_uid=target_uid))
-                        terrain_result=capture(probes,terrain_root,cell,'empty_terrain')
-                        if is_collision_failure(terrain_result):result=terrain_result;break
-                        next_manifest=prepared(retry_deck/'manifest.json',lambda:probed_retry(manifest,current,terrain_root,retry_deck))
-                        kind='independent_ground_retry'
+                        primary=probe_meta['runtime_actors'][0] if probe_meta.get('runtime_actors') else None
+                        if (reasons=={'actor_ground_plane_unverified'} and primary and target_uid==primary['unique_id']
+                                and primary['planned_center_distance_m']>20. and not motion_ground.moving_actors(probe_meta)):
+                            near_deck=base/f'static_near_deck_{ordinal}';near_root=base/f'static_near_{ordinal}'
+                            probes=prepared(near_deck/'manifest.json',lambda:static_height_reference(manifest,0,near_deck))
+                            reference=capture(probes,near_root,cell,'static_near_ground_reference')
+                            if is_collision_failure(reference):result=reference;break
+                            next_manifest=prepared(retry_deck/'manifest.json',lambda:static_reference_retry(manifest,near_root,retry_deck))
+                            kind='static_rigid_ground_retry'
+                            result=reaudit_original(result,next_manifest,base/f'reaudited_{ordinal}')
+                            attempts.append(dict(cell=cell,kind='static_rigid_raw_reaudit',capture_root=result['capture_root'],
+                                status=result['status'],reasons=result['audit']['review_reasons'],reused_sensor_capture=True,
+                                shutdown=gen.geo.load_json(near_root/'shutdown_safety.json')))
+                            manifest=next_manifest
+                            save('running')
+                            continue
+                        else:
+                            probes=prepared(terrain_deck/'manifest.json',lambda:empty_probe(manifest,[0],terrain_deck,target_uid=target_uid))
+                            terrain_result=capture(probes,terrain_root,cell,'empty_terrain')
+                            if is_collision_failure(terrain_result):result=terrain_result;break
+                            next_manifest=prepared(retry_deck/'manifest.json',lambda:probed_retry(manifest,current,terrain_root,retry_deck))
+                            kind='independent_ground_retry'
                     except ValueError as exc:
                         # Unsupported terrain is a quality deficit, not permission
                         # to waive the gate. Communication exceptions stay fatal.

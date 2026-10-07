@@ -138,6 +138,12 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
                 ground_config.get('max_range_m',20.),ground_config.get('maximum_gap_m',.15),
                 references=metadata.get('ground_probe_references'),runtime_ego=metadata.get('capture_runtime_ego'),
                 required_uids=ground_config.get('required_uids'))
+            if metadata.get('static_ground_references'):
+                from base5_static_ground_reference import apply_reference,ReferenceQualityError
+                try:apply_reference(ground,boxes,root,metadata)
+                except ReferenceQualityError as exc:
+                    ground['static_reference_quality_error']=str(exc)
+                    reasons.append('static_ground_reference_pose_or_view_mismatch')
             reasons.extend(ground['review_reasons'])
             from base5_ground_support import height_response_review
             ground['height_response']=height_response_review(ground,metadata)
