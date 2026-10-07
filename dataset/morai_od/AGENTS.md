@@ -35,9 +35,15 @@
    구v113/v114 output resume 금지. v115 새전체5K manifest는 아직 준비 전이다.
    2026-10-08 다음은 `docs/261008_base5_intersection_manual_ground_plan.md`다.
    이동 외관은 우선 사거리에서만 취득하는 설계 방향이며 음영 저격은 보류다.
-   MR의0_1_…0_10_는 수동 접지용, 1.json…10.json 보정본 대기다. 학습/접지 인증으로 사용하지 않는다.
-   자산별 pivot·경로의 실제 XYZ를 확인한 bounded lookup/live 검증 전에는 동적 검사를 끄지 않는다.
-   기존4171/829는 과거manifest 수량이다. 새bulk output에만 새정책을 적용한다.
+   수동10개/49waypoint·sidecar는 archive 후 MR에서 exact 파일만 정리했다.
+   v116 bounded lookup28종×두 구역56profile/132회 PASS다. actual XY 기반 높이를 보간하며
+   standalone5K는4846정적/154이동·122종 primary 최소4다. 기존4171/829는 이력이다.
+   새release require_covered_moving_paths=true는 경로 밖을 같은 quota로 초기 재생성한다.
+   all-editor movers만 terrain/static-reference 준비를 생략한다. 원본 검사/심한±40cm gap·Z step/
+   실제 이동·CollisionData·Ego 정지는 유지한다. 접지/지면 mesh/모든23종 외관 차이 인증은 아니다.
+   첫 횡단보도 사람 경로 끝이 짧아 running 방향 편향이 남는다. 무제한 외삽하지 않는다.
+   `docs/261008_base5_intersection_ground_evidence.md`의 최신 batch/resume/경로를 따른다.
+   새bulk output에만 새정책을 적용하며 본수집은 보고 후 사용자 승인이다.
 
 CURRENT/EVIDENCE/PLAN/HISTORICAL 상태를 구분한다. 현재 학습 전달본은
 `base3_online_highway_motion_v2`이며 nearest-state V1을 자동 선택하지 않는다.

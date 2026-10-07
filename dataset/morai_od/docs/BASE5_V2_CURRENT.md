@@ -1,35 +1,58 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-07 / 정적 single-capture QA v115. Base5 생성·수집·변환의 현재 진입점이다.
+2026-10-08 / 수동 사거리 경로 v116 + 정적 single-capture QA v115. 현재 진입점이다.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보존한다.
-현재 v115 코드로 본수집하려면 새 5K manifest/output이 필요하다. 구 v113 명령을 그대로 실행하지 않는다.
+새 v116 5K는 offline 생성 완료다. 아래 최신 경로만 사용하며 본수집 승인 전에는 실행하지 않는다.
 사용자가 현재 MR 기본값과 수집 환경을 Sunny 13시로 확인했다.
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
 
-## 2026-10-08 수동 waypoint 높이 보간 — v116 live 검증 진행
+## 2026-10-08 수동 waypoint 높이 보간 — v116
 
 사용자 보정본10개/49waypoint를 원본·EgoNetwork와 함께 hash 검증/백업하고 MR에서 해당 파일만 정리했다.
 `2_MN.json`은 없어 missing으로 기록했다. 실제 수동 XY를 횡단보도 축에 투영해 자산별 경로 높이를 보간한다.
 world actor Z와 내부 waypoint Y를 구분한다. 길이 밖·실제 경로에서1m 이상은 외삽하지 않는다.
 단일 선의 지면 mesh 인증이나 다른 구역 공통 ground로 해석하지 않는다.
 
-5자산×2횡단보도×양방향20회 PASS, 추가 Woman2 running4회 PASS다.
-20회 원본-capture wall166.180초/평균8.309초, 실제 Object Z와 경로 보간 높이 최대차2.694mm,
-측정 가능한 annotation 하단/지면 최대절대 gap8.583cm다. 원본 point·GT는 보존했다.
+5자산×2횡단보도×양방향20회, running4회, 평행±0.5m8회, 근접8회와
+다른 일반 사람23종×두 횡단보도×양방향92회, 총132회 모두 PASS다.
+실제 Object Z와 경로 높이 최대차3.415mm, 원본 annotation 하단/측정 지면 최대절대 gap8.583cm다.
+이는 Object가 지정 경로를 따르고 관측된 바닥과 대체로 정합한 근거이지 모든 지형의 접촉 인증은 아니다.
+평행 띠는 최대1m로 제한하고 실제 추가 live 검증은±0.5m 대표 사람 경로다. 원본 point·GT는 보존했다.
 추가 empty-terrain/static-reference/height recapture0이며 raw 자체 ground 검사만 사용한다.
 근거 부족/작은 오차는 warning, 신뢰 local-plane ±40cm 초과·Z 불연속·domain 밖은 review다.
 Ego road support/실제 정지·CollisionData·실제 움직임/GT/가시성 검사는 유지한다.
 
 자산 profile의 pending lookup은 calibration_only에서만 허용한다. 실제 양방향 근거와 source hash가
-있는 profile만 LIVE_VALIDATED로 따로 발행한다. 나머지 일반 사람23종의 경로 공유는 개별 live 검증 중이다.
+있는 profile만 LIVE_VALIDATED로 발행한다. 다른 사람23종도 각각 양방향 ground/Z/GT/가시성 검사를 통과했다.
+이 검사는23종 모두의 이동/정지 외관 차이를 비교한 실험은 아니다.
 신규 generator opt-in `dynamic_region=intersection-only-v116`은 범용 이동만 standing으로 바꾸며
-자산·family/거리 quota는 유지한다. lookup 미포함/범위 밖 경로는 기존 엄격한 준비로 남는다.
-기존 default config·구5K manifest/output은 덮어쓰지 않았고 새전체5K/본수집/학습은 미시작이다.
-최종 integration/추가 평행·근접 검증은 진행 중이다. 정적4171/이동829는 이전 manifest 수량이다.
+자산·family/거리 quota는 유지한다. 새 release의 `require_covered_moving_paths=true`는 lookup 미포함/범위 밖을
+초기 생성에서 같은 설계 셀로 다시 시도한다. capture 후 고비용 terrain 준비로 넘어가지 않는다.
+legacy/옵션 없는 config는 기존 엄격한 준비를 유지한다. all-editor movers만 quality loop·공유ROS batch에서
+terrain/static-reference 준비를 생략하며 원본 검사·실제 이동·충돌·Ego 정지는 유지한다.
 
-## 2026-10-08 이동 캡처 사거리 제한·수동 높이 보정 — 설계 이력
+새 전체5K OFFLINE 생성: 정적4846/실제 이동154장면,122종 primary 최소4회다.
+이동은 신호등 사거리 관측250장면 중154개이며 일반 차량·고정 외관/standing 관측도 이250개에 포함된다.
+이동 가능한 수집 대상은 일반 사람24+동물3+반려동물 동반1=28종이다. AI police1/NCAP는 standing이다.
+일반 mixed/정적 미션의 자산을 제거하지 않았고 family 총량·혼합/근접 quota·Sunny13시는 유지했다.
+첫 횡단보도 사람 수동 경로의+방향 끝이 짧아 running 역방향 사람 배치가 불가능하다.
+두 횡단보도 전체는 양방향을 포함하지만 방향 완전 균형을 주장하지 않는다. 경로 밖 높이 외삽으로 채우지 않는다.
+
+고정 경로:
+`~/morai_cap/base5_v2_261008/editor_ground_release56_v116/height_lookup_live.json`(28종×두 구역=56profile),
+`~/morai_cap/base5_v2_261008/editor_ground_final_5k_v116/scenarios_5k/manifest.json`,
+같은 상위 폴더의 `offline_audit.json`/`pilot_manifest.json`/`config.json`.
+기존 default config·구manifest/output은 덮어쓰지 않았다. 본5K 수집/학습은 미시작이다.
+대표 일반 생성기 batch·resume 결과는 [v116 근거](261008_base5_intersection_ground_evidence.md)를 따른다.
+대표12셀12승인/15capture·실패 재배치 포함134.079s, partial/완료resume PASS, 추가촬영0이다.
+CPU변환12프레임(train7/val5)·21GT, regression293개 PASS다.
+fresh transport의 정적 초근접 Man1 로드 누락은 원본review로 분리하고 같은quota 재배치로 보충했다.
+이동누락/통신이상은 완화하지 않았다. 기존fail raw와 원본annotation은 보존했다.
+정적4171/이동829 및 이전 ETA는 과거manifest 수량이다.
+
+## 2026-10-08 이동 캡처 사거리 제한·수동 높이 보정 — 보정 전 설계 이력
 
 사용자 방향: 이동 외관이 필요한 사람/동물/복합체만 우선 신호등 사거리 두 횡단보도에서 이동 캡처한다.
 범용/정적 회피에서는 정지 배치하며, NPC 및 검증된 rigid 외관도 정지 캡처 우선이다.
@@ -42,7 +65,7 @@ MR에 `0_<번호>_<자산>_<횡단보도>.json`+EgoNetwork sidecar로 설치했�
 다른 pivot에 무조건 공유하거나 경로 밖으로 외삽하지 않는다. 과거4171/829 수량·ETA는 이전 manifest 이력이다.
 [수동 작업·정책·후속 검증](261008_base5_intersection_manual_ground_plan.md)이 다음 단계다.
 
-## 정적 지면 QA 경량화와 실제 비용 — v115 우선
+## 정적 지면 QA 경량화와 실제 비용 — v115 유지 / 과거40셀 비용
 
 사용자 승인에 따라 정적 장면은 이미 취득한 LiDAR의 local ground 검사만 사용한다.
 `static-single-capture-advisory-v115`가 명시된 장면에만 적용하며, 모든 actor가 static/standing이어야 한다.
@@ -51,7 +74,8 @@ plane 미확인·중간 정도 annotation 높이 오차는 warning으로 보존�
 정적 지면 확인만을 위한 Ego 근접 이동·empty terrain·높이 재촬영은 하지 않는다.
 심각한 높이 실패는 부족분/기존 bounded same-quota replacement로 처리한다.
 가시성·GT 누락·Ego 최종 road footprint/정지·CollisionData·raw/provenance 계약은 유지한다.
-하나라도 이동 actor가 있거나 calibration_only이면 기존 엄격한 독립 ground/Z 경로를 유지한다.
+v116 editor-path proof가 없는 이동 actor/calibration은 기존 엄격한 독립 ground/Z 경로를 유지한다.
+v116 검증된 경로는 위 수동 높이 정책으로 대체한다.
 원본 센서/GT는 변경하지 않고 core ground 결과와 warning/최종 review를 따로 저장한다.
 
 고정seed261007115의 family-stratified 신규40장면: 39승인/1부족분,
