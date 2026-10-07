@@ -5,15 +5,36 @@ Base3 추가분이 아닌 독립 Base5이며 temporal/velocity head 학습용이
 **v45 본수집은 시작했다가 물리 충돌로 중단됐다. 체크포인트 32장은 보존했다.
 새 코드의 소량 검증은 통과했지만 본수집은 자동 재시작하지 않았다. 본 학습도 미시작이다.**
 
-## 최신 v81 — 먼 복합·Dog2 보완 / 본수집 전 batch 검증 중
+## 최신 v86 — 본수집 전 통합검증 / 새10K 오프라인 준비
 
 먼 BabyStroller1의 고유 rigid child를 anchor로 사용하되 모든 child GT 대응과
 전체 footprint ground support를 검증하도록 확장했다. 원본 raw/GT는 미수정이다.
 혼합Dog2는 near 실측 Z 재시도와 같은 quota의 ground 관찰 가능 후보 사전검사로
 최종1/1(40.68초) 통과했다. 관찰 위치 사전검사는 실제 지면·가시성·충돌 인증이 아니다.
-QA view를 가상 ROS session으로 취급하던 campaign 연결 오류도 수정했다.
-현재 생성기로 재생성한32셀에서 batch/pause/resume/CPU 변환 검증을 진행 중이다.
-단위회귀189 tests PASS. **본10K·학습 미재개, 최종 capacity/ETA는 아직 미확정**이다.
+QA view의 campaign 검증 및 다중 actor 연쇄 QA 파일 분류 오류도 수정했다.
+
+v82는32셀 중31승인/1부족분,486.30초였다. 8셀 pause 후 resume,
+완료resume 추가촬영0/2,332파일 hash·시간 불변,CPU31장/GT44개를 확인했다.
+남은 Ped_Pet1 동적 복합은 v84 near-empty terrain 보완으로1/1(37.51초) 통과했다.
+v85 마지막8조건도8/8(164.32초),CPU8장/GT18개/sanity오류0이다.
+이는 v82 단일 실행에서32/32였다는 뜻이 아니다.
+동적 review의 내부 재배치는 금지하고 outer quota round에서 새 지형 준비를 요구한다.
+최종 v86 동적2조건2/2(60.57초),단위회귀198 tests PASS다.
+
+새 `/home/luv/morai_cap/base5_v2_261007/scenarios_10k_v85/manifest.json`은
+현재 생성기/6초 natural-target/전체 actor ground 정책으로 생성했다.
+10,000 unique payload,train8614/val1386/test0,전수OFFLINE_PASS/오류0이다.
+검사기의 구 차량+0.36m 가정은 원본 F2·MGeo 후보 재계산 대조로 바로잡았다.
+**전체10K live 인증·본캡처·본학습은 아니다.** 구 halted output 강제resume 금지.
+최종 운용 후보는 `scenarios_10k_ordered_v86/manifest.json`이다.
+payload/spec/primary/split을 유지하고 정적8,354→동적1,646 순서만 변경했다.
+동적 준비가 필요한4셀 묶음에 정적 셀이 섞이는 overhead를 줄이려는 것이며
+시간 단축률을 실측 없이 확정하지 않는다. [최신 운영 명령](261006_base5_bulk_resume_v45.md#2026-10-07-최신-v86--새-manifest--본수집-승인-대기).
+이 최종 ordered manifest의 첫4셀 실제4/4(60.41초),전수OFFLINE_PASS/오류0도 확인했다.
+
+강화된 QA를 포함한 v82의 승인31장 기준 단순외삽은 **약43.6시간/실제 시도 raw약103.6GiB**다.
+coverage-biased 소량 표본이고 최종 정책 전체의 family-weighted ETA나 보장값이 아니다.
+구18.7시간을 현재 예상으로 쓰지 않는다. 대량 진행 시 누적 속도·부족분을 다시 계측한다.
 [실측 실패·보완·제한](261007_base5_prebulk_recovery_evidence.md).
 
 ## v77 — 보조 객체 원거리 검증·복합/동적 재확인

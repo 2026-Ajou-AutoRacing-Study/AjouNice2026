@@ -59,7 +59,8 @@ class SeedTest(unittest.TestCase):
             def poll(self):return 0
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);source=root/'source.json'
-            loop.atomic_json(source,dict(scenes=[dict(id='a',scenario_sha256='hash')]))
+            loop.atomic_json(root/'meta.json',dict(runtime_actors=[dict(motion='static')]))
+            loop.atomic_json(source,dict(scenes=[dict(id='a',scenario_sha256='hash',metadata=str(root/'meta.json'))]))
             row=dict(id='a',status='review',audit=dict(review_reasons=['actor_annotation_above_ground'],
                 ground_support=dict(actors=[dict(reason='actor_annotation_above_ground',plane=dict(coefficients=[0,0,0]))])))
             def prepare(manifest,captures,out):

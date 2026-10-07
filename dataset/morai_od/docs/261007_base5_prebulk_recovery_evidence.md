@@ -84,6 +84,45 @@ session safety는 유지한다. 이전 결과 파일 불변 및 이전 status �
   37.505초 통과. person/animal GT4개(LiDAR21/2/10/6point)를 보존했다.
   primary 실제 이동 약1.107m/s이며 모든 motion review는 비어 있다.
 
-v85 마지막8조건 회귀와 current10K **오프라인 scenario 준비**를 진행 중이다.
+## 최종 v85/v86 및10K 준비
+
+- v85:걷기·달리기·먼 유모차·Ped_Pet1·Deer1+Dog2·탑승자·후방 다중 차량·WoodBox
+  8조건8/8,164.323초.22개 child 종료 Park/unsafe0,CPU8장/GT18개/sanity오류0.
+  완료resume4.172초는 검증 전용이다.
+- 마지막 코드 점검에서 animated review→내부 placement replacement→지형 준비 없이
+  recapture할 수 있는 경로를 제거했다. review 근거를 부족분으로 남기고 outer quota
+  round가 같은 spec/primary/split의 새 배치를 새 terrain/static calibration부터 준비한다.
+  통신/Park/근거 손상 오류를 quality deficit로 덮지 않는다. seed moving review에서
+  내부 replacement/추가 Popen이 없음을 단위 재현했다.
+- 최종 v86 Ped_Pet1·Deer1+Dog2 동적2/2,60.568초,CPU2장/GT6개.
+  캡처 요청 직전0.5초 이후 연속 관측의 최대Z step은Ped_Pet1 약0.73mm,
+  Deer1 약0.45mm,Dog2 약1.59mm였다. Dog2 전체 준비 trace에는 요청5.6초 이전
+  약0.348m 차이도 있어 전체 준비 과정의 Z jump0이라고 주장하지 않는다.
+  UID 재사용/로드 전환을 포함한 준비 trace와 캡처 직전 안정 구간을 구분하며,
+  실제 캡처의 ground/모든 actor motion/Park 검사는 통과했다.
+- 마지막 단위회귀198 tests PASS.
+- current10K는 `scenarios_10k_v85/manifest.json`에 생성했다.
+  highway3000/roundabout700/other_vehicle300/obstacle3000/pedestrian_related2500/background500,
+  unique payload10000,train8614/val1386/test0다.
+  최초 offline_audit의1569개 오류는 검사기가 자산별 saved-height initializer 대신
+  차량 공통+0.36m만 기대한 불일치였다. 원본 F2·MGeo에서 후보를 독립 재계산해
+  metadata와 비교하고 실제 scenario XY/Z도 검사하도록 수정했다.
+  `offline_audit_current.json`:OFFLINE_PASS/오류0. 최초 실패 보고서도 보존한다.
+- `scenarios_10k_ordered_v86/manifest.json`은 모든 source row를 그대로 유지하고
+  정적/정지8354→동적1646 순서만 변경한 최종 운용 후보다. 전수OFFLINE_PASS/오류0,
+  같은 manifest의 첫4셀 실제4/4(60.408초)도 통과했다. 동적 객체를 정지시키거나
+  별도 quota를 빼서 속도를 높인 것이 아니다. 정적/동적이 섞여 정적 셀도 isolated
+  motion 준비 경로로 보내던 batch overhead를 줄이려는 순서 개선이다.
+  순서 변경의 실제10K 단축률은 아직 측정하지 않았다.
+
 본10K 센서 캡처는 승인/시작하지 않았다. v82(31)+v84(1)를 한 버전에서32/32로
 실행한 것처럼 표기하지 않는다. 구 v82를 새 capture 코드로 강제resume하지 않는다.
+전수 오프라인 검사도 전수 live 인증이 아니며 각 scene의 실제 ground/visibility/
+motion/CollisionData/Park 검사와 부족분 분리는 본수집에서도 계속 필요하다.
+
+v82 parent wall/승인31장으로 단순외삽하면10K 약43.576시간이다.
+실제 capture attempt의 raw bytes/승인31장으로는 약103.558GiB다.
+이는 QA/calibration/실패 시도를 포함하지만 coverage-biased 표본이며 최종v86의
+family-weighted ETA나 보장값이 아니다. 성공 capture의 duration만으로 계산한14–18시간을
+campaign ETA로 쓰지 않는다. 구18.7시간은 현재 정책 예상에서 폐기한다.
+장시간 MR 저하/어려운 quota/후처리 cache 및 실제 새 정책 비용은 별도 계측이 필요하다.

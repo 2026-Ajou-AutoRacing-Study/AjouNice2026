@@ -252,3 +252,43 @@ python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
 후보를 보강한 뒤, 원거리 cross-view 지면 검사에서 오판 가능성을 발견했다. 현재 본10K
 readiness가 아니므로 구8354셀 deck 또는 중단 output을 그대로 본수집/resume하지 않는다.
 `BASE5_V2_CURRENT.md`의 v66과 `261007_base5_static_height_evidence.md`를 먼저 읽는다.
+
+## 2026-10-07 최신 v86 — 새 manifest / 본수집 승인 대기
+
+이 절이 위 v45/v59 실행 경로를 대체한다. **10K 실캡처는 아직 시작하지 않았다.**
+최신 근거는 [CURRENT](BASE5_V2_CURRENT.md)와
+[본수집 전 통합 검증](261007_base5_prebulk_recovery_evidence.md)이다.
+network/master/guarded bridge/Capture Mode 설정은 위 터미널1·2와 동일하다.
+수집 중 코드·config·manifest를 변경하지 않는다.
+
+새10K는 모든 quota를 유지하고 정적/정지8,354셀→동적1,646셀 순서로 묶었다.
+동적 객체를 정지 객체로 바꾸지 않았다. 각 payload/spec/primary/split/hash는 순서 변경 전과 동일하다.
+계속 raw Instance GT/lidar1_camera0/4클래스/ROI[-100,-30,-3,100,30,2]/Ego Park다.
+ground 부족은 실측 near witness로 보완하며 가시성/충돌/지형을 면제하지 않는다.
+동적 review의 보충 장면은 반드시 새 motion terrain/static 준비를 거친다.
+
+아래는 **사용자가 본수집을 별도로 지시한 뒤 실행할 명령**이다. 준비 검증 요청만으로
+이 명령을 실행하지 않는다. 구 collection_10k_v45 또는 halted output에는 resume하지 않는다.
+
+```bash
+ajou
+python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
+  --manifest "$HOME/morai_cap/base5_v2_261007/scenarios_10k_ordered_v86/manifest.json" \
+  --output "$HOME/morai_cap/base5_v2_261007/collection_10k_v86" \
+  --limit 10000 --chunk-size 4 --approve-bulk-capture --resume
+```
+
+대시보드는 같은 새 collection output을 지정한다. 이전 pilot의 완료 화면을 본수집 화면으로
+혼동하지 않는다. 아래 포트가 사용 중이면 기존 화면의 output을 확인하거나 빈 포트를 선택한다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
+  --capture-root "$HOME/morai_cap/base5_v2_261007/collection_10k_v86" --port 8086
+```
+
+PAUSE/STOP/안전한 resume/완료 검증 전용 resume/별도 deficit 보충 계약은 위 설명을 따른다.
+새 manifest의10K OFFLINE_PASS는 전수 live 인증이 아니다.
+지금은 구18.7h 예상 시간을 사용하지 않는다. 강화된 QA를 포함한32셀 표본의
+parent wall/승인 수 단순외삽은 약43.6h이며, 정적 우선 순서의 실제10K 시간을 측정한 값도
+완료 보장값도 아니다. 시작 후 active wall/승인 수/부족분/저장공간을 다시 계측해야 한다.

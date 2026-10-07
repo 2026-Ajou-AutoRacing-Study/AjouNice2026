@@ -8,6 +8,11 @@ from pathlib import Path
 import generate_base5_independent as gen
 
 
+def bounded_vehicle_pose_matches(pos,expected,initializer=None):
+    offset=initializer['pivot_height_candidate_m'] if initializer and initializer.get('usable') else .36
+    return all(abs(pos[k]-expected[k])<=1e-5 for k in ('x','y')) and abs(pos['z']-expected['z']-offset)<=1e-5
+
+
 def audit(manifest_path):
     m=json.loads(Path(manifest_path).read_text()); families=Counter();missions=Counter();bins=Counter()
     groups=Counter();assets=Counter();roles=Counter();splits=Counter();retries=[];unknown=Counter();hashes=set();errors=[]
@@ -17,6 +22,7 @@ def audit(manifest_path):
     primary_assets=Counter();primary_roles=Counter();motion_counts=Counter();motion_decisions=Counter()
     inventory={r['data_id']:r for r in gen.geo.load_json(gen.catalog.DEFAULT_CATALOG)['assets']}
     appearance=gen.geo.load_json(gen.APPEARANCE_POLICY)
+    height_ctx=None;height_assets=None
     for entry in m['scenes']:
         s=json.loads(Path(entry['scenario']).read_text());meta=json.loads(Path(entry['metadata']).read_text());r=meta['spec']
         digest=gen.geo.sha256(Path(entry['scenario']))
@@ -68,8 +74,17 @@ def audit(manifest_path):
                     if not 0<=distance<=c['arc'][-1]: errors.append((entry['id'],'sample NPC arc bounds'))
                     expected=gen.geo.continuous_route_pose_at_arc(c['route'],c['arc'],distance)
                     pos=actor['initPosition']['pos']
-                    # set_static_vehicle_actor preserves the existing +0.36m spawn-height contract.
-                    if any(abs(pos[k]-expected[k])>1e-5 for k in ('x','y')) or abs(pos['z']-expected['z']-.36)>1e-5:
+                    initializer=a.get('static_height_initializer')
+                    if initializer is not None:
+                        # Recompute the candidate from F2/map sources, not a self-declared Z exemption.
+                        from base5_static_height import saved_height_candidate
+                        if height_ctx is None:
+                            height_ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
+                            height_assets={asset['data_id']:asset for pool in height_ctx['pools'].values() for asset in pool}
+                        expected_initializer=saved_height_candidate(height_assets[a['data_id']],height_ctx)
+                        if initializer!=expected_initializer:
+                            errors.append((entry['id'],'static height initializer differs from sources'))
+                    if not bounded_vehicle_pose_matches(pos,expected,initializer):
                         errors.append((entry['id'],'scenario NPC differs from bounded route'))
                     if abs(actor['initPosition']['initLinkRatio']-expected['point_ratio'])>1e-6:
                         errors.append((entry['id'],'sample NPC original link ratio'))

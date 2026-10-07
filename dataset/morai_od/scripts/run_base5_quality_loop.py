@@ -265,6 +265,15 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                     lambda:budget_retry(manifest,[0],base/'budget9_deck',9.))
                 result=capture(manifest,base/'budget9',cell,'natural_budget9_retry')
                 if result['status']=='failed':raise RuntimeError('9-second target retry failed; no further loads')
+            if result['status']=='review':
+                current_meta=gen.geo.load_json(Path(gen.geo.load_json(manifest)['scenes'][0]['metadata']))
+                if motion_ground.moving_actors(current_meta):
+                    # A new animated placement needs a fresh terrain/static calibration.
+                    # Let the outer same-quota campaign round re-enter that preparation,
+                    # rather than send an ungrounded replacement to the capture runner.
+                    unresolved.append(dict(cell=cell,reasons=result['audit']['review_reasons'],
+                        next_policy='same-quota replacement with fresh motion calibration'))
+                    save('running');continue
             # Three actor witnesses, measured height, visibility replacement,
             # and its fresh witness. Still bounded; every raw failure survives.
             for ordinal in range(6):

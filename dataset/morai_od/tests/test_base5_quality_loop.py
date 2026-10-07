@@ -10,6 +10,20 @@ from build_base5_bevfusion_infos import convert
 
 
 class QualityLoopTest(unittest.TestCase):
+    def test_moving_review_returns_to_quota_round_before_ungrounded_recapture(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);meta=dict(runtime_actors=[dict(motion='walking')])
+            loop.atomic_json(root/'meta.json',meta)
+            loop.atomic_json(root/'manifest.json',dict(config={},scenes=[dict(id='a',metadata=str(root/'meta.json'))]))
+            row=dict(id='a',status='review',audit=dict(review_reasons=['primary_no_sensor_evidence']))
+            with patch.object(loop,'validate_seed',return_value=(row,root,dict(park_verified=True))), \
+                 patch.object(loop.subprocess,'Popen') as popen,patch.object(loop,'replacement') as replacement:
+                self.assertEqual(loop.execute(root/'manifest.json',[0],root/'out',seed_capture=root/'seed'),0)
+            popen.assert_not_called();replacement.assert_not_called()
+            report=json.loads((root/'out/report.json').read_text())
+            self.assertEqual(report['selected'],[])
+            self.assertEqual(report['unresolved'][0]['next_policy'],'same-quota replacement with fresh motion calibration')
+
     def test_ground_replacement_prefilters_unobservable_candidate_without_changing_quota(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);meta=dict(retry=0,spec=dict(family='pedestrian_related',role='left'),split='train',

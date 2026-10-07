@@ -4,9 +4,10 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
-- **최신 v81: 먼 복합/Dog2 보완·campaign QA 연결.** 원본/child GT 보존,
-  Dog2 동일 quota1/1(40.68초),189 tests PASS. current32셀 batch 검증 중,
-  본10K 미재개/새 ETA 미확정. [현재](BASE5_V2_CURRENT.md),
+- **최신 v86: 본수집 전 recovery·통합검증 완료.** 32셀31승인/1부족분 후
+  Ped_Pet1 near terrain 보완1/1,최종8/8·동적2/2·ordered4/4·198tests PASS.
+  새10K 전수OFFLINE_PASS/실캡처 미시작. 구18.7h ETA 폐기,시간 비용 증가 명시.
+  [현재](BASE5_V2_CURRENT.md),
   [근거·제한](261007_base5_prebulk_recovery_evidence.md).
 
 - **최신 v77: static secondary 지면 검증/복합·동적 확인.** 초기 혼합2/4→최종2/2,
