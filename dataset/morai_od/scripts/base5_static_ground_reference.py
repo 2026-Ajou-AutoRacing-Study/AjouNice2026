@@ -182,6 +182,8 @@ def validate_reaudit_output(output):
     meta=json.loads((output/'metadata.json').read_text());proof=meta['static_ground_reaudit']
     source=Path(proof['source_capture_root']);result=json.loads((output/'reaudit_result.json').read_text())
     if result['raw_source_capture']!=str(source):raise RuntimeError('Re-audit source changed')
+    if json.loads((source/'metadata.json').read_text()).get('static_ground_reaudit'):
+        validate_reaudit_output(source)
     for name,key in (('metadata.json','source_metadata_sha256'),('audit.json','source_audit_sha256')):
         if sha256(source/name)!=proof[key]:raise RuntimeError('Re-audit original proof changed')
     if sha256(source/'scenario.json')!=result['scenario_sha256']:raise RuntimeError('Re-audit source scenario changed')
@@ -227,12 +229,12 @@ def reaudit_original(row,manifest,output):
     metadata['static_ground_reaudit']=dict(source_capture_root=str(source),
         source_metadata_sha256=sha256(source/'metadata.json'),source_audit_sha256=sha256(source/'audit.json'),
         raw_sha256={str(p.relative_to(source)):sha256(p) for p in source.rglob('*')
-            if p.is_file() and p.name not in ('metadata.json','audit.json')},
+            if p.is_file() and p.name not in ('metadata.json','audit.json','reaudit_result.json')},
         policy='same immutable sensor bytes; new proof/audit view; no second sensor capture')
     output.mkdir(parents=True)
     for p in source.rglob('*'):
         relative=p.relative_to(source)
-        if not p.is_file() or relative in (Path('metadata.json'),Path('audit.json')):continue
+        if not p.is_file() or relative in (Path('metadata.json'),Path('audit.json'),Path('reaudit_result.json')):continue
         dest=output/relative;dest.parent.mkdir(parents=True,exist_ok=True)
         os.link(p,dest)
     from base5_capture_audit import audit_capture

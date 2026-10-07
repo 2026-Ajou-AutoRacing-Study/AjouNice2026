@@ -5,13 +5,41 @@ from unittest.mock import patch
 from pathlib import Path
 import numpy as np
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from base5_static_ground_reference import transfer_plane,matching_status,actor_payload,prepare,validate_view_transform,apply_reference,reaudit_original,select_anchor,validate_components
+from base5_static_ground_reference import transfer_plane,matching_status,actor_payload,prepare,validate_view_transform,apply_reference,reaudit_original,select_anchor,validate_components,validate_reaudit_output
 from base5_capture_safety import atomic_json,sha256
 from base5_capture_audit import rotation_matrix
 from prepare_base5_static_height_reference import prepare as nearby_reference
 
 
 class StaticRigidReferenceTest(unittest.TestCase):
+    def test_secondary_reaudit_keeps_prior_result_as_proof_not_sensor_raw(self):
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=root/'source';source.mkdir()
+            missing=dict(review_reasons=['actor_ground_plane_unverified'])
+            accepted=dict(review_reasons=[])
+            atomic_json(source/'audit.json',missing);atomic_json(source/'metadata.json',{})
+            atomic_json(source/'scenario.json',{})
+            atomic_json(source/'telemetry.json',dict(objects_before={},objects_after={},ego_before={}))
+            atomic_json(root/'request.json',dict(static_ground_references=[1]))
+            digest=sha256(source/'scenario.json')
+            atomic_json(root/'manifest.json',dict(scenes=[dict(id='one',metadata=str(root/'request.json'),scenario_sha256=digest)]))
+            row=dict(id='raw',status='review',audit=missing,capture_root=str(source),scenario_sha256=digest)
+            def audit(_,meta):return missing if len(meta['static_ground_references'])==1 else accepted
+            with patch('base5_capture_audit.audit_capture',side_effect=audit):
+                first=reaudit_original(row,root/'manifest.json',root/'first')
+                first_result_sha=sha256(root/'first'/'reaudit_result.json')
+                atomic_json(root/'request.json',dict(static_ground_references=[1,2]))
+                second=reaudit_original(first,root/'manifest.json',root/'second')
+                self.assertEqual(second['status'],'accepted_candidate')
+                self.assertEqual(sha256(root/'first'/'reaudit_result.json'),first_result_sha)
+                proof=json.loads((root/'second'/'metadata.json').read_text())['static_ground_reaudit']
+                self.assertNotIn('reaudit_result.json',proof['raw_sha256'])
+                self.assertEqual(validate_reaudit_output(root/'second'),second)
+                atomic_json(root/'first'/'reaudit_result.json',dict(first,status='accepted_candidate'))
+                with self.assertRaisesRegex(RuntimeError,'status'):
+                    validate_reaudit_output(root/'second')
+
     def test_composite_anchor_and_correspondence_do_not_depend_on_row_order(self):
         import copy
         boxes=[dict(raw_class=c,center=np.array(p,float),size=np.array(s,float),rotation_rpy=[0,0,0])

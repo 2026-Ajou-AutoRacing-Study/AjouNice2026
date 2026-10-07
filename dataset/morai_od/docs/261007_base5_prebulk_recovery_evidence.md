@@ -45,4 +45,18 @@ downward input-Z 후보를 원래 장면에 적용한다. 누적75cm 한도, 원
 32-cell capacity deck은 current generator로 재생성하는 opt-in을 추가했다.
 원래 spec/primary asset/split/quota를 유지하고 현재 natural-target 정책을 사용한다.
 10K 전체를 새로 만들거나 캡처하지 않는다. 최종 묶음·pause/resume·CPU 변환 결과는
-후속 검증 완료 후 아래에 기록한다. 단위회귀189 tests PASS.
+후속 검증 완료 후 아래에 기록한다.
+
+## v82 다중 actor 연쇄 QA 재현·수정
+
+`prebulk_batch_v81`은6장 승인 뒤 후방 K5+Sonata 장면에서 `Re-audit raw changed`로
+117.06초에 halt했다. 두 near session 종료 Park는 모두 확인됐다. 두 번째 actor의
+ground witness를 연결할 때 첫 QA view의 `reaudit_result.json`까지 raw 목록으로
+복사했으나, 다음 QA 결과도 같은 파일명에 저장해 raw hash 비교가 실패했다.
+센서 변경이나 MORAI 충돌이 아닌 QA 산출물 분류 오류다.
+
+`reaudit_result.json`을 raw 목록/하드링크 복사에서 제외하고 source가 QA view면
+이전 QA 근거를 재귀 검증한다. 이전 sensor/raw·metadata/audit hash 검사와 실제
+session safety는 유지한다. 이전 결과 파일 불변 및 이전 status 위변조 거부를
+단위 재현했다. 최종190 tests PASS. halted 출력은 수정/resume하지 않고 보존하며,
+새 `prebulk_batch_v82`에서32셀 batch·8셀 pause·resume 검증을 시작했다.
