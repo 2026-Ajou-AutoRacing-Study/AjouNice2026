@@ -292,3 +292,8 @@ PAUSE/STOP/안전한 resume/완료 검증 전용 resume/별도 deficit 보충 �
 지금은 구18.7h 예상 시간을 사용하지 않는다. 강화된 QA를 포함한32셀 표본의
 parent wall/승인 수 단순외삽은 약43.6h이며, 정적 우선 순서의 실제10K 시간을 측정한 값도
 완료 보장값도 아니다. 시작 후 active wall/승인 수/부족분/저장공간을 다시 계측해야 한다.
+# 2026-10-07 최신 목표 변경: 직접5K / 아직 본수집 전
+
+[직접5K최신계획](261007_base5_direct_5k_current_plan.md)을먼저읽는다.
+구v86/v45의10Kmanifest·limit10000명령을이번수집에사용하지않는다.
+새5K최종manifest·초근접보완은아직준비중이며기존output에새config를섞어resume하지않는다.

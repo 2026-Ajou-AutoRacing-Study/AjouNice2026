@@ -17,7 +17,7 @@ import base5_avoidance_geometry as avoidance
 import base5_population_budget as population
 from base5_reference_frames import references
 
-CONFIG = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_independent_v2.json'
+CONFIG = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_independent_5k_sunny11.json'
 GEOMETRY = geo.PROJECT_ROOT/'dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json'
 LIVE_GEOMETRY = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_stationary_geometry_mr_261006.json'
 APPEARANCE_POLICY = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_asset_appearance_policy_v1.json'

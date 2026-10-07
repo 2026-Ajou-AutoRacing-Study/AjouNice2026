@@ -16,7 +16,7 @@ from PIL import Image
 
 class IndependentTest(unittest.TestCase):
     def test_one_way_runtime_payload_is_two_points_and_low_speed(self):
-        config=gen.geo.load_json(gen.CONFIG);config['capture']['dynamic_path_policy']='one-way-slow-v1'
+        config=gen.geo.load_json(gen.CONFIG.with_name('base5_independent_v2.json'));config['capture']['dynamic_path_policy']='one-way-slow-v1'
         ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO);row=gen.specs(config)[3]
         for attempt in range(512):
             try:scene,meta=gen.build(row,config,ctx,attempt);break
@@ -41,7 +41,7 @@ class IndependentTest(unittest.TestCase):
                 self.assertTrue(bounds[0]<=math.hypot(radius+t*(end['x']-radius),t*end['y'])<bounds[1])
 
     def test_ai_person_retained_without_invented_waypoint_motion(self):
-        config=gen.geo.load_json(gen.CONFIG);ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
+        config=gen.geo.load_json(gen.CONFIG.with_name('base5_independent_v2.json'));ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
         row=gen.specs(config)[81]
         for attempt in range(512):
             try:scene,meta=gen.build(row,config,ctx,attempt);break
@@ -90,13 +90,14 @@ class IndependentTest(unittest.TestCase):
                 self.assertAlmostEqual(p['point_ratio'],end['pointIdx']/(len(links[end['linkIdx']]['points'])-1))
     def test_exact_quota_and_repeatability(self):
         c=gen.geo.load_json(gen.CONFIG);rows=gen.specs(c)
-        self.assertEqual(rows,gen.specs(c));self.assertEqual(len(rows),10000)
+        self.assertEqual(rows,gen.specs(c));self.assertEqual(len(rows),c['target_scenes'])
         self.assertEqual(Counter(r['family'] for r in rows),c['families'])
         self.assertEqual(Counter(r['family'] for r in rows if r['mission']),{k:v for k,v in c['mission_counts'].items() if v})
-        self.assertEqual(len({r['seed'] for r in rows}),10000)
+        self.assertEqual(len({r['seed'] for r in rows}),c['target_scenes'])
         self.assertEqual(Counter(r['subfamily'] for r in rows if r['subfamily']),c['ped_subfamilies'])
         self.assertTrue(all(r['motion']=='standing' for r in rows if r['subfamily']=='dummy'))
-        for family,total in (('obstacle',1200),('other_vehicle',100)):
+        for family in ('obstacle','other_vehicle'):
+            total=c['mission_counts'][family]
             subset=[r for r in rows if r['family']==family and r['mission']]
             self.assertEqual(Counter(r['avoidance_phase'] for r in subset),
                 dict(approach=total//5,entry=total//5,alongside=total*2//5,clearing=total//5))

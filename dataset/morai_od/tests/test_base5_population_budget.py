@@ -65,13 +65,13 @@ class PopulationTests(unittest.TestCase):
         generic=[r for r in rows if not r['mission'] and r['family']!='background']
         from collections import Counter
         self.assertEqual(Counter(r['population_mode'] for r in generic),
-            dict(generic_single=1800,generic_regular=3000,generic_dense=1200))
-        self.assertEqual(sum(r['family']=='background' for r in rows),500)
-        self.assertEqual(sum(r['mission'] for r in rows),3500)
+            dict(generic_single=900,generic_regular=1500,generic_dense=600))
+        self.assertEqual(sum(r['family']=='background' for r in rows),250)
+        self.assertEqual(sum(r['mission'] for r in rows),1750)
         self.assertEqual(rows,gen.specs(gen.geo.load_json(gen.CONFIG)))
         missions=[r for r in rows if r['mission']]
         self.assertTrue(all(r['population_mode']=='mission_situation' and 'population_budget_bounds' not in r for r in missions))
-        self.assertEqual(Counter(r['actors'] for r in missions if r['family']=='obstacle'),{1:900,2:240,3:60})
+        self.assertEqual(Counter(r['actors'] for r in missions if r['family']=='obstacle'),{1:450,2:120,3:30})
 
 
 if __name__=='__main__':unittest.main()
