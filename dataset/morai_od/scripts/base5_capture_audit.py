@@ -133,6 +133,8 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     ground_config=metadata.get('ground_support_check',{})
     from base5_static_ground_policy import lightweight_static, static_decision
     light_static=lightweight_static(metadata)
+    from base5_intersection_ground import explicit_manual_mode, ground_decision
+    manual_ground=explicit_manual_mode(metadata)
     if ground_config.get('enabled'):
         if metadata.get('lidar_to_ego') is None:reasons.append('ground_probe_missing_calibration')
         else:
@@ -147,7 +149,10 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
                 except ReferenceQualityError as exc:
                     ground['static_reference_quality_error']=str(exc)
                     reasons.append('static_ground_reference_pose_or_view_mismatch')
-            if light_static:
+            if manual_ground:
+                ground['manual_policy_decision']=ground_decision(ground)
+                reasons.extend(ground['manual_policy_decision']['review_reasons'])
+            elif light_static:
                 ground['static_policy_decision']=static_decision(ground)
                 reasons.extend(ground['static_policy_decision']['review_reasons'])
             else:

@@ -33,6 +33,10 @@ def validate_motion_ground(meta,scene):
     for actor in moving_actors(meta):
         path=actor.get('motion_path',{})
         proof=path.get('ground_path_evidence',{})
+        from base5_intersection_ground import POLICY as EDITOR_POLICY, validate_actor
+        if proof.get('policy')==EDITOR_POLICY:
+            validate_actor(actor,meta,scene)
+            continue
         if proof.get('policy')!='independent-terrain-sampled-v46':
             raise ValueError('Dynamic path lacks independent ground preparation: '+actor['name'])
         for item in proof.get('files',[]):

@@ -397,6 +397,9 @@ def validate_natural_path_roi(points,target,center,ego,road_yaw):
 
 
 def population_appearance(asset,requested,row,index,active_count,config,policy):
+    from base5_intersection_placement import regional_motion
+    regional=regional_motion(asset,requested,row,config)
+    if regional is not None:return regional
     motion,decision=appearance_motion(asset,requested,policy)
     maximum=config['capture'].get('generic_max_animated_actors')
     if maximum is not None and not 1<=maximum<=8:
@@ -606,6 +609,9 @@ def build(row,config,ctx,attempt=0):
     ego=dict(ego,z=ego_support['height_m'])
     scene=copy.deepcopy(ctx['template']); geo.clear_actor_lists(scene)
     geo.set_ego_pose(scene['egoVehicle'],ego,initial_speed_kph=0.)
+    if config['capture'].get('dynamic_region')=='intersection-only-v116':
+        from prepare_base5_intersection_manual_ground import park
+        park(scene['egoVehicle'])
     geo.zero_vector(scene['egoVehicle']['initPosition'].get('vehicleSaveData',{}).get('vehicle',{}).get('lastVelocity'))
     ea=math.radians(ego['yaw'])
     footprint=rectangle([ego['x']+1.35*math.cos(ea),ego['y']+1.35*math.sin(ea)],[4.8,2.0],ego['yaw'])
@@ -724,12 +730,15 @@ def build(row,config,ctx,attempt=0):
                     ma=math.radians(mission_target['yaw']);direction=(math.cos(ma),math.sin(ma))
                 motion_path=natural_target_path(pose,center,ego,[lower,upper],actor_motion,asset,
                     config['capture'].get('natural_setup_budget_sec',9.),direction=direction)
+                from base5_intersection_placement import apply_path
+                motion_path,manual_path_decision=apply_path(motion_path,asset,
+                    actor_crossing['crosswalk_id'] if actor_crossing else None,config,ctx)
                 # Rotate the target pivot before departure so the geometric quota remains exact.
                 pa=math.radians(motion_path['departure_yaw_deg']);pose=dict(pose,yaw=motion_path['departure_yaw_deg'])
                 center=[pose['x']+math.cos(pa)*off[0]-math.sin(pa)*off[1],pose['y']+math.sin(pa)*off[0]+math.cos(pa)*off[1]]
                 box=rectangle(center,size,pose['yaw']);gap=footprint.distance(box)
                 if gap<minimum_gap or any(box.distance(other)<.20 for other in footprints):raise ValueError('Rotated natural target clearance failure')
-                end=motion_path['points'][1]
+                end=motion_path['points'][-1]
                 end_center=[center[0]+end['x']-pose['x'],center[1]+end['y']-pose['y']]
                 validate_natural_path_roi(motion_path['points'],motion_path['target_position'],center,ego,base['yaw'])
             elif policy in ('bounded-shuttle-v1','one-way-slow-v1'):
@@ -791,6 +800,8 @@ def build(row,config,ctx,attempt=0):
         if asset['source_list']=='aiPedstrianList':actor_records[-1]['motion_capability_note']='AI destination API unvalidated; retained as standing, not removed'
         if motion_path is not None:
             actor_records[-1]['motion_path']=motion_path
+            if motion_path['policy']=='natural-target-v1':
+                actor_records[-1]['manual_path_decision']=manual_path_decision
             if motion_path['policy'] in ('one-way-slow-v1','natural-target-v1'):
                 actor_records[-1]['motion_capability_note']='Requested walking/running category is not animation certification; actual translation verified live.'
         if sample_placement is not None: actor_records[-1]['sample_highway_placement']=sample_placement
@@ -822,7 +833,8 @@ def build(row,config,ctx,attempt=0):
         avoidance_ref['origin']=row.get('avoidance_origin','mission_static_avoidance')
         avoidance_ref['actual_surface_gap_m']=actor_records[0]['planned_surface_clearance_m']
         meta['avoidance_observation']=avoidance_ref
-    return scene,meta
+    from base5_intersection_placement import finish_metadata
+    return scene,finish_metadata(meta)
 
 def generate(config,output,start,count,runtime=geo.DEFAULT_RUNTIME_ASSET_DIR,mgeo=geo.DEFAULT_MGEO):
     output=Path(output)

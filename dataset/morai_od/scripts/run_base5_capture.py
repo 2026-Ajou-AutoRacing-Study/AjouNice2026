@@ -560,6 +560,10 @@ def main():
                     actor_samples,capture_requested_at-1.,height_reference if len(meta['runtime_actors'])==1 else None,
                     ground_support_verified=a['unique_id'] in ground_verified))
                     for a in meta['runtime_actors']]
+                from base5_intersection_ground import POLICY as EDITOR_POLICY, vertical_review
+                for a,evidence in zip(meta['runtime_actors'],vertical_actors):
+                    if a.get('motion_path',{}).get('ground_path_evidence',{}).get('policy')==EDITOR_POLICY:
+                        evidence.update(vertical_review(a,actor_samples,capture_requested_at-1.))
                 audit['vertical_motion_actors']=vertical_actors
                 for evidence in vertical_actors:audit['review_reasons'].extend(evidence['review_reasons'])
                 if meta.get('yaw_probe'):

@@ -8,7 +8,28 @@ v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보�
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
 
-## 2026-10-08 이동 캡처 사거리 제한·수동 높이 보정 — PLAN 우선
+## 2026-10-08 수동 waypoint 높이 보간 — v116 live 검증 진행
+
+사용자 보정본10개/49waypoint를 원본·EgoNetwork와 함께 hash 검증/백업하고 MR에서 해당 파일만 정리했다.
+`2_MN.json`은 없어 missing으로 기록했다. 실제 수동 XY를 횡단보도 축에 투영해 자산별 경로 높이를 보간한다.
+world actor Z와 내부 waypoint Y를 구분한다. 길이 밖·실제 경로에서1m 이상은 외삽하지 않는다.
+단일 선의 지면 mesh 인증이나 다른 구역 공통 ground로 해석하지 않는다.
+
+5자산×2횡단보도×양방향20회 PASS, 추가 Woman2 running4회 PASS다.
+20회 원본-capture wall166.180초/평균8.309초, 실제 Object Z와 경로 보간 높이 최대차2.694mm,
+측정 가능한 annotation 하단/지면 최대절대 gap8.583cm다. 원본 point·GT는 보존했다.
+추가 empty-terrain/static-reference/height recapture0이며 raw 자체 ground 검사만 사용한다.
+근거 부족/작은 오차는 warning, 신뢰 local-plane ±40cm 초과·Z 불연속·domain 밖은 review다.
+Ego road support/실제 정지·CollisionData·실제 움직임/GT/가시성 검사는 유지한다.
+
+자산 profile의 pending lookup은 calibration_only에서만 허용한다. 실제 양방향 근거와 source hash가
+있는 profile만 LIVE_VALIDATED로 따로 발행한다. 나머지 일반 사람23종의 경로 공유는 개별 live 검증 중이다.
+신규 generator opt-in `dynamic_region=intersection-only-v116`은 범용 이동만 standing으로 바꾸며
+자산·family/거리 quota는 유지한다. lookup 미포함/범위 밖 경로는 기존 엄격한 준비로 남는다.
+기존 default config·구5K manifest/output은 덮어쓰지 않았고 새전체5K/본수집/학습은 미시작이다.
+최종 integration/추가 평행·근접 검증은 진행 중이다. 정적4171/이동829는 이전 manifest 수량이다.
+
+## 2026-10-08 이동 캡처 사거리 제한·수동 높이 보정 — 설계 이력
 
 사용자 방향: 이동 외관이 필요한 사람/동물/복합체만 우선 신호등 사거리 두 횡단보도에서 이동 캡처한다.
 범용/정적 회피에서는 정지 배치하며, NPC 및 검증된 rigid 외관도 정지 캡처 우선이다.
