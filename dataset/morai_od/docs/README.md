@@ -4,6 +4,10 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **범용/미션 객체 수 v89 구현:** [크기 예산 배치·검증](261007_base5_population_budget_v89.md).
+  범용positive6K는단일30/일반혼합50/밀집20%,미션은상황별개수로분리했다.
+  512장OFFLINE_PASS,실제가시parent/component분리. 본10K는미시작이며5개gate전체완료가아니다.
+
 - **본수집 전 최신 PLAN:** [최종 학습 후보5개 보완](261007_base5_final_candidate_five_gates_plan.md).
   객체 수·범용/회피 초근접·고주로/로터리 밀집·GT·균형5K선별을 수정/검증한 뒤
   새10K를 고정한다. v86 검증 완료와 이 계획 구현 완료를 혼동하지 않는다.

@@ -192,7 +192,11 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
             if any(uid!=box['unique_id'] and poly.distance(other)<.05 for uid,other in footprints):
                 reasons.append('actual_GT_actor_footprint_overlap')
             footprints.append((box['unique_id'],poly))
+    from base5_population_budget import visibility_summary,visibility_review
+    population_visibility=visibility_summary(metadata['runtime_actors'],results)
+    reasons.extend(visibility_review(metadata,population_visibility))
     return dict(components=results,missing_uids=missing,raw_complete=True,ground_support=ground,
+        population_visibility=population_visibility,
         zero_xyz_returns_excluded_from_audit=zero_returns,valid_lidar_return_count=len(points),
         actual_annotation_clearances=clearances,
         accepted_candidate=not reasons,review_reasons=sorted(set(reasons)),

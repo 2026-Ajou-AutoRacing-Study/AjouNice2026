@@ -21,6 +21,20 @@
   "classes_candidate": ["vehicle","pedestrian","obstacle","animal"],
   "gt_policy": "retain_raw; positive=lidar1_camera0; lidar1/lidar5 are audit alternatives, not assumed model-quality improvements",
   "bulk_capture_authorized": false,
+  "population_budget": {
+    "generic_modes": {"generic_single": 30, "generic_regular": 50, "generic_dense": 20},
+    "generic_layouts": {"distributed": 60, "clustered": 40},
+    "budget_bounds": {"generic_regular": [10,14], "generic_dense": [16,22]},
+    "max_actors": 8,
+    "minimum_visible_fraction": 0.5,
+    "mission_actor_counts": {
+      "highway": {"1": 50, "2": 35, "3": 15},
+      "roundabout": {"1": 40, "2": 40, "3": 20},
+      "other_vehicle": {"1": 80, "2": 20},
+      "obstacle": {"1": 75, "2": 20, "3": 5},
+      "pedestrian_related": {"1": 80, "2": 20}
+    }
+  },
   "mission_avoidance": {
     "phases": {"approach": 20, "entry": 20, "alongside": 40, "clearing": 20},
     "alongside_gap_bins_m": [[0.10,0.20,25],[0.20,0.30,35],[0.30,0.50,40]],

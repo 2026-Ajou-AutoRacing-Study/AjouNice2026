@@ -14,6 +14,20 @@ Base3 추가분이 아닌 독립 Base5이며 temporal/velocity head 학습용이
 고주로6m/로터리5m 중심거리 deck만으로 초근접 충분성을 주장하지 않는다.
 변경 후 새manifest·대표live검증·GT감사를 완료하고 보고한 뒤 본수집을 승인받는다.
 
+### 1번 후속 v93: 범용 예산 / 미션 개수 구현·소량 검증
+
+[v89 객체 수 보완](261007_base5_population_budget_v89.md)은구현했다.
+범용positive6,000장에단일30/일반혼합50/밀집20%를배정하고footprint크기점수로
+10–14/16–22점·최대8개를채운다. 미션은generic예산을사용하지않고family별
+1–3개상황quota를유지한다. 현재512장오프라인검증까지통과했다.
+배치actor와실제positiveROI parent·GTcomponent수를분리집계한다.
+범용혼합에는최소2개·배치actor절반이상positive하한을추가했고calibration은제외한다.
+다중QA→nearheight원본Park연결및tuple/JSON연쇄비교오류를수정했다.
+최종v93 live4/4(70.76초),CPU4장/GT9,207tests PASS다.
+6개장면의실제4개가시성은v91,7–8개는오프라인까지며전체조건인증은아니다.
+이는범용/고주로/로터리초근접및A/B5K선별구현완료가아니다.
+기존v86manifest에는이변경이없으며강제resume하지않는다.
+
 ## 최신 v86 — 본수집 전 통합검증 / 새10K 오프라인 준비
 
 먼 BabyStroller1의 고유 rigid child를 anchor로 사용하되 모든 child GT 대응과

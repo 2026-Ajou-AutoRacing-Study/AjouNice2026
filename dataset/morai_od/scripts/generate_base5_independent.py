@@ -14,6 +14,7 @@ import generate_dynamic_object_capture_set as geo
 import generate_static_classcentric_base3_batch as b3
 import build_base5_mr_asset_catalog as catalog
 import base5_avoidance_geometry as avoidance
+import base5_population_budget as population
 from base5_reference_frames import references
 
 CONFIG = geo.PROJECT_ROOT/'dataset/morai_od/configs/base5_independent_v2.json'
@@ -138,6 +139,23 @@ def specs(config):
             subset=[r for r in rows if r['avoidance_phase']=='alongside']
             deck=exact_deck([(b[:2],b[2]) for b in plan['alongside_gap_bins_m']],len(subset),rng)
             for row,bounds in zip(subset,deck):row['avoidance_gap_bounds_m']=bounds
+    plan=config.get('population_budget')
+    if plan:
+        for family in config['families']:
+            if family=='background':continue
+            generic=[r for r in output if r['family']==family and not r['mission']]
+            rng=random.Random(config['seed']+sum(map(ord,family))+903)
+            modes=exact_deck(list(plan['generic_modes'].items()),len(generic),rng)
+            layouts=exact_deck(list(plan['generic_layouts'].items()),len(generic),rng)
+            for r,mode,layout in zip(generic,modes,layouts):
+                r.update(population_mode=mode,population_layout=layout,
+                    population_max_actors=plan['max_actors'],actors=1)
+                if mode!='generic_single':
+                    r['population_budget_bounds']=plan['budget_bounds'][mode]
+            missions=[r for r in output if r['family']==family and r['mission']]
+            counts=exact_deck([(int(k),v) for k,v in plan['mission_actor_counts'][family].items()],len(missions),rng)
+            for r,n in zip(missions,counts):
+                r.update(actors=n,population_mode='mission_situation',population_layout='mission')
     return output
 
 def context(runtime, mgeo):
@@ -352,6 +370,7 @@ def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None):
     scene[container].append(actor)
 
 def build(row,config,ctx,attempt=0):
+    row=copy.deepcopy(row)
     rng=random.Random(row['seed']+attempt*10000019)
     poolkey=row['subfamily'] if row['family']=='pedestrian_related' else 'obstacle' if row['family']=='obstacle' else 'vehicle'
     if row['family']=='other_vehicle' and row['static_vehicle']: poolkey='static_vehicle'
@@ -415,13 +434,14 @@ def build(row,config,ctx,attempt=0):
     footprint=rectangle([ego['x']+1.35*math.cos(ea),ego['y']+1.35*math.sin(ea)],[4.8,2.0],ego['yaw'])
     actor_records=[]; footprints=[]
     desired=None
+    selected=population.choose(asset,poolkey,ctx['pools'],lambda a:geometry(a,ctx),row,rng)
+    row['actors']=len(selected)
     for i in range(row['actors']):
         sample_placement=None
         selected_pool=poolkey
+        asset=selected[i]
         if i:
-            # Mixed secondary classes without changing the primary family quota.
-            selected_pool=rng.choices([poolkey,'vehicle','obstacle','person'],weights=[6,1,2,1])[0]
-            pool=ctx['pools'][selected_pool];asset=pool[rng.randrange(len(pool))]
+            selected_pool=next(k for k in (poolkey,'vehicle','obstacle','person') if asset in ctx['pools'][k])
         actor_motion=row['motion'] if selected_pool in ('person','animal','pet_person','stroller','rider') else 'static'
         requested_motion=actor_motion
         actor_motion,motion_decision=appearance_motion(asset,actor_motion,ctx.get('appearance_policy',{}) if config['capture'].get('asset_appearance_policy',False) else {})
@@ -430,6 +450,17 @@ def build(row,config,ctx,attempt=0):
         if i: lower,upper=6.,45.
         distance=rng.uniform(lower+.05,upper-.05)
         role=row['role'] if not i else rng.choice(['front','left','right','rear'])
+        if i and row.get('population_layout')=='clustered':
+            role=row['role']
+            if asset['source_list']!='vehicleList':
+                # Cluster by view sector, not by cramming eight actors into the
+                # primary's narrow 3–5m ring. Primary distance quota stays exact.
+                lower=max(3.,min(30.,row['distance_bounds'][0]))
+                upper=min(45.,max(lower+15.,row['distance_bounds'][1]))
+                if upper<=lower+.1:lower,upper=6.,45.
+                distance=rng.uniform(lower+.05,upper-.05)
+        elif i and row.get('population_layout')=='distributed':
+            role=('front','left','rear','right')[(i+('front','left','rear','right').index(row['role']))%4]
         if i==0 and primary_pose is not None:
             pose=primary_pose
         elif asset['source_list']=='vehicleList':
@@ -553,6 +584,7 @@ def build(row,config,ctx,attempt=0):
         actor_records.append(dict(unique_id=uid,data_id=asset['data_id'],name=asset['name'],
             source_list=asset['source_list'],motion=actor_motion,position={k:runtime_pose[k] for k in ('x','y','z')},
             appearance_motion_decision=motion_decision,requested_motion=requested_motion,
+            population_cost=population.cost(size),population_pool=selected_pool,
             geometric_center_estimate=center,geometry_reference_known=known,estimated_size=size,
             planned_center_distance_m=actual,planned_surface_clearance_m=gap,
             longitudinal_m=lon,lateral_m=lat,actual_ego_role=actual_role,
@@ -573,6 +605,16 @@ def build(row,config,ctx,attempt=0):
         split=split,split_group=group,split_limit='whole link; adjacent links can share 100m views; held-out mission bag required',
         ego_road_yaw_offset_deg=yaw_delta,ego_lateral_offset_m=offset,
         planned_primary_distance_m=desired,retry=attempt,live_validated=False)
+    if row.get('population_mode'):
+        charges=[population.cost(a['estimated_size']) for a in actor_records]
+        meta['population_budget']=dict(mode=row['population_mode'],layout=row['population_layout'],
+            actor_count=len(actor_records),costs=charges,total_cost=sum(charges),
+            requested_bounds=row.get('population_budget_bounds'),
+            policy='footprint-area-and-longest-edge-v1; placement count, not visible GT count',
+            visibility_certified=False)
+        if row['population_mode'] in ('generic_regular','generic_dense'):
+            fraction=config['population_budget'].get('minimum_visible_fraction',.5)
+            meta['population_budget']['required_visible_actors']=max(2,math.ceil(len(actor_records)*fraction))
     if config['capture'].get('ground_support_check',False):
         meta['ground_support_check']=dict(enabled=True,max_range_m=20.,maximum_gap_m=.15,
             required_uids=[a['unique_id'] for a in actor_records],
@@ -610,6 +652,7 @@ def generate(config,output,start,count,runtime=geo.DEFAULT_RUNTIME_ASSET_DIR,mge
         status='OFFLINE_GENERATED; per-scene live validation pending',scenes=entries,
         provenance=dict(config_sha256=hashlib.sha256(json.dumps(config,sort_keys=True).encode()).hexdigest(),
             generator_sha256=code_sha256,
+            population_budget_sha256=geo.sha256(Path(population.__file__)),
             appearance_policy_sha256=geo.sha256(APPEARANCE_POLICY),
             avoidance_geometry_sha256=geo.sha256(Path(avoidance.__file__)),
             highway_sample_sha256=geo.sha256(HIGHWAY_SAMPLE),

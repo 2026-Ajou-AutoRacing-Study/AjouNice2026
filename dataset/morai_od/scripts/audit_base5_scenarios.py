@@ -34,6 +34,18 @@ def audit(manifest_path):
             errors.append((entry['id'],'nonzero ego'))
         if s['spawnPointList'] or s['pedspawnPointList']:errors.append((entry['id'],'traffic spawn'))
         if len(meta['runtime_actors'])!=r['actors']:errors.append((entry['id'],'actor count'))
+        pop=meta.get('population_budget')
+        if pop:
+            costs=[gen.population.cost(a['estimated_size']) for a in meta['runtime_actors']]
+            if pop['costs']!=costs or pop['total_cost']!=sum(costs):errors.append((entry['id'],'population cost mismatch'))
+            if pop['mode'] in ('generic_regular','generic_dense'):
+                lo,hi=r['population_budget_bounds']
+                if not (2<=len(costs)<=r['population_max_actors'] and lo<=sum(costs)<=hi):
+                    errors.append((entry['id'],'population budget bounds'))
+                if r['mission']:errors.append((entry['id'],'mission used generic budget'))
+                if 'minimum_visible_fraction' in m['config']['population_budget']:
+                    expected=max(2,gen.math.ceil(len(costs)*m['config']['population_budget']['minimum_visible_fraction']))
+                    if pop.get('required_visible_actors')!=expected:errors.append((entry['id'],'population visible quota mismatch'))
         footprints=[];ea=gen.math.radians(meta['ego']['yaw']);e=meta['ego']
         avoidance=meta.get('avoidance_observation')
         if r.get('avoidance_phase'):
