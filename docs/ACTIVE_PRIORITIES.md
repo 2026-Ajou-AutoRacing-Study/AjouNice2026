@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획
 
-마지막 갱신: 2026-10-06.
+마지막 갱신: 2026-10-07.
 
 이 문서는 **아직 끝나지 않았고 다음 작업에서 반드시 다시 확인할 항목만** 둔다.
 완료된 수집·학습·실험 수치는 각 CURRENT/EVIDENCE 문서에 보존하며 여기로 다시
@@ -56,67 +56,17 @@
   Animal/복합 GT 후보는 유지한다.
   UDP차량velocity 후륜 기준은 확정됐으나 기존R01의변환잔차 검증/새평가 계약 선택은 남는다.
 
-- 독립 [Base5 v2](../dataset/morai_od/docs/BASE5_V2_CURRENT.md)의10K 오프라인 생성과
-  100m 후보 GPU wiring은 이전 근거다. 최신v23은48조건 분산검증·2조건 대체·빠른 동작/
-  all-actor motion gate·lidar1_camera0 정책·CPU 변환 검사 완료다.
-  v25 yaw 실측은 유효42/42조건: ±15° 곡선2조건이 횡30m 밖이다.
-  정지설정 NPC runtime 이동 표본은 제외/재촬영 gate로 차단했다.
-  Park 재확인 후 남은2조건 완료,최종Park 재시도 성공. 간헐 timeout 원인은 미해결이다.
-  v32에서 E25 및Base5후보의5060Ti batch1 비용과E25 ROS포화처리량을측정했다.
-  근거는[capacity EVIDENCE](bevfusion/261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md)다.
-  4090/확대후보ROS/full-stack은미측정이다.
-  v26은 속도를 낮추지 않고뒤쪽출발+실제목표도착 capture를Woman2 12조건에서 검증했다.
-  이동자세/GT 형상이달라짐을 확인.
-  v27은 대표13자산의52조건/80component GT 비교 완료. 일부 object의 이동높이 차이는
-  12조건 matched-height 재촬영으로 제거했다. 관절 변화 사람/동물은 동적 phase,
-  현재 fixed-pose 복합/rigid 자산은 정지 우선 권장. 미검증 자산에는 자동 일반화하지 않는다.
-  v28에서 자산별 외관 정책·자연속도 방식을 일반generator 기본에 통합했다.
-  v29에서zero XYZ점의지면오판을수정했고근접·혼합13장재검사는9통과/4review다.
-  독립지면촬영/입력Z수정/동일cell재배치자동loop와안전4장변환smoke를구현했다.
-  당시종료Park2회timeout으로중단했으나v30사전확인/3세션종료Park통과후소량검증을재개했다.
-  v30의60시도/57raw에서작은Z상향여유는부유를해결하지않았다.
-  지면기준입력/waypoint보정후24/24통과했으며일괄상향·전역offset은적용하지않는다.
-  v31에서 남은 근접·혼합3셀을 마무리했고 quality loop의 bounded campaign/quota 보충/resume을 연결했다.
-  소량 stop/resume 및89 tests 통과. 선택ledger CPU변환·MR OFF 속도비교까지완료했다.
-  안정된Z도 떠 있을 수 있으며 입력Z 수정 후 개4조건의공중gap은약−3cm로 개선됐다.
-  raw GT 사후 보정은 하지 않는다. 자동보완은universal지형높이solver인증이아니다.
-  v33 공식정책 반영 후12/12 live·부족0, pause/resume·CPU30GT 변환 통과.
-  약96m 전/후방 차량에서camera 근거를 확인했으며20m밖ground/모델정확도 인증은 아니다.
-  v35 새 기본10K 전수 생성/audit PASS 및122종 primary 배치 coverage를 완료했다.
-  v36 대표32/32실제캡처36회/314.7초,10K 비용외삽27.5시간·원본54.7GiB다.
-  [v37 비용분리·최적화](../dataset/morai_od/docs/261006_base5_capture_stage_optimization_v37.md)는
-  동일6셀56.6→50.7초/양쪽6통과,32장 감사출력 정확일치와100tests를 확인했다.
-  조건부 정지확인 preflight만 단축하고 안전gate는 유지한다. 현코드로 구세션resume 금지.
-  [v38 ROS/network 비교](../dataset/morai_od/docs/261006_base5_ros_batch_network_evidence_v38.md):
-  ROS공유6/6통과·13.85%단축. network 재사용은2번째로드에서client0/종료Park미확인으로중단했다.
-  옵션금지·scene별network reload유지. 당시재연결/사전Park 전 추가로드를중단했다.
-  [v39 안전batch/quota](../dataset/morai_od/docs/261006_base5_safe_batch_quota_v39.md)는
-  재연결후 새6장resume·첫12셀보완/CPU17GT 변환을통과했다.
-  후속합계20/32quota에서최종Park2회timeout으로중단했다. 실패출력resume금지,
-  남은12셀/반복Park서비스지연/장시간안정성 검증이남는다. max64셀pilot이며 본10K미시작이다.
-  후속[v40 EventCmd/rosbridge](../dataset/morai_od/docs/261006_base5_eventcmd_rosbridge_v40.md)에서
-  서비스재등록ID/공유response혼선을설치코드로재현했다. opt-in guard offline통과/live미검증.
-  추가8quota로28/32통과,남은4셀은3raw보존/1미로드다. 기존bridge재시작/MR재연결이먼저다.
-  후속[v41 guard live/중복촬영 제거](../dataset/morai_od/docs/261006_base5_guard_seed_recovery_v41.md):
-  재연결후 남은4셀보완PASS로 대표32/32. 동일4셀53.93→41.95초/실제6→5촬영,
-  123tests·완료resume·CPU4장7GT PASS. 전환오류2회retry회복·timeout0;
-  장시간 인증이나전체10K22%절감은 아니다. 최신진입점은BASE5_V2_CURRENT를 따른다.
-  실제 전체pool/장시간 캡처 검증과4-class runtime 결정은 남는다.
-  최신[v45 6초10K·본수집 실행경로](../dataset/morai_od/docs/261006_base5_bulk_resume_v45.md):
-  새6초10K 전수OFFLINE_PASS, 실제bulk경로12/12+PAUSE/resume8/8·143tests PASS.
-  4셀 child/64셀목록checkpoint/누적시간/unsafe resume거부. v35baseline보존,
-  다음수집은v45별도6초deck선택. 예상18.71시간 유지, 본10K 촬영·학습미시작.
-  이전[v44 후방·복합/새자산·10K 시간](../dataset/morai_od/docs/261006_base5_diverse_coverage_eta_v44.md):
-  추가64/64셀·66촬영/GT95,138tests PASS. 대표10K 예상18.71시간 유지,
-  자연이동5–10%재시도/추가30초가정19.40–20.09시간. 기본9초/본수집미시작.
-  이전[v43 6초후보·안전재시도](../dataset/morai_od/docs/261006_base5_budget6_fallback_v43.md):
-  자연이동16/16·혼합32/32/216초, 준비지연 진단6초실패→9초통과·진단학습제외.
-  동일10K 예상18.71시간은 표본 외삽이며 기본9초/본수집미시작 유지.
-  이전[v42 비용·동적준비 후보](../dataset/morai_od/docs/261006_base5_batch_capacity_budget_v42.md):
-  단일32셀233.02초/이력대비약26% 단축,chunk8 pause/resume16/16,
-  동적4셀9→6초후보약25% 단축. canonical10K 기본9초는미변경이다.
-  완료resume 부분목록 노출/완료wall덮어쓰기 수정·132tests PASS.
-  구왕복10K는 새 기본 수집에 사용하지 않는다. 본 수집/본 학습은 미실행이다.
+- 독립 Base5의 현재 목표는 **Sunny11시 직접5K**다. 구10K/v45 명령과 시간 추정은
+  현재 실행 기준이 아니다. [CURRENT](../dataset/morai_od/docs/BASE5_V2_CURRENT.md) →
+  [5K 계획](../dataset/morai_od/docs/261007_base5_direct_5k_current_plan.md) →
+  [단일 운영 런북](../dataset/morai_od/docs/261007_base5_5k_capture_runbook.md) 순으로 읽는다.
+  범용 크기 예산·초근접·고주로/로터리 밀집·실제 GT visibility·희귀 자산 coverage를
+  [최종 gate 근거](../dataset/morai_od/docs/261007_base5_final_gates_v105_evidence.md)에 묶었다.
+  본수집은 최종 보고 후 사용자 승인까지 대기한다. 이전 v23–v100 시행착오·실측은
+  dataset evidence 문서에 보존하며 ACTIVE에 중복 나열하지 않는다.
+  Ego Park·독립 지형·CollisionData·실제 Z/가시성 검사는 유지하며 raw GT는 사후 수정하지 않는다.
+  [5060Ti 비용 근거](bevfusion/261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md)는 그대로다.
+  4090/확대후보ROS/full-stack은 아직 별도 검증이며 수집 pilot으로 인증하지 않는다.
 
 - Base5 E2 학습 및 [E1 보행자·장애물9-bag A/B](bevfusion/261005_BASE5_E1_MISSION_ROSBAG_AB.md)는 완료됐다. E1 장애물 소폭 개선에도 0–2m 장애물·20–30m 보행자 공백은 미해결이다. 다음은 해당 거리·부분 시야 표적 보강 + replay다. Production E25 유지, Far ROI와 고해상도는 별도 A/B로 유지한다.
 - 전방은 빠른 존재 전달을, 후방/로터리는 위치·속도·궤적 안정성을 함께 평가한다.

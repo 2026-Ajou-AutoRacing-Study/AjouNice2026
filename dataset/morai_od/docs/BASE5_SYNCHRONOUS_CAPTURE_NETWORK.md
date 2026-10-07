@@ -1,14 +1,14 @@
 # Base5 MR 동기 캡처 Network — PREPARED
 
-## 현재 진입점 — guard 재연결 및 v43 검증 완료
+## 현재 진입점 — Sunny11시 직접5K / 2026-10-07
 
-[CURRENT](BASE5_V2_CURRENT.md)와 [v45 실행·정지·재개](261006_base5_bulk_resume_v45.md)를
-우선한다. 아래 v40/v39의 재연결 필요·미완료 내용은 당시 이력이다.
-현재 guarded bridge 재연결 뒤 대표32/32와 자연 이동16/16, 안전한9초 재시도 진단을
-통과했다.7-interface와 매scene network reload를 유지한다. v35 9초 baseline을보존하고
-다음 수집에는 v45 별도6초10K deck을 선택한다. 본10K 캡처·학습은 시작하지 않았다.
+[CURRENT](BASE5_V2_CURRENT.md)와 [직접5K 실행·정지·재개](261007_base5_5k_capture_runbook.md)를
+우선한다. 아래 v43/v40/v39 및 모든 구10K 명령은 당시 이력이다.
+guarded bridge·7-interface·매scene network reload를 유지한다.
+이번 수집 후보는 v105 직접5K이며 사용자 최종 확인 전 본수집·학습을 시작하지 않는다.
 현재 bridge가 연결돼 있으면 아래 과거 재시작 지시 때문에 임의로 끊지 않는다.
-통신/충돌/Park 실패시에는 계속하지 않고 현재 session 증거를 확인한다.
+통신/Park 미확인은 halt다. 확인된 접촉은 실패/부족분으로 분리하며,
+안전 Park·새 장면 확인 후에만 진행한다. 구 halted session은 강제 resume하지 않는다.
 
 ## v40 당시 — guard 적용 bridge 재시작 필요
 

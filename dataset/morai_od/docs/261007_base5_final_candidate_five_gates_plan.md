@@ -2,6 +2,10 @@
 
 2026-10-07. 상태: **PLAN / 미구현·미검증 항목 포함**.
 
+후속 구현·실제 실패·보완은 [v105 근거](261007_base5_final_gates_v105_evidence.md),
+현재 실행·잔여 조건은 [5K CURRENT](BASE5_V2_CURRENT.md)를 우선한다.
+아래 항목의 "미구현"은 최초 계획 시점이며 현재 완료 판단으로 사용하지 않는다.
+
 **후속 사용자 변경:** 이번수집은[Sunny11시직접5K](261007_base5_direct_5k_current_plan.md)다.
 아래10K/A·B5K선별은변경전계획이다. 5번은직접5K의균형/희귀자산coverage감사로
 대체하고나머지population·초근접·GT보완은유지한다.

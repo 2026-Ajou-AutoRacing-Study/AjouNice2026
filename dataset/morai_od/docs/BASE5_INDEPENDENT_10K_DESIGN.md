@@ -1,5 +1,9 @@
 # Base5 독립 10K — single-frame OD 수집 설계
 
+2026-10-07: **HISTORICAL PLAN.** 현재 목표는 Sunny11시 직접5K다.
+[현재 구성](261007_base5_direct_5k_current_plan.md), [CURRENT](BASE5_V2_CURRENT.md),
+[현재 수집 런북](261007_base5_5k_capture_runbook.md)이 아래 최초 계획보다 우선한다.
+
 2026-10-06: 아래는 최초 PLAN 이력이다. 구현하면서 변경한 거리, pool/class 후보,
 검증 결과와 남은 gate는 [v2 CURRENT](BASE5_V2_CURRENT.md)가 우선한다.
 10K 시나리오 생성은 완료됐으며 10K accepted capture나 학습 완료는 아니다.

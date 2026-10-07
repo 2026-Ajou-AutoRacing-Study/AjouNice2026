@@ -143,5 +143,5 @@ python3 dataset/morai_od/scripts/report_base5_population.py \
 
 live 검증은 [기존 운영 런북](261006_base5_bulk_resume_v45.md)의 guarded bridge/
 Park/CollisionData/Capture Mode를 사용한다. 구 manifest 본수집 명령은 실행하지 않는다.
-次はlive可視率・保守的proxyによる偏り・多actor地面QA費用を見て
-この初期policyを採用/修正し、残る2–5番gateを進める。
+다음은 실제 가시율·보수적인 geometry proxy의 편향·다중 actor 지면 QA 비용을 확인하고,
+그 결과로 초기 정책을 채택/수정한 뒤 나머지2–5번 gate를 진행한다.

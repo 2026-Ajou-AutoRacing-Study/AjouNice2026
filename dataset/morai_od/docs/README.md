@@ -4,9 +4,19 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **현재 진입점:** [Base5 CURRENT](BASE5_V2_CURRENT.md) →
+  [Sunny11시 직접5K 구성](261007_base5_direct_5k_current_plan.md) →
+  [5K 운영 런북](261007_base5_5k_capture_runbook.md).
+  [v105 최종 gate 근거](261007_base5_final_gates_v105_evidence.md)에 실패·보완·실제 결과를 모은다.
+  아래 v45/v86 등 "최신" 표현은 해당 시점의 역사이며 현재 실행 명령으로 사용하지 않는다.
+
+- **manifest v105 / runtime v108:** 새5K/122종 전수오프라인 PASS. 차량 미션 근접133셀, 범용 근접175셀,
+  크기별 혼합 예산 및 component-preserving GT 유지. 범용 동시 이동 최대2개,
+  주 객체/미션 이동 외관은 유지한다. 최종 live/resume/비용 상태는 CURRENT를 확인한다.
+
 - **v98 범용 근접:** [구현·실패·보완·한계](261007_base5_generic_close_v98.md).
   근거리175셀 경계 간격 기반 alongside, Ego 도로 anchor 유지. 좌우 대표2/2,
-  GT6/작은 낮은 객체 가시성 실패는 미해결. 다음은 고주로·로터리 차량 근접이다.
+  GT6/작은 낮은 객체 가시성 실패는 미해결. 차량 근접은 [후속 v100](261007_base5_vehicle_close_v100.md)에서 구현했다.
 
 - **v95 동적 미션 지도 기준 배치:** [구현·실제 검증·한계](261007_base5_dynamic_map_observation_v95.md).
   전방 접근/횡단 관측/양보90%, 통과 직후10%. 250/250 생성 가능,
@@ -24,34 +34,34 @@
   동적미션 위치 기준·초근접·밀집·GT·희귀자산coverage를 보완한 뒤 새5K를 고정한다.
   v86 검증 완료와 현재계획 구현 완료를 혼동하지 않는다.
 
-- **최신 v86: 본수집 전 recovery·통합검증 완료.** 32셀31승인/1부족분 후
+- **역사 v86: 당시 recovery·통합검증 완료.** 32셀31승인/1부족분 후
   Ped_Pet1 near terrain 보완1/1,최종8/8·동적2/2·ordered4/4·198tests PASS.
   새10K 전수OFFLINE_PASS/실캡처 미시작. 구18.7h ETA 폐기,시간 비용 증가 명시.
   [현재](BASE5_V2_CURRENT.md),
   [근거·제한](261007_base5_prebulk_recovery_evidence.md).
 
-- **최신 v77: static secondary 지면 검증/복합·동적 확인.** 초기 혼합2/4→최종2/2,
+- **역사 v77: static secondary 지면 검증/복합·동적 확인.** 초기 혼합2/4→최종2/2,
   근접 복합2/2·동적2/2(준비 포함47.14초), 구 readiness 이동 계약 수정.
   완료resume 추가촬영0/183tests PASS. 먼 복합/혼합Dog2 보류, 본10K 미재개.
   [현재](BASE5_V2_CURRENT.md), [근거·한계](261007_base5_mixed_motion_ground_evidence.md).
 
-- **최신 v72: 원거리 rigid 정적 ground 검증·원본 재검사.** 동일 배치/실제 pose/hash와
+- **역사 v72: 원거리 rigid 정적 ground 검증·원본 재검사.** 동일 배치/실제 pose/hash와
   전체 상대 R/T를 확인해 sparse ground를 보완. 거리44/97/후방88/대형53m4조건 통과,
   같은4조건78.62→53.60초/재촬영4회 생략. 완료resume 추가촬영0/179tests PASS.
   본10K·18.7h 확정 ETA 아님. [현재](BASE5_V2_CURRENT.md),
   [근거·적용 제한](261007_base5_static_rigid_ground_evidence.md).
 
-- **최신 v66: 정적 자산별 높이 후보/전체actor ground gate.** 실제4조건3통과/1보류,
+- **역사 v66: 정적 자산별 높이 후보/전체actor ground gate.** 실제4조건3통과/1보류,
   근접Kona 정상으로 원거리 부유 확정 해석 철회. yaw-only 장거리 지면 보정 금지,
   원거리 좌표계/평면 오판 분리가 남음. 본10K/v59 명령 자동 실행 금지.
   [현재 계약](BASE5_V2_CURRENT.md), [검증 근거](261007_base5_static_height_evidence.md).
 
-- **본수집 터미널 명령의 단일 기준:** [Base5 v45 운영 런북](261006_base5_bulk_resume_v45.md#터미널별-운영-순서--처음-실행부터-재개까지).
-  반드시 런북 상단 경고와 **10월 7일 변경**부터 읽는다. 구 v45 본수집은 충돌 중단 상태다.
+- **본수집 터미널 명령의 단일 기준:** [직접5K 운영 런북](261007_base5_5k_capture_runbook.md).
+  구 [v45 운영 런북](261006_base5_bulk_resume_v45.md)은 역사이며 당시 본수집은 충돌 중단 상태다.
   rc → guarded bridge → MR7-interface/Capture Mode → 수집 → 대시보드,
   각 인자 뜻·PAUSE/재개·halted 주의를 한곳에 정리했다. rosbag/UDP 런북과 구분한다.
 
-- **최신 v59: Ego Park·확인된 충돌 부족분으로 분리 후 다음 장면 진행.**
+- **역사 v59: Ego Park·확인된 충돌 부족분으로 분리 후 다음 장면 진행.**
   실제 Park 동적3/3, 시험용 CollisionData 입력→실패 제외→다음 정상 실제 캡처 통과.
   완료 resume 재촬영0/CPU 정상1장만 편입. 입력 주입 통합시험과 실제 물리 충돌 복구는 구분한다.
   통신·미확인 Park·새 장면 상태 확인 실패는 계속 halt. [현재 계약·한계](BASE5_V2_CURRENT.md).
@@ -90,7 +100,7 @@
   남은4셀은3raw보존/1미로드다. 기존bridge재시작·MR재연결후guard live검증이필요하다.
   [원인·코드·재연결 명령](261006_base5_eventcmd_rosbridge_v40.md). 본10K/학습미시작.
 
-- **최신 v39: 재연결·안전 ROS batch·quota 보완 연결.** 새6장 pause/resume6/6,
+- **역사 v39: 재연결·안전 ROS batch·quota 보완 연결.** 새6장 pause/resume6/6,
   첫12셀 최종12/12·실제14촬영·CPU17GT 변환 통과. 간헐Park timeout은 미해결이며
   실패boundary는보존/재개금지. 후속20셀은8quota후최종Park미확인으로중단, 합계20/32다.
   109tests PASS. 남은12셀·종료서비스지연 및한계는 [최신근거](261006_base5_safe_batch_quota_v39.md).
