@@ -45,6 +45,37 @@ CPU18프레임/28GT 변환,300tests PASS다. 자세한 오류·제약은 [v117 �
 구 v116 manifest/raw는 보존하되 새 코드로 기존 output을 resume하지 않는다.
 본5K 수집/학습은 미시작이며 사용자 승인 뒤 새 output을 사용한다.
 
+### 본수집 전 최종 재확인 — 2026-10-08
+
+판정: **현재 수집 범위에서 높이 보완과 제외 경로는 구현·검증됐고, 추가 높이 실험은 시작 조건이 아니다.**
+모든 지형에서 완전 접지를 보장하는 수정은 아니다. 작은 차이/불확실 지면은 warning,
+신뢰 가능한 지면 대비±40cm 초과·수신 간격≤0.2초에서 Z step10cm 초과·실제 접촉은 실패로 남긴다.
+이미 취득한 원본으로 검사하며 지면 검사를 위한 추가 캡처는 하지 않는다.
+
+- 새5K 전수 재감사: OFFLINE_PASS/5000고유payload/오류0.
+- runtime 분류: 정적4846개 전부 lightweight-static,
+  이동154장면의184mover 전부 LIVE lookup/정확히2waypoint/수동경로 QA 적용.
+  이release에서 구 고비용 독립지면 준비로 떨어지는 mover0이다.
+- 5000개 source scenario/metadata와25개 runtime hash로 본수집 계약을 read-only 구성했다.
+  config canonical-content hash·generator·lookup/source/report·직전 live runtime hash 일치.
+- 기존 높이/지면 회귀78개와 endpoint7개, 총85개 재실행 PASS.
+  synthetic gap+7.4/+30cm는 warning,±41cm는 severe review로 분류됨을 재확인했다.
+  이 synthetic 확인은 추가 MORAI 물리실험이 아니다.
+- 현재 ROS6초 읽기: Ego50.16/Object49.92/Collision50.24Hz,
+  non-Ego contact UID없음, Ego 속도≈0. EventCmd service와ScenarioLoad/SaveSensorData/ctrl subscriber 존재.
+  service 응답·센서 저장 자체는 직전18셀 live에서 확인했으며 이번 read-only 검사에서는 호출하지 않았다.
+- 디스크 여유약252GiB. 직전21시도/18승인 raw비용의 단순5K외삽약29.7GiB는 조건부이며
+  추가 실패·변환본까지 고려해도 현재 여유로 시작을 막을 근거는 없다.
+- 본수집 output은 아직 없으며 수집기 프로세스도 미실행이다.
+  남아 있는8081 dashboard는 과거v45 경로다. 새 수집은 런북의새경로/8075 dashboard를 사용한다.
+
+남은 시작 절차는 MR UI에서Capture Mode·Sunny13시·대회센서 설정 유지 확인 후 사용자 본수집 승인이다.
+이UI조건을 read-only ROS검사로 자동 인증했다고 해석하지 않는다.
+첫100–200셀의 실제 누적rate/부족분을 확인하고, 완료 뒤122종 actual visible-primary coverage를 감사한다.
+후자의 실패분 보충·coverage는 본수집 후 할 일이지 모든5K를 미리 live촬영해야 한다는 뜻이 아니다.
+예상은 정적약9.37h+동적22–26분=약9.73–9.81h, 운영 여유10–12h다.
+구정적40셀의family별비용과현재동적실측을결합한조건부예상이며장기rate보장은아니다.
+
 ## 2026-10-08 수동 waypoint 높이 보간 — v116 이력
 
 사용자 보정본10개/49waypoint를 원본·EgoNetwork와 함께 hash 검증/백업하고 MR에서 해당 파일만 정리했다.
@@ -344,12 +375,12 @@ WoodBox/CargoBox 및 MR 복구 자산을 포함한다. 배경 나무/시설은 �
 - 동적 미션250셀은 MGeo CW000000/CW000002를 기준으로 접근113/횡단62/양보50/통과후25다.
   과거 starter 기준 Ego −35~+55m 범위를 미션 분포로 사용하지 않는다.
   모든 대회 진입 경로를 구현·인증했다는 뜻은 아니다.
-- 사람·동물 등 관절 외관 자산은 natural-target 실제 이동, rigid/fixed-pose 자산은 정지다.
-  범용 동시 이동은 최대2actor. **주 객체 walk/run은 유지**하고 이후 보조 actor만 standing으로
-  제한한다. 미션에는 이 제한을 적용하지 않는다. 속도 회귀/temporal 학습을 위한 정책이 아니다.
-- 동적 경로는 empty LiDAR 지면+같은 target의 static annotation으로 높이를 준비한다.
-  정적 보조 객체도 동일 독립 지면 참조에 포함한다. 전체 footprint support,10cm height-step,
-  실제 이동/최종 Z/contact를 확인하고 unsupported는 성공으로 넣지 않는다.
+- 현재 v117은 사거리 미션의 관절 외관 자산만 natural-target 실제 이동한다.
+  범용/정적 미션의 사람·동물도 정지이며 rigid/fixed-pose 자산은 계속 정지다.
+  이는 속도 회귀/temporal 학습을 위한 정책이 아니다. 범용 동시 이동은 구v105 계약이다.
+- 현재184mover 모두 저장높이 기반 LIVE endpoint lookup으로 초기화한다.
+  empty LiDAR+static reference의고비용준비는적용하지않고원본ground/Z/실제이동/contact를검사한다.
+  editor-proof가없는legacy/opt-out모드는기존독립지면준비를유지한다. 두모드를혼동하지않는다.
 
 ## GT·안전·실패
 
@@ -362,14 +393,15 @@ WoodBox/CargoBox 및 MR 복구 자산을 포함한다. 배경 나무/시설은 �
 - ROI는 LiDAR/Ego[-100,-30,-3,100,30,2]. 도로 접선은 배치용이며 GT/모델 ROI 기준이 아니다.
 - Ego pose·신선한 ROS·Park·CollisionData·파일완결·접지·이동/Z·가시성 gate는 유지한다.
   근접 blind spot/낮고 작은 물체를 학습용 가짜 GT로 메우지 않는다.
-- fresh primary가 확인된 정적 secondary 누락은 진단 review→동일quota 재배치다.
-  missing primary/mover·통신/Park 미확인은 halt. 누락 자체는 성공이 아니다.
+- fresh transport·Park/Ego/contact가확인된명시적lightweight-all-static의actor누락은
+  primary를포함해원본진단review→동일quota재배치/부족분이다. 누락 자체는 성공이 아니다.
+  missing mover/legacy-primary·통신/Park 미확인은 계속 halt다.
 - 확인된 접촉은 실패/부족분. 안전 Park·새 scene 상태가 확인된 경우만 다음으로 진행한다.
   unresolved quality는 bounded retry 후 부족분, calibration/review/failed는 학습에서 제외한다.
 - safe paused는 같은 코드/manifest hash로 resume. halted는 강제 resume 금지다.
   완료 resume는 증거 검증 전용·추가 촬영0이며 부족분은 별도 보충 campaign이다.
 
-## 최종 준비 산출물 / 환경 정정과 기존 수집 보존
+## v105–v109 준비 산출물 이력 / 환경 정정과 기존 수집 보존
 
 - 원본 `~/morai_cap/base5_v2_261007/final_5k_v105/manifest.json`.
 - 기존resume 원본 `~/morai_cap/base5_v2_261007/final_5k_ordered_v105/manifest.json`.
@@ -390,7 +422,7 @@ WoodBox/CargoBox 및 MR 복구 자산을 포함한다. 배경 나무/시설은 �
 - 최종 통합 `final_pilot_v105`는 별도 검증이다. 최신 수치·resume·CPU·시간은
   [근거 문서](261007_base5_final_gates_v105_evidence.md)의 동결 결과를 따른다.
 
-## 결론·잔여 경계
+## v105–v108 결론·잔여 경계 이력 — 현재 시작 판단은 위 v117
 
 - 차량 근접7/7, 최종 통합18셀 중15승인(정적12/12·실제이동3/6), CPU57GT다.
   후속 독립 지면 보완은 이전 실패3셀 중1셀을 추가 복구했다. 전체 성공률 추정이 아니다.

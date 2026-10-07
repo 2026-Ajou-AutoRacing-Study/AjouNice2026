@@ -26,6 +26,10 @@ v117 대표18셀18승인/21capture·184.685s, partial/완료resume와CPU변환 P
 정적근접누락3review와일시적service응답오류2회는보존·복구했다. 세부사항은 EVIDENCE를 따른다.
 새두점경로112개승인용검증은높이/운영scope이며 전체5K성공률 인증이 아니다.
 전체소요는현재근거를조건부로합치면약10시간안팎이지만보장하지않고누적rate로갱신한다.
+최종재확인은[CURRENT](BASE5_V2_CURRENT.md)의본수집전항목을따른다.
+새5K/runtime계약·fresh3topic≈50Hz·무접촉/정지·약252GiB여유를확인했다.
+추가높이개발은시작조건이아니다. 시작직전MR UI의Capture Mode/Sunny13/대회센서를유지확인한다.
+운영여유는10–12h이며첫100–200셀로실제ETA를갱신한다.
 
 ## 터미널 1 — master
 
@@ -84,6 +88,7 @@ python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
 ```
 
 브라우저 http://127.0.0.1:8075.
+기존8081은구v45수집폴더를보는dashboard이므로이번5K진행률로해석하지않는다.
 승인/부족분·누적 시간·승인 rate·디스크·현재 child/recovery를 확인한다.
 finished는 승인 수가 아니다. output 생성 전에는 not_started다.
 waiting_stationary_ego는 정상 정지 검사 단계다. 준비 중 ETA0만으로 멈춤을 단정하지 않는다.

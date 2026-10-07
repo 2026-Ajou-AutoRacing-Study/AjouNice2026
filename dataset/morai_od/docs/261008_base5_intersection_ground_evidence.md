@@ -122,6 +122,31 @@ Base5 regression300tests PASS(58.784s), py_compile·diff whitespace 검사 PASS�
 `freeze_base5_intersection_release.py --endpoint-linear`.
 새본수집은 [현재 런북](261007_base5_5k_capture_runbook.md)의 새 manifest/output을 쓴다.
 
+### 본수집 시작 여부 재확인
+
+2026-10-08 read-only 재검사: v117의5000scenario와실제QA분류를전수확인했다.
+정적4846개는single-capture-advisory, 이동154장면의184mover 모두LIVE two-point proof다.
+lookup/source/report·raw waypoint·config canonical hash·generator와직전live runtime hash도일치한다.
+manifest SHA256: `b6cc37084afd568b5fa95308c3a99f9e156442f1ee35fc43fcdf573385a4bd9b`.
+새전수보고: `endpoint_linear_final_5k_v117/precollection_reaudit_261008.json`.
+5000셀/25runtime파일의본수집계약도read-only구성했다. 본capture output은미생성이다.
+
+높이/지면 회귀78개+endpoint7개=85개 재실행 PASS. 실제 수집 경로의심각높이제외를확인했으며,
+synthetic ±41cm gap은severe review, +7.4/+30cm는warning으로판정한다.
+높이 준비/심각실패제외는완료지만, 모든접지오차를0으로만드는일은완료라고주장하지않는다.
+이번작업에서MORAI추가캡처를반복하거나새GT를생성하지않았다.
+
+6초ROSread-only수신은Ego50.16/Object49.92/Collision50.24Hz·fresh,
+non-Ego contact없음·Ego속도≈0이다. EventCmd service와3개명령subscriber를확인했다.
+서비스를호출하거나시나리오를로드하지않았으므로현재응답/센서저장A/B추가시험은아니다.
+직전live18셀/CPU/resume증거를사용한다. Capture Mode/Sunny13/대회센서UI설정은사용자확인사항이다.
+
+현재여유252GiB,직전raw비용조건부5K외삽약29.7GiB이며변환/추가실패비용은별도다.
+과거static family비용으로새4846장약9.37h,154moving약22–26분,
+합계조건부9.73–9.81h/운영여유10–12h다. 속도보장이아니며첫100–200셀의누적rate로갱신한다.
+현재준비를막는추가개발/높이실험은없다. 본수집승인후새output/dash8075로시작하며,
+완료후actual visible-primary/부족분coverage를감사한다. 구dash8081은이전v45경로다.
+
 ## v116 이력 — 수동 다점 높이 보간
 
 2026-10-08. 사용자 수동 경로를 실제 XY 기준으로 보간하고, 이동 외관 캡처를 사거리에
