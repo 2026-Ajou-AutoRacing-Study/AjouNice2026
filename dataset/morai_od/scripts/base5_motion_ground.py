@@ -9,6 +9,20 @@ from base5_capture_audit import rotation_matrix
 from audit_morai_lidar_gt_visibility import parse_instances
 import generate_base5_independent as gen
 
+MAX_MOVING_ACTORS = 8
+MAX_TERRAIN_SESSIONS = 1 + MAX_MOVING_ACTORS
+
+
+def near_probe_actors(meta):
+    # A mixed animated scene also needs independent terrain under its static
+    # secondaries. Otherwise a verified mover still leaves the whole frame in review.
+    actors=meta.get('runtime_actors',[])
+    if len(actors)>MAX_MOVING_ACTORS:
+        raise ValueError('Near motion terrain bounded to eight actors')
+    if len({a['unique_id'] for a in actors})!=len(actors):
+        raise ValueError('Duplicate actor UID')
+    return actors
+
 
 def moving_actors(meta):
     return [a for a in meta.get('runtime_actors',[]) if a.get('motion') not in ('static','standing')]
@@ -123,7 +137,7 @@ def prepare(source,terrain,reference,output,additional_terrain=None):
     old=m['scenes'][0];scene=gen.geo.load_json(Path(old['scenario']));meta=gen.geo.load_json(Path(old['metadata']))
     roots=[]
     terrain_sessions=[terrain]+list(additional_terrain or [])
-    if len(terrain_sessions)>4:raise ValueError('Motion terrain witnesses bounded to four sessions')
+    if len(terrain_sessions)>MAX_TERRAIN_SESSIONS:raise ValueError('Motion terrain witnesses bounded to nine sessions')
     for session in terrain_sessions+[reference]:
         if not gen.geo.load_json(session/'shutdown_safety.json').get('park_verified'):raise ValueError('Unsafe calibration exit')
         ledger=[__import__('json').loads(l) for l in (session/'ledger.jsonl').read_text().splitlines() if l]
@@ -149,8 +163,8 @@ def prepare(source,terrain,reference,output,additional_terrain=None):
     files.extend(dict(path=str(p.resolve()),sha256=sha256(p)) for p in
         (ref/'metadata.json',ref/'telemetry.json',boxfile))
     refs=[]
-    for record in moving_actors(meta):
-        uid=record['unique_id'];path=record['motion_path'];target=path['target_position'];corners=[]
+    for record in meta.get('runtime_actors',[]):
+        uid=record['unique_id'];path=record.get('motion_path');target=path['target_position'] if path else record['position'];corners=[]
         for box in boxes:
             if box['unique_id']!=uid:continue
             signs=np.array([[x,y,z] for x in (-1,1) for y in (-1,1) for z in (-1,1)])
@@ -162,6 +176,17 @@ def prepare(source,terrain,reference,output,additional_terrain=None):
         if plane is None or not all(supported(plane,c[:2]) for c in cs):raise ValueError('Static pivot terrain unsupported')
         gap=float(np.min(cs[:,2]-[plane_height(plane,c[:2]) for c in cs]))
         if not -.30<=gap<=.75:raise ValueError('Static placement too far from ground; review')
+        refs.append(dict(uid=uid,plane_world=plane,probe_capture=str(empty),
+            probe_captures=[str(p) for p in empty_roots],MR_heading_correction_deg=-1.347))
+        if not path:
+            # Leave already-grounded static payloads untouched. When the same
+            # target reference measures an elevated OBB, correct input Z only;
+            # the subsequent real capture must still pass all ground/contact gates.
+            if gap>.15:
+                target['z']-=gap+.03
+                actor=next(a for a in scene[record['source_list']] if a['UNIQUEID']==uid)
+                gen.geo.set_actor_world_position(actor,target,float(actor['rot']['yaw']))
+            continue
         # Preserve asset-specific pivot height. OBB includes margins; no universal z=ground rule.
         pivot_offset=target['z']-plane_height(plane,[target['x'],target['y']])-max(0.,gap+.03)
         samples,yaw,direction_change=supported_motion_direction(cloud,path,record,meta)
@@ -178,8 +203,6 @@ def prepare(source,terrain,reference,output,additional_terrain=None):
             terrain_selected_direction_change_deg=direction_change,
             limitation='LiDAR local plane + static annotation witness; not continuous mesh contact proof. Capture audit required.'))
         record['position']=copy.deepcopy(points[0])
-        refs.append(dict(uid=uid,plane_world=plane,probe_capture=str(empty),
-            probe_captures=[str(p) for p in empty_roots],MR_heading_correction_deg=-1.347))
     meta['ground_probe_references']=refs
     meta['ground_support_check']=dict(enabled=True,max_range_m=20.,maximum_gap_m=.15,
         required_uids=[a['unique_id'] for a in meta['runtime_actors']],

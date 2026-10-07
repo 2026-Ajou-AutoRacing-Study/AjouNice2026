@@ -328,6 +328,17 @@ def validate_natural_path_roi(points,target,center,ego,road_yaw):
             raise ValueError('Natural geometric-center path leaves input ROI')
 
 
+def population_appearance(asset,requested,row,index,active_count,config,policy):
+    motion,decision=appearance_motion(asset,requested,policy)
+    maximum=config['capture'].get('generic_max_animated_actors')
+    if maximum is not None and not 1<=maximum<=8:
+        raise ValueError('Generic animated population limit must be 1–8')
+    if (maximum is not None and index>0 and not row.get('mission') and active_count>=maximum
+            and motion not in ('static','standing')):
+        return 'standing','generic-concurrent-motion-cap-standing'
+    return motion,decision
+
+
 def natural_target_path(pose,center,ego,bounds,motion,asset,budget=9.,direction=None):
     """Target is the quota position; departure is backwards at natural appearance speed."""
     if not 6.<=budget<=30.:raise ValueError('Natural target setup budget out of bounds')
@@ -510,7 +521,9 @@ def build(row,config,ctx,attempt=0):
             selected_pool=next(k for k in (poolkey,'vehicle','obstacle','person') if asset in ctx['pools'][k])
         actor_motion=row['motion'] if selected_pool in ('person','animal','pet_person','stroller','rider') else 'static'
         requested_motion=actor_motion
-        actor_motion,motion_decision=appearance_motion(asset,actor_motion,ctx.get('appearance_policy',{}) if config['capture'].get('asset_appearance_policy',False) else {})
+        actor_motion,motion_decision=population_appearance(asset,actor_motion,row,i,
+            sum(a['motion'] not in ('static','standing') for a in actor_records),config,
+            ctx.get('appearance_policy',{}) if config['capture'].get('asset_appearance_policy',False) else {})
         size,off,known=geometry(asset,ctx)
         lower,upper=row['distance_bounds']
         if i: lower,upper=6.,45.

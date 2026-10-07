@@ -15,6 +15,20 @@ def post_load_topics_ready(state, actors, load_time, now):
     return expected<=seen
 
 
+def deferred_static_secondary(state,actors,load_time,now):
+    """Fresh transport plus present primary; missing static secondary is review,
+    not a transport outage. Never defer a missing primary or animated actor.
+    The subsequent capture still requires Park/contact/pose and presence audits.
+    """
+    if not actors or not post_load_topics_ready(state,[],load_time,now):return []
+    seen={a['unique_id'] for k in ('npc_list','pedestrian_list','obstacle_list')
+          for a in (state.get('objects') or {}).get(k,[])}
+    if actors[0]['source_list']!='aiPedstrianList' and actors[0]['unique_id'] not in seen:return []
+    missing=[a for a in actors if a['source_list']!='aiPedstrianList' and a['unique_id'] not in seen]
+    if not missing or any(a.get('motion') not in ('static','standing') for a in missing):return []
+    return [a['unique_id'] for a in missing]
+
+
 def preflight_stationary(samples, now, window=.30):
     """Require recent finite, near-zero-speed and stable-pose receive evidence."""
     rows=[r for r in samples if now-window-.10 <= r['t'] <= now]

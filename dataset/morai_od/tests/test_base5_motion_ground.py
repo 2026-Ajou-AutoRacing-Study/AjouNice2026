@@ -36,8 +36,62 @@ class MotionGroundTest(unittest.TestCase):
             ground.atomic_json(root/'scene.json',{})
             ground.atomic_json(root/'meta.json',{})
             ground.atomic_json(root/'manifest.json',dict(scenes=[dict(id='a',metadata=str(root/'meta.json'),scenario=str(root/'scene.json'))]))
-            with self.assertRaisesRegex(ValueError,'four sessions'):
-                ground.prepare(root/'manifest.json',root/'t',root/'r',root/'out',additional_terrain=[root/'t']*4)
+            with self.assertRaisesRegex(ValueError,'nine sessions'):
+                ground.prepare(root/'manifest.json',root/'t',root/'r',root/'out',additional_terrain=[root/'t']*9)
+
+    def test_near_probes_support_population_of_eight_without_waiving_ground(self):
+        actors=[dict(unique_id=i,motion='walking') for i in range(8)]
+        self.assertEqual(ground.near_probe_actors(dict(runtime_actors=actors)),actors)
+        with self.assertRaisesRegex(ValueError,'eight actors'):
+            ground.near_probe_actors(dict(runtime_actors=actors+[dict(unique_id=9,motion='walking')]))
+        with self.assertRaisesRegex(ValueError,'Duplicate'):
+            ground.near_probe_actors(dict(runtime_actors=actors[:1]*2))
+
+    def test_mixed_motion_near_probes_include_static_secondaries(self):
+        actors=[dict(unique_id=1,motion='walking'),dict(unique_id=2,motion='static')]
+        self.assertEqual(ground.near_probe_actors(dict(runtime_actors=actors)),actors)
+
+    def test_mixed_preparation_measures_static_secondary_and_changes_input_only(self):
+        for static_z in (.5,1.):
+            with self.subTest(static_z=static_z),tempfile.TemporaryDirectory() as d:
+                root=Path(d);target=dict(x=8.,y=0.,z=.5)
+                path=dict(target_position=target,points=[dict(x=6.,y=0.,z=.5),dict(x=10.,y=0.,z=.5)])
+                records=[dict(unique_id=1,name='Woman2',source_list='pedestrianList',motion='walking',
+                    position=copy.deepcopy(path['points'][0]),motion_path=path),
+                    dict(unique_id=2,name='CargoBox',source_list='objectList',motion='static',
+                        position=dict(x=12.,y=0.,z=static_z))]
+                scene=dict(pedestrianList=[dict(UNIQUEID=1,rot=gen.geo.formatted_rotation(0.))],
+                    objectList=[dict(UNIQUEID=2,rot=gen.geo.formatted_rotation(0.))],
+                    waypointDataList=[dict(pathName='PedPath - 1')])
+                ground.atomic_json(root/'scene.json',scene)
+                ground.atomic_json(root/'meta.json',dict(runtime_actors=records,spec={}))
+                row=dict(id='a',metadata=str(root/'meta.json'),scenario=str(root/'scene.json'),
+                    scenario_sha256=ground.sha256(root/'scene.json'))
+                ground.atomic_json(root/'manifest.json',dict(scenes=[row]))
+                for name in ('terrain','reference'):
+                    session=root/name;capture=session/'capture';(capture/'LIDAR_5').mkdir(parents=True)
+                    ground.atomic_json(session/'shutdown_safety.json',dict(park_verified=True))
+                    (session/'ledger.jsonl').write_text(__import__('json').dumps(dict(status='review',capture_root=str(capture)))+'\n')
+                    ground.atomic_json(capture/'audit.json',dict(review_reasons=['actor_ground_plane_unverified']))
+                    metadata=dict(calibration_only=True,spec={},lidar_to_ego=np.eye(4).tolist())
+                    if name=='terrain':metadata.update(runtime_actors=[],ground_probe_source=dict(scenario_sha256=row['scenario_sha256']))
+                    ground.atomic_json(capture/'metadata.json',metadata)
+                    ground.atomic_json(capture/'telemetry.json',dict(ego_before=dict(x=0.,y=0.,z=0.,heading=1.347)))
+                    (capture/'LIDAR_5/test_Intensity.bin').write_bytes(b'raw')
+                    (capture/'LIDAR_5/test_Instance.txt').write_text('raw annotation')
+                x,y=np.meshgrid(np.linspace(0,20,61),np.linspace(-5,5,41));cloud=np.c_[x.ravel(),y.ravel(),np.zeros(x.size)]
+                boxes=[dict(unique_id=uid,center=np.array([x,0.,z]),size=np.ones(3),rotation_rpy=np.zeros(3))
+                    for uid,x,z in ((1,8.,.5),(2,12.,static_z))]
+                samples=[dict(x=6.,y=0.,z=0.),dict(x=10.,y=0.,z=0.)]
+                with patch.object(ground,'world_cloud',return_value=cloud),patch.object(ground,'parse_instances',return_value=boxes), \
+                     patch.object(ground,'supported_motion_direction',return_value=(samples,0.,0)):
+                    out=ground.prepare(root/'manifest.json',root/'terrain',root/'reference',root/'out')
+                output=gen.geo.load_json(Path(gen.geo.load_json(out)['scenes'][0]['metadata']))
+                self.assertEqual([r['uid'] for r in output['ground_probe_references']],[1,2])
+                self.assertEqual(output['ground_support_check']['required_uids'],[1,2])
+                self.assertAlmostEqual(output['runtime_actors'][1]['position']['z'],.5 if static_z==.5 else .47)
+                self.assertEqual(gen.geo.load_json(root/'meta.json')['runtime_actors'][1]['position']['z'],static_z)
+                self.assertEqual((root/'reference/capture/LIDAR_5/test_Instance.txt').read_text(),'raw annotation')
 
     def test_collision_skip_requires_matching_hashed_peer_evidence(self):
         from base5_capture_safety import validate_collision_failure

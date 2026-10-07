@@ -77,7 +77,7 @@ def run_child(manifest, root, stop, heartbeat):
             100*len(json.loads(manifest.read_text())['scenes']))
 
 
-def recover(source,index,output,stop):
+def recover(source,index,output,stop,heartbeat=lambda root:None):
     """Use an independently supervised recovery process, including parent Ctrl-C."""
     output.mkdir(parents=True,exist_ok=True)
     command=[sys.executable,str(Path(__file__).with_name('run_base5_capture_campaign.py')),
@@ -86,7 +86,7 @@ def recover(source,index,output,stop):
     if seed.exists():command.extend(['--seed-capture',str(seed)])
     with (output.parent/(output.name+'.log')).open('a') as log:
         child=subprocess.Popen(command,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
-        return wait_child(child,output,stop,lambda root:None,800)
+        return wait_child(child,output,stop,heartbeat,800)
 
 
 def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chunks=0,bulk=False):
@@ -165,7 +165,7 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                             json.loads((recovery/'status.json').read_text())['stage'] not in completed_stages):
                         raise ValueError('Completed ground preparation evidence missing; no recapture')
                     if stop.exists():save('stopped');return 0
-                    if recover(source,index,recovery,stop):raise RuntimeError('Ground-prepared isolated capture halted; no next load')
+                    if recover(source,index,recovery,stop,lambda child:save('running',child=child)):raise RuntimeError('Ground-prepared isolated capture halted; no next load')
                     accepted=load_ledger(recovery/'selected_ledger.jsonl')
                     if accepted:selected[cell['id']]=accepted[0]
                     else:deficits[cell['id']]=dict(id=cell['id'],index=index,reasons=json.loads((recovery/'quota.json').read_text())['cells'])
@@ -194,7 +194,7 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                         seed=recovery.parent/(recovery.name+'_seed.json')
                         seed.parent.mkdir(parents=True,exist_ok=True)
                         if not seed.exists():atomic_json(seed,dict(capture_root=str(root.resolve()),manifest=str(manifest.resolve()),id=cell['id']))
-                        code=recover(source,index,recovery,stop)
+                        code=recover(source,index,recovery,stop,lambda child:save('running',child=child))
                         if code:raise RuntimeError('Single-cell recovery halted; no next load')
                         accepted=load_ledger(recovery/'selected_ledger.jsonl')
                         if stop.exists():save('stopped');return 0
@@ -213,7 +213,7 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                         if verify_only and (not (recovery/'status.json').exists() or
                                 json.loads((recovery/'status.json').read_text())['stage'] not in completed_stages):
                             raise ValueError('Completed tail evidence missing; no recapture')
-                        code=recover(source,index,recovery,stop)
+                        code=recover(source,index,recovery,stop,lambda child:save('running',child=child))
                         if code:raise RuntimeError('Post-miss isolated capture halted; no next load')
                         accepted=load_ledger(recovery/'selected_ledger.jsonl')
                         if accepted:selected[cell['id']]=accepted[0]

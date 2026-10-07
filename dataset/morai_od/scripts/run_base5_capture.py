@@ -14,7 +14,7 @@ import uuid
 import fcntl
 
 from base5_capture_audit import audit_capture
-from base5_capture_timing import StageTiming, preflight_stationary, post_load_topics_ready
+from base5_capture_timing import StageTiming, preflight_stationary, post_load_topics_ready, deferred_static_secondary
 from base5_event_cmd import BoundedServiceCaller
 from base5_capture_safety import prepare_session,archive_incomplete,collision_window,scene_collision_epoch,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review,SceneCollisionError
 
@@ -245,7 +245,10 @@ def main():
                         with lock:ready=post_load_topics_ready(state,meta['runtime_actors'],load_time,time.monotonic())
                         if ready:break
                         time.sleep(.025)
-                    else:raise RuntimeError('Post-load Ego/Object/Collision witnesses unverified')
+                    else:
+                        with lock:deferred=deferred_static_secondary(state,meta['runtime_actors'],load_time,time.monotonic())
+                        if not deferred:raise RuntimeError('Post-load Ego/Object/Collision witnesses unverified')
+                        meta['post_load_missing_static_secondary_uids']=deferred
                 pose_confirmed=time.monotonic()
                 timing.mark('pose_confirmation')
                 rospy.wait_for_service('/Service_MoraiEventCmd',timeout=4.)
@@ -480,6 +483,8 @@ def main():
                 for evidence in motion_actors:audit['review_reasons'].extend(evidence['review_reasons'])
                 runtime_missing,annotation_only=runtime_presence_review(meta,objects_before,objects_after,audit['components'])
                 if runtime_missing:audit['review_reasons'].append('missing_runtime_actor')
+                if meta.get('post_load_missing_static_secondary_uids'):
+                    audit['review_reasons'].append('post_load_missing_static_secondary')
                 audit['runtime_missing_uids']=runtime_missing
                 audit['runtime_annotation_only_uids']=annotation_only
                 audit['capture_safety']=meta['capture_safety']

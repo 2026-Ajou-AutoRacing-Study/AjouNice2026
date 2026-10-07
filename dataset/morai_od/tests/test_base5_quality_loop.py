@@ -100,5 +100,16 @@ class QualityLoopTest(unittest.TestCase):
             self.assertEqual(sum(r['splits'].values()),0)
             self.assertEqual(r['excluded_review_scenes'],['probe'])
 
+    def test_accepted_label_cannot_override_audit_review(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);cap=root/'capture';cap.mkdir()
+            (cap/'metadata.json').write_text(json.dumps(dict(runtime_actors=[])))
+            (cap/'audit.json').write_text(json.dumps(dict(review_reasons=['ground_support_missing'])))
+            ledger=root/'ledger.jsonl';ledger.write_text(json.dumps(dict(id='bad',status='accepted_candidate',capture_root=str(cap)))+'\n')
+            sensor=Path(__file__).resolve().parents[3]/'configs/sensors/Sensor_competition_local.json'
+            r=convert(ledger,root/'info',sensor)
+            self.assertEqual(sum(r['splits'].values()),0)
+            self.assertEqual(r['excluded_review_scenes'],['bad'])
+
 
 if __name__=='__main__':unittest.main()

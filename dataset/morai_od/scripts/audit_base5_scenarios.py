@@ -89,7 +89,8 @@ def audit(manifest_path):
                 errors.append((entry['id'],'official competition-excluded asset'))
             if m['config']['capture'].get('asset_appearance_policy',False):
                 policy_asset=dict(inventory[a['data_id']],name=a['name'],source_list=a['source_list'])
-                expected_motion,decision=gen.appearance_motion(policy_asset,a['requested_motion'],appearance)
+                expected_motion,decision=gen.population_appearance(policy_asset,a['requested_motion'],r,i,
+                    sum(p['motion'] not in ('static','standing') for p in meta['runtime_actors'][:i]),m['config'],appearance)
                 if a['motion']!=expected_motion or a['appearance_motion_decision']!=decision:
                     errors.append((entry['id'],'asset appearance policy mismatch'))
             motion_counts[str((a['name'],a['motion']))]+=1

@@ -134,7 +134,13 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
                 target=cell/f'round_{ordinal}';report=target/'report.json'
                 if ordinal:
                     replacement=cell/f'replacement_{ordinal}'/'manifest.json'
-                    if not replacement.exists():loop.replacement(manifest,replacement.parent)
+                    if not replacement.exists():
+                        needs_ground=any(isinstance(r,dict) and
+                            ('motion_ground_preparation_unavailable' in r.get('reasons',[])
+                            or 'actor_ground_plane_unverified' in r.get('reasons',[]))
+                            for r in (outcome or {}).get('unresolved',[]))
+                        if needs_ground:loop.replacement(manifest,replacement.parent,require_ground_observable=True)
+                        else:loop.replacement(manifest,replacement.parent)
                     manifest=replacement
                 if report.exists() and loop.gen.geo.load_json(report)['stage']=='complete':
                     outcome=loop.gen.geo.load_json(report);validate_selected(outcome)

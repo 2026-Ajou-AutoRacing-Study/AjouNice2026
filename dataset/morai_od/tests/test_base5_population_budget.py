@@ -73,5 +73,15 @@ class PopulationTests(unittest.TestCase):
         self.assertTrue(all(r['population_mode']=='mission_situation' and 'population_budget_bounds' not in r for r in missions))
         self.assertEqual(Counter(r['actors'] for r in missions if r['family']=='obstacle'),{1:450,2:120,3:30})
 
+    def test_motion_cap_preserves_primary_and_mission_appearance(self):
+        asset=dict(name='Woman2',source_list='pedestrianList',ontology_class='Pedestrian',semantic_class='pedestrian')
+        config=dict(capture=dict(generic_max_animated_actors=2))
+        self.assertEqual(gen.population_appearance(asset,'running',{},0,2,config,{})[0],'running')
+        self.assertEqual(gen.population_appearance(asset,'running',{},1,1,config,{})[0],'running')
+        self.assertEqual(gen.population_appearance(asset,'running',{},2,2,config,{}),
+            ('standing','generic-concurrent-motion-cap-standing'))
+        self.assertEqual(gen.population_appearance(asset,'running',dict(mission=True),2,2,config,{})[0],'running')
+        self.assertEqual(gen.population_appearance(asset,'running',{},2,2,dict(capture={}),{})[0],'running')
+
 
 if __name__=='__main__':unittest.main()

@@ -42,6 +42,8 @@ def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=Non
         if meta.get('sensor_source_sha256') not in (None,calibration['source_sha256']):
             raise ValueError('Capture/conversion sensor calibration checksum mismatch '+scene_id)
         audit=json.loads(Path(entry.get('audit_path',root/'audit.json')).read_text())
+        if audit.get('review_reasons'):
+            review.append(scene_id);continue
         if meta['runtime_actors']:
             primary_uid=meta['runtime_actors'][0]['unique_id']
             if not any(c['parent_uid']==primary_uid and c['positive_'+policy] and in_roi(c['center_lidar_m'],roi) for c in audit['components']):

@@ -9,7 +9,7 @@ from PIL import Image
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from base5_capture_timing import StageTiming, preflight_stationary, post_load_topics_ready
+from base5_capture_timing import StageTiming, preflight_stationary, post_load_topics_ready, deferred_static_secondary
 from base5_capture_audit import camera_evidence
 
 
@@ -49,6 +49,16 @@ class TimingTest(unittest.TestCase):
         self.assertEqual(result['total_sec'], 4.)
         self.assertEqual(result['stages_sec'], dict(preflight=2., capture=2.))
         self.assertEqual(sum(result['stages_sec'].values()), result['total_sec'])
+
+    def test_missing_secondary_is_only_deferred_with_fresh_transport_and_static_actor(self):
+        actors=[dict(unique_id=1,source_list='vehicleList',motion='static'),
+                dict(unique_id=2,source_list='pedestrianList',motion='standing')]
+        state=dict(ego_t=1.7,object_t=1.7,collision_t=1.7,objects=dict(npc_list=[dict(unique_id=1)]))
+        self.assertEqual(deferred_static_secondary(state,actors,1.,1.8),[2])
+        self.assertEqual(deferred_static_secondary(dict(state,collision_t=0),actors,1.,1.8),[])
+        self.assertEqual(deferred_static_secondary(dict(state,objects={}),actors,1.,1.8),[])
+        actors[1]['motion']='walking'
+        self.assertEqual(deferred_static_secondary(state,actors,1.,1.8),[])
 
     def test_stationary_witness_rejects_stale_short_moving_or_unstable(self):
         rows=[dict(t=t,x=0.,y=0.,z=1.,vx=0.,vy=0.) for t in (.61,.71,.81,.91,1.)]

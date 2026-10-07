@@ -342,6 +342,7 @@
     "dynamic_path_policy": "natural-target-v1",
     "natural_setup_budget_sec": 9,
     "asset_appearance_policy": true,
+    "generic_max_animated_actors": 2,
     "ground_support_check": true,
     "one_way_setup_budget_sec": 6,
     "one_way_appearance_profile": true

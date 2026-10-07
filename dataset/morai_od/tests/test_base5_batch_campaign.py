@@ -15,7 +15,7 @@ class BatchCampaignTest(unittest.TestCase):
             root.mkdir(exist_ok=True);batch.atomic_json(root/'session_contract.json',{})
             records[str(root)]=[dict(id='a',status='failed',failure_kind='physical_collision')]
             return 1
-        def recovery(source,index,out,stop):
+        def recovery(source,index,out,stop,heartbeat):
             self.assertEqual(index,1)
             out.mkdir(parents=True,exist_ok=True);batch.atomic_json(out/'status.json',dict(stage='complete'))
             (out/'selected_ledger.jsonl').write_text(json.dumps(dict(id='b',source_cell_id='b',status='accepted_candidate'))+'\n')
@@ -59,8 +59,10 @@ class BatchCampaignTest(unittest.TestCase):
             calls.append(1);root.mkdir(exist_ok=True);batch.atomic_json(root/'session_contract.json',{})
             records[str(root)]=[dict(id='a',status='review')] if len(calls)==1 else [dict(id='a',status='review'),dict(id='b',status='accepted_candidate')]
             return 1 if len(calls)==1 else 0
-        def recovery(source,index,out,stop):
+        def recovery(source,index,out,stop,heartbeat):
             out.mkdir(parents=True,exist_ok=True)
+            heartbeat(out)
+            self.assertEqual(json.loads((out.parents[2]/'status.json').read_text())['current'],str(out))
             (out/'selected_ledger.jsonl').write_text(json.dumps(dict(id='a_replace',source_cell_id='a',status='accepted_candidate'))+'\n')
             return 0
         with tempfile.TemporaryDirectory() as d:
@@ -95,7 +97,7 @@ class BatchCampaignTest(unittest.TestCase):
         def child(manifest,root,stop,heartbeat):
             root.mkdir(exist_ok=True);batch.atomic_json(root/'session_contract.json',{})
             records[str(root)]=[dict(id='a',status='failed')];return 1
-        def recovery(source,index,out,stop):
+        def recovery(source,index,out,stop,heartbeat):
             out.mkdir(parents=True,exist_ok=True)
             (out/'selected_ledger.jsonl').write_text(json.dumps(dict(id='ab'[index],source_cell_id='ab'[index],status='accepted_candidate'))+'\n')
             return 0

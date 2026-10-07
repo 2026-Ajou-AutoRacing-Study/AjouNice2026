@@ -56,6 +56,8 @@ def replacement(manifest,output,require_ground_observable=False):
                 for actor in new['runtime_actors']:
                     if actor['motion'] in ('static','standing'):
                         target_probe_pose(ctx['links'],actor,maximum_road_distance=12.)
+                    else:
+                        target_probe_pose(ctx['links'],dict(actor,position=actor['motion_path']['target_position']))
             except ValueError:continue
         break
     else:raise ValueError('Same-cell/split replacement unavailable')
@@ -230,22 +232,34 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                         manifest=prepared(base/'motion_ground_deck'/'manifest.json',
                             lambda:motion_ground.prepare(manifest,base/'motion_terrain',base/'motion_static',base/'motion_ground_deck'))
                     except ValueError as exc:
-                        if str(exc)!='Static pivot terrain unsupported':
+                        if str(exc) not in ('Static pivot terrain unsupported',
+                                'No independently supported safe motion direction in same target cell'):
                             unresolved.append(dict(cell=cell,reasons=['motion_ground_preparation_unavailable'],error=str(exc)))
                             save('running');continue
                         # Sparse original-view terrain is not a bad placement certificate.
                         # Add bounded empty near-target observations; never extrapolate/waive support.
                         additional=[];contact=None
                         try:
-                            movers=motion_ground.moving_actors(metadata)
-                            if len(movers)>3:raise ValueError('Near motion terrain bounded to three actors')
-                            for n,actor in enumerate(movers):
+                            targets=motion_ground.near_probe_actors(metadata)
+                            for n,actor in enumerate(targets):
                                 near_deck=base/f'motion_near_terrain_deck_{n}';near_root=base/f'motion_near_terrain_{n}'
                                 probes=prepared(near_deck/'manifest.json',lambda actor=actor:
-                                    empty_probe(manifest,[0],near_deck,target_uid=actor['unique_id'],target_motion=True))
+                                    empty_probe(manifest,[0],near_deck,target_uid=actor['unique_id'],
+                                        target_motion=bool(actor.get('motion_path'))))
                                 witness=capture(probes,near_root,cell,'motion_near_empty_terrain')
                                 if is_collision_failure(witness):contact=witness;break
                                 additional.append(near_root)
+                                # Stop calibration as soon as every actor/path is
+                                # independently supported, not after probing all eight.
+                                try:
+                                    prepared(base/'motion_ground_deck'/'manifest.json',lambda:
+                                        motion_ground.prepare(manifest,base/'motion_terrain',base/'motion_static',
+                                            base/'motion_ground_deck',additional_terrain=additional))
+                                    break
+                                except ValueError as pending:
+                                    if str(pending) not in ('Static pivot terrain unsupported',
+                                            'No independently supported safe motion direction in same target cell'):
+                                        raise
                             if contact:
                                 unresolved.append(dict(cell=cell,reasons=['physical_collision'],evidence=contact))
                                 save('running');continue
@@ -274,9 +288,10 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                     unresolved.append(dict(cell=cell,reasons=result['audit']['review_reasons'],
                         next_policy='same-quota replacement with fresh motion calibration'))
                     save('running');continue
-            # Three actor witnesses, measured height, visibility replacement,
-            # and its fresh witness. Still bounded; every raw failure survives.
-            for ordinal in range(6):
+            # Up to eight actor witnesses, plus bounded height/replacement work.
+            # A larger population must not exhaust the old three-actor budget.
+            # Every actual terrain/contact/visibility gate remains unchanged.
+            for ordinal in range(2*motion_ground.MAX_MOVING_ACTORS+2):
                 if result['status']=='accepted_candidate':break
                 reasons=set(result.get('audit',{}).get('review_reasons',[]))
                 if is_collision_failure(result):break
